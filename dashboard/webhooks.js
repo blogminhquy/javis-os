@@ -113,9 +113,39 @@
     }
     return out;
   }
+  // M5: how the owner is told, limits, AI budget, retention.
+  var NOTIFY = ["all", "errors_only", "daily_digest", "none"];
+  var NOTIFY_KEY = { all: "wh.notify_all", errors_only: "wh.notify_errors_only", daily_digest: "wh.notify_daily_digest",
+    none: "wh.notify_none" };
+  function settingsHtml(h) {
+    var lim = h.limits || {};
+    var num = function (cls, label, v, min, max) {
+      return '<label style="display:inline-block;margin:4px 12px 0 0">' + esc(tw(label)) + ' <input class="' + cls
+        + '" type="number" inputmode="numeric" min="' + min + '" max="' + max + '" value="' + esc(v == null ? "" : v)
+        + '" style="width:96px;font-size:16px"></label>';
+    };
+    return '<div class="wh-settings" style="margin-top:6px">'
+      + '<label style="display:block">' + esc(tw("wh.notify_label")) + ' <select class="whNotify loop-sel" style="font-size:16px">'
+      + NOTIFY.map(function (m) { return '<option value="' + m + '"' + ((h.notify || "all") === m ? " selected" : "") + ">"
+        + esc(tw(NOTIFY_KEY[m])) + "</option>"; }).join("") + "</select></label>"
+      + num("whPerHour", "wh.lim_hour", lim.per_hour, 1, 600) + num("whPerDay", "wh.lim_day", lim.per_day, 0, 20000)
+      + num("whBacklog", "wh.lim_backlog", lim.backlog, 1, 50) + num("whAiDay", "wh.ai_day", h.ai_per_day, 0, 5000)
+      + num("whKeep", "wh.keep_days", h.retention_days, 1, 365)
+      + "</div>";
+  }
+  function readSettings(host) {
+    var n = function (sel) { var v = host.querySelector(sel).value; return v === "" ? null : parseInt(v, 10); };
+    var lim = {};
+    [["per_hour", ".whPerHour"], ["per_day", ".whPerDay"], ["backlog", ".whBacklog"]].forEach(function (x) {
+      var v = n(x[1]); if (v !== null && !isNaN(v)) lim[x[0]] = v;
+    });
+    return { notify: host.querySelector(".whNotify").value, limits: lim, ai_per_day: n(".whAiDay"), retention_days: n(".whKeep") };
+  }
+
   function rulesPanelHtml(h) {
     var rules = h.rules && Object.keys(h.rules).length ? JSON.stringify(h.rules, null, 2) : "";
     return '<div class="wh-rules" style="margin-top:8px;padding:10px;border:1px solid var(--hairline);border-radius:8px">'
+      + settingsHtml(h)
       + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.rules_hint")) + "</div>"
       + '<label style="display:block;margin-top:6px">' + esc(tw("wh.rules_label")) + "</label>"
       + '<textarea class="whRulesTxt" spellcheck="false" style="width:100%;min-height:140px;font-family:monospace">' + esc(rules) + "</textarea>"
@@ -197,7 +227,16 @@
       + (needYou ? '<div class="wh-need" style="font-size:13px;color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.unknown_hint")) + "</div>" : "")
       + (hist ? '<details class="whLog" style="margin-top:4px"' + (needYou ? " open" : "") + '><summary style="font-size:12px;cursor:pointer">'
         + esc(tw("wh.history")) + '</summary><div class="whLogRows">' + hist + "</div>"
-        + '<button class="s-btn-ghost whMore" style="font-size:12px">' + esc(tw("wh.more")) + "</button></details>" : "")
+        + '<button class="s-btn-ghost whMore" style="font-size:12px">' + esc(tw("wh.more")) + "</button>"
+        + '<select class="whFilter loop-sel" style="font-size:16px;margin-left:6px">'
+        + [["", "wh.f_all"], ["needs_you", "wh.f_needs_you"], ["failed", "wh.f_failed"], ["ran", "wh.f_ran"], ["filtered", "wh.f_filtered"]]
+          .map(function (x) { return '<option value="' + x[0] + '">' + esc(tw(x[1])) + "</option>"; }).join("") + "</select>"
+        + ' <a class="s-btn-ghost" href="/webhooks/events/export?hook=' + encodeURIComponent(h.id) + '&format=csv" download>'
+        + esc(tw("wh.export")) + "</a></details>" : "")
+      + ((h.breakers || []).filter(function (b) { return b.open_until > Date.now() / 1000; }).length
+        ? '<div class="wh-need" style="color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.breaker_open", { names:
+          (h.breakers || []).filter(function (b) { return b.open_until > Date.now() / 1000; }).map(function (b) { return b.action; }).join(", ") }))
+          + "</div>" : "")
       + '<div class="wf-actions" style="margin-top:8px">'
       + '<button class="s-btn-ghost whCopy">' + esc(tw("wh.copy_url")) + "</button>"
       + '<button class="s-btn-ghost whTest">' + esc(tw("wh.test")) + "</button>"
@@ -323,6 +362,7 @@
     // Retry / Mark done on an event, and "older events" paging through /webhooks/events (keyset cursor).
     function wireEvents(div, h) {
       var cursor = "", rowsBox = div.querySelector(".whLogRows"), more = div.querySelector(".whMore");
+      var filter = div.querySelector(".whFilter"), status = "";
       function bindRows(scope) {
         scope.querySelectorAll(".whEvRetry").forEach(function (b) {
           b.onclick = async function () {
@@ -357,7 +397,8 @@
       bindRows(div);
       if (!more || !rowsBox) return;
       more.onclick = async function () {
-        var url = "/webhooks/events?hook=" + encodeURIComponent(h.id) + "&limit=20" + (cursor ? "&before=" + encodeURIComponent(cursor) : "");
+        var url = "/webhooks/events?hook=" + encodeURIComponent(h.id) + "&limit=20" + (status ? "&status=" + encodeURIComponent(status) : "")
+          + (cursor ? "&before=" + encodeURIComponent(cursor) : "");
         var d = await api(url);
         if (!d || !d.ok) { more.textContent = (d && d.error) || tw("wh.save_err"); return; }
         if (!cursor) rowsBox.innerHTML = "";
@@ -366,7 +407,10 @@
         bindRows(tmp);
         while (tmp.firstChild) rowsBox.appendChild(tmp.firstChild);
         cursor = d.next || "";
-        if (!cursor) more.style.display = "none";
+        more.style.display = cursor ? "" : "none";
+      };
+      if (filter) filter.onchange = function () {
+        status = filter.value; cursor = ""; more.style.display = ""; more.onclick();
       };
     }
 
@@ -417,7 +461,8 @@
             var ra = readActions(host.querySelector(".whActsTxt").value);
             var rv = readRules(host.querySelector(".whVerifyTxt").value);
             if (!rr.ok || !ra.ok || !rv.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
-            var r = await api("/webhooks/update", { id: h.id, rules: rr.rules, actions: ra.actions, verify: rv.rules });
+            var r = await api("/webhooks/update", Object.assign({ id: h.id, rules: rr.rules, actions: ra.actions, verify: rv.rules },
+              readSettings(host)));
             if (!r.ok) { out.innerHTML = simHtml(r); return; }
             out.textContent = tw("wh.rules_saved");
             setTimeout(load, 1200);
@@ -435,7 +480,7 @@
   }
 
   var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
-    simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml,
+    simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml, settingsHtml: settingsHtml,
     testText: testText };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;

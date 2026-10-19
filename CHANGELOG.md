@@ -16,6 +16,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Nút Chi tiết trên từng sự kiện:** xem từng nơi nhận ra sao, bên kia trả lời gì, và vì sao sự kiện bị lọc.
 - **Kiểm chữ ký của Stripe, GitHub, Shopify, Systeme.io hoặc HMAC** trước khi nhận sự kiện. Chữ ký sai thì Javis từ chối và không lưu gì. Lần gửi lại của chính nhà cung cấp được nhận ra là trùng. Cách đọc Systeme.io chưa được thử với tài khoản thật nên được ghi rõ như vậy. POSCake chưa có vì chưa có tài liệu chính thức để làm đúng.
 - **Webhook gọi được tool của Javis** (POS, CRM, lịch...) mà không cần AI, và mặc định chờ bạn bấm Duyệt cho từng sự kiện rồi mới chạy. Duyệt không nâng quyền: tool vẫn chạy đúng mức quyền hiện tại của webhook.
+- **Chọn cách webhook báo cho bạn:** mọi lần chạy, chỉ khi lỗi hoặc cần bạn, tóm tắt mỗi ngày lúc 8 giờ, hoặc không báo. Việc chỉ bạn quyết được (chờ duyệt, không rõ đã xong) vẫn báo ngay.
+- **Giới hạn riêng cho từng webhook:** số sự kiện mỗi giờ, mỗi ngày, số đang chờ, số lượt AI mỗi ngày (hết lượt thì phần AI không chạy, không tốn tiền), và số ngày giữ nhật ký.
+- **Tự tạm ngừng gửi tới nơi nhận đang hỏng:** lỗi 5 lần liền thì Javis ngừng gửi một lúc, báo bạn một lần, rồi tự thử lại.
+- **Nhật ký webhook có bộ lọc** (cần bạn, lỗi, đã chạy, bị lọc) và nút **Xuất CSV** để lưu trữ, file không chứa khoá bí mật.
 ### Bảo mật
 - **Khoá API và khoá ký của webhook được mã hoá trên đĩa**, không còn nằm trần trong file cấu hình, và không bao giờ hiện ra trên giao diện. Có nút đổi khoá mã hoá. Hãy sao lưu file `webhook_keys.json` cùng `webhook_secrets.json`: mất file khoá thì phải nhập lại các khoá API.
 ### Cải thiện

@@ -52,7 +52,7 @@ import uuid
 from pathlib import Path
 from typing import Iterable, Optional
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 RATE_PER_HOUR = 30
 BACKLOG_MAX = 6               # waiting + running per hook (the old RAM queue: 1 running + QUEUE_MAX=5 waiting)
 LEASE_S = 120.0               # a running event's lease; the worker renews it every HEARTBEAT_S
@@ -61,6 +61,7 @@ MAX_AUTO_TRIES = 3            # automatic retries, ONLY for failures before disp
 BACKOFF_S = (5.0, 30.0, 120.0)
 KEEP_DAYS = 30                # finished events kept this long (M5 makes this configurable)
 KEEP_PER_HOOK = 500           # and at most this many finished events per hook
+KEEP_DAYS_MAX = 365           # M5: a hook may keep its log up to this long (retention_days)
 BODY_KEEP_DAYS = 7            # the body of a FINISHED event is emptied after this (the row and its log stay)
 DEDUP_KEEP_DAYS = 7           # idempotency keys outlive their events (Stripe/Shopify retry for up to 72 h)
 DB_MAX_BYTES = 256 * 1024 * 1024   # LIVE data (not free pages, not the WAL) past this: evict, then refuse (503)
@@ -145,7 +146,21 @@ CREATE TABLE IF NOT EXISTS branches(
     approved_at REAL NOT NULL DEFAULT 0,
     PRIMARY KEY(event_id, action_id)
 );
+CREATE TABLE IF NOT EXISTS breakers(
+    hook_id TEXT NOT NULL,
+    action_id TEXT NOT NULL,
+    fails INTEGER NOT NULL DEFAULT 0,
+    open_until REAL NOT NULL DEFAULT 0,
+    opens INTEGER NOT NULL DEFAULT 0,
+    updated_at REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY(hook_id, action_id)
+);
 """
+# M5: circuit breaker of an outside action (per hook and action). BREAKER_FAILS failures in a row open it for
+# BREAKER_COOLDOWN_S, doubling at each reopening up to BREAKER_MAX_S; one success closes it.
+BREAKER_FAILS = 5
+BREAKER_COOLDOWN_S = 600.0
+BREAKER_MAX_S = 3600.0
 # Branch states. pending/retry: may run; running: dispatched, outcome not written; the rest are final for the run.
 BRANCH_FINAL = ("completed", "accepted", "silent", "waiting", "cancelled", "failed", "unknown", "approval")
 BRANCH_OK = ("completed", "accepted", "silent", "cancelled")
@@ -367,15 +382,24 @@ class Store:
                 n_hour = self._db.execute(
                     "SELECT COUNT(*) FROM events WHERE hook_id=? AND received_at>? AND status NOT IN"
                     " ('filtered','invalid','duplicate')", (hid, now - 3600)).fetchone()[0]
-                if n_hour >= RATE_PER_HOUR:
+                lim = hook.get("limits") or {}
+                if n_hour >= int(lim.get("per_hour") or RATE_PER_HOUR):
                     self._db.execute("ROLLBACK")
                     return 429, {"reason": "rate"}
                 backlog = self._db.execute(
                     "SELECT COUNT(*) FROM events WHERE hook_id=? AND status IN ('queued','running')",
                     (hid,)).fetchone()[0]
-                if backlog >= BACKLOG_MAX:
+                if backlog >= int(lim.get("backlog") or BACKLOG_MAX):
                     self._db.execute("ROLLBACK")
                     return 429, {"reason": "backlog"}
+                per_day = int(lim.get("per_day") or 0)
+                if per_day:
+                    n_day = self._db.execute(
+                        "SELECT COUNT(*) FROM events WHERE hook_id=? AND received_at>? AND status NOT IN"
+                        " ('filtered','invalid','duplicate')", (hid, now - 86400)).fetchone()[0]
+                    if n_day >= per_day:
+                        self._db.execute("ROLLBACK")
+                        return 429, {"reason": "day"}
                 self._insert_event(eid, hid, brain, now, content_type, body, key, snap, source, "queued", pre,
                                    bk["scope"] + "/" + bk["key"] if bk else "", float(bk["ttl_s"]) if bk else 0.0)
                 if bk:
@@ -610,6 +634,98 @@ class Store:
                 (status, str(detail or "")[:1000], _dumps(receipt or {}, 4000),
                  str(result or "")[:4000], float(next_at or 0), 0 if status == "retry" else now, eid, aid))
         return True
+
+    def _kept_longer(self, eid: str, longer: dict, now: float) -> bool:
+        if not longer:
+            return False
+        r = self._db.execute("SELECT hook_id, finished_at FROM events WHERE id=?", (eid,)).fetchone()
+        return bool(r) and r["hook_id"] in longer and r["finished_at"] >= now - longer[r["hook_id"]] * 86400
+
+    # ── M5: breakers, AI budget, meta, export ──
+    def breaker_open_until(self, hook_id: str, action_id: str, now: Optional[float] = None) -> float:
+        now = time.time() if now is None else now
+        with self._read():
+            r = self._db.execute("SELECT open_until FROM breakers WHERE hook_id=? AND action_id=?",
+                                 (hook_id, action_id)).fetchone()
+        return float(r["open_until"]) if r and float(r["open_until"]) > now else 0.0
+
+    def breaker_record(self, hook_id: str, action_id: str, ok: bool, now: Optional[float] = None) -> str:
+        """One branch outcome of an outside action. Returns "opened" when this failure opened the breaker, "closed"
+        when a success closed an open or failing one, else ""."""
+        now = time.time() if now is None else now
+        with self._write():
+            r = self._db.execute("SELECT fails, open_until, opens FROM breakers WHERE hook_id=? AND action_id=?",
+                                 (hook_id, action_id)).fetchone()
+            fails, opens = (int(r["fails"]), int(r["opens"])) if r else (0, 0)
+            if ok:
+                if r and (fails or float(r["open_until"])):
+                    self._db.execute("UPDATE breakers SET fails=0, open_until=0, opens=0, updated_at=? WHERE hook_id=?"
+                                     " AND action_id=?", (now, hook_id, action_id))
+                    return "closed"
+                return ""
+            fails += 1
+            out, until = "", float(r["open_until"]) if r else 0.0
+            if fails >= BREAKER_FAILS:
+                until = now + min(BREAKER_COOLDOWN_S * (2 ** opens), BREAKER_MAX_S)
+                opens += 1
+                fails = 0
+                out = "opened"
+            self._db.execute("INSERT OR REPLACE INTO breakers(hook_id, action_id, fails, open_until, opens, updated_at)"
+                             " VALUES(?,?,?,?,?,?)", (hook_id, action_id, fails, until, opens, now))
+            return out
+
+    def breakers(self, hook_id: str, now: Optional[float] = None) -> list:
+        now = time.time() if now is None else now
+        with self._read():
+            return [dict(r) for r in self._db.execute("SELECT action_id, fails, open_until, opens FROM breakers WHERE"
+                                                       " hook_id=? AND (open_until>? OR fails>0)", (hook_id, now))]
+
+    def ai_runs_since(self, hook_id: str, since: float) -> int:
+        """AI branches of this hook dispatched since `since` (the AI budget counts runs that reached a model)."""
+        with self._read():
+            return int(self._db.execute(
+                "SELECT COUNT(*) FROM branches b JOIN events e ON e.id=b.event_id WHERE e.hook_id=? AND b.kind='ai' AND"
+                " b.dispatched_at>=?", (hook_id, since)).fetchone()[0])
+
+    def meta_get(self, k: str) -> str:
+        with self._read():
+            r = self._db.execute("SELECT v FROM meta WHERE k=?", (k,)).fetchone()
+        return r["v"] if r else ""
+
+    def meta_set(self, k: str, v: str) -> None:
+        with self._write():
+            self._db.execute("INSERT OR REPLACE INTO meta(k, v) VALUES(?,?)", (k, str(v)))
+
+    def finished_counts(self, hook_id: str, since: float, until: float) -> dict:
+        with self._read():
+            rows = self._db.execute("SELECT status, COUNT(*) AS n FROM events WHERE hook_id=? AND finished_at>=? AND"
+                                    " finished_at<? GROUP BY status", (hook_id, since, until)).fetchall()
+        return {r["status"]: r["n"] for r in rows}
+
+    def export_rows(self, hook_id: str = "", since: float = 0.0, until: float = 0.0, with_body: bool = False,
+                    batch: int = 200):
+        """Every event of a hook (or all), oldest first, in batches (keyset on received_at, id): for export. Bodies
+        only when asked. Never the hook snapshot (it is configuration, not data)."""
+        last_ts, last_id = float(since or 0), ""
+        until = float(until or 0) or 1e18
+        while True:
+            with self._read():
+                rows = self._db.execute(
+                    "SELECT id, hook_id, brain, received_at, status, tries, idem_key, biz_key, source, dispatched_at,"
+                    " finished_at, result, error, fields, trace" + (", body, content_type" if with_body else "") +
+                    " FROM events WHERE (?='' OR hook_id=?) AND received_at<? AND (received_at>? OR (received_at=? AND"
+                    " id>?)) ORDER BY received_at, id LIMIT ?",
+                    (hook_id, hook_id, until, last_ts, last_ts, last_id, batch)).fetchall()
+                rows = [dict(r) for r in rows]
+                for r in rows:
+                    r["branches"] = [dict(b) for b in self._db.execute(
+                        "SELECT action_id, kind, status, tries, delivery_id, detail FROM branches WHERE event_id=?"
+                        " ORDER BY rowid", (r["id"],))]
+            if not rows:
+                return
+            for r in rows:
+                yield r
+            last_ts, last_id = rows[-1]["received_at"], rows[-1]["id"]
 
     def branch_late(self, eid: str, aid: str, status: str, detail: str, receipt: Optional[dict], result: str) -> None:
         """The event was taken over while this branch was still running (lease lost): its real outcome is not
@@ -957,7 +1073,7 @@ class Store:
                              " WHERE hook_id=? AND status='queued'", (now, now, hook_id))
             self._db.execute("DELETE FROM dedup WHERE hook_id=?", (hook_id,))
 
-    def prune(self, now: Optional[float] = None) -> int:
+    def prune(self, now: Optional[float] = None, keep_days: Optional[dict] = None) -> int:
         """Finished events older than KEEP_DAYS, and past KEEP_PER_HOOK per hook; bodies of finished events after
         BODY_KEEP_DAYS; idempotency keys after DEDUP_KEEP_DAYS (by age, whatever happened to their event)."""
         now = time.time() if now is None else now
@@ -968,6 +1084,17 @@ class Store:
         with self._write():
             ids = [r[0] for r in self._db.execute(
                 f"SELECT id FROM events WHERE status IN {fin} AND finished_at>0 AND finished_at<?", (cut,))]
+            for hid_k, days in (keep_days or {}).items():
+                # M5: a hook's own retention (shorter or longer than the default, at most KEEP_DAYS_MAX).
+                d = max(1, min(int(days or KEEP_DAYS), KEEP_DAYS_MAX))
+                if d < KEEP_DAYS:
+                    ids += [r[0] for r in self._db.execute(
+                        f"SELECT id FROM events WHERE hook_id=? AND status IN {fin} AND finished_at>0 AND finished_at<?",
+                        (hid_k, now - d * 86400))]
+            if keep_days:
+                longer = {h: max(1, min(int(d or KEEP_DAYS), KEEP_DAYS_MAX)) for h, d in keep_days.items()
+                          if int(d or KEEP_DAYS) > KEEP_DAYS}
+                ids = [i for i in ids if not self._kept_longer(i, longer, now)]
             for (hid,) in self._db.execute("SELECT DISTINCT hook_id FROM events").fetchall():
                 for group, keep in ((ran, KEEP_PER_HOOK), (ign, KEEP_IGNORED_PER_HOOK)):
                     ids += [r[0] for r in self._db.execute(

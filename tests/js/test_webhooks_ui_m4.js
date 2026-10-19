@@ -18,7 +18,7 @@ check("a finished branch has no approval buttons", (d.match(/whApprove/g) || [])
 const p = W.rulesPanelHtml({ rules: {}, actions: [], verify: { provider: "systeme_io", secret: "••••" }, adapter_status: "unverified" });
 check("the panel shows the signature check, secret masked, and the unverified note",
   p.includes("whVerifyTxt") && p.includes("systeme_io") && p.includes("••••") && p.includes("wh.adapter_unverified"));
-check("no provider: the box is empty", !W.rulesPanelHtml({ rules: {}, actions: [], verify: { provider: "none" } }).includes("none"));
+check("no provider: the box is empty", /class="whVerifyTxt"[^>]*><\/textarea>/.test(W.rulesPanelHtml({ rules: {}, actions: [], verify: { provider: "none" } })));
 const keys = ["wh.br_approval", "wh.approve", "wh.reject", "wh.approved", "wh.rejected", "wh.err_not_waiting", "wh.verify_label",
   "wh.verify_hint", "wh.adapter_unverified"];
 for (const lang of ["vi", "en"]) {

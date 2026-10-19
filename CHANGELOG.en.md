@@ -18,6 +18,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Details button on each event:** see how each receiver did, what it answered, and why an event was filtered.
 - **Stripe, GitHub, Shopify, Systeme.io or HMAC signatures are checked** before an event is accepted. A bad signature is refused and nothing is stored. The provider's own resends are recognised as duplicates. The Systeme.io reading is not yet checked against a real account and is labelled as such. POSCake is not there yet: there is no official documentation to build it correctly.
 - **Webhooks can call Javis tools** (POS, CRM, calendar...) without AI, and by default wait for you to press Approve for each event before running. Approving never raises a permission: the tool runs at the webhook's current level.
+- **Choose how a webhook tells you:** every run, only errors or when you are needed, a daily summary at 8 am, or never. What only you can settle (approval, not known whether it finished) is still told at once.
+- **Limits per webhook:** events per hour, per day, waiting, AI runs per day (past it the AI part does not run and costs nothing), and how many days the log is kept.
+- **Sending pauses on its own when a receiver keeps failing:** after 5 failures in a row Javis stops sending there for a while, tells you once, then tries again.
+- **The webhook log has filters** (needs you, failed, ran, filtered) and an **Export CSV** button for archiving, with no secret in the file.
 ### Security
 - **Webhook API keys and signing secrets are encrypted on disk**, no longer stored in plain in the settings file, and never shown in the interface. There is a button to change the encryption key. Back up `webhook_keys.json` together with `webhook_secrets.json`: without the key file the API keys must be entered again.
 ### Improved

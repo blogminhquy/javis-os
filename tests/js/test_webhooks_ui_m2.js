@@ -48,7 +48,7 @@ for (const lang of ["vi", "en"]) {
 }
 const js = fs.readFileSync(path.join(__dirname, "../../dashboard/webhooks.js"), "utf8");
 check("Test calls the simulate route with the draft rules, Save goes through update",
-  js.includes('api("/webhooks/simulate", { id: h.id, rules: rr.rules') && js.includes('api("/webhooks/update", { id: h.id, rules: rr.rules'));
+  js.includes('api("/webhooks/simulate", { id: h.id, rules: rr.rules') && js.includes('api("/webhooks/update", Object.assign({ id: h.id, rules: rr.rules'));
 
 if (fails) { console.log(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nPASS");

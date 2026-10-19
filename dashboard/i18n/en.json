@@ -5032,5 +5032,22 @@
   "wh.err_not_waiting": "This action is no longer waiting for approval.",
   "wh.verify_label": "Signature check (JSON)",
   "wh.verify_hint": "Check the Stripe, GitHub, Shopify, Systeme.io or HMAC signature before accepting.",
-  "wh.adapter_unverified": "The Systeme.io reading is not yet checked against a real account."
+  "wh.adapter_unverified": "The Systeme.io reading is not yet checked against a real account.",
+  "wh.notify_label": "Tell you:",
+  "wh.notify_all": "Every run",
+  "wh.notify_errors_only": "Only errors or when you are needed",
+  "wh.notify_daily_digest": "A daily summary",
+  "wh.notify_none": "Never",
+  "wh.lim_hour": "Max per hour",
+  "wh.lim_day": "Max per day (0 is no limit)",
+  "wh.lim_backlog": "Max waiting",
+  "wh.ai_day": "AI runs per day",
+  "wh.keep_days": "Keep the log (days)",
+  "wh.f_all": "All",
+  "wh.f_needs_you": "Needs you",
+  "wh.f_failed": "Failed",
+  "wh.f_ran": "Ran",
+  "wh.f_filtered": "Filtered",
+  "wh.export": "Export CSV",
+  "wh.breaker_open": "Sending to {names} is paused after repeated errors; Javis will try again on its own."
 }

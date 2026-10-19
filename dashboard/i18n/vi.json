@@ -5032,5 +5032,22 @@
   "wh.err_not_waiting": "Hành động này không còn chờ duyệt.",
   "wh.verify_label": "Xác minh chữ ký (JSON)",
   "wh.verify_hint": "Kiểm chữ ký của Stripe, GitHub, Shopify, Systeme.io hoặc HMAC trước khi nhận.",
-  "wh.adapter_unverified": "Cách đọc Systeme.io chưa được thử với tài khoản thật."
+  "wh.adapter_unverified": "Cách đọc Systeme.io chưa được thử với tài khoản thật.",
+  "wh.notify_label": "Báo cho bạn:",
+  "wh.notify_all": "Mọi lần chạy",
+  "wh.notify_errors_only": "Chỉ khi lỗi hoặc cần bạn",
+  "wh.notify_daily_digest": "Tóm tắt mỗi ngày",
+  "wh.notify_none": "Không báo",
+  "wh.lim_hour": "Tối đa mỗi giờ",
+  "wh.lim_day": "Tối đa mỗi ngày (0 là không giới hạn)",
+  "wh.lim_backlog": "Tối đa đang chờ",
+  "wh.ai_day": "Lượt AI mỗi ngày",
+  "wh.keep_days": "Giữ nhật ký (ngày)",
+  "wh.f_all": "Tất cả",
+  "wh.f_needs_you": "Cần bạn",
+  "wh.f_failed": "Lỗi",
+  "wh.f_ran": "Đã chạy",
+  "wh.f_filtered": "Bị lọc",
+  "wh.export": "Xuất CSV",
+  "wh.breaker_open": "Tạm ngừng gửi tới {names} vì lỗi liên tục, Javis sẽ tự thử lại."
 }

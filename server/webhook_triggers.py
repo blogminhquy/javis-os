@@ -66,6 +66,10 @@ MAX_HOOKS = 100
 TEXT_MAX = 2000
 VALID_TARGETS = ("workflow", "task")
 VALID_LEVELS = ("suggest", "auto", "full")
+NOTIFY_MODES = ("all", "errors_only", "daily_digest", "none")   # M5
+DIGEST_HOUR = 8                               # local hour of the daily digest
+AI_PER_DAY_DEFAULT = 100                      # M5: AI branch runs per hook per day (the AI budget)
+LIMIT_BOUNDS = {"per_hour": (1, 600), "per_day": (0, 20000), "backlog": (1, 50)}
 # Opening line of the job prompt when a hook runs a written job through the reminder runner.
 TASK_INTRO = "NHIỆM VỤ TỪ WEBHOOK - một hệ thống bên ngoài vừa gửi sự kiện tới."
 DEFAULT_LEVEL = "full"   # same reasoning as reminders.MUC_QUYEN_MAC_DINH: the owner wrote the job out
@@ -287,9 +291,45 @@ class WebhookFeature:
                         **{k: v for k, v in h["verify"].items() if k not in ("provider", "secret")}}
                        if (h.get("verify") or {}).get("provider") not in (None, "none") else {"provider": "none"}),
             "adapter_status": webhook_verify.ADAPTER_STATUS.get((h.get("verify") or {}).get("provider") or "none", ""),
+            "notify": h.get("notify") or "all",
+            "limits": {"per_hour": RATE_PER_HOUR, "backlog": webhook_store.BACKLOG_MAX, "per_day": 0, **(h.get("limits") or {})},
+            "ai_per_day": AI_PER_DAY_DEFAULT if h.get("ai_per_day") is None else h["ai_per_day"],
+            "retention_days": h.get("retention_days") or webhook_store.KEEP_DAYS,
+            "breakers": self._breakers_view(str(h.get("id"))),
         }
 
+    def _breakers_view(self, hid: str) -> list:
+        try:
+            return [{"action": b["action_id"], "open_until": b["open_until"], "fails": b["fails"]}
+                    for b in self.store().breakers(hid)]
+        except Exception:
+            return []
+
+    def _validate_settings(self, fields: dict) -> str:
+        """M5 settings: notify mode, limits, AI budget, retention. Out-of-range numbers are refused, not clamped."""
+        if fields.get("notify") not in (None, "") and fields["notify"] not in NOTIFY_MODES:
+            return localefmt.chu("Kiểu thông báo không hợp lệ.", "Invalid notification mode.")
+        lim = fields.get("limits")
+        if lim not in (None, {}):
+            if not isinstance(lim, dict) or set(lim) - set(LIMIT_BOUNDS):
+                return localefmt.chu("Giới hạn không hợp lệ.", "Invalid limits.")
+            clean = {}
+            for k, v in lim.items():
+                lo, hi = LIMIT_BOUNDS[k]
+                if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+                    return localefmt.chu(f"Giới hạn {k} phải từ {lo} tới {hi}.", f"Limit {k} must be {lo} to {hi}.")
+                clean[k] = v
+            fields["limits"] = clean
+        for k, lo, hi in (("ai_per_day", 0, 5000), ("retention_days", 1, webhook_store.KEEP_DAYS_MAX)):
+            v = fields.get(k)
+            if v not in (None, "") and (isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi):
+                return localefmt.chu(f"{k} phải từ {lo} tới {hi}.", f"{k} must be {lo} to {hi}.")
+        return ""
+
     def _validate(self, fields: dict, brain: str) -> str:
+        err = self._validate_settings(fields)
+        if err:
+            return err
         if "verify" in fields:
             try:
                 fields["verify"] = webhook_verify.validate(fields.get("verify"))
@@ -334,12 +374,13 @@ class WebhookFeature:
 
     def create(self, brain: str, *, name: str, target: str, workflow: str = "", text: str = "",
                level: str = DEFAULT_LEVEL, chat_id: str = "", rules: Any = None, actions: Any = None,
-               verify: Any = None) -> tuple:
+               verify: Any = None, **settings) -> tuple:
         """Returns (view, token, error). The token is returned only here and by rotate()."""
         fields = {"target": str(target or "").strip().lower(), "workflow": str(workflow or "").strip(),
                   "text": str(text or "").strip()[:TEXT_MAX],
                   "level": str(level or DEFAULT_LEVEL).strip().lower(), "rules": rules, "actions": actions,
-                  "verify": verify}
+                  "verify": verify, **{k: settings[k] for k in ("notify", "limits", "ai_per_day", "retention_days")
+                                       if settings.get(k) is not None}}
         err = self._validate(fields, brain)
         if err:
             return None, "", err
@@ -419,6 +460,9 @@ class WebhookFeature:
                 merged[k] = str(changes[k]).strip().lower()
         if "rules" in changes:
             merged["rules"] = changes.get("rules")
+        for k in ("notify", "limits", "ai_per_day", "retention_days"):
+            if k in changes:
+                merged[k] = changes[k]
         if "verify" in changes:
             v = changes.get("verify")
             if isinstance(v, dict) and v.get("secret") == "••••":
@@ -597,8 +641,10 @@ class WebhookFeature:
             return 422, {"ok": False, "error": "invalid", "reason": info.get("reason", ""),
                          "run_id": info.get("event_id", "")}
         if code == 429:
-            msg = (f"more than {RATE_PER_HOUR} events in the last hour" if info.get("reason") == "rate"
-                   else "too many events waiting")
+            lim = h.get("limits") or {}
+            msg = {"rate": f"more than {lim.get('per_hour') or RATE_PER_HOUR} events in the last hour",
+                   "day": f"more than {lim.get('per_day')} events in the last day"}.get(info.get("reason"),
+                                                                                         "too many events waiting")
             return 429, {"ok": False, "error": msg}
         # Committed: from here on nothing may turn this into an error (a sender without a key would send it again).
         self._kick()
@@ -678,8 +724,50 @@ class WebhookFeature:
         rec = await asyncio.to_thread(st.recover)
         for ev in await asyncio.to_thread(st.unnotified):
             await self._notify(ev)
+        try:
+            await self._digest()
+        except Exception as e:
+            print(f"[webhooks] digest failed: {type(e).__name__}: {e}", file=sys.stderr)
         self._kick()
         return rec
+
+    async def _digest(self, now: Optional[float] = None) -> int:
+        """M5 `daily_digest`: once a day after DIGEST_HOUR, one plain-text message per hook counting what finished
+        since the last digest. Built from counts only: no model."""
+        now = time.time() if now is None else now
+        lt = time.localtime(now)
+        if lt.tm_hour < DIGEST_HOUR:
+            return 0
+        today = time.strftime("%Y-%m-%d", lt)
+        st = self.store()
+        sent = 0
+        for h in self._load().get("hooks", []):
+            if (h.get("notify") or "all") != "daily_digest":
+                continue
+            hid = str(h.get("id"))
+            if await asyncio.to_thread(st.meta_get, f"digest_day:{hid}") == today:
+                continue
+            since = float(await asyncio.to_thread(st.meta_get, f"digest_at:{hid}") or (now - 86400))
+            c = await asyncio.to_thread(st.finished_counts, hid, since, now)
+            ran = sum(c.get(k, 0) for k in ("done", "silent", "waiting"))
+            bad = sum(c.get(k, 0) for k in ("failed", "dead", "unknown"))
+            skipped = sum(c.get(k, 0) for k in ("filtered", "invalid", "duplicate"))
+            if ran or bad or skipped:
+                name = h.get("name") or hid
+                msg = localefmt.chu(f"Webhook \"{name}\" trong ngày: {ran} lần chạy xong, {bad} lần lỗi hoặc chưa rõ, "
+                                    f"{skipped} sự kiện bị lọc hoặc trùng.",
+                                    f"Webhook \"{name}\" today: {ran} runs done, {bad} failed or unknown, {skipped} events "
+                                    "filtered or duplicate.")
+                res = await self.deps.send(h.get("chat_id", ""), msg, viec={"kind": "webhook", "status": "digest",
+                                                                           "title": str(name)[:160], "id": hid},
+                                           web=msg, brain=h.get("brain") or "brain", dedup=f"whd:{hid}:{today}")
+                if not (isinstance(res, tuple) and res and not res[0]):
+                    sent += 1
+                else:
+                    continue                        # not delivered: try again at the next sweep
+            await asyncio.to_thread(st.meta_set, f"digest_day:{hid}", today)
+            await asyncio.to_thread(st.meta_set, f"digest_at:{hid}", str(now))
+        return sent
 
     async def _sweep_loop(self) -> None:
         n = 0
@@ -695,7 +783,9 @@ class WebhookFeature:
                 await self.sweep()
                 n += 1
                 if n % 120 == 1:                 # about hourly
-                    await asyncio.to_thread(self.store().prune)
+                    keep = {str(h.get("id")): int(h["retention_days"]) for h in self._load().get("hooks", [])
+                            if h.get("retention_days")}
+                    await asyncio.to_thread(self.store().prune, None, keep)
             except Exception as e:
                 print(f"[webhooks] sweep failed: {type(e).__name__}: {e}", file=sys.stderr)
             await asyncio.sleep(SWEEP_S)
@@ -855,6 +945,23 @@ class WebhookFeature:
                     await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed",
                                             f"a header secret is not available ({type(e).__name__}): enter it again")
                     return
+            if a["kind"] == "ai":
+                # M5: the AI budget, counted on runs that reached a model today (local day). Refused BEFORE dispatch,
+                # so a refusal is certain and the owner's retry tomorrow is safe.
+                budget = AI_PER_DAY_DEFAULT if cur.get("ai_per_day") is None else int(cur["ai_per_day"])
+                day0 = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+                if await asyncio.to_thread(st.ai_runs_since, hid, day0) >= budget:
+                    await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed",
+                                            f"AI budget reached for today ({budget} runs): retry tomorrow or raise it")
+                    return
+            else:
+                # M5: circuit breaker. While open, the branch is not sent; it waits (not counted as a try) until the
+                # breaker lets one attempt through.
+                open_until = await asyncio.to_thread(st.breaker_open_until, hid, aid)
+                if open_until:
+                    await asyncio.to_thread(st.branch_finish, eid, fence, aid, "retry",
+                                            "paused: this receiver failed several times in a row", None, "", open_until)
+                    return
             if not await asyncio.to_thread(st.branch_dispatch, eid, fence, aid):
                 return                               # lost the lease: do not run
             if a["kind"] == "ai":
@@ -885,6 +992,12 @@ class WebhookFeature:
                     back = webhook_actions.BRANCH_BACKOFF_S[min(tries - 1, len(webhook_actions.BRANCH_BACKOFF_S) - 1)]
                     nxt = time.time() + max(back, out.retry_after)
             await self._branch_finish(st, eid, fence, aid, status, out.detail, out.receipt, "", nxt)
+            try:
+                changed = await asyncio.to_thread(st.breaker_record, hid, aid, status in ("completed", "accepted"))
+                if changed == "opened":
+                    await self._breaker_notice(cur, aid, out.detail)
+            except Exception as e:
+                print(f"[webhooks] breaker {hid}/{aid}: {type(e).__name__}: {e}", file=sys.stderr)
 
         await asyncio.gather(*(branch(b) for b in todo))
         rows = await asyncio.to_thread(st.branches, eid)
@@ -922,6 +1035,21 @@ class WebhookFeature:
         ev = await asyncio.to_thread(st.get, eid)
         await self._notify(ev or {"id": eid, "hook_id": hid, "status": final, "result": result, "error": error,
                                   "fence": fence})
+
+    async def _breaker_notice(self, h: dict, aid: str, detail: str) -> None:
+        """Once per opening: the owner learns a receiver is paused. Plain text, no model."""
+        name = h.get("name") or h.get("id")
+        msg = localefmt.chu(f"⚠ Webhook \"{name}\": nơi nhận \"{aid}\" lỗi {webhook_store.BREAKER_FAILS} lần liền nên Javis tạm "
+                            f"ngừng gửi tới đó một lúc rồi thử lại. Lỗi cuối: {detail[:200]}",
+                            f"⚠ Webhook \"{name}\": receiver \"{aid}\" failed {webhook_store.BREAKER_FAILS} times in a row, so "
+                            f"Javis pauses sending there for a while, then tries again. Last error: {detail[:200]}")
+        try:
+            await self.deps.send(h.get("chat_id", ""), msg, viec={"kind": "webhook", "status": "failed",
+                                                                 "title": str(name)[:160], "id": str(h.get("id") or "")},
+                                 web=msg[2:], brain=h.get("brain") or "brain",
+                                 dedup=f"whb:{h.get('id')}:{aid}:{int(time.time() // 600)}")
+        except Exception as e:
+            print(f"[webhooks] breaker notice failed: {type(e).__name__}: {e}", file=sys.stderr)
 
     def _plugin_handler(self, brain: str, slug: str, name: str) -> Optional[dict]:
         if not self.deps.plugin_handler:
@@ -1014,6 +1142,16 @@ class WebhookFeature:
             await asyncio.to_thread(st.mark_notified, ev["id"], fence)
             return
         name = h.get("name") or ev.get("hook_id")
+        mode = h.get("notify") or "all"
+        needs_you = status == "unknown" or (status == "waiting" and any(
+            b.get("status") == "approval" for b in (ev.get("branches") or [])))
+        is_error = status in ("failed", "dead")
+        # M5 notification modes. Something only the owner can settle (unknown, approval) is told at once in every mode
+        # except `none`; the daily digest counts the rest.
+        if mode == "none" or (mode == "errors_only" and not (is_error or needs_you)) or \
+                (mode == "daily_digest" and not needs_you):
+            await asyncio.to_thread(st.mark_notified, ev["id"], fence)
+            return
         if status in ("failed", "dead"):
             msg = localefmt.chu(f"⚠ Webhook \"{name}\" chưa chạy được: ",
                                 f"⚠ Webhook \"{name}\" could not run: ") + str(ev.get("error") or "")[:300]
@@ -1076,7 +1214,8 @@ class WebhookFeature:
                     str(p.get("brain") or "brain"), name=p.get("name", ""), target=p.get("target", ""),
                     workflow=p.get("workflow", ""), text=p.get("text", ""),
                     level=p.get("level") or DEFAULT_LEVEL, chat_id=p.get("chat_id", ""), rules=p.get("rules"),
-                    actions=p.get("actions"))
+                    actions=p.get("actions"), verify=p.get("verify"),
+                    **{k: p.get(k) for k in ("notify", "limits", "ai_per_day", "retention_days")})
             if err:
                 return JSONResponse({"ok": False, "error": err}, status_code=400)
             return {"ok": True, "hook": self.view(h, self.deps.base_url(request)), "token": token}
@@ -1120,9 +1259,66 @@ class WebhookFeature:
 
         @router.get("/webhooks/events")
         async def webhooks_events(hook: str = "", status: str = "", limit: int = 20, before: str = ""):
-            """The durable event log, newest first, keyset-paginated (`next` -> `before`). No bodies here."""
-            pg = await asyncio.to_thread(self.store().page, hook, status, limit, before)
+            """The durable event log, newest first, keyset-paginated (`next` -> `before`). No bodies here. `status`
+            may be a state, or `needs_you` (unknown + waiting) / `ran` (everything the rules let through)."""
+            st = self.store()
+            if status == "ran":
+                pg = await asyncio.to_thread(st.page, hook, "", limit, before, True)
+            elif status == "needs_you":
+                a = await asyncio.to_thread(st.page, hook, "unknown", limit, before)
+                b = await asyncio.to_thread(st.page, hook, "waiting", limit, before)
+                items = sorted(a["items"] + b["items"], key=lambda r: (r["received_at"], r["id"]), reverse=True)[:limit]
+                pg = {"items": items, "next": ""}
+            else:
+                pg = await asyncio.to_thread(st.page, hook, status, limit, before)
             return {"ok": True, **pg}
+
+        @router.get("/webhooks/events/export")
+        async def webhooks_events_export(hook: str = "", since: float = 0.0, until: float = 0.0, format: str = "jsonl",
+                                         body: int = 0):
+            """M5: the whole log of a hook (or all), oldest first, streamed: JSON lines or CSV. No configuration, no
+            secret; bodies only with body=1."""
+            from fastapi.responses import StreamingResponse
+            st = self.store()
+            rows = st.export_rows(hook, since, until, bool(body))
+            fmt = "csv" if format == "csv" else "jsonl"
+
+            def clean(r):
+                r = dict(r)
+                for k in ("fields", "trace"):
+                    try:
+                        r[k] = json.loads(r.get(k) or "{}")
+                    except ValueError:
+                        r[k] = {}
+                if "body" in r:
+                    r["payload"] = payload_text(bytes(r.pop("body") or b""), r.pop("content_type", "") or "")
+                return r
+
+            def gen():
+                if fmt == "csv":
+                    import csv
+                    import io
+                    cols = ["id", "hook_id", "received_at", "status", "tries", "idem_key", "biz_key", "source",
+                            "finished_at", "result", "error", "branches", "fields"] + (["payload"] if body else [])
+                    buf = io.StringIO()
+                    w = csv.writer(buf)
+                    w.writerow(cols)
+                    yield buf.getvalue().encode("utf-8")
+                    for r in rows:
+                        r = clean(r)
+                        r["branches"] = "; ".join(f"{b['action_id']}={b['status']}" for b in r.get("branches") or [])
+                        r["fields"] = json.dumps(r.get("fields") or {}, ensure_ascii=False)
+                        buf = io.StringIO()
+                        # A cell starting with = + - @ is a formula in a spreadsheet: quoted with ' so it stays text.
+                        csv.writer(buf).writerow([("'" + str(v)) if str(v)[:1] in ("=", "+", "-", "@") else v
+                                                  for v in (r.get(c, "") for c in cols)])
+                        yield buf.getvalue().encode("utf-8")
+                else:
+                    for r in rows:
+                        yield (json.dumps(clean(r), ensure_ascii=False, default=str) + "\n").encode("utf-8")
+            name = f"webhook-{hook or 'all'}-{time.strftime('%Y%m%d')}.{fmt}"
+            return StreamingResponse(gen(), media_type="text/csv" if fmt == "csv" else "application/x-ndjson",
+                                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
         @router.get("/webhooks/events/{event_id}")
         async def webhooks_event(event_id: str):
