@@ -70,11 +70,29 @@ States: `queued -> running -> done | silent | waiting | failed | unknown | dead`
 
 ## Rollback
 
-- Code: revert the 0.229.0 commit. The old version ignores `webhook_events.sqlite3` and keeps working from
-  `webhooks.json`, whose `seen_keys` and `count` were kept up to date for this reason.
+- Code: revert the 0.229.0 commits. The old version ignores `webhook_events.sqlite3` and works from `webhooks.json`.
+  Each accepted idempotency key is still mirrored into the hook's `seen_keys` (last 50) and `count`/`last_status` are
+  still updated, so the old version keeps recognising recent duplicates. Per-run `history` is no longer written to the
+  JSON (it lives in the store), so after a rollback the old cards show the history they had before the upgrade.
 - Events still `queued` or `unknown` in the store at rollback time are not run by the old version: list them first with
   `GET /webhooks/events?status=queued` and `?status=unknown`.
 - Data: deleting `STATE_DIR/webhook_events.sqlite3*` with the server stopped resets the log; nothing else depends on it.
+
+## Independent review (M1)
+
+An independent review of the first M1 commit found 2 P1 and 5 P2 issues, all fixed with regression tests in
+`test_webhook_store_m1.py` (section "review fixes"), red on the reviewed commit:
+
+| Finding | Fix |
+|---|---|
+| P1 disk cap measured file size, never shrank: store refused forever after filling | live size (`page_count - freelist_count`), `journal_size_limit`, checkpoint after prune, eviction of oldest finished events (bodies first) before refusing; bodies of finished events emptied after 7 days |
+| P1 retry result never reached the owner (same notice dedup key) | dedup key names the attempt: `wh:<hook>:<event>:<fence>` |
+| P2 one long run delayed other hooks; P2 kick lost during a claim | pump woken by an `asyncio.Event` while runs are active; flag cleared before each claim |
+| P2 heartbeat or finish error lost a known result | heartbeat logs and continues; finish retried with backoff; a refused finish keeps the run's result on its attempt (`late_result`) |
+| P2 `-wal`/`-shm` world-readable | file created 0600 before SQLite opens it |
+| P2 store calls on the event loop, reads outside the lock | reads under the store lock; list/delete/sweep/wait_idle in threads; a post-commit error no longer turns a 202 into a 500 |
+| P3 (fixed) | fenced calls require a live lease; any running row blocks its hook; COMMIT failure rolls back; recover() stops after 3 losses before dispatch; retry resets tries; failed notices retried 3 times; dedup keys kept 7 days by age; legacy import retried if the JSON is unreadable; list results trimmed; worker id not exposed; unknown count over the whole log in the UI; error codes in words |
+| P3 (kept, noted) | an edited instruction does not apply to events already waiting (snapshot by design; the permission level does apply); rotating a token does not cancel events already received; `incident_hook` on failed task/workflow runs predates M1 and only concerns AI runs (non-AI actions from M3 must not call it) |
 
 ## Not in M1 (later milestones)
 

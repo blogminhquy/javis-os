@@ -174,8 +174,8 @@ check("the old owner cannot renew the lease", not a.heartbeat(r1["id"], r1["fenc
 check("the new owner finishes normally", b.mark_dispatched(r2["id"], r2["fence"])
       and b.finish(r2["id"], r2["fence"], "done", "fresh") and b.get(r2["id"])["result"] == "fresh")
 att = b.get(r2["id"])["attempts"]
-check("attempt log shows the lost lease then the success",
-      [x["outcome"] for x in att] == ["lease_expired", "done"], att)
+check("attempt log shows the lost lease (with the stale run's late result kept on it) then the success",
+      [x["outcome"] for x in att] == ["late:done", "done"] and att[0]["late_result"] == "stale", att)
 
 # an exception inside a write must not leave the shared connection in an open transaction (it would lock the file)
 a.ingest(dict(HOOK, id="wh_tx"), b"x", "", "tx-1")
@@ -349,11 +349,11 @@ async def main():
     st3.mark_dispatched(row["id"], row["fence"])
     st3.finish(row["id"], row["fence"], "done", "kết quả 8")
     await feat3.sweep()
-    mine = [x for x in sent if x["dedup"] == f"wh:{h4['id']}:{e4}"]
+    mine = [x for x in sent if x["dedup"] == f"wh:{h4['id']}:{e4}:{row['fence']}"]
     check("a finished event whose notice never went out is notified at the next sweep, with its own dedup key",
           len(mine) == 1 and "kết quả 8" in mine[0]["text"], mine)
     await feat3.sweep()
-    check("and only once", len([x for x in sent if x["dedup"] == f"wh:{h4['id']}:{e4}"]) == 1)
+    check("and only once", len([x for x in sent if x["dedup"] == f"wh:{h4['id']}:{e4}:{row['fence']}"]) == 1)
 
     # event log API: pagination, no bodies
     # 25 finished events (straight into the store: the hook's own rate and backlog limits would refuse them)
@@ -414,6 +414,191 @@ async def main():
 
 
 asyncio.run(main())
+
+
+# ---- review fixes (independent review of M1, P1/P2) ----
+async def review():
+    # P1-1: the size cap measures live data; pruning or eviction frees room at once, the store never locks up
+    sc = Path(tempfile.mkdtemp(prefix="wh-cap-"))
+    stc = ws.Store(sc / "e.sqlite3")
+    old = ws.DB_MAX_BYTES
+    ws.DB_MAX_BYTES = 2 * 1024 * 1024
+    try:
+        big = b"x" * 32 * 1024
+        for i in range(40):
+            hid = f"wh_c{i}"
+            stc.ingest(dict(HOOK, id=hid), big, "", f"c{i}")
+            r = stc.claim("W"); stc.mark_dispatched(r["id"], r["fence"]); stc.finish(r["id"], r["fence"], "done", "ok")
+        code, _ = stc.ingest(dict(HOOK, id="wh_after"), big, "", "after")
+        check("P1-1: past the cap, finished events are evicted and a new event is still accepted", code == 202,
+              stc.size_bytes())
+        check("P1-1: live size stays under the cap", stc.size_bytes() <= ws.DB_MAX_BYTES)
+        for i in range(ws.BACKLOG_MAX):
+            pass
+        # only waiting events left and no room: refuse, never drop them
+        stc._db.execute("UPDATE events SET status='queued', next_at=1e12")
+        refused = False
+        try:
+            for i in range(200):
+                stc.ingest(dict(HOOK, id=f"wh_q{i}"), big, "", f"q{i}")
+        except ws.Busy:
+            refused = True
+        check("P1-1: when only waiting events fill the store it refuses (503) instead of dropping them", refused
+              and stc._db.execute("SELECT COUNT(*) FROM events WHERE status='queued'").fetchone()[0] > 40)
+    finally:
+        ws.DB_MAX_BYTES = old
+
+    # P2-4: the database and its -wal/-shm are private
+    sp = Path(tempfile.mkdtemp(prefix="wh-perm-"))
+    old_mask = os.umask(0o022)
+    try:
+        stp = ws.Store(sp / "e.sqlite3")
+        stp.ingest(HOOK, b'{"secret":"1"}', "", "p")
+        modes = {f.name: oct(f.stat().st_mode & 0o777) for f in sp.iterdir()}
+    finally:
+        os.umask(old_mask)
+    check("P2-4: database, -wal and -shm are all 0600", modes and all(m == "0o600" for m in modes.values()), modes)
+
+    # P3: recover() does not requeue forever an event that keeps dying before dispatch
+    sr = Path(tempfile.mkdtemp(prefix="wh-rec-"))
+    str_ = ws.Store(sr / "e.sqlite3")
+    eid = str_.ingest(HOOK, b"x", "", "rec")[1]["event_id"]
+    t = time.time()
+    for i in range(ws.MAX_AUTO_TRIES):
+        str_.claim("W", now=t + i * 1000)
+        str_.recover(now=t + i * 1000 + ws.LEASE_S + 1)
+    check("an event lost before dispatch MAX_AUTO_TRIES times ends dead, not in an endless loop",
+          str_.get(eid)["status"] == "dead")
+    ok, _ = str_.retry(eid)
+    r = str_.claim("W", now=t + 99999)
+    check("owner retry of a dead event starts again from try 1", ok and r and r["tries"] == 1)
+
+    # a stale lease cannot start the run even before recover() has looked at it
+    eid2 = str_.ingest(dict(HOOK, id="wh_stale"), b"x", "", "st")[1]["event_id"]
+    r2 = str_.claim("W")
+    check("mark_dispatched on an expired (not yet recovered) lease is refused",
+          not str_.mark_dispatched(eid2, r2["fence"], now=time.time() + ws.LEASE_S + 5))
+
+    # dedup keys outlive pruned events
+    str_._db.execute("UPDATE events SET status='done', finished_at=1, received_at=1 WHERE id=?", (eid2,))
+    str_.prune()
+    check("a key is still a duplicate after its event was pruned (keys kept by age)",
+          str_.get(eid2) is None and str_.ingest(dict(HOOK, id="wh_stale"), b"x", "", "st")[0] == 200)
+
+    # through the feature: retry notice, head-of-line, lost wake, heartbeat errors, notice failure
+    fs = Path(tempfile.mkdtemp(prefix="wh-rf-"))
+    got, started = [], {}
+    gate = {"slow": asyncio.Event()}
+    ans = {"v": ("", "boom")}
+
+    async def rt(brain, text, level):
+        if '"slow"' in text:
+            started["slow"] = time.monotonic()
+            await gate["slow"].wait()
+            return "slow done", ""
+        if '"fast"' in text:
+            started["fast"] = time.monotonic()
+        return ans["v"]
+
+    async def nwf(*a, **k):
+        return "", "", False
+
+    async def snd(chat_id, text, viec=None, web="", brain="", dedup=""):
+        got.append({"text": text, "dedup": dedup})
+        return (False, "telegram down") if "DOWN" in text else (True, "")
+
+    f = wt.WebhookFeature(wt.WebhookDeps(state_dir=lambda: fs, run_task=rt, run_workflow=nwf, send=snd,
+                                         base_url=lambda _r: ""))
+    ha, ta, _ = f.create("/b", name="A", target="task", text="x", chat_id="web:1")
+    hb, tb, _ = f.create("/b", name="B", target="task", text="x", chat_id="web:1")
+    # P1-2: the result of a Retry reaches the owner (new attempt, new dedup key)
+    _, r1 = await f.accept(ha["id"], ta, b'{"k":1}', "application/json", "r1")
+    await f.wait_idle()
+    ans["v"] = ("order created #42", "")
+    ok, _ = f.store().retry(r1["run_id"])
+    f._kick()
+    await f.wait_idle()
+    texts = [g["text"] for g in got]
+    check("P1-2: after a failed run and an owner Retry, the owner is told the retry's result",
+          any("could not run" in x or "chưa chạy được" in x for x in texts) and any("order created #42" in x for x in texts),
+          texts)
+    check("P1-2: the two notices carry different dedup keys", len({g["dedup"] for g in got}) == len(got))
+
+    # P2-1: one long run does not delay another hook
+    t0 = time.monotonic()
+    await f.accept(ha["id"], ta, b'{"slow":1}', "application/json", "slow")
+    await asyncio.sleep(0.2)
+    await f.accept(hb["id"], tb, b'{"fast":1}', "application/json", "fast")
+    for _ in range(50):
+        if "fast" in started:
+            break
+        await asyncio.sleep(0.02)
+    check("P2-1: hook B starts while hook A's long run is still going", "fast" in started
+          and "slow" in started and started["fast"] - t0 < 1.0, started)
+    gate["slow"].set()
+    await f.wait_idle()
+
+    # P2-2: a kick that lands while a claim is in flight is not lost
+    real_claim = f.store().claim
+    hit = {"n": 0}
+
+    def slow_claim(worker, now=None):
+        hit["n"] += 1
+        if hit["n"] == 1:
+            time.sleep(0.4)
+            return None              # nothing yet...
+        return real_claim(worker, now)
+    f.store().claim = slow_claim
+    f._kick()
+    await asyncio.sleep(0.1)         # ...the event arrives during that claim
+    _, rw = await f.accept(hb["id"], tb, b'{"k":"wake"}', "application/json", "wake")
+    for _ in range(100):
+        if f.store().get(rw["run_id"])["status"] not in ("queued", "running"):
+            break
+        await asyncio.sleep(0.02)
+    f.store().claim = real_claim
+    check("P2-2: an event accepted during an empty claim still runs at once (no 30 s wait for the sweep)",
+          f.store().get(rw["run_id"])["status"] == "done")
+
+    # P2-3: a heartbeat error does not kill the lease keeping; a refused finish keeps the run's result
+    real_hb = f.store().heartbeat
+    calls = {"n": 0}
+
+    def flaky_hb(eid, fence, now=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise __import__("sqlite3").OperationalError("database is locked")
+        return real_hb(eid, fence, now)
+    f.store().heartbeat = flaky_hb
+    old_hb = ws.HEARTBEAT_S
+    ws.HEARTBEAT_S = 0.05
+    gate["slow"] = asyncio.Event()
+    _, rs = await f.accept(ha["id"], ta, b'{"slow":2}', "application/json", "slow2")
+    await asyncio.sleep(0.3)
+    check("P2-3: the heartbeat goes on after a failed renewal", calls["n"] >= 2, calls)
+    gate["slow"].set()
+    await f.wait_idle()
+    ws.HEARTBEAT_S = old_hb
+    f.store().heartbeat = real_hb
+    check("P2-3: and the long run finishes as done", f.store().get(rs["run_id"])["status"] == "done")
+
+    # notice delivery failure is retried at the sweep, at most NOTIFY_TRIES times
+    ans["v"] = ("DOWN result", "")
+    _, rd = await f.accept(hb["id"], tb, b'{"k":"down"}', "application/json", "down")
+    await f.wait_idle()
+    for _ in range(ws.NOTIFY_TRIES + 2):
+        await f.sweep()
+    n_down = sum(1 for g in got if "DOWN" in g["text"])
+    check("a notice the channel refused is tried again, but only NOTIFY_TRIES times",
+          n_down == ws.NOTIFY_TRIES and f.store().get(rd["run_id"])["notified_at"] == 0, n_down)
+    await f.wait_idle()
+
+    # API: the event detail keeps no worker host/pid, list results are short
+    ev = f.store().get(r1["run_id"])
+    check("event detail does not carry the worker host:pid", all("worker" not in a for a in ev["attempts"]))
+
+
+asyncio.run(review())
 
 src = (SERVER / "webhook_triggers.py").read_text(encoding="utf-8") + (SERVER / "webhook_store.py").read_text(encoding="utf-8")
 check("no model is called by the webhook core (no engine imports)",

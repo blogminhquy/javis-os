@@ -29,7 +29,12 @@ const calm = W.cardHtml({ id: "wh_2", name: "Ổn", target: "task", text: "x", l
   enabled: true, history: [{ run_id: "ev_3", at: 3, status: "done" }] }, []);
 check("a card with nothing to resolve keeps its log closed", !calm.includes(" open") && !calm.includes("wh-need"));
 
-const keys = ["wh.st_queued", "wh.st_running", "wh.st_unknown", "wh.st_dead", "wh.retry", "wh.retry_sent",
+const older = W.cardHtml({ id: "wh_3", name: "Cũ", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_3",
+  enabled: true, unknown: 1, history: [{ run_id: "ev_4", at: 3, status: "done" }] }, []);
+check("an unknown event older than the rows drawn still raises the hint (server count)", older.includes("wh-need"));
+check("error codes are shown in words", W.errText({ error: "not_retryable" }) === "wh.err_not_retryable"
+  && W.errText({ error: "weird" }) === "wh.save_err");
+const keys = ["wh.err_not_found", "wh.err_not_retryable", "wh.err_not_unknown", "wh.st_queued", "wh.st_running", "wh.st_unknown", "wh.st_dead", "wh.retry", "wh.retry_sent",
   "wh.retry_confirm", "wh.mark_done", "wh.more", "wh.unknown_hint"];
 for (const lang of ["vi", "en"]) {
   const d = JSON.parse(fs.readFileSync(path.join(__dirname, `../../dashboard/i18n/${lang}.json`), "utf8"));

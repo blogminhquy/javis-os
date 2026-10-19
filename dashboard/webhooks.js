@@ -55,6 +55,10 @@
       + (acts ? '<span class="wh-ev-acts">' + acts + "</span>" : "") + "</div>";
   }
 
+  // Error codes of the event actions, in words.
+  var ERR_KEY = { not_found: "wh.err_not_found", not_retryable: "wh.err_not_retryable", not_unknown: "wh.err_not_unknown" };
+  function errText(r) { return tw(ERR_KEY[r && r.error] || "wh.save_err"); }
+
   function fmtTime(ts) {
     if (!ts) return "";
     var d = new Date(ts * 1000);
@@ -77,7 +81,8 @@
     var last = h.last_at ? tw("wh.last_run", { time: fmtTime(h.last_at), status: tw(STATUS_KEY[h.last_status] || "wh.st_done") })
       : tw("wh.never_run");
     var rows = (h.history || []).slice(0, 5);
-    var needYou = (h.history || []).some(function (r) { return r.status === "unknown"; });
+    // The server counts unknown events over the WHOLE log, not just the newest rows drawn here.
+    var needYou = (h.unknown || 0) > 0 || (h.history || []).some(function (r) { return r.status === "unknown"; });
     var hist = rows.map(eventRowHtml).join("");
     return '<b>' + ic("webhook") + " " + esc(h.name) + "</b>"
       + (h.enabled ? "" : ' <span class="dim" style="font-size:12px;color:var(--text3)">' + esc(tw("wh.off")) + "</span>")
@@ -217,14 +222,14 @@
           b.onclick = async function () {
             if (!confirm(tw("wh.retry_confirm"))) return;
             var r = await api("/webhooks/events/retry", { id: b.dataset.ev });
-            b.textContent = r.ok ? tw("wh.retry_sent") : (r.error || tw("wh.save_err"));
+            b.textContent = r.ok ? tw("wh.retry_sent") : errText(r);
             setTimeout(load, 3000);
           };
         });
         scope.querySelectorAll(".whEvDone").forEach(function (b) {
           b.onclick = async function () {
             var r = await api("/webhooks/events/resolve", { id: b.dataset.ev, outcome: "done" });
-            if (r.ok) load(); else b.textContent = r.error || tw("wh.save_err");
+            if (r.ok) load(); else b.textContent = errText(r);
           };
         });
       }
@@ -285,7 +290,7 @@
     load();
   }
 
-  var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml };
+  var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

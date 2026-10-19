@@ -52,7 +52,10 @@ MAX_AUTO_TRIES = 3            # automatic retries, ONLY for failures before disp
 BACKOFF_S = (5.0, 30.0, 120.0)
 KEEP_DAYS = 30                # finished events kept this long (M5 makes this configurable)
 KEEP_PER_HOOK = 500           # and at most this many finished events per hook
-DB_MAX_BYTES = 256 * 1024 * 1024   # past this the store refuses new events (503) instead of filling the disk
+BODY_KEEP_DAYS = 7            # the body of a FINISHED event is emptied after this (the row and its log stay)
+DEDUP_KEEP_DAYS = 7           # idempotency keys outlive their events (Stripe/Shopify retry for up to 72 h)
+DB_MAX_BYTES = 256 * 1024 * 1024   # LIVE data (not free pages, not the WAL) past this: evict, then refuse (503)
+NOTIFY_TRIES = 3              # owner notice attempts before giving up (the event log still shows the result)
 FINAL = ("done", "silent", "waiting", "failed", "unknown", "dead")
 
 _SCHEMA = """
@@ -77,6 +80,7 @@ CREATE TABLE IF NOT EXISTS events(
     dispatched_at REAL NOT NULL DEFAULT 0,
     finished_at REAL NOT NULL DEFAULT 0,
     notified_at REAL NOT NULL DEFAULT 0,
+    notify_tries INTEGER NOT NULL DEFAULT 0,
     result TEXT NOT NULL DEFAULT '',
     error TEXT NOT NULL DEFAULT ''
 );
@@ -97,7 +101,8 @@ CREATE TABLE IF NOT EXISTS attempts(
     started_at REAL NOT NULL,
     ended_at REAL NOT NULL DEFAULT 0,
     outcome TEXT NOT NULL DEFAULT '',
-    error TEXT NOT NULL DEFAULT ''
+    error TEXT NOT NULL DEFAULT '',
+    late_result TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS ix_att_ev ON attempts(event_id, n);
 """
@@ -118,21 +123,29 @@ class Store:
     def __init__(self, path: Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        # The file holds event bodies (customer data). Create it 0600 BEFORE SQLite opens it: SQLite gives the -wal
+        # and -shm files the mode of the main file, so they are private too (a chmod afterwards misses them).
+        try:
+            os.close(os.open(str(self.path), os.O_CREAT | os.O_RDWR, 0o600))
+            os.chmod(self.path, 0o600)
+        except OSError:
+            pass
         self._lock = threading.RLock()
         self._db = sqlite3.connect(str(self.path), timeout=10, isolation_level=None, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
-        self._db.execute("PRAGMA journal_mode=WAL")
+        mode = str(self._db.execute("PRAGMA journal_mode=WAL").fetchone()[0]).lower()
+        if mode != "wal":
+            import sys
+            print(f"[webhook_store] journal_mode is {mode}, not wal (network drive?): writes may block readers",
+                  file=sys.stderr)
         self._db.execute("PRAGMA synchronous=FULL")      # an ACKed event must survive a power cut
         self._db.execute("PRAGMA busy_timeout=10000")
+        self._db.execute("PRAGMA journal_size_limit=16777216")   # the WAL is truncated back to 16 MB at checkpoints
         with self._lock:
             self._db.executescript(_SCHEMA)
             row = self._db.execute("SELECT v FROM meta WHERE k='schema_version'").fetchone()
             if row is None:
                 self._db.execute("INSERT INTO meta(k, v) VALUES('schema_version', ?)", (str(SCHEMA_VERSION),))
-        try:
-            os.chmod(self.path, 0o600)
-        except OSError:
-            pass
 
     def close(self) -> None:
         with self._lock:
@@ -156,26 +169,58 @@ class Store:
             self._tx()
             try:
                 yield
+                self._db.execute("COMMIT")
             except BaseException:
+                # Also when COMMIT itself fails (busy, disk full): never leave the transaction open.
                 try:
                     self._db.execute("ROLLBACK")
                 except Exception:
                     pass
                 raise
-            else:
-                self._db.execute("COMMIT")
+
+    @contextlib.contextmanager
+    def _read(self):
+        """Reads take the same lock as writes: on the shared connection a read between another thread's BEGIN and
+        COMMIT would see that thread's uncommitted rows."""
+        with self._lock:
+            yield
 
     def schema_version(self) -> int:
         row = self._db.execute("SELECT v FROM meta WHERE k='schema_version'").fetchone()
         return int(row["v"]) if row else 0
 
     def size_bytes(self) -> int:
+        """LIVE data in the database: pages in use. Free pages left by deletions and the WAL do not count, so
+        pruning brings this down at once (the file itself is reused, and the WAL is capped by journal_size_limit)."""
+        with self._read():
+            pc = self._db.execute("PRAGMA page_count").fetchone()[0]
+            fl = self._db.execute("PRAGMA freelist_count").fetchone()[0]
+            ps = self._db.execute("PRAGMA page_size").fetchone()[0]
+        return int((pc - fl) * ps)
+
+    def make_room(self, need: int = 0, now: Optional[float] = None) -> int:
+        """Near the cap: free space from FINISHED events, oldest first (bodies first, then whole rows), never from
+        queued, running or unknown ones. Returns how many rows were touched."""
+        now = time.time() if now is None else now
+        target = int(DB_MAX_BYTES * 0.8) - int(need)
         n = 0
-        for suf in ("", "-wal", "-shm"):
-            try:
-                n += os.path.getsize(str(self.path) + suf)
-            except OSError:
-                pass
+        fin = "('done','silent','waiting','failed','dead')"
+        while self.size_bytes() > target:
+            with self._write():
+                ids = [r[0] for r in self._db.execute(
+                    f"SELECT id FROM events WHERE status IN {fin} AND length(body)>0 ORDER BY received_at LIMIT 200")]
+                if ids:
+                    q = ",".join("?" * len(ids))
+                    self._db.execute(f"UPDATE events SET body=x'' WHERE id IN ({q})", ids)
+                else:
+                    ids = [r[0] for r in self._db.execute(
+                        f"SELECT id FROM events WHERE status IN {fin} ORDER BY received_at LIMIT 200")]
+                    if not ids:
+                        break
+                    q = ",".join("?" * len(ids))
+                    self._db.execute(f"DELETE FROM attempts WHERE event_id IN ({q})", ids)
+                    self._db.execute(f"DELETE FROM events WHERE id IN ({q})", ids)
+            n += len(ids)
         return n
 
     # ── receive ──
@@ -190,8 +235,10 @@ class Store:
         now = time.time() if now is None else now
         key = str(idem_key or "").strip()[:200]
         hid = str(hook["id"])
-        if self.size_bytes() > DB_MAX_BYTES:
-            raise Busy("store full")
+        if self.size_bytes() + len(body) > DB_MAX_BYTES:
+            self.make_room(len(body), now)
+            if self.size_bytes() + len(body) > DB_MAX_BYTES:
+                raise Busy("store full")         # only waiting/unknown events left: refuse rather than drop them
         snap = {k: hook.get(k) for k in ("name", "brain", "target", "workflow", "text", "level", "chat_id")}
         snap["rev"] = hashlib.sha256(json.dumps(snap, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
         eid = "ev_" + uuid.uuid4().hex[:16]
@@ -273,8 +320,8 @@ class Store:
         with self._write():
             row = self._db.execute(
                 "SELECT * FROM events e WHERE e.status='queued' AND e.next_at<=? AND NOT EXISTS ("
-                " SELECT 1 FROM events r WHERE r.hook_id=e.hook_id AND r.status='running' AND r.lease_until>?)"
-                " ORDER BY e.received_at, e.id LIMIT 1", (now, now)).fetchone()
+                " SELECT 1 FROM events r WHERE r.hook_id=e.hook_id AND r.status='running')"
+                " ORDER BY e.received_at, e.id LIMIT 1", (now,)).fetchone()
             if row is None:
                 return None
             fence = int(row["fence"]) + 1
@@ -287,19 +334,23 @@ class Store:
         d.update(status="running", lease_owner=worker, fence=fence, tries=tries)
         return d
 
-    def _fenced(self, sql: str, args: tuple, eid: str, fence: int) -> bool:
-        with self._lock:
-            cur = self._db.execute(sql + " WHERE id=? AND fence=? AND status='running'", args + (eid, fence))
+    def _fenced(self, sql: str, args: tuple, eid: str, fence: int, now: float) -> bool:
+        """Only the current owner, and only while its lease is still valid: an expired lease that recover() has not
+        reached yet may already be someone else's."""
+        with self._write():
+            cur = self._db.execute(sql + " WHERE id=? AND fence=? AND status='running' AND lease_until>?",
+                                   args + (eid, fence, now))
             return cur.rowcount == 1
 
     def heartbeat(self, eid: str, fence: int, now: Optional[float] = None) -> bool:
         now = time.time() if now is None else now
-        return self._fenced("UPDATE events SET lease_until=?", (now + LEASE_S,), eid, fence)
+        return self._fenced("UPDATE events SET lease_until=?", (now + LEASE_S,), eid, fence, now)
 
     def mark_dispatched(self, eid: str, fence: int, now: Optional[float] = None) -> bool:
-        """Committed BEFORE the runner is called. False = this worker lost the event: do NOT run it."""
+        """Committed BEFORE the runner is called (and renews the lease). False = this worker lost the event: do
+        NOT run it."""
         now = time.time() if now is None else now
-        return self._fenced("UPDATE events SET dispatched_at=?", (now,), eid, fence)
+        return self._fenced("UPDATE events SET dispatched_at=?, lease_until=?", (now, now + LEASE_S), eid, fence, now)
 
     def finish(self, eid: str, fence: int, status: str, result: str = "", error: str = "",
                now: Optional[float] = None) -> bool:
@@ -315,6 +366,11 @@ class Store:
             if ok:
                 self._db.execute("UPDATE attempts SET ended_at=?, outcome=?, error=? WHERE event_id=? AND fence=?",
                                  (now, status, str(error or "")[:500], eid, fence))
+            else:
+                # The event was taken over (lease lost while the run was alive). The run's own result is not thrown
+                # away: it is kept on this attempt's row, where the owner reconciling the event can read it.
+                self._db.execute("UPDATE attempts SET ended_at=?, outcome=?, late_result=? WHERE event_id=? AND fence=?",
+                                 (now, "late:" + status, str(result or error or "")[:4000], eid, fence))
         return ok
 
     def requeue_before_dispatch(self, eid: str, fence: int, error: str, now: Optional[float] = None) -> str:
@@ -345,7 +401,7 @@ class Store:
         the run may have acted, so it is NOT re-run on its own. Returns counts."""
         now = time.time() if now is None else now
         with self._write():
-            rows = self._db.execute("SELECT id, fence, dispatched_at FROM events WHERE status='running' AND"
+            rows = self._db.execute("SELECT id, fence, tries, dispatched_at FROM events WHERE status='running' AND"
                                     " lease_until<=?", (now,)).fetchall()
             back = unknown = 0
             for r in rows:
@@ -355,6 +411,12 @@ class Store:
                                      (now, "lease expired after dispatch: the run may have acted", r["id"]))
                     outcome = "unknown"
                     unknown += 1
+                elif int(r["tries"]) >= MAX_AUTO_TRIES:
+                    # It keeps dying before dispatch (e.g. it crashes the worker): stop, do not loop forever.
+                    self._db.execute("UPDATE events SET status='dead', finished_at=?, lease_owner='', lease_until=0,"
+                                     " error=? WHERE id=?", (now, "worker lost it before dispatch too many times",
+                                                             r["id"]))
+                    outcome = "dead"
                 else:
                     self._db.execute("UPDATE events SET status='queued', next_at=?, lease_owner='', lease_until=0"
                                      " WHERE id=?", (now, r["id"]))
@@ -367,20 +429,33 @@ class Store:
     def has_claimable(self, now: Optional[float] = None) -> bool:
         """Is there an event this or another worker could claim right now (same rule as claim)?"""
         now = time.time() if now is None else now
-        return self._db.execute(
-            "SELECT 1 FROM events e WHERE e.status='queued' AND e.next_at<=? AND NOT EXISTS ("
-            " SELECT 1 FROM events r WHERE r.hook_id=e.hook_id AND r.status='running' AND r.lease_until>?) LIMIT 1",
-            (now, now)).fetchone() is not None
+        with self._read():
+            return self._db.execute(
+                "SELECT 1 FROM events e WHERE e.status='queued' AND e.next_at<=? AND NOT EXISTS ("
+                " SELECT 1 FROM events r WHERE r.hook_id=e.hook_id AND r.status='running') LIMIT 1",
+                (now,)).fetchone() is not None
 
-    def mark_notified(self, eid: str, now: Optional[float] = None) -> None:
-        with self._lock:
-            self._db.execute("UPDATE events SET notified_at=? WHERE id=?", (time.time() if now is None else now, eid))
+    def mark_notified(self, eid: str, fence: Optional[int] = None, now: Optional[float] = None) -> None:
+        """`fence` given: only if the event is still at that attempt (a retry since then gets its own notice)."""
+        now = time.time() if now is None else now
+        with self._write():
+            if fence is None:
+                self._db.execute("UPDATE events SET notified_at=? WHERE id=?", (now, eid))
+            else:
+                self._db.execute("UPDATE events SET notified_at=? WHERE id=? AND fence=?", (now, eid, fence))
+
+    def notify_failed(self, eid: str, fence: int) -> None:
+        """A notice that did not go out: tried again at the next sweep, up to NOTIFY_TRIES times."""
+        with self._write():
+            self._db.execute("UPDATE events SET notify_tries=notify_tries+1 WHERE id=? AND fence=?", (eid, fence))
 
     def unnotified(self, limit: int = 50) -> list:
-        """Finished events whose owner notice was never confirmed (a crash between commit and notice)."""
-        rows = self._db.execute("SELECT * FROM events WHERE status IN ('done','waiting','failed','unknown','dead')"
-                                " AND notified_at=0 AND finished_at>0 ORDER BY finished_at LIMIT ?",
-                                (limit,)).fetchall()
+        """Finished events whose owner notice was never confirmed (a crash between commit and notice, or a failed
+        delivery), up to NOTIFY_TRIES attempts."""
+        with self._read():
+            rows = self._db.execute("SELECT * FROM events WHERE status IN ('done','waiting','failed','unknown','dead')"
+                                    " AND notified_at=0 AND finished_at>0 AND notify_tries<? ORDER BY finished_at"
+                                    " LIMIT ?", (NOTIFY_TRIES, limit)).fetchall()
         return [dict(r) for r in rows]
 
     # ── owner actions ──
@@ -394,7 +469,7 @@ class Store:
             if row["status"] not in ("failed", "unknown", "dead"):
                 return False, "not_retryable"
             self._db.execute("UPDATE events SET status='queued', next_at=?, dispatched_at=0, finished_at=0,"
-                             " notified_at=0, error='', result='' WHERE id=?", (now, eid))
+                             " notified_at=0, notify_tries=0, tries=0, error='', result='' WHERE id=?", (now, eid))
         return True, ""
 
     def resolve(self, eid: str, outcome: str, note: str = "", now: Optional[float] = None) -> tuple:
@@ -411,15 +486,16 @@ class Store:
 
     # ── reading ──
     def get(self, eid: str, with_body: bool = False) -> Optional[dict]:
-        row = self._db.execute("SELECT * FROM events WHERE id=?", (eid,)).fetchone()
-        if row is None:
-            return None
-        d = dict(row)
+        with self._read():
+            row = self._db.execute("SELECT * FROM events WHERE id=?", (eid,)).fetchone()
+            if row is None:
+                return None
+            d = dict(row)
+            d["attempts"] = [dict(a) for a in self._db.execute(
+                "SELECT n, fence, started_at, ended_at, outcome, error, late_result FROM attempts WHERE event_id=?"
+                " ORDER BY n", (eid,)).fetchall()]
         if not with_body:
             d.pop("body", None)
-        d["attempts"] = [dict(a) for a in self._db.execute(
-            "SELECT n, fence, worker, started_at, ended_at, outcome, error FROM attempts WHERE event_id=? ORDER BY n",
-            (eid,)).fetchall()]
         return d
 
     def page(self, hook_id: str = "", status: str = "", limit: int = 20, before: str = "") -> dict:
@@ -437,22 +513,25 @@ class Store:
             except ValueError:
                 pass
         sql = ("SELECT id, hook_id, brain, received_at, status, tries, idem_key, source, dispatched_at, finished_at,"
-               " result, error, length(body) AS size FROM events" + (" WHERE " + " AND ".join(where) if where else "")
+               " substr(result, 1, 300) AS result, substr(error, 1, 300) AS error, length(body) AS size FROM events" + (" WHERE " + " AND ".join(where) if where else "")
                + " ORDER BY received_at DESC, id DESC LIMIT ?")
-        rows = [dict(r) for r in self._db.execute(sql, args + [limit + 1]).fetchall()]
+        with self._read():
+            rows = [dict(r) for r in self._db.execute(sql, args + [limit + 1]).fetchall()]
         more = len(rows) > limit
         rows = rows[:limit]
         cur = f"{rows[-1]['received_at']}|{rows[-1]['id']}" if more and rows else ""
         return {"items": rows, "next": cur}
 
     def counts(self, hook_id: str) -> dict:
-        rows = self._db.execute("SELECT status, COUNT(*) AS n FROM events WHERE hook_id=? GROUP BY status",
-                                (hook_id,)).fetchall()
+        with self._read():
+            rows = self._db.execute("SELECT status, COUNT(*) AS n FROM events WHERE hook_id=? GROUP BY status",
+                                    (hook_id,)).fetchall()
         return {r["status"]: r["n"] for r in rows}
 
     def last(self, hook_id: str) -> Optional[dict]:
-        row = self._db.execute("SELECT status, finished_at, received_at FROM events WHERE hook_id=?"
-                               " ORDER BY received_at DESC, id DESC LIMIT 1", (hook_id,)).fetchone()
+        with self._read():
+            row = self._db.execute("SELECT status, finished_at, received_at FROM events WHERE hook_id=?"
+                                   " ORDER BY received_at DESC, id DESC LIMIT 1", (hook_id,)).fetchone()
         return dict(row) if row else None
 
     def forget_hook(self, hook_id: str) -> None:
@@ -464,8 +543,8 @@ class Store:
             self._db.execute("DELETE FROM dedup WHERE hook_id=?", (hook_id,))
 
     def prune(self, now: Optional[float] = None) -> int:
-        """Finished events older than KEEP_DAYS, and past KEEP_PER_HOOK per hook. Dedup keys of pruned events go
-        with them; keys of events still kept stay (a late retry is still a duplicate)."""
+        """Finished events older than KEEP_DAYS, and past KEEP_PER_HOOK per hook; bodies of finished events after
+        BODY_KEEP_DAYS; idempotency keys after DEDUP_KEEP_DAYS (by age, whatever happened to their event)."""
         now = time.time() if now is None else now
         cut = now - KEEP_DAYS * 86400
         fin = "('done','silent','waiting','failed','dead')"   # unknown is kept until the owner resolves it
@@ -481,7 +560,14 @@ class Store:
                 chunk = ids[i:i + 500]
                 q = ",".join("?" * len(chunk))
                 self._db.execute(f"DELETE FROM attempts WHERE event_id IN ({q})", chunk)
-                self._db.execute(f"DELETE FROM dedup WHERE event_id IN ({q})", chunk)
                 self._db.execute(f"DELETE FROM events WHERE id IN ({q})", chunk)
-            self._db.execute("DELETE FROM dedup WHERE event_id='' AND created_at<?", (cut,))
+            # Keys are kept by AGE, not with their event: a sender retrying for days must still get "duplicate".
+            self._db.execute("DELETE FROM dedup WHERE created_at<?", (now - DEDUP_KEEP_DAYS * 86400,))
+            self._db.execute(f"UPDATE events SET body=x'' WHERE status IN {fin} AND finished_at>0 AND finished_at<?"
+                             " AND length(body)>0", (now - BODY_KEEP_DAYS * 86400,))
+        try:
+            with self._lock:
+                self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except sqlite3.OperationalError:
+            pass
         return len(ids)

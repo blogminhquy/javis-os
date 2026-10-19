@@ -156,6 +156,7 @@ class WebhookFeature:
         self._store_lock = __import__("threading").Lock()
         self.worker_id = f"{__import__('socket').gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
         self._pump: Optional[asyncio.Task] = None
+        self._wake: Optional[asyncio.Event] = None    # set by _kick: the pump looks again even while runs are active
         self._active: dict = {}       # event id -> asyncio.Task running it in this process
         self._tasks: set = set()
         self._sweeper: Optional[asyncio.Task] = None
@@ -177,7 +178,14 @@ class WebhookFeature:
         row = st._db.execute("SELECT v FROM meta WHERE k='legacy_keys_imported'").fetchone()
         if row is not None:
             return
-        for h in self._load().get("hooks", []):
+        p = self._path()
+        try:
+            data = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {"hooks": []}
+        except (OSError, ValueError) as e:
+            # Unreadable right now: try again next start rather than mark it done and lose the keys for good.
+            print(f"[webhooks] legacy keys not imported yet: {type(e).__name__}: {e}", file=sys.stderr)
+            return
+        for h in (data.get("hooks") or []):
             st.import_legacy_keys(str(h.get("id")), h.get("seen_keys") or [])
         st._db.execute("INSERT OR REPLACE INTO meta(k, v) VALUES('legacy_keys_imported', ?)", (str(time.time()),))
 
@@ -223,6 +231,10 @@ class WebhookFeature:
         if pg:
             hist = [{"run_id": r["id"], "at": r["received_at"], "status": r["status"],
                      "result": str(r.get("result") or r.get("error") or "")[:300]} for r in pg][::-1]
+        try:
+            unknown = int(self.store().counts(str(h.get("id"))).get("unknown", 0))
+        except Exception:
+            unknown = 0
         return {
             "id": h.get("id"), "name": h.get("name"), "brain": h.get("brain"),
             "target": h.get("target"), "workflow": h.get("workflow", ""), "text": h.get("text", ""),
@@ -232,6 +244,7 @@ class WebhookFeature:
             "last_status": h.get("last_status", ""),
             "url": (base.rstrip("/") + "/hooks/" + str(h.get("id"))) if base else "/hooks/" + str(h.get("id")),
             "history": hist[-HISTORY_KEEP:][::-1],
+            "unknown": unknown,
         }
 
     def _validate(self, fields: dict, brain: str) -> str:
@@ -358,8 +371,24 @@ class WebhookFeature:
             msg = (f"more than {RATE_PER_HOUR} events in the last hour" if info.get("reason") == "rate"
                    else "too many events waiting")
             return 429, {"ok": False, "error": msg}
+        # Committed: from here on nothing may turn this into an error (a sender without a key would send it again).
         self._kick()
-        queued = self.store().counts(str(h["id"])).get("queued", 0)
+        key = str(idem_key or "").strip()[:200]
+        if key:
+            # Mirror of the key in webhooks.json, only so a rollback to 0.228.0 still knows recent keys.
+            try:
+                async with self._io:
+                    data = self._load()
+                    cur = self._find(data, str(h["id"]))
+                    if cur is not None:
+                        cur["seen_keys"] = (list(cur.get("seen_keys") or []) + [key])[-SEEN_KEYS_KEEP:]
+                        self._save(data)
+            except Exception as e:
+                print(f"[webhooks] key mirror failed: {type(e).__name__}: {e}", file=sys.stderr)
+        try:
+            queued = await asyncio.to_thread(lambda: self.store().counts(str(h["id"])).get("queued", 0))
+        except Exception:
+            queued = 0
         return 202, {"ok": True, "accepted": True, "run_id": info["event_id"], "queued": queued}
 
     # ── worker ──
@@ -369,38 +398,54 @@ class WebhookFeature:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
+        if self._wake is None:
+            self._wake = asyncio.Event()
+        self._wake.set()
         if self._pump is None or self._pump.done():
             self._pump = loop.create_task(self._pump_loop())
             self._tasks.add(self._pump)
             self._pump.add_done_callback(self._tasks.discard)
 
     async def _pump_loop(self) -> None:
+        """Claims events while there is room. A new event (`_kick`) wakes it even while other hooks' runs are still
+        active, so one long run never delays another hook; and a kick that lands while a claim is in flight is
+        not lost (the flag is cleared BEFORE claiming and checked before leaving)."""
+        wake = self._wake
         while True:
             if len(self._active) >= WORKER_MAX:
                 await asyncio.wait(list(self._active.values()), return_when=asyncio.FIRST_COMPLETED)
                 continue
+            wake.clear()
             try:
                 row = await asyncio.to_thread(self.store().claim, self.worker_id)
             except Exception as e:
                 print(f"[webhooks] claim failed: {type(e).__name__}: {e}", file=sys.stderr)
                 return
-            if row is None:
-                if not self._active:
-                    return
-                await asyncio.wait(list(self._active.values()), return_when=asyncio.FIRST_COMPLETED)
-                continue
-            t = asyncio.get_running_loop().create_task(self._run_claimed(row))
-            self._active[row["id"]] = t
-            self._tasks.add(t)
+            if row is not None:
+                t = asyncio.get_running_loop().create_task(self._run_claimed(row))
+                self._active[row["id"]] = t
+                self._tasks.add(t)
 
-            def _done(task, eid=row["id"]):
-                self._active.pop(eid, None)
-                self._tasks.discard(task)
-            t.add_done_callback(_done)
+                def _done(task, eid=row["id"]):
+                    self._active.pop(eid, None)
+                    self._tasks.discard(task)
+                    if not task.cancelled() and task.exception() is not None:
+                        e = task.exception()
+                        print(f"[webhooks] {eid} run crashed: {type(e).__name__}: {e}", file=sys.stderr)
+                    self._kick()             # the hook is free again: its next event may run
+                t.add_done_callback(_done)
+                continue
+            if wake.is_set():
+                continue                     # something arrived during the claim: look again
+            if not self._active:
+                return
+            w = asyncio.get_running_loop().create_task(wake.wait())
+            await asyncio.wait(list(self._active.values()) + [w], return_when=asyncio.FIRST_COMPLETED)
+            w.cancel()
 
     async def sweep(self) -> dict:
         """Recover expired leases, resend lost owner notices, prune old events, then run what is due."""
-        st = self.store()
+        st = await asyncio.to_thread(self.store)
         rec = await asyncio.to_thread(st.recover)
         for ev in await asyncio.to_thread(st.unnotified):
             await self._notify(ev)
@@ -420,7 +465,8 @@ class WebhookFeature:
             await asyncio.sleep(SWEEP_S)
 
     def start(self) -> None:
-        """Called at app startup: recovery of what a previous process left, then the periodic sweep."""
+        """Called at app startup: recovery of what a previous process left, then the periodic sweep. The store is
+        opened (schema, legacy import) inside the sweep's thread, not on the event loop."""
         if self._sweeper is None or self._sweeper.done():
             self._sweeper = asyncio.get_running_loop().create_task(self._sweep_loop())
 
@@ -438,16 +484,21 @@ class WebhookFeature:
                 continue
             # Only what THIS process could run now: an event held by another worker's live lease, or due later,
             # is not waited for (that would spin forever).
-            if not self.store().has_claimable():
+            if not await asyncio.to_thread(self.store().has_claimable):
                 return
             self._kick()
             await asyncio.sleep(0)
 
     async def _heartbeat(self, eid: str, fence: int) -> None:
+        """Keeps the lease of a long run. A failed renewal (database busy for a moment) is logged and tried again
+        at the next beat; only a refusal (the event is no longer ours) stops it."""
         while True:
             await asyncio.sleep(webhook_store.HEARTBEAT_S)
-            if not await asyncio.to_thread(self.store().heartbeat, eid, fence):
-                return
+            try:
+                if not await asyncio.to_thread(self.store().heartbeat, eid, fence):
+                    return
+            except Exception as e:
+                print(f"[webhooks] {eid} heartbeat failed, retrying: {type(e).__name__}: {e}", file=sys.stderr)
 
     async def _run_claimed(self, row: dict) -> None:
         st = self.store()
@@ -472,9 +523,9 @@ class WebhookFeature:
         if cur is None or not cur.get("enabled", True):
             # The hook is gone or switched off: the event never runs. Permissions are those of NOW, not of the
             # moment the event arrived.
-            await asyncio.to_thread(st.finish, eid, fence, "dead", "",
-                                    "hook deleted" if cur is None else "hook switched off")
-            await asyncio.to_thread(st.mark_notified, eid)
+            if await asyncio.to_thread(st.finish, eid, fence, "dead", "",
+                                       "hook deleted" if cur is None else "hook switched off"):
+                await asyncio.to_thread(st.mark_notified, eid, fence)
             return
         # Snapshot of the instruction as it was when the event arrived, but the permission level is the LOWER of
         # that snapshot and the hook's current level: lowering a hook's rights applies to events already waiting.
@@ -503,8 +554,9 @@ class WebhookFeature:
         status = "failed" if error and not result else ("waiting" if needs_input else "done")
         silent = status == "done" and _is_silent(result)
         final = "silent" if silent else status
-        if not await asyncio.to_thread(st.finish, eid, fence, final, result, error):
-            print(f"[webhooks] {eid}: result dropped, the event was taken over", file=sys.stderr)
+        if not await self._finish(st, eid, fence, final, result, error):
+            print(f"[webhooks] {eid}: the event was taken over; this run's result is kept on its attempt",
+                  file=sys.stderr)
             return
         if status == "failed" and self.deps.incident_hook:
             try:
@@ -521,10 +573,26 @@ class WebhookFeature:
                 c["last_status"] = final
                 self._save(data)
         if silent:
-            await asyncio.to_thread(st.mark_notified, eid)
+            await asyncio.to_thread(st.mark_notified, eid, fence)
             return
         await self._notify(st.get(eid) or {"id": eid, "hook_id": hid, "status": final, "result": result,
                                            "error": error})
+
+    async def _finish(self, st, eid: str, fence: int, final: str, result: str, error: str) -> bool:
+        """The run is over and its result is known: writing it must not fail on a busy database. Tried a few times
+        with backoff; if it still fails the error is raised (logged by the done callback) and the event will become
+        unknown at recovery, which is the honest state."""
+        delay = 0.5
+        for i in range(5):
+            try:
+                return await asyncio.to_thread(st.finish, eid, fence, final, result, error)
+            except Exception as e:
+                if i == 4:
+                    raise
+                print(f"[webhooks] {eid} finish failed, retrying: {type(e).__name__}: {e}", file=sys.stderr)
+                await asyncio.sleep(delay)
+                delay *= 2
+        return False
 
     async def _notify(self, ev: dict) -> None:
         """Tell the owner how an event ended. Sent after the result is committed; the dedup key is the event id,
@@ -532,8 +600,9 @@ class WebhookFeature:
         st = self.store()
         h = self._find(self._load(), str(ev.get("hook_id") or "")) or {}
         status = str(ev.get("status") or "")
+        fence = int(ev.get("fence") or 0)
         if status in ("silent",) or not h:
-            await asyncio.to_thread(st.mark_notified, ev["id"])
+            await asyncio.to_thread(st.mark_notified, ev["id"], fence)
             return
         name = h.get("name") or ev.get("hook_id")
         if status in ("failed", "dead"):
@@ -548,12 +617,20 @@ class WebhookFeature:
             msg = str(ev.get("result") or "").strip() or localefmt.chu(
                 "Webhook đã chạy nhưng không trả về nội dung.", "The webhook ran but returned nothing.")
         viec = {"kind": "webhook", "status": status, "title": str(name or "")[:160], "id": str(h.get("id") or "")}
+        # The dedup key names the ATTEMPT (fence): a notice resent after a crash is the same key (dropped by the
+        # notifier), while the result of an owner's Retry is a new attempt and reaches the owner.
         try:
-            await self.deps.send(h.get("chat_id", ""), msg, viec=viec, web=msg[2:] if msg.startswith("⚠ ") else msg,
-                                 brain=h.get("brain") or "brain", dedup=f"wh:{h.get('id')}:{ev['id']}")
-            await asyncio.to_thread(st.mark_notified, ev["id"])
+            res = await self.deps.send(h.get("chat_id", ""), msg, viec=viec,
+                                       web=msg[2:] if msg.startswith("⚠ ") else msg,
+                                       brain=h.get("brain") or "brain", dedup=f"wh:{h.get('id')}:{ev['id']}:{fence}")
+            ok = res[0] if isinstance(res, tuple) and res else True
         except Exception as e:
             print(f"[webhooks] {ev.get('id')} notice failed: {type(e).__name__}: {e}", file=sys.stderr)
+            ok = False
+        if ok:
+            await asyncio.to_thread(st.mark_notified, ev["id"], fence)
+        else:
+            await asyncio.to_thread(st.notify_failed, ev["id"], fence)
 
     # ── routes ──
     def _make_router(self) -> APIRouter:
@@ -571,7 +648,8 @@ class WebhookFeature:
         @router.get("/webhooks")
         async def webhooks_list(request: Request, brain: str = ""):
             base = self.deps.base_url(request)
-            return {"ok": True, "hooks": [self.view(h, base) for h in self.list(brain)]}
+            views = await asyncio.to_thread(lambda: [self.view(h, base) for h in self.list(brain)])
+            return {"ok": True, "hooks": views}
 
         @router.post("/webhooks")
         async def webhooks_create(request: Request, payload: dict = Body(None)):
@@ -606,7 +684,7 @@ class WebhookFeature:
         @router.post("/webhooks/delete")
         async def webhooks_delete(payload: dict = Body(None)):
             async with self._io:
-                ok = self.delete(str((payload or {}).get("id") or ""))
+                ok = await asyncio.to_thread(self.delete, str((payload or {}).get("id") or ""))
             return {"ok": ok}
 
         @router.post("/webhooks/test")

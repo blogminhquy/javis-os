@@ -4984,5 +4984,8 @@
   "wh.retry_confirm": "Run this event again? If the last run already acted (sent a message, wrote an order), that may happen twice. Check outside before retrying.",
   "wh.mark_done": "Mark done",
   "wh.more": "Show older runs",
-  "wh.unknown_hint": "An event may or may not have finished. Check, then press Mark done or Retry."
+  "wh.unknown_hint": "An event may or may not have finished. Check, then press Mark done or Retry.",
+  "wh.err_not_found": "This event is gone.",
+  "wh.err_not_retryable": "This event does not need a retry.",
+  "wh.err_not_unknown": "This event was already settled."
 }
