@@ -1,5 +1,7 @@
 # Webhook platform, M1: durable receive and dispatch (0.233.0)
 
+> **Spec alignment (0.233.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: the spec decides the store as schema v7 (hooks and revisions in SQLite, receipts, deliveries with generations, a notification outbox, audit); every request is stored and answered 202 before any rule runs, and triage happens in the worker; refusals are 429 / 503 with a code and Retry-After, never 500; a crashed delivery is unknown unless retry-safe, and resends stay within the attempt cap. The "Assumptions to reconcile" below are settled by that matrix.
+
 Status: implemented and tested with fakes (no real model, no real outside system).
 Spec of record: `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md`. **That file was not in the
 repository when M1 was written** (it existed only on the owner's machine). M1 was built from the brief the owner gave

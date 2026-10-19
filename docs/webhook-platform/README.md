@@ -1,69 +1,262 @@
-# Webhook event platform (0.233.0): index and requirements matrix
+# Webhook event platform (0.233.0): index, requirements matrix, evidence
 
-**The spec of record, `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md`, is not in the repository**
-(checked on all remote branches). Everything here was built from the owner's brief. Each milestone doc lists its
-"Assumptions to reconcile" with the spec. None of this was run against a real source: see `staging-pilot-pack.md`.
+**Spec of record:** `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md` (committed a6132b9f). Every
+section below names the spec section it answers. The gap analysis made before the spec work is
+`spec-gap-analysis.md`; every row of it is closed by the matrix below or listed as open.
+
+**Status words.** **done**: built, and proven through the real router or host with a temporary SQLite store and fake
+HTTP, plugin, tool and model runners (a fail-fast guard makes every real model path raise). **open**: needs a real
+source or the owner's data (spec §16.6, §17), prepared in `staging-pilot-pack.md`. **deviation**: built differently
+from the spec's wording, with the reason. No adapter or action is marked "production verified": none was run against a
+real source.
 
 | Doc | What |
 |---|---|
-| `m1-durable-ingest.md` | durable SQLite store, ACK after commit, lease/fencing, recovery, unknown/dead, the 429 fix |
-| `m2-rules-and-simulation.md` | schema, filter, mapping, typed/namespaced business keys with TTL, simulation, trace |
-| `m3-actions-and-delivery.md` | HTTP forward, Apps Script with receipt, plugin handlers, branches, delivery ids |
-| `m4-security.md` | per-provider signatures, encrypted secrets with rotation, tools via dispatcher, approval |
-| `m5-operations.md` | notification modes, quotas, AI budget, circuit breaker, retention, export, dashboard log |
-| `poscake-migration.md` | POSCake migration and rollback (contract not guessed) |
-| `staging-pilot-pack.md` | staging and pilot steps with pass criteria (prepared, not run) |
 | `huong-dan-su-dung.md` | user guide (Vietnamese) |
+| `poscake-migration.md` | POSCake cutover per §16, and how to go back |
+| `rollback.md` | rolling the binary back (§13), what it keeps and what it cannot undo |
+| `staging-pilot-pack.md` | staging and pilot: SHA, fixtures, budget, stop and reconcile steps (prepared, not run) |
+| `m1-durable-ingest.md` to `m5-operations.md` | design notes per milestone, written before the spec arrived; each opens with what the spec changed |
+| `spec-gap-analysis.md` | the gap list against the spec, before the alignment work |
 
-## Requirements matrix (from the brief)
+**Main suites.** `tests/python/test_webhook_spec_matrix.py` walks every §15 row and §16.1, 2, 4, 5, 7 (row names start
+with `§15 <group>` or `§16.n`). The milestone suites (`test_webhook_store_m1`, `rules_m2`, `m2_review`, `actions_m3`,
+`m3_review`, `security_m4`, `m4_review`, `golden_signatures`, `ops_m5`, `m5_review`, `chain_review`,
+`triggers_0198`) keep their deeper cases. `test_webhook_spec_review` pins every finding of the reviews of the spec
+alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
+`tests/js/test_webhooks_ui_*.js` cover the dashboard, `test_webhooks_ui_spec.js` the §12 layout.
 
-Status: **done** = built and proven with fakes; **open** = needs a real source or the spec.
+## Requirements matrix
 
-| Requirement | Where | Proof | Status |
+### §3 Guarantees
+
+| Requirement | Code | Proof | Status |
 |---|---|---|---|
-| Durable SQLite, ACK after commit | `webhook_store.ingest` | crash before/after commit in a child process | done |
-| Worker lease, fencing, recovery | `claim/heartbeat/recover`, branch writes fenced | two workers, stale fence refused, takeover stops the old run | done |
-| dead / unknown states | `recover`, `finish` | crash after dispatch, unknown not re-run | done |
-| 429 keeps no seen key | `ingest` (key in the same transaction) | `test_webhook_triggers_0198.py` | done |
-| Schema filter and mapping, no eval | `webhook_rules.py` | source check, hostile payloads (`test_webhook_m2_review.py`) | done |
-| Simulation | `POST /webhooks/simulate` | no write, no run, no send; replay of a logged body | done |
-| Business keys with type, namespace, TTL | `biz_keys`, `_key_value` | cross-brain, TTL, concurrency (threads and processes), crash | done |
-| Trace | `events.trace`, Details | detail route, UI | done |
-| HTTP forward | `run_http` | outcome per status, SSRF guard, secrets bound to the target | done |
-| Apps Script redirect and receipt | `run_apps_script` | 302 echo GET, sign-in redirect, receipt checks | done (fakes); open (real deployment) |
-| Plugin handlers, completed/accepted, stable delivery id | `register_webhook_handler`, `run_plugin` | host registry per brain, own thread pool | done |
-| Independent multi-action, retry only the failed branch | `branches`, `summarize`, `retry` | owner retry runs only the unknown branch, same delivery id | done |
-| Per-provider verification | `webhook_verify.py` | Stripe, GitHub, Shopify, HMAC: done (spec); Systeme.io | open (unverified) |
-| Systeme.io own normalisation | `normalize("systeme_io")` | synthetic fixture | open (real delivery) |
-| POSCake contract not guessed | `validate` refuses `poscake` | test | done (not built by design) |
-| Encrypted secrets, key rotation | `webhook_secrets.py` | AES-GCM, AAD, rotation cut midway, env key | done |
-| Tools via dispatcher | `_webhook_call_tool` (hub route) | fake dispatcher; level passed | done (fake); open (real tool on staging) |
-| Idempotency | dedup + provider delivery id + delivery ids | duplicates in every path | done |
-| Approval | branch `approval`, `POST /webhooks/events/approve` | approve, reject, twice, level lowered | done |
-| Notifications all/errors_only/daily_digest/none | `_notify`, `_digest` | per mode, digest once a day, no model | done |
-| Quotas | `limits` | hour/day/backlog 429, nothing stored | done |
-| AI budget | `ai_per_day` | refused before dispatch | done |
-| Circuit breaker | `breakers` | open, pause without tries, notice once, close | done |
-| Retention and export | `prune(keep_days)`, export route | per-hook retention, JSONL/CSV without secrets | done |
-| Paginated dashboard | keyset `page`, filter, Details | UI tests | done |
-| Migration and rollback | each doc's Rollback, `poscake-migration.md` | schema upgrade v1 to v6 in place, concurrent upgrade | done |
-| No model on non-AI paths | source checks, runners that raise if called | every milestone | done |
-| Benchmarks | `test_webhook_ops_m5.py`, rules benchmark in M2 | printed numbers | done |
-| Independent review per milestone, P1/P2 resolved | review tables in the M1 to M5 docs | regression tests red on the reviewed commits (`test_webhook_m2_review` to `m5_review`) | done for M1 to M5 |
-| Production verified adapters | | | open: needs real deliveries (staging pack) |
+| No ACK and no dedup key before a durable commit | `Store.ingest` (one transaction: event, delivery key, receipt) | matrix "§15 Lưu bền" (child process killed before and after the commit) | done |
+| No exactly-once promise; receipts and reconciliation | `receipts`, `delivery_attempts`, unknown state, export | matrix "§15 Plugin", "§15 Apps Script", staging pack "reconcile" | done |
+| A successful delivery is never run again | `Store.retry` (failed ones only), `replay` (new generation, preview names repeats) | matrix "§15 Fan-out", "§15 Replay" | done |
+| Snapshot by revision, permissions checked now | `hook_rev` on the event; the worker reads the hook's CURRENT level | `test_webhook_m3_review` "restoring the level runs the blocked deliveries again" | done |
+| No cookie or token forwarded; no escalation; no cross-brain or plugin leak | `run_http` header allowlist, `plugin_precheck`, tool level from the hook | matrix "§15 Chuyển tiếp", "§15 Plugin", "§15 Tool" | done |
+| Non-AI paths never build or call a model, triage and notices included | worker: model only for `kind: ai`; triage only with `ai_triage` | matrix "§15 Không AI", bench guard plus its negative control | done |
 
-## Whole-chain review (M1 to M5 together)
+### §4 Storage and ingress
 
-After the per-milestone reviews, an independent review of the whole chain at 787dfbf6 looked for interactions
-between milestones. It found 1 P1, 5 P2 and 8 P3 issues, all fixed. The regression tests are in
-`tests/python/test_webhook_chain_review.py`.
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| Tables: hooks, revisions, events, receipts, deliveries, attempts, notifications outbox, audit | `webhook_store.py` schema v7, `foreign_keys=ON` | `test_webhook_store_m1` (upgrade in place, concurrent upgrade) | done |
+| Order: auth, then size, then read the stream under the cap, then commit, then 202 | `hooks_receive` | `test_webhook_m5_review` "without a valid token the body is never stored"; matrix "§15 Nhận body" | done |
+| 202 means stored, shape `{accepted, event_id, state: "received"}` | `hooks_receive` | matrix, `test_webhook_triggers_0198` | done |
+| Refusals keep nothing: 429 with `retry_after`, 503 `store_full` / `store_busy` with Retry-After | `Store.ingest`, `js()` | matrix "§15 Lưu bền" (disk reserve), "§15 Tải" (SQL busy, byte quota) | done |
+| Busy timeout finite (5 s), WAL counted, checkpoint before refusing for space | `Store._connect`, `make_room` | matrix "§15 Tải" | done |
+
+### §5 Filters and normalisation without a model
+
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| Strict types (`1` is not `"1"`), missing is not null, explicit `as` conversion | `webhook_rules.eval_condition` | matrix "§15 Filter" | done |
+| `[*]` paths with quantifier any / all; `case_sensitive`; empty arrays | `_match_path` | matrix "§15 Filter"; `test_webhook_rules_m2` | done |
+| A wrong rule refused at save, never match-all at run time (quarantine) | `validate`, `evaluate_closed` | matrix "§15 Filter: a wrong rule..." | done |
+| Limits: 100 nodes, depth 8, JSON depth 64; no eval | `validate`, `parse_payload` | `test_webhook_rules_m2`, `test_webhook_m2_review` (hostile payloads, source check) | done |
+| Reason codes, stored trace without values, values only in a simulation | `trace`, `reveal=True` | `test_webhook_ui_spec.js` (no placeholder value), matrix | done |
+| Simulation writes nothing, runs nothing, holds no key | `POST /webhooks/simulate` | `test_webhook_rules_m2` | done |
+
+### §6 Duplicates at two levels
+
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| Delivery duplicates: sender header (`h:`) or provider id (`p:`), per hook | `dedup` table, `Store.ingest` | matrix "§15 Chống trùng: ten concurrent requests" | done |
+| The 429 bug: a refused request keeps no key | same transaction | matrix "§15 Chống trùng: the 429 case" | done |
+| Business key: typed tuple, hashed (sha256), scope `hook:<id>:v<n>` or `ns:<ns>:v<n>`, TTL, missing parts quarantine or accept, test events apart | `biz_key`, `triage_commit` | matrix "§15 Chống trùng" (three rows) | done |
+| Out-of-order and version handling stays with the plugin (§11) | documented | | done (by design) |
+
+### §7 Durable worker and retry per action
+
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| Lease and fencing; two workers never run one delivery | `claim`, `fence` | matrix "§15 Phục hồi"; `test_webhook_store_m1` | done |
+| Retry 1, 5, 30 minutes, jitter ±20 %, 4 attempts, 24 h deadline, Retry-After inside the deadline | `webhook_worker.RETRY_*`, fake clock and RNG | matrix "§15 Retry" (four rows) | done |
+| Retry safety: `manual_on_ambiguous` (default), `idempotent`, `at_least_once`; ambiguous results become unknown | `retry_safety`, `_outcome_of` | matrix "§15 Retry: a 5xx ... is unknown" | done |
+| States: pending, running, retry_wait, succeeded, accepted, unknown, blocked, waiting, dead, cancelled (spec words in the UI and notices) | `spec_delivery_state`, `spec_event_state` | `test_webhook_ui_spec.js`, `test_webhook_m3_review` | done |
+| `depends_on` (acyclic, on succeeded or accepted) | `dep_state`, `summarize` | `test_webhook_actions_m3` | done |
+
+### §8 Actions
+
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| 8.1 HTTP forward: raw bytes and content type, `X-Javis-Event-Id`, no sender cookie or token, SSRF guard with pinned connections, redirects not followed | `run_http`, `_pinned_backend` | matrix "§15 Chuyển tiếp" (DNS rebinding included) | done |
+| 8.1 A name that does not resolve is retried (nothing sent) | `_refused` | matrix "§8: a name that does not resolve" | done |
+| 8.1 Apps Script profile: echo hop checked, receipt required, sign-in page is blocked, `delivery_ref: query` | `run_apps_script` | matrix "§15 Apps Script" (two rows) | done (fakes); open (real deployment) |
+| 8.2 Plugin contract: completed, accepted, retryable_error, permanent_error, unknown, waiting_approval; same delivery id gives the same job | `run_plugin`, `register_event_handler` | matrix "§15 Plugin" (three rows) | done (fake plugin); open (poscake-zalo, §17) |
+| 8.2 A slow plugin cannot take every worker | own thread pool (`PLUGIN_THREADS`), `_INFLIGHT` | matrix "§15 Tải: a hook stuck on a slow run" | done |
+| 8.3 Tool through the hub dispatcher at the hook's level, typed templates, payload cannot pick the tool | `run_tool`, `tool_args` | matrix "§15 Tool" | done (fake dispatcher); open (real tool on staging) |
+| 8.4 AI task or workflow: quota waits, a lost dispatch is not run twice, a partial result is not done | worker AI path | matrix "§15 AI" (three rows), "§15 Chờ chủ" | done |
+| 8.5 One hook, many actions (up to 10), each independent | `plan_deliveries` | matrix "§15 Fan-out" | done |
+
+### §9 The POSCake sample configuration
+
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| The spec's own action format is read: `type: http_forward`, `body_mode`, `redirect_profile`, `retry_safety`, `delivery_ref` | `webhook_actions.validate` aliases | `test_webhook_actions_m3` "the spec's own action format (§9) is read" | done |
+| The real POSCake payload, headers, status meanings | | | open (§17, owner data) |
+
+### §10 Source verification and secrets
+
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| Profile per source, never one shared formula; the payload cannot pick the algorithm | `webhook_auth.verify_ex` | `test_webhook_golden_signatures`, matrix "§15 Provider" | done |
+| Generic token: header of the owner's choice or Bearer; `?token=` only for older hooks; the header cannot be one Javis stores | `token_from_request`, `allow_query`, `token_header_name` | matrix "§10: a NEW hook does not accept the token in the URL"; review "R2 P3" | done |
+| A provider-checked hook is authenticated by the provider's signature (the provider cannot add the Javis token); the token never bypasses the signature | `authorize`, `accept_body` | review "R2 P2-5" (real router, signed GitHub delivery) | done |
+| GitHub hex `sha256=`, Shopify base64 over raw bytes (id from `X-Shopify-Event-Id`, else `Webhook-Id`), Stripe timestamp with several signatures and tolerance | `webhook_auth.py` | matrix "§15 Provider", "§15 Xác thực" | done (spec); open (real deliveries) |
+| Systeme.io: `X-Webhook-Signature` over Systeme's normalised JSON, dedup on `X-Webhook-Message-Id` | `systeme_forms` (raw, php_default, php_unescaped) | synthetic fixtures `systeme_io_synthetic_*` | open: `unverified` until a real delivery (the docs site was unreachable from the build session) |
+| POSCake: no preset until its contract is known | `validate` refuses `poscake` | test | done (not built, by design) |
+| Encrypted secrets referenced from the config; a missing key blocks with a clear error | `webhook_secrets.py` (AES-256-GCM, name as associated data) | `test_webhook_security_m4`, `test_webhook_m4_review` | **deviation**: the spec names `secrets_store.encrypt_required()`. That store has one Fernet key and no rotation, and the spec also asks for rotation with a key version: a dedicated vault does both. Same rule: no plain secret on disk, no fallback that skips the check |
+| Two keys during a bounded overlap (`overlap_h` 1 to 168, default 24); key version and verification time stored | `previous_secret`, `key_version`, `verified_at` | matrix "§15 Xác thực" | done |
+| Replay never fakes a new signed request | `replay_confirm` works on the stored, verified event | matrix "§15 Replay" | done |
+
+### §11 Resource limits and fairness
+
+| Limit | Value | Proof | Status |
+|---|---|---|---|
+| Body per hook / ceiling | 256 KiB / 2 MiB, read as a stream | matrix "§15 Nhận body" | done |
+| Valid ingress per hook | 300 per minute, burst 100 per 10 s; optional per hour and per day | `test_webhook_ops_m5` | done |
+| Unauthenticated requests | 30 failures per minute per address (the forwarded address behind a local or private proxy); a valid token always passes | review "R3 P2-3" | done |
+| Backlog per hook | 10,000 events or 256 MiB, whichever first, refused before any key is held | matrix "§15 Tải: the byte quota" | done |
+| Whole store | 1 GiB including the WAL, 128 MiB of free disk kept | matrix "§15 Lưu bền: store full" | done |
+| AI per hook | 30 per hour by default, optional per day, 300 per hour across hooks, durable counter; past it the event waits | matrix "§15 AI / §16.4" | done |
+| Concurrency | one delivery at a time per hook, a pool of 4 per process with fair turns; a plugin holds at most 2 threads, and a full pool costs no attempt | matrix "§15 Tải: a hook stuck..."; review "R2 P2-4" | done |
+| Raw payload / metadata / dedup | body 7 days after it settles; unknown, waiting, blocked, failed and dead keep theirs until the owner settles or deletes the event (counted in the byte quota); mapped fields go with the body; metadata 30 days; delivery keys 7 days, never dropped younger under disk pressure | matrix "§15 Tải: retention never deletes pending"; review "R3 P1-1", "R1 P2-6" | done |
+| Breaker per target and credential | `target_key` | `test_webhook_ops_m5` "the breaker is per target" | done |
+| Expiry | `expire_after_h`, ends `dead` with an audit line | `test_webhook_m5_review` | done |
+
+### §12 Log, notifications and the page
+
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| Three parts: Configuration, Events, Health; simple setup first, advanced behind a button | `dashboard/webhooks.js` | `test_webhooks_ui_spec.js`; `tools/webhook_ui_narrow_check.mjs` at 390 px | done |
+| Timeline per event (received, verified, parsed, filter, duplicate, dispatch, attempt, receipt, result, notice) | `timeline()` | matrix "§16.5" | done |
+| Cursor pages, filters by hook, state, order or correlation id, time range; never the whole DB in memory | `Store.page` (keyset), `/webhooks/events` | `test_webhooks_ui_m1.js`, `test_webhooks_ui_spec.js` | done |
+| Test send: the owner's payload, the list of effects first, a test namespace, same permissions and quotas | `test_send` | matrix "§15 UI"; `test_webhooks_ui_spec.js` | done |
+| Retry keeps the delivery id and snapshot, re-runs dependents a failure cancelled, never sends an empty body | `Store.retry` | matrix "§15 Apps Script: the owner's retry sends the same delivery id"; review "R2 P2-2", "R3 P1-1" | done |
+| Process again with the current setup: a new generation under the current revision | `replay_confirm`, `Store.replay` | review "R2 P2-1" | done |
+| Raw view and export masked by default (payload, fields, headers, trace, result, error, deliveries, timeline, list rows, tool arguments), raw always audited (view, export with or without bodies, simulation of a logged event) | `mask_row()`, `/webhooks/audit` | matrix "§15 UI ... customer data masked"; review "R3 P2-5", "R3 P2-6", "R1 P2-5" | done |
+| Pause processing vs stop receiving, two switches | `pause()`, `enabled` | `test_webhooks_ui_spec.js`; `test_webhook_ops_m5` | done |
+| Notify modes; older hooks keep `all`, new non-AI hooks start `errors_only` | `create()` | `test_webhook_ops_m5` | done |
+| Digest by code in the owner's time zone, one per period, at most one catch-up after a restart; a failed notice is retried alone | outbox `dkey` UNIQUE | matrix "§15 Thông báo" (two rows) | done |
+| `none` keeps system alerts; `errors_only` groups failures, blocks and unclear outcomes into incidents; `ai_triage=false` blocks the triage model | `deliver_notifications`, `inc:<hid>` | `test_webhook_ops_m5`, `test_webhook_m5_review`; review "R3 P2-4" | done |
+| Health figures; "202 received" never shown as processed | `health()`, `healthHtml` | `test_webhooks_ui_spec.js` | done |
+
+### §13 Modules and compatibility
+
+| Requirement | Code | Proof | Status |
+|---|---|---|---|
+| Module split: triggers (routes), store, rules, auth, worker, actions, plugins_host | as named; `webhook_verify.py` is a re-export shim | | done |
+| Migration of `webhooks.json` once, idempotent, with a snapshot and a marker; older hook = one AI action, no filter added, level kept | `_migrate_json` | matrix "§15 Tương thích: migrating twice" | done |
+| Public `POST /hooks/{id}`, admin under `/webhooks/...` behind the login | `main.py` wiring | matrix "§16.7" (real host, `JAVIS_REQUIRE_LOGIN=1`) | done |
+| Old `seen_keys` kept as legacy keys with their age | `import_hooks` | `test_webhook_store_m1` | done |
+| Rollback: stop, export the backlog and hold it, write a legacy config, say what will not run; the new store kept; the next upgrade restores each hook's own switches | `server/webhook_rollback.py`, `rollback.md` | matrix "§15 Tương thích / §13"; review "R1 P2-2 / R3 P1-2" | done |
+
+### §14 Delivery order
+
+| Requirement | How | Status |
+|---|---|---|
+| One PR per milestone under a reserved version | **deviation**: the session was bound to one branch, so PR #747 holds commits grouped by milestone (M1 to M5, then the spec alignment), one version 0.233.0 | deviation (explained in the PR) |
+
+### §15 Test matrix
+
+Every row is a named section of `test_webhook_spec_matrix.py`: Lưu bền (3), Phục hồi, Chống trùng (5), Filter (2),
+Nhận body (2), Xác thực (2), Provider, Chuyển tiếp (3), Apps Script (2), Retry (4), Fan-out, Plugin (3), Tool, AI (3),
+Chờ chủ, Không AI, Replay, UI, Thông báo (2), Tải (4), Tương thích (3). Crash rows run in child processes that stop at
+named crash points (`JAVIS_WH_CRASH_AT`). Narrow screens and languages: `test_webhooks_ui_spec.js` (every key in vi and
+en), `test_i18n.mjs`, and `tools/webhook_ui_narrow_check.mjs` (390 px, no sideways scroll, nothing under 16px).
+
+### §16 Acceptance
+
+| Criterion | Proof | Status |
+|---|---|---|
+| 1. Every 202 found after a restart with a final or waiting state | matrix "§16.1"; benchmark (1,200 of 1,200) | done |
+| 2. No model for non-matching data, duplicates, rule errors; no hidden triage on non-AI branches | matrix "§16.2", "§15 Không AI"; benchmark guard 0 with a positive control | done |
+| 3. Retry and replay never repeat a success; unclear outcomes stay unknown | matrix "§15 Replay", "§15 Retry" | done |
+| 4. The AI quota loses no accepted order; a full backlog refuses before holding dedup | matrix "§15 AI / §16.4", "§15 Tải" | done |
+| 5. The timeline explains why it ran and which handler took it | matrix "§16.5" | done |
+| 6. POSCake to Apps Script and to the plugin with masked real fixtures and staging receipts | `staging-pilot-pack.md` steps 3 and 5 | **open** (needs the owner's data and a staging run) |
+| 7. Older hooks keep working; admin, raw and replay are not public | matrix "§15 Tương thích", "§16.7" | done |
+
+**Benchmark** (`tools/webhook_bench.py`, real HTTP socket, uvicorn in a child process, 4 vCPU build container,
+2026-10-19). Spec target: 10 KiB, 5 hooks, 20 requests per second for 60 s, p95 ACK under 250 ms.
+
+| Run | Sent | Answers | ACK p50 / p95 / p99 / max (ms) | Processing p50 / p95 | Model calls |
+|---|---|---|---|---|---|
+| Fast receiver | 1,200 in 59.96 s | 1,200 × 202 | 4.66 / 6.66 / 9.86 / 48.46 | 0.01 s / 0.01 s | 0 |
+| Every action waits 2 s | 1,200 in 59.96 s | 1,200 × 202 | 5.70 / 9.99 / 15.81 / 39.66 | 34.8 s / 65.0 s (backlog by design) | 0 |
+
+With a 2 s receiver, processing is bounded by one delivery per hook in a pool of 4 (2 per second), so the backlog
+grows while ingress stays at the same latency and every event stays stored. This is the build container, not a VPS
+measurement: run the same command on the target machine before a cutover.
+
+### §17 Data to settle before real traffic (all open)
+
+The POSCake payload and headers (masked), shop, order and event ids, status meanings, whether it can send a custom
+header; what the Apps Script receives and returns, and how it dedups; where `poscake-zalo` keeps its schedule and
+whether it returns the same job id for the same delivery id; peak rates, allowed delay, retention and disk budget;
+which actions are at-least-once and which must be reconciled before a resend. `staging-pilot-pack.md` says how to
+collect each.
+
+## Tests changed because of the spec
+
+These suites were written before the spec arrived. Their checks now assert the spec's behaviour. No check was deleted
+to make a run pass, and no threshold was loosened; each change below follows a spec sentence.
+
+| Before | Now | Spec |
+|---|---|---|
+| HTTP 503 at a receiver: retried | unknown unless the receiver is declared idempotent; 429 is retried | §7 ambiguous outcomes |
+| A plugin raising, or answering outside the contract: failed | unknown (it may have acted) | §8.2 |
+| Plugin not installed, off, other brain, or level too low: failed | blocked (waits for the fix, runs when fixed) | §7 blocked |
+| 401 / 403 at a receiver, Apps Script sign-in page: failed | blocked | §7, §8.1 |
+| A rejected approval: failed | cancelled | §7 |
+| Busy after the last try: failed | dead; the event is partial_failed when another delivery succeeded | §7 |
+| Retries: the old delays | 1, 5, 30 minutes with jitter, 4 attempts, 24 h | §7 |
+| Rules decided before the 202 (filtered events answered 200, deep JSON 422) | every event is stored and answered 202; the worker filters, quarantines or ignores it | §4.2 |
+| A switched-off hook ended its waiting events dead | stop receiving refuses new requests only; accepted events still run (pause is the processing switch) | §12 |
+| AI budget per day refused the run | the event waits for room within the hour (default 30 per hour) | §7, §11 |
+| Backlog cap of 200 unsettled per hook | 10,000 events or 256 MiB, parked ones included | §11 |
+| Breaker per hook | per target and credential | §11 |
+| Export carried the raw payload | masked by default; raw only with `raw=1`, audited | §12 |
+| Business key `{entity, field}` | `{policy_version, business_paths, ttl_s, missing, namespace}` (the old form is converted on load) | §6.2 |
+| Systeme.io deduped on the attempt id | on `X-Webhook-Message-Id`; the golden fixtures gained the two PHP-style forms | §10 |
+| 307 / 308 after a POST: failed | unknown, like every redirect after a POST | §7 (review R2 P3) |
+| `allow_private` opened every address | link-local and cloud metadata addresses stay refused | §8.1 (review R2 P3) |
+| A number out of range (`1e400`, NaN) was kept as text, so a filter on it was filtered | quarantined as `number_out_of_range` | §5 (review R1 P3) |
+| Hung handlers filled the whole plugin pool | one plugin holds at most 2 threads; its extra calls wait without spending an attempt | §11 (review R2 P2-4) |
+| Notices named the internal states | the spec's words (succeeded, waiting...) | §12 |
+| The 0.198 log answered 200 on duplicates without an event id | 200 with the event id | §4.2 |
+
+## Reviews
+
+Milestone reviews (M1 to M5) and the whole-chain review at 787dfbf6 were made against the brief, before the spec.
+Their findings and regression tests stay valid and are listed in each milestone doc and in
+`test_webhook_m2_review.py` to `test_webhook_chain_review.py`.
+
+The spec alignment was reviewed by three independent reviewers at 11f6ee8e: R1 the store and rules (M1, M2), R2
+delivery and security (M3, M4), R3 operations, the UI and the whole chain (M5). Every finding was fixed in 190eadf6,
+pinned by `test_webhook_spec_review.py`, and that file was run against 11f6ee8e to confirm each pinned check was red
+there (13 failures or hangs).
 
 | Finding | Fix |
 |---|---|
-| P1 the hook's own sealed reference, sent back with a new address, carried the key along | a reference sent by a client is treated like the mask (same target only), and a made-up one is refused |
-| P2 a workflow question left an event `waiting` forever; with no cap, the shared store could fill (503 for every brain) | Mark done closes `waiting` events; approvals and questions expire after 14 days; at most 200 unsettled events per hook (then 429 for that hook only) |
-| P2 the M1 poison guard no longer worked once every event has branches | tries kept across losses before any dispatch: dead after `MAX_AUTO_TRIES` |
-| P2 an unreadable `webhooks.json` turned accepted events into "hook deleted" and let `create()` wipe the other hooks | `_load` raises on a read or parse error. Events wait (retried with backoff), receive answers 503, create and update refuse |
-| P2 the AI branch of a hook whose brain folder is gone ran in the default brain | refused before dispatch (`brain_exists`) |
-| P3 (fixed) | incident triage only for an AI branch dispatched in that pass; header values with surrounding spaces refused; the approval request is sent at once (one dedup key with the event's notice), and an approved branch runs at once; a failed event whose business key is live is not pruned or evicted; 4xx refusals do not open the breaker; keys echoed by a receiver are redacted from receipts; the body size is checked before reading; `digest_try` keys removed with the hook |
-| P3 (kept, noted) | while a breaker stays open, its parked events are claimed and parked again each cycle (extra `attempts` rows, no extra sends) |
+| R1 P1 one event with a lone surrogate stopped triage for every hook | triage guarded per event (quarantined with the fault named); lone surrogates are bad UTF-8 |
+| R3 P1 retention emptied failed bodies, then Retry sent an empty body and marked it done | failed and dead bodies kept until settled or deleted; Retry refuses `body_pruned`; owner delete route |
+| R3 P1 / R1 P2 rollback then upgrade switched v2 hooks off and re-ran the exported backlog; deleted hooks came back | own switches recorded and restored; exported events held unknown; hooks deleted in the older build stop receiving |
+| R2 P2 provider-signed hooks refused real deliveries without the Javis token | the provider signature authenticates; the token never bypasses it |
+| R3 P2 junk requests locked out valid senders | valid tokens always pass; per-address throttle on failures only; forwarded address behind a local proxy |
+| R2 P2 / R3 P2 replay ran the old revision and cancelled every changed action | replay records the current revision and a fresh retry window |
+| R2 P2 retry did not re-run dependents cancelled by a failed dependency | they run again |
+| R2 P2 a dependent of a receiver that only accepted the work waited forever | Mark done settles the accepted delivery and releases its dependents |
+| R2 P2 a hung plugin exhausted the plugin pool and dead-lettered other plugins | 2 threads per plugin; slot checked before dispatch |
+| R1 P2 `not` over a missing field matched; `empty` on `[*]` never passed | three-valued logic; quantifier applied |
+| R1 P2 Systeme.io contact data stored in the trace | the trace keeps ids and type; the contact is derived from the body when it runs |
+| R3 P2 masked views and exports leaked results, errors, deliveries, timeline | `mask_row` on every dashboard text |
+| R3 P2 raw export without bodies and simulation of a logged event were not audited | audited, simulation masked unless raw |
+| R3 P2 errors_only sent one notice per blocked or unknown event | grouped into the incident |
+| R1 P2 disk pressure dropped delivery keys younger than 7 days | never below their keep time |
+| P3 (all fixed) | out-of-range numbers quarantined; 1 and 1.0 one key; NFC compare; retry-safe resends capped; any 3xx after POST unknown; metadata refused with allow_private; token header not a stored header; store faults answer 503; indexes for paging and search; prune in small transactions; ingest re-checks the switch; Stop receiving always saved; catch-up digest from the last cursor |
+| P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |

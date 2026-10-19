@@ -1,57 +1,97 @@
-# POSCake to Javis webhooks: migration and rollback
+# POSCake: cutover to the webhook platform, and the way back (0.233.0, spec §9, §16, §17)
 
-**What is known and what is not.** This repository has no POSCake webhook contract: no documented signature header,
-no event names, no payload schema. Javis does **not** guess it. `provider: poscake` is refused when saved, with that
-reason. Until POSCake's contract is confirmed against a real account, a POSCake hook uses the Javis token in the URL
-(`provider: none`). That is the same protection every hook had before 0.233.0. The shop's rules are written against
-the payload as POSCake really sends it, captured in the staging step below.
+**Known and not known.** This repository has no POSCake webhook contract: no documented signature, no event names, no
+payload schema, no statement of whether POSCake can send a custom header. Javis does **not** guess any of it
+(`provider: poscake` is refused when saved). Everything below that depends on POSCake's real data is a step to run
+on staging with the owner, not a fact. Nothing here was run against POSCake, Apps Script or Zalo.
+
+## The target configuration (spec §9)
+
+One hook, three parts: a filter on paid orders that contain the product, a business key per order and status, and two
+actions that do not need AI.
+
+```json
+{
+  "rules": {
+    "filter": {"all": [
+      {"path": "status", "op": "eq", "value": 1},
+      {"path": "items[*].name", "op": "contains", "value": "TRỢ LÝ AI JAVIS", "quantifier": "any",
+       "case_sensitive": false, "reason": "product_not_found"}
+    ]},
+    "dedup": {"policy_version": 1, "business_paths": ["shop_id", "id", "status"], "ttl_s": 604800,
+              "missing": "quarantine"},
+    "correlation": "id"
+  },
+  "actions": [
+    {"id": "to_apps_script", "type": "http_forward", "url": "https://script.google.com/macros/s/<id>/exec",
+     "body_mode": "raw", "redirect_profile": "google_apps_script", "retry_safety": "manual_on_ambiguous",
+     "delivery_ref": "query"},
+    {"id": "to_poscake_zalo", "type": "plugin", "plugin": "poscake-zalo", "handler": "order_received"}
+  ]
+}
+```
+
+Field names (`status`, `items[*].name`, `shop_id`, `id`) are the spec's illustration. They must be checked against
+a captured POSCake payload (step 2) before real traffic. The same configuration is exercised with fakes by
+`tests/python/test_webhook_spec_matrix.py` (`SPEC_RULES`, `POSCAKE_ACTIONS`).
+
+## How POSCake authenticates
+
+- The hook that receives POSCake today was migrated from `webhooks.json`. It is an **older hook**, so its address
+  with `?token=` keeps working. Add the rules and actions above **to that hook** (Configuration, Advanced) instead of
+  creating a new one, unless step 2 shows POSCake can send a header.
+- A **new** hook accepts the key only in a header (`X-Javis-Token`, or one the owner names, or `Authorization:
+  Bearer`). Use one only if POSCake can send that header.
+- Never switch authentication off to make POSCake fit (spec §10). If POSCake signs its deliveries, its scheme becomes
+  an adapter once its documentation is in hand (see the end of this page).
 
 ## Before you start
 
-- [ ] Javis is 0.233.0 or later. Work page, Webhooks: each card shows its state log.
-- [ ] Back up `STATE_DIR/webhooks.json`, `webhook_events.sqlite3*`, `webhook_keys.json` and `webhook_secrets.json`.
-- [ ] Note which POSCake events you use today (new order, order status, payment...) and what Javis does with each.
+- [ ] Javis 0.233.0 or later on **staging**, with its own state folder.
+- [ ] Back up `STATE_DIR/webhook_events.sqlite3*`, `webhook_keys.json` and `webhook_secrets.json`.
+- [ ] The data of spec §17 collected (see `staging-pilot-pack.md`, part 0): masked POSCake payloads and headers; ids of
+      shop, order and event; what each status means; whether POSCake sends a custom header; what the Apps Script
+      receives, returns and dedups; where `poscake-zalo` keeps its schedule and whether it returns the same job id for the
+      same delivery id; peak rate, allowed delay, retention and disk budget; which actions are at-least-once and which
+      must be reconciled before a resend.
 
-## Steps
+## Cutover (spec §16), one step at a time
 
-1. **Create one hook per event kind**, or one hook with a filter. Copy its URL with `?token=` (POSCake can only send
-   to a URL, so the token goes in the query). The level is `full` only if the hook must act outside.
-2. **Capture one real delivery** on staging (`staging-pilot-pack.md`, step 3). The event log stores the body. Open
-   Details: the payload is the contract you build on. Remove customer data before keeping it as a fixture.
-3. **Write the rules against that payload**:
-   - `schema` holds the fields you rely on (for example the order id);
-   - `filter` keeps only the events you want;
-   - `mapping` picks `order_id`, `phone`, `total`;
-   - `business_key` is `{"namespace": "poscake", "entity": "order", "field": "order_id", "ttl_s": 2592000}`, so a
-     resent order runs once.
+1. **Create the v2 configuration on staging** (the hook above, on the staging Javis).
+2. **Capture, then simulate.** Point a POSCake test shop at staging, or replay captured bodies with `curl`. Open the
+   event, then Configuration, Advanced, **Test rules** with that body: the simulation writes nothing, sends nothing
+   and calls no model. Compare its decision for each captured order with what the shop expects (run or ignore, and
+   why).
+3. **Check the event id, the authentication and the schema.** The timeline shows "received", "parsed", "filter" and
+   the reason codes. A missing field is quarantined, never matched: fix the paths until every captured order gets
+   the decision it should.
+4. **Run each action into a test receiver.** Point `to_apps_script` at a test deployment of the receipt script
+   (`m3-actions-and-delivery.md`), and run `poscake-zalo` against a test thread, never a customer. Use **Send a real
+   test** on the Configuration part: it lists what each action will do before it sends, and its event has its own
+   duplicate space. Check:
+   - the Apps Script returns its receipt;
+   - the plugin returns the same job id when the same delivery id is sent twice;
+   - Retry sends the same delivery id.
+5. **Switch ONE source path** to the new hook. Never let the old plugin path and the new core path both send Zalo
+   messages or write orders. Switch the old one off first, or point POSCake at only one of them.
+6. **Reconcile** every morning for the first week (`staging-pilot-pack.md`, "How to reconcile"): POSCake's own order
+   list against the export of the hook (`Events`, Export CSV), and the receipts of each action. Every order must
+   appear once: done, ignored with its reason, or waiting for you.
 
-   Test with the Rules box's **Test rules** button on the captured body: nothing is stored or run.
-4. **Choose the actions**: the AI task, a forward to your CRM (`http`), a Google Sheet (`apps_script`, with the receipt
-   template in `m3-actions-and-delivery.md`) or a POS tool (`tool`, approval on). Keep `retry: never` unless the
-   receiver dedups on `Idempotency-Key`.
-5. **Set the notification mode** (`errors_only` is a good start) and the limits. POSCake bursts at opening time, so
-   raise `per_hour` if needed.
-6. **Point POSCake at the new URL.** Keep the old hook switched OFF, not deleted, for the rollback.
-7. **Watch the first day.** In the log, use the filter "Needs you" for unknown or approval events, and "Filtered" for
-   events your rules dropped. Use Details to see why.
+## The way back
 
-## If something is wrong (rollback)
+- **The rules drop orders they should not:** clear the rules (Advanced, empty box, Save). Then use "Process again
+  with the current setup" on a dropped event: it previews first, then runs.
+- **One action misbehaves:** remove it from the hook. Waiting events cancel that delivery and the others continue.
+  Or press **Pause processing**: events are still received and stored, nothing runs until you resume.
+- **Send traffic back to the old path:** point POSCake at the old address again, and switch the new path's Zalo or
+  Apps Script action off before switching the old one on. Keep the new store: its delivery keys and receipts tell you
+  what already happened.
+- **Go back to an older Javis build:** follow `rollback.md`. A binary rollback never undoes what was already sent:
+  reconcile the receipts first.
 
-- **Rules drop events they should not:** clear the rules (empty box, Save) and every event runs as before. Replay a
-  dropped event's body with Test rules after fixing them. Filtered events follow the hook's `retention_days`
-  (default 30, at most 200 per hook), with their body for 7 days, and at most 300 per hour are logged.
-- **An outside action misbehaves:** remove that action. Waiting events then cancel that branch, and the other
-  branches keep running.
-- **Go back to the previous Javis version:** see "Rollback" in `m1-durable-ingest.md` to `m4-security.md`.
-  - Before rolling back, list events still waiting or unknown with
-    `GET /webhooks/events?status=queued` and `?status=unknown`.
-  - Re-enter header values in plain form, because older versions cannot read the encrypted references.
-  - Switch the old hook back ON in POSCake if you used a new one.
-- **Nothing is lost by switching back**: idempotency keys are still mirrored into `webhooks.json` for the older
-  version.
+## When POSCake's contract is known
 
-## When POSCake's contract is confirmed
-
-Add a `poscake` adapter to `server/webhook_verify.py`: the signature header and scheme, the event name and the
-delivery id. Build its test from a captured delivery (secrets removed), and mark it `spec`. Mark it
-"production verified" only after a real delivery passed on staging.
+Add a `poscake` profile to `server/webhook_auth.py`: the signature header and scheme, the event name and the
+delivery id. Build its golden test from a captured delivery with secrets and customer data replaced (spec §10). Mark
+it `spec` once that test passes, and "production verified" only after a real delivery has passed on staging.

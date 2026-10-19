@@ -16,7 +16,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Gửi thử thật có xem trước:** dán nội dung mẫu, xem từng hành động sẽ làm gì, rồi mới gửi. Sự kiện thử có chỗ chống trùng riêng.
 - **Diễn biến của từng sự kiện:** nhận, xác thực, lọc, gửi đi, từng lần thử, biên nhận, kết quả và thông báo. Tìm được theo mã đơn và theo khoảng ngày.
 - **Chạy lại với cấu hình hiện tại** có xem trước, và nói rõ hành động nào đã thành công sẽ chạy thêm một lần.
-- **Kiểm chữ ký Stripe, GitHub, Shopify, Systeme.io** theo đúng cách của từng nơi, có thời gian chồng khi đổi khoá. Systeme.io chưa thử với tài khoản thật nên được ghi là chưa kiểm chứng. POSCake chưa có kiểm chữ ký vì chưa có tài liệu chính thức.
+- **Sự kiện lỗi được giữ nguyên nội dung** tới khi bạn chạy lại hoặc bấm **Xoá**, nên Chạy lại luôn gửi đúng dữ liệu đã nhận.
+- **Kiểm chữ ký Stripe, GitHub, Shopify, Systeme.io** theo đúng cách của từng nơi, có thời gian chồng khi đổi khoá. Những nơi này không cần gửi kèm khoá Javis: chữ ký của họ là đủ. Systeme.io chưa thử với tài khoản thật nên được ghi là chưa kiểm chứng. POSCake chưa có kiểm chữ ký vì chưa có tài liệu chính thức.
 - **Công cụ quay về bản cũ** (`server/webhook_rollback.py`): sao lưu kho, xuất các sự kiện còn dở để đối soát, viết lại danh sách webhook cho bản cũ.
 ### Bảo mật
 - Khoá API và khoá ký được mã hoá trên đĩa, không hiện trên giao diện, không nằm trong lịch sử cấu hình. Hãy sao lưu `webhook_keys.json` cùng `webhook_secrets.json`.

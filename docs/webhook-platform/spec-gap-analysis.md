@@ -1,5 +1,7 @@
 # Webhook platform: gap analysis against the spec of record
 
+> **Closed (0.233.0).** Every row below was built or is listed as open in the requirements matrix of `README.md`, which is the current record; this file is kept as the gap list at `a6132b9f`.
+
 Spec: `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md` (supplied 2026-10-19, after M1-M5 were
 first built from the owner's brief). Code compared: branch head `a6132b9f`. Each row is a requirement of the spec, what
 the code did at that head, and the change. The status column is updated as the work lands; `docs/webhook-platform/

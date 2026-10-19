@@ -1,7 +1,9 @@
 # Webhook trong Javis: hướng dẫn dùng (0.233.0)
 
 Webhook là một địa chỉ riêng. Hệ thống bên ngoài (phần mềm bán hàng, Systeme.io, Stripe, Google Form...) gửi sự kiện
-tới đó, và Javis làm việc bạn đã dặn. Mở trang **Công việc**, mục **Webhook**.
+tới đó, Javis ghi lại an toàn rồi làm việc bạn đã dặn. Mở mục **Webhook** trong nhóm Việc.
+
+Mỗi webhook có ba phần: **Cấu hình**, **Sự kiện**, **Tình trạng**.
 
 ## 1. Tạo webhook
 
@@ -9,115 +11,143 @@ tới đó, và Javis làm việc bạn đã dặn. Mở trang **Công việc**,
 2. Chọn việc cần làm: một **quy trình** có sẵn, hoặc **viết việc** bằng lời (AI làm).
 3. Chọn mức quyền:
    - **Chỉ gợi ý**: chỉ đọc và báo lại.
-   - **Tự động**: ghi file nháp.
+   - **Tự động**: được ghi file nháp.
    - **Toàn quyền**: được làm việc ra ngoài như gửi tin, tạo đơn.
-4. Lưu. Javis hiện địa chỉ và mã bí mật **một lần duy nhất**: chép ngay vào hệ thống bên ngoài.
+4. Lưu. Javis hiện địa chỉ và khoá bí mật **một lần duy nhất**. Chép ngay vào hệ thống bên ngoài.
 
-Nếu bên ngoài chỉ cho dán một địa chỉ, dùng dạng `https://.../hooks/<id>?token=<mã>`.
+Khoá gửi kèm trong header `X-Javis-Token` hoặc `Authorization: Bearer <khoá>`. Webhook tạo trước bản 0.233.0 vẫn nhận
+khoá trên địa chỉ (`?token=`) như cũ. Webhook mới thì không, vì địa chỉ hay bị ghi lại trong nhật ký của bên gửi.
 
-## 2. Javis giữ sự kiện thế nào
+## 2. "Đã nhận" nghĩa là gì
 
-- Sự kiện được ghi xuống đĩa **trước** khi Javis trả lời "đã nhận". Máy tắt hay cập nhật giữa chừng thì lúc mở lại
-  Javis chạy tiếp.
-- Máy dừng đúng lúc việc đang chạy (có thể đã gửi tin, ghi đơn) thì sự kiện thành **"không rõ đã xong chưa"**. Javis
-  không tự chạy lại. Bạn kiểm tra bên ngoài rồi bấm **Đã xong** hoặc **Chạy lại**.
-- Cùng một sự kiện gửi lại hai lần (cùng `Idempotency-Key`) chỉ chạy một lần.
+- Javis ghi sự kiện xuống đĩa **trước**, rồi mới trả lời bên gửi "đã nhận" (mã 202). Máy tắt hay cập nhật giữa chừng
+  thì lúc mở lại Javis chạy tiếp, không mất sự kiện.
+- "Đã nhận" **chưa phải** "đã xử lý xong". Kết quả xem ở phần Sự kiện.
+- Bên gửi gửi lại cùng một sự kiện (cùng `Idempotency-Key`, hoặc cùng mã tin của Stripe, GitHub, Shopify, Systeme.io)
+  thì Javis nhận ra là trùng và trả lại đúng mã sự kiện cũ.
+- Javis đang quá tải hay đầy đĩa thì trả lỗi (429 hoặc 503) kèm thời gian nên gửi lại. Lúc đó Javis **không giữ gì**,
+  nên lần gửi lại vẫn được nhận như mới.
 
-## 3. Quy tắc lọc (nút "Quy tắc lọc" trên thẻ)
+## 3. Lọc và chống trùng (Cấu hình, nút Nâng cao)
 
-Ô **Quy tắc (JSON)** có bốn phần, phần nào cũng có thể bỏ trống:
+Người chỉ cần chạy một quy trình thì không cần phần này. Ô **Quy tắc (JSON)**:
 
 ```json
 {
-  "filter":  {"path": "event", "op": "eq", "value": "order.created"},
-  "schema":  {"fields": {"order.id": {"type": "string", "required": true}}},
-  "mapping": {"order_id": "order.id", "phone": {"path": "customer.phone", "transform": "digits"}},
-  "business_key": {"namespace": "shop", "entity": "order", "field": "order_id"}
+  "filter": {"all": [
+    {"path": "status", "op": "eq", "value": 1},
+    {"path": "items[*].name", "op": "contains", "value": "TRỢ LÝ AI JAVIS", "quantifier": "any", "case_sensitive": false}
+  ]},
+  "mapping": {"order_id": "id", "phone": {"path": "customer.phone", "transform": "digits"}},
+  "dedup": {"business_paths": ["shop_id", "id", "status"], "ttl_s": 604800},
+  "correlation": "id"
 }
 ```
 
-- **filter**: chỉ chạy khi khớp điều kiện. Sự kiện không khớp được ghi lại kèm lý do, nhưng không chạy và không tốn
-  lượt mỗi giờ.
-- **schema**: dữ liệu thiếu trường cần thiết thì bị từ chối, bên gửi nhận mã 422.
-- **mapping**: trích sẵn các trường như mã đơn, số điện thoại, email để việc chạy nhận gọn.
-- **business_key**: chống trùng theo đơn. Cùng một đơn gửi hai lần, kể cả từ hai webhook của cùng bộ não, chỉ chạy
-  một lần trong 30 ngày. Số điện thoại viết `+84` hay `0` đều tính là một.
+- **filter**: chỉ chạy khi khớp. Kiểu dữ liệu được so đúng: số `1` khác chữ `"1"`. Trường thiếu thì không bao giờ
+  coi là khớp. `items[*]` kiểm từng món trong đơn, cần nói rõ `any` (có món nào khớp) hay `all` (mọi món đều khớp).
+- Sự kiện không khớp được ghi lại kèm lý do (ví dụ `status_mismatch`, `missing_field`), không chạy, không tốn lượt AI.
+- Dữ liệu hỏng (JSON lỗi, số quá lớn, lồng quá sâu) hoặc quy tắc không áp được thì sự kiện bị **cách ly**: giữ lại để
+  bạn xem, không chạy.
+- **mapping**: trích sẵn mã đơn, số điện thoại, email để việc chạy nhận gọn.
+- **dedup**: chống trùng theo đơn. Cùng (cửa hàng, mã đơn, trạng thái) tới lần hai trong 7 ngày thì bị bỏ qua là trùng.
+  Trạng thái khác của cùng đơn là sự kiện khác.
+- **correlation**: trường dùng để tìm sự kiện theo mã đơn ở phần Sự kiện.
 
-Trước khi lưu, dán dữ liệu mẫu vào ô dưới rồi bấm **Chạy thử**. Javis cho thấy từng bước khớp hay không khớp, trường
-nào được trích, và việc sẽ nhận gì. Chạy thử không lưu, không chạy, không gửi gì.
+Trước khi lưu, dán dữ liệu mẫu rồi bấm **Chạy thử**: Javis cho thấy từng điều kiện khớp hay không và trường nào được
+trích. Chạy thử không lưu, không chạy, không gửi gì, không gọi AI.
 
-## 4. Gửi tiếp sang nơi khác (ô "Hành động")
+## 4. Gửi tiếp sang nơi khác (ô Hành động)
 
-Mỗi sự kiện có thể đi tới nhiều nơi cùng lúc. Mỗi nơi là một nhánh riêng:
+Mỗi sự kiện có thể tới nhiều nơi. Mỗi nơi chạy riêng:
 
 ```json
-[{"id": "crm", "kind": "http", "url": "https://crm.cua-ban.vn/hook", "headers": {"X-Api-Key": "..."}},
- {"id": "sheet", "kind": "apps_script", "url": "https://script.google.com/macros/s/.../exec"},
- {"id": "pos", "kind": "tool", "tool": "pos_create_order", "args": {"phone": "{phone}", "ref": "{_delivery_id}"}},
+[{"id": "sheet", "type": "http_forward", "url": "https://script.google.com/macros/s/.../exec", "body_mode": "raw",
+  "redirect_profile": "google_apps_script", "delivery_ref": "query"},
+ {"id": "zalo", "type": "plugin", "plugin": "poscake-zalo", "handler": "order_received", "depends_on": ["sheet"]},
  {"id": "ai", "kind": "ai"}]
 ```
 
-- Một nơi lỗi không chặn nơi khác. Bấm **Chạy lại** chỉ gửi lại nơi bị lỗi, nơi đã xong không bị làm hai lần.
-- Nơi nhận bận (429, 503) thì Javis tự gửi lại sau ít phút, với **cùng một mã giao nhận**. Không rõ bên kia đã làm
-  chưa (hết giờ chờ, lỗi 500) thì Javis hỏi bạn, không tự gửi lại.
-- **Apps Script**: phải trả về biên nhận JSON `{"ok": true}` mới tính là xong. Mẫu script có sẵn trong
-  `m3-actions-and-delivery.md`. Lúc triển khai phải chọn quyền truy cập "Anyone".
-- **tool**: gọi tool của Javis (POS, CRM, lịch...) mà không cần AI. Mặc định mỗi sự kiện **chờ bạn bấm Duyệt**
-  (trong Chi tiết) rồi mới chạy. Duyệt không nâng quyền: tool vẫn chạy đúng mức quyền hiện tại của webhook.
-- Khoá API trong `headers` được mã hoá và không bao giờ hiện lại. Lưu lại ô đang hiện `••••` thì khoá cũ được giữ.
-  Nếu đổi địa chỉ thì phải nhập lại khoá.
+- Một nơi lỗi không chặn nơi khác. `depends_on` cho một nơi chờ nơi kia xong rồi mới chạy.
+- **Tự thử lại** khi nơi nhận bận: sau 1 phút, 5 phút rồi 30 phút, tối đa 4 lần trong 24 giờ. Mọi lần gửi mang
+  **cùng một mã giao nhận** (`X-Javis-Event-Id`) để bên kia bỏ được bản trùng.
+- **Không rõ bên kia đã làm chưa** (hết giờ chờ, lỗi máy chủ, chuyển hướng sau khi gửi) thì Javis **không tự gửi
+  lại**. Sự kiện thành "đang chờ (chưa rõ)": bạn kiểm tra bên ngoài rồi bấm **Đã xong** hoặc **Chạy lại**. Nơi nào
+  khai `"retry_safety": "idempotent"` (bên nhận tự bỏ bản trùng) thì được tự gửi lại.
+- **Khoá sai hoặc thiếu quyền** (401, 403, mức quyền thấp, plugin chưa bật) thì nơi đó **bị chặn**, chờ bạn sửa.
+  Sửa xong thì nó chạy tiếp.
+- **Apps Script** phải trả về biên nhận thì mới tính là xong. Mẫu script trong `m3-actions-and-delivery.md`. Lúc triển
+  khai chọn quyền "Anyone"; nếu không, Javis báo bị chặn kèm cách sửa.
+- **Plugin** như POSCake Zalo nhận cùng mã giao nhận ở mọi lần thử, nên không hẹn hay gửi tin hai lần.
+- **tool** gọi công cụ của Javis (POS, CRM, lịch...) không cần AI, đúng mức quyền hiện tại của webhook. Đặt
+  `"approve": true` để mỗi sự kiện chờ bạn bấm Duyệt.
+- Khoá API trong `headers` được mã hoá, không bao giờ hiện lại. Đổi địa chỉ thì phải nhập lại khoá.
 
-## 5. Kiểm chữ ký (ô "Xác minh chữ ký")
+## 5. Kiểm chữ ký nhà cung cấp
 
-Với Stripe, GitHub, Shopify, Systeme.io, hoặc bất kỳ bên nào ký bằng HMAC:
+Với Stripe, GitHub, Shopify, Systeme.io:
 
 ```json
-{"provider": "stripe", "secret": "whsec_..."}
+{"provider": "github", "secret": "khoá ký của nhà cung cấp"}
 ```
 
-Chữ ký sai thì Javis từ chối (401) và không lưu gì. Lần gửi lại của chính nhà cung cấp được nhận ra là trùng.
+- Những nơi này không gửi kèm được khoá Javis, nên **chữ ký của họ là đủ** để nhận. Chữ ký sai thì Javis từ chối (401)
+  và không lưu gì.
+- Đổi khoá ký: khoá cũ vẫn dùng được thêm một thời gian chồng (mặc định 24 giờ) để các lần gửi đã ký bằng khoá cũ
+  vẫn qua.
+- **Systeme.io**: chưa thử với tài khoản thật, nên ghi là "chưa kiểm chứng".
+- **POSCake**: chưa có kiểm chữ ký vì chưa có tài liệu chính thức. Xem `poscake-migration.md`.
 
-- **Systeme.io**: cách đọc **chưa được thử với tài khoản thật**. Hãy làm bước kiểm trong `staging-pilot-pack.md`
-  trước khi dựa vào nó.
-- **POSCake**: chưa có, vì chưa có tài liệu chính thức. Dùng mã bí mật trong địa chỉ như trước, xem
-  `poscake-migration.md`.
+## 6. Gửi thử thật
 
-## 6. Thông báo, giới hạn, lưu giữ
+Ở phần Cấu hình bấm **Gửi thử**, dán nội dung mẫu của bạn, bấm **Xem trước**: Javis liệt kê từng hành động sẽ làm gì,
+gửi tới đâu, chưa gửi gì. Bấm **Gửi thử thật** để gửi. Sự kiện thử có chỗ chống trùng riêng và vẫn theo đúng quyền,
+giới hạn như sự kiện thật.
 
-Đầu bảng Quy tắc có các cài đặt sau:
+## 7. Phần Sự kiện
 
-- **Báo cho bạn**:
-  - **Mọi lần chạy**;
-  - **Chỉ khi lỗi hoặc cần bạn**;
-  - **Tóm tắt mỗi ngày** (8 giờ sáng);
-  - **Không báo**.
+- Lọc theo trạng thái, theo **mã đơn** (trường correlation), và theo khoảng ngày.
+- Bấm **Chi tiết** để xem **diễn biến**: nhận, xác thực, đọc nội dung, lọc, trùng, gửi đi, từng lần thử, biên nhận,
+  kết quả, thông báo.
+- Nội dung sự kiện **mặc định che thông tin khách** (tên, điện thoại, email). Bấm **Xem bản gốc** để xem đầy đủ: Javis
+  hỏi lại và ghi lần xem đó vào nhật ký kiểm tra.
+- **Chạy lại** chỉ chạy lại nơi lỗi, chưa rõ hoặc bị chặn, với cùng mã giao nhận. Nơi đã xong không bao giờ bị chạy
+  lại.
+- **Chạy lại với cấu hình hiện tại** dùng khi bạn đã sửa quy tắc hay địa chỉ: Javis cho xem trước, nói rõ nơi nào đã
+  thành công trước đó sẽ bị làm thêm một lần, rồi mới chạy khi bạn xác nhận.
+- **Xoá** một sự kiện lỗi khi bạn đã xử lý xong bên ngoài. Sự kiện lỗi được giữ nguyên nội dung tới khi bạn chạy lại
+  hoặc xoá.
+- **Xuất CSV** để lưu trữ. File che thông tin khách, không chứa khoá bí mật.
 
-  Việc chỉ bạn quyết được (không rõ đã xong, chờ duyệt) vẫn báo ngay, trừ khi chọn "Không báo".
-- **Tối đa mỗi giờ / mỗi ngày / đang chờ**: vượt quá thì bên gửi nhận mã 429 và gửi lại sau.
-- **Lượt AI mỗi ngày**: hết lượt thì phần AI không chạy và không tốn tiền. Bấm Chạy lại hôm sau. Đặt 0 nếu webhook
-  không bao giờ cần AI.
-- **Giữ nhật ký**: từ 1 tới 365 ngày, tối đa 500 lần chạy cho mỗi webhook. Sự kiện còn chờ bạn (chờ duyệt, chờ trả lời,
-  không rõ đã xong) luôn được giữ tới khi bạn xử lý.
+## 8. Hai công tắc
 
-Một nơi nhận lỗi 5 lần liền thì Javis **tạm ngừng gửi** tới đó 10 phút, báo bạn một lần, rồi thử lại **một lần**. Lần
-đó vẫn lỗi thì ngừng tiếp lâu hơn (tối đa 1 giờ). Trong lúc ngừng, các nơi nhận khác và phần AI vẫn chạy, webhook vẫn
-nhận sự kiện mới. Thẻ webhook ghi rõ nơi nào đang tạm ngừng.
+- **Tạm dừng xử lý**: vẫn nhận và lưu sự kiện, chỉ chưa chạy. Bấm Tiếp tục xử lý để chạy tiếp.
+- **Tắt nhận**: từ chối mọi sự kiện mới (bên gửi nhận lỗi). Sự kiện đã nhận trước đó vẫn chạy.
 
-## 7. Nhật ký
+Muốn ngừng một lúc mà không mất đơn thì dùng **Tạm dừng xử lý**.
 
-Mỗi thẻ có nhật ký từng sự kiện:
+## 9. Thông báo và giới hạn (Nâng cao)
 
-- **Bộ lọc**: Tất cả, Cần bạn, Lỗi, Đã chạy, Bị lọc.
-- **Chi tiết**: từng nơi nhận ra sao, bên kia trả lời gì, mã giao nhận, và vì sao bị lọc.
-- **Xuất CSV**: để lưu trữ. File xuất không chứa khoá bí mật nào.
+- **Báo cho bạn**: mọi lần chạy; chỉ khi lỗi (lỗi lặp gộp làm một, báo lại khi có thay đổi); tóm tắt mỗi ngày lúc
+  8 giờ theo múi giờ bạn chọn; hoặc không báo. "Không báo" vẫn giữ cảnh báo hệ thống như sắp đầy đĩa.
+- Webhook mới không có AI mặc định "chỉ khi lỗi". Webhook cũ giữ "mọi lần".
+- **Giới hạn mỗi webhook**: 300 sự kiện mỗi phút, 10.000 sự kiện đang chờ. Vượt quá thì bên gửi nhận 429 và gửi lại sau.
+- **Lượt AI**: 30 lượt mỗi giờ cho phần AI. Hết lượt thì sự kiện **chờ**, không mất, không tốn tiền. Phần gửi bằng code
+  không bị giới hạn này. **AI phân loại sự cố** chỉ chạy khi bạn bật, và mỗi lượt tính vào ngân sách AI.
+- Một nơi nhận lỗi liên tục thì Javis tạm ngừng gửi tới đúng nơi đó một lúc, báo bạn một lần, rồi thử lại.
 
-## 8. Sao lưu
+## 10. Phần Tình trạng
 
-Sao lưu cùng lúc 4 file trong thư mục dữ liệu của Javis:
+Số liệu 24 giờ qua: đã nhận, khớp, bỏ qua, cách ly, trùng, đang chờ, sự kiện chờ lâu nhất, thời gian nhận và xử lý,
+chờ thử lại, lỗi hẳn, chưa rõ, bị chặn, lượt AI, lỗi theo từng nơi nhận, dung lượng kho.
 
-- `webhooks.json`
-- `webhook_events.sqlite3`
+## 11. Sao lưu
+
+Sao lưu cùng lúc các file trong thư mục dữ liệu của Javis:
+
+- `webhook_events.sqlite3` (cùng các file `-wal`, `-shm` nếu có, hoặc dùng bản sao lưu do công cụ tạo)
 - `webhook_keys.json`
 - `webhook_secrets.json`
 
-**Mất `webhook_keys.json` thì phải nhập lại mọi khoá API của webhook.**
+**Mất `webhook_keys.json` thì phải nhập lại mọi khoá API và khoá ký của webhook.** Cần quay về bản Javis cũ thì làm
+theo `rollback.md`.

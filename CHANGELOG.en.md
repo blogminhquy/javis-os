@@ -18,7 +18,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **A real test send with a preview:** paste a sample, see what each action would do, then send. Test events have their own duplicate space.
 - **A timeline for each event:** received, verified, filtered, dispatched, each attempt, receipt, result and notice. Search by order id and by date range.
 - **Process again with the current setup**, with a preview that says which actions already succeeded and would act once more.
-- **Signature checks for Stripe, GitHub, Shopify and Systeme.io**, each done its own way, with an overlap period when a key changes. Systeme.io was not tried with a real account, so it is marked unverified. POSCake has no signature check yet because there is no official documentation.
+- **Failed events keep their payload** until you retry or **Delete** them, so Retry always sends what was received.
+- **Signature checks for Stripe, GitHub, Shopify and Systeme.io**, each done its own way, with an overlap period when a key changes. These senders need no Javis key: their signature is enough. Systeme.io was not tried with a real account, so it is marked unverified. POSCake has no signature check yet because there is no official documentation.
 - **A rollback tool** (`server/webhook_rollback.py`): backs up the store, exports unfinished events for reconciliation and writes the webhook list back for the older build.
 ### Security
 - API keys and signing keys are encrypted on disk, never shown in the interface and never kept in the configuration history. Back up `webhook_keys.json` together with `webhook_secrets.json`.
