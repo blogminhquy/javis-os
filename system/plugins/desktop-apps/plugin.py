@@ -15,8 +15,15 @@ Chủ dự án chốt 2026-09-14: mở và đóng đều LÀM NGAY, không hỏi
 chúng không phải "hỏi lại": đường dẫn mở phải nằm trong thư mục người dùng hoặc trong brain, và
 đóng lịch sự trước để app có tài liệu chưa lưu còn kịp hỏi.
 
-Mọi lệnh hệ thống đi qua bốn hàm module-level (`_launch`, `_list_running`, `_kill`, `_scan_installed`)
-để test thay được bằng hàm giả, không mở gì thật trên máy chạy test.
+Mọi lệnh hệ thống đi qua các hàm module-level (`_launch`, `_list_running`, `_kill`, `_scan_installed`,
+`_raise_window`) để test thay được bằng hàm giả, không mở gì thật trên máy chạy test.
+
+Outcome words (0.219.0): every result starts with what was CHECKED, not what was attempted.
+`[done]` means it was read back (a new process answering to the app, the window in front, the
+process gone); `[unverified]` means the request went out and nothing could confirm it; `[ask]`
+means nothing was done because doing it would be a guess; `[started]` means it is under way; a
+failure stays `ERROR: [failed] ...` so the hub still counts it as an error. A launcher returning
+is not proof: on Windows `os.startfile` returns the moment a shell starts, not when an app does.
 """
 from __future__ import annotations
 
@@ -86,6 +93,20 @@ _PROTECTED = {"explorer.exe", "csrss.exe", "winlogon.exe", "wininit.exe", "servi
               "lsass.exe", "svchost.exe", "dwm.exe", "system", "python.exe", "pythonw.exe",
               "javis.exe", "uvicorn.exe", "finder", "launchd", "systemd", "init"}
 
+# Outcome words, see the module docstring. The tool descriptions tell the model what each may be
+# spoken as; keep the two in step.
+DONE, UNVERIFIED, ASK, STARTED = "[done]", "[unverified]", "[ask]", "[started]"
+FAILED = "ERROR: [failed]"
+OUTCOME_RULE = ("Kết quả mở đầu bằng [done] (đã kiểm tra thật), [unverified] (đã gửi lệnh nhưng không "
+                "xác nhận được: KHÔNG BAO GIỜ nói là đã xong, nói rõ là chưa chắc), [ask] (chưa làm vì "
+                "phải đoán: hỏi lại người dùng), [started] (đang chạy) hoặc ERROR: [failed] (không làm được).")
+
+# Names shorter than this must match exactly: "wp" is a prefix of far too many programs (it
+# matched wps.exe and the assistant reported WPS Office as WhatsApp in the project this came from).
+SHORT_NAME = 4
+VERIFY_S = 4.0       # how long a launch is watched for a new process
+VERIFY_STEP_S = 0.5
+
 _LIST_MAX = 60
 _CACHE: dict = {"t": 0.0, "apps": []}
 _CACHE_TTL = 60.0
@@ -139,11 +160,35 @@ def score(query: str, candidate: str) -> float:
 def best_match(name: str, candidates: List[str], nguong: float = 0.75) -> Tuple[str, float]:
     best, best_s = "", 0.0
     for cum in _cum_tim(name):
+        short = len(cum.replace(" ", "")) < SHORT_NAME
         for c in candidates:
             s = score(cum, c)
+            if short and s < 1.0:
+                continue   # a two-letter query only counts when it is the whole name
             if s > best_s:
                 best, best_s = c, s
     return (best, best_s) if best_s >= nguong else ("", best_s)
+
+
+def image_matches(name: str, image: str) -> bool:
+    """Does the running image (chrome.exe, Code.exe, msedge.exe) belong to the app called `name`
+    (Google Chrome, Visual Studio Code, Microsoft Edge)? Used to watch a launch take effect."""
+    stem = _stem_khong_ext(image)
+    if not stem:
+        return False
+    for cum in _cum_tim(name):
+        if not cum:
+            continue
+        if score(cum, stem) >= 0.85 and (len(cum.replace(" ", "")) >= SHORT_NAME or cum == stem):
+            return True
+        # "visual studio code" -> code.exe, "microsoft edge" -> msedge.exe: a long word of the
+        # name inside the image stem, or the whole stem among the words of the name.
+        words = [w for w in cum.split() if len(w) >= SHORT_NAME]
+        if stem in cum.split() and len(stem) >= SHORT_NAME:
+            return True
+        if any(w in stem for w in words):
+            return True
+    return False
 
 
 # ============================================================
@@ -288,6 +333,38 @@ def _kill(image: str, force: bool) -> str:
     return _run(["pkill", "-f" if force else "-x", image])
 
 
+def _raise_window(entry: dict, running: List[dict]) -> Tuple[bool, bool]:
+    """Bring an already running app to the front. Returns (asked, verified): `asked` when the OS
+    accepted the request, `verified` when the foreground window was read back as that app."""
+    image = str(entry.get("image") or "")
+    if IS_WIN:
+        pid = str(entry.get("pid") or "")
+        if not pid.isdigit():
+            return False, False
+        # AppActivate asks; GetForegroundWindow reads back who really is in front, because Windows
+        # may refuse a background process the foreground and only flash the taskbar button.
+        script = (
+            "$ok = (New-Object -ComObject WScript.Shell).AppActivate([int]" + pid + "); "
+            "Start-Sleep -Milliseconds 300; "
+            "Add-Type -Namespace J -Name Fg -MemberDefinition '"
+            "[DllImport(\"user32.dll\")] public static extern System.IntPtr GetForegroundWindow(); "
+            "[DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, out uint p);'; "
+            "$p = [uint32]0; [void][J.Fg]::GetWindowThreadProcessId([J.Fg]::GetForegroundWindow(), [ref]$p); "
+            "Write-Output \"$ok $p\"")
+        out = _run(["powershell", "-NoProfile", "-Command", script], timeout=10.0).strip().split()
+        if len(out) < 2 or out[0].lower() != "true":
+            return False, False
+        same_image = {str(r.get("pid")) for r in running if str(r.get("image", "")).lower() == image.lower()}
+        return True, out[1] in same_image
+    if IS_MAC:
+        return False, False   # `open -a` already brings a running app forward; launch handles it
+    import shutil
+    if not shutil.which("wmctrl"):
+        return False, False
+    r = _run(["wmctrl", "-x", "-a", _stem_khong_ext(image)])
+    return (not r.startswith("__ERR__")), False
+
+
 # ============================================================
 # Điều kiện chạy
 # ============================================================
@@ -410,21 +487,59 @@ def resolve_open(name: str, vault_root: Optional[str]) -> Tuple[str, str, str]:
     elif IS_MAC:
         return n, "app", n     # `open -a` tự tìm theo tên
     goi_y = [c for c, sc in ((c, best_match(n, [c])[1]) for c in ten) if sc >= 0.5][:5]
-    return "", "", (f"không thấy app nào tên giống '{n}' trong máy."
-                    + (f" Gần giống: {', '.join(goi_y)}." if goi_y else "")
-                    + " Gọi javis_app_list để xem danh sách.")
+    if goi_y:
+        # Close but not sure: opening the nearest name would be a guess.
+        return "", "ask", (f"không chắc '{n}' là app nào. Gần giống: {', '.join(goi_y)}. Hỏi lại người dùng "
+                           "muốn mở app nào, hoặc gọi javis_app_list để xem danh sách.")
+    return "", "", (f"không thấy app nào tên giống '{n}' trong máy. Gọi javis_app_list để xem danh sách.")
+
+
+def _running_for(name: str, running: List[dict]) -> List[dict]:
+    return [r for r in running if image_matches(name, r.get("image", ""))
+            and _stem_khong_ext(r.get("image", "")) + ".exe" not in _PROTECTED
+            and str(r.get("image", "")).lower() not in _PROTECTED]
 
 
 def _open(args, ctx) -> str:
     name = str((args or {}).get("name") or "")
     target, kind, mo_ta = resolve_open(name, getattr(ctx, "vault_root", None))
     if not target:
-        return "ERROR: " + mo_ta
+        return (f"{ASK} Chưa mở gì: " + mo_ta) if kind == "ask" else (f"{FAILED} " + mo_ta)
+    if kind in ("url", "path"):
+        err = _launch(target, kind)
+        if err:
+            return f"{FAILED} không mở được {mo_ta} ({err})."
+        where = "trình duyệt" if kind == "url" else "app mặc định của loại file này"
+        # Nothing can be read back here: the default handler may already be open on another tab.
+        return f"{UNVERIFIED} Đã gửi {mo_ta} tới {where}, không kiểm tra được nó đã hiện lên chưa."
+    before = _list_running()
+    # Already running with a window: bring it forward instead of starting a second copy.
+    if not IS_MAC:
+        mine = [r for r in _running_for(mo_ta, before) if r.get("title") or not IS_WIN]
+        if mine:
+            asked, verified = _raise_window(mine[0], before)
+            if asked and verified:
+                return f"{DONE} {mo_ta} đang chạy sẵn, đã đưa cửa sổ lên trước."
+            if asked:
+                return (f"{UNVERIFIED} {mo_ta} đang chạy sẵn, đã yêu cầu đưa cửa sổ lên trước nhưng không "
+                        "xác nhận được (Windows có thể chỉ nháy biểu tượng ở thanh tác vụ).")
+            # Could not raise (no window API, a tray-only app): launching brings it back.
     err = _launch(target, kind)
     if err:
-        return f"ERROR: không mở được {mo_ta} ({err})."
-    loai = {"url": "địa chỉ", "path": "file", "lnk": "app", "app": "app", "command": "app"}[kind]
-    return f"Đã mở {loai} {mo_ta}."
+        return f"{FAILED} không mở được {mo_ta} ({err})."
+    old_pids = {str(r.get("pid")) for r in before}
+    waited = 0.0
+    while waited < VERIFY_S:
+        time.sleep(VERIFY_STEP_S)
+        waited += VERIFY_STEP_S
+        now = _list_running()
+        if any(str(r.get("pid")) not in old_pids for r in _running_for(mo_ta, now)):
+            return f"{DONE} Đã mở app {mo_ta} (đã thấy tiến trình của nó chạy)."
+    if _running_for(mo_ta, before):
+        # Single-instance apps hand the request to the copy already running and exit at once.
+        return f"{UNVERIFIED} Đã gửi lệnh mở {mo_ta}; nó vốn đang chạy nên không thấy tiến trình mới để xác nhận."
+    return (f"{UNVERIFIED} Đã gửi lệnh mở {mo_ta} nhưng sau {int(VERIFY_S)} giây chưa thấy app chạy. "
+            "Có thể app khởi động chậm, hoặc lối tắt đã hỏng. Đừng nói là đã mở.")
 
 
 def resolve_close(name: str, running: List[dict]) -> Tuple[str, str]:
@@ -441,7 +556,7 @@ def resolve_close(name: str, running: List[dict]) -> Tuple[str, str]:
             if not r.get("title"):
                 continue
             for cum in _cum_tim(n):
-                if cum and cum in khong_dau(r["title"]):
+                if cum and _title_hit(cum, r["title"]):
                     sc = 0.85 + min(0.1, len(cum) / 100)
                     if sc > best_s:
                         best, best_s = r["image"], sc
@@ -453,24 +568,33 @@ def resolve_close(name: str, running: List[dict]) -> Tuple[str, str]:
     return hit, ""
 
 
+def _title_hit(cum: str, title: str) -> bool:
+    t = khong_dau(title)
+    if len(cum.replace(" ", "")) < SHORT_NAME:
+        return cum in t.split()   # a short name only as a whole word of the title
+    return cum in t
+
+
 def _close(args, ctx) -> str:
     name = str((args or {}).get("name") or "")
     force = bool((args or {}).get("force"))
     running = _list_running()
     image, why = resolve_close(name, running)
     if not image:
-        return "ERROR: " + why
+        return f"{FAILED} " + why
     out = _kill(image, force)
     if out.startswith("__ERR__"):
-        return f"ERROR: không đóng được {image} ({out[8:]})."
-    # Đóng lịch sự thì đợi một nhịp rồi kiểm lại: app đang hỏi lưu sẽ còn sống.
-    if not force:
-        time.sleep(1.5)
-        con = [r for r in _list_running() if r["image"].lower() == image.lower()]
-        if con:
-            return (f"Đã gửi lệnh đóng tới {image} nhưng nó vẫn đang chạy ({len(con)} cửa sổ), có thể "
-                    f"đang hỏi lưu tài liệu. Người dùng muốn ép tắt thì gọi lại với force=true.")
-    return f"Đã đóng {image}." + (" (ép tắt)" if force else "")
+        return f"{FAILED} không đóng được {image} ({out[8:]})."
+    # Read back in both modes: a polite close may sit on a "save changes?" dialog, and even a
+    # forced one can be refused (another user's process, access denied).
+    time.sleep(1.5)
+    con = [r for r in _list_running() if r["image"].lower() == image.lower()]
+    if con and not force:
+        return (f"{UNVERIFIED} Đã gửi lệnh đóng tới {image} nhưng nó vẫn đang chạy ({len(con)} cửa sổ), có thể "
+                f"đang hỏi lưu tài liệu. Người dùng muốn ép tắt thì gọi lại với force=true.")
+    if con:
+        return f"{FAILED} đã ép tắt {image} nhưng nó vẫn đang chạy ({len(con)} tiến trình)."
+    return f"{DONE} Đã đóng {image}." + (" (ép tắt)" if force else "")
 
 
 def register(ctx):
@@ -488,7 +612,8 @@ def register(ctx):
                      "name: tên app (khớp mờ, có bí danh: chrome, edge, word, excel, máy tính, notepad, "
                      "vscode, zalo...), hoặc URL http(s), hoặc đường dẫn tuyệt đối trong thư mục người "
                      "dùng / trong brain. Dùng khi người dùng nói 'mở Chrome', 'bật Excel lên', "
-                     "'mở trang youtube.com'."),
+                     "'mở trang youtube.com'. App đang chạy sẵn thì đưa cửa sổ lên trước, không mở bản thứ hai. "
+                     + OUTCOME_RULE),
         handler=_open, min_mode="safe", check_fn=check_ready,
         schema={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
     )
@@ -497,7 +622,7 @@ def register(ctx):
         description=("ĐÓNG một app đang chạy trên máy đang chạy Javis, làm ngay không hỏi lại. name: tên "
                      "app hoặc tiêu đề cửa sổ. Mặc định đóng lịch sự (app có tài liệu chưa lưu sẽ tự hỏi "
                      "lưu); force=true chỉ khi người dùng nói 'ép tắt' / 'tắt hẳn'. Dùng khi người dùng nói "
-                     "'tắt Chrome', 'đóng Excel'."),
+                     "'tắt Chrome', 'đóng Excel'. " + OUTCOME_RULE),
         handler=_close, min_mode="full", check_fn=check_ready,
         schema={"type": "object", "properties": {"name": {"type": "string"},
                                                  "force": {"type": "boolean"}},

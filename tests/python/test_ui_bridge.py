@@ -138,7 +138,7 @@ async def main():
             ui_bridge.resolve(ev["id"], True, "")
     rt2.add_client("x", w)
     out = await m._ui({"action": "open_page", "target": "việc", "session_id": "web:s1"}, None)
-    check("handler: thành công nói 'Đã mở trang kanban'", out.startswith("Đã mở trang kanban"))
+    check("handler: thành công nói 'Đã mở trang kanban'", out.startswith("[done] Đã mở trang kanban"))
 
     # Câu thuật lại phải lấy từ thứ dashboard THẬT SỰ cuộn, không đoán "khung chat" như trước:
     # model đọc câu này rồi nói lại cho người dùng, đoán sai là nói sai.
@@ -152,7 +152,7 @@ async def main():
     rt3.add_client("y", w3)
     out = await m._ui({"action": "scroll", "target": "cuộn trang này xuống"}, None)
     check("handler scroll: thuật đúng thứ dashboard vừa cuộn",
-          out == "Đã cuộn nội dung trang xuống cuối.")
+          out == "[done] Đã cuộn nội dung trang xuống cuối.")
 
     # 7) /ws có nhánh ui_result
     main_src = (SERVER / "main.py").read_text(encoding="utf-8")

@@ -70,25 +70,26 @@ async def _ui(args, ctx) -> str:
     target = str((args or {}).get("target") or "")
     why = check_target(action, target)
     if why:
-        return "ERROR: " + why
+        return "ERROR: [failed] " + why
     target = normalize_target(action, target)
     sid = str((args or {}).get("session_id") or "").strip()
     if sid.startswith("web:"):
         sid = sid[4:]
     res = await ui_bridge.request(action, target, session_id=sid)
     if not res.get("ok"):
-        return "ERROR: " + (res.get("detail") or "dashboard không thực hiện được")
+        return "ERROR: [failed] " + (res.get("detail") or "dashboard không thực hiện được")
     detail = res.get("detail") or ""
     if action == "scroll":
         # `detail` là thứ dashboard THẬT SỰ cuộn ("nội dung trang" hay "khung chat"). Đừng đoán:
         # target 'bottom' là để dashboard tự chọn theo trang đang mở.
-        return f"Đã cuộn {detail or 'khung chat'} {'lên đầu' if target.endswith('top') else 'xuống cuối'}."
+        return f"[done] Đã cuộn {detail or 'khung chat'} {'lên đầu' if target.endswith('top') else 'xuống cuối'}."
     if action == "sidebar":
-        return "Đã bung thanh bên." if target == "open" else "Đã thu gọn thanh bên."
+        return "[done] Đã bung thanh bên." if target == "open" else "[done] Đã thu gọn thanh bên."
     if action == "open_group":
-        return f"Đã bung nhóm {target} trên thanh bên."
+        return f"[done] Đã bung nhóm {target} trên thanh bên."
     ten = {"open_page": "trang", "open_file": "file", "open_task": "việc"}[action]
-    return f"Đã mở {ten} {target} trên dashboard." + (f" {detail}" if detail else "")
+    # [done]: the dashboard tab acknowledged the action (ui_bridge waits for its reply).
+    return f"[done] Đã mở {ten} {target} trên dashboard." + (f" {detail}" if detail else "")
 
 
 def register(ctx):
@@ -107,8 +108,8 @@ def register(ctx):
             "phần ẩn trong menu' - target: " + ", ".join(GROUPS) + " hoặc tên tiếng Việt như 'năng lực'); "
             "sidebar (target: open để bung cả thanh bên, close để thu gọn còn icon). session_id: mã phiên "
             "web trong khối KÊNH HỘI THOẠI HIỆN TẠI "
-            "(để đúng tab thực hiện; bỏ trống thì mọi tab đang mở làm). Tool trả về 'Đã mở ...' khi "
-            "dashboard xác nhận, hoặc ERROR khi không có tab nào mở / trang không tồn tại."
+            "(để đúng tab thực hiện; bỏ trống thì mọi tab đang mở làm). Tool trả về '[done] Đã mở ...' khi "
+            "dashboard xác nhận, hoặc 'ERROR: [failed] ...' khi không có tab nào mở / trang không tồn tại."
         ),
         handler=_ui, min_mode="safe",
         schema={"type": "object", "properties": {

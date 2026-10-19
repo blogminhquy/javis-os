@@ -112,12 +112,47 @@ deploy_info.deploy_mode = _goc
 
 # ---- 3. Mở ----
 out = m._open({"name": "https://youtube.com"}, ctx)
-check("mở URL: gọi _launch kind=url", calls["launch"][-1] == ("https://youtube.com", "url") and out.startswith("Đã mở"))
+check("mở URL: gọi _launch kind=url, không nói là đã hiện lên",
+      calls["launch"][-1] == ("https://youtube.com", "url") and out.startswith("[unverified]"))
+# Opening an app that is not running: watched until a new process answers to it.
+state["running"] = [r for r in RUNNING if r["image"] != "chrome.exe"]
+_launch_goc = m._launch
+
+
+def _launch_then_appears(target, kind):
+    calls["launch"].append((target, kind))
+    state["running"] = state["running"] + [{"image": "chrome.exe", "pid": "99", "title": "New Tab - Google Chrome"}]
+    return ""
+
+
+m._launch = _launch_then_appears
 out = m._open({"name": "chrome"}, ctx)
 check("mở app: _launch đúng đường dẫn shortcut", calls["launch"][-1][0] == "C:/sm/Google Chrome.lnk")
-check("mở app: câu trả lời nêu tên app", "Google Chrome" in out)
+check("mở app: thấy tiến trình mới -> [done] nêu tên app", out.startswith("[done]") and "Google Chrome" in out)
+m._launch = _launch_goc
+state["running"] = [r for r in RUNNING if r["image"] != "chrome.exe"]
+out = m._open({"name": "zalo"}, ctx)
+check("mở app: không thấy tiến trình nào -> [unverified], dặn đừng nói là đã mở",
+      out.startswith("[unverified]") and "Đừng nói là đã mở" in out)
+# Already running with a window: raised, not launched a second time.
+state["running"] = list(RUNNING)
+raised = []
+m._raise_window = lambda entry, running: (raised.append(entry["image"]) or (True, True))
+n_truoc = len(calls["launch"])
+out = m._open({"name": "chrome"}, ctx)
+check("app đang chạy: đưa cửa sổ lên trước, không mở bản thứ hai",
+      raised == ["chrome.exe"] and len(calls["launch"]) == n_truoc and out.startswith("[done]"))
+m._raise_window = lambda entry, running: (True, False)
+out = m._open({"name": "chrome"}, ctx)
+check("đưa lên trước mà không đọc lại được -> [unverified]", out.startswith("[unverified]") and len(calls["launch"]) == n_truoc)
+m._raise_window = lambda entry, running: (False, False)
+out = m._open({"name": "chrome"}, ctx)
+check("không đưa lên được (app nằm khay) -> rơi về mở như cũ", len(calls["launch"]) == n_truoc + 1)
+state["running"] = list(RUNNING)
 out = m._open({"name": "photoshop"}, ctx)
-check("mở app không có: ERROR + gợi ý gọi list", out.startswith("ERROR") and "javis_app_list" in out)
+check("mở app không có: ERROR [failed] + gợi ý gọi list", out.startswith("ERROR: [failed]") and "javis_app_list" in out)
+out = m._open({"name": "zallo app"}, ctx)
+check("tên gần giống mà không chắc: [ask], không mở bừa", out.startswith("[ask]") and "Zalo" in out)
 n_truoc = len(calls["launch"])
 ngoai = Path(tempfile.gettempdir()).resolve()
 # Tìm một đường dẫn tuyệt đối TỒN TẠI nằm ngoài home lẫn brain (thư mục gốc ổ đĩa hoặc /etc).
@@ -136,7 +171,7 @@ if ngoai_home is not None:
 trong_brain = Path(ctx.vault_root) / "bao-cao.md"
 trong_brain.write_text("x", encoding="utf-8")
 out = m._open({"name": str(trong_brain)}, ctx)
-check("mở file trong brain: được, kind=path", calls["launch"][-1][1] == "path" and out.startswith("Đã mở"))
+check("mở file trong brain: được, kind=path", calls["launch"][-1][1] == "path" and out.startswith("[unverified]"))
 n_truoc = len(calls["launch"])
 for duoi in (".bat", ".cmd", ".ps1", ".exe", ".vbs", ".lnk", ".sh", ".command"):
     f = Path(ctx.vault_root) / f"chay{duoi}"
@@ -165,14 +200,30 @@ check("đóng: không chạy -> lý do nêu javis_app_list", img == "" and "javi
 
 out = m._close({"name": "chrome"}, ctx)
 check("đóng lịch sự: gọi _kill force=False", calls["kill"][-1] == ("chrome.exe", False))
-check("đóng lịch sự còn sống: báo và gợi ý force", "force=true" in out and "vẫn đang chạy" in out)
+check("đóng lịch sự còn sống: [unverified], gợi ý force", out.startswith("[unverified]") and "force=true" in out and "vẫn đang chạy" in out)
 out = m._close({"name": "chrome", "force": True}, ctx)
 check("ép tắt: gọi _kill force=True", calls["kill"][-1] == ("chrome.exe", True))
-check("ép tắt: báo đã đóng", out.startswith("Đã đóng") and "ép tắt" in out)
+check("ép tắt: đọc lại thấy đã tắt -> [done]", out.startswith("[done] Đã đóng") and "ép tắt" in out)
 out = m._close({"name": "sublime"}, ctx)
-check("đóng lịch sự mà app tắt thật: báo đã đóng", out.startswith("Đã đóng sublime_text.exe"))
+check("đóng lịch sự mà app tắt thật: [done]", out.startswith("[done] Đã đóng sublime_text.exe"))
+state["running"] = list(RUNNING)
+m._kill = lambda image, force: ""   # the OS refuses: the process survives even a forced kill
+out = m._close({"name": "excel", "force": True}, ctx)
+check("ép tắt mà vẫn chạy -> ERROR [failed], không báo đã đóng", out.startswith("ERROR: [failed]") and "vẫn đang chạy" in out)
+m._kill = _fake_kill
 out = m._close({"name": "explorer"}, ctx)
 check("đóng explorer qua handler: ERROR, không gọi _kill", out.startswith("ERROR") and calls["kill"][-1][0] != "explorer.exe")
+
+# ---- 4b. Short names match exactly (0.219.0) ----
+check("'wp' không khớp mờ sang wps.exe", m.best_match("wp", ["WPS Office", "WhatsApp"])[0] == "")
+check("'cmd' (bí danh ngắn) vẫn khớp đúng tên cmd", m.best_match("cmd", ["cmd", "cmdkey"])[0] == "cmd")
+img, why = m.resolve_close("wp", RUNNING + [{"image": "wps.exe", "pid": "7", "title": "WPS Office"}])
+check("đóng 'wp' không đóng nhầm wps.exe", img == "")
+check("image_matches: Visual Studio Code -> Code.exe", m.image_matches("Visual Studio Code", "Code.exe"))
+check("image_matches: Microsoft Edge -> msedge.exe", m.image_matches("Microsoft Edge", "msedge.exe"))
+check("image_matches: Google Chrome -> chrome.exe", m.image_matches("Google Chrome", "chrome.exe"))
+check("image_matches: Zalo không khớp chrome.exe", not m.image_matches("Zalo", "chrome.exe"))
+check("mô tả tool dặn [unverified] không được nói là xong", "[unverified]" in m.OUTCOME_RULE and "KHÔNG BAO GIỜ" in m.OUTCOME_RULE)
 
 # ---- 5. Liệt kê ----
 import json
