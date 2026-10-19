@@ -177,6 +177,26 @@ att = b.get(r2["id"])["attempts"]
 check("attempt log shows the lost lease then the success",
       [x["outcome"] for x in att] == ["lease_expired", "done"], att)
 
+# an exception inside a write must not leave the shared connection in an open transaction (it would lock the file)
+a.ingest(dict(HOOK, id="wh_tx"), b"x", "", "tx-1")
+rtx = a.claim("A")
+a.mark_dispatched(rtx["id"], rtx["fence"])
+try:
+    a.requeue_before_dispatch(rtx["id"], rtx["fence"], "boom")
+    check("requeue after dispatch is refused", False)
+except ValueError:
+    pass
+import sqlite3 as _sq
+other = _sq.connect(str(s5 / "e.sqlite3"), timeout=1, isolation_level=None)
+try:
+    other.execute("BEGIN IMMEDIATE"); other.execute("ROLLBACK")
+    free = True
+except _sq.OperationalError:
+    free = False
+check("a refused write rolls back: another process can write right after", free and not a._db.in_transaction)
+check("and the refused event is untouched (still running, dispatched)",
+      a.get(rtx["id"])["status"] == "running" and a.get(rtx["id"])["dispatched_at"] > 0)
+
 # ---- 5..9 through the real feature (host routes, fake runners, fake notifier) ----
 FEAT_STATE = Path(tempfile.mkdtemp(prefix="wh-feat-"))
 sent, calls = [], []

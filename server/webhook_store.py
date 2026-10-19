@@ -32,6 +32,7 @@ Nothing here imports main or calls a model.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -146,6 +147,24 @@ class Store:
         processes too (the dedup and the limits are decided inside it)."""
         self._db.execute("BEGIN IMMEDIATE")
 
+    @contextlib.contextmanager
+    def _write(self):
+        """One write transaction: committed when the block ends (also on `return`), rolled back on any exception,
+        so a failure can never leave the shared connection inside an open transaction (which would lock the file
+        for every other worker and process)."""
+        with self._lock:
+            self._tx()
+            try:
+                yield
+            except BaseException:
+                try:
+                    self._db.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            else:
+                self._db.execute("COMMIT")
+
     def schema_version(self) -> int:
         row = self._db.execute("SELECT v FROM meta WHERE k='schema_version'").fetchone()
         return int(row["v"]) if row else 0
@@ -237,15 +256,13 @@ class Store:
         (the old runs were never stored), which `event_id = ''` says."""
         now = time.time() if now is None else now
         n = 0
-        with self._lock:
-            self._tx()
+        with self._write():
             for k in keys:
                 k = str(k or "").strip()[:200]
                 if k:
                     cur = self._db.execute("INSERT OR IGNORE INTO dedup(hook_id, idem_key, event_id, created_at)"
                                            " VALUES(?,?,'',?)", (hook_id, k, now))
                     n += cur.rowcount
-            self._db.execute("COMMIT")
         return n
 
     # ── work ──
@@ -253,14 +270,12 @@ class Store:
         """Take the oldest runnable event whose hook has nothing else running. Returns the row with the new
         `fence`, or None. One event per hook at a time, as before."""
         now = time.time() if now is None else now
-        with self._lock:
-            self._tx()
+        with self._write():
             row = self._db.execute(
                 "SELECT * FROM events e WHERE e.status='queued' AND e.next_at<=? AND NOT EXISTS ("
                 " SELECT 1 FROM events r WHERE r.hook_id=e.hook_id AND r.status='running' AND r.lease_until>?)"
                 " ORDER BY e.received_at, e.id LIMIT 1", (now, now)).fetchone()
             if row is None:
-                self._db.execute("COMMIT")
                 return None
             fence = int(row["fence"]) + 1
             tries = int(row["tries"]) + 1
@@ -268,7 +283,6 @@ class Store:
                              " WHERE id=?", (worker, now + LEASE_S, fence, tries, row["id"]))
             self._db.execute("INSERT INTO attempts(event_id, n, fence, worker, started_at) VALUES(?,?,?,?,?)",
                              (row["id"], tries, fence, worker, now))
-            self._db.execute("COMMIT")
         d = dict(row)
         d.update(status="running", lease_owner=worker, fence=fence, tries=tries)
         return d
@@ -292,8 +306,7 @@ class Store:
         """Final state for this attempt. False = a newer owner holds the event; this result is dropped."""
         assert status in FINAL
         now = time.time() if now is None else now
-        with self._lock:
-            self._tx()
+        with self._write():
             cur = self._db.execute(
                 "UPDATE events SET status=?, result=?, error=?, finished_at=?, lease_owner='', lease_until=0"
                 " WHERE id=? AND fence=? AND status='running'",
@@ -302,22 +315,18 @@ class Store:
             if ok:
                 self._db.execute("UPDATE attempts SET ended_at=?, outcome=?, error=? WHERE event_id=? AND fence=?",
                                  (now, status, str(error or "")[:500], eid, fence))
-            self._db.execute("COMMIT")
         return ok
 
     def requeue_before_dispatch(self, eid: str, fence: int, error: str, now: Optional[float] = None) -> str:
         """A failure before the runner was called: safe to try again. Back off, or `dead` after MAX_AUTO_TRIES.
         Returns the new status ('' if this worker no longer owns the event)."""
         now = time.time() if now is None else now
-        with self._lock:
-            self._tx()
+        with self._write():
             row = self._db.execute("SELECT tries, dispatched_at FROM events WHERE id=? AND fence=? AND"
                                    " status='running'", (eid, fence)).fetchone()
             if row is None:
-                self._db.execute("COMMIT")
                 return ""
             if row["dispatched_at"]:
-                self._db.execute("COMMIT")
                 raise ValueError("already dispatched: use finish(..., 'failed')")
             tries = int(row["tries"])
             if tries >= MAX_AUTO_TRIES:
@@ -329,15 +338,13 @@ class Store:
                              (st, nxt, str(error)[:2000], now if st == "dead" else 0, eid))
             self._db.execute("UPDATE attempts SET ended_at=?, outcome=?, error=? WHERE event_id=? AND fence=?",
                              (now, "retry" if st == "queued" else "dead", str(error)[:500], eid, fence))
-            self._db.execute("COMMIT")
         return st
 
     def recover(self, now: Optional[float] = None) -> dict:
         """Expired leases (a worker died or hung). Not yet dispatched -> queued again. Dispatched -> unknown:
         the run may have acted, so it is NOT re-run on its own. Returns counts."""
         now = time.time() if now is None else now
-        with self._lock:
-            self._tx()
+        with self._write():
             rows = self._db.execute("SELECT id, fence, dispatched_at FROM events WHERE status='running' AND"
                                     " lease_until<=?", (now,)).fetchall()
             back = unknown = 0
@@ -355,8 +362,15 @@ class Store:
                     back += 1
                 self._db.execute("UPDATE attempts SET ended_at=?, outcome=? WHERE event_id=? AND fence=?",
                                  (now, outcome, r["id"], r["fence"]))
-            self._db.execute("COMMIT")
         return {"requeued": back, "unknown": unknown}
+
+    def has_claimable(self, now: Optional[float] = None) -> bool:
+        """Is there an event this or another worker could claim right now (same rule as claim)?"""
+        now = time.time() if now is None else now
+        return self._db.execute(
+            "SELECT 1 FROM events e WHERE e.status='queued' AND e.next_at<=? AND NOT EXISTS ("
+            " SELECT 1 FROM events r WHERE r.hook_id=e.hook_id AND r.status='running' AND r.lease_until>?) LIMIT 1",
+            (now, now)).fetchone() is not None
 
     def mark_notified(self, eid: str, now: Optional[float] = None) -> None:
         with self._lock:
@@ -373,18 +387,14 @@ class Store:
     def retry(self, eid: str, now: Optional[float] = None) -> tuple:
         """The owner asks to run an event again (failed, unknown, dead). Returns (ok, error_code)."""
         now = time.time() if now is None else now
-        with self._lock:
-            self._tx()
+        with self._write():
             row = self._db.execute("SELECT status FROM events WHERE id=?", (eid,)).fetchone()
             if row is None:
-                self._db.execute("COMMIT")
                 return False, "not_found"
             if row["status"] not in ("failed", "unknown", "dead"):
-                self._db.execute("COMMIT")
                 return False, "not_retryable"
             self._db.execute("UPDATE events SET status='queued', next_at=?, dispatched_at=0, finished_at=0,"
                              " notified_at=0, error='', result='' WHERE id=?", (now, eid))
-            self._db.execute("COMMIT")
         return True, ""
 
     def resolve(self, eid: str, outcome: str, note: str = "", now: Optional[float] = None) -> tuple:
@@ -393,12 +403,10 @@ class Store:
         if outcome not in ("done", "failed"):
             return False, "bad_outcome"
         now = time.time() if now is None else now
-        with self._lock:
-            self._tx()
+        with self._write():
             cur = self._db.execute("UPDATE events SET status=?, result=CASE WHEN ?='' THEN result ELSE ? END,"
                                    " finished_at=?, notified_at=? WHERE id=? AND status='unknown'",
                                    (outcome, note, str(note)[:1000], now, now, eid))
-            self._db.execute("COMMIT")
         return (True, "") if cur.rowcount == 1 else (False, "not_unknown")
 
     # ── reading ──
@@ -450,12 +458,10 @@ class Store:
     def forget_hook(self, hook_id: str) -> None:
         """A deleted hook: its waiting events become `dead` (they will never run), its keys are dropped."""
         now = time.time()
-        with self._lock:
-            self._tx()
+        with self._write():
             self._db.execute("UPDATE events SET status='dead', finished_at=?, notified_at=?, error='hook deleted'"
                              " WHERE hook_id=? AND status='queued'", (now, now, hook_id))
             self._db.execute("DELETE FROM dedup WHERE hook_id=?", (hook_id,))
-            self._db.execute("COMMIT")
 
     def prune(self, now: Optional[float] = None) -> int:
         """Finished events older than KEEP_DAYS, and past KEEP_PER_HOOK per hook. Dedup keys of pruned events go
@@ -463,8 +469,7 @@ class Store:
         now = time.time() if now is None else now
         cut = now - KEEP_DAYS * 86400
         fin = "('done','silent','waiting','failed','dead')"   # unknown is kept until the owner resolves it
-        with self._lock:
-            self._tx()
+        with self._write():
             ids = [r[0] for r in self._db.execute(
                 f"SELECT id FROM events WHERE status IN {fin} AND finished_at>0 AND finished_at<?", (cut,))]
             for (hid,) in self._db.execute("SELECT DISTINCT hook_id FROM events").fetchall():
@@ -479,5 +484,4 @@ class Store:
                 self._db.execute(f"DELETE FROM dedup WHERE event_id IN ({q})", chunk)
                 self._db.execute(f"DELETE FROM events WHERE id IN ({q})", chunk)
             self._db.execute("DELETE FROM dedup WHERE event_id='' AND created_at<?", (cut,))
-            self._db.execute("COMMIT")
         return len(ids)

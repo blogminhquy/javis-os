@@ -436,10 +436,9 @@ class WebhookFeature:
             if pending:
                 await asyncio.gather(*pending, return_exceptions=True)
                 continue
-            st = self.store()
-            due = st._db.execute("SELECT 1 FROM events WHERE status='queued' AND next_at<=? LIMIT 1",
-                                 (time.time(),)).fetchone()
-            if due is None:
+            # Only what THIS process could run now: an event held by another worker's live lease, or due later,
+            # is not waited for (that would spin forever).
+            if not self.store().has_claimable():
                 return
             self._kick()
             await asyncio.sleep(0)
