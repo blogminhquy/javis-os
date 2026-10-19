@@ -14567,6 +14567,10 @@ async def tts(
     """Sinh audio đúng nhà cung cấp đã chọn; lỗi không được âm thầm đổi giọng."""
     import sys
     from fastapi import HTTPException, Response
+    if voice == "auto":
+        # "Auto by language" is resolved per chunk in the browser (voice-lang.js); a page cached
+        # from before 0.218.0 can still send the raw value, which Edge would refuse.
+        voice = "en-US-EmmaMultilingualNeural"
     from fastapi.responses import StreamingResponse
     cfg = cfgmod.read_settings()
     provider = ((cfg.get("voice", {}) or {}).get("tts_provider") or "edge").lower()

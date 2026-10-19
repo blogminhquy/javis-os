@@ -173,6 +173,7 @@
   "qs.voice_opt_andrew": "Andrew · male, warm and confident · multilingual",
   "qs.voice_opt_brian": "Brian · male, casual and friendly · multilingual",
   "qs.voice_opt_william": "William · male, friendly Australian · multilingual",
+  "qs.voice_opt_auto": "Auto by language · Hoai My for Vietnamese, Emma for English, a native voice for Japanese, Chinese, Korean",
   "qs.rate_lbl": "Speaking rate",
   "qs.rate_opt_slow": "Slow · 0.85×",
   "qs.rate_opt_normal": "Normal · 1.00×",

@@ -225,6 +225,7 @@ const NGOAI_LE_DU_LIEU = {
   "voice-adaptive-ui.js": { tran: 1, vi_sao: "regex bóc lời gọi \"javis ơi\" người dùng nói" },
   "voice-attention.js": { tran: 1, vi_sao: "regex bắt lời gọi tên Javis nghe nhầm khi nói tiếng Việt" },
   "voice-chunker.js": { tran: 1, vi_sao: "liên từ tiếng Việt để cắt câu cho giọng đọc" },
+  "voice-lang.js": { tran: 2, vi_sao: "Vietnamese letters used to recognise the language of the text being read" },
   "voice-turn-policy.js": { tran: 5, vi_sao: "regex phân loại câu người dùng nói (chờ, gọi, lệnh, chưa nói xong)" },
   "voice-turn.js": { tran: 13, vi_sao: "danh sách từ người dùng nói: bảo chờ, bảo dừng, tiểu từ, liên từ" },
 };

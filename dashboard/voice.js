@@ -1186,7 +1186,16 @@ class JavisVoice {
   }
 
   _chunkUrl(text) {
-    return `${this.ttsBackend}?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(this.ttsVoice)}&rate=${encodeURIComponent(this.ttsRate)}`;
+    return `${this.ttsBackend}?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(this._voiceFor(text))}&rate=${encodeURIComponent(this.ttsRate)}`;
+  }
+
+  // "auto" (0.218.0): the Edge voice follows the language of the text being read (voice-lang.js).
+  _voiceFor(text) {
+    if (this.ttsVoice !== "auto") return this.ttsVoice;
+    const L = typeof window !== "undefined" && window.JavisVoiceLang;
+    if (!L) return "en-US-EmmaMultilingualNeural";
+    if (!this._langTracker) this._langTracker = new L.Tracker(String(this.lang || "vi").split("-")[0]);
+    return this._langTracker.pick(text);
   }
 
   async _speakBackend(text) {
