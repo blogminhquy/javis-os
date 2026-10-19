@@ -38,8 +38,14 @@ người:
   Telegram đầu tiên trong whitelist, mà máy chưa đấu Telegram thì MẤT HÚT. Model phải lấy mã
   phiên từ khối "KÊNH HỘI THOẠI HIỆN TẠI" và truyền vào.
 
-Phạm vi v1: `add` và `list`. Chuyển cột, huỷ, duyệt việc chờ phê duyệt vẫn làm ở trang Việc -
-đó là những thao tác cần nhìn thấy bảng, và mô tả tool nói thẳng như vậy thay vì để model đoán.
+Phạm vi: `add`, `list` và `answer` (0.235.0). Chuyển cột, huỷ, duyệt việc chờ phê duyệt vẫn làm
+ở trang Việc - đó là những thao tác cần nhìn thấy bảng, và mô tả tool nói thẳng như vậy thay vì
+để model đoán.
+
+`answer` (0.235.0): việc nền dừng lại hỏi (`[[NEEDS_INPUT]]`) thì câu hỏi về khung chat của
+người giao việc. Người đó trả lời NGAY trong chat (web, Telegram, Zalo), model chuyển nguyên văn
+vào đây và việc chạy tiếp với câu trả lời. Thiếu `id` mà brain chỉ có đúng MỘT việc đang chờ thì
+dùng việc đó; nhiều hơn thì trả danh sách để model hỏi lại, KHÔNG đoán.
 
 `route` (0.107.0): `auto` hoặc `wf:<slug>` của một quy trình CÓ THẬT. Trước bản này tool không
 có tham số này, trong khi mô tả của `javis_workflow` lại bảo "dùng javis_task với route
@@ -283,7 +289,9 @@ def _liet_ke(args, ctx) -> str:
             if len(dong) >= _LIST_MAX:
                 con += 1
                 continue
-            dong.append(f"[{nhan}] {t.get('id', '')} · {t.get('title', '')}")
+            hoi = _cau_hoi(t)
+            dong.append(f"[{nhan}] {t.get('id', '')} · {t.get('title', '')}"
+                        + (f" · CHỜ TRẢ LỜI: {hoi[:200]}" if hoi else ""))
     if not dong:
         return "Chưa có việc nào trong hàng đợi."
     if con:
@@ -299,6 +307,53 @@ def _liet_ke(args, ctx) -> str:
     if not _dieu_phoi_chay(view.get("orchestration")):
         dong.append(_CANH_BAO_DIEU_PHOI.format(muc=str(view.get("orchestration") or "off")))
     return "\n".join(dong)
+
+
+def _cau_hoi(t: dict) -> str:
+    """Câu hỏi việc đang chờ chủ trả lời, "" khi không có. Cùng luật với tasks._cau_hoi_dang_cho."""
+    return tasks_mod.TasksFeature._cau_hoi_dang_cho(t)
+
+
+def _dang_cho(f, vault_root) -> list:
+    """Các việc của brain này đang dừng chờ chủ trả lời."""
+    try:
+        cols = (f.board_view(vault_root).get("columns") or {})
+    except Exception:
+        return []
+    return [t for t in (cols.get("blocked") or []) if _cau_hoi(t)]
+
+
+async def _tra_loi(args, ctx) -> str:
+    if not ctx.vault_root:
+        return "ERROR: chưa biết đang làm việc trên brain nào nên không chuyển câu trả lời được."
+    tra_loi = str((args or {}).get("answer") or "").strip()
+    if not tra_loi:
+        return "ERROR: thiếu answer - chép nguyên văn câu trả lời của người dùng vào đây."
+    f, loi = _feature()
+    if loi:
+        return loi
+    cho = _dang_cho(f, ctx.vault_root)
+    tid = str((args or {}).get("id") or "").strip()
+    if not tid:
+        if len(cho) == 1:
+            tid = str(cho[0].get("id") or "")
+        elif not cho:
+            return "Không có việc nào của brain này đang chờ câu trả lời."
+        else:
+            return ("ERROR: có " + str(len(cho)) + " việc đang chờ trả lời, chưa biết câu này cho việc "
+                    "nào. Hỏi lại người dùng rồi gọi lại với id:\n"
+                    + "\n".join(f"- {t.get('id')} · {t.get('title')}: {_cau_hoi(t)[:160]}" for t in cho))
+    if tid not in {str(t.get("id") or "") for t in cho}:
+        return (f"ERROR: việc {tid} không thuộc brain này hoặc không còn chờ câu trả lời. "
+                "Gọi op=list để xem việc nào đang CHỜ TRẢ LỜI.")
+    kq = await f.answer(tid, tra_loi, by="chat")
+    if not kq.get("ok"):
+        return f"ERROR: {kq.get('error') or 'không chuyển được câu trả lời'}."
+    ra = [f"Đã chuyển câu trả lời cho việc {tid}. Việc quay lại hàng đợi và chạy tiếp với câu trả lời đó; "
+          "kết quả tự về khung chat này."]
+    if not _dieu_phoi_chay(kq.get("orchestration")):
+        ra.append(_CANH_BAO_DIEU_PHOI.format(muc=str(kq.get("orchestration") or "off")))
+    return "\n".join(ra)
 
 
 def register(ctx):
@@ -317,13 +372,17 @@ def register(ctx):
         "route: 'auto' (mặc định, một worker chung làm) hoặc 'wf:<slug>' để chạy ĐÚNG một quy trình "
         "có thật, từng bước do agent của quy trình làm; muốn chạy quy trình thì PHẢI đặt route, "
         "chép tên quy trình vào intent không làm nó chạy. "
-        "op=list: liệt kê việc theo cột. "
+        "op=list: liệt kê việc theo cột, việc đang dừng hỏi có ghi CHỜ TRẢ LỜI. "
+        "op=answer: người dùng trả lời câu hỏi của một việc nền đang chờ -> truyền id và answer "
+        "(chép nguyên văn); việc chạy tiếp với câu trả lời đó. "
         "Chuyển cột, huỷ việc và duyệt việc chờ phê duyệt thì làm ở trang Việc, tool này không có.",
         _chay,
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["add", "list"]},
+                "op": {"type": "string", "enum": ["add", "list", "answer"]},
+                "id": {"type": "string", "description": "Mã việc đang chờ trả lời (op=answer)"},
+                "answer": {"type": "string", "description": "Câu trả lời nguyên văn của người dùng (op=answer)"},
                 "title": {"type": "string", "description": "Tên việc, ngắn gọn (op=add)"},
                 "intent": {"type": "string", "description": "Mô tả đầy đủ hơn nếu tiêu đề chưa đủ"},
                 "mode": {"type": "string", "enum": ["suggest", "auto", "full"]},
@@ -345,4 +404,7 @@ async def _chay(args, ctx) -> str:
         return _them(args, ctx)
     if op == "list":
         return _liet_ke(args, ctx)
-    return "ERROR: op phải là 'add' (giao việc) hoặc 'list' (xem việc đang có)."
+    if op == "answer":
+        return await _tra_loi(args, ctx)
+    return ("ERROR: op phải là 'add' (giao việc), 'list' (xem việc đang có) hoặc 'answer' "
+            "(chuyển câu trả lời cho việc đang chờ).")

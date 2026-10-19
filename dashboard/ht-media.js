@@ -105,7 +105,31 @@
     return s;
   }
 
-  var API = { phanTich: phanTich, html: html, chuThich: chuThich, coDungLuong: coDungLuong, tomTat: tomTat };
+  // Name shown in the lightbox bar: the file name, from ?p= for photos served by /conversations/<id>/media.
+  function tenAnh(href) {
+    try {
+      var u = new URL(href, "http://x/");
+      var p = u.searchParams.get("p") || u.pathname;
+      return tenFile(p);
+    } catch (e) { return ""; }
+  }
+
+  // Clicking a customer's photo opens it inside Javis (the chat lightbox, with a close button and Back closing it)
+  // instead of a new tab (owner 2026-10-19: easier to go back to the customer's messages). Ctrl/Cmd/middle click
+  // and a photo that failed to load keep the link's own new-tab behaviour.
+  if (typeof document !== "undefined") {
+    document.addEventListener("click", function (e) {
+      var a = e.target && e.target.closest ? e.target.closest("a.ht-anh") : null;
+      if (!a || a.classList.contains("hong") || !window.JavisLightbox) return;
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var href = a.getAttribute("href") || "";
+      window.JavisLightbox.open(href, tenAnh(href));
+    }, true);
+  }
+
+  var API = { phanTich: phanTich, html: html, chuThich: chuThich, coDungLuong: coDungLuong, tomTat: tomTat, tenAnh: tenAnh };
   if (typeof window !== "undefined") window.JavisHtMedia = API;
   if (typeof module !== "undefined" && module.exports) module.exports = API;
 })();

@@ -25,18 +25,22 @@ import stt
 
 # Giá trị hợp lệ của `voice.ear`. "auto" là mặc định: chủ dự án chốt 01/10/2026 "tự chọn, bật
 # sẵn", vì máy suy ra được tai nào dùng được thì không bắt người dùng phải chọn.
-CHOICES = ("auto", "groq", "off")
+CHOICES = ("auto", "groq", "openai", "off")
 DEFAULT = "auto"
 
 # Các tai Javis biết chạy. `kind`:
 #   upload - trình duyệt ghi âm cả câu, hết câu mới gửi lên /stt.
 EARS = {
     "groq": {"label": "Groq Whisper", "kind": "upload", "key_field": "groq_api_key"},
+    # 0.231.0: a machine with an OpenAI key but no Groq key used to have no ear at all, so a Vietnamese sentence with
+    # English words in it stayed as Chrome heard it ("Claude Code" -> "lót code"). gpt-4o-transcribe keeps both.
+    "openai": {"label": "OpenAI gpt-4o-transcribe", "kind": "upload", "key_field": "openai_api_key"},
 }
 
 # Thứ tự khi `auto` mà bộ não chính không có tai cùng hãng. Xếp theo bộ đo tools/stt_bench:
 # có số mới thì sửa ở đây.
-RANKING = ("groq",)
+# Groq stays first: it is the ear tools/stt_bench measured. OpenAI joins as the next choice (0.231.0).
+RANKING = ("groq", "openai")
 
 # Provider của bộ não chính (main._effective_main) -> tai cùng hãng. Bộ não Claude không có
 # tai: model Claude không nhận âm thanh, còn giọng nói của Claude Code cần token đăng nhập mà
@@ -147,7 +151,7 @@ def whisper_lang(lang: str):
 
 
 async def transcribe_upload(cfg: dict, data: bytes, filename: str = "voice.webm", lang: str = "",
-                            draft: str = "") -> dict:
+                            draft: str = "", provider: str = "groq") -> dict:
     """Chạy tai dạng tải lên cho một câu đã ghi âm. Trả cùng khuôn với route /stt:
 
         {"ok": True, "text": "...", "model": "..."}
@@ -158,9 +162,13 @@ async def transcribe_upload(cfg: dict, data: bytes, filename: str = "voice.webm"
     m = (cfg or {}).get("model") or {}
     v = (cfg or {}).get("voice") or {}
     tv = nghe_sua.tu_vung(cfg)
-    res = await stt.groq_nghe(data, filename or "voice.webm", m.get("groq_api_key", ""),
-                              v.get("stt_model") or "", whisper_lang(lang),
-                              hotwords=nghe_sua.goi_y_whisper(vocab(cfg)))
+    hotwords = nghe_sua.goi_y_whisper(vocab(cfg))
+    if provider == "openai":
+        res = await stt.openai_nghe(data, filename or "voice.webm", m.get("openai_api_key", ""), "",
+                                    whisper_lang(lang), hotwords=hotwords)
+    else:
+        res = await stt.groq_nghe(data, filename or "voice.webm", m.get("groq_api_key", ""),
+                                  v.get("stt_model") or "", whisper_lang(lang), hotwords=hotwords)
     text = nghe_sua.sua(res.get("text", ""), tv) if res.get("ok") else res.get("text", "")
     # Log chỉ ghi SỐ ĐO (độ dài, độ giống), không ghi lời người dùng.
     if res.get("ok") and str(draft or "").strip():

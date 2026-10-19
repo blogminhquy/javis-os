@@ -23,6 +23,12 @@ VALID_STATUS = {
     "triage", "todo", "ready", "running", "review", "blocked", "done",
     "cancelled", "archived",
 }
+# Sổ hỏi đáp của một việc (`metadata.qa`, 0.235.0): giữ ngần này lượt gần nhất, mỗi câu tối đa
+# QA_TEXT_MAX ký tự, phần "đã làm tới đâu" tối đa QA_PROGRESS_MAX. Đủ cho lần chạy sau hiểu
+# chuyện, không đủ để phình kho hay prompt.
+QA_KEEP = 8
+QA_TEXT_MAX = 1000
+QA_PROGRESS_MAX = 1500
 TERMINAL_STATUS = {"done", "cancelled", "archived"}
 ACTIVE_STATUS = {"triage", "todo", "ready", "running", "review", "blocked"}
 # Trạng thái của làn `team` (nhóm chat). Cố ý KHÔNG nằm trong VALID_STATUS: lệnh kéo thả
@@ -1028,6 +1034,78 @@ class TaskStore:
             not_before=float(not_before or 0.0) if retry else 0.0,
             keep_attempt=bool(keep_attempt and retry),
         )
+
+    def ask(
+        self, task_id: str, worker_id: str, question: str, result: str = "",
+    ) -> Optional[dict]:
+        """Chặn việc ở `needs_input` VÀ ghi câu hỏi vào `metadata.qa` (0.235.0).
+
+        Trước đây câu hỏi chỉ nằm lẫn trong `block_reason`, và đường duy nhất để gỡ là Thử lại:
+        việc chạy lại từ đầu mà không ai nói cho nó câu trả lời, nên nó hỏi lại y hệt. Giờ mỗi
+        lần hỏi là một mục `{q, asked_at, progress}`; `answer` điền `a` vào mục đó, và lần chạy
+        sau đọc cả sổ (ý tưởng `ask_user` của OpenMuse). `progress` là đầu bản tường thuật của
+        lần chạy vừa dừng, để lần sau biết phần nào đã làm xong."""
+        task = self.get_task(task_id)
+        if not task:
+            return None
+        meta = dict(task.get("metadata") or {})
+        qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
+        qa.append({
+            "q": (question or "").strip()[:QA_TEXT_MAX],
+            "asked_at": now(),
+            "progress": (result or "").strip()[:QA_PROGRESS_MAX],
+        })
+        meta["qa"] = qa[-QA_KEEP:]
+        return self._finish(
+            task_id, worker_id, "blocked",
+            result=result, error=question, block_kind="needs_input",
+            block_reason=question, event_type="blocked",
+            metadata=meta, artifacts=task.get("artifacts") or [],
+        )
+
+    def answer(self, task_id: str, text: str, by: str = "owner") -> tuple[Optional[dict], str]:
+        """Chủ trả lời việc đang chờ ở `needs_input`: điền câu trả lời rồi đưa việc về `ready`.
+
+        Trả (task, "") khi xong, (None, mã lỗi) khi không: "not_found", "empty", "not_waiting".
+        TRẢ LẠI lượt thử mà lần chạy vừa hỏi đã tiêu: hỏi người không phải là việc hỏng, tính
+        nó thì việc hỏi ba câu là chết vì hết lượt dù chưa hỏng lần nào."""
+        text = (text or "").strip()
+        if not text:
+            return None, "empty"
+        with self._lock:
+            self._tx()
+            try:
+                row = self._db.execute(
+                    "SELECT * FROM tasks WHERE id=? AND lane<>'team'", (task_id,)
+                ).fetchone()
+                if not row:
+                    self._db.rollback()
+                    return None, "not_found"
+                if row["status"] != "blocked" or row["block_kind"] != "needs_input":
+                    self._db.rollback()
+                    return None, "not_waiting"
+                meta = _loads(row["metadata_json"], {})
+                qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
+                if not qa or qa[-1].get("a"):
+                    # Việc kẹt từ trước bản này: câu hỏi chỉ còn trong block_reason.
+                    qa.append({"q": str(row["block_reason"] or "")[:QA_TEXT_MAX],
+                               "asked_at": float(row["updated_at"] or now())})
+                qa[-1].update({"a": text[:QA_TEXT_MAX], "answered_at": now(), "by": by})
+                meta["qa"] = qa[-QA_KEEP:]
+                self._db.execute(
+                    """UPDATE tasks SET status='ready', block_kind='', block_reason='',
+                       attempts=CASE WHEN attempts > 0 THEN attempts - 1 ELSE 0 END,
+                       metadata_json=?, claimed_by='', claim_expires_at=0, not_before=0,
+                       current_run_id='', updated_at=?
+                       WHERE id=?""",
+                    (_json(meta), now(), task_id),
+                )
+                self._event(task_id, "answered", text[:500], metadata={"by": by})
+                self._db.commit()
+            except Exception:
+                self._db.rollback()
+                raise
+        return self.get_task(task_id), ""
 
     def move(self, task_id: str, status: str, reason: str = "operator") -> bool:
         if status not in VALID_STATUS:

@@ -52,6 +52,8 @@ TU_TIENG_ANH_MOI = (
     "GitHub", "GitHub Actions", "commit", "push", "pull request", "merge", "deploy", "server",
     "VPS", "API", "API key", "MCP", "workflow", "agent", "skill", "dashboard", "prompt",
     "model", "token", "bug", "log", "Claude Code", "Codex", "Facebook Ads", "landing page",
+    # 0.231.0: AI products the owner names all the time; "ChatGPT" came out as "chắc gpt".
+    "ChatGPT", "OpenAI", "Claude", "Gemini", "Grok", "OpenRouter", "Antigravity", "Telegram", "Zalo",
     "livestream", "inbox", "content", "marketing", "email",
 )
 

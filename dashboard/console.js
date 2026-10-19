@@ -1341,6 +1341,13 @@
     .kn-task-top{display:flex;gap:9px;align-items:flex-start}.kn-task-title{flex:1;color:var(--text);font-size:14px;font-weight:600;line-height:1.35}
     .kn-pill{flex:none;border-radius:99px;padding:2px 7px;font-size:10px;border:1px solid var(--hairline);color:var(--text3)}
     .kn-task-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px;color:var(--text3);font-size:11px}
+    .kn-ask{margin-top:8px;padding:9px 10px;border:1px solid rgba(127,176,255,.35);border-radius:10px;background:rgba(127,176,255,.06);cursor:default}
+    .kn-ask-q{color:var(--text);font-size:14px;line-height:1.45;white-space:pre-wrap}
+    .kn-ask-row{display:flex;gap:6px;align-items:flex-end;margin-top:8px}
+    .kn-ask-input{flex:1;min-width:0;resize:vertical;min-height:40px;padding:8px 10px;border-radius:8px;border:1px solid var(--hairline);background:var(--surface-1);color:var(--text);font:inherit;font-size:16px;line-height:1.4}
+    .kn-ask-send{flex:none;padding:9px 12px;border-radius:8px;border:1px solid var(--link-ink);background:rgba(127,176,255,.14);color:var(--text-hi);font-size:14px;cursor:pointer}
+    .kn-ask-send[disabled]{opacity:.5;cursor:default}
+    .kn-qa{padding:8px 0;border-bottom:1px solid var(--surface-2)}.kn-qa b{color:var(--text)}
     .kn-task-result{margin-top:6px;color:var(--text3);font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .kn-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.kn-actions button{padding:3px 8px;border-radius:6px;border:1px solid var(--hairline);background:var(--surface-1);color:var(--text2);font-size:11px;cursor:pointer}.kn-actions button:hover{border-color:var(--link-ink);color:var(--text-hi)}.kn-actions button.danger{color:var(--red)}.kn-actions button.danger:hover{border-color:var(--red);color:var(--red)}
     .kn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}.kn-dot.live{background:var(--green);box-shadow:0 0 0 4px rgba(63,220,134,.12)}.kn-dot.off{background:var(--text3)}
@@ -3046,6 +3053,52 @@
       return t("kanban.ago_day", { n: Math.floor(sec / 86400) });
     }
 
+    // Câu hỏi việc đang chờ chủ trả lời (0.235.0), "" khi không có. Việc kẹt từ bản cũ chưa có sổ
+    // hỏi đáp thì câu hỏi chỉ còn trong block_reason; máy chủ vẫn nhận câu trả lời cho nó.
+    function pendingQuestion(t) {
+      if (t.status !== "blocked" || t.block_kind !== "needs_input") return "";
+      const qa = (t.metadata && Array.isArray(t.metadata.qa)) ? t.metadata.qa : [];
+      const last = qa[qa.length - 1];
+      return (last && !last.a) ? String(last.q || "") : String(t.block_reason || "");
+    }
+
+    function askBox(t) {
+      const q = pendingQuestion(t);
+      if (!q) return "";
+      return `<div class="kn-ask" data-ask="${esc(t.id)}">
+        <div class="kn-ask-q">${typeof ic === "function" ? ic("circle-help") : ""} ${esc(q)}</div>
+        <div class="kn-ask-row"><textarea class="kn-ask-input" rows="2" placeholder="${esc(window.t("kanban.answer_ph"))}"></textarea>
+        <button type="button" class="kn-ask-send">${esc(window.t("kanban.answer_send"))}</button></div>
+      </div>`;
+    }
+
+    function qaHistory(t) {
+      const qa = ((t.metadata && Array.isArray(t.metadata.qa)) ? t.metadata.qa : []).filter(x => x && x.a);
+      if (!qa.length) return "";
+      return `<div class="kn-detail-block"><h4>${esc(window.t("kanban.qa_title"))}</h4>${qa.map(x =>
+        `<div class="kn-qa"><div><b>${esc(window.t("kanban.qa_q"))}</b> ${esc(x.q || "")}</div><div><b>${esc(window.t("kanban.qa_a"))}</b> ${esc(x.a || "")}</div></div>`).join("")}</div>`;
+    }
+
+    function bindAskBoxes(scope) {
+      scope.querySelectorAll(".kn-ask[data-ask]").forEach(box => {
+        // Bấm vào ô trả lời không được mở ngăn kéo chi tiết của thẻ.
+        box.onclick = ev => ev.stopPropagation();
+        const input = box.querySelector(".kn-ask-input"), send = box.querySelector(".kn-ask-send");
+        send.onclick = async ev => {
+          ev.stopPropagation();
+          const answer = input.value.trim();
+          if (!answer) { input.focus(); return; }
+          send.disabled = true;
+          let r = null;
+          try { r = await post("/kanban/task/answer", { id: box.dataset.ask, answer }); } catch (e) {}
+          send.disabled = false;
+          if (!r || !r.ok) { alert((r && r.error) || t("kanban.cant_update")); return; }
+          closeDrawer();
+          await load();
+        };
+      });
+    }
+
     function taskActions(t) {
       const acts = [];
       // Việc dừng lại vì CHƯA ĐƯỢC CẤP QUYỀN thao tác ra ngoài: nút đầu tiên phải là nút cấp
@@ -3054,7 +3107,8 @@
       const canQuyen = t.status === "blocked" && t.block_kind === "capability";
       if (canQuyen) acts.push(`<button data-act="grant" data-id="${esc(t.id)}">${esc(window.t("kanban.act_grant"))}</button>`);
       if (t.status === "review") acts.push(`<button data-act="done" data-id="${esc(t.id)}">${CHECK_ICON} ${esc(window.t("kanban.act_approve"))}</button>`);
-      if (!canQuyen && (t.status === "blocked" || t.status === "review")) acts.push(`<button data-act="retry" data-id="${esc(t.id)}">↻ ${esc(window.t("kanban.act_retry"))}</button>`);
+      // Việc đang chờ câu trả lời: Thử lại chỉ chạy lại không kèm câu trả lời rồi hỏi y hệt, nên bỏ đi.
+      if (!canQuyen && (t.status === "blocked" || t.status === "review") && !pendingQuestion(t)) acts.push(`<button data-act="retry" data-id="${esc(t.id)}">↻ ${esc(window.t("kanban.act_retry"))}</button>`);
       if (t.status === "running") acts.push(`<button data-act="cancel" data-id="${esc(t.id)}">${esc(window.t("kanban.act_stop"))}</button>`);
       if (t.status !== "running") acts.push(`<button class="danger" data-act="archive" data-id="${esc(t.id)}">${esc(window.t("kanban.act_archive"))}</button>`);
       return acts;
@@ -3062,12 +3116,13 @@
 
     function taskHtml(t, area) {
       const acts = taskActions(t);
-      const reason = t.block_reason ? `<div class="kn-task-result" style="color:var(--red)">${esc(t.block_reason)}</div>` : "";
+      const ask = askBox(t);
+      const reason = !ask && t.block_reason ? `<div class="kn-task-result" style="color:var(--red)">${esc(t.block_reason)}</div>` : "";
       const result = !reason && t.result ? `<div class="kn-task-result">${esc(t.result.slice(0, 240))}</div>` : "";
       return `<div class="kn-task" data-task="${esc(t.id)}">
         <div class="kn-task-top"><div class="kn-task-title">${_prioIcon(t.priority)} ${esc(t.title)}</div><span class="kn-pill">${esc(_kstatus(t.status))}</span></div>
         <div class="kn-task-meta"><span>${esc(t.capability || "auto")}</span><span>attempt ${Number(t.attempts || 0)}/${Number(t.max_attempts || 3)}</span><span>${ago(t.updated_at)}</span></div>
-        ${reason}${result}
+        ${ask}${reason}${result}
         ${acts.length ? `<div class="kn-actions">${acts.join("")}</div>` : ""}
       </div>`;
     }
@@ -3108,6 +3163,7 @@
     function bindActions() {
       el.querySelectorAll(".kn-task[data-task]").forEach(row => row.onclick = () => showTask(row.dataset.task));
       bindActionButtons(el);
+      bindAskBoxes(el);
     }
 
     // Xoá tất cả của một khu. Hai khu hai hậu quả khác nhau nên hỏi bằng hai câu khác nhau:
@@ -3140,11 +3196,14 @@
         <div style="color:var(--text);white-space:pre-wrap">${esc(t.intent || "")}</div>
         <div class="kn-task-meta" style="margin-top:10px"><span>${esc(_kstatus(t.status))}</span><span>${esc(t.capability || "auto")}</span><span>mode ${esc(t.execution_mode || "auto")}</span><span>${esc(window.t("kanban.prio_lc"))} ${Number(t.priority || 2)}</span></div>
         ${acts.length ? `<div class="kn-actions" style="margin-top:14px">${acts.join("")}</div>` : ""}
-        ${t.block_reason ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.blocked_reason"))}</h4><div style="color:var(--red)">${esc(t.block_reason)}</div></div>` : ""}
+        ${pendingQuestion(t) ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.answer_title"))}${window.JavisInfo ? window.JavisInfo.btn(window.t("info.more")) : ""}</h4>${window.JavisInfo ? window.JavisInfo.body(esc(window.t("kanban.answer_info"))) : ""}${askBox(t)}</div>`
+          : (t.block_reason ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.blocked_reason"))}</h4><div style="color:var(--red)">${esc(t.block_reason)}</div></div>` : "")}
+        ${qaHistory(t)}
         ${t.result ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.result"))}</h4><div style="white-space:pre-wrap">${esc(t.result)}</div></div>` : ""}
         <div class="kn-detail-block"><h4>${esc(window.t("kanban.runs"))} (${runs.length})</h4>${runs.length ? runs.map(r => `<div class="kn-event"><b>${esc(r.status)}</b> · ${new Date(Number(r.started_at || 0) * 1000).toLocaleString()}${r.error ? `<div style="color:var(--red)">${esc(r.error)}</div>` : ""}</div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_runs"))}</div>`}</div>
         <div class="kn-detail-block"><h4>${esc(window.t("kanban.lifecycle"))}</h4>${events.length ? events.map(v => `<div class="kn-event"><b>${esc(v.event_type)}</b> · ${new Date(Number(v.created_at || 0) * 1000).toLocaleString()}<div>${esc(v.message || "")}</div></div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_events"))}</div>`}</div>`;
       bindActionButtons(drawerBody);
+      bindAskBoxes(drawerBody);
     }
 
     async function load() {

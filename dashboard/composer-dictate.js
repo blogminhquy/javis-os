@@ -153,10 +153,20 @@
     if (!on) stopMeter();
   }
 
+  // Browser speech hears one language only, so a Vietnamese sentence with English words comes out wrong. Only an ear
+  // (a model listening to the audio again) fixes that; say once per page how to get one when the machine has none.
+  var earTipShown = false;
+  function earTip(D, inp) {
+    if (earTipShown || !D || !D.ear || D.ear() !== "" || !inp || inp.value === S.base) return;
+    earTipShown = true;
+    note("dict.no_ear");
+  }
+
   function finished() {
     var inp = $("chatInput"), send = S.sendAfter;
     S.dict = null;
     S.sendAfter = false;
+    earTip(window.JavisDictate, inp);
     if (!inp) return;
     inp.readOnly = false;
     if (send && inp.value.trim()) {

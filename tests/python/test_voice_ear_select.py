@@ -113,6 +113,81 @@ finally:
 
 stt.groq_nghe, main.cfgmod.read_settings = _goc_nghe, _goc_cfg
 
+# ---- 0.231.0: OpenAI ear (gpt-4o-transcribe) when there is no Groq key ----
+OKEY = {"openai_api_key": "sk-test"}
+r = voice_ear.select_ear({"model": dict(OKEY), "voice": {}}, "anthropic-cli")
+check("auto, only an OpenAI key -> OpenAI ear, upload kind", r["provider"] == "openai" and r["kind"] == "upload"
+      and r["reason"] == voice_ear.REASON_BEST)
+r = voice_ear.select_ear({"model": dict(KEY, **OKEY), "voice": {}}, "openai")
+check("auto with both keys keeps Groq first (the measured ear)", r["provider"] == "groq")
+r = voice_ear.select_ear({"model": dict(KEY, **OKEY), "voice": {"ear": "openai"}})
+check("openai can be chosen by hand", r["provider"] == "openai" and r["reason"] == voice_ear.REASON_CHOSEN)
+
+seen = []
+
+
+async def fake_openai(data, ten, key, model="", ngon_ngu=None, hotwords=""):
+    seen.append({"key": key, "lang": ngon_ngu, "hotwords": hotwords})
+    return {"ok": True, "text": "mở Claude Code rồi hỏi ChatGPT", "model": "gpt-4o-transcribe"}
+
+
+async def no_groq(*a, **k):
+    raise AssertionError("Groq must not be called for the OpenAI ear")
+
+_goc_openai = stt.openai_nghe
+stt.openai_nghe, stt.groq_nghe = fake_openai, no_groq
+main.cfgmod.read_settings = lambda: {"model": dict(OKEY), "voice": {}}
+try:
+    r = client.post("/stt", files={"file": ("v.webm", b"OggS-fake", "audio/webm")}, data={"lang": "auto"}).json()
+    check("/stt with only an OpenAI key runs the OpenAI ear with its key and the vocabulary",
+          r["ok"] is True and r["text"] == "mở Claude Code rồi hỏi ChatGPT" and seen and seen[-1]["key"] == "sk-test"
+          and "ChatGPT" in seen[-1]["hotwords"] and seen[-1]["lang"] == "")
+finally:
+    stt.openai_nghe, stt.groq_nghe, main.cfgmod.read_settings = _goc_openai, _goc_nghe, _goc_cfg
+
+# The OpenAI call itself: right endpoint, model, prompt; no network (httpx client replaced).
+import asyncio  # noqa: E402
+sent = {}
+
+
+class _Resp:
+    status_code = 200
+
+    def json(self):
+        return {"text": "Javis ơi mở Claude Code"}
+
+
+class _Client:
+    def __init__(self, *a, **k):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def post(self, url, headers=None, data=None, files=None):
+        sent.update(url=url, auth=(headers or {}).get("Authorization"), form=dict(data or {}))
+        return _Resp()
+
+_goc_client = stt.httpx.AsyncClient
+stt.httpx.AsyncClient = _Client
+try:
+    out = asyncio.run(stt.openai_nghe(b"x" * 4000, "v.webm", "sk-test", "", "", hotwords="Javis, ChatGPT."))
+    check("openai_nghe posts to OpenAI transcriptions with gpt-4o-transcribe, the key and the prompt",
+          sent.get("url") == stt.OPENAI_STT_URL and sent["form"].get("model") == "gpt-4o-transcribe"
+          and sent.get("auth") == "Bearer sk-test" and sent["form"].get("prompt") == "Javis, ChatGPT."
+          and "language" not in sent["form"])
+    check("openai_nghe returns the text in the shared shape", out == {"ok": True, "text": "Javis ơi mở Claude Code",
+                                                                      "model": "gpt-4o-transcribe"})
+    out = asyncio.run(stt.openai_nghe(b"x" * 4000, "v.webm", "", ""))
+    check("no OpenAI key -> thieu_key, no request", out["ly_do"] == "thieu_key")
+finally:
+    stt.httpx.AsyncClient = _goc_client
+check("the Whisper hint names the AI products the owner says", all(w in nghe_sua.TU_TIENG_ANH_MOI for w in
+      ("ChatGPT", "Claude", "Gemini", "OpenAI")))
+
 if _fails:
     print("\nFAIL:", len(_fails), _fails)
     raise SystemExit(1)

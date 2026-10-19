@@ -1,4 +1,4 @@
-# Webhook event platform (0.233.0): index, requirements matrix, evidence
+# Webhook event platform (0.236.0): index, requirements matrix, evidence
 
 **Spec of record:** `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md` (committed a6132b9f). Every
 section below names the spec section it answers. The gap analysis made before the spec work is
@@ -159,7 +159,7 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 
 | Requirement | How | Status |
 |---|---|---|
-| One PR per milestone under a reserved version | **deviation**: the session was bound to one branch, so PR #747 holds commits grouped by milestone (M1 to M5, then the spec alignment), one version 0.233.0 | deviation (explained in the PR) |
+| One PR per milestone under a reserved version | **deviation**: the session was bound to one branch, so PR #747 holds commits grouped by milestone (M1 to M5, then the spec alignment), one version 0.236.0 | deviation (explained in the PR) |
 
 ### §15 Test matrix
 

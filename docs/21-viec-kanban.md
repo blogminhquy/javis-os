@@ -116,9 +116,22 @@ Tuỳ trạng thái, thẻ (và ngăn chi tiết) hiện các nút:
 | Nút | Hiện khi | Làm gì |
 | --- | --- | --- |
 | **✓ Duyệt ngoại lệ** | việc đang chờ duyệt | Chốt việc là hoàn thành |
-| **↻ Thử lại** | việc bị chặn hoặc chờ duyệt | Đẩy việc về hàng đợi để chạy lại |
+| **Gửi trả lời** | việc đang dừng hỏi bạn (có ô trả lời) | Việc quay lại hàng đợi và chạy tiếp với câu trả lời của bạn |
+| **↻ Thử lại** | việc bị chặn hoặc chờ duyệt (trừ việc đang hỏi) | Đẩy việc về hàng đợi để chạy lại |
 | **Dừng task** | việc đang chạy | Huỷ worker đang chạy |
 | **Xóa khỏi bảng** | mọi việc không đang chạy | Đưa việc vào lưu trữ, rời khỏi bảng nhưng không mất lịch sử |
+
+### Việc dừng lại hỏi bạn (từ 0.235.0)
+
+Gặp một chỗ chỉ bạn mới biết (gửi cho khách nào, giá đã gồm VAT chưa, đăng lúc mấy giờ), worker không đoán bừa mà dừng lại hỏi đúng một câu. Câu hỏi về ngay khung chat bạn đã giao việc (kể cả Telegram, Zalo), và nằm trên thẻ việc ở khu **Cần bạn xử lý**.
+
+Có ba chỗ để trả lời, chỗ nào cũng như nhau:
+
+- Gõ vào ô ngay dưới câu hỏi trong khung chat web rồi bấm **Gửi**.
+- Gõ vào ô trả lời trên thẻ việc ở trang Việc rồi bấm **Gửi trả lời**.
+- Nhắn bình thường trong chat (Telegram, Zalo cũng được), nói rõ là trả lời việc nào. Javis tự chuyển câu trả lời vào đúng việc.
+
+Trả lời xong, việc tự quay lại hàng đợi và chạy tiếp. Lần chạy sau đọc được câu hỏi, câu trả lời của bạn và phần lần trước đã làm xong, nên không làm lại từ đầu và không hỏi lại điều đã hỏi. Hỏi rồi trả lời **không** tính thêm lượt thử. Một việc hỏi nhiều lần thì ngăn chi tiết có mục **Hỏi đáp với bạn** ghi lại đủ từng lượt.
 
 **Xóa khỏi bảng** hỏi xác nhận trước: "Xóa task này khỏi bảng? Task sẽ được lưu trữ để không mất lịch sử." Việc đang chạy phải **Dừng task** trước rồi mới xoá được. Nếu thao tác không thành, Javis hiện hộp báo lỗi nguyên văn từ server, hoặc "Không thể cập nhật task".
 
@@ -143,7 +156,7 @@ Vài đường đi đáng biết:
 - Sau bước đặc tả, việc **không** bị tính là đã dùng một lượt thử; số lượt được trả lại để bước thực thi có đủ 3 lần.
 - Lỗi tạm thời (timeout, rate limit, 429, mất mạng, engine bận) thì việc **tự** quay lại hàng đợi, tối đa 3 lượt, ghi sự kiện `retry_scheduled`. Hết lượt mới chuyển sang "Cần xử lý".
 - Worker chết giữa chừng mà không kịp báo sống thì việc được thu hồi về hàng đợi với sự kiện `reclaimed`, không nằm treo mãi ở "Đang chạy".
-- Worker tự thấy thiếu một quyết định hoặc dữ liệu thì trả kết quả bắt đầu bằng `[[NEEDS_INPUT]]`, việc chuyển sang "Cần xử lý" kèm đúng một dòng lý do.
+- Worker tự thấy thiếu một quyết định hoặc dữ liệu thì trả kết quả bắt đầu bằng `[[NEEDS_INPUT]]` kèm đúng một câu hỏi. Việc chuyển sang "Cần xử lý" và chờ bạn trả lời (xem "Việc dừng lại hỏi bạn" ở trên).
 
 ## Bảng tra nhanh nút và trạng thái
 
@@ -299,6 +312,7 @@ Trang web không phủ hết những gì server làm được. Các endpoint dư
 | `POST /kanban/task` | Tạo việc. Ngoài các trường có trên form còn nhận `chat_id`, `capability`, `execution_mode`, `deps` (danh sách id cách nhau bằng dấu phẩy) và `idempotency_key`. Cần đăng nhập; từ trong khung chat thì dùng tool `javis_task` |
 | `POST /kanban/run` | Chạy đúng một việc theo id |
 | `POST /kanban/task/move` | Chuyển việc sang một trạng thái khác |
+| `POST /kanban/task/answer` | Trả lời việc đang dừng hỏi: `id` và `answer`. Việc về hàng đợi, chạy tiếp với câu trả lời |
 | `POST /kanban/purge` | Xoá hẳn việc đã kết thúc. Mặc định chỉ đụng việc đã lưu trữ và đã huỷ; thêm `include_done=1` mới đụng việc hoàn thành |
 | `POST /kanban/clear` | Xoá trắng bảng, trừ việc đang chạy. Không hoàn tác được |
 
@@ -328,7 +342,7 @@ Bước đặc tả cần một lượt chạy model nền. Engine nền chưa s
 Đây là rào an toàn, không phải lỗi. Việc của bạn thuộc nhóm gửi tin, đăng bài, tạo đơn hoặc đổi thứ gì bên ngoài. Nếu bạn thật sự muốn nó tự làm, giao lại việc và viết rõ trong goal rằng bạn cho phép tự hành động; nếu không, hãy để Javis soạn nháp còn bạn tự bấm gửi.
 
 **Việc bị chặn với lý do bắt đầu bằng "Worker cần thêm thông tin".**
-Worker thấy thiếu một quyết định mà đoán bừa sẽ hại. Mở ngăn chi tiết đọc dòng lý do, bổ sung điều còn thiếu bằng cách giao lại một goal rõ hơn, rồi bấm **↻ Thử lại** hoặc xoá việc cũ đi.
+Worker thấy thiếu một quyết định mà đoán bừa sẽ hại. Từ 0.235.0 chỉ cần trả lời câu hỏi trên thẻ (hoặc trong chat), việc tự chạy tiếp với câu trả lời đó.
 
 **Không bấm được "Xóa khỏi bảng" hay "↻ Thử lại".**
 Việc đang chạy không cho đổi trạng thái. Bấm **Dừng task** trước, đợi thẻ rời khỏi khung **Đang hoạt động**, rồi thao tác lại.

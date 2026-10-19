@@ -28,8 +28,19 @@ function updateStopBtn() {
   // 0.206.0: while Javis works, typed text can still go out (as an add-on to the running turn), so the send button
   // comes back next to Stop as soon as there is something to send.
   const boSung = coTheGuiBoSung();
-  sendBtn.style.display = active && !boSung ? "none" : "flex";
+  // 0.231.0: two buttons (owner 2026-10-19). An empty box shows the voice chat button; text or an attachment turns
+  // it into send. In a call the button stays the red hang-up and the dictate mic steps aside.
+  const goi = handsFreeActive();
+  const coNoiDung = coNoiDungGui();
+  sendBtn.style.display = (active ? boSung : coNoiDung) ? "flex" : "none";
   sendBtn.title = boSung ? window.t("app.steer_send") : window.t("bar.send");
+  voiceBtn.style.display = goi || (!active && !coNoiDung) ? "" : "none";
+  const dictBtn = document.getElementById("dictBtn");
+  if (dictBtn) dictBtn.style.display = goi ? "none" : "";
+}
+function coNoiDungGui() {
+  try { return !!(chatInput.value.trim() || pendingAttachments.some(a => a.path)); }
+  catch (e) { return false; }
 }
 function coTheGuiBoSung() {
   try { return isProcessing && !handsFreeActive() && !!(chatInput.value.trim() || pendingAttachments.some(a => a.path)); }
@@ -2570,6 +2581,19 @@ function setProcessing(s) { isProcessing = s; sendBtn.disabled = s || sendBtn.da
 window.JavisSyncActiveUI = syncActiveUI;
 // composer-dictate.js reports a mic problem with the same passing note (0.230.0).
 window.JavisNoteFlash = ghiChuThoang;
+// 0.231.0: the box is emptied or filled from many places (send, restore after a dropped connection, slash menu,
+// "ask again"...). Watching the value itself keeps the voice chat / send button right without touching each one.
+(function () {
+  if (typeof HTMLTextAreaElement === "undefined" || !(chatInput instanceof HTMLTextAreaElement)) return;
+  const d = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+  if (!d || !d.get || !d.set) return;
+  Object.defineProperty(chatInput, "value", {
+    configurable: true,
+    get() { return d.get.call(this); },
+    set(v) { d.set.call(this, v); try { updateStopBtn(); } catch (e) {} },
+  });
+})();
+try { updateStopBtn(); } catch (e) {}   // first paint: an empty box shows voice chat, not send
 
 // ============================================
 // Cuộn thông minh: chỉ tự cuộn khi user đang ở đáy; đang đọc lại phía trên thì
@@ -3574,6 +3598,7 @@ function _pinRestore() {
 // tải file mới kế tiếp.
 let attachNote = "";
 function renderChips() {
+  try { updateStopBtn(); } catch (e) {}   // 0.231.0: an attachment turns voice chat into send
   attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote || !!attachNote || !!_quote);
   attachBar.innerHTML = "";
   if (_quote && window.JavisQuote) {
@@ -3958,7 +3983,8 @@ function chupFile(f) {
 // Events
 // ============================================
 chatInput.addEventListener("input", () => {
-  if (isProcessing) syncActiveUI();   // 0.206.0: the send button shows up next to Stop once there is text
+  // 0.206.0: the send button shows up next to Stop once there is text; 0.231.0: and in place of voice chat.
+  if (isProcessing) syncActiveUI(); else updateStopBtn();
   chatInput.style.height = "auto";
   // Ô nhập NỞ THEO CHỮ như claude.ai (chủ yêu cầu 27/08): xuống dòng là thấy toàn bộ văn
   // bản, không phải cuộn trong một ô 3 dòng. Trần ở trang Trò chuyện là 40% màn hình
@@ -4027,6 +4053,7 @@ function tatRanhTay() {
   runActions(turn.micOff());
   updateVoiceFocus();
   try { if (window.JavisTts) window.JavisTts.set(false); } catch (e) {}
+  try { updateStopBtn(); } catch (e) {}   // tests lift this function out alone
 }
 
 // Câu báo lỗi mic. Nói ĐÚNG nguyên nhân, vì ba nguyên nhân cần ba hành động khác hẳn nhau và
@@ -4061,6 +4088,7 @@ voiceBtn.addEventListener("click", () => {
   handsFree = !handsFree;
   if (handsFree) attention.start();
   voiceBtn.classList.toggle("handsfree", handsFree);
+  updateStopBtn();
   if (handsFree) {
     // Bấm mic là GỌI: hiện thanh gọi, nút mic thành Cúp máy (0.65.18).
     _callMuted = false;

@@ -287,6 +287,32 @@ reset()
 send("Dạ @Lan ơi, @Lan nhé", mention=KHACH)
 check("người được trả lời được nhắc hai lần: chỉ một tag", CLI and len([x for x in CLI[0]["opts"] if x.count(":") == 2]) == 1, CLI)
 
+# ============================================================
+# Zalo's own mention markup (0.234.0)
+# ============================================================
+# Field report 2026-10-19: the group saw `<a_mention href="zm://Profile/..._mention">@Minh</a_mention> Quý Dạ anh`
+# as plain code. The markup goes, the person still gets a real tag.
+RAW = '<a_mention href="zm://Profile/7770001_mention">@Minh</a_mention> Quý Dạ anh 😊'
+check("markup stripped, the @Name between the tags stays",
+      zc.strip_mention_markup(RAW) == "@Minh Quý Dạ anh 😊"
+      and zc.strip_mention_markup('<A_MENTION href="x">@Lan</A_MENTION>') == "@Lan"
+      and zc.strip_mention_markup("Dạ anh <3 nhé") == "Dạ anh <3 nhé" and zc.strip_mention_markup(None) == "")
+
+reset()
+ok, _ = send(RAW, mention=LAN)
+check("CANARY: group reply carrying the markup goes out clean, tagged at the right spot",
+      ok and CLI and CLI[0]["pos"][1] == "@Minh Quý Dạ anh 😊" and CLI[0]["opts"][-1] == "0:7770001:9", CLI)
+
+reset()
+ok, _ = send(RAW, chat_type="private")
+check("private chat: markup stripped too, and the cleaned text is remembered as our echo",
+      ok and MCP and MCP[0]["text"] == "@Minh Quý Dạ anh 😊" and zc._la_tieng_vong(CID, GROUP, "@Minh Quý Dạ anh 😊"), MCP)
+
+ev = zc.chuan_hoa_tin(CONN, {"threadId": GROUP, "type": 1, "senderId": "7770002", "senderName": "Lan",
+                             "text": '<a_mention href="zm://Profile/7770001_mention">@Minh Quý</a_mention> xem giúp em'}, {})
+check("incoming message: the bot reads @Name, never the markup (so it does not copy it)",
+      ev and ev["text"] == "@Minh Quý xem giúp em", ev)
+
 check("không dùng em dash trong file này và code mới", chr(0x2014) not in open(__file__, encoding="utf-8").read()
       and chr(0x2014) not in (SERVER / "channels" / "zalo_personal.py").read_text(encoding="utf-8"))
 

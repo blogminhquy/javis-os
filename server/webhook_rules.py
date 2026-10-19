@@ -1,4 +1,4 @@
-"""webhook_rules.py - what a hook does with an event BEFORE anything runs (0.233.0, webhook platform M2).
+"""webhook_rules.py - what a hook does with an event BEFORE anything runs (0.236.0, webhook platform M2).
 
 A hook may carry `rules`, all optional, all data (JSON), never code:
 

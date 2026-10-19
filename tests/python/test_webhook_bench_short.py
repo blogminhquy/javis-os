@@ -1,4 +1,4 @@
-"""0.233.0: a short run of the §16 ingress benchmark (tools/webhook_bench.py), over a real HTTP socket.
+"""0.236.0: a short run of the §16 ingress benchmark (tools/webhook_bench.py), over a real HTTP socket.
 
     python tests/run.py webhook_bench_short
 

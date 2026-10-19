@@ -1,9 +1,9 @@
-"""webhook_store.py - durable receive, evaluation and dispatch for webhook events (0.233.0, webhook platform).
+"""webhook_store.py - durable receive, evaluation and dispatch for webhook events (0.236.0, webhook platform).
 
 Before this module an accepted event lived only in RAM (a deque per hook): a restart, a crash or an update between the
 202 and the run lost it, while the sender had already been told "accepted" and would not retry. And the idempotency
 key was written to webhooks.json BEFORE the queue decided, so a 429 kept the key and the sender's retry was answered
-"duplicate" (fixed in 0.233.0: here the key and the event are one transaction).
+"duplicate" (fixed in 0.236.0: here the key and the event are one transaction).
 
 Spec of record: docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md (§4, §6, §7, §11, §13). The rules
 this store keeps, each checked by the tests named in docs/webhook-platform/README.md:
@@ -746,7 +746,7 @@ class Store:
         return n
 
     def import_legacy_keys(self, hook_id: str, keys: Iterable[str], now: Optional[float] = None) -> int:
-        """Keys a pre-0.233.0 hook kept in webhooks.json stay duplicates after the upgrade (bounded tombstones: they
+        """Keys a pre-0.236.0 hook kept in webhooks.json stay duplicates after the upgrade (bounded tombstones: they
         go after DEDUP_KEEP_DAYS). They point at no event (the old runs were never stored)."""
         now = time.time() if now is None else now
         n = 0

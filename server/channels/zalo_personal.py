@@ -277,6 +277,15 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
     if not conn:
         return False, localefmt.chu("tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)",
                                      "this Zalo account is no longer on the Connections page (or is turned off)")
+    # Zalo shows its own tag markup as plain code (2026-10-19): keep only the "@Name", which `_send_tagged` turns into a real tag.
+    sach = zalo_personal_channel.strip_mention_markup(text)
+    if sach != str(text or ""):
+        # The caller remembered the raw text as our echo; remember the cleaned one too, or the read loop takes it for the owner.
+        try:
+            zalo_personal_channel.ghi_da_gui(str(conn.get("id") or ""), str(chat_id), sach)
+        except Exception:      # noqa: BLE001 - worst case one duplicate line in the inbox
+            pass
+    text = sach
     doan = cat_tin(str(text or "")) or [str(text or "")]
     if len(doan) == 1:
         return await _gui_mot(conn, chat_id, doan[0], chat_type, mention)

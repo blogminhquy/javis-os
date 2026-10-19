@@ -252,6 +252,24 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
                và chưa có căn cứ nào - ép "vi" lúc đó là chủ động làm hỏng tiếng nước ngoài.
       "en"  -> gợi ý đích danh.
     """
+    return await _api_nghe(GROQ_STT_URL, "groq", data, ten_file, api_key, model or STT_MODEL_MAC_DINH,
+                           ngon_ngu, hotwords)
+
+
+# OpenAI ear (0.231.0). gpt-4o-transcribe is a language model that listens, so a Vietnamese sentence with English
+# product names in it ("mở Claude Code", "hỏi ChatGPT") keeps both languages instead of spelling the English part out
+# in Vietnamese sounds the way Whisper does. Same endpoint shape as Groq (OpenAI-compatible), same `prompt` hint.
+OPENAI_STT_URL = "https://api.openai.com/v1/audio/transcriptions"
+OPENAI_STT_MODEL = "gpt-4o-transcribe"
+
+
+async def openai_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords=""):
+    """Same contract as `groq_nghe`, on OpenAI's transcription endpoint."""
+    return await _api_nghe(OPENAI_STT_URL, "openai", data, ten_file, api_key, model or OPENAI_STT_MODEL,
+                           ngon_ngu, hotwords)
+
+
+async def _api_nghe(url, ten, data, ten_file, api_key, mdl, ngon_ngu, hotwords):
     if not api_key:
         return {"ok": False, "ly_do": "thieu_key", "noi_voi_javis": loi_thanh_dong("thieu_key")}
     if not data:
@@ -260,7 +278,6 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
         ct = f"({_mb(len(data))}MB, trần {MAX_STT_MB}MB)"
         return {"ok": False, "ly_do": "qua_lon", "noi_voi_javis": loi_thanh_dong("qua_lon", ct)}
 
-    mdl = model or STT_MODEL_MAC_DINH
     form = {"model": mdl, "response_format": "json"}
     goi_y = STT_MAC_DINH if ngon_ngu is None else ngon_ngu
     if goi_y:
@@ -269,7 +286,7 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
         form["prompt"] = hw[:600]     # Whisper chỉ giữ ~224 token cuối; dài hơn là vô ích
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(STT_TIMEOUT)) as c:
-            r = await c.post(GROQ_STT_URL,
+            r = await c.post(url,
                              headers={"Authorization": f"Bearer {api_key}"},
                              data=form,
                              files={"file": (ten_file or "voice.ogg", data)})
@@ -281,8 +298,8 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
         if r.status_code != 200:
             # Groq trả lý do thật trong body; đó là thứ đáng đọc chứ không phải mã HTTP trơn.
             ly = ((d.get("error") or {}).get("message") if isinstance(d.get("error"), dict)
-                  else d.get("error")) or f"Groq HTTP {r.status_code}"
-            print(f"[stt groq] {ly}", file=sys.stderr)
+                  else d.get("error")) or f"{ten} HTTP {r.status_code}"
+            print(f"[stt {ten}] {ly}", file=sys.stderr)
             return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", str(ly)[:200])}
         # Lọc câu bịa TRƯỚC khi trả: lọc xong rỗng thì đúng nghĩa là không nghe được gì, đi
         # chung một đường với im lặng thật để chỗ gọi chỉ phải xử một trường hợp.
@@ -295,5 +312,5 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
         return {"ok": True, "text": text, "model": mdl}
     except Exception as e:
         loi = f"{type(e).__name__}: {e}"
-        print(f"[stt groq] {loi}", file=sys.stderr)
+        print(f"[stt {ten}] {loi}", file=sys.stderr)
         return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", loi[:200])}

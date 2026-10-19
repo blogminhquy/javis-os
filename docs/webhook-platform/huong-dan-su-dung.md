@@ -1,4 +1,4 @@
-# Webhook trong Javis: hướng dẫn dùng (0.233.0)
+# Webhook trong Javis: hướng dẫn dùng (0.236.0)
 
 Webhook là một địa chỉ riêng. Hệ thống bên ngoài (phần mềm bán hàng, Systeme.io, Stripe, Google Form...) gửi sự kiện
 tới đó, Javis ghi lại an toàn rồi làm việc bạn đã dặn. Mở mục **Webhook** trong nhóm Việc.
@@ -15,7 +15,7 @@ Mỗi webhook có ba phần: **Cấu hình**, **Sự kiện**, **Tình trạng**
    - **Toàn quyền**: được làm việc ra ngoài như gửi tin, tạo đơn.
 4. Lưu. Javis hiện địa chỉ và khoá bí mật **một lần duy nhất**. Chép ngay vào hệ thống bên ngoài.
 
-Khoá gửi kèm trong header `X-Javis-Token` hoặc `Authorization: Bearer <khoá>`. Webhook tạo trước bản 0.233.0 vẫn nhận
+Khoá gửi kèm trong header `X-Javis-Token` hoặc `Authorization: Bearer <khoá>`. Webhook tạo trước bản 0.236.0 vẫn nhận
 khoá trên địa chỉ (`?token=`) như cũ. Webhook mới thì không, vì địa chỉ hay bị ghi lại trong nhật ký của bên gửi.
 
 ## 2. "Đã nhận" nghĩa là gì

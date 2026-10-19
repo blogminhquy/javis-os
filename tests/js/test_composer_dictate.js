@@ -34,6 +34,42 @@ check("app.js shares its passing note for mic errors", /window\.JavisNoteFlash =
   .forEach(k => check("key " + k + " in vi and en", !!(vi[k] && en[k])));
 check("the voice chat tooltip says it is a live conversation", /Đàm thoại/.test(vi["bar.mic"]) && /Voice chat/.test(en["bar.mic"]));
 
+// ───────────── 0.231.0: two buttons, voice chat turns into send ─────────────
+function grab(name) {
+  const i = app.indexOf("function " + name + "(");
+  let depth = 0, j = app.indexOf("{", i);
+  for (; j < app.length; j++) { if (app[j] === "{") depth++; else if (app[j] === "}" && --depth === 0) break; }
+  return app.slice(i, j + 1);
+}
+function buttons(state) {
+  const el = () => ({ style: {}, title: "" });
+  const env = { sendBtn: el(), voiceBtn: el(), stopBtn: el(), dict: el() };
+  const run = new Function("st", "env", `
+    let isProcessing = st.processing, pendingAttachments = st.atts || [];
+    const voice = { isSpeaking: () => !!st.speaking };
+    const chatInput = { value: st.text || "" };
+    const sendBtn = env.sendBtn, voiceBtn = env.voiceBtn, stopBtn = env.stopBtn;
+    const document = { getElementById: () => env.dict };
+    const window = { t: k => k };
+    function handsFreeActive() { return !!st.call; }
+    ${grab("updateStopBtn")} ${grab("coNoiDungGui")} ${grab("coTheGuiBoSung")}
+    updateStopBtn();`);
+  run(state, env);
+  const shown = b => b.style.display !== "none";
+  return ["dict", "voiceBtn", "stopBtn", "sendBtn"].filter(k => shown(env[k])).join(",");
+}
+check("empty box: mic and voice chat, no send", buttons({}) === "dict,voiceBtn");
+check("typed text: voice chat turns into send", buttons({ text: "chào" }) === "dict,sendBtn");
+check("an attachment alone also shows send", buttons({ atts: [{ path: "a.png" }] }) === "dict,sendBtn");
+check("Javis answering, empty box: mic and stop", buttons({ processing: true }) === "dict,stopBtn");
+check("Javis answering with typed text: stop and send (add-on)", buttons({ processing: true, text: "thêm" }) === "dict,stopBtn,sendBtn");
+check("in a call: the red hang-up stays, the dictate mic steps aside", buttons({ call: true }) === "voiceBtn");
+check("the box value is watched, so code that empties or fills it flips the button too",
+  /Object\.defineProperty\(chatInput, "value"/.test(app) && /set\(v\) \{ d\.set\.call\(this, v\); try \{ updateStopBtn\(\); \}/.test(app));
+check("attachments refresh the button", /function renderChips\(\) \{\n  try \{ updateStopBtn\(\); \}/.test(app));
+check("CSS: send stays while dictating, voice chat wears the filled circle",
+  /\.hud-voice\.dictating #sendBtn \{ display: flex !important; \}/.test(css) && /#voiceBtn:not\(\.in-call\):not\(\.handsfree\) \{ background: var\(--accent-solid\)/.test(css));
+
 // ───────────── pure helpers ─────────────
 const CD = require(path.join(ROOT, "dashboard/composer-dictate.js"));
 check("timer reads m:ss", CD.fmtTime(0) === "0:00" && CD.fmtTime(9.7) === "0:09" && CD.fmtTime(75) === "1:15" && CD.fmtTime(-3) === "0:00");

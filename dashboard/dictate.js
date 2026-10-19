@@ -36,11 +36,13 @@
   }
 
   var earKind = null;   // cached answer of GET /voice/ear: "upload", "" (none) or null (not asked yet)
+  var earAt = 0;        // asked again after a minute, so a key added on the Models page counts without a reload
   function askEar() {
-    if (earKind !== null || typeof fetch !== "function") return Promise.resolve(earKind || "");
+    var fresh = earKind !== null && Date.now() - earAt < 60000;
+    if (fresh || typeof fetch !== "function") return Promise.resolve(earKind || "");
     return fetch("/voice/ear", { credentials: "same-origin" }).then(function (r) { return r.json(); })
-      .then(function (j) { earKind = j && j.kind === "upload" ? "upload" : ""; return earKind; },
-        function () { earKind = ""; return ""; });
+      .then(function (j) { earKind = j && j.kind === "upload" ? "upload" : ""; earAt = Date.now(); return earKind; },
+        function () { earKind = ""; earAt = Date.now(); return ""; });
   }
 
   function recognizer() {
@@ -200,7 +202,8 @@
       busy: function () { return finishing; } };
   }
 
-  var api = { create: create, joinText: joinText };
+  // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
+  var api = { create: create, joinText: joinText, ear: function () { return earKind; } };
   if (typeof window !== "undefined") window.JavisDictate = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

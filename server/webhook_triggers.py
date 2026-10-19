@@ -1,5 +1,5 @@
 """webhook_triggers.py - the webhook door: configuration, the public receive route and the admin API (0.198.0;
-webhook platform 0.233.0, spec docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md).
+webhook platform 0.236.0, spec docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md).
 
 Each hook has a secret URL:
 
@@ -23,7 +23,7 @@ Security boundaries, each on purpose:
   - The event body is DATA from a stranger: masked in the dashboard by default, fenced in a prompt.
   - Admin routes live under /webhooks/... behind the dashboard login; only /hooks/<id> is public.
 
-Hooks are stored in the SQLite store (with revisions) since 0.233.0; `webhooks.json` is migrated once and moved aside
+Hooks are stored in the SQLite store (with revisions) since 0.236.0; `webhooks.json` is migrated once and moved aside
 (`webhooks.json.migrated`), so an older build never runs a stale copy next to the new one (see
 docs/webhook-platform/rollback.md and webhook_rollback.py).
 """
@@ -341,7 +341,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             raise
         if not (isinstance(data, dict) and isinstance(data.get("hooks"), list)):
             raise ValueError("webhooks.json has no hook list")
-        snap = p.with_name(f"webhooks.json.pre-0.233-{time.strftime('%Y%m%d%H%M%S')}.bak")
+        snap = p.with_name(f"webhooks.json.pre-0.236-{time.strftime('%Y%m%d%H%M%S')}.bak")
         shutil.copyfile(p, snap)
         try:
             os.chmod(snap, 0o600)

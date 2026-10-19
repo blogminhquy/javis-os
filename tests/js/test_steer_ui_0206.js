@@ -20,7 +20,8 @@ check("the message shows at once with a status line, input cleared", /appendUser
   && /steer-note/.test(g) && /chatInput\.value = "";/.test(g));
 check("files attached go along as their paths", /"\\uD83D\\uDCCE " \+ a\.path/.test(g));
 check("the send button comes back next to Stop when there is text",
-  /sendBtn\.style\.display = active && !boSung \? "none" : "flex";/.test(app) && /if \(isProcessing\) syncActiveUI\(\);/.test(app));
+  // 0.231.0: outside a turn send shows only with text (voice chat sits there otherwise); tested in test_composer_dictate.js.
+  /sendBtn\.style\.display = \(active \? boSung : coNoiDung\) \? "flex" : "none";/.test(app) && /if \(isProcessing\) syncActiveUI\(\);/.test(app));
 check("not in a voice call (that has its own queue)", /isProcessing && !handsFreeActive\(\)/.test(app));
 check("status frames handled and never revive a turn",
   /data\.type === "steer_ack" \|\| data\.type === "steer_read" \|\| data\.type === "steer_turn"/.test(app)

@@ -348,7 +348,7 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
     text = _lay(msg, "text", "content", "msg", "message", mac_dinh="")
     if isinstance(text, dict):
         text = _lay(text, "text", "title", "description", "href", mac_dinh="")
-    text = str(text or "")
+    text = strip_mention_markup(str(text or ""))
     if loai != "text" and not text.strip():
         # The account's own photo (isSelf, from the owner's phone) is not "the customer sent".
         text = (f"[{conversations.KENH_NHAN[KENH]}: gửi {loai}]" if _la_cua_minh(msg)
@@ -965,6 +965,21 @@ def co_bot(conn_id: str) -> bool:
 
 def _chuan(text: str) -> str:
     return " ".join(str(text or "").split())
+
+
+# Zalo's own markup for a tag, e.g. `<a_mention href="zm://Profile/110413987_mention">@Minh</a_mention> Quý`.
+# Field report 2026-10-19: a group reply reached Zalo with this markup as plain text, so the group saw code instead
+# of a tag. The model copies it from messages that carry it, so it is stripped both ways: incoming (`chuan_hoa_tin`)
+# and outgoing (`channels.zalo_personal.gui`), leaving "@Minh Quý" for the real tag (`--mention`) to find.
+_MENTION_MARKUP = re.compile(r"</?a_mention\b[^>]*>", re.IGNORECASE)
+
+
+def strip_mention_markup(text: str) -> str:
+    """`text` without Zalo's `<a_mention ...>` / `</a_mention>` tags; the "@Name" between them stays."""
+    s = str(text or "")
+    if "a_mention" not in s.lower():
+        return s
+    return _MENTION_MARKUP.sub("", s)
 
 
 def ghi_da_gui(conn_id: str, thread: str, text: str) -> None:

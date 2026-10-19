@@ -1137,6 +1137,11 @@
     _lb.querySelector(".jv-lb-ten").textContent = _lbTen;
     var img = _lb.querySelector(".jv-lb-img");
     var khung = _lb.querySelector(".jv-lb-khung");
+    // An image from another site (a customer's Zalo photo on zdn.vn) is shown with no referrer, the same way the
+    // inbox thumbnail is, or the CDN refuses it (0.231.0).
+    try {
+      if (/^https?:/i.test(url) && new URL(url).origin !== location.origin) img.referrerPolicy = "no-referrer";
+    } catch (e) {}
     img.src = url;
     img.alt = _lbTen;
     var zoom = { scale: 1, x: 0, y: 0 };

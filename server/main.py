@@ -5454,7 +5454,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             v["brain_provider"] = str(patch["brain_provider"] or "")
         if patch.get("stt_provider") in voice_brain.STT_PROVIDERS:
             v["stt_provider"] = patch["stt_provider"]
-        # Tai nghe lại (0.65.15) thay cho stt_provider: auto | groq | off (voice_ear.CHOICES).
+        # Tai nghe lại (0.65.15) thay cho stt_provider: auto | groq | openai | off (voice_ear.CHOICES).
         if patch.get("ear") in voice_ear.CHOICES:
             v["ear"] = patch["ear"]
         # Giọng của ChatGPT Live (realtime v3 chỉ nhận 9 giọng riêng, mặc định juniper).
@@ -14757,7 +14757,8 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
                 "ly_do": "tai_tat" if ear["reason"] == voice_ear.REASON_OFF else "thieu_key"}
     # Mồi từ vựng, sửa tên trợ lý, đối chiếu bản nháp: xem voice_ear.transcribe_upload.
     # WebSocket còn quét nghe_sua.sua thêm lần nữa (cho cả chữ Web Speech); hàm idempotent.
-    return await voice_ear.transcribe_upload(cfg, data, file.filename or "voice.webm", lang, draft)
+    return await voice_ear.transcribe_upload(cfg, data, file.filename or "voice.webm", lang, draft,
+                                             provider=ear["provider"])
 
 
 @app.get("/voice/call")

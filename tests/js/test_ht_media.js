@@ -2,6 +2,8 @@
        node tests/js/test_ht_media.js
    Chu repo 15/10/2026: khach gui anh thi Hop thu chi hien "image https://...jpg". Muon anh hien thang,
    file thi bam tai ve. Ghi chu: KHONG dung ky tu em dash o bat ky dau. */
+const fs = require("fs");
+const path = require("path");
 const M = require("../../dashboard/ht-media.js");
 
 const fails = [];
@@ -71,6 +73,17 @@ check("xem trước: chữ thường giữ nguyên", M.tomTat("chào shop", tw) 
 // ---- 6. Escape ----
 h = M.html({ anh: 'https://a.b/x.jpg" onload="alert(1)', file: null }, esc, ic, tw);
 check("CANARY: link ảnh được escape, không chèn được thuộc tính", h.indexOf('" onload="') < 0, h);
+
+// ---- 7. 0.231.0: a photo opens inside Javis (lightbox), not in a new tab ----
+const src = fs.readFileSync(path.join(__dirname, "../../dashboard/ht-media.js"), "utf8");
+check("bấm ảnh mở lightbox trong Javis, Ctrl/Cmd/chuột giữa vẫn mở thẻ mới",
+  /closest\("a\.ht-anh"\)/.test(src) && /window\.JavisLightbox\.open\(href, tenAnh\(href\)\)/.test(src)
+  && /e\.ctrlKey \|\| e\.metaKey/.test(src) && /addEventListener\("click", function \(e\) \{[\s\S]*?\}, true\);/.test(src));
+check("ảnh hỏng thì để link tự mở", /classList\.contains\("hong"\)/.test(src));
+check("tên ảnh lấy từ ?p= của đường /media", M.tenAnh("/conversations/c1/media?p=%2Fdata%2Fb%2Finbox%2Fanh-khach.jpg") === "anh-khach.jpg");
+check("tên ảnh Zalo lấy từ đường dẫn", M.tenAnh("https://s120-ava-talk.zadn.vn/a/b/photo.jpg?x=1") === "photo.jpg");
+const cr = fs.readFileSync(path.join(__dirname, "../../dashboard/chat-render.js"), "utf8");
+check("lightbox mở ảnh trang khác không gửi referrer (CDN Zalo chặn)", /img\.referrerPolicy = "no-referrer"/.test(cr));
 
 console.log();
 if (fails.length) {

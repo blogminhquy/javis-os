@@ -1,4 +1,4 @@
-# Rolling the webhook platform back (0.233.0, spec §13)
+# Rolling the webhook platform back (0.236.0, spec §13)
 
 **What a rollback can and cannot do.** Going back to an older Javis build changes the program. It does not undo what
 actions already did outside: an order written to a sheet, a Zalo message sent, a CRM record created. Reconcile those
@@ -7,8 +7,8 @@ upgrade picks up where it stopped.
 
 ## Why a tool is needed
 
-From 0.233.0 the hooks live in the store, and `webhooks.json` was moved aside to `webhooks.json.migrated` (a copy is
-kept as `webhooks.json.pre-0.233-<time>.bak`). An older build started by mistake finds no hook list, so it cannot run an
+From 0.236.0 the hooks live in the store, and `webhooks.json` was moved aside to `webhooks.json.migrated` (a copy is
+kept as `webhooks.json.pre-0.236-<time>.bak`). An older build started by mistake finds no hook list, so it cannot run an
 old configuration beside the new store. A deliberate rollback writes a list the older build can read, with
 `server/webhook_rollback.py`, and only that.
 
@@ -46,7 +46,7 @@ old configuration beside the new store. A deliberate rollback writes a list the 
    (`X-Javis-Event-Id`, `_javis.delivery_id`, the plugin's job id). Resend from the source, or by hand, only what did
    not happen.
 
-## Coming back to 0.233.0 or later
+## Coming back to 0.236.0 or later
 
 Start the newer build. It imports `webhooks.json` once more:
 - each hook gets back its OWN switches (a hook the tool switched off only for the older build is on again, a paused hook
