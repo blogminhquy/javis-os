@@ -119,7 +119,7 @@ def validate(actions: Any) -> list:
         if kind in OUTSIDE:
             url = str(a.get("url") or "").strip()
             u = urlsplit(url)
-            if u.scheme != "https" and not (u.scheme == "http" and a.get("allow_private")):
+            if u.scheme != "https" and not (u.scheme == "http" and a.get("allow_private") is True):
                 raise ActionError(f"action {aid}: the address must start with https://")
             if not u.hostname or u.username or u.password:
                 raise ActionError(f"action {aid}: bad address")
@@ -142,12 +142,17 @@ def validate(actions: Any) -> list:
                 if isinstance(v, dict) and set(v) == {"$secret"} and isinstance(v["$secret"], str):
                     clean[str(k)] = {"$secret": v["$secret"]}       # already sealed (webhook_secrets)
                     continue
-                if not isinstance(v, str) or len(v) > 2000 or "\n" in v or "\r" in v:
-                    raise ActionError(f"action {aid}: header {k} must be one line of text")
+                if v == "••••":
+                    clean[str(k)] = v                                # masked value sent back: merge_secrets keeps it
+                    continue
+                if not isinstance(v, str) or len(v) > 2000 or not all(32 <= ord(c) < 127 for c in v):
+                    # Printable ASCII only: anything else cannot be sent as a header and would fail AFTER the branch
+                    # was marked dispatched (an "unknown" for a request that never left).
+                    raise ActionError(f"action {aid}: header {k} must be one line of plain ASCII text")
                 clean[str(k)] = v
             o["headers"] = clean
             try:
-                t = float(a.get("timeout_s") or TIMEOUT_DEFAULT_S)
+                t = float(a.get("timeout_s") or (30.0 if kind == "apps_script" else TIMEOUT_DEFAULT_S))
             except (TypeError, ValueError):
                 raise ActionError(f"action {aid}: timeout_s must be a number")
             o["timeout_s"] = max(1.0, min(t, TIMEOUT_MAX_S))
@@ -155,7 +160,7 @@ def validate(actions: Any) -> list:
             if r not in ("never", "safe"):
                 raise ActionError(f"action {aid}: retry is never or safe")
             o["retry"] = r
-            o["allow_private"] = bool(a.get("allow_private", False))
+            o["allow_private"] = a.get("allow_private") is True      # only the boolean true (not "false")
         elif kind == "plugin":
             slug, name = str(a.get("plugin") or ""), str(a.get("handler") or "")
             if not re.match(r"^[a-z0-9][a-z0-9._-]{0,63}$", slug) or not re.match(r"^[a-z][a-z0-9_]{0,63}$", name):
@@ -203,15 +208,27 @@ def sealed_names(actions: Optional[list]) -> list:
             if isinstance(v, dict) and "$secret" in v]
 
 
+def same_target(a: Optional[dict], b: Optional[dict]) -> bool:
+    """Do two versions of an action send to the same place? A stored secret may only follow the same target."""
+    if not a or not b:
+        return False
+    keys = ("kind", "url", "allow_private", "plugin", "handler", "tool")
+    return all(a.get(k) == b.get(k) for k in keys)
+
+
 def merge_secrets(new: list, old: list) -> list:
-    """A list sent back from the dashboard carries masked header values: keep the stored value for those."""
+    """A list sent back from the dashboard carries masked header values: keep the stored value for those, but ONLY
+    when the action still sends to the same target. Pointing an action somewhere else must not carry its stored key
+    along (someone who sees only the mask could otherwise send the key to their own server)."""
     olds = {a["id"]: a for a in old or []}
     for a in new:
         o = olds.get(a["id"])
         for k, v in list((a.get("headers") or {}).items()):
             if v == "••••":
-                if o and k in (o.get("headers") or {}):
+                if o and k in (o.get("headers") or {}) and same_target(a, o):
                     a["headers"][k] = o["headers"][k]
+                elif o and k in (o.get("headers") or {}):
+                    raise ActionError(f"action {a['id']}: its address changed, so enter header {k} again")
                 else:
                     del a["headers"][k]
     return new
@@ -266,8 +283,11 @@ async def check_address(url: str, allow_private: bool, resolve: Optional[Callabl
 
 # ── bodies ──
 def _meta(ctx: dict) -> dict:
-    return {"delivery_id": ctx["delivery_id"], "event_id": ctx["event_id"], "hook_id": ctx["hook_id"],
-            "action_id": ctx["action_id"], "received_at": ctx["received_at"]}
+    m = {"delivery_id": ctx["delivery_id"], "event_id": ctx["event_id"], "hook_id": ctx["hook_id"],
+         "action_id": ctx["action_id"], "received_at": ctx["received_at"]}
+    if ctx.get("source") == "test":
+        m["test"] = True                 # a dashboard Test event: a receiver can tell it apart from a real one
+    return m
 
 
 def build_body(action: dict, ctx: dict) -> tuple:
@@ -284,10 +304,13 @@ def build_body(action: dict, ctx: dict) -> tuple:
 
 def _headers(action: dict, ctx: dict, content_type: str) -> dict:
     h = {k: v for k, v in (action.get("headers") or {}).items() if isinstance(v, str)}
-    h["Content-Type"] = content_type
+    low = {k.lower() for k in h}
+    if "content-type" not in low:
+        h["Content-Type"] = content_type
+    if "user-agent" not in low:
+        h["User-Agent"] = "Javis-Webhook/1"
     h["Idempotency-Key"] = ctx["delivery_id"]
     h["X-Javis-Delivery"] = ctx["delivery_id"]
-    h["User-Agent"] = "Javis-Webhook/1"
     return h
 
 
@@ -297,10 +320,32 @@ def _short(text: str) -> str:
 
 
 def _retry_after(resp) -> float:
+    v = str(resp.headers.get("retry-after") or "").strip()
     try:
-        return max(0.0, min(float(resp.headers.get("retry-after") or 0), 3600.0))
+        return max(0.0, min(float(v or 0), 3600.0))
     except ValueError:
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+        import time as _t
+        return max(0.0, min(parsedate_to_datetime(v).timestamp() - _t.time(), 3600.0))
+    except Exception:
         return 0.0
+
+
+RESPONSE_READ_MAX = 64 * 1024
+
+
+async def _send(cl, method: str, url: str, **kw):
+    """One request whose answer is read only up to RESPONSE_READ_MAX bytes (a receiver cannot make us hold a huge
+    body). Returns (status, headers, text)."""
+    async with cl.stream(method, url, **kw) as resp:
+        buf = b""
+        async for chunk in resp.aiter_bytes():
+            buf += chunk
+            if len(buf) >= RESPONSE_READ_MAX:
+                break
+        return resp.status_code, resp.headers, buf[:RESPONSE_READ_MAX].decode("utf-8", "replace")
 
 
 def _ambiguous(action: dict, detail: str) -> Outcome:
@@ -311,6 +356,26 @@ def _ambiguous(action: dict, detail: str) -> Outcome:
 # ── runners ──
 class NoNetwork(Exception):
     pass
+
+
+PLUGIN_THREADS = 4
+_PLUGIN_SLOTS = __import__("threading").BoundedSemaphore(PLUGIN_THREADS)
+_POOL = {"ex": None}
+
+
+def _plugin_pool():
+    if _POOL["ex"] is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _POOL["ex"] = ThreadPoolExecutor(max_workers=PLUGIN_THREADS, thread_name_prefix="wh-plugin")
+    return _POOL["ex"]
+
+
+def _call_release(h, delivery, ctx):
+    """Runs in the plugin pool; the slot is given back only when the handler really returns."""
+    try:
+        return h(delivery, ctx)
+    finally:
+        _PLUGIN_SLOTS.release()
 
 
 def default_transport():
@@ -331,26 +396,33 @@ async def run_http(action: dict, ctx: dict, transport=None, resolve=None) -> Out
     try:
         async with httpx.AsyncClient(transport=transport or default_transport(), follow_redirects=False,
                                      timeout=action.get("timeout_s", TIMEOUT_DEFAULT_S)) as cl:
-            resp = await cl.request(action.get("method", "POST"), action["url"], content=body,
-                                    headers=_headers(action, ctx, ct))
+            code, rh, text = await _send(cl, action.get("method", "POST"), action["url"], content=body,
+                                         headers=_headers(action, ctx, ct))
     except (httpx.ConnectError, httpx.ConnectTimeout, NoNetwork) as e:
         return Outcome("retry", f"not sent: {type(e).__name__}")       # the request never reached the receiver
     except httpx.TimeoutException as e:
         return _ambiguous(action, f"no answer in time ({type(e).__name__}): it may have been done")
     except httpx.HTTPError as e:
         return _ambiguous(action, f"connection dropped ({type(e).__name__}): it may have been done")
-    rc = {"status": resp.status_code, "body": _short(resp.text)}
-    if resp.status_code == 202:
+    rc = {"status": code, "body": _short(text)}
+
+    class _R:
+        headers = rh
+    if code == 202:
         return Outcome("accepted", "accepted by the receiver", rc)
-    if 200 <= resp.status_code < 300:
-        return Outcome("completed", f"HTTP {resp.status_code}", rc)
-    if resp.status_code in (429, 503):
-        return Outcome("retry", f"HTTP {resp.status_code}: receiver busy", rc, _retry_after(resp))
-    if 300 <= resp.status_code < 400:
-        return Outcome("failed", f"HTTP {resp.status_code}: redirects are not followed", rc)
-    if resp.status_code >= 500:
-        return _ambiguous(action, f"HTTP {resp.status_code}: the receiver failed, it may have been done")
-    return Outcome("failed", f"HTTP {resp.status_code}", rc)
+    if 200 <= code < 300:
+        return Outcome("completed", f"HTTP {code}", rc)
+    if code in (429, 503):
+        return Outcome("retry", f"HTTP {code}: receiver busy", rc, _retry_after(_R))
+    if code in (301, 302, 303):
+        # Post/Redirect/Get: the receiver may well have processed the POST before redirecting. Not followed, and not
+        # "refused" either: the owner checks.
+        return Outcome("unknown", f"HTTP {code}: redirected after the POST (not followed): it may have been done", rc)
+    if 300 <= code < 400:
+        return Outcome("failed", f"HTTP {code}: redirects are not followed", rc)
+    if code >= 500:
+        return _ambiguous(action, f"HTTP {code}: the receiver failed, it may have been done")
+    return Outcome("failed", f"HTTP {code}", rc)
 
 
 def _receipt(text: str, did: str) -> Outcome:
@@ -393,16 +465,20 @@ async def run_apps_script(action: dict, ctx: dict, transport=None, resolve=None)
             if resp.status_code in (301, 302, 303, 307, 308):
                 loc = resp.headers.get("location") or ""
                 host = urlsplit(loc).hostname or ""
+                if host == "accounts.google.com" or host.endswith(".accounts.google.com"):
+                    # A deployment not open to "Anyone" sends the POST to Google's sign-in: the script never ran.
+                    return Outcome("failed", "Apps Script asked to sign in: the script did not run (deploy the web "
+                                   "app with access: Anyone)", {"location": _short(loc)})
                 if urlsplit(loc).scheme != "https" or host not in APPS_SCRIPT_ECHO_HOSTS:
                     return Outcome("unknown", "Apps Script redirected somewhere unexpected: the script may have run",
                                    {"location": _short(loc)})
                 try:
-                    echo = await cl.get(loc, headers={"User-Agent": "Javis-Webhook/1"})
+                    ecode, _, etext = await _send(cl, "GET", loc, headers={"User-Agent": "Javis-Webhook/1"})
                 except httpx.HTTPError as e:
                     return Outcome("unknown", f"the script ran but its receipt could not be read ({type(e).__name__})")
-                if echo.status_code != 200:
-                    return Outcome("unknown", f"receipt page answered HTTP {echo.status_code}: the script may have run")
-                return _receipt(echo.text, ctx["delivery_id"])
+                if ecode != 200:
+                    return Outcome("unknown", f"receipt page answered HTTP {ecode}: the script may have run")
+                return _receipt(etext, ctx["delivery_id"])
     except (httpx.ConnectError, httpx.ConnectTimeout, NoNetwork) as e:
         return Outcome("retry", f"not sent: {type(e).__name__}")
     except httpx.TimeoutException as e:
@@ -435,8 +511,14 @@ async def run_plugin(action: dict, ctx: dict, found: Optional[dict], level: str)
         if inspect.iscoroutinefunction(h):
             res = await asyncio.wait_for(h(delivery, found.get("ctx")), PLUGIN_TIMEOUT_S)
         else:
-            # A plain function runs in a thread so a slow plugin cannot stall the server's event loop.
-            res = await asyncio.wait_for(asyncio.to_thread(h, delivery, found.get("ctx")), PLUGIN_TIMEOUT_S)
+            # A plain function runs in a thread of its OWN small pool: a handler that hangs keeps its thread (Python
+            # cannot stop it), and in the shared default pool a few of those would block every store call of the
+            # server. When this pool is full the branch is not sent and tries again later.
+            if not _PLUGIN_SLOTS.acquire(blocking=False):
+                return Outcome("retry", "not sent: plugin handlers are busy (earlier calls still running)")
+            fut = asyncio.get_running_loop().run_in_executor(_plugin_pool(), _call_release, h, delivery,
+                                                              found.get("ctx"))
+            res = await asyncio.wait_for(asyncio.shield(fut), PLUGIN_TIMEOUT_S)
             if inspect.isawaitable(res):
                 res = await asyncio.wait_for(res, PLUGIN_TIMEOUT_S)
     except asyncio.TimeoutError:

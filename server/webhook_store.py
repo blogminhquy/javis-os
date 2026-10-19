@@ -460,10 +460,12 @@ class Store:
         """Did ANY attempt of this event reach its effect? Not `events.dispatched_at`, which an owner's retry resets:
         branch dispatch marks are kept across retries, and finished attempts are kept too."""
         return self._db.execute(
+            # With branches, their sticky dispatch marks say it (an attempt that ended "failed" because every branch was
+            # refused before dispatch does not count). Without branches (a run as a whole), a finished attempt does.
             "SELECT 1 FROM branches WHERE event_id=? AND dispatched_at>0 UNION ALL SELECT 1 FROM events WHERE id=? AND"
-            " dispatched_at>0 UNION ALL SELECT 1 FROM attempts WHERE event_id=? AND outcome IN"
-            " ('done','silent','waiting','failed','unknown') OR (event_id=? AND outcome LIKE 'late:%') LIMIT 1",
-            (eid, eid, eid, eid)).fetchone() is not None
+            " dispatched_at>0 UNION ALL SELECT 1 FROM attempts WHERE event_id=? AND (outcome IN ('done','silent',"
+            "'waiting','failed','unknown') OR outcome LIKE 'late:%') AND NOT EXISTS (SELECT 1 FROM branches WHERE"
+            " event_id=?) LIMIT 1", (eid, eid, eid, eid)).fetchone() is not None
 
     def _release_keys(self, eid: str) -> None:
         """Inside a write: an event that will never run (dead) gives its business key back, so the source's next
@@ -594,6 +596,7 @@ class Store:
 
     def branch_finish(self, eid: str, fence: int, aid: str, status: str, detail: str = "", receipt: Optional[dict] = None,
                       result: str = "", next_at: float = 0.0, now: Optional[float] = None) -> bool:
+        # (A False return means the event is no longer ours; the caller keeps the outcome with branch_late.)
         """Outcome of one branch. `retry` keeps it runnable from `next_at`. A branch that never started may be closed
         too (a permission or a missing plugin found before dispatch). False = a newer owner holds the event."""
         assert status in BRANCH_FINAL or status == "retry"
@@ -604,9 +607,22 @@ class Store:
             self._db.execute(
                 "UPDATE branches SET status=?, detail=?, receipt=?, result=?, next_at=?, finished_at=? WHERE event_id=?"
                 " AND action_id=? AND status IN ('running','pending','retry')",
-                (status, str(detail or "")[:1000], json.dumps(receipt or {}, ensure_ascii=False, default=str)[:4000],
+                (status, str(detail or "")[:1000], _dumps(receipt or {}, 4000),
                  str(result or "")[:4000], float(next_at or 0), 0 if status == "retry" else now, eid, aid))
         return True
+
+    def branch_late(self, eid: str, aid: str, status: str, detail: str, receipt: Optional[dict], result: str) -> None:
+        """The event was taken over while this branch was still running (lease lost): its real outcome is not
+        written as the branch state (the owner reconciles that), but it is kept next to it so the owner can read
+        what actually happened."""
+        note = f"late outcome: {status}" + (f" ({detail[:300]})" if detail else "")
+        if receipt:
+            note += " " + _dumps(receipt, 1500)
+        if result:
+            note += " " + str(result)[:1500]
+        with self._write():
+            self._db.execute("UPDATE branches SET detail=substr(detail || ' | ' || ?, 1, 4000) WHERE event_id=? AND"
+                             " action_id=?", (note, eid, aid))
 
     @staticmethod
     def summarize(rows: list) -> tuple:
@@ -614,11 +630,15 @@ class Store:
         st = [r["status"] for r in rows]
         if not st:
             return "done", 0.0
-        if "unknown" in st or "running" in st:
+        if "running" in st:
             return "unknown", 0.0
+        # Branches that can still run go first: an unknown sibling must not stop a busy receiver's resend. The event
+        # becomes unknown once nothing is left to run.
         later = [float(r["next_at"] or 0) for r in rows if r["status"] in ("retry", "pending")]
         if later:
             return "queued", min(later)
+        if "unknown" in st:
+            return "unknown", 0.0
         if "approval" in st:
             return "waiting", 0.0          # the owner must approve (or reject) a branch before it runs
         if "failed" in st:
@@ -814,8 +834,8 @@ class Store:
                                      (row["brain"], scope, bkey, eid, row["hook_id"], now,
                                       now + float(row["biz_ttl"] or 30 * 86400)))
             # Only the branches that failed or are unknown run again; a completed or accepted branch never does.
-            self._db.execute("UPDATE branches SET status='pending', next_at=0, finished_at=0 WHERE event_id=? AND"
-                             " status IN ('failed','unknown')", (eid,))
+            self._db.execute("UPDATE branches SET status='pending', next_at=0, finished_at=0, tries=0 WHERE event_id=?"
+                             " AND status IN ('failed','unknown')", (eid,))
             self._db.execute("UPDATE events SET status='queued', next_at=?, dispatched_at=0, finished_at=0,"
                              " notified_at=0, notify_tries=0, tries=0, error='', result='' WHERE id=?", (now, eid))
         return True, ""
@@ -834,10 +854,14 @@ class Store:
                              " WHERE event_id=? AND status='unknown'",
                              ("completed" if outcome == "done" else "failed", note, "owner: " + str(note)[:900], now, eid))
             br = [dict(b) for b in self._db.execute("SELECT status, next_at FROM branches WHERE event_id=?", (eid,))]
-            # With branches, the event's state follows them (a branch that failed on its own stays failed).
-            final = self.summarize(br)[0] if br else outcome
+            # With branches, the event's state follows them (a branch that failed on its own stays failed; one that
+            # still has to run puts the event back in the queue).
+            final, nxt = self.summarize(br) if br else (outcome, 0.0)
             if final == "queued":
-                final = "failed"
+                self._db.execute("UPDATE events SET status='queued', next_at=?, dispatched_at=0, finished_at=0,"
+                                 " notified_at=0, notify_tries=0, tries=0, result=CASE WHEN ?='' THEN result ELSE ? END"
+                                 " WHERE id=?", (max(now, nxt), note, str(note)[:1000], eid))
+                return True, ""
             self._db.execute("UPDATE events SET status=?, result=CASE WHEN ?='' THEN result ELSE ? END,"
                              " finished_at=?, notified_at=? WHERE id=?",
                              (final, note, str(note)[:1000], now, now, eid))

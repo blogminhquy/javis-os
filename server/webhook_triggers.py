@@ -367,6 +367,10 @@ class WebhookFeature:
         changed = False
         for a in hook.get("actions") or []:
             for k, v in list((a.get("headers") or {}).items()):
+                if v == "••••":
+                    del a["headers"][k]                  # a mask with nothing behind it (new hook, new header)
+                    changed = True
+                    continue
                 if isinstance(v, str):
                     name = f"{hid}/a/{a['id']}/{k}"
                     self.vault.put(name, v)
@@ -721,13 +725,17 @@ class WebhookFeature:
             self._kick()
             await asyncio.sleep(0)
 
-    async def _heartbeat(self, eid: str, fence: int) -> None:
+    async def _heartbeat(self, eid: str, fence: int, run: Optional[asyncio.Task] = None) -> None:
         """Keeps the lease of a long run. A failed renewal (database busy for a moment) is logged and tried again
-        at the next beat; only a refusal (the event is no longer ours) stops it."""
+        at the next beat; a refusal (the event is no longer ours: recovery marked it, someone else may run it) stops
+        this run too, so an owner's Retry never runs alongside a run that was given up on."""
         while True:
             await asyncio.sleep(webhook_store.HEARTBEAT_S)
             try:
                 if not await asyncio.to_thread(self.store().heartbeat, eid, fence):
+                    if run is not None and not run.done():
+                        print(f"[webhooks] {eid}: lease lost, stopping this run", file=sys.stderr)
+                        run.cancel()
                     return
             except Exception as e:
                 print(f"[webhooks] {eid} heartbeat failed, retrying: {type(e).__name__}: {e}", file=sys.stderr)
@@ -735,9 +743,14 @@ class WebhookFeature:
     async def _run_claimed(self, row: dict) -> None:
         st = self.store()
         eid, fence = row["id"], int(row["fence"])
-        hb = asyncio.get_running_loop().create_task(self._heartbeat(eid, fence))
+        loop = asyncio.get_running_loop()
+        run = loop.create_task(self._run_event(st, row, eid, fence))
+        hb = loop.create_task(self._heartbeat(eid, fence, run))
         try:
-            await self._run_event(st, row, eid, fence)
+            await run
+        except asyncio.CancelledError:
+            if not hb.done():
+                raise                                    # cancelled from outside (shutdown)
         finally:
             hb.cancel()
 
@@ -771,8 +784,20 @@ class WebhookFeature:
         brain = cur.get("brain") or "brain"
         # M3: the actions as they were at receipt (snapshot); an action the owner has REMOVED since does not run.
         actions = webhook_actions.effective(snap.get("actions") if "actions" in snap else None)
-        current_ids = {a["id"] for a in webhook_actions.effective(cur.get("actions"))}
-        actions = webhook_actions.merge_secrets([json.loads(json.dumps(a)) for a in actions], cur.get("actions") or [])
+        current = {a["id"]: a for a in webhook_actions.effective(cur.get("actions"))}
+        current_has_ai = any(a["kind"] == "ai" for a in current.values())
+        # Secrets come from the hook as it is NOW, but only for an action that still sends to the same target as when
+        # the event arrived: an action pointed elsewhere since then is not run with the stored key.
+        merged = []
+        for a in actions:
+            a = json.loads(json.dumps(a))
+            c = current.get(a["id"])
+            if a.get("headers") and c is not None and webhook_actions.same_target(a, c):
+                a["headers"] = {k: (c.get("headers") or {}).get(k, v) for k, v in a["headers"].items()}
+            if c is not None and a["kind"] in webhook_actions.OUTSIDE:
+                a["retry"] = "safe" if a.get("retry") == "safe" and c.get("retry") == "safe" else "never"
+            merged.append(a)
+        actions = merged
         rows = await asyncio.to_thread(st.branches_init, eid, fence, actions, webhook_actions.delivery_id)
         if rows is None:
             return                                   # lost the event: someone else owns it now
@@ -786,6 +811,7 @@ class WebhookFeature:
         todo = [b for b in rows if b["status"] in ("pending", "retry") and float(b["next_at"] or 0) <= now + 0.5]
         by_id = {a["id"]: a for a in actions}
         base = {"event_id": eid, "hook_id": hid, "received_at": float(row.get("received_at") or now), "brain": brain,
+                "source": row.get("source") or "http",
                 "fields": fields, "body": body, "content_type": ct,
                 "payload": webhook_rules.parse_payload(body, ct)[0]}
         ai_out = {"result": "", "error": ""}
@@ -793,9 +819,17 @@ class WebhookFeature:
         async def branch(b: dict) -> None:
             a = by_id.get(b["action_id"]) or {"id": b["action_id"], "kind": b["kind"]}
             aid = a["id"]
-            if aid not in current_ids:
+            if a["kind"] == "ai":
+                gone = not current_has_ai            # the AI branch is the hook's task, whatever its id (main/ai)
+            else:
+                gone = not webhook_actions.same_target(a, current.get(aid))
+            if gone:
                 await asyncio.to_thread(st.branch_finish, eid, fence, aid, "cancelled",
-                                        "action removed from the webhook since the event arrived")
+                                        "action removed or changed since the event arrived")
+                return
+            if any(isinstance(v, str) and v == "••••" for v in (a.get("headers") or {}).values()):
+                await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed",
+                                        "a header secret of this action is missing: enter it again")
                 return
             ctx = dict(base, action_id=aid, delivery_id=b["delivery_id"])
             found = None
@@ -922,7 +956,10 @@ class WebhookFeature:
         delay = 0.5
         for i in range(5):
             try:
-                await asyncio.to_thread(st.branch_finish, eid, fence, aid, status, detail, receipt, result, next_at)
+                if not await asyncio.to_thread(st.branch_finish, eid, fence, aid, status, detail, receipt, result,
+                                               next_at):
+                    # Taken over meanwhile: keep the real outcome next to the branch for the owner's reconciliation.
+                    await asyncio.to_thread(st.branch_late, eid, aid, status, detail, receipt, result)
                 return
             except Exception as e:
                 if i == 4:
@@ -946,7 +983,7 @@ class WebhookFeature:
             if d:
                 line += f" ({d[:160]})"
             (bad if r["status"] in ("failed", "unknown") else ok).append(line)
-            if r["kind"] == "ai" and r.get("result"):
+            if r["kind"] == "ai" and r.get("result") and r["status"] != "silent":
                 ok.append(str(r["result"])[:1500])
         return "\n".join(ok), "\n".join(bad)
 
@@ -987,10 +1024,12 @@ class WebhookFeature:
                                 f"Webhook \"{name}\" needs your approval before it runs: {names}. Open the webhook log, "
                                 "press Details, then Approve or Reject.")
         elif status == "unknown":
-            msg = localefmt.chu(f"⚠ Webhook \"{name}\": không rõ việc đã chạy xong chưa (máy dừng giữa chừng). "
-                                "Kiểm tra bên ngoài rồi bấm Chạy lại hoặc Đã xong trong nhật ký webhook.",
-                                f"⚠ Webhook \"{name}\": not known whether the run finished (the server stopped "
-                                "mid-run). Check outside, then press Retry or Mark done in the webhook log.")
+            msg = localefmt.chu(f"⚠ Webhook \"{name}\": không rõ việc đã chạy xong chưa (máy dừng giữa chừng hoặc bên "
+                                "nhận không xác nhận). Kiểm tra bên ngoài rồi bấm Chạy lại hoặc Đã xong trong nhật ký "
+                                "webhook.",
+                                f"⚠ Webhook \"{name}\": not known whether the run finished (the server stopped mid-run "
+                                "or a receiver did not confirm). Check outside, then press Retry or Mark done in the "
+                                "webhook log.") + (("\n" + str(ev.get("error") or "")[:300]) if ev.get("error") else "")
         else:
             msg = str(ev.get("result") or "").strip() or localefmt.chu(
                 "Webhook đã chạy nhưng không trả về nội dung.", "The webhook ran but returned nothing.")

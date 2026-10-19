@@ -11773,7 +11773,9 @@ webhook_feature = webhook_triggers.register(app, webhook_triggers.WebhookDeps(
     workflow_exists=lambda brain, slug: (_workflows_dir(brain) / f"{slug}.md").is_file(),
     atomic_write_text=_atomic_write_text,
     # M3: a webhook action can name a plugin's webhook handler; only plugins visible to that hook's brain are found.
-    plugin_handler=lambda brain, slug, name: plugins_host.find_webhook_handler(str(_brain_root(brain)), slug, name),
+    # A brain folder that is gone gives None (bundled, pack and global plugins only), never the default brain's plugins.
+    plugin_handler=lambda brain, slug, name: plugins_host.find_webhook_handler(
+        (str(_brain_root(brain)) if (not brain or brain == "brain" or os.path.isdir(brain)) else None), slug, name),
     call_tool=_webhook_call_tool,
 ))
 

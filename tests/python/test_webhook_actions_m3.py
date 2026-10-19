@@ -84,7 +84,7 @@ check("plugin action needs slug and handler", "needs" in refused([{"id": "a", "k
 v = wa.view([{"id": "a", "kind": "http", "url": "https://x.vn", "headers": {"X-Api-Key": "sk-SECRET"}}])
 check("the view masks header values", v[0]["headers"] == {"X-Api-Key": "••••"} and "sk-SECRET" not in json.dumps(v))
 merged = wa.merge_secrets(wa.validate([{"id": "a", "kind": "http", "url": "https://x.vn", "headers": {"X-Api-Key": "••••", "X-New": "n"}}]),
-                          [{"id": "a", "headers": {"X-Api-Key": "sk-SECRET"}}])
+                          [{"id": "a", "kind": "http", "url": "https://x.vn", "allow_private": False, "headers": {"X-Api-Key": "sk-SECRET"}}])
 check("saving the masked view keeps the stored secret", merged[0]["headers"] == {"X-Api-Key": "sk-SECRET", "X-New": "n"})
 check("delivery id: stable per (event, action), different across actions",
       wa.delivery_id("ev_1", "crm") == wa.delivery_id("ev_1", "crm") != wa.delivery_id("ev_1", "sheet")
@@ -149,7 +149,10 @@ check("500 with retry=safe -> retry (the receiver dedups on the delivery id)",
 check("400 -> failed", http(lambda r: httpx.Response(400)).status == "failed")
 seen.clear()
 o = http(lambda r: httpx.Response(302, headers={"Location": "http://169.254.169.254/"}))
-check("302 -> failed, redirect not followed", o.status == "failed" and len(seen) == 1)
+check("302 after a POST -> unknown (Post/Redirect/Get: it may have been done), redirect not followed",
+      o.status == "unknown" and len(seen) == 1)
+check("307 -> failed (the POST was not processed there), not followed",
+      http(lambda r: httpx.Response(307, headers={"Location": "https://x/"})).status == "failed")
 check("connect error -> retry (never sent)", http(raise_(httpx.ConnectError("refused"))).status == "retry")
 check("read timeout -> unknown", http(raise_(httpx.ReadTimeout("slow"))).status == "unknown")
 check("dropped connection -> unknown", http(raise_(httpx.RemoteProtocolError("eof"))).status == "unknown")

@@ -43,13 +43,15 @@ can drop the second copy.
 | `completed` | 2xx; Apps Script receipt `ok: true`; plugin `completed` | done, never run again |
 | `accepted` | 202; plugin `accepted`; Apps Script `accepted: true` | the receiver finishes on its own (the plugin keeps its scheduling and waiting); never run again |
 | `retry` | not sent (connect/DNS error); 429 or 503 (the receiver says it did not process it) | re-sent with the same delivery id after 10 s, 60 s, 300 s (or `Retry-After`, at most 1 h); after 3 tries `failed` |
-| `unknown` | timeout after sending, 5xx, dropped connection, plugin did not answer in 60 s, crash after dispatch | the owner decides (Mark done / Retry). With `retry: safe` it is re-sent instead |
-| `failed` | 4xx, redirect, bad receipt, blocked address, permission, plugin missing or raising | the owner's Retry runs it again |
-| `cancelled` | the action was removed from the hook after the event arrived | not run |
+| `unknown` | timeout after sending, 5xx, dropped connection, 301/302/303 after the POST (Post/Redirect/Get: it may have been done), plugin did not answer in 60 s, crash after dispatch | the owner decides (Mark done / Retry). With `retry: safe` it is re-sent instead |
+| `failed` | 4xx, 307/308, bad receipt, blocked address, permission, plugin missing or raising, Apps Script asking to sign in | the owner's Retry runs it again (with fresh tries) |
+| `cancelled` | the action was removed, or now sends somewhere else (kind, address, allow_private, plugin, tool), since the event arrived | not run |
 
-The event's state follows its branches: any `unknown` makes it `unknown`. Otherwise any branch waiting to be re-sent
-puts it back in the queue, any `failed` makes it `failed`, a workflow waiting for an answer makes it `waiting`, and
-otherwise it is `done`. **A retry, automatic or by the owner, runs only the branches that are not done.** The
+The event's state follows its branches. A branch still to run (pending, or waiting to be re-sent) puts the event back
+in the queue first, so an unknown sibling never stops a busy receiver's resend. Then any `unknown` makes it
+`unknown`, any `failed` makes it `failed`, a workflow waiting for an answer makes it `waiting`, and otherwise it is
+`done`. The AI branch is the hook's task whatever its id (`main` or `ai`): it runs as long as the hook still has a
+task. **A retry, automatic or by the owner, runs only the branches that are not done.** The
 others keep their outcome.
 
 ## Apps Script: redirect and receipt
@@ -113,8 +115,10 @@ def register(ctx):
   and global ones. Another brain's vault plugin never is (`plugins_host.find_webhook_handler`).
 - `min_mode` is checked against the hook's level AT RUN TIME (`readonly` any level, `safe` auto and full, `full`
   full only).
-- A plain function runs in a thread, so it cannot stall the server. A handler that takes more than 60 s is
-  `unknown`, because it may have acted. Raising, or any answer other than `completed` or `accepted`, is `failed`.
+- A plain function runs in a thread of the handlers' own pool (4 threads), so a handler that hangs cannot use up the
+  server's shared pool. When all 4 are busy, a branch is not sent and retries later. A handler that takes more than
+  60 s is `unknown`, because it may have acted. Raising, or any answer other than `completed` or `accepted`, is
+  `failed`.
 
 ## Permissions and safety
 
@@ -172,6 +176,22 @@ All in `tests/python/test_webhook_actions_m3.py` unless noted.
    with key rotation.
 7. **Order of branches**: all branches of one event run in parallel. There is no dependency between them (no "send to
    the CRM, then the sheet with the CRM's id").
+
+## Independent review (M3)
+
+The review of f66c0012, read at d86a15a2, found 1 P1 and 6 P2 issues, all reproduced. All are fixed, with
+regression tests in `tests/python/test_webhook_m3_review.py`, which fail on the reviewed commit.
+
+| Finding | Fix |
+|---|---|
+| P1 a stored header key followed its action to a new address: to a waiting event's old address after an edit, or to any address when the masked view was saved back | a key follows only the same target (`same_target`: kind, address, allow_private, plugin, tool). Saving the mask with a new address is refused ("enter header again"). A waiting event whose action now points elsewhere is `cancelled` |
+| P2 hung plain-function plugins used up the shared thread pool: no more ACKs, heartbeats or sweeps | the handlers' own bounded pool. When it is full, the branch is "not sent" and retries later |
+| P2 a waiting event's AI run was cancelled and reported done after the owner edited the actions | the AI branch is identified by kind, not by id |
+| P2 Apps Script timed out at 15 s; a sign-in redirect was `unknown` | 30 s default; the sign-in redirect is `failed` with the "Anyone" hint |
+| P2 an unknown branch stopped a sibling's resend; Mark done then made the event failed | runnable branches first in `summarize`; resolve requeues when a branch still has to run |
+| P2 302/303 after a POST counted as refused | 301/302/303 are `unknown`; 307/308 are `failed` |
+| P3 (fixed) | a late outcome is kept next to its branch; a run whose lease was taken over is stopped (no two runs at once); `[SILENT]` text never reaches the notice; the owner's retry resets tries; `Retry-After` as an HTTP date; `allow_private` only as boolean `true`; header values printable ASCII; the owner's `Content-Type`/`User-Agent` not duplicated; Test events carry `_javis.test`; answers read up to 64 KB; a receipt is never cut mid-JSON; a branch refused before dispatch releases the business key once the event dies; a gone brain folder looks up no brain's vault plugins; the unknown notice gives the receiver's reason |
+| P3 (kept, noted) | action URLs (an Apps Script `/exec` address is a bearer secret too) are stored in the event snapshot and shown in the actions box: put real secrets in headers, which are encrypted (M4) |
 
 ## Rollback
 
