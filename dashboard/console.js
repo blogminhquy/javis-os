@@ -6640,7 +6640,18 @@
     const lo = document.getElementById("acLogout");
     if (lo) lo.onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
     const dis = document.getElementById("acDisable");
-    if (dis) dis.onclick = async () => { if (confirm(window.t("cs.ac_disable_confirm"))) { await fetch("/auth/disable", { method: "POST" }); renderAccount(el); } };
+    // 0.224.0: the server wants the current password (+ a 2FA code) and refuses on a public
+    // server, so the button is hidden there. The flow lives in app.js, shared with the settings block.
+    if (dis) {
+      fetch("/auth/status").then(r => r.json()).then(a => { if (a.require_login) dis.hidden = true; }).catch(() => {});
+      dis.onclick = async () => {
+        const curEl = document.getElementById("acCur");
+        if (!window.__javisDisableLogin) { acStatus.innerHTML = Icons.warn(window.t("cs.ac_err_dot")); return; }
+        const r = await window.__javisDisableLogin(curEl ? curEl.value : "");
+        if (r.ok) { renderAccount(el); return; }
+        if (r.error) acStatus.innerHTML = Icons.warn(r.error);
+      };
+    }
     renderTfa(el);
   }
 

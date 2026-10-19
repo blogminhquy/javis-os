@@ -1207,6 +1207,15 @@ def totp_enabled(cfg=None):
     return bool(t.get("enabled")) and bool(t.get("secret"))
 
 
+def kept_totp(cfg=None) -> dict:
+    """`{"totp": ...}` to carry into a NEW `auth` object, or `{}` when there is nothing to keep.
+
+    Turning off login (0.224.0) keeps the 2FA block, so whoever creates the account again (setup
+    page, JAVIS_ADMIN_PASSWORD at boot) must not replace `auth` wholesale and drop it."""
+    t = ((cfg or read_settings()).get("auth") or {}).get("totp")
+    return {"totp": t} if isinstance(t, dict) and t.get("enabled") else {}
+
+
 def totp_secret(cfg=None):
     return str(_totp_conf(cfg).get("secret") or "")
 
@@ -1573,7 +1582,8 @@ def provision_admin_from_env():
     marker = {"username": user, "hash": hash_password(pw, m_salt)[0], "salt": m_salt}
     if not a.get("password_hash"):
         h, salt = hash_password(pw)
-        cfg["auth"] = {"username": user, "password_hash": h, "salt": salt, "env_applied": marker}
+        cfg["auth"] = {**kept_totp(cfg), "username": user, "password_hash": h, "salt": salt,
+                       "env_applied": marker}
         write_settings(cfg)
         return "created"
     applied = a.get("env_applied") if isinstance(a.get("env_applied"), dict) else {}

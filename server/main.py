@@ -1466,7 +1466,9 @@ async def auth_setup(request: Request, username: str = Form(...), password: str 
     if len(password) < 8:
         return JSONResponse({"ok": False, "error": localefmt.chu("Mật khẩu tối thiểu 8 ký tự", "Password must be at least 8 characters")}, status_code=400)
     h, salt = cfgmod.hash_password(password)
-    cfg["auth"] = {"username": username.strip() or "admin", "password_hash": h, "salt": salt}
+    # Keep a 2FA config left by /auth/disable (0.224.0): it comes back in force with the new password.
+    cfg["auth"] = {**cfgmod.kept_totp(cfg), "username": username.strip() or "admin",
+                   "password_hash": h, "salt": salt}
     cfgmod.write_settings(cfg)
     return _session_cookie(JSONResponse({"ok": True}), cfgmod.new_session(), request)
 
@@ -1772,11 +1774,73 @@ async def auth_logout(request: Request):
     return resp
 
 
+_FORWARD_HEADERS = ("x-forwarded-for", "x-real-ip", "forwarded", "cf-connecting-ip")
+
+
+def _direct_local_request(request: Request) -> bool:
+    """The request comes from this machine itself, not through a tunnel or reverse proxy.
+
+    A cloudflared tunnel or a proxy on the same host connects from 127.0.0.1 too, so the client
+    address alone proves nothing: such hops add a forwarding header, a browser on the machine does not.
+    """
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1"):
+        return False
+    return not any(request.headers.get(h) for h in _FORWARD_HEADERS)
+
+
 @app.post("/auth/disable")
-async def auth_disable():
-    """Tắt yêu cầu đăng nhập (xóa mật khẩu) - chỉ gọi được khi ĐANG đăng nhập (middleware chặn)."""
+async def auth_disable(request: Request, password: str = Form(""), code: str = Form("")):
+    """Turn off the login requirement (clears the password). Security report C2, 0.224.0.
+
+    Before 0.224.0 this took no password, accepted an API token and also wiped the 2FA block, so one
+    click on a borrowed session (or a leaked token) opened the dashboard and its Terminal to whoever
+    could reach it, and the owner lost 2FA for good. Now:
+    - browser session only, never an API token (same rule as /auth/2fa/*);
+    - only on a local machine reached directly: a public bind (require_login) or a request through a
+      tunnel/proxy would leave the dashboard open to the Internet, or reopen /auth/setup to anyone;
+    - current password AND, when 2FA is on, a valid code or recovery code;
+    - the 2FA config is KEPT, so it is back in force as soon as a password is set again.
+    """
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    if cfgmod.require_login() or not _direct_local_request(request):
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            "Không tắt được đăng nhập trên máy mở ra ngoài (VPS, Docker, tunnel). Chỉ tắt được khi "
+            "mở dashboard ngay trên máy cá nhân chạy Javis.",
+            "Login cannot be turned off on a server reachable from outside (VPS, Docker, tunnel). "
+            "It can only be turned off from the personal machine running Javis.")}, status_code=403)
+    ip = request.client.host if request.client else "?"
+    if _login_locked(ip):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Quá nhiều lần sai - thử lại sau ít phút.", "Too many failed attempts - try again in a few minutes.")}, status_code=429)
     cfg = cfgmod.read_settings()
-    cfg["auth"] = {"username": "", "password_hash": "", "salt": ""}
+    if not cfgmod.auth_enabled(cfg):
+        return {"ok": True, "note": localefmt.chu("Đăng nhập vốn đã tắt", "Login was already off")}
+    if not cfgmod.verify_password(password, cfg):
+        _login_fail(ip)
+        await asyncio.sleep(0.5)   # same slowdown as /auth/login
+        return JSONResponse({"ok": False, "error": localefmt.chu("Sai mật khẩu hiện tại.", "Wrong current password.")}, status_code=401)
+    if cfgmod.totp_enabled(cfg) or cfgmod.totp_hong(cfg):
+        ma = (code or "").strip()
+        can_ma = JSONResponse({"ok": False, "needs_2fa": True, "error": localefmt.chu(
+            "Nhập mã xác thực 2 lớp (hoặc mã khôi phục) để tắt đăng nhập.",
+            "Enter your two-factor code (or a recovery code) to turn off login.")}, status_code=401)
+        if not ma:
+            return can_ma   # not a failed attempt: the dashboard asks for the code after this reply
+        buoc = totp.kiem(cfgmod.totp_secret(cfg), ma, buoc_da_dung=cfgmod.totp_last_step(cfg))
+        if buoc is not None:
+            cfgmod.totp_ghi_buoc(buoc)
+        elif not cfgmod.totp_dung_ma_khoi_phuc(ma):
+            _login_fail(ip)
+            await asyncio.sleep(0.5)
+            return can_ma
+        cfg = cfgmod.read_settings()   # the code check above wrote last_step / used a recovery code
+    _LOGIN_FAILS.pop(ip, None)
+    # Key by key, not a fresh `auth` object: `auth` also holds the 2FA config (see /auth/password).
+    a = dict(cfg.get("auth") or {})
+    a.update(username="", password_hash="", salt="")
+    a.pop("env_applied", None)
+    cfg["auth"] = a
     cfgmod.write_settings(cfg)
     cfgmod.clear_sessions()
     return {"ok": True}

@@ -4553,9 +4553,36 @@ async function refreshAuthRow() {
   if (curLbl) curLbl.hidden = !co;
   const p = document.getElementById("setAuthPass");
   if (p) p.placeholder = co ? window.t("app.pw_ph_change") : window.t("app.pw_ph_set");
+  // The server refuses to turn off login on a public server (0.224.0), so do not offer it there.
+  const off = document.getElementById("disableAuthBtn");
+  if (off) off.hidden = !co || !!a.require_login;
   return co;
 }
 window.__javisRefreshAuthRow = refreshAuthRow;
+
+// Turn off login (0.224.0, security report C2): the server wants the current password and, with
+// 2FA on, a code. Shared by both account surfaces (this settings block and console.js renderAccount).
+// Returns {ok, error}; ok=false with no error means the user cancelled.
+async function disableLogin(password) {
+  if (!password) return { ok: false, error: window.t("app.pw_need_cur") };
+  if (!confirm(window.t("app.disable_auth_confirm"))) return { ok: false };
+  const send = async (code) => {
+    const fd = new FormData();
+    fd.append("password", password);
+    if (code) fd.append("code", code);
+    return (await fetch("/auth/disable", { method: "POST", body: fd })).json();
+  };
+  try {
+    let r = await send("");
+    if (!r.ok && r.needs_2fa) {
+      const code = (prompt(window.t("app.disable_auth_code")) || "").trim();
+      if (!code) return { ok: false };
+      r = await send(code);
+    }
+    return r.ok ? { ok: true } : { ok: false, error: r.error || window.t("app.err_low") };
+  } catch (e) { return { ok: false, error: window.t("app.err_net_low") }; }
+}
+window.__javisDisableLogin = disableLogin;
 function _saveSetting(section, dataObj, btn) {
   const fd = new FormData();
   fd.append("section", section);
@@ -4663,9 +4690,14 @@ if (document.getElementById("settingsBtn")) {
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/auth/logout", { method: "POST" }); location.reload();
   });
-  document.getElementById("disableAuthBtn").addEventListener("click", async () => {
-    if (!confirm(window.t("app.disable_auth_confirm"))) return;
-    await fetch("/auth/disable", { method: "POST" }); location.reload();
+  document.getElementById("disableAuthBtn").addEventListener("click", async (e) => {
+    const curEl = document.getElementById("setAuthCur");
+    const btn = e.target; const old = btn.textContent;
+    const r = await disableLogin(curEl ? curEl.value : "");
+    if (r.ok) { location.reload(); return; }
+    if (!r.error) return;
+    btn.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(r.error);
+    setTimeout(() => { btn.textContent = old; }, 4000);
   });
 }
 // Lối thoát khi quên mật khẩu (trên màn đăng nhập)

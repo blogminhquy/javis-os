@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.226.0] - 2026-10-19
+### Bảo mật
+- **Tắt đăng nhập không còn xoá mất 2FA.** Trước đây bấm "Tắt đăng nhập" là xoá luôn cấu hình xác thực 2 lớp. Giờ 2FA được giữ lại và tự bật lại khi bạn đặt mật khẩu lần sau.
+- **Tắt đăng nhập phải nhập mật khẩu hiện tại và mã 2FA** (hoặc mã khôi phục). Một phiên bị mượn hay một token API rò ra không tắt được nữa.
+- **Máy mở ra ngoài (VPS, Docker, tunnel) không tắt được đăng nhập**, nút đó cũng ẩn đi. Chỉ máy cá nhân, mở dashboard ngay trên máy đó, mới tắt được.
+
 ## [0.225.0] - 2026-10-19
 ### Cải thiện
 - **Đổi bộ não, tải note nhanh hơn nhiều.** Đo trên bộ não 2000 note qua mạng như VPS: mở lần đầu từ 1,6 giây xuống 0,24 giây, quay lại bộ não vừa xem còn 0,12 giây. Javis không đọc lại các note không đổi, nhớ cả sau khi khởi động lại, và quay lại bộ não cũ thì không phải tải lại.
