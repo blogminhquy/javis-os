@@ -76,7 +76,8 @@ check("wikilink NGOÀI khối mã vẫn giữ dù file có khối mã",
 # ---- 3. Cả hai đường dò đều dùng CHUNG một bộ ----
 gb = open(os.path.join(ROOT, "server", "graph_builder.py"), encoding="utf-8").read()
 gr = open(os.path.join(ROOT, "server", "routes", "graph.py"), encoding="utf-8").read()
-check("build_graph dùng doc_wikilink", "for target_stem in doc_wikilink(content):" in gb)
+# 0.225.0: build_graph đọc file qua bộ đệm (_parse_file), vẫn chung doc_wikilink.
+check("build_graph dùng doc_wikilink", "targets = list(dict.fromkeys(doc_wikilink(fh.read())))" in gb)
 check("đường live (_node_payload) cũng dùng doc_wikilink", "for t in doc_wikilink(content):" in gr)
 # Regex thô chỉ được dùng ĐÚNG MỘT chỗ: bên trong doc_wikilink, sau khi đã bỏ khối mã. Thêm
 # một chỗ quét thẳng nữa là lỗi này quay lại y nguyên ở đường đó.

@@ -18,10 +18,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
 
 import config as cfgmod
-from graph_builder import build_graph, _color_for, _top_folder, doc_wikilink
+from graph_builder import graph_with_etag, _color_for, _top_folder, doc_wikilink
 
 
 @dataclass
@@ -138,15 +139,26 @@ def _make_router() -> APIRouter:
 
     @router.get("/graph")
     async def graph(
+        request: Request,
         source: str = Query("all", description="all | brain | vault"),
         path: str = Query(None, description="Đường dẫn folder tùy ý (ưu tiên nếu có)"),
         orphans: int = Query(0, description="1 = hiện cả note cô đơn (0 kết nối), như graph view Obsidian"),
     ):
         """Lớp Graphify - dựng đồ thị kết nối note từ wikilink.
-        build_graph là CPU-bound (đọc + regex toàn vault, nguồn 'all' đo được ~10s) - phải đẩy
-        sang thread, chạy sync trên event loop là đứng cả server (mọi request khác xếp hàng)."""
-        return await asyncio.to_thread(build_graph, _resolve_graph_roots(source, path),
-                                       include_orphans=bool(orphans))
+        Dựng đồ thị đụng tới đĩa (quét + đọc file đã đổi) - phải đẩy sang thread, chạy sync trên event loop là đứng cả
+        server (mọi request khác xếp hàng).
+
+        0.225.0: kèm ETag theo chữ ký vault. Trình duyệt hỏi lại với If-None-Match (`Cache-Control: no-cache`) và nhận 304
+        trống khi không note nào đổi: quay lại một bộ não vừa xem không phải tải lại cả đồ thị. JSON viết gọn, và gzip ở
+        middleware `nen_phan_hoi`."""
+        etag, data = await asyncio.to_thread(graph_with_etag, _resolve_graph_roots(source, path),
+                                             include_orphans=bool(orphans))
+        tag = f'"g-{etag}"'
+        hdr = {"ETag": tag, "Cache-Control": "no-cache"}
+        if tag in (request.headers.get("if-none-match") or ""):
+            return Response(status_code=304, headers=hdr)
+        body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+        return Response(body, media_type="application/json", headers=hdr)
 
     @router.websocket("/ws/graph")
     async def ws_graph(ws: WebSocket):
