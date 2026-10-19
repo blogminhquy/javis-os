@@ -3066,7 +3066,7 @@
       const q = pendingQuestion(t);
       if (!q) return "";
       return `<div class="kn-ask" data-ask="${esc(t.id)}">
-        <div class="kn-ask-q">❓ ${esc(q)}</div>
+        <div class="kn-ask-q">${typeof ic === "function" ? ic("circle-help") : ""} ${esc(q)}</div>
         <div class="kn-ask-row"><textarea class="kn-ask-input" rows="2" placeholder="${esc(window.t("kanban.answer_ph"))}"></textarea>
         <button type="button" class="kn-ask-send">${esc(window.t("kanban.answer_send"))}</button></div>
       </div>`;
