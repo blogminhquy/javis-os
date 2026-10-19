@@ -199,28 +199,35 @@ class Store:
         return int((pc - fl) * ps)
 
     def make_room(self, need: int = 0, now: Optional[float] = None) -> int:
-        """Near the cap: free space from FINISHED events, oldest first (bodies first, then whole rows), never from
-        queued, running or unknown ones. Returns how many rows were touched."""
+        """Near the cap: free space from FINISHED events the owner has already been told about, oldest first: their
+        bodies first, then whole rows. Never queued, running or unknown events, and never a finished event whose
+        notice has not gone out yet. Last resort: idempotency keys older than a day. Returns rows touched."""
         now = time.time() if now is None else now
         target = int(DB_MAX_BYTES * 0.8) - int(need)
         n = 0
-        fin = "('done','silent','waiting','failed','dead')"
-        while self.size_bytes() > target:
-            with self._write():
-                ids = [r[0] for r in self._db.execute(
-                    f"SELECT id FROM events WHERE status IN {fin} AND length(body)>0 ORDER BY received_at LIMIT 200")]
-                if ids:
-                    q = ",".join("?" * len(ids))
-                    self._db.execute(f"UPDATE events SET body=x'' WHERE id IN ({q})", ids)
-                else:
-                    ids = [r[0] for r in self._db.execute(
-                        f"SELECT id FROM events WHERE status IN {fin} ORDER BY received_at LIMIT 200")]
+        told = "status IN ('done','silent','waiting','failed','dead') AND (notified_at>0 OR status='silent')"
+        steps = (f"SELECT id FROM events WHERE {told} AND length(body)>0 ORDER BY received_at LIMIT 100",
+                 f"SELECT id FROM events WHERE {told} ORDER BY received_at LIMIT 100")
+        for i, sel in enumerate(steps):
+            while self.size_bytes() > target:
+                with self._write():
+                    ids = [r[0] for r in self._db.execute(sel)]
                     if not ids:
                         break
                     q = ",".join("?" * len(ids))
-                    self._db.execute(f"DELETE FROM attempts WHERE event_id IN ({q})", ids)
-                    self._db.execute(f"DELETE FROM events WHERE id IN ({q})", ids)
-            n += len(ids)
+                    if i == 0:
+                        self._db.execute(f"UPDATE events SET body=x'' WHERE id IN ({q})", ids)
+                    else:
+                        self._db.execute(f"DELETE FROM attempts WHERE event_id IN ({q})", ids)
+                        self._db.execute(f"DELETE FROM events WHERE id IN ({q})", ids)
+                n += len(ids)
+        while self.size_bytes() > target:
+            with self._write():
+                cur = self._db.execute("DELETE FROM dedup WHERE rowid IN (SELECT rowid FROM dedup WHERE created_at<?"
+                                       " ORDER BY created_at LIMIT 2000)", (now - 86400,))
+            if cur.rowcount <= 0:
+                break
+            n += cur.rowcount
         return n
 
     # ── receive ──
@@ -343,8 +350,13 @@ class Store:
             return cur.rowcount == 1
 
     def heartbeat(self, eid: str, fence: int, now: Optional[float] = None) -> bool:
+        """Renew. No live-lease condition here: claim() never takes a running row, so while the event is still
+        `running` at our fence it is ours, and a beat that comes a little late keeps a healthy run alive."""
         now = time.time() if now is None else now
-        return self._fenced("UPDATE events SET lease_until=?", (now + LEASE_S,), eid, fence, now)
+        with self._write():
+            cur = self._db.execute("UPDATE events SET lease_until=? WHERE id=? AND fence=? AND status='running'",
+                                   (now + LEASE_S, eid, fence))
+            return cur.rowcount == 1
 
     def mark_dispatched(self, eid: str, fence: int, now: Optional[float] = None) -> bool:
         """Committed BEFORE the runner is called (and renews the lease). False = this worker lost the event: do
@@ -359,8 +371,8 @@ class Store:
         now = time.time() if now is None else now
         with self._write():
             cur = self._db.execute(
-                "UPDATE events SET status=?, result=?, error=?, finished_at=?, lease_owner='', lease_until=0"
-                " WHERE id=? AND fence=? AND status='running'",
+                "UPDATE events SET status=?, result=?, error=?, finished_at=?, lease_owner='', lease_until=0,"
+                " notified_at=0, notify_tries=0 WHERE id=? AND fence=? AND status='running'",
                 (status, str(result or "")[:4000], str(error or "")[:2000], now, eid, fence))
             ok = cur.rowcount == 1
             if ok:

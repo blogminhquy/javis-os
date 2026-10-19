@@ -359,6 +359,8 @@ class WebhookFeature:
 
     async def _ingest(self, h: dict, body: bytes, content_type: str, idem_key: str = "", source: str = "http",
                       now: Optional[float] = None) -> tuple:
+        if self._store is None:
+            await asyncio.to_thread(self.store)          # first open (schema, legacy import) off the event loop
         try:
             code, info = await asyncio.to_thread(self.store().ingest, h, body, content_type, idem_key,
                                                  now, source)
@@ -575,8 +577,9 @@ class WebhookFeature:
         if silent:
             await asyncio.to_thread(st.mark_notified, eid, fence)
             return
-        await self._notify(st.get(eid) or {"id": eid, "hook_id": hid, "status": final, "result": result,
-                                           "error": error})
+        ev = await asyncio.to_thread(st.get, eid)
+        await self._notify(ev or {"id": eid, "hook_id": hid, "status": final, "result": result, "error": error,
+                                  "fence": fence})
 
     async def _finish(self, st, eid: str, fence: int, final: str, result: str, error: str) -> bool:
         """The run is over and its result is known: writing it must not fail on a busy database. Tried a few times

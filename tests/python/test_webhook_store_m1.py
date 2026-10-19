@@ -448,6 +448,37 @@ async def review():
     finally:
         ws.DB_MAX_BYTES = old
 
+    # P3-b: eviction never removes a finished event whose notice has not gone out
+    sce = Path(tempfile.mkdtemp(prefix="wh-cap2-"))
+    ste = ws.Store(sce / "e.sqlite3")
+    old2 = ws.DB_MAX_BYTES
+    ws.DB_MAX_BYTES = 2 * 1024 * 1024
+    try:
+        for i in range(20):
+            ste._db.execute("INSERT INTO events(id, hook_id, received_at, body, body_sha, status, finished_at,"
+                            " notified_at) VALUES(?,?,?,?,?, 'failed', 1, 0)", (f"ev_un{i}", "wh_u", i, b"x" * 40000, ""))
+        for i in range(40):
+            ste._db.execute("INSERT INTO events(id, hook_id, received_at, body, body_sha, status, finished_at,"
+                            " notified_at) VALUES(?,?,?,?,?, 'done', 1, 1)", (f"ev_ok{i}", "wh_u", 100 + i, b"x" * 40000, ""))
+        ste.make_room()
+        left = ste._db.execute("SELECT COUNT(*) FROM events WHERE id LIKE 'ev_un%' AND length(body)>0").fetchone()[0]
+        check("P3-b: eviction keeps every failed event the owner was not yet told about (with its body)", left == 20)
+    finally:
+        ws.DB_MAX_BYTES = old2
+
+    # P3-c: a heartbeat that comes after the lease time, with nobody else on the event, keeps the run
+    shb = Path(tempfile.mkdtemp(prefix="wh-hb-"))
+    sth = ws.Store(shb / "e.sqlite3")
+    eh = sth.ingest(HOOK, b"x", "", "hb")[1]["event_id"]
+    rh = sth.claim("W")
+    sth.mark_dispatched(eh, rh["fence"])
+    check("P3-c: a late heartbeat on an event still ours renews it", sth.heartbeat(eh, rh["fence"],
+                                                                                   now=time.time() + ws.LEASE_S + 5))
+    # P3-e: finishing an attempt resets the notice mark (a stale mark from the previous attempt cannot hide it)
+    sth._db.execute("UPDATE events SET notified_at=123 WHERE id=?", (eh,))
+    sth.finish(eh, rh["fence"], "done", "ok")
+    check("P3-e: finish resets notified_at, so the new result is notified", sth.get(eh)["notified_at"] == 0)
+
     # P2-4: the database and its -wal/-shm are private
     sp = Path(tempfile.mkdtemp(prefix="wh-perm-"))
     old_mask = os.umask(0o022)
