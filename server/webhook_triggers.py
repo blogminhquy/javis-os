@@ -100,6 +100,8 @@ class WebhookDeps:
     # M4: async call_tool(brain, level, tool_name, args) -> str, through the hub dispatcher (mcp_hub route with its
     # permission guard and audit); None = tool actions are unavailable
     call_tool: Optional[Callable] = None
+    # (brain) -> bool: does the hook's brain folder still exist? None = not checked (tests)
+    brain_exists: Optional[Callable] = None
 
 
 def hash_token(token: str) -> str:
@@ -259,15 +261,20 @@ class WebhookFeature:
         return Path(self.deps.state_dir()) / "webhooks.json"
 
     def _load(self) -> dict:
+        """The hooks. A file that is missing means no hooks yet; a file that cannot be read or parsed RAISES: treating
+        it as "no hooks" would turn accepted events into "hook deleted", drop notices, and let create() save a list
+        holding only the new hook (wiping the others). Callers back off and try again."""
+        p = self._path()
+        if not p.exists():
+            return {"hooks": []}
         try:
-            p = self._path()
-            if p.exists():
-                d = json.loads(p.read_text(encoding="utf-8"))
-                if isinstance(d, dict) and isinstance(d.get("hooks"), list):
-                    return d
-        except Exception as e:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
             print(f"[webhooks] could not read store: {type(e).__name__}: {e}", file=sys.stderr)
-        return {"hooks": []}
+            raise
+        if not (isinstance(d, dict) and isinstance(d.get("hooks"), list)):
+            raise ValueError("webhooks.json has no hook list")
+        return d
 
     def _save(self, data: dict) -> None:
         text = json.dumps(data, ensure_ascii=False, indent=1)
@@ -709,7 +716,8 @@ class WebhookFeature:
         if code == 429:
             lim = h.get("limits") or {}
             msg = {"rate": f"more than {lim.get('per_hour') or RATE_PER_HOUR} events in the last hour",
-                   "day": f"more than {lim.get('per_day')} events in the last day"}.get(info.get("reason"),
+                   "day": f"more than {lim.get('per_day')} events in the last day",
+                   "owner": "too many events waiting for the owner"}.get(info.get("reason"),
                                                                                          "too many events waiting")
             return 429, {"ok": False, "error": msg}
         # Committed: from here on nothing may turn this into an error (a sender without a key would send it again).
@@ -1020,6 +1028,7 @@ class WebhookFeature:
                 # M4: this action waits for the owner's approval of THIS event. Asked after the permission check, so
                 # nothing the hook may not do is ever offered for approval; checked again after approval.
                 await asyncio.to_thread(st.branch_finish, eid, fence, aid, "approval", "waiting for your approval")
+                await self._approval_notice(cur, eid, [aid])   # at once, even while a sibling still waits to resend
                 return
             if a.get("headers"):
                 try:
@@ -1029,6 +1038,11 @@ class WebhookFeature:
                     await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed",
                                             f"a header secret is not available ({type(e).__name__}): enter it again")
                     return
+            if a["kind"] == "ai" and self.deps.brain_exists and not self.deps.brain_exists(brain):
+                # The hook's brain folder is gone: never run its instruction in another (the default) brain.
+                await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed",
+                                        "the webhook's brain folder no longer exists")
+                return
             if a["kind"] == "ai":
                 # M5: the AI budget, counted on runs that reached a model today (local day). Refused BEFORE dispatch,
                 # so a refusal is certain and the owner's retry tomorrow is safe.
@@ -1050,7 +1064,7 @@ class WebhookFeature:
                 return                               # lost the lease: do not run
             if a["kind"] == "ai":
                 status, detail, result = await self._run_ai(hook, brain, level, body, ct, base, fields)
-                ai_out.update(result=result, error=detail if status == "failed" else "")
+                ai_out.update(result=result, error=detail if status == "failed" else "", ran=True)
                 webhook_store._crash("after_dispatch")
                 await self._branch_finish(st, eid, fence, aid, status, detail, {}, result)
                 return
@@ -1066,6 +1080,16 @@ class WebhookFeature:
             except Exception as e:
                 out = webhook_actions.Outcome("unknown", f"{type(e).__name__}: {e}"[:300])
             webhook_store._crash("after_dispatch")
+            secrets_used = [v for v in (a.get("headers") or {}).values() if isinstance(v, str) and len(v) >= 4]
+            if secrets_used:
+                # A receiver that echoes request headers must not write the decrypted key into the log.
+                def red(t):
+                    t = str(t or "")
+                    for sv in secrets_used:
+                        t = t.replace(sv, "••••")
+                    return t
+                out.detail = red(out.detail)
+                out.receipt = json.loads(red(json.dumps(out.receipt, ensure_ascii=False, default=str)))
             status, nxt = out.status, 0.0
             if status == "retry":
                 tries = int(b.get("tries") or 0) + 1
@@ -1077,7 +1101,13 @@ class WebhookFeature:
                     nxt = time.time() + max(back, out.retry_after)
             await self._branch_finish(st, eid, fence, aid, status, out.detail, out.receipt, "", nxt)
             try:
-                changed = await asyncio.to_thread(st.breaker_record, hid, aid, status in ("completed", "accepted"))
+                # A plain refusal (4xx) is usually that one payload: it neither opens nor closes the breaker. Only a
+                # receiver that is down or unsure (retry, unknown) counts as a failure.
+                changed = ""
+                if status in ("completed", "accepted"):
+                    changed = await asyncio.to_thread(st.breaker_record, hid, aid, True)
+                elif status in ("retry", "unknown"):
+                    changed = await asyncio.to_thread(st.breaker_record, hid, aid, False)
                 if changed == "opened":
                     await self._breaker_notice(cur, aid, out.detail)
             except Exception as e:
@@ -1108,8 +1138,7 @@ class WebhookFeature:
         result, error = self._event_text(rows, actions, ai_out)
         # Only an AI branch that really ran and failed: a refusal before dispatch (AI budget, permission) is not an
         # incident, and triage may call a model.
-        ai_failed = any(r["kind"] == "ai" and r["status"] == "failed" and float(r.get("dispatched_at") or 0) > 0
-                        for r in rows)
+        ai_failed = bool(ai_out.get("ran")) and any(r["kind"] == "ai" and r["status"] == "failed" for r in rows)
         if ai_failed and self.deps.incident_hook:
             # Only an AI branch goes to Javis Core's triage (which may use a model): a non-AI branch never does.
             try:
@@ -1133,11 +1162,29 @@ class WebhookFeature:
         await self._notify(ev or {"id": eid, "hook_id": hid, "status": final, "result": result, "error": error,
                                   "fence": fence})
 
+    async def _approval_notice(self, h: dict, eid: str, aids: list) -> None:
+        """Ask the owner to approve. Same dedup key as the event's own notice, so the owner gets one message."""
+        if (h.get("notify") or "all") == "none":
+            return
+        name = h.get("name") or h.get("id")
+        names = ", ".join(aids)
+        msg = localefmt.chu(f"Webhook \"{name}\" cần bạn duyệt trước khi chạy: {names}. Mở nhật ký webhook, bấm "
+                            "Chi tiết rồi Duyệt hoặc Từ chối.",
+                            f"Webhook \"{name}\" needs your approval before it runs: {names}. Open the webhook log, "
+                            "press Details, then Approve or Reject.")
+        try:
+            await self.deps.send(h.get("chat_id", ""), msg, viec={"kind": "webhook", "status": "waiting",
+                                                                 "title": str(name)[:160], "id": str(h.get("id") or "")},
+                                 web=msg, brain=h.get("brain") or "brain", dedup=f"wha:{eid}:{','.join(sorted(aids))}")
+        except Exception as e:
+            print(f"[webhooks] approval notice failed: {type(e).__name__}: {e}", file=sys.stderr)
+
     async def _resend_breaker_notices(self) -> None:
         st = self.store()
+        hooks = self._load()                         # raises on a read error: the pending notices stay
         for k, v in await asyncio.to_thread(st.meta_prefix, "bn:"):
             _, hid, aid = k.split(":", 2)
-            h = self._find(self._load(), hid)
+            h = self._find(hooks, hid)
             await asyncio.to_thread(st.meta_del, k)
             if h:
                 await self._breaker_notice(h, aid, v)
@@ -1289,12 +1336,16 @@ class WebhookFeature:
             msg = str(ev.get("result") or "").strip() or localefmt.chu(
                 "Webhook đã chạy nhưng không trả về nội dung.", "The webhook ran but returned nothing.")
         viec = {"kind": "webhook", "status": status, "title": str(name or "")[:160], "id": str(h.get("id") or "")}
+        dedup = f"wh:{h.get('id')}:{ev['id']}:{fence}"
+        appr = sorted(b["action_id"] for b in ev.get("branches") or [] if b.get("status") == "approval")
+        if status == "waiting" and appr:
+            dedup = f"wha:{ev['id']}:{','.join(appr)}"   # the same as the early approval notice: one message
         # The dedup key names the ATTEMPT (fence): a notice resent after a crash is the same key (dropped by the
         # notifier), while the result of an owner's Retry is a new attempt and reaches the owner.
         try:
             res = await self.deps.send(h.get("chat_id", ""), msg, viec=viec,
                                        web=msg[2:] if msg.startswith("⚠ ") else msg,
-                                       brain=h.get("brain") or "brain", dedup=f"wh:{h.get('id')}:{ev['id']}:{fence}")
+                                       brain=h.get("brain") or "brain", dedup=dedup)
             ok = res[0] if isinstance(res, tuple) and res else True
         except Exception as e:
             print(f"[webhooks] {ev.get('id')} notice failed: {type(e).__name__}: {e}", file=sys.stderr)
@@ -1310,11 +1361,26 @@ class WebhookFeature:
 
         @router.post("/hooks/{hook_id}")
         async def hooks_receive(hook_id: str, request: Request):
-            body = await request.body()
+            # The size is checked before the body is read (no unbounded read from a sender without a token).
+            try:
+                if int(request.headers.get("content-length") or 0) > BODY_MAX_BYTES:
+                    return JSONResponse({"ok": False, "error": f"body larger than {BODY_MAX_BYTES} bytes"}, status_code=413)
+            except ValueError:
+                pass
+            body = b""
+            async for chunk in request.stream():
+                body += chunk
+                if len(body) > BODY_MAX_BYTES:
+                    return JSONResponse({"ok": False, "error": f"body larger than {BODY_MAX_BYTES} bytes"}, status_code=413)
             token = token_from_request(request.headers, request.url.query)
             idem = request.headers.get("idempotency-key") or request.headers.get("x-request-id") or ""
-            code, resp = await self.accept(hook_id, token, body,
-                                           request.headers.get("content-type", ""), idem, headers=request.headers)
+            try:
+                code, resp = await self.accept(hook_id, token, body,
+                                               request.headers.get("content-type", ""), idem, headers=request.headers)
+            except (OSError, ValueError) as e:
+                # The hook list could not be read right now: nothing was stored, the sender retries.
+                print(f"[webhooks] receive {hook_id}: {type(e).__name__}: {e}", file=sys.stderr)
+                return JSONResponse({"ok": False, "error": "temporarily unavailable, retry later"}, status_code=503)
             return JSONResponse(resp, status_code=code)
 
         @router.get("/webhooks")

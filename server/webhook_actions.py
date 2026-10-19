@@ -145,7 +145,7 @@ def validate(actions: Any) -> list:
                 if v == "••••":
                     clean[str(k)] = v                                # masked value sent back: merge_secrets keeps it
                     continue
-                if not isinstance(v, str) or len(v) > 2000 or not all(32 <= ord(c) < 127 for c in v):
+                if not isinstance(v, str) or len(v) > 2000 or not all(32 <= ord(c) < 127 for c in v) or v != v.strip():
                     # Printable ASCII only: anything else cannot be sent as a header and would fail AFTER the branch
                     # was marked dispatched (an "unknown" for a request that never left).
                     raise ActionError(f"action {aid}: header {k} must be one line of plain ASCII text")
@@ -227,7 +227,12 @@ def merge_secrets(new: list, old: list) -> list:
     for a in new:
         o = olds.get(a["id"])
         for k, v in list((a.get("headers") or {}).items()):
-            if v == "••••":
+            if isinstance(v, dict) and (not o or (o.get("headers") or {}).get(k) != v):
+                # Only Javis writes references (webhook_triggers._seal); one a client made up is refused.
+                raise ActionError(f"action {a['id']}: header {k} cannot be a secret reference; enter its value")
+            if v == "••••" or isinstance(v, dict):
+                # A sealed reference sent back is treated exactly like the mask: it keeps the stored key only for the
+                # same target (otherwise a client could pair the reference with a new address).
                 if o and k in (o.get("headers") or {}) and same_target(a, o):
                     a["headers"][k] = o["headers"][k]
                 elif o and k in (o.get("headers") or {}):

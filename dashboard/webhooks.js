@@ -47,7 +47,7 @@
     var st = r.status || "done";
     var acts = "";
     if (RETRYABLE[st]) acts += '<button class="s-btn-ghost whEvRetry" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.retry")) + "</button>";
-    if (st === "unknown") {
+    if (st === "unknown" || st === "waiting") {
       acts += '<button class="s-btn-ghost whEvDone" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.mark_done")) + "</button>";
     }
     if (r.run_id || r.id) acts += '<button class="s-btn-ghost whEvInfo" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.details")) + "</button>";

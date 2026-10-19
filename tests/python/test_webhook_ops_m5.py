@@ -134,7 +134,8 @@ async def main():
     await f.accept(hga["id"], tokga, b"{}", "application/json", "ga")
     await f.wait_idle()
     check("daily_digest: an approval request is still sent at once",
-          len(sent) == 1 and ("duyệt" in sent[0]["text"].lower() or "approval" in sent[0]["text"].lower()), sent)
+          len({m["dedup"] for m in sent}) == 1 and ("duyệt" in sent[0]["text"].lower() or "approval" in sent[0]["text"].lower()),
+          sent)   # one dedup key: the notifier delivers it once
     sent.clear()
     # The owner's time zone (localefmt.tz), not the server's.
     lt = wt._local(time.time())
@@ -181,8 +182,8 @@ async def main():
     await f.wait_idle()
     check("AI budget 0: never calls a model", not ai_calls)
 
-    # ---- circuit breaker ----
-    crm_code["v"] = 400
+    # ---- circuit breaker (a receiver that is down: 500 = it may have acted; a 4xx refusal does not count) ----
+    crm_code["v"] = 500
     hc, tokc, _ = f.create("/b1", name="CRM", target="task", text="x", level="full",
                            actions=[{"id": "crm", "kind": "http", "url": "https://crm.example/h"}, {"id": "ai", "kind": "ai"}])
     sent.clear(); hits.clear(); ai_calls.clear()

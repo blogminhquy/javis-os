@@ -46,8 +46,24 @@ Status: **done** = built and proven with fakes; **open** = needs a real source o
 | Circuit breaker | `breakers` | open, pause without tries, notice once, close | done |
 | Retention and export | `prune(keep_days)`, export route | per-hook retention, JSONL/CSV without secrets | done |
 | Paginated dashboard | keyset `page`, filter, Details | UI tests | done |
-| Migration and rollback | each doc's Rollback, `poscake-migration.md` | schema upgrade v1 to v5 in place, concurrent upgrade | done |
+| Migration and rollback | each doc's Rollback, `poscake-migration.md` | schema upgrade v1 to v6 in place, concurrent upgrade | done |
 | No model on non-AI paths | source checks, runners that raise if called | every milestone | done |
 | Benchmarks | `test_webhook_ops_m5.py`, rules benchmark in M2 | printed numbers | done |
 | Independent review per milestone, P1/P2 resolved | review tables in the M1 to M5 docs | regression tests red on the reviewed commits (`test_webhook_m2_review` to `m5_review`) | done for M1 to M5 |
 | Production verified adapters | | | open: needs real deliveries (staging pack) |
+
+## Whole-chain review (M1 to M5 together)
+
+After the per-milestone reviews, an independent review of the whole chain at 787dfbf6 looked for interactions
+between milestones. It found 1 P1, 5 P2 and 8 P3 issues, all fixed. The regression tests are in
+`tests/python/test_webhook_chain_review.py`.
+
+| Finding | Fix |
+|---|---|
+| P1 the hook's own sealed reference, sent back with a new address, carried the key along | a reference sent by a client is treated like the mask (same target only), and a made-up one is refused |
+| P2 a workflow question left an event `waiting` forever; with no cap, the shared store could fill (503 for every brain) | Mark done closes `waiting` events; approvals and questions expire after 14 days; at most 200 unsettled events per hook (then 429 for that hook only) |
+| P2 the M1 poison guard no longer worked once every event has branches | tries kept across losses before any dispatch: dead after `MAX_AUTO_TRIES` |
+| P2 an unreadable `webhooks.json` turned accepted events into "hook deleted" and let `create()` wipe the other hooks | `_load` raises on a read or parse error. Events wait (retried with backoff), receive answers 503, create and update refuse |
+| P2 the AI branch of a hook whose brain folder is gone ran in the default brain | refused before dispatch (`brain_exists`) |
+| P3 (fixed) | incident triage only for an AI branch dispatched in that pass; header values with surrounding spaces refused; the approval request is sent at once (one dedup key with the event's notice), and an approved branch runs at once; a failed event whose business key is live is not pruned or evicted; 4xx refusals do not open the breaker; keys echoed by a receiver are redacted from receipts; the body size is checked before reading; `digest_try` keys removed with the hook |
+| P3 (kept, noted) | while a breaker stays open, its parked events are claimed and parked again each cycle (extra `attempts` rows, no extra sends) |

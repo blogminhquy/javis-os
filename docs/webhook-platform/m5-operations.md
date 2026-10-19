@@ -131,4 +131,6 @@ tests in `tests/python/test_webhook_m5_review.py` fail on the reviewed commit.
 ## Rollback
 
 Settings are extra fields on the hook. Older code ignores them, and the defaults of the older code apply. The
-`breakers` table and the `digest_*` meta keys are ignored too.
+`breakers` and `ai_runs` tables and the `digest_*` meta keys are ignored too. Settle what waits before rolling back
+to M3 or M4 code. M4's prune deletes `waiting` events like finished ones, and M3 code reads an `approval` branch as
+done. Use the log filter "Needs you".

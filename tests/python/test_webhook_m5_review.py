@@ -200,7 +200,7 @@ asyncio.run(main())
 # P2-4: retention keeps waiting events (and their body)
 s = ws.Store(Path(tempfile.mkdtemp(prefix="m5r-keep-")) / "e.sqlite3")
 now = time.time()
-old = now - 40 * 86400
+old = now - 10 * 86400            # within APPROVAL_TTL_DAYS, far past the hook's 1-day retention
 c, i = s.ingest({"id": "wh_w", "brain": "/b"}, b'{"order": 1}', "application/json", "w", now=old)
 w = s.claim("W", now=old)
 s.branches_init(w["id"], w["fence"], [{"id": "pos", "kind": "tool"}], wa.delivery_id)
@@ -210,6 +210,10 @@ s.prune(now=now, keep_days={"wh_w": 1})
 ev = s.get(w["id"], True)
 check("P2: an event waiting for approval survives retention, with its body", ev is not None and ev["status"] == "waiting"
       and bytes(ev["body"]) == b'{"order": 1}', ev and ev["status"])
+s.prune(now=now + (ws.APPROVAL_TTL_DAYS - 10 + 1) * 86400)
+ev = s.get(w["id"])
+check("whole chain: an approval nobody answers expires after APPROVAL_TTL_DAYS (settled, never stuck)",
+      ev["status"] == "failed" and "nobody answered" in ev["error"] and ev["branches"][0]["status"] == "cancelled", ev["status"])
 
 # P2-5: day quota and AI budget not undercounted after prune
 s2 = ws.Store(Path(tempfile.mkdtemp(prefix="m5r-q-")) / "e.sqlite3")

@@ -169,6 +169,8 @@ BREAKER_COOLDOWN_S = 600.0
 BREAKER_MAX_S = 3600.0
 PARKED_MAX = 200          # events of one hook waiting for a later resend (breaker, backoff): their own cap, so a
                           # receiver that is down does not fill the backlog and refuse events the other branches run
+OWED_MAX = 200            # unknown + waiting events of one hook (kept until the owner settles them)
+APPROVAL_TTL_DAYS = 14    # an approval nobody answered is cancelled after this (the event is then settled)
 RECENT_KEEP_S = 90000.0   # nothing received in the last 25 h is pruned: the day quota and AI budget count those rows
 # Branch states. pending/retry: may run; running: dispatched, outcome not written; the rest are final for the run.
 BRANCH_FINAL = ("completed", "accepted", "silent", "waiting", "cancelled", "failed", "unknown", "approval")
@@ -303,7 +305,7 @@ class Store:
         target = int(DB_MAX_BYTES * 0.8) - int(need)
         n = 0
         told = ("status IN ('done','silent','failed','dead','filtered','invalid','duplicate') AND"
-                " (notified_at>0 OR status='silent')")
+                " (notified_at>0 OR status='silent') AND id NOT IN (SELECT event_id FROM biz_keys)")
         # Events that never ran go first (a flood of filtered events must not push out real runs), then bodies of
         # finished runs, then whole rows.
         steps = ("SELECT id FROM events WHERE status IN ('filtered','invalid','duplicate') ORDER BY received_at LIMIT 100",
@@ -404,6 +406,13 @@ class Store:
                 if parked >= PARKED_MAX:
                     self._db.execute("ROLLBACK")
                     return 429, {"reason": "backlog"}
+                owed = self._db.execute("SELECT COUNT(*) FROM events WHERE hook_id=? AND status IN ('unknown','waiting')",
+                                        (hid,)).fetchone()[0]
+                if owed >= OWED_MAX:
+                    # Events the owner still owes something are never pruned: past this many, THIS hook refuses
+                    # (429) until the owner settles them, instead of filling the store shared by every brain.
+                    self._db.execute("ROLLBACK")
+                    return 429, {"reason": "owner"}
                 if backlog >= int(lim.get("backlog") or BACKLOG_MAX):
                     self._db.execute("ROLLBACK")
                     return 429, {"reason": "backlog"}
@@ -845,7 +854,11 @@ class Store:
                 else ("cancelled", 0, "rejected by the owner", now, eid, aid))
             if cur.rowcount != 1:
                 return False, "not_waiting"
-            if row["status"] in ("queued", "running"):
+            if row["status"] == "queued":
+                # Run the approved branch now, not at a sibling's later resend time.
+                self._db.execute("UPDATE events SET next_at=? WHERE id=?", (now, eid))
+                return True, ""
+            if row["status"] == "running":
                 return True, ""             # the run in progress settles it (settle() re-reads the branches)
             br = [dict(b) for b in self._db.execute("SELECT status, next_at FROM branches WHERE event_id=?", (eid,))]
             st, nxt = self.summarize(br)
@@ -922,9 +935,12 @@ class Store:
                         self._release_keys(r["id"])
                         outcome = "dead"
                     elif pend:
+                        # tries is reset only when this attempt dispatched something: an event that keeps killing the
+                        # worker BEFORE any dispatch must reach MAX_AUTO_TRIES and stop (the M1 poison guard).
                         self._db.execute("UPDATE events SET status='queued', next_at=?, lease_owner='', lease_until=0,"
-                                         " dispatched_at=0, tries=0 WHERE id=?",
-                                         (max(now, min(float(b["next_at"] or 0) for b in pend)), r["id"]))
+                                         " dispatched_at=0, tries=CASE WHEN ? THEN 0 ELSE tries END WHERE id=?",
+                                         (max(now, min(float(b["next_at"] or 0) for b in pend)),
+                                          1 if r["dispatched_at"] else 0, r["id"]))
                         outcome = "lease_expired"
                         back += 1
                     else:
@@ -1021,17 +1037,21 @@ class Store:
 
     def resolve(self, eid: str, outcome: str, note: str = "", now: Optional[float] = None) -> tuple:
         """Reconcile an `unknown` event after checking the outside system: it did happen (done) or not (failed,
-        which can then be retried). Returns (ok, error_code)."""
+        which can then be retried). Also closes a `waiting` event the owner has dealt with (a workflow question
+        answered elsewhere, an approval no longer wanted): its waiting branches end done or failed, approvals are
+        cancelled. Returns (ok, error_code)."""
         if outcome not in ("done", "failed"):
             return False, "bad_outcome"
         now = time.time() if now is None else now
         with self._write():
             row = self._db.execute("SELECT status FROM events WHERE id=?", (eid,)).fetchone()
-            if row is None or row["status"] != "unknown":
+            if row is None or row["status"] not in ("unknown", "waiting"):
                 return False, "not_unknown"
             self._db.execute("UPDATE branches SET status=?, detail=CASE WHEN ?='' THEN detail ELSE ? END, finished_at=?"
-                             " WHERE event_id=? AND status='unknown'",
+                             " WHERE event_id=? AND status IN ('unknown','waiting')",
                              ("completed" if outcome == "done" else "failed", note, "owner: " + str(note)[:900], now, eid))
+            self._db.execute("UPDATE branches SET status='cancelled', detail='closed by the owner', finished_at=? WHERE"
+                             " event_id=? AND status='approval'", (now, eid))
             br = [dict(b) for b in self._db.execute("SELECT status, next_at FROM branches WHERE event_id=?", (eid,))]
             # With branches, the event's state follows them (a branch that failed on its own stays failed; one that
             # still has to run puts the event back in the queue).
@@ -1138,6 +1158,7 @@ class Store:
             self._db.execute("DELETE FROM breakers WHERE hook_id=?", (hook_id,))
             for k in (f"digest_day:{hook_id}", f"digest_at:{hook_id}"):
                 self._db.execute("DELETE FROM meta WHERE k=?", (k,))
+            self._db.execute("DELETE FROM meta WHERE k LIKE ?", (f"digest_try:{hook_id}:%",))
             self._db.execute("DELETE FROM dedup WHERE hook_id=?", (hook_id,))
 
     def prune(self, now: Optional[float] = None, keep_days: Optional[dict] = None) -> int:
@@ -1150,6 +1171,18 @@ class Store:
         ign = "('filtered','invalid','duplicate')"
         fin = "('done','silent','failed','dead','filtered','invalid','duplicate')"
         with self._write():
+            # Stale owner items: an approval or question nobody answered in APPROVAL_TTL_DAYS ends, so it cannot hold
+            # space forever. The event is settled (failed: "nobody answered") and stays in the log like any other.
+            stale = [r[0] for r in self._db.execute(
+                "SELECT id FROM events WHERE status='waiting' AND finished_at>0 AND finished_at<?",
+                (now - APPROVAL_TTL_DAYS * 86400,))]
+            for sid in stale:
+                self._db.execute("UPDATE branches SET status='cancelled', detail='approval expired: nobody answered',"
+                                 " finished_at=? WHERE event_id=? AND status='approval'", (now, sid))
+                self._db.execute("UPDATE branches SET status='failed', detail='no answer from the owner', finished_at=?"
+                                 " WHERE event_id=? AND status='waiting'", (now, sid))
+                self._db.execute("UPDATE events SET status='failed', error='expired: nobody answered in "
+                                 f"{APPROVAL_TTL_DAYS} days', finished_at=?, notified_at=? WHERE id=?", (now, now, sid))
             ids = [r[0] for r in self._db.execute(
                 f"SELECT id FROM events WHERE status IN {fin} AND finished_at>0 AND finished_at<?", (cut,))]
             for hid_k, days in (keep_days or {}).items():
@@ -1169,6 +1202,13 @@ class Store:
                         f"SELECT id FROM events WHERE hook_id=? AND status IN {group} ORDER BY received_at DESC"
                         " LIMIT -1 OFFSET ?", (hid, keep))]
             ids = list(dict.fromkeys(ids))
+            if ids:
+                # A failed/dead event whose business key is still live stays: without it the order could neither be
+                # retried nor resent (the key refuses the source's copy as a duplicate).
+                held = {r[0] for r in self._db.execute(
+                    "SELECT e.id FROM events e JOIN biz_keys b ON b.event_id=e.id WHERE e.status IN ('failed','dead')"
+                    " AND b.expires_at>?", (now,))}
+                ids = [x for x in ids if x not in held]
             if ids:
                 # Nothing received in the last RECENT_KEEP_S goes, whatever the caps say: the day quota and the AI
                 # budget are counted from these rows.

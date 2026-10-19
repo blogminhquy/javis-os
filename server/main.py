@@ -11780,6 +11780,7 @@ webhook_feature = webhook_triggers.register(app, webhook_triggers.WebhookDeps(
     plugin_handler=lambda brain, slug, name: plugins_host.find_webhook_handler(
         (str(_brain_root(brain)) if (not brain or brain == "brain" or os.path.isdir(brain)) else None), slug, name),
     call_tool=_webhook_call_tool,
+    brain_exists=lambda brain: (not brain or brain == "brain" or os.path.isdir(brain)),
 ))
 
 
