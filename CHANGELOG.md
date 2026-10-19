@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.228.0] - 2026-10-19
+### Sửa lỗi
+- **Trợ lý lại dùng được kết nối điều khiển trình duyệt.** (đang viết)
+
 ## [0.227.0] - 2026-10-19
 ### Sửa lỗi
 - **Bot đọc đủ tin dài trong nhóm Zalo.** Trước đây bot chỉ thấy 300 ký tự đầu của mỗi tin trước đó, nên một tin dài bị mất đoạn cuối và bot hỏi lại điều khách đã nói (ca thật: mức phụ thu nằm ở cuối tin). Giờ mỗi tin giữ tới 2000 ký tự, các tin gần nhất luôn còn nguyên. Tin dài quá mức đó được rút gọn có đánh dấu, và bot được dặn không nói với khách là tin bị cắt.
