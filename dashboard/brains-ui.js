@@ -16,7 +16,8 @@
     const n = b.notes ? " · " + b.notes + (b.notes_capped ? "+" : "") : "";
     // Không gắn icon: <option> chỉ nhận chữ. Thư mục ngoài được app.js xếp vào
     // <optgroup> riêng nên vẫn phân biệt được mà không cần ký hiệu nào.
-    return b.name + n;
+    // 0.219.0: tên hiển thị (label) tách khỏi thư mục; server luôn trả label, bản cũ chưa có thì dùng tên thư mục.
+    return (b.label || b.name) + n;
   }
 
   // Chuẩn hoá path để so trùng: bỏ dấu phân cách cuối, \ -> /, thường hoá (Windows không phân biệt hoa/thường).
@@ -93,7 +94,7 @@
     const frag = document.createDocumentFragment();
     brains.forEach((b) => {
       if (b.is_default) {
-        if (defOpt) defOpt.textContent = label(b);
+        if (defOpt) { defOpt.textContent = label(b); defOpt.dataset.brainLabel = b.label || b.name; }
         return; // default đã có sẵn option value="brain"
       }
       const opt = document.createElement("option");
@@ -101,6 +102,7 @@
       opt.textContent = label(b);
       opt.dataset.brain = "1";
       opt.dataset.brainName = b.name; // tên folder để xoá chính xác
+      opt.dataset.brainLabel = b.label || b.name;
       frag.appendChild(opt);
     });
     if (defOpt && defOpt.nextSibling) sel.insertBefore(frag, defOpt.nextSibling);
@@ -185,6 +187,29 @@
     alert(window.t("brains.deleted", { ten: name }));
   }
 
+  // Đổi tên (0.219.0): chỉ đổi TÊN HIỂN THỊ, lưu trong chính brain (Javis/brain.json). Thư mục giữ nguyên nên mọi
+  // lựa chọn đã lưu, bot, nhắc việc, việc nền và link /brains/<thư mục>/... trong note vẫn trỏ đúng. Đổi được cả Brain
+  // mặc định (trước đây không có cách nào đổi tên não nào).
+  async function renameBrain() {
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || (sel.value !== "brain" && !opt.dataset.brain)) { alert(window.t("brains.only_listed")); return; }
+    const cu = opt.dataset.brainLabel || opt.textContent.trim();
+    const moi = window.prompt(window.t("brains.rename_prompt"), cu);
+    if (moi === null || moi.trim() === cu) return;
+    const fd = new FormData();
+    fd.append("brain", sel.value);
+    fd.append("label", moi.trim());
+    let r;
+    try { r = await (await fetch("/brains/label", { method: "POST", body: fd })).json(); }
+    catch (e) { alert(window.t("brains.rename_net_err")); return; }
+    if (!r || !r.ok) { alert((r && r.error) || window.t("brains.rename_failed")); return; }
+    await loadBrains(null, false);
+    // Báo các phần khác (tiêu đề, sidebar) vẽ lại tên mà không đổi brain đang chọn.
+    try { window.dispatchEvent(new CustomEvent("javis:brain-renamed", { detail: { brain: sel.value, label: r.label } })); } catch (e) {}
+  }
+
+  const rb = document.getElementById("renameBrainBtn");
+  if (rb) rb.addEventListener("click", renameBrain);
   const nb = document.getElementById("newBrainBtn");
   if (nb) nb.addEventListener("click", newBrain);
   const db = document.getElementById("delBrainBtn");

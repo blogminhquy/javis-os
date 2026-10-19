@@ -6,6 +6,7 @@ Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling �
 `claude` CLI đã cài trên máy → tự kế thừa MCP, skills, auth.
 """
 import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ người dùng
+import brain_label   # tên hiển thị của brain, tách khỏi thư mục (0.219.0)
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import html as html_mod   # escape lời báo lỗi OAuth trên trang callback (biến cục bộ `html` che tên module)
 import posixpath
@@ -6613,7 +6614,9 @@ def _list_brains_sync() -> dict:
                 is_default = p.resolve() == default_resolved
             except OSError:
                 is_default = False
-            out.append({"name": p.name, "path": str(p), "notes": notes,
+            # `name` stays the FOLDER (the brain's address: delete, /brains/<folder>/..., backups); `label` is what to show
+            # (0.219.0, brain_label): a rename sets the label and never moves the folder.
+            out.append({"name": p.name, "label": brain_label.display(p), "path": str(p), "notes": notes,
                         "notes_capped": notes >= _BRAINS_MD_CAP,
                         "is_default": is_default})
     except Exception as e:
@@ -6643,6 +6646,40 @@ async def new_brain(name: str = Form(...)):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
     git_brain.clear_tombstone(BRAINS_DIR, safe)   # dựng lại não cùng tên -> gỡ giấy báo tử để không bị xoá oan
     return {"ok": True, "name": safe, "path": str(root)}
+
+
+@app.post("/brains/label")
+async def brain_set_label(brain: str = Form(...), label: str = Form("")):
+    """Đổi TÊN HIỂN THỊ của một brain (0.219.0). Thư mục KHÔNG đổi, nên mọi địa chỉ dựng trên nó (lựa chọn đã lưu, bot,
+    nhắc việc, vòng lặp, việc Kanban, phiên chat, sao lưu git, link `/brains/<thư mục>/...` trong note và chat) vẫn đúng.
+    Áp dụng được cả cho Brain mặc định. `brain`: "brain", "path:<thư mục>" hoặc tên thư mục trong BRAINS_DIR. `label`
+    rỗng hoặc trùng tên thư mục = bỏ tên riêng, quay về tên thư mục."""
+    b = (brain or "").strip()
+    if b == "brain" or not b:
+        root = _default_brain_dir()
+    else:
+        raw = b[5:] if b.startswith("path:") else str(Path(BRAINS_DIR) / _safe_brain_name(b))
+        root = Path(raw)
+    try:
+        root = root.resolve()
+        base = Path(BRAINS_DIR).resolve()
+    except OSError:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Brain không tồn tại", "Brain does not exist")}, status_code=404)
+    if root == base or base not in root.parents or not root.is_dir():
+        return JSONResponse({"ok": False, "error": localefmt.chu("Brain không tồn tại hoặc nằm ngoài phạm vi quản lý",
+                                                                 "Brain does not exist or is outside the managed area")},
+                            status_code=404)
+    ten = brain_label.clean(label)
+    trung = brain_label.taken_by(base, ten, except_root=root) if ten else None
+    if trung:
+        return JSONResponse({"ok": False, "error": localefmt.chu(f"Đã có brain tên \"{ten}\" (thư mục {trung})",
+                                                                 f"A brain named \"{ten}\" already exists (folder {trung})")},
+                            status_code=409)
+    try:
+        shown = await asyncio.to_thread(brain_label.write, root, ten)
+    except OSError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+    return {"ok": True, "folder": root.name, "label": shown, "path": str(root)}
 
 
 _DELETE_SYNC_TASKS = set()   # giữ ref mạnh cho eager-sync sau khi xóa não (tránh GC nuốt task)
