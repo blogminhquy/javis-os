@@ -27,6 +27,19 @@ Only a pass on a real source may mark an adapter or action "production verified"
 | `test_webhook_spec_matrix.py`: `ORDER`, `SPEC_RULES`, `POSCAKE_ACTIONS` | the spec's §9 illustration | replace field names with the captured POSCake payload |
 | `tests/fixtures/webhooks/captured/<provider>-<event>.json` | **to capture** (§16.6, §17) | one per event kind used, customer fields and secrets replaced, header names exactly as received |
 
+Capture and check with `tools/webhook_capture.py` (tested by `tests/python/test_webhook_capture.py`):
+
+```
+# on staging, for each captured event (pick its id in Events): write a masked fixture with the decision it must get
+.venv/bin/python tools/webhook_capture.py export --state-dir <STATE_DIR> --event ev_... --expect run \
+    --out tests/fixtures/webhooks/captured/poscake-order-paid.json
+# then check the hook's rules against every fixture (nothing stored, sent or run)
+.venv/bin/python tools/webhook_capture.py check --config hook.json tests/fixtures/webhooks/captured/*.json
+```
+
+The export keeps ids, statuses, product names and number types, replaces every text under a customer block and every
+e-mail or phone, and redacts credentials. Read each file before committing it.
+
 ## 0. Data to collect first (spec §17), with the owner
 
 - [ ] POSCake: 3 to 5 real deliveries per event kind, with headers, customer fields replaced; the shop, order and event
