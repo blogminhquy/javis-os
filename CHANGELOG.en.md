@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.254.0] - 2026-10-20
+### Added
+- In progress.
+
 ## [0.253.0] - 2026-10-20
 ### Security
 - **Remote access no longer exposes the reminder endpoints.** Four endpoints Javis uses on the machine itself (create, edit, cancel a reminder and send a file over Telegram) skip the login. Cloudflare Tunnel, Tailscale and a proxy on a VPS also come in from the machine itself, so anyone with the tunnel address could create a reminder that runs an AI task or a script without the password. Requests through a tunnel or proxy now need the login; Javis's own calls on the machine work as before.
