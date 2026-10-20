@@ -90,7 +90,9 @@ check("dòng khai báo là comment, không thành một requirement", dong1.star
 import mcp_hub  # noqa: E402
 
 src = (SERVER / "mcp_hub.py").read_text(encoding="utf-8")
-i = src.find("async def _write(args):")
+# 0.256.0: mọi rào trước khi ghi dời vào `_kiem_ghi`, dùng chung cho javis_write_file và
+# javis_edit_file. Câu từ chối nằm ở đó.
+i = src.find("async def _kiem_ghi(args")
 khoi = src[i:i + 1400]
 
 check("tìm được nhánh từ chối ghi", i > 0 and "readonly" in khoi)
@@ -132,9 +134,10 @@ import engine  # noqa: E402
 esrc = (SERVER / "engine.py").read_text(encoding="utf-8")
 check("CANARY: không còn chỗ nào ghim cứng range(8)", "for _ in range(8):" not in esrc)
 check("không còn câu báo ghim cứng con số 8", "giới hạn 8 vòng gọi tool" not in esrc)
+# 0.256.0: mỗi vòng lặp giữ số vòng trong `_n_vong` để nhắc model chốt việc khi sắp hết vòng.
 check("ba vòng lặp tool đều đọc từ một chỗ",
-      esrc.count("for _ in range(_max_tool_rounds()):") == 3,
-      esrc.count("for _ in range(_max_tool_rounds()):"))
+      esrc.count("_n_vong = _max_tool_rounds()") == 3 and esrc.count("for _vong in range(_n_vong):") == 3,
+      esrc.count("_n_vong = _max_tool_rounds()"))
 
 that_env = os.environ.get("JAVIS_MAX_TOOL_ROUNDS")
 try:

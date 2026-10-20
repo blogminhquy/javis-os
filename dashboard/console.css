@@ -2384,6 +2384,37 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .cd-menu button small { display: block; font-size: 12px; color: var(--text3); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Bảng Hoàn tác (0.256.0): danh sách file đổi từ một mốc tự động, xem diff, khôi phục. Chữ 16px
+   kể cả trên máy tính: người dùng đọc tên file và diff để quyết định có trả lại hay không, nên
+   đây là chữ CHÍNH chứ không phải chữ phụ. */
+.cd-undo { position: fixed; inset: 0; z-index: 70; background: var(--shadow-veil);
+  display: flex; align-items: center; justify-content: center; padding: 16px; }
+.cd-undo-box { width: min(720px, 100%); max-height: min(86vh, 900px); overflow-y: auto;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+  font-size: 16px; line-height: 1.5; color: var(--text); box-shadow: 0 16px 40px var(--shadow-veil); }
+.cd-undo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 10px; }
+.cd-undo-x { background: none; border: 0; color: var(--text2); cursor: pointer; padding: 6px;
+  border-radius: 8px; min-width: 40px; min-height: 40px; }
+.cd-undo-x:hover { background: var(--surface-2); }
+.cd-undo-note { color: var(--text2); margin: 0 0 12px; }
+.cd-undo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cd-undo-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cd-undo-row code { font-size: 15px; word-break: break-all; flex: 1 1 200px; }
+.cd-undo-row button, .cd-undo-go { font: inherit; font-size: 16px; cursor: pointer; border-radius: 9px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text); padding: 8px 14px;
+  min-height: 40px; }
+.cd-undo-st { font-size: 14px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+.cd-undo-st.st-A { color: var(--ok-ink, var(--text)); border-color: var(--ok-line); }
+.cd-undo-st.st-D { color: var(--red); }
+.cd-undo-diff { font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  margin: 8px 0 0; max-height: 50vh; overflow: auto; }
+.cd-undo-act { margin-top: 14px; display: flex; justify-content: flex-end; }
+.cd-undo-go { border-color: var(--warn-line); color: var(--warn-ink); font-weight: 600; }
+.cd-undo-go:disabled { opacity: .5; cursor: default; }
+.cd-undo-kq { margin-top: 10px; }
+
 /* Không có kiểu dáng riêng cho hộp "thêm thư mục": nó là JavisFolderPicker, mặc bộ lớp
    .folder-modal/.fm-* có sẵn trong style.css. */
 

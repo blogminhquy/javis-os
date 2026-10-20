@@ -8,7 +8,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.256.0] - 2026-10-20
 ### Thêm mới
-- **Javis lập trình giỏi hơn trên mọi bộ não API** (đang làm).
+- **Bộ não API lập trình được thật trên trang Code.** OpenRouter, OpenAI, Anthropic API, Gemini, Groq, DeepSeek, Ollama giờ làm được đúng việc của một lập trình viên trong thư mục bạn gắn: tìm code, đọc từng đoạn, sửa đúng vài dòng, chạy lệnh, bật web thử. Cách làm học từ Hermes Agent.
+- **Sửa từng đoạn thay vì viết lại cả file.** Javis chỉ thay đúng đoạn cần sửa, kể cả khi model gõ lệch thụt lề hay dấu nháy, rồi đưa lại phần khác biệt để xem. Sửa xong mà file hỏng cú pháp là báo ngay. Có thêm tìm trong code theo nội dung hoặc theo tên file.
+- **Terminal thật ở mức Toàn quyền.** Chạy được lệnh có `|`, `&&`, `cd`, nhớ thư mục giữa các lệnh. Web hay lệnh chạy lâu thì chạy nền, Javis xem log, dừng được, và báo vào khung chat khi xong.
+- **Nút Hoàn tác trên trang Code.** Trước lượt đầu tiên có sửa file, Javis tự lưu một mốc. Bấm Hoàn tác là thấy file nào đã đổi, xem từng chỗ khác, rồi trả về mốc. File bạn tự sửa sau đó được giữ nguyên. Không đụng vào git của dự án, thư mục không có git cũng dùng được.
+### Sửa lỗi
+- Trước bản này, bộ não API trong phiên Code thật ra không đọc được file nào của dự án: thư mục làm việc chưa hề được nối vào. Giờ đã nối.
+- Tạo file mới ở gốc dự án không còn rơi nhầm vào thư mục brain.
+- Ở mức Plan, công cụ chạy lệnh không còn hiện ra.
+### Cải thiện
+- Một lượt trên trang Code được tới 150 vòng gọi công cụ (chat thường vẫn 30), còn 10 vòng thì Javis nhắc tóm tắt và chốt việc. Đổi bằng biến `JAVIS_MAX_TOOL_ROUNDS_CODING`.
+### Bảo mật
+- Terminal không mang theo API key của Javis, output được che khoá bí mật. Lệnh có thể phá cả máy (xoá thư mục hệ thống, định dạng ổ đĩa, `sudo`, tắt máy) bị chặn ở mọi mức. Mọi lệnh đều được ghi nhật ký.
 
 ## [0.255.0] - 2026-10-20
 ### Cải thiện

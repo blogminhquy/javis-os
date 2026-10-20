@@ -49,7 +49,8 @@ def check(name, cond, detail=""):
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 i = src.index("async def _api_stream_mcp(")
 than = src[i:src.index("\nasync def ", i + 10) if "\nasync def " in src[i + 10:] else len(src)]
-nhanh = set(re.findall(r'prov == "([a-z-]+)":\s*\n\s*return engine\.\w+_chat_with_mcp', than))
+# 0.256.0: nhánh có thể bọc trong `_boc(...)` (cờ phiên Coding), vẫn là gọi thẳng *_chat_with_mcp.
+nhanh = set(re.findall(r'prov == "([a-z-]+)":\s*\n\s*return (?:_boc\()?engine\.\w+_chat_with_mcp', than))
 check("tìm thấy các nhánh có tool của _api_stream_mcp", {"ollama-local", "openrouter", "deepseek"} <= nhanh, nhanh)
 check("mọi provider có nhánh tool đều được nạp tool (CANARY chống sót như ollama-local)",
       nhanh <= set(main._API_TOOL_PROVIDERS), nhanh - set(main._API_TOOL_PROVIDERS))

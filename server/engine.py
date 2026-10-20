@@ -10,6 +10,7 @@ Mỗi provider có HAI đường vào:
 Stream token-by-token; trả các event {"type":"text"|"error","content":...} giống ClaudeCLI.query.
 """
 import asyncio
+import contextvars
 import json
 import os
 import random
@@ -1450,12 +1451,18 @@ async def _openai_responses_stream_once(access_token, account_id, model, message
 # ============================================================
 # MCP đa-model - vòng tool-calling để model API/OAuth dùng MCP của Javis (qua mcp_client)
 # ============================================================
-def _clip_tool_result(result, max_chars: int = 8000, head_ratio: float = 0.6) -> str:
+def _clip_tool_result(result, max_chars: int = 0, head_ratio: float = 0.6) -> str:
     """Cắt kết quả tool quá dài kiểu head+tail KÈM marker, thay cho hard-cut `[:max]`.
     Tail của kết quả MCP (POS/Ads) hay chứa total/summary/pagination → cắt cụt đầu là
     mất phần đó âm thầm. Giữ đầu + cuối + dòng báo bỏ bao nhiêu → model thấy cả hai mép
     và BIẾT data bị thiếu (không tưởng đủ rồi báo sai). Port head+tail của Hermes
-    code_execution_tool."""
+    code_execution_tool.
+
+    Trần mặc định 8.000 ký tự cho lượt chat thường; phiên Coding (0.256.0) nâng lên 60.000 vì ở
+    đó một trang đọc file hay output test 8.000 ký tự là cắt mất đúng chỗ cần sửa, còn các tool
+    lập trình đã tự phân trang và tự cắt output của chúng."""
+    if not max_chars:
+        max_chars = CAT_KET_QUA_CODING if _PHIEN_CODING.get() else 8000
     text = str(result)
     if len(text) <= max_chars:
         return text
@@ -1901,7 +1908,8 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
             ),
         })
         requirement_pending = False
-    for _ in range(_max_tool_rounds()):
+    _n_vong = _max_tool_rounds()
+    for _vong in range(_n_vong):
         payload = {"model": model, "messages": msgs, "stream": False}
         # Bỏ hẳn khoá "tools" khi rỗng: vài endpoint OpenAI-compat từ chối mảng rỗng, và
         # nhánh cứu hộ ở dưới (model vấp cú pháp gọi tool) dựa vào đúng chỗ này.
@@ -2016,7 +2024,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 msgs.append({"role": "tool", "tool_call_id": tc.get("id"), "content": _clip_tool_result(result)})
             guard.ghi([((tc.get("function") or {}).get("name"),
                         (tc.get("function") or {}).get("arguments") or "") for tc in tcs])
-            nhac = guard.loi_nhac()
+            nhac = guard.loi_nhac() + _nhac_sap_het(_vong, _n_vong)
             if nhac:
                 msgs[-1]["content"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
             _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs
@@ -2070,7 +2078,24 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
 # đúng tool với đúng tham số hết vòng này sang vòng khác. Nên từ 0.47.1 phanh chính là
 # _LapGuard (soi đúng bệnh, cắt sớm hơn nhiều so với 8), còn trần đếm số chỉ là lưới đỡ
 # xa: mặc định 30, kẹp 1-120, chỉnh bằng JAVIS_MAX_TOOL_ROUNDS.
+#
+# Phiên Coding (0.256.0) có trần RIÊNG, mặc định 150, kẹp 1-500, chỉnh bằng
+# JAVIS_MAX_TOOL_ROUNDS_CODING: sửa một lỗi là đọc, sửa, chạy test, sửa lại, dễ quá 30 vòng mà
+# không hề kẹt. main bật cờ `_PHIEN_CODING` cho đúng lượt của phiên Coding (`chay_trong_phien_coding`).
+_PHIEN_CODING: contextvars.ContextVar = contextvars.ContextVar("javis_phien_coding", default=False)
+CAT_KET_QUA_CODING = 60_000
+# Còn ngần này vòng thì nhắc model chốt việc, để lượt kết thúc bằng một bản tóm tắt chứ không bị
+# cắt ngang giữa chừng.
+NHAC_KHI_CON = 10
+
+
 def _max_tool_rounds() -> int:
+    if _PHIEN_CODING.get():
+        try:
+            n = int(os.getenv("JAVIS_MAX_TOOL_ROUNDS_CODING", "150"))
+        except (TypeError, ValueError):
+            return 150
+        return max(1, min(n, 500))
     try:
         n = int(os.getenv("JAVIS_MAX_TOOL_ROUNDS", "30"))
     except (TypeError, ValueError):
@@ -2078,16 +2103,46 @@ def _max_tool_rounds() -> int:
     return max(1, min(n, 120))   # kẹp: 0 thì không tool nào chạy, quá to thì mất ý nghĩa của trần
 
 
+def _nhac_sap_het(vong: int, tong: int) -> str:
+    """Câu nối vào kết quả tool khi lượt chỉ còn NHAC_KHI_CON vòng. "" ở mọi vòng khác."""
+    if tong <= NHAC_KHI_CON * 2 or tong - vong - 1 != NHAC_KHI_CON:
+        return ""
+    return (f"\n\n⚠ [Javis] Lượt này chỉ còn {NHAC_KHI_CON} vòng gọi tool. Chốt việc: làm nốt bước "
+            "quan trọng nhất, rồi trả lời người dùng bằng bản tóm tắt đã làm gì, còn gì dở, và bước "
+            "tiếp theo nên là gì.")
+
+
+async def chay_trong_phien_coding(tao_gen):
+    """Bọc một generator của vòng tool để mọi vòng bên trong thấy đây là phiên Coding.
+
+    Đặt cờ BÊN TRONG thân generator chứ không ở nơi gọi: cờ đi theo đúng task đang lặp qua
+    generator, và hết lượt là trả về, không rò sang lượt sau của cùng kết nối WebSocket."""
+    tok = _PHIEN_CODING.set(True)
+    try:
+        gen = tao_gen()
+        if asyncio.iscoroutine(gen):
+            gen = await gen
+        async for ev in gen:
+            yield ev
+    finally:
+        try:
+            _PHIEN_CODING.reset(tok)
+        except ValueError:          # generator bị dọn ở ngữ cảnh khác: cờ chết theo ngữ cảnh đó
+            pass
+
+
 def _het_vong_msg() -> str:
     """Chạm trần phải nói ĐƯỢC VIỆC CẦN LÀM. Bản cũ chỉ báo con số rồi im, người dùng không
     biết mình vừa mất gì hay chỉnh ở đâu."""
     n = _max_tool_rounds()
+    bien, tran = (("JAVIS_MAX_TOOL_ROUNDS_CODING", 500) if _PHIEN_CODING.get()
+                  else ("JAVIS_MAX_TOOL_ROUNDS", 120))
     return _c(f"\n\n⚠ Đã chạy hết {n} vòng gọi tool cho lượt này nên phải dừng, câu trả lời ở "
               f"trên có thể còn dở. Cách xử lý: chia nhỏ yêu cầu thành từng bước, hoặc nâng trần "
-              f"bằng biến môi trường JAVIS_MAX_TOOL_ROUNDS (tối đa 120) rồi khởi động lại Javis.",
+              f"bằng biến môi trường {bien} (tối đa {tran}) rồi khởi động lại Javis.",
               f"\n\n⚠ All {n} tool-call rounds for this turn were used, so it had to stop; the answer "
               f"above may be incomplete. To fix: split the request into steps, or raise the limit "
-              f"with the environment variable JAVIS_MAX_TOOL_ROUNDS (up to 120) and restart Javis.")
+              f"with the environment variable {bien} (up to {tran}) and restart Javis.")
 
 
 class _LapGuard:
@@ -2243,7 +2298,8 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
     async with httpx.AsyncClient(timeout=timeout) as client:
         usage_in = usage_out = 0
         guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
-        for _ in range(_max_tool_rounds()):
+        _n_vong = _max_tool_rounds()
+        for _vong in range(_n_vong):
             # Backend Codex BẮT BUỘC stream=True → đọc SSE, lấy response.completed.output để chạy vòng tool
             payload = {"model": model, "instructions": instructions, "input": items,
                        "tools": tools, "stream": True, "store": False}
@@ -2357,7 +2413,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                         result = _schedule_tool_blocked_result()
                     items.append({"type": "function_call_output", "call_id": fc.get("call_id"), "output": _clip_tool_result(result)})
                 guard.ghi([(fc.get("name"), fc.get("arguments") or "") for fc in fcalls])
-                nhac = guard.loi_nhac()
+                nhac = guard.loi_nhac() + _nhac_sap_het(_vong, _n_vong)
                 if nhac:
                     items[-1]["output"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
                 _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs
@@ -2423,7 +2479,8 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
     async with httpx.AsyncClient(timeout=timeout) as client:
         usage_in = usage_out = 0
         guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
-        for _ in range(_max_tool_rounds()):
+        _n_vong = _max_tool_rounds()
+        for _vong in range(_n_vong):
             # Cache theo lối không-mutate (system dựng mới mỗi vòng, conv copy-khi-đánh-dấu)
             # → marker KHÔNG tích luỹ qua vòng tool, tối đa 3 breakpoint/request (trần API là 4).
             # Vòng tool là nơi cache lãi nhất: mỗi vòng 1 request chở lại nguyên system+tools+conv.
@@ -2486,7 +2543,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                                     "content": _clip_tool_result(res)})
                 guard.ghi([(tu.get("name"), json.dumps(tu.get("input") or {}, sort_keys=True,
                                                        ensure_ascii=False)) for tu in tool_uses])
-                nhac = guard.loi_nhac()
+                nhac = guard.loi_nhac() + _nhac_sap_het(_vong, _n_vong)
                 if nhac:
                     results[-1]["content"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
                 _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs

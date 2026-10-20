@@ -320,6 +320,43 @@ def nhan_nuoi_theo_tag(tag: str, brain_root: str, chat_id: str, *, hua: bool = F
     return [dict(v) for v in moi]
 
 
+def theo_doi_nhom(pgid: int, mo_ta: str, cwd: str, brain_root: str, chat_id: str) -> str:
+    """Nhận theo dõi NGAY một nhóm tiến trình Javis tự bật (terminal của engine API, 0.256.0).
+
+    Khác `nhan_nuoi_theo_tag`: không cần đợi hết lượt rồi dò nhóm còn sống, vì chính Javis bật
+    tiến trình và biết chắc mã nhóm. Trả mã việc (rỗng nếu không theo dõi được).
+    """
+    if not POSIX or not pgid or not chat_id:
+        return ""
+    v = {
+        "id": "j" + uuid.uuid4().hex[:8],
+        "pgid": int(pgid),
+        "mo_ta": str(mo_ta or "tiến trình nền")[:200],
+        "cwd": str(cwd or ""),
+        "brain_root": str(brain_root or ""),
+        "chat_id": str(chat_id or ""),
+        "bat_dau": time.time(),
+        "trang_thai": "run",
+        "sau_khi_xong": _lay_loi_dan(chat_id),
+        "noi_tiep": False,
+        "do_sau": 0,
+    }
+    v["noi_tiep"] = bool(v["sau_khi_xong"])
+    with _KHOA:
+        _VIEC[v["id"]] = v
+    _luu()
+    _dam_bao_vong()
+    return v["id"]
+
+
+def ngung_theo_doi(job_id: str) -> None:
+    """Bỏ một việc khỏi sổ, KHÔNG báo gì. Dùng khi chính model vừa dừng tiến trình đó: báo lại
+    "đã dừng việc chạy nền" cho thứ model vừa tự tay dừng là tin nhắn thừa."""
+    with _KHOA:
+        _VIEC.pop(str(job_id or ""), None)
+    _luu()
+
+
 # Tiến trình phụ của chính engine (máy chủ MCP chạy stdio) có khi nán lại một nhịp sau khi
 # engine thoát. Đó không phải "việc chạy nền" của người dùng: nhận nuôi là báo nhầm một cái
 # "việc đã xong sau 3 giây: node mcp-server...". Nhóm chỉ gồm những tiến trình kiểu này thì bỏ.

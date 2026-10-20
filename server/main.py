@@ -1167,63 +1167,8 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
             pass
     return "\n\n".join(x for x in parts if str(x).strip())
 
-# Redaction patterns - port subset từ hermes-agent/agent/redact.py.
-# Bảo vệ log_conversation() khỏi việc ghi vĩnh viễn API key / Telegram bot token /
-# JWT vào brain/memory/conversations/*.md khi user vô tình paste vào chat
-# (file này thường bị commit lên git → leak vĩnh viễn).
-_SECRET_PREFIX_RE = re.compile(
-    r"(?<![A-Za-z0-9_-])("
-    r"sk-[A-Za-z0-9_-]{10,}"             # OpenAI / Anthropic (sk-ant) / OpenRouter (sk-or)
-    r"|xai-[A-Za-z0-9]{20,}"             # xAI Grok
-    r"|gsk_[A-Za-z0-9]{10,}"             # Groq
-    r"|ghp_[A-Za-z0-9]{10,}"             # GitHub PAT classic
-    r"|gho_[A-Za-z0-9]{10,}"             # GitHub OAuth
-    r"|github_pat_[A-Za-z0-9_]{10,}"     # GitHub PAT fine-grained
-    r"|AIza[A-Za-z0-9_-]{30,}"           # Google API key
-    r"|hf_[A-Za-z0-9]{10,}"              # HuggingFace
-    r"|tvly-[A-Za-z0-9]{10,}"            # Tavily
-    r")(?![A-Za-z0-9_-])"
-)
-_JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_=-]{4,}){0,2}")
-_TELEGRAM_BOT_RE = re.compile(r"(bot)?(\d{8,}):([-A-Za-z0-9_]{30,})")
-_AUTH_HEADER_RE = re.compile(r"(authorization\s*:\s*)([A-Za-z][\w.+-]*\s+)?(\S+)", re.IGNORECASE)
-_DB_CONN_RE = re.compile(
-    r"((?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^:\s]+:)([^@\s]+)(@)",
-    re.IGNORECASE,
-)
-
-def _mask_secret(token: str) -> str:
-    """head6...tail4 nếu đủ dài, ngược lại '***' để không leak token ngắn."""
-    if not token or len(token) < 18:
-        return "***"
-    return f"{token[:6]}...{token[-4:]}"
-
-def _redact_secrets(text: str) -> str:
-    """Mask API key / Telegram token / JWT / DB password trước khi ghi log.
-
-    Cheap substring pre-check trước mỗi regex để không phí cycle trên dòng
-    text bình thường (pattern Hermes - ~3x faster trên log thông thường).
-    """
-    if not text or not isinstance(text, str):
-        return text
-    if "eyJ" in text:
-        text = _JWT_RE.sub(lambda m: _mask_secret(m.group(0)), text)
-    if any(s in text for s in ("sk-", "xai-", "gsk_", "ghp_", "gho_", "github_pat_", "AIza", "hf_", "tvly-")):
-        text = _SECRET_PREFIX_RE.sub(lambda m: _mask_secret(m.group(1)), text)
-    if ":" in text:
-        def _redact_tg(m):
-            prefix = m.group(1) or ""
-            digits = m.group(2)
-            return f"{prefix}{digits}:***"
-        text = _TELEGRAM_BOT_RE.sub(_redact_tg, text)
-    if "uthorization" in text:
-        text = _AUTH_HEADER_RE.sub(
-            lambda m: m.group(1) + (m.group(2) or "") + _mask_secret(m.group(3)),
-            text,
-        )
-    if "://" in text:
-        text = _DB_CONN_RE.sub(lambda m: f"{m.group(1)}***{m.group(3)}", text)
-    return text
+# Redaction patterns: chuyển sang secret_redact.py ở 0.256.0 (terminal của engine API dùng chung).
+from secret_redact import redact_secrets as _redact_secrets  # noqa: E402
 
 # Cap kích thước mỗi message khi ghi conversation log - port head/tail truncation
 # từ hermes-agent/agent/prompt_builder.py::_truncate_content. conversations/*.md là
@@ -3069,13 +3014,41 @@ _API_TOOL_PROVIDERS = ("openrouter", "openai", "anthropic-api", "gemini", "groq"
                        "ollama-local", "openai-compat", "anthropic-compat")
 
 
+def _coding_ctx_luot(row):
+    """Ngữ cảnh Coding của lượt (thư mục làm việc, mức quyền), hoặc None ở mọi phiên khác.
+
+    Chỉ phiên của trang Coding. Phiên chat thường có ghim thư mục (0.158.0) vẫn để tool file của
+    engine API gốc ở brain như cũ, đúng như `coding_store.pinned_folder_prompt` đã hứa."""
+    try:
+        if row and str(row.get("channel") or "").startswith("coding:"):
+            import coding_ctx
+            ctx = coding_ctx.for_session(row.get("id") or "")
+            return ctx if ctx.active else None
+    except Exception as e:
+        print(f"[coding ctx] {type(e).__name__}: {e}", file=sys.stderr)
+    return None
+
+
 async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=None,
-                          force_lazy=False, mode="full"):
+                          force_lazy=False, mode="full", coding_row=None):
     """Model API/OAuth dùng MCP của Javis qua HUB: đa tài khoản + quyền + audit + builtin tools
     (file vault, use_skill) → engine API cũng là agent thực thụ. anthropic-api giờ CÓ tool loop.
-    ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
+    ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này.
+
+    `coding_row` (0.256.0): dòng phiên của lượt. Phiên trang Coding thì hub nhận thư mục làm
+    việc và mức quyền của phiên: tool file chạm được vào repo, mức Tự động có javis_run_command,
+    mức Toàn quyền có terminal thật, có mốc khôi phục, và vòng tool có trần riêng. Trước bản này
+    không chỗ nào truyền thư mục làm việc vào hub, nên engine API trong phiên Coding thực ra
+    không đọc nổi một file nào của repo."""
     tools, route = [], {}
     inventory_tools, inventory_route = [], {}
+    _cctx = _coding_ctx_luot(coding_row) if prov in _API_TOOL_PROVIDERS else None
+    if _cctx is not None:
+        try:
+            import coding_checkpoint
+            coding_checkpoint.luot_moi(_cctx.session_id)
+        except Exception:
+            pass
     if prov in _API_TOOL_PROVIDERS:
         try:
             if _hub_enabled():
@@ -3087,7 +3060,9 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                 # chuyên trách dựng tool ở chỗ khác và KHÔNG truyền cờ này - khách lạ vẫn chỉ
                 # thấy brain của bot.
                 tools, route = await mcp_hub.discover_all(
-                    mode, vault_root=vault_root, force_lazy=force_lazy, staging=True
+                    mode, vault_root=vault_root, force_lazy=force_lazy, staging=True,
+                    workspace_root=list(_cctx.workspace_roots) if _cctx is not None else None,
+                    coding_ctx_cua_phien=_cctx,
                 )
                 inventory_tools, inventory_route = mcp_hub.registry_inventory(
                     mode, vault_root=vault_root, force_lazy=force_lazy, staging=True)
@@ -3109,6 +3084,11 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
             _trace, brain, inventory_tools or tools, inventory_route or route,
             _last_user_text(messages), prov, model or "?", kind="api",
         )
+    def _boc(gen):
+        # Phiên Coding (0.256.0): mọi vòng bên trong chạy với trần vòng và trần kết quả tool của
+        # Coding. Generator chưa chạy dòng nào cho tới khi được lặp, nên bọc sau khi tạo vẫn đúng.
+        return engine.chay_trong_phien_coding(lambda: gen) if _cctx is not None else gen
+
     if tools:
         # Vòng tool cũng được chạy lại khi gãy tạm thời, nhưng chỉ tới khi nó chạy tool ĐẦU
         # TIÊN: từ đó trở đi lượt này đã để lại dấu vết ngoài đời (ghi file, gửi tin, đặt
@@ -3132,10 +3112,10 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                 return engine.anthropic_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama-local":
-            return engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route)
+            return _boc(engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route))
 
         if prov in ("openrouter", "openai", "anthropic-api", "anthropic-compat", "gemini", "groq", "deepseek", "ollama", "openai-compat"):
-            return engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool")
+            return _boc(engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool"))
     return _api_stream(prov, key, model, messages, reasoning)
 
 
@@ -16665,6 +16645,12 @@ async def websocket_endpoint(ws: WebSocket):
                             gen = await _api_stream_mcp(
                                 prov, api_key, api_model, or_messages, reasoning, brain=brain,
                                 force_lazy=(_phase8_plan.action == "use" or _attempt > 1),
+                                # 0.256.0: phiên trang Coding chạy theo chip quyền của phiên (và
+                                # /plan hạ lượt xuống suggest), như engine CLI ở cùng trang.
+                                mode=(_muc_quyen_luot_chat(_row0, user_message)
+                                      if str((_row0 or {}).get("channel") or "").startswith("coding:")
+                                      else "full"),
+                                coding_row=_row0,
                             )
                             async for ev in gen:
                                 if ev["type"] == "meta":
@@ -18568,6 +18554,15 @@ async def sessions_rename(session_id: str, title: str = Form(...)):
 @app.post("/sessions/{session_id}/delete")
 async def sessions_delete(session_id: str):
     get_store().delete(session_id)
+    # 0.256.0: terminal của engine API giữ tiến trình nền, thư mục và biến môi trường theo phiên,
+    # kho mốc khôi phục giữ ref theo phiên. Phiên mất thì dọn theo, kẻo dev server chạy mãi.
+    try:
+        import coding_terminal
+        import coding_checkpoint
+        await asyncio.to_thread(coding_terminal.don_phien, session_id)
+        await asyncio.to_thread(coding_checkpoint.don_phien, session_id)
+    except Exception:
+        pass
     # Phase 8 state is a disposable projection; purge it with the source transcript.
     if _ADAPTIVE_CONTEXT is not None:
         try:
