@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.239.0] - 2026-10-20
+### Thêm mới
+- **Theo dõi trang web không tốn token.** (đang viết)
+
 ## [0.238.0] - 2026-10-20
 ### Sửa lỗi
 - **Việc nền chạy lại không còn gửi tin, đăng bài hay tạo đơn hai lần.** Việc nền chạy lại khi gặp lỗi tạm thời, khi máy chủ khởi động lại hoặc khi bạn bấm Thử lại, và trước đây mỗi lần như vậy là làm lại từ đầu, kể cả tin đã gửi cho khách. Giờ Javis ghi sổ từng thao tác ra ngoài của việc: cái gì đã làm xong thì lần sau bỏ qua.
