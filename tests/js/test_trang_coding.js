@@ -296,6 +296,8 @@ check("bề rộng hẹp thì cột hội thoại thành ngăn kéo (luật củ
   || /\.chatpage\.side-thu \.chatpage-side/.test(CON));
 check("nút thu gọn cột dùng đúng lớp của trang Trò chuyện",
   /cp-side-toggle/.test(CD) && /classList\.toggle\("side-thu"\)/.test(CD));
+check("the Code page column gets the same corner collapse/expand pair, after mount",
+  /JavisChatSide\.mount\(el\.querySelector\("#cdSide"\)[\s\S]{0,300}W\.JavisSideFoldButtons\(/.test(CD));
 check("chữ trên điện thoại không nhỏ hơn 16px",
   /@media \(max-width: 900px\)[\s\S]{0,400}\.cd-chip \{ font-size: 16px/.test(CSS)
   && /@media \(max-width: 900px\)[\s\S]{0,600}\.cd-menu button \{ font-size: 16px/.test(CSS)

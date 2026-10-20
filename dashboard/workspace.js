@@ -606,6 +606,12 @@
     var page = el.querySelector("#wsPage");
     el.querySelector("#wsLeftBtn").onclick = function () { page.classList.toggle("left-open"); };
     el.querySelector("#wsRightBtn").onclick = function () { datPhai(!phaiDangHien()); };
+    // 0.243.0: on a phone or a narrow window the right column is a drawer over the chat, so
+    // picking a conversation in its History tab closes it and the chat shows straight away,
+    // as the left list already does. A wide screen keeps the column open: there is room.
+    el.querySelector("#wsRightHistory").addEventListener("click", function (e) {
+      if (!manRong() && e.target.closest && e.target.closest(".cside-item")) datPhai(false);
+    });
     // Cột phải (Lịch sử, Công việc, Cài đặt) MẶC ĐỊNH ẨN ở màn rộng (0.142.0, chủ repo chốt 14/10/2026): khung chat rộng
     // ra, bấm nút ở góc phải là hiện; lựa chọn được nhớ. Màn hẹp thì cột phải vốn là ngăn kéo đóng sẵn, không đổi.
     if (manRong() && !nhoPhaiHien()) page.classList.add("right-open");

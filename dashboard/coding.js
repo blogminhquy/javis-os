@@ -134,8 +134,10 @@
         '<aside class="chatpage-side" id="cdSide"></aside>' +
         '<div class="chatpage-main">' +
           '<div class="chatpage-bar">' +
+            // Phone only, like the Chat page (0.243.0): opens the conversation drawer. On a
+            // computer the column folds with the button in its own corner instead.
             '<button class="cp-ico-btn cp-side-toggle" type="button" id="cdLeftBtn" title="' +
-              esc(t("coding.toggle_list")) + '">' + ic("history") + "</button>" +
+              esc(t("coding.toggle_list")) + '" aria-label="' + esc(t("coding.toggle_list")) + '">' + ic("panel-left") + "</button>" +
             // Chip gom nhóm hội thoại của trang Trò chuyện đậu vào đây, y như thanh tiêu đề
             // của trang đó. Thiếu ô này thì JavisChatSide.chip() không có chỗ để vẽ.
             '<span class="proj-chip-host"></span>' +
@@ -182,6 +184,9 @@
     // mở một phiên chat THƯỜNG, mà phiên thường thì không chạy trong thư mục nào cả.
     if (W.JavisChatSide && W.JavisChatSide.mount) {
       W.JavisChatSide.mount(el.querySelector("#cdSide"), { kenh: S.kenh, onNew: moPhienMoi });
+      // The collapse/expand pair in the column itself, the same as on the Chat page. Added
+      // after mount, which rewrites the column and would drop them.
+      if (W.JavisSideFoldButtons) W.JavisSideFoldButtons(el.querySelector("#cdPage"), el.querySelector("#cdSide"));
       try { W.JavisChatSide.chip(); } catch (e) {}
     }
     // Xoay ngang điện thoại, hoặc kéo cửa sổ qua ngưỡng 860px, là dải chip phải ĐỔI BÊN

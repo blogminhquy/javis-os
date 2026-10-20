@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.246.0] - 2026-10-20
+### Cải thiện
+- **Bỏ nút Lịch sử (hình đồng hồ) trên khung chat.** Nút này làm đúng việc của nút thu gọn ở góc cột Hội thoại, nên trên máy tính giờ chỉ còn nút thu gọn đó. Áp dụng cho trang Trò chuyện và trang Code.
+- **Trên điện thoại, nút mở cột hội thoại đổi thành biểu tượng thu gọn/mở rộng.** Mở ra thì góc cột có nút thu gọn để đóng lại, không phải với tay lên thanh trên.
+- **Điện thoại: chạm vào một hội thoại là cột tự thu gọn** để hiện ngay nội dung. Trang Cộng sự giờ cũng vậy khi chọn hội thoại ở tab Lịch sử bên phải. Máy tính giữ nguyên cột vì đủ chỗ.
+
 ## [0.244.0] - 2026-10-20
 ### Thêm mới
 - **Truy cập từ xa có thêm lựa chọn Tailscale.** Máy đã cài Tailscale thì chọn Tailscale, bấm Bật là có link `https://...ts.net` riêng tư: chỉ máy của bạn (cài Tailscale cùng tài khoản) mở được, không lộ ra Internet. Javis tự chạy `tailscale serve`, không cần gõ lệnh.
