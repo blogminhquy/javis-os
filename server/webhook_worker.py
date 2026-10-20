@@ -826,6 +826,8 @@ class WebhookWorker:
         lock = locks.setdefault(str(ev.get("hook_id") or ""), asyncio.Lock())
         async with lock:
             await self._notify_one(ev)
+        # Sending goes over the network: never while holding the hook's lock (the pump would wait behind it).
+        await self.deliver_notifications()
 
     async def _notify_one(self, ev: dict) -> None:
         """Queue the owner notice of a finished event under the modes (spec §12). The dedup key names the ATTEMPT
@@ -860,7 +862,7 @@ class WebhookWorker:
                     await self._enqueue(f"wh:{hid}:{ev['id']}:{fence}", "event", msg, h, ev["id"], mark, status)
                     if later:
                         await asyncio.to_thread(st.meta_set, *later[0])
-                    await self.deliver_notifications()
+                    pass   # delivered by _notify, outside the hook's lock
                     return
             await asyncio.to_thread(st.mark_notified, ev["id"], fence)
             return
@@ -875,7 +877,7 @@ class WebhookWorker:
                                         "lỗi.", f"Webhook \"{name}\" runs normally again after {cur.get('count', 1)} "
                                         "failures.")
                     await self._enqueue(f"whr:{hid}:{ev['id']}", "recovered", msg, h, ev["id"], mark, "done")
-                    await self.deliver_notifications()
+                    pass   # delivered by _notify, outside the hook's lock
                     return
             await asyncio.to_thread(st.mark_notified, ev["id"], fence)
             return
@@ -928,7 +930,7 @@ class WebhookWorker:
         await self._enqueue(dkey, "event", msg, h, ev["id"], mark, status)
         if inc_later:
             await asyncio.to_thread(st.meta_set, *inc_later[0])
-        await self.deliver_notifications()
+        pass   # delivered by _notify, outside the hook's lock
 
     async def _digest(self, now: Optional[float] = None) -> int:
         """`daily_digest`: once a day after DIGEST_HOUR in the hook's time zone (its `digest_timezone`, else the

@@ -46,7 +46,7 @@ def scrub(v, key: str = "", pii: bool = False, product: bool = False):
         return "REDACTED"
     if product and k in PRODUCT_KEYS and not pii:
         return v
-    pii = pii or any(x in k for x in wt._PII_KEYS)
+    pii = pii or any(x in k for x in wt._PII_KEYS) or "tel" in wt._key_words(key)
     if isinstance(v, dict):
         return {kk: scrub(vv, kk, pii, product) for kk, vv in v.items()}
     if isinstance(v, list):

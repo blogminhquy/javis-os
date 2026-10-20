@@ -1315,6 +1315,16 @@ async def fix_review_four():
           not any(x in flat for x in ("190312345678", "1903123456", "79201234567", "79201234568", "700001"))
           and m["customer"]["total_orders"] == 4 and m["customer"]["shippingCost"] == 15000
           and m["shipping_fee"] == 30000 and m["order_number"] == 1001, flat)
+    # R12 P1 (review of R11): an identity key masks every number under it; generic words are not amounts.
+    m2 = wt.mask({"customer": {"custom_fields": [{"name": "CCCD", "value": 79123456789}]},
+                  "contact": {"phone": {"value": 84912345678}}, "buyer": {"tax_number": 312345678, "taxNo": 312345679},
+                  "order": {"bank_fee": 12000, "hotel_nights": 3, "hotel": "Rex"}, "shop": {"tel": "0912345678"}})
+    flat2 = json.dumps(m2, ensure_ascii=False)
+    check("R12 P1: a CCCD in a name/value custom field, a phone's value and tax numbers are masked; a bank fee and "
+          "hotel nights are not; `tel` is a whole word (hotel is not a phone)",
+          not any(x in flat2 for x in ("79123456789", "84912345678", "312345678", "312345679", "0912345678"))
+          and m2["order"]["bank_fee"] == 12000 and m2["order"]["hotel_nights"] == 3 and m2["order"]["hotel"] == "Rex",
+          flat2)
     # R11 P3: two events of one hook told at once make one incident notice, not two.
     hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
                          rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,

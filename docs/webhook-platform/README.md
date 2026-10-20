@@ -262,7 +262,8 @@ they are fixed in the next commit and pinned in `fix_review_two()`, each red on 
 hangs there, so it was run on its own). The reviewer of that commit (R10, at f4817a74) found one P1 and four P2; fixed
 in the next commit and pinned in `fix_review_three()`, each red on the server code of f4817a74 (the re-import row
 spins there and was left out of that run). Its reviewer (R11, at a3e2ee07) found no P1 and one P2, fixed next and
-pinned in `fix_review_four()`, red on the server code of a3e2ee07.
+pinned in `fix_review_four()`, red on the server code of a3e2ee07. A final reviewer (R12, at 96507d00) found one P1 in
+that masking change and no P2; fixed next and pinned in the same function.
 
 | Finding | Fix |
 |---|---|
@@ -327,4 +328,6 @@ pinned in `fix_review_four()`, red on the server code of a3e2ee07.
 | R11 (review of the R10 fixes, at a3e2ee07) P2 amount words matched inside other words, so `bank_account`, `account_number`, `tax_code` and `so_giay_to` under a person were shown | amount words match whole words of the key only; bank, account, tax id and document keys are identity numbers, checked first |
 | R11 P3 (fixed) | notices of one hook are decided one at a time (read the incident, queue the notice, write the state), so two events failing together are one notice |
 | R11 P3 (noted) | a failed AI run that never reached the model (the CLI is missing) also counts as maybe acted: its deleted event keeps the order's key (safe side: no double effect); a crash between queueing a notice and writing the incident state can tell the next failure once more; ids and points under a customer block are masked in the masked view (the audited raw view shows them) |
+| R12 (final review, at 96507d00) P1 R11 made `value`, `sum`, `balance` amount words, so a CCCD in a name/value custom field and a phone's `value` showed | generic words are not amounts; an identity key masks every number under it (inherited down the tree); tax numbers are identity keys |
+| R12 P3 (fixed) | `tel` matches as a whole word (a hotel is not a phone); notices are sent after the hook's lock is released (the pump never waits behind network sends) |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |

@@ -79,21 +79,24 @@ AUTH_FAIL_MAX = 30            # failed auths per address per minute: past it tha
 # only decide how a FAILING request is answered, and whether the body of a signature-checked hook is read at all.
 TASK_INTRO = "NHIỆM VỤ TỪ WEBHOOK - một hệ thống bên ngoài vừa gửi sự kiện tới."
 DEFAULT_LEVEL = "full"   # same reasoning as reminders.MUC_QUYEN_MAC_DINH: the owner wrote the job out
-_PII_KEYS = ("name", "phone", "email", "address", "mobile", "tel", "sdt", "ho_ten", "hoten", "dia_chi", "diachi",
+_PII_KEYS = ("name", "phone", "email", "address", "mobile", "sdt", "ho_ten", "hoten", "dia_chi", "diachi",
              "customer", "contact", "bill_", "shipping", "first_name", "last_name", "surname", "birth", "cmnd", "cccd",
              "zalo", "facebook", "note",
              # 0.241.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
              "khach", "nguoi_nhan", "nguoinhan", "nguoi_gui", "recipient", "receiver", "buyer", "sender", "full_name",
              "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob")
-# Identity numbers, matched anywhere in the key and checked first (bank accounts and tax codes included).
-_ID_NUMBER_KEYS = ("phone", "mobile", "tel", "sdt", "dien_thoai", "dienthoai", "cccd", "cmnd", "zalo", "whatsapp",
-                   "viber", "facebook", "id_card", "id_number", "passport", "national_id", "dob", "birth", "account",
-                   "bank", "stk", "tai_khoan", "taikhoan", "tax_id", "tax_code", "taxcode", "mst", "giay_to", "giayto")
+# Identity numbers, matched anywhere in the key (bank accounts and tax numbers included). They win over everything,
+# and every number UNDER such a key is masked too (`phone: {value: 849...}`, `cccd: [...]`).
+_ID_NUMBER_KEYS = ("phone", "mobile", "sdt", "dien_thoai", "dienthoai", "cccd", "cmnd", "zalo", "whatsapp",
+                   "viber", "facebook", "id_card", "id_number", "passport", "national_id", "dob", "birth", "stk",
+                   "tai_khoan", "taikhoan", "tax_id", "taxid", "tax_code", "taxcode", "tax_n", "taxn", "tax_no",
+                   "taxno", "mst", "giay_to", "giayto", "bank_account", "bankaccount", "account_n", "accountn",
+                   "account_no", "accountno")
 # Under a person's block, a number is theirs unless one WHOLE word of its key names an amount or a count
-# (`shipping_fee`, `total_orders`), never a part of a word (`account` is not `count`, `postcode` is not `cod`).
+# (`shipping_fee`, `total_orders`), never a part of a word (`account` is not `count`, `postcode` is not `cod`). Generic
+# words (`value`, `sum`, `balance`) are not amounts: a custom field `{name: "CCCD", value: 79...}` stays masked.
 _AMOUNT_WORDS = frozenset(("fee", "fees", "total", "subtotal", "amount", "price", "qty", "quantity", "count", "tien",
-                           "phi", "gia", "luong", "discount", "tax", "cod", "weight", "orders", "cost", "value", "sum",
-                           "balance", "paid", "points"))
+                           "phi", "gia", "luong", "discount", "cod", "weight", "orders", "cost", "paid"))
 
 
 def _key_words(key: str) -> set:
@@ -210,7 +213,7 @@ def _mask_text(s: str) -> str:
                   lambda m: "•" * max(0, len(re.sub(r"\D", "", m.group(1))) - 3) + re.sub(r"\D", "", m.group(1))[-3:], s)
 
 
-def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
+def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False, ident: bool = False) -> Any:
     """Customer data and credentials masked for the dashboard (spec §12: masked by default; the raw view is a separate,
     audited request). Keys that name a person, a phone, an address... are masked whole, and so is every text UNDER such
     a key (`customer.full`, `shipping.line1`: the inner key names nothing, the block is the customer's); credentials
@@ -220,11 +223,12 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
         return "…"
     if any(x in k for x in _SECRET_KEYS):
         return "••••"
-    pii = pii or any(x in k for x in _PII_KEYS)
+    pii = pii or any(x in k for x in _PII_KEYS) or "tel" in _key_words(key)
+    ident = ident or any(x in k for x in _ID_NUMBER_KEYS) or "tel" in _key_words(key)    # `tel`, not `hotel`
     if isinstance(v, dict):
-        return {kk: mask(vv, kk, depth + 1, pii) for kk, vv in v.items()}
+        return {kk: mask(vv, kk, depth + 1, pii, ident) for kk, vv in v.items()}
     if isinstance(v, list):
-        return [mask(x, key, depth + 1, pii) for x in v]
+        return [mask(x, key, depth + 1, pii, ident) for x in v]
     if isinstance(v, str):
         if pii and v:
             return v[:1] + "•" * min(max(len(v) - 1, 1), 12)
@@ -232,7 +236,7 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
     # A number that identifies a person (a phone, a CCCD, a Zalo id) is masked; amounts (a shipping fee, a bill
     # total) and counts stay readable.
     if isinstance(v, (int, float)) and not isinstance(v, bool) and (
-            any(x in k for x in _ID_NUMBER_KEYS) or (pii and not (_key_words(key) & _AMOUNT_WORDS))):
+            ident or (pii and not (_key_words(key) & _AMOUNT_WORDS))):
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:]
     return v
