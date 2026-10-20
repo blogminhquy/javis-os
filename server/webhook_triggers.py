@@ -319,6 +319,9 @@ def keep_leaf(key: str, v: Any, pii: bool, ident: bool, product: bool) -> bool:
                 import re
                 _TIME_TEXT = re.compile(r"[\d\s:./TZ+\-]{4,40}")
             return bool(_TIME_TEXT.fullmatch(v))
+        if hit and hit <= {"status", "state", "type", "kind", "method", "channel", "action", "event", "topic"}:
+            # A status is a short code (`paid`, `cho_xac_nhan`); a sentence under it (`status_reason`) is free text.
+            return len(v) <= 40 and not any(ch.isspace() for ch in v)
         return bool(hit)
     return bool(words & _SAFE_WORDS)
 

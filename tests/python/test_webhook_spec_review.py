@@ -1425,11 +1425,10 @@ async def fix_review_four():
                                "quantifier": "any"},
                               {"path": "note", "op": "empty"}]}}
     fx16, k16, ref16 = wc2.restore_paths(wc2.scrub(d16), d16, wc2.rule_paths(r16), wc2.rule_operands(r16))
-    dec16 = wr.evaluate(wr.validate(r16), json.dumps(fx16).encode(), "application/json")["decision"]
-    check("R16 P2: a value equal to the owner's own constant is written back as that constant (the barcode the rule "
-          "names), never altered by the phone masking; an empty text stays empty; the decision is the real one",
-          "line_items[*].variation_info.barcode" in k16 and fx16["note"] == "" and dec16 == "run",
-          (k16, ref16, fx16["note"], dec16))
+    check("R16 P2: a value the phone masking would alter (a barcode) is never written, even when it equals the "
+          "owner's constant (it could be a customer's number the owner listed): reported as not kept; an empty text "
+          "stays empty", "line_items[*].variation_info.barcode" in ref16 and fx16["note"] == ""
+          and "8936012345678" not in json.dumps(fx16), (k16, ref16, fx16["note"]))
     fx16b, k16b, ref16b = wc2.restore_paths(wc2.scrub(d16), d16, ["line_items[*].variation_info.barcode"], {})
     check("R16 P2: without such a constant, a value the phone masking would alter is reported as not kept",
           ref16b == ["line_items[*].variation_info.barcode"] and "8936012345678" not in json.dumps(fx16b), ref16b)
@@ -1454,6 +1453,26 @@ async def fix_review_four():
     check("R17 P3: a time word keeps only a time; created_by, card expiry, fb_id and conversation_id are hidden",
           not [x for x in ("12 Le Loi", "Nguyen Van A", "2030", "123456789", "1234_5678") if x in t17]
           and m17["created_at"] == "2026-10-19 10:00:00 +0700", t17)
+    # R18 (review of R17): a constant is written only when every condition on the path answers the same on it as on
+    # the real value; never a value the e-mail or phone masking would change.
+    C18 = lambda op, v, **k: dict(path="message", op=op, value=v, **k)
+    got18 = [wc2._operand_text(raw, conds) for raw, conds in (
+        ("toi muon mua linh chi", [C18("contains", "Linh")]),
+        ("Toi ten Linh", [C18("starts_with", "Linh")]),
+        ("Đơn gấp giao chiều", [C18("starts_with", "Đơn"), C18("contains", "gấp")]),
+        ("Linh oi", [C18("contains", "Linh"), C18("ne", "Linh")]),
+        ("an.nguyen@gmail.com", [C18("in", ["an.nguyen@gmail.com", "khac"])]))]
+    check("R18 P2: case, starts_with, two conditions and ne keep the real decision or are not kept; a listed e-mail is "
+          "never written", got18[0] not in (None, "Linh") and got18[1] not in (None, "Linh") and got18[2] == "Đơn gấp"
+          and got18[3] is None and got18[4] is not None and "@" not in got18[4], got18)
+    m18 = wt.mask_payload({"status": "paid", "status_reason": "Toi muon huy vi giao cham"})
+    check("R18 P3: a status code shows; a sentence under a status word is hidden", m18["status"] == "paid"
+          and "Toi muon huy" not in json.dumps(m18, ensure_ascii=False), m18)
+    # Startup: main registers the webhook routes lazily; the table must match the feature's own routes.
+    import webhook_lazy as wl
+    real = [(r.path, sorted(r.methods)[0], r.name) for r in f.router.routes]
+    check("startup: webhook_lazy.ROUTES lists the feature's routes in the same order, methods and names",
+          list(wl.ROUTES) == real, [x for x in zip(wl.ROUTES, real) if x[0] != x[1]][:3])
     # R11 P3: two events of one hook told at once make one incident notice, not two.
     hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
                          rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,

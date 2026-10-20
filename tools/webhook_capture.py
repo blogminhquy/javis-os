@@ -99,13 +99,13 @@ def rule_paths(rules: dict, actions: Optional[list] = None) -> list:
 
 
 def rule_operands(rules: dict, actions: Optional[list] = None) -> dict:
-    """{path: [(op, value)]} of the conditions in the filter and the actions' `when`: the constants the OWNER wrote."""
+    """{path: [condition]} of the conditions in the filter and the actions' `when`: the constants the OWNER wrote."""
     out: dict = {}
 
     def walk(x):
         if isinstance(x, dict):
             if isinstance(x.get("path"), str) and "op" in x:
-                out.setdefault(x["path"], []).append((str(x.get("op") or "eq"), x.get("value")))
+                out.setdefault(x["path"], []).append(x)
             for v in x.values():
                 walk(v)
         elif isinstance(x, list):
@@ -119,19 +119,36 @@ def rule_operands(rules: dict, actions: Optional[list] = None) -> dict:
 
 
 def _operand_text(raw: str, conds: list):
-    """A text the rules compare, written as the owner's own constant instead of the customer's text, so the fixture
-    keeps the decision without the customer's words: `eq`/`in` keep the value only when it IS one of the constants;
-    `contains`/`starts_with`/`ends_with` write the constant itself. Anything else: None (not kept)."""
-    for op, val in conds:
-        vals = val if isinstance(val, list) else [val]
-        strs = [v for v in vals if isinstance(v, str)]
-        if op in ("eq", "in") and raw in strs:
-            return raw
-        if op in ("contains", "starts_with", "ends_with"):
-            low = raw.lower()
-            hit = [v for v in strs if v and v.lower() in low]
-            if hit:
-                return hit[0]
+    """A text the rules compare, written as the owner's own constants instead of the customer's text. A candidate is
+    accepted only if EVERY condition on that path gives the same answer on it as on the real value (case, starts_with,
+    ends_with, ne and several conditions included); the real value itself only when it is one of the owner's `eq`/`in`
+    constants and the e-mail and phone masking leaves it whole. Anything else: None (the path is not kept)."""
+    def results(v):
+        out = []
+        for c in conds:
+            op = str(c.get("op") or "eq")
+            cs = c.get("case_sensitive", c.get("case", True))
+            cs = bool(cs) if not isinstance(cs, str) else cs != "insensitive"
+            out.append(webhook_rules._test_one(op, v, c.get("value"), cs))
+        return out
+    want = results(raw)
+    consts = []
+    for c in conds:
+        vals = c.get("value") if isinstance(c.get("value"), list) else [c.get("value")]
+        consts += [(str(c.get("op") or "eq"), v) for v in vals if isinstance(v, str) and v]
+    cands = []
+    if any(op in ("eq", "in") and v == raw for op, v in consts) and _show_capture(raw) == raw:
+        cands.append(raw)
+    pre = [v for op, v in consts if op == "starts_with"]
+    mid = [v for op, v in consts if op == "contains"]
+    suf = [v for op, v in consts if op == "ends_with"]
+    cands += [v for _, v in consts]
+    cands.append(" ".join(pre[:1] + mid + suf[:1]))
+    cands.append("x" * min(max(len(raw), 1), 12))      # the scrub's own placeholder, when the rules do not match it
+    for cand in cands:
+        # Never a value the e-mail and phone masking would change, even one the owner listed (a customer's e-mail).
+        if cand and _show_capture(cand) == cand and results(cand) == want:
+            return cand
     return None
 
 
@@ -152,8 +169,8 @@ def restore_paths(scrubbed, raw, paths: list, operands: Optional[dict] = None) -
             words = wt._key_words(sg)
             if any(x in k for x in wt._SECRET_KEYS) or wt.is_ident_key(sg):
                 return True
-            hits = [x for x in wt._PII_KEYS if any(x in f for f in wt._key_forms(sg))] + (["tel"] if "tel" in words else [])
-            if hits and not (product and hits == ["name"]):
+            hits = [x for x in wt._PII_KEYS if any(x in f for f in wt._key_forms(sg))]
+            if wt.is_pii_key(sg) and not (product and hits == ["name"] and not (words & {"tel", "ten", "by"})):
                 return True
             product = product or bool(words & wt._PRODUCT_PARENTS) or k in wt._PRODUCT_PARENTS
         return False
@@ -173,8 +190,8 @@ def restore_paths(scrubbed, raw, paths: list, operands: Optional[dict] = None) -
     def put(dst, src, segs, key, ok, product=False):
         if not segs:
             if not leaf_ok(key, src, product):
-                const = _operand_text(src, cur_ops[0]) if isinstance(src, str) and not isinstance(src, bool) \
-                    and cur_ops[0] and not (wt._key_words(key) & wt._LINK_WORDS) else None
+                const = _operand_text(src, cur_ops[0]) if isinstance(src, str) and cur_ops[0] \
+                    and not (wt._key_words(key) & wt._LINK_WORDS) else None
                 if const is None:
                     ok[0] = False
                     return dst

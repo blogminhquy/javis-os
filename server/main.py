@@ -11606,7 +11606,7 @@ tasks_feature.deps.learn_hook = learn_feature.enqueue_job
 # mode notify = nhắn lại · mode task = chạy engine (đọc MCP, ghi nháp) rồi báo. KHÔNG tiền/đơn.
 # ============================================================
 import reminders as reminders_mod
-import webhook_triggers
+import webhook_lazy  # the webhook routes; the platform itself loads at startup (keeps `import main` light)
 import incident_desk as incident_desk_mod
 import sentinel
 import change_receipt
@@ -11764,10 +11764,10 @@ async def _webhook_send(chat_id, text, viec=None, web="", brain="", dedup=""):
                                viec=viec, web=web, brain=brain, dedup=dedup)
 
 
-webhook_feature = webhook_triggers.register(app, webhook_triggers.WebhookDeps(
+webhook_feature = webhook_lazy.register(app, dict(
     state_dir=lambda: cfgmod.STATE_DIR,
     run_task=lambda brain, text, level: reminders_feature._run_task(
-        brain, text, level, intro=webhook_triggers.TASK_INTRO),
+        brain, text, level, intro=__import__("webhook_triggers").TASK_INTRO),
     run_workflow=_webhook_run_workflow,
     send=_webhook_send,
     base_url=lambda request: web_security.external_base(
