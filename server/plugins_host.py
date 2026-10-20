@@ -523,6 +523,7 @@ class LoadedPlugin:
         # Giữ lại mô tả của manifest để hub có cái mà GIỚI THIỆU plugin này trong thực đơn
         # tool lười. Xem `plugin_tools` bên dưới về lý do nó quan trọng.
         self.description = str(manifest.get("description") or "").strip()
+        self.min_mode = manifest.get("min_mode", "readonly")
         self.tools = ctx._tools
         self.hooks = ctx._hooks
         self.ctx = ctx
@@ -820,6 +821,8 @@ def invalidate() -> None:
 # Tool specs cho mcp_hub (build tươi mỗi discover_all theo mode)
 # ============================================================
 def _min_mode_ok(min_mode: str, mode: str) -> bool:
+    if str(mode or "").strip().lower() == "read_docs":
+        return min_mode == "readonly"
     eff = mcp_catalog.effective_perm("full", mode)   # readonly | safe | full (đã cap theo mode)
     rank = mcp_catalog.PERM_RANK
     return rank.get(eff, 2) >= rank.get(min_mode, 0)
@@ -936,20 +939,29 @@ def set_removed(slug: str, removed: bool) -> dict:
 
 
 def plugin_tools(mode: str = "full", vault_root: Optional[str] = None, *,
-                 scope_vault: bool = True) -> Tuple[List[dict], Dict[str, dict]]:
+                 scope_vault: bool = True, allowed_tools=None) -> Tuple[List[dict], Dict[str, dict]]:
     """(tools_spec, route) từ MỌI plugin đã nạp. mcp_hub merge vào discover_all.
     tools_spec: [{fn, server:'javis', name, description, schema}]. route: {fn: {'call': async fn}}.
 
     mode: mức quyền lượt chạy. vault_root: brain để ctx của plugin biết đang ở đâu.
     scope_vault=False: KHÔNG nạp plugin riêng-của-vault (chỉ bundled + global) nhưng ctx VẪN
     thấy vault_root. Tách hai nghĩa vì trước đây một chữ None gánh cả hai, làm ctx mù brain."""
+    document_only = str(mode or "").strip().lower() == "read_docs"
+    if document_only and not allowed_tools:
+        return [], {}
     ent = _load_all(vault_root, scope_vault)
     tools: List[dict] = []
     route: Dict[str, dict] = {}
     seen = set()
     for lp in ent["plugins"]:
+        if document_only and lp.min_mode != "readonly":
+            continue
         for t in lp.tools:
             fn = t["name"]
+            if allowed_tools is not None and fn not in allowed_tools:
+                continue
+            if document_only and t["min_mode"] != "readonly":
+                continue
             if fn in _RESERVED_TOOLS or fn in seen:
                 print(f"[plugins] tool '{fn}' ({lp.slug}) trùng tên - bỏ qua", file=sys.stderr)
                 continue

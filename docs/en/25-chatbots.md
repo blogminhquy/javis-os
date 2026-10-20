@@ -301,7 +301,7 @@ The bot is told: when a question needs specific information the pre-search did n
 
 **Why this level asks for no consent tick:** it takes nothing the pre-search did not already expose.
 
-- No write tool, no data source, no plugin, even if you connected many sources. Javis enforces this where tools are called, not with instructions.
+- By default, no write tool, connector or plugin appears, even if you connected many sources. Since 0.250.0, the owner can allow individual readonly plugin tools through `plugin_tools_read_docs`, described at the end of this page. Javis enforces this where tools are called, not with instructions.
 - The bot opens only files the pre-search already reads: not `memory/`, `inbox/` (customer uploads), skills, plugins or Javis' convention files, and also not `agents/` or `workflows/` (your internal instructions). The path a customer types is only compared against that list, so `../`, absolute paths and links pointing out of the brain open nothing.
 - Only the bot's own brain. Without it the bot gets no tools at all, rather than the brain you have open.
 
@@ -506,3 +506,15 @@ Click **Delete** on the card. The bot stops answering immediately.
 - [The Telegram channel](11-telegram.md) - your own personal Telegram bot, entirely different from the bots here.
 - [Second Brain](13-second-brain.md) - creating a brain and loading the documents the bot reads.
 - [Security and accounts](14-security-and-accounts.md) - how tokens are encrypted.
+
+## Allowing individual plugin tools for document-only bots
+
+Since 0.250.0, the owner can set `plugin_tools_read_docs` through the existing authenticated bot configuration endpoints. The default is an empty list, so existing document-only bots still get only their three document tools.
+
+For an existing bot, submit a form to `POST /chatbots/<bot_id>/update` with the field `plugin_tools_read_docs` set to the JSON string `["loi_giai_anh"]`. The creation endpoint `POST /chatbots/create` accepts the same form field. Reading the bot configuration returns a JSON array. Submit `[]` to revoke this access; malformed lists are rejected without saving any part of the update.
+
+Only explicitly named tools from enabled plugins can appear. Both the plugin manifest and the registered tool must declare `min_mode: readonly` (the default). Tool visibility, permission checks and audit hooks still apply. This setting does not grant connector, builtin, lazy-dispatch or owner-only tools, and it applies only at `read_docs`. Plugin code is still trusted server code: the owner must review a plugin before enabling it.
+
+The allowlist limits which tools the bot may call. Existing registration and shared hooks of enabled plugins remain unchanged; hooks may receive call arguments. The hub records both successful and refused calls even without the optional audit plugin.
+
+The API runtime passes the bot ID to the hub. Claude Code carries that ID in its bot-specific hub configuration; the hub reads the current stored allowlist and checks that the requested brain matches that bot. Two bots sharing a brain keep separate permissions. An absent bot ID or valid brain header grants no additional plugin tools.

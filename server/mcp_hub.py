@@ -1105,9 +1105,72 @@ def _store_mtime():
     return tong
 
 
+def _audit_document_plugin(entry, name):
+    """Record plugin calls even when the optional audit hook plugin is disabled."""
+    base_call = entry["call"]
+
+    async def call(args):
+        started = time.time()
+        result = "ERROR: plugin call did not complete"
+        try:
+            result = await base_call(args)
+            return result
+        finally:
+            failed = str(result).startswith("ERROR:")
+            _audit_append({"ts": datetime.now().isoformat(timespec="seconds"),
+                           "conn_id": entry.get("source_id"), "connector": "plugin",
+                           "label": entry.get("source_id"), "tool": name,
+                           "mode": chatbot_doc_tools.MODE, "cls": "read", "ok": not failed,
+                           "ms": int((time.time() - started) * 1000),
+                           "err": str(result)[:200] if failed else "",
+                           "args_keys": sorted((args or {}).keys()), **team_gate.audit_fields()})
+
+    return call
+
+
+async def _read_docs_tools(vault_root, bot_id="", include_plugins=True):
+    """Keep document bots isolated; only the stored bot allowlist can add plugin tools."""
+    tools, route = chatbot_doc_tools.build(vault_root)
+    if not route or not bot_id or not include_plugins:
+        return tools, route
+    import chatbot_store
+    bot = await asyncio.to_thread(chatbot_store.get_bot, bot_id)
+    if not bot:
+        return tools, route
+    # Match the stored bot brain, never a different bot sharing an HTTP hub config.
+    brain = bot.get("brain")
+    if not brain:
+        return tools, route
+    expected = (_brains_dir() / "Brain Default") if brain == "brain" else Path(brain or "")
+    if expected.resolve() != Path(vault_root).resolve():
+        return tools, route
+    allowed = set(bot.get("plugin_tools_read_docs") or []) - OWNER_ONLY_TOOLS - set(route)
+    if not allowed:
+        return tools, route
+    try:
+        import plugins_host
+        plugin_tools, plugin_route = await asyncio.to_thread(
+            plugins_host.plugin_tools, chatbot_doc_tools.MODE, vault_root, allowed_tools=allowed)
+        for tool in plugin_tools:
+            name = tool["fn"]
+            entry = plugin_route.get(name) or {}
+            if name not in allowed or entry.get("required_mode") != "readonly":
+                continue
+            entry = dict(entry)
+            if plugins_host.has_tool_hooks(vault_root):
+                entry["call"] = plugins_host.wrap_with_hooks(
+                    name, entry["call"], chatbot_doc_tools.MODE, vault_root)
+            entry["call"] = _audit_document_plugin(entry, name)
+            tools.append(tool)
+            route[name] = entry
+    except Exception as error:
+        print(f"[hub] document plugin tools: {type(error).__name__}: {error}", file=sys.stderr)
+    return tools, route
+
+
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
                        force_refresh=False, force_lazy=False, staging=False, workspace_root=None,
-                       coding_ctx_cua_phien=None, for_bot=False):
+                       coding_ctx_cua_phien=None, for_bot=False, bot_id=""):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
@@ -1121,11 +1184,10 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         Nhận cả DANH SÁCH: một phiên gắn được nhiều thư mục từ 0.63.9.
     Nằm TRONG khoá cache vì hai phiên coding khác repo phải thấy hai danh sách route khác nhau."""
     mode = (mode or "full").strip().lower()
-    # A bot at the "read_docs" level (0.80.0) gets its three document tools and NOTHING else: no
-    # connection, no builtin, no plugin, no lazy tier. Returned before any of those are discovered so
-    # a later change to them cannot leak into this level. See chatbot_doc_tools.
+    # Document tools plus explicitly allowed readonly plugin tools only, before connectors,
+    # builtins, the shared cache or the lazy tier can run. Missing allowlist keeps the old tools.
     if mode == chatbot_doc_tools.MODE:
-        return chatbot_doc_tools.build(vault_root)
+        return await _read_docs_tools(vault_root, bot_id, include_plugins)
     # Ngôn ngữ đọc từ CẤU HÌNH, không truyền từ lượt chat: danh sách tool được cache dùng chung
     # cho mọi lượt, nên nó không thể mang ngôn ngữ dò được của riêng một câu. Đổi lại, ngôn ngữ
     # phải nằm TRONG khoá cache - thiếu nó thì đổi ngôn ngữ ở trang Cài đặt xong vẫn nhận danh
@@ -1446,7 +1508,7 @@ def _chan_doan_thieu_brain(header_hong):
 
 
 async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, vault_root=None,
-                      vault_nguon="", vault_header_hong="", for_bot=False):
+                      vault_nguon="", vault_header_hong="", for_bot=False, bot_id=""):
     mid = msg.get("id")
     method = msg.get("method") or ""
     params = msg.get("params") or {}
@@ -1472,14 +1534,14 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
     if method == "tools/list":
         tools, _ = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
                                       include_ambient=include_ambient,
-                                      for_bot=for_bot)   # Claude/Codex có tool file native → không builtin file
+                                      for_bot=for_bot, bot_id=bot_id)   # Claude/Codex có tool file native → không builtin file
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [
             {"name": t["fn"], "description": (t.get("description") or t["fn"]),
              "inputSchema": t.get("schema") or {"type": "object", "properties": {}}}
             for t in tools]}}
     if method == "tools/call":
         _, route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
-                                      include_ambient=include_ambient, for_bot=for_bot)
+                                      include_ambient=include_ambient, for_bot=for_bot, bot_id=bot_id)
         name = params.get("name") or ""
         result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
@@ -1525,7 +1587,8 @@ async def handle_http(request):
     try:
         return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
                                      include_ambient=include_ambient,
-                                     raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
+                                     raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot,
+                                     bot_id=(request.headers.get("x-javis-bot-id") or "") if for_bot else "")
     finally:
         turn_context.reset(tok)
 
@@ -1543,7 +1606,7 @@ async def _handle_one_traced(msg, *args, **kwargs):
 
 
 async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=False,
-                          raw_vault=None, for_bot=False):
+                          raw_vault=None, for_bot=False, bot_id=""):
     """Đọc thân JSON-RPC của `request`, chạy qua hub, trả Response. KHÔNG xác thực gì cả.
 
     Tách khỏi `handle_http` để một cửa khác (ví dụ plugin tự lo OAuth qua `register_http`) đi
@@ -1565,13 +1628,13 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
         if isinstance(body, list):
             out = [r for r in [await _handle_one_traced(m, mode, include_plugins, include_ambient,
                                                         vault_root, vault_nguon, vault_header_hong,
-                                                        for_bot=for_bot)
+                                                        for_bot=for_bot, bot_id=bot_id)
                                for m in body] if r is not None]
             if not out:
                 return Response(status_code=202)
             return JSONResponse(out)
         res = await _handle_one_traced(body, mode, include_plugins, include_ambient, vault_root,
-                                       vault_nguon, vault_header_hong, for_bot=for_bot)
+                                       vault_nguon, vault_header_hong, for_bot=for_bot, bot_id=bot_id)
         if res is None:
             return Response(status_code=202)
         return JSONResponse(res)
@@ -1591,7 +1654,7 @@ def _has_connections():
         return False
 
 
-def claude_config_path(mode="full", vault_root=None, bot=False):
+def claude_config_path(mode="full", vault_root=None, bot=False, bot_id=""):
     """Ghi file --mcp-config 1 entry 'javis'. 0 connection bật → None (giữ hành vi cũ:
     không config → Claude dùng MCP sẵn của máy).
 
@@ -1627,6 +1690,9 @@ def claude_config_path(mode="full", vault_root=None, bot=False):
     if bot:
         headers["X-Javis-Bot"] = "1"
         hau_to += "_bot"
+        if bot_id:
+            headers["X-Javis-Bot-Id"] = str(bot_id)
+            hau_to += "_" + hashlib.sha1(str(bot_id).encode("utf-8")).hexdigest()[:10]
     p = STATE_DIR / f".mcp_hub_{mode}{hau_to}.json"
     # X-Javis-Engine=claude: báo hub đây là engine Claude (có tool native mcp__* của connector
     # tài khoản Claude) → javis_connections/lazy search kèm gợi ý ambient. Codex/engine API không gắn.

@@ -177,6 +177,7 @@ _da_goi = {}
 async def _discover_gia(mode="full", vault_root=None, **kw):
     _da_goi["mode"] = mode
     _da_goi["vault_root"] = str(vault_root or "")
+    _da_goi["bot_id"] = kw.get("bot_id")
     return ([{"fn": "javis_doc_file", "server": "javis", "name": "javis_doc_file",
               "schema": {"type": "object", "properties": {}}}],
             {"javis_doc_file": {"call": None}})
@@ -198,7 +199,7 @@ def _stream_khong_tool(prov, key, model, messages, reasoning="off"):
 
 def _lam_stream_co_tool(prov):
     def _fn(*a, **kw):
-        _goi.append({"prov": prov, "co_tool": True})
+        _goi.append({"prov": prov, "co_tool": True, "bot_id": kw.get("bot_id")})
 
         async def _gen():
             yield {"type": "tool_call", "name": "javis_doc_file"}
@@ -294,7 +295,7 @@ check("bản ghi THIẾU HẲN khoá muc_quyen -> không tool", _goi[-1]["co_too
 # ============================================================
 # 4. Mức đi thẳng xuống hub, cắm vào ĐÚNG brain của bot
 # ============================================================
-for m in ("auto",):
+for m in ("read_docs", "auto"):
     _goi.clear()
     _da_goi.clear()
     r = chay("openrouter", "api", {**BOT, "muc_quyen": m})
@@ -302,6 +303,12 @@ for m in ("auto",):
     check(f"mức '{m}' truyền THẲNG xuống hub, không qua bảng dịch", _da_goi.get("mode") == m)
     check(f"mức '{m}' cắm hub vào brain của BOT",
           _da_goi.get("vault_root") == str(main._brain_root("brain-bot")))
+    check(f"{m} carries the bot identity to API hub discovery", _da_goi.get("bot_id") == BOT["id"])
+
+_goi.clear()
+chay("anthropic-cli", "cli", {**BOT, "muc_quyen": "read_docs"})
+check("document bot identity reaches the Claude Code config builder",
+      bool(_goi) and _goi[-1].get("bot_id") == BOT["id"])
 
 
 # ============================================================

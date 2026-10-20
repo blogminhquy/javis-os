@@ -402,7 +402,7 @@ Bot được dặn: câu hỏi cần thông tin cụ thể mà phần tra sẵn 
 
 **Vì sao mức này không bắt tick đồng ý:** nó không lấy đi thứ gì phần tra sẵn chưa lấy.
 
-- Không có công cụ ghi nào, không gọi nguồn dữ liệu nào, không plugin, kể cả khi bạn đã đấu nhiều nguồn. Javis khoá ở tầng gọi công cụ, không phải bằng lời dặn.
+- Mặc định không có công cụ ghi, connector hay plugin, kể cả khi bạn đã đấu nhiều nguồn. Từ 0.250.0, chủ có thể cho phép riêng từng công cụ plugin readonly qua `plugin_tools_read_docs`, xem mục cuối trang. Javis khoá ở tầng gọi công cụ, không phải bằng lời dặn.
 - Bot chỉ mở được đúng những file mà phần tra sẵn vẫn tra: trừ `memory/`, `inbox/` (file khách gửi), skill, plugin, file quy ước của Javis, và thêm cả `agents/`, `workflows/` (hướng dẫn nội bộ của bạn). Đường dẫn khách gõ chỉ được so với danh sách đó, nên `../`, đường dẫn tuyệt đối hay file liên kết trỏ ra ngoài đều không mở được.
 - Chỉ đúng brain của bot. Thiếu thông tin brain thì bot không có công cụ nào, chứ không lấy brain bạn đang mở.
 
@@ -608,3 +608,15 @@ Vì sao theo Agent chứ không theo model chính: bot vốn đã mượn nguyê
 - [Kênh Telegram](11-telegram.md) - bot Telegram cá nhân của bạn, khác hẳn bot ở đây.
 - [Second Brain](13-second-brain-bo-nho-wiki.md) - tạo brain và nạp tài liệu cho bot đọc.
 - [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md) - token được mã hoá thế nào.
+
+## Cho phép riêng công cụ plugin ở mức Đọc tài liệu
+
+Từ 0.250.0, chủ có thể đặt `plugin_tools_read_docs` qua các endpoint cấu hình bot hiện có, có xác thực. Mặc định là danh sách rỗng, nên bot cũ vẫn chỉ có ba công cụ đọc tài liệu.
+
+Với bot đã có, gửi form tới `POST /chatbots/<bot_id>/update`, trường `plugin_tools_read_docs` mang chuỗi JSON `["loi_giai_anh"]`. Endpoint tạo `POST /chatbots/create` cũng nhận trường này. Khi đọc cấu hình, trường trả về là mảng JSON. Gửi `[]` để thu hồi quyền; danh sách sai định dạng bị từ chối và toàn bộ bản sửa không được lưu.
+
+Chỉ công cụ có tên chính xác trong danh sách, thuộc plugin đang bật, mới được xuất hiện. Cả manifest plugin và công cụ đăng ký phải có `min_mode: readonly` (giá trị mặc định). Điều kiện hiển thị, kiểm quyền và hook kiểm toán vẫn áp dụng. Không mở connector, builtin, công cụ gọi lười hay công cụ chỉ dành cho chủ; cấu hình chỉ áp dụng ở `read_docs`. Mã plugin vẫn là mã máy chủ được tin cậy, chủ cần kiểm plugin trước khi bật.
+
+Danh sách này giới hạn công cụ bot được gọi. Cơ chế nạp và hook chung của các plugin đang bật vẫn giữ như trước; hook có thể nhận tham số lời gọi. Hub ghi nhật ký cả lời gọi thành công lẫn bị từ chối, kể cả khi không bật plugin kiểm toán tùy chọn.
+
+Đường API truyền mã bot vào hub. Claude Code mang mã đó trong cấu hình hub riêng của từng bot; hub đọc danh sách hiện tại trong kho và kiểm brain phải khớp bot. Hai bot cùng brain vẫn có quyền riêng. Thiếu mã bot hoặc header brain hợp lệ thì không được thêm công cụ plugin.

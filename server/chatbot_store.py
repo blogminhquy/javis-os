@@ -555,6 +555,24 @@ def _co_token(b: dict) -> bool:
                for a in (b.get("accounts") or []))
 
 
+def parse_plugin_tools_read_docs(value: Any) -> tuple[list[str], str]:
+    """Accept an explicit list, or its JSON form from the bot update endpoint."""
+    if value is None or value == "":
+        return [], ""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (TypeError, ValueError):
+            value = None
+    if (not isinstance(value, list) or len(value) > 128
+            or any(not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)
+                   for name in value)):
+        return [], localefmt.chu(
+            "Danh sách công cụ plugin đọc tài liệu phải là mảng JSON gồm tên công cụ hợp lệ (tối đa 128).",
+            "Document plugin tools must be a JSON array of valid tool names (at most 128).")
+    return list(dict.fromkeys(value)), ""
+
+
 def _public(b: dict) -> dict:
     """Bản trả ra giao diện. KHÔNG bao giờ kèm token, kể cả dạng đã mã hoá."""
     out = {k: v for k, v in b.items() if k not in ("token", "token_enc")}
@@ -578,6 +596,7 @@ def _public(b: dict) -> dict:
     # None, và None rơi vào nhánh mặc định của người gọi chứ không phải nhánh mình chọn - ở đây
     # nhánh đó quyết định bot CÓ TOOL hay không, nên đoán sai một lần là cấp nhầm quyền.
     out.setdefault("muc_quyen", MUC_QUYEN_DEFAULT)
+    out["plugin_tools_read_docs"] = parse_plugin_tools_read_docs(out.get("plugin_tools_read_docs"))[0]
     # Cùng lý do: bot tạo trước 0.26.5 luôn là bot Telegram, và trường này lúc đó ghim cứng.
     out["channel"] = _clean_kenh(out.get("channel"))
     # Cùng lý do: bot tạo trước bản đa ngôn ngữ không có khoá này.
@@ -784,6 +803,9 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
     brain = str(data.get("brain") or "").strip()
     if not brain:
         return None, localefmt.chu("Thiếu brain riêng của bot", "Missing the bot's own brain")
+    plugin_tools_read_docs, error = parse_plugin_tools_read_docs(data.get("plugin_tools_read_docs"))
+    if error:
+        return None, error
     if can_xac_nhan(data.get("muc_quyen"), data.get("xac_nhan_rui_ro")):
         return None, _loi(LOI_CHUA_XAC_NHAN)
     if can_xac_nhan_doi_tuong(data.get("audience"), data.get("xac_nhan_rui_ro")):
@@ -835,6 +857,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "nguon_tra_loi": (data.get("nguon_tra_loi") if data.get("nguon_tra_loi") in NGUON
                               else NGUON_DEFAULT),
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
+            "plugin_tools_read_docs": plugin_tools_read_docs,
             "ngon_ngu": _clean_ngon_ngu(data.get("ngon_ngu")),
             "gio_truc": gio_truc,
             # None = not set by the owner (channel default, old group behaviour); see `clean_nhuong_tay`.
@@ -877,7 +900,7 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
-              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban")
+              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "plugin_tools_read_docs")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -885,6 +908,11 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
 
 
 def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
+    plugin_tools_read_docs = None
+    if "plugin_tools_read_docs" in patch:
+        plugin_tools_read_docs, error = parse_plugin_tools_read_docs(patch["plugin_tools_read_docs"])
+        if error:
+            return False, error
     # Cùng rào với lúc tạo, và đây mới là đường hay đi hơn: bot sống nhiều tháng ở mức chỉ đọc
     # rồi một hôm được nâng lên. Thiếu rào ở đây thì cả cái gate lúc tạo thành trang trí.
     if "muc_quyen" in patch and can_xac_nhan(patch.get("muc_quyen"), patch.get("xac_nhan_rui_ro")):
@@ -965,6 +993,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                         b["muc_quyen"] = nv
                 elif k == "ngon_ngu":
                     b["ngon_ngu"] = _clean_ngon_ngu(v)
+                elif k == "plugin_tools_read_docs":
+                    b[k] = plugin_tools_read_docs
                 elif k == "gio_truc":
                     b["gio_truc"] = gio_moi      # đã kiểm ở đầu hàm
                 elif k == "nhuong_tay_phut":

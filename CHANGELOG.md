@@ -4,11 +4,11 @@
 
 Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại **Cài đặt → Cập nhật**.
 
-Định dạng: mỗi phiên bản là một khối `## [0.250.0] - 2026-10-20
-### S?a l?i
-- Bot ch? ??c t?i li?u c? th? d?ng t?ng c?ng c? plugin ???c ch? cho ph?p ri?ng. Bot ch?a c?u h?nh v?n gi? nguy?n quy?n c?.
+Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
+## [0.250.0] - 2026-10-20
+### Sửa lỗi
+- Bot chỉ đọc tài liệu có thể dùng từng công cụ plugin được chủ cho phép riêng. Bot chưa cấu hình vẫn giữ nguyên quyền cũ.
 
 ## [0.248.0] - 2026-10-20
 ### Sửa lỗi

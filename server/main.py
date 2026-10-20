@@ -2961,7 +2961,7 @@ BOT_CAM_NATIVE = ["Bash", "BashOutput", "KillShell", "WebFetch", "WebSearch", "T
 
 
 def _claude_sub_stream_tools(model, messages, reasoning="off", *, brain=None, tag="bot",
-                            mode="full"):
+                            mode="full", bot_id=""):
     """Gói Claude Code CÓ tool, cho bot chuyên trách - thay `anthropic_chat_with_mcp(oauth_token=)`.
 
     Đường cũ an toàn nhờ MỘT sự thật kiến trúc: không engine nào của bot mở CLI, nên không con
@@ -2988,7 +2988,7 @@ def _claude_sub_stream_tools(model, messages, reasoning="off", *, brain=None, ta
                         model=_claude_api_model(model) or None)
     cli.javis_mode = mode
     cli.javis_vault = vault
-    cli.mcp_config = mcp_hub.claude_config_path(mode, vault_root=vault, bot=True)
+    cli.mcp_config = mcp_hub.claude_config_path(mode, vault_root=vault, bot=True, bot_id=bot_id)
     cli.mcp_strict = cli.mcp_config is not None
     # Lớp hai cho OWNER_ONLY_TOOLS (0.77.0): hub đã giấu nhờ header X-Javis-Bot, chặn thêm ở đây phòng hub đổi.
     cli.disallowed_tools = list(BOT_CAM_NATIVE) + [f"mcp__javis__{t}" for t in sorted(mcp_hub.OWNER_ONLY_TOOLS)]
@@ -21023,7 +21023,7 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
 # Bot ở mức Được ghi / Toàn quyền - CÓ tool
 # ============================================================
 def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
-                        *, brain=None, tag_bot="bot", muc_quyen="full"):
+                        *, brain=None, tag_bot="bot", muc_quyen="full", bot_id=""):
     """Vòng gọi tool cho một lượt bot, đủ CẢ TÁM bộ não.
 
     Vẫn giữ nguyên lời hứa gốc: đổi bộ não thì trải nghiệm không đổi. Nên hai gói thuê bao
@@ -21067,7 +21067,7 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
             # config riêng mang brain của bot, nên không phải chuyển danh sách schema sang.
             # Bốn lớp rào giữ đúng hợp đồng cách ly: xem `_claude_sub_stream_tools`.
             return _claude_sub_stream_tools(model, messages, reasoning, brain=brain,
-                                            tag=tag_bot, mode=muc_quyen)
+                                            tag=tag_bot, mode=muc_quyen, bot_id=bot_id)
         return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
 
     # Nhà cung cấp gãy tạm thời thì thử lại - nhưng dừng ngay khi tool đầu tiên đã chạy, vì từ
@@ -21100,7 +21100,7 @@ def _bot_full_prompt(brain, sys_bot, lang, conv_sid=""):
 
 
 async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
-                               progress, runtime_trace, brain, chat_id, muc_quyen, images=None):
+                               progress, runtime_trace, brain, chat_id, muc_quyen, images=None, bot_id=""):
     """Một lượt của bot ở mức **Đọc tài liệu** (read_docs), **Được ghi** (auto) hoặc **Toàn quyền** (full).
 
     Mức Đọc tài liệu (0.80.0) đi chung đường này, chỉ khác ở bộ tool: `mcp_hub.discover_all` trả về
@@ -21154,7 +21154,8 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     try:
         if not cli_khong_tool:
             # for_bot=True: khách lạ đang lái model, nên tool chỉ-của-chủ (bộ phán xử, 0.77.0) bị bỏ khỏi danh sách.
-            tools, route = await mcp_hub.discover_all(muc_quyen, vault_root=_brain_root(brain), for_bot=True)
+            tools, route = await mcp_hub.discover_all(
+                muc_quyen, vault_root=_brain_root(brain), for_bot=True, bot_id=bot_id)
     except Exception as e:
         print(f"[bot {prov} chat {chat_id}] nạp tool hỏng: {type(e).__name__}: {e}",
               file=__import__('sys').stderr)
@@ -21176,7 +21177,7 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
         """Một lần thử: vòng tool, rỗng thì chính lượt đó KHÔNG tool. Trả (out, loi, đã rơi về không-tool)."""
         out_, loi_ = await _bot_doc_stream(
             _bot_stream_co_tool(prov, api_key, api_model, gui_, reasoning, tools, route,
-                                brain=brain, tag_bot=f"bot:{chat_id}", muc_quyen=muc_quyen),
+                                brain=brain, tag_bot=f"bot:{chat_id}", muc_quyen=muc_quyen, bot_id=bot_id),
             progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
         if out_ or not tools:
             return out_, loi_, False
@@ -21338,7 +21339,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             return await _bot_tra_loi_co_tool(
                 text, sess=sess, sysprompt=_sys_bot, prov=prov, api_key=api_key,
                 api_model=api_model, reasoning=reasoning, progress=_p,
-                runtime_trace=runtime_trace, brain=brain, chat_id=chat_id, muc_quyen=_muc, images=_anh)
+                runtime_trace=runtime_trace, brain=brain, chat_id=chat_id, muc_quyen=_muc, images=_anh,
+                bot_id=str((bot or {}).get("id") or ""))
         else:
             return await _bot_tra_loi(text, sess=sess, sysprompt=_sys_bot,
                                       prov=prov, api_key=api_key, api_model=api_model,
@@ -22941,7 +22943,7 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           account_label: str = Form(""), reply_policy: str = Form(""),
                           gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
                           ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
-                          nhan_ket_ban: str = Form("")):
+                          nhan_ket_ban: str = Form(""), plugin_tools_read_docs: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -22979,6 +22981,7 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "xac_nhan_ngoai_le": ack_nl,
         # Tự nhận lời mời kết bạn và đọc lời giới thiệu (0.172.0, Zalo cá nhân): "1" = bật, mặc định tắt.
         "nhan_ket_ban": nhan_ket_ban,
+        "plugin_tools_read_docs": plugin_tools_read_docs,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
