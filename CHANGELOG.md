@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.244.0] - 2026-10-20
 ### Thêm mới
-- **Truy cập từ xa có thêm lựa chọn Tailscale.** (đang viết)
+- **Truy cập từ xa có thêm lựa chọn Tailscale.** Máy đã cài Tailscale thì chọn Tailscale, bấm Bật là có link `https://...ts.net` riêng tư: chỉ máy của bạn (cài Tailscale cùng tài khoản) mở được, không lộ ra Internet. Javis tự chạy `tailscale serve`, không cần gõ lệnh.
+- Lần đầu Tailscale đòi bật HTTPS cho mạng thì Javis hiện sẵn link để bấm, bật xong Javis tự thử lại. Máy chưa cài hoặc chưa đăng nhập Tailscale thì Javis nói rõ và có link tải.
+- Bấm Tắt, đổi sang cách khác hay mật khẩu bị xoá thì Javis gỡ đúng phần nó đã thêm, không đụng cấu hình Tailscale khác của bạn.
 
 ## [0.242.0] - 2026-10-20
 ### Thêm mới

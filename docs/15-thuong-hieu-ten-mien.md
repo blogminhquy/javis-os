@@ -90,7 +90,7 @@ Trên Hostinger, nút **Bật SSL** bị ẩn đi, vì Traefik của hPanel mớ
 
 ## Truy cập từ xa trên máy Windows hoặc macOS
 
-Mục **TRUY CẬP TỪ XA** (Cài đặt, ngay dưới Tên miền & SSL) mở Javis ra Internet qua **Cloudflare Tunnel** mà không cần VPS, không mở cổng modem, không gõ lệnh. Javis tự tải `cloudflared` (công cụ chính thức, miễn phí của Cloudflare) đúng bản cho máy (Windows x64/ARM, macOS Intel/Apple Silicon, Linux), chạy nó cùng Javis và tự nối lại khi rớt mạng. Có HTTPS nên micro và giọng nói chạy được trên điện thoại.
+Mục **TRUY CẬP TỪ XA** (Cài đặt, ngay dưới Tên miền & SSL) mở Javis ra Internet qua **Cloudflare Tunnel** (hoặc riêng tư qua **Tailscale**, xem Cách 3) mà không cần VPS, không mở cổng modem, không gõ lệnh. Javis tự tải `cloudflared` (công cụ chính thức, miễn phí của Cloudflare) đúng bản cho máy (Windows x64/ARM, macOS Intel/Apple Silicon, Linux), chạy nó cùng Javis và tự nối lại khi rớt mạng. Có HTTPS nên micro và giọng nói chạy được trên điện thoại.
 
 **Bắt buộc đặt mật khẩu đăng nhập trước** (mục Tài khoản đăng nhập). Khi tunnel đang bật, Javis luôn đòi đăng nhập và không cho tắt đăng nhập. Nếu mật khẩu bị xoá (ví dụ chạy `reset-auth`), tunnel tự dừng trong vài giây.
 
@@ -112,6 +112,17 @@ Cần một tài khoản Cloudflare miễn phí và một tên miền đang dùn
 4. Quay lại Javis, chọn **Tên miền riêng**, bấm **Bật truy cập từ xa**. Khi trạng thái là **Đang chạy**, Javis đọc tên miền bạn vừa đặt và hiện link `https://javis.tencuaban.com`.
 
 Token được mã hoá khi lưu, không bao giờ gửi ngược ra trình duyệt, và đưa cho `cloudflared` qua biến môi trường chứ không nằm trên dòng lệnh.
+
+### Cách 3: Tailscale (riêng tư, chỉ máy của bạn)
+
+Hợp khi chỉ mình bạn dùng: link không lộ ra Internet, chỉ máy đã cài Tailscale và đăng nhập cùng tài khoản mới mở được. Javis không tự cài Tailscale (nó cần quyền hệ thống và đăng nhập tài khoản), nhưng lo phần còn lại.
+
+1. Cài [Tailscale](https://tailscale.com/download) trên máy chạy Javis và trên điện thoại, đăng nhập cùng một tài khoản.
+2. Trong Javis chọn **Tailscale**, bấm **Bật truy cập từ xa**. Javis tự chạy `tailscale serve`, không cần gõ lệnh.
+3. Lần đầu, Tailscale có thể đòi bật HTTPS cho mạng của bạn: Javis hiện link **Mở trang bật HTTPS**, bấm vào rồi bấm **Enable**. Javis tự thử lại.
+4. Mở link `https://ten-may.ten-mang.ts.net` trên điện thoại đang bật Tailscale.
+
+Link Tailscale vẫn chạy khi Javis khởi động lại; bấm **Tắt** thì Javis gỡ đúng phần nó đã thêm, không đụng các cấu hình Tailscale khác của bạn. Người ngoài mạng Tailscale của bạn không mở được link này, nên nó không dùng cho link chia sẻ hay webhook từ dịch vụ bên ngoài; những việc đó dùng Cách 1 hoặc Cách 2.
 
 ### Nên biết
 

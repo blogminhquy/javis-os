@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.244.0] - 2026-10-20
 ### Added
-- **Remote access gains a Tailscale option.** (in progress)
+- **Remote access gains a Tailscale option.** If Tailscale is installed, pick Tailscale and turn it on to get a private `https://...ts.net` link: only your own devices (Tailscale, same account) can open it, nothing is on the Internet. Javis runs `tailscale serve` itself, no commands needed.
+- If Tailscale first asks to switch HTTPS on for your network, Javis shows the link to click and retries once it is on. If Tailscale is missing or signed out, Javis says so and links to the download.
+- Turning it off, switching to another option or losing the password removes only what Javis added, never your other Tailscale settings.
 
 ## [0.242.0] - 2026-10-20
 ### Added

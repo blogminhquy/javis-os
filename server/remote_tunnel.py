@@ -6,11 +6,14 @@ routes/domain.py cannot do that: it needs a public IP with ports 80/443 open, wh
 almost never has. A tunnel works the other way round: `cloudflared` dials out to Cloudflare, and Cloudflare forwards
 visitors back down that connection.
 
-Two modes, picked in Settings:
+Three modes, picked in Settings:
 - quick: `cloudflared tunnel --url` hands out a random https://<words>.trycloudflare.com address. No account and no
   domain needed, but the address changes every time the tunnel restarts.
 - token: a named tunnel the owner creates in Cloudflare Zero Trust. They paste its token (or the whole install command
   Cloudflare shows, we pick the token out of it), and the public hostname they set there stays fixed.
+- tailscale (0.244.0): the owner installs Tailscale and signs in themselves; Javis asks the local tailscaled to proxy
+  https://<machine>.<tailnet>.ts.net to this server (`tailscale serve`). Only devices in the owner's tailnet can open
+  it, so nothing is exposed to the Internet at all.
 
 Javis downloads the right `cloudflared` build for the machine on first use (Windows x64/ARM, macOS Intel/Apple
 Silicon, Linux), keeps it in <state>/bin, starts it with the server and restarts it when it drops.
@@ -31,6 +34,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import threading
 import time
@@ -42,7 +46,7 @@ import localefmt
 import winproc
 
 SETTINGS_KEY = "remote_tunnel"
-MODES = ("quick", "token")
+MODES = ("quick", "token", "tailscale")
 RELEASE_BASE = "https://github.com/cloudflare/cloudflared/releases/latest/download/"
 
 QUICK_URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com", re.I)
@@ -313,14 +317,109 @@ def kill_stray() -> bool:
     return killed
 
 
+# ---------------------------------------------------------------- Tailscale (0.244.0)
+# Tailscale needs a system service and an account sign-in, so Javis never installs it; it only drives the CLI of an
+# install the owner made. `tailscale serve --bg` stores the proxy in tailscaled itself, so it keeps working while
+# Javis restarts and Javis has no process to supervise, only a config to switch on and off.
+
+TS_SERVE_TIMEOUT = 25
+TS_ENABLE_RE = re.compile(r"https://login\.tailscale\.com/\S+")
+TS_URL_RE = re.compile(r"https://[a-z0-9-]+(?:\.[a-z0-9-]+)*\.ts\.net", re.I)
+TS_STATUS_TTL = 10.0
+# Seconds between attempts while Tailscale is missing, signed out or waiting for HTTPS to be enabled.
+TS_RETRY_EVERY = 15
+
+
+def _tailscale_candidates():
+    """Where the installers put the CLI when it is not on PATH."""
+    if os.name == "nt":
+        pf = os.environ.get("ProgramFiles", r"C:\Program Files")
+        return [os.path.join(pf, "Tailscale", "tailscale.exe")]
+    if sys.platform == "darwin":
+        # The Mac App Store and standalone apps ship the CLI as the app binary itself.
+        return ["/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale",
+                "/usr/local/bin/tailscale"]
+    return []
+
+
+def find_tailscale() -> str:
+    found = shutil.which("tailscale")
+    if found:
+        return found
+    for p in _tailscale_candidates():
+        if os.path.isfile(p):
+            return p
+    return ""
+
+
+def _ts_run(binary: str, args, timeout: float = 15):
+    """(returncode, output). returncode is None when the command was still running at `timeout`."""
+    try:
+        r = subprocess.run([binary, *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout, stdin=subprocess.DEVNULL, creationflags=winproc.no_window())
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    except subprocess.TimeoutExpired as e:
+        # Partial output is always bytes here, whatever text= says.
+        parts = [x.decode("utf-8", "replace") if isinstance(x, bytes) else (x or "") for x in (e.stdout, e.stderr)]
+        return None, "".join(parts)
+    except Exception as e:
+        return -1, str(e)
+
+
+def tailscale_info(binary: str = None) -> dict:
+    """{"installed", "backend" (Running, NeedsLogin, Stopped...), "dns_name", "ip"} from `tailscale status --json`."""
+    binary = find_tailscale() if binary is None else binary
+    if not binary:
+        return {"installed": False, "backend": "", "dns_name": "", "ip": ""}
+    info = {"installed": True, "backend": "", "dns_name": "", "ip": ""}
+    rc, out = _ts_run(binary, ["status", "--json"], timeout=10)
+    try:
+        d = json.loads(out[out.index("{"):])
+    except ValueError:
+        # Not running at all: "failed to connect to local tailscaled" and no JSON.
+        info["backend"] = "Stopped"
+        return info
+    me = d.get("Self") or {}
+    ips = me.get("TailscaleIPs") or []
+    info.update(backend=str(d.get("BackendState") or ""), dns_name=str(me.get("DNSName") or "").rstrip(".").lower(),
+                ip=str(ips[0]) if ips else "")
+    return info
+
+
+def tailscale_serve_on(binary: str, target: str) -> dict:
+    """Ask tailscaled to proxy https://<machine>.ts.net to `target`.
+
+    The first time on a tailnet, Tailscale has to switch HTTPS certificates on: the command then prints a
+    login.tailscale.com link and waits for the owner to click Enable. We return that link for Settings to show and
+    try again later, instead of hanging a request on it.
+    """
+    rc, out = _ts_run(binary, ["serve", "--bg", "--https=443", target], timeout=TS_SERVE_TIMEOUT)
+    enable = TS_ENABLE_RE.search(out)
+    url = TS_URL_RE.search(out)
+    return {"ok": rc == 0, "url": url.group(0).lower() if url else "",
+            "enable_url": enable.group(0).rstrip(".,)") if enable else "", "output": out.strip()}
+
+
+def tailscale_serve_off(binary: str) -> bool:
+    """Remove only the :443 handler Javis added, never the owner's other serve or funnel entries (`serve reset` would)."""
+    rc, _ = _ts_run(binary, ["serve", "--https=443", "off"], timeout=15)
+    return rc == 0
+
+
 # ---------------------------------------------------------------- supervisor
 
 class TunnelManager:
-    """Runs one cloudflared at a time in a background thread and keeps it alive while the setting is on."""
+    """Runs one cloudflared at a time in a background thread and keeps it alive while the setting is on.
 
-    def __init__(self, binary_finder=None, installer=None):
+    In tailscale mode the same thread switches `tailscale serve` on, watches the password and the Tailscale login,
+    and switches it off again."""
+
+    def __init__(self, binary_finder=None, installer=None, tailscale_finder=None):
         self._find = binary_finder or find_binary
         self._install = installer or install_binary
+        self._ts_find = tailscale_finder or find_tailscale
+        self._serving_bin = ""      # tailscale binary that currently has our serve entry on
+        self._ts_cache = (0.0, None)
         self._lock = threading.RLock()
         self._thread = None
         self._stop = threading.Event()
@@ -335,6 +434,7 @@ class TunnelManager:
         self.ingress = []
         self.mode = ""
         self.since = 0.0
+        self.enable_url = ""
 
     # -- public
 
@@ -347,7 +447,9 @@ class TunnelManager:
             self._thread = threading.Thread(target=self._run, args=(self._stop,), name="remote-tunnel", daemon=True)
             self._thread.start()
 
-    def stop(self, wait: float = 8.0):
+    def stop(self, wait: float = 8.0, keep_serve: bool = False):
+        """Stop. keep_serve=True (server shutdown) leaves `tailscale serve` on: it lives in tailscaled, and the next
+        start re-applies it anyway, so a restart does not flap the owner's link."""
         with self._lock:
             self._stop.set()
             self._kill_proc()
@@ -355,12 +457,26 @@ class TunnelManager:
             self._thread = None
         if t and t.is_alive() and t is not threading.current_thread():
             t.join(wait)
+        if self._serving_bin and not keep_serve:
+            tailscale_serve_off(self._serving_bin)
+        self._serving_bin = ""
         self._reset_state("off")
 
     def autostart(self):
         kill_stray()
         if enabled():
             self.start()
+
+    def tailscale_binary(self) -> str:
+        return self._ts_find()
+
+    def tailscale_status(self, fresh: bool = False) -> dict:
+        """tailscale_info, cached a few seconds: Settings polls status while something is starting."""
+        ts_at, cached = self._ts_cache
+        if fresh or cached is None or time.time() - ts_at > TS_STATUS_TTL:
+            cached = tailscale_info(self._ts_find())
+            self._ts_cache = (time.time(), cached)
+        return cached
 
     def status(self) -> dict:
         sec = section()
@@ -384,6 +500,8 @@ class TunnelManager:
             "can_download": bool(asset_name()),
             "password_set": cfgmod.auth_enabled(),
             "since": self.since,
+            "tailscale": self.tailscale_status(),
+            "enable_url": self.enable_url,
         }
 
     # -- internals
@@ -452,6 +570,11 @@ class TunnelManager:
                 self.error = localefmt.chu("Cần đặt mật khẩu đăng nhập trước khi mở Javis ra Internet.",
                                            "Set a login password before opening Javis to the Internet.")
                 return
+            if self.mode == "tailscale":
+                self._run_tailscale(stop)
+                if stop.is_set() or not enabled():
+                    break
+                continue  # password gone: the top of the loop reports it
             if self.mode == "token" and not token_info(str(sec.get("token") or "")):
                 self.state = "error"
                 self.error = localefmt.chu("Chưa có token Cloudflare hợp lệ.", "No valid Cloudflare token saved.")
@@ -523,6 +646,77 @@ class TunnelManager:
         # A thread that was replaced (Reconnect during a slow download) must not paint "off" over its successor.
         if stop is self._stop and self.state != "error":
             self.state = "off"
+
+    def _still_allowed(self) -> bool:
+        sec = section()
+        return bool(sec.get("enabled")) and sec.get("mode") == "tailscale" and cfgmod.auth_enabled()
+
+    def _run_tailscale(self, stop: threading.Event):
+        """Switch `tailscale serve` on and watch it. Returns on stop, or when it may no longer run (then it is off)."""
+        while not stop.is_set():
+            ts = self._ts_find()
+            if not ts:
+                self.state = "error"
+                self.error = localefmt.chu("Máy này chưa cài Tailscale.", "Tailscale is not installed on this computer.")
+                if self._wait(stop, TS_RETRY_EVERY) or not self._still_allowed():
+                    return
+                continue
+            info = self.tailscale_status(fresh=True)
+            if info.get("backend") != "Running":
+                self.state = "waiting"
+                self.error = localefmt.chu("Tailscale trên máy này chưa đăng nhập hoặc đang tắt. Mở app Tailscale "
+                                           "để đăng nhập, Javis tự thử lại.",
+                                           "Tailscale on this computer is signed out or off. Open the Tailscale app "
+                                           "to sign in; Javis retries on its own.")
+                if self._wait(stop, TS_RETRY_EVERY) or not self._still_allowed():
+                    return
+                continue
+            self.state, self.enable_url = "starting", ""
+            res = tailscale_serve_on(ts, local_target())
+            if stop.is_set():
+                # stop() may have run its serve-off while this call was still on its way: undo it here.
+                if res["ok"]:
+                    tailscale_serve_off(ts)
+                return
+            if not res["ok"]:
+                self.enable_url = res["enable_url"]
+                if self.enable_url:
+                    self.state = "waiting"
+                    self.error = localefmt.chu("Tailscale cần bật HTTPS cho mạng của bạn (làm một lần). Mở link "
+                                               "bên dưới, bấm Enable, Javis tự thử lại.",
+                                               "Tailscale needs HTTPS switched on for your network (once). Open the "
+                                               "link below, click Enable, and Javis retries on its own.")
+                else:
+                    tail = res["output"].splitlines()[-1] if res["output"] else ""
+                    self.state = "error"
+                    self.error = localefmt.chu(f"Tailscale báo lỗi: {tail}", f"Tailscale reported an error: {tail}")
+                if self._wait(stop, TS_RETRY_EVERY) or not self._still_allowed():
+                    return
+                continue
+            self._serving_bin = ts
+            self.url = res["url"] or (("https://" + info["dns_name"]) if info.get("dns_name") else "")
+            self.state, self.error, self.since = "running", "", time.time()
+            last_check = last_status = time.time()
+            while not stop.is_set():
+                if self._wait(stop, 1):
+                    return
+                now = time.time()
+                if now - last_check >= PASSWORD_CHECK_EVERY:
+                    last_check = now
+                    if not self._still_allowed():
+                        tailscale_serve_off(ts)
+                        self._serving_bin = ""
+                        self.url = ""
+                        return
+                if now - last_status >= 30:
+                    last_status = now
+                    up = self.tailscale_status(fresh=True).get("backend") == "Running"
+                    if not up and self.state == "running":
+                        self.state = "waiting"
+                        self.error = localefmt.chu("Tailscale trên máy này vừa tắt hoặc đăng xuất.",
+                                                   "Tailscale on this computer was turned off or signed out.")
+                    elif up and self.state == "waiting":
+                        self.state, self.error = "running", ""
 
     def _read(self, proc):
         try:
