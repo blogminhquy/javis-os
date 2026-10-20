@@ -367,8 +367,8 @@ async def main():
     e_del = st3.ingest(feat3._find(feat3._load(), h3["id"]), b'{"o":7}', "application/json", "del")[1]["event_id"]
     st3._db.execute("UPDATE events SET next_at=? WHERE id=?", (time.time() + 3600, e_del))
     feat3.delete(h3["id"])
-    check("deleting a hook makes its waiting events dead and drops its keys",
-          st3.get(e_del)["status"] == "dead" and st3._db.execute(
+    check("deleting a hook cancels its waiting events (retention then removes them) and drops its keys",
+          st3.get(e_del)["status"] == "cancelled" and st3._db.execute(
               "SELECT COUNT(*) FROM dedup WHERE hook_id=?", (h3["id"],)).fetchone()[0] == 0)
 
     # notice lost to a crash between commit and notice is resent with the same dedup key

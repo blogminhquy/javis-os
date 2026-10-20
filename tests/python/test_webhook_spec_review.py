@@ -732,6 +732,148 @@ async def whole_chain():
     await cl.aclose()
 
 
+async def fix_review():
+    """Findings of the review of the R6 fixes (R7)."""
+    import threading
+    import httpx
+    from fastapi import FastAPI
+    import webhook_actions as wa
+    import webhook_store as wst
+    import webhook_worker as ww
+    f = fresh()
+    st = f.store()
+    app = FastAPI()
+    app.include_router(f.router)
+    cl = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    act = lambda v: [{"id": "crm", "kind": "http", "url": "https://keys7.example/in", "headers": {"X-Key": v}}]
+    # R7 P2-1: two saves of one hook at once: the one that loses never leaves its key (nor the old one) in the vault.
+    hk, tk, _ = f.create("/b1", name="Hai tab", target="", text="", level="full", actions=act("old"))
+    name = f"{hk['id']}/a/crm/X-Key"
+    real_seal = f._seal
+
+    def slow_seal(hook):
+        r = real_seal(hook)
+        # A seals first and commits last: B, arriving while A has sealed but not committed, would commit first.
+        seals.append(1)
+        time.sleep(0.6 if len(seals) == 1 else 0.1)
+        return r
+    f._seal = slow_seal
+    seals = []
+    res = {}
+    ta = threading.Thread(target=lambda: res.__setitem__("a", f.update(hk["id"], {"actions": act("A"), "revision": 1})))
+    tb = threading.Thread(target=lambda: res.__setitem__("b", f.update(hk["id"], {"actions": act("B"), "revision": 1})))
+    ta.start()
+    time.sleep(0.05)
+    tb.start()
+    ta.join()
+    tb.join()
+    f._seal = real_seal
+    codes = sorted(r[2] for r in res.values())
+    winner = "A" if res["a"][2] == 200 else "B"
+    check("R7 P2-1: two saves at once: one wins (200), one is refused (409), and the vault holds the winner's key",
+          codes == [200, 409] and f.vault.get(name) == winner and int(st.hook_get(hk["id"])["revision"]) == 2,
+          (codes, f.vault.get(name), winner))
+    # R7 P2-1: a conflict found at commit (another process) or a failed commit puts the keys back.
+    real_upd = st.hook_update
+
+    def conflict(*a, **k):
+        raise wst.Conflict(9)
+    st.hook_update = conflict
+    _, _, c409 = f.update(hk["id"], {"actions": act("C"), "revision": 2})
+    st.hook_update = real_upd
+    check("R7 P2-1: a conflict at commit restores the key that was live before the save", c409 == 409
+          and f.vault.get(name) == winner, (c409, f.vault.get(name)))
+    real_put = f.vault.put
+    calls = {"n": 0}
+
+    def put_then_fail(n, v):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise OSError("disk full")
+        return real_put(n, v)
+    f.vault.put = put_then_fail
+    two = lambda a, b: [{"id": "crm", "kind": "http", "url": "https://keys7.example/in", "headers": {"X-Key": a, "X-Two": b}}]
+    _, err, c400 = f.update(hk["id"], {"actions": two("D", "E")})
+    f.vault.put = real_put
+    check("R7 P3: a seal that fails half way (disk error) puts back the key it already replaced", c400 == 400
+          and f.vault.get(name) == winner and not f.vault.has(f"{hk['id']}/a/crm/X-Two"), (c400, err, f.vault.get(name)))
+    # R7 P2-2: deleting the ONLY hook still refuses an ingest that raced the delete.
+    f2 = fresh()
+    s2 = f2.store()
+    ho, to, _ = f2.create("/b1", name="Duy nhất", target="task", text="x")
+    gone = dict(s2.hook_get(ho["id"]))
+    f2.delete(ho["id"])
+    ci, _ = s2.ingest(gone, b"{}", "application/json")
+    check("R7 P2-2: an ingest racing the delete of the last hook stores nothing (401)", ci == 401
+          and s2._db.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 0, ci)
+    # R7 P2-3: an event queued when its hook is deleted is cancelled and retention removes it with its data.
+    hq, tq, _ = f2.create("/b1", name="Đang chờ", target="task", text="x")
+    s2.hook_set(hq["id"], paused=1)
+    c, rq = await f2.accept(hq["id"], tq, body({"email": "chi.lan@example.com"}), "application/json", "")
+    f2.delete(hq["id"])
+    stq = s2.get(rq["event_id"])["status"]
+    s2.prune(time.time() + (wst.KEEP_DAYS + 2) * 86400)
+    left = s2._db.execute("SELECT COUNT(*) FROM events WHERE id=?", (rq["event_id"],)).fetchone()[0]
+    check("R7 P2-3: a queued event of a deleted hook is cancelled, and retention removes it (no customer data kept "
+          "forever)", stq == "cancelled" and left == 0, (stq, left))
+    # R7 P2-4: a fault in Javis BEFORE the send is retried (nothing went out), not left as "may have acted".
+    hp, tp, _ = f.create("/b1", name="Lỗi trước", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://pre7.example/in"}])
+    real_b = st.breaker_open_until
+    hit = {"n": 0}
+
+    def locked_once(*a, **k):
+        hit["n"] += 1
+        if hit["n"] == 1:
+            raise RuntimeError("database is locked")
+        return real_b(*a, **k)
+    st.breaker_open_until = locked_once
+    mx.HITS.clear()
+    c, rp = await f.accept(hp["id"], tp, b"{}", "application/json", "")
+    await f.wait_idle()
+    first = st.get(rp["event_id"])["branches"][0]
+    sent_first = len([x for x in mx.HITS if x["host"] == "pre7.example"])
+    await mx.drain(f)
+    st.breaker_open_until = real_b
+    after = st.get(rp["event_id"])["branches"][0]
+    check("R7 P2-4: an internal fault before the send leaves the delivery waiting to retry (nothing was sent), then "
+          "it runs", first["status"] == "retry" and sent_first == 0 and after["status"] == "completed",
+          (first["status"], first["detail"], sent_first, after["status"]))
+    # R7 P3: the replay confirm must carry the previewed revision; a bad value is a 400, not a 500.
+    c, rr = await f.accept(hp["id"], tp, b"{}", "application/json", "")
+    await f.wait_idle()
+    r1 = await cl.post("/webhooks/events/replay", json={"id": rr["event_id"], "confirm": True})
+    r2 = await cl.post("/webhooks/events/replay", json={"id": rr["event_id"], "confirm": True, "revision": "abc"})
+    check("R7 P3: a replay confirm without the previewed revision, or with a bad one, is refused (400)",
+          r1.status_code == 400 and r2.status_code == 400, (r1.status_code, r1.text, r2.status_code, r2.text))
+    # R7 P3: a correlation on a name field is masked like that field.
+    hn, tn, _ = f.create("/b1", name="Tên", target="task", text="x", rules={"correlation": "customer.name"})
+    c, rn = await f.accept(hn["id"], tn, body({"customer": {"name": "Trần Thị Mai"}}), "application/json", "")
+    await f.wait_idle()
+    lst = (await cl.get(f"/webhooks/events?hook={hn['id']}")).text
+    one = (await cl.get(f"/webhooks/events/{rn['event_id']}")).text
+    exp = (await cl.get(f"/webhooks/events/export?hook={hn['id']}")).text
+    check("R7 P3: a correlation on customer.name is masked in the list, the detail and the export",
+          all("Trần Thị Mai" not in t and "Mai" not in t for t in (lst, one, exp)), (lst[:200], exp[:200]))
+    # R7 P3: an Apps Script test event says so in the query even when the delivery id rides in a header.
+    ctx = {"delivery_id": "dlv_1", "event_id": "ev_1", "source": "test"}
+    u = wa.target_url({"kind": "apps_script", "url": "https://script.google.com/macros/s/X/exec"}, ctx)
+    u2 = wa.target_url({"kind": "apps_script", "url": "https://script.google.com/macros/s/X/exec"}, dict(ctx, source="http"))
+    check("R7 P3: an Apps Script test event carries javis_test=1 without delivery_ref query; a real one does not",
+          u.endswith("?javis_test=1") and "javis_test" not in u2, (u, u2))
+    # R7 P3: plugins allowed to use AI count among the AI hooks (they may run long).
+    old_ph = f.deps.plugin_handler
+    f.deps.plugin_handler = lambda b, slug, n: {"handler": lambda e, c: {"status": "completed"}, "ctx": None,
+                                                "min_mode": "readonly", "schema": None, "ai": True,
+                                                "idempotent": True} if slug == "ai7" else old_ph(b, slug, n)
+    ha, ta_, _ = f.create("/b1", name="AI plugin 7", target="", text="", level="full",
+                          actions=[{"id": "p", "kind": "plugin", "plugin": "ai7", "handler": "h", "allow_ai": True}])
+    check("R7 P3: a hook whose plugin may use AI is held to the AI share of the worker slots",
+          ha["id"] in f._ai_hook_ids() and hp["id"] not in f._ai_hook_ids())
+    f.deps.plugin_handler = old_ph
+    await cl.aclose()
+
+
 async def main():
     await rules_and_triage()
     await receiving()
@@ -741,6 +883,7 @@ async def main():
     await plugin_fairness()
     await second_round()
     await whole_chain()
+    await fix_review()
 
 
 if __name__ == "__main__":

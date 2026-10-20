@@ -34,7 +34,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - A domain that briefly fails to resolve is retried later instead of failing for good.
 ### Fixed
 - An Apps Script that ran but answered with an unreadable page is now "unknown", not "failed", so Retry does not write a second row.
-- Saving from an old tab is refused without overwriting the key just saved in another tab.
+- Saving from an old tab, or from two tabs at once, never brings a secret key back to an older value.
+- Deleting a webhook cancels its waiting events, and retention removes them, so no customer data is kept forever.
 - **A retry after an overload refusal (429) now runs.** Before, the duplicate key was kept, so the retry was reported as a duplicate and the order never ran.
 
 ## [0.236.0] - 2026-10-19

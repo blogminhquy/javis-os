@@ -32,7 +32,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Tên miền tạm thời không phân giải được thì Javis thử lại sau, không báo lỗi hẳn.
 ### Sửa lỗi
 - Apps Script đã chạy nhưng trả về trang không đọc được thì sự kiện thành "chưa rõ" chứ không phải "lỗi", nên bấm Chạy lại không ghi thêm một dòng trùng.
-- Lưu cấu hình từ một tab cũ bị từ chối mà không đè mất khoá vừa lưu ở tab khác.
+- Lưu cấu hình từ một tab cũ, hay hai tab lưu cùng lúc, không làm khoá bí mật quay về bản cũ.
+- Xoá một webhook thì các sự kiện còn chờ của nó được huỷ và tự dọn theo hạn lưu, không giữ dữ liệu khách mãi.
 - **Bị từ chối vì quá tải (429) thì lần gửi lại vẫn chạy.** Trước đây mã chống trùng bị giữ lại, nên lần gửi lại bị báo trùng và đơn không bao giờ chạy.
 
 ## [0.236.0] - 2026-10-19

@@ -473,12 +473,16 @@ def target_url(action: dict, ctx: dict) -> str:
     """The URL actually called: with `delivery_ref: query`, the delivery and event ids ride in the query (an Apps
     Script doPost(e) reads e.parameter, never request headers). Only when the owner chose it: it changes the URL the
     receiver sees, not the body's schema."""
+    test = ctx.get("source") == "test"
     if action.get("delivery_ref") != "query":
-        return action["url"]
+        if not (test and action.get("kind") == "apps_script"):
+            return action["url"]
+        q = {"javis_test": "1"}          # doPost reads no header: a test event must say so in the query
+    else:
+        q = {"javis_delivery": ctx["delivery_id"], "javis_event": ctx["event_id"]}
+        if test:
+            q["javis_test"] = "1"
     u = urlsplit(action["url"])
-    q = {"javis_delivery": ctx["delivery_id"], "javis_event": ctx["event_id"]}
-    if ctx.get("source") == "test":
-        q["javis_test"] = "1"
     extra = urlencode(q)
     return urlunsplit((u.scheme, u.netloc, u.path, (u.query + "&" if u.query else "") + extra, u.fragment))
 

@@ -123,7 +123,7 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 | Backlog per hook | 10,000 events or 256 MiB, whichever first, refused before any key is held | matrix "§15 Tải: the byte quota" | done |
 | Whole store | 1 GiB including the WAL, 128 MiB of free disk kept | matrix "§15 Lưu bền: store full" | done |
 | AI per hook | 30 per hour by default, optional per day, 300 per hour across hooks, durable counter; past it the event waits | matrix "§15 AI / §16.4" | done |
-| Concurrency | one EVENT at a time per hook (its deliveries run side by side); a pool of 4 events per process, oldest first, at most 3 of them for hooks with an AI action, so a code-only hook always finds a slot; a plugin holds at most 2 threads, and a full pool costs no attempt | matrix "§15 Tải: a hook stuck..."; review "R2 P2-4", "R6 P2-10" | done |
+| Concurrency | one EVENT at a time per hook (its deliveries run side by side); a pool of 4 events per process, oldest first, at most 3 of them for hooks with an AI action (or a plugin allowed to use AI), so a code-only hook always finds a slot; a plugin holds at most 2 threads, and a full pool costs no attempt | matrix "§15 Tải: a hook stuck..."; review "R2 P2-4", "R6 P2-10" | done |
 | Raw payload / metadata / dedup | body 7 days after it settles; unknown, waiting, blocked, failed and dead keep theirs until the owner settles or deletes the event (counted in the byte quota); mapped fields go with the body; metadata 30 days; delivery keys 7 days, never dropped younger under disk pressure | matrix "§15 Tải: retention never deletes pending"; review "R3 P1-1", "R1 P2-6" | done |
 | Breaker per target and credential | `target_key` | `test_webhook_ops_m5` "the breaker is per target" | done |
 | Expiry | `expire_after_h`, ends `dead` with an audit line | `test_webhook_m5_review` | done |
@@ -232,6 +232,7 @@ to make a run pass, and no threshold was loosened; each change below follows a s
 | Hung handlers filled the whole plugin pool | one plugin holds at most 2 threads; its extra calls wait without spending an attempt | §11 (review R2 P2-4) |
 | Notices named the internal states | the spec's words (succeeded, waiting...) | §12 |
 | The 0.198 log answered 200 on duplicates without an event id | 200 with the event id | §4.2 |
+| Deleting a hook made its waiting events dead | cancelled: a dead event keeps its body for the owner's retry, which a deleted hook can never get, so its customer data stayed forever | §11 retention (review R7 P2-3) |
 
 One more edit is not a behaviour change: the stub of `Store.claim` in `test_webhook_store_m1` ("a kick that lands while a
 claim is in flight") takes the new `avoid` argument (R6 P2-10). The Apps Script check in the matrix now also counts
@@ -249,7 +250,9 @@ pinned by `test_webhook_spec_review.py`, and that file was run against 11f6ee8e 
 there (13 failures or hangs). A fourth reviewer (R4) then reviewed the fix commit itself; its findings are fixed in
 4537d57f and pinned in the same file. A whole-chain review at 0d02c5ba (R6) found ten P2 issues; each is fixed in the
 0.237.0 follow-up commit and pinned in `whole_chain()` of the same file, which was run against the server code of
-a79820f2 to confirm the pinned checks were red there.
+a79820f2 to confirm the pinned checks were red there. A seventh reviewer (R7) reviewed that fix commit (fc621216):
+four P2 and six P3 findings, fixed in the next commit and pinned in `fix_review()`, each red on the server code of
+fc621216.
 
 | Finding | Fix |
 |---|---|
@@ -283,4 +286,9 @@ a79820f2 to confirm the pinned checks were red there.
 | R6 P2 deleting a hook left its unknown, waiting and blocked events where no view shows them; an ingest racing the delete stored an orphan | closed as cancelled with the reason; the ingest refuses (401) |
 | R6 P2 a fault in Javis inside one delivery left the event without a settled branch | that delivery is unknown (it may have acted), the others finish |
 | R6 P2 hooks with a slow AI action could take every worker slot | at most WORKER_MAX - 1 AI events run at once |
+| R7 (review of the R6 fixes, at fc621216) P2 two saves of one hook at once: the losing save's restore put back the key from before both | saves of one hook run one at a time in the process (check, seal, commit); a conflict from another process or a failed commit restores, and a key that cannot be read is never deleted by a restore |
+| R7 P2 deleting the last hook left the ingest race open (202 for a deleted hook) | a tombstone per deleted hook; the ingest refuses (401) |
+| R7 P2 events queued when their hook was deleted ended dead and were kept forever with their body | cancelled, removed by retention |
+| R7 P2 an internal fault before the send marked the delivery "may have acted" | before the dispatch is recorded it is retried within its deadline; after it, unknown |
+| R7 P3 (all fixed) | the replay confirm must carry the previewed revision (400 without it, or with a bad one); a correlation is masked like the key it reads (`customer.name`); an Apps Script test event carries `javis_test` even with the delivery id in a header; plugins allowed to use AI count among the AI hooks; the last known AI list keeps the slot protected when it cannot be read |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |

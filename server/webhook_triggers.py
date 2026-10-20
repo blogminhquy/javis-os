@@ -37,6 +37,7 @@ import os
 import shutil
 import sqlite3
 import sys
+import threading
 import time
 import uuid
 from collections import deque
@@ -251,14 +252,41 @@ def _as_bool(v: Any) -> bool:
     return v if isinstance(v, bool) else str(v).strip().lower() in ("1", "true", "on", "yes")
 
 
-def mask_row(r: dict) -> dict:
+_UNREADABLE = object()                  # a vault value that exists but cannot be read: never restored over
+_HOOK_LOCKS: dict = {}
+_HOOK_LOCKS_GUARD = threading.Lock()
+
+
+def _hook_lock(hid: str) -> threading.Lock:
+    """Saves of one hook run one at a time in this process: check revision, seal secrets, commit (two tabs saving at
+    once must not leave the vault holding the loser's keys)."""
+    with _HOOK_LOCKS_GUARD:
+        return _HOOK_LOCKS.setdefault(str(hid), threading.Lock())
+
+
+def corr_leaf(path: Any) -> str:
+    """The last key of a correlation path (`customer.email` -> `email`), to mask its value like that key's."""
+    import re
+    if not isinstance(path, str):
+        return ""
+    parts = [p for p in re.split(r"[.\[\]]+", path) if p and p != "*" and not p.isdigit()]
+    return parts[-1].lower() if parts else ""
+
+
+def mask_corr(v: Any, leaf: str = "") -> Any:
+    return mask(v, leaf) if isinstance(v, str) else v
+
+
+def mask_row(r: dict, corr_key: str = "") -> dict:
     """An event (or a list row) as the dashboard shows it by default (spec §12): every text that can carry what a
     customer or a receiver said is masked, not only the payload: the result and error (an AI result often names the
     customer), each delivery's detail, receipt and result, the attempts, the mapped fields, the headers, the trace."""
     r = dict(r)
-    for k in ("result", "error", "correlation"):
+    for k in ("result", "error"):
         if isinstance(r.get(k), str):
             r[k] = _mask_text(r[k])
+    if "correlation" in r:
+        r["correlation"] = mask_corr(r["correlation"], corr_key)
     for k in ("fields", "headers", "trace"):
         if k in r:
             r[k] = mask(r.get(k) or {})
@@ -570,12 +598,14 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         for n in names:
             try:
                 out[n] = self.vault.get(n) if self.vault.has(n) else None
-            except webhook_secrets.SecretError:
-                out[n] = None
+            except Exception:
+                out[n] = _UNREADABLE          # it exists but does not open: a restore must not delete it
         return out
 
     def _vault_restore(self, before: dict) -> None:
         for n, v in before.items():
+            if v is _UNREADABLE:
+                continue
             try:
                 if v is None:
                     self.vault.delete_prefix(n)
@@ -661,6 +691,17 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         return cfg
 
     def update(self, hid: str, changes: dict) -> tuple:
+        with _hook_lock(hid):
+            return self._update(hid, changes)
+
+    def _corr_keys(self) -> dict:
+        """{hook id: last key of its correlation path}, to mask each event's correlation value like that key."""
+        try:
+            return {h["id"]: corr_leaf((h.get("rules") or {}).get("correlation")) for h in self.store().hooks_all()}
+        except Exception:
+            return {}
+
+    def _update(self, hid: str, changes: dict) -> tuple:
         """Returns (hook, error, http status). `revision` in the changes = the revision the dashboard edited: a hook
         changed since (another tab) is refused with 409 and nothing is saved."""
         h = self._find_hook(hid)
@@ -727,7 +768,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         before = self._vault_snapshot(merged, hid)
         try:
             self._seal(merged)
-        except webhook_secrets.SecretError as e:
+        except Exception as e:
             self._vault_restore(before)
             return None, localefmt.chu(f"Chưa cất được khoá bí mật: {e}", f"Could not store the secret: {e}"), 400
         keep = set(webhook_actions.sealed_names(merged.get("actions")))
@@ -738,9 +779,12 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                     dst.add(src[f]["$secret"])
         try:
             self.store().hook_update(merged, expected=int(expected) if expected not in (None, "") else None)
-        except webhook_store.Conflict as c:
-            # Another save landed between the check above and this one: put the keys back as they were.
+        except BaseException as c:
+            # Another save landed between the check above and this one (another process: in this one the hook lock
+            # serialises saves), or the commit failed: put the keys back as they were.
             self._vault_restore(before)
+            if not isinstance(c, webhook_store.Conflict):
+                raise
             return None, localefmt.chu(f"Webhook vừa được sửa ở nơi khác (bản {c.revision}). Tải lại rồi sửa tiếp.",
                                        f"The webhook was changed elsewhere (revision {c.revision}). Reload, then edit "
                                        "again."), 409
@@ -943,7 +987,11 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         code, prev = self.replay_preview(eid)
         if code != 200:
             return code, prev
-        if revision not in (None, "") and int(revision) != int(prev.get("revision") or 0):
+        try:
+            rev = None if revision in (None, "") else int(revision)
+        except (TypeError, ValueError):
+            return 400, {"ok": False, "error": "revision must be a number"}
+        if rev is not None and rev != int(prev.get("revision") or 0):
             return 409, {"ok": False, "error": f"the webhook changed since the preview (revision {prev.get('revision')}):"
                                                " preview again"}
         if prev["decision"] != "run":
@@ -1245,7 +1293,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             ran = status == "ran"
             sts = {"needs_you": "unknown,waiting,blocked", "ran": ""}.get(status, status)
             pg = await asyncio.to_thread(st.page, hook, sts, limit, before, ran, since, until, q, hooks)
-            pg["items"] = [mask_row(r) for r in pg.get("items") or []]
+            ck = await asyncio.to_thread(self._corr_keys)
+            pg["items"] = [mask_row(r, ck.get(r.get("hook_id"), "")) for r in pg.get("items") or []]
             return {"ok": True, **pg}
 
         @router.get("/webhooks/events/export")
@@ -1260,6 +1309,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             st = self.store()
             hooks = await asyncio.to_thread(self._hooks_of, brain)
             rows = st.export_rows(hook, since, until, bool(body), hooks=hooks)
+            ck = self._corr_keys()
             fmt = "csv" if format == "csv" else "jsonl"
             if raw:
                 # Any raw export is recorded, with or without bodies (raw fields are customer data too).
@@ -1285,9 +1335,11 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 if not raw:
                     r["fields"] = mask(r["fields"])
                     r["trace"] = mask(r["trace"])
-                    for k in ("result", "error", "correlation"):
+                    for k in ("result", "error"):
                         if isinstance(r.get(k), str):
                             r[k] = _mask_text(r[k])
+                    if "correlation" in r:
+                        r["correlation"] = mask_corr(r["correlation"], ck.get(r.get("hook_id"), ""))
                     if isinstance(r.get("branches"), list):
                         r["branches"] = [dict(b, **({"detail": _mask_text(b["detail"])} if isinstance(b.get("detail"), str)
                                                     else {})) for b in r["branches"]]
@@ -1351,7 +1403,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 m = mask(doc)
                 ev["payload"] = (json.dumps(m, ensure_ascii=False, indent=2) if kind in ("json", "form") else
                                  _mask_text(str(m.get("_text", ""))) if isinstance(m, dict) else str(m))[:PAYLOAD_PROMPT_CHARS]
-                ev = mask_row(ev)
+                ev = mask_row(ev, (await asyncio.to_thread(self._corr_keys)).get(ev.get("hook_id"), ""))
             ev["masked"] = not raw
             ev.pop("hook_snapshot", None)
             ev["timeline"] = timeline(ev)
@@ -1390,6 +1442,9 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             p = payload or {}
             eid = str(p.get("id") or "")
             if p.get("confirm"):
+                if p.get("revision") in (None, ""):
+                    # The confirm must name the revision the owner previewed (spec §12: the preview is the consent).
+                    return JSONResponse({"ok": False, "error": "revision required: preview first"}, status_code=400)
                 code, resp = await asyncio.to_thread(self.replay_confirm, eid, p.get("revision"))
                 if code == 200:
                     self._kick()

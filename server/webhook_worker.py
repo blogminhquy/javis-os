@@ -60,6 +60,7 @@ class WebhookWorker:
         self._wake: Optional[asyncio.Event] = None
         self._active: dict = {}
         self._ai_active: set = set()
+        self._ai_ids_last: list = []
         self._tasks: set = set()
         self._sweeper: Optional[asyncio.Task] = None
         self.clock = time.time
@@ -93,12 +94,12 @@ class WebhookWorker:
             if len(self._active) >= WORKER_MAX:
                 await asyncio.wait(list(self._active.values()), return_when=asyncio.FIRST_COMPLETED)
                 continue
-            avoid = None
-            if WORKER_MAX > 1 and len(self._ai_active) >= WORKER_MAX - 1:
-                try:
-                    avoid = await asyncio.to_thread(self._ai_hook_ids)
-                except Exception:
-                    avoid = None
+            try:
+                ai_ids = await asyncio.to_thread(self._ai_hook_ids)
+                self._ai_ids_last = ai_ids
+            except Exception:
+                ai_ids = self._ai_ids_last          # keep protecting the last slot with what was known
+            avoid = ai_ids if WORKER_MAX > 1 and len(self._ai_active) >= WORKER_MAX - 1 else None
             try:
                 row = await asyncio.to_thread(self.store().claim, self.worker_id, None, avoid)
             except Exception as e:
@@ -108,11 +109,8 @@ class WebhookWorker:
                 t = asyncio.get_running_loop().create_task(self._run_claimed(row))
                 self._active[row["id"]] = t
                 self._tasks.add(t)
-                try:
-                    if row["hook_id"] in await asyncio.to_thread(self._ai_hook_ids):
-                        self._ai_active.add(row["id"])
-                except Exception:
-                    pass
+                if row["hook_id"] in ai_ids:
+                    self._ai_active.add(row["id"])
 
                 def _done(task, eid=row["id"]):
                     self._active.pop(eid, None)
@@ -322,7 +320,8 @@ class WebhookWorker:
         """Hooks with an AI action (their runs can last long): at most WORKER_MAX - 1 of their events run at once, so
         one slot always stays for code-only hooks (spec §11: a slow hook never starves the others)."""
         return [h["id"] for h in self.store().hooks_all()
-                if any(a.get("kind") == "ai" for a in webhook_actions.effective(h.get("actions")))]
+                if any(a.get("kind") == "ai" or (a.get("kind") == "plugin" and a.get("allow_ai") is True)
+                       for a in webhook_actions.effective(h.get("actions")))]
 
     async def _run_claimed(self, row: dict) -> None:
         st = self.store()
@@ -382,7 +381,7 @@ class WebhookWorker:
             await asyncio.to_thread(st.requeue_before_dispatch, eid, fence, f"{type(e).__name__}: {e}")
             return
         if cur is None:
-            if await asyncio.to_thread(st.finish, eid, fence, "dead", "", "hook deleted"):
+            if await asyncio.to_thread(st.finish, eid, fence, "cancelled", "", "hook deleted"):
                 await asyncio.to_thread(st.mark_notified, eid, fence)
             return
         try:
@@ -449,6 +448,7 @@ class WebhookWorker:
                 "verified": {"provider": (trace.get("event") or {}).get("provider", "none"),
                              "verified_at": row.get("verified_at") or 0, "key_version": row.get("key_version") or ""}}
         ai_out = {"result": "", "error": "", "ran": False}
+        sent: set = set()                   # deliveries whose dispatch is recorded (they may have acted)
 
         async def branch(b: dict) -> None:
             a = by_action.get(b["action_id"]) or {"id": b["action_id"], "kind": b["kind"]}
@@ -521,6 +521,7 @@ class WebhookWorker:
             if not await asyncio.to_thread(st.branch_dispatch, eid, fence, aid, self.worker_id, safe,
                                            webhook_actions.request_fingerprint(a, ctx), ai_call):
                 return
+            sent.add(aid)
             if a["kind"] == "ai":
                 status, detail, result = await self._run_ai(hook, brain, level, body, ct, base, fields, b)
                 ai_out.update(result=result, error=detail if status == "failed" else "", ran=True)
@@ -576,13 +577,20 @@ class WebhookWorker:
             try:
                 await branch(b)
             except Exception as e:
-                # A fault in Javis itself while a delivery ran: it may already have acted, the owner decides. The
-                # other deliveries keep running under the heartbeat (gather waits for all of them).
-                print(f"[webhooks] {eid}/{b['action_id']} crashed: {type(e).__name__}: {e}", file=sys.stderr)
+                # A fault in Javis itself. After the dispatch was recorded the delivery may already have acted: the
+                # owner decides (unknown). Before it nothing was sent: it is tried again shortly, within its deadline.
+                # The other deliveries keep running under the heartbeat (gather waits for all of them).
+                aid = b["action_id"]
+                print(f"[webhooks] {eid}/{aid} crashed: {type(e).__name__}: {e}", file=sys.stderr)
+                if aid in sent:
+                    status, detail, nxt = ("unknown", f"internal error while it ran ({type(e).__name__}): it may have "
+                                           "acted", 0.0)
+                elif float(b.get("deadline") or 0) and now > float(b["deadline"]):
+                    status, detail, nxt = "failed", f"not sent: internal error ({type(e).__name__}) until the deadline", 0.0
+                else:
+                    status, detail, nxt = "retry", f"not sent yet: internal error ({type(e).__name__})", now + 60
                 try:
-                    await asyncio.to_thread(st.branch_finish, eid, fence, b["action_id"], "unknown",
-                                            f"internal error while it ran ({type(e).__name__}): it may have acted",
-                                            None, "", 0.0)
+                    await asyncio.to_thread(st.branch_finish, eid, fence, aid, status, detail, None, "", nxt)
                 except Exception:
                     pass
 

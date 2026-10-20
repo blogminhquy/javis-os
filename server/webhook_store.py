@@ -862,8 +862,10 @@ class Store:
                         self._receipt(hid, row["event_id"], now, "duplicate", key, source)
                         return 200, {"event_id": row["event_id"], "duplicate": True}
                 cur_h = self._db.execute("SELECT enabled, revision FROM hooks WHERE id=?", (hid,)).fetchone()
-                if cur_h is None and self._db.execute("SELECT 1 FROM hooks LIMIT 1").fetchone() is not None:
-                    # The hook was deleted between the token check and this transaction: nothing stored.
+                if cur_h is None and (self._db.execute("SELECT 1 FROM meta WHERE k=?", (f"deleted:{hid}",)).fetchone()
+                                      or self._db.execute("SELECT 1 FROM hooks LIMIT 1").fetchone()):
+                    # The hook was deleted between the token check and this transaction (its tombstone says so, even
+                    # when it was the last one): nothing stored.
                     self._db.execute("ROLLBACK")
                     return 401, {"reason": "off"}
                 if cur_h is not None and not cur_h["enabled"]:
@@ -1060,7 +1062,7 @@ class Store:
         the new `fence`, or None. One event per hook at a time (spec §11: concurrency 1 per hook). `avoid`: hooks not
         to take an event of now (the worker keeps a slot for code-only hooks)."""
         now = time.time() if now is None else now
-        av = [str(x) for x in (avoid or [])][:500]
+        av = [str(x) for x in (avoid or [])][:5000]
         extra = f" AND e.hook_id NOT IN ({','.join('?' * len(av))})" if av else ""
         with self._write():
             row = self._db.execute(
@@ -1842,7 +1844,9 @@ class Store:
             for (qid,) in self._db.execute("SELECT id FROM events WHERE hook_id=? AND status IN ('queued','received')",
                                            (hook_id,)).fetchall():
                 self._release_keys(qid)
-            self._db.execute("UPDATE events SET status='dead', finished_at=?, notified_at=?, error='hook deleted'"
+            # Cancelled, not dead: nobody can retry them any more, and retention removes cancelled events (a dead one
+            # is kept for the owner's retry, which a deleted hook can never get: its customer data would stay forever).
+            self._db.execute("UPDATE events SET status='cancelled', finished_at=?, notified_at=?, error='hook deleted'"
                              " WHERE hook_id=? AND status IN ('queued','received')", (now, now, hook_id))
             # Events waiting for the owner (unknown, waiting, blocked) and the kept failed ones belong to a hook
             # that no longer exists, so no view can show them: they are closed, and retention removes them.
@@ -1853,6 +1857,7 @@ class Store:
             self._db.execute("DELETE FROM meta WHERE k LIKE ? OR k LIKE ? OR k LIKE ? OR k LIKE ?",
                              (f"digest_day:{hook_id}", f"digest_at:{hook_id}", f"digest_try:{hook_id}:%",
                               f"inc:{hook_id}:%"))
+            self._db.execute("INSERT OR REPLACE INTO meta(k, v) VALUES(?, ?)", (f"deleted:{hook_id}", str(now)))
             self._db.execute("DELETE FROM dedup WHERE hook_id=?", (hook_id,))
             self._db.execute("DELETE FROM hooks WHERE id=?", (hook_id,))
 
