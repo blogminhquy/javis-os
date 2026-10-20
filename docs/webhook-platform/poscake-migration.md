@@ -1,4 +1,4 @@
-# POSCake: cutover to the webhook platform, and the way back (0.236.0, spec §9, §16, §17)
+# POSCake: cutover to the webhook platform, and the way back (0.237.0, spec §9, §16, §17)
 
 **Known and not known.** This repository has no POSCake webhook contract: no documented signature, no event names, no
 payload schema, no statement of whether POSCake can send a custom header. Javis does **not** guess any of it
@@ -47,7 +47,7 @@ a captured POSCake payload (step 2) before real traffic. The same configuration 
 
 ## Before you start
 
-- [ ] Javis 0.236.0 or later on **staging**, with its own state folder.
+- [ ] Javis 0.237.0 or later on **staging**, with its own state folder.
 - [ ] Back up `STATE_DIR/webhook_events.sqlite3*`, `webhook_keys.json` and `webhook_secrets.json`.
 - [ ] The data of spec §17 collected (see `staging-pilot-pack.md`, part 0): masked POSCake payloads and headers; ids of
       shop, order and event; what each status means; whether POSCake sends a custom header; what the Apps Script

@@ -19,6 +19,7 @@ import unittest
 from pathlib import Path
 
 import lang
+import localefmt
 import sessions
 import voice_live
 
@@ -95,7 +96,7 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
                 calls["auth"] += 1
 
             namespace = dict(
-                asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x, lang_mod=lang,
+                asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x, lang_mod=lang, localefmt=localefmt,
                 cfgmod=types.SimpleNamespace(gate_active=lambda: False,
                                              read_settings=lambda: {"voice": {"live_provider": "chatgpt"}}),
                 voice_live=types.SimpleNamespace(
@@ -111,7 +112,8 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
             tree = ast.parse((SERVER / "main.py").read_text(encoding="utf-8"))
             route = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "voice_live_ws")
             route.decorator_list = []
-            exec(compile(ast.Module(body=[route], type_ignores=[]), "live-route", "exec"), namespace)
+            helpers = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_live_call_lang"]
+            exec(compile(ast.Module(body=helpers + [route], type_ignores=[]), "live-route", "exec"), namespace)
             try:
                 await asyncio.wait_for(namespace["voice_live_ws"](Socket(), sid, "brain", "vi-VN"), 5)
                 ready = next(f for f in frames if f["type"] == "ready")

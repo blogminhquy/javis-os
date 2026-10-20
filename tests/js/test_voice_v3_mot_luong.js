@@ -50,7 +50,10 @@ check("i18n: câu tiến độ không có em dash", !/—/.test(vi["app.voice_fi
 
 // 3
 check("khung WS: voice: _tuGiong || handsFree", /const payload = \{ message: outMsg[\s\S]{0,300}voice: _tuGiong \|\| handsFree/.test(app));
-check("khối ngữ cảnh mang voice: _tuGiong || handsFree", /voice: _tuGiong \|\| handsFree,\s*\n\s*\}\) : "";/.test(app));
+// 0.236.0: the context block is built by boiNguCanh (shared with a file pasted during Live); the chat turn
+// passes it the same voice flag.
+check("khối ngữ cảnh mang voice: _tuGiong || handsFree",
+      /outMsg = boiNguCanh\(outMsg, _tuGiong \|\| handsFree\);/.test(app) && /interruptedAt: _ngatLoiTai, voice: voice,/.test(app));
 check("Live: gõ chữ thì sendText vào phiên Live và return, không đi ws chat",
       /voiceMode === "live" && !atts\.length && window\.JavisVoiceLive && window\.JavisVoiceLive\.isOn\(\)\) \{[\s\S]{0,400}window\.JavisVoiceLive\.sendText\(msg\);\s*\n\s*return;/.test(app));
 

@@ -1,4 +1,4 @@
-"""webhook_bench.py - the ingress benchmark of the webhook spec (§16), over a real HTTP socket (0.236.0).
+"""webhook_bench.py - the ingress benchmark of the webhook spec (§16), over a real HTTP socket (0.237.0).
 
     .venv/bin/python tools/webhook_bench.py                      # the spec target: 60 s, 20 req/s, 5 hooks, 10 KiB
     .venv/bin/python tools/webhook_bench.py --seconds 10 --slow 2   # shorter, every action waits 2 s at the receiver

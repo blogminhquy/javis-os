@@ -106,7 +106,9 @@ const ghiUser = (server.match(/append_message\([^)]*"user"/g) || []).length;
 // lịch sử đúng thứ tự. Người dùng tự gõ và bấm gửi, không phải mic tự gửi.
 // 0.213.0 adds the eighth: a message typed on a chat channel (Telegram, Zalo...) while a turn runs is written to the
 // session when that turn reads it (steer_inbox sink in _tg_answer). Typed and sent by the owner, never the mic.
-check("chỉ 8 chỗ ghi vai user (web + bot + 2 Live + duyệt quy trình + nối tiếp việc nền + gửi thêm lúc đang chạy, web và kênh)", ghiUser === 8, ghiUser);
+// 0.236.0 adds the ninth, inside voice_live_ws: a message with files TYPED in the chat during a Live call (the "ask"
+// frame) is stored there instead of by an ordinary chat turn. Typed and sent by the owner, never the mic.
+check("chỉ 9 chỗ ghi vai user (web + bot + 3 Live + duyệt quy trình + nối tiếp việc nền + gửi thêm lúc đang chạy, web và kênh)", ghiUser === 9, ghiUser);
 check("chỗ thứ sáu nằm TRONG _start_followup_turn",
   /async def _start_followup_turn[\s\S]{0,1600}store\.append_message\(conv_sid, "user", text\)/.test(server));
 const approvalBody = server.slice(server.indexOf('if action == "wf_resume":'), server.indexOf('if action == "resume_now":'));
@@ -114,7 +116,7 @@ check("đường ghi thứ năm chỉ thuộc thao tác duyệt quy trình",
   (approvalBody.match(/append_message\([^)]*"user"/g) || []).length === 1
   && approvalBody.includes('store.append_message(_sid, "user", _msg)'));
 const liveBody = (server.match(/async def voice_live_ws\([\s\S]*?\n@app\./) || [""])[0];
-check("hai chỗ mới nằm TRONG voice_live_ws", (liveBody.match(/append_message\([^)]*"user"/g) || []).length === 2);
+check("ba chỗ nằm TRONG voice_live_ws (gõ chữ, câu đã nói, tin có file)", (liveBody.match(/append_message\([^)]*"user"/g) || []).length === 3);
 
 // ---- 5. cache-bust ----
 const v = (f) => Number((html.match(new RegExp(f.replace(/\./g, "\\.") + "\\?v=(\\d+)")) || [])[1] || 0);

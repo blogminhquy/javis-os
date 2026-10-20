@@ -269,6 +269,11 @@ class LiveProvider:
     async def send_late_result(self, text: str):
         await self._send_all(self.late_result_messages(text))
 
+    async def read_result(self, text: str):
+        """Have the model read out a brain answer it did not ask for (a file pasted in the chat, 0.236.0).
+        A tagged text turn works on Gemini and OpenAI Realtime; GPT-Live and ChatGPT Live override it."""
+        await self.send_text(readback_text(text))
+
     def translate(self, msg: dict) -> List[dict]:  # pragma: no cover
         raise NotImplementedError
 
@@ -784,6 +789,11 @@ class GPTLive(LiveProvider):
             return []
         return [{"type": "session.thinking.append", "delegation_id": None, "content": text[:GPT_LIVE_APPEND_MAX]}]
 
+    async def read_result(self, text: str):
+        # send_text here frames the text as something the user TYPED; a readback is not that.
+        await self._send({"type": "session.instructions.append", "delegation_id": None,
+                          "content": readback_text(text)[:GPT_LIVE_APPEND_MAX]})
+
     async def send_text(self, text: str):
         # A browser wake handoff has no provider input_transcript event. Preserve it for
         # delegation, whose payload carries only metadata, and do not emit a duplicate user.
@@ -900,6 +910,34 @@ STATUS_FIRST_S = 60.0    # việc chạy quá chừng này thì bắt đầu nó
 STATUS_EVERY_S = 90.0    # rồi cách chừng này mới nói lại
 STATUS_TICK_S = 5.0      # nhịp kiểm tra của vòng nền
 FOLLOWUP_ACK = "Đã ghi nhận. Việc đang làm sẽ báo kết quả ngay khi xong, không có việc mới."
+# A file pasted into the chat during a call (0.236.0). The dashboard sends it to the route as an "ask" frame and the
+# route runs ONE brain turn on it. Before this, the paste opened an ordinary chat turn AND the Live model, hearing
+# "look at this picture", handed the same picture to ask_javis: two brain turns on one image, two voices over each
+# other, one of them in English (owner report 2026-10-19). While that turn runs, and a short while after its answer
+# is read, an ask_javis about an image or file gets this acknowledgement instead of a second turn.
+ATTACHMENT_ACK = ("File người dùng vừa gửi trong khung chat đã giao cho bộ não chính; kết quả được đọc riêng. "
+                  "Không có việc mới: đừng gọi lại ask_javis cho file đó, chỉ nói một câu ngắn rồi tiếp tục nghe.")
+ATTACHMENT_GUARD_S = 45.0   # after the answer is read, an ask_javis about "the image" is still that same file
+_ATTACHMENT_RE = re.compile(
+    r"\b(?:ảnh|hình|hình ảnh|file|tệp|tập tin|tài liệu|chụp|màn hình|đính kèm|dán|"
+    r"image|images|picture|photo|photos|screenshot|screen|attachment|attached|pasted|document|pdf)\b",
+    re.IGNORECASE)
+
+
+def is_about_attachment(request: str, names=()) -> bool:
+    """The model's ask_javis is about a file the user just sent: names an image/file word, or one of the file names."""
+    req = str(request or "")
+    if _ATTACHMENT_RE.search(req):
+        return True
+    low = req.lower()
+    return any(n and str(n).lower() in low for n in (names or ()))
+
+
+def readback_text(result: str) -> str:
+    """What the Live model gets to read out the answer of a pasted file (no tool call to answer, so it is a turn)."""
+    return (f"{LATE_RESULT_TAG}\nỨng dụng gửi kết quả của bộ não chính cho file người dùng vừa gửi trong khung "
+            "chat; đây không phải người dùng nói. Thuật lại thật ngắn bằng ngôn ngữ người dùng đang nói, không đọc "
+            "nhãn ra, không gọi ask_javis.\n\n" + (speakable(result) or "(không có nội dung)"))
 _ACK_WORDS = frozenset("""
 ok oke okie okay ừ ừm ờ ừa vâng dạ được rồi nhé nha nhá nhỉ nghen thế vậy thì là xong xem kiểm tra
 báo lại cho anh em chị mình tôi tớ bạn biết đi cảm ơn cám chờ đợi tí chút xíu nhanh lên cứ làm khi nào
@@ -1311,6 +1349,10 @@ class ChatGPTLive(LiveProvider):
         # ("em vẫn đang làm" rồi mới "xong rồi") nghe như Javis lú.
         self._speech_q[:] = [t for t in self._speech_q if not isinstance(t, _Status)]
         self._enqueue_speech(speakable(result) or "Em chưa có kết quả.")
+
+    async def read_result(self, text: str):
+        # ChatGPT Live speaks results from its own queue, the same way as an ask_javis answer.
+        await self.send_tool_result("", "ask_javis", text)
 
     async def say_status(self, text: str) -> bool:
         """Câu tiến độ cho người đang không nhìn màn hình. Đi chung hàng với lời đọc kết quả nên không

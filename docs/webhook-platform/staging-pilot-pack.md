@@ -6,7 +6,7 @@ Only a pass on a real source may mark an adapter or action "production verified"
 
 ## Build under test
 
-- Branch `claude/openmausbot-jarvis-research-ewnzc6`, PR #747, version 0.236.0.
+- Branch `claude/openmausbot-jarvis-research-ewnzc6`, PR #747, version 0.237.0.
 - Stage the PR head at the time of staging. Write the exact SHA here before starting: `________`
   (`git rev-parse HEAD`).
 - The automated evidence for that SHA: CI green on the PR, plus, on the staging machine:

@@ -1,4 +1,4 @@
-"""0.236.0: webhook rules (webhook platform M2, spec §5 and §6): schema, filter, mapping, business keys, simulation,
+"""0.237.0: webhook rules (webhook platform M2, spec §5 and §6): schema, filter, mapping, business keys, simulation,
 trace.
 
     python tests/run.py webhook_rules_m2      (no network, no model: every runner is a fake)

@@ -1,4 +1,4 @@
-# Webhook event platform (0.236.0): index, requirements matrix, evidence
+# Webhook event platform (0.237.0): index, requirements matrix, evidence
 
 **Spec of record:** `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md` (committed a6132b9f). Every
 section below names the spec section it answers. The gap analysis made before the spec work is
@@ -161,7 +161,7 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 
 | Requirement | How | Status |
 |---|---|---|
-| One PR per milestone under a reserved version | **deviation**: the session was bound to one branch, so PR #747 holds commits grouped by milestone (M1 to M5, then the spec alignment), one version 0.236.0 | deviation (explained in the PR) |
+| One PR per milestone under a reserved version | **deviation**: the session was bound to one branch, so PR #747 holds commits grouped by milestone (M1 to M5, then the spec alignment), one version 0.237.0 | deviation (explained in the PR) |
 
 ### §15 Test matrix
 
@@ -248,7 +248,7 @@ delivery and security (M3, M4), R3 operations, the UI and the whole chain (M5). 
 pinned by `test_webhook_spec_review.py`, and that file was run against 11f6ee8e to confirm each pinned check was red
 there (13 failures or hangs). A fourth reviewer (R4) then reviewed the fix commit itself; its findings are fixed in
 4537d57f and pinned in the same file. A whole-chain review at 0d02c5ba (R6) found ten P2 issues; each is fixed in the
-0.236.0 follow-up commit and pinned in `whole_chain()` of the same file, which was run against the server code of
+0.237.0 follow-up commit and pinned in `whole_chain()` of the same file, which was run against the server code of
 a79820f2 to confirm the pinned checks were red there.
 
 | Finding | Fix |

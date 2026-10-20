@@ -1,4 +1,4 @@
-"""0.236.0: durable webhook events (webhook platform M1).
+"""0.237.0: durable webhook events (webhook platform M1).
 
     python tests/run.py webhook_store_m1      (no network, no model: every runner is a fake)
 
@@ -14,7 +14,7 @@ What is proven here, against a real temporary SQLite file and real child process
      lowering a hook's level applies to events already waiting;
   7. the owner notice is resent after a crash between commit and notice, under the same dedup key;
   8. the event log API paginates, never lists bodies, and retry/resolve work through the routes;
-  9. keys remembered by a pre-0.236.0 hook stay duplicates; pruning keeps unknown events.
+  9. keys remembered by a pre-0.237.0 hook stay duplicates; pruning keeps unknown events.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -440,7 +440,7 @@ async def main():
     # never runs a stale copy beside this one (the rollback tool writes it back from the store).
     check("the migration snapshots webhooks.json and moves it aside",
           not (s_l / "webhooks.json").exists() and (s_l / "webhooks.json.migrated").exists()
-          and any(p.name.startswith("webhooks.json.pre-0.236-") for p in s_l.iterdir())
+          and any(p.name.startswith("webhooks.json.pre-0.237-") for p in s_l.iterdir())
           and "old-1" in (s_l / "webhooks.json.migrated").read_text(encoding="utf-8"))
     await f_l.wait_idle()
 

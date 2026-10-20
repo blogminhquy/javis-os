@@ -1717,6 +1717,21 @@ function sendMessage(text, opts) {
     window.JavisVoiceLive.sendText(msg);
     return;
   }
+  // 0.236.0: có file thì cũng KHÔNG mở lượt chat thường. Trước đây lượt chat đọc ảnh và đọc ra
+  // loa bằng giọng Edge, trong khi model Live nghe "xem ảnh này" lại giao chính ảnh đó cho
+  // ask_javis: hai lượt bộ não, hai giọng chồng nhau. Nay gửi khung "ask" để server chạy MỘT lượt
+  // và model Live đọc kết quả; socket chưa mở thì mới rơi về đường thường.
+  if (voiceMode === "live" && atts.length && _slash.type === "passthrough"
+      && window.JavisVoiceLive && window.JavisVoiceLive.isOn() && window.JavisVoiceLive.ask) {
+    const liveMsg = boiNguCanh(tinDocFile(atts, msg), true);
+    if (window.JavisVoiceLive.ask(liveMsg, msg, atts.map(a => a.name))) {
+      chatInput.value = ""; chatInput.style.height = "auto";
+      appendUserMessage(msg, atts);
+      recordTurn("user", msg, atts.map(a => ({ name: a.name, kind: a.kind, url: a.url || "" })));
+      clearAttachments();
+      return;
+    }
+  }
   window.JavisAsk.freezeAll();   // trả lời rồi thì chip của lượt trước hết bấm được
   // 0.173.1: an automatic /goal round (block carries JAVIS_GOAL_ROUND) is drawn as the collapsible round line.
   const _goalRound = (_slash.type === "prefix" && window.JavisLenh && window.JavisLenh.docVong)
@@ -1750,14 +1765,7 @@ function sendMessage(text, opts) {
       // Với lệnh skill (vd /notes): đưa path như dữ liệu, để chính skill quyết định lưu.
       outMsg = `[File đính kèm (đường dẫn), Sources="${src}", Attachments="${attDir}":\n${lines}]\n\n${_slash.message}`;
     } else {
-      const ctx =
-        `[File đính kèm để ĐỌC (đường dẫn):\n${lines}\n` +
-        `Mặc định: chỉ đọc file rồi trả lời, KHÔNG tự lưu đi đâu.\n` +
-        `CHỈ khi user yêu cầu rõ (vd "lưu vào source", "ingest", "ghi vào second brain") thì mới: ` +
-        `chuyển thành .md (ảnh thì đọc hiểu + mô tả) lưu vào Sources="${src}" (ảnh gốc chuyển vào Attachments="${attDir}"), kèm frontmatter source.]`;
-      outMsg = _than
-        ? `${ctx}\n\n${_than}`
-        : `${ctx}\n\nHãy đọc (các) file trên và phản hồi / tóm tắt nội dung chính.`;
+      outMsg = tinDocFile(atts, _than);
     }
   }
   // File đang ghim đi TRƯỚC mọi thứ: nó là ngữ cảnh nền của cả lượt, không phải dữ liệu
@@ -1765,22 +1773,9 @@ function sendMessage(text, opts) {
   // không giữ trạng thái "đang mở file nào" giữa các lượt.
   // Ngữ cảnh giao diện (Voice V1, spec mục 5): trang đang mở, đoạn đang bôi đen, câu Javis bị
   // ngắt lời. Đứng SAU khối file ghim và TRƯỚC câu hỏi; rỗng thì không chèn gì.
-  try {
-    // `voice`: đang nói chuyện bằng giọng (tin từ mic, HAY gõ chữ khi mic rảnh tay đang bật):
-    // câu trả lời sẽ đọc ra loa nên model phải trả lời ngắn như người đang nói (V3).
-    const ctxUi = window.JavisUiContext ? window.JavisUiContext.build({
-      page: nguCanhTrang(), selection: nguCanhChon(), interruptedAt: _ngatLoiTai,
-      voice: _tuGiong || handsFree,
-    }) : "";
-    if (ctxUi) outMsg = `${ctxUi}\n\n${outMsg}`;
-  } catch (e) {}
-  _ngatLoiTai = "";
-  if (pinnedNote) {
-    outMsg = `[FILE ĐANG MỞ trong trình sửa của Javis: ${pinnedNote.abs}\n`
-      + `Đây là file người dùng ĐANG LÀM VIỆC TRÊN ĐÓ - coi như đầu vào của cuộc trò chuyện này. `
-      + `Đọc nó trước khi trả lời. Khi được yêu cầu sửa/viết thêm/dọn lại mà không nói rõ file nào `
-      + `thì ghi thẳng vào chính file này.]\n\n${outMsg}`;
-  }
+  // `voice`: đang nói chuyện bằng giọng (tin từ mic, HAY gõ chữ khi mic rảnh tay đang bật):
+  // câu trả lời sẽ đọc ra loa nên model phải trả lời ngắn như người đang nói (V3).
+  outMsg = boiNguCanh(outMsg, _tuGiong || handsFree);
 
   chatInput.value = ""; chatInput.style.height = "auto";
   clearAttachments();
@@ -1820,6 +1815,38 @@ function sendMessage(text, opts) {
   const _w = _pinWait; _pinWait = null;
   if (_w) _w.then(_send, _send); else _send();
   _tuGiong = false;
+}
+// Khối "[File đính kèm để ĐỌC ...]" đứng trước câu người dùng gõ. Dùng chung cho lượt chat thường
+// và tin có file gửi lúc đang gọi Live (0.236.0), để F5 dựng lại bong bóng ảnh y như nhau.
+function tinDocFile(atts, than) {
+  const lines = atts.map(a => `- ${a.path}`).join("\n");
+  const src = (atts.find(a => a.sources) || {}).sources || "", attDir = (atts.find(a => a.attachments) || {}).attachments || "";
+  const ctx =
+    `[File đính kèm để ĐỌC (đường dẫn):\n${lines}\n` +
+    `Mặc định: chỉ đọc file rồi trả lời, KHÔNG tự lưu đi đâu.\n` +
+    `CHỈ khi user yêu cầu rõ (vd "lưu vào source", "ingest", "ghi vào second brain") thì mới: ` +
+    `chuyển thành .md (ảnh thì đọc hiểu + mô tả) lưu vào Sources="${src}" (ảnh gốc chuyển vào Attachments="${attDir}"), kèm frontmatter source.]`;
+  return than
+    ? `${ctx}\n\n${than}`
+    : `${ctx}\n\nHãy đọc (các) file trên và phản hồi / tóm tắt nội dung chính.`;
+}
+// Ngữ cảnh giao diện (trang, đoạn bôi đen, câu bị ngắt lời) rồi file đang ghim, bọc NGOÀI tin.
+// Thứ tự này chuNguoiGo gỡ ngược lại được, nên bong bóng vẫn chỉ hiện đúng câu người dùng gõ.
+function boiNguCanh(outMsg, voice) {
+  try {
+    const ctxUi = window.JavisUiContext ? window.JavisUiContext.build({
+      page: nguCanhTrang(), selection: nguCanhChon(), interruptedAt: _ngatLoiTai, voice: voice,
+    }) : "";
+    if (ctxUi) outMsg = `${ctxUi}\n\n${outMsg}`;
+  } catch (e) {}
+  _ngatLoiTai = "";
+  if (pinnedNote) {
+    outMsg = `[FILE ĐANG MỞ trong trình sửa của Javis: ${pinnedNote.abs}\n`
+      + `Đây là file người dùng ĐANG LÀM VIỆC TRÊN ĐÓ - coi như đầu vào của cuộc trò chuyện này. `
+      + `Đọc nó trước khi trả lời. Khi được yêu cầu sửa/viết thêm/dọn lại mà không nói rõ file nào `
+      + `thì ghi thẳng vào chính file này.]\n\n${outMsg}`;
+  }
+  return outMsg;
 }
 // Trang đang mở và đoạn đang bôi đen, cho khối NGỮ CẢNH GIAO DIỆN. Chọn trong ô nhập chat thì
 // không tính (đó là câu đang gõ, không phải thứ đang nhìn).

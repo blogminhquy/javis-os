@@ -1,4 +1,4 @@
-"""webhook_actions.py - what a hook DOES with an accepted event (0.236.0, webhook platform M3, spec §8).
+"""webhook_actions.py - what a hook DOES with an accepted event (0.237.0, webhook platform M3, spec §8).
 
 A hook may list `actions`, run as independent DELIVERIES of one event:
 

@@ -1,4 +1,4 @@
-"""0.236.0: webhook operations (webhook platform M5): notification modes, quotas, AI budget, circuit breaker,
+"""0.237.0: webhook operations (webhook platform M5): notification modes, quotas, AI budget, circuit breaker,
 retention, export, log filters; plus benchmarks.
 
     python tests/run.py webhook_ops_m5      (no network, no model: fakes only)

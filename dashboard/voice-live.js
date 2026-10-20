@@ -393,6 +393,18 @@
     if (text) sendJson({ type: "text", text: String(text) });
   }
 
+  // A message with files typed during the call (0.236.0): the route runs ONE brain turn on it and the Live model
+  // only reads the answer out, so the dashboard opens no chat turn of its own (two voices otherwise). False when
+  // the socket is not open: the caller then sends it the ordinary way.
+  function ask(text, display, files) {
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return false;
+    try {
+      ws.send(JSON.stringify({ type: "ask", text: String(text), display: String(display || ""),
+                               files: (files || []).map(String) }));
+      return true;
+    } catch (e) { return false; }
+  }
+
   // Ngữ cảnh giao diện (trang đang mở, đoạn bôi đen): chỉ gửi khi ĐỔI, rỗng cũng là một trạng thái.
   function sendContext(text) {
     text = String(text || "");
@@ -452,7 +464,7 @@
     emit("onStopped");
   }
 
-  window.JavisVoiceLive = { start: start, stop: stop, sendText: sendText, sendContext: sendContext, attachMic: attachMic,
+  window.JavisVoiceLive = { start: start, stop: stop, sendText: sendText, sendContext: sendContext, ask: ask, attachMic: attachMic,
                             hasMic: function () { return !!stream; },
                             playedMs: playedMs, progress: progress, resetProgress: resetProgress,
                             setMuted: setMuted, isMuted: function () { return muted; },

@@ -14996,13 +14996,22 @@ async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "
     return str(out or "")[:6000]
 
 
+def _live_call_lang(said: str, recognition_lang: str = "") -> str:
+    """Language pinned on a brain turn started from a Live call. `call_language` returns "" when the spoken line is
+    empty or undetectable and the mic is on auto; the brain then followed the handoff the Live model wrote, often in
+    English (owner report 2026-10-19). Fall back to the configured reply language instead of leaving it open."""
+    return lang_mod.call_language(said, recognition_lang) or localefmt.ngon_ngu_tra_loi()
+
+
 @app.websocket("/ws/voice-live")
 async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str = Query("brain"),
                         lang: str = Query("vi-VN")):
     """Nghe nói thẳng (Voice V2 bậc Live): trình duyệt đẩy PCM16 16 kHz, nhận PCM16 24 kHz.
 
     Khung JSON về trình duyệt: ready | interrupted | transcript | tool | turn_done | error.
-    Khung JSON từ trình duyệt: {"type":"text","text":...} | {"type":"stop"}. Byte = audio.
+    Khung JSON từ trình duyệt: {"type":"text","text":...} | {"type":"ask","text":...,"display":...,"files":[...]}
+    | {"type":"stop"}. Byte = audio. "ask" (0.236.0) là tin có file đính kèm gõ trong lúc gọi: chạy MỘT lượt bộ não
+    chính ngay tại đây rồi model chỉ đọc lại, không mở lượt chat thường song song.
     """
     if cfgmod.gate_active() and not cfgmod.valid_session(ws.cookies.get("javis_session", "")):
         await ws.close(code=1008)
@@ -15078,6 +15087,9 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
     spoke = {"t": 0.0}               # lần gần nhất Javis nói về việc nền (kết quả hay tiến độ)
     heartbeat = {"task": None}
     readback = {"pending": 0, "active": False}
+    # File pasted during the call (0.236.0): while its brain turn runs, and ATTACHMENT_GUARD_S after its answer is
+    # read, an ask_javis from the model about an image or file is that same file, not a second turn.
+    attach_guard = {"busy": 0, "until": 0.0, "names": []}
 
     async def from_client():
         while True:
@@ -15098,6 +15110,23 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                     except Exception:
                         pass
                     await prov.send_text(str(d["text"]))
+                elif d.get("type") == "ask" and d.get("text"):
+                    readback["pending"] = 0
+                    full = str(d["text"])[:20000]
+                    said = str(d.get("display") or "")[:2000]
+                    names = [str(n)[:200] for n in (d.get("files") or []) if str(n or "").strip()][:20]
+                    try:
+                        # The whole text, file block included: the dashboard rebuilds the image bubble from it on F5.
+                        store.append_message(conv_sid, "user", full)
+                    except Exception:
+                        pass
+                    if said:
+                        spoken["text"] = said
+                    attach_guard["busy"] += 1
+                    attach_guard["names"] = names
+                    task = asyncio.create_task(_run_client_ask(full, said))
+                    tool_tasks.add(task)
+                    task.add_done_callback(tool_tasks.discard)
                 elif d.get("type") == "context":
                     # Trang đang mở / đoạn bôi đen: kèm vào yêu cầu gửi bộ não chính, và đẩy vào
                     # kênh im lặng của nhà cung cấp nếu có (GPT-Live thinking.append).
@@ -15140,6 +15169,14 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         req = str((ev.get("args") or {}).get("request") or "")
         if name != "ask_javis":
             return await _run_one(name, cid, req, [])
+        if (attach_guard["busy"] or asyncio.get_running_loop().time() < attach_guard["until"]) \
+                and voice_live.is_about_attachment(req, attach_guard["names"]):
+            print(f"[voice live] bỏ ask_javis trùng với file vừa gửi trong khung chat: {req[:80]!r}", file=sys.stderr)
+            try:
+                await prov.send_tool_ack(cid, name, voice_live.ATTACHMENT_ACK)
+            except Exception:
+                pass
+            return
         running = [j["request"] for j in jobs.values()]
         if running and voice_live.is_progress_question(req):
             # Hỏi tiến độ ("xong chưa", "đang làm gì"): trả lời NGAY từ sổ việc đang chạy, không chạy
@@ -15243,7 +15280,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 # xếp hàng trong engine sau việc kia, đúng cái chờ mà 0.71.2 bỏ khoá chung để tránh.
                 key = f"voice:{conv_sid}:p{job_id}" if running else ""
                 result = await _voice_ask_javis(sent, conv_sid, brain, key=key, progress=_note_step,
-                                                call_lang=lang_mod.call_language(spoken["text"], lang))
+                                                call_lang=_live_call_lang(spoken["text"], lang))
             else:
                 result = f"Tool {name} không có."
         except Exception as e:
@@ -15285,6 +15322,53 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                                                                 f"Could not return the result to the model: {e}")})
         spoke["t"] = loop.time()   # vừa đọc một kết quả: chưa cần chen câu tiến độ ngay sau đó
         await _j({"type": "tool", "name": name, "status": "done"})
+
+    async def _run_client_ask(full: str, said: str):
+        """ONE brain turn for a file pasted in the chat during the call; the model only reads the answer out.
+
+        Same bookkeeping as an ask_javis job (status frames, `jobs` for progress questions, the result bubble), but
+        nobody asked through a tool call, so the answer reaches the model with `read_result`. The dashboard does not
+        open an ordinary chat turn for this message, so this is the only voice that speaks the answer."""
+        await _j({"type": "tool", "name": "ask_javis", "status": "running"})
+        loop = asyncio.get_running_loop()
+        running = [j["request"] for j in jobs.values()]
+        job = {"request": said or "file đính kèm", "started": loop.time(), "step": ""}
+        job_seq["n"] += 1
+        job_id = job_seq["n"]
+        jobs[job_id] = job
+        _ensure_heartbeat()
+
+        async def _note_step(step):
+            job["step"] = str(step or "")
+
+        try:
+            key = f"voice:{conv_sid}:p{job_id}" if running else ""
+            result = await _voice_ask_javis(full, conv_sid, brain, key=key, progress=_note_step,
+                                            call_lang=_live_call_lang(said or spoken["text"], lang))
+        except Exception as e:
+            result = f"Bộ não chính lỗi: {type(e).__name__}: {e}"
+        finally:
+            jobs.pop(job_id, None)
+        try:
+            if str(result or "").strip():
+                try:
+                    store.append_message(conv_sid, "assistant", str(result))
+                except Exception:
+                    pass
+                await _j({"type": "tool_result", "name": "ask_javis", "text": str(result)})
+                # Wait for a pause so the answer does not cut across the person or the model.
+                await prov.wait_quiet(voice_live.LATE_RESULT_WAIT_S)
+                readback["pending"] += 1   # the model's reading is not a second bubble
+                try:
+                    await prov.read_result(str(result))
+                except Exception as e:
+                    await _j({"type": "error", "message": localefmt.chu(f"Không trả được kết quả cho model: {e}",
+                                                                        f"Could not return the result to the model: {e}")})
+            spoke["t"] = loop.time()
+        finally:
+            attach_guard["busy"] = max(0, attach_guard["busy"] - 1)
+            attach_guard["until"] = loop.time() + voice_live.ATTACHMENT_GUARD_S
+            await _j({"type": "tool", "name": "ask_javis", "status": "done"})
 
     async def from_provider():
         while True:
