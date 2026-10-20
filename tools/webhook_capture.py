@@ -22,6 +22,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from decimal import Decimal
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
@@ -48,11 +49,13 @@ def scrub(v, key: str = "", pii: bool = False, product: bool = False):
             return "REDACTED"
         if isinstance(x, str):
             return "x" * min(max(len(x), 1), 12)
-        if isinstance(x, (int, float)):
+        if wt._is_num(x):
             return 0
         return x
     def show(x):
         # A kept text still loses an e-mail or a phone inside it (digits become 0, the shape stays).
+        if isinstance(x, Decimal):
+            return int(x) if x == x.to_integral_value() else float(x)
         if not isinstance(x, str):
             return x
         m = wt._show_view(x)
@@ -60,7 +63,7 @@ def scrub(v, key: str = "", pii: bool = False, product: bool = False):
     return wt._payload_walk(v, key, 0, pii, False, product, hide, show)
 
 
-def rule_paths(rules: dict) -> list:
+def rule_paths(rules: dict, actions: Optional[list] = None) -> list:
     """The payload paths a hook's rules read: filter and `when` paths, schema fields, mapping sources, business key
     parts. A fixture must keep those (else it no longer gets the decision the real event got)."""
     out = []
@@ -88,56 +91,90 @@ def rule_paths(rules: dict) -> list:
             out.append(v["path"])
     if isinstance(r.get("correlation"), str):
         out.append(r["correlation"])
+    for a in actions or []:
+        if isinstance(a, dict):
+            walk(a.get("when"))           # an action's own condition reads the payload too
     return sorted(set(out))
 
 
-def _segments(path: str) -> list:
-    import re
-    return [s for s in re.split(r"\.|(\[\*\]|\[\d+\])", path) if s]
-
-
 def restore_paths(scrubbed, raw, paths: list) -> tuple:
-    """Put back, at each path the rules read, the value as received, unless the path names an identity number, a
-    customer block or a credential (those are never written to a fixture). Returns (payload, kept, refused)."""
+    """Put back, at each path the rules read, the value as received, so the fixture gets the real event's decision.
+    Only a single value (never a whole object or list: those keep their scrubbed shape), never under an identity
+    number, a customer block or a credential, never a link, and a kept text still loses any e-mail or phone inside it.
+    Returns (payload, kept, refused)."""
     import webhook_triggers as wt
     kept, refused = [], []
 
     def unsafe(segs):
+        product = False
         for sg in segs:
+            if not isinstance(sg, str):
+                continue
             k = sg.lower()
-            if any(x in k for x in wt._SECRET_KEYS) or any(x in k for x in wt._ID_NUMBER_KEYS) \
-                    or (any(x in k for x in wt._PII_KEYS if x != "name") or "tel" in wt._key_words(sg)):
+            words = wt._key_words(sg)
+            if any(x in k for x in wt._SECRET_KEYS) or any(x in k for x in wt._ID_NUMBER_KEYS) or "tel" in words:
                 return True
+            hits = [x for x in wt._PII_KEYS if x in k]
+            if hits and not (product and hits == ["name"]):
+                return True
+            product = product or bool(words & wt._PRODUCT_PARENTS) or k in wt._PRODUCT_PARENTS
         return False
 
-    def put(dst, src, segs):
+    def leaf_ok(key, v):
+        return not (isinstance(v, (dict, list)) or wt._key_words(key) & wt._LINK_WORDS
+                    or (isinstance(v, str) and v.startswith(("http://", "https://")) and "?" in v))
+
+    def put(dst, src, segs, key, ok):
         if not segs:
-            return src
+            if not leaf_ok(key, src):
+                ok[0] = False
+                return dst
+            return _show_capture(src)
         sg, rest = segs[0], segs[1:]
-        if sg == "[*]" and isinstance(src, list) and isinstance(dst, list):
-            return [put(d, s, rest) for d, s in zip(dst, src)]
-        if sg.startswith("[") and isinstance(src, list) and isinstance(dst, list):
-            i = int(sg[1:-1])
-            if i < len(src) and i < len(dst):
+        if sg == webhook_rules.WILD:
+            if isinstance(src, list) and isinstance(dst, list):
+                return [put(d, s, rest, key, ok) for d, s in zip(dst, src)]
+            return dst
+        if isinstance(sg, int):
+            if isinstance(src, list) and isinstance(dst, list) and sg < len(src) and sg < len(dst):
                 dst = list(dst)
-                dst[i] = put(dst[i], src[i], rest)
+                dst[sg] = put(dst[sg], src[sg], rest, key, ok)
             return dst
         if isinstance(src, dict) and isinstance(dst, dict) and sg in src and sg in dst:
             dst = dict(dst)
-            dst[sg] = put(dst[sg], src[sg], rest)
+            dst[sg] = put(dst[sg], src[sg], rest, sg, ok)
         return dst
     out = scrubbed
     for p in paths:
-        segs = _segments(p)
-        if unsafe([s for s in segs if not s.startswith("[")]):
+        try:
+            segs = webhook_rules.parse_path(p)
+        except webhook_rules.RuleError:
             refused.append(p)
             continue
-        out = put(out, raw, segs)
-        kept.append(p)
+        if unsafe(segs):
+            refused.append(p)
+            continue
+        ok = [True]
+        new = put(out, raw, segs, "", ok)
+        if ok[0]:
+            out = new
+            kept.append(p)
+        else:
+            refused.append(p)
     return out, kept, refused
 
 
-def export(state_dir: Path, eid: str, expect: str, out: Path, rules: Optional[dict] = None) -> dict:
+def _show_capture(x):
+    import webhook_triggers as wt
+    if isinstance(x, Decimal):
+        return int(x) if x == x.to_integral_value() else float(x)
+    if isinstance(x, str):
+        m = wt._show_view(x)
+        return m.replace("•", "0").replace("***", "xxx") if m != x else x
+    return x
+
+
+def export(state_dir: Path, eid: str, expect: str, out: Path, config: Optional[dict] = None) -> dict:
     import webhook_store
     st = webhook_store.Store(state_dir / "webhook_events.sqlite3")
     try:
@@ -150,15 +187,16 @@ def export(state_dir: Path, eid: str, expect: str, out: Path, rules: Optional[di
             raise SystemExit(f"event {eid} is {kind}: only JSON and form bodies are exported")
         headers = {k: ("REDACTED" if k.lower() in _SECRET_HEADERS else v) for k, v in (ev.get("headers") or {}).items()}
         payload, kept, refused = scrub(doc), [], []
-        if rules:
-            payload, kept, refused = restore_paths(payload, doc, rule_paths(rules))
+        if config:
+            payload, kept, refused = restore_paths(payload, doc, rule_paths(config.get("rules") or {},
+                                                                            config.get("actions")))
         fx = {"name": out.stem, "origin": f"CAPTURED on staging from event {eid}, customer fields and credentials replaced",
               "content_type": ev.get("content_type") or "application/json", "headers": headers,
               "payload": payload, "expect": expect, "kept_for_rules": kept, "not_kept": refused}
     finally:
         st.close()
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(fx, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    out.write_text(json.dumps(fx, ensure_ascii=False, indent=1, default=str) + "\n", encoding="utf-8")
     return fx
 
 
@@ -189,8 +227,8 @@ def main(argv=None) -> int:
     c.add_argument("fixtures", nargs="+")
     a = ap.parse_args(argv)
     if a.cmd == "export":
-        rules = json.loads(Path(a.config).read_text(encoding="utf-8")).get("rules") if a.config else None
-        fx = export(Path(a.state_dir), a.event, a.expect, Path(a.out), rules)
+        config = json.loads(Path(a.config).read_text(encoding="utf-8")) if a.config else None
+        fx = export(Path(a.state_dir), a.event, a.expect, Path(a.out), config)
         print(f"written {a.out}: read it before committing (headers {sorted(fx['headers'])}; kept for the rules "
               f"{fx['kept_for_rules']}; not kept {fx['not_kept']})")
         return 0

@@ -40,6 +40,7 @@ import sys
 import threading
 import time
 import uuid
+from decimal import Decimal
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -101,7 +102,7 @@ _AMOUNT_WORDS = frozenset(("fee", "fees", "total", "subtotal", "amount", "price"
 
 def _key_words(key: str) -> set:
     import re
-    return {w.lower() for w in re.split(r"[_\-\s.]+|(?<=[a-z])(?=[A-Z])", str(key or "")) if w}
+    return {w.lower() for w in re.split(r"[_\-\s.\[\]]+|(?<=[a-z])(?=[A-Z])", str(key or "")) if w}
 _SECRET_KEYS = ("token", "secret", "password", "passwd", "authorization", "api_key", "apikey", "signature", "cookie",
                 "access_key", "private")
 
@@ -235,8 +236,7 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False, ident: bool =
         return _mask_text(v)
     # A number that identifies a person (a phone, a CCCD, a Zalo id) is masked; amounts (a shipping fee, a bill
     # total) and counts stay readable.
-    if isinstance(v, (int, float)) and not isinstance(v, bool) and (
-            ident or (pii and not (_key_words(key) & _AMOUNT_WORDS))):
+    if _is_num(v) and (ident or (pii and not (_key_words(key) & _AMOUNT_WORDS))):
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:]
     return v
@@ -258,6 +258,11 @@ _PRODUCT_WORDS = frozenset(("name", "title", "sku", "product", "variation", "uni
                             "colour", "size", "barcode"))
 
 
+def _is_num(v: Any) -> bool:
+    """A JSON number: parse_payload gives floats as exact Decimals."""
+    return isinstance(v, (int, float, Decimal)) and not isinstance(v, bool)
+
+
 def keep_leaf(key: str, v: Any, pii: bool, ident: bool, product: bool) -> bool:
     """May this leaf of a payload be shown in a masked view or a captured fixture? Booleans and nulls always; identity
     numbers and customer blocks never (an amount or a count under a customer is the exception); a product's name and
@@ -270,7 +275,7 @@ def keep_leaf(key: str, v: Any, pii: bool, ident: bool, product: bool) -> bool:
     if words & _LINK_WORDS or (isinstance(v, str) and v.startswith(("http://", "https://")) and "?" in v):
         return False                       # a link that opens the customer's order or invoice is a bearer key
     if pii:
-        return isinstance(v, (int, float)) and bool(words & _AMOUNT_WORDS)
+        return _is_num(v) and bool(words & _AMOUNT_WORDS)
     if product and words & _PRODUCT_WORDS:
         return True
     return bool(words & _SAFE_WORDS)
@@ -313,7 +318,7 @@ def _hide_view(v: Any, secret: bool) -> Any:
         return "••••"
     if isinstance(v, str):
         return (v[:1] + "•" * min(max(len(v) - 1, 1), 12)) if v else v
-    if isinstance(v, (int, float)):
+    if _is_num(v):
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:] if len(s) > 3 else "•" * len(s)
     return v
@@ -1546,7 +1551,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             else:
                 doc, kind = webhook_rules.parse_payload(bytes(body), ct)
                 m = mask_payload(doc)
-                ev["payload"] = (json.dumps(m, ensure_ascii=False, indent=2) if kind in ("json", "form") else
+                ev["payload"] = (json.dumps(m, ensure_ascii=False, indent=2, default=str) if kind in ("json", "form") else
                                  _mask_text(str(m.get("_text", ""))) if isinstance(m, dict) else str(m))[:PAYLOAD_PROMPT_CHARS]
                 ev = mask_row(ev, (await asyncio.to_thread(self._corr_keys)).get(ev.get("hook_id"), ""))
             ev["masked"] = not raw

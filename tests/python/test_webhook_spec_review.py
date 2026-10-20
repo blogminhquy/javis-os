@@ -1374,6 +1374,40 @@ async def fix_review_four():
     check("R14 P2: the fixture keeps the rule paths (mode, tags, money_to_collect), refuses the phone path, and gets "
           "the same decision as the real event", dec == "run" and refused == ["phone"] and fx["phone"] != "0912345678"
           and sorted(kept) == ["data.object.mode", "money_to_collect", "tags"], (dec, kept, refused))
+    # R15 (review of R14): restores never bring back links, names, e-mails or whole objects; Decimals are masked and
+    # never crash; `$.` paths restore.
+    raw15 = json.dumps({"order_status_url": "https://s/x/authenticate?key=SECRETKEY",
+                        "data": {"object": {"hosted_invoice_url": "https://invoice.stripe.com/i/live_abc",
+                                            "customer_email": "an@x.com"}},
+                        "billing_details": {"name": "Nguyen Van An"}, "client_reference_id": "an.nguyen@gmail.com",
+                        "shipping_address": {"latitude": 10.7769}, "tags": "vip",
+                        "line_items": [{"name": "Mắm", "properties": {"value": "For Hoa 0912345678"}}]}).encode()
+    doc15, _ = wr.parse_payload(raw15, "application/json")
+    r15 = {"mapping": {"u": "order_status_url", "i": "data.object.hosted_invoice_url", "n": "billing_details.name"},
+           "filter": {"all": [{"path": "client_reference_id", "op": "exists"},
+                              {"path": "$.tags", "op": "contains", "value": "vip"}]},
+           "schema": {"fields": {"data.object": {"type": "object"}, "line_items": {"type": "array"}}}}
+    fx15, kept15, ref15 = wc2.restore_paths(wc2.scrub(doc15), doc15, wc2.rule_paths(r15))
+    t15 = json.dumps(fx15, ensure_ascii=False, default=str)
+    check("R15 P1: a restore never writes a bearer link, a customer name, an e-mail or a whole object back; `$.tags` "
+          "is restored", not [x for x in ("SECRETKEY", "live_abc", "Nguyen Van An", "an.nguyen", "an@x.com",
+                                          "0912345678") if x in t15] and fx15["tags"] == "vip" and "$.tags" in kept15,
+          (t15, kept15, ref15))
+    mv15 = json.dumps(wt.mask_payload(doc15), ensure_ascii=False, default=str)
+    check("R15 P1: a Decimal coordinate under the shipping address is masked in the view and zeroed in the fixture",
+          "10.7769" not in mv15 and fx15["shipping_address"]["latitude"] == 0, (mv15[:200], fx15["shipping_address"]))
+    import httpx as _hx
+    from fastapi import FastAPI as _FA
+    app15 = _FA()
+    app15.include_router(f.router)
+    cl15 = _hx.AsyncClient(transport=_hx.ASGITransport(app=app15), base_url="http://t")
+    hd15, td15, _ = f.create("/b1", name="Số thực", target="task", text="x")
+    c15, rd15 = await f.accept(hd15["id"], td15, raw15, "application/json", "")
+    await f.wait_idle()
+    v15 = await cl15.get(f"/webhooks/events/{rd15['event_id']}")
+    check("R15 P2: the masked detail view of a payload with floats answers 200 (no Decimal crash), coordinate hidden",
+          v15.status_code == 200 and "10.7769" not in v15.text, (v15.status_code, v15.text[:200]))
+    await cl15.aclose()
     # R11 P3: two events of one hook told at once make one incident notice, not two.
     hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
                          rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,
