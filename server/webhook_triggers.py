@@ -85,7 +85,11 @@ _PII_KEYS = ("name", "phone", "email", "address", "mobile", "tel", "sdt", "ho_te
              # 0.237.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
              "khach", "nguoi_nhan", "nguoinhan", "nguoi_gui", "recipient", "receiver", "buyer", "sender", "full_name",
              "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob")
-_ID_NUMBER_KEYS = ("phone", "mobile", "tel", "sdt", "cccd", "cmnd", "zalo", "id_card", "passport", "national_id")
+_ID_NUMBER_KEYS = ("phone", "mobile", "tel", "sdt", "dien_thoai", "dienthoai", "cccd", "cmnd", "zalo", "whatsapp",
+                   "viber", "facebook", "id_card", "id_number", "passport", "national_id", "dob", "birth")
+# Under a person's block, a number is theirs unless its key names an amount or a count.
+_AMOUNT_KEYS = ("fee", "total", "amount", "price", "qty", "quantity", "count", "tien", "phi", "gia", "so_luong",
+                "discount", "tax", "cod", "weight", "orders")
 _SECRET_KEYS = ("token", "secret", "password", "passwd", "authorization", "api_key", "apikey", "signature", "cookie",
                 "access_key", "private")
 
@@ -218,7 +222,8 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
         return _mask_text(v)
     # A number that identifies a person (a phone, a CCCD, a Zalo id) is masked; amounts (a shipping fee, a bill
     # total) and counts stay readable.
-    if isinstance(v, (int, float)) and not isinstance(v, bool) and any(x in k for x in _ID_NUMBER_KEYS):
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and (
+            any(x in k for x in _ID_NUMBER_KEYS) or (pii and not any(x in k for x in _AMOUNT_KEYS))):
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:]
     return v
@@ -813,6 +818,12 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                     self.vault.delete_prefix(name)
                 except Exception:
                     pass
+        if "rules" in changes:
+            # New rules close the quarantine incident: a new break after the fix is told at once.
+            try:
+                self.store().meta_del(f"qinc:{hid}")
+            except Exception:
+                pass
         self._kick()
         return self.store().hook_get(hid), "", 200
 

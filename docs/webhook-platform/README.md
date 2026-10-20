@@ -259,7 +259,9 @@ fc621216. Two more reviewers then reviewed the whole chain again at ac47dac1 (R8
 eight P2 and their P3 findings, fixed in the next commit and pinned in `chain_review_two()`, each red on the server
 code of ac47dac1. A reviewer of that fix commit (R9, at 6d40a873) found one P1 and three P2 in the fixes themselves;
 they are fixed in the next commit and pinned in `fix_review_two()`, each red on the server code of 6d40a873 (the P1 row
-hangs there, so it was run on its own).
+hangs there, so it was run on its own). The reviewer of that commit (R10, at f4817a74) found one P1 and four P2; fixed
+in the next commit and pinned in `fix_review_three()`, each red on the server code of f4817a74 (the re-import row
+spins there and was left out of that run).
 
 | Finding | Fix |
 |---|---|
@@ -315,4 +317,10 @@ hangs there, so it was run on its own).
 | R9 P2 quarantined events were exempt from every retention and counted in the byte quota: a broken rule could refuse every valid order, then fill the store | back under the 30-day retention and the per-hook row cap, outside the byte quota; their body is kept for the whole retention |
 | R9 P3 (fixed) | amounts and counts are not masked (only identity numbers: phone, CCCD, Zalo, passport); the incident count resets after each notice; the deleted-hook dispatch check uses the tombstone; rollback ignores empty AI fields; the replay preview judges the business key as the store does |
 | R9 P3 (noted) | the three-valued `[*]` logic can now filter an order an older `not(any ...)` filter let through over a sparse array (the changelog says so) |
+| R10 (review of the R9 fixes, at f4817a74) P1 deleting an event whose AI run failed mid-turn gave the order back, so a resend called the model again | a failed AI run counts as maybe acted |
+| R10 P2 a delivery moved from the v6 store (dispatched, no attempt rows) counted as certainly not acted | dispatched with no attempt rows counts as maybe acted |
+| R10 P2 a hook id re-imported after its deletion kept its tombstone: its events were accepted and spun (644 attempt rows in 3 s) | inserting a hook clears its tombstone |
+| R10 P2 a quarantine notice that failed to queue was marked told: it and every later one for 6 h were lost | the incident state is written only after the notice is queued |
+| R10 P2 numbers under a person's block (so_dien_thoai, dob, id_number, whatsapp) were shown | masked unless the key names an amount or a count |
+| R10 P3 (fixed) | a delivery behind a held one and a failed one is cancelled; new rules close the quarantine incident; quarantined events have their own row cap and the recent-event protection; rollback treats 0 as a value |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |

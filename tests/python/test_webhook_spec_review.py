@@ -1102,7 +1102,7 @@ async def fix_review_two():
     old_cap = wst.KEEP_IGNORED_PER_HOOK
     wst.KEEP_IGNORED_PER_HOOK = 2
     try:
-        st.prune()
+        st.prune(time.time() + wst.RECENT_KEEP_S + 60)     # past the recent-event protection
     finally:
         wst.KEEP_IGNORED_PER_HOOK = old_cap
     nq = st._db.execute("SELECT COUNT(*) FROM events WHERE hook_id=? AND status='invalid'", (hb["id"],)).fetchone()[0]
@@ -1165,6 +1165,142 @@ async def fix_review_two():
           lh.get("enabled") is True and not why, (lh.get("enabled"), why))
 
 
+async def fix_review_three():
+    """Findings of the review of the R9 fixes (R10), and the paths that review found untested."""
+    import webhook_store as wst
+    import webhook_triggers as wt
+    f = fresh()
+    st = f.store()
+    # R10 coverage: approving the held head of a chain runs the rest; a delivery doomed AND behind a held one is
+    # cancelled, not left pending.
+    hc, tc, _ = f.create("/b1", name="Chuỗi 10", target="", text="", level="full", actions=[
+        {"id": "a", "kind": "http", "url": "https://a10.example/in", "approve": True},
+        {"id": "b", "kind": "http", "url": "https://b10.example/in", "depends_on": ["a"]},
+        {"id": "c", "kind": "http", "url": "https://c10.example/in", "depends_on": ["b"]}])
+    c, rc = await f.accept(hc["id"], tc, b"{}", "application/json", "")
+    await f.wait_idle()
+    ok_a, _ = st.approve(rc["event_id"], "a", "approve")
+    f._kick()
+    await mx.drain(f)
+    bs = {b["action_id"]: b["status"] for b in st.get(rc["event_id"])["branches"]}
+    check("R10: approving the held head of a -> b -> c runs b and c", ok_a and bs == {"a": "completed", "b": "completed",
+                                                                                  "c": "completed"}, (ok_a, bs))
+    mx.HTTP["by_host"]["x10.example"] = 400
+    hd, td, _ = f.create("/b1", name="Doomed", target="", text="", level="full", actions=[
+        {"id": "a", "kind": "http", "url": "https://a10.example/in", "approve": True},
+        {"id": "x", "kind": "http", "url": "https://x10.example/in"},
+        {"id": "c", "kind": "http", "url": "https://c10.example/in", "depends_on": ["a", "x"]}])
+    c, rd = await f.accept(hd["id"], td, b"{}", "application/json", "")
+    await mx.drain(f)
+    bd = {b["action_id"]: b["status"] for b in st.get(rd["event_id"])["branches"]}
+    check("R10 P3: a delivery behind a held one and a failed one is cancelled", bd.get("c") == "cancelled", bd)
+    mx.HTTP["by_host"]["x10.example"] = 200
+    # R10 P1: an AI run that failed may have acted: deleting its event keeps the order's keys.
+    hk = {"dedup": {"policy_version": 1, "business_paths": ["id"], "ttl_s": 86400}}
+    ha, ta, _ = f.create("/b1", name="AI lỗi", target="task", text="x", rules=hk)
+    old_ans = mx.MODEL["answer"]
+    mx.MODEL["answer"] = ("", "engine timed out mid-turn")
+    calls0 = mx.MODEL["calls"]
+    c, ra = await f.accept(ha["id"], ta, body({"id": 1}), "application/json", "ai1")
+    await f.wait_idle()
+    st_a = st.get(ra["event_id"])["status"]
+    okd, _ = st.delete_event(ra["event_id"])
+    mx.MODEL["answer"] = old_ans
+    c, ra2 = await f.accept(ha["id"], ta, body({"id": 1}), "application/json", "ai2")
+    await f.wait_idle()
+    check("R10 P1: a failed AI run counts as maybe acted: after deleting it, the resent order is a duplicate and the "
+          "model is not called again", st_a == "failed" and okd and st.get(ra2["event_id"])["status"] == "duplicate"
+          and mx.MODEL["calls"] - calls0 == 1, (st_a, okd, st.get(ra2["event_id"])["status"], mx.MODEL["calls"] - calls0))
+    # R10 P2-2: a delivery dispatched with no attempt rows (moved from an older store) counts as maybe acted.
+    mx.HTTP["by_host"]["v6.example"] = 400
+    hv, tv, _ = f.create("/b1", name="v6", target="", text="", level="full", rules=hk,
+                         actions=[{"id": "crm", "kind": "http", "url": "https://v6.example/in"}])
+    c, rv = await f.accept(hv["id"], tv, body({"id": 2}), "application/json", "v1")
+    await f.wait_idle()
+    st._db.execute("DELETE FROM delivery_attempts WHERE event_id=?", (rv["event_id"],))
+    okv, _ = st.delete_event(rv["event_id"])
+    mx.HTTP["by_host"]["v6.example"] = 200
+    c, rv2 = await f.accept(hv["id"], tv, body({"id": 2}), "application/json", "v2")
+    await f.wait_idle()
+    check("R10 P2-2: a migrated delivery (dispatched, no attempt rows) keeps the keys when its event is deleted",
+          okv and st.get(rv2["event_id"])["status"] == "duplicate", (okv, st.get(rv2["event_id"])["status"]))
+    # R10 P2-3: a hook id that lives again (re-imported) clears its tombstone and runs.
+    hr, tr, _ = f.create("/b1", name="Sống lại", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://again10.example/in"}])
+    saved = dict(st.hook_get(hr["id"]))
+    f.delete(hr["id"])
+    st.hook_insert(saved)
+    mx.HITS.clear()
+    c, rr = await f.accept(hr["id"], tr, b"{}", "application/json", "")
+    await asyncio.sleep(1.0)
+    await f.wait_idle()
+    n_att = st._db.execute("SELECT COUNT(*) FROM attempts WHERE event_id=?", (rr["event_id"],)).fetchone()[0]
+    check("R10 P2-3: a re-inserted hook id runs its events (no tombstone, no dispatch loop)",
+          c == 202 and st.get(rr["event_id"])["status"] == "done" and n_att <= 2
+          and [x for x in mx.HITS if x["host"] == "again10.example"], (c, st.get(rr["event_id"])["status"], n_att))
+    # R10 P2-4: a quarantine notice that failed to queue is sent by the next sweep (never marked told unsent).
+    qr = {"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60, "missing": "quarantine"}}
+    hq, tq, _ = f.create("/b1", name="Q mất", target="task", text="x", rules=qr)
+    real_enq = f._enqueue
+    boom = {"n": 0}
+
+    async def enq_once(*a, **k):
+        boom["n"] += 1
+        if boom["n"] == 1:
+            raise RuntimeError("database is locked")
+        return await real_enq(*a, **k)
+    f._enqueue = enq_once
+    mx.SENT.clear()
+    try:
+        c, rq = await f.accept(hq["id"], tq, body({"x": 1}), "application/json", "")
+        await f.wait_idle()
+    except Exception:
+        pass
+    await f.sweep()
+    f._enqueue = real_enq
+    qs = [x for x in mx.SENT if "cách ly" in x["text"] or "quarantined" in x["text"]]
+    check("R10 P2-4: a quarantine notice whose first queueing failed is sent by the next sweep", len(qs) == 1, len(qs))
+    # R10 P3: new rules close the quarantine incident (the next break is told at once).
+    f.update(hq["id"], {"rules": dict(qr, mapping={"x": "x"})})
+    mx.SENT.clear()
+    await f.accept(hq["id"], tq, body({"x": 2}), "application/json", "")
+    await f.wait_idle()
+    qs2 = [x for x in mx.SENT if "cách ly" in x["text"] or "quarantined" in x["text"]]
+    check("R10 P3: after the rules change, the next quarantine is told again", len(qs2) == 1, len(qs2))
+    # R10 P2-5: numbers under a person's block are masked unless they are amounts or counts.
+    m = wt.mask({"customer": {"so_dien_thoai": 912345678, "dob": 19900115, "total_orders": 4, "id_number": 7788},
+                 "contact": {"number": 84123456}, "whatsapp": 84999888777, "order_number": 1001, "bill_total": 50000})
+    flat = json.dumps(m)
+    check("R10 P2-5: a phone, a birth date and an id number in a person's block are masked; counts, order numbers and "
+          "totals are not", not any(x in flat for x in ("912345678", "19900115", "7788", "84123456", "84999888777"))
+          and m["customer"]["total_orders"] == 4 and m["order_number"] == 1001 and m["bill_total"] == 50000, flat)
+    # R10 P3: filtered events never push quarantined ones out of the row cap.
+    hf, tf, _ = f.create("/b1", name="Lọc nhiều", target="task", text="x", rules=dict(qr, filter={
+        "path": "keep", "op": "eq", "value": 1}))
+    cid = (await f.accept(hf["id"], tf, body({"keep": 1}), "application/json", "qq"))[1]["event_id"]
+    for i in range(4):
+        await f.accept(hf["id"], tf, body({"shop_id": i, "keep": 0}), "application/json", f"ff{i}")
+    await f.wait_idle()
+    old_cap = wst.KEEP_IGNORED_PER_HOOK
+    wst.KEEP_IGNORED_PER_HOOK = 2
+    try:
+        st.prune(time.time() + wst.RECENT_KEEP_S + 60)
+    finally:
+        wst.KEEP_IGNORED_PER_HOOK = old_cap
+    check("R10 P3: four filtered events do not prune the quarantined one under a cap of 2",
+          (st.get(cid) or {}).get("status") == "invalid", (st.get(cid) or {}).get("status"))
+    # R10 coverage: the business-key holder as the store judges it (a key past its TTL still holds while its event
+    # has not run).
+    st._db.execute("INSERT OR REPLACE INTO biz_keys(brain, scope, bkey, event_id, hook_id, created_at, expires_at)"
+                   " VALUES('/b1','hook:x:v1','k10',?, 'x', 0, 1)", (rc["event_id"],))
+    st._db.execute("UPDATE events SET status='queued' WHERE id=?", (rc["event_id"],))
+    held = st.biz_key_holder("/b1", "hook:x:v1", "k10")
+    st._db.execute("UPDATE events SET status='done' WHERE id=?", (rc["event_id"],))
+    gone = st.biz_key_holder("/b1", "hook:x:v1", "k10")
+    check("R10: biz_key_holder keeps an expired key while its event is queued, and lets it go once it ran",
+          held == rc["event_id"] and gone == "", (held, gone))
+
+
 async def main():
     await rules_and_triage()
     await receiving()
@@ -1177,6 +1313,7 @@ async def main():
     await fix_review()
     await chain_review_two()
     await fix_review_two()
+    await fix_review_three()
 
 
 if __name__ == "__main__":

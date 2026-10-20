@@ -582,6 +582,8 @@ class Store:
              float(hook.get("last_at") or 0), str(hook.get("last_status") or ""), 1 if legacy else 0))
         self._db.execute("INSERT OR REPLACE INTO hook_revisions(hook_id, revision, config, at, by) VALUES(?,?,?,?,?)",
                          (hook["id"], int(hook.get("revision") or 1), _dumps(cfg, 10 ** 7), now, by))
+        # The id lives again (re-imported after a rollback): its tombstone would refuse every dispatch.
+        self._db.execute("DELETE FROM meta WHERE k=?", (f"deleted:{hook['id']}",))
 
     def hook_insert(self, hook: dict, max_hooks: int = 0, now: Optional[float] = None, by: str = "owner") -> int:
         """A new hook at revision 1. Returns 1; raises ValueError('too_many') past `max_hooks`."""
@@ -1307,7 +1309,8 @@ class Store:
                     and dep_state(r, by_id) == "held"}
         for _ in range(len(rows)):
             more = {aid for aid, ds in deps_of.items() if aid not in held_ids
-                    and (by_id.get(aid) or {}).get("status") in ("pending", "retry") and any(d in held_ids for d in ds)}
+                    and (by_id.get(aid) or {}).get("status") in ("pending", "retry") and any(d in held_ids for d in ds)
+                    and dep_state(by_id[aid], by_id) != "doomed"}
             if not more:
                 break
             held_ids |= more
@@ -1715,10 +1718,15 @@ class Store:
                 # A finished or ignored event keeps its delivery key (a provider resend stays a duplicate); an open
                 # one is being processed. Only failed, dead and quarantined events are deleted by hand.
                 return False, "not_deletable"
+            # May have acted: a delivery that succeeded or is unclear, an attempt that may have acted, or a delivery
+            # that was dispatched with no attempt rows to say otherwise (moved from an older store). Only a delivery
+            # whose every attempt was a certain no-effect (a 4xx refusal, a block) gives the order back.
             acted = self._db.execute(
                 "SELECT 1 FROM deliveries WHERE event_id=? AND status IN ('completed','accepted','silent','unknown',"
                 "'running','waiting') UNION ALL SELECT 1 FROM delivery_attempts WHERE event_id=? AND maybe_acted=1"
-                " LIMIT 1", (eid, eid)).fetchone() is not None
+                " UNION ALL SELECT 1 FROM deliveries d WHERE d.event_id=? AND d.dispatched_at>0 AND NOT EXISTS ("
+                " SELECT 1 FROM delivery_attempts a WHERE a.event_id=d.event_id AND a.action_id=d.action_id) LIMIT 1",
+                (eid, eid, eid)).fetchone() is not None
             if not self._db.execute("SELECT 1 FROM deliveries WHERE event_id=? LIMIT 1", (eid,)).fetchone():
                 acted = self._ever_dispatched(eid)        # an event of an older build: no delivery rows
             if not acted:
@@ -1973,7 +1981,8 @@ class Store:
                           if int(d or KEEP_DAYS) > KEEP_DAYS}
                 ids = [i for i in ids if not self._kept_longer(i, longer, now)]
             for (hid,) in self._db.execute("SELECT DISTINCT hook_id FROM events").fetchall():
-                for group, keep in ((ran, KEEP_PER_HOOK), (ign, KEEP_IGNORED_PER_HOOK)):
+                for group, keep in ((ran, KEEP_PER_HOOK), ("('filtered','duplicate')", KEEP_IGNORED_PER_HOOK),
+                                    ("('invalid')", KEEP_IGNORED_PER_HOOK)):
                     ids += [r[0] for r in self._db.execute(
                         f"SELECT id FROM events WHERE hook_id=? AND status IN {group} ORDER BY received_at DESC"
                         " LIMIT -1 OFFSET ?", (hid, keep))]
@@ -1990,7 +1999,7 @@ class Store:
                     q = ",".join("?" * len(chunk))
                     recent |= {r[0] for r in self._db.execute(
                         f"SELECT id FROM events WHERE id IN ({q}) AND received_at>? AND status NOT IN"
-                        " ('filtered','invalid','duplicate')", chunk + [now - RECENT_KEEP_S])}
+                        " ('filtered','duplicate')", chunk + [now - RECENT_KEEP_S])}
                 ids = [x for x in ids if x not in recent]
         # Deleted in small transactions: one long write would hold the store lock and make every receive wait.
         for i in range(0, len(ids), 200):

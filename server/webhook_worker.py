@@ -536,7 +536,10 @@ class WebhookWorker:
                 status, detail, result = await self._run_ai(hook, brain, level, body, ct, base, fields, b)
                 ai_out.update(result=result, error=detail if status == "failed" else "", ran=True)
                 webhook_store._crash("after_dispatch")
-                await self._branch_finish(st, eid, fence, aid, status, detail, {}, result)
+                # A failed AI run may already have called tools (a timeout mid-turn at level full): it counts as maybe
+                # acted, so deleting the event never gives the order back for a second run.
+                await self._branch_finish(st, eid, fence, aid, status, detail, {}, result,
+                                          maybe_acted=True if status == "failed" else None)
                 return
             try:
                 if a["kind"] == "http":
@@ -774,10 +777,12 @@ class WebhookWorker:
         await self._enqueue(f"whb:{h.get('id')}:{aid}:{int(self.clock() // 600)}", "breaker", msg, h, status="failed")
         await self.deliver_notifications()
 
-    def _incident(self, h: dict, ev: dict, prefix: str = "inc") -> tuple:
+    def _incident(self, h: dict, ev: dict, prefix: str = "inc", defer: bool = False) -> tuple:
         """errors_only grouping (spec §12): (send?, text suffix). The same failure again (same action, same kind of
         error) while an incident is open is not told again until INCIDENT_REPEAT_S passed; a different failure is.
-        `prefix` "qinc" keeps quarantines apart: a run that succeeds does not close them."""
+        `prefix` "qinc" keeps quarantines apart: a run that succeeds does not close them. `defer`: when it sends, the
+        new state is returned as a third item instead of written, so the caller writes it only once the notice is
+        queued (a crash in between must not mark a notice told that never went out)."""
         import re
         st = self.store()
 
@@ -805,10 +810,14 @@ class WebhookWorker:
         n = int(cur.get("untold") or 0)
         sigs[sig] = now
         sigs = dict(sorted(sigs.items(), key=lambda kv: kv[1])[-20:])
-        st.meta_set(key, json.dumps({"sig": sig, "sigs": sigs, "count": total, "untold": 0,
-                                     "since": cur.get("since") or now, "told_at": now}))
-        return True, (localefmt.chu(f" (thêm {n} lần lỗi không báo riêng từ lần báo trước)", f" ({n} more failures "
-                                    "since the last notice)") if n > 0 else "")
+        state = json.dumps({"sig": sig, "sigs": sigs, "count": total, "untold": 0, "since": cur.get("since") or now,
+                            "told_at": now})
+        suffix = (localefmt.chu(f" (thêm {n} lần lỗi không báo riêng từ lần báo trước)", f" ({n} more failures "
+                                "since the last notice)") if n > 0 else "")
+        if defer:
+            return True, suffix, (key, state)
+        st.meta_set(key, state)
+        return True, suffix
 
     async def _notify(self, ev: dict) -> None:
         """Queue the owner notice of a finished event under the modes (spec §12). The dedup key names the ATTEMPT
@@ -831,7 +840,7 @@ class WebhookWorker:
             # A quarantine is told in every mode but none and the digest, and always grouped (by hook and kind of
             # reason): a broken rule on a busy shop is one notice, never one per event (spec §12).
             if mode not in ("none", "daily_digest"):
-                send, suffix = await asyncio.to_thread(self._incident, h, ev, "qinc")
+                send, suffix, *later = await asyncio.to_thread(self._incident, h, ev, "qinc", True)
                 if send:
                     msg = localefmt.chu(
                         f"⚠ Webhook \"{name}\": sự kiện bị cách ly vì quy tắc không đọc được ("
@@ -841,6 +850,8 @@ class WebhookWorker:
                         f"{str(ev.get('error') or '')[:200]}). Their bodies are kept. Fix the rules, then press "
                         "Process again with the current setup, or Delete them if not needed.") + suffix
                     await self._enqueue(f"wh:{hid}:{ev['id']}:{fence}", "event", msg, h, ev["id"], mark, status)
+                    if later:
+                        await asyncio.to_thread(st.meta_set, *later[0])
                     await self.deliver_notifications()
                     return
             await asyncio.to_thread(st.mark_notified, ev["id"], fence)
@@ -861,10 +872,11 @@ class WebhookWorker:
             await asyncio.to_thread(st.mark_notified, ev["id"], fence)
             return
         suffix = ""
+        inc_later: list = []
         if mode == "errors_only" and (is_error or status in ("blocked", "unknown")):
             # Repeated failures, blocks and unclear outcomes of one hook are one incident, told again only when it
             # changes or after INCIDENT_REPEAT_S (spec §12). An approval stays one notice per event: each one asks.
-            send, suffix = await asyncio.to_thread(self._incident, h, ev)
+            send, suffix, *inc_later = await asyncio.to_thread(self._incident, h, ev, "inc", True)
             if not send:
                 await asyncio.to_thread(st.mark_notified, ev["id"], fence)
                 return
@@ -906,6 +918,8 @@ class WebhookWorker:
         if status == "waiting" and appr:
             dkey = f"wha:{ev['id']}:{','.join(appr)}"
         await self._enqueue(dkey, "event", msg, h, ev["id"], mark, status)
+        if inc_later:
+            await asyncio.to_thread(st.meta_set, *inc_later[0])
         await self.deliver_notifications()
 
     async def _digest(self, now: Optional[float] = None) -> int:
