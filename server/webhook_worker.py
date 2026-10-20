@@ -528,8 +528,26 @@ class WebhookWorker:
                 if open_until:
                     return await close("retry", "paused: this receiver failed several times in a row", open_until)
             safe = webhook_actions.retry_safe(a) or (a["kind"] == "plugin" and bool((found or {}).get("idempotent")))
-            if not await asyncio.to_thread(st.branch_dispatch, eid, fence, aid, self.worker_id, safe,
-                                           webhook_actions.request_fingerprint(a, ctx), ai_call):
+            held = None
+            if a["kind"] == "plugin":
+                # The slot is taken here, in one step with the check, so a delivery that lost the race for the last
+                # slot waits like any other (no attempt spent) instead of being dispatched and then refused.
+                held = webhook_actions.plugin_reserve(a["plugin"], found)
+                if held is False:
+                    if float(b.get("deadline") or 0) and now > float(b["deadline"]):
+                        return await close("failed", "not sent: the plugin's earlier calls kept hanging until the "
+                                           "deadline (check the plugin, then Retry)")
+                    return await close("retry", "not sent yet: plugin handlers are busy", now + 30)
+            try:
+                ok = await asyncio.to_thread(st.branch_dispatch, eid, fence, aid, self.worker_id, safe,
+                                             webhook_actions.request_fingerprint(a, ctx), ai_call)
+            except BaseException:
+                if held:
+                    webhook_actions.plugin_unreserve(a["plugin"])
+                raise
+            if not ok:
+                if held:
+                    webhook_actions.plugin_unreserve(a["plugin"])
                 return
             sent.add(aid)
             if a["kind"] == "ai":
@@ -549,7 +567,7 @@ class WebhookWorker:
                 elif a["kind"] == "tool":
                     out = await webhook_actions.run_tool(a, ctx, self.deps.call_tool, level, args)
                 else:
-                    out = await webhook_actions.run_plugin(a, ctx, found, level)
+                    out = await webhook_actions.run_plugin(a, ctx, found, level, reserved=bool(held))
             except Exception as e:
                 out = webhook_actions.Outcome("unknown", f"{type(e).__name__}: {e}"[:300], maybe_acted=True)
             webhook_store._crash("after_dispatch")

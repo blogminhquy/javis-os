@@ -461,7 +461,14 @@ async def second_round():
         for h, t in hs:
             evs.append((await f.accept(h["id"], t, b"{}", "application/json", ""))[1]["event_id"])
         await f.wait_idle()
-        late = evs[2]
+        # Two calls of a plugin run at once (PLUGIN_PER_SLUG): the delivery left waiting is whichever was claimed last,
+        # not always the third (claim order across hooks is not fixed).
+        waiting = [e for e in evs if int(st.get(e)["branches"][0]["tries"] or 0) == 0]
+        check("R4 P2-1 (setup): two hung calls hold the plugin's slots, one delivery waits unsent", len(waiting) == 1,
+              [(e, st.get(e)["branches"][0]["status"], st.get(e)["branches"][0]["tries"],
+                st.get(e)["branches"][0]["detail"], [(a.get("outcome"), a.get("detail")) for a in st.get(e).get("attempts", [])])
+               for e in evs])
+        late = waiting[0] if waiting else evs[2]
         st._db.execute("UPDATE deliveries SET deadline=?, next_at=0 WHERE event_id=?", (time.time() - 1, late))
         st._db.execute("UPDATE events SET next_at=0 WHERE id=?", (late,))
         f._kick()

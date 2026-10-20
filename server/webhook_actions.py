@@ -584,6 +584,27 @@ def plugin_slot_free(slug: str, found: Optional[dict]) -> bool:
         return _SLUG_INFLIGHT.get(slug, 0) < PLUGIN_PER_SLUG and sum(_SLUG_INFLIGHT.values()) < PLUGIN_THREADS
 
 
+def plugin_reserve(slug: str, found: Optional[dict]) -> Optional[bool]:
+    """Take one of this plugin's call slots right before its delivery is dispatched, so the slot check and the call
+    are one step: two deliveries that both saw a free slot can no longer both be dispatched with one of them then
+    refused (an attempt spent with nothing sent). None = nothing to reserve (an async handler, no plugin); True =
+    reserved (run_plugin(..., reserved=True) uses it, plugin_unreserve gives it back if the call never starts);
+    False = busy."""
+    if not found or inspect.iscoroutinefunction(found.get("handler")):
+        return None
+    with _SLUG_LOCK:
+        if _SLUG_INFLIGHT.get(slug, 0) >= PLUGIN_PER_SLUG or not _PLUGIN_SLOTS.acquire(blocking=False):
+            return False
+        _SLUG_INFLIGHT[slug] = _SLUG_INFLIGHT.get(slug, 0) + 1
+    return True
+
+
+def plugin_unreserve(slug: str) -> None:
+    with _SLUG_LOCK:
+        _SLUG_INFLIGHT[slug] = max(0, _SLUG_INFLIGHT.get(slug, 0) - 1)
+    _PLUGIN_SLOTS.release()
+
+
 def _call_release(h, delivery, ctx, did, slug=""):
     try:
         return h(delivery, ctx)
@@ -781,14 +802,23 @@ def plugin_precheck(action: dict, found: Optional[dict], level: str, ctx: dict) 
     return None
 
 
-async def run_plugin(action: dict, ctx: dict, found: Optional[dict], level: str) -> Outcome:
+async def run_plugin(action: dict, ctx: dict, found: Optional[dict], level: str, reserved: bool = False) -> Outcome:
     """`found` = {"handler", "ctx", "min_mode", "schema", "ai", "idempotent"} of an ENABLED plugin visible to the hook's
     brain, or None. handler(envelope, plugin_ctx) -> {"status": completed | accepted | retryable_error |
-    permanent_error | unknown | waiting_approval, "ref"?: job id, "detail"?: str}."""
+    permanent_error | unknown | waiting_approval, "ref"?: job id, "detail"?: str}. `reserved` = the caller holds a
+    slot from plugin_reserve: the call uses it (or gives it back when it never starts)."""
+    slug = str(action.get("plugin") or "")
     pre = plugin_precheck(action, found, level, ctx)
     if pre:
+        if reserved:
+            plugin_unreserve(slug)
         return pre
-    delivery = envelope(ctx, level)
+    try:
+        delivery = envelope(ctx, level)
+    except BaseException:
+        if reserved:
+            plugin_unreserve(slug)
+        raise
     did = ctx["delivery_id"]
     h = found["handler"]
     try:
@@ -799,12 +829,12 @@ async def run_plugin(action: dict, ctx: dict, found: Optional[dict], level: str)
             finally:
                 _INFLIGHT.discard(did)
         else:
-            slug = str(action.get("plugin") or "")
-            with _SLUG_LOCK:
-                if _SLUG_INFLIGHT.get(slug, 0) >= PLUGIN_PER_SLUG or not _PLUGIN_SLOTS.acquire(blocking=False):
-                    return Outcome("retry", "not sent: plugin handlers are busy (earlier calls still running)",
-                                   maybe_acted=False)
-                _SLUG_INFLIGHT[slug] = _SLUG_INFLIGHT.get(slug, 0) + 1
+            if not reserved:
+                with _SLUG_LOCK:
+                    if _SLUG_INFLIGHT.get(slug, 0) >= PLUGIN_PER_SLUG or not _PLUGIN_SLOTS.acquire(blocking=False):
+                        return Outcome("retry", "not sent: plugin handlers are busy (earlier calls still running)",
+                                       maybe_acted=False)
+                    _SLUG_INFLIGHT[slug] = _SLUG_INFLIGHT.get(slug, 0) + 1
             _INFLIGHT.add(did)
             fut = asyncio.get_running_loop().run_in_executor(_plugin_pool(), _call_release, h, delivery,
                                                               found.get("ctx"), did, slug)

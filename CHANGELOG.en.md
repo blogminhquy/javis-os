@@ -38,6 +38,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - Saving from an old tab, or from two tabs at once, never brings a secret key back to an older value.
 - Deleting a webhook cancels its waiting events, and retention removes them, so no customer data is kept forever.
 - List filters (`[*]`) now treat "unknown" as unknown: a `not(any ...)` condition over an order with an item missing the field may now ignore what ran before. Check such filters with Test rules.
+- When several events call one plugin at once, the one left waiting for its turn no longer spends an attempt with nothing sent.
 - A quarantined event (the rules could not read it) now tells you, grouped into one message, and keeps its body for 30 days. Processing again an order that already ran as another event is refused, never sent twice. Repeated failures are grouped by kind, not one message per order.
 - **A retry after an overload refusal (429) now runs.** Before, the duplicate key was kept, so the retry was reported as a duplicate and the order never ran.
 ## [0.246.0] - 2026-10-20

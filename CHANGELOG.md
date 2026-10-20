@@ -37,6 +37,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Xoá một webhook thì các sự kiện còn chờ của nó được huỷ và tự dọn theo hạn lưu, không giữ dữ liệu khách mãi.
 - Bộ lọc trên danh sách (`[*]`) giờ coi "không rõ" là không rõ: một điều kiện `not(any ...)` trên đơn có món thiếu trường có thể bị bỏ qua ở chỗ trước đây chạy. Xem lại bộ lọc kiểu này bằng Thử quy tắc.
 - Sự kiện bị cách ly (quy tắc không đọc được) giờ được báo cho bạn, gộp làm một tin, và giữ nguyên nội dung trong 30 ngày. Chạy lại một đơn đã chạy ở sự kiện khác bị từ chối, không gửi hai lần. Lỗi lặp lại được gộp theo loại lỗi, không báo mỗi đơn một tin.
+- Lúc nhiều sự kiện cùng gọi một plugin, sự kiện phải chờ lượt không còn bị tính oan một lần thử khi chưa gửi gì.
 - **Bị từ chối vì quá tải (429) thì lần gửi lại vẫn chạy.** Trước đây mã chống trùng bị giữ lại, nên lần gửi lại bị báo trùng và đơn không bao giờ chạy.
 ## [0.246.0] - 2026-10-20
 ### Cải thiện
