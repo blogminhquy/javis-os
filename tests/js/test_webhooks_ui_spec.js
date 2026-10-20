@@ -58,6 +58,9 @@ const rp = W.replayHtml({ ok: true, id: "ev_1", decision: "run", deliveries: [{ 
   may_repeat: ["crm"] });
 check("process again: the plan, what would act again, then a confirm button", rp.includes("<b>crm</b>") && rp.includes("wh.plan_done_before")
   && rp.includes("wh.replay_repeat") && rp.includes("wh.plan_after") && rp.includes('whReplayGo" data-ev="ev_1"'));
+check("process again: an order that already ran as another event is named and not offered to run",
+  (function () { const h = W.replayHtml({ ok: true, decision: "run", duplicate_of: "ev_9", deliveries: [] });
+    return h.includes("wh.replay_dup") && !h.includes("whReplayGo"); })());
 check("process again: the current rules would not run it", W.replayHtml({ ok: true, decision: "filtered", reason: "status_mismatch" })
   .includes("wh.replay_no_run") && !W.replayHtml({ ok: true, decision: "filtered" }).includes("whReplayGo"));
 check("plan: an action that would not run says why", W.planHtml([{ action: "t", kind: "tool", runs: false, why_not: "not sent: <m>" }])

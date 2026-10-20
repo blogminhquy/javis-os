@@ -153,6 +153,12 @@ def validate(cfg: Any) -> dict:
             out["previous_until"] = float(cfg.get("previous_until") or 0)
         except (TypeError, ValueError):
             raise VerifyError("previous_until must be a time")
+        import math
+        import time as _t
+        if not math.isfinite(out["previous_until"]):
+            raise VerifyError("previous_until must be a time")
+        # Bounded overlap (spec §10): never past the longest overlap from now, whatever was stored.
+        out["previous_until"] = min(out["previous_until"], _t.time() + OVERLAP_MAX_H * 3600)
     if prov == "hmac_sha256":
         hdr = str(cfg.get("header") or "").strip()
         if not hdr or len(hdr) > 64 or not all(c.isalnum() or c == "-" for c in hdr):

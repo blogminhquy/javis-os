@@ -549,7 +549,11 @@ async def main():
     await f.wait_idle()
     check("same order again under a new idempotency key -> duplicate by business key, no second run",
           code == 202 and st.get(resp4["event_id"])["status"] == "duplicate" and len(calls) == 1, resp4)
-    check("ignored and quarantined events never notify the owner", len(sent) == 1, sent)
+    # 0.237.0 (spec §12, §7 table "payload/schema/filter wrong": an error): a quarantine is told once; ignored
+    # events (filtered, duplicate) never are.
+    quar = [x for x in sent if "cách ly" in x or "quarantined" in x]
+    check("ignored events never notify the owner; a quarantined one tells the owner once", len(sent) == 2
+          and len(quar) == 1, sent)
     check("the log is searchable by the correlation (order) id", [x["id"] for x in st.page(q="A9")["items"]]
           == [resp4["event_id"], resp["event_id"]])
 
@@ -589,7 +593,7 @@ async def main():
     check("simulate stored nothing, ran nothing, sent nothing, held no key",
           st._db.execute("SELECT COUNT(*) FROM events").fetchone()[0] == n_before
           and st._db.execute("SELECT COUNT(*) FROM biz_keys").fetchone()[0] == nk_before and len(calls) == 1
-          and len(sent) == 1)
+          and len(sent) == 2)
 
     from fastapi import FastAPI
     import httpx

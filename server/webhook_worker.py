@@ -236,7 +236,12 @@ class WebhookWorker:
                 if isinstance(doc, dict) and trace.get("event"):
                     doc = dict(doc, _event=webhook_auth.run_event(trace["event"], doc))
                 plan = self.plan_deliveries(r["id"], cfg, doc, float(r["received_at"]))
-            await asyncio.to_thread(st.triage_commit, r["id"], pre, plan)
+            got = await asyncio.to_thread(st.triage_commit, r["id"], pre, plan)
+            if got == "invalid":
+                # Quarantined: the owner hears of it (grouped under errors_only), from counts and reason codes only.
+                full = await asyncio.to_thread(st.get, r["id"])
+                if full:
+                    await self._notify(full)
 
     # ── sweep ──
     async def sweep(self) -> dict:
@@ -473,6 +478,11 @@ class WebhookWorker:
                 if pre:
                     return await close(pre.status, pre.detail)
                 if webhook_actions.plugin_busy(b["delivery_id"]):
+                    if float(b.get("deadline") or 0) and now > float(b["deadline"]):
+                        # Its earlier call never came back: past the deadline the owner is told instead of a silent
+                        # wait. It may have acted (that call may still finish): unknown, never resent by itself.
+                        return await close("unknown", "the plugin's earlier call of this delivery never returned "
+                                           "before the deadline: check the plugin, then Retry or Mark done")
                     return await close("retry", "not sent: the previous call of this delivery is still running", now + 60)
                 if not webhook_actions.plugin_slot_free(a["plugin"], found):
                     # Its turn has not come (this plugin, or all plugins, are busy): no attempt is spent, but the wait
@@ -767,21 +777,35 @@ class WebhookWorker:
     def _incident(self, h: dict, ev: dict) -> tuple:
         """errors_only grouping (spec §12): (send?, text suffix). The same failure again (same action, same kind of
         error) while an incident is open is not told again until INCIDENT_REPEAT_S passed; a different failure is."""
+        import re
         st = self.store()
+
+        def kind(text: str) -> str:
+            # The KIND of failure, not its wording: numbers (order ids, HTTP 502 vs 504) and quoted values do not make
+            # a new incident, so one receiver failing for six orders is one notice (spec §12).
+            t = re.sub(r"\d+", "#", str(text or "").lower())
+            t = re.sub(r"\"[^\"]*\"|'[^']*'", "…", t)
+            return t.split(":")[0][:40]
         bad = [b for b in ev.get("branches") or [] if b.get("status") in ("failed", "unknown", "blocked")]
-        sig = ",".join(sorted(f"{b['action_id']}:{b['status']}:{str(b.get('detail') or '').split(':')[0][:40]}"
-                              for b in bad)) or f"event:{ev.get('status')}:{str(ev.get('error') or '')[:40]}"
+        sig = ",".join(sorted(f"{b['action_id']}:{b['status']}:{kind(b.get('detail'))}" for b in bad)) \
+            or f"event:{ev.get('status')}:{kind(ev.get('error'))}"
         key = f"inc:{h.get('id')}"
         cur = webhook_store._loads(st.meta_get(key), {})
         now = self.clock()
-        if cur.get("sig") == sig and now - float(cur.get("told_at") or 0) < INCIDENT_REPEAT_S:
-            cur["count"] = int(cur.get("count") or 1) + 1
+        # Every open kind is remembered (two errors that alternate are not told again each time), oldest dropped.
+        sigs = {k: float(v) for k, v in (cur.get("sigs") or ({cur["sig"]: cur.get("told_at") or 0} if cur.get("sig")
+                                                               else {})).items()}
+        total = int(cur.get("count") or 0) + 1
+        if sig in sigs and now - sigs[sig] < INCIDENT_REPEAT_S:
+            cur.update(count=total, sigs=sigs, sig=sig)
             st.meta_set(key, json.dumps(cur))
             return False, ""
-        n = int(cur.get("count") or 0) if cur.get("sig") == sig else 0
-        st.meta_set(key, json.dumps({"sig": sig, "count": max(1, n + 1), "since": cur.get("since") or now,
+        n = int(cur.get("count") or 0)
+        sigs[sig] = now
+        sigs = dict(sorted(sigs.items(), key=lambda kv: kv[1])[-20:])
+        st.meta_set(key, json.dumps({"sig": sig, "sigs": sigs, "count": total, "since": cur.get("since") or now,
                                      "told_at": now}))
-        return True, (localefmt.chu(f" (lặp lại {n} lần từ lần báo trước)", f" (repeated {n} times since the last "
+        return True, (localefmt.chu(f" (đã lỗi {n} lần từ lần báo trước)", f" ({n} failures since the last "
                                     "notice)") if n > 1 else "")
 
     async def _notify(self, ev: dict) -> None:
@@ -800,7 +824,7 @@ class WebhookWorker:
         name = h.get("name") or hid
         mode = h.get("notify") or "all"
         needs_you = status in ("unknown", "waiting", "blocked")
-        is_error = status in ("failed", "dead")
+        is_error = status in ("failed", "dead", "invalid")
         if mode == "none" or (mode == "errors_only" and not (is_error or needs_you)) or \
                 (mode == "daily_digest" and not needs_you):
             if mode == "errors_only" and status == "done":
@@ -826,7 +850,14 @@ class WebhookWorker:
                 return
         branches = ev.get("branches") or []
         appr = sorted(b["action_id"] for b in branches if b.get("status") == "approval")
-        if is_error:
+        if status == "invalid":
+            msg = localefmt.chu(f"⚠ Webhook \"{name}\": một sự kiện bị cách ly vì quy tắc không đọc được nó ("
+                                f"{str(ev.get('error') or '')[:200]}). Nội dung được giữ lại. Sửa quy tắc rồi bấm Chạy "
+                                "lại với cấu hình hiện tại, hoặc Xoá nếu không cần.",
+                                f"⚠ Webhook \"{name}\": an event was quarantined because the rules could not read it "
+                                f"({str(ev.get('error') or '')[:200]}). Its body is kept. Fix the rules, then press "
+                                "Process again with the current setup, or Delete it if it is not needed.") + suffix
+        elif is_error:
             partial = any(b.get("status") in webhook_store.BRANCH_OK for b in branches)
             head = localefmt.chu(f"⚠ Webhook \"{name}\" chạy được một phần, phần lỗi: " if partial else
                                  f"⚠ Webhook \"{name}\" chưa chạy được: ",

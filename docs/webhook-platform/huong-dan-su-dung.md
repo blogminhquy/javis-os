@@ -80,8 +80,8 @@ Mỗi sự kiện có thể tới nhiều nơi. Mỗi nơi chạy riêng:
 - **Apps Script** phải trả về biên nhận thì mới tính là xong. Mẫu script trong `m3-actions-and-delivery.md`. Lúc triển
   khai chọn quyền "Anyone"; nếu không, Javis báo bị chặn kèm cách sửa.
 - **Plugin** như POSCake Zalo nhận cùng mã giao nhận ở mọi lần thử, nên không hẹn hay gửi tin hai lần.
-- **tool** gọi công cụ của Javis (POS, CRM, lịch...) không cần AI, đúng mức quyền hiện tại của webhook. Đặt
-  `"approve": true` để mỗi sự kiện chờ bạn bấm Duyệt.
+- **tool** gọi công cụ của Javis (POS, CRM, lịch...) không cần AI, đúng mức quyền hiện tại của webhook. Mặc định
+  mỗi sự kiện chờ bạn bấm Duyệt; chỉ khi đã tin công cụ đó mới đặt `"approve": false`.
 - Khoá API trong `headers` được mã hoá, không bao giờ hiện lại. Đổi địa chỉ thì phải nhập lại khoá.
 
 ## 5. Kiểm chữ ký nhà cung cấp

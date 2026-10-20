@@ -81,7 +81,10 @@ TASK_INTRO = "NHIỆM VỤ TỪ WEBHOOK - một hệ thống bên ngoài vừa g
 DEFAULT_LEVEL = "full"   # same reasoning as reminders.MUC_QUYEN_MAC_DINH: the owner wrote the job out
 _PII_KEYS = ("name", "phone", "email", "address", "mobile", "tel", "sdt", "ho_ten", "hoten", "dia_chi", "diachi",
              "customer", "contact", "bill_", "shipping", "first_name", "last_name", "surname", "birth", "cmnd", "cccd",
-             "zalo", "facebook", "note")
+             "zalo", "facebook", "note",
+             # 0.237.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
+             "khach", "nguoi_nhan", "nguoinhan", "nguoi_gui", "recipient", "receiver", "buyer", "sender", "full_name",
+             "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob")
 _SECRET_KEYS = ("token", "secret", "password", "passwd", "authorization", "api_key", "apikey", "signature", "cookie",
                 "access_key", "private")
 
@@ -212,7 +215,9 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
         if pii and v:
             return v[:1] + "•" * min(max(len(v) - 1, 1), 12)
         return _mask_text(v)
-    if isinstance(v, (int, float)) and not isinstance(v, bool) and any(x in k for x in ("phone", "mobile", "tel", "sdt")):
+    # A number under a customer key (a CCCD, a Zalo id, a phone kept as a number) is the customer's too.
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and (pii or any(x in k for x in ("phone", "mobile", "tel",
+                                                                                                "sdt"))):
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:]
     return v
@@ -727,8 +732,13 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 merged[k] = changes[k]
         if "verify" in changes:
             v = changes.get("verify")
+            if isinstance(v, dict):
+                # The previous key and its end are Javis's to set (a rotation below), never the client's: a sent
+                # `previous_until` far away would keep two keys live for years.
+                v = {k: x for k, x in v.items() if k not in ("previous_secret", "previous_until")}
             old = h.get("verify") or {}
-            if isinstance(v, dict) and v.get("secret") == "••••":
+            if isinstance(v, dict) and (v.get("secret") == "••••" or (webhook_secrets.is_ref(v.get("secret"))
+                                                                     and v.get("secret") == old.get("secret"))):
                 v = dict(v, secret=old.get("secret")) if old.get("provider") == v.get("provider") else dict(v, secret=None)
                 for k in ("previous_secret", "previous_until"):
                     if old.get(k) and old.get("provider") == v.get("provider"):
@@ -954,7 +964,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         code, resp = await self._ingest(h, body, ct, "", source="test")
         return (200 if code == 202 else code), dict(resp, preview_of=prev.get("deliveries") or [])
 
-    def replay_preview(self, eid: str) -> tuple:
+    def replay_preview(self, eid: str, _internal: bool = False) -> tuple:
         """"Process with the new configuration": what the hook as it is NOW would do with this event, and which of
         those actions already succeeded for it (they would act again). Nothing is written."""
         ev = self.store().get(eid, True)
@@ -977,16 +987,32 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             d["may_have_acted"] = d["action"] in maybe       # unknown: it may have acted, it would act again
             if "args" in d:
                 d["args"] = mask(d["args"])           # the logged event's data, masked like its detail view
-        return 200, {"ok": True, "decision": res["decision"], "reason": res["reason"], "revision": h.get("revision"),
-                     "level": h.get("level"), "generation": int(ev.get("generation") or 1) + 1, "deliveries": plan,
-                     "may_repeat": sorted(d["action"] for d in plan if d["runs"] and (d["already_succeeded"]
-                                                                                      or d["may_have_acted"]))}
+        # Business dedup holds for a replay too (spec §7): another event holding this order's key ran it already.
+        bk = res.get("business_key") if res["decision"] == "run" else None
+        dup_of = ""
+        if bk:
+            held = self.store().biz_key_lookup(ev.get("brain") or "", webhook_store.Store.key_scope(
+                ev["hook_id"], bk, ev.get("source") or "http"), bk["hash"])
+            if held and held.get("event_id") not in (eid, ""):
+                dup_of = held["event_id"]
+        out = {"ok": True, "decision": res["decision"], "reason": res["reason"], "revision": h.get("revision"),
+               "level": h.get("level"), "generation": int(ev.get("generation") or 1) + 1, "deliveries": plan,
+               "may_repeat": sorted(d["action"] for d in plan if d["runs"] and (d["already_succeeded"]
+                                                                                or d["may_have_acted"])),
+               "duplicate_of": dup_of}
+        if _internal:
+            out["_bk"] = bk
+        return 200, out
 
     def replay_confirm(self, eid: str, revision: Optional[int] = None) -> tuple:
         """`revision`: the revision the owner saw in the preview. The hook changed since -> 409 (preview again)."""
-        code, prev = self.replay_preview(eid)
+        code, prev = self.replay_preview(eid, _internal=True)
         if code != 200:
             return code, prev
+        bk = prev.pop("_bk", None)
+        if prev.get("duplicate_of"):
+            return 409, {"ok": False, "error": f"duplicate of {prev['duplicate_of']}: that event holds this order's "
+                                               "business key (it ran there)", "duplicate_of": prev["duplicate_of"]}
         try:
             rev = None if revision in (None, "") else int(revision)
         except (TypeError, ValueError):
@@ -1004,7 +1030,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             doc = dict(doc, _event=webhook_auth.run_event(ev["trace"]["event"], doc))   # as the preview planned it
         # Planned from now: the retry window of a replay starts when the owner asks for it.
         plan = self.plan_deliveries(eid, cfg, doc, time.time(), prev["generation"])
-        ok, why = self.store().replay(eid, plan, revision=int(h.get("revision") or 0))
+        ok, why = self.store().replay(eid, plan, revision=int(h.get("revision") or 0), bk=bk)
         if not ok:
             return 409, {"ok": False, "error": why}
         return 200, {"ok": True, "generation": prev["generation"], "may_repeat": prev["may_repeat"]}
@@ -1018,7 +1044,13 @@ class WebhookFeature(webhook_worker.WebhookWorker):
 
     def _auth_failed(self, ip: str, now: float) -> None:
         if len(self._fails) > 5000:
-            self._fails.clear()
+            # Forget the addresses whose failures are over, oldest first; never the whole table at once (rotating
+            # addresses would otherwise reset every address's count).
+            for k in [k for k, q in self._fails.items() if not q or q[-1] < now - 60]:
+                del self._fails[k]
+            if len(self._fails) > 5000:
+                for k in sorted(self._fails, key=lambda k: self._fails[k][-1])[:len(self._fails) - 4000]:
+                    del self._fails[k]
         self._fails.setdefault(ip, deque(maxlen=AUTH_FAIL_MAX + 5)).append(now)
 
     @staticmethod
@@ -1202,7 +1234,10 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 body += chunk
                 if len(body) > cap:
                     return JSONResponse({"ok": False, "error": f"body larger than {cap} bytes"}, status_code=413)
-            idem = request.headers.get("idempotency-key") or request.headers.get("x-request-id") or ""
+            # X-Request-ID is often a per-attempt id (spec §6.1: never mistake an attempt id for the event's): only
+            # hooks from before the platform, which deduplicated on it, keep reading it.
+            idem = request.headers.get("idempotency-key") or (request.headers.get("x-request-id") if h.get("legacy")
+                                                              else "") or ""
             try:
                 code, resp = await self.accept_body(h, body, request.headers.get("content-type", ""), idem,
                                                     headers=request.headers)

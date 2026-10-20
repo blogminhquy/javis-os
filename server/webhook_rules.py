@@ -770,9 +770,12 @@ def eval_leaf(cond: dict, doc: Any) -> tuple:
     else:
         ok = any(r is True for r in res)
     why = ""
-    if not ok:
-        if all(r is None for r in res):
-            why = "missing_field" if all(x is _MISSING for x in vals) else "type_mismatch"
+    # Undecided while an unknown item could still change the answer: `any` with no True and some unknown, `all` with
+    # no False and some unknown. Then the leaf is unknown (a `not` around it stays unknown), never a definite False.
+    decided = any(r is False for r in res) if q == "all" else ok
+    if not ok and not decided and any(r is None for r in res):
+        unknown = [x for x, r in zip(vals, res) if r is None]
+        why = "missing_field" if all(x is _MISSING for x in unknown) else "type_mismatch"
     return ok, v, why, ""
 
 

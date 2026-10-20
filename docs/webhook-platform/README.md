@@ -190,6 +190,8 @@ en), `test_i18n.mjs`, and `tools/webhook_ui_narrow_check.mjs` (390 px, no sidewa
 |---|---|---|---|---|---|
 | Fast receiver | 1,200 in 59.96 s | 1,200 × 202 | 4.66 / 6.66 / 9.86 / 48.46 | 0.01 s / 0.01 s | 0 |
 | Every action waits 2 s | 1,200 in 59.96 s | 1,200 × 202 | 5.70 / 9.99 / 15.81 / 39.66 | 34.8 s / 65.0 s (backlog by design) | 0 |
+| Fast receiver, again at ac47dac1 (2026-10-20, after the R6 and R7 fixes) | 1,200 in 59.96 s | 1,200 × 202 | 4.68 / 6.23 / 10.75 / 59.72 | 0.01 s / 0.02 s | 0 |
+| Every action waits 2 s, again at ac47dac1 | 1,200 in 59.96 s | 1,200 × 202 | 5.96 / 10.07 / 15.81 / 75.98 | 34.9 s / 65.2 s (backlog by design) | 0 |
 
 With a 2 s receiver, processing is bounded by one delivery per hook in a pool of 4 (2 per second), so the backlog
 grows while ingress stays at the same latency and every event stays stored. This is the build container, not a VPS
@@ -232,6 +234,7 @@ to make a run pass, and no threshold was loosened; each change below follows a s
 | Hung handlers filled the whole plugin pool | one plugin holds at most 2 threads; its extra calls wait without spending an attempt | §11 (review R2 P2-4) |
 | Notices named the internal states | the spec's words (succeeded, waiting...) | §12 |
 | The 0.198 log answered 200 on duplicates without an event id | 200 with the event id | §4.2 |
+| Quarantined events never notified the owner (`test_webhook_rules_m2`) | a quarantine is told once, grouped under `errors_only`; ignored events (filtered, duplicate) still are not | §7 table "payload/schema/filter wrong" is an error, §12 (review R8 P2-3) |
 | Deleting a hook made its waiting events dead | cancelled: a dead event keeps its body for the owner's retry, which a deleted hook can never get, so its customer data stayed forever | §11 retention (review R7 P2-3) |
 
 One more edit is not a behaviour change: the stub of `Store.claim` in `test_webhook_store_m1` ("a kick that lands while a
@@ -252,7 +255,9 @@ there (13 failures or hangs). A fourth reviewer (R4) then reviewed the fix commi
 0.237.0 follow-up commit and pinned in `whole_chain()` of the same file, which was run against the server code of
 a79820f2 to confirm the pinned checks were red there. A seventh reviewer (R7) reviewed that fix commit (fc621216):
 four P2 and six P3 findings, fixed in the next commit and pinned in `fix_review()`, each red on the server code of
-fc621216.
+fc621216. Two more reviewers then reviewed the whole chain again at ac47dac1 (R8, M1-M3 and M4-M5 separately): two P1,
+eight P2 and their P3 findings, fixed in the next commit and pinned in `chain_review_two()`, each red on the server
+code of ac47dac1.
 
 | Finding | Fix |
 |---|---|
@@ -291,4 +296,15 @@ fc621216.
 | R7 P2 events queued when their hook was deleted ended dead and were kept forever with their body | cancelled, removed by retention |
 | R7 P2 an internal fault before the send marked the delivery "may have acted" | before the dispatch is recorded it is retried within its deadline; after it, unknown |
 | R7 P3 (all fixed) | the replay confirm must carry the previewed revision (400 without it, or with a bad one); a correlation is masked like the key it reads (`customer.name`); an Apps Script test event carries `javis_test` even with the delivery id in a header; plugins allowed to use AI count among the AI hooks; the last known AI list keeps the slot protected when it cannot be read |
+| R8 (second whole-chain review at ac47dac1, two reviewers: M1-M3 and M4-M5) P1 a dependent waiting on a delivery in retry requeued its event at once: a claim loop writing an attempt row each time (389 in 2 s) | a delivery is due no sooner than what it waits for, down the whole chain |
+| R8 P1 rollback left an AI hook with approval or a condition switched on for the older build, which would run it on every event unapproved | an AI action with any field beyond id and kind switches the hook off there |
+| R8 P2 replay skipped business dedup: a duplicate replayed sent the order again; a filtered event replayed took no key | the preview names the event holding the key and the confirm refuses; a replay takes the key |
+| R8 P2 deleting a partly failed event gave its keys back, so the source's resend ran the succeeded part again | keys are released only when nothing was ever dispatched |
+| R8 P2 quarantined events were silent under errors_only and retention wiped them | told (grouped), kept with their body and counted in the byte quota until the owner deletes, replays or closes them |
+| R8 P2 `[*]` with known and unknown items gave a definite answer (`not` then matched) | undecided with an unknown item is unknown |
+| R8 P2 Retry of an event held at rollback before triage ran every action unfiltered | it goes back through triage |
+| R8 P2 errors_only grouped on the receiver's wording (one notice per order id; 502 and 504 alternating) | grouped on the kind of failure (numbers and quoted values removed), every open kind remembered |
+| R8 P2 masking missed `ten_khach_hang`, `nguoi_nhan`, `recipient`, `buyer`, numeric CCCD and Zalo ids (view, export, capture fixtures) | the key list widened; numbers under a customer key masked |
+| R8 P3 (fixed) | X-Request-ID is a delivery key only for older hooks; the overlap end is Javis's to set and bounded; the failed-auth table forgets finished addresses only; a plugin call that never returned ends unknown at the deadline; a deleted hook's running event dispatches nothing more; Retry all blocked clears the dispatch mark; the incident key is dropped with the hook |
+| R8 P3 (kept, noted) | a crash between sealing a rotated signing secret and the commit leaves the new key live without the old one (the provider's in-flight deliveries get 401 and are retried by it); the breaker key is the target plus the secret's name, not its value; GitHub and Shopify delivery ids are not signed, so a captured delivery resent with a new id passes (inherent to those providers); an event whose deliveries all ended `accepted` reads as done, since a plugin's accepted job is its normal success |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |

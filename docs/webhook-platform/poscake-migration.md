@@ -39,7 +39,8 @@ a captured POSCake payload (step 2) before real traffic. The same configuration 
 
 - The hook that receives POSCake today was migrated from `webhooks.json`. It is an **older hook**, so its address
   with `?token=` keeps working. Add the rules and actions above **to that hook** (Configuration, Advanced) instead of
-  creating a new one, unless step 2 shows POSCake can send a header.
+  creating a new one, unless step 2 shows POSCake can send a header. An older hook keeps `notify: all` (one
+  message per order): set **Notifications** to `errors_only` there too, once its actions run without AI.
 - A **new** hook accepts the key only in a header (`X-Javis-Token`, or one the owner names, or `Authorization:
   Bearer`). Use one only if POSCake can send that header.
 - Never switch authentication off to make POSCake fit (spec §10). If POSCake signs its deliveries, its scheme becomes
@@ -63,8 +64,9 @@ a captured POSCake payload (step 2) before real traffic. The same configuration 
    and calls no model. Compare its decision for each captured order with what the shop expects (run or ignore, and
    why).
 3. **Check the event id, the authentication and the schema.** The timeline shows "received", "parsed", "filter" and
-   the reason codes. A missing field is quarantined, never matched: fix the paths until every captured order gets
-   the decision it should.
+   the reason codes. A field the filter reads but the order lacks makes it ignored (`missing_field`), never matched;
+   a business-key field it lacks, or a payload the schema refuses, quarantines it (kept, and you are told). Fix the
+   paths until every captured order gets the decision it should.
 4. **Run each action into a test receiver.** Point `to_apps_script` at a test deployment of the receipt script
    (`m3-actions-and-delivery.md`), and run `poscake-zalo` against a test thread, never a customer. Use **Send a real
    test** on the Configuration part: it lists what each action will do before it sends, and its event has its own
@@ -80,8 +82,10 @@ a captured POSCake payload (step 2) before real traffic. The same configuration 
 
 ## The way back
 
-- **The rules drop orders they should not:** clear the rules (Advanced, empty box, Save). Then use "Process again
-  with the current setup" on a dropped event: it previews first, then runs.
+- **The rules drop orders they should not:** fix the condition that drops them (the event's timeline names it), and
+  keep the status filter and the business key: clearing the whole rules box would send every status change of every
+  order to Zalo and the sheet. Then use "Process again with the current setup" on a dropped event: it previews first,
+  and refuses an order that already ran as another event (same business key).
 - **One action misbehaves:** remove it from the hook. Waiting events cancel that delivery and the others continue.
   Or press **Pause processing**: events are still received and stored, nothing runs until you resume.
 - **Send traffic back to the old path:** point POSCake at the old address again, and switch the new path's Zalo or

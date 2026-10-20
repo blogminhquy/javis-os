@@ -138,6 +138,8 @@
   function replayHtml(p) {
     if (!p || !p.ok) return '<div style="color:var(--warn-ink)">' + esc((p && p.error) || tw("wh.save_err")) + "</div>";
     if (p.decision !== "run") return '<div style="color:var(--warn-ink)">' + esc(tw("wh.replay_no_run", { why: p.reason || p.decision })) + "</div>";
+    // Another event holds this order's business key: it ran there, so this one is not offered to run again.
+    if (p.duplicate_of) return '<div style="color:var(--warn-ink)">' + esc(tw("wh.replay_dup", { id: p.duplicate_of })) + "</div>";
     return planHtml(p.deliveries)
       + ((p.may_repeat || []).length ? '<div class="wh-need" style="color:var(--warn-ink)">'
         + esc(tw("wh.replay_repeat", { names: p.may_repeat.join(", ") })) + "</div>" : "")

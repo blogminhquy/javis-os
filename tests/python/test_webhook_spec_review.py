@@ -874,6 +874,168 @@ async def fix_review():
     await cl.aclose()
 
 
+async def chain_review_two():
+    """Findings of the second whole-chain review at ac47dac1 (R8: M1-M3 and M4-M5)."""
+    import httpx
+    from fastapi import FastAPI
+    import webhook_rollback as wrb
+    import webhook_store as wst
+    import webhook_triggers as wt
+    f = fresh()
+    st = f.store()
+    app = FastAPI()
+    app.include_router(f.router)
+    cl = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    # R8 P1 (M1-M3): a dependent behind a delivery that retries later does not spin the event.
+    mx.HTTP["by_host"]["slow8.example"] = 503
+    hd, td, _ = f.create("/b1", name="Chuỗi", target="", text="", level="full", actions=[
+        {"id": "a", "kind": "http", "url": "https://slow8.example/in", "retry_safety": "idempotent"},
+        {"id": "b", "kind": "http", "url": "https://after8.example/in", "depends_on": ["a"]}])
+    c, rd = await f.accept(hd["id"], td, b"{}", "application/json", "")
+    await asyncio.sleep(2.0)
+    claims = st._db.execute("SELECT COUNT(*) FROM attempts WHERE event_id=?", (rd["event_id"],)).fetchone()[0]
+    evd = st.get(rd["event_id"])
+    check("R8 P1: a dependent waiting on a delivery in retry leaves the event queued for later (no claim loop)",
+          claims <= 2 and evd["status"] == "queued" and float(evd["next_at"]) > time.time() + 20, (claims, evd["status"]))
+    st._db.execute("UPDATE events SET status='cancelled' WHERE id=?", (rd["event_id"],))
+    mx.HTTP["by_host"]["slow8.example"] = 200
+    # R8 P2-1: replay keeps business dedup.
+    rules = {"filter": {"path": "status", "op": "eq", "value": 1},
+             "dedup": {"policy_version": 1, "business_paths": ["shop_id", "id"], "ttl_s": 86400}}
+    hr, tr, _ = f.create("/b1", name="Phát lại 8", target="", text="", level="full", rules=rules,
+                         actions=[{"id": "crm", "kind": "http", "url": "https://rep8.example/in"}])
+    mx.HITS.clear()
+    c, r1 = await f.accept(hr["id"], tr, body({"shop_id": 7, "id": 1, "status": 1}), "application/json", "k1")
+    c, r2 = await f.accept(hr["id"], tr, body({"shop_id": 7, "id": 1, "status": 1}), "application/json", "k2")
+    await f.wait_idle()
+    s2 = st.get(r2["event_id"])["status"]
+    c6, pv = f.replay_preview(r2["event_id"])
+    cc, cf = f.replay_confirm(r2["event_id"], pv.get("revision"))
+    await f.wait_idle()
+    hits = len([x for x in mx.HITS if x["host"] == "rep8.example"])
+    check("R8 P2-1: replaying a duplicate names the event holding the order's key and is refused; nothing sent twice",
+          s2 == "duplicate" and pv.get("duplicate_of") == r1["event_id"] and cc == 409 and hits == 1,
+          (s2, pv.get("duplicate_of"), cc, hits))
+    c, r3 = await f.accept(hr["id"], tr, body({"shop_id": 7, "id": 2, "status": 4}), "application/json", "k3")
+    await f.wait_idle()
+    f.update(hr["id"], {"rules": dict(rules, filter={"path": "status", "op": "in", "value": [1, 4]})})
+    _, pv3 = f.replay_preview(r3["event_id"])
+    cc3, _ = f.replay_confirm(r3["event_id"], pv3.get("revision"))
+    await f.wait_idle()
+    c, r4 = await f.accept(hr["id"], tr, body({"shop_id": 7, "id": 2, "status": 4}), "application/json", "k4")
+    await f.wait_idle()
+    check("R8 P2-1: a filtered event replayed under looser rules takes the order's key: the source's next copy is a "
+          "duplicate", cc3 == 200 and st.get(r4["event_id"])["status"] == "duplicate", (cc3, st.get(r4["event_id"])["status"]))
+    # R8 P2-2: deleting a partly failed event keeps its keys (the part that succeeded never runs twice).
+    mx.HTTP["by_host"]["half8b.example"] = 400
+    hp, tp, _ = f.create("/b1", name="Nửa", target="", text="", level="full", rules={
+        "dedup": {"policy_version": 1, "business_paths": ["id"], "ttl_s": 86400}}, actions=[
+        {"id": "fwd", "kind": "http", "url": "https://half8a.example/in"},
+        {"id": "fwd2", "kind": "http", "url": "https://half8b.example/in"}])
+    mx.HITS.clear()
+    c, rp = await f.accept(hp["id"], tp, body({"id": 9}), "application/json", "h1")
+    await f.wait_idle()
+    okd, _ = st.delete_event(rp["event_id"])
+    c, rp2 = await f.accept(hp["id"], tp, body({"id": 9}), "application/json", "h1")
+    c3, rp3 = await f.accept(hp["id"], tp, body({"id": 9}), "application/json", "h2")
+    await f.wait_idle()
+    a_hits = len([x for x in mx.HITS if x["host"] == "half8a.example"])
+    check("R8 P2-2: after deleting a partly failed event, the same delivery and the same order are duplicates; the "
+          "succeeded part ran once", okd and c == 200 and st.get(rp3["event_id"])["status"] == "duplicate"
+          and a_hits == 1, (okd, c, a_hits))
+    mx.HTTP["by_host"]["half8b.example"] = 200
+    # R8 P2-3: a quarantined event is told (grouped) and kept with its body until the owner acts.
+    hq, tq, _ = f.create("/b1", name="Cách ly", target="", text="", level="full", notify="errors_only", rules={
+        "dedup": {"policy_version": 1, "business_paths": ["shop_id", "id"], "ttl_s": 86400, "missing": "quarantine"}},
+        actions=[{"id": "crm", "kind": "http", "url": "https://q8.example/in"}])
+    mx.SENT.clear()
+    qs = []
+    for i in range(3):
+        c, rq = await f.accept(hq["id"], tq, body({"shopId": 7, "id": i}), "application/json", f"q{i}")
+        qs.append(rq["event_id"])
+    await f.wait_idle()
+    told = [x for x in mx.SENT if "Cách ly" in x["text"] or "cách ly" in x["text"]]
+    st.prune(time.time() + (wst.BODY_KEEP_DAYS + 40) * 86400)
+    st.make_room()
+    kept = [st.get(e, True) for e in qs]
+    check("R8 P2-3: three quarantined orders: one grouped notice under errors_only, and every body is kept past "
+          "retention and room-making", len(told) == 1 and all(k and k["status"] == "invalid" and k.get("body")
+                                                              for k in kept), (len(told), [k and k["status"] for k in kept]))
+    okq, _ = st.delete_event(qs[0])
+    check("R8 P2-3: the owner can delete a quarantined event", okq)
+    # R8 P2-4: three-valued logic with a mix of known and unknown items.
+    r_any = {"filter": {"not": {"path": "items[*].price", "op": "gt", "value": 100, "quantifier": "any"}}}
+    dec = [wr.evaluate(r_any, body({"items": it}), "application/json")["decision"]
+           for it in ([{"price": 5}, {"price": "900"}], [{"price": 5}, {"price": 7}])]
+    check("R8 P2-4: not(any price > 100) over [5, \"900\"] is unknown (filtered); over [5, 7] it runs",
+          dec == ["filtered", "run"], dec)
+    # R8 P3: X-Request-ID is not a delivery key for a new hook.
+    hx, tx, _ = f.create("/b1", name="Req id", target="task", text="x")
+    a1 = await cl.post(f"/hooks/{hx['id']}", content=b"{}", headers={"content-type": "application/json",
+                                                                     "x-javis-token": tx, "x-request-id": "r1"})
+    a2 = await cl.post(f"/hooks/{hx['id']}", content=b"{}", headers={"content-type": "application/json",
+                                                                     "x-javis-token": tx, "x-request-id": "r1"})
+    check("R8 P3: two deliveries with the same X-Request-ID on a new hook are two events (it is a per-attempt id)",
+          a1.status_code == 202 and a2.status_code == 202 and a1.json()["event_id"] != a2.json()["event_id"],
+          (a1.status_code, a2.status_code, a2.text[:120]))
+    # R8 P1 (M4-M5): rollback switches off a hook whose AI action needs approval or a condition.
+    lh, why = wrb.legacy_hook({"id": "wh_x", "name": "AI duyệt", "target": "task", "text": "x", "enabled": True,
+                                "actions": [{"id": "main", "kind": "ai", "approve": True,
+                                             "when": {"path": "status", "op": "eq", "value": 1}}]}, [])
+    check("R8 P1: rollback writes an AI hook with approval or a condition switched off for the older build",
+          lh.get("enabled") is False and any("approve" in w for w in why), (lh.get("enabled"), why))
+    # R8 P2-1 (M4-M5): Retry of an event held at rollback before triage goes through the rules.
+    hh, th, _ = f.create("/b1", name="Giữ", target="", text="", level="full",
+                         rules={"filter": {"path": "status", "op": "eq", "value": 1}},
+                         actions=[{"id": "crm", "kind": "http", "url": "https://held8.example/in"}])
+    st.hook_set(hh["id"], paused=1)
+    c, rh = await f.accept(hh["id"], th, body({"status": 4}), "application/json", "")
+    st._db.execute("UPDATE events SET status='received' WHERE id=?", (rh["event_id"],))
+    st.hold_for_rollback([rh["event_id"]])
+    st.hook_set(hh["id"], paused=0)
+    mx.HITS.clear()
+    okr, _ = st.retry(rh["event_id"])
+    f._kick()
+    await f.wait_idle()
+    check("R8 P2-1: Retry of an event held before triage applies the rules (status 4 is ignored, nothing sent)",
+          okr and st.get(rh["event_id"])["status"] == "filtered"
+          and not [x for x in mx.HITS if x["host"] == "held8.example"], (okr, st.get(rh["event_id"])["status"]))
+    # R8 P2-3 (M4-M5): errors_only groups by kind of failure, not by its wording.
+    fails = iter(["order 1001: no Zalo thread", "order 1002: no Zalo thread", "order 1003: no Zalo thread",
+                  "HTTP 502 from x", "HTTP 504 from x", "HTTP 502 from x"])
+    for i in range(6):
+        ev = {"id": f"ev_s{i}", "hook_id": "wh_storm", "status": "failed",
+              "branches": [{"action_id": "zalo", "status": "failed", "detail": next(fails)}]}
+        res = f._incident({"id": "wh_storm"}, ev)
+        if i == 0:
+            told = [res[0]]
+        else:
+            told.append(res[0])
+    check("R8 P2-3: six failures of two kinds (ids and HTTP codes differ) make two notices, not six",
+          told == [True, False, False, True, False, False], told)
+    # R8 P2-4 (M4-M5): customer keys a shop's payload uses are masked, numbers included.
+    m = wt.mask({"ten_khach_hang": "Lê Văn An", "nguoi_nhan": {"ten": "Bình"}, "recipient": "Chi", "buyer": {"full": "Dũng"},
+                 "cccd": 123456789012, "zalo": 84912345678, "shop_id": 7, "status": 1})
+    flat = json.dumps(m, ensure_ascii=False)
+    check("R8 P2-4: ten_khach_hang, nguoi_nhan, recipient, buyer, a numeric CCCD and Zalo id are masked; ids and "
+          "status are not", not any(x in flat for x in ("Lê Văn An", "Bình", "Chi\"", "Dũng", "123456789012",
+                                                       "84912345678")) and m["shop_id"] == 7 and m["status"] == 1, flat)
+    # R8 P3 (M4-M5): the key overlap stays bounded whatever the client sends.
+    hv, tv, _ = f.create("/b1", name="Ký", target="task", text="x", verify={"provider": "github", "secret": "s" * 20})
+    hv2, _, _ = f.update(hv["id"], {"verify": {"provider": "github", "secret": "••••", "previous_secret": "x" * 20,
+                                               "previous_until": 4e9}})
+    pu = float((st.hook_get(hv["id"]).get("verify") or {}).get("previous_until") or 0)
+    check("R8 P3: a previous key and its end sent by the client are ignored (no overlap until 2096)",
+          pu < time.time() + 169 * 3600, pu)
+    for i in range(5100):
+        f._fails.setdefault(f"10.0.{i // 250}.{i % 250}", __import__("collections").deque()).append(time.time() - 120)
+    f._fails.setdefault("203.0.113.9", __import__("collections").deque()).extend([time.time()] * 5)
+    f._auth_failed("203.0.113.10", time.time())
+    check("R8 P3: past 5,000 addresses only finished ones are forgotten; a current one keeps its count",
+          len(f._fails.get("203.0.113.9") or []) == 5 and len(f._fails) < 5000, len(f._fails))
+    await cl.aclose()
+
+
 async def main():
     await rules_and_triage()
     await receiving()
@@ -884,6 +1046,7 @@ async def main():
     await second_round()
     await whole_chain()
     await fix_review()
+    await chain_review_two()
 
 
 if __name__ == "__main__":
