@@ -98,7 +98,44 @@ def rule_paths(rules: dict, actions: Optional[list] = None) -> list:
     return sorted(set(out))
 
 
-def restore_paths(scrubbed, raw, paths: list) -> tuple:
+def rule_operands(rules: dict, actions: Optional[list] = None) -> dict:
+    """{path: [(op, value)]} of the conditions in the filter and the actions' `when`: the constants the OWNER wrote."""
+    out: dict = {}
+
+    def walk(x):
+        if isinstance(x, dict):
+            if isinstance(x.get("path"), str) and "op" in x:
+                out.setdefault(x["path"], []).append((str(x.get("op") or "eq"), x.get("value")))
+            for v in x.values():
+                walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+    walk((rules or {}).get("filter") if isinstance(rules, dict) else None)
+    for a in actions or []:
+        if isinstance(a, dict):
+            walk(a.get("when"))
+    return out
+
+
+def _operand_text(raw: str, conds: list):
+    """A text the rules compare, written as the owner's own constant instead of the customer's text, so the fixture
+    keeps the decision without the customer's words: `eq`/`in` keep the value only when it IS one of the constants;
+    `contains`/`starts_with`/`ends_with` write the constant itself. Anything else: None (not kept)."""
+    for op, val in conds:
+        vals = val if isinstance(val, list) else [val]
+        strs = [v for v in vals if isinstance(v, str)]
+        if op in ("eq", "in") and raw in strs:
+            return raw
+        if op in ("contains", "starts_with", "ends_with"):
+            low = raw.lower()
+            hit = [v for v in strs if v and v.lower() in low]
+            if hit:
+                return hit[0]
+    return None
+
+
+def restore_paths(scrubbed, raw, paths: list, operands: Optional[dict] = None) -> tuple:
     """Put back, at each path the rules read, the value as received, so the fixture gets the real event's decision.
     Only a single value (never a whole object or list: those keep their scrubbed shape), never under an identity
     number, a customer block or a credential, never a link, and a kept text still loses any e-mail or phone inside it.
@@ -121,35 +158,46 @@ def restore_paths(scrubbed, raw, paths: list) -> tuple:
             product = product or bool(words & wt._PRODUCT_PARENTS) or k in wt._PRODUCT_PARENTS
         return False
 
-    def leaf_ok(key, v):
+    def leaf_ok(key, v, product):
         if isinstance(v, (dict, list)) or wt._key_words(key) & wt._LINK_WORDS \
                 or (isinstance(v, str) and v.startswith(("http://", "https://")) and "?" in v):
+            return False
+        # Texts by the same ALLOWLIST as the scrub (a denylist cannot know every key that holds a name: `ho_va_ten`,
+        # free text in `message`); numbers and booleans the rules compare are restored.
+        if isinstance(v, str) and not wt.keep_leaf(key, v, False, False, product):
             return False
         # A text the e-mail and phone masking would change is not written altered (the fixture would then get another
         # decision while saying it kept the path): the path is reported as not kept instead.
         return not (isinstance(v, str) and _show_capture(v) != v)
 
-    def put(dst, src, segs, key, ok):
+    def put(dst, src, segs, key, ok, product=False):
         if not segs:
-            if not leaf_ok(key, src):
-                ok[0] = False
-                return dst
+            if not leaf_ok(key, src, product):
+                const = _operand_text(src, cur_ops[0]) if isinstance(src, str) and not isinstance(src, bool) \
+                    and cur_ops[0] and not (wt._key_words(key) & wt._LINK_WORDS) else None
+                if const is None:
+                    ok[0] = False
+                    return dst
+                return const
             return _show_capture(src)
         sg, rest = segs[0], segs[1:]
-        if sg == webhook_rules.WILD:
-            if isinstance(src, list) and isinstance(dst, list):
-                return [put(d, s, rest, key, ok) for d, s in zip(dst, src)]
-            return dst
-        if isinstance(sg, int):
+        if sg == webhook_rules.WILD or isinstance(sg, int):
+            inner = product or bool(wt._key_words(key) & wt._PRODUCT_PARENTS) or str(key).lower() in wt._PRODUCT_PARENTS
+            if sg == webhook_rules.WILD:
+                if isinstance(src, list) and isinstance(dst, list):
+                    return [put(d, s, rest, key, ok, inner) for d, s in zip(dst, src)]
+                return dst
             if isinstance(src, list) and isinstance(dst, list) and sg < len(src) and sg < len(dst):
                 dst = list(dst)
-                dst[sg] = put(dst[sg], src[sg], rest, key, ok)
+                dst[sg] = put(dst[sg], src[sg], rest, key, ok, inner)
             return dst
         if isinstance(src, dict) and isinstance(dst, dict) and sg in src and sg in dst:
             dst = dict(dst)
-            dst[sg] = put(dst[sg], src[sg], rest, sg, ok)
+            sub = product and (not rest or bool(wt._key_words(sg) & wt._PRODUCT_SUB) or sg.lower() in wt._PRODUCT_SUB)
+            dst[sg] = put(dst[sg], src[sg], rest, sg, ok, sub)
         return dst
     out = scrubbed
+    cur_ops = [[]]
     for p in paths:
         try:
             segs = webhook_rules.parse_path(p)
@@ -160,6 +208,7 @@ def restore_paths(scrubbed, raw, paths: list) -> tuple:
             refused.append(p)
             continue
         ok = [True]
+        cur_ops[0] = (operands or {}).get(p) or []
         new = put(out, raw, segs, "", ok)
         if ok[0]:
             out = new
@@ -194,7 +243,8 @@ def export(state_dir: Path, eid: str, expect: str, out: Path, config: Optional[d
         payload, kept, refused = scrub(doc), [], []
         if config:
             payload, kept, refused = restore_paths(payload, doc, rule_paths(config.get("rules") or {},
-                                                                            config.get("actions")))
+                                                                            config.get("actions")),
+                                                   rule_operands(config.get("rules") or {}, config.get("actions")))
         fx = {"name": out.stem, "origin": f"CAPTURED on staging from event {eid}, customer fields and credentials replaced",
               "content_type": ev.get("content_type") or "application/json", "headers": headers,
               "payload": payload, "expect": expect, "kept_for_rules": kept, "not_kept": refused}

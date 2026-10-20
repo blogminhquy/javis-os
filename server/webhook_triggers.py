@@ -85,14 +85,15 @@ _PII_KEYS = ("name", "phone", "email", "address", "mobile", "sdt", "ho_ten", "ho
              "zalo", "facebook", "note",
              # 0.241.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
              "khach", "nguoi_nhan", "nguoinhan", "nguoi_gui", "recipient", "receiver", "buyer", "sender", "full_name",
-             "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob")
+             "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob", "ho_va_ten",
+             "hovaten", "ten_kh", "tenkh")
 # Identity numbers, matched anywhere in the key (bank accounts and tax numbers included). They win over everything,
 # and every number UNDER such a key is masked too (`phone: {value: 849...}`, `cccd: [...]`).
 _ID_NUMBER_KEYS = ("phone", "mobile", "sdt", "dien_thoai", "dienthoai", "cccd", "cmnd", "zalo", "whatsapp",
                    "viber", "facebook", "id_card", "id_number", "passport", "national_id", "dob", "birth", "stk",
                    "tai_khoan", "taikhoan", "tax_id", "taxid", "tax_code", "taxcode", "tax_n", "taxn", "tax_no",
                    "taxno", "mst", "giay_to", "giayto", "bank_account", "bankaccount", "account_n", "accountn",
-                   "account_no", "accountno")
+                   "account_no", "accountno", "fb_id", "fbid", "psid", "conversation_id", "conversationid")
 # Under a person's block, a number is theirs unless one WHOLE word of its key names an amount or a count
 # (`shipping_fee`, `total_orders`), never a part of a word (`account` is not `count`, `postcode` is not `cod`). Generic
 # words (`value`, `sum`, `balance`) are not amounts: a custom field `{name: "CCCD", value: 79...}` stays masked.
@@ -256,7 +257,9 @@ _STR_SAFE_WORDS = frozenset(("id", "ids", "uuid", "status", "state", "type", "ki
                              "currency", "method", "channel", "platform", "version", "at", "date", "time", "created",
                              "updated", "inserted", "test"))
 _ID_WORDS = frozenset(("cccd", "cmnd", "cmt", "passport", "identity", "citizen", "license", "licence", "ssn", "nric",
-                       "national"))
+                       "national", "card", "exp"))
+_TIME_WORDS = frozenset(("at", "date", "time", "created", "updated", "inserted"))
+_TIME_TEXT = None
 # Sub-objects of an item that still describe the product (anything else inside an item, a destination or a recipient,
 # is not the product's).
 _PRODUCT_SUB = frozenset(("variation", "variations", "variation_info", "product", "variant", "options", "option", "sku"))
@@ -278,7 +281,8 @@ def is_ident_key(key: str) -> bool:
 
 def is_pii_key(key: str) -> bool:
     forms = _key_forms(key)
-    return any(x in f for f in forms for x in _PII_KEYS) or "tel" in _key_words(key)
+    words = _key_words(key)
+    return any(x in f for f in forms for x in _PII_KEYS) or bool(words & {"tel", "ten", "by"})   # `ten`: tên
 _ISO_TIME = None
 _PRODUCT_PARENTS = frozenset(("items", "line_items", "products", "order_items", "variations", "products_info", "lines",
                               "variation_info", "product"))
@@ -306,7 +310,17 @@ def keep_leaf(key: str, v: Any, pii: bool, ident: bool, product: bool) -> bool:
         return _is_num(v) and bool(words & _AMOUNT_WORDS)
     if product and words & _PRODUCT_WORDS:
         return True
-    return bool(words & (_STR_SAFE_WORDS if isinstance(v, str) else _SAFE_WORDS))
+    if isinstance(v, str):
+        hit = words & _STR_SAFE_WORDS
+        if hit and hit <= _TIME_WORDS:
+            # Only a time word: the text is kept only if it is a time (`time_send: "Giao sau 5h tai 12 Le Loi"`).
+            global _TIME_TEXT
+            if _TIME_TEXT is None:
+                import re
+                _TIME_TEXT = re.compile(r"[\d\s:./TZ+\-]{4,40}")
+            return bool(_TIME_TEXT.fullmatch(v))
+        return bool(hit)
+    return bool(words & _SAFE_WORDS)
 
 
 def _show_view(v: Any) -> Any:
@@ -317,7 +331,7 @@ def _show_view(v: Any) -> Any:
     if not isinstance(v, str):
         return v
     if _ISO_TIME is None:
-        _ISO_TIME = re.compile(r"\d{4}-\d{2}-\d{2}([T ][\d:.]+)?(Z|[+-]\d{2}:?\d{2})?")
+        _ISO_TIME = re.compile(r"\d{4}-\d{2}-\d{2}([T ][\d:.]+)?\s?(Z|[+-]\d{2}:?\d{2})?")
     return v if _ISO_TIME.fullmatch(v) else _mask_text(v)
 
 
@@ -1349,7 +1363,10 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return JSONResponse(resp, status_code=code, headers=headers)
 
         @router.post("/hooks/{hook_id}")
-        async def hooks_receive(hook_id: str, request: Request):
+        async def hooks_receive(request: Request):
+            # Path read by hand: a typed parameter makes FastAPI build a model field (and load pydantic's v1
+            # layer) at every start (spec §16: keep the start light).
+            hook_id = str(request.path_params.get("hook_id") or "")
             now = time.time()
             ip = self.client_ip(request)
             try:
@@ -1568,7 +1585,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True, "items": await asyncio.to_thread(self.store().audit_rows, hook, max(1, min(limit, 500)))}
 
         @router.get("/webhooks/events/{event_id}")
-        async def webhooks_event(event_id: str, request: Request):
+        async def webhooks_event(request: Request):
+            event_id = str(request.path_params.get("event_id") or "")
             """One event with its timeline. The payload and the mapped fields are masked; raw=1 shows them as received
             and is recorded in the audit log (spec §12)."""
             raw = _qnum(request.query_params, "raw", 0, int)

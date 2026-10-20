@@ -1369,7 +1369,7 @@ async def fix_review_four():
     import sys as _s2
     _s2.path.insert(0, str(ROOT / "tools"))
     import webhook_capture as wc2
-    fx, kept, refused = wc2.restore_paths(wc2.scrub(stripe), stripe, wc2.rule_paths(rules14))
+    fx, kept, refused = wc2.restore_paths(wc2.scrub(stripe), stripe, wc2.rule_paths(rules14), wc2.rule_operands(rules14))
     dec = wr.evaluate(wr.validate(rules14), json.dumps(fx).encode(), "application/json")["decision"]
     check("R14 P2: the fixture keeps the rule paths (mode, tags, money_to_collect), refuses the phone path, and gets "
           "the same decision as the real event", dec == "run" and refused == ["phone"] and fx["phone"] != "0912345678"
@@ -1387,7 +1387,7 @@ async def fix_review_four():
            "filter": {"all": [{"path": "client_reference_id", "op": "exists"},
                               {"path": "$.tags", "op": "contains", "value": "vip"}]},
            "schema": {"fields": {"data.object": {"type": "object"}, "line_items": {"type": "array"}}}}
-    fx15, kept15, ref15 = wc2.restore_paths(wc2.scrub(doc15), doc15, wc2.rule_paths(r15))
+    fx15, kept15, ref15 = wc2.restore_paths(wc2.scrub(doc15), doc15, wc2.rule_paths(r15), wc2.rule_operands(r15))
     t15 = json.dumps(fx15, ensure_ascii=False, default=str)
     check("R15 P1: a restore never writes a bearer link, a customer name, an e-mail or a whole object back; `$.tags` "
           "is restored", not [x for x in ("SECRETKEY", "live_abc", "Nguyen Van An", "an.nguyen", "an@x.com",
@@ -1421,12 +1421,39 @@ async def fix_review_four():
           not [x for x in ("79123456789", "7912345678", "B1234567", "C7654321", "Nguyen Van An") if x in t16]
           and m16["order_id"] == 55 and m16["status"] == "paid" and m16["line_items"][0]["name"] == "Mắm"
           and m16["line_items"][0]["variation_info"]["name"] == "500ml", t16)
-    r16 = {"filter": {"all": [{"path": "line_items[*].variation_info.barcode", "op": "eq", "value": "8936012345678"},
+    r16 = {"filter": {"all": [{"path": "line_items[*].variation_info.barcode", "op": "eq", "value": "8936012345678",
+                               "quantifier": "any"},
                               {"path": "note", "op": "empty"}]}}
-    fx16, k16, ref16 = wc2.restore_paths(wc2.scrub(d16), d16, wc2.rule_paths(r16))
-    check("R16 P2: a value the phone masking would alter is reported as not kept (never written altered); an empty "
-          "text stays empty", "line_items[*].variation_info.barcode" in ref16 and fx16["note"] == ""
-          and "8936012345678" not in json.dumps(fx16), (k16, ref16, fx16["note"]))
+    fx16, k16, ref16 = wc2.restore_paths(wc2.scrub(d16), d16, wc2.rule_paths(r16), wc2.rule_operands(r16))
+    dec16 = wr.evaluate(wr.validate(r16), json.dumps(fx16).encode(), "application/json")["decision"]
+    check("R16 P2: a value equal to the owner's own constant is written back as that constant (the barcode the rule "
+          "names), never altered by the phone masking; an empty text stays empty; the decision is the real one",
+          "line_items[*].variation_info.barcode" in k16 and fx16["note"] == "" and dec16 == "run",
+          (k16, ref16, fx16["note"], dec16))
+    fx16b, k16b, ref16b = wc2.restore_paths(wc2.scrub(d16), d16, ["line_items[*].variation_info.barcode"], {})
+    check("R16 P2: without such a constant, a value the phone masking would alter is reported as not kept",
+          ref16b == ["line_items[*].variation_info.barcode"] and "8936012345678" not in json.dumps(fx16b), ref16b)
+    # R17 (review of R16): restores follow the allowlist (Vietnamese form keys), time words keep only times, card,
+    # Facebook and conversation ids are identity.
+    d17, _ = wr.parse_payload(b"ho_va_ten=Nguyen Thi Linh&ten=Linh&message=Toi ten Linh o 12 Le Loi&status=new",
+                              "application/x-www-form-urlencoded")
+    c17 = {"schema": {"fields": {"ho_va_ten": {"type": "string", "required": True}}},
+           "mapping": {"ten_khach": "ho_va_ten", "ten": "ten"},
+           "filter": {"all": [{"path": "message", "op": "contains", "value": "Linh"},
+                              {"path": "status", "op": "eq", "value": "new"}]}}
+    fx17, k17, ref17 = wc2.restore_paths(wc2.scrub(d17), d17, wc2.rule_paths(c17), wc2.rule_operands(c17))
+    t17f = json.dumps(fx17, ensure_ascii=False)
+    check("R17 P1: a name under ho_va_ten or ten is never restored (listed not kept); the customer's message is written "
+          "as the owner's own constant, never as their words", "Nguyen Thi Linh" not in t17f and "12 Le Loi" not in t17f
+          and fx17["message"] == "Linh" and sorted(k17) == ["message", "status"]
+          and sorted(ref17) == ["ho_va_ten", "ten"], (fx17, k17, ref17))
+    m17 = wt.mask_payload({"time_send": "Giao sau 5h tai 12 Le Loi", "created_at": "2026-10-19 10:00:00 +0700",
+                           "created_by": "Nguyen Van A", "card": {"exp_month": 12, "exp_year": 2030},
+                           "fb_id": 123456789, "conversation_id": "1234_5678"})
+    t17 = json.dumps(m17, ensure_ascii=False)
+    check("R17 P3: a time word keeps only a time; created_by, card expiry, fb_id and conversation_id are hidden",
+          not [x for x in ("12 Le Loi", "Nguyen Van A", "2030", "123456789", "1234_5678") if x in t17]
+          and m17["created_at"] == "2026-10-19 10:00:00 +0700", t17)
     # R11 P3: two events of one hook told at once make one incident notice, not two.
     hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
                          rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,
