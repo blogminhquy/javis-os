@@ -8582,6 +8582,72 @@
     _vtRenderResults(box, items, true);
   }
 
+  // ===== Nhật ký hôm nay (nút lịch trên thanh Vault + phím Ctrl/Cmd+D) =====
+  // Sổ Daily Log có nhiều tên ngoài đời ("01 - Daily Log", "Daily Log", "Daily"), dò y hệt
+  // STANDARD_STRUCTURE bên server. Gõ cứng một tên là đẻ thư mục thứ hai cạnh cái đang dùng.
+  const _VT_DAILY_RE = /^(\d+\s*[-_.]\s*)?daily(\s*log)?$/i;
+  // Ngày theo GIỜ MÁY. toISOString() là UTC: buổi tối ở UTC+7 trước 7h sáng sẽ lệch ngày.
+  function _vtNgayHomNay(d) {
+    d = d || new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+  function _vtThuMucNhatKy(items) {
+    const so = (items || []).find(it => it && it.type === "dir" && _VT_DAILY_RE.test(String(it.name || "").trim()));
+    return so ? so.name : "01 - Daily Log";
+  }
+  function _vtMauNhatKy(ngay) {
+    const [y, m, d] = ngay.split("-").map(Number);
+    let thu = "";
+    try { thu = new Date(y, m - 1, d).toLocaleDateString(LOC(), { weekday: "long" }); } catch (e) {}
+    thu = thu ? thu.charAt(0).toUpperCase() + thu.slice(1) : "";
+    return "---\ntype: daily\ndate: " + ngay + "\ntags: [daily]\n---\n\n"
+      + "# " + ngay + (thu ? " - " + thu : "") + "\n\n"
+      + "## " + window.t("cs.vt_daily_tasks") + "\n\n- [ ] \n\n"
+      + "## " + window.t("cs.vt_daily_notes") + "\n\n";
+  }
+  // Mở ghi chú của HÔM NAY: có rồi thì chỉ mở, chưa có thì tạo theo mẫu rồi mở.
+  // Kiểm bằng /files/read TRƯỚC: bấm lần hai trong ngày mà ghi lại mẫu là xoá sạch bài đã viết.
+  let _vtNhatKyDangMo = false;
+  async function _vtMoNhatKyHomNay() {
+    if (_vtNhatKyDangMo) return;          // giữ phím hay bấm đúp không tạo hai lần
+    _vtNhatKyDangMo = true;
+    try {
+      const goc = await _vtList(null);
+      const thuMuc = _vtThuMucNhatKy(goc);
+      const ngay = _vtNgayHomNay();
+      const rel = (_vtHome ? _vtHome + "/" : "") + thuMuc + "/" + ngay + ".md";
+      // CHỈ 404 mới là chưa có. Lỗi khác (500, file quá to) vẫn là file CÓ THẬT, coi là chưa có
+      // thì ghi mẫu đè lên mất bài. Mất mạng thì dừng hẳn, không đoán.
+      let daCo;
+      try {
+        const r = await fetch(`/files/read?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}`);
+        daCo = r.status !== 404;
+      } catch (e) { alert(window.t("cs.vt_daily_fail")); return; }
+      if (!daCo) {
+        const fd = new FormData();
+        fd.append("brain", fbrain()); fd.append("path", rel); fd.append("content", _vtMauNhatKy(ngay));
+        let ok = false;
+        try { const w = await fetch("/files/write", { method: "POST", body: fd }); ok = w.ok; } catch (e) {}
+        if (!ok) { alert(window.t("cs.vt_daily_fail")); return; }
+        _vtCache.clear(); _vtIndex = null;
+        try { await _vtRebuildReExpand((_vtHome ? _vtHome + "/" : "") + thuMuc); } catch (e) {}
+      }
+      openNote(rel, { name: ngay + ".md", ext: ".md", type: "file" }, { giuKhung: true });
+      try { _vtRevealInTree(rel); } catch (e) {}
+    } finally { _vtNhatKyDangMo = false; }
+  }
+  // Ctrl+D (Windows/Linux) hay Cmd+D (Mac) ở BẤT KỲ trang nào. Chặn luôn phím đánh dấu trang
+  // mặc định của trình duyệt, vì người dùng đã chọn phím này cho nhật ký.
+  function _vtPhimNhatKy(e) {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+    if (e.code !== "KeyD" && String(e.key || "").toLowerCase() !== "d") return;
+    e.preventDefault();
+    if (e.repeat) return;
+    _vtMoNhatKyHomNay();
+  }
+  document.addEventListener("keydown", _vtPhimNhatKy);
+
   function _vtWire() {
     if (_vtWired) return; _vtWired = true;
     const input = document.getElementById("vaultSearch");
@@ -8610,6 +8676,8 @@
     chipName.onclick = () => setMode("name");
     chipContent.onclick = () => setMode("content");
     const nf = document.getElementById("vtNewFile"), nd = document.getElementById("vtNewDir"), rf = document.getElementById("vtRefresh");
+    const dn = document.getElementById("vtDaily");
+    if (dn) dn.onclick = () => _vtMoNhatKyHomNay();
     if (rf) rf.onclick = () => { _vtCache.clear(); _vtIndex = null; renderVaultTree(); };
     if (nf) nf.onclick = () => _vtCreateMenu(nf, _vtHome || "", true);
     if (nd) nd.onclick = async () => {
@@ -9090,7 +9158,7 @@
     try { _vtRevealInTree(dich.rel); } catch (e) {}
   }
 
-  async function openNote(rel, it) {
+  async function openNote(rel, it, opts) {
     const ed = document.getElementById("noteEditor"); if (!ed) return;
     it = it || {}; const ext = (it.ext || "").toLowerCase();
     // Rời một file đang sửa dở (bấm [[wikilink]], bấm file khác trong cây) thì lưu lại trước.
@@ -9103,7 +9171,10 @@
     _neDangDiLichSu = false;
     if (!laLichSu) _neDayLichSu(rel, it);
     _neVeNutLui();
-    ed.hidden = false; ed.classList.add("ne-full"); _neSyncFull();
+    // `giuKhung`: mở NGAY TRONG khung đang đứng (cột giữa màn chính, chỗ khung chat), không phủ
+    // kín màn hình. Nhật ký hôm nay dùng cái này: bấm Ctrl+D là để gõ vài dòng cạnh việc đang
+    // làm, không phải để rời màn đó. Nút phóng to trên thanh công cụ vẫn bật toàn màn hình được.
+    ed.hidden = false; ed.classList.toggle("ne-full", !(opts && opts.giuKhung)); _neSyncFull();
     _neOpenRel = rel || "";     // để chip "file đang mở" biết có cần nạp lại hay chỉ cần đưa mắt về
     _neLayNoiDung = null; _neGocText = null;   // file mới: mốc so sánh dựng lại ở dưới
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
