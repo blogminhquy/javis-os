@@ -9,7 +9,7 @@ Trang này hướng dẫn hai việc: đổi logo/avatar của Javis thành ản
 - **Ảnh đại diện (logo/avatar):** thay ảnh JAVIS OS mặc định bằng ảnh của bạn. Ảnh mới hiện ngay ở góc trên bên trái, ở thanh bên, ở màn hình đăng nhập, ở cửa sổ chào mừng, và làm luôn icon tab trình duyệt (favicon).
 - **Tên miền riêng (HTTPS):** thay vì mở Javis bằng địa chỉ IP kèm cổng (kiểu `http://12.34.56.78:7777`), bạn dùng một tên miền dễ nhớ và có khóa an toàn HTTPS. Javis tự cấp chứng chỉ HTTPS (cơ chế On-Demand TLS qua Caddy), và có nút **Bật SSL** để chủ động xin chứng chỉ ngay thay vì ngồi đợi.
 
-Lưu ý quan trọng ngay từ đầu: phần **Tên miền riêng** chỉ hoạt động khi bạn deploy Javis bằng Docker trên VPS và đã mở cổng 80/443. Nếu bạn chạy Javis trên máy cá nhân, phần đổi logo vẫn dùng bình thường, còn phần tên miền sẽ không lên HTTPS được. Chi tiết deploy xem [Cấu hình .env](16-cau-hinh-env.md) và file `DEPLOY.md` trong thư mục dự án.
+Lưu ý quan trọng ngay từ đầu: phần **Tên miền riêng** chỉ hoạt động khi bạn deploy Javis bằng Docker trên VPS và đã mở cổng 80/443. Nếu bạn chạy Javis trên máy cá nhân (Windows, macOS), hãy dùng mục **Truy cập từ xa** ngay bên dưới: Javis tự dựng Cloudflare Tunnel, có HTTPS và cả tên miền riêng mà không cần VPS. Xem [Truy cập từ xa trên máy Windows hoặc macOS](#truy-cập-từ-xa-trên-máy-windows-hoặc-macos). Chi tiết deploy xem [Cấu hình .env](16-cau-hinh-env.md) và file `DEPLOY.md` trong thư mục dự án.
 
 ## Mở ở đâu trong Javis
 
@@ -87,6 +87,38 @@ Khi bước 2 đã ✓, wizard hiện bước **3. Bật HTTPS** với dòng "Kh
 Nút **Kiểm tra lại** dùng được bất cứ lúc nào: nó chỉ đọc trạng thái (hiện **Đang kiểm tra…** rồi vẽ lại badge), không đụng chứng chỉ.
 
 Trên Hostinger, nút **Bật SSL** bị ẩn đi, vì Traefik của hPanel mới là bên cấp chứng chỉ. Xem mục Hostinger bên dưới.
+
+## Truy cập từ xa trên máy Windows hoặc macOS
+
+Mục **TRUY CẬP TỪ XA** (Cài đặt, ngay dưới Tên miền & SSL) mở Javis ra Internet qua **Cloudflare Tunnel** mà không cần VPS, không mở cổng modem, không gõ lệnh. Javis tự tải `cloudflared` (công cụ chính thức, miễn phí của Cloudflare) đúng bản cho máy (Windows x64/ARM, macOS Intel/Apple Silicon, Linux), chạy nó cùng Javis và tự nối lại khi rớt mạng. Có HTTPS nên micro và giọng nói chạy được trên điện thoại.
+
+**Bắt buộc đặt mật khẩu đăng nhập trước** (mục Tài khoản đăng nhập). Khi tunnel đang bật, Javis luôn đòi đăng nhập và không cho tắt đăng nhập. Nếu mật khẩu bị xoá (ví dụ chạy `reset-auth`), tunnel tự dừng trong vài giây.
+
+### Cách 1: Link nhanh (không cần tài khoản)
+
+1. Chọn **Link nhanh**, bấm **Bật truy cập từ xa**.
+2. Lần đầu Javis tải `cloudflared` (khoảng 40 MB), rồi hiện link dạng `https://ba-tu-ngau-nhien.trycloudflare.com`.
+3. Mở link đó trên điện thoại, đăng nhập bằng mật khẩu.
+
+Link này **đổi mỗi lần Javis khởi động lại**, hợp để thử hoặc dùng tạm.
+
+### Cách 2: Tên miền riêng (link cố định)
+
+Cần một tài khoản Cloudflare miễn phí và một tên miền đang dùng DNS của Cloudflare.
+
+1. Vào [one.dash.cloudflare.com](https://one.dash.cloudflare.com), mục **Networks**, chọn **Tunnels**, bấm **Create a tunnel**, chọn **Cloudflared**, đặt tên.
+2. Ở bước cài connector, bấm sao chép dòng lệnh (bản Windows hay Mac đều được). **Không cần chạy lệnh đó**, chỉ cần dán nguyên dòng vào ô **Token tunnel Cloudflare** trong Javis. Javis tự lấy token ra.
+3. Sang bước **Public Hostname**: chọn tên miền con (ví dụ `javis.tencuaban.com`), Service chọn **HTTP**, ô URL điền địa chỉ dịch vụ Javis hiện ra (mặc định `127.0.0.1:7777`, có nút sao chép).
+4. Quay lại Javis, chọn **Tên miền riêng**, bấm **Bật truy cập từ xa**. Khi trạng thái là **Đang chạy**, Javis đọc tên miền bạn vừa đặt và hiện link `https://javis.tencuaban.com`.
+
+Token được mã hoá khi lưu, không bao giờ gửi ngược ra trình duyệt, và đưa cho `cloudflared` qua biến môi trường chứ không nằm trên dòng lệnh.
+
+### Nên biết
+
+- Máy tắt hoặc ngủ thì link cũng tắt. Muốn mở 24/7, tắt chế độ Sleep (Windows) hoặc bật "Prevent automatic sleeping" (macOS).
+- Javis bật lại tunnel sau khi khởi động lại hoặc cập nhật, nếu lần trước bạn để nó bật.
+- Nếu Javis báo Cloudflare đang trỏ tới một địa chỉ khác, sửa URL dịch vụ trong Public Hostname thành đúng địa chỉ Javis hiện.
+- Bản Docker trên VPS vẫn có thể dùng cách cũ (`docker compose --profile tunnel`) trong `DEPLOY.md`.
 
 ## Bảng tra nhanh nút và trạng thái
 
@@ -177,7 +209,7 @@ Xoá file là về giao diện gốc. Trần 512 KB.
 
 - Ảnh logo nên là ảnh vuông (tỉ lệ 1:1) để không bị cắt méo, vì Javis hiển thị logo trong khung vuông bo góc.
 - Sau khi tải ảnh mới mà chỗ nào đó vẫn còn ảnh cũ, chờ khoảng 1 phút hoặc tải lại trang; hệ thống có bộ nhớ đệm ngắn cho ảnh logo (favicon lâu hơn, khoảng 5 phút).
-- Nếu chưa có tên miền riêng nhưng vẫn muốn truy cập từ xa có HTTPS, có thể dùng cách khác (ví dụ Cloudflare Tunnel) mô tả trong `DEPLOY.md`.
+- Nếu chưa có VPS hay tên miền riêng mà vẫn muốn truy cập từ xa có HTTPS, dùng mục **Truy cập từ xa** (xem phần trên).
 - Dùng đúng bản ghi loại **A** (trỏ theo IPv4). Đừng dùng CNAME cho tên miền này trừ khi bạn hiểu rõ hệ quả.
 - Đừng bấm **Bật SSL** liên tục khi DNS chưa đúng. Mỗi lần bấm là một lần Javis buộc Caddy đi xin chứng chỉ, xin hỏng nhiều lần sẽ chạm giới hạn của Let's Encrypt.
 

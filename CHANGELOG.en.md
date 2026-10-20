@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.242.0] - 2026-10-20
 ### Added
-- **Open Javis from anywhere on your own domain, even when it runs on a Windows or macOS computer.** (in progress)
+- **Open Javis from your phone or another computer, even when it runs on a Windows or macOS machine at home.** Settings has a new **Remote access** section: turn it on and you get an HTTPS link, with no VPS, no router port and no terminal. The microphone and voice work over that link.
+- **Two ways:** a **Quick link** that works right away with no account (it changes on every restart), or **Your own domain** for a fixed link like `https://javis.yourdomain.com`: paste the command Cloudflare shows into the token box and Javis picks out the token and reads back your hostname.
+- Javis downloads Cloudflare's `cloudflared` tool in the right build for the machine, turns it back on after a restart or an update, and reconnects when the network drops.
+- **Safety:** it only turns on once a login password is set; while it is on, login cannot be switched off; if the password is removed, the tunnel stops. The token is stored encrypted and never sent to the browser.
 
 ## [0.240.0] - 2026-10-20
 ### Improved

@@ -509,6 +509,15 @@
               </div>
             </div>
 
+            <!-- Remote access through the built-in Cloudflare Tunnel (0.242.0). remote-access.js draws #raBox from
+                 /remote-access/status; the server downloads and supervises cloudflared (remote_tunnel.py). -->
+            <div class="qs-block" data-settings-section="general" id="remoteAccessBlock">
+              <div class="popover-label"><span data-i18n="ra.title">TRUY CẬP TỪ XA</span> <button type="button" class="info-i" aria-expanded="false" aria-label="Xem giải thích" title="Xem giải thích" data-i18n-aria="info.more" data-i18n-title="info.more"><i data-ic="info"></i></button></div>
+              <div class="info-body" hidden data-i18n="ra.intro_long">Javis tự tải và chạy cloudflared (công cụ chính thức, miễn phí của Cloudflare) ngay trên máy này.</div>
+              <div class="opt-sub" data-i18n="ra.sub">Mở Javis từ điện thoại hay máy khác qua link HTTPS, không cần VPS.</div>
+              <div id="raBox" class="ra"></div>
+            </div>
+
           </div>
         </details>
       </aside>
@@ -968,6 +977,7 @@
   <script src="/static/composer-folder.js?v=3"></script>
   <script src="/static/branding.js?v=7"></script>
   <script src="/static/quick-settings.js?v=11"></script>
+  <script src="/static/remote-access.js?v=1"></script>
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=8"></script>
   <script src="/static/sessions-ui.js?v=22"></script>

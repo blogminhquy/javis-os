@@ -528,6 +528,8 @@ _SECRET_PATHS = (
     # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
     # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.
     "auth.totp.secret",
+    # Cloudflare Tunnel token (remote_tunnel.py): whoever holds it can serve any site on the owner's tunnel hostname.
+    "remote_tunnel.token",
 )
 
 
@@ -1141,8 +1143,16 @@ def auth_enabled(cfg=None):
 def require_login():
     """Có BẮT BUỘC đăng nhập để dùng Javis không (kể cả khi CHƯA đặt mật khẩu → ép setup).
     - JAVIS_REQUIRE_LOGIN=1/0 ép bật/tắt tường minh.
+    - Built-in remote access (Cloudflare Tunnel, remote_tunnel.py) is on → True.
     - Mặc định: BẬT khi server nghe public (JAVIS_HOST=0.0.0.0, vd Docker/Hostinger/VPS) -
       vì Claude chạy full quyền, không được để hở ai cũng vào được."""
+    # The built-in Cloudflare Tunnel (remote_tunnel.py) puts a localhost-only Javis on the Internet, which the bind
+    # address below cannot see. It wins over an explicit JAVIS_REQUIRE_LOGIN=0 for the same reason.
+    try:
+        if (read_settings().get("remote_tunnel") or {}).get("enabled"):
+            return True
+    except Exception:
+        pass
     v = os.getenv("JAVIS_REQUIRE_LOGIN", "").strip().lower()
     if v in ("1", "true", "yes", "on"):
         return True

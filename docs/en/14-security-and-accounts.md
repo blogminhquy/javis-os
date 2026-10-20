@@ -225,7 +225,7 @@ About the `secure` cookie: by default Javis does **not** force it, so it runs ov
 - **Always set the admin before going public.** The surest way is setting `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` at deploy time, so the server is never without an admin.
 - **Use a long enough password.** At least 8 characters; a long, hard to guess phrase is better.
 - **Run over HTTPS for remote access.** Use a custom domain (a Hostinger `*.hstgr.cloud` name, say) or Cloudflare Tunnel rather than exposing raw port 7777 to the Internet. How to point a domain and enable HTTPS: [Branding and custom domains](15-branding-and-domains.md).
-- **Localhost plus a tunnel means setting `JAVIS_REQUIRE_LOGIN=1`.** When the machine only listens on localhost but you expose it through a tunnel, Javis cannot tell it is public, so force login manually.
+- **Localhost plus a tunnel you run yourself means setting `JAVIS_REQUIRE_LOGIN=1`.** When the machine only listens on localhost but you run a tunnel (cloudflared, ngrok...) outside Javis, Javis cannot tell it is public, so force login manually. The **Remote access** section in Settings does not need this: Javis knows its tunnel is on, forces login and only runs it once a password is set.
 - **Turn on two-factor (2FA) right after the first sign-in.** If the password leaks, a stranger still lacks the TOTP code on your phone.
 - **Back up `.secret_key` alongside `settings.json`.** Missing either one means re-entering every API key.
 

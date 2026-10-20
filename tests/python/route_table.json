@@ -5304,5 +5304,43 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 533,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 534,
+  "type": "APIRoute",
+  "path": "/remote-access/status",
+  "name": "remote_access_status",
+  "methods": [
+   "GET"
+  ],
+  "trong": 533
+ },
+ {
+  "order": 535,
+  "type": "APIRoute",
+  "path": "/remote-access/enable",
+  "name": "remote_access_enable",
+  "methods": [
+   "POST"
+  ],
+  "trong": 533
+ },
+ {
+  "order": 536,
+  "type": "APIRoute",
+  "path": "/remote-access/disable",
+  "name": "remote_access_disable",
+  "methods": [
+   "POST"
+  ],
+  "trong": 533
  }
 ]

@@ -229,7 +229,7 @@ Về cookie `secure`: mặc định Javis **không** ép cookie `secure` để c
 - **Luôn đặt admin trước khi công khai.** Cách chắc nhất là đặt `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` khi deploy, để server không có lúc nào trống admin.
 - **Đặt mật khẩu đủ dài.** Tối thiểu 8 ký tự; dùng cụm dài, khó đoán.
 - **Chạy qua HTTPS khi truy cập từ xa.** Dùng tên miền riêng (ví dụ Hostinger `*.hstgr.cloud`) hoặc Cloudflare Tunnel thay vì phơi cổng 7777 thô ra Internet. Cách trỏ tên miền và bật HTTPS xem [Thương hiệu & tên miền riêng](15-thuong-hieu-ten-mien.md).
-- **Localhost + tunnel thì bật `JAVIS_REQUIRE_LOGIN=1`.** Khi máy chỉ nghe localhost nhưng bạn mở ra ngoài bằng tunnel, Javis không tự biết là đang public, nên hãy ép login thủ công.
+- **Localhost + tunnel tự chạy thì bật `JAVIS_REQUIRE_LOGIN=1`.** Khi máy chỉ nghe localhost nhưng bạn tự chạy tunnel (cloudflared, ngrok...) bên ngoài Javis, Javis không tự biết là đang public, nên hãy ép login thủ công. Dùng mục **Truy cập từ xa** trong Cài đặt thì không cần: Javis biết tunnel đang bật, tự bắt đăng nhập và chỉ chạy khi đã có mật khẩu.
 - **Bật xác thực 2 lớp (2FA) ngay sau lần đăng nhập đầu.** Lộ mật khẩu thì kẻ lạ vẫn thiếu mã TOTP trên điện thoại bạn.
 - **Sao lưu `.secret_key` cùng `settings.json`.** Thiếu một trong hai là phải nhập lại toàn bộ API key.
 
