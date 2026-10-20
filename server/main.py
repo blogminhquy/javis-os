@@ -11766,6 +11766,46 @@ webhook_feature = webhook_triggers.register(app, webhook_triggers.WebhookDeps(
 
 
 # ============================================================
+# 0.239.0: theo dõi trang web không tốn token (web_watch.py). Mỗi lượt canh chỉ tải trang và so chữ;
+# chỉ khi có chuyện mới mới báo, và chỉ gọi AI khi chủ bật "tóm tắt bằng AI" cho mục đó.
+# ============================================================
+import web_watch
+
+
+async def _watch_send(chat_id, text, viec=None, web="", brain="", dedup=""):
+    return await _notify_owner(chat_id, text, kind="report", source="watch",
+                               viec=viec, web=web, brain=brain, dedup=dedup)
+
+
+async def _watch_summarize(prompt: str) -> str:
+    """Tóm tắt một thay đổi: model nền, CHỈ CHỮ, thư mục rỗng, không MCP (nội dung trang là dữ liệu lạ)."""
+    if os.environ.get("JAVIS_NO_REAL_JUDGE_ENGINE") == "1":
+        raise RuntimeError("JAVIS_NO_REAL_JUDGE_ENGINE")
+    cli = _reply_policy_sandbox_engine("Bạn tóm tắt ngắn một thay đổi trên trang web cho chủ shop. Chỉ trả lời "
+                                       "bằng chữ, 1-3 câu.", "web-watch-summary", cwd_name="web_watch_cwd")
+    base = cli
+    cli = aux_engine.strip_tools(_aux_swap(cli, mode="suggest", tag="web-watch-summary"), base)
+    if not cli.is_available():
+        raise RuntimeError("background engine not ready")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    return final
+
+
+watch_feature = web_watch.register(app, web_watch.WebWatchDeps(
+    state_dir=lambda: cfgmod.STATE_DIR,
+    brain_root=lambda b: str(Path(_brain_root(b)).resolve()),
+    send=_watch_send,
+    summarize=_watch_summarize,
+    channels=_kenh_con_thieu,
+))
+
+
+# ============================================================
 # 0.199.0: a broken background run reaches Javis Core (incident_desk.py), plus the read-only health scan
 # (sentinel.py). Idea from OpenMausBot's team incidents and Sentinel.
 # ============================================================
@@ -12865,6 +12905,10 @@ async def _start_scheduler():
         tasks_feature.start()
     except Exception as e:
         print(f"[kanban start] {e}", file=_sys.stderr)
+    try:
+        watch_feature.start()      # 0.239.0: vòng canh trang web (web_watch.py), không gọi model
+    except Exception as e:
+        print(f"[web watch start] {e}", file=_sys.stderr)
     try:
         connect_health.on_engine_down = _loop_notify   # đèn báo não → Telegram, chỉ 1 lần mỗi đợt chết
         connect_health.start()   # vòng check sức khoẻ kết nối + probe đèn báo não

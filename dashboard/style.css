@@ -3506,6 +3506,25 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .msg-viec.viec-cancelled .bubble { border-left-color: var(--hairline); }
 .msg-viec.viec-hoi .bubble { border-left-color: var(--link-ink); }
 .viec-hoi .viec-head .viec-ico { color: var(--link-ink); }
+/* Tab Theo doi trang (0.239.0, web-watch.js) */
+.ww-head { display: flex; align-items: center; gap: 8px; margin: 22px 0 8px; font-size: 16px; color: var(--text);
+  font-weight: 600; border-bottom: 1px solid var(--hairline); padding-bottom: 6px; }
+.ww-form { margin: 10px 0 18px; padding: 14px; border: 1px solid var(--hairline); border-radius: 10px;
+  background: var(--surface-1); display: flex; flex-direction: column; gap: 10px; }
+.ww-form input:not([type=checkbox]) { font-size: 16px; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--hairline);
+  background: var(--bg2); color: var(--text); width: 100%; box-sizing: border-box; }
+.ww-row { gap: 12px; flex-wrap: wrap; }
+.ww-row .si-field { flex: 1 1 200px; }
+.ww-check { display: flex; gap: 8px; align-items: center; font-size: 15px; }
+.ww-msg { font-size: 14px; color: var(--warn-ink); margin-left: 10px; }
+.ww-warn { margin: 6px 0 10px; padding: 10px 12px; border: 1px solid rgba(224,102,74,.5); border-radius: 8px;
+  background: rgba(224,102,74,.08); font-size: 14px; line-height: 1.5; }
+.ww-card .ww-url { font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }
+.ww-card .ww-meta { font-size: 13px; color: var(--text3); margin-top: 4px; }
+.ww-card .ww-alert { font-size: 14px; margin-top: 6px; white-space: pre-wrap; }
+.ww-card .ww-err { font-size: 13px; color: var(--warn-ink); margin-top: 4px; }
+.ww-card .ww-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.ww-card .ww-del { color: var(--red); }
 .viec-tl { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 10px; }
 .viec-tl-o { flex: 1 1 220px; min-width: 0; min-height: 44px; resize: vertical; padding: 9px 11px;
   border-radius: 10px; border: 1px solid var(--hairline); background: var(--surface-1); color: var(--text);

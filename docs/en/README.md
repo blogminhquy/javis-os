@@ -31,6 +31,7 @@ The dashboard's navigation rail groups **19 pages** into **7 groups**: Assistant
 - [29 - Slack and WhatsApp](29-slack-whatsapp.md) - chat with Javis and run customer bots on Slack (no domain needed) and WhatsApp (Meta's official API).
 - [30 - Discord and Lark/Feishu](30-discord-lark.md) - chat with Javis from Discord and Lark/Feishu on the Admin channels page, no domain needed.
 - [31 - Messenger](31-messenger.md) - a customer bot that answers your Facebook Page inbox (Meta's official API, needs an HTTPS domain).
+- [32 - Web page watch](32-page-watch.md) - watch a page for a price, some text or any change on a schedule, without spending tokens.
 
 ### Background work (the Work and Brain groups)
 - [08 - Recurring jobs and reminders](08-recurring-jobs.md) - several background loops plus reminders on a clock or a cron schedule.

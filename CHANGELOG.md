@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.239.0] - 2026-10-20
 ### Thêm mới
-- **Theo dõi trang web không tốn token.** (đang viết)
+- **Theo dõi trang web không tốn token.** Canh một trang theo lịch: báo khi trang đổi, khi xuất hiện một cụm chữ (ví dụ "Còn hàng") hoặc khi có giá dưới ngưỡng. Mỗi lượt canh chỉ tải trang và so chữ, không gọi AI. Trước đây muốn canh trang phải dựng loop, mỗi vòng tốn một lượt AI.
+- **Hiểu giá kiểu Việt Nam:** 1.250.000đ, 990.000 ₫, 1,25 triệu, 1tr2, 250k, VND, và cả $ với USD.
+- **Không báo rác:** "3 phút trước", "hôm qua" tự nhảy không tính là đổi; dòng chỉ đổi giá được báo là "Cập nhật"; khởi động lại không báo trùng. Trang lỗi thì thử thưa dần, lỗi 5 lần liền thì tự dừng và báo đúng một lần.
+- **Tạo bằng lời trong chat** ("canh trang này, xuống dưới 900k thì báo") hoặc ở tab **Theo dõi trang** của trang Việc định kỳ. Tuỳ chọn tóm tắt bằng AI mỗi lần có thay đổi, mặc định tắt.
+- Chi tiết kỹ thuật: module mới `web_watch.py` (kho `web_watch.sqlite3`), tool `javis_watch` (plugin `javis-watch`, chỉ chủ dùng được, bot chăm khách không thấy), route `/watch`, tab `dashboard/web-watch.js`. Địa chỉ trỏ vào mạng nội bộ bị chặn ở mọi chặng chuyển hướng. Tài liệu: `docs/32-theo-doi-trang.md`. Ý tưởng lấy từ `page-diff.ts` của OpenMuse (CopilotKit, giấy phép MIT), viết lại cho Javis.
 
 ## [0.238.0] - 2026-10-20
 ### Sửa lỗi

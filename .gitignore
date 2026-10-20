@@ -92,8 +92,10 @@ server/capability_registry.db*.corrupt-*
 # Bổ sung 0.9.241: 6 artifact dưới đây vừa KHÔNG track vừa KHÔNG ignore, nên một cú
 # `git add -A` là commit thẳng dữ liệu chạy + trạng thái deploy vào repo.
 server/kanban.sqlite3*
-# once_ledger.sqlite3 (0.236.0): sổ thao tác ra ngoài của việc nền, nằm cạnh kanban.sqlite3.
+# once_ledger.sqlite3 (0.238.0): sổ thao tác ra ngoài của việc nền, nằm cạnh kanban.sqlite3.
 server/once_ledger.sqlite3*
+# web_watch.sqlite3 (0.239.0): các trang đang theo dõi, cùng lớp với kanban.sqlite3.
+server/web_watch.sqlite3*
 # workflow_runs.sqlite3: kho lịch sử chạy quy trình (Task 2 Cộng sự), cùng lớp với
 # kanban.sqlite3* trên - test không đặt JAVIS_STATE_DIR sẽ ghi rơi vào server/ vì
 # execute_workflow giờ luôn chạm workflow_runs.get_store().

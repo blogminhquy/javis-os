@@ -78,6 +78,7 @@
     if (kind === "job") return "";
     // 0.199.0: webhooks and incidents live on the Recurring work page too (its Webhooks and Health sections).
     if (kind === "webhook") return "webhooks";   // 0.204.0: its own page
+    if (kind === "watch") return "selfimprove";   // 0.239.0: tab Theo doi trang cua trang Viec dinh ky
     return (kind === "loop" || kind === "reminder" || kind === "incident") ? "selfimprove" : "kanban";
   }
 

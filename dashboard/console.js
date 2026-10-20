@@ -2070,6 +2070,7 @@
       <div class="ach-tabs si-tabs" role="tablist" aria-label="${esc(t("page.selfimprove.label"))}">
         <button type="button" role="tab" data-si-tab="jobs" aria-selected="true">${ic("repeat")}<span>${esc(window.t("cs.si_tab_jobs"))}</span><span class="si-tab-n" id="siNJobs"></span></button>
         <button type="button" role="tab" data-si-tab="health" aria-selected="false">${ic("shield")}<span>${esc(window.t("cs.si_tab_health"))}</span><span class="si-tab-n warn" id="siNHealth" hidden></span></button>
+        <button type="button" role="tab" data-si-tab="watch" aria-selected="false">${ic("eye")}<span>${esc(window.t("cs.si_tab_watch"))}</span></button>
         <button type="button" role="tab" data-si-tab="log" aria-selected="false">${ic("scroll-text")}<span>${esc(window.t("cs.si_tab_log"))}</span></button>
       </div>
       <section data-si-pane="jobs" role="tabpanel">
@@ -2086,6 +2087,7 @@
         <div id="lpGroups">${esc(window.t("common.loading"))}</div>
       </section>
       <section data-si-pane="health" role="tabpanel" hidden><div id="hpSection"></div></section>
+      <section data-si-pane="watch" role="tabpanel" hidden><div id="wwSection"></div></section>
       <section data-si-pane="log" role="tabpanel" hidden>
         <div class="si-log" style="margin-top:0"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.si_log_head"))} · <select id="lpLogFilter" class="loop-sel" style="font-size:14px"><option value="">${esc(window.t("cs.si_log_all"))}</option></select></h3><div id="lpLog">${esc(window.t("common.loading"))}</div></div>
       </section>
@@ -2637,13 +2639,15 @@
     // Health (0.199.0): incidents Javis Core is handling and the read-only scan, see dashboard/health-panel.js.
     const opened = {};
     function openTab(name) {
-      if (!["jobs", "health", "log"].includes(name)) name = "jobs";
+      if (!["jobs", "health", "watch", "log"].includes(name)) name = "jobs";
       lsSet(LS_TAB, name);
       el.querySelectorAll("[data-si-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.siTab === name)));
       el.querySelectorAll("[data-si-pane]").forEach(p => { p.hidden = p.dataset.siPane !== name; });
       if (opened[name]) return;
       opened[name] = true;
       if (name === "health" && window.JavisHealthPanel) window.JavisHealthPanel.mount(el.querySelector("#hpSection"));
+      // 0.239.0: theo dõi trang web không tốn token, see dashboard/web-watch.js.
+      if (name === "watch" && window.JavisWebWatch) window.JavisWebWatch.mount(el.querySelector("#wwSection"), fbrain);
       if (name === "log") loadLog();
     }
     el.querySelectorAll("[data-si-tab]").forEach(b => b.onclick = () => openTab(b.dataset.siTab));
