@@ -9,12 +9,11 @@ Only a pass on a real source may mark an adapter or action "production verified"
 - Branch `claude/openmausbot-jarvis-research-ewnzc6`, PR #747, version 0.247.0.
 - Stage the PR head at the time of staging, and write its exact SHA (`git rev-parse HEAD`) in the staging log before
   starting.
-- Last head checked in the build session: **0e213210** (code). Commits after it change only this file.
-  - CI: both `test` jobs green on 0e213210, `test_khoi_dong_nhe` included (the startup cut in that commit gave the
-    `import main` cost ratio room under its 4.0 ceiling there).
-  - Full local run of `tests/python/test_*.py` and `tests/js/test_*` on 0e213210: every file green except that ratio
-    check. On the build machine it measures over 4.0 for `main` dd1dccfb as well (4.43), so it is not a verdict there;
-    CI is.
+- Last head checked in the build session: **346707cf** (code, version 0.247.0, `main` e36e060a merged in). Commits
+  after it change only this file and the README.
+  - CI: both `test` jobs green on 346707cf.
+  - Full local run of `tests/python/test_*.py` and `tests/js/test_*` on 346707cf: every file green.
+  - Independent review of the last code change (the plugin slot reservation): no P1, no P2.
   - If you stage a later head, rerun the three commands below on it first.
 - The automated evidence for that SHA: CI green on the PR, plus, on the staging machine:
 
