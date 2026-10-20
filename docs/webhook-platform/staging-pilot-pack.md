@@ -40,8 +40,9 @@ Capture and check with `tools/webhook_capture.py` (tested by `tests/python/test_
 The export uses the dashboard's allowlist: ids, statuses, times, amounts, counts and product names stay, every other
 value becomes a placeholder of the same type, e-mails and phones inside kept texts are masked, and credentials and
 bearer links are redacted. With `--config`, the paths the hook's rules read keep their value as received, except an
-identity, customer or credential path (listed under `not_kept`): the fixture then gets the decision the real event
-got. Read each file before committing it.
+identity, customer or credential path (listed under `not_kept`). A text a filter compares is written as your own
+constant from the rules (the status you filter on, the word you look for), never as the customer's words: the fixture
+then gets the decision the real event got. Read each file before committing it.
 
 ## 0. Data to collect first (spec §17), with the owner
 
