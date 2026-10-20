@@ -5471,9 +5471,12 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         v = cfg.setdefault("voice", {})
         if patch.get("tts_provider") in ("edge", "openai", "elevenlabs"):
             v["tts_provider"] = patch["tts_provider"]
-        for k in ("openai_tts_voice", "openai_tts_model", "elevenlabs_voice", "elevenlabs_model"):
+        for k in ("openai_tts_voice", "openai_tts_model", "elevenlabs_voice"):
             if patch.get(k):
                 v[k] = str(patch[k]).strip()
+        import tts_eleven   # 0.255.0: only a model the settings page offers
+        if str(patch.get("elevenlabs_model") or "").strip() in tts_eleven.MODELS:
+            v["elevenlabs_model"] = str(patch["elevenlabs_model"]).strip()
         # Chỉ ghi khi có key mới THẬT: client lỡ gửi lại giá trị che "••••abcd" (lấy từ GET
         # /settings rồi POST nguyên object về) mà lưu thì đè mất key thật.
         if patch.get("elevenlabs_key") and not patch["elevenlabs_key"].strip().startswith("••••"):
@@ -14787,19 +14790,8 @@ async def _tts_openai(text: str, rate: str, cfg: dict) -> bytes:
 
 
 async def _tts_elevenlabs(text: str, cfg: dict) -> bytes:
-    import httpx
-    v = cfg.get("voice", {}) or {}
-    key = v.get("elevenlabs_key", "")
-    if not key:
-        raise RuntimeError("Chưa có ElevenLabs API key.")
-    voice_id = v.get("elevenlabs_voice") or "21m00Tcm4TlvDq8ikWAM"
-    payload = {"text": text, "model_id": v.get("elevenlabs_model") or "eleven_multilingual_v2"}
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(url, headers={"xi-api-key": key, "accept": "audio/mpeg"},
-                              json=payload, params={"output_format": "mp3_44100_128"})
-        r.raise_for_status()
-        return r.content
+    import tts_eleven   # 0.255.0: model that speaks Vietnamese, shared with voice notes
+    return await tts_eleven.synth(text, cfg)
 
 
 @app.get("/tts")
@@ -15050,8 +15042,15 @@ async def voice_options(brains: int = 1):
                 "openai_voice": v.get("openai_tts_voice") or "alloy",
                 "openai_key_set": bool(m.get("openai_api_key")),
                 "elevenlabs_voice": v.get("elevenlabs_voice") or "",
+                "elevenlabs_model": v.get("elevenlabs_model") or "",
+                "elevenlabs_models": _eleven_models(),
                 "elevenlabs_key_set": bool(str(v.get("elevenlabs_key") or "").strip())},
     }
+
+
+def _eleven_models() -> list:
+    import tts_eleven
+    return [{"id": k, "vi": ok} for k, ok in tts_eleven.MODELS.items()]
 
 
 def _ngon_ngu_cuoc_goi(meta) -> str:
@@ -25965,3 +25964,19 @@ async def diag_ws_drops(body: dict = Body(...)):
 # Registered at the end of the file so the route table only grows at the end.
 import routes.remote_access as remote_access_routes  # noqa: E402
 remote_access_routes.register(app, remote_access_routes.RemoteAccessDeps(browser_session_error=_doi_phien_that))
+
+
+@app.get("/voice/elevenlabs/voices")
+async def voice_elevenlabs_voices():
+    """The ElevenLabs account's voices by name for the Voice settings (0.255.0), so nobody has to
+    paste a raw Voice ID. Uses the saved key; the key never leaves the server. Last route so the
+    route table only gains one line."""
+    import tts_eleven
+    res = await tts_eleven.list_voices(tts_eleven.settings(cfgmod.read_settings())["key"])
+    if res.get("ok"):
+        return res
+    return {"ok": False, "reason": res.get("reason"), "error": localefmt.chu(
+        {"no_key": "Chưa có API key ElevenLabs.", "bad_key": "ElevenLabs từ chối API key này."}.get(
+            res.get("reason"), "Không tải được danh sách giọng ElevenLabs."),
+        {"no_key": "No ElevenLabs API key yet.", "bad_key": "ElevenLabs refused this API key."}.get(
+            res.get("reason"), "Could not load the ElevenLabs voices."))}

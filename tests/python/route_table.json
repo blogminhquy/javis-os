@@ -5390,5 +5390,15 @@
    "POST"
   ],
   "trong": 538
+ },
+ {
+  "order": 542,
+  "type": "APIRoute",
+  "path": "/voice/elevenlabs/voices",
+  "name": "voice_elevenlabs_voices",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
  }
 ]

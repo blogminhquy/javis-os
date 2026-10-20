@@ -9,6 +9,10 @@ readable and searchable without playing anything.
 
 Edge TTS (free, the app's default voice engine), picked by the language of the text unless a
 voice is named. At most MAX_CHARS characters, the same limit OpenMausBot uses.
+
+0.255.0: when ElevenLabs is the chosen voice (Settings > Voice) the note is spoken by it, so Javis
+sounds the same in a note as in the chat. If ElevenLabs fails (quota, key revoked) the note falls
+back to Edge rather than not being made.
 """
 from __future__ import annotations
 
@@ -55,7 +59,7 @@ async def make(vault_root: str, text: str, voice: str = "", synth=None) -> dict:
         return {"ok": False, "error": f"text longer than {MAX_CHARS} characters; shorten it"}
     v = pick_voice(words, voice)
     if synth is None:
-        synth = _edge
+        synth = _chosen_synth()
     try:
         audio = await synth(words, v)
     except Exception as e:  # noqa: BLE001
@@ -74,6 +78,28 @@ async def make(vault_root: str, text: str, voice: str = "", synth=None) -> dict:
     except OSError:
         pass
     return {"ok": True, "rel_path": f"attachments/voice/{name}", "voice": v, "chars": len(words)}
+
+
+def _chosen_synth():
+    """ElevenLabs when it is the chosen voice and has a key, else Edge."""
+    try:
+        import config as cfgmod
+        import tts_eleven
+        cfg = cfgmod.read_settings()
+        if not tts_eleven.chosen(cfg):
+            return _edge
+    except Exception:  # noqa: BLE001
+        return _edge
+
+    async def eleven_then_edge(text: str, voice: str) -> bytes:
+        try:
+            return await tts_eleven.synth(text, cfg)
+        except Exception as e:  # noqa: BLE001
+            import sys
+            print(f"[voice note] ElevenLabs failed ({type(e).__name__}), using Edge", file=sys.stderr)
+            return await _edge(text, voice)
+
+    return eleven_then_edge
 
 
 async def _edge(text: str, voice: str) -> bytes:

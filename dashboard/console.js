@@ -7217,7 +7217,20 @@
     // Giọng Javis: mỗi đường gọi một bộ giọng.
     const sel = $("vcVoice"), tryBtn = $("vcTry");
     const edgeSel = $("voiceSel");
-    let basicVoice = "";
+    const basic = call.engine === "basic";
+    // Reading voice (Edge, OpenAI, ElevenLabs): reads chat answers and voice notes, and is the call
+    // voice on the Basic path. 0.255.0: on ChatGPT Live / Live over an API the list above holds the
+    // live voices, so the reading voice gets its own row (#vcReadVoice) instead of disappearing.
+    const readSel = basic ? sel : $("vcReadVoice");
+    const basicVoice = tts.provider === "openai" ? "openai:" + (tts.openai_voice || "alloy")
+      : tts.provider === "elevenlabs" ? "elevenlabs" : "edge:" + (edgeSel ? edgeSel.value : "");
+    const basicList = () => {
+      const edgeOpts = edgeSel ? Array.from(edgeSel.options).map(x => opt("edge:" + x.value, x.textContent, basicVoice)).join("") : "";
+      const oaOn = tts.openai_key_set || tts.provider === "openai";
+      return `<optgroup label="${esc(t("settings.vc_group_edge"))}">${edgeOpts}</optgroup>`
+        + (oaOn ? `<optgroup label="OpenAI">${OPENAI_TTS_VOICES.map(x => opt("openai:" + x, x, basicVoice)).join("")}</optgroup>` : "")
+        + `<optgroup label="ElevenLabs">${opt("elevenlabs", t("settings.vc_eleven_opt"), basicVoice)}</optgroup>`;
+    };
     if (call.engine === "chatgpt") {
       const p = (o.live_providers || []).find(x => x.id === "chatgpt") || {};
       sel.innerHTML = (p.voices || []).map(x => opt(x, x, o.chatgpt_voice || p.default_voice)).join("");
@@ -7226,31 +7239,20 @@
       const voices = p.voices || [];
       const cur = voices.includes(v.live_voice) ? v.live_voice : (p.default_voice || voices[0] || "");
       sel.innerHTML = voices.map(x => opt(x, x, cur)).join("");
-    } else {
-      // Đường Cơ bản: giọng Edge (miễn phí), giọng OpenAI khi đã có key ở trang Models, và giọng
-      // ElevenLabs riêng (key và Voice ID ở Nâng cao). Chọn giọng là chọn luôn nhà cung cấp.
-      basicVoice = tts.provider === "openai" ? "openai:" + (tts.openai_voice || "alloy")
-        : tts.provider === "elevenlabs" ? "elevenlabs" : "edge:" + (edgeSel ? edgeSel.value : "");
-      const edgeOpts = edgeSel ? Array.from(edgeSel.options).map(x => opt("edge:" + x.value, x.textContent, basicVoice)).join("") : "";
-      const oaOn = tts.openai_key_set || tts.provider === "openai";
-      sel.innerHTML = `<optgroup label="${esc(t("settings.vc_group_edge"))}">${edgeOpts}</optgroup>`
-        + (oaOn ? `<optgroup label="OpenAI">${OPENAI_TTS_VOICES.map(x => opt("openai:" + x, x, basicVoice)).join("")}</optgroup>` : "")
-        + `<optgroup label="ElevenLabs">${opt("elevenlabs", t("settings.vc_eleven_opt"), basicVoice)}</optgroup>`;
     }
-    const basic = call.engine === "basic";
-    const isEleven = () => basic && sel.value === "elevenlabs";
+    // Đường Cơ bản: giọng Edge (miễn phí), giọng OpenAI khi đã có key ở trang Models, và giọng
+    // ElevenLabs riêng. Chọn giọng là chọn luôn nhà cung cấp.
+    readSel.innerHTML = basicList();
+    $("vcReadRow").hidden = basic;
     tryBtn.hidden = call.engine === "api";   // giọng của Live qua API không có mẫu thu sẵn
-    $("vcVoiceNote").hidden = !(basic && sel.value.startsWith("edge:"));
+    $("vcVoiceNote").hidden = !(basic && readSel.value.startsWith("edge:"));
     $("vcRateRow").hidden = !basic;          // tốc độ đọc chỉ áp cho giọng đọc của đường Cơ bản
-    $("vcOpenaiNote").hidden = !basic || !!tts.openai_key_set;
-    $("vcEleven").hidden = !isEleven();
+    $("vcOpenaiNote").hidden = !!tts.openai_key_set;
+    $("vcEleven").hidden = readSel.value !== "elevenlabs";
     $("vcElKeySet").hidden = !tts.elevenlabs_key_set;
     $("vcElVoice").value = tts.elevenlabs_voice || "";
-    sel.onchange = async () => {
-      const val = sel.value;
-      if (call.engine === "chatgpt") { await luuGiong({ chatgpt_voice: val }); return; }
-      if (call.engine === "api") { await luuGiong({ live_voice: val }); return; }
-      $("vcVoiceNote").hidden = !val.startsWith("edge:");
+    const pickReading = async (val) => {
+      $("vcVoiceNote").hidden = !(basic && val.startsWith("edge:"));
       $("vcEleven").hidden = val !== "elevenlabs";
       if (val.startsWith("edge:")) {
         // Giọng Edge sống ở máy này (localStorage, app.js nghe sự kiện change của #voiceSel).
@@ -7263,10 +7265,17 @@
       } else {
         await luuGiong({ tts_provider: "elevenlabs" });
         tts.provider = "elevenlabs";
-        $("vcAdvanced").open = true;
         if (!tts.elevenlabs_key_set) $("vcElKey").focus();
+        else loadElevenVoices();
       }
     };
+    sel.onchange = async () => {
+      const val = sel.value;
+      if (call.engine === "chatgpt") { await luuGiong({ chatgpt_voice: val }); return; }
+      if (call.engine === "api") { await luuGiong({ live_voice: val }); return; }
+      await pickReading(val);
+    };
+    if (!basic) readSel.onchange = () => pickReading(readSel.value);
     // Nghe thử: ChatGPT Live phát mẫu thu sẵn (dashboard/voices/<giọng>.mp3, không mở phiên
     // realtime nào); đường Cơ bản đọc một câu bằng giọng đang chọn (app.js JavisVoiceSample).
     tryBtn.onclick = () => {
@@ -7278,6 +7287,7 @@
         } else if (window.JavisVoiceSample) window.JavisVoiceSample();
       } catch (e) {}
     };
+    $("vcReadTry").onclick = () => { try { if (window.JavisVoiceSample) window.JavisVoiceSample(); } catch (e) {} };
 
 
     // Live over an API key: TV filter and reply pace (0.220.0). ChatGPT Live and the basic path
@@ -7352,9 +7362,42 @@
       const key = $("vcElKey").value.trim();
       if (!key) return;
       const r = await luuGiong({ elevenlabs_key: key });
-      if (r && r.ok) { $("vcElKey").value = ""; tts.elevenlabs_key_set = true; $("vcElKeySet").hidden = false; }
+      if (r && r.ok) { $("vcElKey").value = ""; tts.elevenlabs_key_set = true; $("vcElKeySet").hidden = false; loadElevenVoices(); }
     };
     $("vcElVoice").onchange = () => luuGiong({ elevenlabs_voice: $("vcElVoice").value.trim() });
+    // 0.255.0: the account's voices by name, the raw Voice ID box only when the list cannot load.
+    const elSel = $("vcElVoiceSel"), elMsg = $("vcElVoiceMsg");
+    function loadElevenVoices() {
+      if (!tts.elevenlabs_key_set) return;
+      elMsg.textContent = t("settings.vc_el_loading");
+      fetch("/voice/elevenlabs/voices", { cache: "no-store" }).then(r => r.json()).catch(() => null).then(d => {
+        if (gen !== _renderGen) return;
+        if (!d || !d.ok || !(d.voices || []).length) {
+          elSel.hidden = true; $("vcElVoice").hidden = false;
+          elMsg.textContent = (d && d.error) || t("settings.vc_el_load_fail");
+          return;
+        }
+        const cur = tts.elevenlabs_voice || "";
+        const row = (x) => opt(x.id, [x.name, [x.gender, x.accent].filter(Boolean).join(", ")].filter(Boolean).join(" · "), cur);
+        const mine = d.voices.filter(x => x.category !== "premade"), premade = d.voices.filter(x => x.category === "premade");
+        const known = d.voices.some(x => x.id === cur);
+        elSel.innerHTML = (cur && !known ? opt(cur, t("settings.vc_el_custom", { id: cur }), cur) : "")
+          + (mine.length ? `<optgroup label="${esc(t("settings.vc_el_mine"))}">${mine.map(row).join("")}</optgroup>` : "")
+          + (premade.length ? `<optgroup label="${esc(t("settings.vc_el_premade"))}">${premade.map(row).join("")}</optgroup>` : "");
+        if (!cur) elSel.value = d.voices[0].id;
+        elSel.hidden = false; $("vcElVoice").hidden = true; elMsg.textContent = "";
+      });
+    }
+    elSel.onchange = () => { tts.elevenlabs_voice = elSel.value; $("vcElVoice").value = elSel.value; return luuGiong({ elevenlabs_voice: elSel.value }); };
+    const EL_MODEL_LABEL = {
+      eleven_flash_v2_5: "settings.vc_el_model_flash", eleven_v3: "settings.vc_el_model_v3",
+      eleven_turbo_v2_5: "settings.vc_el_model_turbo", eleven_multilingual_v2: "settings.vc_el_model_v2",
+    };
+    const elModels = (tts.elevenlabs_models || []).filter(m => m.id);
+    const elModelCur = tts.elevenlabs_model || "eleven_flash_v2_5";
+    $("vcElModel").innerHTML = elModels.map(m => opt(m.id, EL_MODEL_LABEL[m.id] ? t(EL_MODEL_LABEL[m.id]) : m.id, elModelCur)).join("");
+    $("vcElModel").onchange = () => luuGiong({ elevenlabs_model: $("vcElModel").value });
+    if (!$("vcEleven").hidden) loadElevenVoices();
 
     // Lỗi gần nhất khiến câu nói rơi về bộ não chính (server nhớ tới khi một lượt chạy tốt).
     // Không có dòng này thì người dùng chỉ thấy mic "đi thẳng vào bộ não chính" mà không biết vì sao.

@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.255.0] - 2026-10-20
+### Cải thiện
+- **Chọn được giọng ElevenLabs dù cuộc gọi đang chạy ChatGPT Live.** Trước đây ô ElevenLabs chỉ hiện khi cuộc gọi chạy đường Cơ bản, nên đa số máy không thấy đâu. Giờ thẻ Giọng nói có thêm ô **Giọng đọc tin nhắn**: chọn ElevenLabs ở đó là Javis đọc câu trả lời trong chat bằng giọng ElevenLabs.
+- **Không phải dán Voice ID nữa.** Dán API key xong là hiện danh sách giọng trong tài khoản ElevenLabs theo tên, giọng bạn tự nhân bản đứng đầu. Ô key, giọng và model nằm ngay dưới chỗ chọn, không còn giấu trong Nâng cao.
+- **Giọng ElevenLabs đọc tiếng Việt chuẩn.** Model mặc định cũ (Multilingual v2) không có tiếng Việt nên đọc lơ lớ. Giờ mặc định là Flash v2.5 (nhanh, có tiếng Việt), chọn thêm được Eleven v3 (biểu cảm nhất); máy đang lưu model cũ thì câu tiếng Việt tự chuyển sang Flash v2.5.
+- **Ghi chú giọng nói gửi qua Telegram, Zalo cũng dùng giọng ElevenLabs** khi bạn chọn nó. ElevenLabs lỗi (hết lượt, key hỏng) thì ghi chú tự đọc bằng giọng Edge, không bị mất. Riêng cuộc gọi ChatGPT Live và Live qua API vẫn nói bằng giọng riêng của chúng.
+
 ## [0.254.0] - 2026-10-20
 ### Thêm mới
 - **Kết nối được cổng "Anthropic Compatible".** Trang Models có thẻ mới: dán Base URL, API key và tên model bên bán đưa là dùng được. Hợp với các bên bán lại Claude và cổng "anthropic" của DeepSeek, Kimi, MiniMax. Bên bán nào nói cổng Anthropic ổn định hơn cổng OpenAI thì giờ dùng thẳng cổng đó.

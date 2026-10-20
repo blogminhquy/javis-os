@@ -31,7 +31,7 @@ function check(name, cond) {
 
 // ---- 1. Khung tĩnh: đúng ba ô và Nâng cao, các ô cũ đã gỡ hẳn (không chỉ ẩn) ----
 const card = html.slice(html.indexOf('id="voiceCard"'), html.indexOf("<!-- THƯƠNG HIỆU."));
-for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "vcBrainBox", "vcBrain", "vcBrainModelRow", "vcBrainModel", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
+for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "vcBrainBox", "vcBrain", "vcBrainModelRow", "vcBrainModel", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcReadRow", "vcReadVoice", "vcReadTry", "vcElVoiceSel", "vcElModel", "vcStatus", "v2LastErr", "voiceSel"])
   check(`thẻ Giọng nói có #${id}`, card.includes(`id="${id}"`));
 check("Đường gọi có đủ bốn lựa chọn", ["auto", "chatgpt", "api", "basic"].every(v => card.includes(`<option value="${v}"`)));
 check("tên đường gọi viết ChatGPT Live, không có chữ song công", card.includes(">ChatGPT Live<") && !/song công/i.test(card + JSON.stringify(vi)));
@@ -57,7 +57,10 @@ for (const k of ["settings.vc_title", "settings.vc_voice", "settings.vc_advanced
   "settings.vc_engine", "settings.vc_engine_auto", "settings.vc_engine_api", "settings.vc_engine_basic", "settings.vc_now",
   "settings.vc_now_brain", "settings.vc_reason_auto_api", "settings.vc_reason_auto_basic", "settings.vc_reason_chosen_unavailable",
   "settings.vc_detail_no_cli", "settings.vc_detail_no_login", "settings.vc_detail_old_cli", "settings.vc_saved",
-  "settings.vc_group_edge", "settings.vc_eleven_opt", "settings.vc_openai_note", "settings.v2_last_error",
+  "settings.vc_group_edge", "settings.vc_eleven_opt", "settings.vc_read_voice", "settings.vc_read_info", "settings.vc_el_info",
+  "settings.vc_el_voice", "settings.vc_el_mine", "settings.vc_el_premade", "settings.vc_el_loading", "settings.vc_el_load_fail",
+  "settings.vc_el_custom", "settings.vc_el_model", "settings.vc_el_model_flash", "settings.vc_el_model_v3", "settings.vc_el_model_turbo",
+  "settings.vc_el_model_v2", "settings.vc_openai_note", "settings.v2_last_error",
   "settings.vc_brain", "settings.vc_brain_hint", "settings.vc_brain_auto", "settings.vc_brain_auto_pick",
   "settings.vc_brain_main", "settings.vc_brain_unavailable", "settings.vc_brain_model", "settings.vc_brain_model_default",
   "settings.vc_brain_model_default_named", "settings.vc_brain_model_missing", "settings.vc_brain_model_loading"])
@@ -97,6 +100,7 @@ async function run(options, edgeVoice = "vi-VN-HoaiMyNeural", models = null) {
     fetch: async (url) => ({ json: async () => {
       ctx.urls.push(url);
       if (url.startsWith("/voice/brain-models")) return models || { ok: true, models: [] };
+      if (url.startsWith("/voice/elevenlabs/voices")) return ctx.elVoices || { ok: false, error: "no key" };
       ctx.lastUrl = url;
       return options;
     } }), urls: [],
@@ -165,8 +169,9 @@ const base = (call, extra = {}) => Object.assign({
     b.voiceSel.value === "en-US-EmmaMultilingualNeural" && b.voiceSel.events.includes("change"));
   check("Cơ bản: Edge vẫn là nhà cung cấp thì không gửi gì lên máy chủ", r.saves.length === 0);
   b.vcVoice.value = "elevenlabs"; await b.vcVoice.onchange();
-  check("Cơ bản: chọn ElevenLabs là lưu tts_provider và mở Nâng cao, trỏ vào ô key",
-    JSON.stringify(r.saves.at(-1)) === '["voice",{"tts_provider":"elevenlabs"}]' && b.vcAdvanced.open && b.vcEleven.hidden === false && b.vcElKey.focused);
+  // 0.255.0: the ElevenLabs block sits right under the list, out of Advanced.
+  check("Cơ bản: chọn ElevenLabs là lưu tts_provider, hiện khối ElevenLabs ngay dưới, trỏ vào ô key",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"tts_provider":"elevenlabs"}]' && !(b.vcAdvanced && b.vcAdvanced.open) && b.vcEleven.hidden === false && b.vcElKey.focused);
   b.vcElKey.value = " sk_test "; await b.vcElKey.onchange();
   check("ElevenLabs: key mới tự lưu rồi xoá khỏi ô", JSON.stringify(r.saves.at(-1)) === '["voice",{"elevenlabs_key":"sk_test"}]' && b.vcElKey.value === "");
   const n = r.saves.length; b.vcElKey.value = ""; await b.vcElKey.onchange();
@@ -180,6 +185,41 @@ const base = (call, extra = {}) => Object.assign({
   r.els.vcVoice.value = "openai:coral"; await r.els.vcVoice.onchange();
   check("Cơ bản + OpenAI: đổi giọng lưu cả nhà cung cấp lẫn giọng",
     JSON.stringify(r.saves.at(-1)) === '["voice",{"tts_provider":"openai","openai_tts_voice":"coral"}]');
+
+  // 3c2. 0.255.0 (owner: "đang thiếu ElevenLabs"): on ChatGPT Live the reading voice gets its own row.
+  const settle0 = () => new Promise(res => setImmediate(res));
+  r = await run(base({ engine: "chatgpt", live_provider: "chatgpt", setting: "auto", reason: "auto", detail: "" },
+    { tts: { provider: "edge", openai_voice: "alloy", openai_key_set: false, elevenlabs_voice: "", elevenlabs_key_set: false,
+      elevenlabs_model: "", elevenlabs_models: [{ id: "eleven_flash_v2_5", vi: true }, { id: "eleven_multilingual_v2", vi: false }] } }));
+  const c = r.els;
+  check("ChatGPT Live: row Giọng đọc tin nhắn shows with Edge and ElevenLabs, live voices stay above",
+    c.vcReadRow.hidden === false && c.vcReadVoice.options.some(o => o.value === "elevenlabs")
+    && c.vcReadVoice.value === "edge:vi-VN-HoaiMyNeural" && c.vcVoice.value === "juniper");
+  check("ChatGPT Live: the Edge note about multilingual voices stays hidden", c.vcVoiceNote.hidden === true);
+  check("ElevenLabs model list: Flash v2.5 first and picked when nothing is saved",
+    c.vcElModel.value === "eleven_flash_v2_5" && c.vcElModel.options[0].textContent === "settings.vc_el_model_flash"
+    && c.vcElModel.options[1].textContent === "settings.vc_el_model_v2");
+  c.vcReadVoice.value = "elevenlabs"; await c.vcReadVoice.onchange();
+  check("ChatGPT Live: picking ElevenLabs as reading voice saves tts_provider, not chatgpt_voice, shows the block",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"tts_provider":"elevenlabs"}]' && c.vcEleven.hidden === false && c.vcElKey.focused);
+  r.ctx.elVoices = { ok: true, voices: [{ id: "mine1", name: "Quy clone", category: "cloned", gender: "", accent: "" },
+    { id: "21m00", name: "Rachel", category: "premade", gender: "female", accent: "american" }] };
+  c.vcElKey.value = "sk_x"; await c.vcElKey.onchange(); await settle0(); await settle0();
+  check("ElevenLabs: after the key is saved the account's voices load by name, own voices first",
+    r.ctx.urls.includes("/voice/elevenlabs/voices") && c.vcElVoiceSel.hidden === false && c.vcElVoice.hidden === true
+    && c.vcElVoiceSel.options.map(o => o.value).join() === "mine1,21m00" && c.vcElVoiceSel.options[1].textContent === "Rachel · female, american");
+  c.vcElVoiceSel.value = "21m00"; await c.vcElVoiceSel.onchange();
+  check("ElevenLabs: picking a voice saves its id", JSON.stringify(r.saves.at(-1)) === '["voice",{"elevenlabs_voice":"21m00"}]');
+  c.vcElModel.value = "eleven_v3"; await c.vcElModel.onchange();
+  check("ElevenLabs: picking a model saves it", JSON.stringify(r.saves.at(-1)) === '["voice",{"elevenlabs_model":"eleven_v3"}]');
+  r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
+    { tts: { provider: "elevenlabs", openai_voice: "alloy", openai_key_set: false, elevenlabs_voice: "oldid", elevenlabs_key_set: true,
+      elevenlabs_model: "eleven_multilingual_v2", elevenlabs_models: [{ id: "eleven_flash_v2_5", vi: true }, { id: "eleven_multilingual_v2", vi: false }] } }));
+  await settle0(); await settle0();
+  check("Basic: no separate reading row, ElevenLabs block open, list failure falls back to the Voice ID box",
+    r.els.vcReadRow.hidden === true && r.els.vcEleven.hidden === false && r.els.vcElVoiceSel.hidden === true
+    && r.els.vcElVoice.hidden === false && r.els.vcElVoice.value === "oldid" && r.els.vcElVoiceMsg.textContent === "no key");
+  check("Basic: a saved Multilingual v2 is shown as saved", r.els.vcElModel.value === "eleven_multilingual_v2");
 
   // 3d. Bộ não trả lời nhanh (0.65.25, chủ dự án xin trả lại ô này để tự chỉnh).
   const CHOICES = [{ id: "antigravity", label: "Antigravity", available: false },
