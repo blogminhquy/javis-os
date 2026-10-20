@@ -820,6 +820,14 @@ class WebhookWorker:
         return True, suffix
 
     async def _notify(self, ev: dict) -> None:
+        """Notices of one hook are decided one at a time in this process: the incident state is read, the notice
+        queued, then the state written, so two events failing together are one notice, not two."""
+        locks = self.__dict__.setdefault("_notify_locks", {})
+        lock = locks.setdefault(str(ev.get("hook_id") or ""), asyncio.Lock())
+        async with lock:
+            await self._notify_one(ev)
+
+    async def _notify_one(self, ev: dict) -> None:
         """Queue the owner notice of a finished event under the modes (spec §12). The dedup key names the ATTEMPT
         (fence): a notice queued again after a crash is the same key, the result of an owner's Retry is a new one."""
         st = self.store()

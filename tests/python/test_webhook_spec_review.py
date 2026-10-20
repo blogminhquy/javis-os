@@ -1301,6 +1301,38 @@ async def fix_review_three():
           held == rc["event_id"] and gone == "", (held, gone))
 
 
+async def fix_review_four():
+    """Findings of the review of the R10 fixes (R11)."""
+    import webhook_triggers as wt
+    f = fresh()
+    # R11 P2: amount words match whole words only: a bank account, a tax code or an ID document number is masked.
+    m = wt.mask({"customer": {"name": "An", "bank_account": 190312345678, "account_number": 1903123456,
+                              "tax_code": 79201234567, "so_giay_to": 79201234568, "postcode": 700001,
+                              "total_orders": 4, "shippingCost": 15000}, "shipping_fee": 30000, "order_number": 1001})
+    flat = json.dumps(m)
+    check("R11 P2: bank_account, account_number, tax_code, so_giay_to and postcode under a person are masked; "
+          "total_orders, shippingCost, shipping_fee and order_number are not",
+          not any(x in flat for x in ("190312345678", "1903123456", "79201234567", "79201234568", "700001"))
+          and m["customer"]["total_orders"] == 4 and m["customer"]["shippingCost"] == 15000
+          and m["shipping_fee"] == 30000 and m["order_number"] == 1001, flat)
+    # R11 P3: two events of one hook told at once make one incident notice, not two.
+    hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
+                         rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,
+                                          "missing": "quarantine"}})
+    st = f.store()
+    ids = []
+    for i in range(2):
+        ids.append((await f.accept(hq["id"], tq, body({"i": i}), "application/json", f"race{i}"))[1]["event_id"])
+    await f.wait_idle()
+    st._db.execute("DELETE FROM meta WHERE k=?", (f"qinc:{hq['id']}",))
+    st._db.execute("DELETE FROM notifications")
+    mx.SENT.clear()
+    evs = [st.get(e) for e in ids]
+    await asyncio.gather(*(f._notify(dict(e, fence=None)) for e in evs))
+    qs = [x for x in mx.SENT if "cách ly" in x["text"] or "quarantined" in x["text"]]
+    check("R11 P3: two quarantines told at the same moment make one notice", len(qs) == 1, len(qs))
+
+
 async def main():
     await rules_and_triage()
     await receiving()
@@ -1314,6 +1346,7 @@ async def main():
     await chain_review_two()
     await fix_review_two()
     await fix_review_three()
+    await fix_review_four()
 
 
 if __name__ == "__main__":

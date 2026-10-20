@@ -1955,7 +1955,6 @@ class Store:
         now = time.time() if now is None else now
         cut = now - KEEP_DAYS * 86400
         ran = "('done','silent','cancelled')"
-        ign = "('filtered','invalid','duplicate')"
         fin = "('done','silent','cancelled','filtered','invalid','duplicate')"
         with self._write():
             stale = [r[0] for r in self._db.execute(

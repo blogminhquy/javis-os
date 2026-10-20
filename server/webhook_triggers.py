@@ -85,11 +85,20 @@ _PII_KEYS = ("name", "phone", "email", "address", "mobile", "tel", "sdt", "ho_te
              # 0.241.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
              "khach", "nguoi_nhan", "nguoinhan", "nguoi_gui", "recipient", "receiver", "buyer", "sender", "full_name",
              "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob")
+# Identity numbers, matched anywhere in the key and checked first (bank accounts and tax codes included).
 _ID_NUMBER_KEYS = ("phone", "mobile", "tel", "sdt", "dien_thoai", "dienthoai", "cccd", "cmnd", "zalo", "whatsapp",
-                   "viber", "facebook", "id_card", "id_number", "passport", "national_id", "dob", "birth")
-# Under a person's block, a number is theirs unless its key names an amount or a count.
-_AMOUNT_KEYS = ("fee", "total", "amount", "price", "qty", "quantity", "count", "tien", "phi", "gia", "so_luong",
-                "discount", "tax", "cod", "weight", "orders")
+                   "viber", "facebook", "id_card", "id_number", "passport", "national_id", "dob", "birth", "account",
+                   "bank", "stk", "tai_khoan", "taikhoan", "tax_id", "tax_code", "taxcode", "mst", "giay_to", "giayto")
+# Under a person's block, a number is theirs unless one WHOLE word of its key names an amount or a count
+# (`shipping_fee`, `total_orders`), never a part of a word (`account` is not `count`, `postcode` is not `cod`).
+_AMOUNT_WORDS = frozenset(("fee", "fees", "total", "subtotal", "amount", "price", "qty", "quantity", "count", "tien",
+                           "phi", "gia", "luong", "discount", "tax", "cod", "weight", "orders", "cost", "value", "sum",
+                           "balance", "paid", "points"))
+
+
+def _key_words(key: str) -> set:
+    import re
+    return {w.lower() for w in re.split(r"[_\-\s.]+|(?<=[a-z])(?=[A-Z])", str(key or "")) if w}
 _SECRET_KEYS = ("token", "secret", "password", "passwd", "authorization", "api_key", "apikey", "signature", "cookie",
                 "access_key", "private")
 
@@ -223,7 +232,7 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
     # A number that identifies a person (a phone, a CCCD, a Zalo id) is masked; amounts (a shipping fee, a bill
     # total) and counts stay readable.
     if isinstance(v, (int, float)) and not isinstance(v, bool) and (
-            any(x in k for x in _ID_NUMBER_KEYS) or (pii and not any(x in k for x in _AMOUNT_KEYS))):
+            any(x in k for x in _ID_NUMBER_KEYS) or (pii and not (_key_words(key) & _AMOUNT_WORDS))):
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:]
     return v

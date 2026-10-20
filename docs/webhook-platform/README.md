@@ -261,7 +261,8 @@ code of ac47dac1. A reviewer of that fix commit (R9, at 6d40a873) found one P1 a
 they are fixed in the next commit and pinned in `fix_review_two()`, each red on the server code of 6d40a873 (the P1 row
 hangs there, so it was run on its own). The reviewer of that commit (R10, at f4817a74) found one P1 and four P2; fixed
 in the next commit and pinned in `fix_review_three()`, each red on the server code of f4817a74 (the re-import row
-spins there and was left out of that run).
+spins there and was left out of that run). Its reviewer (R11, at a3e2ee07) found no P1 and one P2, fixed next and
+pinned in `fix_review_four()`, red on the server code of a3e2ee07.
 
 | Finding | Fix |
 |---|---|
@@ -323,4 +324,7 @@ spins there and was left out of that run).
 | R10 P2 a quarantine notice that failed to queue was marked told: it and every later one for 6 h were lost | the incident state is written only after the notice is queued |
 | R10 P2 numbers under a person's block (so_dien_thoai, dob, id_number, whatsapp) were shown | masked unless the key names an amount or a count |
 | R10 P3 (fixed) | a delivery behind a held one and a failed one is cancelled; new rules close the quarantine incident; quarantined events have their own row cap and the recent-event protection; rollback treats 0 as a value |
+| R11 (review of the R10 fixes, at a3e2ee07) P2 amount words matched inside other words, so `bank_account`, `account_number`, `tax_code` and `so_giay_to` under a person were shown | amount words match whole words of the key only; bank, account, tax id and document keys are identity numbers, checked first |
+| R11 P3 (fixed) | notices of one hook are decided one at a time (read the incident, queue the notice, write the state), so two events failing together are one notice |
+| R11 P3 (noted) | a failed AI run that never reached the model (the CLI is missing) also counts as maybe acted: its deleted event keeps the order's key (safe side: no double effect); a crash between queueing a notice and writing the incident state can tell the next failure once more; ids and points under a customer block are masked in the masked view (the audited raw view shows them) |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |
