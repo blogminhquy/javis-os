@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.254.0] - 2026-10-20
 ### Thêm mới
-- Đang viết.
+- **Kết nối được cổng "Anthropic Compatible".** Trang Models có thẻ mới: dán Base URL, API key và tên model bên bán đưa là dùng được. Hợp với các bên bán lại Claude và cổng "anthropic" của DeepSeek, Kimi, MiniMax. Bên bán nào nói cổng Anthropic ổn định hơn cổng OpenAI thì giờ dùng thẳng cổng đó.
+- **Cổng không có danh sách model vẫn dùng được:** gõ tên model vào ô thứ hai (nhiều tên cách nhau bằng dấu phẩy). Javis thử một tin rất ngắn trước khi lưu, sai key hay sai địa chỉ là báo ngay, không lưu bừa.
+- Dùng đủ công cụ như mọi bộ não khác: MCP, đọc ghi brain, skill, agent, việc nền, chatbot. Nhãn dưới mỗi câu trả lời ghi "Anthropic Compatible" để biết lượt đó chạy bằng gì.
 
 ## [0.253.0] - 2026-10-20
 ### Bảo mật

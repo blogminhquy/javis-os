@@ -576,6 +576,41 @@ def openai_compat_url() -> str:
     return (ep + "/chat/completions") if ep else ""
 
 
+def normalize_anthropic_compat_base(ep: str) -> str:
+    """Base URL of an Anthropic-compatible gateway, in the shape of Claude Code's ANTHROPIC_BASE_URL:
+    no trailing slash, no /v1 and no /messages. People paste any of the three, so all are accepted:
+    "https://x.com/anthropic", "https://x.com/anthropic/v1" and "https://x.com/anthropic/v1/messages"
+    all become "https://x.com/anthropic"."""
+    ep = (ep or "").strip().rstrip("/")
+    if ep.endswith("/messages"):
+        ep = ep[: -len("/messages")].rstrip("/")
+    if ep.endswith("/v1"):
+        ep = ep[: -len("/v1")].rstrip("/")
+    return ep
+
+
+def anthropic_compat_base() -> str:
+    """Base URL of provider 'anthropic-compat' (0.254.0). "" = not set."""
+    import config as cfgmod
+    return normalize_anthropic_compat_base(cfgmod.read_settings().get("model", {}).get("anthropic_compat_base") or "")
+
+
+def anthropic_compat_url() -> str:
+    """Messages URL of provider 'anthropic-compat'. "" = no base URL set."""
+    ep = anthropic_compat_base()
+    return (ep + "/v1/messages") if ep else ""
+
+
+def anthropic_headers(api_key: str, compat: bool = False) -> dict:
+    """Headers for the Messages API. A gateway gets the key BOTH ways: resellers differ on whether
+    they read x-api-key (Claude Code's ANTHROPIC_API_KEY) or a Bearer token (ANTHROPIC_AUTH_TOKEN),
+    and sending both is what lets one form work with either kind."""
+    h = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
+    if compat:
+        h["authorization"] = f"Bearer {api_key}"
+    return h
+
+
 # Model Anthropic hỗ trợ adaptive thinking + output_config.effort (khỏi budget_tokens).
 #
 # Thiếu tên nào ở đây là lượt chat của model ĐÓ rơi xuống nhánh `budget_tokens` bên dưới, mà
@@ -940,7 +975,15 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
         yield ev
 
 
-async def _anthropic_stream_once(api_key, model, messages, reasoning="off", fast=False):
+async def anthropic_compat_stream(api_key, model, messages, reasoning="off"):
+    """Anthropic-compatible gateway (provider 'anthropic-compat', 0.254.0) without tools: the same
+    Messages API code as 'anthropic-api', sent to the owner's base URL. No Fast mode: that is an
+    Anthropic beta header a reseller may not know."""
+    async for ev in _anthropic_stream_once(api_key, model, messages, reasoning, False, compat=True):
+        yield ev
+
+
+async def _anthropic_stream_once(api_key, model, messages, reasoning="off", fast=False, compat=False):
     """Anthropic Messages API (provider 'anthropic-api') - nhánh KHÔNG tool (dự phòng khi hub
     không có tool nào; đường thường là anthropic_chat_with_mcp).
     Tách system ra field riêng (Anthropic không nhận role=system trong messages).
@@ -953,8 +996,10 @@ async def _anthropic_stream_once(api_key, model, messages, reasoning="off", fast
     # Ảnh khách gửi (0.81.0) đi theo khuôn OpenAI trong Javis; Anthropic có khuôn riêng, đổi ở đây.
     conv = [{"role": m["role"], "content": vision_input.to_anthropic(m.get("content", ""))}
             for m in messages if m.get("role") in ("user", "assistant")]
-    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
-               "content-type": "application/json"}
+    headers = anthropic_headers(api_key, compat)
+    url = anthropic_compat_url() if compat else ANTHROPIC_URL
+    label = "Anthropic Compatible" if compat else "Anthropic"
+    lprov = "anthropic-compat" if compat else "anthropic"
     payload = {"model": model or "claude-sonnet-4-6", "max_tokens": 4096, "messages": conv, "stream": True}
     payload.update(_anthropic_reasoning(model, reasoning))   # thinking + effort + max_tokens nếu bật reasoning
     fast_h, fast_b = fast_mode.anthropic_params(payload["model"], fast)   # the model actually sent
@@ -967,22 +1012,28 @@ async def _anthropic_stream_once(api_key, model, messages, reasoning="off", fast
     try:
         timeout = httpx.Timeout(120.0, connect=15.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream("POST", ANTHROPIC_URL, headers=headers, json=payload) as r:
+            async with client.stream("POST", url, headers=headers, json=payload) as r:
                 if r.status_code != 200:
                     body = await r.aread()
                     body_text = body.decode("utf-8", "replace")
                     if fast_b and fast_mode.refused(r.status_code, body_text, "speed"):
                         yield {"type": "_fast_refused", "detail": body_text[:160]}
                         return
+                    # A gateway serving a non-Claude model may not take this thinking shape: answer
+                    # without it rather than fail the turn (the tool loop below does the same).
+                    if compat and r.status_code == 400 and "thinking" in payload and "thinking" in body_text.lower():
+                        async for ev in _anthropic_stream_once(api_key, model, messages, "off", False, compat=True):
+                            yield ev
+                        return
                     _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                     if _fact:
-                        limit_learner.remember("anthropic", model, _fact)
-                        yield {"type": "limit_exceeded", "provider": "anthropic", "model": model,
+                        limit_learner.remember(lprov, model, _fact)
+                        yield {"type": "limit_exceeded", "provider": lprov, "model": model,
                                "kind": _fact.kind, "limit": _fact.limit,
                                "requested": _fact.requested,
                                "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                    yield ev_loi_http("Anthropic", r.status_code, body_text, r.headers, _fact)
+                    yield ev_loi_http(label, r.status_code, body_text, r.headers, _fact)
                     return
                 yield {"type": "meta", "model": model}
                 got = False
@@ -1016,13 +1067,13 @@ async def _anthropic_stream_once(api_key, model, messages, reasoning="off", fast
                         if (obj.get("usage") or {}).get("output_tokens"):
                             usage_out = obj["usage"]["output_tokens"]
                     elif t == "error":
-                        yield {"type": "error", "content": f"Anthropic: {(obj.get('error') or {}).get('message', _c('lỗi', 'error'))}"}
+                        yield {"type": "error", "content": f"{label}: {(obj.get('error') or {}).get('message', _c('lỗi', 'error'))}"}
                         return
                 if usage_in or usage_out:
                     yield {"type": "usage", "input": usage_in, "output": usage_out}
                 if not got:
-                    yield {"type": "error", "content": _c(f"Anthropic trả về rỗng (stop_reason={stop_reason}). Thử model khác trong Models.",
-                                                          f"Anthropic returned nothing (stop_reason={stop_reason}). Try another model in Models.")}
+                    yield {"type": "error", "content": _c(f"{label} trả về rỗng (stop_reason={stop_reason}). Thử model khác trong Models.",
+                                                          f"{label} returned nothing (stop_reason={stop_reason}). Try another model in Models.")}
                     return
                 # Stream xong nhưng KHÔNG phải end_turn/stop_sequence (max_tokens / refusal / ...) → báo user
                 if stop_reason and stop_reason not in ("end_turn", "stop_sequence"):
@@ -1035,7 +1086,7 @@ async def _anthropic_stream_once(api_key, model, messages, reasoning="off", fast
                         f"⚠️ Stream kết thúc bất thường (stop_reason={stop_reason}).",
                         f"⚠️ The stream ended abnormally (stop_reason={stop_reason})."))}
     except Exception as e:
-        yield ev_loi_exc(_c("Anthropic lỗi", "Anthropic error"), e)
+        yield ev_loi_exc(_c(f"{label} lỗi", f"{label} error"), e)
 
 
 async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_spec):
@@ -1050,7 +1101,8 @@ async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_s
     if not fn or not isinstance(params, dict):
         return {"status": "error", "error_code": "invalid_tool_spec", "input": 0, "output": 0}
 
-    if provider == "anthropic-api":
+    if provider in ("anthropic-api", "anthropic-compat"):
+        compat = provider == "anthropic-compat"
         sys_parts = [str(m.get("content") or "") for m in messages if m.get("role") == "system"]
         conv = [{"role": m["role"], "content": m.get("content", "")}
                 for m in messages if m.get("role") in ("user", "assistant")]
@@ -1065,13 +1117,11 @@ async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_s
         }
         if sys_parts:
             payload["system"] = "\n\n".join(x for x in sys_parts if x)
-        headers = {
-            "x-api-key": api_key, "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
+        headers = anthropic_headers(api_key, compat)
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15)) as client:
-                response = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
+                response = await client.post(anthropic_compat_url() if compat else ANTHROPIC_URL,
+                                             headers=headers, json=payload)
             if response.status_code != 200:
                 return {"status": "error", "error_code": f"provider_http_{response.status_code}",
                         "input": 0, "output": 0}
@@ -2337,7 +2387,14 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
         yield {"type": "text", "content": _het_vong_msg()}
 
 
-async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+async def anthropic_compat_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+    """Tool loop for provider 'anthropic-compat' (0.254.0): the Anthropic loop below, sent to the
+    owner's gateway. A separate name so callers and tests can tell the two providers apart."""
+    async for ev in anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route, compat=True):
+        yield ev
+
+
+async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route, compat=False):
     """Anthropic Messages API + vòng tool-calling MCP - gỡ hạn chế 'anthropic-api = chat thuần'.
     Non-stream từng vòng (như _cc_tool_loop); yield meta/tool_call/text/error thống nhất.
 
@@ -2349,8 +2406,10 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
     sys_txt = "\n\n".join(m.get("content", "") for m in messages if m.get("role") == "system")
     conv = [{"role": m["role"], "content": vision_input.to_anthropic(m.get("content", ""))}
             for m in messages if m.get("role") in ("user", "assistant")]
-    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
-               "content-type": "application/json"}
+    headers = anthropic_headers(api_key, compat)
+    url = anthropic_compat_url() if compat else ANTHROPIC_URL
+    label = "Anthropic Compatible" if compat else "Anthropic"
+    lprov = "anthropic-compat" if compat else "anthropic"
     tools = [{"name": t["fn"], "description": (t.get("description") or t["fn"])[:1024],
               "input_schema": t.get("schema") or {"type": "object", "properties": {}}} for t in mcp_tools]
     if tools:
@@ -2358,6 +2417,8 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
     yield {"type": "meta", "model": model}
     extras = _anthropic_reasoning(model, reasoning)
     fast_h, fast_b = fast_mode.anthropic_params(model or "claude-sonnet-4-6", fast_mode.current())   # Fast mode (0.164.0)
+    if compat:
+        fast_h, fast_b = {}, {}   # an Anthropic beta header; a reseller may reject it
     timeout = httpx.Timeout(180, connect=15)
     async with httpx.AsyncClient(timeout=timeout) as client:
         usage_in = usage_out = 0
@@ -2373,10 +2434,10 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             if sys_txt:
                 payload["system"] = [{"type": "text", "text": sys_txt, "cache_control": {"type": "ephemeral"}}]
             try:
-                r = await _gui_vong(lambda: client.post(ANTHROPIC_URL, headers={**headers, **fast_h}, json=payload),
-                                    "Anthropic")
+                r = await _gui_vong(lambda: client.post(url, headers={**headers, **fast_h}, json=payload),
+                                    label)
             except Exception as e:
-                yield ev_loi_exc(_c("Anthropic lỗi", "Anthropic error"), e)
+                yield ev_loi_exc(_c(f"{label} lỗi", f"{label} error"), e)
                 return
             if fast_b and fast_mode.refused(r.status_code, r.text or "", "speed"):
                 fast_h, fast_b = {}, {}   # Fast mode refused: drop it and retry the round
@@ -2391,18 +2452,18 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                 body_text = r.text or ""
                 _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                 if _fact:
-                    limit_learner.remember("anthropic", model, _fact)
-                    yield {"type": "limit_exceeded", "provider": "anthropic", "model": model,
+                    limit_learner.remember(lprov, model, _fact)
+                    yield {"type": "limit_exceeded", "provider": lprov, "model": model,
                            "kind": _fact.kind, "limit": _fact.limit,
                            "requested": _fact.requested,
                            "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                yield ev_loi_http("Anthropic", r.status_code, body_text, r.headers, _fact)
+                yield ev_loi_http(label, r.status_code, body_text, r.headers, _fact)
                 return
             try:
                 data = r.json()
             except Exception:
-                yield {"type": "error", "content": _c("Anthropic trả về không phải JSON.", "Anthropic did not return JSON.")}
+                yield {"type": "error", "content": _c(f"{label} trả về không phải JSON.", f"{label} did not return JSON.")}
                 return
             _u = data.get("usage") or {}   # cộng dồn token mọi vòng tool
             usage_in += ((_u.get("input_tokens") or 0) + (_u.get("cache_read_input_tokens") or 0)
@@ -2444,7 +2505,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             if text:
                 yield {"type": "text", "content": text}
             else:
-                yield {"type": "error", "content": _c("Anthropic trả về rỗng. Thử model khác trong Models.",
-                                                      "Anthropic returned nothing. Try another model in Models.")}
+                yield {"type": "error", "content": _c(f"{label} trả về rỗng. Thử model khác trong Models.",
+                                                      f"{label} returned nothing. Try another model in Models.")}
             return
         yield {"type": "text", "content": _het_vong_msg()}
