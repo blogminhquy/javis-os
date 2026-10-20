@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.249.0] - 2026-10-20
 ### Cải thiện
-- Đang viết.
+- **Trang Công cụ (Plugins) có ô tìm kiếm.** Gõ tên plugin, tên công cụ bên trong hay một chữ trong mô tả là lọc ngay, không cần gõ dấu ("lich dang" vẫn ra "Lịch đăng bài"). Bấm Esc hoặc dấu X để xoá.
+- **Lọc nhanh Tất cả, Đang bật, Đang tắt** (có số đếm từng mục), thêm mục Lỗi khi có plugin bị lỗi.
+- **Plugin do bạn tạo nằm trên cùng**, rồi tới plugin từ Javis Store, cuối cùng là plugin có sẵn của Javis. Trước đây plugin tự tạo bị đẩy xuống dưới cả 20 plugin có sẵn.
+- **Thẻ gọn hơn một nửa, bật tắt bằng công tắc gạt** bên phải như trang Kỹ năng. Bật tắt xong vẫn giữ nguyên chữ đang tìm và chỗ đang xem.
 
 ## [0.248.0] - 2026-10-20
 ### Sửa lỗi
