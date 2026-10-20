@@ -7784,17 +7784,19 @@
     .cp-ico-btn .ic{ vertical-align:-2px; }
     /* Thu gọn cột Hội thoại/Thư mục như sidebar (chủ yêu cầu 27/08): desktop thu về dải
        hẹp chỉ còn nút mở lại (.side-thu, có nhớ), màn hẹp giữ drawer như cũ. Nút thu nằm
-       ngay góc panel (cùng icon panel-left với nút thu rail); nút lịch sử trên thanh tiêu
-       đề cũng toggle được cùng trạng thái. */
-    .cp-side-toggle{ display:inline-block; }
+       ngay góc panel (cùng icon panel-left với nút thu rail).
+       0.243.0: the clock button on the title bar duplicated that corner button, so on a
+       computer it is gone; on a phone the title bar keeps a panel-left button that opens the
+       drawer, and the same corner button closes it. */
+    .cp-side-toggle{ display:none; }
     .cside-thu-btn, .cside-expand{ display:none; }
+    .chatpage-side .cside-tabs{ padding-right:34px; }
+    .cside-thu-btn{ display:flex; align-items:center; justify-content:center;
+      position:absolute; top:16px; right:10px; width:27px; height:27px; border-radius:7px;
+      border:1px solid var(--border); background:none; color:var(--text3); cursor:pointer; }
+    .cside-thu-btn:hover{ color:var(--accent); border-color:var(--accent); }
     @media (min-width:861px){
       .chatpage-side{ position:relative; }
-      .chatpage-side .cside-tabs{ padding-right:34px; }
-      .cside-thu-btn{ display:flex; align-items:center; justify-content:center;
-        position:absolute; top:16px; right:10px; width:27px; height:27px; border-radius:7px;
-        border:1px solid var(--border); background:none; color:var(--text3); cursor:pointer; }
-      .cside-thu-btn:hover{ color:var(--accent); border-color:var(--accent); }
       .chatpage.side-thu .chatpage-side{ width:46px; padding:14px 8px; align-items:center; overflow:hidden; }
       .chatpage.side-thu .chatpage-side > :not(.cside-expand){ display:none; }
       .chatpage.side-thu .chatpage-side > .cside-expand{ display:flex; align-items:center;
@@ -7880,7 +7882,9 @@
       .chatpage-bar{ gap:6px; min-width:0; }
       .cp-min span{ display:none; }
       .cp-min{ padding:4px 8px; }
-      .cp-side-toggle{ display:inline-block; }
+      .cp-side-toggle{ display:inline-flex; align-items:center; padding:4px 8px; }
+      .cside-thu-btn{ width:34px; height:34px; top:12px; }
+      .chatpage-side .cside-tabs{ padding-right:42px; }
       .chatpage-side{ position:absolute; left:0; top:0; bottom:0; z-index:6; width:min(84vw,300px);
         transform:translateX(-105%); transition:transform .2s ease; box-shadow:10px 0 40px var(--shadow-veil); background:var(--bg); }
       .chatpage.side-open .chatpage-side{ transform:none; }
@@ -8005,6 +8009,39 @@
     };
   }
   if (typeof window !== "undefined") window.JavisNeoCotTrai = _neoCotTrai;
+
+  // 0.243.0 (owner, 20/10/2026): the clock button on the title bar did exactly what the
+  // panel-left button in the column corner does, so the column now has ONE pair of buttons:
+  // collapse in its corner, expand on the narrow strip left behind. On a phone the column is
+  // a drawer, so the same corner button closes the drawer and the title bar keeps only a
+  // panel-left button to open it (CSS hides that one on a computer).
+  // Call AFTER JavisChatSide.mount: mount rewrites the column's innerHTML and would drop them.
+  function _setSideFolded(page, folded) {
+    page.classList.toggle("side-thu", folded);
+    try { localStorage.setItem("javis_chatside_thu", folded ? "1" : "0"); } catch (e) {}
+  }
+  function _addSideFoldButtons(page, sideEl) {
+    if (!page || !sideEl) return;
+    sideEl.querySelectorAll(":scope > .cside-thu-btn, :scope > .cside-expand").forEach((n) => n.remove());
+    const narrow = () => window.matchMedia("(max-width: 860px)").matches;
+    const foldBtn = document.createElement("button");
+    foldBtn.className = "cside-thu-btn"; foldBtn.type = "button";
+    foldBtn.title = window.t("cs.cp_side_collapse"); foldBtn.dataset.i18nTitle = "cs.cp_side_collapse";
+    foldBtn.setAttribute("aria-label", foldBtn.title); foldBtn.dataset.i18nAria = "cs.cp_side_collapse";
+    foldBtn.innerHTML = ic("panel-left");
+    foldBtn.onclick = () => {
+      if (narrow()) page.classList.remove("side-open");
+      else _setSideFolded(page, true);
+    };
+    const openBtn = document.createElement("button");
+    openBtn.className = "cside-expand"; openBtn.type = "button";
+    openBtn.title = window.t("cs.cp_side_expand"); openBtn.dataset.i18nTitle = "cs.cp_side_expand";
+    openBtn.setAttribute("aria-label", openBtn.title); openBtn.dataset.i18nAria = "cs.cp_side_expand";
+    openBtn.innerHTML = ic("panel-left");
+    openBtn.onclick = () => _setSideFolded(page, false);
+    sideEl.appendChild(foldBtn); sideEl.appendChild(openBtn);
+  }
+  if (typeof window !== "undefined") window.JavisSideFoldButtons = _addSideFoldButtons;
 
   function _borrowNoteEditor(into) {
     const ed = document.getElementById("noteEditor");
@@ -8135,7 +8172,9 @@
         '<aside class="chatpage-side" id="chatPageSide"></aside>' +
         '<div class="chatpage-main">' +
           '<div class="chatpage-bar">' +
-            '<button class="cp-ico-btn cp-side-toggle" type="button" data-i18n-title="cs.cp_toggle_hist" title="' + esc(window.t("cs.cp_toggle_hist")) + '">' + ic("history") + '</button>' +
+            // Phone only (CSS hides it on a computer): opens the Conversations/Files drawer.
+            '<button class="cp-ico-btn cp-side-toggle" type="button" data-i18n-title="cs.cp_side_open" data-i18n-aria="cs.cp_side_open" ' +
+              'title="' + esc(window.t("cs.cp_side_open")) + '" aria-label="' + esc(window.t("cs.cp_side_open")) + '">' + ic("panel-left") + '</button>' +
             // Chữ nằm trong <span> để màn hẹp ẩn được, giữ lại icon. Để chữ trần thì không
             // có cách nào ẩn mà không mất luôn cả nút.
             '<button class="cp-ico-btn cp-min" type="button" id="cpMinBtn" data-i18n-title="cs.cp_min_title" data-i18n-aria="cs.cp_min_title" ' +
@@ -8163,28 +8202,10 @@
     // Thu gọn cột Hội thoại/Thư mục: màn hẹp giữ drawer như cũ; desktop thu về dải hẹp
     // và nhớ lựa chọn. Nút thu/mở gắn SAU khi JavisChatSide.mount vì mount ghi đè innerHTML
     // của panel - gắn trước là nút biến mất.
-    const isNar = () => window.matchMedia("(max-width: 860px)").matches;
     const sideEl = el.querySelector("#chatPageSide");
-    const datSideThu = (thu) => {
-      page.classList.toggle("side-thu", thu);
-      try { localStorage.setItem("javis_chatside_thu", thu ? "1" : "0"); } catch (e) {}
-    };
+    const datSideThu = (thu) => _setSideFolded(page, thu);
     try { if (localStorage.getItem("javis_chatside_thu") === "1") page.classList.add("side-thu"); } catch (e) {}
-    if (sideEl) {
-      const thuBtn = document.createElement("button");
-      thuBtn.className = "cside-thu-btn"; thuBtn.type = "button";
-      thuBtn.title = window.t("cs.cp_side_collapse"); thuBtn.dataset.i18nTitle = "cs.cp_side_collapse"; thuBtn.innerHTML = ic("panel-left");
-      thuBtn.onclick = () => datSideThu(true);
-      const moBtn = document.createElement("button");
-      moBtn.className = "cside-expand"; moBtn.type = "button";
-      moBtn.title = window.t("cs.cp_side_expand"); moBtn.dataset.i18nTitle = "cs.cp_side_expand"; moBtn.innerHTML = ic("panel-left");
-      moBtn.onclick = () => datSideThu(false);
-      sideEl.appendChild(thuBtn); sideEl.appendChild(moBtn);
-    }
-    el.querySelector(".cp-side-toggle").onclick = () => {
-      if (isNar()) { page.classList.toggle("side-open"); return; }
-      datSideThu(!page.classList.contains("side-thu"));
-    };
+    _addSideFoldButtons(page, sideEl);
     // Cột Hội thoại/Thư mục kéo được ở đường biên phải (0.148.0, col-resize.js); màn hẹp là ngăn kéo, CSS ẩn tay kéo.
     if (sideEl && window.JavisColResize) {
       // 0.196.0: let go narrower than the fold point and the column folds away, as its collapse button does.
@@ -8194,7 +8215,7 @@
       window.JavisColResize.apply(oSide);
       window.JavisColResize.attach(sideEl, oSide);
     }
-    _neoCotTrai(page, el.querySelector("#chatPageSide"), slot);
+    el.querySelector(".cp-side-toggle").onclick = _neoCotTrai(page, sideEl, slot);
     // Khung chat PHẢI khi đang sửa file (.edit-on): nút thu co vào bên phải + nhớ trạng
     // thái. Nút gắn vào slot SAU khi mượn node chat nên không bị _borrowChatNodes chen chỗ.
     const mainEl = el.querySelector(".chatpage-main");

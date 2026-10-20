@@ -1,6 +1,6 @@
-# Webhook platform, M4: signatures, encrypted secrets, tools, approval (0.245.0)
+# Webhook platform, M4: signatures, encrypted secrets, tools, approval (0.247.0)
 
-> **Spec alignment (0.245.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: a new hook takes its key only in a header (older hooks keep `?token=`); a provider-signed hook is authenticated by the signature alone; Systeme.io dedups on `X-Webhook-Message-Id` and accepts its normalised JSON forms; signing secrets rotate with a bounded overlap; failing addresses are throttled without ever blocking a valid token. The "Assumptions to reconcile" below are settled by that matrix.
+> **Spec alignment (0.247.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: a new hook takes its key only in a header (older hooks keep `?token=`); a provider-signed hook is authenticated by the signature alone; Systeme.io dedups on `X-Webhook-Message-Id` and accepts its normalised JSON forms; signing secrets rotate with a bounded overlap; failing addresses are throttled without ever blocking a valid token. The "Assumptions to reconcile" below are settled by that matrix.
 
 Status: implemented and tested with fakes. The tool dispatcher in the tests is a fake, and every signature was
 computed in the test from the provider's documented scheme. **No adapter is production verified.** Stripe, GitHub,

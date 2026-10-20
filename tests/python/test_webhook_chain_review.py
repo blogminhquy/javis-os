@@ -1,4 +1,4 @@
-"""0.245.0: fixes from the independent WHOLE-CHAIN review of the webhook platform (M1-M5 together), each red before
+"""0.247.0: fixes from the independent WHOLE-CHAIN review of the webhook platform (M1-M5 together), each red before
 the fix.
 
     python tests/run.py webhook_chain_review      (no network, no model)
@@ -190,7 +190,7 @@ async def main():
     r = await cl.post(f"/hooks/{h['id']}", content=b"x" * (wt.BODY_MAX_BYTES + 10), headers={"Authorization": f"Bearer {tok}"})
     check("P3: an oversized body is refused (413) from its Content-Length, before it is read", r.status_code == 413)
 
-    # P2: the hook configuration unreadable for a moment (the store's hook rows; webhooks.json since 0.245.0 moved in)
+    # P2: the hook configuration unreadable for a moment (the store's hook rows; webhooks.json since 0.247.0 moved in)
     import sqlite3 as _sq
     n_hooks = len(st.hooks_all())
     f._kick = lambda: None

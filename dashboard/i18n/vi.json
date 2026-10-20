@@ -2873,7 +2873,7 @@
   "cs.tk_noname": "không tên",
   "cs.tk_revoke": "Thu hồi",
   "cs.tk_revoke_confirm": "Thu hồi token này? Máy nào đang dùng nó sẽ mất kết nối ngay.",
-  "cs.cp_toggle_hist": "Ẩn/hiện lịch sử",
+  "cs.cp_side_open": "Mở cột Hội thoại / Thư mục",
   "cs.cp_min_title": "Thu nhỏ về màn Javis",
   "cs.cp_min": "Thu nhỏ",
   "cs.cp_side_collapse": "Thu gọn cột này (như sidebar)",

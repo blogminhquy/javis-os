@@ -1,4 +1,4 @@
-"""webhook_secrets.py - encrypted secrets for webhooks, with key rotation (0.245.0, webhook platform M4).
+"""webhook_secrets.py - encrypted secrets for webhooks, with key rotation (0.247.0, webhook platform M4).
 
 What is kept here: the API keys an action sends as headers, and the signing secret a provider uses (Stripe, GitHub,
 Shopify, Systeme.io, generic HMAC). `webhooks.json` holds only a reference `{"$secret": "<name>"}`; the value lives

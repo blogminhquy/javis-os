@@ -2873,7 +2873,7 @@
   "cs.tk_noname": "unnamed",
   "cs.tk_revoke": "Revoke",
   "cs.tk_revoke_confirm": "Revoke this token? Any machine using it loses access immediately.",
-  "cs.cp_toggle_hist": "Show or hide history",
+  "cs.cp_side_open": "Open the Conversations / Files column",
   "cs.cp_min_title": "Shrink back to the Javis screen",
   "cs.cp_min": "Shrink",
   "cs.cp_side_collapse": "Collapse this column (like the sidebar)",

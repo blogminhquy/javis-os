@@ -59,7 +59,7 @@ async def main():
     h, token, err = feat.create("/brains/shop", name="Lead mới", target="task", text="Gọi lại cho khách",
                                 chat_id="web:abc")
     check("create a task hook", h is not None and token and not err)
-    # 0.245.0: hooks live in the durable store (spec §13); the token is still kept only as its hash.
+    # 0.247.0: hooks live in the durable store (spec §13); the token is still kept only as its hash.
     raw = json.dumps([dict(r) for r in feat.store()._db.execute("SELECT * FROM hooks")], default=str)
     check("token is not stored in clear", token not in raw and wt.hash_token(token) in raw)
     check("view never shows the token hash", "token_hash" not in feat.view(h, "https://x"))
@@ -145,7 +145,7 @@ async def main():
 
     # rate limit
     r, rtok, _ = feat.create("/b", name="r", target="task", text="t")
-    # 0.245.0: the limits are counted from the durable store, so fill it with events received this hour.
+    # 0.247.0: the limits are counted from the durable store, so fill it with events received this hour.
     st = feat.store()
 
     def fill(hid, n, status="done", lease=0.0):
@@ -165,7 +165,7 @@ async def main():
     code, _ = await feat.accept(r["id"], rtok, b"{}", "application/json")
     check("over the ingress rate -> 429", code == 429)
 
-    # 0.245.0: an event refused with 429 must not leave its idempotency key behind, or the sender's retry
+    # 0.247.0: an event refused with 429 must not leave its idempotency key behind, or the sender's retry
     # (which is what a 429 asks for) is answered "duplicate" and the event never runs.
     before = len(task_calls)
     code, _ = await feat.accept(r["id"], rtok, b'{"order": 7}', "application/json", idem_key="evt-429")

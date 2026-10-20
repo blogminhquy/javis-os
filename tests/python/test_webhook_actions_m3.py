@@ -1,4 +1,4 @@
-"""0.245.0: webhook actions (webhook platform M3): HTTP forward, Apps Script with receipt, plugin handlers,
+"""0.247.0: webhook actions (webhook platform M3): HTTP forward, Apps Script with receipt, plugin handlers,
 independent branches with stable delivery ids, retry of the failed branch only.
 
     python tests/run.py webhook_actions_m3      (no network: every HTTP call goes to an httpx.MockTransport, every

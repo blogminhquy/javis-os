@@ -1,4 +1,4 @@
-"""0.245.0: fixes from the independent review of webhook platform M4 (signatures, secrets, tools, approval), each red
+"""0.247.0: fixes from the independent review of webhook platform M4 (signatures, secrets, tools, approval), each red
 before the fix.
 
     python tests/run.py webhook_m4_review      (no network, no model)

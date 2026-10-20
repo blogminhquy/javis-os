@@ -81,8 +81,10 @@ check("không có #chatPage (trang Tệp tin) thì bỏ qua, không nổ",
 check("vẫn đóng khi chạm khung chat", /if \(slot\) slot\.addEventListener\("click", dong\)/.test(neo), neo);
 check("vẫn đóng khi chọn một hội thoại trong ngăn kéo",
   /closest\("\.cside-item"\)\) dong\(\)/.test(neo), neo);
+// 0.243.0: the Chat page title-bar button is wired straight to the shared toggle.
 check("nút bật/tắt vẫn toggle như cũ trên màn hẹp",
-  /if \(isNar\(\)\) \{ page\.classList\.toggle\("side-open"\); return; \}/.test(JS));
+  /if \(hep\(\)\) \{ page\.classList\.toggle\("side-open"\); return; \}/.test(neo)
+  && /querySelector\("\.cp-side-toggle"\)\.onclick = _neoCotTrai\(page, sideEl, slot\)/.test(JS));
 
 check("index.html bump console.js để trình duyệt không giữ bản cũ",
   /console\.js\?v=(12[3-9]|1[3-9]\d|[2-9]\d\d)/.test(D("index.html")),

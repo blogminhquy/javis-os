@@ -1,4 +1,4 @@
-"""0.245.0: fixes from the independent review of webhook platform M2 (rules, business keys), each red before the fix.
+"""0.247.0: fixes from the independent review of webhook platform M2 (rules, business keys), each red before the fix.
 
     python tests/run.py webhook_m2_review      (no network, no model)
 
