@@ -50,6 +50,8 @@ server/connector-cred/
 server/purge-trash/
 # Công cụ Javis tự cài ngầm lúc chạy (bản ghim của CLI Zalo javis-zalo, chạy thẳng bằng Node). Sinh ra lúc chạy, có node_modules nặng.
 server/tools/
+# cloudflared that Remote access downloads on first use (remote_tunnel.py, 0.242.0): a 40 MB binary per machine.
+server/bin/
 # Lựa chọn GỠ năng lực mặc định (connector lõi...). Dữ liệu người dùng, mỗi máy một kiểu.
 server/core-off.json
 # Gói mở rộng người dùng cài (connector/plugin thả vào lúc chạy). Dữ liệu người dùng.

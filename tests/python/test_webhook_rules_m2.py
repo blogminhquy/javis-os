@@ -1,4 +1,4 @@
-"""0.241.0: webhook rules (webhook platform M2, spec §5 and §6): schema, filter, mapping, business keys, simulation,
+"""0.245.0: webhook rules (webhook platform M2, spec §5 and §6): schema, filter, mapping, business keys, simulation,
 trace.
 
     python tests/run.py webhook_rules_m2      (no network, no model: every runner is a fake)
@@ -549,7 +549,7 @@ async def main():
     await f.wait_idle()
     check("same order again under a new idempotency key -> duplicate by business key, no second run",
           code == 202 and st.get(resp4["event_id"])["status"] == "duplicate" and len(calls) == 1, resp4)
-    # 0.241.0 (spec §12, §7 table "payload/schema/filter wrong": an error): a quarantine is told once; ignored
+    # 0.245.0 (spec §12, §7 table "payload/schema/filter wrong": an error): a quarantine is told once; ignored
     # events (filtered, duplicate) never are.
     quar = [x for x in sent if "cách ly" in x or "quarantined" in x]
     check("ignored events never notify the owner; a quarantined one tells the owner once", len(sent) == 2

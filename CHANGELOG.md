@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.241.0] - 2026-10-20
+## [0.245.0] - 2026-10-20
 ### Thêm mới
 - **Webhook thành cửa nhận sự kiện bền.** Mỗi sự kiện được ghi vào đĩa trước khi Javis trả lời "đã nhận" (202). Máy tắt, cập nhật hay sập giữa chừng thì lúc mở lại Javis chạy tiếp, không mất đơn.
 - **Lọc và chống trùng chặt chẽ.** Lọc đúng kiểu dữ liệu (số 1 khác chữ "1"), kiểm được từng món trong đơn, và khoá chống trùng ghép từ nhiều trường (cửa hàng, mã đơn, trạng thái) có thời hạn. Sự kiện không khớp được ghi kèm lý do và không tốn lượt AI.
@@ -38,6 +38,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Bộ lọc trên danh sách (`[*]`) giờ coi "không rõ" là không rõ: một điều kiện `not(any ...)` trên đơn có món thiếu trường có thể bị bỏ qua ở chỗ trước đây chạy. Xem lại bộ lọc kiểu này bằng Thử quy tắc.
 - Sự kiện bị cách ly (quy tắc không đọc được) giờ được báo cho bạn, gộp làm một tin, và giữ nguyên nội dung trong 30 ngày. Chạy lại một đơn đã chạy ở sự kiện khác bị từ chối, không gửi hai lần. Lỗi lặp lại được gộp theo loại lỗi, không báo mỗi đơn một tin.
 - **Bị từ chối vì quá tải (429) thì lần gửi lại vẫn chạy.** Trước đây mã chống trùng bị giữ lại, nên lần gửi lại bị báo trùng và đơn không bao giờ chạy.
+## [0.242.0] - 2026-10-20
+### Thêm mới
+- **Mở Javis từ điện thoại hay máy khác, kể cả khi Javis chạy trên máy Windows hoặc macOS ở nhà.** Cài đặt có mục mới **Truy cập từ xa**: bấm Bật là có link HTTPS, không cần VPS, không mở cổng modem, không gõ lệnh. Micro và giọng nói chạy được qua link này.
+- **Hai cách:** **Link nhanh** dùng ngay, không cần tài khoản (link đổi mỗi lần khởi động lại). **Tên miền riêng** cho link cố định kiểu `https://javis.tencuaban.com`: dán dòng lệnh Cloudflare đưa vào ô token là xong, Javis tự lấy token và tự đọc ra tên miền.
+- Javis tự tải công cụ `cloudflared` của Cloudflare đúng bản cho máy, tự bật lại sau khi khởi động lại hoặc cập nhật, rớt mạng thì tự nối lại.
+- **An toàn:** chỉ bật được khi đã có mật khẩu đăng nhập; đang bật thì không tắt được đăng nhập; mật khẩu bị xoá là tunnel tự dừng. Token được mã hoá, không bao giờ gửi ra trình duyệt.
 
 ## [0.240.0] - 2026-10-20
 ### Cải thiện

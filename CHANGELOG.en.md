@@ -8,7 +8,7 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.241.0] - 2026-10-20
+## [0.245.0] - 2026-10-20
 ### Added
 - **Webhooks become a durable event inbox.** Each event is written to disk before Javis answers "received" (202). If the machine stops, updates or crashes midway, Javis carries on when it starts again and no order is lost.
 - **Strict filters and duplicate checks.** Filters respect data types (the number 1 is not the text "1"), can check each item of an order, and a duplicate key can combine several fields (shop, order id, status) with an expiry. An event that does not match is logged with the reason and uses no AI run.
@@ -40,6 +40,12 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - List filters (`[*]`) now treat "unknown" as unknown: a `not(any ...)` condition over an order with an item missing the field may now ignore what ran before. Check such filters with Test rules.
 - A quarantined event (the rules could not read it) now tells you, grouped into one message, and keeps its body for 30 days. Processing again an order that already ran as another event is refused, never sent twice. Repeated failures are grouped by kind, not one message per order.
 - **A retry after an overload refusal (429) now runs.** Before, the duplicate key was kept, so the retry was reported as a duplicate and the order never ran.
+## [0.242.0] - 2026-10-20
+### Added
+- **Open Javis from your phone or another computer, even when it runs on a Windows or macOS machine at home.** Settings has a new **Remote access** section: turn it on and you get an HTTPS link, with no VPS, no router port and no terminal. The microphone and voice work over that link.
+- **Two ways:** a **Quick link** that works right away with no account (it changes on every restart), or **Your own domain** for a fixed link like `https://javis.yourdomain.com`: paste the command Cloudflare shows into the token box and Javis picks out the token and reads back your hostname.
+- Javis downloads Cloudflare's `cloudflared` tool in the right build for the machine, turns it back on after a restart or an update, and reconnects when the network drops.
+- **Safety:** it only turns on once a login password is set; while it is on, login cannot be switched off; if the password is removed, the tunnel stops. The token is stored encrypted and never sent to the browser.
 
 ## [0.240.0] - 2026-10-20
 ### Improved

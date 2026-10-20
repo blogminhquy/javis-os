@@ -9,7 +9,7 @@ This page covers two things: changing Javis's logo/avatar to your own image, and
 - **Avatar (logo):** replace the default JAVIS OS image with your own. The new image appears immediately in the top left corner, in the sidebar, on the sign-in screen, in the welcome window, and becomes the browser tab icon (favicon) too.
 - **Custom domain (HTTPS):** instead of opening Javis by IP and port (something like `http://12.34.56.78:7777`), you use a memorable domain with the HTTPS padlock. Javis obtains the HTTPS certificate itself (On-Demand TLS through Caddy), and there is an **Enable SSL** button to request the certificate on demand rather than waiting.
 
-One important note up front: the **Custom domain** section only works when you deploy Javis with Docker on a VPS with ports 80/443 open. If you run Javis on a personal machine, the logo change works normally but the domain section cannot reach HTTPS. Deploy details in [.env configuration](16-env-configuration.md) and the `DEPLOY.md` file in the project folder.
+One important note up front: the **Custom domain** section only works when you deploy Javis with Docker on a VPS with ports 80/443 open. If you run Javis on a personal machine (Windows, macOS), use the **Remote access** section right below it instead: Javis sets up a Cloudflare Tunnel itself, with HTTPS and even your own domain, no VPS needed. See [Remote access on a Windows or macOS computer](#remote-access-on-a-windows-or-macos-computer). Deploy details in [.env configuration](16-env-configuration.md) and the `DEPLOY.md` file in the project folder.
 
 ## Where to open it in Javis
 
@@ -88,6 +88,38 @@ The **Check again** button is usable at any time: it only reads state (showing *
 
 On Hostinger the **Enable SSL** button is hidden, because hPanel's Traefik is what issues certificates. See the Hostinger section below.
 
+## Remote access on a Windows or macOS computer
+
+The **REMOTE ACCESS** section (Settings, right below Domain & SSL) opens Javis to the Internet through a **Cloudflare Tunnel**, with no VPS, no router port and no terminal. Javis downloads `cloudflared` (Cloudflare's official free tool) in the right build for the machine (Windows x64/ARM, macOS Intel/Apple Silicon, Linux), runs it alongside Javis and reconnects when the network drops. It is HTTPS, so the microphone and voice work on a phone.
+
+**Set a login password first** (Login account section). While the tunnel is on, Javis always asks for a login and does not let you turn login off. If the password is removed (for example with `reset-auth`), the tunnel stops within seconds.
+
+### Option 1: Quick link (no account)
+
+1. Pick **Quick link** and click **Turn on remote access**.
+2. The first time, Javis downloads `cloudflared` (about 40 MB), then shows a link like `https://three-random-words.trycloudflare.com`.
+3. Open that link on your phone and sign in with your password.
+
+The link **changes every time Javis restarts**, which is fine for trying it out or short-term use.
+
+### Option 2: Your own domain (fixed link)
+
+You need a free Cloudflare account and a domain that uses Cloudflare DNS.
+
+1. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com), **Networks**, **Tunnels**, click **Create a tunnel**, pick **Cloudflared** and give it a name.
+2. On the connector install step, copy the command (the Windows or the Mac one, either works). **You do not need to run it**: paste the whole line into the **Cloudflare tunnel token** box in Javis, and Javis picks the token out of it.
+3. On the **Public Hostname** step: pick a subdomain (for example `javis.yourdomain.com`), set Service to **HTTP** and put the service address Javis shows in the URL box (by default `127.0.0.1:7777`, with a copy button).
+4. Back in Javis, pick **Your own domain** and click **Turn on remote access**. Once the status reads **Running**, Javis reads the hostname you set and shows the link `https://javis.yourdomain.com`.
+
+The token is stored encrypted, never sent back to the browser, and handed to `cloudflared` through an environment variable rather than on the command line.
+
+### Worth knowing
+
+- When the computer is off or asleep, the link is down too. For 24/7 access, turn off Sleep (Windows) or enable "Prevent automatic sleeping" (macOS).
+- Javis turns the tunnel back on after a restart or an update if you left it on.
+- If Javis says Cloudflare points to a different address, change the service URL in the Public Hostname to the address Javis shows.
+- The Docker build on a VPS can still use the older way (`docker compose --profile tunnel`) in `DEPLOY.md`.
+
 ## Quick reference of buttons and states
 
 The two badges sit right under the domain input:
@@ -162,7 +194,7 @@ After the Redeploy, return to Settings and click **Check again**. Details and tr
 
 - The logo image should be square (1:1) so it is not cropped oddly, since Javis shows it in a rounded square frame.
 - If somewhere still shows the old image after an upload, wait about a minute or reload the page; the system caches the logo briefly (the favicon longer, about 5 minutes).
-- If you have no custom domain but still want remote access over HTTPS, there are other ways (Cloudflare Tunnel, for instance) described in `DEPLOY.md`.
+- If you have no VPS or custom domain but still want remote access over HTTPS, use the **Remote access** section (see above).
 - Use a proper **A** record (IPv4). Do not use a CNAME for this domain unless you fully understand the consequences.
 - Do not click **Enable SSL** repeatedly while DNS is still wrong. Each click makes Javis force Caddy to request a certificate, and many failed requests hit Let's Encrypt rate limits.
 

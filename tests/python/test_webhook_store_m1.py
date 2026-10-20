@@ -1,4 +1,4 @@
-"""0.241.0: durable webhook events (webhook platform M1).
+"""0.245.0: durable webhook events (webhook platform M1).
 
     python tests/run.py webhook_store_m1      (no network, no model: every runner is a fake)
 
@@ -14,7 +14,7 @@ What is proven here, against a real temporary SQLite file and real child process
      lowering a hook's level applies to events already waiting;
   7. the owner notice is resent after a crash between commit and notice, under the same dedup key;
   8. the event log API paginates, never lists bodies, and retry/resolve work through the routes;
-  9. keys remembered by a pre-0.241.0 hook stay duplicates; pruning keeps unknown events.
+  9. keys remembered by a pre-0.245.0 hook stay duplicates; pruning keeps unknown events.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio

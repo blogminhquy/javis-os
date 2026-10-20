@@ -16,7 +16,7 @@ value uvicorn's __init__ stored on the instance. The cost is bandwidth only: cha
 
 `JAVIS_WS_DEFLATE=1` keeps uvicorn's compression (for a setup that needs it and has no Safari users).
 
-0.241.0: `import main` no longer loads uvicorn for this (about 40 ms of every start, on a check that sits at its
+0.245.0: `import main` no longer loads uvicorn for this (about 40 ms of every start, on a check that sits at its
 ceiling). Every launch path but `python main.py` has loaded uvicorn before main, so the patch applies at once; otherwise
 a one-shot import hook applies it the moment `uvicorn.config` loads, before any Config exists.
 """

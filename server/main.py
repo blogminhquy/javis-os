@@ -5225,6 +5225,8 @@ def settings_get():
     safe.setdefault("voice", {})
     safe["voice"]["elevenlabs_key"] = ("••••" + vk[-4:]) if vk else ""
     safe["voice"]["elevenlabs_key_set"] = bool(vk)
+    # The tunnel token never leaves the server; Settings reads /remote-access/status instead.
+    safe.pop("remote_tunnel", None)
     bt = (cfg.get("backup", {}) or {}).get("token", "")
     safe.setdefault("backup", {})
     safe["backup"]["token"] = ("••••" + bt[-4:]) if bt else ""
@@ -25806,3 +25808,9 @@ async def diag_ws_drops(body: dict = Body(...)):
     browser can be traced to its cause instead of guessed."""
     loop_watch.note_client_drops(body)
     return {"ok": True}
+
+
+# Remote access through the built-in Cloudflare Tunnel (0.242.0): routes/remote_access.py, remote_tunnel.py.
+# Registered at the end of the file so the route table only grows at the end.
+import routes.remote_access as remote_access_routes  # noqa: E402
+remote_access_routes.register(app, remote_access_routes.RemoteAccessDeps(browser_session_error=_doi_phien_that))

@@ -1,4 +1,4 @@
-// 0.241.0: webhook operations on the Work page (webhook platform M5): the Rules panel holds the notification mode,
+// 0.245.0: webhook operations on the Work page (webhook platform M5): the Rules panel holds the notification mode,
 // limits, AI budget and retention; the card log has a filter and an Export link; an open breaker is announced on the
 // card; both languages carry every new string.
 const path = require("path");
