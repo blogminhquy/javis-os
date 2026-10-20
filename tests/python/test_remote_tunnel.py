@@ -12,7 +12,10 @@ anywhere. This file pins what that must and must not do:
 3. the tunnel never starts without a password, stops by itself when the password goes away, and while it is on,
    login cannot be turned off;
 4. turning it on and off from the dashboard really starts and stops the process, and a stray one from an earlier run
-   is killed.
+   is killed;
+5. Tailscale mode (0.244.0) refuses without an installed, signed-in Tailscale, shows the "enable HTTPS" link and
+   retries by itself, switches `tailscale serve` off on disable, mode switch and password loss, and keeps it across a
+   server restart.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import base64
@@ -226,7 +229,112 @@ check("turned off -> pid file removed", not (Path(c.STATE_DIR) / "remote-tunnel.
 check("turned off -> login rule back to normal", c.require_login() is False)
 
 # ============================================================
-# 4. A cloudflared left behind by an earlier run is killed on start
+# 4. Tailscale mode (0.244.0), with a fake tailscale CLI
+# ============================================================
+ts_state = work / "ts_state.json"
+ts_calls = work / "ts_calls.log"
+fake_ts = work / "tailscale"
+fake_ts.write_text(f"""#!{sys.executable}
+import json, sys, time
+args = sys.argv[1:]
+st = json.load(open({str(ts_state)!r}))
+with open({str(ts_calls)!r}, "a") as f:
+    f.write(" ".join(args) + "\\n")
+if args[:2] == ["status", "--json"]:
+    print(json.dumps({{"BackendState": st["backend"],
+                      "Self": {{"DNSName": "May-Cua-Quy.tail1234.ts.net.", "TailscaleIPs": ["100.101.102.103"]}}}}))
+elif args and args[0] == "serve":
+    if args[-1] == "off":
+        sys.exit(0)
+    if not st["https"]:
+        print("Serve is not enabled on your tailnet.\\nTo enable, visit:\\n\\n    https://login.tailscale.com/f/serve?node=n123abc\\n", flush=True)
+        time.sleep(60)
+    print("Available within your tailnet:\\n\\nhttps://may-cua-quy.tail1234.ts.net/\\n|-- proxy " + args[-1])
+""")
+fake_ts.chmod(0o755)
+
+
+def ts_set(backend="Running", https=True):
+    ts_state.write_text(json.dumps({"backend": backend, "https": https}))
+    rt.MANAGER._ts_cache = (0.0, None)
+
+
+def ts_lines():
+    return ts_calls.read_text().splitlines() if ts_calls.exists() else []
+
+
+def serve_offs():
+    return sum(1 for x in ts_lines() if x == "serve --https=443 off")
+
+
+rt.TS_SERVE_TIMEOUT = 2
+rt.TS_RETRY_EVERY = 1
+ts_set()
+info = rt.tailscale_info(str(fake_ts))
+check("tailscale_info reads state, name and IP",
+      info == {"installed": True, "backend": "Running", "dns_name": "may-cua-quy.tail1234.ts.net", "ip": "100.101.102.103"}, info)
+check("tailscale_info without a binary says not installed", rt.tailscale_info("")["installed"] is False)
+
+rt.MANAGER._ts_find = lambda: ""
+rt.MANAGER._ts_cache = (0.0, None)
+r = cl.post("/remote-access/enable", data={"mode": "tailscale"})
+check("tailscale not installed -> 409 need_tailscale", r.status_code == 409 and r.json().get("need_tailscale"))
+check("status says not installed", rt.MANAGER.status()["tailscale"]["installed"] is False)
+
+rt.MANAGER._ts_find = lambda: str(fake_ts)
+ts_set(backend="NeedsLogin")
+r = cl.post("/remote-access/enable", data={"mode": "tailscale"})
+check("tailscale signed out -> 409 need_tailscale_login", r.status_code == 409 and r.json().get("need_tailscale_login"))
+
+ts_set(backend="Running", https=False)
+r = cl.post("/remote-access/enable", data={"mode": "tailscale"})
+check("tailscale mode accepted", r.status_code == 200 and r.json().get("ok"), r.text)
+check("HTTPS not enabled yet -> waiting with the enable link",
+      wait_for(lambda: rt.MANAGER.status()["enable_url"] == "https://login.tailscale.com/f/serve?node=n123abc"
+               and rt.MANAGER.status()["state"] == "waiting", 10))
+ts_set(backend="Running", https=True)
+check("owner enables HTTPS -> Javis retries by itself and runs on the ts.net link",
+      wait_for(lambda: rt.MANAGER.status()["state"] == "running"
+               and rt.MANAGER.status()["url"] == "https://may-cua-quy.tail1234.ts.net", 15))
+check("serve points tailscaled at this server on :443",
+      "serve --bg --https=443 http://127.0.0.1:7777" in ts_lines(), ts_lines()[-3:])
+check("no cloudflared started in tailscale mode", rt.MANAGER._proc is None or rt.MANAGER._proc.poll() is not None)
+
+offs = serve_offs()
+cfg = c.read_settings()
+cfg["auth"] = {"username": "admin"}
+c.write_settings(cfg)
+check("password removed -> tailscale serve switched off", wait_for(lambda: serve_offs() > offs, 8))
+check("... and state error", wait_for(lambda: rt.MANAGER.status()["state"] == "error"))
+
+cfg = c.read_settings()
+cfg["auth"] = {"username": "admin", **dict(zip(("password_hash", "salt"), c.hash_password(PW)))}
+c.write_settings(cfg)
+main._LOGIN_FAILS.clear()
+cl.cookies.clear()
+cl.post("/auth/login", data={"username": "admin", "password": PW})
+r = cl.post("/remote-access/enable", data={"mode": "tailscale"})
+check("tailscale on again", r.status_code == 200 and wait_for(lambda: rt.MANAGER.status()["state"] == "running"))
+offs = serve_offs()
+r = cl.post("/remote-access/enable", data={"mode": "quick"})
+check("switching to Quick link switches serve off", r.status_code == 200 and serve_offs() == offs + 1)
+check("... and the quick tunnel runs", wait_for(lambda: rt.MANAGER.status()["state"] == "running"
+                                                 and rt.MANAGER.status()["url"].endswith(".trycloudflare.com")))
+
+r = cl.post("/remote-access/enable", data={"mode": "tailscale"})
+check("back to tailscale", r.status_code == 200 and wait_for(lambda: rt.MANAGER.status()["mode"] == "tailscale"
+                                                              and rt.MANAGER.status()["state"] == "running"))
+offs = serve_offs()
+rt.MANAGER.stop(wait=3, keep_serve=True)
+check("server shutdown keeps the serve entry (it lives in tailscaled)", serve_offs() == offs)
+rt.MANAGER.start()
+check("restart re-applies it", wait_for(lambda: rt.MANAGER.status()["state"] == "running"))
+r = cl.post("/remote-access/disable")
+check("turned off -> serve switched off", r.status_code == 200 and serve_offs() == offs + 1
+      and r.json().get("state") == "off")
+
+# ============================================================
+# 5. A cloudflared left behind by an earlier run is killed on start
 # ============================================================
 stray = subprocess.Popen([str(fake), "tunnel", "--url", "http://127.0.0.1:7777"], stdout=subprocess.DEVNULL)
 (Path(c.STATE_DIR) / "remote-tunnel.pid").write_text(str(stray.pid))

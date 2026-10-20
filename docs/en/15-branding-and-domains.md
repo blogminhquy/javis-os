@@ -90,7 +90,7 @@ On Hostinger the **Enable SSL** button is hidden, because hPanel's Traefik is wh
 
 ## Remote access on a Windows or macOS computer
 
-The **REMOTE ACCESS** section (Settings, right below Domain & SSL) opens Javis to the Internet through a **Cloudflare Tunnel**, with no VPS, no router port and no terminal. Javis downloads `cloudflared` (Cloudflare's official free tool) in the right build for the machine (Windows x64/ARM, macOS Intel/Apple Silicon, Linux), runs it alongside Javis and reconnects when the network drops. It is HTTPS, so the microphone and voice work on a phone.
+The **REMOTE ACCESS** section (Settings, right below Domain & SSL) opens Javis to the Internet through a **Cloudflare Tunnel** (or privately through **Tailscale**, see Option 3), with no VPS, no router port and no terminal. Javis downloads `cloudflared` (Cloudflare's official free tool) in the right build for the machine (Windows x64/ARM, macOS Intel/Apple Silicon, Linux), runs it alongside Javis and reconnects when the network drops. It is HTTPS, so the microphone and voice work on a phone.
 
 **Set a login password first** (Login account section). While the tunnel is on, Javis always asks for a login and does not let you turn login off. If the password is removed (for example with `reset-auth`), the tunnel stops within seconds.
 
@@ -112,6 +112,17 @@ You need a free Cloudflare account and a domain that uses Cloudflare DNS.
 4. Back in Javis, pick **Your own domain** and click **Turn on remote access**. Once the status reads **Running**, Javis reads the hostname you set and shows the link `https://javis.yourdomain.com`.
 
 The token is stored encrypted, never sent back to the browser, and handed to `cloudflared` through an environment variable rather than on the command line.
+
+### Option 3: Tailscale (private, only your devices)
+
+Best when only you use it: the link is not on the Internet at all, and only devices signed in to your Tailscale account can open it. Javis does not install Tailscale itself (it needs system rights and an account sign-in), but it handles the rest.
+
+1. Install [Tailscale](https://tailscale.com/download) on the computer running Javis and on your phone, signed in to the same account.
+2. In Javis pick **Tailscale** and click **Turn on remote access**. Javis runs `tailscale serve` itself, no commands needed.
+3. The first time, Tailscale may ask to switch HTTPS on for your network: Javis shows an **Open the HTTPS page** link; click it, then **Enable**. Javis retries on its own.
+4. Open the `https://machine-name.tailnet-name.ts.net` link on a phone with Tailscale on.
+
+The Tailscale link keeps working while Javis restarts; **Turn off** removes only what Javis added and leaves your other Tailscale settings alone. People outside your Tailscale network cannot open it, so it does not serve share links or webhooks from outside services; use Option 1 or 2 for those.
 
 ### Worth knowing
 

@@ -38,6 +38,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Bộ lọc trên danh sách (`[*]`) giờ coi "không rõ" là không rõ: một điều kiện `not(any ...)` trên đơn có món thiếu trường có thể bị bỏ qua ở chỗ trước đây chạy. Xem lại bộ lọc kiểu này bằng Thử quy tắc.
 - Sự kiện bị cách ly (quy tắc không đọc được) giờ được báo cho bạn, gộp làm một tin, và giữ nguyên nội dung trong 30 ngày. Chạy lại một đơn đã chạy ở sự kiện khác bị từ chối, không gửi hai lần. Lỗi lặp lại được gộp theo loại lỗi, không báo mỗi đơn một tin.
 - **Bị từ chối vì quá tải (429) thì lần gửi lại vẫn chạy.** Trước đây mã chống trùng bị giữ lại, nên lần gửi lại bị báo trùng và đơn không bao giờ chạy.
+## [0.244.0] - 2026-10-20
+### Thêm mới
+- **Truy cập từ xa có thêm lựa chọn Tailscale.** Máy đã cài Tailscale thì chọn Tailscale, bấm Bật là có link `https://...ts.net` riêng tư: chỉ máy của bạn (cài Tailscale cùng tài khoản) mở được, không lộ ra Internet. Javis tự chạy `tailscale serve`, không cần gõ lệnh.
+- Lần đầu Tailscale đòi bật HTTPS cho mạng thì Javis hiện sẵn link để bấm, bật xong Javis tự thử lại. Máy chưa cài hoặc chưa đăng nhập Tailscale thì Javis nói rõ và có link tải.
+- Bấm Tắt, đổi sang cách khác hay mật khẩu bị xoá thì Javis gỡ đúng phần nó đã thêm, không đụng cấu hình Tailscale khác của bạn.
+
 ## [0.242.0] - 2026-10-20
 ### Thêm mới
 - **Mở Javis từ điện thoại hay máy khác, kể cả khi Javis chạy trên máy Windows hoặc macOS ở nhà.** Cài đặt có mục mới **Truy cập từ xa**: bấm Bật là có link HTTPS, không cần VPS, không mở cổng modem, không gõ lệnh. Micro và giọng nói chạy được qua link này.

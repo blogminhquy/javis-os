@@ -1,6 +1,7 @@
 /* remote-access.js - Settings block "Remote access" (0.242.0).
    Turns the built-in Cloudflare Tunnel on or off: a quick trycloudflare.com link, or a fixed link on the owner's own
-   domain from a pasted tunnel token. The server downloads and supervises cloudflared (server/remote_tunnel.py); this
+   domain from a pasted tunnel token. 0.244.0 adds Tailscale: a private ts.net link that only the owner's own devices
+   can open, through `tailscale serve` on a Tailscale install the owner made. The server downloads and supervises cloudflared (server/remote_tunnel.py); this
    file only draws /remote-access/status and posts the form. Vanilla DOM, same style family as branding.js. */
 (function () {
   "use strict";
@@ -36,7 +37,7 @@
     s.textContent =
       ".ra{display:flex;flex-direction:column;gap:10px;margin-top:8px;font-size:16px;line-height:1.5}" +
       ".ra-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}" +
-      ".ra-modes{display:flex;gap:6px}.ra-modes .gcard-btn{flex:1 1 0;width:auto;font-size:16px}" +
+      ".ra-modes{display:flex;gap:6px}.ra-modes .gcard-btn{flex:1 1 0;width:auto;font-size:16px;white-space:normal;line-height:1.25;padding-left:6px;padding-right:6px}" +
       ".ra-modes .gcard-btn[aria-pressed=false]{background:var(--surface-2);color:var(--text2);border:1px solid var(--border)}" +
       ".ra-modes .gcard-btn[aria-pressed=true]{background:var(--accent);color:#fff;border:1px solid var(--accent);font-weight:600}" +
       ".ra .info-body ol{margin:6px 0;padding-left:22px}.ra .info-body li{margin:3px 0}" +
@@ -82,12 +83,14 @@
     });
 
     if (!st.password_set) h += '<div class="ra-warn">' + esc(t("ra.need_password")) + "</div>";
-    if (!st.binary && st.can_download === false) h += '<div class="ra-warn">' + esc(t("ra.no_build")) + "</div>";
+    if (!st.binary && st.can_download === false && mode !== "tailscale") h += '<div class="ra-warn">' + esc(t("ra.no_build")) + "</div>";
 
     h += '<div class="ra-modes" role="group">' +
       '<button type="button" class="gcard-btn" data-mode="quick" aria-pressed="' + (mode === "quick") + '">' + esc(t("ra.mode_quick")) + "</button>" +
-      '<button type="button" class="gcard-btn" data-mode="token" aria-pressed="' + (mode === "token") + '">' + esc(t("ra.mode_token")) + "</button></div>";
-    h += '<div class="ra-hint">' + esc(t(mode === "token" ? "ra.token_hint" : "ra.quick_hint")) + "</div>";
+      '<button type="button" class="gcard-btn" data-mode="token" aria-pressed="' + (mode === "token") + '">' + esc(t("ra.mode_token")) + "</button>" +
+      '<button type="button" class="gcard-btn" data-mode="tailscale" aria-pressed="' + (mode === "tailscale") + '">' + esc(t("ra.mode_tailscale")) + "</button></div>";
+    var hints = { quick: "ra.quick_hint", token: "ra.token_hint", tailscale: "ra.ts_hint" };
+    h += '<div class="ra-hint">' + esc(t(hints[mode] || "ra.quick_hint")) + "</div>";
 
     if (mode === "token") {
       h += '<div class="ra-lbl"><label for="raToken">' + esc(t("ra.token_label")) + "</label>" + infoBtn() + "</div>" +
@@ -104,11 +107,33 @@
       }
     }
 
+    var ts = st.tailscale || {};
+    if (mode === "tailscale") {
+      h += '<div class="ra-lbl"><span>' + esc(t("ra.ts_title")) + "</span>" + infoBtn() + "</div>" +
+        infoBody("<b>" + esc(t("ra.ts_steps_title")) + "</b><ol><li>" + esc(t("ra.ts_step1")) + "</li><li>" + esc(t("ra.ts_step2")) +
+          "</li><li>" + esc(t("ra.ts_step3")) + "</li><li>" + esc(t("ra.ts_step4")) + "</li></ol>" +
+          '<a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download ↗</a>');
+      if (!ts.installed) {
+        h += '<div class="ra-warn">' + esc(t("ra.ts_missing")) + ' <a href="https://tailscale.com/download" target="_blank" rel="noopener">' +
+          esc(t("ra.ts_download")) + " ↗</a></div>";
+      } else if (ts.backend !== "Running") {
+        h += '<div class="ra-warn">' + esc(t("ra.ts_login")) + "</div>";
+      } else if (ts.dns_name) {
+        h += '<div class="ra-hint">' + esc(t("ra.ts_device", { name: ts.dns_name })) + "</div>";
+      }
+      if (st.enable_url && st.mode === "tailscale") {
+        h += '<div class="ra-warn">' + esc(t("ra.ts_enable_https")) + ' <a href="' + esc(st.enable_url) +
+          '" target="_blank" rel="noopener">' + esc(t("ra.ts_open_enable")) + " ↗</a></div>";
+      }
+      if (st.state === "running" && st.mode === "tailscale") h += '<div class="ra-hint">' + esc(t("ra.ts_only_tailnet")) + "</div>";
+    }
+
     var err = st.error && (st.state === "error" || st.state === "waiting") ? st.error : "";
     var line = _msg || err;
     if (line) h += '<div class="' + (_msgErr || (!_msg && err) ? "ra-err" : "ra-hint") + '" role="status">' + esc(line) + "</div>";
 
-    var disabled = _busy || !st.password_set ? " disabled" : "";
+    var tsBlocked = mode === "tailscale" && (!ts.installed || ts.backend !== "Running") && !st.enabled;
+    var disabled = _busy || !st.password_set || tsBlocked ? " disabled" : "";
     if (st.enabled) {
       h += '<div class="ra-actions"><button type="button" class="gcard-btn" id="raOn"' + disabled + ">" + esc(t("ra.reconnect")) + "</button>" +
         '<button type="button" class="gcard-btn ghost" id="raOff"' + (_busy ? " disabled" : "") + ">" + esc(t("ra.disable")) + "</button></div>";

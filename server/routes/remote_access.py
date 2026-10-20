@@ -1,4 +1,4 @@
-"""Remote access from Settings: turn the built-in Cloudflare Tunnel on or off (0.242.0).
+"""Remote access from Settings: turn the built-in Cloudflare Tunnel (0.242.0) or Tailscale serve (0.244.0) on or off.
 
 The tunnel itself lives in remote_tunnel.py. This file only reads the form, enforces the two preconditions (a real
 browser session, an admin password) and saves the settings the supervisor reads.
@@ -48,6 +48,17 @@ def _make_router() -> APIRouter:
         if mode not in remote_tunnel.MODES:
             return _err("Chế độ không hợp lệ.", "Unknown mode.", 400)
         patch = {"enabled": True, "mode": mode}
+        if mode == "tailscale":
+            # Checked here so the button answers at once; the supervisor still copes if this changes later.
+            if not remote_tunnel.MANAGER.tailscale_binary():
+                return _err("Máy này chưa cài Tailscale. Cài Tailscale, đăng nhập, rồi bấm Bật lại.",
+                            "Tailscale is not installed on this computer. Install it, sign in, then turn this on again.",
+                            409, need_tailscale=True)
+            info = await asyncio.to_thread(remote_tunnel.MANAGER.tailscale_status, True)
+            if info.get("backend") != "Running":
+                return _err("Tailscale trên máy này chưa đăng nhập hoặc đang tắt. Mở app Tailscale để đăng nhập trước.",
+                            "Tailscale on this computer is signed out or off. Open the Tailscale app and sign in first.",
+                            409, need_tailscale_login=True)
         if mode == "token":
             pasted = (token or "").strip()
             tok = remote_tunnel.extract_token(pasted) if pasted else ""
@@ -64,13 +75,14 @@ def _make_router() -> APIRouter:
         cfgmod.update_settings({remote_tunnel.SETTINGS_KEY: patch})
         # start() stops the running tunnel first and waits for it, so keep it off the event loop.
         await asyncio.to_thread(remote_tunnel.MANAGER.start)
-        return {"ok": True, **remote_tunnel.MANAGER.status()}
+        # status() may ask the tailscale CLI (a subprocess), so not on the event loop either.
+        return {"ok": True, **(await asyncio.to_thread(remote_tunnel.MANAGER.status))}
 
     @router.post("/remote-access/disable")
     async def remote_access_disable():
         cfgmod.update_settings({remote_tunnel.SETTINGS_KEY: {"enabled": False}})
         await asyncio.to_thread(remote_tunnel.MANAGER.stop)
-        return {"ok": True, **remote_tunnel.MANAGER.status()}
+        return {"ok": True, **(await asyncio.to_thread(remote_tunnel.MANAGER.status))}
 
     return router
 
@@ -81,7 +93,7 @@ async def _autostart():
 
 
 async def _shutdown():
-    await asyncio.to_thread(remote_tunnel.MANAGER.stop, 3)
+    await asyncio.to_thread(remote_tunnel.MANAGER.stop, 3, True)
 
 
 def register(app, deps: RemoteAccessDeps):
