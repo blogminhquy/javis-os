@@ -927,12 +927,19 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
                 return f"ERROR: kiểm tra điều kiện tool '{name}' lỗi: {type(e).__name__}: {e}"
             if why:
                 return f"ERROR: {why}"
-        try:
-            res = handler(args or {}, ctx)
-            res = await _maybe_await(res)
-            return res if isinstance(res, str) else json.dumps(res, ensure_ascii=False, default=str)
-        except Exception as e:
-            return f"ERROR: tool plugin '{name}' lỗi: {type(e).__name__}: {e}"
+        async def _run(a):
+            try:
+                res = handler(a or {}, ctx)
+                res = await _maybe_await(res)
+                return res if isinstance(res, str) else json.dumps(res, ensure_ascii=False, default=str)
+            except Exception as e:
+                return f"ERROR: tool plugin '{name}' lỗi: {type(e).__name__}: {e}"
+
+        if min_mode == "full":
+            # 0.238.0: an outside action (send, post, order) runs once per Kanban job, even when the job runs again.
+            import once_ledger
+            return await once_ledger.run(name, args or {}, _run)
+        return await _run(args)
 
     return _call
 

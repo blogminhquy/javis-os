@@ -1,4 +1,4 @@
-// 0.237.0: webhook rules on the Work page (webhook platform M2). Each card opens a rules box (JSON) with a sample
+// 0.241.0: webhook rules on the Work page (webhook platform M2). Each card opens a rules box (JSON) with a sample
 // body and a Test button that shows what /webhooks/simulate decided, step by step; the three states decided at
 // receipt have their own words; text from the payload is escaped; both languages carry every new string.
 const path = require("path");

@@ -1,4 +1,4 @@
-// 0.237.0: webhook actions on the Work page (webhook platform M3). Every event row has Details, which shows each
+// 0.241.0: webhook actions on the Work page (webhook platform M3). Every event row has Details, which shows each
 // action's branch (state in words, what the receiver said, its delivery id) and the rules' trace; the rules box also
 // holds the actions as JSON; masked header values are sent back as they are (the server keeps the stored key).
 const path = require("path");

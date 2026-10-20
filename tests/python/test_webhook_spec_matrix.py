@@ -1,4 +1,4 @@
-"""0.237.0: the test matrix of the webhook spec (§15) and its acceptance criteria (§16), row by row.
+"""0.241.0: the test matrix of the webhook spec (§15) and its acceptance criteria (§16), row by row.
 
     python tests/run.py webhook_spec_matrix
 

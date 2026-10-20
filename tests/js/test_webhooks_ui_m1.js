@@ -1,4 +1,4 @@
-// 0.237.0: webhook event log on the Work page (webhook platform M1). Each stored event shows its state; a failed,
+// 0.241.0: webhook event log on the Work page (webhook platform M1). Each stored event shows its state; a failed,
 // dead or unknown one offers Retry, and only an unknown one offers Mark done (the owner reconciles it after checking
 // outside). Text from the event is escaped, and both languages carry every new string.
 const path = require("path");

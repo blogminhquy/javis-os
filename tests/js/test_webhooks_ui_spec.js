@@ -1,4 +1,4 @@
-// 0.237.0 (spec §12): the webhook card has three parts (Configuration / Events / Health), two separate switches
+// 0.241.0 (spec §12): the webhook card has three parts (Configuration / Events / Health), two separate switches
 // (stop receiving vs pause processing), a real test send that previews before sending, an event timeline, a masked
 // payload whose raw view asks first, "process again with the current setup" that previews and names what would act
 // again, health that never presents a 202 as a finished order, and a save that carries the revision (409 handled).

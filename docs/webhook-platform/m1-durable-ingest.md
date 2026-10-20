@@ -1,6 +1,6 @@
-# Webhook platform, M1: durable receive and dispatch (0.237.0)
+# Webhook platform, M1: durable receive and dispatch (0.241.0)
 
-> **Spec alignment (0.237.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: the spec decides the store as schema v7 (hooks and revisions in SQLite, receipts, deliveries with generations, a notification outbox, audit); every request is stored and answered 202 before any rule runs, and triage happens in the worker; refusals are 429 / 503 with a code and Retry-After, never 500; a crashed delivery is unknown unless retry-safe, and resends stay within the attempt cap. The "Assumptions to reconcile" below are settled by that matrix.
+> **Spec alignment (0.241.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: the spec decides the store as schema v7 (hooks and revisions in SQLite, receipts, deliveries with generations, a notification outbox, audit); every request is stored and answered 202 before any rule runs, and triage happens in the worker; refusals are 429 / 503 with a code and Retry-After, never 500; a crashed delivery is unknown unless retry-safe, and resends stay within the attempt cap. The "Assumptions to reconcile" below are settled by that matrix.
 
 Status: implemented and tested with fakes (no real model, no real outside system).
 Spec of record: `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md`. **That file was not in the
@@ -10,7 +10,7 @@ must be checked against the spec before M2 starts.
 
 ## What changed
 
-Before 0.237.0 an accepted event lived only in RAM (`deque` per hook). A restart, crash or update between the 202 and
+Before 0.241.0 an accepted event lived only in RAM (`deque` per hook). A restart, crash or update between the 202 and
 the run lost it, and the sender, already told "accepted", never retried. The idempotency key was written to
 `webhooks.json` before the queue decided, so a 429 kept the key and the sender's retry was answered "duplicate"
 (the event never ran).
@@ -51,7 +51,7 @@ States: `queued -> running -> done | silent | waiting | failed | unknown | dead`
 | A stale worker cannot write | lease expired and taken over: old fence refused for dispatch, finish, heartbeat |
 | No blind retry of a possibly-applied effect | child killed at `after_dispatch` after a fake outside effect: event `unknown`, not re-run, owner told; resolve/retry via routes |
 | Retry of the failed branch only | a failed run is not retried alone; owner retry runs it once more; done is not retryable |
-| Permissions of now | waiting event received at `full` runs at the hook's new `suggest`; deleted hook -> `cancelled` (0.237.0: a dead event is kept for a retry a deleted hook can never get) |
+| Permissions of now | waiting event received at `full` runs at the hook's new `suggest`; deleted hook -> `cancelled` (0.241.0: a dead event is kept for a retry a deleted hook can never get) |
 | Notice not lost | finished-but-unnotified event notified at the next sweep, once, with its own dedup key |
 | No model in the webhook core | source check (no engine imports); runners are fakes; `JAVIS_NO_REAL_JUDGE_ENGINE=1` |
 | UI | `tests/js/test_webhooks_ui_m1.js`: actions per state, escaping, both languages |
@@ -72,7 +72,7 @@ States: `queued -> running -> done | silent | waiting | failed | unknown | dead`
 
 ## Rollback
 
-- Code: revert the 0.237.0 commits. The old version ignores `webhook_events.sqlite3` and works from `webhooks.json`.
+- Code: revert the 0.241.0 commits. The old version ignores `webhook_events.sqlite3` and works from `webhooks.json`.
   Each accepted idempotency key is still mirrored into the hook's `seen_keys` (last 50) and `count`/`last_status` are
   still updated, so the old version keeps recognising recent duplicates. Per-run `history` is no longer written to the
   JSON (it lives in the store), so after a rollback the old cards show the history they had before the upgrade.

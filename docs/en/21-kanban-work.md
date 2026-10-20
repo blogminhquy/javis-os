@@ -134,6 +134,20 @@ Once answered, the job goes back to the queue and carries on. The next run reads
 
 **Remove from board** asks for confirmation first, explaining the task will be archived so no history is lost. A running job must be stopped with **Stop task** before it can be removed. If an action fails, Javis shows the server's error verbatim, or "Could not update the task".
 
+### Running again never sends twice (since 0.238.0)
+
+A background job can run more than once: a temporary error is retried, a server restart mid-run puts the job back in the queue, or you press Retry. Each run used to start from scratch, so a Zalo message, a post or an order could go out twice.
+
+Javis now records every outside action of a job (sending, posting, creating an order through a connection or a plugin), keyed by the job, the tool and the exact content:
+
+- **Already done in an earlier run:** the rerun skips it, the worker gets the earlier result back and carries on with the rest.
+- **Not sure it went through** (the server stopped or the connection dropped right while sending): Javis does not send again on its own. The job stops and asks you, naming the action. Answer **"sent"** and Javis skips it; answer **"not sent"** and Javis does it again exactly once. Any answer that does not start with "not" or "resend" counts as sent, so a customer never gets a duplicate.
+- **The service returned a clear error** (wrong recipient, missing permission): treated as not sent, so the next run may try again.
+
+Ordinary chat is unchanged: the record only applies to background jobs on the Work board.
+
+Limits: the record lives in the Javis hub, so it only sees actions that go through the hub. Connectors tied to your Claude account (Gmail, Drive on claude.ai) and an engine's own shell commands bypass the hub and are not recorded. Grok Build and Antigravity CLI cannot yet carry the job id to the hub, so jobs running on those two engines do not have this protection yet.
+
 ## A job's states
 
 This table translates in full the words shown on the status pill.
@@ -271,6 +285,7 @@ Details in [Self-learning](22-self-learning.md).
 ## Where the board's data lives
 
 - **The main source**: the `kanban.sqlite3` file in Javis's state folder (the `JAVIS_STATE_DIR` variable, defaulting to the `server/` folder). It holds the lifecycle, the runs and the event log. It sits deliberately outside the brain so running work is not overwritten by git sync.
+- **Record of outside actions** (since 0.238.0): `once_ledger.sqlite3` next to `kanban.sqlite3`, noting which actions of which job are done. Finished entries older than 30 days are removed.
 - **A readable copy**: `Javis/kanban.json` in the brain, rewritten every time the board changes. That file exists for backup and so older Javis builds can read it; editing it by hand changes nothing in the real queue.
 - An old board from earlier Javis versions is imported exactly once, and work stuck "running" under the old process is returned to the queue.
 - Work completed or cancelled over **3 days** ago is archived automatically so the board does not bloat.

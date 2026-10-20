@@ -1,5 +1,5 @@
 """webhook_triggers.py - the webhook door: configuration, the public receive route and the admin API (0.198.0;
-webhook platform 0.237.0, spec docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md).
+webhook platform 0.241.0, spec docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md).
 
 Each hook has a secret URL:
 
@@ -23,7 +23,7 @@ Security boundaries, each on purpose:
   - The event body is DATA from a stranger: masked in the dashboard by default, fenced in a prompt.
   - Admin routes live under /webhooks/... behind the dashboard login; only /hooks/<id> is public.
 
-Hooks are stored in the SQLite store (with revisions) since 0.237.0; `webhooks.json` is migrated once and moved aside
+Hooks are stored in the SQLite store (with revisions) since 0.241.0; `webhooks.json` is migrated once and moved aside
 (`webhooks.json.migrated`), so an older build never runs a stale copy next to the new one (see
 docs/webhook-platform/rollback.md and webhook_rollback.py).
 """
@@ -82,7 +82,7 @@ DEFAULT_LEVEL = "full"   # same reasoning as reminders.MUC_QUYEN_MAC_DINH: the o
 _PII_KEYS = ("name", "phone", "email", "address", "mobile", "tel", "sdt", "ho_ten", "hoten", "dia_chi", "diachi",
              "customer", "contact", "bill_", "shipping", "first_name", "last_name", "surname", "birth", "cmnd", "cccd",
              "zalo", "facebook", "note",
-             # 0.237.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
+             # 0.241.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
              "khach", "nguoi_nhan", "nguoinhan", "nguoi_gui", "recipient", "receiver", "buyer", "sender", "full_name",
              "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob")
 _ID_NUMBER_KEYS = ("phone", "mobile", "tel", "sdt", "dien_thoai", "dienthoai", "cccd", "cmnd", "zalo", "whatsapp",
@@ -380,7 +380,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             raise
         if not (isinstance(data, dict) and isinstance(data.get("hooks"), list)):
             raise ValueError("webhooks.json has no hook list")
-        snap = p.with_name(f"webhooks.json.pre-0.237-{time.strftime('%Y%m%d%H%M%S')}.bak")
+        snap = p.with_name(f"webhooks.json.pre-0.241-{time.strftime('%Y%m%d%H%M%S')}.bak")
         shutil.copyfile(p, snap)
         try:
             os.chmod(snap, 0o600)

@@ -1,8 +1,8 @@
-"""webhook_rollback.py - prepare a rollback of the webhook platform to an older build (0.237.0, spec §13).
+"""webhook_rollback.py - prepare a rollback of the webhook platform to an older build (0.241.0, spec §13).
 
     python server/webhook_rollback.py --state-dir <STATE_DIR> [--check] [--force]
 
-Since 0.237.0 the hooks live in `webhook_events.sqlite3` and `webhooks.json` was moved aside, so an older build started
+Since 0.241.0 the hooks live in `webhook_events.sqlite3` and `webhooks.json` was moved aside, so an older build started
 by mistake finds no stale hook list to run beside the new store. A deliberate rollback runs this tool FIRST, with the
 server stopped:
 

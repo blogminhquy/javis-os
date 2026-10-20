@@ -1,4 +1,4 @@
-"""0.237.0: webhook security (webhook platform M4): per-provider signatures, encrypted secrets with key rotation,
+"""0.241.0: webhook security (webhook platform M4): per-provider signatures, encrypted secrets with key rotation,
 tools through the hub dispatcher with the owner's approval, idempotency from the provider's own delivery id.
 
     python tests/run.py webhook_security_m4      (no network, no model: the tool dispatcher is a fake)

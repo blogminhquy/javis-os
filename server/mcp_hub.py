@@ -32,6 +32,7 @@ import localefmt
 import mcp_catalog
 import mcp_client
 import mcp_store
+import once_ledger
 import skill_router
 import skill_usage
 import team_gate
@@ -101,7 +102,9 @@ def allow_patterns():
 # `javis_run_tool`. `discover_all(for_bot=True)` drops them before the lazy tier; bot paths pass that flag (API
 # engines directly, Claude Code through the X-Javis-Bot header written by `claude_config_path(bot=True)`).
 # `javis_team` (0.173.0) creates, edits and deletes team chats and writes assistant files: owner-only for the same reason.
-OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "javis_team", "javis_memory"})
+# `javis_watch` (0.239.0) makes the server fetch an address on a schedule and message the owner: not a customer's call.
+OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "javis_team", "javis_memory",
+                              "javis_watch"})
 
 
 # ============================================================
@@ -244,7 +247,13 @@ def _guard(ent, fn, mode):
                            "err": why[:200], "args_keys": sorted((args or {}).keys()), **team_gate.audit_fields()})
             return "ERROR: " + why
         t0 = time.time()
-        result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
+        if cls == "read":
+            result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
+        else:
+            # 0.238.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
+            # Outside a background job this calls straight through.
+            result = await once_ledger.run(
+                fn, args, lambda a: mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, a))
         _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
                        "connector": conn.get("connector_id"), "label": conn.get("label"),
                        "tool": tool, "mode": mode, "cls": cls,

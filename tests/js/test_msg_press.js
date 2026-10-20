@@ -73,7 +73,7 @@ check("iPhone: the card, the lifted copy and the whole message (time row too) ar
   css.includes(".mp-layer, .mp-layer *, html.mp-holding, html.mp-holding * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;")
   && /\.mp-host \.msg :is\(input, textarea, \[contenteditable\]\)[^{]*\{ -webkit-user-select: text; user-select: text; \}/.test(css));
 check("iPhone: a hold in progress or an open card refuses iOS's selection and clears one already made",
-  /function onSelect\(e\) \{ if \(layer \|\| timer\) e\.preventDefault\(\); \}/.test(src)
+  /function onSelect\(e\) \{ if \(timer \|\| \(layer && !inLift\(e\.target\)\)\) e\.preventDefault\(\); \}/.test(src)
   && /document\.addEventListener\("selectstart", onSelect\)/.test(src) && /document\.removeEventListener\("selectstart", onSelect\)/.test(src)
   && /sliding = !!bar;\s*unselect\(\);/.test(src) && /removeAllRanges\(\)/.test(src));
 check("Android: the browser menu is refused on the whole document (it lands on the card, not on root)",
@@ -82,6 +82,32 @@ check("Android: the browser menu is refused on the whole document (it lands on t
 check("every browser: html.mp-holding while the card is open (not on every scroll start, no page-wide restyle)",
   /classList\.toggle\("mp-holding", !!layer\)/.test(src) && /sliding = !!bar;\s*unselect\(\);\s*holding\(\);/.test(src)
   && /document\.removeEventListener\("keydown", onEsc, true\);\s*holding\(\);/.test(src));
+// 0.240.0 (owner, Zalo screenshot): Copy only took the whole message. Hold the lifted copy a second time to select part.
+let f = MP.frame(300, 120, 560);
+check("lifted copy: a short bubble stays where it sat", f.top === 300 && f.height === 120 && f.scroll === 0, JSON.stringify(f));
+f = MP.frame(500, 120, 560);
+check("lifted copy: a bubble under the card moves up above it", f.top === 440 && f.height === 120, JSON.stringify(f));
+f = MP.frame(-400, 1500, 560);
+check("lifted copy: a long message fills the space and scrolls to where it sat",
+  f.top === 8 && f.height === 552 && f.scroll === 408, JSON.stringify(f));
+check("lifted copy: never scrolled past its end", MP.frame(-3000, 1500, 560).scroll === 1500 - 552);
+check("second hold: the lifted copy turns selectable only once the first finger is off",
+  /if \(layer && \(!e\.touches \|\| !e\.touches\.length\)\) setFree\(\);/.test(src)
+  && /document\.addEventListener\("touchstart", onAnyStart, \{ passive: true \}\)/.test(src)
+  && /document\.removeEventListener\("touchstart", onAnyStart\)/.test(src) && /layer\.classList\.add\("is-free"\)/.test(src));
+check("second hold: selection and the browser menu are allowed inside the lifted copy, still refused elsewhere",
+  /function onSelect\(e\) \{ if \(timer \|\| \(layer && !inLift\(e\.target\)\)\) e\.preventDefault\(\); \}/.test(src)
+  && /function onMenu\(e\) \{ if \(timer \|\| \(layer && !inLift\(e\.target\)\)\) e\.preventDefault\(\); \}/.test(src)
+  && /free && node && node\.closest && node\.closest\("\.mp-lift"\)/.test(src));
+check("second hold: a tap in the copy does not follow its links, closing clears the selection",
+  /if \(inLift\(e\.target\)\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); return; \}/.test(src)
+  && /layer\.remove\(\); layer = null; unselect\(\);/.test(src));
+check("CSS: the free copy is selectable with the phone's callout and scrolls when long",
+  css.includes(".mp-layer.is-free .mp-lift { pointer-events: auto; }")
+  && css.includes(".mp-layer.is-free .mp-lift, .mp-layer.is-free .mp-lift * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }")
+  && /\.mp-layer \.mp-lift \{[^}]*overflow-y: auto;/.test(css));
+check("iPhone: turning the phone sideways and back does not leave the text bigger (text-size-adjust)",
+  /html \{[^}]*-webkit-text-size-adjust: 100%;\s*text-size-adjust: 100%;/.test(css));
 check("index.html loads msg-press.js before chat-reactions.js and teams.js", pos("msg-press.js?v=") > 0
   && pos("msg-press.js") < pos("chat-reactions.js") && pos("msg-press.js") < pos("teams.js"));
 check("phone menu labels in vi and en", ["mpress.reply", "mpress.copy", "mpress.edit", "mpress.resend"].every((k) => vi[k] && en[k]));

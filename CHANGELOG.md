@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.237.0] - 2026-10-20
+## [0.241.0] - 2026-10-20
 ### Thêm mới
 - **Webhook thành cửa nhận sự kiện bền.** Mỗi sự kiện được ghi vào đĩa trước khi Javis trả lời "đã nhận" (202). Máy tắt, cập nhật hay sập giữa chừng thì lúc mở lại Javis chạy tiếp, không mất đơn.
 - **Lọc và chống trùng chặt chẽ.** Lọc đúng kiểu dữ liệu (số 1 khác chữ "1"), kiểm được từng món trong đơn, và khoá chống trùng ghép từ nhiều trường (cửa hàng, mã đơn, trạng thái) có thời hạn. Sự kiện không khớp được ghi kèm lý do và không tốn lượt AI.
@@ -37,6 +37,30 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Bộ lọc trên danh sách (`[*]`) giờ coi "không rõ" là không rõ: một điều kiện `not(any ...)` trên đơn có món thiếu trường có thể bị bỏ qua ở chỗ trước đây chạy. Xem lại bộ lọc kiểu này bằng Thử quy tắc.
 - Sự kiện bị cách ly (quy tắc không đọc được) giờ được báo cho bạn, gộp làm một tin, và giữ nguyên nội dung trong 30 ngày. Chạy lại một đơn đã chạy ở sự kiện khác bị từ chối, không gửi hai lần. Lỗi lặp lại được gộp theo loại lỗi, không báo mỗi đơn một tin.
 - **Bị từ chối vì quá tải (429) thì lần gửi lại vẫn chạy.** Trước đây mã chống trùng bị giữ lại, nên lần gửi lại bị báo trùng và đơn không bao giờ chạy.
+
+## [0.240.0] - 2026-10-20
+### Cải thiện
+- **Chép được một đoạn ngắn trong tin nhắn trên điện thoại, giống Zalo.** Ấn giữ tin nhắn như cũ để hiện bảng (emoji, Trả lời, Sao chép cả tin). Nhấc tay ra rồi ấn giữ lần nữa vào tin đang sáng: điện thoại hiện con trỏ hai đầu, kéo chọn đúng đoạn cần rồi bấm Sao chép (hoặc Dịch) của máy.
+- **Tin dài vẫn chọn được hết.** Bản sáng của tin nằm gọn giữa đầu màn hình và bảng thao tác, vuốt trong đó để cuộn tới đoạn cần chép, mở ra đúng chỗ đang xem.
+- Chạm vào tin đang sáng không mở link trong đó. Bấm ra ngoài vùng tối là đóng và bỏ phần đã chọn. Áp dụng cho cả khung chat chính lẫn trang Đội nhóm, iPhone lẫn Android.
+
+### Sửa lỗi
+- **Xoay ngang iPhone rồi xoay dọc lại, chữ không còn bị to ra.** Safari tự phóng chữ khi màn hình nằm ngang và có lúc không thu lại; giao diện Javis giờ tắt việc tự phóng đó.
+
+## [0.239.0] - 2026-10-20
+### Thêm mới
+- **Theo dõi trang web không tốn token.** Canh một trang theo lịch: báo khi trang đổi, khi xuất hiện một cụm chữ (ví dụ "Còn hàng") hoặc khi có giá dưới ngưỡng. Mỗi lượt canh chỉ tải trang và so chữ, không gọi AI. Trước đây muốn canh trang phải dựng loop, mỗi vòng tốn một lượt AI.
+- **Hiểu giá kiểu Việt Nam:** 1.250.000đ, 990.000 ₫, 1,25 triệu, 1tr2, 250k, VND, và cả $ với USD.
+- **Không báo rác:** "3 phút trước", "hôm qua" tự nhảy không tính là đổi; dòng chỉ đổi giá được báo là "Cập nhật"; khởi động lại không báo trùng. Trang lỗi thì thử thưa dần, lỗi 5 lần liền thì tự dừng và báo đúng một lần.
+- **Tạo bằng lời trong chat** ("canh trang này, xuống dưới 900k thì báo") hoặc ở tab **Theo dõi trang** của trang Việc định kỳ. Tuỳ chọn tóm tắt bằng AI mỗi lần có thay đổi, mặc định tắt.
+- Chi tiết kỹ thuật: module mới `web_watch.py` (kho `web_watch.sqlite3`), tool `javis_watch` (plugin `javis-watch`, chỉ chủ dùng được, bot chăm khách không thấy), route `/watch`, tab `dashboard/web-watch.js`. Địa chỉ trỏ vào mạng nội bộ bị chặn ở mọi chặng chuyển hướng. Tài liệu: `docs/32-theo-doi-trang.md`. Ý tưởng lấy từ `page-diff.ts` của OpenMuse (CopilotKit, giấy phép MIT), viết lại cho Javis.
+
+## [0.238.0] - 2026-10-20
+### Sửa lỗi
+- **Việc nền chạy lại không còn gửi tin, đăng bài hay tạo đơn hai lần.** Việc nền chạy lại khi gặp lỗi tạm thời, khi máy chủ khởi động lại hoặc khi bạn bấm Thử lại, và trước đây mỗi lần như vậy là làm lại từ đầu, kể cả tin đã gửi cho khách. Giờ Javis ghi sổ từng thao tác ra ngoài của việc: cái gì đã làm xong thì lần sau bỏ qua.
+- **Máy chủ dừng đúng lúc đang gửi thì Javis hỏi bạn, không tự gửi lại.** Việc dừng ở "Cần bạn xử lý", kể rõ thao tác nào chưa chắc đã tới nơi. Trả lời "đã gửi" là bỏ qua, "chưa gửi" là gửi lại đúng một lần.
+- Chat thường không đổi gì. Giới hạn: kết nối gắn tài khoản Claude và lệnh shell không đi qua hub nên chưa được ghi sổ; Grok Build và Antigravity CLI chưa mang được mã việc tới hub.
+- Chi tiết kỹ thuật: module mới `once_ledger.py` (sổ `once_ledger.sqlite3` cạnh `kanban.sqlite3`), móc vào `_guard` của hub cho kết nối MCP không phải đọc, và vào tool plugin mức `full`. Việc Kanban gắn `job` vào `turn_context` lúc chạy. Ý tưởng lấy từ cơ chế `outcome_unknown` và cache thao tác của OpenMuse (CopilotKit, giấy phép MIT), viết lại cho Javis.
 
 ## [0.236.0] - 2026-10-19
 ### Sửa lỗi

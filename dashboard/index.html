@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=132">
+  <link rel="stylesheet" href="/static/style.css?v=134">
   <link rel="stylesheet" href="/static/console.css?v=110">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -932,7 +932,7 @@
   <!-- Sáu reaction dùng chung (T2 0.154.0): nạp TRƯỚC chat-reactions.js, app.js, teams.js và mobile-chat.js. -->
   <script src="/static/reactions.js?v=3"></script>
   <!-- Nhấn giữ tin trên điện thoại (0.179.0): nạp TRƯỚC chat-reactions.js và teams.js. -->
-  <script src="/static/msg-press.js?v=3"></script>
+  <script src="/static/msg-press.js?v=4"></script>
   <!-- Vuốt tin sang trái để trích dẫn trên điện thoại (0.216.0): nạp TRƯỚC chat-reactions.js. -->
   <script src="/static/msg-swipe.js?v=1"></script>
   <script src="/static/chat-reactions.js?v=5"></script>
@@ -940,7 +940,7 @@
   <!-- Khối tiến trình từng bước trong khung chat: phải đứng TRƯỚC app.js vì app.js gọi
        window.JavisSteps ngay khi khung tool_call đầu tiên về. -->
   <script src="/static/chat-steps.js?v=2"></script>
-  <script src="/static/chat-viec.js?v=5"></script>
+  <script src="/static/chat-viec.js?v=6"></script>
   <script src="/static/chat-nho.js?v=1"></script>
   <script src="/static/chat-doi.js?v=1"></script>
   <script src="/static/chat-card.js?v=1"></script>
@@ -1016,7 +1016,9 @@
   <script src="/static/webhooks.js?v=7"></script>
   <!-- Health section of the Work page (0.199.0): incidents Javis Core handles and the read-only scan. -->
   <script src="/static/health-panel.js?v=1"></script>
-  <script src="/static/console.js?v=179"></script>
+  <!-- Watch tab of the Recurring work page (0.239.0): token-free web page watching (server/web_watch.py). -->
+  <script src="/static/web-watch.js?v=2"></script>
+  <script src="/static/console.js?v=180"></script>
   <script src="/static/mobile-chat.js?v=15"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=3"></script>
