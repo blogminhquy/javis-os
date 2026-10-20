@@ -250,6 +250,8 @@ _SAFE_WORDS = frozenset(("id", "ids", "uuid", "status", "state", "type", "kind",
                          "version", "at", "date", "time", "created", "updated", "inserted", "year", "month", "day",
                          "order", "orders", "invoice", "ref", "reference", "number", "no", "test", "is", "has",
                          "enabled", "success", "ok")) | _AMOUNT_WORDS
+_LINK_WORDS = frozenset(("url", "urls", "link", "links", "href", "uri", "pdf"))
+_ISO_TIME = None
 _PRODUCT_PARENTS = frozenset(("items", "line_items", "products", "order_items", "variations", "products_info", "lines",
                               "variation_info", "product"))
 _PRODUCT_WORDS = frozenset(("name", "title", "sku", "product", "variation", "unit", "category", "brand", "color",
@@ -265,6 +267,8 @@ def keep_leaf(key: str, v: Any, pii: bool, ident: bool, product: bool) -> bool:
     words = _key_words(key)
     if ident:
         return False
+    if words & _LINK_WORDS or (isinstance(v, str) and v.startswith(("http://", "https://")) and "?" in v):
+        return False                       # a link that opens the customer's order or invoice is a bearer key
     if pii:
         return isinstance(v, (int, float)) and bool(words & _AMOUNT_WORDS)
     if product and words & _PRODUCT_WORDS:
@@ -272,7 +276,19 @@ def keep_leaf(key: str, v: Any, pii: bool, ident: bool, product: bool) -> bool:
     return bool(words & _SAFE_WORDS)
 
 
-def _payload_walk(v: Any, key: str, depth: int, pii: bool, ident: bool, product: bool, hide) -> Any:
+def _show_view(v: Any) -> Any:
+    """A kept value as the masked view shows it: an e-mail or a phone number inside a kept text is still masked
+    (`client_reference_id` often holds the customer's e-mail); timestamps are left whole."""
+    import re
+    global _ISO_TIME
+    if not isinstance(v, str):
+        return v
+    if _ISO_TIME is None:
+        _ISO_TIME = re.compile(r"\d{4}-\d{2}-\d{2}([T ][\d:.]+)?(Z|[+-]\d{2}:?\d{2})?")
+    return v if _ISO_TIME.fullmatch(v) else _mask_text(v)
+
+
+def _payload_walk(v: Any, key: str, depth: int, pii: bool, ident: bool, product: bool, hide, show=_show_view) -> Any:
     k = str(key or "").lower()
     if depth > 64:
         return "…"
@@ -281,15 +297,15 @@ def _payload_walk(v: Any, key: str, depth: int, pii: bool, ident: bool, product:
     words = _key_words(key)
     if product and not (pii or ident) and words & _PRODUCT_WORDS and not isinstance(v, (dict, list)) \
             and not any(x in k for x in _PII_KEYS if x != "name") and not any(x in k for x in _ID_NUMBER_KEYS):
-        return v                           # an item's name, sku, size: the rules read them (`items[*].name`)
+        return show(v)                     # an item's name, sku, size: the rules read them (`items[*].name`)
     pii = pii or any(x in k for x in _PII_KEYS) or "tel" in words
     ident = ident or any(x in k for x in _ID_NUMBER_KEYS) or "tel" in words
     if isinstance(v, dict):
-        return {kk: _payload_walk(vv, kk, depth + 1, pii, ident, product, hide) for kk, vv in v.items()}
+        return {kk: _payload_walk(vv, kk, depth + 1, pii, ident, product, hide, show) for kk, vv in v.items()}
     if isinstance(v, list):
         inner = product or bool(_key_words(key) & _PRODUCT_PARENTS) or k in _PRODUCT_PARENTS
-        return [_payload_walk(x, key, depth + 1, pii, ident, inner, hide) for x in v]
-    return v if keep_leaf(key, v, pii, ident, product) else hide(v, False)
+        return [_payload_walk(x, key, depth + 1, pii, ident, inner, hide, show) for x in v]
+    return show(v) if keep_leaf(key, v, pii, ident, product) else hide(v, False)
 
 
 def _hide_view(v: Any, secret: bool) -> Any:

@@ -22,6 +22,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
 
@@ -50,10 +51,93 @@ def scrub(v, key: str = "", pii: bool = False, product: bool = False):
         if isinstance(x, (int, float)):
             return 0
         return x
-    return wt._payload_walk(v, key, 0, pii, False, product, hide)
+    def show(x):
+        # A kept text still loses an e-mail or a phone inside it (digits become 0, the shape stays).
+        if not isinstance(x, str):
+            return x
+        m = wt._show_view(x)
+        return m.replace("•", "0").replace("***", "xxx") if m != x else x
+    return wt._payload_walk(v, key, 0, pii, False, product, hide, show)
 
 
-def export(state_dir: Path, eid: str, expect: str, out: Path) -> dict:
+def rule_paths(rules: dict) -> list:
+    """The payload paths a hook's rules read: filter and `when` paths, schema fields, mapping sources, business key
+    parts. A fixture must keep those (else it no longer gets the decision the real event got)."""
+    out = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if k == "path" and isinstance(v, str):
+                    out.append(v)
+                elif k in ("business_paths", "paths") and isinstance(v, list):
+                    out.extend(p for p in v if isinstance(p, str))
+                else:
+                    walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+    r = rules or {}
+    walk(r.get("filter"))
+    walk(r.get("dedup") or r.get("business_key"))
+    out.extend((r.get("schema") or {}).get("fields", {}).keys() if isinstance(r.get("schema"), dict) else [])
+    for v in (r.get("mapping") or {}).values():
+        if isinstance(v, str):
+            out.append(v)
+        elif isinstance(v, dict) and isinstance(v.get("path"), str):
+            out.append(v["path"])
+    if isinstance(r.get("correlation"), str):
+        out.append(r["correlation"])
+    return sorted(set(out))
+
+
+def _segments(path: str) -> list:
+    import re
+    return [s for s in re.split(r"\.|(\[\*\]|\[\d+\])", path) if s]
+
+
+def restore_paths(scrubbed, raw, paths: list) -> tuple:
+    """Put back, at each path the rules read, the value as received, unless the path names an identity number, a
+    customer block or a credential (those are never written to a fixture). Returns (payload, kept, refused)."""
+    import webhook_triggers as wt
+    kept, refused = [], []
+
+    def unsafe(segs):
+        for sg in segs:
+            k = sg.lower()
+            if any(x in k for x in wt._SECRET_KEYS) or any(x in k for x in wt._ID_NUMBER_KEYS) \
+                    or (any(x in k for x in wt._PII_KEYS if x != "name") or "tel" in wt._key_words(sg)):
+                return True
+        return False
+
+    def put(dst, src, segs):
+        if not segs:
+            return src
+        sg, rest = segs[0], segs[1:]
+        if sg == "[*]" and isinstance(src, list) and isinstance(dst, list):
+            return [put(d, s, rest) for d, s in zip(dst, src)]
+        if sg.startswith("[") and isinstance(src, list) and isinstance(dst, list):
+            i = int(sg[1:-1])
+            if i < len(src) and i < len(dst):
+                dst = list(dst)
+                dst[i] = put(dst[i], src[i], rest)
+            return dst
+        if isinstance(src, dict) and isinstance(dst, dict) and sg in src and sg in dst:
+            dst = dict(dst)
+            dst[sg] = put(dst[sg], src[sg], rest)
+        return dst
+    out = scrubbed
+    for p in paths:
+        segs = _segments(p)
+        if unsafe([s for s in segs if not s.startswith("[")]):
+            refused.append(p)
+            continue
+        out = put(out, raw, segs)
+        kept.append(p)
+    return out, kept, refused
+
+
+def export(state_dir: Path, eid: str, expect: str, out: Path, rules: Optional[dict] = None) -> dict:
     import webhook_store
     st = webhook_store.Store(state_dir / "webhook_events.sqlite3")
     try:
@@ -65,9 +149,12 @@ def export(state_dir: Path, eid: str, expect: str, out: Path) -> dict:
         if kind not in ("json", "form"):
             raise SystemExit(f"event {eid} is {kind}: only JSON and form bodies are exported")
         headers = {k: ("REDACTED" if k.lower() in _SECRET_HEADERS else v) for k, v in (ev.get("headers") or {}).items()}
+        payload, kept, refused = scrub(doc), [], []
+        if rules:
+            payload, kept, refused = restore_paths(payload, doc, rule_paths(rules))
         fx = {"name": out.stem, "origin": f"CAPTURED on staging from event {eid}, customer fields and credentials replaced",
               "content_type": ev.get("content_type") or "application/json", "headers": headers,
-              "payload": scrub(doc), "expect": expect}
+              "payload": payload, "expect": expect, "kept_for_rules": kept, "not_kept": refused}
     finally:
         st.close()
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -95,13 +182,17 @@ def main(argv=None) -> int:
     e.add_argument("--event", required=True)
     e.add_argument("--expect", required=True, choices=("run", "filtered", "invalid", "duplicate"))
     e.add_argument("--out", required=True)
+    e.add_argument("--config", help="the hook's {\"rules\": ...}: the paths they read keep their value (never an "
+                   "identity, customer or credential path)")
     c = sub.add_parser("check")
     c.add_argument("--config", required=True, help="a JSON file with the hook's {\"rules\": ...}")
     c.add_argument("fixtures", nargs="+")
     a = ap.parse_args(argv)
     if a.cmd == "export":
-        fx = export(Path(a.state_dir), a.event, a.expect, Path(a.out))
-        print(f"written {a.out}: read it before committing (headers {sorted(fx['headers'])})")
+        rules = json.loads(Path(a.config).read_text(encoding="utf-8")).get("rules") if a.config else None
+        fx = export(Path(a.state_dir), a.event, a.expect, Path(a.out), rules)
+        print(f"written {a.out}: read it before committing (headers {sorted(fx['headers'])}; kept for the rules "
+              f"{fx['kept_for_rules']}; not kept {fx['not_kept']})")
         return 0
     res = check(json.loads(Path(a.config).read_text(encoding="utf-8")), a.fixtures)
     for r in res:

@@ -32,13 +32,16 @@ Capture and check with `tools/webhook_capture.py` (tested by `tests/python/test_
 ```
 # on staging, for each captured event (pick its id in Events): write a masked fixture with the decision it must get
 .venv/bin/python tools/webhook_capture.py export --state-dir <STATE_DIR> --event ev_... --expect run \
-    --out tests/fixtures/webhooks/captured/poscake-order-paid.json
+    --config hook.json --out tests/fixtures/webhooks/captured/poscake-order-paid.json
 # then check the hook's rules against every fixture (nothing stored, sent or run)
 .venv/bin/python tools/webhook_capture.py check --config hook.json tests/fixtures/webhooks/captured/*.json
 ```
 
-The export keeps ids, statuses, product names and number types, replaces every text under a customer block and every
-e-mail or phone, and redacts credentials. Read each file before committing it.
+The export uses the dashboard's allowlist: ids, statuses, times, amounts, counts and product names stay, every other
+value becomes a placeholder of the same type, e-mails and phones inside kept texts are masked, and credentials and
+bearer links are redacted. With `--config`, the paths the hook's rules read keep their value as received, except an
+identity, customer or credential path (listed under `not_kept`): the fixture then gets the decision the real event
+got. Read each file before committing it.
 
 ## 0. Data to collect first (spec §17), with the owner
 

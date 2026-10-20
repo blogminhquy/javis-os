@@ -1351,6 +1351,29 @@ async def fix_review_four():
     check("R13 P1: the capture tool hides the same values (same shape and types) and keeps the same safe ones",
           not [x for x in ("912345678", "312345678", "79123456789", "19034567890123", "NGUYEN VAN A", "Lê Thị Hoa")
                if x in sc] and wc.scrub(order)["items"][0]["name"] == "Nước mắm" and wc.scrub(order)["tel1"] == 0, sc)
+    # R14 (review of R13): a kept text still loses an e-mail or a phone inside it; bearer links are hidden; a captured
+    # fixture keeps the paths the rules read (never an identity path), so it gets the real event's decision.
+    stripe = {"data": {"object": {"client_reference_id": "jane.doe@gmail.com", "mode": "subscription",
+                                  "hosted_invoice_url": "https://invoice.stripe.com/i/acct?s=ap",
+                                  "metadata": {"order": "goi 0912 345 678", "reference_code": "079123456789"}}},
+              "created_at": "2026-10-19T10:00:00Z", "tags": "wholesale, vip", "money_to_collect": 350000,
+              "order_status_url": "https://shop.example/1/orders/abc/authenticate?key=zz", "phone": "0912345678"}
+    mv = json.dumps(wt.mask_payload(stripe), ensure_ascii=False)
+    check("R14 P1: an e-mail or a phone inside a kept text is masked, bearer links are hidden, a timestamp stays whole",
+          not [x for x in ("jane.doe", "0912 345 678", "079123456789", "authenticate?key", "invoice.stripe.com")
+               if x in mv] and "2026-10-19T10:00:00Z" in mv, mv)
+    rules14 = {"filter": {"all": [{"path": "data.object.mode", "op": "eq", "value": "subscription"},
+                                  {"path": "tags", "op": "contains", "value": "wholesale"},
+                                  {"path": "money_to_collect", "op": "gt", "value": 0},
+                                  {"path": "phone", "op": "exists"}]}}
+    import sys as _s2
+    _s2.path.insert(0, str(ROOT / "tools"))
+    import webhook_capture as wc2
+    fx, kept, refused = wc2.restore_paths(wc2.scrub(stripe), stripe, wc2.rule_paths(rules14))
+    dec = wr.evaluate(wr.validate(rules14), json.dumps(fx).encode(), "application/json")["decision"]
+    check("R14 P2: the fixture keeps the rule paths (mode, tags, money_to_collect), refuses the phone path, and gets "
+          "the same decision as the real event", dec == "run" and refused == ["phone"] and fx["phone"] != "0912345678"
+          and sorted(kept) == ["data.object.mode", "money_to_collect", "tags"], (dec, kept, refused))
     # R11 P3: two events of one hook told at once make one incident notice, not two.
     hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
                          rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,
