@@ -227,6 +227,11 @@ html {
      thường. "pan-x pan-y" (không có pinch-zoom) là cú pháp tắt zoom, khác "manipulation"
      (vẫn cho pinch-zoom). */
   touch-action: pan-x pan-y;
+  /* 0.240.0 (owner, iPhone): turning the phone sideways and back left the text much bigger. Safari enlarges text in
+     landscape on its own and does not always shrink it back; 100% switches that off. The share page has had it since
+     it was written (share_render.py). */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 body {
   background: var(--bg);
@@ -4034,7 +4039,12 @@ div.info-body > * { margin: 0; font-size: inherit; }
 .mp-act.is-danger { color: var(--red, #d64545); }
 .mp-target { position: relative; z-index: 1; }
 .mp-layer .mp-lift { position: absolute; display: block; margin: 0; padding: 0; max-width: none; pointer-events: none;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   background: var(--bg); box-shadow: 0 8px 24px rgba(0, 0, 0, .22); animation: mp-fade .15s ease; }
+/* 0.240.0 (owner, like Zalo): once the first finger is off, hold the lifted copy again to select part of it and copy it
+   with the phone's own callout. Beats the no-selection rule above (html.mp-holding *) on specificity. */
+.mp-layer.is-free .mp-lift { pointer-events: auto; }
+.mp-layer.is-free .mp-lift, .mp-layer.is-free .mp-lift * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .mp-toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   z-index: 3300; padding: 8px 16px; border-radius: 999px; background: rgba(20, 20, 20, .86); color: #fff; font-size: 15px;
   pointer-events: none; animation: mp-fade .15s ease; }

@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.240.0] - 2026-10-20
+### Cải thiện
+- **Chép được một đoạn ngắn trong tin nhắn trên điện thoại, giống Zalo.** Ấn giữ tin nhắn như cũ để hiện bảng (emoji, Trả lời, Sao chép cả tin). Nhấc tay ra rồi ấn giữ lần nữa vào tin đang sáng: điện thoại hiện con trỏ hai đầu, kéo chọn đúng đoạn cần rồi bấm Sao chép (hoặc Dịch) của máy.
+- **Tin dài vẫn chọn được hết.** Bản sáng của tin nằm gọn giữa đầu màn hình và bảng thao tác, vuốt trong đó để cuộn tới đoạn cần chép, mở ra đúng chỗ đang xem.
+- Chạm vào tin đang sáng không mở link trong đó. Bấm ra ngoài vùng tối là đóng và bỏ phần đã chọn. Áp dụng cho cả khung chat chính lẫn trang Đội nhóm, iPhone lẫn Android.
+
+### Sửa lỗi
+- **Xoay ngang iPhone rồi xoay dọc lại, chữ không còn bị to ra.** Safari tự phóng chữ khi màn hình nằm ngang và có lúc không thu lại; giao diện Javis giờ tắt việc tự phóng đó.
+
 ## [0.239.0] - 2026-10-20
 ### Thêm mới
 - **Theo dõi trang web không tốn token.** Canh một trang theo lịch: báo khi trang đổi, khi xuất hiện một cụm chữ (ví dụ "Còn hàng") hoặc khi có giá dưới ngưỡng. Mỗi lượt canh chỉ tải trang và so chữ, không gọi AI. Trước đây muốn canh trang phải dựng loop, mỗi vòng tốn một lượt AI.

@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.240.0] - 2026-10-20
+### Improved
+- **Copy just part of a message on a phone, like Zalo.** Hold a message as before to open the card (emoji, Reply, Copy the whole message). Lift your finger, then hold the bright message again: the phone shows its selection handles, drag them over the part you want and tap the phone's own Copy (or Translate).
+- **Long messages can be selected in full.** The bright copy fits between the top of the screen and the action card; swipe inside it to scroll to the part you need. It opens at the spot you were reading.
+- Tapping the bright message does not open links in it. Tapping the dim area closes the card and clears the selection. Works in the main chat and on the Teams page, on iPhone and Android.
+
+### Fixed
+- **Turning an iPhone sideways and back no longer leaves the text bigger.** Safari enlarges text in landscape on its own and sometimes does not shrink it back; the Javis interface now switches that off.
+
 ## [0.239.0] - 2026-10-20
 ### Added
 - **Web page watching that spends no tokens.** Watch a page on a schedule: get an alert when it changes, when some text appears (for example "In stock") or when a price drops below a threshold. Each check only loads the page and compares the text, without calling AI. Watching a page used to need a loop, and every loop cycle cost an AI call.
