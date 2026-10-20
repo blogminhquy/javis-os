@@ -48,7 +48,7 @@ def scrub(v, key: str = "", pii: bool = False, product: bool = False):
         if secret:
             return "REDACTED"
         if isinstance(x, str):
-            return "x" * min(max(len(x), 1), 12)
+            return "x" * min(len(x), 12) if x else ""      # an empty text stays empty (`empty` rules)
         if wt._is_num(x):
             return 0
         return x
@@ -80,11 +80,12 @@ def rule_paths(rules: dict, actions: Optional[list] = None) -> list:
         elif isinstance(x, list):
             for v in x:
                 walk(v)
-    r = rules or {}
+    r = rules if isinstance(rules, dict) else {}
     walk(r.get("filter"))
     walk(r.get("dedup") or r.get("business_key"))
-    out.extend((r.get("schema") or {}).get("fields", {}).keys() if isinstance(r.get("schema"), dict) else [])
-    for v in (r.get("mapping") or {}).values():
+    sch = r.get("schema") if isinstance(r.get("schema"), dict) else {}
+    out.extend(sch.get("fields", {}).keys() if isinstance(sch.get("fields"), dict) else [])
+    for v in (r.get("mapping") if isinstance(r.get("mapping"), dict) else {}).values():
         if isinstance(v, str):
             out.append(v)
         elif isinstance(v, dict) and isinstance(v.get("path"), str):
@@ -112,17 +113,21 @@ def restore_paths(scrubbed, raw, paths: list) -> tuple:
                 continue
             k = sg.lower()
             words = wt._key_words(sg)
-            if any(x in k for x in wt._SECRET_KEYS) or any(x in k for x in wt._ID_NUMBER_KEYS) or "tel" in words:
+            if any(x in k for x in wt._SECRET_KEYS) or wt.is_ident_key(sg):
                 return True
-            hits = [x for x in wt._PII_KEYS if x in k]
+            hits = [x for x in wt._PII_KEYS if any(x in f for f in wt._key_forms(sg))] + (["tel"] if "tel" in words else [])
             if hits and not (product and hits == ["name"]):
                 return True
             product = product or bool(words & wt._PRODUCT_PARENTS) or k in wt._PRODUCT_PARENTS
         return False
 
     def leaf_ok(key, v):
-        return not (isinstance(v, (dict, list)) or wt._key_words(key) & wt._LINK_WORDS
-                    or (isinstance(v, str) and v.startswith(("http://", "https://")) and "?" in v))
+        if isinstance(v, (dict, list)) or wt._key_words(key) & wt._LINK_WORDS \
+                or (isinstance(v, str) and v.startswith(("http://", "https://")) and "?" in v):
+            return False
+        # A text the e-mail and phone masking would change is not written altered (the fixture would then get another
+        # decision while saying it kept the path): the path is reported as not kept instead.
+        return not (isinstance(v, str) and _show_capture(v) != v)
 
     def put(dst, src, segs, key, ok):
         if not segs:

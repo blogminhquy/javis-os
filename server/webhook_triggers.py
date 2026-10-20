@@ -251,6 +251,34 @@ _SAFE_WORDS = frozenset(("id", "ids", "uuid", "status", "state", "type", "kind",
                          "order", "orders", "invoice", "ref", "reference", "number", "no", "test", "is", "has",
                          "enabled", "success", "ok")) | _AMOUNT_WORDS
 _LINK_WORDS = frozenset(("url", "urls", "link", "links", "href", "uri", "pdf"))
+# Texts are kept only under id, status and time words: free text under `order` or `reference` can name the customer.
+_STR_SAFE_WORDS = frozenset(("id", "ids", "uuid", "status", "state", "type", "kind", "event", "topic", "action", "sku",
+                             "currency", "method", "channel", "platform", "version", "at", "date", "time", "created",
+                             "updated", "inserted", "test"))
+_ID_WORDS = frozenset(("cccd", "cmnd", "cmt", "passport", "identity", "citizen", "license", "licence", "ssn", "nric",
+                       "national"))
+# Sub-objects of an item that still describe the product (anything else inside an item, a destination or a recipient,
+# is not the product's).
+_PRODUCT_SUB = frozenset(("variation", "variations", "variation_info", "product", "variant", "options", "option", "sku"))
+
+
+def _key_forms(key: str) -> tuple:
+    """The key as written (lowercased), with its words joined by `_` and by nothing: `nationalId` is matched like
+    `national_id`."""
+    w = [x.lower() for x in __import__("re").split(r"[_\-\s.\[\]]+|(?<=[a-z])(?=[A-Z])", str(key or "")) if x]
+    return str(key or "").lower(), "_".join(w), "".join(w)
+
+
+def is_ident_key(key: str) -> bool:
+    forms = _key_forms(key)
+    words = _key_words(key)
+    return any(x in f for f in forms for x in _ID_NUMBER_KEYS) or "tel" in words or bool(words & _ID_WORDS) \
+        or ("id" in words and bool(words & {"card", "number", "no", "personal", "tax"}))
+
+
+def is_pii_key(key: str) -> bool:
+    forms = _key_forms(key)
+    return any(x in f for f in forms for x in _PII_KEYS) or "tel" in _key_words(key)
 _ISO_TIME = None
 _PRODUCT_PARENTS = frozenset(("items", "line_items", "products", "order_items", "variations", "products_info", "lines",
                               "variation_info", "product"))
@@ -278,7 +306,7 @@ def keep_leaf(key: str, v: Any, pii: bool, ident: bool, product: bool) -> bool:
         return _is_num(v) and bool(words & _AMOUNT_WORDS)
     if product and words & _PRODUCT_WORDS:
         return True
-    return bool(words & _SAFE_WORDS)
+    return bool(words & (_STR_SAFE_WORDS if isinstance(v, str) else _SAFE_WORDS))
 
 
 def _show_view(v: Any) -> Any:
@@ -301,12 +329,17 @@ def _payload_walk(v: Any, key: str, depth: int, pii: bool, ident: bool, product:
         return hide(v, True)
     words = _key_words(key)
     if product and not (pii or ident) and words & _PRODUCT_WORDS and not isinstance(v, (dict, list)) \
-            and not any(x in k for x in _PII_KEYS if x != "name") and not any(x in k for x in _ID_NUMBER_KEYS):
+            and not any(x in f for f in _key_forms(key) for x in _PII_KEYS if x != "name") and not is_ident_key(key):
         return show(v)                     # an item's name, sku, size: the rules read them (`items[*].name`)
-    pii = pii or any(x in k for x in _PII_KEYS) or "tel" in words
-    ident = ident or any(x in k for x in _ID_NUMBER_KEYS) or "tel" in words
+    pii = pii or is_pii_key(key)
+    ident = ident or is_ident_key(key)
     if isinstance(v, dict):
-        return {kk: _payload_walk(vv, kk, depth + 1, pii, ident, product, hide, show) for kk, vv in v.items()}
+        # The product context reaches the item's own fields and its product sub-objects only: a destination or a
+        # recipient inside an item is not the product.
+        return {kk: _payload_walk(vv, kk, depth + 1, pii, ident,
+                                  product and (not isinstance(vv, (dict, list)) or bool(_key_words(kk) & _PRODUCT_SUB)
+                                               or str(kk).lower() in _PRODUCT_SUB), hide, show)
+                for kk, vv in v.items()}
     if isinstance(v, list):
         inner = product or bool(_key_words(key) & _PRODUCT_PARENTS) or k in _PRODUCT_PARENTS
         return [_payload_walk(x, key, depth + 1, pii, ident, inner, hide, show) for x in v]

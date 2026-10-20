@@ -1408,6 +1408,25 @@ async def fix_review_four():
     check("R15 P2: the masked detail view of a payload with floats answers 200 (no Decimal crash), coordinate hidden",
           v15.status_code == 200 and "10.7769" not in v15.text, (v15.status_code, v15.text[:200]))
     await cl15.aclose()
+    # R16 (review of R15): camelCase identity keys, a name nested in an item's destination, free text under a safe
+    # word, and a restore the phone masking would alter.
+    d16 = {"nationalId": 79123456789, "identityNumber": 7912345678, "idCard": "B1234567", "idNumber": "C7654321",
+           "order_id": 55, "status": "paid", "order_title": "Don 5 - Nguyen Van An", "note": "",
+           "line_items": [{"name": "Mắm", "price": 100, "destination_location": {"name": "Nguyen Van An"},
+                           "variation_info": {"name": "500ml", "barcode": "8936012345678"}}]}
+    m16 = wt.mask_payload(d16)
+    t16 = json.dumps(m16, ensure_ascii=False)
+    check("R16 P1: nationalId, identityNumber, idCard, idNumber, a destination's name inside an item and free text "
+          "under `order` are hidden; ids, statuses and the product's names stay",
+          not [x for x in ("79123456789", "7912345678", "B1234567", "C7654321", "Nguyen Van An") if x in t16]
+          and m16["order_id"] == 55 and m16["status"] == "paid" and m16["line_items"][0]["name"] == "Mắm"
+          and m16["line_items"][0]["variation_info"]["name"] == "500ml", t16)
+    r16 = {"filter": {"all": [{"path": "line_items[*].variation_info.barcode", "op": "eq", "value": "8936012345678"},
+                              {"path": "note", "op": "empty"}]}}
+    fx16, k16, ref16 = wc2.restore_paths(wc2.scrub(d16), d16, wc2.rule_paths(r16))
+    check("R16 P2: a value the phone masking would alter is reported as not kept (never written altered); an empty "
+          "text stays empty", "line_items[*].variation_info.barcode" in ref16 and fx16["note"] == ""
+          and "8936012345678" not in json.dumps(fx16), (k16, ref16, fx16["note"]))
     # R11 P3: two events of one hook told at once make one incident notice, not two.
     hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
                          rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,
