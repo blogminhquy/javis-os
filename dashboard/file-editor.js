@@ -167,6 +167,13 @@
   var modal = null, card = null, elTitle = null, elActions = null, elBody = null, curSave = null;
   var daDayLichSu = false;   // da chen mot buoc lich su cho nut Back chua
   var elShareModal = null;   // thanh hien link chia se CUA MODAL nay (an mac dinh)
+  // TU LUU sau khi ngung go (giong trinh sua dinh trong console.js). curTuLuu la ham cua file
+  // DANG mo, tu so voi moc va chi ghi khi noi dung that su khac luc mo.
+  var autoHen = null, curTuLuu = null;
+  function tuLuu() { clearTimeout(autoHen); autoHen = null; if (curTuLuu) curTuLuu(); }
+  function henTuLuu() { clearTimeout(autoHen); autoHen = setTimeout(tuLuu, 1000); }
+  // Luu NGAY, khong doi hen: dong khung, an tab, dong tab.
+  function autoFlush() { try { tuLuu(); } catch (e) {} }
 
   function build() {
     if (modal) return;
@@ -198,6 +205,11 @@
       daDayLichSu = false;      // buoc vua bi go chinh la buoc minh chen
       close();
     });
+    // An tab (doi tab, khoa may dien thoai) hay dong tab: luu ngay, khong cho het hen.
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden" && isOpen()) autoFlush();
+    });
+    window.addEventListener("pagehide", function () { if (isOpen()) autoFlush(); });
     document.addEventListener("keydown", function (e) {
       if (!isOpen()) return;
       if (e.key === "Escape") { e.stopPropagation(); close(); return; }
@@ -209,6 +221,10 @@
   function isOpen() { return modal && modal.classList.contains("open"); }
   function close() {
     if (!modal) return;
+    // Luu TRUOC khi don elBody: ham lay noi dung doc thang tu khung soan, don truoc la ghi
+    // RONG len file.
+    if (isOpen()) autoFlush();
+    curTuLuu = null;
     modal.classList.remove("open");
     elBody.innerHTML = ""; elActions.innerHTML = ""; curSave = null;   // don iframe/textarea
     if (elShareModal) { elShareModal.innerHTML = ""; elShareModal.hidden = true; }
@@ -230,6 +246,9 @@
   function open(brainRel) {
     if (!brainRel) return;
     build();
+    // Dang mo file khac ma goi mo tiep: luu file cu truoc, roi bo ham luu cua no.
+    if (isOpen()) autoFlush();
+    clearTimeout(autoHen); autoHen = null; curTuLuu = null;
     var b = brain();
     elTitle.innerHTML = esc(baseOf(brainRel));
     elActions.innerHTML = ""; elBody.innerHTML = '<div class="jvfe-note">' + esc(tw("fedit.opening")) + "</div>";
@@ -396,30 +415,51 @@
   }
 
   // Nut Luu (dung getContent de lay noi dung THAT theo che do dang mo) + Tai + Dong.
+  // Tra ve ham chot moc: renderMdEditor goi lai sau khi tu sang che do Sua, vi luc do noi dung
+  // da vong qua markdown mot luot va lech doi cho so voi file goc (xem _neCoSuaChua).
   function appendSaveAndClose(b, ceil, getContent) {
     var save = document.createElement("button");
     save.className = "jvfe-btn"; save.innerHTML = ic("save") + " " + esc(tw("common.save")); save.title = tw("fedit.save_title");
-    curSave = function () {
+    var goc = null;   // noi dung luc vua mo / vua luu
+    function chotMoc() { try { goc = getContent(); } catch (e) { goc = null; } }
+    function ghi(content) {
       var fd = new FormData();
-      fd.append("brain", b); fd.append("path", ceil); fd.append("content", getContent());
+      fd.append("brain", b); fd.append("path", ceil); fd.append("content", content);
       save.textContent = "…"; save.disabled = true;
-      fetch("/files/write", { method: "POST", body: fd })
+      // keepalive: luot luu luc dong tab van toi server. Than qua 64KB bi trinh duyet chan,
+      // nen note dai di duong thuong.
+      fetch("/files/write", { method: "POST", body: fd, keepalive: content.length < 20000 })
         .then(function (r) { return r.json().catch(function () { return {}; }); })
         .then(function (r) {
           save.disabled = false;
           if (r && r.ok) {
             save.innerHTML = ic("check", { cls: "ic-ok" }) + " " + esc(tw("fedit.saved")); save.classList.add("saved");
             setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); save.classList.remove("saved"); }, 1400);
-          } else { save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); }
+          } else { saiMoc(content); save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); }
         })
-        .catch(function () { save.disabled = false; save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); });
+        .catch(function () { saiMoc(content); save.disabled = false; save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); });
+    }
+    // Ghi hong thi bo moc, de lan go sau (hoac luc dong) con thu luu lai.
+    function saiMoc(content) { if (goc === content) goc = null; }
+    curSave = function () { var nay = getContent(); goc = nay; ghi(nay); };
+    curTuLuu = function () {
+      var nay;
+      try { nay = getContent(); } catch (e) { return; }
+      if (nay === goc) return;
+      // Chot moc TRUOC khi gui: go tiep trong luc dang gui van tinh la co sua.
+      goc = nay;
+      ghi(nay);
     };
+    chotMoc();
+    // Khung soan dung moi moi lan mo file, nen gan o day khong bi chong listener.
+    elBody.querySelectorAll("textarea, .ne-wys").forEach(function (el) { el.addEventListener("input", henTuLuu); });
     save.onclick = curSave;
     elActions.appendChild(save);
     elActions.appendChild(shareBtn(b, ceil));
     elActions.appendChild(openLink(b, ceil));
     elActions.appendChild(dlLink(b, ceil));
     elActions.appendChild(closeBtn());
+    return chotMoc;
   }
 
   function renderEditor(b, ceil, brainRel, d) {
@@ -498,16 +538,22 @@
 
     var demLai = null;
     NE.buildToolbar(neBody.querySelector(".ne-fmt"), { mode: function () { return curMode; }, ta: ta, wys: wys,
-      onChange: function () { if (demLai) demLai(); } });
+      onChange: function () { if (demLai) demLai(); henTuLuu(); } });
     // Bo dem tu + ky tu (0.65.32): dem chu HIEN RA, giong trinh sua dinh.
     if (NE.ganDemTu) demLai = NE.ganDemTu(neBody.querySelector(".ne-fmt"), function () {
       return curMode === "wys" ? { text: wys.innerText, md: false } : { text: ta.value, md: true };
     }, [ta, wys]);
-    appendSaveAndClose(b, ceil, mdGetter);
+    var chotMoc = appendSaveAndClose(b, ceil, mdGetter);
+    // Moc so sanh lay SAU khi tu sang che do Sua, khong thi chi mo ra doc cung bi tinh la sua.
+    function vaoSua() { setMode("wys"); focusNeuDuocPhep(wys); chotMoc(); }
 
     // Vao che do Sua (WYSIWYG) khi Turndown san sang; offline khong nap duoc thi o lai Nguon (van sua tot).
-    if (window.TurndownService) { setMode("wys"); focusNeuDuocPhep(wys); }
-    else NE.ensureTurndown().then(function () { if (isOpen() && window.TurndownService) { setMode("wys"); focusNeuDuocPhep(wys); } });
+    if (window.TurndownService) vaoSua();
+    // Turndown ve cham: nguoi dung da go o che do Nguon thi de nguyen, doi che do luc do la mat
+    // dau "co sua" va lan luu tiep bi bo qua.
+    else NE.ensureTurndown().then(function () {
+      if (isOpen() && neBody.isConnected && window.TurndownService && ta.value === (d.content || "")) vaoSua();
+    });
   }
 
   if (typeof window !== "undefined") {

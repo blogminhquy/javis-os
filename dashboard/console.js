@@ -8294,6 +8294,8 @@
   let _neOpenRel = "";         // file đang mở trong trình sửa (đường dẫn theo TRẦN DUYỆT)
   let _neLayNoiDung = null;    // () -> nội dung ĐANG soạn (markdown nếu là .md ở chế độ Sửa)
   let _neGocText = null;       // nội dung lúc VỪA MỞ, để biết có sửa gì chưa (xem _neCoSuaChua)
+  const NE_AUTO_MS = 1000;      // ngừng gõ bấy lâu thì tự lưu (xem _neAutoHoan)
+  let _neAutoHen = null;       // hẹn tự lưu đang chờ
   // Vệt đường đi giữa các note, y hệt lịch sử trình duyệt: bấm [[wikilink]] là đi tới, Lùi là
   // quay lại chỗ vừa đọc. Một mảng + một con trỏ, không phải hai ngăn xếp - dễ đọc hơn và
   // đúng ngữ nghĩa "đi tới giữa chừng thì cắt nhánh tiến".
@@ -8400,6 +8402,9 @@
   }
 
   async function _vtRename(rel, oldname) {
+    // File đang mở: trình sửa vẫn trỏ vào tên cũ, tự lưu sẽ đẻ lại file tên cũ. Đi đường đổi
+    // tên của trình sửa để nó lưu trước, đổi tên rồi mở lại đúng tên mới.
+    if (_neOpenRel === rel) return _neRenameCur(rel, { name: oldname });
     const nn = prompt(window.t("cs.fm_new_name"), oldname);
     if (!nn || nn === oldname) return;
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("newname", nn);
@@ -8408,6 +8413,7 @@
   }
   async function _vtDelete(rel, name, isDir) {
     if (!confirm(window.t(isDir ? "cs.vt_del_dir" : "cs.vt_del_file", { ten: name }))) return;
+    if (_vtActivePath === rel || _neOpenRel === rel) _neBoLuu();
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
     try { await fetch("/files/delete", { method: "POST", body: fd }); } catch (e) {}
     if (_vtActivePath === rel) closeNote();
@@ -8710,6 +8716,9 @@
     // Đóng trình sửa ở trang Trò chuyện = trả chỗ lại cho khung chat. Không trả thì khung chat
     // vẫn bị ẩn và người dùng nhìn vào một trang trống, tưởng chat hỏng.
     _returnNoteEditor();
+    // Escape, nút X: lưu TRƯỚC khi dọn khung soạn bên dưới - xem _neAutoLuu.
+    _neAutoHuy();
+    if (_neSaveFn && _neCoSuaChua()) _neSaveFn();
     document.getElementById("neBody").innerHTML = ""; document.getElementById("neActions").innerHTML = "";
     // Thanh link chia se cua file VUA DONG khong duoc dinh sang file mo ke tiep.
     const _neSh = document.getElementById("neShare");
@@ -8732,6 +8741,7 @@
     const nn = prompt(window.t("cs.fm_new_name"), oldname);
     if (!nn || nn === oldname) return;
     if (_neSaveFn) { try { await _neSaveFn(); } catch (e) {} }
+    _neAutoHuy();
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("newname", nn);
     try { await fetch("/files/rename", { method: "POST", body: fd }); } catch (e) {}
     await _vtRebuildReExpand(null);
@@ -8746,6 +8756,7 @@
   async function _neDeleteCur(rel, it) {
     const name = (it && it.name) || rel.split("/").pop();
     if (!confirm(window.t("cs.vt_del_file", { ten: name }))) return;
+    _neBoLuu();
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
     try { await fetch("/files/delete", { method: "POST", body: fd }); } catch (e) {}
     // Ghim trỏ tới file vừa xoá thì bỏ, đừng để Javis đi mở một đường dẫn không còn tồn tại.
@@ -9058,6 +9069,31 @@
     try { return _neLayNoiDung() !== _neGocText; } catch (e) { return false; }
   }
 
+  // TỰ LƯU sau khi ngừng gõ. Trước bản này chỉ rời sang file khác mới được lưu hộ; bấm Escape,
+  // nút X hay đóng tab là mất sạch chữ vừa gõ mà không một lời báo.
+  //   - Mỗi cú gõ ĐẨY LẠI hẹn từ đầu, nên gõ liền một mạch chỉ ghi đĩa một lần lúc dừng tay.
+  //   - Đi qua chốt _neCoSuaChua: chỉ mở file ra đọc thì không ghi, không đè định dạng gốc.
+  //   - Dùng lại đúng _neSaveFn của nút Lưu: nút nháy "Đã lưu" nên người dùng thấy nó xảy ra.
+  //   - closeNote (Escape, nút X) lưu TRƯỚC khi dọn khung soạn: dọn trước là đọc được khung
+  //     rỗng và ghi RỖNG lên file. _neSaveFn đọc nội dung ngay dòng đầu, nên gọi không chờ vẫn kịp.
+  function _neAutoHuy() { clearTimeout(_neAutoHen); _neAutoHen = null; }
+  // Sắp xoá file đang mở: bỏ hẳn hẹn lẫn hàm lưu, kẻo đóng khung hay hẹn bắn muộn lại GHI LẠI
+  // đúng file vừa xoá.
+  function _neBoLuu() { _neAutoHuy(); _neSaveFn = null; }
+  function _neAutoHoan() {
+    clearTimeout(_neAutoHen);
+    _neAutoHen = setTimeout(_neAutoLuu, NE_AUTO_MS);
+  }
+  async function _neAutoLuu() {
+    _neAutoHuy();
+    if (!_neSaveFn || !_neCoSuaChua()) return true;
+    return await _neSaveFn();
+  }
+  // Ẩn tab (đổi tab, thu nhỏ, khoá máy điện thoại) và đóng tab: lưu NGAY, không đợi hẹn.
+  // Gắn một lần ở đây; hàm tự thoát khi không có gì cần lưu.
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") _neAutoLuu(); });
+  window.addEventListener("pagehide", () => { _neAutoLuu(); });
+
   function _neVeNutLui() {
     const host = document.getElementById("neNav");
     if (!host) return;
@@ -9096,6 +9132,7 @@
     // Rời một file đang sửa dở (bấm [[wikilink]], bấm file khác trong cây) thì lưu lại trước.
     // Trước bản này chữ vừa gõ bay sạch, im lặng - và nút Lùi/Tiến làm chuyện rời file xảy ra
     // thường xuyên hơn hẳn nên không vá thì đây thành cái bẫy.
+    _neAutoHuy();   // hẹn của file cũ không được bắn sau khi đã sang file mới
     if (_neOpenRel && _neOpenRel !== (rel || "") && _neCoSuaChua()) {
       if ((await _neSaveFn()) === false) return;   // lưu hỏng thì ở lại, lỗi hiện trên nút Lưu
     }
@@ -9164,7 +9201,7 @@
         const srcToWys = () => { wys.innerHTML = window.mdToHtml ? window.mdToHtml(ta.value, null, { trinhSua: true, thuMuc: neThuMuc }) : esc(ta.value); };
         let demLai = null;
         _neBuildToolbar(body.querySelector(".ne-fmt"), { mode: () => curMode, ta, wys,
-          onChange: () => { if (demLai) demLai(); } });   // thanh công cụ chạy cả 2 chế độ
+          onChange: () => { if (demLai) demLai(); _neAutoHoan(); } });   // thanh công cụ chạy cả 2 chế độ
         // Đếm chữ HIỆN RA: chế độ Sửa lấy chữ của bản render, chế độ Mã nguồn bỏ cú pháp markdown.
         demLai = _neGanDemTu(body.querySelector(".ne-fmt"),
           () => (curMode === "wys" ? { text: wys.innerText, md: false } : { text: ta.value, md: true }), [ta, wys]);
@@ -9206,7 +9243,9 @@
         const content = _neLayNoiDung();
         const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("content", content);
         try {
-          const r = await (await fetch("/files/write", { method: "POST", body: fd })).json();
+          // keepalive: lượt lưu lúc đóng tab vẫn đi tới server sau khi trang đã tắt. Trình duyệt
+          // chặn thân keepalive quá 64KB, nên note dài đi đường thường như cũ.
+          const r = await (await fetch("/files/write", { method: "POST", body: fd, keepalive: content.length < 20000 })).json();
           if (r.ok) {
             saveBtn.innerHTML = CHECK_ICON + " " + esc(window.t("cs.ne_saved")); saveBtn.classList.add("ne-saved");
             setTimeout(() => { saveBtn.innerHTML = SAVE_ICON + " " + esc(window.t("common.save")); saveBtn.classList.remove("ne-saved"); }, 1400);
@@ -9218,6 +9257,11 @@
         return false;
       };
       saveBtn.onclick = _neSaveFn;
+      // Gắn vào CHÍNH hai khung soạn (dựng mới mỗi lần mở file), không gắn vào #neBody: #neBody
+      // sống qua mọi lần mở, gắn ở đó là listener chồng vô hạn, một cú gõ bắn N lượt ghi đĩa.
+      const _wysAuto = document.getElementById("neWys");
+      ta.addEventListener("input", _neAutoHoan);
+      if (_wysAuto) _wysAuto.addEventListener("input", _neAutoHoan);
       actions.appendChild(saveBtn);
       _neCommonBtns(actions, rel, it);
       _vtMarkActive(isMd ? rel : null);
