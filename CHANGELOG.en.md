@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.244.0] - 2026-10-20
+### Added
+- **Remote access gains a Tailscale option.** (in progress)
+
 ## [0.242.0] - 2026-10-20
 ### Added
 - **Open Javis from your phone or another computer, even when it runs on a Windows or macOS machine at home.** Settings has a new **Remote access** section: turn it on and you get an HTTPS link, with no VPS, no router port and no terminal. The microphone and voice work over that link.
