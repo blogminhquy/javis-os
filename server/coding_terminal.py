@@ -432,6 +432,14 @@ def _powershell() -> Optional[str]:
     return shutil.which("pwsh") or shutil.which("powershell")
 
 
+def _co_tao_tien_trinh() -> int:
+    """Cờ tạo tiến trình: trên Windows không nháy cửa sổ console và mở nhóm riêng (để dừng được
+    cả cây). POSIX dùng start_new_session thay cho nhóm, cờ này là 0."""
+    if POSIX:
+        return 0
+    return winproc.no_window() | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+
 def _dung_nhom(p: subprocess.Popen) -> None:
     """Dừng cả nhóm tiến trình: TERM, đợi 3 giây, rồi KILL."""
     try:
@@ -548,13 +556,9 @@ def chay(command: str, sid: str, goc: List[str], timeout: Optional[float] = None
     duoi: List[bytes] = []
     try:
         with open(duong_day_du, "wb") as f_day_du:
-            kw = dict(cwd=cwd, env=env_sach(), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                      stderr=subprocess.STDOUT)
-            if POSIX:
-                kw["start_new_session"] = True
-            else:
-                kw["creationflags"] = winproc.no_window() | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            p = subprocess.Popen(argv, **kw)
+            p = subprocess.Popen(argv, cwd=cwd, env=env_sach(), stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 start_new_session=POSIX, creationflags=_co_tao_tien_trinh())
             dem = [0]
             th = threading.Thread(target=lambda: dem.__setitem__(0, _doc_ong(p.stdout, f_day_du,
                                                                               FILE_DAY_DU_TOI_DA, duoi)),
@@ -709,12 +713,9 @@ def chay_nen(command: str, sid: str, goc: List[str], workdir: str = "", brain_ro
     log = d / f"proc-{uuid.uuid4().hex[:12]}.log"
     try:
         f = open(log, "wb")
-        kw = dict(cwd=cwd, env=env_sach(), stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT)
-        if POSIX:
-            kw["start_new_session"] = True
-        else:
-            kw["creationflags"] = winproc.no_window() | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        p = subprocess.Popen(argv, **kw)
+        p = subprocess.Popen(argv, cwd=cwd, env=env_sach(), stdin=subprocess.DEVNULL, stdout=f,
+                             stderr=subprocess.STDOUT, start_new_session=POSIX,
+                             creationflags=_co_tao_tien_trinh())
         f.close()
     except OSError as e:
         return f"ERROR: không bật được tiến trình nền: {type(e).__name__}: {e}"
