@@ -32,6 +32,7 @@ import localefmt
 import mcp_catalog
 import mcp_client
 import mcp_store
+import once_ledger
 import skill_router
 import skill_usage
 import team_gate
@@ -244,7 +245,13 @@ def _guard(ent, fn, mode):
                            "err": why[:200], "args_keys": sorted((args or {}).keys()), **team_gate.audit_fields()})
             return "ERROR: " + why
         t0 = time.time()
-        result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
+        if cls == "read":
+            result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
+        else:
+            # 0.236.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
+            # Outside a background job this calls straight through.
+            result = await once_ledger.run(
+                fn, args, lambda a: mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, a))
         _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
                        "connector": conn.get("connector_id"), "label": conn.get("label"),
                        "tool": tool, "mode": mode, "cls": cls,

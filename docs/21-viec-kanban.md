@@ -135,6 +135,20 @@ Trả lời xong, việc tự quay lại hàng đợi và chạy tiếp. Lần c
 
 **Xóa khỏi bảng** hỏi xác nhận trước: "Xóa task này khỏi bảng? Task sẽ được lưu trữ để không mất lịch sử." Việc đang chạy phải **Dừng task** trước rồi mới xoá được. Nếu thao tác không thành, Javis hiện hộp báo lỗi nguyên văn từ server, hoặc "Không thể cập nhật task".
 
+### Chạy lại không gửi trùng (từ 0.236.0)
+
+Việc nền có thể chạy lại: lỗi tạm thời thì tự thử lại, máy chủ khởi động lại giữa chừng thì việc về hàng đợi, hoặc bạn bấm Thử lại. Trước đây mỗi lần chạy lại là làm lại từ đầu, nên một tin Zalo, một bài đăng hay một đơn hàng có thể ra ngoài hai lần.
+
+Giờ Javis ghi sổ từng thao tác ra ngoài của một việc (gửi tin, đăng bài, tạo đơn qua kết nối hoặc plugin), theo đúng việc, đúng tool và đúng nội dung:
+
+- **Đã làm xong ở lần trước:** lần chạy lại không làm nữa, worker nhận lại kết quả cũ và đi tiếp phần còn lại.
+- **Không chắc đã tới nơi chưa** (máy chủ dừng hoặc mất kết nối đúng lúc đang gửi): Javis không tự gửi lại. Việc dừng lại hỏi bạn, kể rõ thao tác nào. Trả lời **"đã gửi"** thì Javis bỏ qua, trả lời **"chưa gửi"** thì Javis làm lại đúng một lần. Câu trả lời nào không mở đầu bằng "chưa" hay "gửi lại" đều được hiểu là đã gửi, để không bao giờ gửi trùng cho khách.
+- **Dịch vụ báo lỗi rõ ràng** (sai mã người nhận, hết quyền): coi như chưa gửi, lần sau được thử lại.
+
+Chat thường không đổi gì: sổ này chỉ áp cho việc nền trên bảng Việc.
+
+Giới hạn: sổ nằm ở hub của Javis, nên chỉ thấy thao tác đi qua hub. Kết nối gắn với tài khoản Claude (Gmail, Drive trên claude.ai) và lệnh shell của engine không đi qua hub nên không được ghi sổ. Grok Build và Antigravity CLI chưa mang được mã việc tới hub, nên việc chạy trên hai engine này chưa có lớp bảo vệ này.
+
 ## Các trạng thái của một việc
 
 Đây là bảng dịch nghĩa đầy đủ những chữ hiện trên viên trạng thái.
@@ -283,6 +297,7 @@ Chi tiết ở [Tự học](22-tu-hoc.md).
 ## Dữ liệu của bảng nằm ở đâu
 
 - **Nguồn chính**: file `kanban.sqlite3` trong thư mục state của Javis (biến `JAVIS_STATE_DIR`, mặc định là thư mục `server/`). Đây là nơi giữ vòng đời, lần chạy và nhật ký sự kiện. Nó cố tình nằm ngoài brain để việc đang chạy không bị đồng bộ git ghi đè.
+- **Sổ thao tác ra ngoài** (từ 0.236.0): file `once_ledger.sqlite3` cạnh `kanban.sqlite3`, ghi thao tác nào của việc nào đã làm xong. Dòng đã xong quá 30 ngày tự xoá.
 - **Bản sao đọc được**: `Javis/kanban.json` trong brain, được ghi lại mỗi lần bảng đổi. File này để sao lưu và để bản Javis cũ đọc được; sửa tay vào đó không đổi được gì trong hàng đợi thật.
 - Bảng cũ từ những bản Javis trước được nhập vào đúng một lần, và việc còn kẹt ở trạng thái "đang chạy" của tiến trình cũ được đưa về hàng đợi.
 - Việc hoàn thành hoặc đã huỷ quá **3 ngày** tự chuyển sang lưu trữ để bảng không phình ra.

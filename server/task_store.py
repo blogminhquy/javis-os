@@ -1037,6 +1037,7 @@ class TaskStore:
 
     def ask(
         self, task_id: str, worker_id: str, question: str, result: str = "",
+        extra_meta: Optional[dict] = None,
     ) -> Optional[dict]:
         """Chặn việc ở `needs_input` VÀ ghi câu hỏi vào `metadata.qa` (0.235.0).
 
@@ -1056,6 +1057,7 @@ class TaskStore:
             "progress": (result or "").strip()[:QA_PROGRESS_MAX],
         })
         meta["qa"] = qa[-QA_KEEP:]
+        meta.update(extra_meta or {})
         return self._finish(
             task_id, worker_id, "blocked",
             result=result, error=question, block_kind="needs_input",
@@ -1092,6 +1094,7 @@ class TaskStore:
                                "asked_at": float(row["updated_at"] or now())})
                 qa[-1].update({"a": text[:QA_TEXT_MAX], "answered_at": now(), "by": by})
                 meta["qa"] = qa[-QA_KEEP:]
+                meta.pop("once_pending", None)     # câu hỏi "đã gửi chưa" (0.236.0) đã có lời đáp
                 self._db.execute(
                     """UPDATE tasks SET status='ready', block_kind='', block_reason='',
                        attempts=CASE WHEN attempts > 0 THEN attempts - 1 ELSE 0 END,
