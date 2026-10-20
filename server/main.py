@@ -274,6 +274,12 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
 # (op=update) gọi từ chính máy này khi user nói "đổi giờ việc đó sang 8h" - thiếu nó thì sửa lịch
 # bằng chat trả 401 câm. /reminders/delete CỐ Ý không có ở đây: xoá hẳn thì để dashboard (có
 # session) làm, chat chỉ cần huỷ.
+# 0.253.0 (security): "local" means a request made on this machine itself, not merely one whose client address is
+# 127.0.0.1. The built-in Cloudflare Tunnel (0.242.0), Tailscale serve (0.244.0) and any nginx/Caddy on a VPS all
+# connect from 127.0.0.1, so the old address-only check let anyone holding the tunnel URL create a reminder (task or
+# script mode, full permission level) or push a file to Telegram without logging in. _auth_guard now asks
+# _direct_local_request(), which also refuses requests carrying a forwarding header. The in-process callers
+# (javis_schedule, the curl recipes the engines run) call 127.0.0.1 directly and send no such header.
 _AUTH_LOCAL_EXACT = ("/telegram/send-file", "/reminders", "/reminders/cancel", "/reminders/update")
 
 
@@ -330,10 +336,9 @@ async def _auth_guard(request: Request, call_next):
     (setup_required), tránh hở dashboard điều khiển Claude full quyền ra Internet."""
     if cfgmod.gate_active():
         path = duong_dan_router(request)   # KHÔNG phải request.url.path - xem duong_dan_router
-        client_host = request.client.host if request.client else ""
         public = (path in _AUTH_PUBLIC_EXACT
                   or any(path.startswith(p) for p in _AUTH_PUBLIC_PREFIX)
-                  or (path in _AUTH_LOCAL_EXACT and client_host in ("127.0.0.1", "::1"))
+                  or (path in _AUTH_LOCAL_EXACT and _direct_local_request(request))
                   # Đường HTTP của plugin mà CHÍNH plugin khai là công khai (0.64.26). Chỉ hỏi
                   # khi đúng tiền tố, để request thường không phải đi tra danh sách plugin.
                   or ((path.startswith("/ext/") or path.startswith("/.well-known/"))

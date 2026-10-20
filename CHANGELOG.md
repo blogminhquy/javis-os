@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.253.0] - 2026-10-20
+### Bảo mật
+- **Bật truy cập từ xa không còn để lộ đường tạo nhắc việc.** Bốn đường Javis dùng nội bộ trên chính máy (tạo, sửa, huỷ nhắc việc và gửi file qua Telegram) được miễn đăng nhập. Nhưng Cloudflare Tunnel, Tailscale và proxy trên VPS cũng đi vào từ chính máy, nên ai có địa chỉ tunnel đều tạo được nhắc việc chạy AI hay script mà không cần mật khẩu. Giờ yêu cầu đi qua tunnel hay proxy phải đăng nhập; Javis tự gọi trên máy vẫn chạy như cũ.
+- Nếu bạn đã bật truy cập từ xa trước bản này, nên mở trang Việc định kỳ xem có nhắc việc lạ nào không.
+
 ## [0.251.0] - 2026-10-20
 ### Thêm mới
 - **Kho đăng nhập** (thanh bên, nhóm Kết nối): đăng nhập trên trình duyệt của bạn, xuất cookie bằng Cookie-Editor rồi dán vào. Javis dùng lại phiên đó để đọc trang cần đăng nhập (kênh người bán, trang affiliate, trang quản trị) và để **Theo dõi trang** canh được trang cần đăng nhập. Mỗi thẻ ghi còn đăng nhập hay đã hết hạn, hạn tới ngày nào, có công tắc cho Javis dùng.
