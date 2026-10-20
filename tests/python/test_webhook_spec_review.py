@@ -1473,6 +1473,18 @@ async def fix_review_four():
     real = [(r.path, sorted(r.methods)[0], r.name) for r in f.router.routes]
     check("startup: webhook_lazy.ROUTES lists the feature's routes in the same order, methods and names",
           list(wl.ROUTES) == real, [x for x in zip(wl.ROUTES, real) if x[0] != x[1]][:3])
+    from fastapi import FastAPI as _FA2
+    app_l = _FA2()
+    lz = wl.register(app_l, {})
+    lz._feat, lz._endpoints = f, {r.name: r.endpoint for r in f.router.routes}
+    a0 = len(f.store().audit_rows(limit=1000))
+    import httpx as _hx2
+    async with _hx2.AsyncClient(transport=_hx2.ASGITransport(app=app_l), base_url="http://t") as cl_l:
+        hd_l = await cl_l.head("/webhooks/events/export", params={"raw": 1})
+        gt_l = await cl_l.get("/webhooks")
+    check("startup P3: HEAD on a lazy GET route answers 405 and writes no audit row; GET answers through the feature",
+          hd_l.status_code == 405 and len(f.store().audit_rows(limit=1000)) == a0 and gt_l.status_code == 200,
+          (hd_l.status_code, gt_l.status_code))
     # R11 P3: two events of one hook told at once make one incident notice, not two.
     hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
                          rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,

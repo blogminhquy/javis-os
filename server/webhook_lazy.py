@@ -105,13 +105,18 @@ def register(app, deps_kwargs: dict) -> LazyWebhooks:
     from starlette.routing import Route
     lazy = LazyWebhooks(deps_kwargs)
 
-    def endpoint(name: str):
+    def endpoint(name: str, method: str):
         async def ep(request):
+            # Starlette answers HEAD on a GET route; the real routes never did, and a HEAD on a raw view or export
+            # would write its audit row for nothing.
+            if request.method != method:
+                from starlette.responses import Response
+                return Response(status_code=405, headers={"allow": method})
             return await lazy.call(name, request)
         ep.__name__ = name
         return ep
     for path, method, name in ROUTES:
-        app.router.routes.append(Route(path, endpoint(name), methods=[method], name=name,
+        app.router.routes.append(Route(path, endpoint(name, method), methods=[method], name=name,
                                        include_in_schema=False))
 
     @app.on_event("startup")
