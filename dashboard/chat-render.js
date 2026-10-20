@@ -412,10 +412,34 @@
   function phienBanAnh(u) {
     return (_anhVForRender && /^\/files\/raw\?/.test(u)) ? u + "&v=" + encodeURIComponent(_anhVForRender) : u;
   }
-  function imgHtml(u, alt, rawpath, duPhong) {
+  // Phan sau dau | cua ![[anh|..]] kieu Obsidian: "300" / "300x200" la CO anh, chu thi la
+  // alt text. Tra null khi khong co gi.
+  function coAnh(s) {
+    s = String(s == null ? "" : s).trim();
+    if (!s) return null;
+    var m = /^(\d{1,5})(?:x(\d{1,5}))?$/i.exec(s);
+    if (m) return { w: +m[1], h: m[2] ? +m[2] : 0 };
+    return { alias: s };
+  }
+  // the: thuoc tinh them cho the <img> (wiki, co, alias). data-vault-path nam TREN the <img>
+  // de luat turndown "wikiimg" cua trinh sua nhan ra va luu nguoc dung ![[..]] / ![](..),
+  // khong thi anh luu ra thanh ![x](/files/raw?brain=...) dinh cung ten brain vao note.
+  function imgHtml(u, alt, rawpath, duPhong, the) {
     u = phienBanAnh(u);
+    the = the || {};
     var con = (duPhong || []).map(phienBanAnh).filter(function (x) { return x && x !== u; });
-    var img = '<img class="chat-img" src="' + esc(u) + '" alt="' + esc(alt || "") + '"' +
+    var laVault = !!(rawpath && isVaultRel(rawpath));
+    var phu = "";
+    if (laVault) phu += ' data-vault-path="' + esc(String(rawpath).replace(/^\.?\//, "")) + '"';
+    if (the.wiki) phu += ' data-img-wiki="1"';
+    if (the.co && the.co.w) {
+      var cs = the.co.w + (the.co.h ? "x" + the.co.h : "");
+      phu += ' data-img-size="' + esc(cs) + '" style="width:' + the.co.w + "px" +
+        (the.co.h ? ";height:" + the.co.h + "px" : "") + '"';
+    } else if (the.co && the.co.alias) {
+      phu += ' data-img-alias="' + esc(the.co.alias) + '"';
+    }
+    var img = '<img class="chat-img" src="' + esc(u) + '" alt="' + esc(alt || "") + '"' + phu +
       (con.length ? ' data-jv-thu="' + esc(con.join("|")) + '"' : "") +
       ' loading="lazy" onerror="jvImgGone(this)">';
     // Bam vao anh = XEM PHONG TO (lightbox), khong phai tai ve. Truoc day anh trong vault duoc
@@ -621,10 +645,12 @@
       return put(code);
     });
     // 3) anh vault ![[..]] + anh markdown ![]() (giu URL qua placeholder de khong bi escape)
-    raw = raw.replace(/!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g, function (_m, name) {
+    raw = raw.replace(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/g, function (_m, name, sau) {
       name = name.trim();
       var uvW = ungVienAnh(name);
-      return put(imgHtml(uvW[0] || resolveSrc(name), name, name, uvW.slice(1)));
+      var co = coAnh(sau);
+      return put(imgHtml(uvW[0] || resolveSrc(name), (co && co.alias) || name, name, uvW.slice(1),
+                         { wiki: true, co: co }));
     });
     // 3b) wikilink [[target]] / [[target|alias]] (anh ![[..]] da an o tren) -> link dieu huong nhu Wikipedia
     raw = raw.replace(/\[\[([^\[\]\n|]+?)(?:\|([^\[\]\n]*))?\]\]/g, function (_m, target, alias) {
@@ -1444,7 +1470,7 @@
     module.exports = { mdToHtml: mdToHtml, visibleMarkdown: visibleMarkdown,
       highlight: highlight, wkResolve: wkResolve,
       appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
-      isDownloadFile: isDownloadFile,
+      isDownloadFile: isDownloadFile, coAnh: coAnh,
       laLinkTaiFile: laLinkTaiFile, laIOS: laIOS,
       // Xuat them de test chay THAT chuoi du phong cua anh (xem ungVienAnh / imgGone).
       ungVienAnh: ungVienAnh, ghepDuong: ghepDuong, imgGone: imgGone,

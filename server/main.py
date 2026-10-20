@@ -8073,6 +8073,9 @@ async def files_rename(brain: str = Form("brain"), path: str = Form(...), newnam
 _THU_MUC_LOGIC = {
     "sources": (r"^(\d+\s*[-_.]\s*)?sources$", "Sources"),
     "attachments": (r"^(\d+\s*[-_.]\s*)?attachments$", "Attachments"),
+    # Ảnh chèn vào note (dashboard/note-images.js). KHÔNG dùng chung attachments/: media_gc coi
+    # attachments/ là vùng cache và xoá file quá 30 ngày, còn ảnh note thì có note trỏ vào.
+    "images": (r"^(\d+\s*[-_.]\s*)?images$", "images"),
 }
 
 
@@ -8089,7 +8092,14 @@ async def files_upload(file: UploadFile = File(...), brain: str = Form("brain"),
         try:
             # Client lưu và mở file bằng đường dẫn tương đối TRẦN duyệt, nên phải quy về đó -
             # trả đường tuyệt đối là đẩy một đường dẫn máy chủ vào cơ sở dữ liệu project.
-            rel_dir = d.relative_to(_files_root(brain)).as_posix()
+            # Riêng ảnh note: đường dẫn được NHÚNG vào note (![[images/a.webp]]) và trình render
+            # tính nó từ GỐC BRAIN, nên phải tương đối gốc brain. Trên máy local trần duyệt có thể
+            # là cả ổ đĩa, tính từ đó là ghi "Users/.../images/a.webp" vào note - ảnh hỏng ngay
+            # khi đổi máy hay đổi chỗ để brain.
+            if folder.strip().lower() == "images":
+                rel_dir = d.resolve().relative_to(Path(_brain_root(brain)).resolve()).as_posix()
+            else:
+                rel_dir = d.relative_to(_files_root(brain)).as_posix()
         except ValueError:
             return JSONResponse({"error": localefmt.chu("Thư mục nằm ngoài phạm vi duyệt", "The folder is outside the browsable area")}, status_code=400)
     else:

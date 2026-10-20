@@ -174,6 +174,16 @@
         if (c.mode() === "wys") exec(c, "createLink", u); else wrapTa(c, "[", "](" + u + ")", dich("ecmd.ph_text"));
       } },
 
+    // Chen anh (note-images.js lo nen, tai len images/ va nhung ![[..]]). Phim Ctrl+Alt+I chu
+    // KHONG phai Ctrl+Shift+I: to hop do la mo devtools tren moi trinh duyet. Dung e.code vi
+    // giu Alt tren Mac thi e.key cua phim I thanh ky tu khac.
+    { id: "image", label: "ecmd.image", kw: "chen anh hinh image picture photo", btn: { icon: "image" },
+      key: { alt: true, code: "KeyI", show: "I" },
+      run: function (c) {
+        var NI = (typeof window !== "undefined") && window.JavisNoteImages;
+        if (NI && NI.chonTep) NI.chonTep(c);
+      } },
+
     { id: "hr", label: "ecmd.hr", kw: "duong ke ngan cach", btn: { text: "―" },
       wys: function (c) { exec(c, "insertHorizontalRule"); },
       src: function (c) { insTa(c, "\n---\n"); } },
@@ -269,6 +279,8 @@
       }
       return null;
     }
+    // note-images.js dung CHUNG ham tim khung soan nay, khong chep ban thu hai.
+    api.ctxTu = ctxTu;
 
     // ----- phim tat -----
     document.addEventListener("keydown", function (e) {

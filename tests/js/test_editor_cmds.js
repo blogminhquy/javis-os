@@ -23,8 +23,8 @@ function ev(o) {
 function id(c) { return c ? c.id : null; }
 
 // ---- 1. Bảng lệnh đủ mặt ----
-const MONG = ["bold", "italic", "h1", "h2", "h3", "ul", "ol", "task", "quote", "code", "link", "hr"];
-check("có đủ 12 lệnh, đúng thứ tự hiển thị", EC.CMDS.map(c => c.id).join(",") === MONG.join(","));
+const MONG = ["bold", "italic", "h1", "h2", "h3", "ul", "ol", "task", "quote", "code", "link", "image", "hr"];
+check("có đủ 13 lệnh (thêm nút chèn ảnh, test_anh_trong_note.js), đúng thứ tự hiển thị", EC.CMDS.map(c => c.id).join(",") === MONG.join(","));
 check("lệnh checkbox tồn tại", !!EC.CMDS.find(c => c.id === "task"));
 // Nút checkbox phải đứng CÙNG HÀNG, ngay sau hai kiểu danh sách (yêu cầu "cùng hàng với các nút kia").
 const iOl = EC.CMDS.findIndex(c => c.id === "ol"), iTask = EC.CMDS.findIndex(c => c.id === "task");
@@ -81,8 +81,8 @@ check("title nút không phím tắt thì trơn", EC.btnTitle(EC.CMDS.find(c => 
 // CHỌN, mà gõ "/" xong thì có chọn gì đâu. Chúng vẫn giữ nút và Ctrl+B / Ctrl+I.
 check("menu '/' KHÔNG còn đậm và nghiêng",
       EC.menuCmds().every(c => c.id !== "bold" && c.id !== "italic"));
-check("menu '/' còn đúng 10 mục", EC.menuCmds().length === 10);
-check("CANARY: đậm/nghiêng VẪN nằm trên thanh công cụ", EC.CMDS.length === 12);
+check("menu '/' còn đúng 11 mục", EC.menuCmds().length === 11);
+check("CANARY: đậm/nghiêng VẪN nằm trên thanh công cụ", EC.CMDS.length === 13);
 check("CANARY: đậm/nghiêng VẪN còn phím tắt",
       id(EC.matchCmd(ev({ ctrlKey: 1, key: "b" }))) === "bold" &&
       id(EC.matchCmd(ev({ ctrlKey: 1, key: "i" }))) === "italic");

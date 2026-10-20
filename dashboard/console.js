@@ -8915,8 +8915,18 @@
           }
           return "[" + (c || p) + "](" + p + ")";                    // link markdown vault: giữ dạng [chữ](đường-dẫn)
         } });
+      // Ảnh vault: giữ ĐÚNG cú pháp gốc. ![[a|300]] (cỡ kéo tay hoặc alt text sau dấu |) lưu lại
+      // y nguyên; ![chữ](a) vẫn là ![chữ](a). Riêng ảnh ![](..) bị kéo đổi cỡ thì chuyển sang
+      // ![[..|cỡ]], vì cú pháp ![](..) không có chỗ ghi cỡ - giữ nguyên là bỏ mất thao tác kéo.
       _td.addRule("wikiimg", { filter: (n) => n.nodeName === "IMG" && n.getAttribute("data-vault-path") != null,
-        replacement: (c, n) => "![[" + n.getAttribute("data-vault-path") + "]]" });
+        replacement: (c, n) => {
+          const p = n.getAttribute("data-vault-path");
+          const co = n.getAttribute("data-img-size");
+          const alias = n.getAttribute("data-img-alias");
+          if (co) return "![[" + p + "|" + co + "]]";
+          if (n.getAttribute("data-img-wiki") === "1") return "![[" + p + (alias ? "|" + alias : "") + "]]";
+          return "![" + (n.getAttribute("alt") || "") + "](" + p + ")";
+        } });
       // Các khối render đặc biệt của mdToHtml phải TRẢ VỀ đúng fence gốc khi lưu bản WYSIWYG,
       // nếu không nội dung note bị phá (mất truy vấn dataview, mất code). Round-trip:
       // Frontmatter: trả lại NGUYÊN VĂN khối `---...---`. Thiếu luật này thì mỗi lần lưu một
