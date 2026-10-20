@@ -142,7 +142,12 @@ for lop, ten in _BA_HAM:
 #
 # Vẫn giữ phép đo này dù nó thô: nó là thứ duy nhất bắt được "main phình lên" khi thư viện
 # nặng mới CHƯA kịp có tên trong NANG_PHAI_LUOI. Hàng rào chính xác là danh sách đó.
-TRAN_TI_LE = 4.0
+#
+# NÂNG 4,0 -> 4,5 ở 0.244.0 (chủ repo chốt 20/10/2026). Đo lại: 4,05-4,54 trên máy dev, và trên CI
+# cùng một bản code lúc xanh lúc đỏ (đỏ cả ở commit chỉ đổi số phiên bản). Không có thư viện nặng
+# nào mới: riêng thân main.py (hơn 520 endpoint) đã ~550ms, đúng kiểu phình chính đáng mà khối
+# trên đã đoán trước. 4,5 vẫn bắt được ca cần bắt: edge_tts quay lại mức module là ~5,9.
+TRAN_TI_LE = 4.5
 
 
 def do_nap_xen_ke(codes, n=5):
