@@ -39,10 +39,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec, utils as asym_utils
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+# `cryptography` (about 20 ms) loads in the functions that sign or encrypt, not at `import main` (0.241.0).
 
 from config import STATE_DIR
 
@@ -70,6 +67,8 @@ def b64u_giai(s) -> bytes:
 # Khoá VAPID - sinh một lần, sống mãi ở STATE_DIR
 # ============================================================
 def _sinh_vapid() -> dict:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
     pk = ec.generate_private_key(ec.SECP256R1())
     pem = pk.private_bytes(serialization.Encoding.PEM,
                            serialization.PrivateFormat.PKCS8,
@@ -136,6 +135,8 @@ def _jwt_vapid(endpoint: str, sub_lien_he: str = None) -> str:
     Chữ ký PHẢI là r||s thô 64 byte. `cryptography` ký ra DER, nên có bước đổi ở dưới -
     quên bước này thì mọi dịch vụ đẩy trả 401 mà không nói vì sao.
     """
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec, utils as asym_utils
     sub_lien_he = sub_lien_he or lien_he()
     d = khoa_vapid()
     pk = serialization.load_pem_private_key(d["private_pem"].encode("ascii"), password=None)
@@ -164,6 +165,10 @@ def ma_hoa(plaintext: bytes, p256dh: str, auth: str, *,
     `salt` và `khoa_tam` chỉ để test bơm giá trị cố định vào - chạy thật thì luôn ngẫu nhiên,
     và PHẢI ngẫu nhiên: dùng lại cặp (khoá tạm, salt) cho hai tin là lộ khoá dòng.
     """
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     ua_pub_raw = b64u_giai(p256dh)
     auth_raw = b64u_giai(auth)
     if len(ua_pub_raw) != 65 or ua_pub_raw[0] != 0x04:
@@ -198,6 +203,10 @@ def giai_ma(body: bytes, khoa_rieng_ua, auth: str) -> bytes:
     Không có hàm này thì test chỉ kiểm được "có ra bytes", tức là một lỗi dẫn khoá vẫn
     lọt qua và chỉ lộ ra khi trình duyệt thật im lặng không hiện thông báo nào.
     """
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     salt, ct = body[:16], body[21 + body[20]:]
     as_pub_raw = body[21:21 + body[20]]
     ua_pub_raw = khoa_rieng_ua.public_key().public_bytes(

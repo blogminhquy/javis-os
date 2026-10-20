@@ -32,6 +32,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - Notifications: every run, errors only (repeated errors grouped into one), a daily digest in the time zone you pick, or off. Off still keeps system alerts such as a nearly full disk.
 - On first start of this version the webhook list moves into the new store (with a backup) and older webhooks run as before.
 - A domain that briefly fails to resolve is retried later instead of failing for good.
+- Javis starts a little faster: the webhook platform, the push notification crypto library and uvicorn load only when needed.
 ### Fixed
 - An Apps Script that ran but answered with an unreadable page is now "unknown", not "failed", so Retry does not write a second row.
 - Saving from an old tab, or from two tabs at once, never brings a secret key back to an older value.

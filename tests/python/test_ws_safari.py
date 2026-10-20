@@ -85,6 +85,15 @@ check("a large message still arrives whole", n == 50000, n)
 ext, _ = negotiated({"JAVIS_WS_DEFLATE": "1"})
 check("JAVIS_WS_DEFLATE=1 keeps compression", "permessage-deflate" in ext, ext)
 
+# 0.241.0: ws_compat no longer loads uvicorn itself; when main comes first (`python main.py`), the patch lands as soon as
+# uvicorn.config loads.
+LATE = ("import sys, ws_compat; ws_compat.disable_deflate(); print('uvicorn' in sys.modules); "
+        "import uvicorn.config as u; print(u.Config('x:y').ws_per_message_deflate)")
+late = subprocess.run([sys.executable, "-c", LATE], cwd=str(SERVER), capture_output=True, text=True,
+                      env={k: v for k, v in os.environ.items() if k != "JAVIS_WS_DEFLATE"})
+check("disable_deflate does not load uvicorn, and a uvicorn loaded after it still has compression off",
+      late.stdout.split() == ["False", "False"], (late.stdout, late.stderr[-300:]))
+
 main_src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 i_compat = main_src.find("ws_compat.disable_deflate()")
 i_app = main_src.find("app = FastAPI(")

@@ -15,10 +15,17 @@ import) turns the setting into a read-only False on the Config class: a data des
 value uvicorn's __init__ stored on the instance. The cost is bandwidth only: chat frames are small text deltas.
 
 `JAVIS_WS_DEFLATE=1` keeps uvicorn's compression (for a setup that needs it and has no Safari users).
+
+0.241.0: `import main` no longer loads uvicorn for this (about 40 ms of every start, on a check that sits at its
+ceiling). Every launch path but `python main.py` has loaded uvicorn before main, so the patch applies at once; otherwise
+a one-shot import hook applies it the moment `uvicorn.config` loads, before any Config exists.
 """
 from __future__ import annotations
 
+import importlib.abc
+import importlib.machinery
 import os
+import sys
 
 
 def wanted() -> bool:
@@ -30,9 +37,33 @@ def disable_deflate() -> bool:
     """Make every uvicorn Config report ws_per_message_deflate=False. Returns True when applied."""
     if wanted():
         return False
-    try:
-        from uvicorn import config as uv_config
-    except Exception:  # noqa: BLE001 - no uvicorn (tests, another server): nothing to change
-        return False
-    uv_config.Config.ws_per_message_deflate = property(lambda self: False, lambda self, value: None)
+    mod = sys.modules.get("uvicorn.config")
+    if mod is not None:
+        _patch(mod)
+    elif not any(isinstance(f, _PatchOnLoad) for f in sys.meta_path):
+        sys.meta_path.insert(0, _PatchOnLoad())
     return True
+
+
+def _patch(uv_config) -> None:
+    uv_config.Config.ws_per_message_deflate = property(lambda self: False, lambda self, value: None)
+
+
+class _PatchOnLoad(importlib.abc.MetaPathFinder):
+    """Patches `uvicorn.config` right after it is executed, then removes itself."""
+
+    def find_spec(self, name, path=None, target=None):
+        if name != "uvicorn.config":
+            return None
+        spec = importlib.machinery.PathFinder.find_spec(name, path)
+        if spec is None or spec.loader is None:
+            return None
+        run = spec.loader.exec_module
+
+        def exec_module(module):
+            run(module)
+            _patch(module)
+            if self in sys.meta_path:
+                sys.meta_path.remove(self)
+        spec.loader.exec_module = exec_module
+        return spec

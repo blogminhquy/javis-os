@@ -30,6 +30,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Thông báo: mọi lần, chỉ khi lỗi (lỗi lặp gộp làm một), tóm tắt mỗi ngày theo múi giờ bạn chọn, hoặc tắt. Tắt vẫn giữ cảnh báo hệ thống như sắp đầy đĩa.
 - Lần đầu chạy bản này, danh sách webhook chuyển vào kho mới (có bản sao lưu) và webhook cũ chạy như trước.
 - Tên miền tạm thời không phân giải được thì Javis thử lại sau, không báo lỗi hẳn.
+- Javis khởi động nhanh hơn một chút: phần webhook, thư viện mã hoá của thông báo đẩy và uvicorn chỉ nạp khi cần.
 ### Sửa lỗi
 - Apps Script đã chạy nhưng trả về trang không đọc được thì sự kiện thành "chưa rõ" chứ không phải "lỗi", nên bấm Chạy lại không ghi thêm một dòng trùng.
 - Lưu cấu hình từ một tab cũ, hay hai tab lưu cùng lúc, không làm khoá bí mật quay về bản cũ.

@@ -49,12 +49,18 @@ NANG_PHAI_LUOI = {
     # 0.59.18: jsonschema ~50ms, chỉ hai hàm của capability_executor và một hàm của
     # readonly_orchestrator dùng, và cả ba chỉ chạy khi thật sự cấp/kiểm một capability lease.
     "jsonschema": "kiểm schema capability lease - ~50ms, chỉ dùng khi có lease",
+    # 0.241.0: ws_compat chỉ vá uvicorn khi uvicorn thật sự được nạp (~40ms); webpush chỉ nạp
+    # cryptography khi ký hoặc mã hoá (~20ms). Phép đo tỉ lệ đã chạm trần 4,0 ngay trên main.
+    "uvicorn": "chỉ cần khi chạy server; mọi đường khởi động đã nạp nó trước hoặc tự nạp sau",
+    "cryptography": "chỉ webpush ký VAPID và mã hoá tin đẩy, lúc thật sự gửi",
 }
 
 # File nào phải KHÔNG có lệnh import thư viện đó ở cột 0. Mặc định là main.py; thư viện nào
 # từng nằm ở file khác thì ghi rõ file ấy, kẻo hàng rào canh sai chỗ.
 NOI_CAM_IMPORT = {
     "jsonschema": ("capability_executor.py", "readonly_orchestrator.py"),
+    "uvicorn": ("main.py", "ws_compat.py"),
+    "cryptography": ("main.py", "webpush.py"),
 }
 
 import main  # noqa: E402,F401
