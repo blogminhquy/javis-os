@@ -618,12 +618,12 @@ async def review():
     real_claim = f.store().claim
     hit = {"n": 0}
 
-    def slow_claim(worker, now=None):
+    def slow_claim(worker, now=None, avoid=None):
         hit["n"] += 1
         if hit["n"] == 1:
             time.sleep(0.4)
             return None              # nothing yet...
-        return real_claim(worker, now)
+        return real_claim(worker, now, avoid)
     f.store().claim = slow_claim
     f._kick()
     await asyncio.sleep(0.1)         # ...the event arrives during that claim

@@ -59,6 +59,7 @@ class WebhookWorker:
         self._pump: Optional[asyncio.Task] = None
         self._wake: Optional[asyncio.Event] = None
         self._active: dict = {}
+        self._ai_active: set = set()
         self._tasks: set = set()
         self._sweeper: Optional[asyncio.Task] = None
         self.clock = time.time
@@ -92,8 +93,14 @@ class WebhookWorker:
             if len(self._active) >= WORKER_MAX:
                 await asyncio.wait(list(self._active.values()), return_when=asyncio.FIRST_COMPLETED)
                 continue
+            avoid = None
+            if WORKER_MAX > 1 and len(self._ai_active) >= WORKER_MAX - 1:
+                try:
+                    avoid = await asyncio.to_thread(self._ai_hook_ids)
+                except Exception:
+                    avoid = None
             try:
-                row = await asyncio.to_thread(self.store().claim, self.worker_id)
+                row = await asyncio.to_thread(self.store().claim, self.worker_id, None, avoid)
             except Exception as e:
                 print(f"[webhooks] claim failed: {type(e).__name__}: {e}", file=sys.stderr)
                 return
@@ -101,9 +108,15 @@ class WebhookWorker:
                 t = asyncio.get_running_loop().create_task(self._run_claimed(row))
                 self._active[row["id"]] = t
                 self._tasks.add(t)
+                try:
+                    if row["hook_id"] in await asyncio.to_thread(self._ai_hook_ids):
+                        self._ai_active.add(row["id"])
+                except Exception:
+                    pass
 
                 def _done(task, eid=row["id"]):
                     self._active.pop(eid, None)
+                    self._ai_active.discard(eid)
                     self._tasks.discard(task)
                     if not task.cancelled() and task.exception() is not None:
                         e = task.exception()
@@ -305,6 +318,12 @@ class WebhookWorker:
             except Exception as e:
                 print(f"[webhooks] {eid} heartbeat failed, retrying: {type(e).__name__}: {e}", file=sys.stderr)
 
+    def _ai_hook_ids(self) -> list:
+        """Hooks with an AI action (their runs can last long): at most WORKER_MAX - 1 of their events run at once, so
+        one slot always stays for code-only hooks (spec §11: a slow hook never starves the others)."""
+        return [h["id"] for h in self.store().hooks_all()
+                if any(a.get("kind") == "ai" for a in webhook_actions.effective(h.get("actions")))]
+
     async def _run_claimed(self, row: dict) -> None:
         st = self.store()
         eid, fence = row["id"], int(row["fence"])
@@ -396,6 +415,9 @@ class WebhookWorker:
                 # Retry safety is the LOWER of then and now (an owner who stops trusting the receiver's dedup wins).
                 if not (webhook_actions.retry_safe(a) and webhook_actions.retry_safe(c)):
                     a["retry_safety"], a["retry"] = "manual_on_ambiguous", "never"
+            if c is not None and a["kind"] == "plugin":
+                # A plugin's AI grant is a permission: it must hold both when the event arrived and now (spec §3).
+                a["allow_ai"] = a.get("allow_ai") is True and c.get("allow_ai") is True
             merged.append(a)
         actions = merged
         rows = await asyncio.to_thread(st.branches_init, eid, fence, actions, webhook_actions.delivery_id)
@@ -550,7 +572,21 @@ class WebhookWorker:
             except Exception as e:
                 print(f"[webhooks] breaker {hid}/{aid}: {type(e).__name__}: {e}", file=sys.stderr)
 
-        await asyncio.gather(*(branch(b) for b in todo))
+        async def guarded(b: dict) -> None:
+            try:
+                await branch(b)
+            except Exception as e:
+                # A fault in Javis itself while a delivery ran: it may already have acted, the owner decides. The
+                # other deliveries keep running under the heartbeat (gather waits for all of them).
+                print(f"[webhooks] {eid}/{b['action_id']} crashed: {type(e).__name__}: {e}", file=sys.stderr)
+                try:
+                    await asyncio.to_thread(st.branch_finish, eid, fence, b["action_id"], "unknown",
+                                            f"internal error while it ran ({type(e).__name__}): it may have acted",
+                                            None, "", 0.0)
+                except Exception:
+                    pass
+
+        await asyncio.gather(*(guarded(b) for b in todo))
         final = ""
         delay = 0.5
         for i in range(5):
@@ -797,7 +833,10 @@ class WebhookWorker:
         elif status == "blocked":
             msg = localefmt.chu(f"⚠ Webhook \"{name}\" đang chờ bạn sửa cấu hình (khoá, quyền hoặc plugin): ",
                                 f"⚠ Webhook \"{name}\" waits for you to fix its configuration (key, permission or "
-                                "plugin): ") + str(ev.get("error") or "")[:300]
+                                "plugin): ") + str(ev.get("error") or "")[:300] + localefmt.chu(
+                " Sửa trong webhook thì nó tự chạy lại; sửa ở bên ngoài (bật plugin, đổi khoá ở nơi nhận) thì bấm "
+                "Chạy lại mọi sự kiện bị chặn.", " A fix in the webhook runs it again by itself; after a fix outside "
+                "(plugin switched on, key changed at the receiver) press Retry all blocked.")
         elif status == "unknown":
             msg = localefmt.chu(f"⚠ Webhook \"{name}\": không rõ việc đã chạy xong chưa (máy dừng giữa chừng hoặc bên "
                                 "nhận không xác nhận). Kiểm tra bên ngoài rồi bấm Chạy lại hoặc Đã xong trong nhật ký "

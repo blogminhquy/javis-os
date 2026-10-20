@@ -479,12 +479,14 @@ async def matrix():
             echo = "https://script.googleusercontent.com/macros/echo?k=" + ("dup" if dup else "new") + "&d=" + str(did)
             if GAS["mode"] == "lose" and not dup:
                 return httpx.Response(302, headers={"Location": echo + "&lose=1"})
+            if GAS["mode"] == "login":
+                return httpx.Response(302, headers={"Location": "https://accounts.google.com/ServiceLogin?continue=x"})
             return httpx.Response(302, headers={"Location": echo})
         q = dict(httpx.QueryParams(req.url.query))
         if q.get("lose"):
             raise httpx.ReadTimeout("receipt lost")
-        if GAS["mode"] == "login":
-            return httpx.Response(200, text="<html>accounts.google.com</html>")
+        if GAS["mode"] == "html":
+            return httpx.Response(200, text="<html>Lỗi: TypeError in doPost</html>")
         if GAS["mode"] == "refuse":
             return httpx.Response(200, json={"ok": False, "error": "sheet locked"})
         return httpx.Response(200, json={"ok": True, "delivery_id": q.get("d"), "duplicate": q.get("k") == "dup"})
@@ -492,25 +494,28 @@ async def matrix():
     fg = make(http_transport=httpx.MockTransport(gas))
     hgs, tgs, _ = fg.create("/b1", name="Sheet", target="", text="", level="full", actions=POSCAKE_ACTIONS[:1])
     outs = {}
-    for mode in ("ok", "login", "refuse", "lose"):
+    for mode in ("ok", "login", "refuse", "lose", "html"):
         GAS["mode"] = mode
         c, r = await fg.accept(hgs["id"], tgs, body_of(ORDER), "application/json", "")
         await fg.wait_idle()
         outs[mode] = (fg.store().get(r["event_id"])["branches"][0], r["event_id"])
     GAS["mode"] = "ok"
     lost_eid = outs["lose"][1]
+    rows_before = len(rows_gas)
     ok, _ = fg.store().retry(lost_eid)
     fg._kick()
     await fg.wait_idle()
     after = fg.store().get(lost_eid)["branches"][0]
     check("§15 Apps Script: a valid redirect with its receipt succeeds; Google's sign-in blocks; HTTP 200 with ok:false "
-          "is dead; a POST that ran but lost its receipt is unknown and is not resent by itself",
-          outs["ok"][0]["status"] == "completed" and outs["login"][0]["status"] == "failed"
+          "is dead; a POST that ran but lost its receipt, or whose echo page is not a receipt, is unknown and is not resent "
+          "by itself",
+          outs["ok"][0]["status"] == "completed" and outs["login"][0]["status"] == "blocked"
           and outs["refuse"][0]["status"] == "failed" and "sheet locked" in outs["refuse"][0]["detail"]
-          and outs["lose"][0]["status"] == "unknown", {k: v[0]["status"] for k, v in outs.items()})
+          and outs["lose"][0]["status"] == "unknown"
+          and outs["html"][0]["status"] == "unknown", {k: v[0]["status"] for k, v in outs.items()})
     check("§15 Apps Script: the owner's retry sends the same delivery id (in the query, which doPost can read), the "
           "script answers duplicate: no second order row", ok and after["status"] == "completed"
-          and "had it already" in after["detail"] and len(rows_gas) == 4, (after, rows_gas))
+          and "had it already" in after["detail"] and len(rows_gas) == rows_before == 5, (after, rows_gas))
 
     # ---- §15 Retry: fake clock and RNG, 1/5/30 min, jitter, Retry-After, out of attempts, unknown not resent ----
     fq = make()

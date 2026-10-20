@@ -91,10 +91,13 @@ check("wiring: pause uses its own route", js.includes('api("/webhooks/pause", { 
 check("wiring: test send previews without confirm, then sends with confirm", js.includes('api("/webhooks/test", { id: h.id, payload: body() })')
   && js.includes('api("/webhooks/test", { id: h.id, payload: body(), confirm: true })'));
 check("wiring: raw view asks first and reads raw=1", js.includes('confirm(tw("wh.raw_confirm"))') && js.includes('"?raw=1"'));
-check("wiring: process again previews, then confirms", js.includes('api("/webhooks/events/replay", { id: b.dataset.ev })')
-  && js.includes('api("/webhooks/events/replay", { id: go.dataset.ev, confirm: true })'));
+check("wiring: process again previews, then confirms the previewed revision", js.includes('api("/webhooks/events/replay", { id: b.dataset.ev })')
+  && js.includes('api("/webhooks/events/replay", { id: go.dataset.ev, confirm: true, revision: p.revision })'));
 check("wiring: event filters by correlation and time range", js.includes('"&q=" + encodeURIComponent(q)') && js.includes('"&since=" + since')
   && js.includes('"&until=" + until'));
+check("wiring: Retry all blocked posts the hook and reports how many were queued",
+  js.includes('api("/webhooks/events/retry_blocked", { hook: h.id })') && js.includes('tw("wh.retried_n", { n: r.queued })')
+  && !!vi["wh.retry_blocked"] && !!en["wh.retry_blocked"]);
 check("wiring: health part reads /webhooks/health", js.includes('api("/webhooks/health?hook=" + encodeURIComponent(h.id))'));
 check("stop receiving asks first and points to pause", js.includes('confirm(tw("wh.turn_off_confirm"))') && /Tạm dừng xử lý/.test(vi["wh.turn_off_confirm"]));
 check("no text under 16px in the webhook section", !/font-size:\s*1[0-5]px/.test(js));

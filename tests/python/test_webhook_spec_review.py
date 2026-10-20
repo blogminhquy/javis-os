@@ -540,6 +540,198 @@ async def second_round():
     del ev
 
 
+async def whole_chain():
+    """Findings of the whole-chain review (R6)."""
+    import httpx
+    from fastapi import FastAPI
+    import webhook_worker as ww
+    f = fresh()
+    st = f.store()
+    app = FastAPI()
+    app.include_router(f.router)
+    cl = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    # R6 P2-1: an edit refused for a stale revision never replaces the live keys.
+    hk, tk, _ = f.create("/b1", name="Khoá", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://keys.example/in",
+                                   "headers": {"X-Key": "old"}}])
+    name = f"{hk['id']}/a/crm/X-Key"
+    act = lambda v: [{"id": "crm", "kind": "http", "url": "https://keys.example/in", "headers": {"X-Key": v}}]
+    h2, e2, c2 = f.update(hk["id"], {"actions": act("new"), "revision": 1})
+    h3, e3, c3 = f.update(hk["id"], {"actions": act("stale"), "revision": 1})
+    check("R6 P2-1: a save from a stale tab is refused (409) and the live key stays the one saved last",
+          c2 == 200 and c3 == 409 and f.vault.get(name) == "new", (c2, e2, c3, e3))
+    # R6 P2-3: a plugin's AI grant must hold when the event arrived AND now.
+    seen = []
+
+    def ai_handler(env, ctx):
+        seen.append(env["delivery_id"])
+        return {"status": "completed"}
+    old_ph = f.deps.plugin_handler
+    f.deps.plugin_handler = lambda b, slug, n: {"handler": ai_handler, "ctx": None, "min_mode": "readonly",
+                                                "schema": None, "ai": True, "idempotent": True} \
+        if slug == "ai-plug" else old_ph(b, slug, n)
+    pa = lambda allow: [{"id": "p", "kind": "plugin", "plugin": "ai-plug", "handler": "h", "allow_ai": allow}]
+    ha, ta, _ = f.create("/b1", name="AI plugin", target="", text="", level="full", actions=pa(True))
+    st.hook_set(ha["id"], paused=1)
+    c, ra = await f.accept(ha["id"], ta, b"{}", "application/json", "")
+    _, ea, ca = f.update(ha["id"], {"actions": pa(False)})
+    st.hook_set(ha["id"], paused=0)
+    f._kick()
+    await f.wait_idle()
+    ba = st.get(ra["event_id"])["branches"][0]
+    check("R6 P2-3: the AI grant revoked after the event arrived blocks the plugin call (never runs on the old grant)",
+          ca == 200 and ba["status"] == "blocked" and not seen, (ca, ea, ba["status"], ba["detail"], seen))
+    # R6 P2-4: a block fixed outside the hook (plugin installed again) runs again from one button, audited.
+    ready = {"on": False}
+    f.deps.plugin_handler = lambda b, slug, n: ({"handler": lambda e, c: {"status": "completed"}, "ctx": None,
+                                                 "min_mode": "readonly", "schema": None, "ai": False,
+                                                 "idempotent": True} if ready["on"] else None) \
+        if slug == "later-plug" else old_ph(b, slug, n)
+    hb, tb, _ = f.create("/b1", name="Plugin tắt", target="", text="", level="full",
+                         actions=[{"id": "p", "kind": "plugin", "plugin": "later-plug", "handler": "h"}])
+    c, rb = await f.accept(hb["id"], tb, b"{}", "application/json", "")
+    await f.wait_idle()
+    before = st.get(rb["event_id"])["status"]
+    ready["on"] = True
+    rr = (await cl.post("/webhooks/events/retry_blocked", json={"hook": hb["id"]})).json()
+    await f.wait_idle()
+    after = st.get(rb["event_id"])
+    audit = [a for a in st._db.execute("SELECT action FROM audit WHERE hook_id=?", (hb["id"],)).fetchall()]
+    check("R6 P2-4: Retry all blocked re-runs a delivery blocked by a missing plugin once it is back (audited)",
+          before == "blocked" and rr.get("queued") == 1 and after["status"] == "done"
+          and ("retry_blocked",) in [tuple(a) for a in audit], (before, rr, after["status"], audit))
+    nf = (await cl.post("/webhooks/events/retry_blocked", json={"hook": "wh_nope"})).status_code
+    check("R6 P2-4: Retry all blocked on an unknown hook is 404", nf == 404)
+    f.deps.plugin_handler = old_ph
+    # R6 P2-5: the correlation value is masked in the list and the detail view.
+    hc, tc, _ = f.create("/b1", name="Tương quan", target="task", text="x", rules={"correlation": "email"})
+    c, rc = await f.accept(hc["id"], tc, body({"email": "lan@example.com"}), "application/json", "")
+    await f.wait_idle()
+    lst = (await cl.get(f"/webhooks/events?hook={hc['id']}")).text
+    one = (await cl.get(f"/webhooks/events/{rc['event_id']}")).text
+    check("R6 P2-5: the correlation (an e-mail here) is masked in the event list and the detail view",
+          "lan@example.com" not in lst and "lan@example.com" not in one, (lst[:200], one[:200]))
+    # R6 P2-6: a replay preview counts an unknown delivery as one that may act again; the confirm checks the revision.
+    mx.HTTP["by_host"]["amb6.example"] = 504
+    hr, tr, _ = f.create("/b1", name="Phát lại", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://amb6.example/in"}])
+    c, rr6 = await f.accept(hr["id"], tr, b"{}", "application/json", "")
+    await mx.drain(f)
+    b6 = st.get(rr6["event_id"])["branches"][0]
+    c6, prev = f.replay_preview(rr6["event_id"])
+    f.update(hr["id"], {"name": "Phát lại 2"})
+    cc, conf = f.replay_confirm(rr6["event_id"], prev.get("revision"))
+    check("R6 P2-6: an unknown delivery is listed in may_repeat (it may have acted and would act again)",
+          b6["status"] == "unknown" and c6 == 200 and prev["may_repeat"] == ["crm"], (b6["status"], prev))
+    check("R6 P2-6: confirming a preview after the hook changed is refused (409: preview again)", cc == 409, (cc, conf))
+    mx.HTTP["by_host"]["amb6.example"] = 200
+    # R6 P2-7: a test event says so to the receiver in a header (a raw body cannot carry `_javis.test`).
+    ht, tt, _ = f.create("/b1", name="Thử", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://test6.example/in", "body": "raw"}])
+    mx.HITS.clear()
+    code, resp = await f.test_send({"id": ht["id"], "payload": {"x": 1}, "confirm": True})
+    await f.wait_idle()
+    hits = [x for x in mx.HITS if x["host"] == "test6.example"]
+    check("R6 P2-7: a test send reaches the receiver with X-Javis-Test: 1", code == 200 and hits
+          and hits[0]["headers"].get("x-javis-test") == "1", (code, resp, hits[:1]))
+    c, rl = await f.accept(ht["id"], tt, b'{"x": 2}', "application/json", "")
+    await f.wait_idle()
+    hits = [x for x in mx.HITS if x["host"] == "test6.example"]
+    check("R6 P2-7: a real event carries no test header", len(hits) == 2 and "x-javis-test" not in hits[1]["headers"])
+    # R6 P2-8: deleting a hook closes its events waiting for the owner; an ingest racing the delete stores nothing.
+    hd, td, _ = f.create("/b1", name="Xoá", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://amb6.example/in"}])
+    mx.HTTP["by_host"]["amb6.example"] = 504
+    c, rd = await f.accept(hd["id"], td, b"{}", "application/json", "")
+    await mx.drain(f)
+    mx.HTTP["by_host"]["amb6.example"] = 200
+    waiting = st.get(rd["event_id"])["status"]
+    gone_hook = dict(st.hook_get(hd["id"]))
+    f.delete(hd["id"])
+    closed = st.get(rd["event_id"])["status"]
+    n0 = st._db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+    ci, ri = st.ingest(gone_hook, b"{}", "application/json")
+    n1 = st._db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+    check("R6 P2-8: a deleted hook's unknown event is closed (cancelled), not left waiting where no view shows it",
+          waiting == "unknown" and closed == "cancelled", (waiting, closed))
+    check("R6 P2-8: an ingest for a hook deleted after its token check stores nothing (401)",
+          ci == 401 and n1 == n0, (ci, ri, n0, n1))
+    # R6 P2-9: a fault in Javis while one delivery runs leaves it unknown; the others finish.
+    hg, tg, _ = f.create("/b1", name="Lỗi trong", target="", text="", level="full",
+                         actions=[{"id": "a", "kind": "http", "url": "https://boom.example/in"},
+                                  {"id": "b", "kind": "http", "url": "https://fine.example/in"}])
+    real = ww.webhook_actions.run_http
+
+    async def boom(action, ctx, transport=None, resolve=None):
+        if "boom.example" in action["url"]:
+            raise RuntimeError("bug")
+        return await real(action, ctx, transport, resolve)
+    ww.webhook_actions.run_http = boom
+    try:
+        c, rg = await f.accept(hg["id"], tg, b"{}", "application/json", "")
+        await f.wait_idle()
+    finally:
+        ww.webhook_actions.run_http = real
+    bs = {b["action_id"]: b["status"] for b in st.get(rg["event_id"])["branches"]}
+    check("R6 P2-9: a crash inside one delivery marks it unknown (it may have acted); the other completes",
+          bs == {"a": "unknown", "b": "completed"}, bs)
+    # R6 P2-10: AI hooks never take the last worker slot: a code-only hook runs while they are all busy.
+    gate = asyncio.Event()
+
+    async def slow_task(brain, text, level):
+        await gate.wait()
+        return "xong", ""
+    old_rt = f.deps.run_task
+    f.deps.run_task = slow_task
+    ais = [f.create("/b1", name=f"AI {i}", target="task", text="x")[:2] for i in range(ww.WORKER_MAX)]
+    hq, tq, _ = f.create("/b1", name="Mã", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://code6.example/in"}])
+    try:
+        for h, t in ais:
+            await f.accept(h["id"], t, b"{}", "application/json", "")
+        await asyncio.sleep(0.5)
+        c, rq = await f.accept(hq["id"], tq, b"{}", "application/json", "")
+        done_q = ""
+        for _ in range(100):
+            done_q = st.get(rq["event_id"])["status"]
+            if done_q == "done":
+                break
+            await asyncio.sleep(0.02)
+        running = st._db.execute("SELECT COUNT(*) FROM events WHERE status='running'").fetchone()[0]
+        check("R6 P2-10: with every AI hook waiting on the model, a code-only hook still runs at once "
+              f"(AI events running: {running} of {ww.WORKER_MAX} slots)",
+              done_q == "done" and running == ww.WORKER_MAX - 1, (done_q, running))
+    finally:
+        gate.set()
+        await f.wait_idle()
+        f.deps.run_task = old_rt
+    # §4 proof the README cites: busy timeout finite, the WAL counted against the cap, folded back before refusing.
+    import webhook_store as wst
+    fw = fresh()
+    sw = fw.store()
+    hw6, tw6, _ = fw.create("/b1", name="WAL", target="task", text="x")
+    sw._db.execute("PRAGMA wal_autocheckpoint=0")
+    for i in range(30):
+        await fw.accept(hw6["id"], tw6, body({"i": i, "pad": "y" * 20000}), "application/json", f"w{i}")
+    await fw.wait_idle()
+    busy = sw._db.execute("PRAGMA busy_timeout").fetchone()[0]
+    wal_before, used = sw.wal_bytes(), sw.used_bytes()
+    counted = wal_before > 0 and used == sw.size_bytes() + wal_before
+    old_cap = wst.DB_MAX_BYTES
+    wst.DB_MAX_BYTES = sw.size_bytes() + wal_before // 2       # over the cap only because of the WAL
+    try:
+        full_before = sw.space_state()["level"] == "full"
+        sw.make_room()
+        wal_after = sw.wal_bytes()
+        full_after = sw.space_state()["level"] == "full"
+    finally:
+        wst.DB_MAX_BYTES = old_cap
+    check("§4: busy timeout is finite (5 s), the WAL counts against the cap, and room-making folds it back first",
+          busy == 5000 and counted and full_before and wal_after < wal_before and not full_after,
+          (busy, wal_before, used, full_before, wal_after, full_after))
+    await cl.aclose()
+
+
 async def main():
     await rules_and_triage()
     await receiving()
@@ -548,6 +740,7 @@ async def main():
     await privacy_and_ops()
     await plugin_fairness()
     await second_round()
+    await whole_chain()
 
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 | No ACK and no dedup key before a durable commit | `Store.ingest` (one transaction: event, delivery key, receipt) | matrix "§15 Lưu bền" (child process killed before and after the commit) | done |
 | No exactly-once promise; receipts and reconciliation | `receipts`, `delivery_attempts`, unknown state, export | matrix "§15 Plugin", "§15 Apps Script", staging pack "reconcile" | done |
 | A successful delivery is never run again | `Store.retry` (failed ones only), `replay` (new generation, preview names repeats) | matrix "§15 Fan-out", "§15 Replay" | done |
-| Snapshot by revision, permissions checked now | `hook_rev` on the event; the worker reads the hook's CURRENT level | `test_webhook_m3_review` "restoring the level runs the blocked deliveries again" | done |
+| Snapshot by revision, permissions checked now | `hook_rev` on the event; the worker reads the hook's CURRENT level; retry safety and a plugin's AI grant (`allow_ai`) must hold both when the event arrived and now | `test_webhook_m3_review` "restoring the level runs the blocked deliveries again"; review "R6 P2-3" | done |
 | No cookie or token forwarded; no escalation; no cross-brain or plugin leak | `run_http` header allowlist, `plugin_precheck`, tool level from the hook | matrix "§15 Chuyển tiếp", "§15 Plugin", "§15 Tool" | done |
 | Non-AI paths never build or call a model, triage and notices included | worker: model only for `kind: ai`; triage only with `ai_triage` | matrix "§15 Không AI", bench guard plus its negative control | done |
 
@@ -47,7 +47,7 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 | Order: auth, then size, then read the stream under the cap, then commit, then 202 | `hooks_receive` | `test_webhook_m5_review` "without a valid token the body is never stored"; matrix "§15 Nhận body" | done |
 | 202 means stored, shape `{accepted, event_id, state: "received"}` | `hooks_receive` | matrix, `test_webhook_triggers_0198` | done |
 | Refusals keep nothing: 429 with `retry_after`, 503 `store_full` / `store_busy` with Retry-After | `Store.ingest`, `js()` | matrix "§15 Lưu bền" (disk reserve), "§15 Tải" (SQL busy, byte quota) | done |
-| Busy timeout finite (5 s), WAL counted, checkpoint before refusing for space | `Store._connect`, `make_room` | matrix "§15 Tải" | done |
+| Busy timeout finite (5 s), WAL counted, checkpoint before refusing for space | `Store._connect`, `used_bytes`, `make_room` | `test_webhook_spec_review` "§4: busy timeout is finite..."; matrix "§15 Tải" (SQL busy answers 503) | done |
 
 ### §5 Filters and normalisation without a model
 
@@ -123,7 +123,7 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 | Backlog per hook | 10,000 events or 256 MiB, whichever first, refused before any key is held | matrix "§15 Tải: the byte quota" | done |
 | Whole store | 1 GiB including the WAL, 128 MiB of free disk kept | matrix "§15 Lưu bền: store full" | done |
 | AI per hook | 30 per hour by default, optional per day, 300 per hour across hooks, durable counter; past it the event waits | matrix "§15 AI / §16.4" | done |
-| Concurrency | one delivery at a time per hook, a pool of 4 per process with fair turns; a plugin holds at most 2 threads, and a full pool costs no attempt | matrix "§15 Tải: a hook stuck..."; review "R2 P2-4" | done |
+| Concurrency | one EVENT at a time per hook (its deliveries run side by side); a pool of 4 events per process, oldest first, at most 3 of them for hooks with an AI action, so a code-only hook always finds a slot; a plugin holds at most 2 threads, and a full pool costs no attempt | matrix "§15 Tải: a hook stuck..."; review "R2 P2-4", "R6 P2-10" | done |
 | Raw payload / metadata / dedup | body 7 days after it settles; unknown, waiting, blocked, failed and dead keep theirs until the owner settles or deletes the event (counted in the byte quota); mapped fields go with the body; metadata 30 days; delivery keys 7 days, never dropped younger under disk pressure | matrix "§15 Tải: retention never deletes pending"; review "R3 P1-1", "R1 P2-6" | done |
 | Breaker per target and credential | `target_key` | `test_webhook_ops_m5` "the breaker is per target" | done |
 | Expiry | `expire_after_h`, ends `dead` with an audit line | `test_webhook_m5_review` | done |
@@ -137,8 +137,10 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 | Cursor pages, filters by hook, state, order or correlation id, time range; never the whole DB in memory | `Store.page` (keyset), `/webhooks/events` | `test_webhooks_ui_m1.js`, `test_webhooks_ui_spec.js` | done |
 | Test send: the owner's payload, the list of effects first, a test namespace, same permissions and quotas | `test_send` | matrix "§15 UI"; `test_webhooks_ui_spec.js` | done |
 | Retry keeps the delivery id and snapshot, re-runs dependents a failure cancelled, never sends an empty body; a failed event can also be closed without resending | `Store.retry`, `Store.resolve`, `close_failed` | matrix "§15 Apps Script: the owner's retry sends the same delivery id"; review "R2 P2-2", "R3 P1-1" | done |
-| Process again with the current setup: a new generation under the current revision | `replay_confirm`, `Store.replay` | review "R2 P2-1" | done |
-| Raw view and export masked by default (payload, fields, headers, trace, result, error, deliveries, timeline, list rows, tool arguments), raw always audited (view, export with or without bodies, simulation of a logged event) | `mask_row()`, `/webhooks/audit` | matrix "§15 UI ... customer data masked"; review "R3 P2-5", "R3 P2-6", "R1 P2-5" | done |
+| Process again with the current setup: a new generation under the current revision; the preview names every delivery that may act again (succeeded or unknown), and a confirm after the hook changed is refused | `replay_confirm`, `Store.replay` | review "R2 P2-1", "R6 P2-6" | done |
+| A block fixed outside the hook (plugin switched back on, key changed at the receiver) runs again from Retry all blocked; a fix in the hook runs it by itself | `Store.unblock`, `/webhooks/events/retry_blocked` | review "R6 P2-4" | done |
+| A test event is marked for the receiver: `_javis.test` in the envelope, `X-Javis-Test: 1` on every HTTP call, `javis_test=1` for Apps Script | `_headers`, `target_url` | review "R6 P2-7" | done |
+| Raw view and export masked by default (payload, fields, headers, trace, result, error, correlation, deliveries, timeline, list rows, tool arguments), raw always audited (view, export with or without bodies, simulation of a logged event) | `mask_row()`, `/webhooks/audit` | matrix "§15 UI ... customer data masked"; review "R3 P2-5", "R3 P2-6", "R1 P2-5", "R6 P2-5" | done |
 | Pause processing vs stop receiving, two switches | `pause()`, `enabled` | `test_webhooks_ui_spec.js`; `test_webhook_ops_m5` | done |
 | Notify modes; older hooks keep `all`, new non-AI hooks start `errors_only` | `create()` | `test_webhook_ops_m5` | done |
 | Digest by code in the owner's time zone, one per period, at most one catch-up after a restart; a failed notice is retried alone | outbox `dkey` UNIQUE | matrix "§15 Thông báo" (two rows) | done |
@@ -210,8 +212,9 @@ to make a run pass, and no threshold was loosened; each change below follows a s
 |---|---|---|
 | HTTP 503 at a receiver: retried | unknown unless the receiver is declared idempotent; 429 is retried | §7 ambiguous outcomes |
 | A plugin raising, or answering outside the contract: failed | unknown (it may have acted) | §8.2 |
-| Plugin not installed, off, other brain, or level too low: failed | blocked (waits for the fix, runs when fixed) | §7 blocked |
+| Plugin not installed, off, other brain, or level too low: failed | blocked: runs again by itself after a fix in the hook, or from Retry all blocked after a fix outside it | §7 blocked |
 | 401 / 403 at a receiver, Apps Script sign-in page: failed | blocked | §7, §8.1 |
+| Apps Script: a page that is not a receipt, or a receipt naming another delivery, AFTER the echo hop: failed | unknown (doPost already ran); the same answer on the first hop stays failed. The matrix's "sign-in" case now sends Google's real 302 to accounts.google.com, which is blocked | §7 ambiguous outcomes, §8.1 (review R6 P2-2) |
 | A rejected approval: failed | cancelled | §7 |
 | Busy after the last try: failed | dead; the event is partial_failed when another delivery succeeded | §7 |
 | Retries: the old delays | 1, 5, 30 minutes with jitter, 4 attempts, 24 h | §7 |
@@ -230,6 +233,10 @@ to make a run pass, and no threshold was loosened; each change below follows a s
 | Notices named the internal states | the spec's words (succeeded, waiting...) | §12 |
 | The 0.198 log answered 200 on duplicates without an event id | 200 with the event id | §4.2 |
 
+One more edit is not a behaviour change: the stub of `Store.claim` in `test_webhook_store_m1` ("a kick that lands while a
+claim is in flight") takes the new `avoid` argument (R6 P2-10). The Apps Script check in the matrix now also counts
+rows before the owner's retry and asserts the retry added none, instead of a fixed total.
+
 ## Reviews
 
 Milestone reviews (M1 to M5) and the whole-chain review at 787dfbf6 were made against the brief, before the spec.
@@ -240,7 +247,9 @@ The spec alignment was reviewed by three independent reviewers at 11f6ee8e: R1 t
 delivery and security (M3, M4), R3 operations, the UI and the whole chain (M5). Every finding was fixed in 190eadf6,
 pinned by `test_webhook_spec_review.py`, and that file was run against 11f6ee8e to confirm each pinned check was red
 there (13 failures or hangs). A fourth reviewer (R4) then reviewed the fix commit itself; its findings are fixed in
-4537d57f and pinned in the same file.
+4537d57f and pinned in the same file. A whole-chain review at 0d02c5ba (R6) found ten P2 issues; each is fixed in the
+0.236.0 follow-up commit and pinned in `whole_chain()` of the same file, which was run against the server code of
+a79820f2 to confirm the pinned checks were red there.
 
 | Finding | Fix |
 |---|---|
@@ -264,4 +273,14 @@ there (13 failures or hangs). A fourth reviewer (R4) then reviewed the fix commi
 | R4 P2 kept failed bodies could fill the byte quota with no way out | Close (one) and Close all failed (per hook) settle them without resending |
 | R4 P2 simulating a logged event revealed values; masking missed texts under a customer block | values only in the raw, audited form; the prompt preview only there; every text under a PII key is masked |
 | R4 P3 (all fixed in 4537d57f) | retry window not widened; Stop receiving parses text; prune re-checks status inside the delete; store faults in triage defer; rollback refuses to run twice; a hook stopped mid-ingest does not count against the sender; only failed or dead events deletable; business key texts NFC |
+| R6 (whole-chain review at 0d02c5ba) P2 an edit refused for a stale revision had already replaced the live secrets | the revision is checked before any secret is written; a conflict found later puts the old values back |
+| R6 P2 Apps Script: an unreadable answer after the echo hop was failed, so Retry wrote a second row | unknown: the script ran, the owner checks the sheet |
+| R6 P2 a plugin's AI grant revoked after the event arrived was not checked | the grant must hold then and now, like retry safety |
+| R6 P2 a block fixed outside the hook never ran again | Retry all blocked (per hook, audited); the notice says when to press it |
+| R6 P2 the correlation value was shown unmasked | masked like every other dashboard text |
+| R6 P2 replay preview left out unknown deliveries; a confirm used whatever revision was current | unknown listed as may act again; the confirm carries the previewed revision, 409 when it changed |
+| R6 P2 a raw-body test event could not tell the receiver it was a test | `X-Javis-Test` header, `javis_test` query for Apps Script |
+| R6 P2 deleting a hook left its unknown, waiting and blocked events where no view shows them; an ingest racing the delete stored an orphan | closed as cancelled with the reason; the ingest refuses (401) |
+| R6 P2 a fault in Javis inside one delivery left the event without a settled branch | that delivery is unknown (it may have acted), the others finish |
+| R6 P2 hooks with a slow AI action could take every worker slot | at most WORKER_MAX - 1 AI events run at once |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |

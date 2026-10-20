@@ -17,7 +17,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **The webhook page has three parts: Configuration, Events, Health.** Two separate switches: Stop receiving (new events are refused) and Pause processing (still received and stored, just not run yet).
 - **A real test send with a preview:** paste a sample, see what each action would do, then send. Test events have their own duplicate space.
 - **A timeline for each event:** received, verified, filtered, dispatched, each attempt, receipt, result and notice. Search by order id and by date range.
-- **Process again with the current setup**, with a preview that says which actions already succeeded and would act once more.
+- **Process again with the current setup**, with a preview that says which actions already succeeded, or may have acted, and could act once more. A hook changed after the preview asks for a new preview.
+- **Retry all blocked:** after a fix outside the hook (plugin switched back on, key changed at the receiver), one button runs them all again.
 - **Failed events keep their payload** until you retry or **Delete** them, so Retry always sends what was received.
 - **Signature checks for Stripe, GitHub, Shopify and Systeme.io**, each done its own way, with an overlap period when a key changes. These senders need no Javis key: their signature is enough. Systeme.io was not tried with a real account, so it is marked unverified. POSCake has no signature check yet because there is no official documentation.
 - **A rollback tool** (`server/webhook_rollback.py`): backs up the store, exports unfinished events for reconciliation and writes the webhook list back for the older build.
@@ -32,6 +33,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - On first start of this version the webhook list moves into the new store (with a backup) and older webhooks run as before.
 - A domain that briefly fails to resolve is retried later instead of failing for good.
 ### Fixed
+- An Apps Script that ran but answered with an unreadable page is now "unknown", not "failed", so Retry does not write a second row.
+- Saving from an old tab is refused without overwriting the key just saved in another tab.
 - **A retry after an overload refusal (429) now runs.** Before, the duplicate key was kept, so the retry was reported as a duplicate and the order never ran.
 
 ## [0.235.0] - 2026-10-19

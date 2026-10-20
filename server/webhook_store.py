@@ -619,6 +619,17 @@ class Store:
             self._unblock(hook["id"], now)
         return rev
 
+    def unblock(self, hid: str, now: Optional[float] = None) -> int:
+        """The owner fixed the cause OUTSIDE the hook (plugin switched back on, receiver key fixed, Apps Script
+        redeployed): run the blocked deliveries of this hook again. Nothing acted for them (a block is decided before
+        the receiver did anything), so this cannot double an effect. Audited. Returns events re-queued."""
+        now = time.time() if now is None else now
+        with self._write():
+            n = self._unblock(hid, now)
+            if n:
+                self._audit(now, "retry_blocked", hid, "", f"{n} events")
+        return n
+
     def _unblock(self, hid: str, now: float) -> int:
         ids = [r[0] for r in self._db.execute(
             "SELECT DISTINCT e.id FROM events e JOIN deliveries d ON d.event_id=e.id AND d.generation=e.generation"
@@ -851,6 +862,10 @@ class Store:
                         self._receipt(hid, row["event_id"], now, "duplicate", key, source)
                         return 200, {"event_id": row["event_id"], "duplicate": True}
                 cur_h = self._db.execute("SELECT enabled, revision FROM hooks WHERE id=?", (hid,)).fetchone()
+                if cur_h is None and self._db.execute("SELECT 1 FROM hooks LIMIT 1").fetchone() is not None:
+                    # The hook was deleted between the token check and this transaction: nothing stored.
+                    self._db.execute("ROLLBACK")
+                    return 401, {"reason": "off"}
                 if cur_h is not None and not cur_h["enabled"]:
                     # Switched off between the token check and this transaction (spec §4.2 step 4): nothing stored.
                     self._db.execute("ROLLBACK")
@@ -1040,16 +1055,19 @@ class Store:
             self._db.execute("DELETE FROM biz_keys WHERE event_id=?", (eid,))
 
     # ── work ──
-    def claim(self, worker: str, now: Optional[float] = None) -> Optional[dict]:
+    def claim(self, worker: str, now: Optional[float] = None, avoid: Optional[list] = None) -> Optional[dict]:
         """Take the oldest runnable event whose hook has nothing else running and is not paused. Returns the row with
-        the new `fence`, or None. One event per hook at a time (spec §11: concurrency 1 per hook)."""
+        the new `fence`, or None. One event per hook at a time (spec §11: concurrency 1 per hook). `avoid`: hooks not
+        to take an event of now (the worker keeps a slot for code-only hooks)."""
         now = time.time() if now is None else now
+        av = [str(x) for x in (avoid or [])][:500]
+        extra = f" AND e.hook_id NOT IN ({','.join('?' * len(av))})" if av else ""
         with self._write():
             row = self._db.execute(
                 "SELECT e.* FROM events e WHERE e.status='queued' AND e.next_at<=? AND NOT EXISTS ("
                 " SELECT 1 FROM events r WHERE r.hook_id=e.hook_id AND r.status='running') AND NOT EXISTS ("
-                " SELECT 1 FROM hooks h WHERE h.id=e.hook_id AND h.paused=1)"
-                " ORDER BY e.received_at, e.id LIMIT 1", (now,)).fetchone()
+                " SELECT 1 FROM hooks h WHERE h.id=e.hook_id AND h.paused=1)" + extra +
+                " ORDER BY e.received_at, e.id LIMIT 1", (now, *av)).fetchone()
             if row is None:
                 return None
             fence = int(row["fence"]) + 1
@@ -1826,6 +1844,11 @@ class Store:
                 self._release_keys(qid)
             self._db.execute("UPDATE events SET status='dead', finished_at=?, notified_at=?, error='hook deleted'"
                              " WHERE hook_id=? AND status IN ('queued','received')", (now, now, hook_id))
+            # Events waiting for the owner (unknown, waiting, blocked) and the kept failed ones belong to a hook
+            # that no longer exists, so no view can show them: they are closed, and retention removes them.
+            self._db.execute("UPDATE events SET status='cancelled', finished_at=?, notified_at=?, error='hook deleted: '"
+                             " || error WHERE hook_id=? AND status IN ('unknown','waiting','blocked','failed','dead')"
+                             " AND error NOT LIKE 'hook deleted%'", (now, now, hook_id))
             self._db.execute("DELETE FROM breakers WHERE hook_id=?", (hook_id,))
             self._db.execute("DELETE FROM meta WHERE k LIKE ? OR k LIKE ? OR k LIKE ? OR k LIKE ?",
                              (f"digest_day:{hook_id}", f"digest_at:{hook_id}", f"digest_try:{hook_id}:%",

@@ -384,7 +384,8 @@
       + '<button class="s-btn-ghost whMore" style="font-size:16px">' + esc(tw("wh.more")) + "</button>"
       + ' <a class="s-btn-ghost" href="/webhooks/events/export?hook=' + encodeURIComponent(h.id) + '&format=csv" download>'
       + esc(tw("wh.export")) + "</a>"
-      + ' <button class="s-btn-ghost whCloseFailed">' + esc(tw("wh.close_failed")) + "</button></details>";
+      + ' <button class="s-btn-ghost whCloseFailed">' + esc(tw("wh.close_failed")) + "</button>"
+      + ' <button class="s-btn-ghost whRetryBlocked">' + esc(tw("wh.retry_blocked")) + "</button></details>";
     return '<b>' + ic("webhook") + " " + esc(h.name) + "</b>"
       + (h.enabled ? "" : ' <span class="dim" style="font-size:16px;color:var(--text3)">' + esc(tw("wh.off")) + "</span>")
       + (h.paused ? ' <span class="dim" style="font-size:16px;color:var(--warn-ink)">' + esc(tw("wh.paused_badge")) + "</span>" : "")
@@ -589,6 +590,12 @@
         });
       }
       bindRows(div);
+      var rb = div.querySelector(".whRetryBlocked");
+      if (rb) rb.onclick = async function () {
+        var r = await api("/webhooks/events/retry_blocked", { hook: h.id });
+        rb.textContent = r.ok ? tw("wh.retried_n", { n: r.queued }) : errText(r);
+        if (r.ok) setTimeout(load, 2500);
+      };
       var closeAll = div.querySelector(".whCloseFailed");
       if (closeAll) closeAll.onclick = async function () {
         if (!confirm(tw("wh.close_failed_confirm"))) return;
@@ -633,7 +640,7 @@
           out.innerHTML = replayHtml(p);
           var go = out.querySelector(".whReplayGo");
           if (go) go.onclick = async function () {
-            var r = await api("/webhooks/events/replay", { id: go.dataset.ev, confirm: true });
+            var r = await api("/webhooks/events/replay", { id: go.dataset.ev, confirm: true, revision: p.revision });
             go.textContent = r && r.ok ? tw("wh.replay_sent") : errText(r);
             if (r && r.ok) setTimeout(load, 2500);
           };

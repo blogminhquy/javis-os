@@ -75,7 +75,8 @@ Mỗi sự kiện có thể tới nhiều nơi. Mỗi nơi chạy riêng:
   lại**. Sự kiện thành "đang chờ (chưa rõ)": bạn kiểm tra bên ngoài rồi bấm **Đã xong** hoặc **Chạy lại**. Nơi nào
   khai `"retry_safety": "idempotent"` (bên nhận tự bỏ bản trùng) thì được tự gửi lại.
 - **Khoá sai hoặc thiếu quyền** (401, 403, mức quyền thấp, plugin chưa bật) thì nơi đó **bị chặn**, chờ bạn sửa.
-  Sửa xong thì nó chạy tiếp.
+  Sửa trong webhook thì nó tự chạy tiếp. Sửa ở bên ngoài (bật lại plugin, đổi khoá ở nơi nhận, triển khai lại Apps
+  Script) thì bấm **Chạy lại mọi sự kiện bị chặn** trong phần Sự kiện.
 - **Apps Script** phải trả về biên nhận thì mới tính là xong. Mẫu script trong `m3-actions-and-delivery.md`. Lúc triển
   khai chọn quyền "Anyone"; nếu không, Javis báo bị chặn kèm cách sửa.
 - **Plugin** như POSCake Zalo nhận cùng mã giao nhận ở mọi lần thử, nên không hẹn hay gửi tin hai lần.
@@ -114,7 +115,8 @@ giới hạn như sự kiện thật.
 - **Chạy lại** chỉ chạy lại nơi lỗi, chưa rõ hoặc bị chặn, với cùng mã giao nhận. Nơi đã xong không bao giờ bị chạy
   lại.
 - **Chạy lại với cấu hình hiện tại** dùng khi bạn đã sửa quy tắc hay địa chỉ: Javis cho xem trước, nói rõ nơi nào đã
-  thành công trước đó sẽ bị làm thêm một lần, rồi mới chạy khi bạn xác nhận.
+  thành công trước đó, hoặc chưa rõ đã làm chưa, sẽ có thể bị làm thêm một lần, rồi mới chạy khi bạn xác nhận. Nếu
+  webhook bị sửa sau lúc xem trước, Javis đòi xem trước lại.
 - **Xoá** một sự kiện lỗi khi bạn đã xử lý xong bên ngoài. Sự kiện lỗi được giữ nguyên nội dung tới khi bạn chạy lại
   hoặc xoá.
 - **Xuất CSV** để lưu trữ. File che thông tin khách, không chứa khoá bí mật.

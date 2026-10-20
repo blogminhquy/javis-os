@@ -15,7 +15,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Trang webhook có ba phần: Cấu hình, Sự kiện, Tình trạng.** Hai công tắc riêng: Tắt nhận (từ chối sự kiện mới) và Tạm dừng xử lý (vẫn nhận và lưu, chỉ chưa chạy).
 - **Gửi thử thật có xem trước:** dán nội dung mẫu, xem từng hành động sẽ làm gì, rồi mới gửi. Sự kiện thử có chỗ chống trùng riêng.
 - **Diễn biến của từng sự kiện:** nhận, xác thực, lọc, gửi đi, từng lần thử, biên nhận, kết quả và thông báo. Tìm được theo mã đơn và theo khoảng ngày.
-- **Chạy lại với cấu hình hiện tại** có xem trước, và nói rõ hành động nào đã thành công sẽ chạy thêm một lần.
+- **Chạy lại với cấu hình hiện tại** có xem trước, và nói rõ hành động nào đã thành công hoặc chưa rõ sẽ có thể chạy thêm một lần. Webhook bị sửa sau lúc xem trước thì phải xem trước lại.
+- **Chạy lại mọi sự kiện bị chặn:** sửa xong ở bên ngoài (bật lại plugin, đổi khoá ở nơi nhận) thì một nút chạy lại hết, không phải bấm từng sự kiện.
 - **Sự kiện lỗi được giữ nguyên nội dung** tới khi bạn chạy lại hoặc bấm **Xoá**, nên Chạy lại luôn gửi đúng dữ liệu đã nhận.
 - **Kiểm chữ ký Stripe, GitHub, Shopify, Systeme.io** theo đúng cách của từng nơi, có thời gian chồng khi đổi khoá. Những nơi này không cần gửi kèm khoá Javis: chữ ký của họ là đủ. Systeme.io chưa thử với tài khoản thật nên được ghi là chưa kiểm chứng. POSCake chưa có kiểm chữ ký vì chưa có tài liệu chính thức.
 - **Công cụ quay về bản cũ** (`server/webhook_rollback.py`): sao lưu kho, xuất các sự kiện còn dở để đối soát, viết lại danh sách webhook cho bản cũ.
@@ -30,6 +31,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Lần đầu chạy bản này, danh sách webhook chuyển vào kho mới (có bản sao lưu) và webhook cũ chạy như trước.
 - Tên miền tạm thời không phân giải được thì Javis thử lại sau, không báo lỗi hẳn.
 ### Sửa lỗi
+- Apps Script đã chạy nhưng trả về trang không đọc được thì sự kiện thành "chưa rõ" chứ không phải "lỗi", nên bấm Chạy lại không ghi thêm một dòng trùng.
+- Lưu cấu hình từ một tab cũ bị từ chối mà không đè mất khoá vừa lưu ở tab khác.
 - **Bị từ chối vì quá tải (429) thì lần gửi lại vẫn chạy.** Trước đây mã chống trùng bị giữ lại, nên lần gửi lại bị báo trùng và đơn không bao giờ chạy.
 
 ## [0.235.0] - 2026-10-19

@@ -256,7 +256,7 @@ def mask_row(r: dict) -> dict:
     customer or a receiver said is masked, not only the payload: the result and error (an AI result often names the
     customer), each delivery's detail, receipt and result, the attempts, the mapped fields, the headers, the trace."""
     r = dict(r)
-    for k in ("result", "error"):
+    for k in ("result", "error", "correlation"):
         if isinstance(r.get(k), str):
             r[k] = _mask_text(r[k])
     for k in ("fields", "headers", "trace"):
@@ -559,6 +559,31 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                                            "Webhook limit reached; delete one you no longer use.")
         return self.store().hook_get(hook["id"]), token, ""
 
+    def _vault_snapshot(self, hook: dict, hid: str) -> dict:
+        """The current vault values of every name `_seal(hook)` is about to write ({name: value or None})."""
+        names = [f"{hid}/a/{a['id']}/{k}" for a in hook.get("actions") or []
+                 for k, v in (a.get("headers") or {}).items() if isinstance(v, str) and v != "••••"]
+        ver = hook.get("verify") or {}
+        names += [n for f, n in (("secret", f"{hid}/verify"), ("previous_secret", f"{hid}/verify_prev"))
+                  if isinstance(ver.get(f), str)]
+        out = {}
+        for n in names:
+            try:
+                out[n] = self.vault.get(n) if self.vault.has(n) else None
+            except webhook_secrets.SecretError:
+                out[n] = None
+        return out
+
+    def _vault_restore(self, before: dict) -> None:
+        for n, v in before.items():
+            try:
+                if v is None:
+                    self.vault.delete_prefix(n)
+                else:
+                    self.vault.put(n, v)
+            except Exception as e:
+                print(f"[webhooks] could not restore secret {n}: {type(e).__name__}", file=sys.stderr)
+
     def _seal(self, hook: dict) -> bool:
         """Plain header values and signing secrets move into the encrypted vault; the hook keeps `{"$secret": name}`."""
         hid = str(hook["id"])
@@ -692,9 +717,18 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         bad = self._foreign_refs(merged, hid)
         if bad:
             return None, localefmt.chu(f"Khoá bí mật chưa đúng: {bad}", f"Secret not valid: {bad}"), 400
+        expected = changes.get("revision")
+        cur = self.store().hook_get(hid) or {}
+        if expected not in (None, "") and int(expected) != int(cur.get("revision") or 1):
+            # Refused BEFORE any secret is written: a stale tab never replaces the live keys (spec §10).
+            return None, localefmt.chu(f"Webhook vừa được sửa ở nơi khác (bản {cur.get('revision')}). Tải lại rồi sửa "
+                                       "tiếp.", f"The webhook was changed elsewhere (revision {cur.get('revision')}). "
+                                       "Reload, then edit again."), 409
+        before = self._vault_snapshot(merged, hid)
         try:
             self._seal(merged)
         except webhook_secrets.SecretError as e:
+            self._vault_restore(before)
             return None, localefmt.chu(f"Chưa cất được khoá bí mật: {e}", f"Could not store the secret: {e}"), 400
         keep = set(webhook_actions.sealed_names(merged.get("actions")))
         oldn = set(webhook_actions.sealed_names(h.get("actions")))
@@ -702,10 +736,11 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             for f in ("secret", "previous_secret"):
                 if webhook_secrets.is_ref(src.get(f)):
                     dst.add(src[f]["$secret"])
-        expected = changes.get("revision")
         try:
             self.store().hook_update(merged, expected=int(expected) if expected not in (None, "") else None)
         except webhook_store.Conflict as c:
+            # Another save landed between the check above and this one: put the keys back as they were.
+            self._vault_restore(before)
             return None, localefmt.chu(f"Webhook vừa được sửa ở nơi khác (bản {c.revision}). Tải lại rồi sửa tiếp.",
                                        f"The webhook was changed elsewhere (revision {c.revision}). Reload, then edit "
                                        "again."), 409
@@ -891,19 +926,26 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         res = evaluate_closed(cfg.get("rules") or {}, body, ev.get("content_type") or "",
                               (ev.get("trace") or {}).get("event"), reveal=True)
         done = {b["action_id"] for b in ev.get("branches") or [] if b["status"] in webhook_store.BRANCH_OK}
+        maybe = {b["action_id"] for b in ev.get("branches") or [] if b["status"] == "unknown"}
         plan = self._plan_view(h, cfg, res, body, ev.get("content_type") or "", eid) if res["decision"] == "run" else []
         for d in plan:
             d["already_succeeded"] = d["action"] in done
+            d["may_have_acted"] = d["action"] in maybe       # unknown: it may have acted, it would act again
             if "args" in d:
                 d["args"] = mask(d["args"])           # the logged event's data, masked like its detail view
         return 200, {"ok": True, "decision": res["decision"], "reason": res["reason"], "revision": h.get("revision"),
                      "level": h.get("level"), "generation": int(ev.get("generation") or 1) + 1, "deliveries": plan,
-                     "may_repeat": sorted(d["action"] for d in plan if d["runs"] and d["already_succeeded"])}
+                     "may_repeat": sorted(d["action"] for d in plan if d["runs"] and (d["already_succeeded"]
+                                                                                      or d["may_have_acted"]))}
 
-    def replay_confirm(self, eid: str) -> tuple:
+    def replay_confirm(self, eid: str, revision: Optional[int] = None) -> tuple:
+        """`revision`: the revision the owner saw in the preview. The hook changed since -> 409 (preview again)."""
         code, prev = self.replay_preview(eid)
         if code != 200:
             return code, prev
+        if revision not in (None, "") and int(revision) != int(prev.get("revision") or 0):
+            return 409, {"ok": False, "error": f"the webhook changed since the preview (revision {prev.get('revision')}):"
+                                               " preview again"}
         if prev["decision"] != "run":
             return 409, {"ok": False, "error": f"the current rules would not run it ({prev['reason']})"}
         ev = self.store().get(eid, True)
@@ -1243,7 +1285,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 if not raw:
                     r["fields"] = mask(r["fields"])
                     r["trace"] = mask(r["trace"])
-                    for k in ("result", "error"):
+                    for k in ("result", "error", "correlation"):
                         if isinstance(r.get(k), str):
                             r[k] = _mask_text(r[k])
                     if isinstance(r.get("branches"), list):
@@ -1348,7 +1390,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             p = payload or {}
             eid = str(p.get("id") or "")
             if p.get("confirm"):
-                code, resp = await asyncio.to_thread(self.replay_confirm, eid)
+                code, resp = await asyncio.to_thread(self.replay_confirm, eid, p.get("revision"))
                 if code == 200:
                     self._kick()
             else:
@@ -1372,6 +1414,17 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             if not hid or await asyncio.to_thread(self._find_hook, hid) is None:
                 return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
             return {"ok": True, "closed": await asyncio.to_thread(self.store().close_failed, hid)}
+
+        @router.post("/webhooks/events/retry_blocked")
+        async def webhooks_events_retry_blocked(request: Request):
+            """Run every blocked delivery of a hook again, after the owner fixed the cause outside the hook."""
+            payload = await _json_body(request)
+            hid = str(payload.get("hook") or "")
+            if not hid or await asyncio.to_thread(self._find_hook, hid) is None:
+                return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
+            n = await asyncio.to_thread(self.store().unblock, hid)
+            self._kick()
+            return {"ok": True, "queued": n}
 
         @router.post("/webhooks/events/approve")
         async def webhooks_event_approve(request: Request):

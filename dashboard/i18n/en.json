@@ -5164,5 +5164,7 @@
   "wh.ev_settle_confirm": "Close this failed event without resending (handled outside, or given up)?",
   "wh.close_failed": "Close all failed events",
   "wh.close_failed_confirm": "Close every failed event of this webhook without resending? Their payloads then follow the retention period.",
-  "wh.closed_n": "Closed {n} events"
+  "wh.closed_n": "Closed {n} events",
+  "wh.retry_blocked": "Retry all blocked",
+  "wh.retried_n": "Queued {n} events again"
 }

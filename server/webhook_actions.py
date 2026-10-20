@@ -476,7 +476,10 @@ def target_url(action: dict, ctx: dict) -> str:
     if action.get("delivery_ref") != "query":
         return action["url"]
     u = urlsplit(action["url"])
-    extra = urlencode({"javis_delivery": ctx["delivery_id"], "javis_event": ctx["event_id"]})
+    q = {"javis_delivery": ctx["delivery_id"], "javis_event": ctx["event_id"]}
+    if ctx.get("source") == "test":
+        q["javis_test"] = "1"
+    extra = urlencode(q)
     return urlunsplit((u.scheme, u.netloc, u.path, (u.query + "&" if u.query else "") + extra, u.fragment))
 
 
@@ -490,6 +493,8 @@ def _headers(action: dict, ctx: dict, content_type: str) -> dict:
     h["Idempotency-Key"] = ctx["delivery_id"]
     h["X-Javis-Delivery"] = ctx["delivery_id"]
     h["X-Javis-Event-Id"] = ctx["event_id"]
+    if ctx.get("source") == "test":
+        h["X-Javis-Test"] = "1"          # a raw body cannot carry `_javis.test`: the receiver sees it here
     return h
 
 
@@ -650,22 +655,27 @@ async def run_http(action: dict, ctx: dict, transport=None, resolve=None) -> Out
     return _outcome_of(code, text, rh, action)
 
 
-def _receipt(text: str, did: str) -> Outcome:
+def _receipt(text: str, did: str, ran: bool = False) -> Outcome:
     """An Apps Script web app answers with ContentService JSON. `{"ok": true}` (echoing `delivery_id` when it keeps
     one) is a receipt; `{"ok": false, "error": ...}` is a refusal (a 200 is not a business success); anything else
-    (often Google's sign-in page) is not a receipt."""
+    (often Google's sign-in page) is not a receipt. `ran`: the answer came through the echo hop, so Google already ran
+    doPost: a receipt that cannot be read then says nothing about whether it acted (unknown, never a certain failure
+    the owner would retry into a second order)."""
+    def unreadable(why: str, rc: dict) -> Outcome:
+        if ran:
+            return Outcome("unknown", why + ": the script ran, check the sheet before retrying", rc, maybe_acted=True)
+        return Outcome("failed", why, rc, maybe_acted=None)
     try:
         doc = json.loads(text)
     except ValueError:
         low = text.lower()
         hint = " (the web app must be deployed with access: Anyone)" if "accounts.google.com" in low or "<html" in low else ""
-        return Outcome("failed", "Apps Script answered without a JSON receipt" + hint, {"body": _short(text)},
-                       maybe_acted=None)
+        return unreadable("Apps Script answered without a JSON receipt" + ("" if ran else hint), {"body": _short(text)})
     if not isinstance(doc, dict):
-        return Outcome("failed", "Apps Script receipt is not an object", {"body": _short(text)})
+        return unreadable("Apps Script receipt is not an object", {"body": _short(text)})
     rc = {"receipt": doc if len(json.dumps(doc, default=str)) <= RESPONSE_KEEP else {"ok": doc.get("ok")}}
     if doc.get("delivery_id") not in (None, "", did):
-        return Outcome("failed", "Apps Script receipt names another delivery", rc)
+        return unreadable("Apps Script receipt names another delivery", rc)
     if doc.get("ok") is True:
         if doc.get("duplicate"):
             return Outcome("completed", "Apps Script had it already (same delivery)", rc)
@@ -709,7 +719,7 @@ async def run_apps_script(action: dict, ctx: dict, transport=None, resolve=None)
                 if ecode != 200:
                     return Outcome("unknown", f"receipt page answered HTTP {ecode}: the script may have run",
                                    maybe_acted=True)
-                out = _receipt(etext, ctx["delivery_id"])
+                out = _receipt(etext, ctx["delivery_id"], ran=True)
                 out.http_status = resp.status_code
                 return out
     except AddressRefused as e:

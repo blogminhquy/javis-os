@@ -5164,5 +5164,7 @@
   "wh.ev_settle_confirm": "Đóng sự kiện lỗi này mà không gửi lại (bạn đã xử lý bên ngoài hoặc bỏ qua)?",
   "wh.close_failed": "Đóng mọi sự kiện lỗi",
   "wh.close_failed_confirm": "Đóng mọi sự kiện lỗi của webhook này mà không gửi lại? Nội dung của chúng sẽ được dọn theo thời hạn lưu.",
-  "wh.closed_n": "Đã đóng {n} sự kiện"
+  "wh.closed_n": "Đã đóng {n} sự kiện",
+  "wh.retry_blocked": "Chạy lại mọi sự kiện bị chặn",
+  "wh.retried_n": "Đã xếp chạy lại {n} sự kiện"
 }
