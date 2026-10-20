@@ -59,7 +59,7 @@
 
   function formHtml() {
     return '<div class="ww-form">'
-      + '<div class="si-field"><label>' + esc(tw("ww.url")) + '</label><input id="wwUrl" type="url" placeholder="https://"></div>'
+      + '<div class="si-field"><label>' + esc(tw("ww.url")) + '</label><input id="wwUrl" type="url" placeholder="' + esc(tw("ww.url_ph")) + '"></div>'
       + '<div class="si-field"><label>' + esc(tw("ww.cond")) + '</label><div class="si-row" id="wwCond">'
       + '<button class="si-chip sel" data-c="change">' + esc(tw("ww.cond_change")) + "</button>"
       + '<button class="si-chip" data-c="contains">' + esc(tw("ww.cond_contains")) + "</button>"

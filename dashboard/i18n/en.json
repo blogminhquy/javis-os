@@ -4983,6 +4983,7 @@
   "ww.head": "Web page watch",
   "ww.intro": "Javis loads the page on a schedule and compares the text without calling AI, so it spends no tokens. It only reports when something new happens: the page changes, the text you are waiting for appears, or a price drops below your threshold. Times like \"3 minutes ago\" that tick on their own do not count as a change. When a page fails, Javis waits longer between tries and pauses after 5 failures in a row, telling you once. With AI summaries on, Javis calls AI once per change to explain what it means.",
   "ww.url": "Page address",
+  "ww.url_ph": "For example: https://shop.example/t-shirt",
   "ww.cond": "Alert when",
   "ww.cond_change": "The page changes",
   "ww.cond_contains": "Some text appears",

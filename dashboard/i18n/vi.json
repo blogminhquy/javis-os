@@ -4983,6 +4983,7 @@
   "ww.head": "Theo dõi trang web",
   "ww.intro": "Javis tải trang theo lịch và so chữ, không gọi AI nên không tốn token. Chỉ khi có chuyện mới mới báo về khung chat và hòm thư: trang đổi, xuất hiện cụm chữ bạn chờ, hoặc có giá dưới ngưỡng. Thời gian kiểu \"3 phút trước\" tự nhảy không tính là đổi. Trang lỗi thì Javis giãn dần lần thử, lỗi 5 lần liền thì tự dừng và báo một lần. Bật tóm tắt bằng AI thì mỗi lần có thay đổi Javis gọi AI một lần để nói thay đổi đó có ý nghĩa gì.",
   "ww.url": "Địa chỉ trang",
+  "ww.url_ph": "Ví dụ: https://shop.vn/ao-thun",
   "ww.cond": "Báo khi",
   "ww.cond_change": "Trang thay đổi",
   "ww.cond_contains": "Xuất hiện cụm chữ",
