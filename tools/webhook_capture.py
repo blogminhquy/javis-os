@@ -37,31 +37,20 @@ PRODUCT_KEYS = ("name", "title", "sku", "product_name", "variation_name")
 
 
 def scrub(v, key: str = "", pii: bool = False, product: bool = False):
-    """Same shape and types, no customer data: every text under a customer-like key (and every e-mail or phone-looking
-    text anywhere) becomes a placeholder of the same length class; numbers under such keys become 0; ids, statuses,
-    product names stay (the rules need them)."""
+    """Same shape and types, no customer data: the dashboard's allowlist (`webhook_triggers.keep_leaf`) decides what
+    stays (ids, statuses, product names, amounts, times); every other text becomes a placeholder of its length class,
+    every other number 0, every credential REDACTED."""
     import webhook_triggers as wt
-    k = str(key or "").lower()
-    if any(x in k for x in wt._SECRET_KEYS):
-        return "REDACTED"
-    if product and k in PRODUCT_KEYS and not pii:
-        return v
-    pii = pii or any(x in k for x in wt._PII_KEYS) or "tel" in wt._key_words(key)
-    if isinstance(v, dict):
-        return {kk: scrub(vv, kk, pii, product) for kk, vv in v.items()}
-    if isinstance(v, list):
-        inner = product or k in PRODUCT_PARENTS
-        return [scrub(x, key, pii, inner) for x in v]
-    if isinstance(v, str):
-        if pii:
-            return "x" * min(max(len(v), 1), 12)
-        m = wt._mask_text(v)
-        return m.replace("•", "0") if m != v else v
-    if isinstance(v, bool) or v is None:
-        return v
-    if pii and isinstance(v, (int, float)):
-        return 0
-    return v
+
+    def hide(x, secret):
+        if secret:
+            return "REDACTED"
+        if isinstance(x, str):
+            return "x" * min(max(len(x), 1), 12)
+        if isinstance(x, (int, float)):
+            return 0
+        return x
+    return wt._payload_walk(v, key, 0, pii, False, product, hide)
 
 
 def export(state_dir: Path, eid: str, expect: str, out: Path) -> dict:

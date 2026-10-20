@@ -22,7 +22,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Công cụ quay về bản cũ** (`server/webhook_rollback.py`): sao lưu kho, xuất các sự kiện còn dở để đối soát, viết lại danh sách webhook cho bản cũ.
 ### Bảo mật
 - Khoá API và khoá ký được mã hoá trên đĩa, không hiện trên giao diện, không nằm trong lịch sử cấu hình. Hãy sao lưu `webhook_keys.json` cùng `webhook_secrets.json`.
-- Nội dung sự kiện mặc định che thông tin khách. Xem hoặc xuất bản gốc đều được ghi vào nhật ký kiểm tra.
+- Nội dung sự kiện mặc định được che: chỉ hiện mã, trạng thái, thời gian, số tiền, số lượng và tên sản phẩm, mọi giá trị khác bị che. Xem hoặc xuất bản gốc đều được ghi vào nhật ký kiểm tra.
 - Webhook mới chỉ nhận khoá trong header, không nhận `?token=` trên đường dẫn (webhook cũ vẫn dùng được). Một địa chỉ gửi sai khoá nhiều lần bị tạm chặn.
 - Gửi đi luôn nối vào đúng địa chỉ đã kiểm, nên một tên miền không đổi được sang địa chỉ nội bộ giữa chừng.
 ### Cải thiện

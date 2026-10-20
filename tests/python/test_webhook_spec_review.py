@@ -1325,6 +1325,32 @@ async def fix_review_four():
           not any(x in flat2 for x in ("79123456789", "84912345678", "312345678", "312345679", "0912345678"))
           and m2["order"]["bank_fee"] == 12000 and m2["order"]["hotel_nights"] == 3 and m2["order"]["hotel"] == "Rex",
           flat2)
+    # R13 (review of R12): payloads are masked by allowlist; the shape a shop sends keeps only safe values readable.
+    order = {"shop_id": 7, "id": 1001, "status": 1, "status_name": "Đã xác nhận", "inserted_at": "2026-10-19T10:00:00",
+             "total_price": 350000, "shipping_fee": 30000, "tel1": 912345678, "telno": 912345679,
+             "telefono": 912345670, "ma_so_thue": 312345678, "custom_fields": [{"name": "CCCD", "value": 79123456789},
+             {"name": "STK", "value": 19034567890123}], "bank_account": {"owner": "NGUYEN VAN A", "number": 1903},
+             "customer": {"id": 55, "name": "Lê Thị Hoa", "total_orders": 4},
+             "items": [{"name": "Nước mắm", "sku": "NM-1", "quantity": 2, "price": 120000, "customer_name": "Hoa"}],
+             "note": "giao giờ hành chính", "hotel_nights": 2}
+    mp = wt.mask_payload(order)
+    flat3 = json.dumps(mp, ensure_ascii=False)
+    leaks = [x for x in ("912345678", "912345679", "912345670", "312345678", "79123456789", "19034567890123",
+                         "NGUYEN VAN A", "Lê Thị Hoa", "giao giờ", "\"Hoa\"") if x in flat3]
+    check("R13 P1: tel1, telno, telefono, ma_so_thue, a name/value custom field, a bank account's owner, the customer "
+          "and a customer name inside an item are hidden in the masked payload", not leaks, leaks)
+    check("R13: ids, statuses, times, amounts, counts and product names stay readable", mp["shop_id"] == 7
+          and mp["id"] == 1001 and mp["status"] == 1 and mp["inserted_at"] == order["inserted_at"]
+          and mp["total_price"] == 350000 and mp["shipping_fee"] == 30000 and mp["customer"]["total_orders"] == 4
+          and mp["items"][0]["name"] == "Nước mắm" and mp["items"][0]["sku"] == "NM-1"
+          and mp["items"][0]["quantity"] == 2 and mp["items"][0]["price"] == 120000, flat3)
+    import sys as _s
+    _s.path.insert(0, str(ROOT / "tools"))
+    import webhook_capture as wc
+    sc = json.dumps(wc.scrub(order), ensure_ascii=False)
+    check("R13 P1: the capture tool hides the same values (same shape and types) and keeps the same safe ones",
+          not [x for x in ("912345678", "312345678", "79123456789", "19034567890123", "NGUYEN VAN A", "Lê Thị Hoa")
+               if x in sc] and wc.scrub(order)["items"][0]["name"] == "Nước mắm" and wc.scrub(order)["tel1"] == 0, sc)
     # R11 P3: two events of one hook told at once make one incident notice, not two.
     hq, tq, _ = f.create("/b1", name="Đua", target="task", text="x",
                          rules={"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60,

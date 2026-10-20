@@ -235,6 +235,7 @@ to make a run pass, and no threshold was loosened; each change below follows a s
 | Notices named the internal states | the spec's words (succeeded, waiting...) | §12 |
 | The 0.198 log answered 200 on duplicates without an event id | 200 with the event id | §4.2 |
 | Quarantined events never notified the owner (`test_webhook_rules_m2`) | a quarantine is told once, grouped under `errors_only`; ignored events (filtered, duplicate) still are not | §7 table "payload/schema/filter wrong" is an error, §12 (review R8 P2-3) |
+| The masked export showed the value of a generic field (`"n": 1`, `test_webhook_ops_m5`) | the key is shown, its value hidden: payloads are masked by allowlist (review R13) | §12 masked by default |
 | Deleting a hook made its waiting events dead | cancelled: a dead event keeps its body for the owner's retry, which a deleted hook can never get, so its customer data stayed forever | §11 retention (review R7 P2-3) |
 
 One more edit is not a behaviour change: the stub of `Store.claim` in `test_webhook_store_m1` ("a kick that lands while a
@@ -263,7 +264,8 @@ hangs there, so it was run on its own). The reviewer of that commit (R10, at f48
 in the next commit and pinned in `fix_review_three()`, each red on the server code of f4817a74 (the re-import row
 spins there and was left out of that run). Its reviewer (R11, at a3e2ee07) found no P1 and one P2, fixed next and
 pinned in `fix_review_four()`, red on the server code of a3e2ee07. A final reviewer (R12, at 96507d00) found one P1 in
-that masking change and no P2; fixed next and pinned in the same function.
+that masking change and no P2; fixed next and pinned in the same function. The review of that fix (R13, at 12b985db)
+found the denylist still missing keys, so payload masking moved to an allowlist (pinned in `fix_review_four()`).
 
 | Finding | Fix |
 |---|---|
@@ -330,4 +332,5 @@ that masking change and no P2; fixed next and pinned in the same function.
 | R11 P3 (noted) | a failed AI run that never reached the model (the CLI is missing) also counts as maybe acted: its deleted event keeps the order's key (safe side: no double effect); a crash between queueing a notice and writing the incident state can tell the next failure once more; ids and points under a customer block are masked in the masked view (the audited raw view shows them) |
 | R12 (final review, at 96507d00) P1 R11 made `value`, `sum`, `balance` amount words, so a CCCD in a name/value custom field and a phone's `value` showed | generic words are not amounts; an identity key masks every number under it (inherited down the tree); tax numbers are identity keys |
 | R12 P3 (fixed) | `tel` matches as a whole word (a hotel is not a phone); notices are sent after the hook's lock is released (the pump never waits behind network sends) |
+| R13 (review of R12, at 12b985db) P1 the denylist kept missing keys: `tel1`, `telno`, `telefono` (R12 had made `tel` a whole word), a name/value custom field outside a customer block, a bank account's owner, `ma_so_thue`; the capture tool ignored identity keys | payloads (event body, mapped fields, tool arguments) and captured fixtures are masked by ALLOWLIST: a value is shown only when its key's words say it is safe (ids, statuses, times, amounts, counts, a product's name inside an item list); identity keys and customer blocks win; `keep_leaf` in `webhook_triggers.py` is the one rule both use |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |

@@ -110,7 +110,8 @@ giới hạn như sự kiện thật.
 - Lọc theo trạng thái, theo **mã đơn** (trường correlation), và theo khoảng ngày.
 - Bấm **Chi tiết** để xem **diễn biến**: nhận, xác thực, đọc nội dung, lọc, trùng, gửi đi, từng lần thử, biên nhận,
   kết quả, thông báo.
-- Nội dung sự kiện **mặc định che thông tin khách** (tên, điện thoại, email). Bấm **Xem bản gốc** để xem đầy đủ: Javis
+- Nội dung sự kiện **mặc định được che**: chỉ hiện mã (đơn, cửa hàng), trạng thái, thời gian, số tiền, số lượng và tên
+  sản phẩm; mọi giá trị khác (tên, điện thoại, địa chỉ, số tài khoản, ghi chú...) đều bị che. Bấm **Xem bản gốc** để xem đầy đủ: Javis
   hỏi lại và ghi lần xem đó vào nhật ký kiểm tra.
 - **Chạy lại** chỉ chạy lại nơi lỗi, chưa rõ hoặc bị chặn, với cùng mã giao nhận. Nơi đã xong không bao giờ bị chạy
   lại.

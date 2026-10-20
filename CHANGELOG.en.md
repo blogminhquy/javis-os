@@ -24,7 +24,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **A rollback tool** (`server/webhook_rollback.py`): backs up the store, exports unfinished events for reconciliation and writes the webhook list back for the older build.
 ### Security
 - API keys and signing keys are encrypted on disk, never shown in the interface and never kept in the configuration history. Back up `webhook_keys.json` together with `webhook_secrets.json`.
-- Event payloads mask customer details by default. Viewing or exporting the raw payload is recorded in the audit log.
+- Event payloads are masked by default: only ids, statuses, times, amounts, counts and product names show; every other value is hidden. Viewing or exporting the raw payload is recorded in the audit log.
 - New webhooks accept the key only in a header, not as `?token=` in the address (older webhooks keep working). An address that keeps sending a wrong key is held off for a while.
 - Outgoing calls always connect to the address that was checked, so a domain cannot switch to an internal address midway.
 ### Improved

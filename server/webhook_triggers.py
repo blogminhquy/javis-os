@@ -242,6 +242,73 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False, ident: bool =
     return v
 
 
+# Payloads (the event body, mapped fields, tool arguments) are masked by ALLOWLIST (0.241.0, after six review rounds
+# found keys a denylist missed): every value is hidden unless its key says it is safe to read. Identity keys, customer
+# blocks and secrets win over everything below.
+_SAFE_WORDS = frozenset(("id", "ids", "uuid", "status", "state", "type", "kind", "event", "topic", "action", "sku",
+                         "currency", "method", "source", "channel", "platform", "shop", "page", "store", "warehouse",
+                         "version", "at", "date", "time", "created", "updated", "inserted", "year", "month", "day",
+                         "order", "orders", "invoice", "ref", "reference", "number", "no", "test", "is", "has",
+                         "enabled", "success", "ok")) | _AMOUNT_WORDS
+_PRODUCT_PARENTS = frozenset(("items", "line_items", "products", "order_items", "variations", "products_info", "lines",
+                              "variation_info", "product"))
+_PRODUCT_WORDS = frozenset(("name", "title", "sku", "product", "variation", "unit", "category", "brand", "color",
+                            "colour", "size", "barcode"))
+
+
+def keep_leaf(key: str, v: Any, pii: bool, ident: bool, product: bool) -> bool:
+    """May this leaf of a payload be shown in a masked view or a captured fixture? Booleans and nulls always; identity
+    numbers and customer blocks never (an amount or a count under a customer is the exception); a product's name and
+    the like inside an item list; otherwise only keys whose words are on the safe list (ids, statuses, amounts, times)."""
+    if isinstance(v, bool) or v is None:
+        return True
+    words = _key_words(key)
+    if ident:
+        return False
+    if pii:
+        return isinstance(v, (int, float)) and bool(words & _AMOUNT_WORDS)
+    if product and words & _PRODUCT_WORDS:
+        return True
+    return bool(words & _SAFE_WORDS)
+
+
+def _payload_walk(v: Any, key: str, depth: int, pii: bool, ident: bool, product: bool, hide) -> Any:
+    k = str(key or "").lower()
+    if depth > 64:
+        return "…"
+    if any(x in k for x in _SECRET_KEYS):
+        return hide(v, True)
+    words = _key_words(key)
+    if product and not (pii or ident) and words & _PRODUCT_WORDS and not isinstance(v, (dict, list)) \
+            and not any(x in k for x in _PII_KEYS if x != "name") and not any(x in k for x in _ID_NUMBER_KEYS):
+        return v                           # an item's name, sku, size: the rules read them (`items[*].name`)
+    pii = pii or any(x in k for x in _PII_KEYS) or "tel" in words
+    ident = ident or any(x in k for x in _ID_NUMBER_KEYS) or "tel" in words
+    if isinstance(v, dict):
+        return {kk: _payload_walk(vv, kk, depth + 1, pii, ident, product, hide) for kk, vv in v.items()}
+    if isinstance(v, list):
+        inner = product or bool(_key_words(key) & _PRODUCT_PARENTS) or k in _PRODUCT_PARENTS
+        return [_payload_walk(x, key, depth + 1, pii, ident, inner, hide) for x in v]
+    return v if keep_leaf(key, v, pii, ident, product) else hide(v, False)
+
+
+def _hide_view(v: Any, secret: bool) -> Any:
+    if secret:
+        return "••••"
+    if isinstance(v, str):
+        return (v[:1] + "•" * min(max(len(v) - 1, 1), 12)) if v else v
+    if isinstance(v, (int, float)):
+        s = str(v)
+        return "•" * max(0, len(s) - 3) + s[-3:] if len(s) > 3 else "•" * len(s)
+    return v
+
+
+def mask_payload(v: Any) -> Any:
+    """The masked view of a payload, mapped fields or tool arguments (spec §12): allowlist, see `keep_leaf`. The raw,
+    audited view shows everything."""
+    return _payload_walk(v, "", 0, False, False, False, _hide_view)
+
+
 # The admin routes read their query and JSON body by hand: FastAPI builds a model field for every typed parameter when
 # the route is created, and the webhook routes are created at every start (spec §16: keep the start light).
 async def _json_body(request) -> dict:
@@ -311,7 +378,9 @@ def mask_row(r: dict, corr_key: str = "") -> dict:
             r[k] = _mask_text(r[k])
     if "correlation" in r:
         r["correlation"] = mask_corr(r["correlation"], corr_key)
-    for k in ("fields", "headers", "trace"):
+    if "fields" in r:
+        r["fields"] = mask_payload(r.get("fields") or {})
+    for k in ("headers", "trace"):
         if k in r:
             r[k] = mask(r.get(k) or {})
     for k in ("branches", "deliveries"):
@@ -956,11 +1025,11 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             if p.get("raw"):
                 self.store().audit("simulate_raw", str(h.get("id") or ""), str(p["event"]))
             else:
-                out["fields"], out["trace"] = mask(out["fields"]), mask(out["trace"])
+                out["fields"], out["trace"] = mask_payload(out["fields"]), mask(out["trace"])
                 out["correlation"] = _mask_text(str(out.get("correlation") or ""))
                 for d in out.get("deliveries") or []:
                     if "args" in d:
-                        d["args"] = mask(d["args"])
+                        d["args"] = mask_payload(d["args"])
                 if out.get("prompt"):
                     # The prompt carries the whole payload, and masking by key names cannot know every key that holds a
                     # name: it is shown only in the audited raw view.
@@ -1011,7 +1080,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             d["already_succeeded"] = d["action"] in done
             d["may_have_acted"] = d["action"] in maybe       # unknown: it may have acted, it would act again
             if "args" in d:
-                d["args"] = mask(d["args"])           # the logged event's data, masked like its detail view
+                d["args"] = mask_payload(d["args"])   # the logged event's data, masked like its detail view
         # Business dedup holds for a replay too (spec §7): another event holding this order's key ran it already.
         bk = res.get("business_key") if res["decision"] == "run" else None
         dup_of = ""
@@ -1393,7 +1462,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 except ValueError:
                     r["reasons"] = []
                 if not raw:
-                    r["fields"] = mask(r["fields"])
+                    r["fields"] = mask_payload(r["fields"])
                     r["trace"] = mask(r["trace"])
                     for k in ("result", "error"):
                         if isinstance(r.get(k), str):
@@ -1405,7 +1474,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                                                     else {})) for b in r["branches"]]
                 if "body" in r:
                     doc = webhook_rules.parse_payload(bytes(r.pop("body") or b""), r.pop("content_type", "") or "")[0]
-                    r["payload"] = doc if raw else mask(doc)
+                    r["payload"] = doc if raw else mask_payload(doc)
                 return r
 
             def gen():
@@ -1460,7 +1529,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 ev["payload"] = payload_text(bytes(body), ct)[:PAYLOAD_PROMPT_CHARS]
             else:
                 doc, kind = webhook_rules.parse_payload(bytes(body), ct)
-                m = mask(doc)
+                m = mask_payload(doc)
                 ev["payload"] = (json.dumps(m, ensure_ascii=False, indent=2) if kind in ("json", "form") else
                                  _mask_text(str(m.get("_text", ""))) if isinstance(m, dict) else str(m))[:PAYLOAD_PROMPT_CHARS]
                 ev = mask_row(ev, (await asyncio.to_thread(self._corr_keys)).get(ev.get("hook_id"), ""))

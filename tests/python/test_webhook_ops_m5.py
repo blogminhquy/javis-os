@@ -257,7 +257,7 @@ async def main():
           and lines[0]["received_at"] <= lines[-1]["received_at"], r.text[:300])
     r = await cl.get("/webhooks/events/export", params={"hook": hx["id"], "body": 1})
     check("export with body=1 carries the payload, customer data masked by default (spec §12)",
-          '"n": 1' in r.text and "bí mật khách" not in r.text and st.audit_rows(hx["id"])[0]["action"] == "export_masked")
+          '"n":' in r.text and "bí mật khách" not in r.text and st.audit_rows(hx["id"])[0]["action"] == "export_masked")
     r = await cl.get("/webhooks/events/export", params={"hook": hx["id"], "body": 1, "raw": 1})
     check("raw=1 exports it as received and is recorded in the audit log", "bí mật khách" in r.text
           and st.audit_rows(hx["id"])[0]["action"] == "export_raw")
