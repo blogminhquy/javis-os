@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.242.0] - 2026-10-20
+### Added
+- **Open Javis from anywhere on your own domain, even when it runs on a Windows or macOS computer.** (in progress)
+
 ## [0.240.0] - 2026-10-20
 ### Improved
 - **Copy just part of a message on a phone, like Zalo.** Hold a message as before to open the card (emoji, Reply, Copy the whole message). Lift your finger, then hold the bright message again: the phone shows its selection handles, drag them over the part you want and tap the phone's own Copy (or Translate).
