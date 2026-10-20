@@ -21,7 +21,31 @@ Only a pass on a real source may mark an adapter or action "production verified"
   .venv/bin/python tests/python/test_webhook_spec_matrix.py
   .venv/bin/python tests/python/test_webhook_spec_review.py
   .venv/bin/python tools/webhook_bench.py            # the §16 target, measured on THIS machine
+  .venv/bin/python tools/webhook_staging_rehearsal.py # parts 1, 2 and 4 on the real host, local receivers
   ```
+
+## Local rehearsal (run in the build session, 2026-10-20)
+
+`tools/webhook_staging_rehearsal.py` runs parts 1, 2 and 4 against the real host (`main.app` under uvicorn in a child
+process, a fresh state folder, real sockets and SQLite, local receivers, real SIGKILLs). Every model path raises in the
+child. Run on 15a44d59 (code of 346707cf) in the build container: **14 of 14 passed in 217 s**.
+
+| Step | Result |
+|---|---|
+| 1.1 20 events, SIGKILL after 10, restart | every 202 has an event with a final state; every one reached the receiver |
+| 1.2 SIGKILL during a 6 s delivery | after the restart: unknown, sent once, not resent; the owner's notice queued and sent |
+| 1.3 a 429, then the same Idempotency-Key | 202, not a duplicate |
+| 2.1 simulate, then send the same order | both decide `run` |
+| 2.2 the same order with another key | duplicate of the first |
+| 2.3 `status` as text; an item without a name | filtered `status_mismatch` / `product_not_found`, nothing sent |
+| 4.2 a receiver answering 500 | 5 sends, then paused (breaker notice), no sends during the pause |
+| 4.3 `ai_per_hour: 0` | blocked before any model call |
+| 4.4 CSV export | phone masked, no formula cell; `raw=1` written to the audit log |
+| 4.5 UI at 390 px | no sideways scroll, nothing under 16px, no page error |
+
+Not covered here: anything that needs a real source or a public address (part 3, §16.6). From this container the
+network policy refuses `script.google.com` and `pos.pages.fm`, and nothing can reach it from outside. The owner's
+guide for capturing POSCake deliveries is `huong-dan-gui-du-lieu-poscake.txt`.
 
 ## Fixtures
 
@@ -113,7 +137,7 @@ Nothing above deletes the log. Export it first (Events, Export CSV) if a stop is
 |---|---|
 | Test rules on each captured body, then send that body | the decision on receipt equals the simulation's |
 | Send the same order twice with two different idempotency keys | the second is ignored as a duplicate of the first |
-| A captured order with `status` as text, or a missing item name | ignored with `type_mismatch` / `product_not_found`, never run |
+| A captured order with `status` as text, or a missing item name | ignored with `status_mismatch` (the text "1" is not the number 1) / `product_not_found`, never run |
 
 ## 3. Real sources and actions (M3, M4), staging, one per source in use
 

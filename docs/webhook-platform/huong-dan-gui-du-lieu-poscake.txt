@@ -1,0 +1,66 @@
+HƯỚNG DẪN GỬI DỮ LIỆU POSCAKE THẬT CHO JAVIS (để đóng mục §16.6 và §17)
+
+Mục đích: lấy vài lần POSCake gửi webhook thật, che thông tin khách, rồi gửi cho em. Em dùng chúng để kiểm bộ lọc và luồng gửi sang Apps Script, plugin Zalo đúng như đơn thật, không cần đụng tới khách thật.
+
+Thời gian: khoảng 20-30 phút.
+
+
+CÁCH 1 (dễ nhất): bắt dữ liệu bằng webhook.site
+
+1. Trên máy tính, mở https://webhook.site
+   Trang tự cho anh một địa chỉ riêng, dạng https://webhook.site/xxxx-xxxx. Copy địa chỉ đó.
+
+2. Vào POSCake, phần cài đặt webhook của shop (thường nằm trong Cấu hình hoặc Tích hợp).
+   - THÊM địa chỉ webhook.site ở bước 1 làm một địa chỉ nhận mới.
+   - KHÔNG xoá địa chỉ Javis đang chạy, để shop vẫn hoạt động bình thường.
+   - Chọn các loại sự kiện về đơn hàng mà anh đang dùng (tạo đơn, đổi trạng thái, thanh toán, huỷ...).
+
+3. Tạo đơn thử: 3-5 đơn cho mỗi loại sự kiện.
+   - Nên dùng shop thử hoặc đơn thử, tên khách giả.
+   - Với mỗi đơn, bấm qua các trạng thái anh hay dùng (mới, xác nhận, đã thanh toán, huỷ) để POSCake gửi đủ loại.
+
+4. Quay lại webhook.site. Mỗi lần POSCake gửi sẽ hiện một dòng bên trái. Bấm vào từng dòng, copy 2 phần:
+   - Headers (toàn bộ, giữ nguyên tên)
+   - Raw content (nội dung JSON)
+
+5. Che thông tin khách trước khi gửi cho em. Giữ nguyên định dạng, chỉ đổi giá trị:
+   - Tên khách: Nguyen Van A
+   - Số điện thoại: 0900000000
+   - Địa chỉ: 1 Duong Thu
+   - Email: test@example.com
+   - Giữ nguyên: mã đơn, mã shop, trạng thái, tên sản phẩm, số tiền, thời gian.
+   Nếu trong Headers có chữ ký hay khoá bí mật (signature, token, secret): thay giá trị bằng XXX nhưng GIỮ tên header.
+
+6. Gửi cho em theo một trong hai cách:
+   - Dán thẳng vào chat, mỗi lần gửi một khối, ghi rõ loại sự kiện ở đầu (ví dụ: "Đơn mới", "Đã thanh toán").
+   - Hoặc lưu mỗi lần vào một file .txt và tải lên chat.
+
+7. Xong thì XOÁ địa chỉ webhook.site khỏi POSCake.
+
+Lưu ý: webhook.site là dịch vụ bên ngoài, dữ liệu đi qua máy chủ của họ. Vì vậy chỉ dùng đơn thử, không dùng đơn của khách thật.
+
+
+CÁCH 2: anh đã có bản Javis mới trên máy staging
+
+Nếu anh dựng bản Javis 0.247.0 (commit 346707cf) trên một máy staging riêng, không phải máy đang bán hàng, thì không cần webhook.site:
+- Trỏ POSCake tới webhook của bản staging, tạo đơn thử như bước 3.
+- Mở trang Webhook, phần Sự kiện, chọn từng sự kiện, bấm xem để lấy mã sự kiện (ev_...).
+- Chạy lệnh trong docs/webhook-platform/staging-pilot-pack.md, mục "Capture": công cụ tự che thông tin khách và tạo file mẫu.
+- Gửi em các file trong tests/fixtures/webhooks/captured/.
+
+
+KÈM THEO, ANH TRẢ LỜI GIÚP EM (mục §17)
+
+1. Mỗi giá trị "status" của POSCake nghĩa là gì (ví dụ 1 = mới, 2 = xác nhận...). Chụp màn hình hoặc ghi lại là được.
+2. POSCake có cho thêm header riêng khi gửi webhook không (một ô tên "Header", "Token" hay "Secret")? Có ký (signature) nội dung không?
+3. Apps Script anh đang dùng: nó nhận nội dung dạng gì, trả về gì, và có bỏ qua đơn gửi trùng không.
+4. Plugin poscake-zalo: hẹn giờ gửi tin lưu ở đâu; gửi lại cùng một đơn thì nó có ra cùng mã việc không.
+5. Giờ cao điểm có khoảng bao nhiêu đơn, đơn chậm tối đa bao lâu thì vẫn chấp nhận, muốn giữ lịch sử bao nhiêu ngày.
+6. Với từng nơi nhận (Sheet, Zalo): gửi lại 1 lần lỡ trùng có chấp nhận được không, hay phải đối soát rồi mới gửi lại.
+
+
+SAU KHI EM NHẬN ĐƯỢC
+
+- Em tạo file mẫu đã che thông tin, kiểm bộ lọc trên từng file (đơn nào chạy, đơn nào bỏ qua và vì sao).
+- Em cập nhật cấu hình mẫu cho đúng tên trường thật của POSCake.
+- Phần cuối của §16.6 (Apps Script ghi đúng dòng, plugin Zalo trả mã việc) cần chạy trên máy staging có địa chỉ công khai. Phần này anh làm theo docs/webhook-platform/staging-pilot-pack.md, mục 3, hoặc mở quyền để em vào máy đó.

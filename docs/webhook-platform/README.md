@@ -180,7 +180,7 @@ en), `test_i18n.mjs`, and `tools/webhook_ui_narrow_check.mjs` (390 px, no sidewa
 | 3. Retry and replay never repeat a success; unclear outcomes stay unknown | matrix "§15 Replay", "§15 Retry" | done |
 | 4. The AI quota loses no accepted order; a full backlog refuses before holding dedup | matrix "§15 AI / §16.4", "§15 Tải" | done |
 | 5. The timeline explains why it ran and which handler took it | matrix "§16.5" | done |
-| 6. POSCake to Apps Script and to the plugin with masked real fixtures and staging receipts | `staging-pilot-pack.md` steps 3 and 5; `tools/webhook_capture.py` turns captured deliveries into masked fixtures and checks the rules against them (`test_webhook_capture.py`) | **open** (the tooling is ready; it needs the owner's data and a staging run) |
+| 6. POSCake to Apps Script and to the plugin with masked real fixtures and staging receipts | `staging-pilot-pack.md` steps 3 and 5; `tools/webhook_capture.py` turns captured deliveries into masked fixtures and checks the rules against them (`test_webhook_capture.py`) | **open** (the tooling is ready; it needs the owner's data and a staging run with a public address. Parts 1, 2 and 4 of the pack passed on the real host locally, 14 of 14: `tools/webhook_staging_rehearsal.py`. How to capture POSCake deliveries: `huong-dan-gui-du-lieu-poscake.txt`) |
 | 7. Older hooks keep working; admin, raw and replay are not public | matrix "§15 Tương thích", "§16.7" | done |
 
 **Benchmark** (`tools/webhook_bench.py`, real HTTP socket, uvicorn in a child process, 4 vCPU build container,
