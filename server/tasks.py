@@ -178,7 +178,7 @@ class TasksFeature:
         self.deps = deps
         state_dir = Path(deps.state_dir or Path(__file__).parent)
         self.store = TaskStore(state_dir / "kanban.sqlite3")
-        # Sổ "làm đúng một lần" (0.236.0) nằm cạnh kho việc: cùng thư mục trạng thái, sao lưu cùng nhau.
+        # Sổ "làm đúng một lần" (0.238.0) nằm cạnh kho việc: cùng thư mục trạng thái, sao lưu cùng nhau.
         once_ledger.configure(state_dir / "once_ledger.sqlite3")
         self.max_workers = max(1, min(8, int(os.getenv("JAVIS_KANBAN_MAX_WORKERS", "2"))))
         self._workers: dict[str, asyncio.Task] = {}
@@ -516,7 +516,7 @@ class TasksFeature:
                 )
                 return
 
-            # 0.236.0: thao tác ra ngoài của việc ghi sổ theo mã việc (once_ledger.py), nên lần chạy lại không
+            # 0.238.0: thao tác ra ngoài của việc ghi sổ theo mã việc (once_ledger.py), nên lần chạy lại không
             # gửi, đăng hay tạo đơn lần hai. Còn thao tác chưa rõ đã tới nơi chưa thì hỏi chủ TRƯỚC khi chạy.
             job = f"kanban:{tid}"
             treo = once_ledger.unknowns(job)
@@ -1334,7 +1334,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
 
     @staticmethod
     def _cau_hoi_ghi_ngoai(treo: list) -> str:
-        """Câu hỏi cho chủ khi có thao tác ra ngoài không rõ đã tới nơi chưa (0.236.0)."""
+        """Câu hỏi cho chủ khi có thao tác ra ngoài không rõ đã tới nơi chưa (0.238.0)."""
         dong = "\n".join(f"- {x.get('target') or x.get('tool')}" for x in treo[:5])
         if len(treo) > 5:
             dong += localefmt.chu(f"\n- ...và {len(treo) - 5} thao tác nữa", f"\n- ...and {len(treo) - 5} more")
@@ -1539,7 +1539,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
         if (task.get("metadata") or {}).get("once_pending") and str(text or "").strip() \
                 and task.get("status") == "blocked":
-            # Câu hỏi "đã gửi chưa" (0.236.0): chốt sổ trước khi việc chạy lại. Chỉ câu mở đầu bằng ý
+            # Câu hỏi "đã gửi chưa" (0.238.0): chốt sổ trước khi việc chạy lại. Chỉ câu mở đầu bằng ý
             # "chưa / làm lại" mới cho làm lại; còn lại coi như đã làm, để không gửi trùng.
             once_ledger.resolve(f"kanban:{task_id}", done=not once_ledger.answer_means_redo(text))
         done, err = self.store.answer(task_id, text, by=by)

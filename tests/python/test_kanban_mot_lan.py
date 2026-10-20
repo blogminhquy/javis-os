@@ -1,4 +1,4 @@
-"""Việc Kanban chạy lại không gửi tin, đăng bài, tạo đơn lần hai (0.236.0, once_ledger.py).
+"""Việc Kanban chạy lại không gửi tin, đăng bài, tạo đơn lần hai (0.238.0, once_ledger.py).
 
 Ý tưởng từ OpenMuse: mỗi thao tác ra ngoài của một việc ghi sổ theo dấu vân tay (mã việc + tool +
 tham số) trước khi gọi. Đã xong thì lần sau trả kết quả cũ; kẹt giữa chừng thì không tự làm lại mà

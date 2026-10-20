@@ -869,7 +869,7 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
                 return f"ERROR: tool plugin '{name}' lỗi: {type(e).__name__}: {e}"
 
         if min_mode == "full":
-            # 0.236.0: an outside action (send, post, order) runs once per Kanban job, even when the job runs again.
+            # 0.238.0: an outside action (send, post, order) runs once per Kanban job, even when the job runs again.
             import once_ledger
             return await once_ledger.run(name, args or {}, _run)
         return await _run(args)

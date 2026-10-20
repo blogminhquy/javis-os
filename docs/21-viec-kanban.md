@@ -135,7 +135,7 @@ Trả lời xong, việc tự quay lại hàng đợi và chạy tiếp. Lần c
 
 **Xóa khỏi bảng** hỏi xác nhận trước: "Xóa task này khỏi bảng? Task sẽ được lưu trữ để không mất lịch sử." Việc đang chạy phải **Dừng task** trước rồi mới xoá được. Nếu thao tác không thành, Javis hiện hộp báo lỗi nguyên văn từ server, hoặc "Không thể cập nhật task".
 
-### Chạy lại không gửi trùng (từ 0.236.0)
+### Chạy lại không gửi trùng (từ 0.238.0)
 
 Việc nền có thể chạy lại: lỗi tạm thời thì tự thử lại, máy chủ khởi động lại giữa chừng thì việc về hàng đợi, hoặc bạn bấm Thử lại. Trước đây mỗi lần chạy lại là làm lại từ đầu, nên một tin Zalo, một bài đăng hay một đơn hàng có thể ra ngoài hai lần.
 
@@ -297,7 +297,7 @@ Chi tiết ở [Tự học](22-tu-hoc.md).
 ## Dữ liệu của bảng nằm ở đâu
 
 - **Nguồn chính**: file `kanban.sqlite3` trong thư mục state của Javis (biến `JAVIS_STATE_DIR`, mặc định là thư mục `server/`). Đây là nơi giữ vòng đời, lần chạy và nhật ký sự kiện. Nó cố tình nằm ngoài brain để việc đang chạy không bị đồng bộ git ghi đè.
-- **Sổ thao tác ra ngoài** (từ 0.236.0): file `once_ledger.sqlite3` cạnh `kanban.sqlite3`, ghi thao tác nào của việc nào đã làm xong. Dòng đã xong quá 30 ngày tự xoá.
+- **Sổ thao tác ra ngoài** (từ 0.238.0): file `once_ledger.sqlite3` cạnh `kanban.sqlite3`, ghi thao tác nào của việc nào đã làm xong. Dòng đã xong quá 30 ngày tự xoá.
 - **Bản sao đọc được**: `Javis/kanban.json` trong brain, được ghi lại mỗi lần bảng đổi. File này để sao lưu và để bản Javis cũ đọc được; sửa tay vào đó không đổi được gì trong hàng đợi thật.
 - Bảng cũ từ những bản Javis trước được nhập vào đúng một lần, và việc còn kẹt ở trạng thái "đang chạy" của tiến trình cũ được đưa về hàng đợi.
 - Việc hoàn thành hoặc đã huỷ quá **3 ngày** tự chuyển sang lưu trữ để bảng không phình ra.

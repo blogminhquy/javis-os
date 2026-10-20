@@ -134,7 +134,7 @@ Once answered, the job goes back to the queue and carries on. The next run reads
 
 **Remove from board** asks for confirmation first, explaining the task will be archived so no history is lost. A running job must be stopped with **Stop task** before it can be removed. If an action fails, Javis shows the server's error verbatim, or "Could not update the task".
 
-### Running again never sends twice (since 0.236.0)
+### Running again never sends twice (since 0.238.0)
 
 A background job can run more than once: a temporary error is retried, a server restart mid-run puts the job back in the queue, or you press Retry. Each run used to start from scratch, so a Zalo message, a post or an order could go out twice.
 
@@ -285,7 +285,7 @@ Details in [Self-learning](22-self-learning.md).
 ## Where the board's data lives
 
 - **The main source**: the `kanban.sqlite3` file in Javis's state folder (the `JAVIS_STATE_DIR` variable, defaulting to the `server/` folder). It holds the lifecycle, the runs and the event log. It sits deliberately outside the brain so running work is not overwritten by git sync.
-- **Record of outside actions** (since 0.236.0): `once_ledger.sqlite3` next to `kanban.sqlite3`, noting which actions of which job are done. Finished entries older than 30 days are removed.
+- **Record of outside actions** (since 0.238.0): `once_ledger.sqlite3` next to `kanban.sqlite3`, noting which actions of which job are done. Finished entries older than 30 days are removed.
 - **A readable copy**: `Javis/kanban.json` in the brain, rewritten every time the board changes. That file exists for backup and so older Javis builds can read it; editing it by hand changes nothing in the real queue.
 - An old board from earlier Javis versions is imported exactly once, and work stuck "running" under the old process is returned to the queue.
 - Work completed or cancelled over **3 days** ago is archived automatically so the board does not bloat.

@@ -1,4 +1,4 @@
-"""Sổ "làm đúng một lần" cho thao tác ra ngoài của việc nền Kanban (0.236.0).
+"""Sổ "làm đúng một lần" cho thao tác ra ngoài của việc nền Kanban (0.238.0).
 
 Vì sao có file này
 ==================

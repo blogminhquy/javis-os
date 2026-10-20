@@ -29,7 +29,7 @@ Resonance A1 adds three keys, filled by the host only for a dashboard chat turn:
 0.207.0 adds `team_gate`: the id of the tool gate of a Team Work/Help step (team_gate.py), "" elsewhere. Set by the
 team runner, never from model output; the hub uses it to let one approved outside action through.
 
-0.236.0 adds `job`: "kanban:<task id>" while a Kanban worker runs, "" elsewhere. Set by the task runner, never from
+0.238.0 adds `job`: "kanban:<task id>" while a Kanban worker runs, "" elsewhere. Set by the task runner, never from
 model output; once_ledger.py keys its once-only record of outside actions on it.
 
 No turn at all (loops, engines that cannot carry the key yet) -> `turn` is

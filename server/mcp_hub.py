@@ -248,7 +248,7 @@ def _guard(ent, fn, mode):
         if cls == "read":
             result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
         else:
-            # 0.236.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
+            # 0.238.0: a Kanban job that runs again must not send, post or order twice (once_ledger.py).
             # Outside a background job this calls straight through.
             result = await once_ledger.run(
                 fn, args, lambda a: mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, a))
