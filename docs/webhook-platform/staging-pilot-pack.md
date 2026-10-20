@@ -9,13 +9,12 @@ Only a pass on a real source may mark an adapter or action "production verified"
 - Branch `claude/openmausbot-jarvis-research-ewnzc6`, PR #747, version 0.241.0.
 - Stage the PR head at the time of staging, and write its exact SHA (`git rev-parse HEAD`) in the staging log before
   starting.
-- Last head checked in the build session: **56ee28f2** (code). Commits after it change only this file.
-  - CI: `test` passed on the re-run (job 118439280146). The other run of the same commit failed only
-    `test_khoi_dong_nhe`, the `import main` cost ratio. That ratio sits on its 4.0 ceiling for `main` too (4.43 on
-    `main` dd1dccfb, 4.41-4.45 on this head, same machine), so it flips with runner load. The PR comment has the
-    measurements.
-  - Full local run of `tests/python/test_*.py` and `tests/js/test_*` on 56ee28f2: every file green except that same
-    ratio check.
+- Last head checked in the build session: **0e213210** (code). Commits after it change only this file.
+  - CI: both `test` jobs green on 0e213210, `test_khoi_dong_nhe` included (the startup cut in that commit gave the
+    `import main` cost ratio room under its 4.0 ceiling there).
+  - Full local run of `tests/python/test_*.py` and `tests/js/test_*` on 0e213210: every file green except that ratio
+    check. On the build machine it measures over 4.0 for `main` dd1dccfb as well (4.43), so it is not a verdict there;
+    CI is.
   - If you stage a later head, rerun the three commands below on it first.
 - The automated evidence for that SHA: CI green on the PR, plus, on the staging machine:
 
