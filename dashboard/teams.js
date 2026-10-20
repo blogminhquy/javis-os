@@ -74,7 +74,8 @@
   var PULSE_TIER_KEY = ["pulse.tier_0", "pulse.tier_1", "pulse.tier_2", "pulse.tier_3", "pulse.tier_4", "pulse.tier_5",
     "pulse.tier_6", "pulse.tier_7", "pulse.tier_8"];
   var LIMIT_KEY = { running_jobs: "teams.limits.running_jobs", max_parallel_teams: "teams.limits.max_parallel_teams",
-    agent_one_turn: "teams.limits.agent_one_turn", busy_lease: "teams.limits.busy_lease", no_progress: "teams.limits.no_progress",
+    agent_one_turn: "teams.limits.agent_one_turn",
+    engine_slots_cli: "teams.limits.engine_slots_cli", engine_slots_api: "teams.limits.engine_slots_api", busy_lease: "teams.limits.busy_lease", no_progress: "teams.limits.no_progress",
     turn_timeout: "teams.limits.turn_timeout", step_timeout: "teams.limits.step_timeout",
     admin_ops_per_turn: "teams.limits.admin_ops_per_turn", history_window: "teams.limits.history_window",
     text_only: "teams.limits.text_only", server_call_ceiling: "teams.limits.server_call_ceiling",

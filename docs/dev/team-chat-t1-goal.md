@@ -41,8 +41,10 @@ Output đầy đủ kèm lệnh và mã thoát: `exports/reviews/team-adaptive/t
 | Số người gọi (@) mỗi tin (`mentions`) | 3 | Chủ | Không |
 | Chờ trợ lý đang bận tối đa (`busy_wait_s`) | 1800 giây | Chủ | Không |
 | Việc chạy cùng lúc trong một nhóm (`running_jobs`) | 1 | Máy chủ cố định | Không |
-| Nhóm chạy việc cùng lúc trên cả máy (`max_parallel_teams`) | 2 | Máy chủ cố định | Không |
-| Lượt cùng lúc của một trợ lý, mọi nhóm | 1 | Máy chủ cố định | Không |
+| Nhóm chạy việc cùng lúc trên cả máy (`max_parallel_teams`) | 4 (từ 0.257.0, trước đó 2) | Máy chủ (biến môi trường `JAVIS_TEAM_PARALLEL`) | Không |
+| Lượt cùng lúc của một trợ lý trong MỘT nhóm (0.257.0: trước đó là trên mọi nhóm) | 1 | Máy chủ cố định | Không |
+| Lượt nhóm gọi model cùng lúc, mỗi engine gói đăng ký (0.257.0) | 3 | Máy chủ (biến môi trường `JAVIS_TEAM_CLI_SLOTS`) | Không |
+| Lượt nhóm gọi model cùng lúc, mỗi engine API key (0.257.0) | 6 | Máy chủ (biến môi trường `JAVIS_TEAM_API_SLOTS`) | Không |
 | Hạn khoá bận (`BUSY_LEASE_S`), tự gia hạn khi lượt còn chạy | 900 giây | Máy chủ cố định | Không |
 | Kết quả giống hệt liên tiếp thì dừng (`no_progress`) | 2 | Máy chủ cố định | Không |
 | Thời gian một lần trả lời (`JAVIS_TEAM_TURN_TIMEOUT`) | 600 giây | Máy chủ (biến môi trường) | Không |

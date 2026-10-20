@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import contextlib
 import hashlib
 import json
 import math
@@ -91,6 +92,24 @@ BUSY_LEASE_S = 900.0          # hạn khoá bận một lượt; tiến trình c
 # hay bị huỷ thì dừng. Tiến trình chết thì không ai gia hạn, hạn tự hết như trước.
 JOB_LEASE_S = 90.0
 LEASE_RENEW_S = 30.0
+# 0.257.0 (chủ 20/10/2026: team chạy tuần tự, agent bận nhóm này thì nhóm khác phải chờ). Khoá bận giờ theo mạch (agent +
+# nhóm), nên phanh an toàn chuyển sang số lượt nhóm gọi model CÙNG LÚC theo engine. Engine dùng gói đăng ký (CLI) để thấp:
+# chục tiến trình `claude` cùng lúc trên một tài khoản gói dễ dính giới hạn tốc độ hay bị khoá. Engine API rộng hơn.
+# Đổi bằng biến môi trường JAVIS_TEAM_CLI_SLOTS, JAVIS_TEAM_API_SLOTS, JAVIS_TEAM_PARALLEL (số nhóm chạy việc cùng lúc).
+CLI_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli")
+ENGINE_SLOTS_CLI = 3
+ENGINE_SLOTS_API = 6
+MAX_PARALLEL_TEAMS = 4
+
+
+def env_int(name: str, default: int, lo: int = 1, hi: int = 64) -> int:
+    """Số nguyên từ biến môi trường, kẹp trong [lo, hi]; trống hay hỏng thì mặc định."""
+    try:
+        return max(lo, min(hi, int(str(os.environ.get(name) or "").strip())))
+    except ValueError:
+        return default
+
+
 NEW_MSG_LIMIT = 20            # cửa sổ lịch sử trong khối nhóm (spec 11.2, review T1 R2)
 NEW_MSG_CHARS = 8000
 INPUT_CHARS = 4000            # mỗi đầu vào của bước
@@ -350,7 +369,7 @@ class TeamRunner:
     def __init__(self, *, teams, tasks, sessions, engine_for: Callable[[dict, str, str], tuple],
                  agent_info: Callable[[str, str], Optional[dict]], publish: Optional[Callable[[dict], Any]] = None,
                  notify: Optional[Callable[[str, str], Any]] = None, worker_id: str = "team-runner",
-                 max_parallel_teams: int = 2, clock: Callable[[], float] = time.time, admin: Any = None,
+                 max_parallel_teams: Optional[int] = None, clock: Callable[[], float] = time.time, admin: Any = None,
                  ceiling: Any = None, projector: Any = None, judge: Any = None,
                  learning: Any = None, contrib_reader: Any = None, docs_block: Any = None, approvals: Any = None,
                  acceptance: Any = None, check_command: Optional[Callable] = None,
@@ -395,7 +414,14 @@ class TeamRunner:
         self._publish_fn = publish
         self._notify_fn = notify
         self.worker_id = worker_id
+        if max_parallel_teams is None:
+            max_parallel_teams = env_int("JAVIS_TEAM_PARALLEL", MAX_PARALLEL_TEAMS)
         self.max_parallel_teams = max(1, int(max_parallel_teams))
+        # 0.257.0: số lượt nhóm gọi model cùng lúc theo engine (xem CLI_PROVIDERS). Đặt lại được sau khi dựng (test).
+        self.engine_slots_cli = env_int("JAVIS_TEAM_CLI_SLOTS", ENGINE_SLOTS_CLI)
+        self.engine_slots_api = env_int("JAVIS_TEAM_API_SLOTS", ENGINE_SLOTS_API)
+        self._slots: dict = {}
+        self._slots_loop: Any = None
         self.clock = clock
         # Mốc khởi động của bộ chạy: phục hồi chỉ coi là "dở" các lượt trả lời ghi trước mốc này (của tiến trình trước).
         self.started_at = time.time()
@@ -536,11 +562,26 @@ class TeamRunner:
             self._locks, self._locks_loop = {}, loop
         return self._locks.setdefault(agent_key, asyncio.Lock())
 
+    def slots_for(self, engine: str) -> int:
+        return self.engine_slots_cli if str(engine or "") in CLI_PROVIDERS else self.engine_slots_api
+
+    def _engine_slot(self, engine: str) -> asyncio.Semaphore:
+        """Chỗ gọi model của một engine cho lượt nhóm (0.257.0). Theo event loop như `_lock_for`."""
+        loop = asyncio.get_running_loop()
+        if self._slots_loop is not loop:
+            self._slots, self._slots_loop = {}, loop
+        key = str(engine or "")
+        sem = self._slots.get(key)
+        if sem is None:
+            sem = self._slots[key] = asyncio.Semaphore(self.slots_for(key))
+        return sem
+
     def busy_view(self, team_id: str) -> dict:
-        """{agent_key: team_id khác đang giữ agent} cho các thành viên của nhóm (hiện "X đang làm ở nhóm Y")."""
+        """{agent_key: team_id khác đang giữ agent} cho các thành viên của nhóm (hiện "X đang làm ở nhóm Y"). Từ 0.257.0
+        chỉ dòng thật sự chặn lượt ở nhóm này (nhịp, xem xét): lượt của agent ở nhóm khác chạy song song, không chặn."""
         out = {}
         for m in self.teams.members(team_id):
-            b = self.teams.busy_of(m["agent_key"])
+            b = self.teams.busy_blocking(m["agent_key"], team_id)
             if b and b["team_id"] != team_id:
                 out[m["agent_key"]] = b["team_id"]
         return out
@@ -1462,6 +1503,8 @@ class TeamRunner:
             ("running_jobs", FIXED_CAPS["running_jobs"], "count"),
             ("max_parallel_teams", self.max_parallel_teams, "count"),
             ("agent_one_turn", 1, "count"),
+            ("engine_slots_cli", self.engine_slots_cli, "count"),
+            ("engine_slots_api", self.engine_slots_api, "count"),
             ("busy_lease", int(self.busy_lease_s), "seconds"),
             ("no_progress", FIXED_CAPS["no_progress"], "count"),
             ("turn_timeout", int(self.turn_timeout), "seconds"),
@@ -2061,11 +2104,12 @@ class TeamRunner:
         return "\n".join(lines)
 
     async def _acquire(self, team: dict, agent_key: str, turn_id: str, on_wait=None) -> bool:
-        """Khoá bận theo agent (D3): một lượt nhóm mỗi agent trên cả máy, chờ theo thứ tự xin (FIFO). `on_wait(holder)`
+        """Khoá bận theo mạch (D3, nới ở 0.257.0): một lượt mỗi agent trong MỘT nhóm, chờ theo thứ tự xin (FIFO). Cùng
+        agent ở nhóm khác chạy song song; nhịp chủ động hay xem xét đang giữ trọn agent thì vẫn chờ. `on_wait(holder)`
         được gọi một lần khi phải chờ (dòng trạng thái lượt trả lời nói rõ đang chờ việc nào, 0.142.0)."""
         wait = float(team["caps"]["busy_wait_s"])
-        lock = self._lock_for(agent_key)
-        holder = await self._io(self.teams.busy_of, agent_key)
+        lock = self._lock_for(self.teams.busy_slot(agent_key, team["team_id"]))
+        holder = await self._io(self.teams.busy_blocking, agent_key, team["team_id"])
         if holder and holder["team_id"] != team["team_id"]:
             self._state(team["team_id"])
         if on_wait is not None and (holder or lock.locked()):
@@ -2081,7 +2125,7 @@ class TeamRunner:
         try:
             # Bị huỷ khi luồng phụ đang lấy dòng khoá: run_io chờ nó xong rồi nhả đúng dòng vừa lấy (undo).
             while not await self._io(self.teams.acquire_busy, agent_key, team["team_id"], turn_id,
-                                     lease_s=self.busy_lease_s,
+                                     lease_s=self.busy_lease_s, per_team=True,
                                      undo=lambda got: got and self.teams.release_busy(agent_key, turn_id)):
                 if time.monotonic() > deadline:
                     lock.release()
@@ -2094,12 +2138,12 @@ class TeamRunner:
             raise
         return True
 
-    async def _release(self, agent_key: str, turn_id: str) -> None:
+    async def _release(self, agent_key: str, turn_id: str, team_id: str) -> None:
         """Nhả dòng khoá trong kho (luồng phụ, chờ xong hẳn kể cả khi bị huỷ) rồi mới nhả khoá trong tiến trình."""
         try:
             await self._io(self.teams.release_busy, agent_key, turn_id)
         finally:
-            lock = self._locks.get(agent_key)
+            lock = self._locks.get(self.teams.busy_slot(agent_key, team_id))
             if lock is not None and lock.locked():
                 lock.release()
 
@@ -2277,7 +2321,7 @@ class TeamRunner:
             try:
                 await self._io(self._refund_if_unmarked, turn_id)
             finally:
-                await self._release(agent_key, turn_id)
+                await self._release(agent_key, turn_id, team_id)
             return {"status": "lease_lost", "lease_lost": lease["lost"], "before_engine": True, "turn_id": turn_id}
         marked = False
         lease["busy_ok"] = time.monotonic()
@@ -2331,13 +2375,15 @@ class TeamRunner:
                                                               provider=prep["engine"]))
             try:
                 limit = self.turn_timeout if role in REPLY_ROLES else self.step_timeout
-                if req.get("tool_turn"):
-                    # 0.194.0: tool turns in one brain take turns. One team already runs one job at a time, but two teams
-                    # of the same brain run side by side (max_parallel_teams) and write the same files. Waiting here is
-                    # not counted against the turn's time limit; the leases keep renewing meanwhile.
-                    async with self._tool_lock(str(team.get("brain_id") or team_id)):
-                        res = await asyncio.wait_for(fn(req), timeout=limit)
-                else:
+                async with contextlib.AsyncExitStack() as held:
+                    if req.get("tool_turn"):
+                        # 0.194.0: tool turns in one brain take turns. One team already runs one job at a time, but two
+                        # teams of the same brain run side by side (max_parallel_teams) and write the same files.
+                        await held.enter_async_context(self._tool_lock(str(team.get("brain_id") or team_id)))
+                    # 0.257.0: then a call slot of the engine, taken AFTER the tool lock so a turn queued behind the
+                    # lock does not sit on a slot that a text turn could use. Neither wait counts against the turn's
+                    # time limit; the leases keep renewing meanwhile.
+                    await held.enter_async_context(self._engine_slot(prep["engine"]))
                     res = await asyncio.wait_for(fn(req), timeout=limit)
             except asyncio.TimeoutError:
                 if marked:
@@ -2389,13 +2435,13 @@ class TeamRunner:
             try:
                 if lease["lost"] is None:
                     try:
-                        holder = await self._io(self.teams.busy_turn, agent_key)
+                        holder = await self._io(self.teams.busy_turn, agent_key, team_id)
                         if holder != turn_id:
                             self._lease_lost(lease, "busy_taken", agent_key, turn_id)
                     except Exception:  # noqa: BLE001
                         pass
             finally:
-                await self._release(agent_key, turn_id)
+                await self._release(agent_key, turn_id, team_id)
         out = await self._io(self._accept, team_id, agent_key, role, task, step, turn_id, res, reply_to, vet,
                              lease["lost"])
         if self.judge is not None and out.get("message_id"):

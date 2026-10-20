@@ -10,8 +10,8 @@ cùng một giao dịch. Kho này giữ phần còn lại.
   cấp nhóm. Nhận bước bằng CAS `queued -> running`, mỗi bước chạy tối đa một lần.
 - Sổ lượt (`team_turns`) có một dòng cho MỖI lời gọi model: giữ chỗ trước khi dựng engine, ghi mốc gọi engine ngay
   trước lời gọi; trước mốc thì hoàn được, sau mốc thì luôn tính (kể cả lỗi, hết giờ, huỷ, restart).
-- Khoá bận (`agent_busy`) đảm bảo một agent chạy tối đa một lượt nhóm cùng lúc trên cả máy (D3), có hạn để tự nhả khi
-  tiến trình chết.
+- Khoá bận (`agent_busy`) đảm bảo một agent chạy tối đa một lượt cùng lúc trong MỘT nhóm (D3, nới ở 0.257.0: trước đó là
+  trên cả máy), có hạn để tự nhả khi tiến trình chết. Nhịp chủ động và xem xét vẫn giữ trọn agent.
 """
 from __future__ import annotations
 
@@ -1210,18 +1210,54 @@ class TeamStore:
             c.execute("UPDATE team_reactions SET updated_at=? WHERE session_id=? AND message_id=?",
                       (float(ts), session_id, int(message_id)))
 
-    # ───────────── khoá bận theo agent (D3) ─────────────
+    # ───────────── khoá bận theo agent (D3, nới ở 0.257.0) ─────────────
+    # Hai loại dòng trong `agent_busy`, cùng một cột khoá:
+    # - dòng CHUNG `<agent_key>`: giữ trọn agent (nhịp chủ động, xem xét, dòng cũ của bản trước 0.257.0). Chặn mọi lượt nhóm
+    #   của agent đó và bị mọi dòng khác của agent chặn lại.
+    # - dòng MẠCH `<agent_key>#<team_id>` (0.257.0, chủ 20/10/2026): một lượt nhóm giữ đúng mạch `teammate:<team>:<agent>`.
+    #   Hai nhóm khác nhau không chặn nhau nữa; cùng một nhóm vẫn một lượt mỗi agent (một phiên CLI không chạy hai lần).
+    #   Lý do cũ của D3 đã có chỗ khác lo: bài học ghi trong `accept_lock`, mạch hội thoại tách theo nhóm.
+    SLOT_SEP = "#"
+
+    @classmethod
+    def busy_slot(cls, agent_key: str, team_id: str) -> str:
+        return f"{agent_key}{cls.SLOT_SEP}{team_id}"
+
+    @classmethod
+    def _busy_key_of(cls, raw: str) -> str:
+        return str(raw).split(cls.SLOT_SEP, 1)[0]
+
+    _AGENT_ROWS = "(agent_key=? OR substr(agent_key, 1, ?)=?)"
+
+    @classmethod
+    def _agent_args(cls, agent_key: str) -> tuple:
+        pre = f"{agent_key}{cls.SLOT_SEP}"
+        return (agent_key, len(pre), pre)
+
+    @classmethod
+    def _busy_row(cls, r: Any) -> dict:
+        d = dict(r)
+        d["slot"] = d["agent_key"]
+        d["agent_key"] = cls._busy_key_of(d["agent_key"])
+        return d
 
     def acquire_busy(self, agent_key: str, team_id: str, turn_id: str, lease_s: float = 300,
-                     now: Optional[float] = None) -> bool:
+                     now: Optional[float] = None, per_team: bool = False) -> bool:
+        """Lấy khoá bận. `per_team=False` (nhịp, xem xét): dòng chung, chỉ lấy được khi agent không có dòng nào còn hạn.
+        `per_team=True` (lượt nhóm): dòng mạch của `team_id`, chỉ vướng dòng chung và lượt khác của CHÍNH nhóm đó."""
         t = time.time() if now is None else float(now)
+        key = self.busy_slot(agent_key, team_id) if per_team else agent_key
         with self._Tx(self) as c:
-            r = c.execute("SELECT * FROM agent_busy WHERE agent_key=?", (agent_key,)).fetchone()
-            if r is not None and r["turn_id"] != turn_id and float(r["lease_until"]) > t:
+            if per_team:
+                rows = c.execute("SELECT * FROM agent_busy WHERE agent_key IN (?, ?)", (agent_key, key)).fetchall()
+            else:
+                rows = c.execute(f"SELECT * FROM agent_busy WHERE {self._AGENT_ROWS}",
+                                 self._agent_args(agent_key)).fetchall()
+            if any(r["turn_id"] != turn_id and float(r["lease_until"]) > t for r in rows):
                 return False
             c.execute("INSERT INTO agent_busy(agent_key,team_id,turn_id,lease_until) VALUES(?,?,?,?) "
                       "ON CONFLICT(agent_key) DO UPDATE SET team_id=excluded.team_id, turn_id=excluded.turn_id, "
-                      "lease_until=excluded.lease_until", (agent_key, team_id, turn_id, t + float(lease_s)))
+                      "lease_until=excluded.lease_until", (key, team_id, turn_id, t + float(lease_s)))
             return True
 
     def renew_busy(self, agent_key: str, turn_id: str, lease_s: float, now: Optional[float] = None) -> bool:
@@ -1230,31 +1266,47 @@ class TeamStore:
         gia hạn."""
         t = time.time() if now is None else float(now)
         with self._Tx(self) as c:
-            return c.execute("UPDATE agent_busy SET lease_until=? WHERE agent_key=? AND turn_id=?",
-                             (t + float(lease_s), agent_key, turn_id)).rowcount == 1
+            return c.execute(f"UPDATE agent_busy SET lease_until=? WHERE turn_id=? AND {self._AGENT_ROWS}",
+                             (t + float(lease_s), turn_id) + self._agent_args(agent_key)).rowcount == 1
 
-    def busy_turn(self, agent_key: str) -> Optional[str]:
-        """Lượt đang ghi trên dòng khoá bận của agent (kể cả dòng đã hết hạn mà chưa ai lấy), None khi không có dòng."""
+    def busy_turn(self, agent_key: str, team_id: Optional[str] = None) -> Optional[str]:
+        """Lượt đang ghi trên dòng khoá bận của agent (kể cả dòng đã hết hạn mà chưa ai lấy), None khi không có dòng.
+        Có `team_id`: dòng mạch của nhóm đó (lượt nhóm kiểm mình còn giữ khoá không)."""
+        key = self.busy_slot(agent_key, team_id) if team_id is not None else agent_key
         with closing(self._conn()) as c:
-            r = c.execute("SELECT turn_id FROM agent_busy WHERE agent_key=?", (agent_key,)).fetchone()
+            r = c.execute("SELECT turn_id FROM agent_busy WHERE agent_key=?", (key,)).fetchone()
             return str(r["turn_id"]) if r else None
 
     def release_busy(self, agent_key: str, turn_id: str) -> None:
         with self._Tx(self) as c:
-            c.execute("DELETE FROM agent_busy WHERE agent_key=? AND turn_id=?", (agent_key, turn_id))
+            c.execute(f"DELETE FROM agent_busy WHERE turn_id=? AND {self._AGENT_ROWS}",
+                      (turn_id,) + self._agent_args(agent_key))
 
     def busy_of(self, agent_key: str, now: Optional[float] = None) -> Optional[dict]:
+        """Một dòng còn hạn bất kỳ của agent (chung hay mạch): agent đang làm gì đó trong nhóm. `agent_key` của dòng trả
+        về là mã agent trần, `slot` là khoá thật của dòng."""
         t = time.time() if now is None else float(now)
         with closing(self._conn()) as c:
-            r = c.execute("SELECT * FROM agent_busy WHERE agent_key=? AND lease_until > ?", (agent_key, t)).fetchone()
-            return dict(r) if r else None
+            r = c.execute(f"SELECT * FROM agent_busy WHERE {self._AGENT_ROWS} AND lease_until > ? "
+                          "ORDER BY lease_until DESC LIMIT 1", self._agent_args(agent_key) + (t,)).fetchone()
+            return self._busy_row(r) if r else None
+
+    def busy_blocking(self, agent_key: str, team_id: str, now: Optional[float] = None) -> Optional[dict]:
+        """Dòng còn hạn đang CHẶN lượt nhóm của agent ở `team_id` (0.257.0): dòng chung, hay lượt khác cùng nhóm. Lượt của
+        agent ở nhóm khác không chặn nên không trả về."""
+        t = time.time() if now is None else float(now)
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM agent_busy WHERE agent_key IN (?, ?) AND lease_until > ? "
+                          "ORDER BY lease_until DESC LIMIT 1",
+                          (agent_key, self.busy_slot(agent_key, team_id), t)).fetchone()
+            return self._busy_row(r) if r else None
 
     def busy_keys(self, now: Optional[float] = None) -> set:
         """Mọi agent đang giữ khoá bận còn hạn (một câu đọc cho cả nhịp lớp 3)."""
         t = time.time() if now is None else float(now)
         with closing(self._conn()) as c:
-            return {str(r[0]) for r in c.execute("SELECT agent_key FROM agent_busy WHERE lease_until > ?",
-                                                 (t,)).fetchall()}
+            return {self._busy_key_of(r[0]) for r in c.execute("SELECT agent_key FROM agent_busy WHERE lease_until > ?",
+                                                               (t,)).fetchall()}
 
     # ───────────── kết cục lượt trả lời trò chuyện (0.142.0) ─────────────
 

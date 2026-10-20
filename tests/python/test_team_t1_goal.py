@@ -314,7 +314,8 @@ async def wait_until(cond, timeout=WAIT, step=0.02):
 
 def busy_row(key):
     with tm._conn() as c:
-        row = c.execute("SELECT * FROM agent_busy WHERE agent_key=?", (key,)).fetchone()
+        # 0.257.0: a team turn holds the row `<agent>#<team>` (per thread), not the bare agent row.
+        row = c.execute("SELECT * FROM agent_busy WHERE agent_key=? OR agent_key LIKE ?", (key, key + "#%")).fetchone()
         return dict(row) if row else None
 
 

@@ -462,9 +462,11 @@ async def both():
 
 
 waiting = run(both())
-check("TC21 khoá bận: lượt ở nhóm Y chờ lượt ở nhóm X xong", order == [("start", X["team_id"]), ("end", X["team_id"]),
-                                                                    ("start", Y["team_id"])], str(order))
-check("TC21 nhóm Y thấy agent đang làm ở nhóm X", waiting.get("ag_minh") == X["team_id"], str(waiting))
+# 0.257.0: the busy lock is per thread (agent + team), so the agent lock no longer makes Y wait. These two are Work steps
+# of the same brain, and those still take turns behind the brain's tool lock (0.194.0).
+check("TC21 bước Làm cùng brain vẫn lần lượt (khoá công cụ theo brain)", order == [
+    ("start", X["team_id"]), ("end", X["team_id"]), ("start", Y["team_id"])], str(order))
+check("TC21 khoá bận theo mạch: nhóm Y không thấy agent bị nhóm X giữ", waiting == {}, str(waiting))
 rx = [m for m in msgs(ss, X) if m["author_kind"] == "agent"]
 ry = [m for m in msgs(ss, Y) if m["author_kind"] == "agent"]
 check("TC21 mỗi kết quả về đúng nhóm", [m["content"] for m in rx] == ["Minh xong ở " + X["team_id"]]
@@ -480,32 +482,109 @@ check("TC23 lượt Làm/Hỗ trợ của việc có bộ công cụ của trợ
       all(c.get("tools") is None and c.get("tool_turn") for c in fake.calls if c["role"] in TR.TOOL_ROLES))
 
 tm.set_caps(X["team_id"], {"busy_wait_s": 0.05})
-hold = asyncio.Event()
-
-
-async def holding(req):
-    await hold.wait()
-    return "giữ"
-
-
-fake.say("ag_minh", "work", holding)
 fake.say("ag_minh", "work", "không bao giờ tới")
+# A hold on the whole agent (agent pulse, review) still blocks every team turn of that agent (0.257.0).
+check("dòng giữ trọn agent chặn lượt nhóm", tm.acquire_busy("ag_minh", "pulse", "tu_pulse", lease_s=60))
+check("nhóm X thấy agent đang bị giữ trọn", r.busy_view(X["team_id"]).get("ag_minh") == "pulse")
+
+
 async def long_wait():
-    r.submit(Y["team_id"], "Giữ Minh", mentions=["ag_minh"], as_job=True, client_msg_id="y2")
-    await r.dispatch_once(wait=False)
-    await asyncio.sleep(0.05)
     jx2 = r.submit(X["team_id"], "Chờ Minh", mentions=["ag_minh"], as_job=True, client_msg_id="x2")
     await r.dispatch_once(wait=False)
-    await asyncio.sleep(0.3)
-    hold.set()
     await r.wait_jobs()
     return jx2
 
 
 jx2 = run(long_wait())
+tm.release_busy("ag_minh", "tu_pulse")
 tx2 = ts.get_task(jx2["task_id"])
 check("chờ khoá bận quá hạn: agent_busy_long, lượt hoàn", tx2["block_kind"] == "agent_busy_long"
       and [t["status"] for t in tm.turns(X["team_id"]) if t["task_id"] == jx2["task_id"]] == ["refunded"])
+
+# ---------- 0.257.0: cùng agent trả lời ở hai nhóm cùng lúc; cùng nhóm vẫn lần lượt; trần theo engine ----------
+ss, ts, tm, fake, r, pub, inbox, gone = world("parallel")
+X = make_team(tm, ss, "Song song X", members=("ag_lan", "ag_minh"), leader="ag_lan")
+Y = make_team(tm, ss, "Song song Y", members=("ag_hoa", "ag_minh"), leader="ag_hoa")
+live = {"now": 0, "peak": 0}
+
+
+def gated(gate):
+    async def answer(req):
+        live["now"] += 1
+        live["peak"] = max(live["peak"], live["now"])
+        try:
+            await asyncio.wait_for(gate.wait(), 2)
+        finally:
+            live["now"] -= 1
+        return "Minh trả lời ở " + req["team_id"]
+    return answer
+
+
+async def two_teams():
+    gate = asyncio.Event()
+    fake.say("ag_minh", "member_reply", gated(gate), gated(gate))
+    sx = r.submit(X["team_id"], "Minh ơi bên X", mentions=["ag_minh"], client_msg_id="px1")
+    sy = r.submit(Y["team_id"], "Minh ơi bên Y", mentions=["ag_minh"], client_msg_id="py1")
+    tasks = [asyncio.ensure_future(r.run_replies(sx)), asyncio.ensure_future(r.run_replies(sy))]
+    for _ in range(100):
+        if live["now"] == 2:
+            break
+        await asyncio.sleep(0.01)
+    seen = r.busy_view(Y["team_id"])
+    gate.set()
+    outs = await asyncio.gather(*tasks)
+    return outs, seen
+
+outs, seen = run(two_teams())
+check("0.257.0 cùng agent trả lời ở hai nhóm CÙNG LÚC", live["peak"] == 2, live)
+check("0.257.0 hai lượt đều đăng tin", all(o and o[0].get("message_id") for o in outs), outs)
+check("0.257.0 nhóm Y không báo agent bận ở nhóm X", seen == {}, seen)
+check("0.257.0 lượt xong thì không còn dòng khoá nào", tm.busy_of("ag_minh") is None)
+
+live.update(now=0, peak=0)
+
+
+async def same_team():
+    gate = asyncio.Event()
+    fake.say("ag_minh", "member_reply", gated(gate), gated(gate))
+    s1 = r.submit(X["team_id"], "Câu một", mentions=["ag_minh"], client_msg_id="px2")
+    s2 = r.submit(X["team_id"], "Câu hai", mentions=["ag_minh"], client_msg_id="px3")
+    tasks = [asyncio.ensure_future(r.run_replies(s1)), asyncio.ensure_future(r.run_replies(s2))]
+    await asyncio.sleep(0.2)
+    first = live["now"]
+    gate.set()
+    await asyncio.gather(*tasks)
+    return first
+
+check("0.257.0 cùng agent trong CÙNG nhóm vẫn một lượt một lúc (một mạch)", run(same_team()) == 1 and live["peak"] == 1,
+      live)
+
+live.update(now=0, peak=0)
+r.engine_slots_api = 1
+
+
+async def one_slot():
+    gate = asyncio.Event()
+    fake.say("ag_lan", "leader_reply", gated(gate))
+    fake.say("ag_hoa", "leader_reply", gated(gate))
+    sx = r.submit(X["team_id"], "Lan ơi", client_msg_id="px4")
+    sy = r.submit(Y["team_id"], "Hoa ơi", client_msg_id="py4")
+    tasks = [asyncio.ensure_future(r.run_replies(sx)), asyncio.ensure_future(r.run_replies(sy))]
+    await asyncio.sleep(0.2)
+    first = live["now"]
+    gate.set()
+    outs = await asyncio.gather(*tasks)
+    return first, outs
+
+first, outs = run(one_slot())
+check("0.257.0 trần theo engine: một chỗ thì hai nhóm lần lượt, không mất lượt nào",
+      first == 1 and live["peak"] == 1 and all(o and o[0].get("message_id") for o in outs), (first, live, outs))
+lim = {row["key"]: row["value"] for row in r.limits_table(X["team_id"])}
+check("0.257.0 bảng giới hạn có trần theo engine và số nhóm song song",
+      lim.get("engine_slots_api") == 1 and lim.get("engine_slots_cli") == TR.ENGINE_SLOTS_CLI
+      and lim.get("max_parallel_teams") == TR.MAX_PARALLEL_TEAMS, lim)
+check("0.257.0 engine gói đăng ký dùng trần CLI, engine khác dùng trần API",
+      r.slots_for("anthropic-cli") == TR.ENGINE_SLOTS_CLI and r.slots_for("openrouter") == 1)
 
 # ---------- TC20: huỷ việc khi lượt đang gọi engine ----------
 ss, ts, tm, fake, r, pub, inbox, gone = world("cancel")
