@@ -955,12 +955,14 @@ async def chain_review_two():
         qs.append(rq["event_id"])
     await f.wait_idle()
     told = [x for x in mx.SENT if "Cách ly" in x["text"] or "cách ly" in x["text"]]
-    st.prune(time.time() + (wst.BODY_KEEP_DAYS + 40) * 86400)
+    st.prune(time.time() + (wst.BODY_KEEP_DAYS + 2) * 86400)
     st.make_room()
     kept = [st.get(e, True) for e in qs]
-    check("R8 P2-3: three quarantined orders: one grouped notice under errors_only, and every body is kept past "
-          "retention and room-making", len(told) == 1 and all(k and k["status"] == "invalid" and k.get("body")
-                                                              for k in kept), (len(told), [k and k["status"] for k in kept]))
+    # R9 (review of R8): kept past the 7-day body strip of finished events, within the normal 30-day retention and
+    # the per-hook row cap (never unbounded).
+    check("R8 P2-3: three quarantined orders: one grouped notice under errors_only, and every body is kept past the "
+          "7-day body strip", len(told) == 1 and all(k and k["status"] == "invalid" and k.get("body")
+                                                     for k in kept), (len(told), [k and k["status"] for k in kept]))
     okq, _ = st.delete_event(qs[0])
     check("R8 P2-3: the owner can delete a quarantined event", okq)
     # R8 P2-4: three-valued logic with a mix of known and unknown items.
@@ -1036,6 +1038,133 @@ async def chain_review_two():
     await cl.aclose()
 
 
+async def fix_review_two():
+    """Findings of the review of the R8 fixes (R9), and the paths that review found untested."""
+    import webhook_rollback as wrb
+    import webhook_store as wst
+    import webhook_triggers as wt
+    import webhook_worker as ww
+    f = fresh()
+    st = f.store()
+    # R9 P1: a chain through a delivery held for approval does not spin the event.
+    hc, tc, _ = f.create("/b1", name="Chuỗi duyệt", target="", text="", level="full", actions=[
+        {"id": "a", "kind": "http", "url": "https://appr9.example/in", "approve": True},
+        {"id": "b", "kind": "http", "url": "https://b9.example/in", "depends_on": ["a"]},
+        {"id": "c", "kind": "http", "url": "https://c9.example/in", "depends_on": ["b"]}])
+    c, rc = await f.accept(hc["id"], tc, b"{}", "application/json", "")
+    await asyncio.sleep(2.0)
+    n = st._db.execute("SELECT COUNT(*) FROM attempts WHERE event_id=?", (rc["event_id"],)).fetchone()[0]
+    check("R9 P1: a -> b -> c with a waiting for approval: the event waits, no claim loop",
+          n <= 2 and st.get(rc["event_id"])["status"] == "waiting", (n, st.get(rc["event_id"])["status"]))
+    # R9 P2-1: deleting an event every receiver refused (4xx: nothing acted) gives the order back.
+    mx.HTTP["by_host"]["ref9.example"] = 400
+    hd, td, _ = f.create("/b1", name="Từ chối", target="", text="", level="full", rules={
+        "dedup": {"policy_version": 1, "business_paths": ["id"], "ttl_s": 86400}},
+        actions=[{"id": "crm", "kind": "http", "url": "https://ref9.example/in"}])
+    c, rd = await f.accept(hd["id"], td, body({"id": 5}), "application/json", "d1")
+    await f.wait_idle()
+    okd, _ = st.delete_event(rd["event_id"])
+    mx.HTTP["by_host"]["ref9.example"] = 200
+    c, rd2 = await f.accept(hd["id"], td, body({"id": 5}), "application/json", "d2")
+    await f.wait_idle()
+    check("R9 P2-1: after deleting an event that only got 4xx refusals, the resent order runs (not a duplicate of the "
+          "deleted one)", okd and st.get(rd2["event_id"])["status"] == "done", (okd, st.get(rd2["event_id"])["status"]))
+    # R9 P2-2: quarantines are grouped in every mode, and successes in between do not re-open them.
+    qrules = {"dedup": {"policy_version": 1, "business_paths": ["shop_id"], "ttl_s": 60, "missing": "quarantine"}}
+    ha, ta, _ = f.create("/b1", name="Q all", target="task", text="x", rules=qrules)
+    mx.SENT.clear()
+    for i in range(20):
+        await f.accept(ha["id"], ta, body({"i": i}), "application/json", f"qa{i}")
+    await f.wait_idle()
+    qa = [x for x in mx.SENT if "cách ly" in x["text"] or "quarantined" in x["text"]]
+    check("R9 P2-2: 20 quarantined events under notify all make one notice", len(qa) == 1, len(qa))
+    he, te, _ = f.create("/b1", name="Q xen", target="", text="", level="full", notify="errors_only", rules=qrules,
+                         actions=[{"id": "crm", "kind": "http", "url": "https://mix9.example/in"}])
+    mx.SENT.clear()
+    for i in range(5):
+        await f.accept(he["id"], te, body({"i": i}), "application/json", f"qb{i}")
+        await f.accept(he["id"], te, body({"shop_id": i}), "application/json", f"ok{i}")
+        await f.wait_idle()
+    check("R9 P2-2: quarantines interleaved with good orders under errors_only: one notice, no 'runs normally again'",
+          len(mx.SENT) == 1, [x["text"][:60] for x in mx.SENT])
+    # R9 P2-3: quarantined bodies never refuse valid orders (not in the byte quota) and stay under the row cap.
+    hb, tb, _ = f.create("/b1", name="Q to", target="", text="", level="full", rules=qrules,
+                         limits={"backlog_mb": 1, "body_kb": 512},
+                         actions=[{"id": "crm", "kind": "http", "url": "https://big9.example/in"}])
+    big = b'{"pad": "' + b"x" * 400000 + b'"}'
+    codes = []
+    for i in range(4):
+        codes.append((await f.accept(hb["id"], tb, big, "application/json", f"big{i}"))[0])
+        await f.wait_idle()             # quarantined, no longer pending (pending bodies do count, as they should)
+    ok_code, _ = await f.accept(hb["id"], tb, body({"shop_id": 1}), "application/json", "good")
+    check("R9 P2-3: four 400 KB quarantined bodies on a 1 MB hook do not refuse the next valid order", codes == [202] * 4
+          and ok_code == 202, (codes, ok_code))
+    old_cap = wst.KEEP_IGNORED_PER_HOOK
+    wst.KEEP_IGNORED_PER_HOOK = 2
+    try:
+        st.prune()
+    finally:
+        wst.KEEP_IGNORED_PER_HOOK = old_cap
+    nq = st._db.execute("SELECT COUNT(*) FROM events WHERE hook_id=? AND status='invalid'", (hb["id"],)).fetchone()[0]
+    check("R9 P2-3: quarantined events stay under the per-hook row cap", nq <= 2, nq)
+    # R9 P3: amounts and counts stay readable; identity numbers are masked.
+    m = wt.mask({"shipping_fee": 30000, "bill_total": 450000, "customer": {"total_orders": 4, "phone": 912345678},
+                 "cccd": 123456789012})
+    check("R9 P3: shipping_fee, bill_total and a count keep their value; a phone and a CCCD number are masked",
+          m["shipping_fee"] == 30000 and m["bill_total"] == 450000 and m["customer"]["total_orders"] == 4
+          and "912345678" not in str(m) and "123456789012" not in str(m), m)
+    # R9 P3: a running event of a hook deleted mid-run dispatches nothing more.
+    hx, tx, _ = f.create("/b1", name="Xoá giữa", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://mid9.example/in"}])
+    st.hook_set(hx["id"], paused=1)
+    c, rx = await f.accept(hx["id"], tx, b"{}", "application/json", "")
+    await f.wait_idle()
+    st.hook_set(hx["id"], paused=0)
+    st._db.execute("UPDATE events SET status='queued', next_at=0 WHERE id=?", (rx["event_id"],))
+    row = st.claim("probe")
+    if row and row["id"] != rx["event_id"]:
+        row = None
+    rows = st.branches_init(rx["event_id"], row["fence"], [{"id": "crm", "kind": "http"}],
+                            mx.wa.delivery_id) if row else None
+    st.forget_hook(hx["id"])
+    sent = st.branch_dispatch(rx["event_id"], row["fence"], "crm") if row else True
+    check("R9 P3: after the hook is deleted mid-run, its next delivery is not dispatched", row and rows is not None
+          and sent is False, (bool(row), sent))
+    # R9 P3: Retry all blocked clears the event's dispatch mark.
+    hu, tu, _ = f.create("/b1", name="Chặn 9", target="", text="", level="full",
+                         actions=[{"id": "p", "kind": "plugin", "plugin": "missing9", "handler": "h"}])
+    c, ru = await f.accept(hu["id"], tu, b"{}", "application/json", "")
+    await f.wait_idle()
+    st._db.execute("UPDATE events SET dispatched_at=5 WHERE id=?", (ru["event_id"],))
+    st.hook_set(hu["id"], paused=1)
+    st.unblock(hu["id"])
+    da = st._db.execute("SELECT dispatched_at FROM events WHERE id=?", (ru["event_id"],)).fetchone()[0]
+    check("R9 P3: Retry all blocked clears the event's dispatch mark", da == 0, da)
+    # R9 P3: a plugin call that never returned ends unknown at the deadline, never a silent wait.
+    real_busy = ww.webhook_actions.plugin_busy
+    ww.webhook_actions.plugin_busy = lambda did: True
+    try:
+        hz, tz, _ = f.create("/b1", name="Plugin treo", target="", text="", level="full",
+                             actions=[{"id": "p", "kind": "plugin", "plugin": "poscake-zalo", "handler": "order_received"}])
+        c, rz = await f.accept(hz["id"], tz, body({"id": 1}), "application/json", "")
+        await f.wait_idle()
+        first = st.get(rz["event_id"])["branches"][0]["status"]
+        st._db.execute("UPDATE deliveries SET deadline=?, next_at=0 WHERE event_id=?", (time.time() - 1, rz["event_id"]))
+        st._db.execute("UPDATE events SET next_at=0 WHERE id=?", (rz["event_id"],))
+        f._kick()
+        await f.wait_idle()
+        after = st.get(rz["event_id"])["branches"][0]
+    finally:
+        ww.webhook_actions.plugin_busy = real_busy
+    check("R9 P3: a plugin call that never returned waits (retry), then ends unknown at the deadline",
+          first == "retry" and after["status"] == "unknown", (first, after["status"], after["detail"]))
+    # R9 P3: rollback leaves an AI hook on when its extra fields are empty or false.
+    lh, why = wrb.legacy_hook({"id": "wh_y", "name": "AI", "target": "task", "text": "x", "enabled": True,
+                                "actions": [{"id": "main", "kind": "ai", "approve": False, "when": None}]}, [])
+    check("R9 P3: an AI action with approve false and no condition stays on for the older build",
+          lh.get("enabled") is True and not why, (lh.get("enabled"), why))
+
+
 async def main():
     await rules_and_triage()
     await receiving()
@@ -1047,6 +1176,7 @@ async def main():
     await whole_chain()
     await fix_review()
     await chain_review_two()
+    await fix_review_two()
 
 
 if __name__ == "__main__":

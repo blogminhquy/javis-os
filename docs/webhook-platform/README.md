@@ -257,7 +257,9 @@ a79820f2 to confirm the pinned checks were red there. A seventh reviewer (R7) re
 four P2 and six P3 findings, fixed in the next commit and pinned in `fix_review()`, each red on the server code of
 fc621216. Two more reviewers then reviewed the whole chain again at ac47dac1 (R8, M1-M3 and M4-M5 separately): two P1,
 eight P2 and their P3 findings, fixed in the next commit and pinned in `chain_review_two()`, each red on the server
-code of ac47dac1.
+code of ac47dac1. A reviewer of that fix commit (R9, at 6d40a873) found one P1 and three P2 in the fixes themselves;
+they are fixed in the next commit and pinned in `fix_review_two()`, each red on the server code of 6d40a873 (the P1 row
+hangs there, so it was run on its own).
 
 | Finding | Fix |
 |---|---|
@@ -300,11 +302,17 @@ code of ac47dac1.
 | R8 P1 rollback left an AI hook with approval or a condition switched on for the older build, which would run it on every event unapproved | an AI action with any field beyond id and kind switches the hook off there |
 | R8 P2 replay skipped business dedup: a duplicate replayed sent the order again; a filtered event replayed took no key | the preview names the event holding the key and the confirm refuses; a replay takes the key |
 | R8 P2 deleting a partly failed event gave its keys back, so the source's resend ran the succeeded part again | keys are released only when nothing was ever dispatched |
-| R8 P2 quarantined events were silent under errors_only and retention wiped them | told (grouped), kept with their body and counted in the byte quota until the owner deletes, replays or closes them |
+| R8 P2 quarantined events were silent under errors_only and retention wiped them | told (grouped in every mode), body kept for the whole 30-day retention under the per-hook row cap; the owner can delete, replay or close them (R9 corrected the first fix: not exempt from retention, not in the byte quota) |
 | R8 P2 `[*]` with known and unknown items gave a definite answer (`not` then matched) | undecided with an unknown item is unknown |
 | R8 P2 Retry of an event held at rollback before triage ran every action unfiltered | it goes back through triage |
 | R8 P2 errors_only grouped on the receiver's wording (one notice per order id; 502 and 504 alternating) | grouped on the kind of failure (numbers and quoted values removed), every open kind remembered |
 | R8 P2 masking missed `ten_khach_hang`, `nguoi_nhan`, `recipient`, `buyer`, numeric CCCD and Zalo ids (view, export, capture fixtures) | the key list widened; numbers under a customer key masked |
 | R8 P3 (fixed) | X-Request-ID is a delivery key only for older hooks; the overlap end is Javis's to set and bounded; the failed-auth table forgets finished addresses only; a plugin call that never returned ends unknown at the deadline; a deleted hook's running event dispatches nothing more; Retry all blocked clears the dispatch mark; the incident key is dropped with the hook |
 | R8 P3 (kept, noted) | a crash between sealing a rotated signing secret and the commit leaves the new key live without the old one (the provider's in-flight deliveries get 401 and are retried by it); the breaker key is the target plus the secret's name, not its value; GitHub and Shopify delivery ids are not signed, so a captured delivery resent with a new id passes (inherent to those providers); an event whose deliveries all ended `accepted` reads as done, since a plugin's accepted job is its normal success |
+| R9 (review of the R8 fixes, at 6d40a873) P1 a chain through a delivery held for approval still spun the event (656 attempt rows in 3 s) | held is transitive down the chain |
+| R9 P2 deleting an event every receiver refused (4xx) kept its keys: the resent order was a duplicate of a deleted event | keys are kept only when a delivery succeeded, is unclear, or may have acted |
+| R9 P2 quarantine notices: one per event under `all`; a good order between two quarantines re-opened them under errors_only | grouped in every mode, by hook and kind of reason, kept apart from delivery incidents |
+| R9 P2 quarantined events were exempt from every retention and counted in the byte quota: a broken rule could refuse every valid order, then fill the store | back under the 30-day retention and the per-hook row cap, outside the byte quota; their body is kept for the whole retention |
+| R9 P3 (fixed) | amounts and counts are not masked (only identity numbers: phone, CCCD, Zalo, passport); the incident count resets after each notice; the deleted-hook dispatch check uses the tombstone; rollback ignores empty AI fields; the replay preview judges the business key as the store does |
+| R9 P3 (noted) | the three-valued `[*]` logic can now filter an order an older `not(any ...)` filter let through over a sparse array (the changelog says so) |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |

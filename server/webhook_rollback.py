@@ -60,7 +60,8 @@ def legacy_hook(h: dict, keys: list) -> tuple:
     # The older build runs the hook's own task on every event, with no approval and no condition: an AI action that
     # carries anything more (approval, `when`, an order, retry settings) cannot run there as configured.
     for a in h.get("actions") or []:
-        extra = sorted(set(a) - {"id", "kind"}) if a.get("kind") == "ai" else []
+        extra = sorted(k for k, v in a.items() if k not in ("id", "kind") and v not in (None, False, "", {}, [])) \
+            if a.get("kind") == "ai" else []
         if extra:
             why.append(f"AI action {a.get('id')} with {', '.join(extra)}")
     if h.get("rules"):

@@ -85,6 +85,7 @@ _PII_KEYS = ("name", "phone", "email", "address", "mobile", "tel", "sdt", "ho_te
              # 0.237.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
              "khach", "nguoi_nhan", "nguoinhan", "nguoi_gui", "recipient", "receiver", "buyer", "sender", "full_name",
              "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob")
+_ID_NUMBER_KEYS = ("phone", "mobile", "tel", "sdt", "cccd", "cmnd", "zalo", "id_card", "passport", "national_id")
 _SECRET_KEYS = ("token", "secret", "password", "passwd", "authorization", "api_key", "apikey", "signature", "cookie",
                 "access_key", "private")
 
@@ -215,9 +216,9 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
         if pii and v:
             return v[:1] + "•" * min(max(len(v) - 1, 1), 12)
         return _mask_text(v)
-    # A number under a customer key (a CCCD, a Zalo id, a phone kept as a number) is the customer's too.
-    if isinstance(v, (int, float)) and not isinstance(v, bool) and (pii or any(x in k for x in ("phone", "mobile", "tel",
-                                                                                                "sdt"))):
+    # A number that identifies a person (a phone, a CCCD, a Zalo id) is masked; amounts (a shipping fee, a bill
+    # total) and counts stay readable.
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and any(x in k for x in _ID_NUMBER_KEYS):
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:]
     return v
@@ -991,10 +992,10 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         bk = res.get("business_key") if res["decision"] == "run" else None
         dup_of = ""
         if bk:
-            held = self.store().biz_key_lookup(ev.get("brain") or "", webhook_store.Store.key_scope(
+            held = self.store().biz_key_holder(ev.get("brain") or "", webhook_store.Store.key_scope(
                 ev["hook_id"], bk, ev.get("source") or "http"), bk["hash"])
-            if held and held.get("event_id") not in (eid, ""):
-                dup_of = held["event_id"]
+            if held not in (eid, ""):
+                dup_of = held
         out = {"ok": True, "decision": res["decision"], "reason": res["reason"], "revision": h.get("revision"),
                "level": h.get("level"), "generation": int(ev.get("generation") or 1) + 1, "deliveries": plan,
                "may_repeat": sorted(d["action"] for d in plan if d["runs"] and (d["already_succeeded"]
