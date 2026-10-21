@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import AsyncIterator, Optional
 
 import localefmt
-from claude_cli import _home_dir, _no_window, tim_binary
+from claude_cli import _ACTIVE_PROCS, _PROC_LOCK, _home_dir, _kill_tree, _no_window, tim_binary
 
 # Model mặc định khi người dùng chưa chọn gì. KHÔNG phải bảng model: chỉ là hạt giống để lượt
 # đầu chạy được nếu `agy models` chưa kịp trả lời. Danh sách thật luôn lấy từ CLI.
@@ -1509,6 +1509,16 @@ class AntigravityCLI:
         loop = asyncio.get_running_loop()
         hang: asyncio.Queue = asyncio.Queue()
         HET = object()
+        stop_requested = threading.Event()
+        reader_finished = threading.Event()
+        deadline_expired = threading.Event()
+
+        def publish(event):
+            # Cancellation can close the consumer's loop before the reader exits.
+            try:
+                loop.call_soon_threadsafe(hang.put_nowait, event)
+            except RuntimeError:
+                pass
 
         def doc_luong():
             proc = None
@@ -1518,6 +1528,21 @@ class AntigravityCLI:
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
                     creationflags=_no_window(), start_new_session=(os.name != "nt"),
                 )
+                with _PROC_LOCK:
+                    _ACTIVE_PROCS[proc] = self.tag
+
+                def watch_stop():
+                    # Keep cleanup independent of the cancelled asyncio task, including
+                    # a cancellation that arrives before Popen returns.
+                    # The deadline must run while stdout.readline or stdin.write is
+                    # blocked, rather than only after stdout has reached EOF.
+                    if not stop_requested.wait(self.timeout):
+                        deadline_expired.set()
+                    if proc.poll() is None:
+                        _kill_tree(proc)
+
+                threading.Thread(target=watch_stop, daemon=True,
+                                 name=f"javis-agy-watch-{self.tag}").start()
                 try:   # lệnh chạy ngầm agy bỏ lại sẽ được theo dõi sau lượt (tien_trinh_nen)
                     import tien_trinh_nen
                     tien_trinh_nen.ghi_nhom(self.tag, proc.pid)
@@ -1549,18 +1574,21 @@ class AntigravityCLI:
                     if not line:
                         continue
                     try:
-                        loop.call_soon_threadsafe(hang.put_nowait, json.loads(line))
+                        publish(json.loads(line))
                     except json.JSONDecodeError:
-                        loop.call_soon_threadsafe(hang.put_nowait, {"_raw": line})
+                        publish({"_raw": line})
                 ma = proc.wait(timeout=self.timeout)
                 luong_loi.join(timeout=5)
                 err = "".join(phan_loi).strip()
-                if ma != 0 or err:
-                    loop.call_soon_threadsafe(hang.put_nowait, {"_exit": ma, "_err": err})
+                if deadline_expired.is_set():
+                    # Reuse the existing time-cap classification: never retry a turn
+                    # that may already have performed outside actions.
+                    publish({"_exit": -1, "_err":
+                             f"[agy] print timeout after {self.timeout:g}s with turn in progress"})
+                elif ma != 0 or err:
+                    publish({"_exit": ma, "_err": err})
             except subprocess.TimeoutExpired:
-                loop.call_soon_threadsafe(
-                    hang.put_nowait,
-                    {"_exit": -1, "_err": localefmt.chu(
+                publish({"_exit": -1, "_err": localefmt.chu(
                         f"Antigravity CLI chạy quá {int(self.timeout)}s nên bị "
                         f"cắt. Nếu việc thật sự dài thì nâng biến môi trường "
                         f"JAVIS_AGY_TIMEOUT.",
@@ -1574,18 +1602,21 @@ class AntigravityCLI:
                 # chạy lại bằng stdin/file thay vì ném "OSError: [Errno 7] Argument list too
                 # long" thẳng vào mặt người dùng - câu đó họ không sửa được gì (báo 2026-08-30).
                 qua_tran = getattr(e, "errno", None) in (errno.E2BIG, errno.ENAMETOOLONG)
-                loop.call_soon_threadsafe(
-                    hang.put_nowait,
-                    {"_exit": -1, "_err": f"{type(e).__name__}: {e}", "_qua_tran": qua_tran})
+                publish({"_exit": -1, "_err": f"{type(e).__name__}: {e}", "_qua_tran": qua_tran})
             except Exception as e:
-                loop.call_soon_threadsafe(hang.put_nowait,
-                                          {"_exit": -1, "_err": f"{type(e).__name__}: {e}"})
+                publish({"_exit": -1, "_err": f"{type(e).__name__}: {e}"})
             finally:
+                stop_requested.set()
                 try:
                     if proc and proc.poll() is None:
-                        proc.terminate()
+                        _kill_tree(proc)
+                    if proc:
+                        proc.wait(timeout=5)
                 except Exception:
                     pass
+                if proc:
+                    with _PROC_LOCK:
+                        _ACTIVE_PROCS.pop(proc, None)
                 # Dọn file ngữ cảnh ở ĐÂY chứ không ở vòng đọc sự kiện: luồng này luôn chạy hết,
                 # kể cả khi người dùng đóng tab giữa chừng và không ai đọc nốt hàng đợi nữa.
                 # Để sót là rác tích dần trong brain của người dùng.
@@ -1594,7 +1625,8 @@ class AntigravityCLI:
                         os.unlink(tep_ngu_canh)
                     except Exception:
                         pass
-                loop.call_soon_threadsafe(hang.put_nowait, HET)
+                reader_finished.set()
+                publish(HET)
 
         threading.Thread(target=doc_luong, name=f"javis-agy-{self.tag}", daemon=True).start()
 
@@ -1622,34 +1654,39 @@ class AntigravityCLI:
         co_json = False
         qua_tran_argv = False
         co_tool = False
-        while True:
-            ev = await hang.get()
-            if ev is HET:
-                break
-            if ev.get("_qua_tran"):
-                qua_tran_argv = True      # query() sẽ chạy lại bằng stdin/file
-            if duong == "file" and not doc_duoc:
-                t = str(ev.get("type") or ev.get("event") or "").lower()
-                if "_raw" not in ev and "_exit" not in ev:
-                    co_json = True
-                if ten_ngan and ten_ngan in str(ev):
-                    if t in ("tool_result", "tool_output"):
-                        tt = (str(ev.get("status") or "") + " "
-                              + str(ev.get("output") or ev.get("content") or "")[:300]).lower()
-                        if not any(k in tt for k in ("error", "fail", "denied", "not found",
-                                                     "no such", "permission")):
-                            doc_duoc = True
-                    else:
-                        da_thu_doc = True
-            for ra in self._doi_su_kien(ev, cac_manh, chan):
-                if ra.get("type") == "tool_call":
-                    co_tool = True      # đã đụng thế giới bên ngoài -> KHÔNG được chạy lại
-                if ra.get("type") == "error":
-                    da_loi = True
-                    cac_loi.append(str(ra.get("content") or ""))
-                    if giu_loi:
-                        continue      # lượt này còn có thể thử lại bằng đường khác
-                yield ra
+        try:
+            while True:
+                ev = await hang.get()
+                if ev is HET:
+                    break
+                if ev.get("_qua_tran"):
+                    qua_tran_argv = True      # query() sẽ chạy lại bằng stdin/file
+                if duong == "file" and not doc_duoc:
+                    t = str(ev.get("type") or ev.get("event") or "").lower()
+                    if "_raw" not in ev and "_exit" not in ev:
+                        co_json = True
+                    if ten_ngan and ten_ngan in str(ev):
+                        if t in ("tool_result", "tool_output"):
+                            tt = (str(ev.get("status") or "") + " "
+                                  + str(ev.get("output") or ev.get("content") or "")[:300]).lower()
+                            if not any(k in tt for k in ("error", "fail", "denied", "not found",
+                                                         "no such", "permission")):
+                                doc_duoc = True
+                        else:
+                            da_thu_doc = True
+                for ra in self._doi_su_kien(ev, cac_manh, chan):
+                    if ra.get("type") == "tool_call":
+                        co_tool = True      # đã đụng thế giới bên ngoài -> KHÔNG được chạy lại
+                    if ra.get("type") == "error":
+                        da_loi = True
+                        cac_loi.append(str(ra.get("content") or ""))
+                        if giu_loi:
+                            continue      # lượt này còn có thể thử lại bằng đường khác
+                    yield ra
+        finally:
+            stop_requested.set()
+            # A second Stop may interrupt this wait; the worker still owns cleanup.
+            await asyncio.to_thread(reader_finished.wait, 5)
         ket.update(text=_chot_van("".join(cac_manh).strip(), chan.get("toan_van", "")),
                    loi=da_loi, cac_loi=cac_loi,
                    ten_ngu_canh=ten_ngu_canh, qua_tran_argv=qua_tran_argv,
