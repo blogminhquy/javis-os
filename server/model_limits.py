@@ -181,7 +181,11 @@ def subscription_blocked_hint(limit, configured_providers=(), now=None) -> str:
         gio, phut = con // 3600, (con % 3600) // 60
         khi_nao = _time.strftime("%H:%M", _time.localtime(reset))
         cho = f"{gio} giờ {phut} phút" if gio else f"{phut} phút"
-        parts.append(f"Khoảng {cho} nữa mới lại dùng được (tầm {khi_nao}).")
+        # Keep the provider's own words too: they carry its time zone ("resets 1:50am (Asia/Bangkok)"),
+        # which the local HH:MM above has converted away.
+        said = str(getattr(limit, "reset_text", "") or "")
+        parts.append(f"Khoảng {cho} nữa mới lại dùng được (tầm {khi_nao}"
+                     + (f", nhà cung cấp nói: {said}" if said else "") + ").")
     elif getattr(limit, "reset_text", ""):
         parts.append(f"Nhà cung cấp nói: {limit.reset_text}.")
     else:
