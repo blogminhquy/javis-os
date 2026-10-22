@@ -59,6 +59,36 @@ async def main():
     code = wc.main(["check", "--config", str(cfg), str(out), str(out2)])
     check("check: a fixture whose expected decision differs fails the run (exit 1)", code == 1)
 
+    real_capture()
+
+
+def real_capture():
+    """The first REAL POSCake delivery (event_type create, captured 2026-10-22): what it teaches is pinned here."""
+    import re
+    fx = ROOT / "tests" / "fixtures" / "webhooks" / "captured" / "poscake-order-create.json"
+    text = fx.read_text(encoding="utf-8")
+    doc = json.loads(text)
+    check("real capture: POSCake sends no signature and no custom header (content-type and user-agent only)",
+          sorted(doc["headers"]) == ["content-type", "user-agent"], doc["headers"])
+    leaks = re.findall(r"[\w.+-]+@[\w-]+\.[\w.]+|\b0\d{9}\b|pke\.gg/\w+|pancake-auth|order_id=\d+", text)
+    check("real capture: no e-mail, phone number, payment or tracking link left in the fixture", not leaks, leaks)
+    real = {"rules": {"filter": {"all": [
+        {"path": "event_type", "op": "eq", "value": "create"},
+        {"path": "items[*].variation_info.name", "op": "contains", "value": "AutopageAI", "quantifier": "any",
+         "case_sensitive": False, "reason": "product_not_found"}]},
+        "dedup": {"policy_version": 1, "business_paths": ["shop_id", "id", "status"], "ttl_s": 604800,
+                  "missing": "quarantine"}, "correlation": "id"}}
+    res = wc.check(real, [str(fx)])
+    check("real capture: rules on the real field names (event_type, items[*].variation_info.name) run the order",
+          res[0]["ok"] and res[0]["decision"] == "run", res)
+    spec = {"rules": {"filter": {"all": [
+        {"path": "status", "op": "eq", "value": 1},
+        {"path": "items[*].name", "op": "contains", "value": "AutopageAI", "quantifier": "any",
+         "case_sensitive": False, "reason": "product_not_found"}]}}}
+    res = wc.check(spec, [str(fx)])
+    check("real capture: the spec's illustrative names (status 1, items[*].name) would ignore every real new order",
+          res[0]["decision"] == "filtered", res)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

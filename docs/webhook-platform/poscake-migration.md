@@ -5,6 +5,32 @@ payload schema, no statement of whether POSCake can send a custom header. Javis 
 (`provider: poscake` is refused when saved). Everything below that depends on POSCake's real data is a step to run
 on staging with the owner, not a fact. Nothing here was run against POSCake, Apps Script or Zalo.
 
+## What the first real delivery showed (2026-10-22)
+
+The owner captured one real POSCake delivery (a test order, `event_type: create`) with webhook.site. Its masked copy is
+`tests/fixtures/webhooks/captured/poscake-order-create.json`; `tests/python/test_webhook_capture.py` pins what follows.
+
+- **Headers:** only `content-type: application/json` and `user-agent: mint/1.9.3`. No signature, no custom header. So
+  POSCake authenticates with the older hook's `?token=` address (below); a new hook refuses it (401, measured).
+- **Event:** `event_type` (`create` here); the order's state is `status` (a number: `0` with `status_name: "new"`).
+  What the other numbers mean (confirmed, paid, cancelled...) is still the owner's to state.
+- **Order ids:** `id` is the shop's order number (739, equal to `system_id`), `shop_id` the shop.
+- **Products:** the name is `items[*].variation_info.name` (also `display_id`, `product_display_id`). There is **no**
+  `items[*].name`: the illustrative configuration below would ignore every real order (`product_not_found`).
+- **Masking:** the masked view and the fixture keep ids, amounts, counts, product names and times; e-mails, phones,
+  names, addresses, Facebook ids, staff, avatar, payment and tracking links are hidden (checked on this payload).
+- **Run on the real host** (local, the same body): with the real field names the order ran once; the same body sent
+  again was a duplicate; no model was called.
+
+Corrected filter for a paid-order trigger, once the owner names the paid status number `<P>`:
+
+```json
+{"filter": {"all": [
+  {"path": "status", "op": "eq", "value": <P>},
+  {"path": "items[*].variation_info.name", "op": "contains", "value": "TRỢ LÝ AI JAVIS", "quantifier": "any",
+   "case_sensitive": false, "reason": "product_not_found"}]}}
+```
+
 ## The target configuration (spec §9)
 
 One hook, three parts: a filter on paid orders that contain the product, a business key per order and status, and two
@@ -31,8 +57,9 @@ actions that do not need AI.
 }
 ```
 
-Field names (`status`, `items[*].name`, `shop_id`, `id`) are the spec's illustration. They must be checked against
-a captured POSCake payload (step 2) before real traffic. The same configuration is exercised with fakes by
+Field names (`status`, `items[*].name`, `shop_id`, `id`) are the spec's illustration. The first real delivery (above)
+confirms `status`, `shop_id` and `id` but puts the product name at `items[*].variation_info.name`, and a new order has
+`status` 0: use the corrected filter above. The same configuration is exercised with fakes by
 `tests/python/test_webhook_spec_matrix.py` (`SPEC_RULES`, `POSCAKE_ACTIONS`).
 
 ## How POSCake authenticates
