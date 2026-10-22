@@ -2466,7 +2466,7 @@
   "lenh.goal_need": "Gõ /goal kèm mục tiêu, ví dụ: /goal mọi đơn hôm nay đã đối soát xong. Javis tự làm tiếp cho tới khi đạt (tối đa {n} vòng). Thanh mục tiêu trên khung chat có nút tạm dừng và xoá. /goal clear để tắt.",
   "lenh.goal_none": "Hiện không có mục tiêu nào đang chạy.",
   "lenh.goal_status": "Mục tiêu đang chạy: {dk} (vòng {v}/{n}).",
-  "lenh.goal_start": "Đặt mục tiêu: {dk} (tối đa {n} vòng). Tạm dừng hay xoá ngay trên thanh mục tiêu phía trên khung chat.",
+  "lenh.goal_start": "Đặt mục tiêu: {dk} (tối đa {n} vòng). Dừng hay xoá ngay trên thanh mục tiêu.",
   "lenh.goal_round_line": "Javis tự nhắc làm tiếp (vòng {v}/{n})",
   "lenh.goal_round_left": "Tình trạng vòng trước: {left}",
   "lenh.goal_round_noleft_detail": "Vòng trước chưa đạt, Javis làm tiếp.",

@@ -2466,7 +2466,7 @@
   "lenh.goal_need": "Type /goal with a target, for example: /goal every order from today is reconciled. Javis keeps working until it is met (up to {n} rounds). The goal bar above the chat box has pause and delete buttons. /goal clear turns it off.",
   "lenh.goal_none": "No goal is running right now.",
   "lenh.goal_status": "Goal in progress: {dk} (round {v}/{n}).",
-  "lenh.goal_start": "Goal set: {dk} (up to {n} rounds). Pause or delete it from the goal bar above the chat box.",
+  "lenh.goal_start": "Goal set: {dk} (up to {n} rounds). Pause or delete it on the goal bar.",
   "lenh.goal_round_line": "Javis nudged itself to keep going (round {v}/{n})",
   "lenh.goal_round_left": "Status after the last round: {left}",
   "lenh.goal_round_noleft_detail": "The last round did not reach the goal, so Javis keeps going.",
