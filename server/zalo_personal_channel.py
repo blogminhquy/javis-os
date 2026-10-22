@@ -156,6 +156,72 @@ async def _goi(conn: dict, tool: str, args: dict) -> Any:
     return _json_cua(raw)
 
 
+# ============================================================
+# Chat labels (tags the owner set in the Zalo app), 0.281.0
+# ============================================================
+# Read with javis-zalo 1.6.0's `zalo_get_labels`. One call returns every label with its chats, so the whole map is
+# kept per connection for `LABEL_TTL_S` and each incoming message only looks it up. A connection whose MCP has no such
+# tool (older javis-zalo) or that fails is asked again only after `LABEL_RETRY_S`: a bot must never wait on Zalo for
+# every message just to learn there are no labels.
+LABEL_TTL_S = 60
+LABEL_RETRY_S = 600
+_LABELS: Dict[str, dict] = {}       # conn_id -> {"at", "names": [...], "by_thread": {thread_id: [names]}, "ok"}
+
+
+def _label_map(data: Any) -> dict:
+    """`zalo_get_labels` result -> {"names": [label names in the owner's order], "by_thread": {thread_id: [names]}}."""
+    names, by_thread = [], {}
+    labels = data.get("labels") if isinstance(data, dict) else None
+    for lb in labels if isinstance(labels, list) else []:
+        if not isinstance(lb, dict):
+            continue
+        name = " ".join(str(lb.get("name") or "").split())[:60]
+        if not name:
+            continue
+        if name not in names:
+            names.append(name)
+        for t in lb.get("threads") or []:
+            tid = str((t or {}).get("threadId") or "").strip() if isinstance(t, dict) else ""
+            if tid:
+                ds = by_thread.setdefault(tid, [])
+                if name not in ds:
+                    ds.append(name)
+    return {"names": names, "by_thread": by_thread}
+
+
+async def _labels_of_conn(conn_id: str) -> dict:
+    """The cached label map of one connection; `{"names": [], "by_thread": {}}` when unknown. Never raises."""
+    now = time.time()
+    c = _LABELS.get(conn_id)
+    if c and now - c["at"] < (LABEL_TTL_S if c.get("ok") else LABEL_RETRY_S):
+        return c
+    conn = ket_noi_theo_id(conn_id)
+    if not conn:
+        return {"names": [], "by_thread": {}}
+    try:
+        data = await asyncio.wait_for(_goi(conn, "zalo_get_labels", {}), timeout=8)
+        m = _label_map(data)
+        if not isinstance(data, dict) or "labels" not in data:
+            raise RuntimeError("no labels in the reply")
+        c = dict(m, at=now, ok=True)
+    except Exception as e:      # noqa: BLE001 - labels are a hint for the bot; without them it runs as before
+        print(f"[zalo-personal {conn_id}] đọc tag Zalo lỗi: {type(e).__name__}: {str(e)[:160]}", file=sys.stderr)
+        c = dict(c or {"names": [], "by_thread": {}}, at=now, ok=False)
+    _LABELS[conn_id] = c
+    return c
+
+
+async def labels_of_chat(conn_id: str, thread_id: str) -> List[str]:
+    """Names of the Zalo labels on one chat of a connection (e.g. ["Gia đình"]); [] when none or unknown."""
+    m = await _labels_of_conn(str(conn_id or ""))
+    return list((m.get("by_thread") or {}).get(str(thread_id or ""), []))
+
+
+async def label_names(conn_id: str) -> List[str]:
+    """Every label name of a connection, for the bot form's picker; [] when unknown."""
+    return list((await _labels_of_conn(str(conn_id or ""))).get("names") or [])
+
+
 def _json_cua(raw: Any) -> Any:
     """Kết quả MCP về dạng chữ; bóc JSON nếu có, không thì trả nguyên."""
     if isinstance(raw, (dict, list)):

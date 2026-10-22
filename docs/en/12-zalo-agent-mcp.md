@@ -70,6 +70,7 @@ Right after you sign Zalo in to Javis, the Inbox only holds messages from the mo
 | `zalo_review_join_requests` | Approve or reject people waiting to join | Dangerous |
 | `zalo_list_threads` | List the chats currently in the buffer | Read |
 | `zalo_search_threads` | Find a group or person by name | Read |
+| `zalo_get_labels` | The tags (labels) the owner set on chats in the Zalo app, for one chat or all (javis-zalo 1.6.0 and later) | Read |
 | `zalo_view_media` | Download/open an image, audio or video on the server (the brain does not see it, see `zalo_read_images` below) | Read |
 | `zalo_mark_read` | Mark as handled up to a cursor | Write |
 | `zalo_send_message` | Send a message to a person or group | Dangerous |

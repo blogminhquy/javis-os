@@ -70,6 +70,7 @@ Mới đăng nhập Zalo vào Javis thì Hộp thư chỉ có tin từ lúc bậ
 | `zalo_review_join_requests` | Duyệt hoặc từ chối người xin vào nhóm | Nguy hiểm |
 | `zalo_list_threads` | Liệt kê các cuộc chat đang có trong bộ đệm | Đọc |
 | `zalo_search_threads` | Tìm nhóm hoặc người theo tên | Đọc |
+| `zalo_get_labels` | Tag (thẻ phân loại) chủ gắn cho cuộc chat trong app Zalo, của một cuộc chat hoặc tất cả (từ javis-zalo 1.6.0) | Đọc |
 | `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video trên máy chủ (bộ não không thấy ảnh, xem `zalo_read_images` bên dưới) | Đọc |
 | `zalo_mark_read` | Đánh dấu đã xử lý đến một cursor | Ghi |
 | `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |

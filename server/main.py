@@ -23595,6 +23595,29 @@ async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", l
     return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot)}
 
 
+@app.get("/chatbots/zalo-labels")
+async def chatbots_zalo_labels(account_ids: str = "", bot_id: str = ""):
+    """Zalo label names (tags the owner set in the Zalo app) of the personal Zalo accounts ticked in the bot form, for
+    "Never answer chats tagged" (0.281.0). Same account rules as `/chatbots/chats`; registered before `{bot_id}` routes.
+    `supported` is False when no ticked personal Zalo account could return labels (javis-zalo older than 1.6.0, or
+    signed out), so the form can say why the list is empty."""
+    import zalo_personal_channel
+    bot = chatbot_store.get_bot(bot_id) if bot_id else None
+    ids = [x.strip() for x in str(account_ids or "").split(",") if x.strip()]
+    if not ids:
+        ids = [str((a or {}).get("id") or a) if isinstance(a, dict) else str(a) for a in ((bot or {}).get("accounts") or [])]
+    names, supported = [], False
+    for aid in ids:
+        acc = channel_accounts.get_account(aid) or {}
+        if acc.get("channel") != "zalo_personal":
+            continue
+        for n in await zalo_personal_channel.label_names(aid):
+            if n not in names:
+                names.append(n)
+        supported = supported or bool((zalo_personal_channel._LABELS.get(aid) or {}).get("ok"))
+    return {"ok": True, "labels": names, "supported": supported}
+
+
 @app.post("/chatbots/{bot_id}/people")
 async def chatbots_people(bot_id: str, chat_id: str = Form(...), on: str = Form("1")):
     """Cho phép (hoặc gỡ) MỘT người nhắn riêng cho bot, bằng đúng một cú bấm. Đôi của
@@ -23634,7 +23657,7 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           account_label: str = Form(""), reply_policy: str = Form(""),
                           gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
                           ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
-                          nhan_ket_ban: str = Form("")):
+                          nhan_ket_ban: str = Form(""), skip_labels: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -23672,6 +23695,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "xac_nhan_ngoai_le": ack_nl,
         # Tự nhận lời mời kết bạn và đọc lời giới thiệu (0.172.0, Zalo cá nhân): "1" = bật, mặc định tắt.
         "nhan_ket_ban": nhan_ket_ban,
+        # Zalo labels the bot stays out of (0.281.0, personal Zalo): JSON list of label names.
+        "skip_labels": skip_labels,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)

@@ -500,6 +500,53 @@ def clean_bat(v: Any) -> bool:
     return v is True or str(v if v is not None else "").strip().lower() in ("1", "true", "yes", "on")
 
 
+SKIP_LABELS_MAX = 30
+SKIP_LABEL_LEN = 60
+
+
+def clean_skip_labels(v: Any) -> List[str]:
+    """Zalo chat labels the bot never answers in (0.281.0), e.g. ["Gia đình", "Bạn bè"].
+
+    Accepts a list, a JSON list (what the dashboard form sends) or one name per line / comma-separated. Names are kept
+    as the owner typed them (shown back in the form); matching ignores case and diacritics (`skips_by_label`)."""
+    if isinstance(v, str):
+        t = v.strip()
+        if t.startswith("["):
+            try:
+                v = json.loads(t)
+            except ValueError:
+                v = []
+        else:
+            v = re.split(r"[,\n;]+", t)
+    out, seen = [], set()
+    for x in (v if isinstance(v, (list, tuple)) else []):
+        name = " ".join(str(x or "").split())[:SKIP_LABEL_LEN]
+        key = _label_key(name)
+        if key and key not in seen:
+            seen.add(key)
+            out.append(name)
+        if len(out) >= SKIP_LABELS_MAX:
+            break
+    return out
+
+
+def _label_key(name: Any) -> str:
+    import chatbot_grounding
+    return " ".join(chatbot_grounding._bo_dau(str(name or "")).lower().split())
+
+
+def skips_by_label(bot: dict, labels: Any) -> str:
+    """The first of `labels` (the chat's Zalo labels) the bot is told to stay out of, or "" when none."""
+    skip = {_label_key(x) for x in ((bot or {}).get("skip_labels") or [])}
+    skip.discard("")
+    if not skip:
+        return ""
+    for name in (labels if isinstance(labels, (list, tuple)) else []):
+        if _label_key(name) in skip:
+            return str(name)
+    return ""
+
+
 def parse_gio_truc(v: Any) -> tuple[Optional[dict], str]:
     """Validate an active-hours value. Returns ({} for all day | {"tu", "den"}, "") or (None, error).
 
@@ -590,6 +637,8 @@ def _public(b: dict) -> dict:
     elif out["audience"] not in AUDIENCE:
         out["audience"] = AUDIENCE_HEP_NHAT
     out["people"] = _clean_groups(out.get("people"))
+    # Zalo labels to stay out of (0.281.0). A record from before has none: the bot answers every chat as before.
+    out["skip_labels"] = clean_skip_labels(out.get("skip_labels"))
     # Giờ trực (0.130.0). Thiếu khoá = bản ghi cũ = cả ngày; giá trị hỏng cũng đọc là cả ngày (xem `trong_gio_truc`).
     out["gio_truc"] = parse_gio_truc(out.get("gio_truc"))[0] or {}
     # Per-chat exceptions (0.172.0). Missing key = old record = none; a broken value also reads as none (narrowest).
@@ -844,6 +893,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             # Tự nhận lời mời kết bạn và đọc lời giới thiệu (0.172.0, chỉ Zalo cá nhân). Mặc định TẮT: nhận kết bạn
             # là hành động ra ngoài dưới tên chủ, chỉ bật khi chủ chọn.
             "nhan_ket_ban": clean_bat(data.get("nhan_ket_ban")),
+            # Zalo chat labels the bot stays out of (0.281.0, personal Zalo only), e.g. family and friends.
+            "skip_labels": clean_skip_labels(data.get("skip_labels")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -878,7 +929,7 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
-              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban")
+              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -981,6 +1032,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["ngoai_le"] = ngoai_le_moi     # checked at the top, risk gate included
                 elif k == "nhan_ket_ban":
                     b["nhan_ket_ban"] = clean_bat(v)
+                elif k == "skip_labels":
+                    b["skip_labels"] = clean_skip_labels(v)
 
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()

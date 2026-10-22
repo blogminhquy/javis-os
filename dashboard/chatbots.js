@@ -943,6 +943,14 @@
                 (b && b.nhan_ket_ban ? " checked" : "") + '> ' + esc(window.t("cb.nhan_ket_ban")) + infoBtn() + '</label>' +
               infoBody(esc(window.t("cb.hint_nhan_ket_ban"))) +
             '</div>' +
+            // Never answer chats carrying these Zalo labels (0.281.0, personal Zalo only): the labels the owner set in the
+            // Zalo app (Family, Friends...) are listed from the ticked accounts; one not listed can be typed below.
+            '<div id="cbTagBox" style="display:none">' +
+              '<label for="cbTagMore">' + esc(window.t("cb.skip_tags")) + infoBtn() + '</label>' +
+              infoBody(esc(window.t("cb.hint_skip_tags"))) +
+              '<div class="cb-tag-list" id="cbTagList"></div>' +
+              '<input id="cbTagMore" placeholder="' + esc(window.t("cb.ph_skip_tags")) + '">' +
+            '</div>' +
           '</div>' +
 
           // 6. Per-chat exceptions (0.172.0): one private chat (e.g. a family member on a personal Zalo nick) gets its
@@ -1041,6 +1049,48 @@
     // Friend-request intake only exists on a personal Zalo account.
     function coZaloCaNhan() {
       return tkDangChon().some(function (a) { return a.channel === "zalo_personal"; });
+    }
+
+    // ---- Zalo labels the bot stays out of (0.281.0). `tagChon` is the truth of the form (name -> ticked); the list from
+    // the server only offers names to tick, and a saved name the account no longer has stays shown so it can be unticked.
+    var tagChon = {}, tagDs = [], tagCo = true, tagKhoa = "";
+    ((b && b.skip_labels) || []).forEach(function (x) { tagChon[x] = true; });
+    function veTag() {
+      var el = box.querySelector("#cbTagList");
+      var ten = tagDs.slice();
+      Object.keys(tagChon).forEach(function (x) { if (ten.indexOf(x) < 0) ten.push(x); });
+      if (!ten.length) {
+        el.innerHTML = '<div class="cb-pk-rong">' + esc(window.t(tagCo ? "cb.skip_tags_none" : "cb.skip_tags_old")) + '</div>';
+        return;
+      }
+      el.innerHTML = ten.map(function (x) {
+        return '<label class="cb-pk-li"><input type="checkbox" data-tag="' + esc(x) + '"' + (tagChon[x] ? " checked" : "") +
+          '><span class="cb-pk-n">' + esc(x) + '</span></label>';
+      }).join("");
+      el.querySelectorAll("input[type=checkbox]").forEach(function (i) {
+        i.onchange = function () { tagChon[i.dataset.tag] = i.checked; };
+      });
+    }
+    async function taiTag() {
+      var ids = tkDangChon().map(function (a) { return a.id; }).join(",");
+      if (ids === tagKhoa) return;      // same accounts: the list is already there
+      tagKhoa = ids;
+      try {
+        var d = await api("/chatbots/zalo-labels?account_ids=" + encodeURIComponent(ids) +
+          (sua ? "&bot_id=" + encodeURIComponent(b.id) : ""));
+        if (ids !== tagKhoa) return;
+        tagDs = d.labels || [];
+        tagCo = d.supported !== false;
+      } catch (e) { tagDs = []; tagCo = false; }
+      veTag();
+    }
+    function tagLuu() {
+      var ds = Object.keys(tagChon).filter(function (x) { return tagChon[x]; });
+      ((box.querySelector("#cbTagMore") || {}).value || "").split(",").forEach(function (x) {
+        x = x.trim();
+        if (x && ds.indexOf(x) < 0) ds.push(x);
+      });
+      return JSON.stringify(ds);
     }
 
     // ---- Ô chọn người và nhóm (lấy từ Hộp thư)
@@ -1244,6 +1294,8 @@
       });
       box.querySelector("#cbRwBox").style.display = co ? "" : "none";
       box.querySelector("#cbKbBox").style.display = coZaloCaNhan() ? "" : "none";
+      box.querySelector("#cbTagBox").style.display = coZaloCaNhan() ? "" : "none";
+      if (coZaloCaNhan()) taiTag();
       // Không có nhóm thì nói vì sao, thay vì ẩn im lặng (0.102.1): chủ tưởng phải đưa bot vào nhóm mới hiện.
       var koNhom = box.querySelector("#cbKoNhom");
       var dsTk = tkDangChon();
@@ -1391,7 +1443,8 @@
                     account_ids: ids.join(","),
                     gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
                     nhuong_tay_phut: nhuong, ngoai_le: JSON.stringify(nlDs),
-                    nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0" };
+                    nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0",
+                    skip_labels: coZaloCaNhan() ? tagLuu() : "[]" };
       if (nang.length) chung.xac_nhan_ngoai_le = "1";
       try {
         if (sua) {

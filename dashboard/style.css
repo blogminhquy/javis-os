@@ -3129,6 +3129,8 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 /* Active hours (0.130.0): start and end side by side, they read as one range. */
 .cb-gio-truc { display: flex; gap: 12px; }
 .cb-gio-truc label { flex: 1; min-width: 0; }
+.cb-tag-list { margin: 6px 0 8px; }
+#cbTagMore { width: 100%; }
 /* Ba ô có mặc định dùng được ngay (ngôn ngữ tự nhận, không chuyển người thật, chưa khai nhóm)
    gấp vào đây. Ô mức quyền thì KHÔNG: đọc sót nó là mất tiền thật. */
 .cb-nangcao { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 4px; }

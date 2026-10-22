@@ -374,6 +374,15 @@ def build_bot_prompt(bot: dict) -> str:
     # TRƯỚC file Agent: mặc định của Javis đọc trước, luật của chủ đọc sau và thắng (0.172.0).
     if (bot or {}).get("_kenh_luot") == "zalo_personal":
         phan.append(_CAU_ZALO_CA_NHAN)
+        # Zalo labels of THIS chat (0.281.0): who the sender is to the owner, which the bot could not know before (a
+        # mother writing "lấy cho mẹ 2 chai mắm" looked like a customer). Set by the owner, still cleaned like chat data.
+        tags = [chatbot_reply_policy.clean_chat_text(x, 60) for x in ((bot or {}).get("_zalo_labels") or [])][:10]
+        tags = [x for x in tags if x]
+        if tags:
+            phan.append("\nTAG ZALO CỦA CUỘC CHAT NÀY: chủ đã gắn tag " + ", ".join(f'"{x}"' for x in tags)
+                        + " cho cuộc chat này trong Zalo. Tag là cách chủ phân loại người nhắn (gia đình, bạn bè, "
+                        "đồng nghiệp, khách...): dùng nó để biết bạn đang nói với ai, và cân nhắc có nên nhân danh chủ "
+                        "trả lời hay không.")
     if (bot or {}).get("_bao_chu"):
         phan.append(_CAU_RIENG_BAO_CHU)
     if than.strip():
@@ -719,6 +728,11 @@ def _ly_do_im(bot_cfg: dict, meta: dict, luc=None) -> str:
     ly_do = _ly_do_im_co_ban(bot_cfg, meta)
     if ly_do:
         return ly_do
+    # A chat carrying a Zalo label the owner told the bot to stay out of (0.281.0), e.g. "Gia đình". Silent, nothing to
+    # approve. A chat the owner gave its own exception (Per-chat exceptions) is one they chose by hand: it wins.
+    if (chatbot_store.skips_by_label(bot_cfg, (meta or {}).get("zalo_labels"))
+            and not chatbot_store.ngoai_le_cua(bot_cfg, meta)):
+        return "tag_bo_qua"
     if not chatbot_store.trong_gio_truc((bot_cfg or {}).get("gio_truc"), luc):
         return "ngoai_gio_truc"
     return ""
@@ -1643,6 +1657,7 @@ def _make_answer_fn(bot_id: str):
         cfg["_kenh_luot"] = kenh_luot
         cfg["_tu_dong"] = tu_dong
         cfg["_bao_chu"] = chatbot_tu_dong.private_escalation(cfg, meta or {})
+        cfg["_zalo_labels"] = list((meta or {}).get("zalo_labels") or [])
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh_luot, aid_luot)
         cfg["_ngu_canh_plugin"] = await plugin_context(cfg, meta or {}, kenh_luot, aid_luot)
         # Trong nhóm Zalo cá nhân cả nhóm dùng CHUNG một mạch hội thoại (khoá theo nhóm), nên

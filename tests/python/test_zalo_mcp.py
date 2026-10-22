@@ -41,9 +41,9 @@ check("kết nối Zalo đã đăng nhập bằng bản 1.6.2 tự sang bản m�
 expected_read = {
     "zalo_get_messages", "zalo_get_history", "zalo_list_threads",
     "zalo_search_threads", "zalo_view_media", "zalo_search_history", "zalo_get_group_joins",
-    "zalo_list_join_requests",
+    "zalo_list_join_requests", "zalo_get_labels",
 }
-check("catalog khai đủ tám tool đọc", set(zalo["tool_meta"]["read"]) == expected_read)
+check("catalog lists all nine read tools", set(zalo["tool_meta"]["read"]) == expected_read)
 check("mark-read là ghi và send-message là nguy hiểm",
       mcp_catalog.classify(zalo, "zalo_mark_read") == "write"
       and mcp_catalog.classify(zalo, "zalo_send_message") == "danger")

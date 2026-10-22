@@ -635,6 +635,14 @@ class Transport:
             "message_id": str(ev.get("external_message_id") or ""),
             "account_id": self.conn_id,
         }
+        # Labels the owner put on this chat in the Zalo app (0.281.0, javis-zalo 1.6.0): the bot can skip chats tagged
+        # e.g. "Gia đình" (`chatbot_runtime._ly_do_im`) and sees the tags in its prompt. Cached per connection, so this
+        # await costs nothing on most messages; any failure leaves the list empty and the turn runs as before.
+        try:
+            meta["zalo_labels"] = await zc.labels_of_chat(self.conn_id, thread)
+        except Exception as e:      # noqa: BLE001
+            meta["zalo_labels"] = []
+            print(f"[zalo-personal bot {self.conn_id}] tag Zalo lỗi: {type(e).__name__}", file=sys.stderr)
         if co_anh:
             meta["co_anh"] = True
             # 0.74.1: the photo's link, so the bot can actually look at it (see `chatbot_runtime.anh_cho_bot`).
