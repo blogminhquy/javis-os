@@ -533,13 +533,6 @@
   "models.cc_upd_new": "Model mới: {ds}.",
   "models.cc_upd_fail": "Không cập nhật được:",
   "models.cc_upd_docker": "Bản Docker nhận Claude Code mới theo mỗi bản cập nhật Javis, nên model mới tự tới khi cập nhật Javis.",
-  "models.cc_logout_confirm": "Đăng xuất Claude Code khỏi gói của bạn trên máy này? Muốn dùng lại phải đăng nhập lại.",
-  "models.cc_auto_label": "Tự cập nhật Claude Code mỗi ngày",
-  "models.cc_auto_info": "Bật thì mỗi ngày Javis chạy `claude update` một lần, để model Claude mới tự hiện trong danh sách chọn. Tắt nếu bạn tự cập nhật Claude Code (npm, Homebrew) hoặc lần cập nhật cứ báo lỗi. Tắt rồi bạn vẫn bấm được nút Cập nhật bên dưới bất cứ lúc nào.",
-  "models.cc_auto_env_off": "Đang bị tắt bằng biến JAVIS_CLAUDE_AUTO_UPDATE=0 trên máy chủ.",
-  "models.cc_auto_on_done": "Đã bật tự cập nhật hằng ngày.",
-  "models.cc_auto_off_done": "Đã tắt tự cập nhật. Bấm nút Cập nhật khi bạn muốn lên bản mới.",
-  "models.cc_auto_save_fail": "Chưa lưu được, thử lại sau.",
   "models.recheck": "↻ Kiểm tra lại",
   "models.checking": "đang kiểm tra…",
   "models.cant_check": "không kiểm tra được",
@@ -695,7 +688,6 @@
   "kanban.exception": "Ngoại lệ",
   "kanban.exceptions": "ngoại lệ",
   "kanban.need_approve": "Duyệt kết quả sau khi làm xong",
-  "kanban.need_approve_info": "Ô này không bắt duyệt trước khi chạy: việc vẫn chạy ngay khi tới lượt. Làm xong, việc dừng ở trạng thái Chờ duyệt kết quả để bạn đọc. Bấm Duyệt kết quả để chốt là hoàn thành, hoặc Thử lại để chạy lại.",
   "kanban.save": "Giao cho AI",
   "kanban.p_active": "Đang hoạt động",
   "kanban.p_queue": "Hàng đợi AI",
@@ -5089,7 +5081,6 @@
   "cs.si_rem_call": "Gọi điện cho tôi",
   "cs.si_rem_call_hint": "Tới giờ, trang Javis đang mở sẽ đổ chuông như cuộc gọi đến. Bấm Nghe là Javis đọc nội dung và nói chuyện tiếp.",
   "cs.si_rem_call_tag": "gọi điện đúng giờ",
-  "cs.si_rem_retry": "lỗi mạng, tự thử lại lần {lan}/{tong} lúc {luc}",
   "call.in_label": "Javis đang gọi theo lịch hẹn",
   "call.in_title_none": "Nhắc hẹn",
   "call.in_answer": "Nghe",
@@ -5222,7 +5213,6 @@
   "settings.vc_el_model_v3": "Eleven v3 · biểu cảm nhất, chậm hơn",
   "settings.vc_el_model_turbo": "Turbo v2.5 · nhanh, có tiếng Việt",
   "settings.vc_el_model_v2": "Multilingual v2 · không có tiếng Việt",
-<<<<<<< HEAD
   "wh.st_queued": "đang chờ chạy",
   "wh.st_running": "đang chạy",
   "wh.st_unknown": "không rõ đã xong chưa",
@@ -5394,10 +5384,17 @@
   "wh.close_failed_confirm": "Đóng mọi sự kiện lỗi của webhook này mà không gửi lại? Nội dung của chúng sẽ được dọn theo thời hạn lưu.",
   "wh.closed_n": "Đã đóng {n} sự kiện",
   "wh.retry_blocked": "Chạy lại mọi sự kiện bị chặn",
-  "wh.retried_n": "Đã xếp chạy lại {n} sự kiện"
-=======
+  "wh.retried_n": "Đã xếp chạy lại {n} sự kiện",
+  "models.cc_logout_confirm": "Đăng xuất Claude Code khỏi gói của bạn trên máy này? Muốn dùng lại phải đăng nhập lại.",
+  "models.cc_auto_label": "Tự cập nhật Claude Code mỗi ngày",
+  "models.cc_auto_info": "Bật thì mỗi ngày Javis chạy `claude update` một lần, để model Claude mới tự hiện trong danh sách chọn. Tắt nếu bạn tự cập nhật Claude Code (npm, Homebrew) hoặc lần cập nhật cứ báo lỗi. Tắt rồi bạn vẫn bấm được nút Cập nhật bên dưới bất cứ lúc nào.",
+  "models.cc_auto_env_off": "Đang bị tắt bằng biến JAVIS_CLAUDE_AUTO_UPDATE=0 trên máy chủ.",
+  "models.cc_auto_on_done": "Đã bật tự cập nhật hằng ngày.",
+  "models.cc_auto_off_done": "Đã tắt tự cập nhật. Bấm nút Cập nhật khi bạn muốn lên bản mới.",
+  "models.cc_auto_save_fail": "Chưa lưu được, thử lại sau.",
+  "kanban.need_approve_info": "Ô này không bắt duyệt trước khi chạy: việc vẫn chạy ngay khi tới lượt. Làm xong, việc dừng ở trạng thái Chờ duyệt kết quả để bạn đọc. Bấm Duyệt kết quả để chốt là hoàn thành, hoặc Thử lại để chạy lại.",
+  "cs.si_rem_retry": "lỗi mạng, tự thử lại lần {lan}/{tong} lúc {luc}",
   "cs.si_level_note_full": "Toàn quyền: tự sửa file, chạy lệnh, gửi tin, đặt hàng mà không hỏi lại.",
   "cs.si_level_note_auto": "Ghi file nháp: đọc dữ liệu và ghi nháp, không làm việc gì ra bên ngoài.",
   "cs.si_level_note_suggest": "Chỉ đọc: đọc dữ liệu rồi đề xuất, không ghi file, không làm gì thêm."
->>>>>>> 5bf73ae (Codes 15/27: say plainly what a Full-level background job may do)
 }

@@ -1,7 +1,7 @@
-// 0.273.0 (customer report, codes 15 and 27): Full stays the default level for background work (owner, 2026-10-22),
+// 0.275.0 (customer report, codes 15 and 27): Full stays the default level for background work (owner, 2026-10-22),
 // but the Add-work form says in one line what the picked level may do, and javis_schedule tells the model to say it.
 //
-//     node tests/js/test_level_note_0273.js
+//     node tests/js/test_level_note_0275.js
 "use strict";
 const fs = require("fs");
 const path = require("path");

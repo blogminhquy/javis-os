@@ -2273,7 +2273,7 @@
     let fkind = "loop";      // loại việc đang tạo: loop (việc lặp) | reminder (nhắc hẹn)
     let frmode = "notify";   // kiểu nhắc hẹn: notify (chỉ nhắc) | task (tự làm rồi báo)
     let frmq = "full";       // mức quyền của kiểu "task": suggest | auto | full
-    // 0.273.0 (customer report, codes 15 and 27): Full stays the default (owner, 2026-10-22), but the form says in one
+    // 0.275.0 (customer report, codes 15 and 27): Full stays the default (owner, 2026-10-22), but the form says in one
     // line what the picked level may do, so nobody leaves Full selected without knowing it edits files and acts outside.
     const LEVEL_NOTE = { full: "cs.si_level_note_full", auto: "cs.si_level_note_auto", suggest: "cs.si_level_note_suggest" };
     function levelNote(id, level) {

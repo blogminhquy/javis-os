@@ -533,13 +533,6 @@
   "models.cc_upd_new": "New models: {ds}.",
   "models.cc_upd_fail": "Could not update:",
   "models.cc_upd_docker": "The Docker build gets the newest Claude Code with every Javis update, so new models arrive when you update Javis.",
-  "models.cc_logout_confirm": "Sign Claude Code out of your plan on this machine? You will need to sign in again to use it.",
-  "models.cc_auto_label": "Update Claude Code automatically every day",
-  "models.cc_auto_info": "When on, Javis runs `claude update` once a day so new Claude models show up in the picker. Turn it off if you update Claude Code yourself (npm, Homebrew) or the update keeps failing. The Update button below still works any time.",
-  "models.cc_auto_env_off": "Turned off by JAVIS_CLAUDE_AUTO_UPDATE=0 on the server.",
-  "models.cc_auto_on_done": "Daily auto-update is on.",
-  "models.cc_auto_off_done": "Auto-update is off. Press Update when you want a new version.",
-  "models.cc_auto_save_fail": "Could not save, try again later.",
   "models.recheck": "↻ Check again",
   "models.checking": "checking…",
   "models.cant_check": "could not check",
@@ -695,7 +688,6 @@
   "kanban.exception": "Exceptions",
   "kanban.exceptions": "exceptions",
   "kanban.need_approve": "Review the result after it runs",
-  "kanban.need_approve_info": "This box does not ask for approval before the job runs: it still runs as soon as its turn comes. Once done, it stops at Result awaiting review so you can read it. Press Approve result to mark it done, or Retry to run it again.",
   "kanban.save": "Hand to AI",
   "kanban.p_active": "Active",
   "kanban.p_queue": "AI queue",
@@ -5089,7 +5081,6 @@
   "cs.si_rem_call": "Call me",
   "cs.si_rem_call_hint": "At its time, an open Javis tab rings like an incoming call. Answer and Javis reads it out and keeps talking.",
   "cs.si_rem_call_tag": "calls at its time",
-  "cs.si_rem_retry": "network error, retry {lan} of {tong} at {luc}",
   "call.in_label": "Javis is calling, as scheduled",
   "call.in_title_none": "Reminder",
   "call.in_answer": "Answer",
@@ -5222,7 +5213,6 @@
   "settings.vc_el_model_v3": "Eleven v3 · most expressive, slower",
   "settings.vc_el_model_turbo": "Turbo v2.5 · fast, has Vietnamese",
   "settings.vc_el_model_v2": "Multilingual v2 · no Vietnamese",
-<<<<<<< HEAD
   "wh.st_queued": "waiting to run",
   "wh.st_running": "running",
   "wh.st_unknown": "not known whether it finished",
@@ -5394,10 +5384,17 @@
   "wh.close_failed_confirm": "Close every failed event of this webhook without resending? Their payloads then follow the retention period.",
   "wh.closed_n": "Closed {n} events",
   "wh.retry_blocked": "Retry all blocked",
-  "wh.retried_n": "Queued {n} events again"
-=======
+  "wh.retried_n": "Queued {n} events again",
+  "models.cc_logout_confirm": "Sign Claude Code out of your plan on this machine? You will need to sign in again to use it.",
+  "models.cc_auto_label": "Update Claude Code automatically every day",
+  "models.cc_auto_info": "When on, Javis runs `claude update` once a day so new Claude models show up in the picker. Turn it off if you update Claude Code yourself (npm, Homebrew) or the update keeps failing. The Update button below still works any time.",
+  "models.cc_auto_env_off": "Turned off by JAVIS_CLAUDE_AUTO_UPDATE=0 on the server.",
+  "models.cc_auto_on_done": "Daily auto-update is on.",
+  "models.cc_auto_off_done": "Auto-update is off. Press Update when you want a new version.",
+  "models.cc_auto_save_fail": "Could not save, try again later.",
+  "kanban.need_approve_info": "This box does not ask for approval before the job runs: it still runs as soon as its turn comes. Once done, it stops at Result awaiting review so you can read it. Press Approve result to mark it done, or Retry to run it again.",
+  "cs.si_rem_retry": "network error, retry {lan} of {tong} at {luc}",
   "cs.si_level_note_full": "Full: edits files, runs commands, sends messages and places orders without asking.",
   "cs.si_level_note_auto": "Write drafts: reads data and writes drafts, does nothing outside.",
   "cs.si_level_note_suggest": "Read only: reads data and suggests, writes no file, does nothing else."
->>>>>>> 5bf73ae (Codes 15/27: say plainly what a Full-level background job may do)
 }

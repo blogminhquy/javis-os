@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.273.0] - 2026-10-22
+## [0.275.0] - 2026-10-22
 ### Sửa lỗi
 - **Việc nền đáng tin hơn.** Nhắc việc chạy đúng giờ ở mọi brain, kể cả brain chưa có vòng lặp. Lỗi mạng lúc máy vừa bật giờ ghi là "lỗi" và tự thử lại sau vài phút, việc đã gửi thì không gửi lại. Gói Claude báo giờ mở lại (ví dụ 1:50 sáng) thì Javis tự hẹn chạy lại. Vòng lặp nhớ các vòng trước nên không đề xuất trùng.
 - **Nhóm làm việc trơn tru hơn.** Thành viên đọc được file Excel (mọi sheet, kết quả công thức, ô lỗi) và biết trang PDF nào là ảnh scan, không phải xin duyệt từng lệnh. Lệnh đã duyệt không bị chặn lại, thẻ duyệt ghi rõ lệnh. Các bước phải làm lần lượt chạy đúng thứ tự, việc còn bước chưa chạy không bị báo Xong.

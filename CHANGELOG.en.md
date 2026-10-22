@@ -8,7 +8,7 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.273.0] - 2026-10-22
+## [0.275.0] - 2026-10-22
 ### Fixed
 - **Background work is more reliable.** Reminders fire on time in every brain, including brains with no loop. A network error right after the machine wakes is now recorded as failed and retried a few minutes later, without re-sending what already went out. When the Claude plan names its reset time (for example 1:50am), Javis schedules the retry itself. Loops remember earlier rounds, so they stop repeating a suggestion.
 - **Teams work more smoothly.** Members read Excel files (every sheet, formula results, error cells) and see which PDF pages are scans, without per-command approvals. An approved command is no longer blocked again, and approval cards show the real command. Steps that must run in order do, and a job with steps left is never marked Done.
