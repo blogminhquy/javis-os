@@ -87,27 +87,104 @@ def _req_is_secure(request: Request) -> bool:
     return request.url.scheme == "https"
 
 
-async def _probe_https(domain: str):
-    """Mở https://<domain>/health TỪ CHÍNH server → buộc Caddy On-Demand cấp chứng chỉ ở lần đầu
-    và xác minh HTTPS chạy thật. Trả (active: bool, reason: str) với lý do dễ hiểu để hướng dẫn."""
+# What a request to https://<domain>/tls-check?domain=<domain> answered, reduced to one code (0.248.0).
+#   ok           this very server answered over a valid certificate
+#   no_route     the proxy in front (Traefik on Hostinger) has no route for this hostname: its own 404
+#   cert_pending the route reaches this server, but the certificate is not issued yet (only works unverified)
+#   bad_gateway  the proxy has a route but cannot reach the app (502/503/504)
+#   other_javis  another Javis answered (a second stack on the same VPS, or the domain saved differently there)
+#   other_site   some other website answered: DNS or the route points somewhere else
+#   cert_invalid the certificate is wrong and the page behind it is not ours either
+#   unreachable  nothing answers on port 443
+# Why /tls-check: it is public, and it answers 200 only when the hostname is the domain saved on THIS server,
+# so it tells this Javis apart from any other site or Javis behind the same address.
+PROBE_CODES = ("ok", "no_route", "cert_pending", "bad_gateway", "other_javis", "other_site", "cert_invalid",
+               "unreachable")
+
+
+def _classify_answer(status: int, body: str, verified: bool) -> str:
+    """Code for an HTTP answer to /tls-check. Pure, so tests can feed it real Traefik and Javis answers."""
+    text = (body or "").strip()
+    javis_json = text.startswith("{") and '"ok"' in text
+    if status == 200 and javis_json and '"ok": true' in text.replace('":true', '": true'):
+        return "ok" if verified else "cert_pending"
+    if status == 403 and javis_json:
+        return "other_javis"
+    if status == 404 and text.lower().startswith("404 page not found"):
+        return "no_route"   # Traefik's own answer when no router matches the Host
+    if status in (502, 503, 504):
+        return "bad_gateway"
+    return "other_site" if verified else "cert_invalid"
+
+
+def _probe_reason(code: str, hostinger: bool) -> str:
+    if code == "ok":
+        return localefmt.chu("HTTPS đang hoạt động", "HTTPS is working")
+    if code == "no_route":
+        if hostinger:
+            return localefmt.chu("DNS đã tới VPS nhưng Traefik của Hostinger chưa nhận tên miền này: dòng "
+                                 "traefik...rule=Host(...) của dự án vẫn là tên cũ. Đặt DOMAIN_NAME đúng tên miền "
+                                 "này trong Docker Manager (hoặc sửa thẳng dòng Host trong YAML) rồi bấm Redeploy.",
+                                 "DNS reaches the VPS but Hostinger's Traefik has no route for this domain: the "
+                                 "project's traefik...rule=Host(...) still holds the old name. Set DOMAIN_NAME to this "
+                                 "domain in Docker Manager (or edit the Host line in the YAML), then Redeploy.")
+        return localefmt.chu("DNS đã tới máy chủ nhưng proxy phía trước chưa có đường cho tên miền này.",
+                             "DNS reaches the server but the proxy in front has no route for this domain.")
+    if code == "cert_pending":
+        return localefmt.chu("Đường đã thông tới Javis nhưng chứng chỉ chưa cấp xong. Đợi vài phút rồi Kiểm tra lại; "
+                             "lâu hơn 10 phút thì xem cổng 80 có mở cho Let's Encrypt không.",
+                             "The route reaches Javis but the certificate is not issued yet. Wait a few minutes and "
+                             "check again; after 10 minutes, check that port 80 is open for Let's Encrypt.")
+    if code == "bad_gateway":
+        return localefmt.chu("Proxy đã nhận tên miền nhưng không gọi được Javis (502). Kiểm tra container Javis đang "
+                             "chạy và nhãn loadbalancer.server.port=7777.",
+                             "The proxy knows the domain but cannot reach Javis (502). Check that the Javis "
+                             "container is running and loadbalancer.server.port=7777.")
+    if code == "other_javis":
+        return localefmt.chu("Tên miền này đang mở một bản Javis KHÁC (ví dụ stack thứ hai trên cùng VPS). Kiểm tra "
+                             "DOMAIN_NAME của từng stack.",
+                             "This domain opens a DIFFERENT Javis (for example a second stack on the same VPS). "
+                             "Check each stack's DOMAIN_NAME.")
+    if code in ("other_site", "cert_invalid"):
+        return localefmt.chu("Tên miền đang mở một trang khác, không phải Javis này. Kiểm tra bản ghi DNS và cấu hình "
+                             "proxy.", "The domain opens another site, not this Javis. Check the DNS record and the "
+                             "proxy setup.")
+    if hostinger:
+        return localefmt.chu("Không kết nối được cổng 443 của VPS.", "Cannot connect to the VPS on port 443.")
+    return localefmt.chu("Không kết nối được cổng 443 - Caddy/HTTPS chưa chạy, hoặc cổng 80/443 bị proxy khác chiếm",
+                         "Cannot connect to port 443 - Caddy/HTTPS is not running, or ports 80/443 are taken by "
+                         "another proxy")
+
+
+async def _probe_https(domain: str, hostinger: bool = False):
+    """Open https://<domain>/tls-check FROM this server and say what answered: (active, reason, code).
+
+    On a Caddy VPS the first request also makes On-Demand TLS issue the certificate. Before 0.248.0 this only said
+    "certificate not valid yet - DNS not pointing here or not issued", even when DNS was already right, so an owner
+    on Hostinger whose Traefik route still held the old name had nothing to act on (customer report 2026-10-20).
+    """
     if not domain:
-        return False, localefmt.chu("Chưa đặt tên miền", "No domain set")
+        return False, localefmt.chu("Chưa đặt tên miền", "No domain set"), ""
+    import httpx
+    url = f"https://{domain}/tls-check?domain={domain}"
     try:
-        import httpx
         async with httpx.AsyncClient(timeout=12, follow_redirects=True) as client:
-            r = await client.get(f"https://{domain}/health")
-        if r.status_code < 500:
-            return True, localefmt.chu("HTTPS đang hoạt động", "HTTPS is working")
-        return False, localefmt.chu(f"Máy chủ trả HTTP {r.status_code}", f"The server returned HTTP {r.status_code}")
+            r = await client.get(url)
+        code = _classify_answer(r.status_code, r.text[:300], True)
     except Exception as e:
         s = (str(e) + " " + type(e).__name__).lower()
         if "ssl" in s or "certificate" in s or "verify" in s:
-            return False, localefmt.chu("Chứng chỉ chưa hợp lệ - DNS chưa trỏ đúng hoặc chứng chỉ chưa cấp xong",
-                                        "Certificate not valid yet - DNS does not point here yet or the certificate is still being issued")
-        if "connect" in s or "timeout" in s or "timed out" in s or "refused" in s:
-            return False, localefmt.chu("Không kết nối được cổng 443 - Caddy/HTTPS chưa chạy, hoặc cổng 80/443 bị proxy khác chiếm",
-                                        "Cannot connect to port 443 - Caddy/HTTPS is not running, or ports 80/443 are taken by another proxy")
-        return False, type(e).__name__
+            # Look behind the bad certificate: Traefik serves its default one both for "no route" and for
+            # "route exists, certificate not issued yet", and only the page behind it tells the two apart.
+            try:
+                async with httpx.AsyncClient(timeout=12, follow_redirects=True, verify=False) as client:
+                    r = await client.get(url)
+                code = _classify_answer(r.status_code, r.text[:300], False)
+            except Exception:
+                code = "cert_invalid"
+        else:
+            code = "unreachable"
+    return code == "ok", _probe_reason(code, hostinger), code
 
 
 def _make_router() -> APIRouter:
@@ -155,21 +232,25 @@ def _make_router() -> APIRouter:
         on_domain = bool(custom) and host == custom
         secure_now = _req_is_secure(request)
         # SSL: nếu đang mở chính tên miền qua HTTPS thì chắc chắn đang chạy; nếu không, chủ động probe.
-        ssl_active, ssl_reason = False, localefmt.chu("Chưa đặt tên miền", "No domain set")
+        target = _domain_deploy_target(request)
+        ssl_active, ssl_reason, ssl_code = False, localefmt.chu("Chưa đặt tên miền", "No domain set"), ""
         if custom:
             if on_domain and secure_now:
-                ssl_active, ssl_reason = True, localefmt.chu("Bạn đang mở qua HTTPS", "You are browsing over HTTPS")
+                ssl_active, ssl_reason, ssl_code = True, localefmt.chu("Bạn đang mở qua HTTPS",
+                                                                       "You are browsing over HTTPS"), "ok"
             else:
-                ssl_active, ssl_reason = await _probe_https(custom)
-        target = _domain_deploy_target(request)
+                ssl_active, ssl_reason, ssl_code = await _probe_https(custom, hostinger=target == "hostinger")
         route_domain = _norm_domain(os.getenv("DOMAIN_NAME", ""))
         return {"domain": custom, "server_ip": server_ip, "dns_ip": dns_ip,
                 "dns_ok": dns_ok, "on_domain": on_domain, "secure_now": secure_now,
                 "deploy_mode": _DEPS.deploy_mode(), "ssl_enabled": ssl_enabled,
-                "ssl_active": ssl_active, "ssl_reason": ssl_reason,
+                "ssl_active": ssl_active, "ssl_reason": ssl_reason, "ssl_code": ssl_code,
                 "deployment_target": target, "route_domain": route_domain,
                 "ui_can_enable_ssl": target != "hostinger",
-                "requires_redeploy": target == "hostinger" and bool(custom) and custom != route_domain}
+                # Working HTTPS wins over the env: owners without an Environment box edit the Host(...) line in the
+                # YAML directly (as the compose comment says), which leaves DOMAIN_NAME at "localhost" for good.
+                "requires_redeploy": (target == "hostinger" and bool(custom) and custom != route_domain
+                                      and not ssl_active)}
 
     @router.post("/domain/ssl")
     async def domain_ssl(request: Request, enabled: str = Form("1")):
@@ -196,8 +277,8 @@ def _make_router() -> APIRouter:
         cfgmod.write_settings(cfg)
         if not on:
             return {"ok": True, "enabled": False, "ssl_active": False, "ssl_reason": localefmt.chu("Đã tắt SSL", "SSL turned off")}
-        active, reason = await _probe_https(custom)
-        resp = {"ok": True, "enabled": True, "ssl_active": active, "ssl_reason": reason}
+        active, reason, code = await _probe_https(custom)
+        resp = {"ok": True, "enabled": True, "ssl_active": active, "ssl_reason": reason, "ssl_code": code}
         if not active and _DEPS.deploy_mode() == "docker":
             resp["hint_cmd"] = "docker compose -f docker-compose.yml -f docker-compose.https.yml up -d"
         return resp

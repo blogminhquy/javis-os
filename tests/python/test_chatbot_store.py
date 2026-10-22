@@ -453,7 +453,7 @@ check("có bot thì rẽ sang đường riêng", "return await _bot_tra_loi(" in
 # lệch được thì bot trỏ vào Agent nằm ngoài brain nó đọc, và không có gì báo.
 check("trang Chatbot lọc bot theo brain", "async def chatbots_list(brain: str = \"\")" in _SRC)
 check("bỏ trống brain thì trả tất cả (bộ giám sát cần thấy hết)",
-      'if loc and str(b.get("brain") or "") != loc:' in _SRC)
+      'if loc and not brain_ident.same_brain(b.get("brain"), loc):' in _SRC)
 check("tạo bot: hai trường brain tự bù cho nhau",
       'br = (brain or agent_brain or "").strip()' in _SRC)
 check("sửa bot: hai trường brain luôn bằng nhau",

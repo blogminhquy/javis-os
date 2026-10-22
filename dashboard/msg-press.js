@@ -24,6 +24,11 @@
    message is shown in a box that fits between the top of the screen and the card, scrolled to where it sat, so every
    line can be reached and selected.
 
+   0.266.0 (owner, iPhone): in the main chat the dimmed card with emoji and Reply / Copy made copying harder, not
+   easier. opts.holdOnly: only a hold on the `holdOn` buttons (the reaction corner) opens the menu; holding the message
+   itself is left to the phone, so its own selection handles and Copy callout come back. The main chat passes it; Teams
+   keeps the full menu because on a touch screen its card is the only place for Pin.
+
    bind(root, opts) is generic: the main chat (chat-reactions.js / app.js) and the Teams page (teams.js) pass their own
    selector, emoji, actions and callbacks. place() is pure so node tests can run it. */
 (function () {
@@ -227,6 +232,7 @@
       // 16/10/2026: "ấn giữ vào icon mép phải bên dưới cũng phải hiện emoji"). Holding one opens the same menu; the tap it
       // would have made is swallowed by onEnd (preventDefault), so the hold does not also toggle a like.
       var onBtn = opts.holdOn && t.closest(opts.holdOn);
+      if (opts.holdOnly && !onBtn) return;
       if (!onBtn && t.closest("button, a, input, textarea, select, label, summary, .mp-layer")) return;
       if (opts.accept && !opts.accept(el)) return;
       var p = point(e);

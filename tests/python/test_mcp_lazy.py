@@ -352,6 +352,12 @@ _bt_ws, _ = mcp_hub._builtin_tools(
     coding_ctx_cua_phien=_cc.CodingToolContext(session_id="s", workspace_root=_vault,
                                                permission_mode="auto"))
 _real |= {t["fn"] for t in _bt_ws}
+# 0.256.0: terminal thật chỉ có ở mức Toàn quyền của phiên Coding.
+_bt_full, _ = mcp_hub._builtin_tools(
+    "full", _vault, workspace_root=_vault,
+    coding_ctx_cua_phien=_cc.CodingToolContext(session_id="s", workspace_root=_vault,
+                                               permission_mode="full"))
+_real |= {t["fn"] for t in _bt_full}
 for _fn in sorted(mcp_hub.CORE_TOOL_FNS):
     check(f"CORE_TOOL_FNS '{_fn}' là builtin có thật", _fn in _real)
 

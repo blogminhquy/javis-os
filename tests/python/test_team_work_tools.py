@@ -243,7 +243,7 @@ class Overlap:
         return "fake", "fake", run_
 
 
-def two_jobs(label, lock_off=False):
+def two_jobs(label, slots=None, own_folders=False):
     """Two teams of the SAME brain, one job each: the pool runs them side by side (one job per team already)."""
     ov = Overlap()
     r, tm, ts, ss, t, d = world(label, engine_for=ov.engine_for)
@@ -256,8 +256,10 @@ def two_jobs(label, lock_off=False):
     # Different members: one member already runs one turn at a time (busy lock), the lock here is about the brain.
     for i, (team_id, who) in enumerate(((t["team_id"], "agent-two"), (tid2, "agent-one"))):
         r.submit(team_id, f"Việc {i}", mentions=[who], as_job=True, client_msg_id=f"{label}{i}")
-    if lock_off:
-        r._tool_lock = lambda brain: asyncio.Lock()   # control: a fresh lock each turn = no serialisation
+    if slots is not None:
+        r.tool_slots = slots
+    if own_folders:
+        r.work_dir = lambda team: "/work/" + team["team_id"]   # each team pinned its own working folder
 
     async def go():
         await r.dispatch_once()
@@ -266,11 +268,15 @@ def two_jobs(label, lock_off=False):
     return ov
 
 
-ctl = two_jobs("lock-off", lock_off=True)
-ov = two_jobs("lock-on")
-check("control: without the lock, Work steps of two teams in one brain overlap", ctl.peak == 2, (ctl.peak, ctl.roles))
-check("with the lock, Work steps in one brain run one at a time", ov.peak == 1 and len(ov.roles) >= 2,
-      (ov.peak, ov.roles))
+# 0.260.0: the tool slot is per working folder (pinned folder, else the brain) and TOOL_SLOTS wide.
+ctl = two_jobs("slots-default")
+ov = two_jobs("slots-one", slots=1)
+own = two_jobs("slots-one-own-folders", slots=1, own_folders=True)
+check("default: Work steps of two teams in one brain run side by side", ctl.peak == 2, (ctl.peak, ctl.roles))
+check("one slot (JAVIS_TEAM_TOOL_SLOTS=1): Work steps in one folder run one at a time", ov.peak == 1
+      and len(ov.roles) >= 2, (ov.peak, ov.roles))
+check("one slot, each team has its own pinned folder: they still run side by side", own.peak == 2,
+      (own.peak, own.roles))
 check("both Work steps were tool turns", all(tt for role, tt in ov.roles if role in TR.TOOL_ROLES)
       and sum(role in TR.TOOL_ROLES for role, _ in ov.roles) >= 2, ov.roles)
 

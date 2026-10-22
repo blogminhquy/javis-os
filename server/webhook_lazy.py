@@ -1,4 +1,4 @@
-"""webhook_lazy.py - the webhook routes, registered at start without loading the webhook platform (0.247.0).
+"""webhook_lazy.py - the webhook routes, registered at start without loading the webhook platform (0.274.0).
 
 `import main` must stay light (tests/python/test_khoi_dong_nhe.py): the webhook platform is seven modules and 22
 FastAPI routes, about 10 ms at every start, on a check that sits close to its ceiling. Here every webhook route is a

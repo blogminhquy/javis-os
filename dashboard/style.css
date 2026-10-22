@@ -1165,8 +1165,6 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   white-space: nowrap; }
 @media (hover: none) {
   .jr-rx-btn { min-width: 36px; height: 36px; }
-  /* Long press on an answer opens the emoji: switch off iOS's own long-press menu on answers that have a message id. */
-  .msg-javis[data-mid] { -webkit-touch-callout: none; }
   .jr-react-err .ws-btn { min-height: 44px; }
 }
 @media (max-width: 480px) {
@@ -3530,6 +3528,77 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .ww-card .ww-err { font-size: 13px; color: var(--warn-ink); margin-top: 4px; }
 .ww-card .ww-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
 .ww-card .ww-del { color: var(--red); }
+/* Cookies page, once Kho dang nhap / Login vault (0.252.0, login-vault.js). Text is 16px or larger: the owner reads it on a phone. */
+.lv-page { max-width: 760px; }
+.lv-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin: 6px 0 10px; }
+.lv-title { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; color: var(--text); }
+.lv-add { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; }
+.lv-head-act { display: flex; flex-wrap: wrap; gap: 8px; }
+.lv-head-act [hidden] { display: none; }
+.lv-upload { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; min-height: 38px; }
+.lv-paste-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.lv-file { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; min-height: 36px; }
+.lv-form textarea.drop { border-color: var(--accent2); border-style: dashed; background: var(--surface-2, var(--surface-1)); }
+.lv-warn { margin: 6px 0 12px; padding: 10px 12px; border: 1px solid rgba(224,102,74,.5); border-radius: 10px;
+  background: rgba(224,102,74,.08); font-size: 16px; line-height: 1.5; }
+.lv-list { display: flex; flex-direction: column; gap: 12px; }
+.lv-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 8px; transition: border-color .2s ease, opacity .2s ease; }
+.lv-card:hover { border-color: var(--accent2-line); }
+.lv-card.off { opacity: .72; }
+.lv-card.busy { opacity: .55; pointer-events: none; }
+.lv-card-new { margin-bottom: 12px; border-color: var(--accent2-line); }
+.lv-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.lv-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 17px; }
+.lv-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.lv-ic { display: inline-flex; color: var(--accent2-ink); flex: none; }
+.lv-st { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 16px; padding: 3px 10px;
+  border-radius: 999px; border: 1px solid var(--hairline); color: var(--text2); white-space: nowrap; }
+.lv-st i { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+.lv-st.ok { border-color: var(--ok-line); background: var(--ok-wash); color: var(--text); }
+.lv-st.ok i { background: var(--green); }
+.lv-st.bad { border-color: rgba(244,86,90,.45); background: rgba(244,86,90,.1); color: var(--text); }
+.lv-st.bad i { background: var(--red); }
+.lv-st.warn i { background: var(--warn-ink); }
+.lv-dom { display: flex; flex-wrap: wrap; gap: 6px; }
+.lv-dom span { font-size: 16px; padding: 2px 8px; border-radius: 6px; background: var(--surface-1);
+  border: 1px solid var(--hairline); color: var(--text2); overflow-wrap: anywhere; }
+.lv-meta { font-size: 16px; color: var(--text3); line-height: 1.5; }
+.lv-bad { color: var(--red); }
+.lv-warnt { color: var(--warn-ink); }
+.lv-note { font-size: 16px; color: var(--warn-ink); line-height: 1.5; overflow-wrap: anywhere; }
+.lv-allow { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; cursor: pointer; align-self: flex-start;
+  min-height: 32px; }
+.lv-allow input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.lv-sw { position: relative; width: 38px; height: 22px; flex: none; border-radius: 999px; background: var(--bg3);
+  border: 1px solid var(--border); transition: background .18s ease; }
+.lv-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--text3); transition: transform .18s ease, background .18s ease; }
+.lv-allow input:checked + .lv-sw { background: var(--accent2); border-color: var(--accent2); }
+.lv-allow input:checked + .lv-sw::after { transform: translateX(16px); background: #fff; }
+.lv-allow input:focus-visible + .lv-sw { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.lv-actions, .lv-more { display: flex; flex-wrap: wrap; gap: 8px; }
+.lv-actions .s-btn-ghost, .lv-more .s-btn-ghost { display: inline-flex; align-items: center; gap: 6px; font-size: 16px;
+  min-height: 38px; }
+.lv-more { padding-top: 8px; border-top: 1px dashed var(--hairline); }
+.lv-more .lv-del { color: var(--red); }
+.lv-test { flex-basis: 100%; font-size: 16px; color: var(--text3); overflow-wrap: anywhere; }
+.lv-form { display: flex; flex-direction: column; gap: 10px; }
+.lv-slot .lv-form { padding-top: 10px; border-top: 1px dashed var(--hairline); }
+.lv-form label { font-size: 16px; }
+.lv-form input, .lv-form textarea { font-size: 16px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--hairline);
+  background: var(--surface-1); color: var(--text); width: 100%; box-sizing: border-box; font-family: inherit; }
+.lv-form textarea { font-family: var(--mono, ui-monospace, monospace); min-height: 110px; resize: vertical; }
+.lv-form-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lv-form-act .s-btn, .lv-form-act .s-btn-ghost { font-size: 16px; min-height: 40px; }
+.lv-msg { font-size: 16px; color: var(--warn-ink); }
+.lv-msg.ok { color: var(--text2); }
+.lv-empty { text-align: center; padding: 36px 16px; color: var(--text3); font-size: 16px; border: 1px dashed var(--border);
+  border-radius: 14px; }
+.lv-empty .ic { width: 28px; height: 28px; opacity: .6; }
+.ww-login { font-size: 16px; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--hairline);
+  background: var(--bg2); color: var(--text); width: 100%; }
 .viec-tl { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 10px; }
 .viec-tl-o { flex: 1 1 220px; min-width: 0; min-height: 44px; resize: vertical; padding: 9px 11px;
   border-radius: 10px; border: 1px solid var(--hairline); background: var(--surface-1); color: var(--text);
@@ -4009,10 +4078,12 @@ div.info-body > * { margin: 0; font-size: inherit; }
    selects the nearest selectable text when the spot under the finger is not, and the card, the lifted copy and the
    time row under a bubble were still selectable. Now the whole message and the whole layer are not; fields stay.
    Android too (owner): pointer: coarse catches phones that misreport hover, and html.mp-holding (set by msg-press.js
-   while the card is open) switches selection off on the whole page, whatever the browser. */
+   while the card is open) switches selection off on the whole page, whatever the browser.
+   0.266.0 (owner): main chat messages (.msg) are selectable again; there only the reaction corner opens the menu
+   (msg-press.js holdOnly), and holding the text gives the phone's own selection and Copy. */
 @media (hover: none), (pointer: coarse) {
-  .mp-host .msg, .mp-host .tm-msg, .mp-host .jr-rx-btn, .mp-host .tm-rx-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-  .mp-host .msg :is(input, textarea, [contenteditable]), .mp-host .tm-msg :is(input, textarea, [contenteditable]) { -webkit-user-select: text; user-select: text; }
+  .mp-host .tm-msg, .mp-host .jr-rx-btn, .mp-host .tm-rx-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  .mp-host .tm-msg :is(input, textarea, [contenteditable]) { -webkit-user-select: text; user-select: text; }
 }
 .mp-layer, .mp-layer *, html.mp-holding, html.mp-holding * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .mp-layer { position: fixed; inset: 0; z-index: 3200; }

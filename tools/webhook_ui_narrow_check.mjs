@@ -1,4 +1,4 @@
-// webhook_ui_narrow_check.mjs - the webhook page at phone width (390 px), in a real browser (0.247.0, spec §12/§15 UI).
+// webhook_ui_narrow_check.mjs - the webhook page at phone width (390 px), in a real browser (0.274.0, spec §12/§15 UI).
 //
 //   node tools/webhook_ui_narrow_check.mjs http://127.0.0.1:7791 /tmp/shots
 //

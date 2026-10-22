@@ -116,6 +116,9 @@
       ra += chip("worktree", (wt ? ic("check") : ic("folder-tree")) + " worktree", wt ? " on" : "");
       ra += chip("diemhoi", ic("history") + " " + esc(t("coding.chip_ckpt")));
     }
+    // 0.256.0: Hoàn tác về mốc TỰ ĐỘNG. Không phụ thuộc git của thư mục (kho bóng của Javis lo),
+    // nên có ở mọi thư mục đã gắn.
+    ra += chip("hoantac", ic("undo-2") + " " + esc(t("coding.chip_undo")));
     return ra + chipQuyen();
   }
 
@@ -138,6 +141,8 @@
             // computer the column folds with the button in its own corner instead.
             '<button class="cp-ico-btn cp-side-toggle" type="button" id="cdLeftBtn" title="' +
               esc(t("coding.toggle_list")) + '" aria-label="' + esc(t("coding.toggle_list")) + '">' + ic("panel-left") + "</button>" +
+            // 0.251.0: the open conversation's name, as on the Chat page (sessions-ui.js renderTitle).
+            '<span class="cp-conv-host"></span>' +
             // Chip gom nhóm hội thoại của trang Trò chuyện đậu vào đây, y như thanh tiêu đề
             // của trang đó. Thiếu ô này thì JavisChatSide.chip() không có chỗ để vẽ.
             '<span class="proj-chip-host"></span>' +
@@ -232,6 +237,7 @@
   }
 
   function roi() {
+    dongBangHoanTac();
     active = false;
     dongMenu(); goChip(); traMoPhien(); traKhungChat();
     // Gỡ hẳn: rời trang rồi mà còn nghe thì mỗi lần xoay máy lại gọi veChip() cho một trang
@@ -416,6 +422,84 @@
                bam: function () { datRangBuoc({ muc_quyen: m }); } };
     }));
     if (loai === "diemhoi") return menuDiemHoi(node);
+    if (loai === "hoantac") return menuHoanTac(node);
+  }
+
+  // ============================================================
+  // Hoàn tác về mốc tự động (0.256.0, server/coding_checkpoint.py)
+  // ============================================================
+  function gioMoc(ts) {
+    try { return new Date(Number(ts) * 1000).toLocaleString(); } catch (e) { return String(ts || ""); }
+  }
+
+  async function menuHoanTac(node) {
+    var r = await api("/coding/session/" + encodeURIComponent(sid()) + "/undo");
+    var ds = (r && r.moc) || [];
+    if (!ds.length) return menu(node, [{ nhan: t("coding.undo_empty"), phu: t("coding.undo_empty_note") }]);
+    menu(node, ds.map(function (m) {
+      return { nhan: t("coding.undo_item", { gio: gioMoc(m.luc) }), phu: m.ly_do || "",
+               bam: function () { moBangHoanTac(m); } };
+    }));
+  }
+
+  var NHAN_TT = { A: "coding.undo_st_added", M: "coding.undo_st_modified", D: "coding.undo_st_deleted" };
+
+  function dongBangHoanTac() {
+    var b = document.getElementById("cdUndo");
+    if (b && b.parentNode) b.parentNode.removeChild(b);
+    document.removeEventListener("keydown", phimBangHoanTac);
+  }
+  function phimBangHoanTac(e) { if (e.key === "Escape") dongBangHoanTac(); }
+
+  async function moBangHoanTac(m) {
+    dongBangHoanTac();
+    var url = "/coding/session/" + encodeURIComponent(sid()) + "/undo/" + encodeURIComponent(m.id);
+    var b = document.createElement("div");
+    b.className = "cd-undo"; b.id = "cdUndo";
+    b.innerHTML = '<div class="cd-undo-box" role="dialog" aria-modal="true">' +
+      '<div class="cd-undo-head"><b>' + esc(t("coding.undo_title", { gio: gioMoc(m.luc) })) + "</b>" +
+      '<button type="button" class="cd-undo-x" aria-label="' + esc(t("coding.undo_close")) + '">' + ic("x") + "</button></div>" +
+      '<div class="cd-undo-body">' + esc(t("coding.undo_loading")) + "</div></div>";
+    document.body.appendChild(b);
+    b.onclick = function (e) { if (e.target === b) dongBangHoanTac(); };
+    b.querySelector(".cd-undo-x").onclick = dongBangHoanTac;
+    document.addEventListener("keydown", phimBangHoanTac);
+    var body = b.querySelector(".cd-undo-body");
+    var r = await api(url);
+    if (r && r.error) { body.textContent = r.error; return; }
+    var files = (r && r.file) || [];
+    if (!files.length) { body.textContent = t("coding.undo_nothing"); return; }
+    body.innerHTML = '<p class="cd-undo-note">' + esc(t("coding.undo_note")) + "</p>" +
+      '<ul class="cd-undo-list">' + files.map(function (f, i) {
+        return "<li><div class=\"cd-undo-row\"><span class=\"cd-undo-st st-" + esc(f.trang_thai) + "\">" +
+          esc(t(NHAN_TT[f.trang_thai] || NHAN_TT.M)) + "</span><code>" + esc(f.file) + "</code>" +
+          '<button type="button" data-diff="' + i + '">' + esc(t("coding.undo_diff")) + "</button></div>" +
+          '<pre class="cd-undo-diff" hidden></pre></li>';
+      }).join("") + "</ul>" +
+      '<div class="cd-undo-act"><button type="button" class="cd-undo-go">' + esc(t("coding.undo_restore")) +
+      '</button></div><div class="cd-undo-kq"></div>';
+    body.querySelectorAll("[data-diff]").forEach(function (nut) {
+      nut.onclick = async function () {
+        var f = files[Number(nut.dataset.diff)];
+        var pre = nut.closest("li").querySelector("pre");
+        if (!pre.hidden) { pre.hidden = true; return; }
+        pre.hidden = false; pre.textContent = t("coding.undo_loading");
+        var d = await api(url + "?file=" + encodeURIComponent(f.file));
+        pre.textContent = (d && (d.diff || d.error)) || t("coding.undo_no_diff");
+      };
+    });
+    body.querySelector(".cd-undo-go").onclick = async function () {
+      if (!W.confirm(t("coding.undo_confirm"))) return;
+      var kq = body.querySelector(".cd-undo-kq");
+      kq.textContent = t("coding.undo_loading");
+      var x = await api(url, { method: "POST", body: fd({}) });
+      if (x && x.error) { kq.textContent = x.error; return; }
+      var giu = (x && x.giu_nguyen) || [];
+      kq.innerHTML = "<p>" + esc(t("coding.undo_done", { n: ((x && x.da_tra) || []).length })) + "</p>" +
+        (giu.length ? "<p>" + esc(t("coding.undo_kept")) + "</p><ul>" +
+          giu.map(function (g) { return "<li><code>" + esc(g) + "</code></li>"; }).join("") + "</ul>" : "");
+      body.querySelector(".cd-undo-go").disabled = true;
+    };
   }
 
 
@@ -503,6 +587,33 @@
     goBoDong();
     var m = document.getElementById("cdMenu");
     if (m && m.parentNode) m.parentNode.removeChild(m);
+  }
+
+  // ============================================================
+  // Hoàn tác ở MỌI khung chat (0.259.0)
+  // ============================================================
+  /** Từ 0.259.0 mọi khung chat của chủ đều có terminal và mốc khôi phục, không riêng trang Code.
+   *  Trang Code có chip Hoàn tác; các khung chat còn lại nhận một mục trong menu "+" của ô soạn
+   *  tin, mở đúng bảng Hoàn tác ở trên cho phiên đang mở. */
+  function dangKyMenuHoanTac() {
+    if (!W.JavisComposerMenu || !W.JavisComposerMenu.register) return;
+    W.JavisComposerMenu.register({
+      id: "undo", order: 25, icon: ic("undo-2"), label: "cp.undo", emptyKey: "coding.undo_empty",
+      submenu: function () {
+        var id = sid();
+        if (!id) return Promise.resolve([]);
+        return api("/coding/session/" + encodeURIComponent(id) + "/undo").then(function (r) {
+          return ((r && r.moc) || []).map(function (m) {
+            return { label: t("coding.undo_item", { gio: gioMoc(m.luc) }), hint: m.ly_do || "",
+                     run: function () { moBangHoanTac(m); } };
+          });
+        }, function () { return []; });
+      },
+    });
+  }
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", dangKyMenuHoanTac);
+    else dangKyMenuHoanTac();
   }
 
   W.JavisCoding = {

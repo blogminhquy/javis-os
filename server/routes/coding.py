@@ -8,6 +8,9 @@
     POST /coding/session/{sid}              đặt thư mục / nhánh / mức quyền / worktree
     POST /coding/session/{sid}/checkpoint   tạo điểm hồi, trả tên tag
     POST /coding/session/{sid}/rollback     git reset --hard về một điểm hồi của phiên
+    GET  /coding/session/{sid}/undo         mốc tự động trước mỗi lượt có thay đổi (0.256.0)
+    GET  /coding/session/{sid}/undo/{mid}   file khác nhau giữa mốc và hiện tại, kèm diff một file
+    POST /coding/session/{sid}/undo/{mid}   Hoàn tác về mốc (an toàn: giữ file người dùng tự sửa)
 
 Vì sao có `/coding/sessions` riêng thay vì dùng `/sessions?channel=...`: từ 0.63.1 mọi phiên
 Coding dùng CHUNG một kênh (`coding_store.KENH`), còn thư mục là ràng buộc đổi được. Muốn vẽ
@@ -274,6 +277,36 @@ def _make_router() -> APIRouter:
         try:
             return coding_store.rollback(sid, tag)
         except coding_store.LoiCoding as e:
+            return _400(str(e))
+
+    # ---- Hoàn tác về mốc tự động (0.256.0, coding_checkpoint) ----
+    # Khác điểm hồi ở trên: mốc do Javis TỰ tạo trước thao tác thay đổi đầu tiên của mỗi lượt,
+    # nằm trong kho git bóng (không đụng repo), có ở cả thư mục không phải git, và khôi phục
+    # chọn lọc chứ không `reset --hard`.
+    @r.get("/coding/session/{sid}/undo")
+    async def coding_undo_ds(sid: str):
+        import coding_checkpoint
+        ds = await run_in_threadpool(coding_checkpoint.danh_sach, sid)
+        return {"moc": [{k: x.get(k) for k in ("id", "ws", "luc", "luot", "ly_do")} for x in ds]}
+
+    @r.get("/coding/session/{sid}/undo/{mid}")
+    async def coding_undo_xem(sid: str, mid: str, file: str = Query("")):
+        import coding_checkpoint
+        try:
+            if file:
+                return {"diff": await run_in_threadpool(coding_checkpoint.diff_file, sid, mid, file)}
+            td = await run_in_threadpool(coding_checkpoint.thay_doi, sid, mid)
+            return {"file": td["file"], "ws": td["moc"].get("ws")}
+        except coding_checkpoint.LoiMoc as e:
+            return _400(str(e))
+
+    @r.post("/coding/session/{sid}/undo/{mid}")
+    async def coding_undo(sid: str, mid: str, tat_ca: str = Form(""), file: str = Form("")):
+        import coding_checkpoint
+        try:
+            return await run_in_threadpool(coding_checkpoint.khoi_phuc, sid, mid, not _bat(tat_ca),
+                                           str(file or "").strip())
+        except coding_checkpoint.LoiMoc as e:
             return _400(str(e))
 
     return r

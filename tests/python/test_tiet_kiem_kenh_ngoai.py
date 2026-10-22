@@ -138,7 +138,7 @@ def _stream_gia(prov, key, model, messages, reasoning="off"):
 
 
 async def _stream_mcp_gia(prov, key, model, messages, reasoning="off", brain=None,
-                          force_lazy=False, mode="full"):
+                          force_lazy=False, mode="full", **kw):   # 0.259.0: owner_sid, owner_chat, coding_row
     _goi["stream_mcp"].append([dict(m) for m in messages])
 
     async def g():

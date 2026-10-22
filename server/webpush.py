@@ -39,7 +39,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
-# `cryptography` (about 20 ms) loads in the functions that sign or encrypt, not at `import main` (0.247.0).
+# `cryptography` (about 20 ms) loads in the functions that sign or encrypt, not at `import main` (0.274.0).
 
 from config import STATE_DIR
 

@@ -68,6 +68,7 @@ jobs:
           build-args: |
             CODEX_CLI_VERSION=${{ env.CODEX_CLI_VERSION }}
             CLAUDE_CLI_VERSION=${{ env.CLAUDE_CLI_VERSION }}
+            JAVIS_IMAGE_SOURCE=${{ env.IMAGE }}
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}

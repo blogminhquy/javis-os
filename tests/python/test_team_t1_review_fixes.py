@@ -414,10 +414,10 @@ orig_bt = tm.busy_turn
 in_check = {"n": 0}
 
 
-def slow_busy_turn(k):
+def slow_busy_turn(k, *rest):
     in_check["n"] += 1
     time.sleep(0.5)
-    return orig_bt(k)
+    return orig_bt(k, *rest)
 
 
 tm.busy_turn = slow_busy_turn

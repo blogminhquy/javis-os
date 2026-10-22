@@ -70,6 +70,7 @@ class TeamApiDeps:
     # 0.209.0: runs a `command_ok` acceptance criterion: (command, cwd) -> {ran, exit, output, error}. None: unknown.
     check_command: Optional[Callable[[str, Any], dict]] = None
     brain_root: Optional[Callable[[dict], Any]] = None   # team -> Path of its brain (acceptance product paths)
+    work_dir: Optional[Callable[[dict], str]] = None     # team -> pinned working folder, "" when none (0.260.0)
 
 
 async def _body(request: Request) -> dict:
@@ -163,7 +164,8 @@ class TeamApi:
                 judge=self.deps.judge() if self.deps.judge is not None else None,
                 learning=self.deps.learning() if self.deps.learning is not None else None,
                 contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block,
-                check_command=self.deps.check_command, brain_root=self.deps.brain_root)
+                check_command=self.deps.check_command, brain_root=self.deps.brain_root,
+                work_dir=self.deps.work_dir)
             if self._loop is not None:
                 self._runner._loop, self._runner._loop_thread = self._loop, self._loop_thread
         return self._runner

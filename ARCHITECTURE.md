@@ -207,6 +207,13 @@ workflow on the Collaborators page), `chat_runtime.py`.
   zip export/import of agents, skills and workflows.
 - `coding_store.py`, `coding_ctx.py`, `terminal.py`: the Code group (folders bound to a session,
   context for engines without file tools, a real PTY terminal for the owner).
+- `coding_files.py`, `coding_terminal.py`, `coding_checkpoint.py`, `run_command.py` (0.256.0): the
+  coding toolkit API brains get through the hub (paged reads, fuzzy section edits, file search, a
+  real bash terminal with background processes at Full access, automatic restore points in a
+  shadow git store with selective Undo). `secret_redact.py` masks secrets for logs and terminal output.
+- `web_tools.py` (0.259.0): `javis_web_search` (DuckDuckGo keyless, Tavily, Brave, SearXNG with
+  failover) and `javis_web_fetch` (HTML to markdown, PDF, paging cache, private-network guard shared
+  with `web_watch.check_url`) for API brains in owner chats.
 
 **Adaptive Context Runtime** (phased, mostly shadow or canary paths behind settings):
 `context_runtime.py` (trace substrate, `runtime.db`), `adaptive_context_runtime.py`,

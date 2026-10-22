@@ -153,7 +153,17 @@
     if (j.dns_ok) _badge("dnsBadge", window.t("brand.dns_ok"), "ok");
     else if (j.dns_ip) _badge("dnsBadge", window.t("brand.dns_wrong_ip", { ip: j.dns_ip }), "bad");
     else _badge("dnsBadge", window.t("brand.dns_none"), "warn");
+    // 0.248.0: the server says WHAT answered on https://<domain> (routes/domain.py PROBE_CODES), so the badge names
+    // the broken step instead of one "via Hostinger" label for every failure.
+    var SSL_CODE_BADGE = {
+      no_route: ["brand.ssl_no_route", "bad"], cert_pending: ["brand.ssl_cert_pending", "warn"],
+      bad_gateway: ["brand.ssl_bad_gateway", "bad"], other_javis: ["brand.ssl_elsewhere", "bad"],
+      other_site: ["brand.ssl_elsewhere", "bad"], cert_invalid: ["brand.ssl_elsewhere", "bad"],
+      unreachable: ["brand.ssl_unreachable", "bad"]
+    };
+    var codeBadge = SSL_CODE_BADGE[j.ssl_code];
     if (j.ssl_active) _badge("sslBadge", window.t("brand.ssl_on"), "ok");
+    else if (codeBadge && j.dns_ok) _badge("sslBadge", window.t(codeBadge[0]), codeBadge[1]);
     else if (hostinger) _badge("sslBadge", window.t("brand.ssl_hostinger"), "warn");
     else if (j.ssl_enabled) _badge("sslBadge", window.t("brand.ssl_pending"), "warn");
     else _badge("sslBadge", window.t("brand.ssl_off"), "");
@@ -185,7 +195,7 @@
     if (guide) { guide.innerHTML = steps; guide.style.display = "block"; }
     if (j.ssl_active) setStatus("domainStatus", window.t("brand.https_running", { domain: j.domain }), false);
     else if (hostinger && j.requires_redeploy) setStatus("domainStatus", window.t("brand.saved_needs_redeploy"), false);
-    else setStatus("domainStatus", j.ssl_reason || "", !!(j.dns_ip && !j.dns_ok));
+    else setStatus("domainStatus", j.ssl_reason || "", !!(j.dns_ip && !j.dns_ok) || !!codeBadge);
   }
 
   async function saveDomain() {

@@ -30,6 +30,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
+import brain_ident
 import channels
 import localefmt
 import secrets_store
@@ -115,7 +116,10 @@ def list_accounts(channel: str = "", brain: str = "") -> List[dict]:
         for a in _load()["accounts"]:
             if k and a.get("channel") != k:
                 continue
-            if br and _clean_brain(a.get("brain")) not in ("", br):
+            # Same brain in any spelling ("brain" from the dashboard, an absolute path from older
+            # records), never a different one (#716). Unassigned accounts still show everywhere.
+            mine = _clean_brain(a.get("brain"))
+            if br and mine and mine != br and not brain_ident.same_brain(mine, br):
                 continue
             out.append(_public(a))
     return out

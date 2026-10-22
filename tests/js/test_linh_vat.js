@@ -345,8 +345,9 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(e?\) => \{[\s\S]{0,320}bao
 {
   const menu = pet.slice(pet.indexOf("var muc = ["), pet.indexOf("];", pet.indexOf("var muc = [")));
   const ids = [...menu.matchAll(/\{ id: "([a-z]+)"/g)].map(m => m[1]);
-  check("menu nhanh đúng 5 mục theo thứ tự chốt",
-    ids.join(",") === "chat,agent,workflow,mic,pet");
+  // 0.263.0 (issue #755): Team chat added on the last row.
+  check("menu nhanh đúng 6 mục theo thứ tự chốt",
+    ids.join(",") === "chat,agent,workflow,mic,pet,teams");
   check("Trợ lý / Quy trình đi qua openTab của trang Cộng sự",
     /window\.JavisWorkspace\.openTab\(id\)/.test(pet));
   // Mic: BẤM HỘ nút mic thật, không dựng đường thứ hai. Nút đó còn kéo theo loa, chế độ Live

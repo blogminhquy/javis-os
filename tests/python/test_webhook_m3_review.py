@@ -1,4 +1,4 @@
-"""0.247.0: fixes from the independent review of webhook platform M3 (actions, branches), each red before the fix.
+"""0.274.0: fixes from the independent review of webhook platform M3 (actions, branches), each red before the fix.
 
     python tests/run.py webhook_m3_review      (no network: httpx.MockTransport; no model: fake runners)
 

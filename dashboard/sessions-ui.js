@@ -281,7 +281,7 @@
   var pdFormFile = false, pdFileMode = "search", pdFormLink = false;
   // "project" = khung của project | "cuoc" = của cuộc trò chuyện | "agent" = của MỘT trợ lý
   var pdCheDo = "project";
-  var phienProj = { sid: "", pid: "" };     // cache "phiên đang mở thuộc project nào"
+  var phienProj = { sid: "", pid: "", title: "" };     // cache "phiên đang mở thuộc project nào"
 
   function pdT(k, bien) { return (window.t ? window.t(k, bien) : k); }
 
@@ -294,28 +294,54 @@
     // project đang lọc, nên chip báo trước điều đó là đúng chứ không phải đoán.
     if (!sid) return locThat;
     if (phienProj.sid === sid) return phienProj.pid;
-    var pid = "";
+    var pid = "", title = "";
     try {
       var r = await fetch("/sessions/" + encodeURIComponent(sid) + "/meta");
       if (r.ok) {
         var d = await r.json();
         pid = (d && d.project_id) || "";
+        title = (d && d.title) || "";
       } else {
         // 404 = id đã mint ở client nhưng chưa gửi tin nào, hàng trong DB chưa tồn tại.
         pid = locThat;
       }
     } catch (e) { return locThat; }   // mạng hỏng: đừng ghi cache một câu trả lời sai
-    phienProj = { sid: sid, pid: pid };
+    phienProj = { sid: sid, pid: pid, title: title };
     return pid;
   }
 
-  function quenPhienProj() { phienProj = { sid: "", pid: "" }; }
+  function quenPhienProj() { phienProj = { sid: "", pid: "", title: "" }; }
+
+  // ── Conversation title (0.251.0) ─────────────────────────────────────────────
+  // The open conversation's name, next to the collapse button on the Chat and Code pages. It
+  // rides on the /meta fetch the chip already makes, so it costs no extra request. A saved
+  // conversation renames on click; an unsaved one just says "New conversation".
+  function renderTitle() {
+    var hosts = document.querySelectorAll(".cp-conv-host");
+    if (!hosts.length) return;
+    var sid = currentId();
+    var saved = !!(sid && phienProj.sid === sid && phienProj.title);
+    var text = saved ? phienProj.title : pdT("top.new_chat");
+    hosts.forEach(function (h) {
+      var old = h.querySelector(".cp-conv");
+      if (old && old.dataset.sid === (sid || "") && old.dataset.text === text) return;   // no flicker on a redraw
+      var tip = saved ? pdT("cs.cp_title_rename", { ten: text }) : text;
+      h.innerHTML = '<button class="cp-conv' + (saved ? "" : " is-new") + '" type="button" title="' + esc(tip) +
+        '" aria-label="' + esc(tip) + '"><span class="cp-conv-t">' + esc(text) + "</span>" +
+        (saved ? ic("pencil") : "") + "</button>";
+      var b = h.querySelector(".cp-conv");
+      b.dataset.sid = sid || "";
+      b.dataset.text = text;
+      if (saved) b.onclick = function () { renSession({ id: sid, title: text }); };
+    });
+  }
 
   // ── Chip ─────────────────────────────────────────────────────────────────────
   async function renderProjChip() {
     var hosts = document.querySelectorAll(".proj-chip-host");
     if (!hosts.length) return;
     var pid = await duAnCuaLuot();
+    renderTitle();
     var p = pid ? projById(pid) : null;
     // Mở thẳng trang chat sau F5 thì `projects` có thể chưa nạp. Nạp rồi thôi, KHÔNG gọi
     // loadProjects() ở đây (nó gọi ngược lại hàm này - vòng lặp vô tận).
@@ -1847,6 +1873,8 @@
       var fd = new FormData(); fd.append("title", t);
       await fetch("/sessions/" + encodeURIComponent(s.id) + "/rename", { method: "POST", body: fd });
     } catch (e) {}
+    quenPhienProj();      // the title in the chat header reads this cache
+    renderProjChip();
     refresh();
   }
 

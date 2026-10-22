@@ -199,7 +199,7 @@ kho2, usage2, nhat_ky2, hoc2 = lap_gia("openrouter", "api", "sk-test", "x/y")
 
 
 async def _api_gia(prov, key, model, messages, reasoning="off", brain=None,
-                   force_lazy=False, mode="full"):
+                   force_lazy=False, mode="full", **kw):   # 0.259.0: owner_sid, owner_chat, coding_row
     async def _gen():
         yield {"type": "meta", "model": "x/y-thuc"}
         yield {"type": "text", "content": "Xong rồi anh."}

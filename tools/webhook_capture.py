@@ -1,4 +1,4 @@
-"""webhook_capture.py - turn real deliveries into masked fixtures and check a hook configuration against them (0.247.0,
+"""webhook_capture.py - turn real deliveries into masked fixtures and check a hook configuration against them (0.274.0,
 spec §16.6, §17).
 
     .venv/bin/python tools/webhook_capture.py export --state-dir <STATE_DIR> --event ev_... --expect run \

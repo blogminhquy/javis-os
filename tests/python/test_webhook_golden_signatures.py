@@ -1,4 +1,4 @@
-"""0.247.0: golden signature fixtures for webhook_verify (webhook platform M4).
+"""0.274.0: golden signature fixtures for webhook_verify (webhook platform M4).
 
     python tests/run.py webhook_golden_signatures
 

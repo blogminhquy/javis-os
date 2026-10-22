@@ -47,7 +47,8 @@
       + '<div class="ww-url"><a href="' + esc(w.url) + '" target="_blank" rel="noopener noreferrer">' + esc(w.url) + "</a></div>"
       + '<div class="ww-meta">' + esc(dk) + " · " + esc(tw("ww.every", { n: w.interval_min })) + " · "
       + esc(tw(STATUS_KEY[w.status] || "ww.st_active")) + " · " + esc(tw("ww.checked", { n: w.checks || 0, t: fmtTime(w.last_at) }))
-      + (w.summarize ? " · " + esc(tw("ww.ai_on")) : "") + "</div>"
+      + (w.summarize ? " · " + esc(tw("ww.ai_on")) : "")
+      + (w.login_id ? " · " + ic("key") + " " + esc(tw("ww.login")) : "") + "</div>"
       + (w.last_alert ? '<div class="ww-alert">' + esc(String(w.last_alert).slice(0, 300)) + "</div>" : "")
       + (w.last_error ? '<div class="ww-err">' + esc(tw("ww.last_error")) + " " + esc(String(w.last_error).slice(0, 200)) + "</div>" : "")
       + '<div class="wf-actions ww-actions">'
@@ -60,6 +61,9 @@
   function formHtml() {
     return '<div class="ww-form">'
       + '<div class="si-field"><label>' + esc(tw("ww.url")) + '</label><input id="wwUrl" type="url" placeholder="' + esc(tw("ww.url_ph")) + '"></div>'
+      // 0.251.0: a page behind a sign-in uses one from the Login vault. Shown only when the vault has one.
+      + '<div class="si-field" id="wwLoginWrap" hidden><label>' + esc(tw("ww.login")) + '</label>'
+      + '<select id="wwLogin" class="ww-login"><option value="">' + esc(tw("ww.login_none")) + "</option></select></div>"
       + '<div class="si-field"><label>' + esc(tw("ww.cond")) + '</label><div class="si-row" id="wwCond">'
       + '<button class="si-chip sel" data-c="change">' + esc(tw("ww.cond_change")) + "</button>"
       + '<button class="si-chip" data-c="contains">' + esc(tw("ww.cond_contains")) + "</button>"
@@ -129,6 +133,18 @@
       });
     }
 
+    // Sign-ins Javis may use (Login vault, 0.251.0). /logins needs a dashboard session; any error just hides the field.
+    (async function () {
+      var d = await api("/logins");
+      var list = (d && d.ok && d.logins || []).filter(function (x) { return x.allow_ai; });
+      var sel = q("#wwLogin");
+      if (!sel || !list.length) return;
+      sel.innerHTML = '<option value="">' + esc(tw("ww.login_none")) + "</option>" + list.map(function (x) {
+        return '<option value="' + esc(x.id) + '">' + esc(x.name) + " (" + esc((x.domains || []).slice(0, 2).join(", ")) + ")</option>";
+      }).join("");
+      q("#wwLoginWrap").hidden = false;
+    })();
+
     q("#wwSave").onclick = async function () {
       var msg = q("#wwMsg");
       var btn = q("#wwSave");
@@ -136,7 +152,8 @@
       msg.textContent = "";
       var r = await api("/watch", {
         brain: brain(), url: q("#wwUrl").value.trim(), cond: cond, value: q("#wwVal").value.trim(),
-        title: q("#wwTitle").value.trim(), interval_min: Number(q("#wwEvery").value || 60), summarize: q("#wwAi").checked });
+        title: q("#wwTitle").value.trim(), interval_min: Number(q("#wwEvery").value || 60), summarize: q("#wwAi").checked,
+        login_id: (q("#wwLogin") && q("#wwLogin").value) || "" });
       btn.disabled = false;
       if (!r.ok) { msg.textContent = r.error || tw("ww.err_net"); return; }
       q("#wwUrl").value = ""; q("#wwVal").value = ""; q("#wwTitle").value = "";

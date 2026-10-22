@@ -1,6 +1,6 @@
-# Webhook platform, M5: operations (0.247.0)
+# Webhook platform, M5: operations (0.274.0)
 
-> **Spec alignment (0.247.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: limits follow spec §11 (300 per minute, burst 100, backlog 10,000 or 256 MiB, store 1 GiB with the WAL, AI 30 per hour); notifications go through a durable outbox, errors_only groups failures, blocks and unclear outcomes into incidents; masking covers every dashboard text and raw access is audited; failed bodies are kept until the owner settles them; the page has three parts and two switches (pause processing, stop receiving). The "Assumptions to reconcile" below are settled by that matrix.
+> **Spec alignment (0.274.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: limits follow spec §11 (300 per minute, burst 100, backlog 10,000 or 256 MiB, store 1 GiB with the WAL, AI 30 per hour); notifications go through a durable outbox, errors_only groups failures, blocks and unclear outcomes into incidents; masking covers every dashboard text and raw access is audited; failed bodies are kept until the owner settles them; the page has three parts and two switches (pause processing, stop receiving). The "Assumptions to reconcile" below are settled by that matrix.
 
 Status: implemented and tested with fakes (no real model, no real outside system). Spec of record:
 `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md`, still not in the repository. The choices below are

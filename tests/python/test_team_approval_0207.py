@@ -479,7 +479,16 @@ cases = [("Bash", {"command": "ls -la"}, "free"), ("Bash", {"command": "git stat
          ("Edit", {"file_path": str(STATE / "brain" / ".git" / "config")}, "outside"),
          ("Write", {"file_path": str(STATE / "brain" / "Javis" / "loops" / "x.md")}, "outside"),
          ("WebFetch", {"url": "https://example.com/docs/guide"}, "free"),
-         ("WebFetch", {"url": "https://api.telegram.org/bot123/sendMessage?chat_id=1&text=hi"}, "outside")]
+         ("WebFetch", {"url": "https://api.telegram.org/bot123/sendMessage?chat_id=1&text=hi"}, "outside"),
+         # 0.267.0 (a user's team): chained reads were stopped for approval; writes in a chain still are
+         ("Bash", {"command": 'cd "/brains/Brain Default"; cat -n marketing/a.md; echo ----; sed -n 78,95p "wiki/Claim.md"; '
+                              'echo ----; grep -n -i "quat\\|gio\\|fan" "sources/Fiona F116.md"'}, "free"),
+         ("Bash", {"command": "cat a | grep b"}, "free"), ("Bash", {"command": "ls x 2>/dev/null || echo none"}, "free"),
+         ("Bash", {"command": "sed -n '/a/,/b/p' f"}, "free"), ("Bash", {"command": "cat a; rm b"}, "outside"),
+         ("Bash", {"command": "cat a >> b"}, "outside"), ("Bash", {"command": "echo hi | tee out"}, "outside"),
+         ("Bash", {"command": "sed -i s/a/b/ f"}, "outside"), ("Bash", {"command": "sed 's/a/b/w out' f"}, "outside"),
+         ("Bash", {"command": "echo $(rm x)"}, "outside"), ("Bash", {"command": "ls\nrm x"}, "outside"),
+         ("Bash", {"command": "ls &"}, "outside"), ("Bash", {"command": "(rm x)"}, "outside")]
 bad = [(t, i) for t, i, want in cases if team_gate.classify_native(t, i, roots) != want]
 check("native: the read/write/shell/connector classification of a gated Claude step", not bad, bad)
 check("native: no gate id means refused (fail closed)", team_gate.native_check("tg_missing", "Read", {})[0] is False)

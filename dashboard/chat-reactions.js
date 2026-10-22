@@ -250,22 +250,6 @@
     if (el && el._jr.open) { e.preventDefault(); e.stopPropagation(); setOpen(el, false); focusBtn(el); }
   }
 
-  // Actions of the phone menu for one message: only the ones its own button row offers.
-  var PRESS_ACTS = [
-    { act: "quote", icon: "reply", key: "mpress.reply" },
-    { act: "copy", icon: "copy", key: "mpress.copy", done: "teams.copied" },
-    { act: "edit", icon: "pencil", key: "mpress.edit" },
-    { act: "retry", icon: "rotate-cw", key: "mpress.resend" }
-  ];
-  function pressActions(el) {
-    return PRESS_ACTS.filter(function (a) { return el.querySelector('.msg-act[data-act="' + a.act + '"]'); }).map(function (a) {
-      return { icon: a.icon, label: tw(a.key), done: a.done ? tw(a.done) : "", run: function (m) {
-        var b = m && m.querySelector('.msg-act[data-act="' + a.act + '"]');
-        if (b) b.click();
-      } };
-    });
-  }
-
   function norm(s) {
     return String(s || "").replace(/<!--[\s\S]*?-->/g, "").replace(/\s+/g, " ").trim();
   }
@@ -332,22 +316,22 @@
     root = cfg.root;
     root.addEventListener("click", onClick);
     root.addEventListener("keydown", onKey);
-    // Phone (0.179.0): long press any message opens the menu of msg-press.js, emoji above the finger (slide to pick)
-    // and Reply / Copy / Edit / Send again at the bottom. The actions press the message's own hidden buttons
-    // (app.js runMsgAct), so they behave exactly like the desktop row.
+    // Phone: holding the reaction corner opens the msg-press.js emoji row (slide to pick). Holding the message itself is
+    // the phone's own text selection and Copy (owner, 0.266.0: the dimmed Reply / Copy card got in the way of copying);
+    // Reply, Copy, Edit and Send again are in the row a tap on the message shows (.acts-on).
     var MP = typeof window !== "undefined" && window.JavisMsgPress;
     if (MP) {
       MP.bind(root, {
         selector: ".msg-javis, .msg-user",
         bubble: ".bubble",
         holdOn: ".jr-rx-btn",
+        holdOnly: true,
         emoji: JR.EMOJI,
         canReact: function (el) { return !!(el._jr && el.classList.contains("msg-javis")); },
         current: function (el) { return el._jr && el._jr.reaction ? el._jr.reaction.value : ""; },
         react: function (el, value) {
           if (el._jr && !el._jr.busy) send(el, JR.nextReaction((el._jr.reaction || {}).value, value));
-        },
-        actions: function (el) { return pressActions(el); }
+        }
       });
     }
     // Phone (0.216.0, owner): swipe a message to the left to quote it, like Zalo. It presses the message's own Quote

@@ -57,6 +57,8 @@
     // "share-2" chu khong phai "link": nhan nhom "Ket noi" ngay trong cung mot rail da dung
     // ic("link"), nen de "link" o day la hai muc canh nhau deo y het nhau.
     share: "share-2",
+    // 0.251.0: login vault, the owner's stored sign-ins (login-vault.js). 0.261.0: renamed Cookies, cookie icon.
+    logins: "cookie",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -105,7 +107,7 @@
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage", "pet", "share",
+    "packs", "logs", "account", "usage", "logins", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -129,7 +131,7 @@
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON.nang_luc,    ids: ["workspace", "teams", "conversations", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON.viec,        ids: ["kanban", "selfimprove", "webhooks"] },
-    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON.ket_noi,     ids: ["mcp", "packs", "channels", "models"] },
+    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON.ket_noi,     ids: ["mcp", "packs", "channels", "logins", "models"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON.he_thong,    ids: ["settings", "share", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
@@ -183,7 +185,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "selfimprove", "webhooks", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "selfimprove", "webhooks", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share", "logins"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -548,6 +550,12 @@
     if (CODE_PAGES.includes(id)) return renderCode(el, id);
     if (id === "selfimprove") return renderSelfImprove(el);
     if (id === "webhooks") return renderWebhooks(el);
+    if (id === "logins") {
+      // 0.251.0: the Login vault page lives in login-vault.js, delegated like the Packs page.
+      if (window.JavisLoginVault) return window.JavisLoginVault.mount(el);
+      el.innerHTML = placeholder("logins", window.t("cs.mod_not_ready", { ten: "login-vault.js" }));
+      return;
+    }
     if (id === "chatbots") return renderChatbots(el);
     if (id === "teams") {
       // Trang Nhóm do teams.js dựng, uỷ quyền như trang Gói. Trang chat chiếm trọn khung và tự cuộn bên trong (khung soạn
@@ -1865,47 +1873,125 @@
     if (dangCai) _ctTimer = setTimeout(() => veCongCuTuyChon(host), 2000);
   }
 
+  // 0.249.0 (owner, 20/10/2026: "phần plugin có thể thêm thanh tìm kiếm được không, dùng lâu tạo
+  // thêm nhiều plugin thì tìm để bật tắt rất lâu"). The page was one long column of tall cards,
+  // the 20 built-in plugins first and the user's own ones last, with no search and no filter.
+  // Now: a search box (accent-insensitive, matches name, slug, description and tool names), an
+  // All / On / Off filter, the user's own plugins first, then store packs, then built-ins, and a
+  // compact card with an on/off switch on the right, the same shape as the Skills page.
+  let _plStatus = "all";
+  function _injectPluginCss() {
+    if (document.getElementById("pl-css")) return;
+    const css = `
+    .pl-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 6px}
+    .pl-search{flex:1 1 300px;max-width:560px;display:flex;align-items:center;gap:8px;height:42px;padding:0 10px 0 12px;border:1px solid var(--hairline);border-radius:10px;background:var(--field-bg);color:var(--text3)}
+    .pl-search:focus-within{border-color:var(--accent-line)}
+    .pl-search input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:var(--text);font-size:16px}
+    .pl-search input::-webkit-search-cancel-button{display:none}
+    .pl-clear{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:var(--surface-2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .pl-clear[hidden]{display:none}
+    .pl-seg{display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--surface-2);flex-wrap:wrap}
+    .pl-seg button{height:36px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text2);font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}
+    .pl-seg button.sel{background:var(--panel-solid);color:var(--text);box-shadow:var(--shadow-1)}
+    .pl-seg button .n{margin-left:5px;color:var(--text3);font-variant-numeric:tabular-nums}
+    .pl-seg button.err{color:var(--red)}
+    .pl-sum{font-size:13px;color:var(--text3);margin:0 0 14px}
+    .pl-group{display:flex;align-items:baseline;gap:8px;margin:18px 0 8px;font-size:14px;font-weight:600;color:var(--text2)}
+    .pl-group:first-child{margin-top:4px}
+    .pl-group .n{font-weight:500;color:var(--text3);font-variant-numeric:tabular-nums}
+    .pl-list{display:flex;flex-direction:column;gap:8px}
+    .pl-card{display:flex;align-items:flex-start;gap:8px;padding:12px 6px 12px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--panel-bg)}
+    .pl-card:hover{border-color:var(--accent-line)}
+    .pl-card.err{border-color:var(--danger-line)}
+    .pl-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+    .pl-card.off .pl-main{opacity:.6}
+    .pl-nm{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:15px;font-weight:600;color:var(--text)}
+    .pl-nm .ic{color:var(--text3)}
+    .pl-slug{font-size:12.5px;font-weight:400;color:var(--text3)}
+    .pl-badge{font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--hairline);color:var(--text2)}
+    .pl-ds{font-size:14px;line-height:1.5;color:var(--text2)}
+    .pl-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--text3)}
+    .pl-chip{padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--text2)}
+    .pl-st{padding:2px 8px;border-radius:999px;font-weight:500}
+    .pl-st.warn{background:var(--warn-wash);color:var(--warn-ink)}
+    .pl-st.bad{background:var(--danger-wash);color:var(--red)}
+    .pl-err{font-size:13px;color:var(--red);word-break:break-word}
+    .pl-act{border:0;background:transparent;padding:2px 4px;font-size:12.5px;color:var(--link-ink);cursor:pointer;text-decoration:none}
+    .pl-act:hover{text-decoration:underline}
+    .pl-act.del{color:var(--red)}
+    .pl-right{flex:none;display:flex;align-items:center;min-height:44px}
+    .pl-right .s-btn-ghost{white-space:nowrap}
+    .pl-sw{flex:none;display:flex;align-items:center;justify-content:center;width:56px;height:44px;padding:0;border:0;background:transparent;cursor:pointer}
+    .pl-sw:focus-visible{outline:2px solid var(--accent-solid);outline-offset:2px;border-radius:8px}
+    .pl-tr{position:relative;display:block;width:40px;height:22px;border-radius:999px;background:var(--surface-3);transition:background .15s}
+    .pl-kn{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(28,26,36,.3);transition:left .15s}
+    .pl-sw[aria-checked="true"] .pl-tr{background:var(--accent-solid)}
+    .pl-sw[aria-checked="true"] .pl-kn{left:20px}
+    .pl-sw:disabled{opacity:.5;cursor:wait}
+    .pl-empty{padding:18px;text-align:center;color:var(--text3);font-size:14px}
+    .pl-empty button{margin-left:6px}
+    @media (max-width: 860px){
+      .pl-search{flex-basis:100%;max-width:none}
+      .pl-seg{width:100%}
+      .pl-seg button{flex:1 1 auto;padding:0 8px}
+      .pl-ds,.pl-nm{font-size:16px}
+      .pl-card{padding:12px 2px 12px 12px}
+    }`;
+    const st = document.createElement("style"); st.id = "pl-css"; st.textContent = css; document.head.appendChild(st);
+  }
+
   async function renderPlugins(el) {
     _injectExtraCss();
+    _injectPluginCss();
     const myGen = _renderGen;   // chống race: đổi trang → load dở tự bỏ
     el.innerHTML = `<div class="cview-section"><div class="empty">${esc(t("common.loading"))}</div></div>`;
 
     const SRC = { bundled: [window.t("cs.pl_src_bundled"), "var(--green)"], pack: [window.t("cs.pl_src_pack"), "var(--accent, #7c5cff)"], user: [window.t("cs.pl_src_user"), "var(--link-ink)"], vault: [window.t("cs.pl_src_vault"), "var(--warn-ink)"] };
-    const srcBadge = (s) => {
-      const [t, c] = SRC[s] || [s, "var(--text3)"];
-      return `<span style="font-size:11px;padding:2px 7px;border-radius:99px;border:1px solid ${c}55;color:${c}">${esc(t)}</span>`;
-    };
-    // Tham số thứ hai là TÊN icon, không phải HTML: giữ esc() bắt buộc cho phần
-    // chữ nên không thể vô tình nhét HTML thô vào qua đường này.
-    const chip = (t, iconName) => `<span style="font-size:11px;padding:2px 7px;border-radius:6px;background:var(--surface-2);color:var(--text2);margin:0 4px 4px 0;display:inline-block">${iconName ? ic(iconName) + " " : ""}${esc(t)}</span>`;
     const MM = { readonly: window.t("cs.pl_mm_readonly"), safe: window.t("cs.pl_mm_safe"), full: window.t("cs.pl_mm_full") };
+    // Group order = how often a person comes to toggle them: their own plugins, then what they
+    // installed from the store, then the ones that ship with Javis.
+    const GROUPS = [["mine", "cs.pl_grp_mine"], ["pack", "cs.pl_grp_pack"], ["bundled", "cs.pl_grp_bundled"]];
+    const groupOf = (p) => p.source === "bundled" ? "bundled" : p.source === "pack" ? "pack" : "mine";
+    const stateOf = (p) => p.error ? "err" : p.enabled ? "on" : "off";
+    const TOOLS_SHOWN = 4;
+    const ui = { q: "", data: null, refocus: "" };
+
+    // Accent-insensitive, every word must match somewhere: "lich dang" finds "Lịch đăng bài".
+    const haystack = (p) => _vtNoAccent([p.name, p.slug, p.description, p.author,
+      (p.tools || []).join(" "), (p.hooks || []).join(" ")].join(" "));
+    const matches = (p, words) => { const h = haystack(p); return words.every(w => h.includes(w)); };
 
     function card(p) {
-      const status = p.error ? `<span style="color:var(--red)">${WARN_ICON} ${window.t("app.err_low")}</span>`
-        : p.gated ? `<span style="color:var(--warn-ink)">${WARN_ICON} ${window.t("cs.pl_st_gated")}</span>`
-        : p.loaded ? `<span style="color:var(--green)">● ${window.t("usage.loop.on")}</span>`
-        : p.enabled ? `<span style="color:var(--warn-ink)">● ${window.t("cs.pl_st_idle")}</span>`
-        : `<span style="color:var(--text3)">○ ${window.t("cs.st_off_low")}</span>`;
-      const meta = [MM[p.min_mode] ? window.t("cs.pl_minmode", { muc: MM[p.min_mode] }) : "",
-                    p.version ? `v${esc(p.version)}` : "", p.author ? esc(p.author) : ""].filter(Boolean).join(" · ");
-      const chips = (p.tools || []).map(t => chip(t, "wrench")).join("") + (p.hooks || []).map(h => chip(h, "webhook")).join("");
+      const div = document.createElement("div");
+      const state = stateOf(p);
+      div.className = "pl-card" + (state === "off" ? " off" : "") + (state === "err" ? " err" : "");
+      div.dataset.slug = p.slug;
       // Server descriptions run 150-400 chars: two clamped lines on the card, the full text in (i).
       const dongDai = (p.description || "").length > 100;
-      const div = document.createElement("div");
-      div.className = "wf-card" + (p.loaded ? "" : " off");
+      const tools = (p.tools || []).map(x => [x, "wrench"]).concat((p.hooks || []).map(h => [h, "webhook"]));
+      const chips = tools.slice(0, TOOLS_SHOWN).map(([x, icn]) => `<span class="pl-chip">${ic(icn)} ${esc(x)}</span>`).join("")
+        + (tools.length > TOOLS_SHOWN ? `<span class="pl-chip" title="${esc(tools.slice(TOOLS_SHOWN).map(x => x[0]).join(", "))}">+${tools.length - TOOLS_SHOWN}</span>` : "");
+      const stChip = p.error ? `<span class="pl-st bad">${WARN_ICON} ${esc(window.t("app.err_low"))}</span>`
+        : p.gated ? `<span class="pl-st warn">${WARN_ICON} ${esc(window.t("cs.pl_st_gated"))}</span>`
+        : (p.enabled && !p.loaded) ? `<span class="pl-st warn">${esc(window.t("cs.pl_st_idle"))}</span>` : "";
+      // The group heading already says where a plugin comes from; only "this brain only" needs saying.
+      const badge = p.source === "vault" ? `<span class="pl-badge" style="color:${SRC.vault[1]}">${esc(SRC.vault[0])}</span>` : "";
+      const meta = [MM[p.min_mode] ? esc(window.t("cs.pl_minmode", { muc: MM[p.min_mode] })) : "",
+                    p.version ? `v${esc(p.version)}` : ""].filter(Boolean).join(" · ");
+      const acts = (p.page ? `<a class="pl-act" href="${esc(safeHref(p.page))}" target="_blank" rel="noopener">${esc(window.t("cs.pl_open_page"))} ↗</a>` : "")
+        + (p.source !== "pack" && !p.removed ? `<button type="button" class="pl-act del">${esc(window.t("proj.remove_short"))}</button>` : "");
+      let right = "";
+      if (p.source === "pack") right = `<button type="button" class="s-btn-ghost" data-goto-packs="1">${esc(window.t("cs.pl_manage_store"))}</button>`;
+      else if (p.removed) right = `<button type="button" class="s-btn-ghost undel">${esc(window.t("store.reinstall"))}</button>`;
+      else right = `<button type="button" class="pl-sw" role="switch" aria-checked="${p.enabled ? "true" : "false"}" title="${esc(window.t(p.enabled ? "studio.tog_on" : "studio.tog_off"))}" aria-label="${esc(window.t("cs.pl_sw_aria", { ten: p.name }))}"><span class="pl-tr"><span class="pl-kn"></span></span></button>`;
       div.innerHTML = `
-        <div class="wf-top">
-          <div class="wf-name">${ic("puzzle")} ${esc(p.name)} <span class="dim" style="font-size:12px">${esc(p.slug)}</span> ${srcBadge(p.source)}${dongDai ? infoBtn() : ""}</div>
-          <div>${status}</div>
+        <div class="pl-main">
+          <div class="pl-nm">${ic("puzzle")} <span>${esc(p.name)}</span> <span class="pl-slug">${esc(p.slug)}</span>${badge}${dongDai ? infoBtn() : ""}</div>
+          ${p.description ? `<div class="pl-ds j-clamp2">${esc(p.description)}</div>` : ""}${dongDai ? infoBody(esc(p.description)) : ""}
+          <div class="pl-meta">${stChip}${chips}${meta ? `<span>${meta}</span>` : ""}${acts}</div>
+          ${p.error ? `<div class="pl-err">${esc(p.error)}</div>` : ""}
         </div>
-        <div class="wf-desc j-clamp2">${esc(p.description || "")}</div>${dongDai ? infoBody(esc(p.description)) : ""}
-        <div class="wf-steps">${meta}${chips ? `<div style="margin-top:8px">${chips}</div>` : ""}${p.error ? `<div style="margin-top:6px;color:var(--red)">${esc(p.error)}</div>` : ""}</div>
-        <div class="wf-actions">${p.page ? `<a class="s-btn-ghost" href="${esc(safeHref(p.page))}" target="_blank" rel="noopener">${esc(window.t("cs.pl_open_page"))} ↗</a>` : ""}${p.source === "pack"
-            ? `<button class="s-btn-ghost" data-goto-packs="1">${esc(window.t("cs.pl_manage_store"))}</button>`
-            : p.removed
-              ? `<button class="s-btn-ghost undel">${esc(window.t("store.reinstall"))}</button>`
-              : `<button class="s-btn-ghost tgl">${esc(window.t(p.enabled ? "usage.loop.btn_tat" : "usage.loop.btn_bat"))}</button>
-                 <button class="s-btn-ghost del" style="color:var(--red)">${esc(window.t("proj.remove_short"))}</button>`}</div>`;
+        <div class="pl-right">${right}</div>`;
       // Plugin đến từ gói thì bật/tắt và gỡ đều làm ở Kho cài đặt - nó đi theo cả gói, và có
       // đúng MỘT chỗ gỡ thì người dùng không phải đoán gỡ ở đâu mới là gỡ thật.
       const nutGoto = div.querySelector("[data-goto-packs]");
@@ -1928,8 +2014,10 @@
       };
       const nutUn = div.querySelector(".undel");
       if (nutUn) nutUn.onclick = () => doiGo(false);
-      const nutTgl = div.querySelector(".tgl");
-      if (nutTgl) nutTgl.onclick = async () => {
+      const sw = div.querySelector(".pl-sw");
+      if (sw) sw.onclick = async () => {
+        sw.disabled = true;
+        ui.refocus = p.slug;   // the card is redrawn: hand the keyboard focus to its new switch
         const fd = new FormData();
         fd.append("slug", p.slug); fd.append("enabled", p.enabled ? "0" : "1"); fd.append("brain", fbrain());
         let r = {}; try { r = await (await fetch("/plugins/toggle", { method: "POST", body: fd })).json(); } catch (e) { r = { error: e.message }; }
@@ -1940,47 +2028,130 @@
       return div;
     }
 
+    // Redraws only the list, never the toolbar: a toggle reloads the data, and rebuilding the
+    // search box would drop what the person typed and the keyboard focus with it.
+    function drawList() {
+      const host = document.getElementById("plCards");
+      const d = ui.data;
+      if (!host || !d) return;
+      const plugins = (d.plugins || []).slice()
+        .sort((a, b) => (a.name || "").localeCompare(b.name || "", LOC()));
+      const words = _vtNoAccent(ui.q).split(/\s+/).filter(Boolean);
+      const live = plugins.filter(p => !p.removed);
+      const found = words.length ? live.filter(p => matches(p, words)) : live;
+      const cnt = { all: found.length, on: 0, off: 0, err: 0 };
+      found.forEach(p => { cnt[stateOf(p)]++; });
+      if (_plStatus === "err" && !cnt.err) _plStatus = "all";
+      const shown = _plStatus === "all" ? found : found.filter(p => stateOf(p) === _plStatus);
+
+      const seg = document.getElementById("plSeg");
+      if (seg) {
+        const opts = [["all", "cs.pl_f_all"], ["on", "cs.pl_f_on"], ["off", "cs.pl_f_off"]].concat(cnt.err ? [["err", "cs.pl_f_err"]] : []);
+        seg.innerHTML = opts.map(([k, key]) => `<button type="button" data-st="${k}" class="${_plStatus === k ? "sel" : ""}${k === "err" ? " err" : ""}" aria-pressed="${_plStatus === k}">${esc(window.t(key))}<span class="n">${cnt[k]}</span></button>`).join("");
+        seg.querySelectorAll("[data-st]").forEach(b => { b.onclick = () => { _plStatus = b.dataset.st; drawList(); }; });
+      }
+      const sum = document.getElementById("plSum");
+      if (sum) sum.textContent = window.t("cs.pl_summary", { count: live.length, on: live.filter(p => p.enabled).length });
+
+      host.innerHTML = "";
+      if (!live.length) {
+        host.innerHTML = `<div class="empty">${esc(window.t("cs.pl_empty_a"))} ${esc(d.global_dir || window.t("cs.pl_dir_fallback"))} ${esc(window.t("cs.pl_empty_b"))}</div>`;
+      } else if (!shown.length) {
+        const box = document.createElement("div");
+        box.className = "pl-empty";
+        box.innerHTML = esc(words.length ? window.t("cs.pl_no_match", { q: ui.q.trim() }) : window.t("cs.pl_no_match_f"))
+          + (words.length ? ` <button type="button" class="s-btn-ghost">${esc(window.t("cs.pl_clear"))}</button>` : "");
+        const b = box.querySelector("button");
+        if (b) b.onclick = () => setQuery("");
+        host.appendChild(box);
+      } else {
+        GROUPS.forEach(([g, key]) => {
+          const items = shown.filter(p => groupOf(p) === g);
+          if (!items.length) return;
+          const h = document.createElement("h3");
+          h.className = "pl-group";
+          h.innerHTML = `${esc(window.t(key))} <span class="n">${items.length}</span>`;
+          const list = document.createElement("div");
+          list.className = "pl-list";
+          items.forEach(p => list.appendChild(card(p)));
+          host.appendChild(h); host.appendChild(list);
+        });
+      }
+
+      const daGo = plugins.filter(p => p.removed && (!words.length || matches(p, words)));
+      const det = document.getElementById("plRemoved");
+      if (det) {
+        det.hidden = !daGo.length;
+        det.querySelector(".pl-rm-n").textContent = window.t("cs.pl_removed_n", { count: daGo.length });
+        const hostGo = det.querySelector("#plGo");
+        hostGo.innerHTML = "";
+        const list = document.createElement("div");
+        list.className = "pl-list";
+        daGo.forEach(p => list.appendChild(card(p)));
+        hostGo.appendChild(list);
+      }
+      if (ui.refocus) {
+        const sw = host.querySelector(`.pl-card[data-slug="${CSS.escape(ui.refocus)}"] .pl-sw`);
+        ui.refocus = "";
+        if (sw) sw.focus({ preventScroll: true });
+      }
+    }
+
+    function setQuery(q) {
+      ui.q = q;
+      const inp = document.getElementById("plSearch");
+      if (inp && inp.value !== q) inp.value = q;
+      const x = document.getElementById("plClear");
+      if (x) x.hidden = !q;
+      drawList();
+    }
+
+    // Built once per visit. Later loads (after a toggle) only refill the banner and the list.
+    function buildShell(d) {
+      const wrap = document.createElement("div");
+      wrap.className = "cview-section";
+      // Khối "Công cụ tuỳ chọn" đứng TRƯỚC danh sách plugin: nó trả lời câu hỏi người dùng
+      // mang tới trang này ("sao Javis không mở được trình duyệt"), và trang Kết nối gửi người
+      // ta tới đây đúng vì nó. 0.249.0: nó ẩn hẳn khi không có công cụ nào, trước đây tiêu đề
+      // vẫn đứng đó với một khoảng trống bên dưới.
+      wrap.innerHTML = `<div id="ctTuyChon" style="margin-bottom:22px" hidden></div>`
+        + `<div id="plGate"></div>`
+        + `<div class="pl-bar">`
+        +   `<label class="pl-search">${ic("search")}<input type="search" id="plSearch" autocomplete="off" spellcheck="false" placeholder="${esc(window.t("cs.pl_search_ph"))}" aria-label="${esc(window.t("cs.pl_search_ph"))}">`
+        +   `<button type="button" class="pl-clear" id="plClear" aria-label="${esc(window.t("cs.pl_clear"))}" title="${esc(window.t("cs.pl_clear"))}" hidden>${ic("x")}</button></label>`
+        +   `<div class="pl-seg" id="plSeg" role="group" aria-label="${esc(window.t("cs.pl_filter_aria"))}"></div>`
+        + `</div>`
+        // The folder path and how to add a plugin are help, not state: both sit in one (i).
+        + `<div class="pl-sum"><span id="plSum"></span>${infoBtn()}</div>${infoBody(`${esc(window.t("cs.pl_dir_a"))} <code>${esc(d.global_dir || "")}</code> ${esc(window.t("cs.pl_dir_b"))} <code>plugin.yaml</code> + <code>plugin.py</code>${esc(window.t("cs.pl_dir_c"))}<br>${esc(window.t("cs.pl_intro_a"))} <b>tool</b> ${esc(window.t("cs.pl_intro_b"))} <b>hook</b> ${esc(window.t("cs.pl_intro_c"))}`)}`
+        + `<div id="plCards"></div>`
+        + `<details id="plRemoved" style="margin-top:22px" hidden><summary style="cursor:pointer;color:var(--text3)">◆ ${esc(window.t("cs.pl_removed_head"))} <span class="pl-rm-n" style="opacity:.7"></span></summary><div id="plGo" style="margin-top:10px"></div></details>`;
+      const oCt = wrap.querySelector("#ctTuyChon");
+      oCt.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(window.t("cs.ct_head"))}</h3>`
+        + `<p style="color:var(--text3);font-size:13px;max-width:720px;margin:0 0 10px">${esc(window.t("cs.ct_intro"))}</p>`
+        + `<div id="ctCards"></div>`;
+      const ctCards = oCt.querySelector("#ctCards");
+      veCongCuTuyChon(ctCards).then(() => { oCt.hidden = !ctCards.children.length; });
+      const inp = wrap.querySelector("#plSearch");
+      inp.addEventListener("input", () => setQuery(inp.value));
+      inp.addEventListener("keydown", (e) => { if (e.key === "Escape" && inp.value) { e.preventDefault(); setQuery(""); } });
+      wrap.querySelector("#plClear").onclick = () => { setQuery(""); inp.focus(); };
+      el.innerHTML = "";
+      const tab = hangTabKho("plugins");
+      if (tab) el.appendChild(tab);
+      el.appendChild(wrap);
+    }
+
     async function load() {
       if (myGen !== _renderGen) return;
       let d = { plugins: [] };
       try { d = await (await fetch(`/plugins?brain=${encodeURIComponent(fbrain())}`)).json(); } catch (e) {}
       if (myGen !== _renderGen) return;
-      const gateBanner = (!d.user_gate) ? `<div style="margin-bottom:14px;padding:11px 13px;border:1px solid rgba(224,160,74,.5);border-radius:10px;background:rgba(224,160,74,.08);color:var(--warn-ink);font-size:13px;line-height:1.55"><b>${WARN_ICON} ${esc(window.t("cs.pl_gate_head"))}</b>${infoBtn()}${infoBody(`${esc(window.t("cs.pl_gate_a"))} <code>JAVIS_ENABLE_USER_PLUGINS=false</code> ${esc(window.t("cs.pl_gate_b"))}`)}</div>` : "";
-      // The folder path and how to add a plugin are help, not state: both sit in the same (i) as the intro.
-      const dirHint = `<div style="margin:0 0 14px">${infoPair(`${esc(window.t("cs.pl_dir_a"))} <code>${esc(d.global_dir || "")}</code> ${esc(window.t("cs.pl_dir_b"))} <code>plugin.yaml</code> + <code>plugin.py</code>${esc(window.t("cs.pl_dir_c"))}<br>`
-        + `${esc(window.t("cs.pl_intro_a"))} <b>tool</b> ${esc(window.t("cs.pl_intro_b"))} <b>hook</b> ${esc(window.t("cs.pl_intro_c"))}`)}</div>`;
-      const plugins = (d.plugins || []).slice();
-      const order = { bundled: 0, user: 1, vault: 2 };
-      plugins.sort((a, b) => (order[a.source] ?? 9) - (order[b.source] ?? 9) || (a.name || "").localeCompare(b.name || ""));
-      const wrap = document.createElement("div");
-      wrap.className = "cview-section";
-      // Khối "Công cụ tuỳ chọn" đứng TRƯỚC danh sách plugin: nó trả lời câu hỏi người dùng
-      // mang tới trang này ("sao Javis không mở được trình duyệt"), còn danh sách plugin là
-      // thứ để xem sau. Khối tự ẩn khi không có công cụ tuỳ chọn nào.
-      wrap.innerHTML = `<div id="ctTuyChon" style="margin-bottom:20px"></div>`
-        + gateBanner + dirHint + `<div id="plCards"></div>`;
-      const oCt = wrap.querySelector("#ctTuyChon");
-      oCt.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(window.t("cs.ct_head"))}</h3>`
-        + `<p style="color:var(--text3);font-size:13px;max-width:720px;margin:0 0 10px">${esc(window.t("cs.ct_intro"))}</p>`
-        + `<div id="ctCards"></div>`;
-      veCongCuTuyChon(oCt.querySelector("#ctCards"));
-      const host = wrap.querySelector("#plCards");
-      const conDung = plugins.filter(p => !p.removed);
-      const daGo = plugins.filter(p => p.removed);
-      if (!conDung.length) host.innerHTML = `<div class="empty">${esc(window.t("cs.pl_empty_a"))} ${esc(d.global_dir || window.t("cs.pl_dir_fallback"))} ${esc(window.t("cs.pl_empty_b"))}</div>`;
-      else conDung.forEach(p => host.appendChild(card(p)));
-      if (daGo.length) {
-        const det = document.createElement("details");
-        det.style.marginTop = "18px";
-        det.innerHTML = `<summary style="cursor:pointer;color:var(--text3)">◆ ${esc(window.t("cs.pl_removed_head"))} <span style="opacity:.7">${esc(window.t("cs.pl_removed_n", { count: daGo.length }))}</span></summary><div id="plGo" style="margin-top:10px"></div>`;
-        wrap.appendChild(det);
-        const hostGo = det.querySelector("#plGo");
-        daGo.forEach(p => hostGo.appendChild(card(p)));
-      }
-      el.innerHTML = "";
-      const tab = hangTabKho("plugins");
-      if (tab) el.appendChild(tab);
-      el.appendChild(wrap);
+      const first = !ui.data;
+      ui.data = d;
+      if (first || !document.getElementById("plCards")) buildShell(d);
+      const gate = document.getElementById("plGate");
+      if (gate) gate.innerHTML = (!d.user_gate) ? `<div style="margin-bottom:14px;padding:11px 13px;border:1px solid rgba(224,160,74,.5);border-radius:10px;background:rgba(224,160,74,.08);color:var(--warn-ink);font-size:13px;line-height:1.55"><b>${WARN_ICON} ${esc(window.t("cs.pl_gate_head"))}</b>${infoBtn()}${infoBody(`${esc(window.t("cs.pl_gate_a"))} <code>JAVIS_ENABLE_USER_PLUGINS=false</code> ${esc(window.t("cs.pl_gate_b"))}`)}</div>` : "";
+      drawList();
     }
     load();
   }
@@ -4030,7 +4201,7 @@
       `<button class="seg-btn ${reasoning === v ? "sel" : ""}" data-reason="${v}" title="${esc(d)}">` +
       `<span class="seg-lb">${esc(l)}</span><span class="seg-d">${esc(d)}</span></button>`).join("");
 
-    const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "deepseek": "deepseek_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key" };
+    const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "deepseek": "deepseek_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key", "anthropic-compat": "anthropic_compat_key" };
     // withInfo: an (i) after the name; the card puts infoBody(...) right after this head.
     const provHead = (p, on, kindLabel, statusText, withInfo) => `
         <div class="prov-head">
@@ -4194,6 +4365,23 @@
           </div>
         </div>`;
       }
+      if (p.id === "anthropic-compat") {
+        // 0.254.0: a gateway speaking the Anthropic Messages API. Most of them list no models, so
+        // the card also takes the model names the seller gave (comma separated).
+        const typed = (m.anthropic_compat_models || []).join(", ");
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model", true)}
+          ${infoBody(esc(t("models.ac_note")))}
+          <div class="prov-action" style="flex-wrap:wrap">
+            <input class="js-input" id="acBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.anthropic_compat_base || "")}" placeholder="${esc(t("models.ac_base_ph"))}">
+            <input class="js-input" id="acModels" spellcheck="false" autocomplete="off" style="flex:1 1 100%" value="${esc(typed)}" placeholder="${esc(t("models.ac_models_ph"))}">
+            <input class="js-input" id="acKey" type="password" style="flex:1" placeholder="${on && masked ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.ac_key_ph"))}">
+            <button class="gcard-btn" id="acSave">${on ? esc(t("common.save")) : esc(t("models.connect"))}</button>
+            ${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}
+            <span id="acMsg" class="gcard-meta" style="flex:1 1 100%"></span>
+          </div>
+        </div>`;
+      }
       return `<div class="prov-card ${p.is_main ? "main" : ""}">
         ${provHead(p, on, p.kind === "cli" ? "MCP/skill" : "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model")}
         ${p.needs_key
@@ -4323,6 +4511,25 @@
       try { r = await postJson("/provider/openai-compat/connect", { base: base, key: key }, 30000); } catch (e) { r = { ok: false, error: String(e) }; }
       if (!r || !r.ok) {
         ocSave.disabled = false; ocSave.textContent = t("models.connect");
+        msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap"));
+        return;
+      }
+      await freshSettings();
+      renderModelsCloudTab(el);
+    };
+    const acSave = document.getElementById("acSave");
+    if (acSave) acSave.onclick = async () => {
+      const base = (document.getElementById("acBase").value || "").trim();
+      const key = (document.getElementById("acKey").value || "").trim();
+      const models = (document.getElementById("acModels").value || "").trim();
+      const msg = document.getElementById("acMsg");
+      if (!/^https?:\/\//i.test(base)) { msg.textContent = t("models.oc_need_base"); document.getElementById("acBase").focus(); return; }
+      acSave.disabled = true; acSave.textContent = t("settings.checking");
+      // The server tries {base}/v1/models, else one tiny /v1/messages call with the first model; saves only on success.
+      let r;
+      try { r = await postJson("/provider/anthropic-compat/connect", { base: base, key: key, models: models }, 60000); } catch (e) { r = { ok: false, error: String(e) }; }
+      if (!r || !r.ok) {
+        acSave.disabled = false; acSave.textContent = t("models.connect");
         msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap"));
         return;
       }
@@ -4956,6 +5163,10 @@
       if (rec.ok) {
         dot.classList.add("hok");
         chip.title = window.t("cs.cn_h_ok", { so: rec.tools || 0 }) + when;
+      } else if (rec.kind === "starting") {
+        // Still in its first start (often an npx download): not an error yet, so amber, not red.
+        dot.classList.add("hunk");
+        chip.title = (rec.message || window.t("cs.cn_h_unchecked")) + when;
       } else {
         dot.classList.add("herr");
         chip.title = (rec.message || window.t("app.err_cap")) + when;
@@ -5708,7 +5919,7 @@
     // native, bốn provider API đi qua vòng gọi tool + hub trong _api_stream_mcp. Gemini từng
     // thiếu trong danh sách này nên khách chạy Gemini bị banner vàng "chưa hỗ trợ gọi công cụ"
     // dù bên dưới đã chạy MCP ngon - nhánh vàng giờ chỉ còn để chặn provider lạ.
-    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "ollama-local", "openai-compat"];
+    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "ollama-local", "openai-compat", "anthropic-compat"];
     const mainLabel = (provs.find(p => p.id === main.provider) || {}).label || main.provider || "-";
     let warn = "";
     if (main.provider === "openai-oauth") {
@@ -7010,7 +7221,20 @@
     // Giọng Javis: mỗi đường gọi một bộ giọng.
     const sel = $("vcVoice"), tryBtn = $("vcTry");
     const edgeSel = $("voiceSel");
-    let basicVoice = "";
+    const basic = call.engine === "basic";
+    // Reading voice (Edge, OpenAI, ElevenLabs): reads chat answers and voice notes, and is the call
+    // voice on the Basic path. 0.255.0: on ChatGPT Live / Live over an API the list above holds the
+    // live voices, so the reading voice gets its own row (#vcReadVoice) instead of disappearing.
+    const readSel = basic ? sel : $("vcReadVoice");
+    const basicVoice = tts.provider === "openai" ? "openai:" + (tts.openai_voice || "alloy")
+      : tts.provider === "elevenlabs" ? "elevenlabs" : "edge:" + (edgeSel ? edgeSel.value : "");
+    const basicList = () => {
+      const edgeOpts = edgeSel ? Array.from(edgeSel.options).map(x => opt("edge:" + x.value, x.textContent, basicVoice)).join("") : "";
+      const oaOn = tts.openai_key_set || tts.provider === "openai";
+      return `<optgroup label="${esc(t("settings.vc_group_edge"))}">${edgeOpts}</optgroup>`
+        + (oaOn ? `<optgroup label="OpenAI">${OPENAI_TTS_VOICES.map(x => opt("openai:" + x, x, basicVoice)).join("")}</optgroup>` : "")
+        + `<optgroup label="ElevenLabs">${opt("elevenlabs", t("settings.vc_eleven_opt"), basicVoice)}</optgroup>`;
+    };
     if (call.engine === "chatgpt") {
       const p = (o.live_providers || []).find(x => x.id === "chatgpt") || {};
       sel.innerHTML = (p.voices || []).map(x => opt(x, x, o.chatgpt_voice || p.default_voice)).join("");
@@ -7019,31 +7243,20 @@
       const voices = p.voices || [];
       const cur = voices.includes(v.live_voice) ? v.live_voice : (p.default_voice || voices[0] || "");
       sel.innerHTML = voices.map(x => opt(x, x, cur)).join("");
-    } else {
-      // Đường Cơ bản: giọng Edge (miễn phí), giọng OpenAI khi đã có key ở trang Models, và giọng
-      // ElevenLabs riêng (key và Voice ID ở Nâng cao). Chọn giọng là chọn luôn nhà cung cấp.
-      basicVoice = tts.provider === "openai" ? "openai:" + (tts.openai_voice || "alloy")
-        : tts.provider === "elevenlabs" ? "elevenlabs" : "edge:" + (edgeSel ? edgeSel.value : "");
-      const edgeOpts = edgeSel ? Array.from(edgeSel.options).map(x => opt("edge:" + x.value, x.textContent, basicVoice)).join("") : "";
-      const oaOn = tts.openai_key_set || tts.provider === "openai";
-      sel.innerHTML = `<optgroup label="${esc(t("settings.vc_group_edge"))}">${edgeOpts}</optgroup>`
-        + (oaOn ? `<optgroup label="OpenAI">${OPENAI_TTS_VOICES.map(x => opt("openai:" + x, x, basicVoice)).join("")}</optgroup>` : "")
-        + `<optgroup label="ElevenLabs">${opt("elevenlabs", t("settings.vc_eleven_opt"), basicVoice)}</optgroup>`;
     }
-    const basic = call.engine === "basic";
-    const isEleven = () => basic && sel.value === "elevenlabs";
+    // Đường Cơ bản: giọng Edge (miễn phí), giọng OpenAI khi đã có key ở trang Models, và giọng
+    // ElevenLabs riêng. Chọn giọng là chọn luôn nhà cung cấp.
+    readSel.innerHTML = basicList();
+    $("vcReadRow").hidden = basic;
     tryBtn.hidden = call.engine === "api";   // giọng của Live qua API không có mẫu thu sẵn
-    $("vcVoiceNote").hidden = !(basic && sel.value.startsWith("edge:"));
+    $("vcVoiceNote").hidden = !(basic && readSel.value.startsWith("edge:"));
     $("vcRateRow").hidden = !basic;          // tốc độ đọc chỉ áp cho giọng đọc của đường Cơ bản
-    $("vcOpenaiNote").hidden = !basic || !!tts.openai_key_set;
-    $("vcEleven").hidden = !isEleven();
+    $("vcOpenaiNote").hidden = !!tts.openai_key_set;
+    $("vcEleven").hidden = readSel.value !== "elevenlabs";
     $("vcElKeySet").hidden = !tts.elevenlabs_key_set;
     $("vcElVoice").value = tts.elevenlabs_voice || "";
-    sel.onchange = async () => {
-      const val = sel.value;
-      if (call.engine === "chatgpt") { await luuGiong({ chatgpt_voice: val }); return; }
-      if (call.engine === "api") { await luuGiong({ live_voice: val }); return; }
-      $("vcVoiceNote").hidden = !val.startsWith("edge:");
+    const pickReading = async (val) => {
+      $("vcVoiceNote").hidden = !(basic && val.startsWith("edge:"));
       $("vcEleven").hidden = val !== "elevenlabs";
       if (val.startsWith("edge:")) {
         // Giọng Edge sống ở máy này (localStorage, app.js nghe sự kiện change của #voiceSel).
@@ -7056,10 +7269,17 @@
       } else {
         await luuGiong({ tts_provider: "elevenlabs" });
         tts.provider = "elevenlabs";
-        $("vcAdvanced").open = true;
         if (!tts.elevenlabs_key_set) $("vcElKey").focus();
+        else loadElevenVoices();
       }
     };
+    sel.onchange = async () => {
+      const val = sel.value;
+      if (call.engine === "chatgpt") { await luuGiong({ chatgpt_voice: val }); return; }
+      if (call.engine === "api") { await luuGiong({ live_voice: val }); return; }
+      await pickReading(val);
+    };
+    if (!basic) readSel.onchange = () => pickReading(readSel.value);
     // Nghe thử: ChatGPT Live phát mẫu thu sẵn (dashboard/voices/<giọng>.mp3, không mở phiên
     // realtime nào); đường Cơ bản đọc một câu bằng giọng đang chọn (app.js JavisVoiceSample).
     tryBtn.onclick = () => {
@@ -7071,6 +7291,7 @@
         } else if (window.JavisVoiceSample) window.JavisVoiceSample();
       } catch (e) {}
     };
+    $("vcReadTry").onclick = () => { try { if (window.JavisVoiceSample) window.JavisVoiceSample(); } catch (e) {} };
 
 
     // Live over an API key: TV filter and reply pace (0.220.0). ChatGPT Live and the basic path
@@ -7145,9 +7366,42 @@
       const key = $("vcElKey").value.trim();
       if (!key) return;
       const r = await luuGiong({ elevenlabs_key: key });
-      if (r && r.ok) { $("vcElKey").value = ""; tts.elevenlabs_key_set = true; $("vcElKeySet").hidden = false; }
+      if (r && r.ok) { $("vcElKey").value = ""; tts.elevenlabs_key_set = true; $("vcElKeySet").hidden = false; loadElevenVoices(); }
     };
     $("vcElVoice").onchange = () => luuGiong({ elevenlabs_voice: $("vcElVoice").value.trim() });
+    // 0.255.0: the account's voices by name, the raw Voice ID box only when the list cannot load.
+    const elSel = $("vcElVoiceSel"), elMsg = $("vcElVoiceMsg");
+    function loadElevenVoices() {
+      if (!tts.elevenlabs_key_set) return;
+      elMsg.textContent = t("settings.vc_el_loading");
+      fetch("/voice/elevenlabs/voices", { cache: "no-store" }).then(r => r.json()).catch(() => null).then(d => {
+        if (gen !== _renderGen) return;
+        if (!d || !d.ok || !(d.voices || []).length) {
+          elSel.hidden = true; $("vcElVoice").hidden = false;
+          elMsg.textContent = (d && d.error) || t("settings.vc_el_load_fail");
+          return;
+        }
+        const cur = tts.elevenlabs_voice || "";
+        const row = (x) => opt(x.id, [x.name, [x.gender, x.accent].filter(Boolean).join(", ")].filter(Boolean).join(" · "), cur);
+        const mine = d.voices.filter(x => x.category !== "premade"), premade = d.voices.filter(x => x.category === "premade");
+        const known = d.voices.some(x => x.id === cur);
+        elSel.innerHTML = (cur && !known ? opt(cur, t("settings.vc_el_custom", { id: cur }), cur) : "")
+          + (mine.length ? `<optgroup label="${esc(t("settings.vc_el_mine"))}">${mine.map(row).join("")}</optgroup>` : "")
+          + (premade.length ? `<optgroup label="${esc(t("settings.vc_el_premade"))}">${premade.map(row).join("")}</optgroup>` : "");
+        if (!cur) elSel.value = d.voices[0].id;
+        elSel.hidden = false; $("vcElVoice").hidden = true; elMsg.textContent = "";
+      });
+    }
+    elSel.onchange = () => { tts.elevenlabs_voice = elSel.value; $("vcElVoice").value = elSel.value; return luuGiong({ elevenlabs_voice: elSel.value }); };
+    const EL_MODEL_LABEL = {
+      eleven_flash_v2_5: "settings.vc_el_model_flash", eleven_v3: "settings.vc_el_model_v3",
+      eleven_turbo_v2_5: "settings.vc_el_model_turbo", eleven_multilingual_v2: "settings.vc_el_model_v2",
+    };
+    const elModels = (tts.elevenlabs_models || []).filter(m => m.id);
+    const elModelCur = tts.elevenlabs_model || "eleven_flash_v2_5";
+    $("vcElModel").innerHTML = elModels.map(m => opt(m.id, EL_MODEL_LABEL[m.id] ? t(EL_MODEL_LABEL[m.id]) : m.id, elModelCur)).join("");
+    $("vcElModel").onchange = () => luuGiong({ elevenlabs_model: $("vcElModel").value });
+    if (!$("vcEleven").hidden) loadElevenVoices();
 
     // Lỗi gần nhất khiến câu nói rơi về bộ não chính (server nhớ tới khi một lượt chạy tốt).
     // Không có dòng này thì người dùng chỉ thấy mic "đi thẳng vào bộ não chính" mà không biết vì sao.
@@ -7805,6 +8059,25 @@
       .chatpage.side-thu .chatpage-side > .cside-expand:hover{ color:var(--accent); border-color:var(--accent); }
     }
     .cp-min{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font); }
+    /* 0.251.0: conversation name beside the collapse button. Quiet by default (no border, a hairline
+       divider in front) so it reads as the page's heading rather than a third button. It shrinks
+       before the chips on the right do. Hover shows a soft background and the pencil that says a
+       click renames it. Long names end in an ellipsis. */
+    .cp-conv-host{ flex:0 100 auto; min-width:0; display:flex; align-items:center; gap:8px; }
+    .cp-conv-host:empty{ display:none; }
+    .cp-conv-host::before{ content:""; flex:none; width:1px; height:18px; background:var(--border); }
+    .cp-conv{ display:inline-flex; align-items:center; gap:6px; min-width:0; max-width:100%;
+      background:none; border:0; border-radius:8px; padding:4px 8px; margin-left:-4px; cursor:pointer;
+      color:var(--text); font:500 16px/1.3 var(--font); transition:background .15s ease;
+      animation:cpConvIn .22s ease; }
+    .cp-conv-t{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .cp-conv .ic{ flex:none; color:var(--text3); opacity:0; transition:opacity .15s ease; }
+    .cp-conv:hover{ background:var(--surface-1); }
+    .cp-conv:hover .ic, .cp-conv:focus-visible .ic{ opacity:1; }
+    .cp-conv.is-new{ color:var(--text3); font-weight:400; cursor:default; }
+    .cp-conv.is-new:hover{ background:none; }
+    @keyframes cpConvIn{ from{ opacity:0; transform:translateY(2px); } to{ opacity:1; transform:none; } }
+    @media (prefers-reduced-motion:reduce){ .cp-conv{ animation:none; } }
     .chatpage-slot{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
     /* Mở file từ tab Thư mục (desktop): trình sửa bên TRÁI, khung chat co thành CỘT PHẢI
        y như màn Javis - hội thoại ở trên, ô nhập dưới đáy cột (chủ chỉnh 27/08: bản xếp
@@ -8180,6 +8453,8 @@
             '<button class="cp-ico-btn cp-min" type="button" id="cpMinBtn" data-i18n-title="cs.cp_min_title" data-i18n-aria="cs.cp_min_title" ' +
               'title="' + esc(window.t("cs.cp_min_title")) + '" aria-label="' + esc(window.t("cs.cp_min_title")) + '">' +
               ic("chevron-left") + '<span data-i18n="cs.cp_min">' + esc(window.t("cs.cp_min")) + '</span></button>' +
+            // 0.251.0: the open conversation's name (sessions-ui.js renderTitle draws it).
+            '<span class="cp-conv-host"></span>' +
             // Tiêu đề tĩnh "Trò chuyện với Javis" ĐÃ BỎ (chủ repo yêu cầu 01/09). Nó nói
             // đúng một điều mà rail đang tô sáng và khung trống đã ghi bằng chữ in nghiêng
             // ngay bên dưới, nên nó chỉ ăn chỗ. Chip project lùi về mép phải, chiếm chỗ đó.

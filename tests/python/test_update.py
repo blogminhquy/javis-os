@@ -164,6 +164,8 @@ main._latest_remote_version = _latest_new
 main._read_version = lambda: "0.65.26"
 main._docker_image_published = _img
 main._watchtower_update = _fake_wu
+_old_src = os.environ.get("JAVIS_IMAGE_SOURCE")
+os.environ["JAVIS_IMAGE_SOURCE"] = "ghcr.io/blogminhquy/javis-os"   # official image (stamped by the release workflow)
 try:
     us.write_state({"phase": "idle"})
     _ri = asyncio.run(main.do_update())
@@ -180,9 +182,30 @@ try:
     us.write_state({"phase": "idle"})
     _ok2 = asyncio.run(main.do_update())
     check("không hỏi được GHCR → không chặn oan, vẫn gọi Watchtower", isinstance(_ok2, dict) and _ok2.get("ok") is True)
+    # 0.267.0 (a user's VPS stuck on 0.206.0): an image built on a PC and loaded onto the VPS is in no registry.
+    os.environ["JAVIS_IMAGE_SOURCE"] = ""
+    _triggered.clear()
+    us.write_state({"phase": "idle"})
+    _sb = asyncio.run(main.do_update())
+    _sbb = json.loads(_sb.body) if isinstance(_sb, JSONResponse) else {}
+    check("self-built image → says pulling cannot update it, names the official image, never calls Watchtower",
+          isinstance(_sb, JSONResponse) and _sb.status_code == 400 and _sbb.get("self_built") is True
+          and "ghcr.io/blogminhquy/javis-os:latest" in _sbb.get("error", "") and _triggered == []
+          and _sbb.get("manual") == "docker compose up -d --pull always")
+    check("self-built image → releases the claim", us.read_state().get("phase") == "idle")
 finally:
     for _k, _v in _saved.items():
         setattr(main, _k, _v)
+    if _old_src is None:
+        os.environ.pop("JAVIS_IMAGE_SOURCE", None)
+    else:
+        os.environ["JAVIS_IMAGE_SOURCE"] = _old_src
+src_df = open(os.path.join(str(ROOT), "Dockerfile"), encoding="utf-8").read()
+src_wf = open(os.path.join(str(ROOT), ".github", "workflows", "docker-publish.yml"), encoding="utf-8").read()
+check("the release workflow stamps the official image, the Dockerfile carries it into the container",
+      "JAVIS_IMAGE_SOURCE=${{ env.IMAGE }}" in src_wf and 'ARG JAVIS_IMAGE_SOURCE=""' in src_df
+      and "ENV JAVIS_IMAGE_SOURCE=${JAVIS_IMAGE_SOURCE}" in src_df
+      and src_df.index("ARG JAVIS_IMAGE_SOURCE") > src_df.index("ENV JAVIS_CODEX_SANDBOX"))
 
 # --- 0.65.27: Watchtower trả lời mà container còn sống = không thay gì → nhả "restarting" ngay ---
 _r = main._watchtower_no_update_reason

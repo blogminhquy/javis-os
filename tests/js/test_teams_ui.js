@@ -129,6 +129,27 @@ check("ba trạng thái nhóm bằng chữ", h.includes(vi["teams.status_active"
       && h.includes(vi["teams.status_archived"]), h);
 h = TM.capsFormHtml(team);
 check("T5 số giới hạn riêng một form, nút Lưu ở cuối", h.lastIndexOf("tm-caps-save") > h.lastIndexOf("tm-cap-") && !h.includes("<table"), h);
+// 0.260.0: owner picks whether several @ in one message answer at the same time (1, default) or one by one (0).
+h = TM.capsFormHtml(Object.assign({}, team, { caps: Object.assign({}, team.caps, { reply_parallel: 0 }) }));
+check("0.260.0 ô chọn trả lời cùng lúc hay lần lượt, đang lưu lần lượt thì chọn sẵn lần lượt",
+      h.includes('name="tm-cap-reply_parallel"') && h.includes(vi["teams.limits.mode_parallel"])
+      && h.includes('<option value="0" selected>' + vi["teams.limits.mode_sequential"]), h);
+(function () {
+  var cur = Object.assign({}, team.caps, { reply_parallel: 1 });
+  function read(over) { return function (k) { return (over || {})[k] || { value: cur[k] == null ? "" : String(cur[k]), checked: false }; }; }
+  var same = TM.capsPayload(cur, read());
+  check("0.260.0 không đổi chế độ trả lời: không gửi", !("reply_parallel" in same.caps), JSON.stringify(same));
+  var seq = TM.capsPayload(cur, read({ reply_parallel: { value: "0" } }));
+  check("0.260.0 đổi sang lần lượt: gửi reply_parallel 0", seq.caps.reply_parallel === 0, JSON.stringify(seq));
+})();
+var lim = TM.limitsHtml(Object.assign({}, team, { authority: { authority: null, limits: [
+  { key: "reply_parallel", category: "owner", value: 1, unit: "mode" },
+  { key: "judge_off_batch", category: "owner", value: 0, unit: "mode" },
+  { key: "job_parallel", category: "server", value: 3, unit: "count" },
+  { key: "tool_slots", category: "server", value: 3, unit: "count" }] } }));
+check("0.260.0 bảng giới hạn: nhãn chế độ theo đúng ô, có bước Làm song song và chỗ công cụ",
+      lim.includes(vi["teams.limits.mode_parallel"]) && lim.includes(vi["teams.limits.mode_code"])
+      && lim.includes(vi["teams.limits.job_parallel"]) && lim.includes(vi["teams.limits.tool_slots"]), lim);
 h = TM.turnsHtml([{ agent_key: "ag_lan", role: "plan", status: "ok", created_at: Date.now() / 1000, tokens_in: 10, tokens_out: 2 },
                   { agent_key: "ag_minh", role: "work", status: "refunded", created_at: Date.now() / 1000 }], team);
 check("lượt: lượt hoàn không tính, theo agent và vai", h.includes(vi["teams.turns_today"].replace("{n}", "1").replace("{cap}", "100"))

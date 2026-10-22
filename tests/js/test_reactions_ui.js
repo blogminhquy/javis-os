@@ -326,7 +326,8 @@ check("bỏ hết reaction: emoji biến mất, nút Thích còn", !hist.row().i
   check("P3 đổi ngôn ngữ vẽ lại hàng reaction", chatJs.includes('window.addEventListener("javis:i18n", rerenderAll)'));
   check("P3 Esc trả focus về nút Thích", /setOpen\(el, false\); focusBtn\(el\);/.test(chatJs));
   check("P3 bỏ đường rbrain không ai đặt", !chatJs.includes("rbrain"));
-  check("P3 máy chạm: tắt menu chạm giữ của iOS trên bong bóng có mã", /@media \(hover: none\) \{[\s\S]{0,300}\.msg-javis\[data-mid\] \{ -webkit-touch-callout: none; \}/.test(css));
+  // 0.266.0 (chủ repo): giữ tay trên câu trả lời lại là bôi chữ và nút Sao chép của điện thoại, không tắt menu của iOS nữa.
+  check("máy chạm: menu chạm giữ (Sao chép) của iOS còn trên câu trả lời", !/\.msg-javis\[data-mid\] \{ -webkit-touch-callout: none; \}/.test(css));
   check("P3 nhấn giữ hạ cờ ở lần chạm sau (iOS không bắn contextmenu)", /var down = function \(e\) \{[\s\S]{0,200}held = false;\s*if \(e\.pointerType === "mouse"\) return;/.test(reactJs));
   check("P3 chữ ẩn cho trình đọc màn hình có CSS ở cả hai trang", css.includes(".jr-react-sr {")
         && fs.readFileSync(path.join(D, "console.css"), "utf8").includes(".tm-react-sr {"));

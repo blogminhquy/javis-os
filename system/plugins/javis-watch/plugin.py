@@ -33,8 +33,9 @@ def _dong(w: dict) -> str:
         dk += f" \"{w['value']}\""
     tt = {"active": "đang canh", "paused": "tạm dừng", "stopped": "đã dừng"}.get(w.get("status"), w.get("status"))
     loi = f" · lỗi gần nhất: {w['last_error'][:120]}" if w.get("last_error") else ""
+    dn = " · có đăng nhập" if w.get("login_id") else ""
     return (f"{w['id']} · {w['title']} · {w['url']} · {dk} · {w['interval_min']} phút/lần · {tt}"
-            f" · đã canh {w.get('checks') or 0} lần{loi}")
+            f" · đã canh {w.get('checks') or 0} lần{dn}{loi}")
 
 
 def _tao(args, ctx) -> str:
@@ -54,7 +55,7 @@ def _tao(args, ctx) -> str:
             chat_id = ""
     w, err = f.create(ctx.vault_root, a.get("url", ""), a.get("condition") or "change", a.get("value", ""),
                       a.get("title", ""), a.get("interval_minutes") or web_watch.DEFAULT_INTERVAL, chat_id,
-                      bool(a.get("summarize")))
+                      bool(a.get("summarize")), str(a.get("login") or "").strip())
     if err:
         return f"ERROR: {err}"
     ra = ["Đã tạo mục theo dõi: " + _dong(w),
@@ -116,7 +117,8 @@ def register(ctx):
         "sách, hàng về). op=create: url, condition = change (trang đổi) | contains (xuất hiện cụm chữ, cần value) | "
         "price_below (có giá dưới ngưỡng, value như 1.500.000đ, 1,5 triệu, 250k, $20); interval_minutes (5 tới 10080, "
         "mặc định 60); title; chat_id lấy từ khối KÊNH HỘI THOẠI HIỆN TẠI; summarize=true để AI tóm tắt mỗi lần có "
-        "thay đổi (tốn token, mặc định tắt). op=list: liệt kê. op=pause | resume | check_now | delete: cần id.",
+        "thay đổi (tốn token, mặc định tắt); login = tên một đăng nhập trong trang Cookies khi trang cần đăng nhập. "
+        "op=list: liệt kê. op=pause | resume | check_now | delete: cần id.",
         _chay,
         schema={
             "type": "object",
@@ -129,6 +131,7 @@ def register(ctx):
                 "title": {"type": "string"},
                 "chat_id": {"type": "string", "description": "Người nhận báo, vd web:<mã phiên>"},
                 "summarize": {"type": "boolean"},
+                "login": {"type": "string", "description": "Tên đăng nhập trong trang Cookies, khi trang cần đăng nhập"},
                 "id": {"type": "string", "description": "Mã mục theo dõi (op pause/resume/check_now/delete)"},
             },
             "required": ["op"],

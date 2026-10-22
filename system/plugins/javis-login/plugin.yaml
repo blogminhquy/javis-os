@@ -1,0 +1,12 @@
+name: Cookies
+name_en: "Cookies"
+slug: javis-login
+version: 1.0.0
+description: Mở trang web cần đăng nhập bằng phiên đăng nhập chủ đã cất ở trang Cookies. Chỉ trả nội dung trang, không bao giờ trả cookie.
+description_en: "Opens a web page that needs a sign-in, using a sign-in the owner stored on the Cookies page. Returns the page text only, never the cookies."
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_login
+hooks: []

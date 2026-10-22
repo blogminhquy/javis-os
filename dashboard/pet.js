@@ -487,6 +487,9 @@
       // (xem moMenu), vì mic còn bật tắt được từ nút mic dưới ô nhập và từ phiên Live.
       { id: "mic", ic: icon("mic"), nhan: mic ? t("pet.menu.mic_off", "Turn mic off") : t("pet.menu.mic_on", "Turn mic on") },
       { id: "pet", ic: icon("settings"), nhan: t("pet.menu.settings", "Mascot settings") },
+      // Team chat sits on the last row (issue #755). "teams" is a page id, so the default
+      // JavisNav.go branch of the click handler opens it with no extra case.
+      { id: "teams", ic: icon("users"), nhan: t("pet.menu.teams", "Team chat") },
     ];
     menu.innerHTML = muc.map(function (m) {
       return '<button type="button" data-pet-go="' + m.id + '"><span aria-hidden="true">' + m.ic + '</span>' +

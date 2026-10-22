@@ -59,6 +59,9 @@ class CodingToolContext:
     branch: str = ""
     worktree: str = ""
     is_git_repo: bool = False
+    # Kênh báo về khi tiến trình nền của terminal chạy xong (0.259.0): "web:<phiên>" ở dashboard,
+    # chat id ở Telegram. Rỗng thì terminal tự suy "web:<session_id>".
+    chat_id: str = ""
 
     @property
     def active(self) -> bool:

@@ -1,4 +1,4 @@
-"""webhook_worker.py - the worker side of webhooks (0.247.0, webhook platform; spec §5-§8, §11, §12, §13).
+"""webhook_worker.py - the worker side of webhooks (0.274.0, webhook platform; spec §5-§8, §11, §12, §13).
 
 Mixed into webhook_triggers.WebhookFeature (which holds the configuration, the routes and the deps). Everything here
 works FROM THE STORE: a lost wake-up loses nothing, because every pass scans the database again.
@@ -670,7 +670,7 @@ class WebhookWorker:
 
     @staticmethod
     def _ai_triage(h: dict) -> bool:
-        """Spec §12: `ai_triage` false stops the model triage of incidents. Hooks created before 0.247.0 kept the
+        """Spec §12: `ai_triage` false stops the model triage of incidents. Hooks created before 0.274.0 kept the
         0.199.0 behaviour (on) unless the owner turns it off; new hooks start with it off."""
         v = h.get("ai_triage")
         return bool(v) if v is not None else bool(h.get("legacy"))

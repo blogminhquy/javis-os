@@ -42,8 +42,8 @@ check("slide to pick: the emoji under the finger grows, lifting on it reacts, sc
   /elementFromPoint\(p\.clientX, p\.clientY\)/.test(src) && /if \(hot\) return pick\(hot\.getAttribute\("data-mp-react"\)\)/.test(src)
   && /if \(e\.cancelable\) e\.preventDefault\(\);\s*var under/.test(src));
 check("the click iOS fires after lifting does not close the card it just opened", /Date\.now\(\) - openedAt > 350/.test(src));
-check("CSS: messages not selectable on touch screens (no iOS callout), hot emoji grows with its name",
-  /@media \(hover: none\), \(pointer: coarse\) \{\s*\.mp-host \.msg, \.mp-host \.tm-msg, \.mp-host \.jr-rx-btn, \.mp-host \.tm-rx-btn \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;/.test(css)
+check("CSS: Teams messages and reaction buttons not selectable on touch screens (no iOS callout), hot emoji grows with its name",
+  /@media \(hover: none\), \(pointer: coarse\) \{\s*\.mp-host \.tm-msg, \.mp-host \.jr-rx-btn, \.mp-host \.tm-rx-btn \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;/.test(css)
   && /\.mp-pick\.is-hot \{ transform: translateY\(-14px\) scale\(1\.55\);/.test(css) && css.includes(".mp-pick.is-hot .mp-tip { opacity: 1; }"));
 check("the held message is drawn bright above the dim layer, with its own classes and a solid backing",
   /function lift\(el\)/.test(src) && /copy\.className = String\(el\.className\)/.test(src) && /lift\(el\);/.test(src)
@@ -51,8 +51,7 @@ check("the held message is drawn bright above the dim layer, with its own classe
 check("an action can say it is done (Copy shows a short note)", /toast\(a\.done\)/.test(src) && css.includes(".mp-toast {"));
 const cr = fs.readFileSync(path.join(D, "chat-reactions.js"), "utf8");
 const tm = fs.readFileSync(path.join(D, "teams.js"), "utf8");
-check("main chat and Teams name their bubble for the lifted copy", /bubble: "\.bubble",/.test(cr) && /bubble: "\.tm-bubble",/.test(tm)
-  && /done: "teams\.copied"/.test(cr));
+check("main chat and Teams name their bubble for the lifted copy", /bubble: "\.bubble",/.test(cr) && /bubble: "\.tm-bubble",/.test(tm));
 const ccss = fs.readFileSync(path.join(D, "console.css"), "utf8");
 // 0.182.0
 check("holding the reaction button opens the menu too (main chat and Teams), its tap is swallowed",
@@ -71,7 +70,7 @@ const pos = (f) => indexHtml.indexOf("/static/" + f);
 // 0.184.0 (owner, iPhone): the hold ended in iOS's own text selection, its handle on "Trả lời" in the card.
 check("iPhone: the card, the lifted copy and the whole message (time row too) are not selectable; fields still are",
   css.includes(".mp-layer, .mp-layer *, html.mp-holding, html.mp-holding * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;")
-  && /\.mp-host \.msg :is\(input, textarea, \[contenteditable\]\)[^{]*\{ -webkit-user-select: text; user-select: text; \}/.test(css));
+  && /\.mp-host \.tm-msg :is\(input, textarea, \[contenteditable\]\)[^{]*\{ -webkit-user-select: text; user-select: text; \}/.test(css));
 check("iPhone: a hold in progress or an open card refuses iOS's selection and clears one already made",
   /function onSelect\(e\) \{ if \(timer \|\| \(layer && !inLift\(e\.target\)\)\) e\.preventDefault\(\); \}/.test(src)
   && /document\.addEventListener\("selectstart", onSelect\)/.test(src) && /document\.removeEventListener\("selectstart", onSelect\)/.test(src)
@@ -110,6 +109,12 @@ check("iPhone: turning the phone sideways and back does not leave the text bigge
   /html \{[^}]*-webkit-text-size-adjust: 100%;\s*text-size-adjust: 100%;/.test(css));
 check("index.html loads msg-press.js before chat-reactions.js and teams.js", pos("msg-press.js?v=") > 0
   && pos("msg-press.js") < pos("chat-reactions.js") && pos("msg-press.js") < pos("teams.js"));
-check("phone menu labels in vi and en", ["mpress.reply", "mpress.copy", "mpress.edit", "mpress.resend"].every((k) => vi[k] && en[k]));
+// 0.266.0 (owner, iPhone): in the main chat the dimmed Reply / Copy card made copying harder. Holding the text is the
+// phone's own selection and Copy again; only the reaction corner opens the emoji row there. Teams keeps the full menu.
+check("main chat: only the reaction corner opens the menu, no action card, messages selectable with the phone's callout",
+  /if \(opts\.holdOnly && !onBtn\) return;/.test(src) && /holdOn: "\.jr-rx-btn",\s*holdOnly: true,/.test(cr)
+  && !/actions:/.test(cr) && !/pressActions|mpress\./.test(cr) && !/holdOnly/.test(tm) && /actions: function \(m\)/.test(tm)
+  && !/\.mp-host \.msg\b/.test(css) && !/\.msg-javis\[data-mid\] \{ -webkit-touch-callout: none; \}/.test(css)
+  && !Object.keys(vi).some((k) => k.startsWith("mpress.")) && !Object.keys(en).some((k) => k.startsWith("mpress.")));
 check("no em or en dash", src.indexOf(String.fromCharCode(0x2014)) < 0 && src.indexOf(String.fromCharCode(0x2013)) < 0);
 process.exit(fails ? 1 : 0);

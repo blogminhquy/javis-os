@@ -6,10 +6,10 @@ Only a pass on a real source may mark an adapter or action "production verified"
 
 ## Build under test
 
-- Branch `claude/openmausbot-jarvis-research-ewnzc6`, PR #747, version 0.247.0.
+- Branch `claude/openmausbot-jarvis-research-ewnzc6`, PR #747, version 0.274.0.
 - Stage the PR head at the time of staging, and write its exact SHA (`git rev-parse HEAD`) in the staging log before
   starting.
-- Last head checked in the build session: **346707cf** (code, version 0.247.0, `main` e36e060a merged in). Commits
+- Last head checked in the build session: **346707cf** (code, version 0.274.0, `main` e36e060a merged in). Commits
   after it change only this file and the README.
   - CI: both `test` jobs green on 346707cf.
   - Full local run of `tests/python/test_*.py` and `tests/js/test_*` on 346707cf: every file green.

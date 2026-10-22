@@ -120,7 +120,8 @@ check("kho tai khoan co truong brain rieng, khong suy tu bot",
       SRV.includes('"brain": a.get("brain") or ""') &&
       ACC.includes('def list_accounts(channel: str = "", brain: str = "")'));
 check("tai khoan CHUA gan brain hien o MOI brain (khong co token nao tang hinh)",
-      /_clean_brain\(a\.get\("brain"\)\) not in \(""/.test(ACC));
+      // 0.263.0 (#716): an empty brain (`mine`) still skips the filter, any spelling of the open brain matches.
+      /mine = _clean_brain\(a\.get\("brain"\)\)\s*\n\s*if br and mine and /.test(ACC));
 check("tab goi API kem brain dang mo",
       /api\("\/channels\/accounts\?brain=" \+ encodeURIComponent\(brain\(\)\)/.test(SRC));
 check("co cong tac xem MOI brain, de tim lai tai khoan gan nham cho",

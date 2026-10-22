@@ -280,7 +280,7 @@ _nen = {"xong": False}
 
 
 async def _api_gia(prov, key, model, messages, reasoning="off", brain=None,
-                   force_lazy=False, mode="full"):
+                   force_lazy=False, mode="full", **kw):   # 0.259.0: owner_sid, owner_chat, coding_row
     async def _gen():
         yield {"type": "text", "content": "Trả lời nhanh."}
         yield {"type": "usage", "input": 10, "output": 5}

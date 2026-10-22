@@ -43,7 +43,7 @@ CODEX = "openai-oauth"
 GROK_CLI = "grok-cli"
 ANTIGRAVITY = "antigravity-cli"
 API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "deepseek", "anthropic-api", "ollama",
-                 "ollama-local", "openai-compat")
+                 "ollama-local", "openai-compat", "anthropic-compat")
 
 # provider -> tên trường chứa API key trong settings["model"]
 _KEY_FIELD = {
@@ -62,6 +62,8 @@ _KEY_FIELD = {
     # Endpoint OpenAI-compatible tự khai. Như ollama-local: thứ quyết định dùng được là ĐỊA CHỈ
     # (`openai_compat_base`), khoá có thể rỗng khi endpoint không đòi xác thực.
     "openai-compat": "openai_compat_key",
+    # Anthropic-compatible gateway (0.254.0): usable once its base URL is set, like openai-compat.
+    "anthropic-compat": "anthropic_compat_key",
 }
 
 # mode của Javis -> sandbox của Codex CLI. Bản đồ thật nằm ở `claude_cli.codex_sandbox_cho_mode`
@@ -250,6 +252,8 @@ def api_key_for(provider: str, settings: dict = None) -> str:
     if provider == "openai-compat":
         # Có Base URL là chạy được; khoá rỗng thì gửi "none" (endpoint không đòi xác thực).
         return (m.get(field) or "none") if (m.get("openai_compat_base") or "").strip() else ""
+    if provider == "anthropic-compat":
+        return (m.get(field) or "none") if (m.get("anthropic_compat_base") or "").strip() else ""
     return m.get(field) or ""
 
 
@@ -304,6 +308,11 @@ def availability(spec: dict, settings: dict = None) -> tuple:
         s = settings if settings is not None else cfgmod.read_settings()
         if not (s.get("model", {}) or {}).get("openai_compat_base"):
             return False, "Chưa đặt Base URL cho OpenAI Compatible - vào trang Models."
+        return True, ""
+    if prov == "anthropic-compat":
+        s = settings if settings is not None else cfgmod.read_settings()
+        if not (s.get("model", {}) or {}).get("anthropic_compat_base"):
+            return False, "Chưa đặt Base URL cho Anthropic Compatible - vào trang Models."
         return True, ""
     if prov in API_PROVIDERS:
         if not api_key_for(prov, settings):
@@ -405,7 +414,8 @@ class _ApiAuxEngine:
                   "anthropic-api": eng.anthropic_chat_with_mcp,
                   "ollama": eng.ollama_chat_with_mcp,
                   "ollama-local": eng.ollama_local_chat_with_mcp,
-                  "openai-compat": eng.openai_compat_chat_with_mcp}[self.provider]
+                  "openai-compat": eng.openai_compat_chat_with_mcp,
+                  "anthropic-compat": eng.anthropic_compat_chat_with_mcp}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning, tools, route)
         else:
             fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
@@ -414,7 +424,8 @@ class _ApiAuxEngine:
                   "anthropic-api": eng.anthropic_stream,
                   "ollama": eng.ollama_stream,
                   "ollama-local": eng.ollama_local_stream,
-                  "openai-compat": eng.openai_compat_stream}[self.provider]
+                  "openai-compat": eng.openai_compat_stream,
+                  "anthropic-compat": eng.anthropic_compat_stream}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning)
 
         # Đường API sinh "text" theo mảnh; việc nền chỉ đọc "final" nên gom lại rồi phát MỘT lần.

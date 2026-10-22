@@ -32,6 +32,7 @@ The dashboard's navigation rail groups **19 pages** into **7 groups**: Assistant
 - [30 - Discord and Lark/Feishu](30-discord-lark.md) - chat with Javis from Discord and Lark/Feishu on the Admin channels page, no domain needed.
 - [31 - Messenger](31-messenger.md) - a customer bot that answers your Facebook Page inbox (Meta's official API, needs an HTTPS domain).
 - [32 - Web page watch](32-page-watch.md) - watch a page for a price, some text or any change on a schedule, without spending tokens.
+- [33 - Cookies](33-login-vault.md) - keep your own sign-ins (cookies) so Javis can read and watch pages behind them.
 
 ### Background work (the Work and Brain groups)
 - [08 - Recurring jobs and reminders](08-recurring-jobs.md) - several background loops plus reminders on a clock or a cron schedule.

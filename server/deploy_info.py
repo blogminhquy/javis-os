@@ -25,6 +25,15 @@ def deploy_mode() -> str:
     return "native"
 
 
+OFFICIAL_IMAGE = "ghcr.io/blogminhquy/javis-os"
+
+
+def image_source() -> str:
+    """Where this Docker image is published, stamped by the release workflow (Dockerfile ARG JAVIS_IMAGE_SOURCE).
+    Empty for an image built anywhere else: a pull or Watchtower can never bring a new version for it."""
+    return os.getenv("JAVIS_IMAGE_SOURCE", "").strip()
+
+
 def docker_gateway() -> str:
     """IP của MÁY CHỦ nhìn từ trong container ("" nếu không đọc được / không ở trong Docker).
 

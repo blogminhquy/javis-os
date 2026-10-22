@@ -1,4 +1,4 @@
-"""0.247.0: tools/webhook_capture.py, the bridge to spec §16.6: a stored delivery becomes a masked fixture (same shape and
+"""0.274.0: tools/webhook_capture.py, the bridge to spec §16.6: a stored delivery becomes a masked fixture (same shape and
 types, no customer data, no credential) and a hook configuration is checked against such fixtures.
 
     python tests/run.py webhook_capture

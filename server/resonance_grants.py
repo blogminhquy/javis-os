@@ -126,7 +126,7 @@ ENGINE_CAPS = {
     "antigravity-cli": {"turn_key": False, "submit_tool": False, "observed_write": False},
 }
 API_PROVIDERS = ("openrouter", "anthropic-api", "openai", "gemini", "groq", "deepseek", "ollama", "ollama-local",
-                 "openai-compat")
+                 "openai-compat", "anthropic-compat")
 
 
 def engine_caps(provider: str) -> dict:

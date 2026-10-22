@@ -1,4 +1,4 @@
-"""webhook_staging_rehearsal.py - the staging pack's parts 1, 2 and 4 against the REAL host app, locally (0.247.0).
+"""webhook_staging_rehearsal.py - the staging pack's parts 1, 2 and 4 against the REAL host app, locally (0.274.0).
 
     .venv/bin/python tools/webhook_staging_rehearsal.py [--out report.json]
 

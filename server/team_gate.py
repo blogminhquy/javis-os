@@ -25,6 +25,7 @@ stop its own tools before they run at that level: a gated tool step on it is ref
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import shlex
 import threading
@@ -48,8 +49,9 @@ NATIVE_WRITE = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 # Shell programs that only read. Narrower than run_command's `auto` list on purpose: python, node, npm and make run any
 # code, which can reach the network, so in a gated team they are outside actions.
 # Review 0.207.0: rg (--pre runs a program), sort/uniq/tree (write an output file), date (-s), file (-C) are out.
+# 0.267.0: cd, echo and nl only move around or print; sed only with a print-only script (sed_readonly).
 BASH_READ = frozenset({"ls", "cat", "head", "tail", "wc", "find", "grep", "stat", "du", "diff", "pwd", "which",
-                       "basename", "dirname", "realpath", "cut", "jq"})
+                       "basename", "dirname", "realpath", "cut", "jq", "cd", "echo", "nl"})
 _GIT_READ = frozenset({"status", "diff", "log", "show", "ls-files", "rev-parse", "describe", "blame", "shortlog"})
 # git flags that write a file or run a configured program
 _GIT_BAD = ("--output", "--ext-diff", "--textconv", "-o")
@@ -61,6 +63,16 @@ PROTECTED_PARTS = ("plugins", ".claude", ".git", ".grok", ".codex", ".agents", "
 PROTECTED_FILES = (".mcp.json", ".mcp_hub.json", "CLAUDE.md", "AGENTS.md", "GEMINI.md")
 _FIND_ACT = frozenset({"-exec", "-execdir", "-delete", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"})
 _SHELL_CHARS = set(">|&;<`$\n")
+# 0.267.0 (a user's team, 21/10/2026): a step that only read three files was stopped for approval, because the command
+# chained them (`cd ...; cat -n a; echo ----; sed -n 78,95p b; grep -n "quat\\|gio" c`) and every `;` or `|`, even one
+# inside quotes, counted as an outside action. Commands are now split on these separators outside quotes and each part
+# is checked on its own. Anything else that is not a word (>, <, &, parentheses) still means outside.
+_CHAIN = frozenset({";", "&&", "||", "|"})
+_UNSAFE_ANYWHERE = set("`$\n\r")
+# Output thrown away is still read-only: `2>/dev/null`, `>/dev/null`, `2>&1`.
+_DISCARD = re.compile(r"(?:(?<=\s)|^)(?:[12]?>\s*/dev/null|2>&1)(?=\s|$|;|&|\|)")
+# sed that only prints: `-n 78,95p`, `-n 5p`, `-n '/x/p'`. Anything else (-i, w, e, s///w) can write or run.
+_SED_PRINT = re.compile(r"^(?:\d+(?:,\d+)?|/[^/]*/(?:,/[^/]*/)?)p$")
 _READ_VERBS = ("get", "list", "search", "read", "fetch", "query", "find", "describe", "lookup", "view", "count",
                "download", "export", "suggest")
 
@@ -180,17 +192,30 @@ def hub_check(name: str, args: Any, label: str = "") -> tuple:
 
 # ---- Claude native tools (PreToolUse hook) ----
 
-def bash_readonly(command: str) -> bool:
-    cmd = str(command or "").strip()
-    if not cmd or any(ch in _SHELL_CHARS for ch in cmd):
-        return False
-    try:
-        argv = shlex.split(cmd)
-    except ValueError:
-        return False
-    if not argv:
-        return False
+def sed_readonly(args: list) -> bool:
+    """sed with print-only scripts and no in-place edit. args: the words after `sed`."""
+    script, files, expect = [], [], False
+    for a in args:
+        if expect:
+            script.append(a)
+            expect = False
+        elif a in ("-n", "--quiet", "--silent", "-E", "-r", "--regexp-extended"):
+            continue
+        elif a in ("-e", "--expression"):
+            expect = True
+        elif a.startswith("-"):
+            return False            # -i, --in-place, -f script files, -s ... are out
+        elif not script:
+            script.append(a)
+        else:
+            files.append(a)
+    return bool(script) and not expect and all(_SED_PRINT.match(x.strip()) for x in script)
+
+
+def _one_readonly(argv: list) -> bool:
     prog = os.path.basename(argv[0]).lower()
+    if prog == "sed":
+        return sed_readonly(argv[1:])
     if prog not in BASH_READ and prog != "git":
         return False
     if prog == "git":
@@ -199,6 +224,30 @@ def bash_readonly(command: str) -> bool:
     if prog == "find" and any(a in _FIND_ACT for a in argv[1:]):
         return False
     return True
+
+
+def bash_readonly(command: str) -> bool:
+    cmd = str(command or "").strip()
+    if not cmd or any(ch in _UNSAFE_ANYWHERE for ch in cmd):
+        return False
+    cmd = _DISCARD.sub(" ", cmd)
+    try:
+        lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        words = list(lex)
+    except ValueError:
+        return False
+    parts, cur = [], []
+    for w in words:
+        if w in _CHAIN:
+            parts.append(cur)
+            cur = []
+        elif w and all(ch in "();<>|&" for ch in w):
+            return False            # >, >>, <, &, (, ): writes, input tricks, background or subshells
+        else:
+            cur.append(w)
+    parts.append(cur)
+    return all(p and _one_readonly(p) for p in parts)
 
 
 def protected_rel(rel: Any) -> bool:

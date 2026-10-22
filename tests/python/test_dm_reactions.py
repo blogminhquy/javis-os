@@ -204,7 +204,7 @@ check("lượt chat trợ lý ghép khối phản hồi giống hệt _agent_tur
       and "+ _dm_feedback_prompt(brain, _persona[1], conv_sid)\n" in src
       # T3 phần L: cả hai chỗ còn ghép bài học phạm vi chat riêng + chung.
       and "+ _dm_lessons_prompt(brain, _persona[1], conv_sid))" in src
-      and "return (_agent_chat_prompt(brain, slug) + _session_block(conv_sid) + _dm_feedback_prompt(brain, slug, conv_sid)"
+      and "return (_agent_chat_prompt(brain, slug, channel) + _session_block(conv_sid) + _dm_feedback_prompt(brain, slug, conv_sid)"
       "\n            + _dm_lessons_prompt(brain, slug, conv_sid))" in src)
 
 # Cộng hưởng bật: route của chủ ghi resumed_at; phản hồi mới tạo một lý do

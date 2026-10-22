@@ -59,7 +59,13 @@ def in_turn(mid, text, fn):
 p_on = in_turn(MID, USER, lambda: main.build_system_prompt(BRAIN))
 check("bật: system prompt có dòng gợi ý javis_goal", "javis_goal op=create" in p_on)
 # Trần nâng từ 450 lên 650 khi dòng gợi ý thêm ranh giới bốn loại việc và đường tìm tool theo engine.
-check("bật: dòng gợi ý ngắn (dưới 650 ký tự)", 0 < len(p_on) - len(p_off) < 650)
+# 0.251.0: the "Plugins đang chạy" line lists the first 12 plugins by name, so turning the goal plugin on
+# pushes a different name off the end and the length swings with whatever plugin happens to sort last
+# (adding javis-login took it to 655). That line is not the hint this check bounds, so it is left out.
+def _no_plugin_line(p):
+    return "\n".join(l for l in p.splitlines() if not l.startswith("Plugins đang chạy:"))
+check("bật: dòng gợi ý ngắn (dưới 650 ký tự)",
+      0 < len(_no_plugin_line(p_on)) - len(_no_plugin_line(p_off)) < 650)
 check("ngoài lượt của agent: prompt không có dòng gợi ý lập mục tiêu",
       "javis_goal op=create" not in main.build_system_prompt(BRAIN))
 

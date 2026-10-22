@@ -201,6 +201,19 @@ If you try to click Enable SSL on Hostinger (through the API, say), Javis refuse
 
 After the Redeploy, return to Settings and click **Check again**. Details and troubleshooting are in the "Domain + HTTPS on Hostinger" section of `DEPLOY.md`; both documentation links also sit right under the domain card.
 
+### What the SSL badge says (since 0.248.0)
+
+On each Check again, Javis opens `https://<domain>` from the server itself, looks at what answers, and names the broken step on the badge:
+
+- **SSL: on**: done, the link works.
+- **SSL: Hostinger has no route yet**: DNS reaches the VPS but Traefik has no route for this domain. The project's `traefik...rule=Host(...)` still holds the old name: set `DOMAIN_NAME` to the domain (or edit the `Host` line in the YAML directly), then **Redeploy**. This is the most common case: the domain was entered in Javis and DNS points right, but the stack was not redeployed with the new name.
+- **SSL: certificate pending**: the route reaches Javis, Let's Encrypt has not issued the certificate yet. Wait a few minutes and check again.
+- **SSL: proxy cannot reach Javis**: Traefik answers 502; check that the Javis container is running.
+- **SSL: domain opens another site**: the domain points to another site or another Javis (a second stack on the same VPS, for example).
+- **SSL: port 443 unreachable**: nothing answers on the VPS's HTTPS port.
+
+If you edit the `Host(...)` line in the YAML instead of setting `DOMAIN_NAME`, Javis no longer says "Redeploy still needed" once the domain works over HTTPS.
+
 ## Tips
 
 - The logo image should be square (1:1) so it is not cropped oddly, since Javis shows it in a rounded square frame.

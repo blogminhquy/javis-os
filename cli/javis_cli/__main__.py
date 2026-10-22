@@ -19,6 +19,8 @@ def _parser() -> argparse.ArgumentParser:
         epilog="Gõ nhanh:  javis \"doanh thu tuần này thế nào\"")
     p.add_argument("--profile", default="", help="hồ sơ kết nối (mặc định: hồ sơ default)")
     p.add_argument("--brain", default="", help="brain dùng cho lệnh này")
+    p.add_argument("--agent", default="", metavar="SLUG",
+                   help="answer as this agent of the brain (its prompt, skills and model)")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="không in tiến độ, chỉ in câu trả lời")
 
@@ -26,6 +28,9 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("chat", help="phiên hỏi đáp liên tục")
     s.add_argument("--session", default="", help="mã phiên (giữ mạch giữa các lần chạy)")
+    # SUPPRESS: a subparser default would overwrite `javis --agent x chat` with "".
+    s.add_argument("--agent", default=argparse.SUPPRESS, metavar="SLUG",
+                   help="answer as this agent of the brain (its prompt, skills and model)")
 
     s = sub.add_parser("login", help="lưu địa chỉ + token của một Javis")
     s.add_argument("url")
@@ -59,6 +64,9 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
+_VALUE_OPTIONS = {"--profile", "--brain", "--agent"}
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
 
@@ -66,15 +74,26 @@ def main(argv=None) -> int:
     # khớp tên lệnh con đều được hiểu là câu hỏi. Bắt người dùng gõ `javis ask "..."` chỉ để
     # bộ phân tích tham số đỡ phải nghĩ là đặt sự tiện của mã lên trên sự tiện của người.
     ten_lenh = {"chat", "login", "status", "profiles", "up", "task", "tasks", "brain", "loops"}
-    co_lenh = any(a in ten_lenh for a in argv if not a.startswith("-"))
+    # Options of the main parser that take a value: the value is the next word, never part of the
+    # question nor a command name (`javis --agent quick-check "..."`, `javis --brain brain "..."`).
+    flags, words = [], []
+    rest = iter(argv)
+    for a in rest:
+        if a in _VALUE_OPTIONS:
+            flags += [a, next(rest, "")]
+        elif a.startswith("-"):
+            flags.append(a)
+        else:
+            words.append(a)
+    co_lenh = any(a in ten_lenh for a in words)
 
     p = _parser()
     if not argv:
         p.print_help(sys.stderr)
         return 1
     if not co_lenh:
-        cau = " ".join(a for a in argv if not a.startswith("-")).strip()
-        args = p.parse_args([a for a in argv if a.startswith("-")])
+        cau = " ".join(words).strip()
+        args = p.parse_args(flags)
         if not cau:
             p.print_help(sys.stderr)
             return 1

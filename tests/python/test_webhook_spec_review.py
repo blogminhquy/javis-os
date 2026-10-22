@@ -1,4 +1,4 @@
-"""0.247.0: regression tests for the independent reviews of the spec alignment (M1-M2, M3-M4, M5 and the whole chain).
+"""0.274.0: regression tests for the independent reviews of the spec alignment (M1-M2, M3-M4, M5 and the whole chain).
 
     python tests/run.py webhook_spec_review
 

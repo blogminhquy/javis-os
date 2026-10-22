@@ -201,6 +201,19 @@ Nếu bạn cố bấm Bật SSL trên Hostinger (ví dụ qua API), Javis từ 
 
 Sau khi Redeploy, trở lại Cài đặt và bấm **Kiểm tra lại**. Chi tiết và xử lý sự cố xem mục "Tên miền + HTTPS trên Hostinger" trong `DEPLOY.md`; hai link tài liệu cũng nằm ngay dưới card tên miền.
 
+### Badge SSL nói gì (từ 0.248.0)
+
+Mỗi lần Kiểm tra lại, Javis tự mở `https://<tên miền>` từ chính máy chủ và xem ai trả lời, rồi ghi đúng bước đang hỏng lên badge:
+
+- **SSL: đang bật**: xong, mở link là vào được.
+- **SSL: Hostinger chưa nhận tên miền**: DNS đã tới VPS nhưng Traefik chưa có đường cho tên miền này. Dòng `traefik...rule=Host(...)` của dự án vẫn là tên cũ: đặt `DOMAIN_NAME` đúng tên miền (hoặc sửa thẳng dòng `Host` trong YAML) rồi **Redeploy**. Đây là ca hay gặp nhất: đã nhập tên miền trong Javis và trỏ DNS, nhưng chưa Redeploy với tên miền mới.
+- **SSL: đang chờ cấp chứng chỉ**: đường đã thông tới Javis, Let's Encrypt chưa cấp xong. Đợi vài phút rồi Kiểm tra lại.
+- **SSL: proxy không gọi được Javis**: Traefik báo 502, kiểm tra container Javis có đang chạy.
+- **SSL: tên miền mở nhầm trang khác**: tên miền đang trỏ vào một trang khác hoặc một bản Javis khác (ví dụ stack thứ hai trên cùng VPS).
+- **SSL: không kết nối được cổng 443**: không có gì trả lời ở cổng HTTPS của VPS.
+
+Nếu bạn sửa thẳng dòng `Host(...)` trong YAML thay vì đặt `DOMAIN_NAME`, Javis không còn báo "còn bước Redeploy" khi tên miền đã chạy HTTPS.
+
 ## Theme riêng cho người vận hành (CSS)
 
 Ai triển khai Javis cho khách (white-label) có thể đặt một file `theme.css` vào thư mục

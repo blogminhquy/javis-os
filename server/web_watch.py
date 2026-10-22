@@ -59,6 +59,10 @@ TICK_S = 30
 PARALLEL = 3
 LIST_NEW, LIST_UPD, LIST_DEL = 8, 4, 4
 USER_AGENT = ("Mozilla/5.0 (compatible; JavisWatch/1.0; +https://github.com/blogminhquy/javis-os)")
+# With the owner's own sign-in (login vault, 0.251.0) a bot user agent gets many sites to drop the session or
+# serve a bare page, so those requests look like the desktop browser the cookies came from.
+BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/141.0.0.0 Safari/537.36")
 
 
 # ============================================================
@@ -261,6 +265,10 @@ def _hash(s: str) -> str:
 class FetchError(Exception):
     """Câu chữ đã sẵn để hiện cho chủ."""
 
+    def __init__(self, msg: str = "", status: int = 0):
+        super().__init__(msg)
+        self.status = status   # HTTP status when the page answered with an error (0.251.0, login vault)
+
 
 def _addr_blocked(ip: str) -> bool:
     try:
@@ -296,17 +304,27 @@ def check_url(url: str) -> str:
     return p.hostname
 
 
-async def fetch(url: str) -> tuple[str, str, str]:
-    """(địa chỉ cuối, tiêu đề, văn bản). Ném FetchError."""
+async def fetch(url: str, cookies: Optional[list] = None) -> tuple[str, str, str]:
+    """(địa chỉ cuối, tiêu đề, văn bản). Ném FetchError.
+
+    `cookies` (0.251.0): a sign-in from the login vault. The Cookie header is worked out again for
+    EVERY hop, so a redirect to another site never carries the cookies along."""
     import httpx
 
     cur = str(url or "").strip()
     async with httpx.AsyncClient(follow_redirects=False, timeout=httpx.Timeout(30.0, connect=10.0),
-                                 headers={"User-Agent": USER_AGENT, "Accept-Language": "vi,en;q=0.8"}) as cl:
+                                 headers={"User-Agent": BROWSER_UA if cookies else USER_AGENT,
+                                          "Accept-Language": "vi,en;q=0.8"}) as cl:
         for _ in range(MAX_REDIRECTS + 1):
             await asyncio.to_thread(check_url, cur)
+            hdr = {}
+            if cookies:
+                import login_vault
+                ch = login_vault.cookie_header(cookies, cur)
+                if ch:
+                    hdr["Cookie"] = ch
             try:
-                async with cl.stream("GET", cur) as r:
+                async with cl.stream("GET", cur, headers=hdr) as r:
                     if r.status_code in (301, 302, 303, 307, 308):
                         nxt = r.headers.get("location")
                         if not nxt:
@@ -316,7 +334,8 @@ async def fetch(url: str) -> tuple[str, str, str]:
                         continue
                     if r.status_code >= 400:
                         raise FetchError(localefmt.chu(f"Trang trả lỗi {r.status_code}",
-                                                       f"The page returned error {r.status_code}"))
+                                                       f"The page returned error {r.status_code}"),
+                                         status=r.status_code)
                     parts, total = [], 0
                     async for chunk in r.aiter_bytes(1 << 16):
                         total += len(chunk)
@@ -337,7 +356,7 @@ async def fetch(url: str) -> tuple[str, str, str]:
 # ============================================================
 _COLS = ("id", "brain", "title", "url", "cond", "value", "interval_min", "owner_chat", "summarize", "status",
          "next_at", "last_at", "last_hash", "timeless_hash", "lines_json", "matched", "alert_seq", "failures",
-         "fail_streak", "last_error", "checks", "created_at", "last_alert", "last_alert_at")
+         "fail_streak", "last_error", "checks", "created_at", "last_alert", "last_alert_at", "login_id")
 
 
 class Store:
@@ -366,6 +385,10 @@ class Store:
             CREATE INDEX IF NOT EXISTS idx_watch_due ON watches(status, next_at);
             CREATE INDEX IF NOT EXISTS idx_watch_brain ON watches(brain);
             """)
+        # 0.251.0: a watch may open its page with a sign-in from the login vault.
+        have = {r[1] for r in self._db.execute("PRAGMA table_info(watches)").fetchall()}
+        if "login_id" not in have:
+            self._db.execute("ALTER TABLE watches ADD COLUMN login_id TEXT NOT NULL DEFAULT ''")
         self._db.commit()
 
     def close(self):
@@ -503,6 +526,23 @@ def after_failure(w: dict, error: str) -> tuple[dict, Optional[dict]]:
     return cols, alert
 
 
+def after_signed_out(w: dict, login_name: str, error: str) -> tuple[dict, Optional[dict]]:
+    """The stored sign-in no longer works (0.251.0). Retrying cannot fix that, so pause now and say
+    once what to do, instead of backing off five times first."""
+    streak = int(w.get("fail_streak") or 0) + 1
+    now = time.time()
+    cols = {"failures": int(w.get("failures") or 0) + 1, "fail_streak": streak, "last_error": str(error)[:300],
+            "last_at": now, "status": "paused"}
+    alert = {"title": localefmt.chu(f"⚠ {w['title']}: đăng nhập '{login_name}' đã hết hạn, tạm dừng theo dõi",
+                                    f"⚠ {w['title']}: the sign-in '{login_name}' expired, watch paused"),
+             "body": localefmt.chu("Đăng nhập lại trên trình duyệt của bạn, xuất cookie rồi bấm Cập nhật ở trang "
+                                   "Cookies. Sau đó mở lại mục theo dõi ở trang Việc định kỳ.",
+                                   "Sign in again in your browser, export the cookies and press Update on the "
+                                   "Cookies page. Then resume the watch on the Recurring work page."),
+             "url": w["url"], "page_title": "", "key": f"watch-signed-out:{w['id']}:{streak}", "failed": True}
+    return cols, alert
+
+
 # ============================================================
 # Tính năng: vòng canh, route, API cho tool
 # ============================================================
@@ -529,7 +569,8 @@ class WebWatchFeature:
 
     # ---------- tạo, sửa ----------
     def create(self, brain: str, url: str, cond: str = "change", value: str = "", title: str = "",
-               interval_min: Any = DEFAULT_INTERVAL, owner_chat: str = "", summarize: bool = False) -> tuple:
+               interval_min: Any = DEFAULT_INTERVAL, owner_chat: str = "", summarize: bool = False,
+               login_id: str = "") -> tuple:
         """(watch, "") hoặc (None, lý do). Kiểm địa chỉ ngay để lỗi hiện lúc tạo, không lúc 3 giờ sáng."""
         root = self.deps.brain_root(brain) if brain else ""
         url = str(url or "").strip()
@@ -547,6 +588,16 @@ class WebWatchFeature:
             check_url(url)
         except FetchError as e:
             return None, str(e)
+        login_id = str(login_id or "").strip()
+        if login_id:
+            import login_vault
+            vault = login_vault.current()
+            if vault is None:
+                return None, localefmt.chu("Trang Cookies chưa sẵn sàng", "The Cookies store is not ready")
+            row, _ck, err = vault.pick(url, login_id, only_allowed=True)
+            if err:
+                return None, err
+            login_id = row["id"]
         try:
             interval = max(MIN_INTERVAL, min(MAX_INTERVAL, int(interval_min or DEFAULT_INTERVAL)))
         except (TypeError, ValueError):
@@ -560,7 +611,7 @@ class WebWatchFeature:
             "id": "w_" + secrets.token_hex(5), "brain": root, "url": url, "cond": cond, "value": value,
             "title": (str(title or "").strip() or urlparse(url).hostname or url)[:120],
             "interval_min": interval, "owner_chat": str(owner_chat or "").strip(), "summarize": int(bool(summarize)),
-            "status": "active", "next_at": now, "created_at": now})
+            "status": "active", "next_at": now, "created_at": now, "login_id": login_id})
         return w, ""
 
     def control(self, wid: str, action: str) -> tuple:
@@ -621,20 +672,39 @@ class WebWatchFeature:
             w = self.store.get(wid)
             if not w or w["status"] != "active":
                 return None          # tạm dừng thì không canh; "Canh ngay" mở lại (control) trước khi gọi
-            try:
-                final_url, title, text = await fetch(w["url"])
-            except FetchError as e:
-                cols, alert = after_failure(w, str(e))
-            except Exception as e:  # noqa: BLE001
-                cols, alert = after_failure(w, f"{type(e).__name__}: {e}")
+            if w.get("login_id"):
+                cols, alert = await self._check_signed_in(w)
             else:
-                cols, alert = observe(w, title, text, final_url)
+                try:
+                    final_url, title, text = await fetch(w["url"])
+                except FetchError as e:
+                    cols, alert = after_failure(w, str(e))
+                except Exception as e:  # noqa: BLE001
+                    cols, alert = after_failure(w, f"{type(e).__name__}: {e}")
+                else:
+                    cols, alert = observe(w, title, text, final_url)
             self.store.update(wid, **cols)
             if alert:
                 await self._send(self.store.get(wid) or w, alert)
             return alert
         finally:
             self._busy.discard(wid)
+
+    async def _check_signed_in(self, w: dict) -> tuple:
+        """One check through the login vault (0.251.0)."""
+        import login_vault
+        vault = login_vault.current()
+        if vault is None:
+            return after_failure(w, localefmt.chu("Trang Cookies chưa sẵn sàng", "The Cookies store is not ready"))
+        try:
+            r = await vault.open(w["url"], w["login_id"])
+        except Exception as e:  # noqa: BLE001
+            return after_failure(w, f"{type(e).__name__}: {e}")
+        if r.get("signed_out"):
+            return after_signed_out(w, r.get("login") or "", r.get("error") or "")
+        if not r.get("ok"):
+            return after_failure(w, r.get("error") or "")
+        return observe(w, r.get("title") or "", r.get("text") or "", r.get("final_url") or "")
 
     async def _send(self, w: dict, alert: dict) -> None:
         than = alert.get("body") or ""
@@ -681,7 +751,7 @@ class WebWatchFeature:
             p = payload or {}
             w, err = self.create(str(p.get("brain") or "brain"), p.get("url", ""), p.get("cond", "change"),
                                  p.get("value", ""), p.get("title", ""), p.get("interval_min", DEFAULT_INTERVAL),
-                                 p.get("owner_chat", ""), bool(p.get("summarize")))
+                                 p.get("owner_chat", ""), bool(p.get("summarize")), p.get("login_id", ""))
             if err:
                 return JSONResponse({"ok": False, "error": err}, status_code=400)
             return {"ok": True, "watch": self.view(w)}

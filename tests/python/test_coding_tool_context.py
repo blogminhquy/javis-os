@@ -192,9 +192,18 @@ check("CÓ workspace: file MỚI rơi vào repo vì brain không có thư mục 
       (REPO / "server" / "moi.py").is_file())
 check("CÓ workspace: file mới KHÔNG rơi nhầm vào brain",
       not (BRAIN / "server" / "moi.py").exists())
-ghi("notes/moi.md", "nháp", ws)
+(BRAIN / "chi-brain").mkdir(exist_ok=True)
+ghi("chi-brain/moi.md", "nháp", ws)
 check("CÓ workspace: file mới trong thư mục CHỈ brain có thì rơi vào brain",
-      (BRAIN / "notes" / "moi.md").is_file())
+      (BRAIN / "chi-brain" / "moi.md").is_file())
+# 0.256.0: thư mục cha có ở CẢ HAI gốc (notes/ có ở cả brain lẫn repo từ mục 4) thì file mới là
+# của repo, kể cả file ở gốc: tạo `moi_goc.py` trong phiên Coding không được rơi vào gốc brain.
+ghi("notes/moi.md", "nháp", ws)
+check("CÓ workspace: thư mục cha có ở cả hai gốc thì file mới rơi vào repo",
+      (REPO / "notes" / "moi.md").is_file() and not (BRAIN / "notes" / "moi.md").exists())
+ghi("moi_goc.py", "x = 1\n", ws)
+check("CÓ workspace: file mới ở GỐC rơi vào repo, không vào gốc brain",
+      (REPO / "moi_goc.py").is_file() and not (BRAIN / "moi_goc.py").exists())
 
 r = ghi("../../../tmp/ngoai.py", "x", ws)
 check("ghi ra ngoài cả hai gốc -> câu lỗi NÓI ĐƯỢC, không ném exception",

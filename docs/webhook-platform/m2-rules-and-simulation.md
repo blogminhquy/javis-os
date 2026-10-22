@@ -1,6 +1,6 @@
-# Webhook platform, M2: rules, business keys, simulation, trace (0.247.0)
+# Webhook platform, M2: rules, business keys, simulation, trace (0.274.0)
 
-> **Spec alignment (0.247.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: filters are strict about types, `[*]` needs a quantifier, a missing field or another type is unknown (never a match, also under `not`), payload errors and rules that cannot apply quarantine the event; the business key is `dedup` (typed, hashed, namespaced, with TTL; the older `business_key` form is converted); the stored trace holds no values. The "Assumptions to reconcile" below are settled by that matrix.
+> **Spec alignment (0.274.0).** This note was written from the owner's brief, before the spec of record arrived. Where it differs, the spec and `README.md` (requirements matrix) win. What changed here: filters are strict about types, `[*]` needs a quantifier, a missing field or another type is unknown (never a match, also under `not`), payload errors and rules that cannot apply quarantine the event; the business key is `dedup` (typed, hashed, namespaced, with TTL; the older `business_key` form is converted); the stored trace holds no values. The "Assumptions to reconcile" below are settled by that matrix.
 
 Status: implemented and tested with fakes (no real model, no real outside system).
 Spec of record: `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md`. **Still not in the repository**

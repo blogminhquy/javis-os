@@ -266,8 +266,8 @@ def dashboard_only_languages(i18n_dir) -> list:
 def giong_tts(code: str, provider: str) -> str:
     """Giọng đọc cho cặp (ngôn ngữ, nhà cung cấp). "" = nhà cung cấp tự lo.
 
-    ElevenLabs trả "" có chủ ý: nó đang chạy `eleven_multilingual_v2`, một giọng đọc được
-    mọi thứ tiếng, nên ép giọng theo ngôn ngữ ở đó là làm hỏng lựa chọn của user chứ không
-    giúp được gì.
+    ElevenLabs trả "" có chủ ý: giọng ElevenLabs là giọng user tự chọn, đọc được mọi thứ tiếng
+    của model (Flash v2.5 từ 0.255.0, có tiếng Việt; xem tts_eleven.py), nên ép giọng theo ngôn
+    ngữ ở đó là làm hỏng lựa chọn của user chứ không giúp được gì.
     """
     return get(code).tts.get(str(provider or ""), "")

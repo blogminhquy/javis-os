@@ -110,4 +110,25 @@ st.release_busy("ag_minh", "turn_a")
 check("nhả bằng lượt cũ không gỡ khoá của lượt mới", st.busy_of("ag_minh", now=1062)["turn_id"] == "turn_b")
 st.release_busy("ag_minh", "turn_b")
 check("nhả đúng lượt thì trống", st.busy_of("ag_minh", now=1063) is None)
+# 0.257.0: lượt nhóm giữ dòng theo mạch (agent + nhóm). Hai nhóm không chặn nhau; dòng giữ trọn agent chặn tất cả.
+check("mạch nhóm 1 giữ được", st.acquire_busy("ag_minh", t1["team_id"], "turn_c", lease_s=60, now=2000, per_team=True))
+check("mạch nhóm 2 giữ được CÙNG LÚC", st.acquire_busy("ag_minh", t2["team_id"], "turn_d", lease_s=60, now=2000,
+                                                     per_team=True))
+check("cùng nhóm, lượt khác: phải chờ", not st.acquire_busy("ag_minh", t1["team_id"], "turn_e", lease_s=60, now=2001,
+                                                          per_team=True))
+check("giữ trọn agent khi đang có lượt nhóm: không được", not st.acquire_busy("ag_minh", "pulse", "tok", lease_s=60,
+                                                                            now=2001))
+check("busy_of thấy agent bận, mã agent trần", st.busy_of("ag_minh", now=2001)["agent_key"] == "ag_minh")
+check("busy_keys trả mã agent trần", st.busy_keys(now=2001) == {"ag_minh"})
+check("lượt nhóm không chặn nhóm khác", st.busy_blocking("ag_minh", "tm_khac", now=2001) is None)
+check("busy_turn theo nhóm", st.busy_turn("ag_minh", t2["team_id"]) == "turn_d" and st.busy_turn("ag_minh") is None)
+check("gia hạn đúng lượt trên dòng mạch", st.renew_busy("ag_minh", "turn_c", 60, now=2002))
+st.release_busy("ag_minh", "turn_c")
+st.release_busy("ag_minh", "turn_d")
+check("nhả hết thì trống", st.busy_of("ag_minh", now=2003) is None)
+check("giữ trọn agent", st.acquire_busy("ag_minh", "pulse", "tok", lease_s=60, now=2003))
+check("dòng giữ trọn chặn lượt nhóm", not st.acquire_busy("ag_minh", t1["team_id"], "turn_f", lease_s=60, now=2004,
+                                                         per_team=True)
+      and st.busy_blocking("ag_minh", t1["team_id"], now=2004)["team_id"] == "pulse")
+st.release_busy("ag_minh", "tok")
 raise SystemExit(1 if fails else 0)

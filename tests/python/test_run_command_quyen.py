@@ -214,9 +214,13 @@ check("có workspace nhưng THIẾU ctx -> vẫn không cấp tool chạy lệnh
 import asyncio  # noqa: E402
 _, r_sug = mcp_hub._builtin_tools("full", str(WS), workspace_root=str(WS),
                                   coding_ctx_cua_phien=ctx("suggest"))
-_ra = asyncio.run(r_sug["javis_run_command"]["call"]({"command": "ls"}))
-check("qua hub, mức suggest vẫn bị chặn (hai lớp quyền, không thay nhau)",
-      _ra.startswith("ERROR:"))
+# 0.256.0: mức suggest không thấy tool luôn (trước đây thấy rồi mới bị chặn lúc chạy). Lớp thứ
+# hai trong run_command vẫn chặn suggest nếu ai đó gọi thẳng, xem mục kiem_quyen ở trên.
+check("qua hub, mức suggest không được cấp tool chạy lệnh", "javis_run_command" not in r_sug)
+_, r_plan = mcp_hub._builtin_tools("suggest", str(WS), workspace_root=str(WS),
+                                   coding_ctx_cua_phien=ctx("auto"))
+check("lượt /plan (trần suggest) ở chip Tự động cũng không có tool chạy lệnh",
+      "javis_run_command" not in r_plan)
 
 _hub_src = (SERVER / "mcp_hub.py").read_text(encoding="utf-8")
 check("mức quyền của phiên nằm trong khoá cache (hai phiên cùng repo khác chip không lẫn nhau)",

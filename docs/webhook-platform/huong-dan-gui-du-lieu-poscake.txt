@@ -42,7 +42,7 @@ Lưu ý: webhook.site là dịch vụ bên ngoài, dữ liệu đi qua máy ch�
 
 CÁCH 2: anh đã có bản Javis mới trên máy staging
 
-Nếu anh dựng bản Javis 0.247.0 (commit 346707cf) trên một máy staging riêng, không phải máy đang bán hàng, thì không cần webhook.site:
+Nếu anh dựng bản Javis 0.274.0 (commit 346707cf) trên một máy staging riêng, không phải máy đang bán hàng, thì không cần webhook.site:
 - Trỏ POSCake tới webhook của bản staging, tạo đơn thử như bước 3.
 - Mở trang Webhook, phần Sự kiện, chọn từng sự kiện, bấm xem để lấy mã sự kiện (ev_...).
 - Chạy lệnh trong docs/webhook-platform/staging-pilot-pack.md, mục "Capture": công cụ tự che thông tin khách và tạo file mẫu.

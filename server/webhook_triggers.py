@@ -1,5 +1,5 @@
 """webhook_triggers.py - the webhook door: configuration, the public receive route and the admin API (0.198.0;
-webhook platform 0.247.0, spec docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md).
+webhook platform 0.274.0, spec docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md).
 
 Each hook has a secret URL:
 
@@ -23,7 +23,7 @@ Security boundaries, each on purpose:
   - The event body is DATA from a stranger: masked in the dashboard by default, fenced in a prompt.
   - Admin routes live under /webhooks/... behind the dashboard login; only /hooks/<id> is public.
 
-Hooks are stored in the SQLite store (with revisions) since 0.247.0; `webhooks.json` is migrated once and moved aside
+Hooks are stored in the SQLite store (with revisions) since 0.274.0; `webhooks.json` is migrated once and moved aside
 (`webhooks.json.migrated`), so an older build never runs a stale copy next to the new one (see
 docs/webhook-platform/rollback.md and webhook_rollback.py).
 """
@@ -83,7 +83,7 @@ DEFAULT_LEVEL = "full"   # same reasoning as reminders.MUC_QUYEN_MAC_DINH: the o
 _PII_KEYS = ("name", "phone", "email", "address", "mobile", "sdt", "ho_ten", "hoten", "dia_chi", "diachi",
              "customer", "contact", "bill_", "shipping", "first_name", "last_name", "surname", "birth", "cmnd", "cccd",
              "zalo", "facebook", "note",
-             # 0.247.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
+             # 0.274.0 (review): the Vietnamese and marketplace names a shop's payload uses for the same people
              "khach", "nguoi_nhan", "nguoinhan", "nguoi_gui", "recipient", "receiver", "buyer", "sender", "full_name",
              "fullname", "passport", "id_card", "national_id", "telegram", "whatsapp", "viber", "dob", "ho_va_ten",
              "hovaten", "ten_kh", "tenkh")
@@ -243,7 +243,7 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False, ident: bool =
     return v
 
 
-# Payloads (the event body, mapped fields, tool arguments) are masked by ALLOWLIST (0.247.0, after six review rounds
+# Payloads (the event body, mapped fields, tool arguments) are masked by ALLOWLIST (0.274.0, after six review rounds
 # found keys a denylist missed): every value is hidden unless its key says it is safe to read. Identity keys, customer
 # blocks and secrets win over everything below.
 _SAFE_WORDS = frozenset(("id", "ids", "uuid", "status", "state", "type", "kind", "event", "topic", "action", "sku",

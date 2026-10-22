@@ -67,7 +67,9 @@ _HTTP_NGUON = frozenset({"bundled", "pack", "user"})
 
 # Tên tool builtin/lõi - plugin KHÔNG được trùng (mcp_hub cũng skip lúc merge, đây là lớp 2).
 _RESERVED_TOOLS = {"javis_connections", "javis_read_file", "javis_list_dir",
-                   "javis_write_file", "javis_use_skill"}
+                   "javis_write_file", "javis_use_skill", "javis_edit_file", "javis_search_files",
+                   "javis_run_command", "javis_terminal", "javis_process",
+                   "javis_web_search", "javis_web_fetch"}
 
 # Name of the in-process plugin MCP server the Claude Agent SDK engine mounts (claude_sdk_engine).
 PLUGIN_SERVER = "javis-plugins"

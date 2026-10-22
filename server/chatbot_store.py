@@ -24,6 +24,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
+import brain_ident       # one brain, many spellings (#716)
 import channel_accounts   # tài khoản kênh dạng token (0.61.0): bot chỉ TRỎ tới, không giữ token
 import channels          # sổ đăng ký kênh: nơi duy nhất biết kênh nào gắn được bot
 import lang_registry   # sổ đăng ký ngôn ngữ: hợp lệ hoá trường ngon_ngu của bot
@@ -1086,6 +1087,6 @@ def bots_using_agent(brain: str, slug: str) -> List[Dict[str, Any]]:
     out = []
     for b in list_bots():
         a = b.get("agent") or {}
-        if str(a.get("brain")) == str(brain) and str(a.get("slug")) == str(slug):
+        if brain_ident.same_brain(a.get("brain"), brain) and str(a.get("slug")) == str(slug):
             out.append(b)
     return out

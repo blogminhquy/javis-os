@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import contextlib
 import hashlib
 import json
 import math
@@ -91,6 +92,29 @@ BUSY_LEASE_S = 900.0          # hạn khoá bận một lượt; tiến trình c
 # hay bị huỷ thì dừng. Tiến trình chết thì không ai gia hạn, hạn tự hết như trước.
 JOB_LEASE_S = 90.0
 LEASE_RENEW_S = 30.0
+# 0.257.0 (chủ 20/10/2026: team chạy tuần tự, agent bận nhóm này thì nhóm khác phải chờ). Khoá bận giờ theo mạch (agent +
+# nhóm), nên phanh an toàn chuyển sang số lượt nhóm gọi model CÙNG LÚC theo engine. Engine dùng gói đăng ký (CLI) để thấp:
+# chục tiến trình `claude` cùng lúc trên một tài khoản gói dễ dính giới hạn tốc độ hay bị khoá. Engine API rộng hơn.
+# Đổi bằng biến môi trường JAVIS_TEAM_CLI_SLOTS, JAVIS_TEAM_API_SLOTS, JAVIS_TEAM_PARALLEL (số nhóm chạy việc cùng lúc).
+CLI_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli")
+ENGINE_SLOTS_CLI = 3
+ENGINE_SLOTS_API = 6
+MAX_PARALLEL_TEAMS = 4
+# 0.260.0: bước Làm/Hỗ trợ đang chờ của MỘT việc chạy cùng lúc theo đợt, tối đa JOB_PARALLEL bước (JAVIS_TEAM_JOB_PARALLEL;
+# 1 = lần lượt như trước). Lượt có công cụ giữ chỗ theo THƯ MỤC làm việc của nhóm (thư mục đã ghim, không có thì cả brain),
+# tối đa TOOL_SLOTS lượt mỗi thư mục (JAVIS_TEAM_TOOL_SLOTS; 1 = khoá chặt như 0.194.0).
+JOB_PARALLEL = 3
+TOOL_SLOTS = 3
+
+
+def env_int(name: str, default: int, lo: int = 1, hi: int = 64) -> int:
+    """Số nguyên từ biến môi trường, kẹp trong [lo, hi]; trống hay hỏng thì mặc định."""
+    try:
+        return max(lo, min(hi, int(str(os.environ.get(name) or "").strip())))
+    except ValueError:
+        return default
+
+
 NEW_MSG_LIMIT = 20            # cửa sổ lịch sử trong khối nhóm (spec 11.2, review T1 R2)
 NEW_MSG_CHARS = 8000
 INPUT_CHARS = 4000            # mỗi đầu vào của bước
@@ -350,11 +374,11 @@ class TeamRunner:
     def __init__(self, *, teams, tasks, sessions, engine_for: Callable[[dict, str, str], tuple],
                  agent_info: Callable[[str, str], Optional[dict]], publish: Optional[Callable[[dict], Any]] = None,
                  notify: Optional[Callable[[str, str], Any]] = None, worker_id: str = "team-runner",
-                 max_parallel_teams: int = 2, clock: Callable[[], float] = time.time, admin: Any = None,
+                 max_parallel_teams: Optional[int] = None, clock: Callable[[], float] = time.time, admin: Any = None,
                  ceiling: Any = None, projector: Any = None, judge: Any = None,
                  learning: Any = None, contrib_reader: Any = None, docs_block: Any = None, approvals: Any = None,
                  acceptance: Any = None, check_command: Optional[Callable] = None,
-                 brain_root: Optional[Callable] = None):
+                 brain_root: Optional[Callable] = None, work_dir: Optional[Callable] = None):
         self.teams = teams
         # 0.207.0: owner approval requests (team_approval.ApprovalStore), in the team store's own file by default.
         if approvals is None and getattr(teams, "path", None) is not None:
@@ -367,6 +391,9 @@ class TeamRunner:
         self.acceptance = acceptance
         self.check_command = check_command
         self.brain_root = brain_root or (lambda team: __import__("pathlib").Path(str(team["brain_id"])))
+        # 0.260.0: `work_dir(team) -> str`, the team's pinned working folder ("" when none). Tool turns hold a slot of that
+        # folder, so teams with their own folders never wait on each other. None: every tool turn keys on the brain.
+        self.work_dir = work_dir
         # 0.191.0: documents, links and the pinned working folder of the team (team_docs.block), added to every member
         # turn. `docs_block(team) -> str`. None: no documents block.
         self.docs_block = docs_block
@@ -395,7 +422,16 @@ class TeamRunner:
         self._publish_fn = publish
         self._notify_fn = notify
         self.worker_id = worker_id
+        if max_parallel_teams is None:
+            max_parallel_teams = env_int("JAVIS_TEAM_PARALLEL", MAX_PARALLEL_TEAMS)
         self.max_parallel_teams = max(1, int(max_parallel_teams))
+        # 0.257.0: số lượt nhóm gọi model cùng lúc theo engine (xem CLI_PROVIDERS). Đặt lại được sau khi dựng (test).
+        self.engine_slots_cli = env_int("JAVIS_TEAM_CLI_SLOTS", ENGINE_SLOTS_CLI)
+        self.engine_slots_api = env_int("JAVIS_TEAM_API_SLOTS", ENGINE_SLOTS_API)
+        self.job_parallel = env_int("JAVIS_TEAM_JOB_PARALLEL", JOB_PARALLEL)
+        self.tool_slots = env_int("JAVIS_TEAM_TOOL_SLOTS", TOOL_SLOTS)
+        self._slots: dict = {}
+        self._slots_loop: Any = None
         self.clock = clock
         # Mốc khởi động của bộ chạy: phục hồi chỉ coi là "dở" các lượt trả lời ghi trước mốc này (của tiến trình trước).
         self.started_at = time.time()
@@ -536,11 +572,43 @@ class TeamRunner:
             self._locks, self._locks_loop = {}, loop
         return self._locks.setdefault(agent_key, asyncio.Lock())
 
+    def slots_for(self, engine: str) -> int:
+        return self.engine_slots_cli if str(engine or "") in CLI_PROVIDERS else self.engine_slots_api
+
+    def _engine_slot(self, engine: str) -> asyncio.Semaphore:
+        """Chỗ gọi model của một engine cho lượt nhóm (0.257.0)."""
+        return self._slot("engine:" + str(engine or ""), self.slots_for(engine))
+
+    def _tool_slot(self, key: str) -> asyncio.Semaphore:
+        """Chỗ của lượt có công cụ trong một thư mục làm việc (0.260.0, thay khoá theo brain của 0.194.0)."""
+        return self._slot("tool:" + str(key or ""), self.tool_slots)
+
+    def _slot(self, key: str, size: int) -> asyncio.Semaphore:
+        """Semaphore theo khoá, theo event loop như `_lock_for` (test dựng loop mới cho từng ca)."""
+        loop = asyncio.get_running_loop()
+        if self._slots_loop is not loop:
+            self._slots, self._slots_loop = {}, loop
+        sem = self._slots.get(key)
+        if sem is None:
+            sem = self._slots[key] = asyncio.Semaphore(max(1, int(size)))
+        return sem
+
+    def _work_key(self, team: dict) -> str:
+        """Khoá chỗ của lượt có công cụ: thư mục đã ghim của nhóm, không có thì brain (luồng phụ)."""
+        folder = ""
+        if self.work_dir is not None:
+            try:
+                folder = str(self.work_dir(team) or "")
+            except Exception:  # noqa: BLE001 - a broken folder binding falls back to the brain
+                folder = ""
+        return "dir:" + folder if folder else "brain:" + str(team.get("brain_id") or team.get("team_id") or "")
+
     def busy_view(self, team_id: str) -> dict:
-        """{agent_key: team_id khác đang giữ agent} cho các thành viên của nhóm (hiện "X đang làm ở nhóm Y")."""
+        """{agent_key: team_id khác đang giữ agent} cho các thành viên của nhóm (hiện "X đang làm ở nhóm Y"). Từ 0.257.0
+        chỉ dòng thật sự chặn lượt ở nhóm này (nhịp, xem xét): lượt của agent ở nhóm khác chạy song song, không chặn."""
         out = {}
         for m in self.teams.members(team_id):
-            b = self.teams.busy_of(m["agent_key"])
+            b = self.teams.busy_blocking(m["agent_key"], team_id)
             if b and b["team_id"] != team_id:
                 out[m["agent_key"]] = b["team_id"]
         return out
@@ -669,37 +737,72 @@ class TeamRunner:
             chat_id=f"team:{team['team_id']}")
 
     async def run_replies(self, submitted: dict) -> list:
-        """Lượt trả lời trò chuyện, tuần tự theo thứ tự @: người sau thấy câu trả lời của người trước.
+        """Lượt trả lời trò chuyện của các người được gọi trong một tin.
+
+        0.260.0: mặc định mọi người trả lời CÙNG LÚC (trần `reply_parallel` của nhóm, 1), ai xong trước đăng trước; trần
+        theo engine (`_engine_slot`) giữ số lượt gọi model cùng lúc. Chủ đặt `reply_parallel` 0 thì như trước: tuần tự
+        theo thứ tự @, người sau thấy câu trả lời của người trước.
 
         Mỗi lượt có kết cục lưu bền (`team_replies`): queued -> running -> done | error (kèm lý do). Lỗi của một lượt
-        (dựng engine hỏng, engine báo lỗi, hết lượt, lỗi nội bộ) KHÔNG làm mất các lượt sau và luôn hiện trong khung chat
+        (dựng engine hỏng, engine báo lỗi, hết lượt, lỗi nội bộ) KHÔNG làm mất các lượt khác và luôn hiện trong khung chat
         với nút Thử lại; trước 0.142.0 kết cục lỗi bị bỏ đi nên nhóm im lặng."""
-        outcomes = []
         team_id, mid = submitted["team_id"], int(submitted["message_id"])
         keys = list(submitted.get("replies") or [])
-        for i, key in enumerate(keys):
-            att = await self._io(self.teams.claim_reply, team_id, mid, key)
-            if att is None:
-                continue   # đã chạy, đang chạy ở chỗ khác, hay đã có kết cục: không nhân đôi lượt
-            await self._io(self._publish_replies, team_id, mid)
-            try:
-                out = await self._reply_turn(team_id, key, mid, submitted["text"], att,
-                                             volunteer=key in (submitted.get("volunteers") or []))
-            except asyncio.CancelledError:
-                # Bị huỷ: lượt này và các lượt CHƯA chạy phía sau đều thành lỗi có Thử lại, không nằm "đang chờ" mãi.
-                await self._io(self._settle_reply_out, team_id, mid, key, att,
-                               {"status": "error", "error": "lượt bị huỷ giữa chừng"}, "interrupted")
-                for rest in keys[i + 1:]:
-                    ratt = await self._io(self.teams.claim_reply, team_id, mid, rest)
-                    if ratt is not None:
-                        await self._io(self._settle_reply_out, team_id, mid, rest, ratt,
+        parallel = len(keys) > 1
+        if parallel:
+            team = await self._io(self.teams.get, team_id)
+            parallel = bool(int(((team or {}).get("caps") or {}).get("reply_parallel", 1) or 0))
+        if not parallel:
+            return await self._run_replies_in_order(submitted, team_id, mid, keys)
+        jobs = [asyncio.ensure_future(self._one_reply(submitted, team_id, mid, key)) for key in keys]
+        try:
+            outs = await asyncio.gather(*jobs)
+        except asyncio.CancelledError:
+            # Bị huỷ: lượt đang chạy tự ghi lỗi có Thử lại (`_one_reply`); lượt chưa kịp nhận cũng thành lỗi, không nằm
+            # "đang chờ" mãi.
+            for j in jobs:
+                j.cancel()
+            await asyncio.gather(*jobs, return_exceptions=True)
+            await self._io(self._interrupt_unclaimed, team_id, mid, keys)
+            raise
+        return [o for o in outs if o is not None]
+
+    async def _one_reply(self, submitted: dict, team_id: str, mid: int, key: str) -> Optional[dict]:
+        att = await self._io(self.teams.claim_reply, team_id, mid, key)
+        if att is None:
+            return None   # đã chạy, đang chạy ở chỗ khác, hay đã có kết cục: không nhân đôi lượt
+        await self._io(self._publish_replies, team_id, mid)
+        try:
+            out = await self._reply_turn(team_id, key, mid, submitted["text"], att,
+                                         volunteer=key in (submitted.get("volunteers") or []))
+        except asyncio.CancelledError:
+            await self._io(self._settle_reply_out, team_id, mid, key, att,
+                           {"status": "error", "error": "lượt bị huỷ giữa chừng"}, "interrupted")
+            raise
+        except Exception as ex:  # noqa: BLE001
+            out = {"status": "error", "error": f"lỗi nội bộ: {type(ex).__name__}: {str(ex)[:200]}", "internal": True}
+        await self._io(self._settle_reply_out, team_id, mid, key, att, out)
+        return out
+
+    def _interrupt_unclaimed(self, team_id: str, mid: int, keys: list) -> None:
+        for key in keys:
+            att = self.teams.claim_reply(team_id, mid, key)
+            if att is not None:
+                self._settle_reply_out(team_id, mid, key, att,
                                        {"status": "error", "error": "lượt bị huỷ trước khi chạy"}, "interrupted")
+
+    async def _run_replies_in_order(self, submitted: dict, team_id: str, mid: int, keys: list) -> list:
+        """Tuần tự theo thứ tự @ (một người, hay nhóm đặt `reply_parallel` 0)."""
+        outcomes = []
+        for i, key in enumerate(keys):
+            try:
+                out = await self._one_reply(submitted, team_id, mid, key)
+            except asyncio.CancelledError:
+                # Lượt này đã tự ghi lỗi; các lượt CHƯA chạy phía sau cũng thành lỗi có Thử lại.
+                await self._io(self._interrupt_unclaimed, team_id, mid, keys[i + 1:])
                 raise
-            except Exception as ex:  # noqa: BLE001
-                out = {"status": "error", "error": f"lỗi nội bộ: {type(ex).__name__}: {str(ex)[:200]}",
-                       "internal": True}
-            await self._io(self._settle_reply_out, team_id, mid, key, att, out)
-            outcomes.append(out)
+            if out is not None:
+                outcomes.append(out)
         return outcomes
 
     async def _reply_turn(self, team_id: str, key: str, mid: int, text: str, attempt: int,
@@ -1436,7 +1539,7 @@ class TeamRunner:
         caps = team["caps"]
         rows = []
         for k in OWNER_CAPS:
-            unit = "seconds" if k == "busy_wait_s" else "mode" if k == "judge_off_batch" else "count"
+            unit = "seconds" if k == "busy_wait_s" else "mode" if k in ("judge_off_batch", "reply_parallel") else "count"
             rows.append({"key": k, "category": "owner", "value": caps.get(k, DEFAULT_CAPS.get(k)),
                          "unit": unit, "unlimited_ok": k in UNLIMITED_CAPS})
         # T3 (thiết kế 9): nhịp chủ động nhanh nhất của trợ lý. Chủ chỉnh từng trợ lý ở bảng Nhịp (tới B0, 15 phút);
@@ -1462,6 +1565,10 @@ class TeamRunner:
             ("running_jobs", FIXED_CAPS["running_jobs"], "count"),
             ("max_parallel_teams", self.max_parallel_teams, "count"),
             ("agent_one_turn", 1, "count"),
+            ("engine_slots_cli", self.engine_slots_cli, "count"),
+            ("engine_slots_api", self.engine_slots_api, "count"),
+            ("job_parallel", self.job_parallel, "count"),
+            ("tool_slots", self.tool_slots, "count"),
             ("busy_lease", int(self.busy_lease_s), "seconds"),
             ("no_progress", FIXED_CAPS["no_progress"], "count"),
             ("turn_timeout", int(self.turn_timeout), "seconds"),
@@ -2061,11 +2168,12 @@ class TeamRunner:
         return "\n".join(lines)
 
     async def _acquire(self, team: dict, agent_key: str, turn_id: str, on_wait=None) -> bool:
-        """Khoá bận theo agent (D3): một lượt nhóm mỗi agent trên cả máy, chờ theo thứ tự xin (FIFO). `on_wait(holder)`
+        """Khoá bận theo mạch (D3, nới ở 0.257.0): một lượt mỗi agent trong MỘT nhóm, chờ theo thứ tự xin (FIFO). Cùng
+        agent ở nhóm khác chạy song song; nhịp chủ động hay xem xét đang giữ trọn agent thì vẫn chờ. `on_wait(holder)`
         được gọi một lần khi phải chờ (dòng trạng thái lượt trả lời nói rõ đang chờ việc nào, 0.142.0)."""
         wait = float(team["caps"]["busy_wait_s"])
-        lock = self._lock_for(agent_key)
-        holder = await self._io(self.teams.busy_of, agent_key)
+        lock = self._lock_for(self.teams.busy_slot(agent_key, team["team_id"]))
+        holder = await self._io(self.teams.busy_blocking, agent_key, team["team_id"])
         if holder and holder["team_id"] != team["team_id"]:
             self._state(team["team_id"])
         if on_wait is not None and (holder or lock.locked()):
@@ -2081,7 +2189,7 @@ class TeamRunner:
         try:
             # Bị huỷ khi luồng phụ đang lấy dòng khoá: run_io chờ nó xong rồi nhả đúng dòng vừa lấy (undo).
             while not await self._io(self.teams.acquire_busy, agent_key, team["team_id"], turn_id,
-                                     lease_s=self.busy_lease_s,
+                                     lease_s=self.busy_lease_s, per_team=True,
                                      undo=lambda got: got and self.teams.release_busy(agent_key, turn_id)):
                 if time.monotonic() > deadline:
                     lock.release()
@@ -2094,12 +2202,12 @@ class TeamRunner:
             raise
         return True
 
-    async def _release(self, agent_key: str, turn_id: str) -> None:
+    async def _release(self, agent_key: str, turn_id: str, team_id: str) -> None:
         """Nhả dòng khoá trong kho (luồng phụ, chờ xong hẳn kể cả khi bị huỷ) rồi mới nhả khoá trong tiến trình."""
         try:
             await self._io(self.teams.release_busy, agent_key, turn_id)
         finally:
-            lock = self._locks.get(agent_key)
+            lock = self._locks.get(self.teams.busy_slot(agent_key, team_id))
             if lock is not None and lock.locked():
                 lock.release()
 
@@ -2220,7 +2328,8 @@ class TeamRunner:
                "thread": f"teammate:{team_id}:{agent_key}", "task_id": task["id"] if task else None,
                "step_id": step["step_id"] if step else None, "turn_id": turn_id,
                "tools": None if tool_turn else [], "tool_turn": tool_turn, "work_mode": work_mode}
-        return {"pre": "done", "engine": str(engine or ""), "model": str(model or ""), "fn": fn, "req": req}
+        return {"pre": "done", "engine": str(engine or ""), "model": str(model or ""), "fn": fn, "req": req,
+                "tool_key": self._work_key(team) if tool_turn else ""}
 
     def _docs(self, team: dict, tools: bool = False) -> str:
         if self.docs_block is None:
@@ -2277,7 +2386,7 @@ class TeamRunner:
             try:
                 await self._io(self._refund_if_unmarked, turn_id)
             finally:
-                await self._release(agent_key, turn_id)
+                await self._release(agent_key, turn_id, team_id)
             return {"status": "lease_lost", "lease_lost": lease["lost"], "before_engine": True, "turn_id": turn_id}
         marked = False
         lease["busy_ok"] = time.monotonic()
@@ -2331,13 +2440,17 @@ class TeamRunner:
                                                               provider=prep["engine"]))
             try:
                 limit = self.turn_timeout if role in REPLY_ROLES else self.step_timeout
-                if req.get("tool_turn"):
-                    # 0.194.0: tool turns in one brain take turns. One team already runs one job at a time, but two teams
-                    # of the same brain run side by side (max_parallel_teams) and write the same files. Waiting here is
-                    # not counted against the turn's time limit; the leases keep renewing meanwhile.
-                    async with self._tool_lock(str(team.get("brain_id") or team_id)):
-                        res = await asyncio.wait_for(fn(req), timeout=limit)
-                else:
+                async with contextlib.AsyncExitStack() as held:
+                    if req.get("tool_turn"):
+                        # 0.194.0 made tool turns of one brain take turns so two teams never write the same files.
+                        # 0.260.0: the slot is per working folder (pinned folder, else the brain), TOOL_SLOTS wide, so
+                        # members of one job and teams with their own folders work side by side.
+                        await held.enter_async_context(self._tool_slot(prep.get("tool_key") or "brain:" + str(
+                            team.get("brain_id") or team_id)))
+                    # 0.257.0: then a call slot of the engine, taken AFTER the tool lock so a turn queued behind the
+                    # lock does not sit on a slot that a text turn could use. Neither wait counts against the turn's
+                    # time limit; the leases keep renewing meanwhile.
+                    await held.enter_async_context(self._engine_slot(prep["engine"]))
                     res = await asyncio.wait_for(fn(req), timeout=limit)
             except asyncio.TimeoutError:
                 if marked:
@@ -2389,13 +2502,13 @@ class TeamRunner:
             try:
                 if lease["lost"] is None:
                     try:
-                        holder = await self._io(self.teams.busy_turn, agent_key)
+                        holder = await self._io(self.teams.busy_turn, agent_key, team_id)
                         if holder != turn_id:
                             self._lease_lost(lease, "busy_taken", agent_key, turn_id)
                     except Exception:  # noqa: BLE001
                         pass
             finally:
-                await self._release(agent_key, turn_id)
+                await self._release(agent_key, turn_id, team_id)
         out = await self._io(self._accept, team_id, agent_key, role, task, step, turn_id, res, reply_to, vet,
                              lease["lost"])
         if self.judge is not None and out.get("message_id"):
@@ -2405,14 +2518,6 @@ class TeamRunner:
             except Exception as ex:  # noqa: BLE001 - phán xử hỏng không được làm hỏng lượt đã đăng tin
                 log.warning("judge after accept failed: %s: %s", type(ex).__name__, ex)
         return out
-
-    def _tool_lock(self, brain: str) -> asyncio.Lock:
-        """One lock per brain for tool turns (0.194.0)."""
-        locks = self.__dict__.setdefault("_tool_locks", {})
-        lock = locks.get(brain)
-        if lock is None:
-            lock = locks[brain] = asyncio.Lock()
-        return lock
 
     def _renew_every(self) -> float:
         return max(0.01, min(float(self.lease_renew_s), float(self.busy_lease_s) / 3, float(self.job_lease_s) / 3))
@@ -3145,6 +3250,10 @@ class TeamRunner:
                 res = await self._run_step(*act[1:])
                 if res:
                     return res
+            if act[0] == "wave":
+                res = await self._run_wave(*act[1:])
+                if res:
+                    return res
 
     def _job_tick(self, task_id: str) -> tuple:
         """Một điểm điều phối của việc (luồng phụ): ("return", kết quả), ("continue",) hay ("run", team, task, step).
@@ -3183,7 +3292,85 @@ class TeamRunner:
             return ("continue",)
         if not self.teams.claim_step(step["step_id"]):
             return ("continue",)
+        wave = self._claim_wave(task_id, step) if step["kind"] in TOOL_ROLES else [step]
+        if len(wave) > 1:
+            return ("wave", team, task, [(s, self._wave_note(team, s, wave)) for s in wave])
         return ("run", team, task, step)
+
+    def _claim_wave(self, task_id: str, first: dict) -> list:
+        """0.260.0: the queued Work/Help steps right behind `first` (already claimed) join its wave, up to `job_parallel`,
+        one step per member (a second step of the same member would only wait on its own busy lock). Stops at the first
+        queued plan or synthesis: those see every result before them."""
+        wave = [first]
+        for s in self.teams.queued_steps(task_id):
+            if len(wave) >= self.job_parallel:
+                break
+            if s["kind"] not in TOOL_ROLES:
+                break
+            if any(w["agent_key"] == s["agent_key"] for w in wave):
+                continue
+            if self.teams.claim_step(s["step_id"]):
+                wave.append(dict(s, status="running"))
+        return wave
+
+    def _wave_note(self, team: dict, step: dict, wave: list) -> str:
+        others = [self._name(team, w["agent_key"]) for w in wave if w["step_id"] != step["step_id"]]
+        return ("\n\nĐồng đội đang làm phần của họ CÙNG LÚC với bạn: " + ", ".join(others) + ". Chỉ tạo và sửa file thuộc "
+                "phần việc của bạn; file chung hay file người khác đang làm thì đừng ghi đè, ghi phần của bạn vào câu trả "
+                "lời để người tổng hợp ghép lại.")
+
+    async def _run_wave(self, team: dict, task: dict, items: list) -> Optional[str]:
+        """0.260.0: the turns of one wave run side by side; outcomes are applied together once all are back."""
+        turns = [asyncio.ensure_future(self._turn(team, step["agent_key"], step["kind"], self._body(step, task) + note,
+                                                  task=task, step=step,
+                                                  reply_to=(self._source_id(task) or [None])[0], vet=self._vet_step))
+                 for step, note in items]
+        try:
+            outs = await asyncio.gather(*turns, return_exceptions=True)
+        except asyncio.CancelledError:
+            for t in turns:
+                t.cancel()
+            await asyncio.gather(*turns, return_exceptions=True)
+            raise
+        done = [(step, out) for (step, _), out in zip(items, outs) if not isinstance(out, BaseException)]
+        res = await self._io(self._apply_wave, team, task, done) if done else None
+        for out in outs:
+            if isinstance(out, BaseException):
+                # Một lượt văng lỗi bất ngờ: run_job chặn việc `failed` như khi chạy một bước (kết quả còn lại đã áp).
+                raise out
+        return res
+
+    def _apply_wave(self, team: dict, task: dict, items: list) -> Optional[str]:
+        """Apply the outcomes of one wave in `accept_lock` (0.260.0). Clean results first, so a sibling that blocks the job
+        (error, approval request, cap) never turns a good result into a late one. Once the job is blocked, the remaining
+        outcomes are parked: the step goes back to the queue and runs again when the job resumes, its message stays as
+        evidence. Nothing a member did is lost, and a retry only has to restart the step that stopped the job."""
+        with self.accept_lock:
+            clean = [it for it in items if self._clean_outcome(team, task, *it)]
+            order = clean + [it for it in items if not any(it is c for c in clean)]
+            result = None
+            for step, out in order:
+                cur = self.tasks.get_task(task["id"]) or {}
+                if result is not None and cur.get("status") == "team_blocked":
+                    self._park_step(team, step, out)
+                    continue
+                r = self._apply_step(team, task, step, out)
+                if r and result is None:
+                    result = r
+            return result
+
+    def _clean_outcome(self, team: dict, task: dict, step: dict, out: dict) -> bool:
+        if out.get("status") != "done" or not out.get("applied"):
+            return False
+        try:
+            return self._approval_need(team, task, step, out) is None
+        except Exception:  # noqa: BLE001 - unsure: apply it in the second pass
+            return False
+
+    def _park_step(self, team: dict, step: dict, out: dict) -> None:
+        if out.get("message_id") and out.get("applied"):
+            self._supersede(team, out.get("message_id"), "late")
+        self.teams.requeue_step(step["step_id"])
 
     def _after_steps(self, team: dict, task: dict) -> Optional[str]:
         """Hết bước chờ: một kết quả thì xong; nhiều kết quả thì trưởng nhóm tổng hợp; không có gì thì chặn."""

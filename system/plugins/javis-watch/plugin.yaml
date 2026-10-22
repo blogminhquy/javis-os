@@ -1,7 +1,7 @@
 name: Theo dõi trang web
 name_en: "Web page watch"
 slug: javis-watch
-version: 1.0.0
+version: 1.1.0
 description: Canh một trang web theo lịch mà không tốn token - báo khi trang đổi, khi xuất hiện một cụm chữ hoặc khi có giá dưới ngưỡng (hiểu 1.250.000đ, 1,5 triệu, 250k, $20). Chỉ gọi AI khi bật tóm tắt.
 description_en: "Watches a web page on a schedule without spending tokens: alerts when the page changes, when some text appears, or when a price drops below a threshold (understands 1.250.000đ, 250k, $20). Only calls AI when summaries are on."
 author: Javis (bundled)

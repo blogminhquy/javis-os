@@ -58,7 +58,8 @@
     server_ceiling: "teams.block.server_ceiling" };
   var CAP_KEY = { task_turns: "teams.cap.task_turns", task_steps: "teams.cap.task_steps", daily_turns: "teams.cap.daily_turns",
     mentions: "teams.cap.mentions", help_depth: "teams.cap.help_depth", busy_wait_s: "teams.cap.busy_wait_s",
-    judge_daily: "teams.cap.judge_daily", volunteer_k: "teams.cap.volunteer_k", judge_off_batch: "teams.cap.judge_off_batch" };
+    judge_daily: "teams.cap.judge_daily", volunteer_k: "teams.cap.volunteer_k", judge_off_batch: "teams.cap.judge_off_batch",
+    reply_parallel: "teams.cap.reply_parallel" };
   var TAB_KEY = { info: "teams.tab_info", jobs: "teams.tab_jobs", team: "teams.tab_team" };
   var LATE = ["late_cancelled", "late", "old_revision", "member_left", "leader_changed", "lease_lost"];
   // Trần chủ nhóm chỉnh được (team_store.OWNER_CAPS). Bốn trần đầu có "Không giới hạn" (lưu null, GOAL T1 mục 9).
@@ -66,7 +67,11 @@
     "volunteer_k"];
   var OWNER_UNL = ["task_turns", "task_steps", "help_depth", "daily_turns", "judge_daily"];
   // Ô chọn chế độ (T3 phần J): phán xử khi Cộng hưởng của trợ lý tắt, 1 = lọc code + lô, 0 = chỉ lọc code. Chỉ chủ chỉnh.
-  var CAP_MODES = ["judge_off_batch"];
+  // 0.260.0: reply_parallel, 1 = mọi người được @ trả lời cùng lúc, 0 = lần lượt theo thứ tự @.
+  var CAP_MODES = ["judge_off_batch", "reply_parallel"];
+  // Nhãn hai lựa chọn của từng ô chế độ: [nhãn của 1, nhãn của 0]. Khoá viết trọn cho bộ kiểm i18n.
+  var MODE_LABELS = { judge_off_batch: ["teams.limits.mode_batch", "teams.limits.mode_code"],
+    reply_parallel: ["teams.limits.mode_parallel", "teams.limits.mode_sequential"] };
   // Bảng giới hạn (GOAL T1 mục 9): bốn nhóm theo ai đổi được, nhãn từng dòng. Khoá viết trọn cho bộ kiểm i18n.
   var LIMIT_CATS = [{ id: "owner", key: "teams.limits.owner" }, { id: "leader", key: "teams.limits.leader" },
     { id: "server", key: "teams.limits.server" }, { id: "provider", key: "teams.limits.provider" }];
@@ -74,7 +79,9 @@
   var PULSE_TIER_KEY = ["pulse.tier_0", "pulse.tier_1", "pulse.tier_2", "pulse.tier_3", "pulse.tier_4", "pulse.tier_5",
     "pulse.tier_6", "pulse.tier_7", "pulse.tier_8"];
   var LIMIT_KEY = { running_jobs: "teams.limits.running_jobs", max_parallel_teams: "teams.limits.max_parallel_teams",
-    agent_one_turn: "teams.limits.agent_one_turn", busy_lease: "teams.limits.busy_lease", no_progress: "teams.limits.no_progress",
+    agent_one_turn: "teams.limits.agent_one_turn",
+    engine_slots_cli: "teams.limits.engine_slots_cli", engine_slots_api: "teams.limits.engine_slots_api",
+    job_parallel: "teams.limits.job_parallel", tool_slots: "teams.limits.tool_slots", busy_lease: "teams.limits.busy_lease", no_progress: "teams.limits.no_progress",
     turn_timeout: "teams.limits.turn_timeout", step_timeout: "teams.limits.step_timeout",
     admin_ops_per_turn: "teams.limits.admin_ops_per_turn", history_window: "teams.limits.history_window",
     text_only: "teams.limits.text_only", server_call_ceiling: "teams.limits.server_call_ceiling",
@@ -1265,8 +1272,8 @@
     capRows += CAP_MODES.map(function (k) {
       var cur = caps[k] === 0 ? "0" : "1";
       return '<label class="tm-field tm-cap"><span>' + esc(tw(CAP_KEY[k])) + '</span><select name="tm-cap-' + k + '">' +
-        '<option value="1"' + (cur === "1" ? " selected" : "") + ">" + esc(tw("teams.limits.mode_batch")) + "</option>" +
-        '<option value="0"' + (cur === "0" ? " selected" : "") + ">" + esc(tw("teams.limits.mode_code")) + "</option>" +
+        '<option value="1"' + (cur === "1" ? " selected" : "") + ">" + esc(tw(MODE_LABELS[k][0])) + "</option>" +
+        '<option value="0"' + (cur === "0" ? " selected" : "") + ">" + esc(tw(MODE_LABELS[k][1])) + "</option>" +
         "</select></label>";
     }).join("");
     return '<form class="tm-form tm-caps-form" onsubmit="return false"><div class="tm-qhead">' + esc(tw("teams.caps")) + "</div>" +
@@ -1281,7 +1288,10 @@
 
   function limitValue(x) {
     if (x.unit === "rule") return "";
-    if (x.unit === "mode") return tw(x.value === 0 ? "teams.limits.mode_code" : "teams.limits.mode_batch");
+    if (x.unit === "mode") {
+      var ml = MODE_LABELS[x.key] || MODE_LABELS.judge_off_batch;
+      return tw(x.value === 0 ? ml[1] : ml[0]);
+    }
     if (x.value === null || x.value === undefined) return tw("teams.auth.unlimited");
     if (x.unit === "seconds") {
       return x.value >= 60 && x.value % 60 === 0 ? tw("teams.limits.minutes", { n: x.value / 60 })
@@ -1703,16 +1713,24 @@
 
   function q(s) { return encodeURIComponent(s); }
 
+  // 0.267.0 (a user's iPhone, 21/10/2026: "hay bị treo khung chat, thoát hẳn xong vào lại mới được"): a request sent
+  // while the phone changes network, or right before the app goes to the background, can hang forever. Send kept its
+  // button disabled waiting for it and nothing redrew, so only reopening the app helped. Every request now gives up after
+  // CALL_MS and fails like a network error (a send that gave up is sent again with the same client id, never twice).
+  var CALL_MS = 30000;
   function call(method, url, body) {
     var opt = { method: method, credentials: "same-origin" };
     if (body !== undefined) {
       opt.headers = { "Content-Type": "application/json" };
       opt.body = JSON.stringify(body);
     }
+    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = null;
+    if (ctl) { opt.signal = ctl.signal; timer = setTimeout(function () { ctl.abort(); }, CALL_MS); }
     var sep = url.indexOf("?") >= 0 ? "&" : "?";
     return fetch(url + sep + "brain=" + q(brain()), opt).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) { return { code: r.status, j: j || {} }; });
-    });
+    }).then(function (x) { clearTimeout(timer); return x; }, function (e) { clearTimeout(timer); throw e; });
   }
 
   var S = null;
@@ -2641,10 +2659,21 @@
       if (S && S.activeId && S.el && S.el.isConnected && document.visibilityState !== "hidden") markOpened(S.activeId);
     }, 800);
   }
+  // 0.267.0: back after AWAY_MS or more, the open team is read again from the server. On an iPhone the socket can come
+  // back "open" but dead, so messages and answers that landed meanwhile never arrived and the chat looked frozen until
+  // the app was closed (the main chat has done the same since 0.85.11). A short switch to another app reloads nothing.
+  var AWAY_MS = 20000, hiddenAt = 0;
   function onVisible() {
+    if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+    var away = hiddenAt && Date.now() - hiddenAt >= AWAY_MS;
+    hiddenAt = 0;
     if (document.visibilityState === "visible" && S && S.activeId && S.el && S.el.isConnected) {
       markOpened(S.activeId);
       drawList();
+      if (away) {
+        if (S.jumped === null || S.jumped === undefined) loadMsgs(false);
+        loadQueue(); loadTeam();
+      }
     }
   }
 
