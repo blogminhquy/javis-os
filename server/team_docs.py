@@ -152,8 +152,13 @@ def block(listed: List[str], loaded: List[str], folder: str, tools: bool = False
     `tools=True` (0.194.0): the wording of a Work/Help turn, which can open the files and the folder itself."""
     out = ""
     if listed:
+        # 0.271.0: PDF, Word and Excel go through the hub reader (doc_text), never through shell commands a gated team
+        # has to approve one by one (customer report, codes 5 and 22).
         how = ("Lượt làm việc này có công cụ: mở thẳng file theo đường dẫn khi cần đọc hết hay sửa; phần nạp sẵn bên dưới "
-               "chỉ là bản đọc nhanh. Ảnh thì đọc tài liệu \"mô tả ảnh\" đi kèm hay mở ảnh nếu engine của bạn xem được ảnh."
+               "chỉ là bản đọc nhanh. File PDF, Word (.docx), Excel (.xlsx): đọc bằng tool javis_read_file (Javis bóc sẵn "
+               "chữ, mọi sheet, giá trị công thức và ô lỗi), ĐỪNG viết lệnh shell để giải nén hay chuyển đổi file. Trang PDF "
+               "scan không có lớp chữ thì nói rõ trang nào chưa đọc được. Ảnh thì đọc tài liệu \"mô tả ảnh\" đi kèm hay mở "
+               "ảnh nếu engine của bạn xem được ảnh."
                if tools else
                "Lượt nhóm chỉ chữ: bạn KHÔNG mở được file hay link; chỉ đọc được phần nội dung đã nạp sẵn bên dưới. Ảnh thì "
                "đọc tài liệu \"mô tả ảnh\" đi kèm (một bộ não khác đã xem hộ); ảnh hay tài liệu chưa nạp thì nói rõ là chưa "
