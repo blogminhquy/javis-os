@@ -3428,6 +3428,7 @@ class TeamRunner:
             for step, out in order:
                 cur = self.tasks.get_task(task["id"]) or {}
                 if result is not None and cur.get("status") == "team_blocked":
+                    self._join_request(team, task, step, out, cur)
                     self._park_step(team, step, out)
                     continue
                 r = self._apply_step(team, task, step, out)
@@ -3442,6 +3443,39 @@ class TeamRunner:
             return self._approval_need(team, task, step, out) is None
         except Exception:  # noqa: BLE001 - unsure: apply it in the second pass
             return False
+
+    def _join_request(self, team: dict, task: dict, step: dict, out: dict, cur: dict) -> None:
+        """0.271.0: a sibling of the wave that also needs the owner while the job already waits on a request: its calls
+        join that request's card (one card per job), instead of being dropped with the parked step."""
+        if self.approvals is None or cur.get("block_kind") != "waiting_user":
+            return
+        if out.get("status") != "done" or not out.get("applied"):
+            return
+        pend = self.approvals.pending_for_task(task["id"])
+        if not pend or not pend.get("step_id") or pend["step_id"] == step["step_id"]:
+            return
+        try:
+            need = self._approval_need(team, task, step, out)
+        except Exception as ex:  # noqa: BLE001 - unsure: the parked step simply asks again when it reruns
+            log.warning("approval join: %s: %s", type(ex).__name__, ex)
+            return
+        if need is None:
+            return
+        ap = self.approvals.join(pend["approval_id"], step_id=step["step_id"], requested_by=step["agent_key"],
+                                 who=self._name(team, step["agent_key"]), action=need["action"] or need["title"],
+                                 fingerprints=need["fingerprints"])
+        if ap is not None:
+            self._refresh_card(team, ap)
+
+    def _release_approval(self, team: dict, task_id: str, aid: str, step_id: str, reason: str) -> None:
+        """The approved step `step_id` is over: close what it did not use, unless another step of the job still holds the
+        same approval (a step that joined the card and has not run yet). The card is refreshed either way: before
+        0.271.0 it kept saying "approved, waiting for the assistant" after the approval was used or closed."""
+        others = [s_ for s_ in self.teams.steps(task_id) if s_["step_id"] != step_id
+                  and s_.get("note") == f"approval:{aid}" and s_["status"] in ("queued", "running")]
+        if not others:
+            self.approvals.consume(aid, reason)
+        self._refresh_card(team, self.approvals.get(aid))
 
     def _park_step(self, team: dict, step: dict, out: dict) -> None:
         if out.get("message_id") and out.get("applied"):
@@ -3581,7 +3615,7 @@ class TeamRunner:
             return self._request_approval(team, task, step, out, need)
         if self.approvals is not None and note.startswith("approval:"):
             # The step the owner approved has run: what it did not use of its approval is closed now.
-            self.approvals.consume(note.split(":", 1)[1], "step_done")
+            self._release_approval(team, task["id"], note.split(":", 1)[1], sid, "step_done")
         if kind == "plan":
             assigns = out["ops"]
             if not assigns and (out.get("extra") or {}).get("assign_dropped"):
@@ -3695,7 +3729,7 @@ class TeamRunner:
         prev = str(step.get("note") or "")
         if prev.startswith("approval:"):
             # An approved step asks again: what it did not use of the earlier approval closes here, never carried over.
-            self.approvals.consume(prev.split(":", 1)[1], "asked_again")
+            self._release_approval(team, task["id"], prev.split(":", 1)[1], sid, "asked_again")
         held = []
         if step["kind"] == "plan":
             held = [{"kind": "work", "agent": a["agent"], "brief": a["brief"], "inputs": [mid] if mid else []}
@@ -3850,6 +3884,12 @@ class TeamRunner:
                                       step.get("parent_step"))
             self.teams.set_step_status(new["step_id"], "queued", f"approval:{ap['approval_id']}")
             self.approvals.granted_step(ap["approval_id"], new["step_id"])
+            # 0.271.0: steps of the same wave whose request joined this card (parked, back in the queue) run with it.
+            for jid in self.approvals.joined_steps(ap["approval_id"]):
+                js = self.teams.step(jid)
+                if js and js.get("task_id") == task["id"] and js["status"] == "queued":
+                    self.teams.set_step_status(jid, "queued", f"approval:{ap['approval_id']}")
+                    self.approvals.granted_step(ap["approval_id"], jid)
         else:
             # A job opened by the department mandate waited before its first step: approval just lets it start.
             self.approvals.consume(ap["approval_id"], "job_opened")

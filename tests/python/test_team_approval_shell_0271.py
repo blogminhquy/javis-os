@@ -146,6 +146,9 @@ run(r.dispatch_once())
 check("gate: the approved command runs on the rerun even with another timeout", RAN == [("ag_minh", CMD)], RAN)
 check("gate: the job finished and the approval is consumed", ts.get_task(j)["status"] == "done"
       and r.approvals.get(ap["approval_id"])["status"] == "consumed", ts.get_task(j)["status"])
+c = cards(ss, T, ap["approval_id"])
+check("gate: the chat card no longer says 'approved, waiting' once the approval was used",
+      c and c[-1]["meta"]["approval"]["status"] == "consumed", c and c[-1]["meta"]["approval"]["status"])
 
 # ═════ 3. A declared PowerShell action (ask_approval) matches the real call ═════
 r, tm, ts, ss, fake, T = world("ps-declared")
@@ -164,6 +167,59 @@ run(r.dispatch_once())
 check("declared: the identical command is NOT blocked again after approval", RAN == [("ag_minh", CMD)]
       and ts.get_task(j)["status"] == "done", (RAN, ts.get_task(j)["status"], ts.get_task(j).get("block_kind")))
 check("declared: no second request was filed", len(r.approvals.for_task(j)) == 1, r.approvals.for_task(j))
+
+# ═════ 4. Two members of one wave both blocked: one card lists both, approval opens both ═════
+r, tm, ts, ss, fake, T = world("wave")
+RAN.clear()
+def in_call(cmd, call):
+    return json.dumps(cmd, ensure_ascii=False)[1:-1] in call
+
+
+CMD_B = "Get-Content 'C:\\Brain\\attachments\\teams\\t1\\scan.pdf' -Encoding Byte -TotalCount 2000"
+fake.say("ag_lan", "plan", "Chia việc." + directive(op="assign", agent="ag_minh", brief="Đọc Excel")
+         + directive(op="assign", agent="ag_hoa", brief="Đọc PDF"),
+         "Tổng hợp: cả hai phần đã đọc xong.")
+fake.say("ag_minh", "work", ps(CMD), ps(CMD))
+fake.say("ag_hoa", "work", ps(CMD_B, "ag_hoa"), ps(CMD_B, "ag_hoa"))
+j = job(r, T, "Thẩm định hồ sơ")
+for _ in range(2):
+    run(r.dispatch_once())
+aps = r.approvals.for_task(j)
+pend = r.approvals.pending_for_task(j)
+check("wave: one pending card for the job", len([a for a in aps if a["status"] == "pending"]) == 1, aps)
+check("wave: the card lists the calls of BOTH members (no member's request is dropped)",
+      pend and {f["label"].split(":", 1)[0] for f in pend["fingerprints"]} == {"PowerShell"}
+      and len(pend["fingerprints"]) == 2 and any(in_call(CMD_B, f["call"]) for f in pend["fingerprints"])
+      and any(in_call(CMD, f["call"]) for f in pend["fingerprints"]), pend)
+check("wave: the card names the second member in its summary", pend and ("Minh:" in pend["action"]
+                                                                       or "Hoa:" in pend["action"]), pend)
+c = cards(ss, T, pend["approval_id"]) if pend else []
+check("wave: the chat card was refreshed with both calls", c and len(c[-1]["meta"]["approval"]["actions"]) == 2, c)
+r.decide_approval(T["team_id"], pend["approval_id"], "approve", decision_key="w1")
+for _ in range(3):
+    run(r.dispatch_once())
+check("wave: after one approval both members' commands ran once each",
+      sorted(RAN) == sorted([("ag_minh", CMD), ("ag_hoa", CMD_B)]), RAN)
+check("wave: the job went on to the leader's synthesis and finished", ts.get_task(j)["status"] == "done",
+      (ts.get_task(j)["status"], ts.get_task(j).get("block_kind"), ts.get_task(j).get("block_reason")))
+check("wave: the approval is consumed and the card says so",
+      r.approvals.get(pend["approval_id"])["status"] == "consumed"
+      and cards(ss, T, pend["approval_id"])[-1]["meta"]["approval"]["status"] == "consumed")
+
+# ═════ 5. Sequential (job_parallel 1): the second joined step still has its approval when its turn comes ═════
+r, tm, ts, ss, fake, T = world("seq")
+r.job_parallel = 1
+RAN.clear()
+ap_a = r.approvals.create(team_id=T["team_id"], task_id="t_x", step_id="s_a", team_rev=1, requested_by="ag_minh",
+                          kind="action", title="x", action="a", fingerprints=[{"fp": "f1", "label": "l", "call": "c"}])
+j2 = r.approvals.join(ap_a["approval_id"], step_id="s_b", requested_by="ag_hoa", who="Hoa", action="b",
+                      fingerprints=[{"fp": "f2", "label": "l2", "call": "c2"}, {"fp": "f1", "label": "dup", "call": "c"}])
+check("store: join merges calls without duplicates and records the step",
+      [f["fp"] for f in j2["fingerprints"]] == ["f1", "f2"] and r.approvals.joined_steps(ap_a["approval_id"]) == ["s_b"]
+      and "Hoa: b" in j2["action"], j2)
+r.approvals.decide(ap_a["approval_id"], "approve", by="owner", decision_key="sq1")
+check("store: join is refused once the request is decided",
+      r.approvals.join(ap_a["approval_id"], step_id="s_c", requested_by="x", who="X", action="c") is None)
 
 print()
 if fails:
