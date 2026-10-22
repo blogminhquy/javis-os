@@ -11683,8 +11683,14 @@ learn_feature = learn_mod.register(app, learn_mod.LearnDeps(
 import tasks as tasks_mod
 
 
-def _kanban_brains():
-    """Mọi brain cần dispatcher quét, gồm cả folder ngoài đã đăng ký với scheduler."""
+def _background_brains():
+    """Every brain a background scheduler must visit (Kanban dispatcher, reminders): each
+    folder in BRAINS_DIR plus the outside folders registered with the loop scheduler.
+
+    Reminders used to take `loop_feature.scheduler_brains` alone, which only knows the
+    default brain and brains where a loop was once created or toggled. A reminder in a brain
+    with no loop at all was therefore never visited and stayed "due" forever (field report
+    0.270, Code 3)."""
     values = []
     try:
         values.extend(
@@ -11700,6 +11706,20 @@ def _kanban_brains():
     return list(dict.fromkeys(values))
 
 
+def _register_outside_brain(brain: str) -> None:
+    """Remember a brain folder that lives OUTSIDE BRAINS_DIR so `_background_brains` keeps
+    visiting it after a restart. Folders inside BRAINS_DIR are listed anyway, so they are not
+    written to the loop scheduler's registry."""
+    try:
+        root = Path(_brain_root(brain)).resolve()
+        base = Path(BRAINS_DIR).resolve()
+        if root.parent == base and not root.name.startswith("."):
+            return
+        loop_feature.register_brain(str(root))
+    except Exception:
+        pass
+
+
 tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,
@@ -11710,7 +11730,7 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     aux_swap=_aux_swap,
     safe_tools=SAFE_FILE_TOOLS,
     state_dir=cfgmod.STATE_DIR,
-    scheduler_brains=_kanban_brains,
+    scheduler_brains=_background_brains,
     apply_mcp=_apply_mcp,
     mcp_allow_patterns=_loop_mcp_allow,
     report=_notify_owner,               # báo NGƯỜI YÊU CẦU task khi chạy xong (rỗng → Javis Core của brain việc)
@@ -11846,7 +11866,8 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     aux_swap=_aux_swap,
     safe_tools=SAFE_FILE_TOOLS,
     readonly_tools=READONLY_TOOLS,
-    scheduler_brains=loop_feature.scheduler_brains,
+    scheduler_brains=_background_brains,
+    register_brain=_register_outside_brain,
     apply_mcp=_apply_mcp,                 # nhắc mode 'task' ĐỌC được dữ liệu thật qua MCP
     mcp_allow_patterns=_loop_mcp_allow,
     make_voice=lambda brain, text: _voice_note_rel(brain, text),

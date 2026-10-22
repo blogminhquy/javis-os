@@ -304,6 +304,9 @@ class RemindersDeps:
     # async send_file(chat_id, abs_path, brain) -> (ok, err) for channels that need the file itself.
     make_voice: Optional[Callable] = None
     send_file: Optional[Callable] = None
+    # register_brain(brain): remember a brain that now holds a reminder so `scheduler_brains`
+    # keeps returning it (needed for folders outside BRAINS_DIR). None = nothing to register.
+    register_brain: Optional[Callable[[str], None]] = None
 
 
 class RemindersFeature:
@@ -441,6 +444,7 @@ class RemindersFeature:
             data["reminders"] = ([r for r in rems if r.get("status") == "pending"]
                                  + [r for r in rems if r.get("status") != "pending"])[:MAX_KEEP]
         self._save(brain, data)
+        self._register(brain)
         return rem
 
     def _view(self, r: dict) -> dict:
@@ -575,15 +579,38 @@ class RemindersFeature:
         self._save(to_brain, dst)
         src["reminders"] = [r for r in src.get("reminders", []) if r.get("id") != rid]
         self._save(from_brain, src)
+        self._register(to_brain)
         return {"ok": True}
+
+    def _register(self, brain: str) -> None:
+        if self.deps.register_brain:
+            try:
+                self.deps.register_brain(brain)
+            except Exception as e:
+                print(f"[reminders] register brain {brain}: {type(e).__name__}: {e}", file=sys.stderr)
+
+    def _tick_brains(self) -> list:
+        """The brains one tick visits, deduplicated by resolved root: "brain" and the default
+        brain's path name the same folder, and visiting it twice would read its store twice."""
+        try:
+            cands = list(self.deps.scheduler_brains() or []) + ["brain"]
+        except Exception:
+            cands = ["brain"]
+        out, seen = [], set()
+        for b in cands:
+            try:
+                root = str(Path(self.deps.brain_root(b)).resolve())
+            except Exception:
+                continue
+            if root in seen:
+                continue
+            seen.add(root)
+            out.append(b)
+        return out
 
     # ── scheduler gọi mỗi nhịp ──
     async def tick(self) -> None:
-        try:
-            brains = self.deps.scheduler_brains() or ["brain"]
-        except Exception:
-            brains = ["brain"]
-        for brain in brains:
+        for brain in self._tick_brains():
             try:
                 await self._tick_brain(brain)
             except Exception as e:
