@@ -119,7 +119,7 @@ def mechanics() -> List[dict]:
 # ============================================================
 _PUNCT = re.compile(r"[^\w@\s]", re.U)
 # Thẻ bọc dữ liệu chat: bắt cả biến thể có khoảng trắng, hoa thường, thiếu ngoặc đóng ("</chat_data >", "< /chat_data").
-_MARKERS = re.compile(r"\[IM_LANG\]|JAVIS_[A-Z_]+|<\s*/?\s*chat[_\s-]*data\b[^>\n]{0,40}>?", re.I)
+_MARKERS = re.compile(r"\[IM_LANG\]|\[BAO_CHU\]|JAVIS_[A-Z_]+|<\s*/?\s*chat[_\s-]*data\b[^>\n]{0,40}>?", re.I)
 _CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 # Ký tự hiện ra là KHÔNG CÓ GÌ: model đọc được, chủ xem hộp thư thì không thấy, nên người lạ giấu lệnh vào đó
 # (0.83.2, ý lấy từ the-security-guide của repo ECC). Gồm: zero-width, đánh dấu và ghi đè hướng chữ (đảo thứ tự chủ

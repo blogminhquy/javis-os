@@ -94,3 +94,16 @@ def nhin_nhu_cau_hoi(text: str) -> Tuple[bool, str]:
     if "?" in khong_link or "？" in khong_link or _HOI.search(chuan):
         return True, ""
     return False, "khong_phai_cau_hoi"
+
+
+def private_escalation(cfg: dict, meta: dict) -> bool:
+    """Is this a PRIVATE 1-1 turn where the bot may stay quiet and alert the owner on a hard question (0.280.0)?
+
+    Owner request 2026-10-22: "Tự đánh giá" used to judge group messages only, while a private chat always got an
+    answer, even a guessed one. In this mode a private chat now has a third outcome next to reply and [IM_LANG]: the
+    Agent writes [BAO_CHU], nothing is sent and the owner is told in the Javis bell. Same exact match on "auto" as
+    `can_danh_gia`: an odd value fails closed to the old behaviour.
+    """
+    meta = meta or {}
+    return (str(meta.get("chat_type") or "private") == "private"
+            and (cfg or {}).get("reply_when") == "auto")

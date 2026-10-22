@@ -49,8 +49,8 @@
       return '<div class="cb-err">' + ic("triangle-alert") + ' ' + esc(d.error || tt("try.err")) + '</div>';
     }
     var h = '<div class="cb-try-verdict ' + (d.would_reply ? "yes" : "no") + '">' +
-      ic(d.would_reply ? "message-circle" : "circle-stop") + ' <b>' +
-      esc(tt(d.would_reply ? "try.would_reply" : "try.would_silent")) + '</b></div>';
+      ic(d.would_reply ? "message-circle" : d.escalate ? "bell" : "circle-stop") + ' <b>' +
+      esc(tt(d.would_reply ? "try.would_reply" : d.escalate ? "try.would_escalate" : "try.would_silent")) + '</b></div>';
     var why = reasonOf(d);
     if (why && !d.would_reply) h += '<div class="cb-try-why">' + esc(tt("try.why", { why: why })) + '</div>';
     if (d.would_reply && d.text) {
