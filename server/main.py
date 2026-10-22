@@ -10367,9 +10367,10 @@ def _agent_chat_prompt(brain, slug, channel="dashboard") -> str:
     Cố ý KHÔNG nối CLAUDE.md, bộ nhớ của chủ hay khối kênh: người dùng đang muốn nói chuyện với
     "Người viết", không phải với Javis đội mũ Người viết.
 
-    `channel`: "dashboard" (the Partners page) or "cli" (POST /chat with `agent`). Only the closing
-    line that tells the agent where the owner is talking from changes; the CLI engine appends its
-    own channel block after this prompt.
+    `channel`: "dashboard" (the Partners page), "cli" (POST /chat with `agent`) or "telegram" (the
+    owner's bot, `@<agent>` or /agent). Only the closing line that tells the agent where the owner
+    is talking from changes; the CLI and Telegram engines append their own channel block after this
+    prompt.
     """
     if not (_agents_dir(brain) / f"{slug}.md").exists():
         raise FileNotFoundError(slug)
@@ -10381,6 +10382,7 @@ def _agent_chat_prompt(brain, slug, channel="dashboard") -> str:
         sysprompt = (sysprompt.replace(_AGENT_HAI_LOI, _AGENT_BA_LOI)
                      + "\n# Cộng hưởng (đang bật cho bạn)\n- " + _RESONANCE_GOAL_HINT + "\n")
     where = ("qua Javis CLI (terminal hoặc HTTP /chat)" if channel == "cli"
+             else "qua Telegram" if channel == "telegram"
              else "trên dashboard Javis (trang Cộng sự)")
     return (sysprompt + _agent_builder_block(brain)
             + f"\n\n# Kênh: bạn đang trò chuyện trực tiếp với chủ {where}. "
@@ -20596,6 +20598,18 @@ def _tg_save_brain_map() -> None:
         print(f"[tg brain map write] {type(e).__name__}: {e}", file=sys.stderr)
 
 
+def _agent_sess_key(chat_id, agent) -> str:
+    """Session key of one chat's turns with one agent: `<chat>@<slug>`, or the chat itself without an agent.
+
+    One session per agent, for the reason given at `_cli_turn`: sharing the plain session made the
+    first turn's prompt stick. Idempotent, because the CLI already sends the suffixed key."""
+    key = str(chat_id or "default")
+    slug = str((agent or {}).get("slug") or "")
+    if not slug or key.endswith("@" + slug):
+        return key
+    return f"{key}@{slug}"
+
+
 def _tg_session(chat_id):
     """Lấy (tạo nếu chưa có) phiên riêng của 1 chat_id. chat_id rỗng → gộp vào 'default'."""
     key = str(chat_id or "default")
@@ -20901,7 +20915,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         brain = bot["brain"]
         channel = f"bot:{bot.get('slug') or bot['id']}"
     else:
-        sess = _tg_session(chat_id)
+        # An agent turn gets its own RAM session and stored conversation (`<chat>@<slug>`, see
+        # `_agent_sess_key`), while `chat_id` stays the real chat: /stop, background results and
+        # the channel block keep pointing at the chat the owner is typing in.
+        sess = _tg_session(_agent_sess_key(chat_id, agent))
         # The session's own brain (changed with /brain), Settings by default. An agent turn runs in
         # EXACTLY the brain the agent was checked in, without a second lookup: a lookup that landed
         # elsewhere would put the agent's prompt in one brain and its files and memory in another.
@@ -21744,7 +21761,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     if _bot_full:
         sysprompt = _bot_full_prompt(brain, _sys_bot_full, _lang_qd, conv_sid)
     elif agent:
-        sysprompt = _cli_agent_prompt(brain, agent["slug"], conv_sid)
+        sysprompt = _cli_agent_prompt(brain, agent["slug"], conv_sid,
+                                      channel=("telegram" if channel == "telegram" else "cli"))
     try:
         if _bot_full or agent:
             raise _BoQua()   # selected sources swap the prompt for Javis's voice: not for a bot or an agent
@@ -22713,6 +22731,283 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
     return {"ask": f"[SKILL: {cmd}\n{dan}]\n\n" + (arg.strip() if arg else f"/{cmd}")}
 
 
+# ---- Talking to an agent (partner) from the owner's Telegram bot ----
+# Customer report 0.270 (Code 24): "@TEST-Thẩm định viên ..." over Telegram was answered by Javis,
+# and the partner's run log had no turn; the only command was /agents, which just lists them.
+# Now, in the OWNER's bot and only in a chat on its whitelist:
+#   - a message that starts with `@<agent name or slug>` is one turn of that agent;
+#   - `/agent <name>` makes that agent answer every message of the chat, `/agent off` goes back to Javis;
+#   - `@javis ...` asks Javis one question while an agent is picked.
+# The turn itself is the CLI agent turn (`_tg_answer(..., agent=...)`, from #744): agent prompt, model,
+# own session, lessons, rules and run log. Customer-facing bot accounts (chatbot_runtime) have their own
+# answer and command functions, so none of this is reachable from them.
+_TG_AGENT_PATH = cfgmod.STATE_DIR / "tg_agent.json"
+
+
+def _tg_load_agent_map() -> dict:
+    try:
+        if _TG_AGENT_PATH.exists():
+            d = json.loads(_TG_AGENT_PATH.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                return {str(k): v for k, v in d.items()
+                        if isinstance(v, dict) and v.get("slug") and v.get("brain")}
+    except Exception:
+        pass
+    return {}
+
+
+_TG_AGENT_MAP = _tg_load_agent_map()   # chat -> {"brain": brain root, "slug": agent slug}
+
+
+def _tg_save_agent_map() -> None:
+    try:
+        _atomic_write_text(_TG_AGENT_PATH, json.dumps(_TG_AGENT_MAP, ensure_ascii=False, indent=2))
+    except Exception as e:
+        print(f"[tg agent map write] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+
+
+def _agent_name_key(s) -> str:
+    """Comparison key of an agent name or slug: no case, no diacritics, and `-`, `_` and spaces all
+    alike, so "TEST-Thẩm định viên" and its slug `test-tham-dinh-vien` give the same key."""
+    return re.sub(r"[\s_\-]+", " ", _fold_accents(str(s or ""))).strip()
+
+
+# What `@...` or `/agent ...` call Javis itself (the main assistant, not an agent of the brain).
+_TG_JAVIS_KEYS = frozenset({"javis", _agent_name_key(javis_core.NAME), _agent_name_key(javis_core.SLUG)})
+_TG_AGENT_OFF = frozenset({"off", "tat", "huy", "none", "stop"}) | _TG_JAVIS_KEYS
+
+
+def _tg_agent_rows(brain_root) -> list:
+    """[{"slug", "name"}] of the brain's agents. `slug` is the REAL file stem (see `_cli_agent`)."""
+    out = []
+    try:
+        for f in sorted(_agents_dir(brain_root).glob("*.md")):
+            if javis_core.is_core_slug(f.stem):
+                continue
+            try:
+                meta, _ = _read_md(f)
+            except Exception:
+                meta = {}
+            out.append({"slug": f.stem, "name": str((meta or {}).get("name") or f.stem)})
+    except Exception as e:
+        print(f"[tg agents] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+    return out
+
+
+def _tg_agent_find(rows, query) -> list:
+    """Agents whose name or slug is exactly `query` (case and diacritics insensitive). No partial
+    match: two partners with similar names must never be swapped by a guess."""
+    k = _agent_name_key(query)
+    if not k:
+        return []
+    return [r for r in rows if k in (_agent_name_key(r["slug"]), _agent_name_key(r["name"]))]
+
+
+_TG_MENTION_WORDS = 8   # longest agent name, in words, that a mention is tried against
+
+
+def _tg_agent_mention(text, rows, bot_username=""):
+    """Read a leading `@<agent>` mention. Returns (kind, hits, rest):
+
+    kind "" (no mention: `rest` is the text unchanged), "agent" (one agent, `hits[0]`), "javis",
+    "ambiguous" (several agents share that name, `hits`) or "unknown". Names have spaces, so the
+    LONGEST run of words that names an agent wins ("@Writer Pro ..." picks "Writer Pro" over
+    "Writer"). A leading mention of the bot itself (`@my_bot`, as in a group) is skipped first.
+    """
+    s = str(text or "")
+    st = s.lstrip()
+    if bot_username:
+        m = re.match(r"@" + re.escape(str(bot_username)) + r"(?![A-Za-z0-9_])[\s,:]*", st, re.I)
+        if m:
+            st = st[m.end():]
+    if len(st) < 2 or st[0] != "@" or not st[1].isalnum():
+        return "", [], s
+    body = st[1:]
+    words = list(re.finditer(r"\S+", body))[:_TG_MENTION_WORDS]
+    for n in range(len(words), 0, -1):
+        end = words[n - 1].end()
+        key = _agent_name_key(body[:end].rstrip(",.:;!?"))
+        hits = [r for r in rows if key in (_agent_name_key(r["slug"]), _agent_name_key(r["name"]))]
+        if hits or key in _TG_JAVIS_KEYS:
+            rest = re.sub(r"^[\s,:;]*(?:-\s+)?", "", body[end:])
+            if not hits:
+                return "javis", [], rest
+            return ("agent" if len(hits) == 1 else "ambiguous"), hits, rest
+    return "unknown", [], s
+
+
+def _tg_owner_chat(chat) -> bool:
+    """A chat on the owner bot's whitelist. An empty whitelist answers anyone, so it allows no agent."""
+    ids = tg_parse_ids((cfgmod.read_settings().get("telegram") or {}).get("chat_id", ""))
+    return bool(chat) and str(chat) in ids
+
+
+def _tg_agent_list_text(rows, head="") -> str:
+    lines = [f"• {r['name']}" + (f" ({r['slug']})" if _agent_name_key(r["name"]) != _agent_name_key(r["slug"]) else "")
+             for r in rows[:30]]
+    return ((head + "\n\n") if head else "") + "\n".join(lines) + "\n\n" + localefmt.chu(
+        "Gõ @<tên> <câu hỏi> để hỏi một câu, hoặc /agent <tên> để cộng sự đó trả lời cả chat (/agent off để về Javis).",
+        "Type @<name> <question> to ask once, or /agent <name> to let that partner answer the whole chat "
+        "(/agent off to go back to Javis).")
+
+
+def _tg_agent_pinned(chat, root, rows):
+    """(row, notice) of the agent picked with /agent for this chat. A pick whose brain changed (/brain)
+    or whose agent is gone is dropped, with a notice saying Javis answers again."""
+    pin = _TG_AGENT_MAP.get(str(chat))
+    if not pin:
+        return None, ""
+    hit = next((r for r in rows if r["slug"] == pin.get("slug")), None)
+    if hit and str(pin.get("brain")) == str(root):
+        return hit, ""
+    _TG_AGENT_MAP.pop(str(chat), None)
+    _tg_save_agent_map()
+    return None, localefmt.chu(
+        f"(Cộng sự '{pin.get('slug')}' đã chọn không còn trong brain này, Javis trả lời lại từ đây.)",
+        f"(The partner '{pin.get('slug')}' picked earlier is not in this brain any more, Javis answers from here.)")
+
+
+def _tg_agent_route(chat, text, bot_username="") -> dict:
+    """Who answers this owner message: {"agent": {"brain", "slug", "name"} | None, "text": what the
+    turn receives, "reply": a direct answer instead of a turn | None, "notice": a line to prepend}."""
+    out = {"agent": None, "text": text, "reply": None, "notice": ""}
+    key = str(chat or "")
+    if not _tg_owner_chat(key):
+        return out
+    root = _brain_root(_tg_brain(key))
+    rows = _tg_agent_rows(root)
+    if not rows:
+        return out   # nothing to pick: an `@someone` message is just a message to Javis
+    kind, hits, rest = _tg_agent_mention(text, rows, bot_username)
+    if kind == "javis":
+        out["text"] = rest or text
+        return out
+    if kind == "unknown":
+        out["reply"] = _tg_agent_list_text(rows, localefmt.chu(
+            "Không thấy cộng sự nào tên như vậy trong brain này. Có:",
+            "No partner by that name in this brain. There are:"))
+        return out
+    if kind == "ambiguous":
+        out["reply"] = _tg_agent_list_text(hits, localefmt.chu(
+            "Có nhiều cộng sự trùng tên này, gọi bằng mã (slug) cho chắc:",
+            "Several partners share that name, call one by its slug:"))
+        return out
+    if kind == "agent":
+        if not rest.strip():
+            out["reply"] = localefmt.chu(
+                f"Viết câu hỏi ngay sau tên, ví dụ: @{hits[0]['name']} <câu hỏi>. "
+                f"Muốn {hits[0]['name']} trả lời cả chat thì gõ /agent {hits[0]['slug']}.",
+                f"Write the question right after the name, e.g. @{hits[0]['name']} <question>. "
+                f"To let {hits[0]['name']} answer the whole chat, type /agent {hits[0]['slug']}.")
+            return out
+        out["agent"] = {"brain": root, **hits[0]}
+        out["text"] = rest
+        return out
+    row, out["notice"] = _tg_agent_pinned(key, root, rows)
+    if row:
+        out["agent"] = {"brain": root, **row}
+    return out
+
+
+def _tg_owner_precheck(text, meta):
+    """Owner bot precheck: a mention that names no agent, or several, is answered with the list
+    BEFORE a turn starts (no "Javis is working" message, no turn spent on a guess)."""
+    m = meta or {}
+    r = _tg_agent_route(m.get("chat_id"), text, m.get("bot_username") or "")
+    return {"reply": r["reply"]} if r["reply"] else None
+
+
+async def _tg_owner_answer(text, meta=None, progress=None):
+    """Answer function of the OWNER's Telegram bot: `_tg_answer`, routed to an agent when asked."""
+    m = meta or {}
+    chat = str(m.get("chat_id") or "")
+    r = _tg_agent_route(chat, text, m.get("bot_username") or "")
+    if r["reply"]:
+        return {"text": r["reply"], "files": []}
+    ag = r["agent"]
+    if not ag:
+        out = await _tg_answer(r["text"], meta, progress)
+    else:
+        out = await _tg_answer(r["text"], meta, progress, agent={"brain": ag["brain"], "slug": ag["slug"]})
+        try:
+            # The agent turn ran in its own session: /retry reads the chat's, and must resend the
+            # message as written (mention included) so it reaches the same agent again.
+            _tg_session(chat)["last"] = text
+        except Exception:
+            pass
+    if isinstance(out, dict):
+        head = "\n\n".join(x for x in (r["notice"], f"🤝 {ag['name']}" if ag else "") if x)
+        if head:
+            out["text"] = head + "\n\n" + (out.get("text") or "")
+    elif r["notice"]:
+        out = r["notice"] + "\n\n" + str(out or "")
+    return out
+
+
+async def _tg_owner_command(cmd, arg, chat=None, meta=None):
+    """Command function of the OWNER's Telegram bot: `_tg_command` plus /agent. Kept out of
+    `_tg_command` because the owner's Zalo bot and owner channels share it and have no agent routing."""
+    chat_key = str(chat or "default")
+    if cmd == "agent":
+        if not _tg_owner_chat(chat_key):
+            return {"reply": localefmt.chu(
+                "Chỉ chat nằm trong danh sách cho phép của bot (trang Kênh) mới chọn được cộng sự.",
+                "Only a chat on the bot's allow list (Channels page) can pick a partner.")}
+        root = _brain_root(_tg_brain(chat_key))
+        rows = _tg_agent_rows(root)
+        a = arg.strip()
+        if a and _agent_name_key(a) in _TG_AGENT_OFF:
+            had = _TG_AGENT_MAP.pop(chat_key, None)
+            if had:
+                _tg_save_agent_map()
+            return {"reply": localefmt.chu("Javis trả lời chat này như thường.",
+                                           "Javis answers this chat as usual.")}
+        if not rows:
+            return {"reply": localefmt.chu("Brain này chưa có cộng sự nào (tạo ở trang Cộng sự trên dashboard).",
+                                           "This brain has no partner yet (create one on the Partners page).")}
+        if not a:
+            cur, notice = _tg_agent_pinned(chat_key, root, rows)
+            head = (localefmt.chu(f"Đang trả lời chat này: {cur['name']}.", f"Answering this chat: {cur['name']}.")
+                    if cur else localefmt.chu("Đang trả lời chat này: Javis.", "Answering this chat: Javis."))
+            return {"reply": _tg_agent_list_text(rows, "\n".join(x for x in (notice, head) if x))}
+        hits = _tg_agent_find(rows, a)
+        if len(hits) != 1:
+            return {"reply": _tg_agent_list_text(hits or rows, localefmt.chu(
+                "Có nhiều cộng sự trùng tên này, chọn bằng mã (slug):" if hits
+                else f"Không thấy cộng sự '{a}' trong brain này. Có:",
+                "Several partners share that name, pick one by its slug:" if hits
+                else f"No partner '{a}' in this brain. There are:"))}
+        _TG_AGENT_MAP[chat_key] = {"brain": str(root), "slug": hits[0]["slug"]}
+        _tg_save_agent_map()
+        name = hits[0]["name"]
+        return {"reply": localefmt.chu(
+            f"🤝 Từ giờ {name} trả lời chat này. Gõ @javis <câu hỏi> để hỏi Javis một câu, /agent off để về Javis.",
+            f"🤝 {name} answers this chat from now on. Type @javis <question> to ask Javis once, /agent off to go back.")}
+    res = await _tg_command(cmd, arg, chat, meta)
+    if cmd in ("reset", "new", "clear"):
+        # The chat's agent conversations live in their own sessions (`_agent_sess_key`): /reset
+        # starts those over too, not only Javis's.
+        pre = chat_key + "@"
+        for k in {k for k in list(_TG_SESS) + list(_TG_SID_MAP) if str(k).startswith(pre)}:
+            s = _tg_session(k)
+            _tg_ngat_mach(s)
+            s["or"] = None
+            s["last"] = None
+            s["sid"] = None
+            _tg_quen_sid(s)
+    elif cmd in ("agents", "help", "menu", "start") and isinstance(res, dict) and "reply" in res:
+        res["reply"] += "\n\n" + localefmt.chu(
+            "/agent <tên> - chọn cộng sự trả lời chat này (/agent off: về Javis) · @<tên> <câu hỏi> - hỏi cộng sự một câu",
+            "/agent <name> - pick the partner that answers this chat (/agent off: back to Javis) · "
+            "@<name> <question> - ask a partner once")
+    elif cmd == "status" and isinstance(res, dict) and "reply" in res:
+        pin = _TG_AGENT_MAP.get(chat_key)
+        if pin:
+            res["reply"] += "\n" + localefmt.chu(f"Cộng sự: {pin.get('slug')} (/agent off để về Javis)",
+                                                 f"Partner: {pin.get('slug')} (/agent off to go back to Javis)")
+    return res
+
+
 def _tg_inbox_dir(chat=None):
     """Nơi lưu file user gửi lên Telegram - đặt trong brain CỦA PHIÊN người gửi
     (đổi bằng /brain; chưa đổi thì brain mặc định) để agent đọc được ngay."""
@@ -23114,8 +23409,9 @@ def restart_telegram():
         _TG_BOT = None
     _TG_SESS.clear()   # xoá mọi phiên hội thoại cũ khi khởi động lại bot
     if t.get("enabled") and t.get("token"):
-        _TG_BOT = TelegramBot(t["token"], t.get("chat_id", ""), _tg_answer, _tg_command, _tg_callback,
-                              download_dir=_tg_inbox_dir, stt_fn=_stt_nghe)
+        # `_tg_owner_*`: the shared turn and commands, plus talking to an agent (`@<agent>`, /agent).
+        _TG_BOT = TelegramBot(t["token"], t.get("chat_id", ""), _tg_owner_answer, _tg_owner_command, _tg_callback,
+                              download_dir=_tg_inbox_dir, stt_fn=_stt_nghe, precheck_fn=_tg_owner_precheck)
         _TG_BOT.start()
         return True
     return False
@@ -23644,13 +23940,15 @@ def _cli_project(brain: str, session: str, project: str, agent=None):
     return "", localefmt.chu(f"Brain này không có project '{want}'", f"This brain has no project '{want}'")
 
 
-def _cli_agent_prompt(brain, slug, conv_sid="") -> str:
+def _cli_agent_prompt(brain, slug, conv_sid="", channel="cli") -> str:
     """The agent's system prompt for a CLI turn: the very prompt of an agent chat on the dashboard
     (`_agent_turn_system_prompt`: role, file body, skills, own memory, the Resonance swap, the
     builder block, the session block, recent feedback and the agent's learned lessons), with the
     closing channel line naming the CLI instead of the Partners page. Like the dashboard, no
-    CLAUDE.md and no owner memory; the CLI channel block is appended by the engine."""
-    return _agent_turn_system_prompt(brain, slug, conv_sid, channel="cli")
+    CLAUDE.md and no owner memory; the CLI channel block is appended by the engine.
+
+    The owner's Telegram bot reuses it with `channel="telegram"` (see `_tg_owner_answer`)."""
+    return _agent_turn_system_prompt(brain, slug, conv_sid, channel=channel)
 
 
 async def _cli_turn(message: str, brain: str, session: str, host: str, progress=None, agent=None,
