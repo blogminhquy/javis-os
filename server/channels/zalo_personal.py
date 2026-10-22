@@ -327,6 +327,12 @@ async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=
         return False, str(e)[:300]
     if isinstance(d, dict) and d.get("success") is False:
         return False, str(d.get("error") or d.get("message") or localefmt.chu("Zalo từ chối", "Zalo refused"))[:300]
+    # javis-zalo returns the id Zalo gave the message. "success" without one means Zalo never confirmed it (0.283.0,
+    # 22/10/2026: replies in the bot history that never reached the customer): report a failure, so the inbox marks the
+    # reply as not sent instead of showing it as delivered.
+    if isinstance(d, dict) and d.get("success") is True and "messageId" in d and not d.get("messageId"):
+        return False, localefmt.chu("Zalo không xác nhận đã nhận tin (không có mã tin)",
+                                    "Zalo did not confirm the message (no message id)")
     return True, ""
 
 
@@ -429,6 +435,15 @@ class Transport:
                 elif tt.get("loi"):
                     self.status = "error"
                     self.last_error = str(tt["loi"])
+                elif zc.evicted_recently(self.conn_id):
+                    # 0.283.0: reading answers, but another session of the account holds the live socket, so the bot
+                    # hears only seconds after each reconnect. Green here hid three hours of missed tags (22/10/2026).
+                    self.status = "error"
+                    self.last_error = localefmt.chu(
+                        "Một phiên khác của cùng nick đang giành kết nối Zalo, bot lỡ phần lớn tin. Đóng Zalo Web của "
+                        "nick này và các Javis hay Claude khác dùng cùng nick.",
+                        "Another session of this account keeps taking the Zalo connection, so the bot misses most "
+                        "messages. Close Zalo Web for this account and any other Javis or Claude client using it.")
                 elif tt.get("lan_cuoi"):
                     self.status = "polling"
                     self.last_error = ""

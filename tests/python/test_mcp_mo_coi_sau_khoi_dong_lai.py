@@ -87,7 +87,8 @@ async def chay():
     pid3 = s3.proc.pid
     song = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     so = mcp_orphans._load()
-    so["zalo-c"].update(owner="server-khac", server_pid=song.pid)
+    # A real other server records its own start time (0.282.0: a live pid whose start time differs is a reused pid).
+    so["zalo-c"].update(owner="server-khac", server_pid=song.pid, server_start=mcp_orphans._proc_start(song.pid))
     mcp_orphans._save(so)
     mcp_orphans._reset_for_tests()
     da_don = await asyncio.to_thread(mcp_orphans.reap_all)

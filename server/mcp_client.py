@@ -326,6 +326,17 @@ class McpStdioSession:
     def alive(self):
         return self.proc is not None and self.proc.returncode is None
 
+    def single_socket_home(self) -> str:
+        """The isolated HOME of a Zalo `mcp start` session ("" for every other server): one account, one socket."""
+        home = str(self.env.get("HOME") or "")
+        words = [str(a) for a in self.args]
+        if not home or "zalo" not in " ".join(words).lower():
+            return ""
+        return home if any(words[i] == "mcp" and words[i + 1] == "start" for i in range(len(words) - 1)) else ""
+
+    def stderr_lines(self) -> list:
+        return list(self._stderr)
+
     # asyncio mặc định trần StreamReader 64KB MỖI DÒNG - tools/list của workspace-mcp là MỘT
     # dòng NDJSON vài trăm KB nên readline() nổ LimitOverrun (đội lốt ValueError). Nới hẳn 16MB.
     _STREAM_LIMIT = 16 * 1024 * 1024
@@ -340,6 +351,13 @@ class McpStdioSession:
             await asyncio.to_thread(mcp_orphans.reap_all)
         except Exception as e:      # noqa: BLE001 - cleanup must never block a session
             print(f"[mcp orphans] {type(e).__name__}: {e}", file=sys.stderr)
+        # A Zalo account allows ONE live socket: any other `mcp start` on this connection's own HOME, from whatever
+        # lifetime, would evict the one we are about to start (0.283.0, see mcp_orphans.reap_same_home).
+        if self.single_socket_home():
+            try:
+                await asyncio.to_thread(mcp_orphans.reap_same_home, self.single_socket_home())
+            except Exception as e:      # noqa: BLE001
+                print(f"[mcp orphans] {type(e).__name__}: {e}", file=sys.stderr)
         kwargs = {}
         if os.name == "nt":
             kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -636,6 +654,16 @@ class SessionPool:
             self._sessions[key] = ent
         ent["last"] = time.time()
         return key, ent["obj"]
+
+    def stderr_lines(self, key) -> list:
+        """The last stderr lines of the live stdio session under `key` ([] when none)."""
+        fn = getattr((self._sessions.get(key) or {}).get("obj"), "stderr_lines", None)
+        return list(fn()) if callable(fn) else []
+
+    def session_pid(self, key) -> int:
+        """Pid (= process group, POSIX) of the live stdio session under `key`, 0 when none."""
+        proc = getattr((self._sessions.get(key) or {}).get("obj"), "proc", None)
+        return int(getattr(proc, "pid", 0) or 0) if proc is not None and proc.returncode is None else 0
 
     def epoch(self, spec) -> int:
         """Số hiệu của phiên MCP đang sống cho spec này, 0 nếu chưa có phiên nào.

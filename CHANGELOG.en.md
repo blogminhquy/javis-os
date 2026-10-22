@@ -9,11 +9,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
 ## [0.282.0] - 2026-10-22
+### Fixed
+- **A Zalo bot no longer goes "deaf" while another session of the same account runs.** After today's update, a leftover old Zalo copy kept taking the connection, so the bot only heard messages for a few seconds after each reconnect and missed tags and private messages. Javis now stops old Zalo copies on the machine, the bot card turns red, and the bell tells you when the other session is elsewhere (Zalo Web, another Javis).
+- **A bot reply Zalo did not accept now shows as a send error,** instead of looking sent while the customer saw nothing. Zalo MCP 1.6.1 also sends through the new session after every reconnect.
 ### Added
-- **The bot reads the Zalo tags of a chat.** The tags you set in the Zalo app (Family, Friends, Work, Customer...) now come with every message, so the bot knows who it is talking to. Your mother writing "get me 2 bottles of fish sauce" is no longer taken for a customer order.
-- **Personal Zalo bots get "Never answer chats with these Zalo tags".** Tick tags (listed straight from Zalo) or type one: in a chat carrying such a tag the bot stays completely silent, and messages still reach the Inbox. A chat you gave its own exception follows that exception.
-- A tag changed in Zalo reaches the bot within about a minute. This needs the new Zalo MCP (javis-zalo 1.6.0); Javis switches to it on update.
-- **Personal Zalo bots decide to send several short messages.** An answer with two or more points (a price, then a suggestion) can go out as up to 4 separate messages, a moment apart like a person typing, instead of one long hard-to-read block. A one-point answer stays one message.
+- **The bot reads the Zalo tags of a chat** (Family, Friends, Work, Customer...), so it knows who it is talking to. Personal Zalo bots get **"Never answer chats with these Zalo tags"**: tick tags listed from Zalo or type one, and the bot stays silent in those chats.
+- **Personal Zalo bots decide to send several short messages** (up to 4) when an answer has two or more points, instead of one long hard-to-read block.
 
 ## [0.281.0] - 2026-10-22
 ### Improved

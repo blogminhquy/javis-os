@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -42,6 +43,23 @@ _reaped = False
 # This server lifetime. A pid alone cannot tell lifetimes apart: in Docker the server is often pid 7
 # every time.
 _OWNER = uuid.uuid4().hex
+
+
+def _proc_start(pid: int) -> str:
+    """When `pid` started, as the kernel counts it (clock ticks since boot, /proc/<pid>/stat field 22);
+    "" where /proc is missing. Two processes that share a pid never share this value."""
+    try:
+        stat = Path(f"/proc/{int(pid)}/stat").read_text(encoding="utf-8", errors="replace")
+        return stat.rsplit(")", 1)[1].split()[19]
+    except (OSError, IndexError, ValueError):
+        return ""
+
+
+# Start time of this server process (0.283.0). A recorded owner pid that is alive is only the same server when its
+# start time matches: after a restart the old server's pid is often handed to another process (a container hands out
+# small pids again), and the old reaper then read "its server still runs" and left the survivor alive. Field report
+# 22/10/2026 (Javis Vũ): after an update, an old `mcp start` kept evicting the new one every few minutes.
+_SERVER_START = _proc_start(os.getpid())
 
 
 def _path() -> Path:
@@ -78,7 +96,8 @@ def record(key: str, pid: int, args: List[str]) -> None:
     with _lock:
         data = _load()
         data[str(key)] = {"pid": int(pid), "args": [str(a) for a in (args or [])],
-                          "server_pid": os.getpid(), "owner": _OWNER, "ts": time.time()}
+                          "server_pid": os.getpid(), "server_start": _SERVER_START, "owner": _OWNER,
+                          "ts": time.time()}
         _save(data)
 
 
@@ -92,6 +111,21 @@ def forget(key: str, pid: int) -> None:
         if ent and int(ent.get("pid") or 0) == int(pid or 0):
             data.pop(str(key), None)
             _save(data)
+
+
+def _markers(args: List[str]) -> List[str]:
+    """Every string whose presence in a command line marks the process as ours: `_marker`, plus the package name of a
+    tarball URL (`.../javis-zalo/tar.gz/...` -> "/javis-zalo/"). npx runs the package as `node .../javis-zalo/...`, so
+    once its `npm exec` launcher is gone the URL is in no command line of the group (0.283.0)."""
+    out = []
+    m = _marker(args)
+    if m:
+        out.append(m)
+    for a in args or []:
+        mm = re.match(r"https?://codeload\.github\.com/[^/]+/([^/]+)/tar\.gz/", str(a))
+        if mm and len(mm.group(1)) >= 4:
+            out.append("/" + mm.group(1) + "/")
+    return out
 
 
 def _marker(args: List[str]) -> str:
@@ -193,14 +227,97 @@ def _cmdline_windows(pid: int) -> str:
 def still_ours(ent: dict) -> bool:
     """Is the recorded process (or, on POSIX, any member of its group) still running OUR command?"""
     pid = int(ent.get("pid") or 0)
-    marker = _marker(ent.get("args") or [])
-    if pid <= 0 or not marker:
+    marks = _markers(ent.get("args") or [])
+    if pid <= 0 or not marks:
         return False
     if os.name == "nt":
-        return marker in _cmdline_windows(pid)
+        line = _cmdline_windows(pid)
+        return any(m in line for m in marks)
     if pid == os.getpgid(0):
         return False      # never our own server's group
-    return any(marker in _cmdline_posix(m) for m in _group_members_posix(pid))
+    return any(m in _cmdline_posix(p) for p in _group_members_posix(pid) for m in marks)
+
+
+def owner_alive(ent: dict) -> bool:
+    """The server that recorded `ent` still runs: its pid is alive AND, where both start times are known, it is the same
+    process (not a newer one that got the pid again)."""
+    spid = int(ent.get("server_pid") or 0)
+    if spid <= 0 or spid == os.getpid() or not pid_alive(spid):
+        return False
+    rec = str(ent.get("server_start") or "")
+    if rec:
+        now = _proc_start(spid)
+        if now and now != rec:
+            return False
+    return True
+
+
+def _environ_home(pid: int) -> str:
+    try:
+        raw = Path(f"/proc/{int(pid)}/environ").read_bytes()
+    except OSError:
+        return ""
+    for kv in raw.split(b"\0"):
+        if kv.startswith(b"HOME="):
+            return kv[5:].decode("utf-8", "replace")
+    return ""
+
+
+def _same_dir(a: str, b: str) -> bool:
+    try:
+        return os.path.realpath(a) == os.path.realpath(b)
+    except (OSError, ValueError):
+        return a == b
+
+
+def reap_same_home(home: str, keep_pgids=()) -> List[int]:
+    """Kill every `... zalo ... mcp start` process (and its group) running with HOME = `home`, except the groups in
+    `keep_pgids` and our own server's. Linux only (needs /proc); returns the process groups killed.
+
+    Zalo keeps ONE live web socket per account. A connection with an isolated HOME (catalog `isolate_home`) is that
+    account, so a second `mcp start` on the same HOME, whoever started it (an earlier server lifetime the ledger
+    missed, a crashed update, a copy started by hand), evicts ours: the listener backs off up to five minutes and the
+    bot only hears messages in the few seconds after each re-login (field report 22/10/2026). Plain CLI commands on
+    the same HOME (`msg send-image`, `friend accept`, `login`) are never touched: they do not run `mcp start`."""
+    if os.name == "nt" or not home or not Path("/proc").is_dir():
+        return []
+    try:
+        own = os.getpgid(0)
+    except OSError:
+        return []
+    keep = {int(x) for x in keep_pgids if x}
+    groups = set()
+    for d in Path("/proc").iterdir():
+        if not d.name.isdigit():
+            continue
+        pid = int(d.name)
+        if pid == os.getpid():
+            continue
+        line = _cmdline_posix(pid)
+        words = line.split()
+        if "zalo" not in line.lower() or not any(words[i] == "mcp" and words[i + 1] == "start"
+                                                  for i in range(len(words) - 1)):
+            continue
+        h = _environ_home(pid)
+        if not h or not _same_dir(h, home):
+            continue
+        try:
+            pg = os.getpgid(pid)
+        except OSError:
+            continue
+        if pg == own or pg in keep:
+            continue
+        groups.add(pg)
+    killed = []
+    for pg in sorted(groups):
+        try:
+            if winproc.kill_tree(pg):
+                killed.append(pg)
+                print(f"[mcp orphans] killed a second Zalo `mcp start` on {home} (process group {pg})",
+                      file=sys.stderr)
+        except Exception as e:      # noqa: BLE001
+            print(f"[mcp orphans] {home}: {type(e).__name__}: {e}", file=sys.stderr)
+    return killed
 
 
 def reap_all() -> List[str]:
@@ -217,8 +334,7 @@ def reap_all() -> List[str]:
             v = v if isinstance(v, dict) else {}
             if v.get("owner") == _OWNER:
                 continue                          # recorded by this very server
-            spid = int(v.get("server_pid") or 0)
-            if v.get("owner") and spid != os.getpid() and pid_alive(spid):
+            if v.get("owner") and owner_alive(v):
                 continue                          # its server still runs: not an orphan
             old[k] = data.pop(k)
         _save(data)

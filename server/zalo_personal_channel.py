@@ -792,6 +792,7 @@ async def _vong() -> None:
                         print(f"[zalo-personal {conn.get('label')}] {tt['loi']}", file=sys.stderr)
                     else:
                         _nhan_loi_moi(conn)
+                    _soi_tranh_phien(conn)
                     # Hạn sớm hơn một nhịp chút ít: vòng ngủ đúng một nhịp thì lần thức sau chắc chắn đã tới hạn.
                     tt["doc_toi"] = luc + _nhip_cua(conn["id"]) * 0.9
         except asyncio.CancelledError:
@@ -803,6 +804,84 @@ async def _vong() -> None:
         except asyncio.CancelledError:
             raise
     print("[zalo-personal] vòng đọc dừng", file=sys.stderr)
+
+
+# ============================================================
+# Another session evicting ours (0.283.0)
+# ============================================================
+# Zalo keeps ONE live socket per account. When a second session of the same account is up (an `mcp start` an earlier
+# server lifetime left behind, Zalo Web of this nick in a browser, another Javis or Claude client), ours is evicted
+# right after every re-login and javis-zalo backs off up to five minutes. Reading still "works" (the buffer answers),
+# so the bot card stayed green while the bot heard only the few seconds after each reconnect (field report
+# 22/10/2026, Javis Vũ: three hours of tags in two groups unanswered). javis-zalo prints each close as
+# "Connection closed (code: N). Re-login in Ss... (reconnect #R, rapid #K)"; K counts closes that came before the
+# connection was stable, so K >= THRASH_RAPID means a rival.
+THRASH_RAPID = 3
+THRASH_SHOW_S = 900          # the bot card says "evicted" this long after the last rapid close
+THRASH_BELL_GAP_S = 6 * 3600
+_THRASH_RE = re.compile(r"reconnect #(\d+), rapid #(\d+)")
+_THRASH_SEEN: Dict[str, tuple] = {}      # conn_id -> (session pid, last reconnect number handled)
+
+
+def thrash_of(lines: List[str]) -> Optional[tuple]:
+    """(reconnect number, rapid count) of the latest close line in a javis-zalo stderr tail, None when there is none."""
+    for line in reversed(lines or []):
+        m = _THRASH_RE.search(str(line))
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    return None
+
+
+def _soi_tranh_phien(conn: dict) -> None:
+    """After each read: a new rapid close in this connection's MCP log means another session holds the account. Kill
+    any other `mcp start` on the same HOME (this machine), mark the bot card, ring the owner (once per 6 hours)."""
+    try:
+        import mcp_client
+        import mcp_orphans
+        cid = str(conn.get("id") or "")
+        pid = mcp_client.pool.session_pid(cid)
+        th = thrash_of(mcp_client.pool.stderr_lines(cid)) if pid else None
+        if not th:
+            return
+        seen_pid, seen_n = _THRASH_SEEN.get(cid, (0, 0))
+        if (pid, th[0]) == (seen_pid, seen_n) or (pid == seen_pid and th[0] < seen_n):
+            return
+        _THRASH_SEEN[cid] = (pid, th[0])
+        if th[1] < THRASH_RAPID:
+            return
+        tt = _TT.setdefault(cid, {})
+        tt["tranh_phien"] = time.time()
+        home = str(((conn.get("env") or {}).get("HOME")) or "")
+        killed = mcp_orphans.reap_same_home(home, keep_pgids=(pid,)) if home else []
+        print(f"[zalo-personal {conn.get('label')}] another session keeps evicting this one "
+              f"(reconnect #{th[0]}, rapid #{th[1]}); killed {len(killed)} local copy(ies)", file=sys.stderr)
+        if NOTIFY_OWNER is None or time.time() - float(tt.get("tranh_phien_bao") or 0) < THRASH_BELL_GAP_S:
+            return
+        tt["tranh_phien_bao"] = time.time()
+        tk = conn.get("label") or "Zalo"
+        don = (localefmt.chu(f" Javis đã tắt {len(killed)} bản Zalo cũ còn chạy trên máy này.",
+                             f" Javis stopped {len(killed)} old Zalo copy(ies) still running on this machine.")
+               if killed else "")
+        cau = localefmt.chu(
+            f"Zalo ({tk}) đang bị một phiên khác của cùng nick giành kết nối: bot chỉ nghe được tin vài giây sau mỗi lần "
+            f"nối lại, tin tag và tin nhắn riêng ở giữa bị lỡ.{don} Nếu vẫn tiếp diễn: đóng Zalo Web (chat.zalo.me) của "
+            "nick này trên mọi trình duyệt, tắt Javis hoặc Claude khác đang dùng cùng nick, rồi bấm Kiểm tra ở trang "
+            "Kết nối.",
+            f"Zalo ({tk}) is being evicted by another session of the same account: the bot only hears messages for a few "
+            f"seconds after each reconnect, and tags and private messages in between are missed.{don} If it goes on: "
+            "close Zalo Web (chat.zalo.me) for this account in every browser, stop any other Javis or Claude client "
+            "using it, then click Check on the Connections page.")
+        loop = asyncio.get_running_loop()
+        t = loop.create_task(NOTIFY_OWNER("", cau, kind="system", label="Zalo", source="zalo"))
+        _VIEC.add(t)
+        t.add_done_callback(_VIEC.discard)
+    except Exception as e:      # noqa: BLE001 - the watch must never cost a read
+        print(f"[zalo-personal {conn.get('label')}] thrash watch: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def evicted_recently(conn_id: str) -> bool:
+    """Another session evicted this connection within `THRASH_SHOW_S` (see `_soi_tranh_phien`)."""
+    return time.time() - float((_TT.get(str(conn_id or "")) or {}).get("tranh_phien") or 0) < THRASH_SHOW_S
 
 
 def _nhan_loi_moi(conn: dict) -> None:

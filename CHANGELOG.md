@@ -7,11 +7,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.282.0] - 2026-10-22
+### Sửa lỗi
+- **Bot Zalo không còn bị "điếc" khi có một phiên khác của cùng nick đang chạy.** Sau lần cập nhật hôm nay, một bản Zalo cũ sót lại cứ giành kết nối, bot chỉ nghe được tin vài giây sau mỗi lần nối lại nên bỏ lỡ tin tag và tin nhắn riêng. Javis giờ tự tắt bản Zalo cũ trên máy, thẻ bot báo đỏ, và chuông báo bạn nếu phiên giành kết nối nằm ở nơi khác (Zalo Web, một Javis khác).
+- **Câu bot trả lời mà Zalo không nhận thì báo lỗi gửi,** không còn hiện như đã gửi trong khi khách không thấy gì. Zalo MCP 1.6.1 cũng gửi tin đúng qua phiên mới sau mỗi lần nối lại.
 ### Thêm mới
-- **Bot đọc được tag Zalo của cuộc chat.** Tag bạn gắn trong app Zalo (Gia đình, Bạn bè, Công ty, Khách...) giờ đi kèm từng tin, nên bot biết mình đang nói với ai. Mẹ nhắn "con lấy cho mẹ 2 chai mắm" không còn bị coi là khách hỏi mua.
-- **Form bot Zalo cá nhân có thêm mục "Không trả lời các cuộc chat có tag Zalo".** Tick các tag (danh sách lấy thẳng từ Zalo) hoặc gõ tên tag: cuộc chat mang tag đó thì bot im hoàn toàn, tin vẫn vào Hòm thư. Cuộc chat bạn đã đặt ngoại lệ riêng vẫn theo ngoại lệ.
-- Đổi tag trong Zalo thì khoảng một phút sau bot thấy. Cần bản Zalo MCP mới (javis-zalo 1.6.0), Javis tự chuyển sang khi cập nhật.
-- **Bot Zalo cá nhân tự quyết nhắn nhiều tin ngắn.** Câu trả lời có từ hai ý trở lên (báo giá rồi gợi ý thêm) bot được tách thành tối đa 4 tin riêng, gửi cách nhau một chút như người thật gõ, thay vì một tin dài khó đọc. Câu một ý vẫn là một tin.
+- **Bot đọc được tag Zalo của cuộc chat** (Gia đình, Bạn bè, Công ty, Khách...) nên biết mình đang nói với ai. Form bot Zalo cá nhân có thêm mục **"Không trả lời các cuộc chat có tag Zalo"**: tick tag lấy thẳng từ Zalo hoặc gõ tên, chat mang tag đó thì bot im hẳn.
+- **Bot Zalo cá nhân tự quyết nhắn nhiều tin ngắn** (tối đa 4 tin) khi câu trả lời có từ hai ý trở lên, thay vì một tin dài khó đọc.
 
 ## [0.281.0] - 2026-10-22
 ### Cải thiện
