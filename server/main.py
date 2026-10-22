@@ -4389,6 +4389,9 @@ def claude_status(refresh: bool = False):
     d = dict(d)
     d["cap_nhat"] = claude_update.doc_trang_thai()
     d["cap_nhat_docker"] = deploy_info.deploy_mode() == "docker"
+    # The daily-update switch on the card: its state, and whether the env var forces it off.
+    d["auto_update"] = claude_update.bat()
+    d["auto_update_env_off"] = claude_update.env_off()
     return d
 
 
@@ -4424,14 +4427,17 @@ async def _tu_cap_nhat_claude():
     (Sonnet 5.5, 29/09/2026) không bao giờ hiện trong trình chọn. Chờ 2 phút sau khi khởi
     động cho server nhẹ tay đã.
     """
-    if not claude_update.bat() or deploy_info.deploy_mode() == "docker":
+    # The on/off switch (settings model.claude_auto_update, env override) is read on every pass
+    # below, not here: turning it off on the Models page must stop the next run without a restart,
+    # and turning it back on must not need one either.
+    if deploy_info.deploy_mode() == "docker":
         return
 
     async def _vong():
         await asyncio.sleep(120)
         while True:
             try:
-                if claude_update.den_han() and claude_cli.find_claude_cli():
+                if claude_update.bat() and claude_update.den_han() and claude_cli.find_claude_cli():
                     await _cap_nhat_claude("tu_dong")
             except Exception as e:
                 print(f"[claude update] vòng tự cập nhật lỗi: {type(e).__name__}: {e}",
@@ -5396,6 +5402,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # Fast mode (composer bolt, 0.153.0). This POST drops unknown keys, so it needs its own branch.
         if "fast" in patch:
             m["fast"] = patch["fast"] is True
+        # Daily Claude Code update switch (Models page). Same reason for its own branch as above.
+        if claude_update.SETTING_KEY in patch:
+            m[claude_update.SETTING_KEY] = patch[claude_update.SETTING_KEY] is True
         # Legacy trực tiếp (tương thích ngược)
         for k in ("engine", "claude_model", "openrouter_model"):
             if k in patch:
@@ -5587,6 +5596,8 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         try:
             if "claude_auth" in patch:
                 connect_health.engine_reconnected("claude")
+            elif set(patch) == {claude_update.SETTING_KEY}:
+                pass   # the update switch changes no engine, so there is nothing to re-probe
             else:
                 connect_health.probe_engines()
         except Exception as e:
