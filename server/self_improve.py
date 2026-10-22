@@ -75,6 +75,10 @@ LEGACY_SLUG = "vong-lap-goc"
 # loop legacy nữa, kể cả khi người dùng đã xoá nó (xem ensure_migrated).
 MIGRATED_KEY = "loops_migrated"
 GOALS = ("business", "brain", "product", "custom")
+# Tail of earlier rounds handed to the next round (see LoopFeature._previous_rounds_block).
+PREV_ROUNDS_MAX = 5
+PREV_ROUND_CHARS = 600
+PREV_ROUNDS_TOTAL_CHARS = 2000
 
 # Chỉ dẫn cho loop chạy ở hai mức NHẸ (suggest/auto) mà chủ tự chọn: mức này chỉ đọc MCP và
 # ghi nháp, hub chặn hành động ra ngoài nên nói thẳng cho model biết để nó không gọi rồi hỏng.
@@ -670,6 +674,55 @@ class LoopFeature:
                 entries.extend(reversed(chunks))
         return entries[:limit]
 
+    def _previous_rounds_block(self, brain: str, slug: str) -> str:
+        """A short tail of this loop's earlier rounds, appended to the next round's prompt.
+
+        Each round runs in a fresh, isolated session, so until this fix a loop told "suggest 1 new
+        page, do not repeat earlier rounds" had no way to know what earlier rounds said: two
+        manual runs one minute apart suggested the same wiki page, and the model wrote that it
+        "found no record of previous rounds" (customer report 0.270, Code 16). The rounds are
+        already logged in Javis/loop-log/ (the Recurring work page reads the same entries), so
+        the tail comes from there, with the state's last_summary as a fallback when the log is
+        missing. Bounded: at most PREV_ROUNDS_MAX entries, each cut to PREV_ROUND_CHARS, the
+        whole block to PREV_ROUNDS_TOTAL_CHARS. Failed rounds are left out: an error line says
+        nothing about what was already suggested or done.
+        """
+        picked: List[str] = []
+        used = 0
+        try:
+            entries = self._read_log_entries(brain, slug, PREV_ROUNDS_MAX * 3)
+        except Exception:
+            entries = []
+        for chunk in entries:
+            head, _, body = chunk.partition("\n")
+            body = body.strip()
+            if not body or body.startswith("Lỗi:"):
+                continue
+            m = re.match(r"## \[([^\]]+)\]", head)
+            stamp = m.group(1) if m else ""
+            if len(body) > PREV_ROUND_CHARS:
+                body = body[:PREV_ROUND_CHARS].rstrip() + " [...]"
+            item = f"### Vòng {stamp}\n{body}"
+            if used + len(item) > PREV_ROUNDS_TOTAL_CHARS:
+                break
+            picked.append(item)
+            used += len(item)
+            if len(picked) >= PREV_ROUNDS_MAX:
+                break
+        if not picked:
+            st = (self.read_state(brain).get(slug) or {})
+            last = str(st.get("last_summary") or "").strip()
+            if last and not last.startswith("Lỗi:") and st.get("last_status") != "no-data":
+                picked.append("### Vòng gần nhất\n" + last[:PREV_ROUND_CHARS])
+        if not picked:
+            return ("\n\nNHẬT KÝ CÁC VÒNG TRƯỚC: chưa có vòng nào của loop này được ghi lại, "
+                    "đây là vòng đầu tiên.\n")
+        return (
+            "\n\nNHẬT KÝ CÁC VÒNG TRƯỚC CỦA LOOP NÀY (mới nhất trước, đã rút gọn). Đây là kết quả "
+            "THẬT của các vòng đã chạy: nếu nhiệm vụ bảo không lặp lại thì KHÔNG đề xuất hay làm lại "
+            "đúng thứ đã có dưới đây, chọn cái khác.\n" + "\n\n".join(picked) + "\n"
+        )
+
     # ══════════════════════ 1 vòng (giữ khung 4 bước bản gốc) ══════════════════════
 
     async def _build_prompt(self, loop: dict) -> Tuple[str, str]:
@@ -975,8 +1028,10 @@ class LoopFeature:
             self._update_state(brain, slug, last_run=time.time(), last_summary=skip[:200],
                                last_status="no-data")
             return {"ok": True, "summary": skip}
+        # Read the tail BEFORE this round is logged, so it holds earlier rounds only.
+        prompt += self._previous_rounds_block(brain, slug)
 
-        sysprompt = self.deps.build_system_prompt(brain)
+        sysprompt =self.deps.build_system_prompt(brain)
         gcli = self._make_cli(loop, cwd, sysprompt, brain=brain)
         if gcli is None:
             return _finish("Lỗi: không tạo được file MCP rỗng để cô lập (profile code từ chối chạy)", "", True)
