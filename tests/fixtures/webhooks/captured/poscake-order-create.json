@@ -29,7 +29,7 @@
         "name": "xxxxxxxxxxxx",
         "status": 0,
         "editor": {
-          "id": "abafe6f000084eda-896a-e000000504e5",
+          "id": "xxxxxxxxxxxx",
           "name": "xxxxxxxxxxxx",
           "email": "xxxxxxxxxxxx",
           "phone_number": null,
@@ -38,7 +38,7 @@
         },
         "updated_at": "2026-10-22T03:10:25",
         "avatar_url": "xxxxxxxxxxxx",
-        "editor_id": "abafe6f000084eda-896a-e000000504e5",
+        "editor_id": "xxxxxxxxxxxx",
         "old_status": null,
         "editor_fb": "xxxxxxxxxxxx"
       }
@@ -66,14 +66,14 @@
     "p_utm_term": null,
     "bill_full_name": "xxxxxxxxxxx",
     "creator": {
-      "id": "abafe6f000084eda-896a-e000000504e5",
+      "id": "xxxxxxxxxxxx",
       "name": "xxxxxxxxxxxx",
       "email": "xxxxxxxxxxxx",
       "phone_number": null,
       "fb_id": "xxxxxxxxxxxx",
       "avatar_url": "xxxxxxxxxxxx"
     },
-    "assigning_seller_id": "abafe6f000084eda-896a-e000000504e5",
+    "assigning_seller_id": "xxxxxxxxxxxx",
     "customer_needs": [],
     "status_name": "xxx",
     "bank_payments": null,
@@ -198,7 +198,7 @@
     "warehouse_id": "8bc65710-ed1a-4e78-aaf1-525a61402a04",
     "partner_fee": 0,
     "last_editor": {
-      "id": "abafe6f000084eda-896a-e000000504e5",
+      "id": "xxxxxxxxxxxx",
       "name": "xxxxxxxxxxxx",
       "email": "xxxxxxxxxxxx",
       "phone_number": null,
@@ -242,14 +242,14 @@
           "product_display_id": "AutopageAI"
         },
         "assigning_seller": {
-          "id": "abafe6f000084eda-896a-e000000504e5",
+          "id": "xxxxxxxxxxxx",
           "name": "xxxxxxxxxxxx",
           "email": "xxxxxxxxxxxx",
           "phone_number": null,
           "fb_id": "xxxxxxxxxxxx",
           "avatar_url": "xxxxxxxxxxxx"
         },
-        "assigning_seller_id": "abafe6f000084eda-896a-e000000504e5",
+        "assigning_seller_id": "xxxxxxxxxxxx",
         "total_discount": 0,
         "returning_quantity": 0,
         "one_time_product": false,
@@ -289,7 +289,7 @@
     "total_price": 297000,
     "link": null,
     "note_image": null,
-    "time_assign_seller": "2026-10-22T03:10:25",
+    "time_assign_seller": "xxxxxxxxxxxx",
     "tracking_link": "xxxxxxxxxxxx",
     "inserted_at": "2026-10-22T03:10:25.442909",
     "transfer_proofs": [],
@@ -301,7 +301,7 @@
     "bank_transfer_images": null,
     "marketer": null,
     "assigning_seller": {
-      "id": "abafe6f000084eda-896a-e000000504e5",
+      "id": "xxxxxxxxxxxx",
       "name": "xxxxxxxxxxxx",
       "email": "xxxxxxxxxxxx",
       "phone_number": null,

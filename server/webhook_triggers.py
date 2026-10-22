@@ -282,7 +282,14 @@ def is_ident_key(key: str) -> bool:
 def is_pii_key(key: str) -> bool:
     forms = _key_forms(key)
     words = _key_words(key)
-    return any(x in f for f in forms for x in _PII_KEYS) or bool(words & {"tel", "ten", "by"})   # `ten`: tên
+    return any(x in f for f in forms for x in _PII_KEYS) or bool(words & {"tel", "ten", "by"}) \
+        or bool(words & _STAFF_WORDS)                                                         # `ten`: tên
+
+
+# A person on the shop's side (0.276.0, review of the first real POSCake capture): `creator.id`, `editor_id` and
+# `assigning_seller_id` hold one staff account id, which the `id` allowlist kept.
+_STAFF_WORDS = frozenset(("editor", "creator", "seller", "care", "marketer", "mkter", "staff", "employee", "user",
+                          "users", "author", "owner", "assignee", "assigned", "cashier", "shipper", "agent"))
 _ISO_TIME = None
 _PRODUCT_PARENTS = frozenset(("items", "line_items", "products", "order_items", "variations", "products_info", "lines",
                               "variation_info", "product"))

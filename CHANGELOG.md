@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.276.0] - 2026-10-22
+### Bảo mật
+- **Webhook che luôn mã tài khoản nhân viên.** Trước đây ô xem sự kiện (đã che) và file mẫu xuất ra vẫn giữ mã của người tạo đơn, người sửa, người bán vì đó là trường "id". Giờ mọi giá trị nằm dưới người tạo, người sửa, người bán, người chăm sóc đều bị che như thông tin khách.
+- File mẫu POSCake trong mã nguồn đã được xuất lại, không còn mã tài khoản nào.
+### Cải thiện
+- Công cụ chạy thử staging tự xoá thư mục tạm khi mọi bước đạt (giữ lại khi có bước lỗi, hoặc khi chạy với `--keep`).
+
 ## [0.274.0] - 2026-10-22
 ### Thêm mới
 - **Webhook thành cửa nhận sự kiện bền.** Mỗi sự kiện được ghi vào đĩa trước khi Javis trả lời "đã nhận" (202). Máy tắt, cập nhật hay sập giữa chừng thì lúc mở lại Javis chạy tiếp, không mất đơn.

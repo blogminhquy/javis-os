@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.276.0] - 2026-10-22
+### Security
+- **Webhooks also mask staff account ids.** The masked event view and exported fixtures used to keep the id of whoever created, edited or sold an order, because the key was `id`. Every value under a creator, editor, seller or care block is now masked like customer data.
+- The POSCake fixture in the repository was exported again and holds no account id.
+### Improved
+- The staging rehearsal deletes its temporary folder when every step passes (kept on a failure, or with `--keep`).
+
 ## [0.274.0] - 2026-10-22
 ### Added
 - **Webhooks become a durable event inbox.** Each event is written to disk before Javis answers "received" (202). If the machine stops, updates or crashes midway, Javis carries on when it starts again and no order is lost.

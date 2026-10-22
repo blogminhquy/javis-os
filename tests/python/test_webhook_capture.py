@@ -65,6 +65,12 @@ async def main():
 def real_capture():
     """The first REAL POSCake delivery (event_type create, captured 2026-10-22): what it teaches is pinned here."""
     import re
+    import webhook_triggers as wt
+    uid = "abafe6f1-1708-4eda-896a-e180520504e5"           # a made-up staff account id
+    seen = wt.mask_payload({"id": 739, "creator": {"id": uid}, "editor_id": uid, "assigning_seller_id": uid,
+                            "last_editor": {"id": uid}, "items": [{"assigning_seller": {"id": uid}}]})
+    check("masked view: a staff account id (creator, editor, seller) is hidden, the order id still shows",
+          not any(part in json.dumps(seen) for part in ("abafe6f", "4eda", "896a")) and seen["id"] == 739, seen)
     fx = ROOT / "tests" / "fixtures" / "webhooks" / "captured" / "poscake-order-create.json"
     text = fx.read_text(encoding="utf-8")
     doc = json.loads(text)
@@ -72,6 +78,20 @@ def real_capture():
           sorted(doc["headers"]) == ["content-type", "user-agent"], doc["headers"])
     leaks = re.findall(r"[\w.+-]+@[\w-]+\.[\w.]+|\b0\d{9}\b|pke\.gg/\w+|pancake-auth|order_id=\d+", text)
     check("real capture: no e-mail, phone number, payment or tracking link left in the fixture", not leaks, leaks)
+    staff, people = {}, {"editor", "creator", "seller", "care", "marketer", "mkter", "staff", "user", "agent"}
+
+    def walk(v, path, under):
+        if isinstance(v, dict):
+            for k, x in v.items():
+                walk(x, f"{path}.{k}", under or bool(wt._key_words(k) & people))
+        elif isinstance(v, list):
+            for i, x in enumerate(v):
+                walk(x, f"{path}[{i}]", under)
+        elif under and isinstance(v, str) and v and set(v) != {"x"}:
+            staff[path] = len(v)
+    walk(doc["payload"], "$", False)
+    check("real capture: no staff account id or other value left under editor, creator or seller (0.276.0 review)",
+          not staff, staff)
     real = {"rules": {"filter": {"all": [
         {"path": "event_type", "op": "eq", "value": "create"},
         {"path": "items[*].variation_info.name", "op": "contains", "value": "AutopageAI", "quantifier": "any",

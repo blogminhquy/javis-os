@@ -24,6 +24,7 @@ import signal
 import socket
 import subprocess
 import sys
+import shutil
 import tempfile
 import threading
 import time
@@ -183,6 +184,7 @@ def http_action(aid: str, path: str, rport: int, **kw) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="")
+    ap.add_argument("--keep", action="store_true", help="keep the state folder (SQLite, host.log) even when all pass")
     args = ap.parse_args()
     rport = free_port()
     srv = ThreadingHTTPServer(("127.0.0.1", rport), Receiver)
@@ -320,7 +322,10 @@ def main() -> int:
     if args.out:
         Path(args.out).write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
     bad = [r["step"] for r in results if not r["pass"]]
-    print(f"\n{len(results) - len(bad)} of {len(results)} passed in {rep['seconds']} s" + (f"; FAILED: {bad}" if bad else ""))
+    if not (bad or args.keep):
+        shutil.rmtree(state, ignore_errors=True)       # a failed run keeps its state folder to read host.log
+    print(f"\n{len(results) - len(bad)} of {len(results)} passed in {rep['seconds']} s" + (f"; FAILED: {bad}" if bad else "")
+          + (f"; state kept in {state}" if bad or args.keep else ""))
     return 1 if bad else 0
 
 
