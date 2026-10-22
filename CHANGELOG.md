@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.280.0] - 2026-10-22
+### Cải thiện
+- **Tin nhắn riêng 1-1: bot được im và báo chủ khi gặp câu khó.** (đang viết)
+
 ## [0.278.0] - 2026-10-22
 ### Cải thiện
 - **Khung chat Nhóm dùng được như khung Trò chuyện.** Sao chép tin, nút Copy của khối mã, Enter trên điện thoại (xuống dòng thay vì gửi), vuốt để trích dẫn, trích đúng đoạn đang bôi và "Xem thêm" cho tin dài đều chạy giống khung chat chính.

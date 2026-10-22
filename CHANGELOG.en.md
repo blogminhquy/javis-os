@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.280.0] - 2026-10-22
+### Improved
+- **Private 1-1 chats: the bot can stay quiet and alert you on a hard question.** (in progress)
+
 ## [0.278.0] - 2026-10-22
 ### Improved
 - **The Team chat now works like the main chat.** Copying a message, the code Copy button, Enter on a phone (a new line, not send), swipe to quote, quoting just the selected part and "Show more" on long messages all behave as in the main chat.
