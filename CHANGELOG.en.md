@@ -10,6 +10,13 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.273.0] - 2026-10-22
 ### Fixed
+- **Background work is more reliable.** Reminders fire on time in every brain, including brains with no loop. A network error right after the machine wakes is now recorded as failed and retried a few minutes later, without re-sending what already went out. When the Claude plan names its reset time (for example 1:50am), Javis schedules the retry itself. Loops remember earlier rounds, so they stop repeating a suggestion.
+- **Teams work more smoothly.** Members read Excel files (every sheet, formula results, error cells) and see which PDF pages are scans, without per-command approvals. An approved command is no longer blocked again, and approval cards show the real command. Steps that must run in order do, and a job with steps left is never marked Done.
+- **Projects and partners work on every channel.** A project's rules apply on the CLI and Telegram too, and stay when the conversation moves to a new session; the `javis` command gains `--project`. On Telegram, start with `@partner-name` to have that partner answer, `/agent name` hands it the whole chat, `/agent off` brings Javis back.
+- **The GitHub backup no longer pushes partners' raw run logs or the text extracted from attachments.** Copies pushed before stay in the repo; once every machine is updated you can delete them on GitHub.
+
+### Improved
+- **Clearer where a slip is costly.** The Add-work form says plainly that Full may edit files, run commands and send messages without asking (still the default). The Work board box is renamed "Review the result after it runs". Disconnect on the Claude Code card asks before signing out, and a switch turns off Claude Code's daily auto-update on screen. The Usage page prices work run on DeepSeek and counts Team turns.
 - **Fixes for bugs a customer reported on 0.270.0.**
 ## [0.274.0] - 2026-10-22
 ### Added
