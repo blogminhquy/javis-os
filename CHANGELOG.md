@@ -7,8 +7,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.290.0] - 2026-10-22
+### Thêm mới
+- **Thanh mục tiêu ngay trên khung chat.** Đặt `/goal` xong là có một thanh để bám theo: chữ mục tiêu, đồng hồ đếm thời gian, nút xoá, tạm dừng hay chạy tiếp, và mũi tên xem chi tiết (vòng mấy, còn thiếu gì). Thanh hiện ở mọi khung chat.
+- **Nhiều mục tiêu cùng lúc.** Mỗi hội thoại một mục tiêu. Có từ hai mục tiêu trở lên thì đầu thanh hiện số, bấm vào xổ ra danh sách, bấm một dòng để mở đúng hội thoại đó.
+- **Lệnh đã gõ được tô màu.** Gõ `/goal`, `/plan` hay tên một skill vào khung chat là phần lệnh đổi sang màu cam, nhìn là biết Javis sẽ hiểu chỗ nào là lệnh.
 ### Cải thiện
-- **Thanh mục tiêu trên khung chat, menu lệnh / gọn hơn.** (đang viết)
+- **Mục tiêu tạm dừng chứ không mất.** Bấm Dừng hay nhắn chen giữa chừng thì mục tiêu chỉ tạm dừng; sang hội thoại khác thì nó chờ, quay lại là chạy tiếp; tải lại trang vẫn còn trên thanh.
+- **Menu lệnh / gọn và thẳng hàng.** Mỗi lệnh một dòng, cột lệnh rộng bằng nhau nên mô tả không còn lệch, chữ nhỏ lại, có tiêu đề nhóm Lệnh, Cộng sự, Quy trình, Skill.
 
 ## [0.289.0] - 2026-10-22
 ### Sửa lỗi

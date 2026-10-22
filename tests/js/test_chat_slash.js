@@ -135,5 +135,30 @@ check("multiple words across fields", S.filterItems(searchable, "marketing noi d
 check("exact name outranks description", S.filterItems(searchable, "ban hang")[0] === searchable[1]);
 check("all words required", S.filterItems(searchable, "marketing unknown").length === 0);
 check("Vietnamese slash query opens menu", S.tokenAtCaret("/viết", 5).query === "viết");
+
+// ---- 0.290.0: tô màu lệnh đã gõ, cột lệnh thẳng hàng ----
+S.setKnownSkills(["viet-email"]);
+const V = S.vungLenh;
+check("highlight: lệnh hệ thống ở đầu tin", JSON.stringify(V("/goal xong hết đơn")) === JSON.stringify({ start: 0, end: 5 }));
+check("highlight: lệnh phiên", JSON.stringify(V("/new")) === JSON.stringify({ start: 0, end: 4 }));
+check("highlight: đang gõ dở /go chưa phải lệnh", V("/go") === null);
+check("highlight: skill có thật ở đầu tin", JSON.stringify(V("/viet-email cho khách")) === JSON.stringify({ start: 0, end: 11 }));
+check("highlight: skill giữa câu", JSON.stringify(V("nhờ /viet-email nhé")) === JSON.stringify({ start: 4, end: 15 }));
+check("highlight: đường dẫn và URL không tô", V("xem /home/user/x") === null && V("https://vd.com/new") === null && V("3/4 cái") === null);
+check("highlight: lệnh hệ thống giữa câu không tô (không chạy)", V("hãy /compact lại") === null);
+check("highlight: cộng sự giữa câu", V("hello /agent-writer") !== null);
+check("highlight: rỗng, không phải chuỗi", V("") === null && V(null) === null);
+check("cột lệnh: theo lệnh dài nhất, có sàn và trần",
+  S.cotLenh([{ cmd: "new" }]) === 7 && S.cotLenh([{ cmd: "new" }, { cmd: "compact-long" }]) === 13 && S.cotLenh([{ cmd: "x".repeat(40) }]) === 18);
+check("nhóm menu: lệnh phiên và hệ thống chung một nhóm",
+  S.nhomCua({ kind: "session" }) === "cmd" && S.nhomCua({ kind: "system" }) === "cmd" && S.nhomCua({ kind: "skill" }) === "skill");
+const slashSrc = require("fs").readFileSync(require("path").join(__dirname, "../../dashboard/chat-slash.js"), "utf8");
+check("menu: điều hướng phím chỉ đếm dòng lệnh, không đếm tiêu đề nhóm", !slashSrc.includes("box.children[active]") && slashSrc.includes('querySelectorAll(".slash-item")'));
+const css = require("fs").readFileSync(require("path").join(__dirname, "../../dashboard/style.css"), "utf8");
+check("css: cột lệnh dùng chung bề rộng --slash-cmdw", /\.slash-cmd \{[^}]*width: var\(--slash-cmdw\)/.test(css));
+check("css: nền tô lệnh mở bằng box-shadow, không padding (gương phải khớp chữ thật)", (() => {
+  const m = css.match(/\.ci-hl \.ci-cmd \{([^}]*)\}/); return !!m && m[1].includes("box-shadow") && !/padding/.test(m[1]);
+})());
+
 if (fails.length) { console.log("\nFAIL - test_chat_slash: " + fails.length + " loi"); process.exit(1); }
 console.log("\nOK - test_chat_slash: tat ca pass");

@@ -257,7 +257,6 @@
   }
 
   // ===================== PHẦN DOM / MẠNG (chỉ trình duyệt) =====================
-  var goal = null;   // {sid, dk, vong, toiDa, left, ket} - MỘT mục tiêu đang chạy trong khung chat
 
   function chatApi() { return (typeof window !== "undefined" && window.JavisChatApi) || null; }
   function ghi(md) { var a = chatApi(); if (a) a.note(md); }
@@ -415,85 +414,134 @@
   }
 
   // ---- /goal ----
-  // Every path that ends the goal goes through here, so the Stop goal buttons on earlier round lines grey out.
-  function ketThucMucTieu() {
-    goal = null;
-    if (typeof document === "undefined") return;
+  // 0.290.0: mỗi hội thoại một mục tiêu, giữ trong kho của chat-goal.js (thanh mục tiêu vẽ từ đó). Rời chat
+  // thì mục tiêu CHỜ chứ không tắt; nó chỉ chạy tiếp khi chat của nó đang mở (vòng tự động là trình duyệt
+  // gửi tin vào khung đang xem). Bấm Dừng hay gõ chen ngang thì TẠM DỪNG, bấm chạy tiếp trên thanh là đi tiếp.
+  function kho() {
+    if (typeof window !== "undefined" && window.JavisGoals) return window.JavisGoals;
+    try { return require("./chat-goal.js"); } catch (e) { return null; }
+  }
+  var choId = null;   // mục tiêu vừa đặt trong chat mới, chờ id phiên của tin đầu
+  function sidHienTai() { var a = chatApi(); return a ? (a.sid() || null) : null; }
+  function mucTieuCua(sid) { var k = kho(); return (k && sid) ? k.theoSid(sid) : null; }
+  function mucTieuHienTai() { return mucTieuCua(sidHienTai()); }
+
+  // Every path that ends a goal goes through here. The Stop goal buttons on the round lines grey out when
+  // the goal ended belongs to the chat on screen (no argument: the goal of the chat on screen, if any).
+  function ketThucMucTieu(g) {
+    var k = kho();
+    g = g || mucTieuHienTai();
+    var hienTai = !g || g.sid === sidHienTai();
+    if (g && k) k.xoa(g.id);
+    if (typeof document === "undefined" || !hienTai) return;
     var btns = document.querySelectorAll(".goal-round-stop");
     for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
   }
 
   async function lenhGoal(arg) {
+    var cu = mucTieuHienTai();
     if (laLenhTat(arg)) {
-      if (goal) { ketThucMucTieu(); return ghi(tw("lenh.goal_stopped")); }
+      if (cu) { ketThucMucTieu(cu); return ghi(tw("lenh.goal_stopped")); }
       return ghi(tw("lenh.goal_none"));
     }
     if (!arg) {
-      if (goal) return ghi(tw("lenh.goal_status", { dk: cat(goal.dk, 120), v: goal.vong, n: goal.toiDa }));
+      if (cu) {
+        return ghi(tw(cu.state === "paused" ? "lenh.goal_status_paused" : "lenh.goal_status",
+          { dk: cat(cu.dk, 120), v: cu.vong, n: cu.toiDa }));
+      }
       return ghi(tw("lenh.goal_need", { n: GOAL_TOI_DA }));
     }
     var khoi = await layKhoi({ kind: "goal", dk: arg, vong: 1, toi_da: GOAL_TOI_DA });
     if (!khoi) return ghi(tw("lenh.err_net"));
-    goal = { sid: null, dk: arg, vong: 1, toiDa: GOAL_TOI_DA, left: "", ket: null };
+    // Một mục tiêu mới trong chat đã có mục tiêu thì thay cái cũ (kho chỉ giữ một mục tiêu mỗi chat).
+    if (cu) ketThucMucTieu(cu);
+    var o = { sid: sidHienTai(), brain: brainHienTai(), dk: arg, toiDa: GOAL_TOI_DA };
+    // Chat mới chưa có id: mục tiêu vào kho khi app.js báo id của tin đầu (daGui).
+    if (o.sid) kho().them(o); else choId = o;
     ghi(tw("lenh.goal_start", { dk: cat(arg, 120), n: GOAL_TOI_DA }));
     chatApi().send(arg, { prefix: khoi, goal: true });
   }
 
-  // app.js gọi ngay sau khi biết id phiên của tin vừa gửi: gắn mục tiêu vào ĐÚNG phiên đó.
+  // app.js gọi ngay sau khi biết id phiên của tin vừa gửi: mục tiêu đặt trong chat MỚI (chưa có id) nhận
+  // id của phiên đó.
   function daGui(sid, opts) {
-    if (goal && opts && opts.goal && !goal.sid) goal.sid = sid;
+    if (choId && opts && opts.goal && sid) { choId.sid = sid; kho().them(choId); }
+    choId = null;
   }
 
-  // Người dùng gõ một tin thường (không phải vòng của /goal) trong lúc mục tiêu đang chạy: tin của
-  // họ lên trước. Tiếp tục chạy vòng tự động ngay dưới một câu họ vừa nói là giành lời của họ.
+  // Người dùng gõ một tin thường (không phải vòng của /goal) trong lúc mục tiêu đang chạy: tin của họ lên
+  // trước. Chạy tiếp vòng tự động ngay dưới câu họ vừa nói là giành lời của họ, nên tạm dừng, không xoá.
   function chenNgang(sid) {
-    if (goal && (!goal.sid || goal.sid === sid)) {
-      ketThucMucTieu();
-      ghi(tw("lenh.goal_takeover"));
-    }
+    var g = mucTieuCua(sid);
+    if (!g || g.state !== "running") return;
+    kho().tamDung(g);
+    g.tiepNgay = true;
+    g.xongLuot = false;
+    kho().luu();
+    ghi(tw("lenh.goal_paused_takeover"));
   }
 
+  // Nút Dừng của khung chat (stopCurrent): lượt bị cắt giữa chừng, mục tiêu tạm dừng chứ không mất.
+  function tamDungVi(sid) {
+    var a = chatApi();
+    var g = mucTieuCua(sid === undefined ? sidHienTai() : sid);
+    if (!g || g.state !== "running") return;
+    kho().tamDung(g);
+    if (a && a.dangChay(g.sid)) g.catNgang = true;
+    else { g.tiepNgay = true; g.xongLuot = false; }
+    kho().luu();
+    ghi(tw("lenh.goal_paused"));
+  }
+
+  // Nút "Tắt mục tiêu" trên dòng nhắc của một vòng: tắt hẳn mục tiêu của chat đang mở.
   function dungMucTieu() {
-    if (!goal) return;
-    ketThucMucTieu();
+    var g = mucTieuHienTai();
+    if (!g) return;
+    ketThucMucTieu(g);
     ghi(tw("lenh.goal_stopped"));
   }
 
   // Câu trả lời của một vòng đã về: ghi nhận marker + có chip hỏi ngược không. Việc QUYẾT ĐỊNH để
   // hetLuot làm, vì lúc này lượt chưa đóng (turn_done chưa tới).
   function ghiNhan(sid, marker, hoiLai) {
-    if (goal && goal.sid === sid) goal.ket = { marker: marker, hoiLai: !!hoiLai };
+    var g = mucTieuCua(sid);
+    if (g && sid) g.ket = { marker: marker, hoiLai: !!hoiLai };
   }
   function baoLoi(sid) {
-    if (goal && goal.sid === sid) goal.ket = { loi: true };
+    var g = mucTieuCua(sid);
+    if (g && sid) g.ket = { loi: true };
   }
 
-  async function tiepVong(sid) {
-    var g = goal;
-    if (!g || g.sid !== sid) return;
+  async function tiepVong(g) {
+    var k = kho(), a = chatApi();
+    if (!k || k.theoId(g.id) !== g || g.state !== "running" || !a) return;
+    // Rời chat, hoặc có lượt khác vừa chạy trong lúc chờ: để lần sau.
+    if (a.sid() !== g.sid || a.dangChay(g.sid)) { g.tiepNgay = true; return; }
+    // Trần vòng giữ cả khi vòng sau đi thẳng (sau tạm dừng, sau tải lại trang) không qua quyetDinhVongTiep.
+    if (g.vong >= g.toiDa) { ketThucMucTieu(g); return ghi(tw("lenh.goal_max", { n: g.toiDa })); }
     g.vong += 1;
     var khoi = await layKhoi({ kind: "goal", dk: g.dk, vong: g.vong, toi_da: g.toiDa, left: g.left || "" });
-    if (goal !== g) return;   // cancelled while waiting for the block
-    if (!khoi) { ketThucMucTieu(); return ghi(tw("lenh.err_net")); }
+    if (k.theoId(g.id) !== g || g.state !== "running") { g.vong -= 1; g.tiepNgay = true; return; }   // xoá hay dừng lúc chờ khối
+    if (!khoi) { ketThucMucTieu(g); return ghi(tw("lenh.err_net")); }
+    if (a.sid() !== g.sid) { g.vong -= 1; g.tiepNgay = true; return; }
+    k.luu();
     // No local note here: the round message itself is drawn as the collapsible round line (app.js).
-    chatApi().send(tw("lenh.goal_cont"), { prefix: khoi, goal: true });
+    a.send(tw("lenh.goal_cont"), { prefix: khoi, goal: true });
   }
 
-  // turn_done của phiên `sid`: đây là lúc duy nhất quyết định vòng tiếp.
-  function hetLuot(sid) {
-    var g = goal;
-    var a = chatApi();
-    if (!g || !a || g.sid !== sid) return;
-    if (a.sid() !== sid) { ketThucMucTieu(); return; }   // the owner moved to another chat
-    if (a.dangChay(sid)) return;                    // đã có lượt mới chạy (tin chen ngang)
+  // Quyết định sau một vòng đã đóng, và ghi câu dừng vào ĐÚNG chat của mục tiêu (gọi khi chat đó đang mở).
+  function apDung(g) {
     var qd = quyetDinhVongTiep(g, g.ket);
     g.ket = null;
+    g.xongLuot = false;
     if (qd.act === "tiep") {
       g.left = qd.left;
-      setTimeout(function () { tiepVong(sid); }, 300);
+      if (g.state === "running") setTimeout(function () { tiepVong(g); }, 300);
+      else g.tiepNgay = true;
+      kho().luu();
       return;
     }
-    ketThucMucTieu();
+    ketThucMucTieu(g);
     var v = g.vong, n = g.toiDa;
     if (qd.ly === "dat") return ghi(tw("lenh.goal_done", { v: v }));
     if (qd.ly === "khong_lam_duoc") return ghi(tw("lenh.goal_blocked", { why: qd.why || "" }));
@@ -502,6 +550,60 @@
     if (qd.ly === "hoi_lai") return ghi(tw("lenh.goal_ask"));
     if (qd.ly === "loi") return ghi(tw("lenh.goal_err"));
     ghi(tw("lenh.goal_unknown", { v: v }));
+  }
+
+  // Thử đi tiếp mục tiêu `g`: chỉ khi nó đang chạy, chat của nó đang mở và không có lượt nào đang chạy.
+  function thuTiep(g) {
+    var a = chatApi();
+    if (!g || g.state !== "running" || !a || a.sid() !== g.sid || a.dangChay(g.sid)) return;
+    if (g.tiepNgay) {
+      g.tiepNgay = false;
+      g.xongLuot = false;
+      g.ket = null;
+      setTimeout(function () { tiepVong(g); }, 300);
+      return;
+    }
+    if (g.xongLuot) apDung(g);
+  }
+
+  // turn_done của phiên `sid` (chat nào cũng vậy, kể cả chat đang chạy nền): vòng vừa đóng.
+  function hetLuot(sid) {
+    var g = mucTieuCua(sid);
+    var a = chatApi();
+    if (!g || !sid || !a) return;
+    if (g.catNgang) {        // lượt bị cắt: kết quả dở dang không dùng để quyết định
+      g.catNgang = false; g.ket = null; g.tiepNgay = true; g.xongLuot = false;
+      kho().luu();
+      return;
+    }
+    if (g.tiepNgay) { g.ket = null; return; }   // đang chờ đi vòng sau (lượt vừa rồi là tin của người dùng)
+    g.xongLuot = true;
+    if (a.dangChay(sid)) return;                // đã có lượt mới chạy (tin chen ngang)
+    // Tạm dừng nhưng chat đang mở: vẫn quyết định ngay, để "đã đạt" hay "không làm được" được báo liền.
+    if (g.state === "paused" && a.sid() === sid) return apDung(g);
+    thuTiep(g);
+  }
+
+  // Nút trên thanh mục tiêu (chat-goal.js).
+  function goalAct(act, id) {
+    var k = kho();
+    var g = k && k.theoId(id);
+    if (!g) return;
+    var s = (typeof window !== "undefined") && window.JavisSessions;
+    if (act === "del") {
+      var cuaChatNay = g.sid === sidHienTai();
+      ketThucMucTieu(g);
+      if (cuaChatNay) ghi(tw("lenh.goal_deleted"));
+      return;
+    }
+    if (act === "pause") { k.tamDung(g); k.luu(); return; }
+    if (act === "resume") {
+      k.chayLai(g); k.luu();
+      if (g.sid !== sidHienTai() && s) { s.open(g.sid); return; }   // mở chat của nó, sessions-changed đi tiếp
+      thuTiep(g);
+      return;
+    }
+    if (act === "open" && g.sid !== sidHienTai() && s) s.open(g.sid);
   }
 
   async function chay(cmd, arg) {
@@ -549,7 +651,14 @@
     ghiNhan: ghiNhan,
     baoLoi: baoLoi,
     hetLuot: hetLuot,
-    dangCoMucTieu: function () { return !!goal; },
+    tamDungVi: tamDungVi,
+    goalAct: goalAct,
+    // Mục tiêu của chat đang mở (hoặc của `sid`) có đang CHẠY không: app.js dùng để biết gõ chữ lúc này là
+    // chen ngang một vòng tự động.
+    dangCoMucTieu: function (sid) {
+      var g = mucTieuCua(sid === undefined ? sidHienTai() : sid);
+      return !!(g && g.state === "running");
+    },
     docVong: docVong,
     vongHtml: vongHtml,
     ketThucMucTieu: ketThucMucTieu,
@@ -557,10 +666,10 @@
 
   if (typeof window !== "undefined") {
     window.JavisLenh = api;
-    // Đổi sang hội thoại khác thì mục tiêu của hội thoại cũ hết nghĩa: dừng lặng lẽ.
+    // Mở lại chat có mục tiêu đang chờ thì nó chạy tiếp.
     window.addEventListener("javis:sessions-changed", function () {
-      var a = chatApi();
-      if (goal && goal.sid && a && a.sid() !== goal.sid) ketThucMucTieu();
+      var k = kho(), sid = sidHienTai();
+      if (k && sid) thuTiep(k.theoSid(sid));
     });
   }
   if (typeof module !== "undefined" && module.exports) module.exports = api;

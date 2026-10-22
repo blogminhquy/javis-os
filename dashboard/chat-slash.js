@@ -86,6 +86,41 @@
              giuaCau: true };
   }
 
+  // Vùng lệnh để TÔ MÀU trong ô nhập (0.290.0): {start, end} của đúng token mà route() sẽ dùng, hoặc null.
+  // Ở đầu tin chỉ tô lệnh có thật (lệnh phiên, lệnh hệ thống, skill, cộng sự): đang gõ dở "/go" thì chưa
+  // phải lệnh nào, tô lên là nói dối. Giữa câu thì như parseSlashAnywhere: skill hay cộng sự có thật, lần
+  // xuất hiện cuối.
+  function laCongSu(cmd) { return knownPartners.some(function (x) { return x.cmd === String(cmd || "").toLowerCase(); }); }
+  function vungLenh(text) {
+    if (typeof text !== "string" || text.indexOf("/") === -1) return null;
+    var dau = text.match(/^\/([a-zA-Z0-9_-]+)(?=\s|$)/);
+    if (dau) {
+      var c = dau[1].toLowerCase();
+      if (classify(c) !== "skill" || isKnownSkill(c) || laCongSu(c)) return { start: 0, end: 1 + dau[1].length };
+    }
+    var hit = null, m;
+    MID_RE.lastIndex = 0;
+    while ((m = MID_RE.exec(text)) !== null) {
+      if (m.index === 0 && !m[1] && dau) continue;   // token đầu tin đã xét ở trên
+      if (isKnownSkill(m[2]) || laCongSu(m[2])) hit = m;
+    }
+    if (!hit) return null;
+    var st = hit.index + hit[1].length;
+    return { start: st, end: st + 1 + hit[2].length };
+  }
+
+  // Bề rộng cột lệnh của menu, theo ký tự (font đơn cách): lệnh dài nhất trong danh sách đang hiện, có
+  // sàn và trần. Mọi dòng dùng chung một bề rộng nên chữ mô tả bắt đầu thẳng một cột. Trước 0.290.0 mỗi dòng
+  // tự co theo lệnh của nó, nên mô tả dòng /new và dòng /status lệch nhau (ảnh chủ repo 22/10).
+  function cotLenh(items) {
+    var dai = 0;
+    (items || []).forEach(function (it) { dai = Math.max(dai, String(it && it.cmd || "").length + 1); });
+    return Math.max(7, Math.min(dai, 18));
+  }
+
+  // Nhóm của một dòng menu: lệnh (phiên + hệ thống), cộng sự, quy trình, skill.
+  function nhomCua(it) { return (it.kind === "session" || it.kind === "system") ? "cmd" : it.kind; }
+
   function classify(cmd) {
     if (SESSION_COMMANDS.indexOf(cmd) !== -1) return "session";
     return SYSTEM_NAMES.indexOf(cmd) !== -1 ? "system" : "skill";
@@ -208,6 +243,9 @@
     classify: classify,
     buildSkillInvocation: buildSkillInvocation,
     route: route,
+    vungLenh: vungLenh,
+    cotLenh: cotLenh,
+    nhomCua: nhomCua,
     buildMenu: buildMenu,
     filterItems: filterItems,
     normalizeSearch: normalizeSearch,
@@ -244,6 +282,7 @@
       cacheBrain = brain;
       // route() can biet slug CO THAT de dam nhan duoc lenh giua cau (xem parseSlashAnywhere).
       api.setKnownSkills(skillsCache);
+      try { if (api.syncHighlight) api.syncHighlight(); } catch (e) {}   // skill vừa biết thì tô được
       return skillsCache;
     }
 
@@ -264,14 +303,36 @@
       });
     }
 
+    // 0.290.0: một dòng mỗi lệnh. Cột lệnh chung một bề rộng (cotLenh) nên mô tả thẳng hàng; tên rồi mô tả
+    // mờ nối tiếp trên cùng dòng, tràn thì "...". Chưa gõ chữ lọc thì chia nhóm có tiêu đề nhỏ; đang lọc thì
+    // kết quả xếp theo độ khớp nên bỏ tiêu đề, nhãn nhóm nằm cuối dòng.
+    function tenNhom(g) {
+      if (g === "agent") return tw("ws.tab_agent");
+      if (g === "workflow") return tw("ws.tab_workflow");
+      if (g === "skill") return tw("slash.grp_skill");
+      return tw("slash.grp_cmd");
+    }
+    function rows() { return box.querySelectorAll(".slash-item"); }
     function renderList() {
       box.innerHTML = "";
+      box.style.setProperty("--slash-cmdw", api.cotLenh(items) + "ch");
+      var coTieuDe = !(tok && tok.query), nhomTruoc = null;
       items.forEach(function (it, i) {
+        var g = api.nhomCua(it);
+        if (coTieuDe && g !== nhomTruoc) {
+          var h = document.createElement("div");
+          h.className = "slash-head";
+          h.textContent = tenNhom(g);
+          box.appendChild(h);
+        }
+        nhomTruoc = g;
         var row = document.createElement("div");
         row.className = "slash-item" + (i === active ? " active" : "");
+        row.setAttribute("role", "option");
         row.innerHTML = '<span class="slash-cmd">/' + esc(it.cmd) + '</span>' +
-          '<span class="slash-name">' + esc(it.kind === 'agent' ? tw('ws.tab_agent') + ' · ' : it.kind === 'workflow' ? tw('ws.tab_workflow') + ' · ' : '') + esc(it.name) + '</span>' +
-          '<span class="slash-desc">' + esc(it.desc) + '</span>';
+          '<span class="slash-text"><span class="slash-name">' + esc(it.name) + '</span>' +
+          (it.desc ? '<span class="slash-desc">' + esc(it.desc) + '</span>' : '') + '</span>' +
+          (!coTieuDe && g !== "cmd" ? '<span class="slash-kind">' + esc(tenNhom(g)) + '</span>' : '');
         row.addEventListener("mousedown", function (e) { e.preventDefault(); choose(i); });
         box.appendChild(row);
       });
@@ -325,16 +386,66 @@
 
     function onKeydown(e) {
       if (!box || box.style.display === "none") return;
-      if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % items.length; renderList(); box.children[active].scrollIntoView({block: "nearest"}); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); active = (active - 1 + items.length) % items.length; renderList(); box.children[active].scrollIntoView({block: "nearest"}); }
+      if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % items.length; renderList(); rows()[active].scrollIntoView({block: "nearest"}); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); active = (active - 1 + items.length) % items.length; renderList(); rows()[active].scrollIntoView({block: "nearest"}); }
       else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); choose(active); }
       else if (e.key === "Escape") { e.preventDefault(); hide(); }
     }
+
+    // ===== Tô màu lệnh đã gõ trong ô nhập (0.290.0) =====
+    // Ô <textarea> không tô màu được từng chữ, nên đặt một lớp GƯƠNG ngay dưới nó: cùng font, cùng lề,
+    // cùng bề rộng, chữ y hệt, riêng token lệnh bọc trong <mark>. Khi có lệnh, chữ của ô nhập trong suốt
+    // (con trỏ vẫn hiện) và người dùng nhìn thấy chữ của gương. Không có lệnh thì gương ẩn, ô nhập như cũ.
+    // Giá trị ô nhập hay bị app.js gán thẳng (gửi xong thì xoá) mà không bắn sự kiện input, nên trong lúc
+    // đang tô, mỗi khung hình soi lại giá trị: lệch là vẽ lại ngay, không để gương hiện chữ cũ.
+    var hl = null, hlKey = "", hlLoop = 0;
+    var CHEP = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "wordSpacing",
+      "textIndent", "textTransform", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "tabSize"];
+    function syncHl() {
+      var input = document.getElementById("chatInput");
+      if (!input) return;
+      var v = input.value, r = api.vungLenh(v);
+      if (!r) {
+        input.classList.remove("has-cmd");
+        if (hl) hl.hidden = true;
+        hlKey = "";
+        if (hlLoop) { cancelAnimationFrame(hlLoop); hlLoop = 0; }
+        return;
+      }
+      if (!hl) {
+        hl = document.createElement("div");
+        hl.className = "ci-hl";
+        hl.setAttribute("aria-hidden", "true");
+        input.parentNode.insertBefore(hl, input);
+      } else if (hl.nextSibling !== input) {
+        input.parentNode.insertBefore(hl, input);
+      }
+      var key = v + "|" + input.scrollTop + "|" + input.clientWidth + "|" + input.clientHeight + "|" + input.offsetTop;
+      if (key !== hlKey || hl.hidden) {
+        hlKey = key;
+        var cs = getComputedStyle(input);
+        CHEP.forEach(function (p) { hl.style[p] = cs[p]; });
+        hl.style.top = input.offsetTop + "px";
+        hl.style.left = input.offsetLeft + "px";
+        hl.style.width = input.clientWidth + "px";
+        hl.style.height = input.clientHeight + "px";
+        hl.innerHTML = esc(v.slice(0, r.start)) + '<mark class="ci-cmd">' + esc(v.slice(r.start, r.end)) + "</mark>" +
+          esc(v.slice(r.end)) + "\n";
+        hl.hidden = false;
+        hl.scrollTop = input.scrollTop;
+        input.classList.add("has-cmd");
+      }
+      if (hlLoop) cancelAnimationFrame(hlLoop);
+      hlLoop = requestAnimationFrame(function () { hlLoop = 0; syncHl(); });
+    }
+    api.syncHighlight = syncHl;
 
     api._initMenu = function () {
       var input = document.getElementById("chatInput");
       if (!input) return;
       input.addEventListener("input", onInput);
+      input.addEventListener("input", syncHl);
+      input.addEventListener("scroll", syncHl);
       // Keydown PHAI dang ky TRUOC app.js (cung element -> chay theo thu tu dang ky). Script
       // nay nap truoc app.js va #chatInput da ton tai, nen init DONG BO ngay o duoi. Khi menu
       // mo, onKeydown goi stopImmediatePropagation chan handler Enter cua app.js.

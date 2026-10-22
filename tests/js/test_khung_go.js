@@ -38,7 +38,7 @@ check("CSS: an empty #modelBar is hidden", css.indexOf(".model-bar:empty { displ
 check("CSS: no old phone order rules left", css.indexOf(".hud-voice .attach-btn { order: 1;") === -1);
 
 check("CHAT_NODE_IDS drops attachBar (it lives inside the card)",
-  consoleJs.indexOf('const CHAT_NODE_IDS = ["callBar", "chatArea", "bgStrip", "modelBar", "hudVoice"];') !== -1);
+  consoleJs.indexOf('const CHAT_NODE_IDS = ["callBar", "chatArea", "bgStrip", "goalBar", "modelBar", "hudVoice"];') !== -1);
 check("Chat page cp-css uses 24px corners", consoleJs.indexOf(".chatpage-slot .hud-voice{ background:var(--bg2); border:1px solid var(--border); border-radius:24px; }") !== -1);
 
 check("phone to desktop: the model chip goes back into #cpChips before #effBtn",

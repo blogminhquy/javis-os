@@ -120,7 +120,9 @@ Three session commands lead the list:
 
 On the web build, `/new` and `/reset` both open a new conversation.
 
-Right below are **twelve system commands** (see the next section), followed by **all skills of the selected brain**, each row showing `/slug`, the skill name and a one-line description.
+Right below are **twelve system commands** (see the next section), followed by **all skills of the selected brain**. Since 0.290.0 each entry fits on one line: the `/command` column has one shared width, so names and descriptions line up, and the groups (Commands, Agents, Workflows, Skill) carry small headings. While you type to filter, the headings go away and the group label sits at the end of the row.
+
+A command you have typed into the box (at the start of the message, or the name of a real skill mid-sentence) is **highlighted in orange**, so you can see which part Javis will treat as a command. A half-typed word that matches no command is not highlighted yet.
 
 Controlling the menu:
 
@@ -189,9 +191,15 @@ Javis proposes "done or not", but **whether to keep going is decided by code**, 
 - two rounds in a row report exactly the same thing missing (no progress);
 - Javis asks you a question that needs your decision;
 - a round fails, or Javis does not say whether the target was met;
-- **you type a new message, press Stop, open another conversation or type `/goal clear`** - your words always come first.
+- you type `/goal clear` or press the bin button on the goal bar.
 
-It runs inside the **chat tab that is open**: closing the tab or reloading the page stops it. Unlike `/plan`, `/goal` does real work (within the permissions you gave Javis), so write a concrete target that can be checked.
+Unlike `/plan`, `/goal` does real work (within the permissions you gave Javis), so write a concrete target that can be checked.
+
+**The goal bar (since 0.290.0).** While a goal exists, a bar sits right above the chat box in every chat view: an icon, the goal text, a timer of how long it has run, then three buttons: **delete**, **pause / resume** and an **arrow** that opens the details (full goal text, round out of five, what is still missing). With several goals (one per conversation) a **number** at the start of the bar says how many; press it to drop down the list and press a row to open that goal's conversation.
+
+- **Pause instead of stop:** pressing the chat's Stop button or typing a new message mid-run only pauses the goal (the timer stops), and your words still come first. Press resume on the bar and Javis runs the next round.
+- **Moving to another conversation:** the goal is not lost, it waits. It only moves on while its conversation is open, because the automatic rounds are sent by the browser into the chat you are looking at. Open that conversation again and it carries on.
+- **Reloading the page:** the goal stays on the bar, paused; press resume to run the next round. The five-round cap still holds.
 
 #### On Telegram
 

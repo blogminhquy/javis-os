@@ -136,7 +136,9 @@ Ba lệnh phiên đứng đầu danh sách:
 
 Trên bản web, `/new` và `/reset` cùng mở một hội thoại mới.
 
-Ngay bên dưới là **mười hai lệnh hệ thống** (xem mục tiếp theo), rồi tới **toàn bộ skill của brain đang chọn**, mỗi dòng gồm `/slug`, tên skill và một dòng mô tả.
+Ngay bên dưới là **mười hai lệnh hệ thống** (xem mục tiếp theo), rồi tới **toàn bộ skill của brain đang chọn**. Từ 0.290.0 mỗi dòng gọn trên một hàng: cột `/lệnh` rộng bằng nhau nên tên và mô tả thẳng một cột, các nhóm (Lệnh, Cộng sự, Quy trình, Skill) có tiêu đề nhỏ. Khi đang gõ chữ để lọc, tiêu đề nhóm ẩn đi và nhãn nhóm nằm cuối dòng.
+
+Lệnh đã gõ vào ô nhập (ở đầu tin, hoặc tên skill có thật ở giữa câu) được **tô màu cam**, để bạn thấy ngay phần nào Javis sẽ hiểu là lệnh. Đang gõ dở một chữ chưa khớp lệnh nào thì chưa tô.
 
 Cách điều khiển menu:
 
@@ -206,9 +208,15 @@ Javis đề xuất "xong hay chưa", còn **việc có chạy tiếp hay không 
 - hai vòng liền báo còn thiếu y hệt nhau (không có tiến triển);
 - Javis hỏi ngược bạn một câu cần bạn quyết;
 - một vòng bị lỗi, hoặc Javis không báo được mục tiêu đã đạt hay chưa;
-- **bạn gõ một tin mới, bấm Dừng, mở hội thoại khác hoặc gõ `/goal clear`** - lời của bạn luôn lên trước.
+- bạn gõ `/goal clear` hoặc bấm nút thùng rác trên thanh mục tiêu.
 
-Khi dừng, mục tiêu tự tắt và câu báo luôn kèm việc bạn có thể làm tiếp (gỡ chỗ thiếu rồi gõ `/goal` lại). Chế độ này chạy trong **tab chat đang mở**: đóng tab hay tải lại trang thì dừng (các dòng vòng đã chạy vẫn còn để xem lại). Khác với `/plan`, `/goal` làm việc thật (đúng quyền hạn bạn đã cấp cho Javis), nên hãy viết mục tiêu cụ thể, kiểm chứng được.
+Khi dừng vì những lý do trên, mục tiêu tự tắt và câu báo luôn kèm việc bạn có thể làm tiếp (gỡ chỗ thiếu rồi gõ `/goal` lại). Khác với `/plan`, `/goal` làm việc thật (đúng quyền hạn bạn đã cấp cho Javis), nên hãy viết mục tiêu cụ thể, kiểm chứng được.
+
+**Thanh mục tiêu (từ 0.290.0).** Khi có mục tiêu, một thanh hiện ngay trên khung nhập, ở mọi khung chat: biểu tượng, chữ mục tiêu, đồng hồ đếm thời gian đã chạy, rồi ba nút **xoá**, **tạm dừng / chạy tiếp** và **mũi tên** mở chi tiết (đủ chữ mục tiêu, vòng mấy trên năm, phần còn thiếu). Có nhiều mục tiêu (mỗi hội thoại một cái) thì **ô số** ở đầu thanh cho biết có bao nhiêu; bấm vào đó xổ ra danh sách, bấm một dòng để mở đúng hội thoại của nó.
+
+- **Tạm dừng thay vì tắt:** bấm Dừng của khung chat hay gõ một tin mới giữa chừng thì mục tiêu chỉ tạm dừng (đồng hồ đứng), lời của bạn vẫn lên trước. Bấm chạy tiếp trên thanh là Javis đi vòng sau.
+- **Sang hội thoại khác:** mục tiêu không mất mà chờ. Nó chỉ chạy tiếp khi hội thoại của nó đang mở, vì vòng tự động là trình duyệt gửi tin vào khung chat bạn đang xem. Mở lại hội thoại đó là nó đi tiếp.
+- **Tải lại trang:** mục tiêu còn nguyên trên thanh ở trạng thái tạm dừng; bấm chạy tiếp là đi vòng sau. Trần 5 vòng vẫn giữ.
 
 #### Trên Telegram
 

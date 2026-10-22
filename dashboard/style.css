@@ -2865,32 +2865,143 @@ body.ni-dragging, body.ni-dragging * { cursor: ew-resize !important; user-select
   mask: var(--ic-check) center/contain no-repeat;
 }
 
-/* Menu lệnh / (chat-slash.js) */
+/* Menu lệnh / (chat-slash.js). 0.290.0: một dòng mỗi lệnh, cột lệnh chung một bề rộng (--slash-cmdw do JS tính
+   theo lệnh dài nhất, font đơn cách) nên mô tả thẳng hàng; chữ nhỏ lại theo yêu cầu chủ repo 22/10 ("font chữ hơi
+   to quá"). Trước đó mỗi dòng hai tầng, cột lệnh tự co theo từng lệnh nên mô tả lệch nhau. */
 .slash-menu {
   position: fixed;
   z-index: 999;
-  max-height: 280px;
+  max-height: min(320px, 50vh);
   overflow-y: auto;
   background: var(--bg2);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: var(--shadow-2);
   padding: 4px;
+  font-size: 14px;
+  --slash-cmdw: 9ch;
 }
+.slash-head {
+  padding: 8px 10px 3px; font-size: 12px; font-weight: 600; letter-spacing: .02em;
+  color: var(--text3); text-transform: uppercase;
+}
+.slash-head:first-child { padding-top: 4px; }
 .slash-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-areas: "cmd name" "cmd desc";
-  gap: 0 10px;
-  padding: 6px 10px;
-  border-radius: 7px;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 32px; padding: 5px 10px;
+  border-radius: 8px;
   cursor: pointer;
 }
 .slash-item.active, .slash-item:hover { background: var(--bg3); }
-.slash-cmd { grid-area: cmd; align-self: center; font-weight: 600; color: var(--accent); white-space: nowrap; }
-/* name + desc: mỗi cái CẮT 1 DÒNG, tràn thì "..." (min-width:0 để ellipsis chạy trong grid) */
-.slash-name { grid-area: name; font-size: 13px; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.slash-desc { grid-area: desc; font-size: 11px; color: var(--text3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slash-cmd {
+  flex: none; width: var(--slash-cmdw); font-family: var(--mono); font-size: 13px; font-weight: 600;
+  color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Tên và mô tả nối tiếp trên CÙNG một dòng, tràn thì "..." (min-width:0 để ellipsis chạy trong flex). */
+.slash-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
+.slash-name { color: var(--text); font-size: 14px; }
+.slash-desc { color: var(--text3); font-size: 13px; margin-left: 8px; }
+.slash-kind {
+  flex: none; font-size: 12px; color: var(--text3); padding: 1px 7px; border-radius: 999px; background: var(--bg);
+}
+@media (max-width: 520px) {
+  /* Điện thoại hẹp: mô tả xuống dòng dưới tên thay vì bị cắt còn vài chữ. */
+  .slash-item { align-items: flex-start; }
+  .slash-cmd { padding-top: 1px; width: min(var(--slash-cmdw), 12ch); }
+  .slash-text { white-space: normal; }
+  .slash-name, .slash-desc { display: block; margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* Lệnh đã gõ trong ô nhập được tô màu (chat-slash.js syncHl): lớp gương .ci-hl nằm DƯỚI ô nhập, chữ y hệt,
+   riêng token lệnh bọc <mark>. Lúc đó chữ của ô nhập trong suốt, chỉ còn con trỏ. Nền của mark mở rộng bằng
+   box-shadow chứ không bằng padding: padding làm chữ gương lệch khỏi chữ thật. */
+.ci-hl {
+  position: absolute; margin: 0; border: 0; box-sizing: border-box; overflow: hidden; pointer-events: none;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; color: var(--text);
+}
+.ci-hl[hidden] { display: none; }
+.ci-hl .ci-cmd {
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 4px;
+  font-weight: inherit;
+}
+.voice-input.has-cmd { position: relative; color: transparent; caret-color: var(--text); }
+.voice-input.has-cmd::selection { color: transparent; background: color-mix(in srgb, var(--accent) 28%, transparent); }
+
+/* ===== Thanh MỤC TIÊU của /goal ngay trên khung nhập (chat-goal.js, 0.290.0) =====
+   Một dòng như thanh "Pursuing goal" của Codex: biểu tượng, nhãn trạng thái, mục tiêu (cắt "..."), đồng hồ,
+   xoá, tạm dừng/chạy tiếp, mở chi tiết. Nhiều mục tiêu thì có ô số ở đầu, bấm xổ danh sách lên trên. */
+.goal-bar {
+  position: relative; flex: none; margin: 0 16px 6px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg2); color: var(--text2);
+  font-size: 14px;
+}
+.goal-bar[hidden] { display: none; }
+.gb-row { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 3px 6px 3px 8px; min-width: 0; }
+.gb-ic { flex: none; display: inline-flex; color: var(--accent); }
+.gb-paused .gb-ic, .gb-waiting .gb-ic { color: var(--text3); }
+.gb-main {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 4px 2px;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.gb-lbl { flex: none; color: var(--text3); }
+.gb-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.gb-time { flex: none; font-variant-numeric: tabular-nums; color: var(--text3); font-size: 13px; padding: 0 4px; }
+.gb-btn {
+  flex: none; width: 30px; height: 30px; border-radius: 8px; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; color: var(--text2);
+}
+.gb-btn:hover { background: var(--bg3); color: var(--text); }
+.gb-del:hover { color: var(--red); }
+.gb-exp svg { transform: rotate(180deg); transition: transform .15s; }
+.gb-exp[aria-expanded="true"] svg { transform: none; }
+.gb-btn:focus-visible, .gb-main:focus-visible, .gb-count:focus-visible, .gb-open:focus-visible, .gb-item-main:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.gb-count {
+  flex: none; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--accent-line, var(--border)); background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.gb-count[aria-expanded="true"] { background: var(--accent-solid); color: var(--on-accent); border-color: transparent; }
+.gb-detail { padding: 2px 14px 10px 36px; display: flex; flex-direction: column; gap: 4px; }
+.gb-full { color: var(--text); font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gb-meta { color: var(--text2); font-size: 14px; line-height: 1.4; }
+.gb-open {
+  align-self: flex-start; margin-top: 4px; padding: 5px 12px; min-height: 32px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: none; color: var(--text2); font: inherit; font-size: 14px;
+}
+.gb-open:hover { color: var(--accent); border-color: var(--accent); }
+/* Danh sách nhiều mục tiêu: bật lên PHÍA TRÊN thanh, không đẩy khung chat. */
+.gb-pop {
+  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 60;
+  width: min(460px, calc(100vw - 32px)); max-height: min(55vh, 420px); overflow: auto;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-3); padding: 6px;
+}
+.gb-pop-head { padding: 6px 8px 6px; font-weight: 600; color: var(--text); font-size: 15px; }
+.gb-item { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border-radius: 10px; }
+.gb-item:hover { background: var(--bg3); }
+.gb-item.gb-cur { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.gb-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+.gb-item.gb-running .gb-dot { background: var(--green, #3fb27f); animation: bgPulse 1.4s ease-in-out infinite; }
+.gb-item.gb-waiting .gb-dot { background: var(--warn-ink); }
+.gb-item-main {
+  flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 4px 2px;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.gb-item-txt { color: var(--text); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gb-item-meta { color: var(--text3); font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .gb-item.gb-running .gb-dot { animation: none; } .gb-exp svg { transition: none; } }
+@media (max-width: 860px) {
+  .goal-bar { margin: 0 12px 6px; }
+  .gb-btn { width: 34px; height: 34px; }
+  /* Điện thoại: bỏ nhãn trạng thái để nhường chỗ cho chữ mục tiêu. Biểu tượng (cam là đang chạy, xám là dừng
+     hay chờ) và nút chạy tiếp/tạm dừng đã nói trạng thái; khung chi tiết ghi đủ bằng chữ. */
+  .gb-lbl { display: none; }
+  .gb-detail { padding-left: 14px; }
+}
 
 /* ==========================================================================
    ICON (Lucide) - dashboard/icons.js dựng thẻ <svg class="ic">

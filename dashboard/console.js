@@ -8054,7 +8054,7 @@
   // rời trang. Cùng một cuộc trò chuyện hiển thị ở cả màn Javis lẫn tab này.
   // ============================================
   // attachBar lives INSIDE #hudVoice since 0.153.0, so it is no longer borrowed on its own.
-  const CHAT_NODE_IDS = ["callBar", "chatArea", "bgStrip", "modelBar", "hudVoice"];
+  const CHAT_NODE_IDS = ["callBar", "chatArea", "bgStrip", "goalBar", "modelBar", "hudVoice"];
   let _chatSlots = [];        // vị trí gốc từng node để trả về đúng chỗ trong HUD
 
   function _injectChatCss() {

@@ -62,7 +62,7 @@ function stopCurrent() {
   try { ketThucTheoLoi(false); } catch (e) {}
   voice.stopSpeaking();
   const sid = savedSessionId;
-  try { if (window.JavisLenh) window.JavisLenh.dungMucTieu(); } catch (e) {}   // Dừng cũng dừng /goal
+  try { if (window.JavisLenh) window.JavisLenh.tamDungVi(sid); } catch (e) {}   // Dừng cũng tạm dừng /goal (0.290.0: không xoá)
   if (sid && adaptiveCurrent.has(sid)) adaptiveCancelled.add(adaptiveCurrent.get(sid));
   // Dừng ĐÚNG phiên đang xem (phiên nền khác vẫn chạy). Server huỷ lượt + gửi turn_done về.
   if (sid && ws && ws.readyState === WebSocket.OPEN) {
@@ -1438,8 +1438,9 @@ function handleMessage(data) {
     // Lượt vừa xong có thể đã giao việc nền. Đây là ĐÚNG khoảnh khắc người dùng đọc câu trả
     // lời "em đã giao 3 việc" và tự hỏi nó có chạy thật không - dải phải trả lời được ngay.
     try { if (window.JavisBackground) window.JavisBackground.refresh(); } catch (e) {}
-    // /goal: lượt vừa đóng, đây là lúc duy nhất quyết định có tự gửi vòng tiếp không.
-    try { if (isActive && window.JavisLenh) window.JavisLenh.hetLuot(sid); } catch (e) {}
+    // /goal: lượt vừa đóng, đây là lúc duy nhất quyết định có tự gửi vòng tiếp không. Gọi cho cả chat
+    // chạy nền (0.290.0): mục tiêu của chat đó ghi nhận vòng đã xong, mở lại chat là nó đi tiếp.
+    try { if (window.JavisLenh) window.JavisLenh.hetLuot(sid); } catch (e) {}
   }
 }
 
