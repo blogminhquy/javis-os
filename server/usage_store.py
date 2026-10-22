@@ -8,17 +8,21 @@ KHÁC với "hạn mức tài khoản" (gói thuê bao) mà đa số provider kh
 Lưu STATE_DIR/usage.json: { "days": { "YYYY-MM-DD": { "<provider>|<model>": {in,out,turns,cost} } },
                             "total": { "<provider>|<model>": {in,out,turns,cost} } }
 - Gộp theo NGÀY (giữ 30 ngày gần nhất) + TỔNG tích luỹ.
-- cost chỉ ghi khi provider trả về chi phí thật (vd Claude Code CLI total_cost_usd); còn lại 0
-  (chỉ đếm token) - KHÔNG tự đoán giá vì bảng giá mỗi model khác nhau, dễ sai.
+- cost: the provider's own figure when it sends one (Claude Code CLI total_cost_usd). Otherwise a
+  per-token API provider (usage_parsers.PER_TOKEN_PROVIDERS) is priced from usage_pricing.json;
+  a model missing from that table is written as cost null in usage-events.jsonl (unknown, not
+  free). Plan-based engines stay 0.
 """
 from __future__ import annotations
 
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import json
+import os
 import threading
 from datetime import datetime, timezone, timedelta
 
 import quota_scheduler          # sổ cái TPM dùng chung (không phụ thuộc ngược, xem module đó)
+import usage_parsers            # price table (pure module, no config/DB)
 from config import STATE_DIR
 
 _PATH = STATE_DIR / "usage.json"
@@ -31,7 +35,38 @@ def _today() -> str:
     return localefmt.now().strftime("%Y-%m-%d")
 
 
-def _append_event(provider: str, model: str, tin: int, tout: int, cost: float) -> None:
+_PRICE_CACHE = {"mtime": None, "prices": {}}
+
+
+def _prices() -> dict:
+    """The price table, re-read only when usage_pricing.json changes (record() runs every turn)."""
+    try:
+        mt = os.path.getmtime(usage_parsers._PRICING_PATH)
+    except OSError:
+        mt = None
+    if _PRICE_CACHE["mtime"] != mt or not _PRICE_CACHE["prices"]:
+        _PRICE_CACHE["prices"] = usage_parsers.load_prices()
+        _PRICE_CACHE["mtime"] = mt
+    return _PRICE_CACHE["prices"]
+
+
+def _cost_for(provider: str, model: str, tin: int, tout: int, cost: float):
+    """Cost of one turn: the provider's own figure when it sent one, else the price table for a
+    per-token API provider (None when the model is not in the table), else 0.0 (plan-based).
+
+    Until 2026-10-22 every API turn was written with cost 0.0: no engine reports a bill, so DeepSeek
+    background work looked free in usage-events.jsonl and in usage.json."""
+    if cost > 0:
+        return cost
+    if str(provider or "").lower() not in usage_parsers.PER_TOKEN_PROVIDERS:
+        return 0.0
+    try:
+        return usage_parsers.cost_or_none(model, tin, tout, _prices())
+    except Exception:
+        return None
+
+
+def _append_event(provider: str, model: str, tin: int, tout: int, cost) -> None:
     """Ghi them 1 dong vao usage-events.jsonl (append-only) cho indexer dashboard token doc.
     Best-effort: loi thi bo qua, KHONG duoc lam hong luong chat. Nhanh API (openrouter/openai/
     anthropic) khong co log tho nen day la nguon DUY NHAT cho chung; claude/codex indexer lay
@@ -40,7 +75,9 @@ def _append_event(provider: str, model: str, tin: int, tout: int, cost: float) -
         now = datetime.now(timezone.utc)
         line = json.dumps({"ts": int(now.timestamp()), "day": _today(),
                            "provider": provider or "?", "model": model or "?",
-                           "in": int(tin or 0), "out": int(tout or 0), "cost": float(cost or 0.0)},
+                           "in": int(tin or 0), "out": int(tout or 0),
+                           # null = per-token API model missing from usage_pricing.json
+                           "cost": None if cost is None else round(float(cost), 8)},
                           ensure_ascii=False)
         with open(_EVENTS_PATH, "a", encoding="utf-8") as fh:
             fh.write(line + "\n")
@@ -76,6 +113,8 @@ def record(provider: str, model: str, tin=0, tout=0, cost=0.0) -> None:
     cost = float(cost or 0.0)
     if tin <= 0 and tout <= 0 and cost <= 0:
         return
+    cost_ev = _cost_for(provider, model, tin, tout, cost)
+    cost = float(cost_ev or 0.0)
     key = f"{provider or '?'}|{model or '?'}"
     with _LOCK:
         d = _load()
@@ -89,7 +128,7 @@ def record(provider: str, model: str, tin=0, tout=0, cost=0.0) -> None:
         for old in sorted(d["days"])[:-_KEEP_DAYS]:   # dọn ngày cũ
             d["days"].pop(old, None)
         _save(d)
-    _append_event(provider, model, tin, tout, cost)   # forward-log rieng (khong prune) cho dashboard token
+    _append_event(provider, model, tin, tout, cost_ev)   # forward-log rieng (khong prune) cho dashboard token
     # Sổ cái TPM dùng chung. Đây là điểm móc PHỔ QUÁT: mọi đường gọi model (chat, loop,
     # task nền, nhắc hẹn, Telegram, CLI, Codex) đều đi qua record(), trong khi admit_quota
     # chỉ nhìn thấy bốn đường canary. Thiếu móc này thì hạn mức của TÀI KHOẢN bị đốt vô hình

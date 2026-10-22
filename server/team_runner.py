@@ -317,6 +317,8 @@ class TextOnlyOutcome:
         self.error: Optional[tuple] = None
         self.tokens_in: Optional[int] = None
         self.tokens_out: Optional[int] = None
+        self.cost_usd: Optional[float] = None
+        self._usage_seen = False
 
     def note(self, ev: Any) -> None:
         if not isinstance(ev, dict):
@@ -326,9 +328,26 @@ class TextOnlyOutcome:
             self.final = {"content": str(ev.get("content") or ""), "is_error": bool(ev.get("is_error")),
                           "subtype": str(ev.get("subtype") or ""),
                           "auth_refresh_race": bool(ev.get("auth_refresh_race"))}
+            # Claude Code and Codex report the turn's tokens (and Claude its cost) on the final event, not in a usage
+            # event. Read them there, or every Claude/Codex team turn was settled with no tokens at all.
+            if not self._usage_seen and (ev.get("tokens_in") is not None or ev.get("tokens_out") is not None):
+                self.tokens_in = int(ev.get("tokens_in") or 0)
+                self.tokens_out = int(ev.get("tokens_out") or 0)
+            if ev.get("cost_usd") is not None:
+                try:
+                    self.cost_usd = float(ev.get("cost_usd") or 0)
+                except (TypeError, ValueError):
+                    pass
         elif et == "usage":
-            self.tokens_in = int(ev.get("input_tokens") or 0)
-            self.tokens_out = int(ev.get("output_tokens") or 0)
+            self._usage_seen = True
+            if "input_tokens" in ev or "output_tokens" in ev:
+                # CLI shape (Grok Build, Antigravity): one total for the turn.
+                self.tokens_in = int(ev.get("input_tokens") or 0)
+                self.tokens_out = int(ev.get("output_tokens") or 0)
+            else:
+                # API engine shape: one event per model call of the turn (a tool loop has several), so add them up.
+                self.tokens_in = (self.tokens_in or 0) + int(ev.get("input") or 0)
+                self.tokens_out = (self.tokens_out or 0) + int(ev.get("output") or 0)
         elif et in self.TOOL_EVENTS:
             if self.error is None:
                 self.error = ("tool_call", str(ev.get("name") or ev.get("tool") or "")[:80])
@@ -351,7 +370,10 @@ class TextOnlyOutcome:
             raise EngineOutcomeError("final_error", f["content"].strip()[:200] or f["subtype"])
         if not f["content"].strip():
             raise EngineOutcomeError("empty")
-        return {"text": f["content"], "tokens_in": self.tokens_in, "tokens_out": self.tokens_out}
+        out = {"text": f["content"], "tokens_in": self.tokens_in, "tokens_out": self.tokens_out}
+        if self.cost_usd is not None:
+            out["cost_usd"] = self.cost_usd
+        return out
 
 
 class ToolTurnOutcome(TextOnlyOutcome):

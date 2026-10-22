@@ -108,6 +108,26 @@ def estimate_cost(ev: dict, prices: dict) -> float:
     return cost / 1_000_000.0
 
 
+# Providers that bill PER TOKEN to the user's own API key: every token is cash out of the wallet.
+# usage_store.record() prices their turns at write time (the engines report tokens, never a bill).
+# Left out on purpose: the plan-based CLIs (Claude Code, Codex, Grok Build, Antigravity), Ollama
+# Cloud (a monthly plan, not per token) and Ollama on the user's own machine (free).
+PER_TOKEN_PROVIDERS = frozenset({"openrouter", "openai", "anthropic", "anthropic-api", "gemini",
+                                 "groq", "deepseek", "openai-compat", "anthropic-compat"})
+
+
+def cost_or_none(model: str, tin: int, tout: int, prices: dict):
+    """USD for one API turn from the price table, or None when the model is not in the table.
+
+    None is not 0: "unknown price" must stay distinguishable from "free", or a model missing from
+    the table reads as a turn that cost nothing. An OpenRouter ':free' model IS free, so 0.0."""
+    if ":free" in str(model or ""):
+        return 0.0
+    if not _khoa_gia(model or "", prices):
+        return None
+    return estimate_cost({"model": model, "input": tin, "output": tout}, prices)
+
+
 def _parse_ts(s: str):
     """ISO (co the hau to Z) -> (epoch:int, day-local:str). None neu khong parse duoc."""
     if not s:

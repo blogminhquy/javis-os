@@ -19,6 +19,7 @@ import glob
 import json
 import os
 import sqlite3
+import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -58,8 +59,12 @@ _DIMS = {"provider", "source", "activity", "model", "project", "day"}
 # main.py; thieu mot ten la moi dong cua provider do bi VUT IM LANG (chuoi if/elif ben duoi
 # khong co else), va o "tien mat thang nay" bao 0 trong khi vi van voi di. 'groq' va 'gemini'
 # tung thieu dung nhu vay.
+# 'openai-compat' and 'anthropic-compat' (custom gateways, 0.254.0) were missing the same way.
 _API_PROVIDERS = {"openrouter", "openai", "anthropic", "anthropic-api", "oauth", "ollama",
-                  "groq", "gemini", "deepseek"}
+                  "groq", "gemini", "deepseek", "openai-compat", "anthropic-compat"}
+# Ollama on the user's own machine: real tokens, but no bill. Its own column, never 'api',
+# or the "real cash this month" box would charge llama prices for a model that runs for free.
+_EVENT_LOCAL = {"ollama-local"}
 
 
 def _claude_dir() -> str:
@@ -321,6 +326,8 @@ _EVENT_CODEX = {"codex", "openai-oauth", "chatgpt", "oauth"}
 # xAI la duong TRA TIEN theo luot goi, con day la duong THUE BAO - hai thu khac hoan toan ve
 # hoa don du cung ten model.
 _EVENT_GROK_CLI = {"grok-cli", "grok_cli", "grok"}
+# Antigravity CLI (Google plan) has no raw log Javis reads, so these lines are its only record.
+_EVENT_ANTIGRAVITY = {"antigravity-cli", "agy"}
 
 
 def _ingest_events(conn) -> int:
@@ -357,6 +364,7 @@ def _ingest_events(conn) -> int:
         start = 0
 
     events = []
+    unknown = set()
     for ln in lines[start:complete]:
         ln = ln.strip()
         if not ln:
@@ -388,6 +396,19 @@ def _ingest_events(conn) -> int:
         elif prov in _EVENT_GROK_CLI:
             events.append({**chung, "provider": "grok-cli", "source": "javis",
                            "activity": "chat", "project": "(events)"})
+        elif prov in _EVENT_ANTIGRAVITY:
+            events.append({**chung, "provider": "antigravity-cli", "source": "javis",
+                           "activity": "chat", "project": "(events)"})
+        elif prov in _EVENT_LOCAL:
+            events.append({**chung, "provider": "local", "source": "javis",
+                           "activity": "chat", "project": "(local)"})
+        elif prov:
+            # Never drop a line silently: a provider added later without a mapping here used
+            # to vanish from every report. Logged once per refresh so it gets noticed.
+            unknown.add(prov)
+    if unknown:
+        print(f"[usage index] usage-events provider not mapped, skipped: {sorted(unknown)}",
+              file=sys.stderr)
     if events:
         _insert_events(conn, path, events)
     conn.execute("INSERT INTO files_seen(path,size,mtime,offset) VALUES(?,?,?,?) "
@@ -476,6 +497,21 @@ def _migrate_schema_once(conn) -> bool:
     return True
 
 
+def _stage(name, conn, fn, *args):
+    """Run one refresh source; on error log it, keep what earlier sources wrote, return 0."""
+    try:
+        out = fn(*args)
+        conn.commit()
+        return out or 0
+    except Exception as e:  # noqa: BLE001
+        try:
+            conn.rollback()   # drop this source's half-written rows only; earlier ones are committed
+        except Exception:  # noqa: BLE001
+            pass
+        print(f"[usage index] {name} scan failed: {type(e).__name__}: {e}", file=sys.stderr)
+        return 0
+
+
 def refresh() -> dict:
     """Quet tang dan ca 3 nguon. Tra so file/event thuc su xu ly lan nay."""
     res = {"claude_files": 0, "codex_files": 0, "api_events": 0, "quet_lai": False}
@@ -483,12 +519,17 @@ def refresh() -> dict:
     try:
         res["quet_lai"] = _migrate_schema_once(conn)   # 1 lan khi doi schema: quet lai tat ca
         _migrate_events_once(conn)                  # 1 lan: backfill cli/codex tu events cu
+        conn.commit()                               # a failing source below must not undo these
         chat = _chat_sessions()
         brains = session_brain.mapping()   # phien nao thuoc brain nao -> nhan du an dung
-        res["claude_files"] = _scan_claude(conn, chat, brains)
-        res["codex_files"] = _scan_codex(conn)
-        res["api_events"] = _ingest_events(conn)   # API + du phong cli/codex tu usage-events.jsonl
-        _dedup_events_vs_raw(conn)                  # log tho phu ngay nao thi xoa event ngay do
+        # Each source in its own guard. Before, one bad transcript line in ~/.claude/projects (or a
+        # Codex rollout) raised out of refresh() before usage-events.jsonl was read and before the
+        # commit, so the API branch (whose ONLY source is that file) stayed at 0 tokens for good,
+        # and /usage/refresh swallowed the error. A broken source now costs only its own numbers.
+        res["claude_files"] = _stage("claude", conn, _scan_claude, conn, chat, brains)
+        res["codex_files"] = _stage("codex", conn, _scan_codex, conn)
+        res["api_events"] = _stage("events", conn, _ingest_events, conn)   # API + du phong cli/codex
+        _stage("dedup", conn, _dedup_events_vs_raw, conn)  # log tho phu ngay nao thi xoa event ngay do
         conn.commit()
     finally:
         conn.close()

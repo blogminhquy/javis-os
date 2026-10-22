@@ -9484,7 +9484,8 @@ async def _usage_refresh_once() -> dict:
     try:
         async with _USAGE_REFRESH_LOCK:
             return await asyncio.to_thread(usage_index.refresh)
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        print(f"[usage refresh] {type(e).__name__}: {e}", file=sys.stderr)   # swallowed, never silent
         return {}
 
 
@@ -24290,6 +24291,24 @@ def _team_gate_support(provider):
                                       api_providers=tuple(aux_engine.API_PROVIDERS))
 
 
+def _team_record_usage(provider: str, model: str, outcome) -> None:
+    """Count one team member turn in the usage ledger, like a chat turn (Settings > Usage, usage-events.jsonl).
+
+    Team turns used to write nothing there, so a team run on Claude Code or Codex was invisible on the Usage page.
+    API engines are skipped: `_ApiAuxEngine` already records each of their model calls itself, and counting here too
+    would double them. Best effort: a ledger error never fails the turn."""
+    try:
+        prov = str(provider or "")
+        if prov in aux_engine.API_PROVIDERS:
+            return
+        tin, tout = int(outcome.tokens_in or 0), int(outcome.tokens_out or 0)
+        if tin <= 0 and tout <= 0:
+            return
+        usage_store.record(prov, model or "?", tin, tout, float(getattr(outcome, "cost_usd", None) or 0))
+    except Exception as e:  # noqa: BLE001
+        print(f"[team usage] {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def _team_engine_for(team, agent_key, role):
     """Engine CHỈ CHỮ cho một lượt nhóm (phán quyết R3 của kế hoạch T1): thư mục trống, không MCP, cổng từ chối mọi công
     cụ. Model theo hợp đồng chat tương tác và giao việc (`team_engine`, 0.142.0): model riêng của trợ lý, thiếu hay chưa
@@ -24413,6 +24432,8 @@ def _team_engine_for(team, agent_key, role):
                 except BaseException:  # noqa: BLE001 - generator đang bị huỷ
                     pass
             raise
+        # Before result(): a turn that burned tokens and then failed still cost them.
+        _team_record_usage(used["provider"], getattr(eng, "model", None) or used.get("model") or "", outcome)
         res = outcome.result()
         slug = info.get("slug") or ""
         # JAVIS_RULE trong lượt nhóm không có chủ nói trực tiếp với agent: hạ thành bài học (như bước workflow).
@@ -24438,6 +24459,7 @@ def _team_engine_for(team, agent_key, role):
             _log_agent_run(root, slug, "", clean)
 
         return {"text": clean, "tokens_in": res["tokens_in"], "tokens_out": res["tokens_out"],
+                "cost_usd": res.get("cost_usd"),
                 "lessons": lessons, "commit": commit, "engine_note": used.get("note") or ""}
 
     run.marks_engine = True
