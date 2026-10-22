@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.290.0] - 2026-10-22
+### Cải thiện
+- **Thanh mục tiêu trên khung chat, menu lệnh / gọn hơn.** (đang viết)
+
 ## [0.289.0] - 2026-10-22
 ### Sửa lỗi
 - **Webhook: AI giờ đọc trọn sự kiện.** Trước đây AI chỉ nhận 8.000 ký tự đầu, nên ngay một đơn POSCake một món cũng bị cắt mất mã đơn và tổng tiền, và lời dặn "xem trạng thái rồi làm" có thể đoán sai. Giờ AI nhận tới 40.000 ký tự, viết gọn trên một dòng; dài hơn thì bị cắt và AI được báo rõ là đã cắt.

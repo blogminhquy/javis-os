@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.290.0] - 2026-10-22
+### Improved
+- **A goal bar above the chat box, a tidier / command menu.** (in progress)
+
 ## [0.289.0] - 2026-10-22
 ### Fixed
 - **Webhooks: the AI now reads the whole event.** It used to get only the first 8,000 characters, so even a one-item POSCake order lost its order id and total, and a prompt that decides by the order's status could guess wrong. The AI now gets up to 40,000 characters, written on one line; anything longer is cut and the AI is told so.
