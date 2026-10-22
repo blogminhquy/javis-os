@@ -3657,15 +3657,18 @@ class TeamRunner:
                 tool = a["tool"]
                 # Same kind, name and argument shape the gate fingerprints at call time (hub route name, or a
                 # Claude native tool with team_gate._native_args), so a declared call can match the real one.
+                # 0.271.0: PowerShell (Claude Code's shell on Windows) is native too; before, it was fingerprinted as a
+                # hub tool, so the approved command never matched the real call and was blocked again.
                 if tool.startswith("mcp__javis__"):
                     kind, tool, args = "hub", tool[len("mcp__javis__"):], a.get("args") or {}
-                elif tool in team_gate.NATIVE_WRITE or tool in ("Bash", "WebFetch") or tool.startswith("mcp__"):
+                elif team_gate.is_native(tool):
                     kind, args = "native", team_gate._native_args(tool, a.get("args") or {})
                 else:
                     kind, args = "hub", a.get("args") or {}
                 fp = team_approval.fingerprint(kind, tool, args)
                 if not any(f["fp"] == fp for f in fps):
-                    fps.append({"fp": fp, "label": tool, "call": self._call_text(kind, tool, args)})
+                    label = team_gate.native_label(tool, a.get("args") or {}) if kind == "native" else tool
+                    fps.append({"fp": fp, "label": label, "call": self._call_text(kind, tool, args)})
             return {"kind": "action" if fps else "plan", "title": req["title"], "action": req["action"],
                     "scope": req.get("scope", ""), "impact": req.get("impact", ""), "evidence": req.get("evidence", []),
                     "deadline_at": req.get("deadline_at"), "fingerprints": fps[:team_gate.MAX_BLOCKED]}

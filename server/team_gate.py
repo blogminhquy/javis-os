@@ -46,6 +46,14 @@ NATIVE_FREE = frozenset({"Read", "Glob", "Grep", "LS", "NotebookRead", "TodoWrit
                          "Task", "Agent", "BashOutput", "KillShell", "KillBash", "ExitPlanMode", "ToolSearch",
                          "ListMcpResourcesTool", "ReadMcpResourceTool"})
 NATIVE_WRITE = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
+# 0.271.0: Claude Code's shell tools. On Windows the shell is `PowerShell`, not `Bash` (customer report, codes 5 and 22):
+# before this its call was fingerprinted with every input field (a different `timeout` on the rerun made the approved
+# command "another" command), a declared PowerShell action was fingerprinted as a hub tool, and the card only said
+# "PowerShell". Both shells are now one action per exact command text. PowerShell is never read-only here.
+SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
+# Native tools an `ask_approval` directive may name, fingerprinted like the gate does at call time.
+NATIVE_DECLARABLE = NATIVE_WRITE | SHELL_TOOLS | frozenset({"WebFetch"})
+LABEL_COMMAND_MAX = 160
 # Shell programs that only read. Narrower than run_command's `auto` list on purpose: python, node, npm and make run any
 # code, which can reach the network, so in a gated team they are outside actions.
 # Review 0.207.0: rg (--pre runs a program), sort/uniq/tree (write an output file), date (-s), file (-C) are out.
@@ -289,10 +297,32 @@ def webfetch_free(url: Any) -> bool:
 
 
 def _native_args(tool: str, inp: dict) -> Any:
-    """What makes two native calls the same action. Bash: the command alone (the description wording varies)."""
-    if tool == "Bash":
+    """What makes two native calls the same action. Shell tools: the command alone (the description, timeout and
+    background flag vary between runs of the same command)."""
+    if tool in SHELL_TOOLS:
         return {"command": str((inp or {}).get("command") or "")}
     return {k: v for k, v in (inp or {}).items() if k not in ("description",)}
+
+
+def is_native(tool: str) -> bool:
+    """A tool name an approval request declares that the PreToolUse hook (not the hub) will see at call time."""
+    t = str(tool or "")
+    return t in NATIVE_DECLARABLE or (t.startswith("mcp__") and not t.startswith("mcp__javis__"))
+
+
+def short_text(text: Any, n: int = LABEL_COMMAND_MAX) -> str:
+    """One line, whitespace collapsed, cut at `n` characters with an ellipsis."""
+    one = " ".join(str(text or "").split())
+    return one if len(one) <= n else one[:n - 1].rstrip() + "…"
+
+
+def native_label(tool: str, inp: Any) -> str:
+    """What the card's summary line says about one native call: the tool and the command, file or address it acts on,
+    shortened. The full call is kept separately (`call`) for the card's list of exact calls."""
+    d = inp if isinstance(inp, dict) else {}
+    what = d.get("command") if tool in SHELL_TOOLS else (d.get("file_path") or d.get("notebook_path") or d.get("url") or "")
+    what = short_text(what)
+    return f"{tool}: {what}" if what else str(tool or "")
 
 
 def classify_native(tool: str, inp: dict, roots: list) -> str:
@@ -322,8 +352,7 @@ def native_check(gate_id: Optional[str], tool: str, inp: dict) -> tuple:
     if classify_native(tool, inp, g.roots) == "free":
         return True, ""
     args = _native_args(tool, inp)
-    label = f"{tool}: {args.get('command') if tool == 'Bash' else (inp or {}).get('file_path') or ''}".strip(": ")
-    return decide(g, "native", tool, args, label)
+    return decide(g, "native", tool, args, native_label(tool, inp))
 
 
 # ---- protected files: fingerprint before a gated step, report what it changed ----
