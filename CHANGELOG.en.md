@@ -8,6 +8,9 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.273.0] - 2026-10-22
+### Fixed
+- **Fixes for bugs a customer reported on 0.270.0.**
 ## [0.274.0] - 2026-10-22
 ### Added
 - **Webhooks become a durable event inbox.** Each event is written to disk before Javis answers "received" (202). If the machine stops, updates or crashes midway, Javis carries on when it starts again and no order is lost.

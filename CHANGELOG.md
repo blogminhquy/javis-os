@@ -6,6 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.273.0] - 2026-10-22
+### Sửa lỗi
+- **Sửa các lỗi khách hàng báo trên bản 0.270.0.**
 ## [0.274.0] - 2026-10-22
 ### Thêm mới
 - **Webhook thành cửa nhận sự kiện bền.** Mỗi sự kiện được ghi vào đĩa trước khi Javis trả lời "đã nhận" (202). Máy tắt, cập nhật hay sập giữa chừng thì lúc mở lại Javis chạy tiếp, không mất đơn.
