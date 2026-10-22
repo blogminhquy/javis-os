@@ -2699,6 +2699,7 @@
         ${r.speak ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("volume-2")} ${esc(window.t("cs.si_rem_speak_tag"))}</div>` : ""}
         ${r.call ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("mic")} ${esc(window.t("cs.si_rem_call_tag"))}</div>` : ""}
         ${r.error ? `<div style="font-size:12px;color:var(--warn-ink);margin-top:4px">${WARN_ICON} ${esc(window.t("cs.si_prev_err"))} ${esc(r.error.slice(0, 160))}</div>` : ""}
+        ${r.retry_count > 0 ? `<div style="font-size:12px;color:var(--warn-ink)">${ic("rotate-cw")} ${esc(window.t("cs.si_rem_retry", { lan: r.retry_count, tong: r.retry_max || r.retry_count, luc: fmtWhen(r.due_at) }))}</div>` : ""}
         <div class="wf-actions" style="margin-top:8px">
           <button class="s-btn-ghost rmEdit">${esc(window.t("common.edit"))}</button>
           <button class="s-btn-ghost rmCancel">${esc(window.t("common.cancel"))}</button>

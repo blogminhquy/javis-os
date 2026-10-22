@@ -5083,6 +5083,7 @@
   "cs.si_rem_call": "Gọi điện cho tôi",
   "cs.si_rem_call_hint": "Tới giờ, trang Javis đang mở sẽ đổ chuông như cuộc gọi đến. Bấm Nghe là Javis đọc nội dung và nói chuyện tiếp.",
   "cs.si_rem_call_tag": "gọi điện đúng giờ",
+  "cs.si_rem_retry": "lỗi mạng, tự thử lại lần {lan}/{tong} lúc {luc}",
   "call.in_label": "Javis đang gọi theo lịch hẹn",
   "call.in_title_none": "Nhắc hẹn",
   "call.in_answer": "Nghe",

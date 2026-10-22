@@ -5083,6 +5083,7 @@
   "cs.si_rem_call": "Call me",
   "cs.si_rem_call_hint": "At its time, an open Javis tab rings like an incoming call. Answer and Javis reads it out and keeps talking.",
   "cs.si_rem_call_tag": "calls at its time",
+  "cs.si_rem_retry": "network error, retry {lan} of {tong} at {luc}",
   "call.in_label": "Javis is calling, as scheduled",
   "call.in_title_none": "Reminder",
   "call.in_answer": "Answer",

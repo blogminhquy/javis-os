@@ -12037,7 +12037,14 @@ async def _incident_retry_reminder(inc: dict) -> tuple:
                 if r.get("id") == inc.get("ref")), None)
     if rem is None or rem.get("mode") != "task":
         return False, "reminder not found"
-    reminders_feature._chay_nen(brain, dict(rem))
+    run = dict(rem)
+    if rem.get("last_slot") and not rem.get("retry_of"):
+        # Re-run the firing that failed, not the next one: same once-only ledger key, so an outside
+        # action that already went through is not sent twice, and a retry number past the automatic
+        # ones so it gets its own inbox entry and schedules no further retries.
+        run["retry_of"] = rem["last_slot"]
+        run["retry_count"] = len(reminders_mod.RETRY_DELAYS_S) + 1
+    reminders_feature._chay_nen(brain, run)
     return True, "reminder fired again"
 
 
