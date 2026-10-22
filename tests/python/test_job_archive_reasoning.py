@@ -90,8 +90,22 @@ r = client.post("/agents/lan/reasoning", data={"level": "high", "brain": B})
 meta = main._read_md(BR / "agents" / "lan.md")[0]
 check("setting the level writes only that key", r.status_code == 200 and meta.get("reasoning") == "high"
       and meta.get("name") == "Lan", meta)
-check("a bad level or Javis Core is refused", client.post("/agents/lan/reasoning", data={"level": "max!", "brain": B}).status_code == 400
-      and client.post("/agents/javis-core/reasoning", data={"level": "low", "brain": B}).status_code == 400)
+check("a bad level is refused", client.post("/agents/lan/reasoning", data={"level": "max!", "brain": B}).status_code == 400)
+# 0.284.0 (owner 22/10/2026): Javis Core has its own level. Before, it was refused here and its chat ran at, and its level
+# chip changed, the MAIN chat's level.
+import config as cfgmod  # noqa: E402
+main_before = cfgmod.read_settings().get("model", {}).get("reasoning")
+r = client.post("/agents/javis-core/reasoning", data={"level": "low", "brain": B})
+mcfg = cfgmod.read_settings().get("model", {})
+check("Javis Core keeps its own level", r.status_code == 200 and mcfg.get("core_reasoning") == "low", (r.status_code, mcfg))
+check("...and the main chat's level is untouched", mcfg.get("reasoning") == main_before, mcfg)
+check("Javis Core defaults to medium", main._core_reasoning({}) == "medium" and main._core_reasoning({"core_reasoning": "x"}) == "medium")
+sc = main.get_store().create_session(brain=main._brain_key(B), engine="cli", channel="agent:javis-core")
+mc = client.get(f"/sessions/{sc}/meta").json()
+check("the model bar of a Javis Core chat reads Javis Core's level", mc.get("agent_slug") == "javis-core"
+      and mc.get("agent_reasoning") == "low", mc)
+sm = main.get_store().create_session(brain=main._brain_key(B), engine="cli")
+check("a main chat is not an assistant's chat", "agent_slug" not in client.get(f"/sessions/{sm}/meta").json())
 r = client.post("/agents", data={"name": "Lan", "slug": "lan", "role": "Thành viên", "prompt": "Bạn là Lan.", "brain": B,
                                   "reasoning": "low"})
 check("the settings form saves the level", r.status_code == 200 and main._read_md(BR / "agents" / "lan.md")[0].get("reasoning") == "low")
@@ -122,6 +136,7 @@ check("a Claude engine in a team turn gets the effort (or the keyword on an old 
       (c.effort == "medium" and out == "câu hỏi") or (c.effort is None and out != "câu hỏi"), (c.effort, out))
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 check("an assistant's chat turn uses its own level", 'reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{_persona[1]}.md")[0])' in src)
+check("a Javis Core chat turn uses Javis Core's level", "reasoning = _core_reasoning(mcfg)" in src)
 
 print()
 if fails:

@@ -757,8 +757,9 @@
     // lưu nên chưa gắn tài liệu được, chưa kết nối nhà cung cấp nào) vẫn hiện thẳng.
     const JI = window.JavisInfo;
     // 0.193.0: the assistant's own reasoning level (default medium) and, from a team, a button to message it privately.
-    const REASONING = [["off", "models.r_off"], ["low", "models.r_low"], ["medium", "models.r_med"], ["high", "models.r_high"],
-      ["xhigh", "models.r_xhigh"], ["ultra", "models.r_ultra"]];
+    // Same English level names as the main chat's effort chip (eff.*, owner 22/10/2026).
+    const REASONING = [["off", "eff.off"], ["low", "eff.low"], ["medium", "eff.medium"], ["high", "eff.high"],
+                       ["xhigh", "eff.xhigh"], ["ultra", "eff.ultra"]];
     const curReason = (a && a.reasoning) || "medium";
     const chatBtn = opts.chatButton && a && a.slug
       ? `<button type="button" class="s-btn-ghost ag-chat-btn" id="agChat">${ic("message-circle")} ${esc(t("studio.chat_private"))}</button>` : "";

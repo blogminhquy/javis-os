@@ -3997,6 +3997,14 @@ def _agent_reasoning(meta) -> str:
     r = str((meta or {}).get("reasoning") or "").strip()
     return r if r in engine.REASONING_LEVELS else AGENT_REASONING_DEFAULT
 
+
+def _core_reasoning(mcfg) -> str:
+    """Javis Core's own reasoning level (0.283.0), `model.core_reasoning` in settings, default medium like every
+    assistant. Javis Core has no agent file to keep it in, so its chats used to run at the main chat's level, and the
+    level chip in a Javis Core chat changed the main chat's level (owner report 22/10/2026)."""
+    r = str((mcfg or {}).get("core_reasoning") or "").strip()
+    return r if r in engine.REASONING_LEVELS else AGENT_REASONING_DEFAULT
+
 # Từ khoá kích hoạt extended thinking của Claude Code (engine cli không có flag chuẩn).
 # Bộ từ khoá suy nghĩ của Claude Code. ĐƯỜNG DỰ PHÒNG từ 0.55.40: bản CLI có cờ `--effort`
 # thì đi bằng cờ đó (xem `_cli_do_sau`), vì hai mức trên cùng ở bảng này ra CÙNG một từ khoá
@@ -16039,6 +16047,8 @@ async def websocket_endpoint(ws: WebSocket):
                     reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{_persona[1]}.md")[0])
                 except Exception:  # noqa: BLE001 - an unreadable file keeps the main level
                     pass
+            elif javis_core.is_core_channel((_row0 or {}).get("channel")):
+                reasoning = _core_reasoning(mcfg)       # 0.283.0: Javis Core's own level, not the main chat's
             fast_mode.use(mcfg.get("fast") is True)
             _CONTEXT_RUNTIME.set_route(
                 runtime_trace,
@@ -18773,6 +18783,10 @@ async def sessions_meta(session_id: str):
             sess["agent_slug"], sess["agent_reasoning"] = _p[1], _agent_reasoning(_m)
         except Exception:  # noqa: BLE001
             pass
+    elif javis_core.is_core_channel(sess.get("channel")):
+        # 0.283.0: a Javis Core chat is an assistant's chat for the level chip too, with its own level.
+        sess["agent_slug"] = javis_core.SLUG
+        sess["agent_reasoning"] = _core_reasoning(cfgmod.read_settings().get("model", {}))
     return sess
 
 
@@ -18780,11 +18794,15 @@ async def sessions_meta(session_id: str):
 async def agent_set_reasoning(slug: str, level: str = Form(...), brain: str = Form("brain")):
     """Set one assistant's reasoning level (0.193.0), from its settings or the model bar of its chat. Only this key of
     the frontmatter changes, under the same lock as the other agent writes."""
-    if not skill_router.valid_file_slug(slug) or javis_core.is_core_slug(slug):
+    if not skill_router.valid_file_slug(slug):
         return JSONResponse({"ok": False, "error": localefmt.chu("Trợ lý không hợp lệ", "Invalid assistant")}, status_code=400)
     if level not in engine.REASONING_LEVELS:
         return JSONResponse({"ok": False, "error": localefmt.chu("Mức suy luận không hợp lệ", "Invalid reasoning level")},
                             status_code=400)
+    if javis_core.is_core_slug(slug):
+        # Javis Core keeps its level in settings (no agent file of its own), apart from the main chat's `reasoning`.
+        await asyncio.to_thread(cfgmod.update_settings, {"model": {"core_reasoning": level}})
+        return {"ok": True, "slug": slug, "reasoning": level}
     path = _agents_dir(brain) / f"{slug}.md"
 
     def _luu():

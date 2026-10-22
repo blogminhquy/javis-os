@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.284.0] - 2026-10-22
+### Sửa lỗi
+- **Đổi mức suy luận của Javis Core không còn kéo theo khung chat chính.** Javis Core giờ có mức suy luận riêng như mọi trợ lý khác, mặc định Medium. Trước đây chat với Javis Core dùng chung mức của khung chat chính, nên đổi ở đây là bên kia đổi theo.
+### Cải thiện
+- Mức suy luận trong phần cài đặt trợ lý dùng cùng tên tiếng Anh với khung chat chính: Off, Light, Medium, High, Extra, Ultra.
+
 ## [0.282.0] - 2026-10-22
 ### Sửa lỗi
 - **Bot Zalo không còn bị "điếc" khi có một phiên khác của cùng nick đang chạy.** Sau lần cập nhật hôm nay, một bản Zalo cũ sót lại cứ giành kết nối, bot chỉ nghe được tin vài giây sau mỗi lần nối lại nên bỏ lỡ tin tag và tin nhắn riêng. Javis giờ tự tắt bản Zalo cũ trên máy, thẻ bot báo đỏ, và chuông báo bạn nếu phiên giành kết nối nằm ở nơi khác (Zalo Web, một Javis khác).
