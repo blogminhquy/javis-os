@@ -810,6 +810,19 @@ def _project_block(project_id: str, chi_huong_dan: bool = False) -> str:
     return ra
 
 
+def _project_has_rules(project_id: str) -> bool:
+    """True when `project_id` names a project with instructions.
+
+    A turn in such a project must not take the fast path: its capsule carries no project block, so
+    the rules ("start every answer with label X") would hold on one turn and not the next."""
+    if not project_id:
+        return False
+    try:
+        return bool(((get_store().get_project(project_id) or {}).get("instructions") or "").strip())
+    except Exception:  # noqa: BLE001 - a store error only means "no rules known", never a broken turn
+        return False
+
+
 def _liet_ke_tai_lieu(brain: str, files: list, links: list):
     """(dòng liệt kê, nội dung file đã ghim) cho một danh sách tài liệu + link.
 
@@ -16123,7 +16136,9 @@ async def websocket_endpoint(ws: WebSocket):
             _codex_fast_plan = None
             # Phiên cộng sự: Fast Path bỏ memory và lịch sử, dùng prompt riêng - không hợp
             # với trợ lý (trợ lý cần ĐÚNG sysprompt của mình, không phải capsule rút gọn).
-            if kind in ("oauth", "cli") and not _schedule_action and not _persona:
+            # Neither for a conversation in a project with rules: the capsule has no project block.
+            if (kind in ("oauth", "cli") and not _schedule_action and not _persona
+                    and not _project_has_rules(_row0.get("project_id") or "")):
                 try:
                     _plan = await asyncio.to_thread(
                         _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
@@ -16615,7 +16630,9 @@ async def websocket_endpoint(ws: WebSocket):
                             _CONTEXT_RUNTIME.record_runtime_event(
                                 runtime_trace, "readonly.prepare_error",
                                 {"error_type": type(_exc).__name__})
-                        if readonly_plan is None or readonly_plan.action == "not_applicable":
+                        # The fast path capsule has no project block: a project with rules skips it.
+                        if ((readonly_plan is None or readonly_plan.action == "not_applicable")
+                                and not _project_has_rules(_row0.get("project_id") or "")):
                             try:
                                 fast_plan = await asyncio.to_thread(
                                     _FAST_PATH.prepare, runtime_trace, user_message,
@@ -16696,8 +16713,12 @@ async def websocket_endpoint(ws: WebSocket):
                 else:
                     # ===== API/OAuth: Phase 8 sources canary, fallback độc lập về legacy =====
                     def _phase8_base(include_memory: bool, include_skills: bool) -> str:
+                        # The project's INSTRUCTIONS ride along, as on Telegram and the CLI
+                        # (`_nen_goc`): they are a behaviour contract, its file list is not.
                         return build_adaptive_source_prompt(
                             brain, include_memory=include_memory, include_skills=include_skills
+                        ) + (_project_block(_row0.get("project_id") or "", chi_huong_dan=True)
+                             if _row0.get("project_id") else ""
                         ) + _javis_core_block(conv_sid or "") + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid},
                             telegram_running=bool(_TG_BOT), port=_javis_port(),
@@ -20709,6 +20730,9 @@ def _tg_conv_sid(store, sess, brain, engine_label, model, channel="telegram"):
     """
     sid = sess.get("sid") or _TG_SID_MAP.get(str(sess.get("key") or ""))
     ly_do = "chưa có phiên nào cho chat này"
+    # The project of the session a rotation retires: the next chunk is the same conversation, so it
+    # stays in that project. Only a rotation carries it, never a missing record or a brain change.
+    carry_project = ""
     if sid:
         row = store.get_session(sid)
         if not row:
@@ -20734,6 +20758,7 @@ def _tg_conv_sid(store, sess, brain, engine_label, model, channel="telegram"):
             so_tin = int(row.get("msg_count") or 0)
             if nghi >= _TG_CONV_IDLE_S or so_tin >= _TG_CONV_MAX_MSGS:
                 ly_do = f"phiên cũ nghỉ {nghi / 3600:.1f} tiếng, dài {so_tin} tin"
+                carry_project = str(row.get("project_id") or "")
                 sid = None      # nghỉ lâu / đã dài → sang khúc mới
     if sid:
         # Còn dùng tiếp: đồng bộ engine/model vì người dùng có thể vừa đổi bằng /model.
@@ -20746,6 +20771,13 @@ def _tg_conv_sid(store, sess, brain, engine_label, model, channel="telegram"):
     sess["sid"] = store.create_session(brain=_brain_key(brain), engine=engine_label, model=model,
                                        channel=channel or "telegram")
     _tg_nho_sid(sess, sess["sid"])
+    if carry_project:
+        try:
+            if store.get_project(carry_project):   # a project deleted meanwhile is not revived
+                store.set_project(sess["sid"], carry_project)
+        except Exception as e:  # noqa: BLE001 - losing the label must not lose the turn
+            print(f"[{channel or 'telegram'} project carry] {type(e).__name__}: {e}",
+                  file=__import__('sys').stderr)
     # VÌ SAO mở phiên mới - in ra mỗi lần, vì đây là thứ không tài nào đoán được từ giao diện:
     # ở Lịch sử chỉ thấy một loạt hội thoại ngắn mà không biết chúng bị cắt ra bởi luật nghỉ
     # 12 tiếng, bởi brain lệch, hay bởi liên kết bền không ghi được (chủ dự án báo 16/09).
@@ -20807,7 +20839,7 @@ def _tg_lich_su_kho(store, conv_sid, text):
 
 
 async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None,
-                     phien_kho="", ghi_kho=True, agent=None):
+                     phien_kho="", ghi_kho=True, agent=None, project_id=""):
     """Vỏ ngoài một lượt KHÔNG-WEBSOCKET: khớp phiên trong kho -> chạy engine -> LƯU lượt.
 
     `channel` mở hàm này cho kênh thứ ba là CLI (xem docs/dev/2026-08-cli-spec.md). Cố ý
@@ -20837,6 +20869,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     prompt, skills and model of one agent of that brain. Unlike `bot`, the person asking is still
     the owner: permissions and storage are those of a normal turn; the prompt, the model and the
     end of turn (lessons, rules, run log) are the agent's.
+
+    `project_id`: an ALREADY CHECKED project (see `_cli_project`) to attach the conversation to
+    before the prompt is built, as the dashboard's project panel does. Kept on the conversation, so
+    later turns without it stay in that project.
     """
     # Gỡ ký tự vô hình (tag U+E0000, ghi đè hướng chữ, zero-width...) ngay ở cửa chung của mọi kênh: người lạ
     # giấu lệnh vào đó, model đọc được còn chủ thì không thấy. Gỡ TRƯỚC khi ghi kho vì vòng tự học đọc lại kho (0.83.2).
@@ -20896,6 +20932,8 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             # ghi hội thoại rỗng tanh trong thanh Lịch sử - đúng thứ đang phải dọn.
             conv_sid = _tg_conv_sid(store, sess, brain, engine_label,
                                     api_model or mcfg.get("claude_model"), channel=channel)
+        if conv_sid and project_id:
+            store.set_project(conv_sid, project_id)
         if conv_sid and ghi_kho:
             store.append_message(conv_sid, "user", text)
             # 0.213.0: a message the owner sent while this turn runs (bot_gateway._steer) joins the history when the
@@ -21743,7 +21781,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         return {"text": channel_context.strip_control_blocks(_schedule_cancel_reply(schedule_action)),
                 "files": []}
 
-    if _FAST_PATH is not None and not _bot_full and not agent:
+    if _FAST_PATH is not None and not _bot_full and not agent and not _project_has_rules(_pid):
         try:
             _fp = await asyncio.to_thread(
                 _FAST_PATH.prepare, runtime_trace, text, _brain_root(brain), channel, prov,
@@ -22005,9 +22043,15 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         return _tg_ket(clean_out, files, canh_bao, loi, khach=_bot_full)
     if (kind == "api" and api_key) or kind == "oauth":
         label = _api_label(prov)
+        ident = (f"\n\n[Sự thật hệ thống: bạn chạy qua {label}, model '{api_model}'. "
+                 f"Hỏi model nào thì khai đúng tên này, KHÔNG nhận là model khác.]")
+        if sess["or"] and sess["or"][0].get("role") == "system":
+            # Refresh the head every turn, as the CLI engines get `sysprompt` every turn. Built once
+            # per RAM session, it froze the prompt of the first turn: a project attached to the
+            # conversation afterwards (dashboard, `project` on /chat, carried over by a rotation)
+            # never reached an API engine on Telegram or the CLI until the server restarted.
+            sess["or"][0] = {"role": "system", "content": sysprompt + ident}
         if sess["or"] is None:
-            ident = (f"\n\n[Sự thật hệ thống: bạn chạy qua {label}, model '{api_model}'. "
-                     f"Hỏi model nào thì khai đúng tên này, KHÔNG nhận là model khác.]")
             sess["or"] = [{"role": "system", "content": sysprompt + ident}]
             # Lịch sử này chỉ sống trong RAM, nên restart là mất. Dựng lại từ transcript đã
             # lưu (xem `_tg_lich_su_kho`) - đây là nửa THẬT SỰ quan trọng với người dùng chạy
@@ -23552,6 +23596,46 @@ def _cli_agent(brain: str, session: str, agent: str):
     return {"brain": root, "slug": f.stem}, ""
 
 
+def _cli_project(brain: str, session: str, project: str, agent=None):
+    """The project a CLI turn asks to attach. Returns (project id, "") when valid, ("", error) when
+    not, and ("", "") when none was asked for.
+
+    `project` is a project id or the exact name of one (case does not matter) of the RESOLVED
+    brain, checked like `agent` (`_cli_agent`): a brain that does not exist is an error instead of
+    the default brain, and a project of another brain is an error too, since its files and rules
+    belong there. Not with `agent`: an agent turn runs with the agent's own prompt, which carries
+    no project block, as an agent chat on the dashboard.
+    """
+    want = str(project or "").strip()
+    if not want:
+        return "", ""
+    if agent:
+        return "", localefmt.chu("Không dùng được project cùng với agent: lượt agent chạy bằng prompt riêng của agent.",
+                                 "project cannot be combined with agent: an agent turn runs with the agent's own prompt.")
+    name = str(brain or "").strip()
+    if name and name != "brain" and not os.path.isdir(name):
+        return "", localefmt.chu(
+            f"Không có brain '{name}': với project, brain phải là đường dẫn tới một thư mục brain trên máy chủ.",
+            f"Brain '{name}' not found: with project, brain must be the path of a brain folder on the server.")
+    key = _brain_key(name or _tg_brain(_cli_sess_key(session)))
+    store = get_store()
+
+    def _in_brain(p) -> bool:
+        return bool(p) and _brain_key(p.get("brain") or "brain") == key
+
+    p = store.get_project(want)
+    if _in_brain(p):
+        return p["id"], ""
+    same = [x for x in store.list_projects() if _in_brain(x)
+            and str(x.get("name") or "").strip().casefold() == want.casefold()]
+    if len(same) == 1:
+        return same[0]["id"], ""
+    if len(same) > 1:
+        return "", localefmt.chu(f"Brain này có nhiều project tên '{want}': gửi id của project.",
+                                 f"This brain has several projects named '{want}': send the project id.")
+    return "", localefmt.chu(f"Brain này không có project '{want}'", f"This brain has no project '{want}'")
+
+
 def _cli_agent_prompt(brain, slug, conv_sid="") -> str:
     """The agent's system prompt for a CLI turn: the very prompt of an agent chat on the dashboard
     (`_agent_turn_system_prompt`: role, file body, skills, own memory, the Resonance swap, the
@@ -23561,7 +23645,8 @@ def _cli_agent_prompt(brain, slug, conv_sid="") -> str:
     return _agent_turn_system_prompt(brain, slug, conv_sid, channel="cli")
 
 
-async def _cli_turn(message: str, brain: str, session: str, host: str, progress=None, agent=None):
+async def _cli_turn(message: str, brain: str, session: str, host: str, progress=None, agent=None,
+                    project_id: str = ""):
     """Một lượt chat của kênh CLI. Trả (out, key) với out là dict (trả lời thật) hoặc str (lỗi).
 
     `agent`: a valid result of `_cli_agent`; the caller checks it FIRST to answer 400 instead of
@@ -23573,7 +23658,9 @@ async def _cli_turn(message: str, brain: str, session: str, host: str, progress=
     the plain session made the first turn's prompt stick: a plain turn then `agent=x` ran with
     Javis's prompt, and `agent=x` then `agent=y` ran with x's. `@` never survives
     `_cli_sess_key`, so no plain session can collide with an agent one. The reply still names the
-    plain session the client sent."""
+    plain session the client sent.
+
+    `project_id`: a valid result of `_cli_project`, attached to the conversation before the turn."""
     key = _cli_sess_key(session)
     sess = _tg_session(key)
     if brain:
@@ -23587,7 +23674,8 @@ async def _cli_turn(message: str, brain: str, session: str, host: str, progress=
             pass
     turn_key = key + (f"@{agent['slug']}" if agent else "")
     meta = {"chat_id": turn_key, "host": (host or "")[:64]}
-    out = await _tg_answer(message, meta=meta, progress=progress, channel="cli", agent=agent)
+    out = await _tg_answer(message, meta=meta, progress=progress, channel="cli", agent=agent,
+                           project_id=project_id)
     return out, key
 
 
@@ -23603,7 +23691,8 @@ def _cli_payload(out, key: str) -> dict:
 
 @app.post("/chat")
 async def chat_once(message: str = Form(...), brain: str = Form(""),
-                    session: str = Form(""), host: str = Form(""), agent: str = Form("")):
+                    session: str = Form(""), host: str = Form(""), agent: str = Form(""),
+                    project: str = Form("")):
     """Một lượt chat, đồng bộ. Trả câu trả lời cuối cùng.
 
     KHÔNG đặt trần thời gian riêng: một lượt agentic có thể chạy vài phút và cắt ngang giữa
@@ -23613,19 +23702,27 @@ async def chat_once(message: str = Form(...), brain: str = Form(""),
     `agent` (optional) = slug of an agent of the chosen brain: the turn runs with that agent's
     prompt, skills and model, in its own session. An agent missing from the brain, or a brain
     that does not exist, is a 400.
+
+    `project` (optional) = id or name of a project of the chosen brain: the conversation is
+    attached to it before this turn (and stays there), so its rules apply from the first message.
+    A project missing from the brain, or sent together with `agent`, is a 400.
     """
     if not str(message or "").strip():
         return JSONResponse({"ok": False, "error": localefmt.chu("message rỗng", "message is empty")}, status_code=400)
     ag, error = _cli_agent(brain, session, agent)
     if error:
         return JSONResponse({"ok": False, "error": error}, status_code=400)
-    out, key = await _cli_turn(message, brain, session, host, agent=ag)
+    pid, error = _cli_project(brain, session, project, agent=ag)
+    if error:
+        return JSONResponse({"ok": False, "error": error}, status_code=400)
+    out, key = await _cli_turn(message, brain, session, host, agent=ag, project_id=pid)
     return _cli_payload(out, key)
 
 
 @app.post("/chat/stream")
 async def chat_stream(message: str = Form(...), brain: str = Form(""),
-                      session: str = Form(""), host: str = Form(""), agent: str = Form("")):
+                      session: str = Form(""), host: str = Form(""), agent: str = Form(""),
+                      project: str = Form("")):
     """Cùng một lượt, nhưng đẩy tiến độ về ngay khi có (SSE).
 
     Gói đi theo ĐÚNG quy ước của WebSocket dashboard (`{"type": ...}`) để client không phải
@@ -23637,11 +23734,15 @@ async def chat_stream(message: str = Form(...), brain: str = Form(""),
     Client PHẢI bỏ qua im lặng mọi `type` nó chưa biết: server thêm loại gói mới là chuyện
     thường, và một CLI cũ không được vỡ vì điều đó.
 
-    `agent` as on /chat. Checked BEFORE the stream opens: once it is open the status is already 200.
+    `agent` and `project` as on /chat. Checked BEFORE the stream opens: once it is open the status
+    is already 200.
     """
     if not str(message or "").strip():
         return JSONResponse({"ok": False, "error": localefmt.chu("message rỗng", "message is empty")}, status_code=400)
     ag, error = _cli_agent(brain, session, agent)
+    if error:
+        return JSONResponse({"ok": False, "error": error}, status_code=400)
+    pid, error = _cli_project(brain, session, project, agent=ag)
     if error:
         return JSONResponse({"ok": False, "error": error}, status_code=400)
 
@@ -23652,7 +23753,8 @@ async def chat_stream(message: str = Form(...), brain: str = Form(""),
 
     async def _chay():
         try:
-            out, key = await _cli_turn(message, brain, session, host, progress=_progress, agent=ag)
+            out, key = await _cli_turn(message, brain, session, host, progress=_progress, agent=ag,
+                                       project_id=pid)
             await hang.put({"type": "response", **_cli_payload(out, key)})
         except Exception as exc:  # noqa: BLE001 - lỗi phải tới được client, không nuốt
             await hang.put({"type": "error", "content": f"{type(exc).__name__}: {exc}"})

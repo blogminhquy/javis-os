@@ -21,6 +21,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--brain", default="", help="brain dùng cho lệnh này")
     p.add_argument("--agent", default="", metavar="SLUG",
                    help="answer as this agent of the brain (its prompt, skills and model)")
+    p.add_argument("--project", default="", metavar="ID_OR_NAME",
+                   help="put the conversation in this project of the brain (its rules apply)")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="không in tiến độ, chỉ in câu trả lời")
 
@@ -31,6 +33,8 @@ def _parser() -> argparse.ArgumentParser:
     # SUPPRESS: a subparser default would overwrite `javis --agent x chat` with "".
     s.add_argument("--agent", default=argparse.SUPPRESS, metavar="SLUG",
                    help="answer as this agent of the brain (its prompt, skills and model)")
+    s.add_argument("--project", default=argparse.SUPPRESS, metavar="ID_OR_NAME",
+                   help="put the conversation in this project of the brain (its rules apply)")
 
     s = sub.add_parser("login", help="lưu địa chỉ + token của một Javis")
     s.add_argument("url")
@@ -64,7 +68,7 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-_VALUE_OPTIONS = {"--profile", "--brain", "--agent"}
+_VALUE_OPTIONS = {"--profile", "--brain", "--agent", "--project"}
 
 
 def main(argv=None) -> int:
