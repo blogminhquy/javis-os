@@ -1325,6 +1325,9 @@
     .si-row{display:flex;gap:10px;flex-wrap:wrap}
     .si-chip{padding:7px 14px;border-radius:20px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:14px}
     .si-chip.sel{border-color:var(--accent);background:rgba(255,138,60,.15);color:var(--accent-ink)}
+    .si-level-note{flex-basis:100%;margin-top:6px;font-size:14px;line-height:1.45;color:var(--text2)}
+    .si-level-note.is-full{color:var(--warn-ink, var(--text))}
+    @media (pointer:coarse){.si-level-note{font-size:16px}}
     .si-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
     .si-status{margin-top:16px;padding:12px 14px;border-radius:10px;background:var(--surface-1);border:1px solid rgba(255,255,255,.07);font-size:15px;color:var(--text)}
     .si-log{margin-top:16px} .si-log .le{padding:10px 12px;border-left:2px solid rgba(120,180,255,.4);background:rgba(255,255,255,.02);margin-bottom:8px;border-radius:0 8px 8px 0;font-size:14px;white-space:pre-wrap;color:var(--text2)}
@@ -2211,7 +2214,8 @@
               <div class="si-field"><label for="lpModes">${esc(window.t("cs.si_mode"))}${infoBtn()}</label><div class="si-row" id="lpModes">
                 <button class="si-chip" data-mode="suggest">${esc(window.t("cs.si_mode_suggest"))}</button>
                 <button class="si-chip" data-mode="auto">${esc(window.t("cs.si_mode_auto"))}</button>
-                <button class="si-chip" data-mode="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
+                <button class="si-chip" data-mode="full">${esc(window.t("cs.si_mode_full"))}</button></div>
+                <div class="si-level-note" id="lpModeNote" role="status"></div></div>
               <div class="si-field"><label>${esc(window.t("cs.si_interval"))}</label><input type="number" id="lpInterval" min="5" value="120" style="max-width:120px"></div>
             </div>
             ${infoBody(`${esc(window.t("cs.si_loopnote"))} <code>Javis/loops/&lt;${esc(window.t("cs.si_loopnote_name"))}&gt;.md</code>.`)}
@@ -2225,7 +2229,8 @@
               <div class="si-field" id="lpRemMqWrap" style="display:none"><label>${esc(window.t("cs.si_rmq"))}</label><div class="si-row" id="lpRemMq">
                 <button class="si-chip" data-mq="suggest">${esc(window.t("cs.si_mq_read"))}</button>
                 <button class="si-chip" data-mq="auto">${esc(window.t("cs.si_mq_write"))}</button>
-                <button class="si-chip sel" data-mq="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
+                <button class="si-chip sel" data-mq="full">${esc(window.t("cs.si_mode_full"))}</button></div>
+                <div class="si-level-note" id="lpRemMqNote" role="status"></div></div>
               <label id="lpRemLastWrap" style="display:none;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemLast"> ${esc(window.t("cs.si_rem_last"))}</label>
               <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemSpeak"> ${esc(window.t("cs.si_rem_speak"))}</label>
               <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemCall"> ${esc(window.t("cs.si_rem_call"))}</label>
@@ -2268,8 +2273,18 @@
     let fkind = "loop";      // loại việc đang tạo: loop (việc lặp) | reminder (nhắc hẹn)
     let frmode = "notify";   // kiểu nhắc hẹn: notify (chỉ nhắc) | task (tự làm rồi báo)
     let frmq = "full";       // mức quyền của kiểu "task": suggest | auto | full
+    // 0.273.0 (customer report, codes 15 and 27): Full stays the default (owner, 2026-10-22), but the form says in one
+    // line what the picked level may do, so nobody leaves Full selected without knowing it edits files and acts outside.
+    const LEVEL_NOTE = { full: "cs.si_level_note_full", auto: "cs.si_level_note_auto", suggest: "cs.si_level_note_suggest" };
+    function levelNote(id, level) {
+      const n = el.querySelector(id);
+      if (!n) return;
+      n.textContent = LEVEL_NOTE[level] ? window.t(LEVEL_NOTE[level]) : "";
+      n.classList.toggle("is-full", level === "full");
+    }
     function syncFormChips() {
       el.querySelectorAll("#lpModes .si-chip").forEach(x => x.classList.toggle("sel", x.dataset.mode === fcur.mode));
+      levelNote("#lpModeNote", fcur.mode);
     }
     el.querySelectorAll("#lpModes .si-chip").forEach(c => c.onclick = () => { fcur.mode = c.dataset.mode; syncFormChips(); });
 
@@ -2298,6 +2313,7 @@
       const lastWrap = el.querySelector("#lpRemLastWrap");
       if (lastWrap) lastWrap.style.display = frmode === "task" ? "flex" : "none";
       el.querySelectorAll("#lpRemMq .si-chip").forEach(x => x.classList.toggle("sel", x.dataset.mq === frmq));
+      levelNote("#lpRemMqNote", frmq);
     }
     el.querySelectorAll("#lpRemModes .si-chip").forEach(c => c.onclick = () => {
       frmode = c.dataset.rmode;

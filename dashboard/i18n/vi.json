@@ -5214,6 +5214,7 @@
   "settings.vc_el_model_v3": "Eleven v3 · biểu cảm nhất, chậm hơn",
   "settings.vc_el_model_turbo": "Turbo v2.5 · nhanh, có tiếng Việt",
   "settings.vc_el_model_v2": "Multilingual v2 · không có tiếng Việt",
+<<<<<<< HEAD
   "wh.st_queued": "đang chờ chạy",
   "wh.st_running": "đang chạy",
   "wh.st_unknown": "không rõ đã xong chưa",
@@ -5386,4 +5387,9 @@
   "wh.closed_n": "Đã đóng {n} sự kiện",
   "wh.retry_blocked": "Chạy lại mọi sự kiện bị chặn",
   "wh.retried_n": "Đã xếp chạy lại {n} sự kiện"
+=======
+  "cs.si_level_note_full": "Toàn quyền: tự sửa file, chạy lệnh, gửi tin, đặt hàng mà không hỏi lại.",
+  "cs.si_level_note_auto": "Ghi file nháp: đọc dữ liệu và ghi nháp, không làm việc gì ra bên ngoài.",
+  "cs.si_level_note_suggest": "Chỉ đọc: đọc dữ liệu rồi đề xuất, không ghi file, không làm gì thêm."
+>>>>>>> 5bf73ae (Codes 15/27: say plainly what a Full-level background job may do)
 }

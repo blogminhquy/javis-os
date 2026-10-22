@@ -5214,6 +5214,7 @@
   "settings.vc_el_model_v3": "Eleven v3 · most expressive, slower",
   "settings.vc_el_model_turbo": "Turbo v2.5 · fast, has Vietnamese",
   "settings.vc_el_model_v2": "Multilingual v2 · no Vietnamese",
+<<<<<<< HEAD
   "wh.st_queued": "waiting to run",
   "wh.st_running": "running",
   "wh.st_unknown": "not known whether it finished",
@@ -5386,4 +5387,9 @@
   "wh.closed_n": "Closed {n} events",
   "wh.retry_blocked": "Retry all blocked",
   "wh.retried_n": "Queued {n} events again"
+=======
+  "cs.si_level_note_full": "Full: edits files, runs commands, sends messages and places orders without asking.",
+  "cs.si_level_note_auto": "Write drafts: reads data and writes drafts, does nothing outside.",
+  "cs.si_level_note_suggest": "Read only: reads data and suggests, writes no file, does nothing else."
+>>>>>>> 5bf73ae (Codes 15/27: say plainly what a Full-level background job may do)
 }
