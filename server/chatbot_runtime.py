@@ -40,6 +40,7 @@ import channel_accounts
 import channels
 import chatbot_doc_tools
 import bot_images
+import bot_split
 import bot_linked_docs
 import chatbot_grounding
 import chatbot_log
@@ -413,6 +414,9 @@ def build_bot_prompt(bot: dict) -> str:
     # The channel of THIS turn sends files (0.84.3): tell the Agent how to send an image, or it never knows it can.
     if bot_images.channel_sends_files((bot or {}).get("_kenh_luot")):
         phan.append(bot_images.PROMPT_HINT)
+    # The channel of THIS turn sends several short messages (0.281.0): the Agent may split its answer, see bot_split.
+    if (bot or {}).get("_kenh_luot") in bot_split.SPLIT_CHANNELS:
+        phan.append(bot_split.PROMPT_HINT)
     # Lượt Tự đánh giá do _make_answer_fn gắn. Cờ chứ không suy từ meta: prompt được dựng ở đây,
     # nơi không có meta của lượt.
     if (bot or {}).get("_tu_dong"):
@@ -1777,6 +1781,15 @@ def _make_answer_fn(bot_id: str):
                 out = dict(out or {})
                 out["text"] = dap
                 out["files"] = list(out.get("files") or []) + anh
+        # Several short messages (0.281.0, bot_split): the channel that sends them separately keeps the marker; any
+        # other channel gets one message with blank lines. The bot log and the inbox always record the joined text.
+        dap_ghi = dap
+        if dap and bot_split.has_mark(dap):
+            dap_ghi = bot_split.joined(dap)
+            if kenh_luot not in bot_split.SPLIT_CHANNELS:
+                dap = dap_ghi
+                out = dict(out or {})
+                out["text"] = dap
         # "Bí" đo bằng chính CÂU BOT VỪA NÓI, không bằng việc có tìm ra tài liệu hay không.
         #
         # Ở chế độ theo Agent thì không có tài liệu là chuyện thường - bot vẫn trả lời tốt bằng
@@ -1810,7 +1823,7 @@ def _make_answer_fn(bot_id: str):
         chatbot_log.ghi(bot_id, {
             "chat_id": chat_id, "chat_type": (meta or {}).get("chat_type"),
             "user_name": (meta or {}).get("user_name"),
-            "hoi": text, "dap": dap or ("(lượt hỏng, bot không gửi gì cho khách)" if loi_ky_thuat else ""),
+            "hoi": text, "dap": dap_ghi or ("(lượt hỏng, bot không gửi gì cho khách)" if loi_ky_thuat else ""),
             "loi": loi_ky_thuat,
             "co_tai_lieu": bool(tl.get("co")), "nguon": tl.get("nguon"),
             "chuyen_nguoi": goi_nguoi, "bi": bi,
@@ -1822,7 +1835,7 @@ def _make_answer_fn(bot_id: str):
             "canh_bao": " · ".join(x for x in ((out or {}).get("canh_bao"), tl.get("canh_bao_link"), cfg.get("_anh_loi")) if x),
         })
         # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
-        ghi_tin_bot(cfg, meta or {}, dap, loi=loi_ky_thuat, files=(out or {}).get("files"))
+        ghi_tin_bot(cfg, meta or {}, dap_ghi, loi=loi_ky_thuat, files=(out or {}).get("files"))
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
             _goi_chu(cfg, str((meta or {}).get("user_name") or chat_id),
@@ -1941,7 +1954,7 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
     dap = str((out or {}).get("text") or "").strip()
     if not dap or is_silent_answer(dap):
         return {"ok": True, "silent": True, "text": "", "meta": meta}
-    return {"ok": True, "silent": False, "text": dap, "meta": meta}
+    return {"ok": True, "silent": False, "text": bot_split.joined(dap), "meta": meta}
 
 
 def manual_done(conv: dict, msgs: list, text: str, meta: dict) -> dict:
@@ -2137,7 +2150,7 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
         out.update(stage="agent_silent", code="agent_silent",
                    reason=localefmt.chu("Agent đọc tin và chọn không trả lời.", "The Agent read it and chose not to reply."))
         return out
-    out.update(stage="answered", would_reply=True, text=dap)
+    out.update(stage="answered", would_reply=True, text=bot_split.joined(dap))
     return out
 
 

@@ -286,7 +286,10 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
         except Exception:      # noqa: BLE001 - worst case one duplicate line in the inbox
             pass
     text = sach
-    doan = cat_tin(str(text or "")) or [str(text or "")]
+    # Several short messages the bot chose to send (0.281.0, bot_split): each part is its own message, and a part
+    # still longer than `TIN_TOI_DA` is cut as before. Without the marker this is exactly the old single split.
+    import bot_split
+    doan = [d for p in (bot_split.parts(text) or [str(text or "")]) for d in (cat_tin(p) or [])] or [str(text or "")]
     if len(doan) == 1:
         return await _gui_mot(conn, chat_id, doan[0], chat_type, mention)
     # Tin dài: gửi lần lượt từng đoạn. Mỗi đoạn về vòng đọc như một tin riêng, nên phải nhớ TỪNG đoạn là
