@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.286.0] - 2026-10-22
+### Fixed
+- **Choosing a model in an assistant's chat no longer changes the main chat's model.** For every assistant and Javis Core: the model chosen there is pinned to that chat only. An assistant with no model of its own follows the main model, and a new "Follow the main chat's model" row removes the pin.
+- **When an assistant's pinned model runs out of plan quota, the chat runs on the main chat's model for now,** and goes back to the pinned model once the plan resets.
+- **Javis Core follows the main chat's reasoning level** until you pick one for it. A level set in an assistant's chat is always saved for that assistant.
+
 ## [0.285.0] - 2026-10-22
 ### Improved
 - **Review the actual Team result.** Opt-in teams get default acceptance criteria; confirmation binds to the saved result and its version.

@@ -61,6 +61,12 @@ const mp = read("model-picker.js");
 check("in an assistant's chat the effort chip shows and sets that assistant's level",
   mp.includes("agentEff = d && d.agent_slug ?") && mp.includes("await saveAgentEffort(agentEff.slug, v)")
   && mp.includes("`/agents/${encodeURIComponent(slug)}/reasoning`"));
+// 0.285.0 (owner 22/10/2026): choosing a model in any assistant's chat pins that chat only, never the main chat's model.
+check("in an assistant's chat a model choice does not touch the main chat's model",
+  mp.includes("if (!agentEff) await saveModel({ main: { provider: prov, model: model } });")
+  && !/async function chonModel\(prov, model\) \{\s*await saveModel\(\{ main/.test(mp));
+check("an assistant's chat with its own model can go back to following the main chat's model",
+  mp.includes('class="mb-follow"') && mp.includes('await pinToSession(sid, "", "")'));
 const css = read("console.css");
 check("CSS: four job colours, state labels, report and archive",
   [".aj-job.aj-needs_you { border-left-color: var(--red); }", ".aj-job.aj-running { border-left-color: #3b82f6; }",
@@ -68,7 +74,7 @@ check("CSS: four job colours, state labels, report and archive",
 const keys = ["ajobs.mark_done", "ajobs.archive", "ajobs.archive_back", "ajobs.archive_delete", "ajobs.archive_clear",
   "ajobs.archive_clear_confirm", "ajobs.mark_err", "teams.queue_finished", "teams.fin_open", "teams.fin_done", "teams.archive",
   "teams.archive_clear", "teams.archive_clear_confirm", "studio.reasoning", "studio.reasoning_hint", "studio.chat_private",
-  "teams.chat_private", "mpick.eff_agent"];
+  "teams.chat_private", "mpick.eff_agent", "mpick.follow_main", "mpick.pin_limited_title"];
 check("i18n vi/en, no em dash", keys.every((k) => vi[k] && en[k]) && !/[–—]/.test(keys.map((k) => vi[k] + en[k]).join("")),
   keys.filter((k) => !vi[k] || !en[k]).join(","));
 

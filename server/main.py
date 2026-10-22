@@ -2644,6 +2644,28 @@ def _agent_model_provider(model: str, provider: str = "") -> str:
     return "openai-oauth" if _is_codex_model(model) else "anthropic-cli"
 
 
+# A subscription that ran out of quota (0.285.0, owner 22/10/2026): provider -> epoch until which a chat PINNED to it
+# runs on the main chat's model instead. Set by the chat turn when an engine reports "usage limit reached"; the reset
+# time it gives is used, or an hour when it gives none. Only the pin falls back: the main model is never changed.
+_PIN_LIMITED: dict = {}
+_LIMIT_ENGINE_PROVIDER = {"claude-code": "anthropic-cli", "codex": "openai-oauth"}
+PIN_LIMIT_DEFAULT_S = 3600
+
+
+def _note_pin_limit(engine_hint: str, reset_epoch: float = 0.0, now: float = None) -> None:
+    prov = _LIMIT_ENGINE_PROVIDER.get(str(engine_hint or ""))
+    if not prov:
+        return
+    now = time.time() if now is None else now
+    _PIN_LIMITED[prov] = float(reset_epoch) if reset_epoch and reset_epoch > now else now + PIN_LIMIT_DEFAULT_S
+
+
+def _pin_limited_until(provider: str, now: float = None) -> float:
+    """Epoch until which `provider` is out of quota for pinned chats, 0 when it is usable."""
+    until = float(_PIN_LIMITED.get(str(provider or ""), 0) or 0)
+    return until if until > (time.time() if now is None else now) else 0.0
+
+
 def _chat_provider_for_session(mcfg, row):
     """Provider cho MỘT phiên chat: phiên đã GHIM model riêng (user đổi model ngay trong
     phiên) thì theo ghim; chưa ghim thì rơi về _chat_provider (mặc định chung).
@@ -2658,6 +2680,11 @@ def _chat_provider_for_session(mcfg, row):
     d = _provider_def(pprov)
     if not d:
         return _chat_provider(mcfg)
+    if _pin_limited_until(pprov):
+        # The pinned model's plan is out of quota: run on the main chat's model until it resets (0.285.0).
+        main_route = _chat_provider(mcfg)
+        if main_route[0] != pprov:
+            return main_route
     kind = d.get("kind", "cli")
     key = _provider_key(mcfg, d)
     if kind == "api" and not key:
@@ -3999,11 +4026,10 @@ def _agent_reasoning(meta) -> str:
 
 
 def _core_reasoning(mcfg) -> str:
-    """Javis Core's own reasoning level (0.283.0), `model.core_reasoning` in settings, default medium like every
-    assistant. Javis Core has no agent file to keep it in, so its chats used to run at the main chat's level, and the
-    level chip in a Javis Core chat changed the main chat's level (owner report 22/10/2026)."""
+    """Javis Core's reasoning level, `model.core_reasoning` in settings. Owner rule (22/10/2026, 0.285.0): Javis Core
+    follows the main chat until the owner picks a level for it in its own chat; from then on that level sticks."""
     r = str((mcfg or {}).get("core_reasoning") or "").strip()
-    return r if r in engine.REASONING_LEVELS else AGENT_REASONING_DEFAULT
+    return r if r in engine.REASONING_LEVELS else _reasoning_level(mcfg)
 
 # Từ khoá kích hoạt extended thinking của Claude Code (engine cli không có flag chuẩn).
 # Bộ từ khoá suy nghĩ của Claude Code. ĐƯỜNG DỰ PHÒNG từ 0.55.40: bản CLI có cờ `--effort`
@@ -16010,6 +16036,8 @@ async def websocket_endpoint(ws: WebSocket):
                         runtime_trace, "subscription.limit_reached",
                         {"engine": engine_hint, "model": model or ""})
                     _limit_state.update(notice=noi, limit=lim)
+                    # A chat pinned to this plan runs on the main model until it resets (0.285.0).
+                    _note_pin_limit(lim.engine or engine_hint, float(lim.reset_epoch or 0))
                     frame["limit"] = {"engine": lim.engine, "scope": lim.scope,
                                       "reset_epoch": float(lim.reset_epoch or 0)}
                 return json.dumps(frame)
@@ -18775,12 +18803,20 @@ async def sessions_meta(session_id: str):
         # vẫn kêu "ghim hỏng", đúng thứ trong ảnh chủ repo gửi 02/09.
         key = _provider_key(mcfg, d) if d else ""
         sess["pin_ok"] = bool(d) and (d.get("kind") != "api" or bool(key))
+        # 0.285.0: out of quota, the chat runs on the main model for now (see `_chat_provider_for_session`).
+        lim_until = _pin_limited_until(pp)
+        if sess["pin_ok"] and lim_until and _chat_provider(mcfg)[0] != pp:
+            sess["pin_ok"] = False
+            sess["pin_limited_until"] = lim_until
     # 0.193.0: an assistant's chat tells the model bar whose reasoning level it shows and changes.
     _p = workflow_chat.persona_cua_phien(sess)
     if _p and _p[0] == "agent":
+        # Always an assistant's chat for the model bar (0.285.0): before, an agent file it could not read here (another
+        # spelling of the brain) left `agent_slug` out, and the level chip of that chat changed the MAIN chat's level.
+        sess["agent_slug"], sess["agent_reasoning"] = _p[1], AGENT_REASONING_DEFAULT
         try:
             _m = _read_md(_agents_dir(sess.get("brain") or "brain") / f"{_p[1]}.md")[0]
-            sess["agent_slug"], sess["agent_reasoning"] = _p[1], _agent_reasoning(_m)
+            sess["agent_reasoning"] = _agent_reasoning(_m)
         except Exception:  # noqa: BLE001
             pass
     elif javis_core.is_core_channel(sess.get("channel")):

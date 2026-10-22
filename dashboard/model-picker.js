@@ -33,6 +33,7 @@
   let agentEff = null;   // { slug, level } while the chat in front is an assistant's (0.193.0)
   let sessionPin = null;   // {provider, model} phiên đang mở đã ghim; null = theo mặc định chung
   let pinBroken = false;   // phiên có ghim nhưng ghim HỎNG (provider mất key) - server đang chạy mặc định chung
+  let pinLimited = 0;      // 0.285.0: the pinned plan is out of quota until this epoch; the chat runs on the main model
   let pinSid = null;       // phiên mà sessionPin đang nói về (chống vẽ nhầm khi đổi phiên nhanh)
   let pendingPin = null;   // model chọn khi CHƯA có phiên (chat trống) - áp ngay khi mint id
   let expanded = null;     // provider đang mở rộng trong popover; "" = đã thu hết (bấm lại tên nhà)
@@ -101,7 +102,7 @@
   async function loadSessionPin() {
     const sid = curSid();
     pinSid = sid;
-    if (!sid) { sessionPin = null; pinBroken = false; pendingPin = null; agentEff = null; return; }
+    if (!sid) { sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null; agentEff = null; return; }
     pendingPin = null;
     try {
       const r = await fetch(`/sessions/${encodeURIComponent(sid)}/meta`);
@@ -110,11 +111,12 @@
       // pin_ok=false: ghim còn trong DB nhưng không chạy được (provider mất key) -
       // server đang rơi về mặc định chung, nên hiển thị cũng phải theo mặc định chung.
       pinBroken = !!(d && d.pinned_provider && d.pin_ok === false);
+      pinLimited = (d && d.pin_limited_until) || 0;
       // 0.193.0: in an assistant's chat the effort chip shows and sets that assistant's own level (default medium).
       agentEff = d && d.agent_slug ? { slug: d.agent_slug, level: d.agent_reasoning || "medium" } : null;
       sessionPin = (d && d.pinned_provider && !pinBroken)
         ? { provider: d.pinned_provider, model: d.pinned_model || "" } : null;
-    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; agentEff = null; } }
+    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; } }
   }
 
   function renderBar() {
@@ -128,7 +130,7 @@
       mt.title = (p ? p.label + " · " + (eff.model || window.t("models.mp_default")) + "\n" : "") + (sessionPin
         ? window.t("mpick.pin_title")
         : pinBroken
-          ? window.t("mpick.pin_broken_title")
+          ? window.t(pinLimited ? "mpick.pin_limited_title" : "mpick.pin_broken_title")
           : window.t("mpick.follow_default"));
       // The per-session pin keeps a visible mark (owner: "chế độ ghim vẫn hoạt động nhé"): a small pin icon on the
       // chip instead of the old "· ghim" text, orange-amber when the pin is broken. Screen readers get it in words.
@@ -221,6 +223,11 @@
     };
     let html = await window.JavisModelList.render(o);
     if (luot !== luotVe || pop.hidden) return;
+    // An assistant's chat with its own model: one row to go back to following the main chat's model (0.285.0).
+    if (agentEff && (sessionPin || pinBroken)) {
+      html = '<button type="button" class="mb-follow">' + (typeof ic === "function" ? ic("rotate-cw") : "") + " " +
+        window.t("mpick.follow_main") + "</button>" + html;
+    }
     // Ô tìm đang được gõ thì giữ con trỏ ở đó sau khi vẽ lại. Mới MỞ bảng thì chỉ tự focus
     // trên máy có bàn phím thật: trên điện thoại focus là bật bàn phím ảo che nửa bảng, người
     // dùng chỉ muốn bấm chọn model (chủ repo báo 27/09 "tự nhảy lên bàn phím").
@@ -290,7 +297,9 @@
   // đang mở (phiên này giữ đúng model kể cả khi mặc định chung bị đổi ở chỗ khác). Dùng chung
   // cho cú bấm trong bảng chọn và lệnh `/model <tên>` của khung chat.
   async function chonModel(prov, model) {
-    await saveModel({ main: { provider: prov, model: model } });
+    // 0.285.0 (owner, 22/10/2026): in an assistant's chat (any partner, Javis Core) the choice pins THAT chat only. It
+    // used to also rewrite the main chat's model. An assistant chat with no pin follows the main chat's model.
+    if (!agentEff) await saveModel({ main: { provider: prov, model: model } });
     const sid = curSid();
     if (sid) {
       sessionPin = { provider: prov, model: model };
@@ -355,6 +364,13 @@
     if (goto) {
       close();
       try { if (window.Alpine) Alpine.store("nav").go(goto.dataset.goto); } catch (er) {}
+      return;
+    }
+    if (e.target.closest(".mb-follow")) {
+      const sid = curSid();
+      if (sid) await pinToSession(sid, "", "");
+      sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null;
+      await loadState(); renderBar(); close();
       return;
     }
     const item = e.target.closest(".mb-item");

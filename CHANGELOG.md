@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.286.0] - 2026-10-22
+### Sửa lỗi
+- **Chọn model trong chat với trợ lý không còn đổi model của khung chat chính.** Áp dụng cho mọi trợ lý lẫn Javis Core: model chọn ở đó chỉ ghim cho đúng cuộc chat ấy. Trợ lý chưa chọn model thì chạy theo model chính, và có thêm dòng "Theo model của khung chat chính" để bỏ ghim.
+- **Model ghim của trợ lý hết hạn mức gói thì tự chạy tạm model của khung chat chính,** tới khi gói mở lại thì quay về model đã ghim.
+- **Javis Core chạy theo mức suy luận của khung chat chính** cho tới khi bạn chọn mức riêng cho nó. Mức suy luận trong chat trợ lý luôn được lưu cho đúng trợ lý đó.
+
 ## [0.285.0] - 2026-10-22
 ### Cải thiện
 - **Nghiệm thu đúng sản phẩm Team đã làm.** Nhóm bật tính năng được gắn tiêu chí mặc định; xác nhận đi cùng kết quả đã lưu và phiên bản đang xem.

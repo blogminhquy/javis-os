@@ -99,13 +99,38 @@ r = client.post("/agents/javis-core/reasoning", data={"level": "low", "brain": B
 mcfg = cfgmod.read_settings().get("model", {})
 check("Javis Core keeps its own level", r.status_code == 200 and mcfg.get("core_reasoning") == "low", (r.status_code, mcfg))
 check("...and the main chat's level is untouched", mcfg.get("reasoning") == main_before, mcfg)
-check("Javis Core defaults to medium", main._core_reasoning({}) == "medium" and main._core_reasoning({"core_reasoning": "x"}) == "medium")
+check("Javis Core follows the main chat's level until it has its own (owner 22/10/2026)",
+      main._core_reasoning({"reasoning": "high"}) == "high" and main._core_reasoning({"reasoning": "high", "core_reasoning": "x"}) == "high"
+      and main._core_reasoning({"reasoning": "high", "core_reasoning": "low"}) == "low")
 sc = main.get_store().create_session(brain=main._brain_key(B), engine="cli", channel="agent:javis-core")
 mc = client.get(f"/sessions/{sc}/meta").json()
 check("the model bar of a Javis Core chat reads Javis Core's level", mc.get("agent_slug") == "javis-core"
       and mc.get("agent_reasoning") == "low", mc)
 sm = main.get_store().create_session(brain=main._brain_key(B), engine="cli")
 check("a main chat is not an assistant's chat", "agent_slug" not in client.get(f"/sessions/{sm}/meta").json())
+# 0.285.0: an agent chat is an assistant's chat for the model bar even when its file cannot be read there.
+sg = main.get_store().create_session(brain=main._brain_key(B), engine="cli", channel="agent:khong-co")
+mg = client.get(f"/sessions/{sg}/meta").json()
+check("an agent chat whose file is unreadable is still an assistant's chat (level chip never falls back to the main chat)",
+      mg.get("agent_slug") == "khong-co" and mg.get("agent_reasoning") == "medium", mg)
+
+# ---- 0.285.0: a pinned plan out of quota runs on the main chat's model until it resets ----
+main._PIN_LIMITED.clear()
+mcfg_t = {"main": {"provider": "openai-oauth", "model": "gpt-5"}}
+row_t = {"pinned_provider": "anthropic-cli", "pinned_model": "haiku"}
+check("a pinned chat normally runs on its pin", main._chat_provider_for_session(mcfg_t, row_t)[0] == "anthropic-cli")
+main._note_pin_limit("claude-code", 0)
+check("Claude Code out of quota: the pinned chat runs on the main chat's model",
+      main._chat_provider_for_session(mcfg_t, row_t)[0] == main._chat_provider(mcfg_t)[0] != "anthropic-cli",
+      main._chat_provider_for_session(mcfg_t, row_t))
+check("...for an hour when the plan gives no reset time", 3500 < main._pin_limited_until("anthropic-cli") - __import__("time").time() <= 3600)
+main._note_pin_limit("claude-code", __import__("time").time() - 5)
+check("a reset time in the past counts as no reset time", main._pin_limited_until("anthropic-cli") > __import__("time").time())
+main._PIN_LIMITED["anthropic-cli"] = __import__("time").time() - 1
+check("after the reset the pin is used again", main._chat_provider_for_session(mcfg_t, row_t)[0] == "anthropic-cli")
+main._note_pin_limit("unknown-engine", 0)
+check("an engine with no subscription pin is ignored", "unknown-engine" not in main._PIN_LIMITED)
+main._PIN_LIMITED.clear()
 r = client.post("/agents", data={"name": "Lan", "slug": "lan", "role": "Thành viên", "prompt": "Bạn là Lan.", "brain": B,
                                   "reasoning": "low"})
 check("the settings form saves the level", r.status_code == 200 and main._read_md(BR / "agents" / "lan.md")[0].get("reasoning") == "low")

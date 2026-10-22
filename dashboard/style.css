@@ -2382,6 +2382,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .mb-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px;
   font-size: 13px; color: var(--text); cursor: pointer; }
 .mb-item:hover { background: var(--bg3); }
+.mb-follow { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; margin-bottom: 6px;
+  border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--text); font-size: 13px; cursor: pointer; }
+.mb-follow:hover { background: var(--bg3); }
 .mb-item.cur { background: var(--accent-wash-2); color: var(--accent); }
 .mb-item .tick { width: 14px; color: var(--green); flex: none; }
 .mb-empty { font-size: 12px; color: var(--text3); padding: 4px 10px 8px; }
