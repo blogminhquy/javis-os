@@ -8171,7 +8171,13 @@ async def files_rename(brain: str = Form("brain"), path: str = Form(...), newnam
 _THU_MUC_LOGIC = {
     "sources": (r"^(\d+\s*[-_.]\s*)?sources$", "Sources"),
     "attachments": (r"^(\d+\s*[-_.]\s*)?attachments$", "Attachments"),
+    # Images inserted into a note (dashboard/note-images.js). NOT shared with attachments/: media_gc
+    # treats attachments/ as a cache and deletes files older than 30 days, while a note points here.
+    "images": (r"^(\d+\s*[-_.]\s*)?images$", "images"),
 }
+# Note images are embedded and shown inline, so the "images" folder takes raster formats only.
+# SVG can carry script and is never stored there.
+_NOTE_IMAGE_EXTS = {".webp", ".jpg", ".jpeg", ".png", ".gif", ".avif", ".bmp"}
 
 
 @app.post("/files/upload")
@@ -8183,11 +8189,23 @@ async def files_upload(file: UploadFile = File(...), brain: str = Form("brain"),
         mau = _THU_MUC_LOGIC.get(folder.strip().lower())
         if not mau:
             return JSONResponse({"error": localefmt.chu("Thư mục không hợp lệ", "Invalid folder")}, status_code=400)
+        if folder.strip().lower() == "images" and \
+                os.path.splitext(_sanitize_filename(file.filename))[1].lower() not in _NOTE_IMAGE_EXTS:
+            return JSONResponse({"error": localefmt.chu(
+                "Ảnh trong note chỉ nhận WebP, JPG, PNG, GIF, AVIF hoặc BMP",
+                "Note images accept only WebP, JPG, PNG, GIF, AVIF or BMP")}, status_code=400)
         d = Path(_resolve_subfolder(_brain_root(brain), *mau))
         try:
             # Client lưu và mở file bằng đường dẫn tương đối TRẦN duyệt, nên phải quy về đó -
             # trả đường tuyệt đối là đẩy một đường dẫn máy chủ vào cơ sở dữ liệu project.
-            rel_dir = d.relative_to(_files_root(brain)).as_posix()
+            # Note images are the exception: the path is EMBEDDED in the note (![[images/a.webp]])
+            # and the renderer resolves it from the BRAIN ROOT, so it must be brain-root relative.
+            # Locally the browse ceiling can be a whole drive; relative to that, the note would get
+            # "Users/.../images/a.webp" and break as soon as the brain moves or changes machine.
+            if folder.strip().lower() == "images":
+                rel_dir = d.resolve().relative_to(Path(_brain_root(brain)).resolve()).as_posix()
+            else:
+                rel_dir = d.relative_to(_files_root(brain)).as_posix()
         except ValueError:
             return JSONResponse({"error": localefmt.chu("Thư mục nằm ngoài phạm vi duyệt", "The folder is outside the browsable area")}, status_code=400)
     else:

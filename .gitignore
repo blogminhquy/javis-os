@@ -198,3 +198,6 @@ server/channel_accounts.json
 
 # Bộ đo tai nghe (tools/stt_bench): clip âm thanh và kết quả, không lên git
 server/stt_bench/
+# Loop watchdog heartbeat and restart log (server/loop_watch.py): runtime state written to the default state dir server/.
+server/loop_beat.json
+server/loop_restarts.json

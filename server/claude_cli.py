@@ -64,9 +64,19 @@ def cancel_all(tag=None):
                 subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)],
                                capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
             else:
-                p.terminate()
+                # Every registrant starts its child with start_new_session, so the child leads its own process group:
+                # signal the whole group so a CLI's own children (agy, codex tools) do not outlive Stop. Checked first,
+                # because a child sharing Javis's group would take Javis down with it.
+                import signal as _signal
+                if os.getpgid(p.pid) == p.pid:
+                    os.killpg(p.pid, _signal.SIGTERM)
+                else:
+                    p.terminate()
         except Exception:
-            pass
+            try:
+                p.terminate()
+            except Exception:
+                pass
     n = len(procs)
     try:
         import claude_sdk_engine

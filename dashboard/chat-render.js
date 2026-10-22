@@ -412,10 +412,34 @@
   function phienBanAnh(u) {
     return (_anhVForRender && /^\/files\/raw\?/.test(u)) ? u + "&v=" + encodeURIComponent(_anhVForRender) : u;
   }
-  function imgHtml(u, alt, rawpath, duPhong) {
+  // The part after | in an Obsidian-style ![[image|..]]: "300" / "300x200" is the image SIZE,
+  // text is alt text. Returns null when empty.
+  function imageSize(s) {
+    s = String(s == null ? "" : s).trim();
+    if (!s) return null;
+    var m = /^(\d{1,5})(?:x(\d{1,5}))?$/i.exec(s);
+    if (m) return { w: +m[1], h: m[2] ? +m[2] : 0 };
+    return { alias: s };
+  }
+  // attrs: extra attributes for the <img> tag (wiki, size, alias). data-vault-path sits ON the
+  // <img> so the editor's turndown rule "wikiimg" recognizes it and saves back exactly ![[..]] /
+  // ![](..); otherwise the image saves as ![x](/files/raw?brain=...) with the brain name baked in.
+  function imgHtml(u, alt, rawpath, duPhong, attrs) {
     u = phienBanAnh(u);
+    attrs = attrs || {};
     var con = (duPhong || []).map(phienBanAnh).filter(function (x) { return x && x !== u; });
-    var img = '<img class="chat-img" src="' + esc(u) + '" alt="' + esc(alt || "") + '"' +
+    var isVault = !!(rawpath && isVaultRel(rawpath));
+    var extra = "";
+    if (isVault) extra += ' data-vault-path="' + esc(String(rawpath).replace(/^\.?\//, "")) + '"';
+    if (attrs.wiki) extra += ' data-img-wiki="1"';
+    if (attrs.size && attrs.size.w) {
+      var sizeAttr = attrs.size.w + (attrs.size.h ? "x" + attrs.size.h : "");
+      extra += ' data-img-size="' + esc(sizeAttr) + '" style="width:' + attrs.size.w + "px" +
+        (attrs.size.h ? ";height:" + attrs.size.h + "px" : "") + '"';
+    } else if (attrs.size && attrs.size.alias) {
+      extra += ' data-img-alias="' + esc(attrs.size.alias) + '"';
+    }
+    var img = '<img class="chat-img" src="' + esc(u) + '" alt="' + esc(alt || "") + '"' + extra +
       (con.length ? ' data-jv-thu="' + esc(con.join("|")) + '"' : "") +
       ' loading="lazy" onerror="jvImgGone(this)">';
     // Bam vao anh = XEM PHONG TO (lightbox), khong phai tai ve. Truoc day anh trong vault duoc
@@ -621,10 +645,12 @@
       return put(code);
     });
     // 3) anh vault ![[..]] + anh markdown ![]() (giu URL qua placeholder de khong bi escape)
-    raw = raw.replace(/!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g, function (_m, name) {
+    raw = raw.replace(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/g, function (_m, name, after) {
       name = name.trim();
       var uvW = ungVienAnh(name);
-      return put(imgHtml(uvW[0] || resolveSrc(name), name, name, uvW.slice(1)));
+      var size = imageSize(after);
+      return put(imgHtml(uvW[0] || resolveSrc(name), (size && size.alias) || name, name, uvW.slice(1),
+                         { wiki: true, size: size }));
     });
     // 3b) wikilink [[target]] / [[target|alias]] (anh ![[..]] da an o tren) -> link dieu huong nhu Wikipedia
     raw = raw.replace(/\[\[([^\[\]\n|]+?)(?:\|([^\[\]\n]*))?\]\]/g, function (_m, target, alias) {
@@ -1444,7 +1470,7 @@
     module.exports = { mdToHtml: mdToHtml, visibleMarkdown: visibleMarkdown,
       highlight: highlight, wkResolve: wkResolve,
       appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
-      isDownloadFile: isDownloadFile,
+      isDownloadFile: isDownloadFile, imageSize: imageSize,
       laLinkTaiFile: laLinkTaiFile, laIOS: laIOS,
       // Xuat them de test chay THAT chuoi du phong cua anh (xem ungVienAnh / imgGone).
       ungVienAnh: ungVienAnh, ghepDuong: ghepDuong, imgGone: imgGone,

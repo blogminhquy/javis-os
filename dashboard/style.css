@@ -2755,6 +2755,21 @@ body.ne-full-on .cview { z-index: 250; }
 .ne-body.mode-preview .ne-prev { border-left: none; }
 .ne-img { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 16px; }
 .ne-img img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+/* Images inserted into a note (note-images.js): an image never overflows the editor; an image
+   with a dragged size keeps that size and only shrinks when the frame is narrower. The resize
+   grip floats (position:fixed) at the bottom-right corner. The grip and the status toast sit at z-index 3100 so they stay above the full-screen editor
+   (.ne-full, 1000) and the file-editor modal (3000). */
+.ne-wys img.chat-img { max-width: 100%; height: auto; }
+.ni-grip { position: fixed; z-index: 3100; width: 14px; height: 14px; border-radius: 4px; display: none;
+  background: var(--accent-solid); border: 2px solid var(--bg); cursor: ew-resize; }
+.ni-grip.show { display: block; }
+body.ni-dragging, body.ni-dragging * { cursor: ew-resize !important; user-select: none; }
+.ni-status { position: fixed; z-index: 3100; right: 18px; bottom: 18px; max-width: 360px; padding: 8px 12px;
+  border-radius: 8px; font-size: 16px; color: var(--text); background: var(--panel-solid);
+  border: 1px solid var(--border); opacity: 0; pointer-events: none; transition: opacity .2s; }
+.ni-status.show { opacity: 1; }
+.ni-status.ni-ok { border-color: var(--green); }
+.ni-status.ni-err { border-color: var(--red); }
 /* .pdf xem tại chỗ (nền trắng vì trình xem PDF của trình duyệt tự vẽ trên nền của nó) */
 .ne-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: #fff; }
 .ne-dl { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;

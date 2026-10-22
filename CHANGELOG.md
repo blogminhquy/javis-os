@@ -40,6 +40,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Lúc nhiều sự kiện cùng gọi một plugin, sự kiện phải chờ lượt không còn bị tính oan một lần thử khi chưa gửi gì.
 - **Bị từ chối vì quá tải (429) thì lần gửi lại vẫn chạy.** Trước đây mã chống trùng bị giữ lại, nên lần gửi lại bị báo trùng và đơn không bao giờ chạy.
 
+## [0.272.0] - 2026-10-22
+### Thêm mới
+- **Dán hoặc kéo ảnh thẳng vào ghi chú.** Ảnh được nén sang WebP ngay trên trình duyệt, lưu vào thư mục `images/` của brain và chèn sẵn vào ghi chú; kéo góc ảnh để đổi cỡ. (Đóng góp của @quangndna.)
+- **Danh sách tự nối dòng trong trình soạn ghi chú.** Enter ở cuối một gạch đầu dòng, việc cần làm hay danh sách đánh số sẽ tự thêm dòng mới cùng loại; Tab và Shift+Tab thụt lề. Trong khối code thì không tự nối. (Đóng góp của @quangndna.)
+- **Mở nhanh nhật ký hôm nay:** nút lịch trên thanh công cụ ghi chú, hoặc Ctrl+D (Cmd+D trên Mac) khi đang ở khung ghi chú. Đã có thì mở, chưa có thì tạo mới, không ghi đè. (Đóng góp của @quangndna.)
+### Sửa lỗi
+- **Bấm Dừng là Antigravity dừng thật.** Trước đây lượt chạy bằng Antigravity vẫn tiếp tục chạy ngầm sau khi bấm Dừng, có khi tới 15 phút. Lượt im lặng quá lâu giờ cũng có hạn chót thật. (Đóng góp của @Aurus2207.)
+- Bấm Dừng giờ tắt luôn các tiến trình con mà engine sinh ra, không để sót.
+
 ## [0.270.0] - 2026-10-21
 ### Sửa lỗi
 - **Kết nối chạy bằng npx không còn hỏng vĩnh viễn sau lần cài đầu.** Trước đây nếu Javis vừa khởi động lại mà một kết nối còn đang tải gói, nó có thể bị ngắt giữa chừng, để lại bản cài dở và báo lỗi MODULE_NOT_FOUND mãi. Giờ Javis chờ lần cài đầu xong, tự dọn bản cài dở, và sau mỗi lần khởi động lại sẽ thử mọi kết nối rồi báo một lần nếu có cái không chạy. Kết nối đang cài lần đầu hiện chấm vàng thay vì đỏ. (Đóng góp của @dev23072005.)
