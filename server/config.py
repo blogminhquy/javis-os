@@ -123,6 +123,9 @@ _DEFAULT = {
         #       chỉ định cho sản phẩm bên thứ ba (xem claude_auth.CANH_BAO_SUBSCRIPTION).
         # Đổi ở trang Models. Cả hai đều giữ NGUYÊN năng lực: Bash, WebFetch, MCP, nối phiên cũ.
         "claude_auth": "subscription",
+        # Daily `claude update` (claude_update.py). The switch sits on the Claude Code card of the
+        # Models page; env JAVIS_CLAUDE_AUTO_UPDATE=0 still forces it off over this value.
+        "claude_auto_update": True,
         "openrouter_key": "",
         "anthropic_api_key": "",               # provider Anthropic API (P2)
         "openai_api_key": "",                  # provider OpenAI (ChatGPT API)
@@ -1130,8 +1133,25 @@ def apply_tool_env(cfg=None):
         print(f"[config] apply_tool_env lỗi: {e}", file=__import__('sys').stderr)
     # Windows: helper Python con (vd video-use) in Unicode ra console cp1252 sẽ crash
     # (UnicodeEncodeError) -> ép UTF-8 cho mọi tiến trình con. Tôn trọng giá trị user tự đặt.
-    if os.name == "nt" and not os.environ.get("PYTHONUTF8"):
-        os.environ["PYTHONUTF8"] = "1"
+    child_utf8_env()
+
+
+def child_utf8_env(env=None, os_name=None) -> dict:
+    """Windows: every child process Javis starts (engine CLIs, and through them the shell commands and Python scripts a
+    Team member or a chat turn runs) prints UTF-8. Without it a Python child writing Vietnamese to a pipe uses the ANSI
+    code page (cp1252) and dies with UnicodeEncodeError (customer report 0.270, codes 5 and 22). PYTHONUTF8 turns on UTF-8
+    mode (3.7+); PYTHONIOENCODING also covers older or embedded interpreters. A value the user set is kept. Applied when
+    this module is imported, so it holds before any engine starts, and again from apply_tool_env. No-op elsewhere."""
+    env = os.environ if env is None else env
+    if (os_name or os.name) == "nt":
+        if not env.get("PYTHONUTF8"):
+            env["PYTHONUTF8"] = "1"
+        if not env.get("PYTHONIOENCODING"):
+            env["PYTHONIOENCODING"] = "utf-8"
+    return env
+
+
+child_utf8_env()
 
 
 # ---- Mật khẩu ----

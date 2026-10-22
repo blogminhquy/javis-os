@@ -35,10 +35,33 @@ _TRANG_THAI = "claude-update.json"
 _RX_BAN = re.compile(r"(\d+\.\d+\.\d+)")
 
 
-def bat() -> bool:
-    """Tự cập nhật hằng ngày có bật không. Tắt bằng JAVIS_CLAUDE_AUTO_UPDATE=0."""
-    return (os.environ.get("JAVIS_CLAUDE_AUTO_UPDATE") or "1").strip().lower() not in (
-        "0", "false", "no", "off")
+_ENV = "JAVIS_CLAUDE_AUTO_UPDATE"
+_OFF_VALUES = ("0", "false", "no", "off")
+SETTING_KEY = "claude_auto_update"   # under settings["model"]; the switch on the Models page
+
+
+def env_off() -> bool:
+    """True when JAVIS_CLAUDE_AUTO_UPDATE=0 (or false/no/off) forces the daily update off.
+
+    The env var only ever turns the updater OFF and then wins over the switch on the Models page,
+    so an admin who pinned it off in a service file keeps it off whatever someone clicks.
+    """
+    return (os.environ.get(_ENV) or "").strip().lower() in _OFF_VALUES
+
+
+def setting_on(cfg: dict | None = None) -> bool:
+    """The saved switch (Models page, Claude Code card). Missing or unreadable = on, the old default."""
+    try:
+        cfg = cfgmod.read_settings() if cfg is None else cfg
+        return ((cfg or {}).get("model") or {}).get(SETTING_KEY, True) is not False
+    except Exception:
+        return True
+
+
+def bat(cfg: dict | None = None) -> bool:
+    """Is the daily `claude update` on. Read at EVERY run of the loop, so the switch takes
+    effect without a restart (customer report 0.270, code 18)."""
+    return not env_off() and setting_on(cfg)
 
 
 def _file_trang_thai() -> Path:

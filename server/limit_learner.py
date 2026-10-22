@@ -29,6 +29,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone, tzinfo
 
 # Hạn mức học được sống bao lâu trước khi coi là cũ. Nhà cung cấp đổi gói, nâng tier, hoặc
 # hạn mức khác nhau theo giờ - giữ vĩnh viễn là tự khoá mình vào một con số đã lỗi thời.
@@ -303,6 +304,10 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
     # "gói thuê bao đang dùng" - thà nói ít hơn là nói sai.
     ("sub_session", "", "",
      re.compile(r"(you'?ve\s+)?(hit|reached)\s+your\s+session\s+limit", re.I)),
+    # "You've hit your limit · resets 1:50am (Asia/Bangkok)": the Pro plan form, no window named
+    # (field report 0.270, code 25). Same reason as above for the empty engine.
+    ("sub_limit", "", "",
+     re.compile(r"you'?ve\s+hit\s+your\s+limit\b", re.I)),
     # Gemini CLI. Câu chữ lấy từ chính bundle @google/gemini-cli và từ lỗi backend Google trả
     # về ("Quota exceeded for quota metric...", RESOURCE_EXHAUSTED). Gói đăng nhập Google có
     # hạn mức theo NGÀY, nên nói được "hết lượt hôm nay" là đúng chuyện đang xảy ra.
@@ -327,6 +332,81 @@ _RESET_TEXT_RE = re.compile(
 _RESET_IN_RE = re.compile(
     r"\b(?:resets?|try\s+again)\s+in\s+"
     r"(?:(\d+)\s*(?:hours?|hrs?|h|giờ)\s*)?(?:(\d+)\s*(?:minutes?|mins?|m|phút))?", re.I)
+
+
+# A clock time instead of a delay: "resets 1:50am (Asia/Bangkok)", "resets 1am", "resets 13:50",
+# "reset at 5pm (America/New_York)", "resets Oct 24, 1am (UTC)". Before this only "resets in ..."
+# gave a time, so the Pro plan message, which only ever names a clock time, read as "the provider
+# did not say when it reopens" and no automatic retry was scheduled (field report 0.270, code 25).
+# A bare hour with neither am/pm nor minutes ("resets 5 hours") is not a clock time.
+_MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8,
+           "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+_RESET_CLOCK_RE = re.compile(
+    r"\bresets?\s+(?:at\s+|on\s+)?"
+    r"(?:(?P<mon>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?P<day>\d{1,2})"
+    r"(?:st|nd|rd|th)?,?\s+(?:at\s+)?)?"
+    r"(?:(?P<word>midnight|noon)\b"
+    r"|(?P<h>\d{1,2})(?::(?P<m>\d{2}))?\s*(?P<ap>[ap])\.?m\b\.?"
+    r"|(?P<h24>\d{1,2}):(?P<m24>\d{2})\b)"
+    r"(?:\s*\((?P<tz>[^()\n]{1,40})\))?", re.I)
+_UTC_OFFSET_RE = re.compile(r"^(?:utc|gmt)?\s*([+-])(\d{1,2})(?::?(\d{2}))?$", re.I)
+
+
+def _zone(name: str) -> tzinfo | None:
+    """The tz named in "(Asia/Bangkok)", "(UTC)", "(GMT+7)". None = unknown, read as local time."""
+    raw = str(name or "").strip()
+    if not raw:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(raw)
+    except Exception:   # noqa: BLE001 - unknown name or no tzdata on this machine
+        pass
+    if raw.upper() in ("UTC", "GMT", "Z"):
+        return timezone.utc
+    m = _UTC_OFFSET_RE.match(raw)
+    if m and int(m.group(2)) <= 14:
+        delta = timedelta(hours=int(m.group(2)), minutes=int(m.group(3) or 0))
+        return timezone(-delta if m.group(1) == "-" else delta)
+    return None
+
+
+def _reset_clock_epoch(text: str, now: float) -> float:
+    """Epoch of the NEXT occurrence of the clock time in "resets <time> (<tz>)". 0 = none found.
+
+    The time is read in the tz in parentheses; without one (or with a name this machine cannot
+    resolve), in this machine's local time, which is the clock the CLI itself printed in. A time
+    already past today means tomorrow; a past date means next year."""
+    m = _RESET_CLOCK_RE.search(text or "")
+    if not m:
+        return 0.0
+    if m.group("word"):
+        hour, minute = (0 if m.group("word").lower() == "midnight" else 12), 0
+    elif m.group("ap"):
+        hour, minute = int(m.group("h")), int(m.group("m") or 0)
+        if not 1 <= hour <= 12:
+            return 0.0
+        hour = hour % 12 + (12 if m.group("ap").lower() == "p" else 0)
+    else:
+        hour, minute = int(m.group("h24")), int(m.group("m24"))
+        if hour > 23:
+            return 0.0
+    if minute > 59:
+        return 0.0
+    tz = _zone(m.group("tz") or "")
+    # Naive local datetimes when no tz: `.timestamp()` then applies the local DST rules.
+    base = datetime.fromtimestamp(now, tz) if tz else datetime.fromtimestamp(now)
+    cand = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    try:
+        if m.group("mon"):
+            cand = cand.replace(month=_MONTHS[m.group("mon")[:3].lower()], day=int(m.group("day")))
+            if cand <= base:
+                cand = cand.replace(year=cand.year + 1)
+        elif cand <= base:
+            cand = cand + timedelta(days=1)
+    except ValueError:
+        return 0.0      # "Feb 30" and the like: say "unknown", never guess
+    return cand.timestamp()
 
 
 def _reset_seconds(text: str) -> float:
@@ -430,6 +510,8 @@ def parse_subscription_limit(text: str, engine_hint: str = "",
             delta = _reset_seconds(raw)
             if delta > 0:
                 epoch = ts + delta
+        if epoch <= 0:
+            epoch = _reset_clock_epoch(raw, ts)
         note = _RESET_TEXT_RE.search(raw)
         return SubscriptionLimit(
             engine=(engine_hint or engine), source=name,

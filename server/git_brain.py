@@ -577,12 +577,36 @@ _BACKUP_SKIP_SUBSTR = ("/memory/conversations/", "/Memory/conversations/",
                        "/.antigravity/", "/.antigravitycli/", "/.gemini/")
 
 
+def _raw_kept_out(rel: str) -> bool:
+    """Raw material that never goes to the GitHub backup even though it is text (customer report 0.270, code 14):
+    agent run logs (`memory/agents/<slug>/runs/`) and text files under an attachments folder (the text Javis extracts
+    from a Team attachment, uploaded .txt/.csv files). The brain .gitignore already ignores both, but that file is only
+    written when learning is switched on, so a brain without it pushed every run log and extracted text.
+
+    Images under attachments are NOT covered here: they stay governed by the sync_images switch.
+
+    These paths are OUT OF SCOPE for the backup both ways, like images on a machine with sync_images off: not copied
+    into the mirror, never pruned from it, never applied back. Copies an older version already pushed stay in the
+    repo: removing them would make a machine still on an older version delete its own local copies on the next merge.
+    """
+    parts = rel.replace("\\", "/").split("/")
+    dirs = parts[:-1]
+    for i in range(len(dirs) - 3):
+        if dirs[i] in ("memory", "Memory") and dirs[i + 1] == "agents" and dirs[i + 3] == "runs":
+            return True
+    if la_file_chu(parts[-1]) and any(d.lower().endswith("attachments") for d in dirs):
+        return True
+    return False
+
+
 def _backup_skip(rel: str, sync_images: bool = False) -> bool:
     r = "/" + rel.replace("\\", "/") + "/"
     if any(s in r for s in _BACKUP_SKIP_SUBSTR):
         return True
     name = rel.replace("\\", "/").rsplit("/", 1)[-1]
     if name == ".javis-learn.lock" or name.endswith(".tmp"):
+        return True
+    if _raw_kept_out(rel):
         return True
     # CHỈ CHỮ mới được sang mirror. Chặn ở đây chứ không trông cả vào .gitignore vì hai việc
     # khác nhau: .gitignore quyết định git COMMIT gì, còn chỗ này quyết định có CHÉP file sang
@@ -666,6 +690,8 @@ def _sync_mirror(src: str, mirror: str, sync_images: bool = False) -> dict:
             rel = str(full.relative_to(mirror)).replace("\\", "/")
             if rel in keep:
                 continue
+            if _raw_kept_out(rel):
+                continue   # out of scope: never pruned, see _raw_kept_out
             if la_anh(fn) and not la_file_chu(fn):
                 if not sync_images:
                     continue
@@ -990,6 +1016,9 @@ def _apply_tombstones(brains_dir: str, mirror_dir: str, trash_dir: str,
             r = _git(mirror_dir, "rm", "-r", "-f", "--ignore-unmatch", "--", name)
             if r.returncode == 0:
                 changed_mirror = True
+                # Untracked leftovers (raw files _sync_mirror never prunes, see _raw_kept_out) would keep
+                # mirror/<name> alive and let _restore_missing_brains bring the brain back once the tombstone expires.
+                shutil.rmtree(mp, ignore_errors=True)
             else:
                 ok = False
         if ok:

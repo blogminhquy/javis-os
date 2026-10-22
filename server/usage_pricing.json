@@ -1,5 +1,6 @@
 {
-  "_note": "Gia USD tren 1 TRIEU token. UOC TINH de quy doi 'neu tinh theo API thi ton bao nhieu' - voi goi subscription day KHONG phai tien that, voi API key thi day la tien that (xap xi). Cap nhat TAY khi doi gia. Khop model theo tien to DAI NHAT, thu ca nguyen van lan phan sau dau '/' (OpenRouter dat ten '<hang>/<model>'). Model khong khop -> chi phi 0.",
+  "_note": "Gia USD tren 1 TRIEU token. UOC TINH de quy doi 'neu tinh theo API thi ton bao nhieu' - voi goi subscription day KHONG phai tien that, voi API key thi day la tien that (xap xi). Cap nhat TAY khi doi gia. Khop model theo tien to DAI NHAT, thu ca nguyen van lan phan sau dau '/' (OpenRouter dat ten '<hang>/<model>'). Model khong khop -> chi phi 0 trong bao cao, va cost=null (chua biet gia) trong usage-events.jsonl.",
+  "_deepseek": "deepseek-flash / deepseek-v4-flash / deepseek-v4-pro: DeepSeek V4 list prices (cache-miss input, output, cache-hit input) as published by DeepSeek and repeated by price trackers (siliconflow.com/blog/deepseek-v4-api-pricing-pro-flash, computeprices.com/api-pricing/deepseek), read 2026-10-22. Official page api-docs.deepseek.com/quick_start/pricing was not reachable that day; recheck there. deepseek-flash is the id Javis sends (engine.DEEPSEEK_DEFAULT_MODEL).",
   "prices": {
     "claude-opus": {"in": 15.0, "out": 75.0, "cache_read": 1.5, "cache_write": 18.75},
     "claude-opus-4-5": {"in": 5.0, "out": 25.0, "cache_read": 0.5, "cache_write": 6.25},
@@ -31,6 +32,9 @@
     "gemini-3": {"in": 2.0, "out": 12.0, "cache_read": 0.5, "cache_write": 0.0},
     "gemini": {"in": 0.3, "out": 2.5, "cache_read": 0.075, "cache_write": 0.0},
     "deepseek-r1": {"in": 0.55, "out": 2.19, "cache_read": 0.14, "cache_write": 0.0},
+    "deepseek-flash": {"in": 0.14, "out": 0.28, "cache_read": 0.028, "cache_write": 0.0},
+    "deepseek-v4-flash": {"in": 0.14, "out": 0.28, "cache_read": 0.028, "cache_write": 0.0},
+    "deepseek-v4-pro": {"in": 1.74, "out": 3.48, "cache_read": 0.145, "cache_write": 0.0},
     "deepseek": {"in": 0.27, "out": 1.1, "cache_read": 0.07, "cache_write": 0.0},
     "llama-3.3": {"in": 0.1, "out": 0.28, "cache_read": 0.0, "cache_write": 0.0},
     "llama": {"in": 0.1, "out": 0.3, "cache_read": 0.0, "cache_write": 0.0},

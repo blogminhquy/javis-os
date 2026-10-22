@@ -38,6 +38,7 @@ STATUSES = ("pending", "approved", "consumed", "rejected", "changes_requested", 
 DECISIONS = {"approve": "approved", "reject": "rejected", "changes": "changes_requested"}
 TEXT_MAX = 2000
 EVIDENCE_MAX = 10
+JOIN_MAX_CALLS = 15        # calls one card may list once sibling steps of a wave joined it (3 steps x 5 calls)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS team_approvals(
@@ -206,6 +207,40 @@ class ApprovalStore:
                  deadline_at, _j(fps), _j(list(held_ops or [])), now, now))
             self._event(c, aid, "requested", requested_by, {"kind": kind, "team_rev": int(team_rev), "step_id": step_id})
             return self._row(c.execute("SELECT * FROM team_approvals WHERE approval_id=?", (aid,)).fetchone())
+
+    def join(self, aid: str, *, step_id: str, requested_by: str, who: str, action: str,
+             fingerprints: Optional[list] = None) -> Optional[dict]:
+        """0.271.0: fold the request of another step of the same job into this pending request (the job waits for one
+        card at a time). Before this, a sibling step of the same wave that also needed approval was parked and its request
+        dropped: the member said it filed one and no card ever showed it (customer report, codes 5 and 22). The joined
+        step is recorded (`joined` event) so the approval opens it too. None when the request is no longer pending."""
+        now = self.clock()
+        with self._Tx(self) as c:
+            r = c.execute("SELECT * FROM team_approvals WHERE approval_id=? AND status='pending'", (aid,)).fetchone()
+            if r is None:
+                return None
+            fps = json.loads(r["fingerprints_json"] or "[]")
+            have = {f.get("fp") for f in fps}
+            for f in fingerprints or []:
+                if isinstance(f, dict) and f.get("fp") and f["fp"] not in have and len(fps) < JOIN_MAX_CALLS:
+                    fps.append({"fp": str(f["fp"]), "label": _clip(f.get("label"), 300), "call": _clip(f.get("call"), 1500),
+                                "used_at": None})
+                    have.add(f["fp"])
+            text = _clip(f"{r['action']}\n\n{_clip(who, 80) or requested_by}: {_clip(action, 800)}")
+            kind = "action" if fps and r["kind"] == "question" else r["kind"]
+            c.execute("UPDATE team_approvals SET fingerprints_json=?, action=?, kind=?, updated_at=? WHERE approval_id=?",
+                      (_j(fps), text, kind, now, aid))
+            self._event(c, aid, "joined", requested_by, {"step_id": step_id})
+            return self._row(c.execute("SELECT * FROM team_approvals WHERE approval_id=?", (aid,)).fetchone())
+
+    def joined_steps(self, aid: str) -> list:
+        """Step ids folded into this request with `join`, in order."""
+        out = []
+        for e in self.events(aid):
+            sid = (e.get("detail") or {}).get("step_id")
+            if e["kind"] == "joined" and sid and sid not in out:
+                out.append(sid)
+        return out
 
     def set_message(self, aid: str, message_id: int) -> None:
         with self._Tx(self) as c:

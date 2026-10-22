@@ -55,6 +55,8 @@ BOT_COMMANDS = [
     {"command": "skills", "description": "Liệt kê skill có sẵn"},
     {"command": "notes", "description": "Lưu tin nhắn (kèm ảnh) vào Sources của brain"},
     {"command": "agents", "description": "Liệt kê agent + việc đang chạy"},
+    # Pick the agent (partner) that answers this chat; `@<agent name> ...` does it for one message.
+    {"command": "agent", "description": "Chọn cộng sự trả lời chat này (/agent off: về Javis)"},
     {"command": "workflows", "description": "Liệt kê workflow"},
     {"command": "model", "description": "Xem hoặc đổi model"},
     {"command": "brain", "description": "Xem hoặc đổi brain (vault) của phiên này"},

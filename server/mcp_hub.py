@@ -848,7 +848,8 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         return text
 
     add("javis_read_file", "Đọc 1 file trong vault (Second Brain). path tương đối so với gốc vault; "
-        "nhận CẢ đường dẫn tuyệt đối của file người dùng vừa đính kèm/dán vào khung chat. File dài: "
+        "nhận CẢ đường dẫn tuyệt đối của file người dùng vừa đính kèm/dán vào khung chat. PDF, Word, Excel "
+        "(.xlsx: mọi sheet, giá trị công thức, ô lỗi) được bóc thành chữ. File dài: "
         "đọc từng đoạn bằng offset/limit (có số dòng).",
         {"path": {"type": "string"}, "offset": {"type": "integer"}, "limit": {"type": "integer"}},
         ["path"], _read)

@@ -1325,6 +1325,9 @@
     .si-row{display:flex;gap:10px;flex-wrap:wrap}
     .si-chip{padding:7px 14px;border-radius:20px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:14px}
     .si-chip.sel{border-color:var(--accent);background:rgba(255,138,60,.15);color:var(--accent-ink)}
+    .si-level-note{flex-basis:100%;margin-top:6px;font-size:14px;line-height:1.45;color:var(--text2)}
+    .si-level-note.is-full{color:var(--warn-ink, var(--text))}
+    @media (pointer:coarse){.si-level-note{font-size:16px}}
     .si-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
     .si-status{margin-top:16px;padding:12px 14px;border-radius:10px;background:var(--surface-1);border:1px solid rgba(255,255,255,.07);font-size:15px;color:var(--text)}
     .si-log{margin-top:16px} .si-log .le{padding:10px 12px;border-left:2px solid rgba(120,180,255,.4);background:rgba(255,255,255,.02);margin-bottom:8px;border-radius:0 8px 8px 0;font-size:14px;white-space:pre-wrap;color:var(--text2)}
@@ -2211,7 +2214,8 @@
               <div class="si-field"><label for="lpModes">${esc(window.t("cs.si_mode"))}${infoBtn()}</label><div class="si-row" id="lpModes">
                 <button class="si-chip" data-mode="suggest">${esc(window.t("cs.si_mode_suggest"))}</button>
                 <button class="si-chip" data-mode="auto">${esc(window.t("cs.si_mode_auto"))}</button>
-                <button class="si-chip" data-mode="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
+                <button class="si-chip" data-mode="full">${esc(window.t("cs.si_mode_full"))}</button></div>
+                <div class="si-level-note" id="lpModeNote" role="status"></div></div>
               <div class="si-field"><label>${esc(window.t("cs.si_interval"))}</label><input type="number" id="lpInterval" min="5" value="120" style="max-width:120px"></div>
             </div>
             ${infoBody(`${esc(window.t("cs.si_loopnote"))} <code>Javis/loops/&lt;${esc(window.t("cs.si_loopnote_name"))}&gt;.md</code>.`)}
@@ -2225,7 +2229,8 @@
               <div class="si-field" id="lpRemMqWrap" style="display:none"><label>${esc(window.t("cs.si_rmq"))}</label><div class="si-row" id="lpRemMq">
                 <button class="si-chip" data-mq="suggest">${esc(window.t("cs.si_mq_read"))}</button>
                 <button class="si-chip" data-mq="auto">${esc(window.t("cs.si_mq_write"))}</button>
-                <button class="si-chip sel" data-mq="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
+                <button class="si-chip sel" data-mq="full">${esc(window.t("cs.si_mode_full"))}</button></div>
+                <div class="si-level-note" id="lpRemMqNote" role="status"></div></div>
               <label id="lpRemLastWrap" style="display:none;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemLast"> ${esc(window.t("cs.si_rem_last"))}</label>
               <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemSpeak"> ${esc(window.t("cs.si_rem_speak"))}</label>
               <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemCall"> ${esc(window.t("cs.si_rem_call"))}</label>
@@ -2268,8 +2273,18 @@
     let fkind = "loop";      // loại việc đang tạo: loop (việc lặp) | reminder (nhắc hẹn)
     let frmode = "notify";   // kiểu nhắc hẹn: notify (chỉ nhắc) | task (tự làm rồi báo)
     let frmq = "full";       // mức quyền của kiểu "task": suggest | auto | full
+    // 0.275.0 (customer report, codes 15 and 27): Full stays the default (owner, 2026-10-22), but the form says in one
+    // line what the picked level may do, so nobody leaves Full selected without knowing it edits files and acts outside.
+    const LEVEL_NOTE = { full: "cs.si_level_note_full", auto: "cs.si_level_note_auto", suggest: "cs.si_level_note_suggest" };
+    function levelNote(id, level) {
+      const n = el.querySelector(id);
+      if (!n) return;
+      n.textContent = LEVEL_NOTE[level] ? window.t(LEVEL_NOTE[level]) : "";
+      n.classList.toggle("is-full", level === "full");
+    }
     function syncFormChips() {
       el.querySelectorAll("#lpModes .si-chip").forEach(x => x.classList.toggle("sel", x.dataset.mode === fcur.mode));
+      levelNote("#lpModeNote", fcur.mode);
     }
     el.querySelectorAll("#lpModes .si-chip").forEach(c => c.onclick = () => { fcur.mode = c.dataset.mode; syncFormChips(); });
 
@@ -2298,6 +2313,7 @@
       const lastWrap = el.querySelector("#lpRemLastWrap");
       if (lastWrap) lastWrap.style.display = frmode === "task" ? "flex" : "none";
       el.querySelectorAll("#lpRemMq .si-chip").forEach(x => x.classList.toggle("sel", x.dataset.mq === frmq));
+      levelNote("#lpRemMqNote", frmq);
     }
     el.querySelectorAll("#lpRemModes .si-chip").forEach(c => c.onclick = () => {
       frmode = c.dataset.rmode;
@@ -2683,6 +2699,7 @@
         ${r.speak ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("volume-2")} ${esc(window.t("cs.si_rem_speak_tag"))}</div>` : ""}
         ${r.call ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("mic")} ${esc(window.t("cs.si_rem_call_tag"))}</div>` : ""}
         ${r.error ? `<div style="font-size:12px;color:var(--warn-ink);margin-top:4px">${WARN_ICON} ${esc(window.t("cs.si_prev_err"))} ${esc(r.error.slice(0, 160))}</div>` : ""}
+        ${r.retry_count > 0 ? `<div style="font-size:12px;color:var(--warn-ink)">${ic("rotate-cw")} ${esc(window.t("cs.si_rem_retry", { lan: r.retry_count, tong: r.retry_max || r.retry_count, luc: fmtWhen(r.due_at) }))}</div>` : ""}
         <div class="wf-actions" style="margin-top:8px">
           <button class="s-btn-ghost rmEdit">${esc(window.t("common.edit"))}</button>
           <button class="s-btn-ghost rmCancel">${esc(window.t("common.cancel"))}</button>
@@ -3140,7 +3157,7 @@
         <div class="si-row" style="gap:14px;flex-wrap:wrap">
           <div class="si-field" style="flex:1;min-width:220px"><label>Route</label><select id="knRoute" class="loop-sel">${routeOpts}</select></div>
           <div class="si-field"><label>${esc(t("kanban.prio"))}</label><select id="knPrio" class="loop-sel"><option value="1">${esc(t("kanban.prio_high"))}</option><option value="2" selected>${esc(t("kanban.prio_mid"))}</option><option value="3">${esc(t("kanban.prio_low"))}</option></select></div>
-          <div class="si-field"><label>${esc(t("kanban.exception"))}</label><label class="auto-learn" style="margin-top:8px"><input type="checkbox" id="knApprove"><span>${esc(t("kanban.need_approve"))}</span></label></div>
+          <div class="si-field"><label>${esc(t("kanban.exception"))}${infoBtn()}</label>${infoBody(esc(t("kanban.need_approve_info")))}<label class="auto-learn" style="margin-top:8px"><input type="checkbox" id="knApprove"><span>${esc(t("kanban.need_approve"))}</span></label></div>
         </div>
         <div class="si-actions"><button class="s-btn" id="knSave">${esc(t("kanban.save"))}</button><button class="s-btn-ghost" id="knCancel">${esc(t("common.cancel"))}</button></div>
       </div>
@@ -4778,6 +4795,9 @@
         + (d.stale ? " · " + t("models.st_stale") : "");
       act.innerHTML = `<div class="prov-action"><button class="gcard-btn ghost" id="cliLogout">${esc(t("models.disconnect"))}</button></div>`;
       el.querySelector("#cliLogout").onclick = async () => {
+        // Signing out drops the plan login on this machine and only a fresh sign-in brings it
+        // back, so one stray tap must not do it (customer report 0.270, code 19).
+        if (!confirm(t("models.cc_logout_confirm"))) return;
         const b = el.querySelector("#cliLogout"); b.disabled = true; b.textContent = t("models.disconnecting");
         try { await fetch("/claude/logout", { method: "POST" }); } catch (e) {}
         refreshClaudeCard(el);
@@ -4812,15 +4832,37 @@
     // Docker: the explanation folds into (i) next to the product name (0.214.0).
     if (d.cap_nhat_docker) { box.innerHTML = `<div>Claude Code${infoBtn()}</div>${infoBody(esc(t("models.cc_upd_docker")))}`; return; }
     const cn = d.cap_nhat || {};
-    let dong = cn.sau ? t("models.cc_upd_ver", { v: cn.sau }) + " · " : "";
-    dong += t("models.cc_upd_auto");
-    if (cn.ts) dong += " · " + t("models.cc_upd_last", { luc: new Date(cn.ts * 1000).toLocaleString(LOC(), { dateStyle: "short", timeStyle: "short" }) });
-    box.innerHTML = `<div>${esc(dong)}</div>
+    // Daily auto-update switch (customer report 0.270, code 18). The env var
+    // JAVIS_CLAUDE_AUTO_UPDATE=0 forces it off on the server, so the switch then shows off and locked.
+    const envOff = !!d.auto_update_env_off, autoOn = d.auto_update !== false && !envOff;
+    const parts = [];
+    if (cn.sau) parts.push(t("models.cc_upd_ver", { v: cn.sau }));
+    if (cn.ts) parts.push(t("models.cc_upd_last", { luc: new Date(cn.ts * 1000).toLocaleString(LOC(), { dateStyle: "short", timeStyle: "short" }) }));
+    box.innerHTML = `${parts.length ? `<div>${esc(parts.join(" · "))}</div>` : ""}
+      <div class="cc-auto-row" style="display:flex;align-items:center;gap:10px;margin-top:8px;font-size:16px">
+        <label for="cliAutoUpd" style="flex:1;cursor:pointer">${esc(t("models.cc_auto_label"))}${infoBtn()}</label>
+        <label class="toggle"><input type="checkbox" id="cliAutoUpd"${autoOn ? " checked" : ""}${envOff ? " disabled" : ""}><span></span></label>
+      </div>
+      ${infoBody(esc(t("models.cc_auto_info")))}
+      ${envOff ? `<div>${esc(t("models.cc_auto_env_off"))}</div>` : ""}
       <div class="prov-action">
         <button class="gcard-btn ghost" id="cliUpdBtn">${esc(t("models.cc_upd_btn"))}</button>
       </div>
       <div id="cliUpdMsg" class="prov-msg"></div>`;
     const btn = box.querySelector("#cliUpdBtn"), msg = box.querySelector("#cliUpdMsg");
+    const sw = box.querySelector("#cliAutoUpd");
+    if (sw) sw.onchange = async () => {
+      const want = !!sw.checked;
+      sw.disabled = true;
+      const r = await saveSetting("model", { claude_auto_update: want });
+      sw.disabled = false;
+      if (!r || r.ok === false) {
+        sw.checked = !want;   // not saved: put the switch back so it shows the real state
+        msg.innerHTML = Icons.warn(t("models.cc_auto_save_fail"));
+        return;
+      }
+      msg.textContent = t(want ? "models.cc_auto_on_done" : "models.cc_auto_off_done");
+    };
     btn.onclick = async () => {
       btn.disabled = true;
       msg.textContent = t("models.cc_upd_running");

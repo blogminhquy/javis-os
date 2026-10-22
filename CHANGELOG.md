@@ -13,6 +13,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Cải thiện
 - Công cụ chạy thử staging tự xoá thư mục tạm khi mọi bước đạt (giữ lại khi có bước lỗi, hoặc khi chạy với `--keep`).
 
+## [0.275.0] - 2026-10-22
+### Sửa lỗi
+- **Việc nền đáng tin hơn.** Nhắc việc chạy đúng giờ ở mọi brain, kể cả brain chưa có vòng lặp. Lỗi mạng lúc máy vừa bật giờ ghi là "lỗi" và tự thử lại sau vài phút, việc đã gửi thì không gửi lại. Gói Claude báo giờ mở lại (ví dụ 1:50 sáng) thì Javis tự hẹn chạy lại. Vòng lặp nhớ các vòng trước nên không đề xuất trùng.
+- **Nhóm làm việc trơn tru hơn.** Thành viên đọc được file Excel (mọi sheet, kết quả công thức, ô lỗi) và biết trang PDF nào là ảnh scan, không phải xin duyệt từng lệnh. Lệnh đã duyệt không bị chặn lại, thẻ duyệt ghi rõ lệnh. Các bước phải làm lần lượt chạy đúng thứ tự, việc còn bước chưa chạy không bị báo Xong.
+- **Project và cộng sự dùng được ở mọi kênh.** Luật của project áp dụng cả khi chat qua CLI và Telegram, và giữ nguyên khi cuộc trò chuyện sang phiên mới; lệnh `javis` có thêm `--project`. Trên Telegram, gõ `@tên-cộng-sự` để cộng sự đó trả lời, `/agent tên` để giao cả cuộc chat, `/agent off` để về Javis.
+- **Sao lưu GitHub không còn đẩy nhật ký chạy thô của cộng sự và chữ trích từ file đính kèm.** Bản đã lỡ đẩy trước đây vẫn nằm trong repo; khi mọi máy đã cập nhật, bạn có thể xoá tay trên GitHub.
+
+### Cải thiện
+- **Rõ ràng hơn ở những chỗ dễ bấm nhầm.** Form Thêm việc nói rõ mức Toàn quyền được tự sửa file, chạy lệnh, gửi tin mà không hỏi lại (vẫn là mặc định). Ô duyệt trên bảng Việc đổi tên thành "Duyệt kết quả sau khi làm xong". Nút Ngắt ở thẻ Claude Code hỏi lại trước khi đăng xuất, và có công tắc tắt tự cập nhật Claude Code ngay trên màn hình. Trang Mức dùng tính tiền việc chạy bằng DeepSeek và đếm cả lượt của Nhóm.
+- **Sửa các lỗi khách hàng báo trên bản 0.270.0.**
+
 ## [0.274.0] - 2026-10-22
 ### Thêm mới
 - **Webhook thành cửa nhận sự kiện bền.** Mỗi sự kiện được ghi vào đĩa trước khi Javis trả lời "đã nhận" (202). Máy tắt, cập nhật hay sập giữa chừng thì lúc mở lại Javis chạy tiếp, không mất đơn.
