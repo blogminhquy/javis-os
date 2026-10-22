@@ -1413,7 +1413,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             await self._gom_bao(task)
             return
         labels = {
-            "review": localefmt.chu("đã làm xong, cần duyệt ngoại lệ", "is done and needs an exception review"),
+            "review": localefmt.chu("đã làm xong, chờ bạn duyệt kết quả", "is done and its result awaits your review"),
             "done": localefmt.chu("đã hoàn thành", "is complete"),
             "blocked": localefmt.chu("bị chặn, cần bạn xem", "is blocked and needs you"),
         }

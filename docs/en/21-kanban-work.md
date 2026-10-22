@@ -15,7 +15,7 @@ Javis treats the work queue as a runtime for the AI. A job goes through this lif
 3. **Into the queue**: the task moves to a ready state, waiting its turn.
 4. **The dispatcher claims the task**: each task is held by exactly one worker (locked with an SQLite transaction), with a 90-second lease and a heartbeat every 20 seconds.
 5. **The worker runs**: a headless AI process works inside the brain, verifies its own result then reports briefly.
-6. **The end**: completed, or stopped waiting for you (missing information, missing permission, or because you ticked "Require result approval").
+6. **The end**: completed, or stopped waiting for you (missing information, missing permission, or because you ticked "Review the result after it runs").
 
 Workers share the **background engine** with the other background features, so Claude Code, ChatGPT/Codex and the API providers (OpenRouter, OpenAI, Anthropic, Google Gemini) can all run this queue. See [Models and engines](10-models-and-engines.md).
 
@@ -64,7 +64,7 @@ Click **+ Hand over a goal** in the right corner to open the form (click again t
 - **Context and desired output**: a multi-line field, natural writing is fine. This is where you state the output you want (which file, where, how long, which source for the figures). Left empty, Javis reuses the Goal field.
 - **Route**: choose **Let the AI pick the worker** (the default) to let the AI decide, or pick a **Workflow: `<name>`** entry to force the job through that workflow. The workflow list comes from the selected brain, see [Agents and Workflows](07-agents-and-workflows.md).
 - **Priority**: **🔺 High**, **🔼 Medium** (the default), **🔽 Low**. High-priority work is claimed first when the queue is busy.
-- **Exception**: the **Require result approval** checkbox. Ticked, a finished job does not close itself but stops at "Needs exception approval" waiting for you to look.
+- **Exception**: the **Review the result after it runs** checkbox. It does NOT ask for approval before the job runs: the job still runs as soon as its turn comes. Ticked, a finished job does not close itself but stops at "Result awaiting review" so you read the result before it counts as done.
 
 Click **Hand to the AI** to create it, or **Cancel** to close the form.
 
@@ -114,7 +114,7 @@ Depending on the status, the card (and the detail drawer) shows these buttons:
 
 | Button | Shown when | What it does |
 | --- | --- | --- |
-| **✓ Approve exception** | the job awaits approval | Marks it completed |
+| **✓ Approve result** | the job's result awaits review | Marks it completed |
 | **Send answer** | the job stopped to ask you (it has an answer box) | The job goes back to the queue and carries on with your answer |
 | **↻ Retry** | the job is blocked or awaiting approval (except a job that is asking) | Pushes it back into the queue to run again |
 | **Stop task** | the job is running | Cancels the running worker |
@@ -158,7 +158,7 @@ This table translates in full the words shown on the status pill.
 | **Waiting on dependencies** | `todo` | The job has dependencies and must wait for its parent jobs |
 | **In the queue** | `ready` | Specified, waiting its turn to be claimed by a worker |
 | **Running** | `running` | A worker holds it and is executing |
-| **Needs exception approval** | `review` | Finished, but you asked to approve the result |
+| **Result awaiting review** | `review` | Finished, waiting for you to read and approve the result |
 | **Needs attention** | `blocked` | Blocked: missing information, missing permission, or an error that exhausted the retries |
 | **Completed** | `done` | Finished |
 | **Cancelled** | `cancelled` | You stopped it, or the worker was cancelled midway |
@@ -203,7 +203,7 @@ Beyond that, a worker also cannot see source repositories outside the brain, and
 Every job that ends completed, awaiting approval or blocked **sends a notice by itself** to the channel it came from, briefly:
 
 - `✅ The job '<title>' completed.` with the first few lines of the result.
-- `✅ The job '<title>' is done and needs exception approval.`
+- `✅ Job '<title>' is done and its result awaits your review.`
 - `⚠ The job '<title>' is blocked and needs your attention.` with a `Reason: ...` line.
 
 Every notice ends with a pointer to the Work page, because the full detail lives here rather than being crammed into a message.
@@ -223,7 +223,7 @@ The **Notifications** bell in the top bar only shows a red dot (and only sends a
 | The job ends as | Result in the chat box | Into the inbox | Red dot + push |
 |---|---|---|---|
 | Blocked | yes | yes | **yes** |
-| Awaiting exception approval | yes | yes | **yes** |
+| Result awaiting review | yes | yes | **yes** |
 | Finished cleanly | yes | yes | no |
 
 A cleanly finished job still sits in the bell list for you to review, it just does not wake you: the result already landed in the very chat box that handed it over. This changed because the repo owner reported (2026-09-01) that the bell rang constantly mid-conversation.
@@ -324,7 +324,7 @@ The two cleanup endpoints at the end have no button in the interface, exactly as
 ## Tips
 
 - Write goals as "what the output is", not "think about". The more the **Context and desired output** field states the destination file, the length and the data source, the closer the specification step's completion conditions are, and the less the worker wanders.
-- Tick **Require result approval** on important work. You spend one extra click but are guaranteed to read the result before it counts as done.
+- Tick **Review the result after it runs** on important work. You spend one extra click but are guaranteed to read the result before it counts as done.
 - To try one job now without turning automatic running on: leave the mode at **Observe**, hand over the job, then click **Run a tick now**.
 - Work needing real data (revenue, calendar, ads) should name the source in the goal, for example "take it from the POS". The specification step then picks `mcp-read` and only then is the worker given the connections. See [Connections and business data](09-connections-and-business-data.md).
 - With a board full of dead experimental jobs, do not delete cards one by one: use **Remove from board** for the few whose history matters and let the rest archive themselves after 3 days.

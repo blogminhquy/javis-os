@@ -65,7 +65,7 @@ Bấm **+ Giao goal** ở góc phải để mở form (bấm lần nữa để �
 - **Ngữ cảnh và đầu ra mong muốn**: ô nhiều dòng, viết tự nhiên cũng được. Đây là chỗ bạn nói rõ đầu ra muốn nhận (file gì, đặt ở đâu, dài bao nhiêu, lấy số liệu từ nguồn nào). Bỏ trống thì Javis lấy luôn nội dung ô Goal.
 - **Route**: chọn **AI tự chọn worker** (mặc định) để AI tự quyết, hoặc chọn một mục **Workflow: `<tên>`** để ép việc chạy qua đúng workflow đó. Danh sách workflow lấy từ brain đang chọn, xem [Agents & Workflows](07-agents-va-workflows.md).
 - **Ưu tiên**: **🔺 Cao**, **🔼 Vừa** (mặc định), **🔽 Thấp**. Việc ưu tiên cao được nhận trước khi hàng đợi đông.
-- **Ngoại lệ**: ô tích **Yêu cầu duyệt kết quả**. Tick thì làm xong việc không tự đóng mà dừng ở trạng thái "Cần duyệt ngoại lệ" chờ bạn xem.
+- **Ngoại lệ**: ô tích **Duyệt kết quả sau khi làm xong**. Ô này KHÔNG bắt duyệt trước khi chạy: việc vẫn chạy ngay khi tới lượt. Tick thì làm xong việc không tự đóng mà dừng ở trạng thái "Chờ duyệt kết quả" để bạn đọc kết quả rồi mới chốt.
 
 Bấm **Giao cho AI** để tạo, hoặc **Huỷ** để đóng form.
 
@@ -115,7 +115,7 @@ Tuỳ trạng thái, thẻ (và ngăn chi tiết) hiện các nút:
 
 | Nút | Hiện khi | Làm gì |
 | --- | --- | --- |
-| **✓ Duyệt ngoại lệ** | việc đang chờ duyệt | Chốt việc là hoàn thành |
+| **✓ Duyệt kết quả** | việc đang chờ duyệt kết quả | Chốt việc là hoàn thành |
 | **Gửi trả lời** | việc đang dừng hỏi bạn (có ô trả lời) | Việc quay lại hàng đợi và chạy tiếp với câu trả lời của bạn |
 | **↻ Thử lại** | việc bị chặn hoặc chờ duyệt (trừ việc đang hỏi) | Đẩy việc về hàng đợi để chạy lại |
 | **Dừng task** | việc đang chạy | Huỷ worker đang chạy |
@@ -159,7 +159,7 @@ Giới hạn: sổ nằm ở hub của Javis, nên chỉ thấy thao tác đi qu
 | **Chờ phụ thuộc** | `todo` | Việc có phụ thuộc, phải đợi các việc cha xong đã |
 | **Trong hàng đợi** | `ready` | Đã có đặc tả, đang chờ tới lượt được worker nhận |
 | **Đang chạy** | `running` | Một worker đang giữ và thực thi |
-| **Cần duyệt ngoại lệ** | `review` | Đã làm xong nhưng bạn yêu cầu duyệt kết quả |
+| **Chờ duyệt kết quả** | `review` | Đã làm xong, chờ bạn đọc và duyệt kết quả |
 | **Cần xử lý** | `blocked` | Bị chặn: thiếu thông tin, thiếu quyền, hoặc lỗi đã hết lượt thử lại |
 | **Hoàn thành** | `done` | Xong xuôi |
 | **Đã huỷ** | `cancelled` | Bạn dừng, hoặc worker bị huỷ giữa chừng |
@@ -215,7 +215,7 @@ Việc bị chặn mà có việc khác đang chờ nó (giao kèm `deps`) thì 
 Mỗi việc kết thúc ở trạng thái hoàn thành, chờ duyệt hoặc bị chặn đều **tự bắn một tin báo** về đúng kênh đã giao nó, nội dung ngắn gọn kiểu:
 
 - `✅ Việc '<tiêu đề>' đã hoàn thành.` kèm vài dòng đầu của kết quả.
-- `✅ Việc '<tiêu đề>' đã làm xong, cần duyệt ngoại lệ.`
+- `✅ Việc '<tiêu đề>' đã làm xong, chờ bạn duyệt kết quả.`
 - `⚠ Việc '<tiêu đề>' bị chặn, cần anh xem.` kèm dòng `Lý do: ...`
 
 Tin nào cũng kết bằng "Xem chi tiết ở trang Việc." vì chi tiết đầy đủ nằm ở đây chứ không nhồi vào tin nhắn.
@@ -235,7 +235,7 @@ Chuông **Thông báo** trên thanh trên chỉ nổi chấm đỏ (và chỉ đ
 | Việc kết thúc ở | Kết quả về khung chat | Vào hòm thư | Chấm đỏ + thông báo đẩy |
 |---|---|---|---|
 | Bị chặn | có | có | **có** |
-| Chờ duyệt ngoại lệ | có | có | **có** |
+| Chờ duyệt kết quả | có | có | **có** |
 | Chạy xong trót lọt | có | có | không |
 
 Việc chạy xong vẫn nằm nguyên trong danh sách chuông để bạn mở ra xem lại, chỉ là nó không gọi bạn dậy: kết quả đã rơi thẳng vào đúng khung chat đã giao việc rồi. Đổi cách này vì chủ repo báo (01/09/2026) chuông kêu liên hồi giữa lúc đang trò chuyện.
