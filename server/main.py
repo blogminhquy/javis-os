@@ -9953,7 +9953,9 @@ _VERDICT_YES_RE = re.compile(r"(\bĐẠT\b|\bPASS(ED)?\b)", re.IGNORECASE)
 
 def _workflow_verdict(v_out: str, v_error: str = "") -> tuple[bool, str, str]:
     """(passed, reason, fixes) from a verify agent's answer. Anything unclear is a FAIL."""
-    if v_error and not (v_out or "").strip():
+    # Error first: a verify agent that errored cannot certify anything, even when the engine
+    # streamed a readable "pass" before failing (partial output + error used to be accepted).
+    if v_error:
         return False, f"Agent kiểm chứng lỗi, không kết luận được: {v_error[:200]}", ""
     text = v_out or ""
     vm = re.search(r"\{.*\}", text, re.DOTALL)
