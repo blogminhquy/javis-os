@@ -27,7 +27,7 @@ On narrow screens, use the list and details buttons to open the side drawers. Sw
 
 1. Choose **Agents**, then select an agent in the left column.
 2. Send a message in the centre. Replies use the agent's configured role, instructions and private memory.
-3. Edit its name, role, instructions, skills or model on the right and click **Save**.
+3. Edit its name, role, instructions, skills or model on the right and click **Save changes** (or Ctrl+S). The save bar stays at the bottom of the form: it says "Unsaved changes" with a yellow dot while something is unsaved, and "Saved" after.
 4. Use the new conversation button to start a separate chat with the same agent. Each agent can have several conversations; reopen recent conversations on the right to continue.
 
 Partner conversations are separate from Javis's main chat history. Returning to a partner resumes its most recent conversation.
@@ -71,7 +71,7 @@ A tag is **not** a chat group: tagging adds the agent to no group chat. It also 
 | **Skills** | The skills available in the vault; tick the ones the agent may use. | Pick skills matching the role |
 | **Model** | A picker with 8 options, see the table below. | Sonnet for balance, Opus for deep reasoning, Haiku for fast and cheap |
 
-4. Click **Save**. If you forget the Name, Javis says "Enter a name".
+4. Click **Create agent** (for an existing agent the button says **Save changes**). If you forget the Name, Javis says "Enter a name".
 5. The new agent card appears in the list with a 🤖 icon, the model name and the assigned skill labels. With no skills assigned, the card reads "no skills assigned".
 
 A note on the Skills field: the list comes from the vault's skill folder. If the vault has no skills, the panel says so and notes that you can create the agent now and assign skills later. Creating skills is covered on the [Skills](06-skills.md) page.
@@ -106,7 +106,7 @@ To be clear: this memory belongs to **one agent**; Javis's shared memory about y
 
 ### Editing or deleting an agent
 
-- **Edit**: select the agent, change its settings on the right and click **Save**.
+- **Edit**: select the agent, change its settings on the right and click **Save changes**.
 - **⤓ Export**: package the agent (with its skills) into a `.zip` to share, see "Sharing" at the end of this page.
 - **Delete**: click **Delete** and confirm in the "Delete agent ...?" dialog. Note: if a workflow uses that agent, its step will point at an agent that no longer exists, so check related workflows afterwards. Deleting an agent does **not** delete `memory/agents/<slug>/`, so its old memory and logs remain on disk.
 

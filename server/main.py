@@ -5415,6 +5415,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         for k in ("openai_tts_voice", "openai_tts_model", "elevenlabs_voice"):
             if patch.get(k):
                 v[k] = str(patch[k]).strip()
+        # 0.298.0: the Edge voice is kept here too, not only in one browser's localStorage. Before, a voice
+        # picked on the laptop never reached the phone (it kept its old voice) nor the voice notes.
+        if "edge_voice" in patch and voice_note.valid_edge_voice(patch.get("edge_voice")):
+            v["edge_voice"] = str(patch["edge_voice"]).strip()
         import tts_eleven   # 0.255.0: only a model the settings page offers
         if str(patch.get("elevenlabs_model") or "").strip() in tts_eleven.MODELS:
             v["elevenlabs_model"] = str(patch["elevenlabs_model"]).strip()
@@ -15048,6 +15052,7 @@ async def voice_options(brains: int = 1):
                            "default_model": p["default_model"]}
                           for pid, p in voice_brain.BRAIN_PROVIDERS.items() if pid],
         "tts": {"provider": v.get("tts_provider") or "edge",
+                "edge_voice": v.get("edge_voice") or "",
                 "openai_voice": v.get("openai_tts_voice") or "alloy",
                 "openai_key_set": bool(m.get("openai_api_key")),
                 "elevenlabs_voice": v.get("elevenlabs_voice") or "",

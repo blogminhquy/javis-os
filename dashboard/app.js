@@ -577,6 +577,15 @@ async function napCaiDatGiong() {
       fetch("/voice/call").then(r => r.json()).catch(() => null),
     ]);
     const v = (s && s.voice) || {};
+    // 0.298.0: the Edge voice saved on the server wins over the one this browser remembered. It used to live
+    // only in localStorage, so a voice picked on the laptop never reached the phone, which kept speaking with
+    // its old voice however many times the owner saved (report 23/10/2026).
+    const vs = document.getElementById("voiceSel");
+    if (vs && v.edge_voice && v.edge_voice !== vs.value
+        && Array.from(vs.options).some(o => o.value === v.edge_voice)) {
+      vs.value = v.edge_voice;
+      vs.dispatchEvent(new Event("change"));
+    }
     const upload = !!(ear && ear.kind === "upload");
     if (call && call.voice_mode) _callInfo = call;
     const mode = (call && call.voice_mode) || v.mode || "standard";

@@ -27,7 +27,7 @@ Trên màn hình hẹp, dùng nút mở danh sách hoặc cột chi tiết để
 
 1. Chọn tab **Trợ lý**, rồi chọn một trợ lý ở cột trái.
 2. Gửi tin ở giữa trang. Trợ lý trả lời theo vai trò, hướng dẫn và bộ nhớ riêng đã cấu hình.
-3. Sửa tên, vai trò, hướng dẫn, skills hoặc model ở cột phải rồi bấm **Lưu**.
+3. Sửa tên, vai trò, hướng dẫn, skills hoặc model ở cột phải rồi bấm **Lưu thay đổi** (hoặc Ctrl+S). Thanh lưu luôn nằm ở cuối form: còn thay đổi chưa lưu thì ghi "Có thay đổi chưa lưu" kèm chấm vàng, lưu xong ghi "Đã lưu".
 4. Bấm nút tạo hội thoại mới để bắt đầu một cuộc trò chuyện riêng với cùng trợ lý. Mỗi trợ lý có nhiều hội thoại; mở lại hội thoại gần đây ở cột phải để tiếp tục.
 
 Hội thoại cộng sự tách khỏi lịch sử chat chính của Javis. Quay lại một cộng sự sẽ mở tiếp phiên gần nhất của cộng sự đó.
@@ -61,7 +61,7 @@ Chọn tab cần dùng rồi bấm nút tạo trợ lý hoặc quy trình ở cu
 | **Skills** | Danh sách skill có sẵn trong vault, bấm tick để cho agent được dùng. | Chọn skill hợp với vai trò |
 | **Model** | Ô chọn có 8 lựa chọn, xem bảng ngay dưới. | Sonnet cho cân bằng, Opus khi cần suy luận sâu, Haiku khi cần nhanh và rẻ |
 
-4. Bấm **Lưu**. Nếu bạn quên nhập Tên, Javis sẽ nhắc "Nhập tên".
+4. Bấm **Tạo agent** (agent đã có thì nút ghi **Lưu thay đổi**). Nếu bạn quên nhập Tên, Javis sẽ nhắc "Nhập tên".
 5. Thẻ agent mới hiện trong danh sách, có biểu tượng 🤖, kèm tên model và các nhãn skill đã gán. Nếu chưa gán skill nào, thẻ ghi "chưa gán skill".
 
 Ghi chú về ô Skills: danh sách skill lấy từ thư mục skill của vault. Nếu vault chưa có skill nào, khung sẽ báo "Vault chưa có skill trong skills/ - vẫn tạo agent được, gán skill sau." Bạn vẫn tạo agent bình thường và quay lại gán sau. Cách tạo skill xem trang [Skills](06-skills.md).

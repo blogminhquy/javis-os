@@ -421,7 +421,13 @@ Danh sách giọng tuỳ đường gọi:
 - **Live qua API key**: các giọng của hãng đang dùng, không có nút nghe thử.
 - **Cơ bản**: 7 giọng Edge miễn phí là Emma (mặc định), Hoài My, Nam Minh, Ava, Andrew, Brian, William. Có OpenAI API key ở trang **Models** thì có thêm 11 giọng OpenAI (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse). Cuối danh sách là **Giọng ElevenLabs của bạn**. **▶ Nghe thử** đọc một câu mẫu.
 
-Chọn giọng là chọn luôn nhà cung cấp (Edge, OpenAI hay ElevenLabs). Giọng Edge và tốc độ đọc được lưu trên chính thiết bị này; cập nhật không ghi đè giọng bạn đã chọn.
+Chọn giọng là chọn luôn nhà cung cấp (Edge, OpenAI hay ElevenLabs). Từ 0.298.0 giọng Edge được lưu cả trên máy chủ, nên chọn trên máy tính thì điện thoại và ghi chú giọng nói gửi qua Telegram, Zalo cũng dùng đúng giọng đó. Tốc độ đọc vẫn lưu trên từng thiết bị.
+
+**Nam hay nữ, và giọng nào nói lúc nào (từ 0.298.0).** Mỗi giọng trong danh sách ghi rõ Nữ hay Nam, xếp thành nhóm Giọng nữ, Giọng nam. Đầu thẻ ghi bằng chữ bạn sẽ nghe gì: "Bấm mic sẽ gọi qua ChatGPT Live, giọng: Juniper · Nữ" và "Đọc câu trả lời bằng giọng: Hoài My · Nữ".
+
+- Ở đường **ChatGPT Live** hay **Live qua API key**, thẻ có hai ô riêng: **Giọng khi gọi** (giọng của cuộc gọi) và **Giọng đọc câu trả lời** (đọc tin trong khung chat và ghi chú giọng nói). Đổi ô dưới không đổi giọng cuộc gọi.
+- Hai ô khác giới (ví dụ gọi giọng nam, đọc giọng nữ) thì thẻ hiện cảnh báo vàng kèm nút **Dùng ... khi gọi** để đổi giọng gọi sang cùng giới chỉ một chạm.
+- Lưu xong, dòng **Đã lưu** hiện ngay dưới ô vừa đổi.
 
 Nếu giọng trả phí gặp lỗi (hết hạn mức, sai key, mất mạng), Javis báo lỗi để bạn thử lại hoặc chọn giọng khác; không tự chuyển giọng.
 

@@ -404,7 +404,13 @@ The voice list depends on the call path:
 - **Live with an API key**: that provider's voices, with no preview button.
 - **Basic**: 7 free Edge voices, Emma (default), Hoài My, Nam Minh, Ava, Andrew, Brian, William. With an OpenAI API key on the **Models** page you also get the 11 OpenAI voices (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse). Last in the list is **Your ElevenLabs voice**. **▶ Preview** reads a sample sentence.
 
-Picking a voice also picks the provider (Edge, OpenAI or ElevenLabs). The Edge voice and the speaking rate are stored on this device; updates do not overwrite the voice you picked.
+Picking a voice also picks the provider (Edge, OpenAI or ElevenLabs). Since 0.298.0 the Edge voice is also saved on the server, so a voice picked on the laptop is used on the phone too, and by the voice notes sent through Telegram and Zalo. The speaking rate is still stored per device.
+
+**Male or female, and which voice speaks when (since 0.298.0).** Every voice in the list says Female or Male, grouped as Female voices and Male voices. The top of the card says in words what you will hear: "The mic calls through ChatGPT Live, voice: Juniper · Female" and "Answers are read with: Hoài My · Female".
+
+- On **ChatGPT Live** or **Live with an API key** the card has two separate fields: **Call voice** (the voice of the call) and **Answer reading voice** (chat answers and voice notes). Changing the second one does not change the call voice.
+- When the two are of different genders (say a male call voice and a female reading voice), a yellow warning shows with a **Use ... for calls** button that switches the call voice to the same gender in one tap.
+- After a save, **Saved** shows right under the field you changed.
 
 If a paid voice fails (quota used up, wrong key, no network), Javis reports the error so you can retry or pick another voice. It does not switch voices on its own.
 

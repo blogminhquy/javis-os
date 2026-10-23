@@ -7244,11 +7244,12 @@
     const engineName = call.engine === "chatgpt" ? "ChatGPT Live"
       : call.engine === "api" ? t("call.engine_api", { provider: LIVE_API_NAMES[call.live_provider] || "API" })
       : t("call.engine_basic");
-    const parts = [t("settings.vc_now", { engine: engineName })];
+    // 0.298.0: the engine line moved into "what you will hear" (capNhatNghe below); the why stays as a dim line.
+    const parts = [];
     if (call.engine === "basic" && o.voice_brain && o.voice_brain.id) parts.push(t("settings.vc_now_brain", { brain: o.voice_brain.label }));
     if (CALL_REASON[call.reason]) parts.push(t(CALL_REASON[call.reason]));
     if (call.engine !== "chatgpt" && ["auto", "chatgpt"].includes(call.setting || "auto") && CHATGPT_DETAIL[call.detail]) parts.push(t(CHATGPT_DETAIL[call.detail]));
-    $("vcNow").textContent = parts.join(" ");
+    const nowExtra = parts.join(" ");
 
     const luuGiong = async (data) => {
       const st = $("vcStatus");
@@ -7264,32 +7265,50 @@
     const sel = $("vcVoice"), tryBtn = $("vcTry");
     const edgeSel = $("voiceSel");
     const basic = call.engine === "basic";
+    const VC = window.JavisVoiceCatalog || { gioiCua: () => "n", tenDep: (x) => x, nhomTheoGioi: (d) => ({ f: [], m: [], n: d || [] }),
+                                             lechGioi: () => null, giongCungGioi: () => "" };
+    const tenGioi = (g) => g === "f" ? t("settings.vc_g_f") : g === "m" ? t("settings.vc_g_m") : "";
+    // "Juniper · Nữ": the live voices are bare names, so the gender word is what tells them apart (0.298.0).
+    const nhanGiong = (x) => VC.tenDep(x) + (tenGioi(VC.gioiCua(x)) ? " · " + tenGioi(VC.gioiCua(x)) : "");
+    const theoGioi = (ds, cur, val = (x) => x) => {
+      const g = VC.nhomTheoGioi(ds);
+      const nhom = (k, label) => g[k].length
+        ? `<optgroup label="${esc(label)}">${g[k].map(x => opt(val(x), nhanGiong(x), cur)).join("")}</optgroup>` : "";
+      return nhom("f", t("settings.vc_grp_f")) + nhom("m", t("settings.vc_grp_m")) + nhom("n", t("settings.vc_grp_other"));
+    };
     // Reading voice (Edge, OpenAI, ElevenLabs): reads chat answers and voice notes, and is the call
     // voice on the Basic path. 0.255.0: on ChatGPT Live / Live over an API the list above holds the
     // live voices, so the reading voice gets its own row (#vcReadVoice) instead of disappearing.
     const readSel = basic ? sel : $("vcReadVoice");
+    // 0.298.0: the Edge voice saved on the server first; this browser's copy only when there is none.
+    const edgeNow = tts.edge_voice || (edgeSel ? edgeSel.value : "");
     const basicVoice = tts.provider === "openai" ? "openai:" + (tts.openai_voice || "alloy")
-      : tts.provider === "elevenlabs" ? "elevenlabs" : "edge:" + (edgeSel ? edgeSel.value : "");
+      : tts.provider === "elevenlabs" ? "elevenlabs" : "edge:" + edgeNow;
     const basicList = () => {
       const edgeOpts = edgeSel ? Array.from(edgeSel.options).map(x => opt("edge:" + x.value, x.textContent, basicVoice)).join("") : "";
       const oaOn = tts.openai_key_set || tts.provider === "openai";
       return `<optgroup label="${esc(t("settings.vc_group_edge"))}">${edgeOpts}</optgroup>`
-        + (oaOn ? `<optgroup label="OpenAI">${OPENAI_TTS_VOICES.map(x => opt("openai:" + x, x, basicVoice)).join("")}</optgroup>` : "")
+        + (oaOn ? `<optgroup label="OpenAI">${OPENAI_TTS_VOICES.map(x => opt("openai:" + x, nhanGiong(x), basicVoice)).join("")}</optgroup>` : "")
         + `<optgroup label="ElevenLabs">${opt("elevenlabs", t("settings.vc_eleven_opt"), basicVoice)}</optgroup>`;
     };
+    let liveVoices = [];
     if (call.engine === "chatgpt") {
       const p = (o.live_providers || []).find(x => x.id === "chatgpt") || {};
-      sel.innerHTML = (p.voices || []).map(x => opt(x, x, o.chatgpt_voice || p.default_voice)).join("");
+      liveVoices = p.voices || [];
+      sel.innerHTML = theoGioi(liveVoices, o.chatgpt_voice || p.default_voice);
     } else if (call.engine === "api") {
       const p = (o.live_providers || []).find(x => x.id === call.live_provider) || {};
-      const voices = p.voices || [];
-      const cur = voices.includes(v.live_voice) ? v.live_voice : (p.default_voice || voices[0] || "");
-      sel.innerHTML = voices.map(x => opt(x, x, cur)).join("");
+      liveVoices = p.voices || [];
+      const cur = liveVoices.includes(v.live_voice) ? v.live_voice : (p.default_voice || liveVoices[0] || "");
+      sel.innerHTML = theoGioi(liveVoices, cur);
     }
     // Đường Cơ bản: giọng Edge (miễn phí), giọng OpenAI khi đã có key ở trang Models, và giọng
     // ElevenLabs riêng. Chọn giọng là chọn luôn nhà cung cấp.
     readSel.innerHTML = basicList();
     $("vcReadRow").hidden = basic;
+    // The first row says what it is for: one voice for everything on Basic, the call's own voice otherwise.
+    $("vcVoiceLbl").textContent = basic ? t("settings.vc_voice") : t("settings.vc_voice_call");
+    $("vcVoiceSub").textContent = basic ? t("settings.vc_voice_sub_basic") : t("settings.vc_voice_sub_live", { engine: engineName });
     tryBtn.hidden = call.engine === "api";   // giọng của Live qua API không có mẫu thu sẵn
     $("vcVoiceNote").hidden = !(basic && readSel.value.startsWith("edge:"));
     $("vcRateRow").hidden = !basic;          // tốc độ đọc chỉ áp cho giọng đọc của đường Cơ bản
@@ -7297,31 +7316,73 @@
     $("vcEleven").hidden = readSel.value !== "elevenlabs";
     $("vcElKeySet").hidden = !tts.elevenlabs_key_set;
     $("vcElVoice").value = tts.elevenlabs_voice || "";
+
+    // Lines that say what you will hear, and a warning when the call and the reading voice are not the same
+    // gender, with a one-click fix that picks a call voice of the reading voice's gender.
+    const chuChon = (s) => { const o2 = Array.from(s.options || []).find(x => x.value === s.value); return o2 ? o2.textContent : ""; };
+    const capNhatNghe = () => {
+      const docLbl = chuChon(readSel);
+      $("vcNow").innerHTML = (basic
+        ? `<div>${esc(t("settings.vc_hear_basic", { voice: docLbl }))}</div>`
+        : `<div>${esc(t("settings.vc_hear_call", { engine: engineName, voice: chuChon(sel) }))}</div>`
+          + `<div>${esc(t("settings.vc_hear_read", { voice: docLbl }))}</div>`)
+        + (nowExtra ? `<div class="vc-now-why">${esc(nowExtra)}</div>` : "");
+      const lech = basic ? null : VC.lechGioi(sel.value, readSel.value.startsWith("edge:") ? readSel.value.slice(5) : readSel.value);
+      const box = $("vcMismatch");
+      const doiSang = lech ? VC.giongCungGioi(liveVoices, lech.doc) : "";
+      box.hidden = !(lech && doiSang);
+      if (lech && doiSang) {
+        $("vcMismatchTxt").textContent = t("settings.vc_mismatch", { call: tenGioi(lech.goi).toLowerCase(), read: tenGioi(lech.doc).toLowerCase() });
+        const fix = $("vcMismatchFix");
+        fix.textContent = t("settings.vc_mismatch_fix", { voice: nhanGiong(doiSang) });
+        fix.onclick = () => { sel.value = doiSang; sel.onchange(); };
+      }
+    };
+    // "Saved" right beside the field that changed: the old status line sat at the bottom of the card, far
+    // from where the owner was looking, so a save looked like nothing happened.
+    const daLuu = (el, r) => {
+      if (!el) return;
+      el.textContent = r && r.ok === false ? t("settings.save_failed") : t("settings.vc_saved_short");
+      el.classList.toggle("bad", !!(r && r.ok === false));
+      el.classList.add("on");
+      clearTimeout(el._tm);
+      el._tm = setTimeout(() => el.classList.remove("on"), 2600);
+    };
+    const savedEl = (s) => s === sel ? $("vcVoiceSaved") : $("vcReadSaved");
     const pickReading = async (val) => {
       $("vcVoiceNote").hidden = !(basic && val.startsWith("edge:"));
       $("vcEleven").hidden = val !== "elevenlabs";
+      let r = { ok: true };
       if (val.startsWith("edge:")) {
-        // Giọng Edge sống ở máy này (localStorage, app.js nghe sự kiện change của #voiceSel).
+        // Giọng Edge sống ở máy này (localStorage, app.js nghe sự kiện change của #voiceSel), và từ 0.298.0
+        // cả trên máy chủ để máy khác và ghi chú giọng nói dùng đúng giọng này.
         if (edgeSel) { edgeSel.value = val.slice(5); edgeSel.dispatchEvent(new Event("change")); }
-        if (tts.provider !== "edge") { await luuGiong({ tts_provider: "edge" }); tts.provider = "edge"; }
-        else $("vcStatus").textContent = t("settings.vc_saved");
+        r = await luuGiong({ tts_provider: "edge", edge_voice: val.slice(5) });
+        tts.provider = "edge"; tts.edge_voice = val.slice(5);
       } else if (val.startsWith("openai:")) {
-        await luuGiong({ tts_provider: "openai", openai_tts_voice: val.slice(7) });
+        r = await luuGiong({ tts_provider: "openai", openai_tts_voice: val.slice(7) });
         tts.provider = "openai";
       } else {
-        await luuGiong({ tts_provider: "elevenlabs" });
+        r = await luuGiong({ tts_provider: "elevenlabs" });
         tts.provider = "elevenlabs";
         if (!tts.elevenlabs_key_set) $("vcElKey").focus();
         else loadElevenVoices();
       }
+      daLuu(savedEl(readSel), r);
+      capNhatNghe();
     };
     sel.onchange = async () => {
       const val = sel.value;
-      if (call.engine === "chatgpt") { await luuGiong({ chatgpt_voice: val }); return; }
-      if (call.engine === "api") { await luuGiong({ live_voice: val }); return; }
+      if (call.engine === "chatgpt" || call.engine === "api") {
+        const r = await luuGiong(call.engine === "chatgpt" ? { chatgpt_voice: val } : { live_voice: val });
+        daLuu(savedEl(sel), r);
+        capNhatNghe();
+        return;
+      }
       await pickReading(val);
     };
     if (!basic) readSel.onchange = () => pickReading(readSel.value);
+    capNhatNghe();
     // Nghe thử: ChatGPT Live phát mẫu thu sẵn (dashboard/voices/<giọng>.mp3, không mở phiên
     // realtime nào); đường Cơ bản đọc một câu bằng giọng đang chọn (app.js JavisVoiceSample).
     tryBtn.onclick = () => {

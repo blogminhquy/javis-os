@@ -28,11 +28,25 @@ _VI_CHARS = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹ�
 _VOICE_RE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}-[A-Za-z]+Neural$")
 
 
-def pick_voice(text: str, voice: str = "") -> str:
+def valid_edge_voice(voice) -> bool:
+    """An Edge voice name, or "auto" (follow the language of the text)."""
+    v = str(voice or "").strip()
+    return v == "auto" or bool(_VOICE_RE.match(v))
+
+
+def pick_voice(text: str, voice: str = "", chosen: str = "") -> str:
+    """The voice the tool named, else the owner's Edge voice from Settings when it can read this text
+    (0.298.0), else the language default. A Vietnamese-only voice does not read English text and an
+    English-only one does not read Vietnamese; multilingual voices read both."""
     v = str(voice or "").strip()
     if v and _VOICE_RE.match(v):
         return v
-    if _VI_CHARS.search(text or ""):
+    vi = bool(_VI_CHARS.search(text or ""))
+    c = str(chosen or "").strip()
+    if c != "auto" and _VOICE_RE.match(c):
+        if "Multilingual" in c or vi == c.startswith("vi-"):
+            return c
+    if vi:
         return VI_VOICE
     return os.getenv("TTS_VOICE", "") or DEFAULT_VOICE
 
@@ -57,7 +71,7 @@ async def make(vault_root: str, text: str, voice: str = "", synth=None) -> dict:
         return {"ok": False, "error": "empty text"}
     if len(words) > MAX_CHARS:
         return {"ok": False, "error": f"text longer than {MAX_CHARS} characters; shorten it"}
-    v = pick_voice(words, voice)
+    v = pick_voice(words, voice, _chosen_edge_voice())
     if synth is None:
         synth = _chosen_synth()
     try:
@@ -78,6 +92,15 @@ async def make(vault_root: str, text: str, voice: str = "", synth=None) -> dict:
     except OSError:
         pass
     return {"ok": True, "rel_path": f"attachments/voice/{name}", "voice": v, "chars": len(words)}
+
+
+def _chosen_edge_voice() -> str:
+    """The Edge voice picked in Settings > Voice (0.298.0), "" when none or unreadable."""
+    try:
+        import config as cfgmod
+        return str(((cfgmod.read_settings() or {}).get("voice") or {}).get("edge_voice") or "")
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def _chosen_synth():

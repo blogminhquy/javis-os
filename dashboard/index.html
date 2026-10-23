@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=139">
-  <link rel="stylesheet" href="/static/console.css?v=112">
+  <link rel="stylesheet" href="/static/style.css?v=140">
+  <link rel="stylesheet" href="/static/console.css?v=113">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chế độ "auto" (0.74.0, mặc định khi chưa chọn gì từ 0.75.1) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -362,25 +362,40 @@
                  khung là node TĨNH để data-i18n dịch được và #rateSel giữ tay bắt của app.js. -->
             <div class="qs-block" id="voiceCard" data-settings-section="voice">
               <div class="popover-label" data-i18n="settings.vc_title">GIỌNG NÓI</div>
-              <div class="qs-hint" id="vcNow" role="status"></div>
-              <div class="qs-field">
-                <label class="qs-lbl" for="vcVoice" data-i18n="settings.vc_voice">Giọng Javis</label>
+              <!-- 0.298.0: what you will HEAR, in words: the call path and its voice, then the voice that reads chat
+                   answers, each with male/female (voice-catalog.js). Owner report 23/10: female picked, male heard,
+                   because a ChatGPT Live call speaks with its own voice list, not the reading voice. -->
+              <div class="vc-now" id="vcNow" role="status"></div>
+              <div class="qs-field vc-field">
+                <div class="vc-lblcol">
+                  <label class="qs-lbl" for="vcVoice" id="vcVoiceLbl" data-i18n="settings.vc_voice">Giọng Javis</label>
+                  <div class="vc-sub" id="vcVoiceSub"></div>
+                </div>
                 <div class="v2-voice-row">
                   <select class="js-input" id="vcVoice"></select>
                   <button class="gcard-btn ghost" type="button" id="vcTry" data-i18n="qs.test_voice">▶ Nghe thử</button>
+                  <span class="vc-saved" id="vcVoiceSaved" aria-live="polite"></span>
                 </div>
               </div>
               <div class="qs-hint" id="vcVoiceNote" data-i18n="qs.voice_ml_note" hidden>Giọng đa ngôn ngữ hỗ trợ tiếng Việt.</div>
+              <div class="vc-mismatch" id="vcMismatch" role="status" hidden>
+                <span id="vcMismatchTxt"></span>
+                <button class="gcard-btn" type="button" id="vcMismatchFix"></button>
+              </div>
               <!-- 0.255.0 (owner: "đang thiếu ElevenLabs"): ChatGPT Live and Live over an API speak with their own
                    voice, so on those paths the list above holds their voices and ElevenLabs had nowhere to go. This
                    row picks the voice that reads chat answers and voice notes; on the Basic path the list above
                    already does that, so console.js hides this row there. -->
-              <div class="qs-field" id="vcReadRow" hidden>
-                <label class="qs-lbl" for="vcReadVoice"><span data-i18n="settings.vc_read_voice">Giọng đọc tin nhắn</span> <button type="button" class="info-i" aria-expanded="false" aria-label="Xem giải thích" title="Xem giải thích" data-i18n-aria="info.more" data-i18n-title="info.more"><i data-ic="info"></i></button></label>
+              <div class="qs-field vc-field" id="vcReadRow" hidden>
+                <div class="vc-lblcol">
+                  <label class="qs-lbl" for="vcReadVoice"><span data-i18n="settings.vc_read_voice">Giọng đọc câu trả lời</span> <button type="button" class="info-i" aria-expanded="false" aria-label="Xem giải thích" title="Xem giải thích" data-i18n-aria="info.more" data-i18n-title="info.more"><i data-ic="info"></i></button></label>
+                  <div class="vc-sub" data-i18n="settings.vc_read_sub">Đọc tin trong khung chat và ghi chú giọng nói.</div>
+                </div>
                 <div class="info-body" hidden data-i18n="settings.vc_read_info">Giọng đọc câu trả lời trong chat và ghi chú giọng nói gửi qua Telegram, Zalo. Cuộc gọi ChatGPT Live hay Live qua API nói bằng giọng riêng của nó nên không đổi theo ô này.</div>
                 <div class="v2-voice-row">
                   <select class="js-input" id="vcReadVoice"></select>
                   <button class="gcard-btn ghost" type="button" id="vcReadTry" data-i18n="qs.test_voice">▶ Nghe thử</button>
+                  <span class="vc-saved" id="vcReadSaved" aria-live="polite"></span>
                 </div>
               </div>
               <!-- ElevenLabs (0.255.0): out of Advanced, right under the list where it was picked. The voice comes
@@ -1005,7 +1020,7 @@
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=150"></script>
+  <script src="/static/app.js?v=151"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -1023,7 +1038,7 @@
   <script src="/static/sessions-ui.js?v=23"></script>
   <link rel="stylesheet" href="/static/improvement-candidates.css?v=1">
   <script src="/static/improvement-candidates.js?v=1"></script>
-  <script src="/static/studio.js?v=46"></script>
+  <script src="/static/studio.js?v=47"></script>
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
   <!-- Tab Công việc của trợ lý (0.142.0): nạp TRƯỚC workspace.js, workspace.js gọi window.JavisAgentJobs. -->
@@ -1071,7 +1086,8 @@
   <!-- Watch tab of the Recurring work page (0.239.0): token-free web page watching (server/web_watch.py). -->
   <script src="/static/web-watch.js?v=3"></script>
   <script src="/static/login-vault.js?v=2"></script>
-  <script src="/static/console.js?v=186"></script>
+  <script src="/static/voice-catalog.js?v=1"></script>
+  <script src="/static/console.js?v=187"></script>
   <script src="/static/mobile-chat.js?v=15"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=3"></script>

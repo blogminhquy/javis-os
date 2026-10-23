@@ -8,7 +8,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.298.0] - 2026-10-23
 ### Sửa lỗi
-- **Giọng nói chọn trong Cài đặt được dùng đúng.** (đang viết)
+- **Giọng chọn trên máy này dùng được cả trên máy khác.** Trước đây giọng đọc chỉ lưu trong trình duyệt đang mở, nên chọn giọng nữ trên máy tính thì điện thoại vẫn giữ giọng cũ, lưu bao nhiêu lần cũng vậy. Giờ giọng lưu trên Javis, mọi máy và ghi chú giọng nói gửi qua Telegram, Zalo đều dùng đúng giọng đó.
+### Cải thiện
+- **Thẻ Giọng nói nói rõ bạn sẽ nghe giọng nào.** Mỗi giọng ghi Nữ hay Nam (cả giọng ChatGPT Live như Juniper, Cove). Đầu thẻ ghi cuộc gọi dùng giọng gì và câu trả lời đọc bằng giọng gì.
+- **Hai ô giọng tách rõ:** Giọng khi gọi và Giọng đọc câu trả lời. Hai giọng khác giới thì có cảnh báo và nút đổi một chạm.
+- **Đã lưu hiện ngay dưới ô vừa đổi**, không còn nằm tít cuối thẻ.
+- **Nút Lưu của agent rõ hơn:** nút cam có biểu tượng ghi Lưu thay đổi, luôn nằm ở cuối form, báo "Có thay đổi chưa lưu" và "Đã lưu". Bấm Ctrl+S cũng lưu được.
 
 ## [0.296.0] - 2026-10-23
 ### Cải thiện

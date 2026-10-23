@@ -54,7 +54,7 @@ check("app.js: im lặng rồi gửi mặc định 1,2 giây, giữ mức cũ h�
 check("app.js: nút Nghe thử của đường Cơ bản đi qua window.JavisVoiceSample", /window\.JavisVoiceSample = \(\) => voice\.speak\(/.test(app));
 check("0.65.22: công tắc Tập trung đã gỡ (im 30 giây thì ngắt, nói là nối lại)", !card.includes('id="vcFocus"') && !/vcFocus/.test(cs));
 for (const k of ["settings.vc_title", "settings.vc_voice", "settings.vc_advanced",
-  "settings.vc_engine", "settings.vc_engine_auto", "settings.vc_engine_api", "settings.vc_engine_basic", "settings.vc_now",
+  "settings.vc_engine", "settings.vc_engine_auto", "settings.vc_engine_api", "settings.vc_engine_basic", "settings.vc_hear_call", "settings.vc_hear_read", "settings.vc_hear_basic",
   "settings.vc_now_brain", "settings.vc_reason_auto_api", "settings.vc_reason_auto_basic", "settings.vc_reason_chosen_unavailable",
   "settings.vc_detail_no_cli", "settings.vc_detail_no_login", "settings.vc_detail_old_cli", "settings.vc_saved",
   "settings.vc_group_edge", "settings.vc_eleven_opt", "settings.vc_read_voice", "settings.vc_read_info", "settings.vc_el_info",
@@ -73,7 +73,10 @@ const end = cs.indexOf("\n  }\n", cs.indexOf("async function renderVoiceCard()")
 const src = cs.slice(start, end);
 
 class El {
-  constructor(id) { this.id = id; this.hidden = false; this.value = ""; this.checked = false; this.open = false; this.textContent = ""; this._html = ""; this.options = []; this.focused = false; this.events = []; }
+  constructor(id) { this.id = id; this.hidden = false; this.value = ""; this.checked = false; this.open = false; this.textContent = ""; this._html = ""; this.options = []; this.focused = false; this.events = [];
+    const cls = new Set();
+    this.classList = { add: (c) => cls.add(c), remove: (c) => cls.delete(c), contains: (c) => cls.has(c),
+                       toggle: (c, on) => (on === undefined ? (cls.has(c) ? cls.delete(c) : cls.add(c)) : on ? cls.add(c) : cls.delete(c)) }; }
   set innerHTML(v) {
     this._html = v;
     this.options = [...v.matchAll(/<option value="([^"]*)"( selected)?>([^<]*)<\/option>/g)].map(m => ({ value: m[1], selected: !!m[2], textContent: m[3] }));
@@ -105,7 +108,8 @@ async function run(options, edgeVoice = "vi-VN-HoaiMyNeural", models = null) {
       return options;
     } }), urls: [],
     saveSetting: async (section, data) => { saves.push([section, data]); return { ok: true }; },
-    window: { JavisVoiceMode: { refresh: () => refreshes.push(1) } }, Event: class { constructor(type) { this.type = type; } },
+    window: { JavisVoiceMode: { refresh: () => refreshes.push(1) }, JavisVoiceCatalog: require("../../dashboard/voice-catalog.js") },
+    setTimeout: () => 0, clearTimeout: () => {}, Event: class { constructor(type) { this.type = type; } },
     Audio: class { constructor(src) { ctx.played = src; } play() { return Promise.resolve(); } pause() {} },
     Date, Math, Number, Array, String, JSON, Promise,
   };
@@ -129,7 +133,10 @@ const base = (call, extra = {}) => Object.assign({
   let r = await run(base({ engine: "chatgpt", live_provider: "chatgpt", setting: "auto", reason: "auto", detail: "" }));
   const $ = (id) => r.els[id];
   check("ChatGPT Live: đọc options không kèm danh sách bộ não", r.ctx.lastUrl === "/voice/options?brains=0");
-  check("ChatGPT Live: dòng Đang dùng ghi ChatGPT Live", $("vcNow").textContent === 'settings.vc_now{"engine":"ChatGPT Live"}');
+  // 0.298.0: the top lines say what you will hear: the call path and its voice, then the reading voice.
+  check("ChatGPT Live: dòng nghe ghi đường gọi kèm giọng (nam/nữ) và giọng đọc",
+    $("vcNow").innerHTML.includes('settings.vc_hear_call{"engine":"ChatGPT Live","voice":"Juniper · settings.vc_g_f"}')
+    && $("vcNow").innerHTML.includes("settings.vc_hear_read"));
   check("ChatGPT Live: ô giọng là giọng của gói, chọn sẵn juniper", $("vcVoice").options.length === 3 && $("vcVoice").value === "juniper");
   check("ChatGPT Live: tốc độ đọc ẩn (chỉ đường Cơ bản)", $("vcRateRow").hidden === true);
   check("ChatGPT Live: Đường gọi hiện Tự động", $("vcEngine").value === "auto");
@@ -144,7 +151,7 @@ const base = (call, extra = {}) => Object.assign({
   // 3b. Live qua API, rơi xuống vì chưa nối ChatGPT: giọng của nhà cung cấp, không có nghe thử.
   r = await run(base({ engine: "api", live_provider: "gemini", setting: "auto", reason: "auto_api", detail: "no_login" },
     { voice: { focus_mode: false, live_voice: "Kore" } }));
-  const now = r.els.vcNow.textContent;
+  const now = r.els.vcNow.innerHTML;
   check("Live API: dòng Đang dùng ghi tên nhà cung cấp, lý do rơi xuống và cách bật ChatGPT Live",
     now.includes('call.engine_api{\\"provider\\":\\"Gemini\\"}') && now.includes("settings.vc_reason_auto_api") && now.includes("settings.vc_detail_no_login"));
   check("Live API: ô giọng là giọng Gemini, giữ giọng đã lưu", r.els.vcVoice.options.length === 2 && r.els.vcVoice.value === "Kore");
@@ -157,7 +164,7 @@ const base = (call, extra = {}) => Object.assign({
     { voice_brain: { id: "antigravity", label: "Antigravity" }, last_error: { error: "hết hạn mức", label: "Antigravity", at: Date.now() / 1000 } }));
   const b = r.els;
   check("Cơ bản: Đang dùng kèm bộ não trả lời nhanh, không nhắc ChatGPT Live khi đã chọn Cơ bản",
-    b.vcNow.textContent.includes("settings.vc_now_brain") && !b.vcNow.textContent.includes("vc_detail"));
+    b.vcNow.innerHTML.includes("settings.vc_now_brain") && !b.vcNow.innerHTML.includes("vc_detail"));
   check("Cơ bản: giọng Edge đang dùng được chọn sẵn", b.vcVoice.value === "edge:vi-VN-HoaiMyNeural");
   check("Cơ bản: chưa có key OpenAI thì không có giọng OpenAI, có lời nhắc trang Models",
     !b.vcVoice.options.some(o => o.value.startsWith("openai:")) && b.vcOpenaiNote.hidden === false);
@@ -167,7 +174,8 @@ const base = (call, extra = {}) => Object.assign({
   b.vcVoice.value = "edge:en-US-EmmaMultilingualNeural"; await b.vcVoice.onchange();
   check("Cơ bản: đổi giọng Edge ghi vào kho #voiceSel (app.js lưu localStorage)",
     b.voiceSel.value === "en-US-EmmaMultilingualNeural" && b.voiceSel.events.includes("change"));
-  check("Cơ bản: Edge vẫn là nhà cung cấp thì không gửi gì lên máy chủ", r.saves.length === 0);
+  // 0.298.0: the Edge voice is saved on the server too, so the phone and voice notes use the same voice.
+  check("Cơ bản: giọng Edge cũng lưu lên máy chủ", JSON.stringify(r.saves.at(-1)) === '["voice",{"tts_provider":"edge","edge_voice":"en-US-EmmaMultilingualNeural"}]');
   b.vcVoice.value = "elevenlabs"; await b.vcVoice.onchange();
   // 0.255.0: the ElevenLabs block sits right under the list, out of Advanced.
   check("Cơ bản: chọn ElevenLabs là lưu tts_provider, hiện khối ElevenLabs ngay dưới, trỏ vào ô key",
@@ -180,7 +188,7 @@ const base = (call, extra = {}) => Object.assign({
   r = await run(base({ engine: "basic", live_provider: "", setting: "auto", reason: "auto_basic", detail: "no_cli" },
     { tts: { provider: "openai", openai_voice: "nova", openai_key_set: true, elevenlabs_voice: "", elevenlabs_key_set: false } }));
   check("Cơ bản tự rơi xuống: nói lý do và cách bật ChatGPT Live",
-    r.els.vcNow.textContent.includes("settings.vc_reason_auto_basic") && r.els.vcNow.textContent.includes("settings.vc_detail_no_cli"));
+    r.els.vcNow.innerHTML.includes("settings.vc_reason_auto_basic") && r.els.vcNow.innerHTML.includes("settings.vc_detail_no_cli"));
   check("Cơ bản + OpenAI: giọng OpenAI đang dùng được chọn sẵn", r.els.vcVoice.value === "openai:nova" && r.els.vcOpenaiNote.hidden === true);
   r.els.vcVoice.value = "openai:coral"; await r.els.vcVoice.onchange();
   check("Cơ bản + OpenAI: đổi giọng lưu cả nhà cung cấp lẫn giọng",
@@ -220,6 +228,29 @@ const base = (call, extra = {}) => Object.assign({
     r.els.vcReadRow.hidden === true && r.els.vcEleven.hidden === false && r.els.vcElVoiceSel.hidden === true
     && r.els.vcElVoice.hidden === false && r.els.vcElVoice.value === "oldid" && r.els.vcElVoiceMsg.textContent === "no key");
   check("Basic: a saved Multilingual v2 is shown as saved", r.els.vcElModel.value === "eleven_multilingual_v2");
+
+  // 3f. 0.298.0 (owner 23/10: "cài đặt là nữ nhưng khi nói là giọng nói nam"): live voices carry male/female,
+  // grouped; a call voice of the other gender than the reading voice is flagged with a one-click fix.
+  r = await run(base({ engine: "chatgpt", live_provider: "chatgpt", setting: "auto", reason: "auto", detail: "" }, { chatgpt_voice: "cove" }));
+  const m = r.els;
+  check("0.298.0: live voices grouped female first, each labelled",
+    m.vcVoice.innerHTML.indexOf("settings.vc_grp_f") > -1 && m.vcVoice.innerHTML.indexOf("settings.vc_grp_f") < m.vcVoice.innerHTML.indexOf("settings.vc_grp_m")
+    && m.vcVoice.options.some(o => o.textContent === "Cove · settings.vc_g_m"));
+  check("0.298.0: the first row is named the call voice on ChatGPT Live", m.vcVoiceLbl.textContent === "settings.vc_voice_call");
+  check("0.298.0: male call voice with a female reading voice is flagged",
+    m.vcMismatch.hidden === false && m.vcMismatchFix.textContent === 'settings.vc_mismatch_fix{"voice":"Juniper · settings.vc_g_f"}');
+  m.vcMismatchFix.onclick(); await settle0();
+  check("0.298.0: one click picks a female call voice, saves it and clears the warning",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"chatgpt_voice":"juniper"}]' && m.vcMismatch.hidden === true);
+  check("0.298.0: 'saved' shows right beside the field that changed", m.vcVoiceSaved.classList.contains("on") && m.vcVoiceSaved.textContent.includes("settings.vc_saved_short"));
+  m.vcReadVoice.value = "edge:en-US-EmmaMultilingualNeural"; await m.vcReadVoice.onchange();
+  check("0.298.0: reading voice saved on the server with its own 'saved' mark",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"tts_provider":"edge","edge_voice":"en-US-EmmaMultilingualNeural"}]' && m.vcReadSaved.classList.contains("on"));
+  r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
+    { tts: { provider: "edge", edge_voice: "en-US-EmmaMultilingualNeural", openai_voice: "alloy", openai_key_set: false, elevenlabs_voice: "", elevenlabs_key_set: false } }));
+  check("0.298.0: the Edge voice saved on the server wins over this browser's copy",
+    r.els.vcVoice.value === "edge:en-US-EmmaMultilingualNeural" && r.els.vcMismatch.hidden === true
+    && r.els.vcVoiceLbl.textContent === "settings.vc_voice" && r.els.vcNow.innerHTML.includes("settings.vc_hear_basic"));
 
   // 3d. Bộ não trả lời nhanh (0.65.25, chủ dự án xin trả lại ô này để tự chỉnh).
   const CHOICES = [{ id: "antigravity", label: "Antigravity", available: false },

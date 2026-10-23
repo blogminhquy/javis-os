@@ -1921,6 +1921,25 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .agent-editor .sp-g-body .sp span { min-width:0; white-space:normal; overflow-wrap:anywhere; line-height:1.5; }
 .agent-editor .editor-actions { position:sticky; bottom:-20px; background:var(--bg2); padding:12px 0; border-top:1px solid var(--border); z-index:1; }
 .agent-editor .editor-actions button { min-height:36px; }
+/* 0.298.0: the agent's save bar. A filled primary button with an icon and a clear label, a line that says
+   "Unsaved changes" while something is unsaved and "Saved" after, pinned at the bottom of the form. */
+.agent-editor .ag-save-bar { display:flex; align-items:center; gap:10px; }
+.agent-editor .ag-save-state { flex:1 1 auto; min-width:0; font-size:14px; color:var(--text3); display:flex; align-items:center; gap:7px; }
+.agent-editor .ag-save-bar.dirty .ag-save-state { color:var(--warn-ink); font-weight:600; }
+.agent-editor .ag-save-bar.dirty .ag-save-state::before { content:""; width:8px; height:8px; border-radius:50%; background:currentColor; flex:none; }
+.agent-editor .ag-save-bar.saved .ag-save-state { color:var(--green, #3fb27f); font-weight:600; }
+.agent-editor .ag-save-bar.saved .ag-save-state::before, #voiceCard .vc-saved.on:not(.bad)::before {
+  content:""; width:1em; height:1em; flex:none; display:inline-block; vertical-align:-0.14em; margin-right:4px; background-color:currentColor;
+  -webkit-mask:var(--ic-check) center/contain no-repeat; mask:var(--ic-check) center/contain no-repeat; }
+.agent-editor .ag-save-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:40px; padding:9px 18px;
+  background:var(--accent-solid); color:var(--on-accent); border:none; border-radius:10px; font-size:15px; font-weight:600; }
+.agent-editor .ag-save-btn .ic { width:17px; height:17px; }
+.agent-editor .ag-save-bar.dirty .ag-save-btn { box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent); }
+.agent-editor .ag-save-btn:disabled { opacity:.6; cursor:default; }
+.agent-editor .ag-save-btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+@media (max-width:860px) { .agent-editor .ag-save-btn { min-height:44px; } }
+/* Beside the chat (Cộng sự page) the column has no modal padding to hide under: pin the bar to the very bottom. */
+#wsAgentForm.agent-editor .editor-actions { bottom:0; }
 .ws-workflow-head { padding-bottom:20px; margin-bottom:22px; border-bottom:1px solid var(--border); }
 .ws-workflow-head > .ic { width:30px; height:30px; color:var(--accent); }
 .ws-workflow-head h3 { margin:12px 0 8px; font-size:20px; line-height:1.35; color:var(--text); }
@@ -2442,6 +2461,35 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Thẻ Giọng nói ẩn/hiện từng hàng bằng thuộc tính hidden theo đường gọi (renderVoiceCard), nhưng
    .qs-field và .gcard-btn tự đặt display nên đè mất hidden; luật này trả lại nghĩa cho hidden. */
 #voiceCard [hidden] { display: none !important; }
+/* 0.298.0: what you will hear, stated up front, and each field saying what it is for. The "saved" mark sits
+   right beside the field that changed (it used to be one line at the bottom of the card, out of sight). */
+#voiceCard .vc-now {
+  display: flex; flex-direction: column; gap: 4px; margin: 8px 0 12px; padding: 10px 12px;
+  border-radius: 10px; background: var(--bg2); border: 1px solid var(--border);
+  font-size: 15px; line-height: 1.45; color: var(--text);
+}
+#voiceCard .vc-now:empty { display: none; }
+#voiceCard .vc-now .vc-now-why { font-size: 13px; color: var(--text3); }
+#voiceCard .vc-field { align-items: flex-start; }
+#voiceCard .vc-lblcol { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 8px; }
+#voiceCard .vc-lblcol .qs-lbl { font-weight: 600; color: var(--text); }
+#voiceCard .vc-sub { font-size: 13px; line-height: 1.4; color: var(--text3); }
+#voiceCard .vc-sub:empty { display: none; }
+#voiceCard .vc-field > .v2-voice-row { flex-wrap: wrap; }
+#voiceCard .vc-saved {
+  flex-basis: 100%; min-height: 18px; font-size: 13px; color: var(--green, #3fb27f);
+  opacity: 0; transition: opacity .2s;
+}
+#voiceCard .vc-saved:not(.on) { display: none; }
+#voiceCard .vc-saved.on { opacity: 1; }
+#voiceCard .vc-saved.bad { color: var(--red); }
+#voiceCard .vc-mismatch {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 4px 0 10px; padding: 10px 12px;
+  border-radius: 10px; border: 1px solid var(--warn-line); background: var(--warn-wash); color: var(--warn-ink);
+  font-size: 14px; line-height: 1.45;
+}
+#voiceCard .vc-mismatch .gcard-btn { width: auto; flex: none; }
+@media (prefers-reduced-motion: reduce) { #voiceCard .vc-saved { transition: none; } }
 
 /* ---- Trang Kênh Admin (0.85.0): mỗi kênh một tab ----
    Một cột, rộng tối đa 620px: đây là trang cài đặt, phải đọc được trên điện thoại. Thanh tab cuộn
