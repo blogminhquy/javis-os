@@ -27,7 +27,10 @@ class MainExperimentTests(unittest.TestCase):
         routes = [(route.path, sorted(route.methods)[0]) for route in self.main.app.routes
                   if getattr(route, "path", "").startswith(("/improvement-experiments", "/improvement-comparison-reports", '/improvement-operations'))
                   or getattr(route, 'path', '').endswith('/semantic-history')]
-        self.assertEqual(len(routes), 23)
+        self.assertEqual(len(routes), 26)
+        self.assertTrue({('/improvement-experiments/{experiment_id}/view-freeze', 'POST'),
+            ('/improvement-experiments/{experiment_id}/view-evidence', 'POST'),
+            ('/improvement-experiments/{experiment_id}/views/{comparison_id}', 'GET')} <= set(routes))
         with patch.object(self.main.cfgmod, "gate_active", return_value=True), \
              patch.object(self.main.cfgmod, "valid_session", return_value=False), \
              patch.object(self.main, "_token_ok", return_value=True), \
@@ -55,7 +58,8 @@ class MainExperimentTests(unittest.TestCase):
              patch.object(self.main, "_resonance_store", side_effect=AssertionError("Cold GET cannot initialize store")):
             for path in ("/improvement-experiments", "/improvement-experiments/missing", "/improvement-comparison-reports/missing",
                     '/improvement-experiments/missing/preparation', '/improvement-experiments/missing/operations',
-                    '/improvement-operations/missing', '/improvement-candidates/missing/semantic-history'):
+                    '/improvement-operations/missing', '/improvement-candidates/missing/semantic-history',
+                    '/improvement-experiments/missing/views/missing'):
                 response = self.client.get(path, params={"brain": str(self.f.f.brain)})
                 self.assertIn(response.status_code, (200, 403, 503), response.text)
                 self.assertNotIn("cli_path", response.text)

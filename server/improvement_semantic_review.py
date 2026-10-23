@@ -145,7 +145,10 @@ class SemanticReview(RoleWorkflow):
             raise IM.ConflictError('semantic_source_changed')
         if product['row']['candidate_id'] != identifier or product['row']['input_hash'] != IM._hash(snapshot['data']):
             raise IM.ConflictError('semantic_input_changed')
-        assessment = semantic_output(product['raw'], snapshot['data'])
+        try:
+            assessment = semantic_output(product['raw'], snapshot['data'])
+        except (ValueError, TypeError, PermissionError, KeyError, UnicodeError, RecursionError):
+            return self._invalid_output(principal, payload, event_key, begun, product)
         verdict = combined_verdict(assessment['verdict'], snapshot['dependencies']['verdict'], product['report']['verdict'])
         evidence = {'version': 1, 'candidate_id': identifier, 'binding': snapshot['binding'], 'assessment': assessment,
             'dependencies': snapshot['dependencies'], 'operation_id': product['row']['id'], 'result_id': product['record']['id'],
@@ -171,6 +174,24 @@ class SemanticReview(RoleWorkflow):
             result = {'receipt_id': receipt_id, 'candidate_id': identifier, 'operation_id': product['row']['id'],
                 'result_id': product['record']['id'], 'binding_hash': binding_blob, 'assessment_hash': IM._hash(assessment),
                 'blob_hash': blob, 'verdict': verdict, 'native_verdict': product['report']['verdict'], 'semantic_status': 'unreviewed'}
+            self.assets._event(connection, principal, event_key, 'semantic_review', payload, result)
+            return result
+
+    def _invalid_output(self, principal, payload, event_key, begun, product):
+        # Preserve the raw native product without manufacturing an assessment,
+        # receipt or retry. A completed native call is not a valid review.
+        snapshot = self._snapshot(principal, payload['candidate_id'], begun['generation'])
+        if snapshot != begun['snapshot']:
+            raise IM.ConflictError('semantic_source_changed')
+        with self.store._Tx(self.store) as connection:
+            replay = self.assets._replay(connection, _brain(principal), event_key, 'semantic_review', payload)
+            if replay is not None:
+                return replay
+            self._fence(connection, principal, snapshot, begun['generation'])
+            self._product_fence(connection, principal, product)
+            result = {'candidate_id': payload['candidate_id'], 'experiment_id': begun['experiment_id'],
+                'operation_id': product['row']['id'], 'result_id': product['record']['id'],
+                'status': 'invalid_output', 'native_verdict': product['report']['verdict'], 'business_proof': False}
             self.assets._event(connection, principal, event_key, 'semantic_review', payload, result)
             return result
 

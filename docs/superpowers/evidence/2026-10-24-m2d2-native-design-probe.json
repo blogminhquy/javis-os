@@ -1,0 +1,65 @@
+{
+  "kind": "synthetic/native-option-design-only",
+  "production_adapter_qualified": false,
+  "model_inference": false,
+  "selected_account_calls": 0,
+  "activation": false,
+  "runtime": {
+    "version": "2.1.309",
+    "cli_hash": "5441781f2b6bbd07354b4a74560ee88c68c9bf05d6db3c7e24c452c91673dc53",
+    "sdk_version": "0.2.116"
+  },
+  "attempt2": "FAILED: direct stale cwd Read bypassed can_use_tool and loaded old body; no B query.",
+  "attempt3": {
+    "A_checks": {
+      "own_body": true,
+      "own_helper": true,
+      "other_body_absent": true,
+      "global_body_absent": true,
+      "actual_cwd_read_hook_denied": true,
+      "ambient_markers_absent": true,
+      "dummy_auth_only": true,
+      "native_spawns_drained": true,
+      "no_error_final": true
+    },
+    "B_checks": {
+      "own_body": true,
+      "own_helper": true,
+      "other_body_absent": true,
+      "global_body_absent": true,
+      "actual_cwd_read_hook_denied": true,
+      "ambient_markers_absent": true,
+      "dummy_auth_only": true,
+      "native_spawns_drained": true,
+      "no_error_final": true
+    },
+    "A_requests": 3,
+    "B_requests": 3,
+    "B_initial_fixture_failure": "hooks mkdir existed after A; no B query in initial report. B-only continuation validated existing synthetic ambient fixture. No A rerun.",
+    "distinct_sessions": true,
+    "fixtures_unchanged": true,
+    "no_session_transcripts": true,
+    "no_ambient_plugin_hook": true,
+    "only_dummy_local_requests": true
+  },
+  "retained_local_hashes": {
+    "native_design_probe_attempt2.py": "b6132bb58eebcc741c3db0d166fff94cbac8661afe0f44397ef9615ee43a6a9f",
+    "native-design-probe-attempt2.json": "800a8aa5d63bb153b27a526fc9d448c197b8f6d8f6dcebd78763dce4c7bf85bc",
+    "native-design-probe-attempt2.log": "9d1afa35d88613d02dc50563dacf1f11acb07c29e7c8a1fe6b494177350dea71",
+    "native_design_probe_attempt3.py": "00aed110c37b6bca08d388e27cff77ea7cbf91b2083cfc40155f74777d104f4e",
+    "native-design-probe-attempt3.json": "db1b2fc0133e1a82c7ae4e916149041dec89411116545c610c16b711737381f0",
+    "native-design-probe-attempt3.log": "cf80f6bc8b816b768db29a6b25450b9ae9d161d7d329f51023618a2656b41945",
+    "native-design-probe-attempt3-requests.jsonl": "0bf7908b1f018f157e95845a2d7a5d18e9e9ddf8b4baa28d1d2f459b15e52ed4",
+    "native_design_probe_attempt3_b_continuation.py": "335d8da4cf897e976d3dfb9e164b4f861889d6782e45e261e85fb15817f3bdca",
+    "native-design-probe-attempt3-B-continuation.json": "a5be81f2291d23c4e216e991e58a82c6548cec6ce2cf705062743ca06900c7cd",
+    "native-design-probe-attempt3-B-continuation.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-design-probe-attempt3-B-continuation-requests.jsonl": "9421e1696c3634f6d7e1d418a9e58c80ba645cc7e5f2ea19e6b5895ef0e0c8a4"
+  },
+  "limits": [
+    "Read/Skill only with host deny hook and empty setting_sources; no Bash/write/web/connectors.",
+    "Owner user/project policy parity unproven: do not use empty sources silently in production.",
+    "No task pin/cache/host identity/activation/resumed-session proof.",
+    "Real reasoning and model asset use remain unknown; local provider controls responses.",
+    "Existing D1 native registration unchanged; this does not register or qualify a production adapter."
+  ]
+}

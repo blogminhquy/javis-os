@@ -1,6 +1,6 @@
 # M2C owner operations
 
-This document describes the unreleased 0.296.0 implementation. Published M2B is
+This document describes the released 0.296.0 implementation. Published M2B is
 0.293.0. These controls do not enable candidate/final execution, activation,
 compose, arbitrary helper execution, or a business/live acceptance claim.
 

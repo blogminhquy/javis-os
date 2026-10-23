@@ -134,6 +134,23 @@ def register(app, deps):
             return await _settled_call(SemanticReceipts(await assets()).history, principal, candidate_id)
         return await dispatch(request, brain, action, key='receipts', identifiers=(candidate_id,))
 
+    @app.get('/improvement-experiments/{experiment_id}/views/{comparison_id}')
+    async def view_history(request: Request, experiment_id: str, comparison_id: str, brain: str = 'brain'):
+        async def action(principal, data):
+            from contextlib import closing
+            from improvement_view_history import metadata
+            store = await assets()
+            if IM._schema_version(store.store) < 7:
+                return None
+            def read():
+                with closing(store.store._conn()) as connection:
+                    if connection.execute('SELECT 1 FROM improvement_comparisons WHERE id=? AND brain_id=? AND experiment_id=?',
+                            (comparison_id, principal.brain_id, experiment_id)).fetchone() is None:
+                        raise PermissionError('experiment_comparison_unavailable')
+                    return metadata(connection, principal.brain_id, comparison_id)
+            return await _settled_call(read)
+        return await dispatch(request, brain, action, key='view_binding', identifiers=(experiment_id, comparison_id))
+
     async def control(request, brain, operation, experiment_id=None):
         async def action(principal, data):
             from improvement_experiment_service import ExperimentService
@@ -163,5 +180,6 @@ def register(app, deps):
         endpoint.__name__ = "experiment_" + operation
         app.add_api_route("/improvement-experiments/{experiment_id}/" + operation, endpoint, methods=["POST"])
 
-    for operation in ("bind", "freeze", "next", "report", "select", "cancel", "resume", "recover", *sorted(WORKFLOW_CONTROLS)):
+    for operation in ("bind", "freeze", "next", "report", "select", "cancel", "resume", "recover",
+            'view-freeze', 'view-evidence', *sorted(WORKFLOW_CONTROLS)):
         register_control(operation)

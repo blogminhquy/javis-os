@@ -18,6 +18,12 @@ FAILURE_REASONS = frozenset({"unsupported_configuration", "authority_changed", "
 
 
 def _request(value):
+    if type(value) is dict and type(value.get('version')) is int and value['version'] == 4:
+        from improvement_view_trial_protocol import validate_request_v4
+        from improvement_claude import ClaudeTrialAdapter
+        request = validate_request_v4(value)
+        ClaudeTrialAdapter(request['engine_config'])
+        return request
     if type(value) is dict and type(value.get("version")) is int and value["version"] == 3:
         from improvement_preparation_protocol import validate_preparation_request_v3
         request = validate_preparation_request_v3(value)
@@ -72,6 +78,16 @@ class TrialStore:
         self.ledger = CallLedger(self.store)
         from improvement_sandbox import TrialWorkspace
         self.workspace = TrialWorkspace(self.blobs.root.parent / "trials")
+        self._views = None
+
+    def bind_views(self, views):
+        from improvement_views import EffectiveViews, _retired
+        if (type(views) is not EffectiveViews or views.assets is not self.assets or views.store is not self.store
+                or views.plans.admission.trials.workspace.root != self.workspace.root):
+            raise TypeError('concrete_same_store_views_required')
+        if self._views is not None and self._views is not views and not _retired(self._views):
+            raise IM.ConflictError('view_resolver_already_bound')
+        self._views = views
 
     @staticmethod
     def _row(connection, brain, identifier):
@@ -80,17 +96,29 @@ class TrialStore:
             raise PermissionError("trial_record_unavailable")
         return row
 
-    def _current(self, connection, brain, request, *, trial_id=None, allow_unlinked=False):
+    def _current(self, connection, brain, request, *, trial_id=None, allow_unlinked=False, principal=None):
         from improvement_experiment_lineage import require_experiment_version
         require_experiment_version(connection, brain, request)
         pins = request["pins"]
         experiment = request.get("version") == 2
         preparation = request.get("version") == 3
+        view_trial = request.get('version') == 4
+        view = None
+        if view_trial:
+            from improvement_trial_records import _brain
+            if self._views is None:
+                raise PermissionError('view_resolver_unavailable')
+            if _brain(principal) != brain:
+                raise PermissionError('view_principal_unavailable')
+            view, _ = self._views.resolve_request(principal, request, connection=connection,
+                require_link=not allow_unlinked, trial_id=trial_id)
         if preparation:
             from improvement_preparation_lineage import load_preparation_lineage
             load_preparation_lineage(connection, brain, request, blobs=self.blobs,
                 current=True, require_link=not allow_unlinked, trial_id=trial_id)
         if experiment:
+            from improvement_experiment_qualification import require_tuning_families
+            require_tuning_families(connection, brain, request['case_set_id'])
             from improvement_experiment_lineage import load_lineage
             if request["variant"] == "candidate":
                 raise PermissionError("experiment_candidate_execution_unavailable")
@@ -114,7 +142,7 @@ class TrialStore:
                 raise IM.ConflictError("stale_trial_source")
         bundle = None
         for variant, field in (("baseline", "base_bundle_hash"), ("candidate", "candidate_bundle_hash")):
-            if (experiment or preparation) and variant == "candidate":
+            if (experiment or preparation or view_trial) and variant == "candidate":
                 continue  # Typed A envelope pin; never look it up as an installed bundle.
             row = connection.execute("SELECT * FROM improvement_bundles WHERE brain_id=? AND manifest_hash=?",
                                      (brain, pins[field])).fetchone()
@@ -123,7 +151,8 @@ class TrialStore:
             if variant == request["variant"]:
                 bundle = json.loads(row["manifest_json"])
         generations = request["target_generations"]
-        if set(generations) != {asset["target_id"] for asset in bundle}:
+        expected_targets = {view.manifest['target']['target_id']} if view_trial else {asset['target_id'] for asset in bundle}
+        if set(generations) != expected_targets:
             raise IM.ConflictError("stale_trial_targets")
         for target, generation in generations.items():
             row = IM.ImprovementStore._target(connection, brain, target)
@@ -172,16 +201,19 @@ class TrialStore:
         elif request["version"] == 3:
             from improvement_preparation_protocol import logical_key_v3
             logical = logical_key_v3(request)
+        elif request['version'] == 4:
+            from improvement_view_trial_protocol import logical_key_v4
+            logical = logical_key_v4(request)
         replay = self.assets._replay(connection, brain, event_key, "trial_reserve", request)
         if replay is not None:
             return replay
-        self._current(connection, brain, request, allow_unlinked=request["version"] in (2, 3))
+        self._current(connection, brain, request, allow_unlinked=request["version"] in (2, 3, 4), principal=principal)
         old = connection.execute("SELECT * FROM improvement_trials WHERE brain_id=? AND logical_key=?", (brain, logical)).fetchone()
         if old:
             if old["request_hash"] != IM._hash(request):
                 raise IM.ConflictError("trial_identity_conflict")
-            if request["version"] in (2, 3):
-                self._current(connection, brain, request, trial_id=old["id"])
+            if request["version"] in (2, 3, 4):
+                self._current(connection, brain, request, trial_id=old["id"], principal=principal)
             result = self._public(connection, old)
         else:
             now = time.time()
@@ -202,13 +234,20 @@ class TrialStore:
                 connection.execute("INSERT INTO improvement_experiment_trial_links VALUES(?,?,?,?,?,?,?,?,?,?,?)", (
                     lineage["comparison_id"], brain, request["pins"]["experiment_id"], lineage["cell_position"], identifier,
                     IM._hash(request), lineage["pair_id"], request["case_id"], request["repeat"], request["variant"], now))
-                self._current(connection, brain, request, trial_id=identifier)
+                self._current(connection, brain, request, trial_id=identifier, principal=principal)
             elif request["version"] == 3:
                 lineage = request["preparation"]
                 connection.execute("INSERT INTO improvement_preparation_trial_links VALUES(?,?,?,?,?,?,?,?,?)", (
                     lineage["preparation_id"], brain, request["pins"]["experiment_id"], lineage["cell_position"], identifier,
                     IM._hash(request), request["case_id"], request["repeat"], now))
-                self._current(connection, brain, request, trial_id=identifier)
+                self._current(connection, brain, request, trial_id=identifier, principal=principal)
+            elif request['version'] == 4:
+                lineage, view = request['lineage'], request['view']
+                connection.execute('INSERT INTO improvement_view_trial_links VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (
+                    lineage['comparison_id'], brain, request['pins']['experiment_id'], lineage['cell_position'], identifier,
+                    IM._hash(request), lineage['pair_id'], request['case_id'], request['repeat'], request['variant'],
+                    view['view_id'], view['view_hash'], view['binding_hash'], now))
+                self._current(connection, brain, request, trial_id=identifier, principal=principal)
             result = self._public(connection, self._row(connection, brain, identifier))
         self.assets._event(connection, principal, event_key, "trial_reserve", request, result)
         return result
@@ -220,7 +259,7 @@ class TrialStore:
         with self.store._Tx(self.store) as connection:
             row = self._row(connection, brain, identifier)
             request = json.loads(row["request_json"])
-            self._current(connection, brain, request, trial_id=row["id"])
+            self._current(connection, brain, request, trial_id=row["id"], principal=principal)
             now = time.time() if now is None else now
             attempt = connection.execute("SELECT * FROM improvement_trial_attempts WHERE trial_id=? AND attempt=?",
                                          (identifier, row["attempt"])).fetchone()
@@ -254,7 +293,7 @@ class TrialStore:
             observed_at = time.time() if now is None else now
             row, _ = self._leased(connection, principal, identifier, expected_generation, lease_token, observed_at)
             request = json.loads(row["request_json"])
-            self._current(connection, row["brain_id"], request, trial_id=row["id"])
+            self._current(connection, row["brain_id"], request, trial_id=row["id"], principal=principal)
             observed_at = time.time() if now is None else now
             self._leased(connection, principal, identifier, expected_generation, lease_token, observed_at)
             until = min(observed_at + lease_seconds, request["deadline_at"])
@@ -298,12 +337,15 @@ class TrialStore:
         from improvement_trial_decisions import OwnerDecisionStore
         return OwnerDecisionStore(self).record(principal, identifier, attempt, criterion_id, verdict, **options)
 
-    def _materialization(self, connection, row, baseline_context):
+    def _materialization(self, connection, row, baseline_context, *, principal=None):
         request = json.loads(row["request_json"])
+        if request.get('version') == 4:
+            from improvement_view_materialization import materialize_view
+            return materialize_view(self, connection, row, baseline_context, principal)
         if IM._hash(baseline_context) != request["baseline_context_hash"]:
             raise IM.ConflictError("trial_context_drift")
         brain = row["brain_id"]
-        case = self._current(connection, brain, request, trial_id=row["id"])
+        case = self._current(connection, brain, request, trial_id=row["id"], principal=principal)
         pins = request["pins"]
         field = "base_bundle_hash" if request["variant"] == "baseline" else "candidate_bundle_hash"
         bundle = connection.execute("SELECT manifest_json FROM improvement_bundles WHERE brain_id=? AND manifest_hash=?",
@@ -334,19 +376,21 @@ class TrialStore:
             if row["status"] != "reserved":
                 raise IM.ConflictError("trial_materialization_stale")
             # Validate every public byte before consuming a holdout or returning any input.
-            manifest = self._materialization(connection, row, baseline_context)
+            manifest = self._materialization(connection, row, baseline_context, principal=principal)
             now = time.time()
             self._leased(connection, principal, identifier, expected_generation, lease_token, now)
             request = json.loads(row["request_json"])
             if request.get("qualification_id"):
-                # Historical trials stay readable, but a new materialization
-                # cannot consume a holdout later frozen by a B experiment.
-                # V2 final cells are already denied by _current above.
-                from improvement_experiment_qualification import require_legacy_qualification
-                require_legacy_qualification(connection, row["brain_id"], request["case_set_id"], request["pins"])
-                connection.execute("UPDATE improvement_qualification SET status='consumed',consumed_at=? "
-                                   "WHERE id=? AND brain_id=? AND status='reserved'",
-                                   (now, request["qualification_id"], row["brain_id"]))
+                if request.get('version') == 4:
+                    from improvement_view_qualification import ViewQualification
+                    ViewQualification(self._views.plans, self._views).consume_in(connection, principal, request)
+                else:
+                    # A bare legacy pin cannot consume a later B-owned holdout.
+                    from improvement_experiment_qualification import require_legacy_qualification
+                    require_legacy_qualification(connection, row["brain_id"], request["case_set_id"], request["pins"])
+                    connection.execute("UPDATE improvement_qualification SET status='consumed',consumed_at=? "
+                                       "WHERE id=? AND brain_id=? AND status='reserved'",
+                                       (now, request["qualification_id"], row["brain_id"]))
             else:
                 case = self.cases._case(connection, row["brain_id"], request["case_set_id"], request["case_id"])
                 for fingerprint in case["fingerprints"]:
@@ -373,7 +417,7 @@ class TrialStore:
                 raise IM.ConflictError("trial_preparation_stale")
             if attempt["materialization_hash"] != IM._hash(manifest):
                 raise IM.ConflictError("trial_exposure_not_committed")
-            expected = self._materialization(connection, row, manifest["baseline_context"])
+            expected = self._materialization(connection, row, manifest["baseline_context"], principal=principal)
             if IM._hash(expected) != IM._hash(manifest):
                 raise IM.ConflictError("trial_materialization_drift")
             request = json.loads(row["request_json"])
@@ -395,7 +439,7 @@ class TrialStore:
             if row["status"] != "prepared":
                 raise IM.ConflictError("trial_not_prepared")
             request = json.loads(row["request_json"])
-            self._current(connection, row["brain_id"], request, trial_id=row["id"])
+            self._current(connection, row["brain_id"], request, trial_id=row["id"], principal=principal)
             engine = request["engine_config"]
             marker_now = time.time() if now is None else now
             self._leased(connection, principal, identifier, expected_generation, lease_token, marker_now)

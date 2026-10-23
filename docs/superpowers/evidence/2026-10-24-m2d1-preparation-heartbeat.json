@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "evidence_class": "technical/synthetic-runner",
+  "source_base_commit": "01717332457eeb5f16aeafe30ccb204b8fa95437",
+  "source_hashes": {
+    "server/improvement_trial_runner.py": "6c708940902be8ddbb6d811dc33a6a5d37810e5b6e16090b4b0d66dfba75a983",
+    "tests/python/test_improvement_preparation_heartbeat.py": "31cf3f6048791b1ca4198599437afd091809e66cbec2168a3176f8efa87de737"
+  },
+  "red": {
+    "tests": 3,
+    "failed": 1,
+    "passed": 2,
+    "seconds": 8.029,
+    "failure": "Slow preparation starves heartbeat and expires short test lease"
+  },
+  "green": {
+    "tests": 3,
+    "passed": 3,
+    "seconds": 8.786
+  },
+  "affected_regression": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_runner.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 28.875,
+      "tests": 24,
+      "log": "green-0.log",
+      "sha256": "ef06756ebf802ac77049b026dfbebf5fd2b6cd48dbd9d258dbeec93e0c6fbbdd"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_execution.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 98.375,
+      "tests": 1,
+      "log": "green-1.log",
+      "sha256": "02445e58a3a9fd6806ba4c77148c6f3d3456842ed5cb0d5ebb3b476048c85009"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_owner_service.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 24.204,
+      "tests": 11,
+      "log": "green-2.log",
+      "sha256": "46d529e5c78a19a368367e7b8bb758a940f8348059ba71fb508fcb6748fb13eb"
+    }
+  ],
+  "full_source_record_sha256": "8627ef1a68890ce61ea818f6d9cb43f792f25ed68a2e6240ebc0bef3df8b511a",
+  "independent_review": {
+    "decision": "approved scoped scheduling delta",
+    "tests": 3,
+    "passed": 3,
+    "seconds": 8.917,
+    "log": "review-preparation-heartbeat.log"
+  },
+  "logs_sha256": {
+    "preparation-heartbeat-red.log": "06c25ecbd823ffe24e5dbccb275d0c21b5ea5f1039e3e2223a4f475cf046d78b",
+    "preparation-heartbeat-green.log": "a87f80ea608b7f5c1791ec0879a5602a8312e41e3b04357e063744f4efe0c146",
+    "review-preparation-heartbeat.log": "2ca533ae5f4d3180392b78c92baaa29361fd1f696ff5a31bcfdc084d478b6a8c"
+  },
+  "native_calls": 0,
+  "account_calls": 0,
+  "production_durations_changed": false,
+  "historical_account_failure_cause_recovered": false,
+  "native_qualification": "separate new exact footprint required",
+  "constraints": [
+    "Real TrialStore, lease, runner and execution lifetime with synthetic adapter; no native/account/model inference.",
+    "Only workspace.prepare releases the asyncio mutex; authority before/after and SQL transitions remain serialized.",
+    "No lease, heartbeat, deadline, checker, model, retry or owner/grant change.",
+    "Historical authority_changed exact exception remains unavailable; this controlled reproduction proves a separate scheduling defect.",
+    "No genuine account pair, selected final, business benefit or live activation is established."
+  ]
+}

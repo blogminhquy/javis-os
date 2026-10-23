@@ -1,0 +1,483 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "source_head": "29f5bdd52d5e8d88d6b4a90ba777d14bacc0c4b3",
+  "kind": "read_only_preparation_profile",
+  "account_run_artifact": "2026-10-24-m2d1-real-format-feasibility.json",
+  "account_run_sha256": "ddc5af2cb456e2d1dee941ef72ffda50d2355ef86a7775e14ee7a0314a8a0e59",
+  "cli_size_bytes": 298624160,
+  "raw_profile_sha256": "5b539ad612509000bfdc9b812180db209ef3867f2aca67eb3e8b3d55b9150429",
+  "driver_sha256": "83e94351898fd1694dfec88846255228f3e6999056d4376e29ec5cb2c5f1c12b",
+  "source_sha256": {
+    "improvement_views.py": "62fe3f49996f683f03f1eeaee34172b6a0906f0ea5eff6e418eb4f7f957a7a1a",
+    "improvement_view_sources.py": "b8b85319ad2359be87f7c075f3832b0ffb1a787cc20bf1b1cef2cf055b574534",
+    "improvement_trial_host.py": "cf26c43a9f3f8fc51c6ff651fd6588d878a78cffb9c9553fa367a5376b11fac6",
+    "improvement_trial_selection.py": "3631090451525c9d9f0e5505deac29c3c04ea10babd0727f90337bf0472eae8e",
+    "improvement_semantic_review.py": "ca904fc45784978ce719e71e2cecb5e34d68821a7025420e661e6c9c9a397a04"
+  },
+  "record": {
+    "resolved": true,
+    "view_id": "baseline",
+    "error": null,
+    "seconds": 10.26600000000326,
+    "model_calls": 0,
+    "native_queries": 0,
+    "diagnostic": "one read-only load_current, existing authoritative synthetic state, no prepare/main/admission/capture writes",
+    "canonical_unchanged": true,
+    "top_cumulative": [
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_views.py",
+        "line": 151,
+        "name": "load_current",
+        "calls": 1,
+        "primitive_calls": 1,
+        "self_seconds": 3.24e-05,
+        "cumulative_seconds": 10.276797700000001
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_views.py",
+        "line": 182,
+        "name": "_load_current",
+        "calls": 1,
+        "primitive_calls": 1,
+        "self_seconds": 0.0001206,
+        "cumulative_seconds": 10.276765300000001
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_view_sources.py",
+        "line": 107,
+        "name": "capture_sources",
+        "calls": 4,
+        "primitive_calls": 2,
+        "self_seconds": 0.0003392,
+        "cumulative_seconds": 10.2577966
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_host.py",
+        "line": 301,
+        "name": "_snapshot_observe",
+        "calls": 6,
+        "primitive_calls": 6,
+        "self_seconds": 0.0001352,
+        "cumulative_seconds": 9.838547400000001
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_host.py",
+        "line": 105,
+        "name": "_observe",
+        "calls": 6,
+        "primitive_calls": 6,
+        "self_seconds": 0.0007570000000000001,
+        "cumulative_seconds": 9.8384122
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-m2d1-artifact-format\\profile_current_view.py",
+        "line": 48,
+        "name": "<lambda>",
+        "calls": 12,
+        "primitive_calls": 12,
+        "self_seconds": 5.2300000000000004e-05,
+        "cumulative_seconds": 9.2455534
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_selection.py",
+        "line": 293,
+        "name": "create_pin",
+        "calls": 12,
+        "primitive_calls": 12,
+        "self_seconds": 0.0007364,
+        "cumulative_seconds": 9.2455011
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_selection.py",
+        "line": 181,
+        "name": "_read_stable",
+        "calls": 108,
+        "primitive_calls": 108,
+        "self_seconds": 0.1856645,
+        "cumulative_seconds": 8.9220219
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method 'update' of '_hashlib.HASH' objects>",
+        "calls": 3420,
+        "primitive_calls": 3420,
+        "self_seconds": 7.1887233,
+        "cumulative_seconds": 7.1887233
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_semantic_review.py",
+        "line": 233,
+        "name": "current_evidence",
+        "calls": 2,
+        "primitive_calls": 2,
+        "self_seconds": 0.0003885,
+        "cumulative_seconds": 6.8349428
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_semantic_review.py",
+        "line": 42,
+        "name": "_snapshot",
+        "calls": 4,
+        "primitive_calls": 4,
+        "self_seconds": 0.0004196,
+        "cumulative_seconds": 6.723213500000001
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method 'read' of '_io.BufferedReader' objects>",
+        "calls": 5651,
+        "primitive_calls": 5651,
+        "self_seconds": 1.5444505000000002,
+        "cumulative_seconds": 1.5444505000000002
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_file_sources.py",
+        "line": 178,
+        "name": "__call__",
+        "calls": 12,
+        "primitive_calls": 12,
+        "self_seconds": 0.0006148000000000001,
+        "cumulative_seconds": 0.34618920000000003
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_claude.py",
+        "line": 66,
+        "name": "profile_hash",
+        "calls": 24,
+        "primitive_calls": 24,
+        "self_seconds": 0.010608600000000001,
+        "cumulative_seconds": 0.33800460000000004
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_file_sources.py",
+        "line": 149,
+        "name": "_capture",
+        "calls": 72,
+        "primitive_calls": 72,
+        "self_seconds": 0.0025456000000000003,
+        "cumulative_seconds": 0.3093754
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\pathlib.py",
+        "line": 1015,
+        "name": "read_bytes",
+        "calls": 1968,
+        "primitive_calls": 1968,
+        "self_seconds": 0.0044957,
+        "cumulative_seconds": 0.24929810000000002
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method 'execute' of 'sqlite3.Connection' objects>",
+        "calls": 462,
+        "primitive_calls": 462,
+        "self_seconds": 0.2283543,
+        "cumulative_seconds": 0.2283543
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<built-in method nt.stat>",
+        "calls": 12245,
+        "primitive_calls": 12245,
+        "self_seconds": 0.1903081,
+        "cumulative_seconds": 0.2211442
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\pathlib.py",
+        "line": 835,
+        "name": "stat",
+        "calls": 12021,
+        "primitive_calls": 12021,
+        "self_seconds": 0.005485800000000001,
+        "cumulative_seconds": 0.2090129
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<built-in method _io.open>",
+        "calls": 2261,
+        "primitive_calls": 2261,
+        "self_seconds": 0.11157570000000001,
+        "cumulative_seconds": 0.1689987
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\pathlib.py",
+        "line": 1005,
+        "name": "open",
+        "calls": 2077,
+        "primitive_calls": 2077,
+        "self_seconds": 0.0016692,
+        "cumulative_seconds": 0.16504880000000002
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\pathlib.py",
+        "line": 842,
+        "name": "lstat",
+        "calls": 8585,
+        "primitive_calls": 8585,
+        "self_seconds": 0.0040193,
+        "cumulative_seconds": 0.15079820000000002
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_blobs.py",
+        "line": 28,
+        "name": "check_ancestry",
+        "calls": 253,
+        "primitive_calls": 253,
+        "self_seconds": 0.005312900000000001,
+        "cumulative_seconds": 0.139516
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-m2d1-artifact-format\\profile_current_view.py",
+        "line": 40,
+        "name": "observe_targets",
+        "calls": 12,
+        "primitive_calls": 12,
+        "self_seconds": 0.0002523,
+        "cumulative_seconds": 0.13398770000000002
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_file_sources.py",
+        "line": 118,
+        "name": "_authority",
+        "calls": 176,
+        "primitive_calls": 176,
+        "self_seconds": 0.0044473,
+        "cumulative_seconds": 0.12477540000000001
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_skill_candidates.py",
+        "line": 77,
+        "name": "observe",
+        "calls": 16,
+        "primitive_calls": 16,
+        "self_seconds": 0.0006039,
+        "cumulative_seconds": 0.1173026
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_sources.py",
+        "line": 25,
+        "name": "validate_inventory",
+        "calls": 198,
+        "primitive_calls": 198,
+        "self_seconds": 0.00445,
+        "cumulative_seconds": 0.0947096
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_store.py",
+        "line": 245,
+        "name": "targets",
+        "calls": 12,
+        "primitive_calls": 12,
+        "self_seconds": 0.0003143,
+        "cumulative_seconds": 0.09370740000000001
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_blobs.py",
+        "line": 93,
+        "name": "read",
+        "calls": 85,
+        "primitive_calls": 85,
+        "self_seconds": 0.0010462000000000002,
+        "cumulative_seconds": 0.09163800000000001
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_assets.py",
+        "line": 55,
+        "name": "capture_source",
+        "calls": 28,
+        "primitive_calls": 28,
+        "self_seconds": 0.0015627000000000002,
+        "cumulative_seconds": 0.0891099
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_file_sources.py",
+        "line": 68,
+        "name": "_acl_hash",
+        "calls": 560,
+        "primitive_calls": 560,
+        "self_seconds": 0.050371700000000005,
+        "cumulative_seconds": 0.08881420000000001
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_context.py",
+        "line": 117,
+        "name": "capture_context",
+        "calls": 12,
+        "primitive_calls": 12,
+        "self_seconds": 0.0008729,
+        "cumulative_seconds": 0.0871683
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\pathlib.py",
+        "line": 447,
+        "name": "__fspath__",
+        "calls": 14351,
+        "primitive_calls": 14351,
+        "self_seconds": 0.009875400000000001,
+        "cumulative_seconds": 0.0868974
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\evidence_store.py",
+        "line": 71,
+        "name": "redact",
+        "calls": 5708,
+        "primitive_calls": 396,
+        "self_seconds": 0.0105655,
+        "cumulative_seconds": 0.0834691
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\pathlib.py",
+        "line": 437,
+        "name": "__str__",
+        "calls": 16161,
+        "primitive_calls": 16161,
+        "self_seconds": 0.012767,
+        "cumulative_seconds": 0.0830973
+      }
+    ],
+    "top_self": [
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method 'update' of '_hashlib.HASH' objects>",
+        "calls": 3420,
+        "primitive_calls": 3420,
+        "self_seconds": 7.1887233,
+        "cumulative_seconds": 7.1887233
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method 'read' of '_io.BufferedReader' objects>",
+        "calls": 5651,
+        "primitive_calls": 5651,
+        "self_seconds": 1.5444505000000002,
+        "cumulative_seconds": 1.5444505000000002
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method 'execute' of 'sqlite3.Connection' objects>",
+        "calls": 462,
+        "primitive_calls": 462,
+        "self_seconds": 0.2283543,
+        "cumulative_seconds": 0.2283543
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<built-in method nt.stat>",
+        "calls": 12245,
+        "primitive_calls": 12245,
+        "self_seconds": 0.1903081,
+        "cumulative_seconds": 0.2211442
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_selection.py",
+        "line": 181,
+        "name": "_read_stable",
+        "calls": 108,
+        "primitive_calls": 108,
+        "self_seconds": 0.1856645,
+        "cumulative_seconds": 8.9220219
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<built-in method _io.open>",
+        "calls": 2261,
+        "primitive_calls": 2261,
+        "self_seconds": 0.11157570000000001,
+        "cumulative_seconds": 0.1689987
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<built-in method _hashlib.openssl_sha256>",
+        "calls": 3560,
+        "primitive_calls": 3560,
+        "self_seconds": 0.0622853,
+        "cumulative_seconds": 0.0622853
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\improvement_trial_file_sources.py",
+        "line": 68,
+        "name": "_acl_hash",
+        "calls": 560,
+        "primitive_calls": 560,
+        "self_seconds": 0.050371700000000005,
+        "cumulative_seconds": 0.08881420000000001
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method '__exit__' of '_io._IOBase' objects>",
+        "calls": 2244,
+        "primitive_calls": 2244,
+        "self_seconds": 0.030081700000000003,
+        "cumulative_seconds": 0.030081700000000003
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method 'close' of 'sqlite3.Connection' objects>",
+        "calls": 63,
+        "primitive_calls": 63,
+        "self_seconds": 0.023434200000000002,
+        "cumulative_seconds": 0.023434200000000002
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\pathlib.py",
+        "line": 387,
+        "name": "_parse_path",
+        "calls": 3544,
+        "primitive_calls": 3544,
+        "self_seconds": 0.0192311,
+        "cumulative_seconds": 0.0403079
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\json\\encoder.py",
+        "line": 205,
+        "name": "iterencode",
+        "calls": 1409,
+        "primitive_calls": 1409,
+        "self_seconds": 0.018372700000000002,
+        "cumulative_seconds": 0.018372700000000002
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<method 'sub' of 're.Pattern' objects>",
+        "calls": 17227,
+        "primitive_calls": 17227,
+        "self_seconds": 0.018348100000000003,
+        "cumulative_seconds": 0.018348100000000003
+      },
+      {
+        "file": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\pathlib.py",
+        "line": 358,
+        "name": "__init__",
+        "calls": 11085,
+        "primitive_calls": 11085,
+        "self_seconds": 0.017907700000000002,
+        "cumulative_seconds": 0.0287149
+      },
+      {
+        "file": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\server\\evidence_store.py",
+        "line": 43,
+        "name": "<genexpr>",
+        "calls": 29772,
+        "primitive_calls": 29772,
+        "self_seconds": 0.0175434,
+        "cumulative_seconds": 0.028957200000000002
+      }
+    ]
+  },
+  "interpretation": "One current view rehashed the same CLI twelve times. This measures a preparation bottleneck; it does not establish the complete timeout critical path, a speedup, business benefit, or permission to skip freshness checks."
+}

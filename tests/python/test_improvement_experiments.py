@@ -124,7 +124,7 @@ class ExperimentTests(unittest.TestCase):
 
     def test_current_upgrade_preserves_actual_a_and_m1_history(self):
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 6, "Current migration must retain experiment history")
+        self.assertEqual(IM._schema_version(self.store), 7, "Current migration must retain experiment history")
         self.assertEqual({name: self.history()[name] for name in self.before}, self.before)
         self.assertEqual(CandidateRecords(self.assets).get(self.owner, self.candidate["candidate_id"]), self.candidate)
         self.assertEqual(self.h.admission.trials.get(self.owner, self.admitted.trial_id)["request"], self.admitted.request)
@@ -152,8 +152,9 @@ class ExperimentTests(unittest.TestCase):
         with patch.object(self.store, "_backup_before", side_effect=backup), ThreadPoolExecutor(max_workers=2) as pool:
             list(pool.map(migrate, (1, 2)))
         self.assertEqual(backups, [("improvement_experiments", ".pre-improvement-m2-experiments.bak"),
-                                  ("improvement_preparations", ".pre-improvement-m2-generated.bak")])
-        self.assertEqual(IM._schema_version(self.store), 6)
+                                  ("improvement_preparations", ".pre-improvement-m2-generated.bak"),
+                                  ("improvement_effective_views", ".pre-improvement-m2-views.bak")])
+        self.assertEqual(IM._schema_version(self.store), 7)
         self.assertEqual({name: self.history()[name] for name in self.before}, self.before)
 
     def test_failed_migration_rolls_back_all_new_tables_and_triggers(self):
@@ -164,11 +165,11 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(IM._schema_version(self.store), 4)
         self.assertEqual(self.history(), self.before)
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 6)
+        self.assertEqual(IM._schema_version(self.store), 7)
 
     def test_actual_released_a_reader_rejects_current_schema_before_any_write(self):
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 6)
+        self.assertEqual(IM._schema_version(self.store), 7)
         before = self.history()
         with patch.object(self.store, "_backup_before", side_effect=AssertionError("Old reader cannot back up or migrate")):
             with self.assertRaises(self.old_reader.SchemaError):
@@ -176,7 +177,7 @@ class ExperimentTests(unittest.TestCase):
             with self.assertRaises(self.old_reader.SchemaError):
                 self.old_reader.ensure(self.store)
         self.assertEqual(self.history(), before)
-        self.assertEqual(IM._schema_version(self.store), 6)
+        self.assertEqual(IM._schema_version(self.store), 7)
 
     def test_unknown_future_schema_rejects_without_backup_or_mutation(self):
         with self.store._Tx(self.store) as connection:

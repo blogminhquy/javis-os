@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.299.0] - 2026-10-23
+### Cải thiện
+- **Thử bản sửa skill trên bản chụp cố định.** Luồng thử cách ly giữ riêng bản gốc và bản sửa, phân biệt skill được cung cấp với lần đọc có bằng chứng.
+- **Dừng thử vẫn giữ được lịch sử.** Hủy yêu cầu không bỏ lại tác vụ đang chạy; việc dọn thư mục chờ phần thực thi kết thúc.
+- **Báo rõ đầu ra kiểm tra không hợp lệ.** Gửi lại cùng yêu cầu không tự gọi model thêm; phạm vi hiện tại vẫn là thử cách ly, chưa bật áp dụng trên brain thật.
+### Sửa lỗi
+- **Không nạp skill từ bản cũ hoặc nguồn đang thay đổi.** Skill đã tắt vẫn tắt; lệnh nạp từ chối nguồn đổi trong lúc đọc hoặc không còn khớp mô tả đã chọn.
+
 ## [0.298.0] - 2026-10-23
 ### Sửa lỗi
 - **Giọng chọn trên máy này dùng được cả trên máy khác.** Trước đây giọng đọc chỉ lưu trong trình duyệt đang mở, nên chọn giọng nữ trên máy tính thì điện thoại vẫn giữ giọng cũ, lưu bao nhiêu lần cũng vậy. Giờ giọng lưu trên Javis, mọi máy và ghi chú giọng nói gửi qua Telegram, Zalo đều dùng đúng giọng đó.

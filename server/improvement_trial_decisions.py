@@ -45,6 +45,10 @@ class OwnerDecisionStore:
         request = json.loads(row["request_json"])
         if IM._hash(request) != row["request_hash"]:
             raise IM.ConflictError("trial_request_drift")
+        if request.get('version') == 4:
+            from improvement_view_lineage import load_view_lineage
+            load_view_lineage(connection, brain, request, blobs=self.trials.blobs,
+                current=False, require_link=True, trial_id=identifier)
         if request.get("version") == 3:
             from improvement_preparation_lineage import load_preparation_lineage
             load_preparation_lineage(connection, brain, request, blobs=self.trials.blobs,

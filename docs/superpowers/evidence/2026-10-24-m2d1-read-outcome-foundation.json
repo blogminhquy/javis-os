@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "label": "standalone/new-read-outcome-foundation",
+  "source_base_commit": "ea74d62e10d5737930f5205ec4e87be59d9e0cde",
+  "production_reachable": false,
+  "source_hashes": {
+    "improvement_read_outcome_broker.py": "d04c32944defaccb640be1dd9f35a56fcafd23c05652a9993d7900e169fa529a",
+    "improvement_read_outcome_proof.py": "aafbedab772fcddc47102f6aba7d4496d36e2baff3907de391494ae37d0c6449"
+  },
+  "test_hashes": {
+    "test_improvement_read_outcome_broker.py": "4fffec8024a300eedda9456fbc986fca6449aa70191a955a2b74a7f9f8609da0",
+    "test_improvement_read_outcome_proof.py": "bbb00cb0302663b92463e172a45184da1237ed05e15e0c72951d1d417bcdf484"
+  },
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "qualified_evidence_sha256": "bf793edf18abf0cbeecf83983ee619ae4a4c96415b844cc488b2ed1ed9c09a4a",
+  "author_red_green": [
+    {
+      "component": "broker",
+      "red": {
+        "tests": 15,
+        "failures": 15,
+        "seconds": 0.002,
+        "sha256": "33c8ca90907a3a32252433820058fef014afded15b367e09879418f1ccac88d9"
+      },
+      "green": {
+        "tests": 15,
+        "seconds": 0.079,
+        "sha256": "7938034ed663541d1aee9e9417c1209aaa70ad1c19bdd5c46c988264eec3c71b"
+      }
+    },
+    {
+      "component": "proof",
+      "red": {
+        "tests": 24,
+        "failures": 24,
+        "seconds": 0.003,
+        "sha256": "aa44b287c18861406d27df6be0a34a253d83818c213319e99809a1b3051a4a87"
+      },
+      "green": {
+        "tests": 24,
+        "seconds": 0.147,
+        "sha256": "dfd66c24f0bb897a6897d7cf024da397a7c3f1c0fe1f534f27a775152d0909cc"
+      }
+    }
+  ],
+  "independent_review": {
+    "verdict": "approved",
+    "scope": "Standalone broker and exact correlation only.",
+    "tests": 39,
+    "sequential": true,
+    "source_and_dependency_hashes_unchanged": true,
+    "new_source_test_files": 4,
+    "readonly_dependencies": 9,
+    "all83_current_qualified_pins_verified": true,
+    "results": [
+      {
+        "tests": 15,
+        "seconds": 0.072,
+        "log": "review-broker.log",
+        "sha256": "e7401a9caff994163f5a4d5c1dcbed3ff0a660816b5258abc7db16a7267aa32e"
+      },
+      {
+        "tests": 24,
+        "seconds": 0.112,
+        "log": "review-proof.log",
+        "sha256": "5c953d1528247f95f9b8426ebc7ca5d9f59db7730a73ee1a2215ed67333365dc"
+      }
+    ]
+  },
+  "seconds_basis": "Unittest reported; author and reviewer results are separate sequential processes.",
+  "api": {
+    "broker": "PinnedReadOutcomeBroker(manifest, *, trial_id, attempt, input_hash, fixture_broker=None)",
+    "read": "read(tool_name,args)",
+    "validator": "correlate_read_outcomes(manifest,workspace,events)",
+    "new_observation_type": "trial_read_broker_observation",
+    "success_basis": "exact_host_success_and_native_delivery",
+    "denial_basis": "exact_host_denial_and_native_error"
+  },
+  "constraints": [
+    "No execution caller, PROFILE_SOURCES entry, input4/receipt4 integration or new native registration.",
+    "Host success must join unique exact native call/result bytes and pins before optional None supports a derived outcome.",
+    "Raw fields must be present and agree; absent fields stay UNKNOWN. Raw flags are never rewritten as false.",
+    "Denial requires actual host miss plus explicit native error; it is not a successful asset read.",
+    "Pinned payload/schema, fixture sequence, duplicate/orphan/replay/wrong-tool/session and caller mutation are checked.",
+    "Legacy manifest/receipt3 behavior and UNKNOWNs are preserved; standalone old-manifest fixtures do not activate a new protocol.",
+    "Existing fixture/skill brokers are reused; no live/canonical fallback or additional source/usage ledger.",
+    "Future version4 dispatch/image/outcome integration and qualification remain open."
+  ],
+  "business_proof": false,
+  "selected_account_calls": 0,
+  "native_probes_by_these_components": 0,
+  "live_activation_granted": false,
+  "goal_complete": false
+}

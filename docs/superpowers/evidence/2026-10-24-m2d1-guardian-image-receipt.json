@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "label": "design-only/two-process-inert-guardian-image-receipt",
+  "evidence_class": "technical",
+  "source_commit": "ffcd1b44ee7d021be70ab5803ac0d9a3d8c7875a",
+  "production_reachable": false,
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "driver_runs": 1,
+  "driver_exit_code": 0,
+  "driver_tool_wall_seconds": 6.683,
+  "sdk_client_connect_or_query_calls": 0,
+  "selected_cli_or_account_or_provider_calls": 0,
+  "actual_sdk_imported_anyio_used_for_own_inert_executable_only": true,
+  "cases": [
+    {"kind": "selected_image", "worker_pid": 24180, "native_pid": 16996, "worker_exit": 0, "native_exit": 0, "nonce_and_incarnation_bound_ack": "allow", "stdout_bytes": 216},
+    {"kind": "identical_bytes_foreign_file", "worker_pid": 23492, "native_pid": 9200, "worker_exit": 0, "native_exit": 73, "same_hash_different_actual_file_id": true, "ack": "deny", "stdout_bytes": 0},
+    {"kind": "eof_before_ack", "worker_pid": 1332, "native_pid": 21624, "worker_exit": 0, "native_exit": 76, "ack": "not_sent", "stdout_bytes": 0},
+    {"kind": "worker_death_create_held", "worker_pid": 24116, "native_pid": 11828, "worker_exit": 88, "native_exit": 3221226324, "ack": "not_sent", "native_signaled_before_outer_job_termination": true, "guardian_image_duplicate_valid_after_worker_death": true, "worker_debug_exit_or_aclose_record": "unavailable_after_death", "stdout_coverage": "not_claimed"}
+  ],
+  "object_checks": {
+    "source_is_original_retained_direct_base_worker_process_handle": true,
+    "source_pid_and_creation_time_match_before_remote_duplication": true,
+    "no_receipt_pid_reopen_for_source_authority": true,
+    "actual_image_process_thread_handles_duplicated_from_exact_source_worker": true,
+    "native_pid_birth_thread_owner_id_birth_exact_outer_job_checked": true,
+    "actual_debug_image_file_id_and_hash_compared_while_create_held": true,
+    "guardian_frames_are_closed_metadata_without_argv_env_model_or_auth": true,
+    "allow_only_rearms_suspend0_continues_create_then_final_resume1": true,
+    "three_surviving_workers_continue_debug_exit_before_anyio_wait_aclose": true,
+    "guardian_foreign_thread_continue_calls": 0
+  },
+  "ownership": {
+    "exact_outer_job_assigned_before_initial_worker_resume": true,
+    "retained_native_and_worker_process_handles_signaled_before_job_close": true,
+    "actual_job_terminal_drain_before_guard_release": true,
+    "guard_readable_after_native_worker_exit_and_after_job_drain": true,
+    "all_four_stderr_files_empty": true,
+    "probe_children_active_under_completed_job_proof": false
+  },
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+  "raw_sha256": {
+    "probe_guardian_receipt_v6.py": "084bcfa009d90594e96c06ecf1327989dbc1a3d138ae88436fc092ef50196886",
+    "guardian_receipt_v6_winapi.py": "7489b9c60f601b21d34aa02cd00ae213bb0612b535a3ba7fdcf666b3097665ed",
+    "guardian_receipt_v6_bootstrap.py": "97a79d5fe0d467baf3ad5f99002c9d7b95925fd0f35a69b7aea22bcbf7274e3c",
+    "guardian-receipt-v6-report.json": "70d56f5336abc852d9286e9bb16c7c75f1b1421bf60f850b4ab84030fa8582d8",
+    "guardian-receipt-v6-evidence-manifest.json": "203d504b7476dc1bb762ba08bf226d0aac6785b8f8f545aa4a43fb9dc2094113"
+  },
+  "independent_static_review": {
+    "verdict": "limited_two_process_inert_approval",
+    "frozen_files_verified": 208,
+    "report_source_runtime_pins_verified": 165,
+    "scoped_prelaunch_source_pins_verified": 161,
+    "qualified_profile_pins_verified": 83,
+    "prior_manifests_unchanged": true,
+    "native_rerun": false
+  },
+  "trust_basis": "source-qualified trusted creator capture plus guardian object checks",
+  "independent_guardian_kernel_event_association": false,
+  "limits": [
+    "Original before-first-resume V1 remains failed; this uses the distinct pre-user-mode CREATE gate.",
+    "Exact-source DuplicateHandle does not independently establish a malicious worker's claimed CREATE-to-hFile association.",
+    "The parent combines controller and guardian; full three-actor confidentiality, SDKClient/query configuration, actual reasoning and all18 eligibility are not proved.",
+    "Generic cleanup failures, repeated cancellation, detach and worker-death recovery fences are unexercised; retained in-process owner state is not durable recovery.",
+    "The prototype accesses ImageReadGuard private handles. Canonical API changes need their own component evidence and later integration qualification.",
+    "No business benefit, live rollout or complete Goal acceptance."
+  ],
+  "goal_complete": false
+}

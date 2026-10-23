@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "label": "standalone/fixed-entrypoint-bootstrap-declared-pins",
+  "evidence_class": "technical",
+  "source_parent_commit_when_frozen": "7f710bbc",
+  "production_reachable": false,
+  "source_hashes": {
+    "server/improvement_native_bootstrap.py": "7d1a69f0f950d8080fe30b89f1be9b3403b4781a31ba73100c0318111d8142ef",
+    "tests/python/test_improvement_native_bootstrap.py": "e25ebc7240ae81186b321de54dae8a89be11f30fa0d9778c819c0d84cd6602d3"
+  },
+  "guard_dependency_sha256": "4fc9654ac7ad255fcf65f37823380d64c4199b567189453f30b95333d4d0640f",
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "test_command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_native_bootstrap.py -v",
+  "command_sha256": "54cf581e868e60501c2409439ef29ae91aebb28cd49444f0602b794463618b33",
+  "author_red": {
+    "collected": 13,
+    "failures": 12,
+    "skipped": 1,
+    "exit_code": 1,
+    "seconds": 0.002,
+    "invocation_milliseconds": 379,
+    "reason": "component_absent",
+    "log_sha256": "5bc186ae6acf3d26461ff0af9f7aed9797df2e39e93a33c366a987284c0ec40e"
+  },
+  "author_green": {
+    "collected": 13,
+    "passed": 12,
+    "skipped": 1,
+    "exit_code": 0,
+    "seconds": 0.196,
+    "invocation_milliseconds": 542,
+    "log_sha256": "d9c052ce25c147c623cc6188ca55412c1f8ade44e1e253ba9d6029a4650ae2cd"
+  },
+  "independent_review": {
+    "verdict": "standalone_scoped_approval",
+    "collected": 13,
+    "passed": 12,
+    "skipped": 1,
+    "exit_code": 0,
+    "seconds": 0.213,
+    "source_test_guard_harness_hashes_unchanged": true,
+    "log_sha256": "2606b76d4126f69ddabb128347aea634f9e4b734c977417116eab212f56380fe"
+  },
+  "tested": [
+    "Strict copied manifest, duplicate-free JSON, builtin types/hashes/canonical Windows paths and fixed trial/operation/guardian target names.",
+    "Bounded four-byte network length and exact remaining os.read calls; no prefetch of the next worker NDJSON packet.",
+    "Current Windows executable/Python-DLL module pathname observations and real declared-file ImageReadGuard identities/hashes in a controlled in-process fixture.",
+    "Compile/execute captured verified fixed guardian-named target bytes, explicit import paths/retained DLL directory and LIFO resource lifetime.",
+    "Failed close retains owner/resources and error.owner; retry avoids reclosing successfully released resources; primary target error preserved as cleanup cause."
+  ],
+  "coverage": {
+    "declared_pins": "verified_in_controlled_fixture",
+    "host_manifest_authentication": "external_required",
+    "unlisted_import_exclusion": "unknown",
+    "initial_loaded_sections": "unknown",
+    "actual_isolated_bootstrap_startup": "unknown"
+  },
+  "runtime_scope": "Windows in-process unit checks; isolation flags/runtime paths are simulated for owner fixture. Actual module-path getter uses Win32. This is not a direct-base -I -S -B child startup proof.",
+  "sdk_import_or_client_calls": 0,
+  "native_child_calls": 0,
+  "selected_cli_or_account_calls": 0,
+  "provider_calls": 0,
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-bootstrap",
+  "ledger_sha256": "1a345a2e15bc403f6d2a2afe2842f9b4f5dfd448bcccd0d887702c92d34c7f9c",
+  "limits": [
+    "Host qualification must authenticate bootstrap bytes and complete declared source/runtime/import manifest. Self-hashes cannot authorize an arbitrary manifest.",
+    "Declared-file verification does not enforce a closed import loader or exclude unlisted modules. No site.main/.pth processing is introduced.",
+    "Current loaded-module pathname/current file identity is not independent initial-section proof.",
+    "No existing transport/worker caller or PROFILE_SOURCES change; future startup/control/preflight/guardian integration and frozen qualification remain open.",
+    "The Linux-only runtime-refusal case is skipped on Windows; actual final-head Linux CI remains required.",
+    "No all18 eligibility, business benefit or live activation established."
+  ],
+  "goal_complete": false
+}

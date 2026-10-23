@@ -269,7 +269,9 @@ class TrialStoreTests(unittest.TestCase):
             contract = connection.execute("SELECT id FROM improvement_contracts").fetchone()[0]
             # Construct a real schema2 fixture, without leaving later experiment tables behind.
             connection.execute("DROP TRIGGER improvement_preparation_arm_fence")
-            for table in ("improvement_semantic_receipts", "improvement_generated_candidates", "improvement_proposal_publications",
+            connection.execute("DROP TRIGGER improvement_legacy_trial_view_fence")
+            for table in ("improvement_view_qualification_links", "improvement_view_trial_links", "improvement_comparison_views", "improvement_effective_view_assets", "improvement_effective_views",
+                          "improvement_semantic_receipts", "improvement_generated_candidates", "improvement_proposal_publications",
                           "improvement_operation_results", "improvement_operation_observations", "improvement_operation_attempts",
                           "improvement_operations", "improvement_preparation_trial_links", "improvement_preparations",
                           "improvement_experiment_trial_links", "improvement_comparison_reports", "improvement_experiment_selections",

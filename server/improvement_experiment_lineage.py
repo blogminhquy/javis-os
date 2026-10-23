@@ -27,7 +27,13 @@ def _same(expected, actual):
 
 def require_experiment_version(connection, brain, request):
     """A legacy shape cannot erase ownership by an existing B experiment."""
-    if request.get("version") not in (2, 3):
+    if request.get('version') == 2:
+        from improvement_comparison_links import require_legacy_comparison
+        lineage = request.get('lineage')
+        if type(lineage) is not dict or 'comparison_id' not in lineage:
+            raise ValueError('invalid_experiment_request')
+        require_legacy_comparison(connection, brain, lineage['comparison_id'])
+    if request.get("version") not in (2, 3, 4):
         from improvement_experiment_qualification import experiment_owned
         if experiment_owned(connection, brain, request.get("case_set_id"), request["pins"]):
             raise PermissionError("experiment_request_version_required")
@@ -62,6 +68,9 @@ def current_fences(connection, brain, proof):
     if (target["status"] != "live" or target["generation"] != frozen["base_generation"]
             or target["current_revision_id"] != frozen["base_revision_id"] or target["source_hash"] != frozen["base_hash"]):
         raise IM.ConflictError("experiment_base_changed")
+    if comparison['kind'] == 'tuning':
+        from improvement_experiment_qualification import require_tuning_families
+        require_tuning_families(connection, brain, frozen['case_set_id'])
 
 
 def _arm(connection, brain, experiment, value, lineage):
@@ -118,6 +127,24 @@ def load_lineage(connection, brain, value, *, blobs, current, require_link, tria
 
 
 def _load_lineage(connection, brain, request, *, blobs, current, require_link, trial_id):
+    from improvement_comparison_links import require_legacy_comparison
+    require_legacy_comparison(connection, brain, request['lineage']['comparison_id'])
+    proof = _comparison_proof(connection, brain, request, blobs=blobs, current=current)
+    if require_link:
+        link = connection.execute("SELECT * FROM improvement_experiment_trial_links WHERE comparison_id=? AND brain_id=? AND cell_position=?",
+            (proof['comparison']['id'], brain, request['lineage']['cell_position'])).fetchone()
+        if link is None:
+            raise PermissionError("experiment_trial_link_unavailable")
+        trial = _row(connection, "improvement_trials", brain, link["trial_id"])
+        _same({"experiment_id": proof['definition']['experiment_id'], "request_hash": IM._hash(request), **proof['cell']}, link)
+        if (trial["request_hash"] != link["request_hash"] or trial["request_json"] != IM._json(request)
+                or (trial_id is not None and trial["id"] != trial_id)):
+            raise IM.ConflictError("experiment_trial_link_changed")
+    return proof
+
+
+def _comparison_proof(connection, brain, request, *, blobs, current):
+    """Common immutable proof after an explicit v2 or v4 validator, with full request."""
     pins, lineage = request["pins"], request["lineage"]
     experiment = _row(connection, "improvement_experiments", brain, pins["experiment_id"])
     if current and experiment["phase"] not in ("probing", "comparing", "qualifying"):
@@ -193,14 +220,4 @@ def _load_lineage(connection, brain, request, *, blobs, current, require_link, t
     proof = {"definition": frozen, "arm": envelope, "comparison": dict(comparison), "cell": cell}
     if current:
         current_fences(connection, brain, proof)
-    if require_link:
-        link = connection.execute("SELECT * FROM improvement_experiment_trial_links WHERE comparison_id=? AND brain_id=? AND cell_position=?",
-                                  (comparison["id"], brain, lineage["cell_position"])).fetchone()
-        if link is None:
-            raise PermissionError("experiment_trial_link_unavailable")
-        trial = _row(connection, "improvement_trials", brain, link["trial_id"])
-        _same({"experiment_id": experiment["id"], "request_hash": IM._hash(request), **cell}, link)
-        if (trial["request_hash"] != link["request_hash"] or trial["request_json"] != IM._json(request)
-                or (trial_id is not None and trial["id"] != trial_id)):
-            raise IM.ConflictError("experiment_trial_link_changed")
-    return {"definition": frozen, "arm": envelope, "comparison": dict(comparison), "cell": cell}
+    return proof

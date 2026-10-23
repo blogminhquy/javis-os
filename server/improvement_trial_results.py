@@ -47,6 +47,11 @@ class TrialResults:
         with closing(self.trials.store._conn()) as connection:
             trial = self.trials._row(connection, brain, identifier)
             request = json.loads(trial["request_json"])
+            if request.get('version') == 4:
+                from improvement_view_lineage import load_view_lineage
+                if IM._hash(request) != trial['request_hash']:
+                    raise AssetUnavailable('view_trial_request_changed')
+                load_view_lineage(connection, brain, request, blobs=self.trials.blobs, current=False, require_link=True, trial_id=identifier)
             if request.get("version") == 3:
                 from improvement_preparation_lineage import load_preparation_lineage
                 if IM._hash(request) != trial["request_hash"]:
@@ -73,6 +78,10 @@ class TrialResults:
             report = json.loads(raw)
             if IM._hash(report) != result["result_hash"]:
                 raise AssetUnavailable("trial_result_hash_mismatch")
+            if request.get('version') == 4 and (report.get('version') != 4 or report.get('trial_id') != identifier
+                    or report.get('attempt') != attempt or report.get('request_hash') != trial['request_hash']
+                    or report.get('experiment_lineage') != request['lineage'] or report.get('effective_view') != request['view']):
+                raise AssetUnavailable('view_trial_result_changed')
             if request.get("version") == 2 and (report.get("version") != 2 or report.get("trial_id") != identifier
                     or report.get("attempt") != attempt or report.get("request_hash") != trial["request_hash"]
                     or report.get("experiment_lineage") != request["lineage"]):
@@ -181,7 +190,7 @@ class TrialResults:
             row, attempt = self.trials._leased(connection, principal, identifier, expected_generation, lease_token, time.time())
             if row["status"] != "evaluating" or attempt["engine_at"] is None:
                 raise IM.ConflictError("trial_evaluation_stale")
-            case = self.trials._current(connection, brain, request, trial_id=row["id"])
+            case = self.trials._current(connection, brain, request, trial_id=row["id"], principal=principal)
             workspace = json.loads(attempt["workspace_json"])
             manifest = self.trials.workspace.validate(workspace)
             if IM._hash(manifest) != attempt["materialization_hash"]:
@@ -217,7 +226,9 @@ class TrialResults:
                   "capability_hash": capability_hash, "live_guard": guard,
                   "trace": {"count": len(records), "last_sequence": records[-1]["sequence"],
                             "hash": IM._hash([[record["sequence"], record["payload_hash"]] for record in records])}}
-        if request.get("version") == 2:
+        if request.get('version') == 4:
+            report.update(version=4, request_hash=IM._hash(request), experiment_lineage=request['lineage'], effective_view=request['view'])
+        elif request.get("version") == 2:
             report.update(version=2, request_hash=IM._hash(request), experiment_lineage=request["lineage"])
         elif request.get("version") == 3:
             report.update(version=3, request_hash=IM._hash(request), preparation_lineage=request["preparation"])
@@ -229,7 +240,7 @@ class TrialResults:
             row, attempt = self.trials._leased(connection, principal, identifier, expected_generation, lease_token, time.time())
             if row["status"] != "evaluating" or row["attempt"] != number:
                 raise IM.ConflictError("trial_evaluation_stale")
-            self.trials._current(connection, brain, request, trial_id=row["id"])
+            self.trials._current(connection, brain, request, trial_id=row["id"], principal=principal)
             self.trials.workspace.validate(workspace)
             if self._artifact_hash(connection, row, workspace, contract) != artifact_hash:
                 raise IM.ConflictError("trial_output_changed")

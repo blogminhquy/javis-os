@@ -27,8 +27,12 @@ import unicodedata
 from pathlib import Path
 from typing import Optional
 import hashlib
+import os
+import stat
+from dataclasses import dataclass
 
 import fastyaml
+from skill_asset_io import open_skill_source
 
 # slug 1 đoạn an toàn (không '/', không '..') → chống path traversal khi join base/slug
 _SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -185,11 +189,70 @@ def resolve_skill_file(root, slug: str) -> Optional[Path]:
     for base in _READ_BASES:
         f = root / base / slug / "SKILL.md"
         try:
+            if (root / base / ".disabled" / slug / "SKILL.md").is_file():
+                return None
             if f.is_file():
                 return f
         except OSError:
-            continue
+            return None
     return None
+
+
+SKILL_ASSET_MAX_BYTES = 1024 * 1024
+
+
+@dataclass(frozen=True)
+class SkillAsset:
+    """One stable ordinary read, not an improvement grant or a whole-task pin."""
+    slug: str
+    relative_path: str
+    content: bytes
+    content_hash: str
+    frontmatter_hash: str
+
+    @property
+    def text(self) -> str:
+        # Preserve ordinary read_text(errors='replace') and universal-newline behavior.
+        return self.content.decode('utf-8', errors='replace').replace('\r\n', '\n').replace('\r', '\n')
+
+
+def _skill_stamp(info) -> tuple:
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns)
+
+
+def read_skill_asset(root, slug: str, max_bytes: int = SKILL_ASSET_MAX_BYTES) -> Optional[SkillAsset]:
+    """Read enabled source once; refuse drift, external links and unbounded content."""
+    if type(max_bytes) is not int or not 0 < max_bytes <= SKILL_ASSET_MAX_BYTES:
+        return None
+    try:
+        root = Path(root).resolve(strict=True)
+        selected = resolve_skill_file(root, slug)
+        if selected is None:
+            return None
+        path = selected.resolve(strict=True)
+        relative = path.relative_to(root).as_posix()
+        before = path.stat()
+        if not stat.S_ISREG(before.st_mode) or before.st_size > max_bytes:
+            return None
+        with open_skill_source(root, path, max_bytes) as handle:
+            opened = os.fstat(handle.fileno())
+            raw = handle.read(max_bytes + 1)
+            finished = os.fstat(handle.fileno())
+        after = path.stat()
+        if (len(raw) > max_bytes or len(raw) != before.st_size
+                or _skill_stamp(before) != _skill_stamp(opened)
+                or _skill_stamp(opened) != _skill_stamp(finished)
+                or _skill_stamp(finished) != _skill_stamp(after)
+                # Windows path-stat/fstat can expose different meanings of ctime.
+                or before.st_ctime_ns != after.st_ctime_ns
+                or opened.st_ctime_ns != finished.st_ctime_ns
+                or selected.resolve(strict=True) != path
+                or resolve_skill_file(root, slug) != selected):
+            return None
+        return SkillAsset(str(slug).strip(), relative, raw, hashlib.sha256(raw).hexdigest(),
+                          _frontmatter_header(raw[:16384])[1])
+    except (OSError, ValueError, RuntimeError):
+        return None
 
 
 def split_frontmatter(text: str):
@@ -211,6 +274,10 @@ def read_frontmatter_only(smd: Path, max_bytes: int = 16384) -> tuple[dict, str]
             raw = fh.read(max(512, int(max_bytes)))
     except OSError:
         return {}, ""
+    return _frontmatter_header(raw)
+
+
+def _frontmatter_header(raw: bytes) -> tuple[dict, str]:
     if not raw.startswith(b"---"):
         return {}, ""
     end = raw.find(b"\n---", 3)
@@ -272,6 +339,11 @@ def list_skills(root, lang: str = "") -> list:
     def scan_base(base_rel: str):
         base = root / base_rel
         for d in _iter_skill_dirs(base):        # BẬT
+            try:
+                if (base / ".disabled" / d.name / "SKILL.md").is_file():
+                    continue
+            except OSError:
+                continue
             add(d, base_rel, True)
         dis = base / ".disabled"                # TẮT
         try:
@@ -284,8 +356,7 @@ def list_skills(root, lang: str = "") -> list:
 
     scan_base("skills")           # canonical: quyết định trạng thái, thắng mọi fallback
     scan_base(".claude/skills")   # legacy / mirror
-    for d in _iter_skill_dirs(root / ".agents"):   # rất cũ (chỉ bật)
-        add(d, ".agents", True)
+    scan_base(".agents")         # legacy: cùng trạng thái với manifest và body loader
     return out
 
 

@@ -58,11 +58,15 @@ class ExperimentAdmission:
                                        (payload["comparison_id"], brain, row["id"])).fetchone()
         if comparison is None:
             raise PermissionError("experiment_comparison_unavailable")
+        from improvement_comparison_links import require_legacy_comparison
+        require_legacy_comparison(connection, brain, comparison["id"])
         if comparison["kind"] != "tuning":
             raise PermissionError("experiment_final_execution_unavailable")
         # Derive only closed schedule metadata before any plaintext/probe. A
         # blocked candidate never decrypts context, proposal, fixture or answers.
         value = definition(json.loads(row["definition_json"]))
+        from improvement_experiment_qualification import require_tuning_families
+        require_tuning_families(connection, brain, value['case_set_id'])
         arm = connection.execute("SELECT * FROM improvement_experiment_arms WHERE experiment_id=? AND brain_id=? AND ordinal=?",
                                  (row["id"], brain, comparison["ordinal"])).fetchone()
         if arm is None or arm["envelope_hash"] != comparison["arm_hash"] or comparison["definition_hash"] != row["definition_hash"]:

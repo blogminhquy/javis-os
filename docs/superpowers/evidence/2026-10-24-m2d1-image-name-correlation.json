@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "evidence_class": "technical/design-only/name-correlation",
+  "raw_evidence_sha256": "7293fe219c687c7a2153709046531a0e601108b19c710502c988366a0f79747d",
+  "script_sha256": "739ee5202dd563a29af60bbebe7db890c740d3fe7d4aecf68480dc2182eaf0c3",
+  "observations": {
+    "version": 1,
+    "label": "design-only/held-hash-and-kernel-image-name/actual-anyio-path",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "selected_account_calls": 0,
+    "native_cli_calls": 0,
+    "source_copy_sha256": "f51fab8041e5023d7290b540a2106f051ef0bd2bc3443c9daf318628b560fa29",
+    "rows": [
+      {
+        "case": "resume",
+        "spawn_returned_before_resume": true,
+        "image_matches_guarded_copy": true,
+        "physical_name_binding_basis": "kernel process image NT name versus held leaf NT name",
+        "win32_image_name": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-native-image-guard\\image-binding-scratch\\real\\inert where.exe",
+        "loaded_nt_name": "\\Device\\HarddiskVolume3\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-native-image-guard\\image-binding-scratch\\real\\inert where.exe",
+        "guarded_nt_name": "\\Device\\HarddiskVolume3\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-native-image-guard\\image-binding-scratch\\real\\inert where.exe",
+        "launch_path": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-native-image-guard\\image-binding-scratch\\alias\\inert where.exe",
+        "guard_hash": "f51fab8041e5023d7290b540a2106f051ef0bd2bc3443c9daf318628b560fa29",
+        "exact_job_matches": true,
+        "foreign_job_rejected": true,
+        "pre_resume_active": true,
+        "resume_previous_count": 1,
+        "terminal": {
+          "type": "done",
+          "code": 0,
+          "stdout_bytes": 180,
+          "stdout_sha256": "f36cf8b4578279cd8c91ec68b03446d74364936f15332f8cb1ec97c0d49a0111",
+          "marker_path_in_stdout": true
+        },
+        "seconds": 1.281,
+        "retained_process_creation_observed": true,
+        "retained_thread_creation_observed": true
+      },
+      {
+        "case": "deny-foreign-image",
+        "spawn_returned_before_resume": true,
+        "image_matches_guarded_copy": false,
+        "physical_name_binding_basis": "kernel process image NT name versus held leaf NT name",
+        "win32_image_name": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-native-image-guard\\image-binding-scratch\\foreign where.exe",
+        "loaded_nt_name": "\\Device\\HarddiskVolume3\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-native-image-guard\\image-binding-scratch\\foreign where.exe",
+        "guarded_nt_name": "\\Device\\HarddiskVolume3\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-native-image-guard\\image-binding-scratch\\real\\inert where.exe",
+        "launch_path": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-native-image-guard\\image-binding-scratch\\foreign where.exe",
+        "guard_hash": "f51fab8041e5023d7290b540a2106f051ef0bd2bc3443c9daf318628b560fa29",
+        "exact_job_matches": true,
+        "foreign_job_rejected": true,
+        "pre_resume_active": true,
+        "denied_child_exit_observed": true,
+        "seconds": 1.312,
+        "retained_process_creation_observed": true,
+        "retained_thread_creation_observed": true
+      }
+    ],
+    "constraints": [
+      "Uses actual SDK-imported anyio.open_process, not a complete SDK Client connect/query.",
+      "Only own copied Windows where.exe is executed, hidden and job-owned; no account configuration or authentication.",
+      "Actual process image NT name is compared to the held hashed leaf NT name. This observed correspondence is not production guardian ownership or full SDK/CLI qualification."
+    ],
+    "complete": true,
+    "probe_script_sha256": "739ee5202dd563a29af60bbebe7db890c740d3fe7d4aecf68480dc2182eaf0c3"
+  },
+  "independent_static_review": "Measured physical-name correlation is useful as a secondary check, not file-object identity/digest attestation.",
+  "loaded_image_identity": "unknown",
+  "guardian_owned_guard_lifetime": "unknown",
+  "selected_account_calls": 0,
+  "native_cli_calls": 0,
+  "constraints": [
+    "Held leaf was hashed by actual standalone ImageReadGuard before spawn; query image was inert copied Windows where.exe.",
+    "Positive actual kernel NT image name resolves the junction alias to the guarded real path; negative identical bytes in a different image path refuses resume and drains.",
+    "Names are not file object IDs. No transient metadata mutation/restore was exercised in this window.",
+    "Parent/direct WorkerGroup owns the guard here; guardian death-proof ownership and actual SDK/CLI qualification remain open.",
+    "Next candidate evidence: actual CREATE_PROCESS_DEBUG_INFO.hFile image handle and file identity, with thread-affinity/continue/detach/resume/drain compatibility probes first."
+  ]
+}

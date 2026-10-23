@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "label": "design-only/two-process-guardian-failed-probes",
+  "evidence_class": "technical",
+  "source_commit": "df0e24b1b0f1cb812e0407ff6813590d0122d135",
+  "production_reachable": false,
+  "selected_account_calls": 0,
+  "actual_claude_or_sdk_client_queries": 0,
+  "provider_calls": 0,
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+  "v4": {
+    "driver_runs": 1,
+    "driver_exit_code": 1,
+    "driver_tool_wall_seconds": 2.113,
+    "verdict": "failed",
+    "stage": "exact_source_worker_incarnation",
+    "retained_launcher_pid": 15128,
+    "receipt_worker_pid": 23332,
+    "strict_mismatch_refused_before_remote_duplication": true,
+    "remote_handle_duplication_reached": false,
+    "image_ack_reached": false,
+    "only_first_case_started": true,
+    "other_three_cases": "not_run",
+    "native_independent_guardian_exit_observation": "unavailable",
+    "raw_sha256": {
+      "probe_guardian_receipt_v4.py": "631c748ad4dea12cd8db7ffc8f7e54cf150870cd89c4cd06056924f2e9ed93b4",
+      "guardian_receipt_v4_winapi.py": "c56cc67f32da6927882fbfa9953c7bc2201a91adc100890bcd66943fc19c71e8",
+      "guardian-receipt-v4-report.json": "e9e73a48e1875681003f7373dea6f87396768fa05bf5494824f9fa2b213b7db8",
+      "guardian-receipt-v4-evidence-manifest.json": "54ed1d8aba8802a088b8ca0c6a4284bbe103463a2423c41c5f0adc96c86e5efd"
+    },
+    "independent_static_review": {
+      "verdict": "accurate_failed_evidence",
+      "frozen_files_verified": 29,
+      "native_rerun": false
+    }
+  },
+  "v5": {
+    "driver_runs": 1,
+    "driver_exit_code": 1,
+    "driver_tool_wall_seconds": 1.760,
+    "verdict": "failed",
+    "stage": "before_first_valid_worker_receipt",
+    "retained_direct_base_process_pid": 17452,
+    "source_worker_incarnation_gate_passed": false,
+    "remote_handle_duplication_reached": false,
+    "image_ack_reached": false,
+    "only_first_case_started": true,
+    "other_three_cases": "not_run",
+    "startup_cause": "unknown",
+    "diagnostic_gaps": ["stderr_discarded", "rejected_raw_frame_not_saved", "worker_exit_code_not_saved"],
+    "static_dependency_hypothesis": "The fixed -S bootstrap omits win32/lib and win32 paths normally installed by pywin32.pth; MCP imports those modules. This was not the observed historical exception.",
+    "raw_sha256": {
+      "probe_guardian_receipt_v5.py": "5dde3e966d4f77c13e2dac96230814defb0e41669f6caa525df4d3cd61e4aa53",
+      "guardian_receipt_v5_winapi.py": "cc621280f5b84b61fa9779de3a10dfa3225b5c6ac34837b83d30101a5c0ecc7f",
+      "guardian_receipt_v5_bootstrap.py": "75408df76e450d9d4a30316be320cd1837abf6761cae573a3ce94550eae8e58d",
+      "guardian-receipt-v5-report.json": "33c3c92d28bdb049ea2d89c1cbb33cc6842893c5bb66d792a06ef84c75b68ed6",
+      "guardian-receipt-v5-evidence-manifest.json": "f520298c5e23be5f07580f29bc45ec441073c2dc2ff4c6644198836133c91b1c"
+    },
+    "independent_static_review": {
+      "verdict": "accurate_failed_evidence",
+      "frozen_files_verified": 41,
+      "native_rerun": false
+    }
+  },
+  "subsequent_import_only_diagnostic_v1": {
+    "driver_runs": 1,
+    "driver_exit_code": 1,
+    "driver_tool_wall_seconds": 0.854,
+    "verdict": "failed_setup_before_sdk_import",
+    "retained_direct_base_worker_pid": 17516,
+    "early_worker_pid_and_creation_time_match_retained_handle": true,
+    "pre_import_job_accounting": {"total": 2, "active": 2, "terminated": 0},
+    "experimental_expected_total": 1,
+    "extra_member_identity": "unknown",
+    "sdk_import_ack_sent": false,
+    "sdk_import_outcome": "not_reached",
+    "second_predeclared_variant": "not_run",
+    "worker_exit_code": 91,
+    "stderr_bytes": 0,
+    "terminal_job_accounting": {"total": 2, "active": 0, "terminated": 0},
+    "actual_job_drained_and_closed": true,
+    "raw_sha256": {
+      "probe_startup_import_diagnostic_v1.py": "a11eb870376f01f4b19b5460f345bcbea74eb129765c249adb531ae6134e3298",
+      "startup-import-diagnostic-v1-report.json": "c4b5d5534cbeb37fa0de4e2001d38bd3a82c4988e5463333ddf9e6239a85bba6",
+      "startup-import-diagnostic-v1-evidence-manifest.json": "0565c4c4090ff83073b28c50d02b35f8c77e1d35ca31419e65c6439357f688e3"
+    },
+    "author_static_freeze_files": 37,
+    "parent_review": "Read actual driver, helper, report and journal; confirmed refusal and drain, no rerun.",
+    "next_measurement": "Capture actual startup job-member identities and cumulative count, then compare the unchanged pre/post import baseline and rejecting CreateProcess counter. Never infer the unknown member is conhost or an SDK child."
+  },
+  "both_runs": {
+    "actual_outer_worker_group_owned_before_initial_worker_resume": true,
+    "actual_outer_job_terminal_drain_completed_before_guard_release": true,
+    "independent_guardian_native_handles_retained": false,
+    "worker_continued_debug_exit_recorded": false,
+    "whole_job_cleanup_proof_is_not_a_passed_worker_death_case": true,
+    "probe_children_active_under_completed_job_proof": false
+  },
+  "limits": [
+    "No successful two-process guardian image receipt, remote handle verification or ACK is established.",
+    "Original V1 before-first-resume gate remains failed; V2/V3 use a distinct pre-user-mode CREATE gate.",
+    "Trusted creator capture remains distinct from independent guardian kernel-event association.",
+    "No three-actor production transport, recovery-fence, actual model/effort, all18 eligibility, business or live rollout proof."
+  ],
+  "goal_complete": false
+}

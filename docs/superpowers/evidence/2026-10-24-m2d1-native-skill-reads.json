@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "label": "versioned-native-skill-read-observations",
+  "source_base_commit": "eb588477e23462ceaad16d8a2c61c94dc6b368fe",
+  "profile_hash": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "input_versions": {
+    "legacy": [
+      1,
+      2
+    ],
+    "fresh_linked_views": 3
+  },
+  "fresh_receipt_version": 3,
+  "fresh_tools": [
+    "mcp__fixture__fixture_read",
+    "mcp__skill__skill_asset_read"
+  ],
+  "legacy_and_operation_tools": [
+    "mcp__fixture__fixture_read"
+  ],
+  "source_hashes": {
+    "improvement_claude.py": "d3c0cd399942cae76c7a7b18da434a5f9b0444237e3a2d9e1e89a80014259382",
+    "improvement_sandbox.py": "5c1559689edf924cde9f55d98228bcec1935dbce3508f1494412ce9160a1e73f",
+    "improvement_skill_asset_broker.py": "ad578c4f2b4c9c3b9e8556f28ad7dd67f570f566f008783a15b1596bd177b9ad",
+    "improvement_skill_asset_proof.py": "d899663eb2d79483aad15b865439456a6a7d091d37b42c9e2624c93023941f99",
+    "improvement_trial_checks.py": "816a7bdd2b86653047c0f9f98f95d9982a74c778cfaecbd8800a0b19e4a90f35",
+    "improvement_view_materialization.py": "e6bd4289f04f70d5d0ec068145c9cbac7c4efc594523e17dca0faab8ff8afcc0"
+  },
+  "test_hashes": {
+    "test_improvement_skill_asset_proof.py": "6a2f0176619dd615e2358f050c49b455036cd471a87ce4c107af8315a97046f5",
+    "test_improvement_native_skill_reads.py": "a664a6c6bd431ea5fd7a63b9516be6e2d4027b004f29441138a04088bd96c515",
+    "test_improvement_view_materialization.py": "e6acb8a65e6e184828f264fc101159cf572d396b5509a5c836fd20774a748a5a",
+    "test_improvement_operation_worker.py": "54d3df3dfd8e5b0a78d61cc4f882167afd89c1700f630112ac61a57aff828087"
+  },
+  "affected_tests": 133,
+  "affected_seconds": 197.876,
+  "seconds_basis": "Sequential subprocess wall; unchanged passing product-source checks reused after test-only fixture corrections.",
+  "affected_results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_skill_asset_proof.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.688,
+      "seconds_basis": "subprocess wall",
+      "tests": 14,
+      "log": "affected-test_improvement_skill_asset_proof.log",
+      "log_sha256": "f6ca5b0c1d6e4694643c1877814fbffe0d28357c286b1f4b0df737aa868451d2"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_native_skill_reads.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 3.89,
+      "seconds_basis": "subprocess wall",
+      "tests": 10,
+      "log": "affected-test_improvement_native_skill_reads.log",
+      "log_sha256": "d4040d5151579a75283d28ef67e657e0a35de1ba6d74113b3585fb3f9a8f7de5"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_skill_asset_broker.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.61,
+      "seconds_basis": "subprocess wall",
+      "tests": 12,
+      "log": "affected-test_improvement_skill_asset_broker.log",
+      "log_sha256": "1c7dc7e4c2beec771651dc0e5bd97589c9fc26872ee7092fadffa8b87c51f1c4"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_sandbox.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.531,
+      "seconds_basis": "subprocess wall",
+      "tests": 15,
+      "log": "affected-test_improvement_sandbox.log",
+      "log_sha256": "b0e266b24c10b8384061fb35644dc530b4cca460872bac89435282c206344b85"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_claude.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 1.985,
+      "seconds_basis": "subprocess wall",
+      "tests": 22,
+      "log": "affected-test_improvement_claude.log",
+      "log_sha256": "7e67f76cfce5a30a5a5f49722f9dc3a914b7ebcca3ae6cd79b70a4d5826edd36"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_worker.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 5.891,
+      "seconds_basis": "subprocess wall",
+      "tests": 9,
+      "log": "affected-test_improvement_worker.log",
+      "log_sha256": "001690e1f7468adffe6723260c5942cf93f83d50036840e83a6b85e29a676e43"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_checks.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 1.703,
+      "seconds_basis": "subprocess wall",
+      "tests": 29,
+      "log": "affected-test_improvement_trial_checks.log",
+      "log_sha256": "feea99f327a26cab7936e66738805c837d5adcb15425d7399d589aa04d4cedfc"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_operation_results.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 22.25,
+      "seconds_basis": "subprocess wall",
+      "tests": 5,
+      "log": "affected-test_improvement_operation_results.log",
+      "log_sha256": "c265475af897b8010c8b4cf9907ebc0e3d3661a1ff4b98d1d6abce0fbe010222"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_native_skill_reads.py",
+        "VersionedSkillInputTests.test_nested_native_qualification_injections_keep_contiguous_sse_indexes",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.719,
+      "tests": 1,
+      "log": "remaining-test_improvement_native_skill_reads.log",
+      "log_sha256": "14f14993f7cc02a99991ad84d37a072489b6bfeed830f55c805c01a2bdddab0f"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_operation_worker.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.922,
+      "tests": 11,
+      "log": "remaining-test_improvement_operation_worker.log",
+      "log_sha256": "751af278539a7a65220a27408ff315f164dee0d1ba35aec4564b344bcc54b7c7"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_materialization.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 55.406,
+      "tests": 4,
+      "log": "remaining-test_improvement_view_materialization.log",
+      "log_sha256": "621f1bd78d1af2fec62ef2ec435dad1e5c95a1bd5aebd3861c202a5135a0bcef"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_execution.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 99.281,
+      "tests": 1,
+      "log": "remaining-test_improvement_view_execution.log",
+      "log_sha256": "40c48b620d92dfaab250102bd74038237737496c1dc5d2a949ae7e272c6d8ce0"
+    }
+  ],
+  "independent_review": {
+    "verdict": "approved",
+    "scope": "New versioned read boundary and scoped review fixes; prior D1 proof reused.",
+    "results": [
+      {
+        "log": "review-proof.log",
+        "tests": 14,
+        "seconds": 0.04,
+        "seconds_basis": "unittest reported",
+        "sha256": "6c2d55b925796098361db270cf30ccd87f5b461fb7d4be1e0317393619204573"
+      },
+      {
+        "log": "review-native-skill-reads.log",
+        "tests": 11,
+        "seconds": 3.386,
+        "seconds_basis": "unittest reported",
+        "sha256": "c70eb7afc26d1c8e1193d0fe249d1c13d541a94f1d62e24816474e4ec5994f8e"
+      }
+    ],
+    "source_and_test_hashes_unchanged": true
+  },
+  "records_sha256": {
+    "affected-record.json": "cf524f654e8c9c1b018088477b548caf77569603dadf2c1ec110c6455e8ac977",
+    "remaining-record.json": "e22af3bb912f19b6ac357f6628527270c79067415884102edc800f97f60546b2",
+    "native-skill-reads-record.json": "b6494a8184a999607ca2aa176326ed168eae27bc8eb3b86792e795f3659130c8"
+  },
+  "red_logs_sha256": {
+    "proof-red.log": "af2d139f4e032dd87f8aad3515537985d72e06dcb1682f95522a906f00f0779f",
+    "proof-review-red.log": "e203b85759b2941e55e621141f80306eb197fec2bd4e46b739d00043204288c6",
+    "input-profile-red.log": "d748dfcfacbb89a610dff44299d56a65aa6b77de25d2ebe79bd2550f85b8e1c1",
+    "checker-red.log": "f5ed10aa3781bb55532d8d8b556ce1846a25732cad3162e4df1b6a21b0b1ff9f",
+    "materialization-red.log": "13883256f278ff0103c4f87b849869b8776fe6f3143da07b1fba6e4f5ce53694",
+    "materialization-red-2.log": "fce2b28c175b7bd67896f2602396b080fb22a90867f0b929f137fbc2dd838d98",
+    "role-results-red.log": "28e333c6f922082057765f1dbd2171c2159ecebd23e4bb80c132a9ba01438496",
+    "qualification-sse-red.log": "ee3091ed057cddbfcc5292caf2abbd04ae115f47fdbbc637ed9109eea2647b9c"
+  },
+  "native_qualification": {
+    "path": "docs/superpowers/evidence/2026-10-24-m2d1-native-qualification-skill-reads.json",
+    "sha256": "bf793edf18abf0cbeecf83983ee619ae4a4c96415b844cc488b2ed1ed9c09a4a",
+    "tests": 20,
+    "seconds": 93.952,
+    "selected_account_calls": 0
+  },
+  "actual_native_success_flag": null,
+  "actual_native_error_flag": true,
+  "actual_asset_observed_use": "unknown",
+  "review_fixes": [
+    "Mixed-valid orphan results and broker response replay through another tool cannot pass.",
+    "Shared operation inventory retains its fixture-only default and old call signature.",
+    "Nested qualification SSE blocks use consecutive indexes; legacy observed-use assertions remain exact.",
+    "Exact native footprint assertion includes both newly reachable modules, with no duplicate entries."
+  ],
+  "constraints": [
+    "Observed read is not instruction understanding, business correctness or owner acceptance.",
+    "Receipt-only claims cannot replace independently correlated native and immutable broker records.",
+    "Actual CLI successful tool results omit the error flag; strict current checker keeps that coverage UNKNOWN.",
+    "No global None-to-False normalization, all18 waiver, selected-account retry or forced candidate win.",
+    "Actual reasoning/image/configuration, genuine account pair/final and business/live gates remain open.",
+    "Pilot type delegated by owner: reconciliation primary, document processing secondary, Python technical control."
+  ],
+  "business_proof": false,
+  "live_activation_granted": false,
+  "goal_complete": false
+}

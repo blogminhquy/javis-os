@@ -64,7 +64,7 @@ class OperationMigrationTests(OperationFixture):
                     connection.execute("INSERT INTO improvement_schema VALUES(1,?)", (version,))
                     connection.execute("INSERT INTO improvement_policies VALUES('legacy-brain','off',7)")
                 IM.ensure(database)
-                self.assertEqual(IM._schema_version(database), 6)
+                self.assertEqual(IM._schema_version(database), 7)
                 with closing(database._conn()) as connection:
                     self.assertEqual(tuple(connection.execute("SELECT * FROM improvement_policies").fetchone()),
                                      ("legacy-brain", "off", 7))
@@ -75,7 +75,7 @@ class OperationMigrationTests(OperationFixture):
 
     def test_schema5_upgrades_preserving_actual_candidate_trial_call_and_event_bytes(self):
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 6, "Generated-role migration is absent")
+        self.assertEqual(IM._schema_version(self.store), 7, "Current view migration is absent")
         after = self.h.history()
         self.assertEqual({name: after[name] for name in self.before}, self.before)
         self.assertTrue({"improvement_preparations", "improvement_preparation_trial_links",
@@ -97,7 +97,7 @@ class OperationMigrationTests(OperationFixture):
 
     def test_actual_released_b_reader_rejects_new_schema_before_backup_or_write(self):
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 6, "Generated-role migration is absent")
+        self.assertEqual(IM._schema_version(self.store), 7, "Current view migration is absent")
         before = self.h.history()
         with patch.object(self.store, "_backup_before", side_effect=AssertionError("Old binary cannot write")):
             with self.assertRaises(self.old_reader.SchemaError):
@@ -120,8 +120,9 @@ class OperationMigrationTests(OperationFixture):
 
         with patch.object(self.store, "_backup_before", side_effect=backup), ThreadPoolExecutor(max_workers=2) as pool:
             list(pool.map(migrate, (1, 2)))
-        self.assertEqual(backups, [("improvement_preparations", ".pre-improvement-m2-generated.bak")])
-        self.assertEqual(IM._schema_version(self.store), 6)
+        self.assertEqual(backups, [("improvement_preparations", ".pre-improvement-m2-generated.bak"),
+                                  ("improvement_effective_views", ".pre-improvement-m2-views.bak")])
+        self.assertEqual(IM._schema_version(self.store), 7)
         self.assertEqual({name: self.h.history()[name] for name in self.before}, self.before)
 
     def test_failure_rolls_back_every_new_table_trigger_and_version(self):
@@ -134,11 +135,11 @@ class OperationMigrationTests(OperationFixture):
         with closing(self.store._conn()) as connection:
             self.assertIsNone(connection.execute("SELECT name FROM sqlite_master WHERE name='improvement_operation_scope'").fetchone())
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 6)
+        self.assertEqual(IM._schema_version(self.store), 7)
 
     def test_unknown_future_version_rejects_without_backup_or_mutation(self):
         with self.store._Tx(self.store) as connection:
-            connection.execute("UPDATE improvement_schema SET version=7")
+            connection.execute("UPDATE improvement_schema SET version=8")
         with patch.object(self.store, "_backup_before", side_effect=AssertionError("Unknown schema cannot back up")):
             with self.assertRaises(IM.SchemaError):
                 IM.ensure(self.store)

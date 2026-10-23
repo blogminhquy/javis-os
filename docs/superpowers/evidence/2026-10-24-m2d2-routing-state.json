@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "base_commit": "999c207a1aa69236ddadea2f09fe8aafcccc3661",
+  "scope": "M2D2 routing-state foundation only; no production overlays/task pin integration",
+  "source_hashes": {
+    "server/skill_router.py": "1a141e295d3daf6c1b9604ef31286d794bd4f73fb730ca8752eba0cc4c8155f9",
+    "tests/python/test_skill_resolution_state.py": "d5001b12b79d180c180ce49fffeccfabb10d53885df09e879d21efea1d620269"
+  },
+  "red": {
+    "tests": 7,
+    "failures": 5,
+    "seconds": 0.118,
+    "log_sha256": "b2edf1701daeb1c7783e202f0d954c9d2fda60b3b9242435940ec650cee0b308"
+  },
+  "green": {
+    "tests": 7,
+    "seconds": 0.123,
+    "log_sha256": "eeff91dcfe04da468d53ba207892a94ff626f0102f1b747f14e9a4612c1f8c7d"
+  },
+  "regression_scripts": [
+    {
+      "args": [
+        "tests/python/test_skill_usage.py"
+      ],
+      "exit_code": 0,
+      "seconds": 5.813,
+      "log": "routing-regression-0.log",
+      "log_sha256": "45a8911a6415af4b7555425ef79b76fa14615c853cf50558b1b83464395793b7"
+    },
+    {
+      "args": [
+        "tests/python/test_skill_caps.py"
+      ],
+      "exit_code": 0,
+      "seconds": 3.094,
+      "log": "routing-regression-1.log",
+      "log_sha256": "c56d72646a3cce2258e20355a5633a0b159cb34008937c96d11dce33fcf66b85"
+    },
+    {
+      "args": [
+        "tests/python/test_skill_da_ngon_ngu.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.282,
+      "log": "routing-regression-2.log",
+      "log_sha256": "8600e955bdd30962f326248c728b4355167cb91016a05fa9a849bf706860dc52"
+    },
+    {
+      "args": [
+        "-m",
+        "pytest",
+        "tests/python/test_adaptive_context_phase8.py",
+        "-q"
+      ],
+      "exit_code": 0,
+      "seconds": 3.781,
+      "log": "routing-regression-3.log",
+      "log_sha256": "722b9a23dd29478b858f04d736ac20ca6805063c0251aa8e0c69f3826e80b298"
+    },
+    {
+      "args": [
+        "tests/python/test_skill_subtree_ship.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.422,
+      "log": "routing-regression-4.log",
+      "log_sha256": "df6cef61f89387a3c014d856553ae0450f87125adb8cfadc6365b8881abd157a"
+    }
+  ],
+  "regression_seconds": 13.392,
+  "phase8_pytest_tests": 11,
+  "full_source_record_sha256": "4d06f07fd22f746835527fe8318973021c18968acd60420db16e9b18157e5304",
+  "other_router_ast_unchanged": true,
+  "native81_pins_identical": true,
+  "native_reused_evidence_sha256": "1f3391cf9c1bf621d3ef2de44dd181acf17dd7d922fed4a80ae66bef36c8fab4",
+  "native_profile_hash": "958527ac69c3b5728044b22cf6d3bdebb920da7cbe46a9da261e899568ced1ef",
+  "model_calls": 0,
+  "activation": false,
+  "observed_behavior": [
+    "Disabled canonical and higher legacy state cannot resolve a stale lower mirror",
+    "Same-source enabled/disabled collision remains disabled across metadata/body loaders",
+    "Actual warmed hub handler denies after disable without a new skill_usage count",
+    "Warm lazy registry invalidates the disabled canonical skill",
+    "Enabled canonical and legacy-only fallback retain source precedence"
+  ],
+  "remaining": [
+    "independent routing-delta review",
+    "exact final-head CI on any integrated new source",
+    "complete D2 host/task/session/effective-view and native integration",
+    "D1 account pair/eligible-final and E/F/M3-M8 business/live gates"
+  ]
+}

@@ -68,6 +68,17 @@ def read_trial(assets, principal, identifier):
         current = trials._public(connection, row)
         if IM._hash(current["request"]) != row["request_hash"]:
             raise AssetUnavailable("trial_view_unavailable")
+        if current['request'].get('version') == 4:
+            from improvement_view_trial_protocol import validate_request_v4
+            validated = validate_request_v4(current['request'])
+            link = connection.execute('SELECT * FROM improvement_view_trial_links WHERE comparison_id=? AND brain_id=? AND cell_position=?',
+                (validated['lineage']['comparison_id'], brain, validated['lineage']['cell_position'])).fetchone()
+            if (link is None or link['trial_id'] != row['id'] or link['request_hash'] != row['request_hash']
+                    or link['experiment_id'] != validated['pins']['experiment_id']
+                    or any(link[key] != value for key, value in validated['view'].items())
+                    or any(link[key] != validated[key] for key in ('case_id', 'repeat', 'variant'))
+                    or link['pair_id'] != validated['lineage']['pair_id']):
+                raise AssetUnavailable('trial_view_unavailable')
         if current["request"].get("version") == 3:
             from improvement_preparation_protocol import validate_preparation_request_v3
             validated = validate_preparation_request_v3(current["request"])
@@ -106,6 +117,9 @@ def read_trial(assets, principal, identifier):
                   verdict=None, evaluation=None, execution_checks=[], usage=_usage())
     if request.get("version") == 2:
         result["experiment_lineage"] = request["lineage"]
+    elif request.get('version') == 4:
+        result['experiment_lineage'] = request['lineage']
+        result['effective_view'] = request['view']
     elif request.get("version") == 3:
         result["preparation_lineage"] = request["preparation"]
     if pointer is not None:

@@ -1,0 +1,59 @@
+{
+  "version": "0.299.0",
+  "evidence_class": "technical",
+  "source_base_commit": "330501faf91d4ac37cbc14920c2446727e4ce9d6",
+  "main": "d3d7cb36dfb295622ba331cf626c9dc810700746",
+  "semantic_review": {
+    "status": "approved",
+    "head": "330501faf91d4ac37cbc14920c2446727e4ce9d6",
+    "independent_tests": 1,
+    "seconds": 12.336,
+    "log_sha256": "8a21a9b0c8d756098faa0c00fca79c79cbea40a2860705b016d95d583901327e"
+  },
+  "semantic_regression": {
+    "path": "2026-10-23-m2d1-semantic-invalid-output.json",
+    "sha256": "4a8d10e966a7931410093822f8b1261f8ecef7c0d01042c8ba27dc36286d9464",
+    "tests": 63,
+    "seconds": 349.72
+  },
+  "historical_selected_account_feasibility": {
+    "path": "2026-10-23-m2d1-real-feasibility.json",
+    "sha256": "90ecc20bfc31c581292e654f8a4ff68192e77e56ec6caba8f3a1600e536321a0",
+    "calls": 2,
+    "paired_calls": 0,
+    "outcome": "invalid_semantic_output_rejected_before_pair"
+  },
+  "native_qualification": {
+    "path": "2026-10-23-m2d1-native-qualification-outcome.json",
+    "sha256": "1f3391cf9c1bf621d3ef2de44dd181acf17dd7d922fed4a80ae66bef36c8fab4",
+    "profile_hash": "958527ac69c3b5728044b22cf6d3bdebb920da7cbe46a9da261e899568ced1ef",
+    "tests": 20,
+    "seconds": 94.89,
+    "selected_account_calls": 0
+  },
+  "registration": {
+    "tests": 3,
+    "seconds": 0.068,
+    "red_log_sha256": "f78ca8d1ac640908d719aff7e0fdbd52c1f29c5c0fb3df95acb5fa9e24f15132",
+    "green_log_sha256": "47114359201e9dd82253dcf534e6587aeedf57358a4e31ce4a27703c1cf5e424",
+    "historical_entries_unchanged": true,
+    "lookup_and_all_other_registry_ast_unchanged": true,
+    "scoped_review": "pending"
+  },
+  "post_qualification_source_changes": [
+    "server/improvement_native_qualifications.py",
+    "tests/python/test_improvement_view_reservations.py"
+  ],
+  "paired_helpers_ast_unchanged_outside_metadata_tests": true,
+  "all81_native_source_pins_still_exact": true,
+  "changelog_log_sha256": "5fbbc465d2f7dc472174ec056598bb5f959ada0dce437b12902c7be34ad7e281",
+  "remaining": [
+    "exact final-head full CI",
+    "genuine native TrialRunner/account pair and eligible selected-final proof",
+    "D2 production router/lazy/hub/task/session pin integration",
+    "E atomic activation/revert and F complete operator flow",
+    "M3-M8 business/live/owner/source/observation gates"
+  ],
+  "deployment": false,
+  "activation": false
+}

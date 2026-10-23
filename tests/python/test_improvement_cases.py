@@ -336,7 +336,8 @@ class ImprovementCaseTests(unittest.TestCase):
             results = list(pool.map(migrate, (1, 2)))
         self.assertEqual(results, [None, None])
         self.assertEqual(backups, [("improvement_experiments", ".pre-improvement-m2-experiments.bak"),
-                                   ("improvement_preparations", ".pre-improvement-m2-generated.bak")])
+                                   ("improvement_preparations", ".pre-improvement-m2-generated.bak"),
+                                   ("improvement_effective_views", ".pre-improvement-m2-views.bak")])
         for _, suffix in backups:
             with sqlite3.connect(self.rs.path.with_name(self.rs.path.name + suffix)) as connection:
                 self.assertEqual(connection.execute("SELECT version FROM improvement_schema").fetchone()[0], 1)

@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "label": "design-only/SDK-imported-anyio-inert-image-gate",
+  "evidence_class": "technical",
+  "source_commit": "ea74d62e10d5737930f5205ec4e87be59d9e0cde",
+  "production_reachable": false,
+  "selected_account_calls": 0,
+  "actual_claude_or_sdk_client_queries": 0,
+  "provider_calls": 0,
+  "runtime": {
+    "platform": "Windows11 build26300",
+    "python": "3.12.10",
+    "sdk": "0.2.116",
+    "anyio": "4.14.1"
+  },
+  "driver_runs": 1,
+  "driver_exit_code": 0,
+  "driver_tool_wall_seconds": 2.516,
+  "actual_creator_and_debug_pump_thread_match": true,
+  "actual_sdk_imported_anyio_open_process_used": true,
+  "wrapper_checks_exact_command_env_cwd_flags_before_create": true,
+  "initial_process_thread_handles_duplicated_before_popen_closes_them": true,
+  "job_assigned_before_create_wrapper_returns": true,
+  "original_v1_before_first_resume_requirement": "failed",
+  "uses_distinct_v2_pre_user_mode_create_gate": true,
+  "cases": [
+    {
+      "kind": "matching_image",
+      "actual_debug_hFile_id_and_hash_match_guard": true,
+      "rearmed_suspend_previous_count": 0,
+      "final_resume_previous_count": 1,
+      "debug_and_anyio_exit_code": 0,
+      "stdout_bytes": 213,
+      "own_marker_observed": true
+    },
+    {
+      "kind": "identical_bytes_foreign_file",
+      "actual_debug_hFile_hash_matches_but_file_id_differs": true,
+      "refused_while_create_event_pending": true,
+      "no_local_image_ack_or_final_resume": true,
+      "debug_and_anyio_exit_code": 73,
+      "stdout_bytes": 0
+    },
+    {
+      "kind": "cancel_before_local_image_ack",
+      "real_asyncio_cancelled_error_observed_at_pending_create": true,
+      "no_local_image_ack_or_final_resume": true,
+      "debug_and_anyio_exit_code": 75,
+      "stdout_bytes": 0
+    }
+  ],
+  "all_cases": {
+    "retained_process_incarnation_initial_thread_and_exact_job_checked": true,
+    "actual_image_hFile_id_hash_compared_while_create_uncontinued": true,
+    "bootstrap_resume_previous_count": 1,
+    "continued_debug_exit_before_wait_and_job_drain": true,
+    "independent_process_handle_signaled": true,
+    "event_process_thread_handles_invalid_after_continued_exit": true,
+    "anyio_wait_reader_aclose_settled_before_job_close": true,
+    "guard_released_after_real_terminal_job_drain": true,
+    "native_child_still_active": false
+  },
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+  "raw_sha256": {
+    "probe_sdk_anyio_debug_v3.py": "ce39f8bcf3455caaea86fb68b831da3c518bfa548220b01741015fec22f0086d",
+    "sdk-anyio-v3-report.json": "de6f452ebb5ec3ecd9f1ee6e74fe8684d3e964c330aee21b272ef483d0f2a87d",
+    "sdk-anyio-v3-evidence-manifest.json": "27f76b3a5bae35678603b4e3bfc8252c96d19e202af72326a88e3f2a6b202b20"
+  },
+  "independent_review": {
+    "verdict": "limited_static_approval",
+    "all29_manifest_entries_and_journals_verified": true,
+    "v1_v2_frozen_evidence_unchanged": true,
+    "current83_qualified_source_pins_unchanged": true,
+    "actual_current_profile_hash": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+    "frozen_summary_972_reference_is_historical_not_the_current_profile": true,
+    "native_probe_rerun": false
+  },
+  "limits": [
+    "Only an inert owned executable ran through the SDK-imported anyio function; no full SDK transport/client/connect/query proof.",
+    "Local image ACK is simulated; no guardian IPC, remote handle transfer or independent guardian kernel-event association.",
+    "Creator capture remains trusted source code, not proof against a malicious worker.",
+    "Cancellation during spawn, repeated cancellation, generic failure paths, host/worker/guardian death and recovery remain unverified.",
+    "Private image-guard handle access and process-local CreateProcess instrumentation are not production interfaces.",
+    "No detach, metadata exclusion, actual model/effort/configuration, all18 eligibility, business or live rollout proof."
+  ],
+  "goal_complete": false
+}

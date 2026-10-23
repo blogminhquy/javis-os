@@ -831,20 +831,18 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
 
     async def _skill(args):
         name = str((args or {}).get("name") or "").strip()
-        # skill_router.resolve_skill_file đã validate slug + chống traversal, tìm canonical
-        # skills/ → .claude/skills → .agents.
-        f = skill_router.resolve_skill_file(vault_root, name)
-        if not f or not f.is_file():
+        asset = await asyncio.to_thread(skill_router.read_skill_asset, vault_root, name)
+        if asset is None:
             return ("ERROR: không có skill đó. Skill khả dụng: "
                     + (", ".join(_list_skills(vault_root)) or "(chưa có)"))
-        text = f.read_text(encoding="utf-8", errors="replace")[:60_000]
+        text = asset.text[:60_000]
         # ĐIỂM ĐẾM DUY NHẤT: mọi engine nạp skill qua tool này đều đi ngang đây. Chỉ đếm ở
         # đường THÀNH CÔNG - nhánh trên đã lọc slug sai/skill tắt nên không đếm gõ nhầm.
-        # Dùng f.parent.name (slug canonical trên đĩa) chứ không dùng `name` thô từ engine.
+        # Dùng slug đã được bộ đọc chung kiểm thay vì tên thô từ engine.
         # bump có I/O đĩa + fsync trong lock (chặn) → đẩy qua thread để không chẹn event
         # loop (WebSocket/telegram poller/loop scheduler đều chạy chung loop này).
         # bump tự nuốt lỗi → sidecar hỏng không bao giờ làm gãy việc nạp skill.
-        await asyncio.to_thread(skill_usage.bump, vault_root, f.parent.name)
+        await asyncio.to_thread(skill_usage.bump, vault_root, asset.slug)
         return text
 
     add("javis_read_file", "Đọc 1 file trong vault (Second Brain). path tương đối so với gốc vault; "

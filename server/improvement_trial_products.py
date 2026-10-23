@@ -116,7 +116,7 @@ class TrialProducts:
             if row["status"] not in {"running", "evaluating"} or attempt["engine_at"] is None:
                 raise IM.ConflictError("trial_evaluation_stale")
             request = json.loads(row["request_json"])
-            self.trials._current(connection, row["brain_id"], request, trial_id=row["id"])
+            self.trials._current(connection, row["brain_id"], request, trial_id=row["id"], principal=principal)
             workspace = json.loads(attempt["workspace_json"])
             manifest = self.trials.workspace.validate(workspace)
             if IM._hash(manifest) != attempt["materialization_hash"]:

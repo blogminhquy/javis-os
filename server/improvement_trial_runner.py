@@ -227,7 +227,11 @@ class TrialRunner:
                 manifest = await _settled_call(self.trials.materialize, principal, trial_id,
                     expected_generation=current["generation"], lease_token=token, baseline_context=context)
                 await authority()
-                workspace = await _settled_call(self.trials.workspace.prepare, trial_id, current["attempt"], manifest)
+            # Filesystem preparation does not advance the SQL generation. Let
+            # the validating heartbeat renew while its owned thread is running;
+            # the execution lifetime and settled-call drain still prevent escape.
+            workspace = await _settled_call(self.trials.workspace.prepare, trial_id, current["attempt"], manifest)
+            async with lock:
                 await authority()
                 current = await _settled_call(self.trials.prepared, principal, trial_id,
                     expected_generation=current["generation"], lease_token=token, receipt=workspace)

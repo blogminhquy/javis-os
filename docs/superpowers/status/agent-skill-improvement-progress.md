@@ -1,5 +1,525 @@
 # Agent and skill improvement Goal progress
 
+## Current continuation — fixed root factory approved; owned verification and guardian integration
+
+Pilot choice remains owner-delegated: reconciliation primary, document processing
+secondary, Python bugfix/test technical control. This selects work types only;
+business source scope, owner acceptance and live activation are not inferred.
+
+Local57fea085 commits the closed image metadata channel; it is pending batch push.
+The atomic fixed worker factory now has independent scoped approval:17 collected,
+16PASS+1Linux-onlyskip2.098s on source672d55e8/test0624ea4d. Real acquisition and
+close-result failures were reproduced and corrected before approval; only actual
+native CloseHandle FALSE permits retry, while ambiguous post-success errors stay
+unproven. Factory17 is inert fixed-base Python/pipe/job engineering evidence, not
+actual SDK startup, original pipe sealing or full guardian/debug/job drain. Public
+fixed-worker-launch evidence preserves all historical failed attempts separately.
+
+Next canonical GuardianV2 API/schema is settled in the existing dispatch plan;
+missing-component11RED is recorded and implementation is underway without runtime
+enabling. A separate real cancellation gap was reproduced in both actual adapter
+generators and both actual runners: verification threads outlived their cancelled
+caller. Existing settled ownership now keeps the thread and execution lifetime;
+focused4 pass, affected regressions/review remain pending. The first too-short
+runner observations passed before cleanup finished; stronger waiting reproduced
+both original failures, preserved separately. These four changed PROFILE_SOURCES
+invalidate04c8 as a current qualification. Its20/nativeSkill evidence remains
+historical; no registration/account retry until the whole changed boundary freezes
+and qualifies. No new account/SDK/provider invocation or live use occurred.
+
+CI40019712830 at326c now succeeded. Pushed5563 CI40022263716 was still running at
+last observation; neither earlier result qualifies local or working changes.
+
+## Prior continuation — canonical capture/bootstrap committed; metadata channel verified
+
+Current pushed head5563ab908bc7bd56e94a001dff4d1ef070d50535 includes query-policy
+7f710bbc and independently approved capture/bootstrap. All eight newly committed
+source/test Git blobs exactly match their tested worktree bytes. New CI40022263716
+runs; older ffcd CI40016579262 succeeded, while326c CI40019712830 still runs.
+Earlier CI cannot qualify the new head. PR803 stays draft/reserved0.299.0;
+no merge/deploy/restart/selected-CLI/account retry/live activation occurred.
+
+Prior checkpoint326c9d9ea0b49f4a7c1cfb1dcfc03031732807d4 added the approved
+borrowed-file API and public importV2/guardianV6/D2 audit evidence to PR803. Current
+head/CI are recorded above. PR body preserves successful limited inert probes and
+their historical failures. No merge, deployment, restart, selected-CLI/model/account
+retry or live activation occurred.
+
+Canonical NativeDebugInvocation now exposes the SDK's actual async process interface
+with a persistent samecreator pump through EXIT and exact one dispatch. Initial9
+RED/GREEN preceded a real privacy/strict-ACK finding, then2 RED tests with7 expected
+failures and corrected11GREEN4.226s. Independent isolated11PASS4.300s approves
+source902ba370/helper54dd2ed7/testf712dd9e with7 unchanged evidence/dependency pins;
+all83 qualified source pins remain unchanged. Public canonical-native-capture
+records retained/retryable cancellation/error/handle/ACK ownership and limits.
+No runtime consumer/profile entry, image validation, full job/worker-death or SDK
+query proof is implied. Existing plan records the custom SDK transport
+integration consumer, stable capability versus per-invocation proof separation,
+owned async verification and explicit host-preflight lifetime requirement. Full
+guardian/bootstrap/control integration remains open.
+
+Query grammar now explicitly separates pin2 fixture_only/pinned_skill policies,
+without granting role or execution authority; old pin1 schema/full result bytes
+remain unchanged. Pure8 RED-to-GREEN pass0.008s, affected17 pass0.433s, independent
+sequential17 pass0.458s and8 pass0.011s on unchanged266b75f1/fe73ba59/aee418b0 pins.
+Public query-dispatch-policies records the first deep-temp Windows269-char failure
+and unchanged-source short-temp passing rerun. No runtime caller/profile change.
+Bootstrap fixed-entrypoint/framing/declared-file verification now passes12 tests
+plus1 Linux-only skip in0.196s; independent same13 collected12PASS1skip0.213s approves
+source7d1a69f0/teste25ebc72 and unchanged public guard dependency4fc9654a. This is
+controlled in-process Windows file/module verification with simulated isolation
+flags, not actual isolated direct-base child startup. Public native-bootstrap
+records fixed targets, exact framed stdin/no-overread, verified captured target
+bytes and retained close-error ownership. Unlisted-import exclusion/initial loaded
+sections stay UNKNOWN; external qualification must authenticate bootstrap/manifest
+completeness. No production caller/profile entry or SDK/native-child call.
+
+Query policy delta7f710bbc was batched with approved capture/bootstrap in one push;
+its three Git blob IDs exactly equal tested worktree bytes. Capture author freeze uses37 explicit
+files; an initial broad glob accidentally included an open reviewer log and failed,
+preserved separately without source/test changes. A genuinely asynchronous closed
+metadata channel is the next consumer prerequisite; the current capture callback
+does not promote blocking stdin reads into cancellable IO.
+
+Metadata image channel now passes13 tests in1.588s and independent13 in1.447s;
+source12cce111/test2df8f4fa unchanged and no warnings. First13 failed1/3errors because
+shutdown alone did not settle Windows WSARecv; its failed source/log remain preserved.
+Corrected order is poison→shutdown→known socket close→UNCANCELLED IO completion
+before closed=true. Lost close authority stays permanently unproven; the negative
+test's real socket is closed/no IO pending, but retained proof-owner is not called
+success. Public image-metadata-channel records framing/strict metadata/binding/
+partial IO/replay/cancel scope and23-file author freeze. No children/SDK/account
+calls, cross-process endpoint transfer or runtime/profile entry. Initial
+worker creation/assignment also needs a concrete no-orphan lifetime: a host crash
+between suspended Popen and guardian/job assignment must not be ignored. Guardian-
+first fixed worker creation with transient private-pipe capability copies closed
+before host writes private data is the settled integration direction. Use a
+guardian-only direct CreateProcessW JOB_LIST/HANDLE_LIST factory for atomic creation
+assignment, with exactly three inherited stdio pipe capabilities and no inherited
+job/control/socket metadata handles. Future socket.share transfer follows retained
+actual process identity. Factory implementation/tests are next; old SDK capture,
+bootstrap and83 qualified profile remain unchanged until actual integration.
+
+## Previous continuation — query validator committed; startup import measured
+
+Commit ffcd1b44ee7d021be70ab5803ac0d9a3d8c7875a is pushed on PR803; staged
+source/test bytes matched the approved9831cd30/f53eb9fd pins. New final-head CI
+40016579262 is in progress. Main remains0.298.0; open PR805/807 have no reserved
+version, so PR803 retains0.299.0. No merge/deploy/restart/account retry occurred.
+
+Separate once-only startup import diagnostic V2 completed both predeclared
+variants in4.219s. Minimal-root reproduced ModuleNotFoundError:pywintypes, exit10;
+explicit trusted win32/win32-lib paths plus a retained DLL-directory handle
+imported SDK/anyio successfully, exit0. Both original retained direct-base worker
+PID/birth identities matched before import ACK. Actual native-job pre/post
+snapshots retained the same two members/incarnations and cumulative total2;
+rejecting CreateProcess counter stayed0. The additional actual job member's
+observed image path was System32/conhost.exe; current reopened-file bytes are
+recorded, not loaded-image/page proof or an inferred role. All four retained
+process handles signaled before job close; both actual jobs drained to active0.
+No SDKClient/connect/open_process, CLI/model/account/provider call occurred.
+Report129805b2 and manifest46216676 preserve the result. Historical V5's lost
+startup error remains UNKNOWN. Independent limited static approval verifies175
+frozen files,25 source pins,4 prior manifests and83 qualified pins. Future
+cleanup-failure handling must also retain observer-handle dictionaries; that
+unexercised path is not proved by the two completed normal drains. Public
+startup-import-support records the scope.
+
+The separately authorized V6 guardian receipt probe subsequently passed all four
+predeclared inert cases in one6.683s run: selected image allow, identical-byte
+foreign-file refusal, EOF before ACK, and worker death while CREATE held. Actual
+remote object duplication uses the original retained worker; process/thread
+incarnations, exact job and file-ID/hash match are checked before the one bound
+allow ACK. Death keeps guardian duplicates valid and observes native terminal
+before outer-job termination, without foreign Continue. All actual jobs drain
+before guard release. Report70d56f53/manifest203d504b are independently approved
+as limited evidence:208 frozen files,165 report/runtime pins and83 unchanged
+qualified pins verified. Public guardian-image-receipt preserves both positive
+proof and limits. No SDKClient/Claude/account/provider call occurred. This is
+trusted creator capture plus guardian object checks, not independent kernel
+association, full three-actor confidentiality, SDK query/configuration or all18
+eligibility. Generic failure/repeated cancellation/recovery remain unproved.
+
+Public ImageReadGuard.compare_file_handle now compares actual full file identity
+and privately reopened synchronous bytes without reading/seeking/closing the
+borrowed handle. Three meaningful missing-method RED cases preceded implementation;
+the full35 tests (original17 unchanged plus18) pass2.033s and independent35 pass
+2.702s. Both scoped reviews approve source4fc9654a/test8c7abdc7; all83 qualified
+pins unchanged. Private close failure invalidates attestation and retains retryable
+reader ownership. Public borrowed-file-comparison evidence records the byte-bound,
+non-deadline limitation and UNKNOWN debug origin/loaded image/metadata exclusion.
+It remains unreachable/outside PROFILE_SOURCES. Historical V6 stays frozen at
+ffcd/ab6; the changed API is not retroactively qualified by that experiment.
+
+Source audit also identifies an operation-specific blocker: actual_input_use and
+actual_reasoning are always UNKNOWN, and combined semantic verdict correctly keeps
+them UNKNOWN. The existing plan now requires separately versioned exact user-frame
+delivery capture plus qualified local-provider content verification; stdin success
+alone is pipe delivery, not a native read ACK or comprehension. SDK string-query
+wire session default differs from native init session, and init may precede query
+write. Preserve both namespaces and all old operation1 reports/UNKNOWNs. This is
+an integration requirement, not new runtime input-use proof. Sync host/worker
+preflight lifetime integration and three-actor control remain open.
+
+Read-only full-D2 consumer audit at ffcd found reusable explicit Team/task/firing
+identities but additional gaps: workflow local traces are not bound/passed into
+node executors or resume; loops lack a durable pre-execution cycle ID; Goal
+operation identity is dropped by its text-only engine factory. DM native session
+history lacks effective-view identity, and ordinary warm_ping rebuilds options
+outside a turn. turn_context.execution_metadata is Team/improvement-specific and
+must not become a generic pin authority. Keep separate immutable host bindings
+and durable task/session pins, preserve ordinary owner policy and Goal text-only
+permissions, and never install task overlays into the global capability registry.
+Existing disabled-routing/per-read proofs are reused; full D2 remains open.
+Concrete consumer/function anchors and limits are recorded in
+`../evidence/2026-10-24-m2d2-consumer-context-audit.md`; this is source inspection,
+not runtime task/session-pin evidence.
+
+## Current continuation — read-outcome foundations and actual anyio gate, 24 October
+
+Versioned native skill reads are committed/pushed ea74d62e and unreachable
+read-outcome foundations df0e24b1 on PR803. The exact83-source profile04c8c77b
+remains unchanged. Latest CI40013889560 at df0e24b1 is running; Docker size,
+byte compilation, actual main import and dashboard JS passed, full Python check
+pending. No deployment or account retry.
+
+The next plan preserves input/receipt3 UNKNOWN semantics and introduces future
+input/receipt4 only when complete dispatch/outcome integration is ready. New
+standalone PinnedReadOutcomeBroker reuses actual skill/fixture decisions and
+emits immutable ten-field envelopes/observations. New pure correlator validates
+underlying pinned payloads and actual native call/result identity/session/bytes;
+None supports derived success only with exact unique host/native delivery.
+Absent raw flags stay UNKNOWN, explicit errors cannot be overwritten, and
+verified denial is boundary evidence rather than a successful skill read.
+No execution caller or new PROFILE_SOURCES entry exists yet.
+
+Author15broker/24proof RED-to-GREEN checks pass; independent sequential15PASS
+0.072s and24PASS0.112s approve the exact four files and nine readonly dependencies.
+All83 qualified source pins remain unchanged; no native20 rerun is necessary for
+these unreachable components. Public read-outcome-foundation8700030d records
+hashes and limits. Actual input4/receipt4 integration/qualification remains open.
+
+A separate once-only inert probe uses the SDK-imported anyio.open_process on
+the actual creating/debugging OS thread. Three cases pass in2.516s: selected
+image, identical-byte foreign image refusal and real cancellation before a local
+image ACK. Actual CREATE hFile identity/hash, process/thread incarnation/exact
+job, continued debug EXIT, anyio wait/reader/aclose and job drain all precede guard
+release. Independent limited static review verifies29 artifact/runtime/source
+pins and unchanged83 source pins. Public sdk-anyio-image-gate retains original
+V1 failure and V2 bootstrap-resume distinction. No SDK client/query, selected
+CLI/account/provider or guardian IPC ran. Guardian receipt/ACK/drain, worker death,
+full SDK/configuration proof and all18 eligibility remain unqualified.
+
+The separate two-process V4 probe failed its exact-source-worker check: retained
+venv launcher15128 differed from executing worker23332. No remote duplication or
+ACK occurred. Actual outer job drain completed before guard release; independent
+static review verified29 frozen entries and83 unchanged qualified source pins.
+The failed report e9e73a48 and manifest54ed1d8a remain immutable. A separately
+planned V5 direct-base -I/-S bootstrap also failed before its first worker receipt;
+report33c3c92d preserves that failure. Stderr was discarded, so its historical
+startup cause and worker exit code are UNKNOWN. Job drain preceded guard release.
+Independent static review verified41 V5 frozen entries and83 unchanged qualified
+pins. Public guardian-image-probe-failures records both runs. Neither run proves
+a successful guardian handshake/death case.
+
+Static dependency tracing found that MCP imports pywintypes/win32api/win32con/
+win32job, normally resolved through pywin32.pth paths and DLL bootstrap. V5's
+explicit site-package root does not include those paths. A separate import-only
+diagnostic with startup/error capture is being prepared to test this hypothesis;
+no further native image run or automatic account retry is authorized by a guess.
+The new pure query-dispatch parser passes16 author checks after16 missing-module
+REDs (0.002s then0.424s; invocation1471/1777ms). Independent scoped review approves
+the exact source9831cd30/testf53eb9fd with16PASS0.420s and11 unchanged dependency
+pins. Actual bound3 options and SDK116 command construction pass at medium/high;
+fixed Windows paths are synthetic serialization fixtures, not actual dispatch.
+Closed raw-command/configuration/JSON/override and mutation checks pass. Public
+query-dispatch-foundation records the evidence. It remains unreachable, outside
+PROFILE_SOURCES, and all OS/image/provider/internal reasoning coverage is UNKNOWN.
+No native20 or unchanged39 read-outcome rerun was needed. Final-head Linux CI
+remains required. The import-only diagnostic V1 subsequently stopped before SDK
+imports: direct-base PID/birth matched the retained worker, but actual job
+accounting was total2/active2 rather than the experiment's assumed total1. No
+import ACK was sent, second variant was not run, exact job drained to active0,
+worker exit91/stderr0 were saved. Report c4b5d553 retains the failure; the extra
+member identity and historical V5 startup cause stay UNKNOWN. Next step is actual
+job startup-member identification and a pre/post import birth/membership
+measurement, preserving exact worker/image/guardian checks. No blind rerun.
+
+Full Goal M0–M8 stays active. Pilot work types remain reconciliation, document
+processing and Python technical control; business-source/owner/live gates stay
+open. Continue actual guardian ownership and version4 integration, then full
+D2/E/F/M3–M8. Reserved0.299.0; final-head CI/review/integration still required.
+
+
+## Current continuation — native skill reads, 24 October
+
+Owner delegated pilot choice: reconciliation first, document processing second,
+Python bugfix/test as the technical control. This is a work-type choice, not
+new business-source access, owner acceptance or live activation permission.
+
+Fresh linked v4 materializations now use input manifest3 and receipt3. The
+prompt supplies an exact read descriptor; a second closed readonly MCP tool
+serves only immutable pinned skill bytes. Old manifests1/2 retain exact prompt,
+hash, tool and receipt behavior. Operation roles remain fixture-only. Both new
+reachable broker/proof modules join the exact native footprint, now83 sources;
+the historical972175a2 registration does not authorize this changed footprint.
+
+The pure correlator joins actual native call/result IDs, initialized stream
+session, exact arguments and unpredictable broker response IDs/text/hash.
+Receipt summaries are independently recomputed by the checker. Available,
+selected, observed read and comprehension remain distinct; no comprehension
+claim. Missing native optional error flags stay UNKNOWN. Full18 and actual
+reasoning gates remain unchanged.
+
+Review found two mixed-valid orphan/replay cases: reproduced14 tests/2FAIL,
+fixed14PASS0.061s. It also caught the shared operation-inventory signature
+regression and two qualification-fixture issues; all are corrected. The exact
+83-source footprint expectation is updated without weakening its set/hash checks.
+Sequential affected verification:133PASS197.876s subprocess wall on unchanged
+product sources, with qualification-fixture-only repairs between records.
+Independent final proof14PASS0.040s + native-skill11PASS3.386s, source/test hashes
+unchanged; scoped review approved. Raw records/logs live in the native-skill-reads
+ledger. Actual native qualification20PASS93.952s on the frozen83-source
+profile04c8c77b with dummy auth/local providers. Both paired arms return the
+exact host response and candidate foreign read is denied. Actual success
+is_error is absent/NULL; explicit denied-read error is TRUE. Coverage therefore
+stays UNKNOWN. A single exact registration was added after proof;7metadata
+checks show1RED0.129s then7GREEN0.126s. Independent registration audit APPROVED,
+7PASS0.127s;83source/6test pins,3raw/4logs/full1183-file record verified. All6
+prior entries and lookup/unrelated fixture ASTs remain unchanged. The profile
+source was not changed by registration, so no native20 rerun is needed.
+No selected-account call has been retried. Public native-skill-reads evidence
+9b745a63 and native qualification bf793edf preserve the exact source/log pins.
+
+Separate inert debug-image evidence preserves V1 failed before first Resume.
+V2's distinct pre-user-mode CREATE gate binds actual hFile volume/file ID/hash
+to the retained guard, accepts the selected image, and refuses an identical-byte
+foreign file with zero output. Actual EXIT/job/process drain precedes guard
+release. No SDK/Claude/account ran in these probes. Guardian confidentiality,
+SDK creator-thread/debug-pump compatibility, death/cancel/drain and native
+configuration coverage remain unqualified. Public debug-image-handle record
+and hashed confidential-guardian design addendum preserve these limits.
+
+Main fetched again:0.298.0; open PR805/807 have no reserved version, PR803 keeps
+0.299.0. Bilingual changelog validation passes. Current delta is ready for
+commit/push and final-head CI, with the full Goal still active.
+
+Goal M0–M8 stays active; genuine configured-account pair/final, full D2/E/F,
+M3–M8, business evidence and live gates remain open. PR803/reserved0.299.0,
+final-head CI/review/integration still required. No deploy/restart/live activation.
+
+
+## Current continuation — immutable skill broker and Linux fixture repair, 24 October
+
+Standalone SkillAssetBroker now validates/fixes one materialized v2 manifest,
+trial/attempt/input and view/asset hashes, serves exact immutable bytes and
+retains unique read IDs plus exact emitted response/hash for future native
+correlation.12 author testsPASS0.030s; independent parent source review approved,
+separate12PASS0.703s subprocess on frozen full maps. No native observed_use is
+claimed before actual ToolUse/ToolResult/session correlation. No native caller
+exists yet; add this module to PROFILE_SOURCES at eventual integration.
+Public broker397a6aad; pure synthetic component, no SDK/account execution.
+
+Actual LinuxCI40002516501 at01717332 failed only the new view-observation fixture:
+its inert binary was created inside a protected skill folder after provenance
+froze, legitimately changing Linux directory ctime. Test-only staging now uses
+an independent external temp directory. Portable actual entry-clock proxy gives
+matching2RED27.959s then2GREEN29.127s; ordinary Windows2PASS29.016s and binary11
+PASS0.765s. Independent portable2PASS29.468s approves the exact fixture diff.
+All assertion ASTs and product source remain unchanged; full actual Linux CI
+on the final head is still required. No authority normalization/checker relaxation.
+
+The subsequent inert image-name probe7293fe21 binds actual held-leaf hash to
+resolved kernel NT image name in a positive junction-alias case and refuses a
+different identical-byte copied image before resume, then drains. Independent
+review keeps loaded-image identity UNKNOWN: name comparison is not file-object
+identity and guardian does not own the guard yet. Public db56a10b. Next small
+candidate proof is actual CREATE_PROCESS_DEBUG_INFO.hFile with file identity,
+then SDK thread-affinity/continue/detach/resume/death/guardian ownership checks.
+No debug-path probe has run yet. Native current81pins still972175a2.
+
+Full Goal M0–M8 remains active. Full18 observations, genuine account pair/final,
+full D2/E/F/M3–M8, business and live gates stay open. No new account retry,
+deployment/restart/live activation. PR803/reserved0.299.0; main lastd3d7cb36.
+
+
+## Current continuation — native image read-sharing component, 24 October
+
+Current pushedf131d958/PR803/reserved0.299.0 has exact native972175a2 and
+independent registration approval; full LinuxCI40005387321 is pending. Main
+d3d7cb36/0.298.0 unchanged at last read. Historical29fCI39997792693 succeeded.
+
+Own-file native launch probes expose two false assumptions: metadata-only
+directory handles do not exclude write/delete sharing, and retaining a leaf
+does not prevent junction entry replacement. Proper flags3/existingtarget
+POSIX controls close the earlier flags2 evidence gap. Suspended actual anyio
+spawn of inert copiedwhere.exe proves job/thread plumbing, not full SDK or
+guardian-held image binding. First help-output fixture failure is preserved;
+newroot /R marker controls pass. Attribute-only mountpoint SET still succeeds
+on an empty directory even with a read guard; loaded-image/metadata exclusion
+coverage remains UNKNOWN. No actual Claude/account call occurred.
+
+New standalone ImageReadGuard owns root-to-leaf real read/shareREAD/NoFollow
+handles, refuses observed reparse/path/type mismatch, hashes the held leaf and
+keeps explicit UNKNOWN coverage for metadata exclusion/loaded image. Parent17
+checksPASS0.250s; independent17PASS0.199s. Two scoped review lifecycle
+findings were reproduced then fixed: partial close invalidates snapshots;
+failed entry/exit retains cleanup ownership or closes all handles. Fresh
+metadata observations refuse detected drift without claiming future exclusion.
+
+This module is not yet reachable from native execution; existing81 profile
+pins remain exactly972175a2. No new native qualification/account readiness or
+genuine pair/final is implied. Evidence: native-launch-probes and
+native-image-guard JSON records; next guardian ownership/full drain and actual
+loaded-image attestation before any new proof can PASS. Full D2/E/F/M3–M8 and
+business/live gates remain open. No deploy/restart/live activation.
+
+
+## Current continuation — preparation heartbeat, 24 October
+
+The new actual account attempt on01717332 is terminal: two marked calls, baseline
+shapeFAIL/ownerUNKNOWN, valid semantic meaning/dependenciesPASS/nativeUNKNOWN.
+First scheduled v4 cell was BASELINE; it materialized/prepared, then stopped
+not_run/authority_changed before an engine marker. Its reservation was refunded;
+no second cell, genuine pair, selection or final exists.234.0495s scope-ready to
+final;8673in/822out,USD0.0658008 subscription-equivalent partial; cash/requests
+unknown. Canonical unchanged and all plaintext cleaned. Public evidence5eede64f.
+
+One read-only current host.live_guard + result _guard subsequentlyPASS9.141s.
+The exact historical exception is unavailable. Controlled reproduction confirms
+a separate concrete scheduling bug: workspace preparation can monopolize the
+runner mutex past its lease and block its validating heartbeat. New3 tests on
+old source:1FAIL/2PASS8.029s; four-line scheduling fix:3PASS8.786s. Preparation
+now releases only that mutex during owned filesystem work; authority checks,
+serialized SQL generation changes, execution lifetimes, cancellation drain,
+60s lease/20s heartbeat and180s request deadline remain unchanged.
+
+Scoped independent review APPROVED exact runner6c708940/test31cf3f60:3PASS8.917s.
+Sequential affected regression36PASS151.454s on frozen full source maps: runner24,
+actual synthetic-adapter v4 pair1, owner-service11. Public scheduling evidence
+`../evidence/2026-10-24-m2d1-preparation-heartbeat.json`. Changed native footprint
+now has20PASS94.829s exact native enforcement at profile972175a2,
+CLI309/hash5441781f/SDK116. Public qualificationa84d266d. Metadata6RED
+(1 missing registration)0.103s ->6GREEN0.096s; all5 historical entries and
+nonmetadata fixture AST remain unchanged. Independent registration audit APPROVED against7e63c26c:6PASS0.100s;
+81pins/5qual-testpins/3raw/4logs/fullrecord and all5prior entries/lookup AST
+verified. Audit logda67327e, testlogad2d0be5; only2 expected registration/test
+files differ after qualification. Final-head CI remains required.
+No new account attempt or unchanged retry.
+Native observations remain a later engineering unit; actual success tool_result
+is_error=null additionally leaves event/side-effect coverageUNKNOWN. No telemetry
+default or all18 gate has been weakened.
+
+## Current continuation — bounded CLI observation, 24 October
+
+Working delta on29f5bdd5 addresses repeated CLI hashing in current view reads.
+Only create_pin opts into bounded CLI reuse; ordinary source digests remain
+fresh. Each hit still opens the file and checks read access, ancestry, size and
+descriptor/path identity. Before the view returns, a fresh whole-file hash and
+identity must match the original. Scope is synchronous and private per call and
+thread, with no native execution or semantic publication. Every original source,
+grant, settings, SDK and profile fence remains at its existing site.
+
+New component9RED then11GREEN0.318s; two actual view/capture tests with an inert
+observerPASS28.805s (12 observations/two full reads; end-of-capture runtime edit
+refused). Seven affected scripts94PASS465.156s on identical source maps.
+Independent scoped review APPROVED matching source hashes:11PASS0.350s and one
+view boundaryPASS15.010s. Public unit evidence9525fa0c (committed LF bytes).
+Actual selected-CLI read-only component:12 pins9.172s/12 full reads ->1.796s/2
+full reads, identical pins, no auth/native/model queries. This is not full-pipeline
+latency or business evidence.
+
+Product delta committed a8155c63; exact new81-source profilebe4a5866 has native
+20PASS94.516s on WindowsCLI309/hash5441781f/SDK116. Public qualificationfd52de7a.
+Only one registry entry is added; all four prior entries remain. Metadata5RED
+(missing new registration) then5GREEN0.085s. Scoped registration verification is
+approved at01717332,5metadataPASS0.119s; subsequent actual attempt is above.
+Historicale7 cannot authorize changed source.
+No unchanged account retry or deadline increase. Plan:
+`../plans/2026-10-24-agent-skill-improvement-m2d1-view-observation.md`.
+
+## Current continuation — raw role artifact boundary, 24 October
+
+Role system instructions now explicitly request final raw JSON artifact bytes.
+Strict parser, raw artifact preservation, semantics, owner/grant, unknown, tool
+inventory and retry behavior are unchanged. Actual-worker2RED then59GREEN/four
+sequential suites226.922s. Prompt delta independently approved atb7a81542; new2
+worker checks independentlyPASS1.023s. Evidence:
+`../evidence/2026-10-24-m2d1-artifact-format.json` SHA c6a696b3.
+
+The prompt changes the exact81-source footprint: current profilee7aaa5bd has
+new native20PASS94.078s on identical full source maps, WindowsCLI309/hash5441781f/
+SDK116. Artifact `../evidence/2026-10-24-m2d1-native-qualification-format.json`
+SHA c5e0acc9. The prior958 qualification is historical for changed source. One
+exact registry entry follows4 metadataRED/GREEN; prior3 registrations/lookup and
+qualification fixture helpers remain unchanged. Registration independently
+approved29f5bdd5, metadata4PASS0.076s. Final-source CI39997792693 is running.
+
+The fresh bounded selected-account feasibility is terminal: two actual calls,
+baseline shapeFAIL/ownerUNKNOWN and valid raw semantic JSON (meaning/dependencies
+PASS, native observations UNKNOWN). Views froze. The first scheduled v4 cell
+(candidate) timed out180s before materialization/native query; its reservation
+was refunded. The second cell was not admitted. No genuine pair, comparison,
+selection, selected-final or qualification claim exists. Usage8659in/839out,
+USD0.0707556 subscription-equivalent partial; cash/request totals remain unknown.
+Canonical bytes stayed unchanged and plaintext workspaces were removed. Evidence:
+`../evidence/2026-10-24-m2d1-real-format-feasibility.json` SHA ddc5af2c.
+
+One subsequent read-only profile of current baseline view resolved in10.266s,
+without model/native queries or writes: twelve create_pin calls rehashed the
+298624160-byte CLI; selection capture took9.246s. This is a measured preparation
+bottleneck, not evidence of business gain. Preserve both runs; do not repeat the
+account attempt unchanged or increase its deadline. The next unit addresses
+redundant binary reads while preserving fresh byte validation and all authority
+checks. Prompt compliance improved in this one observation only.
+All old failed history/usage stays intact. Source-qualified final-head full CI
+and full D1/D2/E/F/M3-M8/business/live gates remain open. Reader fixed5CI39996033610
+is running and is historical for the later prompt change, not final-head proof.
+
+## Current checkpoint — 24 October, D2 prerequisite continuation
+
+- Worktree/branch remain M2D1/PR803, reserved0.299.0; main d3d7cb36/0.298.0.
+  Latest pushed source3afed521 has approved whole-D1 plus scoped lifetime,
+  runtime309, semantic-invalid-output, registry and disabled-routing reviews.
+  Exact-head LinuxCI39992114257 is still running; later local changes require
+  their own final-head CI. No merge/deploy/restart/live activation.
+- D1 exact81-source profile958527ac/CLI309/SDK116 remains registered to native
+  artifact1f3391cf,20 tests94.890s. Ordinary router/lazy/hub edits change none of
+  those81 bytes. Reuse that proof without repeating native/model calls.
+- Actual prior D1 account feasibility made2 calls; baseline shapeFAIL and strict
+  reviewer format refusal prevented any view/pair/selection/qualification claim.
+  Preserve public90ecc20b and partial usage. Genuine account pair/eligible-final,
+  full D1 acceptance and D2/E/F/M3-M8 remain open.
+- Pilot choice delegated by owner: reconciliation primary, document processing
+  secondary, Python bugfix/tests technical. This selects work types only; it
+  grants no new real dataset, owner acceptance or live activation.
+- D2 disabled-source precedence was independently approved at3afed521. New
+  ordinary read unit uses one stable bounded source for actual hub/lazy, checks
+  selected manifest path/header and records exact raw byte hashes. Seven
+  sequential local commands pass; new10-test suite9PASS plus1 Windows file-link
+  privilege skip, actual Windows outside directory-junction refusalPASS. Scoped
+  review, Linux symlink coverage and final-head CI pending. Proof:
+  `../evidence/2026-10-24-m2d2-skill-reads.json`. A per-read asset is not a task pin.
+- Separate controlled native design experiment: plugin-only permission callback
+  FAILED because direct cwd Read loaded the old skill. PreToolUse deny alternative
+  passed A and B-only continuation; initial B had0 query requests due fixture
+  setup collision, which was fixed without repeating A. Six dummy local requests,
+  zero account/model inference. Proof:
+  `../evidence/2026-10-24-m2d2-native-design-probe.json`. Owner policy parity,
+  Bash/other paths, task/session binding, cache partitions, activation selectors
+  and resume remain open; no production adapter support from this experiment.
+
+Latest scoped review of85bf8e68 found one Important/P1: a transient external
+Windows junction could return outside bytes despite pre/post lexical checks.
+The descriptor repair now authenticates Windows actual opened-handle path before
+reading; POSIX uses anchored nofollow component opens and nonblocking leaf open.
+Regular-file/size checks precede body reads. Exact original repro is now refused.
+Seven affected commands passed sequentially; new14-test suite12PASS/2 Windows
+platform/privilege skips. Inside Windows junction remains readable. Evidence:
+`../evidence/2026-10-24-m2d2-descriptor-fix.json`. Prior skill-read containment
+claim at85bf is superseded; scoped fix review and actual final-head LinuxCI remain
+pending. All81 isolated native pins remain unchanged, with no native/model query.
+
 ## Identity and authority
 
 - Goal: execute the complete M0–M8 contract in `../AGENT-SKILL-IMPROVEMENT-GOAL.md`.
@@ -33,10 +553,425 @@
   regression passed251s; broad63-script sweep passed1048s across the narrow fix,
   explicitly not used as exact-head proof. Task6 accepted; Task4 positive C+D
   qualification integration, complete M2/business/rollout remain open.
-- Current engineering continuation is M2C below. Earlier pending/failure
+- M2C engineering published0.296.0: PR801 squash2727edcc5cdfab6f2dcf2e2871164f22f2771f92.
+  Exact final-head LinuxCI39929264818 passed on independently reviewed d05f4881;
+  actual merged tree5712b6ba79720a5a44a43d3cecd85cff84f3cd21 is identical.
+  Publication39933347548 and Build & push succeeded. Task9 completed through
+  its actual published-source verifier; no open Important/Critical findings.
+  Native profile9dcf7184 and21-script regression evidence remain source-bound.
+  Historical real feasibility aa51b4b9 still has baseline shape FAIL, semantic
+  UNKNOWN and partial usage; it does not establish a business win or live grant.
+- Current engineering continuation is M2D1, branch
+  `codex/agent-skill-improvement-m2d1` in the SAME isolated worktree
+  `C:/Users/admin/.codex/worktrees/agent-skill-improvement-m2a/Javis-OS`.
+  DraftPR803 now reserves0.299.0 after rebasing onto main0.298.0; original
+  reservation0.297.0 at c4991ec8 remains historical. Plan is
+  `../plans/2026-10-23-agent-skill-improvement-m2d1.md`.
+  D1 builds shared immutable view identity/source resolution and actual isolated
+  candidate probes; full D remains open until production router/lazy/hub/native
+  task/resume integration is actually verified. E/F and M3–M8 remain open.
+  Task1 started at d00312d5. Closed pure identity and additive schema7 now pass
+  the six affected scripts sequentially:104 tests,221.921s. Actual released C
+  reader refuses7, while its backup restores exact schema6 history, including
+  settled role results/semantic receipts/calls and encrypted bytes. Composite
+  scope/immutable guards reject splicing individually valid candidate/receipt/
+  comparison rows. Cold metadata neither decrypts nor migrates; canonical skill
+  bytes and target pointers stay unchanged. Evidence:
+  `../evidence/2026-10-23-m2d1-task1-verification.json`, SHA256
+  b9d7c51fd9725111678365f667b4af2168738b73329e89475ba2d700d52f76f8.
+  Task1 local foundation is verified; task-done checks committed bytes/logs.
+  Checkpoint Linux CI remains pending. WSL is unavailable; the PR workflow now
+  fetches actual C2727edcc for its reader test. No real provider/account inference
+  or new D native qualification occurred. C's exact34-source native profile is
+  unchanged9dcf7184, verified against released C; this does not qualify future D.
+  Task2 still owns authenticating encrypted manifests and current source/semantic
+  authority plus atomic pair publication/CAS/replay; Task3 owns actual v4 lineage
+  and legacy-format exclusion. No metadata row grants execution or live authority.
+- D1 Task2 local source/publication boundary now passes five sequential affected
+  scripts:76 tests,392.830s. Actual current C/edit/source authority constructs both
+  immutable views, with one publication event, generation CAS and exact historical
+  replay; second-insert and post-insert source changes roll back all view rows.
+  Resolving SQL metadata requires its exact publication event/request/generation
+  plus current source and semantic evidence. Holdout inputs and expected answers
+  are not decrypted by view capture/load. Actual Windows DACL/junction/incarnation,
+  owner arbitration, dependency and byte-format fixtures pass; Linux branches of
+  the new source service still require CI. C semantic/native unknown and A's
+  unreviewed status remain unchanged. Evidence:
+  `../evidence/2026-10-23-m2d1-task2-verification.json`, SHA256
+  588f7dba351d6d4253039819179207e467306163b14bfb7447d8c700d08fc41e.
+  All C34-profile and selected Task1 source bytes remain exact; there is no new D
+  native qualification, API wiring, actual comparison Trial or real model call.
+  Task3/4 retain actual admission/native-preflight/reservation/query fences.
+- Early Task1 LinuxCI39938959026 on8a25dee9 is FAILURE: new view schema15 and
+  protocol11 passed, while test_improvement_candidate_records.py,
+  test_improvement_cases.py and test_improvement_trials.py retain old backup/drop
+  fixture assumptions. Fix these exact fixtures next; keep backup ordering,
+  historical version/data assertions and rollback checks intact. Older
+  protocol-only LinuxCI39936301937 on d91cc25b succeeded. Neither run proves the
+  newly implemented Task2 source path. PR803 remains draft and not mergeable.
+- The three legacy migration fixtures are now corrected locally: exact third
+  views-backup entry and child-first removal of view tables when constructing a
+  real schema2 fixture. All74 tests in those three scripts pass sequentially,
+ 34.537s of unittest time. No production bytes changed; AST comparison proves
+  every import, fixture helper and other test method stayed identical to the
+  Task2 verified commit68dc6c26507841f30e5ead93fe5281aad2afb4e5. This qualifies
+  reuse of Task2's76-test proof; it does not replace fresh current-head Linux CI.
+  Correction evidence `../evidence/2026-10-23-m2d1-legacy-fixture-correction.json`,
+  SHA256641a71c203e8e42d2a09ee51c17195bcf2b1ce2af999fe2f8dc043a73bdaa5e0.
+- Earlier pending/failure
   checkpoints remain historical; complete M2/business/rollout gates remain open.
 
 ## M2C engineering continuation
+
+### D2 routing-state foundation, 24 October
+
+An independent production-path repair now makes authoritative disabled state
+agree across skill discovery and actual body loading. Previously a disabled
+canonical skill disappeared from manifests but the actual hub handler could
+still read its stale Claude mirror. Same-source enabled/disabled collisions
+also disagreed between metadata APIs. Resolver and list_skills now respect
+the disabled source before lower-priority enabled copies, including legacy state.
+Unrelated enabled-source precedence remains unchanged.
+
+Behavioral RED7 reproduced5 failures; GREEN7 passed0.123s. Actual warmed hub
+reads deny after disable without increasing usage; a warmed lazy registry drops
+the disabled skill. Five affected scripts passed sequentially in13.392s, including
+11 Phase8 pytest cases. No model or native query occurred. All81 qualified native
+source hashes remain identical, so exact958527ac/1f3391cf enforcement evidence is
+reused. Artifact `../evidence/2026-10-24-m2d2-routing-state.json`, SHA256
+56246006f3a4dce8cb58762f648c30380c67b0618dd3b5742dec366da04de610.
+
+Scoped routing-delta review and final-head CI remain required. D1 CI39990661065
+on999c207a was running before this new source delta; it cannot prove a later head.
+This repair does not implement task/session pins, production overlays or native
+materialization. Full D2/E/F and M3–M8, account pair/final-positive and all
+owner/business/live gates remain open.
+
+### D1 selected-account feasibility and invalid-output follow-up, 23 October
+
+At54210807, exact qualified profile81/4d346a3a made two real selected-account
+calls with unchanged Opus5.5/medium/subscription: baseline TrialRunner and
+semantic reviewer,117.817s from prepared scope to final accounting. The baseline
+completed but failed JSON shape; owner accuracy stayed unknown. Its full18
+integrity checks retained reasoning/asset-use and event/side-effect unknowns.
+The reviewer produced fenced JSON missing required `findings`. Strict parsing
+refused it, with no receipt, view, selection or qualification claim. The inner
+model word `pass` is not an accepted assessment. Canonical bytes stayed exact;
+all plaintext workspaces were removed. No model retry or owner arbitration.
+
+Evidence `../evidence/2026-10-23-m2d1-real-feasibility.json`, SHA256
+90ecc20bfc31c581292e654f8a4ff68192e77e56ec6caba8f3a1600e536321a0.
+Observed usage8569 input/877 output tokens, subscription-equivalent USD0.0707254;
+cash and request counts are unavailable and coverage remains partial. These
+are technical synthetic calls, with no business efficacy or live authority.
+Actual native TrialRunner baseline is demonstrated; the account pair and
+genuine eligible final remain unproven.
+
+The failed review exposed a separate operator defect: malformed output surfaced
+as generic HTTP503 instead of a stable typed outcome. Actual workflow RED3
+reproduced two strict validation errors while the source-revocation test passed;
+actual HTTP RED1 reproduced503. A narrow follow-up records `invalid_output` with
+the original native result, no receipt and no automatic retry. Parser, prompt,
+assessments, native checks and eligibility are unchanged. Five sequential focused
+and affected scripts passed63 tests in349.720s on one complete source map.
+Artifact `../evidence/2026-10-23-m2d1-semantic-invalid-output.json`, SHA256
+4a8d10e966a7931410093822f8b1261f8ecef7c0d01042c8ba27dc36286d9464.
+AST proof preserves all other product code and prior test methods; the scoped
+independent review approved exact330501fa, with no finding. Its actual HTTP
+invalid-output/stop/off/revoke/cold-replay recheck passed1 test in12.336s; log
+`review-semantic-invalid-http-recheck.log` SHA256
+8a21a9b0c8d756098faa0c00fca79c79cbea40a2860705b016d95d583901327e.
+Changed profile
+81/958527ac69c3b5728044b22cf6d3bdebb920da7cbe46a9da261e899568ced1ef
+passed20 actual native enforcement tests in94.890s on one source map: paired1,
+solver5, typed roles5 and quiescence9. The exact309/5441781f/SDK116 tuple is now
+registered against `../evidence/2026-10-23-m2d1-native-qualification-outcome.json`,
+SHA2561f3391cf9c1bf621d3ef2de44dd181acf17dd7d922fed4a80ae66bef36c8fab4.
+Metadata RED→GREEN3 passed0.068s; prior C and D registrations remain exact.
+These native suites used only dummy auth/local providers, with no new selected
+account calls or quality/owner waiver. Prior source qualification stays historical.
+Task3/4/5, D2/E/F and M3–M8 remain open; final CI/publication are not complete.
+
+### D1 fresh-main and runtime309 checkpoint, 23 October
+
+Current draftPR803 reserves0.299.0, rebased onto main d3d7cb36/0.298.0.
+All main release history was preserved. Rebased source3e1abcf0 kept all81 native
+files identical to the reviewed lifetime fix; one test's single CRLF→LF change
+was hash-reconstructed, with other improvement test bytes unchanged. Seven
+affected owner-main/voice/route/bilingual scripts passed18.375s. Independent
+reviewer closed the sole P2 at23f62b0b after a targeted20.260s real lifetime test;
+constructor/view/lifetime source pins still match after rebase.
+
+The installed CLI auto-updated to2.1.309 during final verification. The previous
+308 candidate guard refused before execution, as intended. No downgrade or
+global CLI modification occurred. The exact309 binary SHA5441781f and SDK0.2.116
+were qualified on new profile81/4d346a3ae4f1afa99784fc51307258ad99a8d470ac6a0c46f1d330e6b0e656fa.
+Actual paired views1 +solver5+roles5+quiescence9 passed20 tests in96.767s on
+identical source maps; adapter guards22 passed1.711s. Actual CLI --version is
+checked within the owned hidden dummy job. Artifact
+`../evidence/2026-10-23-m2d1-native-qualification-final.json`, SHA256
+012d9e37690e8711da75a344dfee0677df8d6c690b90f689ddbb14574c82f295.
+
+The exact registration now points to that evidence; historical C remains intact,
+lookup code is unchanged, and altered pin/platform is refused. Metadata RED→GREEN2
+passed0.045s. Current source qualification is enforcement-only: all queries used
+dummy auth and local providers, observed reasoning/asset use remain unknown.
+Reuse/source/recheck checkpoint
+`../evidence/2026-10-23-m2d1-source-checkpoint.json`, SHA256
+99c01d1afdc91f2516b57a12cecfb81bec13dd184295cfd934a37fd502661253.
+The runtime tuple/test-version probe/registration delta was independently
+approved at5421080714f78c653e2ab10c17a5e8ee4a613a55, with no actionable finding.
+The reviewer verified all81 source pins, retained evidence/log hashes and the
+narrow AST delta; two independent registration tests passed0.048s. Retained log
+`review-runtime309-registration.log` SHA256
+30f47d7034bdb0b1ae42ced51a1e81d221a64bb267df84e0f5819d0749e11b82.
+Earlier LinuxCI39982218130 succeeded on740c0c67; final-head CI is still required.
+Current selected-account readiness was verified read-only with unchanged
+Opus5.5/medium/fastfalse/subscription. Native TrialRunner feasibility is running
+in a new encrypted disposable synthetic reconciliation scope; no accepted
+business dataset or human semantic arbitration is inferred from pilot choice.
+No eligible selected-final, business win, activation, deployment or restart.
+Task3/4/5, D2/E/F and M3–M8 remain OPEN; previous native proofs stay historical.
+
+### D1 independent review and lifetime repair, 23 October
+
+One whole-D1 independent review covered published C2727edcc through740c0c67.
+It found one Important/P2 and no Critical/additional permission or holdout bypass.
+An actual15.456s reproduction showed a rebuilt facade retaining a closed
+semantic resolver while its original Trial owner remained live, then failing
+current admission with role_workflow_closed. Constructor refusal RED failed
+as expected in14.312s. The narrow fix now refuses that half-closed facade and
+keeps the original resolver; only both exact successful close futures permit
+replacement. Missing/pending/cancelled/failed closure remains blocked.
+
+Actual lifetime4 plus five sequential affected commands passed29 tests,
+239.901s recorded. Successful later rebuild/admission and still-live semantic
+reuse are covered, along with owner/main/service controls and actual v4 handoff/
+cancel. AST/source proof shows the only product change is constructor refusal;
+the prior stop/current-source/materialization behavior is preserved. Evidence
+`../evidence/2026-10-23-m2d1-review-lifetime-fix.json`, SHA256
+fb8333f444f84ac85f03d3f0c71402eb30f599e1a025499802b860739e7d94b5.
+Same-reviewer scoped recheck is pending, not another whole review.
+
+Before the fix, profile81/2221a859 also passed full local/dummy solver5, roles5
+and quiescence9 in60.609s on one source map. Its source-bound artifact
+`../evidence/2026-10-23-m2d1-native-qualification.json`, SHA256
+96adabecf47773debc2988098a68cc3a9c592a00ad2ed9b0d8a6e4cab096936b,
+is historical after the constructor change and was never registered. Current
+profile81/d070550687af101c07094e1234c5988fae15af9318eb5f5277c4cb2e413324ba
+remains unregistered; requalify after fix stability. Exact740c LinuxCI39982218130
+is in progress and cannot prove the subsequent fix. Earlier ec6CI39976688967
+succeeded. No actual account query, genuine eligible final or business/live
+acceptance occurred. Task3/4/5, D2/E/F and M3–M8 remain OPEN.
+
+### D1 paired native-view checkpoint, 23 October
+
+Owner controls are committed/pusheddaed0cf26872abe9d6e03f7d8bc59b04c39f8f83.
+The new opt-in native-view test passed on the same unchanged product81-source
+profile2221a859:39.172s wall, two native queries/separate sessions, four local
+provider model messages, zero selected-account calls. Both manifests come from
+actual temporary owner/view/Trial materialization with the exact pinned native
+configuration captured before the comparison context. Preparation/reviewer
+fixtures remain explicitly simulated. Native execution uses real SDK/CLI,
+TrialProfile, owned hidden jobs and dummy auth/local transport without an
+adapter/readiness stub. Exact prompts/view/assets/receipts, denied ambient/
+outside tools, unchanged canonical bytes and cleanup after native drain pass.
+
+The initial harness attempt failed when cleanup_proven's actual ACL metadata
+spawn reached the worker-only Popen interception. The original failed log/source
+record is retained; keeping that proof within the existing real-Popen scope
+fixed the fixture without changing product code or relaxing an assertion.
+Sanitized evidence `../evidence/2026-10-23-m2d1-native-view-enforcement.json`,
+SHA2560691a727db9dd81b91e814ccfaa4278f04d9c90c5a325cc789b282de31f6a10c.
+All server and owner47+route test bytes are unchanged, so that scoped evidence
+is reused. Current profile remains UNREGISTERED. Composite solver/role/death/
+quiescence qualification, actual native TrialRunner/account feasibility,
+genuine selected-final positive, independent whole-D1 review and final CI remain
+open. D2/E/F/M3–M8 and business/live acceptance stay open; no activation/deploy.
+
+### D1 owner-view controls checkpoint, 23 October
+
+Actual owner `view-freeze`/`view-evidence` POSTs now accept only comparison ID,
+experiment generation and event key. Freeze uses actual immutable publication;
+current evidence rechecks authority on every completed-key retry and exposes
+source/semantic scope plus unknowns, never a native readiness ticket. Cold
+view-binding GET uses the existing metadata store after off/revoke. The service
+owns source threads through HTTP cancellation; stop joins them before final
+settlement. No automatic next/query or canonical skill mutation is introduced.
+
+On one frozen source map,47 unittest checks plus the actual route snapshot check
+passed in9 sequential processes,295.126s wall. Main session/CSRF protection covers
+all26 improvement routes. The snapshot changes618→621 with exactly3 additions;
+all retained definitions and relative ordering remain exact. The actual lifetime
+test rejects a controlled mutation removing the new stop joins, then passes on
+unmodified code. Existing B/C owner/stop/lifetime workflows and actual v4 paired
+reservation remain green. Operator guide:
+`../../dev/agent-skill-m2d1-views.md`. Evidence
+`../evidence/2026-10-23-m2d1-task5-view-controls.json`, SHA256
+b3a617be7e9eda67398ff166b28ff7ff833908e2f779089bfa670f088b3305a9.
+The route snapshot was intentionally regenerated with the direct Python script;
+the wrapper does not forward its documented `--update` flag. No product failure
+was hidden by accepting an unrelated route change.
+
+Profile81/2221a8599529ac50cf3c9c98057cd003e9dfc45828ac808b5f11e802279511ba
+is unregistered; historical C qualification does not apply. No real model call,
+selected-final positive, business proof, deployment or activation occurred.
+Task3/4/5 and D2/E/F/M3–M8 stay OPEN. Earlier LinuxCI39970471529 succeeded on
+c5229ea3; ec6f1d6c CI39976688967 was still in progress at this checkpoint.
+PR803 remains draft; independent whole-D1 review and final-head CI are pending.
+
+### D1 Task3 checkpoint, 23 October
+
+Task1/Task2/legacy-fixture Linux CI39944212136 succeeded on exact d81606b5.
+Protocol-only676fe8a8 and additive-link ab5dc1ef were then pushed together;
+early Linux CI39949800035 is running on ab5dc1ef7d7113befe893618ff79fa1376d1ef91.
+The new SQL/format checkpoint passed92 tests in six sequential affected scripts,
+378.281s, with retained source/runtime/log hashes. Existing released B/C schema
+definitions and C34 native footprint remain byte-identical. Actual v3 Trial
+splicing into v4 links, legacy admission after view publication and direct view
+publication after legacy admission reject. No future Trial/Call was fabricated.
+
+Task3 remains OPEN: actual v4 Trial/CallLedger dispatch, current-host fences,
+bounded stop/recovery/report consumers and existing qualification-registry links
+still require implementation. SQL/blob historical view proof is being added
+separately; it cannot authorize current files, native execution or live scope.
+C's native registration must be invalidated in the same change that makes v4
+reachable and the exact final D footprint qualified before actual queries.
+The draft PR is not ready to integrate. Business/live/M3–M8 gates stay open.
+
+Subsequent Task3 history checkpoint b755699e passed56 scoped tests (portable
+evidence170d0de3). Actual reservation now passes140 tests in nine sequential
+affected checks,231.248s, recorded in
+`../evidence/2026-10-23-m2d1-task3-reservations.json` (SHA256
+bde6b073ae78acbf4e220cd5363fa40fd16e1f4bc5dd3d2ac225cd83a0b8a796).
+Genuine v4 baseline/candidate Trials and existing Calls/links are created; source
+changes roll back actual reservations, and cold replay stays readable after
+off/revoke. No model query/engine marker. Current native footprint is now76
+files/51b62052, deliberately UNREGISTERED, invalidating C9dc for this new code.
+No default actual native execution can pass until final D qualification. Current
+Task3 still lacks complete shared stop/recovery/report/next/admission scopes and
+existing qualification-registry ownership. V4 materialization explicitly denies
+until Task4 implements it. Task3 and D remain OPEN; no live scope is enabled.
+
+Lifecycle1a09a0e3 then passed28 affected checks (182.812s): stop/refund/recovery
+includes actual v4 links under the shared12000 comparison bound, and next refuses
+pending/terminal-no-result slots. Owned next now passes71 scoped+affected checks
+(401.851s recorded, basis per row), evidence
+`../evidence/2026-10-23-m2d1-task3-owned-next.json` SHA256
+4d9df2ba736bf8fc736dc2d8e0e19d10b8f24cf406d7ee0dc99684b1aa944221.
+Actual brain barrier covers next/source/native-preflight/Trial+Call reservation;
+concurrent owner keys reserve once and cancelled HTTP stays owned through stop.
+Current native profile is78 sources/058166e7, deliberately unregistered. No real
+query or actual v4 materialization. View report/final registry, retained lifetime
+audit, actual workspace/native qualification and public controls remain OPEN.
+Early Linux39949800035 succeeded on ab5dc1ef; later source needs its own CI.
+
+Linux39952941333 failed52c79f1c only because worker's exact expected source list
+still pinned C34. Correction9795f698 explicitly expands it to78, preserves set/
+hash equality and adds duplicate/count refusal;9 worker+1 default-denial checks
+pass, with no production source change. Evidence43f43c28 qualifies prior scope
+reuse, not a fresh final CI. Later dad605c3 Linux39957029202 was already running
+before the fixture correction and may retain that exact old failure.
+
+Concrete retained-host reconstruction then reproduced role_workflow_closed.
+Resolver replacement now requires both exact typed same-store workflow/owner
+close futures to complete successfully. A live owner or missing/pending/cancelled/
+failed close refuses replacement, without constructor source/native I/O. Current
+32 scoped/affected checks pass276.518s; evidence
+`../evidence/2026-10-23-m2d1-task3-view-lifetime.json` SHA256
+c56e88ee52a9813711021db8d93984f53594d0ee42bdbb519eab8679dcf7c60e.
+Current78-source profilebfda8912 is UNREGISTERED. No real query/native execution,
+ordinary D2 task/session resume, business or rollout acceptance is claimed.
+
+Report checkpoint:63 tests passed sequentially in166.953s on one frozen source
+map. Real pending v4 Trial/Call links now appear in reports; missing evidence
+remains inconclusive. Current owner meaning veto blocks new reporting, while
+historical report bytes/hash and cold replay remain unchanged, including the
+older metadata-only prototype with no result refs. Full18 integrity checks and
+report v1 envelope remain intact. Evidence
+`../evidence/2026-10-23-m2d1-task3-reports.json`, SHA256
+aabb253c30404d6155ba2bba92981285462da56e9e6439c5218abc363567609d.
+Current78-source profile4e3ecee0 is unregistered; final qualification ownership,
+actual view workspace/native execution and public controls remain OPEN.
+Linux39957029202 failed on olderdad605c3, before the fixture correction; current
+Linux39959675109 remains in progress on254a90ca, preceding this report change.
+No real model query or business/live acceptance is claimed.
+
+Tuning workspace checkpoint:69 checks passed in171.812s across actual view
+materialization4, sandbox, TrialStore, view reservation and worker footprint.
+The real linked pair materializes/prepares exact baseline revision/A candidate
+bytes with common inputs, without modifying canonical or manufacturing a bundle.
+Source edits during solver read roll back the materialization and retain exact
+prior exposure rows. V1 prompt/hash stays unchanged; v2 binds its view descriptor.
+Evidence `../evidence/2026-10-23-m2d1-task4-materialization.json`, SHA256
+87d9d7306dc3226ac3f2a68860bc4277eec699c08535e4ba4892c5aed38d76d3.
+Current79-source profilebeddb902 is unregistered. Native v4 receipt/check/result
+integration, final qualification ownership and public controls remain open.
+No actual native query, successful result, eligibility or business/live proof.
+
+Native identity/pipeline checkpoint:75 checks passed,176.126s recorded with
+per-row timing basis. Actual owner schedule/Runner/ledger/products/Fernet results
+and cleanup execute one pair using a clearly simulated adapter. Result4 pins
+the full request/lineage/view; Profile receipt2 derives from real workspace2.
+Full18 check IDs and unknown effort/asset use remain; both simulated results
+are non-pass, and comparison selection stays unsupported. Actual histories read
+exactly after off/revoke. Legacy checks/Claude/results/v2 execution pass.
+Evidence `../evidence/2026-10-23-m2d1-task4-view-execution.json`, SHA256
+4d7c1b9f7ea74b27e1b335ae93274561fb8290e2a82915ed61bc66bb54aea721.
+Source79/2192bf86 remains unregistered; no real model call/native qualification.
+Linux39959675109 SUCCESS254a90ca; Linux39965159570 in progressc811b9d6.
+Current result code still requires its own CI/review. Final holdout ownership,
+native scenarios on final exact source and public controls remain open.
+
+Before final consumption, an audit found current effective-view capture did not
+reuse the improver's global holdout-alias rule. Genuine owner-created case sets
+reproduced private reads despite qualification/regression aliases. The shared
+unchanged SQL guard now runs before any current view plaintext; existing frozen
+metadata remains readable.31 checks passed262.843s recorded: new boundary3,
+improver inputs10, view sources16, real paired reservations/native-footprint2.
+Evidence `../evidence/2026-10-23-m2d1-task3-view-holdout.json`, SHA256
+07ef50951c43236be3128be3e9740bed1521e94e1e31c1a0bf178c88517cf6fc.
+Current79-source b46e2cc3 is unregistered. This is a current-authority repair,
+not a final holdout claim/native/business acceptance. Task3 remains OPEN.
+
+Additive final-link metadata checkpoint:79 checks passed204.563s recorded across
+new guards4, view schema, TrialStore, migration/store and native footprint. A
+real legacy CaseStore reservation cannot be adopted by a tuning comparison;
+missing/changed guard blocks new authority before plaintext. Earlier prototype
+metadata stays readable, existing view DDL is AST-identical, and schema2
+downgrade drops the new child first. Evidence
+`../evidence/2026-10-23-m2d1-task3-qualification-schema.json`, SHA256
+c52e682319fafcd9613e125ce3741bc6b27cb9f7bf3ae4a4b94f4b7327e3179a.
+Current79-source d6b20eb5 is unregistered. Genuine positive selected-final link,
+owned reserve/consume and final native/public controls remain open; runtime
+final requests are still explicitly denied. No final/eligible result is faked.
+Linux39965159570 SUCCESSc811b9d6; b3a3f0cb CI39966693829 was still in progress.
+
+Owned final code checkpoint:70 tests passed494.250s across8 sequential scripts
+on one source map. Conditional selected-report/current-view authorization now
+reserves/links the existing qualification registry in actual admission and
+consumes only before returning qualification input. Cold historical ownership
+has a separate SQL/blob reader. Actual tests deny nonfinal/foreign/missing scope,
+missing/foreign transaction and consumed qualification relabelled as regression;
+the real tuning pipeline with simulated engine still passes and stays non-pass.
+Evidence `../evidence/2026-10-23-m2d1-task3-owned-qualification.json`, SHA256
+5f54cee420f022709b4ea9278fcc5cda975f85c2b1faf55f9f9b9eea0283697a.
+Source81/759f44ab is UNREGISTERED. Genuine positive selected-final execution is
+unverified; no eligible selection/result was fabricated and full18/unknown was
+preserved. Legacy v2 tuning-family bypass is under separate audit. Task3, native
+qualification, public controls and whole-D1 integration remain OPEN.
+
+Legacy baseline bypass repair: genuine RED3 showed the old v2 path reading
+context despite a later owner-declared holdout alias, and its last SQL fence
+accepting that alias. New v2 reservation/admission and common late fences now
+use the same no-consumed-exception tuning rule.30 checks passed134.850s across
+the new boundary, B lineage/admission/actual execution and actual v4 pair/native
+footprint. Exact old replay/metadata stays cold; qualifier/history source and
+v4/materialization methods retain their earlier qualified scope by AST/hash.
+Evidence `../evidence/2026-10-23-m2d1-task3-legacy-alias.json`, SHA256
+fa40a4baf1887cc1c873be511546b3d45311f3636c48c5e6c7ba18422180ee40.
+Current81-source c2e7968e is unregistered. Actual positive final/native, public
+controls and independent whole-D1 review/CI remain open; Task3 is not done.
 
 - Final affected regression21/21 GREEN,663.451s, qualified across two frozen
   segments: first15 passed scripts retain identical product/helper/test bytes;
@@ -468,7 +1403,7 @@
 |---|---|---|---|
 | M0 | Complete: PR #794 merged09903315, CI39793439501 and publication39797072172 passed;0.287.0 | Not applicable to foundation | Metadata only; no live activation or production restart |
 | M1 | Complete engineering: PR795 merged9dd7a9f9, CI39852883192 and publication39856024117 succeeded;0.291.0 | One historical real-engine synthetic baseline; aggregate unknown; no business pilot | Trial/activation flags false; not enabled |
-| M2 | A0.292.0 and B0.293.0 published; C/PR8010.296.0 in final regression/CI; D–F open | Real synthetic C role pipeline ran on ddec90ad; baseline fail, semantic unknown; no independent skill pilot | Not enabled |
+| M2 | A0.292.0, B0.293.0 and C0.296.0 published; D1/PR803 reserves0.299.0 on main0.298.0. View/ledger/qualification infrastructure and isolated skill reads implemented; canonical native dispatch and full D2/E/F remain open | Real synthetic role/format/observation attempts remain historical, with fail/unknown/not-run results; no eligible pair or independent business pilot | Not enabled |
 | M3 | Pending | No qualification or live canary | Not enabled |
 | M4 | Pending | No adapter/routing pilot | Not enabled |
 | M5 | Pending | No agent pilot | Not enabled |
@@ -506,11 +1441,14 @@
 
 ## Next action
 
-Finish C/PR801's final affected regression and exact-final Linux CI, recheck
-main/version, integrate when all required gates pass, and verify actual0.296.0
-publication. Continue M2D's candidate effective view, sealed qualification and
-scoped manual apply/revert from that integrated foundation. Source gap analysis
-may proceed during CI; retain all existing isolation/ownership gates.
+Continue D1 from PR803/current continuation and the native-outcome-and-dispatch
+plan: canonical isolated async capture, exact worker/guardian bootstrap/control,
+owned preflight plus SDK version/query launches, then versioned read-outcome,
+dispatch/reasoning and operation input-delivery integration. Freeze and qualify
+the complete changed footprint before registering or retrying the selected account.
+Use focused RED/GREEN and affected tests per Goal12; reuse unchanged pinned proof.
+Continue full D2 production task/session bindings, then E apply/revert/canary and F
+operator/feasibility without relabeling trial-only resolution as complete D.
 Do not use live prompt builders or fallback engine selection as a heartbeat guard.
 The owner run and activation capabilities remain false pending their actual release gates.
 Full M0–M8 Goal remains active; no business or live rollout gate is closed by a code merge.

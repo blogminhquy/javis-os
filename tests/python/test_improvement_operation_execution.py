@@ -216,7 +216,7 @@ class OperationExecutionTests(unittest.TestCase):
     def test_unknown_future_schema_never_becomes_native_authority_even_if_old_guards_exist(self):
         service = self.execution()
         with self.store._Tx(self.store) as connection:
-            connection.execute("UPDATE improvement_schema SET version=7 WHERE id=1")
+            connection.execute("UPDATE improvement_schema SET version=8 WHERE id=1")
         with patch("improvement_operation_adapter.ClaudeOperationAdapter.verify", side_effect=AssertionError("Unknown schema probed native")), \
                 self.assertRaisesRegex(IM.SchemaError, "unsupported_improvement_schema"):
             service.reserve(self.owner, self.operation["operation_id"], expected_generation=1, event_key="forbidden-future-schema-query")

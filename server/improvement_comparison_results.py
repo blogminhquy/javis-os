@@ -183,11 +183,14 @@ def project_result(value, contract, request, trial_id, attempt, report):
     trial and attempt. Missing native checks cannot become successful integrity.
     """
     from improvement_experiment_protocol import validate_request_v2
+    from improvement_view_trial_protocol import validate_request_v4
     import re
     value = definition(value)
     identifiers, _ = _contract(value, contract)
-    request = validate_request_v2(request)
-    if (type(report) is not dict or type(report.get("version")) is not int or report["version"] != 2
+    view_runtime = type(request) is dict and type(request.get('version')) is int and request['version'] == 4
+    request = validate_request_v4(request) if view_runtime else validate_request_v2(request)
+    if (type(report) is not dict or type(report.get("version")) is not int or report["version"] != (4 if view_runtime else 2)
+            or (view_runtime and report.get('effective_view') != request['view'])
             or report.get("trial_id") != trial_id or type(report.get("attempt")) is not int or report["attempt"] != attempt
             or report.get("request_hash") != _hash(request) or report.get("experiment_lineage") != request["lineage"]
             or report.get("contract_hash") != value["contract_hash"] or request["pins"]["contract_hash"] != value["contract_hash"]
@@ -308,23 +311,50 @@ class ComparisonResults:
 
     def _guard(self, connection, principal, metadata, expected_generation):
         from improvement_experiment_lineage import current_fences
+        from improvement_comparison_links import has_view_binding
         value, comparison = metadata["definition"], metadata["comparison"]
+        view_runtime = has_view_binding(connection, principal.brain_id, comparison['id'])
+        source = {'source_split': 'tuning'} if view_runtime else {}
         row, prepared = self.plans._state(connection, principal, value["experiment_id"], expected_generation,
-                                          unsealed=comparison["kind"] == "tuning")
+                                          unsealed=comparison["kind"] == "tuning", **source)
         arm = self.plans._frozen_arm(connection, principal, row, prepared, comparison["ordinal"])
         if prepared[0] != value or arm["envelope_hash"] != comparison["arm_hash"]:
             raise ValueError("comparison_authority_changed")
         self.plans.host._snapshot_observe(principal, prepared[1])
+        if view_runtime:
+            from improvement_views import EffectiveViews
+            views = self.plans.host._views
+            if type(views) is not EffectiveViews or views.plans is not self.plans:
+                raise PermissionError('view_resolver_unavailable')
+            # Validates both frozen manifests and current meaning/dependencies,
+            # followed by real source capture after all slow lineage I/O.
+            if comparison['kind'] == 'final':
+                from improvement_view_qualification import ViewQualification
+                ViewQualification(self.plans, views).preview(connection, principal, comparison['id'],
+                    expected_generation=expected_generation)
+            else:
+                views.load_current(principal, comparison['id'], 'baseline')
         current_fences(connection, principal.brain_id, metadata)
 
     def _snapshot(self, connection, brain, metadata):
         """SQL-only capture, including missing/nonterminal slots, for publication CAS."""
         import json
         from improvement_experiment_protocol import validate_request_v2, comparison_hash
+        from improvement_view_trial_protocol import validate_request_v4
+        from improvement_comparison_links import comparison_table
+        from improvement_view_history import metadata as view_metadata, require_publication
         from improvement_blobs import AssetUnavailable
         comparison, value, matrix = metadata["comparison"], metadata["definition"], metadata["matrix"]
+        table = comparison_table(connection, brain, comparison['id'])
+        view_runtime = table == 'improvement_view_trial_links'
+        binding = None
+        if view_runtime:
+            binding = view_metadata(connection, brain, comparison['id'])
+            if binding is None:
+                raise AssetUnavailable('comparison_views_unavailable')
+            require_publication(connection, brain, binding, self.records._row(connection, brain, value['experiment_id'])['generation'])
         links = {row["cell_position"]: dict(row) for row in connection.execute(
-            "SELECT * FROM improvement_experiment_trial_links WHERE comparison_id=? AND brain_id=?", (comparison["id"], brain))}
+            'SELECT * FROM ' + table + ' WHERE comparison_id=? AND brain_id=? LIMIT 4001', (comparison["id"], brain))}
         if any(type(position) is not int or not 0 <= position < comparison["cell_count"] for position in links):
             raise AssetUnavailable("comparison_cell_link_changed")
         captured = []
@@ -334,7 +364,8 @@ class ComparisonResults:
                 captured.append(None)
                 continue
             trial = self.results.trials._row(connection, brain, link["trial_id"])
-            request = validate_request_v2(json.loads(trial["request_json"]))
+            raw_request = json.loads(trial['request_json'])
+            request = validate_request_v4(raw_request) if view_runtime else validate_request_v2(raw_request)
             cell = matrix_cell(matrix, position)
             expected_pins = {key: value[key] for key in ("experiment_id", "base_bundle_hash", "contract_hash", "case_set_hash",
                 "engine_config_hash", "grant_hash", "scope_hash", "policy_version")} | {"candidate_bundle_hash": comparison["arm_hash"]}
@@ -349,6 +380,12 @@ class ComparisonResults:
                     or request["baseline_context_hash"] != value["baseline_context_hash"]
                     or request["target_generations"] != {value["target_id"]: value["base_generation"]}):
                 raise AssetUnavailable("comparison_trial_lineage_changed")
+            if view_runtime:
+                descriptor = binding['views'][request['variant']]
+                if (request['view'] != {'view_id': descriptor['view_id'], 'view_hash': descriptor['manifest_hash'],
+                        'binding_hash': binding['binding_hash']}
+                        or any(link[key] != child for key, child in request['view'].items())):
+                    raise AssetUnavailable('comparison_trial_view_changed')
             attempt = connection.execute("SELECT * FROM improvement_trial_attempts WHERE trial_id=? AND brain_id=? AND attempt=?",
                                          (trial["id"], brain, trial["attempt"])).fetchone()
             call = None if attempt is None else connection.execute(
@@ -364,9 +401,12 @@ class ComparisonResults:
         import improvement_trial_checks as checks
         import improvement_trial_results as results
         import improvement_experiment_protocol as protocol
+        import improvement_view_trial_protocol as view_protocol
+        import improvement_view_protocol as manifest_protocol
         return {"id": "complete-paired-results", "version": 1, "decision_policy": value["decision_policy"],
             "evaluator": value["evaluator"], "source_hash": _hash({name: hashlib.sha256(Path(path).read_bytes()).hexdigest()
-                for name, path in {"comparison": __file__, "protocol": protocol.__file__, "checks": checks.__file__, "results": results.__file__}.items()})}
+                for name, path in {"comparison": __file__, "protocol": protocol.__file__, "checks": checks.__file__, "results": results.__file__,
+                    'view_request': view_protocol.__file__, 'view_manifest': manifest_protocol.__file__}.items()})}
 
     def _evidence(self, principal, metadata, captured, *, refs=None):
         import json
@@ -522,7 +562,10 @@ class ComparisonResults:
                     or any(type(ref) is not list or len(ref) != 3 or type(ref[0]) is not int or ref[0] != index
                            or (ref[1] is None) != (ref[2] is None) for index, ref in enumerate(refs))):
                 raise AssetUnavailable("comparison_report_references_changed")
-            captured = self._snapshot(connection, brain, metadata)
+            # A frozen report with no result references has no Trial evidence to
+            # authenticate. Keep that exact missing/inconclusive history readable
+            # even on metadata-only prototypes; this grants no current runtime.
+            captured = [None] * comparison['cell_count'] if all(ref[1] is None for ref in refs) else self._snapshot(connection, brain, metadata)
         _, summary = self._evidence(principal, metadata, captured, refs=refs)
         if summary != report["summary"]:
             raise AssetUnavailable("comparison_report_evidence_changed")

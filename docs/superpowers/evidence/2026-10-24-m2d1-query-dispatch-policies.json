@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "label": "standalone/pure-sdk116-closed-query-inventory-policies",
+  "source_base_commit": "326c9d9ea0b49f4a7c1cfb1dcfc03031732807d4",
+  "evidence_class": "technical",
+  "production_reachable": false,
+  "sdk_client_connect_or_query_calls": 0,
+  "selected_cli_or_account_calls": 0,
+  "provider_calls": 0,
+  "source_hashes": {
+    "server/improvement_query_dispatch.py": "266b75f13b34daa2c2c9b6ee3a4d3713e008b441f2319205110df7e3c10c804f",
+    "tests/python/test_improvement_query_dispatch.py": "fe73ba59c87b58b7259ff424269faa1c516674491c16d9f5097c45ffd2194ca3",
+    "tests/python/test_improvement_query_dispatch_policies.py": "aee418b028faf04cf286cce3204aa8a5e6cfb1d7f99eb11d17afb4f318712ea0"
+  },
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "pin_contract": {
+    "version1": "Unchanged exact fixture/skill inventory, schema and serialized result bytes.",
+    "version2": "Adds exact tool_policy fixture_only or pinned_skill; tools/allowedTools/MCP descriptors must match.",
+    "authority": "Grammar selection only; not role, launch or permission authority."
+  },
+  "author_red": {
+    "tests": 8,
+    "errors": 3,
+    "exit_code": 1,
+    "seconds": 0.012,
+    "reason": "version2_not_supported",
+    "source_sha256": "9831cd30461fde5a5224ecccdb17d5742f107b521b43158668eb766898e1fe72",
+    "log_sha256": "95b8dac2f47c8d2b8bb95af5183792ac58ebaa0c8f2eb750930f4f2e33761502"
+  },
+  "author_green": [
+    {
+      "tests": 8,
+      "seconds": 0.008,
+      "exit_code": 0,
+      "log_sha256": "e925156fc6502b6ac22de2b182998f9ba09c9ae3f1246a3e06000c6f6153b83b"
+    },
+    {
+      "tests": 17,
+      "seconds": 0.433,
+      "exit_code": 0,
+      "log_sha256": "f6e8677fbc3eaeeec6b3c2cfe48c3839bfb113432890e97360a537a878f80c9c"
+    }
+  ],
+  "preserved_invocation_failure": {
+    "tests": 17,
+    "errors": 2,
+    "exit_code": 1,
+    "seconds": 0.193,
+    "reason": "Deep chosen JAVIS_TEST_TMP produced a 269-character fixture lock path over Windows MAX_PATH. Unchanged source/assertions passed with a short private invocation temp.",
+    "log_sha256": "b8724aef2a52b271ca20ab9a2eb8aba7184779738f2eba6349e4efaa6f0ba1be"
+  },
+  "independent_review": {
+    "verdict": "standalone_scoped_approval",
+    "sequential_tests": [
+      {
+        "tests": 17,
+        "seconds": 0.458,
+        "exit_code": 0,
+        "log_sha256": "158ee6673e14d44ab09219391c0e9b4ca4b9135b2725c5a0dbd62c4de1653a98"
+      },
+      {
+        "tests": 8,
+        "seconds": 0.011,
+        "exit_code": 0,
+        "log_sha256": "1c8dac59c2f73428de12ec74f22804407bbc822b81d7f3de4babcd68a557b062"
+      }
+    ],
+    "three_hashes_unchanged": true,
+    "all83_pins_unchanged": true
+  },
+  "tested": [
+    "Exact single fixture-only and two-tool pinned-skill policies; cross-policy inventories/unknown policies/bool types/schema extensions refuse.",
+    "Legacy version1 full canonical result bytes equal an independently constructed expected result; fixture-only and tool_policy extensions still refuse.",
+    "Actual shared unbound operation options and SDK116 command builder at two efforts; no operation construction/authorization.",
+    "Duplicate/external/extra MCP, changed prompt/model/effort/settings and override flags refuse; defensive sanitized outputs preserve unknown coverage."
+  ],
+  "scheduling": "Pure8 used separate -B Python, private precreated JAVIS_TEST_TMP and in-memory vectors only; isolation from the capture process was established. SDK17 ran after capture slot release; independent17+8 ran sequentially. No shared HOME/config/DB/port/source writes in tests.",
+  "test_commands": [
+    "python -B tests/python/test_improvement_query_dispatch_policies.py -v",
+    "python -B tests/python/test_improvement_query_dispatch.py -v"
+  ],
+  "python_executable": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-query-dispatch",
+  "limits": [
+    "No runtime caller or PROFILE_SOURCES change; existing operation roles retain fixture-only behavior.",
+    "Consistency does not prove OS dispatch, image association, provider acceptance, reasoning or understanding.",
+    "Operation2/Trial4/guardian/bootstrap qualification and all18 eligibility remain open; no new native20/account call.",
+    "No business benefit/live rollout established; final-head Linux CI required."
+  ],
+  "goal_complete": false
+}

@@ -15,7 +15,7 @@ import winproc
 
 from improvement_blobs import MAX_ASSET_BYTES, check_ancestry
 from improvement_cases import _digest, _fields, _frozen, _text
-from improvement_store import _hash
+from improvement_store import _hash, _json
 from improvement_native_qualifications import profile_qualification as _profile_qualification
 
 PROFILE_VERSION = "claude-isolated-roles-v2"
@@ -29,10 +29,27 @@ PROFILE_SOURCES = ("improvement_claude.py", "improvement_sandbox.py", "improveme
                    "improvement_improver_inputs.py", "improvement_generation_protocol.py", "improvement_comparison_plans.py",
                    "improvement_proposals.py", "improvement_skill_candidates.py", "improvement_role_workflow.py",
                    "improvement_semantic_review.py", "improvement_semantic_protocol.py", "improvement_semantic_records.py",
-                   "improvement_dependency_evidence.py", "improvement_execution_limits.py", "improvement_native_lifetime.py")
+                   "improvement_dependency_evidence.py", "improvement_execution_limits.py", "improvement_native_lifetime.py",
+                   "improvement_trials.py", "improvement_trial_host.py", "improvement_trial_records.py", "improvement_trial_admission.py",
+                   "improvement_trial_context.py", "improvement_trial_sources.py", "improvement_trial_sql_context.py",
+                   "improvement_trial_dashboard.py", "improvement_trial_file_sources.py", "improvement_trial_selection.py",
+                   "improvement_trial_service.py", "improvement_trial_associations.py", "improvement_trial_runner.py",
+                   "improvement_trial_tasks.py", "improvement_trial_results.py", "improvement_trial_products.py",
+                   "improvement_trial_decisions.py", "improvement_trial_views.py", "improvement_trial_schema.py",
+                   "improvement_experiment_lineage.py", "improvement_experiment_admission.py", "improvement_experiment_service.py",
+                   "improvement_experiment_protocol.py", "improvement_experiment_qualification.py", "improvement_experiments.py",
+                   "improvement_experiment_schema.py", "improvement_comparison_results.py", "improvement_comparison_links.py",
+                   "improvement_views.py", "improvement_view_sources.py", "improvement_view_history.py", "improvement_view_lineage.py",
+                   "improvement_view_trial_protocol.py", "improvement_view_protocol.py", "improvement_view_schema.py",
+                   "improvement_store.py", "improvement_blobs.py", "improvement_cases.py", "improvement_case_schema.py",
+                   "improvement_candidate_records.py", "improvement_candidate_schema.py", "improvement_skill_patch.py",
+                   "improvement_comparison_schedule.py", "improvement_view_admission.py", "improvement_view_materialization.py",
+                   "improvement_view_qualification.py", "improvement_view_qualification_history.py",
+                   "improvement_skill_asset_broker.py", "improvement_skill_asset_proof.py")
 VERIFIED_NATIVE_RUNTIMES = {("win32", "2.1.304",
     "019e5174d5d954585edb1a946fe280e44a973050b4897034adf0e16306f85fdd", "0.2.116"),
-    ("win32", "2.1.308", "c9796ba22a9221586b36371b36f5b66198d66eb4badf6a4cf4a5f7b07becea53", "0.2.116")}
+    ("win32", "2.1.308", "c9796ba22a9221586b36371b36f5b66198d66eb4badf6a4cf4a5f7b07becea53", "0.2.116"),
+    ("win32", "2.1.309", "5441781f2b6bbd07354b4a74560ee88c68c9bf05d6db3c7e24c452c91673dc53", "0.2.116")}
 
 
 async def _settled_owned(future):
@@ -213,6 +230,9 @@ class TrialProfile:
         self._native_session_id = None
         self._tool_names = {}
         self._denied_calls = set()
+        self._asset_broker = None
+        self._pending_asset_events = []
+        self._asset_events = []
 
     def bind_installation(self, manifest, workspace, capability_hash):
         from improvement_sandbox import TrialWorkspace, _manifest, trial_system_prompt
@@ -232,17 +252,24 @@ class TrialProfile:
             raise ValueError("trial_prompt_installation_mismatch")
         self._installation = {"manifest": manifest, "workspace": workspace,
                               "capability_hash": capability_hash, "prompt_hash": prompt_hash}
+        if manifest['version'] == 3:
+            from improvement_skill_asset_broker import SkillAssetBroker
+            self._asset_broker = SkillAssetBroker(manifest, **{
+                key: workspace[key] for key in ('trial_id', 'attempt', 'input_hash')})
 
-    def installation_receipt(self, session_id):
+    def _tools(self):
+        return ['mcp__fixture__fixture_read'] + (['mcp__skill__skill_asset_read'] if self._asset_broker is not None else [])
+
+    def installation_receipt(self, session_id, *, pending_events=()):
         if self._installation is None:
             return None
         bound = self._installation
         manifest, workspace = bound["manifest"], bound["workspace"]
         selection = self._selection or {}
-        tools = ["mcp__fixture__fixture_read"]
+        tools = self._tools()
         model_coverage = ("observed" if self.observed_models == {self.pin["model"]}
                           else "mismatch" if self.observed_models else "unknown")
-        return {"version": 1, "trial_id": workspace["trial_id"], "attempt": workspace["attempt"], "session_id": session_id,
+        receipt = {"version": 1, "trial_id": workspace["trial_id"], "attempt": workspace["attempt"], "session_id": session_id,
                 "input_hash": workspace["input_hash"], "effective_hash": workspace["effective_hash"],
                 "bundle_hash": manifest["bundle_hash"], "contract_hash": manifest["contract_hash"],
                 "public_contract_hash": manifest["public_contract"]["hash"], "engine_config_hash": manifest["engine_config_hash"],
@@ -263,6 +290,16 @@ class TrialProfile:
                              "prompt": "host_attested" if self._selection is not None else "unknown",
                              "tool_inventory": "observed" if self._native_tools == tools else "unknown",
                              "model": model_coverage, "reasoning": "unknown"}}
+        if manifest['version'] in (2, 3):
+            receipt.update(version=2, effective_view=_frozen(manifest['effective_view']))
+        if manifest['version'] == 3:
+            from improvement_skill_asset_proof import correlate_asset_reads
+            proof = correlate_asset_reads(manifest, workspace, self._asset_events + list(pending_events))
+            receipt.update(version=3, asset_read_proofs=proof['proofs'])
+            if proof['verdict'] == 'pass':
+                for asset in receipt['asset_revisions']:
+                    asset['observed_use'] = 'observed'
+        return receipt
 
     async def before_query(self):
         if self._started:
@@ -293,6 +330,20 @@ class TrialProfile:
             return {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}],
                     "is_error": result["status"] != "fixture_hit"}
 
+        servers = {"fixture": create_sdk_mcp_server("fixture", tools=[fixture_read])}
+        if self._asset_broker is not None:
+            @tool('skill_asset_read', 'Read the selected immutable trial skill by exact view, asset and content identity',
+                  {'view_id': str, 'view_hash': str, 'asset_id': str, 'content_hash': str})
+            async def skill_asset_read(args):
+                result = self._asset_broker.read(args)
+                if result['status'] == 'skill_asset_hit':
+                    observation = self._asset_broker.observations[-1]
+                    self._pending_asset_events.append(_json({'type': 'skill_asset_broker_observation',
+                        'observation': observation, 'session_id': self._native_session_id}))
+                return {'content': [{'type': 'text', 'text': _json(result)}],
+                        'is_error': result['status'] != 'skill_asset_hit'}
+            servers['skill'] = create_sdk_mcp_server('skill', tools=[skill_asset_read])
+
         async def deny(name, args, context):
             self.denials.append({"type": "tool_denied", "name": str(name), "reason": "outside_trial_fixture_grant"})
             return PermissionResultDeny(message="Only the pinned fixture tool is authorized in this trial")
@@ -300,8 +351,8 @@ class TrialProfile:
         options = ClaudeAgentOptions(cli_path=self.pin["cli_path"], cwd=engine.cwd,
             system_prompt=self.system_prompt, model=self.pin["model"], effort=self.pin["reasoning"],
             tools=[], skills=[], setting_sources=[], plugins=[], agents={}, hooks={}, add_dirs=[],
-            mcp_servers={"fixture": create_sdk_mcp_server("fixture", tools=[fixture_read])}, strict_mcp_config=True,
-            allowed_tools=["mcp__fixture__fixture_read"], permission_mode="default", can_use_tool=deny,
+            mcp_servers=servers, strict_mcp_config=True,
+            allowed_tools=self._tools(), permission_mode="default", can_use_tool=deny,
             settings='{"fastMode":false,"disableAllHooks":true}',
             extra_args={"no-session-persistence": None, "disable-slash-commands": None, "no-chrome": None,
                         "restricted": None, "safe-mode": None},
@@ -312,12 +363,13 @@ class TrialProfile:
     def observe(self, message):
         """Never fabricate a missing usage field or assemble an artifact from narration."""
         from claude_agent_sdk import AssistantMessage, ResultMessage, SystemMessage, ToolUseBlock, UserMessage, ToolResultBlock
-        events = []
+        events = [json.loads(event) for event in self._pending_asset_events]
+        self._pending_asset_events.clear()
         if isinstance(message, SystemMessage):
             if message.subtype == "init":
                 tools = message.data.get("tools")
                 if tools is not None:
-                    if tools != ["mcp__fixture__fixture_read"]:
+                    if tools != self._tools():
                         raise ValueError("trial_native_tool_inventory_mismatch")
                     self._native_tools = list(tools)
                 self._native_session_id = message.data.get("session_id")
@@ -330,12 +382,15 @@ class TrialProfile:
             for block in message.content:
                 if isinstance(block, ToolUseBlock):
                     self._tool_names[block.id] = block.name
-                    events.append({"type": "tool_call", "name": block.name, "id": block.id})
+                    event = {"type": "tool_call", "name": block.name, "id": block.id}
+                    if self._asset_broker is not None:
+                        event.update(input=_frozen(block.input), session_id=message.session_id or self._native_session_id)
+                    events.append(event)
         elif isinstance(message, UserMessage) and isinstance(message.content, list):
             for block in message.content:
                 if isinstance(block, ToolResultBlock):
                     name = self._tool_names.get(block.tool_use_id)
-                    if name is not None and name != "mcp__fixture__fixture_read":
+                    if name is not None and name not in self._tools():
                         if not block.is_error:
                             raise ValueError("trial_unknown_tool_execution")
                         if block.tool_use_id not in self._denied_calls:
@@ -344,7 +399,13 @@ class TrialProfile:
                             self._denied_calls.add(block.tool_use_id)
                             self.denials.append(denial)
                             events.append(denial)
-                    events.append({"type": "tool_result", "id": block.tool_use_id, "is_error": block.is_error})
+                    event = {"type": "tool_result", "id": block.tool_use_id, "is_error": block.is_error}
+                    if self._asset_broker is not None:
+                        # UserMessage has no session field in the pinned SDK. This
+                        # is the initialized client stream, not an invented wire field.
+                        event.update(content=_frozen(block.content), native_is_error=block.is_error,
+                                     session_id=self._native_session_id)
+                    events.append(event)
         elif isinstance(message, ResultMessage):
             if self._native_session_id and self._native_session_id != message.session_id:
                 raise ValueError("trial_native_session_mismatch")
@@ -356,11 +417,14 @@ class TrialProfile:
                 events.append({"type": "artifact", "content": content,
                                "hash": hashlib.sha256(content.encode("utf-8")).hexdigest()})
                 artifact_status = "observed"
-            receipt = self.installation_receipt(message.session_id)
+            receipt = self.installation_receipt(message.session_id, pending_events=events)
             if receipt is not None:
                 events.append({"type": "installation_receipt", "receipt": receipt, "hash": _hash(receipt)})
             events.append({"type": "terminal", "subtype": message.subtype, "is_error": message.is_error,
                            "artifact_status": artifact_status, "session_id": message.session_id,
                            "api_error_status": message.api_error_status, "errors": _frozen(message.errors),
                            "actual_models": sorted(self.observed_models), "actual_reasoning_coverage": "unknown"})
+        if self._asset_broker is not None:
+            self._asset_events.extend(_frozen([event for event in events if event['type'] in
+                ('native_system', 'tool_call', 'tool_result', 'skill_asset_broker_observation')]))
         return events

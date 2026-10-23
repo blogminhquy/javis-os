@@ -1,7 +1,6 @@
 """Manifest-only SkillSource and exact lazy body loader for Phase 8."""
 from __future__ import annotations
 
-import hashlib
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -11,7 +10,7 @@ import skill_router
 from capability_registry import CapabilityRegistry
 from context_compiler import ContextItem, HeuristicTokenizer
 
-SKILL_SOURCE_POLICY_VERSION = "lazy-skill-source-v1"
+SKILL_SOURCE_POLICY_VERSION = "lazy-skill-source-v2"
 _TOKEN_RE = re.compile(r"[a-z0-9]{2,}")
 _EXPLICIT_RE = re.compile(r"\b(skill|kỹ năng|quy trình|workflow|dùng .* để|use .* to)\b", re.IGNORECASE)
 
@@ -109,15 +108,16 @@ class LazySkillSource:
                                   runner_up_score=runner, registry_revision=revision)
 
         slug = str((top.get("metadata") or {}).get("slug") or top.get("name") or "")
-        path = skill_router.resolve_skill_file(brain, slug)
-        if path is None:
-            return SkillSelection("fallback", "source_missing", top["capability_id"], slug,
-                                  top_score, runner, revision)
-        try:
-            raw = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        asset = skill_router.read_skill_asset(brain, slug)
+        if asset is None:
             return SkillSelection("fallback", "source_unreadable", top["capability_id"], slug,
                                   top_score, runner, revision)
+        selected_meta = top.get("metadata") or {}
+        if (asset.relative_path != selected_meta.get("path")
+                or asset.frontmatter_hash != selected_meta.get("frontmatter_hash")):
+            return SkillSelection("fallback", "source_manifest_changed", top["capability_id"], slug,
+                                  top_score, runner, revision)
+        raw = asset.text
         if not raw.strip() or len(raw) > max(1000, int(max_body_chars)):
             return SkillSelection("fallback", "body_over_limit", top["capability_id"], slug,
                                   top_score, runner, revision)
@@ -126,12 +126,8 @@ class LazySkillSource:
         if not body:
             return SkillSelection("fallback", "body_empty", top["capability_id"], slug,
                                   top_score, runner, revision)
-        try:
-            relative = path.resolve().relative_to(Path(brain).resolve()).as_posix()
-        except (OSError, ValueError):
-            return SkillSelection("fallback", "source_outside_brain", top["capability_id"], slug,
-                                  top_score, runner, revision)
-        source_hash = hashlib.sha256(raw.encode("utf-8", errors="replace")).hexdigest()
+        relative = asset.relative_path
+        source_hash = asset.content_hash
         content = (
             f"Selected skill `{slug}`. Apply only when it matches the current objective. "
             f"Source: file:{relative}.\n{body}"

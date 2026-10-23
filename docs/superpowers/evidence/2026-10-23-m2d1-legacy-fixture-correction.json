@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "task2_verified_commit": "68dc6c26507841f30e5ead93fe5281aad2afb4e5",
+  "actual_linux_run": 39938959026,
+  "linux_head": "8a25dee94caf0c7bcfad6343a035c95ab90ab66e",
+  "linux_conclusion": "failure",
+  "linux_log_sha256": "6cc87602633570457509663c6fba8f67028d29351308bb4270ae68873fce5079",
+  "new_schema_tests_on_linux": {
+    "tests": 15,
+    "seconds": 28.926,
+    "result": "pass"
+  },
+  "pure_view_tests_on_linux": {
+    "tests": 11,
+    "seconds": 0.008,
+    "result": "pass"
+  },
+  "correction_scope": "Exact new backup boundary and child-first cleanup of real schema2 test fixture; no production change.",
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "source": "tests/python/test_improvement_candidate_records.py",
+      "changed_method": "CandidateRecordTests.test_concurrent_upgrade_has_one_serialized_backup",
+      "all_other_ast_including_imports_and_fixture_helpers_unchanged": true,
+      "before_sha256": "0b451621acb7bf22237d439b813c2ec056dc8b55e080ca5afce09bf020392d56",
+      "after_sha256": "3e96ab0c3f1748d62fa454c86b93d02894098a08de9893103402893595730f61",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_candidate_records.py",
+        "-v"
+      ],
+      "tests": 12,
+      "test_seconds": 7.039,
+      "log": "task1-ci-candidate-records-green.log",
+      "log_sha256": "efd82a44f6ccda9cb4156f83e47028b31d356a0e9820c3d8046c35fd9383267a",
+      "result": "pass"
+    },
+    {
+      "source": "tests/python/test_improvement_cases.py",
+      "changed_method": "ImprovementCaseTests.test_concurrent_m1_migration_has_one_backup_and_no_partial_schema",
+      "all_other_ast_including_imports_and_fixture_helpers_unchanged": true,
+      "before_sha256": "0573d27516e427c89b4983964e48842cc8e13ef8e05d9a07add31ceb2ec49301",
+      "after_sha256": "25f4564b3aa61ccd49d02fc7f5600b8511d7026c6874ecb56bc89285d9e69e68",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_cases.py",
+        "-v"
+      ],
+      "tests": 28,
+      "test_seconds": 6.663,
+      "log": "task1-ci-cases-green.log",
+      "log_sha256": "6c023e3e79a661f9d8452d638976221258a0058d8f64c075d55ece278fb09586",
+      "result": "pass"
+    },
+    {
+      "source": "tests/python/test_improvement_trials.py",
+      "changed_method": "TrialStoreTests.test_schema_two_metadata_reads_do_not_migrate_and_failed_upgrade_rolls_back",
+      "all_other_ast_including_imports_and_fixture_helpers_unchanged": true,
+      "before_sha256": "ba09af0609c07244060d02bf4449d9adc63d519157935f99481a3193e99e4024",
+      "after_sha256": "1d1d1e2151ad80a6659ba2dcd864a9cb4f6c2d4e96a92dff13aae73f999ab06b",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trials.py",
+        "-v"
+      ],
+      "tests": 34,
+      "test_seconds": 20.835,
+      "log": "task1-ci-trials-green.log",
+      "log_sha256": "8af7e4bb23e8a44c4038a4573c64b2bb9e23a423b877734d2eeca3650ccc1f9f",
+      "result": "pass"
+    }
+  ],
+  "total_tests": 74,
+  "total_unittest_seconds": 34.537,
+  "source_reuse": {
+    "task2_evidence_sha256": "588f7dba351d6d4253039819179207e467306163b14bfb7447d8c700d08fc41e",
+    "all_task2_selected_source_bytes_unchanged": true,
+    "qualified_scope": "Prior five scripts ran on the named commit; only these three unselected test methods changed, with every other AST/helper unchanged.",
+    "current_head_full_ci_still_required": true
+  },
+  "real_model_calls": 0,
+  "business_proof": false,
+  "live_activation": false,
+  "limits": [
+    "Windows scoped GREEN does not replace a fresh Linux run.",
+    "Actual Task3/4 Trial/native integration, stable review, final CI/publication and all later Goal gates remain open."
+  ]
+}

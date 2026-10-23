@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 Task3 concrete resolver lifetime correction",
+  "parent": "9795f698",
+  "sources": {
+    "server/improvement_views.py": "477ffa3e5c0ab3b1c66de92e907431e52b3633182898b5eac7731d4bb3aada69",
+    "server/improvement_trials.py": "35dc0aaa9bf4be04e2153fe7c7f814c21ec05dcd04b38bec5f858e6b0ea08860",
+    "server/improvement_trial_host.py": "cf26c43a9f3f8fc51c6ff651fd6588d878a78cffb9c9553fa367a5376b11fac6",
+    "server/improvement_experiment_service.py": "ea3bbb35aaa72675dbb019659b1b52166b508fae30c1f1f2dbd042f311c7fbc5",
+    "tests/python/test_improvement_view_lifetime.py": "e8d3dd072e7b1744b102658f86f1a67244aac3493922698ca4e21f2cd4238bcb"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lifetime.py",
+        "-v"
+      ],
+      "tests": 2,
+      "exit_code": 0,
+      "seconds": 33.064,
+      "seconds_basis": "unittest elapsed time",
+      "log": "task3-view-lifetime-green.log",
+      "log_sha256": "c7f7c7f26724a0a6a48379c384bf780773fac4216c616f829ef84f9201d9839a",
+      "reuse_scope": "Original two methods/helpers unchanged; only independent failure-state method and asyncio import appended afterward; production bytes unchanged."
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lifetime.py",
+        "ViewLifetimeTests.test_missing_pending_cancelled_or_failed_owner_close_never_allows_rebinding",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 14.875,
+      "log": "task3-view-lifetime-0.log",
+      "log_sha256": "9f3a8e8afa5994ebd3be7461fdc3666abd5da0a515c3e7c341ee33d44e280c8a",
+      "tests": 1,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_next.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 136.718,
+      "log": "task3-view-lifetime-1.log",
+      "log_sha256": "d96c61bcbf20dd3954ba9d06a4289ec6d699c38a89d37318397fe6d98814876b",
+      "tests": 7,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_workflow_api.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 52.532,
+      "log": "task3-view-lifetime-2.log",
+      "log_sha256": "4663e4ec9fe0073b45677abe05cfcb63bd8ed765eadf5855aa31b93561c83ffe",
+      "tests": 8,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_lifetime.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 18.735,
+      "log": "task3-view-lifetime-3.log",
+      "log_sha256": "0537087feba9f2b26c59032291baa30d3b0db4c5108bc59ae206b45fbf596ffc",
+      "tests": 3,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_operation_worker.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.703,
+      "log": "task3-view-lifetime-4.log",
+      "log_sha256": "73c3c2390500c5a707cdda7cf68b2e97089974dbb6a772ff8b836c5bc6f29760",
+      "tests": 9,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.672,
+      "log": "task3-view-lifetime-5.log",
+      "log_sha256": "4d016f04294690bfcebb8b2f829b4ead03e7d1f524c4ea09ad073ae022785c61",
+      "tests": 1,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lifecycle.py",
+        "ViewLifecycleTests.test_stop_cancels_and_refunds_actual_view_trial_before_finishing_experiment",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 17.219,
+      "log": "task3-view-lifetime-6.log",
+      "log_sha256": "d187d0a2e985e6d84100d10c1005b2c83f61699445667a68e8fb23f773b5a78c",
+      "tests": 1,
+      "seconds_basis": "subprocess wall time"
+    }
+  ],
+  "total_tests": 32,
+  "total_recorded_seconds": 276.518,
+  "complete_source_log_record_sha256": "a1d7c8800d1b503ff66f7118ee75cb5e6702d6d24a9159d88ba209d593a4308e",
+  "red": {
+    "log": "task3-view-lifetime-red.log",
+    "reason": "Retained host reused a closed semantic workflow and current view admission failed",
+    "sha256": "b3673515eb127889f02e25b8b8a4725791378bd85dfd742a986853543bec014e"
+  },
+  "native_profile": {
+    "sources": 78,
+    "hash": "bfda89125cb364bb5dc8808a104a34272cdd778efdc581c323a0eef1427c97be",
+    "qualified": false
+  },
+  "replacement_requires_both_real_close_futures_succeed": true,
+  "missing_pending_cancelled_or_failed_close_denied": true,
+  "constructor_io_added": false,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false,
+  "limits": [
+    "Replacement derives from exact typed same-store workflow/owner and successful completed asyncio close futures, never caller flags.",
+    "Frozen SQL views/receipts/requests/hashes are unchanged; new service resolves current sources and reserves through existing ledger.",
+    "This proves concrete service reconstruction, not D2 ordinary task/session resume or actual v4 native execution.",
+    "V4 reports/final registry/workspace/native/public controls and stable final review/CI remain open.",
+    "No new registration, real model query, business win, live activation, deploy or restart."
+  ]
+}

@@ -80,15 +80,8 @@ class ImproverInputs:
 
     @staticmethod
     def _holdout(connection, brain, case_set_id):
-        # No consumed qualification exception: all aliases stay out of tuning.
-        if connection.execute("SELECT 1 FROM improvement_case_families t JOIN improvement_case_families h "
-                "ON h.brain_id=t.brain_id AND h.fingerprint=t.fingerprint WHERE t.brain_id=? AND t.case_set_id=? "
-                "AND t.split='tuning' AND h.split IN ('qualification','regression') LIMIT 1", (brain, case_set_id)).fetchone():
-            raise PermissionError('improver_holdout_alias')
-        if connection.execute("SELECT 1 FROM improvement_case_families t JOIN improvement_qualification_claims q "
-                "ON q.brain_id=t.brain_id AND q.fingerprint=t.fingerprint WHERE t.brain_id=? AND t.case_set_id=? "
-                "AND t.split='tuning' LIMIT 1", (brain, case_set_id)).fetchone():
-            raise PermissionError('improver_holdout_alias')
+        from improvement_experiment_qualification import require_tuning_families
+        require_tuning_families(connection, brain, case_set_id)
 
     def _snapshot(self, connection, principal, identifier, generation):
         brain = _brain(principal)

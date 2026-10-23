@@ -9,6 +9,8 @@ _FIELDS = {
     "freeze": {"ordinal", "kind", "expected_generation"},
     "next": {"comparison_id", "expected_generation"},
     "report": {"comparison_id", "expected_generation"},
+    'view-freeze': {'comparison_id', 'expected_generation'},
+    'view-evidence': {'comparison_id', 'expected_generation'},
     "select": {"choice", "ordinal", "expected_generation"},
     "cancel": {"expected_generation"}, "resume": {"expected_generation"}, "recover": set(),
     'preparation-freeze': {'expected_generation'}, 'preparation-next': {'expected_generation'},
