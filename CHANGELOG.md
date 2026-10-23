@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.298.0] - 2026-10-23
+### Sửa lỗi
+- **Giọng nói chọn trong Cài đặt được dùng đúng.** (đang viết)
+
 ## [0.296.0] - 2026-10-23
 ### Cải thiện
 - **Đề xuất sửa skill từ bằng chứng tuning.** Chủ sở hữu có thể chạy bản gốc trên dữ liệu đã cấp quyền, chốt kết quả rồi yêu cầu model tạo tối đa hai bản sửa để duyệt.

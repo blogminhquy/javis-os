@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.298.0] - 2026-10-23
+### Fixed
+- **The voice picked in Settings is the one you hear.** (in progress)
+
 ## [0.296.0] - 2026-10-23
 ### Improved
 - **Generate skill proposals from tuning evidence.** Owners can run the baseline on authorized data, seal its results, and ask the model for up to two patches to review.
