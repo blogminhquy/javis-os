@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.306.0] - 2026-10-24
+### Improved
+- **Installing on Windows or macOS starts Javis with the computer and opens the browser.** (in progress)
+
 ## [0.304.0] - 2026-10-24
 ### Fixed
 - **A Hostinger Ubuntu 26 VPS gets HTTPS with nothing to fill in, and this time it works.** 0.302.0 picked the wrong name: the HTTPS gateway got a certificate for one link while Javis checked another, so Open stayed on the IP page with no HTTPS. The gateway now serves both `javis.srvXXXX.hstgr.cloud` and `srvXXXX.hstgr.cloud`, and Javis tries exactly those two.

@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.306.0] - 2026-10-24
+### Cải thiện
+- **Cài trên Windows hoặc macOS là Javis tự chạy cùng máy và tự mở trình duyệt.** (đang viết)
+
 ## [0.304.0] - 2026-10-24
 ### Sửa lỗi
 - **VPS Ubuntu 26 trên Hostinger có HTTPS mà không cần điền gì, lần này chạy thật.** Bản 0.302.0 lấy nhầm tên: cổng HTTPS xin chứng chỉ cho một link, còn Javis lại kiểm tra link khác, nên bấm Open vẫn ở lại trang IP và không có HTTPS. Giờ cổng HTTPS phục vụ cả `javis.srvXXXX.hstgr.cloud` lẫn `srvXXXX.hstgr.cloud`, và Javis thử đúng hai link đó.
