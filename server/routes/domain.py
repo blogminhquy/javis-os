@@ -12,6 +12,7 @@ chứng chỉ trên production hỏng.
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from fastapi import APIRouter, Form, Request
@@ -84,42 +85,23 @@ def _instance_label() -> str:
     return re.sub(r"[^a-z0-9-]+", "-", (os.getenv("JAVIS_NAME", "") or "javis").strip().lower()).strip("-") or "javis"
 
 
-def pick_hostinger_name(base: str, label: str, resolve) -> str:
-    """Which name under the Hostinger VPS hostname `base` (srv123.hstgr.cloud) reaches this VPS.
+def hostinger_names(base: str, label: str) -> list:
+    """The names under the Hostinger VPS hostname `base` (srv123.hstgr.cloud) that the gateway serves, best first.
 
-    `label.base` when it resolves to the same address as `base` (the wildcard DNS of the Docker template), else the bare
-    `base` for the default instance (a plain OS image may have no wildcard), else "". Same rule as the gateway script in
-    docker-compose.hostinger.yml, so the name Javis checks is the name Caddy got a certificate for.
+    `label.base`, then for the default instance the bare `base` too. 0.304.0: no DNS guessing any more. 0.302.0 picked
+    ONE name by comparing addresses, and the gateway's lookup read the VPS's /etc/hosts first (Ubuntu maps its own
+    hostname to 127.0.1.1), so Caddy got a certificate for srv123.hstgr.cloud while Javis checked javis.srv123...:
+    nobody was moved to https (owner report 24/10/2026, Ubuntu 26). The gateway now serves both names; whichever DNS
+    sends to this VPS gets a certificate, and Javis tries them in this order.
     """
     if not base:
-        return ""
-    cand = f"{label}.{base}"
-
-    def ip(name):
-        try:
-            return resolve(name) or ""
-        except Exception:
-            return ""
-
-    b, c = ip(base), ip(cand)
-    if c and c == b:
-        return cand if _DOMAIN_RE.match(cand) else ""
-    if b and label == "javis":
-        return base
-    if not b and not c:
-        return cand if _DOMAIN_RE.match(cand) else ""   # no DNS answer at all: offer the usual form
-    return ""
+        return []
+    out = [f"{label}.{base}"] + ([base] if label == "javis" else [])
+    return [n for n in out if _DOMAIN_RE.match(n)]
 
 
-def hostinger_suggestion(ip, ptr_lookup=None, resolve=None) -> str:
-    """The free Hostinger name for this VPS, ready for DOMAIN_NAME: "javis.srv123456.hstgr.cloud", or "".
-
-    0.302.0 (owner 24/10/2026: Open in hPanel led to localhost). Hostinger does not tell a pasted compose its VPS
-    hostname (TRAEFIK_HOST and HOSTNAME are not set for Compose-from-URL), so the owner had to dig the
-    srv<id>.hstgr.cloud name out of hPanel. Hostinger's reverse DNS of the VPS IP carries that name, so Javis can
-    offer the exact line to paste. Only a name under .hstgr.cloud is offered; any other reverse name says nothing
-    about a domain that will reach this VPS.
-    """
+def _hostinger_base(ip, ptr_lookup=None) -> str:
+    """srv123.hstgr.cloud from Hostinger's reverse DNS of the VPS IP, or "" (only names under .hstgr.cloud count)."""
     if not ip:
         return ""
     try:
@@ -129,12 +111,52 @@ def hostinger_suggestion(ip, ptr_lookup=None, resolve=None) -> str:
         ptr = str(ptr_lookup(ip) or "").strip().lower().rstrip(".")
     except Exception:
         return ""
-    if not ptr.endswith(".hstgr.cloud"):
-        return ""
-    if resolve is None:
-        import socket as _sock
-        resolve = _sock.gethostbyname
-    return pick_hostinger_name(ptr, _instance_label(), resolve)
+    return ptr if ptr.endswith(".hstgr.cloud") else ""
+
+
+def hostinger_suggestion(ip, ptr_lookup=None) -> str:
+    """The free Hostinger name for this VPS, ready for DOMAIN_NAME: "javis.srv123456.hstgr.cloud", or "".
+
+    0.302.0 (owner 24/10/2026: Open in hPanel led to localhost). Hostinger does not tell a pasted compose its VPS
+    hostname (TRAEFIK_HOST and HOSTNAME are not set for Compose-from-URL), so the owner had to dig the
+    srv<id>.hstgr.cloud name out of hPanel. Hostinger's reverse DNS of the VPS IP carries that name, so Javis can
+    offer the exact line to paste.
+    """
+    names = hostinger_names(_hostinger_base(ip, ptr_lookup), _instance_label())
+    return names[0] if names else ""
+
+
+# 0.304.0: the gateway service writes what it is doing into a volume Javis mounts read-only (docker-compose.hostinger.yml):
+# "state=idle|busy|serving" and "names=<the names Caddy serves>". Javis then checks exactly the names that have a
+# certificate, and Settings can say which step is stuck. Missing file = an older compose or no gateway at all.
+GATEWAY_STATUS_FILE = "/gateway/gateway.txt"
+
+
+def read_gateway_status(path=None) -> dict:
+    try:
+        text = Path(path or os.getenv("JAVIS_GATEWAY_STATUS", "") or GATEWAY_STATUS_FILE).read_text(encoding="utf-8")
+    except Exception:
+        return {}
+    kv = {}
+    for line in text.splitlines():
+        k, _, v = line.partition("=")
+        kv[k.strip()] = v.strip()
+    state = kv.get("state", "")
+    if state not in ("idle", "busy", "serving"):
+        return {}
+    return {"state": state, "names": [n for n in kv.get("names", "").lower().split() if _DOMAIN_RE.match(n)]}
+
+
+def auto_candidates(ip, gateway=None) -> list:
+    """The https names /domain/auto tries, in order. DOMAIN_NAME when set; else the names the gateway says it serves;
+    nothing while Traefik holds the ports (it only serves DOMAIN_NAME); else, with no gateway status, the PTR names."""
+    route = _norm_domain(os.getenv("DOMAIN_NAME", ""))
+    if route and route != "localhost":
+        return [route]
+    gw = read_gateway_status() if gateway is None else gateway
+    if gw:
+        return gw["names"] if gw["state"] == "serving" else []
+    return hostinger_names(_hostinger_base(ip), _instance_label())
 
 
 # 0.302.0: who answers on a candidate link. A random id per server process; /domain/auto only sends the browser to an
@@ -152,6 +174,23 @@ async def _answers_as_me(url: str) -> bool:
         return r.status_code == 200 and (r.json() or {}).get("id") == _WHOAMI
     except Exception:
         return False
+
+
+async def _auto_link() -> str:
+    """The first candidate link that answers as THIS Javis over valid https, or "" (cached a few minutes)."""
+    import asyncio as _aio
+    import time as _t
+    now = _t.time()
+    ttl = AUTO_TTL_OK if _AUTO["url"] else AUTO_TTL_MISS
+    if _AUTO["ts"] and now - _AUTO["ts"] < ttl:
+        return _AUTO["url"]
+    url = ""
+    for name in await _aio.to_thread(lambda: auto_candidates(_detect_public_ip())):
+        if await _answers_as_me(f"https://{name}"):
+            url = f"https://{name}"
+            break
+    _AUTO.update(url=url, ts=now)
+    return url
 
 
 def _req_is_secure(request: Request) -> bool:
@@ -289,20 +328,9 @@ def _make_router() -> APIRouter:
         gateway, or by Traefik with DOMAIN_NAME) once that link answers as THIS Javis over a valid certificate.
         Hostinger stack only, cached a few minutes.
         """
-        import time as _t
         if _domain_deploy_target(request) != "hostinger":
             return {"url": ""}
-        now = _t.time()
-        ttl = AUTO_TTL_OK if _AUTO["url"] else AUTO_TTL_MISS
-        if _AUTO["ts"] and now - _AUTO["ts"] < ttl:
-            return {"url": _AUTO["url"]}
-        import asyncio as _aio
-        route = _norm_domain(os.getenv("DOMAIN_NAME", ""))
-        name = route if route and route != "localhost" else await _aio.to_thread(
-            lambda: hostinger_suggestion(_detect_public_ip()))
-        url = f"https://{name}" if name and await _answers_as_me(f"https://{name}") else ""
-        _AUTO.update(url=url, ts=now)
-        return {"url": url}
+        return {"url": await _auto_link()}
 
     @router.post("/domain")
     async def domain_set(domain: str = Form("")):
@@ -346,11 +374,16 @@ def _make_router() -> APIRouter:
                 ssl_active, ssl_reason, ssl_code = await _probe_https(custom, hostinger=target == "hostinger")
         route_domain = _norm_domain(os.getenv("DOMAIN_NAME", ""))
         # No domain yet: offer the free Hostinger name for this VPS (reverse DNS can take a moment, so off the loop).
-        suggested = ""
+        suggested, gateway, auto_url = "", {}, ""
         if not custom and route_domain in ("", "localhost"):
             import asyncio as _aio
             suggested = await _aio.to_thread(hostinger_suggestion, server_ip)
+            if target == "hostinger":
+                # 0.304.0: what the gateway is doing and whether its link already works, so Settings names the stuck step.
+                gateway = read_gateway_status()
+                auto_url = await _auto_link()
         return {"domain": custom, "server_ip": server_ip, "dns_ip": dns_ip, "suggested_domain": suggested,
+                "gateway": gateway, "auto_url": auto_url,
                 "dns_ok": dns_ok, "on_domain": on_domain, "secure_now": secure_now,
                 "deploy_mode": _DEPS.deploy_mode(), "ssl_enabled": ssl_enabled,
                 "ssl_active": ssl_active, "ssl_reason": ssl_reason, "ssl_code": ssl_code,

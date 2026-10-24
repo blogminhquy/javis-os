@@ -21,7 +21,7 @@ Get Javis OS running in a few minutes. Full guides: [docs/en/](docs/en/README.md
 4. **Deploy**. Wait 1-3 minutes. Open the app with the **Open** button (or `https://<DOMAIN_NAME>`).
 5. On first run the screen asks you to create an admin account. After that, sign in to Claude Code once inside the container terminal: `claude auth login --claudeai`.
 
-VPS on **Ubuntu 26** or a plain OS without Hostinger's Traefik: paste the same link, `DOMAIN_NAME` may stay empty: **Open** moves you to `https://javis.srvXXXX.hstgr.cloud` (since 0.302.0). The bundled `javis-gateway` container issues HTTPS for `DOMAIN_NAME` when ports 80/443 are free (since 0.300.0); open ports 80 and 443 in the firewall.
+VPS on **Ubuntu 26** or a plain OS without Hostinger's Traefik: paste the same link, `DOMAIN_NAME` may stay empty: **Open** moves you to `https://javis.srvXXXX.hstgr.cloud` or `https://srvXXXX.hstgr.cloud` (since 0.302.0). **Settings → Domain** says whether the link works yet. The bundled `javis-gateway` container issues HTTPS for `DOMAIN_NAME` when ports 80/443 are free (since 0.300.0); open ports 80 and 443 in the firewall.
 
 To update: press **⬆ Update now** in the app (Updates page), or **Redeploy** in Docker Manager (image `:latest`, `pull_policy: always`). Brain data stays in the volume.
 

@@ -110,8 +110,9 @@ link riêng chạy HTTPS mà không cần mua tên miền. **Lưu ý (đã kiể
 4. **Deploy** → đợi 1-3 phút Traefik cấp SSL → mở `https://<DOMAIN_NAME>`.
 
 > **Mở ra là có link VPS (từ 0.302.0):** trên VPS không có Traefik (Ubuntu 26 trắng), bỏ trống `DOMAIN_NAME` cũng
-> được. Gateway đọc tên VPS (`srvXXXX.hstgr.cloud`) và tự cấp HTTPS cho `javis.srvXXXX.hstgr.cloud` (hoặc chính
-> `srvXXXX.hstgr.cloud` nếu tên phụ chưa trỏ về máy). Bấm **Open** ra `http://<ip>:7777`, trang tự chuyển sang link
+> được. Gateway đọc tên VPS (`srvXXXX.hstgr.cloud`) và tự cấp HTTPS cho cả `javis.srvXXXX.hstgr.cloud` lẫn chính
+> `srvXXXX.hstgr.cloud` (từ 0.304.0; tên nào trỏ về máy thì tên đó có chứng chỉ). **Cài đặt → Tên miền** cho biết
+> link đã chạy chưa, hay còn đang chờ chứng chỉ. Bấm **Open** ra `http://<ip>:7777`, trang tự chuyển sang link
 > HTTPS đó ngay khi nó chạy và đúng là Javis này. Thêm `?stay=1` vào link IP nếu muốn ở lại. Ứng dụng cài từ Catalog
 > của Hostinger (vd `omniroute-xxxx.srv....hstgr.cloud`) được Hostinger báo sẵn tên VPS lúc cài; cài bằng
 > "Compose from URL" thì không, nên nút Open không tự ghi được link đó. Trên mẫu Ubuntu 24 có Traefik thì vẫn

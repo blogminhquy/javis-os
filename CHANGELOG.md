@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.304.0] - 2026-10-24
 ### Sửa lỗi
-- **Ubuntu 26 trên Hostinger có HTTPS thật mà không cần điền gì.** (đang viết)
+- **VPS Ubuntu 26 trên Hostinger có HTTPS mà không cần điền gì, lần này chạy thật.** Bản 0.302.0 lấy nhầm tên: cổng HTTPS xin chứng chỉ cho một link, còn Javis lại kiểm tra link khác, nên bấm Open vẫn ở lại trang IP và không có HTTPS. Giờ cổng HTTPS phục vụ cả `javis.srvXXXX.hstgr.cloud` lẫn `srvXXXX.hstgr.cloud`, và Javis thử đúng hai link đó.
+### Cải thiện
+- **Cài đặt, mục Tên miền nói rõ link VPS đang ở bước nào:** đã chạy (kèm nút mở), đang chờ chứng chỉ (kèm lời nhắc mở cổng 80, 443 ở Tường lửa của hPanel), hay máy có Traefik nên cần dán dòng `DOMAIN_NAME`.
 
 ## [0.302.0] - 2026-10-24
 ### Sửa lỗi

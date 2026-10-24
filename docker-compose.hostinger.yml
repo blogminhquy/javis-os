@@ -89,6 +89,7 @@ services:
       - javis-brains:/brains
       - claude-auth:/home/javis/.claude
       - codex-auth:/home/javis/.codex
+      - gateway-status:/gateway:ro   # 0.304.0: trạng thái service gateway bên dưới (chỉ đọc)
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.getenv('JAVIS_PORT','7777')+'/health',timeout=4).status==200 else 1)"]
       interval: 30s
@@ -179,30 +180,35 @@ services:
         D="$${DOMAIN_NAME:-localhost}"
         P="$${JAVIS_HOST_PORT:-7777}"
         nghi() { while :; do sleep 3600; done; }
-        # Chua dat DOMAIN_NAME: lay ten VPS Hostinger (srv<so>.hstgr.cloud) lam link. Uu tien <ten-ban>.<may> khi ten do
-        # tro cung IP voi may (wildcard DNS), khong thi dung chinh ten may cho ban mac dinh. Cung luat voi
-        # routes/domain.py pick_hostinger_name, de link Javis kiem tra la link Caddy da xin chung chi.
+        S="/status/gateway.txt"
+        ghi() { mkdir -p /status 2>/dev/null; printf 'state=%s\nnames=%s\n' "$$1" "$$2" > "$$S" 2>/dev/null || true; }
+        # Chua dat DOMAIN_NAME: lay ten VPS Hostinger (srv<so>.hstgr.cloud) lam link. 0.304.0: KHONG doan qua DNS nua.
+        # Ban 0.302.0 so dia chi bang getent, ma getent doc /etc/hosts cua VPS truoc (Ubuntu ghi ten may -> 127.0.1.1),
+        # nen Caddy xin cert cho srv<so>.hstgr.cloud con Javis lai cho javis.srv<so>.hstgr.cloud: lech nhau, khong ai
+        # duoc chuyen sang https (chu repo bao 24/10/2026). Gio Caddy phuc vu CA HAI ten (<ten-ban>.<may> va, voi ban
+        # mac dinh, chinh ten may); ten nao DNS tro ve may thi co cert. Danh sach ghi vao $$S de Javis thu dung cac ten nay.
         if [ "$$D" = "localhost" ] || [ -z "$$D" ]; then
-          M="$$(hostname -f 2>/dev/null || hostname)"
+          M="$$( (hostname -f 2>/dev/null || hostname) | tr 'A-Z' 'a-z')"
           case "$$M" in
             *.hstgr.cloud) ;;
             srv[0-9]*) case "$$M" in *.*) M="";; *) M="$$M.hstgr.cloud";; esac;;
             *) M="";;
           esac
           N="$$(echo "$${JAVIS_NAME:-javis}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-\n' '-')"
-          ipof() { getent hosts "$$1" 2>/dev/null | awk '{print $$1; exit}'; }
           if [ -n "$$M" ]; then
-            B="$$(ipof "$$M")"; C="$$(ipof "$$N.$$M")"
-            if [ -n "$$C" ] && [ "$$C" = "$$B" ]; then D="$$N.$$M"
-            elif [ -n "$$B" ] && [ "$$N" = "javis" ]; then D="$$M"
-            elif [ -z "$$B" ] && [ -z "$$C" ]; then D="$$N.$$M"
-            fi
-            [ "$$D" != "localhost" ] && [ -n "$$D" ] && echo "[gateway] Chua dat DOMAIN_NAME: dung link cua VPS $$D"
+            D="$$N.$$M"
+            [ "$$N" = "javis" ] && D="$$D $$M"
+            echo "[gateway] Chua dat DOMAIN_NAME: dung link cua VPS $$D"
           fi
         fi
         case "$$D" in
-          ""|localhost|*[!A-Za-z0-9.-]*|*.) echo "[gateway] DOMAIN_NAME chua dat: khong cap HTTPS, vao bang http://<ip>:$$P"; nghi;;
+          ""|localhost) echo "[gateway] DOMAIN_NAME chua dat: khong cap HTTPS, vao bang http://<ip>:$$P"; ghi idle ""; nghi;;
         esac
+        for x in $$D; do
+          case "$$x" in
+            *[!A-Za-z0-9.-]*|*.|.*) echo "[gateway] Ten mien khong hop le: $$x. Khong cap HTTPS."; ghi idle ""; nghi;;
+          esac
+        done
         # 0050 = cong 80, 01BB = cong 443, 0A = dang LISTEN. Them nc cho truong hop Docker chi dung iptables.
         ban() {
           grep -qiE ':(0050|01BB) [0-9A-F]+:[0-9A-F]+ 0A' /proc/net/tcp /proc/net/tcp6 2>/dev/null && return 0
@@ -210,14 +216,20 @@ services:
         }
         while ban; do
           echo "[gateway] Cong 80/443 da co proxy khac (Traefik cua Hostinger): de no cap HTTPS cho $$D. Soi lai sau 10 phut."
+          ghi busy "$$D"
           sleep 600
         done
         echo "[gateway] Khong co Traefik: Caddy cap HTTPS cho $$D -> 127.0.0.1:$$P"
-        printf '%s {\n\treverse_proxy 127.0.0.1:%s\n}\n' "$$D" "$$P" > /config/Caddyfile
+        echo "[gateway] Chung chi khong len? Mo cong 80 va 443 o hPanel > VPS > Tuong lua."
+        ghi serving "$$D"
+        printf '%s {\n\treverse_proxy 127.0.0.1:%s\n}\n' "$$(echo $$D | sed 's/ /, /g')" "$$P" > /config/Caddyfile
         exec caddy run --config /config/Caddyfile --adapter caddyfile
     volumes:
       - gateway-data:/data       # chứng chỉ đã cấp - giữ qua Redeploy, không xin lại (tránh cạn rate-limit)
       - gateway-config:/config
+      # 0.304.0: gateway ghi nó đang làm gì (idle / busy / serving + các tên) vào đây; Javis đọc (chỉ đọc) để trang IP
+      # chuyển đúng sang tên Caddy đã xin cert, và Cài đặt > Tên miền nói rõ gateway đang ở bước nào.
+      - gateway-status:/status
     labels:
       - traefik.enable=false
 
@@ -237,6 +249,7 @@ services:
 # ============================================================================
 
 volumes:
+  gateway-status:
   gateway-data:
   gateway-config:
   javis-data:

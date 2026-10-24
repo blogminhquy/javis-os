@@ -116,8 +116,9 @@ you **must set a `DOMAIN_NAME` variable**:
 4. **Deploy**, wait 1-3 minutes for Traefik to issue SSL, then open `https://<DOMAIN_NAME>`.
 
 > **A VPS link right after install (since 0.302.0):** on a VPS without Traefik (plain Ubuntu 26) `DOMAIN_NAME` can
-> stay empty. The gateway reads the VPS name (`srvXXXX.hstgr.cloud`) and issues HTTPS for `javis.srvXXXX.hstgr.cloud`
-> (or `srvXXXX.hstgr.cloud` itself when the sub-name does not point at the machine). **Open** reaches
+> stay empty. The gateway reads the VPS name (`srvXXXX.hstgr.cloud`) and issues HTTPS for both
+> `javis.srvXXXX.hstgr.cloud` and `srvXXXX.hstgr.cloud` itself (since 0.304.0; whichever points at the machine gets a
+> certificate). **Settings → Domain** says whether the link works yet or is still waiting for its certificate. **Open** reaches
 > `http://<ip>:7777`, and the page moves to that HTTPS link as soon as it works and answers as this Javis. Add
 > `?stay=1` to the IP link to stay. Apps installed from Hostinger's Catalog (e.g. `omniroute-xxxx.srv....hstgr.cloud`)
 > are told the VPS name at install time; a "Compose from URL" deploy is not, so the Open button cannot carry that link.

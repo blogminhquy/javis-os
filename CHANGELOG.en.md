@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.304.0] - 2026-10-24
 ### Fixed
-- **Ubuntu 26 on Hostinger gets real HTTPS with nothing to fill in.** (in progress)
+- **A Hostinger Ubuntu 26 VPS gets HTTPS with nothing to fill in, and this time it works.** 0.302.0 picked the wrong name: the HTTPS gateway got a certificate for one link while Javis checked another, so Open stayed on the IP page with no HTTPS. The gateway now serves both `javis.srvXXXX.hstgr.cloud` and `srvXXXX.hstgr.cloud`, and Javis tries exactly those two.
+### Improved
+- **Settings, Domain says which step the VPS link is at:** working (with an open button), waiting for its certificate (with a reminder to open ports 80, 443 in hPanel's Firewall), or a VPS with Traefik that needs the `DOMAIN_NAME` line.
 
 ## [0.302.0] - 2026-10-24
 ### Fixed

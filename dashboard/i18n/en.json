@@ -5526,5 +5526,9 @@
   "studio.saved_ok": "Saved",
   "studio.save_hint": "Save (Ctrl+S)",
   "brand.suggest_title": "This Hostinger VPS's free link",
-  "brand.suggest_desc": "Paste this line into Environment in Docker Manager, then Redeploy, for HTTPS and the right Open link."
+  "brand.suggest_desc": "Paste this line into Environment in Docker Manager, then Redeploy, for HTTPS and the right Open link.",
+  "brand.auto_ok_title": "Javis has the VPS's HTTPS link",
+  "brand.auto_ok_desc": "Opening by IP moves here on its own. Send this link to customers.",
+  "brand.gw_wait_title": "Getting the HTTPS certificate for the VPS link",
+  "brand.gw_wait_desc": "Wait 1-3 minutes. Longer: open ports 80, 443 in hPanel, VPS, Firewall."
 }

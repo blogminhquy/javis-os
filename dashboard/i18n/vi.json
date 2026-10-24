@@ -5526,5 +5526,9 @@
   "studio.saved_ok": "Đã lưu",
   "studio.save_hint": "Lưu (Ctrl+S)",
   "brand.suggest_title": "Link miễn phí của VPS Hostinger này",
-  "brand.suggest_desc": "Dán dòng này vào Environment trong Docker Manager rồi Redeploy để có HTTPS và nút Open đúng link."
+  "brand.suggest_desc": "Dán dòng này vào Environment trong Docker Manager rồi Redeploy để có HTTPS và nút Open đúng link.",
+  "brand.auto_ok_title": "Javis đã có link HTTPS của VPS",
+  "brand.auto_ok_desc": "Mở bằng IP sẽ tự chuyển sang link này. Gửi link này cho khách.",
+  "brand.gw_wait_title": "Đang xin chứng chỉ HTTPS cho link VPS",
+  "brand.gw_wait_desc": "Đợi 1-3 phút. Lâu hơn thì mở cổng 80, 443 ở hPanel, VPS, Tường lửa."
 }
