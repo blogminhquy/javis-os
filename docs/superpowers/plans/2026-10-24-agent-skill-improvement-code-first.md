@@ -1,5 +1,19 @@
 # M0–M8: code and technical verification before real trials
 
+Latest scoped panel5490cde6/95790edb approved after three reproduced/fixed UI
+recovery findings,12stablepins/no reviewer executions. Actual cold outcomes and
+mounted explicit preview/consent/run/revoke preserve immutable budget, current
+grant generations, exact uncertain retry and independent checks of composed bytes.
+Local14Python plus controller/info/i18n/syntax; early Linux40068923965 SUCCESS on
+exact12pins, not final task-head full CI. Root desktop vi/en browser check is a
+labelled metadata fixture only. Public checkpoint compose-owner-panel SHA06224f4b71acf3a4382505c8500f77709ffc9489b18451fa809596e7cdc5c8c7.
+Current PROFILE95raw7f7f77da63c0814fb08e55f58849899de0786023c0feb977b81e0778b2573044 UNQUALIFIED; actual309 proof unchanged.
+Next pre-code plan2026-10-24-harness2-library-snapshot.md extracts actual Library
+with checked private filesystem ownership; canonical encrypted authority/grants/
+retention and actual improver/candidate/view enforcement follow before retrieval
+or orchestration integration claims. Deferred minor candidate labels/warnings
+remain tracked. Full Goal, native/final/full CI/Phase2 gates remain open.
+
 Latest backend67dfb662 scoped approved: explicit owner compose preview/consent/
 run/revoke, actual shared execution/tasks, authorization-scoped stop/drain and
 late final-source consent rollback. Readonly history and saved completed/start/

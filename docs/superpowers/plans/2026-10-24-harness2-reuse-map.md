@@ -1,5 +1,24 @@
 # Incremental Harness² reuse decisions
 
+## Current compose consumer and next actual-library component
+
+Actual owner panel/outcome consumer5490cde6/95790edb scoped approved: actual
+compose_round/ComposerService/shared owners and existing exact-byte review remain
+the implementation. New cold metadata and UI do not duplicate executor/ledger or
+grant activation. Local14Python plus UI checks; Linux40068923965 exact12pins;
+independent3P2closed/static-only. Checkpoint compose-owner-panel SHA06224f4b71acf3a4382505c8500f77709ffc9489b18451fa809596e7cdc5c8c7.
+
+Before library code, plan2026-10-24-harness2-library-snapshot.md records exact
+library.py39e50684b4044e483a3c16a447958044d4b5e6de, tree.pyc9bf1341226aac448f6ec82038cb6d3896799412,
+context.py72f2868b06c13e30c031cb91c0f04dcd80293ec9 and upstream library test cases
+test_workflow.py2b7ebeb1816346f606922816a6f3609c64e8f8cc at pinned1cfe254.
+Actual Library/entry/index/retain/forget plus minimal dependencies will be vendor
+code, with import glue and three documented strict UTF8/Windows path/newline tree
+adaptations. A checked private procedure-only snapshot is the immediate consumer;
+canonical authority/grants/retention/native dependency integration stay separate
+open requirements. No benchmark/provider/scheduler or filesystem canonical store.
+This is a pre-code reuse decision, not an implemented library/quality claim.
+
 Goal§17 sets the next integration priority after the owned upper-domain unit:
 actual compose implementation (`prompts.aggregate/compose_round` and relevant
 recursion call), then library structure/serialization/index/entry, then evaluate

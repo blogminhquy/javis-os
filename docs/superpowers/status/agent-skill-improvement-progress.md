@@ -1,5 +1,41 @@
 # Agent and skill improvement Goal progress
 
+## Compose owner panel and recorded outcomes — scoped engineering approved
+
+Commits5490cde6/95790edb add the actual mounted Studio owner flow and bounded
+cold compose-outcomes. Open/reload GET only; preview/consent/run/revoke explicit;
+generation types separate; old budget2 immutable; reserve3 only at create. A
+recorded interrupted/invalid/native-incomplete compose consumes scope even without
+publication. New bytes retain their own exact diff/semantic/dependency/native/
+Trial/tuning/final gates. Unknown readiness/business eligibility is not upgraded.
+
+Fresh independent static review found three P2 UI recovery defects: older reload
+restored active consent, acknowledged actions stayed disabled after manual reload,
+and definitely rejected create refs remained cached. All reproduced RED; scoped
+fix/re-review ADDRESSED3/no new Important,12stablev2pins/no reviewer execution.
+Latest snapshot/write epochs and bounded acknowledgment reconciliation preserve
+revocation; only first definite pre-create400/403 permits corrected intent, while
+uncertain/admitted/runtime requests retain exact event/payload and never resample.
+
+Local14Python cases plus info-tip, both actual controller suites, i18n/two syntax
+checks; JS-only fix adds10recovery/retention controls and reuses unchanged backend
+proof. Early isolated Linux40068923965/job120797950847 SUCCESS, same12rawpins,
+14Python plus those controller/i18n/info/syntax checks; snapshotd11365108d7a3fbc1fd8f644880584247ab2919e.
+Root real-browser vi/en desktop walkthrough used labelled synthetic metadata;
+actual panel mount, separate steps/KEEP_BASE/close verified, helper/tab cleaned.
+This is no account/model/native proof. Raw warnings/diagnostics remain recorded.
+Public checkpoint2026-10-24-compose-owner-panel.json SHA06224f4b71acf3a4382505c8500f77709ffc9489b18451fa809596e7cdc5c8c7.
+
+PROFILE95 raw7f7f77da63c0814fb08e55f58849899de0786023c0feb977b81e0778b2573044 is UNQUALIFIED; actual309 proof untouched. MinorT2-R4
+ambiguous candidate option labels andT2-R5 existing evidence warning noise remain
+explicit deferred final-review items. Next bounded plan: actual Harness² Library
+inside an owned private snapshot, then canonical encrypted recipe permission/
+retention/retrieval and actual improver/candidate/view propagation before any
+orchestration comparison. No library integration/readiness claimed from the plan.
+Full M0–M8 Goal active; same-pipeline dummy/native, qualified final, remaining code,
+final exact task-head full CI/fresh whole-branch review and all Phase2 actual model/
+business pilot/canary/specifically authorized rollout remain open.
+
 ## Owned compose controls and cold history — scoped backend approved
 
 Backend67dfb662 connects the existing concrete ComposerService/shared execution/

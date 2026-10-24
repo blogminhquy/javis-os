@@ -66,14 +66,14 @@
 
 **Produces:** A reachable owner flow in Cải tiến có kiểm chứng using actual server state, with explicit consent/run/revoke and durable recorded outcomes.
 
-- [ ] Before UI code, add a narrowly scoped cold `GET /improvement-experiments/{id}/compose-outcomes` projection if needed for exact disposition reload. Existing `/compositions` intentionally contains publications only; an invalid-output or native-incomplete result has no publication row. Reuse authenticated existing compose_generate/start, authorization and Operation history, bounded to the existing one-compose scope. Return recorded disposition/role status and references only, with authority not_checked/business_proof false. No new store, executor, schema, service factory, decryption, source probe or inferred readiness; old-schema known experiments return empty metadata, foreign scope refuses. Pin actual readonly ASGI cases with raising factories/decrypt callbacks before adding the reader, preserve existing routes, then review this narrow backend delta with the UI.
-- [ ] Pin interaction tests that exercise the real controller contract: no POST on open, no implied consent, no autorun, closed event keys on retry, no duplicate click intent, brain/tab switch cancellation and no stale private content.
-- [ ] Expose the new experiment budget choice only before experiment creation. Reopened old two-slot experiments retain their immutable policy; existing typed3 drafts remain labelled unevaluated in that experiment.
-- [ ] Show authorized current input refs and one-compose scope before consent. Show consent generation/status and a separate explicit run action. Disable or explain unavailable capability from actual current gate state; do not infer readiness from an installed CLI or the existence of a button.
-- [ ] Reuse the existing exact-byte candidate review and exact-diff grant action. Distinguish staged, semantic/dependency/native unknown or fail, tuning result, final result and activation eligibility. KEEP_BASE is a valid recorded outcome.
-- [ ] Support revocation/off, cold outcome reload and historical interrupted/invalid-output/native-incomplete states without replaying work. Read generated decision/provenance details only through an explicit currently authorized evidence path; metadata GET does not decrypt private blobs.
-- [ ] Keep controls bounded, keyboard accessible and bilingual with current tw()/info-tip conventions. Avoid product prose about internal module/schema/transport implementation.
-- [ ] Verify interaction behavior plus actual ASGI-to-service controls, scoped JS/i18n/regression checks and independent review. Record fixture versus native/business gates separately; do not deploy/restart.
+- [x] Before UI code, add a narrowly scoped cold `GET /improvement-experiments/{id}/compose-outcomes` projection if needed for exact disposition reload. Existing `/compositions` intentionally contains publications only; an invalid-output or native-incomplete result has no publication row. Reuse authenticated existing compose_generate/start, authorization and Operation history, bounded to the existing one-compose scope. Return recorded disposition/role status and references only, with authority not_checked/business_proof false. No new store, executor, schema, service factory, decryption, source probe or inferred readiness; old-schema known experiments return empty metadata, foreign scope refuses. Pin actual readonly ASGI cases with raising factories/decrypt callbacks before adding the reader, preserve existing routes, then review this narrow backend delta with the UI.
+- [x] Pin interaction tests that exercise the real controller contract: no POST on open, no implied consent, no autorun, closed event keys on retry, no duplicate click intent, brain/tab switch cancellation and no stale private content.
+- [x] Expose the new experiment budget choice only before experiment creation. Reopened old two-slot experiments retain their immutable policy; existing typed3 drafts remain labelled unevaluated in that experiment.
+- [x] Show authorized current input refs and one-compose scope before consent. Show consent generation/status and a separate explicit run action. Disable or explain unavailable capability from actual current gate state; do not infer readiness from an installed CLI or the existence of a button.
+- [x] Reuse the existing exact-byte candidate review and exact-diff grant action. Distinguish staged, semantic/dependency/native unknown or fail, tuning result, final result and activation eligibility. KEEP_BASE is a valid recorded outcome.
+- [x] Support revocation/off, cold outcome reload and historical interrupted/invalid-output/native-incomplete states without replaying work. Read generated decision/provenance details only through an explicit currently authorized evidence path; metadata GET does not decrypt private blobs.
+- [x] Keep controls bounded, keyboard accessible and bilingual with current tw()/info-tip conventions. Avoid product prose about internal module/schema/transport implementation.
+- [x] Verify interaction behavior plus actual ASGI-to-service controls, scoped JS/i18n/regression checks and independent review. Record fixture versus native/business gates separately; do not deploy/restart.
 
 ## Reuse decision before code
 
@@ -94,3 +94,14 @@ shapes or rerun its unchanged broad suite. The new reader and affected transport
 need their own meaningful RED/GREEN, focused actual ASGI regression and scoped
 independent review. This is a bounded operator-history requirement, not another
 compose attempt or new authority.
+
+
+## Scoped completion checkpoint
+
+Task1 backend67dfb662 and Task2 panel5490cde6/95790edb passed scoped technical
+checks and independent review; Task2 three P2 recovery findings were reproduced
+and closed in fix round1. Public compose-owner-controls and compose-owner-panel
+proofs retain exact hashes and fixture/native limits. Early Linux snapshots do
+not replace final task-head full CI. Minor candidate option labels and warning
+noise remain tracked for final review. Actual-library plan is prepared before
+code; canonical retrieval/native/business/M0-M8 gates remain open. Goal active.
