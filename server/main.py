@@ -1417,6 +1417,15 @@ def _doi_phien_that(request: Request):
     return None
 
 
+def _assistant_name() -> str:
+    """Name of the assistant in live status lines ("<name> is thinking...").
+
+    Reuses `workspace_name` so an owner who renamed the workspace sees the same name in chat and
+    Telegram, with no extra setting. The untouched default "Javis OS" reads as "Javis"."""
+    ten = (cfgmod.read_settings().get("workspace_name") or "").strip()
+    return ten if ten and ten != "Javis OS" else "Javis"
+
+
 def _ten_hien_thi(cfg=None) -> str:
     """Tên NGƯỜI để hiện trong app Authenticator, sau tên workspace: "Javis OS: Minh Quý".
 
@@ -15960,7 +15969,7 @@ async def websocket_endpoint(ws: WebSocket):
 
             await ws.send_text(json.dumps({
                 "type": "status",
-                "content": localefmt.chu("Javis đang suy nghĩ...", "Javis is thinking...")
+                "content": localefmt.chu("{ten} đang suy nghĩ...", "{ten} is thinking...", ten=_assistant_name())
             }))
 
             if _persona and _persona[0] == "agent":
@@ -17279,8 +17288,9 @@ async def websocket_endpoint(ws: WebSocket):
 
             async def _giu_cau_goc():
                 await send_raw({"type": "status", "session_id": conv_sid,
-                                "content": localefmt.chu("Javis đang kiểm tra lại câu vừa nghe...",
-                                                         "Javis is double-checking what it just heard...")})
+                                "content": localefmt.chu("{ten} đang kiểm tra lại câu vừa nghe...",
+                                                         "{ten} is double-checking what it just heard...",
+                                                         ten=_assistant_name())})
                 # Kho phiên và bong bóng giữ câu gốc; chỉ lời gửi bộ não chính kèm ghi chú để
                 # nó tự hiểu từ nghe nhầm mà không giải thích ra (voice_brain.GHI_CHU_CAU_NGHE).
                 await run_turn(conv_sid, original_message + "\n\n" + voice_brain.GHI_CHU_CAU_NGHE,
@@ -17332,8 +17342,9 @@ async def websocket_endpoint(ws: WebSocket):
 
             try:
                 brain_obj = await voice_brain.get_brain(conv_sid, conf)
-                await send_raw({"type": "status", "content": localefmt.chu("Javis đang trả lời nhanh...",
-                                                                           "Javis is answering quickly..."),
+                await send_raw({"type": "status", "content": localefmt.chu("{ten} đang trả lời nhanh...",
+                                                                           "{ten} is answering quickly...",
+                                                                           ten=_assistant_name()),
                                 "session_id": conv_sid})
                 # Đang có việc nền thì dặn bộ não giọng (V3): kết quả tự hiện, đừng bịa, đừng giao lại.
                 _dan = [x for x in (voice_brain.pending_note(conv_sid),
