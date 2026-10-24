@@ -8,6 +8,17 @@ the implementation. New cold metadata and UI do not duplicate executor/ledger or
 grant activation. Local14Python plus UI checks; Linux40068923965 exact12pins;
 independent3P2closed/static-only. Checkpoint compose-owner-panel SHA06224f4b71acf3a4382505c8500f77709ffc9489b18451fa809596e7cdc5c8c7.
 
+Canonical archive decision now implemented narrowly inefef01c2/6d677d71:
+existing resonance DB/GoalStore transaction/backup and RevisionBlobs history,
+additive schema9 with3normalized metadata/control tables. Upstream Library remains
+the actual derived serializer/index, not a canonical permission/tombstone store.
+This avoids event-JSON replay scans/duplicate ledger and retains old histories.
+Independent R1 NUL fix re-review addressed/no new; local28PASS/earlyLinux23PASS
+40071193085 exact7pins. Checkpointrecipe-archive-schema SHA29db52f3f7f56a07915075a16ad780b18d08066ca8704a42a2255102b82a0712.
+Actual encrypted capture/source/trace/shorterTTL, destination grants, plaintext
+crash ownership and all downstream consumers are still the next required work.
+No new upstream algorithm was needed for DB ownership, nor a retrieval/M8 claim.
+
 Snapshot component9e098a52 now implements the plan below using actual Library
 methods,20definition provenance and exactly3 documented tree boundary-line edits.
 Independent static spec/quality approved0; Windows31pass+1skip and earlyLinux

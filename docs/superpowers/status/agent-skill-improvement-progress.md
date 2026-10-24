@@ -1,5 +1,32 @@
 # Agent and skill improvement Goal progress
 
+## Recipe archive schema9 — scoped engineering approved after R1 repair
+
+Commitsefef01c2/6d677d71 add a backed-up additive archive migration in the existing
+DB: immutable recipe/trial-reference metadata and monotone availability tombstones.
+Official8 validates before backup; no compose rebuild/history/ciphertext/lease
+rewrite. Existing1–7 chain and known8 cold reads remain;9 validates exact guards.
+Historical target capture and protected owner-rule aggregate are distinct pins.
+No raw recipe text, destination consent or plaintext/native consumer is enabled.
+
+Real self-review REDs closed REPLACE history/tombstone resets and case-insensitive
+namespace collisions. Independent review found ImportantR1: SQLite NUL bypassed
+exact64 digest checks. Clean actual five-failure RED, shared explicit NUL guard,
+targeted GREEN and17case final pass; narrowed re-review ADDRESSED/no new findings,
+all7stablev3pins/no reviewer execution. Local28PASS includes explicitly reused
+unchanged compose6; other17archive+5selected checks run on correctedv3. Early
+Linux40071193085/job120804788438 SUCCESS exact7pins23PASS (17archive+6compose),
+not final task-head fullCI. Root reconciled raw/Git/log/review/Linux/fixture pins.
+Public2026-10-24-recipe-archive-schema.json SHA29db52f3f7f56a07915075a16ad780b18d08066ca8704a42a2255102b82a0712.
+
+PROFILE96 rawdbd31ee091efa14b98f632460ee4f4376e70b5ed9f49f9d3716f025040ca566c
+UNQUALIFIED; registries closed/actual309 proof untouched. Next actual encrypted
+archive authoring/source/trace/shorterTTL controls, explicit destination grants,
+owned plaintext recovery and improver/Operation/candidate/view/Trial/apply/lesson
+propagation. Logical erased metadata is not physical erasure/GC. Full M0–M8 Goal,
+same-pipeline dummy/native/final/fullCI/review and all Phase2 gates remain open;
+no actual account/model query, real-brain migration, activation, deploy or restart.
+
 ## Actual Harness² Library snapshot — scoped engineering approved
 
 Commit9e098a52 runs actual pinned Library/add/index/tree/retain/forget inside an

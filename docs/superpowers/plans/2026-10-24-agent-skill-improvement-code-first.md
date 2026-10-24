@@ -1,5 +1,17 @@
 # M0–M8: code and technical verification before real trials
 
+Recipe archive migrationefef01c2/6d677d71 scoped approved: actual backed-up add-only
+schema9, immutable same-brain historical refs and monotone availability; old8 cold
+read/compose role guards/history/ciphertext/leases preserved. SQL REPLACE/case
+collision self-review fixes, independent ImportantR1 NUL digest RED/fix/re-review
+ADDRESSED/no new. Local28PASS (unchanged compose6 explicitly reused), earlyLinux
+40071193085 exact7pins23PASS. Checkpointrecipe-archive-schema SHA29db52f3f7f56a07915075a16ad780b18d08066ca8704a42a2255102b82a0712.
+PROFILE96dbd31ee0… UNQUALIFIED/registriesclosed/309proofintact. Next actual encrypted
+host capture/grades/source availability/shorterTTL, separate destination retrieval,
+plaintext crash ownership and downstream dependency propagation. No archive SQL
+or erased label grants source/grade/retrieval/native authority or physical erase.
+Full Goal/finalCI/wholebranch/Phase2 remain open; no orchestration comparison yet.
+
 Actual Library snapshot9e098a52 scoped approved: unchanged pinned Library methods,
 minimal attributed dependencies/3tree boundary-line adaptations, checked owned
 procedure-only filesystem lifetime. Windows31pass+1explicitPOSIXskip/32run;
