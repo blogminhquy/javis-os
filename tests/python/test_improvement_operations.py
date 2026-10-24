@@ -140,7 +140,7 @@ class OperationMigrationTests(OperationFixture):
 
     def test_unknown_future_version_rejects_without_backup_or_mutation(self):
         with self.store._Tx(self.store) as connection:
-            connection.execute("UPDATE improvement_schema SET version=9")
+            connection.execute("UPDATE improvement_schema SET version=?", (IM.SCHEMA_VERSION + 1,))
         with patch.object(self.store, "_backup_before", side_effect=AssertionError("Unknown schema cannot back up")):
             with self.assertRaises(IM.SchemaError):
                 IM.ensure(self.store)
