@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.306.0] - 2026-10-24
 ### Improved
-- **Installing on Windows or macOS starts Javis with the computer and opens the browser.** (in progress)
+- **Installing on Windows or macOS starts Javis with the computer and opens the browser.** The dashboard opens right after install, and from then on every login starts Javis and opens the dashboard with nothing to click. Before, you had to turn this on yourself, and then Javis only ran hidden, so after starting the computer you could not see it.
+- To stop it: on Windows press Turn off on the Start with the computer card (Settings) or run `javis-autostart.bat uninstall`; on macOS run `./bin/javis-autostart.sh uninstall`.
+- A Windows machine that already had auto-start keeps running hidden as before; turn it off and on once to add the dashboard opening.
 
 ## [0.304.0] - 2026-10-24
 ### Fixed

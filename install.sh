@@ -324,7 +324,15 @@ fi
 
 # --- 9. service: systemd if available, else nohup ---
 PY="$APP_DIR/.venv/bin/python"
-if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+# 0.306.0, chủ repo 24/10/2026: "mặc định cài javis trên win hoặc trên mac os thì cài khởi động cùng trình duyệt".
+# macOS: dùng LaunchAgent (bin/javis-autostart.sh) thay cho nohup: đăng nhập máy là server tự chạy, rồi dashboard tự
+# mở trên trình duyệt; cài xong cũng mở luôn. Không muốn: JAVIS_NO_AUTOSTART=1 (chạy nohup như cũ, không mở gì).
+# Bản thứ hai (JAVIS_NAME) vẫn đi nohup: LaunchAgent dùng một nhãn chung com.javis.os, hai bản sẽ đè nhau.
+if [ "$(uname -s)" = "Darwin" ] && [ "${JAVIS_NO_AUTOSTART:-0}" != "1" ] && [ -z "${JAVIS_NAME:-}" ] && [ -f "$APP_DIR/bin/javis-autostart.sh" ]; then
+  log "Installing login auto-start (LaunchAgent, port $PORT)..."
+  JAVIS_PORT="$PORT" bash "$APP_DIR/bin/javis-autostart.sh" install
+  ok "Starts at login and opens the dashboard. Turn off: ./bin/javis-autostart.sh uninstall"
+elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   log "Installing systemd service ($SVC.service, port $PORT)..."
   $SUDO tee "/etc/systemd/system/$SVC.service" >/dev/null <<UNIT
 [Unit]

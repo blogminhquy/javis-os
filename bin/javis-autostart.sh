@@ -15,13 +15,20 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # không có launchd, kill PID + nohup -> KeepAlive respawn giành cổng 7777.
 LABEL="${JAVIS_LAUNCHD_LABEL:-com.javis.os}"
 PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
+# 0.306.0: agent thứ hai, chạy MỘT LẦN mỗi lần đăng nhập: chờ server lên rồi mở dashboard trên trình duyệt
+# (chủ repo 24/10/2026: "cài khởi động cùng trình duyệt"). Tách khỏi agent server vì agent đó KeepAlive: gắn việc
+# mở trình duyệt vào nó thì mỗi lần server tự khởi động lại (cập nhật, sập) lại bật thêm một tab.
+# JAVIS_AUTOSTART_OPEN=0 thì chỉ chạy nền, không mở gì.
+OPEN_LABEL="${LABEL}.open"
+OPEN_PLIST="${HOME}/Library/LaunchAgents/${OPEN_LABEL}.plist"
 PORT="${JAVIS_PORT:-7777}"
 PY="${APP_DIR}/.venv/bin/python"
 ACTION="${1:-install}"
 
 if [ "${ACTION}" = "uninstall" ]; then
   launchctl unload "${PLIST}" 2>/dev/null || true
-  rm -f "${PLIST}"
+  launchctl unload "${OPEN_PLIST}" 2>/dev/null || true
+  rm -f "${PLIST}" "${OPEN_PLIST}"
   echo "JAVIS OS auto-start removed."
   exit 0
 fi
@@ -67,4 +74,30 @@ PLISTEOF
 launchctl unload "${PLIST}" 2>/dev/null || true
 launchctl load "${PLIST}"
 echo "JAVIS OS auto-start installed -> http://127.0.0.1:${PORT}"
+
+launchctl unload "${OPEN_PLIST}" 2>/dev/null || true
+if [ "${JAVIS_AUTOSTART_OPEN:-1}" = "0" ]; then
+  rm -f "${OPEN_PLIST}"
+else
+  # Chờ tối đa 60 giây cho /health rồi mở; quá giờ vẫn mở để người dùng thấy trang báo lỗi thay vì không có gì.
+  OPEN_SH="for i in \$(seq 1 60); do curl -sf -m 2 -o /dev/null http://127.0.0.1:${PORT}/health &amp;&amp; break; sleep 1; done; open http://127.0.0.1:${PORT}"
+  cat > "${OPEN_PLIST}" <<OPENEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>${OPEN_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string><string>-c</string>
+        <string>${OPEN_SH}</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+</dict>
+</plist>
+OPENEOF
+  # load chạy ngay một lần (RunAtLoad), nên cài xong là trình duyệt mở luôn.
+  launchctl load "${OPEN_PLIST}"
+  echo "Dashboard opens in the browser at every login (JAVIS_AUTOSTART_OPEN=0 to turn off)."
+fi
 echo "Remove with: ./bin/javis-autostart.sh uninstall"

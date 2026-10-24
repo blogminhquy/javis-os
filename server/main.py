@@ -13822,7 +13822,16 @@ _AUTOSTART_APPROVED_ON = bytes([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 
 def _autostart_command() -> str:
-    """Lệnh chạy khi đăng nhập Windows: wscript chạy start-javis.vbs ẩn (kill cũ + chạy nền)."""
+    """Lệnh chạy khi đăng nhập Windows: wscript chạy start-javis.vbs ẩn (kill cũ + chạy nền).
+
+    0.306.0: thêm /open để server lên xong thì mở luôn dashboard (chủ repo 24/10/2026: "cài khởi động cùng trình
+    duyệt"). Lệnh cũ không có /open vẫn chạy được nên KHÔNG tính là đường dẫn cũ, xem _autostart_legacy_command.
+    """
+    return _autostart_legacy_command() + " /open"
+
+
+def _autostart_legacy_command() -> str:
+    """Lệnh trước 0.306.0 (chỉ chạy nền, không mở trình duyệt). Vẫn hợp lệ, bật lại là lên bản có /open."""
     vbs = str(PROJECT_ROOT / "start-javis.vbs")
     return f'wscript.exe //nologo "{vbs}"'
 
@@ -13900,7 +13909,8 @@ def _autostart_status() -> dict:
                 val, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
             st["enabled"] = bool(val)
             st["command"] = val
-            st["stale"] = bool(val) and val.strip() != expected
+            st["stale"] = bool(val) and val.strip() not in (expected, _autostart_legacy_command())
+            st["opens_browser"] = bool(val) and val.strip() == expected
         except FileNotFoundError:
             pass
         if st["enabled"]:
