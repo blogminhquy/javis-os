@@ -1,5 +1,22 @@
 # Incremental Harness² reuse decisions
 
+## Actual current-view source archive checkpoint
+
+Commitbc1a3a68 completes current ordinary/typed3 view-backed archive membership
+through existing Javis Trial/Comparison/history owners and a trigger-only10
+overlay. Keep exact9 SQL/history/cold readers and existing backup/transaction;
+upstream Library stays the already-reused derived serializer/index. No new
+upstream code or parallel runtime/ledger is needed for this ownership delta.
+Meaningful pin/grant-order/final-callback REDs fixed; local64PASS and Linux
+40078670232 exact13pins76PASS/5modules. Independent specPASS/qualityApproved,
+0Critical/0Important; timing-log MinorT2-R1 retained for final hygiene review.
+Publicrecipe-archive-views
+SHAd632b12330bce64cdb4537f6963d6c2644a6065d8a2cb928f8d1aeedd7fa4196.
+PROFILE98 stays UNQUALIFIED. Next explicit destination authority/max3/historical
+source validation and actual owned Library/native/downstream consumers; no
+orchestration comparison or native/business/fullGoal claim yet. Prior checkpoint
+sections below remain historical records of their exact source/gates.
+
 ## Source archive checkpoint; current-view integration remains mandatory
 
 Actual Library remains the derived serializer/index; Javis source authority now

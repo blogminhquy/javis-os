@@ -1,5 +1,36 @@
 # Agent and skill improvement Goal progress
 
+## Current view-backed recipe archive — scoped engineering approved
+
+Commitbc1a3a68 adds the trigger-only schema10 overlay over exact historical9,
+preserving encrypted rows/tombstones/history, authenticated backup/rollback and
+old9 cold reads. Actual ordinary and typed3 view Trial/Call/result/trace owners
+now supply complete archive refs; all nine request pins and historical view
+dependencies are fenced. The new source-ordering RED was fixed by checking the
+actual grant/current-target metadata before binding decryption; the late-callback
+RED was fixed with final comparison-scoped SQL fences. Earlier immutable Task1
+proof is retained as historical evidence, not rewritten to cover these fixes.
+
+Local64PASS on13frozen LF paths; Linux40078670232/job120827431984 exact13pins
+76PASS across5modules, full108397byte log retained/SHA8cf4ae4da77d50b4ccb70404ebd0d4b6d07563164f7d604520437a7b45a5fdd0.
+Fresh independent specPASS/qualityApproved,0Critical/0Important/1Minor. Minor
+recipe-archive-authority/Task2/T2-R1 retains43local/42Linux asyncio timing
+diagnostics as final test-hygiene follow-up; ResourceWarnings0/task-leaks0, no
+suppression. One CI action-runtime deprecation notice is retained separately.
+Checkpoint2026-10-24-recipe-archive-views.json
+SHAd632b12330bce64cdb4537f6963d6c2644a6065d8a2cb928f8d1aeedd7fa4196.
+
+PROFILE_SOURCES98 remains UNQUALIFIED/registriesclosed; protected309 proof and
+VERSION0.299.0 unchanged. Both tasks in recipe-archive-authority are scoped
+complete. Next actual destination grants/consent/max3 ranking, historical source
+freshness, owned upstream Library lifecycle/recovery and downstream native/
+candidate/view/Trial/apply/lesson consumers before orchestration comparison.
+FullGoal ACTIVE; isolated grades/GC/operator reachability, final full-task-head
+CI/wholebranch review and all Phase2 real trials remain open. The two preexisting
+future9 fixtures and deferred minors remain on the final-review ledger. Only the
+owned early-CI ref was pushed; task PR remote stays4ba9624a. No model/account,
+activation, deploy/restart, real-brain migration or physical erasure performed.
+
 ## Encrypted source recipe authoring — scoped engineering approved
 
 Commitcbbbdacd plus acceptance-onlyaa1e0732 implement actual closed source-side

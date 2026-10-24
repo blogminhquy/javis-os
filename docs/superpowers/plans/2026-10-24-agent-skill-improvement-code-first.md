@@ -1,5 +1,19 @@
 # M0–M8: code and technical verification before real trials
 
+Current archivebc1a3a68 scoped approved: exact9→10 trigger-only migration/backup/
+rollback/history and cold9 compatibility, actual ordinary+typed3 v4 refs, all9
+request pins, grant-before-binding-read and final historical-view SQL fences.
+Local64PASS; earlyLinux40078670232 exact13pins76PASS/5modules, complete raw log
+retained. Fresh specPASS/qualityApproved,0Critical/0Important; T2-R1 timing-log
+noise deferred explicitly without suppression. Checkpointrecipe-archive-views
+SHAd632b12330bce64cdb4537f6963d6c2644a6065d8a2cb928f8d1aeedd7fa4196.
+PROFILE98 UNQUALIFIED/registriesclosed; original309proof/VERSIONunchanged.
+Both archive-authority tasks complete. Next actual destination consent/grants/
+max3 and historical source freshness, owned Library crash lifecycle and actual
+native/candidate/view/Trial/apply/lesson dependencies before orchestration
+comparison. FullGoal/finalexactheadCI/wholebranchreview/Phase2 remain open; two
+preexisting future9 test labels and all deferred minors retained for final gate.
+
 Source archivecbbbdacd/acceptanceaa1e0732 scoped approved: actual encrypted
 candidate/trial/report/trace provenance, original-time retention, atomic capture,
 NO_ENTRY/cold replay and metadata/revoke/supersede; shared preparation helper
