@@ -171,6 +171,10 @@ body.in-console .hud-actions { display: none; }
 .prov-help summary { cursor: pointer; color: var(--text2); }
 .prov-help > div { margin-top: 4px; color: var(--text2); }
 .prov-action .js-input { margin-bottom: 0; flex: 1; }
+/* Claude sign-in code (0.308.0): the box takes the row, at least 240px before the button wraps under it on a phone;
+   16px so iOS does not zoom in, monospace so a mistyped character is easy to spot. */
+.prov-code { margin-top: 6px; max-width: 560px; }
+.prov-code .js-input { flex: 1 1 240px; min-width: 0; font-size: 16px; font-family: var(--mono, ui-monospace, monospace); }
 .prov-action .gcard-btn { width: auto; flex: 0 0 auto; margin-top: 0; font-size: 16px; }
 .prov-note { font-size: 16px; line-height: 1.55; color: var(--text3); margin-top: 8px; overflow-wrap: anywhere; }
 /* Warning box on a provider card (missing CLI, a vendor cutting off a plan). Something the user

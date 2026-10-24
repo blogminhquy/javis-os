@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.308.0] - 2026-10-24
 ### Sửa lỗi
-- **Ô dán mã khi đăng nhập Claude không còn bị co bé tí.** (đang viết)
+- **Ô dán mã khi đăng nhập Claude không còn bị co bé tí.** Nút Gửi chiếm hết hàng nên ô mã chỉ còn chừng 24px. Giờ ô rộng hết hàng, chữ 16px dễ đọc, trên điện thoại nút xuống dòng dưới. Mở link xong con trỏ tự vào ô mã, bấm Enter là gửi, khoảng trắng thừa khi dán tự bị bỏ.
+### Cải thiện
+- **Thẻ Anthropic Compatible không bắt gõ tên model nữa.** Chỉ cần Base URL và API key rồi bấm Kết nối, Javis tự lấy danh sách model của cổng để bạn chọn ở mục Model chính. Cổng nào không tự báo danh sách thì Javis mới mở thêm ô tên model, kèm sẵn các tên Claude thường dùng để chọn.
 
 ## [0.306.0] - 2026-10-24
 ### Cải thiện

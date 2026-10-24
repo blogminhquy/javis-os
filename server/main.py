@@ -19116,10 +19116,14 @@ async def anthropic_compat_connect(request: Request):
         live = []   # no list is normal here; the message check below decides
     if not live:
         if not typed:
-            return {"ok": False, "error": localefmt.chu(
-                "Cổng này không trả danh sách model. Gõ tên model bên bán đưa (ví dụ claude-sonnet-4-6) rồi bấm Lưu.",
-                "This gateway does not list its models. Type the model name the seller gave you "
-                "(for example claude-sonnet-4-6) and press Save.")}
+            # 0.308.0 (owner 24/10/2026: "không cần hiện tên model được không? người dùng phải được chọn chứ"): the card
+            # no longer shows the model box up front. Only a gateway with no list needs names, so this reply opens the
+            # box (need_models) with the usual Claude names to pick from (suggest), still free to type another.
+            return {"ok": False, "need_models": True, "suggest": list(_provider_def("anthropic-api")["default_models"]),
+                    "error": localefmt.chu(
+                        "Cổng này không tự báo danh sách model. Chọn hoặc gõ model bên bán cho dùng ở ô vừa hiện ra, rồi bấm Kết nối lại.",
+                        "This gateway does not list its models. Pick or type the model the seller gave you in the box "
+                        "that just appeared, then press Connect again.")}
         url = base + "/v1/messages"
         payload = {"model": typed[0], "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]}
         try:

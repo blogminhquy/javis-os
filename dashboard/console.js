@@ -4391,7 +4391,8 @@
           ${infoBody(esc(t("models.ac_note")))}
           <div class="prov-action" style="flex-wrap:wrap">
             <input class="js-input" id="acBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.anthropic_compat_base || "")}" placeholder="${esc(t("models.ac_base_ph"))}">
-            <input class="js-input" id="acModels" spellcheck="false" autocomplete="off" style="flex:1 1 100%" value="${esc(typed)}" placeholder="${esc(t("models.ac_models_ph"))}">
+            <input class="js-input" id="acModels" list="acModelSug" spellcheck="false" autocomplete="off" style="flex:1 1 100%${typed ? "" : ";display:none"}" value="${esc(typed)}" placeholder="${esc(t("models.ac_models_ph"))}">
+            <datalist id="acModelSug"></datalist>
             <input class="js-input" id="acKey" type="password" style="flex:1" placeholder="${on && masked ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.ac_key_ph"))}">
             <button class="gcard-btn" id="acSave">${on ? esc(t("common.save")) : esc(t("models.connect"))}</button>
             ${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}
@@ -4548,6 +4549,13 @@
       if (!r || !r.ok) {
         acSave.disabled = false; acSave.textContent = t("models.connect");
         msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap"));
+        // 0.308.0: the model box stays hidden (the list comes from the gateway, picked under Main model) until a
+        // gateway turns out to list nothing. Then it opens with the usual names to pick from.
+        if (r && r.need_models) {
+          const box = document.getElementById("acModels"), dl = document.getElementById("acModelSug");
+          if (dl) dl.innerHTML = (r.suggest || []).map(x => `<option value="${esc(x)}"></option>`).join("");
+          if (box) { box.style.display = ""; box.focus(); }
+        }
         return;
       }
       await freshSettings();
@@ -4891,8 +4899,9 @@
         <b>1)</b> ${esc(t("models.cli_s1"))}<br>
         <a href="${esc(safeHref(r.url))}" target="_blank" rel="noopener" style="color:var(--link-ink);word-break:break-all">${esc(r.url || t("models.no_link"))}</a><br>
         <b>2)</b> ${esc(t("models.cli_s2"))}
-        <div style="margin-top:6px;display:flex;gap:8px;max-width:520px">
-          <input class="js-input" id="cliCode" placeholder="${esc(t("models.code_ph"))}" style="flex:1">
+        <div class="prov-action prov-code">
+          <input class="js-input" id="cliCode" placeholder="${esc(t("models.code_ph"))}"
+            autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
           <button class="gcard-btn" id="cliCodeBtn">${esc(t("models.code_send"))}</button>
         </div>
         <span id="cliMsg2" class="gcard-meta"></span>
@@ -4908,14 +4917,26 @@
       setTimeout(poll, 3000);
     };
     setTimeout(poll, 3000);
+    // 0.308.0 (owner screenshot 24/10/2026): this row used to be a bare flex div, where the global .gcard-btn
+    // width:100% let the button take the whole row and squeezed the code box to 24px. It is a .prov-action row now
+    // (button sized to its text, box takes the rest and wraps under on a phone). The box gets focus once the link is
+    // opened, Enter sends, and the pasted code loses stray spaces and line breaks (the code itself has none).
     const cb = el.querySelector("#cliCodeBtn");
+    const ci = el.querySelector("#cliCode");
+    const link = act ? act.querySelector("a[href]") : null;
+    if (link && ci) link.addEventListener("click", () => setTimeout(() => ci.focus(), 300));
+    if (ci && cb) ci.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); cb.click(); } });
     if (cb) cb.onclick = async () => {
-      const code = (el.querySelector("#cliCode").value || "").trim();
+      const code = ((ci && ci.value) || "").replace(/\s+/g, "");
+      if (!code) { if (m2) m2.textContent = t("models.code_empty"); if (ci) ci.focus(); return; }
+      if (ci) ci.value = code;
       if (m2) m2.textContent = t("models.confirming");
+      cb.disabled = true;
       const fd = new FormData(); fd.append("code", code);
       let rr;
       try { rr = await (await fetch("/claude/login-code", { method: "POST", body: fd })).json(); }
-      catch (e) { if (m2) m2.textContent = t("common.net_err"); return; }
+      catch (e) { cb.disabled = false; if (m2) m2.textContent = t("common.net_err"); return; }
+      cb.disabled = false;
       if (rr.ok) { stopped = true; refreshClaudeCard(el); }
       else if (m2) m2.innerHTML = Icons.warn(rr.error || t("models.code_wrong"));
     };
