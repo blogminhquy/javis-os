@@ -1,5 +1,14 @@
 # API bootstrap and technical consumer registration resolution
 
+> Authoring prerequisite correction: the
+> [same-Session source-owner supplement](2026-10-24-m2-skill-authoring-source-design.md)
+> supplies a newly required concrete E1 source composition. Earlier references
+> to an already specified owner-DM authoring collector are superseded by its
+> fixed `qualification-skill-authoring/v1` file profile and real source/ACL/grant
+> observations. API DM consumer authority remains independently authenticated.
+> This prerequisite is not implemented; fresh builder check is pending. Earlier
+> E1 builder verdicts did not establish this missing concrete source owner.
+
 > Root scope and acceptance preface — 2026-10-24
 >
 > Design only; implementation, independent builder check, runtime evidence and

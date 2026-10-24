@@ -1,5 +1,14 @@
 # M2 technical skill outcome and disposable apply admission design
 
+> Authoring prerequisite correction: the
+> [same-Session source-owner supplement](2026-10-24-m2-skill-authoring-source-design.md)
+> supplies a newly required concrete E1 source composition. Earlier references
+> to an already specified owner-DM authoring collector are superseded by its
+> fixed `qualification-skill-authoring/v1` file profile and real source/ACL/grant
+> observations. API DM consumer authority remains independently authenticated.
+> This prerequisite is not implemented; fresh builder check is pending. Earlier
+> E1 builder verdicts did not establish this missing concrete source owner.
+
 Root status: E1 builder question1 resolved and narrow same-builder check passed.
 No code, technical evaluation, migration or activation ran.
 This document is part of
