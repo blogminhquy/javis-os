@@ -90,8 +90,16 @@ active exact grant generation, current policy suggest, original target-id set
 and current live skill ownership in SQL. Validate the actual current installed
 role/schema guard family through improvement_operation_schema.assert_installed
 before those reads and on the final SQL fence; do not hardcode forever10.
-Physically observe current targets via
-the existing actual target_observer. Decode the original binding with the
+The pre-decryption owner fence is the actual Principal/IM._brain owner-kind,
+nonempty authenticated id and same-brain check; SQL context/grant rows do not
+invent an actor authority. After authenticated decode, require the original
+binding grant actor to equal principal.by. Creation events are replayable history.
+Physically observe current targets via the existing actual target_observer.
+Bracket that read with the actual BrainFileFixtures _root/_authority lineage,
+ACL and permission projections, then retain them across repeated observations.
+Keep target fields and SQL snapshots unchanged; a target permission change must
+invalidate capture/check even if the body is still readable and unchanged.
+Decode the original binding with the
 existing owner, validate complete semantic v2 capture, scope/context/engine/grant
 and fixture pins, and require original target ids/kinds/canonical refs/ownership
 to match the authenticated current targets. Body hashes, current revision,
@@ -110,8 +118,10 @@ rechecks the original require_current_version BrainFileFixtures inventory,
 then repeats current capture/target/engine observations and final SQL. Return a
 closed private snapshot with version1, context_id, context_generation,
 binding_hash, source_scope_hash, engine_config_hash, language, owner_rule_hash,
-binding, current_capture, current_targets, fixture_inventory, sql and
-authority_hash. authority_hash hashes the other fields. No caller supplies a
+binding, current_capture, current_targets, target_authorities, fixture_inventory,
+sql and authority_hash. target_authorities is an ordered list of exact
+{target_id,authority} objects, where authority is the actual _authority projection.
+authority_hash hashes the other fields. No caller supplies a
 capture, allowed source list, root, source hash or freshness verdict.
 
 Current policy off blocks use. The source context's old policy_version remains
@@ -149,7 +159,8 @@ The encrypted basis is closed version1 kind=recipe_destination_basis with
 decision=owner_unverified_transfer; actual destination pins include experiment,
 definition/context/scope/grant/binding hashes, experiment/context/target
 generations, target id/kind/canonical ref/current revision/source/protected hash,
-current semantic owner_rule_hash, engine hash, language and policy version;
+current semantic owner_rule_hash, actual authoring.observe source_authority_hash,
+engine hash, language and policy version;
 entries are the ordered exact normalized source pins. SQL stores no cue/body.
 The existing M0 event authenticates the basis/selection hashes and owner action.
 

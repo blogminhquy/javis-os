@@ -62,17 +62,27 @@ reject replacement before/after slow observations.
 
 The private source snapshot's exact keys are version=1,context_id,
 context_generation,binding_hash,source_scope_hash,engine_config_hash,language,
-owner_rule_hash,binding,current_capture,current_targets,fixture_inventory,sql,
+owner_rule_hash,binding,current_capture,current_targets,target_authorities,fixture_inventory,sql,
 authority_hash. authority_hash is IM._hash of the remaining fields. `sql` is
 actual same-brain context/grant/current policy/current target row snapshots.
 `check` invokes capture again with the snapshot's id/generation and compares the
 complete snapshot, including authority_hash. Consumers also compare `_state`
 on their actual owned transaction connection after the final callback.
 
+target_authorities is an ordered list of exact {target_id,authority} objects;
+authority is the actual BrainFileFixtures _authority native lineage/ACL projection.
+Bracket actual target_observer reads with actual _root/_authority equality and
+retain equality on every repeat. No added SQL or changed TARGET_FIELDS. Before
+binding reads, use actual IM._brain owner-kind/id/same-brain authority; after
+decode require binding.grant.actor == principal.by, with no creation-event ledger.
+
 Destination private pins are the exact object
 `{experiment_id,context_id,definition_hash,experiment_generation,
 context_generation,scope_hash,grant_hash,binding_hash,policy_version,
-engine_config_hash,owner_rule_hash,language,target}`. target is exactly
+engine_config_hash,owner_rule_hash,source_authority_hash,language,target}`. The
+source_authority_hash is the actual current destination authoring.observe value,
+so native target ACL/incarnation changes invalidate the preview/consent too.
+target is exactly
 `{id,kind,canonical_ref,current_revision_id,source_hash,protected_hash,generation,
 identity,ownership}` resolved from actual current destination rows/source.
 Source entry pins are exactly
