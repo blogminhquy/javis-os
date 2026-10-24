@@ -503,6 +503,89 @@ class RecipeComposedTests(unittest.IsolatedAsyncioTestCase):
     generation = composed.ComposedArmTests.generation
     setUp = composed.ComposedArmTests.setUp
 
+    async def test_conflicting_required_parent_result_pins_refuse_all_recipe_publication(self):
+        # Removing the conflicting-pin check would select one of these two
+        # required historical results and incorrectly publish a recipe.
+        from improvement_recipe_archive import RecipeArchive
+        from improvement_comparison_results import ComparisonResults
+        from improvement_trial_results import TrialResults
+        with patch.object(sources.HostSnapshotTests, 'context_capture', semantic_capture), \
+             patch.object(selections.ExperimentSelectionTests, 'seed_technical_complete_cells', traced_selection_cells):
+            await self.published()
+        archive = RecipeArchive(self.plans)
+        reports = ComparisonResults(self.plans)
+        publication = self.rows('improvement_compositions')[-1]
+        basis = json.loads(self.assets.blobs.read(self.owner.brain_id, publication['basis_hash']))
+        original_ref = basis['report_refs'][0]
+        original = reports.read(self.owner, original_ref['id'])
+        with closing(self.store._conn()) as connection:
+            result = dict(connection.execute('SELECT * FROM improvement_trial_results WHERE id=?',
+                (original['result_refs'][0][1],)).fetchone())
+        trials = self.plans.admission.trials
+        current = trials.get(self.owner, result['trial_id'])
+        TrialResults(trials).reevaluate(self.owner, result['trial_id'], result['attempt'],
+            expected_generation=current['generation'], event_key='duplicate-pin-owner-recheck', checker_registry={})
+        newer = reports.create(self.owner, original['comparison_id'], expected_generation=self.generation(),
+            event_key='duplicate-pin-new-parent-report')
+        revised = reports.read(self.owner, newer['report_id'])
+        old_pin, new_pin = original['result_refs'][0], revised['result_refs'][0]
+        self.assertEqual(old_pin[0], new_pin[0])
+        self.assertNotEqual(old_pin[1:], new_pin[1:])
+        with closing(self.store._conn()) as connection:
+            required = [dict(connection.execute('SELECT * FROM improvement_trial_results WHERE id=?',
+                (pin[1],)).fetchone()) for pin in (old_pin, new_pin)]
+            event = dict(connection.execute("SELECT * FROM improvement_events WHERE operation='comparison_report' "
+                "AND event_key='duplicate-pin-new-parent-report'").fetchone())
+            consent = dict(connection.execute("SELECT * FROM improvement_events WHERE operation='compose_authorize' "
+                "AND json_extract(result_json,'$.authorization_id')=?", (publication['authorization_id'],)).fetchone())
+        self.assertEqual([(row['trial_id'], row['attempt']) for row in required],
+                         [(result['trial_id'], result['attempt'])] * 2)
+        self.assertNotEqual(required[0]['result_hash'], required[1]['result_hash'])
+        for row in required:
+            report = TrialResults(trials).read(self.owner, row['trial_id'], row['attempt'], result_id=row['id'])
+            self.assertEqual(IM._hash(report), row['result_hash'])
+
+        # An ordinary composer cannot request conflicting parent histories.
+        # This forensic storage fixture retains both actual immutable reports
+        # and their publication events, but corrupts the basis to require both.
+        # Rebind its hash links so real proposal authentication succeeds first;
+        # no reader, evidence normalizer, source guard or result is replaced.
+        basis['report_refs'] = [original_ref, {'id': newer['report_id'], 'report_hash': newer['report_hash'],
+                                             'publication_id': event['id']}]
+        basis_hash = self.assets.blobs.write(self.owner.brain_id, IM._json(basis).encode('utf-8'))
+        decisions = json.loads(self.assets.blobs.read(self.owner.brain_id, publication['decisions_blob_hash']))
+        decisions['basis_hash'] = basis_hash
+        decisions_hash = self.assets.blobs.write(self.owner.brain_id, IM._json(decisions).encode('utf-8'))
+        metadata = json.loads(consent['result_json'])
+        metadata['basis_hash'] = basis_hash
+        tables = ('improvement_compositions', 'improvement_compose_authorizations', 'improvement_events')
+        with self.store._Tx(self.store) as connection:
+            triggers = list(connection.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' "
+                "AND tbl_name IN (?,?,?)", tables))
+            for trigger in triggers:
+                connection.execute('DROP TRIGGER ' + trigger['name'])
+            connection.execute('UPDATE improvement_compositions SET basis_hash=?,decisions_hash=?,decisions_blob_hash=? WHERE id=?',
+                (basis_hash, decisions_hash, decisions_hash, publication['id']))
+            connection.execute('UPDATE improvement_compose_authorizations SET basis_hash=? WHERE id=?',
+                (basis_hash, publication['authorization_id']))
+            connection.execute('UPDATE improvement_events SET result_json=? WHERE id=?', (IM._json(metadata), consent['id']))
+            for trigger in triggers:
+                connection.execute(trigger['sql'])
+        with closing(self.store._conn()) as connection:
+            state = self.plans.authoring._state(connection, self.owner, self.candidate['experiment_id'],
+                self.candidate['target_id'], self.candidate['base_revision_id'], self.candidate['base_hash'])
+            observed, raw = self.plans.authoring.observe(self.owner, state['target'])
+            proposal = self.plans.authoring.read_proposal(connection, self.owner, self.candidate, state, observed, raw)
+            self.assertEqual(proposal['provenance']['composition_id'], publication['id'])
+        decision = {'kind': 'procedure', 'cue': 'When checking composed totals', 'procedure': 'Check the controlling subtotal.',
+            'applicability': [], 'exclusions': [], 'expires_at': time.time() + 4000000}
+        with self.assertRaisesRegex(IM.ConflictError, '^recipe_conflicting_trial_pins$'):
+            archive.capture(self.owner, 'association-experiment', self.candidate['id'], decision,
+                expected_generation=self.generation(), expected_context_generation=1, event_key='archive-conflicting-parent-pins')
+        for table in ('improvement_recipes', 'improvement_recipe_states', 'improvement_recipe_trial_refs'):
+            self.assertEqual(self.rows(table), [], table)
+        self.assertFalse([row for row in self.rows('improvement_events') if row['operation'] == 'recipe_capture'])
+
     async def test_typed_three_keeps_actual_composed_provenance_and_own_tuning_refs(self):
         # The existing publisher uses labelled synthetic adapters/availability;
         # all consent, encrypted inputs, operation/result and candidate owners run.
