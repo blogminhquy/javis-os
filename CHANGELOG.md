@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.301.0] - 2026-10-24
+### Thêm mới
+- **Thẻ Facebook Messenger ở trang Kết nối.** Dán Page ID, App ID, App secret và một token bất kỳ từ Graph API Explorer, Javis tự đổi sang token Trang không hết hạn, tự khai webhook (có `messages`) và gắn Trang vào app. Hết cảnh dán nhầm token người dùng rồi gặp lỗi 100, lỗi 210.
+- **Bảng kiểm tra từng bước** sau khi nối: token, quyền, App secret, webhook, Trang gắn app, bot đang trực. Dòng nào đỏ có cách sửa ngay bên dưới.
+- Mỗi Trang có nút **Kiểm tra**, **Sửa tự động** và **Đổi token**. Bot im lặng thì hỏi Javis, bộ não nào cũng kiểm tra và sửa được qua tool `messenger_check`.
+
 ## [0.300.0] - 2026-10-24
 ### Sửa lỗi
 - **Một link cài Hostinger dùng được cho cả Ubuntu 24 lẫn Ubuntu 26.** Mẫu Ubuntu 26 trắng không có Traefik, nên trước đây dán link là Javis chạy nhưng tên miền không bao giờ có HTTPS. Giờ link đi kèm một cổng HTTPS (Caddy) tự bật khi máy không có Traefik và tự cấp SSL cho `DOMAIN_NAME`; máy có Traefik thì nó nhường, không đụng gì.

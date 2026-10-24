@@ -143,6 +143,7 @@ import zalo_bot   # kênh Zalo Bot của chủ (API chính thức) - cùng khế
 import owner_channels   # owner's control channels on Slack and WhatsApp (0.71.0)
 import whatsapp_bot     # WhatsApp transport + webhook router (0.71.0)
 import messenger_bot    # Messenger transport + webhook router (0.134.0)
+import messenger_setup  # Messenger connect wizard and health check (0.301.0)
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
@@ -23308,6 +23309,127 @@ async def messenger_webhook(request: Request):
     # Answer 200 right away (Meta wants it within seconds); the events run as tasks.
     n = await messenger_bot.handle_webhook(payload)
     return {"ok": True, "events": n}
+
+
+# ---- Messenger setup wizard and health check (0.301.0) ----
+# The Connections page card drives these. `messenger_setup` does the Graph calls; this layer
+# stores the account and restarts the bots that use it. No response ever carries a token.
+def _ms_webhook_url(request: Request) -> str:
+    base = web_security.external_base(
+        request.url.scheme, request.url.netloc,
+        request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
+    return base + "/messenger/webhook"
+
+
+def _ms_account_view(a: dict) -> dict:
+    bots = chatbot_store.bots_using_account(a.get("id", ""))
+    meta = a.get("meta") or {}
+    return {"id": a.get("id"), "label": a.get("label"), "page_id": a.get("external_id"),
+            "page_name": meta.get("bot_name", ""), "app_id": meta.get("app_id", ""),
+            "brain": a.get("brain", ""),
+            "bots": [{"id": b["id"], "name": b.get("name"), "enabled": bool(b.get("enabled"))} for b in bots]}
+
+
+def _ms_account_creds(account_id: str):
+    a = channel_accounts.get_account(account_id)
+    if not a or a.get("channel") != "messenger":
+        return None, None
+    return a, messenger_bot.split_credentials(channel_accounts.get_token(account_id))
+
+
+def _ms_bot_running(account_id: str, page_id: str) -> bool:
+    return bool(page_id in messenger_bot.registered()
+                or any(b.get("enabled") for b in chatbot_store.bots_using_account(account_id)))
+
+
+@app.get("/messenger/setup")
+async def messenger_setup_info(request: Request, brain: str = ""):
+    """What the wizard needs before the owner types anything: the webhook address, whether it is
+    HTTPS, the verify token, and the Messenger accounts already saved."""
+    url = _ms_webhook_url(request)
+    accs = channel_accounts.list_accounts(channel="messenger", brain=str(brain or "").strip())
+    return {"ok": True, "webhook_url": url, "https": url.startswith("https://"),
+            "verify_token": _ms_verify_token(), "accounts": [_ms_account_view(a) for a in accs]}
+
+
+@app.post("/messenger/connect")
+async def messenger_connect(request: Request):
+    """Wizard submit: Page ID, App ID, App secret and any user or Page token -> a saved Messenger
+    account with a non-expiring Page token, the app webhook registered and the Page subscribed."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    page_id = str(body.get("page_id") or "").strip()
+    res = await messenger_setup.connect(page_id, body.get("app_id"), body.get("app_secret"),
+                                        body.get("token"), _ms_webhook_url(request), _ms_verify_token())
+    if not res.get("ok"):
+        return JSONResponse({"ok": False, "error": res.get("error", ""), "step": res.get("step", "")},
+                            status_code=400)
+    secret = f"{page_id} {res['page_token']} {str(body.get('app_secret') or '').strip()}"
+    meta = {"bot_name": res.get("page_name", ""), "app_id": str(body.get("app_id") or "").strip(),
+            "webhook_url": _ms_webhook_url(request)}
+    old = channel_accounts.owner_of(page_id, "messenger")
+    if old:
+        aid = old["id"]
+        ok, loi = channel_accounts.update_account(aid, {"token": secret, "external_id": page_id,
+                                                        "meta": {**(old.get("meta") or {}), **meta}})
+        if not ok:
+            return JSONResponse({"ok": False, "error": loi}, status_code=400)
+        for b in chatbot_store.bots_using_account(aid):
+            if b.get("enabled"):
+                chatbot_runtime.start_bot(b["id"])
+    else:
+        aid, loi = channel_accounts.create_account({
+            "channel": "messenger", "token": secret, "external_id": page_id, "meta": meta,
+            "label": str(body.get("label") or "").strip() or res.get("page_name", "") or page_id,
+            "brain": str(body.get("brain") or "").strip()})
+        if loi:
+            return JSONResponse({"ok": False, "error": loi}, status_code=400)
+    a = channel_accounts.get_account(aid) or {}
+    chk = res.get("check") or {}
+    chk.setdefault("items", []).append(messenger_setup._item(
+        "bot", True if _ms_bot_running(aid, page_id) else None, ("Có bot đang trực", "A bot is answering"), "",
+        ("Vào Chatbot, Bot, tạo hoặc bật bot cho kênh này.",
+         "Open Chatbot, Bots and create or turn on a bot for this channel.")))
+    return {"ok": True, "updated": bool(old), "account": _ms_account_view(a), "check": chk,
+            "repair_errors": res.get("repair_errors", [])}
+
+
+@app.post("/messenger/check")
+async def messenger_check(request: Request):
+    """Rerun the checklist on a saved Messenger account. `repair: true` first re-registers the
+    app webhook and re-subscribes the Page."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    aid = str(body.get("account_id") or "").strip()
+    a, cr = _ms_account_creds(aid)
+    if not a:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có tài khoản Messenger này",
+                                                                 "No such Messenger account")}, status_code=404)
+    meta = a.get("meta") or {}
+    url = _ms_webhook_url(request)
+    if not url.startswith("https://"):
+        url = meta.get("webhook_url", "")
+    errs = []
+    import httpx
+    async with httpx.AsyncClient(timeout=25) as c:
+        app_id = meta.get("app_id", "")
+        if not app_id:
+            info = await messenger_setup.debug_token(c, cr["access_token"])
+            app_id = info.get("app_id", "") if info.get("ok") else ""
+            if app_id:
+                channel_accounts.update_account(aid, {"meta": {**meta, "app_id": app_id}})
+        if body.get("repair") and app_id:
+            rep = await messenger_setup.repair(c, cr["page_id"], cr["access_token"], app_id,
+                                               cr["app_secret"], url, _ms_verify_token())
+            errs = rep.get("errors", [])
+        chk = await messenger_setup.run_checks(c, cr["page_id"], cr["access_token"], cr["app_secret"],
+                                               app_id, url, _ms_bot_running(aid, cr["page_id"]))
+    return {"ok": True, "account": _ms_account_view(channel_accounts.get_account(aid) or a),
+            "check": chk, "repair_errors": errs}
 
 
 def restart_telegram():

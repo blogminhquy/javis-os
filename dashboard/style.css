@@ -4271,3 +4271,23 @@ div.info-body > * { margin: 0; font-size: inherit; }
 select option, select optgroup { background-color: var(--bg2); color: var(--text); }
 /* 0.206.0: a message sent while Javis works shows where it is (read by the running turn, or waiting to run next). */
 .msg-user .steer-note { font-size: 12px; color: var(--text3); text-align: right; margin: 3px 4px 0; }
+
+/* Facebook Messenger card on the Connections page (0.301.0) */
+.msc .msc-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 12px; max-width: 760px; }
+.msc .msc-new { max-width: 760px; margin-bottom: 12px; }
+.msc-form-head { display: flex; align-items: center; gap: 8px; font-size: 16px; margin-bottom: 8px; }
+.msc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.msc-field label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text2); margin-bottom: 4px; }
+.msc-field .js-input { width: 100%; box-sizing: border-box; }
+.msc-warn { border-left: 3px solid var(--warn, #e0a33e); padding: 6px 10px; margin: 6px 0 10px; display: flex; align-items: center; gap: 6px; }
+.msc-sum { margin-top: 12px; font-weight: 600; }
+.msc-sum.ok { color: var(--green, #2c7a4b); }
+.msc-sum.bad { color: var(--danger-ink, #b3261e); }
+.msc-checks { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.msc-row { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
+.msc-mark { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+.msc-row.ok .msc-mark { background: color-mix(in srgb, var(--green, #2c7a4b) 18%, transparent); color: var(--green, #2c7a4b); }
+.msc-row.bad .msc-mark { background: color-mix(in srgb, var(--danger-ink, #b3261e) 16%, transparent); color: var(--danger-ink, #b3261e); }
+.msc-row.warn .msc-mark { background: color-mix(in srgb, var(--warn, #e0a33e) 20%, transparent); color: var(--warn-ink, #b9821f); }
+.msc-row-detail { color: var(--text2); font-size: 13px; word-break: break-all; }
+.msc-row-fix { color: var(--text2); font-size: 14px; margin-top: 2px; }

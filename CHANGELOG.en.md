@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.301.0] - 2026-10-24
+### Added
+- **Facebook Messenger card on the Connections page.** Paste the Page ID, App ID, App secret and any token from Graph API Explorer; Javis derives a non-expiring Page token, registers the webhook (with `messages`) and subscribes the Page to the app. No more user token pasted by mistake and errors 100 or 210.
+- **A step-by-step checklist** after connecting: token, permissions, App secret, webhook, Page subscription, running bot. Every red row says how to fix it.
+- Every Page has **Check**, **Repair** and **New token** buttons. When the bot goes silent, ask Javis: any brain can check and repair it with the `messenger_check` tool.
+
 ## [0.300.0] - 2026-10-24
 ### Fixed
 - **One Hostinger install link works on both Ubuntu 24 and Ubuntu 26.** A plain Ubuntu 26 image has no Traefik, so pasting the link used to give a running Javis whose domain never got HTTPS. The link now carries an HTTPS gateway (Caddy) that turns itself on when there is no Traefik and issues the certificate for `DOMAIN_NAME`; on a VPS with Traefik it stays out of the way.

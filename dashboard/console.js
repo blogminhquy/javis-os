@@ -6050,6 +6050,8 @@
       + '<span style="flex:1;min-width:240px">' + esc(window.t("cs.cn_more_services")) + '</span>'
       + '<button class="mp-btn" id="mcpDiSanCo">' + esc(window.t("cs.cn_tab_sanco")) + '</button>'
       + '<button class="mp-btn primary" id="mcpDiKho">Javis Store</button></div>'
+      // Facebook Messenger setup card (0.301.0): drawn by messenger-connect.js into this slot.
+      + '<div id="mcpMessenger"></div>'
       + '<details class="cview-section amb-details" id="ambWrap"><summary><h3 style="display:inline">◆ ' + esc(window.t("cs.cn_amb_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_amb_hint")) + '</span></h3></summary>'
       + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">' + esc(window.t("cs.cn_amb_desc_a")) + ' <code>codex mcp</code>' + esc(window.t("cs.cn_amb_desc_b")) + '</div>'
       + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">' + esc(window.t("cs.cn_amb_click")) + '</div></div>'
@@ -6081,6 +6083,7 @@
       { nhan: window.t("cs.cn_tab_sanco"), chon: _mcpTab === "sanco", bam: () => doiTab("sanco") },
     ]);
     if (tabKho) el.insertBefore(tabKho, el.firstChild);
+    if (window.JavisMessenger) window.JavisMessenger.mount(document.getElementById("mcpMessenger"));
     const nutSanCo = document.getElementById("mcpDiSanCo");
     if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
     // Từ banner mồ côi sang thẳng gói cần cài, ô tìm điền sẵn id connector. Thả người dùng vào
