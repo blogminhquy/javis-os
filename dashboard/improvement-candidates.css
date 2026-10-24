@@ -13,6 +13,11 @@
 .improvement-candidate-panel p { overflow-wrap: anywhere; }
 .improvement-candidate-panel button { margin: 6px 8px 6px 0; min-height: 38px; }
 .improvement-candidate-panel details { margin-top: 20px; }
+.improvement-experiment-controls { border-top: 1px solid var(--border, #777); margin-top: 20px; padding-top: 16px; }
+.experiment-candidate { border: 1px solid var(--border, #777); border-radius: 8px; margin: 12px 0; padding: 12px; }
+.improvement-experiment-controls button:focus-visible,
+.improvement-experiment-controls input:focus-visible,
+.improvement-experiment-controls select:focus-visible { outline: 2px solid var(--accent, #90b9ff); outline-offset: 3px; }
 @media (max-width: 600px) {
   .improvement-candidate-panel { inset: 8px; padding: 14px; border-radius: 8px; }
   .improvement-candidate-panel button { max-width: 100%; white-space: normal; }

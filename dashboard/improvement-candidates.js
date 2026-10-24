@@ -19,7 +19,13 @@
   }
   function close() {
     if (!active) return;
-    active.version++; clearInterval(active.watch); active.panel.remove(); active = null; epoch++;
+    invalidate(active); clearInterval(active.watch); active.panel.remove(); active = null; epoch++;
+  }
+  function invalidate(s) {
+    s.version++;
+    if (s.experiments) { s.experiments.dispose(); s.experiments = null; }
+    for (const controller of s.requests) controller.abort(); s.requests.clear();
+    s.review?.replaceChildren(); s.form?.replaceChildren();
   }
   function info(parent, text) {
     const toggle = button(tr("explanation"), "explanation", null);
@@ -37,6 +43,7 @@
     const version = s.version;
     const suffix = (path.includes("?") ? "&" : "?") + "brain=" + encodeURIComponent(s.brain);
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 30000);
+    s.requests.add(controller);
     try {
       const response = await fetch(path + suffix, {credentials:"same-origin", signal:controller.signal,
         ...(body === undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)})});
@@ -44,7 +51,7 @@
       if (!alive(s, version)) throw Error("stale_panel");
       if (!response.ok || value.ok !== true) { const error = Error("request_unavailable"); error.status = response.status; throw error; }
       return value;
-    } finally { clearTimeout(timer); }
+    } finally { clearTimeout(timer); s.requests.delete(controller); }
   }
   function event(s, operation, payload) {
     const fingerprint = operation + JSON.stringify(payload);
@@ -223,9 +230,17 @@
       }
       s.choose.value = "0";
       const change = async () => {
-        s.version++; s.review.replaceChildren(); s.form.replaceChildren(); s.context = s.contexts[Number(s.choose.value)];
+        invalidate(s); s.context = s.contexts[Number(s.choose.value)];
+        const version = s.version;
         s.prepare.disabled = !contextActive(s);
         if (s.context) await rows(s); else s.list.replaceChildren();
+        if (!alive(s, version)) return;
+        if (s.context && window.JavisImprovementExperiments) {
+          s.experiments = window.JavisImprovementExperiments.mount({parent:s.experimentArea,brain:s.brain,context:s.context,
+            isCurrent:()=>alive(s, version),review:id=>review(s,id),refreshCandidates:()=>rows(s)});
+          await s.experiments.ready;
+          if (!alive(s, version)) return;
+        }
         s.status.textContent = tr(!s.context ? "no_contexts" : !contextActive(s) ? "stale" : "semantic_pending");
       };
       s.choose.onchange = async () => { try { await change(); } catch (error) { failure(s, error); } };
@@ -246,7 +261,7 @@
     close();
     const panel = node("section"); panel.className = "improvement-candidate-panel"; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true");
     panel.setAttribute("aria-label", tr("title"));
-    const s = {brain,slug,isCurrent,panel,version:++epoch,events:new Map(),rows:[]}; active = s;
+    const s = {brain,slug,isCurrent,panel,version:++epoch,events:new Map(),rows:[],requests:new Set()}; active = s;
     panel.append(node("h2", tr("title")), button(tr("close"), "close", close));
     info(panel, tr("scope_hint"));
     s.status = node("p", tr("loading"), "status"); s.status.setAttribute("role", "status"); panel.append(s.status);
@@ -271,11 +286,12 @@
     s.prepare = button(tr("load_baseline"), "load-baseline", () => baseline(s)); s.prepare.disabled = true; s.panel.append(s.prepare);
     s.panel.append(button(tr("capture"), "capture", async () => {
       if (!alive(s)) return;
-      s.version++; s.prepare.disabled = true; s.form.replaceChildren(); s.review.replaceChildren();
+      invalidate(s); s.prepare.disabled = true;
       try { await write(s, "/improvement-targets/capture", {kind:"skill",slug:s.slug}, "capture"); await load(s); }
       catch (error) { failure(s, error); }
     }));
     s.list = node("div"); s.form = node("div"); s.review = node("div"); s.panel.append(s.list, s.form, s.review);
+    s.experimentArea = node("div"); s.panel.append(s.experimentArea);
     const artifacts = node("details"); artifacts.append(node("summary", tr("artifact")));
     const trial = field(artifacts, "trial_id", "input"); trial.type = "text";
     const attempt = field(artifacts, "attempt", "input"); attempt.value = "1"; attempt.min = "1";

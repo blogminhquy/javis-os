@@ -27,10 +27,11 @@ class MainExperimentTests(unittest.TestCase):
         routes = [(route.path, sorted(route.methods)[0]) for route in self.main.app.routes
                   if getattr(route, "path", "").startswith(("/improvement-experiments", "/improvement-comparison-reports", '/improvement-operations'))
                   or getattr(route, 'path', '').endswith('/semantic-history')]
-        self.assertEqual(len(routes), 33)
+        self.assertEqual(len(routes), 34)
         self.assertTrue({('/improvement-experiments/{experiment_id}/view-freeze', 'POST'),
             ('/improvement-experiments/{experiment_id}/view-evidence', 'POST'),
-            ('/improvement-experiments/{experiment_id}/views/{comparison_id}', 'GET')} <= set(routes))
+            ('/improvement-experiments/{experiment_id}/views/{comparison_id}', 'GET'),
+            ('/improvement-experiments/{experiment_id}/compose-outcomes', 'GET')} <= set(routes))
         with patch.object(self.main.cfgmod, "gate_active", return_value=True), \
              patch.object(self.main.cfgmod, "valid_session", return_value=False), \
              patch.object(self.main, "_token_ok", return_value=True), \
@@ -60,7 +61,8 @@ class MainExperimentTests(unittest.TestCase):
                     '/improvement-experiments/missing/preparation', '/improvement-experiments/missing/operations',
                     '/improvement-operations/missing', '/improvement-candidates/missing/semantic-history',
                     '/improvement-experiments/missing/views/missing', '/improvement-experiments/missing/compose-consents',
-                    '/improvement-experiments/missing/compositions', '/improvement-experiments/missing/policy'):
+                    '/improvement-experiments/missing/compositions', '/improvement-experiments/missing/policy',
+                    '/improvement-experiments/missing/compose-outcomes'):
                 response = self.client.get(path, params={"brain": str(self.f.f.brain)})
                 self.assertIn(response.status_code, (200, 403, 503), response.text)
                 self.assertNotIn("cli_path", response.text)
@@ -85,12 +87,19 @@ class MainExperimentTests(unittest.TestCase):
         with patch.object(self.main.cfgmod, 'gate_active', return_value=False), \
                 patch.object(self.main, '_read_improvement_existing', side_effect=existing), \
                 patch.object(self.main, '_resonance_store', side_effect=writer), \
+                patch.object(self.main, '_improvement_experiment_service', side_effect=AssertionError('Cold cannot construct service')), \
+                patch.object(self.main, '_improvement_trial_service', side_effect=AssertionError('Cold cannot construct trial service')), \
                 patch.object(self.main, 'RevisionBlobs', return_value=fixture.assets.blobs), \
                 patch.object(fixture.assets.blobs, 'read', side_effect=AssertionError('Revoke cannot decrypt')):
             data = {'authorization_id': fixture.saved['authorization_id'], 'expected_generation': 1,
                     'event_key': 'actual-main-compose-revoke'}
             client = TestClient(self.main.app, base_url='http://127.0.0.1')
             self.addCleanup(client.close)
+            cold = client.get('/improvement-experiments/' + fixture.saved['experiment_id'] + '/compose-outcomes',
+                params={'brain': fixture.owner.brain_id})
+            self.assertEqual(cold.status_code, 200, cold.text)
+            self.assertEqual(cold.json()['outcomes'], [])
+            self.assertEqual(writes, [])
             bad = client.post('/improvement-experiments/foreign-experiment/compose-revoke',
                 params={'brain': fixture.owner.brain_id}, json=data)
             self.assertEqual(bad.status_code, 403, bad.text)

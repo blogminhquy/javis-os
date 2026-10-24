@@ -172,6 +172,7 @@ def register(app, deps):
 
     register_compose_history('compose-consents', 'consents', 'list')
     register_compose_history('compositions', 'compositions', 'compositions')
+    register_compose_history('compose-outcomes', 'outcomes', 'outcomes')
     register_compose_history('policy', 'policy', 'policy')
 
     async def control(request, brain, operation, experiment_id=None):

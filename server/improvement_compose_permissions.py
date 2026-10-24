@@ -239,6 +239,76 @@ class ComposePermissions:
                     'authority_status': 'not_checked', 'business_proof': False})
             return result
 
+    def outcomes(self, principal, experiment_id):
+        """One recorded compose disposition, including starts without publication.
+
+        Read existing authenticated events and role metadata only. A saved start
+        is historical, never permission to resume or an inferred live owner.
+        """
+        from improvement_operation_records import OperationRecords
+        from improvement_compositions import ComposerService
+        self.scope(principal, experiment_id)
+        if IM._schema_version(self.store) < 8:
+            return []
+        brain = _brain(principal)
+        publications = self.compositions(principal, experiment_id)
+        with closing(self.store._conn()) as connection:
+            rows = list(connection.execute("SELECT * FROM improvement_operations WHERE brain_id=? AND experiment_id=? "
+                "AND kind='compose' LIMIT 2", (brain, experiment_id)))
+            events = list(connection.execute("SELECT * FROM improvement_events WHERE brain_id=? "
+                "AND operation IN ('compose_generate_start','compose_generate') "
+                "AND json_extract(result_json,'$.experiment_id')=? LIMIT 3", (brain, experiment_id)))
+            if len(rows) > 1 or len(events) > 2:
+                raise IM.ConflictError('compose_outcome_history_changed')
+            if not rows:
+                if events or publications:
+                    raise IM.ConflictError('compose_outcome_history_changed')
+                return []
+            row = rows[0]
+            public = OperationRecords._public(row)
+            request = json.loads(row['request_json'])
+            permission = self._row(connection, brain, request['compose_authorization_id'])
+            authorization = self._metadata(connection, permission)
+            if (authorization['experiment_id'] != experiment_id or authorization['context_id'] != public['context_id']
+                    or authorization['input_hash'] != public['input_hash'] or request['definition_hash'] != permission['definition_hash']):
+                raise IM.ConflictError('compose_outcome_history_changed')
+            payload = {'authorization_id': authorization['authorization_id'],
+                       'expected_generation': authorization['experiment_generation']}
+            starts = [event for event in events if event['operation'] == 'compose_generate_start']
+            finals = [event for event in events if event['operation'] == 'compose_generate']
+            if len(starts) != 1 or len(finals) > 1:
+                raise IM.ConflictError('compose_outcome_history_changed')
+            start = self.assets._replay(connection, brain, starts[0]['event_key'], 'compose_generate_start', payload)
+            expected = {'authorization_id': authorization['authorization_id'], 'experiment_id': experiment_id,
+                'operation_id': public['operation_id'], 'input_hash': public['input_hash'],
+                'generation': authorization['experiment_generation'] + 1}
+            if start != expected:
+                raise IM.ConflictError('compose_outcome_history_changed')
+            status, publication = 'operation_recorded', None
+            if finals:
+                final = finals[0]
+                saved = self.assets._replay(connection, brain, final['event_key'], 'compose_generate', payload)
+                if (starts[0]['event_key'] != ComposerService._start_key(brain, final['event_key'])
+                        or any(saved.get(key) != expected[key] for key in ('authorization_id', 'experiment_id', 'operation_id'))):
+                    raise IM.ConflictError('compose_outcome_history_changed')
+                status = saved.get('status')
+                if status in ('keep_base', 'candidate_staged'):
+                    if len(publications) != 1 or publications[0]['composition_id'] != saved.get('composition_id'):
+                        raise IM.ConflictError('compose_outcome_history_changed')
+                    publication = publications[0]
+                elif status not in ('invalid_output', 'native_incomplete') or saved.get('candidates') != [] or publications:
+                    raise IM.ConflictError('compose_outcome_history_changed')
+            elif publications:
+                raise IM.ConflictError('compose_outcome_history_changed')
+            return [{'experiment_id': experiment_id, 'authorization_id': authorization['authorization_id'],
+                'authorization_status': authorization['status'], 'authorization_generation': authorization['generation'],
+                'operation_id': public['operation_id'], 'operation_status': public['status'], 'status': status,
+                'input_hash': authorization['input_hash'], 'basis_hash': authorization['basis_hash'],
+                'composition_id': publication['composition_id'] if publication else None,
+                'result_id': publication['result_id'] if publication else None,
+                'candidate_id': publication['candidate_id'] if publication else None,
+                'authority_status': 'not_checked', 'business_proof': False}]
+
     def preview(self, principal, experiment_id, *, expected_generation, event_key):
         self._live()
         self.scope(principal, experiment_id)
