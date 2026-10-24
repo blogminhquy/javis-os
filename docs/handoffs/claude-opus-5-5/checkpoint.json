@@ -98,12 +98,13 @@
     "is_native_or_M2_completion": false
   },
   "next_engineering_step": {
-    "kind": "Q1_baseline5_Session_owned_query_accounting_ACK_typed_stage_final_cold_result",
+    "kind": "Q2_view4_operation2_shared_owned_query_and_two_ordinary_marker_fences",
     "design": "docs/superpowers/specs/2026-10-24-m2-owned-baseline-query-design.md",
     "builder_check": "nothing_important_left_including_per_attempt_cleanup_clarification",
-    "state": "Q1_fix_round1_then_scoped_rereview_and_affected_Linux_not_restart",
+    "state": "Q1_source_component_closed_Q2_plan_and_actual_interface_reconciliation_next_not_dispatched",
     "Q2": "view4_operation2_then_final_installed_localhost_gate",
-    "D2_E": "E1_E2_source_owner_API_bootstrap_builder_checked_design_only_direct_read_and_native_gates_OPEN"
+    "D2_E": "E1_E2_source_owner_API_bootstrap_builder_checked_design_only_direct_read_and_native_gates_OPEN",
+    "Q1_proof": "docs/superpowers/evidence/2026-10-24-m2-owned-baseline-query.json"
   },
   "final_source_head": null,
   "final_ci": null,
@@ -141,10 +142,10 @@
     "installed_selected_CLI_gate": "OPEN_mandatory_final_stable_query_closure",
     "is_M2_completion": false
   },
-  "interim_snapshot_based_on_head": "35fa2b84e1f6e86d0c98e77daa5dadeea62915fd",
+  "interim_snapshot_based_on_head": "622332e6f82819c29c015d871ca44745f9e9638f",
   "M2_owned_query": {
-    "source_head": "7316bd81f4e197f361ee82404f8f388ac214b7f3",
-    "state": "fix_round1_in_progress_not_accepted",
+    "source_head": "622332e6f82819c29c015d871ca44745f9e9638f",
+    "state": "source_scoped_review_and_affected_checks_closed_installed_gate_open",
     "windows_fixture": {
       "passed": 62,
       "skipped": 0,
@@ -168,10 +169,10 @@
       "raw_sha256": "ecee1d644f390af321c26e13b28ee07c82998b6a72a9bf976cf2f45b9b099927",
       "original_offending_RECORD_row": "not_captured"
     },
-    "fix_round": 1,
+    "fix_round": 2,
     "fix_base": "7316bd81f4e197f361ee82404f8f388ac214b7f3",
-    "fix_worker": "/root/m2_owned_baseline_query",
-    "serial_local_slot": "held_until_explicit_release",
+    "fix_worker": "terminal_no_further_app_native_commands",
+    "serial_local_slot": "released",
     "fix_RED": {
       "tests": 6,
       "expected_assertion_failures": 8,
@@ -181,7 +182,60 @@
     "private_report_prefix_bytes": 20602,
     "private_report_prefix_sha256": "cce16db510220d5a2d3c75855a2a267c884b91e81a4ae51a9f02c1b857cad0b7",
     "installed_native_qualification": "OPEN_after_Q2_final_stable_source",
-    "is_M2_or_product_acceptance": false
+    "is_M2_or_product_acceptance": false,
+    "current_scoped_review": {
+      "I1": "ADDRESSED",
+      "I2": "ADDRESSED",
+      "I3": "ADDRESSED",
+      "I4": "ADDRESSED",
+      "open_critical_important": 0,
+      "new_breakage": 0,
+      "minor_M1": "deferred_final_whole_branch"
+    },
+    "fix1_windows": {
+      "passing_executions": 14,
+      "distinct_selectors": 12,
+      "slow_diagnostics": 164,
+      "test_only_rechecks_disclosed": true
+    },
+    "fix2_windows": {
+      "passed_on_final_committed_bytes": 7,
+      "skipped": 0,
+      "warnings": 0,
+      "slow_diagnostics": 64
+    },
+    "linux_fix1": {
+      "source": "8504deea72d9db4155a2d134a13c1dbf9e472df9",
+      "run": 40091515738,
+      "job": 120864986878,
+      "passed": 9,
+      "skipped": 0,
+      "scope": "affected_only"
+    },
+    "linux_fix2": {
+      "source": "622332e6f82819c29c015d871ca44745f9e9638f",
+      "run": 40092465143,
+      "job": 120867793193,
+      "passed": 4,
+      "skipped": 0,
+      "scope": "affected_only"
+    },
+    "proof": "docs/superpowers/evidence/2026-10-24-m2-owned-baseline-query.json",
+    "proof_sha256": "1bc070983ab57e4c3b39394bf058c7a7c6f6376d894619fc41b2637cd4f2727b",
+    "root_audit": {
+      "indexed_files": 132,
+      "cleanup_receipts": 97,
+      "same_birth_owner_or_native_processes": 0,
+      "unrelated_PID_reuse_preserved": 1,
+      "workspace_witnesses_remaining": 0,
+      "preexisting_jh2_dirs_preserved": 2
+    },
+    "private_report_prefixes_verified": [
+      20602,
+      33374
+    ],
+    "private_report_bytes": 44973,
+    "private_report_sha256": "6b59439bfd5c9c4671b9ce31f5fe163d42691b6710c5017c09c9bf49218724fb"
   },
   "M2_effective_skill_design": {
     "state": "builder_checked_design_only_no_implementation_plan",

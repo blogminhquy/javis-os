@@ -4,40 +4,50 @@
 Đọc file này trước; kiểm Git/source/PR/CI thật trước mọi hành động. Không suy
 trạng thái cuối từ bản bàn giao đang viết hoặc từ transcript cũ.
 
-## Checkpoint đang chạy24/10 — Q1 fix round1, chưa nghiệm thu
+## Checkpoint24/10 — Q1 source component đã chốt, Q2 kế tiếp
 
-Source Q1 đã commit `7316bd81f4e197f361ee82404f8f388ac214b7f3`, đúng13server
-paths và1test mới. Frozen Windows62PASS/0skip, trước/sau/committed bytes khớp;
-175async slow-task diagnostics được giữ nguyên, không có warning. Root kiểm
-78raw receipts/15pins/38bản ghi cleanup; audit11:31:36UTC không còn process
-khớp75PID đã ghi, chỉ2jh2dirs Oct23 có trước được bảo toàn. Đây là fixture
-qua SDKClient/transport gốc với inert capture/engine, chưa phải installed gate.
+[Q1 proof](../../superpowers/evidence/2026-10-24-m2-owned-baseline-query.json)
+source `622332e6f82819c29c015d871ca44745f9e9638f`; implementation7316bd81,
+fix1/source8504deea vàfix2/source622332e6. Baseline5 đã tiêu thụ Session→admission/
+runner→SDK/ACK/accounting→stage/cleanup/final/cold proof. Source component có
+scoped review/fix gates đạt; **installed native qualification vẫn OPEN sau Q2**,
+không phải nghiệm thu native đầy đủ, M2 hay hiệu quả nghiệp vụ.
 
-Scoped Astra review **Needs fixes:0Critical/3Important/1Minor**: cleanup phải đợi
-native detach, committed stage phải giữ pending proof qua cancel/cleanup failure,
-direct runner phải kiểm current ngay trước trả kết quả. Worker gốc đang sửa
-**round1/5**, sole serial app/native slot;6REDtests tái hiện8assertion failures,
-teardown đã đóng owner thật. Không dispatch implementer/test khác song song.
-Private brief/report/logs giữ tại
-`.superpowers/sdd/2026-10-24-m2-owned-baseline-query/`; không force-add raw logs,
-không copy key/blob. Fix report phải append, giữ20602byte prefixSHA
-`cce16db510220d5a2d3c75855a2a267c884b91e81a4ae51a9f02c1b857cad0b7`.
+Initial frozen Windows62PASS/0skip; fix1 có14passing executions/12selectors,
+production giữ nguyên qua các GREEN và khai báo đúng các test-only rechecks.
+Fix2 có7PASS trên đúng committed bytes. Rawslowdiagnostics175/164/64 được giữ
+cho finalwholebranch; không suppress. Initial review3Important đã sửa; fix1
+review phát hiện I4 contention mới, fix2 re-review I4ADDRESSED/0newbreakage.
+Root kiểm78+32+22indexedfiles, reportprefixes20602/33374 và14currentpins.
 
-Early Linux [40090227041](https://github.com/blogminhquy/javis-os/actions/runs/40090227041)
-trên exact source7316:24PASS/37platformSKIP/1ERROR. Lỗi portable closure test
-dùng ambient package RECORD; offending row không được log. Giữ validator sản
-phẩm, sửa fixture tối thiểu trong cùng round; chưa retry và chưa gọi Linux đạt.
-Chỉ CIref riêng988135be được push; taskbranch remote vẫn4ba9624a.
+Linux initial [40090227041](https://github.com/blogminhquy/javis-os/actions/runs/40090227041)
+24PASS/37skip/1ERROR được giữ nguyên. Portable fixture sửa với validator thật,
+offending RECORD row cũ NOT_CAPTURED. Affected retry
+[40091515738](https://github.com/blogminhquy/javis-os/actions/runs/40091515738)
+9PASS, finalsource affected
+[40092465143](https://github.com/blogminhquy/javis-os/actions/runs/40092465143)
+4PASS/0skip. Không gộp thành full final CI hay Windows/native proof.
 
-E1/E2 source-owner và API/bootstrap designs đã qua fresh builder check, chưa
-triển khai. Xem [source owner](../../superpowers/specs/2026-10-24-m2-skill-authoring-source-design.md),
-[API binding](../../superpowers/specs/2026-10-24-m2-api-effective-binding-design.md)
-và [bootstrap](../../superpowers/specs/2026-10-24-m2-api-effective-bootstrap-design.md).
-E1 là static-byte/in-process; API loopback chỉ protocol delivery. D2 generic
-target/dependency-read và native effective-profile gate vẫn OPEN, product
-profiles chưa đủ điều kiện. Không lập lại/dispatch Q1 từ đầu theo snapshot cũ.
-Sau fix/re-review/affected Linux mới lập Q2 theo interface đã review, rồi E1/E2/F.
-Final installed localhost/fullCI/wholebranch/integration/handoff vẫn OPEN.
+Root audit12:06:38UTC:97cleanupreceipts/188PID,0current process khớp birth/native
+pattern;1PID reuse là conhost khác được giữ nguyên.13workspacewitness paths gone;
+2jh2dirs Oct23 có trước được bảo toàn. Worker/reviewers terminal, local slot đã
+release; không còn owner không rõ do unit này. Ignored history/helpers/raw
+diagnostics tại `.superpowers/sdd/2026-10-24-m2-owned-baseline-query/` giữ private,
+không force-add/copy blobs/key. ProofSHA
+`1bc070983ab57e4c3b39394bf058c7a7c6f6376d894619fc41b2637cd4f2727b`.
+
+Tiếp theo: lập Q2view4/operation2 plan từ interface622332 đã review; thêm hai
+ordinary marker fences trước positive paths. Không làm lại Q1/P0/P1. Chỉ owned
+CIref700455ef push; taskbranch remote vẫn4ba9624a. Cả hai registries đóng,
+VERSION0.299.0; source đổi tiếp phải đánh giá lại proof ảnh hưởng.
+
+E1/E2 source-owner/API/bootstrap designs đã qua fresh builder, chưa triển khai:
+[source owner](../../superpowers/specs/2026-10-24-m2-skill-authoring-source-design.md),
+[API binding](../../superpowers/specs/2026-10-24-m2-api-effective-binding-design.md),
+[bootstrap](../../superpowers/specs/2026-10-24-m2-api-effective-bootstrap-design.md).
+Static-byte/in-process và protocol-delivery coverage giữ đúng phạm vi; D2generic
+target/dependency-read/native effective-profile, E/F/fullCI/wholebranch/
+integration/finalhandoff còn OPEN. Business/live vẫn PENDING, không chạy thật.
 
 ## Quyết định có hiệu lực
 

@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "created_utc": "2026-10-24T12:07:44.209449+00:00",
+  "component": "M2 Q1 consumed baseline5 owned technical query source component",
+  "state": "source_scoped_review_and_affected_checks_closed_installed_gate_open",
+  "task_base": "411e8c49736144d29143ce4dd7b28475f785cf6c",
+  "source_head": "622332e6f82819c29c015d871ca44745f9e9638f",
+  "source_commits": [
+    "7316bd81f4e197f361ee82404f8f388ac214b7f3",
+    "8504deea72d9db4155a2d134a13c1dbf9e472df9",
+    "622332e6f82819c29c015d871ca44745f9e9638f"
+  ],
+  "qualification_domain": "qualification",
+  "supported": false,
+  "account_ready": false,
+  "business_proof": false,
+  "consumed_path": "Session -> real admission/runner/materialization5/bind -> startup3 nestedv2 native/SDK fixture -> actual recorder/accounting/ACK/input -> encrypted stage/settlement -> actual cleanup -> final/cold authentication",
+  "source_pins": {
+    "server/improvement_qualification_session.py": {
+      "sha256": "7fd6891d23aa8e5d88dca7d7e436c91d1b17928f2a9ade40ad408ccee264b24c",
+      "size": 33154,
+      "git_blob": "b7d2dc857eaac009ab757fbd73db9e9b7e4e668c"
+    },
+    "server/improvement_trial_admission.py": {
+      "sha256": "c10d47c68fee11dfae88974f8c1e37de395737ae90737f5af16f502feaba0bf5",
+      "size": 16881,
+      "git_blob": "159a3ea4778d023011a4bed2c1ae78838f276a74"
+    },
+    "server/improvement_trial_runner.py": {
+      "sha256": "3181274126c4c05124d7a3eeb967c1e5354077e11d753ef35acedea7e8876e92",
+      "size": 36468,
+      "git_blob": "e25bc2b9b8e669869bb91b9659f16c0f725f5afb"
+    },
+    "server/improvement_trials.py": {
+      "sha256": "949744d831362532fa6100ae074eafde9fcaebaa73c5c6afa9414e9167eacf49",
+      "size": 43600,
+      "git_blob": "d43ed029bbbb733a5669e5a3acde4eb2de8f6293"
+    },
+    "server/improvement_native_parent.py": {
+      "sha256": "715ba8ed701d20c81328d246a491304017dd74132791086c47a85a48cf3f2f1d",
+      "size": 31268,
+      "git_blob": "8651f244a82c372cd8ae6891ff56cad03e9e2e30"
+    },
+    "server/improvement_native_transport.py": {
+      "sha256": "00e92cae23279bf1c82a19fd9d7c069b4cc79cc780b1c75c992fed6db3ad52e2",
+      "size": 71452,
+      "git_blob": "77dbb67580206ce66d19958172682d3326fc42d6"
+    },
+    "server/improvement_native_worker.py": {
+      "sha256": "b31cd4dcafe610edc1f904d7f9cb4d018f8060483ee56d1ad87d9d2186570b9a",
+      "size": 19264,
+      "git_blob": "7b593f18f02e3c0fc23eae7fac82687640c68f42"
+    },
+    "server/improvement_native_sdk.py": {
+      "sha256": "17c11bf72435386fbf76f37c07bd620edb88c96f2ca7c6b17a27fba81565835d",
+      "size": 32219,
+      "git_blob": "42c873ab3da286faf0226484bc2427c4fc52226a"
+    },
+    "server/improvement_native_profile.py": {
+      "sha256": "f295ea7c1d5a4e345c9670a256b26e9f3398dec2fc8f8be182ac2c07159819af",
+      "size": 10832,
+      "git_blob": "395e276cdde6b3b48afe1e5b1e02f7993946a387"
+    },
+    "server/improvement_claude.py": {
+      "sha256": "d6fbdd6297efdb2a9811d9fb5588f6573e04b1445ddd6944ce0c6c59c48ae98c",
+      "size": 42755,
+      "git_blob": "eed134cc9f2b050542e8666be10dc3aa572ffae4"
+    },
+    "server/improvement_worker.py": {
+      "sha256": "42fc4d4a452972d054af3032db222a6ae9955d6ac11773fb975b5a76ebea0b8e",
+      "size": 23747,
+      "git_blob": "aa07fa20969d3752e925ae09c82247ec32ac2f87"
+    },
+    "server/improvement_qualification_protocol.py": {
+      "sha256": "fd807d8e3c66cf0fbce2771dd76cfeb5b36d56acdd3f79a471041d3afa647e19",
+      "size": 11682,
+      "git_blob": "6f304fa379cdf66641b4943e7f2029fc504833dc"
+    },
+    "server/improvement_qualification_results.py": {
+      "sha256": "c42c53e2f42b7fd39d07faa892b240ba169e8e99624d866fee90df0f4ed16d0a",
+      "size": 34325,
+      "git_blob": "5ffc2ec75e1c55bc461c6c811a9767f594392bce"
+    },
+    "tests/python/test_improvement_qualification_query.py": {
+      "sha256": "bd2411f59c1b0892282de7181aed1c64dbe9a31320a6ca7a152de03ab91ebe33",
+      "size": 69620,
+      "git_blob": "2804d485387b90d67973d74b478caa34c3901663"
+    }
+  },
+  "windows_fixture_evidence": {
+    "initial_source": "7316bd81f4e197f361ee82404f8f388ac214b7f3",
+    "initial_frozen_tests": 62,
+    "initial_skips": 0,
+    "initial_slow_diagnostics": 175,
+    "initial_warnings": 0,
+    "fix1_source": "8504deea72d9db4155a2d134a13c1dbf9e472df9",
+    "fix1_passing_executions": 14,
+    "fix1_distinct_selectors": 12,
+    "fix1_green_slow_diagnostics": 164,
+    "fix1_test_only_refreezes": "Production same across GREENs; only changed I3 and I1 selectors rerun after test-only amendments. Not all selectors ran final test-module bytes.",
+    "fix2_source": "622332e6f82819c29c015d871ca44745f9e9638f",
+    "fix2_final_tests": 7,
+    "fix2_final_slow_diagnostics": 64,
+    "fix2_failures_errors_skips_warnings": 0,
+    "fix2_intermediate_tests": 2,
+    "fix2_intermediate_not_final": true,
+    "red_proofs": {
+      "integrated_missing_consumed_branch": true,
+      "cleanup_retention": true,
+      "ACK_after_settlement": true,
+      "fix1_tests": 6,
+      "fix1_assertion_failures": 8,
+      "fix2_tests": 2,
+      "fix2_assertion_failures": 3
+    },
+    "private_indexed_receipts_verified": 132,
+    "root_report_preserved_prefixes": [
+      20602,
+      33374
+    ]
+  },
+  "scoped_review": {
+    "initial": {
+      "spec": "issues_found",
+      "quality": "needs_fixes",
+      "critical": 0,
+      "important": 3,
+      "minor": 1
+    },
+    "fix1": {
+      "I1": "ADDRESSED",
+      "I2": "ADDRESSED",
+      "I3": "ADDRESSED",
+      "new_I4": "Important"
+    },
+    "fix2": {
+      "I4": "ADDRESSED",
+      "new_critical": 0,
+      "new_important": 0,
+      "new_minor": 0
+    },
+    "current_open_critical_important": 0,
+    "deferred_minor_M1": "Raw async slow-task diagnostics retained for final whole-branch triage; no suppression or Minor fix loop.",
+    "is_whole_branch_review": false
+  },
+  "linux": {
+    "initial": {
+      "source_head": "7316bd81f4e197f361ee82404f8f388ac214b7f3",
+      "ci_head": "988135be05132bc5af1e0b70170608337fb53fa4",
+      "run": 40090227041,
+      "job": 120861220942,
+      "conclusion": "failure",
+      "passed": 24,
+      "platform_skipped": 37,
+      "errors": 1,
+      "raw_bytes": 111676,
+      "raw_sha256": "ecee1d644f390af321c26e13b28ee07c82998b6a72a9bf976cf2f45b9b099927",
+      "original_offending_RECORD_path": "NOT_CAPTURED; no package name inferred"
+    },
+    "fix1": {
+      "source_head": "8504deea72d9db4155a2d134a13c1dbf9e472df9",
+      "ci_head": "25d05ea025ad4621fa75c7a3793b34099f5f88cf",
+      "run": 40091515738,
+      "job": 120864986878,
+      "conclusion": "success",
+      "passed": 9,
+      "skipped": 0,
+      "errors": 0,
+      "raw_bytes": 88095,
+      "raw_sha256": "1577da2f92bf4835fd6a2317f5bfde8a868f1b8b3f55fba084c3751a01e4380d"
+    },
+    "fix2": {
+      "source_head": "622332e6f82819c29c015d871ca44745f9e9638f",
+      "ci_head": "700455ef4d86cd4ae2a6d2e85422c71cc1e29dbf",
+      "run": 40092465143,
+      "job": 120867793193,
+      "conclusion": "success",
+      "passed": 4,
+      "skipped": 0,
+      "errors": 0,
+      "raw_bytes": 86562,
+      "raw_sha256": "f36a8ba2afc45ccdb82c0b56d58bc662907046e605cc6cea79bfb4d0f10d2b92"
+    },
+    "selection": "Initial9groups retained; fix1 source-closure1+ordinary8; fix2 source-closure1+ordinary success/cancel/append3. Actual exact pins and immutable raw outputs audited.",
+    "warning_limits": "Original BOM and Node20-forced24/punycode workflow diagnostics retained; no ResourceWarning in audited logs.",
+    "is_full_final_M2_CI": false
+  },
+  "resource_audit": {
+    "utc": "2026-10-24T12:06:38.0072843Z",
+    "ownership_receipts": 97,
+    "distinct_receipt_pids": 188,
+    "current_same_birth_owner_or_native_pattern_processes": 0,
+    "reused_historical_PID_unrelated_processes": 1,
+    "witness_workspace_paths_checked": 13,
+    "witness_workspace_paths_remaining": 0,
+    "preexisting_jh2_directories_preserved": [
+      "jh2-3f2h21dh",
+      "jh2-6th6ll9w"
+    ],
+    "serial_local_slot": "released",
+    "no_unknown_ownership_deleted_or_process_killed": true
+  },
+  "unchanged": {
+    "VERSION": "0.299.0",
+    "qualification_registries": {
+      "REVIEWED_RELEASES": {},
+      "REVIEWED_QUALIFICATION_CANDIDATES": {}
+    },
+    "protected_test_sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0",
+    "actual_three_account_verifier_AST_methods_unchanged": [
+      "ClaudeTrialAdapter.verify",
+      "ClaudeTrialAdapter.verify_async",
+      "ClaudeTrialAdapter.verify_observed"
+    ],
+    "view_operation_positive_paths": false,
+    "product_result_publication": false
+  },
+  "private_evidence": {
+    "workspace": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query",
+    "receipt_digests": [
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/task-1-report.md",
+        "size": 44973,
+        "sha256": "6b59439bfd5c9c4671b9ce31f5fe163d42691b6710c5017c09c9bf49218724fb"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/task-1-review.md",
+        "size": 16348,
+        "sha256": "2e18b56bb19f104d6b7011b9e5070bfd5cd59fb6cb61fd822087a5d384ddcd94"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/task-1-fix1-review.md",
+        "size": 12343,
+        "sha256": "52a7f34e8cfa3826d7d76da6d35b4b0ef2b5a56014df91a5ac67ec1bb13324ab"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/task-1-fix2-review.md",
+        "size": 9210,
+        "sha256": "a42564cc4f4f9e81e423a6b7eb707cb6d5bb14e19caf13017605853cd8c30f65"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/task-1-raw-index.json",
+        "size": 28543,
+        "sha256": "c96f2537e42f16c16a45be72062e5ee9e7c116ec5aa25adacc03f8fa59c33ab0"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/task-1-fix1/index.json",
+        "size": 9899,
+        "sha256": "2ed9b5e6b66d527388c745da915aa3d40cf136827923894544ba3df36254f320"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/task-1-fix2/index.json",
+        "size": 6872,
+        "sha256": "38b51d4e9f00a2817c766d22137e91a90ce620b885cf8d2118a06b8190eaaab9"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/root-artifact-audit.json",
+        "size": 5603,
+        "sha256": "5932ad5c6e955e131ae0e4a60f27728a266cb5e31eedbee26a31be99b1d26fb3"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/root-default-boundary-audit.json",
+        "size": 831,
+        "sha256": "8cdbdbd5f343aa6765d22dc3244ba29dc4ff3e7a0f0a135c3289793b3cc93e57"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/root-fix1-audit.json",
+        "size": 2659,
+        "sha256": "2fe9bad6d833a8cf9143951de67315268feaa18e0cd02cd28bd76b369aa3ec79"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/root-fix2-audit.json",
+        "size": 2611,
+        "sha256": "4155eb81f2cc3b40ca1cc8c3e948b22e93f19658775f11791edf43519fb35ee8"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/root-linux-initial-audit.json",
+        "size": 1659,
+        "sha256": "21ce8e6a777646f5b835ff420022e8b8449a6879b712ccff5e00972d0bbb9025"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/root-linux-fix1-audit.json",
+        "size": 1302,
+        "sha256": "178194ddbd76ad2cc788d246ebb21ce62046873a006a461c8f74f42794b92d2a"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/root-linux-fix2-audit.json",
+        "size": 1287,
+        "sha256": "8da98cb08687cc522c7f5a4a45ffe5de92d9c9e3a14bdd52bcc7f4c3eca8f0bb"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/root-resources-final-query.json",
+        "size": 939,
+        "sha256": "d40c050c1825651f8deba48ccce0647c5684653ffc971f674757749247d30e5d"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/linux-40090227041.log",
+        "size": 111676,
+        "sha256": "ecee1d644f390af321c26e13b28ee07c82998b6a72a9bf976cf2f45b9b099927"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/linux-40091515738.log",
+        "size": 88095,
+        "sha256": "1577da2f92bf4835fd6a2317f5bfde8a868f1b8b3f55fba084c3751a01e4380d"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/linux-40092465143.log",
+        "size": 86562,
+        "sha256": "f36a8ba2afc45ccdb82c0b56d58bc662907046e605cc6cea79bfb4d0f10d2b92"
+      }
+    ],
+    "handling": "Ignored history/helpers/reports/raw logs preserved locally; no force-add/private blobs/keys copied. Historical dummy socket/env diagnostics remain private."
+  },
+  "limits_and_open_gates": [
+    "Fixture synthetic candidate/bootstrap/capture/engine/dependency inventory; actual owned kernel/SDK/transport orchestration only.",
+    "Installed selectedCLI/SDK localhost qualification on final stable query source remains mandatory OPEN afterQ2, with no real account/provider/model.",
+    "Q2view4/operation2, E1/E2/E3/F implementation and D2direct target/dependency/native gates remain OPEN.",
+    "Final source qualification/full requiredCI/whole-branch review/integration/committed final Claudehandoff remain OPEN.",
+    "Business/live acceptance PENDING; no pilot/canary/deploy/restart/live activation/M3–M8 or newGoal."
+  ],
+  "is_full_Q1_native_acceptance": false,
+  "is_M2_or_Goal_completion": false
+}
