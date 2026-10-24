@@ -1,0 +1,91 @@
+{
+  "source_head": "0549380e17e66836ab475dae596d21e649e4e7a6",
+  "paths": {
+    "server/improvement_qualification_session.py": {
+      "size": 22727,
+      "sha256": "8b30d0961dca38e00d32856b58b023673ca48a4b5792978854eeb8ee463238c9",
+      "git_blob": "1ffd2eeec3a1b4571afc2ed48ac36685c33398e3",
+      "lf_only": true
+    },
+    "server/improvement_native_parent.py": {
+      "size": 24117,
+      "sha256": "52b4a36dcf15bfeb531268df116e07b42d312841be9337c7de2726f206c9664d",
+      "git_blob": "319d6807c79a2fc00d34ff5572c7e3d60d531f74",
+      "lf_only": true
+    },
+    "server/improvement_native_transport.py": {
+      "size": 68178,
+      "sha256": "6409c2f8e9d1062bfee952fdf75edb6d9b7cedd95ebc3448f9f1fb49fa41c583",
+      "git_blob": "4bf5d3118eb23799af5160c6d115fa4b5e647090",
+      "lf_only": true
+    },
+    "server/improvement_native_worker.py": {
+      "size": 18315,
+      "sha256": "6a262fd02b7ac00c8c02dce6da096bd4e798427b126320377f0d70164cd685da",
+      "git_blob": "a923ca641324d3bc4402a801b805811a91dd5a6e",
+      "lf_only": true
+    },
+    "server/improvement_native_sdk.py": {
+      "size": 31902,
+      "sha256": "d411ee8e8f15c1393cc0e699b43ca757f3f8818b466657ee5303c3f0c5554eb3",
+      "git_blob": "04d37554680abcfacd059e0698a8802f27e64605",
+      "lf_only": true
+    },
+    "server/improvement_qualification_protocol.py": {
+      "size": 10072,
+      "sha256": "9adf338fc5e10398b6acef5f0d042cc74c9cd4fa71f270fcc425ba5400e692cc",
+      "git_blob": "da1846ddaa78dc8a3d6cc68f32556d8606bda70e",
+      "lf_only": true
+    },
+    "server/improvement_worker.py": {
+      "size": 23097,
+      "sha256": "641ac7256b5b20bcab5e5daa340f4e6caae1e4dc2b7f4acce9caefdf9fc06c9e",
+      "git_blob": "e9b940e6b4d9c99a38b3692b3d09dc460e515b4e",
+      "lf_only": true
+    },
+    "server/improvement_operation_worker.py": {
+      "size": 5846,
+      "sha256": "df25c05e3a92a2901005023318327c04d6388c87c3fd3f27df77c030346e5dec",
+      "git_blob": "a391a110ddd788f135675d859898ff905943aed4",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_qualification_native_preflight.py": {
+      "size": 48865,
+      "sha256": "17f759d403677b85505df6663cf4eefed4b3c76530668ad7daab70b58f89ab05",
+      "git_blob": "fae004f90d789cd4cc5915007e90541c83fead53",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_worker.py": {
+      "size": 23087,
+      "sha256": "52006b58556efb98d32eae2ff308493988a83189a5cc6eb99192dad5f0b19dc4",
+      "git_blob": "60e91c0419fcf1009999db5ffcd41d85270b11dc",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_sdk.py": {
+      "size": 25620,
+      "sha256": "489024bc26322df225c460c0baf7dcf5861a0b63a9ad07912217b5ec8b291769",
+      "git_blob": "5a6ef36d8e7ff5e1b6f5cdab7bb73c80862ac766",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_transport_v2.py": {
+      "size": 36032,
+      "sha256": "96ddd3f607660ea1f4d70a7eb6c12e64729110cbf47dd8658fed9c7f35a17577",
+      "git_blob": "407998cd9064558445c97425dcad6629a74ae281",
+      "lf_only": true
+    }
+  },
+  "checks": [
+    [
+      "test_improvement_qualification_native_preflight.py",
+      "QualificationKernelTests.test_close_after_successful_final_thread_check_refuses_result",
+      "QualificationKernelTests.test_review_revocation_after_successful_final_thread_check_refuses_result",
+      "QualificationKernelTests.test_expiry_after_successful_final_thread_check_refuses_result",
+      "QualificationKernelTests.test_actual_startup3_owner_sdk_image_decisions_and_encrypted_trace",
+      "QualificationKernelTests.test_closed_owner_is_retained_on_trace_failure_and_evidence_retry_after_expiry_never_launches",
+      "QualificationNativeTests.test_close_during_static_runtime_recheck_cannot_leave_authority_current",
+      "QualificationNativeTests.test_review_replacement_during_static_recheck_cannot_leave_authority_current",
+      "QualificationNativeTests.test_qualification_parent_cannot_enter_production_adapter_or_query_paths_or_replay"
+    ]
+  ],
+  "scope": "P1 I1 fix covering selectors only; original matrices retained, Windows kernel/selected CLI distinct"
+}
