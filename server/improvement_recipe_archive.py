@@ -18,6 +18,7 @@ from cryptography.fernet import InvalidToken
 import improvement_store as IM
 from evidence_store import redact
 from improvement_blobs import AssetUnavailable
+from improvement_recipe_sources import owner_rule_hash
 from improvement_comparison_plans import ExperimentPlans
 from improvement_comparison_results import ComparisonResults
 from improvement_experiments import _generation, _identifier
@@ -391,8 +392,7 @@ class RecipeArchive:
                 'comparison_id': latest['comparison_id'], 'publication_id': latest['publication_id']}}
         source_basis['candidate']['source_authority_hash'] = proposal['provenance']['source_authority_hash']
         result.update(basis=source_basis, comparison=comparison, language=language,
-            owner_rule_hash=IM._hash([{key: source[key] for key in ('kind', 'ref', 'locator', 'required', 'present', 'hash', 'projection_hash')}
-                for source in capture['sources'] if source['role'] == 'protected']),
+            owner_rule_hash=owner_rule_hash(capture),
             verdict='confounded' if observed_candidate else 'untested',
             confidence={'attribution': 'not_isolated', 'candidate_outcome': 'unobserved' if summary is None else summary['mechanical_verdict'],
                 'evidence_class': 'technical' if summary is None else summary['evidence_class'], 'business_proof': False, 'transfer': 'unverified'})

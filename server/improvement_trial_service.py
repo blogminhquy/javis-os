@@ -50,6 +50,12 @@ class _RetainedDashboard:
         self._check()
         return result
 
+    def recipe_capture(self, *args, frozen_capture):
+        self._check()
+        result = self._collector.recipe_capture(*args, frozen_capture=frozen_capture)
+        self._check()
+        return result
+
 
 def _fixtures(selections):
     if selections is None:

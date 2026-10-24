@@ -281,6 +281,30 @@ class DashboardContextCapture:
             raise ValueError("dashboard_context_changed")
         return result
 
+    def recipe_capture(self, owner, surface, targets, *, frozen_capture):
+        """Read current discovery with the original clock, usage and owner rules."""
+        frozen = validate_capture(frozen_capture)
+        if frozen["surface"] != surface or frozen["baseline_context"]["coverage"] != "complete":
+            raise ValueError("dashboard_capture_changed")
+        records = [record for record in frozen["sources"] if record["ref"] == "dashboard:volatile"]
+        if len(records) != 1:
+            raise ValueError("invalid_dashboard_volatile_snapshot")
+        volatile = records[0]["projection"]
+        if (type(volatile) is not dict or set(volatile) != {"clock_utc", "usage_total"}
+                or volatile["usage_total"] is None
+                or records[0] != _semantic("runtime", "dashboard:volatile",
+                    {"policy": "frozen-clock-and-daily-usage-v1"}, volatile, role="volatile")):
+            raise ValueError("invalid_dashboard_volatile_snapshot")
+        result = self._capture(owner, surface, targets, volatile=volatile)
+
+        def protected(capture):
+            return [record for record in capture["sources"] if record["role"] == "protected"
+                    or record["ref"].startswith("dashboard:protected-authority:")]
+
+        if protected(result) != protected(frozen):
+            raise ValueError("dashboard_protected_context_changed")
+        return result
+
     def _capture(self, owner, surface, targets, volatile=None):
         try:
             root = _owner_root(owner)
@@ -663,7 +687,7 @@ class DashboardContextCapture:
         for filename in ("main.py", "main_prompt_rendering.py", "main_attachment_rendering.py", "channel_context.py", "context_compiler.py",
             "memory_control.py", "lang.py", "lang_registry.py", "localefmt.py", "usage_store.py", "config.py", "coding_store.py",
             "improvement_claude.py", "claude_sdk_engine.py", "adaptive_context_runtime.py", "fast_path_runtime.py", "workflow_runs.py",
-            "system_sync.py", "skill_router.py", "improvement_trial_dashboard.py", "improvement_trial_semantics.py", "improvement_trial_catalog.py", "improvement_trial_sql_context.py"):
+            "system_sync.py", "skill_router.py", "improvement_trial_dashboard.py", "improvement_recipe_sources.py", "improvement_trial_semantics.py", "improvement_trial_catalog.py", "improvement_trial_sql_context.py"):
             path = str(_SERVER / filename).casefold()
             if path not in sources.files:
                 sources.code(filename)
