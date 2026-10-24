@@ -1,0 +1,31 @@
+{
+  "source_head": "429d9334afa792116ad80e02f0f3bf2fd11e46af",
+  "sha256": {
+    "server/improvement_recipe_sources.py": "fea6886fc6fbcfa56f50f79aefb90c07d4222d1c7b3cc82e589d680a51f0d986",
+    "tests/python/test_improvement_recipe_sources.py": "4bdea1cdb0735a4228c47e67c90bc44bf2889593569178d121ed2bb3b68b4161",
+    "server/improvement_trial_dashboard.py": "494c16cc63dfd1073df5cd38fbb7d834ddf2b937b5eb4b51a72230e89e277047",
+    "server/improvement_trial_service.py": "a60c0682b901d564dfb78a932a3ee83cceddf4b0f64c35780051f26697c6bbf8",
+    "server/improvement_recipe_archive.py": "b7967c754d4e79bee9ee677b8ee0e7906f9c13d2d4bdb8d1fee6b1c6c7369647",
+    "server/improvement_claude.py": "fc6c58edf126d6f9acfc635d2f0f858c948e18ae70fc1a8a89e9e74a10b3395c"
+  },
+  "checks": [
+    [
+      "test_improvement_recipe_sources.py"
+    ],
+    [
+      "test_improvement_trial_dashboard.py",
+      "DashboardTests.test_revalidate_freezes_only_clock_and_usage",
+      "DashboardTests.test_sql_permissions_membership_and_target_changes_reject_revalidation"
+    ],
+    [
+      "test_improvement_trial_service.py",
+      "DashboardServiceTests.test_actual_sources_build_complete_bound_context_without_native_query",
+      "DashboardServiceTests.test_source_replacement_during_observation_rejects_result",
+      "DashboardServiceTests.test_changed_native_source_members_or_modules_fail_before_capture"
+    ],
+    [
+      "test_improvement_recipe_archive.py",
+      "RecipeArchiveTests.test_actual_encrypted_manifest_uses_original_source_pins_and_unverified_grade"
+    ]
+  ]
+}
