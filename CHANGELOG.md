@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.304.0] - 2026-10-24
+### Sửa lỗi
+- **Ubuntu 26 trên Hostinger có HTTPS thật mà không cần điền gì.** (đang viết)
+
 ## [0.302.0] - 2026-10-24
 ### Sửa lỗi
 - **Nút Open của Hostinger không còn mở localhost.** Cài xong mà chưa đặt `DOMAIN_NAME` thì bấm Open giờ ra `http://<ip-vps>:7777`, vào được Javis ngay. Trước đây file cài ghi `localhost` vào chỗ tên miền nên Open mở nhầm về chính máy người bấm.

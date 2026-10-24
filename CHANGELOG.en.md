@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.304.0] - 2026-10-24
+### Fixed
+- **Ubuntu 26 on Hostinger gets real HTTPS with nothing to fill in.** (in progress)
+
 ## [0.302.0] - 2026-10-24
 ### Fixed
 - **Hostinger's Open button no longer opens localhost.** Without `DOMAIN_NAME`, Open now goes to `http://<vps-ip>:7777` and reaches Javis right away. The install file used to put `localhost` where the domain goes, so Open pointed at the clicker's own computer.
