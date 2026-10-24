@@ -19,6 +19,13 @@ Không khởi động/đợi real-account/model/business feasibility/pilot/canar
 phải có workflow feasibility mô phỏng, gồm candidate thua/unknown giữ baseline.
 Không hạ qualification/source/runtime/CI/review hoặc đổi assert để tuyên bố đạt.
 
+Chủ đã giao em tự chọn loại công việc kiểm trước. Lựa chọn cho pilot tương lai:
+**đối soát nghiệp vụ** là hướng chính, **xử lý tài liệu** là hướng phụ;
+**sửa lỗi Python và kiểm thử** là nhóm đối chứng kỹ thuật. Đối soát phù hợp để
+so kết quả với dữ liệu và quy tắc đã biết; tài liệu giúp kiểm extraction và
+tuân thủ skill. Đây là lựa chọn phạm vi bàn giao, chưa phải bộ dữ liệu hay kết
+quả hiệu quả. M2 chỉ dùng mô phỏng; pilot thật vẫn PENDING ngoài Goal này.
+
 ## Snapshot ban đầu — phải cập nhật khi M2 kết thúc
 
 | Mục | Trạng thái xác minh lúc khởi tạo |

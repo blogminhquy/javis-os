@@ -16,6 +16,13 @@
   "engineering_open": ["M2D1", "M2D2", "M2E", "M2F", "exact current-source technical qualification", "final-head required CI", "whole-branch review", "integration", "resource cleanup audit"],
   "business_acceptance": "pending_not_run_under_new_scope",
   "live_acceptance": "pending_not_run_under_new_scope",
+  "future_pilot_selection": {
+    "owner_instruction": "agent chooses suitable work types",
+    "primary": "business reconciliation",
+    "secondary": "document processing",
+    "technical_control": "Python bugfix and tests",
+    "state": "selection_only_no_live_pilot_under_current_Goal"
+  },
   "forward_code": "preserve existing compose/library/archive/source observer with exact scoped evidence",
   "undispatched_backlog": ["recipe destination schema11", "recipe permission/retrieval", "further Library native/downstream integration", "orchestration comparison", "remaining M3-M8"],
   "active_work_at_scope_receipt": {
