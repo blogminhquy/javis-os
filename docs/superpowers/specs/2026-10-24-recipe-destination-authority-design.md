@@ -87,7 +87,10 @@ Pin the host, retained collector/check and bound callback identities at
 construction; reject replacement before or after any slow observation.
 Before binding decryption, authenticate the same-brain actual context/grant,
 active exact grant generation, current policy suggest, original target-id set
-and current live skill ownership in SQL. Physically observe current targets via
+and current live skill ownership in SQL. Validate the actual current installed
+role/schema guard family through improvement_operation_schema.assert_installed
+before those reads and on the final SQL fence; do not hardcode forever10.
+Physically observe current targets via
 the existing actual target_observer. Decode the original binding with the
 existing owner, validate complete semantic v2 capture, scope/context/engine/grant
 and fixture pins, and require original target ids/kinds/canonical refs/ownership
