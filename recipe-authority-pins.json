@@ -1,0 +1,12 @@
+{
+  "task_head": "cbbbdacd8c121579aebf053fd7c6575134e84f6b",
+  "sha256": {
+    "server/improvement_recipe_archive.py": "7362ddbfda80bec6cfc8fef4c1cf3eb91b12d3cd37ae51921cb1f02f7d624720",
+    "server/improvement_recipe_records.py": "1ef6d18e9c638a42f32fa5e601d20b08c677170c8f53ad691c87cdf1de0f7792",
+    "server/improvement_tuning_history.py": "4689e2aa937f0e76cba277f70133930843d5eea0bee2d78b1e5802e40b259f60",
+    "server/improvement_improver_inputs.py": "4d30dc3aa5151c0138c629ca20b994d2c31a24a1c0334475c91168098f7593e5",
+    "server/improvement_claude.py": "5be55146ef7947c6e4c4b50acc44c14673f8dbc9696421d2bd1ff75b90e5baed",
+    "tests/python/test_improvement_recipe_archive.py": "afc9ab31299b52e55aef0010182999c9676f79e3d40d92a58c9d440a6e980ed4",
+    "tests/python/test_improvement_recipe_records.py": "97fb866d617be97e7665822fe79294d33131f1d879c50a56f0d9e4c7fe124a4b"
+  }
+}
