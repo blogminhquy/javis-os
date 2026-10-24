@@ -1,0 +1,142 @@
+{
+  "source_head": "faa5a22107fbbf7299b635cf69d031aa634cf0d3",
+  "paths": {
+    "server/improvement_qualification_session.py": {
+      "size": 22507,
+      "sha256": "543e60da69cb2d923715f7fef523f77e5c02f1e33f3849c6a9baa619f5d17f28",
+      "git_blob": "4cdd8894e85e012b4b3cdcd719c50667ae8715fe",
+      "lf_only": true
+    },
+    "server/improvement_native_parent.py": {
+      "size": 24117,
+      "sha256": "52b4a36dcf15bfeb531268df116e07b42d312841be9337c7de2726f206c9664d",
+      "git_blob": "319d6807c79a2fc00d34ff5572c7e3d60d531f74",
+      "lf_only": true
+    },
+    "server/improvement_native_transport.py": {
+      "size": 68178,
+      "sha256": "6409c2f8e9d1062bfee952fdf75edb6d9b7cedd95ebc3448f9f1fb49fa41c583",
+      "git_blob": "4bf5d3118eb23799af5160c6d115fa4b5e647090",
+      "lf_only": true
+    },
+    "server/improvement_native_worker.py": {
+      "size": 18315,
+      "sha256": "6a262fd02b7ac00c8c02dce6da096bd4e798427b126320377f0d70164cd685da",
+      "git_blob": "a923ca641324d3bc4402a801b805811a91dd5a6e",
+      "lf_only": true
+    },
+    "server/improvement_native_sdk.py": {
+      "size": 31902,
+      "sha256": "d411ee8e8f15c1393cc0e699b43ca757f3f8818b466657ee5303c3f0c5554eb3",
+      "git_blob": "04d37554680abcfacd059e0698a8802f27e64605",
+      "lf_only": true
+    },
+    "server/improvement_qualification_protocol.py": {
+      "size": 10072,
+      "sha256": "9adf338fc5e10398b6acef5f0d042cc74c9cd4fa71f270fcc425ba5400e692cc",
+      "git_blob": "da1846ddaa78dc8a3d6cc68f32556d8606bda70e",
+      "lf_only": true
+    },
+    "server/improvement_worker.py": {
+      "size": 23097,
+      "sha256": "641ac7256b5b20bcab5e5daa340f4e6caae1e4dc2b7f4acce9caefdf9fc06c9e",
+      "git_blob": "e9b940e6b4d9c99a38b3692b3d09dc460e515b4e",
+      "lf_only": true
+    },
+    "server/improvement_operation_worker.py": {
+      "size": 5846,
+      "sha256": "df25c05e3a92a2901005023318327c04d6388c87c3fd3f27df77c030346e5dec",
+      "git_blob": "a391a110ddd788f135675d859898ff905943aed4",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_qualification_native_preflight.py": {
+      "size": 43438,
+      "sha256": "569422d10dbfe27a699b51195e4fc9e9e1d1b95aef1ef1547c3baec8ca0225e8",
+      "git_blob": "46f22a916ff5a67d80e7ddab9d4dc4acd6894fee",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_worker.py": {
+      "size": 23087,
+      "sha256": "52006b58556efb98d32eae2ff308493988a83189a5cc6eb99192dad5f0b19dc4",
+      "git_blob": "60e91c0419fcf1009999db5ffcd41d85270b11dc",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_sdk.py": {
+      "size": 25620,
+      "sha256": "489024bc26322df225c460c0baf7dcf5861a0b63a9ad07912217b5ec8b291769",
+      "git_blob": "5a6ef36d8e7ff5e1b6f5cdab7bb73c80862ac766",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_transport_v2.py": {
+      "size": 36032,
+      "sha256": "96ddd3f607660ea1f4d70a7eb6c12e64729110cbf47dd8658fed9c7f35a17577",
+      "git_blob": "407998cd9064558445c97425dcad6629a74ae281",
+      "lf_only": true
+    }
+  },
+  "checks": [
+    [
+      "test_improvement_qualification_native_preflight.py"
+    ],
+    [
+      "test_improvement_native_worker.py",
+      "NativeWorkerContractTests.test_startup3_is_explicit_preflight_only_and_default_route_never_adopts_it",
+      "NativeWorkerWindowsTests.test_startup3_actual_adoption_constructs_sdk_only_after_exact_dummy_environment",
+      "NativeWorkerWindowsTests.test_startup3_actual_factory_refuses_changed_environment_run_and_private_record",
+      "NativeWorkerWindowsTests.test_startup3_actual_fromshare_failure_retains_unknown_for_enclosing_process_drain",
+      "NativeWorkerContractTests.test_closed_constructor_snapshots_without_socket_environment_or_sdk_side_effect",
+      "NativeWorkerContractTests.test_namespace_and_closed_startup_refuse_before_adoption",
+      "NativeWorkerWindowsTests.test_real_preflight_adoption_installs_env_before_runtime_without_cli_or_sdk",
+      "NativeWorkerWindowsTests.test_real_trial_and_operation_body_channels_use_closed_protocol",
+      "NativeWorkerWindowsTests.test_runtime_constructor_failure_closes_all_known_adopted_channels",
+      "NativeWorkerWindowsTests.test_real_fromshare_failure_after_private_adoption_retains_unknown_until_process_exit",
+      "NativeWorkerWindowsTests.test_repeated_adopt_cancellation_closes_pending_real_socket_send"
+    ],
+    [
+      "test_improvement_native_sdk.py",
+      "NativeSDKTests.test_dummy_environment_cannot_enter_default_constructor_or_unadopted_factory",
+      "NativeSDKTests.test_strict_constructor_rejects_pin_environment_channels_and_callback_types",
+      "NativeSDKTests.test_constructor_snapshots_private_pin_and_environment",
+      "NativeSDKTests.test_stable_preflight_and_dispatch_before_image",
+      "NativeSDKTests.test_skip_environment_cannot_bypass_sdk_version"
+    ],
+    [
+      "test_improvement_native_transport_v2.py",
+      "HostGuardianContractTests.test_constructor_never_acquires_files_sockets_handles_or_processes",
+      "HostGuardianContractTests.test_closed_construction_does_not_launch_or_claim_a_process_incarnation",
+      "HostGuardianWindowsTests.test_true_three_actor_private_startup_join_and_actual_terminal_drain",
+      "HostGuardianWindowsTests.test_pending_durable_append_cannot_authorize_after_close",
+      "HostGuardianWindowsTests.test_partial_public_bootstrap_failure_supplies_stdin_eof_but_never_claims_drain",
+      "HostGuardianWindowsTests.test_actual_popen_success_then_boundary_exception_retains_acquisition_unknown",
+      "HostGuardianWindowsTests.test_ambiguous_stop_send_needs_actual_drain_and_preserves_real_guardian_exit_code",
+      "HostGuardianWindowsTests.test_completed_worker_gets_bounded_natural_drain_before_any_stop"
+    ],
+    [
+      "test_improvement_qualification_session.py",
+      "QualificationSessionTests.test_actual_fresh_private_root_records_encrypted_m0_scope_before_any_call",
+      "QualificationSessionTests.test_each_actual_environment_uses_fresh_empty_home_and_no_ambient_auth",
+      "QualificationSessionTests.test_foreign_workspace_and_closed_session_never_get_an_environment",
+      "QualificationSessionTests.test_expired_environment_and_unsettled_owner_keep_forensic_state_without_cleanup",
+      "QualificationSessionTests.test_canonical_profile_seeds_owner_and_recursively_pins_helper_bytes_offline"
+    ],
+    [
+      "test_improvement_qualification_protocol.py",
+      "QualificationProtocolTests.test_default_startup2_still_refuses_even_well_formed_engineering_envelope",
+      "QualificationProtocolTests.test_rehashed_scope_cannot_claim_account_or_foreign_pin_or_open_bounds",
+      "QualificationProtocolTests.test_rehashed_environment_cannot_supply_real_auth_foreign_endpoint_or_home",
+      "QualificationProtocolTests.test_missing_extra_oversize_and_preflight_attempt_links_refuse",
+      "QualificationProtocolTests.test_run_environment_hashes_and_ordered_image_nonces_cannot_be_forged_by_presence"
+    ],
+    [
+      "test_improvement_qualification_environment.py",
+      "QualificationEnvironmentTests.test_final_environment_cannot_substitute_key_endpoint_or_add_auth_authority",
+      "QualificationEnvironmentTests.test_production_startup2_still_refuses_dummy_environment_without_an_explicit_new_protocol"
+    ],
+    [
+      "test_improvement_native_parent.py",
+      "NativeParentTests.test_guarded_preflight_persists_two_actual_encrypted_decisions_and_closes_before_verify",
+      "NativeParentTests.test_preflight_complete_followed_by_exit7_refuses_after_durable_closing_evidence"
+    ]
+  ],
+  "scope": "P1 component portable/grammar/DB only; Windows kernel/installed selected CLI gates separate"
+}
