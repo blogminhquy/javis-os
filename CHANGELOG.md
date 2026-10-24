@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.302.0] - 2026-10-24
+### Sửa lỗi
+- **Nút Open của Hostinger không còn mở localhost.** (đang viết)
+
 ## [0.300.0] - 2026-10-24
 ### Sửa lỗi
 - **Một link cài Hostinger dùng được cho cả Ubuntu 24 lẫn Ubuntu 26.** Mẫu Ubuntu 26 trắng không có Traefik, nên trước đây dán link là Javis chạy nhưng tên miền không bao giờ có HTTPS. Giờ link đi kèm một cổng HTTPS (Caddy) tự bật khi máy không có Traefik và tự cấp SSL cho `DOMAIN_NAME`; máy có Traefik thì nó nhường, không đụng gì.
