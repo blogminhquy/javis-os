@@ -364,7 +364,8 @@ class TrialRunner:
                 verified = await adapter.verify_async()
             else:
                 verified = await _settled_call(adapter.verify)
-            if not isinstance(verified, dict) or verified.get("supported") is not True:
+            if (not isinstance(verified, dict) or verified.get("supported") is not True
+                    or verified.get("account_ready") is False or verified.get("domain") == "qualification"):
                 raise _RunFailure("unsupported_configuration")
             IC._digest(verified.get("capability_hash"))
             phase = "runner_failed"

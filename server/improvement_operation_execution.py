@@ -116,7 +116,8 @@ class OperationExecution:
             "version": 1, "kind": "operation_reserve", "brain_id": _brain(principal),
             "request_hash": IM._hash(payload), "authority_hash": IM._hash([original, prepared])}), current=native_current)
         capability = adapter.verify()
-        if type(capability) is not dict or capability.get("supported") is not True:
+        if (type(capability) is not dict or capability.get("supported") is not True
+                or capability.get("account_ready") is False or capability.get("domain") == "qualification"):
             raise ValueError("operation_native_unavailable")
         from improvement_experiment_protocol import _digest
         _digest(capability.get("capability_hash"))

@@ -206,7 +206,8 @@ class TrialAdmission:
                 "version": 1, "kind": "trial_owner_admission", "brain_id": brain,
                 "request_hash": IM._hash(public), "authority_hash": IM._hash(prepared)}), current=native_current)
             verified = adapter.verify()
-            if type(verified) is not dict or verified.get("supported") is not True:
+            if (type(verified) is not dict or verified.get("supported") is not True
+                    or verified.get("account_ready") is False or verified.get("domain") == "qualification"):
                 raise ValueError("trial_native_unavailable")
             IC._digest(verified.get("capability_hash"))
         except (OSError, ValueError, RuntimeError):
