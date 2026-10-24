@@ -1,5 +1,36 @@
 # Agent and skill improvement Goal progress
 
+## Encrypted source recipe authoring — scoped engineering approved
+
+Commitcbbbdacd plus acceptance-onlyaa1e0732 implement actual closed source-side
+archive capture/NO_ENTRY over existing candidate/preparation/Trial/Comparison
+owners, encrypted manifests/exact refs/original evidence lifetime/final CAS, and
+cold metadata/revoke/supersede. Typed3 resolves original composition reports;
+parent observations confer no candidate3 outcome. Grades stay untested/confounded,
+transfer unverified/businessfalse. Shared preparation extraction preserves actual
+original-dbdec proposer bytes/events/hashes including recipes=[].
+
+Local archive27v1 + affected cleanup6v2/records11/improver10/proposals2/preparation2
+passed; six owned async-fixture cleanup warnings were diagnosed/fixed explicitly,
+not suppressed. Initial independent review ImportantT1-R1 required the negative
+conflicting-pin case; actual reevaluation/report/corrupt-catalog acceptance3PASS,
+no production delta or invented RED. Narrow re-review ADDRESSED/no new findings,
+spec/qualityPASS, executionnone. Early Linux40074394806 exactv2pins48PASS and
+40075062683 exactv3pinsfocused3PASS, both ResourceWarnings0. All seven committed
+raw pins, complete logs/reports/reviews and terminal process release reconciled.
+Checkpoint2026-10-24-recipe-archive-authoring.json
+SHAb19e63eb1f6a5401c7386ad265c89744ad64d7ae80bc4023d70b2f4dd0fa0745.
+
+PROFILE_SOURCES97 UNQUALIFIED/registriesclosed; protected309 proof unchanged.
+Actual v4 refs remain intact but schema9 refuses publication atomically. Mandatory
+Task2 in2026-10-24-recipe-archive-authority.md now implements trigger-only10 and
+actual ordinary/typed3 view-backed archive acceptance with old9 cold compatibility.
+Then destination consent/max3/owned plaintext crash recovery and actual downstream
+native/candidate/view/Trial/apply/lesson dependencies; physical GC/isolated grades,
+full M0–M8/finaltaskCI/wholebranchreview/Phase2 remain open. No real model/account,
+activation, deploy/restart or real-brain migration performed. Task PR remote stays
+4ba9624a; only owned early-CI branches pushed. No orchestration comparison yet.
+
 ## Recipe archive schema9 — scoped engineering approved after R1 repair
 
 Commitsefef01c2/6d677d71 add a backed-up additive archive migration in the existing

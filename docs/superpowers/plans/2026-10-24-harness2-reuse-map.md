@@ -1,5 +1,22 @@
 # Incremental Harness² reuse decisions
 
+## Source archive checkpoint; current-view integration remains mandatory
+
+Actual Library remains the derived serializer/index; Javis source authority now
+uses existing candidate/preparation/Trial/Comparison owners and encrypted blobs
+atcbbbdacd/aa1e0732. No second executor/ledger. Typed3 original report pins are
+authenticated without inheriting parent outcomes; source lifetime/cold controls
+remain distinct from destination permission. Shared sealed history keeps original
+proposer bytes/recipes=[]. Scoped review T1-R1 acceptance repaired and re-reviewed
+ADDRESSED/no new; Linux40074394806 full48PASS plus40075062683 focused3PASS on
+exact frozen pins. Publicrecipe-archive-authoring
+SHAb19e63eb1f6a5401c7386ad265c89744ad64d7ae80bc4023d70b2f4dd0fa0745.
+PROFILE97 UNQUALIFIED/registriesclosed. Current9 refuses actual v4 after refs
+atomically; mandatory trigger-only10/ordinary+typed3 acceptance is Task2 of
+2026-10-24-recipe-archive-authority.md, preserving9 SQL/history and cold reads.
+Next destination grants/max3/actual snapshot crash owner/native and downstream
+dependencies before orchestration comparison. No native/business/fullGoal claim.
+
 ## Current compose consumer and next actual-library component
 
 Actual owner panel/outcome consumer5490cde6/95790edb scoped approved: actual

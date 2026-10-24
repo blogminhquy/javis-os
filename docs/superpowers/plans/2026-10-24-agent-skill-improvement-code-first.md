@@ -1,5 +1,20 @@
 # M0–M8: code and technical verification before real trials
 
+Source archivecbbbdacd/acceptanceaa1e0732 scoped approved: actual encrypted
+candidate/trial/report/trace provenance, original-time retention, atomic capture,
+NO_ENTRY/cold replay and metadata/revoke/supersede; shared preparation helper
+preserves original proposer bytes/recipes=[]. Typed3 parent evidence grants no
+outcome. Initial review T1-R1 negative conflict acceptance added,3PASS/no production
+delta; narrowed review ADDRESSED/no new/spec-qualityPASS. Linux40074394806 exact7
+v2pins48PASS plus40075062683 exact7v3pinsfocused3PASS; full raw logs retained,
+ResourceWarnings0. Checkpointrecipe-archive-authoring
+SHAb19e63eb1f6a5401c7386ad265c89744ad64d7ae80bc4023d70b2f4dd0fa0745.
+PROFILE97 UNQUALIFIED/registriesclosed; actual309 proof intact. Mandatory Task2
+schema10/actual v4 ordinary+typed3 acceptance follows immediately, then destination
+grants/max3/owned snapshot crash recovery/downstream native/candidate/view/Trial/
+apply/lesson linkage. No retrieval/native/business/fullGoal claim or orchestration
+comparison; Phase2 and final exact-task-head CI/wholebranch review remain open.
+
 Recipe archive migrationefef01c2/6d677d71 scoped approved: actual backed-up add-only
 schema9, immutable same-brain historical refs and monotone availability; old8 cold
 read/compose role guards/history/ciphertext/leases preserved. SQL REPLACE/case
