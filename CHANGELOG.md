@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.308.0] - 2026-10-24
+### Sửa lỗi
+- **Ô dán mã khi đăng nhập Claude không còn bị co bé tí.** (đang viết)
+
 ## [0.306.0] - 2026-10-24
 ### Cải thiện
 - **Cài trên Windows hoặc macOS là Javis tự chạy cùng máy và tự mở trình duyệt.** Cài xong dashboard mở luôn, và từ đó mỗi lần đăng nhập máy Javis tự chạy rồi tự mở dashboard, không phải bấm gì. Trước đây phải tự bật tính năng này, và khi bật thì Javis chỉ chạy ngầm, mở máy lên không thấy đâu.

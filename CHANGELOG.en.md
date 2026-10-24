@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.308.0] - 2026-10-24
+### Fixed
+- **The code box when signing in to Claude is no longer squashed.** (in progress)
+
 ## [0.306.0] - 2026-10-24
 ### Improved
 - **Installing on Windows or macOS starts Javis with the computer and opens the browser.** The dashboard opens right after install, and from then on every login starts Javis and opens the dashboard with nothing to click. Before, you had to turn this on yourself, and then Javis only ran hidden, so after starting the computer you could not see it.
