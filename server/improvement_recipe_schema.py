@@ -14,7 +14,7 @@ def _text(name):
 
 def _hash(name):
     return (f"{name} TEXT NOT NULL CHECK(typeof({name})='text' AND length({name})=64 "
-            f"AND {name} NOT GLOB '*[^0-9a-f]*')")
+            f"AND instr({name},char(0))=0 AND {name} NOT GLOB '*[^0-9a-f]*')")
 
 
 SCHEMA = (

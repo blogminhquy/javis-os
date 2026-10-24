@@ -1,0 +1,9 @@
+{
+  "server/improvement_recipe_schema.py": "d3ebd255ea94e9074149d691c37451e57c61851e2108ce684784ac897f561b21",
+  "server/improvement_store.py": "2cb145a20e271352e9c06a3313caa69844cfa8dae55ef15401c3d53ced7d1a06",
+  "server/improvement_operation_schema.py": "fb80df55dcc44a152f568deafc5cdb4b2026cd3305ef5a7c48c513875beec40e",
+  "server/improvement_compose_permissions.py": "8bca794ef69ea2c54008eca0a6dfb09c68b98653305df72ed938a40165f80ba7",
+  "server/improvement_claude.py": "6184563beb021d87a0c569b8ab7845aa7e13e774f1dd31b180c225fd06fbce94",
+  "tests/python/test_improvement_recipe_schema.py": "2e554a16a1a38cc6eb22667cbc63151782932376a4fefbcac08cf7d784742329",
+  "tests/python/test_improvement_compose_schema.py": "55826249932def62c4d5caee5b98f5afa2661fdf3d1613fbaa63a639da962238"
+}

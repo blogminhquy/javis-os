@@ -380,6 +380,37 @@ class RecipeSchemaTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), fixture.store._Tx(fixture.store) as connection:
             connection.execute("INSERT OR REPLACE INTO improvement_recipe_states VALUES(?,?,'active',1,NULL,NULL,101)", ('recipe-a', fixture.owner.brain_id))
 
+    def test_embedded_nul_suffix_cannot_extend_any_archive_digest(self):
+        fixture = self.fixture()
+        IM.ensure(fixture.store)
+        recipe = self.recipe(fixture)
+        fields = ('source_basis_hash', 'scope_hash', 'engine_config_hash', 'owner_rule_hash',
+                  'target_protected_hash', 'source_authority_hash')
+        def malformed(value):
+            return value+'\0suffix', value+'\0', value[:32]+'\0'+value[32:]
+        changes = [{field: value} for field in fields for value in malformed(recipe[field])]
+        changes.extend(dict(manifest_hash=value, manifest_blob_hash=value) for value in malformed(recipe['manifest_hash']))
+        for change in changes:
+            row = dict(recipe, **change)
+            with self.subTest(recipe_digests=tuple(change)), closing(fixture.store._conn()) as connection:
+                connection.execute('BEGIN IMMEDIATE')
+                try:
+                    with self.assertRaises(sqlite3.IntegrityError):
+                        connection.execute('INSERT INTO improvement_recipes('+','.join(row)+') VALUES('+','.join('?' for _ in row)+')', list(row.values()))
+                finally:
+                    connection.rollback()
+        self.insert(fixture.store, 'improvement_recipes', recipe)
+        for field in ('result_hash', 'trace_hash'):
+            for value in malformed(self.ref(fixture)[field]):
+                ref = self.ref(fixture, **{field: value})
+                with self.subTest(ref_digest=field, value=value), closing(fixture.store._conn()) as connection:
+                    connection.execute('BEGIN IMMEDIATE')
+                    try:
+                        with self.assertRaises(sqlite3.IntegrityError):
+                            connection.execute('INSERT INTO improvement_recipe_trial_refs('+','.join(ref)+') VALUES('+','.join('?' for _ in ref)+')', list(ref.values()))
+                    finally:
+                        connection.rollback()
+
     def test_nine_role_and_concrete_compose_connection_authenticate_both_guard_families(self):
         fixture = self.fixture(compose=True)
         IM.ensure(fixture.store)
