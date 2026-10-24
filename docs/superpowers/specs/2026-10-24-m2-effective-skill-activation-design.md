@@ -4,11 +4,14 @@ Root status: proposed design; no activation implementation, migration, actual
 native qualification or live apply. Goal18 authorizes M2 engineering only and
 delegates routine design choices; no repeated approval. Q1 query worker currently
 owns the sole local app/native slot. This design uses committed source, not WIP.
-Fresh builder check must precede implementation planning for this subsystem.
+Fresh Astra/high builder check returned nothing important left for narrowed E1
+after resolving outcome issuance and technical turn binding. E2's actual owner
+API bridge and E3 native support remain required separate design/gates; this is
+not approval of an unspecified ordinary API integration.
 
 ## Root scope and dependency rulings
 
-Build **E1 transaction + API skill runtime** first, then **E2 owner API/UI/usage**,
+Build **E1 transaction + shared skill readers** first, then **E2 actual owner API binding/UI/usage**,
 and M2F integrated disposable feasibility workflow after D1 query gates. The
 report's native E3 interface is a required separate support gate, not permission
 to implement a second executor/sandbox or widen M2 into agent/workflow/bot work.
@@ -35,12 +38,31 @@ in its disposable store, with technical decision provenance and no fake product
 eligible result, caller allow flag or production policy write. Reconcile final
 landed Q1/Q2 typed proof/retained-owner interfaces before implementation; do not
 invent an outcome issuer which depends circularly on a future M2F workflow.
-Exact technical outcome construction is an engineering interface to settle in
-this design/builder check, not a new business acceptance issuer.
+The [technical outcome contract](2026-10-24-m2-technical-skill-outcome-design.md)
+resolves E1's prerequisite: Session-owned freeze/evaluate/issue over real current
+M0/context/edit/candidate records. Its fixed pre-candidate four-cell structural
+profile evaluates actual authenticated skill bytes, issues a private decision
+only for a complete improvement win with preserved regression, and retains loss/
+tie/unknown without apply. Coverage is authenticated_skill_bytes_only; no model/
+business/native outcome is inferred. No M2F record or product comparison result
+is required. This supersedes the report's undefined workflow-record prerequisite,
+not its product gate. Narrow same-builder verification is complete for E1.
 
 M2F tests win/loss/tie/unknown and keeps baseline on loss/unknown; simulation
 never becomes business success/live canary. D2/E/F/final source-native/CI/review/
 integration and committed handoff remain open. No M3–M8 expansion/new Goal.
+
+## E1 turn-binding scope correction
+
+The [technical turn contract](2026-10-24-m2-technical-skill-turn-design.md)
+defines E1's exact retained in-process turn into common TaskSkillScope/router/
+lazy/hub readers. It does not enter TaskSkillTurn.start or provide fake API/key/
+owner fields. Native Session pin remains unchanged, authoring engine hashes are
+source lineage, and a disjoint TechnicalSkillSelector/consumer profile identifies
+this qualification-only slot. The supplement's technical field renames and owner
+factory are authoritative. This corrects the report/outcome's "simulated owner-DM
+API turn" claim. Real ordinary API host/provider admission remains necessary
+E2/D2 work; full API/native coverage is not supplied by E1 or M2F byte checks.
 
 ## Source-derived architecture report and installed mechanism supplement
 
