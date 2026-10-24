@@ -102,8 +102,11 @@ Further owned Library/native/downstream consumers và orchestration comparison
   không được sửa để vượt gate. Historical actual309 proof không tự áp cho source mới.
 - Deferred minors: compose panel `T2-R4` ambiguous labels/`T2-R5` old warning noise;
   recipe-archive-authority Task2 `T2-R1` asyncio timing diagnostics. Không suppress
-  toàn cục. Hai future9 fixtures trong operations/execution cần actual current+1
-  khi chốt M2, giữ refusal/no-native/no-backup asserts.
+  toàn cục. Future-schema-controls Task1 `T1-R1`: hashes ghi sau GREEN, không có
+  timestamp freeze trước chạy; giữ limitation cho final whole-branch review.
+  Hai future9 fixtures đã sửa tại `21a5c0b1` theo current+1, giữ nguyên asserts;
+  actual2GREEN/scoped qualityApproved. [Proof](../../superpowers/evidence/2026-10-24-m2-future-schema-controls.json)
+  SHA `74a92878248c7a22f3d49e13b06a7c57c88f88688406daf1760a5d02569cf6fa`.
 - Fresh final exact-head full required CI và một whole-branch review mạnh nhất
   còn mở. Scoped reviews/early CI chỉ chứng minh đúng phạm vi/bytes đã ghi.
 
@@ -116,6 +119,12 @@ joins. Dùng typed engineering authority account_ready=false, giữ production
 gates; không giả subscription auth để chạy. Actual current source/CLI localhost
 dummy pipeline vẫn là kỹ thuật bắt buộc nếu khả thi; account/model thật bị loại
 khỏi Goal mới. Nếu dummy runtime thật đòi account inference thì ghi blocker thật.
+
+Next design ở ignored `.superpowers/m2-engineering-handoff/qualification-next-design.md`:
+P0 thêm false-readiness/domain fences tại4product boundaries; P1 nối actual
+Session→parent→Guardian→startup3→worker/SDK technical preflight và proven drain.
+Đây mới là thiết kế, chưa code/proof. P1 không query/model và không cấp capability;
+full current-input dummy-query/accounting/typed publisher/cold cleanup vẫn mở.
 
 ## Google Harness² reuse đã có — giữ provenance/license
 

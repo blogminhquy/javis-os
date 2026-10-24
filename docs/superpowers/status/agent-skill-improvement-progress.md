@@ -22,6 +22,14 @@ review/PR/version state must be updated before Goal completion.
 
 ## Preserved recipe-source unit — scoped engineering closed under new scope
 
+M2 regression follow-up21a5c0b1 changes only the2stale future9 fixture assignments
+to actualSCHEMA_VERSION+1. Refusal/no-backup/no-native/history asserts unchanged;
+actual2GREEN, source-spec compliant/qualityApproved0Critical/Important/1Minor.
+T1-R1 freeze-order limitation retained (post-GREEN pins, no pre-run timestamp
+claim). Proof2026-10-24-m2-future-schema-controls.json
+SHA74a92878248c7a22f3d49e13b06a7c57c88f88688406daf1760a5d02569cf6fa.
+Production/native unchanged99UNQUALIFIED, slotreleased; fullM2gates stillOPEN.
+
 Source269d3892 adds actual retained source observation after legitimate skill
 revision while old execution revalidate remains exact; current native target
 ACL/lineage, fixture/rule/engine/source-grant/SQL and callback identity are fenced.

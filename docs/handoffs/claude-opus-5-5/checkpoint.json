@@ -43,6 +43,16 @@
     "preexisting_Oct22_scratch_roots": "36 untouched, ownership not inferred",
     "is_final_M2_CI_or_qualification": false
   },
+  "M2_future_schema_controls": {
+    "commit": "21a5c0b19375482cf21d1f77b2e973540b04f786",
+    "changed": "two existing fixture assignments; no production change",
+    "isolated_passed": 2,
+    "scoped_review": "source_compliant_quality_approved_0critical_0important_1minor",
+    "minor": "T1-R1 post-GREEN freeze timing limitation retained for final review",
+    "proof": "docs/superpowers/evidence/2026-10-24-m2-future-schema-controls.json",
+    "proof_sha256": "74a92878248c7a22f3d49e13b06a7c57c88f88688406daf1760a5d02569cf6fa",
+    "serial_slot": "released"
+  },
   "final_source_head": null,
   "final_ci": null,
   "final_review": null,
