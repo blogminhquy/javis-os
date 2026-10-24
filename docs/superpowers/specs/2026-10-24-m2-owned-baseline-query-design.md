@@ -1,10 +1,12 @@
 # M2 owned baseline query and technical result design
 
-Root status: proposed Q1 design only, no implementation/qualification. P1 is the
-active Session-owned preflight task and sole local test owner. Do not expand its
-implementation or inspect its WIP source. Goal3/18 delegates routine design and
-execution choices; no repeated human approval. Strongest fresh builder check
-must finish before root writes this Q1 implementation plan.
+Root status: Q1 architecture builder-approved, no query implementation or installed
+qualification yet. P1 component source gate is reviewed through
+0549380e17e66836ab475dae596d21e649e4e7a6, including the final-return authority race
+fix; its installed gate remains OPEN for final stable query closure. Goal3/18
+delegates routine design/execution choices without repeated human approval.
+Fresh Astra/high builder check and the per-attempt lifecycle follow-up returned
+nothing important left. The Q1 plan reconciles the committed interfaces below.
 
 ## Root scope and lifecycle rulings
 
@@ -13,7 +15,16 @@ and operation2** using the same executor/ledger. The report below records both
 interfaces for dependency clarity; Q2 methods/files/tests are explicit follow-on,
 not part of Q1 implementation. Q1 modifies only its consumed trial/native/result
 path, never operation/view functionality merely to install unused helpers. P1's
-actual committed interfaces must be reconciled after its scoped gate.
+actual committed interfaces are reconciled in the Q1 plan after its scoped gate.
+
+Committed-interface ruling: P1's `for_qualification(session)` is single-use
+preflight and stores `session._native_parent`. Query attempts use the consumed
+`NativeParentBoundary.for_qualification_query(session, binding)` factory, which
+requires the Session-minted retained binding and derives its exact owner/lease
+context. Do not reset/reuse the preflight singleton. The architecture report's
+"on for_qualification boundary" shorthand below denotes this separate technical
+query boundary, not permission to replay preflight. P1's synchronous full-current
+check at result issuance remains required across subsequent facade handoffs.
 
 The final stable-source installed localhost matrix is mandatory, after both
 query formats and current source are reviewed. P1/Q1 component fixture gates do
