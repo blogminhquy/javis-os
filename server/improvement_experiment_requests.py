@@ -18,9 +18,13 @@ _FIELDS = {
     'semantic-review': {'candidate_id', 'expected_generation'},
     'semantic-arbitrate': {'candidate_id', 'receipt_id', 'expected_generation', 'expected_binding_hash', 'verdict', 'reason'},
     'semantic-evidence': {'candidate_id', 'expected_generation'},
+    'compose-preview': {'expected_generation'}, 'compose-authorize': {'expected_generation'},
+    'compose': {'authorization_id', 'expected_generation'},
+    'compose-revoke': {'authorization_id', 'expected_generation'},
 }
 WORKFLOW_CONTROLS = frozenset(('preparation-freeze', 'preparation-next', 'preparation-complete',
-    'propose', 'semantic-review', 'semantic-arbitrate', 'semantic-evidence'))
+    'propose', 'semantic-review', 'semantic-arbitrate', 'semantic-evidence',
+    'compose-preview', 'compose-authorize', 'compose', 'compose-revoke'))
 
 
 def validate(value, operation):
@@ -35,7 +39,7 @@ def validate(value, operation):
         IC._fields(value, fields)
         if type(value["event_key"]) is not str or not 8 <= len(value["event_key"]) <= 160:
             raise ValueError("invalid_event_key")
-        for key in ("experiment_id", "contract_id", "case_set_id", "base_bundle_id", "candidate_id", "authority_id", "comparison_id", 'receipt_id'):
+        for key in ("experiment_id", "contract_id", "case_set_id", "base_bundle_id", "candidate_id", "authority_id", "comparison_id", 'receipt_id', 'authorization_id'):
             if key in value:
                 _identifier(value[key])
         for key in ("expected_generation", "expected_context_generation"):

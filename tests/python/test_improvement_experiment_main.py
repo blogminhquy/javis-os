@@ -27,7 +27,7 @@ class MainExperimentTests(unittest.TestCase):
         routes = [(route.path, sorted(route.methods)[0]) for route in self.main.app.routes
                   if getattr(route, "path", "").startswith(("/improvement-experiments", "/improvement-comparison-reports", '/improvement-operations'))
                   or getattr(route, 'path', '').endswith('/semantic-history')]
-        self.assertEqual(len(routes), 26)
+        self.assertEqual(len(routes), 33)
         self.assertTrue({('/improvement-experiments/{experiment_id}/view-freeze', 'POST'),
             ('/improvement-experiments/{experiment_id}/view-evidence', 'POST'),
             ('/improvement-experiments/{experiment_id}/views/{comparison_id}', 'GET')} <= set(routes))
@@ -59,10 +59,48 @@ class MainExperimentTests(unittest.TestCase):
             for path in ("/improvement-experiments", "/improvement-experiments/missing", "/improvement-comparison-reports/missing",
                     '/improvement-experiments/missing/preparation', '/improvement-experiments/missing/operations',
                     '/improvement-operations/missing', '/improvement-candidates/missing/semantic-history',
-                    '/improvement-experiments/missing/views/missing'):
+                    '/improvement-experiments/missing/views/missing', '/improvement-experiments/missing/compose-consents',
+                    '/improvement-experiments/missing/compositions', '/improvement-experiments/missing/policy'):
                 response = self.client.get(path, params={"brain": str(self.f.f.brain)})
                 self.assertIn(response.status_code, (200, 403, 503), response.text)
                 self.assertNotIn("cli_path", response.text)
+        self.assertIsNone(self.main._IMPROVEMENT_EXPERIMENT_SERVICE)
+        self.assertIsNone(self.main._IMPROVEMENT_TRIAL_SERVICE)
+
+    def test_registered_compose_revoke_uses_existing_writer_after_cold_scope(self):
+        import improvement_store as IM
+        import test_improvement_compose_permissions as permissions
+        fixture = permissions.ComposePermissionTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        fixture.saved = fixture.authorize()
+        fixture.assets.set_policy(fixture.owner, 'off', expected_version=0, event_key='main-off-before-compose-revoke')
+        reads, writes = [], []
+        def existing(path, blobs):
+            reads.append(path)
+            return IM.read_existing(fixture.store.path, fixture.assets.blobs)
+        def writer():
+            writes.append(True)
+            return fixture.store
+        with patch.object(self.main.cfgmod, 'gate_active', return_value=False), \
+                patch.object(self.main, '_read_improvement_existing', side_effect=existing), \
+                patch.object(self.main, '_resonance_store', side_effect=writer), \
+                patch.object(self.main, 'RevisionBlobs', return_value=fixture.assets.blobs), \
+                patch.object(fixture.assets.blobs, 'read', side_effect=AssertionError('Revoke cannot decrypt')):
+            data = {'authorization_id': fixture.saved['authorization_id'], 'expected_generation': 1,
+                    'event_key': 'actual-main-compose-revoke'}
+            client = TestClient(self.main.app, base_url='http://127.0.0.1')
+            self.addCleanup(client.close)
+            bad = client.post('/improvement-experiments/foreign-experiment/compose-revoke',
+                params={'brain': fixture.owner.brain_id}, json=data)
+            self.assertEqual(bad.status_code, 403, bad.text)
+            self.assertEqual(writes, [])
+            response = client.post('/improvement-experiments/' + fixture.saved['experiment_id'] + '/compose-revoke',
+                params={'brain': fixture.owner.brain_id}, json=data)
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()['result']['status'], 'revoked')
+        self.assertTrue(reads)
+        self.assertEqual(len(writes), 1)
         self.assertIsNone(self.main._IMPROVEMENT_EXPERIMENT_SERVICE)
         self.assertIsNone(self.main._IMPROVEMENT_TRIAL_SERVICE)
 
@@ -74,6 +112,8 @@ class MainExperimentTests(unittest.TestCase):
         self.assertIs(service.execution.workspace.brain_barrier, service.trials.workspace)
         self.assertIs(service.proposals.tasks, service.operation_tasks)
         self.assertIs(service.semantic.tasks, service.operation_tasks)
+        self.assertIs(service.composer.tasks, service.operation_tasks)
+        self.assertIs(service.composer.execution, service.execution)
         observed = []
         experiment_close, trial_close = service.close, service.trial_service.close
 
@@ -92,6 +132,7 @@ class MainExperimentTests(unittest.TestCase):
         self.assertTrue(service._closed)
         self.assertTrue(service.proposals._closed)
         self.assertTrue(service.semantic._closed)
+        self.assertTrue(service.composer._closed)
         self.assertTrue(service.operation_tasks._closed)
         with self.assertRaises(RuntimeError):
             self.main._improvement_experiment_service()

@@ -31,7 +31,7 @@ class ComposerService(RoleWorkflow):
 
     def __init__(self, execution, tasks):
         super().__init__(execution, tasks)
-        self.permissions = ComposePermissions(self.plans)
+        self.permissions = ComposePermissions(self.plans, owner=self)
 
     @staticmethod
     def _start_key(brain, event_key):

@@ -26806,6 +26806,7 @@ import improvement_experiment_api  # noqa: E402
 
 improvement_experiment_api.register(app, improvement_experiment_api.ExperimentApiDeps(
     read_store=_improvement_read_store,
+    write_store=_improvement_write_store,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
     owner_session=_doi_phien_that,

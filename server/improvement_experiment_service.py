@@ -42,11 +42,13 @@ class ExperimentService:
         from improvement_operation_tasks import OperationTasks
         from improvement_proposals import ProposalService
         from improvement_semantic_review import SemanticReview
+        from improvement_compositions import ComposerService
         self.preparation = PreparationService(plans)
         self.execution = OperationExecution(plans, trial_service)
         self.operation_tasks = OperationTasks(self.execution, OperationRunner(self.execution))
         self.proposals = ProposalService(self.execution, self.operation_tasks)
         self.semantic = SemanticReview(self.execution, self.operation_tasks)
+        self.composer = ComposerService(self.execution, self.operation_tasks)
         from improvement_comparison_schedule import ComparisonSchedule
         from improvement_view_admission import ViewExperimentAdmission
         from improvement_views import EffectiveViews, _retired
@@ -274,9 +276,17 @@ class ExperimentService:
                     break
                 except IM.ConflictError:
                     continue
-        for workflow in (self.proposals, self.semantic):
-            pending = tuple(entry[1] for key, entry in workflow._operations.items()
-                if key[0] == brain and entry[2] == experiment_id)
+        for workflow in (self.proposals, self.semantic, self.composer):
+            pending = []
+            for key, entry in tuple(workflow._operations.items()):
+                if key[0] != brain:
+                    continue
+                scope = entry[2]
+                if workflow is self.composer:
+                    permission = await _settled_call(workflow.permissions.get, entry[3], scope)
+                    scope = permission['experiment_id']
+                if scope == experiment_id:
+                    pending.append(entry[1])
             if pending:
                 await _drain(asyncio.gather(*pending, return_exceptions=True))
         pending = tuple(entry[2] for key, entry in self._operations.items()
@@ -310,7 +320,12 @@ class ExperimentService:
                 candidate = self.plans.authoring.records._row(connection, brain, data['candidate_id'])
                 if candidate['experiment_id'] != experiment_id:
                     raise PermissionError('experiment_candidate_unavailable')
-            if operation == 'semantic-evidence':
+            if operation in ('compose', 'compose-authorize'):
+                historical, result = self.composer.permissions.replay_control(principal, experiment_id, operation, data)
+                if historical:
+                    return True, result
+                raise IM.ConflictError('experiment_stopping')
+            if operation in ('semantic-evidence', 'compose-preview'):
                 raise IM.ConflictError('experiment_stopping')
             payload = {'experiment_id': experiment_id, 'expected_generation': data['expected_generation']}
             if operation == 'preparation-next':
@@ -349,11 +364,23 @@ class ExperimentService:
         arguments = {key: item for key, item in data.items() if key != 'event_key'}
 
         async def execute():
+            if operation.startswith('compose'):
+                await _settled_call(self.composer.permissions.scope, principal, experiment_id, arguments.get('authorization_id'))
+                if operation == 'compose-revoke':
+                    return await _settled_call(self.composer.permissions.revoke, principal, event_key=data['event_key'], **arguments)
             historical, result = await _settled_call(self._stopped_workflow_history, principal, experiment_id, operation, data)
             if historical:
                 return result
             if 'candidate_id' in arguments:
                 await _settled_call(self._candidate_scope, principal, experiment_id, arguments['candidate_id'])
+            if operation == 'compose':
+                return await self.composer.compose(principal, event_key=data['event_key'], **arguments)
+            if operation in ('compose-preview', 'compose-authorize'):
+                method = self.composer.permissions.preview if operation == 'compose-preview' else self.composer.permissions.authorize
+                self.composer._open()
+                result = await _settled_call(method, principal, experiment_id, event_key=data['event_key'], **arguments)
+                self.composer._open()
+                return result
             if operation == 'propose':
                 return await self.proposals.generate(principal, experiment_id, event_key=data['event_key'], **arguments)
             if operation == 'semantic-review':
@@ -655,7 +682,7 @@ class ExperimentService:
             async def close_operations():
                 # Native cancellation must precede whole-workflow joins.
                 # Role close owns slow admission/result/publication threads too.
-                values = await asyncio.gather(self.proposals.close(), self.semantic.close(), return_exceptions=True)
+                values = await asyncio.gather(self.proposals.close(), self.semantic.close(), self.composer.close(), return_exceptions=True)
                 if pending:
                     await _drain(asyncio.gather(*pending, return_exceptions=True))
                 for value in values:

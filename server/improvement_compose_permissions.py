@@ -96,9 +96,176 @@ def operation_permission(connection, assets, principal, request, *, operation=No
 
 
 class ComposePermissions:
-    def __init__(self, plans):
+    def __init__(self, plans, *, owner=None):
+        if owner is not None:
+            from improvement_compositions import ComposerService
+            if type(owner) is not ComposerService or owner.plans is not plans:
+                raise TypeError('concrete_compose_owner_required')
+        self._owner = owner
         self.inputs = ComposeInputs(plans)
         self.plans, self.assets, self.store, self.blobs = plans, plans.assets, plans.store, plans.blobs
+
+    @classmethod
+    def from_existing(cls, assets):
+        """Metadata/revocation only; no plans, host, migrations or blob reads."""
+        if type(assets) is not IM.ImprovementStore:
+            raise TypeError('concrete_compose_store_required')
+        instance = cls.__new__(cls)
+        instance.plans, instance.inputs, instance._owner = None, None, None
+        instance.assets, instance.store, instance.blobs = assets, assets.store, assets.blobs
+        return instance
+
+    def _live(self):
+        from improvement_comparison_plans import ExperimentPlans
+        if type(self.plans) is not ExperimentPlans or type(self.inputs) is not ComposeInputs:
+            raise PermissionError('compose_live_authority_unavailable')
+        if self._owner is not None:
+            self._owner._open()
+
+    def scope(self, principal, experiment_id, authorization_id=None):
+        """Authenticate the path before any live workflow or native verifier."""
+        from improvement_experiments import ExperimentRecords
+        brain = _brain(principal); _identifier(experiment_id)
+        ExperimentRecords(self.assets)._available()
+        with closing(self.store._conn()) as connection:
+            row = ExperimentRecords._row(connection, brain, experiment_id)
+            ExperimentRecords._public(row)
+            if authorization_id is not None:
+                _identifier(authorization_id); self._installed()
+                permission = self._row(connection, brain, authorization_id)
+                if permission['experiment_id'] != experiment_id:
+                    raise PermissionError('experiment_compose_permission_unavailable')
+
+    def replay_control(self, principal, experiment_id, operation, data):
+        """Cold saved owner intent only; no host, source, writer or redispatch."""
+        from improvement_compositions import ComposerService
+        from improvement_experiments import ExperimentRecords
+        from improvement_operation_records import OperationRecords
+        if operation not in ('compose', 'compose-authorize', 'compose-preview'):
+            raise ValueError('invalid_experiment_control')
+        authorization_id = data.get('authorization_id') if operation == 'compose' else None
+        self.scope(principal, experiment_id, authorization_id)
+        self._installed()
+        brain, generation = _brain(principal), data['expected_generation']
+        with closing(self.store._conn()) as connection:
+            experiment = ExperimentRecords._row(connection, brain, experiment_id)
+            authorization = None
+            if operation == 'compose':
+                authorization = self._metadata(connection, self._row(connection, brain, authorization_id))
+                payload = {'authorization_id': authorization_id, 'expected_generation': generation}
+                event = 'compose_generate'
+            else:
+                payload = {'experiment_id': experiment_id, 'expected_generation': generation}
+                event = 'compose_authorize'
+            if operation != 'compose-preview':
+                saved = self.assets._replay(connection, brain, data['event_key'], event, payload)
+                if saved is not None:
+                    if operation == 'compose-authorize':
+                        saved = self._metadata(connection, self._row(connection, brain, saved['authorization_id']))
+                    if saved.get('experiment_id') != experiment_id or (authorization_id is not None
+                            and saved.get('authorization_id') != authorization_id):
+                        raise IM.ConflictError('compose_control_history_changed')
+                    return True, saved
+            if operation == 'compose':
+                started = self.assets._replay(connection, brain, ComposerService._start_key(brain, data['event_key']),
+                    'compose_generate_start', payload)
+                if started is not None:
+                    row = connection.execute('SELECT * FROM improvement_operations WHERE id=? AND brain_id=?',
+                        (started['operation_id'], brain)).fetchone()
+                    if row is None:
+                        raise PermissionError('compose_operation_unavailable')
+                    public = OperationRecords._public(row)
+                    request = json.loads(row['request_json'])
+                    if (public['experiment_id'] != experiment_id or public['kind'] != 'compose'
+                            or request['compose_authorization_id'] != authorization_id
+                            or started['authorization_id'] != authorization_id or started['experiment_id'] != experiment_id):
+                        raise IM.ConflictError('compose_control_history_changed')
+                    return True, {**started, 'status': 'operation_recorded', 'operation_status': row['status']}
+            # A closed/stale intent cannot wake a live factory just because no
+            # matching historical event exists. New live work repeats all guards.
+            if experiment['phase'] not in ('probing', 'comparing'):
+                raise IM.ConflictError('experiment_stopping')
+            if self.assets._policy(connection, brain)['mode'] == 'off':
+                raise PermissionError('improvement_disabled')
+            if authorization is not None:
+                if authorization['status'] != 'active' or authorization['generation'] != 1:
+                    raise PermissionError('compose_permission_revoked')
+                if authorization['experiment_generation'] != generation:
+                    raise IM.ConflictError('compose_permission_generation_changed')
+            if experiment['generation'] != generation:
+                raise IM.ConflictError('experiment_state_stale')
+            return False, None
+
+    def policy(self, principal, experiment_id):
+        from improvement_experiments import ExperimentRecords
+        self.scope(principal, experiment_id)
+        with closing(self.store._conn()) as connection:
+            row = ExperimentRecords._row(connection, _brain(principal), experiment_id)
+            public = ExperimentRecords._public(row)
+            value = json.loads(row['definition_json'])
+            count = value['decision_policy']['multiple_tests']
+            return {'experiment_id': experiment_id, 'definition_hash': public['definition_hash'],
+                'multiple_tests': count, 'candidate_policy': 'two_proposals_and_one_compose' if count == 3 else 'two_proposals',
+                **{key: value[key] for key in ('contract_id', 'case_set_id', 'base_bundle_id', 'repeat_policy', 'timeout_seconds')},
+                'native_capability': 'unknown', 'business_proof': False}
+
+    def compositions(self, principal, experiment_id):
+        """Bounded immutable publication references, never decrypted evidence."""
+        self.scope(principal, experiment_id)
+        if IM._schema_version(self.store) < 8:
+            return []
+        brain = _brain(principal)
+        with closing(self.store._conn()) as connection:
+            rows = list(connection.execute('SELECT * FROM improvement_compositions WHERE experiment_id=? AND brain_id=? LIMIT 2',
+                (experiment_id, brain)))
+            if len(rows) > 1:
+                raise IM.ConflictError('compose_publication_history_changed')
+            result = []
+            for row in rows:
+                authorization = self._metadata(connection, self._row(connection, brain, row['authorization_id']))
+                events = list(connection.execute("SELECT * FROM improvement_events WHERE brain_id=? AND operation='compose_generate' "
+                    "AND json_extract(result_json,'$.composition_id')=? LIMIT 2", (brain, row['id'])))
+                if len(events) != 1:
+                    raise IM.ConflictError('compose_publication_history_changed')
+                payload = {'authorization_id': row['authorization_id'], 'expected_generation': authorization['experiment_generation']}
+                saved = self.assets._replay(connection, brain, events[0]['event_key'], 'compose_generate', payload)
+                if (not saved or saved.get('experiment_id') != experiment_id or saved.get('operation_id') != row['operation_id']
+                        or saved.get('result_id') != row['result_id'] or saved.get('composition_id') != row['id']
+                        or saved.get('status') != ('keep_base' if row['outcome'] == 'keep_base' else 'candidate_staged')):
+                    raise IM.ConflictError('compose_publication_history_changed')
+                result.append({'composition_id': row['id'], **{key: row[key] for key in
+                    ('experiment_id', 'authorization_id', 'operation_id', 'result_id', 'input_hash', 'basis_hash',
+                     'output_hash', 'decisions_hash', 'outcome', 'candidate_id', 'created_at')},
+                    'authority_status': 'not_checked', 'business_proof': False})
+            return result
+
+    def preview(self, principal, experiment_id, *, expected_generation, event_key):
+        self._live()
+        self.scope(principal, experiment_id)
+        payload = {'experiment_id': experiment_id, 'expected_generation': expected_generation}
+        with closing(self.store._conn()) as connection:
+            old = self.assets._replay(connection, _brain(principal), event_key, 'compose_preview', payload)
+        built = self.inputs.build(principal, experiment_id, expected_generation=expected_generation)
+        basis = self._load(_brain(principal), built['basis_hash'])
+        result = {'experiment_id': experiment_id, 'generation': expected_generation,
+            'input_hash': built['input_hash'], 'basis_hash': built['basis_hash'],
+            'candidate_refs': basis['candidate_refs'], 'tuning_refs': basis['report_refs'],
+            'native_capability': 'unknown', 'business_proof': False}
+        with self.store._Tx(self.store) as connection:
+            before = self._capture(connection, principal, experiment_id, expected_generation)
+            observed, _ = self.plans.authoring.observe(principal, before['authoring']['target'])
+            if (self._authority_hash(before) != basis['authority_snapshot_hash']
+                    or observed['source_authority_hash'] != basis['source_authority_hash']):
+                raise IM.ConflictError('compose_preview_changed')
+            self._fence(connection, principal, before, observed)
+            old = self.assets._replay(connection, _brain(principal), event_key, 'compose_preview', payload)
+            if old is not None and old != result:
+                raise IM.ConflictError('compose_preview_changed')
+            self._live()
+            if old is None:
+                self.assets._event(connection, principal, event_key, 'compose_preview', payload, result)
+            self.inputs._fence(connection, principal, before)
+        return result
 
     def _installed(self):
         if IM._schema_version(self.store) < 8:
@@ -134,10 +301,13 @@ class ComposePermissions:
 
     def list(self, principal, experiment_id):
         brain = _brain(principal); _identifier(experiment_id)
+        self.scope(principal, experiment_id)
         if IM._schema_version(self.store) < 8: return []
         with closing(self.store._conn()) as connection:
             identifiers = [row[0] for row in connection.execute('SELECT id FROM improvement_compose_authorizations '
-                'WHERE experiment_id=? AND brain_id=? ORDER BY created_at,id', (experiment_id, brain))]
+                'WHERE experiment_id=? AND brain_id=? ORDER BY created_at,id LIMIT 101', (experiment_id, brain))]
+            if len(identifiers) > 100:
+                raise IM.ConflictError('compose_permission_history_bound')
             return [self._metadata(connection, self._row(connection, brain, identifier)) for identifier in identifiers]
 
     def revoke(self, principal, authorization_id, *, expected_generation, event_key):
@@ -156,6 +326,7 @@ class ComposePermissions:
             return result
 
     def _capture(self, connection, principal, experiment_id, generation):
+        self._live()
         before = self.inputs._snapshot(connection, principal, experiment_id, generation)
         for comparison in before['comparisons']:
             comparison['policy'] = self.inputs.reports._policy(before['prepared'][0])
@@ -223,6 +394,7 @@ class ComposePermissions:
         self.inputs._fence(connection, principal, before)
 
     def current(self, connection, principal, authorization_id, *, operation=None):
+        self._live()
         brain = _brain(principal); _identifier(authorization_id); self._connection(connection)
         require_product_store(self.assets, principal, connection=connection)
         assert_installed(connection)
@@ -262,9 +434,11 @@ class ComposePermissions:
         if operation is not None:
             operation_permission(connection, self.assets, principal, request, operation=operation)
         require_product_store(self.assets, principal, connection=connection)
+        self._live()
         return {'authorization': metadata, 'data': data, 'basis': basis, 'prepared': before['prepared'], 'snapshot': before}
 
     def authorize(self, principal, experiment_id, *, expected_generation, event_key):
+        self._live()
         brain = _brain(principal); _identifier(experiment_id); _generation(expected_generation); self._installed()
         require_product_store(self.assets, principal)
         payload = {'experiment_id': experiment_id, 'expected_generation': expected_generation}
@@ -287,6 +461,7 @@ class ComposePermissions:
             if old is not None:
                 return self._metadata(connection, self._row(connection, brain, old['authorization_id']))
             self.inputs._fence(connection, principal, before)
+            self._live()
             identifier = 'icpa_' + secrets.token_hex(12)
             connection.execute('INSERT INTO improvement_compose_authorizations VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                 (identifier, brain, experiment_id, value['context_id'], IM._hash(value), built['input_hash'], built['basis_hash'],

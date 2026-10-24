@@ -23,8 +23,13 @@ class ExperimentApiDeps:
     resolve_brain: object
     owner_session: object
     service: object
+    write_store: object = None
 
     def __post_init__(self):
+        if self.write_store is not None and (not callable(self.write_store)
+                or inspect.iscoroutinefunction(self.write_store)
+                or inspect.iscoroutinefunction(getattr(self.write_store, '__call__', None))):
+            raise TypeError('synchronous_experiment_writer_required')
         for name in ("read_store", "resolve_brain", "owner_session", "service"):
             callback = getattr(self, name)
             if not callable(callback):
@@ -53,6 +58,10 @@ def _error(error):
 def register(app, deps):
     if type(deps) is not ExperimentApiDeps:
         raise TypeError("experiment_api_dependencies_required")
+
+    # Retain only services actually dispatched by this adapter, never construct
+    # one to inspect an orphaned saved start. Workflow ownership stays in service.
+    active_compose_owners = {}
 
     async def assets():
         value = await _settled_call(deps.read_store)
@@ -151,15 +160,62 @@ def register(app, deps):
             return await _settled_call(read)
         return await dispatch(request, brain, action, key='view_binding', identifiers=(experiment_id, comparison_id))
 
+    def register_compose_history(suffix, key, method):
+        async def endpoint(request: Request, experiment_id: str, brain: str = 'brain'):
+            async def action(principal, data):
+                from improvement_compose_permissions import ComposePermissions
+                metadata = ComposePermissions.from_existing(await assets())
+                return await _settled_call(getattr(metadata, method), principal, experiment_id)
+            return await dispatch(request, brain, action, key=key, identifiers=(experiment_id,))
+        endpoint.__name__ = 'experiment_' + suffix.replace('-', '_')
+        app.add_api_route('/improvement-experiments/{experiment_id}/' + suffix, endpoint, methods=['GET'])
+
+    register_compose_history('compose-consents', 'consents', 'list')
+    register_compose_history('compositions', 'compositions', 'compositions')
+    register_compose_history('policy', 'policy', 'policy')
+
     async def control(request, brain, operation, experiment_id=None):
         async def action(principal, data):
+            if operation == 'compose-revoke':
+                from improvement_compose_permissions import ComposePermissions
+                existing = await assets()
+                metadata = ComposePermissions.from_existing(existing)
+                await _settled_call(metadata.scope, principal, experiment_id, data['authorization_id'])
+                if deps.write_store is not None:
+                    writable = await _settled_call(deps.write_store)
+                    if (type(writable) is not IM.ImprovementStore
+                            or writable.store.path.resolve() != existing.store.path.resolve()
+                            or writable.blobs.root.resolve() != existing.blobs.root.resolve()):
+                        raise PermissionError('experiment_compose_store_unavailable')
+                    metadata = ComposePermissions.from_existing(writable)
+                    await _settled_call(metadata.scope, principal, experiment_id, data['authorization_id'])
+                return await _settled_call(metadata.revoke, principal, **data)
+            service, compose_key = None, None
+            if operation in ('compose', 'compose-authorize', 'compose-preview'):
+                from improvement_compose_permissions import ComposePermissions
+                metadata = ComposePermissions.from_existing(await assets())
+                historical, result = await _settled_call(metadata.replay_control, principal, experiment_id, operation, data)
+                compose_key = principal.brain_id, experiment_id, data['event_key']
+                service = active_compose_owners.get(compose_key)
+                if historical and service is None:
+                    return result
             from improvement_experiment_service import ExperimentService
-            service = await _settled_call(deps.service)
+            if service is None:
+                service = await _settled_call(deps.service)
             if type(service) is not ExperimentService:
                 raise TypeError("concrete_experiment_service_required")
             identifier = data["experiment_id"] if operation == "create" else experiment_id
             if operation in WORKFLOW_CONTROLS:
-                return await service.workflow(principal, identifier, operation, data)
+                if compose_key is None:
+                    return await service.workflow(principal, identifier, operation, data)
+                active = active_compose_owners.get(compose_key)
+                if active is not None:
+                    return await active.workflow(principal, identifier, operation, data)
+                active_compose_owners[compose_key] = service
+                try:
+                    return await service.workflow(principal, identifier, operation, data)
+                finally:
+                    active_compose_owners.pop(compose_key, None)
             if operation in ("cancel", "recover", "resume"):
                 return await getattr(service, operation)(principal, identifier, **data)
             if operation == "next":
