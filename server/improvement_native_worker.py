@@ -54,7 +54,8 @@ class NativeWorkerSessionV2:
     def from_startup3(cls, packet, *, namespace):
         from improvement_qualification_protocol import validate_startup3, worker_binding3
         copied = validate_startup3(packet)
-        if cls is not NativeWorkerSessionV2 or namespace != 'preflight' or copied['kind'] != 'preflight':
+        if (cls is not NativeWorkerSessionV2 or namespace not in ('preflight', 'trial') or copied['kind'] != namespace
+                or (namespace == 'trial' and copied['qualification']['version'] != 2)):
             raise ValueError('qualification_preflight_required')
         self = cls.__new__(cls)
         self._initialize(copied, namespace=namespace, binding=worker_binding3(copied), qualification=True)
@@ -293,14 +294,25 @@ async def prepare_native_runtime(session, payload, *, kind):
     if session._qualification:
         from improvement_claude import _runtime_identity
         from improvement_qualification_protocol import validate_technical_observation
+        if (not session._environment_installed or runtime._preflight_started or runtime._entries
+                or runtime._transport is not None or runtime._used):
+            raise PermissionError('qualification_runtime_already_started')
+        # Application imports (notably config's UTF-8 initialization) may add
+        # process defaults. This isolated owner reinstalls its exact adopted
+        # environment before observations/client construction; no ambient value
+        # or caller override can enter the technical child environment.
+        os.environ.clear()
+        os.environ.update(session._packet['environment'])
         pin = payload['config_pin']
-        if kind != 'preflight': raise PermissionError('qualification_query_forbidden')
+        if kind not in ('preflight', 'trial'): raise PermissionError('qualification_query_forbidden')
+        if kind == 'trial' and session._packet['qualification']['version'] != 2:
+            raise PermissionError('qualification_query_binding_required')
         static = _runtime_identity(pin)
         if (static.get('platform') != sys.platform or static.get('managed_policy') != 'absent'
                 or any(static.get(name) != pin[name] for name in ('cli_hash', 'sdk_version', 'profile_hash'))):
             raise PermissionError('qualification_runtime_drift')
         observed = validate_technical_observation(await runtime.preflight(managed_policy='absent'), pin=pin)
-        return {'supported': False, 'account_ready': False, 'technical_ready': True}, observed
+        return {'supported': False, 'account_ready': False, 'domain': 'qualification', 'technical_ready': True}, observed
     from improvement_claude import ClaudeTrialAdapter
     adapter = ClaudeTrialAdapter(payload['config_pin'])
     admission = adapter.admit_preflight()
@@ -328,9 +340,9 @@ async def run_startup2(raw, *, entrypoint):
 async def run_startup3(raw, *, entrypoint):
     from improvement_qualification_protocol import decode_startup3
     packet = decode_startup3(raw)
-    if entrypoint != 'trial' or packet['kind'] != 'preflight':
+    if entrypoint != 'trial' or packet['kind'] not in ('preflight', 'trial'):
         raise ValueError('qualification_preflight_required')
-    owner = NativeWorkerSessionV2.from_startup3(packet, namespace='preflight')
+    owner = NativeWorkerSessionV2.from_startup3(packet, namespace=packet['kind'])
     return await _run_owned(owner, packet)
 
 

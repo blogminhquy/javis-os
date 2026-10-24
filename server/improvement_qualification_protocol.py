@@ -126,8 +126,10 @@ def validate_startup3(value):
     # production parser never sees or admits the extra environment/scope fields.
     validate_startup2(_base(value))
     q = value['qualification']
-    _fields(q, {'version', 'run_hash', 'scope', 'environment_hash', 'attempt_link'})
-    if type(q['version']) is not int or q['version'] != 1: raise ValueError('invalid_qualification_startup')
+    fields = {'version', 'run_hash', 'scope', 'environment_hash', 'attempt_link'}
+    if q.get('version') == 2: fields |= {'preflight_hash', 'query_binding'}
+    _fields(q, fields)
+    if type(q['version']) is not int or q['version'] not in (1, 2): raise ValueError('invalid_qualification_startup')
     _digest(q['run_hash']); _digest(q['environment_hash'])
     scope = validate_scope(q['scope']); pin = value['request']['config_pin']; _pin(pin)
     if (q['run_hash'] != _hash(scope) or scope['pin_hash'] != _hash(pin)
@@ -143,11 +145,32 @@ def validate_startup3(value):
     for name in ('TEMP', 'TMP', 'JAVIS_STATE_DIR', 'BRAINS_DIR', 'OBSIDIAN_VAULT_PATH', 'BRAIN_PATH', 'SOURCES_PATH'):
         _within(env[name], root)
     if value['kind'] == 'preflight':
-        if q['attempt_link'] is not None: raise ValueError('qualification_preflight_link_forbidden')
+        if q['version'] != 1 or q['attempt_link'] is not None: raise ValueError('qualification_preflight_link_forbidden')
     else:
         _within(value['request']['workspace_root'], root)
         _within(value['request']['receipt'].get('path'), root)
         _link(q['attempt_link'], kind=value['kind'], request=value['request'], scope=scope, run_hash=q['run_hash'])
+        if q['version'] == 2:
+            validate_query_binding(q['query_binding'], link=q['attempt_link'], preflight_hash=q['preflight_hash'])
+    return _parse(_canonical(value))
+
+
+def validate_query_binding(value, *, link, preflight_hash):
+    _fields(value, {'version', 'domain', 'supported', 'account_ready', 'run_hash', 'preflight_hash',
+        'kind', 'subject_id', 'attempt', 'request_hash', 'workspace_hash', 'materialization_hash',
+        'engine_config_hash', 'authority_hash'})
+    _digest(preflight_hash)
+    if (type(value['version']) is not int or value['version'] != 1 or value['domain'] != 'qualification'
+            or value['supported'] is not False or value['account_ready'] is not False
+            or type(value['attempt']) is not int or value['attempt'] != link['attempt']
+            or value['preflight_hash'] != preflight_hash
+            or any(value[name] != link[name] for name in ('run_hash', 'kind', 'subject_id', 'request_hash',
+                'workspace_hash', 'materialization_hash', 'engine_config_hash'))
+            or value['authority_hash'] != link['capability_hash']
+            or _hash({name: item for name, item in value.items() if name != 'authority_hash'}) != value['authority_hash']):
+        raise ValueError('qualification_query_binding_inconsistent')
+    for name in ('run_hash', 'preflight_hash', 'request_hash', 'workspace_hash', 'materialization_hash',
+            'engine_config_hash', 'authority_hash'): _digest(value[name])
     return _parse(_canonical(value))
 
 

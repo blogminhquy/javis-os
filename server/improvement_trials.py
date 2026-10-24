@@ -331,6 +331,39 @@ class TrialStore:
         from improvement_trial_results import TrialResults
         return TrialResults(self).finish(principal, identifier, **options)
 
+    def finish_qualification(self, session, principal, identifier, *, expected_generation, lease_token, evidence):
+        from improvement_qualification_session import QualificationSession
+        from improvement_qualification_results import _StagedEvidence, _authenticate, _key, _EVIDENCE
+        from improvement_native_protocol import _parse
+        if (type(session) is not QualificationSession or type(evidence) is not _StagedEvidence
+                or evidence.session is not session or evidence.context['stage'] is not evidence
+                or evidence.context['owner'] is not self or principal is not session.principal
+                or evidence.context['identifier'] != identifier or evidence.context['lease_token'] != lease_token):
+            raise PermissionError('qualification_staged_evidence_foreign')
+        value = _parse(evidence.raw)
+        binding = evidence.context['binding']
+        with self.store._Tx(self.store) as connection:
+            session._query_current(binding, connection=connection)
+            row, attempt = self._leased(connection, principal, identifier, expected_generation, lease_token, time.time())
+            if row['status'] != 'running' or attempt['engine_at'] is None:
+                raise IM.ConflictError('qualification_settlement_stale')
+            _authenticate(self.assets, principal, connection, value, terminal=False)
+            self.assets._event(connection, principal, _key(_EVIDENCE, value['identity']), _EVIDENCE,
+                value['identity'], _parse(evidence.envelope))
+            session._query_current(binding, connection=connection)
+            _authenticate(self.assets, principal, connection, value, terminal=False)
+            now = time.time()
+            self._leased(connection, principal, identifier, expected_generation, lease_token, now)
+            status = value['execution_status']
+            if not self.ledger._settle_in(connection, attempt['call_id'], 'error' if status == 'failed' else 'ok', None, None, None, now):
+                raise IM.ConflictError('trial_call_state_stale')
+            connection.execute('UPDATE improvement_trial_attempts SET status=?,lease_token=NULL,lease_until=NULL,updated_at=? '
+                'WHERE trial_id=? AND attempt=? AND lease_token=?', (status, now, identifier, binding.attempt, lease_token))
+            connection.execute('UPDATE improvement_trials SET status=?,generation=generation+1,updated_at=? WHERE id=? AND generation=?',
+                (status, now, identifier, expected_generation))
+            session._assert_native_current(connection=connection)
+            return self._public(connection, self._row(connection, principal.brain_id, identifier))
+
     def read_result(self, principal, identifier, attempt, **options):
         from improvement_trial_results import TrialResults
         return TrialResults(self).read(principal, identifier, attempt, **options)

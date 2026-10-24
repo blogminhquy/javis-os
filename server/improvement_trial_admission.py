@@ -175,11 +175,31 @@ class TrialAdmission:
             raise IM.ConflictError("trial_identity_conflict")
 
     def admit(self, principal, public_start_request):
+        return self._admit(principal, public_start_request)
+
+    def admit_qualification(self, session, principal, public_start_request):
+        from improvement_qualification_session import QualificationSession
+        if type(session) is not QualificationSession: raise TypeError('concrete_qualification_session_required')
+        session._assert_trial_owner(self, principal)
+        session._require_preflight()
+        return self._admit(principal, public_start_request, session=session)
+
+    def _admit(self, principal, public_start_request, *, session=None):
         brain = _brain(principal)
         public = validate_body(public_start_request, "start_trial")
+        def current(connection):
+            if session is not None:
+                session._assert_trial_owner(self, principal)
+                session._assert_native_current(connection=connection)
+                prepared = self._prepare(connection, principal, public)
+                if prepared[1]['engine_config'] != session._pin: raise PermissionError('qualification_pin_changed')
+                self.host.live_guard(principal, prepared[1])
+                session._require_preflight()
+                session._assert_native_current(connection=connection)
         if IM._schema_version(self.store) < 3:
             raise PermissionError("trial_context_unavailable")
         with closing(self.store._conn()) as connection:
+            current(connection)
             replay = self._replay(connection, principal, public)
             if replay is not None:
                 return replay
@@ -200,24 +220,16 @@ class TrialAdmission:
                 self.host.live_guard(principal, IC._frozen(request))
             return "allow"
 
-        try:
-            adapter = ClaudeTrialAdapter(request["engine_config"])
-            adapter.bind_native_authority(self.assets, principal, scope_hash=IM._hash({
-                "version": 1, "kind": "trial_owner_admission", "brain_id": brain,
-                "request_hash": IM._hash(public), "authority_hash": IM._hash(prepared)}), current=native_current)
-            verified = adapter.verify()
-            if (type(verified) is not dict or verified.get("supported") is not True
-                    or verified.get("account_ready") is False or verified.get("domain") == "qualification"):
-                raise ValueError("trial_native_unavailable")
-            IC._digest(verified.get("capability_hash"))
-        except (OSError, ValueError, RuntimeError):
-            raise ValueError("trial_native_unavailable") from None
+        if session is None:
+            self._verify_native(principal, public, prepared, native_current)
         self.host.live_guard(principal, IC._frozen(request))
         with closing(self.store._conn()) as connection:
+            current(connection)
             if self._prepare(connection, principal, public) != prepared:
                 raise IM.ConflictError("trial_admission_authority_changed")
         reserve_key = self._reserve_key(brain, public["event_key"])
         with self.store._Tx(self.store) as connection:
+            current(connection)
             replay = self._replay(connection, principal, public)
             if replay is not None:
                 return replay
@@ -241,4 +253,21 @@ class TrialAdmission:
                 raise IM.ConflictError("trial_admission_authority_changed")
             self.assets._event(connection, principal, public["event_key"], _START, public,
                 {"trial_id": row["trial_id"], "reserve_event_key": reserve_key, "plan_hash": plan_hash})
+            current(connection)
             return AdmittedTrial(row["trial_id"], IC._frozen(row["request"]), reserve_key)
+
+    def _verify_native(self, principal, public, prepared, native_current):
+        brain = _brain(principal)
+        request = prepared[1]
+        try:
+            adapter = ClaudeTrialAdapter(request["engine_config"])
+            adapter.bind_native_authority(self.assets, principal, scope_hash=IM._hash({
+                "version": 1, "kind": "trial_owner_admission", "brain_id": brain,
+                "request_hash": IM._hash(public), "authority_hash": IM._hash(prepared)}), current=native_current)
+            verified = adapter.verify()
+            if (type(verified) is not dict or verified.get("supported") is not True
+                    or verified.get("account_ready") is False or verified.get("domain") == "qualification"):
+                raise ValueError("trial_native_unavailable")
+            IC._digest(verified.get("capability_hash"))
+        except (OSError, ValueError, RuntimeError):
+            raise ValueError("trial_native_unavailable") from None

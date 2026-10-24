@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import aclosing
 import json
 import subprocess
 import sys
@@ -647,7 +648,7 @@ class GuardianSessionV2:
             if kind == 'image_authorize' and self._qualification_boundary is not None:
                 # This runs after the durable append, under the same send lock.
                 # Revocation before send initiation must never emit an allow.
-                self._qualification_boundary._qualification._assert_native_current()
+                self._qualification_boundary._assert_query_current()
             self._out_sequence += 1
             value = {'version': 2, 'type': kind, 'sequence': self._out_sequence,
                      'launch_nonce': self._nonce, **self._worker_identity, **extra}
@@ -703,7 +704,8 @@ class GuardianSessionV2:
             'private_share': base64.b64encode(b'validation-only').decode('ascii'),
             'images': [{**item, 'share': base64.b64encode(b'validation-only').decode('ascii')}
                 for item in self._invocations]})
-        if probe['kind'] != 'preflight' or self._policy['bootstrap']['entrypoint'] != 'trial':
+        if (probe['kind'] not in ('preflight', 'trial') or self._policy['bootstrap']['entrypoint'] != 'trial'
+                or (probe['kind'] == 'trial' and probe['qualification']['version'] != 2)):
             raise ValueError('qualification_preflight_required')
         boundary._owner_state = 'STARTING'
         await self._start_validated({key: probe[key] for key in ('kind', 'request', 'environment', 'qualification')})
@@ -999,9 +1001,18 @@ class GuardianSessionV2:
                 or self._accounting_acknowledged or self._ack_task is not None or self._allowed != set(_V2_PURPOSES)):
             raise self._error()
         async def send():
+            boundary = self._qualification_boundary
+            accounting = None
+            if boundary is not None and hasattr(boundary, '_query_binding'):
+                # Last synchronous returning-task fence immediately before the
+                # original private send. Callback completion cannot mint ACK.
+                accounting = boundary._ack_accounting()
             packet = await self._private.send(_v2_copy(body))
             if self._stopped: raise self._error()
             self._accounting_acknowledged = True
+            if accounting is not None:
+                boundary._ack_witness = {**accounting, 'engine_start_request_sequence': boundary._engine_request_sequence,
+                    'ack_identity_hash': _bytes_hash(_control_json(body)), 'ack_send_complete': True}
             return packet
         self._ack_task = self._task(send())
         packet = await self._wait(self._ack_task, self._timeout)
@@ -1187,17 +1198,58 @@ async def execute_worker_v2(kind_namespace, request, receipt, *, config_pin, wor
     owner = GuardianSessionV2(guardian_manifest, policy, image_policy=image_policy, fences=fences,
         launch_nonce=launch_nonce, invocations=invocations, persist_before_allow=persist_before_allow,
         timeout=timeout, close_timeout=close_timeout, lifetime_timeout=remaining)
+    startup = {'kind': kind_namespace, 'request': {'version': 1, 'config_pin': config_pin,
+        'workspace_root': str(workspace_root), 'receipt': receipt, 'capability_hash': request['capability_hash']},
+        'environment': worker_environment(Path(receipt['path'])) if environment is None else environment}
+    async with aclosing(_execute_worker_loop(owner, startup, kind_namespace=kind_namespace,
+            before_engine_start=before_engine_start, on_closing_observations=on_closing_observations)) as packets:
+        async for packet in packets: yield packet
+
+
+async def execute_worker_qualification(boundary, *, before_engine_start, on_closing_observations):
+    from improvement_native_parent import NativeParentBoundary
+    import secrets
+    import inspect
+    if type(boundary) is not NativeParentBoundary or not hasattr(boundary, '_query_binding'):
+        raise TypeError('retained_qualification_query_required')
+    context = boundary._assert_query_current()
+    inputs = boundary._query_execution
+    remaining = inputs['deadline_at'] - time.time()
+    if not 0 < remaining <= 300: raise ValueError('native_v2_deadline_invalid')
+    if (not inspect.iscoroutinefunction(before_engine_start) or not inspect.iscoroutinefunction(on_closing_observations)):
+        raise ValueError('native_v2_callbacks_unbound')
+    root = context['owner'].workspace.root
+    identifier, attempt = boundary._query_binding.subject_id, boundary._query_binding.attempt
+    fences = [str(root / '.executions' / (_bytes_hash(boundary.principal.brain_id.encode()) + '.lock')),
+        str(root / '.lifetimes' / (_bytes_hash(f'{identifier}:{attempt}'.encode()) + '.lock'))]
+    launch = inputs['launch']
+    owner = GuardianSessionV2(launch['guardian_manifest'], launch['policy'], image_policy=launch['image_policy'],
+        fences=fences, launch_nonce=secrets.token_hex(32),
+        invocations=[{'purpose': purpose, 'nonce': secrets.token_hex(32)} for purpose in _V2_PURPOSES],
+        persist_before_allow=inputs['persist'], timeout=15, close_timeout=8, lifetime_timeout=remaining)
+    boundary._guardian = owner
+    boundary._qualification._attach_native(owner, boundary)
+    async with aclosing(_execute_worker_loop(owner, None, kind_namespace='trial',
+            before_engine_start=before_engine_start, on_closing_observations=on_closing_observations,
+            boundary=boundary)) as packets:
+        async for packet in packets: yield packet
+
+
+async def _execute_worker_loop(owner, startup, *, kind_namespace, before_engine_start,
+        on_closing_observations, boundary=None):
     pending_packet = None
     completion_seen = cancelled = False
     try:
-        await owner.start({'kind': kind_namespace, 'request': {'version': 1, 'config_pin': config_pin,
-            'workspace_root': str(workspace_root), 'receipt': receipt, 'capability_hash': request['capability_hash']},
-            'environment': worker_environment(Path(receipt['path'])) if environment is None else environment})
+        if boundary is None: await owner.start(startup)
+        else:
+            await owner.start_qualification(boundary)
+            boundary._owner_state = 'ACTIVE'
         while True:
             packet = await owner.receive()
             pending_packet = packet
             kind = packet['body']['type']
             if kind == 'engine_start_requested':
+                if boundary is not None: boundary._engine_request_sequence = packet['sequence']
                 task = asyncio.create_task(before_engine_start())
                 results, interrupted = await _settled_owned(asyncio.gather(task, return_exceptions=True))
                 if isinstance(results[0], BaseException): raise results[0]

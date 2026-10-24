@@ -114,7 +114,7 @@ class NativeInvocationSet:
         from improvement_qualification_protocol import validate_startup3, worker_binding3
         from improvement_qualification_environment import validate_dummy_environment
         if (cls is not NativeInvocationSet or type(owner) is not NativeWorkerSessionV2
-                or not owner._qualification or owner._namespace != 'preflight' or not owner._started
+                or not owner._qualification or owner._namespace not in ('preflight', 'trial') or not owner._started
                 or owner._closing or owner._closed or owner._failed or owner._adopted
                 or owner._runtime is not None or owner._runtime_owns_images
                 or owner._adopt_task is not asyncio.current_task() or owner._loop is not asyncio.get_running_loop()
@@ -123,13 +123,15 @@ class NativeInvocationSet:
         packet = validate_startup3(owner._packet)
         environment = validate_dummy_environment(packet['environment'])
         private = owner._private
-        if (packet['kind'] != 'preflight' or dict(os.environ) != environment
+        purposes = _PURPOSES[:2] if packet['kind'] == 'preflight' else _PURPOSES
+        if (packet['kind'] != owner._namespace or dict(os.environ) != environment
+                or (packet['kind'] == 'trial' and packet['qualification']['version'] != 2)
                 or type(private) is not PrivateWorkerChannelV2 or private.closed or private._role != 'worker'
                 or private._binding != worker_binding3(packet) or owner._binding != private._binding
-                or tuple(owner._channels) != _PURPOSES[:2] or len(owner._records) != 3
-                or owner._cwd != owner._scratch):
+                or tuple(owner._channels) != purposes or len(owner._records) != 1 + len(purposes)
+                or owner._cwd != (owner._scratch if packet['kind'] == 'preflight' else packet['request']['receipt']['path'])):
             raise ValueError('qualification_worker_adoption_invalid')
-        for record, name, channel in zip(owner._records, ('private', *_PURPOSES[:2]),
+        for record, name, channel in zip(owner._records, ('private', *purposes),
                 (private, *owner._channels.values())):
             if (record['name'] != name or record['state'] != 'channel_owned'
                     or record['acquisition_unknown'] or record['close_succeeded'] or record['close_authority_lost']
@@ -144,6 +146,7 @@ class NativeInvocationSet:
         self._initialize(packet['request']['config_pin'], image_channels=owner._channels,
             emit_dispatch=owner._emit_dispatch, environment=environment, cwd=owner._cwd,
             source_policy_hash=packet['request']['config_pin']['profile_hash'])
+        self._qualification_owner = owner
         return self
 
     def _initialize(self, pin, *, image_channels, emit_dispatch, environment, cwd, source_policy_hash):

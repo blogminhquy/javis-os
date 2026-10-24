@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from contextlib import closing
 import asyncio
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import hashlib
 from pathlib import Path
 import secrets
@@ -25,6 +25,29 @@ from resonance_store import GoalStore, Principal
 
 _TOKEN = object()
 _RESULT_TOKEN = object()
+_BINDING_TOKEN = object()
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class QualificationQueryBinding:
+    version: int
+    domain: str
+    supported: bool
+    account_ready: bool
+    run_hash: str
+    preflight_hash: str
+    kind: str
+    subject_id: str
+    attempt: int
+    request_hash: str
+    workspace_hash: str
+    materialization_hash: str
+    engine_config_hash: str
+    authority_hash: str
+
+    def __init__(self, token, values):
+        if token is not _BINDING_TOKEN: raise TypeError('retained_qualification_attempt_required')
+        for name in self.__dataclass_fields__: object.__setattr__(self, name, values[name])
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -106,6 +129,9 @@ class QualificationSession:
         self._native_boundaries = {}
         self._native_started = False
         self._native_parent = None
+        self._completed_preflight = self._preflight_task = None
+        self._host_operations, self._queries, self._pending_proofs = {}, {}, {}
+        self._attempt_resources = {}
         try:
             _private_directory(self.root)
             brain = self.root / 'brain'; brain.mkdir(mode=0o700)
@@ -331,6 +357,152 @@ class QualificationSession:
             'image_policy': {'version': 1, 'path': self._pin['cli_path'], 'sha256': self._pin['cli_hash']},
             'release_fingerprint': observed['fingerprint'], 'qualification_hash': self._scope['review_hash']}
 
+    def _query_launch(self, kind, scratch):
+        if kind != 'trial': raise PermissionError('qualification_query_kind_unavailable')
+        return self._preflight_launch(scratch)
+
+    def _assert_trial_owner(self, admission, principal):
+        from improvement_trial_admission import TrialAdmission
+        if (type(admission) is not TrialAdmission or principal is not self.principal
+                or admission.assets is not self.assets or admission.store is not self.assets.store
+                or admission.host.assets is not self.assets
+                or not admission.trials.workspace.root.absolute().is_relative_to(self.root)):
+            raise PermissionError('qualification_attempt_owner_foreign')
+        self._assert_native_current()
+
+    def _require_preflight(self):
+        self._assert_native_current()
+        proof = self._completed_preflight
+        if (type(proof) is not QualificationPreflight or self._native_parent is None
+                or not self._native_parent._qualification_complete
+                or proof.run_hash != self.run_hash or proof.pin_hash != IM._hash(self._pin)):
+            raise PermissionError('qualification_preflight_required')
+        return proof
+
+    def _query_binding(self, owner, principal, identifier, *, expected_generation, lease_token):
+        from improvement_trials import TrialStore
+        self._require_preflight()
+        if type(owner) is not TrialStore or owner.assets is not self.assets or principal is not self.principal:
+            raise PermissionError('qualification_attempt_owner_foreign')
+        with self.assets.store._Tx(self.assets.store) as connection:
+            row, attempt = owner._leased(connection, principal, identifier, expected_generation, lease_token, time.time())
+            receipt = _parse(attempt['workspace_json'].encode())
+            manifest = owner.workspace.validate(receipt)
+            request = _parse(row['request_json'].encode())
+            if (manifest['version'] != 5 or request['engine_config'] != self._pin
+                    or not Path(receipt['path']).is_relative_to(self.root)):
+                raise PermissionError('qualification_baseline5_required')
+            values = dict(version=1, domain='qualification', supported=False, account_ready=False,
+                run_hash=self.run_hash, preflight_hash=IM._hash(asdict(self._require_preflight())), kind='trial',
+                subject_id=identifier, attempt=attempt['attempt'], request_hash=row['request_hash'],
+                workspace_hash=IM._hash(receipt), materialization_hash=IM._hash(manifest), engine_config_hash=IM._hash(self._pin))
+        binding = QualificationQueryBinding(_BINDING_TOKEN, {**values, 'authority_hash': IM._hash(values)})
+        # Existing bind_attempt is the sole atomic query budget debit.
+        link = self.bind_attempt(owner, principal, identifier, expected_generation=expected_generation,
+            lease_token=lease_token, capability_hash=binding.authority_hash)
+        key = (identifier, binding.attempt)
+        if key in self._queries: raise PermissionError('qualification_query_already_bound')
+        self._queries[key] = dict(binding=binding, owner=owner, principal=principal, identifier=identifier,
+            expected_generation=expected_generation, lease_token=lease_token, request=request,
+            receipt=receipt, manifest=manifest, link=link, boundary=None, completion=None, stage=None, cleanup=None)
+        self._query_current(binding)
+        return binding
+
+    def _query_context(self, binding):
+        if type(binding) is not QualificationQueryBinding: raise PermissionError('qualification_binding_foreign')
+        context = self._queries.get((binding.subject_id, binding.attempt))
+        if context is None or context['binding'] is not binding: raise PermissionError('qualification_binding_foreign')
+        return context
+
+    def _query_current(self, binding, *, connection=None, workspace=True, leased=True):
+        from improvement_qualification_records import read_attempt
+        self._require_preflight()
+        context = self._query_context(binding)
+        if connection is None:
+            with closing(self.assets.store._conn()) as conn:
+                return self._query_current(binding, connection=conn, workspace=workspace, leased=leased)
+        self._assert_native_current(connection=connection)
+        owner, principal, identifier = (context[key] for key in ('owner', 'principal', 'identifier'))
+        row = owner._row(connection, principal.brain_id, identifier)
+        if leased:
+            _, attempt = owner._leased(connection, principal, identifier, row['generation'], context['lease_token'], time.time())
+        request = _parse(row['request_json'].encode())
+        if request != context['request'] or row['attempt'] != binding.attempt:
+            raise PermissionError('qualification_attempt_changed')
+        owner._current(connection, principal.brain_id, request, trial_id=identifier, principal=principal)
+        owner._native_host.live_guard(principal, request)
+        if workspace and owner.workspace.validate(context['receipt']) != context['manifest']:
+            raise PermissionError('qualification_materialization_changed')
+        link = read_attempt(self.assets, principal, kind='trial', subject_id=identifier, attempt=binding.attempt,
+            capability_hash=binding.authority_hash, connection=connection)
+        if link != context['link']: raise PermissionError('qualification_attempt_changed')
+        self._assert_native_current(connection=connection)
+        return context
+
+    async def run_trial(self, admission, public_start_request):
+        from improvement_trial_runner import TrialRunner, _drain, _settled_call
+        self._assert_trial_owner(admission, self.principal)
+        task = asyncio.current_task()
+        if task in self._host_operations: raise PermissionError('qualification_facade_already_owned')
+        self._host_operations[task] = None  # Before the first await/reservation.
+        try:
+            if self._completed_preflight is None:
+                if self._preflight_task is None:
+                    self._preflight_task = asyncio.create_task(self.verify_native())
+                values, cancelled = await _drain(asyncio.gather(self._preflight_task, return_exceptions=True))
+                if cancelled is not None: raise cancelled
+                if isinstance(values[0], BaseException): raise values[0]
+            self._require_preflight()
+            operation = asyncio.create_task(asyncio.to_thread(admission.admit_qualification, self, self.principal, public_start_request))
+            values, cancelled = await _drain(asyncio.gather(operation, return_exceptions=True))
+            if cancelled is not None:
+                if not isinstance(values[0], BaseException):
+                    admitted = values[0]
+                    latest = await _settled_call(admission.trials.get, self.principal, admitted.trial_id)
+                    if latest['status'] == 'reserved':
+                        await _settled_call(admission.trials.reject_unclaimed, self.principal, admitted.trial_id,
+                            expected_generation=latest['generation'], reason='cancelled')
+                raise cancelled
+            if isinstance(values[0], BaseException): raise values[0]
+            admitted = values[0]
+            self._host_operations[task] = (admitted.trial_id, 1)
+            result = await TrialRunner.for_qualification(self, admission).run_qualification(self.principal, admitted.trial_id)
+            self._assert_native_current()  # Final returning-task fence, no await gap.
+            return result
+        finally:
+            self._host_operations.pop(task, None)
+
+    async def aclose_queries(self):
+        from improvement_trial_runner import _drain
+        self.close()
+        tasks = tuple(task for task in self._host_operations if task is not asyncio.current_task())
+        if tasks: await _drain(asyncio.gather(*tasks, return_exceptions=True))
+        if self._preflight_task is not None:
+            await _drain(asyncio.gather(self._preflight_task, return_exceptions=True))
+        await self.aclose_native()
+        # Retained actual runner/lifetime owners can outlive a failed facade.
+        # Retry only their known cleanup, never admission, settlement or query.
+        from improvement_trial_runner import _settled_call
+        from improvement_qualification_results import _CleanupReceipt
+        for key, resource in tuple(self._attempt_resources.items()):
+            context = self._queries.get(key)
+            if context is not None and context['boundary'] is not None and context['boundary']._owner_state != 'DETACHED':
+                raise RuntimeError('qualification_native_owners_unsettled')
+            owner, handles = resource['owner'], resource['lifetime'][0]
+            await _settled_call(owner.workspace.cleanup, *key)
+            if handles is not None: await _settled_call(owner.workspace.release_execution, handles)
+            if handles is not None and any(not handle.closed for handle in handles):
+                raise RuntimeError('qualification_lifetime_unsettled')
+            receipt = None if context is None else context['receipt']
+            if not await _settled_call(owner.workspace.cleanup_proven, *key, receipt):
+                raise RuntimeError('qualification_workspace_unsettled')
+            if context is not None and context['boundary'] is not None and handles is not None:
+                context['cleanup'] = await _settled_call(_CleanupReceipt._from_runner, resource['runner'], context, handles)
+            self._attempt_resources.pop(key, None)
+        from improvement_qualification_results import QualificationQueryResults
+        for context in tuple(self._pending_proofs.values()):
+            await _settled_call(QualificationQueryResults(self)._save_cleanup_diagnostic, context)
+
     def _attach_native(self, guardian, boundary):
         from improvement_native_transport import GuardianSessionV2
         from improvement_native_parent import NativeParentBoundary
@@ -356,7 +528,16 @@ class QualificationSession:
         self._native_started = True  # Reserve before the first await.
         self._assert_native_current()
         from improvement_native_parent import NativeParentBoundary
-        return await NativeParentBoundary.for_qualification(self).verify_qualification()
+        task = asyncio.current_task()
+        own = task not in self._host_operations
+        if own: self._host_operations[task] = ('preflight', 0)
+        try:
+            result = await NativeParentBoundary.for_qualification(self).verify_qualification()
+            self._assert_native_current()
+            self._completed_preflight = result
+            return result
+        finally:
+            if own: self._host_operations.pop(task, None)
 
     async def aclose_native(self):
         self.close()
@@ -369,6 +550,10 @@ class QualificationSession:
     def close(self):
         self._closed = True
         self._temporary._finalizer.detach()
+        for task, operation in tuple(self._host_operations.items()):
+            if operation == ('preflight', 0): continue
+            loop = task.get_loop()
+            if not loop.is_closed() and not task.done(): loop.call_soon_threadsafe(task.cancel)
         for owner in tuple(self._owners):
             loop = getattr(owner, '_loop', None)
             if loop is not None and hasattr(owner, '_space') and not loop.is_closed():
@@ -379,7 +564,8 @@ class QualificationSession:
 
     def cleanup(self):
         self.close()
-        if self._owners:
+        if self._owners or self._host_operations or self._pending_proofs or self._attempt_resources or any(
+                context['completion'] is not None and context['cleanup'] is None for context in self._queries.values()):
             raise RuntimeError('qualification_native_owners_unsettled')
         if not self._cleaned:
             self._temporary.cleanup()

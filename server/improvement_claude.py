@@ -52,7 +52,7 @@ PROFILE_SOURCES = ("improvement_claude.py", "improvement_sandbox.py", "improveme
                    "improvement_comparison_schedule.py", "improvement_view_admission.py", "improvement_view_materialization.py",
                    "improvement_view_qualification.py", "improvement_view_qualification_history.py",
                    "improvement_skill_asset_broker.py", "improvement_skill_asset_proof.py", "improvement_native_formats.py",
-                   "improvement_qualification_session.py")
+                   "improvement_qualification_session.py", "improvement_qualification_results.py")
 VERIFIED_NATIVE_RUNTIMES = {("win32", "2.1.304",
     "019e5174d5d954585edb1a946fe280e44a973050b4897034adf0e16306f85fdd", "0.2.116"),
     ("win32", "2.1.308", "c9796ba22a9221586b36371b36f5b66198d66eb4badf6a4cf4a5f7b07becea53", "0.2.116"),
@@ -429,6 +429,24 @@ class TrialProfile:
         if (self._installation is not None and self._installation['manifest']['version'] in (4, 5)
                 and self._native_binding is None):
             raise ValueError('trial_native_runtime_unbound')
+
+    def bind_qualification_runtime(self, owner, *, user_prompt):
+        if (self._installation is None or self._installation['manifest']['version'] != 5
+                or self._native_binding is not None or self._selection is not None or self._started):
+            raise ValueError('trial_native_binding_unavailable')
+        from improvement_native_profile import NativeProfileBinding
+        workspace = self._installation['workspace']
+        if (owner._packet['request']['receipt'] != workspace
+                or owner._packet['request']['capability_hash'] != self._installation['capability_hash']):
+            raise ValueError('qualification_profile_installation_changed')
+        policy = dict(version=2, **{key: self.pin[key] for key in ('cli_path', 'model', 'reasoning')},
+            prompt_hash=self._installation['prompt_hash'], cwd=workspace['path'], tools=self._tools(), tool_policy='baseline_inline')
+        binding = NativeProfileBinding.from_qualification_worker(owner, kind='trial',
+            identity={key: workspace[key] for key in ('trial_id', 'attempt', 'input_hash')},
+            data_hash=workspace['input_hash'], user_prompt=user_prompt, query_policy=policy)
+        self._native_environment = _frozen(owner._packet['environment'])
+        self._native_binding = binding
+        self.create_client = binding.create_client
 
     def _read_outcome(self, tool_name, args):
         response = self._read_outcome_broker.read(tool_name, args)

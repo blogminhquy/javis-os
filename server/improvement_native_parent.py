@@ -7,7 +7,7 @@ these records claim loaded-page identity, provider acceptance or comprehension.
 from __future__ import annotations
 
 import asyncio
-from contextlib import aclosing
+from contextlib import aclosing, closing
 import hashlib
 import inspect
 from pathlib import Path
@@ -120,11 +120,55 @@ class NativeParentBoundary:
         async with self.lock:
             return await _settled(asyncio.to_thread(callback))
 
+    @classmethod
+    def for_qualification_query(cls, session, binding):
+        from improvement_qualification_session import QualificationSession
+        if cls is not NativeParentBoundary or type(session) is not QualificationSession:
+            raise TypeError('concrete_qualification_session_required')
+        context = session._query_current(binding)
+        if context['boundary'] is not None: raise PermissionError('qualification_query_already_used')
+        self = cls.__new__(cls)
+        self._qualification, self._query_binding = session, binding
+        self.pin = _parse(_canonical(session._pin))
+        self.assets, self.principal = session.assets, session.principal
+        self.scope_hash = attempt_scope(kind='trial', brain_id=session.principal.brain_id,
+            receipt=context['receipt'], config_pin=self.pin, capability_hash=binding.authority_hash)
+        self.current, self.lock = None, None
+        self.decisions = NativeImageDecisionStore(self.assets)
+        self._verification_started = self._query_started = False
+        self._guardian = self._scratch = self._qualification_seed = None
+        self._qualification_packets, self._qualification_joined = {}, {}
+        self._qualification_complete = self._evidence_settled = False
+        self._owner_state = 'PREPARED'
+        self._close_lock = asyncio.Lock()
+        self._ack_witness = None
+        context['boundary'] = self
+        return self
+
+    def _assert_query_current(self, *, connection=None):
+        if hasattr(self, '_query_binding'):
+            return self._qualification._query_current(self._query_binding, connection=connection)
+        self._qualification._assert_native_current(connection=connection)
+
+    def _ack_accounting(self):
+        from improvement_telemetry import NativeUsageRecorder
+        context = self._assert_query_current()
+        recorder = context.get('recorder')
+        with closing(self.assets.store._conn()) as connection:
+            attempt = connection.execute('SELECT * FROM improvement_trial_attempts WHERE trial_id=? AND attempt=?',
+                (self._query_binding.subject_id, self._query_binding.attempt)).fetchone()
+            call = connection.execute('SELECT * FROM agent_calls WHERE id=?', (context['link']['call_id'],)).fetchone()
+            if (type(recorder) is not NativeUsageRecorder or attempt['status'] != 'running' or call['status'] != 'running'
+                    or call['engine_at'] is None or call['engine_at'] != attempt['engine_at']):
+                raise PermissionError('qualification_accounting_uncommitted')
+            self._assert_query_current(connection=connection)
+            return {'call_id': call['id'], 'engine_at': call['engine_at']}
+
     async def _current(self):
         def check():
             with self.assets.store._Tx(self.assets.store) as connection:
                 if self._qualification is not None:
-                    self._qualification._assert_native_current(connection=connection)
+                    self._assert_query_current(connection=connection)
                     return
                 if self.current(connection, None) != 'allow':
                     raise PermissionError('native_parent_authority_changed')
@@ -136,8 +180,9 @@ class NativeParentBoundary:
             def current(connection, value):
                 _dispatch(value, pin, environment, cwd, query_policy)
                 if self._qualification is not None:
-                    if value['purpose'] not in _PURPOSES[:2]: raise PermissionError('qualification_query_forbidden')
-                    self._qualification._assert_native_current(connection=connection)
+                    purposes = _PURPOSES if hasattr(self, '_query_binding') else _PURPOSES[:2]
+                    if value['purpose'] not in purposes: raise PermissionError('qualification_query_forbidden')
+                    self._assert_query_current(connection=connection)
                     return 'allow'
                 return self.current(connection, value)
             if self._qualification is not None:
@@ -173,6 +218,20 @@ class NativeParentBoundary:
                 or self._owner_state != 'ATTACHED' or self._qualification_seed is None):
             raise PermissionError('qualification_native_owner_foreign')
         session._assert_native_current()
+        if hasattr(self, '_query_binding'):
+            context = self._assert_query_current()
+            seed = self._qualification_seed
+            environment = validate_dummy_environment(seed['environment'])
+            scratch, home = Path(self._scratch.name), Path(environment['HOME'])
+            for path in (scratch, home): check_ancestry(path)
+            if (seed['kind'] != 'trial' or seed['request'] != self._query_start_request
+                    or seed['qualification'] != self._query_start_qualification
+                    or not scratch.is_dir() or not scratch.is_relative_to(session.root)
+                    or not home.is_dir() or home.parent != session.root / 'homes' or tuple(home.iterdir())
+                    or guardian._policy['scratch'] != str(scratch)
+                    or seed['request']['receipt'] != context['receipt']):
+                raise PermissionError('qualification_query_start_changed')
+            return _parse(_canonical(seed))
         seed = self._qualification_seed
         environment = validate_dummy_environment(seed['environment'])
         scratch, home = Path(self._scratch.name), Path(environment['HOME'])
@@ -387,3 +446,51 @@ class NativeParentBoundary:
             raise
         finally:
             self._scratch_close(scratch, error)
+
+    async def execute_qualification(self, binding, *, owner, principal, identifier, expected_generation,
+            lease_token, before_engine_start, on_closing_observations):
+        from dataclasses import asdict
+        from improvement_native_transport import execute_worker_qualification
+        from improvement_sandbox import trial_system_prompt
+        context = self._assert_query_current()
+        if (binding is not self._query_binding or owner is not context['owner'] or principal is not context['principal']
+                or identifier != context['identifier'] or expected_generation != context['expected_generation']
+                or lease_token != context['lease_token'] or self._query_started):
+            raise PermissionError('qualification_query_owner_changed')
+        self._query_started = True
+        session = self._qualification
+        self._scratch = tempfile.TemporaryDirectory(prefix='query-', dir=session.root)
+        self._scratch._finalizer.detach()
+        try:
+            launch = await _settled(asyncio.to_thread(session._query_launch, 'trial', self._scratch.name))
+            self._assert_query_current()
+            environment = session.environment(context['receipt']['path'])
+            receipt = context['receipt']
+            self._query_start_request = dict(version=1, config_pin=self.pin,
+                workspace_root=str(owner.workspace.root), receipt=receipt, capability_hash=binding.authority_hash)
+            self._query_start_qualification = dict(version=2, run_hash=session.run_hash, scope=session.scope(),
+                environment_hash=IM._hash(environment), attempt_link=context['link'],
+                preflight_hash=binding.preflight_hash, query_binding=asdict(binding))
+            self._qualification_seed = dict(kind='trial', request=self._query_start_request,
+                environment=environment, qualification=self._query_start_qualification)
+            query_policy = dict(version=2, **{key: self.pin[key] for key in ('cli_path', 'model', 'reasoning')},
+                prompt_hash=_sha(trial_system_prompt(context['manifest'])), cwd=receipt['path'],
+                tools=['mcp__fixture__fixture_read'], tool_policy='baseline_inline')
+            self._query_execution = dict(launch=launch, environment=environment,
+                deadline_at=min(context['request']['deadline_at'], session._scope['deadline_at']),
+                persist=self._persist(environment=environment, cwd=receipt['path'], scope_hash=self.scope_hash,
+                    query_policy=query_policy))
+            async with aclosing(execute_worker_qualification(self, before_engine_start=before_engine_start,
+                    on_closing_observations=on_closing_observations)) as packets:
+                async for packet in packets:
+                    self._retain_qualification_packets((packet,))
+                    yield packet
+            from improvement_qualification_results import _NativeCompletion
+            await self._close_qualification()
+            self._qualification_complete = True
+            context['completion'] = _NativeCompletion._from_boundary(self)
+        finally:
+            if self._guardian is not None and session._native_boundaries.get(self._guardian) is self:
+                await self._close_qualification()
+            elif self._scratch is not None:
+                self._scratch.cleanup()

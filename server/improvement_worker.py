@@ -350,7 +350,14 @@ async def run_request(payload, read_control, emit, *, adapter_factory=None, engi
         from improvement_native_worker import prepare_native_runtime
         verified, _ = await prepare_native_runtime(native_session, payload, kind='trial')
         read_control, emit = native_session.receive, native_session.send
-    if not verified.get("supported") or verified.get("capability_hash") != payload["capability_hash"]:
+    technical = native_session is not None and native_session._qualification
+    if technical:
+        if (manifest['version'] != 5 or verified.get('domain') != 'qualification'
+                or verified.get('technical_ready') is not True or verified.get('supported') is not False
+                or native_session._packet['qualification']['version'] != 2
+                or native_session._packet['qualification']['query_binding']['authority_hash'] != payload['capability_hash']):
+            raise ValueError('trial_qualification_binding_drift')
+    elif not verified.get("supported") or verified.get("capability_hash") != payload["capability_hash"]:
         raise ValueError("trial_capability_drift")
     identity = {"trial_id": receipt["trial_id"], "attempt": receipt["attempt"], "input_hash": receipt["input_hash"]}
     await emit({"type": "worker_ready", **identity, "capability_hash": payload["capability_hash"]})
@@ -377,7 +384,8 @@ async def run_request(payload, read_control, emit, *, adapter_factory=None, engi
     prompt = _json({"task": manifest["case"]["task"], "fixtures": [
         {"snapshot_id": item["snapshot_id"], "source": item["source"]} for item in manifest["case"]["fixtures"]]})
     if native_session is not None:
-        profile.bind_native_runtime(native_session.runtime, environment=native_session._packet['environment'], user_prompt=prompt)
+        if technical: profile.bind_qualification_runtime(native_session, user_prompt=prompt)
+        else: profile.bind_native_runtime(native_session.runtime, environment=native_session._packet['environment'], user_prompt=prompt)
     fixture_sequence = 0
     with (_sdk_hidden_processes() if native_session is None else nullcontext()):
         async for event in engine.query(prompt):

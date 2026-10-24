@@ -59,7 +59,46 @@ def validate_input_delivery(proof, *, kind, identity, data_hash, user_prompt):
 class NativeProfileBinding:
     """Fresh client factory; the enclosing worker still owns runtime cleanup."""
     def __init__(self, runtime, *, kind, identity, data_hash, user_prompt, environment, query_policy):
-        from improvement_native_sdk import NativeInvocationSet, _environment
+        from improvement_native_sdk import _environment
+        self._initialize(runtime, kind=kind, identity=identity, data_hash=data_hash, user_prompt=user_prompt,
+            environment=_environment(environment), query_policy=query_policy)
+
+    @classmethod
+    def from_qualification_worker(cls, owner, *, kind, identity, data_hash, user_prompt, query_policy):
+        from improvement_native_worker import NativeWorkerSessionV2
+        from improvement_qualification_protocol import validate_startup3, worker_binding3
+        from improvement_qualification_environment import validate_dummy_environment
+        import os
+        if (cls is not NativeProfileBinding or type(owner) is not NativeWorkerSessionV2
+                or not owner._qualification or kind != 'trial' or owner._namespace != kind
+                or not owner._adopted or owner._closing or owner._closed or owner._failed):
+            raise TypeError('active_qualification_worker_required')
+        packet = validate_startup3(owner._packet)
+        owner._same_loop()
+        environment = validate_dummy_environment(packet['environment'])
+        runtime = owner.runtime
+        if (packet['qualification']['version'] != 2 or owner._binding != worker_binding3(packet)
+                or getattr(runtime, '_qualification_owner', None) is not owner
+                or not owner._runtime_owns_images or dict(os.environ) != environment
+                or owner._private.closed or owner._private._binding != owner._binding
+                or identity != owner._binding['identity'] or data_hash != packet['request']['receipt']['input_hash']
+                or tuple(owner._channels) != ('adapter_version', 'auth_status', 'sdk_version', 'query')
+                or any(runtime._channels[name] is not channel or channel.closed for name, channel in owner._channels.items())):
+            raise ValueError('qualification_profile_owner_changed')
+        channels = (owner._private, *owner._channels.values())
+        if len(owner._records) != len(channels): raise ValueError('qualification_profile_owner_changed')
+        for record, channel in zip(owner._records, channels):
+            if (record['channel'] is not channel or record['socket'] is not channel._socket
+                    or record['state'] != 'channel_owned' or record['acquisition_unknown']
+                    or record['close_succeeded'] or record['close_authority_lost'] or record['socket'].fileno() < 0):
+                raise ValueError('qualification_profile_owner_changed')
+        self = cls.__new__(cls)
+        self._initialize(runtime, kind=kind, identity=identity, data_hash=data_hash, user_prompt=user_prompt,
+            environment=environment, query_policy=query_policy)
+        return self
+
+    def _initialize(self, runtime, *, kind, identity, data_hash, user_prompt, environment, query_policy):
+        from improvement_native_sdk import NativeInvocationSet
         if type(runtime) is not NativeInvocationSet: raise TypeError('concrete_native_runtime_required')
         if runtime.closed or runtime._closing or runtime._poisoned: raise ValueError('native_runtime_unavailable')
         if type(kind) is not str or kind not in ('trial', 'operation'): raise ValueError('invalid_native_profile')
@@ -67,7 +106,6 @@ class NativeProfileBinding:
         _fields(identity, self._identity)
         self._identity = _copy(self._identity)
         _digest(data_hash)
-        environment = _environment(environment)
         if environment != runtime._environment: raise ValueError('native_profile_environment_drift')
         policy = _copy(query_policy)
         _fields(policy, {'version', 'cli_path', 'model', 'reasoning', 'prompt_hash', 'cwd', 'tools', 'tool_policy'})

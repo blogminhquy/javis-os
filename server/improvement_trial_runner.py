@@ -180,9 +180,42 @@ class TrialRunner:
         self.context_loader, self.live_guard = context_loader, live_guard
         self.adapter_factory, self.recorder_factory = adapter_factory, recorder_factory
         self.checker_registry = dict(checker_registry or {})
+        self._qualification = None
+
+    @classmethod
+    def for_qualification(cls, session, admission):
+        from improvement_qualification_session import QualificationSession
+        if cls is not TrialRunner or type(session) is not QualificationSession:
+            raise TypeError('concrete_qualification_session_required')
+        session._assert_trial_owner(admission, session.principal)
+        session._require_preflight()
+        self = cls(admission.trials, context_loader=admission.host.context_loader, live_guard=admission.host.live_guard)
+        self._qualification = session
+        return self
+
+    async def run_qualification(self, principal, trial_id):
+        if self._qualification is None or principal is not self._qualification.principal:
+            raise PermissionError('qualification_runner_required')
+        self._qualification._require_preflight()
+        task = asyncio.current_task()
+        own = task not in self._qualification._host_operations
+        if own: self._qualification._host_operations[task] = (trial_id, 0)
+        try: return await self._run(principal, trial_id)
+        finally:
+            if own: self._qualification._host_operations.pop(task, None)
 
     async def _response(self, principal, identifier):
         current = await asyncio.to_thread(self.trials.get, principal, identifier)
+        if self._qualification is not None:
+            from improvement_qualification_results import QualificationQueryResults
+            context = self._qualification._pending_proofs.get((identifier, current['attempt']))
+            if context is not None:
+                context['publisher'] = asyncio.current_task()
+                return await _settled_call(QualificationQueryResults(self._qualification).publish, self.trials,
+                    principal, identifier, attempt=current['attempt'], evidence_hash=context['stage'].digest,
+                    cleanup_receipt=context['cleanup'])
+            return await _settled_call(QualificationQueryResults.read_stored, self.trials.assets, principal,
+                kind='trial', subject_id=identifier, attempt=current['attempt'], expected_run_hash=self._qualification.run_hash)
         result = None
         if current["status"] in TERMINAL:
             try:
@@ -192,6 +225,10 @@ class TrialRunner:
         return {**current, "result": result}
 
     async def run(self, principal, trial_id, *, on_claimed=None):
+        if self._qualification is not None: raise PermissionError('qualification_product_forbidden')
+        return await self._run(principal, trial_id, on_claimed=on_claimed)
+
+    async def _run(self, principal, trial_id, *, on_claimed=None):
         IM._brain(principal)
         if on_claimed is not None and not _synchronous(on_claimed):
             raise ValueError("synchronous_trial_claim_observer_required")
@@ -228,12 +265,21 @@ class TrialRunner:
             await reject_unclaimed("timeout" if initial["request"]["deadline_at"] <= time.time() else "authority_changed")
             return await self._response(principal, trial_id)
         lifetime = [None]
+        resource_key = (trial_id, claimed['attempt'])
+        if self._qualification is not None:
+            self._qualification._host_operations[asyncio.current_task()] = resource_key
+            if resource_key in self._qualification._attempt_resources:
+                raise PermissionError('qualification_lifetime_already_owned')
+            self._qualification._attempt_resources[resource_key] = dict(owner=self.trials, runner=self, lifetime=lifetime)
+        result = None
         try:
-            return await self._run_claimed(principal, trial_id, claimed, on_claimed, lifetime)
+            result = await self._run_claimed(principal, trial_id, claimed, on_claimed, lifetime)
         finally:
             async def cleanup():
                 if lifetime[0] is None:
                     await _settled_call(self.trials.cleanup_terminal, principal, trial_id)
+                    if self._qualification is not None:
+                        self._qualification._attempt_resources.pop(resource_key, None)
                     return
                 try:
                     await _settled_call(self.trials.workspace.cleanup, trial_id, claimed["attempt"])
@@ -241,11 +287,35 @@ class TrialRunner:
                     raise WorkspaceCleanupError() from None
                 finally:
                     await _settled_call(self.trials.workspace.release_execution, lifetime[0])
+                if self._qualification is not None:
+                    from improvement_qualification_results import _CleanupReceipt
+                    context = self._qualification._queries.get((trial_id, claimed['attempt']))
+                    if context is not None and context['boundary'] is not None and context['boundary']._owner_state == 'DETACHED':
+                        context['cleanup'] = await _settled_call(_CleanupReceipt._from_runner, self, context, lifetime[0])
+                    elif context is not None and context['boundary'] is not None:
+                        raise RuntimeError('qualification_native_owners_unsettled')
+                    elif not await _settled_call(self.trials.workspace.cleanup_proven, *resource_key,
+                            None if context is None else context['receipt']):
+                        raise RuntimeError('qualification_workspace_unsettled')
+                    if any(not handle.closed for handle in lifetime[0]):
+                        raise RuntimeError('qualification_lifetime_unsettled')
+                    self._qualification._attempt_resources.pop(resource_key, None)
             values, cancelled = await _drain(asyncio.gather(asyncio.create_task(cleanup()), return_exceptions=True))
             if isinstance(values[0], BaseException):
                 raise values[0]
             if cancelled is not None:
                 raise cancelled
+        if self._qualification is not None:
+            from improvement_qualification_results import QualificationQueryResults, _CleanupReceipt
+            context = self._qualification._queries.get((trial_id, claimed['attempt']))
+            if context is None or context['stage'] is None:
+                raise PermissionError('qualification_execution_incomplete')
+            cleanup = context['cleanup']
+            context['publisher'] = asyncio.current_task()
+            return await _settled_call(QualificationQueryResults(self._qualification).publish,
+                self.trials, principal, trial_id, attempt=claimed['attempt'], evidence_hash=result,
+                cleanup_receipt=cleanup)
+        return result
 
     async def _run_claimed(self, principal, trial_id, claimed, on_claimed, lifetime):
         if on_claimed is not None:
@@ -264,6 +334,7 @@ class TrialRunner:
         native_evidence, workspace_receipt = None, None
 
         def live_guard():
+            if self._qualification is not None: self._qualification._require_preflight()
             return self.live_guard(principal, IC._frozen(request))
 
         async def authority():
@@ -294,6 +365,8 @@ class TrialRunner:
                             candidate.close()
                         raise ValueError("trial_usage_recorder_unavailable")
                     recorder = candidate
+                    if self._qualification is not None:
+                        self._qualification._query_context(query_binding)['recorder'] = recorder
                 except Exception as error:
                     raise _RunFailure("telemetry_failed") from error
                 # The adapter releases its worker ACK only after this callback returns.
@@ -323,6 +396,7 @@ class TrialRunner:
                         raise _RunFailure("authority_changed") from error
 
         manifest = None
+        query_binding = None
 
         def native_current(connection, joined):
             row, attempt = self.trials._leased(connection, principal, trial_id, current['generation'], token, time.time())
@@ -346,7 +420,7 @@ class TrialRunner:
             await _settled_call(check)
 
         async def process():
-            nonlocal current, manifest, phase, evaluation, native_evidence, workspace_receipt
+            nonlocal current, manifest, phase, evaluation, native_evidence, workspace_receipt, query_binding
             def acquire():
                 lifetime[0] = self.trials.workspace.acquire_execution(current["brain_id"], trial_id, current["attempt"])
                 if lifetime[0] is None:
@@ -354,9 +428,17 @@ class TrialRunner:
             await _settled_call(acquire)
             await authority()
             phase = "unsupported_configuration"
-            adapter = self.adapter_factory(request["engine_config"], workspace_root=self.trials.workspace.root,
-                                           before_engine_start=before_start)
-            if type(adapter) is ClaudeTrialAdapter:
+            adapter = None
+            if self._qualification is not None:
+                self._qualification._require_preflight()
+                if request['engine_config'] != self._qualification._pin: raise _RunFailure('unsupported_configuration')
+                verified = None
+            else:
+                adapter = self.adapter_factory(request["engine_config"], workspace_root=self.trials.workspace.root,
+                                               before_engine_start=before_start)
+            if self._qualification is not None:
+                pass
+            elif type(adapter) is ClaudeTrialAdapter:
                 scope = IM._hash({'version': 1, 'kind': 'trial', 'brain_id': current['brain_id'],
                     'subject_id': trial_id, 'attempt': claimed['attempt'], 'request_hash': IM._hash(request),
                     'engine_config_hash': request['pins']['engine_config_hash']})
@@ -364,10 +446,10 @@ class TrialRunner:
                 verified = await adapter.verify_async()
             else:
                 verified = await _settled_call(adapter.verify)
-            if (not isinstance(verified, dict) or verified.get("supported") is not True
+            if self._qualification is None and (not isinstance(verified, dict) or verified.get("supported") is not True
                     or verified.get("account_ready") is False or verified.get("domain") == "qualification"):
                 raise _RunFailure("unsupported_configuration")
-            IC._digest(verified.get("capability_hash"))
+            if self._qualification is None: IC._digest(verified.get("capability_hash"))
             phase = "runner_failed"
             context = await asyncio.to_thread(self.context_loader, principal, IC._frozen(request))
             async with lock:
@@ -384,9 +466,14 @@ class TrialRunner:
                 current = await _settled_call(self.trials.prepared, principal, trial_id,
                     expected_generation=current["generation"], lease_token=token, receipt=workspace)
                 workspace_receipt = IC._frozen(workspace)
+                if self._qualification is not None:
+                    query_binding = await _settled_call(self._qualification._query_binding, self.trials, principal, trial_id,
+                        expected_generation=current['generation'], lease_token=token)
+                    from improvement_native_parent import NativeParentBoundary
+                    adapter = NativeParentBoundary.for_qualification_query(self._qualification, query_binding)
             native_request = {"version": 1, "trial_id": trial_id, "attempt": current["attempt"],
                 "deadline_at": request["deadline_at"], "engine_config_hash": request["pins"]["engine_config_hash"],
-                "capability_hash": verified["capability_hash"]}
+                "capability_hash": query_binding.authority_hash if query_binding is not None else verified["capability_hash"]}
             phase = "worker_failed"
             terminal = None
             if manifest['version'] in (4, 5):
@@ -394,7 +481,11 @@ class TrialRunner:
                     principal=principal, identifier=trial_id, attempt=claimed['attempt'], token=token,
                     lock=lock, authority=closing_authority, observe=observe)
             options = {} if native_evidence is None else {'on_closing_observations': native_evidence.closing}
-            async with aclosing(adapter.execute(native_request, workspace, **options)) as packets:
+            stream = (adapter.execute(native_request, workspace, **options) if self._qualification is None else
+                adapter.execute_qualification(query_binding, owner=self.trials, principal=principal, identifier=trial_id,
+                    expected_generation=current['generation'], lease_token=token, before_engine_start=before_start,
+                    on_closing_observations=native_evidence.closing))
+            async with aclosing(stream) as packets:
                 async for packet in packets:
                     if native_evidence is not None:
                         await native_evidence.accept(packet)
@@ -422,6 +513,17 @@ class TrialRunner:
                 raise _RunFailure("worker_failed")
             phase = "telemetry_failed"
             await _settled_call(recorder.finish, "failed" if terminal["is_error"] else "completed")
+            if self._qualification is not None:
+                from improvement_qualification_results import QualificationQueryResults
+                async with lock:
+                    await authority()
+                    context = self._qualification._query_context(query_binding)
+                    evaluation = asyncio.create_task(asyncio.to_thread(QualificationQueryResults(self._qualification).stage,
+                        self.trials, principal, trial_id, expected_generation=current['generation'], lease_token=token,
+                        binding=query_binding, native_completion=context['completion']))
+                    await asyncio.shield(evaluation)
+                    current = await _settled_call(self.trials.get, principal, trial_id)
+                return
             phase = "evaluation_failed"
             async with lock:
                 await authority()
@@ -491,4 +593,7 @@ class TrialRunner:
                 error = cancelled
             if isinstance(error, asyncio.CancelledError):
                 raise error
+        if self._qualification is not None:
+            if error is not None: raise _RunFailure(reason) from error
+            return evaluation.result()
         return await self._response(principal, trial_id)
