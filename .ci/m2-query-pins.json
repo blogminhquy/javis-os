@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "source_head": "8504deea72d9db4155a2d134a13c1dbf9e472df9",
+  "paths": {
+    "server/improvement_claude.py": {
+      "sha256": "d6fbdd6297efdb2a9811d9fb5588f6573e04b1445ddd6944ce0c6c59c48ae98c",
+      "size": 42755,
+      "git_blob": "eed134cc9f2b050542e8666be10dc3aa572ffae4"
+    },
+    "server/improvement_native_parent.py": {
+      "sha256": "715ba8ed701d20c81328d246a491304017dd74132791086c47a85a48cf3f2f1d",
+      "size": 31268,
+      "git_blob": "8651f244a82c372cd8ae6891ff56cad03e9e2e30"
+    },
+    "server/improvement_native_profile.py": {
+      "sha256": "f295ea7c1d5a4e345c9670a256b26e9f3398dec2fc8f8be182ac2c07159819af",
+      "size": 10832,
+      "git_blob": "395e276cdde6b3b48afe1e5b1e02f7993946a387"
+    },
+    "server/improvement_native_release.py": {
+      "sha256": "cdec514e2ae63f4e33ce63b56c1e525153cc2bacd88897a95605ac6f69f3593b",
+      "size": 18825,
+      "git_blob": "a199c32af7a1caae8003e1c3cc2538baec057c08"
+    },
+    "server/improvement_native_sdk.py": {
+      "sha256": "17c11bf72435386fbf76f37c07bd620edb88c96f2ca7c6b17a27fba81565835d",
+      "size": 32219,
+      "git_blob": "42c873ab3da286faf0226484bc2427c4fc52226a"
+    },
+    "server/improvement_native_transport.py": {
+      "sha256": "00e92cae23279bf1c82a19fd9d7c069b4cc79cc780b1c75c992fed6db3ad52e2",
+      "size": 71452,
+      "git_blob": "77dbb67580206ce66d19958172682d3326fc42d6"
+    },
+    "server/improvement_native_worker.py": {
+      "sha256": "b31cd4dcafe610edc1f904d7f9cb4d018f8060483ee56d1ad87d9d2186570b9a",
+      "size": 19264,
+      "git_blob": "7b593f18f02e3c0fc23eae7fac82687640c68f42"
+    },
+    "server/improvement_qualification_protocol.py": {
+      "sha256": "fd807d8e3c66cf0fbce2771dd76cfeb5b36d56acdd3f79a471041d3afa647e19",
+      "size": 11682,
+      "git_blob": "6f304fa379cdf66641b4943e7f2029fc504833dc"
+    },
+    "server/improvement_qualification_results.py": {
+      "sha256": "c42c53e2f42b7fd39d07faa892b240ba169e8e99624d866fee90df0f4ed16d0a",
+      "size": 34325,
+      "git_blob": "5ffc2ec75e1c55bc461c6c811a9767f594392bce"
+    },
+    "server/improvement_qualification_session.py": {
+      "sha256": "7fd6891d23aa8e5d88dca7d7e436c91d1b17928f2a9ade40ad408ccee264b24c",
+      "size": 33154,
+      "git_blob": "b7d2dc857eaac009ab757fbd73db9e9b7e4e668c"
+    },
+    "server/improvement_trial_admission.py": {
+      "sha256": "c10d47c68fee11dfae88974f8c1e37de395737ae90737f5af16f502feaba0bf5",
+      "size": 16881,
+      "git_blob": "159a3ea4778d023011a4bed2c1ae78838f276a74"
+    },
+    "server/improvement_trial_runner.py": {
+      "sha256": "4c2d099080d0b4f24c38bf232b783729b231d2bd74bd02d37bd532e230b6cdce",
+      "size": 34839,
+      "git_blob": "9a17050cb847f94d770d152c7cab4d49114a388d"
+    },
+    "server/improvement_trials.py": {
+      "sha256": "949744d831362532fa6100ae074eafde9fcaebaa73c5c6afa9414e9167eacf49",
+      "size": 43600,
+      "git_blob": "d43ed029bbbb733a5669e5a3acde4eb2de8f6293"
+    },
+    "server/improvement_worker.py": {
+      "sha256": "42fc4d4a452972d054af3032db222a6ae9955d6ac11773fb975b5a76ebea0b8e",
+      "size": 23747,
+      "git_blob": "aa07fa20969d3752e925ae09c82247ec32ac2f87"
+    },
+    "tests/python/test_improvement_native_release.py": {
+      "sha256": "9a9a3fddf1a466f4b4bc39050125a87e0b9579200580b42492156ff9f08c393a",
+      "size": 15701,
+      "git_blob": "359078a99a509d98d7da72dfabfea5432184e0a4"
+    },
+    "tests/python/test_improvement_qualification_query.py": {
+      "sha256": "4a72ce20fb2b3ad9123f66e7190380fb9e9c4fd6028ec3ac8863429a397c472a",
+      "size": 62061,
+      "git_blob": "d196f99c00665d7ee27cfcaa2ec8dba2aa9cfb65"
+    },
+    "tests/python/test_improvement_trial_runner.py": {
+      "sha256": "0e38c079f1dde4e58413dff192185209208fbc74b6bcdac04406c928b1994937",
+      "size": 24341,
+      "git_blob": "abf4c423a27afb08bde8550b76ec09cc9704a614"
+    }
+  },
+  "checks": [
+    [
+      "test_improvement_qualification_query.py",
+      "QualificationQueryBoundaryTests.test_actual_observed_closure_contains_result_consumer_without_registration",
+      "-v"
+    ],
+    [
+      "test_improvement_trial_runner.py",
+      "TrialRunnerTests.test_success_orders_marker_and_recorder_before_ack_and_cleanup_before_evaluation",
+      "TrialRunnerTests.test_repeated_terminal_run_returns_stored_result_without_another_adapter_or_call",
+      "TrialRunnerTests.test_real_usage_recorder_accepts_canonical_identity_and_preserves_unknown_telemetry",
+      "TrialRunnerTests.test_unsupported_adapter_refunds_before_any_query_or_recorder",
+      "TrialRunnerTests.test_cancellation_during_claim_refunds_the_committed_lease_without_an_adapter",
+      "TrialRunnerTests.test_cancellation_waits_for_inflight_start_and_closes_its_committed_call",
+      "TrialRunnerTests.test_append_failure_still_records_known_usage_and_never_requeries",
+      "TrialRunnerTests.test_invalid_recorder_cannot_release_worker_ack_after_the_marker",
+      "-v"
+    ]
+  ],
+  "scope": "Fix1 affected portable closure and eight ordinary runner controls; shared outer cleanup changed. Not full Linux suite or Windows/native qualification.",
+  "reasons": [
+    "Fix original strict RECORD ambient inventory error using actual source/declared dependency fixture.",
+    "Shared _run cleanup/finally changed; preserve ordinary accounting, cleanup ordering, cancellation, append recovery and no requery."
+  ]
+}
