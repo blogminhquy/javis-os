@@ -4,7 +4,12 @@ Root status: proposed prerequisite correction, no source implementation or
 technical qualification. The fresh E2 builder found that the earlier E1/E2
 designs did not actually specify a concrete retained authoring-source owner.
 This supplement supplies that contract and supersedes references to an already
-existing owner-DM authoring collector. A fresh same-builder check is pending.
+existing owner-DM authoring collector. The fresh E2 same-builder follow-up
+returned "nothing important left" for this prerequisite and API design after
+the supplement. The original question and dated follow-up remain preserved in
+the private builder report (SHA256
+`c3e786275c95c14062934520cdd7f4042111629e8f348964eeef7339f10887c2`).
+This assesses design readiness, not implementation or qualification.
 
 E1 must implement this same-Session fixed file-profile owner before its outcome
 producer or E2 consumes it. It uses real file/ACL/source observations and existing
