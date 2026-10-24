@@ -145,6 +145,18 @@
       if (sslRow) sslRow.style.display = "none";
       if (guide) guide.style.display = "none";
       setStatus("domainStatus", window.t("brand.no_domain"), false);
+      // 0.302.0: on a Hostinger VPS the server reads the free srv<id>.hstgr.cloud name from reverse DNS and offers the
+      // exact DOMAIN_NAME line. Without it, hPanel's Open button only reaches http://<ip>:7777 (owner report 24/10).
+      var sg = j && j.suggested_domain;
+      if (sg && guide) {
+        var line = "DOMAIN_NAME=" + sg;
+        var di = $("setDomain"); if (di && !di.value) di.placeholder = sg;
+        guide.innerHTML = '<div class="dom-step warn"><span class="dom-step-num">' + ic("lightbulb") + '</span><div><b>' +
+          window.t("brand.suggest_title") + '</b><p>' + window.t("brand.suggest_desc") + '</p><code>' + esc(line) +
+          '</code><br><button class="dom-copy" type="button" data-copy="' + esc(line) + '">' + window.t("brand.copy_env") +
+          '</button></div></div>';
+        guide.style.display = "block";
+      }
       return;
     }
     if (row) row.style.display = "flex";
@@ -254,7 +266,8 @@
       var b = j.branding || {};
       _logoCustom = !!b.logo_ext;
       setStatus("brandLogoStatus", _logoCustom ? window.t("brand.using_custom_image") : window.t("brand.using_default_image"), false);
-      if (dom) checkDomain(); else renderDomainStatus({ domain: "" });
+      // No domain: still ask the server once, it may offer this VPS's free Hostinger name (0.302.0).
+      if (dom) checkDomain(); else { renderDomainStatus({ domain: "" }); checkDomain(); }
     } catch (e) { /* im lặng */ }
   }
 

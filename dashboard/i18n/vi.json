@@ -5524,5 +5524,7 @@
   "studio.unsaved": "Có thay đổi chưa lưu",
   "studio.saving": "Đang lưu...",
   "studio.saved_ok": "Đã lưu",
-  "studio.save_hint": "Lưu (Ctrl+S)"
+  "studio.save_hint": "Lưu (Ctrl+S)",
+  "brand.suggest_title": "Link miễn phí của VPS Hostinger này",
+  "brand.suggest_desc": "Dán dòng này vào Environment trong Docker Manager rồi Redeploy để có HTTPS và nút Open đúng link."
 }

@@ -44,8 +44,8 @@ gw = doc["services"].get("gateway") or {}
 check("the Hostinger compose has a gateway service", bool(gw))
 check("host networking, never publishes ports (no clash with Traefik)", gw.get("network_mode") == "host" and "ports" not in gw)
 check("Caddy image", str(gw.get("image", "")).startswith("caddy:2"))
-check("only DOMAIN_NAME and JAVIS_HOST_PORT, both already in the form",
-      set((gw.get("environment") or {}).keys()) == {"DOMAIN_NAME", "JAVIS_HOST_PORT"})
+check("only DOMAIN_NAME, JAVIS_HOST_PORT, JAVIS_NAME, all already in the form",
+      set((gw.get("environment") or {}).keys()) == {"DOMAIN_NAME", "JAVIS_HOST_PORT", "JAVIS_NAME"})
 check("named after the instance like the other containers", gw.get("container_name") == "${JAVIS_NAME:-javis}-gateway")
 check("Traefik ignores it", "traefik.enable=false" in (gw.get("labels") or []))
 check("certificates kept in a volume across Redeploy",
@@ -59,7 +59,7 @@ script = gw["entrypoint"][2].replace("$$", "$")
 SH = shutil.which("sh")
 
 
-def run(env_domain, busy=False, port="7777"):
+def run(env_domain, busy=False, port="7777", host="vm", dns=None, name=None):
     d = Path(tempfile.mkdtemp(prefix="gw-"))
     (d / "bin").mkdir()
     (d / "config").mkdir()
@@ -70,7 +70,11 @@ def run(env_domain, busy=False, port="7777"):
     (d / "bin" / "nc").write_text("#!/bin/sh\nexit 1\n")
     (d / "bin" / "caddy").write_text(f"#!/bin/sh\necho CADDY \"$@\" > {d}/caddy.log\n")
     (d / "bin" / "sleep").write_text("#!/bin/sh\nexit 9\n")   # the idle loops end at once instead of waiting
-    for f in ("nc", "caddy", "sleep"):
+    # 0.302.0: the VPS hostname and DNS answers the gateway sees (uts: host + getent).
+    (d / "bin" / "hostname").write_text(f"#!/bin/sh\necho {host}\n")
+    lines = "".join(f'  {k}) echo "{v} {k}";;\n' for k, v in (dns or {}).items())
+    (d / "bin" / "getent").write_text(f'#!/bin/sh\ncase "$2" in\n{lines}  *) exit 2;;\nesac\n')
+    for f in ("nc", "caddy", "sleep", "hostname", "getent"):
         (d / "bin" / f).chmod(0o755)
     s = (script.replace("/proc/net/tcp6", str(d / "none")).replace("/proc/net/tcp", str(tcp))
          .replace("/config/Caddyfile", str(d / "config" / "Caddyfile")))
@@ -78,6 +82,8 @@ def run(env_domain, busy=False, port="7777"):
     env = dict(os.environ, PATH=f"{d}/bin:" + os.environ.get("PATH", ""), JAVIS_HOST_PORT=port)
     if env_domain is not None:
         env["DOMAIN_NAME"] = env_domain
+    if name is not None:
+        env["JAVIS_NAME"] = name
     p = subprocess.run([SH, "-c", s], env=env, capture_output=True, text=True, timeout=20)
     caddyfile = (d / "config" / "Caddyfile").read_text() if (d / "config" / "Caddyfile").exists() else ""
     caddy = (d / "caddy.log").read_text() if (d / "caddy.log").exists() else ""
@@ -97,6 +103,23 @@ if SH:
     check("ports free: Caddyfile for exactly DOMAIN_NAME to the instance's host port",
           cf.strip() == "javis.srv1.hstgr.cloud {\n\treverse_proxy 127.0.0.1:7778\n}", repr(cf))
     check("ports free: Caddy starts with that file", "run --config" in cd and "--adapter caddyfile" in cd, cd)
+    # 0.302.0: no DOMAIN_NAME on a Hostinger VPS -> the link of the VPS itself
+    out, cf, cd = run(None, host="srv1782015.hstgr.cloud",
+                      dns={"srv1782015.hstgr.cloud": "1.2.3.4", "javis.srv1782015.hstgr.cloud": "1.2.3.4"})
+    check("no DOMAIN_NAME, wildcard DNS: javis.<vps-hostname>",
+          cf.startswith("javis.srv1782015.hstgr.cloud {") and "run --config" in cd, (out, cf))
+    out, cf, cd = run("localhost", host="srv1782015.hstgr.cloud", dns={"srv1782015.hstgr.cloud": "1.2.3.4"})
+    check("no wildcard DNS: the VPS hostname itself for the default instance", cf.startswith("srv1782015.hstgr.cloud {"), (out, cf))
+    out, cf, cd = run(None, host="srv1782015", dns={"srv1782015.hstgr.cloud": "1.2.3.4", "javis.srv1782015.hstgr.cloud": "1.2.3.4"})
+    check("a short srv<id> hostname gets .hstgr.cloud", cf.startswith("javis.srv1782015.hstgr.cloud {"), (out, cf))
+    out, cf, cd = run(None, host="srv1782015.hstgr.cloud", dns={"srv1782015.hstgr.cloud": "1.2.3.4"}, name="javis-shop")
+    check("second instance without wildcard DNS: idle rather than steal the VPS name", not cd and not cf, (out, cf))
+    out, cf, cd = run(None, host="srv1782015.hstgr.cloud", busy=True,
+                      dns={"srv1782015.hstgr.cloud": "1.2.3.4", "javis.srv1782015.hstgr.cloud": "1.2.3.4"})
+    check("Traefik holding 80/443: idle even with a VPS name", not cd and "Traefik" in out, out)
+    out, cf, cd = run(None, host="my-laptop")
+    check("not a Hostinger hostname: idle", not cd and "DOMAIN_NAME chua dat" in out, out)
+    check("gateway shares the VPS hostname (uts: host)", gw.get("uts") == "host")
 else:
     print("skip script run (no sh)")
 

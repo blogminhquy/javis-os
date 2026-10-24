@@ -260,6 +260,9 @@ _AUTH_PUBLIC_PREFIX = ("/static", "/health", "/s/", "/hooks/")
 # /brand-logo: hiện trên màn đăng nhập (trước session). /tls-check: Caddy gọi (không đăng nhập được).
 _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth/setup",
                       "/brand-logo", "/brand-theme.css", "/tls-check",
+                      # /domain/auto, /domain/whoami (0.302.0): the login page opened by IP asks whether a
+                      # verified https link exists; neither reveals anything beyond that link and a random id.
+                      "/domain/auto", "/domain/whoami",
                       # /hub/mcp: Claude CLI/Codex gọi bằng Bearer hub_token riêng (không có cookie).
                       # /connect/oauth/callback: browser redirect từ provider OAuth về.
                       "/hub/mcp", "/connect/oauth/callback",

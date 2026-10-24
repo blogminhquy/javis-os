@@ -109,6 +109,14 @@ link riêng chạy HTTPS mà không cần mua tên miền. **Lưu ý (đã kiể
    `CLAUDE_CWD` đã được dọn khỏi form; Docker image vẫn tự dùng đúng giá trị mặc định.
 4. **Deploy** → đợi 1-3 phút Traefik cấp SSL → mở `https://<DOMAIN_NAME>`.
 
+> **Mở ra là có link VPS (từ 0.302.0):** trên VPS không có Traefik (Ubuntu 26 trắng), bỏ trống `DOMAIN_NAME` cũng
+> được. Gateway đọc tên VPS (`srvXXXX.hstgr.cloud`) và tự cấp HTTPS cho `javis.srvXXXX.hstgr.cloud` (hoặc chính
+> `srvXXXX.hstgr.cloud` nếu tên phụ chưa trỏ về máy). Bấm **Open** ra `http://<ip>:7777`, trang tự chuyển sang link
+> HTTPS đó ngay khi nó chạy và đúng là Javis này. Thêm `?stay=1` vào link IP nếu muốn ở lại. Ứng dụng cài từ Catalog
+> của Hostinger (vd `omniroute-xxxx.srv....hstgr.cloud`) được Hostinger báo sẵn tên VPS lúc cài; cài bằng
+> "Compose from URL" thì không, nên nút Open không tự ghi được link đó. Trên mẫu Ubuntu 24 có Traefik thì vẫn
+> phải đặt `DOMAIN_NAME` một lần: mở Javis bằng IP → **Cài đặt → Tên miền** có sẵn dòng để sao chép.
+>
 > **VPS Hostinger cài Ubuntu 26 (hoặc hệ điều hành trắng, không có Traefik) - từ 0.300.0:** vẫn dán ĐÚNG link trên,
 > không phải đổi gì. Compose có thêm container `javis-gateway` (Caddy): thấy cổng 80/443 trống là nó tự xin và tự gia
 > hạn SSL Let's Encrypt cho `DOMAIN_NAME`; máy có Traefik của Hostinger thì nó đứng yên nhường Traefik. Cần hai điều:
@@ -119,8 +127,12 @@ link riêng chạy HTTPS mà không cần mua tên miền. **Lưu ý (đã kiể
 > **Traefik không lo việc cập nhật.** Traefik (hay Caddy) chỉ lo HTTPS cho tên miền. Cập nhật là việc của container
 > `javis-watchtower` đi kèm, nên nút **⬆ Cập nhật ngay** trong app chạy như nhau trên Ubuntu 24 lẫn 26.
 
-> Thiếu `DOMAIN_NAME` thì vẫn deploy được (chạy tạm ở `:7777`, chưa có HTTPS). Không thấy ô Environment?
-> Bấm **Manage → sửa .yaml**, đổi thẳng dòng `Host(...)` thành `Host(\`javis.srv1782015.hstgr.cloud\`)`.
+> Thiếu `DOMAIN_NAME` thì vẫn deploy được (chạy tạm ở `:7777`, chưa có HTTPS), và từ 0.302.0 nút **Open** mở
+> `http://<ip-vps>:7777` chứ không ra `localhost` nữa (nút Open đi theo tên miền trong nhãn Traefik, bản cũ ghi
+> `localhost` ở đó). Không biết hostname VPS? Mở Javis bằng IP → **Cài đặt → Tên miền**: Javis tự dò và hiện sẵn
+> dòng `DOMAIN_NAME=javis.srvXXXX.hstgr.cloud` kèm nút sao chép. Không thấy ô Environment? Bấm **Manage → sửa .yaml**,
+> đổi hai dòng nhãn thành `- traefik.enable=true` và
+> `- traefik.http.routers.javis.rule=Host(\`javis.srv1782015.hstgr.cloud\`)`.
 > **Điểm mấu chốt:** nhãn Traefik gắn thẳng vào service, **KHÔNG khai báo
 > `networks:` / `external: traefik-proxy`** (chỗ này trước đây làm deploy báo "network not found").
 > **Đừng ghép thêm `docker-compose.https.yml` trên Hostinger**: nó publish cổng 80/443, đụng Traefik của họ. Compose

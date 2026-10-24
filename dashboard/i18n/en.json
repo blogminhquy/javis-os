@@ -5524,5 +5524,7 @@
   "studio.unsaved": "Unsaved changes",
   "studio.saving": "Saving...",
   "studio.saved_ok": "Saved",
-  "studio.save_hint": "Save (Ctrl+S)"
+  "studio.save_hint": "Save (Ctrl+S)",
+  "brand.suggest_title": "This Hostinger VPS's free link",
+  "brand.suggest_desc": "Paste this line into Environment in Docker Manager, then Redeploy, for HTTPS and the right Open link."
 }

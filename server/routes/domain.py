@@ -79,6 +79,81 @@ def _detect_public_ip():
     return ip
 
 
+def _instance_label() -> str:
+    """The sub-name this instance uses under the VPS hostname: JAVIS_NAME, "javis" when unset."""
+    return re.sub(r"[^a-z0-9-]+", "-", (os.getenv("JAVIS_NAME", "") or "javis").strip().lower()).strip("-") or "javis"
+
+
+def pick_hostinger_name(base: str, label: str, resolve) -> str:
+    """Which name under the Hostinger VPS hostname `base` (srv123.hstgr.cloud) reaches this VPS.
+
+    `label.base` when it resolves to the same address as `base` (the wildcard DNS of the Docker template), else the bare
+    `base` for the default instance (a plain OS image may have no wildcard), else "". Same rule as the gateway script in
+    docker-compose.hostinger.yml, so the name Javis checks is the name Caddy got a certificate for.
+    """
+    if not base:
+        return ""
+    cand = f"{label}.{base}"
+
+    def ip(name):
+        try:
+            return resolve(name) or ""
+        except Exception:
+            return ""
+
+    b, c = ip(base), ip(cand)
+    if c and c == b:
+        return cand if _DOMAIN_RE.match(cand) else ""
+    if b and label == "javis":
+        return base
+    if not b and not c:
+        return cand if _DOMAIN_RE.match(cand) else ""   # no DNS answer at all: offer the usual form
+    return ""
+
+
+def hostinger_suggestion(ip, ptr_lookup=None, resolve=None) -> str:
+    """The free Hostinger name for this VPS, ready for DOMAIN_NAME: "javis.srv123456.hstgr.cloud", or "".
+
+    0.302.0 (owner 24/10/2026: Open in hPanel led to localhost). Hostinger does not tell a pasted compose its VPS
+    hostname (TRAEFIK_HOST and HOSTNAME are not set for Compose-from-URL), so the owner had to dig the
+    srv<id>.hstgr.cloud name out of hPanel. Hostinger's reverse DNS of the VPS IP carries that name, so Javis can
+    offer the exact line to paste. Only a name under .hstgr.cloud is offered; any other reverse name says nothing
+    about a domain that will reach this VPS.
+    """
+    if not ip:
+        return ""
+    try:
+        if ptr_lookup is None:
+            import socket as _sock
+            ptr_lookup = lambda x: _sock.gethostbyaddr(x)[0]   # noqa: E731
+        ptr = str(ptr_lookup(ip) or "").strip().lower().rstrip(".")
+    except Exception:
+        return ""
+    if not ptr.endswith(".hstgr.cloud"):
+        return ""
+    if resolve is None:
+        import socket as _sock
+        resolve = _sock.gethostbyname
+    return pick_hostinger_name(ptr, _instance_label(), resolve)
+
+
+# 0.302.0: who answers on a candidate link. A random id per server process; /domain/auto only sends the browser to an
+# https link that answers with THIS id, so it never moves anyone to another site or another Javis on the same VPS.
+_WHOAMI = __import__("secrets").token_hex(12)
+_AUTO = {"url": "", "ts": 0.0}
+AUTO_TTL_OK, AUTO_TTL_MISS = 300.0, 90.0
+
+
+async def _answers_as_me(url: str) -> bool:
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5, follow_redirects=False, trust_env=False) as c:
+            r = await c.get(url.rstrip("/") + "/domain/whoami")
+        return r.status_code == 200 and (r.json() or {}).get("id") == _WHOAMI
+    except Exception:
+        return False
+
+
 def _req_is_secure(request: Request) -> bool:
     """Request hiện tại có phải HTTPS không (tôn trọng proxy qua X-Forwarded-Proto)."""
     xf = (request.headers.get("x-forwarded-proto", "") or "").split(",")[0].strip().lower()
@@ -200,6 +275,35 @@ def _make_router() -> APIRouter:
             return JSONResponse({"ok": True})
         return JSONResponse({"ok": False}, status_code=403)
 
+    @router.get("/domain/whoami")
+    async def domain_whoami():
+        """Public: lets /domain/auto tell this Javis apart from anything else answering on a candidate link."""
+        return JSONResponse({"id": _WHOAMI})
+
+    @router.get("/domain/auto")
+    async def domain_auto(request: Request):
+        """Public: the https link a browser that opened Javis by IP should move to, or "" (0.302.0).
+
+        Owner 24/10/2026: "khi cài nó tự cài 1 đường dẫn của vps hostinger sẵn để khách hàng mở luôn". hPanel's Open
+        reaches http://<ip>:7777; the page asks here and moves to https://javis.srv<id>.hstgr.cloud (served by the
+        gateway, or by Traefik with DOMAIN_NAME) once that link answers as THIS Javis over a valid certificate.
+        Hostinger stack only, cached a few minutes.
+        """
+        import time as _t
+        if _domain_deploy_target(request) != "hostinger":
+            return {"url": ""}
+        now = _t.time()
+        ttl = AUTO_TTL_OK if _AUTO["url"] else AUTO_TTL_MISS
+        if _AUTO["ts"] and now - _AUTO["ts"] < ttl:
+            return {"url": _AUTO["url"]}
+        import asyncio as _aio
+        route = _norm_domain(os.getenv("DOMAIN_NAME", ""))
+        name = route if route and route != "localhost" else await _aio.to_thread(
+            lambda: hostinger_suggestion(_detect_public_ip()))
+        url = f"https://{name}" if name and await _answers_as_me(f"https://{name}") else ""
+        _AUTO.update(url=url, ts=now)
+        return {"url": url}
+
     @router.post("/domain")
     async def domain_set(domain: str = Form("")):
         d = _norm_domain(domain)
@@ -241,7 +345,12 @@ def _make_router() -> APIRouter:
             else:
                 ssl_active, ssl_reason, ssl_code = await _probe_https(custom, hostinger=target == "hostinger")
         route_domain = _norm_domain(os.getenv("DOMAIN_NAME", ""))
-        return {"domain": custom, "server_ip": server_ip, "dns_ip": dns_ip,
+        # No domain yet: offer the free Hostinger name for this VPS (reverse DNS can take a moment, so off the loop).
+        suggested = ""
+        if not custom and route_domain in ("", "localhost"):
+            import asyncio as _aio
+            suggested = await _aio.to_thread(hostinger_suggestion, server_ip)
+        return {"domain": custom, "server_ip": server_ip, "dns_ip": dns_ip, "suggested_domain": suggested,
                 "dns_ok": dns_ok, "on_domain": on_domain, "secure_now": secure_now,
                 "deploy_mode": _DEPS.deploy_mode(), "ssl_enabled": ssl_enabled,
                 "ssl_active": ssl_active, "ssl_reason": ssl_reason, "ssl_code": ssl_code,

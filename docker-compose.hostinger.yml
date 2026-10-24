@@ -3,7 +3,7 @@
 # hoặc qua Caddy đi kèm (service gateway) khi VPS không có Traefik (mẫu Ubuntu 26 trắng).
 #
 # File này LUÔN deploy được:
-#   - Chưa đặt DOMAIN_NAME  -> chạy tạm, vào bằng nút Open / http://<ip>:7777 (chưa có HTTPS).
+#   - Chưa đặt DOMAIN_NAME  -> chạy tạm, nút Open mở http://<ip>:7777 (chưa có HTTPS).
 #   - Đặt DOMAIN_NAME       -> Traefik của Hostinger tự cấp HTTPS cho tên miền đó.
 #
 # CÁCH DÙNG:
@@ -21,8 +21,10 @@
 #        - Hoặc tên miền riêng:  DOMAIN_NAME=tenmien.com  (trỏ DNS A về IP VPS trước).
 #   3) Deploy > đợi 1-3 phút Traefik (hoặc gateway) cấp SSL > mở  https://<DOMAIN_NAME>.
 #
-# KHÔNG tìm thấy ô Environment? Bấm Manage > sửa .yaml, đổi thẳng dòng Host(...) thành tên miền:
-#      Host(`javis.srv1782015.hstgr.cloud`)   (thay bằng hostname VPS của bạn).
+# KHÔNG tìm thấy ô Environment? Bấm Manage > sửa .yaml, đổi hai dòng nhãn traefik.enable và ...rule thành:
+#      - traefik.enable=true
+#      - traefik.http.routers.javis.rule=Host(`javis.srv1782015.hstgr.cloud`)   (thay bằng hostname VPS của bạn).
+# Không biết hostname VPS? Mở Javis bằng http://<ip>:7777 > Cài đặt > Tên miền: Javis hiện sẵn dòng DOMAIN_NAME=...
 #
 # GHI CHÚ:
 #   - Mấu chốt: KHÔNG khai báo networks - Traefik của Hostinger tự thấy container qua nhãn.
@@ -71,9 +73,13 @@ services:
       # Router/service mang TÊN CỦA BẢN (JAVIS_NAME) chứ không đóng cứng "javis": Traefik đặt tên
       # router theo phạm vi toàn máy, hai bản cùng tên router là bản sau đè bản trước và một
       # trong hai tên miền chết. Bỏ trống JAVIS_NAME thì vẫn ra "javis" y như trước.
-      # Host = ${DOMAIN_NAME}; chưa đặt thì mặc định "localhost" (deploy vẫn chạy, chỉ chưa có domain/HTTPS).
-      - traefik.enable=true
-      - traefik.http.routers.${JAVIS_NAME:-javis}.rule=Host(`${DOMAIN_NAME:-localhost}`)
+      # Host = ${DOMAIN_NAME}. 0.302.0: CHƯA đặt DOMAIN_NAME thì hai nhãn dưới RỖNG thay vì Host(`localhost`).
+      # Nút Open của hPanel mở đúng tên miền trong nhãn Host(...) cụ thể; bản cũ để "localhost" nên bấm Open là ra
+      # localhost trên máy người bấm (chủ repo báo 24/10/2026). Không có Host cụ thể thì hPanel rơi về cổng đã publish,
+      # tức http://<ip-vps>:7777. Nhãn traefik.enable rỗng làm Traefik bỏ qua container, nên cũng không còn route nào
+      # cho "localhost". Cú pháp ":+" của compose: chỉ ra chữ khi DOMAIN_NAME có giá trị.
+      - traefik.enable=${DOMAIN_NAME:+true}
+      - traefik.http.routers.${JAVIS_NAME:-javis}.rule=${DOMAIN_NAME:+Host(`}${DOMAIN_NAME:-}${DOMAIN_NAME:+`)}
       - traefik.http.routers.${JAVIS_NAME:-javis}.entrypoints=websecure
       - traefik.http.routers.${JAVIS_NAME:-javis}.tls.certresolver=letsencrypt
       - traefik.http.routers.${JAVIS_NAME:-javis}.service=${JAVIS_NAME:-javis}
@@ -159,9 +165,13 @@ services:
     container_name: ${JAVIS_NAME:-javis}-gateway
     restart: unless-stopped
     network_mode: host
+    # 0.302.0: the VPS's own hostname (srv<id>.hstgr.cloud) is visible here, so with DOMAIN_NAME empty the gateway
+    # still gets a link: javis.srv<id>.hstgr.cloud. Hostinger never tells a pasted compose that name at install time.
+    uts: host
     environment:
       DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
       JAVIS_HOST_PORT: ${JAVIS_HOST_PORT:-7777}
+      JAVIS_NAME: ${JAVIS_NAME:-javis}
     entrypoint:
       - /bin/sh
       - -c
@@ -169,6 +179,27 @@ services:
         D="$${DOMAIN_NAME:-localhost}"
         P="$${JAVIS_HOST_PORT:-7777}"
         nghi() { while :; do sleep 3600; done; }
+        # Chua dat DOMAIN_NAME: lay ten VPS Hostinger (srv<so>.hstgr.cloud) lam link. Uu tien <ten-ban>.<may> khi ten do
+        # tro cung IP voi may (wildcard DNS), khong thi dung chinh ten may cho ban mac dinh. Cung luat voi
+        # routes/domain.py pick_hostinger_name, de link Javis kiem tra la link Caddy da xin chung chi.
+        if [ "$$D" = "localhost" ] || [ -z "$$D" ]; then
+          M="$$(hostname -f 2>/dev/null || hostname)"
+          case "$$M" in
+            *.hstgr.cloud) ;;
+            srv[0-9]*) case "$$M" in *.*) M="";; *) M="$$M.hstgr.cloud";; esac;;
+            *) M="";;
+          esac
+          N="$$(echo "$${JAVIS_NAME:-javis}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-\n' '-')"
+          ipof() { getent hosts "$$1" 2>/dev/null | awk '{print $$1; exit}'; }
+          if [ -n "$$M" ]; then
+            B="$$(ipof "$$M")"; C="$$(ipof "$$N.$$M")"
+            if [ -n "$$C" ] && [ "$$C" = "$$B" ]; then D="$$N.$$M"
+            elif [ -n "$$B" ] && [ "$$N" = "javis" ]; then D="$$M"
+            elif [ -z "$$B" ] && [ -z "$$C" ]; then D="$$N.$$M"
+            fi
+            [ "$$D" != "localhost" ] && [ -n "$$D" ] && echo "[gateway] Chua dat DOMAIN_NAME: dung link cua VPS $$D"
+          fi
+        fi
         case "$$D" in
           ""|localhost|*[!A-Za-z0-9.-]*|*.) echo "[gateway] DOMAIN_NAME chua dat: khong cap HTTPS, vao bang http://<ip>:$$P"; nghi;;
         esac
