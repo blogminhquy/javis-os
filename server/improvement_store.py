@@ -17,7 +17,7 @@ from pathlib import Path
 
 from improvement_blobs import AssetUnavailable, MAX_ASSET_BYTES, RevisionBlobs  # noqa: F401
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 _SOURCE = re.compile(r"(?:skills/[a-z0-9][a-z0-9_-]*/SKILL\.md|agents/[a-z0-9][a-z0-9_-]*\.md)")
 _SCHEMA = (
     "CREATE TABLE improvement_schema(id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL)",
@@ -91,7 +91,7 @@ def _schema_version(store) -> int:
         if not row:
             return 0
         version = connection.execute("SELECT version FROM improvement_schema WHERE id=1").fetchone()
-        if not version or version["version"] not in (1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION):
+        if not version or version["version"] not in (1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION):
             raise SchemaError("unsupported_improvement_schema")
         return version["version"]
 
@@ -123,21 +123,32 @@ def read_existing(path: Path, blobs: RevisionBlobs, *, qualification_anchor=None
 
 def ensure(store) -> None:
     installed = _schema_version(store)
+    from improvement_compose_schema import assert_historical, assert_installed as assert_compose, migrate, migration_transaction
+    from improvement_recipe_schema import _assert_absent, assert_installed as assert_recipes, migrate as migrate_recipes
     if installed == SCHEMA_VERSION:
+        with closing(store._conn()) as connection:
+            assert_compose(connection)
+            assert_recipes(connection)
         return
-    from improvement_compose_schema import assert_historical, migrate, migration_transaction
     with migration_transaction(store) as connection:
         exists = connection.execute("SELECT name FROM sqlite_master WHERE name='improvement_schema'").fetchone()
         installed = connection.execute("SELECT version FROM improvement_schema WHERE id=1").fetchone() if exists else None
-        if exists and (not installed or installed["version"] not in (1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION)):
+        if exists and (not installed or installed["version"] not in (1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION)):
             raise SchemaError("unsupported_improvement_schema")
         if installed and installed["version"] == SCHEMA_VERSION:
+            assert_compose(connection)
+            assert_recipes(connection)
             return
+        _assert_absent(connection)
+        if installed and installed["version"] == 8:
+            assert_compose(connection)
         if installed and installed["version"] == 7:
             # Unknown same-number drafts must refuse before even the backup.
             assert_historical(connection)
         # Serialize the backup with the migration; two first writers otherwise race on its .tmp file.
-        if exists:
+        if installed and installed["version"] == 8:
+            store._backup_before("improvement_recipes", ".pre-improvement-m2-recipes.bak")
+        elif exists:
             store._backup_before("improvement_compositions", ".pre-improvement-m2-compose.bak")
             if installed["version"] < 5:
                 store._backup_before("improvement_experiments", ".pre-improvement-m2-experiments.bak")
@@ -181,7 +192,9 @@ def ensure(store) -> None:
             for statement in SCHEMA:
                 connection.execute(statement)
             _immutable_triggers(connection, IMMUTABLE)
-        migrate(connection)
+        if not installed or installed["version"] < 8:
+            migrate(connection)
+        migrate_recipes(connection)
         if exists:
             connection.execute("UPDATE improvement_schema SET version=? WHERE id=1", (SCHEMA_VERSION,))
         else:
