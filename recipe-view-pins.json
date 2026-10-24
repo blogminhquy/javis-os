@@ -1,0 +1,18 @@
+{
+  "task_head": "bc1a3a68dcc520e7937fa72362545bcad3f3283d",
+  "sha256": {
+    "server/improvement_recipe_view_schema.py": "fb07bb2c4404f5ca1a0ecf16003bc19b39f8d62347e6b94160af03589f219577",
+    "tests/python/test_improvement_recipe_view_schema.py": "688d11ba933f0fafcf44c1a3154d2d88b9566e8283bf30d50b342985eab383ba",
+    "server/improvement_recipe_schema.py": "464965eb793f53c6e9280d899f4d0b78845b1fd57a7694ee09531e109c44cf9a",
+    "server/improvement_store.py": "ed06b6cda45b6f20e3151a393926eec584c8cab6e04bba0dc5d2ce0ec316ec09",
+    "server/improvement_operation_schema.py": "5717016aa264ce7ff83233b1d7a0baab5a4724e2df844ee517f167d289e40b8d",
+    "server/improvement_compose_permissions.py": "f05a1da293d1a85b52b20195748a29893abe4d6dd5cd3998f0ee0465b1d379af",
+    "server/improvement_recipe_records.py": "db3f0fdfe15d60762976a73700eddfcb6085d1e08a1939099dca237e4e9970c5",
+    "server/improvement_recipe_archive.py": "43fcbea905cc85ebf6ab5d0580f9d680c00bb19bf012d9eed82b3580659232c4",
+    "server/improvement_claude.py": "c17aff532e8647d6b39a2288d198b231e8615076ac771147da939a39508567ad",
+    "tests/python/test_improvement_recipe_archive.py": "8aeac7ef3fed7c676401fdaf49c93c0eb3f6947f9de7f834fa25861913a5603b",
+    "tests/python/test_improvement_recipe_records.py": "66424f1c3ad93bcc4b202d8cdc5a8fceb2508a15f7a5aa08aa13971034c1687f",
+    "tests/python/test_improvement_recipe_schema.py": "98c5c4c8e933092ccab7d7df1b752107d67b973777e88739fa1db8a71d1a17a5",
+    "tests/python/test_improvement_compose_schema.py": "db589698e1a9e7d7013e480e8520e464ce668051a34256f61f57c27da510ac85"
+  }
+}

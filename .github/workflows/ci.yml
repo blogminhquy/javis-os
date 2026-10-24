@@ -1,166 +1,48 @@
-name: CI
-
+name: Recipe view archive early Linux engineering check
 on:
-  push:
-    # `claude/**` là các nhánh phiên Claude Code làm việc trên repo này. Chúng luôn đẩy commit
-    # lên TRƯỚC rồi mới mở PR, mà lúc đó chưa có PR nên `pull_request` không bắt được, và mở
-    # PR sau đó có lúc GitHub không sinh run cho commit đã nằm sẵn ở nhánh. Kết quả: nhiều lần
-    # phải vào tab Actions bấm chạy tay, dễ sót. Nghe `push` trên đúng tiền tố này thì commit
-    # vừa lên là CI chạy ngay.
-    # Nhánh có PR mở sẽ chạy hai lần (một do push, một do pull_request). Chấp nhận: repo public
-    # nên Actions không tính phút, và hai run xanh đọc rõ hơn là một run bị huỷ giữa chừng.
-    branches: [ main, 'claude/**' ]
-  # BẮT BUỘC giữ: PR từ fork KHÔNG sinh sự kiện `push` ở repo này, chỉ `pull_request` mới bắt
-  # được. Repo đang có hơn 100 fork nên bỏ dòng này là đóng CI với mọi đóng góp bên ngoài.
-  pull_request:
-  # Chạy tay từ tab Actions. Vẫn giữ làm lối thoát cho nhánh không mang tiền tố `claude/`, và
-  # cho việc chạy lại một commit cũ mà không phải đẩy thêm commit rác.
   workflow_dispatch:
-
 jobs:
-  test:
+  recipe-views:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # test_resonance_a1_rollback chạy MÃ 0.86.1 THẬT trên kho đã nâng lên A1 (review PR #590). Checkout mặc định
-      # chỉ có một commit, nên lấy riêng commit phát hành đó; thiếu nó thì test đỏ trên CI chứ không tự bỏ qua.
-      - name: Lấy commit 0.86.1 cho test quay về
-        run: git fetch --no-tags --depth=1 origin 09f254d0e4d009451dc58cb2e97788631c5acc1a
-
-      # test_resonance_a2_rollback chạy MÃ 0.87.0 (A1) THẬT trên kho đã nâng lên A2: commit squash của PR #590 trên main.
-      - name: Lấy commit 0.87.0 cho test quay về A2
-        run: git fetch --no-tags --depth=1 origin fdfec7c5c84c2663276d088194844e058d9a22aa
-
-      # test_resonance_a3_rollback chạy MÃ 0.88.1 (A2) THẬT trên kho đã nâng lên A3 (`83bff6bc`, PR #596 trên main).
-      - name: Lấy commit 0.88.1 cho test quay về A3
-        run: git fetch --no-tags --depth=1 origin 83bff6bcf5927c4f6ba83bff576a674f2269c0e5
-
-      # test_resonance_a4_rollback chạy MÃ 0.95.1 THẬT (bản cuối trước A4, `adb103ed`, PR #614 trên main): lập kho cũ,
-      # nâng lên A4, rồi khôi phục snapshot.
-      - name: Lấy commit 0.95.1 cho test quay về A4
-        run: git fetch --no-tags --depth=1 origin adb103ed7f1c61eb21127afd1ba746ee130c6439
-
-      # test_resonance_a5_rollback chạy MÃ 0.108.0 THẬT (bản cuối trước A5, `c4fb614d`, PR #625 trên main): lập kho cũ,
-      # nâng lên A5, rồi khôi phục snapshot.
-      - name: Lấy commit 0.108.0 cho test quay về A5
-        run: git fetch --no-tags --depth=1 origin c4fb614d30b63e592e66a8f943cf2749bb33a412
-
-      # test_team_rollback chạy MÃ 0.139.0 THẬT (bản phát hành cuối trước nhóm chat team, `be1f8aa2` trên main): lập kho
-      # Kanban và kho phiên cũ, nâng lên 0.140.0, rồi khôi phục snapshot.
-      - name: Lấy commit 0.139.0 cho test quay về nhóm chat team
-        run: git fetch --no-tags --depth=1 origin be1f8aa215395471c4640e5e8e109d44e02dc190
-
-      # test_team_adaptive_restore chạy MÃ 0.151.0 THẬT (bản cuối trước chuỗi team-adaptive, `1d1b52fa` trên main): lập ba
-      # kho cũ, nâng lên T2, rồi khôi phục snapshot `.pre-0.154.0`.
-      - name: Lấy commit 0.151.0 cho test khôi phục team-adaptive
-        run: git fetch --no-tags --depth=1 origin 1d1b52faed35a79aa5597f1fbde85b63da2bc3ea
-
-      - name: Fetch 0.292.0 for the improvement schema4 reader check
-        run: git fetch --no-tags --depth=1 origin cbef2f464932e533825512e8e11c2299e6b3bf4f
-
-      - name: Fetch 0.293.0 for the improvement schema5 reader check
-        run: git fetch --no-tags --depth=1 origin 47f50f707268681dd4cbe8c7e443945155376237
-
-      - name: Fetch 0.296.0 for the improvement schema6 reader check
-        run: git fetch --no-tags --depth=1 origin 2727edcc5cdfab6f2dcf2e2871164f22f2771f92
-
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-
-      - name: Cài dependencies
+          python-version: '3.12'
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+      - name: Verify exact frozen task sources
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # pytest KHÔNG phải dependency của app nên không nằm trong requirements.txt.
-          # Nhóm test Adaptive Runtime viết theo kiểu pytest (fixture tmp_path/monkeypatch);
-          # thiếu pytest thì block __main__ của chúng tự bỏ qua và cả trăm test "xanh" mà
-          # chưa chạy assertion nào.
-          pip install pytest
-
-      - name: Byte-compile toàn bộ server + plugin
-        run: python -m compileall -q server system/plugins
-
-      # Byte-compile KHÔNG chạy code nên không thấy vòng import bị gãy. Server có 3 vòng
-      # đang được phá bằng import trong hàm (config<->secrets_store, oauth_mcp<->mcp_store,
-      # claude_cli<->claude_sdk_engine) cộng 8 module nữa dựa vào mẹo đó. Nâng nhầm một
-      # import lên đầu file là app chết lúc khởi động chứ không phải lúc build, mà CI cũ
-      # vẫn xanh rồi tự deploy lên VPS. Bước này đóng đúng khe hở đó.
-      - name: Import thật main (bắt vòng import mà byte-compile bỏ lọt)
+          python - <<'PY'
+          import hashlib, json, pathlib
+          document = json.loads(pathlib.Path('recipe-view-pins.json').read_text())
+          for name, expected in document['sha256'].items():
+              actual = hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()
+              print(name, actual, flush=True)
+              assert actual == expected, name
+          PY
+      - name: Run actual focused modules serially with isolated runner
         env:
           PYTHONIOENCODING: utf-8
+          JAVIS_NO_REAL_JUDGE_ENGINE: '1'
+          JAVIS_NO_REAL_REVIEW_ENGINE: '1'
+          JAVIS_NO_REAL_TEAM_ENGINE: '1'
         run: |
-          cd server
-          python -c "import main; print(f'ok, nap duoc main voi {len(main.app.routes)} muc route')"
-
-      # Trước 0.9.242 chỉ 4 trong 11 test JS được liệt tay ở đây, 7 cái còn lại chưa từng
-      # chạy lần nào. Nay quét cả thư mục nên thêm test mới là tự chạy.
-      # Vòng lặp này in tên file TRƯỚC khi chạy, nên khi một test đỏ thì tên nó nằm lẫn
-      # giữa hàng nghìn dòng ở GIỮA log, còn phần đuôi (thứ duy nhất đọc được khi log bị
-      # cắt) lại là test cuối cùng - luôn xanh. Vụ 03/09: một test chập chờn làm đỏ CI, và
-      # không cách nào biết là test nào nếu không tải nguyên log về. Gom tên lại rồi in ở
-      # CUỐI, và đẩy luôn lên phần tóm tắt của GitHub để thấy ngay trên trang Actions.
-      - name: Chạy test JS dashboard
-        run: |
-          status=0
-          dsdo=""
-          for f in tests/js/test_*.js tests/js/test_*.mjs; do
-            echo "==== $(basename "$f") ===="
-            node "$f" || { status=1; dsdo="$dsdo $(basename "$f")"; }
-          done
-          if [ -n "$dsdo" ]; then
-            echo ""
-            echo "======================================================"
-            echo "ĐỎ (test JS):$dsdo"
-            echo "======================================================"
-            { echo "### Test JS đỏ"; for t in $dsdo; do echo "- \`$t\`"; done; } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit $status
-
-      # KHÔNG còn `cd server`: từ 0.9.242 test tự nạp đường dẫn qua tests/python/_paths.py
-      # nên chạy được từ bất kỳ thư mục làm việc nào. Trước đây chạy sai chỗ là hàng loạt
-      # test đỏ vì `import main` không thấy module, hoặc lặng lẽ đọc nhầm file.
-      - name: Chạy test Python (auth/secret/MCP-perm/traversal/CSRF + plugin)
-        env:
-          PYTHONIOENCODING: utf-8
-        run: |
-          status=0
-          dsdo=""
-          for f in tests/python/test_*.py; do
-            echo "==== $(basename "$f") ===="
-            python "$f" || { status=1; dsdo="$dsdo $(basename "$f")"; }
-          done
-          if [ -n "$dsdo" ]; then
-            echo ""
-            echo "======================================================"
-            echo "ĐỎ (test Python):$dsdo"
-            echo "======================================================"
-            { echo "### Test Python đỏ"; for t in $dsdo; do echo "- \`$t\`"; done; } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit $status
-
-  # Ảnh Docker nặng thêm bao nhiêu vì thư viện trình duyệt? Build THẬT rồi đọc số, không đoán.
-  # KHÔNG đẩy lên registry: workflow phát hành gắn tag `:latest` mà VPS người dùng kéo đúng tag
-  # đó, nên một bản build từ nhánh chưa kiểm tuyệt đối không được chạm vào nó.
-  do-anh:
-    name: Đo kích thước ảnh Docker
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build ảnh (không đẩy) và đọc kích thước từng lớp
-        run: |
-          docker build -t javis-do:pr . 2>&1 | tail -5
-          tong=$(docker image inspect javis-do:pr --format '{{.Size}}')
-          lop=$(docker history javis-do:pr --no-trunc --format '{{.Size}}|{{.CreatedBy}}' \
-                 | grep -i "playwright.*install-deps" | head -1 | cut -d'|' -f1)
-          mb() { awk -v b="$1" 'BEGIN{printf "%.0f MB", b/1024/1024}'; }
-          echo "Tổng ảnh: $(mb "$tong")"
-          echo "Lớp thư viện trình duyệt: ${lop:-（không tìm thấy lớp）}"
-          {
-            echo "### Kích thước ảnh Docker"
-            echo "- Tổng: **$(mb "$tong")**"
-            echo "- Riêng thư viện trình duyệt: **${lop:-không đo được}**"
-            echo ""
-            echo "Trình duyệt KHÔNG nằm trong ảnh - tải bằng nút trong trang Công cụ."
-          } >> "$GITHUB_STEP_SUMMARY"
+          python -B - <<'PY'
+          import importlib.util, os, pathlib, sys, time
+          spec = importlib.util.spec_from_file_location('javis_focused_runner', 'tests/run.py')
+          runner = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(runner)
+          for name in ('test_improvement_recipe_view_schema.py', 'test_improvement_recipe_schema.py', 'test_improvement_recipe_archive.py', 'test_improvement_recipe_records.py', 'test_improvement_compose_schema.py'):
+              started = time.monotonic()
+              result = runner.chay_mot([sys.executable, '-B', str(pathlib.Path('tests/python') / name)], dict(os.environ))
+              print('MODULE', name, 'SECONDS', round(time.monotonic() - started, 3), 'EXIT', result.returncode, flush=True)
+              print(result.stdout, end='', flush=True)
+              print(result.stderr, end='', flush=True)
+              if result.returncode:
+                  raise SystemExit(result.returncode)
+          if runner._SOT:
+              raise SystemExit('temporary process directories remain: ' + repr(runner._SOT))
+          PY
