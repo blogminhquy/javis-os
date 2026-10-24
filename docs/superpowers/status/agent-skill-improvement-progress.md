@@ -1,5 +1,42 @@
 # Agent and skill improvement Goal progress
 
+## Owned compose controls and cold history — scoped backend approved
+
+Backend67dfb662 connects the existing concrete ComposerService/shared execution/
+tasks to explicit owner preview/authorize/run/revoke. Preview exposes current
+references only. Grant generation and saved experiment generation remain distinct;
+budget3 is not consent. Scope/current/product/native guards and separate checks
+for new bytes remain mandatory; old public/event history stays exact.
+
+Stop resolves authorization-scoped compose ownership and drains it; close rolls
+back late consent even after insertion during final source revalidation. Actual
+readonly metadata and saved completed/start/current-consent HTTP replay precede
+service construction. Active same-event HTTP retries join the existing owner to
+the final result; orphaned starts never redispatch. Known revocation authenticates
+readonly scope before using the existing same-store writer, works off/stopped and
+never constructs host/native. That ordinary writer may initialize its existing
+base GoalStore schema; no universal migration-free write claim is made.
+
+Windows86PASS/13modules (24focused+62impact), early isolated Linux67PASS/9scripts
+40066405520/job120790490552/exact9rawpins, snapshot51cdc17d0e6903de9b787d311417fb7ed6e832c6.
+Fresh independent static scope review raised P2T1-R1 actual HTTP join, reproduced
+RED29.934s; focused fix/API5GREEN96.240s plus main4GREEN9.204s. Narrow re-review
+ADDRESSED/no new findings/9stablev2pins; reviewer executed no tests. Root validated
+terminal logs/pins/CI. Existing Starlette/httpx deprecation warnings remain in main
+test logs; corrected fixture ResourceWarnings are excluded from final evidence.
+Public2026-10-24-compose-owner-controls.json SHA
+de6eda2890334dcaeb7df9d17379cbd1bccaa41c84ad4a978e44251c3836809a (UTF8/LF).
+
+All positive native predicates/SDK packets are synthetic storage controls, not
+actual CLI/SDKClient/account/model/business evidence. PROFILE95 raw
+4042a5083575db4354008675a333b4bdc5fa6022571c6f31334f80f1d7457831 remains
+UNQUALIFIED; registries closed, actual309 proof test untouched. Next Task2 adds
+bounded cold disposition metadata and reachable preview/consent/run/revoke panel;
+publication-only /compositions does not imply every failed attempt published.
+Then actual upstream library; same-pipeline dummy/native qualification, fully
+qualified final execution, final task-head full CI/review, remaining M0–M8 code
+and all Phase2 business/model/pilot/canary/authorized rollout stay open. Goal active.
+
 ## Reserved compose arm — scoped component approved
 
 Explicit new candidate_policy reserves three hypotheses before observations;

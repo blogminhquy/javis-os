@@ -52,13 +52,13 @@
 - compose-revoke: authorization_id/expected_generation/event_key; here expected_generation is the consent grant's own generation. Reuse existing metadata-only revoke after off/stopped state; never revive a grant.
 - Cold per-experiment consent/composition metadata and a separate immutable-policy projection. Keep ExperimentRecords._public and historical event shapes unchanged rather than adding fields that would break old replay/creation proof equality.
 
-- [ ] Write real owner/service/ASGI failing tests for each closed shape, exact path/brain scope, source drift, off/old-schema cold reads, zero-probe false capability, and actual compose publication through the facade. Use only narrowly labelled fake native boundaries; keep current/product/readers real.
-- [ ] Observe meaningful RED before implementation, saving source/test hashes and distinguishing fixture errors from missing behavior.
-- [ ] Add the composer to ExperimentService construction and all relevant role workflow ownership/drain/close paths, with actual stopped completed/start history replay. Keep _snapshot's finite six-role bound; no second tasks object or executor.
-- [ ] Register only closed route names. Reuse existing owner-session dispatch, body limits, redaction, event conflict handling and current experiment authorization scope.
-- [ ] Implement cold metadata through the actual scoped store without a service factory or migration. A cold-only facade must refuse authorize/current/build/compose, rather than gaining authority from a missing attribute or caller-supplied flag.
-- [ ] Verify same-event joins, different-event one-compose limit, cancellation of slow work, late grant/source/domain changes, cold completed replay and interrupted-start no-redispatch. Keep default unqualified native paths closed.
-- [ ] Run scoped affected lifetime/recovery/API regression, independent review and evidence; commit the functioning controls. No API integration claim from grammar alone.
+- [x] Write real owner/service/ASGI failing tests for each closed shape, exact path/brain scope, source drift, off/old-schema cold reads, zero-probe false capability, and actual compose publication through the facade. Use only narrowly labelled fake native boundaries; keep current/product/readers real.
+- [x] Observe meaningful RED before implementation, saving source/test hashes and distinguishing fixture errors from missing behavior.
+- [x] Add the composer to ExperimentService construction and all relevant role workflow ownership/drain/close paths, with actual stopped completed/start history replay. Keep _snapshot's finite six-role bound; no second tasks object or executor.
+- [x] Register only closed route names. Reuse existing owner-session dispatch, body limits, redaction, event conflict handling and current experiment authorization scope.
+- [x] Implement cold metadata through the actual scoped store without a service factory or migration. A cold-only facade must refuse authorize/current/build/compose, rather than gaining authority from a missing attribute or caller-supplied flag.
+- [x] Verify same-event joins, different-event one-compose limit, cancellation of slow work, late grant/source/domain changes, cold completed replay and interrupted-start no-redispatch. Keep default unqualified native paths closed.
+- [x] Run scoped affected lifetime/recovery/API regression, independent review and evidence; commit the functioning controls. No API integration claim from grammar alone.
 
 ### Task 2: Existing operator panel uses the real controls
 
@@ -66,6 +66,7 @@
 
 **Produces:** A reachable owner flow in Cải tiến có kiểm chứng using actual server state, with explicit consent/run/revoke and durable recorded outcomes.
 
+- [ ] Before UI code, add a narrowly scoped cold `GET /improvement-experiments/{id}/compose-outcomes` projection if needed for exact disposition reload. Existing `/compositions` intentionally contains publications only; an invalid-output or native-incomplete result has no publication row. Reuse authenticated existing compose_generate/start, authorization and Operation history, bounded to the existing one-compose scope. Return recorded disposition/role status and references only, with authority not_checked/business_proof false. No new store, executor, schema, service factory, decryption, source probe or inferred readiness; old-schema known experiments return empty metadata, foreign scope refuses. Pin actual readonly ASGI cases with raising factories/decrypt callbacks before adding the reader, preserve existing routes, then review this narrow backend delta with the UI.
 - [ ] Pin interaction tests that exercise the real controller contract: no POST on open, no implied consent, no autorun, closed event keys on retry, no duplicate click intent, brain/tab switch cancellation and no stale private content.
 - [ ] Expose the new experiment budget choice only before experiment creation. Reopened old two-slot experiments retain their immutable policy; existing typed3 drafts remain labelled unevaluated in that experiment.
 - [ ] Show authorized current input refs and one-compose scope before consent. Show consent generation/status and a separate explicit run action. Disable or explain unavailable capability from actual current gate state; do not infer readiness from an installed CLI or the existence of a button.
@@ -81,3 +82,15 @@ Pinned Harness² remains1cfe254e8d25b15f37048c3730134686abe60335. prompts.compos
 ## Open gates after this plan
 
 The scoped runtime/ASGI/browser fixtures do not establish same-pipeline native qualification, actual model/account execution, fully qualified selected-final execution, business pilot, canary or activation. Those and the remaining M0–M8 work stay open. Save the exact final task-head full required CI and fresh whole-branch review for integration; early isolated Linux snapshots are supporting checks only.
+
+## Implementation ruling before Task2
+
+Task1 froze the actual publication-only composition reader and passed scoped review;
+its immutable proof remains valid. Task2 may extend only the existing cold metadata
+reader/API with the recorded-outcome projection described above, because reload
+must distinguish invalid_output/native_incomplete from an interrupted or still
+recorded operation without issuing POST on open. Do not alter Task1 history/event
+shapes or rerun its unchanged broad suite. The new reader and affected transport
+need their own meaningful RED/GREEN, focused actual ASGI regression and scoped
+independent review. This is a bounded operator-history requirement, not another
+compose attempt or new authority.

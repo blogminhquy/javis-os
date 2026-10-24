@@ -1,5 +1,22 @@
 # M0–M8: code and technical verification before real trials
 
+Latest backend67dfb662 scoped approved: explicit owner compose preview/consent/
+run/revoke, actual shared execution/tasks, authorization-scoped stop/drain and
+late final-source consent rollback. Readonly history and saved completed/start/
+current-consent HTTP replay precede service; live same-event retries join final
+owner outcome. Old history exact; off/stopped revocation uses the existing writer
+after readonly scope and may warm its base GoalStore (no blanket migration-free
+write claim). Windows86PASS/13modules, early isolated Linux67PASS/9scripts,
+40066405520/exact9pins. Fresh independent static review P2HTTPjoin reproduced and
+closed in focused fix re-review; no reviewer execution. Root reconciled all
+terminal evidence; publiccompose-owner-controls SHA
+de6eda2890334dcaeb7df9d17379cbd1bccaa41c84ad4a978e44251c3836809a.
+PROFILE95raw4042a5083575db4354008675a333b4bdc5fa6022571c6f31334f80f1d7457831
+is UNQUALIFIED/registries closed/actual309 proof intact. Next Task2 cold recorded
+outcomes and actual operator panel, then actual upstream library. Full Goal,
+qualified final/native/same-pipeline dummy/final task-head full CI/Phase2 stay open.
+No real account/model query, activation, deploy/restart or measured value claim.
+
 Latest checked-arm component scoped approved: explicit immutable reserve3 policy,
 actual typed3/current exact-diff/fresh semantic/dependency/native views and actual
 Trial/Call PREPARED→abort/refund/cleanup; old two-slot history exact. Independent
