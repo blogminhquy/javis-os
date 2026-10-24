@@ -368,6 +368,11 @@ def _brain(tmp_path, monkeypatch, verify_answers, status="active", step_extra=""
                 if a == "__ERROR__":
                     yield {"type": "error", "content": "engine chết"}
                     return
+                if a.startswith("__ERROR_AFTER__"):
+                    # Engine streams a readable answer, then reports an execution error.
+                    yield {"type": "final", "content": a[len("__ERROR_AFTER__"):]}
+                    yield {"type": "error", "content": "engine chết"}
+                    return
                 yield {"type": "final", "content": a}
                 return
             yield {"type": "final", "content": f"KQ({len(calls)})"}
@@ -395,6 +400,11 @@ def test_verdict_parsing_is_fail_closed():
     assert main._workflow_verdict('{"pass": true, "reason": "ok"}')[0] is True
     assert main._workflow_verdict('{"pass": "false"}')[0] is False
     assert main._workflow_verdict("", "engine chết")[0] is False
+    # An execution error wins over any readable verdict that came with it.
+    assert main._workflow_verdict('{"pass": true, "reason": "ok"}', "engine chết")[0] is False
+    assert main._workflow_verdict("CỔNG NỘI DUNG: ĐẠT", "engine chết")[0] is False
+    assert main._workflow_verdict("PASS", "engine chết")[0] is False
+    assert main._workflow_verdict('{"pass": true', "engine chết")[0] is False
     assert main._workflow_verdict("Tôi thấy bài ổn.")[0] is False
     assert main._workflow_verdict("CỔNG NỘI DUNG: CHƯA ĐẠT - thiếu giá")[0] is False
     assert main._workflow_verdict("CỔNG NỘI DUNG: ĐẠT")[0] is True
@@ -417,6 +427,43 @@ def test_verify_engine_error_is_not_a_pass(tmp_path, monkeypatch):
     assert "done" not in [e["type"] for e in events]
     results = [e for e in events if e["type"] == "step_verify_result"]
     assert results and all(r["passed"] is False for r in results)
+
+
+@pytest.mark.parametrize("answer", ['__ERROR_AFTER__{"pass": true, "reason": "ok"}',
+                                    "__ERROR_AFTER__ĐẠT"])
+def test_verify_pass_with_engine_error_is_not_a_pass_legacy(tmp_path, monkeypatch, answer):
+    main, calls, _ = _brain(tmp_path, monkeypatch, [answer, answer])
+    events = _drain(main._execute_workflow_raw("brain", "demo", input="S07"))
+    assert "done" not in [e["type"] for e in events]
+    results = [e for e in events if e["type"] == "step_verify_result"]
+    assert results and all(r["passed"] is False for r in results)
+    assert not any(p.startswith("Đăng") for p in calls), "bước sau không được chạy"
+
+
+@pytest.mark.parametrize("answer", ['__ERROR_AFTER__{"pass": true, "reason": "ok"}',
+                                    "__ERROR_AFTER__ĐẠT"])
+def test_verify_pass_with_engine_error_is_not_a_pass_graph(tmp_path, monkeypatch, answer):
+    from types import SimpleNamespace
+    main, calls, engines = _brain(tmp_path, monkeypatch, [answer, answer])
+    node = SimpleNamespace(id="n1", kind="model_step", agent="writer", verify_agent="checker",
+                           max_retries=1, metadata={"legacy_index": 0})
+    events = []
+
+    async def sink(ev):
+        events.append(ev)
+
+    def mk(sysprompt, model=None, provider="", extra_tools=()):
+        return main.claude_engine()
+
+    async def go():
+        return await main._run_workflow_step(
+            node, "viết bài", mk, lambda slug: (slug, "thân", "claude-sonnet-4", "anthropic-cli"),
+            sink, session_id="s1")
+    res = asyncio.run(go())
+    assert res["verified"] is False and res["error"] and not res["output"]
+    results = [e for e in events if e["type"] == "step_verify_result"]
+    assert results and all(r["passed"] is False for r in results)
+    assert [e for e in events if e["type"] == "step_error"]
 
 
 def test_verify_pass_runs_on(tmp_path, monkeypatch):
