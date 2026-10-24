@@ -80,6 +80,17 @@ Further owned Library/native/downstream consumers và orchestration comparison
 
 ## Source, bằng chứng và các gate chưa đạt
 
+- [Product capability exclusion](../../superpowers/evidence/2026-10-24-m2-qualification-capability-exclusion.json):
+  source `d0d5b27c` chỉ thêm2điều kiện từ chối vào4boundary hiện có và test thật;
+  cleanRED12marker failures, Windows13PASS/Linux13PASS,0skip.
+  Early Linux [40083817343](https://github.com/blogminhquy/javis-os/actions/runs/40083817343)
+  exact5pins, scoped specPASS/qualityApproved0Critical/0Important/1MinorM1.
+  ProofSHA `ac258798bd7cf5221bbf9c80fbd0d218cea3e3225120c0ef811122562d2d23b7`.
+  M1: slow-task noise17Windows09/14Linux, thêm1ở Windows operation selector;
+  count trong report đã sửa đúng bằng chứng, không rerun/suppress. Giữ Minor
+  để finalwholebranch triage. Root kiểm87artifacts/committedbytes/current0owned;
+  slotreleased, chỉ CIreff611065a push, taskremote vẫn4ba9624a.
+  Đây là negative-control gate, không cấp native/account readiness hay chốt M2.
 - [Source observer proof](../../superpowers/evidence/2026-10-24-recipe-source-observer.json):
   source `269d3892`, review snapshot `429d9334`; Windows42pass+1skip và
   early Linux [40081705134](https://github.com/blogminhquy/javis-os/actions/runs/40081705134)
@@ -111,6 +122,8 @@ Further owned Library/native/downstream consumers và orchestration comparison
   recipe-archive-authority Task2 `T2-R1` asyncio timing diagnostics. Không suppress
   toàn cục. Future-schema-controls Task1 `T1-R1`: hashes ghi sau GREEN, không có
   timestamp freeze trước chạy; giữ limitation cho final whole-branch review.
+  P0capability-exclusion Task1 `M1`: async fixture slow-task noise, count report
+  đã sửa bằng raw logs; chưa thay fixture để xử lý timing, không suppress.
   Hai future9 fixtures đã sửa tại `21a5c0b1` theo current+1, giữ nguyên asserts;
   actual2GREEN/scoped qualityApproved. [Proof](../../superpowers/evidence/2026-10-24-m2-future-schema-controls.json)
   SHA `74a92878248c7a22f3d49e13b06a7c57c88f88688406daf1760a5d02569cf6fa`.
@@ -127,11 +140,16 @@ gates; không giả subscription auth để chạy. Actual current source/CLI lo
 dummy pipeline vẫn là kỹ thuật bắt buộc nếu khả thi; account/model thật bị loại
 khỏi Goal mới. Nếu dummy runtime thật đòi account inference thì ghi blocker thật.
 
-Next design ở ignored `.superpowers/m2-engineering-handoff/qualification-next-design.md`:
-P0 thêm false-readiness/domain fences tại4product boundaries; P1 nối actual
-Session→parent→Guardian→startup3→worker/SDK technical preflight và proven drain.
-Đây mới là thiết kế, chưa code/proof. P1 không query/model và không cấp capability;
-full current-input dummy-query/accounting/typed publisher/cold cleanup vẫn mở.
+P0false-readiness/domain fences tại4product boundaries đã có gate ở trên.
+P1 nối actual Session→parent→Guardian→startup3→worker/SDK technical preflight và
+proven drain: [design](../../superpowers/specs/2026-10-24-m2-owned-technical-preflight-design.md)
+commitb32ce5db và [plan](../../superpowers/plans/2026-10-24-m2-owned-technical-preflight.md)
+commit519b366b, fresh Astra/high builder không còn câu hỏi quan trọng. Brief và
+preflight scan đã chuẩn bị; P1 chưa triển khai/qualify tại checkpoint này.
+P1 không query/model và không cấp capability; full current-input dummy-query/
+accounting/typed publisher/cold cleanup vẫn mở. Bounded static source map D2/E/
+existing query joins ở ignored `.superpowers/m2-engineering-handoff/m2-closeout-source-map.md`,
+không là proof hay kế hoạch thay thế; dùng để không tìm lại phần đã đối chiếu.
 
 ## Google Harness² reuse đã có — giữ provenance/license
 

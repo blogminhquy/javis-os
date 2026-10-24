@@ -60,6 +60,29 @@
     "proof_sha256": "74a92878248c7a22f3d49e13b06a7c57c88f88688406daf1760a5d02569cf6fa",
     "serial_slot": "released"
   },
+  "M2_qualification_product_exclusion": {
+    "commit": "d0d5b27c143e5efcc1c89378c76914834d228094",
+    "paths": 5,
+    "clean_RED_marker_failures": 12,
+    "windows_passed": 13,
+    "linux_run": 40083817343,
+    "linux_passed": 13,
+    "skipped": 0,
+    "scoped_review": "spec_compliant_quality_approved_0critical_0important_1minor",
+    "minor_M1": "async fixture slow-task noise retained for final review; report count corrected only",
+    "proof": "docs/superpowers/evidence/2026-10-24-m2-qualification-capability-exclusion.json",
+    "proof_sha256": "ac258798bd7cf5221bbf9c80fbd0d218cea3e3225120c0ef811122562d2d23b7",
+    "serial_slot": "released",
+    "is_native_or_M2_completion": false
+  },
+  "next_engineering_step": {
+    "kind": "Session_owned_startup3_preflight_only",
+    "design_commit": "b32ce5db62d4eaad6501ef6c884b8abb93dce545",
+    "plan_commit": "519b366bcac68a6d6ec2371c913f2cf6d7ca215d",
+    "builder_check": "nothing_important_left",
+    "state": "brief_and_preflight_prepared_not_yet_dispatched",
+    "later_query_accounting_publisher_cold_result": "OPEN"
+  },
   "final_source_head": null,
   "final_ci": null,
   "final_review": null,

@@ -12,13 +12,38 @@ See [Goal18](../AGENT-SKILL-IMPROVEMENT-GOAL.md#18-chủ-thu-hẹp-goal-tới-m2
 and [initial handoff](../../handoffs/claude-opus-5-5/HANDOFF.md).
 
 M0/M1 and M2A–C are reused; D1/D2/E/F remain open pending actual impact
-assessment. Current six-path recipe-source Task1 is being safely stabilized and
+assessment. Six-path recipe-source Task1 was safely closed and
 preserved with scoped evidence, not treated as M2 completion. Undispatched
 destination schema11/permission/retrieval and further Library/orchestration
 expansion move to Claude backlog unless a concrete M2 consistency prerequisite
 is established. Existing forward compose/Library/archive code/evidence remains.
 Initial handoff snapshot is explicitly provisional; final M2 gate/cleanup/CI/
 review/PR/version state must be updated before Goal completion.
+
+## M2 capability exclusion — scoped gate closed, owned preflight next
+
+Source d0d5b27c adds only exact false-account/domain qualification rejection at
+4consumed product checks, preserves old type/isinstance/hash/authority/settlement.
+Real-boundary new8methods/24fixtureexercises: cleanRED12intended failures;
+finalWindows13PASS/0skip and earlyLinux40083817343/job120842572439 exact5pins
+13PASS/0skip. Scoped fresh6.1/high specPASS/qualityApproved0Critical/0Important/
+1MinorM1. Proof2026-10-24-m2-qualification-capability-exclusion.json
+SHAac258798bd7cf5221bbf9c80fbd0d218cea3e3225120c0ef811122562d2d23b7.
+Root independently checked87raw artifacts/committed LF pins/zeroownedprocesses.
+Initial fixture failures and superseded freeze retained; new-test cleanup repair
+refrozen before09, unchanged-source existing selectors retained with exactpins.
+M1: async fixture slow-task noise17Windows09/14Linux;1existingWindowsoperation
+selector diagnostic. Report-only counting correction complete, no raw/source/
+test/rerun/suppression change; finalwholebranch musttriage residual timing noise.
+Slotreleased, native99UNQUALIFIED/mapsclosed, taskremote4ba9624a unchanged;
+only ownedCIreff611065a pushed. Not fullfinalCI/native/account/M2 acceptance.
+
+Next actual Session-owned startup3 preflight designb32ce5db/plan519b366b has
+fresh Astra/high builder nothingimportantleft; officialbrief/preflight prepared.
+P1 notyetimplemented/qualified. Query/accounting/typedpublisher/coldcleanup then
+D2/E/F/finalCI/review/integration/handoff remainOPEN. Owner delegated pilot
+choice: reconciliation primary/document processing secondary/Pythonbugfix-tests
+technicalcontrol, selectiononly; no livepilot underGoal18.
 
 ## Preserved recipe-source unit — scoped engineering closed under new scope
 
