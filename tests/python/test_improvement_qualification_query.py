@@ -549,6 +549,105 @@ class QualificationQueryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(boundary._owner_state,'DETACHED')
         self.assertFalse(self.session._attempt_resources or self.session._owners)
 
+    async def test_same_trial_losing_claim_cannot_clean_active_preparation(self):
+        from improvement_trial_runner import TrialRunner
+        await self.session.verify_native()
+        admitted=await asyncio.to_thread(self.admission.admit_qualification,self.session,self.session.principal,self.public)
+        trials=self.admission.trials;workspace=trials.workspace
+        prepare,cleanup,release,claim=workspace.prepare,workspace.cleanup,workspace.release_execution,trials.claim
+        started,proceed=threading.Event(),threading.Event()
+        cleanup_calls=[];release_calls=[];claims=[];receipts=[]
+        def held_prepare(*args):
+            receipt=prepare(*args);receipts.append(receipt);started.set();proceed.wait(90);return receipt
+        def forbidden_cleanup(*args):
+            cleanup_calls.append(args);raise OSError('RED guard preserves active prepared workspace')
+        def forbidden_release(handles):
+            release_calls.append(handles);raise OSError('RED guard preserves original active lifetime')
+        def losing_claim(*args,**kwargs):
+            try:return claim(*args,**kwargs)
+            except IM.ConflictError as error:claims.append(str(error));raise
+        first=TrialRunner.for_qualification(self.session,self.admission)
+        second=TrialRunner.for_qualification(self.session,self.admission)
+        with patch.object(workspace,'prepare',held_prepare):
+            task=asyncio.create_task(first.run_qualification(self.session.principal,admitted.trial_id))
+            try:
+                await self.wait_event(started)
+                key=(admitted.trial_id,1);resource=self.session._attempt_resources[key]
+                handles=resource['lifetime'][0];path=Path(receipts[0]['path'])
+                self.assertNotIn(key,self.session._queries)
+                with patch.object(workspace,'cleanup',forbidden_cleanup),patch.object(workspace,'release_execution',forbidden_release), \
+                        patch.object(trials,'claim',losing_claim):
+                    with self.assertRaises(Exception):await second.run_qualification(self.session.principal,admitted.trial_id)
+                print('FIX2_LOSING_CLAIM',json.dumps(dict(claim_refusals=claims,
+                    cleanup_calls=len(cleanup_calls),release_calls=len(release_calls),workspace=str(path),
+                    handles=[id(handle) for handle in handles],closed=[handle.closed for handle in handles],
+                    original_task_done=task.done(),query_bound=key in self.session._queries)),flush=True)
+                self.assertEqual(len(claims),1)
+                self.assertEqual(cleanup_calls,[]);self.assertEqual(release_calls,[])
+                self.assertIs(self.session._attempt_resources[key],resource)
+                self.assertIs(resource['lifetime'][0],handles)
+                self.assertTrue(path.is_dir());self.assertTrue(all(not handle.closed for handle in handles))
+                self.assertFalse(task.done())
+            finally:
+                proceed.set();result=await task
+        self.assertEqual(self.count('native_qualification_attempt'),1)
+        self.assertEqual(self.count('native_qualification_query_result'),1)
+        self.assertEqual(self.read_result(result),result)
+        self.assertFalse(path.exists());self.assertTrue(all(handle.closed for handle in handles))
+        self.assertFalse(self.session._attempt_resources)
+
+    async def test_same_trial_competing_replay_cannot_acquire_active_finalizer(self):
+        from improvement_trial_runner import TrialRunner
+        for index,replay in enumerate((False,True)):
+            with self.subTest(retained_replay=replay):
+                if index:await self.reopen()
+                await self.session.verify_native()
+                admitted=await asyncio.to_thread(self.admission.admit_qualification,self.session,self.session.principal,self.public)
+                trials=self.admission.trials;workspace=trials.workspace
+                first=TrialRunner.for_qualification(self.session,self.admission)
+                second=TrialRunner.for_qualification(self.session,self.admission)
+                if replay:
+                    with patch.object(workspace,'cleanup',side_effect=OSError('retain committed finalizer')):
+                        with self.assertRaises(Exception):await first.run_qualification(self.session.principal,admitted.trial_id)
+                cleanup,release=workspace.cleanup,workspace.release_execution
+                started,proceed=threading.Event(),threading.Event();cleanup_calls=[];release_calls=[]
+                def held_cleanup(*args):
+                    cleanup_calls.append(args)
+                    if len(cleanup_calls)>1:raise OSError('RED guard blocks duplicate finalizer deletion')
+                    started.set();proceed.wait(90);return cleanup(*args)
+                def guarded_release(handles):
+                    release_calls.append(handles)
+                    if not proceed.is_set():raise OSError('RED guard blocks rival lifetime release')
+                    return release(handles)
+                with patch.object(workspace,'cleanup',held_cleanup),patch.object(workspace,'release_execution',guarded_release):
+                    task=asyncio.create_task(first.run_qualification(self.session.principal,admitted.trial_id))
+                    try:
+                        await self.wait_event(started)
+                        key=(admitted.trial_id,1);resource=self.session._attempt_resources[key]
+                        handles=resource['lifetime'][0];path=Path(self.session._queries[key]['receipt']['path'])
+                        before_closed=[handle.closed for handle in handles]
+                        self.assertEqual(self.count('native_qualification_query_evidence'),1)
+                        self.assertEqual(trials.get(self.session.principal,admitted.trial_id)['status'],'completed')
+                        with self.assertRaises(Exception):await second.run_qualification(self.session.principal,admitted.trial_id)
+                        print('FIX2_ACTIVE_FINALIZER',json.dumps(dict(retained_replay=replay,
+                            cleanup_calls=len(cleanup_calls),release_calls=len(release_calls),
+                            handles=[id(handle) for handle in handles],closed=[handle.closed for handle in handles],
+                            original_task_done=task.done(),workspace=str(path))),flush=True)
+                        self.assertEqual(len(cleanup_calls),1);self.assertEqual(release_calls,[])
+                        self.assertIs(self.session._attempt_resources[key],resource)
+                        self.assertIs(resource['lifetime'][0],handles)
+                        self.assertEqual([handle.closed for handle in handles],before_closed)
+                        if not replay:self.assertTrue(all(not handle.closed for handle in handles))
+                        self.assertTrue(path.is_dir());self.assertFalse(task.done())
+                    finally:
+                        proceed.set();result=await task
+                self.assertEqual(len(cleanup_calls),1);self.assertEqual(len(release_calls),1)
+                self.assertEqual(self.count('native_qualification_attempt'),1)
+                self.assertEqual(self.count('native_qualification_query_result'),1)
+                self.assertEqual(self.read_result(result),result)
+                self.assertFalse(path.exists());self.assertTrue(all(handle.closed for handle in handles))
+                self.assertFalse(self.session._attempt_resources or self.session._pending_proofs)
+
     async def test_cancel_after_stage_close_saves_only_cleanup_diagnostic(self):
         trials=self.admission.trials
         original=trials.workspace.cleanup;started,release=threading.Event(),threading.Event()

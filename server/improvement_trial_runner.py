@@ -213,6 +213,23 @@ class TrialRunner:
         if resource is None: return
         if resource['runner'] is not self or resource['owner'] is not self.trials:
             raise PermissionError('qualification_resource_owner_foreign')
+        task = asyncio.current_task()
+        if resource['finalizer'] is not task:
+            previous = resource['finalizer']
+            # Session registration lasts through preparation/process drainage;
+            # a caller may reuse the same host task after an operation ends.
+            if ((previous is not None and not previous.done()) or any(
+                    operation is not task and not operation.done() and scope in (key, (key[0], 0))
+                    for operation, scope in session._host_operations.items())):
+                raise PermissionError('qualification_attempt_active')
+            # A relinquished resource gets one actual cleanup task. Reserve it
+            # synchronously; rivals cannot start a second finalizer at an await.
+            finalizer = asyncio.create_task(self._cleanup_qualification_attempt(key))
+            resource['finalizer'] = finalizer
+            values, cancelled = await _drain(asyncio.gather(finalizer, return_exceptions=True))
+            if isinstance(values[0], BaseException): raise values[0]
+            if cancelled is not None: raise cancelled
+            return
         context = session._queries.get(key)
         boundary = None if context is None else context['boundary']
         # Preserve the original workspace and kernel-held lifetime whenever
@@ -309,7 +326,8 @@ class TrialRunner:
             self._qualification._host_operations[asyncio.current_task()] = resource_key
             if resource_key in self._qualification._attempt_resources:
                 raise PermissionError('qualification_lifetime_already_owned')
-            self._qualification._attempt_resources[resource_key] = dict(owner=self.trials, runner=self, lifetime=lifetime)
+            self._qualification._attempt_resources[resource_key] = dict(owner=self.trials, runner=self, lifetime=lifetime,
+                host_task=asyncio.current_task(), finalizer=None)
         result = None
         try:
             result = await self._run_claimed(principal, trial_id, claimed, on_claimed, lifetime)
@@ -327,7 +345,15 @@ class TrialRunner:
                     raise WorkspaceCleanupError() from None
                 finally:
                     await _settled_call(self.trials.workspace.release_execution, lifetime[0])
-            values, cancelled = await _drain(asyncio.gather(asyncio.create_task(cleanup()), return_exceptions=True))
+            resource = None
+            if self._qualification is not None:
+                resource = self._qualification._attempt_resources[resource_key]
+                if resource['host_task'] is not asyncio.current_task():
+                    raise RuntimeError('qualification_resource_owner_foreign')
+            finalizer = asyncio.create_task(cleanup())
+            if resource is not None:
+                resource['finalizer'] = finalizer
+            values, cancelled = await _drain(asyncio.gather(finalizer, return_exceptions=True))
             if isinstance(values[0], BaseException):
                 raise values[0]
             if cancelled is not None:
