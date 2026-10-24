@@ -29,7 +29,7 @@
   function mount({parent, brain, context, isCurrent, review, refreshCandidates}) {
     const root = node('section'); root.className = 'improvement-experiment-controls'; parent.append(root);
     const s = {closed:false, version:1, requests:new Set(), intents:new Map(), experiment:null, preview:null,
-      consents:[], outcomes:[], rows:[], busy:false, acknowledged:new Set()};
+      consents:[], outcomes:[], rows:[], busy:false, acknowledged:new Set(), loadVersion:0};
     const base = '/improvement-experiments/' + encodeURIComponent(context.experiment_id);
     const alive = (version = s.version) => !s.closed && s.version === version && (!isCurrent || isCurrent());
     function dispose() {
@@ -60,13 +60,23 @@
     async function write(name, path, payload) {
       let intent = s.intents.get(name);
       if (!intent) { intent = {path,body:{...payload,event_key:'experiment-ui-' + crypto.randomUUID()}}; s.intents.set(name,intent); }
-      const data = await request(intent.path,intent.body);
-      s.intents.delete(name); return data.result;
+      try {
+        const data = await request(intent.path,intent.body);
+        s.intents.delete(name); return data.result;
+      } catch(error) {
+        // Create is fixed-identity metadata in one transaction, never Operation
+        // admission. Only its first definite validation/scope refusal can be
+        // corrected. A prior uncertain response keeps even later refusals exact.
+        if(name==='experiment-create' && !intent.uncertain && [400,403].includes(error.status)) s.intents.delete(name);
+        else intent.uncertain=true;
+        throw error;
+      }
     }
     function action(label, name, payload, done, {path=base + '/' + name, enabled=true, refresh=true} = {}) {
       const el = button(tr(label), name, async () => {
         if (!alive() || el.disabled || s.busy || s.acknowledged.has(name)) return;
         s.busy = true; el.disabled = true;
+        s.loadVersion++; // Invalidate snapshots started before this explicit write.
         const version = s.version; let acknowledged = false;
         try {
           const result = await write(name,path,payload());
@@ -229,29 +239,38 @@
       });controls.append(readReport);
     }
     async function load() {
-      evidence.replaceChildren();
-      const policy = await request('/improvement-policy');
-      let currentContext;
-      try { currentContext=(await request('/improvement-contexts/'+encodeURIComponent(context.experiment_id))).context; }
-      catch(error) { if(error.status!==403)throw error; currentContext=null; }
-      let experiment;
-      try { experiment=(await request(base)).experiment; }
-      catch(error) { if(error.status!==403)throw error; experiment=null; }
-      let immutable=null, consents=[], outcomes=[], operations=[], rows=[];
-      if(experiment) {
-        immutable=(await request(base+'/policy')).policy;
-        consents=(await request(base+'/compose-consents')).consents;
-        outcomes=(await request(base+'/compose-outcomes')).outcomes;
-        operations=(await request(base+'/operations')).operations;
-        rows=(await request('/improvement-candidates?experiment_id='+encodeURIComponent(context.experiment_id))).candidates;
-        for(const row of rows) row.receipts=(await request('/improvement-candidates/'+encodeURIComponent(row.candidate_id)+'/semantic-history')).receipts;
+      const loadVersion=++s.loadVersion, acknowledged=[...s.acknowledged];
+      try {
+        evidence.replaceChildren();
+        const policy = await request('/improvement-policy');
+        let currentContext;
+        try { currentContext=(await request('/improvement-contexts/'+encodeURIComponent(context.experiment_id))).context; }
+        catch(error) { if(error.status!==403)throw error; currentContext=null; }
+        let experiment;
+        try { experiment=(await request(base)).experiment; }
+        catch(error) { if(error.status!==403)throw error; experiment=null; }
+        let immutable=null, consents=[], outcomes=[], operations=[], rows=[];
+        if(experiment) {
+          immutable=(await request(base+'/policy')).policy;
+          consents=(await request(base+'/compose-consents')).consents;
+          outcomes=(await request(base+'/compose-outcomes')).outcomes;
+          operations=(await request(base+'/operations')).operations;
+          rows=(await request('/improvement-candidates?experiment_id='+encodeURIComponent(context.experiment_id))).candidates;
+          for(const row of rows) row.receipts=(await request('/improvement-candidates/'+encodeURIComponent(row.candidate_id)+'/semantic-history')).receipts;
+        }
+        if(!alive() || loadVersion!==s.loadVersion)return;
+        if(rows.length>3 || consents.length>100 || outcomes.length>1 || operations.length>6)throw Error('bounded_metadata_required');
+        if(s.preview && s.preview.generation!==experiment?.generation)s.preview=null;
+        s.policy=policy.policy;s.capabilities=policy.capabilities;s.context=currentContext;s.experiment=experiment;s.immutable=immutable;
+        s.consents=consents;s.outcomes=outcomes;s.operations=operations;s.rows=rows;
+        // Resolve only acknowledgments covered when this latest snapshot began.
+        // Uncertain intents are separate and remain exact, never replayed here.
+        for(const name of acknowledged)s.acknowledged.delete(name);
+        render();status.textContent=tr('metadata_loaded');
+      } catch(error) {
+        if(!alive() || loadVersion!==s.loadVersion)return;
+        throw error;
       }
-      if(!alive())return;
-      if(rows.length>3 || consents.length>100 || outcomes.length>1 || operations.length>6)throw Error('bounded_metadata_required');
-      if(s.preview && s.preview.generation!==experiment?.generation)s.preview=null;
-      s.policy=policy.policy;s.capabilities=policy.capabilities;s.context=currentContext;s.experiment=experiment;s.immutable=immutable;
-      s.consents=consents;s.outcomes=outcomes;s.operations=operations;s.rows=rows;
-      render();status.textContent=tr('metadata_loaded');
     }
     const ready=load().catch(failure);
     return {ready,dispose};
