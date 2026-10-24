@@ -51,7 +51,9 @@ class NativeWorkerContractTests(unittest.IsolatedAsyncioTestCase):
         from improvement_qualification_protocol import encode_startup3
         m = component(self)
         value = startup('preflight')
-        with patch.object(m.socket, 'fromshare', side_effect=AssertionError('no acquisition')):
+        # A missing platform symbol is only a no-acquisition sentinel here;
+        # creating it does not simulate native endpoint adoption.
+        with patch.object(m.socket, 'fromshare', side_effect=AssertionError('no acquisition'), create=True):
             with self.assertRaises(ValueError): m.NativeWorkerSessionV2(value, namespace='preflight')
             with self.assertRaises(ValueError): await m.run_startup2(encode_startup3(value), entrypoint='trial')
             with self.assertRaises(ValueError): await m.run_startup3(encode_startup3(value), entrypoint='operation')
