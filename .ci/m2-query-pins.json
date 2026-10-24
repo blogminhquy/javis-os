@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "source_head": "7316bd81f4e197f361ee82404f8f388ac214b7f3",
+  "paths": {
+    "server/improvement_qualification_session.py": {
+      "sha256": "79ba14874229fa39ff4e5a69abf0405f8dca55a3bec2daed30a781163b9485f7",
+      "size": 34287,
+      "git_blob": "0aeb722cd1fafc6b8728d3d9f7cc620979fa47b4"
+    },
+    "server/improvement_trial_admission.py": {
+      "sha256": "c10d47c68fee11dfae88974f8c1e37de395737ae90737f5af16f502feaba0bf5",
+      "size": 16881,
+      "git_blob": "159a3ea4778d023011a4bed2c1ae78838f276a74"
+    },
+    "server/improvement_trial_runner.py": {
+      "sha256": "e960973a84b975d5ee465b4ba2c4315a1c484549f5e0ede89345b17c1947ac74",
+      "size": 33761,
+      "git_blob": "75afc44a4cb954b04b5f112ab18a1bd3e9002154"
+    },
+    "server/improvement_trials.py": {
+      "sha256": "949744d831362532fa6100ae074eafde9fcaebaa73c5c6afa9414e9167eacf49",
+      "size": 43600,
+      "git_blob": "d43ed029bbbb733a5669e5a3acde4eb2de8f6293"
+    },
+    "server/improvement_native_parent.py": {
+      "sha256": "715ba8ed701d20c81328d246a491304017dd74132791086c47a85a48cf3f2f1d",
+      "size": 31268,
+      "git_blob": "8651f244a82c372cd8ae6891ff56cad03e9e2e30"
+    },
+    "server/improvement_native_transport.py": {
+      "sha256": "00e92cae23279bf1c82a19fd9d7c069b4cc79cc780b1c75c992fed6db3ad52e2",
+      "size": 71452,
+      "git_blob": "77dbb67580206ce66d19958172682d3326fc42d6"
+    },
+    "server/improvement_native_worker.py": {
+      "sha256": "b31cd4dcafe610edc1f904d7f9cb4d018f8060483ee56d1ad87d9d2186570b9a",
+      "size": 19264,
+      "git_blob": "7b593f18f02e3c0fc23eae7fac82687640c68f42"
+    },
+    "server/improvement_native_sdk.py": {
+      "sha256": "17c11bf72435386fbf76f37c07bd620edb88c96f2ca7c6b17a27fba81565835d",
+      "size": 32219,
+      "git_blob": "42c873ab3da286faf0226484bc2427c4fc52226a"
+    },
+    "server/improvement_native_profile.py": {
+      "sha256": "f295ea7c1d5a4e345c9670a256b26e9f3398dec2fc8f8be182ac2c07159819af",
+      "size": 10832,
+      "git_blob": "395e276cdde6b3b48afe1e5b1e02f7993946a387"
+    },
+    "server/improvement_claude.py": {
+      "sha256": "d6fbdd6297efdb2a9811d9fb5588f6573e04b1445ddd6944ce0c6c59c48ae98c",
+      "size": 42755,
+      "git_blob": "eed134cc9f2b050542e8666be10dc3aa572ffae4"
+    },
+    "server/improvement_worker.py": {
+      "sha256": "42fc4d4a452972d054af3032db222a6ae9955d6ac11773fb975b5a76ebea0b8e",
+      "size": 23747,
+      "git_blob": "aa07fa20969d3752e925ae09c82247ec32ac2f87"
+    },
+    "server/improvement_qualification_protocol.py": {
+      "sha256": "fd807d8e3c66cf0fbce2771dd76cfeb5b36d56acdd3f79a471041d3afa647e19",
+      "size": 11682,
+      "git_blob": "6f304fa379cdf66641b4943e7f2029fc504833dc"
+    },
+    "server/improvement_qualification_results.py": {
+      "sha256": "154e5c0ddbca81ea26da9d2d1255a4155deca0bd1d2da0632b7917e849383406",
+      "size": 34078,
+      "git_blob": "a6ef85df1be3f5d63aa19063986e93ef8be73c96"
+    },
+    "tests/python/test_improvement_qualification_query.py": {
+      "sha256": "8d3cdb930443a9b6e2a11a59a16f1163b869639d7273015ab31e5c5367906a5c",
+      "size": 50334,
+      "git_blob": "2ea791e23d9df29436228e72f207cc5d10d6bb75"
+    },
+    "tests/python/test_improvement_qualification_native_preflight.py": {
+      "sha256": "17f759d403677b85505df6663cf4eefed4b3c76530668ad7daab70b58f89ab05",
+      "size": 48865,
+      "git_blob": "fae004f90d789cd4cc5915007e90541c83fead53"
+    },
+    "tests/python/test_improvement_trial_admission.py": {
+      "sha256": "ab5ef04fe1c18d2fad4d97b041f3d5cce9d0a56f93123c28f39e449855ccd0a1",
+      "size": 21940,
+      "git_blob": "2e3c62b936a140cafa3f77a25b25aaf180c5c898"
+    },
+    "tests/python/test_improvement_trial_runner.py": {
+      "sha256": "0e38c079f1dde4e58413dff192185209208fbc74b6bcdac04406c928b1994937",
+      "size": 24341,
+      "git_blob": "abf4c423a27afb08bde8550b76ec09cc9704a614"
+    },
+    "tests/python/test_improvement_qualification_protocol.py": {
+      "sha256": "5e16faac3505a1ce3502c201036fdb29463d05a8346cd9c5e7b50b4f8268fb79",
+      "size": 8686,
+      "git_blob": "df983fe622907952bd1b91cf56b21720d4f654d2"
+    },
+    "tests/python/test_improvement_native_worker.py": {
+      "sha256": "52006b58556efb98d32eae2ff308493988a83189a5cc6eb99192dad5f0b19dc4",
+      "size": 23087,
+      "git_blob": "60e91c0419fcf1009999db5ffcd41d85270b11dc"
+    },
+    "tests/python/test_improvement_native_sdk.py": {
+      "sha256": "489024bc26322df225c460c0baf7dcf5861a0b63a9ad07912217b5ec8b291769",
+      "size": 25620,
+      "git_blob": "5a6ef36d8e7ff5e1b6f5cdab7bb73c80862ac766"
+    },
+    "tests/python/test_improvement_native_profile.py": {
+      "sha256": "42e50d27325474ed941deb0d2f831422b00bfd9689036485faa6d706320fc753",
+      "size": 7401,
+      "git_blob": "0b07451507b8722f870cce53ca28f4001806577d"
+    },
+    "tests/python/test_improvement_native_transport_v2.py": {
+      "sha256": "96ddd3f607660ea1f4d70a7eb6c12e64729110cbf47dd8658fed9c7f35a17577",
+      "size": 36032,
+      "git_blob": "407998cd9064558445c97425dcad6629a74ae281"
+    }
+  },
+  "checks": [
+    [
+      "test_improvement_qualification_native_preflight.py",
+      "QualificationKernelTests.test_close_after_successful_final_thread_check_refuses_result",
+      "QualificationKernelTests.test_review_revocation_after_successful_final_thread_check_refuses_result",
+      "QualificationKernelTests.test_expiry_after_successful_final_thread_check_refuses_result",
+      "QualificationClosureTests.test_actual_observed_closure_contains_changed_consumers_without_registering_candidate",
+      "-v"
+    ],
+    [
+      "test_improvement_qualification_query.py",
+      "-v"
+    ],
+    [
+      "test_improvement_trial_admission.py",
+      "AdmissionTests.test_real_qualification_trial_ledger_and_intent_commit_without_exposure",
+      "AdmissionTests.test_native_verify_runs_before_any_qualification_trial_or_ledger_reservation",
+      "AdmissionTests.test_deadline_duration_begins_after_native_preflight_and_never_before_it",
+      "AdmissionTests.test_unsupported_or_malformed_native_capability_reserves_nothing",
+      "AdmissionTests.test_concurrent_same_event_commits_one_stable_deadline_trial_and_call",
+      "AdmissionTests.test_event_failures_rollback_plan_qualification_trial_ledger_and_every_event",
+      "AdmissionTests.test_protected_source_change_after_trial_write_rolls_back_all_admission",
+      "-v"
+    ],
+    [
+      "test_improvement_trial_runner.py",
+      "TrialRunnerTests.test_success_orders_marker_and_recorder_before_ack_and_cleanup_before_evaluation",
+      "TrialRunnerTests.test_repeated_terminal_run_returns_stored_result_without_another_adapter_or_call",
+      "TrialRunnerTests.test_real_usage_recorder_accepts_canonical_identity_and_preserves_unknown_telemetry",
+      "TrialRunnerTests.test_unsupported_adapter_refunds_before_any_query_or_recorder",
+      "TrialRunnerTests.test_cancellation_during_claim_refunds_the_committed_lease_without_an_adapter",
+      "TrialRunnerTests.test_cancellation_waits_for_inflight_start_and_closes_its_committed_call",
+      "TrialRunnerTests.test_append_failure_still_records_known_usage_and_never_requeries",
+      "TrialRunnerTests.test_invalid_recorder_cannot_release_worker_ack_after_the_marker",
+      "-v"
+    ],
+    [
+      "test_improvement_qualification_protocol.py",
+      "QualificationProtocolTests.test_all_three_kinds_roundtrip_defensively_with_same_actual_channel_binding_shape",
+      "QualificationProtocolTests.test_default_startup2_still_refuses_even_well_formed_engineering_envelope",
+      "QualificationProtocolTests.test_query_requires_exact_run_kind_receipt_config_capability_and_actual_call_join_data",
+      "-v"
+    ],
+    [
+      "test_improvement_native_worker.py",
+      "NativeWorkerContractTests.test_startup3_is_explicit_preflight_only_and_default_route_never_adopts_it",
+      "NativeWorkerContractTests.test_closed_constructor_snapshots_without_socket_environment_or_sdk_side_effect",
+      "NativeWorkerWindowsTests.test_startup3_actual_adoption_constructs_sdk_only_after_exact_dummy_environment",
+      "NativeWorkerWindowsTests.test_startup3_actual_factory_refuses_changed_environment_run_and_private_record",
+      "NativeWorkerWindowsTests.test_real_trial_and_operation_body_channels_use_closed_protocol",
+      "-v"
+    ],
+    [
+      "test_improvement_native_sdk.py",
+      "NativeSDKTests.test_dummy_environment_cannot_enter_default_constructor_or_unadopted_factory",
+      "NativeSDKTests.test_actual_sdk_builder_stdio_and_saved_global_opener_unchanged",
+      "NativeSDKTests.test_query_environment_drift_refused_before_actual_creation",
+      "NativeSDKTests.test_completed_original_user_write_callback_identity_and_control_exclusion",
+      "-v"
+    ],
+    [
+      "test_improvement_native_profile.py",
+      "NativeProfileTests.test_actual_sdk_client_uses_owned_transport_without_mutating_original_options",
+      "NativeProfileTests.test_completed_exact_original_write_records_raw_hash_and_no_live_handles",
+      "NativeProfileTests.test_constructor_binds_exact_runtime_environment_and_query_pins",
+      "-v"
+    ],
+    [
+      "test_improvement_native_transport_v2.py",
+      "HostGuardianContractTests.test_existing_v1_entrypoint_remains_available",
+      "HostGuardianFlowTests.test_iterator_cancel_settles_accounting_then_preserves_received_and_queued_packets",
+      "HostGuardianWindowsTests.test_true_three_actor_private_startup_join_and_actual_terminal_drain",
+      "HostGuardianWindowsTests.test_before_engine_accounting_ack_remains_separate_from_image_authorization",
+      "-v"
+    ]
+  ],
+  "scope": "Q1 exact-source portable controls; platform skips do not qualify Windows/native/account"
+}
