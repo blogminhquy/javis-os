@@ -1,0 +1,37 @@
+{
+  "source_head": "d0d5b27c143e5efcc1c89378c76914834d228094",
+  "pre_final_freeze_utc": "2026-10-24T09:51:42.690442+00:00",
+  "paths": {
+    "server/improvement_trial_admission.py": {
+      "size": 15378,
+      "sha256": "3fc6ad1e0a5db52684efad879238aa81f86d9582d860c3f8295c9016d3d0bc62",
+      "git_blob": "4099c458625076f9be70dd72c99936323f482d29",
+      "raw_lf": true
+    },
+    "server/improvement_operation_execution.py": {
+      "size": 24839,
+      "sha256": "26541bfe0db07b1a2da1eb28ba4155698aeebc4e958d72551616522e9a24e6ca",
+      "git_blob": "412d46105e75492378438b6617859e646ba377c9",
+      "raw_lf": true
+    },
+    "server/improvement_trial_runner.py": {
+      "size": 26422,
+      "sha256": "1ad8bdccb44d7ddc327f904b16168f642df47cb4ce0a2e079ff473a1a563f06b",
+      "git_blob": "6e11db24f71b3ec83ce264ee3e953e3402fdacc2",
+      "raw_lf": true
+    },
+    "server/improvement_operation_runner.py": {
+      "size": 16148,
+      "sha256": "1b391c4f3da59a8f246fcb4485ff556528def8cd437e9f8653f4dd612c71611d",
+      "git_blob": "64a0bd1adc08df304003b6a8ba7a0f045d72a1fd",
+      "raw_lf": true
+    },
+    "tests/python/test_improvement_qualification_admission_fences.py": {
+      "size": 12029,
+      "sha256": "5d8f09889346bc4701e87c9a5c3e55bdd9e2d42b484ed3d3c2d2b08885f96e1a",
+      "git_blob": "43f1ca65eba0ca6cc5888c49008009246cda5ca6",
+      "raw_lf": true
+    }
+  },
+  "scope": "P0 component only; not full CI or qualification"
+}
