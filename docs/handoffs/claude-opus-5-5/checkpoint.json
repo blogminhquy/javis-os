@@ -12,8 +12,24 @@
   "last_verified_remote_head": "4ba9624a76cd4bfb54d3d229263baa223944383b",
   "pull_request": "https://github.com/blogminhquy/javis-os/pull/803",
   "version_file": "0.299.0",
-  "reused": ["M0", "M1", "M2A", "M2B", "M2C"],
-  "engineering_open": ["M2D1", "M2D2", "M2E", "M2F", "exact current-source technical qualification", "final-head required CI", "whole-branch review", "integration", "resource cleanup audit"],
+  "reused": [
+    "M0",
+    "M1",
+    "M2A",
+    "M2B",
+    "M2C"
+  ],
+  "engineering_open": [
+    "M2D1",
+    "M2D2",
+    "M2E",
+    "M2F",
+    "exact current-source technical qualification",
+    "final-head required CI",
+    "whole-branch review",
+    "integration",
+    "resource cleanup audit"
+  ],
   "business_acceptance": "pending_not_run_under_new_scope",
   "live_acceptance": "pending_not_run_under_new_scope",
   "future_pilot_selection": {
@@ -24,7 +40,13 @@
     "state": "selection_only_no_live_pilot_under_current_Goal"
   },
   "forward_code": "preserve existing compose/library/archive/source observer with exact scoped evidence",
-  "undispatched_backlog": ["recipe destination schema11", "recipe permission/retrieval", "further Library native/downstream integration", "orchestration comparison", "remaining M3-M8"],
+  "undispatched_backlog": [
+    "recipe destination schema11",
+    "recipe permission/retrieval",
+    "further Library native/downstream integration",
+    "orchestration comparison",
+    "remaining M3-M8"
+  ],
   "active_work_at_scope_receipt": {
     "agent": "/root/recipe_source_authority",
     "task": "safely close existing six-path recipe source Task1",
@@ -76,16 +98,47 @@
     "is_native_or_M2_completion": false
   },
   "next_engineering_step": {
-    "kind": "Session_owned_startup3_preflight_only",
-    "design_commit": "b32ce5db62d4eaad6501ef6c884b8abb93dce545",
-    "plan_commit": "519b366bcac68a6d6ec2371c913f2cf6d7ca215d",
-    "builder_check": "nothing_important_left",
-    "state": "brief_and_preflight_prepared_not_yet_dispatched",
-    "later_query_accounting_publisher_cold_result": "OPEN"
+    "kind": "Q1_baseline5_Session_owned_query_accounting_ACK_typed_stage_final_cold_result",
+    "design": "docs/superpowers/specs/2026-10-24-m2-owned-baseline-query-design.md",
+    "builder_check": "nothing_important_left_including_per_attempt_cleanup_clarification",
+    "state": "design_ready_plan_and_official_brief_next_not_dispatched",
+    "Q2": "view4_operation2_then_final_installed_localhost_gate",
+    "D2_E": "read_only_design_report_complete_native_mechanism_documentation_followup_active"
   },
   "final_source_head": null,
   "final_ci": null,
   "final_review": null,
   "final_integration": null,
-  "final_resource_audit": null
+  "final_resource_audit": null,
+  "M2_owned_technical_preflight": {
+    "source_head": "0549380e17e66836ab475dae596d21e649e4e7a6",
+    "state": "component_source_scoped_review_and_focused_checks_closed_installed_gate_open",
+    "original_windows": {
+      "passed": 62,
+      "skipped": 1
+    },
+    "portability_affected_windows_passed": 1,
+    "linux_retry": {
+      "run": 40085906579,
+      "passed": 26,
+      "skipped": 37
+    },
+    "I1_fix": {
+      "RED_expected_failures": 3,
+      "windows_passed": 8,
+      "linux_run": 40086473971,
+      "linux_passed": 3,
+      "linux_skipped": 5,
+      "review": "ADDRESSED_no_new_breakage"
+    },
+    "deferred_minors": [
+      "P1M1 slowcallback noise",
+      "P1M2 disclosed interim serialization violation"
+    ],
+    "proof": "docs/superpowers/evidence/2026-10-24-m2-owned-technical-preflight.json",
+    "proof_sha256": "52b482e0a894e75d4fdc29486abbae3d4a830344552bd9935dda0f4fad2f8827",
+    "serial_slot": "released",
+    "installed_selected_CLI_gate": "OPEN_mandatory_final_stable_query_closure",
+    "is_M2_completion": false
+  }
 }

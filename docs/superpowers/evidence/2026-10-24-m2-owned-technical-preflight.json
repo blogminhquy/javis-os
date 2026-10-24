@@ -1,0 +1,709 @@
+{
+  "version": 1,
+  "component": "M2 Session-owned technical native preflight",
+  "state": "component_source_scoped_review_and_focused_checks_closed_installed_gate_open",
+  "utc": "2026-10-24T10:37:27.270328+00:00",
+  "task_base": "6a179c5162ab8e7a0e60d9c8a855e288010a421a",
+  "source_head": "0549380e17e66836ab475dae596d21e649e4e7a6",
+  "source_commits": [
+    "bee28e3ec452daeda8abc7951095d843362e26bc",
+    "faa5a22107fbbf7299b635cf69d031aa634cf0d3",
+    "0549380e17e66836ab475dae596d21e649e4e7a6"
+  ],
+  "root_design_only_commits": [
+    "ae05374a9591eb4e2143e16aff7e5874cefefd7a",
+    "48dc8481"
+  ],
+  "source_paths": {
+    "server/improvement_qualification_session.py": {
+      "size": 22727,
+      "sha256": "8b30d0961dca38e00d32856b58b023673ca48a4b5792978854eeb8ee463238c9",
+      "git_blob": "1ffd2eeec3a1b4571afc2ed48ac36685c33398e3",
+      "lf_only": true
+    },
+    "server/improvement_native_parent.py": {
+      "size": 24117,
+      "sha256": "52b4a36dcf15bfeb531268df116e07b42d312841be9337c7de2726f206c9664d",
+      "git_blob": "319d6807c79a2fc00d34ff5572c7e3d60d531f74",
+      "lf_only": true
+    },
+    "server/improvement_native_transport.py": {
+      "size": 68178,
+      "sha256": "6409c2f8e9d1062bfee952fdf75edb6d9b7cedd95ebc3448f9f1fb49fa41c583",
+      "git_blob": "4bf5d3118eb23799af5160c6d115fa4b5e647090",
+      "lf_only": true
+    },
+    "server/improvement_native_worker.py": {
+      "size": 18315,
+      "sha256": "6a262fd02b7ac00c8c02dce6da096bd4e798427b126320377f0d70164cd685da",
+      "git_blob": "a923ca641324d3bc4402a801b805811a91dd5a6e",
+      "lf_only": true
+    },
+    "server/improvement_native_sdk.py": {
+      "size": 31902,
+      "sha256": "d411ee8e8f15c1393cc0e699b43ca757f3f8818b466657ee5303c3f0c5554eb3",
+      "git_blob": "04d37554680abcfacd059e0698a8802f27e64605",
+      "lf_only": true
+    },
+    "server/improvement_qualification_protocol.py": {
+      "size": 10072,
+      "sha256": "9adf338fc5e10398b6acef5f0d042cc74c9cd4fa71f270fcc425ba5400e692cc",
+      "git_blob": "da1846ddaa78dc8a3d6cc68f32556d8606bda70e",
+      "lf_only": true
+    },
+    "server/improvement_worker.py": {
+      "size": 23097,
+      "sha256": "641ac7256b5b20bcab5e5daa340f4e6caae1e4dc2b7f4acce9caefdf9fc06c9e",
+      "git_blob": "e9b940e6b4d9c99a38b3692b3d09dc460e515b4e",
+      "lf_only": true
+    },
+    "server/improvement_operation_worker.py": {
+      "size": 5846,
+      "sha256": "df25c05e3a92a2901005023318327c04d6388c87c3fd3f27df77c030346e5dec",
+      "git_blob": "a391a110ddd788f135675d859898ff905943aed4",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_qualification_native_preflight.py": {
+      "size": 48865,
+      "sha256": "17f759d403677b85505df6663cf4eefed4b3c76530668ad7daab70b58f89ab05",
+      "git_blob": "fae004f90d789cd4cc5915007e90541c83fead53",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_worker.py": {
+      "size": 23087,
+      "sha256": "52006b58556efb98d32eae2ff308493988a83189a5cc6eb99192dad5f0b19dc4",
+      "git_blob": "60e91c0419fcf1009999db5ffcd41d85270b11dc",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_sdk.py": {
+      "size": 25620,
+      "sha256": "489024bc26322df225c460c0baf7dcf5861a0b63a9ad07912217b5ec8b291769",
+      "git_blob": "5a6ef36d8e7ff5e1b6f5cdab7bb73c80862ac766",
+      "lf_only": true
+    },
+    "tests/python/test_improvement_native_transport_v2.py": {
+      "size": 36032,
+      "sha256": "96ddd3f607660ea1f4d70a7eb6c12e64729110cbf47dd8658fed9c7f35a17577",
+      "git_blob": "407998cd9064558445c97425dcad6629a74ae281",
+      "lf_only": true
+    }
+  },
+  "consumed_path": "QualificationSession.verify_native -> actual attached parent/Guardian -> authenticated startup3 -> real private-handle worker adoption -> NativeInvocationSet preflight -> two encrypted durable image decisions -> actual drain/evidence -> immutable false-account/product QualificationPreflight",
+  "returned_contract": {
+    "domain": "qualification",
+    "supported": false,
+    "account_ready": false,
+    "technical_ready": true,
+    "cleanup": "proven",
+    "capability_hash_field": false,
+    "fields": 15
+  },
+  "fixture_boundary": {
+    "real": "encrypted run/store/CallLedger, Windows sockets/process handles/debugger image gates, real SDK invocation constructor and capture lifecycle, decisions/trace/drain",
+    "synthetic": "reviewed-candidate/static-runtime/bootstrap fixtures, copied inert cmd.exe fixed-output capture seam",
+    "actual_installed_selected_CLI": false,
+    "SDKClient_or_model_query": false,
+    "actual_account_or_business_acceptance": false
+  },
+  "windows_original": {
+    "source_commit": "bee28e3ec452daeda8abc7951095d843362e26bc",
+    "run": 63,
+    "passed": 62,
+    "skipped": 1,
+    "skip": "actual Windows symlink creation privilege1314",
+    "serial_final_matrix": [
+      {
+        "log": "final-01",
+        "started_utc": "2026-10-24T10:16:57.955802+00:00",
+        "ended_utc": "2026-10-24T10:18:31.469164+00:00",
+        "count": 25,
+        "passed": 24,
+        "skipped": 1,
+        "async_slow_callbacks": 22,
+        "resource_warnings": 0,
+        "driver_sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+      },
+      {
+        "log": "final-02",
+        "started_utc": "2026-10-24T10:18:31.649315+00:00",
+        "ended_utc": "2026-10-24T10:18:36.583349+00:00",
+        "count": 11,
+        "passed": 11,
+        "skipped": 0,
+        "async_slow_callbacks": 11,
+        "resource_warnings": 0,
+        "driver_sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+      },
+      {
+        "log": "final-03",
+        "started_utc": "2026-10-24T10:18:36.740941+00:00",
+        "ended_utc": "2026-10-24T10:18:38.928444+00:00",
+        "count": 5,
+        "passed": 5,
+        "skipped": 0,
+        "async_slow_callbacks": 1,
+        "resource_warnings": 0,
+        "driver_sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+      },
+      {
+        "log": "final-04",
+        "started_utc": "2026-10-24T10:18:39.042384+00:00",
+        "ended_utc": "2026-10-24T10:18:49.310896+00:00",
+        "count": 8,
+        "passed": 8,
+        "skipped": 0,
+        "async_slow_callbacks": 6,
+        "resource_warnings": 0,
+        "driver_sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+      },
+      {
+        "log": "final-05",
+        "started_utc": "2026-10-24T10:18:49.452017+00:00",
+        "ended_utc": "2026-10-24T10:18:57.759127+00:00",
+        "count": 5,
+        "passed": 5,
+        "skipped": 0,
+        "async_slow_callbacks": 0,
+        "resource_warnings": 0,
+        "driver_sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+      },
+      {
+        "log": "final-06",
+        "started_utc": "2026-10-24T10:18:57.869015+00:00",
+        "ended_utc": "2026-10-24T10:18:58.303653+00:00",
+        "count": 5,
+        "passed": 5,
+        "skipped": 0,
+        "async_slow_callbacks": 0,
+        "resource_warnings": 0,
+        "driver_sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+      },
+      {
+        "log": "final-07",
+        "started_utc": "2026-10-24T10:18:58.421088+00:00",
+        "ended_utc": "2026-10-24T10:18:58.842082+00:00",
+        "count": 2,
+        "passed": 2,
+        "skipped": 0,
+        "async_slow_callbacks": 0,
+        "resource_warnings": 0,
+        "driver_sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+      },
+      {
+        "log": "final-08",
+        "started_utc": "2026-10-24T10:18:58.964695+00:00",
+        "ended_utc": "2026-10-24T10:19:00.386427+00:00",
+        "count": 2,
+        "passed": 2,
+        "skipped": 0,
+        "async_slow_callbacks": 0,
+        "resource_warnings": 0,
+        "driver_sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+      }
+    ],
+    "raw_slow_callbacks": 40,
+    "ResourceWarnings": 0,
+    "not_relabelled_as_final_edited_test_bytes": true
+  },
+  "portability_correction": {
+    "commit": "faa5a22107fbbf7299b635cf69d031aa634cf0d3",
+    "delta": "comment plus create=True on negative socket.fromshare sentinel, no assertions/guards/skips changed",
+    "windows_affected_selector": {
+      "passed": 1,
+      "skipped": 0
+    },
+    "unchanged_other_pins": 11
+  },
+  "linux_initial_failed": {
+    "run": 40085494592,
+    "job": 120847465111,
+    "passed": 25,
+    "skipped": 37,
+    "errors": 1,
+    "cause": "Linux lacks socket.fromshare; mock failed before constructor assertions",
+    "raw_wrapper_nonskipped34_inaccurate": true,
+    "history_preserved": true
+  },
+  "linux_portability_retry": {
+    "utc": "2026-10-24T10:27:53.269117+00:00",
+    "run": 40085906579,
+    "job": 120848673796,
+    "conclusion": "success",
+    "source_head": "faa5a22107fbbf7299b635cf69d031aa634cf0d3",
+    "ci_commit": "1998c6f99b66db7267df6d96c910862a8e398c40",
+    "ci_parents": [
+      "faa5a22107fbbf7299b635cf69d031aa634cf0d3",
+      "c67ca331e6348af1a2cf39cb5e4d724fb168ff50"
+    ],
+    "raw_log": {
+      "size": 92202,
+      "sha256": "908228b23744bfd095f6ec382077de155cad55da8f4b3450b28a96d79cb6609b",
+      "utf16units": 91399
+    },
+    "all12pins_exact": true,
+    "matrix": [
+      {
+        "module": "test_improvement_qualification_native_preflight.py",
+        "selectors": [],
+        "begin_utc": "2026-10-24T10:26:43.7206328Z",
+        "end_utc": "2026-10-24T10:26:46.0806980Z",
+        "seconds": 2.36,
+        "run": 25,
+        "passed": 7,
+        "skipped": 18,
+        "exit": 0,
+        "child_pid": 2201,
+        "child_utc": "2026-10-24T10:26:43.738967+00:00"
+      },
+      {
+        "module": "test_improvement_native_worker.py",
+        "selectors": [
+          "NativeWorkerContractTests.test_startup3_is_explicit_preflight_only_and_default_route_never_adopts_it",
+          "NativeWorkerWindowsTests.test_startup3_actual_adoption_constructs_sdk_only_after_exact_dummy_environment",
+          "NativeWorkerWindowsTests.test_startup3_actual_factory_refuses_changed_environment_run_and_private_record",
+          "NativeWorkerWindowsTests.test_startup3_actual_fromshare_failure_retains_unknown_for_enclosing_process_drain",
+          "NativeWorkerContractTests.test_closed_constructor_snapshots_without_socket_environment_or_sdk_side_effect",
+          "NativeWorkerContractTests.test_namespace_and_closed_startup_refuse_before_adoption",
+          "NativeWorkerWindowsTests.test_real_preflight_adoption_installs_env_before_runtime_without_cli_or_sdk",
+          "NativeWorkerWindowsTests.test_real_trial_and_operation_body_channels_use_closed_protocol",
+          "NativeWorkerWindowsTests.test_runtime_constructor_failure_closes_all_known_adopted_channels",
+          "NativeWorkerWindowsTests.test_real_fromshare_failure_after_private_adoption_retains_unknown_until_process_exit",
+          "NativeWorkerWindowsTests.test_repeated_adopt_cancellation_closes_pending_real_socket_send"
+        ],
+        "begin_utc": "2026-10-24T10:26:46.0811408Z",
+        "end_utc": "2026-10-24T10:26:46.2999802Z",
+        "seconds": 0.219,
+        "run": 11,
+        "passed": 3,
+        "skipped": 8,
+        "exit": 0,
+        "child_pid": 2212,
+        "child_utc": "2026-10-24T10:26:46.099344+00:00"
+      },
+      {
+        "module": "test_improvement_native_sdk.py",
+        "selectors": [
+          "NativeSDKTests.test_dummy_environment_cannot_enter_default_constructor_or_unadopted_factory",
+          "NativeSDKTests.test_strict_constructor_rejects_pin_environment_channels_and_callback_types",
+          "NativeSDKTests.test_constructor_snapshots_private_pin_and_environment",
+          "NativeSDKTests.test_stable_preflight_and_dispatch_before_image",
+          "NativeSDKTests.test_skip_environment_cannot_bypass_sdk_version"
+        ],
+        "begin_utc": "2026-10-24T10:26:46.3001157Z",
+        "end_utc": "2026-10-24T10:26:46.4772460Z",
+        "seconds": 0.177,
+        "run": 5,
+        "passed": 0,
+        "skipped": 5,
+        "exit": 0,
+        "child_pid": 2213,
+        "child_utc": "2026-10-24T10:26:46.317990+00:00"
+      },
+      {
+        "module": "test_improvement_native_transport_v2.py",
+        "selectors": [
+          "HostGuardianContractTests.test_constructor_never_acquires_files_sockets_handles_or_processes",
+          "HostGuardianContractTests.test_closed_construction_does_not_launch_or_claim_a_process_incarnation",
+          "HostGuardianWindowsTests.test_true_three_actor_private_startup_join_and_actual_terminal_drain",
+          "HostGuardianWindowsTests.test_pending_durable_append_cannot_authorize_after_close",
+          "HostGuardianWindowsTests.test_partial_public_bootstrap_failure_supplies_stdin_eof_but_never_claims_drain",
+          "HostGuardianWindowsTests.test_actual_popen_success_then_boundary_exception_retains_acquisition_unknown",
+          "HostGuardianWindowsTests.test_ambiguous_stop_send_needs_actual_drain_and_preserves_real_guardian_exit_code",
+          "HostGuardianWindowsTests.test_completed_worker_gets_bounded_natural_drain_before_any_stop"
+        ],
+        "begin_utc": "2026-10-24T10:26:46.4775154Z",
+        "end_utc": "2026-10-24T10:26:46.7474649Z",
+        "seconds": 0.27,
+        "run": 8,
+        "passed": 2,
+        "skipped": 6,
+        "exit": 0,
+        "child_pid": 2214,
+        "child_utc": "2026-10-24T10:26:46.495164+00:00"
+      },
+      {
+        "module": "test_improvement_qualification_session.py",
+        "selectors": [
+          "QualificationSessionTests.test_actual_fresh_private_root_records_encrypted_m0_scope_before_any_call",
+          "QualificationSessionTests.test_each_actual_environment_uses_fresh_empty_home_and_no_ambient_auth",
+          "QualificationSessionTests.test_foreign_workspace_and_closed_session_never_get_an_environment",
+          "QualificationSessionTests.test_expired_environment_and_unsettled_owner_keep_forensic_state_without_cleanup",
+          "QualificationSessionTests.test_canonical_profile_seeds_owner_and_recursively_pins_helper_bytes_offline"
+        ],
+        "begin_utc": "2026-10-24T10:26:46.7477614Z",
+        "end_utc": "2026-10-24T10:26:47.7661135Z",
+        "seconds": 1.019,
+        "run": 5,
+        "passed": 5,
+        "skipped": 0,
+        "exit": 0,
+        "child_pid": 2215,
+        "child_utc": "2026-10-24T10:26:46.765656+00:00"
+      },
+      {
+        "module": "test_improvement_qualification_protocol.py",
+        "selectors": [
+          "QualificationProtocolTests.test_default_startup2_still_refuses_even_well_formed_engineering_envelope",
+          "QualificationProtocolTests.test_rehashed_scope_cannot_claim_account_or_foreign_pin_or_open_bounds",
+          "QualificationProtocolTests.test_rehashed_environment_cannot_supply_real_auth_foreign_endpoint_or_home",
+          "QualificationProtocolTests.test_missing_extra_oversize_and_preflight_attempt_links_refuse",
+          "QualificationProtocolTests.test_run_environment_hashes_and_ordered_image_nonces_cannot_be_forged_by_presence"
+        ],
+        "begin_utc": "2026-10-24T10:26:47.7663934Z",
+        "end_utc": "2026-10-24T10:26:47.9732948Z",
+        "seconds": 0.207,
+        "run": 5,
+        "passed": 5,
+        "skipped": 0,
+        "exit": 0,
+        "child_pid": 2216,
+        "child_utc": "2026-10-24T10:26:47.784000+00:00"
+      },
+      {
+        "module": "test_improvement_qualification_environment.py",
+        "selectors": [
+          "QualificationEnvironmentTests.test_final_environment_cannot_substitute_key_endpoint_or_add_auth_authority",
+          "QualificationEnvironmentTests.test_production_startup2_still_refuses_dummy_environment_without_an_explicit_new_protocol"
+        ],
+        "begin_utc": "2026-10-24T10:26:47.9733996Z",
+        "end_utc": "2026-10-24T10:26:48.1557301Z",
+        "seconds": 0.182,
+        "run": 2,
+        "passed": 2,
+        "skipped": 0,
+        "exit": 0,
+        "child_pid": 2217,
+        "child_utc": "2026-10-24T10:26:47.991515+00:00"
+      },
+      {
+        "module": "test_improvement_native_parent.py",
+        "selectors": [
+          "NativeParentTests.test_guarded_preflight_persists_two_actual_encrypted_decisions_and_closes_before_verify",
+          "NativeParentTests.test_preflight_complete_followed_by_exit7_refuses_after_durable_closing_evidence"
+        ],
+        "begin_utc": "2026-10-24T10:26:48.1558247Z",
+        "end_utc": "2026-10-24T10:26:48.8822820Z",
+        "seconds": 0.726,
+        "run": 2,
+        "passed": 2,
+        "skipped": 0,
+        "exit": 0,
+        "child_pid": 2218,
+        "child_utc": "2026-10-24T10:26:48.173878+00:00"
+      }
+    ],
+    "run_count": 63,
+    "passed": 26,
+    "skipped": 37,
+    "new_platform_skips_added": 0,
+    "ci_actions_warning": "Node20 checkout/setup-python action runtime forced to24; preserved raw",
+    "raw_async_slow_callbacks": 0,
+    "raw_resource_warnings": 0,
+    "log_interleaving": "GitHub stdout/stderr merge crosses first group end; ordered summaries/headers paired separately, control markers serial",
+    "scope": "portable grammar/DB/default-refusal only; real Windows kernel and selected CLI gate distinct",
+    "prior_failure_preserved": {
+      "run": 40085494592,
+      "job": 120847465111,
+      "actual": {
+        "passed": 25,
+        "skipped": 37,
+        "errors": 1
+      },
+      "wrapper_non_skipped34_inaccurate": true
+    }
+  },
+  "scoped_review": {
+    "initial_reviewer": "gpt-6-astra/high",
+    "initial": {
+      "Critical": 0,
+      "Important": 1,
+      "Minor": 2
+    },
+    "I1": "final successful off-loop check could be followed by revocation before returning task issued result",
+    "fix_commit": "0549380e17e66836ab475dae596d21e649e4e7a6",
+    "fix": "full synchronous Session current check immediately before immutable result construction, no intervening await",
+    "rereviewer": "gpt-6.1-sol/high",
+    "I1_verdict": "ADDRESSED",
+    "open_Important_or_Critical": 0,
+    "new_breakage": 0,
+    "deferred_minor": [
+      "M1 raw async fixture slow-callback diagnostics; no suppression",
+      "M2 disclosed interim test overlap; final and fix checks serial"
+    ]
+  },
+  "fix_round1": {
+    "RED": {
+      "deterministic_expected_failures": 3,
+      "fixture_errors": 0,
+      "skipped": 0
+    },
+    "GREEN": {
+      "passed": 8,
+      "skipped": 0,
+      "raw_slow_callbacks": 5,
+      "ResourceWarnings": 0
+    },
+    "cases": "hold genuine final transaction after successful check, close/review-revoke/expire, then release; actual closed/drained/detached owner, two decisions+trace, zero calls, no relaunch",
+    "only_changed_pins": [
+      "server/improvement_qualification_session.py",
+      "tests/python/test_improvement_qualification_native_preflight.py"
+    ],
+    "unchanged_other_pins": 10,
+    "no_unchanged63suite_rerun": true,
+    "linux": {
+      "utc": "2026-10-24T10:36:12.450699+00:00",
+      "run": 40086473971,
+      "job": 120850344076,
+      "conclusion": "success",
+      "source_head": "0549380e17e66836ab475dae596d21e649e4e7a6",
+      "ci_commit": "fec3a3ca07fe46be72e6a4b4f95639c3f8e79b06",
+      "parents": [
+        "0549380e17e66836ab475dae596d21e649e4e7a6",
+        "1998c6f99b66db7267df6d96c910862a8e398c40"
+      ],
+      "checks": [
+        [
+          "test_improvement_qualification_native_preflight.py",
+          "QualificationKernelTests.test_close_after_successful_final_thread_check_refuses_result",
+          "QualificationKernelTests.test_review_revocation_after_successful_final_thread_check_refuses_result",
+          "QualificationKernelTests.test_expiry_after_successful_final_thread_check_refuses_result",
+          "QualificationKernelTests.test_actual_startup3_owner_sdk_image_decisions_and_encrypted_trace",
+          "QualificationKernelTests.test_closed_owner_is_retained_on_trace_failure_and_evidence_retry_after_expiry_never_launches",
+          "QualificationNativeTests.test_close_during_static_runtime_recheck_cannot_leave_authority_current",
+          "QualificationNativeTests.test_review_replacement_during_static_recheck_cannot_leave_authority_current",
+          "QualificationNativeTests.test_qualification_parent_cannot_enter_production_adapter_or_query_paths_or_replay"
+        ]
+      ],
+      "all12pins_exact": true,
+      "run_count": 8,
+      "passed": 3,
+      "skipped": 5,
+      "skip_scope": "existing Windows kernel guard; no added skips",
+      "isolated_child": [
+        "2591",
+        "2026-10-24T10:35:14.550529+00:00"
+      ],
+      "raw_log": {
+        "size": 84723,
+        "sha256": "c4d84ad1004e28da68e48bd714533c4eb3f7c6b18d89b52899f56ad13b316465",
+        "utf16units": 83920
+      },
+      "raw_slow_callbacks": 0,
+      "raw_ResourceWarnings": 0,
+      "infrastructure_warning": "Node20 action runtime forced to24 retained",
+      "scope": "I1 focused portable selectors, Windows actual kernel8PASS separately"
+    }
+  },
+  "artifact_verification": {
+    "original_index_entries": 93,
+    "portability_index_entries": 15,
+    "fix_index_entries": 25,
+    "main_report_prefixes_preserved": [
+      17783,
+      23077
+    ],
+    "all12tested_frozen_working_committed_equal": true,
+    "final_report_sha256": "869f4035e9747d529a352506f608340e2bb4c524fdbcc84490b28c0807cb59ab"
+  },
+  "unchanged_boundaries": {
+    "utc": "2026-10-24T10:33:59.968755+00:00",
+    "base": "6a179c5162ab8e7a0e60d9c8a855e288010a421a",
+    "head": "0549380e17e66836ab475dae596d21e649e4e7a6",
+    "paths": {
+      "VERSION": {
+        "size": 8,
+        "sha256": "4af1c1aa38ec58b86a9b6788c60c0b8d54238602e921e4297d6aee3fb1e2b4ca",
+        "equal_base_and_committed": true
+      },
+      "server/improvement_native_qualifications.py": {
+        "size": 4926,
+        "sha256": "95a56aafa827ac7ede6adbe46205258f81fca889bec42d4bcf2b4901365f6fa5",
+        "equal_base_and_committed": true
+      },
+      "server/improvement_native_release.py": {
+        "size": 18825,
+        "sha256": "cdec514e2ae63f4e33ce63b56c1e525153cc2bacd88897a95605ac6f69f3593b",
+        "equal_base_and_committed": true
+      },
+      "server/improvement_claude.py": {
+        "size": 41359,
+        "sha256": "fc6c58edf126d6f9acfc635d2f0f858c948e18ae70fc1a8a89e9e74a10b3395c",
+        "equal_base_and_committed": true
+      },
+      "tests/python/test_improvement_view_reservations.py": {
+        "size": 13956,
+        "sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0",
+        "equal_base_and_committed": true
+      }
+    },
+    "maps_empty": {
+      "REVIEWED_QUALIFICATION_CANDIDATES": true,
+      "REVIEWED_RELEASES": true
+    },
+    "scope": "static bytes/AST only; no app import/runtime/probe",
+    "audit_preparation_note": "first private AST script looked for REVIEWED_RELEASES in importer; corrected to actual shared authority module before any receipt write"
+  },
+  "resources": {
+    "utc": "2026-10-24T10:36:37.5128698Z",
+    "scope": "current scoped commandline observation; no PID reopen/kill or unrelated-resource mutation",
+    "matching_processes": [],
+    "native_fixture_dirs": [
+      {
+        "FullName": "C:\\Users\\admin\\AppData\\Local\\Temp\\jh2-3f2h21dh",
+        "CreationTimeUtc": "2026-10-23T21:42:55.6183054Z"
+      },
+      {
+        "FullName": "C:\\Users\\admin\\AppData\\Local\\Temp\\jh2-6th6ll9w",
+        "CreationTimeUtc": "2026-10-23T21:40:58.0733674Z"
+      }
+    ]
+  },
+  "mandatory_open_gates": [
+    "exact reviewed installed candidate and selected-CLI diagnostics/query localhost qualification on final stable source",
+    "Q1 baseline5 query/admission/ACK/accounting/typed stage-final/cold-reader",
+    "Q2 view4/operation2",
+    "M2D2/E/F engineering",
+    "final-head required CI and whole-branch review/integration/handoff"
+  ],
+  "ruling": "Q1/Q2 builder-approved design retains one mandatory installed localhost gate on final stable query closure; no fixture/portable component run promotes candidate/product readiness. Earlier diagnostics only for a concrete runtime risk.",
+  "native_qualification": "UNQUALIFIED; both reviewed registries remain empty",
+  "goal_scope": "Goal18 M2 engineering plus integrated handoff; business/live PENDING, no M3-M8",
+  "remote_task_branch": "4ba9624a76cd4bfb54d3d229263baa223944383b unchanged; only owned CI refs pushed",
+  "artifacts": [
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-brief.md",
+      "size": 31085,
+      "sha256": "86b53fe013e574193522ba849732d10b108566899fc24d2bf57e358e3e840c75"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-report.md",
+      "size": 35041,
+      "sha256": "869f4035e9747d529a352506f608340e2bb4c524fdbcc84490b28c0807cb59ab"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-selectors.json",
+      "size": 6019,
+      "sha256": "a28a56d3edbed993b010695aa9f6803c12d650659fe19b8540f1296d6db9ead8"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-review.md",
+      "size": 10678,
+      "sha256": "e613b77a1a7e76be9fb74476947f15a65c324cf351dd20a65428b10e8ef5251a"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-portability-supplement.md",
+      "size": 5292,
+      "sha256": "5993d640eedf32c763409686cb02df58cd4088e3eceaa36d0b56a3a12588e2bd"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-fix-round1-brief.md",
+      "size": 5485,
+      "sha256": "247d05961aa61fd1b7938db1a49af23419dace908f9a27d9d462ff6955fe35ce"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-fix-round1-report.md",
+      "size": 11962,
+      "sha256": "d6019938ea130bb437860011c46209bbccd6b917283c2401da0484c30d9b9654"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-fix-round1-review.md",
+      "size": 3533,
+      "sha256": "06723c2941cf8e2e8d705bbbda6d7d418f87f4f4247be12be6868e240b4bcff4"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/root-artifact-audit.json",
+      "size": 8514,
+      "sha256": "4bfef574c83a5f9eb7103f8563bc6489670b75eb082caf267ea4243d72b70378"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/root-fix1-audit.json",
+      "size": 4712,
+      "sha256": "5bc2e5f10e8d0cf0a474c51b085b2e968c45328de0f746802a74d8c0ee45ae65"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/root-unmodified-boundaries.json",
+      "size": 1469,
+      "sha256": "0d3efae18350d3b45408b3cfe4e3e47e4ec068286a3159bdf49bfa86db75d493"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/root-resources-after-fix.json",
+      "size": 508,
+      "sha256": "aff5f4220f500ba474863ab138ca855737fb16e321fdc9e7c099bc9cbb4a7390"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/early-linux-package.json",
+      "size": 8261,
+      "sha256": "f1d96e027efb5b727b01f13b1cf797d917076212aeed636a59c4ec7d711a3030"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/early-linux-retry-package.json",
+      "size": 8400,
+      "sha256": "6ec767d37c8318b3487df88e6dcea893fb25b8990494935642158b96c6eab487"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/early-linux-retry-audit.json",
+      "size": 8353,
+      "sha256": "0b432bb6715b65bb7a06908437ee475e546620565c7af2677e8d0fd1cba474d2"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/fix-round1-linux-package.json",
+      "size": 4687,
+      "sha256": "2a2e104bd5980aec4ccd6e923151ef834dd391b8941a133948769e70028ce1a3"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/fix-round1-linux-audit.json",
+      "size": 1886,
+      "sha256": "0343854eb01f69df31393e00e115692aa3559269443836320b8ddd0e647d62fa"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/early-linux-job-120847465111-failed.log",
+      "size": 94253,
+      "sha256": "4c508113ea3a97a149e2fb93ec466d1f35cd0d8f61a3ea0ec723f3de9c11077d"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/early-linux-job-120848673796-success.log",
+      "size": 92202,
+      "sha256": "908228b23744bfd095f6ec382077de155cad55da8f4b3450b28a96d79cb6609b"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/fix-round1-linux-job-120850344076.log",
+      "size": 84723,
+      "sha256": "c4d84ad1004e28da68e48bd714533c4eb3f7c6b18d89b52899f56ad13b316465"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/root-check.py",
+      "size": 2468,
+      "sha256": "2a647eb8df929395d02475daada8d3899f4e52fa123a8472cf266a41723b77fe"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-logs/log-index.json",
+      "size": 14724,
+      "sha256": "fed734e02fe4ce3ec8c6e36a876515b30a5d6788a22ea50b15903d0151d77491"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-logs/portability-supplement-index.json",
+      "size": 2796,
+      "sha256": "f0126dd8f8d86191b12b4da6588e2235aab8c34d3892cefa6ee868954cb12307"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-logs/fix-round1-supplement-index.json",
+      "size": 4562,
+      "sha256": "24e9a418b4c504005fca107294dd96e4f9eff05b3b3103c7819a2205c0458960"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-logs/freeze-20261024T101639Z.json",
+      "size": 3917,
+      "sha256": "86e3c898cb8f916da72e186d98fe02c6b9eb1241a14615ccdcedb3f4ef961411"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-logs/portability-freeze-20261024T102321Z.json",
+      "size": 4165,
+      "sha256": "8fd9bbe7fa4c4eac83589790d701d52d2b5e1be0c303ec74ff940f2bdfd9b1ce"
+    },
+    {
+      "path": ".superpowers/sdd/2026-10-24-m2-owned-technical-preflight/task-1-logs/fix-round1-freeze-20261024T103210Z.json",
+      "size": 4365,
+      "sha256": "64ca97672b238f2d5aa64c78bb7cce808a5d167f1873a2c5a34925abc1570bf4"
+    }
+  ]
+}

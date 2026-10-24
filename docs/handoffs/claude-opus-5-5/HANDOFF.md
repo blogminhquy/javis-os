@@ -80,6 +80,22 @@ Further owned Library/native/downstream consumers và orchestration comparison
 
 ## Source, bằng chứng và các gate chưa đạt
 
+- [Owned technical preflight](../../superpowers/evidence/2026-10-24-m2-owned-technical-preflight.json):
+  source `bee28e3e` + portability test `faa5a221` + I1 fix `0549380e`.
+  Original Windows62PASS+1symlinkskip; corrected selector1PASS. Linux retry
+  [40085906579](https://github.com/blogminhquy/javis-os/actions/runs/40085906579)
+  26PASS/37platformskip. Review phát hiện I1 final-thread-handoff race;3case
+  RED thật rồi focusedWindows8PASS, Linux fix-source3PASS/5Windows skip tại
+  [40086473971](https://github.com/blogminhquy/javis-os/actions/runs/40086473971).
+  Scoped re-review I1 ADDRESSED,0new breakage. ProofSHA `52b482e0a894e75d4fdc29486abbae3d4a830344552bd9935dda0f4fad2f8827`.
+  Retain2Minor: raw slowcallbacks và disclosed interim serialization violation;
+  final/fixchecks serial, không suppress/rerun nguyên63bài. Root đã kiểm93+15+25
+  indexedreceipts và12committedpins; slotreleased/0ownedprocess/2Oct23dirs untouched.
+  Đây là fixture orchestration proof, **chưa chạy selectedCLI/SDKClient thật**.
+  Q1baseline5 query→ACK/accounting→typed stage/final/cold reader là bước tiếp;
+  Q2view4/op2 dùng chung luồng. Một mandatory installed localhost gate trên
+  finalstableclosure vẫn OPEN; mapsclosed/UNQUALIFIED, không phải M2 completion.
+
 - [Product capability exclusion](../../superpowers/evidence/2026-10-24-m2-qualification-capability-exclusion.json):
   source `d0d5b27c` chỉ thêm2điều kiện từ chối vào4boundary hiện có và test thật;
   cleanRED12marker failures, Windows13PASS/Linux13PASS,0skip.

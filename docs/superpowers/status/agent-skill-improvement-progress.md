@@ -20,6 +20,22 @@ is established. Existing forward compose/Library/archive code/evidence remains.
 Initial handoff snapshot is explicitly provisional; final M2 gate/cleanup/CI/
 review/PR/version state must be updated before Goal completion.
 
+## M2 owned preflight — component source gate closed, query vertical next
+
+Sources bee28e3e/faa5a221/0549380e, immutable proof
+[2026-10-24-m2-owned-technical-preflight.json](../evidence/2026-10-24-m2-owned-technical-preflight.json)
+SHA52b482e0a894e75d4fdc29486abbae3d4a830344552bd9935dda0f4fad2f8827. Original frozen Windows62PASS+1symlinkskip; portability
+selector1PASS; exact-sourceLinux26PASS/37platformskip. Initial scopedAstra review
+I1 finalthread→returnrace fixed with deterministic3RED→8focusedWindowsPASS,
+fix-sourceLinux3PASS/5Windows skip; scoped6.1rereview I1ADDRESSED0newbreakage.
+Rootverified93+15+25receipts/reportprefixes/12committedpins/zeroownedprocesses.
+No63suitererun, warning suppression or historyrewrite; retainP1M1noise/P1M2interim
+serialdeviation for finalwholebranch. Final/fixruns serialized. Same2Oct23dirs
+untouched; slotreleased. SelectedCLI/SDKClient notrun, bothmapsclosed/native
+UNQUALIFIED. Q1baseline5designbuilderapproved; nextplan/officialbrief, thenQ2
+view4/op2 and mandatoryfinalstableinstalledlocalhost qualification. D2/E/F,
+fullfinalCI/review/integration/handoff remainOPEN; business/livePENDING.
+
 ## M2 capability exclusion — scoped gate closed, owned preflight next
 
 Source d0d5b27c adds only exact false-account/domain qualification rejection at
