@@ -39,6 +39,31 @@ class RecipeRecordTests(unittest.TestCase):
             self.assertNotIn('procedure', item)
             self.assertEqual(reader.list(self.owner), {'items': [item], 'next_cursor': None})
 
+    def test_exact_nine_cold_metadata_and_owner_revocation_remain_supported_after_off(self):
+        import improvement_recipe_schema as nine
+        from improvement_recipe_records import RecipeRecords
+        self.assets.set_policy(self.owner, 'off', expected_version=0, event_key='historical-nine-off')
+        # Restore the exact historical trigger only; archive/event/ciphertext
+        # bytes stay unchanged and no view refs are reclassified.
+        with self.f.store._Tx(self.f.store) as connection:
+            connection.execute('DROP TRIGGER improvement_recipe_trial_scope')
+            connection.execute(next(sql for sql in nine.statements() if sql.startswith('CREATE TRIGGER improvement_recipe_trial_scope ')))
+            connection.execute('UPDATE improvement_schema SET version=9')
+            nine.assert_installed(connection)
+        before = self.f.rows('improvement_recipes')
+        with patch.object(self.assets.blobs, 'read', side_effect=AssertionError('Historical cold path cannot decrypt')), \
+             patch.object(IM, 'ensure', side_effect=AssertionError('Historical cold path cannot migrate')), \
+             patch.object(self.f.host, '_snapshot_observe', side_effect=AssertionError('Historical cold path cannot refresh')):
+            reader = RecipeRecords(IM.read_existing(self.f.store.path, self.assets.blobs))
+            item = reader.get(self.owner, self.saved['recipe_id'])
+            self.assertEqual(reader.list(self.owner), {'items': [item], 'next_cursor': None})
+            self.assertEqual(item['authority_status'], 'not_checked')
+            result = self.records.revoke(self.owner, self.saved['recipe_id'], expected_generation=1,
+                event_key='historical-nine-owner-revoke')
+            self.assertEqual(result['status'], 'revoked')
+        self.assertEqual(IM._schema_version(self.f.store), 9)
+        self.assertEqual(self.f.rows('improvement_recipes'), before)
+
     def test_revoke_cas_replay_and_foreign_identity_are_cold(self):
         options = {'expected_generation': 1, 'event_key': 'cold-owner-revoke'}
         with patch.object(self.assets.blobs, 'read', side_effect=AssertionError('Cold control cannot decrypt')):

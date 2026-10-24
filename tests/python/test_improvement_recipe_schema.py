@@ -97,13 +97,13 @@ class RecipeSchemaTests(unittest.TestCase):
             connection.execute('UPDATE improvement_recipe_states SET ' + ','.join(key+'=?' for key in changes) +
                                ' WHERE recipe_id=?', [*changes.values(), identifier])
 
-    def test_fresh_store_installs_actual_archive_and_exact_version_nine(self):
+    def test_fresh_store_installs_actual_archive_and_exact_version_ten(self):
         with tempfile.TemporaryDirectory(prefix='recipe-fresh-') as directory:
             store = GoalStore(Path(directory) / 'resonance.sqlite3')
             IM.ensure(store)
-            self.assertEqual(IM._schema_version(store), 9, 'Actual additive recipe migration is absent')
+            self.assertEqual(IM._schema_version(store), 10, 'Actual additive recipe migration is absent')
             with closing(store._conn()) as connection:
-                importlib.import_module('improvement_recipe_schema').assert_installed(connection)
+                importlib.import_module('improvement_recipe_view_schema').assert_installed(connection)
                 self.assertEqual(connection.execute('PRAGMA foreign_key_check').fetchall(), [])
 
     def test_official_nonempty_eight_is_additive_preserves_compose_history_and_ciphertext(self):
@@ -172,14 +172,14 @@ class RecipeSchemaTests(unittest.TestCase):
             with self.subTest(version=version):
                 store = self.predecessor(version)
                 IM.ensure(store)
-                self.assertEqual(IM._schema_version(store), 9)
+                self.assertEqual(IM._schema_version(store), 10)
                 with closing(store._conn()) as connection:
                     compose.assert_installed(connection)
-                    importlib.import_module('improvement_recipe_schema').assert_installed(connection)
+                    importlib.import_module('improvement_recipe_view_schema').assert_installed(connection)
                     self.assertEqual(connection.execute('PRAGMA foreign_keys').fetchone()[0], 1)
 
     def test_drafts_collisions_partial_nine_and_future_refuse_before_backup(self):
-        for mutation in ('missing', 'changed', 'collision', 'partial9', 'future10'):
+        for mutation in ('missing', 'changed', 'collision', 'partial9', 'future11'):
             with self.subTest(mutation=mutation):
                 fixture = self.fixture()
                 with fixture.store._Tx(fixture.store) as connection:
@@ -188,7 +188,7 @@ class RecipeSchemaTests(unittest.TestCase):
                         if mutation == 'changed':
                             connection.execute('CREATE TRIGGER improvement_composer_permission BEFORE INSERT ON improvement_operations BEGIN SELECT 1; END')
                     elif mutation == 'collision': connection.execute('CREATE TABLE improvement_recipe_private(secret TEXT)')
-                    else: connection.execute('UPDATE improvement_schema SET version=?', (9 if mutation == 'partial9' else 10,))
+                    else: connection.execute('UPDATE improvement_schema SET version=?', (9 if mutation == 'partial9' else 11,))
                 before, definitions, backups = self.history(fixture.store), self.definitions(fixture.store), self.backups(fixture.store)
                 with self.assertRaises((IM.SchemaError, IM.ConflictError)): IM.ensure(fixture.store)
                 self.assertEqual(self.history(fixture.store), before)
@@ -233,7 +233,7 @@ class RecipeSchemaTests(unittest.TestCase):
                 return connection.execute('PRAGMA foreign_keys').fetchone()[0]
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(list(pool.map(write, (1, 2))), [1, 1])
-        self.assertEqual(IM._schema_version(fixture.store), 9)
+        self.assertEqual(IM._schema_version(fixture.store), 10)
         self.assertEqual(len(set(self.backups(fixture.store))-set(backups)), 1)
         self.assertEqual({key: self.history(fixture.store)[key] for key in before}, before)
 

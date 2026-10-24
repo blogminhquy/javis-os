@@ -127,10 +127,9 @@ def _assert_absent(connection):
         raise SchemaError('recipe_schema_collision')
 
 
-def assert_installed(connection) -> None:
+def _assert_expected(connection, expected) -> None:
     from improvement_store import ConflictError
     from improvement_compose_schema import _assert_statements
-    expected = statements()
     try:
         _assert_statements(connection, expected, error=ConflictError)
     except ConflictError as exc:
@@ -139,6 +138,10 @@ def assert_installed(connection) -> None:
     if any(row['name'] not in names for row in connection.execute(
             "SELECT name FROM sqlite_master WHERE sql IS NOT NULL AND (lower(name) GLOB 'improvement_recipe*' OR lower(tbl_name) GLOB 'improvement_recipe*')")):
         raise ConflictError('recipe_schema_changed')
+
+
+def assert_installed(connection) -> None:
+    _assert_expected(connection, statements())
 
 
 def migrate(connection) -> None:

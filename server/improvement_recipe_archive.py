@@ -195,6 +195,34 @@ class RecipeArchive:
         captured['composition_id'] = composition['id']
         return result
 
+    @staticmethod
+    def _view_sql(connection, brain, comparison_id):
+        # TrialResults owns encrypted historical v4 validation. Retain only its
+        # existing SQL dependencies for the final CAS after slow callbacks;
+        # this snapshot neither resolves a view nor grants current execution.
+        binding = connection.execute('SELECT * FROM improvement_comparison_views WHERE comparison_id=? AND brain_id=?',
+                                     (comparison_id, brain)).fetchone()
+        if binding is None:
+            return None
+        return {'binding': dict(binding),
+            'comparison': _rows(connection, 'SELECT * FROM improvement_comparisons WHERE id=? AND brain_id=?', (comparison_id, brain)),
+            'arm': _rows(connection, 'SELECT a.* FROM improvement_experiment_arms a JOIN improvement_comparisons c '
+                'ON c.experiment_id=a.experiment_id AND c.brain_id=a.brain_id AND c.ordinal=a.ordinal '
+                'WHERE c.id=? AND c.brain_id=?', (comparison_id, brain)),
+            'views': _rows(connection, 'SELECT * FROM improvement_effective_views WHERE comparison_id=? AND brain_id=? ORDER BY id',
+                           (comparison_id, brain)),
+            'assets': _rows(connection, 'SELECT a.* FROM improvement_effective_view_assets a JOIN improvement_effective_views v '
+                'ON v.id=a.view_id AND v.brain_id=a.brain_id WHERE v.comparison_id=? AND v.brain_id=? ORDER BY a.view_id,a.position',
+                (comparison_id, brain)),
+            'receipt': _rows(connection, 'SELECT * FROM improvement_semantic_receipts WHERE id=? AND brain_id=?',
+                             (binding['semantic_receipt_id'], brain)),
+            'links': _rows(connection, 'SELECT * FROM improvement_view_trial_links WHERE comparison_id=? AND brain_id=? ORDER BY cell_position',
+                           (comparison_id, brain)),
+            'publications': _rows(connection, "SELECT * FROM improvement_events WHERE brain_id=? AND "
+                "((operation='comparison_views_freeze' AND json_extract(result_json,'$.comparison_id')=?) OR "
+                "(operation='semantic_owner_arbitration' AND json_extract(result_json,'$.receipt_id')=?)) ORDER BY id",
+                (brain, comparison_id, binding['semantic_receipt_id']))}
+
     def _sql(self, connection, principal, captured):
         """Final comparison uses SQL alone, after the last source/blob callback."""
         brain, candidate = _brain(principal), captured['candidate']
@@ -218,12 +246,16 @@ class RecipeArchive:
                     or latest['comparison_id'] != captured['comparison_metadata']['comparison']['id']):
                 raise IM.ConflictError('recipe_comparison_changed')
             comparison = self.comparisons._snapshot(connection, brain, captured['comparison_metadata'])
+        evidence_comparisons = [item['metadata']['comparison']['id'] for item in captured['contributions']]
+        if captured['comparison_metadata'] is not None:
+            evidence_comparisons.append(captured['comparison_metadata']['comparison']['id'])
         return {'state': state, 'experiment': experiment,
             'candidate': dict(self.authoring.records._row(connection, brain, candidate['id'])),
             'preparation': preparation, 'completions': completions,
             'preparation_links': _rows(connection, 'SELECT * FROM improvement_preparation_trial_links WHERE experiment_id=? AND brain_id=? ORDER BY cell_position',
                                        (value['experiment_id'], brain)),
             'latest': latest, 'comparison': comparison,
+            'views': {identifier: self._view_sql(connection, brain, identifier) for identifier in sorted(set(evidence_comparisons))},
             'composition': self._composition_sql(connection, brain, captured['composition_id']),
             'contributions': [self._contribution_sql(connection, brain, item) for item in captured['contributions']],
             'trials': [self._trial(connection, brain, ref['trial_id'], ref['attempt'], ref['result_id']) for ref in captured['refs']]}
@@ -266,13 +298,19 @@ class RecipeArchive:
     def _capture(self, connection, principal, experiment_id, candidate_id, generation, context_generation):
         brain = _brain(principal)
         require_product_store(self.assets, principal, connection=connection)
-        _, prepared = self.plans._state(connection, principal, experiment_id, generation, unsealed=False, source_split='tuning')
-        value, binding = prepared[:2]
-        state = self.authoring._state(connection, principal, experiment_id, value['target_id'], value['base_revision_id'], value['base_hash'])
+        # Filter the actual candidate/context grant and current target rights
+        # in SQL before the plan owner decrypts its frozen binding or sources.
+        candidate = dict(self.authoring.records._row(connection, brain, candidate_id))
+        if candidate['experiment_id'] != experiment_id:
+            raise PermissionError('recipe_candidate_scope_changed')
+        state = self.authoring._state(connection, principal, experiment_id,
+            candidate['target_id'], candidate['base_revision_id'], candidate['base_hash'])
         if state['policy']['mode'] != 'suggest':
             raise PermissionError('recipe_suggest_required')
         if context_generation != state['grant']['generation']:
             raise IM.ConflictError('recipe_context_generation_stale')
+        _, prepared = self.plans._state(connection, principal, experiment_id, generation, unsealed=False, source_split='tuning')
+        value, binding = prepared[:2]
         if type(self.host.fixture_observer) is not BrainFileFixtures or any(
                 item['freshness_policy'] != 'require_current_version' or not item['source_ref'].startswith('brain-file:')
                 for item in binding['fixture_inventory']):
@@ -284,7 +322,6 @@ class RecipeArchive:
         language = capture['surface'].get('language')
         if capture['baseline_context']['coverage'] != 'complete' or language not in ('vi', 'en'):
             raise PermissionError('recipe_complete_semantic_capture_required')
-        candidate = dict(self.authoring.records._row(connection, brain, candidate_id))
         if any(candidate[key] != value[key] for key in
                ('experiment_id', 'context_id', 'target_id', 'base_revision_id', 'base_hash', 'base_generation')):
             raise PermissionError('recipe_candidate_scope_changed')
@@ -389,7 +426,7 @@ class RecipeArchive:
         decision = _decision(decision)
         payload = {'experiment_id': experiment_id, 'candidate_id': candidate_id, 'decision': decision,
                    'expected_generation': expected_generation, 'expected_context_generation': expected_context_generation}
-        if type(self.store) is not GoalStore or IM._schema_version(self.store) < 9:
+        if type(self.store) is not GoalStore or IM._schema_version(self.store) not in (9, 10):
             raise PermissionError('recipe_writer_unavailable')
         with closing(self.store._conn()) as connection:
             replay = self.assets._replay(connection, brain, event_key, 'recipe_capture', payload)
