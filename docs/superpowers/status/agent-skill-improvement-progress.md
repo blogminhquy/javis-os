@@ -1,5 +1,25 @@
 # Agent and skill improvement Goal progress
 
+## Owner scope override24/10 — finish M2 engineering and Claude handoff
+
+Direct owner decision from “Xác định bước harness2 tốn thời gian” supersedes
+all older full M0–M8/Phase2 completion and continuation instructions below.
+Current Goal stays ACTIVE until M2A–F/D1/D2 engineering and committed/integrated
+handoff pass their actual technical source/runtime/qualification/CI/review gates.
+No new Goal, M3–M8 work or actual account/model/business/pilot/canary runs.
+Business/live acceptance is PENDING and cannot be inferred from simulations.
+See [Goal18](../AGENT-SKILL-IMPROVEMENT-GOAL.md#18-chủ-thu-hẹp-goal-tới-m2-engineering-và-yêu-cầu-bàn-giao--24102026)
+and [initial handoff](../../handoffs/claude-opus-5-5/HANDOFF.md).
+
+M0/M1 and M2A–C are reused; D1/D2/E/F remain open pending actual impact
+assessment. Current six-path recipe-source Task1 is being safely stabilized and
+preserved with scoped evidence, not treated as M2 completion. Undispatched
+destination schema11/permission/retrieval and further Library/orchestration
+expansion move to Claude backlog unless a concrete M2 consistency prerequisite
+is established. Existing forward compose/Library/archive code/evidence remains.
+Initial handoff snapshot is explicitly provisional; final M2 gate/cleanup/CI/
+review/PR/version state must be updated before Goal completion.
+
 ## Current view-backed recipe archive — scoped engineering approved
 
 Commitbc1a3a68 adds the trigger-only schema10 overlay over exact historical9,

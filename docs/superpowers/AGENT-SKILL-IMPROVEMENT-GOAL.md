@@ -1,10 +1,17 @@
-# Goal triển khai cải tiến agent và skill Javis, M0–M8
+# Goal cải tiến Javis — kết thúc ở M2 engineering và bàn giao Claude Opus 5.5
+
+**Quyết định chủ ngày24/10/2026, mục18, thay thế điều kiện hoàn thành M0–M8
+và mọi lệnh tiếp tục toàn bộ cũ bên dưới.** Goal hiện tại chỉ hoàn thành khi
+M2 engineering đạt đầy đủ gate kỹ thuật hiện hành và bộ bàn giao được cập nhật,
+commit/tích hợp. Không khởi động M3–M8 hoặc thử account/model/business/live.
+Các mục cũ được giữ để bảo toàn hợp đồng và lịch sử, áp dụng khi không mâu thuẫn
+với mục18. Điểm vào bàn giao: [HANDOFF](../handoffs/claude-opus-5-5/HANDOFF.md).
 
 Ngày: 22/10/2026, Asia/Saigon.
 
 Tài liệu này là chỉ dẫn cho một Goal sẽ được chủ phát lệnh. Việc soạn/lưu tài liệu không khởi động Goal, không gọi model thử nghiệm và không cấp quyền triển khai production. Phần ủy quyền bên dưới có hiệu lực khi chủ gửi lệnh Goal tham chiếu toàn bộ file này.
 
-## 1. Một lệnh để khởi động
+## 1. Lệnh khởi động lịch sử — phạm vi đã được mục18 thay thế
 
 ```text
 /goal Hoàn thành cải tiến agent và skill Javis từ M0 đến M8 theo toàn bộ chỉ dẫn tại D:\Project\Javis-OS\docs\superpowers\AGENT-SKILL-IMPROVEMENT-GOAL.md. Tự lập và thực hiện kế hoạch, kiểm thử, review, sửa lỗi, tạo PR và tích hợp theo quy ước repo; tiếp tục qua các mốc đủ điều kiện mà không hỏi lại xác nhận thông thường. Chỉ hoàn thành khi có bằng chứng đạt đầy đủ các điều kiện trong file; nếu còn gate nghiệp vụ, dữ liệu, quyền hoặc thời gian quan sát thật chưa đạt thì báo chính xác phần bị chặn và tiếp tục mọi phần độc lập còn làm được.
@@ -431,4 +438,48 @@ bỏ ownership đang chạy. Áp dụng từ đơn vị phù hợp gần nhất 
    fixture / review và CI / gate còn mở. Chỉ báo tiết kiệm có cơ sở đo, không
    tối ưu tỷ lệ dòng copy. Lưu Goal/progress/checkpoint/code-first/reuse map,
    tự quyết kỹ thuật trong quyền hiện có, tiếp tục không hỏi lại xác nhận.
+
+## 18. Chủ thu hẹp Goal tới M2 engineering và yêu cầu bàn giao — 24/10/2026
+
+Quyết định trực tiếp của chủ chuyển từ chat “Xác định bước harness2 tốn thời gian”
+(`01a16662-a77c-72e2-9c40-265c5659d5cc`), nhận trong phiên Goal này ngày24/10.
+Mục18 **supersede** yêu cầu hoàn thành M0–M8/Phase2 trong Goal hiện tại, gồm
+mục1/2/5/8/10/13/17 và mọi kế hoạch/lệnh tiếp tục cũ có phạm vi rộng hơn.
+Không tạo Goal mới, không đánh dấu complete ngay lúc nhận quyết định.
+
+1. Hoàn thiện M2A–F và D1/D2 theo hợp đồng kỹ thuật: backend/runtime/UI,
+   manual apply/revert/recovery/usage/provenance cần cho M2. Reuse M0/M1 và
+   M2A–C đã đạt; không triển khai lại.
+2. Nghiệm thu Goal là **M2 engineering + bàn giao**, code/kiểm kỹ thuật trước.
+   Không đợi hoặc khởi động real-account/model/business feasibility/pilot/canary
+   để tiêu thêm quota. Chuẩn bị và kiểm mô phỏng workflow feasibility M2F;
+   business/live acceptance vẫn **PENDING**, không tuyên bố hiệu quả M2.
+   Mọi gate qualification kỹ thuật/source/runtime/CI/review bắt buộc của mã
+   bàn giao vẫn phải đạt hoặc ghi blocker thật; không hạ gate, không báo blocked
+   chỉ vì chờ CI.
+3. Không mở rộng recipe/library/compose vượt phụ thuộc thật sự của M2.
+   Bảo toàn code/evidence thuộc M3–M8 đã xây, chốt an toàn đơn vị đang chạy;
+   phần còn lại chuyển backlog Claude. Không chạy M3–M8 trong Goal này.
+4. Bàn giao bắt đầu ngay tại `docs/handoffs/claude-opus-5-5/`, cập nhật dần:
+   `HANDOFF.md` là điểm vào trạng thái/gate/môi trường/quyền/khôi phục;
+   `NEXT-PROMPT.md` là prompt ngắn cho Claude Opus5.5. Có roadmap M3–M8,
+   phần làm trước, actual Google vendor/adapter/SHA/license/provenance và các
+   addendum test theo ảnh hưởng/thay chọn lọc/code-first/compose-library reuse.
+5. Ghi evidence theo actual commit/source; early Linux/scoped/mock không thay
+   full final-head CI/review/native qualification. Liệt kê invalidated/chưa
+   verified. Khi kết thúc phải settle/dọn đúng ownership mọi process/reservation/
+   workspace của Goal; không để helper/model chạy ngầm.
+6. Không đưa secret/key/token/credential/plaintext private vào bàn giao.
+   Không xóa/di chuyển worktree hoặc key, không mass-copy private blobs.
+   Giữ ignored lịch sử/khôi phục và ghi vị trí/trạng thái an toàn.
+7. Commit docs/bàn giao và cập nhật tới actual final M2 state; tích hợp PR theo
+   quyền/CI/review đã có, bảo toàn checkout chính bẩn và nhánh chat khác.
+   Sau khi đạt scope mới trả đường dẫn tuyệt đối HANDOFF/NEXT-PROMPT,
+   release/PR/commit và pending real-test gates rồi mới complete Goal.
+
+Chủ đã cho phép thay scope và bàn giao, không hỏi lại xác nhận thông thường.
+Đổi coding assistant sang Claude Opus5.5 không đổi engine/model/reasoning của
+Javis và không cấp quyền thử thật/deploy/restart/activation. API Goal hiện có
+chỉ create/get/update-status, không có objective-update; giữ một Goal ACTIVE,
+dùng mục18 và checkpoint làm scope có hiệu lực, không tạo Goal thay thế.
 

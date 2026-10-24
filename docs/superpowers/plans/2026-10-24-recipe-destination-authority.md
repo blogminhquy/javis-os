@@ -1,5 +1,14 @@
 # Recipe Destination Authority Implementation Plan
 
+**Owner override24/10/2026:** Goal18 now limits this Goal to M2 engineering and
+Claude Opus5.5 handoff. Safely finish/stabilize the already-running Task1 and
+preserve its scoped code/evidence. Tasks2/3 are undispatched future backlog;
+do not execute them or the later Library/native/orchestration expansion under
+this older plan. Only a documented concrete M2 consistency prerequisite could
+bring a bounded dependency into the new M2 closeout plan. This supersedes all
+mandatory-three-task/full-M0–M8 continuation language below; it does not mark
+unimplemented tasks complete. See docs/handoffs/claude-opus-5-5/HANDOFF.md.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. Execute all three tasks sequentially with fresh scoped review and one serial local app/native slot. Task1/2 alone are not complete destination integration. Full Goal§3 authorizes continuous execution without another routine plan approval.
 
 **Goal:** Authorize exact source recipes for a current destination and produce at most3 authenticated procedure projections with current source freshness and intact historical evidence.

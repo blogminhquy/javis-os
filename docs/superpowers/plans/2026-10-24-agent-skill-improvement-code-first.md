@@ -1,5 +1,14 @@
 # M0–M8: code and technical verification before real trials
 
+**Owner scope override24/10/2026:** Goal18 supersedes the full-M0–M8 execution
+and Phase2 completion instructions in this historical plan. Current Goal now
+finishes M2 engineering plus committed Claude Opus5.5 handoff only. Reuse
+M0/M1/M2A–C; finish actual M2D1/D2/E/F technical gaps, no account/model/business/
+pilot/canary run. Preserve forward-built components and transfer remaining
+M3–M8 work to backlog. Current authority is
+docs/superpowers/AGENT-SKILL-IMPROVEMENT-GOAL.md18 and
+docs/handoffs/claude-opus-5-5/HANDOFF.md; older evidence remains source-scoped.
+
 Current archivebc1a3a68 scoped approved: exact9→10 trigger-only migration/backup/
 rollback/history and cold9 compatibility, actual ordinary+typed3 v4 refs, all9
 request pins, grant-before-binding-read and final historical-view SQL fences.
