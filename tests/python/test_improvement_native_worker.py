@@ -46,6 +46,24 @@ def packet(kind='preflight', *, scratch=r'C:\private\scratch'):
 
 
 class NativeWorkerContractTests(unittest.IsolatedAsyncioTestCase):
+    async def test_startup3_is_explicit_preflight_only_and_default_route_never_adopts_it(self):
+        from test_improvement_qualification_protocol import startup
+        from improvement_qualification_protocol import encode_startup3
+        m = component(self)
+        value = startup('preflight')
+        with patch.object(m.socket, 'fromshare', side_effect=AssertionError('no acquisition')):
+            with self.assertRaises(ValueError): m.NativeWorkerSessionV2(value, namespace='preflight')
+            with self.assertRaises(ValueError): await m.run_startup2(encode_startup3(value), entrypoint='trial')
+            with self.assertRaises(ValueError): await m.run_startup3(encode_startup3(value), entrypoint='operation')
+            for kind in ('trial', 'operation'):
+                with self.assertRaises(ValueError): m.NativeWorkerSessionV2.from_startup3(startup(kind), namespace=kind)
+                with self.assertRaises(ValueError): await m.run_startup3(encode_startup3(startup(kind)), entrypoint='trial')
+            owner = m.NativeWorkerSessionV2.from_startup3(value, namespace='preflight')
+            self.assertEqual(owner._packet['qualification'], value['qualification'])
+            value['qualification']['run_hash'] = '0' * 64
+            self.assertNotEqual(owner._packet['qualification'], value['qualification'])
+            await owner.aclose()
+
     async def test_closed_constructor_snapshots_without_socket_environment_or_sdk_side_effect(self):
         m = component(self)
         value, original_env = packet(), dict(os.environ)
@@ -84,14 +102,27 @@ from improvement_native_worker import NativeWorkerSessionV2
 mode=sys.argv[2]
 startup=json.loads(sys.stdin.buffer.readline())
 initial=dict(os.environ)
-owner=NativeWorkerSessionV2(startup,namespace=startup['kind'])
+owner=(NativeWorkerSessionV2.from_startup3(startup,namespace=startup['kind']) if startup['version']==3
+ else NativeWorkerSessionV2(startup,namespace=startup['kind']))
 imports=[]
 import builtins
 original_import=builtins.__import__
 def observe(name,*args,**kwargs):
  if name in ('improvement_private_channel','improvement_image_channel','improvement_native_sdk'):
   imports.append(dict(os.environ)==startup['environment'])
- return original_import(name,*args,**kwargs)
+ module=original_import(name,*args,**kwargs)
+ if name=='improvement_native_sdk' and mode.startswith('qualification_factory_'):
+  original_factory=module.NativeInvocationSet.from_qualification_worker
+  def factory(cls,current):
+   if mode=='qualification_factory_environment':os.environ['ANTHROPIC_BASE_URL']='http://127.0.0.1:15433'
+   elif mode=='qualification_factory_record':current._records[0]['acquisition_unknown']=True
+   elif mode=='qualification_factory_run':current._packet['qualification']['run_hash']='0'*64
+   try:return original_factory(current)
+   finally:
+    # Restore the deliberate record fault so this fixture can prove actual known close.
+    if mode=='qualification_factory_record':current._records[0]['acquisition_unknown']=False
+  module.NativeInvocationSet.from_qualification_worker=classmethod(factory)
+ return module
 builtins.__import__=observe
 if mode=='cancel':
  original_fromshare=socket.fromshare
@@ -168,7 +199,8 @@ asyncio.run(main())
 
 @unittest.skipUnless(os.name == 'nt' and sys.flags.isolated, 'real fromshare fixtures require isolated Windows driver')
 class NativeWorkerWindowsTests(unittest.IsolatedAsyncioTestCase):
-    async def run_child(self, kind='preflight', *, change=None, mode='normal', flags=('-I', '-S', '-B'), wrong_cwd=False):
+    async def run_child(self, kind='preflight', *, change=None, mode='normal', flags=('-I', '-S', '-B'), wrong_cwd=False,
+                        qualification=False):
         component(self)
         from improvement_native_capture_win32 import backend
         from improvement_native_protocol import worker_binding
@@ -181,6 +213,20 @@ class NativeWorkerWindowsTests(unittest.IsolatedAsyncioTestCase):
             login = root / 'external-empty-login'; login.mkdir()
             value['environment'].update(HOME=str(login), USERPROFILE=str(login),
                 APPDATA=str(login / 'AppData/Roaming'), LOCALAPPDATA=str(login / 'AppData/Local'))
+            if qualification:
+                from improvement_qualification_environment import dummy_environment
+                from improvement_native_protocol import _canonical
+                import hashlib
+                digest=lambda item:hashlib.sha256(_canonical(item)).hexdigest()
+                value.update(version=3,type='startup3')
+                value['request']['config_pin']['profile_version']='claude-owned-images-v3'
+                value['environment']=dummy_environment(value['environment'],endpoint='http://127.0.0.1:15432')
+                scope=dict(version=1,domain='qualification',account_ready=False,run_nonce='9'*64,
+                    root=str(root),brain_id=str(root/'brain'),pin_hash=digest(value['request']['config_pin']),
+                    release_fingerprint='8'*64,review_hash='7'*64,endpoint='http://127.0.0.1:15432',
+                    maximum_queries=4,created_at=1000.0,deadline_at=1300.0)
+                value['qualification']=dict(version=1,run_hash=digest(scope),scope=scope,
+                    environment_hash=digest(value['environment']),attempt_link=None)
             if kind != 'preflight': value['request']['receipt']['path'] = str(workspace)
             initial = {key: str(scratch) for key in ('HOME', 'USERPROFILE', 'TEMP', 'TMP', 'APPDATA', 'LOCALAPPDATA')}
             initial.update(SYSTEMROOT=os.environ.get('SYSTEMROOT', r'C:\Windows'), WINDIR=r'C:\Windows',
@@ -204,15 +250,21 @@ class NativeWorkerWindowsTests(unittest.IsolatedAsyncioTestCase):
                     shares.append(base64.b64encode(endpoint.share(child.pid)).decode('ascii'))
                 value['private_share'] = shares[0]
                 for item, share in zip(value['images'], shares[1:]): item['share'] = share
+                original_value=copy.deepcopy(value)
                 if change is not None: change(value)
                 # Host binding uses the actual retained target incarnation, even
                 # when testing an invalid worker receipt PID/birth.
-                host_value = {**value, 'worker_pid': child.pid, 'worker_birth': child_birth}
-                host = PrivateWorkerChannelV2(pairs[0][0], binding=worker_binding(host_value), role='host')
+                host_value = {**original_value, 'worker_pid': child.pid, 'worker_birth': child_birth}
+                if qualification:
+                    from improvement_qualification_protocol import worker_binding3
+                    binding=worker_binding3(host_value)
+                else: binding=worker_binding(host_value)
+                host = PrivateWorkerChannelV2(pairs[0][0], binding=binding, role='host')
                 for _, endpoint in pairs: endpoint.close()
                 child.stdin.write(json.dumps(value).encode() + b'\n'); child.stdin.flush()
                 child.stdin.close(); child.stdin = None
-                good = change is None and flags == ('-I', '-S', '-B') and not wrong_cwd and mode != 'cancel'
+                good = (change is None and flags == ('-I', '-S', '-B') and not wrong_cwd
+                    and mode != 'cancel' and not mode.startswith('qualification_factory_'))
                 if good:
                     observed = await host.receive(timeout=8)
                     self.assertEqual(observed['body'], {'type': 'endpoints_adopted'})
@@ -250,6 +302,26 @@ class NativeWorkerWindowsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['runtime_commands'], 0)
         self.assertFalse(result['sdk_imported'])
         self.assertTrue(result['channels_closed'])
+
+    async def test_startup3_actual_adoption_constructs_sdk_only_after_exact_dummy_environment(self):
+        result=await self.run_child(qualification=True)
+        self.assertTrue(result['adopted']); self.assertTrue(result['closed']); self.assertTrue(result['env_exact'])
+        self.assertTrue(result['imports_after_env']); self.assertEqual(result['records'],3)
+        self.assertFalse(result['sdk_imported']); self.assertEqual(result['runtime_commands'],0)
+        self.assertTrue(result['channels_closed'])
+
+    async def test_startup3_actual_factory_refuses_changed_environment_run_and_private_record(self):
+        for mode in ('environment','run','record'):
+            with self.subTest(mode=mode):
+                result=await self.run_child(qualification=True,mode='qualification_factory_'+mode)
+                self.assertFalse(result['adopted']); self.assertTrue(result['closed'])
+                self.assertEqual(result['records'],3); self.assertTrue(result['channels_closed'])
+
+    async def test_startup3_actual_fromshare_failure_retains_unknown_for_enclosing_process_drain(self):
+        def change(value):value['images'][0]['share']=base64.b64encode(b'invalid-native-share').decode('ascii')
+        result=await self.run_child(qualification=True,change=change)
+        self.assertFalse(result['adopted']); self.assertFalse(result['closed']); self.assertTrue(result['retained'])
+        self.assertTrue(result['acquisition_unknown']); self.assertTrue(result['channels_closed'])
 
     async def test_real_trial_and_operation_body_channels_use_closed_protocol(self):
         for kind in ('trial', 'operation'):

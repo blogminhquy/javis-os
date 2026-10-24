@@ -166,3 +166,19 @@ def decode_startup3(raw):
 def worker_binding3(value):
     """Reuse actual private channel incarnation/nonces; data adds no provenance."""
     return worker_binding(_base(validate_startup3(value)))
+
+
+def validate_technical_observation(value, *, pin):
+    """Check fixed diagnostic observations, granting no account capability."""
+    _pin(pin); _tree(value)
+    _fields(value, {'platform', 'cli_hash', 'sdk_version', 'profile_hash', 'managed_policy', 'cli_version', 'auth'})
+    if (value['platform'] != 'win32' or value['managed_policy'] != 'absent'
+            or any(value[name] != pin[name] for name in ('cli_hash', 'sdk_version', 'profile_hash', 'cli_version'))):
+        raise ValueError('qualification_observation_drift')
+    auth = value['auth']; _fields(auth, {'logged_in', 'method', 'provider', 'plan'})
+    if type(auth['logged_in']) is not bool: raise ValueError('qualification_auth_invalid')
+    for name in ('method', 'provider', 'plan'):
+        if auth[name] is not None: _text(auth[name], 128)
+    if auth['method'] == 'claude.ai' or auth['plan'] is not None:
+        raise PermissionError('qualification_subscription_forbidden')
+    return _parse(_canonical(value))

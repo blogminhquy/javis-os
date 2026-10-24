@@ -14,6 +14,7 @@ from pathlib import Path
 import secrets
 import subprocess
 import tempfile
+import time
 
 import improvement_store as IM
 from improvement_blobs import MAX_ASSET_BYTES
@@ -88,6 +89,31 @@ class NativeParentBoundary:
         self.current, self.lock = current, lock
         self.decisions = NativeImageDecisionStore(assets)
         self._verification_started = self._query_started = False
+        self._qualification = None
+
+    @classmethod
+    def for_qualification(cls, session):
+        from improvement_qualification_session import QualificationSession
+        if cls is not NativeParentBoundary or type(session) is not QualificationSession:
+            raise TypeError('concrete_qualification_session_required')
+        session._assert_native_current()
+        if session._native_parent is not None: raise PermissionError('qualification_preflight_already_used')
+        self = cls.__new__(cls)
+        self._qualification = session
+        self.pin = _parse(_canonical(session._pin))
+        self.assets, self.principal = session.assets, session.principal
+        self.scope_hash = IM._hash({'version': 1, 'domain': 'qualification',
+            'run_hash': session.run_hash, 'phase': 'preflight'})
+        self.current, self.lock = None, None
+        self.decisions = NativeImageDecisionStore(self.assets)
+        self._verification_started = self._query_started = False
+        self._guardian = self._scratch = self._qualification_seed = None
+        self._qualification_packets, self._qualification_joined = {}, {}
+        self._qualification_complete = self._evidence_settled = False
+        self._owner_state = 'PREPARED'
+        self._close_lock = asyncio.Lock()
+        session._native_started, session._native_parent = True, self
+        return self
 
     async def _serialized(self, callback):
         if self.lock is None: return await _settled(asyncio.to_thread(callback))
@@ -97,6 +123,9 @@ class NativeParentBoundary:
     async def _current(self):
         def check():
             with self.assets.store._Tx(self.assets.store) as connection:
+                if self._qualification is not None:
+                    self._qualification._assert_native_current(connection=connection)
+                    return
                 if self.current(connection, None) != 'allow':
                     raise PermissionError('native_parent_authority_changed')
         await self._serialized(check)
@@ -106,7 +135,13 @@ class NativeParentBoundary:
         async def persist(joined):
             def current(connection, value):
                 _dispatch(value, pin, environment, cwd, query_policy)
+                if self._qualification is not None:
+                    if value['purpose'] not in _PURPOSES[:2]: raise PermissionError('qualification_query_forbidden')
+                    self._qualification._assert_native_current(connection=connection)
+                    return 'allow'
                 return self.current(connection, value)
+            if self._qualification is not None:
+                self._qualification_joined[joined['purpose']] = _parse(_canonical(joined))
             return await self._serialized(lambda: self.decisions.persist(self.principal, joined,
                 scope_hash=scope_hash, current=current))
         return persist
@@ -116,7 +151,9 @@ class NativeParentBoundary:
         digest = hashlib.sha256(raw).hexdigest()
         payload = {'scope_hash': self.scope_hash, 'launch_nonce': nonce, 'trace_hash': digest,
                    'engine_config_hash': IM._hash(self.pin)}
-        key = 'native-preflight:' + IM._hash([self.scope_hash, nonce])
+        identity = [self.scope_hash, nonce]
+        if self._qualification is not None: identity.append(digest)
+        key = 'native-preflight:' + IM._hash(identity)
         with self.assets.store._Tx(self.assets.store) as connection:
             previous = self.assets._replay(connection, IM._brain(self.principal), key, 'native_preflight_evidence', payload)
             if previous is not None: return previous
@@ -125,6 +162,138 @@ class NativeParentBoundary:
             record = {'version': 1, **payload, 'blob_hashes': hashes}
             self.assets._event(connection, self.principal, key, 'native_preflight_evidence', payload, record)
             return record
+
+    def _check_qualification_start(self, guardian):
+        from improvement_qualification_session import QualificationSession
+        from improvement_blobs import check_ancestry
+        from improvement_qualification_environment import validate_dummy_environment
+        session = self._qualification
+        if (type(session) is not QualificationSession or self._guardian is not guardian
+                or session._native_boundaries.get(guardian) is not self or guardian not in session._owners
+                or self._owner_state != 'ATTACHED' or self._qualification_seed is None):
+            raise PermissionError('qualification_native_owner_foreign')
+        session._assert_native_current()
+        seed = self._qualification_seed
+        environment = validate_dummy_environment(seed['environment'])
+        scratch, home = Path(self._scratch.name), Path(environment['HOME'])
+        for path in (scratch, home): check_ancestry(path)
+        if (not scratch.is_dir() or not scratch.is_relative_to(session.root)
+                or not home.is_dir() or home.parent != session.root / 'homes' or tuple(home.iterdir())
+                or environment['USERPROFILE'] != str(home)
+                or environment['APPDATA'] != str(home / 'AppData' / 'Roaming')
+                or environment['LOCALAPPDATA'] != str(home / 'AppData' / 'Local')
+                or seed['qualification']['scope'] != session.scope()
+                or seed['qualification']['run_hash'] != session.run_hash
+                or seed['qualification']['environment_hash'] != IM._hash(environment)
+                or seed['qualification']['attempt_link'] is not None
+                or seed['request'] != {'version': 1, 'config_pin': self.pin}
+                or guardian._policy['scratch'] != str(scratch)):
+            raise PermissionError('qualification_home_inconsistent')
+        expected = {'TEMP': 'tmp', 'TMP': 'tmp', 'JAVIS_STATE_DIR': 'host-state', 'BRAINS_DIR': 'empty-brains',
+            'OBSIDIAN_VAULT_PATH': 'empty-vault', 'BRAIN_PATH': 'empty-brain', 'SOURCES_PATH': 'empty-sources'}
+        if any(Path(environment[name]) != scratch / leaf for name, leaf in expected.items()):
+            raise PermissionError('qualification_workspace_foreign')
+        return _parse(_canonical(seed))
+
+    def _retain_qualification_packets(self, packets):
+        for packet in packets:
+            packet = _parse(_canonical(packet)); sequence = packet['sequence']
+            previous = self._qualification_packets.get(sequence)
+            if previous is not None and previous != packet: raise ValueError('qualification_trace_changed')
+            self._qualification_packets[sequence] = packet
+
+    async def _close_qualification(self):
+        async with self._close_lock:
+            owner = self._guardian
+            if owner is None or self._owner_state == 'DETACHED': return
+            self._owner_state = 'CLOSING'
+            error = None
+            try: await _settled(owner.aclose())
+            except BaseException as caught: error = caught
+            self._evidence_settled = False
+            try:
+                self._retain_qualification_packets(owner.closing_observations)
+                packets = [self._qualification_packets[key] for key in sorted(self._qualification_packets)]
+                self._trace_record = await _settled(asyncio.to_thread(self._save_preflight, owner._nonce, packets))
+                self._evidence_settled = True
+            except BaseException as caught:
+                if error is None: error = caught
+            if owner.closed is True and self._evidence_settled:
+                self._owner_state = 'DRAINED'
+                try:
+                    self._scratch.cleanup()
+                    self._qualification._detach_native(owner, self)
+                except BaseException as caught:
+                    self._evidence_settled = False
+                    if error is None: error = caught
+            if self._owner_state != 'DETACHED': self._owner_state = 'RETAINED_UNKNOWN'
+            if error is not None: raise error
+
+    async def verify_qualification(self):
+        from improvement_qualification_protocol import validate_technical_observation
+        from improvement_qualification_session import QualificationPreflight
+        session = self._qualification
+        if session is None or self._verification_started:
+            raise PermissionError('qualification_preflight_already_used')
+        self._verification_started = True
+        session._assert_native_current()
+        self._scratch = tempfile.TemporaryDirectory(prefix='preflight-', dir=session.root)
+        self._scratch._finalizer.detach()  # The retained Session map is the lifetime owner.
+        nonce, runtime, error = secrets.token_hex(32), None, None
+        try:
+            launch = await _settled(asyncio.to_thread(session._preflight_launch, self._scratch.name))
+            environment = session.environment(self._scratch.name)
+            self._qualification_seed = {'kind': 'preflight', 'request': {'version': 1, 'config_pin': self.pin},
+                'environment': environment, 'qualification': {'version': 1, 'run_hash': session.run_hash,
+                    'scope': session.scope(), 'environment_hash': IM._hash(environment), 'attempt_link': None}}
+            remaining = session._scope['deadline_at'] - time.time()
+            if remaining <= 0: raise PermissionError('qualification_session_expired')
+            self._guardian = GuardianSessionV2(launch['guardian_manifest'], launch['policy'], image_policy=launch['image_policy'],
+                fences=[str(Path(self._scratch.name) / 'admission.lock'), str(Path(self._scratch.name) / 'preflight.lock')],
+                launch_nonce=nonce, invocations=[{'purpose': purpose, 'nonce': secrets.token_hex(32)} for purpose in _PURPOSES[:2]],
+                persist_before_allow=self._persist(environment=environment, cwd=self._scratch.name, scope_hash=self.scope_hash),
+                timeout=30, close_timeout=8, lifetime_timeout=min(60, remaining))
+            session._attach_native(self._guardian, self)
+            await self._guardian.start_qualification(self)
+            self._owner_state = 'ACTIVE'
+            while True:
+                packet = await self._guardian.receive()
+                self._retain_qualification_packets((packet,))
+                if packet['body']['type'] == 'worker_error': raise RuntimeError('qualification_preflight_worker_failed')
+                if packet['body']['type'] == 'preflight_complete':
+                    runtime = packet['body']['runtime']; break
+        except BaseException as caught:
+            error = caught
+        finally:
+            if self._guardian is not None and session._native_boundaries.get(self._guardian) is self:
+                try: await self._close_qualification()
+                except BaseException as caught:
+                    if error is None: error = caught
+            else:
+                self._scratch.cleanup()
+        if error is not None: raise error
+        owner = self._guardian
+        if (runtime is None or owner.closed is not True or not owner.native_drained or not owner._worker_complete
+                or any(type(status) is not int or status != 0 for status in
+                    (getattr(owner, '_worker_exit_code', None), getattr(owner, '_guardian_exit_code', None)))
+                or owner._allowed != set(_PURPOSES[:2]) or self._owner_state != 'DETACHED'):
+            raise RuntimeError('qualification_preflight_cleanup_unproven')
+        observed = validate_technical_observation(runtime, pin=self.pin)
+        decisions = []
+        for purpose in _PURPOSES[:2]:
+            joined = self._qualification_joined.get(purpose)
+            if joined is None: raise PermissionError('qualification_decisions_required')
+            decision = self.decisions.read(self.principal, joined, scope_hash=self.scope_hash)
+            if decision['decision'] != 'allow': raise PermissionError('qualification_decisions_required')
+            decisions.append(decision['durable_evidence_hash'])
+        await self._current()
+        self._result_fields = {'version': 1, 'domain': 'qualification', 'supported': False, 'account_ready': False,
+            'technical_ready': True, 'run_hash': session.run_hash, 'pin_hash': IM._hash(self.pin),
+            'release_fingerprint': session._scope['release_fingerprint'], 'review_hash': session._scope['review_hash'],
+            'launch_nonce': nonce, 'environment_hash': IM._hash(environment), 'observation_hash': IM._hash(observed),
+            'trace_hash': self._trace_record['trace_hash'], 'decision_hashes': tuple(decisions), 'cleanup': 'proven'}
+        self._qualification_complete = True
+        return QualificationPreflight._from_parent(self)
 
     @staticmethod
     def _scratch_close(scratch, error):
@@ -135,6 +304,7 @@ class NativeParentBoundary:
             scratch.cleanup()
 
     async def verify(self, adapter):
+        if self._qualification is not None: raise PermissionError('qualification_product_forbidden')
         if self._verification_started: raise ValueError('native_parent_preflight_already_used')
         self._verification_started = True
         admission = await _settled(asyncio.to_thread(adapter.admit_preflight))
@@ -183,6 +353,7 @@ class NativeParentBoundary:
 
     async def execute(self, kind, request, receipt, *, adapter, workspace_root, brain_id,
             before_engine_start, system_prompt, tool_policy, on_closing_observations):
+        if self._qualification is not None: raise PermissionError('qualification_product_forbidden')
         if (type(kind) is not str or type(tool_policy) is not str or not (
                 (kind == 'trial' and tool_policy in ('pinned_skill', 'baseline_inline'))
                 or (kind == 'operation' and tool_policy == 'fixture_only'))):

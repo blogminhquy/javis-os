@@ -432,6 +432,11 @@ def main():
         raw = read_raw()
         payload = json.loads(raw)
         if not isinstance(payload, dict): raise ValueError('invalid_trial_worker_packet')
+        if payload.get('version') == 3 or payload.get('type') == 'startup3':
+            native_route = True
+            from improvement_native_worker import run_startup3
+            with contextlib.redirect_stdout(sys.stderr):
+                return asyncio.run(run_startup3(raw, entrypoint='trial'))
         if payload.get('version') == 2 or payload.get('type') == 'startup2':
             native_route = True
             from improvement_native_worker import run_startup2

@@ -51,6 +51,18 @@ def arguments():
 
 
 class HostGuardianContractTests(unittest.TestCase):
+    def test_constructor_never_acquires_files_sockets_handles_or_processes(self):
+        mod = component(self)
+        with patch.object(mod, '_host_windows', side_effect=AssertionError('constructor native API')), \
+                patch.object(mod.subprocess, 'Popen', side_effect=AssertionError('constructor Popen')), \
+                patch('builtins.open', side_effect=AssertionError('constructor file')), \
+                patch('socket.socketpair', side_effect=AssertionError('constructor socket pair')), \
+                patch.object(mod.GuardianSessionV2, '_prepare_guards', side_effect=AssertionError('constructor files')), \
+                patch.object(mod.GuardianSessionV2, '_pair', side_effect=AssertionError('constructor sockets')):
+            owner = self.session()
+        self.assertIsNone(owner._api); self.assertEqual(owner._guards, []); self.assertEqual(owner._socket_records, [])
+        self.assertIsNone(owner._loop); self.assertIsNone(owner._process)
+
     def session(self, **changes):
         mod = component(self)
         return mod.GuardianSessionV2(fixture_manifest('guardian'),

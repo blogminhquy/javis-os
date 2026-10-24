@@ -1,8 +1,8 @@
-"""One isolated startup2 worker endpoint/runtime owner; no main route enabled.
+"""Isolated worker endpoint/runtime ownership for closed startup2/startup3.
 
 The original guardian/host process handles authenticate the worker externally.
 This owner verifies its own actual incarnation, not peer provenance or source
-qualification. It never reads configuration, runs preflight, or creates a client.
+qualification. Configuration follows environment adoption; no client is created here.
 """
 from __future__ import annotations
 
@@ -48,8 +48,21 @@ class NativeWorkerSessionV2:
         copied = validate_startup2(packet)
         if type(namespace) is not str or namespace not in ('trial', 'operation', 'preflight') or namespace != copied['kind']:
             raise ValueError('native_worker_namespace_invalid')
-        self._packet, self._namespace = copied, namespace
-        self._binding = worker_binding(copied)
+        self._initialize(copied, namespace=namespace, binding=worker_binding(copied), qualification=False)
+
+    @classmethod
+    def from_startup3(cls, packet, *, namespace):
+        from improvement_qualification_protocol import validate_startup3, worker_binding3
+        copied = validate_startup3(packet)
+        if cls is not NativeWorkerSessionV2 or namespace != 'preflight' or copied['kind'] != 'preflight':
+            raise ValueError('qualification_preflight_required')
+        self = cls.__new__(cls)
+        self._initialize(copied, namespace=namespace, binding=worker_binding3(copied), qualification=True)
+        return self
+
+    def _initialize(self, packet, *, namespace, binding, qualification):
+        self._packet, self._namespace, self._binding = packet, namespace, binding
+        self._qualification = qualification
         self._private = self._runtime = self._loop = self._adopt_task = self._cleanup_task = None
         self._records, self._channels = [], {}
         self._runtime_owns_images = False
@@ -93,6 +106,11 @@ class NativeWorkerSessionV2:
             if path.is_symlink() or getattr(status, 'st_file_attributes', 0) & 0x400:
                 raise NativeWorkerError('native_worker_scratch_linked', self)
         env = self._packet['environment']
+        if self._qualification:
+            from improvement_blobs import check_ancestry
+            home = _absolute(env['HOME']); check_ancestry(home)
+            if not home.is_dir() or tuple(home.iterdir()):
+                raise NativeWorkerError('qualification_home_not_empty', self)
         if self._namespace == 'preflight':
             expected = {'TEMP': 'tmp', 'TMP': 'tmp', 'JAVIS_STATE_DIR': 'host-state', 'BRAINS_DIR': 'empty-brains',
                 'OBSIDIAN_VAULT_PATH': 'empty-vault', 'BRAIN_PATH': 'empty-brain', 'SOURCES_PATH': 'empty-sources'}
@@ -136,9 +154,12 @@ class NativeWorkerSessionV2:
                 worker_pid=self._packet['worker_pid'], worker_birth=self._packet['worker_birth'])
             record['channel'], record['state'] = channel, 'channel_owned'
             self._channels[item['purpose']] = channel
-        self._runtime = NativeInvocationSet(self._packet['request']['config_pin'], image_channels=self._channels,
-            emit_dispatch=self._emit_dispatch, environment=self._packet['environment'], cwd=self._cwd,
-            source_policy_hash=self._packet['request']['config_pin']['profile_hash'])
+        if self._qualification:
+            self._runtime = NativeInvocationSet.from_qualification_worker(self)
+        else:
+            self._runtime = NativeInvocationSet(self._packet['request']['config_pin'], image_channels=self._channels,
+                emit_dispatch=self._emit_dispatch, environment=self._packet['environment'], cwd=self._cwd,
+                source_policy_hash=self._packet['request']['config_pin']['profile_hash'])
         self._runtime_owns_images = True
         await self._private.send({'type': 'endpoints_adopted'})
         if self._closing: raise NativeWorkerError('native_worker_closing', self)
@@ -269,6 +290,17 @@ async def prepare_native_runtime(session, payload, *, kind):
             or _canonical(payload) != _canonical(session._packet['request'])):
         raise ValueError('native_worker_request_unbound')
     runtime = session.runtime  # Also requires completed adoption on the same owner.
+    if session._qualification:
+        from improvement_claude import _runtime_identity
+        from improvement_qualification_protocol import validate_technical_observation
+        pin = payload['config_pin']
+        if kind != 'preflight': raise PermissionError('qualification_query_forbidden')
+        static = _runtime_identity(pin)
+        if (static.get('platform') != sys.platform or static.get('managed_policy') != 'absent'
+                or any(static.get(name) != pin[name] for name in ('cli_hash', 'sdk_version', 'profile_hash'))):
+            raise PermissionError('qualification_runtime_drift')
+        observed = validate_technical_observation(await runtime.preflight(managed_policy='absent'), pin=pin)
+        return {'supported': False, 'account_ready': False, 'technical_ready': True}, observed
     from improvement_claude import ClaudeTrialAdapter
     adapter = ClaudeTrialAdapter(payload['config_pin'])
     admission = adapter.admit_preflight()
@@ -290,6 +322,20 @@ async def run_startup2(raw, *, entrypoint):
             (('trial', 'preflight') if entrypoint == 'trial' else ('operation',))):
         raise ValueError('native_worker_entrypoint_mismatch')
     owner = NativeWorkerSessionV2(packet, namespace=kind)
+    return await _run_owned(owner, packet)
+
+
+async def run_startup3(raw, *, entrypoint):
+    from improvement_qualification_protocol import decode_startup3
+    packet = decode_startup3(raw)
+    if entrypoint != 'trial' or packet['kind'] != 'preflight':
+        raise ValueError('qualification_preflight_required')
+    owner = NativeWorkerSessionV2.from_startup3(packet, namespace='preflight')
+    return await _run_owned(owner, packet)
+
+
+async def _run_owned(owner, packet):
+    kind = packet['kind']
     try:
         await owner.adopt()  # Installs exact environment before application imports.
         if kind == 'preflight':

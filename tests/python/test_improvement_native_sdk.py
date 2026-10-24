@@ -130,6 +130,22 @@ class NativeSDKTests(unittest.IsolatedAsyncioTestCase):
         Capture.fail_close = False
         if not self.owner.closed: await self.owner.aclose()
 
+    async def test_dummy_environment_cannot_enter_default_constructor_or_unadopted_factory(self):
+        from improvement_qualification_environment import dummy_environment
+        from improvement_native_worker import NativeWorkerSessionV2
+        from test_improvement_qualification_protocol import startup
+        environment = dummy_environment(self.env, endpoint='http://127.0.0.1:15432')
+        with self.assertRaises(ValueError):
+            self.m.NativeInvocationSet(pin(), image_channels=self.channels, emit_dispatch=self.emit,
+                environment=environment, cwd=self.cwd, source_policy_hash='3' * 64)
+        owner = NativeWorkerSessionV2.from_startup3(startup('preflight'), namespace='preflight')
+        try:
+            with self.assertRaisesRegex(TypeError, 'active_qualification_worker_required'):
+                self.m.NativeInvocationSet.from_qualification_worker(owner)
+            with self.assertRaises(TypeError): self.m.NativeInvocationSet.from_qualification_worker(object())
+            self.assertEqual(Capture.instances, [])
+        finally: await owner.aclose()
+
     async def preflight(self):
         Capture.outputs = [Process(), Process(json.dumps(dict(loggedIn=True, authMethod='claude.ai',
             apiProvider='firstParty', subscriptionType='max')).encode())]

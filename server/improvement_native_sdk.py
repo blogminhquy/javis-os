@@ -1,4 +1,4 @@
-"""Isolated-worker SDK116 invocation ownership; no runtime consumer installed.
+"""Isolated-worker SDK116 invocation ownership and fixed technical preflight.
 
 Guardian image authorization and host durable authorization remain external.
 The private completed-write callback is delivery evidence, not input acceptance,
@@ -104,9 +104,52 @@ class NativeInvocationSet:
     class never creates a client, resumes a session, or sends model input.
     """
     def __init__(self, pin, *, image_channels, emit_dispatch, environment, cwd, source_policy_hash):
+        self._initialize(pin, image_channels=image_channels, emit_dispatch=emit_dispatch,
+            environment=_environment(environment), cwd=cwd, source_policy_hash=source_policy_hash)
+
+    @classmethod
+    def from_qualification_worker(cls, owner):
+        from improvement_native_worker import NativeWorkerSessionV2
+        from improvement_private_channel import PrivateWorkerChannelV2
+        from improvement_qualification_protocol import validate_startup3, worker_binding3
+        from improvement_qualification_environment import validate_dummy_environment
+        if (cls is not NativeInvocationSet or type(owner) is not NativeWorkerSessionV2
+                or not owner._qualification or owner._namespace != 'preflight' or not owner._started
+                or owner._closing or owner._closed or owner._failed or owner._adopted
+                or owner._runtime is not None or owner._runtime_owns_images
+                or owner._adopt_task is not asyncio.current_task() or owner._loop is not asyncio.get_running_loop()
+                or not owner._environment_installed):
+            raise TypeError('active_qualification_worker_required')
+        packet = validate_startup3(owner._packet)
+        environment = validate_dummy_environment(packet['environment'])
+        private = owner._private
+        if (packet['kind'] != 'preflight' or dict(os.environ) != environment
+                or type(private) is not PrivateWorkerChannelV2 or private.closed or private._role != 'worker'
+                or private._binding != worker_binding3(packet) or owner._binding != private._binding
+                or tuple(owner._channels) != _PURPOSES[:2] or len(owner._records) != 3
+                or owner._cwd != owner._scratch):
+            raise ValueError('qualification_worker_adoption_invalid')
+        for record, name, channel in zip(owner._records, ('private', *_PURPOSES[:2]),
+                (private, *owner._channels.values())):
+            if (record['name'] != name or record['state'] != 'channel_owned'
+                    or record['acquisition_unknown'] or record['close_succeeded'] or record['close_authority_lost']
+                    or record['channel'] is not channel or record['socket'] is not channel._socket
+                    or record['socket'].fileno() < 0):
+                raise ValueError('qualification_worker_adoption_invalid')
+        for item, channel in zip(packet['images'], owner._channels.values()):
+            if (channel._nonce != item['nonce'] or channel._worker_pid != packet['worker_pid']
+                    or channel._worker_birth != packet['worker_birth']):
+                raise ValueError('qualification_worker_adoption_invalid')
+        self = cls.__new__(cls)
+        self._initialize(packet['request']['config_pin'], image_channels=owner._channels,
+            emit_dispatch=owner._emit_dispatch, environment=environment, cwd=owner._cwd,
+            source_policy_hash=packet['request']['config_pin']['profile_hash'])
+        return self
+
+    def _initialize(self, pin, *, image_channels, emit_dispatch, environment, cwd, source_policy_hash):
         from improvement_native_bootstrap import _absolute
         self._pin = _pin(pin)
-        self._environment = _environment(environment)
+        self._environment = dict(environment)
         _absolute(cwd); _digest(source_policy_hash)
         if not inspect.iscoroutinefunction(emit_dispatch): raise TypeError('native_sdk_dispatch_callback_invalid')
         if (type(image_channels) is not dict or any(type(key) is not str for key in image_channels)

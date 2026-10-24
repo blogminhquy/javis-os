@@ -465,6 +465,7 @@ class GuardianSessionV2:
         self._public_write_task = None
         self._io_completion_unknown = self._spawn_unknown = False
         self._startup_seed = self._startup_raw = self._failure = None
+        self._qualification_boundary = None
         self._out_sequence = self._in_sequence = self._packet_sequence = 0
         self._used = self._stopped = self._admission_attempted = self._adopted = self._sealed = False
         self._pair_unknown = self._share_unknown = self._guardian_detached = False
@@ -643,6 +644,10 @@ class GuardianSessionV2:
         import struct
         async with self._control_lock:
             if self._stopped and kind != 'stop': raise self._error()
+            if kind == 'image_authorize' and self._qualification_boundary is not None:
+                # This runs after the durable append, under the same send lock.
+                # Revocation before send initiation must never emit an allow.
+                self._qualification_boundary._qualification._assert_native_current()
             self._out_sequence += 1
             value = {'version': 2, 'type': kind, 'sequence': self._out_sequence,
                      'launch_nonce': self._nonce, **self._worker_identity, **extra}
@@ -671,9 +676,8 @@ class GuardianSessionV2:
 
     async def start(self, startup):
         import base64
-        from collections import deque
         from improvement_native_protocol import validate_startup2
-        if self._used: raise self._error()
+        if self._used or self._qualification_boundary is not None: raise self._error()
         _v2_fields(startup, {'kind', 'request', 'environment'})
         # Validate private grammar before acquiring any native capability. These
         # placeholders are never sent or persisted as an observed incarnation.
@@ -684,7 +688,29 @@ class GuardianSessionV2:
                        for item in self._invocations]})
         expected = 'operation' if probe['kind'] == 'operation' else 'trial'
         if self._policy['bootstrap']['entrypoint'] != expected: raise ValueError('invalid_host_guardian_v2')
-        self._used, self._startup_seed = True, {key: probe[key] for key in ('kind', 'request', 'environment')}
+        await self._start_validated({key: probe[key] for key in ('kind', 'request', 'environment')})
+
+    async def start_qualification(self, boundary):
+        import base64
+        from improvement_native_parent import NativeParentBoundary
+        from improvement_qualification_protocol import validate_startup3
+        if (self._used or self.closed or type(boundary) is not NativeParentBoundary
+                or boundary._qualification is None or self._qualification_boundary is not boundary):
+            raise PermissionError('qualification_native_owner_foreign')
+        seed = boundary._check_qualification_start(self)
+        probe = validate_startup3({'version': 3, 'type': 'startup3', **seed,
+            'launch_nonce': self._nonce, 'worker_pid': 1, 'worker_birth': 1,
+            'private_share': base64.b64encode(b'validation-only').decode('ascii'),
+            'images': [{**item, 'share': base64.b64encode(b'validation-only').decode('ascii')}
+                for item in self._invocations]})
+        if probe['kind'] != 'preflight' or self._policy['bootstrap']['entrypoint'] != 'trial':
+            raise ValueError('qualification_preflight_required')
+        boundary._owner_state = 'STARTING'
+        await self._start_validated({key: probe[key] for key in ('kind', 'request', 'environment', 'qualification')})
+
+    async def _start_validated(self, seed):
+        from collections import deque
+        self._used, self._startup_seed = True, seed
         self._loop = asyncio.get_running_loop(); self._deadline = self._loop.time() + self._lifetime
         self._packets, self._pending_publish, self._final_drained = deque(), {}, None
         self._available, self._space = asyncio.Event(), asyncio.Event()
@@ -762,7 +788,12 @@ class GuardianSessionV2:
         startup = {'version': 2, 'type': 'startup2', **self._startup_seed,
             'launch_nonce': self._nonce, **self._worker_identity,
             'private_share': base64.b64encode(private_share).decode('ascii'), 'images': self._offer['images']}
-        self._startup_raw = encode_startup2(startup); self._binding = worker_binding(startup)
+        if self._qualification_boundary is not None:
+            from improvement_qualification_protocol import encode_startup3, worker_binding3
+            startup.update(version=3, type='startup3')
+            self._startup_raw = encode_startup3(startup); self._binding = worker_binding3(startup)
+        else:
+            self._startup_raw = encode_startup2(startup); self._binding = worker_binding(startup)
         self._adopted = True
         await self._send_command('adopted')
         await self._event_wait(self._seal_event)

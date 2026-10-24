@@ -104,6 +104,9 @@ def main():
         raw = read_raw()
         payload = json.loads(raw)
         if type(payload) is not dict: raise ValueError('invalid_operation_worker_packet')
+        if payload.get('version') == 3 or payload.get('type') == 'startup3':
+            native_route = True
+            raise ValueError('qualification_operation_forbidden')
         if payload.get('version') == 2 or payload.get('type') == 'startup2':
             native_route = True
             from improvement_native_worker import run_startup2

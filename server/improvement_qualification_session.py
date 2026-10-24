@@ -1,13 +1,9 @@
-"""Host-owned private engineering run storage; no launch/runtime consumer yet.
-
-Candidate review permits preparation of this disposable engineering domain. It
-does not register a native release or prove account readiness. Native launch,
-typed verification and mandatory domain authentication at
-publication/cold read must be integrated before any qualifier can execute.
-"""
+"""Disposable engineering authority and retained native preflight ownership."""
 from __future__ import annotations
 
 from contextlib import closing
+import asyncio
+from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 import secrets
@@ -28,6 +24,47 @@ from improvement_sandbox import _private_directory, worker_environment
 from resonance_store import GoalStore, Principal
 
 _TOKEN = object()
+_RESULT_TOKEN = object()
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class QualificationPreflight:
+    version: int
+    domain: str
+    supported: bool
+    account_ready: bool
+    technical_ready: bool
+    run_hash: str
+    pin_hash: str
+    release_fingerprint: str
+    review_hash: str
+    launch_nonce: str
+    environment_hash: str
+    observation_hash: str
+    trace_hash: str
+    decision_hashes: tuple
+    cleanup: str
+
+    def __init__(self, token, values):
+        if token is not _RESULT_TOKEN: raise TypeError('completed_qualification_parent_required')
+        for name in self.__dataclass_fields__:
+            object.__setattr__(self, name, values[name])
+
+    @classmethod
+    def _from_parent(cls, boundary):
+        from improvement_native_parent import NativeParentBoundary
+        if (type(boundary) is not NativeParentBoundary or boundary._qualification is None
+                or not boundary._qualification_complete or boundary._guardian.closed is not True
+                or not boundary._evidence_settled):
+            raise TypeError('completed_qualification_parent_required')
+        values = boundary._result_fields
+        for name in ('run_hash', 'pin_hash', 'release_fingerprint', 'review_hash', 'launch_nonce',
+                'environment_hash', 'observation_hash', 'trace_hash'):
+            _digest(values[name])
+        if type(values['decision_hashes']) is not tuple or len(values['decision_hashes']) != 2:
+            raise ValueError('qualification_decisions_required')
+        for value in values['decision_hashes']: _digest(value)
+        return cls(_RESULT_TOKEN, values)
 
 
 class QualificationSession:
@@ -63,12 +100,15 @@ class QualificationSession:
         self._root = Path(self._temporary.name).absolute()
         self._closed = self._cleaned = False
         self._owners = set()
+        self._native_boundaries = {}
+        self._native_started = False
+        self._native_parent = None
         try:
             _private_directory(self.root)
             brain = self.root / 'brain'; brain.mkdir(mode=0o700)
             self.principal = Principal('owner', 'owner', str(brain))
             key_bytes = Fernet.generate_key()
-            # New fixture-only encryption material, never copied host auth.
+            # New disposable engineering encryption material, never copied host auth.
             key_path = self.root / 'fixture-encryption.key'
             with key_path.open('xb') as handle: handle.write(key_bytes)
             key_path.chmod(0o600)
@@ -91,6 +131,8 @@ class QualificationSession:
             self._event_key = 'native-qualification:' + self.run_hash
             self._pin = _parse(_canonical(pin))
             self._release = release
+            self._native_authority = (self.assets, self.principal, self.root, self.run_hash,
+                _canonical(self._pin), _canonical(release), _canonical(runtime), self.assets.store, self.assets.blobs)
             raw = _canonical(self._scope)
             blob = self.assets.blobs.write(self.principal.brain_id, raw)
             with self.assets.store._Tx(self.assets.store) as connection:
@@ -240,11 +282,97 @@ class QualificationSession:
         base.update(APPDATA=str(home / 'AppData' / 'Roaming'), LOCALAPPDATA=str(home / 'AppData' / 'Local'))
         return dummy_environment(base, endpoint=scope['endpoint'])
 
+    def _assert_native_current(self, *, connection=None):
+        import improvement_native_qualifications as qualifications
+        from improvement_qualification_records import read_run
+        if type(self) is not QualificationSession: raise TypeError('concrete_qualification_session_required')
+        if self._closed or self._cleaned: raise PermissionError('qualification_session_closed')
+        assets, principal, root, run_hash, pin, release, runtime, store, blobs = self._native_authority
+        if (self.assets is not assets or self.principal is not principal or self.root != root
+                or self.assets.store is not store or self.assets.blobs is not blobs
+                or self.run_hash != run_hash or self.assets.qualification_anchor != run_hash
+                or self.assets.store.path != root / 'state' / 'resonance.sqlite3'
+                or self.assets.blobs.root != root / 'assets' or self.principal.brain_id != str(root / 'brain')
+                or _canonical(self._pin) != pin or _canonical(self._release) != release
+                or IM._hash(self._scope) != run_hash or self._scope['pin_hash'] != IM._hash(self._pin)):
+            raise AssetUnavailable('qualification_session_changed')
+        for path in (root, store.path, blobs.root, root / 'brain'): check_ancestry(path)
+        if read_run(self.assets, self.principal, connection=connection) != self._scope:
+            raise AssetUnavailable('qualification_session_changed')
+        if time.time() >= self._scope['deadline_at']: raise PermissionError('qualification_session_expired')
+        key = (sys.platform, *(self._pin[name] for name in ('cli_version', 'cli_hash', 'sdk_version',
+            'profile_version', 'profile_hash')), self._scope['release_fingerprint'])
+        if qualifications.REVIEWED_QUALIFICATION_CANDIDATES.get(key) != self._scope['review_hash']:
+            raise PermissionError('qualification_candidate_unreviewed')
+        if _canonical(_runtime_identity(self._pin)) != runtime:
+            raise PermissionError('qualification_runtime_drift')
+        # Runtime/source metadata and encrypted reads can be slow. Recheck the
+        # revocable authority after them, including under the control send lock.
+        if self._closed or self._cleaned: raise PermissionError('qualification_session_closed')
+        if time.time() >= self._scope['deadline_at']: raise PermissionError('qualification_session_expired')
+        if qualifications.REVIEWED_QUALIFICATION_CANDIDATES.get(key) != self._scope['review_hash']:
+            raise PermissionError('qualification_candidate_unreviewed')
+
+    def _preflight_launch(self, scratch):
+        from improvement_fixed_worker_launch import _policy
+        self._assert_native_current()
+        scratch = Path(scratch); check_ancestry(scratch)
+        if not scratch.is_absolute() or not scratch.is_relative_to(self.root) or not scratch.is_dir():
+            raise PermissionError('qualification_workspace_foreign')
+        observed = observe_release(self._pin)
+        if _canonical(observed) != self._native_authority[5]:
+            raise PermissionError('qualification_source_drift')
+        self._assert_native_current()
+        return {'guardian_manifest': observed['manifests']['guardian'],
+            'policy': _policy({'version': 1, 'bootstrap': observed['manifests']['trial'], 'scratch': str(scratch)}),
+            'image_policy': {'version': 1, 'path': self._pin['cli_path'], 'sha256': self._pin['cli_hash']},
+            'release_fingerprint': observed['fingerprint'], 'qualification_hash': self._scope['review_hash']}
+
+    def _attach_native(self, guardian, boundary):
+        from improvement_native_transport import GuardianSessionV2
+        from improvement_native_parent import NativeParentBoundary
+        self._assert_native_current()
+        if (type(guardian) is not GuardianSessionV2 or type(boundary) is not NativeParentBoundary
+                or boundary._qualification is not self or boundary._guardian is not guardian
+                or guardian._used or guardian.closed or guardian in self._owners
+                or boundary._owner_state != 'PREPARED'):
+            raise PermissionError('qualification_native_owner_foreign')
+        self._owners.add(guardian); self._native_boundaries[guardian] = boundary
+        guardian._qualification_boundary = boundary
+        boundary._owner_state = 'ATTACHED'
+
+    def _detach_native(self, guardian, boundary):
+        if (self._native_boundaries.get(guardian) is not boundary or guardian not in self._owners
+                or guardian.closed is not True or not boundary._evidence_settled):
+            raise RuntimeError('qualification_native_owners_unsettled')
+        del self._native_boundaries[guardian]; self._owners.remove(guardian)
+        boundary._owner_state = 'DETACHED'
+
+    async def verify_native(self):
+        if self._native_started: raise PermissionError('qualification_preflight_already_used')
+        self._native_started = True  # Reserve before the first await.
+        self._assert_native_current()
+        from improvement_native_parent import NativeParentBoundary
+        return await NativeParentBoundary.for_qualification(self).verify_qualification()
+
+    async def aclose_native(self):
+        self.close()
+        error = None
+        for guardian, boundary in tuple(self._native_boundaries.items()):
+            try: await boundary._close_qualification()
+            except BaseException as caught: error = caught
+        if error is not None: raise error
+
     def close(self):
-        # No launch consumer is installed in this component. Future owned native
-        # sessions must attach before acquisition and detach only after real drain.
         self._closed = True
         self._temporary._finalizer.detach()
+        for owner in tuple(self._owners):
+            loop = getattr(owner, '_loop', None)
+            if loop is not None and hasattr(owner, '_space') and not loop.is_closed():
+                try:
+                    if asyncio.get_running_loop() is loop: owner._stop()
+                    else: loop.call_soon_threadsafe(owner._stop)
+                except RuntimeError: loop.call_soon_threadsafe(owner._stop)
 
     def cleanup(self):
         self.close()
