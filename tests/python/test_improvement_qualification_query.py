@@ -490,9 +490,162 @@ class QualificationQueryTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(Exception):QualificationQueryResults.read_stored(self.session.assets,self.session.principal,
                     kind='trial',subject_id=binding.subject_id,attempt=1,expected_run_hash=self.session.run_hash)
                 self.assertEqual(trials.ledger.get(context['link']['call_id'])['status'],'ok')
+                task.cancel();await asyncio.sleep(.005);task.cancel()
             finally:release.set()
-            result=await task
+            with self.assertRaises(asyncio.CancelledError):await task
+        self.assertIs(self.session._pending_proofs.get((binding.subject_id,1)),context)
+        self.assertIsNotNone(context['cleanup'])
+        self.assertEqual(self.count('native_qualification_query_result'),0)
+        call_id=context['link']['call_id']
+        result=await self.execute()
+        self.assertEqual(result.call_id,call_id)
+        self.assertEqual(self.count('native_qualification_attempt'),1)
+        self.assertFalse(self.session._pending_proofs)
         self.assertEqual(self.read_result(result),result)
+
+    async def test_unresolved_native_evidence_retains_exact_workspace_and_lifetime(self):
+        from improvement_native_parent import NativeParentBoundary
+        trials=self.admission.trials
+        save=NativeParentBoundary._save_preflight
+        cleanup,release=trials.workspace.cleanup,trials.workspace.release_execution
+        cleanup_calls=[];release_calls=[];failures=[];original_resource=[]
+        def unresolved(boundary,*args):
+            if hasattr(boundary,'_query_binding'):
+                key=(boundary._query_binding.subject_id,boundary._query_binding.attempt)
+                resource=self.session._attempt_resources[key]
+                if not original_resource:original_resource.extend((resource,resource['lifetime'][0]))
+                failures.append(boundary);raise OSError('owned evidence store unavailable')
+            return save(boundary,*args)
+        def protect_cleanup(*args):
+            cleanup_calls.append(args)
+            raise OSError('test prevents deletion while native evidence is unknown')
+        def protect_release(handles):
+            release_calls.append(handles)
+            raise OSError('test prevents releasing original unresolved lifetime')
+        try:
+            with patch.object(NativeParentBoundary,'_save_preflight',unresolved), \
+                    patch.object(trials.workspace,'cleanup',protect_cleanup), \
+                    patch.object(trials.workspace,'release_execution',protect_release):
+                with self.assertRaises(Exception):await self.execute()
+                context=next(iter(self.session._queries.values()));boundary=context['boundary']
+                resource=self.session._attempt_resources[(context['identifier'],1)]
+                handles=resource['lifetime'][0];workspace=Path(context['receipt']['path'])
+                print('FIX1_UNRESOLVED_NATIVE',json.dumps(dict(state=boundary._owner_state,
+                    evidence_settled=boundary._evidence_settled,workspace=str(workspace),
+                    handles=[id(handle) for handle in handles],closed=[handle.closed for handle in handles],
+                    cleanup_calls=len(cleanup_calls),release_calls=len(release_calls),close_failures=len(failures))),flush=True)
+                self.assertGreaterEqual(len(failures),2)
+                self.assertEqual(boundary._owner_state,'RETAINED_UNKNOWN')
+                self.assertFalse(boundary._evidence_settled)
+                self.assertEqual(cleanup_calls,[])
+                self.assertEqual(release_calls,[])
+                self.assertIs(resource,original_resource[0])
+                self.assertIs(handles,original_resource[1])
+                self.assertTrue(workspace.is_dir());self.assertTrue(all(not handle.closed for handle in handles))
+                with self.assertRaisesRegex(RuntimeError,'owners_unsettled'):self.session.cleanup()
+        finally:
+            await self.session.aclose_queries()
+        self.assertFalse(workspace.exists());self.assertTrue(all(handle.closed for handle in handles))
+        self.assertEqual(boundary._owner_state,'DETACHED')
+        self.assertFalse(self.session._attempt_resources or self.session._owners)
+
+    async def test_cancel_after_stage_close_saves_only_cleanup_diagnostic(self):
+        trials=self.admission.trials
+        original=trials.workspace.cleanup;started,release=threading.Event(),threading.Event()
+        def held(*args):started.set();release.wait(90);return original(*args)
+        with patch.object(trials.workspace,'cleanup',held):
+            task=asyncio.create_task(self.execute())
+            try:
+                await self.wait_event(started)
+                context=next(iter(self.session._queries.values()))
+                self.assertEqual(self.count('native_qualification_query_evidence'),1)
+                self.assertEqual(trials.ledger.get(context['link']['call_id'])['status'],'ok')
+                task.cancel();await asyncio.sleep(.005);task.cancel()
+            finally:release.set()
+            with self.assertRaises(asyncio.CancelledError):await task
+        self.assertIs(self.session._pending_proofs.get((context['identifier'],1)),context)
+        self.session.close();await self.session.aclose_queries()
+        self.assertEqual(self.count('native_qualification_query_cleanup_diagnostic'),1)
+        self.assertEqual(self.count('native_qualification_query_result'),0)
+        self.assertEqual(self.count('native_qualification_attempt'),1)
+        self.assertFalse(self.session._pending_proofs or self.session._attempt_resources or self.session._owners)
+
+    async def test_committed_stage_cleanup_failure_replays_only_existing_proof(self):
+        trials=self.admission.trials;original=trials.workspace.cleanup
+        with patch.object(trials.workspace,'cleanup',side_effect=OSError('post-stage cleanup failed')):
+            with self.assertRaises(Exception):await self.execute()
+        context=next(iter(self.session._queries.values()));key=(context['identifier'],1)
+        self.assertEqual(self.count('native_qualification_query_evidence'),1)
+        self.assertIs(self.session._pending_proofs.get(key),context)
+        self.assertIn(key,self.session._attempt_resources)
+        self.assertIsNone(context['cleanup'])
+        call_id=context['link']['call_id']
+        result=await self.execute()
+        self.assertEqual(result.call_id,call_id)
+        self.assertEqual(self.count('native_qualification_attempt'),1)
+        self.assertEqual(self.count('native_qualification_query_evidence'),1)
+        self.assertEqual(self.read_result(result),result)
+        self.assertFalse(self.session._pending_proofs or self.session._attempt_resources)
+
+    async def test_uncommitted_stage_never_retains_finalization_proof(self):
+        original=self.session.assets._event
+        def refuse(connection,principal,key,operation,request,result):
+            if operation=='native_qualification_query_evidence':raise OSError('stage transaction rolled back')
+            return original(connection,principal,key,operation,request,result)
+        with patch.object(self.session.assets,'_event',refuse):
+            with self.assertRaises(Exception):await self.execute()
+        context=next(iter(self.session._queries.values()))
+        self.assertIsNotNone(context['stage'])
+        self.assertEqual(self.count('native_qualification_query_evidence'),0)
+        self.assertFalse(self.session._pending_proofs)
+        await self.session.aclose_queries()
+        self.assertEqual(self.count('native_qualification_query_cleanup_diagnostic'),0)
+        self.assertEqual(self.count('native_qualification_query_result'),0)
+
+    async def test_direct_runner_post_thread_initial_and_replay_handoffs_refuse(self):
+        import improvement_trial_runner as runner_module
+        from improvement_qualification_results import QualificationQueryResult
+        for index,(replay,expiry) in enumerate(((False,False),(True,False),(False,True),(True,True),('pending',False),('pending',True))):
+            with self.subTest(replay=replay,expiry=expiry):
+                if index:await self.reopen()
+                await self.session.verify_native()
+                admitted=await asyncio.to_thread(self.admission.admit_qualification,self.session,self.session.principal,self.public)
+                runner=runner_module.TrialRunner.for_qualification(self.session,self.admission)
+                if replay == 'pending':
+                    append=self.session.assets._event
+                    def refuse_final(connection,principal,key,operation,request,result):
+                        if operation=='native_qualification_query_result':raise OSError('owned pending-proof fixture')
+                        return append(connection,principal,key,operation,request,result)
+                    with patch.object(self.session.assets,'_event',refuse_final):
+                        with self.assertRaises(OSError):await runner.run_qualification(self.session.principal,admitted.trial_id)
+                    self.assertEqual(len(self.session._pending_proofs),1)
+                elif replay:await runner.run_qualification(self.session.principal,admitted.trial_id)
+                original=runner_module._settled_call;removed={};clock=[];answers=[]
+                async def after_thread(callback,*args,**kwargs):
+                    answer=await original(callback,*args,**kwargs)
+                    if type(answer) is QualificationQueryResult:
+                        answers.append(answer)
+                        if expiry:
+                            clock.append(patch.object(QS.time,'time',return_value=self.session._scope['deadline_at']+1))
+                            clock[-1].start()
+                        else:
+                            removed.update(registry.REVIEWED_QUALIFICATION_CANDIDATES)
+                            registry.REVIEWED_QUALIFICATION_CANDIDATES.clear()
+                    return answer
+                try:
+                    with patch.object(runner_module,'_settled_call',after_thread):
+                        with self.assertRaises(PermissionError):
+                            await runner.run_qualification(self.session.principal,admitted.trial_id)
+                finally:
+                    for item in reversed(clock):item.stop()
+                    registry.REVIEWED_QUALIFICATION_CANDIDATES.update(removed)
+                self.assertEqual(len(answers),1)
+                result=answers[0]
+                self.assertEqual(self.read_result(result),result)
+                self.assertEqual(self.count('native_qualification_attempt'),1)
+                self.assertEqual(self.count('native_qualification_query_result'),1)
+                print('FIX1_DIRECT_HANDOFF',json.dumps(dict(replay=replay,expiry=expiry,refused=True,
+                    historical_call=result.call_id,attempts=1,finals=1)),flush=True)
 
     async def test_append_failure_retains_pending_proof_retry_without_query(self):
         original=self.session.assets._event
@@ -736,15 +889,30 @@ class QualificationQueryTests(unittest.IsolatedAsyncioTestCase):
 
 class QualificationQueryBoundaryTests(unittest.TestCase):
     def test_actual_observed_closure_contains_result_consumer_without_registration(self):
-        from improvement_claude import profile_hash
-        from improvement_native_release import observe_release
+        from improvement_claude import profile_hash, PROFILE_SOURCES
+        import improvement_native_release as release
         from test_improvement_native_sdk import pin
+        from test_improvement_native_release import NativeReleaseTests
         before=(copy.deepcopy(registry.REVIEWED_QUALIFICATION_CANDIDATES),copy.deepcopy(registry.REVIEWED_RELEASES))
         config=pin();config.update(profile_hash=profile_hash(),profile_version='claude-owned-images-v3')
-        observed=observe_release(config)
+        # Portable source-closure observation uses declared inert wheel bytes,
+        # never the host's unrelated installed RECORD inventory or Win32 runtime.
+        # The production inventory/RECORD validator still reads every fixture.
+        fixture=NativeReleaseTests('runTest');fixture.setUp();self.addCleanup(fixture.doCleanups)
+        local={path.stem for path in SERVER.rglob('*.py')}
+        external={name.split('.')[0] for path in SERVER.rglob('*.py')
+            for name in release._imports(path.read_bytes(),path.relative_to(SERVER).as_posix())
+            if name.split('.')[0] not in local | set(sys.stdlib_module_names) | set(sys.builtin_module_names)}
+        _,modules=release._catalog(fixture.packages)
+        fixture.wheel('qualification-source-fixture','1.0',
+            {name+'.py':b'# Inert inventory fixture; never imported.\n' for name in external-set(modules)})
+        seeds=tuple(sorted((set(PROFILE_SOURCES)|set(release._SEEDS))-{release._AUTHORITY}))
+        sources,imports=release._inventory(SERVER,fixture.packages,seeds,sdk_version=config['sdk_version'])
+        self.assertEqual(release._fingerprint({name:sources[name] for name in PROFILE_SOURCES}),config['profile_hash'])
+        self.assertIn('qualification_source_fixture-1.0.dist-info/RECORD',imports)
         for name in ('improvement_qualification_results.py','improvement_qualification_session.py','improvement_trial_admission.py',
                 'improvement_trial_runner.py','improvement_trials.py','improvement_native_parent.py','improvement_native_profile.py'):
-            self.assertEqual(observed['content']['source'][name],hashlib.sha256((SERVER/name).read_bytes()).hexdigest())
+            self.assertEqual(sources[name],hashlib.sha256((SERVER/name).read_bytes()).hexdigest())
         self.assertEqual((registry.REVIEWED_QUALIFICATION_CANDIDATES,registry.REVIEWED_RELEASES),before)
 
     def test_default_profile_and_startup2_refuse_identical_dummy_query(self):

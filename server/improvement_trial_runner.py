@@ -200,14 +200,53 @@ class TrialRunner:
         task = asyncio.current_task()
         own = task not in self._qualification._host_operations
         if own: self._qualification._host_operations[task] = (trial_id, 0)
-        try: return await self._run(principal, trial_id)
+        try:
+            result = await self._run(principal, trial_id)
+            self._qualification._assert_native_current()
+            return result
         finally:
             if own: self._qualification._host_operations.pop(task, None)
+
+    async def _cleanup_qualification_attempt(self, key):
+        session = self._qualification
+        resource = session._attempt_resources.get(key)
+        if resource is None: return
+        if resource['runner'] is not self or resource['owner'] is not self.trials:
+            raise PermissionError('qualification_resource_owner_foreign')
+        context = session._queries.get(key)
+        boundary = None if context is None else context['boundary']
+        # Preserve the original workspace and kernel-held lifetime whenever
+        # native close or evidence settlement is still unresolved.
+        if boundary is not None and boundary._owner_state != 'DETACHED':
+            raise RuntimeError('qualification_native_owners_unsettled')
+        handles = resource['lifetime'][0]
+        if handles is None:
+            await _settled_call(self.trials.cleanup_terminal, session.principal, key[0])
+            session._attempt_resources.pop(key, None)
+            return
+        try:
+            await _settled_call(self.trials.workspace.cleanup, *key)
+        except Exception:
+            raise WorkspaceCleanupError() from None
+        finally:
+            await _settled_call(self.trials.workspace.release_execution, handles)
+        if boundary is not None:
+            from improvement_qualification_results import _CleanupReceipt
+            context['cleanup'] = await _settled_call(_CleanupReceipt._from_runner, self, context, handles)
+        elif not await _settled_call(self.trials.workspace.cleanup_proven, *key,
+                None if context is None else context['receipt']):
+            raise RuntimeError('qualification_workspace_unsettled')
+        if any(not handle.closed for handle in handles):
+            raise RuntimeError('qualification_lifetime_unsettled')
+        session._attempt_resources.pop(key, None)
 
     async def _response(self, principal, identifier):
         current = await asyncio.to_thread(self.trials.get, principal, identifier)
         if self._qualification is not None:
             from improvement_qualification_results import QualificationQueryResults
+            resource = self._qualification._attempt_resources.get((identifier, current['attempt']))
+            if resource is not None:
+                await resource['runner']._cleanup_qualification_attempt((identifier, current['attempt']))
             context = self._qualification._pending_proofs.get((identifier, current['attempt']))
             if context is not None:
                 context['publisher'] = asyncio.current_task()
@@ -234,7 +273,7 @@ class TrialRunner:
             raise ValueError("synchronous_trial_claim_observer_required")
         initial = await asyncio.to_thread(self.trials.get, principal, trial_id)
         if initial["status"] != "reserved":
-            if initial["status"] in TERMINAL:
+            if initial["status"] in TERMINAL and self._qualification is None:
                 await _settled_call(self.trials.cleanup_terminal, principal, trial_id)
             return await self._response(principal, trial_id)
 
@@ -276,10 +315,11 @@ class TrialRunner:
             result = await self._run_claimed(principal, trial_id, claimed, on_claimed, lifetime)
         finally:
             async def cleanup():
+                if self._qualification is not None:
+                    await self._cleanup_qualification_attempt(resource_key)
+                    return
                 if lifetime[0] is None:
                     await _settled_call(self.trials.cleanup_terminal, principal, trial_id)
-                    if self._qualification is not None:
-                        self._qualification._attempt_resources.pop(resource_key, None)
                     return
                 try:
                     await _settled_call(self.trials.workspace.cleanup, trial_id, claimed["attempt"])
@@ -287,19 +327,6 @@ class TrialRunner:
                     raise WorkspaceCleanupError() from None
                 finally:
                     await _settled_call(self.trials.workspace.release_execution, lifetime[0])
-                if self._qualification is not None:
-                    from improvement_qualification_results import _CleanupReceipt
-                    context = self._qualification._queries.get((trial_id, claimed['attempt']))
-                    if context is not None and context['boundary'] is not None and context['boundary']._owner_state == 'DETACHED':
-                        context['cleanup'] = await _settled_call(_CleanupReceipt._from_runner, self, context, lifetime[0])
-                    elif context is not None and context['boundary'] is not None:
-                        raise RuntimeError('qualification_native_owners_unsettled')
-                    elif not await _settled_call(self.trials.workspace.cleanup_proven, *resource_key,
-                            None if context is None else context['receipt']):
-                        raise RuntimeError('qualification_workspace_unsettled')
-                    if any(not handle.closed for handle in lifetime[0]):
-                        raise RuntimeError('qualification_lifetime_unsettled')
-                    self._qualification._attempt_resources.pop(resource_key, None)
             values, cancelled = await _drain(asyncio.gather(asyncio.create_task(cleanup()), return_exceptions=True))
             if isinstance(values[0], BaseException):
                 raise values[0]

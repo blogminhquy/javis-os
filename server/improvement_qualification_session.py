@@ -482,23 +482,9 @@ class QualificationSession:
         await self.aclose_native()
         # Retained actual runner/lifetime owners can outlive a failed facade.
         # Retry only their known cleanup, never admission, settlement or query.
-        from improvement_trial_runner import _settled_call
-        from improvement_qualification_results import _CleanupReceipt
         for key, resource in tuple(self._attempt_resources.items()):
-            context = self._queries.get(key)
-            if context is not None and context['boundary'] is not None and context['boundary']._owner_state != 'DETACHED':
-                raise RuntimeError('qualification_native_owners_unsettled')
-            owner, handles = resource['owner'], resource['lifetime'][0]
-            await _settled_call(owner.workspace.cleanup, *key)
-            if handles is not None: await _settled_call(owner.workspace.release_execution, handles)
-            if handles is not None and any(not handle.closed for handle in handles):
-                raise RuntimeError('qualification_lifetime_unsettled')
-            receipt = None if context is None else context['receipt']
-            if not await _settled_call(owner.workspace.cleanup_proven, *key, receipt):
-                raise RuntimeError('qualification_workspace_unsettled')
-            if context is not None and context['boundary'] is not None and handles is not None:
-                context['cleanup'] = await _settled_call(_CleanupReceipt._from_runner, resource['runner'], context, handles)
-            self._attempt_resources.pop(key, None)
+            await resource['runner']._cleanup_qualification_attempt(key)
+        from improvement_trial_runner import _settled_call
         from improvement_qualification_results import QualificationQueryResults
         for context in tuple(self._pending_proofs.values()):
             await _settled_call(QualificationQueryResults(self)._save_cleanup_diagnostic, context)

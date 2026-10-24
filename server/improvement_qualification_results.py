@@ -388,6 +388,9 @@ class QualificationQueryResults:
         context['stage'] = evidence
         owner.finish_qualification(session, principal, identifier, expected_generation=expected_generation,
             lease_token=lease_token, evidence=evidence)
+        # Only a returned transaction has committed a stage. Retain its proof
+        # before cancellation can bypass the following cleanup/publication.
+        session._pending_proofs[(identifier, binding.attempt)] = context
         return evidence.digest
 
     def publish(self, owner, principal, identifier, *, attempt, evidence_hash, cleanup_receipt):
@@ -396,9 +399,9 @@ class QualificationQueryResults:
         if (context is None or context['owner'] is not owner or principal is not session.principal
                 or type(cleanup_receipt) is not _CleanupReceipt or cleanup_receipt is not context['cleanup']
                 or cleanup_receipt.context is not context or cleanup_receipt.session is not session
-                or type(context['stage']) is not _StagedEvidence or context['stage'].digest != evidence_hash):
+                or type(context['stage']) is not _StagedEvidence or context['stage'].digest != evidence_hash
+                or session._pending_proofs.get((identifier, attempt)) is not context):
             raise PermissionError('qualification_cleanup_foreign')
-        session._pending_proofs[(identifier, attempt)] = context
         binding = context['binding']
         identity = _identity(session.run_hash, 'trial', identifier, attempt)
         stage = _parse(context['stage'].raw)
