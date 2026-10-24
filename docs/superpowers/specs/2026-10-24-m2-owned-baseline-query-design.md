@@ -31,10 +31,15 @@ this is the newly identified route coverage, not a retrospective global claim.
 Lifecycle clarification: the final publisher runs inside the retained facade
 task, so it cannot require that very task to be absent before its own append.
 Require all native/workspace/lifetime owners and every *other* pending host/proof
-operation settled. Retain this exact publishing task through the immutable append;
+operation **for this exact attempt** settled. Owners of other attempts stay retained
+and visible; they do not block this attempt's report, but still block global
+Session.cleanup. This avoids a cycle between concurrent retained facades or an
+unrelated pending proof. Retain this exact publishing task through the immutable append;
 remove its registration in a non-awaiting finally before the facade returns to
 its caller. No other owner may be ignored via a boolean/caller cleanup claim.
-Successful external return therefore has no remaining owner. On append failure
+Successful external return therefore has no remaining owner for its own attempt.
+Tests hold a second genuine host operation pending while one attempt completes,
+assert its owner is preserved and Session.cleanup still refuses. On append failure
 retain the exact pending proof/diagnostic retry owner; do not return success or
 relaunch. Tests pin this self-owner distinction and publication-failure retention.
 
