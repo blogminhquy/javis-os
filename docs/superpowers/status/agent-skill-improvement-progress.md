@@ -20,6 +20,32 @@ is established. Existing forward compose/Library/archive code/evidence remains.
 Initial handoff snapshot is explicitly provisional; final M2 gate/cleanup/CI/
 review/PR/version state must be updated before Goal completion.
 
+## Preserved recipe-source unit — scoped engineering closed under new scope
+
+Source269d3892 adds actual retained source observation after legitimate skill
+revision while old execution revalidate remains exact; current native target
+ACL/lineage, fixture/rule/engine/source-grant/SQL and callback identity are fenced.
+Historical archive output only shares the exact existing owner-rule hash.
+Root audited6frozen/committed LF paths and69raw indexed artifacts. Windows43run:
+42pass/1honest Windows directory-mode skip. Exact6pin earlyLinux40081705134,
+job120836433669,43PASS/0skip; full83144byte log SHA
+92228619315755f6843c083a761fa1bd37413d26ac52f32ac5f31714b8a29335.
+Fresh scoped specPASS/qualityApproved,0Critical/Important/Minor. Root resolved
+three evidence limitations against freeze/log/cleanup/static import-discovery
+and Linux artifacts. Two punycode/one Node action-runtime notices retained
+separately; no test ResourceWarning/task/timing diagnostics or suppression.
+Public2026-10-24-recipe-source-observer.json SHA
+a0ec009bb3eab3e53756cd37e560429f7f7dc8107de99760b4b6045a9fe43cf9.
+
+PROFILE99 stays UNQUALIFIED/registriesclosed; static import closure is distinct
+from current installed/runtime qualification. Task1 terminal audit/serial slot
+released, no owned test process/temp/scratch remains;36preexisting Oct22 roots
+untouched. Only owned earlyCI ref pushed, taskPRremote stays4ba9624a. Destination
+Tasks2/3 remain unimplemented/backlog by owner decision. Continue M2D1/D2/E/F
+engineering closeout and handoff, no further Library/orchestration expansion,
+no model/account/business/pilot/canary. Final M2 CI/wholebranch review/integration
+and resource audit remain mandatory; GoalACTIVE under Goal18.
+
 ## Current view-backed recipe archive — scoped engineering approved
 
 Commitbc1a3a68 adds the trigger-only schema10 overlay over exact historical9,

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "state": "initial_handoff_in_progress",
+  "state": "M2_engineering_closeout_and_handoff_in_progress",
   "owner_decision_date": "2026-10-24",
   "scope": "M2 engineering plus committed integrated Claude Opus5.5 handoff",
   "supersedes": "older full M0-M8 and Phase2 completion/continuation instructions",
@@ -25,6 +25,23 @@
     "final_freeze_utc": "2026-10-24T09:15:05Z",
     "test_run": "13 corrected frozen source module, 37 tests, still active at receipt",
     "actual_model_process": false
+  },
+  "preserved_source_unit": {
+    "commit": "269d3892e2ae735245438795a59a7558e7aa1df6",
+    "scoped_review_head": "429d9334afa792116ad80e02f0f3bf2fd11e46af",
+    "local_passed": 42,
+    "local_skipped": 1,
+    "early_linux_run": 40081705134,
+    "early_linux_passed": 43,
+    "scoped_review": "spec_compliant_quality_approved_zero_findings",
+    "public_proof": "docs/superpowers/evidence/2026-10-24-recipe-source-observer.json",
+    "public_proof_sha256": "a0ec009bb3eab3e53756cd37e560429f7f7dc8107de99760b4b6045a9fe43cf9",
+    "native_profile_sources": 99,
+    "native_qualification": "invalidated_UNQUALIFIED_registries_closed",
+    "unit_owned_processes": 0,
+    "serial_slot": "released",
+    "preexisting_Oct22_scratch_roots": "36 untouched, ownership not inferred",
+    "is_final_M2_CI_or_qualification": false
   },
   "final_source_head": null,
   "final_ci": null,

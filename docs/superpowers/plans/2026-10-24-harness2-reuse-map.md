@@ -1,5 +1,18 @@
 # Incremental Harness² reuse decisions
 
+## Owner M2 engineering/handoff scope override24/10
+
+Goal18 supersedes all older mandatory M0–M8/Library/orchestration continuation
+language below. Preserve existing actual Google compose/derived Library/archive
+code and proofs; finish only genuine M2 engineering prerequisites and handoff.
+Current source unit269d3892 is scoped approved: Windows42pass+1skip, exact6pin
+Linux40081705134/43PASS, review0findings; proofrecipe-source-observer
+SHAa0ec009bb3eab3e53756cd37e560429f7f7dc8107de99760b4b6045a9fe43cf9.
+PROFILE99 UNQUALIFIED; no new Google code/runtime/ledger or measured token claim.
+Undispatched destination consent/ranking/further native Library integration and
+orchestration comparison move to Claude backlog; no prototype is promoted to
+M2/native/business readiness. Current handoff: docs/handoffs/claude-opus-5-5/.
+
 ## Actual current-view source archive checkpoint
 
 Commitbc1a3a68 completes current ordinary/typed3 view-backed archive membership

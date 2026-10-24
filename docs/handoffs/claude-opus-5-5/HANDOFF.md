@@ -33,14 +33,16 @@ Không hạ qualification/source/runtime/CI/review hoặc đổi assert để tu
 | Schema đã commit | `10`; schema11 consent chưa triển khai |
 | Goal lifecycle | ACTIVE; API hiện có không hỗ trợ sửa objective, scope mới ở Goal18/checkpoint |
 
-Current recipe-source Task1 đang chạy trên đúng6 source/test paths; final
-freeze09:15:05UTC bao gồm pin callback kho `_conn`. Worker
-`/root/recipe_source_authority` giữ sole serial local app/native test slot.
-Lúc nhận scope mới run13/37tests còn chạy: logger7676, runner launcher26408,
-runner15692, test launcher4380, test6196. Đây là snapshot tiến trình lịch sử,
-**phải kiểm live ownership**, không kill PID cũ theo danh sách này.
-Không có actual native/model process do Task1 tạo. Report/commit/review/Linux
-của Task1 còn pending. Các PID server6936/5444 thuộc server thật, không được đụng.
+Recipe-source Task1 đã chốt source `269d3892e2ae735245438795a59a7558e7aa1df6`,
+đúng6source/test paths, final freeze09:15:05UTC. Windows43run/42pass+1skip;
+Linux43PASS/0skip; scoped review specPASS/qualityApproved,0findings. Đây là
+forward unit được bảo toàn, không phải nghiệm thu toàn M2. Worker đã terminal
+và release sole serial test slot; audit09:20:15UTC có0owned process/temp/root.
+36scratch roots Oct22 có trước task được giữ nguyên vì chưa xác định ownership.
+Không có actual native/model process do Task1 tạo. Các PID server6936/5444 là
+snapshot server thật ngoài task, không được đụng hoặc kill theo PID lịch sử.
+Report/logs/review/root audit nằm trong ignored same-plan workspace được dẫn
+ở public proof; giữ tại chỗ cho khôi phục và kiểm trace/hash.
 
 ## Hiện trạng và việc M2 cần chốt
 
@@ -63,12 +65,20 @@ Root phải lập closeout plan theo source hiện tại, giữ blocker thật v
 Đơn vị recipe-source đang chạy được chốt an toàn, review và bảo toàn; không mở
 Task2 schema11/Task3 destination-consent/retrieval chỉ vì plan cũ ghi mandatory.
 [Plan cũ](../../superpowers/plans/2026-10-24-recipe-destination-authority.md)
-đã có owner override. Private brief Task2 chỉ được chuẩn bị, chưa dispatch/code.
+đã có owner override. Private brief Task2 chỉ được chuẩn bị, chưa dispatch/code;
+schema11 trong brief đó chưa được triển khai/đặt chỗ, phải rebase theo schema
+thật nếu được chủ cho làm sau này, không dùng số version dự kiến như authority.
 Further owned Library/native/downstream consumers và orchestration comparison
 để backlog, trừ một phụ thuộc M2 cụ thể được chứng minh và ghi quyết định nhỏ.
 
 ## Source, bằng chứng và các gate chưa đạt
 
+- [Source observer proof](../../superpowers/evidence/2026-10-24-recipe-source-observer.json):
+  source `269d3892`, review snapshot `429d9334`; Windows42pass+1skip và
+  early Linux [40081705134](https://github.com/blogminhquy/javis-os/actions/runs/40081705134)
+  exact6pins/43PASS. ProofSHA
+  `a0ec009bb3eab3e53756cd37e560429f7f7dc8107de99760b4b6045a9fe43cf9`.
+  Root verified69raw artifacts/frozen bytes/cleanup; no final M2/native claim.
 - [Archive view proof](../../superpowers/evidence/2026-10-24-recipe-archive-views.json):
   implementation `bc1a3a68`, docs checkpoint `b3e8901a`; local64PASS,
   early Linux [40078670232](https://github.com/blogminhquy/javis-os/actions/runs/40078670232)
@@ -78,8 +88,10 @@ Further owned Library/native/downstream consumers và orchestration comparison
   `cbbbdacd` + test-only `aa1e0732`, encrypted original evidence/refs/cold states.
 - [Library snapshot proof](../../superpowers/evidence/2026-10-24-harness2-library-snapshot.json):
   `9e098a52`, actual derived Library technical fixtures; chưa product consumer.
-- Current native `PROFILE_SOURCES98` đã UNQUALIFIED/registries closed; source
-  Task1 đang đổi99 và tiếp tục invalidated. Không thừa hưởng qualification cũ.
+- Current native `PROFILE_SOURCES99` đã UNQUALIFIED/registries closed sau Task1.
+  Không thừa hưởng qualification cũ. Profile seed list không đồng nghĩa toàn
+  transitive closure: existing native_release._inventory còn pin local imports
+  (gồm trial_semantics/resonance_store); full installed/runtime gate vẫn mở.
   `IC.PROFILE_VERSION=claude-isolated-roles-v2`; selected native format baseline5,
   view4, operation2; legacy1/3/1 được bảo toàn. Selector không là qualification.
 - Dummy environment/session/record/startup/binding có các unit đã kiểm, nhưng
@@ -94,6 +106,16 @@ Further owned Library/native/downstream consumers và orchestration comparison
   khi chốt M2, giữ refusal/no-native/no-backup asserts.
 - Fresh final exact-head full required CI và một whole-branch review mạnh nhất
   còn mở. Scoped reviews/early CI chỉ chứng minh đúng phạm vi/bytes đã ghi.
+
+M2 qualification gap map mới nằm tại ignored
+`.superpowers/m2-engineering-handoff/qualification-gap.md` (static/read-only,
+không phải qualifier proof): startup3 chưa có production caller; SDK startup2/
+environment/account verifier đúng là từ chối dummy; Session chưa attach native
+owner; còn technical capability/reservation/ACK/drain/publisher/cold cleanup
+joins. Dùng typed engineering authority account_ready=false, giữ production
+gates; không giả subscription auth để chạy. Actual current source/CLI localhost
+dummy pipeline vẫn là kỹ thuật bắt buộc nếu khả thi; account/model thật bị loại
+khỏi Goal mới. Nếu dummy runtime thật đòi account inference thì ghi blocker thật.
 
 ## Google Harness² reuse đã có — giữ provenance/license
 
