@@ -64,6 +64,9 @@ class QualificationPreflight:
         if type(values['decision_hashes']) is not tuple or len(values['decision_hashes']) != 2:
             raise ValueError('qualification_decisions_required')
         for value in values['decision_hashes']: _digest(value)
+        # The off-loop final check can precede revocation while its caller waits
+        # to resume. Recheck synchronously in the issuing task, without an await.
+        boundary._qualification._assert_native_current()
         return cls(_RESULT_TOKEN, values)
 
 

@@ -258,6 +258,93 @@ class QualificationKernelTests(unittest.IsolatedAsyncioTestCase):
             self.qualification.cleanup()
         await kernel.HostGuardianWindowsTests.cleanup(self)
 
+    async def _exercise_final_current_handoff(self, mutation):
+        from contextlib import ExitStack
+        import threading
+        session = self.qualification
+        held, release = threading.Event(), threading.Event()
+        transactions = session.assets.store._Tx
+        original_exit = transactions.__exit__
+        successful_checks = []
+        loop_thread = threading.get_ident()
+
+        def hold_successful_exit(transaction, error_type, error, traceback):
+            caller = sys._getframe(1)
+            boundary = caller.f_locals.get('self')
+            if (caller.f_globals.get('__name__') == parent.__name__ and caller.f_code.co_name == 'check'
+                    and type(boundary) is parent.NativeParentBoundary and boundary._qualification is session
+                    and error_type is None):
+                # The genuine _assert_native_current has already succeeded. Keep
+                # its actual final transaction/future from returning to the loop.
+                successful_checks.append(threading.get_ident())
+                held.set()
+                if not release.wait(15): raise AssertionError('fixture final-current release timeout')
+            return original_exit(transaction, error_type, error, traceback)
+
+        def diagnostics():
+            with closing(session.assets.store._conn()) as connection:
+                rows = tuple(tuple(row) for row in connection.execute(
+                    "SELECT operation,event_key,result_json FROM improvement_events "
+                    "WHERE operation IN ('native_image_decision','native_preflight_evidence') ORDER BY rowid"))
+                calls = connection.execute('SELECT COUNT(*) FROM agent_calls').fetchone()[0]
+            return rows, calls
+
+        result, failure = None, None
+        with ExitStack() as changes, patch.object(transactions, '__exit__', hold_successful_exit):
+            verification = asyncio.create_task(session.verify_native())
+            try:
+                self.assertTrue(await asyncio.to_thread(held.wait, 15), 'fixture never reached successful final check')
+                boundary = session._native_parent
+                owner = boundary._guardian
+                self.assertEqual(len(successful_checks), 1)
+                self.assertNotEqual(successful_checks[0], loop_thread)
+                self.assertFalse(verification.done())
+                self.assertTrue(owner.closed); self.assertTrue(owner.native_drained)
+                self.assertEqual((owner._worker_exit_code, owner._guardian_exit_code), (0, 0))
+                self.assertEqual(boundary._owner_state, 'DETACHED'); self.assertFalse(session._owners)
+                self.assertTrue(boundary._evidence_settled)
+                before = await asyncio.to_thread(diagnostics)
+                self.assertEqual([row[0] for row in before[0]],
+                    ['native_image_decision', 'native_image_decision', 'native_preflight_evidence'])
+                self.assertEqual(before[1], 0)
+                if mutation == 'close': session.close()
+                elif mutation == 'review':
+                    changes.enter_context(patch.object(registry, 'REVIEWED_QUALIFICATION_CANDIDATES', {}))
+                elif mutation == 'expiry':
+                    changes.enter_context(patch.object(qs.time, 'time', return_value=session.scope()['deadline_at']))
+                else: raise AssertionError('fixture mutation invalid')
+                release.set()
+                try: result = await verification
+                except BaseException as caught: failure = caught
+                self.assertEqual(await asyncio.to_thread(diagnostics), before)
+                self.assertTrue(session.root.exists())
+                self.assertTrue(owner.closed); self.assertFalse(session._owners)
+                self.assertTrue(boundary._evidence_settled)
+            finally:
+                release.set()
+                if not verification.done():
+                    try: await verification
+                    except BaseException: pass  # The real owner/finally must still settle before test exit.
+        with patch.object(transport, '_host_windows', side_effect=AssertionError('final refusal cannot relaunch')):
+            with self.assertRaisesRegex(PermissionError, 'already_used'): await session.verify_native()
+            await session.aclose_native()
+        print('I1_FINAL_HANDOFF', mutation, 'successful_offloop_checks', len(successful_checks),
+            'closed', owner.closed, 'drained', owner.native_drained, 'decisions_and_trace', len(before[0]),
+            'qualification_calls', before[1], 'returned_result', type(result).__name__, 'failure', type(failure).__name__)
+        self.assertIsInstance(failure, PermissionError,
+            'revocation after a successful final worker check must refuse result issuance')
+        self.assertIsNone(result)
+        self.assertRegex(str(failure), {'close': 'closed', 'review': 'unreviewed', 'expiry': 'expired'}[mutation])
+
+    async def test_close_after_successful_final_thread_check_refuses_result(self):
+        await self._exercise_final_current_handoff('close')
+
+    async def test_review_revocation_after_successful_final_thread_check_refuses_result(self):
+        await self._exercise_final_current_handoff('review')
+
+    async def test_expiry_after_successful_final_thread_check_refuses_result(self):
+        await self._exercise_final_current_handoff('expiry')
+
     async def test_nonempty_home_and_foreign_guardian_refuse_before_any_kernel_acquisition(self):
         session = self.qualification
         original = session.environment
