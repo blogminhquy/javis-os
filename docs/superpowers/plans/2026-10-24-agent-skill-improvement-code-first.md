@@ -1,5 +1,16 @@
 # M0–M8: code and technical verification before real trials
 
+Actual Library snapshot9e098a52 scoped approved: unchanged pinned Library methods,
+minimal attributed dependencies/3tree boundary-line adaptations, checked owned
+procedure-only filesystem lifetime. Windows31pass+1explicitPOSIXskip/32run;
+earlyLinux40069793207 exact7pins25pass+1explicitWindowsskip/26run. Independent
+static spec/quality approved0/no execution; root reconciled terminal logs/pins.
+Publicharness2-library-snapshot SHA0fc8b025b27af47068f4d9ddc86ee7c26f87c4046e136d7d08027595a9584603.
+No canonical authority/product/native consumer yet. Next normalized canonical
+encrypted recipe authority/retention/grants/crash ownership and actual downstream
+dependency integration before orchestration comparison. PROFILE95raw7f7f77da...
+unchanged UNQUALIFIED; actual309 proof intact; full Goal/finalCI/Phase2 stay open.
+
 Latest scoped panel5490cde6/95790edb approved after three reproduced/fixed UI
 recovery findings,12stablepins/no reviewer executions. Actual cold outcomes and
 mounted explicit preview/consent/run/revoke preserve immutable budget, current

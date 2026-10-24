@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "scope": "Actual pinned Harness2 Library in checked disposable private snapshot; scoped engineering evidence only",
+  "implementation_base": "75f6f8651d67b06d85e241bec312c7493deebb79",
+  "implementation_commit": "9e098a52cb5a42ee00fd0685ea35d60e948cc5cd",
+  "source_sha256": {
+    "server/improvement_harness2_library.py": "1317c3c85a7f7cad2fb89dc26bf036d8a69d75cfb614104ddc7e79bae465c5d1",
+    "server/improvement_harness2_tree.py": "44e30fee114e1526593bba6b2f043f26c1b3d088ee679175c275c82ab0451c0a",
+    "server/improvement_harness2_context.py": "e38e72f407f783dd7657bcb4eb9d5c4936569371020a65ecdb2ecdb5a1f588b2",
+    "server/improvement_recipe_snapshot.py": "b59330fe3a7929825c41ebf17c7f094af9c03868b728f5c83b59eccafa845546",
+    "tests/python/test_improvement_recipe_snapshot.py": "d9f1a5c3de164675e6db483c3da59d172b7e85c27c2376639dbb4c74db2d83a4",
+    "third_party/harness2/LIBRARY-PROVENANCE.json": "f12366cd3cf62c7860103cc2a20d3ac1814937375b0b7a8d308c48abf76821b1",
+    "third_party/harness2/PROVENANCE.md": "f85cd054f7efdd8047fcf039c7849cdf3722dc57ededfe82b357ec7a372b1e62"
+  },
+  "upstream_commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+  "provenance": {
+    "commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+    "library_definitions": 6,
+    "tree_definitions": 11,
+    "context_definitions": 3,
+    "exact_boundary_line_adaptations": 3,
+    "original_git_blobs_verified": true,
+    "source_and_target_raw_and_ast_verified": true,
+    "workflow_source_blob_verified": true
+  },
+  "behavior": [
+    "Actual unchanged Library/add/rebuild_index/tree_of/retain/forget; minimal tree/context extraction and three documented Windows/strict-UTF8/newline boundary adaptations.",
+    "Own unique private root, fixed procedure-only generated paths, one serialized owner, closed bounded entries max3 and explicit NO_ENTRY; no arbitrary caller filesystem surface.",
+    "Validate raw credential/marker/text bounds before mutation; reject generated prefix collisions; strict UTF8 and exact procedure LF/CRLF, normalized generated experience/index.",
+    "Check node/ancestry/reparse/hardlink/type/count/byte limits and allocation identity around vendor operations; mutation/read failure poisons output; swallowed forget cannot publish mixed inventory.",
+    "Caller/result mutation isolation, deterministic scope-bound hash, serialized close, honest cleanup failure and safe partial cleanup retry; no plaintext canonical store.",
+    "Returned authority_status=not_checked, coverage=derived_snapshot and business_proof=false. No product/native consumer, grant or ready flag."
+  ],
+  "local": {
+    "environment": "Windows; isolated tests/run.py driver, no real engine flags, serial slot released",
+    "runs": [
+      {
+        "log": "final-focused.log",
+        "sha256": "df249d26fb9527a53e676e1c17662e4bc40f220e31de6324953bce2b6002acd3",
+        "run": 26,
+        "passed": 25,
+        "skipped": 1,
+        "exit": 0,
+        "driver_seconds": 14.239
+      },
+      {
+        "log": "final-sandbox-scoped.log",
+        "sha256": "65f41269013448cd5d10b4eccf7694e4ef2576390dc1349b8c2efff781010e8a",
+        "run": 3,
+        "passed": 3,
+        "skipped": 0,
+        "exit": 0,
+        "driver_seconds": 1.126
+      },
+      {
+        "log": "final-blobs-scoped.log",
+        "sha256": "258c3edf33a5feabf53715f18b4d50d41822bdf5916f6fd451a74127e14c4676",
+        "run": 3,
+        "passed": 3,
+        "skipped": 0,
+        "exit": 0,
+        "driver_seconds": 0.95
+      }
+    ],
+    "total_run": 32,
+    "total_passed": 31,
+    "explicit_skipped": 1,
+    "platform_coverage": "Actual Windows junction sentinel passes; POSIX-only symlink explicitly skipped here",
+    "diagnostic": "Blob corruption selector deliberately emits existing secrets decrypt-failure diagnostic"
+  },
+  "tdd": {
+    "initial": "17 expected missing-implementation failures,1 explicit POSIX skip",
+    "logs": [
+      {
+        "log": "red.log",
+        "sha256": "6042df7560d83aca638e8b92136355cf3ca2d973ea241e1f034363f0da0ff1b3"
+      },
+      {
+        "log": "collision-red.log",
+        "sha256": "c1b7d86c76cfcb66269d02bf907c01690cde2332daf709b4249a01127a0ea944"
+      },
+      {
+        "log": "read-mutation-red.log",
+        "sha256": "31461dd69ffe1a5fbc10a2fbebefd3552cbb6edf0eca907cd65b7c51093ac9c6"
+      },
+      {
+        "log": "experience-newlines-red.log",
+        "sha256": "06cc80d29284fee8e6b6a6bb27bd03d16b3109ca7d84c8be085928e6097fefa6"
+      },
+      {
+        "log": "partial-cleanup-red.log",
+        "sha256": "5998f145e60ad1e8893232059986b35831dcc14d90831e07d633b46046c8a3b3"
+      },
+      {
+        "log": "forget-failure-red.log",
+        "sha256": "b6e4f3f3071d762cc1ade4b8903f272e8651d58f049ed5da8bafd6b17a424e65"
+      }
+    ],
+    "root_reconciliation": "Root read targeted regression RED logs; final focused module includes those cases.",
+    "disclosures": "Read-mutation RED also has a secondary cleanup fixture error; it is not claimed as feature failure. Partial/forget cleanup RED errors arise in production close. Windows MAX_PATH iteration is separate platform evidence. Misplaced partial-cleanup assertion corrected by inspection before execution, not test evidence."
+  },
+  "independent_review": {
+    "spec": "approved_for_scoped_task",
+    "quality": "approved",
+    "findings": {
+      "critical": 0,
+      "important": 0,
+      "minor": 0
+    },
+    "execution": "none",
+    "review_json_sha256": "09f77b848a06861e5ba43f82b33753ccedad0226dbbd5aa87c2c55c12613dc7d",
+    "review_markdown_sha256": "d99d8973bbb0de1f790e71bf16a14059eb0cb5361ae4fccd42b15a53146cb8c3",
+    "package_sha256": "87d1abc2c594e0f3624fc55d54982e7fa974eed712cf2e55e1bd8807a4add35e",
+    "scope_limits": [
+      "Intermediate targeted regression log claims not independently audited",
+      "Controller must reconcile task-head Linux and full required CI",
+      "Canonical encrypted permission/retention/revocation/current-evidence and Improver/candidate/view/Trial gates remain open",
+      "No full Goal17/spec15/spec18/M0-M8 completion, readiness, business proof, or product/native support claim",
+      "Owned permission-restricted filesystem boundary; not a hostile same-principal handle-based sandbox"
+    ]
+  },
+  "early_linux": {
+    "run_id": 40069793207,
+    "job_id": 120800563778,
+    "conclusion": "success",
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40069793207",
+    "snapshot_commit": "6f019a9ba1cfde0852a70ce4212d15168cfe71ef",
+    "workflow_sha256": "992e3ca2d70873b416bc3f4f610b19ee55efb0a0b61e1a9659ddfde167bcc3fe",
+    "exact_selected_pins": 7,
+    "run": 26,
+    "passed": 25,
+    "skipped": 1,
+    "test_seconds": 1.916,
+    "driver_seconds": 2.498,
+    "log_sha256": "b16a7f3c5fadc42ab3994717d71fdbddfe271815dcfd05709c1577f3b3dffcf5",
+    "log_utf8_bytes": 86821,
+    "platform_coverage": "POSIX symlink executed; Windows junction explicitly skipped",
+    "scope": "Separate early selected-byte run, not final task-head full required CI"
+  },
+  "native_inventory": {
+    "method": "AST-only literal PROFILE_SOURCES/raw file hashes; no application imports",
+    "count": 95,
+    "profile_hash": "7f7f77da63c0814fb08e55f58849899de0786023c0feb977b81e0778b2573044",
+    "qualified": false,
+    "protected_actual309_test_sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0",
+    "note": "New unconsumed Library modules are not claimed as native capability"
+  },
+  "limitations": [
+    "Permission-restricted application boundary, not hostile same-OS-principal handle sandbox",
+    "Unexpected linked/changed tree surfaces cleanup repair; exceptionally long temp roots may fail honestly",
+    "No actual CLI/SDKClient/provider/account/model call, qualification registration, activation, deploy or restart"
+  ],
+  "open_gates": [
+    "Canonical encrypted records/source availability/retention/revoke and explicit retrieval consent",
+    "Owned crash/orphan plaintext recovery and actual improver/Operation/candidate/view/Trial/apply propagation",
+    "Lesson linkage, remaining M0-M8 functioning code and same-pipeline dummy/native/qualified final",
+    "Final exact task-head full required CI and fresh whole-branch review",
+    "All Phase2 real account/model/business pilot/canary and specifically authorized rollout"
+  ],
+  "business_proof": false,
+  "activation_or_deploy": false
+}

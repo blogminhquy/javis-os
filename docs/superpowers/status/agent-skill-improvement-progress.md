@@ -1,5 +1,29 @@
 # Agent and skill improvement Goal progress
 
+## Actual Harness² Library snapshot — scoped engineering approved
+
+Commit9e098a52 runs actual pinned Library/add/index/tree/retain/forget inside an
+owned private procedure-only snapshot. Twenty extracted definitions have exact
+source/AST provenance; three documented tree boundary-line adaptations preserve
+strict UTF8, Windows paths and procedure newlines. Maximum3 entries, NO_ENTRY,
+negative/confounded verdicts, serialized lifetime, mutation poison and honest
+cleanup remain explicit. Returned authority is not_checked; no product consumer.
+
+Windows32run/31pass/1explicitPOSIXskip includes actual junction sentinel; early
+Linux40069793207/job120800563778 SUCCESS on the exact7rawpins,26run/25pass/
+1explicitWindowsskip includes actual POSIX symlink. Fresh independent static
+spec/quality review approved,0findings/no execution. Root reconciled source/
+committed/log/review/Linux pins and targeted RED disclosures. Public checkpoint
+2026-10-24-harness2-library-snapshot.json SHA0fc8b025b27af47068f4d9ddc86ee7c26f87c4046e136d7d08027595a9584603.
+
+PROFILE95 remains7f7f77da63c0814fb08e55f58849899de0786023c0feb977b81e0778b2573044
+UNQUALIFIED; actual309 test untouched. Next: canonical encrypted recipe authority,
+source availability/retention/revoke, separately scoped retrieval consent and
+owned crash recovery, then actual improver/Operation/candidate/view/Trial/apply
+dependency propagation. Orchestration comparison follows functioning integration.
+Full M0–M8 Goal, final exact-head full CI/review and all Phase2 gates remain open;
+no real model/account query, activation, restart or measured value claim.
+
 ## Compose owner panel and recorded outcomes — scoped engineering approved
 
 Commits5490cde6/95790edb add the actual mounted Studio owner flow and bounded

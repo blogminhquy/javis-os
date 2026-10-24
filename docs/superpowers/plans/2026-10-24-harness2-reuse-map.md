@@ -8,6 +8,16 @@ the implementation. New cold metadata and UI do not duplicate executor/ledger or
 grant activation. Local14Python plus UI checks; Linux40068923965 exact12pins;
 independent3P2closed/static-only. Checkpoint compose-owner-panel SHA06224f4b71acf3a4382505c8500f77709ffc9489b18451fa809596e7cdc5c8c7.
 
+Snapshot component9e098a52 now implements the plan below using actual Library
+methods,20definition provenance and exactly3 documented tree boundary-line edits.
+Independent static spec/quality approved0; Windows31pass+1skip and earlyLinux
+40069793207 exact7pins25pass+1skip exercise complementary junction/symlink paths.
+Checkpointharness2-library-snapshot SHA0fc8b025b27af47068f4d9ddc86ee7c26f87c4046e136d7d08027595a9584603.
+The actual implementation replaces a new derived serializer/index, while Javis
+still owns canonical encrypted authority. No product/native consumer exists yet;
+canonical records/grants/retention/crash recovery and downstream dependency
+enforcement are the next unit. No orchestration comparison or quality claim yet.
+
 Before library code, plan2026-10-24-harness2-library-snapshot.md records exact
 library.py39e50684b4044e483a3c16a447958044d4b5e6de, tree.pyc9bf1341226aac448f6ec82038cb6d3896799412,
 context.py72f2868b06c13e30c031cb91c0f04dcd80293ec9 and upstream library test cases
