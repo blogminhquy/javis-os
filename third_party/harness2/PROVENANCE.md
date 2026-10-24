@@ -40,3 +40,39 @@ full-library loading, causal quality claim or token-savings claim is introduced.
 All upstream policy beyond these explicitly adapted methods is excluded. Javis
 keeps baseline in its own comparisons and its independent comparator/thresholds;
 upstream finals-only selection_pool is not reused.
+
+## Actual private Library snapshot extraction
+
+`server/improvement_harness2_library.py` now extracts the actual unchanged
+Library class and its named helpers from `harness2/core/library.py` at the same
+pinned commit. Import glue points to the two narrow extracted dependencies in
+`improvement_harness2_tree.py` and `improvement_harness2_context.py`. Copyright
+2026 Google LLC and Apache-2.0 attribution are preserved in all three modules.
+The existing LICENSE continues to apply. LIBRARY-PROVENANCE.json records the
+verified source Git blobs, raw file hashes, exact definition raw/AST hashes,
+target module hashes, imports and adapted upstream test cases.
+
+Only three definition boundary lines change: read_tree emits POSIX relative
+keys and strictly decodes UTF-8 bytes; write_tree writes supplied content with
+`newline="\n"`. All other extracted definitions are unchanged. This preserves
+literal LF/CRLF Unicode procedure trees on Windows. Generated EXPERIENCE/index
+text is a normalized textual view, never a canonical raw-byte revision.
+
+`RecipeSnapshot` is the sole consumer: a unique permission-checked temporary
+root, fixed procedure-only paths, maximum three closed projections, serialized
+replace/read/close, checked bounded inventory and poison-on-failure publication.
+Opaque path components use 128-bit SHA-256 prefixes to fit the repeated Library
+layout on Windows without caller paths; selected prefix collisions reject
+before mutation. Full recipe/manifest fields and full owner identity digest
+remain in deterministic snapshot material. It runs Library.add, rebuild_index,
+tree_of, retain and forget; no replacement serializer or mock index is used.
+
+The upstream workflow marker/library-prefix and NO_ENTRY assertions are adapted
+to that real filesystem owner. The unrelated DemoAdapter/provider/schedule
+workflow is excluded; the full upstream suite has not been claimed as run.
+
+This is disposable derived data with authority_status=not_checked and
+business_proof=false. It does not implement canonical recipe records, source
+permission, consent/grants, retention/revocation, ranking, ImproverInputs or
+candidate/native integration. None of those open gates, M0–M8, library quality,
+token savings or business proof follows from these fixtures.
