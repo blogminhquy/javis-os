@@ -1,5 +1,30 @@
 # Agent and skill improvement Goal progress
 
+## Current Q1 checkpoint — fix round1, not accepted
+
+Source7316bd81 adds consumed baseline5 only (13server paths + new query test).
+Frozen Windows62PASS/0skip,175raw slow diagnostics/0warnings. Root verified
+78raw receipts/15pins/14committedobjects/38clean ownership receipts; independent
+resource scan11:31:36UTC found0matching processes and preserved2Oct23jh2dirs.
+Scoped Astra review:0Critical/3Important/1Minor, Needs fixes. Original worker
+owns sole serial local slot for fix1/5: native-detach-before-cleanup, retained
+committed-stage proof across cleanup cancellation/failure, final current fence
+on direct runner. Six meaningful REDtests produced8expected failures; no owner
+uncertainty after actual teardown. No source gate closure yet.
+
+Early exact-source Linux40090227041:24PASS/37platformSKIP/1ERROR, portable
+observed-closure test rejected ambient package RECORD path; actual offending row
+not logged. Fix smallest declared package fixture, retain strict production
+validator; no retry yet. Full raw failure and source proof remain private;
+only owned CIref988135be pushed, taskremote4ba9624a unchanged.
+
+E1/E2 source-owner/API/bootstrap designs builder-checked, no implementation.
+Static-byte/in-process and loopback protocol-delivery claims stay bounded;
+generic target/dependency-read/native/product gates OPEN. See current
+[handoff](../../handoffs/claude-opus-5-5/HANDOFF.md) and checkpoint. Earlier
+Q1design-next/undispatched wording below is historical; do not restart that task.
+Q2/E/F/fullfinalCI/wholebranch/integration/installedgate remain OPEN.
+
 ## Owner scope override24/10 — finish M2 engineering and Claude handoff
 
 Direct owner decision from “Xác định bước harness2 tốn thời gian” supersedes

@@ -101,9 +101,9 @@
     "kind": "Q1_baseline5_Session_owned_query_accounting_ACK_typed_stage_final_cold_result",
     "design": "docs/superpowers/specs/2026-10-24-m2-owned-baseline-query-design.md",
     "builder_check": "nothing_important_left_including_per_attempt_cleanup_clarification",
-    "state": "design_ready_plan_and_official_brief_next_not_dispatched",
+    "state": "Q1_fix_round1_then_scoped_rereview_and_affected_Linux_not_restart",
     "Q2": "view4_operation2_then_final_installed_localhost_gate",
-    "D2_E": "read_only_design_report_complete_native_mechanism_documentation_followup_active"
+    "D2_E": "E1_E2_source_owner_API_bootstrap_builder_checked_design_only_direct_read_and_native_gates_OPEN"
   },
   "final_source_head": null,
   "final_ci": null,
@@ -140,5 +140,57 @@
     "serial_slot": "released",
     "installed_selected_CLI_gate": "OPEN_mandatory_final_stable_query_closure",
     "is_M2_completion": false
+  },
+  "interim_snapshot_based_on_head": "35fa2b84e1f6e86d0c98e77daa5dadeea62915fd",
+  "M2_owned_query": {
+    "source_head": "7316bd81f4e197f361ee82404f8f388ac214b7f3",
+    "state": "fix_round1_in_progress_not_accepted",
+    "windows_fixture": {
+      "passed": 62,
+      "skipped": 0,
+      "slow_diagnostics": 175,
+      "warnings": 0,
+      "frozen_committed_paths": 14
+    },
+    "scoped_review": {
+      "critical": 0,
+      "important": 3,
+      "minor": 1,
+      "quality": "needs_fixes"
+    },
+    "linux_initial": {
+      "run": 40090227041,
+      "job": 120861220942,
+      "passed": 24,
+      "platform_skipped": 37,
+      "errors": 1,
+      "error": "portable observed closure test: strict package RECORD path refusal",
+      "raw_sha256": "ecee1d644f390af321c26e13b28ee07c82998b6a72a9bf976cf2f45b9b099927",
+      "original_offending_RECORD_row": "not_captured"
+    },
+    "fix_round": 1,
+    "fix_base": "7316bd81f4e197f361ee82404f8f388ac214b7f3",
+    "fix_worker": "/root/m2_owned_baseline_query",
+    "serial_local_slot": "held_until_explicit_release",
+    "fix_RED": {
+      "tests": 6,
+      "expected_assertion_failures": 8,
+      "owners_terminal_after_RED_teardown": true
+    },
+    "private_workspace": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/",
+    "private_report_prefix_bytes": 20602,
+    "private_report_prefix_sha256": "cce16db510220d5a2d3c75855a2a267c884b91e81a4ae51a9f02c1b857cad0b7",
+    "installed_native_qualification": "OPEN_after_Q2_final_stable_source",
+    "is_M2_or_product_acceptance": false
+  },
+  "M2_effective_skill_design": {
+    "state": "builder_checked_design_only_no_implementation_plan",
+    "source_owner": "docs/superpowers/specs/2026-10-24-m2-skill-authoring-source-design.md",
+    "API_binding": "docs/superpowers/specs/2026-10-24-m2-api-effective-binding-design.md",
+    "API_bootstrap": "docs/superpowers/specs/2026-10-24-m2-api-effective-bootstrap-design.md",
+    "direct_target_dependency_read_gate": "required_OPEN",
+    "native_effective_profile_gate": "required_OPEN",
+    "business_acceptance": "PENDING",
+    "product_effective_profile": "unavailable_until_all_authenticated_gates"
   }
 }

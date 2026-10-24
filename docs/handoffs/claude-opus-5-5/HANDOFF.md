@@ -4,6 +4,41 @@
 Đọc file này trước; kiểm Git/source/PR/CI thật trước mọi hành động. Không suy
 trạng thái cuối từ bản bàn giao đang viết hoặc từ transcript cũ.
 
+## Checkpoint đang chạy24/10 — Q1 fix round1, chưa nghiệm thu
+
+Source Q1 đã commit `7316bd81f4e197f361ee82404f8f388ac214b7f3`, đúng13server
+paths và1test mới. Frozen Windows62PASS/0skip, trước/sau/committed bytes khớp;
+175async slow-task diagnostics được giữ nguyên, không có warning. Root kiểm
+78raw receipts/15pins/38bản ghi cleanup; audit11:31:36UTC không còn process
+khớp75PID đã ghi, chỉ2jh2dirs Oct23 có trước được bảo toàn. Đây là fixture
+qua SDKClient/transport gốc với inert capture/engine, chưa phải installed gate.
+
+Scoped Astra review **Needs fixes:0Critical/3Important/1Minor**: cleanup phải đợi
+native detach, committed stage phải giữ pending proof qua cancel/cleanup failure,
+direct runner phải kiểm current ngay trước trả kết quả. Worker gốc đang sửa
+**round1/5**, sole serial app/native slot;6REDtests tái hiện8assertion failures,
+teardown đã đóng owner thật. Không dispatch implementer/test khác song song.
+Private brief/report/logs giữ tại
+`.superpowers/sdd/2026-10-24-m2-owned-baseline-query/`; không force-add raw logs,
+không copy key/blob. Fix report phải append, giữ20602byte prefixSHA
+`cce16db510220d5a2d3c75855a2a267c884b91e81a4ae51a9f02c1b857cad0b7`.
+
+Early Linux [40090227041](https://github.com/blogminhquy/javis-os/actions/runs/40090227041)
+trên exact source7316:24PASS/37platformSKIP/1ERROR. Lỗi portable closure test
+dùng ambient package RECORD; offending row không được log. Giữ validator sản
+phẩm, sửa fixture tối thiểu trong cùng round; chưa retry và chưa gọi Linux đạt.
+Chỉ CIref riêng988135be được push; taskbranch remote vẫn4ba9624a.
+
+E1/E2 source-owner và API/bootstrap designs đã qua fresh builder check, chưa
+triển khai. Xem [source owner](../../superpowers/specs/2026-10-24-m2-skill-authoring-source-design.md),
+[API binding](../../superpowers/specs/2026-10-24-m2-api-effective-binding-design.md)
+và [bootstrap](../../superpowers/specs/2026-10-24-m2-api-effective-bootstrap-design.md).
+E1 là static-byte/in-process; API loopback chỉ protocol delivery. D2 generic
+target/dependency-read và native effective-profile gate vẫn OPEN, product
+profiles chưa đủ điều kiện. Không lập lại/dispatch Q1 từ đầu theo snapshot cũ.
+Sau fix/re-review/affected Linux mới lập Q2 theo interface đã review, rồi E1/E2/F.
+Final installed localhost/fullCI/wholebranch/integration/handoff vẫn OPEN.
+
 ## Quyết định có hiệu lực
 
 Chủ trực tiếp thu hẹp Goal hiện tại: **hoàn thành M2 engineering rồi kết thúc
