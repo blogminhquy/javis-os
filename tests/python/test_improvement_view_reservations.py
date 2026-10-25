@@ -124,11 +124,11 @@ class ViewReservationTests(sources.SourceFixture, unittest.IsolatedAsyncioTestCa
 
 
 class NativeFootprintTests(unittest.TestCase):
-    def test_current_309_registration_matches_exact_native_evidence_and_sources(self):
+    def test_current_310_registration_matches_exact_native_evidence_and_sources(self):
         import hashlib
         from improvement_claude import PROFILE_SOURCES, PROFILE_VERSION, profile_hash
         from improvement_native_qualifications import profile_qualification
-        raw = (ROOT / 'docs/superpowers/evidence/2026-10-24-m2d1-native-qualification-skill-reads.json').read_bytes()
+        raw = (ROOT / 'docs/superpowers/evidence/2026-10-25-m2-native-qualification-cli310.json').read_bytes()
         evidence = json.loads(raw)
         pin = {key: evidence[key] for key in ('cli_version', 'cli_hash', 'sdk_version', 'profile_version', 'profile_hash')}
         self.assertEqual(pin['profile_hash'], profile_hash())
@@ -147,6 +147,17 @@ class NativeFootprintTests(unittest.TestCase):
         from improvement_claude import profile_hash
         from improvement_native_qualifications import profile_qualification
         raw = (ROOT / 'docs/superpowers/evidence/2026-10-24-m2d1-native-qualification-preparation-heartbeat.json').read_bytes()
+        evidence = json.loads(raw)
+        pin = {key: evidence[key] for key in ('cli_version', 'cli_hash', 'sdk_version', 'profile_version', 'profile_hash')}
+        self.assertEqual(profile_qualification(pin, 'win32'), hashlib.sha256(raw).hexdigest())
+        self.assertNotEqual(pin['profile_hash'], profile_hash())
+        self.assertIsNone(profile_qualification(pin | {'profile_hash': '0' * 64}, 'win32'))
+
+    def test_prior_skill_reads_309_qualification_remains_exact_historical_evidence(self):
+        import hashlib
+        from improvement_claude import profile_hash
+        from improvement_native_qualifications import profile_qualification
+        raw = (ROOT / 'docs/superpowers/evidence/2026-10-24-m2d1-native-qualification-skill-reads.json').read_bytes()
         evidence = json.loads(raw)
         pin = {key: evidence[key] for key in ('cli_version', 'cli_hash', 'sdk_version', 'profile_version', 'profile_hash')}
         self.assertEqual(profile_qualification(pin, 'win32'), hashlib.sha256(raw).hexdigest())
