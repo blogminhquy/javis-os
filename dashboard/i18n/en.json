@@ -5576,5 +5576,12 @@
   "msc.bots": "Bot",
   "msc.no_bot": "none yet",
   "msc.bot_off": "off",
-  "msc.err_net": "Could not reach the Javis server."
+  "msc.err_net": "Could not reach the Javis server.",
+  "ap.title": "Choose an Agent",
+  "ap.title_step": "Agent for this step",
+  "ap.title_verify": "Agent that checks the result",
+  "ap.search_ph": "Search by name or role",
+  "ap.empty": "No Agent matches \"{q}\"",
+  "ap.close": "Close",
+  "ap.none": "No Agent chosen"
 }

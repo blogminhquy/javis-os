@@ -5576,5 +5576,12 @@
   "msc.bots": "Bot",
   "msc.no_bot": "chưa có",
   "msc.bot_off": "đang tắt",
-  "msc.err_net": "Không gọi được máy chủ Javis."
+  "msc.err_net": "Không gọi được máy chủ Javis.",
+  "ap.title": "Chọn Agent",
+  "ap.title_step": "Agent làm bước này",
+  "ap.title_verify": "Agent kiểm tra kết quả",
+  "ap.search_ph": "Tìm theo tên hoặc vai trò",
+  "ap.empty": "Không có Agent nào khớp với \"{q}\"",
+  "ap.close": "Đóng",
+  "ap.none": "Chưa chọn Agent"
 }
