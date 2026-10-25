@@ -108,6 +108,8 @@ def allow_patterns():
 # `javis_login` (0.251.0) opens pages signed in as the owner (login vault): a customer must never browse as them.
 OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "javis_team", "javis_memory",
                               "javis_watch", "javis_login",
+                              # 2026-10-25: writes code that runs in the server (installed OFF, still owner's call).
+                              "javis_plugin",
                               # 0.259.0: tìm và đọc web. Bot nói chuyện với khách lạ không được biến
                               # máy chủ của chủ thành máy đi đọc web hộ bất kỳ ai nhắn tới.
                               "javis_web_search", "javis_web_fetch"})

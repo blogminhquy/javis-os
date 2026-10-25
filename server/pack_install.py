@@ -222,47 +222,24 @@ def _giai_nen(zf, infos, goc, dich: Path) -> None:
 
 # ─────────────────────────── soi rồi cài ───────────────────────────
 
-def don_staging(ttl: int = STAGING_TTL) -> int:
-    """Dọn thứ đã soi mà không cài. Trả về số mục đã dọn."""
-    if not STAGING.is_dir():
-        return 0
-    # ttl <= 0 nghĩa là "không giữ gì", nên phải dọn CẢ thứ vừa tạo xong. So sánh chặt với
-    # `_now() - 0` thì một thư mục tạo cùng nhịp đồng hồ lại thoát - đúng ca mà người gọi
-    # `don_staging(0)` muốn dọn nhất.
-    han, n = (_now() + 1 if ttl <= 0 else _now() - ttl), 0
-    for p in list(STAGING.iterdir()):
-        try:
-            if p.stat().st_mtime < han:
-                shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink()
-                n += 1
-        except OSError:
-            continue
-    return n
+def zip_too_large(du_lieu: bytes) -> dict:
+    """The upload size cap, as the error dict both installers return; {} when it fits."""
+    if len(du_lieu) <= MAX_ZIP:
+        return {}
+    return {"ok": False, "stage": "verify",
+            "error": localefmt.chu(f"tệp quá lớn ({len(du_lieu) // 1024 // 1024}MB, trần "
+                                   f"{MAX_ZIP // 1024 // 1024}MB)",
+                                   f"file too large ({len(du_lieu) // 1024 // 1024}MB, limit "
+                                   f"{MAX_ZIP // 1024 // 1024}MB)")}
 
 
-def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
-    """Mở zip, kiểm mọi luật, giải nén vào staging. KHÔNG đặt gì vào kho.
+def extract_checked(du_lieu: bytes, kho: Path, tam_zip: Path) -> dict:
+    """Apply every zip rule above, then extract into `kho` with modes WE set.
 
-    Trả về đúng cái sẽ hiện lên màn hình xác nhận, kèm `sha256` để `cai()` đối chiếu."""
-    don_staging()
-    if len(du_lieu) > MAX_ZIP:
-        return {"ok": False, "stage": "verify",
-                "error": localefmt.chu(f"tệp quá lớn ({len(du_lieu) // 1024 // 1024}MB, trần "
-                                       f"{MAX_ZIP // 1024 // 1024}MB)",
-                                       f"file too large ({len(du_lieu) // 1024 // 1024}MB, limit "
-                                       f"{MAX_ZIP // 1024 // 1024}MB)")}
-    sha = hashlib.sha256(du_lieu).hexdigest()
-    # Bố cục staging: STAGING/<sha>/<pid>/. Lớp <sha> là thư mục BỌC, còn <pid> mới là thư mục
-    # gói - `packs._nap_mot` lấy TÊN THƯ MỤC làm id, nên nó phải đúng bằng id trong manifest,
-    # y hệt lúc đã cài thật. Thiếu lớp bọc thì tên thư mục thành `<sha>` và mọi gói đều bị báo
-    # "tên thư mục không hợp lệ làm id".
-    boc = STAGING / sha
-    kho = boc / "_giai-nen"
-    STAGING.mkdir(parents=True, exist_ok=True)
-    if boc.is_dir():
-        shutil.rmtree(boc, ignore_errors=True)
-
-    tam_zip = STAGING / f"{sha}.zip"
+    Shared by the pack installer and the plugin-zip installer (`plugin_install.py`) so there is
+    exactly one zip extractor to keep safe. Returns {"ok": True, "root": <stripped wrapper
+    folder or "">} or the error dict to hand straight back to the caller."""
+    tam_zip.parent.mkdir(parents=True, exist_ok=True)
     tam_zip.write_bytes(du_lieu)
     try:
         with zipfile.ZipFile(tam_zip) as zf:
@@ -281,6 +258,53 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
             tam_zip.unlink()
         except OSError:
             pass
+    return {"ok": True, "root": goc}
+
+
+def don_staging(ttl: int = STAGING_TTL, root: Path = None) -> int:
+    """Dọn thứ đã soi mà không cài. Trả về số mục đã dọn.
+
+    `root` lets the plugin-zip installer (`plugin_install.py`) clean its own staging folder with
+    the same rule; omitted, it is the pack staging folder."""
+    base = root if root is not None else STAGING
+    if not base.is_dir():
+        return 0
+    # ttl <= 0 nghĩa là "không giữ gì", nên phải dọn CẢ thứ vừa tạo xong. So sánh chặt với
+    # `_now() - 0` thì một thư mục tạo cùng nhịp đồng hồ lại thoát - đúng ca mà người gọi
+    # `don_staging(0)` muốn dọn nhất.
+    han, n = (_now() + 1 if ttl <= 0 else _now() - ttl), 0
+    for p in list(base.iterdir()):
+        try:
+            if p.stat().st_mtime < han:
+                shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink()
+                n += 1
+        except OSError:
+            continue
+    return n
+
+
+def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
+    """Mở zip, kiểm mọi luật, giải nén vào staging. KHÔNG đặt gì vào kho.
+
+    Trả về đúng cái sẽ hiện lên màn hình xác nhận, kèm `sha256` để `cai()` đối chiếu."""
+    don_staging()
+    qua = zip_too_large(du_lieu)
+    if qua:
+        return qua
+    sha = hashlib.sha256(du_lieu).hexdigest()
+    # Bố cục staging: STAGING/<sha>/<pid>/. Lớp <sha> là thư mục BỌC, còn <pid> mới là thư mục
+    # gói - `packs._nap_mot` lấy TÊN THƯ MỤC làm id, nên nó phải đúng bằng id trong manifest,
+    # y hệt lúc đã cài thật. Thiếu lớp bọc thì tên thư mục thành `<sha>` và mọi gói đều bị báo
+    # "tên thư mục không hợp lệ làm id".
+    boc = STAGING / sha
+    kho = boc / "_giai-nen"
+    STAGING.mkdir(parents=True, exist_ok=True)
+    if boc.is_dir():
+        shutil.rmtree(boc, ignore_errors=True)
+
+    ra = extract_checked(du_lieu, kho, STAGING / f"{sha}.zip")
+    if not ra.get("ok"):
+        return ra
 
     manifest = next((kho / t for t in packs.MANIFEST_TEN if (kho / t).is_file()), None)
     if manifest is None:

@@ -12923,6 +12923,7 @@ async def plugins_list(brain: str = Query("brain")):
     root = _brain_root(brain)
     items = plugins_host.describe(root)
     return {"ok": True, "user_gate": plugins_host._env_user_enabled(),
+            "zip_max_mb": plugin_zip_routes.MAX_UPLOAD // 1024 // 1024,
             "global_dir": str(plugins_host.global_plugins_dir()),
             "vault_dir": str(plugins_host.vault_plugins_dir(root) or ""), "plugins": items}
 
@@ -27054,4 +27055,26 @@ improvement_experiment_api.register(app, improvement_experiment_api.ExperimentAp
     owner_session=_doi_phien_that,
     service=_improvement_experiment_service,
     after_report=_improvement_after_report,
+))
+
+
+# Plugins page "Install from .zip" (owner request 2026-10-25). Same auth rule as the pack routes
+# (it brings foreign code onto the machine), see server/routes/plugin_zip.py. Registered LAST so
+# route_table.json only grows at the end instead of renumbering every later route.
+import routes.plugin_zip as plugin_zip_routes   # noqa: E402
+
+
+def _after_plugin_install(brain: str) -> None:
+    """The refresh /plugins/toggle does: hub route cache, then the operations index."""
+    mcp_hub.invalidate_cache()
+    try:
+        rebuild_javis_index(brain)
+    except Exception as e:      # noqa: BLE001
+        print(f"[plugin-zip] index rebuild: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+plugin_zip_routes.register(app, plugin_zip_routes.PluginZipDeps(
+    co_phien=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
+    brain_root=lambda b: _brain_root(b),
+    after_install=_after_plugin_install,
 ))
