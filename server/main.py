@@ -27078,3 +27078,16 @@ plugin_zip_routes.register(app, plugin_zip_routes.PluginZipDeps(
     brain_root=lambda b: _brain_root(b),
     after_install=_after_plugin_install,
 ))
+
+
+# Invitation to star Javis on GitHub (0.324.0, owner request 2026-10-25), see server/star_nudge.py.
+# Registered LAST so route_table.json only grows at the end.
+import routes.star_nudge as star_nudge_routes   # noqa: E402
+
+star_nudge_routes.register(app, star_nudge_routes.StarNudgeDeps(
+    read_settings=cfgmod.read_settings,
+    update_settings=cfgmod.update_settings,
+    read_sql=lambda sql, params=(): get_store()._read(sql, params),
+    state_dir=Path(cfgmod.STATE_DIR),
+    version=_app_version,
+))

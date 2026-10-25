@@ -1274,6 +1274,7 @@ function handleMessage(data) {
         else window.JavisInbox.refresh();
       }
     } catch (e) {}
+    try { if (window.JavisStar) window.JavisStar.moment("work"); } catch (e) {}   // việc nền vừa trả kết quả
     return;
   }
   if (data.type === "status") {
@@ -1367,6 +1368,9 @@ function handleMessage(data) {
       // Có câu trả lời thật thì linh vật vui một nhịp. Đang đọc thành tiếng thì nó tự đợi đọc
       // xong mới nhảy (pet.js giữ cờ choXong), nên gọi ngay ở đây là đủ.
       if (finalText.trim()) petReact("xong");
+      // Javis vừa làm một việc nhiều bước cho người dùng: một khoảnh khắc vui để mời tặng sao GitHub
+      // (star-nudge.js tự đợi người dùng rảnh tay, server quyết định có mời không).
+      try { if (finalText.trim() && t && ((t.buoc && t.buoc.so) || 0) >= 3 && window.JavisStar) window.JavisStar.moment("work"); } catch (e) {}
       // data.tts === false: khung "response" này KHÔNG được đọc (vd bản sửa lại sau khi bóc
       // JAVIS_LESSON của phiên trợ lý) - giống hệt cách nhánh "stream" đã tôn trọng data.tts.
       if (voice.ttsEnabled && t && data.tts !== false) {

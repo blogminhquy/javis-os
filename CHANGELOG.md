@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.324.0] - 2026-10-25
 ### Thêm mới
-- **Mời tặng sao trên GitHub** (đang làm).
+- **Lời mời tặng Javis 1 ngôi sao trên GitHub**, hiện đúng lúc bạn vui: lần đầu thả tim cho một câu trả lời, khi Javis vừa làm xong việc cho bạn, khi tròn 50 hay 100 lượt trò chuyện, tròn 1 tháng dùng Javis, hay vừa có bản mới. Mỗi lần một lời chào riêng, linh vật là ngôi sao cam của Javis.
+- **Hướng dẫn 3 bước có hình** cho người chưa dùng GitHub bao giờ: hình chỉ đúng chỗ nút Star trên máy tính lẫn điện thoại, đăng nhập GitHub bằng Gmail chỉ một chạm. Số sao hiện thật từ GitHub kèm mốc kế tiếp, tự cập nhật.
+- **Không làm phiền:** đóng thì hỏi lại sau 3 ngày, "Để sau" là 7 ngày, tối đa 6 lần; đã tặng hay chọn "Đừng hỏi nữa" thì thôi hẳn, trên mọi thiết bị. Muốn tặng lúc nào cũng có nút "Tặng sao" dưới số phiên bản và thẻ "Ủng hộ Javis" ở trang Cập nhật.
 
 ## [0.322.0] - 2026-10-25
 ### Thêm mới
