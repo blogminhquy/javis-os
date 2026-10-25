@@ -2242,15 +2242,68 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   white-space: nowrap; text-overflow: ellipsis; }
 .ht-item.unread .ht-item-top strong { color: var(--text); }
 .ht-item-time { flex: none; font-size: 11.5px; color: var(--text3); }
-/* Nút ghim của hòm thư (0.223.0): hiện khi rê chuột, luôn hiện ở hàng đã ghim và trên màn cảm ứng. */
+/* Nút ghim của hòm thư (0.223.0). Since the row menu (2026-10-25) only a PINNED row draws it (click to unpin); pinning
+   an unpinned chat is in the "..." menu, so unpinned rows stay clean. */
 .ht-pin { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
-  margin: -4px -4px -4px 0; border-radius: 6px; color: var(--text3); opacity: 0; cursor: pointer; }
+  margin: -4px 0; border-radius: 6px; color: var(--text3); cursor: pointer; }
 .ht-pin svg { width: 14px; height: 14px; }
-.ht-item:hover .ht-pin, .ht-pin:focus-visible { opacity: .8; }
-.ht-pin:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
-.ht-pin.on { opacity: 1; color: var(--accent); }
+.ht-pin:hover { background: var(--surface-2); color: var(--text); }
+.ht-pin.on { color: var(--accent); }
 .ht-item.ghim { box-shadow: inset 3px 0 0 var(--accent); }
-@media (hover: none) { .ht-pin { opacity: .6; width: 32px; height: 32px; } .ht-pin.on { opacity: 1; } }
+/* Row menu "..." (owner, 2026-10-25, like Zalo's). Touch screens and phones: always shown, after the time. A mouse on a
+   wide screen: it takes the time's place while the row is hovered or focused, or while its menu is open. */
+.ht-item-top { position: relative; }
+.ht-rmore { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 26px;
+  margin: -5px -5px -5px 0; border-radius: 7px; color: var(--text2); cursor: pointer; }
+.ht-rmore svg { width: 18px; height: 18px; }
+.ht-rmore:hover, .ht-item.menu-on .ht-rmore { background: var(--surface-2); color: var(--text); }
+.ht-rmore:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: hover) and (min-width: 641px) {
+  .ht-rmore { position: absolute; right: -2px; top: 50%; margin: 0; transform: translateY(-50%); opacity: 0;
+    background: var(--surface-1); border: 1px solid var(--border); }
+  .ht-item:hover .ht-rmore, .ht-item:focus-within .ht-rmore, .ht-item.menu-on .ht-rmore { opacity: 1; }
+  .ht-item:hover .ht-item-time, .ht-item:focus-within .ht-item-time, .ht-item.menu-on .ht-item-time { visibility: hidden; }
+}
+.ht-item.menu-on { background: var(--surface-2); color: var(--text); }
+.ht-item.hid { opacity: .75; }
+.ht-hid-mark { flex: none; display: inline-flex; color: var(--text3); }
+.ht-hid-mark svg { width: 14px; height: 14px; }
+/* The menu itself: one element on <body> (position: fixed), so the list's scrolling never clips it. */
+.ht-rmenu { position: fixed; z-index: 3150; width: 300px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px);
+  overflow-y: auto; padding: 6px; border-radius: 12px; background: var(--bg2); border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .22); display: flex; flex-direction: column; gap: 1px; font-size: 16px; outline: none; }
+.ht-rm-it { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 7px 10px; border: 0;
+  border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
+.ht-rm-it:hover, .ht-rm-it:focus-visible { background: var(--surface-2); outline: none; }
+.ht-rm-ic { flex: none; display: inline-flex; color: var(--text2); }
+.ht-rm-ic svg, .ht-rm-end svg { width: 18px; height: 18px; }
+.ht-rm-t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ht-rm-t > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-rm-t small { font-size: 16px; line-height: 1.3; color: var(--text3); overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.ht-rm-end { flex: none; display: inline-flex; color: var(--text3); }
+.ht-rm-it.on .ht-rm-end, .ht-rm-it.on .ht-rm-ic { color: var(--accent); }
+.ht-rm-it.done { color: var(--green); }
+.ht-rm-it.done .ht-rm-ic { color: var(--green); }
+.ht-rm-tag .ht-tag { max-width: 100%; }
+.ht-rm-sep { height: 1px; margin: 4px 6px; background: var(--hairline); flex: none; }
+.ht-rm-h { padding: 2px 10px 2px; font-size: 16px; font-weight: 600; color: var(--text3); }
+.ht-rm-none { padding: 6px 10px; font-size: 16px; color: var(--text3); }
+.ht-rm-err { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; font-size: 16px; color: var(--red, #e5484d); }
+.ht-rm-err svg { width: 16px; height: 16px; flex: none; margin-top: 3px; }
+.ht-rm-copy { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; font-size: 16px; color: var(--text2); }
+.ht-rm-copyval { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--accent); background: var(--bg3);
+  color: var(--text); font-size: 16px; }
+/* Phones: the same menu as a bottom sheet with large rows, over a dimmed page. */
+.ht-rsheet-bg { position: fixed; inset: 0; z-index: 3140; background: var(--scrim, rgba(0, 0, 0, .45)); }
+.ht-rmenu.ht-rsheet { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; max-height: 80vh;
+  border-radius: 16px 16px 0 0; border-bottom: 0; padding: 4px 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
+.ht-rsheet .ht-rm-it { min-height: 52px; padding: 10px 12px; }
+.ht-rsheet .ht-rm-ic svg, .ht-rsheet .ht-rm-end svg { width: 20px; height: 20px; }
+.ht-rsheet-h { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 12px 8px; font-size: 16px;
+  color: var(--text); }
+.ht-rsheet-h b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-rsheet-grip { width: 40px; height: 4px; border-radius: 999px; background: var(--border); }
 .ht-item-sub { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .ht-item-sub small { flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--text3); overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis; }
