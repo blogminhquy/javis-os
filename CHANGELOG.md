@@ -7,6 +7,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.314.0] - 2026-10-25
+### Thêm mới
+- **Mỗi cuộc chat trong Hòm thư bot có nút "..."**, bấm là làm được ngay mà không cần mở chat: đánh dấu chưa đọc để nhớ quay lại, ghim lên đầu, gắn tag, chọn bot tự trả lời hay "Tôi lo", chép nhanh số điện thoại hoặc email khách để lại.
+- **Ẩn bớt cuộc chat cho gọn**, xem lại ở mục "Đã ẩn" trong ô Tình trạng. Khách nhắn tin mới thì cuộc chat tự hiện lại, không lỡ khách. Trên điện thoại nút "..." mở một bảng lớn dễ bấm ở cuối màn hình.
 ### Sửa lỗi
 - **Ảnh bạn gửi trong Hòm thư bot hiện thành ảnh.** Trước đây chỉ ảnh của khách mới hiện, còn ảnh bạn (hoặc bot) gửi đi chỉ là dòng chữ "image https://...jpg". Giờ ảnh nào cũng hiện ngay trong bong bóng, bấm vào là xem to, để bạn kiểm soát được mình đã gửi gì cho khách.
 
