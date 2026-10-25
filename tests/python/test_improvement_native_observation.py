@@ -5,6 +5,10 @@ import importlib
 import json
 import sys
 import unittest
+from pathlib import Path
+
+# Only the server directory on the path: this grammar must import without application setup.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'server'))
 
 try:
     codec = importlib.import_module('improvement_native_observation')

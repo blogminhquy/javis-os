@@ -17151,7 +17151,9 @@ async def websocket_endpoint(ws: WebSocket):
             # 0.206.0: from here on, a message the owner sends goes to this turn (steer_inbox.py).
             _steer_tok = steer_inbox.INBOX.open(conv_sid, turn_tag)
             _engine_outcome_reset(conv_sid)
-            _task_skills = TaskSkillTurn()
+            # Local import: tests exec run_turn from its source in a namespace without this module's globals.
+            from improvement_task_skill_turn import TaskSkillTurn as _TaskSkillTurn
+            _task_skills = _TaskSkillTurn()
             try:
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,

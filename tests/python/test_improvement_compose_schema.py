@@ -46,12 +46,8 @@ class ComposeSchemaTests(unittest.TestCase):
 
     @staticmethod
     def load_historical(name):
-        raw = subprocess.run(['git', 'show', HISTORICAL + ':server/' + name + '.py'],
-                             cwd=ROOT, check=True, capture_output=True).stdout
-        module = types.ModuleType('_compose_historical7_' + name)
-        sys.modules[module.__name__] = module
-        exec(compile(raw, HISTORICAL + '/server/' + name + '.py', 'exec'), module.__dict__)
-        return module
+        import _improvement_history
+        return _improvement_history.load(HISTORICAL, name, '_compose_historical7_' + name)
 
     def operation_fixture(self):
         fixture = operations.OperationExecutionTests()

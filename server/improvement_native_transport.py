@@ -1201,9 +1201,14 @@ async def execute_worker_v2(kind_namespace, request, receipt, *, config_pin, wor
     startup = {'kind': kind_namespace, 'request': {'version': 1, 'config_pin': config_pin,
         'workspace_root': str(workspace_root), 'receipt': receipt, 'capability_hash': request['capability_hash']},
         'environment': worker_environment(Path(receipt['path'])) if environment is None else environment}
-    async with aclosing(_execute_worker_loop(owner, startup, kind_namespace=kind_namespace,
-            before_engine_start=before_engine_start, on_closing_observations=on_closing_observations)) as packets:
-        async for packet in packets: yield packet
+    packets = _execute_worker_loop(owner, startup, kind_namespace=kind_namespace,
+        before_engine_start=before_engine_start, on_closing_observations=on_closing_observations)
+    async with aclosing(packets):
+        async for packet in packets:
+            try:
+                yield packet
+            except asyncio.CancelledError as error:
+                await _throw_cancellation(packets, error)
 
 
 async def execute_worker_qualification(boundary, *, before_engine_start, on_closing_observations):
@@ -1229,10 +1234,24 @@ async def execute_worker_qualification(boundary, *, before_engine_start, on_clos
         persist_before_allow=inputs['persist'], timeout=15, close_timeout=8, lifetime_timeout=remaining)
     boundary._guardian = owner
     boundary._qualification._attach_native(owner, boundary)
-    async with aclosing(_execute_worker_loop(owner, None, kind_namespace='trial',
-            before_engine_start=before_engine_start, on_closing_observations=on_closing_observations,
-            boundary=boundary)) as packets:
-        async for packet in packets: yield packet
+    packets = _execute_worker_loop(owner, None, kind_namespace='trial', before_engine_start=before_engine_start,
+        on_closing_observations=on_closing_observations, boundary=boundary)
+    async with aclosing(packets):
+        async for packet in packets:
+            try:
+                yield packet
+            except asyncio.CancelledError as error:
+                await _throw_cancellation(packets, error)
+
+
+async def _throw_cancellation(packets, error):
+    """Deliver a caller's cancellation into the inner loop (aclose alone would look like a normal
+    close and let a nonzero exit status outrank the cancellation), then keep raising it."""
+    try:
+        await packets.athrow(error)
+    except StopAsyncIteration:
+        pass
+    raise error
 
 
 async def _execute_worker_loop(owner, startup, *, kind_namespace, before_engine_start,

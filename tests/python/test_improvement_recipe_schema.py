@@ -30,12 +30,10 @@ class RecipeSchemaTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        raw = subprocess.run(['git', 'show', '3fad8de8:server/improvement_store.py'], cwd=ROOT,
-                             check=True, capture_output=True).stdout
+        import _improvement_history
+        raw = _improvement_history.source('3fad8de8', 'improvement_store')
         cls.old_raw_hash = hashlib.sha256(raw).hexdigest()
-        cls.old = types.ModuleType('_recipe_official8_store')
-        sys.modules[cls.old.__name__] = cls.old
-        exec(compile(raw, '3fad8de8/server/improvement_store.py', 'exec'), cls.old.__dict__)
+        cls.old = _improvement_history.load('3fad8de8', 'improvement_store', '_recipe_official8_store')
 
     def fixture(self, *, compose=False, prepared=False):
         if prepared:
@@ -101,7 +99,7 @@ class RecipeSchemaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='recipe-fresh-') as directory:
             store = GoalStore(Path(directory) / 'resonance.sqlite3')
             IM.ensure(store)
-            self.assertEqual(IM._schema_version(store), 10, 'Actual additive recipe migration is absent')
+            self.assertEqual(IM._schema_version(store), IM.SCHEMA_VERSION, 'Actual additive recipe migration is absent')
             with closing(store._conn()) as connection:
                 importlib.import_module('improvement_recipe_view_schema').assert_installed(connection)
                 self.assertEqual(connection.execute('PRAGMA foreign_key_check').fetchall(), [])
@@ -172,7 +170,7 @@ class RecipeSchemaTests(unittest.TestCase):
             with self.subTest(version=version):
                 store = self.predecessor(version)
                 IM.ensure(store)
-                self.assertEqual(IM._schema_version(store), 10)
+                self.assertEqual(IM._schema_version(store), IM.SCHEMA_VERSION)
                 with closing(store._conn()) as connection:
                     compose.assert_installed(connection)
                     importlib.import_module('improvement_recipe_view_schema').assert_installed(connection)
@@ -233,7 +231,7 @@ class RecipeSchemaTests(unittest.TestCase):
                 return connection.execute('PRAGMA foreign_keys').fetchone()[0]
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(list(pool.map(write, (1, 2))), [1, 1])
-        self.assertEqual(IM._schema_version(fixture.store), 10)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
         self.assertEqual(len(set(self.backups(fixture.store))-set(backups)), 1)
         self.assertEqual({key: self.history(fixture.store)[key] for key in before}, before)
 

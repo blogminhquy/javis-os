@@ -270,6 +270,11 @@ class TrialStoreTests(unittest.TestCase):
             # Construct a real schema2 fixture, without leaving later experiment tables behind.
             connection.execute("DROP TRIGGER improvement_preparation_arm_fence")
             connection.execute("DROP TRIGGER improvement_legacy_trial_view_fence")
+            # Later add-only families first (activations 11, recipes 9, compose 8), so the fixture is a real schema2 store.
+            for table in ("improvement_activations", "improvement_recipe_trial_refs", "improvement_recipe_states",
+                          "improvement_recipes", "improvement_compositions", "improvement_compose_grants",
+                          "improvement_compose_authorizations"):
+                connection.execute("DROP TABLE " + table)
             for table in ("improvement_view_qualification_links", "improvement_view_trial_links", "improvement_comparison_views", "improvement_effective_view_assets", "improvement_effective_views",
                           "improvement_semantic_receipts", "improvement_generated_candidates", "improvement_proposal_publications",
                           "improvement_operation_results", "improvement_operation_observations", "improvement_operation_attempts",

@@ -71,6 +71,7 @@ class TrialProfileFiveTests(unittest.TestCase):
         self.assertNotIn('effective_view', receipt)
         self.assertNotIn('read_outcome_proofs', receipt)
 
+    @unittest.skipUnless(os.name == 'nt', 'query dispatch pins a Windows absolute CLI path and creation flags')
     def test_actual_sdk_command_accepts_only_declared_baseline_policy_and_fixture_tool(self):
         from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
         from improvement_query_dispatch import validate_query_dispatch

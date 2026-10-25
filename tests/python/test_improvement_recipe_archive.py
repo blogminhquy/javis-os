@@ -283,10 +283,8 @@ class RecipePreparationTests(unittest.IsolatedAsyncioTestCase):
 
     @classmethod
     def setUpClass(cls):
-        raw = subprocess.run(['git', 'show', 'dbdec4eb622bc46a0b025753a079b5f8821ef4a6:server/improvement_improver_inputs.py'],
-                             cwd=ROOT, capture_output=True, check=True).stdout
-        module = types.ModuleType('_archive_original_improver_inputs')
-        exec(compile(raw, 'dbdec4eb/improvement_improver_inputs.py', 'exec'), module.__dict__)
+        import _improvement_history
+        module = _improvement_history.load('dbdec4eb', 'improvement_improver_inputs', '_archive_original_improver_inputs')
         cls.original_inputs = module.ImproverInputs
 
     def setUp(self):

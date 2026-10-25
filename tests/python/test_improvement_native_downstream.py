@@ -125,6 +125,7 @@ class ActualNativeRoleProductTests(unittest.TestCase):
         class Workflow(role.RoleWorkflow): _product_kinds = frozenset(('propose',))
         subject = Workflow.__new__(Workflow)
         subject.execution, subject.plans = f.execution, f.execution.plans
+        subject.assets, subject.store, subject.blobs = f.execution.assets, f.execution.store, f.execution.blobs
         subject.products = f.results
         with closing(f.execution.store._conn()) as connection:
             product = subject._product(connection, f.owner, f.identifier)

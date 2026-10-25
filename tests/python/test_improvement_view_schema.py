@@ -137,7 +137,8 @@ class ViewMigrationTests(unittest.TestCase):
         self.assertEqual(IM._schema_version(self.database), IM.SCHEMA_VERSION)
 
     def test_unknown_versions_reject_before_backup_or_mutation(self):
-        for version in (9, 999):
+        # Unknown means newer than this build (9 and 10 are known intermediate versions now).
+        for version in (IM.SCHEMA_VERSION + 1, 999):
             with self.subTest(version=version):
                 with self.database._Tx(self.database) as connection:
                     connection.execute('UPDATE improvement_schema SET version=?', (version,))
@@ -369,7 +370,9 @@ class ViewScopeTests(unittest.IsolatedAsyncioTestCase):
         before = history(self.assets.store)
         with closing(self.assets.store._conn()) as connection, self.assertRaisesRegex(IM.ConflictError, 'view_schema_changed'):
             schema.assert_installed(connection)
-        IM.ensure(self.assets.store)
+        # The current-version audit refuses the drifted family instead of silently repairing it.
+        with self.assertRaises(IM.ConflictError):
+            IM.ensure(self.assets.store)
         self.assertEqual(history(self.assets.store), before)
         with closing(self.assets.store._conn()) as connection:
             self.assertIsNone(connection.execute("SELECT name FROM sqlite_master WHERE name='improvement_effective_view_scope'").fetchone())

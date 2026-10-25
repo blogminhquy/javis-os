@@ -32,6 +32,8 @@ class EngineeringRuntime:
 
 class EngineeringSession:
     order, instances, close_failure, wrong_ack = [], [], False, False
+    # Ordinary startup2 sessions carry no qualification run; only startup3 sets it.
+    _qualification = None
     def __init__(self, packet, *, namespace):
         self._packet, self._namespace = copy.deepcopy(packet), namespace
         self.runtime, self._adopted, self.closed, self.events = EngineeringRuntime(), False, False, []

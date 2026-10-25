@@ -30,15 +30,9 @@ class RecipeViewSchemaTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         historical.RecipeSchemaTests.setUpClass()
-        raw = subprocess.run(['git', 'show', 'c93cb71825accbb7f07cb5633902d706ce0f51c9:server/improvement_store.py'],
-                             cwd=ROOT, check=True, capture_output=True).stdout
-        cls.old = types.ModuleType('_recipe_official9_store')
-        sys.modules[cls.old.__name__] = cls.old
-        exec(compile(raw, 'c93cb718/server/improvement_store.py', 'exec'), cls.old.__dict__)
-        raw_schema = subprocess.run(['git', 'show', 'c93cb71825accbb7f07cb5633902d706ce0f51c9:server/improvement_recipe_schema.py'],
-                                    cwd=ROOT, check=True, capture_output=True).stdout
-        cls.old_schema = types.ModuleType('_recipe_official9_schema')
-        exec(compile(raw_schema, 'c93cb718/server/improvement_recipe_schema.py', 'exec'), cls.old_schema.__dict__)
+        import _improvement_history
+        cls.old = _improvement_history.load('c93cb718', 'improvement_store', '_recipe_official9_store')
+        cls.old_schema = _improvement_history.load('c93cb718', 'improvement_recipe_schema', '_recipe_official9_schema')
 
     def test_nine_literals_and_every_unmodified_recipe_definition_stay_exact(self):
         import improvement_recipe_view_schema as ten

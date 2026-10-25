@@ -282,7 +282,10 @@ class ImprovementStore:
         brain = _brain(principal)
         if mode not in ("off", "suggest") or type(expected_version) is not int or expected_version < 0:
             raise ValueError("unsupported_improvement_policy")
-        ensure(self.store)
+        # Turning improvement off must work even when a later guard drifted: an installed current
+        # schema skips the full definition audit (policy rows touch no guarded table).
+        if _schema_version(self.store) != SCHEMA_VERSION:
+            ensure(self.store)
         payload = {"mode": mode, "expected_version": expected_version}
         with self.store._Tx(self.store) as connection:
             replay = self._replay(connection, brain, event_key, "policy", payload)

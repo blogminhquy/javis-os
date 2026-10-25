@@ -20,7 +20,10 @@ class OwnedVerificationTests(unittest.IsolatedAsyncioTestCase):
         adapter = object.__new__(kind)
         adapter.pin = {"fixture": "no native runtime"}
         adapter.before_engine_start = lambda: None
-        manifest = {"engine_config_hash": _hash(adapter.pin), "brain_id": "synthetic"}
+        # Legacy manifest versions (trial 3, operation 1): the owned-verification path, not the native parent.
+        manifest = {"version": 1 if operation else 3, "engine_config_hash": _hash(adapter.pin), "brain_id": "synthetic"}
+        adapter._native_boundary = None
+        adapter._native = SimpleNamespace(_native_boundary=None)
         adapter.workspace_root = Path("synthetic-unread-workspace")
         adapter.workspace = SimpleNamespace(root=adapter.workspace_root, validate=lambda receipt: manifest)
         entered, release = threading.Event(), threading.Event()
