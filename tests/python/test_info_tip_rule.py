@@ -27,7 +27,8 @@ LIMIT = 100
 # (a result shown after the user acts), "content" (text the user opened on purpose, e.g. a prompt or a dialog body).
 ALLOW = json.loads((Path(__file__).with_name("info_tip_allow.json")).read_text(encoding="utf-8"))
 
-REF = re.compile(r'(?:\b(?:t|tw|tt|T|tr|L)\(\s*|data-i18n(?:-html)?=)"([A-Za-z0-9_.]+)"')
+# `dam` = star-nudge.js: t() plus **bold**, so its long strings are checked like any other.
+REF = re.compile(r'(?:\b(?:t|tw|tt|T|tr|L|dam)\(\s*|data-i18n(?:-html)?=)"([A-Za-z0-9_.]+)"')
 # The (i) helpers as modules call them: JavisInfo.body/pair directly, a local alias (JI, J), or the module's own
 # infoBody/infoPair wrapper (which falls back to drawing the text open when info-tip.js is absent, as in Node tests).
 WRAP = ("JavisInfo.body(", "JavisInfo.pair(", "JI.body(", "JI.pair(", "J.body(", "J.pair(", "infoBody(", "infoPair(",
