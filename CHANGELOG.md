@@ -8,7 +8,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.313.0] - 2026-10-25
 ### Thêm mới
-- Đang soạn.
+- **Gắn tag màu cho từng cuộc chat** trong Hòm thư bot, giống Pancake: tạo, đổi tên, đổi màu, xoá tag ngay trong cuộc chat. Tag hiện thành chip màu trên danh sách (2 chip đầu, còn lại gom "+N") và lọc được theo tag.
+- **Lọc khách đã để lại số điện thoại hoặc email.** Javis tự nhận số và email khách gõ trong tin nhắn (0912..., +84..., có hay không khoảng trắng), kể cả các cuộc chat cũ. Số hoặc email hiện ngay đầu cuộc chat, bấm chọn là copy được.
+- **Xếp khách chờ trả lời lâu nhất lên đầu** bằng mục "Chờ lâu nhất" trong ô Tình trạng.
+- **Kéo được cột danh sách hội thoại** cho rộng hẹp tuỳ ý trên máy tính. Kéo hẳn vào trong thì chỉ còn chữ cái đầu, nhấp đúp để về như cũ.
+### Sửa lỗi
+- **Hòm thư bot: tìm rồi xoá không còn mất danh sách.** Tìm khách xong chuyển tab rồi quay lại, ô tìm trống mà danh sách vẫn kẹt ở kết quả cũ, không có gì để xoá. Giờ ô tìm giữ đúng chữ đang lọc, xoá đi là danh sách hiện đủ.
 
 ## [0.312.0] - 2026-10-25
 ### Cải thiện

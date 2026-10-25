@@ -10,7 +10,12 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.313.0] - 2026-10-25
 ### Added
-- In progress.
+- **Coloured tags on each chat** in the bot inbox, like Pancake: create, rename, recolour and delete tags right in the chat. Tags show as coloured chips in the list (the first 2, the rest as "+N") and can be used as a filter.
+- **Filter customers who left a phone number or email.** Javis picks up numbers and emails customers type in their messages (0912..., +84..., with or without spaces), older chats included. The number or email shows at the top of the chat, ready to copy.
+- **Customers waiting longest for a reply come first** with "Waiting longest" in the Status filter.
+- **The conversation list column can be dragged** wider or narrower on a computer. Drag it all the way in to leave only initials; double-click to reset.
+### Fixed
+- **Bot inbox: clearing a search brings the list back.** After searching and switching tabs, the search box came back empty while the list stayed filtered, with nothing to clear. The box now keeps the text that filters the list, and clearing it shows every chat again.
 
 ## [0.312.0] - 2026-10-25
 ### Improved

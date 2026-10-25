@@ -2132,7 +2132,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    each instead of wrapping onto a second line. */
 @media (min-width: 901px) {
   .ht-bar { flex-wrap: nowrap; }
-  .ht-bar .ht-search { flex: 1 6 200px; min-width: 140px; }
+  .ht-bar .ht-search { flex: 2 1 260px; min-width: 220px; }
   .ht-bar .ht-f { flex: 0 1 auto; }
   /* The tag dropdown is as wide as its longest tag name; capped so one long tag does not squeeze the rest. */
   .ht-bar .ht-f-tag { max-width: 170px; }
