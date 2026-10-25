@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.310.0] - 2026-10-25
+### Added
+- **Google Analytics (GA4) joins the connection store.** Connect with your Google account and Javis can read your website numbers: visits, traffic sources, top pages, realtime reports. Read only, nothing in Analytics is changed. Thanks @congsang1294.
+### Fixed
+- **Team: saving the acceptance criteria again really rechecks.** When a task was marked "does not meet the criteria" and you saved the criteria in Acceptance to check it once more, it stayed on "Rechecking the product against the new criteria" forever and no check ran. The recheck now runs right away and records a new result.
+
 ## [0.309.0] - 2026-10-25
 ### Added
 - **What bots and assistants learn now lives in the brain.** The judge's lessons, eagerness, per-group thresholds and role profile, plus each assistant's lessons, learned presentation and own judge, are written to the brain's `Javis/learned/` folder, one file per bot and per assistant. Copy the brain to another machine or restore it from GitHub and Javis loads them back into the bot and assistant with the same name.

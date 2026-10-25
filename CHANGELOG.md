@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.310.0] - 2026-10-25
+### Thêm mới
+- **Kho kết nối có thêm Google Analytics (GA4).** Kết nối bằng tài khoản Google là Javis đọc được số liệu website: lượt truy cập, nguồn khách, trang được xem nhiều, báo cáo theo thời gian thực. Chỉ đọc, không sửa gì trong Analytics. Cảm ơn @congsang1294.
+### Sửa lỗi
+- **Team: lưu lại tiêu chí nghiệm thu là kiểm lại thật.** Việc đã bị chấm "chưa đạt tiêu chí", mở Nghiệm thu lưu lại tiêu chí để kiểm lần nữa thì trước đây kẹt mãi ở "Đang kiểm lại sản phẩm theo tiêu chí mới" và không có lượt kiểm nào chạy. Giờ lượt kiểm lại chạy ngay và ghi kết quả mới.
+
 ## [0.309.0] - 2026-10-25
 ### Thêm mới
 - **Kiến thức bot và trợ lý học được giờ nằm trong brain.** Bài học, độ nhiệt tình, ngưỡng theo nhóm, hồ sơ vai trò của bộ phán xử, cùng bài học, cách trình bày và bộ phán xử riêng của từng trợ lý được ghi vào thư mục `Javis/learned/` của brain, mỗi bot và mỗi trợ lý một file. Chép brain sang máy khác hay khôi phục từ GitHub là Javis tự nạp lại vào đúng bot và trợ lý cùng tên.
