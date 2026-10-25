@@ -83,5 +83,10 @@
  "wz.prov_or": "content: wizard provider card description used to pick",
  "wh.turn_off_confirm": "confirm: asked before Stop receiving, points to Pause processing instead",
  "wh.ev_delete_confirm": "confirm: asked before deleting one event and its payload",
- "wh.close_failed_confirm": "confirm: asked before closing every failed event of a hook without resending"
+ "wh.close_failed_confirm": "confirm: asked before closing every failed event of a hook without resending",
+ "star.body1": "content: the GitHub star invitation card is a message the owner wrote for this card (2026-10-25), not an explanation to fold into (i)",
+ "star.body2": "content: the GitHub star invitation card is a message the owner wrote for this card (2026-10-25), not an explanation to fold into (i)",
+ "star.step3": "content: a step of the star guide, inside a <details> the person opens on a phone",
+ "star.wait_body": "content: the GitHub star invitation card is a message the owner wrote for this card (2026-10-25), not an explanation to fold into (i)",
+ "star.thanks_body": "content: the thank-you shown after the person says they gave a star"
 }

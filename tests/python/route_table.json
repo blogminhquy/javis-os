@@ -6596,5 +6596,33 @@
    "POST"
   ],
   "trong": 659
+ },
+ {
+  "order": 662,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 663,
+  "type": "APIRoute",
+  "path": "/star-nudge/check",
+  "name": "star_check",
+  "methods": [
+   "POST"
+  ],
+  "trong": 662
+ },
+ {
+  "order": 664,
+  "type": "APIRoute",
+  "path": "/star-nudge/action",
+  "name": "star_action",
+  "methods": [
+   "POST"
+  ],
+  "trong": 662
  }
 ]

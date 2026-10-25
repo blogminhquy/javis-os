@@ -1022,9 +1022,13 @@
         <div class="upd-progress" id="updVerProgress"></div>
         <div class="gcard-meta" id="updVerStatus"></div>
         <div class="upd-rollback" id="updVerRollback"></div>
+        ${window.JavisStar ? window.JavisStar.theUngHo() : ""}
       </section>
       <div id="clTimeline"><div class="cl-note">${window.t("cs.cl_loading")}</div></div>
     </div>`;
+    // Thẻ "Ủng hộ Javis" (star-nudge.js): ai muốn tặng sao lúc nào cũng tìm được ở đây.
+    const _snGo = el.querySelector(".sn-ho .sn-go");
+    if (_snGo) _snGo.onclick = () => window.JavisStar.open();
     // Nút "Kiểm tra lại" PHẢI làm mới cả danh sách bên dưới, không chỉ khung trên.
     wireUpdateManager(el, napTimeline);
     await napTimeline();
