@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.317.0] - 2026-10-25
+### Added
+- **Test a skill description before changing it.** You write a new description and sample questions (should pick this skill, should pick none, should pick another skill); Javis shows how many more it routes correctly and whether any become wrong. A version that causes wrong picks is rejected.
+
 ## [0.316.0] - 2026-10-25
 ### Added
 - **Trial by share (canary).** When applying an improved skill to an assistant you can pick 10%, 25% or 50% of its chats: each chat stays in one group, and the rest keeps the original as the control group.
