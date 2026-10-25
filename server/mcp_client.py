@@ -820,6 +820,14 @@ class SessionPool:
             except Exception as e:
                 print(f"[mcp] inject_args {spec.get('label')}: {type(e).__name__}: {e}",
                       file=sys.stderr)
+        # Zalo tag markup never goes out as text (0.309.0): the model may call a Zalo send tool directly (owner chat,
+        # reminders, loops), outside the bot's own send path that already strips it.
+        if str(tool or "").startswith("zalo_send"):
+            try:
+                import zalo_markup
+                args = zalo_markup.clean_send_args(tool, args)
+            except Exception as e:
+                print(f"[mcp] zalo markup: {type(e).__name__}: {e}", file=sys.stderr)
         # Nguồn vừa KHỞI ĐỘNG hỏng thì trả lỗi ngay, không dựng phiên mới (0.83.2). Trước đây mỗi lần gọi
         # vào một nguồn chết là một lần spawn lại: server stdio treo chờ tới 90 giây ở `initialize`, model
         # còn gọi lại 2-3 lần, một vòng loop kẹt vài phút và tốn token vô ích. Chỉ nhớ lỗi KHỞI ĐỘNG
