@@ -1,4 +1,4 @@
-"""Owner routes for activation (M2E) and canary observation, promotion and grants (M3)."""
+"""Owner routes for activation (M2E), canaries (M3), routing descriptions (M4) and agent procedures (M5)."""
 from __future__ import annotations
 
 import asyncio
@@ -17,6 +17,9 @@ _ERRORS = (ValueError, PermissionError, AssetUnavailable, SchemaError, OSError, 
 # Where an applied overlay is served: the in-process javis_use_skill of API engines in the
 # assistant's own dashboard chat. CLI engines also read .claude/skills natively.
 _COVERAGE = {"served": ["api_engines"], "not_served": ["claude_code", "codex", "grok", "antigravity"]}
+# An agent procedure is prompt text, so every engine gets it on the surfaces the owner chose. Goals and
+# customer chatbots never load the assistant prompt.
+_AGENT_COVERAGE = {"served": ["dm", "team", "kanban", "workflow"], "not_served": ["goals", "chatbots"]}
 
 
 @dataclass
@@ -27,6 +30,8 @@ class ActivationApiDeps:
     owner_session: Callable = lambda request: None  # request -> denial Response or None (browser session only)
     canaries: Callable = None  # () -> improvement_canary.Canaries over the same write store
     routing: Callable = None  # () -> improvement_routing.Routing over the same write store (M4)
+    agents: Callable = None  # () -> improvement_agent.AgentProcedures over the same write store (M5)
+    review_proposals: Callable = lambda agent_key: []  # open agent_review ideas of one assistant (drafts)
 
 
 def _fail(error):
@@ -208,5 +213,58 @@ def register(app, deps: ActivationApiDeps):
             return {"ok": True, "overlay": service.revert(principal, overlay_id,
                     expected_generation=data["expected_generation"], event_key=data["event_key"])}
         return await routing_write(request, brain, {"expected_generation", "event_key"}, call)
+
+    async def agents():
+        if deps.agents is None:
+            raise PermissionError("agent_procedures_unavailable")
+        return await asyncio.to_thread(deps.agents)
+
+    @app.get("/improvement-agent-procedures")
+    async def agent_procedure_list(agent: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                return {"ok": True, "procedures": [], "overlays": [], "review_proposals": [], "coverage": _AGENT_COVERAGE}
+            service = await agents()
+            await asyncio.to_thread(service.reconcile, principal)
+            procedures = await asyncio.to_thread(service.procedures, principal, agent)
+            keys = {row["agent_key"] for row in procedures}
+            overlays = [row for row in await asyncio.to_thread(service.overlays, principal) if row["agent_key"] in keys]
+            key = await asyncio.to_thread(service.key, principal, agent)
+            proposals = await asyncio.to_thread(deps.review_proposals, key) if key else []
+            return {"ok": True, "procedures": procedures, "overlays": overlays, "review_proposals": proposals,
+                    "coverage": _AGENT_COVERAGE}
+        except _ERRORS as error:
+            return _fail(error)
+
+    async def agent_write(request, brain, required, call):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            data = await _body(request, required)
+            return await asyncio.to_thread(call, await agents(), principal, data)
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-agent-procedures")
+    async def agent_procedure_stage(request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "procedure": service.stage(principal, data["agent"], data["text"], event_key=data["event_key"])}
+        return await agent_write(request, brain, {"agent", "text", "event_key"}, call)
+
+    @app.post("/improvement-agent-procedures/{procedure_id}/apply")
+    async def agent_procedure_apply(procedure_id: str, request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "overlay": service.apply(principal, procedure_id, data["surfaces"],
+                    owner_confirmed=data["owner_confirmed"], event_key=data["event_key"])}
+        return await agent_write(request, brain, {"surfaces", "owner_confirmed", "event_key"}, call)
+
+    @app.post("/improvement-agent-overlays/{overlay_id}/revert")
+    async def agent_overlay_revert(overlay_id: str, request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "overlay": service.revert(principal, overlay_id,
+                    expected_generation=data["expected_generation"], event_key=data["event_key"])}
+        return await agent_write(request, brain, {"expected_generation", "event_key"}, call)
 
     return deps

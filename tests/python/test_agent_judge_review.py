@@ -231,6 +231,8 @@ with closing(gs._conn()) as c:
     props = [dict(r) for r in c.execute("SELECT * FROM agent_review_proposals WHERE agent_key=?", (key,))]
 check("ý về quyền thành đề xuất cho chủ (cùng ý max_tier)", sorted(p["area"] for p in props) == ["other", "permissions"],
       props)
+check("open proposals are readable as procedure drafts (M5)",
+      sorted(p["area"] for p in __import__("agent_review").open_proposals(gs, key)) == ["other", "permissions"])
 check("học không nâng trần, không cấp quyền: max_tier và hạn mức ngày giữ mặc định",
       (AP.row(gs, key, "*") or {}).get("max_tier", AP.DEFAULT_MAX_TIER) == AP.DEFAULT_MAX_TIER
       and AB.get_cap(gs, key) == AB.DEFAULT_DAILY)

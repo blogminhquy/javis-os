@@ -200,11 +200,12 @@ check("phiên chat riêng khác của cùng trợ lý dùng chung ngữ cảnh d
       "Sai số liệu" in main._agent_turn_system_prompt(str(BR), "lan", S_LAN2))
 src = inspect.getsource(main)
 check("lượt chat trợ lý ghép khối phản hồi giống hệt _agent_turn_system_prompt",
-      "sysprompt = (_agent_chat_prompt(brain, _persona[1]) + _session_block(conv_sid)\n" in src
+      "sysprompt = (_agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid) + _session_block(conv_sid)\n" in src
       and "+ _dm_feedback_prompt(brain, _persona[1], conv_sid)\n" in src
       # T3 phần L: cả hai chỗ còn ghép bài học phạm vi chat riêng + chung.
       and "+ _dm_lessons_prompt(brain, _persona[1], conv_sid))" in src
-      and "return (_agent_chat_prompt(brain, slug, channel) + _session_block(conv_sid) + _dm_feedback_prompt(brain, slug, conv_sid)"
+      and "return (_agent_chat_prompt(brain, slug, channel, conv_sid) + _session_block(conv_sid)"
+      "\n            + _dm_feedback_prompt(brain, slug, conv_sid)"
       "\n            + _dm_lessons_prompt(brain, slug, conv_sid))" in src)
 
 # Cộng hưởng bật: route của chủ ghi resumed_at; phản hồi mới tạo một lý do

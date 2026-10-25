@@ -151,7 +151,7 @@ def _mk_gia(kich_ban):
     return _mk
 
 
-def _sysprompt_gia(slug):
+def _sysprompt_gia(slug, surface=None):
     return ({"nguoi-viet": "Người viết"}.get(slug, slug), "bạn là agent",
             "claude-sonnet-4", "anthropic-cli")
 

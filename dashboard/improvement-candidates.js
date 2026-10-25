@@ -137,6 +137,7 @@
     if (!data.activations.length) s.applied.append(node("p", tr("no_activations")));
     await grants(s, version);
     await routing(s, version);
+    await procedures(s, version);
   }
   // M4: a description candidate is measured against intent cases with Javis's own router, then
   // applied to the brain's main chat (API engines). Each case line: kind | expected skill | question.
@@ -179,6 +180,79 @@
     }));
     box.append(result);
     s.applied.append(box);
+  }
+  // M5: an owner-approved procedure added to one assistant's prompt on the surfaces the owner ticks.
+  // The text is shown back exactly; applying needs the owner's own confirmation box.
+  const SURFACES = ["dm", "team", "kanban", "workflow"];
+  async function procedures(s, version) {
+    const box = node("div", null, "procedures"); box.append(node("h3", tr("procedure_title")));
+    info(box, tr("procedure_hint"));
+    const label = node("label", tr("apply_agent")), choose = node("select", null, "procedure-agent");
+    label.append(choose); box.append(label);
+    const agents = (await request(s, "/agents?prompt=0")).agents || [];
+    if (!alive(s, version)) return;
+    for (const agent of agents) { const option = node("option", agent.name || agent.slug); option.value = agent.slug; choose.append(option); }
+    const current = node("div", null, "procedure-current");
+    const text = field(box, "procedure_text"); text.rows = 5;
+    const ticks = {};
+    for (const surface of SURFACES) {
+      const tick = node("label", tr("procedure_surface_" + surface)), input = node("input", null, "procedure-surface-" + surface);
+      input.type = "checkbox"; input.checked = surface === "dm"; ticks[surface] = input; tick.prepend(input); box.append(tick);
+    }
+    const confirmLabel = node("label", tr("procedure_confirm")), confirm = node("input", null, "procedure-confirm");
+    confirm.type = "checkbox"; confirmLabel.prepend(confirm); box.append(confirmLabel);
+    async function load() {
+      current.replaceChildren();
+      if (!choose.value) return;
+      const data = await request(s, "/improvement-agent-procedures?agent=" + encodeURIComponent(choose.value));
+      if (!alive(s, version)) return;
+      for (const overlay of (data.overlays || []).filter(x => x.state !== "reverted")) {
+        const procedure = (data.procedures || []).find(x => x.procedure_id === overlay.procedure_id);
+        const line = node("div", null, "procedure-overlay-" + overlay.overlay_id);
+        line.append(node("p", `${tr("state_" + overlay.state)} · ${overlay.surfaces.map(x => tr("procedure_surface_" + x)).join(", ")}`));
+        if (overlay.state === "suspended") line.append(node("p", tr("procedure_reason_" + overlay.reason)));
+        if (procedure) line.append(node("pre", procedure.text, "procedure-overlay-text-" + overlay.overlay_id));
+        if (overlay.state === "active") line.append(button(tr("revert"), "procedure-revert-" + overlay.overlay_id, async () => {
+          try { await write(s, "/improvement-agent-overlays/" + encodeURIComponent(overlay.overlay_id) + "/revert",
+            {expected_generation: overlay.generation}, "procedure-revert-" + overlay.overlay_id); s.status.textContent = tr("reverted_ok"); await load(); }
+          catch (error) { failure(s, error); }
+        }));
+        current.append(line);
+      }
+      // Saved candidates never applied (owner drafts, learned additions held while a procedure is active).
+      const used = new Set((data.overlays || []).map(x => x.procedure_id));
+      for (const procedure of (data.procedures || []).filter(x => !used.has(x.procedure_id)).slice(0, 5)) {
+        const line = node("div", null, "procedure-staged-" + procedure.procedure_id);
+        line.append(node("p", tr("procedure_source_" + procedure.source)), node("pre", procedure.text));
+        line.append(button(tr("procedure_use_draft"), "procedure-staged-draft-" + procedure.procedure_id, () => { text.value = procedure.text; }));
+        current.append(line);
+      }
+      // Self-review ideas outside what review may change itself: the owner can start from one, then edits and confirms.
+      for (const proposal of data.review_proposals || []) {
+        const line = node("div", null, "procedure-proposal-" + proposal.id);
+        line.append(node("p", tr("procedure_proposal")), node("pre", proposal.text));
+        line.append(button(tr("procedure_use_draft"), "procedure-draft-" + proposal.id, () => { text.value = proposal.text; }));
+        current.append(line);
+      }
+    }
+    choose.onchange = () => load().catch(error => failure(s, error));
+    const apply = button(tr("procedure_apply"), "procedure-apply", async () => {
+      const surfaces = SURFACES.filter(x => ticks[x].checked);
+      if (!alive(s, version) || apply.disabled || !choose.value || !surfaces.length || !confirm.checked) return;
+      apply.disabled = true;
+      try {
+        const staged = (await write(s, "/improvement-agent-procedures", {agent: choose.value, text: text.value},
+          "procedure-stage-" + choose.value)).procedure;
+        await write(s, "/improvement-agent-procedures/" + encodeURIComponent(staged.procedure_id) + "/apply",
+          {surfaces, owner_confirmed: true}, "procedure-apply-" + staged.procedure_id);
+        confirm.checked = false; s.status.textContent = tr("applied_ok"); await load();
+      } catch (error) { failure(s, error); }
+      apply.disabled = false;
+    });
+    apply.disabled = !agents.length;
+    box.append(apply, current);
+    s.applied.append(box);
+    await load();
   }
   // M3: observation of one canary. Only explicit owner verdicts count; the server decides sufficiency.
   async function canary(s, row, card) {

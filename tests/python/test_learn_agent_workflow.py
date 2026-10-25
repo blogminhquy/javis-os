@@ -550,3 +550,34 @@ if __name__ == "__main__":
         print("bỏ qua: chưa cài pytest")
         sys.exit(0)
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_assistant_on_the_improvement_path_gets_a_candidate_not_a_live_write(tmp_path):
+    """M5 (spec 8.3): with an active procedure overlay, learned additions wait for the owner as a candidate."""
+    feature = _feature(tmp_path)
+    staged = []
+    feature.deps.stage_agent_procedure = lambda brain, slug, text: staged.append((slug, text)) or "iap_" + "1" * 32
+    original = "---\ntype: agent\nname: Chu dat\nslug: viet-email\nmodel: opus\n---\nprompt cũ\n"
+    _write(tmp_path / "agents" / "viet-email.md", original)
+    rep = feature._promote_sync("brain", {"agents": [_agent(
+        op="update", reason="Chủ than dài dòng", body="", add_rules=["Viết tối đa 5 câu."])]},
+        feature.read_config(), CAPS, allow_write=True)
+    assert staged == [("viet-email", "- Viết tối đa 5 câu.")]
+    assert rep["agent_procedures_staged"] == ["viet-email"] and rep["agents_updated"] == [], rep
+    assert (tmp_path / "agents" / "viet-email.md").read_text(encoding="utf-8") == original
+
+
+def test_refused_or_unenrolled_staging_keeps_the_old_behaviour(tmp_path):
+    feature = _feature(tmp_path)
+    _write(tmp_path / "agents" / "viet-email.md", "---\ntype: agent\nname: A\nslug: viet-email\n---\nprompt cũ\n")
+    feature.deps.stage_agent_procedure = lambda brain, slug, text: None
+    rep = feature._promote_sync("brain", {"agents": [_agent(
+        op="update", reason="r", body="", add_rules=["Luật một."])]}, feature.read_config(), CAPS, allow_write=True)
+    assert rep["agents_updated"] == ["viet-email"]
+
+    def refuse(brain, slug, text):
+        raise ValueError("agent_procedure_protected_setting")
+    feature.deps.stage_agent_procedure = refuse
+    rep = feature._promote_sync("brain", {"agents": [_agent(
+        op="update", reason="r2", body="", add_rules=["model: x"])]}, feature.read_config(), CAPS, allow_write=True)
+    assert rep["agents_updated"] == [] and any("bị từ chối" in b for b in rep["blocked"]), rep

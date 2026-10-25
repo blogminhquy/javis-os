@@ -68,9 +68,15 @@ class CandidateRecordTests(unittest.TestCase):
             return {name: [tuple(row) for row in connection.execute('SELECT * FROM "' + name + '" ORDER BY rowid')]
                     for name in names if name != "improvement_schema"}
 
+    def files(self):
+        # SQLite's own -wal/-shm journals come and go with the last open connection (garbage collection timing
+        # differs per platform); they are not a migration. Schema version and table history are checked below.
+        return {str(path.relative_to(self.f.root)) for path in self.f.root.rglob("*")
+                if path.is_file() and not path.name.endswith(("-wal", "-shm"))}
+
     def test_schema3_cold_reads_do_not_migrate(self):
         records = self.records()
-        before_files = {str(path.relative_to(self.f.root)) for path in self.f.root.rglob("*") if path.is_file()}
+        before_files = self.files()
         with patch.object(self.assets.blobs, "read", side_effect=AssertionError("Cold metadata cannot decrypt")):
             self.assertEqual(records.list(self.owner, "experiment-host"), [])
             with self.assertRaises(PermissionError):
@@ -80,7 +86,7 @@ class CandidateRecordTests(unittest.TestCase):
             self.assertEqual(page["items"][0]["grant_status"], "active")
         self.assertEqual(IM._schema_version(self.rs), 3)
         self.assertEqual(self.history(), self.before)
-        self.assertEqual(before_files, {str(path.relative_to(self.f.root)) for path in self.f.root.rglob("*") if path.is_file()})
+        self.assertEqual(before_files, self.files())
 
     def test_latest_upgrade_preserves_real_m1_trial_history(self):
         IM.ensure(self.rs)

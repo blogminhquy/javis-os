@@ -1,4 +1,4 @@
-# Áp dụng thử, canary, định tuyến và quay lại bản skill đã sửa (M2E, M3, M4)
+# Áp dụng thử, canary, định tuyến, quy trình trợ lý và quay lại (M2E, M3, M4, M5)
 
 Tài liệu vận hành cho phần áp dụng thủ công của **Cải tiến có kiểm chứng**, phát hành ở 0.314.0.
 Spec gốc: [agent-skill evidence improvement](../superpowers/specs/2026-10-22-agent-skill-evidence-improvement-design.md), mục 14, 18 và 19.
@@ -118,10 +118,42 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
 - Chưa có: bộ chạy thử cho bộ não API với bộ công cụ do host kiểm soát (spec 10.3), và đo việc Claude Code/Codex tự
   chọn skill; cả hai cần lượt chạy model thật khi chủ cho phép.
 
+## Quy trình cho trợ lý (M5, 0.321.0)
+
+- Là gì: một đoạn cách làm do chủ duyệt (lập kế hoạch, kiểm nguồn, kiểm kết quả, cách bàn giao) nối vào cuối lời
+  nhắc của MỘT trợ lý thành mục riêng `# Quy trình đã được chủ duyệt (Javis quản lý)`. Không sửa file trợ lý, bộ
+  nhớ, mục `## Luật chủ dặn`, model, provider, mức suy nghĩ, skills, quyền, lịch hay công tắc Auto.
+- Nơi dùng (chủ tick): `dm` (chat riêng ở dashboard, CLI, Telegram), `team` (lượt nhóm), `kanban` (việc giao bằng
+  Giao việc), `workflow` (bước quy trình, cả trợ lý kiểm chứng). Nơi không tick không bao giờ thấy. Mục tiêu (goal) và
+  chatbot khách không nạp lời nhắc trợ lý nên không được phủ. Mọi bộ não đều nhận vì đây là chữ trong lời nhắc.
+- Host nói nơi chạy: `_agent_sysprompt(slug, surface, agent_key, session_created_at)`; không có `surface` thì lời
+  nhắc y như trước. Mã trợ lý lấy từ ghim phiên, thành viên nhóm, khoá việc Kanban hoặc dòng sống của slug.
+- Kiểm của host khi lưu: 20 tới 2000 ký tự; từ chối dấu hiệu `JAVIS_RULE/LESSON/ASK`, comment HTML, dòng đặt
+  `model:`, `skills:`, `quyền:`..., câu bảo bỏ qua luật chủ hay đổi model. Mâu thuẫn về nghĩa với luật chủ do chủ
+  tự đọc và tick xác nhận (`owner_confirmed`); duyệt mâu thuẫn tự động để Phase 2.
+- Ghim phiên (I10): chat riêng bắt đầu TRƯỚC lúc áp dụng giữ lời nhắc cũ; phiên mới mới dùng quy trình. Gỡ và tạm
+  ngừng có hiệu lực ngay ở lượt kế.
+- Tạm ngừng: chủ sửa bất kỳ dòng nào của file trợ lý ngoài mục Javis quản lý (kể cả frontmatter) hoặc mục
+  `## Luật chủ dặn` (`owner_rules_changed`), trợ lý bị tạo lại cùng slug (`agent_identity_changed`), hoặc bị xoá
+  (`agent_unavailable`). Bài học tự học và mục `## Bổ sung (tự học)` không làm tạm ngừng.
+- Nối đường học: trợ lý đang có quy trình hiệu lực thì `op=update` của learn.py (luật bổ sung) thành ứng viên
+  `source=learn` chờ chủ, không ghi live; trợ lý chưa có thì như cũ. Ý tưởng ngoài phạm vi của tự rà soát
+  (`agent_review_proposals` mở) hiện trong bảng làm bản nháp. Bài học chat riêng học được trong phiên có quy trình
+  ghi `overlay:<id>` vào `source_refs`.
+- Lưu trữ: schema 14 thêm `improvement_agent_procedures` (chữ bất biến, hash luật chủ lúc viết) và
+  `improvement_agent_overlays` (một quy trình hiệu lực mỗi trợ lý; active -> reverted | suspended). Từ 13 lên 14
+  sao lưu một lần `*.pre-improvement-m5-agents.bak`.
+- API: `GET /improvement-agent-procedures?agent=<slug>`, `POST /improvement-agent-procedures`
+  `{agent, text, event_key}`, `POST /improvement-agent-procedures/{id}/apply`
+  `{surfaces, owner_confirmed, event_key}`, `POST /improvement-agent-overlays/{id}/revert`
+  `{expected_generation, event_key}`.
+- Chưa có (cần chủ): pilot một trợ lý theo phạm vi với brief chủ chấm, canary quy trình trợ lý, duyệt mâu thuẫn tự
+  động bằng model.
+
 ## Giới hạn hiện tại
 
 - Canary live (7 ngày, 10 việc thật) và pilot nghiệp vụ 12/20/12 cần chủ giao dữ liệu và cho phép chạy model thật.
-- Liên kết lesson với recipe/experiment (spec 15.2) để sang M5 cùng agent overlay.
+- Liên kết lesson: M5 ghi `overlay:<id>`; liên kết với experiment có đối chứng chờ có phép thử trợ lý thật.
 - Phép thử tự động trên Claude native vẫn chưa chạy được ở production (registry phát hành rỗng), nên mọi ứng viên
   trên brain thật hiện chỉ có thể là `manual_trial`.
 - Bằng chứng kỹ thuật: `tests/python/test_improvement_activation.py` và kịch bản mô phỏng
