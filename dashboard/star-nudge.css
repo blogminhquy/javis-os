@@ -1,0 +1,146 @@
+/* ===== Mời tặng sao GitHub (star-nudge.js, 0.324.0) =====
+   Máy tính: thẻ nổi ở góc dưới bên phải, không che khung chat ở giữa. Điện thoại: bảng trượt
+   từ đáy, chỗ ngón cái với tới. Chữ từ 16px trở lên (chủ repo: đọc trên điện thoại là chính).
+   Màu vàng của ngôi sao cố định ở cả hai tông: đó là màu của chính nút Star trên GitHub mà
+   người dùng sắp đi tìm, nhìn quen mắt thì bấm trúng. */
+.sn-wrap {
+  position: fixed; right: 20px; bottom: 20px; z-index: 3350; width: min(400px, calc(100vw - 32px));
+  opacity: 0; transform: translateY(16px) scale(.98); transition: opacity .22s ease, transform .22s ease;
+}
+.sn-wrap.sn-hien { opacity: 1; transform: none; }
+.sn-wrap.sn-di { opacity: 0; transform: translateY(16px); }
+.sn-the {
+  position: relative; max-height: calc(100vh - 40px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg2); color: var(--text); border: 1px solid var(--border); border-radius: 18px;
+  box-shadow: var(--shadow-3); padding: 18px 18px 16px; font: 16px/1.6 var(--font);
+}
+.sn-x {
+  position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; display: grid; place-items: center;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text2); cursor: pointer;
+}
+.sn-x:hover { background: var(--surface-2); color: var(--text); }
+.sn-dau { display: flex; gap: 12px; align-items: center; padding-right: 30px; }
+.sn-lv { width: 64px; height: 64px; flex: none; }
+.sn-lv-to { width: 96px; height: 96px; margin: 4px auto 6px; }
+.sn-chao { font-size: 16px; font-weight: 600; color: var(--accent-ink, var(--accent)); line-height: 1.4; }
+.sn-tieude { margin: 2px 0 0; font-size: 19px; line-height: 1.35; font-weight: 700; color: var(--text-hi, var(--text)); }
+.sn-giua { text-align: center; }
+.sn-p { margin: 12px 0 0; color: var(--text2); font-size: 16px; }
+.sn-p b, .sn-buoc b { color: var(--text); }
+
+/* Số sao thật + thanh tiến tới mốc kế tiếp */
+.sn-so { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: rgba(255, 182, 39, .12);
+  border: 1px solid rgba(255, 182, 39, .35); }
+.sn-so-chu { font-size: 16px; line-height: 1.5; color: var(--text); }
+.sn-thanh { margin-top: 8px; height: 8px; border-radius: 99px; background: rgba(255, 182, 39, .22); overflow: hidden; }
+.sn-thanh span { display: block; height: 100%; border-radius: inherit;
+  background: linear-gradient(90deg, #FFD54A, #FFB627); transition: width .6s ease; }
+
+/* Nút chính màu vàng sao, chữ tối ở cả hai tông (tương phản > 7:1 trên nền vàng) */
+.sn-go, .sn-xong {
+  margin-top: 16px; width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; border-radius: 12px; cursor: pointer; font: 700 17px/1.2 var(--font);
+  background: linear-gradient(180deg, #FFDD66, #FFB627); color: #3a2600;
+  box-shadow: 0 6px 18px rgba(255, 170, 0, .35); transition: transform .12s ease, box-shadow .12s ease;
+}
+.sn-go:hover, .sn-xong:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(255, 170, 0, .45); }
+.sn-go .ic, .sn-xong .ic { width: 20px; height: 20px; fill: #fff6d6; }
+
+.sn-cach { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+.sn-cach summary { cursor: pointer; font-size: 16px; font-weight: 600; color: var(--text); padding: 4px 0; }
+.sn-buoc { margin: 10px 0 0; padding-left: 22px; color: var(--text2); font-size: 16px; line-height: 1.6; }
+.sn-buoc li + li { margin-top: 6px; }
+.sn-cuoi { margin: 14px 0 0; text-align: center; color: var(--text2); font-size: 16px; }
+.sn-chan { display: flex; justify-content: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sn-chan button {
+  min-height: 40px; padding: 8px 14px; border-radius: 10px; cursor: pointer; font: 600 16px/1.2 var(--font);
+  border: 1px solid var(--btn-line, var(--border)); background: var(--btn-fill, transparent); color: var(--text);
+}
+.sn-chan .sn-thoi { border-color: transparent; background: transparent; color: var(--text2); font-weight: 500; }
+.sn-chan button:hover { background: var(--btn-fill-hover, var(--surface-2)); }
+
+/* Hình minh hoạ trang GitHub: luôn tối như GitHub tối, để giống đúng thứ người dùng sẽ thấy
+   hơn là giống giao diện Javis. */
+.sn-gh { margin-top: 12px; padding: 12px; border-radius: 12px; background: #0d1117; border: 1px solid #30363d;
+  color: #e6edf3; font: 15px/1.4 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+.sn-gh-ten { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 15px; color: #9198a1; }
+.sn-gh-ten b { color: #e6edf3; }
+.sn-gh-ava { width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, #f78166, #d2a8ff); }
+.sn-gh-pub { font-size: 12px; border: 1px solid #3d444d; border-radius: 99px; padding: 0 7px; color: #9198a1; }
+.sn-gh-mota { margin-top: 4px; color: #9198a1; font-size: 14px; }
+.sn-gh-hang { display: flex; gap: 6px; margin-top: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.sn-gh-dt .sn-gh-hang { justify-content: flex-start; }
+.sn-gh-nut, .sn-gh-star {
+  position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 6px;
+  border: 1px solid #3d444d; background: #212830; color: #d1d7e0; font-size: 13px; font-weight: 600;
+}
+.sn-gh-nut .ic, .sn-gh-star .ic { width: 14px; height: 14px; }
+.sn-gh-so { margin-left: 4px; padding: 0 6px; border-radius: 99px; background: #3d444d; font-size: 12px; }
+.sn-gh-star { border-color: #FFB627; box-shadow: 0 0 0 0 rgba(255, 182, 39, .7); animation: snVong 1.8s ease-out infinite; }
+.sn-gh-star .ic { color: #FFB627; }
+.sn-gh-tro { position: absolute; right: -10px; bottom: -14px; width: 22px; height: 22px;
+  fill: #fff; stroke: #0d1117; stroke-width: 1.4; stroke-linejoin: round; animation: snTro 1.8s ease-in-out infinite; }
+.sn-gh-cham { position: absolute; right: -8px; bottom: -10px; width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(255, 255, 255, .85); box-shadow: 0 0 0 4px rgba(255, 255, 255, .25); animation: snCham 1.8s ease-in-out infinite; }
+@keyframes snVong { 0% { box-shadow: 0 0 0 0 rgba(255, 182, 39, .7); } 70%, 100% { box-shadow: 0 0 0 10px rgba(255, 182, 39, 0); } }
+@keyframes snTro { 0%, 100% { transform: translate(6px, 6px); } 50% { transform: translate(0, 0); } }
+@keyframes snCham { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(.75); opacity: .6; } }
+
+/* Linh vật: ngôi sao cam của logo Javis (logo.svg), màu cố định như logo ở cả hai tông */
+.sn-sao { width: 100%; height: 100%; overflow: visible; }
+.sn-hinh { fill: #FD6100; }
+.sn-vien { fill: none; stroke: #FBBA9C; stroke-width: 6.5; stroke-linejoin: round; }
+.sn-cuoi { fill: none; stroke: #1F1F1F; stroke-width: 10; stroke-linecap: round; }
+.sn-mat ellipse { fill: #1F1F1F; }
+.sn-mat { transform-origin: 160px 152px; animation: snChop 4.5s infinite; }
+.sn-tim { fill: #fff; stroke: #1F1F1F; stroke-width: 2.4; stroke-linejoin: round; }
+.sn-lap path { fill: #FFB627; animation: snLap 2.4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.sn-lap path:nth-child(2) { animation-delay: .8s; }
+.sn-lap path:nth-child(3) { animation-delay: 1.6s; }
+.sn-than { transform-origin: 160px 240px; animation: snNhun 2.6s ease-in-out infinite; }
+.sn-vui .sn-than { animation: snNhay .7s ease-in-out 3; }
+@keyframes snNhun { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-3px) rotate(2deg); } }
+@keyframes snNhay { 0%, 100% { transform: translateY(0) scale(1); } 40% { transform: translateY(-10px) scale(1.06); } }
+@keyframes snChop { 0%, 46%, 50%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.1); } }
+@keyframes snLap { 0%, 100% { transform: scale(.6); opacity: .4; } 50% { transform: scale(1.1); opacity: 1; } }
+
+/* Pháo sao khi tặng xong */
+.sn-cam { position: relative; padding-top: 6px; }
+.sn-phao { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sn-phao i { position: absolute; left: 50%; top: 52px; color: #FFB627; opacity: 0; animation: snPhao 1.4s ease-out forwards; }
+.sn-phao i .ic { width: 18px; height: 18px; fill: #FFD54A; }
+.sn-phao i:nth-child(1) { --x: -120px; --y: -30px; } .sn-phao i:nth-child(2) { --x: 120px; --y: -40px; }
+.sn-phao i:nth-child(3) { --x: -90px; --y: 50px; animation-delay: .08s; } .sn-phao i:nth-child(4) { --x: 95px; --y: 55px; animation-delay: .08s; }
+.sn-phao i:nth-child(5) { --x: -40px; --y: -60px; animation-delay: .15s; } .sn-phao i:nth-child(6) { --x: 45px; --y: -65px; animation-delay: .15s; }
+.sn-phao i:nth-child(7) { --x: -150px; --y: 10px; animation-delay: .22s; } .sn-phao i:nth-child(8) { --x: 150px; --y: 15px; animation-delay: .22s; }
+.sn-phao i:nth-child(9) { --x: -60px; --y: 80px; animation-delay: .3s; } .sn-phao i:nth-child(10) { --x: 65px; --y: 85px; animation-delay: .3s; }
+.sn-phao i:nth-child(11) { --x: 0px; --y: -80px; animation-delay: .1s; } .sn-phao i:nth-child(12) { --x: 0px; --y: 90px; animation-delay: .25s; }
+@keyframes snPhao { 0% { transform: translate(-50%, 0) scale(.3); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--x)), var(--y)) scale(1.1) rotate(160deg); opacity: 0; } }
+
+/* Nút sao nhỏ luôn có sẵn dưới số phiên bản ở góc trái */
+.rail-foot .rf-star {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 2px 8px; border-radius: 99px;
+  border: 1px solid rgba(255, 182, 39, .5); background: rgba(255, 182, 39, .1); color: var(--text);
+  font: 600 11px/1.6 var(--font); cursor: pointer;
+}
+.rail-foot .rf-star .ic { width: 12px; height: 12px; color: #FFB627; fill: #FFD54A; }
+.rail-foot .rf-star:hover { background: rgba(255, 182, 39, .2); }
+
+/* Thẻ "Ủng hộ Javis" trên trang Cập nhật */
+.sn-ho { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.sn-ho .sn-lv { width: 56px; height: 56px; }
+.sn-ho-chu { flex: 1 1 auto; min-width: 0; }
+.sn-ho-chu b { display: block; font-size: 16px; color: var(--text); }
+.sn-ho-chu span { display: block; font-size: 16px; color: var(--text2); line-height: 1.5; }
+.sn-ho .sn-go { width: auto; margin-top: 0; padding: 0 16px; min-height: 44px; font-size: 16px; flex: none; }
+
+@media (max-width: 700px) {
+  .sn-wrap { left: 0; right: 0; bottom: 0; width: 100%; }
+  .sn-the { border-radius: 18px 18px 0 0; max-height: 88vh; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .sn-ho { flex-wrap: wrap; }
+  .sn-ho .sn-go { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sn-wrap, .sn-than, .sn-mat, .sn-lap path, .sn-gh-star, .sn-gh-tro, .sn-gh-cham, .sn-phao i { animation: none !important; transition: none !important; }
+}

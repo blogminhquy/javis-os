@@ -1001,7 +1001,7 @@
   <script src="/static/msg-press.js?v=5"></script>
   <!-- Vuốt tin sang trái để trích dẫn trên điện thoại (0.216.0): nạp TRƯỚC chat-reactions.js. -->
   <script src="/static/msg-swipe.js?v=1"></script>
-  <script src="/static/chat-reactions.js?v=6"></script>
+  <script src="/static/chat-reactions.js?v=7"></script>
   <script src="/static/chat-marks.js?v=4"></script>
   <!-- Khối tiến trình từng bước trong khung chat: phải đứng TRƯỚC app.js vì app.js gọi
        window.JavisSteps ngay khi khung tool_call đầu tiên về. -->
@@ -1022,7 +1022,7 @@
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=151"></script>
+  <script src="/static/app.js?v=152"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -1092,11 +1092,14 @@
   <script src="/static/login-vault.js?v=2"></script>
   <script src="/static/messenger-connect.js?v=1"></script>
   <script src="/static/voice-catalog.js?v=1"></script>
-  <script src="/static/console.js?v=191"></script>
+  <script src="/static/console.js?v=192"></script>
   <script src="/static/mobile-chat.js?v=15"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=3"></script>
   <script src="/static/install-nudge.js?v=1"></script>
+  <!-- Mời tặng sao GitHub (0.324.0): thẻ hiện ở khoảnh khắc vui, xem server/star_nudge.py. -->
+  <link rel="stylesheet" href="/static/star-nudge.css?v=1">
+  <script src="/static/star-nudge.js?v=1"></script>
   <script src="/static/notifications.js?v=9"></script>
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->

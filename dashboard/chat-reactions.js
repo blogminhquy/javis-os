@@ -216,6 +216,11 @@
         st.open = false;
         if (openEl === el) openEl = null;
         if (!apply(st.sid, st.mid, j.reaction || null)) { st.reaction = j.reaction || null; render(el); }
+        // Thả tim / like một câu trả lời là lúc dễ xin một ngôi sao GitHub nhất (star-nudge.js, chủ repo 25/10).
+        var rv = (j.reaction || {}).value;
+        if (rv === "love" || rv === "like") {
+          try { window.dispatchEvent(new CustomEvent("javis:react-positive", { detail: { value: rv } })); } catch (e) {}
+        }
         return;
       }
       st.error = code === 0 ? { text: tw("react.err_network"), retry: true }
