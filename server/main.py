@@ -27213,3 +27213,23 @@ star_nudge_routes.register(app, star_nudge_routes.StarNudgeDeps(
     state_dir=Path(cfgmod.STATE_DIR),
     version=_app_version,
 ))
+
+
+# Usage page, hourly view (0.326.0): last 24 hours, the 5-hour window over time, busy hours of the
+# last 7 days. Registered LAST so route_table.json only grows at the end.
+@app.get("/usage/theo-gio")
+async def usage_theo_gio():
+    """Ba goc nhin theo gio cua trang Muc dung (usage_index.theo_gio) kem MOC so sanh cua so 5 gio:
+    tran nguoi dung tu khai, khong thi muc cao nhat tung cham trong 60 ngay (giong /usage/tong-quan)."""
+    d = await asyncio.to_thread(usage_index.theo_gio, 5.0)
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    tran = int(mcfg.get("tran_5h") or 0)
+    dinh = {}
+    if not tran:
+        try:
+            dinh = await asyncio.to_thread(usage_index.dinh_cua_so, 5.0)
+        except Exception:  # noqa: BLE001
+            dinh = {}
+    d["moc"] = {"tokens": tran or int(dinh.get("tokens") or 0), "loai": "tran" if tran else "dinh",
+                "luc": dinh.get("hour") or ""}
+    return d

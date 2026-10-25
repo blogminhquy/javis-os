@@ -6624,5 +6624,15 @@
    "POST"
   ],
   "trong": 662
+ },
+ {
+  "order": 665,
+  "type": "APIRoute",
+  "path": "/usage/theo-gio",
+  "name": "usage_theo_gio",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
  }
 ]

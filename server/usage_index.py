@@ -1186,6 +1186,75 @@ def dinh_cua_so(gio: float = 5.0, ngay_gan_day: int = 60, now: datetime = None) 
     return {"tokens": dinh, "hour": dinh_moc, "gio": gio}
 
 
+def theo_gio(gio_cua_so: float = 5.0, now: datetime = None) -> dict:
+    """Ba goc nhin THEO GIO cho trang Muc dung (0.326.0, chu repo 26/10: "lam phan muc dung
+    huu dung hon", kem anh mot bang theo doi token theo gio).
+
+    - `gio_24`: 24 gio gan nhat, token tung gio tach theo provider. Bieu do theo NGAY khong
+      tra loi duoc "sang nay cai gi dot token", con chip "Hom nay" thi chi ra dung mot cot.
+    - `cua_so`: tong cua so truot `gio_cua_so` gio tai MOI gio trong 24 gio do. Con so cua so
+      hien tai chi la mot diem; duong nay cho thay no dang len hay xuong, va lan gan nhat cham
+      dinh la luc nao.
+    - `nhiet_7`: trung binh token moi ngay o tung GIO TRONG NGAY (0..23) qua 7 ngay tron gan
+      nhat, de biet gio nao AI don nhieu va gio nao vang (hop de dat viec nen).
+
+    Grain la gio dia phuong cua bang file_hourly, cung nguon voi `cua_so` va `dinh_cua_so`.
+    """
+    now = now or datetime.now(_tz())
+    n = max(1, int(round(float(gio_cua_so or 5.0))))
+    dau = now.replace(minute=0, second=0, microsecond=0)
+    moc_24 = [dau - timedelta(hours=23 - i) for i in range(24)]
+    tu_cs = moc_24[0] - timedelta(hours=n - 1)
+    ngay_nay = dau.replace(hour=0)
+    tu_7 = ngay_nay - timedelta(days=7)
+    tu = min(tu_cs, tu_7).strftime("%Y-%m-%dT%H")
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT hour, provider, COALESCE(SUM(tokens),0), COALESCE(SUM(turns),0) FROM file_hourly "
+            "WHERE hour>=? GROUP BY hour, provider", (tu,)).fetchall()
+    finally:
+        conn.close()
+    theo = {}
+    for h, prov, tok, turns in rows:
+        o = theo.setdefault(h, {"claude": 0, "codex": 0, "api": 0, "total": 0, "turns": 0})
+        p = prov if prov in ("claude", "codex", "api") else "api"
+        o[p] += tok or 0
+        o["total"] += tok or 0
+        o["turns"] += turns or 0
+
+    def tong(h):
+        return (theo.get(h.strftime("%Y-%m-%dT%H")) or {}).get("total", 0)
+
+    gio_24 = []
+    for h in moc_24:
+        o = theo.get(h.strftime("%Y-%m-%dT%H")) or {}
+        gio_24.append({"hour": h.strftime("%Y-%m-%dT%H"), "gio": h.hour,
+                       "claude": o.get("claude", 0), "codex": o.get("codex", 0), "api": o.get("api", 0),
+                       "total": o.get("total", 0), "turns": o.get("turns", 0)})
+    cua = []
+    for h in moc_24:
+        cua.append({"hour": h.strftime("%Y-%m-%dT%H"), "gio": h.hour,
+                    "tokens": sum(tong(h - timedelta(hours=k)) for k in range(n))})
+
+    # 7 ngay TRON (khong tinh hom nay dang do dang, khong thi gio sang nay keo trung binh xuong).
+    cong = [0] * 24
+    ngay_co = set()
+    for k, o in theo.items():
+        try:
+            t = datetime.strptime(k, "%Y-%m-%dT%H").replace(tzinfo=_tz())
+        except ValueError:
+            continue
+        if tu_7 <= t < ngay_nay:
+            cong[t.hour] += o["total"]
+            if o["total"]:
+                ngay_co.add(t.date())
+    so_ngay = len(ngay_co)
+    nhiet = [round(c / so_ngay) if so_ngay else 0 for c in cong]
+    return {"gio_cua_so": n, "gio_24": gio_24, "cua_so": cua,
+            "nhiet_7": {"tb_moi_gio": nhiet, "so_ngay": so_ngay}}
+
+
 def totals_by(dim: str, provider: str = None) -> dict:
     """Tong token theo mot chieu (khong loc ky), dung cho kiem thu + breakdown tho.
     Tra {gia_tri: {input,output,cache_read,cache_create,sessions}}."""

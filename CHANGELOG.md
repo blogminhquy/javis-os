@@ -7,7 +7,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.326.0] - 2026-10-26
+### Thêm mới
+- **Trang Mức dùng có thêm phần "24 giờ qua"**, ngay dưới ba ô đầu trang:
+  - **Cửa sổ 5 giờ theo từng giờ:** đường đi lên hay xuống, vạch mốc là trần bạn khai (hoặc mức cao nhất bạn từng chạm), đổi màu khi tới gần mốc, kèm một câu cho biết còn dư hay nên dời việc nặng.
+  - **Token từng giờ:** giờ nào sáng nay đốt nhiều token, tách theo Claude, ChatGPT và API.
+  - **Giờ AI dồn nhiều trong 7 ngày:** ô màu từ ít tới nhiều cho 24 giờ trong ngày, kèm gợi ý giờ vắng để đặt việc nền.
 ### Cải thiện
+- **Biểu đồ token theo ngày** giãn hết bề ngang, số ngày to và dễ đọc hơn (trước đây dồn vào một góc, chữ rất nhỏ).
 - **Nút "Tặng sao" ở góc trái gọn gàng hơn:** giờ là một nút riêng trải hết bề ngang, nằm dưới số phiên bản, chữ luôn trên một dòng (trước đây "Give a star" bị gãy làm hai dòng). Khi thu gọn thanh bên, nút chỉ còn hình ngôi sao.
 
 ## [0.324.0] - 2026-10-26

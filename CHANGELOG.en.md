@@ -9,7 +9,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
 ## [0.326.0] - 2026-10-26
+### Added
+- **The Usage page has a new "Last 24 hours" section**, right under the three top boxes:
+  - **The 5-hour window hour by hour:** whether it is rising or falling, a dashed mark at your declared cap (or the highest you ever reached), a colour change as it nears the mark, and one line saying there is room or heavy work should wait.
+  - **Tokens per hour:** which hours this morning burned the most, split by Claude, ChatGPT and API.
+  - **When AI works hardest over 7 days:** a less-to-more colour strip for the 24 hours of the day, with the quiet hours suggested for background work.
 ### Improved
+- **The tokens-per-day chart** now spans the full width with larger, readable day numbers (it used to sit squeezed in a corner with tiny labels).
 - **The "Give a star" button at the bottom left is tidier:** it is now its own full-width button under the version number, always on one line (it used to wrap onto two). With the sidebar collapsed, it shows just the star.
 
 ## [0.324.0] - 2026-10-26
