@@ -457,7 +457,7 @@ def test_verify_pass_with_engine_error_is_not_a_pass_graph(tmp_path, monkeypatch
 
     async def go():
         return await main._run_workflow_step(
-            node, "viết bài", mk, lambda slug: (slug, "thân", "claude-sonnet-4", "anthropic-cli"),
+            node, "viết bài", mk, lambda slug, surface=None: (slug, "thân", "claude-sonnet-4", "anthropic-cli"),
             sink, session_id="s1")
     res = asyncio.run(go())
     assert res["verified"] is False and res["error"] and not res["output"]

@@ -5829,5 +5829,22 @@
   "star.thanks_body": "Your star just brought Javis closer to many more people. Javis will work hard to deserve it.",
   "star.rail": "Give a star",
   "star.support_title": "Support Javis",
-  "star.support_body": "Like Javis? Give it a star on GitHub so more people can find it."
+  "star.support_body": "Like Javis? Give it a star on GitHub so more people can find it.",
+  "improve.procedure_title": "Assistant procedure",
+  "improve.procedure_hint": "Add a working procedure (planning, source checks, output checks, handoff format) to one assistant's prompt, only where you tick. The assistant file, memory, your rules, model and permissions are not changed. Javis refuses text that sets model, permissions or skills, contains JAVIS_ markers, or says to ignore your rules. A private chat already in progress keeps the old prompt; new chats use the procedure. If you edit your rules or the assistant file, the procedure pauses until you apply it again.",
+  "improve.procedure_text": "Procedure text (20 to 2000 characters)",
+  "improve.procedure_surface_dm": "Private chat (dashboard, CLI, Telegram)",
+  "improve.procedure_surface_team": "Team chat",
+  "improve.procedure_surface_kanban": "Kanban jobs",
+  "improve.procedure_surface_workflow": "Workflow steps",
+  "improve.procedure_confirm": "I have read this exact text and it does not contradict my rules for this assistant",
+  "improve.procedure_apply": "Apply procedure",
+  "improve.procedure_proposal": "Idea from the assistant's self-review (not applied)",
+  "improve.procedure_use_draft": "Use as draft",
+  "improve.procedure_source_owner": "Draft you saved (not applied)",
+  "improve.procedure_source_learn": "Rule the assistant learned, waiting for you because it has a procedure",
+  "improve.procedure_source_review": "Idea from a self-review, waiting for you",
+  "improve.procedure_reason_owner_rules_changed": "Paused because you edited your rules or the assistant file.",
+  "improve.procedure_reason_agent_identity_changed": "Paused because this assistant was recreated.",
+  "improve.procedure_reason_agent_unavailable": "Paused because the assistant no longer exists."
 }

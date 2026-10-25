@@ -84,7 +84,13 @@ QUALIFIED_PROFILES = {('win32', '2.1.308',
     ('win32', '2.1.310',
     'f9a3920634ae3b961ee92c2eb58d0051f5f8852b120983d0a4f57b6a5efeba61', '0.2.116',
     'claude-isolated-roles-v2', '1a8a08a07394d0ab31ecab33eeed216b8b971c0d0ed0d8a5a42b131c72f3f0c1'):
-    'a6031003c09b2f4f5cfa7db968979ebec376ea6f74a39238b231b5c0fd020bf1'}
+    'a6031003c09b2f4f5cfa7db968979ebec376ea6f74a39238b231b5c0fd020bf1',
+    # M5 source (agent procedure schema 14 in the store footprint), CLI 2.1.310; all20 native enforcement checks.
+    # docs/superpowers/evidence/2026-10-25-m5-native-qualification-cli310.json
+    ('win32', '2.1.310',
+    'f9a3920634ae3b961ee92c2eb58d0051f5f8852b120983d0a4f57b6a5efeba61', '0.2.116',
+    'claude-isolated-roles-v2', 'c509f9a1560d3c93631c38ad1a461d5a5430f3149cf20ab51724fab6bfd6ed19'):
+    '9ef3d110ba01f71f24378166a31cba679adcd425bdf5d680b9a3abf2cc36347d'}
 
 
 def profile_qualification(pin, platform):

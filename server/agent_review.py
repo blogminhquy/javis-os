@@ -1324,6 +1324,15 @@ class ReviewHost:
                              "status": (e.get("payload") or {}).get("status") or ""} for e in reviews]}
 
 
+def open_proposals(store, agent_key: str, limit: int = 5) -> list:
+    """Open out-of-scope ideas of one assistant, newest first (M5 shows them as procedure drafts)."""
+    ensure(store)
+    with closing(store._conn()) as c:
+        return [{"id": r["id"], "area": r["area"], "text": r["text"], "created_at": r["created_at"]}
+                for r in c.execute("SELECT id,area,text,created_at FROM agent_review_proposals WHERE agent_key=? AND "
+                                   "status='open' ORDER BY id DESC LIMIT ?", (str(agent_key), int(limit)))]
+
+
 class _Reject(Exception):
     def __init__(self, code: str):
         super().__init__(code)

@@ -208,7 +208,7 @@ def _gan_engine(kich_ban, prov="anthropic-cli"):
         def _mk(sysprompt, model=None, provider="", extra_tools=()):
             return _EngineGia(hang.pop(0) if hang else [{"type": "final", "content": ""}])
 
-        def _agent_sysprompt(aslug):
+        def _agent_sysprompt(aslug, surface=None):
             ten = {"nguoi-viet": "Người viết", "nguoi-sua": "Người sửa"}.get(aslug, aslug)
             return ten, "bạn là agent", "claude-sonnet-4", prov
 

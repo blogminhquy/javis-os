@@ -63,7 +63,7 @@ check("nhat ky run cua agent co dong", runs and "viết giúp" in runs[0].read_t
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 than = src[src.index("async def _do_turn("):src.index("async def run_turn(")]
 check("_do_turn doc persona tu phien", "_persona = workflow_chat.persona_cua_phien(_row0)" in than)
-check("_legacy_system_prompt dung prompt tro ly", "_agent_chat_prompt(brain, _persona[1])" in than)
+check("_legacy_system_prompt dung prompt tro ly", "_agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid)" in than)
 check("_subscription_system_prompt bo qua nen ngu canh khi co persona",
       re.search(r"def _subscription_system_prompt\(.*?\):\s*\"\"\".*?\"\"\"\s*if _persona:\s*return _legacy_system_prompt\(\), None", than, re.S) is not None)
 check("nhanh phase8 API khong dung plan khi co persona", 'action == "use" and not _persona' in than)

@@ -139,11 +139,11 @@ class RoutingOverlayTests(base.ActivationBase):
         from unittest.mock import patch
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_routing_overlays", "improvement_routing_candidates"):
+            for name in ("improvement_agent_overlays", "improvement_agent_procedures", "improvement_routing_overlays", "improvement_routing_candidates"):
                 connection.execute(f"DROP TABLE {name}")
             connection.execute("UPDATE improvement_schema SET version=12 WHERE id=1")
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 13)
+        self.assertEqual(IM._schema_version(self.store), IM.SCHEMA_VERSION)
         backups = list(self.store.path.parent.glob(self.store.path.name + ".pre-improvement-m4-routing.bak"))
         self.assertEqual(len(backups), 1)
         with closing(sqlite3.connect(backups[0])) as connection:

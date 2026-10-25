@@ -408,6 +408,10 @@ class LearnDeps:
     # Đổi engine việc nền theo model phụ người dùng chọn (Claude / Codex / API rẻ).
     # None = giữ nguyên Claude như trước (test dựng deps tối giản không cần tiêm).
     aux_swap: Optional[Callable] = None
+    # M5: stage_agent_procedure(brain, slug, text) -> procedure id when the assistant has an active procedure
+    # overlay (its additions then wait for the owner instead of going live), None otherwise. Raises ValueError
+    # when the host checks refuse the text.
+    stage_agent_procedure: Optional[Callable] = None
 
 
 ALLOWED_WRITE_PREFIXES = ["memory", "Memory", "Wiki", "skills", ".claude/skills", "Javis",
@@ -1469,6 +1473,20 @@ class LearnFeature:
                                 f"agent '{slug}': sửa vai chỉ được THÊM luật (add_rules/owner_rules)"
                                 + (", không viết lại cả thân" if body else ""))
                             continue
+                        if add_rules and self.deps.stage_agent_procedure is not None:
+                            # M5 (spec 8.3): an assistant on the improvement path gets its learned
+                            # additions as a procedure candidate for the owner, never a live write.
+                            try:
+                                staged = self.deps.stage_agent_procedure(
+                                    brain, slug, "\n".join(f"- {r}" for r in add_rules))
+                            except ValueError as e:
+                                rep["blocked"].append(f"agent '{slug}': bổ sung tự học bị từ chối ({e})")
+                                continue
+                            if staged:
+                                rep.setdefault("agent_procedures_staged", []).append(slug)
+                                add_rules = []
+                                if not owner_rules:
+                                    continue
                     # skills chỉ giữ slug ĐÃ tồn tại thật - fork có thể bịa tên skill.
                     sk_ok = [_slugify(s) for s in (a.get("skills") or []) if isinstance(s, str)
                              and skill_router.resolve_skill_file(root, _slugify(s))]
