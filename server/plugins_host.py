@@ -413,21 +413,35 @@ class PluginContext:
     def register_tool(self, name: str, description: str, handler: Callable,
                       schema: Optional[dict] = None, parameters: Optional[dict] = None,
                       min_mode: str = "readonly", check_fn: Optional[Callable] = None,
-                      emoji: str = "", visible_fn: Optional[Callable] = None) -> None:
+                      emoji: str = "", visible_fn: Optional[Callable] = None,
+                      op_modes: Optional[dict] = None, op_key: str = "op") -> None:
         """Thêm 1 tool cho MỌI engine. handler(args: dict, ctx: PluginContext) -> str (sync|async).
         min_mode: readonly(mặc định, luôn chạy) | safe(chặn ở chế độ suggest) | full(chỉ chế độ full).
         check_fn(): None nếu sẵn sàng, hoặc str lý do để chặn (vd chưa đăng nhập).
         visible_fn(vault_root) -> bool: tool chỉ có mặt trong danh sách khi hàm trả True cho brain đó.
         Khác check_fn: check_fn chặn lúc GỌI nhưng tool vẫn hiện, visible_fn giấu hẳn tool khỏi brain
-        chưa bật tính năng, nên brain đó không thấy, không tốn chỗ trong prompt và không gọi nhầm."""
+        chưa bật tính năng, nên brain đó không thấy, không tốn chỗ trong prompt và không gọi nhầm.
+
+        op_modes: per-operation levels for a tool that multiplexes several operations through one
+        argument (`op_key`, default "op"), e.g. {"write": "safe"} on a tool whose other ops only
+        read. `min_mode` stays the floor every op needs; an op listed here needs the stronger of the
+        two, and an op NOT listed needs the strongest level the tool declares at all, so a typo can
+        never slip a write through at the read level. The tool stays listed at every level and the
+        gate runs at call time, like any plugin tool."""
         if not _TOOL_RE.match(str(name or "")):
             raise ValueError(f"tên tool không hợp lệ (a-z0-9_): {name!r}")
         if min_mode not in VALID_MIN_MODE:
             min_mode = "readonly"
+        ops = {}
+        for k, v in (op_modes or {}).items():
+            k = str(k or "").strip().lower()
+            if k and v in VALID_MIN_MODE:
+                ops[k] = v
         self._tools.append({
             "name": name, "description": description or name, "handler": handler,
             "schema": schema or parameters or {"type": "object", "properties": {}},
             "min_mode": min_mode, "check_fn": check_fn, "emoji": emoji, "visible_fn": visible_fn,
+            "op_modes": ops, "op_key": str(op_key or "op"),
         })
 
     def on_unload(self, fn: Callable) -> None:
@@ -894,6 +908,25 @@ def _min_mode_ok(min_mode: str, mode: str) -> bool:
     return rank.get(eff, 2) >= rank.get(min_mode, 0)
 
 
+def _strongest(*modes: str) -> str:
+    """The strongest of the given levels (readonly < safe < full)."""
+    rank = mcp_catalog.PERM_RANK
+    return max((m for m in modes if m in VALID_MIN_MODE), key=lambda m: rank.get(m, 0), default="readonly")
+
+
+def _required_mode(tool: dict, args) -> str:
+    """Level one call of this tool needs. Plain tools: `min_mode`. A tool with `op_modes`: the op's
+    level (never below `min_mode`); an op it does not list needs the strongest level it declares."""
+    min_mode = tool.get("min_mode") or "readonly"
+    ops = tool.get("op_modes") or {}
+    if not ops:
+        return min_mode
+    op = str((args or {}).get(tool.get("op_key") or "op") or "").strip().lower()
+    if op in ops:
+        return _strongest(min_mode, ops[op])
+    return _strongest(min_mode, *ops.values())
+
+
 async def _maybe_await(v):
     if inspect.isawaitable(v):
         return await v
@@ -903,11 +936,11 @@ async def _maybe_await(v):
 def _make_call(tool: dict, ctx: PluginContext, mode: str):
     """Bọc 1 handler plugin thành async call(args) có gate min_mode + check_fn + chống crash."""
     handler = tool["handler"]
-    min_mode = tool["min_mode"]
     check_fn = tool.get("check_fn")
     name = tool["name"]
 
     async def _call(args):
+        min_mode = _required_mode(tool, args)
         if str(mode or "").strip().lower() == "gated" and min_mode != "readonly":
             # 0.207.0: a gated Team step. A plugin that writes or acts (review: `javis_task` and `javis_schedule` are
             # `safe` yet queue work that runs at full later) needs the owner's approval of this exact call
@@ -1048,8 +1081,11 @@ def plugin_tools(mode: str = "full", vault_root: Optional[str] = None, *,
                           "description": desc, "schema": t["schema"],
                           "namespace": lp.slug, "label": lp.name,
                           "group_desc": lp.description})
-            effect = "read" if t["min_mode"] == "readonly" else (
-                "write" if t["min_mode"] == "safe" else "danger"
+            # A tool with per-op levels is described by its strongest op: the registry and the fast
+            # paths must never take a tool that can write for a read-only one.
+            top = _strongest(t["min_mode"], *(t.get("op_modes") or {}).values())
+            effect = "read" if top == "readonly" else (
+                "write" if top == "safe" else "danger"
             )
             route[fn] = {
                 "call": _make_call(t, lp.ctx, mode),
@@ -1057,9 +1093,11 @@ def plugin_tools(mode: str = "full", vault_root: Optional[str] = None, *,
                 "source_type": "plugin",
                 "source_id": f"{lp.source}:{lp.slug}",
                 "effect": effect,
-                "required_mode": t["min_mode"],
+                "required_mode": top,
                 "health": "healthy",
             }
+            if t.get("op_modes"):
+                route[fn]["op_modes"] = dict(t["op_modes"])
     return tools, route
 
 
