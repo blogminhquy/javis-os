@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.325.0] - 2026-10-26
+### Added
+- **Apply a skill fix and an assistant procedure as one bundle.** Both turn on and off together: if one part breaks or is removed, the whole bundle stops and the assistant goes back to the original, never half new.
+
 ## [0.324.0] - 2026-10-26
 ### Added
 - **An invitation to give Javis a star on GitHub**, shown at happy moments: the first time you heart an answer, when Javis just finished a job for you, at 50 or 100 chats, after a month with Javis, or right after an update. Each moment has its own greeting, with Javis's orange star as the mascot.

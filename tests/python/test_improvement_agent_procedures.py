@@ -171,12 +171,13 @@ class AgentProcedureTests(AgentProcedureBase):
         import improvement_agent_schema as S
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_agent_overlays", "improvement_agent_procedures"):
+            for name in ("improvement_bundle_members", "improvement_bundle_activations",
+                         "improvement_agent_overlays", "improvement_agent_procedures"):
                 connection.execute(f"DROP TABLE {name}")
             self.assertFalse(any(connection.execute("SELECT 1 FROM sqlite_master WHERE name=?", (n,)).fetchone() for n in S._NAMES))
             connection.execute("UPDATE improvement_schema SET version=13 WHERE id=1")
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 14)
+        self.assertEqual(IM._schema_version(self.store), IM.SCHEMA_VERSION)
         backups = list(self.store.path.parent.glob(self.store.path.name + ".pre-improvement-m5-agents.bak"))
         self.assertEqual(len(backups), 1)
         with closing(sqlite3.connect(backups[0])) as connection:

@@ -291,18 +291,20 @@ class AgentProcedures:
 # -- read time ---------------------------------------------------------------------------------------
 
 def effective_procedure(root, agent_key: str, surface: str, *, agent_text: str, memory_text: str,
-                        session_created_at: float | None = None, on_drift=None) -> str:
+                        session_created_at: float | None = None, on_drift=None, skill_served: bool = False) -> str:
     """The prompt block this assistant should get on this surface, or "" (canonical behaviour)."""
     return effective_overlay(root, agent_key, surface, agent_text=agent_text, memory_text=memory_text,
-                             session_created_at=session_created_at, on_drift=on_drift)[1]
+                             session_created_at=session_created_at, on_drift=on_drift, skill_served=skill_served)[1]
 
 
 def effective_overlay(root, agent_key: str, surface: str, *, agent_text: str, memory_text: str,
-                      session_created_at: float | None = None, on_drift=None) -> tuple:
+                      session_created_at: float | None = None, on_drift=None, skill_served: bool = False) -> tuple:
     """(overlay id, prompt block) served on this surface, or ("", "").
 
     `on_drift()`: called when the owner's ground changed under an active overlay, so the caller records the
-    suspension (reconcile); otherwise undoing the owner's edit would serve the overlay again unasked."""
+    suspension (reconcile); otherwise undoing the owner's edit would serve the overlay again unasked.
+    `skill_served`: this turn reads the assistant's skill overlay (dashboard chat, in-process API engine). A
+    procedure that is part of an M6 bundle is served only then, and like its skill half it is not session-pinned."""
     import improvement_activation as IA
     sources = IA._SOURCES[0]
     if sources is None or not agent_key or surface not in SURFACES:
@@ -320,13 +322,20 @@ def effective_overlay(root, agent_key: str, surface: str, *, agent_text: str, me
             row = connection.execute("SELECT o.id,o.surfaces_json,o.owner_rules_hash,o.created_at,p.text FROM improvement_agent_overlays o "
                 "JOIN improvement_agent_procedures p ON p.id=o.procedure_id AND p.brain_id=o.brain_id "
                 "WHERE o.brain_id=? AND o.agent_key=? AND o.state='active'", (brain, agent_key)).fetchone()
+            bundled = False
+            if row is not None:
+                import improvement_bundle
+                if not improvement_bundle.allows(connection, root, brain, agent_key, "procedure", row["id"],
+                                                 skill_served=skill_served):
+                    return "", ""  # M6: a bundle member serves only with its whole bundle
+                bundled = improvement_bundle.membership(connection, brain, "procedure", row["id"]) is not None
         if row is None or surface not in json.loads(row["surfaces_json"]):
             return "", ""
         if owner_rules_hash(agent_text, memory_text) != row["owner_rules_hash"]:
             if on_drift is not None:
                 on_drift()
             return "", ""  # the owner changed the assistant: canonical until the owner re-applies
-        if session_created_at is not None and session_created_at < row["created_at"]:
+        if not bundled and session_created_at is not None and session_created_at < row["created_at"]:
             return "", ""  # a conversation keeps the procedure it began with
         return row["id"], prompt_block(row["text"])
     except (OSError, ValueError, sqlite3.Error) as error:

@@ -227,7 +227,7 @@ _fns = {n.name: ast.get_source_segment(_src, n) for n in ast.walk(ast.parse(_src
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in ("_legacy_system_prompt",
                                                                                   "_subscription_system_prompt")}
 check("1 mọi nhánh engine của phiên trợ lý dùng _agent_chat_prompt (gói thuê bao qua _legacy_system_prompt)",
-      "_agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid)" in _fns.get("_legacy_system_prompt", "")
+      "_agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid, skill_served=skill_served)" in _fns.get("_legacy_system_prompt", "")
       and "if _persona:\n                    return _legacy_system_prompt(), None" in _fns.get("_subscription_system_prompt", ""))
 
 # ───────────── Claude SDK: server MCP trong tiến trình, gọi qua bộ điều phối của chính nó ─────────────
