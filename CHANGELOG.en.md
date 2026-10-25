@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.316.0] - 2026-10-25
+### Added
+- **Trial by share (canary).** When applying an improved skill to an assistant you can pick 10%, 25% or 50% of its chats: each chat stays in one group, and the rest keeps the original as the control group.
+- **Your Pass / Fail verdicts are the measure.** The canary panel lists the times the assistant used the skill in both groups for you to judge; emoji do not count. Two chats on the new version marked Fail pause it at once.
+- **Promotion to all chats only after enough observation:** at least 7 days and 10 verdicts in the new version group, and you still click it. You can let one assistant open a 10% canary by itself when a candidate passes full qualification, and revoke that at any time.
+
 ## [0.314.0] - 2026-10-25
 ### Added
 - **Try an improved skill with one assistant.** In Studio, open Improve on a skill, review the exact edit, then pick an assistant: the new version is used only in that assistant's own chat. The skill file is never touched, and **Revert to original** switches new work back at once.

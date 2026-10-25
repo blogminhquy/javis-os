@@ -234,6 +234,11 @@
           const value=(await request('/improvement-comparison-reports/'+encodeURIComponent(report.value))).report;
           if(value.experiment_id!==context.experiment_id)throw {status:403};
           showReport(value); // Incomplete/unknown/loss stays exact data.
+          try {
+            const pilot=(await request('/improvement-pilot-reports/'+encodeURIComponent(report.value))).pilot;
+            facts(evidence,'pilot_conclusion',tr('conclusion_'+pilot.conclusion));
+            if(pilot.win_rate_interval)facts(evidence,'win_rate_interval',pilot.win_rate_interval.join(' - '));
+          } catch(_) { /* The plain report above stays the evidence when the conclusion is unavailable. */ }
         } catch(error){failure(error);}
         finally {if(alive())readReport.disabled=false;}
       });controls.append(readReport);

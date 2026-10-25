@@ -68,6 +68,20 @@ def apply_evidence(reports: list) -> tuple[str, dict]:
     return level, {"reports": refs, "business_eligibility": "unverified"}
 
 
+def _canary(connection, activation_id):
+    if not connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='improvement_canaries'").fetchone():
+        return None
+    row = connection.execute("SELECT allocation_pct,started_at,state,reason,generation FROM improvement_canaries "
+                             "WHERE activation_id=?", (activation_id,)).fetchone()
+    return dict(row) if row is not None else None
+
+
+def _end_canary(connection, brain, activation_id, reason, now):
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='improvement_canaries'").fetchone():
+        connection.execute("UPDATE improvement_canaries SET state='ended',reason=?,generation=generation+1,updated_at=? "
+                           "WHERE activation_id=? AND brain_id=? AND state='canary'", (reason, now, activation_id, brain))
+
+
 def _public(row) -> dict:
     result = {key: row[key] for key in ("target_id", "candidate_id", "experiment_id", "canonical_ref", "base_hash",
               "content_hash", "scope_hash", "evidence_level", "state", "reason", "generation", "created_at", "updated_at")}
@@ -106,11 +120,11 @@ def _has_table(connection) -> bool:
 class Activations:
     """Owner commands over activation pointers; every write is CAS + idempotent by event key."""
 
-    def __init__(self, assets, *, agent_key: Callable[[str, str], str]):
+    def __init__(self, assets, *, agent_key: Callable[[str, str], str], clock: Callable[[], float] = time.time):
         if type(assets) is not IM.ImprovementStore:
             raise TypeError("concrete_activation_assets_required")
         self.assets, self.store, self.blobs = assets, assets.store, assets.blobs
-        self.agent_key = agent_key
+        self.agent_key, self.clock = agent_key, clock
 
     # -- reads -----------------------------------------------------------------------------------
 
@@ -126,7 +140,7 @@ class Activations:
             query, args = query + " AND target_id=?", args + [str(target_id)]
         with closing(self.store._conn()) as connection:
             rows = connection.execute(query + " ORDER BY created_at DESC,id DESC LIMIT 200", args).fetchall()
-        return [_public(row) for row in rows]
+            return [{**_public(row), "canary": _canary(connection, row["id"])} for row in rows]
 
     def _reports(self, connection, brain, candidate) -> list:
         arm = connection.execute("SELECT ordinal FROM improvement_experiment_arms WHERE brain_id=? AND candidate_id=?",
@@ -173,14 +187,21 @@ class Activations:
 
     # -- commands --------------------------------------------------------------------------------
 
-    def apply(self, principal, candidate_id: str, agent_slug: str, *, event_key: str) -> dict:
+    def apply(self, principal, candidate_id: str, agent_slug: str, *, event_key: str,
+              allocation_pct: int | None = None) -> dict:
+        """Apply to one assistant chat. With `allocation_pct` (1..99) it is an M3 canary: only that share
+        of the assistant's chat sessions sees the candidate; the rest is the matched control group."""
         import skill_router as SR
         brain = IM._brain(principal)
         if type(candidate_id) is not str or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", candidate_id):
             raise ValueError("invalid_candidate")
         if type(agent_slug) is not str or not SR.valid_file_slug(agent_slug):
             raise ValueError("invalid_activation_agent")
+        if allocation_pct is not None and (type(allocation_pct) is not int or not 1 <= allocation_pct <= 99):
+            raise ValueError("invalid_canary_allocation")
         payload = {"candidate_id": candidate_id, "agent_slug": agent_slug}
+        if allocation_pct is not None:
+            payload["allocation_pct"] = allocation_pct
         IM.ensure(self.store)
         with closing(self.store._conn()) as connection:
             replay = self.assets._replay(connection, brain, event_key, "activation_apply", payload)
@@ -238,15 +259,18 @@ class Activations:
                                       "AND scope_hash=? AND state='active'", (brain, target["id"], scope)).fetchone()
             if busy is not None:
                 raise IM.ConflictError("activation_scope_busy")
-            now = time.time()
+            now = self.clock()
             identifier = "iac_" + secrets.token_hex(16)
             connection.execute(
                 "INSERT INTO improvement_activations VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (identifier, brain, target["id"], candidate_id, candidate["experiment_id"], target["canonical_ref"],
                  candidate["base_hash"], candidate["content_hash"], canonical.frontmatter_hash, IM._json(chosen), scope,
                  level, IM._json(evidence), "active", "owner_apply", 1, principal.by, now, now))
+            if allocation_pct is not None:
+                connection.execute("INSERT INTO improvement_canaries VALUES(?,?,?,?,?,?,?,?,?)",
+                                   (identifier, brain, allocation_pct, secrets.token_hex(16), now, "canary", "started", 1, now))
             row = connection.execute("SELECT * FROM improvement_activations WHERE id=?", (identifier,)).fetchone()
-            result = _public(row)
+            result = {**_public(row), "canary": _canary(connection, identifier)}
             self.assets._event(connection, principal, event_key, "activation_apply", payload, result)
             return result
 
@@ -273,9 +297,11 @@ class Activations:
                 raise IM.ConflictError("activation_not_active")
             # Revert only moves the pointer: the canonical file was never touched, so the
             # owner's own later edits survive and nothing is replayed.
+            now = time.time()
             connection.execute("UPDATE improvement_activations SET state='reverted',reason='owner_revert',"
                                "generation=generation+1,updated_at=? WHERE id=? AND brain_id=?",
-                               (time.time(), activation_id, brain))
+                               (now, activation_id, brain))
+            _end_canary(connection, brain, activation_id, "owner_revert", now)
             result = _public(connection.execute("SELECT * FROM improvement_activations WHERE id=?",
                                                 (activation_id,)).fetchone())
             self.assets._event(connection, principal, event_key, "activation_revert", payload, result)
@@ -283,10 +309,14 @@ class Activations:
 
     def _suspend(self, brain, row, reason) -> bool:
         with self.store._Tx(self.store) as connection:
-            return bool(connection.execute(
+            now = time.time()
+            changed = bool(connection.execute(
                 "UPDATE improvement_activations SET state='suspended',reason=?,generation=generation+1,updated_at=? "
                 "WHERE id=? AND brain_id=? AND state='active' AND generation=?",
-                (reason, time.time(), row["id"], brain, row["generation"])).rowcount)
+                (reason, now, row["id"], brain, row["generation"])).rowcount)
+            if changed:
+                _end_canary(connection, brain, row["id"], reason, now)
+            return changed
 
     def reconcile(self, principal) -> list:
         """Record suspensions for pointers whose basis changed for good. Read time already refuses
@@ -360,21 +390,46 @@ def cli_transport():
         _CLI_TRANSPORT.reset(token)
 
 
-def _turn_agent_key() -> str:
-    """The assistant of a dashboard chat turn; nested Team or Kanban work never inherits it."""
+def _turn() -> tuple[str, str, int]:
+    """(agent key, session id, message id) of a dashboard chat turn; nested Team or Kanban work
+    never inherits the chat's assistant."""
     import turn_context
     turn = turn_context.current() or {}
     if turn.get("kenh") != "dashboard" or turn.get("team_gate") or turn.get("job"):
-        return ""
+        return "", "", 0
     agent = turn.get("agent") or {}
-    return str(agent.get("key") or "")
+    return str(agent.get("key") or ""), str(turn.get("session_id") or ""), int(turn.get("message_id") or 0)
 
 
-def _overlay(root, slug, canonical):
+_EXPOSURE_SQL = "INSERT OR IGNORE INTO improvement_canary_exposures VALUES(?,?,?,?,?,?,?)"
+
+
+def _record_exposure(database, brain, activation_id, session_id, message_id, chosen, content_hash, connection=None) -> bool:
+    """One row per chat message for both arms; a duplicate read of the same message never counts twice.
+
+    A caller that already holds a write transaction on this database passes its connection: a second
+    writer would only wait on that same lock and lose the row. Returns whether the row is durable or
+    will be with the caller's commit; the resolver serves the candidate only when it is."""
+    row = (activation_id, brain, session_id, message_id, chosen, content_hash, time.time())
+    if connection is not None:
+        databases = connection.execute("PRAGMA database_list").fetchall()
+        if not databases or not databases[0][2] or Path(databases[0][2]).resolve() != Path(database).resolve():
+            return False
+        connection.execute(_EXPOSURE_SQL, row)
+        return True
+    own = sqlite3.connect(database, timeout=1)
+    with closing(own):
+        own.execute("PRAGMA foreign_keys=ON")
+        own.execute(_EXPOSURE_SQL, row)
+        own.commit()
+    return True
+
+
+def _overlay(root, slug, canonical, connection=None):
     sources = _SOURCES[0]
     if sources is None or _CLI_TRANSPORT.get():
         return None
-    agent_key = _turn_agent_key()
+    agent_key, session_id, message_id = _turn()
     if not agent_key or not _AGENT_KEY.fullmatch(agent_key):
         return None
     database, blobs = sources
@@ -384,6 +439,7 @@ def _overlay(root, slug, canonical):
     canonical_ref = f"skills/{slug}/SKILL.md"
     if canonical.relative_path != canonical_ref:
         return None
+    writer = connection
     connection = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
     connection.row_factory = sqlite3.Row
     with closing(connection):
@@ -397,22 +453,49 @@ def _overlay(root, slug, canonical):
             "ON g.authority_id=c.id AND g.brain_id=c.brain_id WHERE c.brain_id=a.brain_id "
             "AND c.candidate_id=a.candidate_id AND c.kind='exact_diff' AND g.status='active')",
             (brain, canonical_ref, scope_hash(agent_key))).fetchone()
+        canary = _canary(connection, row["id"]) if row is not None else None
     if (row is None or row["base_hash"] != canonical.content_hash or row["frontmatter_hash"] != canonical.frontmatter_hash
             or _file_identity(root, canonical_ref) != row["identity"]):
         return None
+    if canary is not None and canary["state"] != "promoted":
+        if canary["state"] != "canary":
+            return None
+        from improvement_canary import arm
+        if not session_id or message_id <= 0:
+            return None  # no message to judge: fail closed to the control arm, record nothing
+        salt = _canary_salt(database, row["id"])
+        chosen = arm(canary["allocation_pct"], salt, session_id)
+        try:
+            recorded = _record_exposure(database, brain, row["id"], session_id, message_id, chosen,
+                                        row["content_hash"] if chosen == "canary" else canonical.content_hash,
+                                        connection=writer)
+        except sqlite3.Error as error:
+            print(f"[improvement canary] exposure not recorded: {error}", file=sys.stderr)
+            recorded = False
+        # The candidate reaches a canary message only together with its exposure row.
+        if chosen != "canary" or not recorded:
+            return None
     raw = blobs.read(brain, row["content_hash"])
     import skill_router as SR
     return SR.SkillAsset(canonical.slug, canonical.relative_path, raw, row["content_hash"], canonical.frontmatter_hash)
 
 
-def effective_skill_asset(root, slug):
-    """The skill bytes this turn should see: the scope's active overlay, else the canonical read."""
+def _canary_salt(database, activation_id) -> str:
+    connection = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
+    with closing(connection):
+        return connection.execute("SELECT salt FROM improvement_canaries WHERE activation_id=?",
+                                  (activation_id,)).fetchone()[0]
+
+
+def effective_skill_asset(root, slug, *, connection=None):
+    """The skill bytes this turn should see: the scope's active overlay, else the canonical read.
+    `connection`: the caller's open write transaction on the runtime database, if any."""
     import skill_router as SR
     canonical = SR.read_skill_asset(root, slug)
     if canonical is None:
         return None
     try:
-        return _overlay(root, slug, canonical) or canonical
+        return _overlay(root, slug, canonical, connection) or canonical
     except (OSError, ValueError, sqlite3.Error, AssetUnavailable, RuntimeError) as error:
         # An unreadable pointer falls back to the canonical skill: never worse than baseline.
         print(f"[improvement activation] {type(error).__name__}: {error}", file=sys.stderr)

@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.316.0] - 2026-10-25
+### Thêm mới
+- **Áp dụng thử theo tỉ lệ (canary).** Khi áp dụng bản skill đã sửa cho một trợ lý, bạn chọn được 10%, 25% hay 50% số cuộc chat: mỗi cuộc chat cố định một nhóm, nhóm còn lại dùng bản gốc làm đối chứng.
+- **Phiếu Đạt / Chưa đạt của bạn là thước đo.** Bảng canary liệt kê các lần trợ lý dùng skill ở cả hai nhóm để bạn chấm; emoji không tính. Hai cuộc chat dùng bản mới bị chấm Chưa đạt là bản mới tự tạm ngừng ngay.
+- **Chỉ nâng lên toàn bộ khi đủ quan sát:** tối thiểu 7 ngày và 10 phiếu của nhóm bản mới, và vẫn do bạn bấm. Có thể cho phép một trợ lý tự mở canary 10% khi ứng viên qua kiểm định đầy đủ, thu hồi lúc nào cũng được.
+
 ## [0.314.0] - 2026-10-25
 ### Thêm mới
 - **Áp dụng thử bản skill đã sửa cho một trợ lý.** Trong Studio, mở Cải tiến của một skill, duyệt đúng phần sửa rồi chọn trợ lý: bản mới chỉ dùng trong khung chat riêng với trợ lý đó. File skill gốc không bị đụng tới, bấm **Quay lại bản gốc** là việc mới dùng bản cũ ngay.

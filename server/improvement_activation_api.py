@@ -1,4 +1,4 @@
-"""Owner routes for M2E manual activation: list, apply to one assistant chat, revert."""
+"""Owner routes for activation (M2E) and canary observation, promotion and grants (M3)."""
 from __future__ import annotations
 
 import asyncio
@@ -25,6 +25,7 @@ class ActivationApiDeps:
     resolve_brain: Callable[[str], str]
     read_store: Callable = lambda: True  # () -> installed read store or None; None means nothing to list
     owner_session: Callable = lambda request: None  # request -> denial Response or None (browser session only)
+    canaries: Callable = None  # () -> improvement_canary.Canaries over the same write store
 
 
 def _fail(error):
@@ -60,10 +61,10 @@ def register(app, deps: ActivationApiDeps):
             if (denied := deps.owner_session(request)) is not None:
                 return denied
             principal = await owner(brain)
-            data = await _body(request, {"candidate_id", "agent_slug", "event_key"})
+            data = await _body(request, {"candidate_id", "agent_slug", "event_key"}, {"allocation_pct"})
             service = await asyncio.to_thread(deps.activations)
             result = await asyncio.to_thread(service.apply, principal, data["candidate_id"], data["agent_slug"],
-                                             event_key=data["event_key"])
+                                             event_key=data["event_key"], allocation_pct=data.get("allocation_pct"))
             return {"ok": True, "activation": result}
         except _ERRORS as error:
             return _fail(error)
@@ -81,5 +82,81 @@ def register(app, deps: ActivationApiDeps):
             return {"ok": True, "activation": result}
         except _ERRORS as error:
             return _fail(error)
+
+    async def canaries():
+        if deps.canaries is None:
+            raise PermissionError("canary_unavailable")
+        return await asyncio.to_thread(deps.canaries)
+
+    async def write(request, brain, required, optional, call):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            data = await _body(request, required, optional)
+            return await asyncio.to_thread(call, await canaries(), principal, data)
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.get("/improvement-canaries/{activation_id}")
+    async def canary_summary(activation_id: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                raise PermissionError("canary_unavailable")
+            service = await canaries()
+            return {"ok": True, "canary": await asyncio.to_thread(service.summary, principal, activation_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.get("/improvement-pilot-reports/{report_id}")
+    async def pilot_report(report_id: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                raise PermissionError("report_unavailable")
+            service = await canaries()
+            return {"ok": True, "pilot": await asyncio.to_thread(service.pilot_report, principal, report_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-canaries/{activation_id}/verdicts")
+    async def canary_verdict(activation_id: str, request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "verdict": service.verdict(principal, activation_id, data["session_id"], data["message_id"],
+                    data["verdict"], reason=data.get("reason", ""), event_key=data["event_key"])}
+        return await write(request, brain, {"session_id", "message_id", "verdict", "event_key"}, {"reason"}, call)
+
+    @app.post("/improvement-canaries/{activation_id}/promote")
+    async def canary_promote(activation_id: str, request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "canary": service.promote(principal, activation_id,
+                    expected_generation=data["expected_generation"], event_key=data["event_key"])}
+        return await write(request, brain, {"expected_generation", "event_key"}, set(), call)
+
+    @app.get("/improvement-auto-scopes")
+    async def auto_scopes(brain: str = "brain", target_id: str | None = None):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                return {"ok": True, "grants": []}
+            service = await canaries()
+            return {"ok": True, "grants": await asyncio.to_thread(service.grants, principal, target_id=target_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-auto-scopes")
+    async def auto_scope_grant(request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "grant": service.grant(principal, data["target_id"], data["agent_slug"],
+                    data["allocation_pct"], event_key=data["event_key"])}
+        return await write(request, brain, {"target_id", "agent_slug", "allocation_pct", "event_key"}, set(), call)
+
+    @app.post("/improvement-auto-scopes/{grant_id}/revoke")
+    async def auto_scope_revoke(grant_id: str, request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "grant": service.revoke_grant(principal, grant_id,
+                    expected_generation=data["expected_generation"], event_key=data["event_key"])}
+        return await write(request, brain, {"expected_generation", "event_key"}, set(), call)
 
     return deps

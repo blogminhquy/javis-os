@@ -243,14 +243,20 @@ class ActivationTests(ActivationBase):
     def test_schema_eleven_is_installed_and_asserted(self):
         self.apply()
         self.assertEqual(IM._schema_version(self.store), IM.SCHEMA_VERSION)
-        self.assertEqual(IM.SCHEMA_VERSION, 11)
+        self.assertGreaterEqual(IM.SCHEMA_VERSION, 11)
         IM.ensure(self.store)  # idempotent re-open asserts the exact definitions
 
     def ten(self):
         """A released-10 store: version 11 minus the add-only activation objects."""
         import improvement_activation_schema as S
+        import improvement_canary_schema as C
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
+            for name in reversed(C._NAMES):
+                kind = "TABLE" if name in ("improvement_canaries", "improvement_canary_exposures", "improvement_canary_verdicts",
+                    "improvement_auto_scopes") else "INDEX" if name.endswith("_live") else "TRIGGER"
+                if kind != "TRIGGER" or connection.execute("SELECT 1 FROM sqlite_master WHERE name=?", (name,)).fetchone():
+                    connection.execute(f"DROP {kind} IF EXISTS {name}")
             for name in reversed(S._NAMES):
                 kind = "TABLE" if name == "improvement_activations" else "INDEX" if "_live" in name or "_lookup" in name else "TRIGGER"
                 connection.execute(f"DROP {kind} {name}")
@@ -269,7 +275,7 @@ class ActivationTests(ActivationBase):
         self.ten()
         before = [tuple(row) for rows in self.history().values() for row in rows]
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 11)
+        self.assertEqual(IM._schema_version(self.store), IM.SCHEMA_VERSION)
         self.assertEqual([tuple(row) for rows in self.history().values() for row in rows], before)
         backups = self.backups()
         self.assertEqual(len(backups), 1)
@@ -292,7 +298,7 @@ class ActivationTests(ActivationBase):
             self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_master WHERE name='improvement_activations'").fetchone())
         self.assertIs(S.assert_installed, original)
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 11)
+        self.assertEqual(IM._schema_version(self.store), IM.SCHEMA_VERSION)
 
     def test_partial_activation_objects_on_ten_refuse_before_backup(self):
         self.ten()

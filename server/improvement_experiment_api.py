@@ -24,6 +24,9 @@ class ExperimentApiDeps:
     owner_session: object
     service: object
     write_store: object = None
+    # Called with (principal, report_id) after a report is published, e.g. to open granted canaries
+    # for a qualified final. Failures are logged and never undo the published report.
+    after_report: object = None
 
     def __post_init__(self):
         if self.write_store is not None and (not callable(self.write_store)
@@ -221,7 +224,14 @@ def register(app, deps):
                 return await getattr(service, operation)(principal, identifier, **data)
             if operation == "next":
                 return await service.next(principal, identifier, **data)
-            return await service.control(principal, identifier, operation, data)
+            result = await service.control(principal, identifier, operation, data)
+            if operation == "report" and deps.after_report is not None and isinstance(result, dict) and result.get("report_id"):
+                try:
+                    await _settled_call(deps.after_report, principal, result["report_id"])
+                except Exception as error:  # noqa: BLE001 - the report itself is already durable
+                    import sys
+                    print(f"[improvement canary] after report: {type(error).__name__}: {error}", file=sys.stderr)
+            return result
         return await dispatch(request, brain, action, key="result", operation=operation,
                               identifiers=() if experiment_id is None else (experiment_id,))
 
