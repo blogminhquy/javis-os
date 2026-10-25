@@ -14,6 +14,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Hide chats to keep the list tidy**, and see them again under "Hidden" in the Status filter. A new message from the customer brings the chat back, so no customer is missed. On a phone the "..." opens a large, easy-to-tap sheet at the bottom of the screen.
 ### Fixed
 - **Photos you send show as photos in the bot inbox.** Only customers' photos used to show; a photo you (or the bot) sent read "image https://...jpg". Every photo now shows right in the bubble and opens large on click, so you can check what went out to the customer.
+### Improved
+- **Buttons are clearer, no longer faint.** Secondary buttons have a visible edge and bolder 16px text, easy to read in both light and dark themes. Red buttons (delete, turn off) and the "Reload" button on the new-version banner read better too.
+- **Buttons next to a field now match its height and line up**, such as "Listen" next to the voice picker, the domain save button and the "..." on bot cards. Buttons at the bottom of dialogs sit together on the right.
 
 ## [0.313.0] - 2026-10-25
 ### Added

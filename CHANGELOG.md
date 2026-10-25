@@ -12,6 +12,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Ẩn bớt cuộc chat cho gọn**, xem lại ở mục "Đã ẩn" trong ô Tình trạng. Khách nhắn tin mới thì cuộc chat tự hiện lại, không lỡ khách. Trên điện thoại nút "..." mở một bảng lớn dễ bấm ở cuối màn hình.
 ### Sửa lỗi
 - **Ảnh bạn gửi trong Hòm thư bot hiện thành ảnh.** Trước đây chỉ ảnh của khách mới hiện, còn ảnh bạn (hoặc bot) gửi đi chỉ là dòng chữ "image https://...jpg". Giờ ảnh nào cũng hiện ngay trong bong bóng, bấm vào là xem to, để bạn kiểm soát được mình đã gửi gì cho khách.
+### Cải thiện
+- **Nút bấm rõ ràng hơn, không còn mờ.** Các nút phụ có viền rõ, chữ đậm và cỡ 16px, đọc dễ ở cả giao diện sáng lẫn tối. Nút đỏ (xoá, tắt) và nút "Tải lại" ở dải báo bản mới cũng dễ đọc hơn.
+- **Nút đứng cạnh ô chọn giờ cao bằng và thẳng hàng**, như "Nghe thử" cạnh ô chọn giọng, nút lưu tên miền, nút "..." trên thẻ bot. Nút ở chân các cửa sổ xếp gọn về bên phải.
 
 ## [0.313.0] - 2026-10-25
 ### Thêm mới
