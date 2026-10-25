@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.314.0] - 2026-10-25
+### Sửa lỗi
+- **Ảnh bạn gửi trong Hòm thư bot hiện thành ảnh.** Trước đây chỉ ảnh của khách mới hiện, còn ảnh bạn (hoặc bot) gửi đi chỉ là dòng chữ "image https://...jpg". Giờ ảnh nào cũng hiện ngay trong bong bóng, bấm vào là xem to, để bạn kiểm soát được mình đã gửi gì cho khách.
+
 ## [0.313.0] - 2026-10-25
 ### Thêm mới
 - **Gắn tag màu cho từng cuộc chat** trong Hòm thư bot, giống Pancake: tạo, đổi tên, đổi màu, xoá tag ngay trong cuộc chat. Tag hiện thành chip màu trên danh sách (2 chip đầu, còn lại gom "+N") và lọc được theo tag.
