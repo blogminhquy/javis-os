@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.324.0] - 2026-10-25
+### Thêm mới
+- **Mời tặng sao trên GitHub** (đang làm).
+
 ## [0.322.0] - 2026-10-25
 ### Thêm mới
 - **Cài plugin từ tệp .zip.** Trang Plugin có nút "Cài từ tệp .zip": chọn tệp, Javis mở ra xem trước tên, phiên bản, các công cụ và mức quyền của từng công cụ, danh sách tệp bên trong, rồi mới cài khi bạn đồng ý. Plugin cài xong luôn ở trạng thái tắt, bạn xem lại rồi tự bật. Thả nhầm một gói cửa hàng (.zip có javis-pack.yaml) thì Javis tự chuyển sang luồng cài gói.

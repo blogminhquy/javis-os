@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.324.0] - 2026-10-25
+### Added
+- **Invitation to star Javis on GitHub** (in progress).
+
 ## [0.322.0] - 2026-10-25
 ### Added
 - **Install a plugin from a .zip file.** The Plugins page has an "Install from .zip" button: pick the file and Javis shows its name, version, tools with the permission level of each, and the files inside before anything is installed. A new plugin always arrives turned off, so you review it and switch it on yourself. A store pack zip (one with javis-pack.yaml) opens the pack install flow instead.
