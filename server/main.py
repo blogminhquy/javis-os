@@ -26865,6 +26865,16 @@ def _improvement_activations():
     return improvement_activation.Activations(_improvement_write_store(), agent_key=_improvement_activation_agent)
 
 
+def _improvement_canaries():
+    import improvement_canary
+    return improvement_canary.Canaries(_improvement_activations())
+
+
+def _improvement_after_report(principal, report_id):
+    # M3: a qualified final opens canaries only in scopes the owner granted; otherwise nothing happens.
+    return _improvement_canaries().auto_apply_for_report(principal, report_id)
+
+
 def _improvement_suspend_skill(brain, slug):
     """A disabled or deleted skill invalidates its applied overlays now, so re-enabling never revives them."""
     try:
@@ -26879,6 +26889,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
     activations=_improvement_activations,
     read_store=_improvement_read_store,
     owner_session=_doi_phien_that,
+    canaries=_improvement_canaries,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
 ))
@@ -27032,4 +27043,5 @@ improvement_experiment_api.register(app, improvement_experiment_api.ExperimentAp
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
     owner_session=_doi_phien_that,
     service=_improvement_experiment_service,
+    after_report=_improvement_after_report,
 ))
