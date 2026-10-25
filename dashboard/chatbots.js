@@ -1040,12 +1040,12 @@
     var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) dong(); };
 
-    // Sang thẳng trang Cộng sự. Đóng form trước để quay lại không bị hai lớp modal chồng nhau.
     // Searchable agent picker instead of the native list of "name - truncated role" lines (owner, 25/10/2026).
     if (window.JavisAgentPicker) {
       window.JavisAgentPicker.enhance(box.querySelector("#cbAgent"), { title: window.t("ap.title") });
     }
 
+    // Sang thẳng trang Cộng sự. Đóng form trước để quay lại không bị hai lớp modal chồng nhau.
     box.querySelector("#cbNewAgent").onclick = function () {
       dong();
       try { window.JavisNav.go("workspace"); } catch (e) {}

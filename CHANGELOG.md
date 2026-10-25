@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.312.0] - 2026-10-25
 ### Cải thiện
-- Đang soạn.
+- **Trang Kết nối dễ tìm hơn.** Tab Đã kết nối có ô tìm kiếm: gõ tên dịch vụ hay tên tài khoản là lọc ngay, tìm cả trong các nguồn sẵn của Claude Code.
+- **Nguồn sẵn của Claude Code và Codex chỉ hiện cái đang chạy.** Nguồn chưa đăng nhập gom vào một dòng "Đã ẩn N nguồn chưa đăng nhập", bấm Xem nếu cần. Tên gọn hơn ("Meta ADS" thay cho "claude.ai Meta ADS").
+- Bỏ thông báo xanh "ChatGPT chạy qua Codex CLI" ở đầu trang Kết nối. Thông báo vàng khi bộ não chưa gọi được công cụ vẫn giữ.
+- **Chọn agent có ô tìm kiếm.** Ở form tạo bot và ở từng bước của quy trình, ô chọn agent giờ mở ra danh sách gọn: tên đầy đủ, mô tả ngắn bên dưới, gõ không dấu vẫn tìm ra ("dao dien" ra "Đạo diễn"). Trên điện thoại danh sách trượt lên từ dưới.
 
 ## [0.311.0] - 2026-10-25
 ### Thêm mới
