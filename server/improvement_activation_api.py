@@ -1,4 +1,5 @@
-"""Owner routes for activation (M2E), canaries (M3), routing descriptions (M4), agent procedures (M5), bundles (M6)."""
+"""Owner routes for activation (M2E), canaries (M3), routing descriptions (M4), agent procedures (M5), bundles (M6),
+Team trials and recipe transfers (M7)."""
 from __future__ import annotations
 
 import asyncio
@@ -33,6 +34,8 @@ class ActivationApiDeps:
     agents: Callable = None  # () -> improvement_agent.AgentProcedures over the same write store (M5)
     review_proposals: Callable = lambda agent_key: []  # open agent_review ideas of one assistant (drafts)
     bundles: Callable = None  # () -> improvement_bundle.Bundles over the same write store (M6)
+    team_trials: Callable = None  # () -> improvement_team.TeamTrials (M7)
+    recipe_transfers: Callable = None  # () -> improvement_team.RecipeTransfers (M7)
 
 
 def _fail(error):
@@ -325,5 +328,64 @@ def register(app, deps: ActivationApiDeps):
             return {"ok": True, "bundle": service.revert(principal, bundle_id,
                     expected_generation=data["expected_generation"], event_key=data["event_key"])}
         return await bundle_write(request, brain, {"expected_generation", "event_key"}, call)
+
+    async def m7(factory, name):
+        if factory is None:
+            raise PermissionError(name + "_unavailable")
+        return await asyncio.to_thread(factory)
+
+    async def m7_write(request, brain, required, factory, name, call):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            data = await _body(request, required)
+            return await asyncio.to_thread(call, await m7(factory, name), principal, data)
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-team-pins")
+    async def team_pin(request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "pin": service.pin(principal, data["team_id"], event_key=data["event_key"])}
+        return await m7_write(request, brain, {"team_id", "event_key"}, deps.team_trials, "team_trials", call)
+
+    @app.get("/improvement-team-trials")
+    async def team_trial_list(team_id: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                return {"ok": True, "trials": []}
+            service = await m7(deps.team_trials, "team_trials")
+            return {"ok": True, "trials": await asyncio.to_thread(service.trials, principal, team_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-team-trials")
+    async def team_trial_record(request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "trial": service.record(principal, data["baseline_pin_id"], data["candidate_pin_id"],
+                    data["change"], data["arms"], event_key=data["event_key"])}
+        return await m7_write(request, brain, {"baseline_pin_id", "candidate_pin_id", "change", "arms", "event_key"},
+                              deps.team_trials, "team_trials", call)
+
+    @app.get("/improvement-recipe-transfers")
+    async def recipe_transfer_list(kind: str, ref: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                return {"ok": True, "transfers": []}
+            service = await m7(deps.recipe_transfers, "recipe_transfers")
+            return {"ok": True, "transfers": await asyncio.to_thread(service.for_target, principal, {"kind": kind, "ref": ref})}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-recipe-transfers")
+    async def recipe_transfer_propose(request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "transfer": service.propose(principal, data["recipe_id"], data["target"],
+                    event_key=data["event_key"])}
+        return await m7_write(request, brain, {"recipe_id", "target", "event_key"}, deps.recipe_transfers,
+                              "recipe_transfers", call)
 
     return deps

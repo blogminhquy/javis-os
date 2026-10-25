@@ -26995,6 +26995,23 @@ def _improvement_activation_agent(root, slug):
     return _agent_jobs_key(root, slug, register=True) or ""
 
 
+def _improvement_read_team(root, team_id):
+    """(team, active members) of this brain for an M7 pin; another brain's or an unknown team is unavailable."""
+    if not _TEAM_API.exists():
+        raise PermissionError("team_unavailable")
+    teams = _TEAM_API.teams()
+    team = teams.get(team_id)
+    if not team or team.get("brain_id") != root or team.get("status") != "active":
+        raise PermissionError("team_unavailable")
+    return team, teams.members(team_id)
+
+
+def _improvement_team_contract(root, team_id):
+    """What a Team arm is judged against, as the host knows it: the team's caps and description."""
+    team = _TEAM_API.teams().get(team_id) or {}
+    return __import__("improvement_store")._hash({"caps": team.get("caps") or {}, "description": team.get("description") or ""})
+
+
 def _improvement_activations():
     return improvement_activation.Activations(_improvement_write_store(), agent_key=_improvement_activation_agent)
 
@@ -27028,6 +27045,10 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
     agents=_improvement_agents,
     bundles=lambda: __import__("improvement_bundle").Bundles(
         _improvement_write_store(), activations=_improvement_activations(), procedures=_improvement_agents()),
+    team_trials=lambda: __import__("improvement_team").TeamTrials(
+        _improvement_write_store(), read_team=_improvement_read_team,
+        member_info=lambda root, key: _team_agent_info(root, key, "team"), acceptance=_improvement_team_contract),
+    recipe_transfers=lambda: __import__("improvement_team").RecipeTransfers(_improvement_write_store()),
     review_proposals=_agent_review_proposals,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),

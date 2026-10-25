@@ -213,16 +213,16 @@ def assert_installed(connection):
     import re
     from improvement_store import ConflictError, SchemaError, SCHEMA_VERSION
     version = connection.execute('SELECT version FROM improvement_schema WHERE id=1').fetchone()
-    if not version or version[0] not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, SCHEMA_VERSION):
+    if not version or version[0] not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, SCHEMA_VERSION):
         raise SchemaError('unsupported_improvement_schema')
-    if version[0] in (8, 9, 10, 11, 12, 13, 14, 15):
+    if version[0] in (8, 9, 10, 11, 12, 13, 14, 15, 16):
         from improvement_compose_schema import assert_roles_installed as assert_compose
         try:
             assert_compose(connection)
             if version[0] == 9:
                 from improvement_recipe_schema import assert_installed as assert_recipes
                 assert_recipes(connection)
-            elif version[0] in (10, 11, 12, 13, 14, 15):
+            elif version[0] in (10, 11, 12, 13, 14, 15, 16):
                 from improvement_recipe_view_schema import assert_installed as assert_recipe_views
                 assert_recipe_views(connection)
                 if version[0] >= 11:
@@ -240,6 +240,9 @@ def assert_installed(connection):
                 if version[0] >= 15:
                     from improvement_bundle_schema import assert_installed as assert_bundles
                     assert_bundles(connection)
+                if version[0] >= 16:
+                    from improvement_team_schema import assert_installed as assert_team
+                    assert_team(connection)
         except ConflictError as exc:
             raise ConflictError('operation_schema_changed') from exc
         return

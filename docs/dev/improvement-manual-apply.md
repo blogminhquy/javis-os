@@ -1,4 +1,4 @@
-# Áp dụng thử, canary, định tuyến, quy trình trợ lý, gói và quay lại (M2E, M3, M4, M5, M6)
+# Áp dụng thử, canary, định tuyến, quy trình trợ lý, gói, phép thử nhóm và quay lại (M2E tới M7)
 
 Tài liệu vận hành cho phần áp dụng thủ công của **Cải tiến có kiểm chứng**, phát hành ở 0.314.0.
 Spec gốc: [agent-skill evidence improvement](../superpowers/specs/2026-10-22-agent-skill-evidence-improvement-design.md), mục 14, 18 và 19.
@@ -181,6 +181,27 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
   event_key}`, `POST /improvement-agent-bundles/{id}/revert` `{expected_generation, event_key}`.
 - Chưa có: helper chạy được trong sandbox (cần chủ cấp quyền loại executable), tách/gộp skill có alias, phép thử
   nhánh agent-only/skill-only thật (cần chạy model).
+
+## Phép thử nhóm và chuyển kinh nghiệm (M7, 0.327.0)
+
+- Chốt nhóm (`POST /improvement-team-pins` `{team_id, event_key}`): host chụp nhóm trưởng, chế độ nhóm trưởng,
+  thành viên và vai trò, hash lời nhắc của từng thành viên đúng như bộ chạy nhóm dựng (gồm quy trình M5 trên bề
+  mặt `team`), model, nhà cung cấp, mức suy nghĩ và hợp đồng nghiệm thu (caps và mô tả nhóm). Bản chụp bất biến;
+  cùng nền thì dùng lại bản cũ.
+- So hai nhánh (T01): chỉ so được khi hai bản chụp khác đúng thay đổi đã khai: `procedure` của một thành viên
+  (chỉ lời nhắc người đó đổi) hoặc `skill` (không lời nhắc nào đổi). Khác đội hình, vai trò, nhóm trưởng, hợp
+  đồng là phép thử khác (`topology_changed`); khác model là `model_changed`; lời nhắc đổi ngoài khai báo là
+  `unexpected_prompt_change`. Không so được thì kết luận `incomparable`.
+- Báo cáo (`POST /improvement-team-trials`, T02): chủ ghi kết quả nhánh mới so với nhánh gốc; báo cáo chỉ có giá
+  trị cho nhóm đó và thay đổi đó, `transfer: untested`, `production_effects: []`. Mô-đun không phụ thuộc bộ chạy
+  nhóm nên không thể đánh dấu việc thật đã nghiệm thu hay gửi đầu ra.
+- Chuyển kinh nghiệm (`POST /improvement-recipe-transfers` `{recipe_id, target: {kind: agent|team|engine, ref}}`,
+  L01, L02): luôn là ứng viên `untested` ở chỗ mới, không mang kết quả hay bằng chứng; kinh nghiệm gốc phải còn
+  hiệu lực và chưa hết hạn. Tra cứu (`GET ...?kind=&ref=`) lọc đúng phạm vi đích và nguồn còn hiệu lực trước,
+  tối đa 3 mục.
+- Lưu trữ: schema 16 thêm `improvement_team_pins`, `improvement_team_trials`, `improvement_transfers` (đều bất
+  biến). Từ 15 lên 16 sao lưu một lần `*.pre-improvement-m7-team.bak`.
+- Chưa có: bộ chạy phép thử nhóm thật (cần chạy model và chủ chấm), giao diện riêng (hiện chỉ có API).
 
 ## Giới hạn hiện tại
 

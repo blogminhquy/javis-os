@@ -221,12 +221,13 @@ class BundleServiceTests(procedure_base.AgentProcedureBase):
         import improvement_bundle_schema as S
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_bundle_members", "improvement_bundle_activations"):
+            for name in ("improvement_transfers", "improvement_team_trials", "improvement_team_pins",
+                         "improvement_bundle_members", "improvement_bundle_activations"):
                 connection.execute(f"DROP TABLE {name}")
             self.assertFalse(any(connection.execute("SELECT 1 FROM sqlite_master WHERE name=?", (n,)).fetchone() for n in S._NAMES))
             connection.execute("UPDATE improvement_schema SET version=14 WHERE id=1")
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 15)
+        self.assertEqual(IM._schema_version(self.store), IM.SCHEMA_VERSION)
         backups = list(self.store.path.parent.glob(self.store.path.name + ".pre-improvement-m6-bundles.bak"))
         self.assertEqual(len(backups), 1)
         with patch.object(self.store, "_backup_before", side_effect=AssertionError("no second backup")):
