@@ -94,6 +94,10 @@ class OwnerTrialEndToEndTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 test.closed = True
         self.stack.enter_context(patch.object(ClaudeTrialAdapter, "verify", verify))
+        # The runner verifies real Claude adapters through the owned async preflight.
+        async def verify_async(adapter):
+            return verify(adapter)
+        self.stack.enter_context(patch.object(ClaudeTrialAdapter, "verify_async", verify_async))
         self.stack.enter_context(patch.object(ClaudeTrialAdapter, "execute", execute))
         from resonance_store import Principal
         self.owner = Principal("owner", "owner", str(self.f.brain))

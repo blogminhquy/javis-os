@@ -63,6 +63,11 @@ class OperationWorkerTests(unittest.TestCase):
                 self.cwd = kwargs["cwd"]
                 testcase.assertEqual(kwargs["allowed_tools"], [])
                 testcase.assertIn(payload["receipt"]["role"], kwargs["system_prompt"])
+                if getattr(testcase, 'require_raw_artifact', False):
+                    testcase.assertIn('Your final response is the artifact itself: exactly one raw JSON object.',
+                                      kwargs['system_prompt'])
+                    testcase.assertIn('No Markdown code fences, headings, preface or commentary.', kwargs['system_prompt'])
+                    testcase.assertIn('all required keys and their exact types', kwargs['system_prompt'])
 
             async def query(self, prompt):
                 options = self.trial_profile.options(self)
@@ -114,6 +119,14 @@ class OperationWorkerTests(unittest.TestCase):
     def test_semantic_role_preserves_distinct_genuine_identity(self):
         events, _ = self.execute(self.payload("semantic"))
         self.assertEqual((events[-1]["role"], events[-1]["purpose"]), ("semantic_reviewer", "improve_evaluate"))
+
+    def test_improver_worker_receives_raw_final_artifact_instructions(self):
+        self.require_raw_artifact = True
+        self.execute(self.payload())
+
+    def test_semantic_worker_receives_raw_final_artifact_instructions(self):
+        self.require_raw_artifact = True
+        self.execute(self.payload('semantic'))
 
     def test_drifted_config_rejects_before_adapter_or_engine_creation(self):
         payload = self.payload()
@@ -235,11 +248,35 @@ class OperationWorkerTests(unittest.TestCase):
                     "improvement_operation_checks.py", "improvement_operation_results.py", "improvement_trial_checks.py",
                     "improvement_operation_runner.py", "improvement_operation_tasks.py", "improvement_operation_recovery.py",
                     "improvement_operation_retry.py", "improvement_operation_schema.py", "improvement_operation_records.py",
+                    "improvement_compose_schema.py", "improvement_compose_protocol.py", "improvement_harness2_compose.py",
+                    "improvement_compose_permissions.py", "improvement_compose_inputs.py", "improvement_native_protocol.py",
+                    "improvement_compositions.py", "improvement_compose_candidates.py",
+                    "turn_context.py", "improvement_telemetry.py",
                     "improvement_improver_inputs.py", "improvement_generation_protocol.py", "improvement_comparison_plans.py",
                     "improvement_proposals.py", "improvement_skill_candidates.py", "improvement_role_workflow.py",
                     "improvement_semantic_review.py", "improvement_semantic_protocol.py", "improvement_semantic_records.py",
-                    "improvement_dependency_evidence.py", "improvement_execution_limits.py", "improvement_native_lifetime.py"}
+                    "improvement_dependency_evidence.py", "improvement_execution_limits.py", "improvement_native_lifetime.py",
+                    "improvement_trials.py", "improvement_trial_host.py", "improvement_trial_records.py", "improvement_trial_admission.py",
+                    "improvement_trial_context.py", "improvement_trial_sources.py", "improvement_trial_sql_context.py",
+                    "improvement_trial_dashboard.py", "improvement_trial_file_sources.py", "improvement_trial_selection.py",
+                    "improvement_trial_service.py", "improvement_trial_associations.py", "improvement_trial_runner.py",
+                    "improvement_trial_tasks.py", "improvement_trial_results.py", "improvement_trial_products.py",
+                    "improvement_trial_decisions.py", "improvement_trial_views.py", "improvement_trial_schema.py",
+                    "improvement_experiment_lineage.py", "improvement_experiment_admission.py", "improvement_experiment_service.py",
+                    "improvement_experiment_protocol.py", "improvement_experiment_qualification.py", "improvement_experiments.py",
+                    "improvement_experiment_schema.py", "improvement_comparison_results.py", "improvement_comparison_links.py",
+                    "improvement_views.py", "improvement_view_sources.py", "improvement_view_history.py", "improvement_view_lineage.py",
+                    "improvement_view_trial_protocol.py", "improvement_view_protocol.py", "improvement_view_schema.py",
+                    "improvement_store.py", "improvement_blobs.py", "improvement_cases.py", "improvement_case_schema.py",
+                    "improvement_candidate_records.py", "improvement_candidate_schema.py", "improvement_skill_patch.py",
+                    "improvement_comparison_schedule.py", "improvement_view_admission.py", "improvement_view_materialization.py",
+                    "improvement_view_qualification.py", "improvement_view_qualification_history.py",
+                    "improvement_skill_asset_broker.py", "improvement_skill_asset_proof.py", "improvement_native_formats.py",
+                    "improvement_qualification_session.py", "improvement_qualification_results.py",
+                    "improvement_tuning_history.py", "improvement_recipe_schema.py", "improvement_recipe_view_schema.py",
+                    "improvement_recipe_sources.py", "improvement_activation_schema.py"}
         self.assertEqual(set(IC.PROFILE_SOURCES), expected)
+        self.assertEqual(len(IC.PROFILE_SOURCES), len(expected))
         import hashlib
         self.assertEqual(IC.profile_hash(), IM._hash({name: hashlib.sha256((SERVER / name).read_bytes()).hexdigest()
                                                      for name in expected}))

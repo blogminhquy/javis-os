@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 independent review lifetime repair",
+  "review": {
+    "base": "2727edcc5cdfab6f2dcf2e2871164f22f2771f92",
+    "head": "740c0c670ea6c636a155651e8e3bd6af43c68b84",
+    "reviewer": "independent m2d1_whole_review",
+    "critical_findings": 0,
+    "important_findings": 1,
+    "finding": "P2 constructor exposed a facade using a closed semantic resolver while its original Trial owner still retained retirement authority.",
+    "scoped_recheck": "pending"
+  },
+  "sources": {
+    "server/improvement_experiment_service.py": "34d12983a37364f7365731ba04aa526a7bf60b44f640e51b2ab63d7964def159",
+    "server/improvement_views.py": "62fe3f49996f683f03f1eeaee34172b6a0906f0ea5eff6e418eb4f7f957a7a1a",
+    "tests/python/test_improvement_view_lifetime.py": "360da37d46779c65577071bf78b2ceb9a06794b53aeb5f8b41c425730c3a8337"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "service_only_added_closed_resolver_refusal_ast": true,
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lifetime.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 71.916,
+      "seconds_basis": "unittest elapsed, direct unchanged-source invocation",
+      "tests": 4,
+      "log": "review-fix-lifetime-green.log",
+      "log_sha256": "d4fea1dee76c67d96562f3e0ccdcf0bdb0ddf3534f2ecf62f5b933a1bebbab11"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_service.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 49.407,
+      "seconds_basis": "subprocess wall",
+      "tests": 14,
+      "log": "review-fix-lifetime-0.log",
+      "log_sha256": "5f2f2ac7c5b3332c35e36b9509395a9239e0e18317833a9c5f83e783122b2d8f"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_main.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 3.828,
+      "seconds_basis": "subprocess wall",
+      "tests": 3,
+      "log": "review-fix-lifetime-1.log",
+      "log_sha256": "e6b4a8d971863d4ef5a1aecd376d27f67d0ff01fa968de2a3799153c04869f24"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_api.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 68.297,
+      "seconds_basis": "subprocess wall",
+      "tests": 5,
+      "log": "review-fix-lifetime-2.log",
+      "log_sha256": "1ed11757154dba701ec8dd630997798a367acddcea716e52efa5690abf3939bb"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_next.py",
+        "ViewNextTests.test_owner_service_hands_exact_real_v4_reservation_to_existing_task_dispatcher",
+        "ViewNextTests.test_cancelled_http_preflight_remains_owned_until_stop_settles",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 45.828,
+      "seconds_basis": "subprocess wall",
+      "tests": 2,
+      "log": "review-fix-lifetime-3.log",
+      "log_sha256": "81b72fe17a8d7baa79e31c1f2e2e330df74592f3349fe2b227f847abd4038960"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.625,
+      "seconds_basis": "subprocess wall",
+      "tests": 1,
+      "log": "review-fix-lifetime-4.log",
+      "log_sha256": "600a6604b8292fa1f86a333af9501ec57c4a54274853ffca3c3e333cb1a02f1c"
+    }
+  ],
+  "total_tests": 29,
+  "total_recorded_seconds": 239.901,
+  "seconds_basis": "Direct4 lifetime unittest time plus five sequential affected subprocess wall times; unchanged source map.",
+  "complete_source_log_record_sha256": "75f87024f9cd52968c18dd64d58d58c3dd83e979a1633f7485396d39326e25e6",
+  "original_reproduction": {
+    "tests": 1,
+    "seconds": 15.456,
+    "exit_code": 1,
+    "log": "review-lifetime-probe.log",
+    "log_sha256": "be2737e2bf77cfb117273ad385e8db5a38a0ff93a96136c82be09df3fbdcaf60",
+    "failure": "role_workflow_closed"
+  },
+  "red": {
+    "tests": 1,
+    "seconds": 14.312,
+    "exit_code": 1,
+    "log": "review-fix-lifetime-red.log",
+    "log_sha256": "af621eecc86176717dd103b2aa4238a8c2325e9f3ef48ed3d1de3079668961cd",
+    "failure": "ConflictError not raised"
+  },
+  "native_profile": {
+    "sources": 81,
+    "hash": "d070550687af101c07094e1234c5988fae15af9318eb5f5277c4cb2e413324ba",
+    "qualified": false
+  },
+  "invalidated_prior_native_profile": "2221a8599529ac50cf3c9c98057cd003e9dfc45828ac808b5f11e802279511ba",
+  "real_model_calls": 0,
+  "positive_final_exercised": false,
+  "task3_complete": false,
+  "limits": [
+    "Half-closed facade construction refuses before blob/native/call work; original host/Trial resolver remains bound.",
+    "Only both exact successful close futures permit replacement; missing/pending/cancelled/failed closure still refuses.",
+    "After successful original-owner closure, actual rebuild and genuine v4 admission work; live semantic reuse remains usable with a new owner.",
+    "All prior service behavior except the constructor refusal and all other product files are unchanged; original full review is not repeated.",
+    "Current owner APIs, service/main gates, actual v4 handoff/cancel and native footprint regressions pass.",
+    "Prior81/2221a859 native proofs remain historical and do not qualify current source; final exact native requalification is required.",
+    "Scoped independent recheck, final CI, native account feasibility and genuine selected-final positive remain open. No activation/deployment/restart."
+  ]
+}

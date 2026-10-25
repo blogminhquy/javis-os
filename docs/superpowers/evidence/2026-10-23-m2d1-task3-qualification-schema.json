@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 additive final qualification metadata, runtime still closed",
+  "parent": "50ca973666c44ddb19de258ebc50bf5d8c6d64dc",
+  "sources": {
+    "server/improvement_view_schema.py": "50b6f5c5e7a210adb76df3271d593ea5b7f53a403078145906d7f30dc3f7d172",
+    "tests/python/test_improvement_trials.py": "87c50bbd7d3af1474f60604ff24ba157f2482b65a10abf4fdc915349e2d58526",
+    "tests/python/test_improvement_view_qualification_schema.py": "a2daa4853b63cc5e436c7b21175e009cd5c6deb966f2cc64a8d3b0a4f7a65369"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_qualification_schema.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 59.329,
+      "seconds_basis": "unittest elapsed, direct unchanged-source invocation",
+      "log": "task3-qual-schema-green.log",
+      "log_sha256": "77f99ec3b3580619e651baab93a113bdb5f8418f76e92a8ef2970fee412351b3",
+      "tests": 4
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_schema.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 113.844,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-qual-schema-0.log",
+      "log_sha256": "bf1e573b5e63ca6085fcd9d33abceb48be82c64330cd2c660c6038f9923172d0",
+      "tests": 15
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trials.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 25.015,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-qual-schema-1.log",
+      "log_sha256": "fc5cf474235a88627bbe36bec332c4d717046481a0338e9d491fc76015db271e",
+      "tests": 34
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_store.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 5.547,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-qual-schema-2.log",
+      "log_sha256": "17870fc9e3d8876ee5f731ffbfc12b0e579a66e694dbbcf0c1fd782efcac85b7",
+      "tests": 25
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.828,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-qual-schema-3.log",
+      "log_sha256": "1d3dc53df3b0bf9d63d6bca1905a7d3c6edc9c923409570bc3a2cf6753b2c78a",
+      "tests": 1
+    }
+  ],
+  "total_tests": 79,
+  "total_recorded_seconds": 204.563,
+  "seconds_basis": "Direct4 unittest elapsed, affected4 subprocess wall; unchanged source throughout.",
+  "complete_source_log_record_sha256": "9030997f7924ffca9bf3f450a42d68e4e8f2c2131bc110f1d594941e628ef029",
+  "prior_view_schema_statements_ast_identical": true,
+  "red": {
+    "log": "task3-qual-schema-red.log",
+    "sha256": "1461c843c23b9367decbc2a5ab2cc2cfca8b5fe943451c03b04e23e80813468e",
+    "reason": "Required final link table/guard absent; raw-nine-pin denial already passed."
+  },
+  "native_profile": {
+    "sources": 79,
+    "hash": "d6b20eb5678033ceec44c20ffd6d6d26d3a49da2a7114b2629108c54bb68ffe4",
+    "qualified": false
+  },
+  "real_model_calls": 0,
+  "business_proof": false,
+  "positive_final_link_exercised": false,
+  "task3_complete": false,
+  "limits": [
+    "Only additive metadata/schema enforcement is implemented. Actual final v4 admission remains explicitly closed.",
+    "A genuine tuning comparison and unrelated actual CaseStore legacy claim cannot be adopted; no final row/selected result is fabricated.",
+    "Changed/missing guard rejects current work before plaintext; previous metadata-only prototype remains cold/readable.",
+    "Historical scope statements are AST-identical; schema2 fixture drops the added child table first.",
+    "The complete selected-final scope predicate has no genuine positive execution proof yet; do not infer it from negative cases.",
+    "Owned claim/reserve/consume code, exact native qualification, public controls and review/final CI remain open.",
+    "No selected-model query, native registration, eligibility, activation, deployment or restart."
+  ]
+}

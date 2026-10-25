@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "base_head": "0bd9c0c1",
+  "phase": "1-code-and-technical-checks",
+  "test_author": "m2d1_whole_review",
+  "independent_reviewer_executor": "root",
+  "verdict": "approved_scoped_actual_operation_records_proof",
+  "command": "D:/Project/Javis-OS/.venv/Scripts/python.exe tests/python/test_improvement_qualification_operation_binding.py -v",
+  "tests": 3,
+  "seconds": 9.359,
+  "exit": 0,
+  "skips": 0,
+  "source_test_pins": {
+    "tests/python/test_improvement_qualification_operation_binding.py": "64e5341159888519187d2d93d103148d7dcce143be15fa98015ec1f7858c2524",
+    "server/improvement_qualification_session.py": "a4aac824518ba76a926a53aa4388559e90776e307ccaf8ab5399f444a62adb85",
+    "server/improvement_qualification_records.py": "96917a3e70eeb3309512b2d81cc214a0da0d915c2d2c382b516d87842dc07fff",
+    "server/improvement_operation_results.py": "b115f3ed746c3b8d903e01a5dd5f1ef801ca294eed4492e3c5c5735a5ee30230",
+    "server/improvement_operation_execution.py": "d39a679b7d3aa1c75432cb833f62e332a89aa38640b68fe01cf9f9ae76cc7f99",
+    "server/improvement_operation_records.py": "57d755666f93278551aa2b655b383e2aa58bdc5b2aa600f5c0f92a1137aa3e3d",
+    "tests/python/test_improvement_qualification_session.py": "bbf7291dc9283b7e0ab4453302db3a35248c599a41bb9a81c51a3a679e6da315",
+    "tests/python/test_improvement_trial_associations.py": "892235d8a29240f210595cda20181d1d51ec2c8e58fca2ef87377dbf9b12fc5c",
+    "tests/python/test_improvement_host_snapshots.py": "989a4a18e3ad8383d82545e832953a5f16f9e017980bb3cf4cdf06ca641c0fba"
+  },
+  "log_sha256": "f2dc05683d8920decda2850830a81bf12801d5f4e4b446b7641de035597fbdd8",
+  "source_changes": "None; existing production implementation reused, new test only. Root performed independent static review before running; caught nonexistent fixture cleanup method and author corrected it before execution.",
+  "observations": [
+    "Actual private Session root with owned owner/source files, real HostContextStore/CaseStore/ExperimentPlans/OperationExecution and ledger",
+    "Real prepared operation immutable encrypted link/exact replay/cold forensic reader after actual workspace cleanup_proven",
+    "Default OperationResults read/finish refuses durable engineering domain before and after link, no result or engine start",
+    "Actual protected owner-file change refuses bind before link event"
+  ],
+  "limits": [
+    "Candidate/static release observer fixture seams; historical input_version1 fixture seam",
+    "Explicit actual records transaction reserves fixture upstream; normal native reserve admission is not claimed",
+    "No SDK/CLI/native/provider/account/qualification/runtime activation"
+  ],
+  "reused": [
+    "records/domain independent42 and startup35 plus earlyLinux46, unchanged implementation; this unit fills operation binding execution gap only"
+  ]
+}

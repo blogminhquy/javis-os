@@ -1,0 +1,79 @@
+{
+  "kind": "technical/role-raw-artifact-instructions",
+  "base_commit": "ed5e1e3390e43202f52635f6343db171b68a7533",
+  "source_hashes": {
+    "server/improvement_operation_profile.py": "d8bc64e9a1f23c0133c02f42df18af1e3efdc4aadc53c5038e6e818bbc7612bb",
+    "tests/python/test_improvement_operation_worker.py": "fe4f41162d307139b68b96c567906b92e50da8922fb5100aea7503ead2038bb3"
+  },
+  "change": "Only operation_system_prompt adds four final-answer artifact format sentences. No model/tool/permission/validator/receipt/event/usage/retry changes.",
+  "red": {
+    "tests": 2,
+    "failures": 2,
+    "seconds": 0.3,
+    "log_sha256": "9437c23f9b595ed0639093c4f5020498f4d02e4ae0f791270b1199ce847ed3d4",
+    "scope": "actual worker passes role prompt into engine factory; format instruction absent in both improver and semantic role"
+  },
+  "green": {
+    "tests": 59,
+    "commands": [
+      {
+        "args": [
+          "tests/python/test_improvement_operation_worker.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "seconds": 3.016,
+        "tests": 11,
+        "log": "format-green-0.log",
+        "log_sha256": "f5a4ceec40249af12bcc6eb087e6e38fd0cd68f5dff5266c5064fd299ab11636"
+      },
+      {
+        "args": [
+          "tests/python/test_improvement_operation_results.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "seconds": 21.625,
+        "tests": 5,
+        "log": "format-green-1.log",
+        "log_sha256": "f059b96cd2e8ffca8dbe3df3b82061ad96fa650e49a6b6f26804b66cb742ccaf"
+      },
+      {
+        "args": [
+          "tests/python/test_improvement_semantic_review.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "seconds": 200.391,
+        "tests": 21,
+        "log": "format-green-2.log",
+        "log_sha256": "7383afbd27b260aeb1e240b7ffa9fd3c1587f7c79c41294b5e2cc2753ce1b40a"
+      },
+      {
+        "args": [
+          "tests/python/test_improvement_claude.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "seconds": 1.89,
+        "tests": 22,
+        "log": "format-green-3.log",
+        "log_sha256": "0b673d3a23634e04b4652ec1ab0d533dfdf710daaeea9a9db21917d237e58c8f"
+      }
+    ],
+    "seconds": 226.922,
+    "full_source_record_sha256": "e2650cafb2eef00f4ae2ab31d001c51d95c70c6f116b1e7b1c0671c75f610dcf"
+  },
+  "reuse": {
+    "all_other_operation_profile_ast_identical": true,
+    "strict_consumer_source_identical": true,
+    "prior_actual_owner_http_invalid_output": "2026-10-23-m2d1-semantic-invalid-output.json; parser/service/API unchanged, semantic workflow21 rerun; no duplicate ownerHTTP9 solely for a prompt string."
+  },
+  "limits": [
+    "Prompt instructions alone do not enforce model formatting. One bounded new actual feasibility is the effectiveness check.",
+    "All prior failed artifacts remain immutable; no parsing/normalization/default findings or acceptance override.",
+    "Current changed native footprint unregistered until new exact20 qualification; old958 cannot authorize new calls.",
+    "No account/native query yet in this unit; no business/eligible-final/live claim.",
+    "Full D2/E/F/M3-M8 remain required."
+  ]
+}

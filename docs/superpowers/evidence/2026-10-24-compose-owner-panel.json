@@ -1,0 +1,326 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "scope": "Actual cold compose outcomes and reachable owner panel; scoped engineering/controller evidence only",
+  "implementation_base": "91c20f0e2e3a37c63273b639fa5995bf5aa5f447",
+  "implementation_commits": [
+    "5490cde6a9a606bdbf51cfae19b932f90ef8b22e",
+    "95790edbbb240bc794b7a48f44a0db6001ff8e9d"
+  ],
+  "source_sha256": {
+    "server/improvement_compose_permissions.py": "45fcf12bb2a54169b82a4775d7e0d06381dae64fa19fe52ab71e91c8ccbb163c",
+    "server/improvement_experiment_api.py": "a0242d9a5f59efe8fa21ffc1850b6523e098d15a7678d69a76cb1187f3875506",
+    "dashboard/improvement-candidates.js": "1631d27b8579f5d7c149672f55262cfbc9a45e5f97b80485d3883a41db4e9731",
+    "dashboard/improvement-experiments.js": "0dad3ea1671e0cae4fbc5c7d0aa445931a79d2498050cc241fc1cc35a92d2fbe",
+    "dashboard/improvement-candidates.css": "f099c1bd57675ef2ec700e0fd8f4953a6554dd65fc60c208c0e28bd41e1f0a45",
+    "dashboard/index.html": "2964695229cbb5c40e2e0c6ace16c4f0882fcb12801fc07751078ca3a09199d8",
+    "dashboard/i18n/vi.json": "25f7bf40907008a7f095e8ef7c5b52bd1f32ab9d0e57c47101bf1d5a992ba5d1",
+    "dashboard/i18n/en.json": "242a7cbacd3a8bb9b55a3aa0b21ef256406079c84ca79c2f02f03f381d83599b",
+    "tests/python/test_improvement_compose_outcomes.py": "bb0723f2ca89907307d08f5811dbb84a42503bb377ac2f2375410cab7cf17c07",
+    "tests/js/test_improvement_experiments.mjs": "294c601da14265541ca968ca3bb7761ba594b1e069903cec3086ce1f6ff1b05f",
+    "tests/js/test_improvement_candidates.mjs": "2f122454af14e2486580e572a5f7ae21f8fabbe2182e1f9ef9e41f3b72ce39eb",
+    "tests/python/test_improvement_experiment_main.py": "4d2e6b2939ed00a2f4c32dd002858650db5fd334817042e558018c003fde880a"
+  },
+  "upstream_commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+  "reuse": "Existing actual vendored compose_round/ComposerService/shared owners and exact candidate review; no new upstream executor, serializer or authority ledger in this unit.",
+  "behavior": [
+    "Actual owner-session GET compose-outcomes authenticates existing consent/start/generate/Operation/publication metadata without service/writer/decryption/migration/native probe; old known schemas empty, foreign denied, ambiguous history conflicts.",
+    "One recorded outcome includes interrupted/cancelled start, invalid_output/native_incomplete, KEEP_BASE or candidate_staged; absent publication does not reopen compose scope.",
+    "Existing Studio candidate dialog mounts actual experiment controls. Open/reload uses cold GET only; preview, consent, run and revoke are separate explicit actions, with distinct experiment/grant generations.",
+    "Prepared creation uses actual current context grant generation and bounded real refs. Old budget2 immutable; reserve3 only at create; typed3 under budget2 visibly unevaluated.",
+    "Exact candidate byte/diff review remains original path; semantic/view/comparison/report actions use actual closed registered contracts. Trial unavailable remains disabled; dependency/native/activation unknown remains unknown.",
+    "Monotonic snapshot/write epochs prevent older reload restoring revoked consent or unlocking later acknowledgments. Successful authoritative reload permits a new explicit next after acknowledged refresh failure without replay.",
+    "Only first definite pre-creation400/403 refusal may release creation intent; earlier uncertainty, create409 and all runtime refusals retain exact payload/event. Recorded admitted compose consumes cold scope, never resamples.",
+    "Immediate duplicate guard, abort/dispose and private clearing cover context/brain/skill/close lifetime; all returned private strings inert; bilingual and keyboard conventions retained."
+  ],
+  "tdd": {
+    "actual_missing_outcomes": {
+      "tests": 5,
+      "failures": 5,
+      "driver_seconds": 85.482,
+      "log_sha256": "f96a09c596a82c6c6ebd923488fa84634b101f493ff8e00cff2aa4fe909292fa"
+    },
+    "affected_registered_route_red": {
+      "expected_old_count": 33,
+      "actual_new_count": 34,
+      "log_sha256": "240f013e76db7ed203c5dea842e6fb0591f030554dfa35e9f8a912e478968b29"
+    },
+    "recovery_fix": {
+      "regressions_failed": 3,
+      "safety_controls_passed": 5,
+      "red": [
+        {
+          "name": "controller",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "tests/js/test_improvement_experiments.mjs"
+          ],
+          "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+          "exit": 1,
+          "seconds": 0.17,
+          "log": "fix-1-red-controller.txt",
+          "sha256": "dfafc1ff1983f44e06383b89433f9b5a88720ca8a4b77e1a7590d00b7334cf32"
+        }
+      ],
+      "final": [
+        {
+          "name": "controller",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "tests/js/test_improvement_experiments.mjs"
+          ],
+          "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+          "exit": 0,
+          "seconds": 0.187,
+          "log": "fix-1-final-controller.txt",
+          "sha256": "55ae5bfad52c5487edd6188e9a671036157e489e7f8c5e1f729f5c74ebcaee98"
+        },
+        {
+          "name": "candidate-integration",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "tests/js/test_improvement_candidates.mjs"
+          ],
+          "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+          "exit": 0,
+          "seconds": 0.157,
+          "log": "fix-1-final-candidate-integration.txt",
+          "sha256": "7d8b5e7d1280cffe3c5284b5da101d5306fda1f47e74aa6ad7dca17911e23c82"
+        },
+        {
+          "name": "syntax",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "--check",
+            "dashboard/improvement-experiments.js"
+          ],
+          "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+          "exit": 0,
+          "seconds": 0.051,
+          "log": "fix-1-final-syntax.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "additional_recovery_controls": 10
+    },
+    "diagnostics": "First positive reader run correctly hit an immutable-event UPDATE in a fixture; test was corrected to assert immutability and insert ambiguous history. No production bypass."
+  },
+  "local": {
+    "python_cases": 14,
+    "scripts": 9,
+    "initial_terminal": [
+      {
+        "name": "test_improvement_compose_outcomes.py",
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          ".superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py",
+          "test_improvement_compose_outcomes.py"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 88.548,
+        "log": "final-test_improvement_compose_outcomes.txt",
+        "sha256": "1262a4c7873503ab5f4f955f5aabafccc7a969afeaf7e35dd89bc0602d0342dc"
+      },
+      {
+        "name": "test_improvement_compose_api.py",
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          ".superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py",
+          "test_improvement_compose_api.py"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 75.725,
+        "log": "final-test_improvement_compose_api.txt",
+        "sha256": "19bb5a716a1a6a9450685fffefdd759c4963cb3e45be11346054f071db9fad73"
+      },
+      {
+        "name": "test_improvement_experiment_main.py",
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          ".superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py",
+          "test_improvement_experiment_main.py"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 12.73,
+        "log": "final-test_improvement_experiment_main.txt",
+        "sha256": "f078cbb0393d77bacbd8c1881d0e4bf0209d4e359188438d7a1e690abe1e1e69"
+      },
+      {
+        "name": "test_info_tip_rule.py",
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          ".superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py",
+          "test_info_tip_rule.py"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 2.873,
+        "log": "final-test_info_tip_rule.txt",
+        "sha256": "833291e1f6cc2c6a9ef13cccd50e748c45a25c60af5f1aa2476ff8cd87faaf6a"
+      },
+      {
+        "name": "test_improvement_experiments.mjs",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "tests/js/test_improvement_experiments.mjs"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 0.156,
+        "log": "final-test_improvement_experiments.txt",
+        "sha256": "d7f8b6452e303548d6f79f6b00ed2182735d66671a8a74453efc303ffc5def2b"
+      },
+      {
+        "name": "test_improvement_candidates.mjs",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "tests/js/test_improvement_candidates.mjs"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 0.171,
+        "log": "final-test_improvement_candidates.txt",
+        "sha256": "7d8b5e7d1280cffe3c5284b5da101d5306fda1f47e74aa6ad7dca17911e23c82"
+      },
+      {
+        "name": "test_i18n.mjs",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "tests/js/test_i18n.mjs"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 0.228,
+        "log": "final-test_i18n.txt",
+        "sha256": "bb80c0552000ad0a4ec5128361c0620c2fd61edd3863aeafa9e5d2d7d9783400"
+      },
+      {
+        "name": "syntax-improvement-candidates.js",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "--check",
+          "dashboard/improvement-candidates.js"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 0.057,
+        "log": "final-syntax-improvement-candidates.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "syntax-improvement-experiments.js",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "--check",
+          "dashboard/improvement-experiments.js"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 0.055,
+        "log": "final-syntax-improvement-experiments.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "covering_fix_terminal": [
+      {
+        "name": "controller",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "tests/js/test_improvement_experiments.mjs"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 0.187,
+        "log": "fix-1-final-controller.txt",
+        "sha256": "55ae5bfad52c5487edd6188e9a671036157e489e7f8c5e1f729f5c74ebcaee98"
+      },
+      {
+        "name": "candidate-integration",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "tests/js/test_improvement_candidates.mjs"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 0.157,
+        "log": "fix-1-final-candidate-integration.txt",
+        "sha256": "7d8b5e7d1280cffe3c5284b5da101d5306fda1f47e74aa6ad7dca17911e23c82"
+      },
+      {
+        "name": "syntax",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "--check",
+          "dashboard/improvement-experiments.js"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "exit": 0,
+        "seconds": 0.051,
+        "log": "fix-1-final-syntax.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "reuse": "Ten unchanged raw pins and Python backend proof retained after two-file JS-only fix; no repeated unchanged broad backend suite."
+  },
+  "independent_review": {
+    "method": "Fresh static spec/quality review plus same-reviewer narrow fix verification; execution:none",
+    "addressed": [
+      "T2-R1",
+      "T2-R2",
+      "T2-R3"
+    ],
+    "open_important": [],
+    "stable_raw_pins": 12,
+    "initial_sha256": "43fb5165ea4b3b0401c6126c572800426f5c0e965cc631ce8ea30e23dca74ab8",
+    "fix_sha256": "3e64f0494905d5b7612345444930570cf76f83104fe97791126eb59ed916c6a6",
+    "deferred_minors": [
+      "T2-R4 indistinguishable candidate ordinal option labels",
+      "T2-R5 existing dependency/fixture/asyncio diagnostics; raw logs preserved, no warning-free claim"
+    ]
+  },
+  "early_linux": {
+    "run_id": 40068923965,
+    "job_id": 120797950847,
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40068923965",
+    "snapshot": "d11365108d7a3fbc1fd8f644880584247ab2919e",
+    "parent": "95790edbbb240bc794b7a48f44a0db6001ff8e9d",
+    "exact_raw_pins": 12,
+    "python_cases": 14,
+    "other_checks": "info-tip, actual controller/candidate interaction suites, i18n and two syntax checks",
+    "workflow_sha256": "7d1678f2eac1d81c86e0a558a675140e61f5504182d5f0b80a322a01f92e27d9",
+    "log_sha256": "017cdf2dfda1f541593dd2d4deac282b99cb70fd3f20f6579c7065cca92c3378",
+    "not_final_task_head_full_required_ci": true
+  },
+  "visual": {
+    "scope": "Root real-browser desktop synthetic metadata walkthrough on initial5490cde6 frozen bytes; no backend/native execution. CSS and parent mounting unchanged by recovery fix.",
+    "record_sha256": "b680fbc27369a0b3f16480bb5fea74bb0012cb3804813f4583e849eaec021fdc",
+    "screenshots": {
+      "panel-visual-vi.png": "91437a4bcaff8d586d9a58505e4f46ea90b5b71f9cdca0d0b106b9699e514f8a",
+      "panel-visual-en.png": "6ae0371a16a8f2bb5f2d3ced1fdfd649b530e6aef87cea225f568aaca89b1f0c"
+    },
+    "cleanup_complete": true
+  },
+  "native_inventory": {
+    "method": "AST-only literal PROFILE_SOURCES, raw file SHA256; no imports/runtime call",
+    "count": 95,
+    "profile_hash": "7f7f77da63c0814fb08e55f58849899de0786023c0feb977b81e0778b2573044",
+    "qualified": false,
+    "protected_actual309_test_sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0"
+  },
+  "limits": "ASGI uses labelled synthetic native availability/SDK packets and unexecuted storage controls; JS uses inert DOM/transport+real WebCrypto. No actual CLI/SDKClient/provider/account/model query or registration.",
+  "open_gates": [
+    "Canonical actual Harness2 experience library and remaining M0-M8 code",
+    "Full qualified selected-final and same-pipeline localhost dummy/native qualification",
+    "Final exact task-head full required CI and fresh whole-branch review",
+    "All Phase2 actual account/model/business pilot/canary and specifically authorized rollout"
+  ],
+  "business_proof": false,
+  "activation_or_deploy": false
+}

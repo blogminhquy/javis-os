@@ -13,6 +13,7 @@ from improvement_operation_execution import OperationExecution
 from improvement_operation_protocol import operation_packet
 from improvement_trial_evidence import decode_trace
 from improvement_trial_records import _brain
+from improvement_observation_history import is_observation2, validate_history
 
 _STATUS = {429, 500, 502, 503, 504}
 _NETWORK = {"ConnectionError", "ConnectionResetError", "APITimeoutError", "ConnectError", "ReadTimeout", "ConnectTimeout"}
@@ -62,11 +63,20 @@ class OperationRetry:
         if attempt["failure_reason"] == "capacity_unavailable":
             return []
         receipt = json.loads(attempt["workspace_json"]) if attempt["workspace_json"] else None
+        decode = lambda item: decode_trace(self.execution.blobs, row["brain_id"], item)
+        native_checked = False
         proof = []
         for item in trace:
             if item["late"] or item["kind"] != "engine_event":
                 continue
-            packet, _ = operation_packet(decode_trace(self.execution.blobs, row["brain_id"], item))
+            decoded = decode(item)
+            if is_observation2(decoded):
+                if not native_checked:
+                    validate_history(trace, decode, kind='operation', receipt=receipt)
+                    native_checked = True
+                packet = decoded['body']
+            else:
+                packet, _ = operation_packet(decoded)
             if (receipt is None or any(packet[key] != receipt[key] for key in
                     ("operation_id", "attempt", "role", "purpose", "input_hash"))):
                 raise IM.ConflictError("operation_retry_proof_changed")
@@ -95,7 +105,27 @@ class OperationRetry:
             prepared = e.guard(principal, identifier)
             receipt = json.loads(attempt["workspace_json"]) if attempt["workspace_json"] else None
             e.workspace.cleanup_owned(identifier, 1, receipt, handles)
-            available = ClaudeOperationAdapter(prepared[1]["engine_config"]).verify()
+            def native_current(connection, joined):
+                for _ in range(2):
+                    eligible = self._eligible(connection, principal, identifier, expected_generation)
+                    if eligible != snapshot or self._native_proof(*eligible) != proof:
+                        raise IM.ConflictError("operation_retry_proof_changed")
+                    current = e._row(connection, principal, identifier)
+                    if e._current(connection, principal, current) != prepared:
+                        raise IM.ConflictError("operation_authority_changed")
+                    e.host._snapshot_observe(principal, prepared[1])
+                # Encrypted proof and source reads above can cross the original
+                # deadline. Finish with the cheap SQL/time fence before allow.
+                if self._eligible(connection, principal, identifier, expected_generation) != snapshot:
+                    raise IM.ConflictError("operation_retry_proof_changed")
+                return "allow"
+
+            adapter = ClaudeOperationAdapter(prepared[1]["engine_config"])
+            adapter.bind_native_authority(e.assets, principal, scope_hash=IM._hash({
+                "version": 1, "kind": "operation_infra_retry", "brain_id": brain,
+                "event_key_hash": IM._hash(event_key), "request_hash": IM._hash(payload),
+                "authority_hash": IM._hash(snapshot)}), current=native_current)
+            available = adapter.verify()
             if type(available) is not dict or available.get("supported") is not True:
                 raise ValueError("operation_native_unavailable")
             _digest(available.get("capability_hash"))

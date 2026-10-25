@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "label": "owned-private-worker-channel2",
+  "evidence_class": "technical",
+  "source_parent_commit": "f6ecb7b81f7b3a7f25e097fb7fd29188a9b7d58c",
+  "source_hashes": {
+    "server/improvement_private_channel.py": "d5498531adb4dca0aa7c3a20d50e1796d0b168cb02129e02274e741156f53175",
+    "tests/python/test_improvement_private_channel.py": "1cd4a33e350b5f880e22fc1a2d662a55bd463c123974397ce4b582cdc4c29a2f"
+  },
+  "dependency_hashes": {
+    "server/improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744"
+  },
+  "test_command": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -I -S -B tests/python/test_improvement_private_channel.py -v",
+  "runs": [
+    {
+      "stage": "missing_component_red",
+      "tests": 6,
+      "failures": 6,
+      "seconds": 0.106,
+      "log_sha256": "e276a0692739556c9066c079eb8572c33ed167599dca5a52325b40295a6fa66c"
+    },
+    {
+      "stage": "initial_green",
+      "tests": 6,
+      "passed": 6,
+      "seconds": 0.346,
+      "log_sha256": "0090e8c27b366c2950d23dc7af103842eb8cf1c4433cf00603550b91f3a1a467"
+    },
+    {
+      "stage": "cleanup_completion_cancel_race_red",
+      "tests": 1,
+      "errors": 1,
+      "seconds": 0.057,
+      "log_sha256": "f5d24ed7ef9c00c93b28eb88eb6339fc75d9b24e3933127e2f19e44e572782b7"
+    },
+    {
+      "stage": "corrected_green_before_stream_review",
+      "tests": 8,
+      "passed": 8,
+      "seconds": 0.559,
+      "log_sha256": "dcf95b61bbc0bbdb9b276da2ef20de12232288d02c4a3836b80059cdc7f2c490"
+    },
+    {
+      "stage": "stream_retention_red",
+      "tests": 1,
+      "failures": 1,
+      "seconds": 0.709,
+      "observed_consumed_tasks_retained_per_endpoint": 32,
+      "log_sha256": "fd39e5ee0ab3be6d8677c1c2982e9d7dc5ec94d918052c72a6f60c16d06dac57"
+    },
+    {
+      "stage": "stream_fix_green",
+      "tests": 9,
+      "passed": 9,
+      "seconds": 1.235,
+      "log_sha256": "095ff2c15f475c9ab3e0a95582cf377a02857267dd77fa8e4367ffe830914b51"
+    },
+    {
+      "stage": "final_green_with_captured_io_completion_assertions",
+      "tests": 9,
+      "passed": 9,
+      "seconds": 1.287,
+      "log_sha256": "38eca10c32297d0c0e21d4d22f3bda106c575bcad8e865c25a945bb4438b62d6"
+    }
+  ],
+  "independent_review": {
+    "verdict": "scoped_approval",
+    "tests": 9,
+    "passed": 9,
+    "seconds": 1.251,
+    "source_test_dependency_pins_unchanged": true,
+    "log_sha256": "598bf07b2d50db307c6d15c1f85714520d6fcd4572aaa8f960f72bd752c70fbf"
+  },
+  "tested": [
+    "Exclusive connected noninheritable socket, two independently sequenced directions, closed protocol2 body grammar and exact Unicode/optional-null preservation.",
+    "Real Windows socketpair EOF/partial frame deadline/repeated cancellation; known socket-close success plus actual UNCANCELLED IO-task completion before closed=true.",
+    "Successful cleanup followed by cancellation remains actual cleanup success while cancellation propagates.",
+    "Controlled pre-close failure leaves live socket retryable; controlled post-real-close error permanently retains unproven close authority and forbids blind retry.",
+    "32 real16KiB streamed engine events release consumed completed tasks/results/frame groups; pending or uncertain IO remains retained. EOF/cancel checks capture actual task references before pruning.",
+    "Receive silence may exceed short send timeout; immutable overall lifetime<=300 is not reset by messages."
+  ],
+  "isolation": "Isolated base Python -I-S-B, stdlib+frozen pure protocol only; private anonymous socketpairs with OS-assigned ephemeral ports, own loop/global patches, no hardcoded shared ports/env/HOME/DB/files/SDK/child/debug/job resources. Unique log outside guardian fixture. Goal12 permits this proven parallel isolation.",
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-private-channel",
+  "native_child_or_sdk_or_account_calls": 0,
+  "limits": [
+    "Controlled socket.close exceptions are simulated faults around real sockets, not a claim that an OS close failure was independently induced.",
+    "The post-close-uncertainty negative leaves proof owner retained until enclosing process drain; passing tests do not mean all negative cases report successful cleanup.",
+    "No socket.share/fromshare, retained source process provenance, host/worker phase gate, durable ACK, native input delivery or full three-actor proof.",
+    "No runtime profile registration/native qualification, account retry, business or rollout proof."
+  ],
+  "goal_complete": false
+}

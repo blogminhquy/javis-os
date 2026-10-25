@@ -1,0 +1,478 @@
+{
+  "version": "0.299.0",
+  "kind": "M2_qualification_capability_product_exclusion",
+  "created_utc": "2026-10-24T09:59:10.662109+00:00",
+  "commit": "d0d5b27c143e5efcc1c89378c76914834d228094",
+  "parent": "519b366bcac68a6d6ec2371c913f2cf6d7ca215d",
+  "review_base": "6df5e19131f14fba4c8cd2e0fc9b4d2d21851923",
+  "scope": "four existing product capability conditions and one real-boundary negative-control module",
+  "files": [
+    {
+      "path": "server/improvement_trial_admission.py",
+      "size": 15378,
+      "sha256": "3fc6ad1e0a5db52684efad879238aa81f86d9582d860c3f8295c9016d3d0bc62",
+      "git_blob": "4099c458625076f9be70dd72c99936323f482d29",
+      "raw_lf": true,
+      "working_equals_committed": true
+    },
+    {
+      "path": "server/improvement_operation_execution.py",
+      "size": 24839,
+      "sha256": "26541bfe0db07b1a2da1eb28ba4155698aeebc4e958d72551616522e9a24e6ca",
+      "git_blob": "412d46105e75492378438b6617859e646ba377c9",
+      "raw_lf": true,
+      "working_equals_committed": true
+    },
+    {
+      "path": "server/improvement_trial_runner.py",
+      "size": 26422,
+      "sha256": "1ad8bdccb44d7ddc327f904b16168f642df47cb4ce0a2e079ff473a1a563f06b",
+      "git_blob": "6e11db24f71b3ec83ce264ee3e953e3402fdacc2",
+      "raw_lf": true,
+      "working_equals_committed": true
+    },
+    {
+      "path": "server/improvement_operation_runner.py",
+      "size": 16148,
+      "sha256": "1b391c4f3da59a8f246fcb4485ff556528def8cd437e9f8653f4dd612c71611d",
+      "git_blob": "64a0bd1adc08df304003b6a8ba7a0f045d72a1fd",
+      "raw_lf": true,
+      "working_equals_committed": true
+    },
+    {
+      "path": "tests/python/test_improvement_qualification_admission_fences.py",
+      "size": 12029,
+      "sha256": "5d8f09889346bc4701e87c9a5c3e55bdd9e2d42b484ed3d3c2d2b08885f96e1a",
+      "git_blob": "43f1ca65eba0ca6cc5888c49008009246cda5ca6",
+      "raw_lf": true,
+      "working_equals_committed": true
+    }
+  ],
+  "source_freezes": {
+    "initial": "2026-10-24T09:49:06.948946+00:00",
+    "replacement": "2026-10-24T09:51:42.690442+00:00",
+    "production_pins_equal": true,
+    "changed_new_module_refrozen_before_rerun": true,
+    "existing_selectors_retained_with_unchanged_production_pins": true
+  },
+  "TDD": {
+    "clean_RED": "03-red-owned-fixture-cleanup",
+    "intended_marker_failures": 12,
+    "new_module_methods": 8,
+    "new_module_fixture_exercises": 24,
+    "initial_fixture_failures": "01/02 preserved; not clean marker RED",
+    "intermediate_green": "04 superseded by new-test-only cleanup correction/refreeze09",
+    "artifacts": [
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/03-red-owned-fixture-cleanup.json",
+        "bytes": 614,
+        "sha256": "b3c2ee813385388c4daec120da852dea2397ac8fbe95ddd7ad7ba34f6275c4b8"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/03-red-owned-fixture-cleanup.stderr.txt",
+        "bytes": 25732,
+        "sha256": "351727938b0cd523bd126aeef9c2ab658c165483b56156996c4102b7fefdf22f"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/red-source-base-audit.json",
+        "bytes": 352,
+        "sha256": "ebc7c87f7bfe8ffa544260ab70fb3f963417604d6d839f46b7fc90ddc1b6dd20"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/refreeze-deviation.json",
+        "bytes": 830,
+        "sha256": "6e11a358a631b2fc735e27ad804904b38bc663ba8fd80a8139b8a5d694636540"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/pre-final-freeze-20261024T094906948946Z.json",
+        "bytes": 1549,
+        "sha256": "8e2ee04b832d002be82a2fc349e28e9c997034c867cdf1843f25ae8aa9c2c172"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/pre-final-freeze-20261024T095142690442Z.json",
+        "bytes": 1724,
+        "sha256": "6f614469c5687b4dcc22ed0dfac5bef4b8e010934ae293dc81b2f0b152592e13"
+      },
+      {
+        "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/committed-freeze-equality.json",
+        "bytes": 6215,
+        "sha256": "af7ecfd7404c378b8429e81fa3839f3fd30fa4bec8ab1a45a1bee61bfcd5a0d5"
+      }
+    ]
+  },
+  "windows": {
+    "passed_methods": 13,
+    "skipped": 0,
+    "runs": [
+      {
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-qualification-capability-exclusion\\root-check.py",
+          "test_improvement_trial_admission.py",
+          "AdmissionTests.test_unsupported_or_malformed_native_capability_reserves_nothing",
+          "-v"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "start_utc": "2026-10-24T09:50:51.456267+00:00",
+        "end_utc": "2026-10-24T09:50:55.732738+00:00",
+        "logger_pid": 21388,
+        "child_pid": 29508,
+        "exit": 0,
+        "duration_seconds": 4.281,
+        "freeze": "pre-final-freeze-20261024T094906948946Z.json",
+        "post_run_equal": {
+          "server/improvement_trial_admission.py": true,
+          "server/improvement_operation_execution.py": true,
+          "server/improvement_trial_runner.py": true,
+          "server/improvement_operation_runner.py": true,
+          "tests/python/test_improvement_qualification_admission_fences.py": true
+        },
+        "name": "05-final-admission-selector",
+        "test_methods": 1,
+        "unittest_seconds": 3.172,
+        "resource_warning_lines": 0,
+        "slow_task_diagnostics": 0,
+        "raw_metadata": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/05-final-admission-selector.json",
+          "bytes": 1063,
+          "sha256": "2b23469f6900b7d524bf723c8066fe853b917a3eb5feb8780e4ed7aea29b74e8"
+        },
+        "raw_stdout": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/05-final-admission-selector.stdout.txt",
+          "bytes": 64,
+          "sha256": "519f29b041966e92401174a7def4629afedde1db48d5363e392757b0751143b6"
+        },
+        "raw_stderr": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/05-final-admission-selector.stderr.txt",
+          "bytes": 266,
+          "sha256": "6ea808a6ee0aeea865ade5d91507f21755e207438c9785e2ba0920cf986de286"
+        }
+      },
+      {
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-qualification-capability-exclusion\\root-check.py",
+          "test_improvement_operation_execution.py",
+          "OperationExecutionTests.test_no_native_capability_means_no_reserved_call_and_replay_after_off_is_cold",
+          "-v"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "start_utc": "2026-10-24T09:50:55.747922+00:00",
+        "end_utc": "2026-10-24T09:51:01.334806+00:00",
+        "logger_pid": 21388,
+        "child_pid": 23128,
+        "exit": 0,
+        "duration_seconds": 5.578,
+        "freeze": "pre-final-freeze-20261024T094906948946Z.json",
+        "post_run_equal": {
+          "server/improvement_trial_admission.py": true,
+          "server/improvement_operation_execution.py": true,
+          "server/improvement_trial_runner.py": true,
+          "server/improvement_operation_runner.py": true,
+          "tests/python/test_improvement_qualification_admission_fences.py": true
+        },
+        "name": "06-final-operation-reservation-selector",
+        "test_methods": 1,
+        "unittest_seconds": 4.117,
+        "resource_warning_lines": 0,
+        "slow_task_diagnostics": 0,
+        "raw_metadata": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/06-final-operation-reservation-selector.json",
+          "bytes": 1089,
+          "sha256": "ecd7ce047324c90db6f4176aaa983f8e6b4eaca3920a0388f8b6581986d671c0"
+        },
+        "raw_stdout": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/06-final-operation-reservation-selector.stdout.txt",
+          "bytes": 68,
+          "sha256": "e86ef34cc03aa1a57c3fdbbad41dc017596f12a9803d39ab6a740f0c4ea9c0bf"
+        },
+        "raw_stderr": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/06-final-operation-reservation-selector.stderr.txt",
+          "bytes": 301,
+          "sha256": "fc88b23970991286cfa8957542f01e379f3d303bbcc46e1315b751f1400623ce"
+        }
+      },
+      {
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-qualification-capability-exclusion\\root-check.py",
+          "test_improvement_trial_runner.py",
+          "TrialRunnerTests.test_unsupported_adapter_refunds_before_any_query_or_recorder",
+          "TrialRunnerTests.test_success_orders_marker_and_recorder_before_ack_and_cleanup_before_evaluation",
+          "-v"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "start_utc": "2026-10-24T09:51:01.349971+00:00",
+        "end_utc": "2026-10-24T09:51:06.430256+00:00",
+        "logger_pid": 21388,
+        "child_pid": 11932,
+        "exit": 0,
+        "duration_seconds": 5.094,
+        "freeze": "pre-final-freeze-20261024T094906948946Z.json",
+        "post_run_equal": {
+          "server/improvement_trial_admission.py": true,
+          "server/improvement_operation_execution.py": true,
+          "server/improvement_trial_runner.py": true,
+          "server/improvement_operation_runner.py": true,
+          "tests/python/test_improvement_qualification_admission_fences.py": true
+        },
+        "name": "07-final-trial-runner-selectors",
+        "test_methods": 2,
+        "unittest_seconds": 3.925,
+        "resource_warning_lines": 0,
+        "slow_task_diagnostics": 0,
+        "raw_metadata": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/07-final-trial-runner-selectors.json",
+          "bytes": 1165,
+          "sha256": "63e2c34b8f2ddb0df1fadc63ac79e9fa22f01de6ac6ad62cbef27caf4f925baa"
+        },
+        "raw_stdout": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/07-final-trial-runner-selectors.stdout.txt",
+          "bytes": 61,
+          "sha256": "52f31b8d8d3b532aebd270d8c295cd0521fed471e8a2e2c45d3133a0b99bcd07"
+        },
+        "raw_stderr": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/07-final-trial-runner-selectors.stderr.txt",
+          "bytes": 461,
+          "sha256": "298637b035d7f220160598b40b6ed9c6f90ffe4a0e866c7e5aa132ebc0f1574f"
+        }
+      },
+      {
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-qualification-capability-exclusion\\root-check.py",
+          "test_improvement_operation_runner.py",
+          "OperationRunnerTests.test_actual_worker_profile_runner_retains_unknown_result_and_cleans_plaintext",
+          "-v"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "start_utc": "2026-10-24T09:51:06.445778+00:00",
+        "end_utc": "2026-10-24T09:51:18.181464+00:00",
+        "logger_pid": 21388,
+        "child_pid": 26748,
+        "exit": 0,
+        "duration_seconds": 11.735,
+        "freeze": "pre-final-freeze-20261024T094906948946Z.json",
+        "post_run_equal": {
+          "server/improvement_trial_admission.py": true,
+          "server/improvement_operation_execution.py": true,
+          "server/improvement_trial_runner.py": true,
+          "server/improvement_operation_runner.py": true,
+          "tests/python/test_improvement_qualification_admission_fences.py": true
+        },
+        "name": "08-final-operation-runner-selector",
+        "test_methods": 1,
+        "unittest_seconds": 10.343,
+        "resource_warning_lines": 0,
+        "slow_task_diagnostics": 1,
+        "raw_metadata": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/08-final-operation-runner-selector.json",
+          "bytes": 1084,
+          "sha256": "5f68252d0cf388a9c54afe622e5a27270515a29ab9c6231e8b94bfa78504e2c9"
+        },
+        "raw_stdout": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/08-final-operation-runner-selector.stdout.txt",
+          "bytes": 66,
+          "sha256": "2ce8f0a98d579693d5374b8a734c936305259d039b0beae6f497ea2bfe95a8eb"
+        },
+        "raw_stderr": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/08-final-operation-runner-selector.stderr.txt",
+          "bytes": 938,
+          "sha256": "ad5a58be5f3ea7f800beeec3ed67150f0dd91f1a9358571f93336c32f4badd1f"
+        }
+      },
+      {
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-qualification-capability-exclusion\\root-check.py",
+          "test_improvement_qualification_admission_fences.py",
+          "-v"
+        ],
+        "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+        "start_utc": "2026-10-24T09:51:59.868515+00:00",
+        "end_utc": "2026-10-24T09:53:45.117643+00:00",
+        "logger_pid": 13752,
+        "child_pid": 19168,
+        "exit": 0,
+        "duration_seconds": 105.25,
+        "freeze": "pre-final-freeze-20261024T095142690442Z.json",
+        "post_run_equal": {
+          "server/improvement_trial_admission.py": true,
+          "server/improvement_operation_execution.py": true,
+          "server/improvement_trial_runner.py": true,
+          "server/improvement_operation_runner.py": true,
+          "tests/python/test_improvement_qualification_admission_fences.py": true
+        },
+        "name": "09-final-refrozen-new-module",
+        "test_methods": 8,
+        "unittest_seconds": 102.267,
+        "resource_warning_lines": 0,
+        "slow_task_diagnostics": 17,
+        "raw_metadata": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/09-final-refrozen-new-module.json",
+          "bytes": 991,
+          "sha256": "a8bd75eea5d3c7c4f29b6df36e3763768a9122f556696d147307c67fad6e22c6"
+        },
+        "raw_stdout": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/09-final-refrozen-new-module.stdout.txt",
+          "bytes": 81,
+          "sha256": "66c90ccc27bfbf6ffb9862c2d29d64f194a090f80890f9ebd6fcec5bdc323eee"
+        },
+        "raw_stderr": {
+          "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-logs/09-final-refrozen-new-module.stderr.txt",
+          "bytes": 13436,
+          "sha256": "3f37ba56e6e276c05d87052a50b8c00a7166ef3bec187c6c6770df81b4a3a74b"
+        }
+      }
+    ],
+    "new_module_slow_task_diagnostics": 17,
+    "existing_operation_selector_slow_task_diagnostics": 1,
+    "final_ResourceWarning": 0,
+    "no_warning_suppression": true
+  },
+  "early_linux": {
+    "run_id": 40083817343,
+    "job_id": 120842572439,
+    "commit": "f611065a22fceec66264c6146273f13b5f453293",
+    "passed": 13,
+    "skipped": 0,
+    "log": {
+      "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/early-linux-job-120842572439.log",
+      "bytes": 96417,
+      "sha256": "39d42e4c075fd69ea9838505f02545124c147c94975ef1aa328e53e9c45a4e84"
+    },
+    "utf16_units": 95615,
+    "CR_count": 0,
+    "slow_task_diagnostics": 14,
+    "resource_warnings": 0,
+    "punycode_notices": 2,
+    "node_action_notices": 1,
+    "unittest_summaries": [
+      [
+        "8",
+        "22.059"
+      ],
+      [
+        "1",
+        "0.945"
+      ],
+      [
+        "1",
+        "1.117"
+      ],
+      [
+        "2",
+        "0.992"
+      ],
+      [
+        "1",
+        "2.857"
+      ]
+    ],
+    "conclusion": "success",
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40083817343",
+    "jobs_receipt": {
+      "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/early-linux-jobs.json",
+      "bytes": 1735,
+      "sha256": "943aab456c5dc7328165e8a69224a037b77860271d08cd069ddabaee16ad7d14"
+    },
+    "ci_package": {
+      "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/early-linux-package.json",
+      "bytes": 1826,
+      "sha256": "8bb6c9bc30983965f6bf68e04ea0b999503fe30e0b335ce44c88a8706621a795"
+    },
+    "only_owned_ci_ref_pushed": "codex/agent-skill-improvement-capability-fences-linux-check",
+    "observed_task_remote_head": "4ba9624a76cd4bfb54d3d229263baa223944383b"
+  },
+  "scoped_review": {
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "spec": "compliant",
+    "quality": "Approved",
+    "critical": 0,
+    "important": 0,
+    "minor": 1,
+    "report": {
+      "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-review.md",
+      "bytes": 7856,
+      "sha256": "9fbcea029b7bc4cfebb9acf221ba1284f70e169fe5ca430c4f704b5a677c0693"
+    },
+    "root_resolution": {
+      "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/root-review-resolution.md",
+      "bytes": 3328,
+      "sha256": "2630f147069da5a3f4804a5b98a9791758d8085bcdcedec9366ca4b3c0d297e6"
+    },
+    "minor_M1": "async fixture slow-task noise carried to final whole-branch review; evidence counts corrected without rerunning tests",
+    "CannotVerify": "root resolved task-specific source/ownership/CI context; installed qualification/final-head CI/wholebranch/integration/M2 remain OPEN"
+  },
+  "worker_report": {
+    "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-report.md",
+    "bytes": 20107,
+    "sha256": "03f661f0fe164b8f37ecf714990c53c2308e6399c94228189e03004b5b3faf14"
+  },
+  "report_only_correction": {
+    "prior_report_snapshot": {
+      "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/task-1-report.md",
+      "bytes": 18914,
+      "sha256": "eb3fd130c876f8076c16526b7e8f00af68f979da6c949e7e6a4df022a54491f6"
+    },
+    "reason": "line-start-only regex missed diagnostics prefixed by unittest output; current totals include pending and finished",
+    "actual_totals_by_run_01_to_09": [
+      13,
+      15,
+      14,
+      16,
+      0,
+      0,
+      0,
+      1,
+      17
+    ],
+    "tests_source_logs_freezes_unchanged": true
+  },
+  "independent_artifact_audit": {
+    "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/root-artifact-audit.json",
+    "bytes": 35381,
+    "sha256": "d9a68721fa00dda1ea53f2e76727b42aa29a838c970169b44748c43901f9687e",
+    "indexed_artifacts": 87,
+    "original_index_preserved": true,
+    "only_indexed_report_changed_by_documented_correction": true
+  },
+  "resources": {
+    "worker_slot_release": {
+      "released_utc": "2026-10-24T09:55:49.189424+00:00",
+      "slot": "sole serial local app/native test slot",
+      "released_to": "root",
+      "status": "RELEASED",
+      "commit": "d0d5b27c143e5efcc1c89378c76914834d228094",
+      "report": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-qualification-capability-exclusion\\task-1-report.md",
+      "active_assigned_processes": 0,
+      "observed_owned_temp_remaining": 0,
+      "no_more_worker_tests_scheduled": true
+    },
+    "root_current_audit": {
+      "path": ".superpowers/sdd/2026-10-24-m2-qualification-capability-exclusion/root-terminal-resource-audit.json",
+      "bytes": 340,
+      "sha256": "8814f595272f06a1fedb29c21b3332ec0f37fb3d0bd91d2319af7728f3c395da"
+    },
+    "root_current_owned_processes": 0,
+    "no_process_kills_or_unknown_temp_deletion": true
+  },
+  "protected_reservation_test": {
+    "path": "tests/python/test_improvement_view_reservations.py",
+    "bytes": 13956,
+    "sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0"
+  },
+  "profile_sources": 99,
+  "native_status": "UNQUALIFIED_both_registries_closed",
+  "is_full_final_head_CI": false,
+  "is_installed_native_or_account_readiness": false,
+  "is_M2_or_Goal_completion": false,
+  "business_live_acceptance": "PENDING_not_run",
+  "next": "actual owned startup3 preflight, then current-input technical query/accounting/publication/cold-cleanup; D2/E/F/final gates/handoff"
+}

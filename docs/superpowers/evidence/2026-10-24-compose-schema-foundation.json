@@ -1,0 +1,198 @@
+{
+  "unit": "Backed-up atomic schema8 migration and separately gated compose history foundation",
+  "base_commit": "fa458766199609566530af3afc61254d560543d6",
+  "goal_sections": "12-17",
+  "source_and_test_sha256": {
+    "server/improvement_operation_schema.py": "91768c8bbfa6a69e8b0c1451dcbffaa8fd596f19b506d8de0ed08354c60e8937",
+    "tests/python/test_improvement_cases.py": "f7cce9535d67fb367abb5f5ffe1f5bb81b29ee80cfa32e5c91d4118987763f35",
+    "tests/python/test_improvement_operation_execution.py": "af68df55d8e8e8c11832b8731ee7ea655ee82df59c131ec96c2f91233f0e59e7",
+    "server/improvement_compose_schema.py": "a33edf30ba19d73918d8e48138ca62c56dcfc67fa01b2b44e386e95fd192096f",
+    "tests/python/test_improvement_compose_schema.py": "55b7b7d0d5088f729b83de66b9eb0faf0c1e8b72b3c47156a8499aebf0f477da",
+    "tests/python/test_improvement_compose_schema_boundaries.py": "09e72f0300c30b974e043c0990a1063728203b9e79beac0ac3e0496fc0dc33ca",
+    "server/improvement_store.py": "6951a65738070fd3a344141b66071f615e97e590a51dcbccfe46f0a5fb9a2255",
+    "tests/python/test_improvement_candidate_records.py": "4fd94dbe945e0e84f0701c5e999e84e4d2e3505ef8f4099fba41b3d3a72811c9",
+    "tests/python/test_improvement_operations.py": "ac4a0cffccaa495814914dacd8c47915bed47f3271de98529adac7164efb6216",
+    "tests/python/test_improvement_view_schema.py": "a6ad5a83dd5bdf8d8ee14e872d2069c45edc86c3271ac30044aa1701e2748256",
+    "server/improvement_claude.py": "408687299b69ccaaa7a64bd3202401baf03e1258908874b23a4060fef28f4e4b",
+    "tests/python/test_improvement_experiments.py": "5d4afe0405db1ad7f4505aadf3e0209661742fa13ceb626ea35e6ca47dbe0a8c"
+  },
+  "behavior": [
+    "Preserve historical schema1–7 literals and all existing IDs/columns/values/Fernet bytes/history. Rebuild only operations/candidates/arms/selections with checked explicit compose/ordinal3 overlays.",
+    "Actual GoalStore BEGIN IMMEDIATE serializes backup and create/copy/drop/rename; FKOFF only on owned migration connection before BEGIN. Authenticate old guards before schema7 backup, restore exact known guards/indexes and check installed schema/FKs before commit. Failure rolls back schema/rows/guards; ordinary connections retain FKON.",
+    "Separate immutable compose authorizations/compositions and one-way revocable grants, explicit composer/improve_compose identity and one operation per experiment. Sealed selection refuses new consent/operation/publication.",
+    "Publication binds actual completed operation/result/attempt/CallLedger status/engine timestamp and exact brain/purpose/attempt/context/mirror/reason. Typed ordinal3 requires matching composition publication and starts unreviewed without inherited edit authority; ordinary staging/generated caps remain two.",
+    "output_hash binds existing encrypted operation RESULT REPORT blob. Raw artifact/decisions/source/owner/semantic/independent trial checks belong to the future typed publisher; no enabled compose runtime or positive composed bundle is claimed.",
+    "Current schema8 role guard validation preserves operation errors; view guard consumer retains its own diagnostic. Unknown future version preserves original SchemaError before native probe."
+  ],
+  "tests": {
+    "author_red": {
+      "tests": 6,
+      "failures": 6,
+      "errors": 0,
+      "seconds": 0.008,
+      "before_private_fixtures": true
+    },
+    "root_independent_author_cases": {
+      "tests": 6,
+      "passed": 6,
+      "seconds": 26.607
+    },
+    "root_second_author_cases": {
+      "tests": 6,
+      "passed": 6,
+      "seconds": 22.09,
+      "scope": "Before final diagnostic-only helper dispatch fixes; migration/DDL/guard semantics unchanged"
+    },
+    "root_boundary_red": {
+      "tests": 4,
+      "passed": 3,
+      "failures": 1,
+      "seconds": 18.836,
+      "reason": "Selected experiment could gain new compose consent"
+    },
+    "root_call_binding_red": {
+      "tests": 1,
+      "failures": 4,
+      "seconds": 4.522,
+      "reason": "Four subtests: real settled-call identity drift was accepted"
+    },
+    "root_boundary_green": {
+      "tests": 5,
+      "passed": 5,
+      "seconds": 23.489
+    },
+    "root_initial_regression": {
+      "scripts": 8,
+      "tests": 118,
+      "passed": 115,
+      "failures": 2,
+      "errors": 1,
+      "result_sha256": "e1102361b3f2d6d189f191b28960e2e09bc825bd3901fb56f9cd3792a0a968ce",
+      "scope": "Retain initial candidate backup expectation failure, future-version exception error and view diagnostic failure honestly; all three fixed and focused checks passed"
+    },
+    "root_final_future_version": {
+      "tests": 1,
+      "passed": 1,
+      "seconds": 2.806
+    },
+    "root_final_delta": [
+      {
+        "file": "test_improvement_candidate_records.py",
+        "case": "CandidateRecordTests.test_concurrent_upgrade_has_one_serialized_backup",
+        "exit": 0,
+        "seconds": 1.974,
+        "log": "final-candidate-backup.log"
+      },
+      {
+        "file": "test_improvement_cases.py",
+        "case": "ImprovementCaseTests.test_concurrent_m1_migration_has_one_backup_and_no_partial_schema",
+        "exit": 0,
+        "seconds": 1.256,
+        "log": "final-case-backup.log"
+      },
+      {
+        "file": "test_improvement_view_schema.py",
+        "case": "ViewScopeTests.test_missing_or_changed_view_guard_refuses_new_authority_without_repair",
+        "exit": 0,
+        "seconds": 20.22,
+        "log": "final-view-diagnostic.log"
+      }
+    ]
+  },
+  "independent": {
+    "decision": "APPROVED_SCOPED_FOUNDATION",
+    "tests": 5,
+    "passed": 5,
+    "seconds": 21.636,
+    "stable_pins": 12,
+    "findings": [],
+    "closed_finding": {
+      "description": "Final composition publication rechecks exact settled CallLedger attempt/context/mirror/reason after initial admission",
+      "severity": "P2",
+      "evidence": "Meaningful root RED four failures; independent final root test positive rollback control then four actual field corruptions all refused"
+    },
+    "report_sha256": "9416129700e71677164fad7ee9b3c77ccc02031c9a2ddc26ae5b9900bfd72ca9",
+    "log_sha256": "48f04cf793ebe365591c4a8e7e20c6e27160ceeb33ba31885a17dc653d6cc8b2",
+    "author_six_excluded_selfapproval": true,
+    "legacy_test_deltas": "Six existing files update current/future version and exact extra backup expectations only; no history/immutable/FK assertion removed."
+  },
+  "early_linux": {
+    "run_id": 40058375830,
+    "job_id": 120766305344,
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40058375830",
+    "head_sha": "4a2877aedbdd45e7978f65aa7d6d1757a543c631",
+    "total_tests": 46,
+    "passed": 46,
+    "selected_raw_pins_verified": 12,
+    "scripts": [
+      {
+        "name": "test_improvement_compose_schema.py",
+        "tests": 6,
+        "passed": 6,
+        "seconds": 6.911
+      },
+      {
+        "name": "test_improvement_compose_schema_boundaries.py",
+        "tests": 5,
+        "passed": 5,
+        "seconds": 6.313
+      },
+      {
+        "name": "test_improvement_operation_execution.py",
+        "tests": 13,
+        "passed": 13,
+        "seconds": 13.938
+      },
+      {
+        "name": "test_improvement_operation_profile2.py",
+        "tests": 7,
+        "passed": 7,
+        "seconds": 0.889
+      },
+      {
+        "name": "test_improvement_view_schema.py",
+        "tests": 15,
+        "passed": 15,
+        "seconds": 32.147
+      }
+    ],
+    "scope": "Early isolated Ubuntu/Python3.12 exact selected-byte fixtures; not task-final-head full required CI or native/account/business qualification."
+  },
+  "prior_early_linux": {
+    "run_id": 40058040941,
+    "job_id": 120765277442,
+    "head_sha": "ba8cde3accd7ab63dbecc1d13c8764770f246838",
+    "conclusion": "failure",
+    "passed_before_failure": 103,
+    "tests_before_failure": 104,
+    "reason": "Same future-schema exception mismatch; no query was admitted; retained failure motivated final delta",
+    "proof_reused": "Candidate12/cases28/experiments19/operations21 all passed on unchanged DDL/guards. Final delta only changes unsupported-version/role-vs-view authority diagnostic dispatch; final run covers migration/compose boundaries/execution/profile/view again.",
+    "log_sha256": "1b140ffac936b6bf31ff0794396b5208aed0f2a639df387054b75ff006ebe4d5"
+  },
+  "native": {
+    "source_count": 86,
+    "profile_hash": "823a1434000fa3eabeafbd44ea92d704e60498491519f88bb702ff1aee5f514b",
+    "live_registry_empty": true,
+    "dummy_candidate_registry_empty": true,
+    "matches_historical_qualification": false,
+    "method": "Static AST/raw SHA256 only; not native source inventory or qualification."
+  },
+  "logs_sha256": {
+    "author-red.log": "a0db4a3d811f849ea5f3c47ce38de77cd95fac530a270b87159a2758e90bcbd0",
+    "root-green1.log": "6c97ecca069773f8c43359bacd400e8b5aba8a5e7f056f5592c17059bb2734b2",
+    "boundaries-red.log": "a21fdeb258cdb67a3a966bb4d16847682e859116dcea90c100c041a27f5d3c2d",
+    "call-binding-red.log": "a42086efcee4278c44d9d5d155692d85d9139bf8481a864f6ecfacf4d837b705",
+    "boundaries-green5.log": "9e71abaab90e31a36cd546b340757c9e5282d71f4be997de369d8c69827196dd",
+    "final-future-version.log": "7673f7edb45e7c930db9285ab8c0dac5ce8190bf65a8af57be76806aa4a42286",
+    "linux-final-job.log": "2f9aff111f72c1e8afc1e0caf87dceaec7aebff0ed3df6f8450115ab0e8b7802"
+  },
+  "limits": [
+    "SQL/storage controls labelled synthetic_storage_fixture/unexecuted; no real compose/native/model/account/query or business acceptance proof.",
+    "Sourcefoundation alone does not validate encrypted rawartifact/decisions semantics; future typed publisher must independently validate.",
+    "No runtime execution, composedcandidate positive publication/nativequalification/re-registration/activation; full Goal/finalheadCI pending.",
+    "No source/test edits and no broad unchanged suites run."
+  ],
+  "next": "Explicit owner permission/current authenticated saved-input guard and closed typed compose role/profile/ledger/workspace/usage, then actual one-shot RoleWorkflow publication/API/UI and independent new candidate checks. Actual upstream derived experience library follows compose; full M0–M8, final exact-head required CI, same-pipeline dummy qualification and Phase2 remain open."
+}

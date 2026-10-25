@@ -1,0 +1,76 @@
+{
+  "unit": "Actual upstream single-checkpoint compose prompt through pure body/JSON validator adapter",
+  "base_commit": "ba6a0d3c4f986ada25a43c5f3599d56f55ac6af7",
+  "goal_section": "17",
+  "upstream": {
+    "repository": "https://github.com/google-research/harness2",
+    "commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+    "exact_definitions": 9,
+    "actual_original_raw_sha256": "d1f4f8db4ab4cb4addcbca175b548db2270375499fda727ac95d271c63cc2504",
+    "original_git_blob": "9ccacf23b64ac15b06a1939f26224960f56d757c",
+    "license_git_blob": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+    "verified": "Original raw Git blob/full SHA; exact original vs vendor source segment and AST for each definition; recorded upstream line bounds/source/AST hashes; original Apache2 license Git blob",
+    "manifest": "third_party/harness2/COMPOSE-PROVENANCE.json"
+  },
+  "implementation": "Actual unchanged compose_round(_tidy/_work/_lens/_st/_SurfaceText/boundaries) runs once at t=k=1; static Javis body surface and closed JSON adapter validate two original patch projections and new combined bytes through existing validate_body_patch.",
+  "source_and_test_sha256": {
+    "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9",
+    "third_party/harness2/COMPOSE-PROVENANCE.json": "ce7839f1a378502caeb5c06af54a66727761f0223bdc336f549cbf0b003fb11c",
+    "tests/python/test_improvement_compose_protocol.py": "3dee17faaa3516ec3390e010eac18c9e281b7a6f24ac4f2e687084d8dbc374ba",
+    "server/improvement_generation_protocol.py": "1f0eae722a727d095e84a7d0bf7e99fe23441d0ffa96367e47688ede895b637d",
+    "server/improvement_cases.py": "561d848331eca7ce6b4e84d6b68b1cac031a62f8dc0e4ce14250bda7f80d2b9d",
+    "server/improvement_compose_protocol.py": "6df01c2d268586003cb1f2b79ebf28fd3fa1857aa89d63c3d2427c98406c7bcc",
+    "server/improvement_skill_patch.py": "c06eb301c2c8d9ab7d68368f42256b9cb55108780c3782e3cf06aa0cdcbd87d3",
+    "tests/run.py": "59756fe950a50a85ba761f5aba132566656022718dd91b936c1f2266bb9fb92a",
+    "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  "red": {
+    "tests": 8,
+    "failures": 8,
+    "seconds": 0.008,
+    "reason": "Adapter absent; all assertions fail in setUp, no import/fixture errors"
+  },
+  "root_green": {
+    "tests": 9,
+    "passed": 9,
+    "runner_exit": 0
+  },
+  "affected_regression": {
+    "script": "test_improvement_skill_patch.py",
+    "tests": 11,
+    "passed": 11,
+    "runner_exit": 0
+  },
+  "independent": {
+    "decision": "APPROVED_SCOPED_COMPONENT",
+    "tests": 9,
+    "passed": 9,
+    "seconds": 0.256,
+    "stable_pins": 10,
+    "findings": [],
+    "report_sha256": "a06d21b5af3325fbf755a6c3ae5e288389caedbaa5ff71010e4c96b0b7a9a4bb",
+    "log_sha256": "473d7cda2f3f3b9d2e33c17f92692d20f4a23499c3f79d9e619f0727e736552f"
+  },
+  "log_sha256": {
+    "red.log": "d0b8c74166f201ab896aae2eb1415947475c83224bd876d86e71e48afaf31bcd",
+    "green1.log": "a7c10e23fd764dfb026e4e4692112eb329862523223650b97b480dedf3a6b594",
+    "green9.log": "a7c10e23fd764dfb026e4e4692112eb329862523223650b97b480dedf3a6b594",
+    "patch-regression.log": "269329875db08838b0a368394294142699e76c657bd59c487cff62859143e9f0"
+  },
+  "limits": [
+    "Pure caller projections remain unverified; public-contract/trace privacy and authoritative encrypted lineage are future host obligations.",
+    "Existing validator called with region=None: structural body/prefix/reference preservation is not owner exact-region authorization or protected-meaning approval.",
+    "Decision kept/revised/dropped remains model_claim_unreviewed; parser does not certify semantic attribution or actual survival of each source edit.",
+    "No model runtime, durable composition/candidate publication, bundle execution, eligibility, source grant, native/account or rollout proof.",
+    "No production edits or unchanged broad suites."
+  ],
+  "next_consumer": "Use a distinct immutable composition record plus explicit operation/schema/arm migration, preserving original two candidate identities and storing input/output hashes, both per-edit decisions and authenticated tuning lineage. Current ordinal1/2 arm/selection constraints must not be bypassed; a new composed bundle needs its own actual probe/qualification/regression and no inherited pass.",
+  "remaining_gates": [
+    "Authoritative host tuning/owner/grant/brain/source/holdout projection and current fences.",
+    "Durable composition and actual existing Operation/CallLedger ownership with explicit schema/arm migration; no ordinal3 shortcut.",
+    "New bundle tuning, qualification, regression, semantic review and atomic application remain separate.",
+    "Native source footprint must include adapter/vendor when connected, then requalify changed exact sources; final-head full required CI pending.",
+    "Actual experience-library adapter and orchestration assessment follow Goal17 order. Full M0-M8 Phase1 and Phase2 remain open."
+  ],
+  "claims": "Component/fixture implementation only; no model behavior, privacy authorization, runtime readiness, quality/cost-saving, business pilot or live activation proof."
+}

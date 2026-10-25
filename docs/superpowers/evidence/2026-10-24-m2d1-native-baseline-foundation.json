@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "status": "scoped_readonly_foundation_independently_approved",
+  "pins": {
+    "server/improvement_sandbox.py": "e7e8b6263b7eb4e4410b5eeb237a5ff3a3541bf6b285a0d5a2b5411640a66dc6",
+    "tests/python/test_improvement_manifest5.py": "63824f3f677c9a80522124d1f24fa73f76d562b8f5e0c5752e7cd22ae6b52df7"
+  },
+  "red": {
+    "tests": 6,
+    "seconds": 0.011,
+    "errors": 2,
+    "failures": 1,
+    "log_sha256": "86781678a2c58093110b6b5d5c699535b7cc90806893724e3fcf161fb741c0e0"
+  },
+  "author": {
+    "tests": 6,
+    "seconds": 0.02,
+    "log_sha256": "ee807ace2113cfb5431a2585734843baaa635db91aa662e44dc2b174e1d4fa1f",
+    "scope": "Before test1 assertion correction to check actual defensive copy; production unchanged"
+  },
+  "independent": {
+    "tests": 21,
+    "seconds": 0.057,
+    "exit": 0,
+    "log_sha256": "05d55fbdc82ee4459a5bea60f6fc5c8a93e654bedda8029d5e6d14b0a7b6b79b",
+    "report_sha256": "2b2a27044257c9083f110ae7cc50bff497f617b5b118bd16a5ffbbea5ae30437"
+  },
+  "behavior": [
+    "Explicit baseline5 carries actual bundle/context/assets/fixtures without invented effective_view",
+    "Old1/2/3/4 shape/prompt/hash behavior preserved; baseline5 inline prompt/effective hash equal1 and canonical full input hash differs by version",
+    "Multiple real skill/agent assets retain hash/path/duplicate/contract/fixture checks",
+    "Paired-view brokers refuse5 and unused read correlators remainUNKNOWN"
+  ],
+  "limitations": [
+    "Readonly manifest validation only; no producer/profile/receipt/worker/runner/result activation",
+    "No native/provider/account qualification, observed asset reading or business proof",
+    "Native baseline execution must use same guarded pipeline and honest unknown coverage; final-positive gates unchanged"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline"
+}

@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "phase": "1-code-and-technical-checks",
+  "base_head": "a0ccc8ff0121dbebca5f2545f0fc3765d012d795",
+  "scope": "Ordinary opt-in final Dashboard API named skill snapshot lifecycle/lazy/hub/router/private cache only",
+  "source_test_raw_pins": {
+    "server/improvement_task_skill_scope.py": "9bfeb15cea63d9b073ac65c5d00c44b804fb25fa099b13b36ed987698fe091d2",
+    "server/improvement_task_skill_turn.py": "fa190df523dc87e78fa2e2f0ae558293b2a99d6f08143bfee10227b0a27ee64c",
+    "server/lazy_skill_runtime.py": "0c969d10b780ef5b2aff4f01a321ab848e755aa56f263dff1efd53c28421f241",
+    "server/main.py": "b4321317cabccbc8b12c33189c402ce1fbd3be18f6b4fa359fe9df05a52ef630",
+    "server/mcp_hub.py": "34d705418ef9f9c13657a6963d29328c765b3e8f3397286fc2d74a7f7cab304b",
+    "server/skill_router.py": "b9d719894c3a31c4a23ebaefc943ac92716215736cc96394394c38d7b8665781",
+    "tests/python/test_improvement_task_skill_scope.py": "64502c488d418bc9287b29238b5d2e7a4690e1b832344683fe9e6cf36e388ecb",
+    "tests/python/test_improvement_task_skill_turn.py": "e5fa58f557e16f7635ff49ee1fb4753b70f43c00a2aaac05d52b7bb1ce598491",
+    "tests/python/test_improvement_task_skill_consumers.py": "32db8b17524b5490dafcee88f0e900ce2952f446fde35ade24476ae82dfadd3d"
+  },
+  "core_author": "m2d1_whole_review",
+  "core_independent_reviewer_executor": "root",
+  "integration_source_author": "root",
+  "integration_independent_reviewer_executor": "m2d1_whole_review",
+  "independent_report_sha256": "fb8a1670e1f0776c1f1bc61c80fe8f9816c65f8af2a5a75e9a882dd70294883f",
+  "test_authorship": "Core13 and initial lifecycle7 authored by agent; consumer11 and cancellation-failure regression authored by root. No self-approval claimed for authored tests/core.",
+  "verification": {
+    "independent_core": {
+      "tests": 13,
+      "passed": 12,
+      "skipped": 1,
+      "seconds": 4.072,
+      "skip": "Windows file symlink privilege1314; prior descriptor containment evidence reused"
+    },
+    "root_impacted_regression": {
+      "scripts": 10,
+      "passed": 10,
+      "seconds_rounded": 40,
+      "scope": "Phase8, three task-skill suites, prompt scan once, ordinary asset reads/caps/languages/resolution/usage; later narrow cancellation failure correction separately verified"
+    },
+    "consumer_red_green": "RED7:3failures/1missing-blob error ->GREEN7; reviewer async-return/cache negatives RED10:3failures ->GREEN11:11PASS4.672s",
+    "cancellation_red_green": "After repeated Stop, failing capture raised ValueError:RED1ERROR.403s -> complete lifecycleGREEN8PASS4.394s",
+    "independent_integration": {
+      "tests": 12,
+      "passed": 12,
+      "skips": 0,
+      "seconds": 5.141,
+      "scope": "consumer11 4.778s plus root-owned cancellation-failure1 .363s,14pins stable; two Important findings closed; no broad review"
+    },
+    "early_linux": {
+      "url": "https://github.com/blogminhquy/javis-os/actions/runs/40053479314",
+      "commit": "cfdc8cd181a23b51a9585b22802c988ba5469cf5",
+      "scripts": 10,
+      "passed": 10,
+      "seconds_rounded": 17,
+      "scope": "Isolated Git tree with nine exact selected raw files, fresh remote HOME/DB/FS; no task index change. Not exact-final-task-head full CI."
+    }
+  },
+  "logs_sha256": {
+    "root-core13.log": "4769c3fe5c5037990b99cc1b4693e568ca9cca81b0b9e55d9683aece0f8fbffb",
+    "root-regression.log": "fd624682fb4722a0bc07bfaa6f354df1435fb6cf82f59f22cdd51bcb6de367e2",
+    "consumer-red7.log": "a4b81652dc5efbd34b859173063b614a41206f97a3cccd239dcf0f79cc03a66e",
+    "consumer-green7.log": "70e72888504bad49829a0441453dc08562fb9f261d29440495d27e4c2ca37e04",
+    "consumer-red10-corrected.log": "383e2948eacd7929b1b5d8040bdc2776513b1f7fed875389d64d421eca8b46c4",
+    "consumer-green11.log": "b0b50d418b6f17c7dbfe6a4859f13cc07114994ce523a05313ef3ccbb667e348",
+    "independent-consumers11.log": "37f165ccbae091b63e8238540814392111b9643bb58ad1230b199768193e7ad8",
+    "independent-cancelled-failure1.log": "0f3b8bd9064320d84dfc5b1d62f91585252f8647f7b1178a0048a14f79dd193e",
+    "cancel-failure-red.log": "bb97de6580f7ab0496af60ea2d8ad49fd75eb9a9e6cad34284a75e8c9e0df57c",
+    "green8.log": "2522c89166d141280fc67bf11cb6621f438dbff156c1bcf081dee0e313560689",
+    "linux-40053479314.log": "adb03f6d08dd765ee5476ffd104da8aabec8081a5805e7fff4c517a541bd8e42"
+  },
+  "observations": [
+    "Exact live host Token/current trace plus real running ObserveRuntime task/step rows required; default/off/native/nonhub/no-key never capture",
+    "Header-only descriptor-bound frozen per-language inventory, actual first selected bytes in existing encrypted M0; no new revision/schema/ledger/executor",
+    "Same-task lazy and warmed in-process named hub reader return same raw source hash across body edit; new task observes new body",
+    "Actual disabled/path/permission/header drift, missing encrypted blob, dead/foreign/copied owner refuse; no mutable fallback from invalid bound scope",
+    "Private task metadata and hub cache never replace brain-global derived skill source; actual shadow scheduler suppresses task descriptor publication",
+    "Repeated Stop drains actual capture future; a late capture error cannot replace retained caller cancellation; owner closes before original host token reset",
+    "Hub rechecks same scope across async read/usage and discovery before returning/publishing; usage is completed authorized source read, not delivery proof"
+  ],
+  "limits": [
+    "run_turn lifecycle test executes actual AST function with inert _do_turn seam; final API branch gates source-reviewed, no full WebSocket/provider E2E claim",
+    "Named lazy/hub and prompt metadata only; arbitrary file/helper reads are not an effective-view sandbox",
+    "Native/HTTP/resume/OAuth/workflow/voice/bot/earlier fast paths and candidate activation remain outside this unit",
+    "No account/model/native query, deployment/restart/settings activation, business benefit or canary proof",
+    "All exact-source qualification must match current source closure; historical proofs remain scoped and cannot qualify changed sources",
+    "Exact-final-head full CI, remaining D2/E/F and M3-M8 code, then all required Phase2 evidence remain open"
+  ],
+  "upstream_reuse": "Goal14 assessment inspected pinned substrate/base and core/context; keep existing Javis M0/runtime/turn owner. No upstream code imported/copied into this unit. Goal15 prompt adaptation queued separately."
+}

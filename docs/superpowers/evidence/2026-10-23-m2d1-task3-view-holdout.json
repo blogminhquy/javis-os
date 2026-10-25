@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 current-view global holdout alias boundary",
+  "parent": "b3a3f0cb658a2a4ef56b6e9ec7c1eb0e047654ba",
+  "sources": {
+    "server/improvement_experiment_qualification.py": "d5392286d7476996001561bba3e1960daa599d785f6a57ef2b1e3b420652e960",
+    "server/improvement_improver_inputs.py": "69053b2fb9d4794dd504f5111db305065c5d443ef0426c2188fae927dbb7f503",
+    "server/improvement_view_sources.py": "b8b85319ad2359be87f7c075f3832b0ffb1a787cc20bf1b1cef2cf055b574534",
+    "tests/python/test_improvement_view_holdout.py": "7df6221a71b40577a7e98bd22ac64df7721392568d562dda54b8bc4db5d43148"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_holdout.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 36.264,
+      "seconds_basis": "unittest elapsed, direct unchanged-source invocation",
+      "log": "task3-view-holdout-green.log",
+      "log_sha256": "6c53a1eea9a7263b3a4a680cd8765e6f475aba3844bf205e95ad74829fc562bd",
+      "tests": 3
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_improver_inputs.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 50.672,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-view-holdout-0.log",
+      "log_sha256": "6fc73f617f2c40a787b8e66fd4f9f0b0dd5ce9ab9f64fbc1439846e438f782cd",
+      "tests": 10
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_sources.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 152.422,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-view-holdout-1.log",
+      "log_sha256": "7556f75e32aa10699dd1bdee4e1bd16b024b673660a67ccc83df6356c4eb316e",
+      "tests": 16
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "ViewReservationTests.test_actual_v4_pair_reserves_existing_calls_links_and_cold_replay",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 23.485,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-view-holdout-2.log",
+      "log_sha256": "d105afe7d9fac17765dc45be906150159b7416336e879ffd261496e46dfa4682",
+      "tests": 2
+    }
+  ],
+  "total_tests": 31,
+  "total_recorded_seconds": 262.843,
+  "seconds_basis": "Direct3 unittest elapsed, then3 affected subprocess wall rows; unchanged source throughout.",
+  "complete_source_log_record_sha256": "b64160053f80d4f66fe5faf250c2e6a84708f78e593d1358931c129545ad258b",
+  "shared_improver_guard_sql_unchanged": true,
+  "red": {
+    "log": "task3-view-holdout-red.log",
+    "sha256": "9944bec99954cb95144283ebcd05792da0d40079935843adf32f04b13d4c103e",
+    "reason": "Genuine owner-created holdout aliases reached private context reads during new/current view capture."
+  },
+  "native_profile": {
+    "sources": 79,
+    "hash": "b46e2cc3744067a9d367781b544df8b036de760c385319d7f5a4d4621459b771",
+    "qualified": false
+  },
+  "actual_case_store_aliases": true,
+  "alias_rejected_before_plaintext": true,
+  "historical_metadata_preserved": true,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false,
+  "limits": [
+    "Actual alias case sets are owner-created through CaseStore; no future claim, final comparison, eligible result or readiness flag is fabricated.",
+    "New publication and current frozen-view reservation reject qualification/regression source aliases; cold metadata remains exact.",
+    "The existing improver SQL guard and error remain unchanged, including no consumed-claim exception.",
+    "Final qualification registry ownership, exact native qualification, public controls and whole-branch review remain open.",
+    "No selected-model query, native registration, eligibility, activation, deployment or restart."
+  ]
+}

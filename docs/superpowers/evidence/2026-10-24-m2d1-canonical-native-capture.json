@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "label": "standalone/isolated-native-creator-capture-and-persistent-debug-pump",
+  "evidence_class": "technical",
+  "task_parent_commit": "326c9d9ea0b49f4a7c1cfb1dcfc03031732807d4",
+  "production_reachable": false,
+  "source_hashes": {
+    "server/improvement_native_capture.py": "902ba370bf33e24141635145900dc57ceb3cc1f8ed53624b68d0605425d2db24",
+    "server/improvement_native_capture_win32.py": "54dd2ed75e6406c93d2765ff1f72716194382199863e71dbbdc183319984f793",
+    "tests/python/test_improvement_native_capture.py": "f712dd9e63b3a284637bbfc22c5da84bdf6e49fbe797d30ff616622adafbdfdb"
+  },
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "test_command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -I -B <raw_evidence_directory>/run_canonical_capture_tests_v1.py",
+  "driver_sha256": "64fcf3f8a9ac93032281e650a954487c01595f1699cc6b950bcec721e22e035e",
+  "runtime": {
+    "platform": "Windows x64",
+    "python": "3.12.10",
+    "sdk": "0.2.116",
+    "anyio": "4.14.1",
+    "native_fixture": "Private copied System32/cmd.exe running echo builtin with own empty HOME/minimal environment."
+  },
+  "author_runs": [
+    {
+      "stage": "initial_red",
+      "tests": 9,
+      "failures": 9,
+      "exit_code": 1,
+      "seconds": 0.156,
+      "reason": "component_missing; no native child"
+    },
+    {
+      "stage": "initial_green",
+      "tests": 9,
+      "exit_code": 0,
+      "seconds": 3.624,
+      "scope": "Original source/test snapshots preserved."
+    },
+    {
+      "stage": "privacy_strict_ack_red",
+      "tests": 2,
+      "failures": 7,
+      "exit_code": 1,
+      "seconds": 1.923,
+      "reason": "Callback NativeCaptureError leaked text; subclass/custom-equality ACK keys/values accepted."
+    },
+    {
+      "stage": "corrected_green",
+      "tests": 11,
+      "exit_code": 0,
+      "seconds": 4.226,
+      "log_sha256": "3f26710aff0988c72364272545d495b0d382c5be07bbd2b6cd563e2f1124936e"
+    }
+  ],
+  "independent_review": {
+    "verdict": "standalone_scoped_approval",
+    "tests": 11,
+    "exit_code": 0,
+    "seconds": 4.3,
+    "source_test_driver_dependency_hashes_unchanged": 7,
+    "all83_pins_unchanged": true,
+    "log_sha256": "751a48b87b32af4592aee7d48230f479a6716a585bafebd64c6d16819eaaf298"
+  },
+  "tested": [
+    "Actual SDK-imported anyio Process returned unchanged only after nonce/incarnation-bound cooperative image ACK; samecreator pump persists through wait/aclose and continued debug EXIT.",
+    "Pre-Create validator refusal and post-Create duplication failure; raw unreturned process/thread authority retained and drained.",
+    "Deny/malformed ACK/EOF/callback exceptions never perform final allow resume; exact built-in ACK fields prevent equality spoofing and private error-text leaks.",
+    "Ordinary and eight repeated cancellations drain before caller returns; persistent event-read and CloseHandle failures retain complete owner for same-thread cleanup retry.",
+    "Uncooperative ACK remains visibly unproven with retained owner/tasks/capabilities until later settlement; no false cleanup success.",
+    "Lazy supported-x64 ABI checked; Windows API not loaded at module import; no execution consumer/profile entry."
+  ],
+  "author_report_sha256": "9203fb2e6346b59658b50414f327f2ef3b443437fb0ce98b1a3d976eb1c712ac",
+  "author_manifest": {
+    "files": 37,
+    "sha256": "ac4338b4f1c07c516dd0d62eb05c138f146f82b4c28644e0635b0241a56f06cc",
+    "note": "Explicit author-only v2 manifest. First broad-glob freeze included an open reviewer log and failed; failure preserved separately, no source/test mutation."
+  },
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+  "selected_cli_or_account_calls": 0,
+  "sdk_client_connect_or_query_calls": 0,
+  "provider_calls": 0,
+  "limits": [
+    "Requires cooperative async ACK. Existing blocking stdin.readline/to_thread channel is not integrated.",
+    "Enclosing guardian must already own worker/job and retain image guard through actual whole-job drain; component tests do not prove whole-job/worker-death/durable recovery.",
+    "Trust basis is qualified creator capture, not independent guardian kernel-event association. No image-file/page verification, actual SDK query/configuration or three-actor confidentiality proof.",
+    "No historical guard35/V6/where/native20 rerun. In-process retained ownership is not durable recovery; synchronous OS calls have no hard wall-clock guarantee.",
+    "Linux pure/import path awaits actual final-head CI; Windows cases require isolated driver.",
+    "No all18 eligibility, business benefit or live rollout established."
+  ],
+  "goal_complete": false
+}

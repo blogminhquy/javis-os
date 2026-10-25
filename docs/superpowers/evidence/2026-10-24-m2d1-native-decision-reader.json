@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "status": "historical_decision_reader_independently_approved_consumer_integration_in_progress",
+  "source_sha256": "9cf87b5633a156be14ee8fb2a744fe7f7dd4f6421f00f22e77732a2b2156e4c5",
+  "test_sha256": "2864f2908d2f0080e1b2e1d436ed974f6fdc7d8e7e7484938948db47f2d6fb83",
+  "red": {
+    "tests": 4,
+    "errors": 4,
+    "seconds": 0.814,
+    "log_sha256": "83eba24e6f93e234fa691008587d7c9f4efdc24d2a79f5c8a9fe20ae619ab1cc"
+  },
+  "author": {
+    "tests": 4,
+    "seconds": 0.865,
+    "exit": 0,
+    "log_sha256": "a54d03b57de23c8c8a3211ee742ad23282fa8461c0bc32c2880a05e9ce50197a"
+  },
+  "independent": {
+    "tests": 4,
+    "seconds": 0.891,
+    "exit": 0,
+    "log_sha256": "b7e7fad71ab2edb59f244a65e2c438fb2acbb99fc413d6c73adf985d5c19c11b"
+  },
+  "behavior": [
+    "Attempt scope binds complete stored receipt/config, genuine identity, brain, kind and capability",
+    "Historical reader independently rereads exact M0 event payload/result and encrypted joined bytes; supports same result-publication transaction",
+    "No live authority calls or writes, deny remains deny and missing/scope drift/changed join/missing ciphertext refuse",
+    "Existing persist method AST unchanged"
+  ],
+  "limitations": [
+    "Actual SQLite/encrypted bytes with synthetic joined image/dispatch data; no native/account/provider/provenance authority",
+    "Cold historical read remains valid after policy off; it cannot authorize current invocation"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-decision-read"
+}

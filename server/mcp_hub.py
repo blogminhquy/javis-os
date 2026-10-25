@@ -50,6 +50,7 @@ _CACHE_TTL = 60
 # đầu), chỉ là cache NGẮN để lượt sau còn cơ hội thấy nguồn đã hồi.
 _CACHE_TTL_THIEU = 10
 _cache = {}          # (mode, vault_root) -> {"tools", "route", "ts", "mtime"}
+_cache_epoch = 0
 _rate = {}           # conn_id -> deque[timestamps]
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic"}
 
@@ -831,7 +832,20 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
 
     async def _skill(args):
         name = str((args or {}).get("name") or "").strip()
-        asset = await asyncio.to_thread(skill_router.read_skill_asset, vault_root, name)
+        from improvement_task_skill_scope import current, ScopeUnavailable
+        from improvement_blobs import AssetUnavailable
+        import sqlite3
+        def read():
+            scope = current(vault_root)
+            import improvement_activation
+            return scope, (scope.read(name) if scope is not None
+                           else improvement_activation.effective_skill_asset(vault_root, name))
+        try:
+            scope, asset = await asyncio.to_thread(read)
+            if scope is not None and current(vault_root) is not scope:
+                raise ScopeUnavailable('task_skill_scope_changed')
+        except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
+            return 'ERROR: task_skill_scope_unavailable'
         if asset is None:
             return ("ERROR: không có skill đó. Skill khả dụng: "
                     + (", ".join(_list_skills(vault_root)) or "(chưa có)"))
@@ -843,6 +857,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         # loop (WebSocket/telegram poller/loop scheduler đều chạy chung loop này).
         # bump tự nuốt lỗi → sidecar hỏng không bao giờ làm gãy việc nạp skill.
         await asyncio.to_thread(skill_usage.bump, vault_root, asset.slug)
+        try:
+            if scope is not None and current(vault_root) is not scope:
+                raise ScopeUnavailable('task_skill_scope_changed')
+        except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
+            return 'ERROR: task_skill_scope_unavailable'
         return text
 
     add("javis_read_file", "Đọc 1 file trong vault (Second Brain). path tương đối so với gốc vault; "
@@ -1384,10 +1403,16 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
            bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx, bool(for_bot),
            str(_sid_ctx or ""))
-    ent = _cache.get(key)
+    from improvement_task_skill_scope import current, ScopeUnavailable
+    task_scope = current(vault_root or '')
+    cache = task_scope._hub_cache if task_scope is not None else _cache
+    epoch = _cache_epoch
+    ent = cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)
-            and ent["mtime"] == mt):
+            and ent["mtime"] == mt and (task_scope is None or ent.get('epoch') == epoch)):
+        if task_scope is not None:
+            task_scope.manifests(lang)  # fresh enabled/source checks on a private cache hit
         return ent["tools"], ent["route"]
 
     # Phần đồng bộ của lượt dò (giải mã kho kết nối, đọc mọi SKILL.md, nạp plugin) chạy ở
@@ -1479,18 +1504,39 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # Đặt SAU builtin+plugin để chúng luôn hiện; cache lưu bản ĐÃ biến đổi (route lazy vẫn dispatch
     # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
     tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden, force=force_lazy)
-    _cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt,
+    if task_scope is not None:
+        if current(vault_root) is not task_scope or _cache_epoch != epoch:
+            raise ScopeUnavailable('task_skill_discovery_changed')
+        task_scope.manifests(lang)
+    cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt, 'epoch': epoch,
                    "ttl": _CACHE_TTL_THIEU if bo_qua else _CACHE_TTL,
                    "inventory_tools": inventory_tools, "inventory_route": inventory_route}
     return tools_spec, route
 
 
 def registry_inventory(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
-                       force_lazy=False, staging=False):
+                       force_lazy=False, staging=False, workspace_root=None, coding_ctx_cua_phien=None):
     """Trả snapshot pre-lazy đã cache; không discover I/O và không lộ ra model."""
     key = ((mode or "full").strip().lower(), str(vault_root or ""),
            bool(include_plugins), bool(include_ambient), bool(force_lazy), bool(staging))
-    ent = _cache.get(key) or {}
+    from improvement_task_skill_scope import current
+    task_scope = current(vault_root or '')
+    if task_scope is not None:
+        try:
+            import localefmt
+            lang = localefmt.ngon_ngu_tra_loi()
+        except Exception:
+            lang = ''
+        task_scope.manifests(lang)
+        key = ((mode or 'full').strip().lower(), str(vault_root or ''), bool(include_plugins),
+            bool(include_ambient), bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root),
+            getattr(coding_ctx_cua_phien, 'permission_mode', '') or '', False,
+            str((getattr(coding_ctx_cua_phien, 'session_id', '') if workspace_root else '') or ''))
+        ent = task_scope._hub_cache.get(key) or {}
+        if ent.get('epoch') != _cache_epoch:
+            ent = {}
+    else:
+        ent = _cache.get(key) or {}
     return list(ent.get("inventory_tools") or ent.get("tools") or []), dict(
         ent.get("inventory_route") or ent.get("route") or {}
     )
@@ -1498,6 +1544,8 @@ def registry_inventory(mode="full", vault_root=None, include_plugins=True, inclu
 
 def invalidate_cache():
     """Gọi sau khi thêm/sửa/xoá connection - làm mới tool list + đóng session cũ."""
+    global _cache_epoch
+    _cache_epoch += 1
     _cache.clear()
     _ambient_cache["ts"] = 0.0   # ép nạp lại danh sách connector tài khoản ở lần discover kế
     try:
@@ -1768,10 +1816,14 @@ async def handle_http(request):
     # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
     # the server happens to run it in.
     tok = turn_context.bind(turn_context.resolve_key(request.headers.get(turn_context.HEADER.lower())))
+    # CLI engines also load skills natively from `.claude/skills`; an improvement overlay served only
+    # through this tool would split one turn across two versions, so these requests see canonical skills.
+    import improvement_activation
     try:
-        return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
-                                     include_ambient=include_ambient,
-                                     raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
+        with improvement_activation.cli_transport():
+            return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
+                                         include_ambient=include_ambient,
+                                         raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
     finally:
         turn_context.reset(tok)
 

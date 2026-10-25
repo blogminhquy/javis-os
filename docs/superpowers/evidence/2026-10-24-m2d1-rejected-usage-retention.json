@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "status": "scoped_fix_approved",
+  "source_sha256": "5693e2b0c02795a5c6d6ae883ba6757112c6cc5769040294a8968a465016a102",
+  "test_sha256": "6587cd5652803e2e392526660e8068c6e6e992088409b500ed9f16e8fe4aa46e",
+  "red": {"tests": 1, "failures": 1, "seconds": 0.166, "log_sha256": "83c22017ea175258b0653b7d14660204bbc022d4e5dcaccceec3b21f4929c7bd", "cause": "Validated private usage received before account ACK was discarded on phase rejection"},
+  "author": {"tests": 1, "seconds": 0.188, "exit": 0, "log_sha256": "8a7a12af04115ce610b7675febee9668abb84bb776df975378d246020487d060"},
+  "independent": {"tests": 1, "seconds": 0.162, "exit": 0, "log_sha256": "b75c597b8036ed1895a6764f4af77f08afb5de749f585e507ed66de59dc942fb"},
+  "affected_host_regression": {"tests": 21, "seconds": 12.887, "exit": 0, "log_sha256": "cdf2596c8b89c014652ba7bbb038a1ddfbc2d6c6fb57e0de43c9dc3fed0a85f1"},
+  "behavior": [
+    "A fully decoded current worker packet rejected before live publication stays once in the existing closing pending slot",
+    "Rejected packet never enters live delivery or creates account/image authorization",
+    "Per-loop reset prevents stale reuse; existing pending envelope avoids duplicates on publication cancellation; eighteen-packet bound is unchanged"
+  ],
+  "limitations": [
+    "Focused regression uses actual private socket/channel and lexical test identity, no native peer, CLI, account or billing authority",
+    "Cancellation before worker loop obtains a decoded packet is outside this focused regression",
+    "Durable consumer must retain evidence while keeping protocol failure/unknown semantics; storage integration remains separate",
+    "Initial fixture binding error retained separately and excluded from product RED evidence"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-host-transport-v2"
+}

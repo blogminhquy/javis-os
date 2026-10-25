@@ -58,6 +58,53 @@ class SemanticReviewTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row['semantic_status'], 'unreviewed')
         self.assertEqual(self.assets.blobs.read(self.owner.brain_id, row['provenance_hash']), self.before_provenance)
 
+    async def invalid_output(self, raw):
+        subject = await self.service()
+        self.body = raw
+        result = await self.review(subject)
+        self.assertEqual(result['status'], 'invalid_output')
+        self.assertEqual(result['native_verdict'], 'unknown')
+        self.assertFalse(result['business_proof'])
+        self.assertNotIn('receipt_id', result)
+        self.assertEqual(subject.history(self.owner, self.candidate['candidate_id']), [])
+        with self.assertRaisesRegex(PermissionError, 'semantic_receipt_unavailable'):
+            subject.current_evidence(self.owner, self.candidate['candidate_id'])
+        self.assert_unreviewed()
+        with closing(self.assets.store._conn()) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM improvement_operations').fetchone()[0], 1)
+            self.assertEqual(connection.execute('SELECT count(*) FROM improvement_operation_results').fetchone()[0], 1)
+            self.assertEqual(connection.execute('SELECT count(*) FROM improvement_semantic_receipts').fetchone()[0], 0)
+            self.assertEqual(connection.execute('SELECT count(*) FROM improvement_experiment_arms').fetchone()[0], 0)
+            self.assertEqual(connection.execute('SELECT count(*) FROM improvement_qualification_claims').fetchone()[0], 0)
+        self.assertEqual(subject.products.artifact(self.owner, result['operation_id'], 1).decode(), raw)
+        self.host.revoke(self.owner, 'association-experiment', expected_generation=1, event_key='invalid-semantic-revoke')
+        self.assets.set_policy(self.owner, 'off', expected_version=0, event_key='invalid-semantic-off')
+        with patch.object(self.assets.blobs, 'read', side_effect=AssertionError('Invalid-output replay must stay cold')):
+            self.assertEqual(await self.review(subject), result)
+        self.assertEqual(self.native_queries, 1)
+
+    async def test_fenced_model_assessment_is_durable_invalid_output_without_receipt_or_retry(self):
+        await self.invalid_output('```json\n{"version":1,"verdict":"pass","summary":"Synthetic assessment."}\n```')
+
+    async def test_bare_json_missing_findings_is_not_filled_or_accepted(self):
+        await self.invalid_output('{"version":1,"verdict":"pass","summary":"Synthetic assessment."}')
+
+    async def test_invalid_output_does_not_mask_source_change_or_publish_after_revocation(self):
+        subject = await self.service()
+        self.body = '```json\n{}\n```'
+        publish = subject._publish
+
+        def revoked(*args, **kwargs):
+            self.host.revoke(self.owner, 'association-experiment', expected_generation=1, event_key='invalid-semantic-before-publication')
+            return publish(*args, **kwargs)
+
+        with patch.object(subject, '_publish', side_effect=revoked), self.assertRaises((IM.ConflictError, PermissionError)):
+            await self.review(subject)
+        with closing(self.assets.store._conn()) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM improvement_semantic_receipts').fetchone()[0], 0)
+            self.assertEqual(connection.execute("SELECT count(*) FROM improvement_events WHERE operation='semantic_review'").fetchone()[0], 0)
+        self.assertEqual(self.native_queries, 1)
+
     async def test_actual_review_receipt_keeps_model_pass_and_native_unknown_distinct(self):
         subject = await self.service()
         result = await self.review(subject)

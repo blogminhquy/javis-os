@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "status": "author_verified_independent_review_pending",
+  "pins": {
+    "server/improvement_trial_admission.py": "74f5668d417809ad3ad9a59b80358a1538820f4b9f1919624aa950d09a1a218a",
+    "server/improvement_operation_execution.py": "8c707b9c02515339d825ef68635202e482e0b173dda00d3f9e44e6f3db9c5496",
+    "tests/python/test_improvement_native_admission_authority.py": "c039337c06f38ae5dcaced4133a6fbf31375b9f5d6c90d764f752ad7f7c17074"
+  },
+  "red": {
+    "tests": 5,
+    "seconds": 10.378,
+    "exit": 1,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/red-first5.log",
+    "log_sha256": "70ef24e0ae25035d7c8eda674c3e847ae7c942280b3dda6975a42dbbfd01b1e3"
+  },
+  "author": {
+    "tests": 5,
+    "seconds": 13.571,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/green-first5-contract.log",
+    "log_sha256": "f435a900c860e6dd1ee757d6c46d6c7491d88bfedf13cc5cf264ebaa833386eb"
+  },
+  "affected_legacy": {
+    "tests": 39,
+    "seconds": 106.28,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/affected-legacy-first2.log",
+    "log_sha256": "7993498db2142fc0e8e08afcc118b342a4b469eaa19748aa7a31547f37019d63"
+  },
+  "preserved_failed_attempt": {
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/green-first5.log",
+    "log_sha256": "dcef4109928cdf7cdf3449615131bf87547611b5b420186f74b8f11ed302257e",
+    "result": "Four PASS; one expected-exception mismatch. Existing Trial contract maps PermissionError through OSError to ValueError(trial_native_unavailable). Test corrected to exact existing public contract; production exception handling unchanged."
+  },
+  "behavior": [
+    "Actual Trial owner admission and operation reserve bind concrete M0/owner authority before native verify",
+    "Both callbacks repeat original SQL/source/slot identity checks and preserve preflight without attempts/calls",
+    "Operation stale generation/nonpending/already attempted identity refuses before native verification",
+    "Policy revocation during engineering image decisions refuses reservation; cold event replay does not verify or observe source"
+  ],
+  "limits": [
+    "Actual SQLite/source fixture stores with engineering verify callback, no CLI/native/provider/account calls",
+    "Two of nine audited synchronous callers bound. Other seven and whole-pipeline qualification remain pending",
+    "Parent unit independent static review exists; independent final execution and this caller unit review remain separate pending gates",
+    "No registration, materializer flip, activation or final-head CI claim"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission"
+}

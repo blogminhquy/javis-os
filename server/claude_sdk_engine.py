@@ -1034,8 +1034,12 @@ class ClaudeSDK:
         # này; chữ thông thường, tool_use và câu trả lời của subagent KHÔNG đủ để chốt lượt.
         RESULT_IDLE = tran_watchdog("JAVIS_CLAUDE_RESULT_TIMEOUT", "30")
         self._sweep_stale_tmp()   # dọn file prompt tạm sót từ lượt trước bị crash/kill
-        # Nới trần `initialize` TRƯỚC khi dựng client: SDK đọc env ngay trong connect().
-        tran_init = ap_tran_khoi_dong()
+        trial_profile = getattr(self, "trial_profile", None)
+        client_factory = getattr(trial_profile, "create_client", None)
+        # An owned client keeps its verified process environment exact. Its SDK
+        # initialize timeout and outer lifetime remain independently bounded.
+        # Legacy clients still install the existing startup override first.
+        tran_init = ap_tran_khoi_dong() if client_factory is None else None
         self._stderr_tail.clear()   # chỉ giữ dòng của lượt này
         loop = asyncio.get_running_loop()
         # Off the event loop (0.194.0): building options reads the MCP config, loads every plugin (imports their code
@@ -1043,7 +1047,10 @@ class ClaudeSDK:
         # (loop_watch caught it). `to_thread` copies the turn's context variables, so the per-turn hub key still lands.
         options = await asyncio.to_thread(self._options)
         completion = _CompletionWatch(RESULT_IDLE if getattr(options, "include_hook_events", False) else None)
-        client = ClaudeSDKClient(options=options)
+        # The trusted isolated profile may construct the client with its owned
+        # native transport. A factory failure must escape before connect/query;
+        # falling back would bypass that transport's held-create boundary.
+        client = client_factory(options) if client_factory is not None else ClaudeSDKClient(options=options)
         started = time.time()
         tools_running = 0   # số tool đã gọi mà CHƯA thấy kết quả về
         da_co_chu = False   # đã nhận được sự kiện đầu tiên chưa (quyết định dùng trần nào)

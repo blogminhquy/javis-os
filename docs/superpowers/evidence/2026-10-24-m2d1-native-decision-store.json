@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "status": "durable_store_approved_no_production_callback_enabled",
+  "source_sha256": "8d29f3a09e3cf6e5d60c096ebe2f28c4bd87c4d4cdd1630a93ebdef16b9a2d38",
+  "test_sha256": "cbd2a5e7e77ac3d772c5ed8d5d0449cb50d1239d4606f5e588b2a04f494d0ef1",
+  "command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_native_decision_store.py -v",
+  "red": {"tests": 8, "failures": 8, "seconds": 1.151, "log_sha256": "f4c4b327a700350a1690ded7e9f51f48236c6a5cc1b1cf953cbfcf3f30e26290", "cause": "Missing durable decision store implementation"},
+  "author": {"tests": 8, "seconds": 1.547, "exit": 0, "log_sha256": "4734cd8e8fc6855dbcfb4a247e561495e24224a342d212501ed3d99b56382461"},
+  "independent": {"tests": 8, "seconds": 1.688, "exit": 0, "log_sha256": "4e453e550cdf3bd15be1bf61c191a28e974e290b75a6a6f3fd73cda1aba9f5f3"},
+  "behavior": [
+    "Uses existing improvement_events transaction/idempotency and actual encrypted RevisionBlobs; no new ledger or invented attempt",
+    "Event key binds scope/launch/purpose within brain; request hash binds exact joined hash; public metadata contains decision, hashes and encrypted chunk references",
+    "Reuses actual host image grammar/hash consistency, retains private joined bytes, and forces image mismatch to deny",
+    "Trusted synchronous callback checks actual transaction authority before persistence/replay and after fallible blob IO; replay rereads exact encrypted bytes and refuses changed decision",
+    "Caller and callback mutations cannot alter retained evidence; owner and closed synchronous decision required"
+  ],
+  "limitations": [
+    "Actual SQLite/encrypted-blob tests with synthetic joined data and explicit test guard; no native, CLI, account, provider or query calls",
+    "Consistency and durable decision do not authenticate peer/image provenance, validate the inner query argument policy, or replace accounting ACK",
+    "Production consumer must derive expected scope, authenticate actual host join and check current source/configuration/lease/generation through its trusted callback",
+    "Host transition cancellation settlement and prevention of late allow remain consumer obligations, not proved by these eight tests",
+    "Failed blob IO/authority recheck may leave encrypted unreferenced chunks, never a committed allow event or returned allow",
+    "No production callback or new source qualification enabled; complete consumer integration and final-head CI remain open"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-decisions"
+}

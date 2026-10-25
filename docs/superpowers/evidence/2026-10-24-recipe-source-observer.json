@@ -1,0 +1,339 @@
+{
+  "version": 1,
+  "kind": "recipe_source_observer_scoped_engineering",
+  "owner_scope": "Goal18: finish M2 engineering and committed Claude Opus5.5 handoff; no M3-M8 or real trial execution",
+  "implementation_commit": "269d3892e2ae735245438795a59a7558e7aa1df6",
+  "review_base": "59af4a84a87f1a0581b9b0d664c4c926e77e258b",
+  "review_head": "429d9334afa792116ad80e02f0f3bf2fd11e46af",
+  "files": [
+    {
+      "path": "server/improvement_recipe_sources.py",
+      "sha256": "fea6886fc6fbcfa56f50f79aefb90c07d4222d1c7b3cc82e589d680a51f0d986",
+      "bytes": 17621,
+      "git_blob": "b3dec25aa6a6749523e1d45178f6ca9ec593f2a4",
+      "cr_bytes": 0,
+      "utf8_bom": false,
+      "trailing_lf": true
+    },
+    {
+      "path": "tests/python/test_improvement_recipe_sources.py",
+      "sha256": "4bdea1cdb0735a4228c47e67c90bc44bf2889593569178d121ed2bb3b68b4161",
+      "bytes": 27080,
+      "git_blob": "43eab1fe8dd77a4f28ecd70f0c805bb098f568cb",
+      "cr_bytes": 0,
+      "utf8_bom": false,
+      "trailing_lf": true
+    },
+    {
+      "path": "server/improvement_trial_dashboard.py",
+      "sha256": "494c16cc63dfd1073df5cd38fbb7d834ddf2b937b5eb4b51a72230e89e277047",
+      "bytes": 47272,
+      "git_blob": "77b8e9de6164bc7a92008d9596c4e7fb1fc7d6ad",
+      "cr_bytes": 0,
+      "utf8_bom": false,
+      "trailing_lf": true
+    },
+    {
+      "path": "server/improvement_trial_service.py",
+      "sha256": "a60c0682b901d564dfb78a932a3ee83cceddf4b0f64c35780051f26697c6bbf8",
+      "bytes": 16417,
+      "git_blob": "13e53b9ec13b4fffa852cd5af8b68f7eb3cc1372",
+      "cr_bytes": 0,
+      "utf8_bom": false,
+      "trailing_lf": true
+    },
+    {
+      "path": "server/improvement_recipe_archive.py",
+      "sha256": "b7967c754d4e79bee9ee677b8ee0e7906f9c13d2d4bdb8d1fee6b1c6c7369647",
+      "bytes": 36090,
+      "git_blob": "f5a5697a3acc5748fbd6c6233c2be9ffdb229770",
+      "cr_bytes": 0,
+      "utf8_bom": false,
+      "trailing_lf": true
+    },
+    {
+      "path": "server/improvement_claude.py",
+      "sha256": "fc6c58edf126d6f9acfc635d2f0f858c948e18ae70fc1a8a89e9e74a10b3395c",
+      "bytes": 41359,
+      "git_blob": "5a6f2d1facc4988e765f578db03e4e7a1a07acea",
+      "cr_bytes": 0,
+      "utf8_bom": false,
+      "trailing_lf": true
+    }
+  ],
+  "report": {
+    "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-report.md",
+    "bytes": 14855,
+    "sha256": "d0c7bc2dc442a8eac27e1423d03a022987a0134425ab3a998dbbcc942fc55718"
+  },
+  "log_index": {
+    "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/log-index.json",
+    "bytes": 11515,
+    "sha256": "dd98afe6284aa5df7c7d69ea5dd47266c97afa09ed911c301a7afcc4b5aa1d78"
+  },
+  "root_audit": {
+    "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-root-audit.json",
+    "bytes": 3868,
+    "sha256": "3a26c0ed43c5ecc221ae4eb5e43da8955c4d94f5436d62f13ea2e4d2f645a140"
+  },
+  "local_final": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "-B",
+        ".superpowers/sdd/2026-10-24-recipe-destination-authority/root-check.py",
+        "test_improvement_recipe_sources.py"
+      ],
+      "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+      "start_utc": "2026-10-24T09:15:05.767062+00:00",
+      "logger_pid": 7676,
+      "pid": 26408,
+      "exit": 0,
+      "end_utc": "2026-10-24T09:17:46.310574+00:00",
+      "label": "13-final-source",
+      "count": 37,
+      "passed": 36,
+      "skipped": 1,
+      "unittest_seconds": 154.888,
+      "driver_seconds": 160.375,
+      "stdout": {
+        "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/13-final-source.stdout.log",
+        "bytes": 66,
+        "sha256": "ce1ade57f9bad3927596c07a0a29a783f155a87c57ec16c2eb7e9b5b8debc32a"
+      },
+      "stderr": {
+        "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/13-final-source.stderr.log",
+        "bytes": 155,
+        "sha256": "fbf52058e4a574f8690f353f40e5ab8b7cb1d4dc1eba9221df2003e7c44b6da5"
+      }
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "-B",
+        ".superpowers/sdd/2026-10-24-recipe-destination-authority/root-check.py",
+        "test_improvement_trial_dashboard.py",
+        "DashboardTests.test_revalidate_freezes_only_clock_and_usage",
+        "DashboardTests.test_sql_permissions_membership_and_target_changes_reject_revalidation"
+      ],
+      "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+      "start_utc": "2026-10-24T09:17:55.310187+00:00",
+      "logger_pid": 9540,
+      "pid": 3096,
+      "exit": 0,
+      "end_utc": "2026-10-24T09:18:05.377604+00:00",
+      "label": "14-final-dashboard",
+      "count": 2,
+      "passed": 2,
+      "skipped": 0,
+      "unittest_seconds": 5.395,
+      "driver_seconds": 9.937,
+      "stdout": {
+        "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/14-final-dashboard.stdout.log",
+        "bytes": 65,
+        "sha256": "80897175279ccb936e6c44fcef5b529994f378ec1289650df2f5c19c99c02dab"
+      },
+      "stderr": {
+        "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/14-final-dashboard.stderr.log",
+        "bytes": 105,
+        "sha256": "60d8d91805e50f14ec5ef16cbd0d3bb9395495edd2158463fd916da1c99611a0"
+      }
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "-B",
+        ".superpowers/sdd/2026-10-24-recipe-destination-authority/root-check.py",
+        "test_improvement_trial_service.py",
+        "DashboardServiceTests.test_actual_sources_build_complete_bound_context_without_native_query",
+        "DashboardServiceTests.test_source_replacement_during_observation_rejects_result",
+        "DashboardServiceTests.test_changed_native_source_members_or_modules_fail_before_capture"
+      ],
+      "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+      "start_utc": "2026-10-24T09:18:30.342886+00:00",
+      "logger_pid": 16100,
+      "pid": 4644,
+      "exit": 0,
+      "end_utc": "2026-10-24T09:18:43.084202+00:00",
+      "label": "15-final-service",
+      "count": 3,
+      "passed": 3,
+      "skipped": 0,
+      "unittest_seconds": 7.5,
+      "driver_seconds": 12.578,
+      "stdout": {
+        "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/15-final-service.stdout.log",
+        "bytes": 64,
+        "sha256": "79ac048efa71d946debecd5d29150b956abc91d44f03747e7787f02f8c436761"
+      },
+      "stderr": {
+        "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/15-final-service.stderr.log",
+        "bytes": 106,
+        "sha256": "804e4ed89f2f1ca723f5d0ddbc0d59c260466f1fade1e5d856888fa5e37a6c24"
+      }
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "-B",
+        ".superpowers/sdd/2026-10-24-recipe-destination-authority/root-check.py",
+        "test_improvement_recipe_archive.py",
+        "RecipeArchiveTests.test_actual_encrypted_manifest_uses_original_source_pins_and_unverified_grade"
+      ],
+      "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+      "start_utc": "2026-10-24T09:19:10.579828+00:00",
+      "logger_pid": 2112,
+      "pid": 9904,
+      "exit": 0,
+      "end_utc": "2026-10-24T09:19:14.845398+00:00",
+      "label": "16-final-archive",
+      "count": 1,
+      "passed": 1,
+      "skipped": 0,
+      "unittest_seconds": 3.007,
+      "driver_seconds": 4.11,
+      "stdout": {
+        "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/16-final-archive.stdout.log",
+        "bytes": 63,
+        "sha256": "c3ebec5419d11328022f84166365dd53b42a70dc7dad560f31a7428a26dcf90d"
+      },
+      "stderr": {
+        "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-logs/16-final-archive.stderr.log",
+        "bytes": 103,
+        "sha256": "ca8814d59abe9c9d67cfce5b888fd1fcb6016d47903c884d3488fdb6e366e38b"
+      }
+    }
+  ],
+  "review": {
+    "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-review.md",
+    "bytes": 10093,
+    "sha256": "853c5354ade38dc5623d9c8491170bf84ff79af1dc66a62de62e102c05acc0fb",
+    "agent": "/root/recipe_sources_scoped_review",
+    "model": "gpt-6-astra/high",
+    "spec": "compliant",
+    "quality": "approved",
+    "critical": 0,
+    "important": 0,
+    "minor": 0,
+    "limitations_resolution": [
+      "Root audited six frozen/committed pins, 69 indexed artifacts, profile99/new helper seed, actual static import discovery/local dependencies, collector entry and closed registries. Full installed/runtime native qualification remains open.",
+      "Root inspected full final local output and terminal cleanup/slot report; no test duplicated.",
+      "Independent Linux run passed43 with no skip on exact same6 source/test pins."
+    ]
+  },
+  "linux": {
+    "run_id": 40081705134,
+    "job_id": 120836433669,
+    "conclusion": "success",
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40081705134",
+    "source_head": "429d9334afa792116ad80e02f0f3bf2fd11e46af",
+    "sha256": {
+      "server/improvement_recipe_sources.py": "fea6886fc6fbcfa56f50f79aefb90c07d4222d1c7b3cc82e589d680a51f0d986",
+      "tests/python/test_improvement_recipe_sources.py": "4bdea1cdb0735a4228c47e67c90bc44bf2889593569178d121ed2bb3b68b4161",
+      "server/improvement_trial_dashboard.py": "494c16cc63dfd1073df5cd38fbb7d834ddf2b937b5eb4b51a72230e89e277047",
+      "server/improvement_trial_service.py": "a60c0682b901d564dfb78a932a3ee83cceddf4b0f64c35780051f26697c6bbf8",
+      "server/improvement_recipe_archive.py": "b7967c754d4e79bee9ee677b8ee0e7906f9c13d2d4bdb8d1fee6b1c6c7369647",
+      "server/improvement_claude.py": "fc6c58edf126d6f9acfc635d2f0f858c948e18ae70fc1a8a89e9e74a10b3395c"
+    },
+    "checks": [
+      {
+        "selectors": [
+          "test_improvement_recipe_sources.py"
+        ],
+        "driver_seconds": 80.962,
+        "exit": 0
+      },
+      {
+        "selectors": [
+          "test_improvement_trial_dashboard.py",
+          "DashboardTests.test_revalidate_freezes_only_clock_and_usage",
+          "DashboardTests.test_sql_permissions_membership_and_target_changes_reject_revalidation"
+        ],
+        "driver_seconds": 5.058,
+        "exit": 0
+      },
+      {
+        "selectors": [
+          "test_improvement_trial_service.py",
+          "DashboardServiceTests.test_actual_sources_build_complete_bound_context_without_native_query",
+          "DashboardServiceTests.test_source_replacement_during_observation_rejects_result",
+          "DashboardServiceTests.test_changed_native_source_members_or_modules_fail_before_capture"
+        ],
+        "driver_seconds": 5.735,
+        "exit": 0
+      },
+      {
+        "selectors": [
+          "test_improvement_recipe_archive.py",
+          "RecipeArchiveTests.test_actual_encrypted_manifest_uses_original_source_pins_and_unverified_grade"
+        ],
+        "driver_seconds": 1.99,
+        "exit": 0
+      }
+    ],
+    "ci_commit": "a76f1392f7be1fe1ce5b3c9c0e2dcf897e9db626",
+    "branch": "codex/agent-skill-improvement-recipe-sources-v1-linux-check",
+    "workflow_sha256": "604ebee81f3b2e85444349b9865a2ea5a373e840e2369066f77ee1c183c0e2c2",
+    "log": {
+      "path": ".superpowers/sdd/2026-10-24-recipe-destination-authority/task-1-linux-40081705134.log",
+      "bytes": 83144,
+      "sha256": "92228619315755f6843c083a761fa1bd37413d26ac52f32ac5f31714b8a29335",
+      "utf16_units": 82342,
+      "utf8_bom": true,
+      "cr_bytes": 0,
+      "trailing_lf": true
+    },
+    "counts": {
+      "run": 43,
+      "passed": 43,
+      "skipped": 0
+    },
+    "unittest_modules": [
+      {
+        "count": 37,
+        "unittest_seconds": 77.002
+      },
+      {
+        "count": 2,
+        "unittest_seconds": 2.02
+      },
+      {
+        "count": 3,
+        "unittest_seconds": 2.618
+      },
+      {
+        "count": 1,
+        "unittest_seconds": 1.031
+      }
+    ],
+    "test_resource_warning_task_diagnostics": 0,
+    "action_runtime_notices": "Two punycode deprecation warnings and one forced Node20-to24 action deprecation notice retained separately in full job log."
+  },
+  "scope_limits": {
+    "native_profile_sources": 99,
+    "native_readiness": "UNQUALIFIED",
+    "qualification_registration": false,
+    "actual_model_account_business_run": false,
+    "business_acceptance": "PENDING",
+    "live_acceptance": "PENDING",
+    "final_M2_required_CI": false,
+    "whole_branch_review": false,
+    "destination_permission_retrieval_or_Library_consumer": false,
+    "old_plan_tasks_2_and_3": "deferred owner-authorized handoff backlog, not implemented",
+    "Goal": "ACTIVE under M2 engineering plus handoff scope"
+  },
+  "cleanup": {
+    "audit_utc": "2026-10-24T09:20:15.4514479Z",
+    "owned_processes": 0,
+    "owned_runner_temp_directories": 0,
+    "owned_dashboard_roots": 0,
+    "preexisting_dashboard_roots_untouched": 36,
+    "serial_slot": "released",
+    "background_model_or_helper": false
+  },
+  "prior_evidence_reused": [
+    "2026-10-24-recipe-archive-views.json",
+    "2026-10-24-recipe-archive-authoring.json",
+    "2026-10-24-harness2-library-snapshot.json"
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "unit": "Closed compose role transport, actual profile renderer and existing ledger/usage contract",
+  "base_commit": "0f4584a35e57c458d4bf2f80806641ea051bf66f",
+  "goal_sections": "12-17",
+  "source_and_test_sha256": {
+    "server/improvement_claude.py": "006d1eddca83295447a0763c8beaeab033ba7213c100faf2ecde4c9a81cc01bf",
+    "server/agent_ledger.py": "366435c6039aed53ef4e66cd1e5a02efddca7bfa8a45d22809fccd580ddc83a4",
+    "server/improvement_operation_protocol.py": "f9dd577cf66c23df4839b3c39ed68375241a0818e9f49796a77beeca8a2f03e7",
+    "third_party/harness2/COMPOSE-PROVENANCE.json": "ce7839f1a378502caeb5c06af54a66727761f0223bdc336f549cbf0b003fb11c",
+    "tests/python/test_improvement_operation_worker.py": "3e6081a43a4355f986d80541b020db3dbc2e966daab09826c2c1d4f4d43ba315",
+    "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "server/improvement_operation_workspace.py": "891f37bc37551d92d2dd0a4c8d09118db4aa0fc3bc65e8ff0af56b5aba5246b3",
+    "server/improvement_usage.py": "45b6a1e5ddbd657910a369e8e12131e55c192de389555c8192c651a7eff580d8",
+    "tests/python/test_improvement_operation_workspace.py": "70f65bae14690886e8cfd2a7d9ccbf45fbd2b132c18be12073b46cdad81bdcd7",
+    "tests/python/test_improvement_compose_role_contract.py": "3d10d9cd89a6a297a4f9fd1e90d14ecb7831a28e8055a0c2fe89a0092074e3e9",
+    "server/improvement_operation_profile.py": "b18c1e9483dffd76309559d30eea7b2a33020f70419d70fbc8fa784db2bd2dde",
+    "server/improvement_operation_worker.py": "5c2f698f4f786680901253181dae62f4b326536d68f30cb19f4e79ab2ba94417",
+    "tests/run.py": "59756fe950a50a85ba761f5aba132566656022718dd91b936c1f2266bb9fb92a",
+    "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9"
+  },
+  "behavior": [
+    "Compose-only closed request v2 requires explicit authorization ID and composer/improve_compose, null candidate/parent. Historical propose/repair/semantic remain exact closed v1; no extra metadata grants consent.",
+    "Worker envelope and actual workspace receipt carry exact role/purpose/input/request identity. Compose materialization requires native format2; actual legacy worker refuses before verifier/engine/ACK/readiness.",
+    "Existing OperationProfile user renderer calls actual unchanged pinned upstream compose_round(t=1,k=1) through the closed adapter and preserves authorized projection. Native binding and source qualification gates stay closed.",
+    "Existing actual CallLedger API accepts improve_compose purpose, not a parallel ledger. Actual marked-call references remain visible to usage even without observed telemetry; no requests/tokens/savings invented.",
+    "No OperationRecords/Execution compose phase admission or owner/current-source permission service is connected by this component; no enabled query allowance/publisher/candidate/bundle/activation."
+  ],
+  "red": {
+    "tests": 6,
+    "passed": 1,
+    "failures": 1,
+    "errors": 4,
+    "seconds": 0.179,
+    "reason": "Historical control passes; new closed request/worker/purpose unsupported and actual renderer not called"
+  },
+  "green": {
+    "root_original_cases": {
+      "tests": 6,
+      "passed": 6,
+      "seconds": 0.627
+    },
+    "root_actual_legacy_worker_control": {
+      "tests": 1,
+      "passed": 1,
+      "seconds": 0.357
+    },
+    "root_regression": {
+      "scripts": 5,
+      "ledger_manual_script": "PASS0errors",
+      "other_unittest_cases": 34,
+      "initial_passed_unittest_cases": 33,
+      "initial_failures": 1,
+      "correction": "Worker exact inventory expected list omitted five actual dependencies (including two from previous units). Add explicit names; preserve equality/length/raw source hash assertions. Actual309 native qualification test untouched.",
+      "focused_footprint_green": {
+        "tests": 1,
+        "passed": 1,
+        "seconds": 0.055
+      },
+      "details": [
+        {
+          "file": "test_agent_calls_ledger.py",
+          "exit": 0,
+          "seconds": 11.764,
+          "log": "test_agent_calls_ledger.log"
+        },
+        {
+          "file": "test_improvement_operation_workspace.py",
+          "exit": 0,
+          "seconds": 6.306,
+          "log": "test_improvement_operation_workspace.log"
+        },
+        {
+          "file": "test_improvement_operation_profile2.py",
+          "exit": 0,
+          "seconds": 5.6,
+          "log": "test_improvement_operation_profile2.log"
+        },
+        {
+          "file": "test_improvement_operation_worker.py",
+          "exit": 1,
+          "seconds": 4.749,
+          "log": "test_improvement_operation_worker.log"
+        },
+        {
+          "file": "test_improvement_operation_usage.py",
+          "exit": 0,
+          "seconds": 1.157,
+          "log": "test_improvement_operation_usage.log"
+        }
+      ]
+    }
+  },
+  "independent": {
+    "decision": "APPROVED_SCOPED_COMPONENT",
+    "tests": 7,
+    "passed": 7,
+    "seconds": 1.174,
+    "stable_pins": 14,
+    "findings": [],
+    "report_sha256": "0f260a2f44ac06ac9607fcb699369a8484ce808b7ae64a179bdf0a743eb1b8ab",
+    "log_sha256": "9e7032a8011fe16ed3efb8fa1cf7bb4994484b4dc01a9e30e83df5caba245007"
+  },
+  "native": {
+    "profile_sources": 88,
+    "static_raw_profile_hash": "e995019a433b3ddf65fdc63b30751a25038e9b24901ee01007ce8cbefdc7fca8",
+    "method": "AST/raw source hashes only, not native inventory/qualification",
+    "registration_or_qualification_added": false,
+    "actual309_exact_evidence_test": "Unchanged/open"
+  },
+  "proof_reused": [
+    "Prior vendor9 originalAST/source/Gitblob and Apache2 license proof; vendor/provenance/license hashes unchanged.",
+    "Schema migration independent proof; original6 schema tests authoredbyreviewer notselfapproved orrerun.",
+    "Root scoped ledger/workspace/profile/worker/usage regression and corrected exactfootprint selector, not repeated here."
+  ],
+  "early_linux": "No additional run for this bounded transport delta; unchanged vendor/license/migration46 proof retained. Final exact task-head full required CI still mandatory.",
+  "logs_sha256": {
+    "red.log": "85d2c04b01a5398738708be3a63eafe4aff08cf3abf65beeaf5790ba8d5e3c72",
+    "green1.log": "fbdec1a2e06ab6157a0c0068e9bee6eaafc52138e40a56f22e43bab72d1d6eb8",
+    "no-legacy-green.log": "e89dd98b04230a6a1f2e44504d4b473aee4cd20d181d9febb975db5f04e78fa5",
+    "footprint-green.log": "56a82522fc19a8c3f90c7a2700613e1730297e5ae6e1b11293973b2f85fc43ea",
+    "regression-result.json": "474809d730a60a1e56172ed115c9ed141e99de7c1a2021a3fd8a9765a6519e7e",
+    "test_improvement_operation_worker.log": "6f06e75c754f273ad6257d66d8724492ff9fafda6567913da3f6c8faea0dacd6"
+  },
+  "limits": [
+    "Synthetic-unexecuted config/ledger state fixtures prove structural/accounting controls, not actual model/native/account execution.",
+    "No OperationRecords/Execution compose-phase admission, ownerconsent service/current-source permission, queryallowance or nativequalification activated.",
+    "No actual native/provider/model/account/query, newbundle/candidate publication, policy/consent grant or readiness claim.",
+    "No production/test edits or broadunchanged suites."
+  ],
+  "next": "Explicit owner consent/revocation/current saved-input guard, then actual existing Operation admission/runner/RoleWorkflow publication and independent composed-candidate checks/API/UI. Actual derived upstream library follows compose; full Goal remains active."
+}

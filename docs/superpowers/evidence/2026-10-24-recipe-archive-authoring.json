@@ -1,0 +1,596 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "scope": "Encrypted source-side recipe authoring and cold owner metadata/controls; engineering only",
+  "implementation_base": "dbdec4eb622bc46a0b025753a079b5f8821ef4a6",
+  "implementation_commits": [
+    "cbbbdacd8c121579aebf053fd7c6575134e84f6b",
+    "aa1e0732e2cf99fe297b0d30346c29acfe6c6310"
+  ],
+  "plan_clarification_commit": "9a038a68",
+  "source_sha256": {
+    "server/improvement_recipe_archive.py": "7362ddbfda80bec6cfc8fef4c1cf3eb91b12d3cd37ae51921cb1f02f7d624720",
+    "server/improvement_recipe_records.py": "1ef6d18e9c638a42f32fa5e601d20b08c677170c8f53ad691c87cdf1de0f7792",
+    "server/improvement_tuning_history.py": "4689e2aa937f0e76cba277f70133930843d5eea0bee2d78b1e5802e40b259f60",
+    "server/improvement_improver_inputs.py": "4d30dc3aa5151c0138c629ca20b994d2c31a24a1c0334475c91168098f7593e5",
+    "server/improvement_claude.py": "5be55146ef7947c6e4c4b50acc44c14673f8dbc9696421d2bd1ff75b90e5baed",
+    "tests/python/test_improvement_recipe_archive.py": "df10165a325fa60c325e563977fc6520137c794f92661458a92d207b66d70059",
+    "tests/python/test_improvement_recipe_records.py": "97fb866d617be97e7665822fe79294d33131f1d879c50a56f0d9e4c7fe124a4b"
+  },
+  "behavior": [
+    "Concrete same-store ExperimentPlans/candidate/TrialResults/ComparisonResults and complete v2 semantic BrainFileFixtures authority; caller supplies only procedure guidance or NO_ENTRY.",
+    "Canonical encrypted manifest and normalized exact result/trace refs, current source/final CAS, original evidence clock plus maximum30days, atomic no-partial publication and cold stable replay.",
+    "Typed3 uses authenticated original composition basis reports; parent observations are provenance, not candidate3 outcome. Grades remain untested/confounded, transfer unverified and business_proof=false.",
+    "Cold same-brain metadata/cursor/revoke/supersede; source unavailable does not strand owner revoke; missing state refuses and successor expiry/source/compatibility checks remain.",
+    "One shared sealed-history helper; actual original-dbdec proposer bytes/events/hashes remain exact including recipes=[]. PROFILE_SOURCES97; reviewed registries empty and UNQUALIFIED.",
+    "Actual v4 lineage refs are retained but schema9 explicitly refuses normalized publication atomically; mandatory Task2/schema10 remains open. No destination/body/native input consumer yet."
+  ],
+  "local_raw_run_index": [
+    {
+      "log": "alias-and-typed-three.txt",
+      "raw_sha256": "15a84a5d884d4f2edf5e55cb3fd96c2862d85c851cf35654df618fc394d52b9a",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 1,
+        "seconds": 34.49
+      },
+      "unittest_count": 3,
+      "unittest_seconds": 33.414,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 4,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipeArchiveTests.test_late_holdout_alias_cannot_relabel_tuning_source RecipeComposedTests",
+      "ended_utc_from_log_mtime": 1792825350.830925
+    },
+    {
+      "log": "archive-first.txt",
+      "raw_sha256": "27e57786875a8d95506827dfadc5da8a696528a83699beead095135c5095df08",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 0,
+        "seconds": 36.28
+      },
+      "unittest_count": 11,
+      "unittest_seconds": 34.448,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py",
+      "ended_utc_from_log_mtime": 1792825085.828946
+    },
+    {
+      "log": "comparison-fixture-corrected.txt",
+      "raw_sha256": "b1c8255e1cc21fd564ed57ded5f3c2480bed828ece36ecf34fa1ce074917991e",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 0,
+        "seconds": 18.267
+      },
+      "unittest_count": 3,
+      "unittest_seconds": 17.457,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipeComparisonTests",
+      "ended_utc_from_log_mtime": 1792825263.5849144
+    },
+    {
+      "log": "composed-races-and-original-bytes.txt",
+      "raw_sha256": "85c588bcc4c4c5ba12af7e8498c37cce2fb757e606600e2fc5c8e5c8e49cd87f",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 0,
+        "seconds": 47.941
+      },
+      "unittest_count": 2,
+      "unittest_seconds": 46.618,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 5,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipeComposedTests.test_changed_composed_basis_report_publication_and_late_parent_trace_refuse RecipePreparationTests.test_shared_history_keeps_original_sealed_proposer_bytes_and_recipes_empty",
+      "ended_utc_from_log_mtime": 1792825872.1091528
+    },
+    {
+      "log": "composed-races-and-view-nine.txt",
+      "raw_sha256": "9727f197a3f5b4e676758746ef1ab4e924b3b93558ec1fa45fb7e928441c77a1",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 1,
+        "seconds": 229.869
+      },
+      "unittest_count": 2,
+      "unittest_seconds": 228.353,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 9,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipeComposedTests.test_changed_composed_basis_report_publication_and_late_parent_trace_refuse RecipeViewReferenceTests",
+      "ended_utc_from_log_mtime": 1792825782.013498
+    },
+    {
+      "log": "evidence-first.txt",
+      "raw_sha256": "87d40eb7fb45c457250e6065867d19579bcff7b839a64058bc182505c4e6c303",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 1,
+        "seconds": 48.843
+      },
+      "unittest_count": 7,
+      "unittest_seconds": 48.123,
+      "resource_warnings": 4,
+      "asyncio_slow_task_diagnostics": 4,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipePreparationTests RecipeComparisonTests",
+      "ended_utc_from_log_mtime": 1792825216.1493664
+    },
+    {
+      "log": "final-archive-v2.txt",
+      "raw_sha256": "b0510c6924a24990a1968865b1a0f261bb40a7f34930da5cb1f6ae709d4cbdf7",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 0,
+        "seconds": 48.627
+      },
+      "unittest_count": 6,
+      "unittest_seconds": 47.641,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 6,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipePreparationTests",
+      "started_utc": "2026-10-24T07:21:24.8701554Z",
+      "ended_utc": "2026-10-24T07:22:13.7285420Z",
+      "exit": 0
+    },
+    {
+      "log": "final-archive.txt",
+      "raw_sha256": "756a0c3020ce4837a0acec4d8a516caef1fcd9f741b8a08e34e572dc9cc41226",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 0,
+        "seconds": 343.966
+      },
+      "unittest_count": 27,
+      "unittest_seconds": 342.931,
+      "resource_warnings": 6,
+      "asyncio_slow_task_diagnostics": 18,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py",
+      "started_utc": "2026-10-24T07:11:34.4166870Z",
+      "ended_utc": "2026-10-24T07:17:18.6184877Z",
+      "exit": 0
+    },
+    {
+      "log": "final-improver.txt",
+      "raw_sha256": "89d81679bacb11571c8127acdd7cc3676780ab533c2e9bd5b97fe315a632e906",
+      "driver": {
+        "file": "test_improvement_improver_inputs.py",
+        "exit": 0,
+        "seconds": 65.21
+      },
+      "unittest_count": 10,
+      "unittest_seconds": 64.474,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 7,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_improver_inputs.py",
+      "started_utc": "2026-10-24T07:24:07.2792501Z",
+      "ended_utc": "2026-10-24T07:25:12.7077652Z",
+      "exit": 0
+    },
+    {
+      "log": "final-preparation-execution.txt",
+      "raw_sha256": "b18bac7d7f199987b7655819e35501621650b96379e629aec52844b6033e3f72",
+      "driver": {
+        "file": "test_improvement_preparation_execution.py",
+        "exit": 0,
+        "seconds": 9.062
+      },
+      "unittest_count": 1,
+      "unittest_seconds": 8.325,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 1,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_preparation_execution.py PreparationExecutionTests.test_real_preparation_result_keeps_exact_lineage_unknowns_and_cold_history",
+      "started_utc": "2026-10-24T07:26:38.8655345Z",
+      "ended_utc": "2026-10-24T07:26:48.1336026Z",
+      "exit": 0
+    },
+    {
+      "log": "final-preparation.txt",
+      "raw_sha256": "d1d0e3dacc51a8c354feeb0f09edc75ff93bb87f252e1a0d81dbf713cda74ee4",
+      "driver": {
+        "file": "test_improvement_preparation.py",
+        "exit": 0,
+        "seconds": 3.903
+      },
+      "unittest_count": 1,
+      "unittest_seconds": 3.223,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_preparation.py PreparationTests.test_unfinished_baseline_cannot_be_sealed_as_proposer_input",
+      "started_utc": "2026-10-24T07:26:28.4032697Z",
+      "ended_utc": "2026-10-24T07:26:32.5100487Z",
+      "exit": 0
+    },
+    {
+      "log": "final-proposals.txt",
+      "raw_sha256": "ac50beb7deb6b784b1435c9551c70e5b7a5b75b6ec68b312c89a8aa4191ba93f",
+      "driver": {
+        "file": "test_improvement_proposals.py",
+        "exit": 0,
+        "seconds": 33.039
+      },
+      "unittest_count": 2,
+      "unittest_seconds": 32.146,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 1,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_proposals.py ProposalTests.test_actual_native_result_stages_bound_unreviewed_draft_and_replay_never_queries ProposalTests.test_malformed_batch_gets_one_actual_repair_with_same_input_and_allowance",
+      "started_utc": "2026-10-24T07:25:42.1703583Z",
+      "ended_utc": "2026-10-24T07:26:15.4451645Z",
+      "exit": 0
+    },
+    {
+      "log": "final-records-v2.txt",
+      "raw_sha256": "803cdb2ef650663ab933aa014dfb7d739e4f695f797663c00046fce3bbf1c040",
+      "driver": {
+        "file": "test_improvement_recipe_records.py",
+        "exit": 0,
+        "seconds": 35.91
+      },
+      "unittest_count": 11,
+      "unittest_seconds": 34.781,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_records.py",
+      "started_utc": "2026-10-24T07:23:25.2882902Z",
+      "ended_utc": "2026-10-24T07:24:01.4756370Z",
+      "exit": 0
+    },
+    {
+      "log": "final-records.txt",
+      "raw_sha256": "b2e117169823cd02380c118ae0d823eb607aca3e4ca6fe6010e434baef3e990d",
+      "driver": {
+        "file": "test_improvement_recipe_records.py",
+        "exit": 0,
+        "seconds": 29.79
+      },
+      "unittest_count": 10,
+      "unittest_seconds": 28.895,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_records.py",
+      "started_utc": "2026-10-24T07:17:59.1089003Z",
+      "ended_utc": "2026-10-24T07:18:29.1329784Z",
+      "exit": 0
+    },
+    {
+      "log": "lifecycle-comparison-composed.txt",
+      "raw_sha256": "b00f17b888f2274ac3a8034f83217978021dbee108dac4318f091e220f0042b7",
+      "driver": {
+        "file": "../../.superpowers/sdd/2026-10-24-recipe-archive-authority/task-1-logs/lifecycle-run.py",
+        "exit": 0,
+        "seconds": 90.302
+      },
+      "unittest_count": 5,
+      "unittest_seconds": 89.184,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 7,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py ../../.superpowers/sdd/2026-10-24-recipe-archive-authority/task-1-logs/lifecycle-run.py RecipeComparisonTests RecipeComposedTests",
+      "started_utc": "2026-10-24T07:19:23.1714947Z",
+      "ended_utc": "2026-10-24T07:20:53.6942695Z",
+      "exit": 0
+    },
+    {
+      "log": "records-expanded.txt",
+      "raw_sha256": "2ef02828ce2271caa2b22228e7507f1ebdc4b5af3250b0f3b6b51c3bb17c8e29",
+      "driver": {
+        "file": "test_improvement_recipe_records.py",
+        "exit": 1,
+        "seconds": 31.019
+      },
+      "unittest_count": 9,
+      "unittest_seconds": 29.822,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_records.py",
+      "ended_utc_from_log_mtime": 1792825394.1686125
+    },
+    {
+      "log": "records-first.txt",
+      "raw_sha256": "69cfb1059ba6cda24b64bad43c06b98e00049f5ecd0e96c7d65e32f814133092",
+      "driver": {
+        "file": "test_improvement_recipe_records.py",
+        "exit": 0,
+        "seconds": 21.666
+      },
+      "unittest_count": 5,
+      "unittest_seconds": 20.973,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_records.py",
+      "ended_utc_from_log_mtime": 1792825118.0537436
+    },
+    {
+      "log": "red-archive.txt",
+      "raw_sha256": "851163aa0fbd96c4ea06fce87f7fabf059958c93bfcad1c0f95cb5fc9e71e79a",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 1,
+        "seconds": 1.107
+      },
+      "unittest_count": 1,
+      "unittest_seconds": 0.001,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipeArchiveTests.test_actual_encrypted_manifest_uses_original_source_pins_and_unverified_grade",
+      "ended_utc_from_log_mtime": 1792824945.9429781
+    },
+    {
+      "log": "red-cold-state-cas.txt",
+      "raw_sha256": "4708d384181a74928122d2f0b654ad9a33ce4baa96226fd25f4ccb4391d6b3a6",
+      "driver": {
+        "file": "test_improvement_recipe_records.py",
+        "exit": 1,
+        "seconds": 4.958
+      },
+      "unittest_count": 1,
+      "unittest_seconds": 3.607,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_records.py RecipeRecordTests.test_missing_source_grant_does_not_block_actual_owner_state_revocation",
+      "started_utc": "2026-10-24T07:23:00.9528920Z",
+      "ended_utc": "2026-10-24T07:23:06.2152017Z",
+      "exit": 1
+    },
+    {
+      "log": "red-late-alias.txt",
+      "raw_sha256": "9f54df0f756e5504bcac7f47484f59c64b0b3f45416c5ba9a9df1ca0dc6c82c8",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 1,
+        "seconds": 3.891
+      },
+      "unittest_count": 1,
+      "unittest_seconds": 2.97,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipeArchiveTests.test_late_holdout_alias_cannot_relabel_tuning_source",
+      "ended_utc_from_log_mtime": 1792825308.3859181
+    },
+    {
+      "log": "red-missing-grant.txt",
+      "raw_sha256": "2c2b51a92a0a534d90f9a4cf17d04f46feebd612aed57d45d801a327ff5f9272",
+      "driver": {
+        "file": "test_improvement_recipe_records.py",
+        "exit": 1,
+        "seconds": 4.626
+      },
+      "unittest_count": 1,
+      "unittest_seconds": 3.421,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_records.py RecipeRecordTests.test_missing_source_grant_never_reports_active_even_without_sweep",
+      "ended_utc_from_log_mtime": 1792825809.1603515
+    },
+    {
+      "log": "red-records.txt",
+      "raw_sha256": "5cdfdb793129b0459d756314a95ab7e238f4b5831cfb7bc13e8d176531488dff",
+      "driver": {
+        "file": "test_improvement_recipe_records.py",
+        "exit": 1,
+        "seconds": 0.722
+      },
+      "unittest_count": 1,
+      "unittest_seconds": 0.002,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 0,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_records.py RecipeRecordTests.test_read_existing_metadata_off_without_migrate_host_body_or_native",
+      "ended_utc_from_log_mtime": 1792824981.7620027
+    },
+    {
+      "log": "typed-three-reader.txt",
+      "raw_sha256": "bc200d6e255b43021e1424ea3e0f8d0693ffe11a5135fdd3d96a943dab749719",
+      "driver": {
+        "file": "test_improvement_recipe_archive.py",
+        "exit": 0,
+        "seconds": 45.44
+      },
+      "unittest_count": 1,
+      "unittest_seconds": 44.153,
+      "resource_warnings": 0,
+      "asyncio_slow_task_diagnostics": 4,
+      "pending_task_destruction": false,
+      "unawaited_coroutine": false,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipeComposedTests",
+      "ended_utc_from_log_mtime": 1792825494.5462778
+    }
+  ],
+  "fix_round_1": {
+    "command": {
+      "ended_utc": "2026-10-24T07:38:25.7297495Z",
+      "exit": 0,
+      "command": "& D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-agent-skill-improvement-compose-inputs/root-check.py test_improvement_recipe_archive.py RecipeComposedTests.test_conflicting_required_parent_result_pins_refuse_all_recipe_publication RecipePreparationTests.test_original_candidate_evidence_deduplicates_only_exact_sealed_pins RecipeComposedTests.test_typed_three_keeps_actual_composed_provenance_and_own_tuning_refs",
+      "started_utc": "2026-10-24T07:37:16.0307041Z"
+    },
+    "commit": "aa1e0732e2cf99fe297b0d30346c29acfe6c6310",
+    "unit_tests": 3,
+    "unit_seconds": 68.417,
+    "driver_seconds": 69.523,
+    "resource_warnings": 0,
+    "asyncio_slow_task_diagnostics": 8,
+    "pending_task_destruction": false,
+    "unawaited_coroutine": false,
+    "changed_paths_since_v2": [
+      "tests/python/test_improvement_recipe_archive.py"
+    ],
+    "pins": {
+      "server/improvement_recipe_archive.py": "7362ddbfda80bec6cfc8fef4c1cf3eb91b12d3cd37ae51921cb1f02f7d624720",
+      "server/improvement_recipe_records.py": "1ef6d18e9c638a42f32fa5e601d20b08c677170c8f53ad691c87cdf1de0f7792",
+      "server/improvement_tuning_history.py": "4689e2aa937f0e76cba277f70133930843d5eea0bee2d78b1e5802e40b259f60",
+      "server/improvement_improver_inputs.py": "4d30dc3aa5151c0138c629ca20b994d2c31a24a1c0334475c91168098f7593e5",
+      "server/improvement_claude.py": "5be55146ef7947c6e4c4b50acc44c14673f8dbc9696421d2bd1ff75b90e5baed",
+      "tests/python/test_improvement_recipe_archive.py": "df10165a325fa60c325e563977fc6520137c794f92661458a92d207b66d70059",
+      "tests/python/test_improvement_recipe_records.py": "97fb866d617be97e7665822fe79294d33131f1d879c50a56f0d9e4c7fe124a4b"
+    },
+    "raw_artifacts": {
+      "fix-1-commit.txt": "7e1eb444bac1df6540fd9a355a964aa7cfdb21834c80a05defdecbabfa08126e",
+      "fix-1-committed-raw-verification.txt": "629fb9df6b9b56d5057ddbd58c0e482b9838263aefd0b1f51e41db554fb55fb0",
+      "fix-1-diff-check.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fix-1-focused-initial-command.json": "187883d796d35810686ec3369b96c649025781078bc581a4a4a73edbc6c08dfd",
+      "fix-1-focused-initial.txt": "2c560cc55388ef4179d5cc4afbb7771905a858766396abeec504e5b671dca917",
+      "fix-1-freeze.txt": "7c0044c0aac4b9c481ab7cfae171107ba313fd853b75f6bef4b4dc02783238aa",
+      "fix-1-process-state.json": "be3d164b0895cc31aa07b2c3b6dbdadb6c8ed9304aef7b1c96acb0063ac936c2",
+      "fix-1-report.py": "f944768c88521a899eadcb772a85061616baf7bbe90485d14416bd676dbf8ed8",
+      "fix-1-reviewed-diff.txt": "df71c77624495a2ea159021857f32ca2ba8cb70fbc291aa33b266653b62dd068",
+      "fix-1-staged-paths.txt": "ea2f844d2781afb1db30b12eb67052496801ef896e781a75762fb57069d2f9f3"
+    },
+    "independent_review_raw_sha256": "6f3469d55b3a8cfe1486d37e9925c6b218189a5e1d2855cd404527bdd2c7f3bc",
+    "v3_map_raw_sha256": "73a03d6cb0c185defed539d89d013ff2510a233574385c64718c092089f6c726"
+  },
+  "reuse": "V1 archive27 plus v2 cleanup6/records11/old improver10/selected proposal2/preparation2; full v2 Linux48 and v3 focused3. Fix1 adds acceptance for existing refusal, no production RED or code delta.",
+  "lifecycle": "Six v1 implicit temporary cleanup warnings identified as owned async fixture lifecycle; fixed with actual outer runner and explicit finalizer/root-removal checks; v2 cleanup6 and full Linux have zero ResourceWarnings. Timing diagnostics retained, no suppression.",
+  "review": {
+    "initial": {
+      "sha256": "6f3469d55b3a8cfe1486d37e9925c6b218189a5e1d2855cd404527bdd2c7f3bc",
+      "important": [
+        "T1-R1"
+      ]
+    },
+    "fix1": {
+      "sha256": "a1a23adec2e99a4a6a5f9ca56d9b8d2ef71bc49f473efa1800397857e434de58",
+      "T1-R1": "ADDRESSED",
+      "new_breakage": 0,
+      "spec": "pass",
+      "quality": "approved",
+      "execution": "none"
+    }
+  },
+  "reports": {
+    "initial_sha256": "98e353b327ed4efadcd87501fb4c20e8830cab0913861dcd042895f3e18c57ff",
+    "appended_sha256": "56fab286113a70871d829786b4b9f14cfa64ab345c363189c4dfb5dc0980dc18"
+  },
+  "early_linux": [
+    {
+      "run_id": 40074394806,
+      "job_id": 120814551133,
+      "conclusion": "success",
+      "snapshot_head": "672689785790f5caf736575405177da599e94ebc",
+      "task_head": "cbbbdacd8c121579aebf053fd7c6575134e84f6b",
+      "raw_sha256": "cdb8e9e1f49e258ce3f216405b498836773bb2e2c3d1e26c2c7e8c8093db995e",
+      "utf8_bytes": 91333,
+      "utf16_units": 90531,
+      "leading_bom": true,
+      "cr_count": 0,
+      "resource_warning_lines": [],
+      "module_and_test_summaries": [
+        "2026-10-24T07:31:50.8604993Z MODULE test_improvement_recipe_archive.py SECONDS 67.674 EXIT 0",
+        "2026-10-24T07:31:50.8640115Z Ran 27 tests in 66.741s",
+        "2026-10-24T07:31:58.7727967Z MODULE test_improvement_recipe_records.py SECONDS 7.912 EXIT 0",
+        "2026-10-24T07:31:58.7728944Z Ran 11 tests in 7.232s",
+        "2026-10-24T07:32:11.5209190Z MODULE test_improvement_improver_inputs.py SECONDS 12.748 EXIT 0",
+        "2026-10-24T07:32:11.5214357Z Ran 10 tests in 12.186s"
+      ],
+      "snapshot": {
+        "task_head": "cbbbdacd8c121579aebf053fd7c6575134e84f6b",
+        "snapshot_head": "672689785790f5caf736575405177da599e94ebc",
+        "branch": "codex/agent-skill-improvement-recipe-authority-v2-linux-check",
+        "tree": "cd86eaef08ab9e843a41ed7486dda5f291590095",
+        "sha256": {
+          "server/improvement_recipe_archive.py": "7362ddbfda80bec6cfc8fef4c1cf3eb91b12d3cd37ae51921cb1f02f7d624720",
+          "server/improvement_recipe_records.py": "1ef6d18e9c638a42f32fa5e601d20b08c677170c8f53ad691c87cdf1de0f7792",
+          "server/improvement_tuning_history.py": "4689e2aa937f0e76cba277f70133930843d5eea0bee2d78b1e5802e40b259f60",
+          "server/improvement_improver_inputs.py": "4d30dc3aa5151c0138c629ca20b994d2c31a24a1c0334475c91168098f7593e5",
+          "server/improvement_claude.py": "5be55146ef7947c6e4c4b50acc44c14673f8dbc9696421d2bd1ff75b90e5baed",
+          "tests/python/test_improvement_recipe_archive.py": "afc9ab31299b52e55aef0010182999c9676f79e3d40d92a58c9d440a6e980ed4",
+          "tests/python/test_improvement_recipe_records.py": "97fb866d617be97e7665822fe79294d33131f1d879c50a56f0d9e4c7fe124a4b"
+        },
+        "workflow_sha256": "eb715c236ead625a2ec600fe0991d1bcc40ad3a6218e4e1992394e15a41aca93",
+        "boundary": "engineering-only; not task-branch CI, native qualification, model or business proof"
+      },
+      "url": "https://github.com/blogminhquy/javis-os/actions/runs/40074394806"
+    },
+    {
+      "run_id": 40075062683,
+      "job_id": 120816537857,
+      "conclusion": "success",
+      "snapshot_head": "decd2ea1ec1fa64912a74f23be37b0d8541cbe96",
+      "task_head": "aa1e0732e2cf99fe297b0d30346c29acfe6c6310",
+      "raw_sha256": "697d9cbbd1d163e614871f035222b5028bd1fbd92b3d513d851561cc4192eb6b",
+      "utf8_bytes": 88120,
+      "utf16_units": 87318,
+      "leading_bom": true,
+      "cr_count": 0,
+      "resource_warning_lines": [],
+      "module_and_test_summaries": [
+        "2026-10-24T07:41:09.5542381Z MODULE test_improvement_recipe_archive.py SELECTORS ('RecipeComposedTests.test_conflicting_required_parent_result_pins_refuse_all_recipe_publication',) SECONDS 11.883 EXIT 0",
+        "2026-10-24T07:41:09.5563077Z Ran 1 test in 10.508s",
+        "2026-10-24T07:41:13.1309435Z MODULE test_improvement_recipe_archive.py SELECTORS ('RecipePreparationTests.test_original_candidate_evidence_deduplicates_only_exact_sealed_pins',) SECONDS 3.577 EXIT 0",
+        "2026-10-24T07:41:13.1313477Z Ran 1 test in 2.642s",
+        "2026-10-24T07:41:24.3084930Z MODULE test_improvement_recipe_archive.py SELECTORS ('RecipeComposedTests.test_typed_three_keeps_actual_composed_provenance_and_own_tuning_refs',) SECONDS 11.178 EXIT 0",
+        "2026-10-24T07:41:24.3107528Z Ran 1 test in 10.172s"
+      ],
+      "snapshot": {
+        "task_head": "aa1e0732e2cf99fe297b0d30346c29acfe6c6310",
+        "snapshot_head": "decd2ea1ec1fa64912a74f23be37b0d8541cbe96",
+        "branch": "codex/agent-skill-improvement-recipe-authority-v3-linux-check",
+        "tree": "03b26c6ede301a66e3d98072757134a214bf5a84",
+        "sha256": {
+          "server/improvement_recipe_archive.py": "7362ddbfda80bec6cfc8fef4c1cf3eb91b12d3cd37ae51921cb1f02f7d624720",
+          "server/improvement_recipe_records.py": "1ef6d18e9c638a42f32fa5e601d20b08c677170c8f53ad691c87cdf1de0f7792",
+          "server/improvement_tuning_history.py": "4689e2aa937f0e76cba277f70133930843d5eea0bee2d78b1e5802e40b259f60",
+          "server/improvement_improver_inputs.py": "4d30dc3aa5151c0138c629ca20b994d2c31a24a1c0334475c91168098f7593e5",
+          "server/improvement_claude.py": "5be55146ef7947c6e4c4b50acc44c14673f8dbc9696421d2bd1ff75b90e5baed",
+          "tests/python/test_improvement_recipe_archive.py": "df10165a325fa60c325e563977fc6520137c794f92661458a92d207b66d70059",
+          "tests/python/test_improvement_recipe_records.py": "97fb866d617be97e7665822fe79294d33131f1d879c50a56f0d9e4c7fe124a4b"
+        },
+        "workflow_sha256": "2968522fbda12d81899cfa9619cf29b28a70607e02d7f63810230c2135f062f7",
+        "boundary": "engineering-only; not task-branch CI, native qualification, model or business proof"
+      },
+      "url": "https://github.com/blogminhquy/javis-os/actions/runs/40075062683"
+    }
+  ],
+  "protected_test_sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0",
+  "boundary": {
+    "business_proof": false,
+    "native_qualification": false,
+    "destination_retrieval": false,
+    "current_v4_archive_acceptance": false,
+    "physical_erasure": false,
+    "full_m0_m8": false,
+    "final_task_head_full_ci": false
+  },
+  "next": "Mandatory actual v4/schema10 integration, destination grants/max3, owned snapshot crash recovery and actual native/candidate/view/Trial/apply/lesson dependencies before orchestration comparison. Full Goal and Phase2 remain open."
+}

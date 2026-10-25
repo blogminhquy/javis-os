@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "reviewer": "m2d1_whole_review",
+  "base_head": "34a8fc14",
+  "scope": "host-selected baseline5/view4/operation2 materializers and canonical native_formats selector; source tuple helper addition",
+  "verdict": "approved_scoped_materializer_component",
+  "before_pins": {
+    "tests/python/test_improvement_trial_admission.py": "ab5ef04fe1c18d2fad4d97b041f3d5cce9d0a56f93123c28f39e449855ccd0a1",
+    "server/improvement_trial_admission.py": "7bbf673d820fa2b8f52dec9dc819e5b1b5ead5e8ce3bb78b3f82c92891f075ad",
+    "server/improvement_trial_host.py": "cf26c43a9f3f8fc51c6ff651fd6588d878a78cffb9c9553fa367a5376b11fac6",
+    "tests/python/test_improvement_preparation.py": "479fa0bf994c5842ca197c78dcd0567c5865da11b75c83a7ca8c37bb9898e712",
+    "server/improvement_view_materialization.py": "494c49141b15284fc1bb99049806e691e8d5af2ca617ffef20f290178cbbf477",
+    "tests/python/test_improvement_operation_execution.py": "fb94fc8d649983c925ad2a2c40024e507293e7584e3857f2a9ed535f3027d448",
+    "tests/python/test_improvement_native_materializers.py": "3fa89ec9869a3292149b75782a8d34cfa2069ac01cead9cdcc3485a0e349b71b",
+    "server/improvement_claude.py": "14c8b6ec8c0ed5343130a06daff8b05470f7b66fe72253ed4f9faffa94cb8ff9",
+    "tests/python/test_improvement_view_materialization.py": "e6acb8a65e6e184828f264fc101159cf572d396b5509a5c836fd20774a748a5a",
+    "server/improvement_operation_execution.py": "d39a679b7d3aa1c75432cb833f62e332a89aa38640b68fe01cf9f9ae76cc7f99",
+    "server/improvement_trials.py": "5f031e55f9ab60d17efaea73356246aa0eacca94e17ddab2fba3afa309c65e5d",
+    "server/improvement_native_formats.py": "a6bc586610cf827bdb8392e8af432dbd52438a1ace2ec221a6091d947d10ced1"
+  },
+  "after_pins": {
+    "server/improvement_view_materialization.py": "494c49141b15284fc1bb99049806e691e8d5af2ca617ffef20f290178cbbf477",
+    "server/improvement_operation_execution.py": "d39a679b7d3aa1c75432cb833f62e332a89aa38640b68fe01cf9f9ae76cc7f99",
+    "tests/python/test_improvement_operation_execution.py": "fb94fc8d649983c925ad2a2c40024e507293e7584e3857f2a9ed535f3027d448",
+    "server/improvement_claude.py": "14c8b6ec8c0ed5343130a06daff8b05470f7b66fe72253ed4f9faffa94cb8ff9",
+    "server/improvement_native_formats.py": "a6bc586610cf827bdb8392e8af432dbd52438a1ace2ec221a6091d947d10ced1",
+    "tests/python/test_improvement_preparation.py": "479fa0bf994c5842ca197c78dcd0567c5865da11b75c83a7ca8c37bb9898e712",
+    "server/improvement_trial_admission.py": "7bbf673d820fa2b8f52dec9dc819e5b1b5ead5e8ce3bb78b3f82c92891f075ad",
+    "server/improvement_trial_host.py": "cf26c43a9f3f8fc51c6ff651fd6588d878a78cffb9c9553fa367a5376b11fac6",
+    "tests/python/test_improvement_view_materialization.py": "e6acb8a65e6e184828f264fc101159cf572d396b5509a5c836fd20774a748a5a",
+    "tests/python/test_improvement_native_materializers.py": "3fa89ec9869a3292149b75782a8d34cfa2069ac01cead9cdcc3485a0e349b71b",
+    "tests/python/test_improvement_trial_admission.py": "ab5ef04fe1c18d2fad4d97b041f3d5cce9d0a56f93123c28f39e449855ccd0a1",
+    "server/improvement_trials.py": "5f031e55f9ab60d17efaea73356246aa0eacca94e17ddab2fba3afa309c65e5d"
+  },
+  "tests": {
+    "skips": 0,
+    "runs": [
+      {
+        "name": "new7",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-materializers-new7.log",
+        "exit": 0,
+        "sha256": "9e4e8c9714962c16482dce1fd6f49942abae5497e90056c6c661a32abc52a596"
+      },
+      {
+        "name": "view4",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-materializers-view4.log",
+        "exit": 0,
+        "sha256": "b669e6e9760297538572e68de8adf01e0da517a11534c26f3aa72694f82ebf5f"
+      },
+      {
+        "name": "legacy-operation1",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-materializers-legacy-operation1.log",
+        "exit": 0,
+        "sha256": "cfd34d1892d4b58f436d1ade2735b4182d3aa6fe1cf7624de6d3a29f2695046c"
+      },
+      {
+        "name": "legacy-preparation1",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-materializers-legacy-preparation1.log",
+        "exit": 0,
+        "sha256": "2dc1f1fd55018afca4f0fd949d4a5ffb62f82c81599f6f5df19298c22a3432de"
+      },
+      {
+        "name": "legacy-admission1",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-materializers-legacy-admission1.log",
+        "exit": 0,
+        "sha256": "c78065a55f239ebce7117e2f799d3d193be73040b798d7cda91e22cfde7c311b"
+      }
+    ],
+    "timings": {
+      "view4": 54.348,
+      "legacy_preparation1": 2.202,
+      "legacy_operation1": 3.003,
+      "legacy_admission1": 1.807,
+      "new7": 40.094
+    },
+    "count": 14,
+    "seconds_sum": 101.454
+  },
+  "actionable_findings": [],
+  "observations": [
+    "Selector uses planned exact host-pinned profile version, existing complete config grammar and fresh current source hash; legacy defaults remain baseline1/view3/operation1",
+    "PROFILE_VERSION remains old and reviewed registry not enabled; helper addition becomes part of native source tuple84",
+    "Baseline5 requires concrete same-store HostContextStore before solver; actual host binding/source/binding checks bracket all decrypted solver material, then final SQL/current/lease checks precede exposure",
+    "Native baseline rejects unpaired candidate; request3 actual preparation produces real bundle/context/assets before candidate/view exists",
+    "Linked view4 preserves genuine stored pair and exact revision/candidate bytes without canonical bundle fabrication; operation2 retains original data and prepared recomputation",
+    "New actual source-file mutation test rolls back both exposure and materialization; unbound/fake/foreign host negatives refuse before solver"
+  ],
+  "limits": [
+    "Tests use actual M0/source/SQLite/workspace stores with engineering adapter seams; no native/provider/account calls",
+    "View fixture setup alone temporarily retains legacy formats for old synthetic semantic authoring state; selector is real/unpatched during tested native view materialization",
+    "Approval is materializer component behavior, not runtime qualification/activation; final source/import/runtime release records must regenerate",
+    "Full18 eligible final/business proof and final-head CI remain separate open acceptance"
+  ],
+  "slot_released": true,
+  "review_report_sha256": "48cc54d9b1d972e05c52ff92af6729e01c5580b62ffb63a03580f14c8ca1ee80",
+  "author_logs": {
+    "red-materializers6.log": "b9265c0008c873520e007a1d2fad5b05fbf2f966dd34fdd2ed8e6bbf6251c61c",
+    "green-materializers6.log": "212424c62fdb8228490f856b3262681b73b284a142054042b3092eedcd58137d",
+    "red-materializer-host1.log": "af4072f6e95185d86aa9bcc14b2b809f05a5fd497d981893f319bfe3d098d2cb",
+    "green-materializers-host4.log": "85a9bcad65f6c75156e7d2e82e1e9ffbb246a19dea3978f971284e58075b2edf",
+    "green-materializers-binding1.log": "474f77c476cda21025100d6dc4e43eed0ca21789c842c5b08044ab2653f47ae6"
+  },
+  "author_lineage": "Initial6 allFAIL33.799s; firstGREEN6 still actual source-file raceFAIL57.707s. SQL-only current recheck insufficient. New unbound-host RED1FAIL.513s, concrete same-store host binding/source bracket fixed; affected4 PASS8.923s, wrong/fakehost1 PASS.767s. Independent final14 includes all changes."
+}

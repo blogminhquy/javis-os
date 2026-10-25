@@ -1,0 +1,108 @@
+{
+  "kind": "technical/ordinary-skill-opened-descriptor-fix",
+  "base_commit": "85bf8e684e5909af96796de02d086d6fc0af280a",
+  "finding": "Important/P1 actual transient external Windows junction returned external bytes with inside relative path. Prior per-read artifact is historical; this supersedes its containment claim.",
+  "review_repro_sha256": "e1ad8c4e7f270fce58c340e19567687687ba4f751d542d95acdcbcee5dd26588",
+  "review_failed_log_sha256": "ee6a57926e4fd98d0ccc7dfa1ff828baa82ae2c410fbb455b35d1989922677d8",
+  "new_behavior_red": {
+    "log_sha256": "21cf1dd37cd7b45835ed90959634a7be7d1953520c58996a4416df7d8e052ca0",
+    "result": "1 failure,0.055s; actual transient junction returned external marker."
+  },
+  "fix": "POSIX fd-relative nofollow directory walk + nonblocking leaf; Windows actual kernel descriptor path before reading. Both regular-file/size checked on descriptor. No unchecked fallback; descriptors close on failure.",
+  "source_hashes": {
+    "server/skill_asset_io.py": "135dfbbe933cb493987da3843f2593f71afde444f2ad66819c645013347af6c5",
+    "server/skill_router.py": "ff84ade684f8b49fd46f841203bff54729231fb24328ce77a84fb3bcae43c2d5",
+    "server/lazy_skill_runtime.py": "678030ef4f08a07141a400b21e798b52c834eff2b2785d433045a689c3b9c672",
+    "server/mcp_hub.py": "65449d7e22f4a7f302f55c80fa1aa52bfc6bac5519b54728945dee12fa54d416",
+    "tests/python/test_skill_asset_reads.py": "4dc7942b45eddf9fb2efe29a5df375f9db14652f1caeb6e8c93dbf23441b66a6"
+  },
+  "green": {
+    "commands": [
+      {
+        "args": [
+          "tests/python/test_skill_asset_reads.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "seconds": 1.219,
+        "log": "asset-descriptor-regression-0.log",
+        "log_sha256": "36407c0e0b915bac54e929180bd6b2066856f3d84fecea5b9299586716cea3e0"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_resolution_state.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "seconds": 1.031,
+        "log": "asset-descriptor-regression-1.log",
+        "log_sha256": "20a0704a3edfd0766cd13cfcfde19504867f2e6b4b7ce7f47c7f7a63fa3b7ba2"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_usage.py"
+        ],
+        "exit_code": 0,
+        "seconds": 5.422,
+        "log": "asset-descriptor-regression-2.log",
+        "log_sha256": "31874dec748f62d4a3128662f6d63b32c25523325ae9270f3572ae0844372849"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_caps.py"
+        ],
+        "exit_code": 0,
+        "seconds": 3.188,
+        "log": "asset-descriptor-regression-3.log",
+        "log_sha256": "c56d72646a3cce2258e20355a5633a0b159cb34008937c96d11dce33fcf66b85"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_da_ngon_ngu.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.328,
+        "log": "asset-descriptor-regression-4.log",
+        "log_sha256": "8600e955bdd30962f326248c728b4355167cb91016a05fa9a849bf706860dc52"
+      },
+      {
+        "args": [
+          "-m",
+          "pytest",
+          "tests/python/test_adaptive_context_phase8.py",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 3.219,
+        "log": "asset-descriptor-regression-5.log",
+        "log_sha256": "0f211a6a96cf9f8f3be5cb9e9a9acc8434fa9b1a3aefe88e86832deca3aace5a"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_subtree_ship.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.359,
+        "log": "asset-descriptor-regression-6.log",
+        "log_sha256": "df6cef61f89387a3c014d856553ae0450f87125adb8cfadc6365b8881abd157a"
+      }
+    ],
+    "wall_seconds": 14.766,
+    "new_suite": "14 tests:12PASS,2 expected platform skips (POSIX FIFO, Windows file-symlink privilege). Actual Windows transient external junction refused; static external junction refused; inside junction readable; descriptor query failure closes before buffered read.",
+    "original_repro_log_sha256": "4d4162548295ff0a38986dc8c07db317cb1eee5df93d8faf5b375c8a9aa5757f",
+    "original_repro_note": "Reports no returned asset/outside bytes. It prints fixture state before its finally restores the parent; cleanup is retained in original script.",
+    "linux_pending": "Actual POSIX anchored-open/symlink/FIFO execution requires final-head LinuxCI. No Linux pass inferred from Windows."
+  },
+  "native_reuse": {
+    "all_81_source_hashes_unchanged": true,
+    "profile_hash": "958527ac69c3b5728044b22cf6d3bdebb920da7cbe46a9da261e899568ced1ef",
+    "basis": "Exact before/after full-source snapshots; none of new ordinary skill modules enters isolated adapter footprint. No native/model call repeated."
+  },
+  "model_calls": 0,
+  "activation": false,
+  "full_d2_complete": false,
+  "business_proof": false,
+  "record_sha256": "46c7783069b413d250b9da68f7322fb8763b26e2de30287cae77a17bc13ecbf8",
+  "review": "Scoped original-finding/new OS boundary recheck pending; whole-D1 and prior approved scopes retained.",
+  "final_head_ci": "Required after commit/push; old runs do not prove changed source."
+}

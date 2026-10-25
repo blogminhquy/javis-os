@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "status": "engine_bridge_approved_no_production_consumer_enabled",
+  "source_sha256": "f1dcc8ed09816a5bd394df563ea601b84708332287ca3bd59316497f3556594c",
+  "test_sha256": "a34a72bdb982b07fa6ae924b749aeb45688893b536bd340d2531c2f2b78b2bd0",
+  "command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_native_client_factory.py",
+  "red": {"tests": 2, "failures": 2, "seconds": 0.968, "log_sha256": "fbb3565c9bdd7436677e9e63de14b686a241a2240bfd4b15e6de303f8d0bf65a", "cause": "Actual engine ignored profile factory and constructed default client"},
+  "author": {"tests": 2, "seconds": 0.842, "exit": 0, "log_sha256": "8a21accc0f387f65c8ea13188c3c7b338f6934409380f13df685afaa9b726512"},
+  "independent": {"tests": 2, "seconds": 0.833, "exit": 0, "log_sha256": "6767c957879a200a04f23fde6f614464e0d2a2db6604fa15b5e9eddf7eb958c5"},
+  "legacy_regression": {"tests": 22, "seconds": 1.447, "exit": 0, "log_sha256": "48e76ce7ab5f03541f5558a329438214f115d19ee3b1d3135291b79fd764ee1d"},
+  "behavior": [
+    "Actual SDK engine query passes its built options to optional trusted trial_profile.create_client before connect and existing before_query/accounting ACK",
+    "Absent/None factory retains the existing default ClaudeSDKClient construction",
+    "Factory error escapes before connect/ACK/query; no fallback bypasses the requested native transport",
+    "Tests preserve exact model/effort/system prompt, raw final artifact and missing usage instead of fabricating telemetry"
+  ],
+  "limitations": [
+    "Actual engine/TrialProfile/options with fake client/token gate; no native subprocess, SDKClient connection, account/model/provider call",
+    "This hook alone does not prove a native transport or require one for legacy profiles; new worker/manifest4 consumers must bind and enforce the qualified factory explicitly",
+    "No production profile supplies this factory yet; actual worker routes, durable evidence2, input-delivery proof and full pipeline qualification remain open",
+    "Historical source qualification cannot qualify this changed SDK-engine source; final frozen-boundary registration and final-head CI still required"
+  ],
+  "local_logs": {
+    "author_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-skill-reads",
+    "independent": ".superpowers/sdd/2026-10-24-agent-skill-improvement-host-transport-v2/independent_engine_client_factory.log"
+  }
+}

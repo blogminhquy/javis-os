@@ -58,11 +58,15 @@ class ExperimentAdmission:
                                        (payload["comparison_id"], brain, row["id"])).fetchone()
         if comparison is None:
             raise PermissionError("experiment_comparison_unavailable")
+        from improvement_comparison_links import require_legacy_comparison
+        require_legacy_comparison(connection, brain, comparison["id"])
         if comparison["kind"] != "tuning":
             raise PermissionError("experiment_final_execution_unavailable")
         # Derive only closed schedule metadata before any plaintext/probe. A
         # blocked candidate never decrypts context, proposal, fixture or answers.
         value = definition(json.loads(row["definition_json"]))
+        from improvement_experiment_qualification import require_tuning_families
+        require_tuning_families(connection, brain, value['case_set_id'])
         arm = connection.execute("SELECT * FROM improvement_experiment_arms WHERE experiment_id=? AND brain_id=? AND ordinal=?",
                                  (row["id"], brain, comparison["ordinal"])).fetchone()
         if arm is None or arm["envelope_hash"] != comparison["arm_hash"] or comparison["definition_hash"] != row["definition_hash"]:
@@ -114,8 +118,20 @@ class ExperimentAdmission:
                 return replay
             prepared = self._prepare(connection, principal, payload)
         self.host._snapshot_observe(principal, prepared[1][1])
+        def native_current(connection, joined):
+            for _ in range(2):
+                if self._prepare(connection, principal, payload) != prepared:
+                    raise IM.ConflictError("experiment_admission_authority_changed")
+                self.host._snapshot_observe(principal, prepared[1][1])
+            return "allow"
+
         try:
-            available = ClaudeTrialAdapter(prepared[0]["engine_config"]).verify()
+            adapter = ClaudeTrialAdapter(prepared[0]["engine_config"])
+            adapter.bind_native_authority(self.assets, principal, scope_hash=IM._hash({
+                "version": 1, "kind": "experiment_cell_admission", "brain_id": brain,
+                "event_key_hash": IM._hash(event_key), "request_hash": IM._hash(payload),
+                "authority_hash": IM._hash(prepared[0])}), current=native_current)
+            available = adapter.verify()
             if type(available) is not dict or available.get("supported") is not True:
                 raise ValueError("trial_native_unavailable")
             from improvement_experiment_protocol import _digest

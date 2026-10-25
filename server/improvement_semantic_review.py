@@ -29,6 +29,13 @@ def validator_hash():
          'improvement_role_workflow.py', 'improvement_skill_patch.py', 'improvement_semantic_records.py')})
 
 
+def _native_report_evidence(report):
+    from improvement_role_workflow import _product_checks
+    _product_checks(report)
+    return {'native_verdict': report['verdict'], 'native_checks': report['checks'],
+        **({'native_result_version': 2} if report['version'] == 2 else {})}
+
+
 class SemanticReview(RoleWorkflow):
     _product_kinds = frozenset({'semantic'})
 
@@ -116,7 +123,20 @@ class SemanticReview(RoleWorkflow):
             assert_installed(connection)
         snapshot = self._snapshot(principal, payload['candidate_id'], payload['expected_generation'])
         self._open()
-        available = ClaudeOperationAdapter(snapshot['prepared'][1]['engine_config']).verify()
+        def native_current(connection, joined):
+            for _ in range(2):
+                self._fence(connection, principal, snapshot, payload['expected_generation'])
+                if self._snapshot(principal, payload['candidate_id'], payload['expected_generation']) != snapshot:
+                    raise IM.ConflictError('semantic_input_changed')
+                self._fence(connection, principal, snapshot, payload['expected_generation'])
+            return 'allow'
+
+        adapter = ClaudeOperationAdapter(snapshot['prepared'][1]['engine_config'])
+        adapter.bind_native_authority(self.assets, principal, scope_hash=IM._hash({
+            'version': 1, 'kind': 'semantic_review_admission', 'brain_id': brain,
+            'event_key_hash': IM._hash(event_key), 'request_hash': IM._hash(payload),
+            'authority_hash': IM._hash([snapshot['binding'], IM._hash(snapshot['data'])])}), current=native_current)
+        available = adapter.verify()
         if type(available) is not dict or available.get('supported') is not True:
             raise ValueError('operation_native_unavailable')
         blob = self.blobs.write(brain, input_bytes(snapshot['data']))
@@ -145,11 +165,14 @@ class SemanticReview(RoleWorkflow):
             raise IM.ConflictError('semantic_source_changed')
         if product['row']['candidate_id'] != identifier or product['row']['input_hash'] != IM._hash(snapshot['data']):
             raise IM.ConflictError('semantic_input_changed')
-        assessment = semantic_output(product['raw'], snapshot['data'])
+        try:
+            assessment = semantic_output(product['raw'], snapshot['data'])
+        except (ValueError, TypeError, PermissionError, KeyError, UnicodeError, RecursionError):
+            return self._invalid_output(principal, payload, event_key, begun, product)
         verdict = combined_verdict(assessment['verdict'], snapshot['dependencies']['verdict'], product['report']['verdict'])
         evidence = {'version': 1, 'candidate_id': identifier, 'binding': snapshot['binding'], 'assessment': assessment,
             'dependencies': snapshot['dependencies'], 'operation_id': product['row']['id'], 'result_id': product['record']['id'],
-            'native_verdict': product['report']['verdict'], 'native_checks': product['report']['checks'],
+            **_native_report_evidence(product['report']),
             'native_refs': {'result_hash': product['record']['result_hash'], 'input_hash': product['row']['input_hash'],
                 'artifact_hash': product['report']['artifact']['hash'], 'installation_hash': product['report']['installation']['hash'],
                 'call_id': product['call']['id'], 'trace_hash': IM._hash(product['report']['trace_hashes'])},
@@ -171,6 +194,24 @@ class SemanticReview(RoleWorkflow):
             result = {'receipt_id': receipt_id, 'candidate_id': identifier, 'operation_id': product['row']['id'],
                 'result_id': product['record']['id'], 'binding_hash': binding_blob, 'assessment_hash': IM._hash(assessment),
                 'blob_hash': blob, 'verdict': verdict, 'native_verdict': product['report']['verdict'], 'semantic_status': 'unreviewed'}
+            self.assets._event(connection, principal, event_key, 'semantic_review', payload, result)
+            return result
+
+    def _invalid_output(self, principal, payload, event_key, begun, product):
+        # Preserve the raw native product without manufacturing an assessment,
+        # receipt or retry. A completed native call is not a valid review.
+        snapshot = self._snapshot(principal, payload['candidate_id'], begun['generation'])
+        if snapshot != begun['snapshot']:
+            raise IM.ConflictError('semantic_source_changed')
+        with self.store._Tx(self.store) as connection:
+            replay = self.assets._replay(connection, _brain(principal), event_key, 'semantic_review', payload)
+            if replay is not None:
+                return replay
+            self._fence(connection, principal, snapshot, begun['generation'])
+            self._product_fence(connection, principal, product)
+            result = {'candidate_id': payload['candidate_id'], 'experiment_id': begun['experiment_id'],
+                'operation_id': product['row']['id'], 'result_id': product['record']['id'],
+                'status': 'invalid_output', 'native_verdict': product['report']['verdict'], 'business_proof': False}
             self.assets._event(connection, principal, event_key, 'semantic_review', payload, result)
             return result
 
@@ -228,7 +269,9 @@ class SemanticReview(RoleWorkflow):
             product = self._product(connection, principal, evidence['operation_id'])
             if (product['record']['id'] != metadata['result_id'] or product['record']['result_hash'] != evidence['native_refs']['result_hash']
                     or product['row']['input_hash'] != IM._hash(snapshot['data'])
-                    or semantic_output(product['raw'], snapshot['data']) != evidence['assessment']):
+                    or semantic_output(product['raw'], snapshot['data']) != evidence['assessment']
+                    or {key: evidence[key] for key in ('native_verdict', 'native_checks', 'native_result_version') if key in evidence}
+                        != _native_report_evidence(product['report'])):
                 raise IM.ConflictError('semantic_native_evidence_changed')
             decisions = [json.loads(row[0]) for row in connection.execute("SELECT result_json FROM improvement_events "
                 "WHERE brain_id=? AND operation='semantic_owner_arbitration' ORDER BY id", (_brain(principal),))]

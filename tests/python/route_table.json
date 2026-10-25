@@ -5812,6 +5812,36 @@
  {
   "order": 583,
   "type": "APIRoute",
+  "path": "/improvement-activations",
+  "name": "activation_list",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 584,
+  "type": "APIRoute",
+  "path": "/improvement-activations",
+  "name": "activation_apply",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 585,
+  "type": "APIRoute",
+  "path": "/improvement-activations/{activation_id}/revert",
+  "name": "activation_revert",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 586,
+  "type": "APIRoute",
   "path": "/improvement-trials/recover",
   "name": "improvement_trial_recover",
   "methods": [
@@ -5820,7 +5850,7 @@
   "trong": null
  },
  {
-  "order": 584,
+  "order": 587,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}",
   "name": "improvement_context_create",
@@ -5830,7 +5860,7 @@
   "trong": null
  },
  {
-  "order": 585,
+  "order": 588,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}",
   "name": "improvement_context_get",
@@ -5840,7 +5870,7 @@
   "trong": null
  },
  {
-  "order": 586,
+  "order": 589,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}/revoke",
   "name": "improvement_context_revoke",
@@ -5850,7 +5880,7 @@
   "trong": null
  },
  {
-  "order": 587,
+  "order": 590,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}/snapshots",
   "name": "improvement_snapshot_create",
@@ -5860,7 +5890,7 @@
   "trong": null
  },
  {
-  "order": 588,
+  "order": 591,
   "type": "APIRoute",
   "path": "/improvement-contracts",
   "name": "improvement_contract_create",
@@ -5870,7 +5900,7 @@
   "trong": null
  },
  {
-  "order": 589,
+  "order": 592,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}/case-sets",
   "name": "improvement_case_set_create",
@@ -5880,7 +5910,7 @@
   "trong": null
  },
  {
-  "order": 590,
+  "order": 593,
   "type": "APIRoute",
   "path": "/improvement-bundles",
   "name": "improvement_bundle_create",
@@ -5890,7 +5920,7 @@
   "trong": null
  },
  {
-  "order": 591,
+  "order": 594,
   "type": "APIRoute",
   "path": "/improvement-trials",
   "name": "improvement_trial_start",
@@ -5900,7 +5930,7 @@
   "trong": null
  },
  {
-  "order": 592,
+  "order": 595,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}",
   "name": "improvement_trial_get",
@@ -5910,7 +5940,7 @@
   "trong": null
  },
  {
-  "order": 593,
+  "order": 596,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}/cancel",
   "name": "improvement_trial_cancel",
@@ -5920,7 +5950,7 @@
   "trong": null
  },
  {
-  "order": 594,
+  "order": 597,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}/attempts/{attempt}/owner-decisions",
   "name": "improvement_owner_decision",
@@ -5930,7 +5960,7 @@
   "trong": null
  },
  {
-  "order": 595,
+  "order": 598,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}/attempts/{attempt}/reevaluate",
   "name": "improvement_trial_reevaluate",
@@ -5940,7 +5970,7 @@
   "trong": null
  },
  {
-  "order": 596,
+  "order": 599,
   "type": "APIRoute",
   "path": "/improvement-candidate-contexts",
   "name": "improvement_candidate_contexts",
@@ -5950,7 +5980,7 @@
   "trong": null
  },
  {
-  "order": 597,
+  "order": 600,
   "type": "APIRoute",
   "path": "/improvement-candidates",
   "name": "improvement_candidates",
@@ -5960,7 +5990,7 @@
   "trong": null
  },
  {
-  "order": 598,
+  "order": 601,
   "type": "APIRoute",
   "path": "/improvement-edit-regions",
   "name": "improvement_edit_region",
@@ -5970,7 +6000,7 @@
   "trong": null
  },
  {
-  "order": 599,
+  "order": 602,
   "type": "APIRoute",
   "path": "/improvement-candidates",
   "name": "improvement_candidate_stage",
@@ -5980,7 +6010,7 @@
   "trong": null
  },
  {
-  "order": 600,
+  "order": 603,
   "type": "APIRoute",
   "path": "/improvement-candidates/{candidate_id}/review",
   "name": "improvement_candidate_review",
@@ -5990,7 +6020,7 @@
   "trong": null
  },
  {
-  "order": 601,
+  "order": 604,
   "type": "APIRoute",
   "path": "/improvement-candidates/{candidate_id}/authorize",
   "name": "improvement_candidate_authorize",
@@ -6000,7 +6030,7 @@
   "trong": null
  },
  {
-  "order": 602,
+  "order": 605,
   "type": "APIRoute",
   "path": "/improvement-edit-authorities/{authority_id}/revoke",
   "name": "improvement_candidate_authority_revoke",
@@ -6010,7 +6040,7 @@
   "trong": null
  },
  {
-  "order": 603,
+  "order": 606,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}/artifact-review",
   "name": "improvement_artifact_review",
@@ -6020,7 +6050,7 @@
   "trong": null
  },
  {
-  "order": 604,
+  "order": 607,
   "type": "APIRoute",
   "path": "/improvement-candidate-baselines/{experiment_id}/review",
   "name": "improvement_candidate_baseline_review",
@@ -6030,7 +6060,7 @@
   "trong": null
  },
  {
-  "order": 605,
+  "order": 608,
   "type": "APIRoute",
   "path": "/improvement-experiments",
   "name": "experiment_list",
@@ -6040,7 +6070,7 @@
   "trong": null
  },
  {
-  "order": 606,
+  "order": 609,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}",
   "name": "experiment_get",
@@ -6050,7 +6080,7 @@
   "trong": null
  },
  {
-  "order": 607,
+  "order": 610,
   "type": "APIRoute",
   "path": "/improvement-comparison-reports/{report_id}",
   "name": "comparison_report_get",
@@ -6060,7 +6090,7 @@
   "trong": null
  },
  {
-  "order": 608,
+  "order": 611,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/preparation",
   "name": "preparation_history",
@@ -6070,7 +6100,7 @@
   "trong": null
  },
  {
-  "order": 609,
+  "order": 612,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/operations",
   "name": "operation_history",
@@ -6080,7 +6110,7 @@
   "trong": null
  },
  {
-  "order": 610,
+  "order": 613,
   "type": "APIRoute",
   "path": "/improvement-operations/{operation_id}",
   "name": "operation_metadata",
@@ -6090,7 +6120,7 @@
   "trong": null
  },
  {
-  "order": 611,
+  "order": 614,
   "type": "APIRoute",
   "path": "/improvement-candidates/{candidate_id}/semantic-history",
   "name": "semantic_history",
@@ -6100,7 +6130,57 @@
   "trong": null
  },
  {
-  "order": 612,
+  "order": 615,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/views/{comparison_id}",
+  "name": "view_history",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 616,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/compose-consents",
+  "name": "experiment_compose_consents",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 617,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/compositions",
+  "name": "experiment_compositions",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 618,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/compose-outcomes",
+  "name": "experiment_compose_outcomes",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 619,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/policy",
+  "name": "experiment_policy",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 620,
   "type": "APIRoute",
   "path": "/improvement-experiments",
   "name": "experiment_create",
@@ -6110,7 +6190,7 @@
   "trong": null
  },
  {
-  "order": 613,
+  "order": 621,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/bind",
   "name": "experiment_bind",
@@ -6120,7 +6200,7 @@
   "trong": null
  },
  {
-  "order": 614,
+  "order": 622,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/freeze",
   "name": "experiment_freeze",
@@ -6130,7 +6210,7 @@
   "trong": null
  },
  {
-  "order": 615,
+  "order": 623,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/next",
   "name": "experiment_next",
@@ -6140,7 +6220,7 @@
   "trong": null
  },
  {
-  "order": 616,
+  "order": 624,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/report",
   "name": "experiment_report",
@@ -6150,7 +6230,7 @@
   "trong": null
  },
  {
-  "order": 617,
+  "order": 625,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/select",
   "name": "experiment_select",
@@ -6160,7 +6240,7 @@
   "trong": null
  },
  {
-  "order": 618,
+  "order": 626,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/cancel",
   "name": "experiment_cancel",
@@ -6170,7 +6250,7 @@
   "trong": null
  },
  {
-  "order": 619,
+  "order": 627,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/resume",
   "name": "experiment_resume",
@@ -6180,7 +6260,7 @@
   "trong": null
  },
  {
-  "order": 620,
+  "order": 628,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/recover",
   "name": "experiment_recover",
@@ -6190,7 +6270,67 @@
   "trong": null
  },
  {
-  "order": 621,
+  "order": 629,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/view-freeze",
+  "name": "experiment_view-freeze",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 630,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/view-evidence",
+  "name": "experiment_view-evidence",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 631,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/compose",
+  "name": "experiment_compose",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 632,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/compose-authorize",
+  "name": "experiment_compose-authorize",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 633,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/compose-preview",
+  "name": "experiment_compose-preview",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 634,
+  "type": "APIRoute",
+  "path": "/improvement-experiments/{experiment_id}/compose-revoke",
+  "name": "experiment_compose-revoke",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 635,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/preparation-complete",
   "name": "experiment_preparation-complete",
@@ -6200,7 +6340,7 @@
   "trong": null
  },
  {
-  "order": 622,
+  "order": 636,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/preparation-freeze",
   "name": "experiment_preparation-freeze",
@@ -6210,7 +6350,7 @@
   "trong": null
  },
  {
-  "order": 623,
+  "order": 637,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/preparation-next",
   "name": "experiment_preparation-next",
@@ -6220,7 +6360,7 @@
   "trong": null
  },
  {
-  "order": 624,
+  "order": 638,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/propose",
   "name": "experiment_propose",
@@ -6230,7 +6370,7 @@
   "trong": null
  },
  {
-  "order": 625,
+  "order": 639,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/semantic-arbitrate",
   "name": "experiment_semantic-arbitrate",
@@ -6240,7 +6380,7 @@
   "trong": null
  },
  {
-  "order": 626,
+  "order": 640,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/semantic-evidence",
   "name": "experiment_semantic-evidence",
@@ -6250,7 +6390,7 @@
   "trong": null
  },
  {
-  "order": 627,
+  "order": 641,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/semantic-review",
   "name": "experiment_semantic-review",

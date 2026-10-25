@@ -1,0 +1,176 @@
+{
+  "unit": "Authenticated two-arm host composition input, actual upstream renderer and encrypted M0 input/basis/exposure publication",
+  "base_commit": "6e30d82d84e3dfca3b0fb11ce5937a7190086ff4",
+  "goal_sections": "12-17",
+  "source_and_test_sha256": {
+    "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "tests/python/test_improvement_compose_protocol.py": "1b94a495ebcb55e85fa5f1146d3d341db7ee5fd35b3ef49ac42472098cb41a47",
+    "server/improvement_comparison_results.py": "575d476181320fa17b8ba6f4b1a3edea4e007c1e58e66be8034df6d991774d7b",
+    "server/improvement_cases.py": "561d848331eca7ce6b4e84d6b68b1cac031a62f8dc0e4ce14250bda7f80d2b9d",
+    "server/improvement_compose_inputs.py": "4bfcd69c96696fc8dad6d4478a8edbc319ce9313114f1aff3b85f5417a40046b",
+    "server/improvement_improver_inputs.py": "cb1f6798af6e44f8801334231eb7113383ebbb6faff6a6586e9ab1e7ec1fb458",
+    "server/improvement_experiment_lineage.py": "4678869147da763bfc000af4079064b19d8fac41b002453fb7029ba0a1c7ec41",
+    "server/improvement_compose_protocol.py": "7c829bfeec4ad38a45b980db09e75d8e3f778fc880ecd1767f86d5559c9be326",
+    "server/improvement_comparison_plans.py": "b81c1c0b93a17ac59d85d2bfb462fa5ee7f6e717a9ea8d6eee747862e5055ae4",
+    "third_party/harness2/COMPOSE-PROVENANCE.json": "ce7839f1a378502caeb5c06af54a66727761f0223bdc336f549cbf0b003fb11c",
+    "server/improvement_skill_candidates.py": "881d402a3df0629aacfecac590b25f667043b1e7d6e0ef5cd7b6ba09c4886c9e",
+    "tests/run.py": "59756fe950a50a85ba761f5aba132566656022718dd91b936c1f2266bb9fb92a",
+    "tests/python/test_improvement_compose_input_races.py": "ed6870152786d590bd79b13fb71caa3ab59db3eeb2ccd8f099e9711b5c3ac4a2",
+    "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9",
+    "tests/python/test_improvement_compose_inputs.py": "d0831be1eb7c024715a2e1e66697b218535a82fb3bd9921aae06591151709f65"
+  },
+  "behavior": [
+    "Only concrete current owner/plans identifiers; both original candidates and latest complete supported tuning reports, exact lineage/case/repeat/artifact/public case/typed verdict/bound observable trace.",
+    "No evaluator-private reason/evidence, hidden answers, raw reasoning, extra source or whole-library reads. Preserve original A refs as historical, not a new read/citation grant.",
+    "Actual unchanged upstream compose_round through bounded body adapter, then encrypted canonical input and stable hash/identity basis in existing M0. Stable basis excludes process-local prepared registry callback IDs.",
+    "Full actual completed Trial/Attempt/CallLedger status, engine_at, purpose/reason/mirror/attempt/context joins and final source/policy/SQL/holdout/domain revalidation.",
+    "Conservative exact tuning-family exposure and input metadata share one writer transaction; late refusal rolls both back. Metadata replay revalidates current authority; old encrypted bytes/history remain cold-readable.",
+    "No new schema, executor/ledger, native compose call/allowance, candidate, executable bundle, inherited pass or activation. Exposure records host input publication, not provider delivery."
+  ],
+  "red": {
+    "author_cases": {
+      "tests": 7,
+      "failures": 7,
+      "seconds": 0.006,
+      "reason": "Clean missing module before fixture setup"
+    },
+    "historical_ref": {
+      "tests": 11,
+      "passed": 10,
+      "errors": 1,
+      "seconds": 0.161,
+      "reason": "Original empty A refs wrongly required current comparison citations"
+    },
+    "actual_call_corruption": {
+      "tests": 3,
+      "passed": 2,
+      "failures": 1,
+      "seconds": 16.057
+    },
+    "late_policy_identity": {
+      "tests": 1,
+      "failures": 1,
+      "seconds": 7.216
+    }
+  },
+  "green": {
+    "root_author_cases": {
+      "tests": 7,
+      "passed": 7,
+      "seconds": 49.139,
+      "scope": "Before final late-policy check added; independently reviewed/executed reviewer-authored cases"
+    },
+    "root_final_source_positive_replay": {
+      "tests": 2,
+      "passed": 2,
+      "seconds": 14.658
+    },
+    "root_final_source_races": {
+      "tests": 4,
+      "passed": 4,
+      "seconds": 21.424
+    },
+    "root_final_source_protocol": {
+      "tests": 11,
+      "passed": 11,
+      "seconds": 0.169
+    }
+  },
+  "test_correction": "Initial implementation5PASS/2countFAIL50.733s identified incorrect zero-exposure expectation after successful input publication. Existing ImproverInputs230/TrialStore428/CaseStore443 require tracking exposure. Root and test author agreed exact tuning-key union, old timestamp preservation, replay identity and failed-publication zero exposure; no safety write removed. Other counts/generation remain unchanged.",
+  "independent": {
+    "decision": "APPROVED_SCOPED_COMPONENT",
+    "tests": 5,
+    "passed": 5,
+    "seconds": 14.943,
+    "stable_pins": 15,
+    "findings": [],
+    "report_sha256": "e6c9055afaf75487ebdddb7590cc4bea80332dc13b381e7f5766f1433f774422",
+    "logs_sha256": {
+      "independent-race4.log": "6c33af1478a758407ac3a6fdbc0efde8a5dda8c89205a27ea6beababd24ca37c",
+      "independent.log": "b2295a0596ab00724839028ab5b6deef78bd345a278dd8bdfbc7cc7f3a93f7bb",
+      "independent-driver.py": "29aa655cfc12ebb051d4ebe375e65c3a5164c48f179259b30f67151af60dfb55",
+      "independent-historical1.log": "c80187999c3336bf05f1a13b56d948baef960013fd7b33542613bd4f25ffb855"
+    },
+    "original_author_tests_excluded_selfapproval": true,
+    "root_test_changes_independently_reviewed": "Exact exposure assertions, root race4 and historical-ref case"
+  },
+  "early_linux": {
+    "run_id": 40056590938,
+    "job_id": 120760808190,
+    "head_sha": "50a73cc28262e4bf1a9b9159c0d38e3df3f47890",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40056590938",
+    "selected_raw_pins_verified": 8,
+    "scripts": [
+      {
+        "name": "test_improvement_compose_protocol.py",
+        "tests": 11,
+        "passed": 11,
+        "seconds": 0.192
+      },
+      {
+        "name": "test_improvement_compose_inputs.py",
+        "tests": 7,
+        "passed": 7,
+        "seconds": 13.962
+      },
+      {
+        "name": "test_improvement_compose_input_races.py",
+        "tests": 4,
+        "passed": 4,
+        "seconds": 5.99
+      },
+      {
+        "name": "test_improvement_skill_patch.py",
+        "tests": 11,
+        "passed": 11,
+        "seconds": 0.032
+      }
+    ],
+    "initial_dispatch": "HTTP500; run list empty before one successful retry",
+    "scope": "Fresh isolated Ubuntu/Python3.12 fixture check with explicit no-real-engine flags; not final-task-head full required CI or native/model/business qualification.",
+    "selected_raw_sha256": {
+      "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9",
+      "server/improvement_compose_protocol.py": "7c829bfeec4ad38a45b980db09e75d8e3f778fc880ecd1767f86d5559c9be326",
+      "server/improvement_compose_inputs.py": "4bfcd69c96696fc8dad6d4478a8edbc319ce9313114f1aff3b85f5417a40046b",
+      "tests/python/test_improvement_compose_protocol.py": "1b94a495ebcb55e85fa5f1146d3d341db7ee5fd35b3ef49ac42472098cb41a47",
+      "tests/python/test_improvement_compose_inputs.py": "d0831be1eb7c024715a2e1e66697b218535a82fb3bd9921aae06591151709f65",
+      "tests/python/test_improvement_compose_input_races.py": "ed6870152786d590bd79b13fb71caa3ab59db3eeb2ccd8f099e9711b5c3ac4a2",
+      "third_party/harness2/COMPOSE-PROVENANCE.json": "ce7839f1a378502caeb5c06af54a66727761f0223bdc336f549cbf0b003fb11c",
+      "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "workflow_sha256": "9c7e6cc8e1dce3183ca771deacc4435f1f1b2eecdf1dcfe28235e81fadd833f6",
+    "snapshot_sha256": "6b33ec5bb1c149f42e7e9ce504b85c138f0a7193bcfc250204d6a6b37a4986f1",
+    "job_log_sha256": "8c9a082f39e2ee2e7966212cbe63bbd9f0ceb5bd7095e17d2da7e41a11a5fbdd",
+    "total_tests": 33,
+    "passed": 33
+  },
+  "root_logs_sha256": {
+    "author-red.log": "955a7e89a38a6c46847c0279c4344d4f5597820901cd68fb7922a1004e5091e6",
+    "green1.log": "25234abc2e98db67184031e7a993d496b78994d68db8caa3a5844f6cd8155ced",
+    "green7.log": "734035325f8e6ffbc813d7035b99f891a526ed0e8b551c08588bb3b9918ba5f2",
+    "root-races-red.log": "9dc1e804f00cccdfbfc3a37ae49dd45c93c54f872595f7211fd8733c996e266a",
+    "root-races-green3.log": "76c50ee3061d5bc8c53efa081b8bbb884cb39a88ae77ac8d8d45b86029626034",
+    "root-policy-red.log": "89513c97af2567a5dc2ee2e542388babcfb2ed4ddcfdf7da30fc0bbdc2dec9a3",
+    "root-races-green4.log": "0b2583197740ae361d75b8c2e5f9d48ee386f67cf4c5c2fe47c13ae42c64d2c1",
+    "final-positive2.log": "053df3666872d9af5bf225e276fc4e955669a80532da81ed0685332d108297a9",
+    "final-protocol11.log": "b3a8476e728e301fd837386612d5aa2c95305029c64a47eaea1a32c4a4f3c6ef"
+  },
+  "protocol_logs_sha256": {
+    "historical-refs-red.log": "f804a3667ea77edc9c11bbdbe02be93bb5051c34ed3663f0253c1b7198b5d1aa",
+    "historical-refs-green11.log": "a7c10e23fd764dfb026e4e4692112eb329862523223650b97b480dedf3a6b594"
+  },
+  "proof_reused": [
+    "Prior vendor9 exact-source/AST/Gitblob and Apache2 license proof, unchanged pins.",
+    "Root independently reviewed/executed original7 (author cases excluded here), plus root historical protocol11 proof."
+  ],
+  "limits": [
+    "Storage controls explicitly engine technical_fixture/model unexecuted; support/completion labels do not establish selected actual model/config/native/account readiness.",
+    "Current producer emits input/basis/exposure metadata only, no native operation/compose allowance/third candidate/bundle/pass/activation.",
+    "No cross-process restart integration run in this scope; static stable-basis design inspected.",
+    "No original7 rerun, broad suites, native/model/account or installed-source inventory.",
+    "Final fullCI and fullGoal/native qualification gates remain separate."
+  ],
+  "next": "Distinct immutable composition/owner permission plus explicit existing Operation kind/purpose/CallLedger/schema/arm migration, one compose total, original two proposals preserved and new bundle independently checked. Then actual derived experience-library adapter; full M0-M8, source-qualified native pipeline, final exact-head full required CI and Phase2 remain open."
+}

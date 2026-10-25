@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "status": "early_component_ci_success_not_final_head_ci",
+  "run": "https://github.com/blogminhquy/javis-os/actions/runs/40029282316",
+  "snapshot": "a86c716e7ae1ff222b5d66c20b9d4254e609d231",
+  "snapshot_base": "4ba9624a76cd4bfb54d3d229263baa223944383b",
+  "branch": "codex/agent-skill-improvement-channel-linux-check",
+  "conclusion": "success",
+  "environment": "Existing ci.yml on ubuntu-latest/Python3.12",
+  "focused_log_results": [
+    {"file": "test_improvement_image_channel.py", "tests": 14, "seconds": 0.156, "status": "OK"},
+    {"file": "test_improvement_private_channel.py", "tests": 9, "seconds": 0.287, "status": "OK"},
+    {"file": "test_improvement_selector_channel_cleanup.py", "tests": 1, "seconds": 0.030, "status": "OK"}
+  ],
+  "log_sha256": "648f42028c27e75d469fe0fd4babeb3023fcf3f5538dccc3691923a1e3c2a73d",
+  "portable_sources": {
+    "improvement_image_channel.py": "fe5933c955f46f54fb0bfed42cca722698ea2bb2016f9253dd42a5beebf85465",
+    "improvement_private_channel.py": "ee05c29aaf2b29acd5e82799686fb00882dd0e37a8975fd8fe3d28412d8bff98",
+    "improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744"
+  },
+  "snapshot_files_verified_against_current_checkout": 7,
+  "snapshot_hash_mismatches": 0,
+  "scope": "Only seven portable files added to isolated snapshot on old pushed head. Actual POSIX selector fixture proves uncancelled IO completion before descriptor close. Existing workflow completed successfully.",
+  "limitations": [
+    "This is not the current integration branch head; later engine/guardian/worker/SDK/storage/manifest changes are absent",
+    "No claim of Windows Selector runtime support, native account qualification, full pipeline qualification or final PR readiness",
+    "Final frozen runtime qualification/registration and required exact-final-head CI remain mandatory"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-skill-reads"
+}

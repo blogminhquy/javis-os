@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "status": "static_admission_approved_no_consumer_enabled",
+  "source_sha256": "0696aaa6a36117d68183f5b49d6f2c8ef6fa27ace7818e8329d73d167bade10c",
+  "test_sha256": "1fbdaa5352757cd1b5a33f5f21eefe17ef40827d4209a9875a6fa22aac4c8189",
+  "red": {"tests": 3, "failed_assertions_including_subtests": 10, "seconds": 0.031, "log_sha256": "e878ea63113177973a0af54a3da6ff1bfff75150c2bba805d2174cd88239a1a8", "cause": "Missing static native preflight admission"},
+  "author": {"tests": 3, "seconds": 0.023, "exit": 0, "log_sha256": "951bb63bc36d9a8d8dfef59d88a669db111f3bdfe595fc643541e9f0f8092dfd"},
+  "independent": {"tests": 3, "seconds": 0.039, "exit": 0, "log_sha256": "a264a3ed9f34724112c01504e762ae57748ad2e96390533b91d5daf8f75495ac"},
+  "affected_regression": [
+    {"file": "test_improvement_observed_verification.py", "tests": 7, "seconds": 0.023, "exit": 0, "log_sha256": "25bb8d77a4b205519a2bdf5bbaf2fabe209979af6357d9cc3ce18c60cc721ae7"},
+    {"file": "test_improvement_claude.py", "tests": 22, "seconds": 1.817, "exit": 0, "log_sha256": "868d6ac789a2afeefefb07c095070d333875a59f9f313f6775266cd8ba8b9632"}
+  ],
+  "behavior": [
+    "Checks supported configuration and registration before static observation, allowing no unregistered binary/SDK/policy observation",
+    "Shares fresh ancestry/file hash/managed-policy/installed SDK/current source metadata with legacy runtime observer, retaining old guard and auth subprocess semantics",
+    "Static admission checks metadata pins and known runtime tuple without executing CLI",
+    "Success contains admitted/reason/static runtime/qualification hash only; no auth, observed CLI version, supported result or live capability"
+  ],
+  "limitations": [
+    "Real inert temporary binary bytes with explicit mocked registration, source, SDK metadata, policy and known-runtime set; no actual native/account/model calls",
+    "Consumer must call admission BEFORE guarded preflight, authenticate actual child observations and still call verify_observed afterward",
+    "File hash alone does not prove held native image identity or current peer provenance; those remain guardian/capture ownership obligations",
+    "No caller, runtime registration or production qualification enabled; closed dummy qualification branch and final-head CI still pending"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-skill-reads"
+}

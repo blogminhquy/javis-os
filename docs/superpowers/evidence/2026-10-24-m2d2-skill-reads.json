@@ -1,0 +1,112 @@
+{
+  "kind": "technical/ordinary-skill-read-consistency",
+  "base_commit": "3afed521f3606c335f04c89bce70b01003ce6525",
+  "full_d2_complete": false,
+  "business_proof": false,
+  "activation": false,
+  "model_calls": 0,
+  "native_queries": 0,
+  "source_hashes": {
+    "server/skill_router.py": "0df25d8be8b26ea9d927f1845d023a9f3269527af632e0201f1944ac790da823",
+    "server/lazy_skill_runtime.py": "678030ef4f08a07141a400b21e798b52c834eff2b2785d433045a689c3b9c672",
+    "server/mcp_hub.py": "65449d7e22f4a7f302f55c80fa1aa52bfc6bac5519b54728945dee12fa54d416",
+    "tests/python/test_skill_asset_reads.py": "c24af2b4bd1e2dd062a7720aca3b728e3748c46a527d32462229b39b3e6bed40",
+    "tests/python/test_skill_resolution_state.py": "d5001b12b79d180c180ce49fffeccfabb10d53885df09e879d21efea1d620269"
+  },
+  "red": {
+    "source_basis": "3afed521 production; new test file added before edits",
+    "corrected_log_sha256": "4321d0f7514b010349f8055b65a3bc9a883a55c2d3032b85279038cad389e59a",
+    "result": "9 tests:2 behavioral failures,6 missing shared-reader errors,1 unsupported Windows file-symlink fixture skip",
+    "historical_first_red_log_sha256": "1e52c656b37c711fb7281e9c1f3de477e1b244891ffc1aac1de99f23eec6dc8a",
+    "first_red_limit": "Initial mutation observer intercepted only rb; corrected to r/rb before implementation. Use corrected RED for actual hub race."
+  },
+  "green": {
+    "commands": [
+      {
+        "args": [
+          "tests/python/test_skill_asset_reads.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "seconds": 1.344,
+        "log": "asset-reads-regression-0.log",
+        "log_sha256": "6a88f56fe359e43867469d26da4579c75c32d0a358fb63369d678b1231f3e7c7"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_resolution_state.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "seconds": 1.046,
+        "log": "asset-reads-regression-1.log",
+        "log_sha256": "0fe3a0e488ade8716bfe89223dd4f106c052971038bd90d0ca446c07b26de2a6"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_usage.py"
+        ],
+        "exit_code": 0,
+        "seconds": 5.516,
+        "log": "asset-reads-regression-2.log",
+        "log_sha256": "7811f5b5e0a2ee90210d881c477e19790619ec6c351dcaf34b2d5996e7dd3aa5"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_caps.py"
+        ],
+        "exit_code": 0,
+        "seconds": 3.11,
+        "log": "asset-reads-regression-3.log",
+        "log_sha256": "c56d72646a3cce2258e20355a5633a0b159cb34008937c96d11dce33fcf66b85"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_da_ngon_ngu.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.266,
+        "log": "asset-reads-regression-4.log",
+        "log_sha256": "8600e955bdd30962f326248c728b4355167cb91016a05fa9a849bf706860dc52"
+      },
+      {
+        "args": [
+          "-m",
+          "pytest",
+          "tests/python/test_adaptive_context_phase8.py",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 3.171,
+        "log": "asset-reads-regression-5.log",
+        "log_sha256": "99f289bbe589ab9e07b3150e8e728b81ededdd54ef951e7e2599d84f4b9b7080"
+      },
+      {
+        "args": [
+          "tests/python/test_skill_subtree_ship.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.375,
+        "log": "asset-reads-regression-6.log",
+        "log_sha256": "df6cef61f89387a3c014d856553ae0450f87125adb8cfadc6365b8881abd157a"
+      }
+    ],
+    "total_wall_seconds": 14.828,
+    "new_suite": "10 tests;9 pass,1 Windows file-symlink privilege skip. Actual Windows external directory-junction refusal passes. Linux symlink coverage requires final-head CI.",
+    "other_checks": "routing7; Phase8 pytest11; usage/caps/language/subtree scripts all exit0"
+  },
+  "native_reuse": {
+    "all_81_source_hashes_unchanged": true,
+    "profile_hash": "958527ac69c3b5728044b22cf6d3bdebb920da7cbe46a9da261e899568ced1ef",
+    "qualification_artifact": "2026-10-23-m2d1-native-qualification-outcome.json",
+    "reason": "No changed ordinary router/lazy/hub module is in isolated adapter footprint; no adapter source changed. No repeat native/model call."
+  },
+  "record_sha256": "a4ac4f838cb1bb065d6af48bb94e8c1b80222fc63f8dc906aa555f7dd51b4ffc",
+  "limits": [
+    "Per-read stable bytes only, not durable task/session pin.",
+    "Full D2 native policy parity, cache partitions, scope activation selectors and resume consistency remain open.",
+    "One-MiB source ceiling; hub display retains60000 chars, lazy body limits unchanged.",
+    "Raw bytes hash includes CRLF; normalized text keeps ordinary universal newline/replacement behavior.",
+    "Final-head full CI and scoped independent review still required."
+  ]
+}

@@ -109,16 +109,18 @@ class SkillCandidates:
             provenance = json.loads(self.blobs.read(brain, candidate["provenance_hash"]))
             patch = json.loads(self.blobs.read(brain, candidate["patch_hash"]))
             after = self.blobs.read(brain, candidate["content_hash"])
-            IC._fields(provenance, {"version", "context_id", "experiment_id", "target_id", "base_revision_id", "before_hash",
+            composed = candidate['ordinal'] == 3
+            fields = {"version", "context_id", "experiment_id", "target_id", "base_revision_id", "before_hash",
                 "after_hash", "patch_hash", "ordinal", "source_authority_hash", "context_generation", "authority_id",
-                "authority_generation", "owner_request_event", "evidence_refs", "semantic_status", "reference_inventory", "dependency_status"})
+                "authority_generation", "owner_request_event", "evidence_refs", "semantic_status", "reference_inventory", "dependency_status"}
+            IC._fields(provenance, fields | ({'composition_id'} if composed else set()))
             expected = {"context_id": candidate["context_id"], "experiment_id": candidate["experiment_id"],
                 "target_id": candidate["target_id"], "base_revision_id": candidate["base_revision_id"],
                 "before_hash": candidate["base_hash"], "after_hash": candidate["content_hash"], "patch_hash": candidate["patch_hash"],
                 "ordinal": candidate["ordinal"], "authority_id": candidate["authority_id"], "authority_generation": candidate["authority_generation"],
                 "semantic_status": "unreviewed", "dependency_status": "unresolved",
-                "owner_request_event": "candidate-owner-" + IM._hash([brain, candidate["owner_event_key"]])}
-            if (type(provenance["version"]) is not int or provenance["version"] != 1
+                "owner_request_event": None if composed else "candidate-owner-" + IM._hash([brain, candidate["owner_event_key"]])}
+            if (type(provenance["version"]) is not int or provenance["version"] != (2 if composed else 1)
                     or any(provenance[key] != value for key, value in expected.items())
                     or len(after) != candidate["byte_size"] or provenance["evidence_refs"] != patch["evidence_refs"]):
                 raise AssetUnavailable("candidate_provenance_mismatch")
@@ -138,15 +140,19 @@ class SkillCandidates:
                     or validated["patch_hash"] != candidate["patch_hash"] or validated["reference_inventory"] != provenance["reference_inventory"]
                     or patch["target_id"] != candidate["target_id"] or patch["base_revision_id"] != candidate["base_revision_id"]):
                 raise AssetUnavailable("candidate_provenance_mismatch")
-            owner = connection.execute("SELECT result_json FROM improvement_events WHERE brain_id=? AND event_key=? "
-                "AND operation='skill_candidate_owner_request'", (brain, provenance["owner_request_event"])).fetchone()
-            if owner is None:
-                raise AssetUnavailable("candidate_provenance_mismatch")
-            owner = json.loads(owner[0])
-            if any(owner.get(key) != value for key, value in {"context_id": candidate["context_id"],
-                "experiment_id": candidate["experiment_id"], "target_id": candidate["target_id"],
-                "patch_hash": candidate["patch_hash"], "candidate_id": candidate["id"]}.items()):
-                raise AssetUnavailable("candidate_provenance_mismatch")
+            if composed:
+                from improvement_compose_candidates import read_provenance
+                read_provenance(self, connection, principal, candidate, provenance, patch, after)
+            else:
+                owner = connection.execute("SELECT result_json FROM improvement_events WHERE brain_id=? AND event_key=? "
+                    "AND operation='skill_candidate_owner_request'", (brain, provenance["owner_request_event"])).fetchone()
+                if owner is None:
+                    raise AssetUnavailable("candidate_provenance_mismatch")
+                owner = json.loads(owner[0])
+                if any(owner.get(key) != value for key, value in {"context_id": candidate["context_id"],
+                    "experiment_id": candidate["experiment_id"], "target_id": candidate["target_id"],
+                    "patch_hash": candidate["patch_hash"], "candidate_id": candidate["id"]}.items()):
+                    raise AssetUnavailable("candidate_provenance_mismatch")
             return {"before": base_raw, "after": after, "patch": patch, "provenance": provenance}
         except (IM.ConflictError, PermissionError):
             raise

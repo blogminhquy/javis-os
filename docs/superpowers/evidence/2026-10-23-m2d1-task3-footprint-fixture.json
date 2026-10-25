@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "parent": "dad605c3ebce46374a04a3e94510d69704556b30",
+  "source": {
+    "tests/python/test_improvement_operation_worker.py": "d4002e0141666ce599aae261fa095c00412f2423540dcaa9854214283235a86b"
+  },
+  "linux_failure": {
+    "run": 39952941333,
+    "head": "52c79f1cea4cfafdb2e60551e77e1f81e4a6066c",
+    "only_failed_script": "test_improvement_operation_worker.py",
+    "reason": "Explicit expected C34 set is stale after intentional D footprint expansion; production already76, now78."
+  },
+  "red": {
+    "tests": 1,
+    "seconds": 0.004,
+    "log": "task3-footprint-fixture-red.log",
+    "sha256": "190ec5b1bc9ba0009fc484ae75f2b7ab94876cddadf67be91bbaafa1d14c7cab"
+  },
+  "green": [
+    {
+      "tests": 9,
+      "seconds": 3.493,
+      "log": "task3-footprint-fixture-green.log",
+      "sha256": "99868a84677838be1dbefbd29115fbabc830bc166ae38b0498ebf7004171064f"
+    },
+    {
+      "tests": 1,
+      "seconds": 0.021,
+      "log": "task3-footprint-default-deny.log",
+      "sha256": "9103db0835cd0ff67e5e6566d3d9a3567df7c33128a0878903ece7249736fa19"
+    }
+  ],
+  "seconds_basis": "unittest elapsed time",
+  "only_one_test_method_changed": true,
+  "all_imports_fixtures_and_other_methods_unchanged": true,
+  "all_server_sources_unchanged": true,
+  "assertions": [
+    "Exact explicit78-file set equality retained",
+    "Independent hash over each expected file retained",
+    "Duplicate/count exclusion added",
+    "Actual new-profile default qualification denial still passes"
+  ],
+  "reuse": "Prior71-test owned-next proof remains qualified for unchanged production and unchanged other tests.",
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false
+}

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "status": "shared_verifier_approved_not_consumer_enabled",
+  "source_sha256": "39c6e1ce63d03101e12b02ad5f6aa9e8b6e3c61cbfe11f549af92efbeb2fe053",
+  "test_sha256": "0023a135e3a533c8caf000684c59feb6a4caca55f753c538041f4f6125e9ff8f",
+  "protocol_dependency_sha256": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+  "command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_observed_verification.py",
+  "author": {"tests": 7, "seconds": 0.020, "exit": 0, "log_sha256": "bf41a56ff8ffbc57ed73e2a5fd65b13754cdf95ffc3f4d5cd5b7366d4d5c86ac"},
+  "independent": {"tests": 7, "seconds": 0.018, "exit": 0, "log_sha256": "586e7f7a80e772701844683b339cd382ccb031bb3ce7a1d6d755ed769d6d21de"},
+  "legacy_regression": {"command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_claude.py", "tests": 22, "seconds": 1.488, "exit": 0, "log_sha256": "1be5eb9ee973f46b7b869fb1570462e9e0a381cef3635c4f3489b979e2f05967"},
+  "behavior": [
+    "verify() delegates to its same existing observer, configuration/registration/runtime/policy/auth gates and capability result",
+    "verify_observed(runtime) accepts only bounded strict builtin closed runtime/auth data and defensively copies before the same verification gates",
+    "Registration is required before consuming the observation; no known runtime tuple alone qualifies new source",
+    "Fresh local profile_hash and installed SDK metadata must independently match the supplied observation; mismatch or unavailable metadata rejects without rewriting fields",
+    "Qualified observations produce the same capability hash without repeating CLI version/auth subprocesses; unsupported configuration never switches selected settings"
+  ],
+  "preserved_reds": [
+    "Missing method:6 methods/20 expected subtest failures0.011s; logcf25fceb19df081a1461b8104d85a33fbde8e107d401d2d1439fae021709abdc",
+    "Initial six-method candidate passed author0.012s/independent0.012s, but static self-review found pin-derived source/SDK metadata could hide current local drift",
+    "Seventh method reproduced3 failures0.005s for current source drift, different installed SDK and unavailable SDK while pin/observation/registration agreed; log8ab65070b360b0b4a27fd011644af6b42008bb95d44bf8f2d9d0a018cbfed9ae",
+    "Independent delta review closed the metadata gap on final39c6e1ce source"
+  ],
+  "local_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-skill-reads",
+  "limitations": [
+    "Tests control registration/observation metadata and do not run a CLI, engine, account or provider",
+    "Current local metadata consistency does not prove imported SDK bytes, loaded pages or child/channel provenance; actual qualified bootstrap/host/worker consumers must establish those separately",
+    "No actual caller uses the new observed path yet; worker/client integration is next",
+    "Source change invalidates historical current-runtime qualification; new complete-boundary qualification/registration remains mandatory before configured account execution",
+    "Previously approved host/SDK inert fixture sources are unchanged; no redundant native rerun on this unused verifier definition change"
+  ]
+}

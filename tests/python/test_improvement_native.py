@@ -194,12 +194,25 @@ class NativeBoundaryTests(unittest.TestCase):
         self.assertFalse([e for e in observed["events"] if e["type"] == "error"], observed)
         initializations = [e["data"] for e in observed["events"] if e["type"] == "native_system" and e["subtype"] == "init"]
         self.assertEqual(len(initializations), 1)
-        self.assertEqual(initializations[0]["tools"], ["mcp__fixture__fixture_read"])
+        expected_tools = getattr(self, 'expected_tools', ["mcp__fixture__fixture_read"])
+        self.assertEqual(initializations[0]["tools"], expected_tools)
         receipts = [e["receipt"] for e in observed["events"] if e["type"] == "installation_receipt"]
         self.assertEqual(len(receipts), 1)
         self.assertEqual(receipts[0]["coverage"]["tool_inventory"], "observed")
         self.assertEqual(receipts[0]["coverage"]["model"], "observed")
-        self.assertEqual(receipts[0]["asset_revisions"][0]["observed_use"], "unknown")
+        if expected_tools == ['mcp__fixture__fixture_read']:
+            self.assertEqual(receipts[0]["asset_revisions"][0]["observed_use"], "unknown")
+        else:
+            self.assertEqual(expected_tools, ['mcp__fixture__fixture_read', 'mcp__skill__skill_asset_read'])
+            from improvement_skill_asset_proof import correlate_asset_reads
+            # Recompute from the paired caller's frozen input, without assuming
+            # optional SDK error flags are present on every successful result.
+            payload = json.loads((work / 'view-input.json').read_bytes())
+            proof = correlate_asset_reads(payload['manifest'], {key: receipts[0][key]
+                for key in ('trial_id', 'attempt', 'input_hash')}, observed['events'])
+            self.assertEqual(receipts[0]['asset_read_proofs'], proof['proofs'])
+            self.assertEqual(receipts[0]['asset_revisions'][0]['observed_use'],
+                'observed' if proof['verdict'] == 'pass' else 'unknown')
         self.assertEqual(receipts[0]["coverage"]["reasoning"], "unknown")
         self.assertEqual(observed["label"], "synthetic/native-local-fake-provider")
         self.assertEqual([e["content"] for e in observed["events"] if e["type"] == "artifact"], ["LOCAL_NATIVE_DONE"])
@@ -213,7 +226,7 @@ class NativeBoundaryTests(unittest.TestCase):
         for request in model_requests:
             self.assertEqual(request["model"], "claude-opus-5-5")
             self.assertEqual(request["output_config"]["effort"], "medium")
-            self.assertEqual([t["name"] for t in request["tools"]], ["mcp__fixture__fixture_read"])
+            self.assertEqual([t["name"] for t in request["tools"]], expected_tools)
             self.assertNotIn(canary, json.dumps(request))
             self.assertNotIn("SYNTHETIC_AMBIENT_CONTEXT_DO_NOT_LOAD", json.dumps(request))
         results = {block["tool_use_id"]: block for message in model_requests[-1]["messages"]

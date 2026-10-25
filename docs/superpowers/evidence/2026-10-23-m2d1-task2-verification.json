@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 Task2 local source/publication boundary",
+  "task_start_base": "8a25dee94caf0c7bcfad6343a035c95ab90ab66e",
+  "released_c": "2727edcc5cdfab6f2dcf2e2871164f22f2771f92",
+  "sources": {
+    "server/improvement_views.py": "724c45a0b9cfa433a07f2a0c00edaf3468a035334217d5c84d93b4455c53c61d",
+    "server/improvement_view_sources.py": "beb8aee5a85633f4496b8f2e7bbfbcab5dd5a978c9c0f3051c4cff4c6bcdeae6",
+    "server/improvement_view_protocol.py": "bc9ddf145bc031fd8308bec91de92de5c9cff07e1eca5faadc5df763c9c5c2c1",
+    "server/improvement_view_schema.py": "0747f0047c31505189c9ef0ce11505c5613c7dd0f6b6ca6cfc795bf0a865f6f2",
+    "server/improvement_store.py": "c237f7138c5cbe2fb8f0def70ffde677616c9db7fc15daf64ca4d6b6bec79536",
+    "server/improvement_comparison_plans.py": "607eb439db944a119ed06d1f854333690f828dbe57486c0095ad86e58415c50e",
+    "server/improvement_skill_candidates.py": "881d402a3df0629aacfecac590b25f667043b1e7d6e0ef5cd7b6ba09c4886c9e",
+    "server/improvement_skill_patch.py": "c06eb301c2c8d9ab7d68368f42256b9cb55108780c3782e3cf06aa0cdcbd87d3",
+    "server/improvement_semantic_review.py": "852a31995a118943c8c98ee8a6901320416a75c6db544b3093fe32f5e2d280c1",
+    "server/improvement_semantic_records.py": "7fb620313eacc8f4548e371face9c0698012cf7f48cca277a2aff34b6a6a0b79",
+    "server/improvement_dependency_evidence.py": "08df1576dfe0e146c5bdcb12cafc1e769c737565b1b49938e35aa7e7957dff09",
+    "tests/python/test_improvement_view_sources.py": "9dc05ecd39e679cd373a4d2746e4c8e00e9d394939cc0ea67ea97095ebac35d1",
+    "tests/python/test_improvement_view_authority.py": "dd3c142036c4afdebe9f2409e4442e790d301a2280ae16a3d3b5cd1ac1afd8b3",
+    "tests/python/test_improvement_views.py": "db4723f237ab0f1c85d517e0c1b2c6950040edaffbaa76a8ff2c1106647fee06",
+    "tests/python/test_improvement_dependency_identity.py": "58a47e8cf428e07df10730a624df12b0e9257cd3a35f0b56158d62a9d907bf11",
+    "tests/python/test_improvement_comparison_plans.py": "faf67b893193f302e9b301bac815676d802800d2f7102e08b812e1d9553135bd",
+    "tests/python/test_improvement_view_schema.py": "c5b5abd3559048342bd7c6393a0e9d4b25b2410a4baa9347380769df82aeb5a7",
+    "tests/python/test_improvement_semantic_review.py": "9f5d51ebb7e54c3e4261194ebfb206e9f63dfa088c105411434c8a2e3b07800a",
+    "requirements.txt": "30c9adb77f69168def577341be63fc9b7da4b02bfcbbf844d230040108cb8b84",
+    ".github/workflows/ci.yml": "4b0d6276f6a63741f547dbd98e7accb1e34196db039ded6da73816b800b9f0b2"
+  },
+  "complete_dependency_scope_record": ".superpowers/sdd/2026-10-23-agent-skill-improvement-m2d1/task2-affected-evidence.json",
+  "complete_dependency_scope_record_sha256": "20c03d9423bce26befd2adf1c6de60ff2798aa736378cf01c99fe1d97adb1303",
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "script": "test_improvement_view_sources.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_sources.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 133.485,
+      "log": "task2-final-test_improvement_view_sources.log",
+      "log_sha256": "c99c62592fc9d1d4254ced91a86d27be94929cc6fdb9cbfd09c673cc6e8876a7",
+      "tests": 15
+    },
+    {
+      "script": "test_improvement_view_authority.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_authority.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 202.125,
+      "log": "task2-final-test_improvement_view_authority.log",
+      "log_sha256": "8c82caf2e91d032ca40e62de468b1860ffefd135cd768e28087c4b70e3e44f38",
+      "tests": 15
+    },
+    {
+      "script": "test_improvement_views.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_views.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.219,
+      "log": "task2-final-test_improvement_views.log",
+      "log_sha256": "fc423503cf78dbda4f750e268e2fcbaa79c6cfdebe10493314f2ff085c14120c",
+      "tests": 11
+    },
+    {
+      "script": "test_improvement_dependency_identity.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_dependency_identity.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.86,
+      "log": "task2-final-test_improvement_dependency_identity.log",
+      "log_sha256": "19bc7997183e877ed4c3e09f19ef149ec85dd9177f5abd53f153eedef155a48e",
+      "tests": 11
+    },
+    {
+      "script": "test_improvement_comparison_plans.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_comparison_plans.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 56.141,
+      "log": "task2-final-test_improvement_comparison_plans.log",
+      "log_sha256": "2bf4f6ac11c92a1022e45637e6cf5274e9197617d122bbce9ee40ee875a5d814",
+      "tests": 24
+    }
+  ],
+  "total_tests": 76,
+  "total_script_seconds": 392.83,
+  "reuse": {
+    "task1_sha256": "b9d7c51fd9725111678365f667b4af2168738b73329e89475ba2d700d52f76f8",
+    "all_task1_selected_source_bytes_unchanged": true,
+    "c_profile_source_hash": "9dcf718470e70957d07454bb8b50fbde79575a3b23d8c06e24cc9b749051116b",
+    "all_34_profile_source_bytes_equal_released_c": true,
+    "d_native_path_qualified": false
+  },
+  "red_evidence": [
+    "task2-source-red.log",
+    "task2-concurrent-replay-red.log",
+    "task2-observation-policy-red.log",
+    "task2-native-aggregate-red.log",
+    "task2-holdout-projection-red.log",
+    "task2-publication-event-red.log"
+  ],
+  "actual_authority_tests": [
+    "Windows DACL mutation and exact DACL-only restoration",
+    "Actual Windows junction rejected; Linux symlink branch still requires Linux CI",
+    "Parent directory replacement while retaining exact file inode",
+    "Source replacement with unchanged bytes",
+    "Revocation/disabled source during encrypted binding I/O",
+    "Owner source change during manifest reads",
+    "Unresolved meaning and actual exact synthetic owner event; negative model verdict never erased",
+    "Granted Markdown dependency pin/change; ungranted/executable dependencies denied",
+    "Plain BOM and YAML CRLF exact bytes; unchanged BOM-YAML ambiguity refusal",
+    "Actual legacy v2 Trial/link prevents retrospective view binding",
+    "Concurrent same-event replay, second-insert failure and post-insert source-fence rollback"
+  ],
+  "real_model_calls": 0,
+  "business_proof": false,
+  "live_activation": false,
+  "linux_feedback": {
+    "task1_run": 39938959026,
+    "head": "8a25dee94caf0c7bcfad6343a035c95ab90ab66e",
+    "conclusion": "failure",
+    "view_schema_15_tests": "pass",
+    "pure_view_11_tests": "pass",
+    "failed_scripts": [
+      "test_improvement_candidate_records.py",
+      "test_improvement_cases.py",
+      "test_improvement_trials.py"
+    ],
+    "meaning": "Three earlier migration fixtures need schema7 backup/drop updates; no Task2 Linux proof yet."
+  },
+  "limits": [
+    "Actual native preflight/reservation/query and v4 lineage remain Tasks3/4.",
+    "API controls and stable independent review remain Task5; exact-final CI/publication remain pending.",
+    "Existing native C qualification is not qualification of these new D sources.",
+    "Tests use disposable synthetic SDK packets; preserved C semantic/native unknown is not quality eligibility.",
+    "D2/E/F/M3-M8, accepted business datasets, owner/live and canary gates remain open."
+  ]
+}

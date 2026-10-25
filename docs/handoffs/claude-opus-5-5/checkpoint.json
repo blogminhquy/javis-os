@@ -1,0 +1,250 @@
+{
+  "version": 1,
+  "state": "M2_engineering_closeout_and_handoff_in_progress",
+  "owner_decision_date": "2026-10-24",
+  "scope": "M2 engineering plus committed integrated Claude Opus5.5 handoff",
+  "supersedes": "older full M0-M8 and Phase2 completion/continuation instructions",
+  "goal_status": "active",
+  "goal_objective_update_api_available": false,
+  "worktree": "C:/Users/admin/.codex/worktrees/agent-skill-improvement-m2a/Javis-OS",
+  "branch": "codex/agent-skill-improvement-m2d1",
+  "initial_docs_head": "f2c8f3fe",
+  "last_verified_remote_head": "4ba9624a76cd4bfb54d3d229263baa223944383b",
+  "pull_request": "https://github.com/blogminhquy/javis-os/pull/803",
+  "version_file": "0.299.0",
+  "reused": [
+    "M0",
+    "M1",
+    "M2A",
+    "M2B",
+    "M2C"
+  ],
+  "engineering_open": [
+    "M2D1",
+    "M2D2",
+    "M2E",
+    "M2F",
+    "exact current-source technical qualification",
+    "final-head required CI",
+    "whole-branch review",
+    "integration",
+    "resource cleanup audit"
+  ],
+  "business_acceptance": "pending_not_run_under_new_scope",
+  "live_acceptance": "pending_not_run_under_new_scope",
+  "future_pilot_selection": {
+    "owner_instruction": "agent chooses suitable work types",
+    "primary": "business reconciliation",
+    "secondary": "document processing",
+    "technical_control": "Python bugfix and tests",
+    "state": "selection_only_no_live_pilot_under_current_Goal"
+  },
+  "forward_code": "preserve existing compose/library/archive/source observer with exact scoped evidence",
+  "undispatched_backlog": [
+    "recipe destination schema11",
+    "recipe permission/retrieval",
+    "further Library native/downstream integration",
+    "orchestration comparison",
+    "remaining M3-M8"
+  ],
+  "active_work_at_scope_receipt": {
+    "agent": "/root/recipe_source_authority",
+    "task": "safely close existing six-path recipe source Task1",
+    "serial_local_slot": "held_until_explicit_release",
+    "final_freeze_utc": "2026-10-24T09:15:05Z",
+    "test_run": "13 corrected frozen source module, 37 tests, still active at receipt",
+    "actual_model_process": false
+  },
+  "preserved_source_unit": {
+    "commit": "269d3892e2ae735245438795a59a7558e7aa1df6",
+    "scoped_review_head": "429d9334afa792116ad80e02f0f3bf2fd11e46af",
+    "local_passed": 42,
+    "local_skipped": 1,
+    "early_linux_run": 40081705134,
+    "early_linux_passed": 43,
+    "scoped_review": "spec_compliant_quality_approved_zero_findings",
+    "public_proof": "docs/superpowers/evidence/2026-10-24-recipe-source-observer.json",
+    "public_proof_sha256": "a0ec009bb3eab3e53756cd37e560429f7f7dc8107de99760b4b6045a9fe43cf9",
+    "native_profile_sources": 99,
+    "native_qualification": "invalidated_UNQUALIFIED_registries_closed",
+    "unit_owned_processes": 0,
+    "serial_slot": "released",
+    "preexisting_Oct22_scratch_roots": "36 untouched, ownership not inferred",
+    "is_final_M2_CI_or_qualification": false
+  },
+  "M2_future_schema_controls": {
+    "commit": "21a5c0b19375482cf21d1f77b2e973540b04f786",
+    "changed": "two existing fixture assignments; no production change",
+    "isolated_passed": 2,
+    "scoped_review": "source_compliant_quality_approved_0critical_0important_1minor",
+    "minor": "T1-R1 post-GREEN freeze timing limitation retained for final review",
+    "proof": "docs/superpowers/evidence/2026-10-24-m2-future-schema-controls.json",
+    "proof_sha256": "74a92878248c7a22f3d49e13b06a7c57c88f88688406daf1760a5d02569cf6fa",
+    "serial_slot": "released"
+  },
+  "M2_qualification_product_exclusion": {
+    "commit": "d0d5b27c143e5efcc1c89378c76914834d228094",
+    "paths": 5,
+    "clean_RED_marker_failures": 12,
+    "windows_passed": 13,
+    "linux_run": 40083817343,
+    "linux_passed": 13,
+    "skipped": 0,
+    "scoped_review": "spec_compliant_quality_approved_0critical_0important_1minor",
+    "minor_M1": "async fixture slow-task noise retained for final review; report count corrected only",
+    "proof": "docs/superpowers/evidence/2026-10-24-m2-qualification-capability-exclusion.json",
+    "proof_sha256": "ac258798bd7cf5221bbf9c80fbd0d218cea3e3225120c0ef811122562d2d23b7",
+    "serial_slot": "released",
+    "is_native_or_M2_completion": false
+  },
+  "next_engineering_step": {
+    "kind": "Q2_view4_operation2_shared_owned_query_and_two_ordinary_marker_fences",
+    "design": "docs/superpowers/specs/2026-10-24-m2-owned-baseline-query-design.md",
+    "builder_check": "nothing_important_left_including_per_attempt_cleanup_clarification",
+    "state": "Q1_source_component_closed_Q2_plan_and_actual_interface_reconciliation_next_not_dispatched",
+    "Q2": "view4_operation2_then_final_installed_localhost_gate",
+    "D2_E": "E1_E2_source_owner_API_bootstrap_builder_checked_design_only_direct_read_and_native_gates_OPEN",
+    "Q1_proof": "docs/superpowers/evidence/2026-10-24-m2-owned-baseline-query.json"
+  },
+  "final_source_head": null,
+  "final_ci": null,
+  "final_review": null,
+  "final_integration": null,
+  "final_resource_audit": null,
+  "M2_owned_technical_preflight": {
+    "source_head": "0549380e17e66836ab475dae596d21e649e4e7a6",
+    "state": "component_source_scoped_review_and_focused_checks_closed_installed_gate_open",
+    "original_windows": {
+      "passed": 62,
+      "skipped": 1
+    },
+    "portability_affected_windows_passed": 1,
+    "linux_retry": {
+      "run": 40085906579,
+      "passed": 26,
+      "skipped": 37
+    },
+    "I1_fix": {
+      "RED_expected_failures": 3,
+      "windows_passed": 8,
+      "linux_run": 40086473971,
+      "linux_passed": 3,
+      "linux_skipped": 5,
+      "review": "ADDRESSED_no_new_breakage"
+    },
+    "deferred_minors": [
+      "P1M1 slowcallback noise",
+      "P1M2 disclosed interim serialization violation"
+    ],
+    "proof": "docs/superpowers/evidence/2026-10-24-m2-owned-technical-preflight.json",
+    "proof_sha256": "52b482e0a894e75d4fdc29486abbae3d4a830344552bd9935dda0f4fad2f8827",
+    "serial_slot": "released",
+    "installed_selected_CLI_gate": "OPEN_mandatory_final_stable_query_closure",
+    "is_M2_completion": false
+  },
+  "interim_snapshot_based_on_head": "622332e6f82819c29c015d871ca44745f9e9638f",
+  "M2_owned_query": {
+    "source_head": "622332e6f82819c29c015d871ca44745f9e9638f",
+    "state": "source_scoped_review_and_affected_checks_closed_installed_gate_open",
+    "windows_fixture": {
+      "passed": 62,
+      "skipped": 0,
+      "slow_diagnostics": 175,
+      "warnings": 0,
+      "frozen_committed_paths": 14
+    },
+    "scoped_review": {
+      "critical": 0,
+      "important": 3,
+      "minor": 1,
+      "quality": "needs_fixes"
+    },
+    "linux_initial": {
+      "run": 40090227041,
+      "job": 120861220942,
+      "passed": 24,
+      "platform_skipped": 37,
+      "errors": 1,
+      "error": "portable observed closure test: strict package RECORD path refusal",
+      "raw_sha256": "ecee1d644f390af321c26e13b28ee07c82998b6a72a9bf976cf2f45b9b099927",
+      "original_offending_RECORD_row": "not_captured"
+    },
+    "fix_round": 2,
+    "fix_base": "7316bd81f4e197f361ee82404f8f388ac214b7f3",
+    "fix_worker": "terminal_no_further_app_native_commands",
+    "serial_local_slot": "released",
+    "fix_RED": {
+      "tests": 6,
+      "expected_assertion_failures": 8,
+      "owners_terminal_after_RED_teardown": true
+    },
+    "private_workspace": ".superpowers/sdd/2026-10-24-m2-owned-baseline-query/",
+    "private_report_prefix_bytes": 20602,
+    "private_report_prefix_sha256": "cce16db510220d5a2d3c75855a2a267c884b91e81a4ae51a9f02c1b857cad0b7",
+    "installed_native_qualification": "OPEN_after_Q2_final_stable_source",
+    "is_M2_or_product_acceptance": false,
+    "current_scoped_review": {
+      "I1": "ADDRESSED",
+      "I2": "ADDRESSED",
+      "I3": "ADDRESSED",
+      "I4": "ADDRESSED",
+      "open_critical_important": 0,
+      "new_breakage": 0,
+      "minor_M1": "deferred_final_whole_branch"
+    },
+    "fix1_windows": {
+      "passing_executions": 14,
+      "distinct_selectors": 12,
+      "slow_diagnostics": 164,
+      "test_only_rechecks_disclosed": true
+    },
+    "fix2_windows": {
+      "passed_on_final_committed_bytes": 7,
+      "skipped": 0,
+      "warnings": 0,
+      "slow_diagnostics": 64
+    },
+    "linux_fix1": {
+      "source": "8504deea72d9db4155a2d134a13c1dbf9e472df9",
+      "run": 40091515738,
+      "job": 120864986878,
+      "passed": 9,
+      "skipped": 0,
+      "scope": "affected_only"
+    },
+    "linux_fix2": {
+      "source": "622332e6f82819c29c015d871ca44745f9e9638f",
+      "run": 40092465143,
+      "job": 120867793193,
+      "passed": 4,
+      "skipped": 0,
+      "scope": "affected_only"
+    },
+    "proof": "docs/superpowers/evidence/2026-10-24-m2-owned-baseline-query.json",
+    "proof_sha256": "1bc070983ab57e4c3b39394bf058c7a7c6f6376d894619fc41b2637cd4f2727b",
+    "root_audit": {
+      "indexed_files": 132,
+      "cleanup_receipts": 97,
+      "same_birth_owner_or_native_processes": 0,
+      "unrelated_PID_reuse_preserved": 1,
+      "workspace_witnesses_remaining": 0,
+      "preexisting_jh2_dirs_preserved": 2
+    },
+    "private_report_prefixes_verified": [
+      20602,
+      33374
+    ],
+    "private_report_bytes": 44973,
+    "private_report_sha256": "6b59439bfd5c9c4671b9ce31f5fe163d42691b6710c5017c09c9bf49218724fb"
+  },
+  "M2_effective_skill_design": {
+    "state": "builder_checked_design_only_no_implementation_plan",
+    "source_owner": "docs/superpowers/specs/2026-10-24-m2-skill-authoring-source-design.md",
+    "API_binding": "docs/superpowers/specs/2026-10-24-m2-api-effective-binding-design.md",
+    "API_bootstrap": "docs/superpowers/specs/2026-10-24-m2-api-effective-bootstrap-design.md",
+    "direct_target_dependency_read_gate": "required_OPEN",
+    "native_effective_profile_gate": "required_OPEN",
+    "business_acceptance": "PENDING",
+    "product_effective_profile": "unavailable_until_all_authenticated_gates"
+  }
+}

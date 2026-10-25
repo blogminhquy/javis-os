@@ -1,0 +1,916 @@
+{
+  "version": 1,
+  "evidence_class": "synthetic/real-selected-model-technical-feasibility-only",
+  "source_commit": "5421080714f78c653e2ab10c17a5e8ee4a613a55",
+  "profile_hash": "4d346a3ae4f1afa99784fc51307258ad99a8d470ac6a0c46f1d330e6b0e656fa",
+  "source_hashes": {
+    "improvement_claude.py": "cedda25977b0669fe8b2dde7a489d77889853f8c9ef7ae1f214132c7a2df217f",
+    "improvement_sandbox.py": "63eaf14bc32a77691709461b537247450d78b2704e0cac96151521f68fc42b56",
+    "improvement_worker.py": "f846e736507688a1f4a4039d3dcf75caf20c135715f9d9a902151390372fc065",
+    "claude_sdk_engine.py": "6b13f5b77f78e0dfe3ffc1268e46ef70d8d800324e8dd2664f793f0b8df49906",
+    "improvement_native_transport.py": "29b34bdfbbbaf6702ea7370a623110e1b5bf9a6fb48755f56b4fcfef54dd5927",
+    "improvement_operation_adapter.py": "ca771aa7d7ce82d1be94eece3cee3d54dfe1df1ff85671d47bcee2afa950c021",
+    "improvement_operation_worker.py": "3da7d208f0bf93a93ccab12ff3f3fe8977c130fcc288b1bc424a0e0c111c6cbc",
+    "improvement_operation_profile.py": "551b2420b45ba0911fb851b862efe1087fa04147e9f6a60e1db4eba5b6b8f534",
+    "improvement_operation_workspace.py": "8317b1a958062d7e3bcfd36c5f5ccc4f0c73d73e5f94102018270c43b9f04f51",
+    "improvement_operation_protocol.py": "5cca76867faaebc0096cf618643def2749c5406dfd952807b2d4ffc3efbd8bd4",
+    "improvement_operation_execution.py": "c6934000343fe196d399392244f9cfa754a7e821f81d190cf9167b7bb6a095fb",
+    "improvement_operation_evidence.py": "145e70c5cdbd68dfaf91334e6b3a5125285843663cad740889908c575f5b7e56",
+    "improvement_trial_evidence.py": "aca5906576ce9ecfd2cb6671cb7da7577c961aeb947a8b9f4186f15e0a819373",
+    "improvement_operation_checks.py": "d02125284d72339121b6fb65a7b2a976da34b80475dbd1ee753d355e9b5a7a1c",
+    "improvement_operation_results.py": "58adf6b13bd67c587fd405235ece13f2bbc2eabddf5b9f43f043e0baae625389",
+    "improvement_trial_checks.py": "4c04bc4fee56fe8dbcdb301ed42cc89a779cb543af433a763cdabd2b25396b6b",
+    "improvement_operation_runner.py": "828a86b13930a5da6883d49e62a66d7c345f63edf33aa477b4f98a1afde088a1",
+    "improvement_operation_tasks.py": "b3f39697914070342ad9953fe21956b9264b8ccc2839ecb3e01f65bdb6a98106",
+    "improvement_operation_recovery.py": "7139f70cbe1b846effb16a3f6ebfe83acd979cec0789f695b1e206c05b7201e4",
+    "improvement_operation_retry.py": "7a69f760df6949588cb4802c6de39ab66508453545b26b147d2f741616028fcd",
+    "improvement_operation_schema.py": "53bcada765678337712051b950b26cbb285b548c66c30e07526471f808530512",
+    "improvement_operation_records.py": "57d755666f93278551aa2b655b383e2aa58bdc5b2aa600f5c0f92a1137aa3e3d",
+    "improvement_improver_inputs.py": "69053b2fb9d4794dd504f5111db305065c5d443ef0426c2188fae927dbb7f503",
+    "improvement_generation_protocol.py": "247824007fe4860079d1a3ec5d7ffde47b63337a1a78fc7b6a01830e9e9d0bbe",
+    "improvement_comparison_plans.py": "607eb439db944a119ed06d1f854333690f828dbe57486c0095ad86e58415c50e",
+    "improvement_proposals.py": "59a5dec3e118a78719f3ba82041d70e12d28a1c9cee7f2ea4b56f2cbc6cc4f72",
+    "improvement_skill_candidates.py": "881d402a3df0629aacfecac590b25f667043b1e7d6e0ef5cd7b6ba09c4886c9e",
+    "improvement_role_workflow.py": "f29affd5dc98564fc7389536ecf5317d4b10daf7493cee3af439a9d2261af9c2",
+    "improvement_semantic_review.py": "852a31995a118943c8c98ee8a6901320416a75c6db544b3093fe32f5e2d280c1",
+    "improvement_semantic_protocol.py": "4fe16034f9461cc15f624c3bfa8574b0de68dcdfe18d62b37b9e5a4fff684a98",
+    "improvement_semantic_records.py": "7fb620313eacc8f4548e371face9c0698012cf7f48cca277a2aff34b6a6a0b79",
+    "improvement_dependency_evidence.py": "08df1576dfe0e146c5bdcb12cafc1e769c737565b1b49938e35aa7e7957dff09",
+    "improvement_execution_limits.py": "1b1830df34b295408ffca49e5ea1f446c6a334d49d085ea79932bf3aa829c6cc",
+    "improvement_native_lifetime.py": "bd9cd7cda7883814c22cbed2e6866adf097cefce923a22595eaa34d0722f415b",
+    "improvement_trials.py": "3d45372a0a3e446b427a52eb014e0800289814345d1195983dc75bd06f813398",
+    "improvement_trial_host.py": "cf26c43a9f3f8fc51c6ff651fd6588d878a78cffb9c9553fa367a5376b11fac6",
+    "improvement_trial_records.py": "58c958cc8d424eea0fb4592c9ae1df49ff86f64c795a1922511f26c28bf56d12",
+    "improvement_trial_admission.py": "d1b6f271880fe0b9bc4da6dc6132106fd60dd87520e1fd471f210d8fd138da62",
+    "improvement_trial_context.py": "cd18fbeb5904ac1147dc2b9877bcb9e289bb5a6c4137c3ece92db4b7a905227f",
+    "improvement_trial_sources.py": "1d4c1f0162f2fe9b7e135681d3f6bd3e644f82e2e3a04324234ab38418109669",
+    "improvement_trial_sql_context.py": "1079187f392478ead14ebf05c45c1681415c7d6317eea9d04a055629bb88e4ca",
+    "improvement_trial_dashboard.py": "2b227a5cc08949c7fa613116dd785d68ac7ae09571a4c0bff504a323801dabaa",
+    "improvement_trial_file_sources.py": "df07158a0c97a789ef1f5f2dee064fcba276c3179ddb9a5264d6cc28735e755e",
+    "improvement_trial_selection.py": "3631090451525c9d9f0e5505deac29c3c04ea10babd0727f90337bf0472eae8e",
+    "improvement_trial_service.py": "ab92d939cc9453a5de6b9b5ad423d2c6d5bd6dc27d913ee9f13a73d78aa9125c",
+    "improvement_trial_associations.py": "c3d59f5d0b4edd4b965e026bb221238f6dc55ca7111ea30bc2fe39a064fdbfcc",
+    "improvement_trial_runner.py": "c87a7fe34d4db7c5edd8856fc30a0650a89e109aeb9d6a49bb459d423c46ffbc",
+    "improvement_trial_tasks.py": "7d3b19b70f6ae99d86a7189d37f4816726bdf3322ae0680f2d96ff558ed816f6",
+    "improvement_trial_results.py": "f87224f3abd4b833cad93b11db3bf08513b6044d7b7ab09cff6673c6637efe41",
+    "improvement_trial_products.py": "cd33a191d3310bdd29b94c2cef46bccc4ecbd24021e3fe9478a3b433d09b11f8",
+    "improvement_trial_decisions.py": "734e77449747da37c8274bd95de77b11774309ab280e99a81e7fabce1e35a40d",
+    "improvement_trial_views.py": "604a9d9fc0dc0a4d071c675bb098d5f28a999903fac27c5d0e55c3821a5cc1bc",
+    "improvement_trial_schema.py": "ac7066cdac48cf35213ed2591ed462d53d4f22955ea127904f568c69643dcae1",
+    "improvement_experiment_lineage.py": "4678869147da763bfc000af4079064b19d8fac41b002453fb7029ba0a1c7ec41",
+    "improvement_experiment_admission.py": "ccf45a3c8a99423fe7e8ca42c7c6ce2e82069fc9af127f3225f60372b96074a4",
+    "improvement_experiment_service.py": "34d12983a37364f7365731ba04aa526a7bf60b44f640e51b2ab63d7964def159",
+    "improvement_experiment_protocol.py": "66b55574a087cba950e17ae8bbb6edd4ab528045718762879c720fb5559e1add",
+    "improvement_experiment_qualification.py": "d5392286d7476996001561bba3e1960daa599d785f6a57ef2b1e3b420652e960",
+    "improvement_experiments.py": "e48b74bac4a8f8cbfc31b20049019fc7ec6ff80b551e3c2add1c835f78b138b2",
+    "improvement_experiment_schema.py": "ac545c99df80d3bdcfef74951bd1b7342827de62820cbedd0c832b3f19abe61d",
+    "improvement_comparison_results.py": "afe7bde3d74afced87edb059d44677b6a0f576e6ad5c6c75005c1a2c7428f410",
+    "improvement_comparison_links.py": "c179e59808786d8f7aaa466dd0dcf5d44069580319ef17ca368caee25311944a",
+    "improvement_views.py": "62fe3f49996f683f03f1eeaee34172b6a0906f0ea5eff6e418eb4f7f957a7a1a",
+    "improvement_view_sources.py": "b8b85319ad2359be87f7c075f3832b0ffb1a787cc20bf1b1cef2cf055b574534",
+    "improvement_view_history.py": "7b3525d0b7c481bc071cc494945d42f86d29f0262c42ea7fd5d05e41efc72df0",
+    "improvement_view_lineage.py": "cf48a7ba84bad94d62df499383d2407a52af8037eb88406b6b02f1e4005b9841",
+    "improvement_view_trial_protocol.py": "1bbb63cc22ac174e2fe2eb3479a49a03ea91d57d05bd518bd2b61ac8e533e521",
+    "improvement_view_protocol.py": "bc9ddf145bc031fd8308bec91de92de5c9cff07e1eca5faadc5df763c9c5c2c1",
+    "improvement_view_schema.py": "50b6f5c5e7a210adb76df3271d593ea5b7f53a403078145906d7f30dc3f7d172",
+    "improvement_store.py": "c237f7138c5cbe2fb8f0def70ffde677616c9db7fc15daf64ca4d6b6bec79536",
+    "improvement_blobs.py": "cca420e46e961fc2bbc6cea4a0929cd2f3ef8b9ccf1de6cc4a1ff7598f7bb4b6",
+    "improvement_cases.py": "561d848331eca7ce6b4e84d6b68b1cac031a62f8dc0e4ce14250bda7f80d2b9d",
+    "improvement_case_schema.py": "54554b40dc20e58d37cdcb3964fc8384ff11ae95683277352a949ad37dad6865",
+    "improvement_candidate_records.py": "0a864da2e6dff8b85f37372836d4054b2901ac26fd909df32245979878092b27",
+    "improvement_candidate_schema.py": "6d29c83299ecc9e081912f4b3cf6f549890f71abeeb3af9684e9d3f0e66ee5da",
+    "improvement_skill_patch.py": "c06eb301c2c8d9ab7d68368f42256b9cb55108780c3782e3cf06aa0cdcbd87d3",
+    "improvement_comparison_schedule.py": "f4740950202536462b0753e008fb00bd66ae688b79110a99549c5c75f6040d92",
+    "improvement_view_admission.py": "1d2b4562fa34705c5258ef0f2520a2b85c60c497c8b183d0eee1d33c0af5e1f5",
+    "improvement_view_materialization.py": "18757ab107c00f6fb5be79fd4cacadf301fbf8d634829a9d4231eb866f34ebc4",
+    "improvement_view_qualification.py": "50d997a63e365710144551c266c8d964214728dc788540c8417f615f69f53a58",
+    "improvement_view_qualification_history.py": "2a286713de44512a44e6c60f1e89b3cb79fe76dcaa793f74d39cf4e1cc429675"
+  },
+  "runtime_qualification": "012d9e37690e8711da75a344dfee0677df8d6c690b90f689ddbb14574c82f295",
+  "selection": {
+    "provider": "anthropic-cli",
+    "model": "claude-opus-5-5",
+    "reasoning": "medium",
+    "fast": false,
+    "auth_mode": "subscription"
+  },
+  "independent_runtime_review": {
+    "head": "5421080714f78c653e2ab10c17a5e8ee4a613a55",
+    "status": "approved",
+    "tests": 2,
+    "seconds": 0.048,
+    "log_sha256": "30f47d7034bdb0b1ae42ced51a1e81d221a64bb267df84e0f5819d0749e11b82"
+  },
+  "execution_seconds_from_scope_ready": 117.817,
+  "stages": [
+    {
+      "stage": "scope-ready",
+      "at": 1792773269.3281376,
+      "synthetic_brain": true,
+      "real_adapters": true,
+      "source_commit": "5421080714f78c653e2ab10c17a5e8ee4a613a55"
+    },
+    {
+      "stage": "baseline-dispatched",
+      "at": 1792773282.362429,
+      "trial_id": "it_39e88d279851e3e5d9e8a4ac"
+    },
+    {
+      "stage": "trial-settled",
+      "at": 1792773331.904943,
+      "trial_id": "it_39e88d279851e3e5d9e8a4ac",
+      "status": "completed",
+      "reason": null
+    },
+    {
+      "stage": "baseline-sealed",
+      "at": 1792773335.5148547,
+      "result_refs": [
+        {
+          "trial_id": "it_39e88d279851e3e5d9e8a4ac",
+          "attempt": 1,
+          "request_hash": "61e2276837c5f155ccd02bc945ba0094359acf001801a7ab56252670ce1fd05e",
+          "blob_hash": "256bc97fb0bc163f738b3ca35766277503900ac8c6e1d02704332252bcd778c9",
+          "result_hash": "256bc97fb0bc163f738b3ca35766277503900ac8c6e1d02704332252bcd778c9",
+          "result_id": "ir_cdbeba4d82293ed6be08a000"
+        }
+      ]
+    },
+    {
+      "stage": "manual-candidate-staged",
+      "at": 1792773335.5888526,
+      "candidate_id": "isc_7802d3ff0f749b7676dc6ec3",
+      "generated": false
+    },
+    {
+      "stage": "final-accounting",
+      "at": 1792773387.14515,
+      "marked_calls": 2,
+      "all_plaintext_workspaces_removed": true,
+      "canonical_unchanged": true
+    },
+    {
+      "stage": "operator-error",
+      "at": 1792773387.1471527,
+      "error_type": "JSONDecodeError",
+      "reason": "Expecting value: line 1 column 1 (char 0)"
+    }
+  ],
+  "calls": [
+    {
+      "id": 1,
+      "purpose": "improve_probe",
+      "status": "ok",
+      "engine": "anthropic-cli",
+      "model": "claude-opus-5-5",
+      "attempt": 1,
+      "engine_at": 1792773304.9218817,
+      "context_ref": "improvement:technical-reconciliation-d1",
+      "mirror_ref": "improvement_trial:it_39e88d279851e3e5d9e8a4ac"
+    },
+    {
+      "id": 2,
+      "purpose": "improve_evaluate",
+      "status": "ok",
+      "engine": "anthropic-cli",
+      "model": "claude-opus-5-5",
+      "attempt": 1,
+      "engine_at": 1792773370.4053419,
+      "context_ref": "improvement:technical-reconciliation-d1",
+      "mirror_ref": "improvement_operation:io_7489697aeeaa2de6b7500bf6"
+    }
+  ],
+  "manual_candidate": true,
+  "generated_candidate": false,
+  "baseline_result": {
+    "artifact_hash": "911f7beea881f577a1bedf189c0cd7f56983aabe2b3ac46f3b7c5ba8c30f0419",
+    "attempt": 1,
+    "capability_hash": "ad5831f67d6e1f160fa41bc5c48d33cedaa07b06bb9f62d098efdc7c786e7a84",
+    "contract_hash": "5557c1e4e5e98ee8cd12eac0dbc474b8be7ae19d4e157117f0d5eaa1028ae6a0",
+    "evaluation": {
+      "business_verdict": "unknown",
+      "case_id": "case-0",
+      "contract_hash": "5557c1e4e5e98ee8cd12eac0dbc474b8be7ae19d4e157117f0d5eaa1028ae6a0",
+      "criteria": [
+        {
+          "category": "mandatory",
+          "critical": true,
+          "evidence": {
+            "detail": "kh\u00f4ng ph\u1ea3i JSON h\u1ee3p l\u1ec7: Expecting value: line 1 column 1 (char 0)",
+            "path": "answer.json",
+            "sha256": "911f7beea881f577a1bedf189c0cd7f56983aabe2b3ac46f3b7c5ba8c30f0419",
+            "size": 501
+          },
+          "id": "shape",
+          "kind": "json_keys",
+          "reason": "structural_check",
+          "verdict": "fail"
+        },
+        {
+          "category": "business",
+          "critical": true,
+          "evidence": {
+            "path": "answer.json",
+            "sha256": "911f7beea881f577a1bedf189c0cd7f56983aabe2b3ac46f3b7c5ba8c30f0419",
+            "size": 501
+          },
+          "id": "accuracy",
+          "kind": "owner_confirm",
+          "reason": "owner_confirmation_required",
+          "verdict": "unknown"
+        }
+      ],
+      "evaluator": {
+        "hash": "4003c14d380fc59766671e9a153cfab1d0a26e293b5220d52c6dfabb7c8cf3ac",
+        "id": "improvement-evaluation",
+        "version": "1"
+      },
+      "mandatory_verdict": "fail",
+      "output_hash": "911f7beea881f577a1bedf189c0cd7f56983aabe2b3ac46f3b7c5ba8c30f0419",
+      "output_manifest": [
+        {
+          "path": "answer.json",
+          "sha256": "911f7beea881f577a1bedf189c0cd7f56983aabe2b3ac46f3b7c5ba8c30f0419",
+          "size": 501
+        }
+      ],
+      "primary_metric": {
+        "aggregation": "all_pass",
+        "criterion_id": "accuracy",
+        "direction": "higher",
+        "verdict": "unknown"
+      },
+      "reason": "criterion_failed",
+      "verdict": "fail",
+      "version": 1
+    },
+    "execution_status": "completed",
+    "live_guard": {
+      "baseline_context_hash": "488efa6c4a4811248d19103f0c42c931b689229373fa4d6c12bb038a68ea065b",
+      "engine_config_hash": "ac334ad59b5eda4ffd778baa374b0a25485543a23bfe9d5636ba935ab49f5163",
+      "grant_hash": "23f4139fd387487ddcbfc27c6ee58bdc7d3f09826419f0608cda496ae4a800f7",
+      "scope_hash": "0709c662c29c2b5299883bd4d177e288f5a2e08c797758b66b9986bf782f4de5",
+      "target_generations": {
+        "it_aa4e6763b21959f4ce816eea": 1
+      }
+    },
+    "mandatory": [
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only",
+          "fields": []
+        },
+        "id": "materialization",
+        "reason": "record_pins_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "contract_projection",
+        "reason": "public_full_contract_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only",
+          "fields": []
+        },
+        "id": "workspace_binding",
+        "reason": "record_pins_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "worker_protocol",
+        "reason": "worker_protocol_complete",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only",
+          "fields": []
+        },
+        "id": "installation",
+        "reason": "record_pins_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "tool_inventory",
+        "reason": "fixture_only_inventory_observed",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "prompt_installation",
+        "reason": "prompt_attested",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "asset_installation",
+        "reason": "exact_revisions_available_and_selected",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "asset_observed_use",
+        "reason": "native_asset_use_unobserved",
+        "verdict": "unknown"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "actual_reasoning",
+        "reason": "native_reasoning_unobserved",
+        "verdict": "unknown"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "context_coverage",
+        "reason": "complete_context_declared_and_installed",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "fixture_inventory",
+        "reason": "record_pins_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "authorization": "checked_separately_by_runner",
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "source_coverage",
+        "reason": "fixture_read_observed",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "actual_model",
+        "reason": "exact_model_observed",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "session_binding",
+        "reason": "single_native_session_bound",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "side_effects",
+        "reason": "tool_outcome_or_boundary_unobserved",
+        "verdict": "unknown"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only",
+          "output_hash": "911f7beea881f577a1bedf189c0cd7f56983aabe2b3ac46f3b7c5ba8c30f0419"
+        },
+        "id": "completion",
+        "reason": "terminal_artifact_and_worker_complete",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "event_coverage",
+        "reason": "unrecognized_event",
+        "verdict": "unknown"
+      }
+    ],
+    "preparation_lineage": {
+      "cell_position": 0,
+      "context_id": "ic_77e277afb511bfd358574f59",
+      "definition_hash": "090469b4f583216609701f7934f10be931140945b810f21625295af9415bf5e2",
+      "preparation_id": "ip_74c363e3fe316e48a576e37a",
+      "schedule_hash": "3e092a94d15ccec718ed9def1f4fbdf64baf1861db9089ba2fe2d7b8b8e23091",
+      "version": 1
+    },
+    "request_hash": "61e2276837c5f155ccd02bc945ba0094359acf001801a7ab56252670ce1fd05e",
+    "trace": {
+      "count": 18,
+      "hash": "4b1c6710e7e997d0cda1b0680524e999210c6c7bcb4171d1273578b045a43db8",
+      "last_sequence": 18
+    },
+    "trial_id": "it_39e88d279851e3e5d9e8a4ac",
+    "usage": {
+      "attempts": 1,
+      "cost_behavior": "observe_only",
+      "coverage": {
+        "cli_detail": "linked_and_reconciled_only",
+        "execution_reference_errors": 0,
+        "execution_sources": [
+          "resonance.sqlite3"
+        ],
+        "missing_requests": 0,
+        "money_complete": true,
+        "observed_requests": 0,
+        "requests_complete": false,
+        "scope": "instrumented_executions",
+        "status": "partial",
+        "telemetry_errors": 0,
+        "tokens_complete": false,
+        "unobserved_attempts": 0,
+        "unresolved_events": 2
+      },
+      "experiment_id": "technical-reconciliation-d1",
+      "money": {
+        "currency": "USD",
+        "estimated_usd": null,
+        "local_requests": 0,
+        "reported_usd": null,
+        "subscription_equivalent_usd": 0.0282454,
+        "subscription_requests": 1,
+        "unknown_requests": 0
+      },
+      "requests": null,
+      "statuses": {
+        "completed": 1,
+        "unknown": 1
+      },
+      "tokens_in": 4433,
+      "tokens_out": 407,
+      "trial_id": "it_39e88d279851e3e5d9e8a4ac"
+    },
+    "verdict": "fail",
+    "version": 3
+  },
+  "semantic_operation_result": {
+    "artifact": {
+      "blob_hash": "37cc701489efd4a3ab3019474c431dfaa35140a53aea1d9c90f15bf982a62290",
+      "byte_size": 1089,
+      "hash": "37cc701489efd4a3ab3019474c431dfaa35140a53aea1d9c90f15bf982a62290"
+    },
+    "attempt": 1,
+    "business_proof": false,
+    "capability_hash": "ad5831f67d6e1f160fa41bc5c48d33cedaa07b06bb9f62d098efdc7c786e7a84",
+    "checks": [
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "materialization",
+        "reason": "record_pins_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "worker_protocol",
+        "reason": "worker_protocol_complete",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "installation",
+        "reason": "operation_pins_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "tool_inventory",
+        "reason": "fixture_only_inventory_observed",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "side_effects",
+        "reason": "recorded_tools_within_boundary",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only",
+          "output_hash": "37cc701489efd4a3ab3019474c431dfaa35140a53aea1d9c90f15bf982a62290"
+        },
+        "id": "completion",
+        "reason": "terminal_artifact_and_worker_complete",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "actual_model",
+        "reason": "native_model_records_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "actual_reasoning",
+        "reason": "native_reasoning_unobserved",
+        "verdict": "unknown"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "native_session",
+        "reason": "native_session_records_match",
+        "verdict": "pass"
+      },
+      {
+        "evidence": {
+          "business_proof": false,
+          "coverage": "record_checks_only"
+        },
+        "id": "actual_input_use",
+        "reason": "semantic_input_use_unobserved",
+        "verdict": "unknown"
+      }
+    ],
+    "engine_config_hash": "ac334ad59b5eda4ffd778baa374b0a25485543a23bfe9d5636ba935ab49f5163",
+    "input_hash": "8777ebe5c16ecea90a1b809dca775cb8881a55b3e342126702baada423b6718a",
+    "installation": {
+      "blob_hash": "cb06228176ef1ece1acb7bdb1c027709bd893099f2fba3040966cf5ad9e35241",
+      "hash": "cb06228176ef1ece1acb7bdb1c027709bd893099f2fba3040966cf5ad9e35241"
+    },
+    "materialization_hash": "8777ebe5c16ecea90a1b809dca775cb8881a55b3e342126702baada423b6718a",
+    "operation_id": "io_7489697aeeaa2de6b7500bf6",
+    "request_hash": "2a33a2b523b979754416b6454d912c2e311b31914237bf614611b30bd2e0d05a",
+    "trace_hashes": [
+      "0280521c2246f901b195a98a7e8332fd14fc8b2cf01c41d406d2772f2eba48b7",
+      "d03863300f3519c4a289c5b4ad115a1cc8493ef3ce7594704140e08f9e90e2a9",
+      "56a30314d70d75d182284b922209d998ee43fc499eb3f29ef5dbd82095b75390",
+      "3664ef87c9b2f367b334558c6136815fe254f1c4bee5dd697c1c185db9a301cb",
+      "7be09bf959b43edc4bdfe1abaa9a605156cb42d342da307a6d0259f7afdb6866",
+      "5687b4748d64348b6884cdf0ae66832a3248cf2a2abaaf38fafcf723f7346fc8",
+      "78043555e59260993ee564d7a6fd345c1ea9cda52e735232c73acdf762368992",
+      "8688df5129927dbc58f83ed090d35df02e74525418b6959e3eb50e46ab4dbea2",
+      "81a02a11a979c3ba4c3bb3bba55b2e85501c6ef5fcfdec3141ae78d23dd58ff9",
+      "aa29768865a4841ca835c59e2ef3b916ddbb93088f7d997c81532558f9fa7626",
+      "b3f48f9a7bfa965f99626405d21b47bc3ea3d572f77617ea6074b03394ec7120",
+      "792a1ffc059eca7b8c453e087b4cc5fac2cee6043d51e3fa670b5f65c52a25f9",
+      "8d0228f4d7ee6cd4171000b42b4cf2c9068dbc456104eceaac7d915686e306b8"
+    ],
+    "usage": {
+      "attempts": 1,
+      "cost_behavior": "observe_only",
+      "coverage": {
+        "cli_detail": "linked_and_reconciled_only",
+        "execution_reference_errors": 0,
+        "execution_sources": [
+          "resonance.sqlite3"
+        ],
+        "missing_requests": 0,
+        "money_complete": true,
+        "observed_requests": 0,
+        "requests_complete": false,
+        "scope": "instrumented_executions",
+        "status": "partial",
+        "telemetry_errors": 0,
+        "tokens_complete": false,
+        "unobserved_attempts": 0,
+        "unresolved_events": 1
+      },
+      "experiment_id": "technical-reconciliation-d1",
+      "money": {
+        "currency": "USD",
+        "estimated_usd": null,
+        "local_requests": 0,
+        "reported_usd": null,
+        "subscription_equivalent_usd": 0.04248,
+        "subscription_requests": 1,
+        "unknown_requests": 0
+      },
+      "operation_id": "io_7489697aeeaa2de6b7500bf6",
+      "requests": null,
+      "statuses": {
+        "completed": 1,
+        "unknown": 1
+      },
+      "tokens_in": 4136,
+      "tokens_out": 470
+    },
+    "verdict": "unknown",
+    "version": 1
+  },
+  "semantic_artifact_diagnostic": {
+    "raw_sha256": "37cc701489efd4a3ab3019474c431dfaa35140a53aea1d9c90f15bf982a62290",
+    "byte_size": 1089,
+    "fenced_json": true,
+    "missing_required_fields": [
+      "findings"
+    ],
+    "inner_verdict_is_not_accepted": "pass"
+  },
+  "trial_event_shapes": [
+    {
+      "type": "native_system",
+      "subtype": "ui_invalidate",
+      "keys": [
+        "data",
+        "subtype",
+        "type"
+      ]
+    },
+    {
+      "type": "native_system",
+      "subtype": "init",
+      "keys": [
+        "data",
+        "subtype",
+        "type"
+      ]
+    },
+    {
+      "type": "native_system",
+      "subtype": "thinking_tokens",
+      "keys": [
+        "data",
+        "subtype",
+        "type"
+      ]
+    },
+    {
+      "type": "native_system",
+      "subtype": "thinking_tokens",
+      "keys": [
+        "data",
+        "subtype",
+        "type"
+      ]
+    },
+    {
+      "type": "observation",
+      "subtype": null,
+      "keys": [
+        "error",
+        "message_id",
+        "model",
+        "session_id",
+        "type",
+        "usage"
+      ]
+    },
+    {
+      "type": "observation",
+      "subtype": null,
+      "keys": [
+        "error",
+        "message_id",
+        "model",
+        "session_id",
+        "type",
+        "usage"
+      ]
+    },
+    {
+      "type": "tool_call",
+      "subtype": null,
+      "keys": [
+        "id",
+        "name",
+        "type"
+      ]
+    },
+    {
+      "type": "tool_result",
+      "subtype": null,
+      "keys": [
+        "id",
+        "is_error",
+        "type"
+      ]
+    },
+    {
+      "type": "observation",
+      "subtype": null,
+      "keys": [
+        "error",
+        "message_id",
+        "model",
+        "session_id",
+        "type",
+        "usage"
+      ]
+    },
+    {
+      "type": "observation",
+      "subtype": null,
+      "keys": [
+        "error",
+        "message_id",
+        "model",
+        "session_id",
+        "type",
+        "usage"
+      ]
+    },
+    {
+      "type": "usage",
+      "subtype": null,
+      "keys": [
+        "cost_usd",
+        "model_usage",
+        "session_id",
+        "type",
+        "usage"
+      ]
+    },
+    {
+      "type": "artifact",
+      "subtype": null,
+      "keys": [
+        "content",
+        "hash",
+        "type"
+      ]
+    },
+    {
+      "type": "installation_receipt",
+      "subtype": null,
+      "keys": [
+        "hash",
+        "receipt",
+        "type"
+      ]
+    },
+    {
+      "type": "terminal",
+      "subtype": "success",
+      "keys": [
+        "actual_models",
+        "actual_reasoning_coverage",
+        "api_error_status",
+        "artifact_status",
+        "errors",
+        "is_error",
+        "session_id",
+        "subtype",
+        "type"
+      ]
+    }
+  ],
+  "usage": [
+    {
+      "attempts": 1,
+      "requests": null,
+      "tokens_in": 4433,
+      "tokens_out": 407,
+      "money": {
+        "currency": "USD",
+        "reported_usd": null,
+        "estimated_usd": null,
+        "subscription_equivalent_usd": 0.0282454,
+        "unknown_requests": 0,
+        "subscription_requests": 1,
+        "local_requests": 0
+      },
+      "coverage": {
+        "status": "partial",
+        "observed_requests": 0,
+        "unobserved_attempts": 0,
+        "unresolved_events": 2,
+        "missing_requests": 0,
+        "telemetry_errors": 0,
+        "tokens_complete": false,
+        "money_complete": true,
+        "requests_complete": false,
+        "scope": "instrumented_executions",
+        "cli_detail": "linked_and_reconciled_only",
+        "execution_sources": [
+          "resonance.sqlite3"
+        ],
+        "execution_reference_errors": 0
+      },
+      "statuses": {
+        "completed": 1,
+        "unknown": 1
+      },
+      "cost_behavior": "observe_only",
+      "experiment_id": "technical-reconciliation-d1",
+      "trial_id": null
+    },
+    {
+      "attempts": 1,
+      "requests": null,
+      "tokens_in": 4136,
+      "tokens_out": 470,
+      "money": {
+        "currency": "USD",
+        "reported_usd": null,
+        "estimated_usd": null,
+        "subscription_equivalent_usd": 0.04248,
+        "unknown_requests": 0,
+        "subscription_requests": 1,
+        "local_requests": 0
+      },
+      "coverage": {
+        "status": "partial",
+        "observed_requests": 0,
+        "unobserved_attempts": 0,
+        "unresolved_events": 1,
+        "missing_requests": 0,
+        "telemetry_errors": 0,
+        "tokens_complete": false,
+        "money_complete": true,
+        "requests_complete": false,
+        "scope": "instrumented_executions",
+        "cli_detail": "linked_and_reconciled_only",
+        "execution_sources": [
+          "resonance.sqlite3"
+        ],
+        "execution_reference_errors": 0
+      },
+      "statuses": {
+        "completed": 1,
+        "unknown": 1
+      },
+      "cost_behavior": "observe_only",
+      "experiment_id": "technical-reconciliation-d1",
+      "operation_id": "io_7489697aeeaa2de6b7500bf6"
+    }
+  ],
+  "counts": {
+    "improvement_effective_views": 0,
+    "improvement_comparison_views": 0,
+    "improvement_semantic_receipts": 0,
+    "improvement_experiment_selections": 0,
+    "improvement_qualification_claims": 0
+  },
+  "all_plaintext_workspaces_removed": true,
+  "canonical_unchanged": true,
+  "final_pin_unchanged": true,
+  "outcome": "invalid_semantic_output_rejected_before_pair",
+  "paired_account_calls": 0,
+  "business_proof": false,
+  "activation_granted": false,
+  "eligible_final_proof": false,
+  "limitations": [
+    "baseline structural check failed; owner accuracy unknown",
+    "reasoning and observed asset use unknown; baseline event/side-effect coverage also unknown",
+    "reviewer artifact fenced and missing findings; no semantic receipt or pair authority",
+    "no output normalization, field fabrication, owner arbitration or repeat-until-win",
+    "usage coverage partial; cash and request count unavailable",
+    "current native TrialRunner baseline demonstrated; native TrialRunner/account pair remains unproven"
+  ],
+  "retained_raw": {
+    "real_d1_feasibility.py": "851379b6f5414dbdb12d8e5450d19bbe05c2f7397baa7c6c48100293ba3cf44d",
+    "real-d1-feasibility.json": "2c6e48075712857bc1458c9c6b57c3f5a084de6740533f9f30ba184bbdd09056",
+    "real-d1-feasibility.log": "9acdd023620bf3586ebd55ac5186b86a1cc28d3fc1005688700903892f0a82f5"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "status": "pure_storage_codec_approved_no_consumer_enabled",
+  "source_sha256": "3cd3005812d793e021531291b54d2d5258773bf25c9ba95e5cf4896c0ca9463e",
+  "test_sha256": "c9b554323e41850f68f95c82fdda4467b6d104e1877453dbb6f7bfacdd751b20",
+  "protocol_sha256": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+  "red": {"tests": 14, "failures": 14, "seconds": 0.002, "log_sha256": "e9a525a629b0dc67176b9cad9c5586bb995a7380473f415a409cc5a5eabde6c4", "cause": "Missing codec implementation"},
+  "author": {"tests": 14, "seconds": 0.050, "exit": 0, "log_sha256": "f6a1f69f08474f77e5e30fa50b46034ba64e51e3376e0d3988d60fc855d79b41"},
+  "independent": {"tests": 14, "seconds": 0.052, "exit": 0, "log_sha256": "209dea890d42eff8ccd50565778ab5980b308c84597bb34d7dc58b4c4884f005"},
+  "isolation": "-I -S -B; stdlib and pure protocol only; exact runpy command retained in local progress ledger",
+  "behavior": [
+    "Derives lexical receipt/incarnation binding from first projected guardian offer, excluding live capability fields",
+    "Validates closed global/source envelopes and exact private worker bodies with independent caller counters",
+    "Preserves raw Unicode, CRLF, NUL and missing usage; bounded canonical UTF8 storage bytes without wire length prefix",
+    "Image digest recipe matches actual guardian ASCII canonical material; mismatch stays mismatch evidence"
+  ],
+  "limitations": [
+    "No native, SDK, DB, socket, environment or app imports in this pure test unit",
+    "Offer hash is lexical because full capability offer is excluded; no peer, cross-source phase, authorization or loaded-section proof",
+    "Actual encrypted history, writer/workspace/lease/generation validation belongs to durable consumers, still open",
+    "No old stored bytes rewritten, runtime registration changed or production consumer enabled"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-observation"
+}

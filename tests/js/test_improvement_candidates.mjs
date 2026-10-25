@@ -4,6 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { webcrypto, createHash } from "node:crypto";
 
+let activeDocument;
 class Element {
   constructor(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.value = ""; this.textContent = ""; this.disabled = false; this.hidden = false; this.style = {}; }
   set innerHTML(_) { throw Error("Private review must never parse HTML"); }
@@ -11,8 +12,8 @@ class Element {
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter(x => x !== this); this.isConnected = false; }
-  focus() {}
-  querySelectorAll(selector) { const all = this.children.flatMap(x => [x, ...x.querySelectorAll(selector)]); return all.filter(x => selector === "button" ? x.tagName === "button" : x.attrs["data-action"] === selector.match(/data-action="(.*?)"/)?.[1]); }
+  focus() { activeDocument.activeElement = this; }
+  querySelectorAll(selector) { const all = this.children.flatMap(x => [x, ...x.querySelectorAll(selector)]); return all.filter(x => selector.includes(',') ? ['button','input','textarea','select'].includes(x.tagName) || x.tabIndex===0 : selector === "button" ? x.tagName === "button" : x.attrs["data-action"] === selector.match(/data-action="(.*?)"/)?.[1]); }
   querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
 }
 const source = fs.readFileSync(new URL("../../dashboard/improvement-candidates.js", import.meta.url), "utf8");
@@ -21,9 +22,10 @@ const hash = s => createHash("sha256").update(s).digest("hex");
 const exact = text => ({ text, hash: hash(text), byte_size: Buffer.byteLength(text) });
 const candidate = { candidate_id: "candidate-one", experiment_id: "experiment-one", base_revision_id: "revision-one", target_id: "target-one", base_generation: 1,
   base_hash: hash(raw), content_hash: hash(raw + "\nnew"), ordinal: 1, semantic_status: "unreviewed", context_grant: {status: "active"}, edit_authority: null };
-async function fixture(lang = "en") {
+async function fixture(lang = "en", withExperiments = false) {
   const dict = JSON.parse(fs.readFileSync(new URL(`../../dashboard/i18n/${lang}.json`, import.meta.url)));
   const body = new Element("body"), head = new Element("head"), calls = [], intervals = [];
+  let applied = [];
   let brain = "brain-one", rows = [candidate], deferred = null, corrupt = false, failStage = false, pages = false, failAfterStage = false, failRows = false;
   const ctx = { document: { body, head, createElement: tag => new Element(tag), getElementById: () => null, addEventListener() {} },
     window: { currentBrainPath: () => brain }, TextEncoder, TextDecoder, crypto: webcrypto, URL, URLSearchParams, Blob,
@@ -33,7 +35,16 @@ async function fixture(lang = "en") {
       calls.push({url: String(url), ...options});
       let value;
       const path = String(url).split("?")[0];
-      if (path === "/improvement-candidate-contexts") value = {contexts:{items:[{experiment_id:"experiment-one",target_id:"target-one",grant_status:"active",base_generation:1,current_generation:1,created_at:1,objectives:[{objective:"Review rows"}]}],next_cursor:pages?"cursor-two":null}};
+      if (path === "/improvement-candidate-contexts") value = {contexts:{items:[{context_id:"context-one",experiment_id:"experiment-one",target_id:"target-one",grant_status:"active",base_generation:1,current_generation:1,created_at:1,objectives:[{objective:"Review rows"}]}],next_cursor:pages?"cursor-two":null}};
+      else if(path === '/improvement-policy') value={policy:{mode:'suggest'},capabilities:{trial:false,activation:false}};
+      else if(path === '/improvement-contexts/experiment-one') value={context:{context_id:'context-one',experiment_id:'experiment-one',generation:4,grant_status:'active',target_generations:{'target-one':1}}};
+      else if(path === '/improvement-experiments/experiment-one') value={experiment:{experiment_id:'experiment-one',generation:7,phase:'comparing'}};
+      else if(path.endsWith('/policy')) value={policy:{multiple_tests:2,native_capability:'unknown'}};
+      else if(path.endsWith('/compose-consents')) value={consents:[]};
+      else if(path.endsWith('/compose-outcomes')) value={outcomes:[]};
+      else if(path.endsWith('/operations')) value={operations:[]};
+      else if(path.endsWith('/semantic-history')) value={receipts:[]};
+      else if(path.endsWith('/compose-preview')) {if(deferred)await deferred;value={result:{input_hash:hash(raw),basis_hash:hash(raw),candidate_refs:[{id:raw}],tuning_refs:[],native_capability:'unknown'}};}
       else if (path === "/improvement-targets/capture") value = {capture:{target_id:"target-one",revision_id:"revision-one",generation:1}};
       else if (path === "/improvement-candidates" && !options.method) { if(failRows){failRows=false;throw Error("Metadata unavailable after acknowledged write");} value = {candidates: rows}; }
       else if (path.endsWith("/candidate-one/review")) {
@@ -44,10 +55,17 @@ async function fixture(lang = "en") {
       else if (path.endsWith("/artifact-review")) value = {review:{artifact:exact(raw),task:"Exact task",contract:{objective:"Count rows"},fixtures:[{source_ref:"sources/rows.csv",source_version:"v1",timezone:"Asia/Saigon",data_period:"2026-10",cutoff:"2026-10-23",schema:{id:"rows-v1"},text:raw,fixture_hash:hash(raw),byte_size:Buffer.byteLength(raw)}]}};
       else if (path.endsWith("/authorize")) { rows = [{...candidate,edit_authority:{authority_id:"authority-one",generation:2,status:"revoked"}}]; value = {authority:{status:"active",generation:1}}; }
       else if (path === "/improvement-candidates") { if (failStage) {failStage=false;throw Error("Unknown transport outcome");} if(failAfterStage) failRows=true; value = {candidate}; }
+      else if (path === "/improvement-activations" && !options.method) value = {activations: applied, coverage: {served: ["api_engines"]}};
+      else if (path === "/improvement-activations") { const body = JSON.parse(options.body); applied = [{activation_id:"iac_" + "1".repeat(32), state:"active", generation:1, evidence_level:"manual_trial", reason:"owner_apply", selector:{context:"dm", agent_key:"agent-1", agent_slug:body.agent_slug}}]; value = {activation: applied[0]}; }
+      else if (path.endsWith("/revert")) { applied = [{...applied[0], state:"reverted", generation:2}]; value = {activation: applied[0]}; }
+      else if (path === "/agents") value = {agents:[{slug:"ke-toan", name:"Accountant", description:"Books"}]};
       else throw Error(`Unexpected request ${path}`);
       return {ok:true,status:200,json:async()=>({ok:true,...value})};
     } };
-  vm.createContext(ctx); vm.runInContext(source, ctx);
+  activeDocument=ctx.document;
+  vm.createContext(ctx);
+  if(withExperiments)vm.runInContext(fs.readFileSync(new URL('../../dashboard/improvement-experiments.js',import.meta.url),'utf8'),ctx);
+  vm.runInContext(source, ctx);
   await ctx.window.JavisImprovementCandidates.open({brain:"brain-one",slug:"test-skill"});
   const find = action => { const nodes = body.querySelectorAll(`[data-action="${action}"]`); assert.ok(nodes.length, `Missing action ${action}`); return nodes.at(-1); };
   return {ctx,body,calls,find,intervals,setBrain:b=>{brain=b;},setRows:r=>{rows=r;},defer:p=>{deferred=p;},corrupt:()=>{corrupt=true;},failStage:()=>{failStage=true;},pages:()=>{pages=true;},failAfterStage:()=>{failAfterStage=true;}};
@@ -60,6 +78,33 @@ for (const lang of ["vi","en"]) {
   assert.ok(f.find("after-facts").textContent.includes(hash(raw + "\nnew")));
   await f.find("authorize").onclick();
   assert.equal(f.find("authorize").disabled, true, "Historical approval must refresh revoked current metadata");
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+for(const lang of ['vi','en']) {
+  const f=await fixture(lang,true);
+  assert.ok(f.calls.every(x=>!x.method),'Actual integrated open must only GET');
+  assert.ok(f.find('compose-preview'));
+  const panel=f.body.children[0], controls=panel.querySelectorAll("button, input, textarea, select, a[href], [tabindex='0']").filter(x=>!x.disabled&&!x.hidden);
+  controls.at(-1).focus();let prevented=false;
+  panel.onkeydown({key:'Tab',shiftKey:false,preventDefault(){prevented=true;}});
+  assert.ok(prevented);assert.equal(f.ctx.document.activeElement,controls[0]);
+  controls[0].focus();panel.onkeydown({key:'Tab',shiftKey:true,preventDefault(){}});assert.equal(f.ctx.document.activeElement,controls.at(-1));
+  await f.find('review-candidate-one').onclick();const privateReview=f.find('after-text');
+  let release;f.defer(new Promise(r=>release=r));const pending=f.find('review-candidate-one').onclick();
+  const request=f.calls.at(-1);panel.onkeydown({key:'Escape'});
+  assert.equal(request.signal.aborted,true,'Escape aborts private requests');
+  assert.equal(f.body.children.length,0);release();await pending;
+  assert.equal(f.body.querySelector('[data-action="after-text"]'),null);
+  assert.ok(privateReview.textContent.includes('<script>'),'Fixture exercised actual private text before close');
+}
+{
+  const f=await fixture('en',true);let release;f.defer(new Promise(r=>release=r));
+  const pending=f.find('compose-preview').onclick();const request=f.calls.at(-1);
+  const changed=f.find('context').onchange();
+  assert.equal(request.signal.aborted,true,'Changing context aborts experiment requests immediately');
+  assert.equal(f.body.querySelector('[data-action="compose-input-ref"]'),null);
+  await changed;release();await pending;
+  assert.equal(f.body.querySelector('[data-action="compose-input-ref"]'),null,'Old preview cannot enter new context');
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {
@@ -81,7 +126,7 @@ for (const lang of ["vi","en"]) {
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {
-  const f = await fixture(); let sameSkill = true;
+  const f = await fixture('en',true); let sameSkill = true;
   await f.ctx.window.JavisImprovementCandidates.open({brain:"brain-one",slug:"test-skill",isCurrent:()=>sameSkill});
   let resolve; f.defer(new Promise(r=>{resolve=r;}));
   const pending = f.find("review-candidate-one").onclick();
@@ -105,7 +150,7 @@ for (const lang of ["vi","en"]) {
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {
-  const f = await fixture();
+  const f = await fixture('en',true);
   let resolve; f.defer(new Promise(r=>{resolve=r;}));
   const pending = f.find("review-candidate-one").onclick();
   f.setBrain("brain-two"); f.intervals.forEach(fn=>fn()); resolve(); await pending;
@@ -135,6 +180,33 @@ for (const lang of ["vi","en"]) {
   assert.equal(JSON.parse(staged.body).patch.start, Buffer.byteLength('\ufefftitle\r\n'));
   const writes = f.calls.filter(x=>x.url.startsWith("/improvement-candidates?") && x.method === "POST");
   assert.equal(writes.length,2); assert.equal(JSON.parse(writes[0].body).event_key,JSON.parse(writes[1].body).event_key,"Unknown write retry must keep its event key");
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+for (const lang of ["vi","en"]) {
+  // M2E: an exact-diff authority offers apply to one assistant chat; revert uses the server generation.
+  const f = await fixture(lang);
+  f.setRows([{...candidate, edit_authority:{authority_id:"authority-two", kind:"exact_diff", generation:1, status:"active"}}]);
+  await f.find("review-candidate-one").onclick();
+  f.find("apply-agent").value = "ke-toan";
+  await f.find("apply-candidate").onclick();
+  const apply = f.calls.find(x=>x.url.startsWith("/improvement-activations?") && x.method === "POST");
+  const sent = JSON.parse(apply.body);
+  assert.equal(sent.candidate_id, "candidate-one"); assert.equal(sent.agent_slug, "ke-toan");
+  assert.deepEqual(Object.keys(sent).sort(), ["agent_slug","candidate_id","event_key"]);
+  const id = "iac_" + "1".repeat(32);
+  assert.ok(f.find("activation-" + id).children.some(x=>x.textContent.includes("ke-toan")));
+  await f.find("revert-" + id).onclick();
+  const revert = f.calls.find(x=>x.url.startsWith(`/improvement-activations/${id}/revert`));
+  assert.equal(JSON.parse(revert.body).expected_generation, 1);
+  assert.equal(f.body.querySelector(`[data-action="revert-${id}"]`), null, "A reverted pointer offers no second revert");
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+{
+  // A region authority alone is not an exact approved diff: no apply control.
+  const f = await fixture();
+  f.setRows([{...candidate, edit_authority:{authority_id:"authority-three", kind:"editable_region", generation:1, status:"active"}}]);
+  await f.find("review-candidate-one").onclick();
+  assert.equal(f.body.querySelector('[data-action="apply-candidate"]'), null);
   f.ctx.window.JavisImprovementCandidates.close();
 }
 console.log("OK: exact inert vi/en review, revoked replay, brain race, corrupt hash and UTF-8/CRLF selection");

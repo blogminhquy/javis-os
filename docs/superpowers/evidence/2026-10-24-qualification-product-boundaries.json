@@ -1,0 +1,132 @@
+{
+  "unit": "Upper ordinary-product refusal for engineering qualification stores",
+  "base_commit": "47e7beca4bd44b6ed84f3dcb48c58adadca1fc3d",
+  "goal_section": "12-17",
+  "implementation": "Reuse authenticated require_product_store before comparison evidence/replay/read/create/final transactions, selection/replay/final transactions and actual role admission/join/product/return fences.",
+  "source_and_test_sha256": {
+    "tests/run.py": "59756fe950a50a85ba761f5aba132566656022718dd91b936c1f2266bb9fb92a",
+    "server/improvement_comparison_plans.py": "b81c1c0b93a17ac59d85d2bfb462fa5ee7f6e717a9ea8d6eee747862e5055ae4",
+    "server/improvement_qualification_records.py": "96917a3e70eeb3309512b2d81cc214a0da0d915c2d2c382b516d87842dc07fff",
+    "tests/python/test_improvement_qualification_product_races.py": "784f90f887ffd9aaa887a828f2c88979b506960306d3ec2035f0357ff85382c7",
+    "server/improvement_role_workflow.py": "559b0381d6800bda0b8effa3aa8d8bd7073b216c1b3566c115d0d488733f0a42",
+    "server/improvement_comparison_results.py": "575d476181320fa17b8ba6f4b1a3edea4e007c1e58e66be8034df6d991774d7b",
+    "tests/python/test_improvement_comparison_reports.py": "40af1a7b9af16822d3b274257b64605f9d77fc305905f30b2c8c50c09e3219ee",
+    "tests/python/test_improvement_qualification_product_boundaries.py": "2387e6cbef4b36fc990469a51993c6d948c7e5b43c9b27ac655fd8595b9abc31"
+  },
+  "red": {
+    "authenticated_domain_cases": {
+      "tests": 6,
+      "assertion_failures": 12,
+      "seconds": 14.824,
+      "fixture_errors": 0
+    },
+    "late_domain_cases": {
+      "tests": 4,
+      "failures": 4,
+      "seconds": 15.435
+    }
+  },
+  "green": {
+    "authenticated_domain_cases": {
+      "tests": 6,
+      "passed": 6,
+      "seconds": 23.82,
+      "executor": "root; independently verifies reviewer-authored tests"
+    },
+    "late_domain_cases": {
+      "tests": 4,
+      "passed": 4,
+      "seconds": 13.361,
+      "executor": "root"
+    }
+  },
+  "affected_regression": {
+    "tests": 25,
+    "scripts": 4,
+    "passed_scripts": 4,
+    "seconds": 203.919,
+    "groups": [
+      {
+        "name": "comparison-reports",
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\tests\\python\\test_improvement_comparison_reports.py",
+          "-v"
+        ],
+        "seconds": 72.996,
+        "exit": 0
+      },
+      {
+        "name": "selection",
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\tests\\python\\test_improvement_experiment_selection.py",
+          "-v"
+        ],
+        "seconds": 52.668,
+        "exit": 0
+      },
+      {
+        "name": "proposal-affected",
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\tests\\python\\test_improvement_proposals.py",
+          "ProposalTests.test_actual_native_result_stages_bound_unreviewed_draft_and_replay_never_queries",
+          "ProposalTests.test_malformed_batch_gets_one_actual_repair_with_same_input_and_allowance",
+          "ProposalTests.test_cancel_of_completed_native_role_fences_a_pending_publication",
+          "-v"
+        ],
+        "seconds": 42.364,
+        "exit": 0
+      },
+      {
+        "name": "semantic-affected",
+        "command": [
+          "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+          "-B",
+          "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\tests\\python\\test_improvement_semantic_review.py",
+          "SemanticReviewTests.test_actual_review_receipt_keeps_model_pass_and_native_unknown_distinct",
+          "SemanticReviewTests.test_revoke_preserves_cold_history_but_never_current_semantic_authority",
+          "SemanticReviewTests.test_repeated_http_cancel_and_shutdown_drain_marked_reviewer_without_receipt",
+          "-v"
+        ],
+        "seconds": 35.891,
+        "exit": 0
+      }
+    ]
+  },
+  "independent_review": {
+    "decision": "APPROVED_SCOPED_DELTA",
+    "findings": [],
+    "tests": 4,
+    "passed": 4,
+    "seconds": 10.557,
+    "stable_pins": 8,
+    "report_sha256": "4fbd625e7b7c3ce0d506b871b8f81fdca847a8becfebf783df31776c3067f61f",
+    "static_report_sha256": "86fd3abb0107799fa7382581104dbe7546eabfaf2785dcb6a22c8e6394a61183",
+    "test_log_sha256": "764075b7d59ed1d6ab3cf301294c5de46a0ad61a351bdd0e9123a96f3eb7e434",
+    "exclusions": "Reviewer-authored original six cases excluded self-approval; root ran and reviewed those."
+  },
+  "logs_sha256": {
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-qualification-product-boundaries/red.log": "def8dc1b8463926aec8225d29a4c80fc66bb02ee8db9126abd86e62750ddfd5c",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-qualification-product-boundaries/green6.log": "915c692b7ccb9345f8ef9b666372d6278d6fd0e4271fd84b178589be0bfebefd",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-product-domain-races/red4.log": "059f3597af40879887c86eb1c2eaec15b11f43815a302e970d9ecf49c7b03078",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-product-domain-races/green4.log": "f32193728fe3d97270e5f8e65be9f295a39625800e8afab2e0104bf20fe4a0f0",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-product-domain-races/comparison-reports.log": "5d18e98ae2fa8e50796091cf8db05dc84bbc089d77ca63069b1bb916081a6bd4",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-product-domain-races/selection.log": "0fef70ff16189eee4f0f02afa27df5e9bccb80eb2b1f4c1b56eb44f4057a80ec",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-product-domain-races/proposal-affected.log": "20dd216a0ca6ff9593c7223f2deb3025fb99966ac4838dff2a055c91e31447d3",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-product-domain-races/semantic-affected.log": "04ee5e800cdb254e81deea10dbbaa4ccfce32b949620c908776b2628982484b3"
+  },
+  "fixture_limits": [
+    "Six domain tests use genuine private QualificationSession/brain/M0/host/plans and actual PREPARED Operation/CallLedger binding. Static source observers, explicit internal fixture reservation and historical input1 are declared seams, not successful native verification.",
+    "Four races inject an intentionally unanchored immutable marker into actual ordinary report/selection/role fixtures. These prove categorical refusal, never valid engineering provenance or native readiness.",
+    "No comparator, baseline/unknown policy, schema, output/hash format, ledger or executor changes.",
+    "Historical encrypted evidence remains; private proposal/semantic publication paths are guarded through public owned-role entry and after-join checks, not advertised as direct public authority.",
+    "Separate engineering report/runtime support, actual native qualification and exact-final-head full required CI remain open.",
+    "No model/account/business/cost-saving/activation/rollout evidence. Changed native footprint invalidates earlier source qualification."
+  ],
+  "next": "Goal17 actual pinned upstream compose implementation through narrow adapter, then derived experience library; all M0-M8 and Phase1/Phase2 gates remain."
+}

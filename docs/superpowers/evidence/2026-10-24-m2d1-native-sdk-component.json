@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "status": "engineering_component_approved_not_runtime_qualified",
+  "source_sha256": "355c03a593d10ffb0570eb655c7401ec0d449e54845c56e01ac43a492c8a29d3",
+  "test_sha256": "a1474c45ea3461308e7cc6551830f3ea4a127320b7b0601534e336be322b353c",
+  "driver_sha256": "1423fd3df5d1cdfaccde6a99d68201ed352202e49ea0da31fc1eabbecdb7b379",
+  "command": "base Python 3.12 -I -S -B .superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe/run_native_sdk_tests.py",
+  "author": {"tests": 22, "seconds": 3.760, "exit": 0, "log_sha256": "e43872fa74816c16a1ba8d330ea362ee6e22a5a3960449872ce5acf71c9478d4"},
+  "independent": {"tests": 22, "seconds": 3.821, "exit": 0, "log_sha256": "982df19ab6f14dc7e67500a61d8c3ae175fea36dd18522ef26d1ef7666e8ecc5"},
+  "local_evidence": {
+    "directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+    "final_manifest_sha256": "a7edec696e5c8616ac7db8d3c77d52875a9463c0cb4ccf65c0a1b6229bb54382",
+    "explicit_files_verified": 26,
+    "final_author_report_sha256": "ccd59324f6ac397df8f102ec73685e3385798ff55176ce0f9fed84da59de030e",
+    "declared_dependency_manifest_sha256": "f072737bbd5138c98b2d72514bd0ba825e54ecfe3d03e366254fd49e4f350c0c",
+    "declared_direct_runtime_context_pins": 20,
+    "is_exhaustive_import_or_loaded_page_qualification": false,
+    "independent_approval_note_sha256": "9fd440df46e3eba0f6c73ee0a6867457cfd6fcf3ee96a24e768335f86c949d93"
+  },
+  "api": {
+    "constructor": "NativeInvocationSet(pin, *, image_channels, emit_dispatch, environment, cwd, source_policy_hash)",
+    "preflight": "await preflight(*, managed_policy): stable closed runtime without PID/nonce; caller must apply existing supported/capability checks",
+    "transport": "transport(options, *, query_policy, on_user_write): actual SDK0.2.116 transport subclass; one fresh query; no resume/fork/session reuse",
+    "completed_write_callback": "await on_user_write(data, *, process, stdin, creation, dispatch_nonce, dispatch_hash); raw data private, immutable original Process/raw stdin, defensive held CREATE",
+    "cleanup": "client disconnect and Query settlement remain required; owner.aclose additionally owns all captures/image channels/retained tasks"
+  },
+  "actual_scope": [
+    "Actual installed SDK116 command builder and original SDK write/read/lock behavior with controlled adapters; options replaced for stdio permission without mutating caller options",
+    "Strict pinned model/reasoning/cwd/environment/argv before actual CreateProcess capture; private dispatch emitted before held image exchange",
+    "Fail-closed fixed --version/auth-status/-v invocation grammar; exclusive subprocess_cli module binding proxy restores only its own binding, never changes global anyio.open_process",
+    "One actual inert system Python --version via saved SDK anyio opener, canonical capture, real image socketpair and terminal EXIT",
+    "Original SDK write/read/stderr operations stay owned through cancellation and capture/transport close; consumed successful stream results pruned",
+    "Completed user send checks immutable successful-connect Process/raw stdin/SDK stream before and after send; foreign replacement refuses callback"
+  ],
+  "preserved_reds_and_review": [
+    "Missing module:13 failures0.235s before implementation",
+    "Focused tests caught wrong underlying stdin and query policy replacing selected model before correction",
+    "Inherited SDK raw write/read cancellation and reader yielding before owned drain reproduced before shielding/retention corrections",
+    "Historical4414befa19 candidate was not approved: independent review found cumulative parsed-message Task result retention and mutable destination identity",
+    "Two-case RED2 failures1.551s and additional prewrite RED1 failure1.034s preceded final correction",
+    "Final regression includes40 distinct32KiB valid parsed messages, mid-send raw-stdin replacement and prewrite foreign Process/wrapper with zero foreign sends; both P2 findings closed"
+  ],
+  "limitations": [
+    "No selected Claude binary/auth/account/provider/model calls and no actual SDKClient query; actual native case uses system Python only",
+    "No actual guardian file comparison or complete three-actor production startup in this component; source/bootstrap/peer provenance remain consumer obligations",
+    "Completed-send callback is delivery evidence only; exact accepted input/session/manifest4 correlation, provider acceptance and comprehension remain UNKNOWN",
+    "SDK -v output/wait budget2s starts after canonical spawn/image ACK, not the old SDK warning-only total2s behavior",
+    "Arbitrary OS/library close faults, hostile mutation/cancellation, full SDK client semantics and loaded-page identity remain unproved; uncertain owners are retained",
+    "No worker/profile/runtime registration or production activation; complete frozen-boundary qualification and final-head CI remain required"
+  ]
+}

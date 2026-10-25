@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.314.0] - 2026-10-25
+### Thêm mới
+- **Áp dụng thử bản skill đã sửa cho một trợ lý.** Trong Studio, mở Cải tiến của một skill, duyệt đúng phần sửa rồi chọn trợ lý: bản mới chỉ dùng trong khung chat riêng với trợ lý đó. File skill gốc không bị đụng tới, bấm **Quay lại bản gốc** là việc mới dùng bản cũ ngay.
+- Bản thử tự **tạm ngừng** khi anh sửa skill gốc, tắt skill hoặc thu hồi quyền sửa; không bao giờ tự gộp hay bật lại skill đã tắt. Bản nào bị phép so sánh chấm là kém hơn thì không áp dụng được.
+- Nhãn nói thật mức bằng chứng: "Áp dụng thử thủ công, chưa chứng minh tốt hơn" cho tới khi qua kiểm định đầy đủ. Hiện bản thử chỉ có tác dụng với bộ não chạy qua API; Claude Code, Codex, Grok và Antigravity vẫn dùng bản gốc.
+
 ## [0.313.0] - 2026-10-25
 ### Thêm mới
 - **Gắn tag màu cho từng cuộc chat** trong Hòm thư bot, giống Pancake: tạo, đổi tên, đổi màu, xoá tag ngay trong cuộc chat. Tag hiện thành chip màu trên danh sách (2 chip đầu, còn lại gom "+N") và lọc được theo tag.

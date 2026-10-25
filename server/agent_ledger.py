@@ -26,7 +26,7 @@ CALL_STATUSES = ("reserved", "running", "ok", "error", "refunded", "interrupted"
 LIVE_STATUSES = ("reserved", "running", "ok")
 OPEN_STATUSES = ("reserved", "running")
 PURPOSES = ("reply", "step", "judge_batch", "review", "proactive", "scan", "reaction_review", "goal", "improve_probe",
-            "improve_propose", "improve_evaluate")
+            "improve_propose", "improve_evaluate", "improve_compose")
 STALE_RESERVED_S = 600.0          # một lượt tối đa 10 phút (thiết kế 3.4, 9.1), chỉ cho dòng `mirror_ref = ''`
 # Cửa sổ ân hạn của đối soát (thiết kế 9.1, sửa sau review T1 vòng 2): dòng sổ và lượt nhóm mới hơn mốc này bị bỏ qua, để
 # một nhịp đối soát không bắt gặp lượt nhóm đang ở giữa hai bước giữ chỗ của hai kho.

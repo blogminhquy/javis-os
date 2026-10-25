@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "status": "readonly_foundation_approved_no_materializer_or_runtime_enabled",
+  "sources": {
+    "improvement_sandbox.py": "8a832525c09034065765c217364d14a7449e3cf7f55f159f7a9d23cadf2285a8",
+    "improvement_skill_asset_broker.py": "113aef9b31c1fd6ba978c258863d47dcde0ae31bfe94239db4df6851968570f8",
+    "improvement_read_outcome_broker.py": "98d37c8e002549d53faefbf390f522f838bdf1bbf8b913c2b72ceca3955582a7",
+    "improvement_read_outcome_proof.py": "b22dc6340561312b31f76cfbfb8c08392919c21f5c673307a6a8d52d1b45d197"
+  },
+  "test_sha256": "27da904b9715b614bead7dfc985d4b39e0e44456198ec2c78a2b0cdb05408fb0",
+  "authorized_existing_test_sha256": "0c8860159f91cfe4e4869b2abed59df93fdc9d76b9c1a2c659fd425291920669",
+  "command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_manifest4.py -v",
+  "red": {"tests": 11, "failures": 1, "errors": 8, "seconds": 0.021, "log_sha256": "f8f2e8bead5fe0fb2948e2bcc70b2b238b5f4cefccf67a0bf0a1933f26088e1a", "cause": "Missing manifest4 validation, readonly prompt/effective-view hashing and exact read outcome support"},
+  "author": {"tests": 11, "seconds": 0.042, "exit": 0, "log_sha256": "a45fd4ecb9b39cf0cb04c72b25b5ee04170f171b43b46119b2fa3331e3ded79e"},
+  "independent": {"tests": 11, "seconds": 0.039, "exit": 0, "log_sha256": "70d96d9858afd8714fdcfd4b575b170b89f8ea3403e3c1bb7acbb7092e820e78"},
+  "affected_existing": [
+    {"file": "test_improvement_skill_asset_broker.py", "tests": 12, "seconds": 0.051, "exit": 0},
+    {"file": "test_improvement_skill_asset_proof.py", "tests": 14, "seconds": 0.044, "exit": 0},
+    {"file": "test_improvement_read_outcome_proof.py", "tests": 24, "seconds": 0.113, "exit": 0},
+    {"file": "test_improvement_read_outcome_broker.py", "tests": 15, "seconds": 0.082, "exit": 0},
+    {"file": "test_improvement_sandbox.py", "selected_tests": 3, "seconds": 0.010, "exit": 0}
+  ],
+  "behavior": [
+    "Manifest4 uses the exact strict manifest3 field set, single immutable skill, effective view, fixture, context and public contract validation",
+    "Readonly prompt excludes full skill bytes and retains manifest3 prompt bytes; effective hash binds the view",
+    "Existing immutable broker payloads and exact new read correlator accept4 with strict input/attempt/view binding and unchanged raw optional error values",
+    "Versions1/2/3 keep their existing schema, prompt/hash/payload behavior; untouched legacy asset correlator returns UNKNOWN for4"
+  ],
+  "authorized_test_change": "Supported-version loop2/3 becomes2/3/4 and future unsupported version4 becomes5; rename reflects the extension. Existing malformed/binding/legacy1 denial assertions remain intact.",
+  "limitations": [
+    "Synthetic component checks, no actual SDKClient/native/account/provider query",
+    "No materializer emits4 yet; no profile/receipt/check/result/worker/registry/runtime caller enabled",
+    "Full new receipt4/input-delivery/native dispatch integration, frozen qualification and final-head CI remain open"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-manifest4",
+  "explicit_manifest_files_verified": 14,
+  "manifest_mismatches": 0,
+  "manifest_is_exhaustive_import_proof": false
+}

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "status": "scoped_independent_approval",
+  "pins": {
+    "server/improvement_native_parent.py": "f8ca3bc092d24a2dca577c8231f8c3067826456676fac6266b85641e7e135c1a",
+    "server/improvement_claude.py": "2f69c489040e56db6875567b1ff45ddd49268aebfa90b3dcabe9bb40e6445c82",
+    "server/improvement_operation_adapter.py": "5bba123910675589f1b0e147b01df608fa80c45f30fcfce58746183f2008451e",
+    "tests/python/test_improvement_native_parent.py": "20c41f6418b01401cf20997ca680c9bfca152e0d1d140d96a38d448ca7d1ddfa",
+    "tests/python/test_improvement_native_parent_sdk_env.py": "0541c3a9d3ee710051b3c69356e14aff1eea23637824eab548e2a3ebbf19351b"
+  },
+  "author": {
+    "tests": 10,
+    "seconds": 3.985,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-parent/green-purpose-final10.log",
+    "log_sha256": "98a564c24e49244b6aea2a8947311b775fdcd2927001989f5f2223ad59515ddc"
+  },
+  "actual_sdk_engineering": {
+    "tests": 1,
+    "seconds": 1.04,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-parent/green-sdk-env.log",
+    "log_sha256": "11927d31cfcaac4cad8fb08ab67f2635d065f3baf7cf65cac21ca7320fa07b8c"
+  },
+  "affected_legacy": [
+    {
+      "tests": 7,
+      "seconds": 0.229,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-parent/affected-legacy-adapter.log",
+      "log_sha256": "573f9bbb1cfd524ad68c55c32f45a1936d743d1667b09efdcd2f98eadfc32e5d"
+    },
+    {
+      "tests": 2,
+      "seconds": 0.438,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-parent/affected-legacy-operation-adapter.log",
+      "log_sha256": "fef7edb6ddfc3737a4b188b46388f827a66822daaba8d8cc93b09faff2e0d472"
+    }
+  ],
+  "review": {
+    "reviewer": "m2d1_whole_review",
+    "open_scoped_findings": 0,
+    "report_sha256": "651e86079d841e6f4cdc9e2d483461a6a8d5cead9bd639288aaf166439f0bc05",
+    "scope": "Actual parent and adapters only; excludes self-authored runners and new admission callers"
+  },
+  "behavior": [
+    "Actual adapters bind concrete M0/principal/current authority and same-loop lock; no matching reviewed release can fall back to unbound legacy observer",
+    "Static admission precedes release observation and Guardian creation; standalone preflight reserves no Trial/attempt/call",
+    "Full receipt/config/capability attempt scope binds all four image decisions; exact purpose-specific dispatch/environment checks precede allow",
+    "Received and closing preflight history is encrypted in existing M0 events; closed worker/guardian exact int0 status required",
+    "Bound adapters reject legacy input versions before unguarded fallback; unbound historical path preserved"
+  ],
+  "limits": [
+    "Parent ten tests use engineering guardian/release seams with actual SQLite and encrypted blobs",
+    "Actual SDK116 builder uses fake Capture/IO, no native child; test aligns declared source-policy pin only, raw SDK dispatch unchanged",
+    "Admission/reserve callers, materializer flip and actual whole-pipeline qualification remain pending; no account retry or activation"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-parent",
+  "independent": [
+    {
+      "tests": 10,
+      "seconds": 4.312,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-parent/whole-review-parent10.log",
+      "log_sha256": "d92c87ddb5bca92cb0a78c8a5670f5ccd07b2d7f2dd3f37124fefe8d684a6767"
+    },
+    {
+      "tests": 1,
+      "seconds": 1.259,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-parent/whole-review-sdk-env1.log",
+      "log_sha256": "30288842504db7f3b9fb7406bb6c9996d8da6c17a6cbdf65a4be577776a65335"
+    }
+  ]
+}

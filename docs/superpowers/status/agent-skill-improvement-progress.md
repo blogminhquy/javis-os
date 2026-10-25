@@ -1,5 +1,2043 @@
 # Agent and skill improvement Goal progress
 
+## Checkpoint Claude Opus 5.5, 25/10/2026
+
+Owner re-issued the full M0–M8 Goal in a Claude Code session (Goal section 19); section 18
+narrowing is history. Worktree `D:/Project/Javis-OS/.claude/worktrees/javis-agent-skill-improvement-3dc1ea`,
+pushed to `codex/agent-skill-improvement-m2d1` (PR #803, retitled 0.314.0). The Codex worktree
+`C:/Users/admin/.codex/worktrees/agent-skill-improvement-m2a` is untouched (two untracked WIP files left there).
+
+Done in this session:
+- Merged origin/main 0.312.0 into the M2D1 branch (`44ee0349`): 10 conflicts, branch logic kept for
+  task-scope skill reads, i18n and script tags unioned, route table regenerated. Version 0.314.0 reserved (`b9a4fe23`).
+- M2E manual activation (`a3359bff`): schema 11 `improvement_activations`, apply/revert/reconcile,
+  read-time resolver in lazy router, in-process `javis_use_skill` and task scope; CLI hub requests and
+  non-DM channels keep canonical. API `GET/POST /improvement-activations`, `POST .../{id}/revert`.
+  Studio candidate panel: apply block and applied list with Revert. Ops doc `docs/dev/improvement-manual-apply.md`.
+- M2F simulated feasibility (`a3359bff`): `test_improvement_feasibility_simulated.py`, four labelled
+  synthetic scenarios (win, tie, required loss, unknown) through actual plans/reports/selection/apply.
+
+| Milestone | Technical | Business evidence | Rollout |
+|---|---|---|---|
+| M0, M1, M2A–C | Released 0.287–0.296 (reused) | None claimed | Suggest-only |
+| M2D1 | Merged with main, CI on PR #803 pending; native profile UNQUALIFIED, `REVIEWED_RELEASES` empty so no production trial can run | None | Gated off |
+| M2D2 | Task-scope routing present (opt-in); generic native effective profile open | None | Opt-in flag |
+| M2E | Code + 29 tests local green (Windows); independent review pending | None | Manual only, API engines only |
+| M2F | Simulated workflow green (synthetic, labelled) | Real feasibility PENDING (needs owner-approved account run) | n/a |
+| M3–M8 | Not started in this session | PENDING | PENDING |
+
+Blocked on owner, not engineering: any model-backed feasibility/pilot (needs explicit permission to
+run the selected Claude subscription engine), live canary (7 days and 10 real tasks), activation on a
+real brain. Next: CI green and review fixes, merge 0.314.0, then M3 engineering.
+
+
+## Current Q1 checkpoint — source component closed, installed gate open
+
+Source622332e6 closes consumed baseline5 source after7316implementation,
+8504fix1 and622332fix2. Scoped reviewI1/I2/I3 and newI4 allADDRESSED,0open
+Critical/Important. InitialWindows62PASS; fix1fourteenexecutions/twelve selectors
+withproductionidentical/test-only rechecks disclosed; fix2sevenPASSonexact
+committedbytes.175/164/64rawslowdiagnostics retained forfinalreview,0warnings.
+InitialLinux40090227041failure24pass37skip1error preserved; affectedfix1Linux
+40091515738ninePASS andfinalsource40092465143fourPASS0skip. No fullCIclaim.
+
+[Component proof](../evidence/2026-10-24-m2-owned-baseline-query.json)
+SHA1bc070983ab57e4c3b39394bf058c7a7c6f6376d894619fc41b2637cd4f2727b.
+Rootverified132indexedfiles/14currentpins/reportprefixes/97cleanupreceipts;
+12:06:38UTC0samebirth/nativeprocesses,1unrelatedPIDreuse preserved,13workspace
+witnessesgone/same2Oct23jh2dirs untouched. Workerterminal/serialslotreleased.
+Privateignoredhistory/helpers/diagnosticsremainlocal; no force-add/keyblobcopy.
+
+Q2view4/operation2 and ordinary markerfences next, afteractual622interface
+reconciliation/plan. E1/E2source-owner/API/bootstrap designs buildercheckedonly;
+no Eimplementation. MandatoryfinalstableinstalledCLI/SDKlocalhost qualification,
+genericD2direct-read/nativeprofile,E/F,fullrequiredCI/wholebranch/integration/
+finalhandoff OPEN. Business/livePENDING; no fullQ1native/M2/Goalcompletion.
+Earlier fix1-active/design-next wording below is historical; do not restart.
+
+## Owner scope override24/10 — finish M2 engineering and Claude handoff
+
+Direct owner decision from “Xác định bước harness2 tốn thời gian” supersedes
+all older full M0–M8/Phase2 completion and continuation instructions below.
+Current Goal stays ACTIVE until M2A–F/D1/D2 engineering and committed/integrated
+handoff pass their actual technical source/runtime/qualification/CI/review gates.
+No new Goal, M3–M8 work or actual account/model/business/pilot/canary runs.
+Business/live acceptance is PENDING and cannot be inferred from simulations.
+See [Goal18](../AGENT-SKILL-IMPROVEMENT-GOAL.md#18-chủ-thu-hẹp-goal-tới-m2-engineering-và-yêu-cầu-bàn-giao--24102026)
+and [initial handoff](../../handoffs/claude-opus-5-5/HANDOFF.md).
+
+M0/M1 and M2A–C are reused; D1/D2/E/F remain open pending actual impact
+assessment. Six-path recipe-source Task1 was safely closed and
+preserved with scoped evidence, not treated as M2 completion. Undispatched
+destination schema11/permission/retrieval and further Library/orchestration
+expansion move to Claude backlog unless a concrete M2 consistency prerequisite
+is established. Existing forward compose/Library/archive code/evidence remains.
+Initial handoff snapshot is explicitly provisional; final M2 gate/cleanup/CI/
+review/PR/version state must be updated before Goal completion.
+
+## M2 owned preflight — component source gate closed, query vertical next
+
+Sources bee28e3e/faa5a221/0549380e, immutable proof
+[2026-10-24-m2-owned-technical-preflight.json](../evidence/2026-10-24-m2-owned-technical-preflight.json)
+SHA52b482e0a894e75d4fdc29486abbae3d4a830344552bd9935dda0f4fad2f8827. Original frozen Windows62PASS+1symlinkskip; portability
+selector1PASS; exact-sourceLinux26PASS/37platformskip. Initial scopedAstra review
+I1 finalthread→returnrace fixed with deterministic3RED→8focusedWindowsPASS,
+fix-sourceLinux3PASS/5Windows skip; scoped6.1rereview I1ADDRESSED0newbreakage.
+Rootverified93+15+25receipts/reportprefixes/12committedpins/zeroownedprocesses.
+No63suitererun, warning suppression or historyrewrite; retainP1M1noise/P1M2interim
+serialdeviation for finalwholebranch. Final/fixruns serialized. Same2Oct23dirs
+untouched; slotreleased. SelectedCLI/SDKClient notrun, bothmapsclosed/native
+UNQUALIFIED. Q1baseline5designbuilderapproved; nextplan/officialbrief, thenQ2
+view4/op2 and mandatoryfinalstableinstalledlocalhost qualification. D2/E/F,
+fullfinalCI/review/integration/handoff remainOPEN; business/livePENDING.
+
+## M2 capability exclusion — scoped gate closed, owned preflight next
+
+Source d0d5b27c adds only exact false-account/domain qualification rejection at
+4consumed product checks, preserves old type/isinstance/hash/authority/settlement.
+Real-boundary new8methods/24fixtureexercises: cleanRED12intended failures;
+finalWindows13PASS/0skip and earlyLinux40083817343/job120842572439 exact5pins
+13PASS/0skip. Scoped fresh6.1/high specPASS/qualityApproved0Critical/0Important/
+1MinorM1. Proof2026-10-24-m2-qualification-capability-exclusion.json
+SHAac258798bd7cf5221bbf9c80fbd0d218cea3e3225120c0ef811122562d2d23b7.
+Root independently checked87raw artifacts/committed LF pins/zeroownedprocesses.
+Initial fixture failures and superseded freeze retained; new-test cleanup repair
+refrozen before09, unchanged-source existing selectors retained with exactpins.
+M1: async fixture slow-task noise17Windows09/14Linux;1existingWindowsoperation
+selector diagnostic. Report-only counting correction complete, no raw/source/
+test/rerun/suppression change; finalwholebranch musttriage residual timing noise.
+Slotreleased, native99UNQUALIFIED/mapsclosed, taskremote4ba9624a unchanged;
+only ownedCIreff611065a pushed. Not fullfinalCI/native/account/M2 acceptance.
+
+Next actual Session-owned startup3 preflight designb32ce5db/plan519b366b has
+fresh Astra/high builder nothingimportantleft; officialbrief/preflight prepared.
+P1 notyetimplemented/qualified. Query/accounting/typedpublisher/coldcleanup then
+D2/E/F/finalCI/review/integration/handoff remainOPEN. Owner delegated pilot
+choice: reconciliation primary/document processing secondary/Pythonbugfix-tests
+technicalcontrol, selectiononly; no livepilot underGoal18.
+
+## Preserved recipe-source unit — scoped engineering closed under new scope
+
+M2 regression follow-up21a5c0b1 changes only the2stale future9 fixture assignments
+to actualSCHEMA_VERSION+1. Refusal/no-backup/no-native/history asserts unchanged;
+actual2GREEN, source-spec compliant/qualityApproved0Critical/Important/1Minor.
+T1-R1 freeze-order limitation retained (post-GREEN pins, no pre-run timestamp
+claim). Proof2026-10-24-m2-future-schema-controls.json
+SHA74a92878248c7a22f3d49e13b06a7c57c88f88688406daf1760a5d02569cf6fa.
+Production/native unchanged99UNQUALIFIED, slotreleased; fullM2gates stillOPEN.
+
+Source269d3892 adds actual retained source observation after legitimate skill
+revision while old execution revalidate remains exact; current native target
+ACL/lineage, fixture/rule/engine/source-grant/SQL and callback identity are fenced.
+Historical archive output only shares the exact existing owner-rule hash.
+Root audited6frozen/committed LF paths and69raw indexed artifacts. Windows43run:
+42pass/1honest Windows directory-mode skip. Exact6pin earlyLinux40081705134,
+job120836433669,43PASS/0skip; full83144byte log SHA
+92228619315755f6843c083a761fa1bd37413d26ac52f32ac5f31714b8a29335.
+Fresh scoped specPASS/qualityApproved,0Critical/Important/Minor. Root resolved
+three evidence limitations against freeze/log/cleanup/static import-discovery
+and Linux artifacts. Two punycode/one Node action-runtime notices retained
+separately; no test ResourceWarning/task/timing diagnostics or suppression.
+Public2026-10-24-recipe-source-observer.json SHA
+a0ec009bb3eab3e53756cd37e560429f7f7dc8107de99760b4b6045a9fe43cf9.
+
+PROFILE99 stays UNQUALIFIED/registriesclosed; static import closure is distinct
+from current installed/runtime qualification. Task1 terminal audit/serial slot
+released, no owned test process/temp/scratch remains;36preexisting Oct22 roots
+untouched. Only owned earlyCI ref pushed, taskPRremote stays4ba9624a. Destination
+Tasks2/3 remain unimplemented/backlog by owner decision. Continue M2D1/D2/E/F
+engineering closeout and handoff, no further Library/orchestration expansion,
+no model/account/business/pilot/canary. Final M2 CI/wholebranch review/integration
+and resource audit remain mandatory; GoalACTIVE under Goal18.
+
+## Current view-backed recipe archive — scoped engineering approved
+
+Commitbc1a3a68 adds the trigger-only schema10 overlay over exact historical9,
+preserving encrypted rows/tombstones/history, authenticated backup/rollback and
+old9 cold reads. Actual ordinary and typed3 view Trial/Call/result/trace owners
+now supply complete archive refs; all nine request pins and historical view
+dependencies are fenced. The new source-ordering RED was fixed by checking the
+actual grant/current-target metadata before binding decryption; the late-callback
+RED was fixed with final comparison-scoped SQL fences. Earlier immutable Task1
+proof is retained as historical evidence, not rewritten to cover these fixes.
+
+Local64PASS on13frozen LF paths; Linux40078670232/job120827431984 exact13pins
+76PASS across5modules, full108397byte log retained/SHA8cf4ae4da77d50b4ccb70404ebd0d4b6d07563164f7d604520437a7b45a5fdd0.
+Fresh independent specPASS/qualityApproved,0Critical/0Important/1Minor. Minor
+recipe-archive-authority/Task2/T2-R1 retains43local/42Linux asyncio timing
+diagnostics as final test-hygiene follow-up; ResourceWarnings0/task-leaks0, no
+suppression. One CI action-runtime deprecation notice is retained separately.
+Checkpoint2026-10-24-recipe-archive-views.json
+SHAd632b12330bce64cdb4537f6963d6c2644a6065d8a2cb928f8d1aeedd7fa4196.
+
+PROFILE_SOURCES98 remains UNQUALIFIED/registriesclosed; protected309 proof and
+VERSION0.299.0 unchanged. Both tasks in recipe-archive-authority are scoped
+complete. Next actual destination grants/consent/max3 ranking, historical source
+freshness, owned upstream Library lifecycle/recovery and downstream native/
+candidate/view/Trial/apply/lesson consumers before orchestration comparison.
+FullGoal ACTIVE; isolated grades/GC/operator reachability, final full-task-head
+CI/wholebranch review and all Phase2 real trials remain open. The two preexisting
+future9 fixtures and deferred minors remain on the final-review ledger. Only the
+owned early-CI ref was pushed; task PR remote stays4ba9624a. No model/account,
+activation, deploy/restart, real-brain migration or physical erasure performed.
+
+## Encrypted source recipe authoring — scoped engineering approved
+
+Commitcbbbdacd plus acceptance-onlyaa1e0732 implement actual closed source-side
+archive capture/NO_ENTRY over existing candidate/preparation/Trial/Comparison
+owners, encrypted manifests/exact refs/original evidence lifetime/final CAS, and
+cold metadata/revoke/supersede. Typed3 resolves original composition reports;
+parent observations confer no candidate3 outcome. Grades stay untested/confounded,
+transfer unverified/businessfalse. Shared preparation extraction preserves actual
+original-dbdec proposer bytes/events/hashes including recipes=[].
+
+Local archive27v1 + affected cleanup6v2/records11/improver10/proposals2/preparation2
+passed; six owned async-fixture cleanup warnings were diagnosed/fixed explicitly,
+not suppressed. Initial independent review ImportantT1-R1 required the negative
+conflicting-pin case; actual reevaluation/report/corrupt-catalog acceptance3PASS,
+no production delta or invented RED. Narrow re-review ADDRESSED/no new findings,
+spec/qualityPASS, executionnone. Early Linux40074394806 exactv2pins48PASS and
+40075062683 exactv3pinsfocused3PASS, both ResourceWarnings0. All seven committed
+raw pins, complete logs/reports/reviews and terminal process release reconciled.
+Checkpoint2026-10-24-recipe-archive-authoring.json
+SHAb19e63eb1f6a5401c7386ad265c89744ad64d7ae80bc4023d70b2f4dd0fa0745.
+
+PROFILE_SOURCES97 UNQUALIFIED/registriesclosed; protected309 proof unchanged.
+Actual v4 refs remain intact but schema9 refuses publication atomically. Mandatory
+Task2 in2026-10-24-recipe-archive-authority.md now implements trigger-only10 and
+actual ordinary/typed3 view-backed archive acceptance with old9 cold compatibility.
+Then destination consent/max3/owned plaintext crash recovery and actual downstream
+native/candidate/view/Trial/apply/lesson dependencies; physical GC/isolated grades,
+full M0–M8/finaltaskCI/wholebranchreview/Phase2 remain open. No real model/account,
+activation, deploy/restart or real-brain migration performed. Task PR remote stays
+4ba9624a; only owned early-CI branches pushed. No orchestration comparison yet.
+
+## Recipe archive schema9 — scoped engineering approved after R1 repair
+
+Commitsefef01c2/6d677d71 add a backed-up additive archive migration in the existing
+DB: immutable recipe/trial-reference metadata and monotone availability tombstones.
+Official8 validates before backup; no compose rebuild/history/ciphertext/lease
+rewrite. Existing1–7 chain and known8 cold reads remain;9 validates exact guards.
+Historical target capture and protected owner-rule aggregate are distinct pins.
+No raw recipe text, destination consent or plaintext/native consumer is enabled.
+
+Real self-review REDs closed REPLACE history/tombstone resets and case-insensitive
+namespace collisions. Independent review found ImportantR1: SQLite NUL bypassed
+exact64 digest checks. Clean actual five-failure RED, shared explicit NUL guard,
+targeted GREEN and17case final pass; narrowed re-review ADDRESSED/no new findings,
+all7stablev3pins/no reviewer execution. Local28PASS includes explicitly reused
+unchanged compose6; other17archive+5selected checks run on correctedv3. Early
+Linux40071193085/job120804788438 SUCCESS exact7pins23PASS (17archive+6compose),
+not final task-head fullCI. Root reconciled raw/Git/log/review/Linux/fixture pins.
+Public2026-10-24-recipe-archive-schema.json SHA29db52f3f7f56a07915075a16ad780b18d08066ca8704a42a2255102b82a0712.
+
+PROFILE96 rawdbd31ee091efa14b98f632460ee4f4376e70b5ed9f49f9d3716f025040ca566c
+UNQUALIFIED; registries closed/actual309 proof untouched. Next actual encrypted
+archive authoring/source/trace/shorterTTL controls, explicit destination grants,
+owned plaintext recovery and improver/Operation/candidate/view/Trial/apply/lesson
+propagation. Logical erased metadata is not physical erasure/GC. Full M0–M8 Goal,
+same-pipeline dummy/native/final/fullCI/review and all Phase2 gates remain open;
+no actual account/model query, real-brain migration, activation, deploy or restart.
+
+## Actual Harness² Library snapshot — scoped engineering approved
+
+Commit9e098a52 runs actual pinned Library/add/index/tree/retain/forget inside an
+owned private procedure-only snapshot. Twenty extracted definitions have exact
+source/AST provenance; three documented tree boundary-line adaptations preserve
+strict UTF8, Windows paths and procedure newlines. Maximum3 entries, NO_ENTRY,
+negative/confounded verdicts, serialized lifetime, mutation poison and honest
+cleanup remain explicit. Returned authority is not_checked; no product consumer.
+
+Windows32run/31pass/1explicitPOSIXskip includes actual junction sentinel; early
+Linux40069793207/job120800563778 SUCCESS on the exact7rawpins,26run/25pass/
+1explicitWindowsskip includes actual POSIX symlink. Fresh independent static
+spec/quality review approved,0findings/no execution. Root reconciled source/
+committed/log/review/Linux pins and targeted RED disclosures. Public checkpoint
+2026-10-24-harness2-library-snapshot.json SHA0fc8b025b27af47068f4d9ddc86ee7c26f87c4046e136d7d08027595a9584603.
+
+PROFILE95 remains7f7f77da63c0814fb08e55f58849899de0786023c0feb977b81e0778b2573044
+UNQUALIFIED; actual309 test untouched. Next: canonical encrypted recipe authority,
+source availability/retention/revoke, separately scoped retrieval consent and
+owned crash recovery, then actual improver/Operation/candidate/view/Trial/apply
+dependency propagation. Orchestration comparison follows functioning integration.
+Full M0–M8 Goal, final exact-head full CI/review and all Phase2 gates remain open;
+no real model/account query, activation, restart or measured value claim.
+
+## Compose owner panel and recorded outcomes — scoped engineering approved
+
+Commits5490cde6/95790edb add the actual mounted Studio owner flow and bounded
+cold compose-outcomes. Open/reload GET only; preview/consent/run/revoke explicit;
+generation types separate; old budget2 immutable; reserve3 only at create. A
+recorded interrupted/invalid/native-incomplete compose consumes scope even without
+publication. New bytes retain their own exact diff/semantic/dependency/native/
+Trial/tuning/final gates. Unknown readiness/business eligibility is not upgraded.
+
+Fresh independent static review found three P2 UI recovery defects: older reload
+restored active consent, acknowledged actions stayed disabled after manual reload,
+and definitely rejected create refs remained cached. All reproduced RED; scoped
+fix/re-review ADDRESSED3/no new Important,12stablev2pins/no reviewer execution.
+Latest snapshot/write epochs and bounded acknowledgment reconciliation preserve
+revocation; only first definite pre-create400/403 permits corrected intent, while
+uncertain/admitted/runtime requests retain exact event/payload and never resample.
+
+Local14Python cases plus info-tip, both actual controller suites, i18n/two syntax
+checks; JS-only fix adds10recovery/retention controls and reuses unchanged backend
+proof. Early isolated Linux40068923965/job120797950847 SUCCESS, same12rawpins,
+14Python plus those controller/i18n/info/syntax checks; snapshotd11365108d7a3fbc1fd8f644880584247ab2919e.
+Root real-browser vi/en desktop walkthrough used labelled synthetic metadata;
+actual panel mount, separate steps/KEEP_BASE/close verified, helper/tab cleaned.
+This is no account/model/native proof. Raw warnings/diagnostics remain recorded.
+Public checkpoint2026-10-24-compose-owner-panel.json SHA06224f4b71acf3a4382505c8500f77709ffc9489b18451fa809596e7cdc5c8c7.
+
+PROFILE95 raw7f7f77da63c0814fb08e55f58849899de0786023c0feb977b81e0778b2573044 is UNQUALIFIED; actual309 proof untouched. MinorT2-R4
+ambiguous candidate option labels andT2-R5 existing evidence warning noise remain
+explicit deferred final-review items. Next bounded plan: actual Harness² Library
+inside an owned private snapshot, then canonical encrypted recipe permission/
+retention/retrieval and actual improver/candidate/view propagation before any
+orchestration comparison. No library integration/readiness claimed from the plan.
+Full M0–M8 Goal active; same-pipeline dummy/native, qualified final, remaining code,
+final exact task-head full CI/fresh whole-branch review and all Phase2 actual model/
+business pilot/canary/specifically authorized rollout remain open.
+
+## Owned compose controls and cold history — scoped backend approved
+
+Backend67dfb662 connects the existing concrete ComposerService/shared execution/
+tasks to explicit owner preview/authorize/run/revoke. Preview exposes current
+references only. Grant generation and saved experiment generation remain distinct;
+budget3 is not consent. Scope/current/product/native guards and separate checks
+for new bytes remain mandatory; old public/event history stays exact.
+
+Stop resolves authorization-scoped compose ownership and drains it; close rolls
+back late consent even after insertion during final source revalidation. Actual
+readonly metadata and saved completed/start/current-consent HTTP replay precede
+service construction. Active same-event HTTP retries join the existing owner to
+the final result; orphaned starts never redispatch. Known revocation authenticates
+readonly scope before using the existing same-store writer, works off/stopped and
+never constructs host/native. That ordinary writer may initialize its existing
+base GoalStore schema; no universal migration-free write claim is made.
+
+Windows86PASS/13modules (24focused+62impact), early isolated Linux67PASS/9scripts
+40066405520/job120790490552/exact9rawpins, snapshot51cdc17d0e6903de9b787d311417fb7ed6e832c6.
+Fresh independent static scope review raised P2T1-R1 actual HTTP join, reproduced
+RED29.934s; focused fix/API5GREEN96.240s plus main4GREEN9.204s. Narrow re-review
+ADDRESSED/no new findings/9stablev2pins; reviewer executed no tests. Root validated
+terminal logs/pins/CI. Existing Starlette/httpx deprecation warnings remain in main
+test logs; corrected fixture ResourceWarnings are excluded from final evidence.
+Public2026-10-24-compose-owner-controls.json SHA
+de6eda2890334dcaeb7df9d17379cbd1bccaa41c84ad4a978e44251c3836809a (UTF8/LF).
+
+All positive native predicates/SDK packets are synthetic storage controls, not
+actual CLI/SDKClient/account/model/business evidence. PROFILE95 raw
+4042a5083575db4354008675a333b4bdc5fa6022571c6f31334f80f1d7457831 remains
+UNQUALIFIED; registries closed, actual309 proof test untouched. Next Task2 adds
+bounded cold disposition metadata and reachable preview/consent/run/revoke panel;
+publication-only /compositions does not imply every failed attempt published.
+Then actual upstream library; same-pipeline dummy/native qualification, fully
+qualified final execution, final task-head full CI/review, remaining M0–M8 code
+and all Phase2 business/model/pilot/canary/authorized rollout stay open. Goal active.
+
+## Reserved compose arm — scoped component approved
+
+Explicit new candidate_policy reserves three hypotheses before observations;
+old closed requests/history keep two. Typed candidate3 requires its own current
+exact-diff grant, fresh semantic/dependency/native views and actual Trial/Call
+preparation. Actual controlled integration reaches PREPARED then abort/refund/
+cleanup; no inherited qualification. Legacy baseline comparison refuses arm3
+before verification. Selection requires its own tuning evidence; KEEP_BASE and
+cold off replay remain available. All three arms use multiplicity denominator60
+instead of40. Bounded stop/drain reads include18000trials/sixroles, not new rights.
+Historical ownership authenticates separate consent and execution actors against
+actual immutable events/Operation/Result/Attempt/Call/publication links.
+
+Meaningful policy/protocol/bounds/runtime/actor REDs preceded fixes; diagnostic
+fixture errors are recorded separately. Local impact137PASS/16scripts, fresh
+independent15PASS/192.949s/15stablepins/no open P0/P1/P2. Review report SHA
+4aab1d8d7af57c4216e478e8c1dc9d6de4228ccdc561a5e1f58ffd81958a0eee.
+Early isolated Linux40064018472/job120783344859 SUCCESS145PASS/17scripts,
+snapshota3934037bc0e5442cf2aa4005a60eae1e2a49549/15exactpins. Public proof
+2026-10-24-compose-checked-arms.json SHA
+a4532ac0fef6678e222c64f3c492865aae675d36eca4c9037a6d059c7f026f82 (UTF8/LF).
+
+Positive SDK/verifier/format/qualification and shared-source host DI are labelled
+synthetic controls; no actual CLI/SDKClient/account/model/business proof. Actual
+source/product/readers/current/view/ledger gates remain active; observational
+unknowns stay unknown. PROFILE95/static raw hash
+70f584395f5d91cf9d265c712178dfe420d9db8e9cc41f7808b9afc9075769cb is UNQUALIFIED;
+registries closed and actual309 evidence test untouched. Full qualified selected
+final, same-pipeline dummy, final task-head full CI and Phase2 remain open.
+Next: 2026-10-24-compose-owner-controls.md actual facade/API/cold replay and
+explicit preview/consent/run/revoke panel, then actual upstream experience library.
+Full M0–M8 Goal remains active. User-delegated pilots remain reconciliation
+primary, document processing secondary, Python bugfix/test technical control.
+
+## Owned compose workflow/publication — scoped component approved
+
+ComposerService now runs one explicit current-consent compose through the actual
+shared RoleWorkflow/OperationTasks/Execution/CallLedger. Native2 format and current
+source/grant/domain checks precede verification/Records creation. Same-event
+callers share ownership; completed outcomes replay cold after off. Interrupted
+start history does not resume implicitly; malformed output gets no repair or
+second compose. Actual report2 and all required native/product gates remain
+mandatory; default UNKNOWN qualification publishes no composition/candidate.
+
+Actual report/artifact/decisions/input/basis link one immutable composition and
+optional encrypted candidate3. Existing SkillCandidates.read_proposal consumes
+version2/common provenance plus composition_id; no ordinary owner-request event,
+region/edit/semantic approval or inherited pass. Ordinary staging stays capped2.
+Event/typed metadata writes and slow reads precede final current/source and SQL
+product/input/op/consent/domain CAS. Late grant/source/domain/call drift rolls back.
+
+Author RED7/.207s before fixtures. Initial root7:2PASS/5failing cases(8assertions)
+144.041s; actual diagnostic traced missing composer metadata to telemetry refusal
+after the owned marker. Root metadata RED1/.001s preceded minimal closed
+composer/improve_compose map addition; actual NativeUsageRecorder unchanged.
+Targeted candidate+keepbase2PASS51.270s; remaining unknown/malformed/late4controls
+3PASS147.390s. Independent static P2 native-history gap reproduced by deleting
+actual encrypted decision/observation blobs: ROOT1/two subFAIL25.599s. Actual cold
+OperationResults.read_stored extraction now authenticates that history for both
+old and derived readers. Root actual callerTx mirror/model drift RED1/two subFAIL
+25.915s led to final _attempt/bound_call/status/config/materialization/result check;
+late token/cost fields remain mutable. ROOT4PASS56.883s and extended final lineage
+1PASS26.620s. Root impact9scripts:61unittestPASS +manual turn_context PASS.
+
+Independent ROOT4PASS44.395s/24stablepins/no findings, both P2 closed; own7 excluded
+selfapproval. Review3270c767d2859cf541592c0eb0cddd5769cb9e83e6b1c227f8f1d7fb958aec05.
+Early isolated Linux40061864692/job120776919060 SUCCESS69unittest +manual TC,
+10scripts/10exactpins, snapshotb792833d45e53e648d536e52632f22f861ddab4c. Public
+2026-10-24-compose-owned-publication.json SHA
+1129532c0510ec9c7a839a0a4be07a8454308aa5c48e11fd77c117b2f660e3c3 (UTF8/LF).
+
+Positive native packets/verifier/format/binding/qualification predicate are
+explicit UNEXECUTED STORAGE CONTROLS, not native image ACK/account/model readiness.
+PROFILE95/static Windowsraw3af5de7fdfbf4e05788b1bc18bcd42f7e181d16730c813468cce6da263dbc90c
+is unqualified; registries closed and actual309 exact-evidence test untouched.
+No real CLI/SDKClient/provider/model query, account retry, activation/deploy/restart
+or measured quality/cost benefit. Next checked-arm policy plan reserves3 only in
+an explicit alternate new request; old budget2 stays exact. Bind/freeze/select3
+still need actual reserved policy/fresh semantic/owner/new bundle/view/tuning/
+final/qualification/regression and API/UI. Actual upstream library follows that
+functioning compose slice; full Goal/same-pipeline dummy/final-head CI/Phase2 open.
+
+## Actual compose operation admission — scoped component approved
+
+ComposePermissions.current now accepts an explicit actual stored operation and
+authenticates its exact closed request/hash/input plus one immutable actual
+operation_create event. Only the host creation mutation (original generation+1,
+updated_at=operation.created_at) is normalized for the old immutable basis hash;
+every other experiment field remains exact. Full current SQL/source/grant/policy/
+holdout/domain fences retain the actual experiment row and recheck grant,
+operation and creation history after slow reads. Shared SQL-only admission is
+used by actual OperationRecords creation/reservation; existing Execution current
+delegates the full guard at reserve/claim/materialize/start/heartbeat/retry.
+Existing CallLedger/lease/workspace/cancel/refund remain authoritative.
+
+Author RED6/.002s before fixtures; root independently GREEN6/52.625s. Additional
+root controls initially reached the existing immutable experiment trigger before
+the intended current guard (two fixture-error subcontrols); corrected to assert
+actual SQL refusal, without bypassing/dropping the trigger. Corrected focused1
+PASS6.955s. Root6-script impact regression PASS65; independent ROOT3PASS16.774s,
+13stablepins/no findings, own-authored6 excluded selfapproval. Review report
+ca2b7e6fb58ac1b9f15a4f6ed76dbb088b1aae1e5a0b87ef90fb9acb74b90ad3.
+Early isolated Linux40060390227/job120772406637 SUCCESS74/74 on separate snapshot
+017f887f6b8b897c219c39845e89f83ecec3faa7, eight raw source/test pins verified.
+Public2026-10-24-compose-owned-admission.json SHA
+5245196f130f744725f7025eb7742bebd37a3e1d522a26fcb4afdd8295d1d8f6.
+
+Actual host-profile format selector is unchanged: legacy1 refuses compose;
+declared selector2/verifier seams prove storage/PREPARED ownership only. Native
+wire grammar now recognizes composer/improve_compose; no readiness/launch grant
+is added. PROFILE_SOURCES91 includes newly consumed permission/input/protocol;
+static raw profile912340a42d1aa8577e1eca75b41ac418affe64dcbf5198466553f9043a6f6e21
+remains unqualified, registries closed, actual309 exact-evidence test untouched.
+No real query/model/account/activation/deploy/restart. Next actual ComposerService
+one-shot workflow, typed result/candidate provenance and independent composed
+checks/API/UI. Ordinary staging/selection still restrict two candidates; reserve
+an explicit three-hypothesis policy before admitting composed arm3 to selection.
+Actual derived upstream library follows compose. Full Goal, same-pipeline dummy
+qualification, exact final task-head full required CI and Phase2 remain open.
+
+## Explicit compose consent/current input — scoped component approved
+
+ComposePermissions uses actual owner/experiment/generation, authenticated existing
+input/basis event and a small encrypted guard holding the exact original experiment
+row/hash links. Complete stable SQL/definition/binding/policy authority remains
+the existing input-basis hash, not a duplicate ledger. Actual schema8 authorization/
+revocable grant/event publish atomically under current fences. Cold nine-field
+get/list/revoke/replay do not decrypt/refresh/probe/build; replay returns the
+current revoked state after off/source drift. Read-only current accepts actual
+store SQLite/query_only, authenticates encrypted links and current brain/source/
+policy/grants/holdout/domain/SQL, without public build/writer/event calls.
+
+Author RED6missingmodule/.013s before fixtures; root independently GREEN6/57.051s.
+Independent review found a final policy-read window after grant/source fence;
+root actual tailpolicy/grant mutation RED1FAIL10.333s preceded fix. Tail capture
+now precedes policy/source guards; final SQL input/grant/domain checks follow all
+slow observations. Final root3races PASS25.472s, positive+query_only2PASS14.437s;
+independent root3PASS15.882s/12stablepins/no remaining findings. Original reviewer-
+authored6 excluded selfapproval. Initial root race control attempted revocation
+twice through multiple arm guards; corrected test delegates complete actual fence
+then revokes once, no criterion change; old fixture-error log retained.
+Review cdceaadc41d0ec69e6588f07704828518192305a8b92298089ebe125016d8268.
+Public2026-10-24-compose-permissions.json SHA
+7ff6adeaef19e671cdb4f8ca0ed390650778e0343771fc0e846252614c47e517.
+
+Unchanged producer/vendor/license/role/schema proofs reused; no extra broad suite
+or portable rerun for this unwired component. PROFILE88 remains unqualified and
+unchanged, actual309 exact-evidence test stays intact. Consent is not yet wired
+to OperationRecords/Execution admission; current deliberately requires original
+exact generation, no own-op mutation normalization. Native private identity grammar
+still permits only improver/semantic pairs (native_protocol139); composer remains
+a closed pending gate. Next plan2026-10-24-compose-owned-admission.md connects the
+same actual owner/CallLedger/native2 paths and authenticates only their own exact
+creation mutation. Composer publisher/new independent checks/API/UI/library/full
+M0–M8/final-head CI/Phase2 remain open; no real query/model/account/activation.
+
+## Compose role contract — scoped component approved
+
+Closed compose requestv2 requires composer/improve_compose and authorization ID;
+old propose/repair/semantic stay exactclosedv1. Actual workspace/worker identity
+and profile now transport compose only in nativeformat2. Actual OperationProfile
+renderer calls unchanged pinned compose_roundt=k1 through the existing closed
+adapter. Existing CallLedger purpose and actual-call usage references recognize
+compose. Actual legacy worker refuses before verifier/engine/ACK/readiness.
+
+Root RED6:historical1PASS/new1FAIL4ERROR/.179s, then GREEN6/.627s plus actual
+legacy-worker refusal1/.357s. Scoped5-script regression: shared ledger manual
+scriptPASS0errors; workspace8/profile7/worker11/usage8. Initial worker inventory
+test omitted5actual dependencies; add explicit names while preserving exact
+set/length/rawhash assertions, focusedGREEN1/.055s. Actual309 native qualification
+test remains untouched/open. Independent root7PASS1.174s/14stablepins/no findings,
+report0f260a2f44ac06ac9607fcb699369a8484ce808b7ae64a179bdf0a743eb1b8ab.
+Public2026-10-24-compose-role-contract.json SHA
+c7d30ef146d5b39e1fa1c63b3f3800128d9a886149aadc39a000cef1bf1436c5.
+
+PROFILE_SOURCES88/staticrawprofilee995019a433b3ddf65fdc63b30751a25038e9b24901ee01007ce8cbefdc7fca8
+has no new qualification/registration. Reuse unchanged upstream AST/license and
+schema46 Linux evidence; no repeated portable run for this bounded transport
+delta. Final exact-head full required CI and native dummy qualification stay
+mandatory. No compose consent/current-source service or OperationRecords/Execution
+compose-phase admission connected yet; transport/ledger support is not enabled
+dispatch, query permission, typed publication, new bundle, business gain or live
+activation. Next explicit owner permission/revocation/current saved-input guard,
+then actual owned admission/publisher/new checks/API/UI, library thereafter.
+
+## Schema8 compose foundation — scoped approved, runtime still open
+
+Four-table checked rebuild preserves actual schema7 prepared operation/lease/
+workspace/CallLedger history and separate selected candidate/arm/result history,
+all IDs/values/Fernet bytes and historical schema1–7 literals. Actual GoalStore
+writer transaction owns backup/create/copy/drop/rename/guard restoration/FKcheck;
+only its fresh migration connection uses FKOFF before BEGIN. Ordinary connections
+retain FKON. Unknown schema7 guards refuse before backup; two writers serialize
+one backup; mid-copy and invalid child FK errors roll back exact old history.
+
+Distinct immutable compose permission/publication and revocable grant records,
+composer/improve_compose and one operation total are schema constraints. Candidate3
+needs typed composition provenance, no inherited edit/semantic authority; original
+manual/generated proposal caps stay two. Sealed selection refuses new consent.
+Final publication rechecks actual completed operation/result/attempt/call and
+brain/purpose/attempt/context/mirror/reason. output_hash is the encrypted RESULT
+REPORT blob; later publisher must authenticate raw artifact and decisions.
+
+Author RED6missingmodule/.008s before private fixtures; root independently GREEN6
+26.607s and again22.090s. Root extra sealed-selection RED and four settled-call
+identity subtest failures preceded fixes; GREEN5/23.489s. Initial118-test Windows
+cohort retained115PASS/2FAIL/1ERROR: stale extra-backup expectation, future-version
+exception and view diagnostic. All three corrected with focused GREEN checks;
+full new migration/role/view validation stayed enabled. Final independent root5
+PASS21.636s/12stablepins/no findings, original reviewer-authored6 excluded from
+self-approval. Report9416129700e71677164fad7ee9b3c77ccc02031c9a2ddc26ae5b9900bfd72ca9.
+
+Early isolated [Linux40058375830](https://github.com/blogminhquy/javis-os/actions/runs/40058375830)
+SUCCESS46/46: migration6/boundaries5/execution13/profile7/view15, exact12rawpins,
+commit4a2877aedbdd45e7978f65aa7d6d1757a543c631. Earlier40058040941 retained
+future-version exception failure after103PASS/104tested; unchanged candidate12/
+cases28/experiments19/operations21 proof reused. Final delta restores original
+SchemaError and view-specific diagnostics; no full unchanged cohort repetition.
+Public evidence:2026-10-24-compose-schema-foundation.json SHA
+87ef707685ca7ca20a507f09e71cbe0ec29ffeb9a2c248824c85ee86195105cc.
+
+Actual new schema dependency is now in PROFILE_SOURCES86. Static raw profile hash
+823a1434000fa3eabeafbd44ea92d704e60498491519f88bb702ff1aee5f514b matches no
+historical qualification; both release/candidate registries remain empty. Preserve
+the exact current native-evidence test: it is still an open requalification gate.
+This unit enables no compose dispatch, owner query permission, typed positive
+composed candidate/bundle, real model/account/business result or activation.
+Next: explicit owner permission/current authenticated saved-input guard and typed
+role/profile/ledger/workspace/usage connection, then actual publication/API/UI/
+independent new-candidate checks. Library follows actual compose, orchestration
+assessment after library; full M0–M8/final-head fullCI/Phase2 remain active/open.
+
+## Authenticated host compose inputs — scoped component approved
+
+Actual current two-arm candidate/report/lineage, authorized solver/artifact/
+typed verdict/bound observable trace now feed the unchanged upstream renderer.
+Original A refs remain immutable history, not new citation/source permission.
+Input and stable hash/identity basis are encrypted in existing M0; exact tuning
+exposure and metadata share final-fenced transaction rollback. Replay requires
+current owner/brain/grant/policy/source/holdout/latest evidence. Actual settled
+Trial/Attempt/CallLedger identity/status/engine_at joins are checked and captured.
+Late call corruption, policy identity drift or final event domain marker refuse
+publication. Basis excludes process-local checker callback IDs. No new schema,
+executor/ledger, compose native call/allowance, candidate or executable bundle.
+
+Author RED7missingmodule; root independently reviewed/executed all7. Initial
+5green/2count failures exposed incorrect test expectation: successful input
+publication must record tuning exposure like existing readers. Root/author agreed
+exact tuning-key union, preserved old timestamps/replay and zero new exposure on
+failure. GREEN7PASS49.139s before final policy fence; final-source positive/replay2
+PASS14.658s, rootrace4PASS21.424s and protocol11PASS.169s. Actual call and policy
+races each had meaningful RED before fixes; historical original-ref RED preceded
+new-output/current-ref preserving fix. Independent rootrace4+historical1 PASS5/5
+14.943s,15pins stable/no findings; own original7 excluded self-approval. Report
+e6c9055afaf75487ebdddb7590cc4bea80332dc13b381e7f5766f1433f774422.
+
+Early isolated [Linux40056590938](https://github.com/blogminhquy/javis-os/actions/runs/40056590938)
+SUCCESS33/33 across protocol11,host7,races4,existing byte validator11. Exact8 raw
+source/test/license pins verified on isolated commit50a73cc28262e4bf1a9b9159c0d38e3df3f47890,
+fresh Ubuntu/Python3.12, serial no-real-engine fixtures. One initial dispatch500
+produced no run; bounded retry succeeded. Task checkout/index/head unchanged by
+CI snapshot; this is not task-final-head full required CI/native qualification.
+[Public evidence](../evidence/2026-10-24-compose-host-inputs.json) distinguishes
+synthetic_storage_fixture/technical_fixture/unexecuted controls from actual
+selected model/config/native/account support. No cross-process restart execution,
+provider delivery, business benefit, token saving or live activation proof.
+
+Next: distinct composition owner permission/history plus explicit existing
+Operation/CallLedger/schema/arm integration; preserve original two proposals,
+one compose total, and independently probe/qualify/regress new bundle. Then actual
+derived experience-library adapter and only afterward orchestration replacement
+assessment. Native footprint integration/qualification, final exact-head full CI,
+remaining M0–M8 technical work and Phase2 stay open; Goal remains active.
+
+## Compose full pilot projection bound — scoped correction approved
+
+Consumer inspection found the initial pure adapter mistakenly reused32 patch
+citation slots for all tuning trial refs. A12-case/two-repeat/two-comparison
+projection needs96 separate refs. New actual96ref fixture RED1ERROR (other9green)
+→GREEN10. Trial projections now use existing schedule bounds (≤4000observations/
+group,≤8000unique trials) while1MiB fail-closed/no-truncation and32citations per
+patch/decision remain. Independent focused1PASS.036s,9stable pins; report
+6f76a33a87bb919ffc52395065ace2b042b234b14c3b8056325e493ead308ff3.
+Prior upstream9-definition/license proof is unchanged/reused. This is projection
+capacity, not an actual pilot or support for unlimited context. Durable host and
+runtime consumers remain next. [Additive evidence](../evidence/2026-10-24-compose-pilot-projection-bound.json).
+
+## Actual upstream compose adapter — scoped pure component approved
+
+Goal17's first functioning fixture slice now calls actual compose_round at t=k=1
+from the pinned upstream source. Nine extracted definitions/constants match exact
+source segments AND AST; raw original Git blob9ccacf23b64ac15b06a1939f26224960f56d757c
+and Apache2 LICENSE blobd645695673349e3947e8e5ae42332d0ac3164cd7 independently
+verified. Static narrow Javis body surface and context/notes→JSON mapping exclude
+upstream guardrail/plugin surfaces and filesystem access. Existing byte validator
+creates combined UTF8/CRLF bytes, KEEP_BASE or adoption; decisions remain model
+claims, semantics unreviewed, no source authority or inherited pass/activation.
+
+Meaningful RED8 preceded GREEN9; existing body patch regression11/11 PASS.
+Independent9/9 PASS.256s,10 pins stable, no actionable finding; report
+a06d21b5af3325fbf755a6c3ae5e288389caedbaa5ff71010e4c96b0b7a9a4bb.
+[Public component evidence](../evidence/2026-10-24-harness2-compose-adapter.json)
+and third_party/harness2/COMPOSE-PROVENANCE.json distinguish actual vendor code
+from host glue and unverified caller projections. This is not durable/runtime/
+executable-bundle integration. Next connect authenticated tuning lineage and a
+distinct immutable composition record to existing Operation/CallLedger ownership
+with explicit schema/arm migration; retain original two proposals and separately
+probe/qualify/regress the new composed bundle. No ordinal3 or authority shortcut.
+Native footprint must include new dependencies on connection and requalify; exact
+final-head full CI, later library adapter and full M0–M8 remain open. No actual
+model/account/business/cost-saving/live evidence.
+
+## Upper engineering-domain product fences — scoped implementation approved
+
+Comparison create/read/evidence/replay/final publication, experiment selection
+and actual role admission/join/product/return now reuse the existing authenticated
+require_product_store. Genuine engineering stores and unanchored markers refuse
+ordinary publication even with missing cells, replay or a late domain change.
+Comparator, baseline/unknown policy, schemas and encrypted history stay intact.
+Meaningful RED6 (12 assertions, no fixture errors) and RED4 preceded GREEN6
+23.820s/GREEN4 13.361s. Affected comparison/selection/proposal/semantic checks:
+25 tests,4/4 scripts PASS203.919s. Independent root-source/race review approved,
+4/4 PASS10.557s,8 stable pins, no actionable finding; reviewer-authored original
+six cases were separately verified by root, excluded self-approval. Report hash
+4fbd625e7b7c3ce0d506b871b8f81fdca847a8becfebf783df31776c3067f61f.
+[Public evidence](../evidence/2026-10-24-qualification-product-boundaries.json)
+distinguishes actual authenticated Session fixtures from unanchored refusal-only
+race controls and explicit static/native seams. No actual native/account/model,
+business benefit or live activation proof. Separate engineering reports/runtime,
+current-source native qualification and final-head full CI remain open.
+
+Next safe unit follows Goal17: actual pinned upstream compose through a bounded
+adapter, then experience-library snapshots/index; do not revert to an earlier
+native-first schedule or claim the whole M0–M8 Goal is complete.
+
+## Owner direct compose/library priority — Goal§17
+
+Owner directive from the same authorized chat is saved in Goal§17. Next safe
+unit after current engineering-product boundaries: inspect exact pinned
+prompts.aggregate/compose_round and recursion compose call/direct dependencies,
+then actually import/vendor functioning independent implementation through a
+narrow Javis adapter. Follow with actual library entry/index/serialization via
+private authorized derived snapshots, retaining Javis immutable encrypted source,
+brain/scope/revocation/retention/trace authority. Assess whole orchestration only
+after those, counting executor/lease/cancel/restart/replay/ledger/migration/tests/
+qualification costs; do not duplicate authoritative runtimes/ledgers. No scaffold
+or prompt paraphrase counts as direct compose/library reuse. Keep baseline,
+limits, every gate and Phase1/Phase2 ordering. Current upper-domain test/source
+ownership is preserved; no full audit/restart or real inference.
+Post§17 Goal SHA-256 b9466f98fff57c032a6c82132fe57d3beef2e187c7d963fbfc8bf60e5c1ee749;
+pre§17 76e349119bd3f7148204b2e57800d9769aac4f7cb73c271e6f8541ff0a6c5b18.
+All original/historical hashes and scoped evidence remain unchanged.
+
+## Current proposer/evidence guidance — scoped implementation approved
+
+Existing render_proposer_input now adapts Google Harness² propose/_INV/_DOM/
+_KEEP_BASE/experience/evidence-boundary method at pinned1cfe254e, source Git
+blob9ccacf23b64ac15b06a1939f26224960f56d757c. Actual OperationProfile consumer
+receives the structured method separately from unchanged authorized evidence.
+It asks for earliest supported failure, execution/domain_process distinction,
+small explanatory edit, predicted effect/risk, linked observed attribution and
+confounded cases, separate overall versus protected-meaning review, or existing
+not_a_target_defect no-change. JSON/patch/refs/UTF8/candidate/repair contract and
+all source/owner/permission/privacy gates remain enforced. No extra evidence I/O,
+schema, store, executor or full-library input. Original Apache-2.0 LICENSE matches
+exact upstream Git blobd645695673349e3947e8e5ae42332d0ac3164cd7; narrow provenance
+and modifications retained in third_party/harness2/PROVENANCE.md.
+
+Root meaningful RED6:1FAIL4ERROR.008s (missing method); GREEN6PASS.019s. Affected
+actual improver-input/operation-profile2/proposal/skill-patch regression4/4PASS271s,
+including generated drafts and one structural repair. Independent review clean:
+guidance6+existing GenerationJsonTests2 PASS.016s,11pins stable; report
+cbda0ee6c090a435493a44cbb839628b24f8682babc2f70ca91478b85c1a2279.
+[Public evidence](../evidence/2026-10-24-proposer-evidence-guidance.json) records
+source/consumer/test/license identities and actual test/model-quality limits.
+No claim of model injection resistance, causal/business quality or token savings.
+
+Native PROFILE_SOURCES still85; actual pure source hash changed
+ac4b613eb692598d31bede47e5ee755c80872e18f3792c9c1cd5b1fba6f939cd →
+6e32d3fb91d8ec4b5b596bd3d68f1165a3921fa7fcf3049b5b0c6872549d355e;
+generation source24782400… →1f0eae72…. Historical qualification is not reused,
+registrations remain gated. No native/account/model call or live action occurred.
+Final exact-head full CI and full native qualification remain open. Preserve
+this unit, then finish the already identified upper engineering-store product/
+comparison/selection/replay boundaries using the existing actual domain helper
+and the targeted upstream reuse decision. Remaining M0–M8/Phase2 scope unchanged.
+
+## Owner selective replacement update — Goal§16
+
+Direct owner update from the same authorized chat permits replacing existing
+Javis code/structure with pinned upstream when concrete benefits justify total
+adapter/consumer/migration/backward-compatibility/qualification/test/review cost.
+This supersedes prior blanket no-rewrite restrictions only within that scope;
+database/authority/native lifecycle can also be replaced when justified with a
+compatibility/recovery plan. Keep all gates/history/baseline/unknown/ownership,
+no parallel duplicate runtime/ledger, no full audit/restart or copy-percentage
+refactor. Ordinary technical choices are already authorized. Phase1/Phase2 stay.
+Goal§16 SHA-25676e349119bd3f7148204b2e57800d9769aac4f7cb73c271e6f8541ff0a6c5b18;
+pre§16 e868339ebd3ad1a73fe9faea13b74e2af959c8b3f8148eb4c2ddbae63ac8fc20,
+all earlier source/evidence lineage preserved. Active code-first plan/reuse map
+carry this rule. Current proposer adaptation already uses real upstream method
+via a small renderer while preserving Javis output/authority validators; no
+additional infrastructure replacement is justified by this unit. Ongoing serial
+fixture regression ownership is preserved; no account/model or activation starts.
+
+## Current D2 ordinary named-skill snapshot unit — scoped technical approval
+
+Actual final Dashboard API branch now privately carries the original host turn
+token into an opt-in TaskSkillTurn lifecycle before Phase8 source/tool discovery.
+Default/off/malformed/native/nonhub/no-key routes do no capture/store creation.
+The core uses real running runtime rows and existing encrypted M0 blobs/events;
+lazy selection, main's precomputed skill metadata and the actual named hub handler
+share frozen per-task inventory and first selected bytes/hash. Global skill
+registry remains unchanged; hub cache/epoch/inventory stay owned by task and
+shadow scheduler refuses task descriptor publication. Closing invalidates copied
+contexts; no mutable fallback from missing/dead/foreign/corrupt bound snapshots.
+
+Root independent core13:12PASS1 Windows symlink privilege skip4.072s. Root impacted
+regression10/10scripts40s includes actual Phase8, prompt scan and ordinary skill
+asset/routing/language/caps/usage; later narrow cancellation fix independently
+verified. Independent root-source review reproduced/closed two Important issues:
+returning bytes after revocation during awaited usage, and capture failure
+overwriting retained Stop. Meaningful RED/GREEN logs are preserved. Final independent
+consumer11+root-owned cancellation1:12PASS5.141s,14pins stable; report
+fb8a1670e1f0776c1f1bc61c80fe8f9816c65f8af2a5a75e9a882dd70294883f.
+Own author tests/core are explicitly excluded from self-approval.
+
+Early genuine Linux [40053479314](https://github.com/blogminhquy/javis-os/actions/runs/40053479314)
+succeeded10/10scripts17s on isolatedcfdc8cd181a23b51a9585b22802c988ba5469cf5,
+with nine exact selected raw files and fresh remote HOME/DB/filesystem. This is
+not exact-final-task-head full CI. [Public evidence](../evidence/2026-10-24-m2d2-task-skill-snapshots.json)
+and [engineering boundary notes](../../dev/agent-skill-task-snapshots.md) record
+actual test seams, counter semantics and source identities.
+
+This is a delivered narrow engineering unit, not complete D2 effective-view
+isolation: arbitrary file/helper reads, native/HTTP/resume, OAuth/subscription and
+earlier fast paths remain separate. Actual run_turn AST proof substitutes _do_turn;
+final API route gates are source-reviewed, not full WebSocket/provider E2E. No
+account/model/native call, live settings change/deploy/activation or quality/
+business/canary conclusion. M0–M8 Goal remains active. Preserve this unit then
+execute the Goal§15 proposer adaptation plan; remaining D1 qualifier/D2/E/F and
+later code still require their own gates and final exact-head full CI.
+
+## Owner prompt/evidence update — narrow existing renderer improvement next
+
+Goal§15 persists the next direct owner directive from the same authorized chat:
+after preserving the in-progress D2 snapshot unit, inspect pinned upstream
+prompts/context/selection as relevant and adapt a narrow useful proposer/evidence
+renderer delta. Keep execution/domain_process, JSON/patch/repair/byte-offset/owner
+contracts, privacy/holdout and all gates. Use explicit edit→allowed source/trace→
+observed behavior→helped/hurt/no effect/confounded reasoning, KEEP_BASE if evidence
+is insufficient; no causal inference from winner/one rollout, no full-library
+loading or infrastructure/schema rewrite. Actual prompt extraction must preserve
+Apache-2.0/copyright/provenance. Record changed source footprint and invalidate
+qualification as applicable, never reuse mismatched evidence. No quality/token
+savings claim before actual Phase2 measurement. Next unit remains queued until
+the current D2 integration is preserved and reviewed; no repeat broad audit.
+Post§15 Goal SHA-256 e868339ebd3ad1a73fe9faea13b74e2af959c8b3f8148eb4c2ddbae63ac8fc20;
+pre§15 77310e4c4635b012efb8f565bd842d314c82d6e2d168b90dd1ef006f484a2b2b.
+All previous source/spec/evidence hashes stay historical.
+
+## Current owner reuse update and D2 ordinary task integration
+
+Goal§14 persists the direct2026-10-24 owner instruction from chat
+`01a16662-a77c-72e2-9c40-265c5659d5cc`: assess targeted upstream reuse before
+each unwritten component, pin Harness²1cfe254e8d25b15f37048c3730134686abe60335,
+prefer narrow import/vendor+adapter where it reduces actual integration work.
+No completed component rewrite for reuse percentage; preserve license, baseline,
+quality/authority/ownership/usage/recovery gates and Goal§13 code-first ordering.
+Post§14 raw Goal SHA-25677310e4c4635b012efb8f565bd842d314c82d6e2d168b90dd1ef006f484a2b2b;
+pre§14 f683ff6abba61e110ef8034fe1451d80390d6688866c2def5f2f964ec4fcd356 and
+all older original/spec/lineage hashes remain historical, never replaced.
+[The incremental reuse map](../plans/2026-10-24-harness2-reuse-map.md) records
+the first targeted decision: inspected actual upstream substrate protocols and
+context builder are benchmark staging, lack Javis private live-turn ownership,
+and delete/copy mutable destinations. Keep the narrow Javis task lifecycle using
+its completed M0/runtime/core; no upstream code copied/imported for this unit.
+Upcoming prompt/compose/selection/recipe/bundle units must inspect upstream first.
+
+D2 core authored13 tests:12 passed/1 Windows symlink privilege skip3.318s;
+independent integration review/execution is in progress. Actual lazy/hub/router
+consumer RED7 had3 failures/1 error (mutable metadata, bound empty-body fallback,
+missing encrypted pin); correctionGREEN7 passed2.274s. These are private fixture
+tests without model/native/account calls. Actual host lifecycle integration,
+independent review, impacted regression and final exact-head full CI remain open.
+No ordinary task/activation/native/HTTP/resume production-readiness claim yet.
+
+## Current technical continuation — actual operation binding branch verified
+
+New independently authored fixture tests reuse genuine private Session, actual
+selected owner/source files, HostContextStore/CaseStore/ExperimentPlans and
+OperationExecution materialize/prepared/ledger. Root independently reviewed and
+ran3 PASS9.359s: encrypted exact link/replay/unstarted call, cold authenticated
+read after actual workspace cleanup_proven, durable default read/finish refusal
+before+after link, and protected owner-file edit rejection before binding.
+Public qualification-operation-binding records hashes/command/scope.
+
+No production changes. Candidate/static observer and historical input_version1
+fixture seams plus explicit real OperationRecords fixture reservation do not
+claim ordinary native admission/full input2 qualification. No verifier/auth pass
+was fabricated and no SDK/native/account ran. This closes the earlier static-only
+operation binding records gap; all runtime/typed provenance/report/upper-promotion
+integration work remains Phase1, actual account/business trials remain Phase2.
+
+## Owner scheduling update — all M0–M8 code first, real trials second
+
+Direct owner update relayed2026-10-24 from chat
+`01a16662-a77c-72e2-9c40-265c5659d5cc` is persisted as Goal§13 and
+[the active code-first plan](../plans/2026-10-24-agent-skill-improvement-code-first.md).
+It changes order only: Phase1 completes functioning backend/runtime/UI/migration/
+selected adapters/agent/bundle/Team/operations and mandatory technical tests for
+all M0–M8. Phase2 then runs real account/model/business feasibility and pilots,
+correction, real canary and authorized rollout. No scope cut or reset/MVP stop.
+
+Previous source hashes remain historical:
+original67061573b8c584d65d0ecf1daa4c56b536c78c07fcc5158cfa090d40ea299afd;
+pre§13/after§12 558e91848624c2dbc5daf1d5decb64b43b960285ce0416e40099ca63863b2ec8.
+Post§13 Goal SHA-256: f683ff6abba61e110ef8034fe1451d80390d6688866c2def5f2f964ec4fcd356.
+New addendum identity never replaces old goal/spec/evidence lineage.
+
+No real inference is currently owned/running. Preserve all historical failed/
+unknown/refunded attempts and usage. Older checkpoint "next account feasibility"
+instructions below are historical; those tasks move to Phase2, traced in the new
+plan, with original selected config/quality/owner/canary criteria unchanged.
+Current dummy/fixture/native localhost technical work remains Phase1; incomplete
+business/canary evidence does not prevent independent later code. Keep actual
+native/runtime/production/activation gates, independent review and final-head CI.
+Code merge/publication does not authorize deploy/restart/live activation.
+
+| Scope | Code complete | Technical checks / environment | Engine evidence required | Business pilot | Canary / rollout |
+|---|---|---|---|---|---|
+| M0–M1 | Previously integrated foundation; reuse | Historical exact-source Windows/Linux proofs; recheck actual impacts only | Existing limited evidence stays scoped; no blanket adapter readiness | No new result inferred | No activation inferred |
+| M2 | A/B/C integrated; D1 ongoing, D2/E/F still open | Latest scoped Windows35 +Linux46; no complete owned native pipeline claim | Current exact-source dummy/native technical qualification pending; actual selected-account feasibility deferred | Phase2 pending | Phase2 pending |
+| M3 | Pending full implementation | Dataset/policy/reviewer/canary/monitor/revert simulations to implement/test | Phase2 verification where applicable | Phase2 pending | Real7days/10tasks and owner gates pending |
+| M4–M5 | Pending routing/adapters/scoped agent/UI | Real implementation +fixture/DI tests to complete | Each adapter/surface separately pending | Phase2 pending | Phase2 pending |
+| M6–M8 | Pending bundle/helper/Team/adaptive governance | Full atomic/recovery/transfer/filter/stop technical tests to complete | Each applicable helper/engine/Team scope pending | Phase2 pending | Phase2 pending |
+
+Phase1 is not complete. Full Goal remains active through Phase2. Immediate work
+continues from d13ecb48: real operation binding execution proof, owned qualifier
+and domain consumers, D2/E/F, then remaining milestone code in technical dependency
+order. Do not repeat unchanged tests or real account attempts to delay later code.
+
+## Current continuation — startup3 consistency and genuine Linux preparation approved
+
+Explicit pure startup3 binds closed engineering scope/account_readyFalse, exact
+pin/environment hashes, isolated HOME path shape and full attempt/receipt/config/
+capability/call identity data. Production startup2 stays strict and rejects all
+engineering extensions. Parser/channel binding alone grants no provenance,
+native launch/account authority, actual M0/FS/emptyHOME/clock/budget observations.
+No runtime consumer is installed yet; actual owned host/worker permit integration
+and closure seeding remain mandatory before authority.
+
+Private Session now supplies both AppData path fields under its fresh empty HOME
+even when portable base lacks them; production worker_environment unchanged.
+Independent35 PASS7.716s, all17 pins stable. Genuine clean Linux first failed on
+undeclared direct packaging dependency; explicit packaging==26.2 matches local
+tested runtime and received narrow review. Fresh isolated Linux40051859131
+SUCCESS:46 PASS4.197s on fe7ecb0185, five selected rawsource/test/dependency pins
+recorded. This is early scoped preparation CI, not final-task-head full CI.
+Public qualification-startup3 records RED/GREEN/reviews/failed+successful CI.
+
+Remaining operation binding execution proof, typed qualifier launch/runtime,
+explicit engineering report publication/forensic joins and upper promotion
+fences precede actual exact-source owned qualification/registration/account
+feasibility/final CI. Goal remains open; no live/account activation occurred.
+
+## Current continuation — durable engineering run/attempt domain approved
+
+Concrete session now supplies a read-only expected run anchor to actual M0 store;
+explicit forensic reopen requires it and uses SQLite read-only mode. Missing root
+fails; unanchored reopen seeing engineering events refuses. Prepared trial links
+bind actual request/workspace/materialization/config/capability/ledger call in one
+immutable encrypted event, with atomic query budget and exact idempotent replay.
+Historical link reads survive workspace cleanup/close without live lease checks.
+
+Default TrialResults read/finish/reevaluate, TrialProducts._products and
+OperationResults read/finish refuse durable engineering stores before data or
+evaluators and final publication Tx. Canonical report bytes remain unchanged.
+Two static findings (materialization mismatch, slow replay passing final fences)
+were reproduced then repaired. Independent42 PASS50.472s, all16 pins unchanged;
+public qualification-records contains scope and logs. No native/account/inventory.
+
+Still no launch authority: operation bind runtime proof, explicit typed
+engineering publication/forensic result and upper comparison/selection/replay
+fences remain due before qualifier activation. Next explicit startup3 wire and
+concrete host/worker permit integration, then actual exact-source owned pipeline
+qualification, registration/account feasibility and final-head CI. Goal open.
+
+## Current continuation — concrete qualification session foundation approved
+
+Separate empty engineering-candidate authority validates exact static runtime and
+observed closure before scratch allocation. Concrete host session owns fresh
+private root, generated fixture-only encryption key, actual encrypted immutable
+M0 run scope and same-DB CallLedger. Each environment gets a fresh empty HOME;
+no ambient auth copied. Foreign/traversal/expired/closed/corrupted scope refuses.
+Close retains forensic records; explicit cleanup refuses unsettled placeholders.
+
+Independent source-closure P2 repaired: owner seeds PROFILE_SOURCES85, actual
+offline observe_release proves owner mutation refuses profile/helper mutation
+changes fingerprint. Root property is read-only. Independent16 PASS7.566s, all11
+pins stable; public qualification-session records exact scope/logs/review. No
+CLI/native/account/default inventory. This is preparation only: maximum_queries
+metadata, actual owner attach/drain, typed verification/startup3/attempt-call links
+and durable publication/cold-read domain fences remain pending. No qualification
+or account readiness claim. Continue those integrations, final-source owned
+pipeline proof/registration/account feasibility and exact-head CI. Goal open.
+
+## Current continuation — four actual downstream native blockers repaired
+
+Audit found RoleWorkflow old10 refused native14, semantic paired-view gate old10
+likewise, improver projection raised KeyError on raw observation2, and comparison
+old18 made native22 always UNKNOWN. Actual callers now select exact inventories
+from authenticated report/evidence format, retaining all old requirements plus
+four mandatory native gates. Semantic evidence binds actual report format/checks/
+verdict on publication and current read; two permitted observational UNKNOWN stay.
+Improver derives labelled sequence/source-aware projection, whitelists worker
+metadata and withholds guardian/control/text/tool payload; stored raw unchanged.
+
+Explicit execution_domain markers refuse at product/promotion inputs (even None,
+false or labelled production). This is only a preliminary fence: future M0
+qualification run/subject/attempt/call links must prevent omission/downgrade on
+publish and cold read before qualifier can run. No such authority is enabled yet.
+
+Author8 PASS6.272s; independent21 PASS29.700s total, all15 pins stable, no findings.
+Includes actual encrypted op2 RoleWorkflow and targeted legacy proposal/improver/
+semantic async paths. Public native-downstream records RED/GREEN/source/logs.
+Complete native baseline→improver→semantic→paired chain remains separate proof;
+dummy results cannot be promoted to fake it. Next concrete QualificationSession,
+typed engineering verification and explicit startup3, then final-source actual
+same-pipeline qualification/registration/account feasibility/final CI. Goal open.
+
+
+## Current continuation — pure dummy qualification environment approved
+
+Canonical pure helper accepts only literal dummy key and exact numeric
+http://127.0.0.1:<canonical port> over a closed production base. It refuses URL
+aliases, credentials, paths/query/fragments, proxies/auth config/mode knobs,
+malformed fixed fields and final-envelope tampering. No ambient environment,
+filesystem/network/launch or registry/account capability. Existing production
+startup2 still rejects dummy extras. RED5 FAIL.006s -> author5 PASS.011s;
+independent5 PASS.007s, all4 pins stable, no findings. Public
+qualification-environment records exact source/test/log/report scope.
+
+Authenticated qualification entrypoint, actual local traffic and empty-HOME/
+source/runtime proof remain outstanding. Next integrate explicit qualification
+protocol and host authority without changing default production validators or
+treating dummy-only capability as real account readiness. Global runtime/source
+registration still disabled; full same-pipeline proof and final CI still due.
+
+
+## Current continuation — exact host-pinned native materializers approved
+
+Planned claude-owned-images-v3 exact-source selector now emits genuine baseline5,
+linked view4 and operation2; old profile inputs remain1/3/1. Global PROFILE_VERSION
+stays old and registry empty. Selector added to source tuple84; full reachable
+release closure/final qualification remain separate. No request/env mode switch.
+
+Actual source-file race survived SQL-only _current: first GREEN6 retained1FAIL.
+Native5 now requires concrete same-store HostContextStore from TrialAdmission,
+with binding/source/binding checks before and after decrypted solver; finalSQL
+and caller lease checks retained. Unbound5 refuses before solver; fake/foreign
+hosts refuse. Actual request3 prepares before candidate/view; linked real pair
+and role preserve exact stored authority/data. Independent14 PASS101.454s total,
+all12 pins stable, no findings; public native-materializers retains full lineage.
+Semantic authoring fixture setup uses explicit historical-format seam only;
+view call itself uses actual new selector, stored host/profile/source and pair.
+
+Next is canonical dummy-only same-pipeline qualification support, preserving
+production startup2 default refusals and no auth-copy/account retry. Native full
+source qualification, exact registration, account feasibility and final CI due.
+M0–M8 business/owner/live-canary gates remain open and unchanged.
+
+
+## Current continuation — baseline native result/runner consumers approved
+
+Validated baseline5 now reaches exact receipt/delivery checks, whole V2 product
+and result publication, four durable decisions with final transaction reread,
+cold authentication after cleanup, and native runner closing/late/usage handling.
+Policy derives from actual validated manifest, not receipt; request1/2/3 baseline
+only, no paired-view downgrade. Missing delivery/decisions and asset reading/
+reasoning/provider stay UNKNOWN. No invented view or read-outcome fields accepted.
+Author10 PASS13.183s; independent58 PASS80.353s total (new10/trace12/checks29/
+results7), all10 pins stable, no findings. Public native-baseline-consumers records
+RED/GREEN/fixture correction lineage and review's narrow runner-guard scope.
+
+Producers/global runtime selection/registration remain unchanged. Next actual
+materializers choose explicit5/4/2 from exact host-pinned planned new profile,
+preserve old formats and recheck source after native baseline read. No native
+child/account activation; final-source qualification/full final CI still due.
+
+
+## Current continuation — baseline guarded worker/parent routes approved
+
+Explicit baseline5 now follows actual worker/adapter/parent guarded routes with
+fixture-only baseline_inline policy, exact typed private ACK and runtime drain
+before completion. Legacy entry refuses5 before unguarded verifier; bound old
+inputs still refuse legacy launch. Parent keeps four exact durable M0 decisions
+under actual attempt scope; operation/unknown policies refuse before admission.
+Author focused7 PASS2.687s after precise RED checks and fixture corrections;
+independent31 PASS10.057s total (new7/startup14/parent10), all12 pins unchanged,
+no findings. Public native-baseline-routes records full lineage and narrow scope.
+
+No product emitter or account/runtime activation. Next baseline5 consumers extend
+whole V2 history, exact receipt/delivery, final-transaction durable decision reread,
+cold result authentication and runner cancellation/usage. Asset reading/provider/
+comprehension remain UNKNOWN; full final-source qualification and final CI due.
+
+
+## Current continuation — native baseline profile independently approved
+
+Explicit manifest5 now binds the same owned runtime/client/transport/original
+stdin write as view4, with distinct baseline_inline policy and fixture-only tools.
+Operation cannot select that policy. Receipt5 includes actual completed delivery
+or None, no invented effective_view/read proof; asset use/provider/comprehension
+remain UNKNOWN. Unbound native4/5 options/start refuse ambient client fallback.
+Focused profile4 RED1FAIL/3ERROR1.488s and SDK2 RED1ERROR.847s became GREEN;
+independent18 PASS6.792s total includes old view4/query/binding paths. All11 pins
+stable and ClaudeTrialAdapter AST unchanged against c3f82ce8. Public
+native-baseline-profile records exact logs/report and limited engineering scope.
+
+No baseline5 parent/worker/runner/result/materializer activation or registration
+yet. Next extends explicit guarded worker/parent routes, then result validation
+and actual host-selected producers. Reuse unchanged prior component proofs;
+full final-source native qualification and exact-final-head CI remain due.
+
+
+## Current continuation — explicit native baseline manifest foundation approved
+
+Readonly manifest5 now carries the real baseline bundle/context/assets/fixtures
+without an invented paired view. Its inline prompt/effective hash equal legacy1;
+full canonical input hash distinguishes5. Historical1/2/3/4 behavior stays exact,
+multi skill/agent assets retain old protected validation, paired-view brokers
+refuse5 and unchanged read correlators stay UNKNOWN. Focused6 RED2ERROR/1FAIL.011s,
+author6 PASS.020s; independent21 PASS.057s includes final assertion correction,
+legacy manifest4 eleven and four affected sandbox checks, all nine pins stable.
+Public native-baseline-foundation records exact scope and logs.
+
+No materializer or runtime emits/executes5 yet. Next is owned native baseline
+factory/input-delivery receipt plus exact distinct baseline tool policy, then
+worker/parent/runner/result/materializer integration. Keep actual baseline asset
+read/provider/comprehension coverage UNKNOWN and preserve final eligibility gates.
+Current local head after ancillary fix isfcf265db; parent/callers remain approved
+in their recorded scope, full source/native qualification and final-head CI due.
+
+## Current continuation — actual default inventory observed; ancillary fix approved
+
+Readonly default inventory initially refused native_release_path in6.078s.
+Actual installed segno/yt_dlp RECORDs include six standard manuals/docs/shell
+completion paths outside site-packages. Narrow omission never follows those
+paths; selected RECORD/METADATA bytes stay pinned. Real selected-dependency
+fixture RED1 ERROR.138s -> GREEN.416s. Independent review found malformed Windows
+tail aliases were omitted before validation: actual RED1 with4 subfailures.381s,
+fixed by strict tail validation, GREEN.416s. Independent final builder11 PASS2.578s
+with sourcecdec514e/test9a9a3fdd unchanged; minor finding closed.
+
+One actual unoverridden default observation succeeded in44.187s on priorb711
+builder:206 source,1629 import and2 runtime files, fingerprint73d43cd9. Coverage
+authority/unlisted-import exclusion/initial sections/dynamic closure stays UNKNOWN.
+That observed snapshot precedes the stricter-tail line and remains historical;
+no repeated44s inventory just to relabel it current. Public native-default-inventory
+pins exact logs/manifests/source and this reuse limit. Final source qualification
+will rebuild after consumers settle. Registry is still empty, no launch/account
+query or performance/caching claim.
+
+Next is explicit native baseline support plus actual materializer4/2 integration,
+then closed dummy-only qualification policy and final frozen full-pipeline native
+evidence. Baseline preparation must retain genuine bundle authority without an
+invented paired view or unguarded fallback. Goal M0–M8/business/canary stays open.
+
+## Current continuation — all nine native admission callers independently approved
+
+All nine audited synchronous caller bindings now pass one independent combined18
+in82.937s, no skips, all13 source/test pins unchanged. Root's affected legacy39
+(first2) and selected legacy12 (next7) pass106.280s/178.021s. Public
+native-admission-callers records exact source/log hashes, intermediate RED/GREEN
+lineage and honest engineering coverage. Original calls/attempts are never
+created for preflight; existing worker-thread ownership and cold replay remain.
+
+Review caught an absolute retry deadline crossing the final slow source read:
+RED1 FAIL3.472s, corrected by final SQL/time eligibility check before image allow.
+Self-review caught eager historical V1 first-record decrypt: RED1 FAIL4.523s,
+corrected by detecting V2 only from already-selected engine events. Actual
+encrypted observation2 transient503 proof now supports the existing single
+bounded retry with original deadline. Final focused3 PASS13.722s and independent
+combined18 include both fixes. Artifact text still cannot invent retry authority.
+
+Next source audit found baseline preparation still emits manifest1, while the
+new guarded Trial path supports native4 with a real paired view. Preparation
+precedes candidate/view creation; it cannot use an invented view or legacy
+fallback. Explicit native baseline support is outstanding before materializer
+activation/whole-pipeline qualification. Read-only plan is in the native-admission
+ledger/materializer-next.md. Actual default installed closure inventory is next;
+then baseline/view/role materializers and closed dummy-only qualification policy.
+No source activation, account retry, deploy, registration or M2 completion.
+
+## Current continuation — parent final independent execution approved
+
+Independent reviewer m2d1_whole_review completed parent10 PASS4.312s and actual
+isolated SDK-env1 PASS1.259s with all five source/test pins and driver unchanged.
+No skips, native child or account calls. Scoped parent/adapters review is clean;
+it excludes that reviewer's own runner code and all new admission callers.
+Public native-parent-adapters now records these exact independent log/report
+hashes. Earlier pending-agent statements below are historical. Root retains the
+serial test slot for the three frozen-plan admission callers' RED/GREEN work.
+
+## Current continuation — first two actual admission callers bound
+
+Trial owner admission and operation reserve now bind existing M0/owner authority
+before native verification. Original SQL/plan/available-slot/source checks repeat
+inside decision transactions; no synthetic attempt/call is created for preflight.
+Operation stale generation, nonpending state or prior attempt refuses before
+native observation. Historical replay remains cold. Meaningful RED5 FAIL10.378s,
+final author5 PASS13.571s and directly affected legacy39 PASS106.280s. One earlier
+expected-exception fixture mismatch is retained in evidence; existing Trial
+ValueError(trial_native_unavailable) contract is unchanged. Public
+native-admission-first2 pins the three files and all logs. Independent caller
+review and seven remaining synchronous caller bindings are still due.
+
+Earlier four implementation units are committed locally as35997184,03ce75f0,
+52a68927,3d0a02da. PR803 is still on historical4ba9624a; neither early portable
+CI nor the old native registration qualifies this branch. Parent final execution
+review is handed to the available independent reviewer under the sole serial
+app/native slot. No native/account retry, activation or deploy occurred.
+
+## Current continuation — guarded parent, result consumers and closing evidence
+
+Release inventory has scoped independent approval10 PASS2.507s after two real
+parsed-METADATA/RECORD mutation reproductions were corrected. It binds declared
+source/import/runtime bytes; the external reviewed registry remains empty.
+This is neither an import sandbox nor full installed-closure qualification.
+Public native-release-inventory records exact hashes and evidence limitations.
+
+Actual parent/adapters pass final author10 (3.985s), isolated actual-SDK builder1
+(1.040s, engineering Capture/IO), affected legacy adapter7+2. Independent static
+review's query-environment finding is fixed: only query has the three SDK-added
+keys. Its final independent execution remains pending because that agent hit
+the account usage limit; author execution is not relabeled as independent.
+Static admission precedes any guarded preflight; actual M0 authority and full
+attempt receipt/config/capability bind all four image decisions. Bound older
+inputs refuse before fallback. Public native-parent-adapters states this boundary.
+
+Actual result/check consumers have independent root19 PASS68.323s on final pins
+and affected legacy7 PASS12.305s. They require complete observation2 history and
+all four exact encrypted M0 decisions, reread inside final publication, and retain
+cold historical reads after cleanup. Pure historical query-environment relation,
+provider acceptance, comprehension and internal reasoning remain UNKNOWN.
+Public native-result-consumers preserves source-policy and lazy-reader fixes.
+
+Actual runners have clean independent static review and independent root19
+PASS74.671s on final pins; affected legacyTrial3/Operation2 pass. Original raw
+envelopes, sequence and usage survive storage error, revocation and repeated
+cancellation. Late retry uses original writer/attempt after abort, never a new
+lease or image allow. Recorder mutation is isolated by a separate copy.
+Public native-runner-evidence records exact fixture/native coverage limits.
+
+No source activation, account retry, deployment, registration or milestone
+completion occurred. Next: bind actual admission/reserve preflight callers to
+fresh M0 authority, then materializer4/2 and closed dummy-only qualification.
+Final exact source closure/native qualification and final-head full CI remain
+mandatory. Goal M0–M8 stays active; business and rollout gates remain open.
+
+## Current continuation — actual profiles, startup2 routes and exit status approved
+
+Historical native decision reader is independently approved4 PASS.891s after
+meaningful missing-API RED4 and author4 PASS.865s. It rereads actual M0 event and
+exact encrypted join bytes, supports same result-publication transaction, and
+does not rerun live authority or write. Shared attempt_scope binds full stored
+receipt/config/brain/identity/capability. Existing persist method AST unchanged.
+Actual independent result/check integration is in progress; no native proof from
+an allow string. Public native-decision-reader records hashes and coverage.
+
+CI readiness: NativeSDKTests now has the same isolated-Windows marker as its
+actual production runtime requirement. Reviewer verified all method bodies AST
+unchanged, sys imported; historical genuine isolated-driver proofs remain valid.
+This is explicit unsupported-platform skipping, not Linux SDK transport coverage;
+pure portable checks remain enabled. Final-head CI and qualification still due.
+
+Owner delegated pilot selection: reconciliation primary, document processing
+secondary, Python bugfix/test technical control. No source/activation expansion.
+
+Native input binding aa9ad4ef independently passes8 (1.749s); TrialProfile4
+e98e4dca independently passes8 (3.559s), affected legacy15+3 pass. Exact actual
+SDK constructor/write binding is covered with engineering native IO; no provider
+or comprehension claim. Public native-profile-binding/trial-profile4 evidence.
+
+OperationProfile2 independently passes7 (2.574s), affected legacy3 pass. Actual
+fixed worker startup2 routes independently pass14 (2.394s), affected legacy3+4
+pass. New profiles bind before options, guarded preflight admits before CLI,
+typed accounting ACK precedes query and runtime close precedes worker_complete.
+Routes use engineering runtime/session seams; no new materializer emits versions
+4/2 and no parent consumer activates this boundary yet. Public operation-profile2
+and startup2-worker-routes evidence record exact hashes and limits.
+
+Actual inert Windows exit7 reproduced a false success after worker_complete.
+Only execute_worker_v2 changed: after cleanup/closing evidence/cancellation,
+completion now requires exact builtin integer zero for worker and guardian.
+Independent5 PASS3.435s; affected cancellation1 PASS.176s. Actual drain/closed
+status and synthetic usage7/null survive. Public native-exit-status evidence.
+
+Next is actual parent adapter/callback/runner and independent result/check
+integration, then closed dummy-only qualification admission. Historical native
+registration and early Linux CI remain historical, not current qualification.
+No selected-account retry, deployment/live activation or milestone completion.
+
+## Current continuation — manifest4 foundation and early Linux CI approved
+
+Manifest4 readonly foundation independently passes11 .039s after author11 .042s;
+68 immediately affected existing checks pass. Root verified all14 explicit final
+manifest pins with zero mismatches. Public manifest4-foundation preserves exact
+versions1/2/3 behavior and the necessary supported-version test delta2/3/4 vsfuture5.
+Untouched old asset correlator remains UNKNOWN for4. No materializer/profile/
+receipt/check/result/worker/registry now emits or executes the new version.
+
+Early portable Linux CI40029282316 completed SUCCESS on isolated a86c716e snapshot,
+not current branch head. Exact seven portable files still match current checkout;
+image14 .156s, private9 .287s and actual POSIX selector1 .030s pass. Full existing
+workflow succeeds; public portable-channel-ci records log hash/snapshot/limits.
+This closes pending genuine POSIX evidence only, not Windows Selector support,
+new boundary qualification or exact-final-head PR CI. Do not reuse this as final CI.
+
+Next concrete work is actual versioned profile/worker/client factory and completed
+input-write/session proof, followed by durable image callback/current authority
+and result/runner adapters. Static admission must precede every guarded preflight;
+runtime close must precede completion. Then add the explicit closed dummy-only
+qualification admission before freezing all reachable sources, qualify the SAME
+pipeline, register exact bytes, and only then admit configured-account feasibility.
+No live activation/deploy/account retry, M2 completion or Goal completion claimed.
+
+## Current continuation — actual observation storage and static admission approved
+
+Commit8f2f5678 contains actual Trial/operation observation2 storage: independent18
+PASS28.887s after author18PASS36.286s and affected legacy9PASS. Complete encrypted
+history validates before V2 reads/appends/replay; no mixed version, no late lease
+renewal, no freeze before actual drained. Public native-observation-storage names
+exact pins, O(history) cost, missing-anchor/late gaps and unchanged V1 limitations.
+
+Static preflight admission is independently approved3PASS.039s after author3PASS
+.023s; affected observed7 .023s and legacyClaude22 1.817s pass. Current claude
+source0696aaa6/test1fbdaa53/public static-preflight-admission prove registration
+before metadata and no CLI/auth/capability. Actual isolated consumer must still
+invoke it before guarded CLI and verify_observed afterward. No route enabled.
+
+Manifest4 readonly foundation is the next independent source unit, preserving
+all old prompts/payloads/hashes and legacy-correlator UNKNOWN. Root continues
+actual profile/worker/input-delivery integration; no intermediate qualification,
+account retry, final CI or M2 milestone completion is claimed.
+
+## Current continuation — owned environment and durable decision store approved
+
+Commit19e1890b fixes actual engine startup mutation before explicit owned client
+construction: author2PASS.876s, independent2PASS.849s, affected factory2PASS.812s
+and both legacy startup diagnostics pass. Absent/None factory keeps old startup
+override; native factory preserves exact environment, SDK default initialization
+availability bound and separate immutable lifetime. Public owned-client-environment
+records constructor-sentinel scope, no actual native/account query proof.
+
+New NativeImageDecisionStore uses existing M0 events and encrypted blobs with
+two actual-transaction current-authority checks, exact replay bytes, scope/join
+hashes and mismatch denial. Author8PASS1.547s, independent8PASS1.688s after missing
+unit8FAIL1.151s. Public native-decision-store records synthetic input/current guard
+and no enabled production callback. Current callback integration, cancellation
+settlement and native provenance remain separate obligations.
+
+Actual observation storage candidate passes new18 and affected legacy9; scoped
+independent review is underway. Root verified all10 explicit storage manifest pins
+with zero mismatches. No result readers/runners/receipts or native routes enabled.
+
+Read-only worker audit is persisted in the existing integration plan. Critical
+remaining points are registration/static admission BEFORE any native preflight,
+mandatory runtime close before worker_complete despite common-engine disconnect
+suppression, manifest4/receipt4/read-outcome integration, and an explicit closed
+dummy qualification policy in final canonical source. The old patched-opener
+harness cannot qualify the new path. No intermediate registration/account retry.
+
+## Current continuation — worker/codec approved; actual durable consumers in progress
+
+Selected pilots are reconciliation primary, document processing secondary and
+Python bugfix/test technical control, as delegated by the owner. No new business
+source access, live activation or owner acceptance is inferred from that choice.
+
+Worker session source95970ef1/testb6c747fe is independently approved13PASS4.889s
+after author13PASS4.943s. Internal dispatch now unwinds before outer cleanup,
+closing the independently reproduced reentrant-close P2. Commit313aa1eb contains
+the component and public native-worker-session evidence. Root verified all17
+explicit final manifest files with zero mismatches; no main route enabled.
+
+Pure observation codec source3cd30058/testc9b55432 is independently approved14PASS
+.052s after author14PASS.050s, isolated stdlib/protocol only. Commit9b227da2 and
+public native-observation-codec retain lexical authority limits. Actual encrypted
+SQLite writer/read integration is underway; existing V1 history stays immutable.
+
+Root reproduced a new lost-usage path: fully decoded private usage rejected by
+host phase checks vanished before publication. Meaningful RED1FAIL.166s; scoped
+fix retains it once in closing evidence without live delivery/authorization.
+Author1PASS.188s, independent1PASS.162s, affected host21PASS12.887s. Current host
+source5693e2b0/test6587cd56 and public rejected-usage-retention preserve exact
+proof and distinguish the initial fixture error. Native/provider authority is
+not conferred by this socket-only regression.
+
+Next actual integration is durable observation2 history for both Trial and
+operation: stored first-offer/receipt binding, strict active counters, unchanged
+lease/writer checks, V2 drained freeze and explicit late gap/unknown handling.
+One author owns app/native tests; root/reviewer do not overlap those tests.
+Complete boundary qualification/registration and final-head CI remain pending;
+historical native20 proof does not qualify changed source bytes.
+
+## Current continuation — guardian component approved; host review and early Linux channel check
+
+Engine bridge is independently approved at sourcef1dcc8ed/testa34a72bd: actual
+query/options ignored a trusted profile client factory before2 meaningful REDs;
+now optional create_client(options) runs before connect/accountACK, with no fallback
+on factory failure. Author2 .842s, independent2 .833s, existing Claude22 1.447s.
+Public native-client-factory records the bounded hook, not actual transport proof
+or enabled production consumers. New v4 consumers must require/bind it explicitly.
+
+Worker author12PASS4.587s source54e3cee1/testfb093ea1 was NOT approved. Independent
+static review found reentrant dispatch cleanup: runtime image_ack->worker.send
+failure->worker.aclose->runtime/capture close waits the same image_ack callback.
+Reviewer did not run12; author owns sole native/app slot for focused active-runtime
+dispatch failure RED, a non-reentrant internal emitter and final affected suite.
+No root/reviewer tests run meanwhile. Original missing-json fixture failure and
+unknown partial-acquisition cases stay explicit; no production main route enabled.
+
+Latest scoped results supersede pending reviews below: host source5b1c7cf8/
+test389a473a approved independently21PASS12.726s after author21PASS12.956s;
+commit4d936c0b/public host-native-v2 evidence preserves four P2s/five REDs/history.
+SDK source355c03a5/testa1474c45 approved independently22PASS3.821s after author22
+PASS3.760s; commit3f998a34/public native-sdk-component evidence preserves both P2s
+and all failed candidates. Root verified all10 declared host delta manifest files
+and all26 SDK manifest files. Explicit pinsets are not exhaustive import proof.
+
+Root added shared verify_observed(runtime) without enabling a consumer. Missing
+method6/20subfail RED then6GREEN; self-review then reproduced3 additional REDs
+where asserted pin metadata hid current source/SDK drift. Final source39c6e1ce/
+test0023a135 passes author7 .020s, independent7 .018s, existing Claude22 1.488s.
+Fresh local source hash/installed SDK metadata must match after closed validation,
+with registration first; legacy verify keeps its observer/gates/capability parity.
+No CLI/account/model calls. Public observed-runtime-verification records exact
+proof. Whole-runtime registration still historical/invalid for changed sources.
+
+Worker endpoint consumer is the next actual unit: author owns ONLY new
+native_worker module/test and has sole native/app slot after root/reviewer release.
+Missing-module3RED .090s; implementation/real isolated-child adoption fixtures in
+progress. No main route is enabled. Actual fixed factory cwd is source.root, while
+initial HOME/USERPROFILE/TEMP/TMP/AppData all equal private scratch. Worker checks
+source cwd separately; preflight invocation cwd is verified initial scratch, not
+repo context. Private startup retains selected login discovery HOME/AppData via
+existing worker_environment (never copied); isolated TEMP/state/brain paths stay
+under scratch. Runtime client factory, durable evidence2, input/manifest4 and
+complete frozen qualification remain open. No root/reviewer app/native tests run
+while worker author owns the slot.
+
+Diagnostic Linux CI40029282316 on a86c remains in progress (Docker-size job passed,
+Python test step running at last check). Do not call POSIX cleanup GREEN from
+Windows/static proof; diagnostic ref contains only seven portable files, not
+these newly approved runtime/verifier consumers. Main PR803 still holds local
+runtime changes pending complete qualification and final-head CI.
+
+Goal remains ACTIVE M0–M8. Owner-delegated pilot choice remains reconciliation
+primary, document processing secondary, Python bugfix/test technical control;
+no new source scope, business acceptance or activation inferred.
+
+Local8597d549 commits frozen GuardianV2 source4b9ee58c/test370474d2 with public
+guardian-v2 evidence: author25PASS14.978s and independent25PASS15.124s on imageb8.
+All66 explicit frozen ledger files were hash-verified; this is scoped engineering
+proof, not three-actor/runtime qualification. Earlier failed review remains UNKNOWN
+in the evidence; the later deterministic positive does not explain it retroactively.
+
+Host append-only V2 author source0d6263cf/testebfd0703 now has16PASS12.112s on exact
+prior channel pins. Meaningful REDs found reused stream-id ownership, indefinite
+terminal waiting, ignored short bootstrap writes, and STOP before natural drain.
+Bounded natural-drain grace does not replace actual drain/terminal proof. Historical
+ConnectionAbortedError/no-drain failure is preserved, not claimed fully diagnosed.
+Independent host STATIC review is in progress; no reviewer native run yet. SDK
+invocation author owns the sole native/app slot, new module/test only; integration
+into actual workers/client/profile/evidence is still required.
+
+Pushed4ba CI40024951291 FAILED only image-channel script:13 tests/errors3/failure1,
+cleanup still unproven after shutdown+immediate descriptor close on Linux. Root
+added a POSIX Selector pre-close wait for actual uncancelled tasks in both image
+and private endpoints; default Windows Proactor path is unchanged. Static scoped
+review approves imagefe5933c9/privateee05c29a and new POSIX fixture9638aa3e.
+Windows Selector diagnostics failed and are preserved; Windows Selector behavior
+is not claimed supported/proved by the Proactor qualification. The POSIX-only
+fixture is explicitly skipped there. Failure-only fixture drain is bounded and
+never part of its positive uncancelled-completion assertions.
+
+To check Linux early without publishing unfinished native profile changes,
+seven exact portable source/test files are on diagnostic ref
+codex/agent-skill-improvement-channel-linux-check, snapshot
+a86c716e7ae1ff222b5d66c20b9d4254e609d231 over pushed4ba. Existing full CI40029282316
+is running there. No new PR/workflow/deploy was created. It is component evidence
+only, never final Goal CI. Actual Linux result remains pending; do not call the
+Selector fix GREEN yet. Existing83-source qualification/registration stays
+historical; complete runtime freeze/new qualification still gates main PR803.
+
+The following entries preserve earlier checkpoints; newer exact pins above take
+precedence where subsequent work changed a dependency.
+
+Shared protocol/endpoint proof is committede2380bd7 locally. Guardian independent
+25 attempt stopped failfast after7tests1.328s: first6incl canceled-control fix pass,
+delayed50ms native marker missing; exact cause UNKNOWN. One assigned later diagnostic
+passed1.608s but leaves that failure unresolved; current trace showed only3ms gate
+margin at hostauthorization. Approved TEST-ONLY split now asserts unused receive
+task/owner/channel deadlines remainNone afterdeliberateidle, then uses actual
+production8s gate for unchanged native/image/terminal positive checks.
+
+Reviewer also traced same real raw-task cancellation flaw into existing image
+channel dependency. Root reproduced1REDerror0.060s and corrected sticky unknown
+after actualsocketclose. New14PASS1.505s, independent14PASS1.507s/no warnings on
+sourceb8a5a50b/test8f12da2d; existing13assertionsunchanged. Historical13 remains
+history, no blanket update. Public image-channel-cancelled-io records negative
+owner retained across retry/processdrain. Guardian author now has sole native/app
+slot for ONE consolidated25 on source4b9ee58c/test370474d2/imageb8a5a50b; final
+native review remains pending. Root/host have no active app/native tests.
+
+Latest: independent guardian static review reproduced false control.closed after
+cancelled logical recv, before running native24. Reviewer found no other actionable
+ownership issue; author has sole native/app slot for narrow correction and final
+affected regression. Historical f33a24 is not approved final source. True native
+quiescence remains independent of unknown metadata control IO; no blanket fence
+reorder. Earlier5563 CI40022263716 now succeeded, pushed4ba CI40024951291 still runs.
+
+This continuation is progress: closed startup2/private2 protocol11 and shared
+owned private endpoint9 now have meaningful RED/GREEN and independent scoped
+approval. Source9ddcd57c/testf2147bee pure11PASS0.016s; endpoint sourced5498531/
+test1cd4a33e independent9PASS1.251s. Endpoint review reproduced settled stream
+task/plaintext accumulation before fixing it; consumed completed operations are
+pruned, uncertain IO retained. Captured pre-cleanup task refs verify EOF/cancel
+completion after pruning. Public private-native-protocol/private-worker-channel
+records exact pins/commands/failures and explicit no-authority/unknown limits.
+
+The two new tests ran concurrently with guardian only after documented isolation:
+pure stdlib values, or anonymous private socketpairs with OS-assigned ports in a
+separate isolated process/loop; no app/SDK/HOME/env/DB/sharedfiles/native children.
+No generic parallel test approval is inferred. Actual app/native tests stay serial.
+
+GuardianV2 author24PASS14.572s on f33a7dc3/test958d35da/driverdef67a76; session18714
+is terminal and released. Reviewer now owns its sole native/app slot; final review
+pending. Earlier failed full11 had cleanup errors/stale creator-thread events;
+actual repeated TerminateProcess after successful TerminateJobObject was corrected
+without treating termination as exit. Full root/debug/native/job/guard/fence terminal
+predicates stay. Short frame/authorization budgets are separated from immutable
+overall lifetime<=300 (the existing public trial/experiment/operation maximum).
+Fresh image channels arm only on public socket readiness, so later purposes do not
+expire during earlier preflight steps. Actual delayed-unused-channel test passes
+1.966s with short.05, delay.10 and lifetime5; initial lifetime1 correctly expired
+because full Windows startup itself took longer. No234s sleep/timeout policy cut.
+
+Host GuardianSessionV2 source-missing9RED (21 subtest failures) passes no fixture
+execution; author now appends the concrete three-actor consumer, preserving V1,
+while reviewer checks guardian. Host test814415aa; originaltransport29b34bdf;
+red log9db6f3d3. Root owns shared protocol/endpoint; host author owns transport/v2
+tests; guardian author owns lifetime/v2tests. Host native GREEN waits slot handoff.
+Actual source confirms SDK connect occurs before before_query/accounting ACK;
+worker_ready needs adapter_version/auth_status, engine_start_requested needs all4
+image gates, then accounting ACK gates client.query/user input. The host's initial
+contrary unrun draft was corrected before production edits/tests.
+
+Pilot choice remains owner-delegated: reconciliation primary, document processing
+secondary, Python bugfix/test technical control. This selects work types only;
+business source scope, owner acceptance and live activation are not inferred.
+
+Pushed4ba9624a76cd4bfb54d3d229263baa223944383b includes image metadata channel
+57fea085 and the fixed worker factory; CI40024951291 runs on that exact head.
+Reviewed owned-verification commita1920608 is local, not pushed yet. Keep the
+exact current-native-registration test intact while the whole changed runtime
+boundary is unfinished; qualify/register the complete frozen boundary before
+publishing those runtime changes. Do not rerun old native20 on intermediate code.
+The atomic fixed worker factory now has independent scoped approval:17 collected,
+16PASS+1Linux-onlyskip2.098s on source672d55e8/test0624ea4d. Real acquisition and
+close-result failures were reproduced and corrected before approval; only actual
+native CloseHandle FALSE permits retry, while ambiguous post-success errors stay
+unproven. Factory17 is inert fixed-base Python/pipe/job engineering evidence, not
+actual SDK startup, original pipe sealing or full guardian/debug/job drain. Public
+fixed-worker-launch evidence preserves all historical failed attempts separately.
+
+Next canonical GuardianV2 API/schema is settled in the existing dispatch plan;
+missing-component11RED is recorded and implementation is underway without runtime
+enabling. A separate real cancellation gap was reproduced in both actual adapter
+generators and both actual runners: verification threads outlived their cancelled
+caller. Existing settled ownership now keeps the thread and execution lifetime;
+focused4 pass; affected TrialRunner25/OperationRunner15/Claude22 pass sequentially
+in30.704s/75.389s/1.534s. Independent focused4 pass on all7 unchanged pins in
+0.344s/2.080s/3.463s with no findings; public owned-verification records commands,
+hashes, REDs and limits. The first too-short
+runner observations passed before cleanup finished; stronger waiting reproduced
+both original failures, preserved separately. These four changed PROFILE_SOURCES
+invalidate04c8 as a current qualification. Its20/nativeSkill evidence remains
+historical; no registration/account retry until the whole changed boundary freezes
+and qualifies. No new account/SDK/provider invocation or live use occurred.
+
+CI40019712830 at326c succeeded. Earlier5563 CI40022263716 was still running at
+last observation; neither earlier result qualifies4ba or local/working changes.
+PR803 body now reflects the pushed channel/factory batch and local runtime work.
+
+GuardianV2 first implementation collected11:2 contract pass and9 Windows setup
+paths refused before launch_offer in1.639s. No passing native integration evidence
+is claimed. V2 must avoid sandbox._private_directory because it launches ACL
+helpers outside the job and imports broader host dependencies. Approved correction
+creates exclusive/fsynced markers only beneath existing authenticated private lock
+parents, with ancestry checks; authenticating those parents is a host-consumer
+precondition. No missing broad parents, ACL subprocess or new security framework.
+Author owns lifetime source/v2tests and has the sole test/native process slot;
+parent/reviewer have no active tests. Corrected implementation/review remain open.
+Fresh-thread DebugSetProcessKillOnExit(TRUE) also refused WinError6 before creation;
+primary Microsoft documentation confirms an existing debugging connection is
+required and TRUE is the default. Approved order uses a fresh dedicated creator's
+default at creation, then explicitly enables TRUE before any Resume/private release.
+First actual inert root case now passes1.231s with stdio sealing and root/debug/job/
+fence/control drain; remaining image/negative cases and review are still underway.
+
+## Prior continuation — canonical capture/bootstrap committed; metadata channel verified
+
+Current pushed head5563ab908bc7bd56e94a001dff4d1ef070d50535 includes query-policy
+7f710bbc and independently approved capture/bootstrap. All eight newly committed
+source/test Git blobs exactly match their tested worktree bytes. New CI40022263716
+runs; older ffcd CI40016579262 succeeded, while326c CI40019712830 still runs.
+Earlier CI cannot qualify the new head. PR803 stays draft/reserved0.299.0;
+no merge/deploy/restart/selected-CLI/account retry/live activation occurred.
+
+Prior checkpoint326c9d9ea0b49f4a7c1cfb1dcfc03031732807d4 added the approved
+borrowed-file API and public importV2/guardianV6/D2 audit evidence to PR803. Current
+head/CI are recorded above. PR body preserves successful limited inert probes and
+their historical failures. No merge, deployment, restart, selected-CLI/model/account
+retry or live activation occurred.
+
+Canonical NativeDebugInvocation now exposes the SDK's actual async process interface
+with a persistent samecreator pump through EXIT and exact one dispatch. Initial9
+RED/GREEN preceded a real privacy/strict-ACK finding, then2 RED tests with7 expected
+failures and corrected11GREEN4.226s. Independent isolated11PASS4.300s approves
+source902ba370/helper54dd2ed7/testf712dd9e with7 unchanged evidence/dependency pins;
+all83 qualified source pins remain unchanged. Public canonical-native-capture
+records retained/retryable cancellation/error/handle/ACK ownership and limits.
+No runtime consumer/profile entry, image validation, full job/worker-death or SDK
+query proof is implied. Existing plan records the custom SDK transport
+integration consumer, stable capability versus per-invocation proof separation,
+owned async verification and explicit host-preflight lifetime requirement. Full
+guardian/bootstrap/control integration remains open.
+
+Query grammar now explicitly separates pin2 fixture_only/pinned_skill policies,
+without granting role or execution authority; old pin1 schema/full result bytes
+remain unchanged. Pure8 RED-to-GREEN pass0.008s, affected17 pass0.433s, independent
+sequential17 pass0.458s and8 pass0.011s on unchanged266b75f1/fe73ba59/aee418b0 pins.
+Public query-dispatch-policies records the first deep-temp Windows269-char failure
+and unchanged-source short-temp passing rerun. No runtime caller/profile change.
+Bootstrap fixed-entrypoint/framing/declared-file verification now passes12 tests
+plus1 Linux-only skip in0.196s; independent same13 collected12PASS1skip0.213s approves
+source7d1a69f0/teste25ebc72 and unchanged public guard dependency4fc9654a. This is
+controlled in-process Windows file/module verification with simulated isolation
+flags, not actual isolated direct-base child startup. Public native-bootstrap
+records fixed targets, exact framed stdin/no-overread, verified captured target
+bytes and retained close-error ownership. Unlisted-import exclusion/initial loaded
+sections stay UNKNOWN; external qualification must authenticate bootstrap/manifest
+completeness. No production caller/profile entry or SDK/native-child call.
+
+Query policy delta7f710bbc was batched with approved capture/bootstrap in one push;
+its three Git blob IDs exactly equal tested worktree bytes. Capture author freeze uses37 explicit
+files; an initial broad glob accidentally included an open reviewer log and failed,
+preserved separately without source/test changes. A genuinely asynchronous closed
+metadata channel is the next consumer prerequisite; the current capture callback
+does not promote blocking stdin reads into cancellable IO.
+
+Metadata image channel now passes13 tests in1.588s and independent13 in1.447s;
+source12cce111/test2df8f4fa unchanged and no warnings. First13 failed1/3errors because
+shutdown alone did not settle Windows WSARecv; its failed source/log remain preserved.
+Corrected order is poison→shutdown→known socket close→UNCANCELLED IO completion
+before closed=true. Lost close authority stays permanently unproven; the negative
+test's real socket is closed/no IO pending, but retained proof-owner is not called
+success. Public image-metadata-channel records framing/strict metadata/binding/
+partial IO/replay/cancel scope and23-file author freeze. No children/SDK/account
+calls, cross-process endpoint transfer or runtime/profile entry. Initial
+worker creation/assignment also needs a concrete no-orphan lifetime: a host crash
+between suspended Popen and guardian/job assignment must not be ignored. Guardian-
+first fixed worker creation with transient private-pipe capability copies closed
+before host writes private data is the settled integration direction. Use a
+guardian-only direct CreateProcessW JOB_LIST/HANDLE_LIST factory for atomic creation
+assignment, with exactly three inherited stdio pipe capabilities and no inherited
+job/control/socket metadata handles. Future socket.share transfer follows retained
+actual process identity. Factory implementation/tests are next; old SDK capture,
+bootstrap and83 qualified profile remain unchanged until actual integration.
+
+## Previous continuation — query validator committed; startup import measured
+
+Commit ffcd1b44ee7d021be70ab5803ac0d9a3d8c7875a is pushed on PR803; staged
+source/test bytes matched the approved9831cd30/f53eb9fd pins. New final-head CI
+40016579262 is in progress. Main remains0.298.0; open PR805/807 have no reserved
+version, so PR803 retains0.299.0. No merge/deploy/restart/account retry occurred.
+
+Separate once-only startup import diagnostic V2 completed both predeclared
+variants in4.219s. Minimal-root reproduced ModuleNotFoundError:pywintypes, exit10;
+explicit trusted win32/win32-lib paths plus a retained DLL-directory handle
+imported SDK/anyio successfully, exit0. Both original retained direct-base worker
+PID/birth identities matched before import ACK. Actual native-job pre/post
+snapshots retained the same two members/incarnations and cumulative total2;
+rejecting CreateProcess counter stayed0. The additional actual job member's
+observed image path was System32/conhost.exe; current reopened-file bytes are
+recorded, not loaded-image/page proof or an inferred role. All four retained
+process handles signaled before job close; both actual jobs drained to active0.
+No SDKClient/connect/open_process, CLI/model/account/provider call occurred.
+Report129805b2 and manifest46216676 preserve the result. Historical V5's lost
+startup error remains UNKNOWN. Independent limited static approval verifies175
+frozen files,25 source pins,4 prior manifests and83 qualified pins. Future
+cleanup-failure handling must also retain observer-handle dictionaries; that
+unexercised path is not proved by the two completed normal drains. Public
+startup-import-support records the scope.
+
+The separately authorized V6 guardian receipt probe subsequently passed all four
+predeclared inert cases in one6.683s run: selected image allow, identical-byte
+foreign-file refusal, EOF before ACK, and worker death while CREATE held. Actual
+remote object duplication uses the original retained worker; process/thread
+incarnations, exact job and file-ID/hash match are checked before the one bound
+allow ACK. Death keeps guardian duplicates valid and observes native terminal
+before outer-job termination, without foreign Continue. All actual jobs drain
+before guard release. Report70d56f53/manifest203d504b are independently approved
+as limited evidence:208 frozen files,165 report/runtime pins and83 unchanged
+qualified pins verified. Public guardian-image-receipt preserves both positive
+proof and limits. No SDKClient/Claude/account/provider call occurred. This is
+trusted creator capture plus guardian object checks, not independent kernel
+association, full three-actor confidentiality, SDK query/configuration or all18
+eligibility. Generic failure/repeated cancellation/recovery remain unproved.
+
+Public ImageReadGuard.compare_file_handle now compares actual full file identity
+and privately reopened synchronous bytes without reading/seeking/closing the
+borrowed handle. Three meaningful missing-method RED cases preceded implementation;
+the full35 tests (original17 unchanged plus18) pass2.033s and independent35 pass
+2.702s. Both scoped reviews approve source4fc9654a/test8c7abdc7; all83 qualified
+pins unchanged. Private close failure invalidates attestation and retains retryable
+reader ownership. Public borrowed-file-comparison evidence records the byte-bound,
+non-deadline limitation and UNKNOWN debug origin/loaded image/metadata exclusion.
+It remains unreachable/outside PROFILE_SOURCES. Historical V6 stays frozen at
+ffcd/ab6; the changed API is not retroactively qualified by that experiment.
+
+Source audit also identifies an operation-specific blocker: actual_input_use and
+actual_reasoning are always UNKNOWN, and combined semantic verdict correctly keeps
+them UNKNOWN. The existing plan now requires separately versioned exact user-frame
+delivery capture plus qualified local-provider content verification; stdin success
+alone is pipe delivery, not a native read ACK or comprehension. SDK string-query
+wire session default differs from native init session, and init may precede query
+write. Preserve both namespaces and all old operation1 reports/UNKNOWNs. This is
+an integration requirement, not new runtime input-use proof. Sync host/worker
+preflight lifetime integration and three-actor control remain open.
+
+Read-only full-D2 consumer audit at ffcd found reusable explicit Team/task/firing
+identities but additional gaps: workflow local traces are not bound/passed into
+node executors or resume; loops lack a durable pre-execution cycle ID; Goal
+operation identity is dropped by its text-only engine factory. DM native session
+history lacks effective-view identity, and ordinary warm_ping rebuilds options
+outside a turn. turn_context.execution_metadata is Team/improvement-specific and
+must not become a generic pin authority. Keep separate immutable host bindings
+and durable task/session pins, preserve ordinary owner policy and Goal text-only
+permissions, and never install task overlays into the global capability registry.
+Existing disabled-routing/per-read proofs are reused; full D2 remains open.
+Concrete consumer/function anchors and limits are recorded in
+`../evidence/2026-10-24-m2d2-consumer-context-audit.md`; this is source inspection,
+not runtime task/session-pin evidence.
+
+## Current continuation — read-outcome foundations and actual anyio gate, 24 October
+
+Versioned native skill reads are committed/pushed ea74d62e and unreachable
+read-outcome foundations df0e24b1 on PR803. The exact83-source profile04c8c77b
+remains unchanged. Latest CI40013889560 at df0e24b1 is running; Docker size,
+byte compilation, actual main import and dashboard JS passed, full Python check
+pending. No deployment or account retry.
+
+The next plan preserves input/receipt3 UNKNOWN semantics and introduces future
+input/receipt4 only when complete dispatch/outcome integration is ready. New
+standalone PinnedReadOutcomeBroker reuses actual skill/fixture decisions and
+emits immutable ten-field envelopes/observations. New pure correlator validates
+underlying pinned payloads and actual native call/result identity/session/bytes;
+None supports derived success only with exact unique host/native delivery.
+Absent raw flags stay UNKNOWN, explicit errors cannot be overwritten, and
+verified denial is boundary evidence rather than a successful skill read.
+No execution caller or new PROFILE_SOURCES entry exists yet.
+
+Author15broker/24proof RED-to-GREEN checks pass; independent sequential15PASS
+0.072s and24PASS0.112s approve the exact four files and nine readonly dependencies.
+All83 qualified source pins remain unchanged; no native20 rerun is necessary for
+these unreachable components. Public read-outcome-foundation8700030d records
+hashes and limits. Actual input4/receipt4 integration/qualification remains open.
+
+A separate once-only inert probe uses the SDK-imported anyio.open_process on
+the actual creating/debugging OS thread. Three cases pass in2.516s: selected
+image, identical-byte foreign image refusal and real cancellation before a local
+image ACK. Actual CREATE hFile identity/hash, process/thread incarnation/exact
+job, continued debug EXIT, anyio wait/reader/aclose and job drain all precede guard
+release. Independent limited static review verifies29 artifact/runtime/source
+pins and unchanged83 source pins. Public sdk-anyio-image-gate retains original
+V1 failure and V2 bootstrap-resume distinction. No SDK client/query, selected
+CLI/account/provider or guardian IPC ran. Guardian receipt/ACK/drain, worker death,
+full SDK/configuration proof and all18 eligibility remain unqualified.
+
+The separate two-process V4 probe failed its exact-source-worker check: retained
+venv launcher15128 differed from executing worker23332. No remote duplication or
+ACK occurred. Actual outer job drain completed before guard release; independent
+static review verified29 frozen entries and83 unchanged qualified source pins.
+The failed report e9e73a48 and manifest54ed1d8a remain immutable. A separately
+planned V5 direct-base -I/-S bootstrap also failed before its first worker receipt;
+report33c3c92d preserves that failure. Stderr was discarded, so its historical
+startup cause and worker exit code are UNKNOWN. Job drain preceded guard release.
+Independent static review verified41 V5 frozen entries and83 unchanged qualified
+pins. Public guardian-image-probe-failures records both runs. Neither run proves
+a successful guardian handshake/death case.
+
+Static dependency tracing found that MCP imports pywintypes/win32api/win32con/
+win32job, normally resolved through pywin32.pth paths and DLL bootstrap. V5's
+explicit site-package root does not include those paths. A separate import-only
+diagnostic with startup/error capture is being prepared to test this hypothesis;
+no further native image run or automatic account retry is authorized by a guess.
+The new pure query-dispatch parser passes16 author checks after16 missing-module
+REDs (0.002s then0.424s; invocation1471/1777ms). Independent scoped review approves
+the exact source9831cd30/testf53eb9fd with16PASS0.420s and11 unchanged dependency
+pins. Actual bound3 options and SDK116 command construction pass at medium/high;
+fixed Windows paths are synthetic serialization fixtures, not actual dispatch.
+Closed raw-command/configuration/JSON/override and mutation checks pass. Public
+query-dispatch-foundation records the evidence. It remains unreachable, outside
+PROFILE_SOURCES, and all OS/image/provider/internal reasoning coverage is UNKNOWN.
+No native20 or unchanged39 read-outcome rerun was needed. Final-head Linux CI
+remains required. The import-only diagnostic V1 subsequently stopped before SDK
+imports: direct-base PID/birth matched the retained worker, but actual job
+accounting was total2/active2 rather than the experiment's assumed total1. No
+import ACK was sent, second variant was not run, exact job drained to active0,
+worker exit91/stderr0 were saved. Report c4b5d553 retains the failure; the extra
+member identity and historical V5 startup cause stay UNKNOWN. Next step is actual
+job startup-member identification and a pre/post import birth/membership
+measurement, preserving exact worker/image/guardian checks. No blind rerun.
+
+Full Goal M0–M8 stays active. Pilot work types remain reconciliation, document
+processing and Python technical control; business-source/owner/live gates stay
+open. Continue actual guardian ownership and version4 integration, then full
+D2/E/F/M3–M8. Reserved0.299.0; final-head CI/review/integration still required.
+
+
+## Current continuation — native skill reads, 24 October
+
+Owner delegated pilot choice: reconciliation first, document processing second,
+Python bugfix/test as the technical control. This is a work-type choice, not
+new business-source access, owner acceptance or live activation permission.
+
+Fresh linked v4 materializations now use input manifest3 and receipt3. The
+prompt supplies an exact read descriptor; a second closed readonly MCP tool
+serves only immutable pinned skill bytes. Old manifests1/2 retain exact prompt,
+hash, tool and receipt behavior. Operation roles remain fixture-only. Both new
+reachable broker/proof modules join the exact native footprint, now83 sources;
+the historical972175a2 registration does not authorize this changed footprint.
+
+The pure correlator joins actual native call/result IDs, initialized stream
+session, exact arguments and unpredictable broker response IDs/text/hash.
+Receipt summaries are independently recomputed by the checker. Available,
+selected, observed read and comprehension remain distinct; no comprehension
+claim. Missing native optional error flags stay UNKNOWN. Full18 and actual
+reasoning gates remain unchanged.
+
+Review found two mixed-valid orphan/replay cases: reproduced14 tests/2FAIL,
+fixed14PASS0.061s. It also caught the shared operation-inventory signature
+regression and two qualification-fixture issues; all are corrected. The exact
+83-source footprint expectation is updated without weakening its set/hash checks.
+Sequential affected verification:133PASS197.876s subprocess wall on unchanged
+product sources, with qualification-fixture-only repairs between records.
+Independent final proof14PASS0.040s + native-skill11PASS3.386s, source/test hashes
+unchanged; scoped review approved. Raw records/logs live in the native-skill-reads
+ledger. Actual native qualification20PASS93.952s on the frozen83-source
+profile04c8c77b with dummy auth/local providers. Both paired arms return the
+exact host response and candidate foreign read is denied. Actual success
+is_error is absent/NULL; explicit denied-read error is TRUE. Coverage therefore
+stays UNKNOWN. A single exact registration was added after proof;7metadata
+checks show1RED0.129s then7GREEN0.126s. Independent registration audit APPROVED,
+7PASS0.127s;83source/6test pins,3raw/4logs/full1183-file record verified. All6
+prior entries and lookup/unrelated fixture ASTs remain unchanged. The profile
+source was not changed by registration, so no native20 rerun is needed.
+No selected-account call has been retried. Public native-skill-reads evidence
+9b745a63 and native qualification bf793edf preserve the exact source/log pins.
+
+Separate inert debug-image evidence preserves V1 failed before first Resume.
+V2's distinct pre-user-mode CREATE gate binds actual hFile volume/file ID/hash
+to the retained guard, accepts the selected image, and refuses an identical-byte
+foreign file with zero output. Actual EXIT/job/process drain precedes guard
+release. No SDK/Claude/account ran in these probes. Guardian confidentiality,
+SDK creator-thread/debug-pump compatibility, death/cancel/drain and native
+configuration coverage remain unqualified. Public debug-image-handle record
+and hashed confidential-guardian design addendum preserve these limits.
+
+Main fetched again:0.298.0; open PR805/807 have no reserved version, PR803 keeps
+0.299.0. Bilingual changelog validation passes. Current delta is ready for
+commit/push and final-head CI, with the full Goal still active.
+
+Goal M0–M8 stays active; genuine configured-account pair/final, full D2/E/F,
+M3–M8, business evidence and live gates remain open. PR803/reserved0.299.0,
+final-head CI/review/integration still required. No deploy/restart/live activation.
+
+
+## Current continuation — immutable skill broker and Linux fixture repair, 24 October
+
+Standalone SkillAssetBroker now validates/fixes one materialized v2 manifest,
+trial/attempt/input and view/asset hashes, serves exact immutable bytes and
+retains unique read IDs plus exact emitted response/hash for future native
+correlation.12 author testsPASS0.030s; independent parent source review approved,
+separate12PASS0.703s subprocess on frozen full maps. No native observed_use is
+claimed before actual ToolUse/ToolResult/session correlation. No native caller
+exists yet; add this module to PROFILE_SOURCES at eventual integration.
+Public broker397a6aad; pure synthetic component, no SDK/account execution.
+
+Actual LinuxCI40002516501 at01717332 failed only the new view-observation fixture:
+its inert binary was created inside a protected skill folder after provenance
+froze, legitimately changing Linux directory ctime. Test-only staging now uses
+an independent external temp directory. Portable actual entry-clock proxy gives
+matching2RED27.959s then2GREEN29.127s; ordinary Windows2PASS29.016s and binary11
+PASS0.765s. Independent portable2PASS29.468s approves the exact fixture diff.
+All assertion ASTs and product source remain unchanged; full actual Linux CI
+on the final head is still required. No authority normalization/checker relaxation.
+
+The subsequent inert image-name probe7293fe21 binds actual held-leaf hash to
+resolved kernel NT image name in a positive junction-alias case and refuses a
+different identical-byte copied image before resume, then drains. Independent
+review keeps loaded-image identity UNKNOWN: name comparison is not file-object
+identity and guardian does not own the guard yet. Public db56a10b. Next small
+candidate proof is actual CREATE_PROCESS_DEBUG_INFO.hFile with file identity,
+then SDK thread-affinity/continue/detach/resume/death/guardian ownership checks.
+No debug-path probe has run yet. Native current81pins still972175a2.
+
+Full Goal M0–M8 remains active. Full18 observations, genuine account pair/final,
+full D2/E/F/M3–M8, business and live gates stay open. No new account retry,
+deployment/restart/live activation. PR803/reserved0.299.0; main lastd3d7cb36.
+
+
+## Current continuation — native image read-sharing component, 24 October
+
+Current pushedf131d958/PR803/reserved0.299.0 has exact native972175a2 and
+independent registration approval; full LinuxCI40005387321 is pending. Main
+d3d7cb36/0.298.0 unchanged at last read. Historical29fCI39997792693 succeeded.
+
+Own-file native launch probes expose two false assumptions: metadata-only
+directory handles do not exclude write/delete sharing, and retaining a leaf
+does not prevent junction entry replacement. Proper flags3/existingtarget
+POSIX controls close the earlier flags2 evidence gap. Suspended actual anyio
+spawn of inert copiedwhere.exe proves job/thread plumbing, not full SDK or
+guardian-held image binding. First help-output fixture failure is preserved;
+newroot /R marker controls pass. Attribute-only mountpoint SET still succeeds
+on an empty directory even with a read guard; loaded-image/metadata exclusion
+coverage remains UNKNOWN. No actual Claude/account call occurred.
+
+New standalone ImageReadGuard owns root-to-leaf real read/shareREAD/NoFollow
+handles, refuses observed reparse/path/type mismatch, hashes the held leaf and
+keeps explicit UNKNOWN coverage for metadata exclusion/loaded image. Parent17
+checksPASS0.250s; independent17PASS0.199s. Two scoped review lifecycle
+findings were reproduced then fixed: partial close invalidates snapshots;
+failed entry/exit retains cleanup ownership or closes all handles. Fresh
+metadata observations refuse detected drift without claiming future exclusion.
+
+This module is not yet reachable from native execution; existing81 profile
+pins remain exactly972175a2. No new native qualification/account readiness or
+genuine pair/final is implied. Evidence: native-launch-probes and
+native-image-guard JSON records; next guardian ownership/full drain and actual
+loaded-image attestation before any new proof can PASS. Full D2/E/F/M3–M8 and
+business/live gates remain open. No deploy/restart/live activation.
+
+
+## Current continuation — preparation heartbeat, 24 October
+
+The new actual account attempt on01717332 is terminal: two marked calls, baseline
+shapeFAIL/ownerUNKNOWN, valid semantic meaning/dependenciesPASS/nativeUNKNOWN.
+First scheduled v4 cell was BASELINE; it materialized/prepared, then stopped
+not_run/authority_changed before an engine marker. Its reservation was refunded;
+no second cell, genuine pair, selection or final exists.234.0495s scope-ready to
+final;8673in/822out,USD0.0658008 subscription-equivalent partial; cash/requests
+unknown. Canonical unchanged and all plaintext cleaned. Public evidence5eede64f.
+
+One read-only current host.live_guard + result _guard subsequentlyPASS9.141s.
+The exact historical exception is unavailable. Controlled reproduction confirms
+a separate concrete scheduling bug: workspace preparation can monopolize the
+runner mutex past its lease and block its validating heartbeat. New3 tests on
+old source:1FAIL/2PASS8.029s; four-line scheduling fix:3PASS8.786s. Preparation
+now releases only that mutex during owned filesystem work; authority checks,
+serialized SQL generation changes, execution lifetimes, cancellation drain,
+60s lease/20s heartbeat and180s request deadline remain unchanged.
+
+Scoped independent review APPROVED exact runner6c708940/test31cf3f60:3PASS8.917s.
+Sequential affected regression36PASS151.454s on frozen full source maps: runner24,
+actual synthetic-adapter v4 pair1, owner-service11. Public scheduling evidence
+`../evidence/2026-10-24-m2d1-preparation-heartbeat.json`. Changed native footprint
+now has20PASS94.829s exact native enforcement at profile972175a2,
+CLI309/hash5441781f/SDK116. Public qualificationa84d266d. Metadata6RED
+(1 missing registration)0.103s ->6GREEN0.096s; all5 historical entries and
+nonmetadata fixture AST remain unchanged. Independent registration audit APPROVED against7e63c26c:6PASS0.100s;
+81pins/5qual-testpins/3raw/4logs/fullrecord and all5prior entries/lookup AST
+verified. Audit logda67327e, testlogad2d0be5; only2 expected registration/test
+files differ after qualification. Final-head CI remains required.
+No new account attempt or unchanged retry.
+Native observations remain a later engineering unit; actual success tool_result
+is_error=null additionally leaves event/side-effect coverageUNKNOWN. No telemetry
+default or all18 gate has been weakened.
+
+## Current continuation — bounded CLI observation, 24 October
+
+Working delta on29f5bdd5 addresses repeated CLI hashing in current view reads.
+Only create_pin opts into bounded CLI reuse; ordinary source digests remain
+fresh. Each hit still opens the file and checks read access, ancestry, size and
+descriptor/path identity. Before the view returns, a fresh whole-file hash and
+identity must match the original. Scope is synchronous and private per call and
+thread, with no native execution or semantic publication. Every original source,
+grant, settings, SDK and profile fence remains at its existing site.
+
+New component9RED then11GREEN0.318s; two actual view/capture tests with an inert
+observerPASS28.805s (12 observations/two full reads; end-of-capture runtime edit
+refused). Seven affected scripts94PASS465.156s on identical source maps.
+Independent scoped review APPROVED matching source hashes:11PASS0.350s and one
+view boundaryPASS15.010s. Public unit evidence9525fa0c (committed LF bytes).
+Actual selected-CLI read-only component:12 pins9.172s/12 full reads ->1.796s/2
+full reads, identical pins, no auth/native/model queries. This is not full-pipeline
+latency or business evidence.
+
+Product delta committed a8155c63; exact new81-source profilebe4a5866 has native
+20PASS94.516s on WindowsCLI309/hash5441781f/SDK116. Public qualificationfd52de7a.
+Only one registry entry is added; all four prior entries remain. Metadata5RED
+(missing new registration) then5GREEN0.085s. Scoped registration verification is
+approved at01717332,5metadataPASS0.119s; subsequent actual attempt is above.
+Historicale7 cannot authorize changed source.
+No unchanged account retry or deadline increase. Plan:
+`../plans/2026-10-24-agent-skill-improvement-m2d1-view-observation.md`.
+
+## Current continuation — raw role artifact boundary, 24 October
+
+Role system instructions now explicitly request final raw JSON artifact bytes.
+Strict parser, raw artifact preservation, semantics, owner/grant, unknown, tool
+inventory and retry behavior are unchanged. Actual-worker2RED then59GREEN/four
+sequential suites226.922s. Prompt delta independently approved atb7a81542; new2
+worker checks independentlyPASS1.023s. Evidence:
+`../evidence/2026-10-24-m2d1-artifact-format.json` SHA c6a696b3.
+
+The prompt changes the exact81-source footprint: current profilee7aaa5bd has
+new native20PASS94.078s on identical full source maps, WindowsCLI309/hash5441781f/
+SDK116. Artifact `../evidence/2026-10-24-m2d1-native-qualification-format.json`
+SHA c5e0acc9. The prior958 qualification is historical for changed source. One
+exact registry entry follows4 metadataRED/GREEN; prior3 registrations/lookup and
+qualification fixture helpers remain unchanged. Registration independently
+approved29f5bdd5, metadata4PASS0.076s. Final-source CI39997792693 is running.
+
+The fresh bounded selected-account feasibility is terminal: two actual calls,
+baseline shapeFAIL/ownerUNKNOWN and valid raw semantic JSON (meaning/dependencies
+PASS, native observations UNKNOWN). Views froze. The first scheduled v4 cell
+(candidate) timed out180s before materialization/native query; its reservation
+was refunded. The second cell was not admitted. No genuine pair, comparison,
+selection, selected-final or qualification claim exists. Usage8659in/839out,
+USD0.0707556 subscription-equivalent partial; cash/request totals remain unknown.
+Canonical bytes stayed unchanged and plaintext workspaces were removed. Evidence:
+`../evidence/2026-10-24-m2d1-real-format-feasibility.json` SHA ddc5af2c.
+
+One subsequent read-only profile of current baseline view resolved in10.266s,
+without model/native queries or writes: twelve create_pin calls rehashed the
+298624160-byte CLI; selection capture took9.246s. This is a measured preparation
+bottleneck, not evidence of business gain. Preserve both runs; do not repeat the
+account attempt unchanged or increase its deadline. The next unit addresses
+redundant binary reads while preserving fresh byte validation and all authority
+checks. Prompt compliance improved in this one observation only.
+All old failed history/usage stays intact. Source-qualified final-head full CI
+and full D1/D2/E/F/M3-M8/business/live gates remain open. Reader fixed5CI39996033610
+is running and is historical for the later prompt change, not final-head proof.
+
+## Current checkpoint — 24 October, D2 prerequisite continuation
+
+- Worktree/branch remain M2D1/PR803, reserved0.299.0; main d3d7cb36/0.298.0.
+  Latest pushed source3afed521 has approved whole-D1 plus scoped lifetime,
+  runtime309, semantic-invalid-output, registry and disabled-routing reviews.
+  Exact-head LinuxCI39992114257 is still running; later local changes require
+  their own final-head CI. No merge/deploy/restart/live activation.
+- D1 exact81-source profile958527ac/CLI309/SDK116 remains registered to native
+  artifact1f3391cf,20 tests94.890s. Ordinary router/lazy/hub edits change none of
+  those81 bytes. Reuse that proof without repeating native/model calls.
+- Actual prior D1 account feasibility made2 calls; baseline shapeFAIL and strict
+  reviewer format refusal prevented any view/pair/selection/qualification claim.
+  Preserve public90ecc20b and partial usage. Genuine account pair/eligible-final,
+  full D1 acceptance and D2/E/F/M3-M8 remain open.
+- Pilot choice delegated by owner: reconciliation primary, document processing
+  secondary, Python bugfix/tests technical. This selects work types only; it
+  grants no new real dataset, owner acceptance or live activation.
+- D2 disabled-source precedence was independently approved at3afed521. New
+  ordinary read unit uses one stable bounded source for actual hub/lazy, checks
+  selected manifest path/header and records exact raw byte hashes. Seven
+  sequential local commands pass; new10-test suite9PASS plus1 Windows file-link
+  privilege skip, actual Windows outside directory-junction refusalPASS. Scoped
+  review, Linux symlink coverage and final-head CI pending. Proof:
+  `../evidence/2026-10-24-m2d2-skill-reads.json`. A per-read asset is not a task pin.
+- Separate controlled native design experiment: plugin-only permission callback
+  FAILED because direct cwd Read loaded the old skill. PreToolUse deny alternative
+  passed A and B-only continuation; initial B had0 query requests due fixture
+  setup collision, which was fixed without repeating A. Six dummy local requests,
+  zero account/model inference. Proof:
+  `../evidence/2026-10-24-m2d2-native-design-probe.json`. Owner policy parity,
+  Bash/other paths, task/session binding, cache partitions, activation selectors
+  and resume remain open; no production adapter support from this experiment.
+
+Latest scoped review of85bf8e68 found one Important/P1: a transient external
+Windows junction could return outside bytes despite pre/post lexical checks.
+The descriptor repair now authenticates Windows actual opened-handle path before
+reading; POSIX uses anchored nofollow component opens and nonblocking leaf open.
+Regular-file/size checks precede body reads. Exact original repro is now refused.
+Seven affected commands passed sequentially; new14-test suite12PASS/2 Windows
+platform/privilege skips. Inside Windows junction remains readable. Evidence:
+`../evidence/2026-10-24-m2d2-descriptor-fix.json`. Prior skill-read containment
+claim at85bf is superseded; scoped fix review and actual final-head LinuxCI remain
+pending. All81 isolated native pins remain unchanged, with no native/model query.
+
 ## Identity and authority
 
 - Goal: execute the complete M0–M8 contract in `../AGENT-SKILL-IMPROVEMENT-GOAL.md`.
@@ -33,10 +2071,425 @@
   regression passed251s; broad63-script sweep passed1048s across the narrow fix,
   explicitly not used as exact-head proof. Task6 accepted; Task4 positive C+D
   qualification integration, complete M2/business/rollout remain open.
-- Current engineering continuation is M2C below. Earlier pending/failure
+- M2C engineering published0.296.0: PR801 squash2727edcc5cdfab6f2dcf2e2871164f22f2771f92.
+  Exact final-head LinuxCI39929264818 passed on independently reviewed d05f4881;
+  actual merged tree5712b6ba79720a5a44a43d3cecd85cff84f3cd21 is identical.
+  Publication39933347548 and Build & push succeeded. Task9 completed through
+  its actual published-source verifier; no open Important/Critical findings.
+  Native profile9dcf7184 and21-script regression evidence remain source-bound.
+  Historical real feasibility aa51b4b9 still has baseline shape FAIL, semantic
+  UNKNOWN and partial usage; it does not establish a business win or live grant.
+- Current engineering continuation is M2D1, branch
+  `codex/agent-skill-improvement-m2d1` in the SAME isolated worktree
+  `C:/Users/admin/.codex/worktrees/agent-skill-improvement-m2a/Javis-OS`.
+  DraftPR803 now reserves0.299.0 after rebasing onto main0.298.0; original
+  reservation0.297.0 at c4991ec8 remains historical. Plan is
+  `../plans/2026-10-23-agent-skill-improvement-m2d1.md`.
+  D1 builds shared immutable view identity/source resolution and actual isolated
+  candidate probes; full D remains open until production router/lazy/hub/native
+  task/resume integration is actually verified. E/F and M3–M8 remain open.
+  Task1 started at d00312d5. Closed pure identity and additive schema7 now pass
+  the six affected scripts sequentially:104 tests,221.921s. Actual released C
+  reader refuses7, while its backup restores exact schema6 history, including
+  settled role results/semantic receipts/calls and encrypted bytes. Composite
+  scope/immutable guards reject splicing individually valid candidate/receipt/
+  comparison rows. Cold metadata neither decrypts nor migrates; canonical skill
+  bytes and target pointers stay unchanged. Evidence:
+  `../evidence/2026-10-23-m2d1-task1-verification.json`, SHA256
+  b9d7c51fd9725111678365f667b4af2168738b73329e89475ba2d700d52f76f8.
+  Task1 local foundation is verified; task-done checks committed bytes/logs.
+  Checkpoint Linux CI remains pending. WSL is unavailable; the PR workflow now
+  fetches actual C2727edcc for its reader test. No real provider/account inference
+  or new D native qualification occurred. C's exact34-source native profile is
+  unchanged9dcf7184, verified against released C; this does not qualify future D.
+  Task2 still owns authenticating encrypted manifests and current source/semantic
+  authority plus atomic pair publication/CAS/replay; Task3 owns actual v4 lineage
+  and legacy-format exclusion. No metadata row grants execution or live authority.
+- D1 Task2 local source/publication boundary now passes five sequential affected
+  scripts:76 tests,392.830s. Actual current C/edit/source authority constructs both
+  immutable views, with one publication event, generation CAS and exact historical
+  replay; second-insert and post-insert source changes roll back all view rows.
+  Resolving SQL metadata requires its exact publication event/request/generation
+  plus current source and semantic evidence. Holdout inputs and expected answers
+  are not decrypted by view capture/load. Actual Windows DACL/junction/incarnation,
+  owner arbitration, dependency and byte-format fixtures pass; Linux branches of
+  the new source service still require CI. C semantic/native unknown and A's
+  unreviewed status remain unchanged. Evidence:
+  `../evidence/2026-10-23-m2d1-task2-verification.json`, SHA256
+  588f7dba351d6d4253039819179207e467306163b14bfb7447d8c700d08fc41e.
+  All C34-profile and selected Task1 source bytes remain exact; there is no new D
+  native qualification, API wiring, actual comparison Trial or real model call.
+  Task3/4 retain actual admission/native-preflight/reservation/query fences.
+- Early Task1 LinuxCI39938959026 on8a25dee9 is FAILURE: new view schema15 and
+  protocol11 passed, while test_improvement_candidate_records.py,
+  test_improvement_cases.py and test_improvement_trials.py retain old backup/drop
+  fixture assumptions. Fix these exact fixtures next; keep backup ordering,
+  historical version/data assertions and rollback checks intact. Older
+  protocol-only LinuxCI39936301937 on d91cc25b succeeded. Neither run proves the
+  newly implemented Task2 source path. PR803 remains draft and not mergeable.
+- The three legacy migration fixtures are now corrected locally: exact third
+  views-backup entry and child-first removal of view tables when constructing a
+  real schema2 fixture. All74 tests in those three scripts pass sequentially,
+ 34.537s of unittest time. No production bytes changed; AST comparison proves
+  every import, fixture helper and other test method stayed identical to the
+  Task2 verified commit68dc6c26507841f30e5ead93fe5281aad2afb4e5. This qualifies
+  reuse of Task2's76-test proof; it does not replace fresh current-head Linux CI.
+  Correction evidence `../evidence/2026-10-23-m2d1-legacy-fixture-correction.json`,
+  SHA256641a71c203e8e42d2a09ee51c17195bcf2b1ce2af999fe2f8dc043a73bdaa5e0.
+- Earlier pending/failure
   checkpoints remain historical; complete M2/business/rollout gates remain open.
 
 ## M2C engineering continuation
+
+### D2 routing-state foundation, 24 October
+
+An independent production-path repair now makes authoritative disabled state
+agree across skill discovery and actual body loading. Previously a disabled
+canonical skill disappeared from manifests but the actual hub handler could
+still read its stale Claude mirror. Same-source enabled/disabled collisions
+also disagreed between metadata APIs. Resolver and list_skills now respect
+the disabled source before lower-priority enabled copies, including legacy state.
+Unrelated enabled-source precedence remains unchanged.
+
+Behavioral RED7 reproduced5 failures; GREEN7 passed0.123s. Actual warmed hub
+reads deny after disable without increasing usage; a warmed lazy registry drops
+the disabled skill. Five affected scripts passed sequentially in13.392s, including
+11 Phase8 pytest cases. No model or native query occurred. All81 qualified native
+source hashes remain identical, so exact958527ac/1f3391cf enforcement evidence is
+reused. Artifact `../evidence/2026-10-24-m2d2-routing-state.json`, SHA256
+56246006f3a4dce8cb58762f648c30380c67b0618dd3b5742dec366da04de610.
+
+Scoped routing-delta review and final-head CI remain required. D1 CI39990661065
+on999c207a was running before this new source delta; it cannot prove a later head.
+This repair does not implement task/session pins, production overlays or native
+materialization. Full D2/E/F and M3–M8, account pair/final-positive and all
+owner/business/live gates remain open.
+
+### D1 selected-account feasibility and invalid-output follow-up, 23 October
+
+At54210807, exact qualified profile81/4d346a3a made two real selected-account
+calls with unchanged Opus5.5/medium/subscription: baseline TrialRunner and
+semantic reviewer,117.817s from prepared scope to final accounting. The baseline
+completed but failed JSON shape; owner accuracy stayed unknown. Its full18
+integrity checks retained reasoning/asset-use and event/side-effect unknowns.
+The reviewer produced fenced JSON missing required `findings`. Strict parsing
+refused it, with no receipt, view, selection or qualification claim. The inner
+model word `pass` is not an accepted assessment. Canonical bytes stayed exact;
+all plaintext workspaces were removed. No model retry or owner arbitration.
+
+Evidence `../evidence/2026-10-23-m2d1-real-feasibility.json`, SHA256
+90ecc20bfc31c581292e654f8a4ff68192e77e56ec6caba8f3a1600e536321a0.
+Observed usage8569 input/877 output tokens, subscription-equivalent USD0.0707254;
+cash and request counts are unavailable and coverage remains partial. These
+are technical synthetic calls, with no business efficacy or live authority.
+Actual native TrialRunner baseline is demonstrated; the account pair and
+genuine eligible final remain unproven.
+
+The failed review exposed a separate operator defect: malformed output surfaced
+as generic HTTP503 instead of a stable typed outcome. Actual workflow RED3
+reproduced two strict validation errors while the source-revocation test passed;
+actual HTTP RED1 reproduced503. A narrow follow-up records `invalid_output` with
+the original native result, no receipt and no automatic retry. Parser, prompt,
+assessments, native checks and eligibility are unchanged. Five sequential focused
+and affected scripts passed63 tests in349.720s on one complete source map.
+Artifact `../evidence/2026-10-23-m2d1-semantic-invalid-output.json`, SHA256
+4a8d10e966a7931410093822f8b1261f8ecef7c0d01042c8ba27dc36286d9464.
+AST proof preserves all other product code and prior test methods; the scoped
+independent review approved exact330501fa, with no finding. Its actual HTTP
+invalid-output/stop/off/revoke/cold-replay recheck passed1 test in12.336s; log
+`review-semantic-invalid-http-recheck.log` SHA256
+8a21a9b0c8d756098faa0c00fca79c79cbea40a2860705b016d95d583901327e.
+Changed profile
+81/958527ac69c3b5728044b22cf6d3bdebb920da7cbe46a9da261e899568ced1ef
+passed20 actual native enforcement tests in94.890s on one source map: paired1,
+solver5, typed roles5 and quiescence9. The exact309/5441781f/SDK116 tuple is now
+registered against `../evidence/2026-10-23-m2d1-native-qualification-outcome.json`,
+SHA2561f3391cf9c1bf621d3ef2de44dd181acf17dd7d922fed4a80ae66bef36c8fab4.
+Metadata RED→GREEN3 passed0.068s; prior C and D registrations remain exact.
+These native suites used only dummy auth/local providers, with no new selected
+account calls or quality/owner waiver. Prior source qualification stays historical.
+Task3/4/5, D2/E/F and M3–M8 remain open; final CI/publication are not complete.
+
+### D1 fresh-main and runtime309 checkpoint, 23 October
+
+Current draftPR803 reserves0.299.0, rebased onto main d3d7cb36/0.298.0.
+All main release history was preserved. Rebased source3e1abcf0 kept all81 native
+files identical to the reviewed lifetime fix; one test's single CRLF→LF change
+was hash-reconstructed, with other improvement test bytes unchanged. Seven
+affected owner-main/voice/route/bilingual scripts passed18.375s. Independent
+reviewer closed the sole P2 at23f62b0b after a targeted20.260s real lifetime test;
+constructor/view/lifetime source pins still match after rebase.
+
+The installed CLI auto-updated to2.1.309 during final verification. The previous
+308 candidate guard refused before execution, as intended. No downgrade or
+global CLI modification occurred. The exact309 binary SHA5441781f and SDK0.2.116
+were qualified on new profile81/4d346a3ae4f1afa99784fc51307258ad99a8d470ac6a0c46f1d330e6b0e656fa.
+Actual paired views1 +solver5+roles5+quiescence9 passed20 tests in96.767s on
+identical source maps; adapter guards22 passed1.711s. Actual CLI --version is
+checked within the owned hidden dummy job. Artifact
+`../evidence/2026-10-23-m2d1-native-qualification-final.json`, SHA256
+012d9e37690e8711da75a344dfee0677df8d6c690b90f689ddbb14574c82f295.
+
+The exact registration now points to that evidence; historical C remains intact,
+lookup code is unchanged, and altered pin/platform is refused. Metadata RED→GREEN2
+passed0.045s. Current source qualification is enforcement-only: all queries used
+dummy auth and local providers, observed reasoning/asset use remain unknown.
+Reuse/source/recheck checkpoint
+`../evidence/2026-10-23-m2d1-source-checkpoint.json`, SHA256
+99c01d1afdc91f2516b57a12cecfb81bec13dd184295cfd934a37fd502661253.
+The runtime tuple/test-version probe/registration delta was independently
+approved at5421080714f78c653e2ab10c17a5e8ee4a613a55, with no actionable finding.
+The reviewer verified all81 source pins, retained evidence/log hashes and the
+narrow AST delta; two independent registration tests passed0.048s. Retained log
+`review-runtime309-registration.log` SHA256
+30f47d7034bdb0b1ae42ced51a1e81d221a64bb267df84e0f5819d0749e11b82.
+Earlier LinuxCI39982218130 succeeded on740c0c67; final-head CI is still required.
+Current selected-account readiness was verified read-only with unchanged
+Opus5.5/medium/fastfalse/subscription. Native TrialRunner feasibility is running
+in a new encrypted disposable synthetic reconciliation scope; no accepted
+business dataset or human semantic arbitration is inferred from pilot choice.
+No eligible selected-final, business win, activation, deployment or restart.
+Task3/4/5, D2/E/F and M3–M8 remain OPEN; previous native proofs stay historical.
+
+### D1 independent review and lifetime repair, 23 October
+
+One whole-D1 independent review covered published C2727edcc through740c0c67.
+It found one Important/P2 and no Critical/additional permission or holdout bypass.
+An actual15.456s reproduction showed a rebuilt facade retaining a closed
+semantic resolver while its original Trial owner remained live, then failing
+current admission with role_workflow_closed. Constructor refusal RED failed
+as expected in14.312s. The narrow fix now refuses that half-closed facade and
+keeps the original resolver; only both exact successful close futures permit
+replacement. Missing/pending/cancelled/failed closure remains blocked.
+
+Actual lifetime4 plus five sequential affected commands passed29 tests,
+239.901s recorded. Successful later rebuild/admission and still-live semantic
+reuse are covered, along with owner/main/service controls and actual v4 handoff/
+cancel. AST/source proof shows the only product change is constructor refusal;
+the prior stop/current-source/materialization behavior is preserved. Evidence
+`../evidence/2026-10-23-m2d1-review-lifetime-fix.json`, SHA256
+fb8333f444f84ac85f03d3f0c71402eb30f599e1a025499802b860739e7d94b5.
+Same-reviewer scoped recheck is pending, not another whole review.
+
+Before the fix, profile81/2221a859 also passed full local/dummy solver5, roles5
+and quiescence9 in60.609s on one source map. Its source-bound artifact
+`../evidence/2026-10-23-m2d1-native-qualification.json`, SHA256
+96adabecf47773debc2988098a68cc3a9c592a00ad2ed9b0d8a6e4cab096936b,
+is historical after the constructor change and was never registered. Current
+profile81/d070550687af101c07094e1234c5988fae15af9318eb5f5277c4cb2e413324ba
+remains unregistered; requalify after fix stability. Exact740c LinuxCI39982218130
+is in progress and cannot prove the subsequent fix. Earlier ec6CI39976688967
+succeeded. No actual account query, genuine eligible final or business/live
+acceptance occurred. Task3/4/5, D2/E/F and M3–M8 remain OPEN.
+
+### D1 paired native-view checkpoint, 23 October
+
+Owner controls are committed/pusheddaed0cf26872abe9d6e03f7d8bc59b04c39f8f83.
+The new opt-in native-view test passed on the same unchanged product81-source
+profile2221a859:39.172s wall, two native queries/separate sessions, four local
+provider model messages, zero selected-account calls. Both manifests come from
+actual temporary owner/view/Trial materialization with the exact pinned native
+configuration captured before the comparison context. Preparation/reviewer
+fixtures remain explicitly simulated. Native execution uses real SDK/CLI,
+TrialProfile, owned hidden jobs and dummy auth/local transport without an
+adapter/readiness stub. Exact prompts/view/assets/receipts, denied ambient/
+outside tools, unchanged canonical bytes and cleanup after native drain pass.
+
+The initial harness attempt failed when cleanup_proven's actual ACL metadata
+spawn reached the worker-only Popen interception. The original failed log/source
+record is retained; keeping that proof within the existing real-Popen scope
+fixed the fixture without changing product code or relaxing an assertion.
+Sanitized evidence `../evidence/2026-10-23-m2d1-native-view-enforcement.json`,
+SHA2560691a727db9dd81b91e814ccfaa4278f04d9c90c5a325cc789b282de31f6a10c.
+All server and owner47+route test bytes are unchanged, so that scoped evidence
+is reused. Current profile remains UNREGISTERED. Composite solver/role/death/
+quiescence qualification, actual native TrialRunner/account feasibility,
+genuine selected-final positive, independent whole-D1 review and final CI remain
+open. D2/E/F/M3–M8 and business/live acceptance stay open; no activation/deploy.
+
+### D1 owner-view controls checkpoint, 23 October
+
+Actual owner `view-freeze`/`view-evidence` POSTs now accept only comparison ID,
+experiment generation and event key. Freeze uses actual immutable publication;
+current evidence rechecks authority on every completed-key retry and exposes
+source/semantic scope plus unknowns, never a native readiness ticket. Cold
+view-binding GET uses the existing metadata store after off/revoke. The service
+owns source threads through HTTP cancellation; stop joins them before final
+settlement. No automatic next/query or canonical skill mutation is introduced.
+
+On one frozen source map,47 unittest checks plus the actual route snapshot check
+passed in9 sequential processes,295.126s wall. Main session/CSRF protection covers
+all26 improvement routes. The snapshot changes618→621 with exactly3 additions;
+all retained definitions and relative ordering remain exact. The actual lifetime
+test rejects a controlled mutation removing the new stop joins, then passes on
+unmodified code. Existing B/C owner/stop/lifetime workflows and actual v4 paired
+reservation remain green. Operator guide:
+`../../dev/agent-skill-m2d1-views.md`. Evidence
+`../evidence/2026-10-23-m2d1-task5-view-controls.json`, SHA256
+b3a617be7e9eda67398ff166b28ff7ff833908e2f779089bfa670f088b3305a9.
+The route snapshot was intentionally regenerated with the direct Python script;
+the wrapper does not forward its documented `--update` flag. No product failure
+was hidden by accepting an unrelated route change.
+
+Profile81/2221a8599529ac50cf3c9c98057cd003e9dfc45828ac808b5f11e802279511ba
+is unregistered; historical C qualification does not apply. No real model call,
+selected-final positive, business proof, deployment or activation occurred.
+Task3/4/5 and D2/E/F/M3–M8 stay OPEN. Earlier LinuxCI39970471529 succeeded on
+c5229ea3; ec6f1d6c CI39976688967 was still in progress at this checkpoint.
+PR803 remains draft; independent whole-D1 review and final-head CI are pending.
+
+### D1 Task3 checkpoint, 23 October
+
+Task1/Task2/legacy-fixture Linux CI39944212136 succeeded on exact d81606b5.
+Protocol-only676fe8a8 and additive-link ab5dc1ef were then pushed together;
+early Linux CI39949800035 is running on ab5dc1ef7d7113befe893618ff79fa1376d1ef91.
+The new SQL/format checkpoint passed92 tests in six sequential affected scripts,
+378.281s, with retained source/runtime/log hashes. Existing released B/C schema
+definitions and C34 native footprint remain byte-identical. Actual v3 Trial
+splicing into v4 links, legacy admission after view publication and direct view
+publication after legacy admission reject. No future Trial/Call was fabricated.
+
+Task3 remains OPEN: actual v4 Trial/CallLedger dispatch, current-host fences,
+bounded stop/recovery/report consumers and existing qualification-registry links
+still require implementation. SQL/blob historical view proof is being added
+separately; it cannot authorize current files, native execution or live scope.
+C's native registration must be invalidated in the same change that makes v4
+reachable and the exact final D footprint qualified before actual queries.
+The draft PR is not ready to integrate. Business/live/M3–M8 gates stay open.
+
+Subsequent Task3 history checkpoint b755699e passed56 scoped tests (portable
+evidence170d0de3). Actual reservation now passes140 tests in nine sequential
+affected checks,231.248s, recorded in
+`../evidence/2026-10-23-m2d1-task3-reservations.json` (SHA256
+bde6b073ae78acbf4e220cd5363fa40fd16e1f4bc5dd3d2ac225cd83a0b8a796).
+Genuine v4 baseline/candidate Trials and existing Calls/links are created; source
+changes roll back actual reservations, and cold replay stays readable after
+off/revoke. No model query/engine marker. Current native footprint is now76
+files/51b62052, deliberately UNREGISTERED, invalidating C9dc for this new code.
+No default actual native execution can pass until final D qualification. Current
+Task3 still lacks complete shared stop/recovery/report/next/admission scopes and
+existing qualification-registry ownership. V4 materialization explicitly denies
+until Task4 implements it. Task3 and D remain OPEN; no live scope is enabled.
+
+Lifecycle1a09a0e3 then passed28 affected checks (182.812s): stop/refund/recovery
+includes actual v4 links under the shared12000 comparison bound, and next refuses
+pending/terminal-no-result slots. Owned next now passes71 scoped+affected checks
+(401.851s recorded, basis per row), evidence
+`../evidence/2026-10-23-m2d1-task3-owned-next.json` SHA256
+4d9df2ba736bf8fc736dc2d8e0e19d10b8f24cf406d7ee0dc99684b1aa944221.
+Actual brain barrier covers next/source/native-preflight/Trial+Call reservation;
+concurrent owner keys reserve once and cancelled HTTP stays owned through stop.
+Current native profile is78 sources/058166e7, deliberately unregistered. No real
+query or actual v4 materialization. View report/final registry, retained lifetime
+audit, actual workspace/native qualification and public controls remain OPEN.
+Early Linux39949800035 succeeded on ab5dc1ef; later source needs its own CI.
+
+Linux39952941333 failed52c79f1c only because worker's exact expected source list
+still pinned C34. Correction9795f698 explicitly expands it to78, preserves set/
+hash equality and adds duplicate/count refusal;9 worker+1 default-denial checks
+pass, with no production source change. Evidence43f43c28 qualifies prior scope
+reuse, not a fresh final CI. Later dad605c3 Linux39957029202 was already running
+before the fixture correction and may retain that exact old failure.
+
+Concrete retained-host reconstruction then reproduced role_workflow_closed.
+Resolver replacement now requires both exact typed same-store workflow/owner
+close futures to complete successfully. A live owner or missing/pending/cancelled/
+failed close refuses replacement, without constructor source/native I/O. Current
+32 scoped/affected checks pass276.518s; evidence
+`../evidence/2026-10-23-m2d1-task3-view-lifetime.json` SHA256
+c56e88ee52a9813711021db8d93984f53594d0ee42bdbb519eab8679dcf7c60e.
+Current78-source profilebfda8912 is UNREGISTERED. No real query/native execution,
+ordinary D2 task/session resume, business or rollout acceptance is claimed.
+
+Report checkpoint:63 tests passed sequentially in166.953s on one frozen source
+map. Real pending v4 Trial/Call links now appear in reports; missing evidence
+remains inconclusive. Current owner meaning veto blocks new reporting, while
+historical report bytes/hash and cold replay remain unchanged, including the
+older metadata-only prototype with no result refs. Full18 integrity checks and
+report v1 envelope remain intact. Evidence
+`../evidence/2026-10-23-m2d1-task3-reports.json`, SHA256
+aabb253c30404d6155ba2bba92981285462da56e9e6439c5218abc363567609d.
+Current78-source profile4e3ecee0 is unregistered; final qualification ownership,
+actual view workspace/native execution and public controls remain OPEN.
+Linux39957029202 failed on olderdad605c3, before the fixture correction; current
+Linux39959675109 remains in progress on254a90ca, preceding this report change.
+No real model query or business/live acceptance is claimed.
+
+Tuning workspace checkpoint:69 checks passed in171.812s across actual view
+materialization4, sandbox, TrialStore, view reservation and worker footprint.
+The real linked pair materializes/prepares exact baseline revision/A candidate
+bytes with common inputs, without modifying canonical or manufacturing a bundle.
+Source edits during solver read roll back the materialization and retain exact
+prior exposure rows. V1 prompt/hash stays unchanged; v2 binds its view descriptor.
+Evidence `../evidence/2026-10-23-m2d1-task4-materialization.json`, SHA256
+87d9d7306dc3226ac3f2a68860bc4277eec699c08535e4ba4892c5aed38d76d3.
+Current79-source profilebeddb902 is unregistered. Native v4 receipt/check/result
+integration, final qualification ownership and public controls remain open.
+No actual native query, successful result, eligibility or business/live proof.
+
+Native identity/pipeline checkpoint:75 checks passed,176.126s recorded with
+per-row timing basis. Actual owner schedule/Runner/ledger/products/Fernet results
+and cleanup execute one pair using a clearly simulated adapter. Result4 pins
+the full request/lineage/view; Profile receipt2 derives from real workspace2.
+Full18 check IDs and unknown effort/asset use remain; both simulated results
+are non-pass, and comparison selection stays unsupported. Actual histories read
+exactly after off/revoke. Legacy checks/Claude/results/v2 execution pass.
+Evidence `../evidence/2026-10-23-m2d1-task4-view-execution.json`, SHA256
+4d7c1b9f7ea74b27e1b335ae93274561fb8290e2a82915ed61bc66bb54aea721.
+Source79/2192bf86 remains unregistered; no real model call/native qualification.
+Linux39959675109 SUCCESS254a90ca; Linux39965159570 in progressc811b9d6.
+Current result code still requires its own CI/review. Final holdout ownership,
+native scenarios on final exact source and public controls remain open.
+
+Before final consumption, an audit found current effective-view capture did not
+reuse the improver's global holdout-alias rule. Genuine owner-created case sets
+reproduced private reads despite qualification/regression aliases. The shared
+unchanged SQL guard now runs before any current view plaintext; existing frozen
+metadata remains readable.31 checks passed262.843s recorded: new boundary3,
+improver inputs10, view sources16, real paired reservations/native-footprint2.
+Evidence `../evidence/2026-10-23-m2d1-task3-view-holdout.json`, SHA256
+07ef50951c43236be3128be3e9740bed1521e94e1e31c1a0bf178c88517cf6fc.
+Current79-source b46e2cc3 is unregistered. This is a current-authority repair,
+not a final holdout claim/native/business acceptance. Task3 remains OPEN.
+
+Additive final-link metadata checkpoint:79 checks passed204.563s recorded across
+new guards4, view schema, TrialStore, migration/store and native footprint. A
+real legacy CaseStore reservation cannot be adopted by a tuning comparison;
+missing/changed guard blocks new authority before plaintext. Earlier prototype
+metadata stays readable, existing view DDL is AST-identical, and schema2
+downgrade drops the new child first. Evidence
+`../evidence/2026-10-23-m2d1-task3-qualification-schema.json`, SHA256
+c52e682319fafcd9613e125ce3741bc6b27cb9f7bf3ae4a4b94f4b7327e3179a.
+Current79-source d6b20eb5 is unregistered. Genuine positive selected-final link,
+owned reserve/consume and final native/public controls remain open; runtime
+final requests are still explicitly denied. No final/eligible result is faked.
+Linux39965159570 SUCCESSc811b9d6; b3a3f0cb CI39966693829 was still in progress.
+
+Owned final code checkpoint:70 tests passed494.250s across8 sequential scripts
+on one source map. Conditional selected-report/current-view authorization now
+reserves/links the existing qualification registry in actual admission and
+consumes only before returning qualification input. Cold historical ownership
+has a separate SQL/blob reader. Actual tests deny nonfinal/foreign/missing scope,
+missing/foreign transaction and consumed qualification relabelled as regression;
+the real tuning pipeline with simulated engine still passes and stays non-pass.
+Evidence `../evidence/2026-10-23-m2d1-task3-owned-qualification.json`, SHA256
+5f54cee420f022709b4ea9278fcc5cda975f85c2b1faf55f9f9b9eea0283697a.
+Source81/759f44ab is UNREGISTERED. Genuine positive selected-final execution is
+unverified; no eligible selection/result was fabricated and full18/unknown was
+preserved. Legacy v2 tuning-family bypass is under separate audit. Task3, native
+qualification, public controls and whole-D1 integration remain OPEN.
+
+Legacy baseline bypass repair: genuine RED3 showed the old v2 path reading
+context despite a later owner-declared holdout alias, and its last SQL fence
+accepting that alias. New v2 reservation/admission and common late fences now
+use the same no-consumed-exception tuning rule.30 checks passed134.850s across
+the new boundary, B lineage/admission/actual execution and actual v4 pair/native
+footprint. Exact old replay/metadata stays cold; qualifier/history source and
+v4/materialization methods retain their earlier qualified scope by AST/hash.
+Evidence `../evidence/2026-10-23-m2d1-task3-legacy-alias.json`, SHA256
+fa40a4baf1887cc1c873be511546b3d45311f3636c48c5e6c7ba18422180ee40.
+Current81-source c2e7968e is unregistered. Actual positive final/native, public
+controls and independent whole-D1 review/CI remain open; Task3 is not done.
 
 - Final affected regression21/21 GREEN,663.451s, qualified across two frozen
   segments: first15 passed scripts retain identical product/helper/test bytes;
@@ -468,7 +2921,7 @@
 |---|---|---|---|
 | M0 | Complete: PR #794 merged09903315, CI39793439501 and publication39797072172 passed;0.287.0 | Not applicable to foundation | Metadata only; no live activation or production restart |
 | M1 | Complete engineering: PR795 merged9dd7a9f9, CI39852883192 and publication39856024117 succeeded;0.291.0 | One historical real-engine synthetic baseline; aggregate unknown; no business pilot | Trial/activation flags false; not enabled |
-| M2 | A0.292.0 and B0.293.0 published; C/PR8010.296.0 in final regression/CI; D–F open | Real synthetic C role pipeline ran on ddec90ad; baseline fail, semantic unknown; no independent skill pilot | Not enabled |
+| M2 | A0.292.0, B0.293.0 and C0.296.0 published; D1/PR803 reserves0.299.0 on main0.298.0. View/ledger/qualification infrastructure and isolated skill reads implemented; canonical native dispatch and full D2/E/F remain open | Real synthetic role/format/observation attempts remain historical, with fail/unknown/not-run results; no eligible pair or independent business pilot | Not enabled |
 | M3 | Pending | No qualification or live canary | Not enabled |
 | M4 | Pending | No adapter/routing pilot | Not enabled |
 | M5 | Pending | No agent pilot | Not enabled |
@@ -506,11 +2959,14 @@
 
 ## Next action
 
-Finish C/PR801's final affected regression and exact-final Linux CI, recheck
-main/version, integrate when all required gates pass, and verify actual0.296.0
-publication. Continue M2D's candidate effective view, sealed qualification and
-scoped manual apply/revert from that integrated foundation. Source gap analysis
-may proceed during CI; retain all existing isolation/ownership gates.
+Continue D1 from PR803/current continuation and the native-outcome-and-dispatch
+plan: canonical isolated async capture, exact worker/guardian bootstrap/control,
+owned preflight plus SDK version/query launches, then versioned read-outcome,
+dispatch/reasoning and operation input-delivery integration. Freeze and qualify
+the complete changed footprint before registering or retrying the selected account.
+Use focused RED/GREEN and affected tests per Goal12; reuse unchanged pinned proof.
+Continue full D2 production task/session bindings, then E apply/revert/canary and F
+operator/feasibility without relabeling trial-only resolution as complete D.
 Do not use live prompt builders or fallback engine selection as a heartbeat guard.
 The owner run and activation capabilities remain false pending their actual release gates.
 Full M0–M8 Goal remains active; no business or live rollout gate is closed by a code merge.

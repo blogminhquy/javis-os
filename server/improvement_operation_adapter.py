@@ -6,7 +6,7 @@ import math
 import time
 
 from improvement_cases import _digest, _fields, _frozen
-from improvement_claude import ClaudeTrialAdapter
+from improvement_claude import ClaudeTrialAdapter, _verify_owned
 from improvement_operation_workspace import OperationWorkspace
 from improvement_store import _hash
 
@@ -23,7 +23,13 @@ class ClaudeOperationAdapter:
     def verify(self):
         return self._native.verify()
 
-    async def execute(self, request, workspace):
+    def bind_native_authority(self, assets, principal, *, scope_hash, current, lock=None):
+        self._native.bind_native_authority(assets, principal, scope_hash=scope_hash, current=current, lock=lock)
+
+    async def verify_async(self):
+        return await self._native.verify_async()
+
+    async def execute(self, request, workspace, *, on_closing_observations=None):
         if self.workspace is None or not callable(self.before_engine_start):
             raise ValueError("operation_start_boundary_unbound")
         request, receipt = _frozen(request), _frozen(workspace)
@@ -42,7 +48,20 @@ class ClaudeOperationAdapter:
                 or request["engine_config_hash"] != manifest["engine_config_hash"]
                 or request["engine_config_hash"] != _hash(self.pin)):
             raise ValueError("operation_configuration_drift")
-        verified = await asyncio.to_thread(self.verify)
+        if manifest['version'] == 2:
+            if self._native._native_boundary is None:
+                raise ValueError('operation_native_parent_unbound')
+            from improvement_operation_profile import operation_system_prompt
+            from contextlib import aclosing
+            async with aclosing(self._native._native_boundary.execute('operation', request, receipt, adapter=self._native,
+                    workspace_root=self.workspace.root, brain_id=manifest['brain_id'],
+                    before_engine_start=self.before_engine_start, system_prompt=operation_system_prompt(manifest),
+                    tool_policy='fixture_only', on_closing_observations=on_closing_observations)) as packets:
+                async for packet in packets: yield packet
+            return
+        if self._native._native_boundary is not None:
+            raise ValueError('operation_native_parent_legacy_input')
+        verified = await _verify_owned(self)
         if not verified.get("supported") or verified.get("capability_hash") != request["capability_hash"]:
             raise ValueError("operation_capability_drift")
         from improvement_native_transport import execute_worker

@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "base_head": "46870a6b29fd4d07b190a3738b1a813d66f83d8d",
+  "scope": "Pure startup3 consistency; portable private Session environment; explicit native-inventory runtime dependency. No native/account/runtime consumer enabled.",
+  "independent_review": {
+    "scope": "Pure startup3 consistency and QualificationSession private portable environment; no runtime activation",
+    "reviewed_head": "46870a6b29fd4d07b190a3738b1a813d66f83d8d",
+    "verdict": "approved_with_explicit_integration_obligations",
+    "findings": [
+      {
+        "severity": "Minor",
+        "issue": "Missing receipt.path escaped closed ValueError contract",
+        "status": "closed",
+        "evidence": "Guarded get(path) reaches strict text/path validator; final protocol7 includes omitted-path negative"
+      }
+    ],
+    "tests": {
+      "collected": 35,
+      "passed": 35,
+      "skipped": 0,
+      "unittest_seconds": 7.716,
+      "runs": [
+        {
+          "module": "test_improvement_qualification_protocol.py",
+          "exit_code": 0,
+          "wall_seconds": 0.376373,
+          "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-startup3-protocol7.log",
+          "log_sha256": "8f529d318f534587364a80e48649ac9a4c28c3b157bae7db7f13817295c8b1de",
+          "temp_root": "D:\\jqs-be00f796"
+        },
+        {
+          "module": "test_improvement_qualification_session.py",
+          "exit_code": 0,
+          "wall_seconds": 7.9401377,
+          "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-startup3-session12.log",
+          "log_sha256": "4390fa3219f1e334ef1c213768ab825b662fb862ee9bc4b760fae216f9a57d45",
+          "temp_root": "D:\\jqs-6f24a852"
+        },
+        {
+          "module": "test_improvement_qualification_environment.py",
+          "exit_code": 0,
+          "wall_seconds": 0.3036597,
+          "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-startup3-environment5.log",
+          "log_sha256": "81705b32c04720d4084dc44a66dc440d81da57d5e666e0975af9eb421a4f78f0",
+          "temp_root": "D:\\jqs-79fac962"
+        },
+        {
+          "module": "test_improvement_native_protocol.py",
+          "exit_code": 0,
+          "wall_seconds": 0.1941105,
+          "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-startup3-startup2-11.log",
+          "log_sha256": "fc4a25c7497fe58838c65ea39ed9e17ecbca2de0cc0f6265a9f20fecb429b192",
+          "temp_root": "D:\\jqs-0a54801b"
+        }
+      ]
+    },
+    "pins_before_after_identical": true,
+    "pins": {
+      "server/improvement_sandbox.py": "e7e8b6263b7eb4e4410b5eeb237a5ff3a3541bf6b285a0d5a2b5411640a66dc6",
+      "server/improvement_qualification_environment.py": "b0c36fe2a44f7982ea1c1046a411516d5f37e81f6c9c32e64de2b0935471cad2",
+      "tests/python/test_improvement_qualification_protocol.py": "5e16faac3505a1ce3502c201036fdb29463d05a8346cd9c5e7b50b4f8268fb79",
+      "tests/python/test_improvement_qualification_environment.py": "917e3607b8abe9665f3c594d2ecb3edccc70e21bad15e4c9da1617be2b9b3489",
+      "server/improvement_native_transport.py": "5bb7cb41f655c176a7ee6ff926a6342eef93ab42e3122a7f6a35b1bf43c01a15",
+      "tests/python/test_improvement_native_protocol.py": "f2147beed13e2f3736130c6f14ff4085ffa2d5ecd5805aba25c3c3130aa2c7cb",
+      "server/improvement_qualification_records.py": "96917a3e70eeb3309512b2d81cc214a0da0d915c2d2c382b516d87842dc07fff",
+      "server/improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+      "tests/python/test_improvement_native_sdk.py": "d5562bf2ab0da6518899ce1d04b466a710360f98af61efb23f0103684ab2e4b2",
+      "server/improvement_store.py": "20b4c26c59b265ded362a0f2ead2688e6018552623cc0dd7ac08cd0e6b0dcaf3",
+      "server/improvement_native_qualifications.py": "95a56aafa827ac7ede6adbe46205258f81fca889bec42d4bcf2b4901365f6fa5",
+      "server/improvement_qualification_session.py": "a4aac824518ba76a926a53aa4388559e90776e307ccaf8ab5399f444a62adb85",
+      "tests/python/_paths.py": "57e241397ca969a4b942398d173123c2779ec6db58950e079e6d2c4883c68eb3",
+      "server/improvement_qualification_protocol.py": "c01fc4026593ee306536d34861bb7be5e93de159989f08ad4e0a43d732bea9fa",
+      "server/improvement_claude.py": "8d51fce8e7be96d7615e14c50ca2c8eeada8ff40291572886e9725e5e3cc9d56",
+      "tests/python/test_improvement_qualification_session.py": "bbf7291dc9283b7e0ab4453302db3a35248c599a41bb9a81c51a3a679e6da315",
+      "server/improvement_native_release.py": "cdec514e2ae63f4e33ce63b56c1e525153cc2bacd88897a95605ac6f69f3593b"
+    },
+    "limitations": [
+      "Windows local verification; POSIX-shaped environment test is simulation, not actual Linux execution",
+      "Early remote Linux snapshot predates missing-path correction and is partial, not exact-final CI",
+      "No runtime consumer, typed permit, launch, account, provider, source inventory, or registration authority proved",
+      "Parser checks only declared request/call data; actual M0 joins, time/budget/source authority and filesystem/empty-HOME validation remain consumer obligations",
+      "worker_binding3 reuses private2 shape: authenticated outer startup3/run/capability binding must remain owned through actual channel; no provenance from data alone"
+    ],
+    "external_ci_status": {
+      "run_id": "40051717920",
+      "status": "failed",
+      "source": "parent-reported terminal status; not independently replayed",
+      "failure": "Session offline closure could not import packaging.requirements because packaging is absent from explicit requirements; local35 success does not prove clean-install dependencies",
+      "snapshot": "Early snapshot predates missing-path correction",
+      "later_checks": "Not run after CI error",
+      "followup": "Root owns explicit dependency repair and one new isolated Linux snapshot; no local35 rerun needed absent source changes"
+    }
+  },
+  "review_report_sha256": "2d1e785f3b9938c0061f4dfe78ea80c5364548a74bc9b0527a60df31bfde0611",
+  "dependency_review": {
+    "scope": "requirements direct packaging dependency repair only",
+    "verdict": "static_approved",
+    "tests_run": 0,
+    "requirements_sha256": "295c551d3738ec40e97adf508ed95b9af1d8e149c2b70973553cc933df916bd9",
+    "dependency": "packaging==26.2",
+    "direct_usage": [
+      "server/improvement_native_release.py:253 packaging.requirements Requirement/InvalidRequirement",
+      "server/improvement_native_release.py:254 packaging.markers default_environment"
+    ],
+    "release_source_sha256": "cdec514e2ae63f4e33ce63b56c1e525153cc2bacd88897a95605ac6f69f3593b",
+    "snapshot_commit": "fe7ecb0185f5835527b8042843248f88c5b951a7",
+    "snapshot_sha256": "c1d8c5d783a21acabdca730ec2d4ec70240914eded9e1916e05d18ac06361a7d",
+    "snapshot_validation": "git show contains exact packaging pin; manifest requirements hash matches current file, four current reviewed startup3/session pins unchanged",
+    "limitations": [
+      "Clean-install Linux40051859131 pending at review; no CI success inferred",
+      "Local installed26.2 author metadata is parent-provided; no runtime process launched in this review",
+      "No protocol source changes, native/account proof, registration or final-head full CI"
+    ]
+  },
+  "dependency_report_sha256": "15298658d9cd7d76ab652101fbbd84686a36fe768ab87bb0479d214255d75440",
+  "early_linux": {
+    "run_id": 40051859131,
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40051859131",
+    "conclusion": "success",
+    "head_sha": "fe7ecb0185f5835527b8042843248f88c5b951a7",
+    "snapshot": {
+      "base": "46870a6b29fd4d07b190a3738b1a813d66f83d8d",
+      "prior_ci": "e4f7206dbaaa0bbd5ab44255abc8f25dab33f34e",
+      "ref": "refs/heads/codex/agent-skill-improvement-qualification-linux-check",
+      "commit": "fe7ecb0185f5835527b8042843248f88c5b951a7",
+      "tree": "29753e93a7cb09289c7d0d50b43a0743297a34b2",
+      "selected_raw_sha256": {
+        "server/improvement_qualification_session.py": "a4aac824518ba76a926a53aa4388559e90776e307ccaf8ab5399f444a62adb85",
+        "tests/python/test_improvement_qualification_session.py": "bbf7291dc9283b7e0ab4453302db3a35248c599a41bb9a81c51a3a679e6da315",
+        "server/improvement_qualification_protocol.py": "c01fc4026593ee306536d34861bb7be5e93de159989f08ad4e0a43d732bea9fa",
+        "tests/python/test_improvement_qualification_protocol.py": "5e16faac3505a1ce3502c201036fdb29463d05a8346cd9c5e7b50b4f8268fb79",
+        "requirements.txt": "295c551d3738ec40e97adf508ed95b9af1d8e149c2b70973553cc933df916bd9"
+      },
+      "workflow_sha256": "e8b2c1a0d932b75ed180950d2ca721c987e4cdebcb246ee3d539b29d18a66520",
+      "scope": "Early genuine Linux preparation only, no native/account/final-head CI qualification. Base Git tree plus five raw selected files including explicit packaging dependency; ordinary Git normalization may differ from other Windows working-tree bytes."
+    },
+    "tests": 46,
+    "skips": 0,
+    "seconds_sum": 4.197,
+    "seconds_by_suite": {
+      "protocol7": 0.061,
+      "session12": 1.261,
+      "environment5": 0.007,
+      "startup2compat11": 0.013,
+      "records11": 2.855
+    },
+    "log_sha256": "5d290f762e0c6a2bbbdb09c68c1ac5178cddc36e2b655504fbdbb223dad75367",
+    "prior_failed_run": 40051717920,
+    "prior_failure": "Clean installed requirements omitted direct packaging dependency; environment5 passed, session12 had one import error, later suites not run.",
+    "limitation": "Isolated early Linux preparation CI only; not exact-final-task-head full CI or native launch qualification."
+  },
+  "author_logs": {
+    "posix_red1": "red-session-posix1.log",
+    "startup_red7": "red-startup3-7.log",
+    "startup_green7": "green-startup3-7.log",
+    "missing_path_green1": "green-startup3-path1.log",
+    "missing_path_red1": "red-startup3-path1.log",
+    "posix_green1": "green-session-posix1.log"
+  }
+}

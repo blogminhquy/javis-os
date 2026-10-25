@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "status": "scoped_independent_approval",
+  "pins": {
+    "server/improvement_native_trace_checks.py": "942b180d60aa663ddedb47ee3fdcbdd3428eee95e6d270f7c97ed548d9da8f5e",
+    "server/improvement_trial_checks.py": "7e56926074bb8009657c85a5aaa4acd2eb3efc9d9687b9f76c798e1052361c20",
+    "server/improvement_operation_checks.py": "b86ece92eb641e2401ca5ea162a2cd3c02b4694e30e11004c756930f4aca98a8",
+    "server/improvement_trial_results.py": "6cf703c16fdda188446b6d9444487035b37a66e7f439ce31b7c36e2f8976d5d8",
+    "server/improvement_operation_results.py": "55241fec5c74879f011cd0226af269af82d723f8725723ca9de2cc0655a3c202",
+    "server/improvement_trial_products.py": "ce73c8fdbe53f9415d4536faac7f0380645b7862da999f6f78c5153d3f58e69d",
+    "tests/python/test_improvement_native_trace_checks.py": "021efd15b20a0150f7ad36c950e199da20a98ead5c5565c3f99a17ad0b6fc587",
+    "tests/python/test_improvement_native_result_consumers.py": "5767adf6da01a72c293dcd277d60ea72ee32f5e60828ff111552c645351678f3"
+  },
+  "independent": {
+    "tests": 19,
+    "seconds": 68.323,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-result-checks/independent-final19.log",
+    "log_sha256": "c4b356c2a4e945c31f565b5589743f5d4762e0a11e384d8f0b1d57e0d4b71363"
+  },
+  "affected_legacy": {
+    "tests": 7,
+    "seconds": 12.305,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-result-checks/affected_legacy.txt",
+    "log_sha256": "0a59559df53e0a6395a4b87d6da6b28289d3f2740db9c49d351ff7f6e91bd336"
+  },
+  "review": {
+    "reviewer": "root",
+    "open_scoped_findings": 0,
+    "resolved": [
+      "Exact source-policy hash on all four joins",
+      "Preserve lazy legacy one-packet decode",
+      "Purpose-specific SDK query environment hashes"
+    ]
+  },
+  "behavior": [
+    "Closed observation2 grammar and image/dispatch/nonce/order validation; all four durable exact M0 allow records required by real product/result consumers",
+    "Final publication transaction rereads unchanged encrypted history and exact decisions",
+    "Cold historical results remain readable after workspace cleanup without source warmup or live authority",
+    "Trial4 receipt/read-outcome proof and actual operation2 delivery remain separate from provider/internal reasoning"
+  ],
+  "limits": [
+    "Synthetic capture/binding/messages with actual SQLite/encrypted stores, no full native qualification",
+    "First three environment hashes equal; query relation remains UNKNOWN in historical reader because hashes alone cannot reconstruct frozen environment",
+    "Parent validates exact SDK-added query environment; raw read/provider/comprehension/internal reasoning stay UNKNOWN unless separately proven",
+    "Absent native qualification stays UNKNOWN; no weakening of final eligibility"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-result-checks"
+}

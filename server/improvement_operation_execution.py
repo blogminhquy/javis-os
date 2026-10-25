@@ -70,6 +70,11 @@ class OperationExecution:
 
     def _current(self, connection, principal, row):
         assert_installed(connection)
+        if row["kind"] == "compose":
+            from improvement_compose_permissions import ComposePermissions
+            request = json.loads(row["request_json"])
+            return ComposePermissions(self.plans).current(connection, principal,
+                request['compose_authorization_id'], operation=row)['prepared']
         experiment = self.plans.records._row(connection, row["brain_id"], row["experiment_id"])
         experiment, prepared = self.plans._state(connection, principal, row["experiment_id"], experiment["generation"], unsealed=True)
         phases = ("proposing", "probing", "comparing") if row["kind"] == "semantic" else ("proposing",)
@@ -93,10 +98,26 @@ class OperationExecution:
             if replay is not None:
                 return replay
             row = self._row(connection, principal, identifier)
+            if row["generation"] != expected_generation or row["status"] != "pending" or row["attempt"] != 0:
+                raise IM.ConflictError("operation_state_stale")
             prepared = self._current(connection, principal, row)
+            original = dict(row)
         self.host._snapshot_observe(principal, prepared[1])
-        capability = ClaudeOperationAdapter(prepared[1]["engine_config"]).verify()
-        if type(capability) is not dict or capability.get("supported") is not True:
+        def native_current(connection, joined):
+            for _ in range(2):
+                current = self._row(connection, principal, identifier)
+                if dict(current) != original or self._current(connection, principal, current) != prepared:
+                    raise IM.ConflictError("operation_authority_changed")
+                self.host._snapshot_observe(principal, prepared[1])
+            return "allow"
+
+        adapter = ClaudeOperationAdapter(prepared[1]["engine_config"])
+        adapter.bind_native_authority(self.assets, principal, scope_hash=IM._hash({
+            "version": 1, "kind": "operation_reserve", "brain_id": _brain(principal),
+            "request_hash": IM._hash(payload), "authority_hash": IM._hash([original, prepared])}), current=native_current)
+        capability = adapter.verify()
+        if (type(capability) is not dict or capability.get("supported") is not True
+                or capability.get("account_ready") is False or capability.get("domain") == "qualification"):
             raise ValueError("operation_native_unavailable")
         from improvement_experiment_protocol import _digest
         _digest(capability.get("capability_hash"))
@@ -169,7 +190,9 @@ class OperationExecution:
             request = json.loads(row["request_json"])
         self.host._snapshot_observe(principal, prepared[1])
         data = json.loads(self.blobs.read(_brain(principal), data_hash))
-        manifest = operation_materialization({"version": 1, "brain_id": _brain(principal), "operation_id": identifier,
+        from improvement_native_formats import input_version
+        version = input_version(prepared[1]['engine_config'], 'operation')
+        manifest = operation_materialization({"version": version, "brain_id": _brain(principal), "operation_id": identifier,
             "request": request, "engine_config_hash": prepared[0]["engine_config_hash"], "data": data, "learning_origin": "compose"})
         with self.store._Tx(self.store) as connection:
             row, _ = self._leased(connection, principal, identifier, expected_generation, lease_token, time.time())

@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "status": "scoped_independent_approval",
+  "pins": {
+    "tests/python/test_improvement_native_retry_history.py": "23200083d71e5a318175df4d8437cd80933973f7fb86e6a4e53a40b0855f129e",
+    "tests/python/test_improvement_native_plan_admission.py": "e8df6ae92301a5194cf839ae29b905774d0d0405b784dd755df94d26fcdbd3c5",
+    "server/improvement_preparation.py": "3c8f8aa03d46ddefecc247e5be893f4b3c94662c032fedd302a8660bd3d9cb2d",
+    "tests/python/test_improvement_native_admission_authority.py": "c039337c06f38ae5dcaced4133a6fbf31375b9f5d6c90d764f752ad7f7c17074",
+    "server/improvement_experiment_admission.py": "54512117065e28cc4f6ca108b35c84e4cf28ff7f7ec7808f9978b786d3652e6e",
+    "server/improvement_proposals.py": "75862866ef6ff0fe3f6518a21a702d227c12f442fca60ef10c3074faf89fcd36",
+    "server/improvement_semantic_review.py": "1676eda6591abbfc85725182d50c246e209f3c44f6169859601ed6e496b57189",
+    "server/improvement_operation_execution.py": "8c707b9c02515339d825ef68635202e482e0b173dda00d3f9e44e6f3db9c5496",
+    "server/improvement_trial_admission.py": "74f5668d417809ad3ad9a59b80358a1538820f4b9f1919624aa950d09a1a218a",
+    "server/improvement_experiment_service.py": "8a8ac5a24943180c306159ee9a1fd64a07ac71db5dc04d5ee2310b82234db1f3",
+    "server/improvement_operation_retry.py": "aeeb0ee5c361b1d0b21f11e4cb02abee6755ae5a333e4c231c78ba08558c3c08",
+    "server/improvement_view_admission.py": "37bf2d61daa78dcb57900d09842f94c09f4db5893ca8586ceebb56b9d988f9b6",
+    "tests/python/test_improvement_native_role_admission.py": "1b688f323b449656f99b1a7866a85e16348cb6fd60dada299ef952bfd9c3c091"
+  },
+  "independent": {
+    "tests": 18,
+    "seconds": 82.937,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/whole-review-caller18.log",
+    "log_sha256": "2ad8393ea0ff5e7aa804e34d7e82ffb23d86e55876efa5bbc42b66c8a31db3a1"
+  },
+  "author_history": [
+    {
+      "tests": 5,
+      "seconds": 10.378,
+      "exit": 1,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/red-first5.log",
+      "log_sha256": "70ef24e0ae25035d7c8eda674c3e847ae7c942280b3dda6975a42dbbfd01b1e3",
+      "failures": 5
+    },
+    {
+      "tests": 5,
+      "seconds": 13.571,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/green-first5-contract.log",
+      "log_sha256": "f435a900c860e6dd1ee757d6c46d6c7491d88bfedf13cc5cf264ebaa833386eb"
+    },
+    {
+      "tests": 6,
+      "seconds": 44.941,
+      "exit": 1,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/red-plans6.log",
+      "log_sha256": "34ed5bebbb13293194472099d63bf1a0d9e87cda10de6a357880c11c974d8595",
+      "failures": 6
+    },
+    {
+      "tests": 6,
+      "seconds": 69.67,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/green-plans6.log",
+      "log_sha256": "37bc9c5fd194dea8ef2a637ea4f21200c6a96e09f94151072c7df0124425465c",
+      "scope": "Before direct-current-denial test strengthening; positive cases unchanged"
+    },
+    {
+      "tests": 7,
+      "seconds": 55.699,
+      "exit": 1,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/red-roles4-revocation3.log",
+      "log_sha256": "cf80362bba8b02fb14608cd1afaffdf005afe4ae57d27234694d1a0107b52805",
+      "failures": 4,
+      "scope": "Missing role bindings RED4; final strengthened direct plan-revocation3 PASS"
+    },
+    {
+      "tests": 1,
+      "seconds": 5.72,
+      "exit": 1,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/red-retry-history1.log",
+      "log_sha256": "aa90a548df8036a421c78e61b88be55f1e0a11504a282246efb7b8d609bdaaa5",
+      "errors": 1
+    },
+    {
+      "tests": 5,
+      "seconds": 31.338,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/green-roles-history5.log",
+      "log_sha256": "0e6db70e5c81aa7d91eeaebd31bcc618c165185266388c62bc9822725bcaf02c",
+      "scope": "Before two narrow retry corrections"
+    },
+    {
+      "tests": 1,
+      "seconds": 4.523,
+      "exit": 1,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/red-legacy-retry-lazy1.log",
+      "log_sha256": "26c728bd1f4fac115b646411a3e8f0b39190e3ba5acb7ede5182bf8b508e32ab",
+      "failures": 1
+    },
+    {
+      "tests": 1,
+      "seconds": 3.472,
+      "exit": 1,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/red-retry-deadline1.log",
+      "log_sha256": "4a6222cdbb982a37a1da7eb04dc0f07232bbd442ff8a7b39b046f8727f4ac8c9",
+      "failures": 1
+    },
+    {
+      "tests": 3,
+      "seconds": 13.722,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/green-retry-final3.log",
+      "log_sha256": "8ad115beecfde31edd5c8e56f66cb37cde2aea68c5d3cc9304333a05a3de4763"
+    }
+  ],
+  "affected_legacy": [
+    {
+      "tests": 39,
+      "seconds": 106.28,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/affected-legacy-first2.log",
+      "log_sha256": "7993498db2142fc0e8e08afcc118b342a4b469eaa19748aa7a31547f37019d63"
+    },
+    {
+      "tests": 12,
+      "seconds": 178.021,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission/affected-next7-legacy12.log",
+      "log_sha256": "ab3345e992ecb69f5e8579870fe53d52cffe16eb95fe4480772b66e9368ae296"
+    }
+  ],
+  "review": {
+    "reviewer": "m2d1_whole_review",
+    "open_scoped_findings": 0,
+    "resolved": [
+      "Final cheap SQL/time retry eligibility check after last slow source/proof observation",
+      "Legacy retry decodes only selected active engine events; native observation2 authenticates whole history before interpretation"
+    ],
+    "first2_static_report_sha256": "4355c5c555eb7dfb62e8e20162b93112188ba238373f4924a490bca414b0091d",
+    "initial_next7_report_sha256": "ff2ae6e6f1422e95196d6e7533e7359fc34e7a5a950cbb61c634c13d6430b0dd",
+    "final_report_sha256": "365717016e098fd732d5db83476c6ddf26f37b32235f2833b55333ad664cd584"
+  },
+  "behavior": [
+    "All nine audited synchronous admission/reserve callers bind actual M0/principal/current callback before native verification; existing owned worker-thread bridge retained",
+    "Exact original plan/available slot/request/generation/source authority for Trial, experiment, preparation and view admissions",
+    "Resume binds original blocked row and frozen arms; proposal and semantic workflows retain exact actual input/candidate/source fences",
+    "Infrastructure retry binds original eligible attempt/call/trace/proof and original absolute deadline; final clock check follows last slow read",
+    "No preflight Trial/attempt/call reservation; policy revocation denies inside current callback, historical replay stays cold",
+    "Observation2 typed transient error can support exactly one retry with original deadline; artifact text cannot become error authority"
+  ],
+  "limits": [
+    "Actual SQLite/encrypted stores/source/workspace/call accounting, with engineering verifiers and synthetic SDK execution only",
+    "No native child/provider/account query, new registration, activation or final-head CI proof",
+    "Manifest producers and full default installed closure/native qualification still outstanding",
+    "Read-only source audit found baseline preparation manifest1 lacks a real paired view. Explicit native baseline support is required before whole pipeline activation; no invented view or legacy fallback",
+    "Full Goal M0-M8, business pilots, final gates and actual canary remain open"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-admission"
+}

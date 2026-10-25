@@ -319,10 +319,29 @@ def _iter_skill_dirs(base: Path):
         return
 
 
+def _task_metadata(root, lang):
+    """Frozen private task projection, or None only for an unbound caller."""
+    from improvement_task_skill_scope import current, ScopeUnavailable
+    from improvement_blobs import AssetUnavailable
+    import sqlite3
+    try:
+        scope = current(root)
+        if scope is None:
+            return None
+        return [{**row, 'enabled': True, 'source': str(Path(row['relative_path']).parent.parent),
+                 'path': str(scope.root / row['relative_path'])} for row in scope.manifests(lang)]
+    except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
+        # An unavailable bound task must not restart mutable disk discovery.
+        return []
+
+
 def list_skills(root, lang: str = "") -> list:
     """Mọi skill trong brain (bật + tắt), de-dup theo slug (canonical thắng - kể cả trạng thái
     bật/tắt). Mỗi item: {slug, name, description, group, enabled, source, path}.
     lang: ngôn ngữ hiển thị/định tuyến (xem theo_ngon_ngu). Rỗng = bản gốc trong file."""
+    task_metadata = _task_metadata(root, lang)
+    if task_metadata is not None:
+        return task_metadata
     root = Path(root)
     out, seen = [], set()
 
@@ -429,6 +448,9 @@ def cat_theo_ngan_sach(metas: list, so_max: int = None, ngan_sach: int = None) -
 
 def list_enabled_meta(root, lang: str = "") -> list:
     """Chỉ các skill đang BẬT (dùng để bơm router vào system prompt + mô tả tool javis_use_skill)."""
+    task_metadata = _task_metadata(root, lang)
+    if task_metadata is not None:
+        return task_metadata
     return [s for s in list_skills(root, lang) if s.get("enabled")]
 
 

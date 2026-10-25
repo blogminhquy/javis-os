@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "phase": "1-code-and-technical-checks",
+  "base_head": "7ee04de5",
+  "scope": "Existing proposer input renderer method and actual OperationProfile prompt consumer; closed outputs unchanged",
+  "upstream": {
+    "repository": "google-research/harness2",
+    "commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+    "path": "harness2/core/prompts.py",
+    "git_blob": "9ccacf23b64ac15b06a1939f26224960f56d757c",
+    "adapted": [
+      "propose decision sequence",
+      "_INV_TEMPLATE",
+      "_DOM_TEMPLATE",
+      "_KEEP_BASE",
+      "experience attribution",
+      "EVIDENCE_BOUNDARY/ANSWER_FREE"
+    ],
+    "license": "Apache-2.0",
+    "license_git_blob": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+    "provenance": "third_party/harness2/PROVENANCE.md"
+  },
+  "source_test_pins": {
+    "server/improvement_generation_protocol.py": "1f0eae722a727d095e84a7d0bf7e99fe23441d0ffa96367e47688ede895b637d",
+    "server/improvement_operation_profile.py": "a1b931e51899d612d18a444401bf898f8f1b963ff73e2766b4067d4ecd673fdd",
+    "server/improvement_skill_patch.py": "c06eb301c2c8d9ab7d68368f42256b9cb55108780c3782e3cf06aa0cdcbd87d3",
+    "tests/python/test_improvement_generation_guidance.py": "8ed63c8fa6b7a1d30840d8b52d663c3d576ac4b2c3906df93a1331e70ba0d9cb",
+    "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "third_party/harness2/PROVENANCE.md": "649e5215f8b161112d833d7e0d5d2447029f7f5762cbc14b1cea3274ea345c50"
+  },
+  "native_footprint_before": {
+    "profile_version": "claude-isolated-roles-v2",
+    "profile_hash": "ac4b613eb692598d31bede47e5ee755c80872e18f3792c9c1cd5b1fba6f939cd",
+    "source_count": 85,
+    "generation_source_sha256": "247824007fe4860079d1a3ec5d7ffde47b63337a1a78fc7b6a01830e9e9d0bbe"
+  },
+  "native_footprint_after": {
+    "profile_version": "claude-isolated-roles-v2",
+    "profile_hash": "6e32d3fb91d8ec4b5b596bd3d68f1165a3921fa7fcf3049b5b0c6872549d355e",
+    "source_count": 85,
+    "generation_source_sha256": "1f0eae722a727d095e84a7d0bf7e99fe23441d0ffa96367e47688ede895b637d"
+  },
+  "qualification": "generation_protocol is already in85PROFILE_SOURCES; exact-source identity changed, old qualification is not reusable. No native/profile registration or query performed.",
+  "root_author_verification": {
+    "red": "6tests:1failure4errors for missing method, .008s; repair compatibility already passed",
+    "green": "6PASS.019s, actual prompt consumer/closed patch/no-change/UTF8/evidence/batch/privacy and repair",
+    "affected": "4/4scriptsPASS271s: improver_inputs59s, operation_profile2, proposals209s, skill_patch"
+  },
+  "independent_verification": {
+    "reviewer": "m2d1_whole_review",
+    "tests": 8,
+    "passed": 8,
+    "skips": 0,
+    "seconds": 0.016,
+    "scope": "New guidance6 .014s plus existing GenerationJsonTests2 .002s;11pins stable, scoped static review clean"
+  },
+  "logs_sha256": {
+    "red6.log": "1553e90f988203a1a05a96c52a4f9dcca5184cfbe6d71f92ea517d82094384e9",
+    "green6.log": "088facc56e6f33a1536c89a03b58dec266de54b8a1bfe859efb5f62bf00c091a",
+    "affected-regression.log": "6dc90e4fce4b25f054519a70646a26c73540bda59f28ac847532ab098146f79e",
+    "independent-guidance6.log": "d003acf6f1cdadb634778792b485bb7807bb42481166a8cb2ab42ec4c1e96d7d",
+    "independent-json2.log": "9b3fff6209cf23caaab93d8bd89026513f77a469a84ecc06f9740506dd9c4199"
+  },
+  "observations": [
+    "Actual operation_user_prompt(propose) includes a trusted structured method separate from unchanged authorized evidence",
+    "Earliest evidence-grounded divergence, execution/domain_process lenses, minimal causal hypothesis, expected behavior and concrete risks",
+    "edit/evidence/location/observed-difference attribution preserves confounded single-rollout or nonisolated changes and separate overall/owner semantic reviews",
+    "KEEP_BASE maps to existing not_a_target_defect; no new output kind, schema, patch field, permission, source reader or runtime",
+    "Existing patch/no-change still validate; UTF8/protected regions, supplied references, batch limits, and structural-only repair remain enforced",
+    "Authorized adversarial text remains data; pure renderer performs no extra evidence I/O; no upstream benchmark or third_party code copied"
+  ],
+  "limits": [
+    "Instructions/tests do not establish model reasoning, injection resistance, causal quality or token/cost savings",
+    "No actual model/account/pilot/canary/deployment/settings activation; Phase2 remains deferred",
+    "No new full native qualification or exact-final-task-head full CI; remaining full Goal gates stay open",
+    "Recipe/compose/library/reflection product implementation remains separate; no full library loaded or unsupported lesson created"
+  ],
+  "independent_report_sha256": "cbda0ee6c090a435493a44cbb839628b24f8682babc2f70ca91478b85c1a2279"
+}

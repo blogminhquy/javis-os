@@ -76,7 +76,21 @@ class ProposalService(RoleWorkflow):
         built = self.inputs.build(principal, identifier, expected_generation=payload['expected_generation'])
         self._open()
         binding = state['prepared'][1]
-        available = ClaudeOperationAdapter(binding['engine_config']).verify()
+        def native_current(connection, joined):
+            for _ in range(2):
+                self._open()
+                if self.inputs._snapshot(connection, principal, identifier, payload['expected_generation']) != state:
+                    raise IM.ConflictError('proposal_input_changed')
+                self.plans.host._snapshot_observe(principal, binding)
+                self._fence(connection, principal, state, payload['expected_generation'])
+            return 'allow'
+
+        adapter = ClaudeOperationAdapter(binding['engine_config'])
+        adapter.bind_native_authority(self.assets, principal, scope_hash=IM._hash({
+            'version': 1, 'kind': 'proposal_generation_admission', 'brain_id': brain,
+            'event_key_hash': IM._hash(event_key), 'request_hash': IM._hash(payload),
+            'authority_hash': IM._hash([state['prepared'][0], built['input_hash']])}), current=native_current)
+        available = adapter.verify()
         if type(available) is not dict or available.get('supported') is not True:
             raise ValueError('operation_native_unavailable')
         self.plans.host._snapshot_observe(principal, binding)

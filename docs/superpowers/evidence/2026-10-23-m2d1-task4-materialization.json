@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 tuning input/workspace materialization",
+  "parent": "73afafb7",
+  "sources": {
+    "server/improvement_view_materialization.py": "18757ab107c00f6fb5be79fd4cacadf301fbf8d634829a9d4231eb866f34ebc4",
+    "server/improvement_trials.py": "8ea86dbb94fe3e87771dd6e4eb66d28c52d233e04676515a2d4d5a79159d3329",
+    "server/improvement_sandbox.py": "63eaf14bc32a77691709461b537247450d78b2704e0cac96151521f68fc42b56",
+    "server/improvement_claude.py": "f941ff215b6569175030585b3fb909b303e53c44b9e436219df1cbcdd1d9da98",
+    "tests/python/test_improvement_view_materialization.py": "f9c739d6722819a7b4004eb156bf62737b1012a76a61f09730c2a2ad952cb7fb",
+    "tests/python/test_improvement_view_reservations.py": "e72bc0326885f0c1f722311145d2d4365ac09a075ebf76b12a570ff902daa62f",
+    "tests/python/test_improvement_operation_worker.py": "b0a01e74e7f6f9be5c9b5685fdb301c3494fcc08b2eb049cdeb35c8dd727190a"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_materialization.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 54.531,
+      "log": "task4-materialization-0.log",
+      "log_sha256": "0e9805d69d7b3a081601aafb861bfa9ecd1927cb090862f82982f2469e71fa7b",
+      "tests": 4
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_sandbox.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.578,
+      "log": "task4-materialization-1.log",
+      "log_sha256": "ca425bbd3a663ae289e52ccc122b9adbc8fd4670a856a044b3d7d7c83c7e6eed",
+      "tests": 15
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trials.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 20.968,
+      "log": "task4-materialization-2.log",
+      "log_sha256": "e70f2f56bf08e7e82fb54e4d0b7af9943cdf73dcf955de2d153308b42eee08d7",
+      "tests": 34
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 90.953,
+      "log": "task4-materialization-3.log",
+      "log_sha256": "2af682fd8cd638065b2a12f5a178119916acdc579b6ff204b43a0ba6707929f2",
+      "tests": 7
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_operation_worker.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.782,
+      "log": "task4-materialization-4.log",
+      "log_sha256": "479582559ef24d9e7b195f8aeebf72ea5ff9962a6a6a9f2789de89f2a91960c6",
+      "tests": 9
+    }
+  ],
+  "total_tests": 69,
+  "total_subprocess_seconds": 171.812,
+  "complete_source_log_record_sha256": "6e5bc6d568f3d30a0df206faf5d81eb918b36b52d8da3a9e5be8412879c70905",
+  "red": [
+    {
+      "log": "task4-materialization-red.log",
+      "reason": "Actual linked v4 materialization unavailable and workspace v2 rejected; initial exposure assertion corrected to compare the real pre-existing exposure snapshot.",
+      "sha256": "c08f38f28c049208ac6a1917845d41029cf6863557caec1b6a6aa9b6c4fb36ae"
+    },
+    {
+      "log": "task4-materialization-race-red.log",
+      "reason": "Corrected race test proves old closed path never reaches the actual solver read.",
+      "sha256": "df400f2181b988079eead442b5706d1e891f789d3f52cb445905d69736727132"
+    }
+  ],
+  "native_profile": {
+    "sources": 79,
+    "hash": "beddb90238b1b8d1fd21f0e547c0ecff12cb677e5a76f9ceaec6d48add23bfdd",
+    "qualified": false
+  },
+  "actual_pair_materialized_and_prepared": true,
+  "baseline_and_candidate_share_common_inputs": true,
+  "canonical_unchanged": true,
+  "old_workspace_v1_prompt_and_hash_preserved": true,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false,
+  "task4_complete": false,
+  "limits": [
+    "Actual Trial/Call/materialization/preparation/workspace in a disposable technical brain; no native query or result is manufactured.",
+    "Fixture setup uses simulated C role evidence with its existing unknown verdict; it grants no native or business acceptance.",
+    "V4 workspace v2 carries the exact closed descriptor and real revision/candidate ID; candidate envelope is never installed as an M0 bundle.",
+    "Source/meaning/grants rechecked after all decrypted solver input; rollback retains the exact prior exposure rows.",
+    "Final qualification remains closed; actual native v4 receipts/checks/results and final exact-profile registration remain open.",
+    "No selected-model call, eligibility, activation, deployment or restart."
+  ]
+}

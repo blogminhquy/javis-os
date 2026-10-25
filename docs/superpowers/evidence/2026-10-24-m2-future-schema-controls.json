@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "kind": "M2_future_schema_regression_fixture_repair",
+  "commit": "21a5c0b19375482cf21d1f77b2e973540b04f786",
+  "base": "b71bff722ec5a4b11865009770afc172b65ec6e1",
+  "files": [
+    {
+      "path": "tests/python/test_improvement_operations.py",
+      "bytes": 22153,
+      "sha256": "10c41373a3e48f45f30f4d0c870d1df6090297c208ca6652bac0a8bf7955c73f",
+      "git_blob": "991ba71826775ca37ddf2b97ce4c8c80f543a6eb",
+      "recorded": "post-GREEN, no intervening edits reported; not contemporaneous pre-run freeze"
+    },
+    {
+      "path": "tests/python/test_improvement_operation_execution.py",
+      "bytes": 15609,
+      "sha256": "824cb3243b239b71c2533cb8f0a020912627b717f87de549b980d2c5ec4d3e8d",
+      "git_blob": "ad6ffcf18ac197ad87315ee7a1746365ff143135",
+      "recorded": "post-GREEN, no intervening edits reported; not contemporaneous pre-run freeze"
+    }
+  ],
+  "runs": [
+    {
+      "command": "D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-m2-future-schema-controls/root-check.py test_improvement_operation_execution.py OperationExecutionTests.test_unknown_future_schema_never_becomes_native_authority_even_if_old_guards_exist",
+      "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+      "start_utc": "2026-10-24T09:30:46.0167800Z",
+      "end_utc": "2026-10-24T09:30:50.8859379Z",
+      "pid": "5156",
+      "exit": "0",
+      "stdout": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-future-schema-controls\\task-1-logs\\GREEN-execution-20261024T093046Z.stdout.log",
+      "stderr": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-future-schema-controls\\task-1-logs\\GREEN-execution-20261024T093046Z.stderr.log",
+      "metadata": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/GREEN-execution-20261024T093046Z.meta.txt",
+        "bytes": 816,
+        "sha256": "18c479a4f0ee491091f3730459847a9af30af248ece91806d74d0ee7e5b7d06c"
+      },
+      "stdout_artifact": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/GREEN-execution-20261024T093046Z.stdout.log",
+        "bytes": 174,
+        "sha256": "856a057ad3a9032df23b133d0de5feb36bad0ad5b651ccc4e828fa89114b8ea6"
+      },
+      "stderr_artifact": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/GREEN-execution-20261024T093046Z.stderr.log",
+        "bytes": 103,
+        "sha256": "17d646223ee387128a0dcb1ee1284a48cf25b285ce313aae9e99ed9f364a4beb"
+      },
+      "interpretation": "one isolated test passed"
+    },
+    {
+      "command": "D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-m2-future-schema-controls/root-check.py test_improvement_operations.py OperationMigrationTests.test_unknown_future_version_rejects_without_backup_or_mutation",
+      "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+      "start_utc": "2026-10-24T09:30:41.9777077Z",
+      "end_utc": "2026-10-24T09:30:45.9852075Z",
+      "pid": "18052",
+      "exit": "0",
+      "stdout": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-future-schema-controls\\task-1-logs\\GREEN-migration-20261024T093041Z.stdout.log",
+      "stderr": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-future-schema-controls\\task-1-logs\\GREEN-migration-20261024T093041Z.stderr.log",
+      "metadata": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/GREEN-migration-20261024T093041Z.meta.txt",
+        "bytes": 788,
+        "sha256": "cb1bd609efdedad11326446bc03b67e1398700fb1930d6e9e91e0fb83da4dc95"
+      },
+      "stdout_artifact": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/GREEN-migration-20261024T093041Z.stdout.log",
+        "bytes": 146,
+        "sha256": "d0a96266a6238026b7b5a13eed59635ac9e08c68ad3165e46c56e2751b63e321"
+      },
+      "stderr_artifact": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/GREEN-migration-20261024T093041Z.stderr.log",
+        "bytes": 103,
+        "sha256": "7577a22f9d90dce09fd60939ff23572b9b55737942dad7ab49e97920f70741d6"
+      },
+      "interpretation": "one isolated test passed"
+    },
+    {
+      "command": "D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-m2-future-schema-controls/root-check.py test_improvement_operation_execution.py OperationExecutionTests.test_unknown_future_schema_never_becomes_native_authority_even_if_old_guards_exist",
+      "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+      "start_utc": "2026-10-24T09:30:17.7924470Z",
+      "end_utc": "2026-10-24T09:30:21.9855497Z",
+      "pid": "10668",
+      "exit": "1",
+      "stdout": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-future-schema-controls\\task-1-logs\\RED-execution-20261024T093017Z.stdout.log",
+      "stderr": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-future-schema-controls\\task-1-logs\\RED-execution-20261024T093017Z.stderr.log",
+      "metadata": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/RED-execution-20261024T093017Z.meta.txt",
+        "bytes": 813,
+        "sha256": "40f22b53c2bbe4395b3a784a8a1d20b0d5503020d7b799b34b561e42d51841ec"
+      },
+      "stdout_artifact": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/RED-execution-20261024T093017Z.stdout.log",
+        "bytes": 175,
+        "sha256": "d4591f4bf4ab3307fc8e41da25ce658abcd27d4dc9495dfd78b54a02d08fb722"
+      },
+      "stderr_artifact": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/RED-execution-20261024T093017Z.stderr.log",
+        "bytes": 2893,
+        "sha256": "899b54db99804d2003994d5f8330b7897ebc371d6f8a0d31b93e5c05a5112440"
+      },
+      "interpretation": "stale known9 fixture premise, not a production validator defect"
+    },
+    {
+      "command": "D:/Project/Javis-OS/.venv/Scripts/python.exe -B .superpowers/sdd/2026-10-24-m2-future-schema-controls/root-check.py test_improvement_operations.py OperationMigrationTests.test_unknown_future_version_rejects_without_backup_or_mutation",
+      "cwd": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS",
+      "start_utc": "2026-10-24T09:30:13.4503449Z",
+      "end_utc": "2026-10-24T09:30:17.7673660Z",
+      "pid": "6072",
+      "exit": "1",
+      "stdout": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-future-schema-controls\\task-1-logs\\RED-migration-20261024T093013Z.stdout.log",
+      "stderr": "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-m2-future-schema-controls\\task-1-logs\\RED-migration-20261024T093013Z.stderr.log",
+      "metadata": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/RED-migration-20261024T093013Z.meta.txt",
+        "bytes": 783,
+        "sha256": "62528b555495a6271de55b5322e814dc6a6b772c5d2bc346ad1a2fdc9b8f1cb8"
+      },
+      "stdout_artifact": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/RED-migration-20261024T093013Z.stdout.log",
+        "bytes": 146,
+        "sha256": "e54923437bc041f6f9389c5fac02f071fe14d96c5554cb7a29bd86aacc593dd2"
+      },
+      "stderr_artifact": {
+        "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-logs/RED-migration-20261024T093013Z.stderr.log",
+        "bytes": 1323,
+        "sha256": "d59dd31687f35bf8f7db8ebffd55751dc9b6da2649c632950d02082d94da3ad4"
+      },
+      "interpretation": "stale known9 fixture premise, not a production validator defect"
+    }
+  ],
+  "report": {
+    "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-report.md",
+    "bytes": 3142,
+    "sha256": "e54c8f27066c09982f38cb12106e05a993e13150cbaee58bc491bd0359018443"
+  },
+  "review": {
+    "path": ".superpowers/sdd/2026-10-24-m2-future-schema-controls/task-1-review.md",
+    "bytes": 4374,
+    "sha256": "f15c385e7ec2e3dafb41ffd8e8cbbd69cd7e39316f267f7fee02d2662bd4d42d",
+    "agent": "/root/m2_future_schema_review",
+    "model": "gpt-6.1-sol/low",
+    "source_spec": "compliant",
+    "quality": "approved",
+    "critical": 0,
+    "important": 0,
+    "minor": 1,
+    "deferred_minor": "Task1/T1-R1: hashes recorded after GREEN rather than before; retain for final whole-branch review."
+  },
+  "controller_resolution": {
+    "hash_and_committed_blob_equality": "independently verified",
+    "actual_raw_RED_GREEN_and_commands": "read; final2tests pass serially with no changed assertions or native verification",
+    "process_check": "root read-only check found no live process at both recorded final runner PIDs18052/5156; runner exited0 with tracked temps empty",
+    "freeze_order": "Minor retained under SDD minor exit; no pre-run timestamp claimed and no unchanged test repeated merely to rewrite history. Final M2 exact-head required CI remains mandatory."
+  },
+  "limits": {
+    "only_two_fixture_assignments_changed": true,
+    "production_native_profile_changed": false,
+    "native_qualification": "current99 remains UNQUALIFIED",
+    "M2_final_CI": false,
+    "whole_branch_review": false,
+    "actual_model_account_business_run": false,
+    "business_acceptance": "PENDING",
+    "live_acceptance": "PENDING",
+    "Goal": "ACTIVE under Goal18 M2 engineering plus handoff",
+    "serial_local_slot": "released"
+  }
+}

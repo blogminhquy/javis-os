@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "reviewer": "m2d1_whole_review",
+  "scope": "Anchored qualification run/attempt records, prepared binding quota, explicit forensic DB reopen and default product/result durable-store refusal",
+  "verdict": "approved_scoped_records_and_default_refusal",
+  "before_pins": {
+    "server/improvement_operation_results.py": "b115f3ed746c3b8d903e01a5dd5f1ef801ca294eed4492e3c5c5735a5ee30230",
+    "server/improvement_trial_products.py": "302c3614f3b868bd466fbac241b5f0f8613edab01ec4602b0ecb40501de59047",
+    "server/improvement_qualification_session.py": "c73b0fdbcd2047cdea984f552f5302017141d64216b2c08c9b18409320c65ad2",
+    "tests/python/test_improvement_native_result_consumers.py": "5767adf6da01a72c293dcd277d60ea72ee32f5e60828ff111552c645351678f3",
+    "tests/python/test_improvement_operation_results.py": "76edf56650201151fbd0c3400cd0638a50206f1dd79c59c3d18d1f33a78d15b9",
+    "tests/python/test_improvement_trial_results.py": "203568d379fe9d2afef604abc5bee740fb81c532c473548c009a7a82814ec9ea",
+    "server/improvement_qualification_records.py": "96917a3e70eeb3309512b2d81cc214a0da0d915c2d2c382b516d87842dc07fff",
+    "server/improvement_trial_results.py": "e6e3a72212353b0cd63c45bd32e4147a3505267f9aff325ff028f347dfa14f14",
+    "server/improvement_native_qualifications.py": "95a56aafa827ac7ede6adbe46205258f81fca889bec42d4bcf2b4901365f6fa5",
+    "server/improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+    "tests/python/test_improvement_qualification_records.py": "eafa16180ed402074b9b752d7705c891fbb7c13f1600b58d7b5cb5f23a9c225a",
+    "tests/python/test_improvement_baseline5_consumers.py": "6b9abbe370065376feffcc82b24b9970878b2377b0ae3d8f4f911cc7a766c9e0",
+    "tests/python/test_improvement_trial_records.py": "3786125750112f06b3b64d67bf92a67c4a7f3b9619f0c2739a542681d51a8f1b",
+    "tests/python/test_improvement_store.py": "174eade77e58e39312015e47c3eb5be049ebb92eeb14301ef0aee16ad0f0f3cb",
+    "tests/python/test_improvement_qualification_session.py": "4c885ee253a0a1c770c78623c680632d36b805ac5cf703b4794bc977aebeb621",
+    "server/improvement_store.py": "20b4c26c59b265ded362a0f2ead2688e6018552623cc0dd7ac08cd0e6b0dcaf3"
+  },
+  "after_pins": {
+    "server/improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+    "tests/python/test_improvement_baseline5_consumers.py": "6b9abbe370065376feffcc82b24b9970878b2377b0ae3d8f4f911cc7a766c9e0",
+    "server/improvement_qualification_session.py": "c73b0fdbcd2047cdea984f552f5302017141d64216b2c08c9b18409320c65ad2",
+    "server/improvement_qualification_records.py": "96917a3e70eeb3309512b2d81cc214a0da0d915c2d2c382b516d87842dc07fff",
+    "server/improvement_native_qualifications.py": "95a56aafa827ac7ede6adbe46205258f81fca889bec42d4bcf2b4901365f6fa5",
+    "tests/python/test_improvement_trial_records.py": "3786125750112f06b3b64d67bf92a67c4a7f3b9619f0c2739a542681d51a8f1b",
+    "tests/python/test_improvement_store.py": "174eade77e58e39312015e47c3eb5be049ebb92eeb14301ef0aee16ad0f0f3cb",
+    "tests/python/test_improvement_operation_results.py": "76edf56650201151fbd0c3400cd0638a50206f1dd79c59c3d18d1f33a78d15b9",
+    "tests/python/test_improvement_qualification_session.py": "4c885ee253a0a1c770c78623c680632d36b805ac5cf703b4794bc977aebeb621",
+    "server/improvement_trial_products.py": "302c3614f3b868bd466fbac241b5f0f8613edab01ec4602b0ecb40501de59047",
+    "tests/python/test_improvement_qualification_records.py": "eafa16180ed402074b9b752d7705c891fbb7c13f1600b58d7b5cb5f23a9c225a",
+    "tests/python/test_improvement_native_result_consumers.py": "5767adf6da01a72c293dcd277d60ea72ee32f5e60828ff111552c645351678f3",
+    "server/improvement_store.py": "20b4c26c59b265ded362a0f2ead2688e6018552623cc0dd7ac08cd0e6b0dcaf3",
+    "server/improvement_operation_results.py": "b115f3ed746c3b8d903e01a5dd5f1ef801ca294eed4492e3c5c5735a5ee30230",
+    "tests/python/test_improvement_trial_results.py": "203568d379fe9d2afef604abc5bee740fb81c532c473548c009a7a82814ec9ea",
+    "server/improvement_trial_results.py": "e6e3a72212353b0cd63c45bd32e4147a3505267f9aff325ff028f347dfa14f14"
+  },
+  "tests": {
+    "skips": 0,
+    "timings": {
+      "trialresults11": 10.509,
+      "records11": 7.577,
+      "opresults5": 16.799,
+      "session11": 7.125,
+      "context1": 0.475,
+      "metadata1": 0.242,
+      "nativeop1": 5.38,
+      "baseline1": 2.365
+    },
+    "runs": [
+      {
+        "exit": 0,
+        "sha256": "23efddfa0c78794a40ba204503089f0126b655f497fa785d25df7820d965c155",
+        "name": "records11",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-domain-records11.log"
+      },
+      {
+        "exit": 0,
+        "sha256": "3e7cf7d341c2a844ac1daad45929174129aa277b54af104d97a2c5ace39dca2d",
+        "name": "session11",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-domain-session11.log"
+      },
+      {
+        "exit": 0,
+        "sha256": "e0711c78e1b33a9c84648193554f5ae384587b9062dffee7b6313d424713aaaf",
+        "name": "metadata1",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-domain-metadata1.log"
+      },
+      {
+        "exit": 0,
+        "sha256": "fd5fa20d66d7b56870b67612795a99f5fadca394a8b3bfff4d25c152c57f046d",
+        "name": "context1",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-domain-context1.log"
+      },
+      {
+        "exit": 0,
+        "sha256": "8414481c436b7c9badd802748443b9e23017f1f6bad543f190c0ae419bd6f029",
+        "name": "trialresults11",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-domain-trialresults11.log"
+      },
+      {
+        "exit": 0,
+        "sha256": "dcb5bfe499a7c07e9a854f39df26ee8acb55026d147c28e2305cda47f7c18413",
+        "name": "opresults5",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-domain-opresults5.log"
+      },
+      {
+        "exit": 0,
+        "sha256": "4f71f01d009180d3e7f216dfb8e9b52f81c9b04984a1de9b836e331b7146fec4",
+        "name": "baseline1",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-domain-baseline1.log"
+      },
+      {
+        "exit": 0,
+        "sha256": "bbb56da9ae2a562ac47f8e82e06407ff983d593e85a52e129d9ccf9eeacb88f0",
+        "name": "nativeop1",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-domain-nativeop1.log"
+      }
+    ],
+    "count": 42,
+    "seconds_sum": 50.472
+  },
+  "findings": [
+    {
+      "title": "Validated workspace/materialization fields were independently accepted",
+      "status": "closed",
+      "evidence": "Exact validated manifest hash/materialization/workspace input equality, brain/engine checks and recomputed current manifest now precede link; real valid-digest SQL drift negative passes"
+    },
+    {
+      "title": "Slow exact replay skipped final live deadline/close/lease fences",
+      "status": "closed",
+      "evidence": "Replay/new share final session/deadline/lease checks; actual encrypted replay crossing close/deadline negative passes"
+    }
+  ],
+  "open_findings": [],
+  "observations": [
+    "Trusted readonly qualification anchor prevents missing-root downgrade; unanchored stores with qualification records refuse anchor-required",
+    "Encrypted immutable run/attempt links authenticate actual SQL request/workspace/materialization/config/capability/call identity; duplicate exact replay costs no additional atomic budget",
+    "Concrete TrialStore binding checks actual prepared pre-engine lease/workspace and source/current materializer before linking; cold reads ignore live status/expiry and do not require workspace files",
+    "Forensic reopen requires expected run anchor and mode=ro DB; wrong anchor/missing/corrupt scope/link refuse",
+    "Default TrialResults read/finish/reevaluate, TrialProducts staging, OperationResults read/finish reject engineering domain before product data/evaluator and final Tx; no canonical report mutation"
+  ],
+  "limits": [
+    "Records tests use real Session/M0/encrypted blobs/prepared historical-format trial with explicit legacy-format seam and mocked candidate/runtime/release observers; not baseline5/native pipeline qualification",
+    "Operation Session.bind_attempt branch reviewed statically only; focused actual operation-binding execution remains required before qualifier activation",
+    "Explicit typed engineering verification/launch/result publication/forensic result reader and upper comparison/selection/replay categorical fences remain pending",
+    "No native process/CLI/provider/account/default inventory; no live registration or account/eligible-final/business/finalCI claim"
+  ],
+  "slot_released": true,
+  "review_report_sha256": "a335e718d7cee990ac646d91e0b769aebc47339f00a128959a5c2f196ed3f317"
+}

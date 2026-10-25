@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 rebased runtime309 source checkpoint",
+  "source_base_commit": "3e1abcf0ec5973ef801a23781a82a59323fbb7e1",
+  "main": "d3d7cb36dfb295622ba331cf626c9dc810700746",
+  "version_reservation": "0.299.0",
+  "whole_review": {
+    "base": "2727edcc5cdfab6f2dcf2e2871164f22f2771f92",
+    "head": "740c0c670ea6c636a155651e8e3bd6af43c68b84",
+    "important_findings": 1,
+    "critical_findings": 0
+  },
+  "review_fix": {
+    "head": "23f62b0b2cbf5a71835bb07e096e18bedb788aa2",
+    "status": "closed",
+    "independent_tests": 1,
+    "seconds": 20.26,
+    "log": "review-lifetime-scoped-recheck.log",
+    "log_sha256": "bcc71f9c71f5cb7aef6a24240c359c55f87ec094e9a8e949bc90f93bb4612f9a",
+    "source_pins_unchanged": {
+      "server/improvement_experiment_service.py": "34d12983a37364f7365731ba04aa526a7bf60b44f640e51b2ab63d7964def159",
+      "server/improvement_views.py": "62fe3f49996f683f03f1eeaee34172b6a0906f0ea5eff6e418eb4f7f957a7a1a",
+      "tests/python/test_improvement_view_lifetime.py": "360da37d46779c65577071bf78b2ceb9a06794b53aeb5f8b41c425730c3a8337"
+    }
+  },
+  "fresh_main": {
+    "head": "3e1abcf0ec5973ef801a23781a82a59323fbb7e1",
+    "scripts": 7,
+    "seconds": 18.375,
+    "log": "fresh-main-scoped.log",
+    "log_sha256": "4cc62300a9fd7c6d019c69ee0a9d597dc2a25612b51ebc0b0900b108c6b9a812",
+    "source_record_sha256": "7c413758c54436b13d27862197b647be915d647076e34e90c5eb93dde31e12b4",
+    "all81_sources_identical_at_rebase": true,
+    "test_line_ending_only": [
+      {
+        "path": "tests/python/test_improvement_legacy_tuning_alias.py",
+        "before": "8f1eb9ecb0b4c093f4bea693894f89944d434f91b48f89dc39a4abeea410749c",
+        "after": "b5999fd49859aa7b35594ae9de3418e829228e80a633c6848c3a98eecaf863fb",
+        "only_change": "one CRLF to LF",
+        "newline_byte_offset": 4115
+      }
+    ]
+  },
+  "native_evidence": {
+    "path": "2026-10-23-m2d1-native-qualification-final.json",
+    "sha256": "012d9e37690e8711da75a344dfee0677df8d6c690b90f689ddbb14574c82f295",
+    "tests": 20,
+    "seconds": 96.767,
+    "pin": {
+      "cli_version": "2.1.309",
+      "cli_hash": "5441781f2b6bbd07354b4a74560ee88c68c9bf05d6db3c7e24c452c91673dc53",
+      "sdk_version": "0.2.116",
+      "profile_version": "claude-isolated-roles-v2",
+      "profile_hash": "4d346a3ae4f1afa99784fc51307258ad99a8d470ac6a0c46f1d330e6b0e656fa"
+    }
+  },
+  "registration": {
+    "added_exact_entries": 1,
+    "historical_entries_preserved": true,
+    "lookup_function_ast_unchanged": true,
+    "native_source_hash_unchanged_by_registration": true,
+    "tests": 2,
+    "seconds": 0.045,
+    "red_log_sha256": "1cdba9ee9ac94a009f70303a498dd1fec8b4c06e22fff02db253db363db136d5",
+    "green_log_sha256": "628f157abfacc00720236d08a08cfed581e877fec67cf74decd41a1e18431a24"
+  },
+  "source_scope": {
+    "only_production_runtime_delta_since_rebase": "one exact309 known-runtime tuple",
+    "native_adapter_other_ast_unchanged": true,
+    "paired_fixture_helper_module_ast_unchanged_except_unexecuted_registration_test_class": true
+  },
+  "runtime_scoped_review": "pending",
+  "final_ci": "pending",
+  "selected_account_calls": 0,
+  "native_trialrunner_proof": false,
+  "positive_final_exercised": false,
+  "business_proof": false,
+  "limits": [
+    "Whole-D1 review and its sole lifetime fix are source-qualified; the small runtime309 delta still needs scoped independent recheck.",
+    "Registration is keyed to the exact actual20-test native enforcement artifact and unchanged81-source hash; it does not attest account readiness or quality.",
+    "New registration tests change only an unexecuted test class during paired qualification; actual ViewReservation helper/class/module AST is unchanged.",
+    "No repeat native suite is needed solely because its separate source-hashed registration was added after qualification.",
+    "Genuine native TrialRunner/account feasibility, selected-final positive, final CI, D2/E/F/M3-M8 and business/live acceptance remain open."
+  ]
+}

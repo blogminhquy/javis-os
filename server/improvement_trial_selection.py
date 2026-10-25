@@ -17,6 +17,9 @@ import shutil
 import stat
 import sys
 import types
+import threading
+import inspect
+from functools import wraps
 from pathlib import Path
 
 import improvement_claude as native
@@ -24,6 +27,7 @@ import improvement_claude as native
 MAX_SETTINGS_BYTES = 1024 * 1024
 MAX_BINARY_BYTES = 512 * 1024 * 1024
 _FIELDS = {"provider", "model", "reasoning", "auth_mode", "fast"}
+_binary_observation = threading.local()
 
 # Audited ordinary discovery semantics. Unknown source changes require another
 # parity review, rather than silently assigning the SDK a different executable.
@@ -212,6 +216,66 @@ def _read_stable(path, limit, *, digest=False):
         raise ValueError("trial_selection_source_unavailable") from None
 
 
+def _bounded_binary_reads(function):
+    """Only for synchronous view validation, without native execution/publication.
+
+    Intermediate CLI observations retain fresh open/identity/permission checks.
+    A result cannot leave this boundary until all CLI bytes are freshly rehashed.
+    Never apply this around a writer, async work or a native/model call.
+    """
+    if inspect.iscoroutinefunction(function) or inspect.isgeneratorfunction(function) or inspect.isasyncgenfunction(function):
+        raise TypeError('trial_selection_observation_requires_sync')
+    @wraps(function)
+    def observed(*args, **kwargs):
+        if getattr(_binary_observation, 'values', None) is not None:
+            raise ValueError('trial_selection_observation_nested')
+        values = {}
+        _binary_observation.values = values
+        try:
+            result = function(*args, **kwargs)
+            # Disable reuse before the final independent full-byte observations.
+            _binary_observation.values = None
+            for path, (limit, expected) in values.items():
+                if _read_stable(path, limit, digest=True) != expected:
+                    raise ValueError('trial_selection_source_changed')
+            return result
+        finally:
+            _binary_observation.values = None
+    return observed
+
+
+def _read_binary(path, limit):
+    """CLI-only opt-in; ordinary digest/source callers remain entirely fresh."""
+    values = getattr(_binary_observation, 'values', None)
+    if values is None:
+        return _read_stable(path, limit, digest=True)
+    try:
+        path = Path(path).absolute()
+        cached = values.get(path)
+        if cached is None:
+            result = _read_stable(path, limit, digest=True)
+            values[path] = (limit, result)
+            return result
+        _, result = cached
+        before = _path_info(path)
+        if not 0 <= before.st_size <= limit:
+            raise ValueError('trial_selection_source_size')
+        if _identity(before) != result[1]:
+            raise ValueError('trial_selection_source_changed')
+        flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+        descriptor = os.open(path, flags)
+        try:
+            if (_identity(os.fstat(descriptor)) != result[1]
+                    or _identity(_path_info(path)) != result[1]
+                    or _identity(os.fstat(descriptor)) != result[1]):
+                raise ValueError('trial_selection_source_changed')
+        finally:
+            os.close(descriptor)
+        return result
+    except (OSError, TypeError, OverflowError):
+        raise ValueError('trial_selection_source_unavailable') from None
+
+
 def _pairs(pairs):
     value = {}
     for key, item in pairs:
@@ -300,7 +364,7 @@ def create_pin(settings_path, cli_path):
         binary = Path(cli_path)
         if not binary.is_absolute():
             raise ValueError("trial_selection_binary_not_absolute")
-        digest, binary_identity = _read_stable(binary, MAX_BINARY_BYTES, digest=True)
+        digest, binary_identity = _read_binary(binary, MAX_BINARY_BYTES)
         sdk_version = importlib.metadata.version("claude-agent-sdk")
         matches = [runtime for runtime in native.VERIFIED_NATIVE_RUNTIMES
                    if runtime[0] == sys.platform and runtime[2:] == (digest, sdk_version)]

@@ -1,0 +1,158 @@
+{
+  "unit": "Actual compose consent admission into existing OperationRecords/Execution ownership",
+  "base_commit": "f0553bff44bdcd2dbb7a28d6bdaa933fe6e8640f",
+  "goal_sections": "12-17",
+  "source_and_test_sha256": {
+    "server/improvement_compose_permissions.py": "5bbb0441916f4d28c06316e929359c9a3e13501d2683af01d4cb5f525384efd6",
+    "server/improvement_operation_records.py": "0f1cdd4ef35cc4b365323c9b3172f94c2aff30f6b482dde18a691ef3f5ec7af5",
+    "server/improvement_operation_execution.py": "2abe4eb918e60990713b0093ebcb200d67aa0270f62d83a356227a9b3ab4fdfd",
+    "server/improvement_native_protocol.py": "655caf3a44920fbdf89b6b9c58174914e041f8259133e62a283a7e8d53822f6f",
+    "server/improvement_claude.py": "e1e7da2fdcf812090a0493a40fd422248ce1d06cbc8826212803540b36e6969b",
+    "tests/python/test_improvement_operation_worker.py": "660fe6fbce0030d2cd70ccd013761419046b2eb53e70a13fa331b78bda8dd535",
+    "tests/python/test_improvement_compose_admission.py": "d86cf36e720a157c0d4108d5198988ff0c19da73246b4ac42f37d9a5f10c4c42",
+    "tests/python/test_improvement_compose_admission_races.py": "7bd3c537dc57cc81bb39887021a81e6cdf12fab98e8f759aa75e0be52fa99671",
+    "server/improvement_compose_inputs.py": "4bfcd69c96696fc8dad6d4478a8edbc319ce9313114f1aff3b85f5417a40046b",
+    "server/improvement_compose_schema.py": "a33edf30ba19d73918d8e48138ca62c56dcfc67fa01b2b44e386e95fd192096f",
+    "server/improvement_operation_protocol.py": "f9dd577cf66c23df4839b3c39ed68375241a0818e9f49796a77beeca8a2f03e7",
+    "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9",
+    "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  "behavior": [
+    "Actual Records creates one closed requestv2 pending compose operation and immutable creation event; original two roles/proposal paths retain their contracts.",
+    "Shared SQL-only permission/history checks authenticate active consent, exact request/input/definition/context, actual operation row and one exact operation_create payload/result. Existing CallLedger remains authoritative.",
+    "Full read-only current guard authenticates the exact original encrypted basis, allowing only creation generation+1 and operation created_at; all other experiment fields remain exact. Only the immutable basis-hash projection is normalized; actual SQL fences retain the actual row.",
+    "Execution current invokes full consent/source/domain/policy/holdout checks at existing reserve/claim/materialize/start/heartbeat/retry boundaries. Cold get/cancel/refund remain available after revocation.",
+    "Host-profile format selector is unchanged: unsupported legacy1 refuses compose. Declared selector2/verifier seams test real native2 workspace/PREPARED ownership only. Private native wire adds exact composer/improve_compose pair; no readiness/registration/launch authority added."
+  ],
+  "red": {
+    "author_cases": 6,
+    "failures": 6,
+    "errors": 0,
+    "seconds": 0.002,
+    "before_fixtures": true,
+    "reason": "current(operation=None) actual owned-mutation admission absent"
+  },
+  "root": {
+    "author_cases_independently_executed": {
+      "tests": 6,
+      "passed": 6,
+      "seconds": 52.625
+    },
+    "additional_boundaries": {
+      "first_passed_cases": 2,
+      "first_fixture_error_subcontrols": 2,
+      "correction": "Existing immutable experiment trigger refuses same-generation timestamp/phase changes before current. Assert that actual SQL refusal; never bypass/drop the trigger. Original log retained. No production correction needed.",
+      "corrected_focused_tests": 1,
+      "corrected_focused_passed": 1,
+      "corrected_focused_seconds": 6.955
+    },
+    "impact_regression": {
+      "scripts": 6,
+      "tests": 65,
+      "passed": 65,
+      "details": [
+        {
+          "file": "test_improvement_compose_permissions.py",
+          "exit": 0,
+          "seconds": 41.011,
+          "log": "test_improvement_compose_permissions-regression.log"
+        },
+        {
+          "file": "test_improvement_compose_permission_races.py",
+          "exit": 0,
+          "seconds": 22.103,
+          "log": "test_improvement_compose_permission_races-regression.log"
+        },
+        {
+          "file": "test_improvement_operations.py",
+          "exit": 0,
+          "seconds": 49.511,
+          "log": "test_improvement_operations-regression.log"
+        },
+        {
+          "file": "test_improvement_operation_execution.py",
+          "exit": 0,
+          "seconds": 42.874,
+          "log": "test_improvement_operation_execution-regression.log"
+        },
+        {
+          "file": "test_improvement_operation_worker.py",
+          "exit": 0,
+          "seconds": 4.355,
+          "log": "test_improvement_operation_worker-regression.log"
+        },
+        {
+          "file": "test_improvement_native_protocol.py",
+          "exit": 0,
+          "seconds": 0.214,
+          "log": "test_improvement_native_protocol-regression.log"
+        }
+      ]
+    }
+  },
+  "independent": {
+    "decision": "approved_scoped_admission_component",
+    "tests": 3,
+    "passed": 3,
+    "seconds": 16.774,
+    "stable_pins": 13,
+    "findings": [],
+    "report_sha256": "ca2b7e6fb58ac1b9f15a4f6ed76dbb088b1aae1e5a0b87ef90fb9acb74b90ad3",
+    "log_sha256": "eff5fbe3b0acafa94838469a264fc30228be389db057df6f0e2969339c830049",
+    "own_authored_six_excluded_selfapproval": true
+  },
+  "early_linux": {
+    "run_id": 40060390227,
+    "job_id": 120772406637,
+    "conclusion": "success",
+    "tests": 74,
+    "passed": 74,
+    "snapshot": {
+      "base": "f0553bff44bdcd2dbb7a28d6bdaa933fe6e8640f",
+      "ref": "refs/heads/codex/agent-skill-improvement-compose-admission-linux-check",
+      "commit": "017f887f6b8b897c219c39845e89f83ecec3faa7",
+      "tree": "1afe3bf8389c8751088bd58c106aeaa7c7f9cf35",
+      "selected_raw_sha256": {
+        "server/improvement_compose_permissions.py": "5bbb0441916f4d28c06316e929359c9a3e13501d2683af01d4cb5f525384efd6",
+        "server/improvement_operation_records.py": "0f1cdd4ef35cc4b365323c9b3172f94c2aff30f6b482dde18a691ef3f5ec7af5",
+        "server/improvement_operation_execution.py": "2abe4eb918e60990713b0093ebcb200d67aa0270f62d83a356227a9b3ab4fdfd",
+        "server/improvement_native_protocol.py": "655caf3a44920fbdf89b6b9c58174914e041f8259133e62a283a7e8d53822f6f",
+        "server/improvement_claude.py": "e1e7da2fdcf812090a0493a40fd422248ce1d06cbc8826212803540b36e6969b",
+        "tests/python/test_improvement_compose_admission.py": "d86cf36e720a157c0d4108d5198988ff0c19da73246b4ac42f37d9a5f10c4c42",
+        "tests/python/test_improvement_compose_admission_races.py": "7bd3c537dc57cc81bb39887021a81e6cdf12fab98e8f759aa75e0be52fa99671",
+        "tests/python/test_improvement_operation_worker.py": "660fe6fbce0030d2cd70ccd013761419046b2eb53e70a13fa331b78bda8dd535"
+      },
+      "workflow_sha256": "332e8a2eb4dcb6ef284b9ecf87543a4e77e22c8ec0a165672c685ae8eb2e1bf9",
+      "scope": "Early isolated Linux fixture check, not exact task-head full CI/native/account/business qualification."
+    },
+    "log_sha256": "06cc55017b81ed22c5ce73ee339590196472841265d21ca79db819d0f3e93e1c",
+    "limit": "Separate early fixture snapshot; not exact final task-head full required CI or native/account/business qualification."
+  },
+  "native": {
+    "profile_sources": 91,
+    "static_raw_profile_hash": "912340a42d1aa8577e1eca75b41ac418affe64dcbf5198466553f9043a6f6e21",
+    "method": "AST/raw source hash only",
+    "qualification_or_registration_added": false,
+    "actual309_exact_evidence_test": "Untouched/open"
+  },
+  "logs_sha256": {
+    "author-red.log": "c7254f1d832b3b613313a7da97c4e6d901ba0ba3581619a59030f88ea45015ea",
+    "author-red-result.json": "dd2dfe8565d125db3710dd5e5e7c581293eb154964ecd8d801eebfd78d7744c3",
+    "root-green-1.log": "4ca0db1e53295822cbfca4c178d6f4911491b33b39e01810852c4412d65a625a",
+    "root-races-green.log": "36adc47ff730322a2fac6f7cddcb8ace4e78b94af6060d924c828ecd05222384",
+    "root-state-control-green.log": "80c513518f8972a42d4cccd58f0ccb365c7aff21f53e0d6e360ffe9bdd4fe6f0",
+    "root-regression-result.json": "05ec733226d60da8fcd485ede0eb8adf255844c037e712f7998df6a8a2ef7b56",
+    "portable-snapshot.json": "330c665377fe21a4cb70d9bba66ba5a3b9c28d4948de7cdfdbbd3d6f9ad4da0d"
+  },
+  "proof_reused": [
+    "Pinned unchanged upstream compose AST/license/provenance",
+    "Historical schema8 migration/rollback/concurrency/Linux46",
+    "Unchanged input projection protocol/bounds/source authority controls"
+  ],
+  "limits": [
+    "No real provider/model/account/CLI inference or native ACK established by declared storage controls.",
+    "No ComposerService one-shot workflow, typed result publication/new candidate3 consumer, independent bundle checks or API/UI implemented by this unit.",
+    "No quality/cost/business gain, live activation/deploy/restart or final-head integration gate claimed."
+  ],
+  "next": "Owned-publication plan; actual result/candidate provenance and independent checks/API/UI, then actual derived upstream experience library; full M0-M8 Goal stays active."
+}

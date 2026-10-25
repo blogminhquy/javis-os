@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "status": "engineering_component_approved_not_runtime_qualified",
+  "source_sha256": "5b1c7cf8f6f3ebb17bc5311bafad18e7249de026c259630ff4ba9b219f566367",
+  "test_sha256": "389a473a3263346228f38ab91df7cd231b3353bf5ab7f2a63f64a41380832496",
+  "command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_native_transport_v2.py -v -f",
+  "author": {"tests": 21, "seconds": 12.956, "exit": 0, "log_sha256": "98616c11f8fdc9e55bcc04f13baecdcdcd094f6ad04aaac7b58bf144face6364"},
+  "independent": {"tests": 21, "seconds": 12.726, "exit": 0, "log_sha256": "d80cfe5dd4b3a3ff46e0befc0fabf02388d27ae99c6974226b1472b286cd4a5d"},
+  "local_evidence": {
+    "directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-host-transport-v2",
+    "ownership_manifest_sha256": "8b1079c69e9cfb2dc277cf088ecd18b0a6d42b163a929378b1e9a3c1729b1405",
+    "ownership_manifest_explicit_files_verified": 10,
+    "manifest_is_exhaustive_import_proof": false,
+    "report_sha256": "af3a88aae4355a75eb3039179c5167f7182764767b267c97cda039b86bfe3700",
+    "private_channel_sha256": "ee05c29aaf2b29acd5e82799686fb00882dd0e37a8975fd8fe3d28412d8bff98",
+    "image_channel_sha256": "fe5933c955f46f54fb0bfed42cca722698ea2bb2016f9253dd42a5beebf85465"
+  },
+  "actual_scope": [
+    "Real separate host, fixed guardian and inert worker; actual guardian socket sharing/bootstrap and worker capability adoption FROM the retained original guardian process handle",
+    "Verify original worker incarnation and root image; seal all guardian worker-data pipes before direct private bootstrap/startup2; no private model input/config/environment sent through guardian metadata",
+    "Strict control2/private2 bindings, per-source/global sequence, bounded streaming queue and defensive retained closing observations",
+    "Join exact purpose/nonce/native incarnation/dispatch/image hashes and await callback settlement before image allow; all four image gates precede separate accounting ACK",
+    "Actual native drain and both retained terminal process handles required before guard release; actual guardian exit codes retained",
+    "Cancelled raw/thread tasks, acquired-but-unassigned Popen and missing native-drain records preserve UNKNOWN owners across retry"
+  ],
+  "preserved_failures_and_repairs": [
+    "Missing host source:9 tests with21 expected subtest failures before implementation",
+    "Retained stream bookkeeping keyed by id(stream) reused object IDs and left an actual file reader open; real file regression reproduced before using retained object keys",
+    "Missing worker_complete after guardian drain could wait indefinitely; public bootstrap short writes were ignored; focused REDs preceded correction",
+    "Earlier affected14/15 runs saw missing drain/ConnectionAbortedError during positive cleanup. Later passes do not prove the original internal cause. Bounded natural-drain grace and ambiguous STOP-send controls retain strict drain/exit predicates",
+    "Candidate0d6263cf16 was not approved: independent review found cancelled I/O discarded, partial startup lacking stdin EOF, Popen acquisition uncertainty and unregistered pair endpoints",
+    "Five focused real regressions reproduced those four findings:4FAIL1ERROR1.309s, logee72561b9321614942e2ad2f71e03000561924bd994017da078ff0262da87fd7",
+    "Final correction registers both real sockets before fallible configuration, retains sticky cancellation/spawn uncertainty, and settles partial public writes before owned stdin EOF; missing-drain refusal remains"
+  ],
+  "limitations": [
+    "Inert engineering workers, not actual production Trial/operation/SDK consumers or selected account/model/provider",
+    "Durable image-decision and accounting callbacks are test doubles here; actual SQLite lease/generation/authority and late usage integration remain required",
+    "No completed-user-input acceptance, provider acceptance, comprehension, loaded-page or malicious-guardian memory-isolation claim",
+    "Unknown acquisition/cancelled-I/O cases deliberately retain source guards and require external recovery; not all negative cleanup outcomes succeed",
+    "No runtime profile qualification/registration, deployment or activation; legacy execute_worker behavior remains separate",
+    "Early Linux channel CI and final-head full Goal CI remain separate required evidence"
+  ]
+}

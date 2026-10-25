@@ -16,6 +16,7 @@ from improvement_blobs import MAX_ASSET_BYTES, AssetUnavailable
 from improvement_trial_checks import execution_invariants
 from improvement_trial_evidence import TrialEvidence
 from improvement_trial_products import TrialProducts
+from improvement_qualification_records import require_product_store
 
 
 def _guard(callback, request):
@@ -45,8 +46,14 @@ class TrialResults:
         if IM._schema_version(self.trials.store) < 3:
             raise PermissionError("trial_result_unavailable")
         with closing(self.trials.store._conn()) as connection:
+            require_product_store(self.trials.assets, principal, connection=connection)
             trial = self.trials._row(connection, brain, identifier)
             request = json.loads(trial["request_json"])
+            if request.get('version') == 4:
+                from improvement_view_lineage import load_view_lineage
+                if IM._hash(request) != trial['request_hash']:
+                    raise AssetUnavailable('view_trial_request_changed')
+                load_view_lineage(connection, brain, request, blobs=self.trials.blobs, current=False, require_link=True, trial_id=identifier)
             if request.get("version") == 3:
                 from improvement_preparation_lineage import load_preparation_lineage
                 if IM._hash(request) != trial["request_hash"]:
@@ -73,6 +80,10 @@ class TrialResults:
             report = json.loads(raw)
             if IM._hash(report) != result["result_hash"]:
                 raise AssetUnavailable("trial_result_hash_mismatch")
+            if request.get('version') == 4 and (report.get('version') != 4 or report.get('trial_id') != identifier
+                    or report.get('attempt') != attempt or report.get('request_hash') != trial['request_hash']
+                    or report.get('experiment_lineage') != request['lineage'] or report.get('effective_view') != request['view']):
+                raise AssetUnavailable('view_trial_result_changed')
             if request.get("version") == 2 and (report.get("version") != 2 or report.get("trial_id") != identifier
                     or report.get("attempt") != attempt or report.get("request_hash") != trial["request_hash"]
                     or report.get("experiment_lineage") != request["lineage"]):
@@ -81,6 +92,25 @@ class TrialResults:
                     or report.get("attempt") != attempt or report.get("request_hash") != trial["request_hash"]
                     or report.get("preparation_lineage") != request["preparation"]):
                 raise AssetUnavailable("preparation_trial_result_changed")
+            records = list(connection.execute('SELECT * FROM improvement_trial_observations WHERE trial_id=? AND attempt=? ORDER BY sequence',
+                (identifier, attempt))) if 'native_decisions' in report else []
+            if 'native_decisions' in report:
+                from improvement_native_trace_checks import validated_history, reread_native_decisions
+                from improvement_native_decisions import NativeImageDecisionStore, attempt_scope
+                stored_attempt = connection.execute('SELECT workspace_json FROM improvement_trial_attempts WHERE trial_id=? AND attempt=?',
+                    (identifier, attempt)).fetchone()
+                workspace = json.loads(stored_attempt['workspace_json'])
+                reader = TrialEvidence(self.trials)
+                packets = validated_history(records, lambda item: reader._decode(brain, item), kind='trial', receipt=workspace)
+                trace = {'count': len(records), 'last_sequence': records[-1]['sequence'],
+                    'hash': IM._hash([[item['sequence'], item['payload_hash']] for item in records])}
+                if trace != report['trace']: raise AssetUnavailable('trial_result_trace_changed')
+                scope = attempt_scope(kind='trial', brain_id=brain, receipt=workspace,
+                    config_pin=request['engine_config'], capability_hash=report['capability_hash'])
+                decisions = NativeImageDecisionStore(self.trials.assets)
+                actual = reread_native_decisions(packets, kind='trial', receipt=workspace,
+                    read_decision=lambda joined: decisions.read(principal, joined, scope_hash=scope, connection=connection))
+                if actual != report['native_decisions']: raise AssetUnavailable('native_result_decisions_changed')
             return report
 
     def reevaluate(self, principal, identifier, attempt, *, expected_generation, event_key, checker_registry):
@@ -93,6 +123,7 @@ class TrialResults:
         payload = {"trial_id": identifier, "attempt": attempt, "expected_generation": expected_generation}
         owners = OwnerDecisionStore(self.trials)
         with self.trials.store._Tx(self.trials.store) as connection:
+            require_product_store(self.trials.assets, principal, connection=connection)
             replay = self.trials.assets._replay(connection, brain, event_key, "trial_reevaluate", payload)
             if replay is not None:
                 return replay
@@ -126,6 +157,7 @@ class TrialResults:
         if len(raw) > MAX_ASSET_BYTES:
             raise ValueError("trial_result_too_large")
         with self.trials.store._Tx(self.trials.store) as connection:
+            require_product_store(self.trials.assets, principal, connection=connection)
             replay = self.trials.assets._replay(connection, brain, event_key, "trial_reevaluate", payload)
             if replay is not None:
                 return replay
@@ -175,13 +207,15 @@ class TrialResults:
         """
         brain = IM._brain(principal)
         IC._digest(capability_hash)
+        require_product_store(self.trials.assets, principal)
         request = self.trials.get(principal, identifier)["request"]
         guard = _guard(live_guard, request)
         with self.trials.store._Tx(self.trials.store) as connection:
+            require_product_store(self.trials.assets, principal, connection=connection)
             row, attempt = self.trials._leased(connection, principal, identifier, expected_generation, lease_token, time.time())
             if row["status"] != "evaluating" or attempt["engine_at"] is None:
                 raise IM.ConflictError("trial_evaluation_stale")
-            case = self.trials._current(connection, brain, request, trial_id=row["id"])
+            case = self.trials._current(connection, brain, request, trial_id=row["id"], principal=principal)
             workspace = json.loads(attempt["workspace_json"])
             manifest = self.trials.workspace.validate(workspace)
             if IM._hash(manifest) != attempt["materialization_hash"]:
@@ -190,24 +224,44 @@ class TrialResults:
                                                      (brain, request["pins"]["contract_hash"])).fetchone()[0])
             if IM._hash(contract) != request["pins"]["contract_hash"]:
                 raise IM.ConflictError("trial_contract_drift")
-            TrialProducts(self.trials)._products(connection, row)
+            TrialProducts(self.trials)._products(connection, row, principal=principal, capability_hash=capability_hash)
             records = list(connection.execute("SELECT * FROM improvement_trial_observations WHERE trial_id=? AND attempt=? ORDER BY sequence",
                                               (identifier, row["attempt"])))
             reader = TrialEvidence(self.trials)
             packets = [reader._decode(brain, record) for record in records]
+            native = None
+            decision_reader = None
+            if manifest['version'] in (4, 5):
+                from improvement_native_trace_checks import validated_history, validate_native_trace, require_durable_allow
+                from improvement_native_decisions import NativeImageDecisionStore, attempt_scope
+                from improvement_sandbox import trial_system_prompt
+                decoded = {record['sequence']: packet for record, packet in zip(records, packets)}
+                validated_history(records, lambda record: decoded[record['sequence']], kind='trial', receipt=workspace)
+                scope = attempt_scope(kind='trial', brain_id=brain, receipt=workspace,
+                    config_pin=request['engine_config'], capability_hash=capability_hash)
+                image_decisions = NativeImageDecisionStore(self.trials.assets)
+                decision_reader = lambda joined: image_decisions.read(principal, joined, scope_hash=scope)
+                prompt = IM._json({'task': manifest['case']['task'], 'fixtures': [
+                    {key: item[key] for key in ('snapshot_id', 'source')} for item in manifest['case']['fixtures']]})
+                native = validate_native_trace(packets, kind='trial', receipt=workspace, pin=request['engine_config'],
+                    capability_hash=capability_hash, system_prompt=trial_system_prompt(manifest), user_prompt=prompt,
+                    data_hash=workspace['input_hash'], read_decision=lambda joined: image_decisions.read(principal, joined, scope_hash=scope, connection=connection),
+                    tool_policy='baseline_inline' if manifest['version'] == 5 else 'pinned_skill')
+                require_durable_allow(native)
             artifact_hash = self._artifact_hash(connection, row, workspace, contract)
             private = {"id": case["id"], "answer": json.loads(self.trials.blobs.read(brain, case["answer_hash"])),
                        "evaluator_refs": case["evaluator_refs"]}
             number = row["attempt"]
         # Host checkers may perform expensive isolated work. Never hold a write lock
         # across them, and never reinterpret a failed evaluator as permission to query.
-        mandatory = execution_invariants(request, manifest, workspace, packets, capability_hash, contract=contract)
+        mandatory = execution_invariants(request, manifest, workspace, packets, capability_hash, contract=contract, read_decision=decision_reader)
         from improvement_trial_decisions import OwnerDecisionStore
         decisions = OwnerDecisionStore(self.trials).decisions(principal, identifier, number)
         evaluation = EVAL.evaluate_trial(contract, workspace["output_root"], private, checker_registry, owner_decisions=decisions)
         usage = IU.trial_usage(request["pins"]["experiment_id"], identifier)
         _guard(live_guard, request)
-        terminal = next(packet["event"] for packet in packets
+        bodies = packets if native is None else native['worker_bodies']
+        terminal = next(packet["event"] for packet in bodies
                         if packet["type"] == "engine_event" and packet["event"].get("type") == "terminal")
         status = "failed" if terminal["is_error"] else "completed"
         report = {"version": 1, "trial_id": identifier, "attempt": number, "execution_status": status,
@@ -217,7 +271,10 @@ class TrialResults:
                   "capability_hash": capability_hash, "live_guard": guard,
                   "trace": {"count": len(records), "last_sequence": records[-1]["sequence"],
                             "hash": IM._hash([[record["sequence"], record["payload_hash"]] for record in records])}}
-        if request.get("version") == 2:
+        if native is not None: report['native_decisions'] = native['decisions']
+        if request.get('version') == 4:
+            report.update(version=4, request_hash=IM._hash(request), experiment_lineage=request['lineage'], effective_view=request['view'])
+        elif request.get("version") == 2:
             report.update(version=2, request_hash=IM._hash(request), experiment_lineage=request["lineage"])
         elif request.get("version") == 3:
             report.update(version=3, request_hash=IM._hash(request), preparation_lineage=request["preparation"])
@@ -226,11 +283,22 @@ class TrialResults:
             raise ValueError("trial_result_too_large")
         digest = IM._hash(report)
         with self.trials.store._Tx(self.trials.store) as connection:
+            require_product_store(self.trials.assets, principal, connection=connection)
             row, attempt = self.trials._leased(connection, principal, identifier, expected_generation, lease_token, time.time())
             if row["status"] != "evaluating" or row["attempt"] != number:
                 raise IM.ConflictError("trial_evaluation_stale")
-            self.trials._current(connection, brain, request, trial_id=row["id"])
+            self.trials._current(connection, brain, request, trial_id=row["id"], principal=principal)
             self.trials.workspace.validate(workspace)
+            if native is not None:
+                current_records = list(connection.execute('SELECT * FROM improvement_trial_observations WHERE trial_id=? AND attempt=? ORDER BY sequence',
+                    (identifier, number)))
+                if [dict(record) for record in current_records] != [dict(record) for record in records]:
+                    raise IM.ConflictError('trial_result_trace_changed')
+                current_packets = validated_history(current_records, lambda record: reader._decode(brain, record), kind='trial', receipt=workspace)
+                if current_packets != packets: raise IM.ConflictError('trial_result_trace_changed')
+                actual = [image_decisions.read(principal, joined, scope_hash=scope, connection=connection) for joined in native['joins']]
+                if actual != native['decisions']: raise IM.ConflictError('native_result_decisions_changed')
+                require_durable_allow({'decisions': actual})
             if self._artifact_hash(connection, row, workspace, contract) != artifact_hash:
                 raise IM.ConflictError("trial_output_changed")
             if evaluation["output_hash"] is not None and evaluation["output_hash"] != artifact_hash:

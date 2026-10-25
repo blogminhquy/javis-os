@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import time
 from contextlib import aclosing
 
 import improvement_store as IM
@@ -14,7 +16,7 @@ from improvement_operation_retry import native_transient
 from improvement_operation_schema import TERMINAL
 from improvement_operation_workspace import OperationWorkspaceCleanupError
 from improvement_telemetry import NativeUsageRecorder
-from improvement_trial_runner import _RunFailure, _drain, _settled_call, _synchronous
+from improvement_trial_runner import _RunFailure, _drain, _settled_call, _synchronous, _runner_body, _NativeRunnerEvidence
 
 HEARTBEAT_SECONDS = 20
 LEASE_SECONDS = 60
@@ -88,6 +90,7 @@ class OperationRunner:
         execution = self.execution
         current, token, recorder, evaluation = claimed, claimed["lease_token"], None, None
         phase = "runner_failed"
+        native_evidence = None
         lock = asyncio.Lock()
         if on_claimed is not None:
             try:
@@ -123,10 +126,11 @@ class OperationRunner:
                     raise _RunFailure("telemetry_failed") from error
 
         async def observe(packet):
-            if packet["type"] == "engine_event":
+            body = _runner_body(packet)
+            if body["type"] == "engine_event":
                 if recorder is None:
                     raise _RunFailure("worker_failed")
-                await _settled_call(recorder.observe, packet["event"], sequence=packet["sequence"])
+                await _settled_call(recorder.observe, body["event"], sequence=packet["sequence"])
 
         async def heartbeat():
             while True:
@@ -141,8 +145,24 @@ class OperationRunner:
 
         pin = None
 
+        def native_current(connection, joined):
+            row, attempt = execution._leased(connection, principal, identifier, current['generation'], token, time.time())
+            if row['attempt'] != claimed['attempt'] or row['request_hash'] != IM._hash(claimed['request']):
+                raise IM.ConflictError('operation_native_owner_changed')
+            prepared = execution._current(connection, principal, row)
+            execution.host._snapshot_observe(principal, prepared[1])
+            if receipt[0] is not None:
+                if not attempt['workspace_json'] or json.loads(attempt['workspace_json']) != receipt[0]:
+                    raise IM.ConflictError('operation_native_workspace_changed')
+                execution.workspace.validate(receipt[0])
+            if execution._current(connection, principal, row) != prepared:
+                raise IM.ConflictError('operation_native_authority_changed')
+            execution.host._snapshot_observe(principal, prepared[1])
+            execution._leased(connection, principal, identifier, current['generation'], token, time.time())
+            return 'allow'
+
         async def process():
-            nonlocal current, phase, evaluation, pin
+            nonlocal current, phase, evaluation, pin, native_evidence
             def acquire():
                 lifetime[0] = execution.workspace.acquire_execution(current["brain_id"], identifier, current["attempt"])
                 if lifetime[0] is None:
@@ -152,8 +172,16 @@ class OperationRunner:
             pin = prepared[1]["engine_config"]
             phase = "unsupported_configuration"
             adapter = self.adapter_factory(pin, workspace=execution.workspace, before_engine_start=before_start)
-            verified = await asyncio.to_thread(adapter.verify)
-            if type(verified) is not dict or verified.get("supported") is not True:
+            if type(adapter) is ClaudeOperationAdapter:
+                scope = IM._hash({'version': 1, 'kind': 'operation', 'brain_id': current['brain_id'],
+                    'subject_id': identifier, 'attempt': claimed['attempt'], 'request_hash': IM._hash(claimed['request']),
+                    'engine_config_hash': IM._hash(pin)})
+                adapter.bind_native_authority(execution.assets, principal, scope_hash=scope, current=native_current, lock=lock)
+                verified = await adapter.verify_async()
+            else:
+                verified = await _settled_call(adapter.verify)
+            if (type(verified) is not dict or verified.get("supported") is not True
+                    or verified.get("account_ready") is False or verified.get("domain") == "qualification"):
                 raise _RunFailure("unsupported_configuration")
             _digest(verified.get("capability_hash"))
             phase = "runner_failed"
@@ -166,8 +194,16 @@ class OperationRunner:
             native_request = {"version": 1, **{key: current[key] for key in ("operation_id", "attempt", "role", "purpose")},
                 "deadline_at": current["deadline_at"], "engine_config_hash": manifest["engine_config_hash"], "capability_hash": verified["capability_hash"]}
             phase, terminal, transient = "worker_failed", None, False
-            async with aclosing(adapter.execute(native_request, receipt[0])) as packets:
+            if manifest['version'] == 2:
+                native_evidence = _NativeRunnerEvidence(append=self.evidence.append, get=execution.get,
+                    principal=principal, identifier=identifier, attempt=claimed['attempt'], token=token,
+                    lock=lock, authority=authority, observe=observe, transient_check=native_transient)
+            options = {} if native_evidence is None else {'on_closing_observations': native_evidence.closing}
+            async with aclosing(adapter.execute(native_request, receipt[0], **options)) as packets:
                 async for packet in packets:
+                    if native_evidence is not None:
+                        await native_evidence.accept(packet)
+                        continue
                     async with lock:
                         try:
                             await _settled_call(self.evidence.append, principal, identifier, packet,
@@ -180,6 +216,9 @@ class OperationRunner:
                             transient = True
                         if packet["type"] == "engine_event" and packet["event"].get("type") == "terminal":
                             terminal = packet["event"]
+            if native_evidence is not None:
+                if native_evidence.failed: raise _RunFailure('evidence_failed')
+                terminal, transient = native_evidence.terminal, native_evidence.transient
             if transient:
                 raise _RunFailure("native_transient_error")
             if recorder is None or terminal is None:
@@ -195,7 +234,6 @@ class OperationRunner:
         worker, pulse = asyncio.create_task(process()), asyncio.create_task(heartbeat())
         error = None
         try:
-            import time
             async with asyncio.timeout(max(0.0, current["deadline_at"] - time.time())):
                 done, _ = await asyncio.wait((worker, pulse), return_when=asyncio.FIRST_COMPLETED)
                 if pulse in done and not worker.done():
@@ -216,17 +254,20 @@ class OperationRunner:
 
             async def close_attempt():
                 try:
-                    latest = await asyncio.to_thread(execution.get, principal, identifier)
-                    try:
-                        await _settled_call(execution.abort, principal, identifier, expected_generation=latest["generation"],
-                                            lease_token=token, reason=reason)
-                    except IM.ConflictError:
-                        pass
-                    if recorder is not None:
+                    async with lock:
+                        latest = await asyncio.to_thread(execution.get, principal, identifier)
                         try:
-                            await _settled_call(recorder.finish, "unknown")
-                        except Exception:
-                            pass  # Marked SQL call keeps failed/missing usage observable.
+                            await _settled_call(execution.abort, principal, identifier, expected_generation=latest["generation"],
+                                                lease_token=token, reason=reason)
+                        except IM.ConflictError:
+                            pass
+                        if native_evidence is not None:
+                            await native_evidence.flush_late_locked()
+                        if recorder is not None:
+                            try:
+                                await _settled_call(recorder.finish, "unknown")
+                            except Exception:
+                                pass  # Marked SQL call keeps failed/missing usage observable.
                 finally:
                     if evaluation is not None:
                         await asyncio.gather(evaluation, return_exceptions=True)

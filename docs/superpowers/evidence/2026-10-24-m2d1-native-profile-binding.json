@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "status": "actual_sdk_factory_and_pipe_delivery_consistency_approved",
+  "source_sha256": "701b314780c35ef108bb6f900d7447bca8494c266a9ce6c1d533da2680cb7146",
+  "test_sha256": "42e50d27325474ed941deb0d2f831422b00bfd9689036485faa6d706320fc753",
+  "driver_sha256": "699185cc20289533496ef338ea3b51adae84a3f46864a13de80fe01473490a69",
+  "command": "base Python3.12 -I -S -B .superpowers/sdd/2026-10-24-agent-skill-improvement-native-profile/run_tests.py",
+  "red": {"tests": 8, "failed_assertions_including_subtests": 14, "seconds": 1.755, "log_sha256": "e7a2bd13b39ac9bfc0c08cf1c79d87a7f6528405789c79f577c8ba1498e64ccc", "cause": "Missing actual native profile binding"},
+  "self_review_red": {"tests": 1, "failed_subtests": 1, "seconds": 1.032, "log_sha256": "42780ff5588cd4b4787ec2c0d3781127bf1dd6b16aead14e8067222201ec8857", "cause": "Proof identity comparison accepted boolean attempt alias; corrected using strict inner identity validation"},
+  "author": {"tests": 8, "seconds": 1.755, "exit": 0, "log_sha256": "4b6043caaca1023c4748e0cc0f0dd9dad8211e10aa6e82df61e10424f81e0a9d"},
+  "independent": {"tests": 8, "seconds": 1.749, "exit": 0, "skips": 0, "log_sha256": "c9bda7cd5fa60031dec0281aad86c1ba5924557b33316aa183ca76e4f9b86efe"},
+  "behavior": [
+    "Actual SDKClient receives preconstructed owned native transport; original options/callbacks retained, transport uses defensive exact environment",
+    "Fresh one-shot client factory binds concrete runtime policy/pins, exact system prompt/model/effort/cwd/tools and prevents fallback/retry",
+    "Completed callback validates exact SDK116 full user wrapper and original Process/stdin/capture entry/CREATE/dispatch nonce/hash",
+    "Closed proof retains hashes, unpredictable write nonce and native identity without live handle values; wire default session stays distinct from native init UUID",
+    "Failed/changed/duplicate writes do not create or replace a completed proof; pure proof validator checks strict identity including boolean alias refusal"
+  ],
+  "limitations": [
+    "Actual SDK builder, SDKClient constructor and native transport.connect/write exercised with fake capture/process/IO adapters; SDKClient.connect, real native/CLI/account/provider never run",
+    "Borrowed unchanged reviewed SDK fixture; genuine isolated Windows component proof, not Linux skip coverage",
+    "Pipe write completion is not native read ACK, provider acceptance, session/result correlation or comprehension",
+    "Profile/worker/result consumers must bind current authority/accounting, join actual dispatch/image/native sessions and require frozen full-pipeline qualification before eligibility",
+    "Initial missing-unit RED preceded correcting the fixture's actual SDK custom-transport field; that field is _custom_transport before SDKClient.connect",
+    "No new source qualification or production route enabled by this helper alone"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-profile"
+}

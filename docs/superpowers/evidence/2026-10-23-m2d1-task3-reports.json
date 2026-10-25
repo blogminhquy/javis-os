@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 Task3 runtime-neutral comparison and explicit v4 projection",
+  "parent": "254a90ca992d3f2c8cab0a67ab44c2f7309960de",
+  "sources": {
+    "server/improvement_comparison_results.py": "2ffc73a16293adab3ab3ceb3809d940ebfd92a3bec7c21bc047c24cc9269ae62",
+    "tests/python/test_improvement_view_reports.py": "0311fdaaf2b099f234cdf85577619f353ad970b79b30a5541456325d27c12a85"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reports.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 48.187,
+      "log": "task3-reports-0.log",
+      "log_sha256": "92508db8c6070b627a7f781def21d6c355ff4837fecde470fc0688f11c69feff",
+      "tests": 6
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_comparison_results.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.438,
+      "log": "task3-reports-1.log",
+      "log_sha256": "ed30288cd3bc5481701347dfa1a1b1a8788f5b3e607792c671a9b982595821c0",
+      "tests": 19
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_comparison_reports.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 61.734,
+      "log": "task3-reports-2.log",
+      "log_sha256": "473a9be48fa34908b9069519cde9ae938c9760db847648edf084a22a77280f3d",
+      "tests": 13
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_comparison_plans.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 55.922,
+      "log": "task3-reports-3.log",
+      "log_sha256": "3c7ba3f6cda3fec70958fb065d323b15e6f855d7fd951529e10ad90ee0de0d4b",
+      "tests": 24
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.672,
+      "log": "task3-reports-4.log",
+      "log_sha256": "afb2e2fe889911f6b5afb595f77fb96f5a55e0b181354ec278eb453f0b061782",
+      "tests": 1
+    }
+  ],
+  "total_tests": 63,
+  "total_subprocess_seconds": 166.953,
+  "complete_source_log_record_sha256": "ea2a12239123a8b69b39942db1dcd6b666c5a2d7c0d4facc8e3fa8a2b751afb9",
+  "red": [
+    {
+      "log": "task3-view-reports-red.log",
+      "reason": "v4 projection absent, actual v4 links omitted, current meaning veto ignored",
+      "sha256": "dddcb6c7602a3d82a795adc4b8819d9c1357e805f354bf5eaa34888c446c7c21"
+    },
+    {
+      "log": "task3-report-history-red.log",
+      "reason": "Frozen no-result history incorrectly required a later runtime table",
+      "sha256": "e6f4c0aabd56dd9636f86900efac7fa5b452ff8b5413435b595fcf492ff88d28"
+    }
+  ],
+  "native_profile": {
+    "sources": 78,
+    "hash": "4e3ecee04ee0db0e21d3f77c6968f7f11eb2cdd962210c9d5dc11d9c80727140",
+    "qualified": false
+  },
+  "actual_pending_v4_captured": true,
+  "eighteen_native_checks_unchanged": true,
+  "comparison_report_v1_envelope_preserved": true,
+  "old_no_result_bytes_and_hash_preserved": true,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false,
+  "limits": [
+    "Pure v4 result payloads are explicitly untrusted technical fixtures, not native reports or eligibility.",
+    "Integration uses real pending Trial/Call links with no result fabricated; incomplete remains inconclusive.",
+    "Current writing revalidates real source/meaning with tuning-only common capture; historical replay/read does not warm sources.",
+    "Only immutable reports whose references are ALL absent skip unnecessary runtime lookup; summary is still independently recomputed.",
+    "Actual v4 workspace/native result production and existing final qualification ownership remain unimplemented/open.",
+    "No new registration, actual model query, quality win, activation, deploy or restart."
+  ]
+}

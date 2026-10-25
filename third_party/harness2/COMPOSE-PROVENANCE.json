@@ -1,0 +1,79 @@
+{
+  "repository": "https://github.com/google-research/harness2",
+  "commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+  "path": "harness2/core/prompts.py",
+  "git_blob": "9ccacf23b64ac15b06a1939f26224960f56d757c",
+  "source_sha256": "d1f4f8db4ab4cb4addcbca175b548db2270375499fda727ac95d271c63cc2504",
+  "vendor_path": "server/improvement_harness2_compose.py",
+  "definitions": {
+    "_tidy": {
+      "upstream_start_line": 33,
+      "upstream_end_line": 35,
+      "source_sha256": "d36f02ce6af18bb5dcf2742a0fa52e92190644e9341b400184496f1c92bae8dd",
+      "ast_sha256": "98842a8763b2bdaa55b2588f2d2d4e7bc5f143b8c643431f9d1f7c261142a954"
+    },
+    "ANSWER_FREE": {
+      "upstream_start_line": 38,
+      "upstream_end_line": 44,
+      "source_sha256": "7ee46fefe7fd2308b49ea216c2427b19f7470c34eff7b16ac05718ea2f5c63cb",
+      "ast_sha256": "b0b60002c133cb0c444bad1464de666f8164f345ab3893b132683b3a0e827d8a"
+    },
+    "EVIDENCE_BOUNDARY": {
+      "upstream_start_line": 56,
+      "upstream_end_line": 63,
+      "source_sha256": "865b73d14bd799f185493c4e60aa773750a34d32dec834fcd3549d15573a7071",
+      "ast_sha256": "ecf63191a29adb4fdb0691e0041357e6a67f1fa0272bcc08be47d828af67e887"
+    },
+    "_KEEP_BASE": {
+      "upstream_start_line": 333,
+      "upstream_end_line": 335,
+      "source_sha256": "79b1c0c9c44a4732dd13b04d3f55c017a737bde22765b4e7fa0a804c40308bf3",
+      "ast_sha256": "abb74e5524ac5e09c2130d63e78af9068a6a6c6599ee9dd0b2d0e0a69fd70265"
+    },
+    "_work": {
+      "upstream_start_line": 338,
+      "upstream_end_line": 339,
+      "source_sha256": "7f729268835723f1970ea05e39d25773a2f0df5f04311341eebce0e79e05c5b5",
+      "ast_sha256": "a4664edb661a03d0b9665fab67dab0f3d6978693530472c593af9baf3f2d16da"
+    },
+    "_lens": {
+      "upstream_start_line": 342,
+      "upstream_end_line": 344,
+      "source_sha256": "6c509da76445edfabe683ff888319446a34d186070095d3a333e107c12a863d8",
+      "ast_sha256": "95929d2ffda706c9a66dce479443f684cb70dd9df5ea869cfad094f89da0a183"
+    },
+    "_SurfaceText": {
+      "upstream_start_line": 608,
+      "upstream_end_line": 614,
+      "source_sha256": "2081676ca38b5d59dd8b37bb7c7eeedaa3eb60850ca1cf113f5eb32c93300f12",
+      "ast_sha256": "7beaf64ae6bd6a29e5743ee1dc48394c6340b79a29a948dd07e41b043600473e"
+    },
+    "_st": {
+      "upstream_start_line": 667,
+      "upstream_end_line": 672,
+      "source_sha256": "5472c1ce4cb16f6331361bf68bb263de430927768c5222fe683fa56fe612e62b",
+      "ast_sha256": "bad088a8042392393d7bd52c45412dbbea1d8ea3e44c5fe70f4722c8631eef6a"
+    },
+    "compose_round": {
+      "upstream_start_line": 964,
+      "upstream_end_line": 1008,
+      "source_sha256": "bc167e994c8aa3aea0494b8351e4eb4a8f8a027797a650d5876c19a300323424",
+      "ast_sha256": "5140073d2c3470ef0d79bf56ae56432dca6cf75c021222c3628a3189fddd40d8"
+    }
+  },
+  "license": "Apache-2.0",
+  "copyright": "Copyright 2026 Google LLC",
+  "license_git_blob": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+  "upstream_notice": "No NOTICE in pinned recursive tree",
+  "modifications": [
+    "Selected definitions extracted verbatim; annotation-only BenchPrompts/SurfaceSpec imports replaced with postponed annotations.",
+    "Excluded upstream benchmark/executor and _build_surface_texts Codex/OpenCode guardrail/plugin surface registry.",
+    "Javis immutable static body-only surface registry supplies the existing _st dependency. Wrapper supplies a minimal work/domain prompt input and calls exact compose_round with t=k=1.",
+    "Host adapter maps context/harness to supplied baseline data, INV/DOM to two original patch angles and notes to closed JSON. No filesystem or permission grant.",
+    "Host parser uses actual existing UTF8/body patch validator. Decisions remain unreviewed model claims; new content requires separate checks. No runtime/canonical authority imported."
+  ],
+  "inspected_not_copied": {
+    "harness2/core/recursion.py": "dda6b98cd5af100b8941f33cbb079462299c5280",
+    "tests/test_workflow.py": "2b7ebeb1816346f606922816a6f3609c64e8f8cc"
+  }
+}

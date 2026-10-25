@@ -1,10 +1,17 @@
-# Goal triển khai cải tiến agent và skill Javis, M0–M8
+# Goal cải tiến Javis — kết thúc ở M2 engineering và bàn giao Claude Opus 5.5
+
+**Quyết định chủ ngày24/10/2026, mục18, thay thế điều kiện hoàn thành M0–M8
+và mọi lệnh tiếp tục toàn bộ cũ bên dưới.** Goal hiện tại chỉ hoàn thành khi
+M2 engineering đạt đầy đủ gate kỹ thuật hiện hành và bộ bàn giao được cập nhật,
+commit/tích hợp. Không khởi động M3–M8 hoặc thử account/model/business/live.
+Các mục cũ được giữ để bảo toàn hợp đồng và lịch sử, áp dụng khi không mâu thuẫn
+với mục18. Điểm vào bàn giao: [HANDOFF](../handoffs/claude-opus-5-5/HANDOFF.md).
 
 Ngày: 22/10/2026, Asia/Saigon.
 
 Tài liệu này là chỉ dẫn cho một Goal sẽ được chủ phát lệnh. Việc soạn/lưu tài liệu không khởi động Goal, không gọi model thử nghiệm và không cấp quyền triển khai production. Phần ủy quyền bên dưới có hiệu lực khi chủ gửi lệnh Goal tham chiếu toàn bộ file này.
 
-## 1. Một lệnh để khởi động
+## 1. Lệnh khởi động lịch sử — phạm vi đã được mục18 thay thế
 
 ```text
 /goal Hoàn thành cải tiến agent và skill Javis từ M0 đến M8 theo toàn bộ chỉ dẫn tại D:\Project\Javis-OS\docs\superpowers\AGENT-SKILL-IMPROVEMENT-GOAL.md. Tự lập và thực hiện kế hoạch, kiểm thử, review, sửa lỗi, tạo PR và tích hợp theo quy ước repo; tiếp tục qua các mốc đủ điều kiện mà không hỏi lại xác nhận thông thường. Chỉ hoàn thành khi có bằng chứng đạt đầy đủ các điều kiện trong file; nếu còn gate nghiệp vụ, dữ liệu, quyền hoặc thời gian quan sát thật chưa đạt thì báo chính xác phần bị chặn và tiếp tục mọi phần độc lập còn làm được.
@@ -185,3 +192,305 @@ bổ sung được ghi riêng trong hồ sơ tiến độ, không thay hash ngu�
    chứng bị vô hiệu bởi thay đổi mới, thời gian thực đo được nếu có. Không hứa
    tỷ lệ tăng tốc chưa đo. Tiếp tục Goal từ checkpoint hiện tại sau khi lưu bổ sung.
 
+## 13. Bổ sung thứ tự thực hiện: code toàn bộ M0–M8 trước — 24/10/2026
+
+Đây là cập nhật trực tiếp của chủ, được chuyển từ chat “Xác định bước harness2
+tốn thời gian” (`01a16662-a77c-72e2-9c40-265c5659d5cc`). Áp dụng từ checkpoint
+hiện tại, không reset, không dừng ở MVP M2 và không thu hẹp phạm vi. Mục này đổi
+thứ tự công việc khi các đoạn trước hoặc spec gắn việc viết code mốc sau với
+pilot mốc trước; giữ nguyên tiêu chí chất lượng, quyền và định nghĩa hoàn thành.
+Goal trước bổ sung này có SHA-256
+`558e91848624c2dbc5daf1d5decb64b43b960285ce0416e40099ca63863b2ec8`.
+Hash nguồn ban đầu `67061573b8c584d65d0ecf1daa4c56b536c78c07fcc5158cfa090d40ea299afd`
+và mọi lineage/bằng chứng lịch sử giữ nguyên; hash sau bổ sung được ghi riêng.
+
+1. **Giai đoạn 1:** hoàn thiện code và kiểm kỹ thuật toàn bộ M0–M8, gồm backend,
+   runtime, UI, migration, adapters trong phạm vi đã chọn, agent/bundle/Team và
+   vận hành. **Giai đoạn 2:** sau khi phần kỹ thuật hoàn thiện mới chạy thử thực
+   tế bằng model/tài khoản/dữ liệu nghiệp vụ, feasibility/pilot A/B, đánh giá và
+   correction theo kết quả, đủ thời gian/nhiệm vụ canary và rollout có quyền.
+2. Giai đoạn 1 vẫn làm unit test, RED/GREEN hành vi, integration/E2E mô phỏng,
+   migration/rollback/quyền/scope/cancellation/crash/recovery, runtime với fixture
+   và localhost fake provider/credential giả, review độc lập và CI bắt buộc;
+   kế thừa toàn bộ mục12 về giảm lặp. Hoãn inference tài khoản thật, model-backed
+   feasibility nghiệp vụ, pilot thật và live canary sang Giai đoạn 2. Không tự
+   tạo dữ liệu hoặc quyết định nghiệp vụ thay chủ. Nếu có lượt thật đang chạy,
+   bảo toàn ownership/settlement/bằng chứng và không khởi động thêm.
+3. Hoàn thiện prerequisite kỹ thuật trước consumer tương ứng. Gate chờ bằng
+   chứng nghiệp vụ/canary không ngăn xây code độc lập của mốc sau: tách interface
+   và policy, dùng dependency injection/fixture để kiểm kỹ thuật, không giả gate
+   đã đạt hoặc mở activation/runtime thật chưa qualified.
+4. Mỗi mốc đánh dấu riêng **code hoàn thiện / kiểm kỹ thuật đạt ở môi trường nào /
+   cần kiểm engine thật / chờ pilot nghiệp vụ / chờ canary và rollout**. Adapter
+   chưa xác minh thực tế không được công bố hỗ trợ đầy đủ. Có thể xác nhận riêng
+   “giai đoạn code hoàn tất” đúng phạm vi/bằng chứng; không đánh Goal toàn bộ
+   complete khi Giai đoạn 2 còn mở.
+5. Không bỏ test kỹ thuật quan trọng, review độc lập hoặc exact-final-head full
+   CI; không tạo scaffold/placeholder thay chức năng. Không dùng mô phỏng khẳng
+   định native isolation, hiệu quả nghiệp vụ hoặc readiness thật. Khi thiếu bằng
+   chứng thực tế, giữ production/activation gated và ghi rõ giới hạn. Merge/phát
+   hành code theo quyền và quy ước hiện có không đồng nghĩa deploy/restart/bật
+   trên brain thật.
+6. Chuyển các task đòi thử nghiệm thực tế trong plan hiện tại sang danh sách
+   Giai đoạn 2 có truy vết, giữ nguyên tiêu chí và evidence cũ. Nếu một phụ thuộc
+   kỹ thuật thật sự cần thông tin chỉ thử thật mới biết, ghi rõ phần chưa xác
+   minh và tiếp tục phần độc lập; không lặp nghiên cứu/tự thử thật để trì hoãn
+   toàn bộ code.
+7. Lưu mục bổ sung này vào Goal, progress/checkpoint, plan hiện tại và kế tiếp;
+   bảo toàn hash nguồn gốc và lineage như mục12. Tiếp tục từ checkpoint hiện
+   tại, không làm lại phần đã đạt và không hỏi lại xác nhận thông thường.
+
+## 14. Bổ sung ưu tiên tái sử dụng Harness² cho phần chưa viết — 24/10/2026
+
+Chỉ dẫn trực tiếp của chủ được chuyển từ chat “Xác định bước harness2 tốn thời
+gian” (`01a16662-a77c-72e2-9c40-265c5659d5cc`), áp dụng từ checkpoint hiện tại.
+Goal trước mục14 có SHA-256
+`f683ff6abba61e110ef8034fe1451d80390d6688866c2def5f2f964ec4fcd356`.
+Giữ hash nguồn gốc, toàn bộ lineage và bằng chứng cũ; ghi hash mới riêng.
+
+1. Ưu tiên tái sử dụng mã [Google Harness²](https://github.com/google-research/harness2)
+   ở các phần **chưa viết**, để giảm công thực tế. Nguồn chuẩn đã pin trong spec
+   là `1cfe254e8d25b15f37048c3730134686abe60335`. Nếu cần nguồn mới, pin SHA riêng
+   và ghi chênh lệch liên quan; không âm thầm đổi snapshot chuẩn.
+2. Trước mỗi thành phần mới, đối chiếu upstream có mục tiêu, ghi bảng ngắn:
+   chức năng Javis cần → file/hàm/SHA upstream → dùng nguyên / adapter / viết
+   riêng → lý do và test hợp đồng cần. Chỉ đọc dependency trực tiếp đủ quyết
+   định, không audit lại toàn repo hoặc mở đợt refactor lớn.
+3. Ưu tiên prompt Propose/Compose/Reflection và ranh giới evidence trong
+   `core/prompts.py`, điều phối Propose–Probe–Compose trong `core/recursion.py`,
+   selection độc lập trong `core/selection.py`, kinh nghiệm/chỉ mục trong
+   `core/library.py`, cùng helper/context/tree/protocol/test thực sự liên quan.
+   Compose, recipe/library và bundle còn thiếu phải kiểm upstream trước.
+4. Chọn import/dependency pin hoặc vendor một phần có nguồn gốc rõ và adapter
+   hẹp theo tổng công tích hợp/bảo trì. Kiểm dependency, side effect, ownership
+   và interface thật; không tạo runtime, usage ledger hay executor trùng Javis.
+5. Không thay phần Javis đã hoàn thiện chỉ để tăng tỷ lệ reuse. Chỉ đổi khi có
+   lỗi hoặc lợi ích cụ thể đủ bù chi phí, có phạm vi/bằng chứng. Không hứa phần
+   trăm tiết kiệm chưa đo; không thêm hồ sơ/review hình thức.
+6. Khi thực sự lấy code, giữ Apache-2.0, copyright/attribution và NOTICE nếu
+   áp dụng; ghi SHA và sửa đổi trong nguồn/manifest. Kiểm riêng giấy phép của
+   dependency/third_party/dataset được lấy; không tự copy benchmark/dataset.
+7. Không lấy policy upstream trái hợp đồng Javis: `selection_pool` snapshot
+   chuẩn chỉ chọn finals và loại baseline; Javis luôn giữ baseline trong so
+   sánh/quyết định, candidate thua hoặc inconclusive thì giữ bản cũ. Khả năng
+   sửa system prompt/guardrails/plugins của upstream không cấp quyền sửa luật
+   chủ, quyền hay model của Javis. Prompt không thay host enforcement.
+8. Giữ mọi gate source/owner/grant/scope, protected content, holdout kín,
+   lineage/config/version, native isolation/effective view, cancellation/crash/
+   cleanup/concurrency/recovery, usage/unknown, migration/old-reader, atomic
+   apply/revert, review độc lập và full CI trên commit cuối. Test upstream
+   không thay kiểm adapter/Javis; chỉ lặp regression theo ảnh hưởng thực tế.
+9. Giữ mục13: Giai đoạn1 hoàn thiện code M0–M8 với kiểm kỹ thuật, mô phỏng và
+   localhost fake provider; thử model/tài khoản/nghiệp vụ, pilot và live canary
+   vẫn ở Giai đoạn2. Reuse không cho phép thử thật hoặc rollout sớm.
+10. Lưu chỉ dẫn vào Goal và tham chiếu progress/checkpoint/plan hiện tại;
+    plan sau kế thừa. Checkpoint ghi gọn module đã tận dụng, phần cần adapter
+    và phần phải viết riêng. Bảo toàn công việc đang chạy, tiếp tục Goal và
+    không hỏi lại xác nhận thường lệ.
+
+## 15. Bổ sung tận dụng prompt và cấu trúc bằng chứng cho phần đã viết — 24/10/2026
+
+Chỉ dẫn trực tiếp tiếp theo của chủ từ cùng chat
+`01a16662-a77c-72e2-9c40-265c5659d5cc`, mở rộng có mục tiêu mục14, không cho
+refactor diện rộng. Goal trước mục15 có SHA-256
+`77310e4c4635b012efb8f565bd842d314c82d6e2d168b90dd1ef006f484a2b2b`;
+nguồn/hash/evidence lịch sử giữ nguyên. Nguồn Harness² vẫn pin
+`1cfe254e8d25b15f37048c3730134686abe60335`.
+
+1. Sau khi bảo toàn đơn vị đang làm, chọn delta nhỏ ở
+   `server/improvement_generation_protocol.py:render_proposer_input` và consumer
+   thật, đối chiếu `harness2/core/prompts.py`. Tăng hướng dẫn tìm lỗi sớm nhất
+   có bằng chứng, giữ hai góc `execution/domain_process`, sửa nhỏ đúng nguyên
+   nhân, nêu tác dụng dự kiến/rủi ro, KEEP_BASE/no-change khi thiếu căn cứ.
+   Giữ JSON/patch contract, giới hạn candidate/repair, byte offsets và luật chủ;
+   không lấy các quyền sửa system prompt/guardrails/plugins của upstream.
+2. Dùng cấu trúc reflection: chỉnh sửa cụ thể → run/trace/nguồn được phép →
+   khác biệt hành vi quan sát → helped/hurt/no observed effect/confounded.
+   Không suy nguyên nhân từ selection win, nhiều sửa cùng lúc hoặc một rollout.
+   Kết quả tổng thể và đánh giá ý nghĩa/luật chủ là bằng chứng riêng.
+3. Recipe/report còn thiếu dùng bài học có điều kiện áp dụng và evidence,
+   cho phép không tạo bài học. Không nạp cả thư viện. Phần đã có ưu tiên
+   projection/renderer/adapter hẹp; giữ lịch sử/schema/format đã phát hành,
+   chỉ version/migrate khi có nhu cầu thật, không để giống upstream.
+4. Pure anonymization/seeded order của `selection.py` là ưu tiên sau, chỉ khi
+   có điểm nối rõ. Giữ baseline, comparator/ngưỡng độc lập; không lấy
+   finals-only selection_pool hoặc thay bằng phán xét model.
+5. Chỉ dùng nguồn được cấp, không thêm raw CoT/secret/holdout/đáp án hay
+   checker-private vào input. Giữ native/provider/asset-use unknown và giới
+   hạn quan sát; khác giả định evidence thì chỉ lấy cấu trúc lập luận phù hợp.
+6. Không làm lại store/sandbox/worker/native qualification/ledger/usage/quyền/
+   lifecycle để reuse prompt. Không nghiên cứu/review lại toàn nhánh. Ghi đúng
+   function/SHA upstream, delta, callers và test ảnh hưởng trong reuse map.
+7. Khi trích code/prompt giữ Apache-2.0/copyright/NOTICE và provenance/sửa đổi.
+   Review contract, kiểm hành vi renderer/evidence/boundary/output compatibility
+   và regression ảnh hưởng; không chỉ assert một câu literal. Đổi nguồn thuộc
+   native footprint phải làm mất hiệu lực/tái qualification theo cơ chế thật.
+8. Giữ review độc lập theo delta và full CI commit cuối. Giai đoạn1 chỉ code/
+   kiểm kỹ thuật/mô phỏng; model/account/nghiệp vụ/canary ở Giai đoạn2. Không
+   tuyên bố prompt nâng chất lượng hay tiết kiệm token khi chưa đo.
+9. Lưu bổ sung vào Goal/progress/checkpoint/plan/reuse map, bảo toàn việc đang
+   làm và lineage. Tiếp tục từ checkpoint thuận tiện, không restart hay xin
+   lại xác nhận thông thường. Mục tiêu là cải thiện đề xuất/bằng chứng cụ thể,
+   không kéo dài việc bằng viết lại hạ tầng.
+
+## 16. Bổ sung cho phép thay có chọn lọc phần đã viết bằng Harness² — 24/10/2026
+
+Chỉ dẫn trực tiếp mới của chủ từ chat
+`01a16662-a77c-72e2-9c40-265c5659d5cc`. Goal trước mục16 có SHA-256
+`e868339ebd3ad1a73fe9faea13b74e2af959c8b3f8148eb4c2ddbae63ac8fc20`;
+bảo toàn hash nguồn gốc và mọi lineage lịch sử. Mục này nới các hạn chế ở mục14–15
+đúng phạm vi sau: **cho phép thay phần đã viết khi chứng minh phù hợp hơn và đáng
+tổng công chuyển đổi**, không giữ thiết kế chỉ vì đã tốn công. Không sửa hồi tố
+quyết định/evidence cũ, không refactor rộng chỉ để giống Google hay tăng tỷ lệ copy.
+
+1. Áp dụng tại đơn vị hiện tại hoặc kế tiếp; không restart, không bỏ ownership
+   việc đang chạy, không khảo sát lại toàn bộ code. Khi upstream có lõi tốt hơn,
+   ghi so sánh trước/sau ngắn với file/hàm/SHA cụ thể trước khi thay.
+2. Lợi ích cần cụ thể: giảm logic/nhánh/dependency tự duy trì; tách propose/probe/
+   compose/selection/reflection tốt hơn; tăng kiểm chứng/tái lập/truy vết; hoặc
+   reuse implementation thật. Không mặc định Google tốt hơn hay suy chất lượng
+   nghiệp vụ cao hơn khi chưa thử thật.
+3. Ưu tiên prompt phân tích/đề xuất/compose/reflection; cấu trúc chỉnh sửa →
+   run/trace được phép → khác biệt quan sát → helped/hurt/no observed effect/
+   confounded; hàm thuần và lõi điều phối; recipe/library/bundle khi đến phần ấy.
+4. So tổng công adapter, consumer, migration, backward compatibility,
+   qualification, regression và review với lợi ích bảo trì/độ đúng dài hạn.
+   Đáng làm thì tự thực hiện trong quyền đã có. Phương án rộng/tốn nhiều công
+   hoặc đổi chính sách thì ghi trade-off, tiếp tục phần độc lập; không audit vô hạn.
+5. Ưu tiên upstream nguyên hoặc vendor có provenance và adapter hẹp. Giữ pin
+   `1cfe254e8d25b15f37048c3730134686abe60335`; snapshot khác cần pin/lý do/chênh
+   lệch riêng. Giữ Apache-2.0/copyright/NOTICE, ghi sửa đổi và kiểm third-party dùng.
+6. Giữ boundary source/owner/grant/brain/scope, luật chủ, baseline trong quyết
+   định và inconclusive/thua giữ baseline; holdout/private answers kín; giới hạn
+   candidate/repair/compose; source/runtime/config pins; history/usage/unknown;
+   actual Trial/Call ownership; cancellation/crash/cleanup/concurrency/recovery;
+   migration/old-reader; atomic apply/revert; native/session/resume/activation.
+   Không thay gate bằng prompt/model vote hoặc tạo executor/ledger song song.
+7. Database/quyền/native lifecycle không được mặc định bất khả xâm phạm, nhưng
+   chỉ thay khi có lợi ích cụ thể và kế hoạch giữ compatibility/recovery. Không
+   lấy benchmark framework làm production authority; giữ action/model/reasoning
+   và quyền live đã có.
+8. Mỗi thay đổi là delta nhỏ review được, giữ test hợp đồng hành vi trước/sau,
+   thêm test theo rủi ro cần kiểm, kiểm consumer/integration bị ảnh hưởng. Reuse
+   evidence phần không đổi khi đủ điều kiện. Không giữ hai runtime dài hạn để
+   né chuyển đổi, không xóa đường cũ trước khi bảo toàn user/history/consumer.
+9. Đổi prompt/code thuộc native footprint phải invalidate/requalify đúng cơ
+   chế; không nhận proof cũ cho nguồn mới. Giữ review độc lập theo delta và full
+   required CI commit cuối. Phase1 code/kiểm kỹ thuật/mô phỏng/localhost fake;
+   model/account/business pilot/canary vẫn Phase2 như mục13.
+10. Checkpoint ghi upstream dùng thật, phần thay/giữ và lý do, test/review/
+    qualification và lợi ích đo được nếu có. Không hứa phần trăm tiết kiệm chưa đo.
+11. Lưu Goal/progress/checkpoint/plan/reuse map; bảo toàn công việc và quyền
+    chủ đã cấp. Tự quyết kỹ thuật thường lệ theo tiêu chí này, tiếp tục từ
+    checkpoint, không hỏi lại xác nhận thường lệ.
+
+## 17. Bổ sung ưu tiên compose và experience library trực tiếp qua adapter — 24/10/2026
+
+Chủ chốt trực tiếp qua chat `01a16662-a77c-72e2-9c40-265c5659d5cc`: ưu tiên
+dùng implementation compose và thư viện kinh nghiệm Google Harness² qua adapter,
+sau đó so thay lõi điều phối nếu tổng công ít hơn/giá trị tốt hơn. Goal trước
+mục17 có SHA-256 `76e349119bd3f7148204b2e57800d9769aac4f7cb73c271e6f8541ff0a6c5b18`.
+Kế thừa mục12–16, bảo toàn hash/history/lineage, không reset/audit toàn repo hay
+bỏ ownership đang chạy. Áp dụng từ đơn vị phù hợp gần nhất sau điểm nối an toàn.
+
+1. **Compose trước:** pin `1cfe254e8d25b15f37048c3730134686abe60335`; đối chiếu
+   `core/prompts.py:aggregate/compose_round`, chỗ gọi trong `core/recursion.py`
+   và dependency trực tiếp. Ưu tiên import/vendor phần implementation thật dùng
+   được, adapter hẹp vào input/evidence/runner/patch hoặc bundle validator Javis;
+   được trích phần độc lập nếu cả module kéo executor/benchmark không cần. Không
+   chỉ viết lại lời mô tả rồi gọi dùng trực tiếp. Giữ surface được chủ cho phép,
+   tuning data và giới hạn candidate/repair/compose. Compose tạo candidate/bundle
+   mới phải kiểm riêng, không thừa hưởng pass/qualification; KEEP_BASE/unknown giữ.
+2. **Experience library kế tiếp:** kiểm `core/library.py` và tree/context/spec
+   liên quan, ưu tiên cấu trúc/serialization/index/entry trực tiếp qua adapter
+   brain/scope/evidence/revision. `rmtree/copy/write` và mutable index chỉ chạm
+   root riêng đã kiểm/thuộc quyền. Dùng snapshot/index dẫn xuất thì nguồn chuẩn
+   Javis vẫn bất biến, encrypted, có quyền/retention/revocation/trace links. Không
+   tạo filesystem canonical/authority song song hay nạp cả thư viện mọi scope.
+   Hàm không giữ nguyên được cần ghi xung đột thật và tận dụng phần còn phù hợp.
+3. **Điều phối sau hai phần trên:** so `run_parallel/run_sequential/_run_stage`,
+   BenchmarkAdapter/RunView/Proposer với ExperimentService/Trial/Operation. Tính
+   đủ dependency, synchronous ThreadPoolExecutor/filesystem lifetime, cancellation,
+   lease/restart/replay, ledger/usage, consumer migration/qualification/test/review.
+   Nếu thay toàn lõi tăng công, giữ owner/state machine Javis và lấy thuật toán
+   độc lập; không giữ hai executor/ledger authoritative trùng nhau.
+4. Mỗi đơn vị ghi bảng ngắn trước code: file/hàm/SHA, phần nguyên/vendor/adapter,
+   phần Javis giữ, consumer, tổng công/lợi ích và test/gate. Không phân tích vô hạn
+   làm chậm tích hợp hiện tại. Sớm làm lát cắt fixture chạy được để kiểm adapter;
+   scaffold không được tính tích hợp.
+5. Tận dụng source/test upstream kèm kiểm contract/adapter/hành vi Javis có ý
+   nghĩa. Giữ license/copyright/NOTICE/provenance/modifications; không tự lấy
+   benchmark/dataset/third_party ngoài nhu cầu và giấy phép.
+6. Baseline luôn trong quyết định, thua/inconclusive giữ bản cũ; không lấy
+   finals-only selection_pool. Không mở mặt sửa luật chủ/model/reasoning/quyền/
+   system guardrails hay tăng số vòng/candidate vượt giới hạn. Nhiều rollout
+   không mặc nhiên tiết kiệm token vận hành.
+7. Giữ gate owner/grant/brain/scope/source/protected content; holdout/private
+   answer/secret; immutable version/config/evidence; actual Trial/Call usage và
+   unknown; native source/profile/qualification; cancellation/crash/cleanup/
+   concurrency/recovery; migration/old readers/history; atomic apply/revert;
+   review độc lập và full required CI commit cuối. Đổi footprint phải invalidate/
+   requalify, không dùng proof sai nguồn.
+8. Phase1 vẫn hoàn thiện code M0–M8/kiểm kỹ thuật/mô phỏng/localhost fake được
+   phép; model/account/business pilot/live canary vẫn Phase2. Reuse code không
+   chứng minh chất lượng nghiệp vụ/native readiness hay cấp quyền activation.
+9. Checkpoint phân biệt đã đối chiếu / dùng trực tiếp upstream / adapter /
+   fixture / review và CI / gate còn mở. Chỉ báo tiết kiệm có cơ sở đo, không
+   tối ưu tỷ lệ dòng copy. Lưu Goal/progress/checkpoint/code-first/reuse map,
+   tự quyết kỹ thuật trong quyền hiện có, tiếp tục không hỏi lại xác nhận.
+
+## 18. Chủ thu hẹp Goal tới M2 engineering và yêu cầu bàn giao — 24/10/2026
+
+Quyết định trực tiếp của chủ chuyển từ chat “Xác định bước harness2 tốn thời gian”
+(`01a16662-a77c-72e2-9c40-265c5659d5cc`), nhận trong phiên Goal này ngày24/10.
+Mục18 **supersede** yêu cầu hoàn thành M0–M8/Phase2 trong Goal hiện tại, gồm
+mục1/2/5/8/10/13/17 và mọi kế hoạch/lệnh tiếp tục cũ có phạm vi rộng hơn.
+Không tạo Goal mới, không đánh dấu complete ngay lúc nhận quyết định.
+
+1. Hoàn thiện M2A–F và D1/D2 theo hợp đồng kỹ thuật: backend/runtime/UI,
+   manual apply/revert/recovery/usage/provenance cần cho M2. Reuse M0/M1 và
+   M2A–C đã đạt; không triển khai lại.
+2. Nghiệm thu Goal là **M2 engineering + bàn giao**, code/kiểm kỹ thuật trước.
+   Không đợi hoặc khởi động real-account/model/business feasibility/pilot/canary
+   để tiêu thêm quota. Chuẩn bị và kiểm mô phỏng workflow feasibility M2F;
+   business/live acceptance vẫn **PENDING**, không tuyên bố hiệu quả M2.
+   Mọi gate qualification kỹ thuật/source/runtime/CI/review bắt buộc của mã
+   bàn giao vẫn phải đạt hoặc ghi blocker thật; không hạ gate, không báo blocked
+   chỉ vì chờ CI.
+3. Không mở rộng recipe/library/compose vượt phụ thuộc thật sự của M2.
+   Bảo toàn code/evidence thuộc M3–M8 đã xây, chốt an toàn đơn vị đang chạy;
+   phần còn lại chuyển backlog Claude. Không chạy M3–M8 trong Goal này.
+4. Bàn giao bắt đầu ngay tại `docs/handoffs/claude-opus-5-5/`, cập nhật dần:
+   `HANDOFF.md` là điểm vào trạng thái/gate/môi trường/quyền/khôi phục;
+   `NEXT-PROMPT.md` là prompt ngắn cho Claude Opus5.5. Có roadmap M3–M8,
+   phần làm trước, actual Google vendor/adapter/SHA/license/provenance và các
+   addendum test theo ảnh hưởng/thay chọn lọc/code-first/compose-library reuse.
+5. Ghi evidence theo actual commit/source; early Linux/scoped/mock không thay
+   full final-head CI/review/native qualification. Liệt kê invalidated/chưa
+   verified. Khi kết thúc phải settle/dọn đúng ownership mọi process/reservation/
+   workspace của Goal; không để helper/model chạy ngầm.
+6. Không đưa secret/key/token/credential/plaintext private vào bàn giao.
+   Không xóa/di chuyển worktree hoặc key, không mass-copy private blobs.
+   Giữ ignored lịch sử/khôi phục và ghi vị trí/trạng thái an toàn.
+7. Commit docs/bàn giao và cập nhật tới actual final M2 state; tích hợp PR theo
+   quyền/CI/review đã có, bảo toàn checkout chính bẩn và nhánh chat khác.
+   Sau khi đạt scope mới trả đường dẫn tuyệt đối HANDOFF/NEXT-PROMPT,
+   release/PR/commit và pending real-test gates rồi mới complete Goal.
+
+Chủ đã cho phép thay scope và bàn giao, không hỏi lại xác nhận thông thường.
+Đổi coding assistant sang Claude Opus5.5 không đổi engine/model/reasoning của
+Javis và không cấp quyền thử thật/deploy/restart/activation. API Goal hiện có
+chỉ create/get/update-status, không có objective-update; giữ một Goal ACTIVE,
+dùng mục18 và checkpoint làm scope có hiệu lực, không tạo Goal thay thế.
+
+
+## 19. Chủ giao lại M0–M8 cho phiên Claude Opus 5.5, 25/10/2026
+
+Lệnh trực tiếp của chủ trong phiên Claude Code ngày 25/10: đọc và thực hiện toàn bộ
+file này, hoàn thành cải tiến agent và skill từ M0 đến M8, kiểm tra phần phiên
+ChatGPT làm dở do hết token rồi tiếp tục. Lệnh này mới hơn mục18, nên mở lại phạm
+vi M0–M8; mục18 vẫn giữ làm lịch sử bàn giao. Thứ tự giữ nguyên: chốt M2 trước,
+rồi M3–M8 theo phụ thuộc mục23 của spec. Các giới hạn quyền ở mục3, 6, 7, 13 vẫn
+nguyên: không chạy tài khoản/model thật, pilot, canary live, deploy/restart hay bật
+activation trên brain thật nếu chủ chưa cấp riêng. Tiến độ ghi ở progress, mục
+"Checkpoint Claude".

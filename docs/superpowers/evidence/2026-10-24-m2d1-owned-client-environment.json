@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "status": "scoped_engine_integration_fix_approved",
+  "source_sha256": "eb989026088b4344c09c520b961cdcac168d76b5df010a786be233b4cf735ff9",
+  "test_sha256": "c20342acb7806880c0549c786c21055e0ec56b889e8c43fe90ff44ab47364134",
+  "red": {"tests": 2, "failed_subtests": 2, "seconds": 0.961, "log_sha256": "eb10b6271adc1916e1c61bcdf2f320f2ece3fa2e9908fb71d701fd788a3265fd", "cause": "Engine injected CLAUDE_CODE_STREAM_CLOSE_TIMEOUT before explicit owned factory, violating exact startup environment"},
+  "author": {"tests": 2, "seconds": 0.876, "exit": 0, "log_sha256": "60b15a27c771a655b1de32a9c165a38970e8d0488cd2d05c07a8768631d10e48"},
+  "independent": {"tests": 2, "seconds": 0.849, "exit": 0, "log_sha256": "a4525f71e9f9505e0f6ef4200b00a0d9c1ab6d031c96d4c3832a6f4c0a8a65f0"},
+  "regression": [
+    {"file": "test_improvement_native_client_factory.py", "tests": 2, "seconds": 0.812, "exit": 0, "log_sha256": "da8e3a4e6e60da461686fb343c8172aafaae9e365113b81fdae105982b4848c7"},
+    {"file": "test_khoi_dong_cham.py", "exit": 0, "log_sha256": "01b82ac4a7af8881d1627aa0b7225ceed552d542c6c92dfb893188fa16a0e813"},
+    {"file": "test_claude_startup_diagnosis.py", "exit": 0, "log_sha256": "0be6b458975f6013dca41631d620b9031c91f538a9b8b426701074f2f738d023"}
+  ],
+  "behavior": "Resolve trusted factory before startup handling; explicit owned factory preserves environment, absent/None factory keeps legacy startup override before default client",
+  "limitations": [
+    "Actual engine/options with constructor sentinels, no connect/SDKClient/native/account/query calls",
+    "Owned client uses SDK default initialize availability timeout; immutable outer lifetime remains separately bounded, with no new quiet-model timeout",
+    "No new environment key or SDK patch; complete worker consumer, native qualification and final-head CI still required",
+    "Test failure output names changed keys only; earlier diagnostic RED retained separately and not used as frozen proof"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-skill-reads"
+}

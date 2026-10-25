@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "status": "scoped_native_baseline_profile_independently_approved",
+  "pins": {
+    "server/improvement_native_profile.py": "47f5d3b0ba15bcab4499620b6bee58e307076a16d31cd29aa3f4f5964e9c01d2",
+    "tests/python/test_improvement_native_profile.py": "42e50d27325474ed941deb0d2f831422b00bfd9689036485faa6d706320fc753",
+    "server/improvement_query_dispatch.py": "1395d7cccf19ada066cc5ff4ccff89c4499e9d555fe8c56a3880b75bd72bc408",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-profile/run_tests.py": "699185cc20289533496ef338ea3b51adae84a3f46864a13de80fe01473490a69",
+    "tests/python/test_improvement_trial_profile4.py": "e159c44ee8700cdf775320d4eb214fe73ef3415336eb206b2b0ca5b811859e4c",
+    "tests/python/test_improvement_native_sdk.py": "d5562bf2ab0da6518899ce1d04b466a710360f98af61efb23f0103684ab2e4b2",
+    "tests/python/test_improvement_trial_profile5.py": "0a02ca98db87ed179cc121d9536daccdf4fa3108449bb3f2c684caf05e888635",
+    ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/run_profile_sdk.py": "6a07b21be796bb4b8ef11d874cff2aac7c2e307ca40b140fc6884983c9eed213",
+    "tests/python/test_improvement_query_dispatch.py": "fe73ba59c87b58b7259ff424269faa1c516674491c16d9f5097c45ffd2194ca3",
+    "server/improvement_native_sdk.py": "355c03a593d10ffb0570eb655c7401ec0d449e54845c56e01ac43a492c8a29d3",
+    "server/improvement_claude.py": "a8bd1f392142b634a54209893aa0a94fa20a96aba14035c7329198d701a289ed"
+  },
+  "independent": {
+    "skips": 0,
+    "timings": {
+      "sdk2": 0.883,
+      "legacy4_8": 3.401,
+      "binding2": 1.114,
+      "query2": 0.003,
+      "new4": 1.391
+    },
+    "runs": [
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-profile5-new4.log",
+        "sha256": "2fd72524997bc19aa5cce12168a5615aafacc0e084b485e48b77ae05ff0153cc",
+        "exit": 0,
+        "name": "new4"
+      },
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-profile5-sdk2.log",
+        "sha256": "b9798e0f94cc8c2f55e40ea34dcd4204645d945d62ed9a4c490a0ec4ff5565c5",
+        "exit": 0,
+        "name": "sdk2"
+      },
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-profile5-legacy4-8.log",
+        "sha256": "539cd8a2a1623d0aab1165f1f45ff9c1056eb54e2a4d7d7c8dcb7b4d4a91fefc",
+        "exit": 0,
+        "name": "legacy4-8"
+      },
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-profile5-query2.log",
+        "sha256": "64a40914738b0cd12bbd31142510605e3325139413be4120c32c3c197c15159a",
+        "exit": 0,
+        "name": "query2"
+      },
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-profile5-binding2.log",
+        "sha256": "a66de4c86ed96711c83607b20c61b3bcef93710a1ec6ef827d9f7d5816af2740",
+        "exit": 0,
+        "name": "binding2"
+      }
+    ],
+    "count": 18,
+    "seconds_sum": 6.792
+  },
+  "report_sha256": "08abf664e073a1b78d5ea4b1abd0de2aa14a385f88779e3c54b62fe7f697cc98",
+  "behavior": [
+    "TrialProfile installation4/5 must bind concrete native runtime before options/start; only baseline5 selects closed baseline_inline policy with exact fixture-only tool inventory",
+    "NativeProfileBinding allows baseline_inline only with kind trial; operation rejects it, while pinned_skill and fixture_only remain exact",
+    "Binding carries original identity/input/prompt/runtime/environment and original completed write path; no arbitrary argv/tools/environment capability added",
+    "Receipt5 contains base baseline fields plus native_input_delivery (None if missing) without fake effective_view/read proof, asset observed use or reasoning promotion",
+    "TrialProfile4 immediately affected legacy receipts/options and pure query/binding cases pass independently; ClaudeTrialAdapter AST unchanged"
+  ],
+  "limitations": [
+    "Tests use real SDK116 builder/client construction and owned custom transport with fake Capture/IO; no native child/SDKClient.connect/provider/account",
+    "No parent/worker/runner/result/materializer baseline5 route or runtime registration approved or activated",
+    "Input-delivery proof remains qualified original client stdin write, not provider acceptance/native read acknowledgement/comprehension/internal reasoning",
+    "Final-source whole-pipeline qualification/full18 eligible positive/business/finalCI acceptance remain separate"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline",
+  "red-profile4": {
+    "tests": 4,
+    "seconds": 1.488,
+    "failures": 1,
+    "errors": 3,
+    "log_sha256": "c3d15df3e0b5e8d20f4669e9df2c66e19742960d42299ec8275343b6dc04930e"
+  },
+  "red-profile-sdk2": {
+    "tests": 2,
+    "seconds": 0.847,
+    "failures": 0,
+    "errors": 1,
+    "log_sha256": "d6b2a971ecb18a3fb110f4452f880b1b350fd7e293d324e9a1adb70b5cc202f8"
+  },
+  "green-profile4": {
+    "tests": 4,
+    "seconds": 1.39,
+    "failures": 0,
+    "errors": 0,
+    "log_sha256": "e55a97fe20fe5f0646ed9ab6c0dbbd4ee19e7da40f33353fbf0446e9178ef8f4"
+  },
+  "green-profile-sdk2": {
+    "tests": 2,
+    "seconds": 0.817,
+    "failures": 0,
+    "errors": 0,
+    "log_sha256": "abd03e4528de36dfbafcb43160a45e8fcf4141725263c077b74410fc7f6e946c"
+  }
+}

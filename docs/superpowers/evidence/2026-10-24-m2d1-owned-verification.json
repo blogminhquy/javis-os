@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "label": "actual-adapters-and-runners/owned-verification-cancellation",
+  "evidence_class": "technical",
+  "source_parent_commit": "4ba9624a76cd4bfb54d3d229263baa223944383b",
+  "source_hashes": {
+    "tests/python/test_improvement_operation_runner.py": "bfbdb4c4758b5c7aac49c066ed7c05ee62c2ff10577493fc2e970b2f14b0e5e2",
+    "tests/python/test_improvement_trial_runner.py": "0e38c079f1dde4e58413dff192185209208fbc74b6bcdac04406c928b1994937",
+    "server/improvement_operation_runner.py": "590dde67bd5eecdc92c8cc672dc9ace803213000ce113d5126840783b2ba4587",
+    "server/improvement_trial_runner.py": "11d5ea5d9110fa0d128408d68c47f3032077056f86cf4c652f6c92e67f917b43",
+    "server/improvement_claude.py": "e441176ed6b50f201eb542b126b6ac239e1a2fe86a5a7075116c71c3177d74a3",
+    "tests/python/test_improvement_owned_verification.py": "6f3137f80b8664c496e04de4e99d87927ed567b409ca868ddf3f1379cba77fb6",
+    "server/improvement_operation_adapter.py": "3be10b51ab3182b8f21269320530c03e1d2c39e03ee62c1603806f5ebecec18a"
+  },
+  "test_commands": [
+    "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B tests/python/test_improvement_owned_verification.py -v",
+    "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B tests/python/test_improvement_trial_runner.py TrialRunnerTests.test_cancelled_verification_retains_execution_until_thread_settles -v",
+    "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B tests/python/test_improvement_operation_runner.py OperationRunnerTests.test_cancelled_verification_retains_execution_until_thread_settles -v",
+    "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B tests/python/test_improvement_trial_runner.py -v",
+    "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B tests/python/test_improvement_operation_runner.py -v",
+    "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B tests/python/test_improvement_claude.py -v"
+  ],
+  "author_runs": [
+    {
+      "stage": "adapter_red",
+      "tests": 2,
+      "failures": 2,
+      "seconds": 0.364,
+      "log_sha256": "a98811db2ceaa55e9037aec2fb058164e0906e92d353673458eb39883af2028d"
+    },
+    {
+      "stage": "initial_short_runner_observations_inadequate",
+      "tests": 2,
+      "passed": 2,
+      "seconds": [
+        0.909,
+        3.295
+      ],
+      "reason": "50ms after the second cancellation was shorter than the existing abort/storage cleanup; no safe ownership inference.",
+      "log_sha256": [
+        "cb3a8c4ceb389a6144961b2cd1e8eafb3381bd92f84699f613eeb8608daf05bc",
+        "1bb33dce648be1a3faa5b4f3c7513a8d7d19ff174930d19dbb1e457e1e3dfda8"
+      ]
+    },
+    {
+      "stage": "runner_red_bounded_completion_wait",
+      "tests": 2,
+      "failures": 2,
+      "seconds": [
+        0.819,
+        3.066
+      ],
+      "log_sha256": [
+        "5153f714fc5b7768e18198adc6ca60a2024caa92f0b64a7433ae855cba4dc6de",
+        "d6ecdf3cbc74014477ff0ed7842e333e8faed53d26d2014f998303dbad651e75"
+      ]
+    },
+    {
+      "stage": "focused_green",
+      "tests": 4,
+      "passed": 4,
+      "seconds": [
+        0.366,
+        1.845,
+        4.128
+      ],
+      "log_sha256": [
+        "8ab716f64822942d03f88edf252b35fdc404dab302c14b67603f919eb953d81b",
+        "5154c89c080983f691c76e06ad53d3f503b44a26b0b9c756eeadb14d4186e9de",
+        "31cb8cd7adb8829d6ce1be0406e14412d4cf0d13619ce29fcc5a1609a9edc33f"
+      ]
+    },
+    {
+      "stage": "full_affected_trial_runner",
+      "tests": 25,
+      "passed": 25,
+      "seconds": 30.704,
+      "log_sha256": "ece6d8062eacf958d3333803e8867c6a132e60fe196a8f006c922675b2880c34"
+    },
+    {
+      "stage": "full_affected_operation_runner",
+      "tests": 15,
+      "passed": 15,
+      "seconds": 75.389,
+      "log_sha256": "2ce91ba9b5467f38619b21612d92ec3e6be5787eaa39e6e7ab7db44142e593ca"
+    },
+    {
+      "stage": "full_affected_claude_profile",
+      "tests": 22,
+      "passed": 22,
+      "seconds": 1.534,
+      "log_sha256": "8092480bb60d5a47a1eb5e32071125b3f112c0d0d2fd0fb25d324a87c7adcb37"
+    }
+  ],
+  "independent_review": {
+    "verdict": "scoped_approval",
+    "tests": 4,
+    "passed": 4,
+    "seconds": [
+      0.344,
+      2.08,
+      3.463
+    ],
+    "all_seven_source_test_hashes_unchanged": true,
+    "log_sha256": [
+      "47cc890f7a4ca3e309c2f1fa929277029c53402407a59b49e04f64760596a7ef",
+      "5e76754b1fa780426a8cd66712f8b0137a0ebca5e7c37f0300c8524636bb716c",
+      "d7279c7b43c598f873b7bbe9f6bbade341df488d90ef6634fa3fd60c7842ebd1"
+    ]
+  },
+  "tested": [
+    "Both actual adapter execute generators retain verifier thread ownership through repeated caller cancellation; cancellation cannot proceed to native worker dispatch.",
+    "Both actual runner/storage flows retain their brain/execution lifetime until blocked verification settles, propagate cancellation and refund the unstarted unmarked Call.",
+    "Existing settled ownership primitives preserve cancellation precedence over a concurrent verifier exception; no new retry or fallback engine."
+  ],
+  "native_or_selected_account_or_provider_calls": 0,
+  "qualification": {
+    "current_profile_sources_changed": true,
+    "historical_profile": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+    "new_registration_added": false,
+    "current_native_qualification": "not_yet_qualified"
+  },
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-owned-verification",
+  "limits": [
+    "Thread settlement is not new proof of native descendants/job drain. The future isolated preflight/guardian consumer still requires complete-boundary qualification.",
+    "Synthetic adapter/engine fixtures and actual storage lifetimes establish technical ownership, not business improvement, native image attestation or account feasibility.",
+    "Old native qualification remains historical after these existing-source edits; no account retry before whole changed boundary qualification.",
+    "Final-head full CI, canonical guardian integration, all18 checks and business/live gates remain open."
+  ],
+  "goal_complete": false
+}

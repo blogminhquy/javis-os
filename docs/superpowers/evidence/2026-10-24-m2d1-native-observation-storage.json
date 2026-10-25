@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "status": "durable_storage_approved_no_runtime_consumer_enabled",
+  "sources": {
+    "improvement_trial_evidence.py": "8a1dcb04853bc3acacf4e47699790e0f37fe0346b6fb54531fd5162c6075da23",
+    "improvement_operation_evidence.py": "151faac4e8a5bbf9609cd4ba4b29b82b5206d18e88ee5079798c48f4b8f9a19c",
+    "improvement_observation_history.py": "1d04af00bc7a0b6399ca05cb1c2f98314e6612b1bee616b57d64a664e8339ea7"
+  },
+  "test_sha256": "14edabab0dd01951a3cc67f94a9bc708825833449a1a5a3628ff6d3bf88a3073",
+  "command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_observation_storage.py -v",
+  "red": {"tests": 18, "passed": 2, "failures": 2, "errors": 14, "seconds": 35.863, "log_sha256": "8329476f0febaaebd203445189d0f7f447ef141431df6e8e94ed276efdd10985", "cause": "Existing owners lacked observation2 storage and explicit missing-anchor behavior; actual fixture setup succeeded"},
+  "author": {"tests": 18, "seconds": 36.286, "exit": 0, "log_sha256": "08675bda26795528b9bdcbedf8a7af053e9062112c1946351b27aae0bb291d11"},
+  "independent": {"tests": 18, "seconds": 28.887, "exit": 0, "log_sha256": "a1e9c789b2bdea6c62ac4287807304fba2c3850079981a7ac03453e54213c67e"},
+  "affected_legacy": [
+    {"file": "test_improvement_operation_evidence.py", "tests": 4, "seconds": 14.131, "exit": 0, "log_sha256": "46d43cdffc329072d626808112d39559ab320f11f0d823d51d4fe80119dce2b1"},
+    {"file": "test_improvement_trials.py", "selected_evidence_tests": 5, "seconds": 3.561, "exit": 0, "log_sha256": "74725315eff5634d69c0455de4913147ad5b81467297855df0f51f8776f7b8ff"}
+  ],
+  "behavior": [
+    "Both existing SQLite owners retain canonical observation2 envelopes in existing encrypted chunk tables, with no schema or parallel ledger",
+    "Binding derives from stored first guardian offer and stored receipt; complete encrypted history, metadata body type, identity, global/source counters and replay hashes validate before use",
+    "All append/replay paths reject mixed V1/V2 histories; active V2 history freezes after nonlate guardian drained, allowing worker_complete first",
+    "Terminal/older-attempt late evidence requires original writer hash and permits monotonic sequence gaps or gap fills without renewing lease or successful completion authority",
+    "Existing actual lease/generation checks repeat around blob IO; missing binding anchor fails explicitly instead of inventing provenance"
+  ],
+  "limitations": [
+    "Actual SQLite/encrypted blobs/prepared receipts and bounded workspace ACL setup, no native provider/account/query proof",
+    "Existing valid V1 packet bytes and target-read semantics remain unchanged; V1 target read does not newly authenticate an entire SQL-injected history",
+    "Whole V2 history is reauthenticated O(history) per proof, streaming decrypted packets; operation repeats proof at both existing write stages",
+    "Failed post-write lease check can leave encrypted unreferenced blobs without committing observation or renewing authority",
+    "No result/runner/receipt/profile/native route or source qualification enabled; execution/peer/allow authority remains consumer responsibility"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-observation-storage",
+  "explicit_manifest_files_verified": 10,
+  "manifest_mismatches": 0,
+  "manifest_is_exhaustive_import_proof": false
+}

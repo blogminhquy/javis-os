@@ -104,7 +104,8 @@ class OperationWorkspace:
                 or receipt["operation_id"] != identifier or type(receipt["attempt"]) is not int or receipt["attempt"] != attempt
                 or receipt["path"] != str(path) or receipt["input_path"] != str(path / "input.json")
                 or receipt["output_root"] != str(path / "outputs") or receipt["input_hash"] != record["input_hash"]
-                or (receipt["role"], receipt["purpose"]) not in (("improver", "improve_propose"), ("semantic_reviewer", "improve_evaluate"))
+                or (receipt["role"], receipt["purpose"]) not in (("improver", "improve_propose"),
+                    ("semantic_reviewer", "improve_evaluate"), ("composer", "improve_compose"))
                 or (expected is not None and (type(expected) is not dict or set(expected) != _RECEIPT
                                               or _json(receipt) != _json(expected)))):
             raise ValueError("invalid_operation_journal")

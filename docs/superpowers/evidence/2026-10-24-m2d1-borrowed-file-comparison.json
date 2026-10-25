@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "label": "standalone/windows-borrowed-file-identity-and-reopened-bytes",
+  "evidence_class": "technical",
+  "source_base_commit": "ffcd1b44ee7d021be70ab5803ac0d9a3d8c7875a",
+  "production_reachable": false,
+  "selected_cli_or_account_calls": 0,
+  "sdk_client_connect_or_query_calls": 0,
+  "provider_calls": 0,
+  "source_hashes": {
+    "server/improvement_native_image.py": "4fc9654ac7ad255fcf65f37823380d64c4199b567189453f30b95333d4d0640f",
+    "tests/python/test_improvement_native_image.py": "8c7abdc74b1f126e93e24abce1aa2661456f4948894a33012f06b021681afd3b"
+  },
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "test_command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B -m unittest discover -s tests/python -p test_improvement_native_image.py -v",
+  "runtime": {"platform": "Windows", "python": "3.12.10"},
+  "author_red": {
+    "tests": 3,
+    "failures": 3,
+    "reason": "public_compare_file_handle_missing",
+    "exit_code": 1,
+    "unittest_seconds": 0.041,
+    "source_sha256": "ab6c6aca8dc7c3bac06459fc510522dd6bb599ef1d52d2cbef73fc2b5408d686",
+    "test_source_limit": "Saved pre-extension source is reconstructed; no claim that a whole earlier runtime test-file hash was captured."
+  },
+  "author_green": {
+    "tests": 35,
+    "original_unchanged_tests": 17,
+    "new_tests": 18,
+    "exit_code": 0,
+    "unittest_seconds": 2.033,
+    "log_sha256": "ffecadbea397a04427035282cb5318aa120f327207aa77e4dcb8f55cfe52cc0b"
+  },
+  "independent_review": {
+    "verdict": "standalone_scoped_approval",
+    "tests": 35,
+    "exit_code": 0,
+    "unittest_seconds": 2.702,
+    "source_test_and_readonly_dependency_pins_unchanged": true,
+    "all83_qualified_source_pins_unchanged": true,
+    "execution_caller_absent": true,
+    "log_sha256": "d5f06bd3c740b26e9e97173cde545d8872af05fb9b9111d42265c83c6e427d2e"
+  },
+  "proof_basis": "observed_borrowed_file_identity_and_reopened_sha256",
+  "tested": [
+    "Full 64-bit volume/128-bit file identity plus observed size/hash; identical-byte foreign and different-byte files do not match.",
+    "Borrowed handle is never read, sought or closed; caller cursor and ownership survive normal and failing comparisons.",
+    "Invalid, pipe, character, directory, reparse, metadata-only, empty and oversize handles refuse before bytes; asynchronous readable handle uses a private synchronous ReOpenFile reader.",
+    "Actual observed metadata drift and injected query/reopen/seek/read/post-read failures cannot return an attestation.",
+    "Private-reader close failure retains ownership on the invalidated guard for retry; original 17 constructor/snapshot/cleanup assertions remain unchanged."
+  ],
+  "coverage": {
+    "metadata_mutation_exclusion": "unknown",
+    "debug_event_origin": "unknown",
+    "loaded_image_identity": "unknown",
+    "comprehension": "unknown"
+  },
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+  "author_report_sha256": "a2b91c2418119b07a05cca80fa179e14205edd472c6deed77b61ba5cb7a971f7",
+  "author_manifest_sha256": "49dc9dd7a20ab155a210227176980c70d4e51acee98e634600075fbc87e36176",
+  "limits": [
+    "Standalone component outside PROFILE_SOURCES; no actual guardian/worker runtime consumer or native launch qualification.",
+    "Synchronous disk IO is bounded by bytes, not a wall-clock deadline; caller must keep the borrowed handle live and serialize its use.",
+    "Fresh metadata detects observed drift; it does not exclude every metadata mutation or ABA.",
+    "Historical V6 remains frozen at ffcd1b44 and old image source ab6c6aca; it does not qualify this changed API.",
+    "No SDK/native20/V6/where/model calls; unchanged legacy junction fixtures use only their own cmd/mklink setup.",
+    "No reasoning/input-use gate, all18 eligibility, business benefit or live rollout established."
+  ],
+  "goal_complete": false
+}

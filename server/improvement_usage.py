@@ -60,7 +60,7 @@ def _operation_references(experiment_id, operation_id):
     try:
         connection = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
         rows = connection.execute("SELECT attempt FROM agent_calls WHERE context_ref=? "
-            "AND purpose IN ('improve_propose','improve_evaluate') AND engine_at IS NOT NULL AND mirror_ref=?",
+            "AND purpose IN ('improve_propose','improve_evaluate','improve_compose') AND engine_at IS NOT NULL AND mirror_ref=?",
             ("improvement:" + experiment_id, "improvement_operation:" + operation_id))
         return {("improvement_operation:" + operation_id, row[0]) for row in rows}, ["resonance.sqlite3"], 0
     except (OSError, sqlite3.Error):
