@@ -12,6 +12,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Bảng kiểm tra từng bước** sau khi nối: token, quyền, App secret, webhook, Trang gắn app, bot đang trực. Dòng nào đỏ có cách sửa ngay bên dưới. Mỗi Trang có nút Kiểm tra, Sửa tự động và Đổi token.
 - Bot Messenger im lặng thì hỏi Javis: bộ não nào cũng kiểm tra được qua tool `messenger_check` và sửa được qua `messenger_repair`.
 ### Sửa lỗi
+- **Skill đã tắt là tắt hẳn.** Trước đây tắt một skill mà còn bản cũ nằm trong `.claude/skills` hay `.agents` thì skill vẫn hiện lại trong danh sách và vẫn được nạp. Giờ tắt là tắt ở mọi chỗ: danh sách skill, lúc bộ não gọi skill theo tên, lúc Javis tự chọn skill. Javis cũng không nạp file skill đang bị sửa dở, trỏ ra ngoài brain hoặc nặng quá 1 MB.
 - **Quy trình không còn cho qua bước kiểm chứng bị lỗi.** Trước đây máy kiểm chứng trả "ĐẠT" rồi mới báo lỗi thì vẫn tính là đạt và bước sau vẫn chạy. Giờ cứ lỗi là dừng, giống bước chính. Cảm ơn @hwangrin.
 
 ## [0.310.0] - 2026-10-25
