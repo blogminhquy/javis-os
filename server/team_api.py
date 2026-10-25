@@ -118,6 +118,15 @@ class TeamApi:
 
     def _spawn(self, value: Any) -> None:
         if asyncio.iscoroutine(value):
+            # Issue #798: route bodies run in a worker thread (`io` -> run_io), where `ensure_future` has no event loop,
+            # so a recheck scheduled there never ran and the job stayed in acceptance_checking. Hand it to the main loop.
+            loop = self._loop
+            if loop is not None and threading.get_ident() != self._loop_thread and not loop.is_closed():
+                try:
+                    loop.call_soon_threadsafe(self._spawn, value)
+                    return
+                except RuntimeError:   # the loop closed in between: fall through and report below
+                    pass
             try:
                 task = self.deps.spawn(value)
             except Exception as ex:  # noqa: BLE001
