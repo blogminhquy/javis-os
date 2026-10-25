@@ -2430,6 +2430,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .lim-bar i.lim-warn { background: var(--warn-ink); }
 .lim-bar i.lim-bad { background: var(--red); }
 .lim-reset { font-size: 13px; color: var(--text3); }
+.lim-het { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--red) 12%, transparent); }
+.lim-het-h { margin: 0; font-size: 14px; font-weight: 600; color: var(--red); }
+.lim-het-r { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--text2); }
 .lim-at, .lim-none { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--text3); }
 .lim-none { color: var(--text2); }
 .eff-lbl { color: var(--text2); }

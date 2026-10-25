@@ -22,7 +22,14 @@ check("Claude Code on its plan shows the ring", L.brainOf("anthropic-cli", { "an
 check("Claude Code on an API key does not", L.brainOf("anthropic-cli", { "anthropic-cli": false }) === "");
 check("ChatGPT through Codex shows the ring", L.brainOf("openai-oauth", { "openai-oauth": true }) === "codex");
 check("before /plan-limits answers, a plan brain still gets its ring", L.brainOf("anthropic-cli", null) === "claude");
-["anthropic-api", "openai", "openrouter", "gemini", "groq", "deepseek", "ollama", "grok-cli", "antigravity-cli"].forEach(p =>
+check("Grok Build on its plan gets a ring (red only once refused)", L.brainOf("grok-cli", { "grok-cli": true }) === "grok");
+check("Grok on an xAI API key does not", L.brainOf("grok-cli", { "grok-cli": false }) === "");
+check("Antigravity gets a ring", L.brainOf("antigravity-cli", { "antigravity-cli": true }) === "agy");
+check("the header names the plan when known", L.whoText("claude", "Max") === "Claude · Max" && L.whoText("codex", "Plus") === "ChatGPT · Plus");
+check("no plan name: the brand alone, never a guess", L.whoText("agy", "") === "Antigravity");
+check("each brain has its own empty-state line", ["claude", "codex", "grok", "agy"].every(b => vi[L.NONE_KEY[b]] && en[L.NONE_KEY[b]]));
+check("the popover asks for plan names, the ring after each turn does not", src.indexOf('"?goi=1"') !== -1 && /refresh\(true, true\)/.test(src));
+["anthropic-api", "openai", "openrouter", "gemini", "groq", "deepseek", "ollama"].forEach(p =>
   check(p + " has no ring (no plan meter Javis can read)", L.brainOf(p, {}) === ""));
 
 check("under 50% is green", L.level(49) === "ok");
@@ -44,10 +51,11 @@ check("the popover lives next to the Effort popover", /id="effPop"[^>]*><\/div>\
 check("plan-limit.js is loaded", /<script src="\/static\/plan-limit\.js\?v=\d+"><\/script>/.test(html));
 check("the picker tells the ring which brain is in use", picker.indexOf("JavisPlanLimit.setProvider(eff.provider)") !== -1);
 check("each finished turn re-reads the meters", app.indexOf("window.JavisPlanLimit.refresh()") !== -1);
-check("numbers come from GET /plan-limits", src.indexOf('fetch("/plan-limits")') !== -1);
+check("numbers come from GET /plan-limits", src.indexOf('fetch("/plan-limits"') !== -1);
 check("CSS colours the ring green, amber, red", ['[data-muc="ok"]', '[data-muc="warn"]', '[data-muc="bad"]'].every(k => css.indexOf(".cp-limit" + k) !== -1));
 const keys = ["lim.title", "lim.session", "lim.week", "lim.used", "lim.reset_hm", "lim.reset_m", "lim.reset_at", "lim.fresh",
-  "lim.at", "lim.none_short", "lim.none_claude", "lim.none_codex"];
+  "lim.at", "lim.none_short", "lim.none_claude", "lim.none_codex", "lim.none_grok", "lim.none_agy", "lim.het", "lim.het_short",
+  "lim.het_no_reset", "lim.no_meter"];
 keys.forEach(k => check("key " + k + " in vi and en", !!vi[k] && !!en[k]));
 check("placeholders match between vi and en", keys.every(k => JSON.stringify((vi[k].match(/\{\w+\}/g) || []).sort()) ===
   JSON.stringify((en[k].match(/\{\w+\}/g) || []).sort())));

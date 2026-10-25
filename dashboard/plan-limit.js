@@ -9,7 +9,12 @@
 (function () {
   "use strict";
   // Provider id on the model picker -> the brain key in /plan-limits.
-  var BRAIN = { "anthropic-cli": "claude", "openai-oauth": "codex" };
+  // Grok Build and Antigravity report no meter: their ring stays grey and only turns red once the CLI
+  // refused a turn for plan quota (server: plan_limits.ghi_het).
+  var BRAIN = { "anthropic-cli": "claude", "openai-oauth": "codex", "grok-cli": "grok", "antigravity-cli": "agy" };
+  var BRAND = { claude: "Claude", codex: "ChatGPT", grok: "Grok", agy: "Antigravity" };
+  // Full dictionary keys per brain (the i18n test scans literal keys, so no concatenation).
+  var NONE_KEY = { claude: "lim.none_claude", codex: "lim.none_codex", grok: "lim.none_grok", agy: "lim.none_agy" };
   var WARN = 50, BAD = 80;   // same thresholds as plan_limits.CANH_BAO / SAT (the server sends its own too)
 
   function brainOf(provider, plan) {
@@ -31,14 +36,20 @@
     return { key: "lim.reset_m", vars: { m: Math.max(1, m) } };
   }
 
-  var api = { brainOf: brainOf, level: level, resetParts: resetParts };
+  // Header next to "Plan usage limits": the brand, then the plan when the server could name it ("Claude · Max").
+  function whoText(brain, plan) {
+    var b = BRAND[brain] || "";
+    return plan ? b + " · " + plan : b;
+  }
+
+  var api = { brainOf: brainOf, level: level, resetParts: resetParts, whoText: whoText, NONE_KEY: NONE_KEY };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
 
   var $ = function (id) { return document.getElementById(id); };
   var tw = function (k, v) { return window.t ? window.t(k, v) : k; };
   var LOC = function () { return (window.JavisI18n && window.JavisI18n.locale()) || "vi-VN"; };
-  var data = null, provider = "", busy = null, lastFetch = 0;
+  var data = null, provider = "", busy = null, lastFetch = 0, names = {};
 
   function cur() {
     var b = brainOf(provider, data && data.plan);
@@ -68,9 +79,10 @@
     var fg = btn.querySelector(".lim-fg");
     if (fg) fg.setAttribute("stroke-dasharray", Math.max(d ? 3 : 0, Math.min(100, pct)) + " 100");
     var lines = [tw("lim.title")];
+    if (d && d.het) lines.push(tw("lim.het_short"));
     if (d && d.five_hour) lines.push(tw("lim.session") + ": " + d.five_hour.pct + "%");
     if (d && d.seven_day) lines.push(tw("lim.week") + ": " + d.seven_day.pct + "%");
-    if (!d) lines.push(tw("lim.none_short"));
+    if (!d) lines.push(tw(c.brain === "grok" || c.brain === "agy" ? "lim.no_meter" : "lim.none_short"));
     btn.title = lines.join("\n");
     btn.setAttribute("aria-label", lines.join(", "));
     if (popOpen()) paintPop();
@@ -90,17 +102,29 @@
     var pop = $("limitPop");
     if (!pop) return;
     var c = cur(), d = c.d, n = data && data.nguong;
-    var who = c.brain === "codex" ? "ChatGPT" : "Claude";
+    var meter = d && (d.five_hour || d.seven_day);
     pop.innerHTML = '<div class="lim-head"><span class="lim-h"></span><span class="lim-who"></span></div>' +
-      (d ? row(d.five_hour, n) + row(d.seven_day, n) + '<p class="lim-at"></p>' : '<p class="lim-none"></p>');
+      (d && d.het ? '<div class="lim-het"><p class="lim-het-h"></p><p class="lim-het-r"></p></div>' : "") +
+      (meter ? row(d.five_hour, n) + row(d.seven_day, n) + '<p class="lim-at"></p>' : "") +
+      (!meter ? '<p class="lim-none"></p>' : "");
     pop.querySelector(".lim-h").textContent = tw("lim.title");
-    pop.querySelector(".lim-who").textContent = who;
-    if (!d) { pop.querySelector(".lim-none").textContent = tw(c.brain === "codex" ? "lim.none_codex" : "lim.none_claude"); return; }
-    var rows = pop.querySelectorAll(".lim-row"), ws = [], names = [];
-    if (d.five_hour) { ws.push(d.five_hour); names.push(tw("lim.session")); }
-    if (d.seven_day) { ws.push(d.seven_day); names.push(tw("lim.week")); }
+    pop.querySelector(".lim-who").textContent = whoText(c.brain, names[c.brain] || "");
+    if (d && d.het) {
+      var hAt = new Date(d.het.at * 1000).toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" });
+      pop.querySelector(".lim-het-h").textContent = tw("lim.het", { time: hAt });
+      pop.querySelector(".lim-het-r").textContent = d.het.reset ? resetText({ resets_at: d.het.reset })
+        : tw("lim.het_no_reset", { brand: BRAND[c.brain] });
+    }
+    if (!meter) {
+      // Claude or ChatGPT before the first turn, or Grok and Antigravity, which never send a meter.
+      pop.querySelector(".lim-none").textContent = tw(NONE_KEY[c.brain]);
+      return;
+    }
+    var rows = pop.querySelectorAll(".lim-row"), ws = [], labels = [];
+    if (d.five_hour) { ws.push(d.five_hour); labels.push(tw("lim.session")); }
+    if (d.seven_day) { ws.push(d.seven_day); labels.push(tw("lim.week")); }
     rows.forEach(function (r, i) {
-      r.querySelector(".lim-name").textContent = names[i];
+      r.querySelector(".lim-name").textContent = labels[i];
       r.querySelector(".lim-pct").textContent = tw("lim.used", { n: ws[i].pct });
       var rs = r.querySelector(".lim-reset");
       if (rs) rs.textContent = resetText(ws[i]);
@@ -126,14 +150,16 @@
     var card = p.offsetParent;
     var maxLeft = card ? Math.max(8, card.clientWidth - p.offsetWidth - 8) : 8;
     p.style.left = Math.min(b.offsetLeft, maxLeft) + "px";
-    refresh(true);
+    refresh(true, true);
   }
 
-  function refresh(force) {
+  // withNames: the popover opening also asks the server to name each plan (it may run `claude auth status`).
+  function refresh(force, withNames) {
     if (busy) return busy;
     if (!force && Date.now() - lastFetch < 15000) return Promise.resolve(data);
-    busy = fetch("/plan-limits").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    busy = fetch("/plan-limits" + (withNames ? "?goi=1" : "")).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (d) data = d;
+      if (d && d.ten_goi) Object.keys(d.ten_goi).forEach(function (k) { if (d.ten_goi[k]) names[k] = d.ten_goi[k]; });
       lastFetch = Date.now();
       paintRing();
       return data;

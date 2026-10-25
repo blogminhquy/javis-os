@@ -13,12 +13,18 @@ token, so the numbers come from what the two CLIs report on their own:
 
 The last snapshot of each brain is kept in STATE_DIR/plan_limits.json, so the ring survives a
 restart. A window whose reset time has passed reads as 0%: the plan has started a fresh window.
+
+Grok Build and Antigravity report no meter at all (only token counts). For them, and for the two
+above, `ghi_het` records the moment the CLI refused a turn for running out of plan quota (the chat
+turn's limit detector calls it), so the ring can at least turn red then. It stays red until the
+reset time the CLI gave, or for an hour when it gave none.
 """
 from __future__ import annotations
 
 import glob
 import json
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -30,6 +36,15 @@ NAM_GIO = "five_hour"
 TUAN = "seven_day"
 CANH_BAO = 50     # % from which the ring turns amber
 SAT = 80          # % from which it turns red: close to the 5-hour or the weekly limit
+
+HET_MAC_DINH_S = 3600   # how long "ran out" stays red when the CLI gave no reset time
+# Engine names of the chat turn's limit detector (limit_learner) -> brain keys here.
+BRAIN_THEO_ENGINE = {"claude-code": "claude", "codex": "codex", "grok-cli": "grok", "antigravity-cli": "agy"}
+BRAINS = ("claude", "codex", "grok", "agy")
+# Plain words a Grok or Antigravity error uses when the plan pushed back. Only checked for those two
+# engines, after the shared detector found nothing: they print no fixed sentence for it.
+_HET_RE = re.compile(r"usage\s+limit|rate[\s_-]?limit|too\s+many\s+requests|\b429\b|quota|resource[\s_]+exhausted"
+                     r"|out\s+of\s+credits|limit\s+(?:reached|exceeded)", re.I)
 
 _lock = threading.Lock()
 _codex_cache: dict = {}   # path -> (mtime, snapshot) of the rollout last read
@@ -95,7 +110,7 @@ def tu_codex(snap: dict) -> dict:
     """Codex RateLimitSnapshot, camelCase (app-server) or snake_case (rollout) -> {five_hour, seven_day}."""
     snap = snap if isinstance(snap, dict) else {}
     snap = snap.get("rateLimits") if isinstance(snap.get("rateLimits"), dict) else snap
-    out = {"status": ""}
+    out = {"status": "", "goi": str(snap.get("planType") or snap.get("plan_type") or "")}
     for ten, mac_dinh in (("primary", NAM_GIO), ("secondary", TUAN)):
         w = snap.get(ten)
         if not isinstance(w, dict):
@@ -124,6 +139,26 @@ def ghi(brain: str, snap: dict, now: float = None):
         moi.update({k: v for k, v in snap.items() if v not in (None, "")})
         moi["at"] = int(now)
         d[brain] = moi
+        _ghi_file(d)
+
+
+def la_het_han_muc(loi: str) -> bool:
+    return bool(_HET_RE.search(str(loi or "")))
+
+
+def ghi_het(engine: str, reset_epoch: float = 0.0, now: float = None):
+    """The CLI just refused a turn for plan quota: the ring turns red until the reset (or an hour)."""
+    brain = BRAIN_THEO_ENGINE.get(str(engine or ""), "")
+    if not brain:
+        return
+    now = time.time() if now is None else now
+    reset = float(reset_epoch or 0)
+    reset = reset if reset > now else 0.0
+    with _lock:
+        d = _doc_file()
+        b = dict(d.get(brain) if isinstance(d.get(brain), dict) else {})
+        b["het"] = {"at": int(now), "reset": int(reset), "until": int(reset or now + HET_MAC_DINH_S)}
+        d[brain] = b
         _ghi_file(d)
 
 
@@ -214,32 +249,53 @@ def muc(pct: float) -> str:
 
 
 def doc(now: float = None) -> dict:
-    """What the ring draws, per brain: each window's % (0 once its reset has passed), and the worst level."""
+    """What the ring draws, per brain: each window's % (0 once its reset has passed), the worst level,
+    and `het` while a refusal for plan quota is still in force. None when nothing is known yet."""
     now = time.time() if now is None else now
     d = _doc_file()
     out = {}
-    for brain in ("claude", "codex"):
+    for brain in BRAINS:
         b = d.get(brain)
         if not isinstance(b, dict):
             out[brain] = None
             continue
-        r = {"at": int(b.get("at") or 0), "status": str(b.get("status") or "")}
+        r = {"at": int(b.get("at") or 0), "status": str(b.get("status") or ""), "goi": str(b.get("goi") or "")}
         for k in (NAM_GIO, TUAN):
             w = b.get(k)
             if isinstance(w, dict):
-                het = bool(w.get("resets_at")) and w["resets_at"] <= now
-                r[k] = {"pct": 0 if het else round(float(w.get("pct") or 0)),
-                        "resets_at": 0 if het else int(w.get("resets_at") or 0), "moi": het}
+                moi = bool(w.get("resets_at")) and w["resets_at"] <= now
+                r[k] = {"pct": 0 if moi else round(float(w.get("pct") or 0)),
+                        "resets_at": 0 if moi else int(w.get("resets_at") or 0), "moi": moi}
+        h = b.get("het")
+        if isinstance(h, dict) and int(h.get("until") or 0) > now:
+            r["het"] = {"at": int(h.get("at") or 0), "reset": int(h.get("reset") or 0)}
         ds = [r[k]["pct"] for k in (NAM_GIO, TUAN) if k in r]
-        if not ds:
+        if not ds and "het" not in r:
             out[brain] = None
             continue
-        r["max"] = max(ds)
+        r["max"] = max(ds) if ds else 0
         r["muc"] = muc(r["max"])
-        con_han = not all(r[k]["moi"] for k in (NAM_GIO, TUAN) if k in r)
-        if con_han and r["status"] == "rejected":
+        con_han = not ds or not all(r[k]["moi"] for k in (NAM_GIO, TUAN) if k in r)
+        if "het" in r:
+            r["muc"], r["max"] = "bad", 100   # the plan refused a turn: red and full, whatever the last meter said
+        elif con_han and r["status"] == "rejected":
             r["muc"] = "bad"       # the plan already refused a request in this window
         elif con_han and r["status"] == "allowed_warning" and r["muc"] == "ok":
             r["muc"] = "warn"
         out[brain] = r
     return out
+
+
+_TEN_GOI = {"pro": "Pro", "max": "Max", "plus": "Plus", "team": "Team", "business": "Business",
+            "enterprise": "Enterprise", "edu": "Edu", "free": "Free", "go": "Go"}
+
+
+def ten_goi(raw: str) -> str:
+    """"max" -> "Max", "chatgpt_plus" -> "Plus", "SuperGrok" stays. Empty stays empty: never a guess."""
+    v = str(raw or "").strip()
+    if not v:
+        return ""
+    k = v.lower().replace("chatgpt_", "").replace("claude_", "")
+    if k in _TEN_GOI:
+        return _TEN_GOI[k]
+    return v if any(c.isupper() for c in v) else v.replace("_", " ").title()

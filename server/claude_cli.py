@@ -667,7 +667,9 @@ def auth_status(bo_qua_cache: bool = False):
                            timeout=25 if bo_qua_cache else 8, creationflags=_no_window())
         d = json.loads((r.stdout or "").strip() or "{}")
         ra = {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
-              "plan": d.get("subscriptionType", "") or d.get("authMethod", ""), "org": d.get("orgName", "")}
+              "plan": d.get("subscriptionType", "") or d.get("authMethod", ""), "org": d.get("orgName", ""),
+              # The plan alone (pro, max...), never the auth method: the usage ring names the plan (0.326.0).
+              "goi": d.get("subscriptionType", "") or ""}
         cu = _AUTH_CACHE["val"] or {}
         if cu.get("connected") and not ra["connected"]:
             # Đang đăng nhập mà CLI báo mất - in dấu vết CÓ GIỜ để lần sau chủ báo "thi thoảng

@@ -104,17 +104,53 @@ pl.quet_codex(now=NOW + 800)
 check("rollout CŨ hơn bản lưu thì không đè", pl.doc(now=NOW + 800)["codex"]["five_hour"]["pct"] == 5)
 
 # 7. Kho trống / file hỏng: không vỡ.
+TRONG = {"claude": None, "codex": None, "grok": None, "agy": None}
 os.remove(os.path.join(_TMP, "plan_limits.json"))
-check("chưa có gì: cả hai None", pl.doc(now=NOW) == {"claude": None, "codex": None})
+check("chưa có gì: cả bốn None", pl.doc(now=NOW) == TRONG)
 with open(os.path.join(_TMP, "plan_limits.json"), "w") as fh:
     fh.write("{hong")
-check("file hỏng: không vỡ", pl.doc(now=NOW) == {"claude": None, "codex": None})
+check("file hỏng: không vỡ", pl.doc(now=NOW) == TRONG)
+
+# 8. Grok và Antigravity không báo số: chỉ đỏ khi CLI từ chối vì hết hạn mức (chủ repo 25/10).
+check("lỗi quota của Antigravity được nhận", pl.la_het_han_muc("Error: RESOURCE_EXHAUSTED: quota exceeded for model"))
+check("lỗi 429 của Grok được nhận", pl.la_het_han_muc("xAI API error 429 Too Many Requests"))
+check("lỗi thường thì không", not pl.la_het_han_muc("connection reset by peer") and not pl.la_het_han_muc(""))
+pl.ghi_het("grok-cli", 0, now=NOW)
+g = pl.doc(now=NOW)["grok"]
+check("Grok bị từ chối: đỏ, đầy vòng", g and g["muc"] == "bad" and g["max"] == 100 and g["het"]["at"] == NOW, g)
+check("không có giờ làm mới thì đỏ 1 giờ", pl.doc(now=NOW + 3599)["grok"] is not None and pl.doc(now=NOW + 3601)["grok"] is None)
+pl.ghi_het("antigravity-cli", NOW + 600, now=NOW)
+check("có giờ làm mới thì đỏ tới đúng giờ đó", pl.doc(now=NOW + 599)["agy"]["het"]["reset"] == NOW + 600
+      and pl.doc(now=NOW + 601)["agy"] is None)
+pl.ghi_claude(RAW, now=NOW)
+pl.ghi_het("claude-code", NOW + 900, now=NOW)
+c = pl.doc(now=NOW)["claude"]
+check("Claude bị từ chối: đỏ dù số cũ còn thấp, vẫn giữ hai thanh", c["muc"] == "bad" and c["five_hour"]["pct"] == 9, c)
+check("hết hạn từ chối thì về màu theo số", pl.doc(now=NOW + 901)["claude"]["muc"] == "ok")
+pl.ghi_het("gemini-cli", 0, now=NOW)
+check("engine lạ không ghi gì", "gemini-cli" not in json.load(open(os.path.join(_TMP, "plan_limits.json"))))
+
+# 9. Tên gói: chuẩn hoá, rỗng thì rỗng (không đoán).
+check("max -> Max, pro -> Pro", pl.ten_goi("max") == "Max" and pl.ten_goi("pro") == "Pro")
+check("ChatGPT plus -> Plus", pl.ten_goi("plus") == "Plus" and pl.ten_goi("chatgpt_plus") == "Plus")
+check("tên có chữ hoa giữ nguyên", pl.ten_goi("SuperGrok") == "SuperGrok")
+check("rỗng thì rỗng", pl.ten_goi("") == "" and pl.ten_goi(None) == "")
+x = pl.tu_codex({"rateLimits": {"planType": "pro", "primary": {"usedPercent": 1, "windowDurationMins": 300}}})
+check("Codex báo planType thì giữ lại", x["goi"] == "pro", x)
 
 # 8. Route: Claude chạy API key thì không có gói, không hiện vòng.
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 i = src.rfind('@app.get("/plan-limits")')
 check("route /plan-limits đăng ký sau star_nudge", i > src.rfind("star_nudge_routes.register"))
 check("Claude chỉ tính là gói khi không chạy bằng API key", "not claude_auth.env_cho_cli()" in src[i:])
+than = src[i:i + 2500]
+check("Grok chạy API key xAI thì không có gói", '"grok-cli": grok_k.get("method") != "xai-api-key"' in than)
+check("tên gói chỉ hỏi khi mở bảng (goi=1)", "if goi:" in than and "claude_auth_status" in than)
+cli = (ROOT / "server" / "claude_cli.py").read_text(encoding="utf-8")
+check("tên gói Claude lấy riêng subscriptionType, không lẫn authMethod", '"goi": d.get("subscriptionType", "") or ""' in cli)
+lf = src[src.find("def _limit_frame("):src.find("def _limit_frame(") + 2600]
+check("lượt bị từ chối vì hết hạn mức thì vòng tròn đỏ", "plan_limits.ghi_het(engine_hint" in lf
+      and 'engine_hint in ("grok-cli", "antigravity-cli") and plan_limits.la_het_han_muc(raw)' in lf)
 
 if fails:
     raise SystemExit(f"{len(fails)} FAIL")
