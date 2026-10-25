@@ -97,11 +97,16 @@
       "color:var(--text,#e8eaf0);font-size:16px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.4)}" +
       "#javis-fresh-bar .jf-txt{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}" +
       "#javis-fresh-bar .jf-sub{display:block;margin-top:3px;font-size:14px;opacity:.8}" +
-      "#javis-fresh-bar button{flex:none;cursor:pointer;border-radius:8px;font-size:15px;padding:7px 13px;" +
-      "font-family:inherit;border:1px solid var(--border,#39405180)}" +
+      // Owner screenshot 25/10/2026: "Tải lại" was near-black on the light theme's dark amber (3.1:1) and
+      // cramped, "Để sau" was grey text with a border at 1.3:1, barely there. Ink now flips with the theme
+      // (--on-accent: white on paper, near-black on dark), and both buttons share one height and padding.
+      "#javis-fresh-bar button{flex:none;cursor:pointer;border-radius:8px;font-size:16px;line-height:1.25;" +
+      "padding:8px 16px;min-height:40px;font-family:inherit;font-weight:600;" +
+      "border:1px solid var(--btn-line,rgba(140,140,160,.5))}" +
       "#javis-fresh-bar .jf-ok{background:var(--yellow,#e0a800);border-color:var(--yellow,#e0a800);" +
-      "color:#1a1a1a;font-weight:700}" +
-      "#javis-fresh-bar .jf-x{background:transparent;color:var(--text3,#8b93a7)}" +
+      "color:var(--on-accent,#1a1a1a);font-weight:700}" +
+      "#javis-fresh-bar .jf-x{background:var(--btn-fill,transparent);color:var(--text,#e8eaf0)}" +
+      "#javis-fresh-bar .jf-x:hover{background:var(--btn-fill-hover,transparent)}" +
       "@media(max-width:600px){#javis-fresh-bar{flex-wrap:wrap;gap:10px;top:max(12px,env(safe-area-inset-top))}" +
       "#javis-fresh-bar .jf-txt{flex:1 0 100%}#javis-fresh-bar button{white-space:nowrap}}";
     var bar = document.createElement("div");

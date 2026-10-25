@@ -131,7 +131,11 @@ check("bấm ghim gọi đúng endpoint rồi tải lại danh sách",
       '"/conversations/" + id + "/pin"' in js and "tai(true);" in js[js.index("async function ghim"):])
 check("bấm ghim không mở cuộc chat", 'closest(".ht-pin")) { e.stopPropagation(); ghim(x); return; }' in js)
 css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
-check("nút ghim luôn hiện trên màn cảm ứng", "@media (hover: none) { .ht-pin { opacity: .6;" in css)
+# 2026-10-25: pinning moved into the row's "..." menu; only a PINNED row still draws its pin (click to unpin), so
+# unpinned rows stay clean like Zalo's. The pin no longer hides until hover.
+check("only a pinned row draws the pin, always visible", "(c.pinned ? '<span class=\"ht-pin on\"" in js
+      and ".ht-pin { flex: none;" in css and ".ht-item:hover .ht-pin" not in css)
+check("the row menu offers pin and unpin", '"/conversations/" + id + "/pin"' in js[js.index("async function runRowAction"):])
 
 if _fails:
     print(f"\nFAIL {len(_fails)}: " + ", ".join(_fails))

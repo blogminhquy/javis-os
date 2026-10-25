@@ -156,9 +156,14 @@ def register(app, deps: ConversationsDeps):
 
         2026-10-25: `tag` (inbox tag id), `has_contact=1` (the customer left a phone number or email) and `sort=waiting`
         (unanswered customer message waiting longest first). Each row has `tags`; the first page also returns `tags`, the
-        owner's tag list with counts, and `facets.has_contact`."""
+        owner's tag list with counts, and `facets.has_contact`.
+
+        2026-10-25 (row menu): hidden conversations stay out of the list unless `status=hidden` asks for exactly them;
+        a search (`q`) finds them too, so a customer the owner hid can always be looked up. `facets.status.hidden`
+        counts them."""
         hesitant = _hesitant()
-        extra = dict(tag=tag, has_contact=bool(has_contact), sort=sort)
+        hidden = "only" if status == "hidden" else ("" if q.strip() else "exclude")
+        extra = dict(tag=tag, has_contact=bool(has_contact), sort=sort, hidden=hidden)
         items = conversations.danh_sach(channel=channel, bot_id=bot_id, account_id=account_id,
                                         q=q, mode=mode, limit=limit, offset=offset,
                                         status=status, chat_type=chat_type, hesitant=hesitant, **extra)
@@ -292,6 +297,18 @@ def register(app, deps: ConversationsDeps):
     @router.post("/conversations/{conv_id}/read")
     async def conversations_read(conv_id: int):
         return {"ok": True} if conversations.danh_dau_da_doc(conv_id) else _404()
+
+    @router.post("/conversations/{conv_id}/unread")
+    async def conversations_unread(conv_id: int):
+        """Mark a conversation unread again (row menu). Opening it marks it read, as `/read` always did."""
+        return {"ok": True, "conversation": conversations.chi_tiet(conv_id)} if conversations.mark_unread(conv_id) else _404()
+
+    @router.post("/conversations/{conv_id}/hide")
+    async def conversations_hide(conv_id: int, hidden: str = Form("1")):
+        """Hide (hidden=1) a conversation from the inbox list or bring it back (hidden=0). A new customer message
+        unhides it on its own."""
+        ok = conversations.set_hidden(conv_id, str(hidden).strip().lower() not in ("0", "false", ""))
+        return {"ok": True, "conversation": conversations.chi_tiet(conv_id)} if ok else _404()
 
     @router.post("/conversations/{conv_id}/pin")
     async def conversations_pin(conv_id: int, pinned: str = Form("1")):

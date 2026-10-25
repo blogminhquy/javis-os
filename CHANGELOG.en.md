@@ -8,9 +8,19 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.317.0] - 2026-10-25
+## [0.320.0] - 2026-10-25
 ### Added
 - **Test a skill description before changing it.** You write a new description and sample questions (should pick this skill, should pick none, should pick another skill); Javis shows how many more it routes correctly and whether any become wrong. A version that causes wrong picks is rejected.
+
+## [0.318.0] - 2026-10-25
+### Added
+- **Every chat in the bot inbox has a "..." button** that acts right away without opening the chat: mark unread to come back later, pin to the top, tag, choose whether the bot replies or "I handle it", and copy the phone number or email the customer left.
+- **Hide chats to keep the list tidy**, and see them again under "Hidden" in the Status filter. A new message from the customer brings the chat back, so no customer is missed. On a phone the "..." opens a large, easy-to-tap sheet at the bottom of the screen.
+### Fixed
+- **Photos you send show as photos in the bot inbox.** Only customers' photos used to show; a photo you (or the bot) sent read "image https://...jpg". Every photo now shows right in the bubble and opens large on click, so you can check what went out to the customer.
+### Improved
+- **Buttons are clearer, no longer faint.** Secondary buttons have a visible edge and bolder 16px text, easy to read in both light and dark themes. Red buttons (delete, turn off) and the "Reload" button on the new-version banner read better too.
+- **Buttons next to a field now match its height and line up**, such as "Preview" next to the voice picker, the domain save button and the "..." on bot cards. Buttons at the bottom of dialogs sit together on the right.
 
 ## [0.316.0] - 2026-10-25
 ### Added

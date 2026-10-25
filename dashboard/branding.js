@@ -31,11 +31,13 @@
       // miễn nhiễm với bất kỳ luật full-width nào của trang chủ quản sau này.
       // KHÔNG đặt align-items:center: ở màn hẹp hàng này xoay thành cột, mà center thì con
       // co về bề ngang nội dung thay vì giãn hết hàng - ô nhập lại bé. Để mặc định stretch.
+      // margin-top:0 on the buttons: .gcard-btn carries a 14px top margin for stacked cards, which here
+      // dropped the Save button 14px below the field it belongs to.
       ".dom-field{display:flex;gap:6px}" +
       ".dom-field input{flex:1 1 auto;min-width:0;width:auto;background:var(--field-bg);" +
       "border:1px solid var(--border);color:var(--text);border-radius:7px;padding:8px 10px;font-size:14px}" +
       ".dom-field input:focus{outline:none;border-color:var(--accent)}" +
-      ".dom-field .gcard-btn{flex:0 0 auto;width:auto;white-space:nowrap}" +
+      ".dom-field .gcard-btn{flex:0 0 auto;width:auto;white-space:nowrap;margin-top:0}" +
       ".dom-status{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}" +
       ".dom-badge{font-size:12.5px;padding:3px 10px;border-radius:20px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text2);white-space:nowrap}" +
       ".dom-badge.ok{background:var(--ok-wash);border-color:var(--green);color:var(--green)}" +
@@ -44,7 +46,7 @@
       // Hai nút chia đôi hàng: phải khai flex CHO CẢ HAI (trước đây bỏ sót nút ghost nên nó
       // nuốt hàng còn nút kia teo). Một selector là đủ vì cả hai nay cùng họ .gcard-btn.
       ".dom-ssl{display:flex;gap:6px;margin-top:9px}" +
-      ".dom-ssl .gcard-btn{flex:1 1 0;width:auto;white-space:nowrap}" +
+      ".dom-ssl .gcard-btn{flex:1 1 0;width:auto;white-space:nowrap;margin-top:0}" +
       ".dom-guide{margin-top:10px;font-size:13px;line-height:1.55;color:var(--text);display:flex;flex-direction:column;gap:8px}" +
       ".dom-step{display:grid;grid-template-columns:25px minmax(0,1fr);gap:8px;padding:9px 10px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:9px}" +
       ".dom-step.done{border-color:var(--ok-line);background:var(--ok-wash)}" +
