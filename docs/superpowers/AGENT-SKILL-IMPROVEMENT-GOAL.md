@@ -483,3 +483,14 @@ Javis và không cấp quyền thử thật/deploy/restart/activation. API Goal 
 chỉ create/get/update-status, không có objective-update; giữ một Goal ACTIVE,
 dùng mục18 và checkpoint làm scope có hiệu lực, không tạo Goal thay thế.
 
+
+## 19. Chủ giao lại M0–M8 cho phiên Claude Opus 5.5, 25/10/2026
+
+Lệnh trực tiếp của chủ trong phiên Claude Code ngày 25/10: đọc và thực hiện toàn bộ
+file này, hoàn thành cải tiến agent và skill từ M0 đến M8, kiểm tra phần phiên
+ChatGPT làm dở do hết token rồi tiếp tục. Lệnh này mới hơn mục18, nên mở lại phạm
+vi M0–M8; mục18 vẫn giữ làm lịch sử bàn giao. Thứ tự giữ nguyên: chốt M2 trước,
+rồi M3–M8 theo phụ thuộc mục23 của spec. Các giới hạn quyền ở mục3, 6, 7, 13 vẫn
+nguyên: không chạy tài khoản/model thật, pilot, canary live, deploy/restart hay bật
+activation trên brain thật nếu chủ chưa cấp riêng. Tiến độ ghi ở progress, mục
+"Checkpoint Claude".

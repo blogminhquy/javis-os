@@ -1,5 +1,36 @@
 # Agent and skill improvement Goal progress
 
+## Checkpoint Claude Opus 5.5, 25/10/2026
+
+Owner re-issued the full M0–M8 Goal in a Claude Code session (Goal section 19); section 18
+narrowing is history. Worktree `D:/Project/Javis-OS/.claude/worktrees/javis-agent-skill-improvement-3dc1ea`,
+pushed to `codex/agent-skill-improvement-m2d1` (PR #803, retitled 0.314.0). The Codex worktree
+`C:/Users/admin/.codex/worktrees/agent-skill-improvement-m2a` is untouched (two untracked WIP files left there).
+
+Done in this session:
+- Merged origin/main 0.312.0 into the M2D1 branch (`44ee0349`): 10 conflicts, branch logic kept for
+  task-scope skill reads, i18n and script tags unioned, route table regenerated. Version 0.314.0 reserved (`b9a4fe23`).
+- M2E manual activation (`a3359bff`): schema 11 `improvement_activations`, apply/revert/reconcile,
+  read-time resolver in lazy router, in-process `javis_use_skill` and task scope; CLI hub requests and
+  non-DM channels keep canonical. API `GET/POST /improvement-activations`, `POST .../{id}/revert`.
+  Studio candidate panel: apply block and applied list with Revert. Ops doc `docs/dev/improvement-manual-apply.md`.
+- M2F simulated feasibility (`a3359bff`): `test_improvement_feasibility_simulated.py`, four labelled
+  synthetic scenarios (win, tie, required loss, unknown) through actual plans/reports/selection/apply.
+
+| Milestone | Technical | Business evidence | Rollout |
+|---|---|---|---|
+| M0, M1, M2A–C | Released 0.287–0.296 (reused) | None claimed | Suggest-only |
+| M2D1 | Merged with main, CI on PR #803 pending; native profile UNQUALIFIED, `REVIEWED_RELEASES` empty so no production trial can run | None | Gated off |
+| M2D2 | Task-scope routing present (opt-in); generic native effective profile open | None | Opt-in flag |
+| M2E | Code + 29 tests local green (Windows); independent review pending | None | Manual only, API engines only |
+| M2F | Simulated workflow green (synthetic, labelled) | Real feasibility PENDING (needs owner-approved account run) | n/a |
+| M3–M8 | Not started in this session | PENDING | PENDING |
+
+Blocked on owner, not engineering: any model-backed feasibility/pilot (needs explicit permission to
+run the selected Claude subscription engine), live canary (7 days and 10 real tasks), activation on a
+real brain. Next: CI green and review fixes, merge 0.314.0, then M3 engineering.
+
+
 ## Current Q1 checkpoint — source component closed, installed gate open
 
 Source622332e6 closes consumed baseline5 source after7316implementation,
