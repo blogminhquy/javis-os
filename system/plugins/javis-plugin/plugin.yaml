@@ -1,0 +1,12 @@
+name: Tạo plugin qua chat
+name_en: "Plugins from chat"
+slug: javis-plugin
+version: 1.0.0
+description: Cho Javis tạo, đọc và sửa plugin của người dùng ngay tại chỗ khi được nhờ trong chat, không phải tải file zip về rồi tải lên lại. Plugin mới hoặc vừa đổi mã luôn nằm TẮT, chủ đọc mã rồi tự bật ở trang Plugins. Chỉ phiên của chủ thấy tool này.
+description_en: "Lets Javis create, read and edit your own plugins in place when you ask in chat, instead of handing you a zip to download and upload again. A new plugin, or one whose code just changed, always stays OFF until you read it and turn it on in the Plugins page. Only the owner's own sessions see this tool."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_plugin
+hooks: []

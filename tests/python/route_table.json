@@ -6568,5 +6568,33 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 659,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 660,
+  "type": "APIRoute",
+  "path": "/plugins/inspect",
+  "name": "plugins_inspect",
+  "methods": [
+   "POST"
+  ],
+  "trong": 659
+ },
+ {
+  "order": 661,
+  "type": "APIRoute",
+  "path": "/plugins/install",
+  "name": "plugins_install",
+  "methods": [
+   "POST"
+  ],
+  "trong": 659
  }
 ]
