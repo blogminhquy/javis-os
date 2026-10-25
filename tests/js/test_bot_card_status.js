@@ -53,6 +53,9 @@ check("long words and links wrap instead of running out of the card",
   /\.cb-err, \.cb-quyen-t, \.cb-nhomcho-t, \.cb-nhomcho-d \{ overflow-wrap: anywhere;/.test(CSS));
 check("the row and the popup text are at least 16px", /\.cb-st \{[^}]*font-size: 16px/.test(CSS)
   && /\.cb-st-body \.cb-err[^{]*\{ font-size: 16px; \}/.test(CSS));
+check("the bot menu names the import action for each account that can import old messages",
+  SRC.includes('class="cb-nhap-cu"') && SRC.includes('window.t("ht.nhap_cu")')
+  && SRC.includes('querySelectorAll(".cb-kenh-nhap-cu, .cb-nhap-cu")'));
 for (const k of ["cb.st_title", "cb.st_open", "cb.st_err", "cb.st_warn", "cb.st_wait"])
   check("i18n key in vi and en: " + k, !!VI[k] && !!EN[k]);
 check("no em or en dash added", ![SRC.slice(start, end), JSON.stringify(VI["cb.st_wait"])].some((s) => /[\u2013\u2014]/.test(s)));

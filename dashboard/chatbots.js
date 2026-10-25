@@ -392,6 +392,14 @@
               '" title="' + esc(window.t("cb2.mn")) + '">&#8943;</button>' +
             '<div class="cb-mn-l" hidden>' +
               '<button class="cb-log" type="button">' + ic("history") + ' ' + esc(window.t("cb.nhat_ky")) + '</button>' +
+              // 0.309.0 (owner, 25/10/2026: "không thấy nút nào để nhập"): the account chip doubles as the import button,
+              // which nobody recognised; the menu now names the action. One item per account that can import.
+              (b.accounts || []).filter(function (a) { return (kenhCua(a.channel).nang_luc || {}).nhap_lich_su; })
+                .map(function (a, i, ds) {
+                  return '<button class="cb-nhap-cu" type="button" data-tk="' + esc(a.id) + '">' + ic("download") + ' ' +
+                    esc(window.t("ht.nhap_cu")) + (ds.length > 1 ? ' (' + esc(a.label || a.external_id || a.id) + ')' : '') +
+                    '</button>';
+                }).join("") +
               (b.reply_when === "auto"
                 ? '<button class="cb-rp" type="button">' + ic("brain") + ' ' + esc(window.t("rp.menu")) + '</button>' : '') +
               '<button class="cb-hoi-thoai" type="button">' + ic("messages-square") + ' ' +
@@ -423,7 +431,7 @@
       if (window.JavisTryBot) window.JavisTryBot.open(b, { groups: coNhom(b) || !(b.accounts || []).length });
     };
     c.querySelector(".cb-kenh-them").onclick = function () { moForm(b, { buoc: 1 }); };
-    c.querySelectorAll(".cb-kenh-nhap-cu").forEach(function (n) {
+    c.querySelectorAll(".cb-kenh-nhap-cu, .cb-nhap-cu").forEach(function (n) {
       n.onclick = function () {
         var fn = window.JavisConversations && window.JavisConversations.nhapTinCu;
         var a = (b.accounts || []).filter(function (x) { return x.id === n.dataset.tk; })[0];
