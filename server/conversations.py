@@ -127,6 +127,20 @@ CREATE TABLE IF NOT EXISTS sync_state(
     value TEXT NOT NULL DEFAULT '',
     updated_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS inbox_tags(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT 'gray',
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS conversation_tags(
+    conversation_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY(conversation_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS ix_conv_tag ON conversation_tags(tag_id, conversation_id);
 """
 
 _lock = threading.RLock()
@@ -172,6 +186,11 @@ def _nang_cap(db: sqlite3.Connection) -> None:
     if "pinned" not in cot_hoi_thoai:
         # 0.223.0: chủ ghim một cuộc chat lên đầu hòm thư, như ghim hội thoại ở trang Trò chuyện.
         db.execute("ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+    if "contact" not in cot_hoi_thoai:
+        # Phone number or email the customer left in their own messages (inbox filter "has phone/email"). Filled on write
+        # by `ghi_su_kien`; an old store is scanned once here so conversations from before the column count too.
+        db.execute("ALTER TABLE conversations ADD COLUMN contact TEXT NOT NULL DEFAULT ''")
+        _backfill_contact(db)
 
 
 def close() -> None:
@@ -383,11 +402,14 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True) -> dict:
                 # 5. Cập nhật hội thoại: tin cuối, số tin, chưa đọc (chỉ đếm tin KHÁCH)
                 tom = e["text"].strip().replace("\n", " ")[:200] or f"[{e['message_type']}]"
                 them_chua_doc = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
+                # A phone number or email in the CUSTOMER's own words marks the conversation for the "has phone/email" filter.
+                contact = find_contact(e["text"]) if e["sender_type"] == "customer" else ""
                 db.execute(
                     "UPDATE conversations SET last_message=?, last_message_at=?, last_sender_type=?,"
-                    " unread_count=unread_count+?, message_count=message_count+1, updated_at=?"
+                    " unread_count=unread_count+?, message_count=message_count+1, updated_at=?,"
+                    " contact=CASE WHEN ?!='' THEN ? ELSE contact END"
                     " WHERE id=?",
-                    (tom, ts, e["sender_type"], them_chua_doc, now, conv_id))
+                    (tom, ts, e["sender_type"], them_chua_doc, now, contact, contact, conv_id))
                 # 6. NHÓM chỉ giữ GIU_TIN_NHOM tin gần nhất (cùng giao dịch: không có lúc nào kho chứa thừa). `message_count` vẫn là số tin
                 # từng nhận, không giảm theo.
                 if e["chat_type"] == "group":
@@ -599,12 +621,16 @@ BOT_KHONG_CO = "-"      # giá trị `bot_id` của bộ lọc để chỉ lấy
 
 def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str = "",
               mode: str = "", limit: int = 50, offset: int = 0, status: str = "", chat_type: str = "",
-              hesitant=None) -> List[dict]:
+              hesitant=None, tag: int = 0, has_contact: bool = False, sort: str = "") -> List[dict]:
     """Danh sách hội thoại, ĐÃ GHIM rồi tới MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
 
     `q` tìm theo tên khách, tiêu đề, id chat, tin cuối (LIKE, không phân biệt hoa thường).
     `status` (unread | need_reply | human) và `chat_type` (group | private): giá trị lạ thì BỎ QUA bộ lọc đó, vì
     một giá trị cũ còn lưu ở trình duyệt không được làm hòm thư trống trơn. `bot_id="-"`: chỉ cuộc chat không có bot.
+
+    `tag` (an inbox tag id): only conversations carrying it. `has_contact`: only conversations where the customer left a
+    phone number or email. `sort="waiting"`: conversations whose last message is an unanswered customer message come
+    first, the one waiting longest on top (the rest follow, newest first). Each row carries `tags`.
     """
     n = max(1, min(int(limit or 50), MAX_DANH_SACH))
     o = max(0, int(offset or 0))
@@ -626,6 +652,10 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
         where.append("c.channel_account_id=?"); args.append(str(account_id))
     if mode:
         where.append("c.mode=?"); args.append(str(mode))
+    if tag and int(tag) > 0:
+        where.append("c.id IN (SELECT conversation_id FROM conversation_tags WHERE tag_id=?)"); args.append(int(tag))
+    if has_contact:
+        where.append("c.contact!=''")
     if q:
         like = f"%{str(q).strip()}%"
         dk = ["k.name LIKE ?", "c.title LIKE ?", "c.external_chat_id LIKE ?", "c.last_message LIKE ?"]
@@ -643,12 +673,24 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
         " JOIN channel_accounts a ON a.id=c.channel_account_id"
         " LEFT JOIN customers k ON k.id=c.customer_id"
         + (" WHERE " + " AND ".join(where) if where else "")
-        + " ORDER BY c.pinned DESC, COALESCE(c.last_message_at, c.updated_at) DESC, c.id DESC LIMIT ? OFFSET ?"
+        + (" ORDER BY " + _SORT_WAITING if sort == "waiting" else
+           " ORDER BY c.pinned DESC, COALESCE(c.last_message_at, c.updated_at) DESC, c.id DESC")
+        + " LIMIT ? OFFSET ?"
     )
     args += [n, o]
     with _lock:
         rows = _conn().execute(sql, args).fetchall()
-    return [_conv_public(_row(r)) for r in rows]
+    out = [_conv_public(_row(r)) for r in rows]
+    tags = conversation_tags([c["id"] for c in out])
+    for c in out:
+        c["tags"] = tags.get(int(c["id"]), [])
+    return out
+
+
+# "Waiting longest" (Pancake's "đợi phản hồi lâu nhất"): an unanswered customer message first, oldest of those on top.
+_SORT_WAITING = (f"CASE WHEN {_KHACH_CHUA_DAP} THEN 0 ELSE 1 END,"
+                 f" CASE WHEN {_KHACH_CHUA_DAP} THEN COALESCE(c.last_message_at, c.updated_at) END ASC,"
+                 " COALESCE(c.last_message_at, c.updated_at) DESC, c.id DESC")
 
 
 def dem_bo_loc(hesitant=None) -> dict:
@@ -665,10 +707,11 @@ def dem_bo_loc(hesitant=None) -> dict:
             " SUM(CASE WHEN c.unread_count>0 THEN 1 ELSE 0 END) AS unread,"
             f" SUM(CASE WHEN {sql_nr} THEN 1 ELSE 0 END) AS need_reply,"
             " SUM(CASE WHEN c.mode='human' THEN 1 ELSE 0 END) AS human,"
-            " SUM(CASE WHEN c.chat_type='group' THEN 1 ELSE 0 END) AS grp"
+            " SUM(CASE WHEN c.chat_type='group' THEN 1 ELSE 0 END) AS grp,"
+            " SUM(CASE WHEN c.contact!='' THEN 1 ELSE 0 END) AS contact"
             " FROM conversations c GROUP BY c.bot_id", args_nr).fetchall()
     out = {"tong": 0, "bots": {}, "status": {"unread": 0, "need_reply": 0, "human": 0},
-           "type": {"group": 0, "private": 0}}
+           "type": {"group": 0, "private": 0}, "has_contact": 0}
     for r in rows:
         tong = int(r["tong"] or 0)
         out["tong"] += tong
@@ -679,6 +722,7 @@ def dem_bo_loc(hesitant=None) -> dict:
             out["status"][k] += int(r[k] or 0)
         out["type"]["group"] += int(r["grp"] or 0)
         out["type"]["private"] += tong - int(r["grp"] or 0)
+        out["has_contact"] += int(r["contact"] or 0)
     return out
 
 
@@ -720,6 +764,7 @@ def chi_tiet(conversation_id: int) -> Optional[dict]:
         return None
     d = _conv_public(_row(r))
     d["customer_tags"] = _loads(d.pop("customer_tags_json", "[]"), [])
+    d["tags"] = conversation_tags([d["id"]]).get(int(d["id"]), [])
     return d
 
 
@@ -775,6 +820,126 @@ def dat_ghim(conversation_id: int, pinned: bool) -> bool:
         cur = db.execute("UPDATE conversations SET pinned=? WHERE id=?", (1 if pinned else 0, int(conversation_id)))
         db.commit()
     return cur.rowcount > 0
+
+
+# ============================================================
+# Inbox tags (owner, 2026-10-25: "thêm tag khách hàng", like Pancake's coloured chips)
+#
+# The owner keeps ONE list of tags (name + a colour from a small fixed palette) and puts them on CONVERSATIONS, so a
+# customer's private chat and a group they write in are tagged separately. Kept apart from `customers.tags_json`, the
+# free-text tags the CRM store pack (javis.khach-hang-crm) writes on a CUSTOMER: neither touches the other.
+# ============================================================
+TAG_COLORS = ("gray", "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink")
+MAX_INBOX_TAGS = 60
+MAX_TAG_NAME = 40
+
+
+def _tag_name(name: Any) -> str:
+    return " ".join(str(name or "").split())[:MAX_TAG_NAME]
+
+
+def _tag_color(color: Any) -> str:
+    c = str(color or "").strip().lower()
+    return c if c in TAG_COLORS else TAG_COLORS[0]
+
+
+def list_tags() -> List[dict]:
+    """Every inbox tag in the owner's order, with how many conversations carry it: `[{id, name, color, count}]`."""
+    with _lock:
+        rows = _conn().execute(
+            "SELECT t.id, t.name, t.color, (SELECT COUNT(*) FROM conversation_tags ct WHERE ct.tag_id=t.id) AS count"
+            " FROM inbox_tags t ORDER BY t.position, t.id").fetchall()
+    return [{"id": int(r["id"]), "name": r["name"], "color": _tag_color(r["color"]), "count": int(r["count"] or 0)}
+            for r in rows]
+
+
+def _tag_clash(db, name: str, skip_id: int = 0) -> bool:
+    """Another tag already has this name, ignoring case (Python casefold, so "Đã gửi" equals "đã gửi")."""
+    key = name.casefold()
+    return any(str(r[1]).casefold() == key and int(r[0]) != skip_id
+               for r in db.execute("SELECT id, name FROM inbox_tags").fetchall())
+
+
+def create_tag(name: Any, color: Any = "") -> tuple:
+    """Add a tag. Returns `(tag, "")` or `(None, code)` with code `empty`, `duplicate` or `limit`."""
+    n = _tag_name(name)
+    if not n:
+        return None, "empty"
+    with _lock:
+        db = _conn()
+        if _tag_clash(db, n):
+            return None, "duplicate"
+        if db.execute("SELECT COUNT(*) FROM inbox_tags").fetchone()[0] >= MAX_INBOX_TAGS:
+            return None, "limit"
+        pos = db.execute("SELECT COALESCE(MAX(position), 0) + 1 FROM inbox_tags").fetchone()[0]
+        cur = db.execute("INSERT INTO inbox_tags(name, color, position, created_at) VALUES(?,?,?,?)",
+                         (n, _tag_color(color), int(pos), _now()))
+        db.commit()
+        tid = int(cur.lastrowid)
+    return {"id": tid, "name": n, "color": _tag_color(color), "count": 0}, ""
+
+
+def update_tag(tag_id: int, name: Any = None, color: Any = None) -> tuple:
+    """Rename and/or recolour a tag. Returns `(True, "")` or `(False, code)`: `missing`, `empty`, `duplicate`."""
+    with _lock:
+        db = _conn()
+        if not db.execute("SELECT 1 FROM inbox_tags WHERE id=?", (int(tag_id),)).fetchone():
+            return False, "missing"
+        if name is not None:
+            n = _tag_name(name)
+            if not n:
+                return False, "empty"
+            if _tag_clash(db, n, int(tag_id)):
+                return False, "duplicate"
+            db.execute("UPDATE inbox_tags SET name=? WHERE id=?", (n, int(tag_id)))
+        if color is not None:
+            db.execute("UPDATE inbox_tags SET color=? WHERE id=?", (_tag_color(color), int(tag_id)))
+        db.commit()
+    return True, ""
+
+
+def delete_tag(tag_id: int) -> bool:
+    """Remove a tag and take it off every conversation."""
+    with _lock:
+        db = _conn()
+        cur = db.execute("DELETE FROM inbox_tags WHERE id=?", (int(tag_id),))
+        db.execute("DELETE FROM conversation_tags WHERE tag_id=?", (int(tag_id),))
+        db.commit()
+    return cur.rowcount > 0
+
+
+def set_conversation_tag(conversation_id: int, tag_id: int, on: bool = True) -> Optional[List[dict]]:
+    """Put a tag on a conversation (`on`) or take it off. Returns the conversation's tags after the change, or None when
+    the conversation or the tag does not exist."""
+    cid, tid = int(conversation_id), int(tag_id)
+    with _lock:
+        db = _conn()
+        if not db.execute("SELECT 1 FROM conversations WHERE id=?", (cid,)).fetchone() or \
+                not db.execute("SELECT 1 FROM inbox_tags WHERE id=?", (tid,)).fetchone():
+            return None
+        if on:
+            db.execute("INSERT OR IGNORE INTO conversation_tags(conversation_id, tag_id, created_at) VALUES(?,?,?)",
+                       (cid, tid, _now()))
+        else:
+            db.execute("DELETE FROM conversation_tags WHERE conversation_id=? AND tag_id=?", (cid, tid))
+        db.commit()
+    return conversation_tags([cid]).get(cid, [])
+
+
+def conversation_tags(conversation_ids) -> Dict[int, List[dict]]:
+    """`{conversation_id: [{id, name, color}]}` for the given conversations, tags in the owner's order."""
+    ids = [int(x) for x in (conversation_ids or [])][:MAX_DANH_SACH * 5]
+    if not ids:
+        return {}
+    with _lock:
+        rows = _conn().execute(
+            "SELECT ct.conversation_id AS cid, t.id, t.name, t.color FROM conversation_tags ct"
+            " JOIN inbox_tags t ON t.id=ct.tag_id WHERE ct.conversation_id IN (" + ",".join("?" * len(ids)) + ")"
+            " ORDER BY t.position, t.id", ids).fetchall()
+    out: Dict[int, List[dict]] = {}
+    for r in rows:
+        out.setdefault(int(r["cid"]), []).append({"id": int(r["id"]), "name": r["name"], "color": _tag_color(r["color"])})
+    return out
 
 
 def dat_che_do(conversation_id: int, mode: str) -> tuple[bool, str]:
@@ -1126,6 +1291,41 @@ def bien_the_sdt(q: Any) -> List[str]:
     elif d.startswith("0") and len(d) > 4:
         out.append("84" + d[1:])
     return out
+
+
+# Contact details a customer leaves in a message: a Vietnamese mobile number in any of the usual spellings (0912345678,
+# 0912 345 678, 0912.345.678, +84 912345678, 84912345678, (+84) 912...) or an email address. Digits glued to more digits
+# (order ids, timestamps, long Zalo ids) are not a phone number.
+_PHONE_IN_TEXT = re.compile(r"(?<![\d+])(?:\(?\+?84\)?|0)[ .\-]?[35789](?:[ .\-]?\d){8}(?!\d)")
+_EMAIL_IN_TEXT = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}")
+
+
+def find_contact(text: Any) -> str:
+    """The first phone number (as `0xxxxxxxxx`) or, failing that, the first email (lowercase) in `text`, else ""."""
+    t = str(text or "")
+    if not t:
+        return ""
+    for m in _PHONE_IN_TEXT.finditer(t):
+        p = chuan_hoa_sdt(m.group(0).replace("(", "").replace(")", ""))
+        if p:
+            return p
+    m = _EMAIL_IN_TEXT.search(t)
+    return m.group(0).lower()[:MAX_TEN] if m else ""
+
+
+def _backfill_contact(db: sqlite3.Connection) -> int:
+    """Fill `conversations.contact` from customer messages already stored (once, when the column is added). The newest
+    message with a contact wins, the same as on write. Returns how many conversations got one."""
+    found: Dict[int, str] = {}
+    rows = db.execute("SELECT conversation_id, text FROM messages WHERE sender_type='customer'"
+                      " AND (text LIKE '%@%' OR text GLOB '*[0-9][0-9][0-9]*') ORDER BY id").fetchall()
+    for r in rows:
+        c = find_contact(r[1])
+        if c:
+            found[int(r[0])] = c
+    for cid, c in found.items():
+        db.execute("UPDATE conversations SET contact=? WHERE id=?", (c, cid))
+    return len(found)
 
 
 def gan_sdt_khach(channel: str, account_id: str, external_user_id: str, phone: str, name: str = "") -> Optional[int]:

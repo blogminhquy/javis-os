@@ -39,15 +39,15 @@ check("module phơi ra đủ hàm", F && ["emptyState", "sanitize", "load", "sav
   "botOptions", "statusOptions", "typeOptions", "channelOptions"].every((k) => typeof F[k] === "function"));
 
 // ---- 1. hàm thuần ----
-check("trạng thái rỗng", JSON.stringify(F.emptyState()) === '{"bot":"","status":"","type":"","channel":""}');
+check("trạng thái rỗng", JSON.stringify(F.emptyState()) === '{"bot":"","status":"","type":"","channel":"","tag":"","contact":""}');
 check("giá trị lạ về không lọc (tình trạng và loại không nằm trong bảng)",
   F.sanitize({ bot: "b1", status: "hack", type: "??", channel: "zalo" }).status === "" &&
   F.sanitize({ status: "hack", type: "??" }).type === "" && F.sanitize({ bot: "b1" }).bot === "b1");
 check("kiểu sai không làm sập", F.sanitize(null).bot === "" && F.sanitize("x").status === "" && F.sanitize({ bot: 5 }).bot === "");
-check("giữ giá trị hợp lệ", JSON.stringify(F.sanitize({ bot: "-", status: "need_reply", type: "group", channel: "telegram" }))
-  === '{"bot":"-","status":"need_reply","type":"group","channel":"telegram"}');
+check("giữ giá trị hợp lệ", JSON.stringify(F.sanitize({ bot: "-", status: "need_reply", type: "group", channel: "telegram", tag: "7" }))
+  === '{"bot":"-","status":"need_reply","type":"group","channel":"telegram","tag":"7","contact":""}');
 F.save({ bot: "b1", status: "unread", type: "private", channel: "" });
-check("lưu rồi đọc lại đúng", JSON.stringify(F.load()) === '{"bot":"b1","status":"unread","type":"private","channel":""}');
+check("lưu rồi đọc lại đúng", JSON.stringify(F.load()) === '{"bot":"b1","status":"unread","type":"private","channel":"","tag":"","contact":""}');
 store["javis.inbox.filters"] = "không phải json";
 check("dữ liệu lưu hỏng thì về không lọc, không sập", JSON.stringify(F.load()) === JSON.stringify(F.emptyState()));
 store["javis.inbox.filters"] = JSON.stringify({ status: "hack" });
@@ -107,13 +107,13 @@ check("dropdown kênh ẩn khi hòm thư dưới 2 kênh", /ch\.hidden = Object\
 check("gửi tham số lọc lên server qua JavisConvFilters.query", /JavisConvFilters\.query\(filterState\(\)\)/.test(CV) &&
   !/"&bot_id=" \+ encodeURIComponent\(_botLoc\)/.test(CV));
 check("đọc facets và danh sách bot từ server, dùng cho cả nhịp làm mới", /_facets = d\.facets \|\| null/.test(CV) &&
-  /_botList = d\.bots \|\| \[\]/.test(CV) && /JSON\.stringify\(\[_items, _stats, _facets, _botList, _conDS\]\)/.test(CV));
+  /_botList = d\.bots \|\| \[\]/.test(CV) && /JSON\.stringify\(\[_items, _stats, _facets, _botList, _conDS, _tags\]\)/.test(CV));
 check("dropdown ĐANG MỞ không bị dựng lại giữa nhịp tự làm mới", /document\.activeElement !== sel && sel\.dataset\.sig !== html\[k\]/.test(CV));
 check("chọn dropdown thì lưu bộ lọc ở trình duyệt rồi tải lại", /function onFilterChange\(\) \{ saveFilters\(\); tai\(\); \}/.test(CV) &&
   ["_botLoc", "_statusLoc", "_typeLoc", "_kenhLoc"].every((v) => new RegExp(v + " = e\\.target\\.value; onFilterChange\\(\\)").test(CV)));
 check("khôi phục bộ lọc đã lưu khi mở hòm thư; mở từ nơi khác thì bỏ tình trạng và loại đã lưu",
   /JavisConvFilters\.load\(\)/.test(CV) && /_statusLoc = ""; _typeLoc = "";/.test(CV));
-check("nút Xoá lọc reset cả bốn dropdown lẫn chip tài khoản", /_botLoc = _statusLoc = _typeLoc = _kenhLoc = _tkLoc = ""/.test(CV) &&
+check("nút Xoá lọc reset cả năm dropdown lẫn chip tài khoản", /_botLoc = _statusLoc = _typeLoc = _kenhLoc = _tkLoc = _tagLoc = _contactLoc = ""/.test(CV) &&
   /class="ht-fclear" hidden/.test(CV));
 check("dòng tóm tắt nói số hội thoại và số bộ lọc", /ht\.f_count_f/.test(CV) && /ht\.f_count"/.test(CV));
 check("thẻ tên bot trên hàng chỉ khi có từ 2 bot; tình trạng 'Cần trả lời' và 'Tôi lo' cùng một dòng thẻ",
@@ -124,9 +124,9 @@ check("trạng thái rỗng tính cả bộ lọc mới", /_q \|\| _kenhLoc \|\|
 check("index.html nạp module lọc TRƯỚC conversations.js", HTML.indexOf("conversations-filters.js") > 0 &&
   HTML.indexOf("conversations-filters.js") < HTML.indexOf("/static/conversations.js"));
 check("CSS: dropdown bị ẩn thật khi có thuộc tính hidden, và có bố cục điện thoại",
-  /\.ht-f\[hidden\], \.ht-fclear\[hidden\] \{ display: none; \}/.test(CSS) && /\.ht-f \{ flex: 1 1 42%; font-size: 16px; \}/.test(CSS) && /\.ht-search, \.ht-f-bot, \.ht-f-channel \{ flex-basis: 100%; \}/.test(CSS));
+  /\.ht-f\[hidden\], \.ht-fclear\[hidden\] \{ display: none; \}/.test(CSS) && /\.ht-f \{ flex: 1 1 42%; font-size: 16px; \}/.test(CSS) && /\.ht-f-bot, \.ht-f-channel, \.ht-f-contact \{ flex-basis: 100%; \}/.test(CSS));
 check("CSS: hàng của bot/ô tìm/kênh đặt SAU quy tắc .ht-f (thứ tự quyết định độ rộng trên điện thoại)",
-  CSS.indexOf(".ht-f { flex: 1 1 42%") > 0 && CSS.indexOf(".ht-f { flex: 1 1 42%") < CSS.indexOf(".ht-search, .ht-f-bot, .ht-f-channel"));
+  CSS.indexOf(".ht-f { flex: 1 1 42%") > 0 && CSS.indexOf(".ht-f { flex: 1 1 42%") < CSS.indexOf(".ht-f-bot, .ht-f-channel, .ht-f-contact {"));
 check("CSS: bốn màu thẻ bot và thẻ cần trả lời", [0, 1, 2, 3].every((i) => CSS.indexOf(".ht-bot-tag.c" + i) > 0) && /\.ht-need \{/.test(CSS));
 
 // ---- 3. từ điển ----

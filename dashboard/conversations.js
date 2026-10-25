@@ -63,6 +63,10 @@
   var _items = [], _stats = {}, _dauVet = "";
   var _kenhLoc = "", _botLoc = "", _tkLoc = "", _q = "";
   var _statusLoc = "", _typeLoc = "";   // bộ lọc dropdown (0.65.3), lưu ở trình duyệt qua JavisConvFilters
+  var _tagLoc = "";         // 2026-10-25: tag filter (tag id), saved the same way
+  var _contactLoc = "";     // 2026-10-25: "1" = only chats where the customer left a phone number or email
+  var _tags = [];           // the owner's inbox tags [{id, name, color, count}], from the list endpoint
+  var _tagPop = false, _tagEdit = 0, _tagNewColor = "green", _tagErr = "";   // thread tag picker: open, tag being edited, new tag colour, last error
   var _facets = null, _botList = [];    // số đếm cho dropdown và các bot có hội thoại (server cấp, toàn hòm thư)
   var _chon = null;         // id hội thoại đang mở
   var _msgs = [], _conv = null, _dauVetTin = "", _silence = null;   // _silence: vì sao bot im ở tin khách cuối
@@ -147,6 +151,7 @@
     veTabs();
     veTab();
     nhip();
+    watchTagOutside();
   }
 
   function veTabs() {
@@ -232,21 +237,31 @@
       // Mở từ nơi khác (nút trên thẻ bot, mục Kênh chưa có bot): lọc đúng thứ được chỉ, bỏ tình trạng và loại đã lưu để
       // khỏi giấu mất hội thoại người ta muốn xem.
       _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || ""; _tkLoc = _cho.account_key || "";
-      _statusLoc = ""; _typeLoc = "";
+      _statusLoc = ""; _typeLoc = ""; _tagLoc = ""; _contactLoc = ""; _q = "";
       _cho = null;
       saveFilters();
     } else if (window.JavisConvFilters) {
       var saved = window.JavisConvFilters.load();
       _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel;
+      _tagLoc = saved.tag; _contactLoc = saved.contact;
     }
     body.innerHTML =
       '<div class="ht-wrap">' +
         '<div class="ht-bar">' +
           '<input class="ht-search" placeholder="' + esc(window.t("ht.tim_ph")) + '">' +
+          // Phones: the filters fold behind this one button so the chat list keeps the screen (owner, 2026-10-25).
+          // Wide screens never show it; there the panel below is just part of the row (display: contents).
+          '<button type="button" class="ht-fbtn" aria-expanded="false">' + ic("sliders-horizontal") + ' ' +
+            esc(window.t("ht.f_btn")) + '<span class="ht-fbtn-n" hidden></span></button>' +
+          '<div class="ht-fpanel">' +
           '<select class="ht-f ht-f-bot" aria-label="' + esc(window.t("ht.f_aria_bot")) + '"></select>' +
           '<select class="ht-f ht-f-status" aria-label="' + esc(window.t("ht.f_aria_status")) + '"></select>' +
           '<select class="ht-f ht-f-type" aria-label="' + esc(window.t("ht.f_aria_type")) + '"></select>' +
           '<select class="ht-f ht-f-channel" aria-label="' + esc(window.t("ht.f_aria_kenh")) + '" hidden></select>' +
+          '<select class="ht-f ht-f-tag" aria-label="' + esc(window.t("ht.f_aria_tag")) + '" hidden></select>' +
+          '<button type="button" class="ht-f ht-f-contact" aria-pressed="false">' + ic("phone") +
+            '<span class="ht-f-contact-t"></span></button>' +
+          '</div>' +
         '</div>' +
         '<div class="ht-body">' +
           // Dòng đếm và chip lọc nằm ngay trên danh sách mà chúng nói về, không chiếm cả một hàng suốt bề ngang (0.65.10).
@@ -263,19 +278,38 @@
         '</div>' +
       '</div>';
     var s = body.querySelector(".ht-search");
+    // The query lives in `_q`, which outlives this box: the inbox is rebuilt on every tab or page switch. Put it back in
+    // the new box, or the list stays filtered by a search nobody can see and "clearing" the empty box does nothing
+    // (owner, 2026-10-25: "1 hội thoại" stuck after searching).
+    s.value = _q;
     s.oninput = function () { _q = s.value.trim(); tai(); };
     body.querySelector(".ht-f-bot").onchange = function (e) { _botLoc = e.target.value; onFilterChange(); };
     body.querySelector(".ht-f-status").onchange = function (e) { _statusLoc = e.target.value; onFilterChange(); };
     body.querySelector(".ht-f-type").onchange = function (e) { _typeLoc = e.target.value; onFilterChange(); };
     body.querySelector(".ht-f-channel").onchange = function (e) { _kenhLoc = e.target.value; onFilterChange(); };
+    body.querySelector(".ht-f-tag").onchange = function (e) { _tagLoc = e.target.value; onFilterChange(); };
+    body.querySelector(".ht-f-contact").onclick = function () { _contactLoc = _contactLoc ? "" : "1"; onFilterChange(); };
+    var fbtn = body.querySelector(".ht-fbtn"), fpanel = body.querySelector(".ht-fpanel");
+    function setPanel(open) {
+      fpanel.classList.toggle("open", open);
+      fbtn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    fbtn.onclick = function () { setPanel(!fpanel.classList.contains("open")); };
+    // A tap anywhere outside the bar (the list, a chat) folds the panel away again.
+    body.addEventListener("click", function (e) {
+      if (fpanel.classList.contains("open") && !body.querySelector(".ht-bar").contains(e.target)) setPanel(false);
+    });
     body.querySelector(".ht-fclear").onclick = function () {
-      _botLoc = _statusLoc = _typeLoc = _kenhLoc = _tkLoc = "";
+      _botLoc = _statusLoc = _typeLoc = _kenhLoc = _tkLoc = _tagLoc = _contactLoc = "";
       onFilterChange();
     };
+    attachListResize(body);
     taiTK(false).catch(function () {}).then(function () { tai(); if (_chon) taiTin(false); });
   }
 
-  function filterState() { return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc }; }
+  function filterState() {
+    return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc, tag: _tagLoc, contact: _contactLoc };
+  }
   function saveFilters() { if (window.JavisConvFilters) window.JavisConvFilters.save(filterState()); }
   function onFilterChange() { saveFilters(); tai(); }
 
@@ -339,8 +373,9 @@
       _stats = d.stats || {};
       _facets = d.facets || null;
       _botList = d.bots || [];
+      if (d.tags) _tags = d.tags;
       if (d.channels) _kenhDS = d.channels;
-      var vet = JSON.stringify([_items, _stats, _facets, _botList, _conDS]);
+      var vet = JSON.stringify([_items, _stats, _facets, _botList, _conDS, _tags]);
       if (im && vet === _dauVet) return;
       _dauVet = vet;
     } catch (e) {
@@ -381,7 +416,7 @@
 
   // Bộ lọc dropdown (0.65.3): một hàng chung với ô tìm, số đếm nằm trong từng lựa chọn (chip chiếm quá nhiều chỗ khi
   // chạy nhiều bot). Phần dựng chuỗi <option> nằm ở conversations-filters.js.
-  var FILTER_SEL = { bot: ".ht-f-bot", status: ".ht-f-status", type: ".ht-f-type", channel: ".ht-f-channel" };
+  var FILTER_SEL = { bot: ".ht-f-bot", status: ".ht-f-status", type: ".ht-f-type", channel: ".ht-f-channel", tag: ".ht-f-tag" };
 
   function paintFilters() {
     var F = window.JavisConvFilters;
@@ -392,6 +427,7 @@
       status: F.statusOptions(_facets, st.status),
       type: F.typeOptions(_facets, st.type),
       channel: F.channelOptions(_stats.theo_kenh || {}, st.channel, nhanKenh),
+      tag: F.tagOptions(_tags, st.tag),
     };
     Object.keys(FILTER_SEL).forEach(function (k) {
       var sel = _host.querySelector(FILTER_SEL[k]);
@@ -407,7 +443,19 @@
     // Kênh chỉ đáng có khi hòm thư có từ 2 kênh (hoặc đang lọc theo một kênh).
     var ch = _host.querySelector(FILTER_SEL.channel);
     if (ch) ch.hidden = Object.keys(_stats.theo_kenh || {}).length < 2 && !st.channel;
+    // Tag dropdown only once the owner has made a tag (they make them from a conversation's tag button).
+    var tg = _host.querySelector(FILTER_SEL.tag);
+    if (tg) tg.hidden = !_tags.length && !st.tag;
+
+    var ct = _host.querySelector(".ht-f-contact");
+    if (ct) {
+      ct.querySelector(".ht-f-contact-t").textContent = F.contactLabel(_facets);
+      ct.setAttribute("aria-pressed", st.contact ? "true" : "false");
+      ct.classList.toggle("on", !!st.contact);
+    }
     var active = F.activeCount(st) + (_tkLoc ? 1 : 0);
+    var fn = _host.querySelector(".ht-fbtn-n");
+    if (fn) { fn.textContent = String(active); fn.hidden = !active; }
     var cnt = _host.querySelector(".ht-fcount");
     if (cnt) cnt.textContent = window.t(active ? "ht.f_count_f" : "ht.f_count",
       { n: _items.length + (_conDS ? "+" : ""), f: active });
@@ -430,7 +478,7 @@
     if (!_items.length) {
       var coNguon = _tk.some(function (a) { return a.ghi; });
       box.innerHTML = '<div class="ht-empty">' + ic("messages-square") +
-        '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc || _statusLoc || _typeLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
+        '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc || _statusLoc || _typeLoc || _tagLoc || _contactLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
           (!coNguon ? infoBtn() : "") + '</b>' +
         // Where messages come from opens from (i); the button to add an account stays visible (0.214.0).
         (!coNguon ? infoBody(esc(window.t("ht.chua_co_goi_y"))) +
@@ -453,11 +501,18 @@
       if (c.mode === "human") tags.push('<span class="ht-mode">' + esc(window.t("ht.mode_human")) + '</span>');
       else if (c.need_reply) tags.push('<span class="ht-need">' + esc(window.t("ht.tag_need")) + '</span>');
       // Nút ghim (0.223.0) là <span role=button>: cả hàng đã là một <button>, nút lồng trong nút là HTML sai.
+      // The owner's tags (2026-10-25): their own line under the preview, two chips then "+N" (Pancake's list row).
+      var userTags = (F && c.tags && c.tags.length) ? '<span class="ht-item-utags">' + F.tagChips(c.tags, 2) + '</span>' : "";
       return '<button type="button" class="ht-item' + (c.id === _chon ? " on" : "") +
           (c.unread_count ? " unread" : "") + (c.pinned ? " ghim" : "") + '" data-id="' + c.id + '">' +
         '<span class="ht-item-ic">' + (c.chat_type === "group" ? ic("users") : ic("user-round")) + '</span>' +
+        // Only shown while the column is dragged into a strip (.ht-mini): the first letter, and a dot for unread.
+        '<span class="ht-item-ava" aria-hidden="true">' + esc(String(ten || "?").trim().charAt(0).toUpperCase() || "?") +
+          (c.unread_count ? '<span class="ht-item-ava-dot"></span>' : "") + '</span>' +
         '<span class="ht-item-text">' +
           '<span class="ht-item-top"><strong>' + esc(ten) + '</strong>' +
+            (c.contact ? '<span class="ht-has-contact" title="' + esc(window.t("ht.contact_left", { v: c.contact })) + '">' +
+              ic(c.contact.indexOf("@") > 0 ? "mail" : "phone") + '</span>' : "") +
             '<small class="ht-item-time">' + esc(gio(c.last_message_at)) + '</small>' +
             '<span class="ht-pin' + (c.pinned ? " on" : "") + '" role="button" tabindex="0" title="' +
               esc(c.pinned ? window.t("proj.pin_off") : window.t("sess.pin_top")) + '">' + ic("pin") + '</span></span>' +
@@ -470,7 +525,7 @@
               esc(window.t("sess.msgs", { count: c.message_count })) + '</span>' : "") +
             (c.unread_count ? '<span class="ht-badge" title="' + esc(window.t("ht.chua_doc_title", { count: c.unread_count })) + '">' +
               c.unread_count + '</span>' : "") +
-          '</span>' +
+          '</span>' + userTags +
         '</span></button>';
     }).join("") + (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +
                             esc(window.t("ht.xem_them")) + '</button></div>' : "");
@@ -505,6 +560,7 @@
 
   // ---------------------------------------------------------------- một hội thoại
   async function mo(id) {
+    if (id !== _chon) { _tagPop = false; _tagEdit = 0; _tagErr = ""; }
     _chon = id;
     _dauVetTin = "";
     _actNote = null;
@@ -567,6 +623,7 @@
   function metaSig() {
     var c = _conv || {}, u = _msgs[_msgs.length - 1] || {};
     return JSON.stringify([c.id, c.mode, c.bot_id, c.bot_name, c.title, c.customer_name, c.channel, c.chat_type, c.account_name,
+      c.tags || [], c.contact || "",
       _silence, _running, u.sender_type, _msgs.some(function (m) { return m.sender_type === "customer" && (m.text || "").trim(); })]);
   }
 
@@ -656,11 +713,13 @@
             '</div>'
           : "") +
       '</div>' +
+      '<div class="ht-tagrow"></div>' +
       '<div class="ht-msgs">' + nutTinCu() + _msgs.map(veTin).join("") + renderSilenceLine(c) + '</div>' +
       (laBot ? renderStatusLine(c, human) + renderActions(c, human, guiDuoc) : "") +
       (guiDuoc ? veCompose(c, laBot, human) :
         '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>');
     box.querySelector(".ht-back").onclick = dongThread;
+    veTagRow();
     box.querySelectorAll(".ht-seg-b").forEach(function (b) {
       b.onclick = function () { if (b.dataset.m !== (human ? "human" : "ai")) doiMode(c.id, b.dataset.m); };
     });
@@ -683,6 +742,237 @@
       };
       box.querySelector(".ht-send").onclick = function () { gui(c); };
     }
+  }
+
+  // ---------------------------------------------------------------- tags on a conversation (2026-10-25)
+  // Owner: "thêm tag khách hàng", like Pancake's coloured chips. Under the thread header: the phone/email the customer
+  // left (if any), this conversation's tags (x takes one off) and a "Tag" button opening the picker, where the owner puts
+  // tags on or off, makes a new one (name + colour from the fixed palette) and renames, recolours or deletes one. The
+  // row redraws on its own, so ticking several tags keeps the picker open.
+  function palette(cur) {
+    var F = window.JavisConvFilters;
+    return '<span class="ht-sws" role="group" aria-label="' + esc(window.t("ht.tag_colors")) + '">' + (F ? F.TAG_COLORS : []).map(function (k, i) {
+      return '<button type="button" class="ht-sw' + (k === cur ? " on" : "") + '" data-c="' + k + '" aria-pressed="' + (k === cur) +
+        '" aria-label="' + esc(window.t("ht.tag_color", { n: i + 1 })) + '"></button>';
+    }).join("") + '</span>';
+  }
+
+  function tagPopHtml(on) {
+    var F = window.JavisConvFilters;
+    var rows = _tags.map(function (g) {
+      if (_tagEdit === g.id) {
+        return '<div class="ht-tagpop-edit" data-id="' + g.id + '">' +
+          '<input class="ht-tagpop-ename" maxlength="40" value="' + esc(g.name) + '" aria-label="' + esc(window.t("ht.tag_name")) + '">' +
+          palette(_tagEditColor || g.color) +
+          '<span class="ht-tagpop-eacts">' +
+            '<button type="button" class="s-btn ht-tag-save">' + esc(window.t("common.save")) + '</button>' +
+            '<button type="button" class="s-btn-ghost ht-tag-cancel">' + esc(window.t("common.cancel")) + '</button>' +
+            '<button type="button" class="s-btn-ghost ht-tag-del">' + ic("trash-2") + ' ' + esc(window.t("common.delete")) + '</button>' +
+          '</span></div>';
+      }
+      return '<div class="ht-tagpop-row">' +
+        '<button type="button" class="ht-tag-pick' + (on[g.id] ? " on" : "") + '" data-id="' + g.id + '" aria-pressed="' + !!on[g.id] + '">' +
+          '<span class="ht-tag-check">' + (on[g.id] ? ic("check") : "") + '</span>' + F.tagChip(g) + '</button>' +
+        '<button type="button" class="ht-tag-edit" data-id="' + g.id + '" aria-label="' + esc(window.t("ht.tag_edit", { name: g.name })) +
+          '" title="' + esc(window.t("ht.tag_edit", { name: g.name })) + '">' + ic("pencil") + '</button></div>';
+    }).join("");
+    return '<div class="ht-tagpop" role="dialog" aria-label="' + esc(window.t("ht.tag_title")) + '">' +
+      '<div class="ht-tagpop-h"><b>' + esc(window.t("ht.tag_title")) + '</b>' + infoBtn() +
+        '<button type="button" class="ht-tag-close" aria-label="' + esc(window.t("common.close")) + '">' + ic("x") + '</button></div>' +
+      infoBody(esc(window.t("ht.tag_info"))) +
+      (rows ? '<div class="ht-tagpop-list">' + rows + '</div>' : '<div class="ht-tagpop-none">' + esc(window.t("ht.tag_none")) + '</div>') +
+      '<div class="ht-tagpop-new">' +
+        '<input class="ht-tagpop-nname" maxlength="40" placeholder="' + esc(window.t("ht.tag_new_ph")) + '" aria-label="' + esc(window.t("ht.tag_new_ph")) + '">' +
+        palette(_tagNewColor) +
+        '<button type="button" class="s-btn ht-tag-create">' + ic("plus") + ' ' + esc(window.t("ht.tag_add")) + '</button>' +
+      '</div>' +
+      (_tagErr ? '<div class="ht-tagpop-err">' + ic("triangle-alert") + ' <span>' + esc(_tagErr) + '</span></div>' : "") +
+    '</div>';
+  }
+
+  var _tagEditColor = "", _tagNewText = "", _tagEditText = null;   // picker colour being edited, and what is typed (kept across redraws)
+  function veTagRow() {
+    var row = _host && _host.querySelector(".ht-thread .ht-tagrow");
+    var F = window.JavisConvFilters;
+    if (!row || !_conv || !F) return;
+    var c = _conv, on = {};
+    (c.tags || []).forEach(function (g) { on[g.id] = true; });
+    var nOld = row.querySelector(".ht-tagpop-nname");
+    var focusNew = !!(nOld && document.activeElement === nOld);
+    row.innerHTML =
+      (c.contact ? '<span class="ht-contact" title="' + esc(window.t("ht.contact_left", { v: c.contact })) + '">' +
+        ic(c.contact.indexOf("@") > 0 ? "mail" : "phone") + ' <span>' + esc(c.contact) + '</span></span>' : "") +
+      (c.tags || []).map(function (g) {
+        return '<span class="ht-tag ht-tag-on" data-c="' + F.tagColor(g.color) + '" title="' + esc(g.name) + '"><span class="ht-tag-name">' +
+          esc(g.name) + '</span>' +
+          '<button type="button" class="ht-tag-x" data-id="' + g.id + '" aria-label="' + esc(window.t("ht.tag_remove", { name: g.name })) +
+          '" title="' + esc(window.t("ht.tag_remove", { name: g.name })) + '">' + ic("x") + '</button></span>';
+      }).join("") +
+      '<button type="button" class="ht-tag-add' + (_tagPop ? " on" : "") + '" aria-expanded="' + _tagPop + '">' + ic("tag") + ' <span>' +
+        esc(window.t("ht.tag_btn")) + '</span></button>' +
+      (_tagPop ? tagPopHtml(on) : "");
+    // What is typed lives in _tagNewText / _tagEditText, so the 5-second refresh redrawing the thread does not wipe it.
+    var n = row.querySelector(".ht-tagpop-nname");
+    if (n) { n.value = _tagNewText; n.oninput = function () { _tagNewText = n.value; }; if (focusNew) n.focus(); }
+    var e = row.querySelector(".ht-tagpop-ename");
+    if (e) { if (_tagEditText != null) e.value = _tagEditText; e.oninput = function () { _tagEditText = e.value; }; }
+    if (n) n.onkeydown = function (ev) {
+      if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); createTag(c.id); }
+    };
+    if (e) e.onkeydown = function (ev) {
+      if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); saveTag(_tagEdit); }
+    };
+    row.onkeydown = function (ev) { if (ev.key === "Escape" && _tagPop) { closeTagPop(); } };
+    row.onclick = function (ev) {
+      var b = ev.target.closest && ev.target.closest("button");
+      if (!b || !row.contains(b)) return;
+      var id = parseInt(b.dataset.id || "0", 10);
+      if (b.classList.contains("ht-tag-add")) { _tagPop = !_tagPop; _tagEdit = 0; _tagErr = ""; veTagRow(); }
+      else if (b.classList.contains("ht-tag-close")) closeTagPop();
+      else if (b.classList.contains("ht-tag-x")) setTag(c.id, id, false);
+      else if (b.classList.contains("ht-tag-pick")) setTag(c.id, id, !on[id]);
+      else if (b.classList.contains("ht-tag-edit")) {
+        var g = _tags.filter(function (x) { return x.id === id; })[0];
+        _tagEdit = id; _tagEditColor = g ? g.color : ""; _tagEditText = null; _tagErr = ""; veTagRow();
+        var en = row.querySelector(".ht-tagpop-ename"); if (en) en.focus();
+      }
+      else if (b.classList.contains("ht-tag-cancel")) { _tagEdit = 0; _tagErr = ""; veTagRow(); }
+      else if (b.classList.contains("ht-tag-save")) saveTag(_tagEdit);
+      else if (b.classList.contains("ht-tag-del")) deleteTag(_tagEdit);
+      else if (b.classList.contains("ht-tag-create")) createTag(c.id);
+      else if (b.classList.contains("ht-sw")) {
+        if (b.closest(".ht-tagpop-edit")) _tagEditColor = b.dataset.c; else _tagNewColor = b.dataset.c;
+        b.parentNode.querySelectorAll(".ht-sw").forEach(function (x) {
+          x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", String(x === b));
+        });
+      }
+    };
+  }
+
+  function closeTagPop() {
+    _tagPop = false; _tagEdit = 0; _tagErr = "";
+    veTagRow();
+    var b = _host && _host.querySelector(".ht-tag-add");
+    if (b) b.focus();
+  }
+
+  // A click anywhere outside the tag row closes the picker (one listener for the page's life).
+  var _tagOutside = false;
+  function watchTagOutside() {
+    if (_tagOutside) return;
+    _tagOutside = true;
+    document.addEventListener("mousedown", function (ev) {
+      if (!_tagPop || !_host) return;
+      var row = _host.querySelector(".ht-thread .ht-tagrow");
+      if (row && !row.contains(ev.target)) { _tagPop = false; _tagEdit = 0; _tagErr = ""; veTagRow(); }
+    });
+  }
+
+  // After the tag list changed (made, renamed, recoloured, deleted): the open conversation's chips follow the new names
+  // and colours, the list reloads for the row chips and counts.
+  function tagsChanged(tags) {
+    _tags = tags || _tags;
+    var by = {};
+    _tags.forEach(function (g) { by[g.id] = g; });
+    if (_conv && _conv.tags) {
+      _conv.tags = _conv.tags.filter(function (g) { return by[g.id]; }).map(function (g) {
+        return { id: g.id, name: by[g.id].name, color: by[g.id].color };
+      });
+    }
+    if (_tagLoc && !by[_tagLoc]) { _tagLoc = ""; saveFilters(); }
+    _vetMeta = metaSig();
+    veTagRow();
+    tai(true);
+  }
+
+  async function setTag(convId, tagId, on) {
+    _tagErr = "";
+    try {
+      var d = await api("/conversations/" + convId + "/tags", { method: "POST", body: fd({ tag_id: tagId, on: on ? "1" : "0" }) });
+      if (_conv && _conv.id === convId) { _conv.tags = d.tags || []; _vetMeta = metaSig(); }
+      _items.forEach(function (it) { if (it.id === convId) it.tags = d.tags || []; });
+    } catch (e) { _tagErr = e.message; }
+    veTagRow();
+    veDanhSach();
+    tai(true);
+  }
+
+  async function createTag(convId) {
+    var n = _host && _host.querySelector(".ht-tagpop-nname");
+    var name = n ? n.value.trim() : "";
+    if (!name) { _tagErr = window.t("ht.tag_need_name"); veTagRow(); return; }
+    _tagErr = "";
+    try {
+      var d = await api("/conversations/tags", { method: "POST", body: fd({ name: name, color: _tagNewColor }) });
+      _tagNewText = "";
+      _tags = d.tags || _tags;
+      await setTag(convId, d.tag.id, true);     // made from a conversation's picker: it goes on that conversation
+      var n2 = _host && _host.querySelector(".ht-tagpop-nname");
+      if (n2) n2.focus();
+    } catch (e) { _tagErr = e.message; veTagRow(); }
+  }
+
+  async function saveTag(id) {
+    var e = _host && _host.querySelector(".ht-tagpop-ename");
+    if (!id || !e) return;
+    _tagErr = "";
+    try {
+      var d = await api("/conversations/tags/" + id, { method: "POST", body: fd({ name: e.value.trim(), color: _tagEditColor }) });
+      _tagEdit = 0;
+      tagsChanged(d.tags);
+    } catch (err) { _tagErr = err.message; veTagRow(); }
+  }
+
+  async function deleteTag(id) {
+    var g = _tags.filter(function (x) { return x.id === id; })[0];
+    if (!g || !confirm(window.t("ht.tag_del_confirm", { name: g.name, n: g.count }))) return;
+    _tagErr = "";
+    try {
+      var d = await api("/conversations/tags/" + id, { method: "DELETE" });
+      _tagEdit = 0;
+      tagsChanged(d.tags);
+    } catch (err) { _tagErr = err.message; veTagRow(); }
+  }
+
+  // ---------------------------------------------------------------- drag the list column (2026-10-25)
+  // Owner: "ở màn chatbot cũng đang chưa kéo được navbar gọn vào theo kiểu kéo thả", like the Partners and Chat pages:
+  // the shared col-resize.js handle on the list's right edge, width remembered, double-click resets; dragged past the
+  // fold point it snaps into a strip of initials (.ht-mini) whose hover card names the conversation. Wide screens only
+  // (console.css hides the handle and ignores the width below 901px).
+  var LIST_MIN_W = 260, LIST_MINI_W = 72;
+  function attachListResize(body) {
+    var CR = window.JavisColResize, wrap = body.querySelector(".ht-wrap"), col = body.querySelector(".ht-listcol");
+    if (!CR || !wrap || !col) return;
+    var inner = wrap.querySelector(".ht-body");
+    var o = { host: wrap, varName: "--ht-list-w", key: "javis_ht_list_w", min: LIST_MIN_W, max: 560, edge: "right",
+      label: "ht.resize_list", keep: 420, total: function () { return inner ? inner.clientWidth : 0; },
+      snap: { below: CR.FOLD_AT(LIST_MIN_W), to: LIST_MINI_W, onSnap: function (on) {
+        wrap.classList.toggle("ht-mini", !!on);
+        if (!on) CR.miniTip.hide();
+      } } };
+    CR.apply(o);
+    CR.attach(col, o);
+    var list = col.querySelector(".ht-list");
+    var card = function (row) {
+      if (!wrap.classList.contains("ht-mini")) return;
+      var txt = function (sel) { var x = row.querySelector(sel); return x ? x.textContent.trim() : ""; };
+      var badge = row.querySelector(".ht-item-sub .ht-badge");
+      CR.miniTip.show(row, { ava: '<span class="ht-item-ava">' + esc(txt(".ht-item-ava").charAt(0)) + '</span>',
+        name: txt(".ht-item-top strong"), time: txt(".ht-item-time"), sub: txt(".ht-item-sub small"),
+        stText: badge ? badge.getAttribute("title") : "", st: badge ? "need" : "" });
+    };
+    var hide = function () { CR.miniTip.hide(); };
+    list.addEventListener("mouseover", function (e) {
+      var row = e.target.closest && e.target.closest(".ht-item");
+      if (row && !row.contains(e.relatedTarget)) card(row);
+    });
+    list.addEventListener("mouseout", function (e) {
+      var row = e.target.closest && e.target.closest(".ht-item");
+      if (row && !row.contains(e.relatedTarget)) hide();
+    });
+    list.addEventListener("focusin", function (e) { if (e.target.classList && e.target.classList.contains("ht-item")) card(e.target); });
+    list.addEventListener("focusout", hide);
+    list.addEventListener("click", hide);
   }
 
   // Một dòng nói ai đang trực cuộc chat này. Đứng riêng (không nhét vào ô nhập) để hai nút hành động ở lát sau có chỗ

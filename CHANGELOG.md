@@ -12,6 +12,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Bản thử tự **tạm ngừng** khi anh sửa skill gốc, tắt skill hoặc thu hồi quyền sửa; không bao giờ tự gộp hay bật lại skill đã tắt. Bản nào bị phép so sánh chấm là kém hơn thì không áp dụng được.
 - Nhãn nói thật mức bằng chứng: "Áp dụng thử thủ công, chưa chứng minh tốt hơn" cho tới khi qua kiểm định đầy đủ. Hiện bản thử chỉ có tác dụng với bộ não chạy qua API; Claude Code, Codex, Grok và Antigravity vẫn dùng bản gốc.
 
+## [0.313.0] - 2026-10-25
+### Thêm mới
+- **Gắn tag màu cho từng cuộc chat** trong Hòm thư bot, giống Pancake: tạo, đổi tên, đổi màu, xoá tag ngay trong cuộc chat. Tag hiện thành chip màu trên danh sách (2 chip đầu, còn lại gom "+N") và lọc được theo tag.
+- **Lọc khách đã để lại số điện thoại hoặc email.** Javis tự nhận số và email khách gõ trong tin nhắn (0912..., +84..., có hay không khoảng trắng), kể cả các cuộc chat cũ. Nút "Có SĐT/email" là bộ lọc riêng nên kết hợp được, ví dụ "Cần trả lời" và có SĐT. Số hoặc email hiện ngay đầu cuộc chat, bấm chọn là copy được.
+- **Trên điện thoại, bộ lọc gọn vào một nút "Lọc"** cạnh ô tìm (có số bộ lọc đang bật), danh sách chat được gần trọn màn hình. Trên máy tính các ô lọc giữ đủ chữ, thiếu chỗ thì xuống hàng thay vì bị cắt.
+- **Xếp khách chờ trả lời lâu nhất lên đầu** bằng mục "Chờ lâu nhất" trong ô Tình trạng.
+- **Kéo được cột danh sách hội thoại** cho rộng hẹp tuỳ ý trên máy tính. Kéo hẳn vào trong thì chỉ còn chữ cái đầu, nhấp đúp để về như cũ.
+### Sửa lỗi
+- **Một người mở Javis ở máy khác không còn làm mọi trang đang mở báo "Mất kết nối".** Mỗi lần mở trang, Javis tra địa chỉ IP của máy chủ và tên miền ngay trên luồng chính; máy chủ có mạng ra ngoài chậm thì đứng hình 12 đến 24 giây và mọi trình duyệt khác rớt kết nối. Giờ việc tra chạy riêng, tra hỏng thì nhớ lại hai phút để người vào sau không phải chờ lại.
+- **Hòm thư bot: tìm rồi xoá không còn mất danh sách.** Tìm khách xong chuyển tab rồi quay lại, ô tìm trống mà danh sách vẫn kẹt ở kết quả cũ, không có gì để xoá. Giờ ô tìm giữ đúng chữ đang lọc, xoá đi là danh sách hiện đủ.
+
 ## [0.312.0] - 2026-10-25
 ### Cải thiện
 - **Trang Kết nối dễ tìm hơn.** Tab Đã kết nối có ô tìm kiếm: gõ tên dịch vụ hay tên tài khoản là lọc ngay, tìm cả trong các nguồn sẵn của Claude Code.
