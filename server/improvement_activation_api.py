@@ -26,6 +26,7 @@ class ActivationApiDeps:
     read_store: Callable = lambda: True  # () -> installed read store or None; None means nothing to list
     owner_session: Callable = lambda request: None  # request -> denial Response or None (browser session only)
     canaries: Callable = None  # () -> improvement_canary.Canaries over the same write store
+    routing: Callable = None  # () -> improvement_routing.Routing over the same write store (M4)
 
 
 def _fail(error):
@@ -158,5 +159,54 @@ def register(app, deps: ActivationApiDeps):
             return {"ok": True, "grant": service.revoke_grant(principal, grant_id,
                     expected_generation=data["expected_generation"], event_key=data["event_key"])}
         return await write(request, brain, {"expected_generation", "event_key"}, set(), call)
+
+    async def routing():
+        if deps.routing is None:
+            raise PermissionError("routing_unavailable")
+        return await asyncio.to_thread(deps.routing)
+
+    @app.get("/improvement-routing")
+    async def routing_list(target_id: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                return {"ok": True, "candidates": [], "overlays": []}
+            service = await routing()
+            await asyncio.to_thread(service.reconcile, principal)
+            return {"ok": True, "candidates": await asyncio.to_thread(service.candidates, principal, target_id=target_id),
+                    "overlays": await asyncio.to_thread(service.overlays, principal, target_id=target_id),
+                    "coverage": {"served": ["main_chat_api_engines"], "not_served": ["assistant_chats", "claude_code", "codex"]}}
+        except _ERRORS as error:
+            return _fail(error)
+
+    async def routing_write(request, brain, required, call):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            data = await _body(request, required)
+            return await asyncio.to_thread(call, await routing(), principal, data)
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-routing/evaluate")
+    async def routing_evaluate(request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "routing": service.evaluate(principal, data["target_id"], data["description"], data["cases"],
+                                                             event_key=data["event_key"])}
+        return await routing_write(request, brain, {"target_id", "description", "cases", "event_key"}, call)
+
+    @app.post("/improvement-routing/{candidate_id}/apply")
+    async def routing_apply(candidate_id: str, request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "overlay": service.apply(principal, candidate_id, event_key=data["event_key"])}
+        return await routing_write(request, brain, {"event_key"}, call)
+
+    @app.post("/improvement-routing-overlays/{overlay_id}/revert")
+    async def routing_revert(overlay_id: str, request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "overlay": service.revert(principal, overlay_id,
+                    expected_generation=data["expected_generation"], event_key=data["event_key"])}
+        return await routing_write(request, brain, {"expected_generation", "event_key"}, call)
 
     return deps

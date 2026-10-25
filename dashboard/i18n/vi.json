@@ -5780,5 +5780,20 @@
   "improve.conclusion_improved_in_scope": "Có cải thiện trong phạm vi đã kiểm",
   "improve.conclusion_equivalent": "Tương đương",
   "improve.conclusion_worse": "Kém hơn",
-  "improve.conclusion_insufficient_evidence": "Chưa đủ bằng chứng"
+  "improve.conclusion_insufficient_evidence": "Chưa đủ bằng chứng",
+  "improve.routing_title": "Định tuyến: mô tả skill",
+  "improve.routing_hint": "Mô tả skill quyết định khi nào khung chat chính của Javis chọn skill này (bộ não chạy qua API). Mỗi dòng câu hỏi mẫu có dạng: loại | skill nên chọn | câu hỏi, với loại là positive (nên chọn skill này), negative (không nên chọn skill nào, để trống ô giữa) hoặc competing (nên chọn skill khác). Bản mô tả làm câu negative hoặc competing bị chọn sai sẽ bị loại. Chat với trợ lý chỉ dùng tên skill nên không bị ảnh hưởng; Claude Code và Codex tự chọn skill theo thư mục skill nên chưa đo được ở đây.",
+  "improve.routing_active": "Đang dùng ở khung chat chính",
+  "improve.routing_description": "Mô tả mới (tối đa 150 ký tự)",
+  "improve.routing_cases": "Câu hỏi mẫu",
+  "improve.routing_evaluate": "Chấm thử",
+  "improve.routing_verdict": "Kết quả",
+  "improve.routing_verdict_eligible": "Chọn đúng hơn rõ rệt",
+  "improve.routing_verdict_inconclusive": "Chưa đủ khác biệt",
+  "improve.routing_verdict_rejected": "Bị loại vì làm chọn sai",
+  "improve.routing_wins": "Đúng thêm",
+  "improve.routing_losses": "Sai thêm",
+  "improve.routing_ties": "Như cũ",
+  "improve.routing_cli_not_measured": "Chỉ đo bộ chọn skill của Javis; Claude Code và Codex chưa đo.",
+  "improve.routing_apply": "Dùng mô tả này ở khung chat chính"
 }

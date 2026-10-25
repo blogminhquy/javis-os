@@ -269,13 +269,15 @@ class CanaryTests(CanaryBase):
         import improvement_canary_schema as S
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
+            for name in ("improvement_routing_overlays", "improvement_routing_candidates"):
+                connection.execute(f"DROP TABLE IF EXISTS {name}")
             for name in reversed(S._NAMES):
                 kind = "TABLE" if name in ("improvement_canaries", "improvement_canary_exposures", "improvement_canary_verdicts",
                     "improvement_auto_scopes") else "INDEX" if name.endswith("_live") else "TRIGGER"
                 connection.execute(f"DROP {kind} IF EXISTS {name}")
             connection.execute("UPDATE improvement_schema SET version=11 WHERE id=1")
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 12)
+        self.assertEqual(IM._schema_version(self.store), IM.SCHEMA_VERSION)
         backups = list(self.store.path.parent.glob(self.store.path.name + ".pre-improvement-m3-canaries.bak"))
         self.assertEqual(len(backups), 1)
         with closing(sqlite3.connect(backups[0])) as connection:

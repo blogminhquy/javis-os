@@ -1,4 +1,4 @@
-# Áp dụng thử, canary và quay lại bản skill đã sửa (M2E, M3)
+# Áp dụng thử, canary, định tuyến và quay lại bản skill đã sửa (M2E, M3, M4)
 
 Tài liệu vận hành cho phần áp dụng thủ công của **Cải tiến có kiểm chứng**, phát hành ở 0.314.0.
 Spec gốc: [agent-skill evidence improvement](../superpowers/specs/2026-10-22-agent-skill-evidence-improvement-design.md), mục 14, 18 và 19.
@@ -91,6 +91,32 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
 - Kết luận pilot: `GET /improvement-pilot-reports/{report_id}` trả `improved_in_scope|equivalent|worse|
   insufficient_evidence` cùng khoảng Wilson của tỉ lệ thắng; `business_eligibility` luôn `unverified`.
 - Đồng hồ giả trong test chỉ kiểm luật; cửa sổ canary thật cần ngày và phiếu thật.
+
+## Định tuyến bằng mô tả skill (M4, 0.317.0)
+
+- Mô tả skill chỉ quyết định việc chọn skill ở **khung chat chính** của brain: danh sách skill trong prompt Phase 8
+  của bộ não API (`build_adaptive_source_prompt`) và bộ chọn tự động (`LazySkillSource`). Chat với trợ lý chỉ liệt
+  kê tên skill nên không bị ảnh hưởng. Claude Code và Codex đọc `.claude/skills` nên không nhận mô tả áp dụng
+  (canary Phase 8 bỏ qua khi `provider_kind` là cli/oauth, prompt thuê bao vẫn dùng `build_system_prompt`).
+- `POST /improvement-routing/evaluate` dựng bytes mới bằng `patch_description` (chỉ dòng `description:` một dòng,
+  thân và các khoá khác giữ nguyên), chấm bộ câu hỏi bằng đúng hàm chấm của bộ chọn Javis với mô tả cũ và mới, lưu
+  ứng viên bất biến kèm báo cáo (`improvement_routing_candidates`, schema 13). Câu `negative`/`competing` đang đúng
+  mà thành chọn sai/thừa thì `rejected`; đủ khác biệt theo phép kiểm dấu thì `eligible`; còn lại `inconclusive`.
+- Áp dụng (`/improvement-routing/{id}/apply`) tạo một con trỏ `improvement_routing_overlays` phạm vi `main`;
+  ứng viên bị loại không áp dụng được; một con trỏ đang dùng cho mỗi skill. Quay lại chỉ đổi con trỏ.
+- Lúc đọc, `main_chat_descriptions` chỉ trả mô tả cho skill đang bật, đúng bytes gốc; sửa, tắt hay xoá skill là
+  mô tả gốc quay lại ngay và `GET /improvement-routing` ghi tạm ngừng.
+- Bộ chọn ghi `routing_description: overlay|canonical` vào metadata của skill được chọn.
+- Bộ chấm dùng đúng bộ chọn thật (`LazySkillSource.resolve` trên sổ năng lực đang chạy) cho cả hai nhánh; khi có mô
+  tả áp dụng, tập ứng viên vẫn là kết quả tìm kiếm của sổ, chỉ skill được áp dụng được chấm lại (thêm vào nếu tìm
+  kiếm bỏ sót), nên định tuyến của skill khác không đổi. Cần ít nhất một câu negative hoặc competing.
+- Skill có mô tả dịch (`description_<lang>`) chưa áp dụng được (V1 chỉ thay mô tả gốc). Mô tả trùng nội dung cũ bị
+  từ chối. Khi phạm vi chụp skill theo lượt đang bật, khung chat dùng ảnh chụp, không trộn mô tả áp dụng.
+- Giới hạn còn lại: mô tả trong tool `javis_use_skill` của hub vẫn là mô tả gốc (danh sách tool được cache theo
+  brain, dùng chung cho mọi lượt), nên lượt API ở khung chat chính thấy mô tả mới trong danh sách skill của prompt
+  và mô tả gốc trong mô tả tool.
+- Chưa có: bộ chạy thử cho bộ não API với bộ công cụ do host kiểm soát (spec 10.3), và đo việc Claude Code/Codex tự
+  chọn skill; cả hai cần lượt chạy model thật khi chủ cho phép.
 
 ## Giới hạn hiện tại
 

@@ -275,7 +275,7 @@ class OperationWorkerTests(unittest.TestCase):
                     "improvement_qualification_session.py", "improvement_qualification_results.py",
                     "improvement_tuning_history.py", "improvement_recipe_schema.py", "improvement_recipe_view_schema.py",
                     "improvement_recipe_sources.py", "improvement_activation_schema.py",
-                    "improvement_canary_schema.py"}
+                    "improvement_canary_schema.py", "improvement_routing_schema.py"}
         self.assertEqual(set(IC.PROFILE_SOURCES), expected)
         self.assertEqual(len(IC.PROFILE_SOURCES), len(expected))
         import hashlib
