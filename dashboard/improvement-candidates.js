@@ -219,6 +219,14 @@
         }));
         current.append(line);
       }
+      // Saved candidates never applied (owner drafts, learned additions held while a procedure is active).
+      const used = new Set((data.overlays || []).map(x => x.procedure_id));
+      for (const procedure of (data.procedures || []).filter(x => !used.has(x.procedure_id)).slice(0, 5)) {
+        const line = node("div", null, "procedure-staged-" + procedure.procedure_id);
+        line.append(node("p", tr("procedure_source_" + procedure.source)), node("pre", procedure.text));
+        line.append(button(tr("procedure_use_draft"), "procedure-staged-draft-" + procedure.procedure_id, () => { text.value = procedure.text; }));
+        current.append(line);
+      }
       // Self-review ideas outside what review may change itself: the owner can start from one, then edits and confirms.
       for (const proposal of data.review_proposals || []) {
         const line = node("div", null, "procedure-proposal-" + proposal.id);

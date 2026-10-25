@@ -30,14 +30,19 @@ from typing import Callable
 import improvement_store as IM
 
 SURFACES = ("dm", "team", "kanban", "workflow")
-MIN_CHARS, MAX_CHARS = 20, 2000
-_MARKERS = re.compile(r"JAVIS_(RULE|LESSON|ASK|NGHE|BO_QUA)\b|<!--|-->", re.IGNORECASE)
-_SETTINGS = re.compile(r"^\s*[-*]?\s*(model|model_provider|provider|reasoning|effort|skills|tools|permissions?|"
-                       r"quyền|mức quyền|lịch|schedule|enabled|auto)\s*[:=]", re.IGNORECASE | re.MULTILINE)
+MIN_CHARS, MAX_CHARS = 10, 2000
+# Any host marker token (JAVIS_RULE, JAVIS_LESSON, JAVIS_ASK...) or an HTML comment that could hide one.
+_MARKERS = re.compile(r"JAVIS_[A-Z]|<!--|-->", re.IGNORECASE)
+# A line that tries to set a protected field, with or without a bullet or list number.
+_SETTINGS = re.compile(r"^\s*(?:[-*+]|\d+[.)])?\s*(model|model_provider|provider|reasoning|effort|skills|"
+                       r"permissions?|quyền|mức quyền|enabled)\s*[:=]", re.IGNORECASE | re.MULTILINE)
+# An instruction to set aside the owner's rules or the assistant's engine. Closed objects only, so ordinary
+# phrases ("bỏ qua chủ đề", "ignore previous drafts", "chuyển mô hình kinh doanh") pass.
 _OVERRIDES = re.compile(
-    r"(ignore|disregard|bỏ qua|không cần (tuân|theo)|đừng (tuân|theo))\s+(the\s+|mọi\s+|các\s+)?"
-    r"(owner|previous|above|chủ|luật|quy tắc|hướng dẫn)|"
-    r"(đổi|chuyển|change|switch)\s+(sang\s+)?(model|mô hình|provider|reasoning)", re.IGNORECASE)
+    r"\b(ignore|disregard|override|bỏ qua|không cần (?:tuân|theo)|đừng (?:tuân|theo)|phớt lờ)\s+"
+    r"(?:(?:all|any|the|previous|above|every|mọi|các|tất cả|những)\s+)*"
+    r"(owner|owner's|rules?|instructions?|system prompt|luật|quy tắc|hướng dẫn|chỉ dẫn|lời dặn)\b|"
+    r"\b(đổi|chuyển|change|switch)\s+(?:sang\s+|to\s+)?(?:\w+\s+)?(model|provider|reasoning)\b", re.IGNORECASE)
 _PROCEDURE_HEADER = "# Quy trình đã được chủ duyệt (Javis quản lý)"
 
 
@@ -129,7 +134,7 @@ class AgentProcedures:
             if self.assets._policy(connection, brain)["mode"] == "off":
                 raise PermissionError("improvement_disabled")
             existing = connection.execute("SELECT id FROM improvement_agent_procedures WHERE brain_id=? AND agent_key=? "
-                                          "AND text_hash=?", (brain, key, digest)).fetchone()
+                                          "AND text_hash=? AND owner_rules_hash=?", (brain, key, digest, rules)).fetchone()
             identifier = existing["id"] if existing else "iap_" + secrets.token_hex(16)
             if existing is None:
                 connection.execute("INSERT INTO improvement_agent_procedures VALUES(?,?,?,?,?,?,?,?,?,?)",
@@ -143,7 +148,7 @@ class AgentProcedures:
         """The assistant's live key without registering one, or ""."""
         try:
             return self._identity(IM._brain(principal), agent_slug)[0]
-        except (FileNotFoundError, PermissionError, ValueError):
+        except (OSError, PermissionError, ValueError):
             return ""
 
     def enrolled(self, principal, agent_slug: str) -> bool:
@@ -152,12 +157,12 @@ class AgentProcedures:
         if not self._available():
             return False
         try:
-            key, _rules = self._identity(brain, agent_slug)
-        except (FileNotFoundError, PermissionError, ValueError):
+            key, rules = self._identity(brain, agent_slug)
+        except (OSError, PermissionError, ValueError):
             return False
         with closing(self.store._conn()) as connection:
             return bool(connection.execute("SELECT 1 FROM improvement_agent_overlays WHERE brain_id=? AND agent_key=? "
-                                           "AND state='active'", (brain, key)).fetchone())
+                                           "AND state='active' AND owner_rules_hash=?", (brain, key, rules)).fetchone())
 
     def stage_learned(self, principal, agent_slug: str, text: str, *, source: str = "learn") -> dict | None:
         """learn.py / agent review: a candidate instead of a live write, only for an enrolled assistant (spec 8.3).
@@ -172,7 +177,8 @@ class AgentProcedures:
         if not self._available():
             return []
         with closing(self.store._conn()) as connection:
-            rows = connection.execute("SELECT id,agent_key,agent_slug,text,source,created_at FROM improvement_agent_procedures "
+            rows = connection.execute("SELECT id,agent_key,agent_slug,text,source,owner_rules_hash,created_at "
+                                      "FROM improvement_agent_procedures "
                                       "WHERE brain_id=? AND agent_slug=? ORDER BY created_at DESC LIMIT 50",
                                       (brain, agent_slug)).fetchall()
         return [{**dict(row), "procedure_id": row["id"]} for row in rows]
@@ -270,8 +276,8 @@ class AgentProcedures:
                 key, rules = self._identity(brain, row["agent_slug"])
                 reason = ("agent_identity_changed" if key != row["agent_key"]
                           else "owner_rules_changed" if rules != row["owner_rules_hash"] else "")
-            except (FileNotFoundError, PermissionError):
-                reason = "agent_unavailable"
+            except (OSError, PermissionError, ValueError):
+                reason = "agent_unavailable"  # missing, unreadable or undecodable: never serve it
             if not reason:
                 continue
             with self.store._Tx(self.store) as connection:
@@ -285,15 +291,18 @@ class AgentProcedures:
 # -- read time ---------------------------------------------------------------------------------------
 
 def effective_procedure(root, agent_key: str, surface: str, *, agent_text: str, memory_text: str,
-                        session_created_at: float | None = None) -> str:
+                        session_created_at: float | None = None, on_drift=None) -> str:
     """The prompt block this assistant should get on this surface, or "" (canonical behaviour)."""
     return effective_overlay(root, agent_key, surface, agent_text=agent_text, memory_text=memory_text,
-                             session_created_at=session_created_at)[1]
+                             session_created_at=session_created_at, on_drift=on_drift)[1]
 
 
 def effective_overlay(root, agent_key: str, surface: str, *, agent_text: str, memory_text: str,
-                      session_created_at: float | None = None) -> tuple:
-    """(overlay id, prompt block) served on this surface, or ("", "")."""
+                      session_created_at: float | None = None, on_drift=None) -> tuple:
+    """(overlay id, prompt block) served on this surface, or ("", "").
+
+    `on_drift()`: called when the owner's ground changed under an active overlay, so the caller records the
+    suspension (reconcile); otherwise undoing the owner's edit would serve the overlay again unasked."""
     import improvement_activation as IA
     sources = IA._SOURCES[0]
     if sources is None or not agent_key or surface not in SURFACES:
@@ -314,6 +323,8 @@ def effective_overlay(root, agent_key: str, surface: str, *, agent_text: str, me
         if row is None or surface not in json.loads(row["surfaces_json"]):
             return "", ""
         if owner_rules_hash(agent_text, memory_text) != row["owner_rules_hash"]:
+            if on_drift is not None:
+                on_drift()
             return "", ""  # the owner changed the assistant: canonical until the owner re-applies
         if session_created_at is not None and session_created_at < row["created_at"]:
             return "", ""  # a conversation keeps the procedure it began with

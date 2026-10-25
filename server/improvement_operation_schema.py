@@ -213,7 +213,7 @@ def assert_installed(connection):
     import re
     from improvement_store import ConflictError, SchemaError, SCHEMA_VERSION
     version = connection.execute('SELECT version FROM improvement_schema WHERE id=1').fetchone()
-    if not version or version[0] not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, SCHEMA_VERSION):
+    if not version or version[0] not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, SCHEMA_VERSION):
         raise SchemaError('unsupported_improvement_schema')
     if version[0] in (8, 9, 10, 11, 12, 13, 14):
         from improvement_compose_schema import assert_roles_installed as assert_compose

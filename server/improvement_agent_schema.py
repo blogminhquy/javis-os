@@ -11,7 +11,7 @@ SCHEMA = (
     "id TEXT PRIMARY KEY,brain_id TEXT NOT NULL,agent_key TEXT NOT NULL,agent_slug TEXT NOT NULL,"
     "text TEXT NOT NULL,text_hash TEXT NOT NULL,owner_rules_hash TEXT NOT NULL,source TEXT NOT NULL "
     "CHECK(source IN ('owner','learn','review')),actor TEXT NOT NULL,created_at REAL NOT NULL,"
-    "UNIQUE(id,brain_id),UNIQUE(brain_id,agent_key,text_hash))",
+    "UNIQUE(id,brain_id),UNIQUE(brain_id,agent_key,text_hash,owner_rules_hash))",
     "CREATE TRIGGER improvement_agent_procedure_update BEFORE UPDATE ON improvement_agent_procedures "
     "BEGIN SELECT RAISE(ABORT,'immutable_improvement_history'); END",
     "CREATE TRIGGER improvement_agent_procedure_delete BEFORE DELETE ON improvement_agent_procedures "

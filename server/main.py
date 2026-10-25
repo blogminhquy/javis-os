@@ -10324,9 +10324,9 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="") -> str:
         raise FileNotFoundError(slug)
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
     pin = _dm_session_pin(conv_sid)
-    # A conversation keeps the procedure it began with (M5, I10): the session pin dates its start.
+    # A conversation keeps the procedure it began with (M5, I10): it dates from its pin, else its session row.
     _name, sysprompt, _model, _prov = _agent_sysprompt(slug, "dm", (pin or {}).get("agent_key"),
-                                                       (pin or {}).get("created_at"))
+                                                       _dm_session_started(conv_sid, pin))
     # Cộng hưởng theo quyền của LƯỢT (ngữ cảnh lượt do host gắn): trợ lý đang bật thì có dòng gợi ý và câu ba lối;
     # tắt, hay không có lượt, thì prompt y như trước A1.
     if _resonance_turn_enabled(brain):
@@ -10354,6 +10354,20 @@ def _dm_session_pin(conv_sid):
         return None
 
 
+def _dm_session_started(conv_sid, pin=None):
+    """When a private chat began: its agent pin, else its session row; None for a session not stored yet."""
+    if pin and pin.get("created_at"):
+        return pin["created_at"]
+    if not conv_sid:
+        return None
+    try:
+        row = get_store().get_session(conv_sid)
+        return float(row["created_at"]) if row and row.get("created_at") else None
+    except Exception as _e:  # noqa: BLE001
+        print(f"[dm session start] {type(_e).__name__}: {_e}", file=sys.stderr)
+        return None
+
+
 def _agent_overlay(brain, slug, surface, agent_key=None, session_created_at=None) -> tuple:
     """M5: (overlay id, prompt block) of this assistant's owner-applied procedure on this surface, or ("", "").
 
@@ -10369,7 +10383,9 @@ def _agent_overlay(brain, slug, surface, agent_key=None, session_created_at=None
         mem = _brain_memory_dir(brain) / "agents" / slug / "MEMORY.md"
         return improvement_agent.effective_overlay(
             root, key, surface, agent_text=path.read_text(encoding="utf-8"),
-            memory_text=mem.read_text(encoding="utf-8") if mem.is_file() else "", session_created_at=session_created_at)
+            memory_text=mem.read_text(encoding="utf-8") if mem.is_file() else "", session_created_at=session_created_at,
+            on_drift=lambda: _improvement_agents().reconcile(resonance_store.Principal(
+                "owner", "owner", str(Path(root).resolve(strict=True)))))
     except Exception as _e:  # noqa: BLE001
         print(f"[agent procedure] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
         return "", ""
@@ -10385,19 +10401,27 @@ def _stage_learned_procedure(brain, slug, text, source="learn"):
     try:
         if _improvement_read_store() is None:
             return None
-        import improvement_agent
-        root = str(Path(_brain_root(brain)).resolve(strict=True))
-        service = improvement_agent.AgentProcedures(_improvement_write_store(), agent_key=_improvement_agent_key,
-                                                    read_agent=_improvement_read_agent)
-        staged = service.stage_learned(resonance_store.Principal("owner", "owner", root), slug, text, source=source)
+        principal = resonance_store.Principal("owner", "owner", str(Path(_brain_root(brain)).resolve(strict=True)))
+        service = _improvement_agents()
+        if not service.enrolled(principal, slug):
+            return None
+    except Exception as _e:  # noqa: BLE001 - enrollment unknown: the overlay cannot be served either
+        print(f"[agent procedure stage] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
+        return None
+    try:
+        staged = service.stage_learned(principal, slug, text, source=source)
     except ValueError:
         raise
-    except PermissionError:
-        return None  # improvement off or assistant unknown: nothing is enrolled
-    except Exception as _e:  # noqa: BLE001
+    except Exception as _e:  # noqa: BLE001 - enrolled but the candidate could not be stored: never write live
         print(f"[agent procedure stage] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
         raise ValueError("agent_procedure_unavailable") from None
     return staged["procedure_id"] if staged else None
+
+
+def _improvement_agents():
+    import improvement_agent
+    return improvement_agent.AgentProcedures(_improvement_write_store(), agent_key=_improvement_agent_key,
+                                             read_agent=_improvement_read_agent)
 
 
 def _agent_review_proposals(agent_key):
@@ -10521,9 +10545,8 @@ def _ket_luot_agent(brain, slug, user_message, final_text, conv_sid="") -> str:
     if lessons:
         key = _dm_agent_key(brain, slug, conv_sid, register=True)
         if key:
-            pin = _dm_session_pin(conv_sid)
             # M5 (spec 15.2): a lesson learned while a procedure overlay shaped this conversation names it.
-            overlay_id = _agent_overlay(brain, slug, "dm", key, (pin or {}).get("created_at"))[0]
+            overlay_id = _agent_overlay(brain, slug, "dm", key, _dm_session_started(conv_sid, _dm_session_pin(conv_sid)))[0]
             try:
                 agent_lessons.record_self_lessons(_resonance_store(), agent_key=key, context_ref=f"dm:{key}",
                                                   lessons_=lessons,
@@ -24729,7 +24752,7 @@ import team_engine  # noqa: E402
 import team_gate  # noqa: E402
 
 
-def _team_agent_info(root, agent_key):
+def _team_agent_info(root, agent_key, surface=None):
     """Thành viên theo mã bền: slug hiện tại, tên, lời nhắc hệ thống của agent (vai, bộ nhớ, luật chủ dặn, bài học) và
     model riêng. None khi mã đã nghỉ, file mất hay chưa có sổ danh tính: bộ chạy coi như thành viên đã rời."""
     try:
@@ -24740,7 +24763,9 @@ def _team_agent_info(root, agent_key):
         return None
     if not reg or reg.get("status") != "active" or not _agent_md_path(root, reg["slug"]):
         return None
-    name, system, model, provider = _workflow_agent_helpers(root, None)[1](reg["slug"], "team", agent_key)
+    # `surface="team"` only from the team runner: pulse scans and self-review reuse this persona and are not a
+    # surface the owner can choose for a procedure overlay (M5).
+    name, system, model, provider = _workflow_agent_helpers(root, None)[1](reg["slug"], surface, agent_key)
     role, reasoning = "", AGENT_REASONING_DEFAULT
     try:
         meta, _b = _read_md(_agent_md_path(root, reg["slug"]))
@@ -25571,7 +25596,8 @@ class _MandateDeps:
 _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     brain_key=lambda b: _brain_key(b), session_store=lambda: get_store(),
     task_store=lambda: tasks_feature.store, resonance_store=lambda: _resonance_store(),
-    agents_meta=_resonance_agents_meta, agent_info=_team_agent_info, engine_for=_team_engine_for,
+    agents_meta=_resonance_agents_meta, agent_info=lambda root, key: _team_agent_info(root, key, "team"),
+    engine_for=_team_engine_for,
     broadcast=lambda ev: _CHAT_RUNTIME.publish(ev), notify=_team_notify, admin=_TeamAdmin(),
     owner_name=lambda: ((cfgmod.read_settings().get("auth") or {}).get("username") or ""),
     ceiling=_team_ceiling, projector=_feedback_projector, judge=lambda: _agent_judge(),
@@ -26994,8 +27020,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
     owner_session=_doi_phien_that,
     canaries=_improvement_canaries,
     routing=lambda: __import__("improvement_routing").Routing(_improvement_write_store(), registry=_CAPABILITY_REGISTRY),
-    agents=lambda: __import__("improvement_agent").AgentProcedures(
-        _improvement_write_store(), agent_key=_improvement_agent_key, read_agent=_improvement_read_agent),
+    agents=_improvement_agents,
     review_proposals=_agent_review_proposals,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
