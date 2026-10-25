@@ -10,6 +10,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Thêm mới
 - **Cài plugin từ tệp .zip.** Trang Plugin có nút "Cài từ tệp .zip": chọn tệp, Javis mở ra xem trước tên, phiên bản, các công cụ và mức quyền của từng công cụ, danh sách tệp bên trong, rồi mới cài khi bạn đồng ý. Plugin cài xong luôn ở trạng thái tắt, bạn xem lại rồi tự bật. Thả nhầm một gói cửa hàng (.zip có javis-pack.yaml) thì Javis tự chuyển sang luồng cài gói.
 - **Nhờ Javis tạo plugin là Javis cài luôn tại chỗ**, không còn phải tải tệp về rồi tải lên lại. Javis cũng đọc và sửa được plugin đã có. Plugin Javis tạo hoặc sửa phần mã luôn bị tắt cho tới khi bạn bật ở trang Plugin; sửa mà lỗi cú pháp thì Javis từ chối, bản cũ giữ nguyên.
+### Sửa lỗi
+- **Bấm "Thêm" link trong tài liệu của trợ lý, project hay cuộc trò chuyện giờ luôn có phản hồi.** Trước đây dán một link đã có sẵn trong danh sách, hoặc bấm khi ô còn trống, thì ô URL bị xoá trắng mà không báo gì, trông như nút hỏng. Nay Javis nói rõ "Link này đã có trong danh sách" và làm sáng hàng đó lên, nhắc dán URL khi ô trống, và báo "Đã thêm" khi xong. Dán thiếu https:// (kiểu docs.google.com/...) thì Javis tự thêm.
 ### Bảo mật
 - Tệp .zip plugin bị kiểm tra như gói cửa hàng: chặn đường dẫn lạ, liên kết tắt, tệp quá lớn, mã đã biên dịch (.pyc, .so). Không ghi đè plugin đang có nếu bạn chưa chọn thay thế, không đụng tới plugin có sẵn của app.
 

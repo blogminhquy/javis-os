@@ -1395,6 +1395,7 @@
         ? '<div class="pd-form">' +
             '<input class="pd-in pd-lurl" placeholder="' + esc(pdT("proj.link_url_ph")) + '">' +
             '<input class="pd-in pd-llabel" placeholder="' + esc(pdT("proj.link_label_ph")) + '">' +
+            '<div class="pd-fmsg" role="status" hidden></div>' +
             '<div class="pd-frow">' +
               '<button class="pd-ok" type="button">' + esc(pdT("proj.add")) + "</button>" +
               '<button class="pd-huy" type="button">' + esc(pdT("proj.cancel")) + "</button>" +
@@ -1419,14 +1420,51 @@
     pane.querySelector(".pd-huy").onclick = function () { pdFormLink = false; veDrawer(); };
     [u, lb].forEach(function (o) {
       o.onkeydown = function (e) { if (e.key === "Enter") { e.preventDefault(); them(); } };
+      o.oninput = function () { baoFormLink(""); };
     });
   }
 
+  /** Dòng báo ngay trong form link. Trước đây ba đường (ô trống, link đã có, server từ chối)
+   *  đều không hiện gì hoặc chỉ một hộp alert: bấm "Thêm" thấy ô URL trống trơn, danh sách
+   *  y nguyên, người dùng tưởng nút hỏng (chủ repo báo 25/10). */
+  function baoFormLink(chu, loi) {
+    var m = pdEl && pdEl.querySelector('[data-pane="links"] .pd-fmsg');
+    if (!m) return;
+    m.textContent = chu || "";
+    m.hidden = !chu;
+    m.classList.toggle("loi", !!loi);
+  }
+
+  /** Dán "docs.google.com/..." (thiếu https://) là thói quen thường gặp; server chỉ nhận
+   *  http/https nên tự thêm thay vì bắt dán lại. Scheme khác (javascript:, file:) giữ nguyên
+   *  để server từ chối như cũ. */
+  function chuanHoaUrl(u) {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(u) && !/^[^\/:]+\.[^\/:]+:\d/.test(u)) return u;
+    return /^[^\s\/]+\.[^\s\/]+/.test(u) ? "https://" + u.replace(/^\/+/, "") : u;
+  }
+
+  function nhayHang(id) {
+    var row = pdEl && pdEl.querySelector('[data-pane="links"] .pd-row[data-id="' + id + '"]');
+    if (!row) return;
+    row.classList.remove("nhay");
+    void row.offsetWidth;          // khởi động lại animation khi bấm lần nữa
+    row.classList.add("nhay");
+    if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+  }
+
   async function themLink(url, nhan) {
-    var u = (url || "").trim();
-    if (!u) return;
+    var u = chuanHoaUrl((url || "").trim());
+    var pane = pdEl && pdEl.querySelector('[data-pane="links"]');
+    var o = pane && pane.querySelector(".pd-lurl");
+    if (!u) { baoFormLink(pdT("proj.link_need_url"), true); if (o) o.focus(); return; }
+    var co = ((pdDuLieu() || {}).links || []).filter(function (l) { return l.manual !== false && l.url === u; })[0];
+    if (co) {
+      baoFormLink(pdT("proj.link_dup", { ten: co.label || co.url }), false);
+      nhayHang(co.id);
+      return;
+    }
     var r = await pdPost("/links", { url: u, label: (nhan || "").trim() });
-    if (!r || !r.ok) { alert(pdT("proj.err_add_link") + ": " + ((r && r.error) || "")); return; }
+    if (!r || !r.ok) { baoFormLink(pdT("proj.err_add_link") + ": " + ((r && r.error) || ""), true); return; }
     await napLaiChiTiet();
     napLaiChip();
     // Giữ form và dọn ô trống thay vì đóng lại: dán link thứ hai là chuyện thường, cùng lý do
@@ -1437,6 +1475,8 @@
     var lb = pane && pane.querySelector(".pd-llabel");
     if (u) { u.value = ""; u.focus(); }
     if (lb) lb.value = "";
+    baoFormLink(pdT("proj.link_added"), false);
+    if (r.id) nhayHang(r.id);
   }
 
   async function ghimLink(l) {

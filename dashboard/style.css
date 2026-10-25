@@ -3637,6 +3637,12 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .pd-panel.tha-file { outline: 2px dashed var(--accent); outline-offset: -5px; }
 .pd-panel.tha-file .pd-drop { border-color: var(--accent-line); color: var(--accent); }
 .pd-frow { display: flex; gap: 7px; }
+/* Báo ngay trong form link: ô trống, link đã có sẵn, server từ chối, hoặc đã thêm xong. */
+.pd-fmsg { font-size: 13px; line-height: 1.5; color: var(--text2); }
+.pd-fmsg.loi { color: var(--danger-ink); }
+/* Hàng vừa thêm hoặc trùng với link vừa dán sáng lên một nhịp để mắt tìm thấy ngay. */
+.pd-row.nhay { animation: pdNhay 1.6s ease-out; }
+@keyframes pdNhay { 0%, 35% { background: var(--accent-wash); } 100% { background: transparent; } }
 .pd-ok, .pd-huy { padding: 7px 13px; border-radius: 8px; cursor: pointer;
   font-family: inherit; font-size: 13px; border: 1px solid var(--border); }
 .pd-ok { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
