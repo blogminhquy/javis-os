@@ -240,7 +240,7 @@ class BundleServiceTests(procedure_base.AgentProcedureBase):
         API.register(app, API.ActivationApiDeps(activations=lambda: self.activations,
             resolve_brain=lambda value: self.owner.brain_id, agents=lambda: self.service, bundles=lambda: self.bundles))
         client = TestClient(app)
-        applied = client.post("/improvement-bundles", json={"agent": "ke-toan", "manifest": self.manifest(),
+        applied = client.post("/improvement-agent-bundles", json={"agent": "ke-toan", "manifest": self.manifest(),
                                                             "owner_confirmed": True, "event_key": "http-bundle-apply"})
         self.assertEqual(applied.status_code, 200, applied.text)
         bundle = applied.json()["bundle"]
@@ -251,12 +251,12 @@ class BundleServiceTests(procedure_base.AgentProcedureBase):
         refused = client.post(f"/improvement-agent-overlays/{members['procedure']}/revert",
                               json={"expected_generation": 1, "event_key": "http-member-revert-2"})
         self.assertEqual(refused.status_code, 409)
-        listed = client.get("/improvement-bundles?agent=ke-toan").json()
+        listed = client.get("/improvement-agent-bundles?agent=ke-toan").json()
         self.assertEqual(listed["bundles"][0]["bundle_id"], bundle["bundle_id"])
-        reverted = client.post(f"/improvement-bundles/{bundle['bundle_id']}/revert",
+        reverted = client.post(f"/improvement-agent-bundles/{bundle['bundle_id']}/revert",
                                json={"expected_generation": bundle["generation"], "event_key": "http-bundle-revert"}).json()
         self.assertEqual(reverted["bundle"]["state"], "reverted")
-        bad = client.post("/improvement-bundles", json={"agent": "ke-toan", "manifest": {"members": []},
+        bad = client.post("/improvement-agent-bundles", json={"agent": "ke-toan", "manifest": {"members": []},
                                                         "owner_confirmed": True, "event_key": "http-bundle-bad"})
         self.assertEqual(bad.status_code, 422)
 

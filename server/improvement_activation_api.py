@@ -288,7 +288,7 @@ def register(app, deps: ActivationApiDeps):
             raise PermissionError("bundles_unavailable")
         return await asyncio.to_thread(deps.bundles)
 
-    @app.get("/improvement-bundles")
+    @app.get("/improvement-agent-bundles")
     async def bundle_list(agent: str, brain: str = "brain"):
         try:
             principal = await owner(brain)
@@ -312,14 +312,14 @@ def register(app, deps: ActivationApiDeps):
         except _ERRORS as error:
             return _fail(error)
 
-    @app.post("/improvement-bundles")
+    @app.post("/improvement-agent-bundles")
     async def bundle_apply(request: Request, brain: str = "brain"):
         def call(service, principal, data):
             return {"ok": True, "bundle": service.apply(principal, data["agent"], data["manifest"],
                     owner_confirmed=data["owner_confirmed"], event_key=data["event_key"])}
         return await bundle_write(request, brain, {"agent", "manifest", "owner_confirmed", "event_key"}, call)
 
-    @app.post("/improvement-bundles/{bundle_id}/revert")
+    @app.post("/improvement-agent-bundles/{bundle_id}/revert")
     async def bundle_revert(bundle_id: str, request: Request, brain: str = "brain"):
         def call(service, principal, data):
             return {"ok": True, "bundle": service.revert(principal, bundle_id,

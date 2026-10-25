@@ -177,8 +177,8 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
 - Lưu trữ: schema 15 thêm `improvement_bundle_activations` (applying -> active|failed, active -> reverted|suspended,
   một gói đang áp hoặc đang dùng mỗi trợ lý) và `improvement_bundle_members` (ghi một lần). Từ 14 lên 15 sao lưu
   một lần `*.pre-improvement-m6-bundles.bak`.
-- API: `GET /improvement-bundles?agent=<slug>`, `POST /improvement-bundles` `{agent, manifest, owner_confirmed,
-  event_key}`, `POST /improvement-bundles/{id}/revert` `{expected_generation, event_key}`.
+- API: `GET /improvement-agent-bundles?agent=<slug>`, `POST /improvement-agent-bundles` `{agent, manifest, owner_confirmed,
+  event_key}`, `POST /improvement-agent-bundles/{id}/revert` `{expected_generation, event_key}`.
 - Chưa có: helper chạy được trong sandbox (cần chủ cấp quyền loại executable), tách/gộp skill có alias, phép thử
   nhánh agent-only/skill-only thật (cần chạy model).
 

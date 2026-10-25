@@ -61,9 +61,9 @@ async function fixture(lang = "en", withExperiments = false) {
       else if (path === "/improvement-agent-procedures" && !options.method) value = {procedures: procs, overlays, coverage: {served: ["dm"]}};
       else if (path === "/improvement-agent-procedures") { const b = JSON.parse(options.body); procs = [{procedure_id: "iap_" + "5".repeat(32), agent_key: "agent-1", text: b.text}]; value = {procedure: procs[0]}; }
       else if (path.startsWith("/improvement-agent-procedures/")) { const b = JSON.parse(options.body); overlays = [{overlay_id: "iao_" + "6".repeat(32), procedure_id: procs[0].procedure_id, agent_key: "agent-1", state: "active", generation: 1, reason: "owner_apply", surfaces: b.surfaces, owner_confirmed: b.owner_confirmed}]; value = {overlay: overlays[0]}; }
-      else if (path === "/improvement-bundles" && !options.method) value = {bundles: packs};
-      else if (path === "/improvement-bundles") { lastBundle = JSON.parse(options.body); packs = [{bundle_id: "iba_" + "7".repeat(32), state: "active", generation: 2, reason: "owner_apply", members: [{kind: "procedure", pointer_id: "iao_" + "8".repeat(32)}]}]; value = {bundle: packs[0]}; }
-      else if (path.startsWith("/improvement-bundles/")) { packs = [{...packs[0], state: "reverted", generation: 3}]; value = {bundle: packs[0]}; }
+      else if (path === "/improvement-agent-bundles" && !options.method) value = {bundles: packs};
+      else if (path === "/improvement-agent-bundles") { lastBundle = JSON.parse(options.body); packs = [{bundle_id: "iba_" + "7".repeat(32), state: "active", generation: 2, reason: "owner_apply", members: [{kind: "procedure", pointer_id: "iao_" + "8".repeat(32)}]}]; value = {bundle: packs[0]}; }
+      else if (path.startsWith("/improvement-agent-bundles/")) { packs = [{...packs[0], state: "reverted", generation: 3}]; value = {bundle: packs[0]}; }
       else if (path.startsWith("/improvement-agent-overlays/")) { overlays = [{...overlays[0], state: "reverted", generation: 2}]; value = {overlay: overlays[0]}; }
       else if (path.endsWith("/revert")) { applied = [{...applied[0], state:"reverted", generation:2}]; value = {activation: applied[0]}; }
       else if (path === "/agents") value = {agents:[{slug:"ke-toan", name:"Accountant", description:"Books"}]};
@@ -277,15 +277,15 @@ for (const lang of ["vi", "en"]) {
   f.find("procedure-bundle").checked = true;
   f.find("procedure-surface-team").checked = true;
   await f.find("procedure-apply").onclick();
-  assert.ok(!f.calls.some(x => x.url.startsWith("/improvement-bundles?") && x.method === "POST"), "team is not covered by a bundle");
+  assert.ok(!f.calls.some(x => x.url.startsWith("/improvement-agent-bundles?") && x.method === "POST"), "team is not covered by a bundle");
   f.find("procedure-surface-team").checked = false;
   await f.find("procedure-apply").onclick();
-  const sent = JSON.parse(f.calls.find(x => x.url.startsWith("/improvement-bundles?") && x.method === "POST").body);
+  const sent = JSON.parse(f.calls.find(x => x.url.startsWith("/improvement-agent-bundles?") && x.method === "POST").body);
   assert.equal(sent.manifest.members[0].candidate_id, "candidate-one");
   assert.deepEqual(sent.manifest.members[1].surfaces, ["dm"]);
   assert.equal(sent.owner_confirmed, true);
   await f.find("bundle-revert-iba_" + "7".repeat(32)).onclick();
-  assert.ok(f.calls.some(x => x.url.startsWith("/improvement-bundles/iba_" + "7".repeat(32) + "/revert")));
+  assert.ok(f.calls.some(x => x.url.startsWith("/improvement-agent-bundles/iba_" + "7".repeat(32) + "/revert")));
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {

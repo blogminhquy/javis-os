@@ -208,7 +208,7 @@
       current.replaceChildren();
       if (!choose.value) return;
       const data = await request(s, "/improvement-agent-procedures?agent=" + encodeURIComponent(choose.value));
-      const packs = (await request(s, "/improvement-bundles?agent=" + encodeURIComponent(choose.value))).bundles || [];
+      const packs = (await request(s, "/improvement-agent-bundles?agent=" + encodeURIComponent(choose.value))).bundles || [];
       if (!alive(s, version)) return;
       const bundled = new Set(packs.filter(x => x.state === "active").flatMap(x => x.members.map(m => m.pointer_id)));
       for (const pack of packs.filter(x => x.state === "active" || x.state === "suspended")) {
@@ -216,7 +216,7 @@
         line.append(node("p", `${tr("bundle_title")} · ${tr("state_" + pack.state)}`));
         if (pack.state === "suspended") line.append(node("p", tr("bundle_reason_" + pack.reason)));
         if (pack.state === "active") line.append(button(tr("revert"), "bundle-revert-" + pack.bundle_id, async () => {
-          try { await write(s, "/improvement-bundles/" + encodeURIComponent(pack.bundle_id) + "/revert",
+          try { await write(s, "/improvement-agent-bundles/" + encodeURIComponent(pack.bundle_id) + "/revert",
             {expected_generation: pack.generation}, "bundle-revert-" + pack.bundle_id); s.status.textContent = tr("reverted_ok"); await load(); }
           catch (error) { failure(s, error); }
         }));
@@ -265,7 +265,7 @@
         if (together.checked) {
           const manifest = {members: [{key: "skill", kind: "skill", candidate_id: s.bundleCandidate},
             {key: "procedure", kind: "procedure", procedure_id: staged.procedure_id, surfaces}], depends_on: {procedure: ["skill"]}};
-          await write(s, "/improvement-bundles", {agent: choose.value, manifest, owner_confirmed: true},
+          await write(s, "/improvement-agent-bundles", {agent: choose.value, manifest, owner_confirmed: true},
             "bundle-apply-" + staged.procedure_id + "-" + s.bundleCandidate);
           together.checked = false;
         } else {

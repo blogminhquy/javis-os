@@ -6012,7 +6012,7 @@
  {
   "order": 603,
   "type": "APIRoute",
-  "path": "/improvement-bundles",
+  "path": "/improvement-agent-bundles",
   "name": "bundle_list",
   "methods": [
    "GET"
@@ -6022,7 +6022,7 @@
  {
   "order": 604,
   "type": "APIRoute",
-  "path": "/improvement-bundles",
+  "path": "/improvement-agent-bundles",
   "name": "bundle_apply",
   "methods": [
    "POST"
@@ -6032,7 +6032,7 @@
  {
   "order": 605,
   "type": "APIRoute",
-  "path": "/improvement-bundles/{bundle_id}/revert",
+  "path": "/improvement-agent-bundles/{bundle_id}/revert",
   "name": "bundle_revert",
   "methods": [
    "POST"
