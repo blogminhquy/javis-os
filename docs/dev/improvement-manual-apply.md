@@ -107,6 +107,14 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
 - Lúc đọc, `main_chat_descriptions` chỉ trả mô tả cho skill đang bật, đúng bytes gốc; sửa, tắt hay xoá skill là
   mô tả gốc quay lại ngay và `GET /improvement-routing` ghi tạm ngừng.
 - Bộ chọn ghi `routing_description: overlay|canonical` vào metadata của skill được chọn.
+- Bộ chấm dùng đúng bộ chọn thật (`LazySkillSource.resolve` trên sổ năng lực đang chạy) cho cả hai nhánh; khi có mô
+  tả áp dụng, tập ứng viên vẫn là kết quả tìm kiếm của sổ, chỉ skill được áp dụng được chấm lại (thêm vào nếu tìm
+  kiếm bỏ sót), nên định tuyến của skill khác không đổi. Cần ít nhất một câu negative hoặc competing.
+- Skill có mô tả dịch (`description_<lang>`) chưa áp dụng được (V1 chỉ thay mô tả gốc). Mô tả trùng nội dung cũ bị
+  từ chối. Khi phạm vi chụp skill theo lượt đang bật, khung chat dùng ảnh chụp, không trộn mô tả áp dụng.
+- Giới hạn còn lại: mô tả trong tool `javis_use_skill` của hub vẫn là mô tả gốc (danh sách tool được cache theo
+  brain, dùng chung cho mọi lượt), nên lượt API ở khung chat chính thấy mô tả mới trong danh sách skill của prompt
+  và mô tả gốc trong mô tả tool.
 - Chưa có: bộ chạy thử cho bộ não API với bộ công cụ do host kiểm soát (spec 10.3), và đo việc Claude Code/Codex tự
   chọn skill; cả hai cần lượt chạy model thật khi chủ cho phép.
 

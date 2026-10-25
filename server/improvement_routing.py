@@ -126,21 +126,31 @@ def validate_cases(cases, slugs) -> list:
             raise ValueError("duplicate_routing_case")
         seen.add(key)
         clean.append({"query": query.strip(), "expected": expected, "kind": kind})
+    if not any(case["kind"] in ("negative", "competing") for case in clean):
+        # Without one, the regression gate is empty and any description would pass it.
+        raise ValueError("routing_regression_case_required")
     return clean
 
 
-def evaluate(cases: list, baseline: list, target: str, description: str, *, multiple_tests: int = 1) -> dict:
-    """Paired routing report for one description candidate. Manifests are host-read, never client data."""
+def evaluate(cases: list, baseline: list, target: str, description: str, *, multiple_tests: int = 1,
+             decide=None) -> dict:
+    """Paired routing report for one description candidate. Manifests are host-read, never client data.
+
+    `decide(query, descriptions)` is the production decision (the live lazy router with or without the
+    overlay); without it the pure `route()` model over the given manifests is used (tests)."""
     slugs = {item["slug"] for item in baseline}
     if target not in slugs:
         raise PermissionError("routing_target_unavailable")
     cases = validate_cases(cases, slugs)
     candidate = [{**item, "description": description} if item["slug"] == target else item for item in baseline]
+    if decide is None:
+        def decide(query, descriptions):
+            return route(query, candidate if descriptions else baseline)
     rows, outcomes = [], {"win": 0, "loss": 0, "tie": 0, "unknown": 0}
     counts = {"baseline": dict.fromkeys(LABELS, 0), "candidate": dict.fromkeys(LABELS, 0)}
     required_losses = 0
     for case in cases:
-        before, after = route(case["query"], baseline), route(case["query"], candidate)
+        before, after = decide(case["query"], None), decide(case["query"], {target: description})
         b, c = label(case, before), label(case, after)
         counts["baseline"][b] += 1
         counts["candidate"][c] += 1
@@ -200,10 +210,24 @@ def _overlay_public(row) -> dict:
 class Routing:
     """Owner commands: evaluate a description candidate, apply it to the main chat, revert, reconcile."""
 
-    def __init__(self, assets, *, clock=time.time):
+    def __init__(self, assets, *, clock=time.time, registry=None):
+        """`registry`: the live capability registry, so evaluation runs the production lazy router."""
         if type(assets) is not IM.ImprovementStore:
             raise TypeError("concrete_routing_assets_required")
         self.assets, self.store, self.blobs, self.clock = assets, assets.store, assets.blobs, clock
+        self.registry = registry
+
+    def _decider(self, brain):
+        if self.registry is None:
+            return None
+        from lazy_skill_runtime import LazySkillSource
+        source = LazySkillSource(self.registry)
+
+        def decide(query, descriptions):
+            selected = source.resolve(Path(brain), query, descriptions=descriptions)
+            return {"action": selected.action, "slug": selected.slug if selected.action == "load" else "",
+                    "score": selected.score, "reason": selected.reason}
+        return decide
 
     def _available(self) -> bool:
         return IM._schema_version(self.store) >= 13
@@ -225,15 +249,25 @@ class Routing:
         canonical = SR.read_skill_asset(Path(brain), slug)
         if canonical is None or canonical.relative_path != target["canonical_ref"]:
             raise PermissionError("skill_unavailable")
+        meta = SR.split_frontmatter(canonical.text)[0]
+        if SR.ban_dich(meta, "description"):
+            # V1 overlays the base description only; a translated description would be swapped silently.
+            raise ValueError("routing_translated_description_unsupported")
         patched = patch_description(canonical.content, description)
+        if SR.split_frontmatter(patched.decode("utf-8"))[0].get("description") == meta.get("description"):
+            raise ValueError("routing_description_unchanged")
         description = SR.split_frontmatter(patched.decode("utf-8"))[0]["description"]
-        report = evaluate(cases, SR.list_skill_manifests(Path(brain)), slug, description)
+        report = evaluate(cases, SR.list_skill_manifests(Path(brain)), slug, description, decide=self._decider(brain))
         report_blob = self.blobs.write(brain, IM._json(report).encode("utf-8"))
         content_hash = self.blobs.write(brain, patched)
         with self.store._Tx(self.store) as connection:
             replay = self.assets._replay(connection, brain, event_key, "routing_evaluate", payload)
             if replay is not None:
                 return replay
+            if self.assets._policy(connection, brain)["mode"] == "off":
+                raise PermissionError("improvement_disabled")
+            if self.assets._target(connection, brain, target_id)["status"] != "live":
+                raise PermissionError("target_unavailable")
             identifier = "irc_" + secrets.token_hex(16)
             connection.execute("INSERT INTO improvement_routing_candidates VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                                (identifier, brain, target_id, canonical.content_hash, description, content_hash,
@@ -339,7 +373,7 @@ class Routing:
         if not self._available():
             return []
         with closing(self.store._conn()) as connection:
-            rows = connection.execute("SELECT o.*,t.status AS target_status FROM improvement_routing_overlays o "
+            rows = connection.execute("SELECT o.*,t.status AS target_status,t.identity FROM improvement_routing_overlays o "
                 "JOIN improvement_targets t ON t.id=o.target_id AND t.brain_id=o.brain_id "
                 "WHERE o.brain_id=? AND o.state='active'", (brain,)).fetchall()
         pending = []
@@ -350,8 +384,13 @@ class Routing:
             elif _source_gone(brain, slug):
                 pending.append((row, "source_unavailable"))
             else:
+                from improvement_activation import _file_identity
                 canonical = SR.read_skill_asset(Path(brain), slug)
-                if canonical is not None and canonical.content_hash != row["base_hash"]:
+                try:
+                    replaced = _file_identity(brain, row["canonical_ref"]) != row["identity"]
+                except OSError:
+                    replaced = False
+                if canonical is not None and (canonical.content_hash != row["base_hash"] or replaced):
                     pending.append((row, "canonical_changed"))
         suspended = []
         for row, reason in pending:
@@ -368,9 +407,10 @@ class Routing:
 def main_chat_descriptions(root) -> dict:
     """{slug: description} the brain's main chat on an API engine should see. Canonical when unsure."""
     import improvement_activation as IA
+    from improvement_task_skill_scope import has_binding
     sources = IA._SOURCES[0]
-    if sources is None:
-        return {}
+    if sources is None or has_binding():
+        return {}  # a bound task scope serves its frozen projection; never mix in live overlays
     database = sources[0]
     try:
         if not database.is_file():
@@ -381,7 +421,7 @@ def main_chat_descriptions(root) -> dict:
         with closing(connection):
             if not connection.execute("SELECT 1 FROM sqlite_master WHERE name='improvement_routing_overlays'").fetchone():
                 return {}
-            rows = connection.execute("SELECT o.canonical_ref,o.base_hash,o.description FROM improvement_routing_overlays o "
+            rows = connection.execute("SELECT o.canonical_ref,o.base_hash,o.description,t.identity FROM improvement_routing_overlays o "
                 "JOIN improvement_targets t ON t.id=o.target_id AND t.brain_id=o.brain_id "
                 "WHERE o.brain_id=? AND o.scope_hash=? AND o.state='active' AND t.status='live'",
                 (brain, main_scope_hash())).fetchall()
@@ -390,7 +430,8 @@ def main_chat_descriptions(root) -> dict:
             slug = _slug_of(row["canonical_ref"])
             canonical = SR.read_skill_asset(Path(brain), slug)  # disabled or edited skills never get an overlay
             if (canonical is not None and canonical.relative_path == row["canonical_ref"]
-                    and canonical.content_hash == row["base_hash"]):
+                    and canonical.content_hash == row["base_hash"]
+                    and IA._file_identity(brain, row["canonical_ref"]) == row["identity"]):
                 result[slug] = row["description"]
         return result
     except (OSError, ValueError, sqlite3.Error, PermissionError) as error:

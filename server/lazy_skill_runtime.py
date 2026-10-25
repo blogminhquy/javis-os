@@ -37,6 +37,21 @@ def _task_candidates(brain, manifests):
     return result
 
 
+def _overlay_candidates(brain, lang, query, found, descriptions):
+    """Registry-search skill rows with overlaid summaries; an overlaid skill the search missed is added."""
+    found = [dict(x) for x in found if str(x.get("kind") or "") == "skill"]
+    seen = set()
+    for row in found:
+        slug = str((row.get("metadata") or {}).get("slug") or row.get("name") or "")
+        seen.add(slug)
+        if slug in descriptions:
+            row["summary"] = descriptions[slug]
+    missing = [m for m in skill_router.list_skill_manifests(brain, lang) if m["slug"] in descriptions and m["slug"] not in seen]
+    for manifest in missing:
+        found.extend(_task_candidates(brain, [{**manifest, "description": descriptions[manifest["slug"]]}]))
+    return found
+
+
 def _norm(value: str) -> str:
     raw = unicodedata.normalize("NFKD", str(value or "").casefold())
     return " ".join(_TOKEN_RE.findall("".join(c for c in raw if not unicodedata.combining(c))))
@@ -121,12 +136,14 @@ class LazySkillSource:
                 # its legacy router. A dead bound owner must suppress that fallback.
                 return SkillSelection('none', 'task_scope_unavailable')
         elif descriptions:
-            import improvement_routing
-            manifests = improvement_routing.with_descriptions(skill_router.list_skill_manifests(brain, lang), descriptions)
-            revision = hashlib.sha256(json.dumps({'routing_overlay': manifests}, ensure_ascii=False, sort_keys=True,
-                separators=(',', ':')).encode()).hexdigest()
-            incomplete = any(not str(item['description'] or '').strip() for item in manifests)
-            candidates = _task_candidates(brain, manifests)
+            # Same registry search as without an overlay; only the overlaid skills are rescored with the
+            # owner-applied text (added when the search missed them), so no other skill's routing moves.
+            self.refresh(brain, lang)
+            key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
+            incomplete = self._incomplete.get(key, 0)
+            revision = hashlib.sha256(json.dumps({'registry': self.registry.revision(brain), 'routing_overlay': descriptions},
+                ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            candidates = _overlay_candidates(brain, lang, query, self.registry.search(query, brain, 40), descriptions)
         else:
             # Unbound: a registry error still propagates, so the caller keeps the legacy router.
             self.refresh(brain, lang)

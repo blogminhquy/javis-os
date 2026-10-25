@@ -1018,7 +1018,7 @@ def do_phan_bo_prompt(brain: str = "brain") -> dict:
 
 
 def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = False,
-                                 include_skills: bool = False) -> str:
+                                 include_skills: bool = False, *, routing_overlays: bool = False) -> str:
     """Small Phase 8 base. Context Compiler already owns identity/safety/output contracts.
 
     Only a source that has not entered its canary is restored here. This intentionally
@@ -1048,11 +1048,12 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
         try:
             system_sync.ensure_synced(root)
             system_sync.mirror_skills(root)
-            # This prompt serves API engines only (subscription engines keep build_system_prompt), so the
-            # owner-applied routing descriptions of the main chat (M4) belong here and nowhere else.
-            import improvement_routing
-            skill_meta = improvement_routing.with_descriptions(
-                skill_router.list_skills(root), improvement_routing.main_chat_descriptions(root))
+            # M4: owner-applied routing descriptions of the main chat only when the caller says the turn
+            # runs on an API engine; CLI engines also read .claude/skills natively.
+            skill_meta = skill_router.list_skills(root)
+            if routing_overlays:
+                import improvement_routing
+                skill_meta = improvement_routing.with_descriptions(skill_meta, improvement_routing.main_chat_descriptions(root))
             parts.append(_skill_router_block(brain, root, skill_meta))
         except Exception:
             # The caller records source fallback through Phase 8 status; empty router
@@ -16663,7 +16664,8 @@ async def websocket_endpoint(ws: WebSocket):
                         # The project's INSTRUCTIONS ride along, as on Telegram and the CLI
                         # (`_nen_goc`): they are a behaviour contract, its file list is not.
                         return build_adaptive_source_prompt(
-                            brain, include_memory=include_memory, include_skills=include_skills
+                            brain, include_memory=include_memory, include_skills=include_skills,
+                            routing_overlays=kind == "api",
                         ) + (_project_block(_row0.get("project_id") or "", chi_huong_dan=True)
                              if _row0.get("project_id") else ""
                         ) + _javis_core_block(conv_sid or "") + channel_context.build_channel_block(
@@ -21712,7 +21714,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # không - người dùng không có cách nào biết vì sao, chỉ thấy Javis bướng. Danh sách
         # tài liệu là dữ liệu tra cứu, bỏ thì cùng lắm model phải hỏi lại.
         _n = build_adaptive_source_prompt(
-            brain, include_memory=include_memory, include_skills=include_skills)
+            brain, include_memory=include_memory, include_skills=include_skills, routing_overlays=kind == "api")
         if _pid:
             try:
                 _n += _project_block(_pid, chi_huong_dan=True)
@@ -26897,7 +26899,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
     read_store=_improvement_read_store,
     owner_session=_doi_phien_that,
     canaries=_improvement_canaries,
-    routing=lambda: __import__("improvement_routing").Routing(_improvement_write_store()),
+    routing=lambda: __import__("improvement_routing").Routing(_improvement_write_store(), registry=_CAPABILITY_REGISTRY),
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
 ))

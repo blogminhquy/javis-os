@@ -88,6 +88,8 @@ class RoutingEvaluatorTests(unittest.TestCase):
                 R.validate_cases(bad, {"bao-cao"})
         with self.assertRaises(PermissionError):
             R.evaluate([good], manifests(), "missing-skill", "Doi soat")
+        with self.assertRaisesRegex(ValueError, "regression"):
+            R.validate_cases([{"query": "q two", "expected": "bao-cao", "kind": "positive"}], {"bao-cao"})
 
 
 if __name__ == "__main__":

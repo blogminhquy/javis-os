@@ -161,8 +161,10 @@
     box.append(button(tr("routing_evaluate"), "routing-evaluate", async () => {
       if (!alive(s, version)) return;
       try {
-        const parsed = cases.value.split(/\r?\n/).map(line => line.split("|").map(x => x.trim())).filter(x => x.length === 3 && x[2])
-          .map(([kind, expected, query]) => ({kind, expected: kind === "negative" ? "" : expected, query}));
+        // Split on the first two bars only, so a question may itself contain "|".
+        const parsed = cases.value.split(/\r?\n/).map(line => line.split("|")).filter(x => x.length >= 3)
+          .map(([kind, expected, ...rest]) => ({kind: kind.trim(), expected: kind.trim() === "negative" ? "" : expected.trim(), query: rest.join("|").trim()}))
+          .filter(x => x.query);
         const value = (await write(s, "/improvement-routing/evaluate", {target_id: s.context.target_id,
           description: description.value, cases: parsed}, "routing-evaluate")).routing;
         const report = value.report, o = report.outcomes;

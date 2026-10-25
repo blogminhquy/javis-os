@@ -89,6 +89,50 @@ class RoutingOverlayTests(base.ActivationBase):
         with self.assertRaisesRegex(IM.ConflictError, "busy"):
             self.routing.apply(self.owner, second["candidate_id"], event_key="routing-apply-two")
 
+    def test_production_router_evaluation_and_refusals(self):
+        from capability_registry import CapabilityRegistry
+        live = R.Routing(self.assets, registry=CapabilityRegistry(self.root.parent / "registry-live"))
+        result = live.evaluate(self.owner, self.target, DESCRIPTION, CASES, event_key="routing-live-eval")
+        self.assertIn(result["verdict"], ("eligible", "inconclusive"))
+        self.assertEqual(len(result["report"]["cases"]), len(CASES))
+        current = self.skill.read_text(encoding="utf-8").split("description:", 1)[1].splitlines()[0].strip()
+        with self.assertRaisesRegex(ValueError, "unchanged"):
+            live.evaluate(self.owner, self.target, current, CASES, event_key="routing-unchanged")
+        with self.assertRaisesRegex(ValueError, "regression"):
+            live.evaluate(self.owner, self.target, DESCRIPTION, CASES[:5], event_key="routing-no-regression")
+        self.skill.write_bytes(self.canonical.replace(b"\n---\n", b"\ndescription_en: English text\n---\n", 1))
+        with self.assertRaisesRegex(ValueError, "translated"):
+            live.evaluate(self.owner, self.target, DESCRIPTION, CASES, event_key="routing-translated")
+
+    def test_overlay_candidates_keep_the_search_set(self):
+        from lazy_skill_runtime import _overlay_candidates
+        found = [{"name": "viet-email", "kind": "skill", "summary": "Soan thu", "metadata": {"slug": "viet-email"}},
+                 {"name": "web-tool", "kind": "tool", "summary": "x", "metadata": {}}]
+        rows = _overlay_candidates(self.root, "", "doi soat", found, {"report": DESCRIPTION})
+        self.assertEqual([r["metadata"]["slug"] for r in rows], ["viet-email", "report"])
+        self.assertEqual(rows[0]["summary"], "Soan thu")
+        self.assertEqual(rows[1]["summary"], DESCRIPTION)
+        rows = _overlay_candidates(self.root, "", "q", [{"name": "report", "kind": "skill", "summary": "old",
+                                                        "metadata": {"slug": "report"}}], {"report": DESCRIPTION})
+        self.assertEqual([r["summary"] for r in rows], [DESCRIPTION])
+
+    def test_prompt_index_uses_overlays_only_when_the_caller_says_api(self):
+        import main
+        base.IA.configure(self.store.path, self.assets.blobs)  # importing main points read time at its own state
+        candidate = self.evaluate(key="routing-prompt-eval")
+        self.routing.apply(self.owner, candidate["candidate_id"], event_key="routing-prompt-apply")
+        api = main.build_adaptive_source_prompt(str(self.root), include_skills=True, routing_overlays=True)
+        cli = main.build_adaptive_source_prompt(str(self.root), include_skills=True)
+        self.assertIn(DESCRIPTION, api)
+        self.assertNotIn(DESCRIPTION, cli)
+
+    def test_bound_task_scope_never_mixes_live_overlays(self):
+        from unittest.mock import patch
+        candidate = self.evaluate(key="routing-scope-eval")
+        self.routing.apply(self.owner, candidate["candidate_id"], event_key="routing-scope-apply")
+        with patch("improvement_task_skill_scope.has_binding", return_value=True):
+            self.assertEqual(R.main_chat_descriptions(self.root), {})
+
     def test_schema_thirteen_from_twelve_adds_tables_once(self):
         import sqlite3
         from contextlib import closing
