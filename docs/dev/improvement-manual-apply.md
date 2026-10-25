@@ -32,6 +32,8 @@ Lượt đang chạy không đổi giữa chừng: chỉ lượt mới đọc co
 2. Ứng viên không phải `KEEP_BASE`, có quyền `exact_diff` đang hiệu lực. Quyền chọn vùng sửa thôi là chưa đủ.
 3. Target còn `live`, skill đang bật, file gốc đúng bytes và đúng danh tính file (dev/inode) ứng viên dựa vào.
    Chủ đã sửa hoặc xoá rồi tạo lại file thì báo `candidate_base_changed`; không tự gộp.
+   Giới hạn: trên hệ thống file dùng lại inode ngay (ext4), file tạo lại với đúng bytes cũ không phân biệt
+   được với bản gốc; vì bytes trùng với nền của bản thử nên phục vụ tiếp là vô hại.
 4. Trợ lý có file `agents/<slug>.md` trong brain; slug hợp lệ. Resolver chỉ cấp danh tính cho trợ lý có file.
 5. Thí nghiệm chưa bị chủ chốt sang lựa chọn khác (giữ bản cũ hoặc nhánh kia).
 6. Phần frontmatter giữ nguyên (bề mặt V1 chỉ là thân skill).

@@ -57,7 +57,8 @@ PROFILE_SOURCES = ("improvement_claude.py", "improvement_sandbox.py", "improveme
 VERIFIED_NATIVE_RUNTIMES = {("win32", "2.1.304",
     "019e5174d5d954585edb1a946fe280e44a973050b4897034adf0e16306f85fdd", "0.2.116"),
     ("win32", "2.1.308", "c9796ba22a9221586b36371b36f5b66198d66eb4badf6a4cf4a5f7b07becea53", "0.2.116"),
-    ("win32", "2.1.309", "5441781f2b6bbd07354b4a74560ee88c68c9bf05d6db3c7e24c452c91673dc53", "0.2.116")}
+    ("win32", "2.1.309", "5441781f2b6bbd07354b4a74560ee88c68c9bf05d6db3c7e24c452c91673dc53", "0.2.116"),
+    ("win32", "2.1.310", "f9a3920634ae3b961ee92c2eb58d0051f5f8852b120983d0a4f57b6a5efeba61", "0.2.116")}
 
 
 async def _settled_owned(future):
