@@ -25,6 +25,7 @@ const candidate = { candidate_id: "candidate-one", experiment_id: "experiment-on
 async function fixture(lang = "en", withExperiments = false) {
   const dict = JSON.parse(fs.readFileSync(new URL(`../../dashboard/i18n/${lang}.json`, import.meta.url)));
   const body = new Element("body"), head = new Element("head"), calls = [], intervals = [];
+  let applied = [];
   let brain = "brain-one", rows = [candidate], deferred = null, corrupt = false, failStage = false, pages = false, failAfterStage = false, failRows = false;
   const ctx = { document: { body, head, createElement: tag => new Element(tag), getElementById: () => null, addEventListener() {} },
     window: { currentBrainPath: () => brain }, TextEncoder, TextDecoder, crypto: webcrypto, URL, URLSearchParams, Blob,
@@ -54,6 +55,10 @@ async function fixture(lang = "en", withExperiments = false) {
       else if (path.endsWith("/artifact-review")) value = {review:{artifact:exact(raw),task:"Exact task",contract:{objective:"Count rows"},fixtures:[{source_ref:"sources/rows.csv",source_version:"v1",timezone:"Asia/Saigon",data_period:"2026-10",cutoff:"2026-10-23",schema:{id:"rows-v1"},text:raw,fixture_hash:hash(raw),byte_size:Buffer.byteLength(raw)}]}};
       else if (path.endsWith("/authorize")) { rows = [{...candidate,edit_authority:{authority_id:"authority-one",generation:2,status:"revoked"}}]; value = {authority:{status:"active",generation:1}}; }
       else if (path === "/improvement-candidates") { if (failStage) {failStage=false;throw Error("Unknown transport outcome");} if(failAfterStage) failRows=true; value = {candidate}; }
+      else if (path === "/improvement-activations" && !options.method) value = {activations: applied, coverage: {served: ["api_engines"]}};
+      else if (path === "/improvement-activations") { const body = JSON.parse(options.body); applied = [{activation_id:"iac_" + "1".repeat(32), state:"active", generation:1, evidence_level:"manual_trial", reason:"owner_apply", selector:{context:"dm", agent_key:"agent-1", agent_slug:body.agent_slug}}]; value = {activation: applied[0]}; }
+      else if (path.endsWith("/revert")) { applied = [{...applied[0], state:"reverted", generation:2}]; value = {activation: applied[0]}; }
+      else if (path === "/agents") value = {agents:[{slug:"ke-toan", name:"Accountant", description:"Books"}]};
       else throw Error(`Unexpected request ${path}`);
       return {ok:true,status:200,json:async()=>({ok:true,...value})};
     } };
@@ -175,6 +180,33 @@ for(const lang of ['vi','en']) {
   assert.equal(JSON.parse(staged.body).patch.start, Buffer.byteLength('\ufefftitle\r\n'));
   const writes = f.calls.filter(x=>x.url.startsWith("/improvement-candidates?") && x.method === "POST");
   assert.equal(writes.length,2); assert.equal(JSON.parse(writes[0].body).event_key,JSON.parse(writes[1].body).event_key,"Unknown write retry must keep its event key");
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+for (const lang of ["vi","en"]) {
+  // M2E: an exact-diff authority offers apply to one assistant chat; revert uses the server generation.
+  const f = await fixture(lang);
+  f.setRows([{...candidate, edit_authority:{authority_id:"authority-two", kind:"exact_diff", generation:1, status:"active"}}]);
+  await f.find("review-candidate-one").onclick();
+  f.find("apply-agent").value = "ke-toan";
+  await f.find("apply-candidate").onclick();
+  const apply = f.calls.find(x=>x.url.startsWith("/improvement-activations?") && x.method === "POST");
+  const sent = JSON.parse(apply.body);
+  assert.equal(sent.candidate_id, "candidate-one"); assert.equal(sent.agent_slug, "ke-toan");
+  assert.deepEqual(Object.keys(sent).sort(), ["agent_slug","candidate_id","event_key"]);
+  const id = "iac_" + "1".repeat(32);
+  assert.ok(f.find("activation-" + id).children.some(x=>x.textContent.includes("ke-toan")));
+  await f.find("revert-" + id).onclick();
+  const revert = f.calls.find(x=>x.url.startsWith(`/improvement-activations/${id}/revert`));
+  assert.equal(JSON.parse(revert.body).expected_generation, 1);
+  assert.equal(f.body.querySelector(`[data-action="revert-${id}"]`), null, "A reverted pointer offers no second revert");
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+{
+  // A region authority alone is not an exact approved diff: no apply control.
+  const f = await fixture();
+  f.setRows([{...candidate, edit_authority:{authority_id:"authority-three", kind:"editable_region", generation:1, status:"active"}}]);
+  await f.find("review-candidate-one").onclick();
+  assert.equal(f.body.querySelector('[data-action="apply-candidate"]'), null);
   f.ctx.window.JavisImprovementCandidates.close();
 }
 console.log("OK: exact inert vi/en review, revoked replay, brain race, corrupt hash and UTF-8/CRLF selection");

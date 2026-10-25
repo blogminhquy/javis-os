@@ -26842,6 +26842,20 @@ improvement_api.register(app, improvement_api.ImprovementApiDeps(
     agent_key=lambda root, slug: _agent_jobs_key(root, slug, register=True),
 ))
 
+# M2E manual activation: owner applies an authorized candidate to one assistant chat. Read time
+# resolves the pointer for in-process engines only; nothing here writes a canonical skill file.
+import improvement_activation  # noqa: E402
+import improvement_activation_api  # noqa: E402
+
+improvement_activation.configure(Path(cfgmod.STATE_DIR) / "resonance.sqlite3",
+                                 RevisionBlobs(Path(cfgmod.STATE_DIR) / "improvement"))
+improvement_activation_api.register(app, improvement_activation_api.ActivationApiDeps(
+    activations=lambda: improvement_activation.Activations(
+        _improvement_write_store(), agent_key=lambda root, slug: _agent_jobs_key(root, slug, register=True)),
+    resolve_brain=lambda value: improvement_api.strict_brain(value,
+        default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
+))
+
 
 # Explicit owner trials are lazy; importing routes does not start or recover work.
 import improvement_trial_api  # noqa: E402

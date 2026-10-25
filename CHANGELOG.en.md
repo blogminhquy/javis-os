@@ -9,8 +9,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
 ## [0.314.0] - 2026-10-25
-### Improved
-- **Evidence-based improvement (engineering only, not enabled on real brains).** Skill trials now pin the exact skill version for each turn and record proof of what was loaded. The feature stays in suggest-only mode; nothing is applied automatically.
+### Added
+- **Try an improved skill with one assistant.** In Studio, open Improve on a skill, review the exact edit, then pick an assistant: the new version is used only in that assistant's own chat. The skill file is never touched, and **Revert to original** switches new work back at once.
+- A trial version **pauses itself** when you edit the skill, turn it off or revoke the edit permission; it never merges edits or turns a disabled skill back on. A version a comparison judged worse cannot be applied.
+- The label states the real evidence: "Manual trial, not proven better" until a full qualification passes. For now the trial only affects brains that run through an API; Claude Code, Codex, Grok and Antigravity keep the original.
 
 ## [0.312.0] - 2026-10-25
 ### Improved

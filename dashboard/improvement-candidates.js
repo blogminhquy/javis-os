@@ -25,7 +25,7 @@
     s.version++;
     if (s.experiments) { s.experiments.dispose(); s.experiments = null; }
     for (const controller of s.requests) controller.abort(); s.requests.clear();
-    s.review?.replaceChildren(); s.form?.replaceChildren();
+    s.review?.replaceChildren(); s.form?.replaceChildren(); s.applied?.replaceChildren();
   }
   function info(parent, text) {
     const toggle = button(tr("explanation"), "explanation", null);
@@ -100,7 +100,69 @@
       s.list.append(card);
     }
     if (!s.rows.length) s.list.append(node("p", tr("no_candidates")));
+    await activations(s);
     return s.rows;
+  }
+  // M2E: pointers that apply a candidate to one assistant chat. Labels come from server state.
+  async function activations(s) {
+    const version = s.version;
+    const data = await request(s, "/improvement-activations?target_id=" + encodeURIComponent(s.context.target_id));
+    if (!alive(s, version) || !Array.isArray(data.activations)) return;
+    s.applied.replaceChildren(node("h3", tr("activations_title")));
+    for (const row of data.activations) {
+      const card = node("div", null, "activation-" + row.activation_id);
+      const who = (row.selector && (row.selector.agent_slug || row.selector.agent_key)) || "";
+      card.append(node("p", `${who} · ${tr("state_" + row.state)}`));
+      card.append(node("p", tr(row.evidence_level === "qualified" ? "qualified" : "manual_trial")));
+      if (row.state === "suspended") card.append(node("p", tr("reason_" + row.reason)));
+      if (row.state === "active") {
+        const revert = button(tr("revert"), "revert-" + row.activation_id, async () => {
+          if (!alive(s, version) || revert.disabled) return;
+          revert.disabled = true;
+          try {
+            await write(s, "/improvement-activations/" + encodeURIComponent(row.activation_id) + "/revert",
+              {expected_generation:row.generation}, "revert-" + row.activation_id);
+            s.status.textContent = tr("reverted_ok");
+            await activations(s);
+          } catch (error) { failure(s, error); revert.disabled = false; }
+        });
+        card.append(revert);
+      }
+      s.applied.append(card);
+    }
+    if (!data.activations.length) s.applied.append(node("p", tr("no_activations")));
+  }
+  async function applyBlock(s, current, version) {
+    const authority = current.edit_authority;
+    if (current.keep_base || !authority || authority.status !== "active" || authority.kind !== "exact_diff") return;
+    const box = node("div", null, "apply"); box.append(node("h4", tr("apply_title")));
+    info(box, tr("apply_hint"));
+    const label = node("label", tr("apply_agent")), choose = node("select", null, "apply-agent");
+    label.append(choose); box.append(label);
+    const agents = (await request(s, "/agents?prompt=0")).agents || [];
+    if (!alive(s, version)) return;
+    for (const agent of agents) {
+      const option = node("option", agent.name || agent.slug); option.value = agent.slug;
+      if (agent.description) option.setAttribute("data-desc", agent.description);
+      option.setAttribute("data-name", agent.name || agent.slug);
+      choose.append(option);
+    }
+    const apply = button(tr("apply_button"), "apply-candidate", async () => {
+      if (!alive(s, version) || apply.disabled || !choose.value) return;
+      apply.disabled = true;
+      try {
+        await write(s, "/improvement-activations", {candidate_id:current.candidate_id, agent_slug:choose.value},
+          "apply-" + current.candidate_id + "-" + choose.value);
+        s.status.textContent = tr("applied_ok");
+        await activations(s);
+      } catch (error) { failure(s, error); }
+      apply.disabled = false;
+    });
+    apply.disabled = !agents.length;
+    box.append(apply);
+    if (!agents.length) box.append(node("p", tr("no_agents")));
+    s.review.append(box);
+    if (window.JavisAgentPicker) window.JavisAgentPicker.enhance(choose, {title: t("ap.title")});
   }
   async function review(s, candidateId) {
     const version = s.version;
@@ -142,6 +204,8 @@
         });
         s.review.append(revoke);
       }
+      await applyBlock(s, current, version);
+      if (!alive(s, version)) return;
       s.status.textContent = tr(current.edit_authority ? (current.edit_authority.status === "active" ? "edit_authorized" : "edit_revoked") : "proposal");
     } catch (error) { if (alive(s, version)) { s.review.replaceChildren(); failure(s, error); } }
   }
@@ -290,7 +354,8 @@
       try { await write(s, "/improvement-targets/capture", {kind:"skill",slug:s.slug}, "capture"); await load(s); }
       catch (error) { failure(s, error); }
     }));
-    s.list = node("div"); s.form = node("div"); s.review = node("div"); s.panel.append(s.list, s.form, s.review);
+    s.list = node("div"); s.form = node("div"); s.review = node("div"); s.applied = node("div", null, "activations");
+    s.panel.append(s.list, s.applied, s.form, s.review);
     s.experimentArea = node("div"); s.panel.append(s.experimentArea);
     const artifacts = node("details"); artifacts.append(node("summary", tr("artifact")));
     const trial = field(artifacts, "trial_id", "input"); trial.type = "text";

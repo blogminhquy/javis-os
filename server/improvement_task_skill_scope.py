@@ -246,7 +246,9 @@ class TaskSkillScope:
                 envelope = self._assets._replay(connection, self._principal.brain_id,
                     _event_key(self.scope_hash, slug), _ASSET, payload)
                 if envelope is None:
-                    asset = SR.read_skill_asset(self.root, slug)
+                    import improvement_activation
+                    # Pin whatever this turn should see, the owner-applied overlay included.
+                    asset = improvement_activation.effective_skill_asset(self.root, slug)
                     if (asset is None or asset.relative_path != item['relative_path']
                             or asset.frontmatter_hash != item['frontmatter_hash']): _fail()
                     content_hash = self._assets.blobs.write(self._principal.brain_id, asset.content)

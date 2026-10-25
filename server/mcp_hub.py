@@ -837,7 +837,9 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         import sqlite3
         def read():
             scope = current(vault_root)
-            return scope, (scope.read(name) if scope is not None else skill_router.read_skill_asset(vault_root, name))
+            import improvement_activation
+            return scope, (scope.read(name) if scope is not None
+                           else improvement_activation.effective_skill_asset(vault_root, name))
         try:
             scope, asset = await asyncio.to_thread(read)
             if scope is not None and current(vault_root) is not scope:
@@ -1814,10 +1816,14 @@ async def handle_http(request):
     # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
     # the server happens to run it in.
     tok = turn_context.bind(turn_context.resolve_key(request.headers.get(turn_context.HEADER.lower())))
+    # CLI engines also load skills natively from `.claude/skills`; an improvement overlay served only
+    # through this tool would split one turn across two versions, so these requests see canonical skills.
+    import improvement_activation
     try:
-        return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
-                                     include_ambient=include_ambient,
-                                     raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
+        with improvement_activation.cli_transport():
+            return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
+                                         include_ambient=include_ambient,
+                                         raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
     finally:
         turn_context.reset(tok)
 

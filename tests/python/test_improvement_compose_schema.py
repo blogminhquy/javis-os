@@ -135,7 +135,7 @@ class ComposeSchemaTests(unittest.TestCase):
         self.assertTrue(before['improvement_operation_attempts'])
         self.assertTrue(before['agent_calls'])
         IM.ensure(fixture.store)
-        self.assertEqual(IM._schema_version(fixture.store), 10)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
         self.assert_old_rows(fixture.store, before)
         self.assertEqual(self.blobs(fixture.assets), ciphertext)
         self.assertEqual(service.workspace.validate(receipt)['data'], fixture.data)
@@ -164,7 +164,7 @@ class ComposeSchemaTests(unittest.TestCase):
                      'improvement_comparisons', 'improvement_experiment_trial_links', 'improvement_trial_results'):
             self.assertTrue(before[name], name)
         IM.ensure(fixture.store)
-        self.assertEqual(IM._schema_version(fixture.store), 10)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
         self.assert_old_rows(fixture.store, before)
         self.assertEqual(self.blobs(fixture.assets), ciphertext)
         self.assert_foreign_keys(fixture.store)
@@ -220,7 +220,7 @@ class ComposeSchemaTests(unittest.TestCase):
                 return connection.execute('PRAGMA foreign_keys').fetchone()[0]
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(list(pool.map(migrate, (1, 2))), [1, 1])
-        self.assertEqual(IM._schema_version(fixture.store), 10)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
         self.assert_old_rows(fixture.store, before)
         self.assert_new_backup(fixture.store, backups, before)
         self.assert_foreign_keys(fixture.store)

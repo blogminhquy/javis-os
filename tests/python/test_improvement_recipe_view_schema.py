@@ -74,7 +74,7 @@ class RecipeViewSchemaTests(unittest.TestCase):
         backups = self.backups(fixture.store)
         with patch.object(nine, 'migrate', side_effect=AssertionError('Installed9 must not recreate recipes')):
             IM.ensure(fixture.store)
-        self.assertEqual(IM._schema_version(fixture.store), 10)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
         self.assertEqual({key: self.history(fixture.store)[key] for key in before}, before)
         self.assertEqual(self.blobs(fixture.assets), ciphertext)
         after = {row[1]: row for row in self.definitions(fixture.store)}
@@ -101,7 +101,7 @@ class RecipeViewSchemaTests(unittest.TestCase):
         fixture = self.fixture(prepared=True)
         before, ciphertext = self.history(fixture.store), self.blobs(fixture.assets)
         IM.ensure(fixture.store)
-        self.assertEqual(IM._schema_version(fixture.store), 10)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
         self.assertEqual({key: self.history(fixture.store)[key] for key in before}, before)
         self.assertEqual(ciphertext, self.blobs(fixture.assets))
         self.assertEqual(fixture.prepared_service.workspace.validate(fixture.prepared_receipt)['data'], fixture.data)
@@ -121,8 +121,9 @@ class RecipeViewSchemaTests(unittest.TestCase):
         before, ciphertext, backups = self.history(fixture.store), self.blobs(fixture.assets), self.backups(fixture.store)
         self.assertTrue(fixture.assets.blobs._path(fixture.owner.brain_id, saved['manifest_hash']).read_bytes().startswith(b'enc:'))
         IM.ensure(fixture.store)
-        self.assertEqual(IM._schema_version(fixture.store), 10)
-        self.assertEqual(self.history(fixture.store), before)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
+        # Version11 only adds the empty activation table; every historical row is unchanged.
+        self.assertEqual({key: self.history(fixture.store)[key] for key in before}, before)
         self.assertEqual(self.blobs(fixture.assets), ciphertext)
         self.assertEqual(len(set(self.backups(fixture.store)) - set(backups)), 1)
         with patch.object(fixture.assets.blobs, 'read', side_effect=AssertionError('Historical control cannot decrypt')):
@@ -144,7 +145,7 @@ class RecipeViewSchemaTests(unittest.TestCase):
         self.assertEqual(self.definitions(fixture.store), definitions)
         saved = self.backups(fixture.store)
         IM.ensure(fixture.store)
-        self.assertEqual(IM._schema_version(fixture.store), 10)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
         self.assertEqual(self.backups(fixture.store), saved)
 
     def test_two_first_writers_publish_one_ten_and_preserve_exact_nine_backup(self):
@@ -158,12 +159,12 @@ class RecipeViewSchemaTests(unittest.TestCase):
                 return connection.execute('PRAGMA foreign_keys').fetchone()[0]
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(list(pool.map(write, (1, 2))), [1, 1])
-        self.assertEqual(IM._schema_version(fixture.store), 10)
+        self.assertEqual(IM._schema_version(fixture.store), IM.SCHEMA_VERSION)
         self.assertEqual(len(set(self.backups(fixture.store)) - set(backups)), 1)
         self.assertEqual({key: self.history(fixture.store)[key] for key in before}, before)
 
-    def test_altered_nine_partial_ten_reserved_collision_and_future_eleven_refuse_before_backup(self):
-        for mutation in ('altered9', 'partial10', 'reserved', 'foreign_artifact', 'future11'):
+    def test_altered_nine_partial_ten_reserved_collision_and_future_refuse_before_backup(self):
+        for mutation in ('altered9', 'partial10', 'reserved', 'foreign_artifact', 'future'):
             with self.subTest(mutation=mutation):
                 fixture = self.fixture()
                 with fixture.store._Tx(fixture.store) as connection:
@@ -175,7 +176,7 @@ class RecipeViewSchemaTests(unittest.TestCase):
                     elif mutation == 'foreign_artifact':
                         connection.execute('CREATE TRIGGER IMPROVEMENT_RECIPE_PRIVATE BEFORE INSERT ON improvement_events BEGIN SELECT 1; END')
                     else:
-                        connection.execute('UPDATE improvement_schema SET version=?', (10 if mutation == 'partial10' else 11,))
+                        connection.execute('UPDATE improvement_schema SET version=?', (10 if mutation == 'partial10' else IM.SCHEMA_VERSION + 1,))
                 before, definitions, backups = self.history(fixture.store), self.definitions(fixture.store), self.backups(fixture.store)
                 with self.assertRaises((IM.ConflictError, IM.SchemaError)):
                     IM.ensure(fixture.store)

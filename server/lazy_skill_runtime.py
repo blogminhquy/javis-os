@@ -102,6 +102,7 @@ class LazySkillSource:
                 lang: str = "") -> SkillSelection:
         from improvement_task_skill_scope import current, ScopeUnavailable
         from improvement_blobs import AssetUnavailable
+        import improvement_activation
         try:
             scope = current(brain)
             if scope is not None:
@@ -147,8 +148,9 @@ class LazySkillSource:
 
         slug = str((top.get("metadata") or {}).get("slug") or top.get("name") or "")
         try:
+            # Outside a task scope, an owner-applied overlay for this assistant's chat may apply.
             asset = (scope.read(slug, expected_manifest=top['_task_manifest']) if scope is not None
-                else skill_router.read_skill_asset(brain, slug))
+                else improvement_activation.effective_skill_asset(brain, slug))
         except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
             return SkillSelection('none', 'task_scope_unavailable', top['capability_id'], slug,
                 top_score, runner, revision)
