@@ -446,6 +446,21 @@ class Principal:
         return f"{self.kind}:{self.id}"
 
 
+# Called as fn(brain_id, slug, agent_key) after a NEW agent key for (brain, slug) is committed by `agent_register` or a
+# first `agent_set_enabled`. learned_mirror uses it to import the agent's mirrored knowledge from the brain folder before
+# the agent learns anything on this machine. A hook that raises is logged and ignored.
+AGENT_KEY_HOOKS: list = []
+
+
+def _agent_key_minted(brain_id: str, slug: str, agent_key: str) -> None:
+    for fn in list(AGENT_KEY_HOOKS):
+        try:
+            fn(brain_id, slug, agent_key)
+        except Exception as e:  # noqa: BLE001 - a hook must never break agent registration
+            import sys
+            print(f"[resonance agent hook] {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def _nid(prefix: str) -> str:
     return f"{prefix}_{secrets.token_hex(6)}"
 
@@ -743,20 +758,24 @@ class GoalStore:
                     return None
                 row = self._insert_agent(c, p.brain_id, slug, True, p.by, now)
                 self._mark_resumed(c, row["agent_key"], now)
-                return self._agent(row)
-            # Kiểm trạng thái TRƯỚC nhánh "không đổi" (review PR #590, P2-1): agent missing vẫn giữ cờ bật cũ, nên
-            # đặt cờ bật lần nữa không được báo thành công.
-            if enabled and r["status"] != "active":
-                raise AgentStateError(f"agent đang {r['status']}, cần chủ dự án xác nhận trước khi bật")
-            if bool(r["enabled"]) == bool(enabled):
-                return self._agent(r)
-            # T2: mốc bật lại (`resumed_at`) ghi CÙNG giao dịch với công tắc, nên mọi đường bật (route của chủ, lệnh
-            # `set_resonance` của trưởng nhóm Toàn quyền) đều có mốc; tắt thì nhịp về `off`.
-            if enabled:
-                self._mark_resumed(c, r["agent_key"], now)
+                minted = self._agent(row)
             else:
-                self._mark_off(c, r["agent_key"], now)
-            return self._bump_agent(c, r, "enabled" if enabled else "disabled", p.by, now, enabled=1 if enabled else 0)
+                # Kiểm trạng thái TRƯỚC nhánh "không đổi" (review PR #590, P2-1): agent missing vẫn giữ cờ bật cũ, nên
+                # đặt cờ bật lần nữa không được báo thành công.
+                if enabled and r["status"] != "active":
+                    raise AgentStateError(f"agent đang {r['status']}, cần chủ dự án xác nhận trước khi bật")
+                if bool(r["enabled"]) == bool(enabled):
+                    return self._agent(r)
+                # T2: mốc bật lại (`resumed_at`) ghi CÙNG giao dịch với công tắc, nên mọi đường bật (route của chủ, lệnh
+                # `set_resonance` của trưởng nhóm Toàn quyền) đều có mốc; tắt thì nhịp về `off`.
+                if enabled:
+                    self._mark_resumed(c, r["agent_key"], now)
+                else:
+                    self._mark_off(c, r["agent_key"], now)
+                return self._bump_agent(c, r, "enabled" if enabled else "disabled", p.by, now,
+                                        enabled=1 if enabled else 0)
+        _agent_key_minted(p.brain_id, slug, minted["agent_key"])   # first enable minted a new key
+        return minted
 
     def agent_register(self, p: Principal, slug: str) -> dict:
         """Nhóm chat team (spec 2026-10-13 mục 5.1): cấp mã bền cho agent `slug` mà KHÔNG bật Cộng hưởng, để mọi thành
@@ -772,7 +791,9 @@ class GoalStore:
             r = self._live_agent_row(c, p.brain_id, slug)
             if r is not None:
                 return self._agent(r)
-            return self._agent(self._insert_agent(c, p.brain_id, slug, False, p.by, now, {"reason": "team_member"}))
+            minted = self._agent(self._insert_agent(c, p.brain_id, slug, False, p.by, now, {"reason": "team_member"}))
+        _agent_key_minted(p.brain_id, slug, minted["agent_key"])
+        return minted
 
     def agent_mark_missing(self, brain_id: str, agent_key: str, by: str = "host") -> Optional[dict]:
         """Host thấy file agent biến mất: dòng `active` chuyển `missing`, version tăng, mọi cổng của mã này đóng.
