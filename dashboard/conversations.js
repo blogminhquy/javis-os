@@ -232,7 +232,7 @@
       // Mở từ nơi khác (nút trên thẻ bot, mục Kênh chưa có bot): lọc đúng thứ được chỉ, bỏ tình trạng và loại đã lưu để
       // khỏi giấu mất hội thoại người ta muốn xem.
       _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || ""; _tkLoc = _cho.account_key || "";
-      _statusLoc = ""; _typeLoc = "";
+      _statusLoc = ""; _typeLoc = ""; _q = "";
       _cho = null;
       saveFilters();
     } else if (window.JavisConvFilters) {
@@ -263,6 +263,10 @@
         '</div>' +
       '</div>';
     var s = body.querySelector(".ht-search");
+    // The query lives in `_q`, which outlives this box: the inbox is rebuilt on every tab or page switch. Put it back in
+    // the new box, or the list stays filtered by a search nobody can see and "clearing" the empty box does nothing
+    // (owner, 2026-10-25: "1 hội thoại" stuck after searching).
+    s.value = _q;
     s.oninput = function () { _q = s.value.trim(); tai(); };
     body.querySelector(".ht-f-bot").onchange = function (e) { _botLoc = e.target.value; onFilterChange(); };
     body.querySelector(".ht-f-status").onchange = function (e) { _statusLoc = e.target.value; onFilterChange(); };
