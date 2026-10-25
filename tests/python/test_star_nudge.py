@@ -153,7 +153,10 @@ def ghi_cfg(patch):
 
 
 sdir = Path(tempfile.mkdtemp(prefix="javis-star-state-"))
-(sdir / "github_stars.json").write_text(json.dumps({"n": 286, "at": 9e18}), encoding="utf-8")
+# Số sao đã nhớ, ghi đúng lúc này: route không bao giờ gọi GitHub thật trong test (một mốc thời gian ở
+# tương lai bị coi là hỏng và hỏi lại mạng, đã từng làm test này đọc 287 sao thật thay vì 286).
+import time  # noqa: E402
+(sdir / "github_stars.json").write_text(json.dumps({"n": 286, "at": time.time()}), encoding="utf-8")
 sn._DUNG_CACHE.update(at=0.0, v=None)
 app = FastAPI()
 rsn.register(app, rsn.StarNudgeDeps(read_settings=doc_cfg, update_settings=ghi_cfg,
