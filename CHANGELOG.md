@@ -7,8 +7,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.311.0] - 2026-10-25
+### Thêm mới
+- **Thẻ Facebook Messenger ở trang Kết nối.** Dán Page ID, App ID, App secret và một token bất kỳ từ Graph API Explorer, Javis tự đổi sang token Trang không hết hạn, tự khai webhook và gắn Trang vào app. Hết cảnh dán nhầm token người dùng rồi gặp lỗi 100, lỗi 210. Cảm ơn @adiagri09-code.
+- **Bảng kiểm tra từng bước** sau khi nối: token, quyền, App secret, webhook, Trang gắn app, bot đang trực. Dòng nào đỏ có cách sửa ngay bên dưới. Mỗi Trang có nút Kiểm tra, Sửa tự động và Đổi token.
+- Bot Messenger im lặng thì hỏi Javis: bộ não nào cũng kiểm tra được qua tool `messenger_check` và sửa được qua `messenger_repair`.
 ### Sửa lỗi
-- Đang soạn.
+- **Quy trình không còn cho qua bước kiểm chứng bị lỗi.** Trước đây máy kiểm chứng trả "ĐẠT" rồi mới báo lỗi thì vẫn tính là đạt và bước sau vẫn chạy. Giờ cứ lỗi là dừng, giống bước chính. Cảm ơn @hwangrin.
 
 ## [0.310.0] - 2026-10-25
 ### Thêm mới

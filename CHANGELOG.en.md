@@ -9,8 +9,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
 ## [0.311.0] - 2026-10-25
+### Added
+- **A Facebook Messenger card on the Connections page.** Paste the Page ID, App ID, App secret and any token from Graph API Explorer, and Javis swaps it for a Page token that never expires, registers the webhook and subscribes the Page to the app. No more pasting a user token by mistake and hitting error 100 or 210. Thanks @adiagri09-code.
+- **A step-by-step checklist** after connecting: token, permissions, App secret, webhook, Page subscribed, bot on duty. Every red row shows how to fix it right below. Each Page has Check, Auto-fix and Change token buttons.
+- When a Messenger bot goes quiet, ask Javis: any brain can check it with the `messenger_check` tool and fix it with `messenger_repair`.
 ### Fixed
-- In progress.
+- **Workflows no longer let a failed verification step through.** A verifier that answered "PASS" and then reported an error still counted as a pass and the next step ran. Any error now stops the run, the same as for a main step. Thanks @hwangrin.
 
 ## [0.310.0] - 2026-10-25
 ### Added
