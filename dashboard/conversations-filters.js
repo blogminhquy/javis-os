@@ -13,9 +13,9 @@
 
   var KEY = "javis.inbox.filters";
   // 2026-10-25, from the owner's Pancake screenshots: "waiting" is "need reply" sorted waiting-longest first ("đợi phản hồi
-  // lâu nhất") and "contact" is "the customer left a phone number or email" ("lọc có SĐT"). Both are one more choice in
-  // the status dropdown, as in Pancake's single-choice filter list, so the filter row stays one row.
-  var STATUSES = ["", "unread", "need_reply", "waiting", "human", "contact"];
+  // lâu nhất"), one more choice in the status dropdown. "The customer left a phone number or email" is its own on/off
+  // filter (`contact`), so it combines with a status such as "need reply" (owner: "tách ô lọc riêng").
+  var STATUSES = ["", "unread", "need_reply", "waiting", "human"];
   var TYPES = ["", "group", "private"];
   var BOT_COLORS = 4;          // c0..c3 trong console.css; không dùng màu cảnh báo vì nó dành cho "cần trả lời" và "tôi lo"
 
@@ -26,8 +26,8 @@
     });
   }
 
-  // `tag`: an inbox tag id (string of digits).
-  function emptyState() { return { bot: "", status: "", type: "", channel: "", tag: "" }; }
+  // `tag`: an inbox tag id (string of digits). `contact`: "1" keeps only chats where the customer left a phone or email.
+  function emptyState() { return { bot: "", status: "", type: "", channel: "", tag: "", contact: "" }; }
 
   // Giá trị lạ (bản cũ còn lưu, trình duyệt bị sửa tay) thì về "không lọc", không bao giờ làm hòm thư trống trơn.
   function sanitize(raw) {
@@ -38,6 +38,8 @@
       type: TYPES.indexOf(r.type) >= 0 ? r.type : "",
       channel: typeof r.channel === "string" ? r.channel.slice(0, 40) : "",
       tag: /^\d{1,9}$/.test(String(r.tag || "")) ? String(r.tag) : "",
+      // A browser that saved "contact" as a status (the first 0.313.0 build) keeps the filter it chose.
+      contact: r.contact === "1" || r.contact === true || r.status === "contact" ? "1" : "",
     };
   }
 
@@ -51,7 +53,7 @@
 
   function activeCount(state) {
     var s = sanitize(state);
-    return ["bot", "status", "type", "channel", "tag"].filter(function (k) { return !!s[k]; }).length;
+    return ["bot", "status", "type", "channel", "tag", "contact"].filter(function (k) { return !!s[k]; }).length;
   }
 
   // Phần query cho GET /conversations. Chỉ gửi khoá đang lọc; giá trị đã qua sanitize nên an toàn để ghép.
@@ -59,11 +61,11 @@
     var s = sanitize(state), q = "";
     if (s.bot) q += "&bot_id=" + encodeURIComponent(s.bot);
     if (s.status === "waiting") q += "&status=need_reply&sort=waiting";
-    else if (s.status === "contact") q += "&has_contact=1";
     else if (s.status) q += "&status=" + encodeURIComponent(s.status);
     if (s.type) q += "&chat_type=" + encodeURIComponent(s.type);
     if (s.channel) q += "&channel=" + encodeURIComponent(s.channel);
     if (s.tag) q += "&tag=" + s.tag;
+    if (s.contact) q += "&has_contact=1";
     return q;
   }
 
@@ -104,8 +106,12 @@
       opt("unread", tt("ht.f_st_unread", { n: num(s.unread) }), current) +
       opt("need_reply", tt("ht.f_st_need", { n: num(s.need_reply) }), current) +
       opt("waiting", tt("ht.f_st_wait", { n: num(s.need_reply) }), current) +
-      opt("human", tt("ht.f_st_human", { n: num(s.human) }), current) +
-      opt("contact", tt("ht.f_st_contact", { n: num(facets && facets.has_contact) }), current);
+      opt("human", tt("ht.f_st_human", { n: num(s.human) }), current);
+  }
+
+  // Label of the "has phone/email" toggle, with the inbox-wide count like the dropdown options.
+  function contactLabel(facets) {
+    return tt("ht.f_st_contact", { n: num(facets && facets.has_contact) });
   }
 
   // Tag dropdown (2026-10-25). `tags`: [{id, name, color, count}] from the server, in the owner's order. A tag that was
@@ -159,7 +165,7 @@
   window.JavisConvFilters = {
     emptyState: emptyState, sanitize: sanitize, load: load, save: save, activeCount: activeCount, query: query,
     botColor: botColor, botOptions: botOptions, statusOptions: statusOptions, typeOptions: typeOptions,
-    channelOptions: channelOptions, tagOptions: tagOptions, tagChips: tagChips, tagChip: tagChip, tagColor: tagColor,
+    channelOptions: channelOptions, tagOptions: tagOptions, contactLabel: contactLabel, tagChips: tagChips, tagChip: tagChip, tagColor: tagColor,
     TAG_COLORS: TAG_COLORS,
   };
 })();

@@ -2090,6 +2090,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   font-size: 16px; min-width: 0; max-width: 100%; }
 .ht-f.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-wash); }
 .ht-f[hidden], .ht-fclear[hidden] { display: none; }
+/* "Has phone/email" is an on/off filter of its own (combines with a status), drawn like the dropdowns next to it. */
+.ht-f-contact { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.ht-f-contact svg { width: 16px; height: 16px; flex: none; }
+/* Wide screens: the filter panel is just part of the row and the Filters button is never shown. */
+.ht-fpanel { display: contents; }
+.ht-fbtn { display: none; }
 .ht-fsum { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text3);
   min-height: 20px; padding: 0 4px; }
 /* 0.216.0: kết quả hỏi Zalo khi ô tìm là một số điện thoại. */
@@ -2128,12 +2134,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-has-contact { flex: none; display: inline-flex; color: var(--green); }
 .ht-has-contact svg { width: 14px; height: 14px; }
 .ht-item-ava { display: none; }
-/* Wide screens keep ONE filter row (owner: no wall of buttons): with every control showing, they give up a little width
-   each instead of wrapping onto a second line. */
+/* Wide screens: one filter row when it fits (owner: no wall of buttons). Every control keeps its full text; when the
+   page is too narrow for all of them the row wraps instead of cutting words, and the search box takes what is left. */
 @media (min-width: 901px) {
-  .ht-bar { flex-wrap: nowrap; }
-  .ht-bar .ht-search { flex: 2 1 260px; min-width: 220px; }
-  .ht-bar .ht-f { flex: 0 1 auto; }
+  .ht-bar { flex-wrap: wrap; }
+  .ht-bar .ht-search { flex: 1 1 220px; min-width: 200px; }
+  .ht-bar .ht-f { flex: 0 0 auto; }
   /* The tag dropdown is as wide as its longest tag name; capped so one long tag does not squeeze the rest. */
   .ht-bar .ht-f-tag { max-width: 170px; }
 }
@@ -2192,10 +2198,25 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border: 2px solid var(--bg2); box-shadow: 0 0 0 1px var(--border); }
 .ht-sw.on { box-shadow: 0 0 0 2px var(--text); }
 @media (max-width: 640px) {
-  /* Điện thoại: ô tìm và dropdown Bot mỗi cái một hàng, Tình trạng và Loại chia đôi hàng thứ ba (cỡ chữ 16px nên
-     ba ô một hàng bị cắt mất chữ). */
+  /* Phones (owner, 2026-10-25: the filters took half the screen): search and a Filters button share one row; the
+     filters open below them on demand, two per row, Bot and Channel full width. The button shows how many are on. */
+  .ht-bar { flex-wrap: nowrap; }
+  .ht-search { flex: 1 1 auto; }
+  .ht-fbtn { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 8px 12px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 16px; cursor: pointer; }
+  .ht-fbtn svg { width: 16px; height: 16px; }
+  .ht-fbtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); }
+  .ht-fbtn-n { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent);
+    color: var(--on-accent, #fff); font-size: 16px; line-height: 22px; text-align: center; }
+  .ht-fbtn-n[hidden] { display: none; }
+  .ht-fpanel { display: none; }
+  .ht-fpanel.open { display: flex; flex-wrap: wrap; gap: 8px; position: absolute; left: 0; right: 0; top: calc(100% + 6px);
+    z-index: 30; padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .18); }
+  .ht-wrap .ht-bar { position: relative; }
   .ht-f { flex: 1 1 42%; font-size: 16px; }
-  .ht-search, .ht-f-bot, .ht-f-channel { flex-basis: 100%; }
+  .ht-f-bot, .ht-f-channel, .ht-f-contact { flex-basis: 100%; }
+  .ht-f-contact { justify-content: center; }
 }
 /* Từ 0.65.10 vùng làm việc lấp đầy phần còn lại của khung (trước là calc(100vh - 300px), thấp hơn thật khoảng 90px nên cả trang phải cuộn
    và khung tin bị đẩy xuống). Cột trái = dòng đếm + danh sách; danh sách và khung tin tự cuộn bên trong. */

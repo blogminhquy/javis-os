@@ -3420,6 +3420,7 @@
   "ht.f_type_group": "Groups only ({n})",
   "ht.f_type_private": "Direct chats only ({n})",
   "ht.f_kenh_all": "All channels",
+  "ht.f_btn": "Filters",
   "ht.f_clear": "Clear filters",
   "ht.f_count": "{n} conversations",
   "ht.f_count_f": "{n} conversations · {f} filters",

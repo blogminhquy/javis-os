@@ -3420,6 +3420,7 @@
   "ht.f_type_group": "Chỉ nhóm ({n})",
   "ht.f_type_private": "Chỉ chat riêng ({n})",
   "ht.f_kenh_all": "Mọi kênh",
+  "ht.f_btn": "Lọc",
   "ht.f_clear": "Xoá lọc",
   "ht.f_count": "{n} hội thoại",
   "ht.f_count_f": "{n} hội thoại · {f} bộ lọc",

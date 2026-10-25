@@ -1,7 +1,9 @@
 /* Bot inbox (Chatbot page, "Hòm thư bot"), owner's requests of 2026-10-25:
  *   - customer tags like Pancake's coloured chips (max 2 on a row, then "+N"), managed from a conversation's Tag picker,
  *     with a tag filter;
- *   - from the Pancake screenshots: "has phone/email" and "waiting longest" as choices of the status dropdown;
+ *   - from the Pancake screenshots: "waiting longest" in the status dropdown and "has phone/email" as its own on/off
+ *     filter, so it combines with a status (owner: "tách ô lọc riêng");
+ *   - on phones the filters fold behind one Filters button next to the search box;
  *   - the list column drags narrower and snaps into a strip (col-resize.js), like the Partners and Chat pages.
  *
  *       node tests/js/test_inbox_tags_ui.js
@@ -39,12 +41,17 @@ const F = win.JavisConvFilters;
   check("filter state carries a tag id; anything but digits is dropped", F.sanitize({ tag: "12" }).tag === "12" &&
     F.sanitize({ tag: "1 OR 1" }).tag === "" && F.sanitize({ tag: 5 }).tag === "5" && F.sanitize({}).tag === "");
   check("'waiting longest' asks for need_reply sorted waiting-first", F.query({ status: "waiting" }) === "&status=need_reply&sort=waiting");
-  check("'has phone/email' asks for has_contact, not a status", F.query({ status: "contact" }) === "&has_contact=1");
+  check("'has phone/email' asks for has_contact, not a status", F.query({ contact: "1" }) === "&has_contact=1");
+  check("'has phone/email' combines with a status", F.query({ status: "need_reply", contact: "1" }) === "&status=need_reply&has_contact=1");
+  check("a browser that saved it as a status keeps the filter", F.sanitize({ status: "contact" }).contact === "1" &&
+    F.sanitize({ status: "contact" }).status === "");
+  check("has phone/email counts as an active filter", F.activeCount({ contact: "1" }) === 1);
   check("tag filter goes to the server as tag=<id>", F.query({ tag: "7", bot: "b" }) === "&bot_id=b&tag=7");
   check("a tag counts as an active filter", F.activeCount({ tag: "7" }) === 1 && F.activeCount({ tag: "x" }) === 0);
-  const so = F.statusOptions({ status: { need_reply: 4 }, has_contact: 2 }, "contact");
-  check("status dropdown gains 'waiting longest' (need-reply count) and 'has phone/email' (its own count)",
-    so.indexOf('value="waiting">ht.f_st_wait#4') > 0 && /value="contact" selected>ht\.f_st_contact#2/.test(so), so);
+  const so = F.statusOptions({ status: { need_reply: 4 }, has_contact: 2 }, "");
+  check("status dropdown gains 'waiting longest' (need-reply count) and no longer holds 'has phone/email'",
+    so.indexOf('value="waiting">ht.f_st_wait#4') > 0 && so.indexOf("contact") < 0, so);
+  check("the has phone/email toggle carries its own count", F.contactLabel({ has_contact: 2 }) === "ht.f_st_contact#2");
   const to = F.tagOptions([{ id: 1, name: "Chăm", count: 3 }, { id: 2, name: "<i>x</i>", count: 0 }], "2");
   check("tag dropdown: all tags, then each tag with its count, current one selected, names escaped",
     to.indexOf("ht.f_tag_all") > 0 && to.indexOf("Chăm (3)") > 0 && /value="2" selected/.test(to) && to.indexOf("<i>") < 0, to);

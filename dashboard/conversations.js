@@ -64,6 +64,7 @@
   var _kenhLoc = "", _botLoc = "", _tkLoc = "", _q = "";
   var _statusLoc = "", _typeLoc = "";   // bộ lọc dropdown (0.65.3), lưu ở trình duyệt qua JavisConvFilters
   var _tagLoc = "";         // 2026-10-25: tag filter (tag id), saved the same way
+  var _contactLoc = "";     // 2026-10-25: "1" = only chats where the customer left a phone number or email
   var _tags = [];           // the owner's inbox tags [{id, name, color, count}], from the list endpoint
   var _tagPop = false, _tagEdit = 0, _tagNewColor = "green", _tagErr = "";   // thread tag picker: open, tag being edited, new tag colour, last error
   var _facets = null, _botList = [];    // số đếm cho dropdown và các bot có hội thoại (server cấp, toàn hòm thư)
@@ -236,23 +237,31 @@
       // Mở từ nơi khác (nút trên thẻ bot, mục Kênh chưa có bot): lọc đúng thứ được chỉ, bỏ tình trạng và loại đã lưu để
       // khỏi giấu mất hội thoại người ta muốn xem.
       _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || ""; _tkLoc = _cho.account_key || "";
-      _statusLoc = ""; _typeLoc = ""; _tagLoc = ""; _q = "";
+      _statusLoc = ""; _typeLoc = ""; _tagLoc = ""; _contactLoc = ""; _q = "";
       _cho = null;
       saveFilters();
     } else if (window.JavisConvFilters) {
       var saved = window.JavisConvFilters.load();
       _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel;
-      _tagLoc = saved.tag;
+      _tagLoc = saved.tag; _contactLoc = saved.contact;
     }
     body.innerHTML =
       '<div class="ht-wrap">' +
         '<div class="ht-bar">' +
           '<input class="ht-search" placeholder="' + esc(window.t("ht.tim_ph")) + '">' +
+          // Phones: the filters fold behind this one button so the chat list keeps the screen (owner, 2026-10-25).
+          // Wide screens never show it; there the panel below is just part of the row (display: contents).
+          '<button type="button" class="ht-fbtn" aria-expanded="false">' + ic("sliders-horizontal") + ' ' +
+            esc(window.t("ht.f_btn")) + '<span class="ht-fbtn-n" hidden></span></button>' +
+          '<div class="ht-fpanel">' +
           '<select class="ht-f ht-f-bot" aria-label="' + esc(window.t("ht.f_aria_bot")) + '"></select>' +
           '<select class="ht-f ht-f-status" aria-label="' + esc(window.t("ht.f_aria_status")) + '"></select>' +
           '<select class="ht-f ht-f-type" aria-label="' + esc(window.t("ht.f_aria_type")) + '"></select>' +
           '<select class="ht-f ht-f-channel" aria-label="' + esc(window.t("ht.f_aria_kenh")) + '" hidden></select>' +
           '<select class="ht-f ht-f-tag" aria-label="' + esc(window.t("ht.f_aria_tag")) + '" hidden></select>' +
+          '<button type="button" class="ht-f ht-f-contact" aria-pressed="false">' + ic("phone") +
+            '<span class="ht-f-contact-t"></span></button>' +
+          '</div>' +
         '</div>' +
         '<div class="ht-body">' +
           // Dòng đếm và chip lọc nằm ngay trên danh sách mà chúng nói về, không chiếm cả một hàng suốt bề ngang (0.65.10).
@@ -279,8 +288,19 @@
     body.querySelector(".ht-f-type").onchange = function (e) { _typeLoc = e.target.value; onFilterChange(); };
     body.querySelector(".ht-f-channel").onchange = function (e) { _kenhLoc = e.target.value; onFilterChange(); };
     body.querySelector(".ht-f-tag").onchange = function (e) { _tagLoc = e.target.value; onFilterChange(); };
+    body.querySelector(".ht-f-contact").onclick = function () { _contactLoc = _contactLoc ? "" : "1"; onFilterChange(); };
+    var fbtn = body.querySelector(".ht-fbtn"), fpanel = body.querySelector(".ht-fpanel");
+    function setPanel(open) {
+      fpanel.classList.toggle("open", open);
+      fbtn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    fbtn.onclick = function () { setPanel(!fpanel.classList.contains("open")); };
+    // A tap anywhere outside the bar (the list, a chat) folds the panel away again.
+    body.addEventListener("click", function (e) {
+      if (fpanel.classList.contains("open") && !body.querySelector(".ht-bar").contains(e.target)) setPanel(false);
+    });
     body.querySelector(".ht-fclear").onclick = function () {
-      _botLoc = _statusLoc = _typeLoc = _kenhLoc = _tkLoc = _tagLoc = "";
+      _botLoc = _statusLoc = _typeLoc = _kenhLoc = _tkLoc = _tagLoc = _contactLoc = "";
       onFilterChange();
     };
     attachListResize(body);
@@ -288,7 +308,7 @@
   }
 
   function filterState() {
-    return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc, tag: _tagLoc };
+    return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc, tag: _tagLoc, contact: _contactLoc };
   }
   function saveFilters() { if (window.JavisConvFilters) window.JavisConvFilters.save(filterState()); }
   function onFilterChange() { saveFilters(); tai(); }
@@ -427,7 +447,15 @@
     var tg = _host.querySelector(FILTER_SEL.tag);
     if (tg) tg.hidden = !_tags.length && !st.tag;
 
+    var ct = _host.querySelector(".ht-f-contact");
+    if (ct) {
+      ct.querySelector(".ht-f-contact-t").textContent = F.contactLabel(_facets);
+      ct.setAttribute("aria-pressed", st.contact ? "true" : "false");
+      ct.classList.toggle("on", !!st.contact);
+    }
     var active = F.activeCount(st) + (_tkLoc ? 1 : 0);
+    var fn = _host.querySelector(".ht-fbtn-n");
+    if (fn) { fn.textContent = String(active); fn.hidden = !active; }
     var cnt = _host.querySelector(".ht-fcount");
     if (cnt) cnt.textContent = window.t(active ? "ht.f_count_f" : "ht.f_count",
       { n: _items.length + (_conDS ? "+" : ""), f: active });
@@ -450,7 +478,7 @@
     if (!_items.length) {
       var coNguon = _tk.some(function (a) { return a.ghi; });
       box.innerHTML = '<div class="ht-empty">' + ic("messages-square") +
-        '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc || _statusLoc || _typeLoc || _tagLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
+        '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc || _statusLoc || _typeLoc || _tagLoc || _contactLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
           (!coNguon ? infoBtn() : "") + '</b>' +
         // Where messages come from opens from (i); the button to add an account stays visible (0.214.0).
         (!coNguon ? infoBody(esc(window.t("ht.chua_co_goi_y"))) +
