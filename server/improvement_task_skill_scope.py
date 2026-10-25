@@ -248,7 +248,7 @@ class TaskSkillScope:
                 if envelope is None:
                     import improvement_activation
                     # Pin whatever this turn should see, the owner-applied overlay included.
-                    asset = improvement_activation.effective_skill_asset(self.root, slug)
+                    asset = improvement_activation.effective_skill_asset(self.root, slug, connection=connection)
                     if (asset is None or asset.relative_path != item['relative_path']
                             or asset.frontmatter_hash != item['frontmatter_hash']): _fail()
                     content_hash = self._assets.blobs.write(self._principal.brain_id, asset.content)

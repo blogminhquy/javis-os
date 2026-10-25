@@ -20,7 +20,7 @@ class RecipeRecords:
         self.assets, self.store = assets, assets.store
 
     def _available(self):
-        return IM._schema_version(self.store) in (9, 10, 11)
+        return IM._schema_version(self.store) in (9, 10, 11, 12)
 
     @staticmethod
     def _row(connection, brain, recipe_id):

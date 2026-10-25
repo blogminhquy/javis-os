@@ -72,7 +72,13 @@ QUALIFIED_PROFILES = {('win32', '2.1.308',
     ('win32', '2.1.310',
     'f9a3920634ae3b961ee92c2eb58d0051f5f8852b120983d0a4f57b6a5efeba61', '0.2.116',
     'claude-isolated-roles-v2', 'ee73f81305f01f7c1b43ed72744c9c2abf22ceff04b1661f60e48fd058273acd'):
-    '3bed71341ff0f181092e35617acbe73326e0dc5d4633ed7d6e33ee0b2d6881f9'}
+    '3bed71341ff0f181092e35617acbe73326e0dc5d4633ed7d6e33ee0b2d6881f9',
+    # M3 source (canary schema 12 in the store footprint), CLI 2.1.310; all20 native enforcement checks.
+    # docs/superpowers/evidence/2026-10-25-m3-native-qualification-cli310.json
+    ('win32', '2.1.310',
+    'f9a3920634ae3b961ee92c2eb58d0051f5f8852b120983d0a4f57b6a5efeba61', '0.2.116',
+    'claude-isolated-roles-v2', '7849768b28e6793a033d7126f8780256f66bb6ce2e98b864e71eeffc9820f837'):
+    '669d299a2c1494dd466cc27c5a3f4e729207e35d4c0fa2c3037bddc8e0c763eb'}
 
 
 def profile_qualification(pin, platform):

@@ -8,7 +8,7 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.315.0] - 2026-10-25
+## [0.318.0] - 2026-10-25
 ### Added
 - **Every chat in the bot inbox has a "..." button** that acts right away without opening the chat: mark unread to come back later, pin to the top, tag, choose whether the bot replies or "I handle it", and copy the phone number or email the customer left.
 - **Hide chats to keep the list tidy**, and see them again under "Hidden" in the Status filter. A new message from the customer brings the chat back, so no customer is missed. On a phone the "..." opens a large, easy-to-tap sheet at the bottom of the screen.
@@ -17,6 +17,12 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ### Improved
 - **Buttons are clearer, no longer faint.** Secondary buttons have a visible edge and bolder 16px text, easy to read in both light and dark themes. Red buttons (delete, turn off) and the "Reload" button on the new-version banner read better too.
 - **Buttons next to a field now match its height and line up**, such as "Preview" next to the voice picker, the domain save button and the "..." on bot cards. Buttons at the bottom of dialogs sit together on the right.
+
+## [0.316.0] - 2026-10-25
+### Added
+- **Trial by share (canary).** When applying an improved skill to an assistant you can pick 10%, 25% or 50% of its chats: each chat stays in one group, and the rest keeps the original as the control group.
+- **Your Pass / Fail verdicts are the measure.** The canary panel lists the times the assistant used the skill in both groups for you to judge; emoji do not count. Two chats on the new version marked Fail pause it at once.
+- **Promotion to all chats only after enough observation:** at least 7 days and 10 verdicts in the new version group, and you still click it. You can let one assistant open a 10% canary by itself when a candidate passes full qualification, and revoke that at any time.
 
 ## [0.314.0] - 2026-10-25
 ### Added

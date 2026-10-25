@@ -154,7 +154,7 @@ for lop, ten in _BA_HAM:
 # nào mới: riêng thân main.py (hơn 520 endpoint) đã ~550ms, đúng kiểu phình chính đáng mà khối
 # trên đã đoán trước. 4,5 vẫn bắt được ca cần bắt: edge_tts quay lại mức module là ~5,9.
 #
-# RAISED 4.5 -> 5.0 at 0.315.0 (owner's decision, 25/10/2026). Measured on main 0.313.0: 4.17-4.76 locally, red and
+# RAISED 4.5 -> 5.0 at 0.318.0 (owner's decision, 25/10/2026). Measured on main 0.313.0: 4.17-4.76 locally, red and
 # green on CI for the same code. `import main` grew only ~26 ms between 0.312.0 and 0.313.0 (1609 -> 1635 ms, min of 5)
 # and no heavy library came in: cProfile puts ~1.9 s of a 3.4 s profiled import in FastAPI building ~585 routes
 # (add_api_route -> get_dependant -> pydantic TypeAdapter, about 3 ms per route), the legitimate growth foreseen above.

@@ -1,4 +1,4 @@
-# Áp dụng thử và quay lại bản skill đã sửa (M2E)
+# Áp dụng thử, canary và quay lại bản skill đã sửa (M2E, M3)
 
 Tài liệu vận hành cho phần áp dụng thủ công của **Cải tiến có kiểm chứng**, phát hành ở 0.314.0.
 Spec gốc: [agent-skill evidence improvement](../superpowers/specs/2026-10-22-agent-skill-evidence-improvement-design.md), mục 14, 18 và 19.
@@ -75,9 +75,27 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
 
 `improvement_api.CAPABILITIES["manual_apply"] = True`; `activation` (tự áp dụng có điều kiện) vẫn `False`.
 
+## Canary theo tỉ lệ (M3, 0.316.0)
+
+- Áp dụng kèm `allocation_pct` 1..99 tạo một dòng `improvement_canaries` (schema 12, chỉ thêm bảng, sao lưu
+  `.pre-improvement-m3-canaries.bak`). Mỗi phiên chat được băm với salt của canary vào ô 0..99; dưới tỉ lệ thì
+  dùng bản mới, còn lại dùng bản gốc. Một cuộc chat luôn ở một nhóm.
+- Mỗi lần đọc skill được phủ trong phạm vi canary ghi một dòng `improvement_canary_exposures` cho cả hai nhóm,
+  một dòng mỗi tin nhắn. Chủ chấm Đạt/Chưa đạt trên từng dòng (`improvement_canary_verdicts`); emoji không tính.
+- Hai phiên khác nhau thuộc nhóm bản mới bị chấm Chưa đạt thì activation `suspended` lý do `canary_regression`.
+- Nâng cấp (`promote`) chỉ khi đủ 7 ngày VÀ 10 phiếu của nhóm bản mới, kiểm lại quyền, tập báo cáo và bytes
+  gốc trong giao dịch ghi. Hết thời gian không tự nâng.
+- Quyền tự áp dụng (`improvement_auto_scopes`): khi một báo cáo `final` đạt numeric gate được công bố, hook
+  `after_report` của experiment API mở canary với tỉ lệ đã cấp, không bao giờ 100%. Thu hồi quyền không đóng
+  canary đã mở.
+- Kết luận pilot: `GET /improvement-pilot-reports/{report_id}` trả `improved_in_scope|equivalent|worse|
+  insufficient_evidence` cùng khoảng Wilson của tỉ lệ thắng; `business_eligibility` luôn `unverified`.
+- Đồng hồ giả trong test chỉ kiểm luật; cửa sổ canary thật cần ngày và phiếu thật.
+
 ## Giới hạn hiện tại
 
-- Chưa có canary theo tỉ lệ hay tự áp dụng: đó là M3, cần pilot nghiệp vụ và cửa sổ quan sát thật.
+- Canary live (7 ngày, 10 việc thật) và pilot nghiệp vụ 12/20/12 cần chủ giao dữ liệu và cho phép chạy model thật.
+- Liên kết lesson với recipe/experiment (spec 15.2) để sang M5 cùng agent overlay.
 - Phép thử tự động trên Claude native vẫn chưa chạy được ở production (registry phát hành rỗng), nên mọi ứng viên
   trên brain thật hiện chỉ có thể là `manual_trial`.
 - Bằng chứng kỹ thuật: `tests/python/test_improvement_activation.py` và kịch bản mô phỏng
