@@ -94,6 +94,15 @@
     "adc_json": {"label": "Or paste an ADC file if you already ran gcloud yourself (leave empty if you sign in above)", "placeholder": "e.g. { \"type\": \"authorized_user\", \"refresh_token\": ... }"}
    }
   },
+  "google-analytics": {
+   "description": "Website numbers through Google's official GA4 MCP (read-only): sessions, sources and campaigns (UTM), events, conversions and realtime reports. Runs locally; one Google sign-in.",
+   "guide": "Needed first: nothing to install. Javis fetches Google's latest official release (PyPI) each time it starts.\n\nAlready connected Google Ads? Reuse that same OAuth client and only enable the 2 Analytics APIs.\n\nOne-time setup, about 10 minutes:\n1. Go to console.cloud.google.com, pick a project and enable BOTH APIs: Google Analytics Data API and Google Analytics Admin API.\n2. OAuth consent screen: choose External and add your email under Test users.\n3. Credentials > Create an OAuth client ID of type 'Web application'.\n4. Under 'Authorized redirect URIs', add exactly this address:\nhttp://localhost:7777/connect/oauth/callback\nOn a VPS also add https://<your-domain>/connect/oauth/callback\n5. Fill in the boxes below, then press the sign-in button. A browser opens so you can let Javis read Google Analytics.\n\nThe account you sign in with needs at least Viewer access on the GA4 property. Javis lists every property you can see, so no Property ID is needed.\n\nIf you see an 'app isn't verified' warning, press Advanced > Continue: this is your own app.\n\nAlready ran gcloud yourself? Paste the content of application_default_credentials.json into the last box and Javis uses it as is.",
+   "fields": {
+    "client_id": {"label": "OAuth Client ID", "placeholder": "e.g. xxxx.apps.googleusercontent.com"},
+    "client_secret": {"label": "OAuth Client Secret", "placeholder": "e.g. GOCSPX-..."},
+    "adc_json": {"label": "Or paste an ADC file if you already ran gcloud yourself (leave empty if you sign in above)", "placeholder": "e.g. { \"type\": \"authorized_user\", \"refresh_token\": ... }"}
+   }
+  },
   "google-calendar": {
    "description": "Google Calendar through Google's official MCP: view calendars, find free time, create and edit events and reminders. Sign in to Google inside the dashboard; works on a VPS too. Needs a one-time OAuth client plus Google's Developer Preview enrolment (~10 minutes).",
    "group_line": "View calendars, find free time, create and edit events. Sign in inside the dashboard; works on a VPS too.",
