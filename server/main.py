@@ -27006,10 +27006,40 @@ def _improvement_read_team(root, team_id):
     return team, teams.members(team_id)
 
 
-def _improvement_team_contract(root, team_id):
-    """What a Team arm is judged against, as the host knows it: the team's caps and description."""
-    team = _TEAM_API.teams().get(team_id) or {}
-    return __import__("improvement_store")._hash({"caps": team.get("caps") or {}, "description": team.get("description") or ""})
+def _improvement_team_contract(root, team_id, task_id):
+    """The named job's acceptance criteria (team_acceptance), the contract both arms are judged against."""
+    import team_acceptance
+    row = team_acceptance.AcceptanceStore(_TEAM_API.teams().path).get(task_id)
+    if not row or row.get("team_id") != team_id:
+        raise PermissionError("team_task_unavailable")
+    return __import__("improvement_store")._hash({k: row.get(k) for k in ("criteria", "expected_outputs", "fix_rounds")})
+
+
+def _improvement_team_member(root, agent_key):
+    """What the team runner really uses for one member (M7 pin): agent file and owner-rule hashes, the procedure
+    overlay on the team surface, each granted skill's content hash, and the provider/model `_team_engine_for`
+    would pick (main-model fallback included). The whole prompt is not hashed: it carries lessons that grow."""
+    import improvement_agent
+    import improvement_store
+    info = _team_agent_info(root, agent_key)
+    path = _agent_md_path(root, (info or {}).get("slug") or "") if info else None
+    if not info or path is None:
+        return None
+    agent_text = path.read_text(encoding="utf-8")
+    mem = _brain_memory_dir(root) / "agents" / info["slug"] / "MEMORY.md"
+    meta, _body = _read_md(path)
+    skills = {}
+    for name in (meta or {}).get("skills") or []:
+        asset = skill_router.read_skill_asset(Path(root), str(name))
+        skills[str(name)] = asset.content_hash if asset else ""
+    settings = cfgmod.read_settings() or {}
+    spec = team_engine.choose_spec(info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+                                   _agent_model_provider, lambda sp: aux_engine.availability(sp, settings))
+    return {"slug": info["slug"], "agent_hash": improvement_store._hash(agent_text),
+            "owner_rules_hash": improvement_agent.owner_rules_hash(agent_text, mem.read_text(encoding="utf-8")
+                                                                   if mem.is_file() else ""),
+            "procedure": _agent_overlay(root, info["slug"], "team", agent_key)[0], "skills": skills,
+            "provider": spec.get("provider") or "", "model": spec.get("model") or "", "reasoning": info.get("reasoning") or ""}
 
 
 def _improvement_activations():
@@ -27047,7 +27077,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
         _improvement_write_store(), activations=_improvement_activations(), procedures=_improvement_agents()),
     team_trials=lambda: __import__("improvement_team").TeamTrials(
         _improvement_write_store(), read_team=_improvement_read_team,
-        member_info=lambda root, key: _team_agent_info(root, key, "team"), acceptance=_improvement_team_contract),
+        member_info=_improvement_team_member, contract=_improvement_team_contract),
     recipe_transfers=lambda: __import__("improvement_team").RecipeTransfers(_improvement_write_store()),
     review_proposals=_agent_review_proposals,
     resolve_brain=lambda value: improvement_api.strict_brain(value,

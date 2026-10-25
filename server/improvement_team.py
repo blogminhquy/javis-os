@@ -1,17 +1,21 @@
-"""M7 Team trials and recipe transfer (spec 16.4, 15.3, 22 T01, T02, L01, L02).
+"""M7 Team trials and recipe transfer (spec 16.4, 15.3, 22 T01, T02).
 
 Team arms are compared only on pinned ground. A pin is the host's snapshot of what a Team arm runs with: team,
-leader and leader mode, roster and roles, each member's prompt hash as the team runner builds it (procedure
-overlays on the team surface included), member model/provider/reasoning, and the acceptance contract digest.
-Two pins are comparable when they differ only in the one declared change; a roster, role, leader, model or
-contract difference is another experiment (T01), and an undeclared prompt difference is stale ground.
+leader, leader mode and work mode, the job's acceptance criteria when a job is named, roster and roles, and per
+member the agent file and owner-rule hashes, the procedure overlay served on the team surface, the content hash of
+each granted skill, and the provider/model the team runner would really use (main-model fallback included). The
+member prompt as a whole is not hashed: it embeds self-learned lessons that grow during any arm.
+
+Two pins are comparable when they differ only in the one declared change: one member's procedure overlay, or one
+skill's content. A roster, role, leader, mode, contract, model or agent-file difference is another experiment
+(T01); a declared change that is not observed is reported as such.
 
 A Team trial report is stored apart from Team work: this module has no dependency on the team runner, its
-messages, steps or acceptance writes, so concluding a trial never accepts production work or sends output (T02).
+messages, steps or acceptance writes, so recording a trial cannot accept production work or send output (T02).
+Lessons written while arms run are not frozen here (no Team trial runner exists yet); the report says so.
 
-A recipe moved to another assistant, team or engine is a new untested candidate there; its verdict and
-evidence never travel (L02). Retrieval filters by the exact target scope and by the source recipe being active
-and unexpired before anything is ranked (L01).
+A recipe moved to another assistant, team or engine is a new untested candidate there; its verdict and evidence
+never travel. Listing filters the exact target and an active, unexpired source before anything is ranked.
 """
 from __future__ import annotations
 
@@ -28,55 +32,63 @@ CHANGE_KINDS = ("procedure", "skill")
 TARGET_KINDS = ("agent", "team", "engine")
 ARM_VERDICTS = ("win", "tie", "loss", "unknown")
 _REF = re.compile(r"[A-Za-z0-9_.:@/-]{1,160}")
+_PIN = re.compile(r"itp_[0-9a-f]{32}")
+_MEMBER_KEYS = ("slug", "agent_hash", "owner_rules_hash", "procedure", "skills", "provider", "model", "reasoning")
 
 
-def pin_manifest(team: dict, members: list, member_info: Callable[[str], dict], acceptance_digest: str) -> dict:
-    """Pure: the comparable ground of one Team arm. `member_info(agent_key)` -> the team runner's view of a member
-    (`system`, `model`, `model_provider`, `reasoning`, `slug`); a missing member makes the team unpinnable."""
+def pin_manifest(team: dict, members: list, member_info: Callable[[str], dict], contract: str) -> dict:
+    """Pure: the comparable ground of one Team arm. `member_info(agent_key)` -> the host's member view with the
+    `_MEMBER_KEYS` fields; a missing member makes the team unpinnable."""
     roster = []
     for member in sorted(members, key=lambda m: m["agent_key"]):
         info = member_info(member["agent_key"])
         if not info:
             raise PermissionError("team_member_unavailable")
+        skills = info.get("skills") or {}
+        if type(skills) is not dict:
+            raise ValueError("invalid_member_skills")
         roster.append({"agent_key": member["agent_key"], "role": str(member.get("role") or "member"),
-                       "slug": str(info.get("slug") or ""), "prompt_hash": IM._hash(str(info.get("system") or "")),
-                       "model": str(info.get("model") or ""), "provider": str(info.get("model_provider") or ""),
-                       "reasoning": str(info.get("reasoning") or "")})
+                       **{k: str(info.get(k) or "") for k in _MEMBER_KEYS if k != "skills"},
+                       "skills": {str(k): str(v or "") for k, v in sorted(skills.items())}})
     if not roster:
         raise PermissionError("team_has_no_members")
     return {"team_id": team["team_id"], "leader_key": str(team.get("leader_key") or ""),
-            "leader_mode": str(team.get("leader_mode") or ""), "members": roster,
-            "acceptance": str(acceptance_digest or "")}
+            "leader_mode": str(team.get("leader_mode") or ""), "work_mode": str(team.get("work_mode") or ""),
+            "contract": str(contract or ""), "members": roster}
 
 
 def validate_change(change) -> dict:
-    if (type(change) is not dict or set(change) != {"kind", "agent_key"} or change["kind"] not in CHANGE_KINDS
-            or type(change["agent_key"]) is not str or not _REF.fullmatch(change["agent_key"])):
+    if (type(change) is not dict or set(change) != {"kind", "ref"} or change["kind"] not in CHANGE_KINDS
+            or type(change["ref"]) is not str or not _REF.fullmatch(change["ref"])):
         raise ValueError("invalid_team_change")
     return dict(change)
 
 
 def compare(baseline: dict, candidate: dict, change: dict) -> dict:
-    """Pure T01 check. A procedure change may alter only that member's prompt; a skill change alters no prompt
-    (assistant prompts list skill names only) and is measured through outputs."""
+    """Pure T01 check over two pins of one team."""
     change = validate_change(change)
-    shape = lambda pin: (pin["team_id"], pin["leader_key"], pin["leader_mode"], pin["acceptance"],
+    shape = lambda pin: (pin["team_id"], pin["leader_key"], pin["leader_mode"], pin["work_mode"], pin["contract"],
                          [(m["agent_key"], m["role"], m["slug"]) for m in pin["members"]])
     if shape(baseline) != shape(candidate):
         return {"comparable": False, "reason": "topology_changed"}
-    keys = [m["agent_key"] for m in baseline["members"]]
-    if change["agent_key"] not in keys:
-        return {"comparable": False, "reason": "change_not_in_team"}
-    differing = []
+    procedures, skills = [], set()
     for before, after in zip(baseline["members"], candidate["members"]):
-        if (before["model"], before["provider"], before["reasoning"]) != (after["model"], after["provider"], after["reasoning"]):
+        if (before["provider"], before["model"], before["reasoning"]) != (after["provider"], after["model"], after["reasoning"]):
             return {"comparable": False, "reason": "model_changed", "agent_key": before["agent_key"]}
-        if before["prompt_hash"] != after["prompt_hash"]:
-            differing.append(before["agent_key"])
-    allowed = [change["agent_key"]] if change["kind"] == "procedure" else []
-    if differing != allowed:
-        return {"comparable": False, "reason": "unexpected_prompt_change", "members": differing}
-    return {"comparable": True, "reason": "", "members": differing}
+        if (before["agent_hash"], before["owner_rules_hash"]) != (after["agent_hash"], after["owner_rules_hash"]):
+            return {"comparable": False, "reason": "agent_changed", "agent_key": before["agent_key"]}
+        if set(before["skills"]) != set(after["skills"]):
+            return {"comparable": False, "reason": "skill_grant_changed", "agent_key": before["agent_key"]}
+        if before["procedure"] != after["procedure"]:
+            procedures.append(before["agent_key"])
+        skills |= {slug for slug in before["skills"] if before["skills"][slug] != after["skills"][slug]}
+    expected_procedures = [change["ref"]] if change["kind"] == "procedure" else []
+    expected_skills = {change["ref"]} if change["kind"] == "skill" else set()
+    if not procedures and not skills:
+        return {"comparable": False, "reason": "change_not_observed"}
+    if procedures != expected_procedures or skills != expected_skills:
+        return {"comparable": False, "reason": "unexpected_change", "procedures": procedures, "skills": sorted(skills)}
+    return {"comparable": True, "reason": ""}
 
 
 def report(comparison: dict, change: dict, arms: dict) -> dict:
@@ -86,9 +98,9 @@ def report(comparison: dict, change: dict, arms: dict) -> dict:
         raise ValueError("invalid_team_arms")
     verdict = arms["candidate"] if comparison.get("comparable") else "incomparable"
     return {"verdict": verdict, "comparison": comparison, "change": change,
-            # A Team result is evidence for this team and this change only (16.4): not for the member alone, not
-            # for other teams, not a production acceptance.
-            "scope": "team", "transfer": "untested", "production_effects": []}
+            # Evidence for this team and this change only (16.4): not for the member alone, not for other teams,
+            # not a production acceptance. Lessons learned while arms ran are not frozen by any runner yet.
+            "scope": "team", "transfer": "untested", "production_effects": [], "learning_frozen": False}
 
 
 def target(value) -> dict:
@@ -101,30 +113,39 @@ def target(value) -> dict:
 class TeamTrials:
     """Pins and Team trial reports over the improvement store; reads Team state through injected readers."""
 
-    def __init__(self, assets, *, read_team: Callable, member_info: Callable, acceptance: Callable,
+    def __init__(self, assets, *, read_team: Callable, member_info: Callable, contract: Callable,
                  clock: Callable[[], float] = time.time):
         """`read_team(brain, team_id)` -> (team, active members) of this brain or raises PermissionError;
-        `member_info(brain, agent_key)` -> team-surface member view; `acceptance(brain, team_id)` -> digest."""
+        `member_info(brain, agent_key)` -> member view; `contract(brain, team_id, task_id)` -> the job's acceptance
+        digest ("" without a job), PermissionError when the job is not this team's."""
         if type(assets) is not IM.ImprovementStore:
             raise TypeError("concrete_team_assets_required")
         self.assets, self.store, self.clock = assets, assets.store, clock
-        self.read_team, self.member_info, self.acceptance = read_team, member_info, acceptance
+        self.read_team, self.member_info, self.contract = read_team, member_info, contract
 
     def _available(self) -> bool:
         return IM._schema_version(self.store) >= 16
 
-    def pin(self, principal, team_id: str, *, event_key: str) -> dict:
+    def pin(self, principal, team_id: str, *, task_id: str = "", event_key: str) -> dict:
         brain = IM._brain(principal)
         if type(team_id) is not str or not _REF.fullmatch(team_id):
             raise ValueError("invalid_team")
+        if type(task_id) is not str or (task_id and not _REF.fullmatch(task_id)):
+            raise ValueError("invalid_team_task")
         if not self._available():
             raise PermissionError("team_trials_unavailable")
+        payload = {"team_id": team_id, "task_id": task_id}
+        # A retry with the same key returns the first pin even if the ground moved since (no live reads first).
+        with closing(self.store._conn()) as connection:
+            replay = self.assets._replay(connection, brain, event_key, "team_pin", payload)
+            if replay is not None:
+                return replay
         team, members = self.read_team(brain, team_id)
         if str(team.get("brain_id") or "") != brain:
             raise PermissionError("team_unavailable")
-        manifest = pin_manifest(team, members, lambda key: self.member_info(brain, key), self.acceptance(brain, team_id))
+        manifest = pin_manifest(team, members, lambda key: self.member_info(brain, key),
+                                self.contract(brain, team_id, task_id) if task_id else "")
         digest = IM._hash(manifest)
-        payload = {"team_id": team_id, "manifest_hash": digest}
         with self.store._Tx(self.store) as connection:
             replay = self.assets._replay(connection, brain, event_key, "team_pin", payload)
             if replay is not None:
@@ -162,6 +183,10 @@ class TeamTrials:
         """Store the comparison of two arms the owner ran. Nothing else changes: no message, step or acceptance."""
         brain = IM._brain(principal)
         change = validate_change(change)
+        if any(type(p) is not str or not _PIN.fullmatch(p) for p in (baseline_pin_id, candidate_pin_id)):
+            raise ValueError("invalid_team_pin")
+        if baseline_pin_id == candidate_pin_id:
+            raise ValueError("team_trial_needs_two_pins")
         if not self._available():
             raise PermissionError("team_trials_unavailable")
         payload = {"baseline": baseline_pin_id, "candidate": candidate_pin_id, "change": change, "arms": arms}
@@ -169,10 +194,10 @@ class TeamTrials:
             replay = self.assets._replay(connection, brain, event_key, "team_trial", payload)
             if replay is not None:
                 return replay
-            if baseline_pin_id == candidate_pin_id:
-                raise ValueError("team_trial_needs_two_pins")
-            result = report(compare(self._pin(connection, brain, baseline_pin_id),
-                                    self._pin(connection, brain, candidate_pin_id), change), change, arms)
+            baseline, candidate = self._pin(connection, brain, baseline_pin_id), self._pin(connection, brain, candidate_pin_id)
+            if baseline["team_id"] != candidate["team_id"]:
+                raise ValueError("team_trial_pins_of_different_teams")
+            result = report(compare(baseline, candidate, change), change, arms)
             identifier = "itt_" + secrets.token_hex(16)
             connection.execute("INSERT INTO improvement_team_trials VALUES(?,?,?,?,?,?,?,?,?)",
                                (identifier, brain, baseline_pin_id, candidate_pin_id, IM._json(change), IM._json(result),
@@ -211,8 +236,6 @@ class RecipeTransfers:
                 "ON s.recipe_id=r.id AND s.brain_id=r.brain_id WHERE r.id=? AND r.brain_id=?", (recipe_id, brain)).fetchone()
             if recipe is None or recipe["status"] != "active" or recipe["expires_at"] <= self.clock():
                 raise PermissionError("recipe_unavailable")
-            if recipe["scope_hash"] == digest:
-                raise ValueError("recipe_transfer_same_scope")
             existing = connection.execute("SELECT id FROM improvement_transfers WHERE brain_id=? AND recipe_id=? "
                                           "AND target_hash=?", (brain, recipe_id, digest)).fetchone()
             identifier = existing["id"] if existing else "irt_" + secrets.token_hex(16)

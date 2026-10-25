@@ -184,24 +184,30 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
 
 ## Phép thử nhóm và chuyển kinh nghiệm (M7, 0.327.0)
 
-- Chốt nhóm (`POST /improvement-team-pins` `{team_id, event_key}`): host chụp nhóm trưởng, chế độ nhóm trưởng,
-  thành viên và vai trò, hash lời nhắc của từng thành viên đúng như bộ chạy nhóm dựng (gồm quy trình M5 trên bề
-  mặt `team`), model, nhà cung cấp, mức suy nghĩ và hợp đồng nghiệm thu (caps và mô tả nhóm). Bản chụp bất biến;
-  cùng nền thì dùng lại bản cũ.
-- So hai nhánh (T01): chỉ so được khi hai bản chụp khác đúng thay đổi đã khai: `procedure` của một thành viên
-  (chỉ lời nhắc người đó đổi) hoặc `skill` (không lời nhắc nào đổi). Khác đội hình, vai trò, nhóm trưởng, hợp
-  đồng là phép thử khác (`topology_changed`); khác model là `model_changed`; lời nhắc đổi ngoài khai báo là
-  `unexpected_prompt_change`. Không so được thì kết luận `incomparable`.
+- Chốt nhóm (`POST /improvement-team-pins` `{team_id, task_id?, event_key}`): host chụp nhóm trưởng, chế độ nhóm
+  trưởng, chế độ làm việc (gated/full), thành viên và vai trò; mỗi thành viên: hash file trợ lý và luật chủ, quy
+  trình M5 đang phục vụ trên bề mặt `team`, hash nội dung từng skill được cấp, nhà cung cấp và model mà bộ chạy
+  nhóm thật sự chọn (kể cả lùi về model chính), mức suy nghĩ. Có `task_id` thì chụp kèm tiêu chí nghiệm thu của
+  đúng việc đó (`team_acceptance`), việc phải thuộc nhóm. Không hash cả lời nhắc vì nó chứa bài học tự học lớn dần.
+  Cùng nền thì dùng lại bản chụp cũ; gửi lại đúng khoá sự kiện thì trả bản chụp đầu.
+- So hai nhánh (T01): chỉ so khi khác đúng thay đổi đã khai `{kind, ref}`: `procedure` của một thành viên (chỉ
+  quy trình người đó đổi) hoặc `skill` theo slug (chỉ nội dung skill đó đổi). Khác đội hình, vai trò, nhóm trưởng,
+  chế độ, tiêu chí là `topology_changed`; khác model là `model_changed`; sửa file trợ lý hay luật chủ là
+  `agent_changed`; cấp thêm/bớt skill là `skill_grant_changed`; đổi chỗ khác là `unexpected_change`; không thấy
+  thay đổi đã khai là `change_not_observed`. Hai bản chụp của hai nhóm khác nhau bị từ chối.
 - Báo cáo (`POST /improvement-team-trials`, T02): chủ ghi kết quả nhánh mới so với nhánh gốc; báo cáo chỉ có giá
-  trị cho nhóm đó và thay đổi đó, `transfer: untested`, `production_effects: []`. Mô-đun không phụ thuộc bộ chạy
-  nhóm nên không thể đánh dấu việc thật đã nghiệm thu hay gửi đầu ra.
-- Chuyển kinh nghiệm (`POST /improvement-recipe-transfers` `{recipe_id, target: {kind: agent|team|engine, ref}}`,
-  L01, L02): luôn là ứng viên `untested` ở chỗ mới, không mang kết quả hay bằng chứng; kinh nghiệm gốc phải còn
-  hiệu lực và chưa hết hạn. Tra cứu (`GET ...?kind=&ref=`) lọc đúng phạm vi đích và nguồn còn hiệu lực trước,
-  tối đa 3 mục.
+  trị cho nhóm và thay đổi đó (`transfer: untested`, `production_effects: []`). Mô-đun không phụ thuộc bộ chạy
+  nhóm nên ghi báo cáo không thể nghiệm thu việc thật hay gửi đầu ra. `learning_frozen: false`: chưa có bộ chạy
+  phép thử nhóm nên bài học viết ra trong lúc chạy các nhánh chưa được đóng băng.
+- Chuyển kinh nghiệm (`POST /improvement-recipe-transfers` `{recipe_id, target: {kind: agent|team|engine, ref}}`):
+  luôn là ứng viên `untested` ở chỗ mới, không mang kết quả hay bằng chứng; kinh nghiệm gốc phải còn hiệu lực và
+  chưa hết hạn. Danh sách (`GET ...?kind=&ref=`) lọc đúng đích và nguồn còn hiệu lực trước khi xếp, tối đa 3 mục;
+  hiện chưa có đường truy hồi nào khác dùng danh sách này.
 - Lưu trữ: schema 16 thêm `improvement_team_pins`, `improvement_team_trials`, `improvement_transfers` (đều bất
   biến). Từ 15 lên 16 sao lưu một lần `*.pre-improvement-m7-team.bak`.
-- Chưa có: bộ chạy phép thử nhóm thật (cần chạy model và chủ chấm), giao diện riêng (hiện chỉ có API).
+- Chưa có: bộ chạy phép thử nhóm thật (cần chạy model và chủ chấm), bàn giao sản phẩm riêng theo bước, nghiệm thu
+  tổng hợp của phép thử, chụp kế hoạch/đồ thị phụ thuộc và nguồn dữ liệu, giao diện. L02 theo nghĩa đầy đủ (không
+  nâng bằng chứng của kinh nghiệm chỉ thắng ở bước chọn) vẫn nằm ở kho kinh nghiệm M2, không thêm ở đây.
 
 ## Giới hạn hiện tại
 

@@ -299,6 +299,26 @@ class AgentPromptIntegrationTests(AgentProcedureBase):
             self.assertIn(PROCEDURE, self.main._team_agent_info(str(self.root), key, "team")["system"])
             self.assertNotIn(PROCEDURE, self.main._team_agent_info(str(self.root), key)["system"])  # pulse, review
 
+    def test_team_member_pin_view_is_stable_and_names_the_team_procedure(self):
+        """M7: the pin view hashes the agent file and owner rules, not the whole prompt (lessons grow)."""
+        from unittest.mock import patch as p
+        key = self.keys["ke-toan"]
+        registry = {"slug": "ke-toan", "status": "active"}
+        store = type("S", (), {"agent_by_key": lambda self, root, k: registry})()
+        with p.object(self.main, "_resonance_store", return_value=store), p.object(self.main, "_RESONANCE_STORE", store):
+            first = self.main._improvement_team_member(str(self.root), key)
+            self.assertEqual(first["procedure"], "")
+            memory = self.main._brain_memory_dir(str(self.root)) / "agents" / "ke-toan" / "MEMORY.md"
+            memory.write_text(MEMORY.replace("- cu\n", "- cu\n- bai hoc moi\n"), encoding="utf-8")
+            self.assertEqual(self.main._improvement_team_member(str(self.root), key), first)  # a new lesson: same ground
+            overlay = self.apply(self.stage(), surfaces=("team",))
+            changed = self.main._improvement_team_member(str(self.root), key)
+            self.assertEqual(changed["procedure"], overlay["overlay_id"])
+            self.assertEqual({k: v for k, v in changed.items() if k != "procedure"},
+                             {k: v for k, v in first.items() if k != "procedure"})
+            registry["slug"] = "khong-co"  # the identity points at an agent file that is gone
+            self.assertIsNone(self.main._improvement_team_member(str(self.root), key))
+
     def test_private_chat_without_pin_dates_from_its_session_row(self):
         from unittest.mock import patch as p
         overlay = self.apply(self.stage(), surfaces=("dm",))

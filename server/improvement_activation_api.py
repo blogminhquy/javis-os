@@ -334,12 +334,12 @@ def register(app, deps: ActivationApiDeps):
             raise PermissionError(name + "_unavailable")
         return await asyncio.to_thread(factory)
 
-    async def m7_write(request, brain, required, factory, name, call):
+    async def m7_write(request, brain, required, factory, name, call, optional=None):
         try:
             if (denied := deps.owner_session(request)) is not None:
                 return denied
             principal = await owner(brain)
-            data = await _body(request, required)
+            data = await _body(request, required, optional)
             return await asyncio.to_thread(call, await m7(factory, name), principal, data)
         except _ERRORS as error:
             return _fail(error)
@@ -347,8 +347,10 @@ def register(app, deps: ActivationApiDeps):
     @app.post("/improvement-team-pins")
     async def team_pin(request: Request, brain: str = "brain"):
         def call(service, principal, data):
-            return {"ok": True, "pin": service.pin(principal, data["team_id"], event_key=data["event_key"])}
-        return await m7_write(request, brain, {"team_id", "event_key"}, deps.team_trials, "team_trials", call)
+            return {"ok": True, "pin": service.pin(principal, data["team_id"], task_id=data.get("task_id", ""),
+                                                   event_key=data["event_key"])}
+        return await m7_write(request, brain, {"team_id", "event_key"}, deps.team_trials, "team_trials", call,
+                              optional={"task_id"})
 
     @app.get("/improvement-team-trials")
     async def team_trial_list(team_id: str, brain: str = "brain"):
