@@ -4311,3 +4311,63 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .msc-row.warn .msc-mark { background: color-mix(in srgb, var(--warn, #e0a33e) 20%, transparent); color: var(--warn-ink, #b9821f); }
 .msc-row-detail { color: var(--text2); font-size: 13px; word-break: break-all; }
 .msc-row-fix { color: var(--text2); font-size: 14px; margin-top: 2px; }
+
+/* Searchable agent picker (agent-picker.js). The native <select> stays in the DOM, hidden; this button opens a
+   popover on desktop and a bottom sheet on phones. Every text here is at least 16px (owner rule, also stops iOS zoom). */
+.ap-native { display: none !important; }
+.agent-picker { position: relative; min-width: 0; }
+.ap-btn { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; box-sizing: border-box;
+  padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--field-bg);
+  color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
+.ap-btn:hover { border-color: var(--text3); }
+.ap-btn:focus-visible, .ap-btn[aria-expanded="true"] { outline: none; border-color: var(--info-line); }
+.ap-btn:disabled { opacity: .6; cursor: default; }
+.ap-btn-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.ap-btn-name, .ap-btn-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+.ap-btn-name { font-weight: 600; }
+.ap-btn-desc { color: var(--text3); }
+.ap-btn-chev { flex: 0 0 auto; display: inline-flex; color: var(--text3); font-size: 18px; }
+.ap-layer { position: fixed; inset: 0; z-index: 3400; }
+.ap-pop { position: fixed; display: flex; flex-direction: column; min-height: 0; box-sizing: border-box;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-2);
+  overflow: hidden; }
+.ap-head { display: none; }
+.ap-search { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; margin: 8px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--field-bg); color: var(--text3); font-size: 18px; }
+.ap-search:focus-within { border-color: var(--info-line); }
+.ap-q { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--text);
+  font: inherit; font-size: 16px; padding: 10px 0; }
+.ap-q::placeholder { color: var(--text3); }
+.ap-list { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 6px 6px; }
+.ap-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; }
+.ap-row.is-active { background: var(--surface-2); }
+.ap-row.is-sel { background: var(--accent-wash-2); }
+.ap-row.is-sel.is-active { background: var(--accent-wash-2); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.ap-row.is-off { opacity: .5; cursor: default; }
+.ap-row-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ap-row-name { font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-row-desc { font-size: 16px; color: var(--text3); line-height: 1.4; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.ap-row-check { flex: 0 0 auto; width: 20px; display: inline-flex; color: var(--accent-ink); font-size: 18px; }
+.ap-empty { padding: 14px 16px 18px; font-size: 16px; color: var(--text3); overflow-wrap: anywhere; }
+/* Phone: a bottom sheet with a title row and a close button, tall enough to scroll, rows with a full touch height. */
+.ap-layer.is-phone { background: var(--scrim); }
+.ap-layer.is-phone .ap-pop { left: 0; right: 0; bottom: 0; top: auto; width: auto; height: 82vh; height: 82dvh;
+  max-height: none; border-radius: 16px 16px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: ap-up .18s ease-out; }
+.ap-layer.is-phone .ap-pop:focus { outline: none; }
+.ap-layer.is-phone .ap-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 0 16px; }
+.ap-title { flex: 1; min-width: 0; font-size: 17px; font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text2); font-size: 22px; cursor: pointer; }
+.ap-x:hover { background: var(--surface-2); }
+.ap-layer.is-phone .ap-row { min-height: 56px; padding: 10px 12px; }
+.ap-layer.is-phone .ap-list { padding: 0 8px 12px; }
+@keyframes ap-up { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ap-layer.is-phone .ap-pop { animation: none; } }
+/* Workflow steps (studio.js): the picker takes the old select's place and hides with it when the step is folded. */
+.step-header .agent-picker { flex: 1; }
+.step-row:not(.open) .step-header .agent-picker { display: none; }
+.st-verify .agent-picker { flex: 1; min-width: 160px; }

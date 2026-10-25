@@ -633,7 +633,10 @@
   function optAgent(a, slugDangChon) {
     var vai = String(a.role || "").trim();
     if (vai.length > 34) vai = vai.slice(0, 34).trim() + "…";
+    // data-name/data-desc carry the full text for the searchable picker (agent-picker.js), which replaces the
+    // native list on screen; the short text above only shows if that script is missing.
     return '<option value="' + esc(a.slug) + '"' + (a.slug === slugDangChon ? " selected" : "") +
+           ' data-name="' + esc(a.name || a.slug) + '" data-desc="' + esc(String(a.role || "").trim()) + '"' +
            '>' + esc(a.name) + (vai ? " - " + esc(vai) : "") + '</option>';
   }
 
@@ -1036,6 +1039,11 @@
     document.body.appendChild(box);
     var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) dong(); };
+
+    // Searchable agent picker instead of the native list of "name - truncated role" lines (owner, 25/10/2026).
+    if (window.JavisAgentPicker) {
+      window.JavisAgentPicker.enhance(box.querySelector("#cbAgent"), { title: window.t("ap.title") });
+    }
 
     // Sang thẳng trang Cộng sự. Đóng form trước để quay lại không bị hai lớp modal chồng nhau.
     box.querySelector("#cbNewAgent").onclick = function () {

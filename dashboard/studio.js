@@ -527,8 +527,10 @@
     const box = document.getElementById("editorBox");
     box.classList.remove("agent-editor");
     const steps = w ? JSON.parse(JSON.stringify(w.steps || [])) : [{ agent: agentsCache[0].slug, task: "" }];
-    const opts = (sel) => agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
-    const optsV = (sel) => `<option value="">${esc(t("studio.no_verify"))}</option>` + agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
+    // data-desc feeds the searchable agent picker (agent-picker.js) that replaces these selects on screen.
+    const agOpt = (a, sel) => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""} data-desc="${esc(a.role || "")}">${esc(a.name)}</option>`;
+    const opts = (sel) => agentsCache.map(a => agOpt(a, sel)).join("");
+    const optsV = (sel) => `<option value="">${esc(t("studio.no_verify"))}</option>` + agentsCache.map(a => agOpt(a, sel)).join("");
     const agentName = (slug) => { const a = agentsCache.find(x => x.slug === slug); return a ? a.name : (slug || "?"); };
     // Bước gập lại để thấy toàn cảnh; bấm vào bước nào thì mở bước đó ra sửa. Workflow mới
     // chỉ có 1 bước nên mở sẵn. Các ô input VẪN nằm trong DOM khi gập (chỉ ẩn bằng CSS) -
@@ -598,6 +600,10 @@
           render();
         };
         sl.appendChild(row);
+        if (window.JavisAgentPicker) {
+          window.JavisAgentPicker.enhance(row.querySelector(".st-agent"), { title: t("ap.title_step") });
+          window.JavisAgentPicker.enhance(row.querySelector(".st-verify-agent"), { title: t("ap.title_verify") });
+        }
       });
       box.querySelector("#addStep").onclick = () => { captureSteps(); steps.push({ agent: agentsCache[0].slug, task: "" }); openIdx = steps.length - 1; render(); };
       box.querySelector("#cancelEd").onclick = () => editor.classList.remove("open");
