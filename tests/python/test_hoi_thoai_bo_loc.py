@@ -104,7 +104,7 @@ check("giá trị lạ của tình trạng hoặc loại thì BỎ QUA bộ lọ
 check("tham số cũ `mode` vẫn chạy", ids(mode="human") == {c3})
 
 f = conversations.dem_bo_loc(hes)
-check("số đếm: tổng và theo tình trạng", f["tong"] == 6 and f["status"] == {"unread": 4, "need_reply": 4, "human": 1}, f)
+check("số đếm: tổng và theo tình trạng", f["tong"] == 6 and f["status"] == {"unread": 4, "need_reply": 4, "human": 1, "hidden": 0}, f)
 check("số đếm: theo loại", f["type"] == {"group": 2, "private": 4}, f["type"])
 check("số đếm: theo bot, có cả khoá '' cho cuộc chat không bot",
       f["bots"][bot_a]["tong"] == 2 and f["bots"][bot_b]["tong"] == 2 and f["bots"][""]["tong"] == 1

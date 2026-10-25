@@ -82,6 +82,13 @@ check("bấm ảnh mở lightbox trong Javis, Ctrl/Cmd/chuột giữa vẫn mở
 check("ảnh hỏng thì để link tự mở", /classList\.contains\("hong"\)/.test(src));
 check("tên ảnh lấy từ ?p= của đường /media", M.tenAnh("/conversations/c1/media?p=%2Fdata%2Fb%2Finbox%2Fanh-khach.jpg") === "anh-khach.jpg");
 check("tên ảnh Zalo lấy từ đường dẫn", M.tenAnh("https://s120-ava-talk.zadn.vn/a/b/photo.jpg?x=1") === "photo.jpg");
+// 0.318.0 (owner, 25/10/2026): a photo the owner or the bot sent read "image https://...jpg" instead of showing.
+const ownerPhoto = M.phanTich({ sender_type: "human", message_type: "image", text: "https://f120-zpc.zdn.vn/jpg/1/a.jpg" }, "c1");
+check("ảnh chủ shop gửi (tin human, loại image) cũng thành ảnh", ownerPhoto.anh === "https://f120-zpc.zdn.vn/jpg/1/a.jpg");
+const cv = fs.readFileSync(path.join(__dirname, "../../dashboard/conversations.js"), "utf8");
+check("hòm thư phân tích ảnh cho mọi tin không phải chữ, không chỉ tin của khách",
+  /var wantMedia = t\.sender_type === "customer" \|\| \(t\.message_type && t\.message_type !== "text"\);/.test(cv)
+  && /if \(coMedia\) \{[\s\S]{0,200}?\} else if \(t\.sender_type === "ai" && window\.mdToHtml\)/.test(cv));
 const cr = fs.readFileSync(path.join(__dirname, "../../dashboard/chat-render.js"), "utf8");
 check("lightbox mở ảnh trang khác không gửi referrer (CDN Zalo chặn)", /img\.referrerPolicy = "no-referrer"/.test(cr));
 
