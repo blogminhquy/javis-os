@@ -14,6 +14,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Xếp khách chờ trả lời lâu nhất lên đầu** bằng mục "Chờ lâu nhất" trong ô Tình trạng.
 - **Kéo được cột danh sách hội thoại** cho rộng hẹp tuỳ ý trên máy tính. Kéo hẳn vào trong thì chỉ còn chữ cái đầu, nhấp đúp để về như cũ.
 ### Sửa lỗi
+- **Một người mở Javis ở máy khác không còn làm mọi trang đang mở báo "Mất kết nối".** Mỗi lần mở trang, Javis tra địa chỉ IP của máy chủ và tên miền ngay trên luồng chính; máy chủ có mạng ra ngoài chậm thì đứng hình 12 đến 24 giây và mọi trình duyệt khác rớt kết nối. Giờ việc tra chạy riêng, tra hỏng thì nhớ lại hai phút để người vào sau không phải chờ lại.
 - **Hòm thư bot: tìm rồi xoá không còn mất danh sách.** Tìm khách xong chuyển tab rồi quay lại, ô tìm trống mà danh sách vẫn kẹt ở kết quả cũ, không có gì để xoá. Giờ ô tìm giữ đúng chữ đang lọc, xoá đi là danh sách hiện đủ.
 
 ## [0.312.0] - 2026-10-25

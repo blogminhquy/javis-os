@@ -16,6 +16,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Customers waiting longest for a reply come first** with "Waiting longest" in the Status filter.
 - **The conversation list column can be dragged** wider or narrower on a computer. Drag it all the way in to leave only initials; double-click to reset.
 ### Fixed
+- **Someone opening Javis on another machine no longer shows "Connection lost" on every open page.** Each page load looked up the server's public IP and its domain right on the main loop; on a server with slow outbound network that froze it for 12 to 24 seconds and every other browser dropped. The lookups now run on their own, and a failed one is remembered for two minutes so the next visitor does not wait again.
 - **Bot inbox: clearing a search brings the list back.** After searching and switching tabs, the search box came back empty while the list stayed filtered, with nothing to clear. The box now keeps the text that filters the list, and clearing it shows every chat again.
 
 ## [0.312.0] - 2026-10-25
