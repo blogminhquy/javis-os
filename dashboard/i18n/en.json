@@ -5810,6 +5810,12 @@
   "improve.procedure_source_owner": "Draft you saved (not applied)",
   "improve.procedure_source_learn": "Rule the assistant learned, waiting for you because it has a procedure",
   "improve.procedure_source_review": "Idea from a self-review, waiting for you",
+  "improve.bundle_with_skill": "Apply together with the skill fix under review as one bundle (private chat only)",
+  "improve.bundle_title": "Skill fix + procedure bundle",
+  "improve.bundle_dm_only": "A bundle only works in private chat, where the skill fix applies. Untick the other places.",
+  "improve.bundle_needs_skill": "Open a skill fix approved word for word before applying a bundle.",
+  "improve.bundle_reason_member_unavailable": "The bundle stopped because one part was removed or its source changed; the assistant uses the original.",
+  "improve.bundle_reason_interrupted": "Applying was interrupted, so everything went back to the original.",
   "improve.procedure_reason_owner_rules_changed": "Paused because you edited your rules or the assistant file.",
   "improve.procedure_reason_agent_identity_changed": "Paused because this assistant was recreated.",
   "improve.procedure_reason_agent_unavailable": "Paused because the assistant no longer exists."

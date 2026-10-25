@@ -453,6 +453,10 @@ def _overlay(root, slug, canonical, connection=None):
             "ON g.authority_id=c.id AND g.brain_id=c.brain_id WHERE c.brain_id=a.brain_id "
             "AND c.candidate_id=a.candidate_id AND c.kind='exact_diff' AND g.status='active')",
             (brain, canonical_ref, scope_hash(agent_key))).fetchone()
+        if row is not None:
+            import improvement_bundle
+            if not improvement_bundle.allows(connection, root, brain, agent_key, "skill", row["id"]):
+                return None  # M6: a bundle member serves only with its whole bundle
         canary = _canary(connection, row["id"]) if row is not None else None
     if (row is None or row["base_hash"] != canonical.content_hash or row["frontmatter_hash"] != canonical.frontmatter_hash
             or _file_identity(root, canonical_ref) != row["identity"]):

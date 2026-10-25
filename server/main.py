@@ -27022,6 +27022,8 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
     canaries=_improvement_canaries,
     routing=lambda: __import__("improvement_routing").Routing(_improvement_write_store(), registry=_CAPABILITY_REGISTRY),
     agents=_improvement_agents,
+    bundles=lambda: __import__("improvement_bundle").Bundles(
+        _improvement_write_store(), activations=_improvement_activations(), procedures=_improvement_agents()),
     review_proposals=_agent_review_proposals,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),

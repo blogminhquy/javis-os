@@ -23,8 +23,9 @@ Done in this session:
 | M2 (D1 integrated, E manual apply, F simulated feasibility) | **Released 0.314.0** (`f3348f04`, #803): full CI green, 2 independent reviews fixed, native profile re-qualified on CLI 2.1.310 (20/20), Docker publish green | None; real feasibility PENDING | Manual, API engines, assistant chat only |
 | M3 (canary, owner verdicts, monitoring, promotion, grants, pilot conclusion) | **Released 0.316.0** (`b7c81dc7`, #822): CI green, review 2 important + 7 minor fixed, native re-qualified (20/20), Docker green | None; live canary and pilot PENDING | Off until the owner applies |
 | M4 (routing evaluator, description overlay for the main chat, telemetry, UI) | **Released 0.320.0** (`e1d57392`, #823): CI green, review fixed, native re-qualified (20/20). Open: API-engine trial adapter (spec 10.3), native CLI routing measurement, hub `javis_use_skill` description still canonical | None; real engine smoke PENDING | Main chat, API engines, off until the owner applies |
-| M5 (agent procedure overlay, surfaces dm/team/kanban/workflow, session pin, owner-rule drift, learn/review staging, lesson linkage, UI) | In progress on #825 (0.321.0) | None; agent pilot and agent canary PENDING (owner) | Off until the owner applies |
-| M6–M8 | Not started | PENDING | PENDING |
+| M5 (agent procedure overlay, surfaces dm/team/kanban/workflow, session pin, owner-rule drift, learn/review staging, lesson linkage, UI) | **Released 0.323.0** (`22ef0375`, #825): CI green, review 4 important + 6 minor fixed, native re-qualified (20/20) | None; agent pilot and agent canary PENDING (owner) | Off until the owner applies |
+| M6 (agent-skill bundle: validator, atomic pointer, all-or-nothing read gate, recovery, attribution labels, UI) | In progress on #828 (0.325.0). Not built: executable helpers in the sandbox (owner grant for the executable kind), skill split/merge with alias, real ablation arms | None; real agent-only/skill-only arms PENDING | Off until the owner applies |
+| M7–M8 | Not started | PENDING | PENDING |
 
 Blocked on owner, not engineering: any model-backed feasibility/pilot (needs explicit permission to
 run the selected Claude subscription engine), live canary (7 days and 10 real tasks), activation on a

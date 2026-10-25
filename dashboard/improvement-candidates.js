@@ -201,18 +201,34 @@
     }
     const confirmLabel = node("label", tr("procedure_confirm")), confirm = node("input", null, "procedure-confirm");
     confirm.type = "checkbox"; confirmLabel.prepend(confirm); box.append(confirmLabel);
+    // M6: apply together with the skill fix under review, as one bundle (private chat only).
+    const bundleLabel = node("label", tr("bundle_with_skill")), together = node("input", null, "procedure-bundle");
+    together.type = "checkbox"; bundleLabel.prepend(together); box.append(bundleLabel);
     async function load() {
       current.replaceChildren();
       if (!choose.value) return;
       const data = await request(s, "/improvement-agent-procedures?agent=" + encodeURIComponent(choose.value));
+      const packs = (await request(s, "/improvement-bundles?agent=" + encodeURIComponent(choose.value))).bundles || [];
       if (!alive(s, version)) return;
+      const bundled = new Set(packs.filter(x => x.state === "active").flatMap(x => x.members.map(m => m.pointer_id)));
+      for (const pack of packs.filter(x => x.state === "active" || x.state === "suspended")) {
+        const line = node("div", null, "bundle-" + pack.bundle_id);
+        line.append(node("p", `${tr("bundle_title")} · ${tr("state_" + pack.state)}`));
+        if (pack.state === "suspended") line.append(node("p", tr("bundle_reason_" + pack.reason)));
+        if (pack.state === "active") line.append(button(tr("revert"), "bundle-revert-" + pack.bundle_id, async () => {
+          try { await write(s, "/improvement-bundles/" + encodeURIComponent(pack.bundle_id) + "/revert",
+            {expected_generation: pack.generation}, "bundle-revert-" + pack.bundle_id); s.status.textContent = tr("reverted_ok"); await load(); }
+          catch (error) { failure(s, error); }
+        }));
+        current.append(line);
+      }
       for (const overlay of (data.overlays || []).filter(x => x.state !== "reverted")) {
         const procedure = (data.procedures || []).find(x => x.procedure_id === overlay.procedure_id);
         const line = node("div", null, "procedure-overlay-" + overlay.overlay_id);
         line.append(node("p", `${tr("state_" + overlay.state)} · ${overlay.surfaces.map(x => tr("procedure_surface_" + x)).join(", ")}`));
         if (overlay.state === "suspended") line.append(node("p", tr("procedure_reason_" + overlay.reason)));
         if (procedure) line.append(node("pre", procedure.text, "procedure-overlay-text-" + overlay.overlay_id));
-        if (overlay.state === "active") line.append(button(tr("revert"), "procedure-revert-" + overlay.overlay_id, async () => {
+        if (overlay.state === "active" && !bundled.has(overlay.overlay_id)) line.append(button(tr("revert"), "procedure-revert-" + overlay.overlay_id, async () => {
           try { await write(s, "/improvement-agent-overlays/" + encodeURIComponent(overlay.overlay_id) + "/revert",
             {expected_generation: overlay.generation}, "procedure-revert-" + overlay.overlay_id); s.status.textContent = tr("reverted_ok"); await load(); }
           catch (error) { failure(s, error); }
@@ -241,10 +257,21 @@
       if (!alive(s, version) || apply.disabled || !choose.value || !surfaces.length || !confirm.checked) return;
       apply.disabled = true;
       try {
+        if (together.checked && (!s.bundleCandidate || surfaces.join() !== "dm")) {
+          s.status.textContent = tr(s.bundleCandidate ? "bundle_dm_only" : "bundle_needs_skill"); apply.disabled = false; return;
+        }
         const staged = (await write(s, "/improvement-agent-procedures", {agent: choose.value, text: text.value},
           "procedure-stage-" + choose.value)).procedure;
-        await write(s, "/improvement-agent-procedures/" + encodeURIComponent(staged.procedure_id) + "/apply",
-          {surfaces, owner_confirmed: true}, "procedure-apply-" + staged.procedure_id);
+        if (together.checked) {
+          const manifest = {members: [{key: "skill", kind: "skill", candidate_id: s.bundleCandidate},
+            {key: "procedure", kind: "procedure", procedure_id: staged.procedure_id, surfaces}], depends_on: {procedure: ["skill"]}};
+          await write(s, "/improvement-bundles", {agent: choose.value, manifest, owner_confirmed: true},
+            "bundle-apply-" + staged.procedure_id + "-" + s.bundleCandidate);
+          together.checked = false;
+        } else {
+          await write(s, "/improvement-agent-procedures/" + encodeURIComponent(staged.procedure_id) + "/apply",
+            {surfaces, owner_confirmed: true}, "procedure-apply-" + staged.procedure_id);
+        }
         confirm.checked = false; s.status.textContent = tr("applied_ok"); await load();
       } catch (error) { failure(s, error); }
       apply.disabled = false;
@@ -308,6 +335,7 @@
   async function applyBlock(s, current, version) {
     const authority = current.edit_authority;
     if (current.keep_base || !authority || authority.status !== "active" || authority.kind !== "exact_diff") return;
+    s.bundleCandidate = current.candidate_id; // M6: the skill half of an assistant bundle
     const box = node("div", null, "apply"); box.append(node("h4", tr("apply_title")));
     info(box, tr("apply_hint"));
     const label = node("label", tr("apply_agent")), choose = node("select", null, "apply-agent");

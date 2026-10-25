@@ -139,7 +139,7 @@ class RoutingOverlayTests(base.ActivationBase):
         from unittest.mock import patch
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_agent_overlays", "improvement_agent_procedures", "improvement_routing_overlays", "improvement_routing_candidates"):
+            for name in ("improvement_bundle_members", "improvement_bundle_activations", "improvement_agent_overlays", "improvement_agent_procedures", "improvement_routing_overlays", "improvement_routing_candidates"):
                 connection.execute(f"DROP TABLE {name}")
             connection.execute("UPDATE improvement_schema SET version=12 WHERE id=1")
         IM.ensure(self.store)

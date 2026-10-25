@@ -320,6 +320,10 @@ def effective_overlay(root, agent_key: str, surface: str, *, agent_text: str, me
             row = connection.execute("SELECT o.id,o.surfaces_json,o.owner_rules_hash,o.created_at,p.text FROM improvement_agent_overlays o "
                 "JOIN improvement_agent_procedures p ON p.id=o.procedure_id AND p.brain_id=o.brain_id "
                 "WHERE o.brain_id=? AND o.agent_key=? AND o.state='active'", (brain, agent_key)).fetchone()
+            if row is not None:
+                import improvement_bundle
+                if not improvement_bundle.allows(connection, root, brain, agent_key, "procedure", row["id"]):
+                    return "", ""  # M6: a bundle member serves only with its whole bundle
         if row is None or surface not in json.loads(row["surfaces_json"]):
             return "", ""
         if owner_rules_hash(agent_text, memory_text) != row["owner_rules_hash"]:

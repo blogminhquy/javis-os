@@ -1,4 +1,4 @@
-# Áp dụng thử, canary, định tuyến, quy trình trợ lý và quay lại (M2E, M3, M4, M5)
+# Áp dụng thử, canary, định tuyến, quy trình trợ lý, gói và quay lại (M2E, M3, M4, M5, M6)
 
 Tài liệu vận hành cho phần áp dụng thủ công của **Cải tiến có kiểm chứng**, phát hành ở 0.314.0.
 Spec gốc: [agent-skill evidence improvement](../superpowers/specs/2026-10-22-agent-skill-evidence-improvement-design.md), mục 14, 18 và 19.
@@ -149,6 +149,30 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
   `{expected_generation, event_key}`.
 - Chưa có (cần chủ): pilot một trợ lý theo phạm vi với brief chủ chấm, canary quy trình trợ lý, duyệt mâu thuẫn tự
   động bằng model.
+
+## Gói bản sửa skill + quy trình (M6, 0.325.0)
+
+- Là gì: một con trỏ chủ áp dụng trên hai phần đã có sẵn của MỘT trợ lý: bản sửa skill (M2E, chat riêng của trợ lý)
+  và quy trình (M5). Hai phần bật và tắt cùng nhau.
+- Kiểm trước khi ghi (A04): đúng hai thành phần khác loại, khoá thành phần duy nhất, phụ thuộc chỉ giữa các thành
+  phần và không vòng, quy trình thuộc đúng trợ lý, quy trình chỉ ở `dm` vì bản sửa skill chỉ phục vụ chat riêng.
+- Có thì có đủ (S02): lúc gói đang áp, mọi lớp phủ của trợ lý đó dùng bản gốc. Thành phần của gói chỉ được phục vụ
+  khi gói `active` và mọi thành phần còn hiệu lực (skill còn đúng hash gốc). Gỡ lẻ một thành phần qua API bị từ
+  chối (409 `bundle_member_revert_with_bundle`); nếu một thành phần rời đi bằng đường khác thì thành phần còn lại
+  thôi phục vụ ngay ở lúc đọc và lượt đối soát kế tiếp đánh dấu gói `suspended` (`member_unavailable`), gỡ nốt.
+- Đứt giữa chừng: gói kẹt `applying` quá 120 giây thì đối soát gỡ các phần đã áp (tìm theo khoá sự kiện cố định
+  của từng thành phần) và đánh dấu `failed` (`interrupted`). Một thành phần áp lỗi thì gỡ ngay và `failed`
+  (`member_apply_failed`).
+- Quy kết tác dụng (Q06, Q07): `improvement_bundle.attribution` chỉ là báo cáo thuần trên các nhánh chủ đã chạy;
+  chỉ có gốc với cả gói thì phần agent và phần skill là `confounded`; cả gói không thừa hưởng kết quả của từng
+  phần (tốt riêng mà hỏng khi ghép là `conflict`).
+- Lưu trữ: schema 15 thêm `improvement_bundle_activations` (applying -> active|failed, active -> reverted|suspended,
+  một gói đang áp hoặc đang dùng mỗi trợ lý) và `improvement_bundle_members` (ghi một lần). Từ 14 lên 15 sao lưu
+  một lần `*.pre-improvement-m6-bundles.bak`.
+- API: `GET /improvement-bundles?agent=<slug>`, `POST /improvement-bundles` `{agent, manifest, owner_confirmed,
+  event_key}`, `POST /improvement-bundles/{id}/revert` `{expected_generation, event_key}`.
+- Chưa có: helper chạy được trong sandbox (cần chủ cấp quyền loại executable), tách/gộp skill có alias, phép thử
+  nhánh agent-only/skill-only thật (cần chạy model).
 
 ## Giới hạn hiện tại
 

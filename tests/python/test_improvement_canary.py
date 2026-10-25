@@ -269,7 +269,7 @@ class CanaryTests(CanaryBase):
         import improvement_canary_schema as S
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_agent_overlays", "improvement_agent_procedures", "improvement_routing_overlays", "improvement_routing_candidates"):
+            for name in ("improvement_bundle_members", "improvement_bundle_activations", "improvement_agent_overlays", "improvement_agent_procedures", "improvement_routing_overlays", "improvement_routing_candidates"):
                 connection.execute(f"DROP TABLE IF EXISTS {name}")
             for name in reversed(S._NAMES):
                 kind = "TABLE" if name in ("improvement_canaries", "improvement_canary_exposures", "improvement_canary_verdicts",
