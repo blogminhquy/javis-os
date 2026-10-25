@@ -29,6 +29,9 @@
     var J = typeof window !== "undefined" && window.JavisInfo;
     return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
   }
+  function icon(name) {
+    return typeof window !== "undefined" && typeof window.ic === "function" ? window.ic(name) : "";
+  }
   function brain() {
     try { return (window.currentBrainPath && window.currentBrainPath()) || ""; } catch (e) { return ""; }
   }
@@ -39,7 +42,7 @@
     if (!items.length) return "";
     return '<div class="msc-checks">' + items.map(function (i) {
       var cls = i.ok === true ? "ok" : (i.ok === false ? "bad" : "warn");
-      var mark = i.ok === true ? "✓" : (i.ok === false ? "✕" : "!");
+      var mark = icon(i.ok === true ? "check" : (i.ok === false ? "x" : "triangle-alert"));
       return '<div class="msc-row ' + cls + '"><span class="msc-mark">' + mark + "</span>"
         + '<div class="msc-row-main"><div class="msc-row-label">' + esc(i.label)
         + (i.detail ? ' <span class="msc-row-detail">' + esc(i.detail) + "</span>" : "") + "</div>"

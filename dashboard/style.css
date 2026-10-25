@@ -4304,7 +4304,8 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .msc-sum.bad { color: var(--danger-ink, #b3261e); }
 .msc-checks { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .msc-row { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
-.msc-mark { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+.msc-mark { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+.msc-mark svg { width: 14px; height: 14px; }
 .msc-row.ok .msc-mark { background: color-mix(in srgb, var(--green, #2c7a4b) 18%, transparent); color: var(--green, #2c7a4b); }
 .msc-row.bad .msc-mark { background: color-mix(in srgb, var(--danger-ink, #b3261e) 16%, transparent); color: var(--danger-ink, #b3261e); }
 .msc-row.warn .msc-mark { background: color-mix(in srgb, var(--warn, #e0a33e) 20%, transparent); color: var(--warn-ink, #b9821f); }
