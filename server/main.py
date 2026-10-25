@@ -27245,6 +27245,10 @@ async def usage_theo_gio():
     return d
 
 
+import plan_limits as _plan_limits   # noqa: E402
+_plan_limits.cai_vao_claude_sdk()   # Claude Code's rate_limit_event -> the usage ring (0.326.0)
+
+
 @app.get("/plan-limits")
 async def plan_limits_get(goi: int = 0):
     """0.326.0: the composer ring. The 5-hour and weekly meters of each brain that runs on a plan

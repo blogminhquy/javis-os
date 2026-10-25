@@ -33,13 +33,16 @@ RAW = {"isUsingOverage": False, "overageStatus": "rejected", "rateLimitType": "f
        "unifiedWindows": {"five_hour": {"resetsAt": NOW + 11000, "status": "allowed", "utilization": 0.09},
                           "seven_day": {"resetsAt": NOW + 531200, "status": "allowed", "utilization": 0.23}}}
 
-# 1. Claude Code qua map_message của engine thật (RateLimitEvent của SDK).
+# 1. Claude Code qua map_message của engine thật (RateLimitEvent của SDK). claude_sdk_engine.py bị khoá
+#    bằng bằng chứng kiểm định native (PROFILE_SOURCES), nên móc từ ngoài chứ không sửa file đó.
 from claude_agent_sdk.types import RateLimitEvent, RateLimitInfo  # noqa: E402
 import claude_sdk_engine as eng  # noqa: E402
 
 ev = RateLimitEvent(rate_limit_info=RateLimitInfo(status="allowed", resets_at=RAW["resetsAt"],
                                                   rate_limit_type="five_hour", utilization=0.09, raw=RAW),
                     uuid="u", session_id="s")
+check("cài móc vào engine được", pl.cai_vao_claude_sdk() and pl.cai_vao_claude_sdk())
+check("móc hai lần không bọc hai lớp", not getattr(eng.map_message.__wrapped__, "_plan_limits", False))
 events, sid = eng.map_message(ev)
 check("rate_limit_event không đẻ sự kiện chat nào", events == [] and sid is None, (events, sid))
 d = pl.doc(now=NOW)
@@ -137,6 +140,13 @@ check("tên có chữ hoa giữ nguyên", pl.ten_goi("SuperGrok") == "SuperGrok"
 check("rỗng thì rỗng", pl.ten_goi("") == "" and pl.ten_goi(None) == "")
 x = pl.tu_codex({"rateLimits": {"planType": "pro", "primary": {"usedPercent": 1, "windowDurationMins": 300}}})
 check("Codex báo planType thì giữ lại", x["goi"] == "pro", x)
+
+import hashlib  # noqa: E402
+ev_pin = json.loads((ROOT / "docs/superpowers/evidence/2026-10-25-m5-native-qualification-cli310.json").read_text())
+check("CANARY: claude_sdk_engine.py giữ nguyên đúng bản đã kiểm định native",
+      hashlib.sha256((ROOT / "server/claude_sdk_engine.py").read_bytes()).hexdigest()
+      == ev_pin["source_hashes"]["claude_sdk_engine.py"])
+check("main.py cài móc lúc khởi động", "_plan_limits.cai_vao_claude_sdk()" in (ROOT / "server" / "main.py").read_text(encoding="utf-8"))
 
 # 8. Route: Claude chạy API key thì không có gói, không hiện vòng.
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
