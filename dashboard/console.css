@@ -1415,6 +1415,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 .pkm-than { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 4px;
   display: flex; flex-direction: column; gap: 14px; }
+/* Children keep their height and the body scrolls. Without it a tall facts table (a plugin zip
+   lists tools, files and the install path) shrank and its overflow:hidden clipped the last rows. */
+.pkm-than > * { flex-shrink: 0; }
 .pkm-mota { margin: 0; font-size: 14px; line-height: 1.55; }
 
 /* Bảng SỰ THẬT: mỗi ô một câu hỏi người cài thật sự hỏi. Nền là đường kẻ, các ô đè lên trên

@@ -1899,6 +1899,8 @@
     .pl-seg button .n{margin-left:5px;color:var(--text3);font-variant-numeric:tabular-nums}
     .pl-seg button.err{color:var(--red)}
     .pl-sum{font-size:13px;color:var(--text3);margin:0 0 14px}
+    .pl-zipw{display:flex;align-items:center;gap:4px;margin-left:auto}
+    .pl-zip{display:inline-flex;align-items:center;gap:6px;height:42px;font-size:16px;white-space:nowrap}
     .pl-group{display:flex;align-items:baseline;gap:8px;margin:18px 0 8px;font-size:14px;font-weight:600;color:var(--text2)}
     .pl-group:first-child{margin-top:4px}
     .pl-group .n{font-weight:500;color:var(--text3);font-variant-numeric:tabular-nums}
@@ -1937,6 +1939,7 @@
       .pl-search{flex-basis:100%;max-width:none}
       .pl-seg{width:100%}
       .pl-seg button{flex:1 1 auto;padding:0 8px}
+      .pl-zipw{margin-left:0}
       .pl-ds,.pl-nm{font-size:16px}
       .pl-card{padding:12px 2px 12px 12px}
     }`;
@@ -2123,7 +2126,11 @@
         +   `<label class="pl-search">${ic("search")}<input type="search" id="plSearch" autocomplete="off" spellcheck="false" placeholder="${esc(window.t("cs.pl_search_ph"))}" aria-label="${esc(window.t("cs.pl_search_ph"))}">`
         +   `<button type="button" class="pl-clear" id="plClear" aria-label="${esc(window.t("cs.pl_clear"))}" title="${esc(window.t("cs.pl_clear"))}" hidden>${ic("x")}</button></label>`
         +   `<div class="pl-seg" id="plSeg" role="group" aria-label="${esc(window.t("cs.pl_filter_aria"))}"></div>`
+        // Install from .zip (owner, 2026-10-25): the flow lives in packs.js next to the pack zip
+        // flow, so both share one picker, one zip rule set on the server and one style of screen.
+        +   `<div class="pl-zipw"><button type="button" class="s-btn-ghost pl-zip" id="plZip">${ic("file-up")} ${esc(window.t("plzip.btn"))}</button>${infoBtn()}</div>`
         + `</div>`
+        + infoBody(esc(window.t("plzip.btn_info")))
         // The folder path and how to add a plugin are help, not state: both sit in one (i).
         + `<div class="pl-sum"><span id="plSum"></span>${infoBtn()}</div>${infoBody(`${esc(window.t("cs.pl_dir_a"))} <code>${esc(d.global_dir || "")}</code> ${esc(window.t("cs.pl_dir_b"))} <code>plugin.yaml</code> + <code>plugin.py</code>${esc(window.t("cs.pl_dir_c"))}<br>${esc(window.t("cs.pl_intro_a"))} <b>tool</b> ${esc(window.t("cs.pl_intro_b"))} <b>hook</b> ${esc(window.t("cs.pl_intro_c"))}`)}`
         + `<div id="plCards"></div>`
@@ -2138,6 +2145,20 @@
       inp.addEventListener("input", () => setQuery(inp.value));
       inp.addEventListener("keydown", (e) => { if (e.key === "Escape" && inp.value) { e.preventDefault(); setQuery(""); } });
       wrap.querySelector("#plClear").onclick = () => { setQuery(""); inp.focus(); };
+      const zip = wrap.querySelector("#plZip");
+      zip.onclick = () => {
+        if (!window.JavisPacks || !window.JavisPacks.caiPluginZip) return;
+        window.JavisPacks.caiPluginZip({
+          brain: fbrain(), maxMb: (ui.data && ui.data.zip_max_mb) || 25,
+          // After an install: clear search and filter so the new (off) card shows, focus its switch.
+          xong: (r) => {
+            _plStatus = "all";
+            setQuery("");
+            if (r && r.kind === "plugin" && r.slug) ui.refocus = r.slug;
+            load();
+          },
+        });
+      };
       el.innerHTML = "";
       const tab = hangTabKho("plugins");
       if (tab) el.appendChild(tab);

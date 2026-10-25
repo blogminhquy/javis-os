@@ -851,11 +851,15 @@
   // ẩn, nên KHÔNG kéo thả được, mà kéo tệp vừa tải về vào cửa sổ lại đúng là thao tác quen tay
   // nhất. Tệ hơn: thả trượt ra ngoài thì trình duyệt MỞ tệp zip đó thay cho trang, mất sạch
   // trạng thái. Giờ có một vùng thả thật, và cả lớp phủ chặn thả trượt.
-  function manHinhChon(el, maxMb) {
+  // `tuy` (Plugins page, 2026-10-25): the same drop zone with other words and another handler, so a
+  // plugin zip is picked exactly like a pack zip. {tieu, phu, tinHtml (an infoBody block),
+  // gioiHan(mb), khiChon(file)}.
+  function manHinhChon(el, maxMb, tuy) {
+    tuy = tuy || {};
     const m = modal(
-      pkmDau(null, tw("store.from_zip") + infoBtn(), tw("store.pick.body"))
+      pkmDau(null, (tuy.tieu || tw("store.from_zip")) + infoBtn(), tuy.phu || tw("store.pick.body"))
       // Trust note and what the next step shows: behind the (i) on the title; the next screen shows the real warning.
-      + infoBody(esc(tw("store.pick.trust")))
+      + (tuy.tinHtml || infoBody(esc(tw("store.pick.trust"))))
       + '<div class="pkm-than">'
       + '<label class="pkm-tha" id="pkTha">'
       + '<input type="file" accept=".zip" id="pkTepHop" style="display:none">'
@@ -863,7 +867,8 @@
       + '<span class="pkm-tha-t">' + tw("store.pick.drop") + '</span>'
       + '<span class="pkm-tha-s">' + tw("store.pick.or") + ' <u>' + tw("store.pick.browse")
       + '</u></span>'
-      + '<span class="pkm-tha-n">' + tw("store.pick.limit", { mb: (maxMb || 25) }) + '</span>'
+      + '<span class="pkm-tha-n">' + (tuy.gioiHan ? tuy.gioiHan(maxMb || 25)
+          : tw("store.pick.limit", { mb: (maxMb || 25) })) + '</span>'
       + '</label>'
       + '</div>'
       + '<div class="pkm-chan"><button class="mp-btn" data-act="close">'
@@ -871,7 +876,8 @@
 
     const tha = document.getElementById("pkTha");
     const inp = document.getElementById("pkTepHop");
-    inp.onchange = () => { if (inp.files && inp.files[0]) chonTep(el, inp.files[0]); };
+    const chon = tuy.khiChon || ((f) => chonTep(el, f));
+    inp.onchange = () => { if (inp.files && inp.files[0]) chon(inp.files[0]); };
     // Thả TRƯỢT ra ngoài vùng nhận cũng phải bị nuốt: mặc định của trình duyệt là điều hướng
     // sang chính tệp vừa thả, tức là mất trang và mất luôn việc đang làm.
     ["dragenter", "dragover", "drop"].forEach(ev =>
@@ -882,7 +888,7 @@
       tha.addEventListener(ev, () => tha.classList.remove("dang-keo")));
     tha.addEventListener("drop", e => {
       const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) chonTep(el, f);
+      if (f) chon(f);
     });
   }
 
@@ -904,6 +910,171 @@
       return;
     }
     manHinhDongY(d, el, lai);
+  }
+
+  // ---- Plugins page: install ONE plugin from a .zip (owner request 2026-10-25) ----
+  //
+  // Same machinery as a pack zip: the drop zone above, `/plugins/inspect` (which runs the pack
+  // zip rules on the server), a confirmation drawn ONLY from that result, then `/plugins/install`
+  // with the inspected sha256. A full store pack zip dropped here gets the PACK confirmation and
+  // `/packs/install`, not a second copy of it.
+  const MM_KEY = { readonly: "cs.pl_mm_readonly", safe: "cs.pl_mm_safe", full: "cs.pl_mm_full" };
+  const PL_FILES_SHOWN = 12;
+
+  // Pure: what the confirmation shows, from the inspect result alone. Exposed for the node test.
+  function pluginZipView(d) {
+    d = d || {};
+    const files = d.files || [];
+    const notes = ["off"];
+    if (d.existing) notes.push("exists");
+    if (d.vault_shadow) notes.push("vault");
+    if (d.user_gate === false) notes.push("gate");
+    return {
+      tools: (d.tools || []).map(x => ({ name: String((x && x.name) || ""),
+                                         mm: MM_KEY[x && x.min_mode] ? x.min_mode : "readonly" })),
+      hooks: (d.hooks || []).map(String),
+      files: files.slice(0, PL_FILES_SHOWN).map(f => String(f.path || "")),
+      moreFiles: Math.max(0, (d.file_count || files.length) - PL_FILES_SHOWN),
+      needsReplace: !!d.existing,
+      zipAskedOn: !!d.enabled_in_zip,
+      notes: notes,
+    };
+  }
+
+  // o = {brain, maxMb, xong(result)}: `xong` redraws the Plugins page after an install.
+  function caiPluginZip(o) {
+    o = o || {};
+    const lai = () => manHinhChon(null, o.maxMb || _maxMb, {
+      tieu: tw("plzip.pick_title"), phu: tw("plzip.pick_body"),
+      tinHtml: infoBody(esc(tw("plzip.pick_trust"))),
+      gioiHan: (mb) => tw("plzip.pick_limit", { mb: mb }),
+      khiChon: (f) => chonTepPlugin(f, o, lai),
+    });
+    lai();
+  }
+
+  async function chonTepPlugin(file, o, lai) {
+    const tieu = tw("plzip.pick_title");
+    if (!/\.zip$/i.test(file.name || "")) {
+      manHinhLoi(tieu, tw("store.not_zip", { ten: (file.name || "?") }), "", lai);
+      return;
+    }
+    dangCho(tieu, tw("plzip.reading"));
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("brain", o.brain || "brain");
+    let d;
+    try { d = await (await fetch("/plugins/inspect", { method: "POST", body: fd })).json(); }
+    catch (e) { d = { ok: false, error: String(e) }; }
+    if (!d || !d.ok) {
+      manHinhLoi(tieu, (d && d.error) || tw("store.bad_zip"), d && d.stage, lai);
+      return;
+    }
+    if (d.kind === "pack") {
+      manHinhDongY(d, document.createElement("div"), lai, {
+        sauKhiCai: (r) => { if (typeof o.xong === "function") o.xong({ kind: "pack", ok: !!(r && r.ok), id: r && r.id }); },
+      });
+      return;
+    }
+    manHinhPlugin(d, o, lai);
+  }
+
+  function manHinhPlugin(d, o, lai) {
+    const v = pluginZipView(d);
+    const oBang = (nhan, gt, phu, rong) =>
+      '<div class="pkm-o' + (rong ? " rong" : "") + '"><div class="pkm-o-nhan">' + nhan + '</div>'
+      + gt + (phu ? '<div class="pkm-o-phu">' + phu + '</div>' : "") + '</div>';
+    const canh = (mau, icon, tieu, than) => '<div class="pkm-canh ' + mau + '"><div class="pkm-canh-tieu">'
+      + ic(icon) + tieu + '</div><div>' + than + '</div></div>';
+    const bang = [
+      oBang(tw("store.inspect.file"), '<div class="pkm-o-gt">'
+        + esc(d.filename || tw("store.inspect.file_fallback"))
+        + ' <span class="nhe">· ' + co(d.size) + '</span></div>'),
+      oBang(tw("store.inspect.sha"),
+        '<div class="pkm-o-ma">' + esc((d.sha256 || "").slice(0, 20)) + '…</div>',
+        tw("store.inspect.sha_note")),
+      oBang(tw("plzip.tools"), '<div class="pkm-o-gt">'
+        + (v.tools.length
+          ? v.tools.map(x => '<div><code>' + esc(x.name) + '</code> <span class="pkm-nhe">· '
+              + esc(tw("cs.pl_minmode", { muc: tw(MM_KEY[x.mm]) })) + '</span></div>').join("")
+          : esc(tw("plzip.no_tools")))
+        + '</div>', v.tools.length ? tw("plzip.tools_note") : "", true),
+      v.hooks.length ? oBang(tw("plzip.hooks"), '<div class="pkm-o-gt">'
+        + v.hooks.map(h => '<code>' + esc(h) + '</code>').join(", ") + '</div>', "", true) : "",
+      oBang(tw("plzip.files"), '<div class="pkm-o-gt">'
+        + esc(tw("plzip.files_sum", { count: d.file_count || v.files.length, size: co(d.unpacked) || "0 B" }))
+        + '</div>', v.files.map(f => '<code>' + esc(f) + '</code>').join(", ")
+        + (v.moreFiles ? " " + esc(tw("plzip.files_more", { count: v.moreFiles })) : ""), true),
+      oBang(tw("plzip.target"), '<div class="pkm-o-ma">' + esc(d.target || "") + '</div>',
+        tw("plzip.target_note"), true),
+    ].filter(Boolean).join("");
+
+    const ghiChu = v.notes.map(k => {
+      if (k === "off") return canh("tin", "info", esc(tw("plzip.off_title")),
+        esc(tw("plzip.off_body")) + (v.zipAskedOn ? " " + esc(tw("plzip.off_zip")) : ""));
+      if (k === "vault") return canh("vang", "info", esc(tw("plzip.vault_title")), esc(tw("plzip.vault_body")));
+      if (k === "gate") return canh("vang", "triangle-alert", esc(tw("plzip.gate_title")),
+        tw("plzip.gate_body", { bien: "<code>JAVIS_ENABLE_USER_PLUGINS=false</code>" }));
+      return "";
+    }).join("");
+
+    // The replace question sits right under the description: it is what keeps Install disabled,
+    // so it must be seen without scrolling.
+    const thayHtml = v.needsReplace
+      ? canh("vang", "info", esc(tw("plzip.exists_title")),
+          esc(tw("plzip.exists_body", { ver: (d.existing && d.existing.version) || "?" })))
+        + '<button class="pkm-gat" id="pzThay" type="button" aria-pressed="false">'
+        + '<span><span class="pkm-gat-t">' + esc(tw("plzip.replace")) + '</span>'
+        + '<span class="pkm-gat-s">' + esc(tw("plzip.replace_note")) + '</span></span>'
+        + '<span class="pkm-cong"><span></span></span></button>'
+      : "";
+
+    modal(
+      pkmDau({ id: d.slug || "", name: d.name || d.slug || "", icon: "puzzle" }, esc(d.name || d.slug)
+          + (d.version ? '<span class="pkm-ver">v' + esc(d.version) + '</span>' : ""),
+        '<code>' + esc(d.slug) + '</code>'
+          + (d.author ? ' · ' + tw("store.inspect.author", { ten: esc(d.author) }) : ""))
+      + '<div class="pkm-than">'
+      + (d.description ? '<p class="pkm-mota">' + esc(d.description) + '</p>' : "")
+      + thayHtml
+      + '<div class="pkm-bang">' + bang + '</div>'
+      // Not foldable, not softened: this is the screen where foreign code is let in.
+      + canh("do", "triangle-alert", esc(tw("plzip.code_title")), esc(tw("plzip.code_body")))
+      + ghiChu
+      + '</div>'
+      + '<div class="pkm-chan"><span class="mp-note" id="pzNote"></span>'
+      + '<button class="mp-btn" id="pzKhac">' + tw("store.pick_other_file") + '</button>'
+      + '<button class="mp-btn primary" id="pzCai"' + (v.needsReplace ? " disabled" : "") + '>'
+      + esc(tw(v.needsReplace ? "plzip.install_replace" : "plzip.install")) + '</button></div>', true);
+
+    // Focus on the LEFT button: an Enter out of habit must not mean "install foreign code".
+    const khac = document.getElementById("pzKhac");
+    if (khac) { khac.focus(); khac.onclick = lai; }
+    const nut = document.getElementById("pzCai");
+    const thay = document.getElementById("pzThay");
+    if (thay) thay.onclick = () => {
+      const on = thay.getAttribute("aria-pressed") !== "true";
+      thay.setAttribute("aria-pressed", on ? "true" : "false");
+      nut.disabled = !on;
+    };
+    const note = document.getElementById("pzNote");
+    nut.onclick = async () => {
+      const replace = !!(thay && thay.getAttribute("aria-pressed") === "true");
+      if (v.needsReplace && !replace) return;
+      nut.disabled = true;
+      note.textContent = tw("store.installing");
+      const r = await postJson("/plugins/install", {
+        staging_id: d.staging_id, consent_sha256: d.sha256, replace: replace,
+        brain: o.brain || "brain",
+      });
+      if (!r || !r.ok) {
+        note.textContent = (r && r.error) || tw("store.install_failed");
+        nut.disabled = false;
+        return;
+      }
+      dong();
+      if (typeof o.xong === "function") o.xong(Object.assign({ kind: "plugin" }, r));
+    };
   }
 
   async function hopGo(el, pid) {
@@ -1056,5 +1227,6 @@
   window.JavisPacks = { render: render, moKho: moKho, LOAI: LOAI, goApp: goApp, hoi: hoi,
                         coBanMoi: coBanMoi, nutThe: nutThe, theKho: theKho,
                         ghiConTro: ghiConTro, traConTro: traConTro, veKho: veKho,
-                        caiGoiKho: caiGoiKho };
+                        caiGoiKho: caiGoiKho, caiPluginZip: caiPluginZip,
+                        pluginZipView: pluginZipView };
 })();
