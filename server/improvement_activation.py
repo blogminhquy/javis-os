@@ -401,19 +401,31 @@ def _turn() -> tuple[str, str, int]:
     return str(agent.get("key") or ""), str(turn.get("session_id") or ""), int(turn.get("message_id") or 0)
 
 
-def _record_exposure(database, brain, activation_id, session_id, message_id, chosen, content_hash):
-    """One row per chat message for both arms; a duplicate read of the same message never counts twice."""
-    if not session_id or message_id <= 0:
-        return
-    connection = sqlite3.connect(database, timeout=5)
-    with closing(connection):
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("INSERT OR IGNORE INTO improvement_canary_exposures VALUES(?,?,?,?,?,?,?)",
-                           (activation_id, brain, session_id, message_id, chosen, content_hash, time.time()))
-        connection.commit()
+_EXPOSURE_SQL = "INSERT OR IGNORE INTO improvement_canary_exposures VALUES(?,?,?,?,?,?,?)"
 
 
-def _overlay(root, slug, canonical):
+def _record_exposure(database, brain, activation_id, session_id, message_id, chosen, content_hash, connection=None) -> bool:
+    """One row per chat message for both arms; a duplicate read of the same message never counts twice.
+
+    A caller that already holds a write transaction on this database passes its connection: a second
+    writer would only wait on that same lock and lose the row. Returns whether the row is durable or
+    will be with the caller's commit; the resolver serves the candidate only when it is."""
+    row = (activation_id, brain, session_id, message_id, chosen, content_hash, time.time())
+    if connection is not None:
+        databases = connection.execute("PRAGMA database_list").fetchall()
+        if not databases or not databases[0][2] or Path(databases[0][2]).resolve() != Path(database).resolve():
+            return False
+        connection.execute(_EXPOSURE_SQL, row)
+        return True
+    own = sqlite3.connect(database, timeout=1)
+    with closing(own):
+        own.execute("PRAGMA foreign_keys=ON")
+        own.execute(_EXPOSURE_SQL, row)
+        own.commit()
+    return True
+
+
+def _overlay(root, slug, canonical, connection=None):
     sources = _SOURCES[0]
     if sources is None or _CLI_TRANSPORT.get():
         return None
@@ -427,6 +439,7 @@ def _overlay(root, slug, canonical):
     canonical_ref = f"skills/{slug}/SKILL.md"
     if canonical.relative_path != canonical_ref:
         return None
+    writer = connection
     connection = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
     connection.row_factory = sqlite3.Row
     with closing(connection):
@@ -448,14 +461,19 @@ def _overlay(root, slug, canonical):
         if canary["state"] != "canary":
             return None
         from improvement_canary import arm
+        if not session_id or message_id <= 0:
+            return None  # no message to judge: fail closed to the control arm, record nothing
         salt = _canary_salt(database, row["id"])
         chosen = arm(canary["allocation_pct"], salt, session_id)
         try:
-            _record_exposure(database, brain, row["id"], session_id, message_id, chosen,
-                             row["content_hash"] if chosen == "canary" else canonical.content_hash)
+            recorded = _record_exposure(database, brain, row["id"], session_id, message_id, chosen,
+                                        row["content_hash"] if chosen == "canary" else canonical.content_hash,
+                                        connection=writer)
         except sqlite3.Error as error:
             print(f"[improvement canary] exposure not recorded: {error}", file=sys.stderr)
-        if chosen != "canary":
+            recorded = False
+        # The candidate reaches a canary message only together with its exposure row.
+        if chosen != "canary" or not recorded:
             return None
     raw = blobs.read(brain, row["content_hash"])
     import skill_router as SR
@@ -469,14 +487,15 @@ def _canary_salt(database, activation_id) -> str:
                                   (activation_id,)).fetchone()[0]
 
 
-def effective_skill_asset(root, slug):
-    """The skill bytes this turn should see: the scope's active overlay, else the canonical read."""
+def effective_skill_asset(root, slug, *, connection=None):
+    """The skill bytes this turn should see: the scope's active overlay, else the canonical read.
+    `connection`: the caller's open write transaction on the runtime database, if any."""
     import skill_router as SR
     canonical = SR.read_skill_asset(root, slug)
     if canonical is None:
         return None
     try:
-        return _overlay(root, slug, canonical) or canonical
+        return _overlay(root, slug, canonical, connection) or canonical
     except (OSError, ValueError, sqlite3.Error, AssetUnavailable, RuntimeError) as error:
         # An unreadable pointer falls back to the canonical skill: never worse than baseline.
         print(f"[improvement activation] {type(error).__name__}: {error}", file=sys.stderr)

@@ -132,7 +132,8 @@ class Canaries:
             result["exposures"] = [dict(x) for x in connection.execute(
                 "SELECT e.session_id,e.message_id,e.arm,e.at,v.verdict FROM improvement_canary_exposures e "
                 "LEFT JOIN improvement_canary_verdicts v ON v.activation_id=e.activation_id AND v.session_id=e.session_id "
-                "AND v.message_id=e.message_id WHERE e.activation_id=? AND e.brain_id=? ORDER BY e.at DESC LIMIT 100",
+                "AND v.message_id=e.message_id WHERE e.activation_id=? AND e.brain_id=? "
+                "ORDER BY (v.verdict IS NULL) DESC,e.at DESC LIMIT 100",
                 (activation_id, brain))]
         return result
 
@@ -170,6 +171,8 @@ class Canaries:
             if replay is not None:
                 return replay
             row = self._row(connection, brain, activation_id)
+            if row["state"] != "canary" or row["activation_state"] != "active":
+                raise IM.ConflictError("canary_not_running")
             exposure = connection.execute("SELECT arm FROM improvement_canary_exposures WHERE activation_id=? AND brain_id=? "
                 "AND session_id=? AND message_id=?", (activation_id, brain, session_id, message_id)).fetchone()
             if exposure is None:
@@ -202,7 +205,7 @@ class Canaries:
     def promote(self, principal, activation_id: str, *, expected_generation: int, event_key: str) -> dict:
         import skill_router as SR
         from pathlib import Path
-        from improvement_activation import _slug
+        from improvement_activation import _file_identity, _slug
         brain = IM._brain(principal)
         if type(expected_generation) is not int or expected_generation < 1:
             raise ValueError("invalid_canary_generation")
@@ -229,9 +232,14 @@ class Canaries:
             observed = self._observe(connection, brain, row)
             if not observed["sufficient"]:
                 raise PermissionError("canary_insufficient_observation")
+            target = self.assets._target(connection, brain, activation["target_id"])
+            final = SR.read_skill_asset(Path(brain), _slug(activation["canonical_ref"]))
             if (not self.activations._authority_active(connection, brain, activation["candidate_id"])
                     or self.activations._report_refs(connection, brain, candidate) != refs
-                    or canonical is None or canonical.content_hash != activation["base_hash"]):
+                    or self.activations._selection_refuses(connection, brain, candidate)
+                    or target["status"] != "live" or canonical is None or final is None
+                    or canonical.content_hash != activation["base_hash"] or final.content_hash != activation["base_hash"]
+                    or _file_identity(brain, activation["canonical_ref"]) != target["identity"]):
                 raise IM.ConflictError("activation_basis_changed")
             connection.execute("UPDATE improvement_canaries SET state='promoted',reason='owner_promote',"
                                "generation=generation+1,updated_at=? WHERE activation_id=? AND brain_id=?",
@@ -316,7 +324,7 @@ class Canaries:
             report = connection.execute("SELECT r.id,c.experiment_id,c.ordinal,c.kind FROM improvement_comparison_reports r "
                 "JOIN improvement_comparisons c ON c.id=r.comparison_id AND c.brain_id=r.brain_id WHERE r.id=? AND r.brain_id=?",
                 (report_id, brain)).fetchone()
-            if report is None or report["kind"] != "final":
+            if report is None or report["kind"] != "final" or not self._report_qualifies(brain, report_id):
                 return []
             arm = connection.execute("SELECT candidate_id FROM improvement_experiment_arms WHERE experiment_id=? AND brain_id=? "
                                      "AND ordinal=?", (report["experiment_id"], brain, report["ordinal"])).fetchone()
@@ -332,6 +340,18 @@ class Canaries:
                 return []
         return self.open_granted(principal, candidate)
 
+    def _report_qualifies(self, brain, report_id) -> bool:
+        """The report just published must itself be an eligible final that passed the numeric gate."""
+        with closing(self.store._conn()) as connection:
+            row = connection.execute("SELECT report_hash,blob_hash FROM improvement_comparison_reports WHERE id=? AND brain_id=?",
+                                     (report_id, brain)).fetchone()
+        if row is None:
+            return False
+        report = json.loads(self.assets.blobs.read(brain, row["blob_hash"]).decode("utf-8"))
+        summary = report.get("summary") or {}
+        return (IM._hash(report) == row["report_hash"] and summary.get("mechanical_verdict") == "eligible"
+                and (summary.get("pilot") or {}).get("numeric_gate") is True)
+
     def open_granted(self, principal, candidate) -> list:
         """Open the granted canaries for one qualified candidate (caller established the evidence)."""
         brain = IM._brain(principal)
@@ -342,6 +362,8 @@ class Canaries:
         for grant in grants:
             slug = json.loads(grant["selector_json"]).get("agent_slug") or ""
             try:
+                if scope_hash(str(self.activations.agent_key(brain, slug) or "")) != grant["scope_hash"]:
+                    raise IM.ConflictError("auto_scope_identity_changed")
                 opened.append(self.activations.apply(principal, candidate["id"], slug,
                     event_key=f"auto-canary:{grant['id']}:{candidate['id']}", allocation_pct=grant["allocation_pct"]))
             except (PermissionError, ValueError, IM.ConflictError) as error:

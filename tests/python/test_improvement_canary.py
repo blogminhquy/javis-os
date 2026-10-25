@@ -167,6 +167,83 @@ class CanaryTests(CanaryBase):
         with self.assertRaises(IM.ConflictError):
             self.canaries.promote(self.owner, activation["activation_id"], expected_generation=1, event_key="promote-drift")
 
+    def test_unjudgeable_turns_fail_closed_to_control(self):
+        activation = self.start()
+        canary = self.sessions(activation, "canary")[0]
+        self.assertEqual(self.read(canary, message=0), self.canonical)  # steer follow-ups carry no message id
+        self.assertEqual(self.read("", message=3), self.canonical)
+        token = turn_context.bind(turn_context.make("dashboard", la_chu=True, session_id=canary, message_id=4,
+                                                    agent={"key": base.AGENTS["ke-toan"], "slug": "ke-toan"}))
+        try:
+            with base.IA.cli_transport():
+                self.assertEqual(base.IA.effective_skill_asset(self.root, self.slug).content, self.canonical)
+        finally:
+            turn_context.reset(token)
+        self.assertEqual(self.exposures(), [])
+
+    def test_exposure_rides_the_callers_open_transaction(self):
+        import time as clock
+        activation = self.start()
+        canary = self.sessions(activation, "canary")[0]
+        token = turn_context.bind(turn_context.make("dashboard", la_chu=True, session_id=canary, message_id=7,
+                                                    agent={"key": base.AGENTS["ke-toan"], "slug": "ke-toan"}))
+        try:
+            started = clock.monotonic()
+            with self.store._Tx(self.store) as connection:
+                asset = base.IA.effective_skill_asset(self.root, self.slug, connection=connection)
+            self.assertLess(clock.monotonic() - started, 2.0)
+        finally:
+            turn_context.reset(token)
+        self.assertEqual(asset.content, self.overlay())
+        self.assertEqual(self.exposures(), [(canary, 7, "canary")])
+
+    def test_lost_exposure_never_serves_the_candidate(self):
+        activation = self.start()
+        canary = self.sessions(activation, "canary")[0]
+        blocker = sqlite3.connect(self.store.path, timeout=5)
+        try:
+            blocker.execute("BEGIN IMMEDIATE")
+            self.assertEqual(self.read(canary, message=8), self.canonical)
+        finally:
+            blocker.rollback(); blocker.close()
+        self.assertEqual(self.exposures(), [])
+
+    def test_verdicts_only_while_the_canary_runs(self):
+        activation = self.start()
+        session = self.sessions(activation, "canary")[0]
+        self.read(session)
+        self.activations.revert(self.owner, activation["activation_id"], expected_generation=1, event_key="revert-before-verdict")
+        with self.assertRaisesRegex(IM.ConflictError, "not_running"):
+            self.verdict(activation, session, "pass")
+
+    def test_promotion_rechecks_the_skill_inside_the_transaction(self):
+        activation = self.start()
+        for session in self.sessions(activation, "canary", 10):
+            self.read(session)
+            self.verdict(activation, session, "pass")
+        self.now[0] += 8 * DAY
+        real, calls = base.SR.read_skill_asset, []
+
+        def drifting(*args, **kwargs):
+            asset = real(*args, **kwargs)
+            calls.append(1)
+            if len(calls) == 1:
+                self.skill.write_bytes(self.canonical + b"\nEdited between the read and the transaction.\n")
+            return asset
+        with unittest.mock.patch.object(base.SR, "read_skill_asset", side_effect=drifting), \
+                self.assertRaisesRegex(IM.ConflictError, "basis_changed"):
+            self.canaries.promote(self.owner, activation["activation_id"], expected_generation=1, event_key="promote-race")
+
+    def test_grant_opens_nothing_when_the_assistant_identity_changed(self):
+        self.canaries.grant(self.owner, self.candidate["target_id"], "ke-toan", 10, event_key="grant-identity")
+        with closing(self.store._conn()) as connection:
+            candidate = connection.execute("SELECT * FROM improvement_skill_candidates WHERE id=?",
+                                           (self.candidate["candidate_id"],)).fetchone()
+        self.activations.agent_key = lambda brain, slug: "agent-recreated-2" if slug == "ke-toan" else ""
+        opened = self.canaries.open_granted(self.owner, candidate)
+        self.assertEqual(opened[0]["skipped"], "auto_scope_identity_changed")
+        self.assertEqual(self.activations.list(self.owner), [])
+
     def test_revert_ends_the_canary(self):
         activation = self.start()
         self.activations.revert(self.owner, activation["activation_id"], expected_generation=1, event_key="revert-canary")

@@ -142,6 +142,7 @@
     const version = s.version;
     const value = (await request(s, "/improvement-canaries/" + encodeURIComponent(row.activation_id))).canary;
     if (!alive(s, version)) return;
+    card.querySelector('[data-action="canary-panel-' + row.activation_id + '"]')?.remove();
     const box = node("div", null, "canary-panel-" + row.activation_id); card.append(box);
     const o = value.observation, arms = o.arms;
     box.append(node("p", `${tr("canary_days")}: ${o.days} / ${o.required.days}`));
