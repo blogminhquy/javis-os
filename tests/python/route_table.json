@@ -6634,5 +6634,15 @@
    "GET"
   ],
   "trong": null
+ },
+ {
+  "order": 666,
+  "type": "APIRoute",
+  "path": "/plan-limits",
+  "name": "plan_limits_get",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
  }
 ]

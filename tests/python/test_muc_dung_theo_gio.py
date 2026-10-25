@@ -97,8 +97,8 @@ check("route /usage/theo-gio có", bool(m))
 than = m.group(0) if m else ""
 check("mốc: trần khai trước, đỉnh sau, có cờ loại", "tran_5h" in than and "dinh_cua_so" in than
       and '"loai": "tran" if tran else "dinh"' in than)
-check("route đăng ký cuối main.py (bảng route chỉ dài thêm ở đuôi)",
-      src.rstrip().endswith("return d") and src.rfind('@app.get("/usage/theo-gio")') > src.rfind("star_nudge_routes.register"))
+check("route đăng ký sau star_nudge (bảng route chỉ dài thêm ở đuôi)",
+      src.rfind('@app.get("/usage/theo-gio")') > src.rfind("star_nudge_routes.register"))
 
 if fails:
     raise SystemExit(f"{len(fails)} FAIL")

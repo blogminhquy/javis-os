@@ -297,6 +297,14 @@ def map_message(msg):
     from claude_agent_sdk import (AssistantMessage, UserMessage, SystemMessage, ResultMessage,
                                   TextBlock, ToolUseBlock, ToolResultBlock)
     events = []
+    # 0.326.0: the plan's 5-hour and weekly meters, for the composer ring (plan_limits.py).
+    if type(msg).__name__ == "RateLimitEvent":
+        try:
+            import plan_limits
+            plan_limits.ghi_claude(getattr(msg.rate_limit_info, "raw", None) or {})
+        except Exception:  # noqa: BLE001 - a meter must never break a turn
+            pass
+        return events, None
     if isinstance(msg, SystemMessage):
         data = msg.data or {}
         # Claude Code reports the real Fast mode state (off, cooldown, on): keep it for the bolt tooltip.

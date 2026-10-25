@@ -14,7 +14,12 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
   - **The 5-hour window hour by hour:** whether it is rising or falling, a dashed mark at your declared cap (or the highest you ever reached), a colour change as it nears the mark, and one line saying there is room or heavy work should wait.
   - **Tokens per hour:** which hours this morning burned the most, split by Claude, ChatGPT and API.
   - **When AI works hardest over 7 days:** a less-to-more colour strip for the 24 hours of the day, with the quiet hours suggested for background work.
+- **A plan usage ring next to the Effort chip**, for Claude Code signed in to Pro/Max and for ChatGPT through Codex:
+  - Green with plenty left, amber from 50%, **red from 80% of either the 5-hour session or the week**, whichever is closer.
+  - Click it to see the "5-hour session" and "Weekly" bars with their reset times, like Claude's plan usage panel.
+  - The numbers come straight from Claude Code and Codex after each chat turn; Javis never reads your sign-in token. Models on an API key show no ring.
 ### Improved
+- **The lightning bolt (Fast mode) moved to the top-right corner of the Effort popover.** With it on, light particles run along the effort bar; off, the bar is a still gradient. The Effort chip shows a small bolt while Fast mode is on.
 - **The tokens-per-day chart** now spans the full width with larger, readable day numbers (it used to sit squeezed in a corner with tiny labels).
 - **The "Give a star" button at the bottom left is tidier:** it is now its own full-width button under the version number, always on one line (it used to wrap onto two). With the sidebar collapsed, it shows just the star.
 

@@ -27233,3 +27233,16 @@ async def usage_theo_gio():
     d["moc"] = {"tokens": tran or int(dinh.get("tokens") or 0), "loai": "tran" if tran else "dinh",
                 "luc": dinh.get("hour") or ""}
     return d
+
+
+@app.get("/plan-limits")
+async def plan_limits_get():
+    """0.326.0: the composer ring. The 5-hour and weekly meters of each brain that runs on a plan
+    (Claude Code on its signed-in session, ChatGPT through Codex), as the CLIs last reported them."""
+    import plan_limits
+    await asyncio.to_thread(plan_limits.quet_codex)
+    d = await asyncio.to_thread(plan_limits.doc)
+    # Claude Code on an API key bills per token: no plan, so no ring for it.
+    goi = {"anthropic-cli": not claude_auth.env_cho_cli(), "openai-oauth": True}
+    return {"claude": d.get("claude"), "codex": d.get("codex"), "plan": goi,
+            "nguong": {"canh_bao": plan_limits.CANH_BAO, "sat": plan_limits.SAT}}

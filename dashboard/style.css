@@ -1520,14 +1520,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cp-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cp-chips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
 .cp-gap { flex: 1 1 auto; }
-.cp-plus, .cp-fast {
+.cp-plus, .cp-limit {
   flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0;
   border: 1px solid var(--border); background: transparent; color: var(--text2);
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
   transition: border-color .15s, color .15s, background .15s;
 }
-.cp-plus:hover, .cp-plus[aria-expanded="true"], .cp-fast:hover { border-color: var(--accent); color: var(--accent); }
-.cp-plus:focus-visible, .cp-fast:focus-visible, .cp-eff:focus-visible, .mic-big:focus-visible,
+.cp-plus:hover, .cp-plus[aria-expanded="true"], .cp-limit:hover, .cp-limit[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.cp-plus:focus-visible, .cp-limit:focus-visible, .cp-eff:focus-visible, .mic-big:focus-visible,
 .send-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cp-eff {
   flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
@@ -1535,20 +1535,42 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   color: var(--accent-ink); font-family: var(--font); font-weight: 600; cursor: pointer; white-space: nowrap;
 }
 .cp-eff:hover, .cp-eff[aria-expanded="true"] { border-color: var(--accent); }
-/* Fast mode bolt: still when off; when on, an orange background with a moving shine and a gently pulsing bolt. */
-.cp-fast[aria-pressed="true"] {
+.cp-limit[hidden] { display: none; }
+/* Plan usage ring (plan-limit.js, 0.326.0): fills with the larger of the 5-hour and weekly meters,
+   green, then amber from 50%, red from 80%. Grey while no number has come in yet. */
+.cp-limit svg { transform: rotate(-90deg); }
+.cp-limit circle { fill: none; stroke-width: 4.5; }
+.cp-limit .lim-bg { stroke: var(--border); }
+.cp-limit .lim-fg { stroke-linecap: round; stroke: var(--text3); transition: stroke-dasharray .4s ease, stroke .2s; }
+.cp-limit[data-muc="ok"] .lim-fg { stroke: var(--green, #3fb27f); }
+.cp-limit[data-muc="warn"] .lim-fg { stroke: var(--warn-ink); }
+.cp-limit[data-muc="bad"] .lim-fg { stroke: var(--red); }
+.cp-limit[data-muc="bad"] { border-color: var(--red); }
+/* Fast mode, now in the Effort popover's top-right corner: still when off; when on, an orange background with a
+   moving shine and a gently pulsing bolt. The chip shows a small bolt while it is on. */
+.cp-eff-fast { display: inline-flex; color: var(--accent); }
+.cp-eff-fast[hidden] { display: none; }
+.eff-fast {
+  margin-left: auto; flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text2);
+  display: inline-flex; align-items: center; justify-content: center; align-self: center;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.eff-fast:hover { border-color: var(--accent); color: var(--accent); }
+.eff-fast:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eff-fast[aria-pressed="true"] {
   color: var(--on-accent); border-color: var(--accent);
   background: linear-gradient(110deg, var(--accent) 0%, var(--accent-ink) 25%, var(--accent) 50%, var(--accent-solid) 75%, var(--accent) 100%);
   background-size: 250% 100%; animation: fastWave 1.6s linear infinite;
 }
-.cp-fast[aria-pressed="true"] svg { animation: fastZap 1.6s ease-in-out infinite; }
-.cp-fast[aria-disabled="true"] { opacity: .45; cursor: help; }
+.eff-fast[aria-pressed="true"] svg { animation: fastZap 1.6s ease-in-out infinite; }
+.eff-fast[aria-disabled="true"] { opacity: .45; cursor: help; }
 @keyframes fastWave { to { background-position: -250% 0; } }
 @keyframes fastZap { 50% { transform: scale(1.12); } }
 @media (prefers-reduced-motion: reduce) {
-  .cp-fast[aria-pressed="true"], .cp-fast[aria-pressed="true"] svg { animation: none; }
+  .eff-fast[aria-pressed="true"], .eff-fast[aria-pressed="true"] svg { animation: none; }
 }
-/* Pinned working folder chip, right after the bolt (composer-folder.js, 0.158.0). */
+/* Pinned working folder chip, right after the usage ring (composer-folder.js, 0.158.0). */
 .cp-pin { display: inline-flex; align-items: center; gap: 5px; height: 30px; max-width: 190px; padding: 0 10px;
   border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text2);
   font: inherit; font-size: 12.5px; cursor: pointer; flex: 0 1 auto; min-width: 0; }
@@ -2389,7 +2411,27 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cp-pin-here { color: var(--accent-ink, var(--accent)); font-weight: 600; }
 @media (pointer: coarse) { .cp-in { width: 44px; height: 44px; } }
 .eff-pop { padding: 14px 16px; width: min(330px, calc(100vw - 32px)); }
-.eff-head { display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
+.eff-head { display: flex; align-items: baseline; gap: 8px; font-size: 15px; min-height: 32px; }
+.eff-head .eff-lbl, .eff-head .eff-val { align-self: center; }
+/* Plan usage popover (plan-limit.js): two meters with their reset times, like Claude's "Plan usage limits". */
+.lim-pop { width: min(320px, calc(100vw - 32px)); }
+.lim-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.lim-h { font-size: 16px; font-weight: 600; color: var(--text); }
+.lim-who { font-size: 13px; color: var(--text3); }
+.lim-row { margin-top: 12px; }
+.lim-row-h { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; color: var(--text); }
+.lim-pct { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.lim-pct.lim-ok { color: var(--text2); }
+.lim-pct.lim-warn { color: var(--warn-ink); }
+.lim-pct.lim-bad { color: var(--red); }
+.lim-bar { height: 8px; border-radius: 999px; background: var(--bg3); overflow: hidden; margin: 6px 0 4px; }
+.lim-bar i { display: block; height: 100%; border-radius: 999px; min-width: 4px; }
+.lim-bar i.lim-ok { background: var(--green, #3fb27f); }
+.lim-bar i.lim-warn { background: var(--warn-ink); }
+.lim-bar i.lim-bad { background: var(--red); }
+.lim-reset { font-size: 13px; color: var(--text3); }
+.lim-at, .lim-none { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: var(--text3); }
+.lim-none { color: var(--text2); }
 .eff-lbl { color: var(--text2); }
 .eff-val { color: var(--accent-ink); font-weight: 600; }
 .eff-ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); margin: 12px 0 6px; }
