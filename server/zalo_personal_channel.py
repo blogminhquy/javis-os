@@ -1116,15 +1116,9 @@ def _chuan(text: str) -> str:
 # Field report 2026-10-19: a group reply reached Zalo with this markup as plain text, so the group saw code instead
 # of a tag. The model copies it from messages that carry it, so it is stripped both ways: incoming (`chuan_hoa_tin`)
 # and outgoing (`channels.zalo_personal.gui`), leaving "@Minh Quý" for the real tag (`--mention`) to find.
-_MENTION_MARKUP = re.compile(r"</?a_mention\b[^>]*>", re.IGNORECASE)
-
-
-def strip_mention_markup(text: str) -> str:
-    """`text` without Zalo's `<a_mention ...>` / `</a_mention>` tags; the "@Name" between them stays."""
-    s = str(text or "")
-    if "a_mention" not in s.lower():
-        return s
-    return _MENTION_MARKUP.sub("", s)
+# Since 0.309.0 the stripping lives in `zalo_markup` (also used by the MCP pool for direct tool calls) and also
+# removes broken fragments such as a leftover `href="zm://...">`.
+from zalo_markup import strip_mention_markup  # noqa: E402,F401
 
 
 def ghi_da_gui(conn_id: str, thread: str, text: str) -> None:

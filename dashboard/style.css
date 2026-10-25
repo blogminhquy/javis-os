@@ -3176,6 +3176,25 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .cb-nhomcho-d { font-size: 12.5px; line-height: 1.5; color: var(--text3); }
 .cb-nhomcho-a { display: flex; gap: 6px; flex-wrap: wrap; }
 .cb-acts { display: flex; gap: 6px; margin-top: 2px; }
+/* 0.309.0: a long error (a raw API reply, a Google link) used to run out of the card. Wrap anywhere. */
+.cb-err, .cb-quyen-t, .cb-nhomcho-t, .cb-nhomcho-d { overflow-wrap: anywhere; word-break: break-word; }
+/* Status row on the card: counts only, the details open in a popup (owner, 25/10/2026). */
+.cb-st { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  min-height: 40px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface-3); color: var(--text); font: inherit; font-size: 16px; cursor: pointer; text-align: left; }
+.cb-st.err { border-color: var(--danger-line); background: var(--danger-wash); }
+.cb-st.warn { border-color: var(--warn-line); background: var(--warn-wash); }
+.cb-st.wait { border-color: var(--info-line); background: var(--info-wash); }
+.cb-st:hover { filter: brightness(0.97); }
+.cb-st-chips { display: flex; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.cb-st-chip { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.cb-st-chip.err { color: var(--red); }
+.cb-st-chip.warn { color: var(--warn-ink); }
+.cb-st-chip.wait { color: var(--text); }
+.cb-st-more { flex: none; display: inline-flex; align-items: center; gap: 2px; color: var(--text3); }
+.cb-st-body { display: flex; flex-direction: column; gap: 10px; }
+.cb-st-body .cb-err, .cb-st-body .cb-quyen, .cb-st-body .cb-nhomcho-d { font-size: 16px; }
+.cb-st-body .cb-nhomcho-t { font-size: 16px; }
 .cb-empty { grid-column: 1 / -1; text-align: center; color: var(--text3); padding: 40px 16px;
   font-size: 14px; line-height: 1.7; }
 .cb-empty b { color: var(--text); display: block; margin: 8px 0 4px; font-size: 15px; }

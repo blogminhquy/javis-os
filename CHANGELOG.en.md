@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.309.0] - 2026-10-25
+### Added
+- **What bots and assistants learn now lives in the brain.** The judge's lessons, eagerness, per-group thresholds and role profile, plus each assistant's lessons, learned presentation and own judge, are written to the brain's `Javis/learned/` folder, one file per bot and per assistant. Copy the brain to another machine or restore it from GitHub and Javis loads them back into the bot and assistant with the same name.
+- Cases learned from customer messages sit in a separate `.private.json` file: it travels with the brain folder but never goes to GitHub. "Forget everything" and deleting a bot remove these files too.
+### Fixed
+- **Bot cards are tidy again, nothing runs out of them.** Errors, warnings and groups waiting for approval now sit in one "Status" row with counts on the card. Press View to read everything in a popup (long text wraps) and Allow or Ignore right there.
+- **Zalo messages no longer show tag code on phones.** A bot sometimes sent `href="zm://Profile/...">@Name</a_mention>` along with its reply: Zalo on a computer hid it but Zalo on a phone showed it as is. Javis now removes this markup, broken pieces included, on every way a Zalo message is sent, and two names that end up side by side keep a space between them.
+- **The Import old messages button is easy to find.** It used to hide inside the Zalo account chip on the bot card, where hardly anyone noticed it. The bot card's "..." menu now has an Import old messages item (about the last 2 weeks go into the Inbox).
+
 ## [0.308.0] - 2026-10-24
 ### Fixed
 - **The code box when signing in to Claude is no longer squashed.** The send button took the whole row, leaving the code box about 24px wide. Now the box takes the row with readable 16px text, and on a phone the button moves below. After opening the link the cursor lands in the box, Enter sends, and stray spaces from pasting are removed.

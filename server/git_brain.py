@@ -201,6 +201,9 @@ _GITIGNORE_BODY = (
        ".antigravity/",
        ".antigravitycli/",
        ".gemini/",
+       "# Learned knowledge that carries customer chat text (owner decision 2026-10-25, see",
+       "# server/learned_mirror.py): it stays in the brain folder but never goes to the backup.",
+       "Javis/learned/**/*.private.json",
        "*.tmp",
        "# Vùng cache media: ảnh sinh ra + file user gửi lên. Là NGUYÊN LIỆU đi qua, không phải",
        "# tri thức, và media_gc.py tự dọn theo hạn. Bốn dòng attachments vì tên thư mục có thể",
@@ -599,9 +602,24 @@ def _raw_kept_out(rel: str) -> bool:
     return False
 
 
+# Learned-knowledge mirror files that carry customer chat text (server/learned_mirror.py). Owner decision 2026-10-25
+# ("Tach rieng"): what a bot or agent learned WITHOUT chat text is backed up, but the `*.private.json` files under
+# `Javis/learned/` stay in the brain folder only. A suffix cannot be expressed in `_BACKUP_SKIP_SUBSTR`, so
+# `_backup_skip` checks it right after that list, on every path (push, apply back, self-heal).
+_LEARNED_DIR = "/Javis/learned/"
+_LEARNED_PRIVATE_SUFFIX = ".private.json"
+
+
+def _learned_private(rel: str) -> bool:
+    r = "/" + rel.replace("\\", "/")
+    return _LEARNED_DIR in r and r.endswith(_LEARNED_PRIVATE_SUFFIX)
+
+
 def _backup_skip(rel: str, sync_images: bool = False) -> bool:
     r = "/" + rel.replace("\\", "/") + "/"
     if any(s in r for s in _BACKUP_SKIP_SUBSTR):
+        return True
+    if _learned_private(rel):
         return True
     name = rel.replace("\\", "/").rsplit("/", 1)[-1]
     if name == ".javis-learn.lock" or name.endswith(".tmp"):

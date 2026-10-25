@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.309.0] - 2026-10-25
+### Thêm mới
+- **Kiến thức bot và trợ lý học được giờ nằm trong brain.** Bài học, độ nhiệt tình, ngưỡng theo nhóm, hồ sơ vai trò của bộ phán xử, cùng bài học, cách trình bày và bộ phán xử riêng của từng trợ lý được ghi vào thư mục `Javis/learned/` của brain, mỗi bot và mỗi trợ lý một file. Chép brain sang máy khác hay khôi phục từ GitHub là Javis tự nạp lại vào đúng bot và trợ lý cùng tên.
+- Các ca học từ tin nhắn của khách nằm trong file riêng `.private.json`: vẫn đi theo thư mục brain nhưng không bao giờ lên GitHub. Nút "quên hết" và xoá bot xoá luôn các file này.
+### Sửa lỗi
+- **Thẻ bot gọn lại, không còn tràn chữ.** Lỗi, cảnh báo và nhóm đang chờ cho phép giờ gom thành một hàng "Tình trạng" có đếm số trên thẻ. Bấm Xem để mở cửa sổ đọc đầy đủ (chữ dài tự xuống dòng) và bấm Cho phép hay Bỏ qua ngay trong đó.
+- **Tin Zalo không còn lộ mã thẻ tên trên điện thoại.** Có lúc bot gửi kèm đoạn mã `href="zm://Profile/...">@Tên</a_mention>`: Zalo trên máy tính ẩn được nhưng trên điện thoại hiện nguyên văn. Giờ Javis gỡ sạch mã này, kể cả khi mã bị vỡ, trên mọi đường gửi tin Zalo, và hai tên đứng liền nhau được tách bằng một khoảng trắng.
+- **Nút Nhập tin cũ dễ thấy hơn.** Trước đây nút này nằm lẫn trong chip tên tài khoản Zalo trên thẻ bot, gần như không ai nhận ra. Giờ menu "..." của thẻ bot có hẳn mục Nhập tin cũ (lấy khoảng 2 tuần tin gần nhất vào Hộp thư).
+
 ## [0.308.0] - 2026-10-24
 ### Sửa lỗi
 - **Ô dán mã khi đăng nhập Claude không còn bị co bé tí.** Nút Gửi chiếm hết hàng nên ô mã chỉ còn chừng 24px. Giờ ô rộng hết hàng, chữ 16px dễ đọc, trên điện thoại nút xuống dòng dưới. Mở link xong con trỏ tự vào ô mã, bấm Enter là gửi, khoảng trắng thừa khi dán tự bị bỏ.

@@ -313,6 +313,27 @@ ev = zc.chuan_hoa_tin(CONN, {"threadId": GROUP, "type": 1, "senderId": "7770002"
 check("incoming message: the bot reads @Name, never the markup (so it does not copy it)",
       ev and ev["text"] == "@Minh Quý xem giúp em", ev)
 
+# 0.309.0 (field report 2026-10-25, Zalo on a phone): a BROKEN tag survived, `@Hotline Gsmsuppliershref="zm://Profile/
+# 102631062_mention">@Trinh Tran</a_mention>`, and two whole tags back to back glued the names ("@A@B").
+import zalo_markup  # noqa: E402
+check("broken tag: the leftover href fragment goes, the names stay apart",
+      zc.strip_mention_markup('@Hotline Gsmsuppliershref="zm://Profile/102631062_mention">@Trinh Tran</a_mention> Dạ em')
+      == "@Hotline Gsmsuppliers @Trinh Tran Dạ em")
+check("two tags back to back keep a space between the names",
+      zc.strip_mention_markup('<a_mention href="zm://Profile/1_mention">@An</a_mention><a_mention href="zm://Profile/2_mention">'
+                              '@Binh</a_mention> chào') == "@An @Binh chào")
+check("a tag cut off before its '>' leaves only the name",
+      zc.strip_mention_markup('Chào <a_mention href="zm://Profile/5_mention"@An nhé') == "Chào @An nhé")
+check("ordinary text with @ or links is untouched",
+      zc.strip_mention_markup("mail a@b.com, xem https://zm.vn/x") == "mail a@b.com, xem https://zm.vn/x")
+check("a Zalo send tool called directly (owner chat, reminder) is cleaned too, other tools are not",
+      zalo_markup.clean_send_args("zalo_send_message", {"threadId": "1", "text": RAW})["text"] == "@Minh Quý Dạ anh 😊"
+      and zalo_markup.clean_send_args("zalo_send_mention", {"message": RAW})["message"] == "@Minh Quý Dạ anh 😊"
+      and zalo_markup.clean_send_args("zalo_get_messages", {"text": RAW})["text"] == RAW)
+_pool_src = (SERVER / "mcp_client.py").read_text(encoding="utf-8")
+check("the MCP pool cleans every zalo_send* call, the one path all tool calls share",
+      'startswith("zalo_send")' in _pool_src and "zalo_markup.clean_send_args(tool, args)" in _pool_src)
+
 check("không dùng em dash trong file này và code mới", chr(0x2014) not in open(__file__, encoding="utf-8").read()
       and chr(0x2014) not in (SERVER / "channels" / "zalo_personal.py").read_text(encoding="utf-8"))
 
