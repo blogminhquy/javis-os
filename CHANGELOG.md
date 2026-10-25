@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.326.0] - 2026-10-26
+### Cải thiện
+- **Nút "Tặng sao" ở góc trái gọn gàng hơn:** giờ là một nút riêng trải hết bề ngang, nằm dưới số phiên bản, chữ luôn trên một dòng (trước đây "Give a star" bị gãy làm hai dòng). Khi thu gọn thanh bên, nút chỉ còn hình ngôi sao.
+
 ## [0.324.0] - 2026-10-26
 ### Thêm mới
 - **Lời mời tặng Javis 1 ngôi sao trên GitHub**, hiện đúng lúc bạn vui: lần đầu thả tim cho một câu trả lời, khi Javis vừa làm xong việc cho bạn, khi tròn 50 hay 100 lượt trò chuyện, tròn 1 tháng dùng Javis, hay vừa có bản mới. Mỗi lần một lời chào riêng, linh vật là ngôi sao cam của Javis.

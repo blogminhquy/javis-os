@@ -35,7 +35,14 @@ check("app.js: việc nền trả kết quả là một khoảnh khắc", /data\
 check("app.js: lượt làm từ 3 bước trở lên là một khoảnh khắc", /t\.buoc\.so\) \|\| 0\) >= 3[\s\S]{0,40}JavisStar\.moment\("work"\)/.test(APP));
 check("mở app thì hỏi server có cột mốc / bản mới không", /moment\("load"\)/.test(SN));
 check("trang Cập nhật có thẻ Ủng hộ Javis", /JavisStar\.theUngHo\(\)/.test(CON) && /\.sn-ho \.sn-go/.test(CON));
-check("nút sao nhỏ ở góc trái", /\.rail-foot \.rf-meta/.test(SN) && /rf-star/.test(CSS));
+check("nút Tặng sao ở góc trái", /querySelector\("\.rail-foot"\)/.test(SN) && /rf-star/.test(CSS));
+// Chủ repo 25/10: nhét nút vào cột phiên bản thì "Give a star" gãy làm hai dòng. Nút là hàng riêng,
+// trải hết bề ngang, chữ một dòng; thanh thu gọn chỉ còn ngôi sao.
+check("nút Tặng sao là hàng riêng, không nằm trong cột phiên bản",
+  !/rf-meta[\s\S]{0,80}appendChild\(b\)/.test(SN) && /\.rail-foot \{ flex-wrap: wrap; \}/.test(CSS) &&
+  /\.rail-foot \.rf-star \{[^}]*flex: 1 0 100%/.test(CSS));
+check("chữ nút một dòng", /\.rail-foot \.rf-star \{[^}]*white-space: nowrap/.test(CSS));
+check("thanh thu gọn: chỉ còn ngôi sao", /\.rail\.collapsed \.rail-foot \.rf-star-chu \{ display: none; \}/.test(CSS));
 check("index nạp css và js", /\/static\/star-nudge\.css\?v=\d+/.test(IDX) && /\/static\/star-nudge\.js\?v=\d+/.test(IDX));
 
 // 2. Không làm phiền

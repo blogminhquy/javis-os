@@ -118,14 +118,23 @@
 @keyframes snPhao { 0% { transform: translate(-50%, 0) scale(.3); opacity: 1; }
   100% { transform: translate(calc(-50% + var(--x)), var(--y)) scale(1.1) rotate(160deg); opacity: 0; } }
 
-/* Nút sao nhỏ luôn có sẵn dưới số phiên bản ở góc trái */
+/* Nút "Tặng sao" ở chân thanh bên trái: hàng riêng dưới phiên bản và nút thu/mở, trải hết bề
+   ngang, chữ một dòng. Chân thanh được phép xuống dòng chỉ để chứa hàng này. */
+.rail-foot { flex-wrap: wrap; }
 .rail-foot .rf-star {
-  display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 2px 8px; border-radius: 99px;
-  border: 1px solid rgba(255, 182, 39, .5); background: rgba(255, 182, 39, .1); color: var(--text);
-  font: 600 11px/1.6 var(--font); cursor: pointer;
+  order: 3; flex: 1 0 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 34px; margin: 2px 0 0; padding: 0 10px; border-radius: 10px; cursor: pointer; white-space: nowrap;
+  border: 1px solid rgba(255, 182, 39, .55); background: rgba(255, 182, 39, .12); color: var(--text);
+  font: 600 16px/1.2 var(--font); transition: background .15s ease, border-color .15s ease;
 }
-.rail-foot .rf-star .ic { width: 12px; height: 12px; color: #FFB627; fill: #FFD54A; }
-.rail-foot .rf-star:hover { background: rgba(255, 182, 39, .2); }
+.rail-foot .rf-star .ic { width: 16px; height: 16px; flex: none; color: #FFB627; fill: #FFD54A; }
+.rail-foot .rf-star .rf-star-chu { overflow: hidden; text-overflow: ellipsis; }
+.rail-foot .rf-star:hover { background: rgba(255, 182, 39, .22); border-color: #FFB627; }
+@media (min-width: 861px) {
+  /* Thanh thu gọn: chỉ còn ngôi sao, cùng cỡ với nút thu/mở ngay trên, tên nút hiện khi rê chuột. */
+  .rail.collapsed .rail-foot .rf-star { flex: 0 0 auto; width: 32px; min-height: 30px; padding: 0; }
+  .rail.collapsed .rail-foot .rf-star-chu { display: none; }
+}
 
 /* Thẻ "Ủng hộ Javis" trên trang Cập nhật */
 .sn-ho { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
