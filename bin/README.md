@@ -21,8 +21,10 @@ start it like a normal app.
   Finder alternatives.
 - **`bin/javis-start.sh`** / **`bin/javis-stop.sh`** - the underlying scripts.
 - **`bin/javis-autostart.sh [install|uninstall]`** - run the server at login via a
-  macOS LaunchAgent. The plist is generated with paths for your machine; nothing
-  is hardcoded in the repo.
+  macOS LaunchAgent, and open the dashboard in the browser once it is up (a second,
+  run-once agent; `JAVIS_AUTOSTART_OPEN=0` skips it). `./install.sh` turns this on by
+  default since 0.306.0 (`JAVIS_NO_AUTOSTART=1` to skip). The plists are generated with
+  paths for your machine; nothing is hardcoded in the repo.
 
 ## Notes
 

@@ -902,6 +902,13 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
         d["bots"].append(bot)
         _save(d)
     _nhan_brain_cho_tk(bot)
+    try:
+        # A brain copied from another machine may hold what a bot with this slug learned there: import it now, before
+        # the judge writes anything of its own (see learned_mirror).
+        import learned_mirror
+        learned_mirror.on_bot_created(bot)
+    except Exception:      # noqa: BLE001 - the mirror must not fail bot creation
+        pass
     return bot["id"], ""
 
 
@@ -1114,13 +1121,23 @@ def delete_bot(bot_id: str) -> tuple[bool, str]:
     """
     with _lock:
         d = _load()
-        n = len(d["bots"])
+        gone = [b for b in d["bots"] if b.get("id") == bot_id]
         d["bots"] = [b for b in d["bots"] if b.get("id") != bot_id]
-        if len(d["bots"]) == n:
+        if not gone:
             return False, LOI_KHONG_CO_BOT
         _save(d)
     _xoa_du_lieu_phan_xu(bot_id)
+    _remove_learned_mirror(gone[0])
     return True, ""
+
+
+def _remove_learned_mirror(bot: dict) -> None:
+    """Deleting a bot also removes what it learned from its brain folder (`Javis/learned/bots/<slug>*.json`)."""
+    try:
+        import learned_mirror
+        learned_mirror.remove_bot(bot)
+    except Exception:      # noqa: BLE001 - cleaning the mirror must not fail the delete
+        pass
 
 
 def _xoa_du_lieu_phan_xu(bot_id: str) -> None:

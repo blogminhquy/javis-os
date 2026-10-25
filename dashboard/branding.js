@@ -145,6 +145,38 @@
       if (sslRow) sslRow.style.display = "none";
       if (guide) guide.style.display = "none";
       setStatus("domainStatus", window.t("brand.no_domain"), false);
+      // 0.302.0: on a Hostinger VPS the server reads the free srv<id>.hstgr.cloud name from reverse DNS and offers the
+      // exact DOMAIN_NAME line. Without it, hPanel's Open button only reaches http://<ip>:7777 (owner report 24/10).
+      var sg = j && j.suggested_domain;
+      var gw = (j && j.gateway) || {};
+      var gwNames = (gw.names || []).join(", ");
+      // 0.304.0: on Ubuntu 26 the gateway serves the VPS link itself. Say which step it is at instead of always asking
+      // for DOMAIN_NAME: the link works (open it), the certificate is still coming (ports 80/443), or Traefik has the ports.
+      if (j && j.auto_url && guide) {
+        guide.innerHTML = '<div class="dom-step done"><span class="dom-step-num">' + ic("check") + '</span><div><b>' +
+          window.t("brand.auto_ok_title") + '</b><p>' + window.t("brand.auto_ok_desc") + '</p></div></div>' +
+          '<a class="dom-open" href="' + esc(j.auto_url) + '" target="_blank" rel="noopener">' + window.t("brand.open") + ' ' +
+          esc(j.auto_url) + ' ↗</a>';
+        guide.style.display = "block";
+        setStatus("domainStatus", window.t("brand.https_running", { domain: j.auto_url.replace(/^https:\/\//, "") }), false);
+        return;
+      }
+      if (gw.state === "serving" && gwNames && guide) {
+        guide.innerHTML = '<div class="dom-step warn"><span class="dom-step-num">' + ic("lightbulb") + '</span><div><b>' +
+          window.t("brand.gw_wait_title") + '</b><p>' + window.t("brand.gw_wait_desc") + '</p><code>' + esc(gwNames) +
+          '</code></div></div>';
+        guide.style.display = "block";
+        return;
+      }
+      if (sg && guide) {
+        var line = "DOMAIN_NAME=" + sg;
+        var di = $("setDomain"); if (di && !di.value) di.placeholder = sg;
+        guide.innerHTML = '<div class="dom-step warn"><span class="dom-step-num">' + ic("lightbulb") + '</span><div><b>' +
+          window.t("brand.suggest_title") + '</b><p>' + window.t("brand.suggest_desc") + '</p><code>' + esc(line) +
+          '</code><br><button class="dom-copy" type="button" data-copy="' + esc(line) + '">' + window.t("brand.copy_env") +
+          '</button></div></div>';
+        guide.style.display = "block";
+      }
       return;
     }
     if (row) row.style.display = "flex";
@@ -254,7 +286,8 @@
       var b = j.branding || {};
       _logoCustom = !!b.logo_ext;
       setStatus("brandLogoStatus", _logoCustom ? window.t("brand.using_custom_image") : window.t("brand.using_default_image"), false);
-      if (dom) checkDomain(); else renderDomainStatus({ domain: "" });
+      // No domain: still ask the server once, it may offer this VPS's free Hostinger name (0.302.0).
+      if (dom) checkDomain(); else { renderDomainStatus({ domain: "" }); checkDomain(); }
     } catch (e) { /* im lặng */ }
   }
 

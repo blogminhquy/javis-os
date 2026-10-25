@@ -1,8 +1,9 @@
 # ============================================================================
-# Javis OS - HOSTINGER VPS (Docker Manager). Tên miền + HTTPS qua Traefik có sẵn của Hostinger.
+# Javis OS - HOSTINGER VPS (Docker Manager). Tên miền + HTTPS qua Traefik có sẵn của Hostinger,
+# hoặc qua Caddy đi kèm (service gateway) khi VPS không có Traefik (mẫu Ubuntu 26 trắng).
 #
 # File này LUÔN deploy được:
-#   - Chưa đặt DOMAIN_NAME  -> chạy tạm, vào bằng nút Open / http://<ip>:7777 (chưa có HTTPS).
+#   - Chưa đặt DOMAIN_NAME  -> chạy tạm, nút Open mở http://<ip>:7777 (chưa có HTTPS).
 #   - Đặt DOMAIN_NAME       -> Traefik của Hostinger tự cấp HTTPS cho tên miền đó.
 #
 # CÁCH DÙNG:
@@ -18,15 +19,20 @@
 #        - Link miễn phí (KHÔNG cần mua tên miền):  DOMAIN_NAME=javis.<hostname-vps>.hstgr.cloud
 #          (hostname xem ở hPanel > VPS, vd: DOMAIN_NAME=javis.srv1782015.hstgr.cloud)
 #        - Hoặc tên miền riêng:  DOMAIN_NAME=tenmien.com  (trỏ DNS A về IP VPS trước).
-#   3) Deploy > đợi 1-3 phút Traefik cấp SSL > mở  https://<DOMAIN_NAME>.
+#   3) Deploy > đợi 1-3 phút Traefik (hoặc gateway) cấp SSL > mở  https://<DOMAIN_NAME>.
 #
-# KHÔNG tìm thấy ô Environment? Bấm Manage > sửa .yaml, đổi thẳng dòng Host(...) thành tên miền:
-#      Host(`javis.srv1782015.hstgr.cloud`)   (thay bằng hostname VPS của bạn).
+# KHÔNG tìm thấy ô Environment? Bấm Manage > sửa .yaml, đổi hai dòng nhãn traefik.enable và ...rule thành:
+#      - traefik.enable=true
+#      - traefik.http.routers.javis.rule=Host(`javis.srv1782015.hstgr.cloud`)   (thay bằng hostname VPS của bạn).
+# Không biết hostname VPS? Mở Javis bằng http://<ip>:7777 > Cài đặt > Tên miền: Javis hiện sẵn dòng DOMAIN_NAME=...
 #
 # GHI CHÚ:
 #   - Mấu chốt: KHÔNG khai báo networks - Traefik của Hostinger tự thấy container qua nhãn.
 #   - Cập nhật bản mới: bấm "Cập nhật ngay" ngay trong app (trang Cập nhật). Nút đó cần
 #     container watchtower đi kèm bên dưới; nó không lên được thì vẫn Redeploy như cũ.
+#   - VPS Hostinger KHÔNG có Traefik (mẫu Ubuntu 26 trắng, 0.300.0): vẫn dán đúng link này. Service gateway
+#     ở dưới tự thấy cổng 80/443 trống và cấp HTTPS cho DOMAIN_NAME bằng Caddy. Cần Docker (hPanel cài sẵn khi
+#     mở Docker Manager, hoặc: curl -fsSL https://get.docker.com | sh) và mở cổng 80, 443 ở tường lửa.
 #   - VPS KHÔNG phải Hostinger: bỏ file này, dùng docker-compose.yml + docker-compose.https.yml (Caddy).
 #   - Image GHCR phải để PUBLIC (GitHub > Packages > javis-os > Package settings > Public).
 # ============================================================================
@@ -67,9 +73,13 @@ services:
       # Router/service mang TÊN CỦA BẢN (JAVIS_NAME) chứ không đóng cứng "javis": Traefik đặt tên
       # router theo phạm vi toàn máy, hai bản cùng tên router là bản sau đè bản trước và một
       # trong hai tên miền chết. Bỏ trống JAVIS_NAME thì vẫn ra "javis" y như trước.
-      # Host = ${DOMAIN_NAME}; chưa đặt thì mặc định "localhost" (deploy vẫn chạy, chỉ chưa có domain/HTTPS).
-      - traefik.enable=true
-      - traefik.http.routers.${JAVIS_NAME:-javis}.rule=Host(`${DOMAIN_NAME:-localhost}`)
+      # Host = ${DOMAIN_NAME}. 0.302.0: CHƯA đặt DOMAIN_NAME thì hai nhãn dưới RỖNG thay vì Host(`localhost`).
+      # Nút Open của hPanel mở đúng tên miền trong nhãn Host(...) cụ thể; bản cũ để "localhost" nên bấm Open là ra
+      # localhost trên máy người bấm (chủ repo báo 24/10/2026). Không có Host cụ thể thì hPanel rơi về cổng đã publish,
+      # tức http://<ip-vps>:7777. Nhãn traefik.enable rỗng làm Traefik bỏ qua container, nên cũng không còn route nào
+      # cho "localhost". Cú pháp ":+" của compose: chỉ ra chữ khi DOMAIN_NAME có giá trị.
+      - traefik.enable=${DOMAIN_NAME:+true}
+      - traefik.http.routers.${JAVIS_NAME:-javis}.rule=${DOMAIN_NAME:+Host(`}${DOMAIN_NAME:-}${DOMAIN_NAME:+`)}
       - traefik.http.routers.${JAVIS_NAME:-javis}.entrypoints=websecure
       - traefik.http.routers.${JAVIS_NAME:-javis}.tls.certresolver=letsencrypt
       - traefik.http.routers.${JAVIS_NAME:-javis}.service=${JAVIS_NAME:-javis}
@@ -79,6 +89,7 @@ services:
       - javis-brains:/brains
       - claude-auth:/home/javis/.claude
       - codex-auth:/home/javis/.codex
+      - gateway-status:/gateway:ro   # 0.304.0: trạng thái service gateway bên dưới (chỉ đọc)
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.getenv('JAVIS_PORT','7777')+'/health',timeout=4).status==200 else 1)"]
       interval: 30s
@@ -129,6 +140,99 @@ services:
     # của bản này sẽ đi cập nhật và restart container của bản kia.
     command: ${JAVIS_NAME:-javis}
 
+  # ------------------------------------------------------------------------
+  # HTTPS KHI VPS KHÔNG CÓ TRAEFIK CỦA HOSTINGER (0.300.0).
+  #
+  # Chủ repo hỏi 24/10/2026: mẫu "Ubuntu 24 + Docker" của Hostinger có sẵn Traefik giữ cổng 80/443 và cấp SSL qua
+  # nhãn traefik.* ở trên, còn mẫu Ubuntu 26 trắng thì không có Traefik nào. Trước bản này, dán link compose lên máy
+  # Ubuntu 26 là Javis chạy nhưng DOMAIN_NAME không bao giờ có HTTPS (không ai đọc nhãn traefik.*), và muốn có thì
+  # phải biết tự ghép thêm file Caddy. Giờ MỘT link dùng được cho cả hai:
+  #   - Có proxy khác đang giữ 80/443 (Traefik của Hostinger) -> gateway đứng yên, Traefik cấp SSL như trước.
+  #   - Cổng 80/443 trống (Ubuntu 26, VPS trắng) -> gateway chạy Caddy, tự xin + tự gia hạn Let's Encrypt cho
+  #     DOMAIN_NAME rồi chuyển vào Javis ở cổng ${JAVIS_HOST_PORT:-7777} của máy.
+  #   - Chưa đặt DOMAIN_NAME -> gateway đứng yên, vào bằng http://<ip>:7777 như cũ.
+  #
+  # Vì sao network_mode: host chứ không publish "80:80"/"443:443": publish cổng mà Traefik đang giữ thì Docker báo
+  # "port is already allocated" và CẢ STACK deploy đỏ trên Ubuntu 24. Ở mạng host, Docker không giành cổng nào; chính
+  # script dưới đây soi cổng trước, chỉ khi cả 80 lẫn 443 đều trống mới mở Caddy. Đang bận thì 10 phút soi lại một lần
+  # (gỡ Traefik đi là gateway tự nhận việc, không phải Redeploy).
+  #
+  # Caddy chỉ xin chứng chỉ cho ĐÚNG DOMAIN_NAME (không on-demand), nên kẻ trỏ DNS bừa vào IP không ép được nó xin
+  # cert lung tung. Không thêm ô nào vào form Environment: chỉ đọc DOMAIN_NAME và JAVIS_HOST_PORT đã có sẵn.
+  # Nhiều bản Javis trên một VPS KHÔNG có Traefik: gateway của bản đầu giữ 80/443, bản sau đứng yên -> bản sau dùng
+  # docker-compose.proxy.yml (proxy dùng chung), xem DEPLOY.md.
+  gateway:
+    image: caddy:2-alpine
+    container_name: ${JAVIS_NAME:-javis}-gateway
+    restart: unless-stopped
+    network_mode: host
+    # 0.302.0: the VPS's own hostname (srv<id>.hstgr.cloud) is visible here, so with DOMAIN_NAME empty the gateway
+    # still gets a link: javis.srv<id>.hstgr.cloud. Hostinger never tells a pasted compose that name at install time.
+    uts: host
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
+      JAVIS_HOST_PORT: ${JAVIS_HOST_PORT:-7777}
+      JAVIS_NAME: ${JAVIS_NAME:-javis}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        D="$${DOMAIN_NAME:-localhost}"
+        P="$${JAVIS_HOST_PORT:-7777}"
+        nghi() { while :; do sleep 3600; done; }
+        S="/status/gateway.txt"
+        ghi() { mkdir -p /status 2>/dev/null; printf 'state=%s\nnames=%s\n' "$$1" "$$2" > "$$S" 2>/dev/null || true; }
+        # Chua dat DOMAIN_NAME: lay ten VPS Hostinger (srv<so>.hstgr.cloud) lam link. 0.304.0: KHONG doan qua DNS nua.
+        # Ban 0.302.0 so dia chi bang getent, ma getent doc /etc/hosts cua VPS truoc (Ubuntu ghi ten may -> 127.0.1.1),
+        # nen Caddy xin cert cho srv<so>.hstgr.cloud con Javis lai cho javis.srv<so>.hstgr.cloud: lech nhau, khong ai
+        # duoc chuyen sang https (chu repo bao 24/10/2026). Gio Caddy phuc vu CA HAI ten (<ten-ban>.<may> va, voi ban
+        # mac dinh, chinh ten may); ten nao DNS tro ve may thi co cert. Danh sach ghi vao $$S de Javis thu dung cac ten nay.
+        if [ "$$D" = "localhost" ] || [ -z "$$D" ]; then
+          M="$$( (hostname -f 2>/dev/null || hostname) | tr 'A-Z' 'a-z')"
+          case "$$M" in
+            *.hstgr.cloud) ;;
+            srv[0-9]*) case "$$M" in *.*) M="";; *) M="$$M.hstgr.cloud";; esac;;
+            *) M="";;
+          esac
+          N="$$(echo "$${JAVIS_NAME:-javis}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-\n' '-')"
+          if [ -n "$$M" ]; then
+            D="$$N.$$M"
+            [ "$$N" = "javis" ] && D="$$D $$M"
+            echo "[gateway] Chua dat DOMAIN_NAME: dung link cua VPS $$D"
+          fi
+        fi
+        case "$$D" in
+          ""|localhost) echo "[gateway] DOMAIN_NAME chua dat: khong cap HTTPS, vao bang http://<ip>:$$P"; ghi idle ""; nghi;;
+        esac
+        for x in $$D; do
+          case "$$x" in
+            *[!A-Za-z0-9.-]*|*.|.*) echo "[gateway] Ten mien khong hop le: $$x. Khong cap HTTPS."; ghi idle ""; nghi;;
+          esac
+        done
+        # 0050 = cong 80, 01BB = cong 443, 0A = dang LISTEN. Them nc cho truong hop Docker chi dung iptables.
+        ban() {
+          grep -qiE ':(0050|01BB) [0-9A-F]+:[0-9A-F]+ 0A' /proc/net/tcp /proc/net/tcp6 2>/dev/null && return 0
+          nc -z -w 2 127.0.0.1 443 2>/dev/null || nc -z -w 2 127.0.0.1 80 2>/dev/null
+        }
+        while ban; do
+          echo "[gateway] Cong 80/443 da co proxy khac (Traefik cua Hostinger): de no cap HTTPS cho $$D. Soi lai sau 10 phut."
+          ghi busy "$$D"
+          sleep 600
+        done
+        echo "[gateway] Khong co Traefik: Caddy cap HTTPS cho $$D -> 127.0.0.1:$$P"
+        echo "[gateway] Chung chi khong len? Mo cong 80 va 443 o hPanel > VPS > Tuong lua."
+        ghi serving "$$D"
+        printf '%s {\n\treverse_proxy 127.0.0.1:%s\n}\n' "$$(echo $$D | sed 's/ /, /g')" "$$P" > /config/Caddyfile
+        exec caddy run --config /config/Caddyfile --adapter caddyfile
+    volumes:
+      - gateway-data:/data       # chứng chỉ đã cấp - giữ qua Redeploy, không xin lại (tránh cạn rate-limit)
+      - gateway-config:/config
+      # 0.304.0: gateway ghi nó đang làm gì (idle / busy / serving + các tên) vào đây; Javis đọc (chỉ đọc) để trang IP
+      # chuyển đúng sang tên Caddy đã xin cert, và Cài đặt > Tên miền nói rõ gateway đang ở bước nào.
+      - gateway-status:/status
+    labels:
+      - traefik.enable=false
+
 # ============================================================================
 # NHIỀU BẢN JAVIS TRÊN CÙNG MỘT VPS HOSTINGER
 #
@@ -145,6 +249,9 @@ services:
 # ============================================================================
 
 volumes:
+  gateway-status:
+  gateway-data:
+  gateway-config:
   javis-data:
   javis-brains:
   claude-auth:

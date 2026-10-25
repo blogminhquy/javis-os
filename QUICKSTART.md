@@ -21,7 +21,9 @@ Chạy Javis OS trong vài phút. Chi tiết từng phần: [docs/](docs/README.
 4. **Deploy**. Đợi 1-3 phút. Mở app bằng nút **Open** (hoặc `https://<DOMAIN_NAME>`).
 5. Lần đầu: màn hình sẽ hỏi tạo tài khoản admin. Sau đó đăng nhập Claude Code trong terminal container 1 lần: `claude auth login --claudeai`.
 
-Cập nhật bản mới: bấm **Redeploy** trong Docker Manager (image `:latest`, `pull_policy: always`). Dữ liệu brain giữ nguyên trong volume.
+VPS cài **Ubuntu 26** hay hệ điều hành trắng, không có Traefik của Hostinger: vẫn dán đúng link trên, bỏ trống `DOMAIN_NAME` cũng được: bấm **Open** là Javis tự chuyển sang `https://javis.srvXXXX.hstgr.cloud` hoặc `https://srvXXXX.hstgr.cloud` (từ 0.302.0). **Cài đặt → Tên miền** cho biết link đã chạy chưa. Container `javis-gateway` đi kèm tự cấp HTTPS cho `DOMAIN_NAME` khi cổng 80/443 trống (từ 0.300.0); nhớ mở cổng 80, 443 ở tường lửa.
+
+Cập nhật bản mới: bấm **⬆ Cập nhật ngay** trong app (trang Cập nhật), hoặc **Redeploy** trong Docker Manager (image `:latest`, `pull_policy: always`). Dữ liệu brain giữ nguyên trong volume.
 
 ## Cách 2 - Docker ở máy/VPS bất kỳ
 
@@ -52,6 +54,6 @@ Xem [docs/README.md](docs/README.md) - hướng dẫn từng chức năng (chat/
 
 ## Sự cố hay gặp
 
-- **Không cập nhật được bằng nút trong app trên Hostinger**: đúng thiết kế - trên Hostinger dùng **Redeploy** trong Docker Manager (nút trong app cần Watchtower, Hostinger hay chặn Docker socket).
+- **Nút cập nhật trong app không chạy trên Hostinger**: nút cần container `javis-watchtower` đi kèm (có sẵn từ 0.55.56). Stack hiện "Partially running" thì mở log container đó; không sửa được thì cập nhật bằng **Redeploy** trong Docker Manager.
 - **ChatGPT/Codex báo "model không hỗ trợ"**: chọn model Codex hợp lệ ở trang Models (vd `gpt-5.5`), không dùng `gpt-5-mini`/`gpt-4o` (đó là model API, Codex account không chạy).
 - Thêm: [docs/17 - Khắc phục sự cố](docs/17-khac-phuc-su-co.md).

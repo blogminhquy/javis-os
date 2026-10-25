@@ -144,6 +144,7 @@ import zalo_bot   # kênh Zalo Bot của chủ (API chính thức) - cùng khế
 import owner_channels   # owner's control channels on Slack and WhatsApp (0.71.0)
 import whatsapp_bot     # WhatsApp transport + webhook router (0.71.0)
 import messenger_bot    # Messenger transport + webhook router (0.134.0)
+import messenger_setup  # Messenger connect wizard and health check (0.311.0)
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
@@ -261,6 +262,9 @@ _AUTH_PUBLIC_PREFIX = ("/static", "/health", "/s/", "/hooks/")
 # /brand-logo: hiện trên màn đăng nhập (trước session). /tls-check: Caddy gọi (không đăng nhập được).
 _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth/setup",
                       "/brand-logo", "/brand-theme.css", "/tls-check",
+                      # /domain/auto, /domain/whoami (0.302.0): the login page opened by IP asks whether a
+                      # verified https link exists; neither reveals anything beyond that link and a random id.
+                      "/domain/auto", "/domain/whoami",
                       # /hub/mcp: Claude CLI/Codex gọi bằng Bearer hub_token riêng (không có cookie).
                       # /connect/oauth/callback: browser redirect từ provider OAuth về.
                       "/hub/mcp", "/connect/oauth/callback",
@@ -9962,7 +9966,9 @@ _VERDICT_YES_RE = re.compile(r"(\bĐẠT\b|\bPASS(ED)?\b)", re.IGNORECASE)
 
 def _workflow_verdict(v_out: str, v_error: str = "") -> tuple[bool, str, str]:
     """(passed, reason, fixes) from a verify agent's answer. Anything unclear is a FAIL."""
-    if v_error and not (v_out or "").strip():
+    # Error first: a verify agent that errored cannot certify anything, even when the engine
+    # streamed a readable "pass" before failing (partial output + error used to be accepted).
+    if v_error:
         return False, f"Agent kiểm chứng lỗi, không kết luận được: {v_error[:200]}", ""
     text = v_out or ""
     vm = re.search(r"\{.*\}", text, re.DOTALL)
@@ -13828,7 +13834,16 @@ _AUTOSTART_APPROVED_ON = bytes([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 
 def _autostart_command() -> str:
-    """Lệnh chạy khi đăng nhập Windows: wscript chạy start-javis.vbs ẩn (kill cũ + chạy nền)."""
+    """Lệnh chạy khi đăng nhập Windows: wscript chạy start-javis.vbs ẩn (kill cũ + chạy nền).
+
+    0.306.0: thêm /open để server lên xong thì mở luôn dashboard (chủ repo 24/10/2026: "cài khởi động cùng trình
+    duyệt"). Lệnh cũ không có /open vẫn chạy được nên KHÔNG tính là đường dẫn cũ, xem _autostart_legacy_command.
+    """
+    return _autostart_legacy_command() + " /open"
+
+
+def _autostart_legacy_command() -> str:
+    """Lệnh trước 0.306.0 (chỉ chạy nền, không mở trình duyệt). Vẫn hợp lệ, bật lại là lên bản có /open."""
     vbs = str(PROJECT_ROOT / "start-javis.vbs")
     return f'wscript.exe //nologo "{vbs}"'
 
@@ -13906,7 +13921,8 @@ def _autostart_status() -> dict:
                 val, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
             st["enabled"] = bool(val)
             st["command"] = val
-            st["stale"] = bool(val) and val.strip() != expected
+            st["stale"] = bool(val) and val.strip() not in (expected, _autostart_legacy_command())
+            st["opens_browser"] = bool(val) and val.strip() == expected
         except FileNotFoundError:
             pass
         if st["enabled"]:
@@ -19123,10 +19139,14 @@ async def anthropic_compat_connect(request: Request):
         live = []   # no list is normal here; the message check below decides
     if not live:
         if not typed:
-            return {"ok": False, "error": localefmt.chu(
-                "Cổng này không trả danh sách model. Gõ tên model bên bán đưa (ví dụ claude-sonnet-4-6) rồi bấm Lưu.",
-                "This gateway does not list its models. Type the model name the seller gave you "
-                "(for example claude-sonnet-4-6) and press Save.")}
+            # 0.308.0 (owner 24/10/2026: "không cần hiện tên model được không? người dùng phải được chọn chứ"): the card
+            # no longer shows the model box up front. Only a gateway with no list needs names, so this reply opens the
+            # box (need_models) with the usual Claude names to pick from (suggest), still free to type another.
+            return {"ok": False, "need_models": True, "suggest": list(_provider_def("anthropic-api")["default_models"]),
+                    "error": localefmt.chu(
+                        "Cổng này không tự báo danh sách model. Chọn hoặc gõ model bên bán cho dùng ở ô vừa hiện ra, rồi bấm Kết nối lại.",
+                        "This gateway does not list its models. Pick or type the model the seller gave you in the box "
+                        "that just appeared, then press Connect again.")}
         url = base + "/v1/messages"
         payload = {"model": typed[0], "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]}
         try:
@@ -23330,6 +23350,127 @@ async def messenger_webhook(request: Request):
     return {"ok": True, "events": n}
 
 
+# ---- Messenger setup wizard and health check (0.311.0) ----
+# The Connections page card drives these. `messenger_setup` does the Graph calls; this layer
+# stores the account and restarts the bots that use it. No response ever carries a token.
+def _ms_webhook_url(request: Request) -> str:
+    base = web_security.external_base(
+        request.url.scheme, request.url.netloc,
+        request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
+    return base + "/messenger/webhook"
+
+
+def _ms_account_view(a: dict) -> dict:
+    bots = chatbot_store.bots_using_account(a.get("id", ""))
+    meta = a.get("meta") or {}
+    return {"id": a.get("id"), "label": a.get("label"), "page_id": a.get("external_id"),
+            "page_name": meta.get("bot_name", ""), "app_id": meta.get("app_id", ""),
+            "brain": a.get("brain", ""),
+            "bots": [{"id": b["id"], "name": b.get("name"), "enabled": bool(b.get("enabled"))} for b in bots]}
+
+
+def _ms_account_creds(account_id: str):
+    a = channel_accounts.get_account(account_id)
+    if not a or a.get("channel") != "messenger":
+        return None, None
+    return a, messenger_bot.split_credentials(channel_accounts.get_token(account_id))
+
+
+def _ms_bot_running(account_id: str, page_id: str) -> bool:
+    return bool(page_id in messenger_bot.registered()
+                or any(b.get("enabled") for b in chatbot_store.bots_using_account(account_id)))
+
+
+@app.get("/messenger/setup")
+async def messenger_setup_info(request: Request, brain: str = ""):
+    """What the wizard needs before the owner types anything: the webhook address, whether it is
+    HTTPS, the verify token, and the Messenger accounts already saved."""
+    url = _ms_webhook_url(request)
+    accs = channel_accounts.list_accounts(channel="messenger", brain=str(brain or "").strip())
+    return {"ok": True, "webhook_url": url, "https": url.startswith("https://"),
+            "verify_token": _ms_verify_token(), "accounts": [_ms_account_view(a) for a in accs]}
+
+
+@app.post("/messenger/connect")
+async def messenger_connect(request: Request):
+    """Wizard submit: Page ID, App ID, App secret and any user or Page token -> a saved Messenger
+    account with a non-expiring Page token, the app webhook registered and the Page subscribed."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    page_id = str(body.get("page_id") or "").strip()
+    res = await messenger_setup.connect(page_id, body.get("app_id"), body.get("app_secret"),
+                                        body.get("token"), _ms_webhook_url(request), _ms_verify_token())
+    if not res.get("ok"):
+        return JSONResponse({"ok": False, "error": res.get("error", ""), "step": res.get("step", "")},
+                            status_code=400)
+    secret = f"{page_id} {res['page_token']} {str(body.get('app_secret') or '').strip()}"
+    meta = {"bot_name": res.get("page_name", ""), "app_id": str(body.get("app_id") or "").strip(),
+            "webhook_url": _ms_webhook_url(request)}
+    old = channel_accounts.owner_of(page_id, "messenger")
+    if old:
+        aid = old["id"]
+        ok, loi = channel_accounts.update_account(aid, {"token": secret, "external_id": page_id,
+                                                        "meta": {**(old.get("meta") or {}), **meta}})
+        if not ok:
+            return JSONResponse({"ok": False, "error": loi}, status_code=400)
+        for b in chatbot_store.bots_using_account(aid):
+            if b.get("enabled"):
+                chatbot_runtime.start_bot(b["id"])
+    else:
+        aid, loi = channel_accounts.create_account({
+            "channel": "messenger", "token": secret, "external_id": page_id, "meta": meta,
+            "label": str(body.get("label") or "").strip() or res.get("page_name", "") or page_id,
+            "brain": str(body.get("brain") or "").strip()})
+        if loi:
+            return JSONResponse({"ok": False, "error": loi}, status_code=400)
+    a = channel_accounts.get_account(aid) or {}
+    chk = res.get("check") or {}
+    chk.setdefault("items", []).append(messenger_setup._item(
+        "bot", True if _ms_bot_running(aid, page_id) else None, ("Có bot đang trực", "A bot is answering"), "",
+        ("Vào Chatbot, Bot, tạo hoặc bật bot cho kênh này.",
+         "Open Chatbot, Bots and create or turn on a bot for this channel.")))
+    return {"ok": True, "updated": bool(old), "account": _ms_account_view(a), "check": chk,
+            "repair_errors": res.get("repair_errors", [])}
+
+
+@app.post("/messenger/check")
+async def messenger_check(request: Request):
+    """Rerun the checklist on a saved Messenger account. `repair: true` first re-registers the
+    app webhook and re-subscribes the Page."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    aid = str(body.get("account_id") or "").strip()
+    a, cr = _ms_account_creds(aid)
+    if not a:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có tài khoản Messenger này",
+                                                                 "No such Messenger account")}, status_code=404)
+    meta = a.get("meta") or {}
+    url = _ms_webhook_url(request)
+    if not url.startswith("https://"):
+        url = meta.get("webhook_url", "")
+    errs = []
+    import httpx
+    async with httpx.AsyncClient(timeout=25) as c:
+        app_id = meta.get("app_id", "")
+        if not app_id:
+            info = await messenger_setup.debug_token(c, cr["access_token"])
+            app_id = info.get("app_id", "") if info.get("ok") else ""
+            if app_id:
+                channel_accounts.update_account(aid, {"meta": {**meta, "app_id": app_id}})
+        if body.get("repair") and app_id:
+            rep = await messenger_setup.repair(c, cr["page_id"], cr["access_token"], app_id,
+                                               cr["app_secret"], url, _ms_verify_token())
+            errs = rep.get("errors", [])
+        chk = await messenger_setup.run_checks(c, cr["page_id"], cr["access_token"], cr["app_secret"],
+                                               app_id, url, _ms_bot_running(aid, cr["page_id"]))
+    return {"ok": True, "account": _ms_account_view(channel_accounts.get_account(aid) or a),
+            "check": chk, "repair_errors": errs}
+
+
 def restart_telegram():
     """Bật lại bot theo cấu hình settings.telegram (tắt bot cũ nếu có)."""
     global _TG_BOT
@@ -24245,7 +24386,13 @@ async def reply_policy_forget(bot_id: str, chat_id: str = Form("")):
         return err
     if not chatbot_reply_policy_store.db_path().exists():
         return {"ok": True, "cases": 0, "lessons": 0}
-    return {"ok": True, **chatbot_reply_policy_store.forget(bot_id, chat_id)}
+    res = chatbot_reply_policy_store.forget(bot_id, chat_id)
+    try:
+        # Forgotten chat text must leave the brain folder now, not at the next mirror tick.
+        await asyncio.to_thread(learned_mirror.sync_bot, bot_id, True)
+    except Exception as e:  # noqa: BLE001
+        print(f"[learned mirror] forget {bot_id}: {type(e).__name__}: {e}", file=sys.stderr)
+    return {"ok": True, **res}
 
 
 @app.get("/voice/brain-models")
@@ -24893,6 +25040,39 @@ def _agent_judge_store(create=True):
             if _AGENT_JUDGE_STORE[0] is None:
                 _AGENT_JUDGE_STORE[0] = agent_judge_store.JudgeStore(path)
     return _AGENT_JUDGE_STORE[0]
+
+
+# ── Learned-knowledge mirror (owner request 2026-10-25): what bots and agents learned also lives in the brain folder
+#    (`Javis/learned/`), so a copied, moved or GitHub-restored brain keeps it. See server/learned_mirror.py. ──
+import learned_mirror  # noqa: E402
+
+
+def _learned_resonance(create: bool):
+    """The resonance store for the mirror: never created just to read."""
+    if not create and _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+        return None
+    return _resonance_store()
+
+
+learned_mirror.configure(resonance=_learned_resonance, judge=lambda create: _agent_judge_store(create=create))
+_LEARNED_MIRROR_TASKS: set = set()
+
+
+@app.on_event("startup")
+async def _learned_mirror_loop():
+    """Export (and import on a fresh machine) the learned mirror shortly after startup, then every 10 minutes. Only
+    code, no model; a tick with nothing changed reads a few SQLite rows and writes nothing."""
+    async def _loop():
+        await asyncio.sleep(learned_mirror.FIRST_TICK_S)
+        while True:
+            try:
+                rep = await asyncio.to_thread(learned_mirror.sync_all)
+                if rep:
+                    print(f"[learned mirror] {rep}", file=sys.stderr)
+            except Exception as e:  # noqa: BLE001
+                print(f"[learned mirror] {type(e).__name__}: {e}", file=sys.stderr)
+            await asyncio.sleep(learned_mirror.TICK_S)
+    _LEARNED_MIRROR_TASKS.add(asyncio.create_task(_loop()))   # keep a reference, or the loop can be collected
 
 
 async def _agent_judge_ask(prompt: str, purpose: str = "", started=None) -> str:

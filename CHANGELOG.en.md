@@ -8,13 +8,68 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.299.0] - 2026-10-23
+## [0.312.0] - 2026-10-25
 ### Improved
-- **Test skill edits against a fixed snapshot.** Isolated trials keep the baseline and edit separate and distinguish supplied skills from reads supported by evidence.
-- **Stopping a trial preserves its history.** Cancelling a request retains ownership of running work, and workspace cleanup waits for execution to finish.
-- **Invalid review output has an explicit result.** Repeating the same request does not call the model again; this release supports isolated trials, with live activation still disabled.
+- **Connections are easier to find.** The Connected tab has a search box: type a service or account name to filter right away, built-in Claude Code sources included.
+- **Built-in Claude Code and Codex sources list only the working ones.** Sources not signed in yet sit in one "N sources not signed in are hidden" line with a Show button. Names are shorter ("Meta ADS" instead of "claude.ai Meta ADS").
+- The green "ChatGPT runs through Codex CLI" note at the top of the Connections page is gone. The yellow warning for an engine that cannot call tools stays.
+- **Picking an agent has a search box.** In the bot form and in each workflow step, the agent field opens a clean list: the full name with a short description under it, and searching without Vietnamese accents still finds a match. On a phone the list slides up from the bottom.
+
+## [0.311.0] - 2026-10-25
+### Added
+- **A Facebook Messenger card on the Connections page.** Paste the Page ID, App ID, App secret and any token from Graph API Explorer, and Javis swaps it for a Page token that never expires, registers the webhook and subscribes the Page to the app. No more pasting a user token by mistake and hitting error 100 or 210. Thanks @adiagri09-code.
+- **A step-by-step checklist** after connecting: token, permissions, App secret, webhook, Page subscribed, bot on duty. Every red row shows how to fix it right below. Each Page has Check, Auto-fix and Change token buttons.
+- When a Messenger bot goes quiet, ask Javis: any brain can check it with the `messenger_check` tool and fix it with `messenger_repair`.
 ### Fixed
-- **Skills cannot load from stale or changing sources.** Disabled skills stay off, and loading refuses a source that changes during reading or no longer matches the selected description.
+- **A skill you turn off stays off.** A skill that was turned off came back in the list, and still loaded, when an old copy sat in `.claude/skills` or `.agents`. It is now off everywhere: in the skill list, when a brain loads it by name and when Javis picks a skill on its own. Javis also refuses a skill file that changes while being read, points outside the brain or is larger than 1 MB.
+- **Workflows no longer let a failed verification step through.** A verifier that answered "PASS" and then reported an error still counted as a pass and the next step ran. Any error now stops the run, the same as for a main step. Thanks @hwangrin.
+
+## [0.310.0] - 2026-10-25
+### Added
+- **Google Analytics (GA4) joins the connection store.** Connect with your Google account and Javis can read your website numbers: visits, traffic sources, top pages, realtime reports. Read only, nothing in Analytics is changed. Thanks @congsang1294.
+### Fixed
+- **Team: saving the acceptance criteria again really rechecks.** When a task was marked "does not meet the criteria" and you saved the criteria in Acceptance to check it once more, it stayed on "Rechecking the product against the new criteria" forever and no check ran. The recheck now runs right away and records a new result.
+
+## [0.309.0] - 2026-10-25
+### Added
+- **What bots and assistants learn now lives in the brain.** The judge's lessons, eagerness, per-group thresholds and role profile, plus each assistant's lessons, learned presentation and own judge, are written to the brain's `Javis/learned/` folder, one file per bot and per assistant. Copy the brain to another machine or restore it from GitHub and Javis loads them back into the bot and assistant with the same name.
+- Cases learned from customer messages sit in a separate `.private.json` file: it travels with the brain folder but never goes to GitHub. "Forget everything" and deleting a bot remove these files too.
+### Fixed
+- **Bot cards are tidy again, nothing runs out of them.** Errors, warnings and groups waiting for approval now sit in one "Status" row with counts on the card. Press View to read everything in a popup (long text wraps) and Allow or Ignore right there.
+- **Zalo messages no longer show tag code on phones.** A bot sometimes sent `href="zm://Profile/...">@Name</a_mention>` along with its reply: Zalo on a computer hid it but Zalo on a phone showed it as is. Javis now removes this markup, broken pieces included, on every way a Zalo message is sent, and two names that end up side by side keep a space between them.
+- **The Import old messages button is easy to find.** It used to hide inside the Zalo account chip on the bot card, where hardly anyone noticed it. The bot card's "..." menu now has an Import old messages item (about the last 2 weeks go into the Inbox).
+
+## [0.308.0] - 2026-10-24
+### Fixed
+- **The code box when signing in to Claude is no longer squashed.** The send button took the whole row, leaving the code box about 24px wide. Now the box takes the row with readable 16px text, and on a phone the button moves below. After opening the link the cursor lands in the box, Enter sends, and stray spaces from pasting are removed.
+### Improved
+- **The Anthropic Compatible card no longer asks you to type a model name.** Enter the Base URL and API key and press Connect; Javis reads the gateway's model list so you pick one under Main model. Only a gateway that does not list its models opens a model box, with the usual Claude names ready to pick.
+
+## [0.306.0] - 2026-10-24
+### Improved
+- **Installing on Windows or macOS starts Javis with the computer and opens the browser.** The dashboard opens right after install, and from then on every login starts Javis and opens the dashboard with nothing to click. Before, you had to turn this on yourself, and then Javis only ran hidden, so after starting the computer you could not see it.
+- To stop it: on Windows press Turn off on the Start with the computer card (Settings) or run `javis-autostart.bat uninstall`; on macOS run `./bin/javis-autostart.sh uninstall`.
+- A Windows machine that already had auto-start keeps running hidden as before; turn it off and on once to add the dashboard opening.
+
+## [0.304.0] - 2026-10-24
+### Fixed
+- **A Hostinger Ubuntu 26 VPS gets HTTPS with nothing to fill in, and this time it works.** 0.302.0 picked the wrong name: the HTTPS gateway got a certificate for one link while Javis checked another, so Open stayed on the IP page with no HTTPS. The gateway now serves both `javis.srvXXXX.hstgr.cloud` and `srvXXXX.hstgr.cloud`, and Javis tries exactly those two.
+### Improved
+- **Settings, Domain says which step the VPS link is at:** working (with an open button), waiting for its certificate (with a reminder to open ports 80, 443 in hPanel's Firewall), or a VPS with Traefik that needs the `DOMAIN_NAME` line.
+
+## [0.302.0] - 2026-10-24
+### Fixed
+- **Hostinger's Open button no longer opens localhost.** Without `DOMAIN_NAME`, Open now goes to `http://<vps-ip>:7777` and reaches Javis right away. The install file used to put `localhost` where the domain goes, so Open pointed at the clicker's own computer.
+### Added
+- **Open goes straight to the VPS link after install.** On a Hostinger VPS without Traefik (Ubuntu 26) there is nothing to fill in: Javis reads the VPS name, issues HTTPS for `https://javis.srvXXXX.hstgr.cloud`, and a page opened by IP moves there once it works. Like an app installed from Hostinger's Catalog.
+### Improved
+- **Javis suggests the Hostinger VPS's free link.** In Settings, Domain, Javis finds the VPS's `srvXXXX.hstgr.cloud` name and shows the line `DOMAIN_NAME=javis.srvXXXX.hstgr.cloud` with a copy button. Paste it into Environment and Redeploy for HTTPS and the right Open link.
+
+## [0.300.0] - 2026-10-24
+### Fixed
+- **One Hostinger install link works on both Ubuntu 24 and Ubuntu 26.** A plain Ubuntu 26 image has no Traefik, so pasting the link used to give a running Javis whose domain never got HTTPS. The link now carries an HTTPS gateway (Caddy) that turns itself on when there is no Traefik and issues the certificate for `DOMAIN_NAME`; on a VPS with Traefik it stays out of the way.
+### Improved
+- The install docs say it plainly: Traefik only provides HTTPS, updates are done by the bundled Watchtower, so the **Update now** button works the same on every Ubuntu release.
 
 ## [0.298.0] - 2026-10-23
 ### Fixed

@@ -375,7 +375,7 @@ def list_skills(root, lang: str = "") -> list:
 
     scan_base("skills")           # canonical: quyết định trạng thái, thắng mọi fallback
     scan_base(".claude/skills")   # legacy / mirror
-    scan_base(".agents")         # legacy: cùng trạng thái với manifest và body loader
+    scan_base(".agents")         # legacy: same on/off state as manifests and the body loader
     return out
 
 

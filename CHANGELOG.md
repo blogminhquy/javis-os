@@ -6,13 +6,68 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.299.0] - 2026-10-23
+## [0.312.0] - 2026-10-25
 ### Cải thiện
-- **Thử bản sửa skill trên bản chụp cố định.** Luồng thử cách ly giữ riêng bản gốc và bản sửa, phân biệt skill được cung cấp với lần đọc có bằng chứng.
-- **Dừng thử vẫn giữ được lịch sử.** Hủy yêu cầu không bỏ lại tác vụ đang chạy; việc dọn thư mục chờ phần thực thi kết thúc.
-- **Báo rõ đầu ra kiểm tra không hợp lệ.** Gửi lại cùng yêu cầu không tự gọi model thêm; phạm vi hiện tại vẫn là thử cách ly, chưa bật áp dụng trên brain thật.
+- **Trang Kết nối dễ tìm hơn.** Tab Đã kết nối có ô tìm kiếm: gõ tên dịch vụ hay tên tài khoản là lọc ngay, tìm cả trong các nguồn sẵn của Claude Code.
+- **Nguồn sẵn của Claude Code và Codex chỉ hiện cái đang chạy.** Nguồn chưa đăng nhập gom vào một dòng "Đã ẩn N nguồn chưa đăng nhập", bấm Xem nếu cần. Tên gọn hơn ("Meta ADS" thay cho "claude.ai Meta ADS").
+- Bỏ thông báo xanh "ChatGPT chạy qua Codex CLI" ở đầu trang Kết nối. Thông báo vàng khi bộ não chưa gọi được công cụ vẫn giữ.
+- **Chọn agent có ô tìm kiếm.** Ở form tạo bot và ở từng bước của quy trình, ô chọn agent giờ mở ra danh sách gọn: tên đầy đủ, mô tả ngắn bên dưới, gõ không dấu vẫn tìm ra ("dao dien" ra "Đạo diễn"). Trên điện thoại danh sách trượt lên từ dưới.
+
+## [0.311.0] - 2026-10-25
+### Thêm mới
+- **Thẻ Facebook Messenger ở trang Kết nối.** Dán Page ID, App ID, App secret và một token bất kỳ từ Graph API Explorer, Javis tự đổi sang token Trang không hết hạn, tự khai webhook và gắn Trang vào app. Hết cảnh dán nhầm token người dùng rồi gặp lỗi 100, lỗi 210. Cảm ơn @adiagri09-code.
+- **Bảng kiểm tra từng bước** sau khi nối: token, quyền, App secret, webhook, Trang gắn app, bot đang trực. Dòng nào đỏ có cách sửa ngay bên dưới. Mỗi Trang có nút Kiểm tra, Sửa tự động và Đổi token.
+- Bot Messenger im lặng thì hỏi Javis: bộ não nào cũng kiểm tra được qua tool `messenger_check` và sửa được qua `messenger_repair`.
 ### Sửa lỗi
-- **Không nạp skill từ bản cũ hoặc nguồn đang thay đổi.** Skill đã tắt vẫn tắt; lệnh nạp từ chối nguồn đổi trong lúc đọc hoặc không còn khớp mô tả đã chọn.
+- **Skill đã tắt là tắt hẳn.** Trước đây tắt một skill mà còn bản cũ nằm trong `.claude/skills` hay `.agents` thì skill vẫn hiện lại trong danh sách và vẫn được nạp. Giờ tắt là tắt ở mọi chỗ: danh sách skill, lúc bộ não gọi skill theo tên, lúc Javis tự chọn skill. Javis cũng không nạp file skill đang bị sửa dở, trỏ ra ngoài brain hoặc nặng quá 1 MB.
+- **Quy trình không còn cho qua bước kiểm chứng bị lỗi.** Trước đây máy kiểm chứng trả "ĐẠT" rồi mới báo lỗi thì vẫn tính là đạt và bước sau vẫn chạy. Giờ cứ lỗi là dừng, giống bước chính. Cảm ơn @hwangrin.
+
+## [0.310.0] - 2026-10-25
+### Thêm mới
+- **Kho kết nối có thêm Google Analytics (GA4).** Kết nối bằng tài khoản Google là Javis đọc được số liệu website: lượt truy cập, nguồn khách, trang được xem nhiều, báo cáo theo thời gian thực. Chỉ đọc, không sửa gì trong Analytics. Cảm ơn @congsang1294.
+### Sửa lỗi
+- **Team: lưu lại tiêu chí nghiệm thu là kiểm lại thật.** Việc đã bị chấm "chưa đạt tiêu chí", mở Nghiệm thu lưu lại tiêu chí để kiểm lần nữa thì trước đây kẹt mãi ở "Đang kiểm lại sản phẩm theo tiêu chí mới" và không có lượt kiểm nào chạy. Giờ lượt kiểm lại chạy ngay và ghi kết quả mới.
+
+## [0.309.0] - 2026-10-25
+### Thêm mới
+- **Kiến thức bot và trợ lý học được giờ nằm trong brain.** Bài học, độ nhiệt tình, ngưỡng theo nhóm, hồ sơ vai trò của bộ phán xử, cùng bài học, cách trình bày và bộ phán xử riêng của từng trợ lý được ghi vào thư mục `Javis/learned/` của brain, mỗi bot và mỗi trợ lý một file. Chép brain sang máy khác hay khôi phục từ GitHub là Javis tự nạp lại vào đúng bot và trợ lý cùng tên.
+- Các ca học từ tin nhắn của khách nằm trong file riêng `.private.json`: vẫn đi theo thư mục brain nhưng không bao giờ lên GitHub. Nút "quên hết" và xoá bot xoá luôn các file này.
+### Sửa lỗi
+- **Thẻ bot gọn lại, không còn tràn chữ.** Lỗi, cảnh báo và nhóm đang chờ cho phép giờ gom thành một hàng "Tình trạng" có đếm số trên thẻ. Bấm Xem để mở cửa sổ đọc đầy đủ (chữ dài tự xuống dòng) và bấm Cho phép hay Bỏ qua ngay trong đó.
+- **Tin Zalo không còn lộ mã thẻ tên trên điện thoại.** Có lúc bot gửi kèm đoạn mã `href="zm://Profile/...">@Tên</a_mention>`: Zalo trên máy tính ẩn được nhưng trên điện thoại hiện nguyên văn. Giờ Javis gỡ sạch mã này, kể cả khi mã bị vỡ, trên mọi đường gửi tin Zalo, và hai tên đứng liền nhau được tách bằng một khoảng trắng.
+- **Nút Nhập tin cũ dễ thấy hơn.** Trước đây nút này nằm lẫn trong chip tên tài khoản Zalo trên thẻ bot, gần như không ai nhận ra. Giờ menu "..." của thẻ bot có hẳn mục Nhập tin cũ (lấy khoảng 2 tuần tin gần nhất vào Hộp thư).
+
+## [0.308.0] - 2026-10-24
+### Sửa lỗi
+- **Ô dán mã khi đăng nhập Claude không còn bị co bé tí.** Nút Gửi chiếm hết hàng nên ô mã chỉ còn chừng 24px. Giờ ô rộng hết hàng, chữ 16px dễ đọc, trên điện thoại nút xuống dòng dưới. Mở link xong con trỏ tự vào ô mã, bấm Enter là gửi, khoảng trắng thừa khi dán tự bị bỏ.
+### Cải thiện
+- **Thẻ Anthropic Compatible không bắt gõ tên model nữa.** Chỉ cần Base URL và API key rồi bấm Kết nối, Javis tự lấy danh sách model của cổng để bạn chọn ở mục Model chính. Cổng nào không tự báo danh sách thì Javis mới mở thêm ô tên model, kèm sẵn các tên Claude thường dùng để chọn.
+
+## [0.306.0] - 2026-10-24
+### Cải thiện
+- **Cài trên Windows hoặc macOS là Javis tự chạy cùng máy và tự mở trình duyệt.** Cài xong dashboard mở luôn, và từ đó mỗi lần đăng nhập máy Javis tự chạy rồi tự mở dashboard, không phải bấm gì. Trước đây phải tự bật tính năng này, và khi bật thì Javis chỉ chạy ngầm, mở máy lên không thấy đâu.
+- Không muốn tự mở: trên Windows bấm Tắt ở thẻ Khởi động cùng máy (trang Cài đặt) hoặc chạy `javis-autostart.bat uninstall`; trên macOS chạy `./bin/javis-autostart.sh uninstall`.
+- Máy Windows đã bật tự khởi động từ trước vẫn chạy ngầm như cũ; bấm Tắt rồi Bật lại một lần là có thêm phần tự mở dashboard.
+
+## [0.304.0] - 2026-10-24
+### Sửa lỗi
+- **VPS Ubuntu 26 trên Hostinger có HTTPS mà không cần điền gì, lần này chạy thật.** Bản 0.302.0 lấy nhầm tên: cổng HTTPS xin chứng chỉ cho một link, còn Javis lại kiểm tra link khác, nên bấm Open vẫn ở lại trang IP và không có HTTPS. Giờ cổng HTTPS phục vụ cả `javis.srvXXXX.hstgr.cloud` lẫn `srvXXXX.hstgr.cloud`, và Javis thử đúng hai link đó.
+### Cải thiện
+- **Cài đặt, mục Tên miền nói rõ link VPS đang ở bước nào:** đã chạy (kèm nút mở), đang chờ chứng chỉ (kèm lời nhắc mở cổng 80, 443 ở Tường lửa của hPanel), hay máy có Traefik nên cần dán dòng `DOMAIN_NAME`.
+
+## [0.302.0] - 2026-10-24
+### Sửa lỗi
+- **Nút Open của Hostinger không còn mở localhost.** Cài xong mà chưa đặt `DOMAIN_NAME` thì bấm Open giờ ra `http://<ip-vps>:7777`, vào được Javis ngay. Trước đây file cài ghi `localhost` vào chỗ tên miền nên Open mở nhầm về chính máy người bấm.
+### Thêm mới
+- **Cài xong bấm Open là vào thẳng link VPS.** Trên VPS Hostinger không có Traefik (Ubuntu 26), không cần điền gì: Javis tự lấy tên VPS, tự cấp HTTPS cho `https://javis.srvXXXX.hstgr.cloud`, và trang mở bằng IP tự chuyển sang link đó khi nó đã chạy. Giống ứng dụng cài từ Catalog của Hostinger.
+### Cải thiện
+- **Javis tự gợi ý link miễn phí của VPS Hostinger.** Mở Cài đặt, mục Tên miền: Javis dò ra tên `srvXXXX.hstgr.cloud` của VPS và hiện sẵn dòng `DOMAIN_NAME=javis.srvXXXX.hstgr.cloud` kèm nút sao chép. Dán vào Environment rồi Redeploy là có HTTPS và nút Open ra đúng link.
+
+## [0.300.0] - 2026-10-24
+### Sửa lỗi
+- **Một link cài Hostinger dùng được cho cả Ubuntu 24 lẫn Ubuntu 26.** Mẫu Ubuntu 26 trắng không có Traefik, nên trước đây dán link là Javis chạy nhưng tên miền không bao giờ có HTTPS. Giờ link đi kèm một cổng HTTPS (Caddy) tự bật khi máy không có Traefik và tự cấp SSL cho `DOMAIN_NAME`; máy có Traefik thì nó nhường, không đụng gì.
+### Cải thiện
+- Tài liệu cài đặt nói rõ: Traefik chỉ lo HTTPS, còn cập nhật là việc của Watchtower đi kèm, nên nút **Cập nhật ngay** chạy như nhau trên mọi bản Ubuntu.
 
 ## [0.298.0] - 2026-10-23
 ### Sửa lỗi

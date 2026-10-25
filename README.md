@@ -258,7 +258,7 @@ Set `DOMAIN_NAME` so Hostinger's Traefik issues HTTPS:
 - **Free link** (no domain purchase): `DOMAIN_NAME=javis.<vps-hostname>.hstgr.cloud` (hostname under hPanel → VPS, e.g. `javis.srv1562015.hstgr.cloud`).
 - **Your own domain:** `DOMAIN_NAME=example.com` and point an A record at the VPS IP.
 
-Wait 1-3 minutes for the certificate, then open `https://<DOMAIN_NAME>`.
+Wait 1-3 minutes for the certificate, then open `https://<DOMAIN_NAME>`. No Traefik on the VPS (a plain Ubuntu 26 image)? Use the same link: the bundled `javis-gateway` (Caddy) issues the certificate itself when ports 80/443 are free.
 
 **Three one-time steps:**
 1. **Make the GHCR image Public:** GitHub → repo → **Packages** → `javis-os` → *Package settings* → Visibility = **Public**.
@@ -299,7 +299,7 @@ chmod +x install.sh && ./install.sh
 
 The script installs Python, Node and the CLI brains, creates a venv, registers a service that starts at boot, and prints the address.
 
-🍎 **macOS, open it like an app:** double-click `JAVIS OS.app` (or `Start JAVIS OS.command`). Start at login: `./bin/javis-autostart.sh install`. Details: [bin/README.md](bin/README.md).
+🍎 **macOS, open it like an app:** double-click `JAVIS OS.app` (or `Start JAVIS OS.command`). Since 0.306.0 `./install.sh` makes Javis start at login and open the dashboard (turn off: `./bin/javis-autostart.sh uninstall`). Details: [bin/README.md](bin/README.md).
 
 </details>
 
@@ -320,7 +320,7 @@ Stop:                                  stop-javis.bat
 Dashboard:                             http://localhost:7777
 ```
 
-🪟 **Open it like an app:** after the first run, double-click **`JAVIS OS.bat`**. The server starts in the background and the dashboard opens in **its own window** with its own taskbar entry. Start at login: `javis-autostart.bat install` (remove: `uninstall`).
+🪟 **Open it like an app:** after the first run, double-click **`JAVIS OS.bat`**. The server starts in the background and the dashboard opens in **its own window** with its own taskbar entry. Since 0.306.0 the installer makes Javis start at login and open the dashboard (turn off: `javis-autostart.bat uninstall` or the button in Settings).
 
 </details>
 

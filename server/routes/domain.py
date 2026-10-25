@@ -12,6 +12,7 @@ chứng chỉ trên production hỏng.
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from fastapi import APIRouter, Form, Request
@@ -77,6 +78,119 @@ def _detect_public_ip():
     if ip:
         _PUBLIC_IP_CACHE.update(ip=ip, ts=now)
     return ip
+
+
+def _instance_label() -> str:
+    """The sub-name this instance uses under the VPS hostname: JAVIS_NAME, "javis" when unset."""
+    return re.sub(r"[^a-z0-9-]+", "-", (os.getenv("JAVIS_NAME", "") or "javis").strip().lower()).strip("-") or "javis"
+
+
+def hostinger_names(base: str, label: str) -> list:
+    """The names under the Hostinger VPS hostname `base` (srv123.hstgr.cloud) that the gateway serves, best first.
+
+    `label.base`, then for the default instance the bare `base` too. 0.304.0: no DNS guessing any more. 0.302.0 picked
+    ONE name by comparing addresses, and the gateway's lookup read the VPS's /etc/hosts first (Ubuntu maps its own
+    hostname to 127.0.1.1), so Caddy got a certificate for srv123.hstgr.cloud while Javis checked javis.srv123...:
+    nobody was moved to https (owner report 24/10/2026, Ubuntu 26). The gateway now serves both names; whichever DNS
+    sends to this VPS gets a certificate, and Javis tries them in this order.
+    """
+    if not base:
+        return []
+    out = [f"{label}.{base}"] + ([base] if label == "javis" else [])
+    return [n for n in out if _DOMAIN_RE.match(n)]
+
+
+def _hostinger_base(ip, ptr_lookup=None) -> str:
+    """srv123.hstgr.cloud from Hostinger's reverse DNS of the VPS IP, or "" (only names under .hstgr.cloud count)."""
+    if not ip:
+        return ""
+    try:
+        if ptr_lookup is None:
+            import socket as _sock
+            ptr_lookup = lambda x: _sock.gethostbyaddr(x)[0]   # noqa: E731
+        ptr = str(ptr_lookup(ip) or "").strip().lower().rstrip(".")
+    except Exception:
+        return ""
+    return ptr if ptr.endswith(".hstgr.cloud") else ""
+
+
+def hostinger_suggestion(ip, ptr_lookup=None) -> str:
+    """The free Hostinger name for this VPS, ready for DOMAIN_NAME: "javis.srv123456.hstgr.cloud", or "".
+
+    0.302.0 (owner 24/10/2026: Open in hPanel led to localhost). Hostinger does not tell a pasted compose its VPS
+    hostname (TRAEFIK_HOST and HOSTNAME are not set for Compose-from-URL), so the owner had to dig the
+    srv<id>.hstgr.cloud name out of hPanel. Hostinger's reverse DNS of the VPS IP carries that name, so Javis can
+    offer the exact line to paste.
+    """
+    names = hostinger_names(_hostinger_base(ip, ptr_lookup), _instance_label())
+    return names[0] if names else ""
+
+
+# 0.304.0: the gateway service writes what it is doing into a volume Javis mounts read-only (docker-compose.hostinger.yml):
+# "state=idle|busy|serving" and "names=<the names Caddy serves>". Javis then checks exactly the names that have a
+# certificate, and Settings can say which step is stuck. Missing file = an older compose or no gateway at all.
+GATEWAY_STATUS_FILE = "/gateway/gateway.txt"
+
+
+def read_gateway_status(path=None) -> dict:
+    try:
+        text = Path(path or os.getenv("JAVIS_GATEWAY_STATUS", "") or GATEWAY_STATUS_FILE).read_text(encoding="utf-8")
+    except Exception:
+        return {}
+    kv = {}
+    for line in text.splitlines():
+        k, _, v = line.partition("=")
+        kv[k.strip()] = v.strip()
+    state = kv.get("state", "")
+    if state not in ("idle", "busy", "serving"):
+        return {}
+    return {"state": state, "names": [n for n in kv.get("names", "").lower().split() if _DOMAIN_RE.match(n)]}
+
+
+def auto_candidates(ip, gateway=None) -> list:
+    """The https names /domain/auto tries, in order. DOMAIN_NAME when set; else the names the gateway says it serves;
+    nothing while Traefik holds the ports (it only serves DOMAIN_NAME); else, with no gateway status, the PTR names."""
+    route = _norm_domain(os.getenv("DOMAIN_NAME", ""))
+    if route and route != "localhost":
+        return [route]
+    gw = read_gateway_status() if gateway is None else gateway
+    if gw:
+        return gw["names"] if gw["state"] == "serving" else []
+    return hostinger_names(_hostinger_base(ip), _instance_label())
+
+
+# 0.302.0: who answers on a candidate link. A random id per server process; /domain/auto only sends the browser to an
+# https link that answers with THIS id, so it never moves anyone to another site or another Javis on the same VPS.
+_WHOAMI = __import__("secrets").token_hex(12)
+_AUTO = {"url": "", "ts": 0.0}
+AUTO_TTL_OK, AUTO_TTL_MISS = 300.0, 90.0
+
+
+async def _answers_as_me(url: str) -> bool:
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5, follow_redirects=False, trust_env=False) as c:
+            r = await c.get(url.rstrip("/") + "/domain/whoami")
+        return r.status_code == 200 and (r.json() or {}).get("id") == _WHOAMI
+    except Exception:
+        return False
+
+
+async def _auto_link() -> str:
+    """The first candidate link that answers as THIS Javis over valid https, or "" (cached a few minutes)."""
+    import asyncio as _aio
+    import time as _t
+    now = _t.time()
+    ttl = AUTO_TTL_OK if _AUTO["url"] else AUTO_TTL_MISS
+    if _AUTO["ts"] and now - _AUTO["ts"] < ttl:
+        return _AUTO["url"]
+    url = ""
+    for name in await _aio.to_thread(lambda: auto_candidates(_detect_public_ip())):
+        if await _answers_as_me(f"https://{name}"):
+            url = f"https://{name}"
+            break
+    _AUTO.update(url=url, ts=now)
+    return url
 
 
 def _req_is_secure(request: Request) -> bool:
@@ -200,6 +314,24 @@ def _make_router() -> APIRouter:
             return JSONResponse({"ok": True})
         return JSONResponse({"ok": False}, status_code=403)
 
+    @router.get("/domain/whoami")
+    async def domain_whoami():
+        """Public: lets /domain/auto tell this Javis apart from anything else answering on a candidate link."""
+        return JSONResponse({"id": _WHOAMI})
+
+    @router.get("/domain/auto")
+    async def domain_auto(request: Request):
+        """Public: the https link a browser that opened Javis by IP should move to, or "" (0.302.0).
+
+        Owner 24/10/2026: "khi cài nó tự cài 1 đường dẫn của vps hostinger sẵn để khách hàng mở luôn". hPanel's Open
+        reaches http://<ip>:7777; the page asks here and moves to https://javis.srv<id>.hstgr.cloud (served by the
+        gateway, or by Traefik with DOMAIN_NAME) once that link answers as THIS Javis over a valid certificate.
+        Hostinger stack only, cached a few minutes.
+        """
+        if _domain_deploy_target(request) != "hostinger":
+            return {"url": ""}
+        return {"url": await _auto_link()}
+
     @router.post("/domain")
     async def domain_set(domain: str = Form("")):
         d = _norm_domain(domain)
@@ -241,7 +373,17 @@ def _make_router() -> APIRouter:
             else:
                 ssl_active, ssl_reason, ssl_code = await _probe_https(custom, hostinger=target == "hostinger")
         route_domain = _norm_domain(os.getenv("DOMAIN_NAME", ""))
-        return {"domain": custom, "server_ip": server_ip, "dns_ip": dns_ip,
+        # No domain yet: offer the free Hostinger name for this VPS (reverse DNS can take a moment, so off the loop).
+        suggested, gateway, auto_url = "", {}, ""
+        if not custom and route_domain in ("", "localhost"):
+            import asyncio as _aio
+            suggested = await _aio.to_thread(hostinger_suggestion, server_ip)
+            if target == "hostinger":
+                # 0.304.0: what the gateway is doing and whether its link already works, so Settings names the stuck step.
+                gateway = read_gateway_status()
+                auto_url = await _auto_link()
+        return {"domain": custom, "server_ip": server_ip, "dns_ip": dns_ip, "suggested_domain": suggested,
+                "gateway": gateway, "auto_url": auto_url,
                 "dns_ok": dns_ok, "on_domain": on_domain, "secure_now": secure_now,
                 "deploy_mode": _DEPS.deploy_mode(), "ssl_enabled": ssl_enabled,
                 "ssl_active": ssl_active, "ssl_reason": ssl_reason, "ssl_code": ssl_code,

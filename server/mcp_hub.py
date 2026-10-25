@@ -850,7 +850,7 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         text = asset.text[:60_000]
         # ĐIỂM ĐẾM DUY NHẤT: mọi engine nạp skill qua tool này đều đi ngang đây. Chỉ đếm ở
         # đường THÀNH CÔNG - nhánh trên đã lọc slug sai/skill tắt nên không đếm gõ nhầm.
-        # Dùng slug đã được bộ đọc chung kiểm thay vì tên thô từ engine.
+        # Count the slug verified by the shared reader, not the raw name from the engine.
         # bump có I/O đĩa + fsync trong lock (chặn) → đẩy qua thread để không chẹn event
         # loop (WebSocket/telegram poller/loop scheduler đều chạy chung loop này).
         # bump tự nuốt lỗi → sidecar hỏng không bao giờ làm gãy việc nạp skill.

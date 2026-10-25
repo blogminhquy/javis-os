@@ -123,6 +123,12 @@ r = connect(base=HOST + "/anthropic", key="", models="m-1")
 check("no key: refused, asks for the seller's key", not r["ok"] and "key" in r["error"].lower())
 r = connect(base=HOST + "/anthropic", key=GOOD, models="")
 check("no /v1/models and no typed model: refused, asks for a model name", not r["ok"] and "model" in r["error"].lower())
+# 0.308.0: the card hides the model box until this reply; it opens the box with the usual Claude names to pick from.
+check("no list: reply opens the model box (need_models) with names to pick", r.get("need_models") is True
+      and "claude-sonnet-5-5" in (r.get("suggest") or []))
+_js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+check("card hides the model box unless names were typed before, opens it on need_models",
+      '${typed ? "" : ";display:none"}' in _js and "r.need_models" in _js and 'list="acModelSug"' in _js)
 r = connect(base=HOST + "/anthropic", key="sk-wrong", models="m-1")
 check("wrong key: refused with HTTP 401", not r["ok"] and "401" in r["error"])
 check("nothing saved after a refusal", not cfgmod.read_settings()["model"].get("anthropic_compat_base"))

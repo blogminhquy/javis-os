@@ -36,17 +36,19 @@ def check(name, cond):
         _fails.append(name)
 
 
-_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([-?])([^}]*))?\}")
+_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([-?+])([^}]*))?\}")
 
 
 def expand(text, env):
-    """Bung ${VAR}, ${VAR:-mặc định}, ${VAR:?lỗi} đúng như docker compose làm.
+    """Bung ${VAR}, ${VAR:-mặc định}, ${VAR:?lỗi}, ${VAR:+thay thế} đúng như docker compose làm.
 
     Tự làm thay vì gọi `docker compose config` để test chạy được ở CI không có Docker.
     """
     def _one(m):
         ten, dau, phu = m.group(1), m.group(2), m.group(3)
         v = env.get(ten, "")
+        if dau == "+":                 # 0.302.0: nhãn Traefik chỉ có Host(...) khi DOMAIN_NAME có giá trị
+            return phu if v else ""
         if v:
             return v
         if dau == "-":

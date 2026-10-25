@@ -171,6 +171,10 @@ body.in-console .hud-actions { display: none; }
 .prov-help summary { cursor: pointer; color: var(--text2); }
 .prov-help > div { margin-top: 4px; color: var(--text2); }
 .prov-action .js-input { margin-bottom: 0; flex: 1; }
+/* Claude sign-in code (0.308.0): the box takes the row, at least 240px before the button wraps under it on a phone;
+   16px so iOS does not zoom in, monospace so a mistyped character is easy to spot. */
+.prov-code { margin-top: 6px; max-width: 560px; }
+.prov-code .js-input { flex: 1 1 240px; min-width: 0; font-size: 16px; font-family: var(--mono, ui-monospace, monospace); }
 .prov-action .gcard-btn { width: auto; flex: 0 0 auto; margin-top: 0; font-size: 16px; }
 .prov-note { font-size: 16px; line-height: 1.55; color: var(--text3); margin-top: 8px; overflow-wrap: anywhere; }
 /* Warning box on a provider card (missing CLI, a vendor cutting off a plan). Something the user
@@ -990,6 +994,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .amb-details summary::-webkit-details-marker { display: none; }
 .amb-details summary h3::before { content: "▸ "; opacity: .6; }
 .amb-details[open] summary h3::before { content: "▾ "; }
+/* Connected tab search and the built-in CLI sources (0.312.0) */
+.conn-search { max-width: 420px; font-size: 16px; margin: 10px 0 6px; }
+.amb-card .prov-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.amb-host { color: var(--text3); overflow-wrap: anywhere; }
+.amb-hidden { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 4px;
+  padding: 10px 14px; border: 1px dashed var(--glass-brd); border-radius: 12px; font-size: 16px; color: var(--text2); }
+.amb-hidden span { flex: 1; min-width: 200px; }
+.amb-off-list { display: grid; gap: 10px; margin-top: 10px; }
+.amb-off-list[hidden], #connNone[hidden] { display: none; }
+#mcpTabDaNoi.searching .conn-guide, #mcpTabDaNoi.searching #ambWrap .mp-empty, #mcpTabDaNoi.searching #ambWrap .amb-hidden { display: none !important; }
+#mcpMessenger:not(:empty) { margin-top: 18px; }
+.amb-off { opacity: .7; }
 @media (max-width: 700px) {
   .cat-grid { grid-template-columns: 1fr; }
   .conn-accounts { flex-wrap: wrap; }

@@ -234,7 +234,7 @@
   function the(b) {
     var st = b.status || {};
     var tt = TRANG_THAI[st.state] || TRANG_THAI.off;
-    var loi = st.last_error ? '<div class="cb-err">' + esc(String(st.last_error).slice(0, 160)) + '</div>' : "";
+    var loi = st.last_error ? '<div class="cb-err">' + esc(String(st.last_error).slice(0, 2000)) + '</div>' : "";
     // Agent bị xoá hay đổi slug: bot vẫn chạy nhưng trả lời bằng vai trò rỗng. Phải báo,
     // không được để im - đó đúng kiểu hỏng mà cả tính năng này đang cố tránh.
     var mat = b.agent_missing
@@ -249,13 +249,13 @@
     // mở Nhật ký mới thấy - vì chủ chỉ mở Nhật ký khi đã NGỜ là có chuyện.
     var lluot = b.loi_luot
       ? '<div class="cb-err">' + ic("triangle-alert") + ' ' + esc(window.t("cb.luot_loi")) + ' ' +
-        esc(String(b.loi_luot).slice(0, 200)) + '</div>' : "";
+        esc(String(b.loi_luot).slice(0, 2000)) + '</div>' : "";
     // Lượt CHẠY ĐƯỢC nhưng không đúng mức đã đặt (engine không gọi nổi công cụ, hoặc chưa đấu
     // nguồn nào). Màu vàng chứ không đỏ: bot vẫn trả lời tử tế, chỉ là chạy thiếu quyền. Để im
     // thì chủ tưởng bot đang làm việc thật - đúng kiểu hỏng lặng lẽ mà cả trang này chống.
     var cbao = b.canh_bao_luot
       ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + '<span class="cb-quyen-t">' +
-        esc(String(b.canh_bao_luot).slice(0, 300)) + '</span></div>' : "";
+        esc(String(b.canh_bao_luot).slice(0, 2000)) + '</span></div>' : "";
     // Mức quyền phải nhìn thấy TỪ NGOÀI THẺ, không phải mở form Sửa mới biết. Một con bot toàn
     // quyền lẫn giữa mấy con chỉ đọc mà nhìn giống hệt nhau là đúng kiểu hỏng im lặng: chủ nhớ
     // nhầm con nào là con nào rồi thả nhầm vào chỗ ai cũng nhắn được.
@@ -376,7 +376,7 @@
             esc(window.t("cb.hoi_thoai_tom", { hom_nay: b.hoi_thoai.hom_nay || 0,
                                                chua_doc: b.hoi_thoai.chua_doc || 0 })) + '</span></div>'
           : "") +
-        cho + loiTen + riengTu + mat + lluot + cbao + loi +
+        statusRow({ err: [loiTen, mat, lluot, loi], warn: [riengTu, cbao], wait: [cho] }) +
         // Bật/tắt và Sửa nằm ngoài, ba việc phụ (nhật ký, hội thoại, xoá) vào menu "...": thẻ có
         // năm nút ngang hàng thì không nút nào nổi bật, và Xoá đứng cạnh Sửa là chỗ bấm nhầm.
         '<div class="cb-acts">' +
@@ -392,6 +392,14 @@
               '" title="' + esc(window.t("cb2.mn")) + '">&#8943;</button>' +
             '<div class="cb-mn-l" hidden>' +
               '<button class="cb-log" type="button">' + ic("history") + ' ' + esc(window.t("cb.nhat_ky")) + '</button>' +
+              // 0.309.0 (owner, 25/10/2026: "không thấy nút nào để nhập"): the account chip doubles as the import button,
+              // which nobody recognised; the menu now names the action. One item per account that can import.
+              (b.accounts || []).filter(function (a) { return (kenhCua(a.channel).nang_luc || {}).nhap_lich_su; })
+                .map(function (a, i, ds) {
+                  return '<button class="cb-nhap-cu" type="button" data-tk="' + esc(a.id) + '">' + ic("download") + ' ' +
+                    esc(window.t("ht.nhap_cu")) + (ds.length > 1 ? ' (' + esc(a.label || a.external_id || a.id) + ')' : '') +
+                    '</button>';
+                }).join("") +
               (b.reply_when === "auto"
                 ? '<button class="cb-rp" type="button">' + ic("brain") + ' ' + esc(window.t("rp.menu")) + '</button>' : '') +
               '<button class="cb-hoi-thoai" type="button">' + ic("messages-square") + ' ' +
@@ -423,7 +431,7 @@
       if (window.JavisTryBot) window.JavisTryBot.open(b, { groups: coNhom(b) || !(b.accounts || []).length });
     };
     c.querySelector(".cb-kenh-them").onclick = function () { moForm(b, { buoc: 1 }); };
-    c.querySelectorAll(".cb-kenh-nhap-cu").forEach(function (n) {
+    c.querySelectorAll(".cb-kenh-nhap-cu, .cb-nhap-cu").forEach(function (n) {
       n.onclick = function () {
         var fn = window.JavisConversations && window.JavisConversations.nhapTinCu;
         var a = (b.accounts || []).filter(function (x) { return x.id === n.dataset.tk; })[0];
@@ -437,13 +445,49 @@
       };
     });
     c.querySelector(".cb-del").onclick = function () { xoa(b); };
-    c.querySelectorAll(".cb-nhomcho").forEach(function (n) {
-      var cid = n.dataset.cid;
-      var loai = n.dataset.loai;
-      n.querySelector(".cb-ok-nhom").onclick = function () { choNhom(b, cid, true, loai); };
-      n.querySelector(".cb-bo-nhom").onclick = function () { choNhom(b, cid, false, loai); };
-    });
+    var stBtn = c.querySelector(".cb-st");
+    var stHtml = cho + loiTen + riengTu + mat + lluot + cbao + loi;
+    if (stBtn) stBtn.onclick = function () { openStatus(b, stHtml); };
     return c;
+  }
+
+  // 0.309.0 (owner, 25/10/2026: long errors and the pending-group list overflowed the card): the card shows one
+  // compact status row with counts and the most important line; the full text and the allow/ignore buttons open in
+  // a popup.
+  function statusRow(parts) {
+    var n = function (list) { return list.filter(function (x) { return !!x; }).length; };
+    var err = n(parts.err), warn = n(parts.warn);
+    var wait = (parts.wait[0] || "").split('class="cb-nhomcho"').length - 1;
+    if (!err && !warn && !wait) return "";
+    var kind = err ? "err" : wait ? "wait" : "warn";
+    var chips = (err ? '<span class="cb-st-chip err">' + ic("triangle-alert") + ' ' +
+                   esc(window.t("cb.st_err", { count: err })) + '</span>' : "") +
+                (wait ? '<span class="cb-st-chip wait">' + ic("users") + ' ' +
+                   esc(window.t("cb.st_wait", { count: wait })) + '</span>' : "") +
+                (warn ? '<span class="cb-st-chip warn">' + ic("triangle-alert") + ' ' +
+                   esc(window.t("cb.st_warn", { count: warn })) + '</span>' : "");
+    return '<button type="button" class="cb-st ' + kind + '" aria-haspopup="dialog">' +
+      '<span class="cb-st-chips">' + chips + '</span>' +
+      '<span class="cb-st-more">' + esc(window.t("cb.st_open")) + ' ' + ic("chevron-right") + '</span>' +
+    '</button>';
+  }
+
+  function openStatus(b, html) {
+    var box = el('<div class="cb-modal"><div class="cb-form cb-st-form" role="dialog" aria-modal="true">' +
+      '<h3>' + esc(window.t("cb.st_title")) + ' - ' + esc(b.name) + '</h3>' +
+      '<div class="cb-st-body">' + html + '</div>' +
+      '<div class="cb-form-acts"><button class="s-btn" type="button" data-close>' +
+        esc(window.t("common.close")) + '</button></div>' +
+      '</div></div>');
+    document.body.appendChild(box);
+    var close = function () { if (box.parentNode) box.parentNode.removeChild(box); };
+    box.onmousedown = function (e) { if (e.target === box) close(); };
+    box.querySelector("[data-close]").onclick = close;
+    box.querySelectorAll(".cb-nhomcho").forEach(function (n) {
+      var cid = n.dataset.cid, loai = n.dataset.loai;
+      n.querySelector(".cb-ok-nhom").onclick = function () { close(); choNhom(b, cid, true, loai); };
+      n.querySelector(".cb-bo-nhom").onclick = function () { close(); choNhom(b, cid, false, loai); };
+    });
   }
 
   // Một cú bấm thay cho: gõ /id trong nhóm, chép id, mở Sửa, kéo xuống đáy form, dán, Lưu.
@@ -589,7 +633,10 @@
   function optAgent(a, slugDangChon) {
     var vai = String(a.role || "").trim();
     if (vai.length > 34) vai = vai.slice(0, 34).trim() + "…";
+    // data-name/data-desc carry the full text for the searchable picker (agent-picker.js), which replaces the
+    // native list on screen; the short text above only shows if that script is missing.
     return '<option value="' + esc(a.slug) + '"' + (a.slug === slugDangChon ? " selected" : "") +
+           ' data-name="' + esc(a.name || a.slug) + '" data-desc="' + esc(String(a.role || "").trim()) + '"' +
            '>' + esc(a.name) + (vai ? " - " + esc(vai) : "") + '</option>';
   }
 
@@ -992,6 +1039,11 @@
     document.body.appendChild(box);
     var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) dong(); };
+
+    // Searchable agent picker instead of the native list of "name - truncated role" lines (owner, 25/10/2026).
+    if (window.JavisAgentPicker) {
+      window.JavisAgentPicker.enhance(box.querySelector("#cbAgent"), { title: window.t("ap.title") });
+    }
 
     // Sang thẳng trang Cộng sự. Đóng form trước để quay lại không bị hai lớp modal chồng nhau.
     box.querySelector("#cbNewAgent").onclick = function () {

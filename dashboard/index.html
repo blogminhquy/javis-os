@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=140">
-  <link rel="stylesheet" href="/static/console.css?v=113">
+  <link rel="stylesheet" href="/static/style.css?v=141">
+  <link rel="stylesheet" href="/static/console.css?v=115">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chế độ "auto" (0.74.0, mặc định khi chưa chọn gì từ 0.75.1) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -944,6 +944,8 @@
        LUÔN mới: một người gác cổng cũ theo thì không gác được gì. Đứng ngay đây để
        bắt được cả trường hợp một file phía dưới hỏng vì đang chạy bản cũ. -->
   <script src="/static/freshness.js"></script>
+  <!-- Opened by IP on a Hostinger VPS: move to the verified https link of this VPS (auto-domain.js, 0.302.0). -->
+  <script src="/static/auto-domain.js?v=1"></script>
   <script src="/static/i18n/index.js?v=2"></script>
   <script src="/static/vendor/lucide-icons.js?v=10"></script>
   <script src="/static/icons.js?v=2"></script>
@@ -1030,16 +1032,17 @@
   <script src="/static/model-picker.js?v=15"></script>
   <script src="/static/composer-plus.js?v=3"></script>
   <script src="/static/composer-folder.js?v=3"></script>
-  <script src="/static/branding.js?v=8"></script>
+  <script src="/static/branding.js?v=10"></script>
   <script src="/static/quick-settings.js?v=11"></script>
   <script src="/static/remote-access.js?v=2"></script>
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=8"></script>
   <script src="/static/sessions-ui.js?v=23"></script>
-  <link rel="stylesheet" href="/static/improvement-candidates.css?v=2">
+  <link rel="stylesheet" href="/static/improvement-candidates.css?v=3">
   <script src="/static/improvement-experiments.js?v=1"></script>
-  <script src="/static/improvement-candidates.js?v=2"></script>
-  <script src="/static/studio.js?v=47"></script>
+  <script src="/static/improvement-candidates.js?v=3"></script>
+  <script src="/static/agent-picker.js?v=1"></script>
+  <script src="/static/studio.js?v=49"></script>
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
   <!-- Tab Công việc của trợ lý (0.142.0): nạp TRƯỚC workspace.js, workspace.js gọi window.JavisAgentJobs. -->
@@ -1062,7 +1065,7 @@
   <script src="/static/teams.js?v=20"></script>
   <script src="/static/chatbots-reply-policy.js?v=1"></script>
   <script src="/static/chatbots-try.js?v=1"></script>
-  <script src="/static/chatbots.js?v=18"></script>
+  <script src="/static/chatbots.js?v=19"></script>
   <!-- Trang Hội thoại (hộp thư khách): nạp TRƯỚC console.js để renderConversations uỷ quyền được. -->
   <script src="/static/conversations-filters.js?v=1"></script>
   <script src="/static/ht-media.js?v=3"></script>
@@ -1087,8 +1090,9 @@
   <!-- Watch tab of the Recurring work page (0.239.0): token-free web page watching (server/web_watch.py). -->
   <script src="/static/web-watch.js?v=3"></script>
   <script src="/static/login-vault.js?v=2"></script>
+  <script src="/static/messenger-connect.js?v=1"></script>
   <script src="/static/voice-catalog.js?v=1"></script>
-  <script src="/static/console.js?v=187"></script>
+  <script src="/static/console.js?v=190"></script>
   <script src="/static/mobile-chat.js?v=15"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=3"></script>

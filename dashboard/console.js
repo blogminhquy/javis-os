@@ -4391,7 +4391,8 @@
           ${infoBody(esc(t("models.ac_note")))}
           <div class="prov-action" style="flex-wrap:wrap">
             <input class="js-input" id="acBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.anthropic_compat_base || "")}" placeholder="${esc(t("models.ac_base_ph"))}">
-            <input class="js-input" id="acModels" spellcheck="false" autocomplete="off" style="flex:1 1 100%" value="${esc(typed)}" placeholder="${esc(t("models.ac_models_ph"))}">
+            <input class="js-input" id="acModels" list="acModelSug" spellcheck="false" autocomplete="off" style="flex:1 1 100%${typed ? "" : ";display:none"}" value="${esc(typed)}" placeholder="${esc(t("models.ac_models_ph"))}">
+            <datalist id="acModelSug"></datalist>
             <input class="js-input" id="acKey" type="password" style="flex:1" placeholder="${on && masked ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.ac_key_ph"))}">
             <button class="gcard-btn" id="acSave">${on ? esc(t("common.save")) : esc(t("models.connect"))}</button>
             ${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}
@@ -4548,6 +4549,13 @@
       if (!r || !r.ok) {
         acSave.disabled = false; acSave.textContent = t("models.connect");
         msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap"));
+        // 0.308.0: the model box stays hidden (the list comes from the gateway, picked under Main model) until a
+        // gateway turns out to list nothing. Then it opens with the usual names to pick from.
+        if (r && r.need_models) {
+          const box = document.getElementById("acModels"), dl = document.getElementById("acModelSug");
+          if (dl) dl.innerHTML = (r.suggest || []).map(x => `<option value="${esc(x)}"></option>`).join("");
+          if (box) { box.style.display = ""; box.focus(); }
+        }
         return;
       }
       await freshSettings();
@@ -4891,8 +4899,9 @@
         <b>1)</b> ${esc(t("models.cli_s1"))}<br>
         <a href="${esc(safeHref(r.url))}" target="_blank" rel="noopener" style="color:var(--link-ink);word-break:break-all">${esc(r.url || t("models.no_link"))}</a><br>
         <b>2)</b> ${esc(t("models.cli_s2"))}
-        <div style="margin-top:6px;display:flex;gap:8px;max-width:520px">
-          <input class="js-input" id="cliCode" placeholder="${esc(t("models.code_ph"))}" style="flex:1">
+        <div class="prov-action prov-code">
+          <input class="js-input" id="cliCode" placeholder="${esc(t("models.code_ph"))}"
+            autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
           <button class="gcard-btn" id="cliCodeBtn">${esc(t("models.code_send"))}</button>
         </div>
         <span id="cliMsg2" class="gcard-meta"></span>
@@ -4908,14 +4917,26 @@
       setTimeout(poll, 3000);
     };
     setTimeout(poll, 3000);
+    // 0.308.0 (owner screenshot 24/10/2026): this row used to be a bare flex div, where the global .gcard-btn
+    // width:100% let the button take the whole row and squeezed the code box to 24px. It is a .prov-action row now
+    // (button sized to its text, box takes the rest and wraps under on a phone). The box gets focus once the link is
+    // opened, Enter sends, and the pasted code loses stray spaces and line breaks (the code itself has none).
     const cb = el.querySelector("#cliCodeBtn");
+    const ci = el.querySelector("#cliCode");
+    const link = act ? act.querySelector("a[href]") : null;
+    if (link && ci) link.addEventListener("click", () => setTimeout(() => ci.focus(), 300));
+    if (ci && cb) ci.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); cb.click(); } });
     if (cb) cb.onclick = async () => {
-      const code = (el.querySelector("#cliCode").value || "").trim();
+      const code = ((ci && ci.value) || "").replace(/\s+/g, "");
+      if (!code) { if (m2) m2.textContent = t("models.code_empty"); if (ci) ci.focus(); return; }
+      if (ci) ci.value = code;
       if (m2) m2.textContent = t("models.confirming");
+      cb.disabled = true;
       const fd = new FormData(); fd.append("code", code);
       let rr;
       try { rr = await (await fetch("/claude/login-code", { method: "POST", body: fd })).json(); }
-      catch (e) { if (m2) m2.textContent = t("common.net_err"); return; }
+      catch (e) { cb.disabled = false; if (m2) m2.textContent = t("common.net_err"); return; }
+      cb.disabled = false;
       if (rr.ok) { stopped = true; refreshClaudeCard(el); }
       else if (m2) m2.innerHTML = Icons.warn(rr.error || t("models.code_wrong"));
     };
@@ -5927,18 +5948,45 @@
       + (e.ok ? "" : '<div class="aud-err">' + esc(e.err || "") + '</div>') + '</div>').join("");
     m.querySelector("#audBody").innerHTML = rows || '<div class="mp-note">' + esc(window.t("cs.cn_audit_empty")) + '</div>';
   }
-  function ambientCard(s, kind) {   // MCP sẵn trong CLI (Claude Code / Codex) - chỉ hiển thị
+  // Built-in MCP of a CLI (Claude Code / Codex), display only. "claude.ai Supabase" and
+  // "plugin:engineering:slack" read as "Supabase" and "slack"; the raw name stays in the tooltip.
+  function ambientName(name) {
+    const n = String(name || "");
+    if (/^claude\.ai /i.test(n)) return n.slice(10);
+    if (n.startsWith("plugin:")) return n.split(":").pop() || n;
+    return n;
+  }
+  function ambientHost(s) {
+    const u = s.url || "";
+    if (!u) return s.command || "";
+    try { return new URL(u).host; } catch (e) { return u; }
+  }
+  function ambientCard(s, kind) {
     const ok = s.connected;
-    const detail = s.url || s.command || "";
-    return `<div class="prov-card" style="opacity:.92">
-      <div class="prov-head">
-        <span class="prov-shield ${ok ? "on" : ""}">${_shield(ok)}</span>
-        <div class="prov-info">
-          <div class="prov-name">${esc(s.name)} <span class="prov-kind">${esc(kind || "claude code")}</span></div>
-          <div class="prov-status ${ok ? "on" : ""}">${ok ? ic("circle", { cls: "ic-fill ic-ok" }) + " " : WARN_ICON + " "}${esc(s.status)}${detail ? " · " + esc(detail) : ""}</div>
-        </div>
-      </div>
-    </div>`;
+    const host = ambientHost(s);
+    return '<div class="prov-card amb-card' + (ok ? "" : " amb-off") + '" title="' + esc(s.name) + '">'
+      + '<div class="prov-head"><span class="prov-shield ' + (ok ? "on" : "") + '">' + _shield(ok) + '</span>'
+      + '<div class="prov-info"><div class="prov-name">' + esc(ambientName(s.name))
+      + ' <span class="prov-kind">' + esc(kind || "claude code") + '</span></div>'
+      + '<div class="prov-status ' + (ok ? "on" : "") + '">'
+      + (ok ? ic("circle", { cls: "ic-fill ic-ok" }) + " " + esc(window.t("cs.cn_amb_ok"))
+            : WARN_ICON + " " + esc(s.status))
+      + (host ? ' <span class="amb-host">· ' + esc(host) + '</span>' : "")
+      + '</div></div></div></div>';
+  }
+  // Only the working ones: a source still waiting for its sign-in does nothing for the brain,
+  // so the list stays short (owner, 2026-10-25). The rest sit behind one "Show" line.
+  function ambientList(list, kind, emptyKey) {
+    if (!list.length) return '<div class="mp-empty">' + esc(window.t(emptyKey)) + '</div>';
+    const on = list.filter(s => s.connected);
+    const off = list.filter(s => !s.connected);
+    return on.map(s => ambientCard(s, kind)).join("")
+      + (on.length ? "" : '<div class="mp-empty">' + esc(window.t("cs.cn_amb_none_ok")) + '</div>')
+      + (off.length
+          ? '<div class="amb-hidden"><span>' + esc(window.t("cs.cn_amb_off_n", { count: off.length })) + '</span>'
+            + '<button class="mp-btn" type="button" data-amb-show>' + esc(window.t("cs.cn_amb_show")) + '</button></div>'
+            + '<div class="amb-off-list" hidden>' + off.map(s => ambientCard(s, kind)).join("") + '</div>'
+          : "");
   }
   // Tab đang mở của trang Kết nối. Để NGOÀI renderConnect vì trang tự vẽ lại sau mỗi lần
   // đấu, ngắt hay gỡ dịch vụ - giữ trong hàm thì mỗi thao tác lại quăng người dùng về tab đầu.
@@ -5964,12 +6012,10 @@
     const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "ollama-local", "openai-compat", "anthropic-compat"];
     const mainLabel = (provs.find(p => p.id === main.provider) || {}).label || main.provider || "-";
     let warn = "";
-    if (main.provider === "openai-oauth") {
-      warn = `<div class="gcard" style="border:1px solid var(--green);background:rgba(44,122,75,.10);max-width:740px;margin-bottom:14px"><div class="gcard-meta" style="opacity:1">${CHECK_ICON} <b>${esc(window.t("cs.cn_w_chatgpt_a"))}</b> ${esc(window.t("cs.cn_w_chatgpt_b"))} <b>Codex CLI</b> ${esc(window.t("cs.cn_w_chatgpt_c"))}</div></div>`;
-    } else if (!MCP_PROVIDERS.includes(main.provider)) {
+    // Only a problem is worth a banner here. The green "your engine uses the Connections store"
+    // notes were noise on every visit (owner, 2026-10-25).
+    if (main.provider !== "openai-oauth" && !MCP_PROVIDERS.includes(main.provider)) {
       warn = `<div class="gcard" style="border:1px solid var(--warn-ink);background:rgba(185,130,31,.10);max-width:740px;margin-bottom:14px"><div class="gcard-meta" style="opacity:1">${WARN_ICON} ${esc(window.t("cs.cn_w_notool_a"))} <b>${esc(mainLabel)}</b> ${esc(window.t("cs.cn_w_notool_b"))} <b>Models</b>.</div></div>`;
-    } else if (main.provider !== "anthropic-cli") {
-      warn = `<div class="gcard" style="border:1px solid var(--green);background:rgba(44,122,75,.10);max-width:740px;margin-bottom:14px"><div class="gcard-meta" style="opacity:1">${CHECK_ICON} <b>${esc(mainLabel)}</b> ${esc(window.t("cs.cn_w_hub_a"))} <b>MCP Javis</b> ${esc(window.t("cs.cn_w_hub_b"))}</div></div>`;
     }
     const groups = {};
     conns.forEach(c => { const k = c.connector_id || "custom"; (groups[k] = groups[k] || []).push(c); });
@@ -6040,9 +6086,10 @@
       + '<div id="mcpTabDaNoi"' + (_mcpTab === "danoi" ? "" : " hidden") + '>'
       + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_connected_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_account_n", { so: conns.length })) + '</span>' + infoBtn() + '</h3>'
       + infoBody(esc(window.t("cs.cn_intro")))
+      + (conns.length > 3 ? '<input class="js-input conn-search" id="connQ" type="search" placeholder="' + esc(window.t("cs.cn_conn_search_ph")) + '">' : "")
       + '<div class="gcard-meta" style="max-width:740px">'
       + '<label style="cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> ' + esc(window.t("cs.cn_strict")) + '</label></div>'
-      + '<div class="prov-list" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">' + esc(window.t("cs.cn_empty_a")) + ' <b>' + esc(window.t("cs.cn_tab_sanco")) + '</b> ' + esc(window.t("cs.cn_empty_b")) + '</div>') + '</div></div>'
+      + '<div class="prov-list" id="connList" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">' + esc(window.t("cs.cn_empty_a")) + ' <b>' + esc(window.t("cs.cn_tab_sanco")) + '</b> ' + esc(window.t("cs.cn_empty_b")) + '</div>') + '</div><div class="mp-empty" id="connNone" hidden>' + esc(window.t("cs.cn_conn_search_none")) + '</div></div>'
       // Lối đi tiếp, đặt ngay dưới danh sách. Không có nó thì tab này là ngõ cụt với
       // người chưa đấu gì: họ nhìn một ô trống mà không biết bước kế tiếp ở đâu.
       + '<div class="conn-guide" style="border:1px dashed var(--border);border-radius:12px;'
@@ -6050,6 +6097,8 @@
       + '<span style="flex:1;min-width:240px">' + esc(window.t("cs.cn_more_services")) + '</span>'
       + '<button class="mp-btn" id="mcpDiSanCo">' + esc(window.t("cs.cn_tab_sanco")) + '</button>'
       + '<button class="mp-btn primary" id="mcpDiKho">Javis Store</button></div>'
+      // Facebook Messenger setup card (0.301.0): drawn by messenger-connect.js into this slot.
+      + '<div id="mcpMessenger"></div>'
       + '<details class="cview-section amb-details" id="ambWrap"><summary><h3 style="display:inline">◆ ' + esc(window.t("cs.cn_amb_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_amb_hint")) + '</span></h3></summary>'
       + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">' + esc(window.t("cs.cn_amb_desc_a")) + ' <code>codex mcp</code>' + esc(window.t("cs.cn_amb_desc_b")) + '</div>'
       + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">' + esc(window.t("cs.cn_amb_click")) + '</div></div>'
@@ -6081,6 +6130,7 @@
       { nhan: window.t("cs.cn_tab_sanco"), chon: _mcpTab === "sanco", bam: () => doiTab("sanco") },
     ]);
     if (tabKho) el.insertBefore(tabKho, el.firstChild);
+    if (window.JavisMessenger) window.JavisMessenger.mount(document.getElementById("mcpMessenger"));
     const nutSanCo = document.getElementById("mcpDiSanCo");
     if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
     // Từ banner mồ côi sang thẳng gói cần cài, ô tìm điền sẵn id connector. Thả người dùng vào
@@ -6152,6 +6202,41 @@
       });
     };
     document.getElementById("catQ").oninput = applyFilter;
+    // Search on the Connected tab: service name, account labels and the built-in sources that
+    // are loaded. Typing opens the built-in section so a match there is not hidden in a fold.
+    function filterConnected() {
+      const qEl = document.getElementById("connQ");
+      const q = qEl ? qEl.value.trim().toLowerCase() : "";
+      let hits = 0;
+      el.querySelectorAll("#connList .conn-card").forEach(card => {
+        const okQ = !q || card.textContent.toLowerCase().includes(q);
+        card.style.display = okQ ? "" : "none";
+        if (okQ) hits++;
+      });
+      el.querySelectorAll("#ambWrap .amb-card").forEach(card => {
+        const okQ = !q || (card.textContent + " " + (card.title || "")).toLowerCase().includes(q);
+        card.style.display = okQ ? "" : "none";
+        if (okQ && q && !card.classList.contains("amb-off")) hits++;
+      });
+      // The Messenger card and the "more services" strip stay out of the way while searching,
+      // unless the Messenger card itself matches.
+      const msg = document.getElementById("mcpMessenger");
+      if (msg) {
+        const okM = !q || msg.textContent.toLowerCase().includes(q);
+        msg.style.display = okM ? "" : "none";
+        if (okM && q && msg.textContent.trim()) hits++;
+      }
+      const tab = document.getElementById("mcpTabDaNoi");
+      if (tab) tab.classList.toggle("searching", !!q);
+      const none = document.getElementById("connNone");
+      if (none) none.hidden = !q || hits > 0;
+    }
+    const connQ = document.getElementById("connQ");
+    if (connQ) connQ.oninput = () => {
+      const w = document.getElementById("ambWrap");
+      if (connQ.value.trim() && w && !w.open) w.open = true;
+      filterConnected();
+    };
     el.querySelectorAll(".cat-chip").forEach(ch => ch.onclick = () => {
       el.querySelectorAll(".cat-chip").forEach(x => x.classList.remove("on"));
       ch.classList.add("on");
@@ -6167,13 +6252,19 @@
       fetch("/mcp/ambient").then(r => r.json()).then(a => {
         if (box) {
           const list = a.servers || [];
-          box.innerHTML = list.length ? list.map(s => ambientCard(s, "claude code")).join("") : '<div class="mp-empty">' + esc(window.t("cs.cn_amb_none_claude")) + '</div>';
+          box.innerHTML = ambientList(list, "claude code", "cs.cn_amb_none_claude");
         }
         const cbox = document.getElementById("mcpAmbientCodex");
         if (cbox) {
           const clist = a.codex_servers || [];
-          cbox.innerHTML = clist.length ? clist.map(s => ambientCard(s, "codex")).join("") : '<div class="mp-empty">' + esc(window.t("cs.cn_amb_none_codex")) + '</div>';
+          cbox.innerHTML = ambientList(clist, "codex", "cs.cn_amb_none_codex");
         }
+        ambWrap.querySelectorAll("[data-amb-show]").forEach(btn => btn.onclick = () => {
+          const rest = btn.parentNode.nextElementSibling;
+          if (rest) rest.hidden = !rest.hidden;
+          btn.textContent = window.t(rest && !rest.hidden ? "cs.cn_amb_hide" : "cs.cn_amb_show");
+        });
+        filterConnected();
       }).catch(() => {
         ambWrap._loaded = false;   // mở lại sẽ thử tải lại
         ["mcpAmbient", "mcpAmbientCodex"].forEach(id => { const b = document.getElementById(id); if (b) b.innerHTML = '<div class="mp-empty">' + esc(window.t("cs.cn_load_err")) + '</div>'; });

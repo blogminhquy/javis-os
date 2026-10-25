@@ -424,6 +424,57 @@
       },
       "default_perm": "readonly"
     },
+    {
+      "id": "google-analytics",
+      "name": "Google Analytics (GA4)",
+      "icon": "chart-column",
+      "category": "Marketing",
+      "description": "Số liệu website qua MCP chính chủ của Google cho GA4 (chỉ đọc): phiên truy cập, nguồn và chiến dịch (UTM), sự kiện, chuyển đổi, báo cáo thời gian thực. Chạy local, đăng nhập Google 1 lần.",
+      "status": "beta",
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["analytics-mcp@latest"],
+      "auth": {
+        "type": "oauth",
+        "provider": "google",
+        "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+        "token_url": "https://oauth2.googleapis.com/token",
+        "scopes": ["openid", "email", "https://www.googleapis.com/auth/analytics.readonly"],
+        "authorize_params": {"access_type": "offline", "prompt": "consent", "include_granted_scopes": "true"},
+        "fields": [
+          {
+            "key": "client_id",
+            "label": "OAuth Client ID",
+            "placeholder": "Ví dụ: xxxx.apps.googleusercontent.com"
+          },
+          {
+            "key": "client_secret",
+            "label": "OAuth Client Secret",
+            "placeholder": "Ví dụ: GOCSPX-..."
+          },
+          {
+            "key": "adc_json",
+            "label": "Hoặc dán sẵn file ADC nếu bạn đã tự chạy gcloud (bỏ trống nếu đăng nhập ở trên)",
+            "placeholder": "Ví dụ: { \"type\": \"authorized_user\", \"refresh_token\": ... }",
+            "file": true,
+            "env": "GOOGLE_APPLICATION_CREDENTIALS",
+            "multiline": true,
+            "optional": true
+          }
+        ],
+        "guide": "Cần trước: không cài thêm gì. Javis tự tải bản chính thức mới nhất của Google (PyPI) mỗi lần khởi động.\n\nĐã đấu Google Ads thì dùng lại đúng OAuth client đó, chỉ cần bật thêm 2 API Analytics.\n\nLàm 1 lần, khoảng 10 phút:\n1. Vào console.cloud.google.com, chọn project rồi bật CẢ HAI API: Google Analytics Data API và Google Analytics Admin API.\n2. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n3. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n4. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n5. Điền các ô bên dưới rồi bấm nút đăng nhập. Trình duyệt sẽ mở để bạn cho phép Javis đọc Google Analytics.\n\nEmail đăng nhập phải có ít nhất quyền Xem (Viewer) trên property GA4. Javis tự liệt kê mọi property bạn xem được, không cần điền Property ID.\n\nGặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nĐã tự chạy gcloud rồi thì dán nội dung file application_default_credentials.json vào ô cuối, Javis sẽ dùng luôn.",
+        "guide_url": "https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com"
+      },
+      "validate": {
+        "tool": "get_account_summaries",
+        "args": {}
+      },
+      "oauth_file": { "format": "google_adc", "env": "GOOGLE_APPLICATION_CREDENTIALS", "ext": ".json" },
+      "tool_meta": {
+        "read": ["get_*", "list_*", "run_*"]
+      },
+      "default_perm": "readonly"
+    },
         {
       "id": "google-calendar",
       "name": "Google Calendar",

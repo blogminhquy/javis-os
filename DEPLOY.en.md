@@ -115,14 +115,38 @@ you **must set a `DOMAIN_NAME` variable**:
    `CLAUDE_CWD` have been cleared from the form; the Docker image still uses the right defaults.
 4. **Deploy**, wait 1-3 minutes for Traefik to issue SSL, then open `https://<DOMAIN_NAME>`.
 
-> Without `DOMAIN_NAME` it still deploys (running temporarily on `:7777` with no HTTPS). No Environment
-> box? Click **Manage → edit the .yaml** and change the `Host(...)` line directly to
-> `Host(\`javis.srv1782015.hstgr.cloud\`)`.
+> **A VPS link right after install (since 0.302.0):** on a VPS without Traefik (plain Ubuntu 26) `DOMAIN_NAME` can
+> stay empty. The gateway reads the VPS name (`srvXXXX.hstgr.cloud`) and issues HTTPS for both
+> `javis.srvXXXX.hstgr.cloud` and `srvXXXX.hstgr.cloud` itself (since 0.304.0; whichever points at the machine gets a
+> certificate). **Settings → Domain** says whether the link works yet or is still waiting for its certificate. **Open** reaches
+> `http://<ip>:7777`, and the page moves to that HTTPS link as soon as it works and answers as this Javis. Add
+> `?stay=1` to the IP link to stay. Apps installed from Hostinger's Catalog (e.g. `omniroute-xxxx.srv....hstgr.cloud`)
+> are told the VPS name at install time; a "Compose from URL" deploy is not, so the Open button cannot carry that link.
+> On the Ubuntu 24 template with Traefik, set `DOMAIN_NAME` once: open Javis by IP → **Settings → Domain** shows
+> the line to copy.
+>
+> **Hostinger VPS on Ubuntu 26 (or any plain OS without Traefik), since 0.300.0:** paste the SAME link, nothing to
+> change. The compose now carries a `javis-gateway` container (Caddy): when ports 80/443 are free it requests and
+> renews the Let's Encrypt certificate for `DOMAIN_NAME` itself; on a VPS with Hostinger's Traefik it stays idle and
+> leaves HTTPS to Traefik. Two requirements: Docker installed (Docker Manager does it, or
+> `curl -fsSL https://get.docker.com | sh`), and ports 80 + 443 open in the firewall. Before deploying, check the
+> name points at the VPS: `ping javis.<vps-hostname>.hstgr.cloud` must show the VPS IP (for your own domain, an A
+> record to the VPS IP). The `javis-gateway` log says what it is doing.
+>
+> **Traefik does not handle updates.** Traefik (or Caddy) only provides HTTPS for the domain. Updates are done by the
+> bundled `javis-watchtower` container, so the **⬆ Update now** button works the same on Ubuntu 24 and 26.
+
+> Without `DOMAIN_NAME` it still deploys (running temporarily on `:7777` with no HTTPS), and since 0.302.0 the
+> **Open** button goes to `http://<vps-ip>:7777` instead of `localhost` (Open follows the domain in the Traefik
+> label, which used to say `localhost`). Don't know the VPS hostname? Open Javis by IP → **Settings → Domain**: Javis
+> looks it up and shows the line `DOMAIN_NAME=javis.srvXXXX.hstgr.cloud` with a copy button. No Environment box?
+> Click **Manage → edit the .yaml** and change the two label lines to `- traefik.enable=true` and
+> `- traefik.http.routers.javis.rule=Host(\`javis.srv1782015.hstgr.cloud\`)`.
 > **The key point:** the Traefik labels attach straight to the service, with **NO
 > `networks:` / `external: traefik-proxy` declaration** (that is what used to make the deploy report
 > "network not found").
-> **Caddy (`docker-compose.https.yml`) is NOT used on Hostinger** because ports 80/443 are already held
-> by their Traefik.
+> **Do not add `docker-compose.https.yml` on Hostinger**: it publishes ports 80/443 and clashes with their
+> Traefik. The Hostinger compose already carries a Caddy gateway that turns itself on when there is no Traefik.
 > Not confident? Use a **Cloudflare Tunnel** (below), which gives an HTTPS URL without touching
 > Hostinger's proxy at all.
 
