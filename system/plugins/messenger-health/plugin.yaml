@@ -1,0 +1,13 @@
+name: Kiểm tra Messenger
+name_en: "Messenger health check"
+slug: messenger-health
+version: 1.0.0
+description: Rà kết nối bot Messenger của từng Fanpage (token Trang, quyền, webhook, Trang gắn app, bot đang trực) và sửa tự động phần webhook khi bot im lặng.
+description_en: "Checks each Facebook Page's Messenger bot connection (Page token, permissions, webhook, Page subscription, running bot) and repairs the webhook when the bot goes silent."
+author: Javis (bundled)
+enabled: true
+min_mode: full
+tools:
+  - messenger_check
+  - messenger_repair
+hooks: []
