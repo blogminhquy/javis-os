@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.321.0] - 2026-10-25
+### Added
+- **A procedure of your own for each assistant.** Write how it should work (check sources first, compare with last period, how to hand off) and choose where it applies: private chat, team, Kanban jobs or workflow steps. The assistant file, your rules, model and permissions stay as they are, and you can remove it any time.
+
 ## [0.320.0] - 2026-10-25
 ### Added
 - **Test a skill description before changing it.** You write a new description and sample questions (should pick this skill, should pick none, should pick another skill); Javis shows how many more it routes correctly and whether any become wrong. A version that causes wrong picks is rejected.

@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.321.0] - 2026-10-25
+### Thêm mới
+- **Quy trình riêng cho từng trợ lý.** Bạn viết một đoạn cách làm (kiểm nguồn trước, đối chiếu kỳ trước, bàn giao ra sao) và chọn nơi trợ lý dùng nó: chat riêng, nhóm, việc Kanban hay bước quy trình. File trợ lý, luật bạn dặn, model và quyền giữ nguyên; bạn gỡ lúc nào cũng được.
+
 ## [0.320.0] - 2026-10-25
 ### Thêm mới
 - **Kiểm mô tả skill trước khi đổi.** Bạn soạn mô tả mới và một bộ câu hỏi mẫu (nên chọn skill này, không nên chọn skill nào, nên chọn skill khác); Javis cho xem bản mới giúp chọn đúng thêm bao nhiêu câu và có làm chọn sai câu nào không. Bản làm chọn sai bị loại.
