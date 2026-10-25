@@ -80,23 +80,30 @@ class BundleServiceTests(procedure_base.AgentProcedureBase):
     def skill_seen(self):
         return activation_base.ActivationBase.seen(self, "ke-toan")
 
+    def procedure_seen(self, skill_served=True, session_created_at=None):
+        import improvement_agent as AG
+        agent_text, memory_text = self.files["ke-toan"]
+        return AG.effective_procedure(self.root, self.keys["ke-toan"], "dm", agent_text=agent_text, memory_text=memory_text,
+                                      skill_served=skill_served, session_created_at=session_created_at)
+
     def both_canonical(self):
         self.assertEqual(self.skill_seen(), self.canonical)
-        self.assertEqual(self.seen("dm"), "")
+        self.assertEqual(self.procedure_seen(), "")
 
     def test_apply_serves_both_members_and_revert_removes_both(self):
         with self.assertRaisesRegex(PermissionError, "confirmation"):
             self.apply(confirmed=False)
         bundle = self.apply()
-        self.assertEqual((bundle["state"], bundle["generation"]), ("active", 2))
+        self.assertEqual((bundle["state"], bundle["evidence_level"]), ("active", "manual_trial"))
         self.assertEqual(sorted(m["kind"] for m in bundle["members"]), ["procedure", "skill"])
         self.assertEqual(self.apply(), bundle)  # event-key replay
         self.assertEqual(self.skill_seen(), self.overlay())
-        self.assertIn(procedure_base.PROCEDURE, self.seen("dm"))
+        self.assertIn(procedure_base.PROCEDURE, self.procedure_seen())
         self.assertEqual(self.skill.read_bytes(), self.canonical)
         with self.assertRaisesRegex(IM.ConflictError, "stale"):
             self.bundles.revert(self.owner, bundle["bundle_id"], expected_generation=1, event_key="bundle-revert-stale")
-        reverted = self.bundles.revert(self.owner, bundle["bundle_id"], expected_generation=2, event_key="bundle-revert")
+        reverted = self.bundles.revert(self.owner, bundle["bundle_id"], expected_generation=bundle["generation"],
+                                       event_key="bundle-revert")
         self.assertEqual(reverted["state"], "reverted")
         self.both_canonical()
         self.assertEqual(self.service.overlays(self.owner)[0]["state"], "reverted")
@@ -112,10 +119,63 @@ class BundleServiceTests(procedure_base.AgentProcedureBase):
             self.assertEqual(connection.execute("SELECT state FROM improvement_activations WHERE id=?", (skill,)).fetchone()[0],
                              "reverted")
 
-    def test_skill_drift_hides_the_procedure_too(self):
-        self.apply()
+    def test_skill_drift_hides_the_procedure_and_is_recorded(self):
+        bundle = self.apply()
         self.skill.write_bytes(self.canonical + b"\nOwner edit.\n")
-        self.assertEqual(self.seen("dm"), "")
+        self.assertEqual(self.procedure_seen(), "")
+        self.assertEqual(self.bundles.reconcile(self.owner), [{"bundle_id": bundle["bundle_id"], "reason": "member_unavailable"}])
+        self.skill.write_bytes(self.canonical)  # restoring the bytes never revives the bundle unasked
+        self.both_canonical()
+
+    def test_procedure_only_where_the_skill_half_is_read(self):
+        self.apply()
+        # Telegram, CLI, or a subscription engine reading native skills: the procedure would come without its skill.
+        self.assertEqual(self.procedure_seen(skill_served=False), "")
+        # The skill half serves every new turn, so the bundled procedure is not pinned to old sessions either.
+        self.assertIn(procedure_base.PROCEDURE, self.procedure_seen(session_created_at=1.0))
+
+    def test_revoked_edit_authority_hides_the_procedure(self):
+        bundle = self.apply()
+        with closing(sqlite3.connect(self.store.path)) as connection:
+            authority = connection.execute("SELECT id FROM improvement_candidate_authorities WHERE candidate_id=?",
+                                           (self.candidate["candidate_id"],)).fetchone()[0]
+        from improvement_candidate_records import CandidateRecords
+        with closing(sqlite3.connect(self.store.path)) as connection:
+            generation = connection.execute("SELECT generation FROM improvement_candidate_authority_grants "
+                                            "WHERE authority_id=?", (authority,)).fetchone()[0]
+        CandidateRecords(self.assets).revoke_authority(self.owner, authority, expected_generation=generation,
+                                                       event_key="revoke-authority")
+        self.assertEqual(self.skill_seen(), self.canonical)
+        self.assertEqual(self.procedure_seen(), "")
+        self.assertEqual(self.bundles.reconcile(self.owner)[0]["bundle_id"], bundle["bundle_id"])
+
+    def test_a_finished_bundle_never_strands_member_pointers(self):
+        bundle = self.apply()
+        members = {m["kind"]: m["pointer_id"] for m in bundle["members"]}
+        with patch.object(B.Bundles, "_revert_all", return_value=False):  # members not moved back (crash, error)
+            self.bundles.revert(self.owner, bundle["bundle_id"], expected_generation=bundle["generation"], event_key="bundle-revert-strand")
+        self.assertEqual(self.bundles.member_of(self.owner, "skill", members["skill"]), "")  # per-kind revert open again
+        self.both_canonical()  # never served without its bundle
+        self.bundles.reconcile(self.owner)  # the sweep moves the leftovers back
+        self.assertEqual(self.activations.list(self.owner)[0]["state"], "reverted")
+        self.assertEqual(self.service.overlays(self.owner)[0]["state"], "reverted")
+
+    def test_reconcile_and_a_live_apply_never_both_act(self):
+        original, steps = B.Bundles._apply_member, []
+
+        def slow(self_, principal, bundle_id, agent_slug, clean, member_key):
+            original(self_, principal, bundle_id, agent_slug, clean, member_key)
+            if member_key == "skill":
+                self_.clock = lambda: 10 ** 10  # the apply takes "forever": a reconcile takes over meanwhile
+                steps.append(self.bundles.reconcile(self.owner))
+        self.bundles.clock = __import__("time").time
+        with patch.object(B.Bundles, "_apply_member", slow), self.assertRaisesRegex(IM.ConflictError, "interrupted"):
+            self.apply()
+        self.assertEqual(steps[0][0]["reason"], "interrupted")
+        self.assertEqual(self.bundles.list(self.owner)[0]["state"], "failed")
+        self.both_canonical()
+        self.assertTrue(all(row["state"] != "active" for row in self.activations.list(self.owner)))
+        self.assertTrue(all(row["state"] != "active" for row in self.service.overlays(self.owner)))
 
     def test_member_failure_rolls_back_and_nothing_half_new_is_served(self):
         other = self.stage(procedure_base.PROCEDURE + " Them buoc.", key="stage-standalone")
@@ -194,7 +254,7 @@ class BundleServiceTests(procedure_base.AgentProcedureBase):
         listed = client.get("/improvement-bundles?agent=ke-toan").json()
         self.assertEqual(listed["bundles"][0]["bundle_id"], bundle["bundle_id"])
         reverted = client.post(f"/improvement-bundles/{bundle['bundle_id']}/revert",
-                               json={"expected_generation": 2, "event_key": "http-bundle-revert"}).json()
+                               json={"expected_generation": bundle["generation"], "event_key": "http-bundle-revert"}).json()
         self.assertEqual(reverted["bundle"]["state"], "reverted")
         bad = client.post("/improvement-bundles", json={"agent": "ke-toan", "manifest": {"members": []},
                                                         "owner_confirmed": True, "event_key": "http-bundle-bad"})

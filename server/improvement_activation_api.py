@@ -272,6 +272,8 @@ def register(app, deps: ActivationApiDeps):
     @app.post("/improvement-agent-overlays/{overlay_id}/revert")
     async def agent_overlay_revert(overlay_id: str, request: Request, brain: str = "brain"):
         try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
             await not_bundled(await owner(brain), "procedure", overlay_id)
         except _ERRORS as error:
             return _fail(error)

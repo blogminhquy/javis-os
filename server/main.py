@@ -10210,7 +10210,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
                 print(f"[agent engine] {prov}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
         return c
 
-    def _agent_sysprompt(aslug, surface=None, agent_key=None, session_created_at=None):
+    def _agent_sysprompt(aslug, surface=None, agent_key=None, session_created_at=None, skill_served=False):
         """`surface` (dm, team, kanban, workflow): where this prompt runs, known by the host. Only with it can an
         owner-applied procedure overlay (M5) be added; `agent_key`/`session_created_at` narrow it (see
         _agent_procedure_block)."""
@@ -10241,7 +10241,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
               "bị tự xoá. CHỈ dùng cho lời chủ dặn; bài học bạn tự rút ra thì vẫn là JAVIS_LESSON. "
               "Luật đã có trong mục đó thì đừng phát lại.\n"
             + _AGENT_TOOLKIT_BLOCK
-            + (_agent_procedure_block(brain, aslug, surface, agent_key, session_created_at) if surface else "")
+            + (_agent_procedure_block(brain, aslug, surface, agent_key, session_created_at, skill_served) if surface else "")
             + "\nLàm việc trong vault. Tập trung hoàn thành nhiệm vụ, trả kết quả rõ ràng, ngắn gọn."
         )
         return (ameta.get("name", aslug), sysprompt,
@@ -10307,7 +10307,7 @@ _AGENT_BA_LOI = ("Ba lối đúng: làm xong ngay trong lượt và trả kết 
                  "làm được lối nào thì nói thẳng là chưa làm.")
 
 
-def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="") -> str:
+def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="", skill_served=False) -> str:
     """System prompt khi CHỦ chat trực tiếp với một trợ lý ở trang Cộng sự.
 
     Là ĐÚNG prompt mà workflow dùng cho trợ lý đó (vai, thân file, kỹ năng, bộ nhớ riêng, luật
@@ -10325,8 +10325,9 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="") -> str:
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
     pin = _dm_session_pin(conv_sid)
     # A conversation keeps the procedure it began with (M5, I10): it dates from its pin, else its session row.
+    # `skill_served`: only the dashboard turn on an in-process API engine reads the skill overlay (M6 bundles).
     _name, sysprompt, _model, _prov = _agent_sysprompt(slug, "dm", (pin or {}).get("agent_key"),
-                                                       _dm_session_started(conv_sid, pin))
+                                                       _dm_session_started(conv_sid, pin), skill_served)
     # Cộng hưởng theo quyền của LƯỢT (ngữ cảnh lượt do host gắn): trợ lý đang bật thì có dòng gợi ý và câu ba lối;
     # tắt, hay không có lượt, thì prompt y như trước A1.
     if _resonance_turn_enabled(brain):
@@ -10368,7 +10369,7 @@ def _dm_session_started(conv_sid, pin=None):
         return None
 
 
-def _agent_overlay(brain, slug, surface, agent_key=None, session_created_at=None) -> tuple:
+def _agent_overlay(brain, slug, surface, agent_key=None, session_created_at=None, skill_served=False) -> tuple:
     """M5: (overlay id, prompt block) of this assistant's owner-applied procedure on this surface, or ("", "").
 
     The key is the caller's (session pin, team member, Kanban job) or the slug's live identity; never registered here.
@@ -10384,15 +10385,15 @@ def _agent_overlay(brain, slug, surface, agent_key=None, session_created_at=None
         return improvement_agent.effective_overlay(
             root, key, surface, agent_text=path.read_text(encoding="utf-8"),
             memory_text=mem.read_text(encoding="utf-8") if mem.is_file() else "", session_created_at=session_created_at,
-            on_drift=lambda: _improvement_agents().reconcile(resonance_store.Principal(
+            skill_served=skill_served, on_drift=lambda: _improvement_agents().reconcile(resonance_store.Principal(
                 "owner", "owner", str(Path(root).resolve(strict=True)))))
     except Exception as _e:  # noqa: BLE001
         print(f"[agent procedure] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
         return "", ""
 
 
-def _agent_procedure_block(brain, slug, surface, agent_key=None, session_created_at=None) -> str:
-    return _agent_overlay(brain, slug, surface, agent_key, session_created_at)[1]
+def _agent_procedure_block(brain, slug, surface, agent_key=None, session_created_at=None, skill_served=False) -> str:
+    return _agent_overlay(brain, slug, surface, agent_key, session_created_at, skill_served)[1]
 
 
 def _stage_learned_procedure(brain, slug, text, source="learn"):
@@ -16120,25 +16121,28 @@ async def websocket_endpoint(ws: WebSocket):
                 _judge_dm_owner_message(brain, _persona[1], conv_sid)
             # Dựng prompt cũ theo nhu cầu. Fast Path không đọc/nạp memory hoặc lịch sử cũ.
             sysprompt = None
+            _legacy_prompts = {}
 
-            def _legacy_system_prompt():
-                nonlocal sysprompt
-                if sysprompt is None:
+            def _legacy_system_prompt(skill_served=False):
+                # `skill_served`: the in-process API branch passes True; subscription engines read native skills.
+                if skill_served not in _legacy_prompts:
                     if _persona and _persona[0] == "agent":
                         # T2/T3: cùng cách ghép với _agent_turn_system_prompt (prompt trợ lý, khối phiên, khối phản
                         # hồi, bài học phạm vi chat riêng + chung).
-                        sysprompt = (_agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid) + _session_block(conv_sid)
-                                     + _dm_feedback_prompt(brain, _persona[1], conv_sid)
-                                     + _dm_lessons_prompt(brain, _persona[1], conv_sid))
+                        _legacy_prompts[skill_served] = (
+                            _agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid, skill_served=skill_served)
+                            + _session_block(conv_sid)
+                            + _dm_feedback_prompt(brain, _persona[1], conv_sid)
+                            + _dm_lessons_prompt(brain, _persona[1], conv_sid))
                     else:
-                        sysprompt = build_system_prompt(
+                        _legacy_prompts[skill_served] = build_system_prompt(
                             brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",
                             session_id=conv_sid or ""
                         ) + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                             port=_javis_port(), brain_root=_brain_root(brain),
                         ) + _khoi_coding(_row0, brain)
-                return sysprompt
+                return _legacy_prompts[skill_served]
 
             async def _subscription_system_prompt(route_provider, route_model, route_kind):
                 """System prompt cho engine chạy bằng GÓI THUÊ BAO (Claude Code, Codex).
@@ -16827,7 +16831,7 @@ async def websocket_endpoint(ws: WebSocket):
                     else:
                         sysprompt = (_phase8_plan.system_prompt
                                      if _phase8_plan.action == "use" and not _persona
-                                     else _legacy_system_prompt())
+                                     else _legacy_system_prompt(skill_served=True))
                         label = _api_label(prov)
                         actual_model = api_model or "?"
                         _ident = (

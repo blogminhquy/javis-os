@@ -19,7 +19,7 @@ SCHEMA = (
     "CREATE TRIGGER improvement_bundle_insert BEFORE INSERT ON improvement_bundle_activations "
     "WHEN NEW.state<>'applying' OR NEW.generation<>1 BEGIN SELECT RAISE(ABORT,'bundle_must_start_applying'); END",
     "CREATE TRIGGER improvement_bundle_update BEFORE UPDATE ON improvement_bundle_activations "
-    "WHEN NOT ((OLD.state='applying' AND NEW.state IN ('active','failed')) "
+    "WHEN NOT ((OLD.state='applying' AND NEW.state IN ('applying','active','failed')) "
     "OR (OLD.state='active' AND NEW.state IN ('reverted','suspended'))) "
     "OR NEW.generation<>OLD.generation+1 OR NEW.id IS NOT OLD.id OR NEW.brain_id IS NOT OLD.brain_id "
     "OR NEW.agent_key IS NOT OLD.agent_key OR NEW.agent_slug IS NOT OLD.agent_slug "

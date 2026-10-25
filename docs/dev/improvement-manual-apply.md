@@ -156,12 +156,20 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
   và quy trình (M5). Hai phần bật và tắt cùng nhau.
 - Kiểm trước khi ghi (A04): đúng hai thành phần khác loại, khoá thành phần duy nhất, phụ thuộc chỉ giữa các thành
   phần và không vòng, quy trình thuộc đúng trợ lý, quy trình chỉ ở `dm` vì bản sửa skill chỉ phục vụ chat riêng.
+- Nơi gói thật sự chạy: lượt chat riêng ở dashboard trên bộ não API (chỗ duy nhất đọc được bản sửa skill). Ở CLI,
+  Telegram hay bộ não gói thuê bao (Claude Code, Codex...) cả hai phần đều dùng bản gốc. Gói không ghim theo phiên:
+  như phần skill, mọi lượt mới sau khi áp đều dùng gói. Nhãn bằng chứng của gói luôn là `manual_trial` (chưa có
+  phép thử riêng của gói).
 - Có thì có đủ (S02): lúc gói đang áp, mọi lớp phủ của trợ lý đó dùng bản gốc. Thành phần của gói chỉ được phục vụ
   khi gói `active` và mọi thành phần còn hiệu lực (skill còn đúng hash gốc). Gỡ lẻ một thành phần qua API bị từ
   chối (409 `bundle_member_revert_with_bundle`); nếu một thành phần rời đi bằng đường khác thì thành phần còn lại
   thôi phục vụ ngay ở lúc đọc và lượt đối soát kế tiếp đánh dấu gói `suspended` (`member_unavailable`), gỡ nốt.
-- Đứt giữa chừng: gói kẹt `applying` quá 120 giây thì đối soát gỡ các phần đã áp (tìm theo khoá sự kiện cố định
-  của từng thành phần) và đánh dấu `failed` (`interrupted`). Một thành phần áp lỗi thì gỡ ngay và `failed`
+  Điều kiện "còn hiệu lực" của skill giống hệt bộ phân giải skill: đích còn sống, quyền sửa đúng từng chữ còn,
+  đúng hash và định danh file. Gói đã kết thúc mà còn sót con trỏ (đứt giữa lúc gỡ) thì lượt đối soát gỡ nốt, và
+  lúc đó gỡ lẻ từng phần cũng mở lại.
+- Đứt giữa chừng: gói kẹt `applying` quá 120 giây (không có nhịp tim) thì đối soát chiếm quyền bằng CAS, đánh dấu
+  `failed` (`interrupted`) rồi mới gỡ các phần đã áp (tìm theo khoá sự kiện cố định của từng thành phần). Lượt áp
+  đang chạy thấy mất quyền ở nhịp tim kế tiếp thì dừng và tự gỡ phần của mình. Một thành phần áp lỗi thì gỡ ngay và `failed`
   (`member_apply_failed`).
 - Quy kết tác dụng (Q06, Q07): `improvement_bundle.attribution` chỉ là báo cáo thuần trên các nhánh chủ đã chạy;
   chỉ có gốc với cả gói thì phần agent và phần skill là `confounded`; cả gói không thừa hưởng kết quả của từng

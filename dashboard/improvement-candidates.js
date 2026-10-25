@@ -334,6 +334,7 @@
   }
   async function applyBlock(s, current, version) {
     const authority = current.edit_authority;
+    s.bundleCandidate = null; // set again below only for an exact approved candidate now on screen
     if (current.keep_base || !authority || authority.status !== "active" || authority.kind !== "exact_diff") return;
     s.bundleCandidate = current.candidate_id; // M6: the skill half of an assistant bundle
     const box = node("div", null, "apply"); box.append(node("h4", tr("apply_title")));
@@ -386,6 +387,7 @@
   async function review(s, candidateId) {
     const version = s.version;
     s.review.replaceChildren(); s.status.textContent = tr("loading");
+    s.bundleCandidate = null; // a bundle only ever takes the candidate on screen
     try {
       const value = (await request(s, "/improvement-candidates/" + encodeURIComponent(candidateId) + "/review", {})).review;
       const before = await exact(value.before), after = await exact(value.after);
