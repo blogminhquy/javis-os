@@ -177,6 +177,43 @@ class ActivationTests(ActivationBase):
         with self.assertRaisesRegex(ValueError, "agent"):
             self.apply(agent="khong-co")
 
+    def test_agent_resolved_only_for_valid_slug_after_cheap_checks(self):
+        calls = []
+        self.activations.agent_key = lambda brain, slug: calls.append(slug) or AGENTS.get(slug, "")
+        for bad in ("../whatever", "a/b", "", "x" * 200):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "agent"):
+                self.apply(agent=bad, key="apply-bad-" + str(len(bad)))
+        with self.assertRaises(PermissionError):
+            self.activations.apply(self.owner, "missing-candidate", "ke-toan", event_key="apply-missing-candidate")
+        self.assertEqual(calls, [])
+
+    def test_transient_read_failure_suspends_nothing(self):
+        applied = self.apply()
+        with unittest.mock.patch.object(SR, "read_skill_asset", return_value=None):
+            self.assertEqual(self.activations.reconcile(self.owner), [])
+        self.assertEqual(self.activations.list(self.owner)[0]["state"], "active")
+        self.assertEqual(self.seen("ke-toan"), self.overlay())
+        self.assertEqual(applied["state"], "active")
+
+    def test_disable_then_enable_never_revives_the_overlay(self):
+        applied = self.apply()
+        disabled = self.root / "skills" / ".disabled" / self.slug
+        disabled.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(self.skill.parent), str(disabled))
+        # The toggle route calls suspend_source right after the move.
+        self.assertEqual(self.activations.suspend_source(self.owner, self.slug),
+                         [{"activation_id": applied["activation_id"], "reason": "source_unavailable"}])
+        shutil.move(str(disabled), str(self.skill.parent))
+        self.assertEqual(self.seen("ke-toan"), self.canonical)
+
+    def test_recreated_file_with_identical_bytes_is_a_new_target(self):
+        applied = self.apply()
+        self.skill.unlink()
+        self.skill.write_bytes(self.canonical)
+        self.assertEqual(self.seen("ke-toan"), self.canonical)
+        self.assertEqual(self.activations.reconcile(self.owner),
+                         [{"activation_id": applied["activation_id"], "reason": "canonical_changed"}])
+
     def test_other_brain_cannot_read_or_revert(self):
         applied = self.apply()
         other = self.c.f.other
@@ -292,7 +329,8 @@ class ActivationConsumerTests(ActivationBase):
                     return self.hub()()
             self.assertEqual(self.under("ke-toan", over_cli), canonical)
 
-    def test_lazy_router_loads_overlay_body_with_its_hash(self):
+    def test_lazy_router_stays_canonical(self):
+        """Phase 8 runs for CLI engines too and never for assistant chats, so it is not a covered path."""
         import hashlib
         from capability_registry import CapabilityRegistry
         from lazy_skill_runtime import LazySkillSource
@@ -300,10 +338,35 @@ class ActivationConsumerTests(ActivationBase):
         registry = CapabilityRegistry(Path(self.c.f.root) / "registry")
         selected = self.under("ke-toan", lambda: LazySkillSource(registry).resolve(self.root, self.slug))
         self.assertEqual(selected.action, "load", selected.reason)
-        self.assertTrue(selected.context_item.source_ref.endswith(hashlib.sha256(self.overlay()).hexdigest()))
-        self.assertIn("Check every subtotal.", selected.context_item.content)
-        plain = self.under("ban-hang", lambda: LazySkillSource(registry).resolve(self.root, self.slug))
-        self.assertTrue(plain.context_item.source_ref.endswith(hashlib.sha256(self.canonical).hexdigest()))
+        self.assertTrue(selected.context_item.source_ref.endswith(hashlib.sha256(self.canonical).hexdigest()))
+
+    def test_http_hub_handler_marks_cli_transport(self):
+        import mcp_hub
+        seen = []
+
+        async def capture(*args, **kwargs):
+            seen.append(IA._CLI_TRANSPORT.get())
+            return "ok"
+
+        class Request:
+            headers = {"authorization": "Bearer hub-test-token"}
+
+        with unittest.mock.patch.object(mcp_hub, "hub_token", return_value="hub-test-token"), \
+                unittest.mock.patch.object(mcp_hub, "tra_loi_jsonrpc", side_effect=capture):
+            self.assertEqual(asyncio.run(mcp_hub.handle_http(Request())), "ok")
+        self.assertEqual(seen, [True])
+        self.assertFalse(IA._CLI_TRANSPORT.get())
+
+    def test_nested_team_or_kanban_work_never_inherits_the_chat_overlay(self):
+        self.apply()
+        agent = {"key": AGENTS["ke-toan"], "slug": "ke-toan"}
+        for turn in (turn_context.make("team", agent=agent), turn_context.make("dashboard", agent=agent, job="kanban:1"),
+                     turn_context.make("dashboard", agent=agent, team_gate="gate-1")):
+            token = turn_context.bind(turn)
+            try:
+                self.assertEqual(IA.effective_skill_asset(self.root, self.slug).content, self.canonical)
+            finally:
+                turn_context.reset(token)
 
 
 class ActivationApiTests(ActivationBase):

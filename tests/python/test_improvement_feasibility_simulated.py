@@ -170,6 +170,20 @@ class SimulatedFeasibilityTests(unittest.TestCase):
         self.assertEqual(self.seen(), self.canonical)
         self.assertEqual(self.activations.list(self.owner), [])
 
+    def test_keep_baseline_closes_apply_for_the_candidate(self):
+        saved, _ = self.seed(lambda variant, criterion: "pass")
+        self.select("keep_base", saved["generation"], "feasibility-keep-then-apply")
+        with self.assertRaisesRegex(PermissionError, "closed"):
+            self.apply()
+
+    def test_rejection_published_after_apply_suspends_the_pointer(self):
+        applied = self.apply("feasibility-apply-early")
+        self.assertEqual(applied["evidence_level"], "manual_trial")
+        self.seed(lambda variant, criterion: "fail" if variant == "candidate" and criterion == self.required else "pass")
+        self.assertEqual(self.activations.reconcile(self.owner),
+                         [{"activation_id": applied["activation_id"], "reason": "candidate_rejected"}])
+        self.assertEqual(self.seen(), self.canonical)
+
     def test_unknown_cells_stay_in_coverage_and_keep_the_baseline(self):
         saved, summary = self.seed(lambda variant, criterion: "unknown" if variant == "candidate" else "pass")
         self.assertEqual(summary["mechanical_verdict"], "inconclusive")

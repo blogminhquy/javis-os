@@ -18,11 +18,11 @@ kế tiếp trong khung chat riêng với trợ lý đó, mọi đường nạp 
 
 | Đường | Có dùng bản thử |
 |---|---|
-| Router lười (`lazy_skill_runtime`, engine API) | Có |
 | Tool `javis_use_skill` gọi trong tiến trình (engine API) | Có |
 | Ảnh chụp skill theo lượt (`TaskSkillScope`, khi bật) | Có, bytes được ghim theo lượt |
 | Hub qua HTTP từ CLI (Claude Code, Codex, Grok, Antigravity) | Không: các engine này còn tự đọc `.claude/skills`, phục vụ bản thử ở một đường sẽ chia lượt làm hai phiên bản |
-| Kênh khác (Telegram, Team, loop, việc nền) | Không: lượt không mang `agent` của khung chat riêng |
+| Router lười (`lazy_skill_runtime`) | Không: chạy cả cho engine CLI và không chạy cho chat trợ lý |
+| Kênh khác (Telegram, Team, loop, việc Kanban, việc nhóm lồng trong lượt chat) | Không: resolver chỉ nhận lượt `dashboard` có `agent`, không có `job` hay `team_gate` |
 
 Lượt đang chạy không đổi giữa chừng: chỉ lượt mới đọc con trỏ.
 
@@ -30,9 +30,12 @@ Lượt đang chạy không đổi giữa chừng: chỉ lượt mới đọc co
 
 1. Chủ sở hữu brain, policy khác `off`.
 2. Ứng viên không phải `KEEP_BASE`, có quyền `exact_diff` đang hiệu lực. Quyền chọn vùng sửa thôi là chưa đủ.
-3. Target còn `live`, skill đang bật, file gốc đúng bytes ứng viên dựa vào. Chủ đã sửa file thì báo `candidate_base_changed`; không tự gộp.
-4. Phần frontmatter giữ nguyên (bề mặt V1 chỉ là thân skill).
-5. Không báo cáo so sánh nào của nhánh ứng viên có `mechanical_verdict = rejected`.
+3. Target còn `live`, skill đang bật, file gốc đúng bytes và đúng danh tính file (dev/inode) ứng viên dựa vào.
+   Chủ đã sửa hoặc xoá rồi tạo lại file thì báo `candidate_base_changed`; không tự gộp.
+4. Trợ lý có file `agents/<slug>.md` trong brain; slug hợp lệ. Resolver chỉ cấp danh tính cho trợ lý có file.
+5. Thí nghiệm chưa bị chủ chốt sang lựa chọn khác (giữ bản cũ hoặc nhánh kia).
+6. Phần frontmatter giữ nguyên (bề mặt V1 chỉ là thân skill).
+7. Không báo cáo so sánh nào của nhánh ứng viên có `mechanical_verdict = rejected`.
 
 Mức bằng chứng ghi vào con trỏ: `qualified` chỉ khi có báo cáo `final` đạt `numeric_gate`; còn lại là `manual_trial`,
 giao diện ghi "Áp dụng thử thủ công, chưa chứng minh tốt hơn". `business_eligibility` luôn `unverified`.
@@ -40,8 +43,12 @@ giao diện ghi "Áp dụng thử thủ công, chưa chứng minh tốt hơn". `
 ## Tạm ngừng và quay lại
 
 Lúc đọc, resolver trả bản gốc ngay khi: file gốc đổi bytes, skill tắt hoặc bị xoá (trả `None`, không hồi sinh),
-quyền `exact_diff` bị thu hồi, target bị ngừng. `GET /improvement-activations` gọi `reconcile` để ghi trạng thái
-`suspended` kèm lý do (`canonical_changed`, `source_unavailable`, `authority_revoked`, `target_retired`).
+quyền `exact_diff` bị thu hồi, target bị ngừng, file bị thay bằng file khác. `GET /improvement-activations` gọi
+`reconcile` để ghi trạng thái `suspended` kèm lý do (`canonical_changed`, `source_unavailable`, `authority_revoked`,
+`target_retired`, `candidate_rejected` khi một báo cáo kém hơn được công bố sau khi áp dụng). Lỗi đọc file thoáng
+qua không ghi tạm ngừng; chỉ dấu `.disabled` hoặc file vắng mặt mới tính là mất nguồn. Route bật/tắt và xoá skill
+gọi `suspend_source` ngay, nên bật lại skill không hồi sinh bản thử. Các điều kiện kiểm lại trong giao dịch ghi:
+policy, target, quyền, tập báo cáo, lựa chọn của thí nghiệm và bytes file gốc.
 
 Quay lại (`POST /improvement-activations/{id}/revert`) chỉ đổi con trỏ sang `reverted`, kiểm `expected_generation`,
 idempotent theo `event_key`. Không ghi đè file, không phát lại hành động nào. Trạng thái kết thúc không chuyển tiếp nữa

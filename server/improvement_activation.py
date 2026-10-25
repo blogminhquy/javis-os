@@ -19,6 +19,7 @@ comparison rejected cannot be applied.
 from __future__ import annotations
 
 import contextvars
+import hashlib
 import json
 import re
 import secrets
@@ -36,7 +37,8 @@ SELECTOR_CONTEXT = "dm"
 _AGENT_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")
 _IDENTIFIER = re.compile(r"iac_[0-9a-f]{32}")
 _CANONICAL = re.compile(r"skills/([a-z0-9][a-z0-9_-]{0,127})/SKILL\.md")
-SUSPEND_REASONS = ("canonical_changed", "source_unavailable", "authority_revoked", "target_retired")
+SUSPEND_REASONS = ("canonical_changed", "source_unavailable", "authority_revoked", "target_retired",
+                   "candidate_rejected")
 
 
 def selector(agent_key: str, agent_slug: str = "") -> dict:
@@ -80,6 +82,20 @@ def _slug(canonical_ref: str) -> str:
     if not match:
         raise PermissionError("activation_target_unsupported")
     return match.group(1)
+
+
+def _file_identity(root, canonical_ref: str) -> str:
+    """Same identity improvement_assets.capture_source pins: a recreated file is a new target."""
+    info = (Path(root) / canonical_ref).stat()
+    return hashlib.sha256(f":{info.st_dev}:{info.st_ino}".encode("utf-8")).hexdigest()
+
+
+def _source_gone(root, slug: str) -> bool:
+    """Stable absence only: the disabled marker exists or the canonical file is missing.
+    A transient read failure (an editor save, a Windows lock) is not proof of anything."""
+    root = Path(root)
+    return ((root / "skills" / ".disabled" / slug / "SKILL.md").is_file()
+            or not (root / "skills" / slug / "SKILL.md").exists())
 
 
 def _has_table(connection) -> bool:
@@ -131,6 +147,24 @@ class Activations:
         return reports
 
     @staticmethod
+    def _report_refs(connection, brain, candidate) -> list:
+        """Cheap SQL-only fingerprint of the arm's published reports, for in-transaction rechecks."""
+        return [tuple(row) for row in connection.execute(
+            "SELECT r.id,r.report_hash FROM improvement_comparison_reports r "
+            "JOIN improvement_comparisons c ON c.id=r.comparison_id AND c.brain_id=r.brain_id "
+            "JOIN improvement_experiment_arms a ON a.experiment_id=c.experiment_id AND a.brain_id=c.brain_id "
+            "AND a.ordinal=c.ordinal WHERE r.brain_id=? AND a.candidate_id=? ORDER BY r.id", (brain, candidate["id"]))]
+
+    @staticmethod
+    def _selection_refuses(connection, brain, candidate) -> bool:
+        """The owner already closed the experiment on another choice (keep_base or the other arm)."""
+        row = connection.execute("SELECT s.choice,a.candidate_id FROM improvement_experiment_selections s "
+            "LEFT JOIN improvement_experiment_arms a ON a.experiment_id=s.experiment_id AND a.brain_id=s.brain_id "
+            "AND a.ordinal=s.ordinal WHERE s.experiment_id=? AND s.brain_id=?",
+            (candidate["experiment_id"], brain)).fetchone()
+        return row is not None and (row["choice"] != "candidate" or row["candidate_id"] != candidate["id"])
+
+    @staticmethod
     def _authority_active(connection, brain, candidate_id) -> bool:
         return connection.execute(
             "SELECT 1 FROM improvement_candidate_authorities a JOIN improvement_candidate_authority_grants g "
@@ -144,7 +178,7 @@ class Activations:
         brain = IM._brain(principal)
         if type(candidate_id) is not str or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", candidate_id):
             raise ValueError("invalid_candidate")
-        if type(agent_slug) is not str or not 0 < len(agent_slug) <= 128:
+        if type(agent_slug) is not str or not SR.valid_file_slug(agent_slug):
             raise ValueError("invalid_activation_agent")
         payload = {"candidate_id": candidate_id, "agent_slug": agent_slug}
         IM.ensure(self.store)
@@ -152,10 +186,6 @@ class Activations:
             replay = self.assets._replay(connection, brain, event_key, "activation_apply", payload)
             if replay is not None:
                 return replay
-        agent_key = str(self.agent_key(brain, agent_slug) or "")
-        chosen = selector(agent_key, agent_slug)
-        scope = scope_hash(agent_key)
-        with closing(self.store._conn()) as connection:
             if self.assets._policy(connection, brain)["mode"] == "off":
                 raise PermissionError("improvement_disabled")
             candidate = connection.execute("SELECT * FROM improvement_skill_candidates WHERE id=? AND brain_id=?",
@@ -169,15 +199,24 @@ class Activations:
             target = self.assets._target(connection, brain, candidate["target_id"])
             if target["kind"] != "skill" or target["status"] != "live":
                 raise PermissionError("target_unavailable")
+            if self._selection_refuses(connection, brain, candidate):
+                raise PermissionError("experiment_closed_on_other_choice")
+            refs = self._report_refs(connection, brain, candidate)
             level, evidence = apply_evidence(self._reports(connection, brain, candidate))
+        # Resolve the assistant only after the cheap checks: the host resolver never mints an
+        # identity for a slug without an agent file.
+        agent_key = str(self.agent_key(brain, agent_slug) or "")
+        chosen = selector(agent_key, agent_slug)
+        scope = scope_hash(agent_key)
         slug = _slug(target["canonical_ref"])
+        overlay = self.blobs.read(brain, candidate["content_hash"])
         canonical = SR.read_skill_asset(Path(brain), slug)
         if canonical is None or canonical.relative_path != target["canonical_ref"]:
             raise PermissionError("skill_unavailable")
-        if canonical.content_hash != candidate["base_hash"]:
-            # The owner edited the skill since the candidate was built: rebase, never merge.
+        if (canonical.content_hash != candidate["base_hash"]
+                or _file_identity(brain, target["canonical_ref"]) != target["identity"]):
+            # The owner edited or replaced the skill since the candidate was built: rebase, never merge.
             raise IM.ConflictError("candidate_base_changed")
-        overlay = self.blobs.read(brain, candidate["content_hash"])
         if SR._frontmatter_header(overlay[:16384])[1] != canonical.frontmatter_hash:
             raise PermissionError("activation_surface_body_only")
         with self.store._Tx(self.store) as connection:
@@ -187,8 +226,14 @@ class Activations:
             if self.assets._policy(connection, brain)["mode"] == "off":
                 raise PermissionError("improvement_disabled")
             current = self.assets._target(connection, brain, candidate["target_id"])
-            if current["status"] != "live" or not self._authority_active(connection, brain, candidate_id):
+            if (current["status"] != "live" or not self._authority_active(connection, brain, candidate_id)
+                    or self._report_refs(connection, brain, candidate) != refs
+                    or self._selection_refuses(connection, brain, candidate)):
                 raise IM.ConflictError("activation_basis_changed")
+            # Last observation inside the write transaction: a stale pointer is never committed.
+            final = SR.read_skill_asset(Path(brain), slug)
+            if final is None or final.content_hash != candidate["base_hash"]:
+                raise IM.ConflictError("candidate_base_changed")
             busy = connection.execute("SELECT id FROM improvement_activations WHERE brain_id=? AND target_id=? "
                                       "AND scope_hash=? AND state='active'", (brain, target["id"], scope)).fetchone()
             if busy is not None:
@@ -236,38 +281,62 @@ class Activations:
             self.assets._event(connection, principal, event_key, "activation_revert", payload, result)
             return result
 
+    def _suspend(self, brain, row, reason) -> bool:
+        with self.store._Tx(self.store) as connection:
+            return bool(connection.execute(
+                "UPDATE improvement_activations SET state='suspended',reason=?,generation=generation+1,updated_at=? "
+                "WHERE id=? AND brain_id=? AND state='active' AND generation=?",
+                (reason, time.time(), row["id"], brain, row["generation"])).rowcount)
+
     def reconcile(self, principal) -> list:
-        """Record suspensions for pointers whose basis changed. Read time already refuses them."""
+        """Record suspensions for pointers whose basis changed for good. Read time already refuses
+        them; a transient read failure suspends nothing (the next reconcile decides again)."""
         import skill_router as SR
         brain = IM._brain(principal)
         if not self._available():
             return []
         with closing(self.store._conn()) as connection:
-            rows = connection.execute("SELECT a.*,t.status AS target_status FROM improvement_activations a "
+            rows = connection.execute("SELECT a.*,t.status AS target_status,t.identity FROM improvement_activations a "
                 "JOIN improvement_targets t ON t.id=a.target_id AND t.brain_id=a.brain_id "
                 "WHERE a.brain_id=? AND a.state='active'", (brain,)).fetchall()
             pending = []
             for row in rows:
+                candidate = {"id": row["candidate_id"], "experiment_id": row["experiment_id"]}
+                slug = _slug(row["canonical_ref"])
                 if row["target_status"] != "live":
                     pending.append((row, "target_retired"))
                 elif not self._authority_active(connection, brain, row["candidate_id"]):
                     pending.append((row, "authority_revoked"))
+                elif _source_gone(brain, slug):
+                    pending.append((row, "source_unavailable"))
                 else:
-                    canonical = SR.read_skill_asset(Path(brain), _slug(row["canonical_ref"]))
-                    if canonical is None or canonical.relative_path != row["canonical_ref"]:
-                        pending.append((row, "source_unavailable"))
-                    elif canonical.content_hash != row["base_hash"]:
+                    try:
+                        apply_evidence(self._reports(connection, brain, candidate))
+                    except PermissionError:
+                        pending.append((row, "candidate_rejected"))
+                        continue
+                    canonical = SR.read_skill_asset(Path(brain), slug)
+                    if canonical is None:
+                        continue  # transient: neither proof of change nor of absence
+                    try:
+                        replaced = _file_identity(brain, row["canonical_ref"]) != row["identity"]
+                    except OSError:
+                        continue
+                    if canonical.content_hash != row["base_hash"] or replaced:
                         pending.append((row, "canonical_changed"))
-        suspended = []
-        for row, reason in pending:
-            with self.store._Tx(self.store) as connection:
-                changed = connection.execute(
-                    "UPDATE improvement_activations SET state='suspended',reason=?,generation=generation+1,updated_at=? "
-                    "WHERE id=? AND brain_id=? AND state='active' AND generation=?",
-                    (reason, time.time(), row["id"], brain, row["generation"])).rowcount
-            if changed:
-                suspended.append({"activation_id": row["id"], "reason": reason})
-        return suspended
+        return [{"activation_id": row["id"], "reason": reason}
+                for row, reason in pending if self._suspend(brain, row, reason)]
+
+    def suspend_source(self, principal, slug: str, reason: str = "source_unavailable") -> list:
+        """Called by the skill toggle/delete routes: disabling a skill invalidates its overlays at once,
+        so turning it back on later never revives them."""
+        brain = IM._brain(principal)
+        if reason not in SUSPEND_REASONS or not self._available():
+            return []
+        with closing(self.store._conn()) as connection:
+            rows = connection.execute("SELECT * FROM improvement_activations WHERE brain_id=? AND canonical_ref=? "
+                                      "AND state='active'", (brain, f"skills/{slug}/SKILL.md")).fetchall()
+        return [{"activation_id": row["id"], "reason": reason} for row in rows if self._suspend(brain, row, reason)]
 
 
 # -- read time -----------------------------------------------------------------------------------
@@ -292,8 +361,11 @@ def cli_transport():
 
 
 def _turn_agent_key() -> str:
+    """The assistant of a dashboard chat turn; nested Team or Kanban work never inherits it."""
     import turn_context
     turn = turn_context.current() or {}
+    if turn.get("kenh") != "dashboard" or turn.get("team_gate") or turn.get("job"):
+        return ""
     agent = turn.get("agent") or {}
     return str(agent.get("key") or "")
 
@@ -318,14 +390,15 @@ def _overlay(root, slug, canonical):
         if not _has_table(connection):
             return None
         row = connection.execute(
-            "SELECT a.* FROM improvement_activations a JOIN improvement_targets t "
+            "SELECT a.*,t.identity FROM improvement_activations a JOIN improvement_targets t "
             "ON t.id=a.target_id AND t.brain_id=a.brain_id WHERE a.brain_id=? AND a.canonical_ref=? "
             "AND a.scope_hash=? AND a.state='active' AND t.status='live' AND EXISTS("
             "SELECT 1 FROM improvement_candidate_authorities c JOIN improvement_candidate_authority_grants g "
             "ON g.authority_id=c.id AND g.brain_id=c.brain_id WHERE c.brain_id=a.brain_id "
             "AND c.candidate_id=a.candidate_id AND c.kind='exact_diff' AND g.status='active')",
             (brain, canonical_ref, scope_hash(agent_key))).fetchone()
-    if row is None or row["base_hash"] != canonical.content_hash or row["frontmatter_hash"] != canonical.frontmatter_hash:
+    if (row is None or row["base_hash"] != canonical.content_hash or row["frontmatter_hash"] != canonical.frontmatter_hash
+            or _file_identity(root, canonical_ref) != row["identity"]):
         return None
     raw = blobs.read(brain, row["content_hash"])
     import skill_router as SR

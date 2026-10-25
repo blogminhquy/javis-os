@@ -7533,6 +7533,7 @@ async def skill_toggle(slug: str = Form(...), enabled: str = Form(...), brain: s
         else:
             if mirror_slug.is_dir():
                 shutil.rmtree(mirror_slug)       # tắt → gỡ mirror để native không còn nạp
+            await asyncio.to_thread(_improvement_suspend_skill, brain, slug)
             # Gọi lại mirror_skills NGAY ở đây, không chỉ chờ lượt gọi tự nhiên kế tiếp (CRITICAL 1
             # đã vá): rename ở trên vừa đổi cây <root>/skills nên chữ ký của nó đã đổi, và lệnh này
             # ép cache ghi nhận đúng chữ ký-đã-tắt NGAY LẬP TỨC. Thiếu dòng này: `rename` giữ nguyên
@@ -7632,6 +7633,8 @@ async def delete_skill(slug: str = Form(...), brain: str = Form("brain")):
                 found = True
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
+    if found:
+        await asyncio.to_thread(_improvement_suspend_skill, brain, slug)
     return {"ok": True} if found else JSONResponse({"error": localefmt.chu("Không tìm thấy skill", "Skill not found")}, status_code=404)
 
 
@@ -26849,9 +26852,30 @@ import improvement_activation_api  # noqa: E402
 
 improvement_activation.configure(Path(cfgmod.STATE_DIR) / "resonance.sqlite3",
                                  RevisionBlobs(Path(cfgmod.STATE_DIR) / "improvement"))
+def _improvement_activation_agent(root, slug):
+    # Only an assistant that has its file in this brain gets (or keeps) an identity here.
+    if not skill_router.valid_file_slug(slug) or not (_agents_dir(root) / f"{slug}.md").is_file():
+        return ""
+    return _agent_jobs_key(root, slug, register=True) or ""
+
+
+def _improvement_activations():
+    return improvement_activation.Activations(_improvement_write_store(), agent_key=_improvement_activation_agent)
+
+
+def _improvement_suspend_skill(brain, slug):
+    """A disabled or deleted skill invalidates its applied overlays now, so re-enabling never revives them."""
+    try:
+        root = str(Path(_brain_root(brain)).resolve(strict=True))
+        if _improvement_read_store() is not None:
+            _improvement_activations().suspend_source(resonance_store.Principal("owner", "owner", root), slug)
+    except Exception as error:  # noqa: BLE001 - bookkeeping must never fail the skill toggle
+        print(f"[improvement activation] suspend {slug}: {type(error).__name__}: {error}", file=sys.stderr)
+
+
 improvement_activation_api.register(app, improvement_activation_api.ActivationApiDeps(
-    activations=lambda: improvement_activation.Activations(
-        _improvement_write_store(), agent_key=lambda root, slug: _agent_jobs_key(root, slug, register=True)),
+    activations=_improvement_activations,
+    read_store=_improvement_read_store,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
 ))
