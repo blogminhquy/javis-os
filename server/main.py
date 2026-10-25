@@ -10018,7 +10018,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
     `log_run(slug, task, out)`: ghi nhật ký lượt chạy vào memory/agents/<slug>/runs/.
     Trước 0.35.3 chỉ runner cũ ghi - bật canary graph là nhật ký lặng lẽ biến mất.
     """
-    agent_name, sysprompt, agent_model, agent_prov = agent_sysprompt(node.agent)
+    agent_name, sysprompt, agent_model, agent_prov = agent_sysprompt(node.agent, "workflow")
     # Studio định vị chỗ đổ chữ bằng CHỈ SỐ bước, không phải id node. Thiếu `i` thì
     # event vẫn phát ra nhưng giao diện lặng lẽ vứt đi - người xem thấy bước chạy và
     # bước xong mà không thấy chữ nào.
@@ -10069,7 +10069,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
             return {"output": "", "error": loi_het_luot, "agent_name": agent_name}
         if not node.verify_agent:
             break
-        v_name, v_body, v_model, v_prov = agent_sysprompt(node.verify_agent)
+        v_name, v_body, v_model, v_prov = agent_sysprompt(node.verify_agent, "workflow")
         await sink({"type": "step_verify", "i": index, "node": node.id,
                     "agent": v_name, "attempt": attempt})
         v_sys = (
@@ -10210,7 +10210,10 @@ def _workflow_agent_helpers(brain, tools, mode=None):
                 print(f"[agent engine] {prov}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
         return c
 
-    def _agent_sysprompt(aslug):
+    def _agent_sysprompt(aslug, surface=None, agent_key=None, session_created_at=None):
+        """`surface` (dm, team, kanban, workflow): where this prompt runs, known by the host. Only with it can an
+        owner-applied procedure overlay (M5) be added; `agent_key`/`session_created_at` narrow it (see
+        _agent_procedure_block)."""
         ameta, abody = _read_md(_agents_dir(brain) / f"{aslug}.md")
         amem = _agent_memory(brain, aslug)
         # Khối bộ nhớ + luật tự bồi đắp chèn VÔ ĐIỀU KIỆN (kể cả khi amem rỗng): điều
@@ -10238,6 +10241,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
               "bị tự xoá. CHỈ dùng cho lời chủ dặn; bài học bạn tự rút ra thì vẫn là JAVIS_LESSON. "
               "Luật đã có trong mục đó thì đừng phát lại.\n"
             + _AGENT_TOOLKIT_BLOCK
+            + (_agent_procedure_block(brain, aslug, surface, agent_key, session_created_at) if surface else "")
             + "\nLàm việc trong vault. Tập trung hoàn thành nhiệm vụ, trả kết quả rõ ràng, ngắn gọn."
         )
         return (ameta.get("name", aslug), sysprompt,
@@ -10303,7 +10307,7 @@ _AGENT_BA_LOI = ("Ba lối đúng: làm xong ngay trong lượt và trả kết 
                  "làm được lối nào thì nói thẳng là chưa làm.")
 
 
-def _agent_chat_prompt(brain, slug, channel="dashboard") -> str:
+def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="") -> str:
     """System prompt khi CHỦ chat trực tiếp với một trợ lý ở trang Cộng sự.
 
     Là ĐÚNG prompt mà workflow dùng cho trợ lý đó (vai, thân file, kỹ năng, bộ nhớ riêng, luật
@@ -10319,7 +10323,10 @@ def _agent_chat_prompt(brain, slug, channel="dashboard") -> str:
     if not (_agents_dir(brain) / f"{slug}.md").exists():
         raise FileNotFoundError(slug)
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
-    _name, sysprompt, _model, _prov = _agent_sysprompt(slug)
+    pin = _dm_session_pin(conv_sid)
+    # A conversation keeps the procedure it began with (M5, I10): the session pin dates its start.
+    _name, sysprompt, _model, _prov = _agent_sysprompt(slug, "dm", (pin or {}).get("agent_key"),
+                                                       (pin or {}).get("created_at"))
     # Cộng hưởng theo quyền của LƯỢT (ngữ cảnh lượt do host gắn): trợ lý đang bật thì có dòng gợi ý và câu ba lối;
     # tắt, hay không có lượt, thì prompt y như trước A1.
     if _resonance_turn_enabled(brain):
@@ -10332,6 +10339,87 @@ def _agent_chat_prompt(brain, slug, channel="dashboard") -> str:
             + f"\n\n# Kênh: bạn đang trò chuyện trực tiếp với chủ {where}. "
             "Trả lời như đang nói chuyện, theo ngôn ngữ chủ đang dùng; "
             "không cần báo cáo dạng nhiệm vụ trừ khi được giao việc cụ thể.")
+
+
+def _dm_session_pin(conv_sid):
+    """The session -> agent pin of a private chat, or None (no session yet, no identity store, any error)."""
+    if not conv_sid:
+        return None
+    try:
+        if _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+            return None
+        return _resonance_store().session_pin(conv_sid)
+    except Exception as _e:  # noqa: BLE001
+        print(f"[dm session pin] {type(_e).__name__}: {_e}", file=sys.stderr)
+        return None
+
+
+def _agent_overlay(brain, slug, surface, agent_key=None, session_created_at=None) -> tuple:
+    """M5: (overlay id, prompt block) of this assistant's owner-applied procedure on this surface, or ("", "").
+
+    The key is the caller's (session pin, team member, Kanban job) or the slug's live identity; never registered here.
+    Any failure keeps the canonical prompt: an overlay is an improvement, never a reason for a turn to fail."""
+    try:
+        import improvement_agent
+        root = _brain_key(brain)
+        path = _agent_md_path(root, slug)
+        key = agent_key or (_agent_jobs_key(root, slug) if path is not None else None)
+        if path is None or not key:
+            return "", ""
+        mem = _brain_memory_dir(brain) / "agents" / slug / "MEMORY.md"
+        return improvement_agent.effective_overlay(
+            root, key, surface, agent_text=path.read_text(encoding="utf-8"),
+            memory_text=mem.read_text(encoding="utf-8") if mem.is_file() else "", session_created_at=session_created_at)
+    except Exception as _e:  # noqa: BLE001
+        print(f"[agent procedure] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
+        return "", ""
+
+
+def _agent_procedure_block(brain, slug, surface, agent_key=None, session_created_at=None) -> str:
+    return _agent_overlay(brain, slug, surface, agent_key, session_created_at)[1]
+
+
+def _stage_learned_procedure(brain, slug, text, source="learn"):
+    """learn.py seam (M5, spec 8.3): procedure id when the assistant has an active overlay, else None (live write as
+    before). A store failure for an enrolled assistant refuses rather than writing live."""
+    try:
+        if _improvement_read_store() is None:
+            return None
+        import improvement_agent
+        root = str(Path(_brain_root(brain)).resolve(strict=True))
+        service = improvement_agent.AgentProcedures(_improvement_write_store(), agent_key=_improvement_agent_key,
+                                                    read_agent=_improvement_read_agent)
+        staged = service.stage_learned(resonance_store.Principal("owner", "owner", root), slug, text, source=source)
+    except ValueError:
+        raise
+    except PermissionError:
+        return None  # improvement off or assistant unknown: nothing is enrolled
+    except Exception as _e:  # noqa: BLE001
+        print(f"[agent procedure stage] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
+        raise ValueError("agent_procedure_unavailable") from None
+    return staged["procedure_id"] if staged else None
+
+
+def _agent_review_proposals(agent_key):
+    """Open self-review ideas of one assistant (agent_review proposals): drafts for the owner's procedure text."""
+    try:
+        store = _pulse_store()
+        return agent_review.open_proposals(store, agent_key) if store is not None and agent_key else []
+    except Exception as _e:  # noqa: BLE001
+        print(f"[agent review proposals] {type(_e).__name__}: {_e}", file=sys.stderr)
+        return []
+
+
+def _improvement_agent_key(root, slug, register):
+    return (_agent_jobs_key(root, slug, register=register) or "") if _agent_md_path(root, slug) is not None else ""
+
+
+def _improvement_read_agent(root, slug):
+    path = _agent_md_path(root, slug)
+    if path is None:
+        raise FileNotFoundError("agent_unavailable")
+    mem = _brain_memory_dir(root) / "agents" / slug / "MEMORY.md"
+    return path.read_text(encoding="utf-8"), (mem.read_text(encoding="utf-8") if mem.is_file() else "")
 
 
 def _agent_builder_block(brain) -> str:
@@ -10378,7 +10466,8 @@ def _agent_turn_system_prompt(brain, slug, conv_sid, channel="dashboard") -> str
     reaction gần đây của chủ cho ĐÚNG trợ lý này (T2), và bài học phạm vi chat riêng + chung (T3 phần L).
 
     `channel` as in `_agent_chat_prompt`: the CLI agent turn (`_cli_agent_prompt`) uses this same composition."""
-    return (_agent_chat_prompt(brain, slug, channel) + _session_block(conv_sid) + _dm_feedback_prompt(brain, slug, conv_sid)
+    return (_agent_chat_prompt(brain, slug, channel, conv_sid) + _session_block(conv_sid)
+            + _dm_feedback_prompt(brain, slug, conv_sid)
             + _dm_lessons_prompt(brain, slug, conv_sid))
 
 
@@ -10432,10 +10521,14 @@ def _ket_luot_agent(brain, slug, user_message, final_text, conv_sid="") -> str:
     if lessons:
         key = _dm_agent_key(brain, slug, conv_sid, register=True)
         if key:
+            pin = _dm_session_pin(conv_sid)
+            # M5 (spec 15.2): a lesson learned while a procedure overlay shaped this conversation names it.
+            overlay_id = _agent_overlay(brain, slug, "dm", key, (pin or {}).get("created_at"))[0]
             try:
                 agent_lessons.record_self_lessons(_resonance_store(), agent_key=key, context_ref=f"dm:{key}",
                                                   lessons_=lessons,
-                                                  source_refs=[f"session:{conv_sid}"] if conv_sid else [])
+                                                  source_refs=([f"session:{conv_sid}"] if conv_sid else [])
+                                                  + ([f"overlay:{overlay_id}"] if overlay_id else []))
             except Exception as _e:  # noqa: BLE001
                 print(f"[dm lessons] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
             memory_control.note_change(_brain_memory_dir(brain))   # 0.190.0: "em sẽ nhớ" is backed by a lesson
@@ -10659,7 +10752,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         verify_slug = (step.get("verify_agent") or "").strip()
         max_retries = int(step.get("max_retries", 1) or 0)
         step_extra = workflow_graph.step_tools(step)
-        agent_name, sysprompt, agent_model, agent_prov = _agent_sysprompt(agent_slug)
+        agent_name, sysprompt, agent_model, agent_prov = _agent_sysprompt(agent_slug, "workflow")
         task_f = task.replace("{{input}}", input or "").replace("{{prev}}", prev or "")
         yield {"type": "step_start", "i": i, "agent": agent_name, "task": task_f}
 
@@ -10697,7 +10790,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
                 break
 
             # --- KIỂM CHỨNG bằng agent KHÁC (giả định kết quả SAI) ---
-            v_name, v_body, v_model, v_prov = _agent_sysprompt(verify_slug)
+            v_name, v_body, v_model, v_prov = _agent_sysprompt(verify_slug, "workflow")
             yield {"type": "step_verify", "i": i, "agent": v_name, "attempt": attempt}
             v_sys = (
                 v_body + "\n\nVAI TRÒ KIỂM CHỨNG: Bạn là người ĐÁNH GIÁ độc lập. "
@@ -11631,6 +11724,7 @@ learn_feature = learn_mod.register(app, learn_mod.LearnDeps(
     sessions_store=get_store(),
     state_dir=cfgmod.STATE_DIR,
     readonly_tools=READONLY_TOOLS,
+    stage_agent_procedure=lambda brain, slug, text: _stage_learned_procedure(brain, slug, text),
 ))
 
 
@@ -16009,7 +16103,7 @@ async def websocket_endpoint(ws: WebSocket):
                     if _persona and _persona[0] == "agent":
                         # T2/T3: cùng cách ghép với _agent_turn_system_prompt (prompt trợ lý, khối phiên, khối phản
                         # hồi, bài học phạm vi chat riêng + chung).
-                        sysprompt = (_agent_chat_prompt(brain, _persona[1]) + _session_block(conv_sid)
+                        sysprompt = (_agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid) + _session_block(conv_sid)
                                      + _dm_feedback_prompt(brain, _persona[1], conv_sid)
                                      + _dm_lessons_prompt(brain, _persona[1], conv_sid))
                     else:
@@ -24646,7 +24740,7 @@ def _team_agent_info(root, agent_key):
         return None
     if not reg or reg.get("status") != "active" or not _agent_md_path(root, reg["slug"]):
         return None
-    name, system, model, provider = _workflow_agent_helpers(root, None)[1](reg["slug"])
+    name, system, model, provider = _workflow_agent_helpers(root, None)[1](reg["slug"], "team", agent_key)
     role, reasoning = "", AGENT_REASONING_DEFAULT
     try:
         meta, _b = _read_md(_agent_md_path(root, reg["slug"]))
@@ -25793,7 +25887,7 @@ def _agent_persona(root, slug, agent_key=None):
             return ""
         if not reg or reg.get("slug") != slug or reg.get("status") != "active":
             return ""
-    name, sysprompt, _model, _prov = _workflow_agent_helpers(root, None)[1](slug)
+    name, sysprompt, _model, _prov = _workflow_agent_helpers(root, None)[1](slug, "kanban", agent_key)
     return (f"# VAI CỦA VIỆC NÀY\nViệc này được giao cho trợ lý \"{name}\". Làm đúng vai dưới đây, báo kết quả bằng "
             f"giọng của trợ lý đó.\n\n{sysprompt}")
 
@@ -26900,6 +26994,9 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
     owner_session=_doi_phien_that,
     canaries=_improvement_canaries,
     routing=lambda: __import__("improvement_routing").Routing(_improvement_write_store(), registry=_CAPABILITY_REGISTRY),
+    agents=lambda: __import__("improvement_agent").AgentProcedures(
+        _improvement_write_store(), agent_key=_improvement_agent_key, read_agent=_improvement_read_agent),
+    review_proposals=_agent_review_proposals,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
 ))

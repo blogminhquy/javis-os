@@ -9,6 +9,7 @@ class Element {
   constructor(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.value = ""; this.textContent = ""; this.disabled = false; this.hidden = false; this.style = {}; }
   set innerHTML(_) { throw Error("Private review must never parse HTML"); }
   append(...nodes) { for (const node of nodes) { node.parentElement = this; this.children.push(node); } }
+  prepend(...nodes) { for (const node of nodes.reverse()) { node.parentElement = this; this.children.unshift(node); } }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter(x => x !== this); this.isConnected = false; }
@@ -25,7 +26,7 @@ const candidate = { candidate_id: "candidate-one", experiment_id: "experiment-on
 async function fixture(lang = "en", withExperiments = false) {
   const dict = JSON.parse(fs.readFileSync(new URL(`../../dashboard/i18n/${lang}.json`, import.meta.url)));
   const body = new Element("body"), head = new Element("head"), calls = [], intervals = [];
-  let applied = [], granted = [], routed = [], lastRouting = null;
+  let applied = [], granted = [], routed = [], lastRouting = null, procs = [], overlays = [];
   let brain = "brain-one", rows = [candidate], deferred = null, corrupt = false, failStage = false, pages = false, failAfterStage = false, failRows = false;
   const ctx = { document: { body, head, createElement: tag => new Element(tag), getElementById: () => null, addEventListener() {} },
     window: { currentBrainPath: () => brain }, TextEncoder, TextDecoder, crypto: webcrypto, URL, URLSearchParams, Blob,
@@ -57,6 +58,10 @@ async function fixture(lang = "en", withExperiments = false) {
       else if (path === "/improvement-candidates") { if (failStage) {failStage=false;throw Error("Unknown transport outcome");} if(failAfterStage) failRows=true; value = {candidate}; }
       else if (path === "/improvement-activations" && !options.method) value = {activations: applied, coverage: {served: ["api_engines"]}};
       else if (path === "/improvement-activations") { const body = JSON.parse(options.body); applied = [{activation_id:"iac_" + "1".repeat(32), state:"active", generation:1, evidence_level:"manual_trial", reason:"owner_apply", selector:{context:"dm", agent_key:"agent-1", agent_slug:body.agent_slug}}]; value = {activation: applied[0]}; }
+      else if (path === "/improvement-agent-procedures" && !options.method) value = {procedures: procs, overlays, coverage: {served: ["dm"]}};
+      else if (path === "/improvement-agent-procedures") { const b = JSON.parse(options.body); procs = [{procedure_id: "iap_" + "5".repeat(32), agent_key: "agent-1", text: b.text}]; value = {procedure: procs[0]}; }
+      else if (path.startsWith("/improvement-agent-procedures/")) { const b = JSON.parse(options.body); overlays = [{overlay_id: "iao_" + "6".repeat(32), procedure_id: procs[0].procedure_id, agent_key: "agent-1", state: "active", generation: 1, reason: "owner_apply", surfaces: b.surfaces, owner_confirmed: b.owner_confirmed}]; value = {overlay: overlays[0]}; }
+      else if (path.startsWith("/improvement-agent-overlays/")) { overlays = [{...overlays[0], state: "reverted", generation: 2}]; value = {overlay: overlays[0]}; }
       else if (path.endsWith("/revert")) { applied = [{...applied[0], state:"reverted", generation:2}]; value = {activation: applied[0]}; }
       else if (path === "/agents") value = {agents:[{slug:"ke-toan", name:"Accountant", description:"Books"}]};
       else if (path === "/improvement-auto-scopes" && !options.method) value = {grants: granted};
@@ -234,6 +239,28 @@ for (const lang of ["vi","en"]) {
   assert.deepEqual(sent.cases, [{kind:"positive", expected:"test-skill", query:"reconcile codes"}, {kind:"negative", expected:"", query:"weather today"}]);
   await f.find("routing-apply").onclick();
   assert.ok(f.find("routing-overlay-iro_" + "4".repeat(32)));
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+for (const lang of ["vi", "en"]) {
+  // M5: the exact procedure text needs the owner's confirmation box, then reaches only the ticked surfaces.
+  const f = await fixture(lang);
+  f.setRows([{...candidate, edit_authority:{authority_id:"authority-two", kind:"exact_diff", generation:1, status:"active"}}]);
+  await f.find("review-candidate-one").onclick();
+  f.find("procedure-agent").value = "ke-toan";
+  f.find("procedure_text").value = "Check sources first, then compare totals with last period.";
+  f.find("procedure-surface-team").checked = true;
+  await f.find("procedure-apply").onclick();
+  assert.ok(!f.calls.some(x => x.url.startsWith("/improvement-agent-procedures?") && x.method === "POST"), "unconfirmed text is never sent");
+  f.find("procedure-confirm").checked = true;
+  await f.find("procedure-apply").onclick();
+  const applyCall = f.calls.find(x => x.url.startsWith("/improvement-agent-procedures/") && x.url.includes("/apply"));
+  assert.deepEqual(JSON.parse(applyCall.body).surfaces, ["dm", "team"]);
+  assert.equal(JSON.parse(applyCall.body).owner_confirmed, true);
+  const overlay = "iao_" + "6".repeat(32);
+  assert.equal(f.find("procedure-overlay-text-" + overlay).textContent, "Check sources first, then compare totals with last period.");
+  assert.equal(f.find("procedure-confirm").checked, false);
+  await f.find("procedure-revert-" + overlay).onclick();
+  assert.ok(f.calls.some(x => x.url.startsWith(`/improvement-agent-overlays/${overlay}/revert`)));
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {
