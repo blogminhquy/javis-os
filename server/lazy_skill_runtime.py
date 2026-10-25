@@ -103,24 +103,29 @@ class LazySkillSource:
         from improvement_task_skill_scope import current, ScopeUnavailable
         from improvement_blobs import AssetUnavailable
         try:
+            # Unbound returns None without I/O; any error here comes from a bound (maybe dead) scope.
             scope = current(brain)
-            if scope is not None:
+        except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
+            return SkillSelection('none', 'task_scope_unavailable')
+        if scope is not None:
+            try:
                 manifests = scope.manifests(lang)
                 revision = hashlib.sha256(json.dumps({'scope': scope.registry_revision, 'lang': str(lang or ''),
                     'manifests': manifests}, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
                 incomplete = any(not str(item['description'] or '').strip() for item in manifests)
                 candidates = _task_candidates(brain, manifests)
-            else:
-                self.refresh(brain, lang)
-                key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
-                incomplete = self._incomplete.get(key, 0)
-                revision = self.registry.revision(brain)
-                candidates = [x for x in self.registry.search(query, brain, 40)
-                              if str(x.get("kind") or "") == "skill"]
-        except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
-            # AdaptiveContext treats exceptions/fallback as permission to restore
-            # its legacy router. A dead bound owner must suppress that fallback.
-            return SkillSelection('none', 'task_scope_unavailable')
+            except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
+                # AdaptiveContext treats exceptions/fallback as permission to restore
+                # its legacy router. A dead bound owner must suppress that fallback.
+                return SkillSelection('none', 'task_scope_unavailable')
+        else:
+            # Unbound: a registry error still propagates, so the caller keeps the legacy router.
+            self.refresh(brain, lang)
+            key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
+            incomplete = self._incomplete.get(key, 0)
+            revision = self.registry.revision(brain)
+            candidates = [x for x in self.registry.search(query, brain, 40)
+                          if str(x.get("kind") or "") == "skill"]
         if incomplete:
             return SkillSelection(
                 "fallback", "manifest_incomplete", registry_revision=revision

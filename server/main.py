@@ -26876,6 +26876,7 @@ def _improvement_suspend_skill(brain, slug):
 improvement_activation_api.register(app, improvement_activation_api.ActivationApiDeps(
     activations=_improvement_activations,
     read_store=_improvement_read_store,
+    owner_session=_doi_phien_that,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
 ))

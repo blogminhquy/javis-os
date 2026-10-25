@@ -415,6 +415,22 @@ class ActivationApiTests(ActivationBase):
             "candidate_id": self.candidate["candidate_id"], "agent_slug": "ke-toan", "event_key": "http-apply-foreign"})
         self.assertIn(foreign.status_code, (403, 404))
 
+    def test_http_writes_require_a_browser_session(self):
+        from fastapi import FastAPI
+        from fastapi.responses import JSONResponse
+        from fastapi.testclient import TestClient
+        import improvement_activation_api as API
+        app = FastAPI()
+        API.register(app, API.ActivationApiDeps(activations=lambda: self.activations,
+            resolve_brain=lambda value: self.owner.brain_id,
+            owner_session=lambda request: JSONResponse({"ok": False}, status_code=403)))
+        client = TestClient(app)
+        denied = client.post("/improvement-activations", json={
+            "candidate_id": self.candidate["candidate_id"], "agent_slug": "ke-toan", "event_key": "http-apply-token"})
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(self.activations.list(self.owner), [])
+        self.assertEqual(client.get("/improvement-activations").status_code, 200)
+
     def test_http_list_records_drift_suspension(self):
         self.apply()
         self.skill.write_bytes(self.canonical + b"\nOwner edit.\n")

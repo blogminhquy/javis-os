@@ -24,6 +24,7 @@ class ActivationApiDeps:
     activations: Callable  # () -> improvement_activation.Activations (write store)
     resolve_brain: Callable[[str], str]
     read_store: Callable = lambda: True  # () -> installed read store or None; None means nothing to list
+    owner_session: Callable = lambda request: None  # request -> denial Response or None (browser session only)
 
 
 def _fail(error):
@@ -56,6 +57,8 @@ def register(app, deps: ActivationApiDeps):
     @app.post("/improvement-activations")
     async def activation_apply(request: Request, brain: str = "brain"):
         try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
             principal = await owner(brain)
             data = await _body(request, {"candidate_id", "agent_slug", "event_key"})
             service = await asyncio.to_thread(deps.activations)
@@ -68,6 +71,8 @@ def register(app, deps: ActivationApiDeps):
     @app.post("/improvement-activations/{activation_id}/revert")
     async def activation_revert(activation_id: str, request: Request, brain: str = "brain"):
         try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
             principal = await owner(brain)
             data = await _body(request, {"expected_generation", "event_key"})
             service = await asyncio.to_thread(deps.activations)
