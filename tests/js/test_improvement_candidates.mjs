@@ -25,7 +25,7 @@ const candidate = { candidate_id: "candidate-one", experiment_id: "experiment-on
 async function fixture(lang = "en", withExperiments = false) {
   const dict = JSON.parse(fs.readFileSync(new URL(`../../dashboard/i18n/${lang}.json`, import.meta.url)));
   const body = new Element("body"), head = new Element("head"), calls = [], intervals = [];
-  let applied = [], granted = [];
+  let applied = [], granted = [], routed = [], lastRouting = null;
   let brain = "brain-one", rows = [candidate], deferred = null, corrupt = false, failStage = false, pages = false, failAfterStage = false, failRows = false;
   const ctx = { document: { body, head, createElement: tag => new Element(tag), getElementById: () => null, addEventListener() {} },
     window: { currentBrainPath: () => brain }, TextEncoder, TextDecoder, crypto: webcrypto, URL, URLSearchParams, Blob,
@@ -60,6 +60,9 @@ async function fixture(lang = "en", withExperiments = false) {
       else if (path.endsWith("/revert")) { applied = [{...applied[0], state:"reverted", generation:2}]; value = {activation: applied[0]}; }
       else if (path === "/agents") value = {agents:[{slug:"ke-toan", name:"Accountant", description:"Books"}]};
       else if (path === "/improvement-auto-scopes" && !options.method) value = {grants: granted};
+      else if (path === "/improvement-routing" && !options.method) value = {candidates: [], overlays: routed};
+      else if (path === "/improvement-routing/evaluate") { lastRouting = JSON.parse(options.body); value = {routing: {candidate_id: "irc_" + "3".repeat(32), verdict: "eligible", report: {outcomes: {win: 5, loss: 0, tie: 2, unknown: 0}}}}; }
+      else if (path.startsWith("/improvement-routing/") && path.endsWith("/apply")) { routed = [{overlay_id: "iro_" + "4".repeat(32), state: "active", generation: 1, description: lastRouting.description}]; value = {overlay: routed[0]}; }
       else if (path === "/improvement-auto-scopes") { granted = [{grant_id:"ias_" + "2".repeat(32), status:"active", generation:1, allocation_pct:10, selector:{agent_slug:JSON.parse(options.body).agent_slug}}]; value = {grant: granted[0]}; }
       else throw Error(`Unexpected request ${path}`);
       return {ok:true,status:200,json:async()=>({ok:true,...value})};
@@ -217,6 +220,20 @@ for (const lang of ["vi","en"]) {
   const grant = f.calls.find(x=>x.url.startsWith("/improvement-auto-scopes?") && x.method === "POST");
   assert.deepEqual({...JSON.parse(grant.body), event_key: undefined}, {target_id:"target-one", agent_slug:"ke-toan", allocation_pct:10, event_key: undefined});
   assert.ok(f.find("revoke-grant-ias_" + "2".repeat(32)));
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+{
+  // M4: sample lines become closed cases; an eligible description can be applied to the main chat.
+  const f = await fixture();
+  f.setRows([{...candidate, edit_authority:{authority_id:"authority-two", kind:"exact_diff", generation:1, status:"active"}}]);
+  await f.find("review-candidate-one").onclick();
+  f.find("routing_description").value = "Reconcile codes and amounts";
+  f.find("routing_cases").value = "positive | test-skill | reconcile codes\nnegative | | weather today\nbroken line";
+  await f.find("routing-evaluate").onclick();
+  const sent = JSON.parse(f.calls.find(x=>x.url.startsWith("/improvement-routing/evaluate?")).body);
+  assert.deepEqual(sent.cases, [{kind:"positive", expected:"test-skill", query:"reconcile codes"}, {kind:"negative", expected:"", query:"weather today"}]);
+  await f.find("routing-apply").onclick();
+  assert.ok(f.find("routing-overlay-iro_" + "4".repeat(32)));
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {

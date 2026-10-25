@@ -395,9 +395,12 @@ class AdaptiveContextCanary:
                     _lang_skill = localefmt.ngon_ngu_tra_loi()
                 except Exception:  # noqa: BLE001 - thiếu ngôn ngữ thì dùng mô tả gốc
                     _lang_skill = ""
+                # M4: owner-applied routing descriptions reach API engines only; CLI engines also read
+                # .claude/skills natively, and one turn must not see two descriptions of one skill.
+                _routing = getattr(self, "routing_descriptions", None)
                 selected = self.skills.resolve(
                     brain, objective, max_body_chars=policies["skill"].max_body_chars,
-                    lang=_lang_skill,
+                    lang=_lang_skill, descriptions=(_routing(brain) if _routing and not subscription else None),
                 )
                 status["skill"].update({
                     "reason": selected.reason, "score": selected.score,

@@ -271,7 +271,7 @@ class TrialStoreTests(unittest.TestCase):
             connection.execute("DROP TRIGGER improvement_preparation_arm_fence")
             connection.execute("DROP TRIGGER improvement_legacy_trial_view_fence")
             # Later add-only families first (canaries 12, activations 11, recipes 9, compose 8), so the fixture is a real schema2 store.
-            for table in ("improvement_canary_verdicts", "improvement_canary_exposures", "improvement_canaries",
+            for table in ("improvement_routing_overlays", "improvement_routing_candidates", "improvement_canary_verdicts", "improvement_canary_exposures", "improvement_canaries",
                           "improvement_auto_scopes", "improvement_activations", "improvement_recipe_trial_refs", "improvement_recipe_states",
                           "improvement_recipes", "improvement_compositions", "improvement_compose_grants",
                           "improvement_compose_authorizations"):

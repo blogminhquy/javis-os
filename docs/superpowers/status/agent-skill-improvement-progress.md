@@ -20,11 +20,10 @@ Done in this session:
 | Milestone | Technical | Business evidence | Rollout |
 |---|---|---|---|
 | M0, M1, M2A–C | Released 0.287–0.296 (reused) | None claimed | Suggest-only |
-| M2D1 | Merged with main, CI on PR #803 pending; native profile UNQUALIFIED, `REVIEWED_RELEASES` empty so no production trial can run | None | Gated off |
-| M2D2 | Task-scope routing present (opt-in); generic native effective profile open | None | Opt-in flag |
-| M2E | Code + 29 tests local green (Windows); independent review pending | None | Manual only, API engines only |
-| M2F | Simulated workflow green (synthetic, labelled) | Real feasibility PENDING (needs owner-approved account run) | n/a |
-| M3–M8 | Not started in this session | PENDING | PENDING |
+| M2 (D1 integrated, E manual apply, F simulated feasibility) | **Released 0.314.0** (`f3348f04`, #803): full CI green, 2 independent reviews fixed, native profile re-qualified on CLI 2.1.310 (20/20), Docker publish green | None; real feasibility PENDING | Manual, API engines, assistant chat only |
+| M3 (canary, owner verdicts, monitoring, promotion, grants, pilot conclusion) | **Released 0.316.0** (`b7c81dc7`, #822): CI green, review 2 important + 7 minor fixed, native re-qualified (20/20), Docker green | None; live canary and pilot PENDING | Off until the owner applies |
+| M4 (routing evaluator, description overlay for the main chat, telemetry, UI) | In progress on #823 (0.317.0); API-engine trial adapter and native CLI routing measurement still open | None | Main chat, API engines |
+| M5–M8 | Not started | PENDING | PENDING |
 
 Blocked on owner, not engineering: any model-backed feasibility/pilot (needs explicit permission to
 run the selected Claude subscription engine), live canary (7 days and 10 real tasks), activation on a

@@ -37,6 +37,21 @@ def _task_candidates(brain, manifests):
     return result
 
 
+def _overlay_candidates(brain, lang, query, found, descriptions):
+    """Registry-search skill rows with overlaid summaries; an overlaid skill the search missed is added."""
+    found = [dict(x) for x in found if str(x.get("kind") or "") == "skill"]
+    seen = set()
+    for row in found:
+        slug = str((row.get("metadata") or {}).get("slug") or row.get("name") or "")
+        seen.add(slug)
+        if slug in descriptions:
+            row["summary"] = descriptions[slug]
+    missing = [m for m in skill_router.list_skill_manifests(brain, lang) if m["slug"] in descriptions and m["slug"] not in seen]
+    for manifest in missing:
+        found.extend(_task_candidates(brain, [{**manifest, "description": descriptions[manifest["slug"]]}]))
+    return found
+
+
 def _norm(value: str) -> str:
     raw = unicodedata.normalize("NFKD", str(value or "").casefold())
     return " ".join(_TOKEN_RE.findall("".join(c for c in raw if not unicodedata.combining(c))))
@@ -99,7 +114,9 @@ class LazySkillSource:
 
     def resolve(self, brain: str | Path, query: str, min_score: float = 0.24,
                 ambiguity_margin: float = 0.08, max_body_chars: int = 12000,
-                lang: str = "") -> SkillSelection:
+                lang: str = "", descriptions: dict | None = None) -> SkillSelection:
+        """`descriptions`: owner-applied routing descriptions (M4) for this chat, {slug: text}. With
+        any, ranking runs over the frozen manifest projection so the overlay text is what is scored."""
         from improvement_task_skill_scope import current, ScopeUnavailable
         from improvement_blobs import AssetUnavailable
         try:
@@ -118,6 +135,15 @@ class LazySkillSource:
                 # AdaptiveContext treats exceptions/fallback as permission to restore
                 # its legacy router. A dead bound owner must suppress that fallback.
                 return SkillSelection('none', 'task_scope_unavailable')
+        elif descriptions:
+            # Same registry search as without an overlay; only the overlaid skills are rescored with the
+            # owner-applied text (added when the search missed them), so no other skill's routing moves.
+            self.refresh(brain, lang)
+            key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
+            incomplete = self._incomplete.get(key, 0)
+            revision = hashlib.sha256(json.dumps({'registry': self.registry.revision(brain), 'routing_overlay': descriptions},
+                ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            candidates = _overlay_candidates(brain, lang, query, self.registry.search(query, brain, 40), descriptions)
         else:
             # Unbound: a registry error still propagates, so the caller keeps the legacy router.
             self.refresh(brain, lang)
@@ -189,7 +215,10 @@ class LazySkillSource:
             metadata={"slug": slug, "capability_revision": top.get("capability_revision") or "",
                       "policy_version": SKILL_SOURCE_POLICY_VERSION,
                       **({'task_scope_hash': scope.scope_hash, 'task_inventory_hash': scope.inventory_hash}
-                          if scope is not None else {})},
+                          if scope is not None else {}),
+                      # M4 telemetry: which description the router scored for the selected skill.
+                      **({'routing_description': 'overlay' if slug in descriptions else 'canonical'}
+                         if descriptions and scope is None else {})},
         )
         return SkillSelection("load", "selected", top["capability_id"], slug,
                               round(top_score, 6), round(runner, 6), revision, item)

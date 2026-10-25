@@ -349,9 +349,9 @@ class ComposePermissions:
                 or Path(databases[0][2]).resolve() != self.store.path.resolve()):
             raise ValueError('compose_connection_mismatch')
         version = connection.execute('SELECT version FROM improvement_schema WHERE id=1').fetchone()
-        if not version or version[0] not in (8, 9, 10, 11, 12):
+        if not version or version[0] not in (8, 9, 10, 11, 12, 13):
             raise IM.SchemaError('unsupported_improvement_schema')
-        if version[0] in (9, 10, 11, 12):
+        if version[0] in (9, 10, 11, 12, 13):
             assert_installed(connection)
 
     @staticmethod
