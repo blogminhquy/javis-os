@@ -24242,7 +24242,13 @@ async def reply_policy_forget(bot_id: str, chat_id: str = Form("")):
         return err
     if not chatbot_reply_policy_store.db_path().exists():
         return {"ok": True, "cases": 0, "lessons": 0}
-    return {"ok": True, **chatbot_reply_policy_store.forget(bot_id, chat_id)}
+    res = chatbot_reply_policy_store.forget(bot_id, chat_id)
+    try:
+        # Forgotten chat text must leave the brain folder now, not at the next mirror tick.
+        await asyncio.to_thread(learned_mirror.sync_bot, bot_id, True)
+    except Exception as e:  # noqa: BLE001
+        print(f"[learned mirror] forget {bot_id}: {type(e).__name__}: {e}", file=sys.stderr)
+    return {"ok": True, **res}
 
 
 @app.get("/voice/brain-models")
@@ -24890,6 +24896,38 @@ def _agent_judge_store(create=True):
             if _AGENT_JUDGE_STORE[0] is None:
                 _AGENT_JUDGE_STORE[0] = agent_judge_store.JudgeStore(path)
     return _AGENT_JUDGE_STORE[0]
+
+
+# ── Learned-knowledge mirror (owner request 2026-10-25): what bots and agents learned also lives in the brain folder
+#    (`Javis/learned/`), so a copied, moved or GitHub-restored brain keeps it. See server/learned_mirror.py. ──
+import learned_mirror  # noqa: E402
+
+
+def _learned_resonance(create: bool):
+    """The resonance store for the mirror: never created just to read."""
+    if not create and _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+        return None
+    return _resonance_store()
+
+
+learned_mirror.configure(resonance=_learned_resonance, judge=lambda create: _agent_judge_store(create=create))
+
+
+@app.on_event("startup")
+async def _learned_mirror_loop():
+    """Export (and import on a fresh machine) the learned mirror shortly after startup, then every 10 minutes. Only
+    code, no model; a tick with nothing changed reads a few SQLite rows and writes nothing."""
+    async def _loop():
+        await asyncio.sleep(learned_mirror.FIRST_TICK_S)
+        while True:
+            try:
+                rep = await asyncio.to_thread(learned_mirror.sync_all)
+                if rep:
+                    print(f"[learned mirror] {rep}", file=sys.stderr)
+            except Exception as e:  # noqa: BLE001
+                print(f"[learned mirror] {type(e).__name__}: {e}", file=sys.stderr)
+            await asyncio.sleep(learned_mirror.TICK_S)
+    asyncio.create_task(_loop())
 
 
 async def _agent_judge_ask(prompt: str, purpose: str = "", started=None) -> str:
