@@ -24911,6 +24911,7 @@ def _learned_resonance(create: bool):
 
 
 learned_mirror.configure(resonance=_learned_resonance, judge=lambda create: _agent_judge_store(create=create))
+_LEARNED_MIRROR_TASKS: set = set()
 
 
 @app.on_event("startup")
@@ -24927,7 +24928,7 @@ async def _learned_mirror_loop():
             except Exception as e:  # noqa: BLE001
                 print(f"[learned mirror] {type(e).__name__}: {e}", file=sys.stderr)
             await asyncio.sleep(learned_mirror.TICK_S)
-    asyncio.create_task(_loop())
+    _LEARNED_MIRROR_TASKS.add(asyncio.create_task(_loop()))   # keep a reference, or the loop can be collected
 
 
 async def _agent_judge_ask(prompt: str, purpose: str = "", started=None) -> str:
