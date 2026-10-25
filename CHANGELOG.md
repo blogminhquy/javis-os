@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.311.0] - 2026-10-25
+### Sửa lỗi
+- Đang soạn.
+
 ## [0.310.0] - 2026-10-25
 ### Thêm mới
 - **Kho kết nối có thêm Google Analytics (GA4).** Kết nối bằng tài khoản Google là Javis đọc được số liệu website: lượt truy cập, nguồn khách, trang được xem nhiều, báo cáo theo thời gian thực. Chỉ đọc, không sửa gì trong Analytics. Cảm ơn @congsang1294.

@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.311.0] - 2026-10-25
+### Fixed
+- In progress.
+
 ## [0.310.0] - 2026-10-25
 ### Added
 - **Google Analytics (GA4) joins the connection store.** Connect with your Google account and Javis can read your website numbers: visits, traffic sources, top pages, realtime reports. Read only, nothing in Analytics is changed. Thanks @congsang1294.
