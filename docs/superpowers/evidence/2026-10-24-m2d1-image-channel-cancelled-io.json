@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "label": "image-metadata-channel/cancelled-raw-io-retains-unknown",
+  "evidence_class": "technical",
+  "source_parent_commit": "e2380bd76fac091d565a2cb3aaedaa1c0c432490",
+  "source_hashes": {
+    "server/improvement_image_channel.py": "b8a5a50b4fcaf59ff333948fd90ad66b031ce7012b31251969e9712062ac2315",
+    "tests/python/test_improvement_image_channel.py": "8f12da2d84baae5570be8c74bb5ecf94a1afccdcc6dfc3a4a53396b4f52ab20c"
+  },
+  "historical_component_evidence": "2026-10-24-m2d1-image-metadata-channel.json",
+  "historical_source_sha256": "12cce11132a77d024cf678f54982bb3d97bc0e9b6e6a0c1b6c3d36af96434297",
+  "test_command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B -m unittest discover -s tests/python -p test_improvement_image_channel.py -v",
+  "runs": [
+    {
+      "stage": "raw_cancelled_io_red",
+      "tests": 1,
+      "errors": 1,
+      "seconds": 0.06,
+      "reason": "Raw actual pending public-loop socket-read task cancelled; cleanup swallowed cancellation, falsely closed and cleared ownership.",
+      "log_sha256": "7c40543aa752fda4958aee09d50a1bd056ee6e040a9da3e122391fa92db2bfa1"
+    },
+    {
+      "stage": "corrected_green",
+      "tests": 14,
+      "passed": 14,
+      "seconds": 1.505,
+      "warnings": false,
+      "log_sha256": "c72b53363780c7dccb5dd60f855d3d8cf69749b75628da98b1ae5edf6dda2e7e"
+    }
+  ],
+  "independent_review": {
+    "verdict": "scoped_dependency_approval",
+    "tests": 14,
+    "passed": 14,
+    "seconds": 1.507,
+    "warnings": false,
+    "source_test_pins_unchanged": true,
+    "old_thirteen_assertions_unchanged": true,
+    "log_sha256": "b42dd82b3c847513c52cf76269512329cb1820d2843e0434d83ec1c00d89d820"
+  },
+  "tested": [
+    "Actual receive_create starts an owned pending public-loop socket read. Cancelling that raw task differs from normal caller cancellation.",
+    "Cleanup still performs actual socket close, but cancelled raw logical I/O sets sticky io_completion_unknown; closed remains false and owner/buffers/tasks survive retries.",
+    "Original thirteen tests retain their assertions: ordinary caller cancellation uses uncancelled owned IO settlement, partial/EOF/deadline/replay/strict schema and known versus lost close authority."
+  ],
+  "native_child_or_sdk_or_account_calls": 0,
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+  "limits": [
+    "Logical task cancellation is not proof of physical Windows I/O completion. The negative owner remains unproven until enclosing process drain; passing tests do not upgrade it to successful cleanup.",
+    "Historical thirteen-test source/proof remains unchanged as history, not current authority for this changed dependency.",
+    "No change to metadata schema/peer provenance, no socket transfer/full guardian/SDK proof or runtime qualification. Guardian must run final affected suite on these exact dependency bytes.",
+    "Actual independently proven native quiescence may remain separate from metadata control closed; no blanket fence predicate change follows."
+  ],
+  "goal_complete": false
+}

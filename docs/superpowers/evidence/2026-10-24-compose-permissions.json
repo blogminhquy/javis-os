@@ -1,0 +1,118 @@
+{
+  "unit": "Explicit owner compose consent, cold revocation/history and read-only current input authority",
+  "base_commit": "3a2111b85608149b4d99f813c6e2b5ff34abc9e8",
+  "goal_sections": "12-17",
+  "source_and_test_sha256": {
+    "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "server/improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+    "server/improvement_compose_inputs.py": "4bfcd69c96696fc8dad6d4478a8edbc319ce9313114f1aff3b85f5417a40046b",
+    "server/improvement_operation_protocol.py": "f9dd577cf66c23df4839b3c39ed68375241a0818e9f49796a77beeca8a2f03e7",
+    "server/improvement_compose_permissions.py": "d0ac56117abdab005de2b5715a178d80e46fca9e12b4749c3e0d399893c0ba1c",
+    "server/improvement_compose_protocol.py": "7c829bfeec4ad38a45b980db09e75d8e3f778fc880ecd1767f86d5559c9be326",
+    "tests/run.py": "59756fe950a50a85ba761f5aba132566656022718dd91b936c1f2266bb9fb92a",
+    "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9",
+    "tests/python/test_improvement_compose_permission_races.py": "4e66d0c70d5f944bbb9d3a9d2bd864d37cab53c5a4d659cd986077b42f1c8ae2",
+    "server/improvement_compose_schema.py": "a33edf30ba19d73918d8e48138ca62c56dcfc67fa01b2b44e386e95fd192096f",
+    "tests/python/test_improvement_compose_permissions.py": "37e491464d211602cf85e56c557459e03d518141c7faf02abddff414548ca361",
+    "third_party/harness2/COMPOSE-PROVENANCE.json": "ce7839f1a378502caeb5c06af54a66727761f0223bdc336f549cbf0b003fb11c"
+  },
+  "behavior": [
+    "Actual owner/experiment/generation/event key only; actual ComposeInputs producer and immutable input/basis event authenticated. Small encrypted consent guard binds exact original experiment and hashes; no bulk ledger duplication.",
+    "Existing schema8 immutable authorization plus one-way revocable grant and compose_authorize event form one current-fenced writer transaction. Earlier legitimate input publication/exposure is a separate boundary and may remain after refused consent.",
+    "Exact nine metadata fields, original event request hash/brain/actor/scope/input/basis links. Cold get/list/revoke and authorize replay need no decryption/source refresh/build/probe. Replay returns current revoked state; off/source drift does not block revocation.",
+    "current accepts only actual store SQLite connection, including query_only, authenticates encrypted input/basis/guard and complete original stable SQL/definition/binding/policy authority hash. No public build, writer or event is called.",
+    "Current owner/source/grant/policy/holdout/domain and exact experiment generation rechecked. Policy/source I/O precedes final SQL-only input/consent/domain fences; late revocation or source changes refuse without new consent/history leaks.",
+    "No own-operation generation normalization, OperationRecords/Execution phase admission or native dispatch yet. Actual private native identity grammar still admits only old role pairs; this closed gate is explicitly pending."
+  ],
+  "red": {
+    "author_cases": {
+      "tests": 6,
+      "failures": 6,
+      "errors": 0,
+      "seconds": 0.013,
+      "scope": "Missing module before actual private fixture construction"
+    },
+    "tail_policy": {
+      "tests": 1,
+      "failures": 1,
+      "seconds": 10.333,
+      "reason": "Actual grant revoked during final real policy read, after the previous final grant check, could escape as active metadata"
+    }
+  },
+  "green": {
+    "root_independent_author_cases": {
+      "tests": 6,
+      "passed": 6,
+      "seconds": 57.051,
+      "scope": "Before final tail-policy ordering fix"
+    },
+    "root_final_positive_queryonly": {
+      "tests": 2,
+      "passed": 2,
+      "seconds": 14.437
+    },
+    "root_final_races": {
+      "tests": 3,
+      "passed": 3,
+      "seconds": 25.472
+    },
+    "fixture_correction": "Initial root2 had1PASS/1fixtureERROR: broad authoring._guard hook was invoked by multiple actual arm guards and attempted revocation twice. Corrected control delegates the complete actual service._fence then revokes once; focused1PASS8.016s. Criteria unchanged; first log retained."
+  },
+  "independent": {
+    "decision": "APPROVED_SCOPED_PERMISSION_COMPONENT",
+    "tests": 3,
+    "passed": 3,
+    "seconds": 15.882,
+    "stable_pins": 12,
+    "findings": [],
+    "closed_finding": {
+      "severity": "P2",
+      "independent": "Exact original tailpolicy race passes onfinalsource",
+      "reproduction": "Root tail-policy-red actualsecondcapture+realpolicy+actualgrant update,1meaningfulassertionFAIL10.333s",
+      "description": "Late policy read after grant/source fence could return active metadata after callerTx revocation",
+      "fix": "Tailcapture equality before _fence; finishpolicy/sourceIO then SQL-onlyinputs fence+exactgrantrow+domain; no furtherpolicy/blob/host observation"
+    },
+    "report_sha256": "cdceaadc41d0ec69e6588f07704828518192305a8b92298089ebe125016d8268",
+    "logs": {
+      "tail-policy-red.log": "3924088bd5e728f104e89673c96a5583a22055996511127a37fe22f89a6482f5",
+      "root-races-green3.log": "7088f29d39302209103bbb85e8515a14909f85f599287afe599492b6b2911e90",
+      "independent.log": "ee8a2e7f0374856d535ee7febae88aa5d90ea56770077b3c8f742277e152c2cc",
+      "independent-driver.py": "5b69cb75435b58783096d64f864b21f9fd6c2b6f0567ce145217202f9334328b",
+      "root-revoke-green.log": "3deffe5c61f31aa72fd677dd515a7def98b1016081da5be1f131d179358399da",
+      "root-races-green.log": "f411f6bcf9f288733abc94c95d762bbacaabac7848884a69442a674fb129397a",
+      "final-positive-queryonly.log": "adcf549e8b68e786b9cf5e37e276f0de9a79a14d41d98cdb6897cdaa9be88859",
+      "green1.log": "4fd0e1868085a0e9ea39709108df309a3d7e67feb2aa06f43fd84b6cf1e39075"
+    },
+    "original_author6_excluded_selfapproval": true
+  },
+  "proof_reused": [
+    "Unchanged authenticated input producer, upstream actual renderer/AST/license/provenance, schema migration46 early Linux, closed role/ledger/workspace contract.",
+    "Root independently reviewed/executed reviewer-authored6 and final two affected cases; no broad unchanged rerun."
+  ],
+  "native": {
+    "new_native_consumer_connected": false,
+    "profile_sources_unchanged": 88,
+    "registration_or_qualification_added": false,
+    "native_private_identity_composer_pair": "Still closed/pending next owned admission unit",
+    "actual309_exact_evidence_test": "Unchanged/open; final task-head full required CI and same-pipeline dummy qualification still mandatory"
+  },
+  "early_linux": "No additional isolated run for this unwired consent component; combine new owned admission/normalization checks in the next targeted Linux snapshot. Final exact task-head full required CI remains mandatory.",
+  "logs_sha256": {
+    "author-red.log": "f99422c8aa34f5d8b9e239970dcdf7cded0036b32a34b317665fd3d1cf2f4672",
+    "green1.log": "4fd0e1868085a0e9ea39709108df309a3d7e67feb2aa06f43fd84b6cf1e39075",
+    "root-races-green.log": "f411f6bcf9f288733abc94c95d762bbacaabac7848884a69442a674fb129397a",
+    "root-revoke-green.log": "3deffe5c61f31aa72fd677dd515a7def98b1016081da5be1f131d179358399da",
+    "tail-policy-red.log": "3924088bd5e728f104e89673c96a5583a22055996511127a37fe22f89a6482f5",
+    "root-races-green3.log": "7088f29d39302209103bbb85e8515a14909f85f599287afe599492b6b2911e90",
+    "final-positive-queryonly.log": "adcf549e8b68e786b9cf5e37e276f0de9a79a14d41d98cdb6897cdaa9be88859",
+    "independent.log": "ee8a2e7f0374856d535ee7febae88aa5d90ea56770077b3c8f742277e152c2cc"
+  },
+  "limits": [
+    "Fixture only uses explicitsynthetic_storage_fixture/unexecuted results; no selectedrealnative/model/account/businessproof.",
+    "No actual OperationRecords/Execution admission/dispatch, compose allowance, own-opgeneration normalization, candidate/bundle/activation or qualification readiness.",
+    "Native private identity grammar still onlyimprover/semantic pairs atnative_protocol139; pendingclosedgate, notsilentlyenabled.",
+    "Newservice notyetnativeconsumer/sourcequalification; futureconsumer closure, Phase1technicalqualification andfinalheadCI remainpending.",
+    "No source/test edits andno original6/broad/native/model/account rerun."
+  ],
+  "next": "Actual existing OperationRecords/Execution creation/admission with tightly authenticated own generation mutation, native2 materialization/private wire pair/source closure and same actual ledger/owner. Then one-shot ComposerService/RoleWorkflow publication, independent new candidate checks/API/UI; actual derived upstream library follows compose. Full M0–M8 and Phase2 remain open."
+}

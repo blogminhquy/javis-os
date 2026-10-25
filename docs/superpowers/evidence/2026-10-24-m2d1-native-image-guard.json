@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "evidence_class": "technical/standalone-component-only",
+  "source_base_commit": "f131d95825a26c96895c97249bf529e9c7cc97c6",
+  "source_pins_authoritative": true,
+  "source_hashes": {
+    "server/improvement_native_image.py": "ab6c6aca8dc7c3bac06459fc510522dd6bb599ef1d52d2cbef73fc2b5408d686",
+    "tests/python/test_improvement_native_image.py": "98df7c41459dae24985fbccaf545f011fc44dc3f7328e3f9a658d89a4d90a532"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0"
+  },
+  "parent_tests": {
+    "command": [
+      "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+      "tests/python/test_improvement_native_image.py",
+      "-v"
+    ],
+    "passed": 17,
+    "seconds": 0.25,
+    "seconds_basis": "unittest timer"
+  },
+  "independent_tests": {
+    "passed": 17,
+    "seconds": 0.199,
+    "seconds_basis": "unittest timer",
+    "decision": "approved limited read-sharing component after scoped lifecycle fixes"
+  },
+  "logs_sha256": {
+    "2026-10-24-agent-skill-improvement-m2d1-preparation-heartbeat/image-guard-red.log": "66819b31d211b9650315ccef2777c2bd2d0896b6a819e7c8da1721fc722864d5",
+    "2026-10-24-agent-skill-improvement-m2d1-preparation-heartbeat/image-guard-green-1.log": "50a96c543aab1fb832fde6feb96c9c5c7b4ddd52e6274f410060b467619a88d6",
+    "2026-10-24-agent-skill-improvement-m2d1-preparation-heartbeat/image-guard-green-2.log": "97e1fda9654d815a78047ade9ecc1165616ed5b6f66f05ffb12ba420c3bb7c12",
+    "2026-10-24-agent-skill-improvement-m2d1-preparation-heartbeat/image-guard-review-red.log": "25e1cc070249dfa20e881e38a9d8819c9e1ea1c0a19d22924d54f2190b89b6ae",
+    "2026-10-24-agent-skill-improvement-m2d1-preparation-heartbeat/image-guard-metadata-red.log": "1853f82f8023d2e17b227443a0361257a7f6c0c3dda89feeca7c9da6de8cb1bd",
+    "2026-10-24-agent-skill-improvement-m2d1-preparation-heartbeat/image-guard-reentry-red.log": "4e0b0c09afcd3ee26c6a3bbf42a7547704cad56d45ab3a759f29eaa2a164d771",
+    "2026-10-24-agent-skill-improvement-native-image-guard/entry-red.log": "3fdd259f65662e7153f616fa695e52b0c19726d21c01e93aa1c7d372841053e3",
+    "2026-10-24-agent-skill-improvement-native-image-guard/green-final.log": "6c0330e9fdfc2435abd9a0fcb074dadc3777682ca0a338153ec48590450187b8",
+    "2026-10-24-agent-skill-improvement-native-image-guard/review.log": "14292d804c258b99e23daf34694d29548b56792aa26046db68ef8cd25f5ebe84",
+    "2026-10-24-agent-skill-improvement-native-image-guard/review-final.log": "987a28c11ef40e2037919c3f23a722a7355b0651f703907a99658fefcf876f59"
+  },
+  "red_history": [
+    "Initial8 missing component errors0.007s.",
+    "First implementation7PASS/1fixture error; ancestor ownership blocked the injected rename before junction placement. Test now requires denial plus postrelease positive and separately injects before first handle.",
+    "Partial-close stale snapshot reproduced; irreversible closing state fixes it.",
+    "Readonly metadata mutation went undetected in cached snapshot; actual fresh handle/path checks now refuse observed drift.",
+    "Closed context reentry reproduced; new entry check then exposed entry-failure cleanup leak.",
+    "Entry cleanup/retry-retention and exit exception retention3RED errors0.031s ->17GREEN0.250s."
+  ],
+  "native_reachable_profile_unchanged": "972175a29309295afc596902ef711ea51400ba77c2f39e27aab1141f9a0f6a10",
+  "profile_source_count": 81,
+  "native_qualification_for_this_component": false,
+  "metadata_mutation_exclusion": "unknown",
+  "loaded_image_identity": "unknown",
+  "selected_account_calls": 0,
+  "native_cli_calls": 0,
+  "business_proof": false,
+  "constraints": [
+    "Standalone real component only, not imported by production native execution yet. Add to exact PROFILE_SOURCES together with eventual guardian integration.",
+    "Own inert files and real Windows sharing/handle operations; no installed CLI/runtime/auth/account mutation.",
+    "Retained-handle hash and fresh observed metadata/path checks are not a guarantee against future metadata mutation or proof of loaded image identity.",
+    "No all18 checker, owner/grant, deadline, model, retry, activation or historical receipt behavior changed.",
+    "Windows-only enforcement; Linux CI must import/compile and retain explicit platform skips; no Linux native support is claimed."
+  ]
+}

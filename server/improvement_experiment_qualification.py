@@ -33,3 +33,15 @@ def require_legacy_qualification(connection, brain, case_set_id, pins):
     """
     if experiment_owned(connection, brain, case_set_id, pins):
         raise PermissionError("experiment_qualification_lineage_required")
+
+
+def require_tuning_families(connection, brain, case_set_id):
+    """Shared improver/view guard: consumed holdout aliases never become tuning."""
+    if connection.execute("SELECT 1 FROM improvement_case_families t JOIN improvement_case_families h "
+            "ON h.brain_id=t.brain_id AND h.fingerprint=t.fingerprint WHERE t.brain_id=? AND t.case_set_id=? "
+            "AND t.split='tuning' AND h.split IN ('qualification','regression') LIMIT 1", (brain, case_set_id)).fetchone():
+        raise PermissionError('improver_holdout_alias')
+    if connection.execute("SELECT 1 FROM improvement_case_families t JOIN improvement_qualification_claims q "
+            "ON q.brain_id=t.brain_id AND q.fingerprint=t.fingerprint WHERE t.brain_id=? AND t.case_set_id=? "
+            "AND t.split='tuning' LIMIT 1", (brain, case_set_id)).fetchone():
+        raise PermissionError('improver_holdout_alias')

@@ -1,0 +1,263 @@
+{
+  "unit": "Actual owned one-shot compose workflow and authenticated composed-draft publication",
+  "base_commit": "3e40e77fc6ba81e2f5f59be1d16797e6d1ebca8e",
+  "goal_sections": "12-17",
+  "source_and_test_sha256": {
+    "server/improvement_compositions.py": "0ca1d1a96b47194b7a8879e8d7ee85a9de5a5a7baa649e186940f63540032809",
+    "server/improvement_compose_candidates.py": "07d1e4e55fee99c3def969f081622eb71f02ed5224a126c83598ef207006657f",
+    "server/improvement_skill_candidates.py": "9a359ff8f43e8c3fea04b80c66970c046f4e36595e6fa1198d689f08ed598a2b",
+    "server/improvement_compose_permissions.py": "db1bff5756ce5befa0d6082c4b0de12bfd2758dad285598362757d7ddc6aa6dd",
+    "server/improvement_operation_results.py": "526906e505e7ee796175df86d5f6b6e734bf8716cb3d57072b9e33149e443441",
+    "server/turn_context.py": "eeb8d13c55a14b0c064539d2768bae81e5bb59cf81c03c96443f73f4c056479e",
+    "server/improvement_claude.py": "c904797faf7ba6646e00aca495ba13ef2d58d6c60de84fdf53d4bbf8dd2dccc7",
+    "tests/python/test_improvement_compositions.py": "f982a3256fa31e32b433aff1125cba073e7bc13fba4252c3e25c7888a801e8d4",
+    "tests/python/test_improvement_composition_boundaries.py": "8179305338570234a8f5ef60feaa56407bb13f652dd832621bf02c5a155ca4ba",
+    "tests/python/test_improvement_operation_worker.py": "e516bc77fa16e7a2f694b2cf12433decb38e205585f51419e3578bee260a8819",
+    "server/improvement_compose_protocol.py": "7c829bfeec4ad38a45b980db09e75d8e3f778fc880ecd1767f86d5559c9be326",
+    "server/improvement_operation_protocol.py": "f9dd577cf66c23df4839b3c39ed68375241a0818e9f49796a77beeca8a2f03e7",
+    "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9",
+    "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "server/improvement_operation_execution.py": "2abe4eb918e60990713b0093ebcb200d67aa0270f62d83a356227a9b3ab4fdfd",
+    "server/improvement_compose_schema.py": "a33edf30ba19d73918d8e48138ca62c56dcfc67fa01b2b44e386e95fd192096f",
+    "server/improvement_role_workflow.py": "559b0381d6800bda0b8effa3aa8d8bd7073b216c1b3566c115d0d488733f0a42",
+    "server/improvement_operation_runner.py": "803a3222752d239054088b777fdcef83a3ddbdcc388c04ab94132954f469dd8d",
+    "server/improvement_operation_tasks.py": "b3f39697914070342ad9953fe21956b9264b8ccc2839ecb3e01f65bdb6a98106",
+    "server/improvement_telemetry.py": "8102e12591e31b87099739ced156eb2d3fe96205c60698cb13ae25b7c8df0aeb",
+    "tests/run.py": "59756fe950a50a85ba761f5aba132566656022718dd91b936c1f2266bb9fb92a",
+    "tests/python/_paths.py": "57e241397ca969a4b942398d173123c2779ec6db58950e079e6d2c4883c68eb3",
+    "tests/python/test_improvement_native_trace_checks.py": "021efd15b20a0150f7ad36c950e199da20a98ead5c5565c3f99a17ad0b6fc587",
+    "tests/python/test_improvement_compose_admission.py": "d86cf36e720a157c0d4108d5198988ff0c19da73246b4ac42f37d9a5f10c4c42"
+  },
+  "behavior": [
+    "Concrete ComposerService uses existing RoleWorkflow/OperationTasks/OperationExecution and CallLedger. Explicit current consent and native2 format gate precede native verification/actual Records creation. No public input rebuild in native callbacks.",
+    "One operation across event keys; concurrent same-event callers share the owner. Completed outcomes replay cold after off; interrupted start metadata does not authorize implicit resume. No structural repair or semantic resampling. Shared infrastructure retry remains bounded.",
+    "Actual native result2 and all existing required product/native checks are mandatory. Default UNKNOWN native qualification produces no composition/candidate. Actual raw artifact is reparsed against the current authorized projection.",
+    "One immutable composition/report/decisions link and optional encrypted ordinal3 draft publish atomically with the actual event. Output hash names the result REPORT blob, while raw artifact/decisions/content/patch have their own authenticated links.",
+    "Composed provenance version2/common fields plus composition_id is consumed by actual SkillCandidates.read_proposal. No ordinary owner_request event or inherited region/edit/semantic/dependency approval is minted; ordinary staging remains capped at two.",
+    "Actual cold OperationResults.read_stored reuses the original reader including encrypted native observations/durable decisions; regular read delegates. Derived provenance also reuses final actual attempt/call identity, marker/status/config/materialization/result checks on the caller connection without freezing late cost/token observations.",
+    "All event/blob/product/source observations precede final current/source and SQL-only product/input/op/consent/domain CAS. Late grant/source/domain/call mutation refuses with no composition/candidate metadata leak. Existing stop/close/refund/cleanup owners remain authoritative.",
+    "Existing closed turn_context usage metadata accepts only composer/improve_compose as the added pair; the actual NativeUsageRecorder and operation binding checks remain in force."
+  ],
+  "red": {
+    "author_missing_module": {
+      "tests": 7,
+      "failures": 7,
+      "errors": 0,
+      "seconds": 0.207,
+      "before_fixtures": true
+    },
+    "initial_root_full_seven": {
+      "tests": 7,
+      "passed_cases": 2,
+      "failing_cases": 5,
+      "assertion_failures": 8,
+      "errors": 0,
+      "seconds": 144.041,
+      "root_cause": "Actual usage metadata omitted composer, so NativeUsageRecorder refused after the owned marker before any stream/publication."
+    },
+    "diagnosis": {
+      "probe_tests": 1,
+      "seconds": 17.223,
+      "reason": "Actual adapter/finish/accept instrumentation traced trial_usage_call_unbound from metadata=None; no guard bypass."
+    },
+    "metadata_pair": {
+      "tests": 1,
+      "failures": 1,
+      "seconds": 0.001,
+      "green": "Minimal closed role/purpose map addition; root and independent metadata control pass."
+    }
+  },
+  "root": {
+    "targeted_author_candidate_and_keep_base": {
+      "tests": 2,
+      "passed": 2,
+      "seconds": 51.27,
+      "scope": "Before cold-reader hardening; final root/independent lineage and Linux full7 reexercise the actual flows."
+    },
+    "boundary_four_before_call_extension": {
+      "tests": 4,
+      "passed": 4,
+      "seconds": 56.883
+    },
+    "final_extended_lineage": {
+      "tests": 1,
+      "passed": 1,
+      "seconds": 26.62
+    },
+    "impact_regression": {
+      "scripts": 9,
+      "unittest_cases": 61,
+      "passed": 61,
+      "manual_turn_context": "PASS",
+      "details": [
+        {
+          "file": "test_improvement_compositions.py",
+          "selectors": [
+            "CompositionTests.test_default_unknown_native_qualification_refuses_full_workflow_publication",
+            "CompositionTests.test_malformed_output_has_no_repair_second_compose_or_partial_candidate",
+            "CompositionTests.test_late_grant_source_domain_or_actual_product_drift_rolls_back_publication"
+          ],
+          "exit": 0,
+          "seconds": 148.318,
+          "log": "test_improvement_compositions-regression.log"
+        },
+        {
+          "file": "test_improvement_operation_results.py",
+          "selectors": [],
+          "exit": 0,
+          "seconds": 24.769,
+          "log": "test_improvement_operation_results-regression.log"
+        },
+        {
+          "file": "test_improvement_native_result_consumers.py",
+          "selectors": [
+            "NativeOperationResultTests"
+          ],
+          "exit": 0,
+          "seconds": 32.139,
+          "log": "test_improvement_native_result_consumers-regression.log"
+        },
+        {
+          "file": "test_improvement_skill_candidates.py",
+          "selectors": [],
+          "exit": 0,
+          "seconds": 9.019,
+          "log": "test_improvement_skill_candidates-regression.log"
+        },
+        {
+          "file": "test_improvement_operation_usage.py",
+          "selectors": [],
+          "exit": 0,
+          "seconds": 0.685,
+          "log": "test_improvement_operation_usage-regression.log"
+        },
+        {
+          "file": "test_improvement_operation_telemetry.py",
+          "selectors": [],
+          "exit": 0,
+          "seconds": 21.152,
+          "log": "test_improvement_operation_telemetry-regression.log"
+        },
+        {
+          "file": "test_improvement_operation_worker.py",
+          "selectors": [],
+          "exit": 0,
+          "seconds": 3.543,
+          "log": "test_improvement_operation_worker-regression.log"
+        },
+        {
+          "file": "test_improvement_compose_permissions.py",
+          "selectors": [],
+          "exit": 0,
+          "seconds": 40.847,
+          "log": "test_improvement_compose_permissions-regression.log"
+        },
+        {
+          "file": "test_turn_context.py",
+          "selectors": [],
+          "exit": 0,
+          "seconds": 5.462,
+          "log": "test_turn_context-regression.log"
+        }
+      ]
+    }
+  },
+  "closed_findings": [
+    {
+      "severity": "Important/P2",
+      "id": "composed_reader_native_history",
+      "problem": "The new v2 provenance reader checked saved report verdicts without the existing native observation/durable-decision reader, so missing encrypted dependencies were accepted.",
+      "root_red": "cold-lineage-red.log",
+      "root_red_sha256": "cab47ded72cee9547a5bf4b0c99a23d7ea1a839308b5654a5e883b112bed5ec4",
+      "root_red_result": "One actual published-candidate test, two meaningful missing decision/observation subfailures,25.599s; original OperationResults.read refused both controls.",
+      "fix": "Extract the original concrete OperationResults.read validation into read_stored; the regular reader delegates unchanged and composed provenance reuses the same native history/durable-decision checks.",
+      "closure": "Statically verified and independently PASS in the final extended lineage test, with exact ciphertext restored between refusal controls."
+    },
+    {
+      "severity": "Important/P2",
+      "id": "composed_reader_actual_call_identity",
+      "problem": "The derived provenance reader did not reauthenticate mutable actual CallLedger identity after publication.",
+      "root_red": "cold-call-red.log",
+      "root_red_sha256": "2c517deed2dc65dc2c49b1f04622a695dabe067d17e58dbe1e447c2546d6d1b3",
+      "root_red_result": "One actual published-candidate test, two caller-transaction mirror/model subfailures,25.915s.",
+      "fix": "After encrypted observations, reuse actual OperationExecution._attempt and bound_call on the caller connection; require completed attempt/non-null marker/ok call/provider/model/materialization/result JSON. Cost/token fields are not frozen.",
+      "closure": "Statically verified and independently PASS in the final extended lineage test, including uncommitted caller-transaction changes and rollback."
+    }
+  ],
+  "independent": {
+    "decision": "approved_scoped_composition_component",
+    "tests": 4,
+    "passed": 4,
+    "seconds": 44.395,
+    "stable_pins": 24,
+    "findings": [],
+    "own_seven_excluded_selfapproval": true,
+    "report_sha256": "3270c767d2859cf541592c0eb0cddd5769cb9e83e6b1c227f8f1d7fb958aec05",
+    "log_sha256": "5c32fdbf4534211fa8e5a1b84778b661a98dc1ee0398e2e2b0c9223a21f36f21"
+  },
+  "early_linux": {
+    "run_id": 40061864692,
+    "job_id": 120776919060,
+    "conclusion": "success",
+    "scripts": 10,
+    "unittest_cases": 69,
+    "passed": 69,
+    "manual_turn_context": "PASS",
+    "snapshot": {
+      "base": "3e40e77fc6ba81e2f5f59be1d16797e6d1ebca8e",
+      "ref": "refs/heads/codex/agent-skill-improvement-owned-composition-linux-check",
+      "commit": "b792833d45e53e648d536e52632f22f861ddab4c",
+      "tree": "44618376b6b03266a23310bc2212e53b85cbe3c6",
+      "selected_raw_sha256": {
+        "server/improvement_compositions.py": "0ca1d1a96b47194b7a8879e8d7ee85a9de5a5a7baa649e186940f63540032809",
+        "server/improvement_compose_candidates.py": "07d1e4e55fee99c3def969f081622eb71f02ed5224a126c83598ef207006657f",
+        "server/improvement_skill_candidates.py": "9a359ff8f43e8c3fea04b80c66970c046f4e36595e6fa1198d689f08ed598a2b",
+        "server/improvement_compose_permissions.py": "db1bff5756ce5befa0d6082c4b0de12bfd2758dad285598362757d7ddc6aa6dd",
+        "server/improvement_operation_results.py": "526906e505e7ee796175df86d5f6b6e734bf8716cb3d57072b9e33149e443441",
+        "server/turn_context.py": "eeb8d13c55a14b0c064539d2768bae81e5bb59cf81c03c96443f73f4c056479e",
+        "server/improvement_claude.py": "c904797faf7ba6646e00aca495ba13ef2d58d6c60de84fdf53d4bbf8dd2dccc7",
+        "tests/python/test_improvement_compositions.py": "f982a3256fa31e32b433aff1125cba073e7bc13fba4252c3e25c7888a801e8d4",
+        "tests/python/test_improvement_composition_boundaries.py": "8179305338570234a8f5ef60feaa56407bb13f652dd832621bf02c5a155ca4ba",
+        "tests/python/test_improvement_operation_worker.py": "e516bc77fa16e7a2f694b2cf12433decb38e205585f51419e3578bee260a8819"
+      },
+      "workflow_sha256": "08a6b04ceb41a1ea2e6165962ce9ff3617951e27413a286c2ce2b3d7437f5e27",
+      "scope": "Early isolated synthetic storage/control fixtures, not final task-head full CI/native/account/business qualification."
+    },
+    "log_sha256": "c7c05ff44572bc1e41bbc6473fdb84d9057df9c5d063a05fbdf90ee3742af9b2",
+    "limit": "Separate early exact-byte component snapshot; not final task-head full required CI/native/account/business qualification."
+  },
+  "native": {
+    "profile_sources": 95,
+    "static_raw_profile_hash": "3af5de7fdfbf4e05788b1bc18bcd42f7e181d16730c813468cce6da263dbc90c",
+    "method": "AST/raw source hashes in the current Windows checkout only, not native inventory/qualification",
+    "new_qualification_or_registration": false,
+    "actual309_exact_evidence_test": "Untouched/open"
+  },
+  "proof_reused": [
+    "Unchanged pinned Harness2 actual nine-definition vendor/AST/provenance/LICENSE",
+    "Existing schema8 backup/rollback/FK/concurrency and scoped migration proof",
+    "Unchanged input producer/projection limits, consent/current authority and admission ownership proofs"
+  ],
+  "logs_sha256": {
+    "author-red.log": "04587b62cac58378e76d50c3dcfa8bc334bb1c7089c3072fc2633a5339804f40",
+    "author-result.json": "2e6a64d90babeb60f38c0608df8c350ec626ccf03ae1c7c401ebd4be5db081d0",
+    "root-green-1.log": "f4be25a85360c55a5923420a51cce0e3e570ffebfe29328b609cb9f1732d571b",
+    "diagnostic-1.log": "058743dddf80c74ad49ed19eabdbf25950a1a657951dc0d138d977fa3898f919",
+    "metadata-red.log": "0db5f9e7ec0489e24ad6b23ec2401fae83969a629afab08a6c4d318653d6b0a8",
+    "metadata-green.log": "4c64e1390e27acc063cd43822c5aa3aee6016c655f28977f16b414ca504b8c46",
+    "published-positive-2.log": "78f18b43a88f49c4d3b41b2edd468898373d06e92c363a645af49354d052b36c",
+    "cold-lineage-red.log": "cab47ded72cee9547a5bf4b0c99a23d7ea1a839308b5654a5e883b112bed5ec4",
+    "root-boundaries-green.log": "d1c4a1a42bd64f8f7ed88f82b2542cc1a13631a7620cad396d4a035d5ff80f3e",
+    "cold-call-red.log": "2c517deed2dc65dc2c49b1f04622a695dabe067d17e58dbe1e447c2546d6d1b3",
+    "cold-call-green.log": "412b11b23d8450cbedf66cb36f32cfc6af4795326015f77964ac3d7714f5c88d",
+    "root-regression-result.json": "b61b036b039cc0a42bc1bb108e00e28f9809d49d9e5d2337e45fbc30e8f445de",
+    "portable-snapshot.json": "a18443962bf27b7d4f0a5be1596b7e3e2a75d2cb156a6d95cd95462209457795"
+  },
+  "limits": [
+    "Positive native packets/verifier/format selector/binding/qualification predicate are explicit UNEXECUTED STORAGE CONTROLS over actual private SQL/Fernet/owners/readers, never actual native ACK/provider/account/model readiness.",
+    "No actual CLI, SDKClient query, inference, account retry, live activation/deploy/restart, quality/cost/savings claim or new native registry entry.",
+    "New arm3 reserved testing policy, fresh independent semantic/owner/new bundle/effective view/tuning/final/qualification/regression and API/operator UI remain to be connected before full composed-agent integration.",
+    "Actual derived experience library and full M0-M8/same-pipeline dummy qualification/final-head full CI/Phase2 remain open."
+  ],
+  "next": "Compose checked-arm policy plan: alternate explicit new candidate_policy reserves3 before observations; old request and budget2 stay exact. Require typed3 and fresh independent checks, then API/UI and actual upstream library."
+}

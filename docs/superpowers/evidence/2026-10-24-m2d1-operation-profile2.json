@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "status": "actual_operation_profile2_approved_pending_full_pipeline_qualification",
+  "source_sha256": {
+    "protocol": "e4a8d68777bbf8e0cfb94d33ebed15b0ac1b9efa392dafacdc7b2be95113eaad",
+    "profile": "a1b931e51899d612d18a444401bf898f8f1b963ff73e2766b4067d4ecd673fdd"
+  },
+  "test_sha256": "431babc93f07387717de09ba3b8f08bdd3c0f339574292753dfe0231909d50b0",
+  "red": {
+    "tests": 7,
+    "errors": 7,
+    "seconds": 1.054,
+    "log_sha256": "55ec47ed62be8fa29152777549992d57f75238737472cd302d987e93177ad767"
+  },
+  "author": {
+    "tests": 7,
+    "seconds": 2.408,
+    "exit": 0,
+    "log_sha256": "ae4bcf396ba487f2954728a04f06a6e1a29fad97c6f9868e0c3196a498f5c416"
+  },
+  "independent": {
+    "tests": 7,
+    "seconds": 2.574,
+    "exit": 0,
+    "log_sha256": "8fc817c62bb73301798ad936f4a6ebfcadd0c10de4d5b2cb0db4ca57c139e982"
+  },
+  "affected_legacy": {
+    "tests": 3,
+    "seconds": 5.289,
+    "exit": 0,
+    "log_sha256": "74c13b31a11dcc0128a7109fe287b9c1f0646cf0085e180dd22dd41354c4f592"
+  },
+  "behavior": [
+    "Explicit operation materialization version2 retains genuine operation identity and request input hash",
+    "Owned native binding uses exact full operation user wrapper and fixture_only policy; unbound2 refuses options/start",
+    "Receipt2 adds completed native input delivery; legacy1 shape/environment unchanged"
+  ],
+  "limitations": [
+    "Real prepared workspace/options and typed synthetic SDK messages with engineering binding seam; no actual native/account/provider",
+    "No materializer emits2; no qualification/registration or result input-use authority inferred"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-operation-profile2"
+}

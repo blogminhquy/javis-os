@@ -9,6 +9,7 @@ from math import comb
 
 from improvement_store import _hash
 from improvement_experiment_protocol import definition, comparison_matrix, matrix_cell
+from improvement_qualification_records import require_product_store
 
 _VERDICTS = {"pass", "fail", "unknown"}
 _SPLITS = ("tuning", "qualification", "regression")
@@ -183,11 +184,16 @@ def project_result(value, contract, request, trial_id, attempt, report):
     trial and attempt. Missing native checks cannot become successful integrity.
     """
     from improvement_experiment_protocol import validate_request_v2
+    from improvement_result_domain import NATIVE_GATES, require_product_report
+    require_product_report(report)
+    from improvement_view_trial_protocol import validate_request_v4
     import re
     value = definition(value)
     identifiers, _ = _contract(value, contract)
-    request = validate_request_v2(request)
-    if (type(report) is not dict or type(report.get("version")) is not int or report["version"] != 2
+    view_runtime = type(request) is dict and type(request.get('version')) is int and request['version'] == 4
+    request = validate_request_v4(request) if view_runtime else validate_request_v2(request)
+    if (type(report) is not dict or type(report.get("version")) is not int or report["version"] != (4 if view_runtime else 2)
+            or (view_runtime and report.get('effective_view') != request['view'])
             or report.get("trial_id") != trial_id or type(report.get("attempt")) is not int or report["attempt"] != attempt
             or report.get("request_hash") != _hash(request) or report.get("experiment_lineage") != request["lineage"]
             or report.get("contract_hash") != value["contract_hash"] or request["pins"]["contract_hash"] != value["contract_hash"]
@@ -229,7 +235,15 @@ def project_result(value, contract, request, trial_id, attempt, report):
                 or type(row.get("verdict")) is not str or row["verdict"] not in _VERDICTS):
             raise ValueError("invalid_comparison_execution_checks")
         native[row["id"]] = row["verdict"]
-    integrity = _summary(native.values()) if set(native) == _NATIVE_CHECKS else "unknown"
+    expected_checks = _NATIVE_CHECKS | (NATIVE_GATES if 'native_decisions' in report else set())
+    if 'native_decisions' in report:
+        decisions = report['native_decisions']
+        if (type(decisions) is not list or len(decisions) != 4 or any(type(row) is not dict
+                or set(row) != {'decision', 'durable_evidence_hash'} or row.get('decision') != 'allow'
+                or type(row.get('durable_evidence_hash')) is not str
+                or re.fullmatch('[0-9a-f]{64}', row['durable_evidence_hash']) is None for row in decisions)):
+            raise ValueError('invalid_comparison_native_decisions')
+    integrity = _summary(native.values()) if set(native) == expected_checks else "unknown"
     if report["execution_status"] != "completed":
         integrity = "fail"
     return {"integrity": integrity, "criteria": criteria}
@@ -308,23 +322,50 @@ class ComparisonResults:
 
     def _guard(self, connection, principal, metadata, expected_generation):
         from improvement_experiment_lineage import current_fences
+        from improvement_comparison_links import has_view_binding
         value, comparison = metadata["definition"], metadata["comparison"]
+        view_runtime = has_view_binding(connection, principal.brain_id, comparison['id'])
+        source = {'source_split': 'tuning'} if view_runtime else {}
         row, prepared = self.plans._state(connection, principal, value["experiment_id"], expected_generation,
-                                          unsealed=comparison["kind"] == "tuning")
+                                          unsealed=comparison["kind"] == "tuning", **source)
         arm = self.plans._frozen_arm(connection, principal, row, prepared, comparison["ordinal"])
         if prepared[0] != value or arm["envelope_hash"] != comparison["arm_hash"]:
             raise ValueError("comparison_authority_changed")
         self.plans.host._snapshot_observe(principal, prepared[1])
+        if view_runtime:
+            from improvement_views import EffectiveViews
+            views = self.plans.host._views
+            if type(views) is not EffectiveViews or views.plans is not self.plans:
+                raise PermissionError('view_resolver_unavailable')
+            # Validates both frozen manifests and current meaning/dependencies,
+            # followed by real source capture after all slow lineage I/O.
+            if comparison['kind'] == 'final':
+                from improvement_view_qualification import ViewQualification
+                ViewQualification(self.plans, views).preview(connection, principal, comparison['id'],
+                    expected_generation=expected_generation)
+            else:
+                views.load_current(principal, comparison['id'], 'baseline')
         current_fences(connection, principal.brain_id, metadata)
 
     def _snapshot(self, connection, brain, metadata):
         """SQL-only capture, including missing/nonterminal slots, for publication CAS."""
         import json
         from improvement_experiment_protocol import validate_request_v2, comparison_hash
+        from improvement_view_trial_protocol import validate_request_v4
+        from improvement_comparison_links import comparison_table
+        from improvement_view_history import metadata as view_metadata, require_publication
         from improvement_blobs import AssetUnavailable
         comparison, value, matrix = metadata["comparison"], metadata["definition"], metadata["matrix"]
+        table = comparison_table(connection, brain, comparison['id'])
+        view_runtime = table == 'improvement_view_trial_links'
+        binding = None
+        if view_runtime:
+            binding = view_metadata(connection, brain, comparison['id'])
+            if binding is None:
+                raise AssetUnavailable('comparison_views_unavailable')
+            require_publication(connection, brain, binding, self.records._row(connection, brain, value['experiment_id'])['generation'])
         links = {row["cell_position"]: dict(row) for row in connection.execute(
-            "SELECT * FROM improvement_experiment_trial_links WHERE comparison_id=? AND brain_id=?", (comparison["id"], brain))}
+            'SELECT * FROM ' + table + ' WHERE comparison_id=? AND brain_id=? LIMIT 4001', (comparison["id"], brain))}
         if any(type(position) is not int or not 0 <= position < comparison["cell_count"] for position in links):
             raise AssetUnavailable("comparison_cell_link_changed")
         captured = []
@@ -334,7 +375,8 @@ class ComparisonResults:
                 captured.append(None)
                 continue
             trial = self.results.trials._row(connection, brain, link["trial_id"])
-            request = validate_request_v2(json.loads(trial["request_json"]))
+            raw_request = json.loads(trial['request_json'])
+            request = validate_request_v4(raw_request) if view_runtime else validate_request_v2(raw_request)
             cell = matrix_cell(matrix, position)
             expected_pins = {key: value[key] for key in ("experiment_id", "base_bundle_hash", "contract_hash", "case_set_hash",
                 "engine_config_hash", "grant_hash", "scope_hash", "policy_version")} | {"candidate_bundle_hash": comparison["arm_hash"]}
@@ -349,6 +391,12 @@ class ComparisonResults:
                     or request["baseline_context_hash"] != value["baseline_context_hash"]
                     or request["target_generations"] != {value["target_id"]: value["base_generation"]}):
                 raise AssetUnavailable("comparison_trial_lineage_changed")
+            if view_runtime:
+                descriptor = binding['views'][request['variant']]
+                if (request['view'] != {'view_id': descriptor['view_id'], 'view_hash': descriptor['manifest_hash'],
+                        'binding_hash': binding['binding_hash']}
+                        or any(link[key] != child for key, child in request['view'].items())):
+                    raise AssetUnavailable('comparison_trial_view_changed')
             attempt = connection.execute("SELECT * FROM improvement_trial_attempts WHERE trial_id=? AND brain_id=? AND attempt=?",
                                          (trial["id"], brain, trial["attempt"])).fetchone()
             call = None if attempt is None else connection.execute(
@@ -364,11 +412,16 @@ class ComparisonResults:
         import improvement_trial_checks as checks
         import improvement_trial_results as results
         import improvement_experiment_protocol as protocol
+        import improvement_view_trial_protocol as view_protocol
+        import improvement_view_protocol as manifest_protocol
         return {"id": "complete-paired-results", "version": 1, "decision_policy": value["decision_policy"],
             "evaluator": value["evaluator"], "source_hash": _hash({name: hashlib.sha256(Path(path).read_bytes()).hexdigest()
-                for name, path in {"comparison": __file__, "protocol": protocol.__file__, "checks": checks.__file__, "results": results.__file__}.items()})}
+                for name, path in {"comparison": __file__, "protocol": protocol.__file__, "checks": checks.__file__, "results": results.__file__,
+                    'view_request': view_protocol.__file__, 'view_manifest': manifest_protocol.__file__}.items()})}
 
     def _evidence(self, principal, metadata, captured, *, refs=None):
+        # Domain refusal is categorical, outside per-cell UNKNOWN recovery.
+        require_product_store(self.assets, principal)
         import json
         import improvement_store as IM
         from improvement_blobs import AssetUnavailable
@@ -406,7 +459,9 @@ class ComparisonResults:
             rows.append(None if evidence is None else {"position": position, **evidence})
         if refs is not None and selected != refs:
             raise AssetUnavailable("comparison_result_reference_changed")
-        return selected, aggregate(metadata["definition"], metadata["matrix"], metadata["contract"], metadata["manifest"], rows)
+        summary = aggregate(metadata["definition"], metadata["matrix"], metadata["contract"], metadata["manifest"], rows)
+        require_product_store(self.assets, principal)
+        return selected, summary
 
     def _result_row(self, brain, trial_id, result_id, result_hash):
         from contextlib import closing
@@ -450,6 +505,7 @@ class ComparisonResults:
         self.records._available()
         payload = {"comparison_id": comparison_id, "expected_generation": expected_generation}
         with closing(self.store._conn()) as connection:
+            require_product_store(self.assets, principal, connection=connection)
             replay = self.assets._replay(connection, brain, event_key, "comparison_report", payload)
             if replay is not None:
                 return replay
@@ -472,6 +528,7 @@ class ComparisonResults:
         if blob != digest:
             raise IM.ConflictError("comparison_report_hash_changed")
         with self.store._Tx(self.store) as connection:
+            require_product_store(self.assets, principal, connection=connection)
             replay = self.assets._replay(connection, brain, event_key, "comparison_report", payload)
             if replay is not None:
                 return replay
@@ -480,6 +537,7 @@ class ComparisonResults:
             # Policy hashing reads public source files. Final full observation
             # and SQL-only authority fences must follow that last slow I/O.
             self._guard(connection, principal, metadata, expected_generation)
+            require_product_store(self.assets, principal, connection=connection)
             identifier = "icr_" + _hash([brain, comparison_id, digest])[:32]
             connection.execute("INSERT OR IGNORE INTO improvement_comparison_reports VALUES(?,?,?,?,?,?,?,?)", (
                 identifier, brain, comparison["experiment_id"], comparison_id, digest, blob, _hash(policy), time.time()))
@@ -501,6 +559,7 @@ class ComparisonResults:
         brain = IM._brain(principal)
         self.records._available()
         with closing(self.store._conn()) as connection:
+            require_product_store(self.assets, principal, connection=connection)
             row = connection.execute("SELECT * FROM improvement_comparison_reports WHERE id=? AND brain_id=?", (report_id, brain)).fetchone()
             if row is None:
                 raise PermissionError("comparison_report_unavailable")
@@ -522,8 +581,12 @@ class ComparisonResults:
                     or any(type(ref) is not list or len(ref) != 3 or type(ref[0]) is not int or ref[0] != index
                            or (ref[1] is None) != (ref[2] is None) for index, ref in enumerate(refs))):
                 raise AssetUnavailable("comparison_report_references_changed")
-            captured = self._snapshot(connection, brain, metadata)
+            # A frozen report with no result references has no Trial evidence to
+            # authenticate. Keep that exact missing/inconclusive history readable
+            # even on metadata-only prototypes; this grants no current runtime.
+            captured = [None] * comparison['cell_count'] if all(ref[1] is None for ref in refs) else self._snapshot(connection, brain, metadata)
         _, summary = self._evidence(principal, metadata, captured, refs=refs)
         if summary != report["summary"]:
             raise AssetUnavailable("comparison_report_evidence_changed")
+        require_product_store(self.assets, principal)
         return report

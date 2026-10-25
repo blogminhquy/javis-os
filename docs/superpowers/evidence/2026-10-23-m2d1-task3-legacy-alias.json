@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 legacy v2 tuning holdout-alias bypass repair",
+  "parent": "83f989277d3f274dd66cfd58c9bbada1d411274b",
+  "sources": {
+    "server/improvement_trials.py": "3d45372a0a3e446b427a52eb014e0800289814345d1195983dc75bd06f813398",
+    "server/improvement_experiment_admission.py": "ccf45a3c8a99423fe7e8ca42c7c6ce2e82069fc9af127f3225f60372b96074a4",
+    "server/improvement_experiment_lineage.py": "4678869147da763bfc000af4079064b19d8fac41b002453fb7029ba0a1c7ec41",
+    "tests/python/test_improvement_legacy_tuning_alias.py": "8f1eb9ecb0b4c093f4bea693894f89944d434f91b48f89dc39a4abeea410749c"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_legacy_tuning_alias.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 9.851,
+      "seconds_basis": "unittest elapsed, direct unchanged-source invocation",
+      "log": "task3-legacy-alias-green.log",
+      "log_sha256": "d00316cdfbbf4dd1620e6262d2c75e5d5cf5adcb436055af15d530373f8cb35a",
+      "tests": 3
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_lineage.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 58.156,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-legacy-alias-0.log",
+      "log_sha256": "fab4ae5a7905bab4fc7b3ae6deb838f37b4f6e2a28aebc99c8c07097d230bca2",
+      "tests": 18
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_admission.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 23.781,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-legacy-alias-1.log",
+      "log_sha256": "2a63b6fc137592a3a10457436b3ef9c8a1cf6df081cad970769dcb17fb7e755e",
+      "tests": 5
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_execution.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 19.296,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-legacy-alias-2.log",
+      "log_sha256": "ecfb519fc8fb163c739fabb8c355deae50c103acdbb87ee2cbb4a33883fd81eb",
+      "tests": 2
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "ViewReservationTests.test_actual_v4_pair_reserves_existing_calls_links_and_cold_replay",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 23.766,
+      "seconds_basis": "subprocess wall",
+      "log": "task3-legacy-alias-3.log",
+      "log_sha256": "39a0cbfc5d1c95f19ea033a14c38a73e0e9379ba82e320dc6507cd3b36aa0b40",
+      "tests": 2
+    }
+  ],
+  "total_tests": 30,
+  "total_recorded_seconds": 134.85,
+  "seconds_basis": "Direct3 unittest elapsed, affected4 subprocess wall; unchanged source throughout.",
+  "complete_source_log_record_sha256": "99891eb6fd8ae9b3c8e63c7e2d2a10076a94b99e99a988d2964e193879bb0282",
+  "unchanged_prior_qualification_sources": {
+    "server/improvement_view_qualification.py": "50d997a63e365710144551c266c8d964214728dc788540c8417f615f69f53a58",
+    "server/improvement_view_qualification_history.py": "2a286713de44512a44e6c60f1e89b3cb79fe76dcaa793f74d39cf4e1cc429675",
+    "server/improvement_views.py": "62fe3f49996f683f03f1eeaee34172b6a0906f0ea5eff6e418eb4f7f957a7a1a",
+    "server/improvement_view_lineage.py": "cf48a7ba84bad94d62df499383d2407a52af8037eb88406b6b02f1e4005b9841",
+    "server/improvement_view_admission.py": "1d2b4562fa34705c5258ef0f2520a2b85c60c497c8b183d0eee1d33c0af5e1f5",
+    "server/improvement_comparison_results.py": "afe7bde3d74afced87edb059d44677b6a0f576e6ad5c6c75005c1a2c7428f410",
+    "server/improvement_claude.py": "0758db630a5eee6757e05b79d8c5ac24506d49094b7becb3faa9cf6c5a4c25f9"
+  },
+  "v4_current_branch_and_trial_materialization_ast_unchanged": true,
+  "red": {
+    "log": "task3-legacy-alias-red.log",
+    "sha256": "3a3fe77561323dc4f7c75428bb37b8f77462b03ec9435d12c323b6e2731ac9e1",
+    "reason": "Actual later owner holdout declaration reached private v2 reservation/admission reads and escaped the final SQL fence."
+  },
+  "native_profile": {
+    "sources": 81,
+    "hash": "c2e7968e01bcc0434cf9368602d694ca8d7c53de6c9df487d0bd99f1e1f75dc3",
+    "qualified": false
+  },
+  "real_model_calls": 0,
+  "business_proof": false,
+  "positive_final_exercised": false,
+  "task3_complete": false,
+  "limits": [
+    "Genuine B plans, Trial/Call and owner CaseStore aliases; no future selected-final or eligible evidence fabricated.",
+    "V2 new work rejects before plaintext/native preflight; exact pre-existing event replay and metadata remain cold.",
+    "The common final SQL fence rejects later aliases for both v2/v4 tuning; genuine v4 paired reservation regression passes.",
+    "The earlier70-check qualification code scope is retained by source/AST proof; that does not supply a genuine positive final path.",
+    "Current81-source profile remains unregistered. Exact native qualification, public controls, whole-D1 review/final CI remain open.",
+    "No selected-model query, native registration, eligibility, activation, deployment or restart."
+  ]
+}

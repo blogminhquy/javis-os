@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "reviewer": "m2d1_whole_review",
+  "base_head": "6da7b9cd",
+  "scope": "Four actual native downstream consumers and preliminary explicit-domain marker refusal",
+  "verdict": "approved_scoped_downstream_component",
+  "before_pins": {
+    "server/improvement_preparation.py": "edc662b207115a4cad204471b3a6d5e99033f04131841de582fb86820d005408",
+    "server/improvement_operation_results.py": "55241fec5c74879f011cd0226af269af82d723f8725723ca9de2cc0655a3c202",
+    "tests/python/test_improvement_native_downstream.py": "21ed623b99e44ea9a5f955c57cd250d06c7f3cf2d29f52d19105f62f7e34be06",
+    "server/improvement_result_domain.py": "391a013afd28364b9208c225baf756364f1e6214fcbd0bd18ea756be1da76772",
+    "server/improvement_improver_inputs.py": "cb1f6798af6e44f8801334231eb7113383ebbb6faff6a6586e9ab1e7ec1fb458",
+    "tests/python/test_improvement_view_sources.py": "c667240867f2ac1162b9baeb5f03803affd37bca90362375834176a704914c4a",
+    "tests/python/test_improvement_improver_inputs.py": "a24783e236da9c5f91e6c8132be2036853b2d41a6835ff7ea7415c3ea1d939e1",
+    "tests/python/test_improvement_proposals.py": "d4d9777ce7e71dc2cd6d559a93ec95566b5fdd684c48793ffc90a64ce42b5126",
+    "server/improvement_semantic_review.py": "1ca22d0d3e0a4b96dac472ed1f50ac15bbc2d1b92f8384953338e34690151abe",
+    "server/improvement_view_sources.py": "f571c733e39fc4332a0bc2dcf3722554a2e69c76d4fbb2e0ba5426fe3339b5cb",
+    "server/improvement_role_workflow.py": "c1c129e321f015ef106da3b49b06266c59afb015300226ca5e871a1b8904ef3a",
+    "tests/python/test_improvement_comparison_results.py": "f30e495c4610b8b2efe462cbf13bf195f9764f800d018c00a577c6e066cc7a01",
+    "server/improvement_comparison_results.py": "fc3bf343edafca3f3e05d067abe6ddb8a2bb351faa1c3a1b50a0675f31810e80",
+    "server/improvement_trial_results.py": "1db0090fa9675aa70e36c41bb1b4cb669300b74964c5895c4b0dc53e13ad3472",
+    "tests/python/test_improvement_semantic_review.py": "37b2bf84af990df300105dd1c9ef1ca53f26f9a3fd7362a7dbca0f7d65e4a768"
+  },
+  "after_pins": {
+    "tests/python/test_improvement_view_sources.py": "c667240867f2ac1162b9baeb5f03803affd37bca90362375834176a704914c4a",
+    "tests/python/test_improvement_native_downstream.py": "21ed623b99e44ea9a5f955c57cd250d06c7f3cf2d29f52d19105f62f7e34be06",
+    "server/improvement_trial_results.py": "1db0090fa9675aa70e36c41bb1b4cb669300b74964c5895c4b0dc53e13ad3472",
+    "tests/python/test_improvement_semantic_review.py": "37b2bf84af990df300105dd1c9ef1ca53f26f9a3fd7362a7dbca0f7d65e4a768",
+    "server/improvement_role_workflow.py": "c1c129e321f015ef106da3b49b06266c59afb015300226ca5e871a1b8904ef3a",
+    "server/improvement_operation_results.py": "55241fec5c74879f011cd0226af269af82d723f8725723ca9de2cc0655a3c202",
+    "server/improvement_comparison_results.py": "fc3bf343edafca3f3e05d067abe6ddb8a2bb351faa1c3a1b50a0675f31810e80",
+    "server/improvement_semantic_review.py": "1ca22d0d3e0a4b96dac472ed1f50ac15bbc2d1b92f8384953338e34690151abe",
+    "tests/python/test_improvement_proposals.py": "d4d9777ce7e71dc2cd6d559a93ec95566b5fdd684c48793ffc90a64ce42b5126",
+    "server/improvement_improver_inputs.py": "cb1f6798af6e44f8801334231eb7113383ebbb6faff6a6586e9ab1e7ec1fb458",
+    "server/improvement_preparation.py": "edc662b207115a4cad204471b3a6d5e99033f04131841de582fb86820d005408",
+    "server/improvement_view_sources.py": "f571c733e39fc4332a0bc2dcf3722554a2e69c76d4fbb2e0ba5426fe3339b5cb",
+    "server/improvement_result_domain.py": "391a013afd28364b9208c225baf756364f1e6214fcbd0bd18ea756be1da76772",
+    "tests/python/test_improvement_comparison_results.py": "f30e495c4610b8b2efe462cbf13bf195f9764f800d018c00a577c6e066cc7a01",
+    "tests/python/test_improvement_improver_inputs.py": "a24783e236da9c5f91e6c8132be2036853b2d41a6835ff7ea7415c3ea1d939e1"
+  },
+  "tests": {
+    "seconds_sum": 29.7,
+    "skips": 0,
+    "timings": {
+      "projection3": 0.05,
+      "semantic1": 9.543,
+      "new8": 4.878,
+      "probe5": 0.007,
+      "input2": 0.027,
+      "proposal1": 9.451,
+      "improver1": 5.744
+    },
+    "count": 21,
+    "runs": [
+      {
+        "name": "new8",
+        "exit": 0,
+        "sha256": "8415f1fdbfcf55229c743a347df56b380c1b58fc25136214f5c1b18df79f9441",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-downstream-new8.log"
+      },
+      {
+        "name": "probe5",
+        "exit": 0,
+        "sha256": "d13bd3b80bd32c7b7c493a6b70fd19e2c000ff2cd76fca6e3d9d0f565c3c219c",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-downstream-probe5.log"
+      },
+      {
+        "name": "projection3",
+        "exit": 0,
+        "sha256": "a4b771177b13ee3271490749ea538e66f619c7b1598ec7815f8349426b6e803d",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-downstream-projection3.log"
+      },
+      {
+        "name": "input2",
+        "exit": 0,
+        "sha256": "2bf64e7cd651ab531e57601e5f5cd70c7c44bad79e82396572bcc8c7af6662d9",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-downstream-input2.log"
+      },
+      {
+        "name": "proposal1",
+        "exit": 0,
+        "sha256": "245c6002b1dc1a59f18d7e6a55bae7f9579e369804c2830029d8992bb9db5336",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-downstream-proposal1.log"
+      },
+      {
+        "name": "improver1",
+        "exit": 0,
+        "sha256": "d93f42108703d48ab7f62558cfa98189d8c853e6a6cd76c7bc081be608aacc63",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-downstream-improver1.log"
+      },
+      {
+        "name": "semantic1",
+        "exit": 0,
+        "sha256": "61b9817a35d74f0f5235ad01cbf84a2fadeb41227ffb6f2eda565757e0155b44",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-downstream-semantic1.log"
+      }
+    ]
+  },
+  "actionable_findings": [],
+  "closed_audit_blockers": [
+    "Role exactold10 versus native14 now explicit authenticated report format inventory with allnative4PASS",
+    "Improver raw observation2 projection now source/global-sequence preserving derived whitelist; guardian control withheld",
+    "Semantic evidence projects actual report2 format and current_evidence compares exact actual M0 product native fields; view gate accepts exact14 and preserves only same two observational UNKNOWN reasons",
+    "Comparison retains all original18 plus four native gates for authenticated native_decisions; absent/UNKNOWN never silently dropped"
+  ],
+  "observations": [
+    "All explicit execution_domain fields refuse product/promotion, including malformed/None/false/production labels",
+    "New actual encrypted op2 RoleWorkflow test uses explicit engineering registration seam, not actual source/runtime qualification",
+    "Legacy receipt/view/proposal/improver/semantic behavior selected regressions pass; no test/source edits by reviewer"
+  ],
+  "limits": [
+    "Preliminary domain marker fence cannot authenticate omission/downgrade; immutable M0 QualificationSession/attempt/call links plus publish/cold-read enforcement remain required before qualifier activation",
+    "No complete new native baseline preparation\u2192improver\u2192semantic\u2192paired comparison chain is proven by this unit; native projection/actualop2 and selected legacy chain fixtures are separate proofs",
+    "No native child/account/provider or default inventory; no actual registration/qualifier activation/full18 eligible final/business/finalCI claim"
+  ],
+  "slot_released": true,
+  "review_report_sha256": "4f7ee89b265e254c170101de3254454d25bd473dafc408974687f565947ae46b",
+  "author_logs": {
+    "red-downstream7.log": "c85e97e01945e5d833c67e58bb005d3d15d8828aee86a9be192c05dfff841a3a",
+    "green-downstream7.log": "536ae539d6e4231c850f3e4fa3e0a5fd5852fbbde7523e41c8e69a9bd20a5f2b",
+    "red-downstream-semantic1.log": "15d1f351e8c904df37dd0675f60db8df6dbb8401d2879214e5b0362c24a1c164",
+    "green-downstream8-final.log": "c2bb1fd113ed56fc89fd64daf064336ea5a67b9c67986ce154a9aaae02ffe295"
+  },
+  "author_lineage": "Initial7:13failures8errors including domain subtests,6.514s; GREEN7 6.371s. Additional actual semantic report format projection RED1FAIL.001s, final8 PASS6.272s."
+}

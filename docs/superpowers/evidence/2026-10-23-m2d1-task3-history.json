@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 Task3 SQL/blob history checkpoint",
+  "parent": "ab5dc1ef7d7113befe893618ff79fa1376d1ef91",
+  "sources": {
+    "server/improvement_experiment_lineage.py": "9d6725d360517ceb2db2b3f4fb8d625051f7007e6f5f23f0a8f756dc08061afb",
+    "server/improvement_views.py": "fad3d9136c9fc7f021231ef6a75d79f9ae7bc5c0190f2ba94ff981ffb678ebc1",
+    "server/improvement_view_history.py": "7b3525d0b7c481bc071cc494945d42f86d29f0262c42ea7fd5d05e41efc72df0",
+    "server/improvement_view_lineage.py": "7c633430af3c3066dbea5df2df0b5ae2b484754b04efc9b5e2922d435000629a",
+    "tests/python/test_improvement_view_lineage.py": "5a08667bf21f7aebef208d8879e525c2bb69a74aaae4cd337b6a3ebe85df0d52"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lineage.py",
+        "-v"
+      ],
+      "tests": 6,
+      "exit_code": 0,
+      "seconds": 66.413,
+      "log": "task3-view-lineage-final.log",
+      "log_sha256": "5c1012ac5a5eee463ac01b8dd1b7c7401945c80f19abb509b6ca2c92b95441b2",
+      "seconds_basis": "unittest elapsed time",
+      "reuse_scope": "Six completed tests before only the independent OwnerHistoryTests class was appended; no production changes afterward."
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lineage.py",
+        "OwnerHistoryTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 16.047,
+      "log": "task3-history-0.log",
+      "log_sha256": "10742a8c0169ddac72b6531b590159022bbfb169894608f3637598e71027dc56",
+      "tests": 1,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_lineage.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 55.813,
+      "log": "task3-history-1.log",
+      "log_sha256": "99811d99433ad85dc24f9fbcd816134ad5d26bfa9292385b878bf77222ca4434",
+      "tests": 18,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_sources.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 149.734,
+      "log": "task3-history-2.log",
+      "log_sha256": "8c8c23c20aa085a89c7b4513fd4133e4f4b812a7e2a1019701a3958f06403c62",
+      "tests": 16,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_authority.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 204.641,
+      "log": "task3-history-3.log",
+      "log_sha256": "5402b3983c0d8416b1bb9751b2d3882e48c2503edae1ac54ed82f0cd6ee02c3f",
+      "tests": 15,
+      "seconds_basis": "subprocess wall time"
+    }
+  ],
+  "total_tests": 56,
+  "total_seconds": 492.648,
+  "complete_source_log_record_sha256": "0ff53a7814d87e7a2c4dccfae758444839ca660ff35ec467f6fc88224079e05f",
+  "red": {
+    "log": "task3-view-lineage-red.log",
+    "reason": "Actual scoped view lineage module absent",
+    "sha256": "40cfc231ae790e723cc1c4c89940569791ccfe173228eb7a014e52b602ed749e"
+  },
+  "earlier_linux": {
+    "run": 39949800035,
+    "head": "ab5dc1ef7d7113befe893618ff79fa1376d1ef91",
+    "qualifies_new_history_code": false
+  },
+  "existing_c_profile_unchanged": "9dcf718470e70957d07454bb8b50fbde79575a3b23d8c06e24cc9b749051116b",
+  "real_model_calls": 0,
+  "actual_v4_trial_created": false,
+  "v4_dispatch_wired": false,
+  "v4_native_qualified": false,
+  "business_proof": false,
+  "task3_complete": false,
+  "limits": [
+    "History authenticates exact SQL/blob/publication/receipt lineage, never current source or native readiness.",
+    "No fake future Trial, Call, successful comparison or qualification claim was inserted.",
+    "Actual v4 reservation, current host observation, final registry ownership and shared bounded consumers remain open.",
+    "Root Trial dispatch remains byte-identical to the parent and rejects version4.",
+    "Existing C native registration does not qualify a future D path; invalidate it when v4 becomes reachable."
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "unit": "Compose projection trial bound is separate from patch citation bound",
+  "base_commit": "e465a4b9",
+  "problem": "12 tuning cases and2 repeats over2 comparisons with separate baselines require96trial refs; initial total32citation cap rejected the complete projection.",
+  "change": "Group observations≤4000, total unique trials≤8000 from two existing4000-cell comparison schedules. Input remains≤1MiB and fails instead of truncating. Patch/decision citations remain≤32.",
+  "red": {
+    "tests": 10,
+    "passed": 9,
+    "errors": 1,
+    "seconds": 0.162,
+    "reason": "New full96ref fixture reached compose_evidence_limit"
+  },
+  "root_green": {
+    "tests": 10,
+    "passed": 10,
+    "runner_exit": 0
+  },
+  "independent_report": {
+    "scope": "Only projection observation/unique trial-ref cap and new96-ref pilot test",
+    "reviewed_head": "e465a4b92d11747f5c6726d58faaa2f83ff27612",
+    "before": {
+      "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9",
+      "tests/python/test_improvement_compose_protocol.py": "19e0a2aeadf4869c8a03f8751ea1520be9de19f54f1daaec62406320077ccf72",
+      "server/improvement_generation_protocol.py": "1f0eae722a727d095e84a7d0bf7e99fe23441d0ffa96367e47688ede895b637d",
+      "third_party/harness2/COMPOSE-PROVENANCE.json": "ce7839f1a378502caeb5c06af54a66727761f0223bdc336f549cbf0b003fb11c",
+      "server/improvement_compose_protocol.py": "952c2b71e4699e75795d7d86acfced1fa75b381443ac1323d5665ed9505ff820",
+      "server/improvement_skill_patch.py": "c06eb301c2c8d9ab7d68368f42256b9cb55108780c3782e3cf06aa0cdcbd87d3",
+      "server/improvement_experiment_protocol.py": "66b55574a087cba950e17ae8bbb6edd4ab528045718762879c720fb5559e1add",
+      "tests/run.py": "59756fe950a50a85ba761f5aba132566656022718dd91b936c1f2266bb9fb92a",
+      "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "after": {
+      "server/improvement_compose_protocol.py": "952c2b71e4699e75795d7d86acfced1fa75b381443ac1323d5665ed9505ff820",
+      "server/improvement_generation_protocol.py": "1f0eae722a727d095e84a7d0bf7e99fe23441d0ffa96367e47688ede895b637d",
+      "third_party/harness2/COMPOSE-PROVENANCE.json": "ce7839f1a378502caeb5c06af54a66727761f0223bdc336f549cbf0b003fb11c",
+      "server/improvement_harness2_compose.py": "a8192f15f226348f3485883a80b7ebe3cb215caa2d3084845f4a050b0def71b9",
+      "third_party/harness2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "tests/python/test_improvement_compose_protocol.py": "19e0a2aeadf4869c8a03f8751ea1520be9de19f54f1daaec62406320077ccf72",
+      "tests/run.py": "59756fe950a50a85ba761f5aba132566656022718dd91b936c1f2266bb9fb92a",
+      "server/improvement_skill_patch.py": "c06eb301c2c8d9ab7d68368f42256b9cb55108780c3782e3cf06aa0cdcbd87d3",
+      "server/improvement_experiment_protocol.py": "66b55574a087cba950e17ae8bbb6edd4ab528045718762879c720fb5559e1add"
+    },
+    "stable_pin_count": 9,
+    "decision": "APPROVED_SCOPED_CAP_FIX",
+    "findings": [],
+    "tests": 1,
+    "passed": 1,
+    "unittest_seconds": 0.036,
+    "helper_wall_seconds": 0.483,
+    "exit_code": 0,
+    "helper": "tests/run.py:chay_mot with short isolated temp and all three no-real engine flags",
+    "log_sha256": "ade823dfe0d00bc0dfa58bc3fb5681801f5574d049eeb458316187d7ad3a07dc",
+    "driver_sha256": "a732f86e09f8f318ff8431af188953f6ee8169c5b7d87e99e2017c20a4e1c934",
+    "prior_report_sha256": "a06d21b5af3325fbf755a6c3ae5e288389caedbaa5ff71010e4c96b0b7a9a4bb",
+    "checks": [
+      "Exactly2 numeric cap changes+comment since approved component:4000 observations/group and8000 unique refs in complete input; existing MAX_ASSET_BYTES1MiB validation unchanged.",
+      "Patch citations and per-decision observations remain1..32; no output/evidence/private/source authority broadened.",
+      "New test retains96 distinct actual fixture trialrefs distributed48base/24execution/24domain projections and checks exact input projection equality, not truncation.",
+      "Vendor/license/provenance unchanged; prior original9definition source/AST/Gitblob proof reused."
+    ],
+    "limits": [
+      "Fixture projection only, no actual pilot/model/native/account/qualification or durable composition integration.",
+      "This one test proves required96-ref pilot shape; theoretical8000-ref bound still subject to independent1MiB input/render limit."
+    ],
+    "slot": "Released to root after terminal"
+  },
+  "independent_report_sha256": "6f76a33a87bb919ffc52395065ace2b042b234b14c3b8056325e493ead308ff3",
+  "logs_sha256": {
+    "pilot-cap-red.log": "d4b7fa022b8dcb2250960d6fe705c81ded8690a541d7b0c11be1a4f98aa68369",
+    "pilot-cap-green10.log": "a7c10e23fd764dfb026e4e4692112eb329862523223650b97b480dedf3a6b594"
+  },
+  "limits": "Pure unverified projection fixture only; prior upstream9-definition/license verification unchanged and reused. No native/runtime/durable bundle, actual business pilot or quality/activation claim."
+}

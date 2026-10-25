@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 Task3 owned next admission checkpoint",
+  "parent": "1a09a0e3",
+  "sources": {
+    "server/improvement_claude.py": "0e6e5e92ae5ed15cc7dfbe757d5cf68f4cd3072d7807427cd94ffd0bd2f65964",
+    "server/improvement_experiment_service.py": "5c5edb8a7f12449dcf867a0b84711ce05f0f0c7dc36a40d84b8c9112420f97fb",
+    "server/improvement_comparison_schedule.py": "f4740950202536462b0753e008fb00bd66ae688b79110a99549c5c75f6040d92",
+    "server/improvement_view_admission.py": "76315f6895f604d349ace8c1998c4e2896eff21b7393b26d787f1c40ed2af21a",
+    "tests/python/test_improvement_view_next.py": "e713d69b634af25017c1ef358760490b70fa27d37953ba96809e77bdd4e4152b",
+    "tests/python/test_improvement_view_reservations.py": "7cb65777d6433d8e632eb5f7360cbbd9465f5362d32e336f1ecaa53b6cb13395"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_next.py",
+        "-v"
+      ],
+      "log": "task3-view-next-green.log",
+      "log_sha256": "ea0bcf9a3a801d2d3667d7bba724f87c236846186dac7f5466926d2d637ce865",
+      "tests": 5,
+      "seconds": 93.015,
+      "seconds_basis": "unittest elapsed time",
+      "exit_code": 0,
+      "reuse_scope": "Original five methods/helpers unchanged; only two independent methods and AsyncMock import appended afterward. Production bytes unchanged."
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_next.py",
+        "ViewNextTests.test_owner_service_hands_exact_real_v4_reservation_to_existing_task_dispatcher",
+        "ViewNextTests.test_cancelled_http_preflight_remains_owned_until_stop_settles",
+        "-v"
+      ],
+      "log": "task3-view-next-handoff.log",
+      "log_sha256": "0ce5c092153fb5d5806f8a57d9a524ffa0a0136be75014bb80ee978c7a7eb29c",
+      "tests": 2,
+      "seconds": 44.726,
+      "seconds_basis": "unittest elapsed time",
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_service.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 49.422,
+      "log": "task3-owned-next-0.log",
+      "log_sha256": "159c1b802180341a2fe896b9c5e6a4650aadec250233b85080fab29230dcdfb9",
+      "tests": 14,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_lifetime.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 18.532,
+      "log": "task3-owned-next-1.log",
+      "log_sha256": "87fd4a835950b42d6a6c8e2345ebcca2078122fa06b370e390f0dab2acaebfc9",
+      "tests": 3,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_api.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 17.469,
+      "log": "task3-owned-next-2.log",
+      "log_sha256": "fb1742ec8b8f3b8e86b2a09d0964af6084e37519fd57fad53ed0a316a16a5231",
+      "tests": 5,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_workflow_api.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 52.797,
+      "log": "task3-owned-next-3.log",
+      "log_sha256": "356be6130129e74c6a08cfd0f26da76fc1e613a76c23f895b9a2b624b439db60",
+      "tests": 8,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lifecycle.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 64.141,
+      "log": "task3-owned-next-4.log",
+      "log_sha256": "d1901d39fe0c410090b328d8208d0cb6a11b1b1c3968927f3522bd5d2cb5bbad",
+      "tests": 4,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_c_stop.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 58.984,
+      "log": "task3-owned-next-5.log",
+      "log_sha256": "419acb70a7f8f985558b702036ca7ff486496c5ec205ab4ff605c1e4565ec75e",
+      "tests": 7,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_claude.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.046,
+      "log": "task3-owned-next-6.log",
+      "log_sha256": "aee2df74a9bbe65a025da87cba0ca019ed15eeab51f6ae348ff1de6172ba7462",
+      "tests": 22,
+      "seconds_basis": "subprocess wall time"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.719,
+      "log": "task3-owned-next-7.log",
+      "log_sha256": "600a6604b8292fa1f86a333af9501ec57c4a54274853ffca3c3e333cb1a02f1c",
+      "tests": 1,
+      "seconds_basis": "subprocess wall time"
+    }
+  ],
+  "total_tests": 71,
+  "total_recorded_seconds": 401.851,
+  "complete_source_log_record_sha256": "ce4cf169b42a177b9b9781439758b88df6e333c26ab87e1dcb3f03d70a062d57",
+  "red": {
+    "log": "task3-view-next-red.log",
+    "reason": "Concrete owned v4 admission absent",
+    "sha256": "8984a36b367247cb6f2697bd3461ce5bc72fcce342b65c1aa57f498fdc388472"
+  },
+  "native_profile": {
+    "sources": 78,
+    "hash": "058166e7910046e86aa1552daffe3ce568364b6b580defe6264edfd6b2636879",
+    "qualified": false
+  },
+  "actual_v4_trial_call_and_event": true,
+  "concurrent_owner_keys_reserve_one_call": true,
+  "owned_http_cancellation_and_stop": true,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false,
+  "limits": [
+    "Task dispatcher handoff is spied; durable admission/Trial/Call/stop are real. Actual native v4 execution is still Task4.",
+    "Only host-derived tuning next cells; final qualification still explicitly refuses pending existing-registry ownership.",
+    "Both new modules joined the profile footprint before becoming reachable; no registration matches current source.",
+    "Retained-host/closed-workflow v4 resolver lifecycle still needs a scoped audit before D1 integration; no resume claim.",
+    "Full v4 report projections, actual workspace/native qualification, public controls and stable final review/CI remain open.",
+    "No real model query, quality win, activation, deploy or restart."
+  ]
+}

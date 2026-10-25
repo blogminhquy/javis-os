@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 Task1 local foundation",
+  "task_start_base": "d00312d57350b8be34b3241e89b2a796d6995407",
+  "released_c": "2727edcc5cdfab6f2dcf2e2871164f22f2771f92",
+  "published_c_reader_sha256": "166d93d7b20415e2a703c1a70ff853cd6b392657817836da26c2fc25e2a7e871",
+  "sources": {
+    "server/improvement_view_protocol.py": "bc9ddf145bc031fd8308bec91de92de5c9cff07e1eca5faadc5df763c9c5c2c1",
+    "server/improvement_view_schema.py": "0747f0047c31505189c9ef0ce11505c5613c7dd0f6b6ca6cfc795bf0a865f6f2",
+    "server/improvement_store.py": "c237f7138c5cbe2fb8f0def70ffde677616c9db7fc15daf64ca4d6b6bec79536",
+    ".github/workflows/ci.yml": "4b0d6276f6a63741f547dbd98e7accb1e34196db039ded6da73816b800b9f0b2",
+    "requirements.txt": "30c9adb77f69168def577341be63fc9b7da4b02bfcbbf844d230040108cb8b84",
+    "server/improvement_candidate_schema.py": "6d29c83299ecc9e081912f4b3cf6f549890f71abeeb3af9684e9d3f0e66ee5da",
+    "server/improvement_experiment_schema.py": "ac545c99df80d3bdcfef74951bd1b7342827de62820cbedd0c832b3f19abe61d",
+    "server/improvement_operation_schema.py": "53bcada765678337712051b950b26cbb285b548c66c30e07526471f808530512",
+    "server/improvement_trial_schema.py": "ac7066cdac48cf35213ed2591ed462d53d4f22955ea127904f568c69643dcae1",
+    "tests/python/test_improvement_views.py": "db4723f237ab0f1c85d517e0c1b2c6950040edaffbaa76a8ff2c1106647fee06",
+    "tests/python/test_improvement_view_schema.py": "c5b5abd3559048342bd7c6393a0e9d4b25b2410a4baa9347380769df82aeb5a7",
+    "tests/python/test_improvement_store.py": "174eade77e58e39312015e47c3eb5be049ebb92eeb14301ef0aee16ad0f0f3cb",
+    "tests/python/test_improvement_operations.py": "d7d1ffa7dc3ef9a47281647fa8ed5a140780f1a1a27c7e9fda3642aaff628792",
+    "tests/python/test_improvement_experiments.py": "7d34fa06f4349c52008562b609ae69ddb10ad219f23e45205b9acb823f1c90a7",
+    "tests/python/test_improvement_operation_execution.py": "fb94fc8d649983c925ad2a2c40024e507293e7584e3857f2a9ed535f3027d448"
+  },
+  "complete_dependency_scope_record": ".superpowers/sdd/2026-10-23-agent-skill-improvement-m2d1/task1-affected-evidence.json",
+  "complete_dependency_scope_record_sha256": "29661d883373b72a2ab4ef673d6770d58a1a2bfbfe97ef541168a6b1cff331f3",
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "script": "test_improvement_views.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_views.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.219,
+      "log": "task1-final-test_improvement_views.log",
+      "log_sha256": "fc423503cf78dbda4f750e268e2fcbaa79c6cfdebe10493314f2ff085c14120c",
+      "tests": 11
+    },
+    {
+      "script": "test_improvement_view_schema.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_schema.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 97.062,
+      "log": "task1-final-test_improvement_view_schema.log",
+      "log_sha256": "03feb0bd25b580ef99493407095636086b24a27b54e528fd3e9f70fff125fc67",
+      "tests": 15
+    },
+    {
+      "script": "test_improvement_store.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_store.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 4.625,
+      "log": "task1-final-test_improvement_store.log",
+      "log_sha256": "b5e2c573bfba33832ebfbf195c011dc2446d11485d39cc7544bf80007b66b24a",
+      "tests": 25
+    },
+    {
+      "script": "test_improvement_operations.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_operations.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 43.406,
+      "log": "task1-final-test_improvement_operations.log",
+      "log_sha256": "b0f18bb0a0bccecce468caec4d0503ca210345e465cf17fece7f779ffce6e826",
+      "tests": 21
+    },
+    {
+      "script": "test_improvement_experiments.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiments.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 38.625,
+      "log": "task1-final-test_improvement_experiments.log",
+      "log_sha256": "b7cb9a6e63ca8196ead86c6fea4e377651acb88b72a7b7432c9f73c7ede19aec",
+      "tests": 19
+    },
+    {
+      "script": "test_improvement_operation_execution.py",
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_operation_execution.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 37.984,
+      "log": "task1-final-test_improvement_operation_execution.log",
+      "log_sha256": "b30d3a3bffa79f0f0e5f34582062c6b30f6e7671056ea4cb528025be68cf4f8f",
+      "tests": 13
+    }
+  ],
+  "total_tests": 104,
+  "total_script_seconds": 221.921,
+  "current_c_profile": {
+    "source_hash": "9dcf718470e70957d07454bb8b50fbde79575a3b23d8c06e24cc9b749051116b",
+    "source_count": 34,
+    "all_source_bytes_equal_released_c": true,
+    "new_d_native_path_qualified": false
+  },
+  "red_evidence": [
+    "task1-protocol-red.log",
+    "task1-owner-event-red.log",
+    "task1-migration-red.log",
+    "task1-scope-red.log",
+    "task1-future-version-red.log"
+  ],
+  "real_model_calls": 0,
+  "business_proof": false,
+  "live_activation": false,
+  "limits": [
+    "Synthetic disposable SDK fixtures, not actual CLI/provider qualification.",
+    "SQL lineage does not authenticate encrypted plaintext or current source/semantic authority; Task2 owns that gate.",
+    "Legacy/v4 format exclusion and real v4 Trial/call/link lineage remain Task3.",
+    "Linux checkpoint CI, stable independent D1 review, exact-final CI and publication remain pending.",
+    "Production D2 resolver integration, E/F and M3-M8 remain open."
+  ]
+}

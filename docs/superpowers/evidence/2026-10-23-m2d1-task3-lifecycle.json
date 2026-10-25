@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 Task3 bounded view lifecycle checkpoint",
+  "parent": "52c79f1cea4cfafdb2e60551e77e1f81e4a6066c",
+  "sources": {
+    "server/improvement_comparison_links.py": "c179e59808786d8f7aaa466dd0dcf5d44069580319ef17ca368caee25311944a",
+    "server/improvement_experiment_service.py": "40e8f65781d046c58a1e3422aea453eba1a87fd4df79a594310e61dc94223517",
+    "tests/python/test_improvement_view_lifecycle.py": "5f66a499af880a123d68f39a72bf365b4c88b843c41935ed7ecaeba577c7bd64"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lifecycle.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 63.891,
+      "log": "task3-lifecycle-test_improvement_view_lifecycle.log",
+      "log_sha256": "c9ede2cbbb6928774c900029661920ee1495f0c735a6b78e4d49f395d08a3430",
+      "tests": 4
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_service.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 48.593,
+      "log": "task3-lifecycle-test_improvement_experiment_service.log",
+      "log_sha256": "9a82fda5b46d8c6ba057132313eb8f6e2ae1fe797e38cf1cf6b4c12f1bb57f8a",
+      "tests": 14
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_recovery.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 10.203,
+      "log": "task3-lifecycle-test_improvement_experiment_recovery.log",
+      "log_sha256": "5c72843295783b5cfa361377a3d4c0cfb1904d122118aa3d64a9ac185028e4e6",
+      "tests": 3
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_c_stop.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 60.125,
+      "log": "task3-lifecycle-test_improvement_experiment_c_stop.log",
+      "log_sha256": "da0987954fba80188c0ddc95a6b7dd333285c53339dfe6c3bbecee5caf19304d",
+      "tests": 7
+    }
+  ],
+  "total_tests": 28,
+  "total_subprocess_seconds": 182.812,
+  "complete_source_log_record_sha256": "fd4d2d3322e01d845bc343e72ef33da9f708a93190577038df4a294acdcff96e",
+  "red": {
+    "log": "task3-view-lifecycle-red.log",
+    "reason": "Stop/next omitted actual v4 links; terminal/no-result cell could be skipped",
+    "sha256": "2682ce7c0faa1aa8d772d3d29bdd26c93e392dd6b42725909ba530379d206167"
+  },
+  "native_profile": {
+    "sources": 76,
+    "hash": "bc7f176a88addd16141b1a2b59cb9855d7b9932016488b7ff60709cf223823c5",
+    "qualified": false
+  },
+  "actual_v4_reservation_refunded_on_stop": true,
+  "actual_shared_legacy_view_budget_tested": true,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false,
+  "limits": [
+    "Both comparison formats share12000 cells; prep2000 and total28000 attempts retain their original bounds.",
+    "Mixed-budget fixture uses two genuine comparisons/Trial reservations, not fabricated future rows.",
+    "Stop/recovery sees actual v4 ownership after off/revoke and refunds only its real unstarted Calls.",
+    "Next reader refuses pending/terminal missing results and requires exact published SQL pointers plus actual cleanup proof.",
+    "Owned admission/global barrier, full report consumers and final registry ownership still require integration.",
+    "V4 materialization/native execution remains closed; no new registration, real query, live activation, deploy or restart."
+  ]
+}

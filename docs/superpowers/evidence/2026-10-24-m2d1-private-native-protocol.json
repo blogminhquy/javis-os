@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "label": "closed-private-startup2-and-wire2-grammar",
+  "evidence_class": "technical",
+  "source_parent_commit": "f6ecb7b81f7b3a7f25e097fb7fd29188a9b7d58c",
+  "source_hashes": {
+    "server/improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+    "tests/python/test_improvement_native_protocol.py": "f2147beed13e2f3736130c6f14ff4085ffa2d5ecd5805aba25c3c3130aa2c7cb"
+  },
+  "test_command": "C:\\Users\\admin\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -I -S -B tests/python/test_improvement_native_protocol.py -v",
+  "runs": [
+    {
+      "stage": "missing_component_red",
+      "tests": 9,
+      "failures": 9,
+      "seconds": 0.002,
+      "log_sha256": "674306dc66f8bdfe1ae5c5b0e0271f0c145ea2f6796a031b9adc54ed43788e1d"
+    },
+    {
+      "stage": "initial_green",
+      "tests": 9,
+      "passed": 9,
+      "seconds": 0.011,
+      "log_sha256": "2e288ec96007ecf899ee020ba83b34a48be1a07e56d8fc2c3d1ba16d3b6868ec"
+    },
+    {
+      "stage": "actual_consumer_grammar_red",
+      "tests": 2,
+      "errors": 2,
+      "seconds": 0.002,
+      "reason": "Existing FixtureBroker event has no event.type; preflight needs a closed stable-runtime return.",
+      "log_sha256": "8bd77efb4f2d96532bdda5c705ffef5ec6bd921d5283af3c2498832599668b6b"
+    },
+    {
+      "stage": "corrected_green",
+      "tests": 11,
+      "passed": 11,
+      "seconds": 0.013,
+      "log_sha256": "5496181dc229c9ebea22667ba12669e56c06e1f0cee9131a42a8ef20f1321e8d"
+    }
+  ],
+  "independent_review": {
+    "verdict": "scoped_approval",
+    "tests": 11,
+    "passed": 11,
+    "seconds": 0.016,
+    "source_test_pins_unchanged": true,
+    "log_sha256": "9b0a876eab4bcf11f966213d3130f3266f21901adc06f5e653740fd54ff05b7b"
+  },
+  "tested": [
+    "Closed builtin startup2 for trial/operation/preflight, canonical UTF8 NDJSON, exact ordered unique purpose/nonces, bounded canonical socket-share representations and environment whitelist/constants.",
+    "Private4BE framing <=8MiB, structural depth/node/integer/finite-value bounds, duplicate/noncanonical/partial/trailing/oversized frame refusal.",
+    "Actual per-direction sequence/launch/PID/birth and request identity binding, closed body types, dispatch hash against complete supplied proof bytes.",
+    "Raw Unicode/CRLF, finite numeric fields and optional nulls preserved. Preflight runtime contains no invocation PID/nonce/auth-token fields."
+  ],
+  "isolation": "Stdlib-only in-memory values/bytes; isolated base Python -I-S-B, no app/_paths/SDK/environment/HOME/DB/files mutations/sockets/ports/native calls. Separate unique log outside guardian fixtures permits Goal12 parallel execution.",
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-protocol",
+  "native_or_sdk_or_account_calls": 0,
+  "limits": [
+    "Grammar and hashes confer no config/workspace/source authority, socket/peer provenance, dispatch semantics, phase order or durable permission. Concrete consumers must establish them.",
+    "Native input-delivery proof remains unsupported by this grammar until its exact proof schema is implemented. No unknown body is accepted for compatibility.",
+    "The environment whitelist is not independent environment provenance or a filesystem/auth-home authorization check.",
+    "No runtime registration/current native qualification, business improvement or rollout proof."
+  ],
+  "goal_complete": false
+}

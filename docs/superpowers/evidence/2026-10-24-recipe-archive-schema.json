@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "scope": "Backed-up additive canonical recipe archive schema9 and actual SQL constraints; engineering only",
+  "implementation_base": "7e0726ff5aa082bf8a9409d80b51bcf64fdb8170",
+  "implementation_commits": [
+    "efef01c26a1677f2df240be233ff530dcdc3e583",
+    "6d677d71d77f6e8e8c5508bc10c7112fa1c97f6d"
+  ],
+  "source_sha256": {
+    "server/improvement_recipe_schema.py": "d3ebd255ea94e9074149d691c37451e57c61851e2108ce684784ac897f561b21",
+    "server/improvement_store.py": "2cb145a20e271352e9c06a3313caa69844cfa8dae55ef15401c3d53ced7d1a06",
+    "server/improvement_operation_schema.py": "fb80df55dcc44a152f568deafc5cdb4b2026cd3305ef5a7c48c513875beec40e",
+    "server/improvement_compose_permissions.py": "8bca794ef69ea2c54008eca0a6dfb09c68b98653305df72ed938a40165f80ba7",
+    "server/improvement_claude.py": "6184563beb021d87a0c569b8ab7845aa7e13e774f1dd31b180c225fd06fbce94",
+    "tests/python/test_improvement_recipe_schema.py": "2e554a16a1a38cc6eb22667cbc63151782932376a4fefbcac08cf7d784742329",
+    "tests/python/test_improvement_compose_schema.py": "55826249932def62c4d5caee5b98f5afa2661fdf3d1613fbaa63a639da962238"
+  },
+  "reuse": "Existing resonance DB, GoalStore transaction/backup/CallLedger, frozen compose schema8 and encrypted RevisionBlobs history; actual Harness2 Library already reused only for derived snapshots. No second executor/ledger/store.",
+  "behavior": [
+    "Three normalized tables: immutable recipe manifest references, exact historical trial refs, monotone availability/tombstones; no raw procedure/trace/source text in SQLite.",
+    "Official8 authenticates before one recipe backup and upgrades additively; no compose rebuild, old row/definition/ciphertext/lease/workspace/CallLedger change. Fresh/known1-7 retain actual historical chain in one transaction; known8 cold read remains.",
+    "Repeated9 authenticates exact guards without backup/write. New8/9/private namespace conflicts refuse; missing guards/future10/partial9 rejected. Existing1-6 backup behavior preserved, no unrelated historical hardening.",
+    "Actual same-brain experiment/context/target/base/candidate/optional report/trial/result relationships and hash/type/time limits enforced; late trial-ref insertion after seal refuses.",
+    "Immutable history and irreversible active-to-terminal state with CAS/expiry/supersession/revoke-to-erase; erased metadata never reactivates. INSERT OR REPLACE and case-insensitive object collisions explicitly guarded.",
+    "Exact64 lowercase hexadecimal SQL digests reject NUL anywhere. target_protected_hash pins historical target bytes separately from host-authenticated owner_rule_hash; no inherited destination permission.",
+    "Operation/ComposePermissions9 retain actual connection identity and exact compose guard validation plus new archive guards; no caller current=true authority."
+  ],
+  "tdd": {
+    "real_feature_reds": [
+      {
+        "log": "01-red.log",
+        "sha256": "715a18111422351ca08ee2ec3c0a5090f10993b595232237f73066e7d7e412ce",
+        "intended_failures": 1,
+        "errors": 0,
+        "exit": 1
+      },
+      {
+        "log": "02-history-red.log",
+        "sha256": "2d1c42c913c481675a06ff116f7cf7569b40607937add4a56b5dd29b67d86a86",
+        "intended_failures": 1,
+        "errors": 0,
+        "exit": 1
+      },
+      {
+        "log": "06-replace-red.log",
+        "sha256": "5ad2b9867888d74881dbd6ee684e2d6a0ef2a831856e4bce4240ab044b1247ce",
+        "intended_failures": 3,
+        "errors": 0,
+        "exit": 1
+      },
+      {
+        "log": "09-case-collision-red.log",
+        "sha256": "4e106960b550bae2d2cdfc40c043b018c817517e7f46720ad448c64eab4be406",
+        "intended_failures": 1,
+        "errors": 0,
+        "exit": 1
+      },
+      {
+        "log": "16-review-r1-nul-red-complete.log",
+        "sha256": "9aa696642332e4ac1fca712809437091168acceccfef5ac4dd3473852dc65835",
+        "intended_failures": 5,
+        "errors": 0,
+        "exit": 1
+      }
+    ],
+    "r1": {
+      "red_failures": 5,
+      "red_errors": 0,
+      "green_pass": 1,
+      "green_log_sha256": "afe390bddab35c0fb4de32d9955765a44133f1ba45d7844ca6ace2c9131bf148",
+      "fix": "Shared instr(column,char(0))=0 preserves character semantics independently of SQLite encoding"
+    },
+    "disclosures": [
+      "Exploratory05 older1-6 prebackup hardening requirement withdrawn before production change; original behavior retained.",
+      "Initial R1 log15 has one meaningful failure plus downstream fixture collision error; corrected rollback isolation in log16 supplies clean five-failure RED.",
+      "V1/v2 logs retained as historical source-version evidence, not relabeled as v3."
+    ]
+  },
+  "local": {
+    "environment": "Windows; actual tests/run.py isolation/no-real-engine flags; serial slot released",
+    "passed": 28,
+    "runs": [
+      {
+        "log": "18-review-r1-final-recipes.log",
+        "sha256": "cddef74ba98e49f4243909337fb8351579fc8952d674d05083de25c08bda248b",
+        "file": "test_improvement_recipe_schema.py",
+        "passed": 17,
+        "exit": 0,
+        "driver_seconds": 79.847,
+        "reuse": null
+      },
+      {
+        "log": "13-final-compose-schema.log",
+        "sha256": "748c96273fcb20878fd96de4ec65fbb18909f1a794cdf0221881a67bffcef13f",
+        "file": "test_improvement_compose_schema.py",
+        "passed": 6,
+        "exit": 0,
+        "driver_seconds": 19.867,
+        "reuse": "Unchanged terminal v2 explicitly reused after shared hash correction"
+      },
+      {
+        "log": "19-final-selected-store.log",
+        "sha256": "32028fab36e1c9207542f54be6298d284644cc53becd61e62106c3b35d6c7725",
+        "file": "test_improvement_store.py",
+        "passed": 3,
+        "exit": 0,
+        "driver_seconds": 0.978,
+        "reuse": null
+      },
+      {
+        "log": "20-final-selected-permissions.log",
+        "sha256": "c26a0110ea5d766305b06b6186950f1f8338d0b22ffa69c34c6478bfee327554",
+        "file": "test_improvement_compose_permissions.py",
+        "passed": 2,
+        "exit": 0,
+        "driver_seconds": 12.979,
+        "reuse": null
+      }
+    ],
+    "all_rerun_after_r1": false,
+    "note": "Only unchanged terminal compose6 reused explicitly; all17 archive and selected5 integration cases passed on corrected v3. No application warning noise in final logs."
+  },
+  "historical_fixture_sha256": {
+    "3fad8de8:server/improvement_store.py": "6951a65738070fd3a344141b66071f615e97e590a51dcbccfe46f0a5fb9a2255",
+    "79e5985c:server/improvement_store.py": "20b4c26c59b265ded362a0f2ead2688e6018552623cc0dd7ac08cd0e6b0dcaf3",
+    "79e5985c:server/improvement_case_schema.py": "54554b40dc20e58d37cdcb3964fc8384ff11ae95683277352a949ad37dad6865",
+    "79e5985c:server/improvement_trial_schema.py": "ac7066cdac48cf35213ed2591ed462d53d4f22955ea127904f568c69643dcae1",
+    "79e5985c:server/improvement_candidate_schema.py": "6d29c83299ecc9e081912f4b3cf6f549890f71abeeb3af9684e9d3f0e66ee5da",
+    "79e5985c:server/improvement_experiment_schema.py": "ac545c99df80d3bdcfef74951bd1b7342827de62820cbedd0c832b3f19abe61d",
+    "79e5985c:server/improvement_operation_schema.py": "53bcada765678337712051b950b26cbb285b548c66c30e07526471f808530512",
+    "79e5985c:server/improvement_view_schema.py": "50b6f5c5e7a210adb76df3271d593ea5b7f53a403078145906d7f30dc3f7d172"
+  },
+  "independent_review": {
+    "original": "Scoped static review: one ImportantR1, no other findings",
+    "original_json_sha256": "a3778ef9bf76014886c871b6fae3bca709fbfe486e8ffbc25c6fd237f087950f",
+    "original_package_sha256": "5dc182750d244f8859024ae3d1df8a11bcbd4f87ccc1cb1032e38466568f8f91",
+    "fix_round": 1,
+    "r1": "ADDRESSED",
+    "new_breakage": [],
+    "out_of_scope": [],
+    "spec_gate": "PASS-scoped-R1-and-fix-delta",
+    "quality_gate": "APPROVED-scoped",
+    "fix_json_sha256": "3d327d059e75cd7ac313a7eda2e1b6850dcdc111b0db9354010ab1cb12506edf",
+    "fix_package_sha256": "b8e692522f317b507f0bf6b727eca5945795269e2cb119e872e3c6eaf34ae1cb",
+    "execution": "none",
+    "all7_before_after_equal": true,
+    "scope_limits": "Original full scoped pass plus narrowed2file fix review, not whole-branch review. Reviewer checked existing logs; no test/application execution."
+  },
+  "early_linux": {
+    "run_id": 40071193085,
+    "job_id": 120804788438,
+    "conclusion": "success",
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40071193085",
+    "snapshot_commit": "8e82cdb1cd731a1c9d696444b64c138d5ae92b93",
+    "snapshot_parent": "efef01c26a1677f2df240be233ff530dcdc3e583",
+    "workflow_sha256": "9e65ef1c60151226e56d02e487bef3ab4642f67b9f0c8a8b83ec9841b9ef0b74",
+    "exact_selected_pins": 7,
+    "recipe_passed": 17,
+    "compose_passed": 6,
+    "total_passed": 23,
+    "recipe_driver_seconds": 25.269,
+    "compose_driver_seconds": 6.296,
+    "log_sha256": "616ee88986e3531494ca81ca838113bd87a59d0af5c45a1f5c62d0e7f8966fb6",
+    "log_utf8_bytes": 79894,
+    "scope": "Separate early selected-byte component fixture run; not final exact-task-head full required CI"
+  },
+  "native_inventory": {
+    "method": "Root AST/raw-byte inventory only; no application imports",
+    "count": 96,
+    "profile_hash": "dbd31ee091efa14b98f632460ee4f4376e70b5ed9f49f9d3716f025040ca566c",
+    "qualified": false,
+    "registries_closed": true,
+    "protected_actual309_test_sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0"
+  },
+  "limitations": [
+    "SQL cannot authenticate caller evidence/source/trace pins, owner-rule aggregate or causal grade.",
+    "30day SQL upper bound does not extend actual shorter source/trace freshness/retention; host must enforce the earlier deadline.",
+    "Logical erased/unavailable metadata is not physical blob/source erasure or GC.",
+    "Synthetic availability/ACL-only/native result fixtures do not establish account/native/business proof.",
+    "No actual CLI/SDKClient/provider/account/model query or registration, activation, deploy/restart or real-brain migration."
+  ],
+  "open_gates": [
+    "Concrete encrypted recipe capture and source/trace/retention/current rights; conservative grades and NO_ENTRY",
+    "Explicit destination grants, filtering/ranking/max3 and owned plaintext crash recovery",
+    "Actual improver/repair/PREPARED/publication/candidate/view/Trial/apply dependency enforcement and lesson linkage",
+    "Physical source erasure/reference closure/journal/grace/GC and remaining M0-M8 code",
+    "Same-pipeline dummy/native/qualified selected-final; final exact task-head full CI/fresh whole-branch review",
+    "All Phase2 actual account/model/business pilot/canary and specifically authorized rollout"
+  ],
+  "business_proof": false,
+  "activation_or_deploy": false
+}

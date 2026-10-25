@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "label": "design-only/direct-base-sdk-startup-import-support",
+  "evidence_class": "technical",
+  "source_commit": "ffcd1b44ee7d021be70ab5803ac0d9a3d8c7875a",
+  "production_reachable": false,
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "driver_runs": 1,
+  "driver_exit_code": 0,
+  "driver_tool_wall_seconds": 4.219,
+  "sdk_client_connect_or_query_calls": 0,
+  "sdk_anyio_open_process_calls": 0,
+  "native_image_or_selected_cli_calls": 0,
+  "account_or_provider_calls": 0,
+  "predeclared_variants": [
+    {"kind": "minimal-root", "worker_pid": 5084, "outcome": "ModuleNotFoundError: No module named 'pywintypes'", "worker_exit_code": 10, "stderr_bytes": 1092},
+    {"kind": "explicit-pywin32", "worker_pid": 24080, "outcome": "sdk_and_anyio_imported", "worker_exit_code": 0, "stderr_bytes": 0}
+  ],
+  "runtime_shape": {
+    "direct_base_python": "3.12.10",
+    "flags": ["-I", "-S", "-B"],
+    "sdk": "0.2.116",
+    "anyio": "4.14.1",
+    "explicit_trusted_package_paths": ["site-packages", "win32", "win32/lib"],
+    "retained_dll_directory": "pywin32_system32",
+    "site_main_or_pth_execution": false,
+    "base_and_dependency_source_pins_checked": true
+  },
+  "measurement": {
+    "original_retained_source_worker_pid_and_creation_time_checked_before_import_ack": true,
+    "actual_owned_job_inventory_not_worker_pid_list": true,
+    "pre_and_post_cumulative_total": 2,
+    "pre_and_post_active": 2,
+    "exact_retained_live_member_incarnations_unchanged": true,
+    "forbidden_createprocess_calls": 0,
+    "no_process_birth_during_import_interval_observed": true,
+    "additional_member_observed_image_path": "C:\\Windows\\System32\\conhost.exe",
+    "additional_member_current_path_sha256": "c86146188b78e484f32cc29e2331689659943b47689a85570342044f499938ac",
+    "image_observation_basis": "QueryFullProcessImageNameW path plus currently reopened file identity/hash; no loaded hFile/page proof or role inference",
+    "all_four_retained_process_handles_signaled_before_job_close": true,
+    "terminal_job_active_processes": 0,
+    "both_actual_jobs_drained_and_closed": true
+  },
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+  "raw_sha256": {
+    "probe_startup_import_diagnostic_v2.py": "18749638817edef30691f5c94e433e0dfaa14b7f26d6f0faeccb173eae0700f4",
+    "startup-import-diagnostic-v2-pins.json": "fb835821c4ad1f1f5e1593abec44747b014609d0c70ec410ea1aab88f4901d0f",
+    "startup-import-diagnostic-v2-report.json": "129805b2b3cb58013e19ab91338a8a7410b60b14561cad8f0f0e1fe11ae6982d",
+    "startup-import-diagnostic-v2-evidence-manifest.json": "462166769577de4da0836a7a1c040855c571251eb4356d7a63190d82fc90f2d2"
+  },
+  "independent_static_review": {
+    "verdict": "limited_diagnostic_approval",
+    "frozen_files_verified": 175,
+    "source_pins_verified": 25,
+    "qualified_profile_pins_verified": 83,
+    "prior_manifests_verified": 4,
+    "native_or_import_rerun": false
+  },
+  "limits": [
+    "This controlled minimal-path import reproduces the dependency hypothesis; historical V5 stderr/exception remains lost and UNKNOWN.",
+    "The earlier import diagnostic's failed total1 assumption and its original failed evidence are preserved.",
+    "The unexercised cleanup-failure retention tuple omits observer-handle dictionaries; future lifecycle implementation must retain every owned observer handle. Both measured normal drains completed.",
+    "No remote guardian image receipt/ACK, actual CLI configuration, SDKClient transport, native qualification, actual reasoning, all18 eligibility, business or rollout proof."
+  ],
+  "goal_complete": false
+}

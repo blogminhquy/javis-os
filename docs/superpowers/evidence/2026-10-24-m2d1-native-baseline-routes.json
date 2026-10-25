@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "reviewer": "m2d1_whole_review",
+  "base_head": "d4b4913c",
+  "scope": "baseline5 Trial worker guards, actual adapter route, parent closed trial policy",
+  "verdict": "approved_scoped_route_component",
+  "before_pins": {
+    "tests/python/test_improvement_native_parent.py": "20c41f6418b01401cf20997ca680c9bfca152e0d1d140d96a38d448ca7d1ddfa",
+    "server/improvement_native_transport.py": "5bb7cb41f655c176a7ee6ff926a6342eef93ab42e3122a7f6a35b1bf43c01a15",
+    "server/improvement_query_dispatch.py": "1395d7cccf19ada066cc5ff4ccff89c4499e9d555fe8c56a3880b75bd72bc408",
+    "server/improvement_claude.py": "3e7031ce6cfb563acdf7f3dfaa939078ab576f022d7e887d138b71412d3bb173",
+    "server/improvement_native_worker.py": "355573d3398ce7f6241cb318dde7c706d194f4bddbd7c60ebb49313b177b1018",
+    "server/improvement_worker.py": "7d0820b7aa009a712b23747aaed5037bf7bf2e6108b38fcd017d6313dc50a5aa",
+    "server/improvement_native_profile.py": "47f5d3b0ba15bcab4499620b6bee58e307076a16d31cd29aa3f4f5964e9c01d2",
+    "server/improvement_native_parent.py": "14dfe32df52255f1b33d9fd6124edcb6dcd521f6b6e51ccae0e40ddf61580c65",
+    "tests/python/test_improvement_trial_profile5.py": "0a02ca98db87ed179cc121d9536daccdf4fa3108449bb3f2c684caf05e888635",
+    "tests/python/test_improvement_startup2_routes.py": "ae7a383afd9fc2522c6a858d8788f95180817542729b5778a68f2beb7a2260c9",
+    "tests/python/test_improvement_baseline5_routes.py": "5c566910c2a4f539d21d80add3978bcd5ecf2a7b9188c28711b0c39109b6c213",
+    "tests/python/test_improvement_native_trace_checks.py": "021efd15b20a0150f7ad36c950e199da20a98ead5c5565c3f99a17ad0b6fc587"
+  },
+  "after_pins": {
+    "tests/python/test_improvement_native_trace_checks.py": "021efd15b20a0150f7ad36c950e199da20a98ead5c5565c3f99a17ad0b6fc587",
+    "server/improvement_worker.py": "7d0820b7aa009a712b23747aaed5037bf7bf2e6108b38fcd017d6313dc50a5aa",
+    "server/improvement_native_parent.py": "14dfe32df52255f1b33d9fd6124edcb6dcd521f6b6e51ccae0e40ddf61580c65",
+    "server/improvement_native_worker.py": "355573d3398ce7f6241cb318dde7c706d194f4bddbd7c60ebb49313b177b1018",
+    "tests/python/test_improvement_startup2_routes.py": "ae7a383afd9fc2522c6a858d8788f95180817542729b5778a68f2beb7a2260c9",
+    "server/improvement_claude.py": "3e7031ce6cfb563acdf7f3dfaa939078ab576f022d7e887d138b71412d3bb173",
+    "server/improvement_native_transport.py": "5bb7cb41f655c176a7ee6ff926a6342eef93ab42e3122a7f6a35b1bf43c01a15",
+    "tests/python/test_improvement_baseline5_routes.py": "5c566910c2a4f539d21d80add3978bcd5ecf2a7b9188c28711b0c39109b6c213",
+    "server/improvement_query_dispatch.py": "1395d7cccf19ada066cc5ff4ccff89c4499e9d555fe8c56a3880b75bd72bc408",
+    "tests/python/test_improvement_native_parent.py": "20c41f6418b01401cf20997ca680c9bfca152e0d1d140d96a38d448ca7d1ddfa",
+    "tests/python/test_improvement_trial_profile5.py": "0a02ca98db87ed179cc121d9536daccdf4fa3108449bb3f2c684caf05e888635",
+    "server/improvement_native_profile.py": "47f5d3b0ba15bcab4499620b6bee58e307076a16d31cd29aa3f4f5964e9c01d2"
+  },
+  "tests": {
+    "runs": [
+      {
+        "name": "new7",
+        "sha256": "77b9573624d0d7104a73615bf3271fe8ee94c0cea75e36051e579de0de636c56",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-routes-new7.log",
+        "exit": 0
+      },
+      {
+        "name": "startup14",
+        "sha256": "e4a63db0adff453e71405c61e8f4fb5adfbaa3d4266d06da4b8c025006c29409",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-routes-startup14.log",
+        "exit": 0
+      },
+      {
+        "name": "parent10",
+        "sha256": "ceb85abb69611b6fd86b6ce5aca8ed44a59df10beaeb9ed2f042d13c61b74a87",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-routes-parent10.log",
+        "exit": 0
+      }
+    ],
+    "timings": {
+      "startup14": 3.172,
+      "parent10": 4.185,
+      "new7": 2.7
+    },
+    "count": 31,
+    "seconds_sum": 10.057,
+    "skips": 0
+  },
+  "actionable_findings": [],
+  "observations": [
+    "Native baseline5 requires adopted private session before verifier/engine, while historical bound1/2/3 refusal remains unchanged",
+    "Actual baseline worker binds owned fixture-only profile, typed private accounting ACK before query and explicit runtime drain before completion; wrong typed ACK and failed drain refuse",
+    "Actual workspace adapter derives baseline_inline from manifest5, passes exact baseline prompt and original accounting/closing callbacks to owned parent; no legacy fallback",
+    "Parent accepts baseline_inline only for trial, keeps purpose-specific dispatch/environment, exact full attempt scope, real encrypted four-image decisions and original closing callback"
+  ],
+  "limits": [
+    "Worker and adapter tests use explicit engineering native/runtime/client seams; no native child, SDKClient.connect, account or provider calls",
+    "Parent test obtains synthetic pinned-view joins from unchanged trace parser then explicitly changes them to baseline query summaries before real parent M0 persistence; this proves parent checks only, not authentic baseline trace/result validation",
+    "No runner/result/materializer baseline5 implementation or activation approved; prior evidence reused only where unchanged",
+    "Actual final-source whole-pipeline qualification/registration/full18 eligible final/business/final CI remain open"
+  ],
+  "slot_released": true,
+  "review_report_sha256": "c30a4472268146e0ed975927a49dab9e0af6acae29b6dc0e84f956ea4585b317",
+  "author_logs": {
+    "red-routes7.log": "29548427f2c64287042bcd16ce8a3bce85f8f356af1afe074e10cf3cc00d772a",
+    "red-routes-ack1.log": "a6748ee0b2bcf27788cca110377de6d45f40b5bc9d878180b515ce9365d394e3",
+    "red-routes-adapter1.log": "a2324a735a9079ca99cee7b7e6ef873360b5eec9c1578aa7055b12d14c84f609",
+    "green-routes7-verified.log": "a5a8066b72593f848d306e5931ccf6f14054d21e8c2b497476a46a8d985c711a"
+  },
+  "author_lineage": "Initial7 includes malformed adapter fixture and missing EngineeringSession class seam; corrected precise ACK RED1FAIL.258s and actual fullpin adapter RED1ERROR.443s preserved; final7 PASS2.687s."
+}

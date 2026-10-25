@@ -70,10 +70,19 @@ class HostContextStore(HostContextRecords):
         self.assets, self.store, self.blobs = assets, assets.store, assets.blobs
         self.context_capture, self.selected_engine, self.target_observer = context_capture, selected_engine, target_observer
         self.fixture_observer = fixture_observer
+        self._views = None
         revalidate = getattr(context_capture, "revalidate", None)
         if revalidate is not None and (not callable(revalidate) or inspect.iscoroutinefunction(revalidate)
                 or inspect.iscoroutinefunction(getattr(revalidate, "__call__", None))):
             raise ValueError("host_trial_dependencies_required")
+
+    def bind_views(self, views):
+        from improvement_views import EffectiveViews, _retired
+        if type(views) is not EffectiveViews or views.assets is not self.assets or views.store is not self.store or views.plans.host is not self:
+            raise TypeError('concrete_same_store_views_required')
+        if self._views is not None and self._views is not views and not _retired(self._views):
+            raise IM.ConflictError('view_resolver_already_bound')
+        self._views = views
 
     def _targets(self, connection, brain, identifiers):
         targets = []
@@ -227,6 +236,10 @@ class HostContextStore(HostContextRecords):
         from improvement_experiment_lineage import require_experiment_version
         require_experiment_version(connection, brain, request)
         proof = None
+        if request.get('version') == 4:
+            if self._views is None:
+                raise PermissionError('view_resolver_unavailable')
+            _, proof = self._views.resolve_request(principal, request, connection=connection, require_link=not allow_unlinked)
         if request.get("version") == 3:
             from improvement_preparation_lineage import load_preparation_lineage
             proof = load_preparation_lineage(connection, brain, request, blobs=self.blobs, current=True, require_link=not allow_unlinked)
@@ -253,7 +266,7 @@ class HostContextStore(HostContextRecords):
         from improvement_trial_sources import authorize_case
         authorize_case(connection, brain, request, binding["fixture_inventory"], blobs=self.blobs,
                        baseline_content=binding["capture"]["baseline_context"]["content"])
-        if request.get("version") == 2:
+        if request.get("version") in (2, 4):
             from improvement_experiment_lineage import current_fences
             current_fences(connection, brain, proof)
         elif request.get("version") == 3:

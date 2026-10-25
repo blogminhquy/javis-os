@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "evidence_class": "technical/fixture-only-ci-repair",
+  "source_base_commit": "3dcf1e26c435574f056e75dd3e0bef8ca16d936f",
+  "failed_linux_ci": {
+    "run_id": 40002516501,
+    "head": "01717332457eeb5f16aeafe30ccb204b8fa95437",
+    "only_failed_script": "test_improvement_view_observation.py",
+    "reason": "Inert runtime fixture added inside protected skill directory after candidate provenance froze; Linux directory ctime invalidates source authority correctly.",
+    "full_failed_step_log_sha256": "e9e83d940e4573ae6edd31a1deba7e43c694d418bc58ba5d6a719f3b344989bd"
+  },
+  "changed_test_sha256": "2d76c99573c942b4e896e20bbc5a7b6bae52554bd6f7d4b30a0650099a411b35",
+  "portable_driver_sha256": "510904286667918b7dd77da455696dc1d568ef2c25382f64e98215f666e2ebfd",
+  "portable_red": {
+    "tests": 2,
+    "failures": 1,
+    "errors": 1,
+    "seconds": 27.959,
+    "failure_matches_linux": "candidate_source_authority_changed"
+  },
+  "portable_green": {
+    "tests": 2,
+    "passed": 2,
+    "seconds": 29.127
+  },
+  "regression": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_observation.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 29.016,
+      "tests": 2,
+      "log": "green-0.log",
+      "sha256": "55c73fbe8a13b49504f748769846ed83acebc669dfbbe667d2c607fc2a3f8cc5"
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_binary_observation.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.765,
+      "tests": 11,
+      "log": "green-1.log",
+      "sha256": "231d25cd09912da7547d1ae61611da1b5b710ded417750e8434984add9d500a6"
+    }
+  ],
+  "regression_full_source_record_sha256": "94714b3ed49a031a4eb1205a6c5fce5f5be151ee9caf768f293a3bf333932f64",
+  "independent_review": {
+    "decision": "approved fixture-only repair",
+    "portable_tests": 2,
+    "passed": 2,
+    "seconds": 29.468,
+    "log_sha256": "803ca85c063af02856f09fd8f959910f864d43b98a24ddd78b6a8c4d65d3452f"
+  },
+  "logs_sha256": {
+    "red.log": "ebadfc183c2c1b15b85a6584a676b286f54a7a3c22052620f30d285fbcc7ec90",
+    "green-portable.log": "d3b4d1e5ef3a2b7c7f1e889a41c1c75dab56c61a46a6ce038dd92c98420cefa4",
+    "green-0.log": "55c73fbe8a13b49504f748769846ed83acebc669dfbbe667d2c607fc2a3f8cc5",
+    "green-1.log": "231d25cd09912da7547d1ae61611da1b5b710ded417750e8434984add9d500a6"
+  },
+  "all_assertion_asts_unchanged": true,
+  "product_source_changed": false,
+  "native_profile_unchanged": "972175a29309295afc596902ef711ea51400ba77c2f39e27aab1141f9a0f6a10",
+  "native_cli_calls": 0,
+  "selected_account_calls": 0,
+  "constraints": [
+    "Portable reproduction installs an entry-change-clock proxy before the whole fixture; this is not actual Linux execution.",
+    "Actual Windows source/view2 checks and binary11 checks pass on stable full source map.",
+    "Native/SDK qualification remains source-qualified unchanged; no redundant20/native or account retry.",
+    "Actual final-head full Linux CI remains required; prior failed heads cannot satisfy integration."
+  ]
+}

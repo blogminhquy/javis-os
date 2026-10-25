@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "status": "actual_exit7_reproduced_and_fix_independently_approved",
+  "source_sha256": "5bb7cb41f655c176a7ee6ff926a6342eef93ab42e3122a7f6a35b1bf43c01a15",
+  "test_sha256": "4b7663d4dd7d4fdd81add413d7904246b796cca2e7f3bb3be3e8f85e7a8390dc",
+  "red": {
+    "tests": 1,
+    "failures": 1,
+    "seconds": 3.029,
+    "log_sha256_prefix": "9d9aaf17",
+    "observed": "actual retained worker7 guardian0 closed/drained; previously returned success"
+  },
+  "author": {
+    "tests": 5,
+    "seconds": 3.199,
+    "exit": 0,
+    "log_sha256_prefix": "be787636"
+  },
+  "independent": {
+    "tests": 5,
+    "seconds": 3.435,
+    "exit": 0,
+    "log_sha256": "b8c981a66a21109d1f602b2df7133f457f431af8d6819022b85796d11962c80d"
+  },
+  "affected_cancel": {
+    "tests": 1,
+    "seconds": 0.176,
+    "exit": 0,
+    "log_sha256_prefix": "55c0c4c8"
+  },
+  "behavior": [
+    "Completion is recorded before yield, including consumer close at completion",
+    "After cleanup, closing evidence and cancellation settlement, both retained exit statuses must be exact builtin integer zero",
+    "Existing cancellation priority, usage retention and independently proved cleanup/fence release preserved"
+  ],
+  "limitations": [
+    "One actual inert Windows worker exit7 fixture with copied cmd.exe; remaining status controls engineering",
+    "Synthetic usage7/null only; no selected CLI/account/provider/full qualification"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-exit-status"
+}

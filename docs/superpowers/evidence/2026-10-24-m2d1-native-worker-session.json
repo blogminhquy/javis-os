@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "status": "component_approved_no_main_route_enabled",
+  "source_sha256": "95970ef1fce50afee0fcd4ee8726f22080f79f685274acd4ab8b2d42369cbfc8",
+  "test_sha256": "b6c747febb29074f8352dbf9878c9fed39e975bba27030b0314961abcfba895c",
+  "command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_native_worker.py -v",
+  "author": {"tests": 13, "seconds": 4.943, "exit": 0, "log_sha256": "34360f7e2985829c6b10c1874207c118e878183996e7d4992d47b3f97ccb5c38"},
+  "independent": {"tests": 13, "seconds": 4.889, "exit": 0, "log_sha256": "72f9bce463b51cbe7d8700fd4c0132fdf2db572edbc965f06ff5c2cbf3afab3a"},
+  "review_red": {"tests": 13, "failures": 1, "seconds": 4.954, "log_sha256": "49f4af94f6922237d04b1f21a709c1484edb29cf133434eba73c2458cdba1f32", "cause": "Dispatch callback failure recursively closed its own active runtime/capture callback"},
+  "behavior": [
+    "Actual isolated Windows worker checks its own PID/birth and fixed initial cwd/scratch environment before socket adoption or startup environment changes",
+    "Installs exact validated startup environment before importing the broader native runtime; selected login discovery paths follow existing worker_environment",
+    "Owns private and image endpoint acquisitions, ordered ownership transfer and mandatory outer cleanup",
+    "Internal dispatch emitter marks failure and unwinds without recursively awaiting active runtime cleanup"
+  ],
+  "limitations": [
+    "Actual isolated-child socket/self-identity/environment/cleanup fixtures; no selected CLI, account, provider or SDKClient query",
+    "Dispatch reentrancy regression uses a test-local active-runtime lifecycle adapter and real adopted private endpoint; it does not prove native image provenance",
+    "Own incarnation checks do not authenticate a peer or source qualification; host original handles and complete workspace/current-authority checks remain required",
+    "Unknown partial socket acquisition requires enclosing process drain; this component makes no native job-drain claim",
+    "Existing worker main does not route startup2 yet; production client factory, full pipeline qualification and final-head CI remain open"
+  ],
+  "local_manifest": {"path": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe/native-worker-final13-manifest.json", "sha256": "0e3c5c967964b73edbf0bd6d650d6cc42156859d1e61ea32ec6125dcd1376b3a", "explicit_files_verified": 17, "mismatches": 0, "exhaustive_import_footprint": false},
+  "historical": "First12 candidate and missing-json fixture error retained separately; they are not the approved final13 proof"
+}

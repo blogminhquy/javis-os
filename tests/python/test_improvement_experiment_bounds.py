@@ -2,7 +2,7 @@
 
 Real small-scope lineage/call/workspace integration is tested separately. This
 fixture isolates cardinality, bounded UNION queries, and separate class limits
-without running 14000 models or manufacturing any production Trial evidence.
+without running 18000 models or manufacturing any production Trial evidence.
 """
 from _paths import ROOT, SERVER  # noqa: F401
 
@@ -52,7 +52,7 @@ class ExperimentBoundsTests(unittest.TestCase):
         # The SQL-only branch needs no execution service and must never probe one.
         return ExperimentService._snapshot(None, self.connection, 'brain', 'experiment')
 
-    def test_exact_full_scope_includes_14000_distinct_trials_and_all_28000_attempts(self):
+    def test_exact_full_scope_includes_18000_distinct_trials_and_all_36000_attempts(self):
         self.load()
         result = self.snapshot()
         self.assertEqual(len(result[0]), MAX_TRIALS)

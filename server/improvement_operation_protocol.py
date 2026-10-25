@@ -6,14 +6,17 @@ from improvement_blobs import MAX_ASSET_BYTES
 _FIELDS = {"version", "experiment_id", "context_id", "definition_hash", "kind", "role", "purpose",
            "candidate_id", "parent_id", "input_hash"}
 _ROLES = {"propose": ("improver", "improve_propose"), "repair": ("improver", "improve_propose"),
-          "semantic": ("semantic_reviewer", "improve_evaluate")}
+          "semantic": ("semantic_reviewer", "improve_evaluate"), "compose": ("composer", "improve_compose")}
 
 
 def operation_request(value):
     value = _freeze(value)
-    if type(value) is not dict or set(value) != _FIELDS:
+    if type(value) is not dict:
         raise ValueError("invalid_operation_request")
-    if (type(value["version"]) is not int or value["version"] != 1
+    composed = value.get('kind') == 'compose'
+    if set(value) != (_FIELDS | {'compose_authorization_id'} if composed else _FIELDS):
+        raise ValueError("invalid_operation_request")
+    if (type(value["version"]) is not int or value["version"] != (2 if composed else 1)
             or type(value["kind"]) is not str or value["kind"] not in _ROLES
             or (value["role"], value["purpose"]) != _ROLES[value["kind"]]):
         raise ValueError("invalid_operation_role")
@@ -21,6 +24,8 @@ def operation_request(value):
         _id(value[key])
     for key in ("definition_hash", "input_hash"):
         _digest(value[key])
+    if composed:
+        _id(value['compose_authorization_id'])
     for key, required in (("candidate_id", value["kind"] == "semantic"), ("parent_id", value["kind"] == "repair")):
         if required:
             _id(value[key])
@@ -35,13 +40,15 @@ def operation_materialization(value):
     if type(value) is not dict or set(value) != {
             "version", "brain_id", "operation_id", "request", "engine_config_hash", "data", "learning_origin"}:
         raise ValueError("invalid_operation_materialization")
-    if (type(value["version"]) is not int or value["version"] != 1 or value["learning_origin"] != "compose"
+    if (type(value["version"]) is not int or value["version"] not in (1, 2) or value["learning_origin"] != "compose"
             or type(value["brain_id"]) is not str or not 1 <= len(value["brain_id"]) <= 1000 or "\x00" in value["brain_id"]
             or type(value["data"]) is not dict):
         raise ValueError("invalid_operation_materialization")
     _id(value["operation_id"])
     _digest(value["engine_config_hash"])
     request = operation_request(value["request"])
+    if request['kind'] == 'compose' and value['version'] != 2:
+        raise ValueError('compose_native_input2_required')
     if _hash(value["data"]) != request["input_hash"]:
         raise ValueError("operation_input_changed")
     if len(_json(value["data"]).encode("utf-8")) > MAX_ASSET_BYTES:

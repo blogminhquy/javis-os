@@ -1,4 +1,4 @@
-"""Lazy owner-only M0 metadata routes. No trial or activation runtime is connected."""
+"""Lazy owner-only M0 metadata routes. Trials and conditional activation stay disconnected."""
 from __future__ import annotations
 
 import asyncio
@@ -15,7 +15,9 @@ from improvement_blobs import AssetUnavailable
 from improvement_store import ConflictError, SchemaError
 from resonance_store import Principal
 
-CAPABILITIES = {"capture": True, "trial": False, "activation": False}
+# `manual_apply`: the owner can apply an authorized candidate to one assistant chat (M2E).
+# `activation` stays False: no conditional or automatic activation exists.
+CAPABILITIES = {"capture": True, "trial": False, "activation": False, "manual_apply": True}
 
 
 @dataclass

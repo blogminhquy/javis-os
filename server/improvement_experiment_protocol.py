@@ -67,7 +67,8 @@ def definition(value):
 def comparison_matrix(value, arm_hash, ordinal, kind, case_ids, case_seed):
     """Complete metadata-only schedule; two complementary cells per canonical pair."""
     value = definition(value)
-    if (type(arm_hash) is not str or not _HASH.fullmatch(arm_hash) or type(ordinal) is not int or ordinal not in (1, 2)
+    if (type(arm_hash) is not str or not _HASH.fullmatch(arm_hash) or type(ordinal) is not int or ordinal not in (1, 2, 3)
+            or ordinal == 3 and value['decision_policy']['multiple_tests'] < 3
             or type(kind) is not str or kind not in ("tuning", "final") or type(case_seed) is not int
             or type(case_ids) is not list or not 1 <= len(case_ids) <= 1000
             or any(type(item) is not str or not _ID.fullmatch(item) for item in case_ids)
@@ -117,7 +118,7 @@ def validate_lineage(value):
     for key in ("definition_hash", "comparison_hash", "matrix_hash", "arm_hash", "pair_id"):
         _digest(value[key])
     if (type(value["version"]) is not int or value["version"] != 1
-            or type(value["arm_ordinal"]) is not int or value["arm_ordinal"] not in (1, 2)
+            or type(value["arm_ordinal"]) is not int or value["arm_ordinal"] not in (1, 2, 3)
             or type(value["cell_position"]) is not int or not 0 <= value["cell_position"] < 4000):
         raise ValueError("invalid_experiment_lineage")
     return value

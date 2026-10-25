@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "status": "actual_trial_profile4_integration_approved_no_worker_route_enabled",
+  "source_sha256": "c8ea25e6811a490fa7522a787c0eed6250164b0428ce1ae543dba56751cd72d5",
+  "test_sha256": "e159c44ee8700cdf775320d4eb214fe73ef3415336eb206b2b0ca5b811859e4c",
+  "unchanged_adapter_prefix_sha256": "ffe9efedb2d1042b80f576a8d8673816e051abf9c84a01daa9d4ba7b66ff2335",
+  "red": {"tests": 8, "failures": 1, "errors": 6, "seconds": 2.813, "log_sha256": "c1ee685c4c770d8a8f39d578668ed6736b03d29f578f2ca90a0203fbd11055c8", "cause": "Missing actual profile4 binding/handlers/receipt behavior"},
+  "author": {"tests": 8, "seconds": 3.584, "exit": 0, "log_sha256": "5a73ecc2e325682034e0c5fb07c822af44085c4f95a1d4a024c4e10f48db1659"},
+  "independent": {"tests": 8, "seconds": 3.559, "exit": 0, "log_sha256": "1b5cbe745094b8c042e5f76bfbb74ac86c3e51a4d0b742a66c9d7c383dc6b8ee"},
+  "affected_legacy": [
+    {"class": "ProfileTests", "tests": 15, "seconds": 1.345, "exit": 0, "log_sha256": "89d6bd050aa8af08e8987d7c6c5af1c390ba84d83997e092d21e5a6fd7f2a0b6"},
+    {"class": "NativeSkillProfileTests", "tests": 3, "seconds": 2.137, "exit": 0, "log_sha256": "fdbc6c4abc9a7b2b2d62572c685ccf32a226437410ed3e0395047ebaa9c3bd83"}
+  ],
+  "behavior": [
+    "Installed4 requires one successful concrete native binding before options/accounting hook; instance client factory appears only after success",
+    "Exact query policy and frozen environment bind native runtime; legacy versions keep existing options/environment/receipt shapes",
+    "Actual fixture/skill handlers use immutable PinnedReadOutcomeBroker envelopes and preserve actual FixtureBroker source events",
+    "Pending host observations associate only to an actually observed fresh init UUID; init emits first even if handler ran early, with exact response ID/text correlation",
+    "Receipt4 adds effective_view/read_outcome_proofs/native_input_delivery, preserves raw optional flags and keeps actual reasoning unknown"
+  ],
+  "limitations": [
+    "Actual prepared workspace/options/decorators/handlers and typed SDK messages with engineering binding seam, no SDKClient.connect/native/account/provider",
+    "Profile receipt summaries do not grant input-use/native provenance/provider/comprehension authority; independent checks and full pipeline qualification remain required",
+    "No materializer emits4 and no actual worker route enabled yet; adapter/static verifier prefix unchanged after normalizing source line endings",
+    "Historical versions1/2/3 semantics retained; no old receipt3 error flag rewritten"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-trial-profile4"
+}

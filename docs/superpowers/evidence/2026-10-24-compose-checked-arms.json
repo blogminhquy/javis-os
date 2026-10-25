@@ -1,0 +1,410 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "scope": "Reserved composed-arm policy, actual independent semantic/view/Trial preparation and authenticated historical ownership; engineering only.",
+  "review_base": "564fe905e236fc42e6846f9cb6a64b4e6839b872",
+  "upstream_commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+  "upstream_reuse": "Existing actual compose_round vendor unchanged; adapt output to Javis owners and keep baseline/paired comparator instead of upstream finals-only selection.",
+  "behavior": [
+    "Old closed create request and immutable multiple_tests=2 history unchanged; explicit candidate_policy reserves3 before observations and reconstructs exactly in current checks.",
+    "Budget2 typed3 draft stays readable but cannot bind; reserved3 requires its own exact-diff grant and real typed provenance.",
+    "Actual fresh SemanticReview2/dependency/native product gates produce new exact EffectiveViews, then actual v4 Trial/Call/lease/PREPARED and abort/refund/cleanup; cold typed lineage remains readable after edit-grant revocation.",
+    "Common legacy comparison gate refuses composed baseline before native verification even when no view exists. Actual selector requires new tuning evidence; KEEP_BASE/cold off replay remain available.",
+    "Historical SQL proof authenticates actual consent and separate execution actors, unique creation event/payload/initial result, composition/Operation/Result/Attempt/Call/publication links. It never invents an ordinary owner-request event.",
+    "Actual aggregate on all3 arms applies reserved threshold60 vsold40:8wins1loss11ties yields tail10/512 and numeric inconclusive under3. Business eligibility stays unverified.",
+    "Finite stop/drain scope includes4comparisons16000cells plus preparation2000,6roles and2attempts; these read bounds grant no new work.",
+    "Actual HTTP creation reserves3 without native work; invalid arbitrary budget knob refuses before schema migration."
+  ],
+  "controls": {
+    "native": "Synthetic completed tuning rows, SDK packets, verifier/format selectors, EngineeringOperationBinding and narrow profile_qualification predicate only. Actual product/read/source/view/Trial/Call/M0/Fernet owners remain active. No actual CLI/SDKClient/account/model query or qualification registration.",
+    "shared_source_actor": "Original trusted-host DI before any frozen input permits only actual ownerA/B of the exact brain and delegates actual BrainFileFixtures byte/authority rechecks to the original source owner. This proves the supported host callback contract, not an external shared grant.",
+    "diagnostics": "Intermediate runtime ERROR exposed missing ordinary-owner historical consumer. Default alternate-owner source ERROR correctly refused actor-pinned file access before work; selector empty-claims assumption was a test mistake because released M1 fixture history already had a claim. Corrected tests retain that history. Initial API missing-table fixture error is in chat transcript and was overwritten on retry, so no retained raw hash is claimed."
+  },
+  "source_sha256": {
+    "server/improvement_comparison_links.py": "532b7ae5b40059d8b14a8100da5fcab6a859645fc3464b94124579a14a922eaa",
+    "server/improvement_comparison_plans.py": "4e9d8c7d9b941620bad3f376cfd9f57298426cd74bb41ab38ed23990fcbb82f7",
+    "server/improvement_execution_limits.py": "cd004f5f6ab6d010b96ec364ae91d31c16f7ba2fce1b1d2b015562878a9ae737",
+    "server/improvement_experiment_lineage.py": "f03a72a8421f181215b64f70d5b15127de291cfae7117dc585ac67761e718f94",
+    "server/improvement_experiment_protocol.py": "4190f0139107abc72d8b1d7d54bbe255df375c1936d930345f81b737c514948e",
+    "server/improvement_experiment_requests.py": "645456d14b198c52f9846f3b5af51ca312e9f1c7f809941848568183b1a6ddac",
+    "server/improvement_experiment_service.py": "37be63524b6e21064a431c0686d65117dd25eda8bfc8484bfb44b066b88378fa",
+    "server/improvement_view_protocol.py": "d4078958db236cf2afe8d9ef2b91c9c71797d4db2a665cc8fd4d58dfbcd89147",
+    "tests/python/test_improvement_composed_api.py": "9ff0b5655002bc2717f1a016516139e97c73af61bac8373d718f86365352187e",
+    "tests/python/test_improvement_composed_arms.py": "a48fee4f7f9abfb2d990d29f5197a74fd26f4f7eda9c81b9bf88e7e6438d4e4a",
+    "tests/python/test_improvement_composed_bounds.py": "5f21a8e1b3aa1a5abb176c4a626869e197ec7fad999cec35d8672a3ccb1661ba",
+    "tests/python/test_improvement_composed_protocol.py": "c525ff9d46feb533ba6c1f49d458bc56494a5f6d855fcfc9e42848fc0ee50165",
+    "tests/python/test_improvement_experiment_bounds.py": "dcadab8ba13ee083dfe120ee61de24c86dc8d8f9d06f6a1ec8a5efa7541e0435",
+    "tests/python/test_improvement_view_trial_protocol.py": "69e8095eb36bc7d1c5e599b983975a5f02c2f762b67ff457e8960054acec98a2",
+    "tests/python/test_improvement_views.py": "64dcceaaca621c727f44ff48bed35a94629128f7b88d01fa154dd10096f286cc"
+  },
+  "tdd_and_diagnostics": [
+    {
+      "tests": 3,
+      "passed": 0,
+      "failures": 3,
+      "errors": 0,
+      "unittest_seconds": 0.001,
+      "log": "author-policy-red.log",
+      "sha256": "7248df5402bbc44f3b9c980539d618ffa06ebf3215d2307ea4d33086458963a3"
+    },
+    {
+      "tests": 3,
+      "passed": 3,
+      "failures": 0,
+      "errors": 0,
+      "unittest_seconds": 7.831,
+      "log": "root-policy-green.log",
+      "sha256": "6208cb8d243dcd3fac8ddb169c834e6ab2ad96ed6c656f8206980b84d9d2f470"
+    },
+    {
+      "tests": 2,
+      "passed": 0,
+      "failures": 2,
+      "errors": 0,
+      "unittest_seconds": 0.342,
+      "log": "root-bounds-red.log",
+      "sha256": "e609198d2ac2a48dc18f2040e6a697081b87171ee369884d67469cea606e73a7"
+    },
+    {
+      "tests": 2,
+      "passed": 2,
+      "failures": 0,
+      "errors": 0,
+      "unittest_seconds": 1.039,
+      "log": "root-bounds-green.log",
+      "sha256": "630d4e4ced530cec0861a5afa52d216ac03cbaa9d0bef879724f4b8106b32e32"
+    },
+    {
+      "tests": 4,
+      "passed": 0,
+      "failures": 4,
+      "errors": 0,
+      "unittest_seconds": 0.031,
+      "log": "root-protocol-red-final.log",
+      "sha256": "1ecfa4f76590c1e7685fc107b5cf55f7a355df710d3b34797da36c41f7360f0e"
+    },
+    {
+      "tests": 4,
+      "passed": 3,
+      "failures": 1,
+      "errors": 0,
+      "unittest_seconds": 0.039,
+      "log": "root-protocol-view-red.log",
+      "sha256": "c712009127d12ffb4ee0b9d19d3b22e6156880c345087ce9bb9ef71dca1dc7d6"
+    },
+    {
+      "tests": 4,
+      "passed": 4,
+      "failures": 0,
+      "errors": 0,
+      "unittest_seconds": 0.031,
+      "log": "root-protocol-green.log",
+      "sha256": "315e37f166875ebf0e32f2a8034b1e9e3d8ec4044c115eb3c33e46fdcb69802b"
+    },
+    {
+      "tests": 3,
+      "passed": 0,
+      "failures": 3,
+      "errors": 0,
+      "unittest_seconds": 78.965,
+      "log": "root-async-red.log",
+      "sha256": "557701503a167527147d3bb2a26217713801558b1ac401996f1ead0437508f6d"
+    },
+    {
+      "tests": 3,
+      "passed": 2,
+      "failures": 0,
+      "errors": 1,
+      "unittest_seconds": 96.969,
+      "log": "root-async-lineage-red.log",
+      "sha256": "a7f22f9ffed259209f8a22a80d8da2c3bdef62a7605c00dc824d5c63cfb1a377"
+    },
+    {
+      "tests": 3,
+      "passed": 1,
+      "failures": 2,
+      "errors": 0,
+      "unittest_seconds": 127.544,
+      "log": "root-runtime-select-red.log",
+      "sha256": "d81be017f8cf6a67eefd67ac99be3e9179731c19a70a8bddad67e5ccac91d7e9"
+    },
+    {
+      "tests": 3,
+      "passed": 1,
+      "failures": 1,
+      "errors": 1,
+      "unittest_seconds": 60.384,
+      "log": "root-actor-red-runtime-green.log",
+      "sha256": "7e64a8f4994c70e710e381ff7459bbf78c5addf56f3e5bc6fa273253efd24b89"
+    },
+    {
+      "tests": 1,
+      "passed": 0,
+      "failures": 1,
+      "errors": 0,
+      "unittest_seconds": 25.972,
+      "log": "root-actor-shared-host-red.log",
+      "sha256": "8c9fb11a59ffb34344075a0c2b32daafceab882cf383b0e974657d11fc5d95db"
+    },
+    {
+      "tests": 2,
+      "passed": 2,
+      "failures": 0,
+      "errors": 0,
+      "unittest_seconds": 52.203,
+      "log": "root-actor-selector-green.log",
+      "sha256": "4f836b65b72aa630ed827674c3688929074ff7ee1eae4da63b89a04970a4f0e4"
+    }
+  ],
+  "local_regression": {
+    "scripts": 16,
+    "tests": 137,
+    "passed": 137,
+    "checks": [
+      {
+        "file": "test_improvement_composed_api.py",
+        "exit": 0,
+        "seconds": 4.059,
+        "log": "test_improvement_composed_api-regression.log",
+        "tests": 1,
+        "passed": 1,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 2.82,
+        "sha256": "d057789f20aa6c0be8812701774b6ca65fc55e714d2cc2b93101c76d20cfc45c"
+      },
+      {
+        "file": "test_improvement_composed_protocol.py",
+        "exit": 0,
+        "seconds": 0.487,
+        "log": "test_improvement_composed_protocol-regression.log",
+        "tests": 4,
+        "passed": 4,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 0.026,
+        "sha256": "075a29fb5d65e55fafd96903826d1bb39d95cd253ac3037575f33db41dc3269c"
+      },
+      {
+        "file": "test_improvement_composed_bounds.py",
+        "exit": 0,
+        "seconds": 1.687,
+        "log": "test_improvement_composed_bounds-regression.log",
+        "tests": 2,
+        "passed": 2,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 1.037,
+        "sha256": "afbc4c7b21d3f916f213f94c43d3c8da3d99e20f44a19d7c7db3860ee546998b"
+      },
+      {
+        "file": "test_improvement_comparison_plans.py",
+        "exit": 0,
+        "seconds": 63.305,
+        "log": "test_improvement_comparison_plans-regression.log",
+        "tests": 24,
+        "passed": 24,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 62.65,
+        "sha256": "2be1189740b003dd5c01cd8ddd15a5c7dee6bdc126d53d089b255b2bd7c78487"
+      },
+      {
+        "file": "test_improvement_experiment_protocol.py",
+        "exit": 0,
+        "seconds": 0.229,
+        "log": "test_improvement_experiment_protocol-regression.log",
+        "tests": 4,
+        "passed": 4,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 0.002,
+        "sha256": "a8ac72ad1f235cfdbd9ea927672473f64c438204a3578c1c044a6ea32efa5ed6"
+      },
+      {
+        "file": "test_improvement_comparison_results.py",
+        "exit": 0,
+        "seconds": 0.438,
+        "log": "test_improvement_comparison_results-regression.log",
+        "tests": 19,
+        "passed": 19,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 0.192,
+        "sha256": "c67b4c248d8352cc41606c07d8fdb2a026c7f5cfb106216dfa39a4f0db88df64"
+      },
+      {
+        "file": "test_improvement_experiment_lineage.py",
+        "exit": 0,
+        "seconds": 64.875,
+        "log": "test_improvement_experiment_lineage-regression.log",
+        "tests": 18,
+        "passed": 18,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 64.193,
+        "sha256": "089b237a10d173fb6dfa34994b1d467b9af4255db8fe92033e4b2c85c73900da"
+      },
+      {
+        "file": "test_improvement_experiment_selection.py",
+        "exit": 0,
+        "seconds": 51.465,
+        "log": "test_improvement_experiment_selection-regression.log",
+        "tests": 11,
+        "passed": 11,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 50.756,
+        "sha256": "acacf840ad33e252e22c43a35e2aedd44ff9225ddf6e1f12926e241d5bbad1c3"
+      },
+      {
+        "file": "test_improvement_experiment_bounds.py",
+        "exit": 0,
+        "seconds": 3.989,
+        "log": "test_improvement_experiment_bounds-regression.log",
+        "tests": 5,
+        "passed": 5,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 3.139,
+        "sha256": "d428af2a98108e65e341153184ab0dc5e75cf39105d9d1cdf043c03a81448457"
+      },
+      {
+        "file": "test_improvement_experiment_api.py",
+        "exit": 0,
+        "seconds": 18.443,
+        "log": "test_improvement_experiment_api-regression.log",
+        "tests": 5,
+        "passed": 5,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 17.208,
+        "sha256": "9436267bd4e3ac7db90768df20d940d933ff78149034d684135c3341cf843e0e"
+      },
+      {
+        "file": "test_improvement_views.py",
+        "exit": 0,
+        "seconds": 0.232,
+        "log": "test_improvement_views-regression.log",
+        "tests": 11,
+        "passed": 11,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 0.012,
+        "sha256": "1bde9f50901259791f8f3012fa149f8c2faa3f377be5ee086997c01b14354540"
+      },
+      {
+        "file": "test_improvement_view_admission.py",
+        "exit": 0,
+        "seconds": 44.642,
+        "log": "test_improvement_view_admission-regression.log",
+        "tests": 4,
+        "passed": 4,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 43.772,
+        "sha256": "2b4dfbec640392ecf6c8160367ba372430b7672327f080bfe0417752c10dfac6"
+      },
+      {
+        "file": "test_improvement_view_lineage.py",
+        "exit": 0,
+        "seconds": 87.791,
+        "log": "test_improvement_view_lineage-regression.log",
+        "tests": 7,
+        "passed": 7,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 86.902,
+        "sha256": "92e1d6750136bf54a11b56de0571f06edccbf30f441d3ccb7c60ac96c8a714db"
+      },
+      {
+        "file": "test_improvement_view_qualification.py",
+        "exit": 0,
+        "seconds": 60.765,
+        "log": "test_improvement_view_qualification-regression.log",
+        "tests": 5,
+        "passed": 5,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 59.955,
+        "sha256": "848814521823878d743f8aa4ed7fb90bb869468b5d5973f6f011e905fe153d9d"
+      },
+      {
+        "file": "test_improvement_operation_worker.py",
+        "exit": 0,
+        "seconds": 3.216,
+        "log": "test_improvement_operation_worker-regression.log",
+        "tests": 11,
+        "passed": 11,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 2.496,
+        "sha256": "ed17638b822439bc5bbe3d5975a82890c383198e37ac8259c9201cd99d6eac90"
+      },
+      {
+        "tests": 6,
+        "passed": 6,
+        "failures": 0,
+        "errors": 0,
+        "unittest_seconds": 0.022,
+        "log": "root-view-trial-protocol-green.log",
+        "sha256": "104f0186648dbea2e275c6650ee89cab20966ba891389df19b7078ef8a1a0546"
+      }
+    ]
+  },
+  "independent_review": {
+    "decision": "clean_scoped_no_open_P0_P1_P2",
+    "findings": [],
+    "closed_findings": [
+      {
+        "id": "compose_actor_consistency",
+        "status": "confirmed_closed",
+        "file": "server/improvement_experiment_lineage.py",
+        "line": 146,
+        "description": "Consent actor is authenticated against the immutable authorization. Publication actor is separately authenticated against the unique exact operation_create event, preserving existing trusted same-brain owner semantics.",
+        "reproduction": "The independent same-brain owner test creates consent as owner A and publishes as owner B through the original trusted-host shared-source callback DI installed before context freezing; actual source byte observer/rechecks remain active. _composed_owner accepts the resulting actual chain and rejects a tampered Call mirror_ref.",
+        "test": "test_same_brain_owner_publisher_has_consistent_actual_compose_actor_lineage",
+        "evidence": "composed-arms.log",
+        "qualification": "Synthetic control only; no external owner grant or native/business qualification claim."
+      }
+    ],
+    "tests": 15,
+    "passed": 15,
+    "pin_count": 15,
+    "pins_stable": true,
+    "report_sha256": "4aab1d8d7af57c4216e478e8c1dc9d6de4228ccdc561a5e1f58ffd81958a0eee"
+  },
+  "early_linux": {
+    "run_id": 40064018472,
+    "job_id": 120783344859,
+    "conclusion": "success",
+    "url": "https://github.com/blogminhquy/javis-os/actions/runs/40064018472",
+    "snapshot": "a3934037bc0e5442cf2aa4005a60eae1e2a49549",
+    "base": "564fe905e236fc42e6846f9cb6a64b4e6839b872",
+    "scripts": 17,
+    "tests": 145,
+    "passed": 145,
+    "exact_selected_pins": 15,
+    "workflow_sha256": "4452913b760177082230bda2d20ff4a7b9dc1d501b600e1d29d303135df15152",
+    "log_sha256": "3454b6ff5460a6fba897c51e3170167bb9f6e87aaaa1a03f957279e17a466dab",
+    "not_final_task_head_full_required_ci": true
+  },
+  "native_source_inventory": {
+    "method": "AST-only source inventory, no runtime/native/profile qualification",
+    "sources": 95,
+    "profile_hash": "70f584395f5d91cf9d265c712178dfe420d9db8e9cc41f7808b9afc9075769cb",
+    "qualified": false,
+    "protected_actual_309_test_sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0",
+    "protected_test_unchanged": true
+  },
+  "open_gates": [
+    "Owned compose facade/API/operator consent and revoke UI",
+    "Fully qualified selected-final execution and native qualification",
+    "Same-pipeline localhost dummy qualification",
+    "Exact final task-head full required CI and fresh whole-branch review",
+    "Actual upstream experience library and remaining M0-M8 code",
+    "All Phase2 actual account/model/business/pilot/canary/authorized rollout"
+  ],
+  "business_proof": false,
+  "activation_or_deploy": false
+}

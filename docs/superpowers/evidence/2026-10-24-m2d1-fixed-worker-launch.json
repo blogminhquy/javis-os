@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "label": "standalone/atomic-fixed-worker-creation",
+  "evidence_class": "technical",
+  "source_parent_commit": "57fea085",
+  "production_reachable": false,
+  "source_hashes": {
+    "server/improvement_fixed_worker_launch.py": "672d55e8247f5fcb42574889fa20a7928cb8c93b1a8693ebd8e5bdcd7fb2edb0",
+    "tests/python/test_improvement_fixed_worker_launch.py": "0624ea4dcfc210a0f53bbc8375e3623fac112d8e8d400529489ec5eee555845f"
+  },
+  "dependency_hashes": {
+    "server/improvement_native_bootstrap.py": "7d1a69f0f950d8080fe30b89f1be9b3403b4781a31ba73100c0318111d8142ef",
+    "server/improvement_native_image.py": "4fc9654ac7ad255fcf65f37823380d64c4199b567189453f30b95333d4d0640f",
+    "server/improvement_native_capture_win32.py": "54dd2ed75e6406c93d2765ff1f72716194382199863e71dbbdc183319984f793"
+  },
+  "test_command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_fixed_worker_launch.py -v",
+  "test_command_sha256": "00b65f18b272cb4ae54ad9b32160127e69fe948f121e6df64e22d161c8c007ff",
+  "environment": "Windows x64 / repository Python312 venv; fixed plain-base Python stub, private pipes and empty scratch environment",
+  "author_runs": [
+    {"stage": "source_absent_red", "collected": 11, "failures": 10, "skipped": 1, "seconds": 0.009, "log_sha256": "d6062dbc7d9e2cca6d730b38344bc9aeceaceded8f3b9edf4d9118135300b59a"},
+    {"stage": "fixture_debug_drain_assumptions_failed", "collected": 13, "failures": 5, "errors": 10, "skipped": 1, "seconds": 1.567, "log_sha256": "5eb7c444b4f2000671b910024e818d3f8e31444867cddc7242e4f9f2a9ba4393"},
+    {"stage": "fixture_numeric_handle_identity_failed", "collected": 13, "failures": 1, "skipped": 1, "seconds": 1.482, "log_sha256": "219e387f0e91f2453a54796f22ddfa56593c21a58e60fa66ac2b7fd5c0c982e1"},
+    {"stage": "native_create_success_interruption_red", "tests": 1, "failures": 1, "seconds": 0.193, "log_sha256": "1f012866138a68360d66c7477c075043a855bcff514267bf8dde9db11b33c460"},
+    {"stage": "historical_green3_not_final_approval", "collected": 14, "passed": 13, "skipped": 1, "seconds": 1.647, "log_sha256": "aaa69dc94ff5b8ebc8f23f1adaab25a5bbbde2dac87e3f00e3ca877204ced8f4"},
+    {"stage": "duplicate_attribute_acquisition_interruption_red", "tests": 2, "failures": 2, "seconds": 0.453, "log_sha256": "da57328af8c69bde709edcad1622855d24aeb76f7ceda036ea589b394487ddf4"},
+    {"stage": "historical_green4_not_final_approval", "collected": 16, "passed": 15, "skipped": 1, "seconds": 1.876, "log_sha256": "8b1c341dfb676043d18a4022c2aef215bcd85c6bad5aa1290be38603a16b085b"},
+    {"stage": "successful_close_then_oserror_red", "tests": 1, "failures": 1, "seconds": 0.207, "log_sha256": "ecaf95ac8a5ad01fc3ec4329171a13a21c94c539cd3a14130040e58ccbabcb7c"},
+    {"stage": "final_green5", "collected": 17, "passed": 16, "skipped": 1, "exit_code": 0, "seconds": 2.033, "log_sha256": "d759ac4a28193182c992d245979ef470cd2f4f9ae29cb97c122b3496feafeadc"}
+  ],
+  "independent_review": {
+    "verdict": "standalone_scoped_approval",
+    "collected": 17,
+    "passed": 16,
+    "skipped": 1,
+    "exit_code": 0,
+    "seconds": 2.098,
+    "source_test_dependency_hashes_unchanged": true,
+    "log_sha256": "e2faa4fca1892d21c8989612b4fd4cbfab7e457008544ff9195ca1ade1d89fd0"
+  },
+  "tested": [
+    "Actual JOB_LIST membership before first resume; fixed trial/operation bootstrap path with direct-base -I -S -B command and minimal scratch environment.",
+    "Exactly three dedicated inherited stdio PIPE capabilities, restricted job policy and declared source/runtime drift refusal.",
+    "Preowned DuplicateHandle output slots, attached attribute storage and raw PROCESS_INFORMATION remain adopted after native success followed by Python interruption.",
+    "Actual protected-handle CloseHandle FALSE remains retryable after protection is cleared; generic post-success OSError remains unknown and never retries a stale numeric handle.",
+    "Inert stub marker plus actual CREATE/EXIT continuation and retained root signal in the test consumer. Factory itself never resumes or drains descendants."
+  ],
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-fixed-worker-launch",
+  "author_ledger_sha256": "6bdcea62fc5c124717704b53a82b64968751125f6655086070587375bf0961c4",
+  "selected_cli_or_account_calls": 0,
+  "sdk_or_provider_calls": 0,
+  "limits": [
+    "The caller authenticates completeness and authority of the declared bootstrap/runtime/import manifest. Hashes alone confer no authority.",
+    "This is an inert fixed-name engineering stub, not actual SDK worker/bootstrap qualification or initial loaded-section proof.",
+    "Original stdio capabilities are borrowed; the guardian consumer must seal every original copy before host private input. temporary_duplicates_closed covers factory copies only.",
+    "Factory close requires root signal only. Whole debug/job/descendant drain, transfer adoption, host death and recovery fences remain guardian-consumer responsibilities.",
+    "Ambiguous Initialize/Delete/close outcomes retain an unproven owner and forbid blind retry; green negative controls do not prove unknown resources closed.",
+    "No execution consumer, runtime registration or historical evidence upgrade. Final-head CI, whole changed native boundary, all18 checks and business/live gates remain required."
+  ],
+  "goal_complete": false
+}

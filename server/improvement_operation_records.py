@@ -68,7 +68,8 @@ class OperationRecords:
             return replay
         row = self.experiments._row(connection, brain, request["experiment_id"])
         self.experiments._public(row)
-        phases = ("proposing", "probing", "comparing") if request["kind"] == "semantic" else ("proposing",)
+        phases = (("proposing", "probing", "comparing") if request["kind"] == "semantic"
+                  else ("probing", "comparing") if request["kind"] == "compose" else ("proposing",))
         if (row["generation"] != expected_generation or row["phase"] not in phases
                 or row["context_id"] != request["context_id"] or row["definition_hash"] != request["definition_hash"]):
             raise IM.ConflictError("experiment_state_stale")
@@ -77,7 +78,10 @@ class OperationRecords:
             raise IM.ConflictError("experiment_sealed")
         value = definition(json.loads(row["definition_json"]))
         self.experiments._bound_in(connection, brain, value, value["context_generation"])
-        if request["kind"] == "semantic":
+        if request["kind"] == "compose":
+            from improvement_compose_permissions import operation_permission
+            operation_permission(connection, self.assets, principal, request)
+        elif request["kind"] == "semantic":
             candidate = connection.execute("SELECT 1 FROM improvement_skill_candidates WHERE id=? AND brain_id=? "
                 "AND experiment_id=? AND context_id=?", (request["candidate_id"], brain, row["id"], row["context_id"])).fetchone()
             if candidate is None:
@@ -101,6 +105,8 @@ class OperationRecords:
         saved = connection.execute("SELECT * FROM improvement_operations WHERE id=? AND brain_id=?", (identifier, brain)).fetchone()
         result = self._public(saved)
         self.assets._event(connection, principal, event_key, "operation_create", payload, result)
+        if request["kind"] == "compose":
+            operation_permission(connection, self.assets, principal, request, operation=saved)
         return result
 
     def _reserve_attempt_in(self, connection, principal, identifier, *, expected_generation, event_key):
@@ -122,7 +128,8 @@ class OperationRecords:
             raise IM.ConflictError("operation_state_stale")
         experiment = self.experiments._row(connection, brain, row["experiment_id"])
         self.experiments._public(experiment)
-        phases = ("proposing", "probing", "comparing") if row["kind"] == "semantic" else ("proposing",)
+        phases = (("proposing", "probing", "comparing") if row["kind"] == "semantic"
+                  else ("probing", "comparing") if row["kind"] == "compose" else ("proposing",))
         value = definition(json.loads(experiment["definition_json"]))
         request = operation_request(json.loads(row["request_json"]))
         if (experiment["phase"] not in phases or experiment["context_id"] != row["context_id"]
@@ -132,6 +139,9 @@ class OperationRecords:
                               (experiment["id"], brain)).fetchone():
             raise IM.ConflictError("experiment_sealed")
         self.experiments._bound_in(connection, brain, value, value["context_generation"])
+        if row["kind"] == "compose":
+            from improvement_compose_permissions import operation_permission
+            operation_permission(connection, self.assets, principal, request, operation=row)
         execution_id = "improvement_operation:" + identifier
         stamp = time.time()
         call = CallLedger(self.store).reserve(purpose=row["purpose"], reason_ref=execution_id + ":attempt:1",

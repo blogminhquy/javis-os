@@ -123,6 +123,50 @@ class OperationRunnerTests(unittest.IsolatedAsyncioTestCase):
     def path(self):
         return self.execution.workspace._paths(self.row["operation_id"], 1)[0]
 
+    async def test_cancelled_verification_retains_execution_until_thread_settles(self):
+        entered, release = threading.Event(), threading.Event()
+        runner = self.runner()
+        original_factory = runner.adapter_factory
+
+        def factory(*args, **kwargs):
+            adapter = original_factory(*args, **kwargs)
+            original = adapter.verify
+
+            def blocked():
+                entered.set()
+                if not release.wait(15):
+                    raise RuntimeError("synthetic verification barrier expired")
+                return original()
+
+            adapter.verify = blocked
+            return adapter
+
+        runner.adapter_factory = factory
+        task = asyncio.create_task(runner.run(self.owner, self.row["operation_id"]))
+        try:
+            self.assertTrue(await asyncio.to_thread(entered.wait, 15))
+            task.cancel()
+            await asyncio.sleep(.05)
+            task.cancel()
+            await asyncio.wait((task,), timeout=1)
+            self.assertFalse(task.done(), "verification escaped its owned execution")
+            other = self.execution.workspace.brain_barrier.acquire_brain_execution(self.owner.brain_id)
+            try:
+                self.assertIsNone(other, "verification released its brain lifetime early")
+            finally:
+                if other is not None:
+                    other.close()
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertFalse(self.acked.is_set())
+        result = self.execution.get(self.owner, self.row["operation_id"])
+        call = self.execution.ledger.get(result["attempts"][-1]["call_id"])
+        self.assertIsNone(call["engine_at"])
+        self.assertEqual(call["status"], "refunded")
+
     async def test_actual_worker_profile_runner_retains_unknown_result_and_cleans_plaintext(self):
         result = await self.runner().run(self.owner, self.row["operation_id"])
         self.assertEqual(result["status"], "completed")

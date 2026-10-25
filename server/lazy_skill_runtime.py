@@ -1,7 +1,10 @@
 """Manifest-only SkillSource and exact lazy body loader for Phase 8."""
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+import sqlite3
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +16,25 @@ from context_compiler import ContextItem, HeuristicTokenizer
 SKILL_SOURCE_POLICY_VERSION = "lazy-skill-source-v2"
 _TOKEN_RE = re.compile(r"[a-z0-9]{2,}")
 _EXPLICIT_RE = re.compile(r"\b(skill|kỹ năng|quy trình|workflow|dùng .* để|use .* to)\b", re.IGNORECASE)
+
+
+def _task_candidates(brain, manifests):
+    """Private frozen projection; never replace the brain-global registry source."""
+    from capability_registry import brain_scope
+    source = brain_scope(brain) + ':skill:brain-skills'
+    result = []
+    for manifest in manifests:
+        slug = manifest['slug']
+        name = str(manifest['name'] or slug).strip()[:180]
+        summary = str(manifest['description'] or name).strip()[:2000]
+        group = str(manifest['group'] or 'Chung').strip()[:120]
+        payload = {'slug': slug, 'name': name, 'summary': summary, 'group': group,
+            'path': manifest['relative_path'], 'frontmatter_hash': manifest['frontmatter_hash']}
+        digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        result.append({'capability_id': 'skill_' + hashlib.sha256((source + '|' + slug).encode()).hexdigest()[:24],
+            'name': slug, 'aliases': list(dict.fromkeys((slug, name, group))), 'summary': summary,
+            'kind': 'skill', 'capability_revision': digest, 'metadata': payload, '_task_manifest': manifest})
+    return result
 
 
 def _norm(value: str) -> str:
@@ -78,17 +100,38 @@ class LazySkillSource:
     def resolve(self, brain: str | Path, query: str, min_score: float = 0.24,
                 ambiguity_margin: float = 0.08, max_body_chars: int = 12000,
                 lang: str = "") -> SkillSelection:
-        self.refresh(brain, lang)
-        key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
-        if self._incomplete.get(key, 0):
+        from improvement_task_skill_scope import current, ScopeUnavailable
+        from improvement_blobs import AssetUnavailable
+        try:
+            # Unbound returns None without I/O; any error here comes from a bound (maybe dead) scope.
+            scope = current(brain)
+        except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
+            return SkillSelection('none', 'task_scope_unavailable')
+        if scope is not None:
+            try:
+                manifests = scope.manifests(lang)
+                revision = hashlib.sha256(json.dumps({'scope': scope.registry_revision, 'lang': str(lang or ''),
+                    'manifests': manifests}, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                incomplete = any(not str(item['description'] or '').strip() for item in manifests)
+                candidates = _task_candidates(brain, manifests)
+            except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
+                # AdaptiveContext treats exceptions/fallback as permission to restore
+                # its legacy router. A dead bound owner must suppress that fallback.
+                return SkillSelection('none', 'task_scope_unavailable')
+        else:
+            # Unbound: a registry error still propagates, so the caller keeps the legacy router.
+            self.refresh(brain, lang)
+            key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
+            incomplete = self._incomplete.get(key, 0)
+            revision = self.registry.revision(brain)
+            candidates = [x for x in self.registry.search(query, brain, 40)
+                          if str(x.get("kind") or "") == "skill"]
+        if incomplete:
             return SkillSelection(
-                "fallback", "manifest_incomplete", registry_revision=self.registry.revision(brain)
+                "fallback", "manifest_incomplete", registry_revision=revision
             )
-        candidates = [x for x in self.registry.search(query, brain, 40)
-                      if str(x.get("kind") or "") == "skill"]
         ranked = sorted(((self._score(query, x), x) for x in candidates),
                         key=lambda pair: (-pair[0], pair[1]["capability_id"]))
-        revision = self.registry.revision(brain)
         if not ranked:
             # No relevant skill is a valid lazy outcome, unless user explicitly asked
             # for one: then old router must remain the fallback.
@@ -108,23 +151,28 @@ class LazySkillSource:
                                   runner_up_score=runner, registry_revision=revision)
 
         slug = str((top.get("metadata") or {}).get("slug") or top.get("name") or "")
-        asset = skill_router.read_skill_asset(brain, slug)
+        try:
+            asset = (scope.read(slug, expected_manifest=top['_task_manifest']) if scope is not None
+                else skill_router.read_skill_asset(brain, slug))
+        except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
+            return SkillSelection('none', 'task_scope_unavailable', top['capability_id'], slug,
+                top_score, runner, revision)
         if asset is None:
-            return SkillSelection("fallback", "source_unreadable", top["capability_id"], slug,
+            return SkillSelection("none" if scope is not None else "fallback", "source_unreadable", top["capability_id"], slug,
                                   top_score, runner, revision)
         selected_meta = top.get("metadata") or {}
         if (asset.relative_path != selected_meta.get("path")
                 or asset.frontmatter_hash != selected_meta.get("frontmatter_hash")):
-            return SkillSelection("fallback", "source_manifest_changed", top["capability_id"], slug,
+            return SkillSelection("none" if scope is not None else "fallback", "source_manifest_changed", top["capability_id"], slug,
                                   top_score, runner, revision)
         raw = asset.text
         if not raw.strip() or len(raw) > max(1000, int(max_body_chars)):
-            return SkillSelection("fallback", "body_over_limit", top["capability_id"], slug,
+            return SkillSelection("none" if scope is not None else "fallback", "body_over_limit", top["capability_id"], slug,
                                   top_score, runner, revision)
         _meta, body = skill_router.split_frontmatter(raw)
         body = body.strip()
         if not body:
-            return SkillSelection("fallback", "body_empty", top["capability_id"], slug,
+            return SkillSelection("none" if scope is not None else "fallback", "body_empty", top["capability_id"], slug,
                                   top_score, runner, revision)
         relative = asset.relative_path
         source_hash = asset.content_hash
@@ -139,7 +187,9 @@ class LazySkillSource:
             relevance=top_score, confidence=top_score, authority=0.92, freshness=1.0,
             required=False, trust="local_skill",
             metadata={"slug": slug, "capability_revision": top.get("capability_revision") or "",
-                      "policy_version": SKILL_SOURCE_POLICY_VERSION},
+                      "policy_version": SKILL_SOURCE_POLICY_VERSION,
+                      **({'task_scope_hash': scope.scope_hash, 'task_inventory_hash': scope.inventory_hash}
+                          if scope is not None else {})},
         )
         return SkillSelection("load", "selected", top["capability_id"], slug,
                               round(top_score, 6), round(runner, 6), revision, item)

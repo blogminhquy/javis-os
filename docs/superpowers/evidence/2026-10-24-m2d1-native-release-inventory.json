@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "status": "scoped_independent_approval_registry_empty",
+  "pins": {
+    "server/improvement_native_release.py": "cbb87f23ade64bbc57bff73a9bcfb5e2fdaf5165e24df90925d0fc006c3ba3ab",
+    "server/improvement_native_qualifications.py": "95bd8a174ad83d31c2f7018675b309109c741b9b48932bdde7cebe0eb5d74f89",
+    "tests/python/test_improvement_native_release.py": "1caef760cef433f7fe28af4bfc8b2e7e4a247d5d084345156c878aacaa30153a"
+  },
+  "author": {
+    "tests": 10,
+    "seconds": 2.48,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release/green-ten.log",
+    "log_sha256": "431eba38718ac433de4a7567ff95309d3e1024702455ae523cda01f8d7beeb41"
+  },
+  "independent": {
+    "tests": 10,
+    "seconds": 2.507,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release/review-independent10.log",
+    "log_sha256": "f8d5046f11f80258a46f9147c8a0a9adcbe36189e9d2723be828990246cba0da"
+  },
+  "review": {
+    "reviewer": "immutable_skill_broker_component",
+    "open_scoped_findings": 0,
+    "report_sha256": "bb551e4fd4f86e6ed5269f8e191624beec18aac493a98e6bba743b7dd486af04"
+  },
+  "behavior": [
+    "Hash installed declared source/runtime/import closure and RECORD/METADATA bytes without launching CLI or executing discovered code",
+    "Resolve active Windows metadata dependencies and verify actual bytes/size against RECORD; reject path escape/collision/missing dependencies",
+    "Reject parsed RECORD or METADATA mutation between interpretation and pinned bytes",
+    "External exact reviewed release registration is mandatory before launch observation; registry is empty and excluded from its own fingerprint"
+  ],
+  "limits": [
+    "Fixture package closure plus genuine base executable/DLL file handles; full installed default closure has not yet been observed",
+    "No import sandbox, loaded sections, provider, account, native full-pipeline qualification or release activation proof"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release"
+}

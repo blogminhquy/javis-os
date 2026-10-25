@@ -1,0 +1,761 @@
+{
+  "version": 1,
+  "evidence_class": "technical/design-only",
+  "source_base_commit": "f131d95825a26c96895c97249bf529e9c7cc97c6",
+  "selected_account_calls": 0,
+  "native_claude_calls": 0,
+  "installed_runtime_mutations": 0,
+  "business_proof": false,
+  "launch_binding_qualified": false,
+  "raw_report_sha256": {
+    "launch-file-probes.json": "6eec316626dd1747075696cdbfe037b86f1dd47ce6fb7de203c8b12b2f092e0c",
+    "launch-reparse-probes.json": "489bb5e7ade8bcad70c721631f009bff87a81aea7a4018680633d98298e8d2c5",
+    "directory-guard-probes.json": "84f4e2c878e594039a85b7dcb76da9ce69af5d6a7e984b7e1ca892d59b640ec8",
+    "suspended-anyio-v2-probes.json": "6adb4d658bf902614a3ea96bcb66c8d752beb5200cf16f1ceb45bfced225336e",
+    "attribute-reparse-probes.json": "826beea74dbf11d4f1f9e51c2c6569f195cd852a2646df9b2c32ec65b254b4a8",
+    "suspended-anyio-fixture-diagnosis.json": "59c7a9d0a55a83c2327f97492c86e9f676517c1fdf1e1d4c29864fb41018ccc6"
+  },
+  "driver_sha256": {
+    "probe_launch_files.py": "4ff7593972f5933f55a768646782bfe601eea726c8f27a4c71ee4fea967468ca",
+    "probe_launch_reparse.py": "066b2280f7149998dbd3d7ad0f70c01f6ef39619025e664d18a7084123e27107",
+    "probe_directory_guards.py": "195e546907c05e2d88e314abf68ca2f8736c6241b9ec1ca9fe94a033d63a3012",
+    "probe_suspended_anyio.py": "32e1152958a0abba96f97202d1c40145d273ca879b8f7beefa25e28cf90f5f42",
+    "probe_suspended_anyio_v2.py": "6f0d35582432230ab5c8c3eeb0de63b610f3cb51befb990cb42d83a434706e44",
+    "probe_attribute_reparse.py": "4e789f2d1d2a66d988849fe9fbb74fb2330a20767d117536c61b3e6e175dad50",
+    "diagnose_suspended_fixture.py": "d0c1b55cec33274919aeb85b5b02be2f977c8531581c68684b99443a7414f6fb"
+  },
+  "observations": {
+    "launch-file-probes.json": {
+      "version": 1,
+      "label": "design-only/workspace-owned-inert-files",
+      "platform": "Windows-11-10.0.26300-SP0",
+      "selected_account_calls": 0,
+      "native_cli_calls": 0,
+      "installed_runtime_mutations": 0,
+      "rows": [
+        {
+          "case": "leaf-write",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": null,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "leaf-write-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "leaf-truncate",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": null,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "leaf-truncate-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "leaf-delete",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "leaf-delete-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "leaf-replace",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "leaf-replace-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "preexisting-writer",
+          "guard_acquisition": {
+            "outcome": "denied",
+            "winerror": 32
+          }
+        },
+        {
+          "case": "preexisting-writer-released",
+          "guard_acquisition": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "preexisting-mapping-only",
+          "guard_acquisition": {
+            "outcome": "denied",
+            "winerror": 32
+          }
+        },
+        {
+          "case": "preexisting-mapping-only-released",
+          "guard_acquisition": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "preexisting-mapping-and-view",
+          "guard_acquisition": {
+            "outcome": "denied",
+            "winerror": 32
+          }
+        },
+        {
+          "case": "preexisting-mapping-and-view-released",
+          "guard_acquisition": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "preexisting-view-only",
+          "guard_acquisition": {
+            "outcome": "denied",
+            "winerror": 32
+          }
+        },
+        {
+          "case": "preexisting-view-only-released",
+          "guard_acquisition": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "ancestor-False-parent-rename",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "ancestor-False-parent-rename-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "ancestor-False-parent-rename-posix",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "ancestor-False-parent-rename-posix-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "ancestor-False-grandparent-rename",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "ancestor-False-grandparent-rename-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "ancestor-False-grandparent-rename-posix",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "ancestor-False-grandparent-rename-posix-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "ancestor-True-parent-rename",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "ancestor-True-parent-rename-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "ancestor-True-parent-rename-posix",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "ancestor-True-parent-rename-posix-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "ancestor-True-grandparent-rename",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "ancestor-True-grandparent-rename-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "ancestor-True-grandparent-rename-posix",
+          "while_held": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_bytes_unchanged": true
+        },
+        {
+          "case": "ancestor-True-grandparent-rename-posix-released",
+          "after_release": {
+            "outcome": "succeeded"
+          }
+        }
+      ],
+      "constraints": [
+        "No production guard implemented. This probe tests only this Windows filesystem.",
+        "Copied where.exe is never executed in this file-sharing unit.",
+        "All child mutation paths are confined to the unique scratch root; histories remain preserved."
+      ],
+      "complete": true,
+      "source_copy_sha256": "f51fab8041e5023d7290b540a2106f051ef0bd2bc3443c9daf318628b560fa29",
+      "probe_script_sha256": "4ff7593972f5933f55a768646782bfe601eea726c8f27a4c71ee4fea967468ca"
+    },
+    "launch-reparse-probes.json": {
+      "version": 1,
+      "label": "design-only/owned-file-reparse-and-posix-controls",
+      "platform": "Windows-11-10.0.26300-SP0",
+      "filesystem": "NTFS",
+      "filesystem_flags": 65482495,
+      "selected_account_calls": 0,
+      "native_cli_calls": 0,
+      "rows": [
+        {
+          "case": "existing-held-destination-share1-flags1",
+          "replace": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_original_unchanged": true,
+          "named_bytes": "OLD"
+        },
+        {
+          "case": "replacement-released-share1-flags1",
+          "replace": {
+            "outcome": "succeeded",
+            "value": null
+          },
+          "named_bytes": "NEW"
+        },
+        {
+          "case": "existing-held-destination-share1-flags3",
+          "replace": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          },
+          "held_original_unchanged": true,
+          "named_bytes": "OLD"
+        },
+        {
+          "case": "replacement-released-share1-flags3",
+          "replace": {
+            "outcome": "succeeded",
+            "value": null
+          },
+          "named_bytes": "NEW"
+        },
+        {
+          "case": "existing-held-destination-share5-flags1",
+          "replace": {
+            "outcome": "denied",
+            "winerror": 5,
+            "errno": 13
+          },
+          "held_original_unchanged": true,
+          "named_bytes": "OLD"
+        },
+        {
+          "case": "replacement-released-share5-flags1",
+          "replace": {
+            "outcome": "succeeded",
+            "value": null
+          },
+          "named_bytes": "NEW"
+        },
+        {
+          "case": "existing-held-destination-share5-flags3",
+          "replace": {
+            "outcome": "succeeded",
+            "value": null
+          },
+          "held_original_unchanged": true,
+          "named_bytes": "NEW"
+        },
+        {
+          "case": "hardlink-write",
+          "mutation": {
+            "outcome": "denied",
+            "winerror": null,
+            "errno": 13
+          },
+          "selected_bytes_unchanged": true,
+          "path_selected_bytes": "OLD"
+        },
+        {
+          "case": "hardlink-replace",
+          "mutation": {
+            "outcome": "succeeded",
+            "value": null
+          },
+          "selected_bytes_unchanged": true,
+          "path_selected_bytes": "OLD"
+        },
+        {
+          "case": "preexisting-readonly",
+          "guard_acquired": true,
+          "disk_bytes_unchanged": true
+        },
+        {
+          "case": "preexisting-copy-on-write",
+          "guard_acquired": true,
+          "disk_bytes_unchanged": true
+        },
+        {
+          "case": "junction-False-False",
+          "set_reparse": {
+            "outcome": "denied",
+            "winerror": 145,
+            "errno": 41
+          },
+          "held_bytes_unchanged": true,
+          "named_bytes": "ORIGINAL",
+          "parent_is_junction": false
+        },
+        {
+          "case": "junction-False-False-restored",
+          "original_restored": true,
+          "parent_is_junction": false
+        },
+        {
+          "case": "junction-False-True",
+          "set_reparse": {
+            "outcome": "denied",
+            "winerror": 145,
+            "errno": 41
+          },
+          "held_bytes_unchanged": true,
+          "named_bytes": "ORIGINAL",
+          "parent_is_junction": false
+        },
+        {
+          "case": "junction-False-True-restored",
+          "original_restored": true,
+          "parent_is_junction": false
+        },
+        {
+          "case": "junction-True-False",
+          "set_reparse": {
+            "outcome": "denied",
+            "winerror": 145,
+            "errno": 41
+          },
+          "held_bytes_unchanged": true,
+          "named_bytes": "ORIGINAL",
+          "parent_is_junction": false
+        },
+        {
+          "case": "junction-True-False-restored",
+          "original_restored": true,
+          "parent_is_junction": false
+        },
+        {
+          "case": "junction-True-True",
+          "set_reparse": {
+            "outcome": "denied",
+            "winerror": 145,
+            "errno": 41
+          },
+          "held_bytes_unchanged": true,
+          "named_bytes": "ORIGINAL",
+          "parent_is_junction": false
+        },
+        {
+          "case": "junction-True-True-restored",
+          "original_restored": true,
+          "parent_is_junction": false
+        },
+        {
+          "case": "directory-guard-existing-write",
+          "acquisition": {
+            "outcome": "succeeded",
+            "value": null
+          }
+        },
+        {
+          "case": "directory-guard-existing-write-released",
+          "acquisition": {
+            "outcome": "succeeded",
+            "value": null
+          }
+        },
+        {
+          "case": "directory-guard-existing-delete",
+          "acquisition": {
+            "outcome": "succeeded",
+            "value": null
+          }
+        },
+        {
+          "case": "directory-guard-existing-delete-released",
+          "acquisition": {
+            "outcome": "succeeded",
+            "value": null
+          }
+        }
+      ],
+      "constraints": [
+        "Previous flags2/noexistingtarget report is extended rename coverage, not POSIX replacement proof.",
+        "No production guard or native profile source is changed.",
+        "Only this measured local filesystem is covered; full production launch binding remains open."
+      ],
+      "complete": true,
+      "probe_script_sha256": "066b2280f7149998dbd3d7ad0f70c01f6ef39619025e664d18a7084123e27107",
+      "shared_prefix_script_sha256": "4ff7593972f5933f55a768646782bfe601eea726c8f27a4c71ee4fea967468ca"
+    },
+    "directory-guard-probes.json": {
+      "version": 1,
+      "label": "design-only/real-directory-read-sharing-and-junction-controls",
+      "platform": "Windows-11-10.0.26300-SP0",
+      "selected_account_calls": 0,
+      "native_cli_calls": 0,
+      "rows": [
+        {
+          "case": "write-writer-first",
+          "acquisition": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          }
+        },
+        {
+          "case": "write-writer-first-released",
+          "acquisition": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "write-guard-first",
+          "acquisition": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          }
+        },
+        {
+          "case": "write-guard-first-released",
+          "acquisition": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "delete-writer-first",
+          "acquisition": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          }
+        },
+        {
+          "case": "delete-writer-first-released",
+          "acquisition": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "delete-guard-first",
+          "acquisition": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          }
+        },
+        {
+          "case": "delete-guard-first-released",
+          "acquisition": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "held-junction-False",
+          "directory_tag": null,
+          "remove_junction": {
+            "outcome": "succeeded"
+          },
+          "held_leaf_bytes_unchanged": true,
+          "junction_exists": false
+        },
+        {
+          "case": "held-junction-True",
+          "directory_tag": {
+            "attributes": 1040,
+            "tag": 2684354563,
+            "reparse": true
+          },
+          "remove_junction": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          },
+          "held_leaf_bytes_unchanged": true,
+          "junction_exists": true
+        },
+        {
+          "case": "held-junction-True-released",
+          "remove_junction": {
+            "outcome": "succeeded"
+          }
+        },
+        {
+          "case": "existing-junction-write",
+          "guard_acquisition": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          }
+        },
+        {
+          "case": "existing-junction-write-released",
+          "actual_tag": {
+            "attributes": 1040,
+            "tag": 2684354563,
+            "reparse": true
+          }
+        },
+        {
+          "case": "existing-junction-delete",
+          "guard_acquisition": {
+            "outcome": "denied",
+            "winerror": 32,
+            "errno": 13
+          }
+        },
+        {
+          "case": "existing-junction-delete-released",
+          "actual_tag": {
+            "attributes": 1040,
+            "tag": 2684354563,
+            "reparse": true
+          }
+        }
+      ],
+      "constraints": [
+        "Metadata-only directory READ_ATTRIBUTES handles do not establish deny-write/delete sharing.",
+        "New probes use GENERIC_READ plus BACKUP_SEMANTICS|OPEN_REPARSE_POINT and inspect actual reparse tag.",
+        "Production launch proof, guardian ownership and SDK connect integration remain unimplemented."
+      ],
+      "complete": true,
+      "probe_script_sha256": "195e546907c05e2d88e314abf68ca2f8736c6241b9ec1ca9fe94a033d63a3012",
+      "shared_prefix_script_sha256": "4ff7593972f5933f55a768646782bfe601eea726c8f27a4c71ee4fea967468ca"
+    },
+    "suspended-anyio-v2-probes.json": {
+      "version": 1,
+      "label": "design-only/inert-where-exe/actual-anyio-path",
+      "platform": "Windows-11-10.0.26300-SP0",
+      "selected_account_calls": 0,
+      "native_cli_calls": 0,
+      "source_copy_sha256": "f51fab8041e5023d7290b540a2106f051ef0bd2bc3443c9daf318628b560fa29",
+      "rows": [
+        {
+          "case": "resume",
+          "spawn_returned_before_resume": true,
+          "image_matches_guarded_copy": true,
+          "exact_job_matches": true,
+          "foreign_job_rejected": true,
+          "pre_resume_active": true,
+          "resume_previous_count": 1,
+          "terminal": {
+            "type": "done",
+            "code": 0,
+            "stdout_bytes": 193,
+            "stdout_sha256": "b8615cad1411bc07b6afcb467b071b1a0903f54506afe19feb1341890e0f4ab1",
+            "marker_path_in_stdout": true
+          },
+          "seconds": 1.282,
+          "retained_process_creation_observed": true,
+          "retained_thread_creation_observed": true
+        },
+        {
+          "case": "deny-without-resume",
+          "spawn_returned_before_resume": true,
+          "image_matches_guarded_copy": true,
+          "exact_job_matches": true,
+          "foreign_job_rejected": true,
+          "pre_resume_active": true,
+          "denied_child_exit_observed": true,
+          "seconds": 1.204,
+          "retained_process_creation_observed": true,
+          "retained_thread_creation_observed": true
+        }
+      ],
+      "constraints": [
+        "Uses actual SDK-imported anyio.open_process, not a complete SDK Client connect/query.",
+        "Only own copied Windows where.exe is executed, hidden and job-owned; no account configuration or authentication.",
+        "File hash/path binding alone is not production proof until full ancestor/reparse race cases are closed."
+      ],
+      "complete": true,
+      "probe_script_sha256": "6f0d35582432230ab5c8c3eeb0de63b610f3cb51befb990cb42d83a434706e44"
+    },
+    "attribute-reparse-probes.json": {
+      "version": 1,
+      "label": "design-only/metadata-reparse-capability",
+      "selected_account_calls": 0,
+      "native_cli_calls": 0,
+      "rows": [
+        {
+          "case": "empty-directory-attr-only-False",
+          "set_reparse": {
+            "outcome": "succeeded"
+          },
+          "actual_junction": true
+        },
+        {
+          "case": "empty-directory-attr-only-True",
+          "set_reparse": {
+            "outcome": "succeeded"
+          },
+          "actual_junction": true
+        },
+        {
+          "case": "file-symlink-attr-only-False",
+          "set_reparse": {
+            "outcome": "denied",
+            "winerror": 1314,
+            "errno": 22
+          },
+          "actual_symlink": false,
+          "path_bytes_changed": false,
+          "held_bytes_unchanged": null
+        },
+        {
+          "case": "file-symlink-attr-only-True",
+          "set_reparse": {
+            "outcome": "denied",
+            "winerror": 1314,
+            "errno": 22
+          },
+          "actual_symlink": false,
+          "path_bytes_changed": false,
+          "held_bytes_unchanged": true
+        }
+      ],
+      "complete": true,
+      "probe_script_sha256": "4e789f2d1d2a66d988849fe9fbb74fb2330a20767d117536c61b3e6e175dad50"
+    },
+    "suspended-anyio-fixture-diagnosis.json": {
+      "version": 1,
+      "label": "terminal-probe-fixture-failure-diagnosis",
+      "failed_probe_script_sha256": "32e1152958a0abba96f97202d1c40145d273ca879b8f7beefa25e28cf90f5f42",
+      "failure": "Copied where.exe help returned exit0 but no stdout; code incorrectly demanded positive help output.",
+      "cleanup": "Original probe finally invokes actual job drain, waits helper, closes streams/executor and retained thread/process/foreign-job/file guard handles.",
+      "root_cause_scope": "Inert fixture output assumption; no failure observed in spawn/job/thread checks before assertion. Not full success proof.",
+      "exact_reason_for_empty_help": "unknown; localized help resource resolution is only a hypothesis",
+      "selected_account_calls": 0,
+      "native_cli_calls": 0,
+      "control_results": [
+        {
+          "args": [
+            "/?"
+          ],
+          "returncode": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "marker_path_in_stdout": false
+        },
+        {
+          "args": [
+            "/R",
+            "C:\\Users\\admin\\.codex\\worktrees\\agent-skill-improvement-m2a\\Javis-OS\\.superpowers\\sdd\\2026-10-24-agent-skill-improvement-m2d1-preparation-heartbeat\\suspended-anyio-scratch",
+            "probe-marker.txt"
+          ],
+          "returncode": 0,
+          "stdout_bytes": 190,
+          "stderr_bytes": 0,
+          "stdout_sha256": "5d351a1bffeb6588c3441c38376de144bcdbc2085b17f63fdc11d9256144a8ba",
+          "marker_path_in_stdout": true
+        }
+      ]
+    }
+  },
+  "independent_static_audit": {
+    "decision": "sufficient to begin limited read-sharing component, not full launch proof",
+    "posix_flags2_gap": "closed by flags3/existing held destination controls",
+    "read_attributes_exclusion_assumption": "refuted; use actual read access",
+    "leaf_junction_namespace_protection": "refuted by actual junction removal",
+    "metadata_mutation_exclusion": "unknown",
+    "guardian_owned_loaded_image_binding": "unknown"
+  },
+  "constraints": [
+    "All mutations use own scratch files; copied Windows where.exe is the only executed native image.",
+    "Original /? stdout fixture assertion failed; original driver/root preserved, /R marker control verified then new-root v2 succeeded.",
+    "Suspended anyio probe uses direct WorkerGroup, not NativeLifetime guardian or full SDK Client query.",
+    "Attribute-only FSCTL mountpoint SET succeeds on guarded empty directory; nonempty-file symlink failures1314 are privilege failures, not payload/exclusion proof.",
+    "Full native runtime/SDK qualification, model/account, eligible-final, business and live gates remain separate."
+  ]
+}

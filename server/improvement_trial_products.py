@@ -74,16 +74,61 @@ class TrialProducts:
             row = self._row(connection, "improvement_trial_receipts", brain, identifier, attempt)
             return json.loads(self.trials.blobs.read(brain, row["content_hash"]))
 
-    def _products(self, connection, row):
+    def _products(self, connection, row, *, principal=None, capability_hash=None):
+        from improvement_qualification_records import require_product_store
+        from resonance_store import Principal
+        # Historical internal callers omitted principal; this only determines
+        # the durable domain and confers no execution/product authority.
+        require_product_store(self.trials.assets, principal if principal is not None else
+            Principal('owner', 'owner', row['brain_id']), connection=connection)
         records = list(connection.execute("SELECT * FROM improvement_trial_observations WHERE trial_id=? AND attempt=? ORDER BY sequence",
                                           (row["id"], row["attempt"])))
-        if (not records or records[-1]["kind"] != "worker_complete"
+        if (not records or records[-1]["kind"] not in ("worker_complete", "drained")
                 or any(record["late"] or record["sequence"] != index for index, record in enumerate(records, 1))):
             raise IM.ConflictError("trial_trace_incomplete")
         artifacts, receipts, terminals = {}, {}, []
         reader = TrialEvidence(self.trials)
-        for record in records:
-            packet = reader._decode(row["brain_id"], record)
+        first = reader._decode(row['brain_id'], records[0])
+        native_history = first.get('version') == 2
+        if native_history:
+            packets = [first, *(reader._decode(row['brain_id'], record) for record in records[1:])]
+            from improvement_native_trace_checks import validated_history, validate_native_trace, require_durable_allow
+            from improvement_native_decisions import NativeImageDecisionStore, attempt_scope
+            from improvement_sandbox import trial_system_prompt
+            attempt = connection.execute('SELECT workspace_json,materialization_hash FROM improvement_trial_attempts WHERE trial_id=? AND attempt=?',
+                (row['id'], row['attempt'])).fetchone()
+            workspace = json.loads(attempt['workspace_json'])
+            manifest = self.trials.workspace.validate(workspace)
+            if manifest['version'] not in (4, 5) or IM._hash(manifest) != attempt['materialization_hash']:
+                raise IM.ConflictError('trial_native_materialization_mismatch')
+            decoded = {item['sequence']: packet for item, packet in zip(records, packets)}
+            validated_history(records, lambda item: decoded[item['sequence']], kind='trial', receipt=workspace)
+            request = json.loads(row['request_json']); pin = request['engine_config']
+            if manifest['version'] == 5 and (request['version'] == 4 or request['variant'] != 'baseline'):
+                raise IM.ConflictError('trial_native_baseline_request_mismatch')
+            ready = [packet['body'] for packet in packets if packet['body']['type'] == 'worker_ready']
+            if len(ready) != 1 or principal is None: raise IM.ConflictError('trial_native_product_boundary_missing')
+            capability = ready[0]['capability_hash'] if capability_hash is None else capability_hash
+            scope = attempt_scope(kind='trial', brain_id=row['brain_id'], receipt=workspace, config_pin=pin, capability_hash=capability)
+            decisions = NativeImageDecisionStore(self.trials.assets)
+            prompt = IM._json({'task': manifest['case']['task'], 'fixtures': [
+                {key: item[key] for key in ('snapshot_id', 'source')} for item in manifest['case']['fixtures']]})
+            native = validate_native_trace(packets, kind='trial', receipt=workspace, pin=pin, capability_hash=capability,
+                system_prompt=trial_system_prompt(manifest), user_prompt=prompt, data_hash=workspace['input_hash'],
+                read_decision=lambda joined: decisions.read(principal, joined, scope_hash=scope, connection=connection),
+                tool_policy='baseline_inline' if manifest['version'] == 5 else 'pinned_skill')
+            require_durable_allow(native)
+            packets = native['worker_bodies']
+        elif records[-1]['kind'] != 'worker_complete':
+            raise IM.ConflictError('trial_trace_incomplete')
+        else:
+            # Preserve the legacy owner's bounded one-packet validation/read
+            # order rather than retaining future decrypted engine events.
+            packets = (first if number == 0 else reader._decode(row['brain_id'], record)
+                for number, record in enumerate(records))
+        for packet in packets:
+            if not native_history and packet.get('version') == 2:
+                raise IM.ConflictError('native_trace_version_mixed')
             if packet["type"] == "worker_error":
                 raise IM.ConflictError("trial_worker_failed")
             if packet["type"] != "engine_event":
@@ -116,12 +161,12 @@ class TrialProducts:
             if row["status"] not in {"running", "evaluating"} or attempt["engine_at"] is None:
                 raise IM.ConflictError("trial_evaluation_stale")
             request = json.loads(row["request_json"])
-            self.trials._current(connection, row["brain_id"], request, trial_id=row["id"])
+            self.trials._current(connection, row["brain_id"], request, trial_id=row["id"], principal=principal)
             workspace = json.loads(attempt["workspace_json"])
             manifest = self.trials.workspace.validate(workspace)
             if IM._hash(manifest) != attempt["materialization_hash"]:
                 raise IM.ConflictError("trial_materialization_drift")
-            artifacts, receipts = self._products(connection, row)
+            artifacts, receipts = self._products(connection, row, principal=principal)
             contract = json.loads(connection.execute("SELECT contract_json FROM improvement_contracts WHERE brain_id=? AND manifest_hash=?",
                                                      (row["brain_id"], request["pins"]["contract_hash"])).fetchone()[0])
             path = IC.output_path(contract["output"]["path"])

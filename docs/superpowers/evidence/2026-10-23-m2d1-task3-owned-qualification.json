@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 owned final qualification code; genuine positive final still unverified",
+  "parent": "c5229ea326346705e40493c4423b8463fb437d4e",
+  "sources": {
+    "server/improvement_view_qualification.py": "50d997a63e365710144551c266c8d964214728dc788540c8417f615f69f53a58",
+    "server/improvement_view_qualification_history.py": "2a286713de44512a44e6c60f1e89b3cb79fe76dcaa793f74d39cf4e1cc429675",
+    "server/improvement_view_admission.py": "1d2b4562fa34705c5258ef0f2520a2b85c60c497c8b183d0eee1d33c0af5e1f5",
+    "server/improvement_view_lineage.py": "cf48a7ba84bad94d62df499383d2407a52af8037eb88406b6b02f1e4005b9841",
+    "server/improvement_views.py": "62fe3f49996f683f03f1eeaee34172b6a0906f0ea5eff6e418eb4f7f957a7a1a",
+    "server/improvement_trials.py": "a8536f426d20eb2f38d8130bd90e61c95268572dae386692ad5c87132739a2be",
+    "server/improvement_comparison_results.py": "afe7bde3d74afced87edb059d44677b6a0f576e6ad5c6c75005c1a2c7428f410",
+    "server/improvement_claude.py": "0758db630a5eee6757e05b79d8c5ac24506d49094b7becb3faa9cf6c5a4c25f9",
+    "tests/python/test_improvement_view_qualification.py": "5ee7afb54e9e500a7c9ccabf861677f2220b44b69f561d0f3df1a3dde7db34c7",
+    "tests/python/test_improvement_operation_worker.py": "127dea997b2ea112299b367b36e09f43f5e8499f90343a3204249f798cc76de3"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_qualification.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 63.688,
+      "log": "task3-owned-qualification-0.log",
+      "log_sha256": "a8b163f1a1e835eaeebbe93d30d12172ce02223b11157a69e918ba5b96ad94e7",
+      "tests": 5
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_execution.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 105.531,
+      "log": "task3-owned-qualification-1.log",
+      "log_sha256": "a4dd4fa737716752b6c941367f5b841b33b960832a5752bc9ec2d428e570ab87",
+      "tests": 1
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_next.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 139.922,
+      "log": "task3-owned-qualification-2.log",
+      "log_sha256": "a30cd469cbe4e27c368f92eaabe257bc533ccb1ab766594b937a1e35924007ca",
+      "tests": 7
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_lineage.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 96.406,
+      "log": "task3-owned-qualification-3.log",
+      "log_sha256": "350d381bdd8a90b5e30e856050c9b54235ed9da74a00d6e592b32a3b7fdf5814",
+      "tests": 7
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trials.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 27.047,
+      "log": "task3-owned-qualification-4.log",
+      "log_sha256": "76bf63add37eddf741a6d330b15e81bb8542586b2f809d9f7522bc67385e49ae",
+      "tests": 34
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reports.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 57.422,
+      "log": "task3-owned-qualification-5.log",
+      "log_sha256": "55565d5e25308c9e6822216b2c9ecc401af37c202e4448fd2b642d942eada663",
+      "tests": 6
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_operation_worker.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 3.484,
+      "log": "task3-owned-qualification-6.log",
+      "log_sha256": "e3757ba06cbde92227f247496b892fc97a907a49ef10dd1a08b72965c0bef783",
+      "tests": 9
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.75,
+      "log": "task3-owned-qualification-7.log",
+      "log_sha256": "4d016f04294690bfcebb8b2f829b4ead03e7d1f524c4ea09ad073ae022785c61",
+      "tests": 1
+    }
+  ],
+  "total_tests": 70,
+  "total_subprocess_seconds": 494.25,
+  "complete_source_log_record_sha256": "66063e311d7207378b6da4d1d3062bceb3a81fef3d2d14c369ca70aa06ac530e",
+  "red": {
+    "log": "task3-owned-qualification-red.log",
+    "sha256": "a97cba0b5894404cfe82a6e628f9adcc2d3b4a9466fc7d88371baf71391d401e",
+    "reason": "Concrete owned qualifier absent."
+  },
+  "native_profile": {
+    "sources": 81,
+    "hash": "759f44aba5b931e24b1cbb8a59ffe49528a26e07a6d0797afa4339ac1478958e",
+    "qualified": false
+  },
+  "actual_negative_scope_transaction_and_consumed_alias_checks": true,
+  "actual_tuning_runner_schedule_history_regression": true,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "positive_final_exercised": false,
+  "task3_complete": false,
+  "limits": [
+    "Selected-final authorization/claim/consumption code is integrated, but no genuinely eligible selected-final has exercised its positive path.",
+    "New actual tests prove nonfinal/missing/foreign/read-only/foreign-DB denial; actual consumed legacy qualification cannot become regression.",
+    "Unrelated legacy CaseStore reservation/consumption is genuine technical registry use, not a new final or native result.",
+    "Existing actual tuning pipeline uses an explicitly simulated adapter and remains non-pass with unsupported selection.",
+    "Current report creation also refreshes selected-final evidence; cold history keeps original recorded policy/identity.",
+    "Full18 checks and unknown reasoning/asset use are unchanged; no fabricated eligible selection/Trial or readiness flag.",
+    "Potential legacy v2 tuning-alias bypass is under follow-up audit; this checkpoint does not claim that audit complete.",
+    "Exact native qualification, public controls, independent whole-D1 review and exact-final CI remain open.",
+    "No selected-model query, native registration, eligibility, activation, deployment or restart."
+  ]
+}

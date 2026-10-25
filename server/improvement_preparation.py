@@ -140,8 +140,20 @@ class PreparationService:
     def _admit_owned(self, principal, payload, event_key, prepared):
         brain = _brain(principal)
         self.host._snapshot_observe(principal, prepared[1][1])
+        def native_current(connection, joined):
+            for _ in range(2):
+                if self._next(connection, principal, payload) != prepared:
+                    raise IM.ConflictError("preparation_admission_authority_changed")
+                self.host._snapshot_observe(principal, prepared[1][1])
+            return "allow"
+
         try:
-            available = ClaudeTrialAdapter(prepared[0]["engine_config"]).verify()
+            adapter = ClaudeTrialAdapter(prepared[0]["engine_config"])
+            adapter.bind_native_authority(self.assets, principal, scope_hash=IM._hash({
+                "version": 1, "kind": "preparation_cell_admission", "brain_id": brain,
+                "event_key_hash": IM._hash(event_key), "request_hash": IM._hash(payload),
+                "authority_hash": IM._hash(prepared[0])}), current=native_current)
+            available = adapter.verify()
             if type(available) is not dict or available.get("supported") is not True:
                 raise ValueError("trial_native_unavailable")
             _digest(available.get("capability_hash"))
@@ -232,6 +244,8 @@ class PreparationService:
                     if type(pointer) is not dict or set(pointer) != {"result_id", "result_hash", "blob_hash"}:
                         raise IM.ConflictError("preparation_result_changed")
                     report = self.trials.read_result(principal, link["trial_id"], link["current_attempt"], result_id=pointer["result_id"])
+                    from improvement_result_domain import require_product_report
+                    require_product_report(report)
                     if IM._hash(report) != pointer["result_hash"]:
                         raise IM.ConflictError("preparation_result_changed")
                     refs.append({"trial_id": link["trial_id"], "attempt": link["current_attempt"],

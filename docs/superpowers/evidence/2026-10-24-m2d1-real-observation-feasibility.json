@@ -1,0 +1,838 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "label": "synthetic/real-selected-account-preparation-feasibility-only",
+  "source_head": "01717332457eeb5f16aeafe30ccb204b8fa95437",
+  "profile_hash": "be4a5866a411fdcbb68bc7728d6cec9418fac19132ca4a46dce40ac1cb45ca0b",
+  "qualification_hash": "fd52de7a70862b3b04d7b79c257bc11ca77262b78d85157531c3b8aabcdbc96c",
+  "raw_report_sha256": "8b4005d18e156a46e217e2f0366c5d5973b837d76606b30a1776ad1904c0e20c",
+  "driver_sha256": "889f65385390657e86b3491cd425b7eccd5c9f77af16710e2d9ca88101abc0b2",
+  "report": {
+    "manual_candidate": true,
+    "performance_hypothesis": "Bounded current-view CLI observations reduce preparation reads; validators, deadlines and retry policy unchanged",
+    "max_account_calls": 4,
+    "automatic_retries": 0,
+    "label": "synthetic/real-selected-model-technical-feasibility-only",
+    "business_proof": false,
+    "activation_granted": false,
+    "stages": [
+      {
+        "stage": "scope-ready",
+        "at": 1792779711.822558,
+        "synthetic_brain": true,
+        "real_adapters": true,
+        "source_commit": "01717332457eeb5f16aeafe30ccb204b8fa95437"
+      },
+      {
+        "stage": "baseline-dispatched",
+        "at": 1792779724.448799,
+        "trial_id": "it_1ba9e8807ecdff701a13a216"
+      },
+      {
+        "stage": "trial-settled",
+        "at": 1792779773.1707363,
+        "trial_id": "it_1ba9e8807ecdff701a13a216",
+        "status": "completed",
+        "reason": null
+      },
+      {
+        "stage": "baseline-sealed",
+        "at": 1792779776.6039095,
+        "result_refs": [
+          {
+            "trial_id": "it_1ba9e8807ecdff701a13a216",
+            "attempt": 1,
+            "request_hash": "8ef9319bcb49d1eabc7f94749912506ee8b2ce8df7acb9aa98dcadaaa35988bd",
+            "blob_hash": "3296b91ad7855d2157159bbfbe742800cd45fc72041933c3951dd7592ea0443c",
+            "result_hash": "3296b91ad7855d2157159bbfbe742800cd45fc72041933c3951dd7592ea0443c",
+            "result_id": "ir_169b07e9a5ce2b52534cd1d5"
+          }
+        ]
+      },
+      {
+        "stage": "manual-candidate-staged",
+        "at": 1792779776.6759079,
+        "candidate_id": "isc_50543efa88ddc0cf29ecee1c",
+        "generated": false
+      },
+      {
+        "stage": "semantic-settled",
+        "at": 1792779827.3919935,
+        "result": {
+          "receipt_id": "isr_c4304934e7f66aca8c8450a5",
+          "candidate_id": "isc_50543efa88ddc0cf29ecee1c",
+          "operation_id": "io_0eecc4ec44136984a081f261",
+          "result_id": "ior_f51cc72c8f92bf75c9ff819c",
+          "binding_hash": "8a77d63e2ce490e74ce0a436de51d4310e04ad64c7a436067c3708ba64dfbf91",
+          "assessment_hash": "f422699a697532496a64c1901e84ff63ff91cc307ec4166008757851792ce25a",
+          "blob_hash": "cef599dfceb99d61707f0285f57ee8bcc22aab97fa26b8137d84635cd78e8f0d",
+          "verdict": "unknown",
+          "native_verdict": "unknown",
+          "semantic_status": "unreviewed"
+        }
+      },
+      {
+        "stage": "views-frozen",
+        "at": 1792779858.809761,
+        "comparison_id": "icp_9f5b2a775de6327ab3c85aec3592c92d",
+        "binding_hash": "dacb8d4106ddce5462750565dbcd4f099964e55bf6e9cf3ecff5041b74b94381"
+      },
+      {
+        "stage": "pair-dispatched",
+        "at": 1792779880.036317,
+        "position": 0,
+        "trial_id": "it_894ba6ee3cc0534f5c5319e3"
+      },
+      {
+        "stage": "trial-settled",
+        "at": 1792779945.089806,
+        "trial_id": "it_894ba6ee3cc0534f5c5319e3",
+        "status": "not_run",
+        "reason": null
+      },
+      {
+        "stage": "final-accounting",
+        "at": 1792779945.8720794,
+        "marked_calls": 2,
+        "all_plaintext_workspaces_removed": true,
+        "canonical_unchanged": true
+      }
+    ],
+    "selection": {
+      "provider": "anthropic-cli",
+      "model": "claude-opus-5-5",
+      "reasoning": "medium",
+      "fast": false,
+      "auth_mode": "subscription"
+    },
+    "profile_hash": "be4a5866a411fdcbb68bc7728d6cec9418fac19132ca4a46dce40ac1cb45ca0b",
+    "qualification": "fd52de7a70862b3b04d7b79c257bc11ca77262b78d85157531c3b8aabcdbc96c",
+    "trial_results": [
+      {
+        "artifact_hash": "2a56b0c5bbe6cd7793afe0323c9ac9f7b632bce85f73c67389bad2ec1bb198eb",
+        "attempt": 1,
+        "capability_hash": "bec3e77ffc70be33b6917c158e103acc6e1cfd1ad475a12bd0aa6ffb0868609d",
+        "contract_hash": "5557c1e4e5e98ee8cd12eac0dbc474b8be7ae19d4e157117f0d5eaa1028ae6a0",
+        "evaluation": {
+          "business_verdict": "unknown",
+          "case_id": "case-0",
+          "contract_hash": "5557c1e4e5e98ee8cd12eac0dbc474b8be7ae19d4e157117f0d5eaa1028ae6a0",
+          "criteria": [
+            {
+              "category": "mandatory",
+              "critical": true,
+              "evidence": {
+                "detail": "kh\u00f4ng ph\u1ea3i JSON h\u1ee3p l\u1ec7: Expecting value: line 1 column 1 (char 0)",
+                "path": "answer.json",
+                "sha256": "2a56b0c5bbe6cd7793afe0323c9ac9f7b632bce85f73c67389bad2ec1bb198eb",
+                "size": 498
+              },
+              "id": "shape",
+              "kind": "json_keys",
+              "reason": "structural_check",
+              "verdict": "fail"
+            },
+            {
+              "category": "business",
+              "critical": true,
+              "evidence": {
+                "path": "answer.json",
+                "sha256": "2a56b0c5bbe6cd7793afe0323c9ac9f7b632bce85f73c67389bad2ec1bb198eb",
+                "size": 498
+              },
+              "id": "accuracy",
+              "kind": "owner_confirm",
+              "reason": "owner_confirmation_required",
+              "verdict": "unknown"
+            }
+          ],
+          "evaluator": {
+            "hash": "4003c14d380fc59766671e9a153cfab1d0a26e293b5220d52c6dfabb7c8cf3ac",
+            "id": "improvement-evaluation",
+            "version": "1"
+          },
+          "mandatory_verdict": "fail",
+          "output_hash": "2a56b0c5bbe6cd7793afe0323c9ac9f7b632bce85f73c67389bad2ec1bb198eb",
+          "output_manifest": [
+            {
+              "path": "answer.json",
+              "sha256": "2a56b0c5bbe6cd7793afe0323c9ac9f7b632bce85f73c67389bad2ec1bb198eb",
+              "size": 498
+            }
+          ],
+          "primary_metric": {
+            "aggregation": "all_pass",
+            "criterion_id": "accuracy",
+            "direction": "higher",
+            "verdict": "unknown"
+          },
+          "reason": "criterion_failed",
+          "verdict": "fail",
+          "version": 1
+        },
+        "execution_status": "completed",
+        "live_guard": {
+          "baseline_context_hash": "488efa6c4a4811248d19103f0c42c931b689229373fa4d6c12bb038a68ea065b",
+          "engine_config_hash": "84320f547373bc4955c8ce5b519e056ed8b9a3871eaedf42adb0c1d3c8c8554f",
+          "grant_hash": "1ad25a942d016a6ca8565c641ed519068db8538d7a2ef8c30112e5182225cd43",
+          "scope_hash": "63025204fea40e91041a200ef9b3595e17b2c8768ad90a0eb7839034bb3ebcf0",
+          "target_generations": {
+            "it_884fa18ebdc591be7032eb7c": 1
+          }
+        },
+        "mandatory": [
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only",
+              "fields": []
+            },
+            "id": "materialization",
+            "reason": "record_pins_match",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "contract_projection",
+            "reason": "public_full_contract_match",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only",
+              "fields": []
+            },
+            "id": "workspace_binding",
+            "reason": "record_pins_match",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "worker_protocol",
+            "reason": "worker_protocol_complete",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only",
+              "fields": []
+            },
+            "id": "installation",
+            "reason": "record_pins_match",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "tool_inventory",
+            "reason": "fixture_only_inventory_observed",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "prompt_installation",
+            "reason": "prompt_attested",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "asset_installation",
+            "reason": "exact_revisions_available_and_selected",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "asset_observed_use",
+            "reason": "native_asset_use_unobserved",
+            "verdict": "unknown"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "actual_reasoning",
+            "reason": "native_reasoning_unobserved",
+            "verdict": "unknown"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "context_coverage",
+            "reason": "complete_context_declared_and_installed",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "fixture_inventory",
+            "reason": "record_pins_match",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "authorization": "checked_separately_by_runner",
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "source_coverage",
+            "reason": "fixture_read_observed",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "actual_model",
+            "reason": "exact_model_observed",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "session_binding",
+            "reason": "single_native_session_bound",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "side_effects",
+            "reason": "tool_outcome_or_boundary_unobserved",
+            "verdict": "unknown"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only",
+              "output_hash": "2a56b0c5bbe6cd7793afe0323c9ac9f7b632bce85f73c67389bad2ec1bb198eb"
+            },
+            "id": "completion",
+            "reason": "terminal_artifact_and_worker_complete",
+            "verdict": "pass"
+          },
+          {
+            "evidence": {
+              "business_proof": false,
+              "coverage": "record_checks_only"
+            },
+            "id": "event_coverage",
+            "reason": "unrecognized_event",
+            "verdict": "unknown"
+          }
+        ],
+        "preparation_lineage": {
+          "cell_position": 0,
+          "context_id": "ic_b125b634cad77441263c1ed0",
+          "definition_hash": "b71058f48d50573d6df34cb77a48e256a8a314cd5402a4d0572c63fc65610a66",
+          "preparation_id": "ip_f3bce912890cac863d41d687",
+          "schedule_hash": "95c690e2ced726522ae118e3416c5f487cbfac5517fa1fefeda9a41db5b18749",
+          "version": 1
+        },
+        "request_hash": "8ef9319bcb49d1eabc7f94749912506ee8b2ce8df7acb9aa98dcadaaa35988bd",
+        "trace": {
+          "count": 18,
+          "hash": "9ea59b6d2a07458990aa3ae8e5a7d05594355949a431b32d29ec43da01ec51e3",
+          "last_sequence": 18
+        },
+        "trial_id": "it_1ba9e8807ecdff701a13a216",
+        "usage": {
+          "attempts": 1,
+          "cost_behavior": "observe_only",
+          "coverage": {
+            "cli_detail": "linked_and_reconciled_only",
+            "execution_reference_errors": 0,
+            "execution_sources": [
+              "resonance.sqlite3"
+            ],
+            "missing_requests": 0,
+            "money_complete": true,
+            "observed_requests": 0,
+            "requests_complete": false,
+            "scope": "instrumented_executions",
+            "status": "partial",
+            "telemetry_errors": 0,
+            "tokens_complete": false,
+            "unobserved_attempts": 0,
+            "unresolved_events": 2
+          },
+          "experiment_id": "technical-reconciliation-observation",
+          "money": {
+            "currency": "USD",
+            "estimated_usd": null,
+            "local_requests": 0,
+            "reported_usd": null,
+            "subscription_equivalent_usd": 0.0277772,
+            "subscription_requests": 1,
+            "unknown_requests": 0
+          },
+          "requests": null,
+          "statuses": {
+            "completed": 1,
+            "unknown": 1
+          },
+          "tokens_in": 4426,
+          "tokens_out": 386,
+          "trial_id": "it_1ba9e8807ecdff701a13a216"
+        },
+        "verdict": "fail",
+        "version": 3
+      }
+    ],
+    "semantic_evidence": {
+      "assessment": {
+        "findings": [],
+        "summary": "The candidate replaces the baseline instruction to count only the first data row with an instruction to count every data row exactly once, including negative amounts, and to return only JSON with total and row_count. This matches the protected owner rule that reconciliation counts every provided amount, including negative amounts, exactly once. The frontmatter is unchanged. The new text does not give access to any other source, add permissions or tools, or activate anything, so the owner's source permissions and the no-activation rule still apply. Saying 'data row' keeps the header out of the count, which addresses the declared header regression risk at the level of meaning. Changing 'Report ... as JSON' to 'Return only JSON' tightens the output format without contradicting any owner instruction. The declared dependency graph is empty and its check passed. Runtime behaviour is not qualified by this check. This review covers meaning only: it does not verify actual totals or execution results against the fixture, and it does not grant acceptance or activation.",
+        "verdict": "pass",
+        "version": 1
+      },
+      "binding": {
+        "base_generation": 1,
+        "base_hash": "c341e4ee9b544ce79d5efecef78cf0380520d085cba1b70a871d9cd6bb9166f7",
+        "base_revision_id": "ir_494829db2d940d7972c3ae09",
+        "baseline_context_hash": "488efa6c4a4811248d19103f0c42c931b689229373fa4d6c12bb038a68ea065b",
+        "binding_hash": "fc29191551f797c92a487eae54fdd847731a3880f1d08f29a3e387ea18479736",
+        "candidate_id": "isc_50543efa88ddc0cf29ecee1c",
+        "content_hash": "7b42865925e2ee9c27a3ec7a975717f29be56b5d0459b46757d0e453fa4c4ab5",
+        "context_generation": 1,
+        "context_id": "ic_b125b634cad77441263c1ed0",
+        "definition_hash": "b71058f48d50573d6df34cb77a48e256a8a314cd5402a4d0572c63fc65610a66",
+        "dependency_hash": "373392f6a4929de2542b280e12b01ab92e1fae79c24d6ac09af7069ca6d22b10",
+        "engine_config_hash": "84320f547373bc4955c8ce5b519e056ed8b9a3871eaedf42adb0c1d3c8c8554f",
+        "evaluator": {
+          "hash": "4003c14d380fc59766671e9a153cfab1d0a26e293b5220d52c6dfabb7c8cf3ac",
+          "id": "improvement-evaluation",
+          "version": "1"
+        },
+        "experiment_id": "technical-reconciliation-observation",
+        "grant_hash": "1ad25a942d016a6ca8565c641ed519068db8538d7a2ef8c30112e5182225cd43",
+        "patch_hash": "efbdb190c9935158c8f4464bff2171768018131f52bffd726b1cfb8e6d38a220",
+        "policy_version": 0,
+        "provenance_hash": "1ecb1c8214ddec513a5d385817955516a1505e623a0cd5e7e5c65116d7d25ce3",
+        "scope_hash": "63025204fea40e91041a200ef9b3595e17b2c8768ad90a0eb7839034bb3ebcf0",
+        "source_authority_hash": "b8fdc327394ddf79031e5086c68b4a5955f97e3841ad24e5afc0ddffa8cd4bc4",
+        "target_id": "it_884fa18ebdc591be7032eb7c",
+        "validator_hash": "765d17b300f3775825686c9c01f90796c8de8e35de28641a257d1f04d4a33aa3",
+        "version": 1
+      },
+      "business_proof": false,
+      "candidate_id": "isc_50543efa88ddc0cf29ecee1c",
+      "dependencies": {
+        "coverage": "declared_reference_graph",
+        "edges": [],
+        "manifest_hash": "ee5947b0b6301582836f703ea98a7e61f5781ff9350ccfda3c72ad4e595185b3",
+        "nodes": [],
+        "references": [],
+        "runtime": "not_qualified_by_this_check",
+        "unresolved": [],
+        "verdict": "pass",
+        "version": 1
+      },
+      "native_checks": [
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "materialization",
+          "reason": "record_pins_match",
+          "verdict": "pass"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "worker_protocol",
+          "reason": "worker_protocol_complete",
+          "verdict": "pass"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "installation",
+          "reason": "operation_pins_match",
+          "verdict": "pass"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "tool_inventory",
+          "reason": "fixture_only_inventory_observed",
+          "verdict": "pass"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "side_effects",
+          "reason": "recorded_tools_within_boundary",
+          "verdict": "pass"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only",
+            "output_hash": "72d3b6ddca0b78952584f4d111ad790ba850b0fc4344d110f31d083ced9e6e38"
+          },
+          "id": "completion",
+          "reason": "terminal_artifact_and_worker_complete",
+          "verdict": "pass"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "actual_model",
+          "reason": "native_model_records_match",
+          "verdict": "pass"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "actual_reasoning",
+          "reason": "native_reasoning_unobserved",
+          "verdict": "unknown"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "native_session",
+          "reason": "native_session_records_match",
+          "verdict": "pass"
+        },
+        {
+          "evidence": {
+            "business_proof": false,
+            "coverage": "record_checks_only"
+          },
+          "id": "actual_input_use",
+          "reason": "semantic_input_use_unobserved",
+          "verdict": "unknown"
+        }
+      ],
+      "native_refs": {
+        "artifact_hash": "72d3b6ddca0b78952584f4d111ad790ba850b0fc4344d110f31d083ced9e6e38",
+        "call_id": 2,
+        "input_hash": "cf62ab8bc75c1059bc1a6476305cb57f7063df173cec960e593bc6fe0a9cff69",
+        "installation_hash": "492109864a8648ed1492f9ba7568fc4f1fc88854a39aee1fe4827e92f6ee54cd",
+        "result_hash": "8c92899cc0c4def3517e7bb5a5d62f367fe8c73d0740e9ed6d9701a531c593da",
+        "trace_hash": "f2e3e9e015684fb9b4aa6d92e9c6727f930a90e06eb17cf44ce0d999a189af11"
+      },
+      "native_verdict": "unknown",
+      "operation_id": "io_0eecc4ec44136984a081f261",
+      "result_id": "ior_f51cc72c8f92bf75c9ff819c",
+      "semantic_status": "unreviewed",
+      "usage": {
+        "attempts": 1,
+        "cost_behavior": "observe_only",
+        "coverage": {
+          "cli_detail": "linked_and_reconciled_only",
+          "execution_reference_errors": 0,
+          "execution_sources": [
+            "resonance.sqlite3"
+          ],
+          "missing_requests": 0,
+          "money_complete": true,
+          "observed_requests": 0,
+          "requests_complete": false,
+          "scope": "instrumented_executions",
+          "status": "partial",
+          "telemetry_errors": 0,
+          "tokens_complete": false,
+          "unobserved_attempts": 0,
+          "unresolved_events": 1
+        },
+        "experiment_id": "technical-reconciliation-observation",
+        "money": {
+          "currency": "USD",
+          "estimated_usd": null,
+          "local_requests": 0,
+          "reported_usd": null,
+          "subscription_equivalent_usd": 0.0380236,
+          "subscription_requests": 1,
+          "unknown_requests": 0
+        },
+        "operation_id": "io_0eecc4ec44136984a081f261",
+        "requests": null,
+        "statuses": {
+          "completed": 1,
+          "unknown": 1
+        },
+        "tokens_in": 4247,
+        "tokens_out": 436
+      },
+      "verdict": "unknown",
+      "version": 1,
+      "receipt_id": "isr_c4304934e7f66aca8c8450a5",
+      "experiment_id": "technical-reconciliation-observation",
+      "binding_hash": "8a77d63e2ce490e74ce0a436de51d4310e04ad64c7a436067c3708ba64dfbf91",
+      "assessment_hash": "f422699a697532496a64c1901e84ff63ff91cc307ec4166008757851792ce25a",
+      "blob_hash": "cef599dfceb99d61707f0285f57ee8bcc22aab97fa26b8137d84635cd78e8f0d",
+      "created_at": 1792779827.3869944,
+      "owner_assessment": null
+    },
+    "current_view_evidence": {
+      "view_binding": {
+        "evidence_class": "technical",
+        "comparison_id": "icp_9f5b2a775de6327ab3c85aec3592c92d",
+        "binding_hash": "dacb8d4106ddce5462750565dbcd4f099964e55bf6e9cf3ecff5041b74b94381",
+        "semantic_receipt_id": "isr_c4304934e7f66aca8c8450a5",
+        "created_at": 1792779843.8466792,
+        "views": {
+          "baseline": {
+            "view_id": "ivw_4db048d81b042359713790a5",
+            "manifest_hash": "f0e4be9d0073958cd8a3a99720ce3f9f1f1413f8cd141d9b553b5f50ada0dc60"
+          },
+          "candidate": {
+            "view_id": "ivw_666eb2bfbf1b25fa20c9b07b",
+            "manifest_hash": "840b2eaa9be31123a74c5be031cab8e178e35a0ff2c21352eb5ed9435f56cd1c"
+          }
+        }
+      },
+      "evidence_scope": "current_view_sources_and_semantics",
+      "current_generation": 7,
+      "checked_at": 1792779861.6553562,
+      "observational_unknowns": [
+        "actual_input_use",
+        "actual_reasoning"
+      ]
+    },
+    "calls": [
+      {
+        "id": 1,
+        "purpose": "improve_probe",
+        "status": "ok",
+        "engine": "anthropic-cli",
+        "model": "claude-opus-5-5",
+        "attempt": 1,
+        "engine_at": 1792779746.3337924,
+        "context_ref": "improvement:technical-reconciliation-observation",
+        "mirror_ref": "improvement_trial:it_1ba9e8807ecdff701a13a216"
+      },
+      {
+        "id": 2,
+        "purpose": "improve_evaluate",
+        "status": "ok",
+        "engine": "anthropic-cli",
+        "model": "claude-opus-5-5",
+        "attempt": 1,
+        "engine_at": 1792779810.7740571,
+        "context_ref": "improvement:technical-reconciliation-observation",
+        "mirror_ref": "improvement_operation:io_0eecc4ec44136984a081f261"
+      },
+      {
+        "id": 3,
+        "purpose": "improve_probe",
+        "status": "refunded",
+        "engine": "",
+        "model": "",
+        "attempt": 1,
+        "engine_at": null,
+        "context_ref": "improvement:technical-reconciliation-observation",
+        "mirror_ref": "improvement_trial:it_894ba6ee3cc0534f5c5319e3"
+      }
+    ],
+    "usage": [
+      {
+        "attempts": 1,
+        "requests": null,
+        "tokens_in": 4426,
+        "tokens_out": 386,
+        "money": {
+          "currency": "USD",
+          "reported_usd": null,
+          "estimated_usd": null,
+          "subscription_equivalent_usd": 0.0277772,
+          "unknown_requests": 0,
+          "subscription_requests": 1,
+          "local_requests": 0
+        },
+        "coverage": {
+          "status": "partial",
+          "observed_requests": 0,
+          "unobserved_attempts": 0,
+          "unresolved_events": 2,
+          "missing_requests": 0,
+          "telemetry_errors": 0,
+          "tokens_complete": false,
+          "money_complete": true,
+          "requests_complete": false,
+          "scope": "instrumented_executions",
+          "cli_detail": "linked_and_reconciled_only",
+          "execution_sources": [
+            "resonance.sqlite3"
+          ],
+          "execution_reference_errors": 0
+        },
+        "statuses": {
+          "completed": 1,
+          "unknown": 1
+        },
+        "cost_behavior": "observe_only",
+        "experiment_id": "technical-reconciliation-observation",
+        "trial_id": null
+      },
+      {
+        "attempts": 1,
+        "requests": null,
+        "tokens_in": 4247,
+        "tokens_out": 436,
+        "money": {
+          "currency": "USD",
+          "reported_usd": null,
+          "estimated_usd": null,
+          "subscription_equivalent_usd": 0.0380236,
+          "unknown_requests": 0,
+          "subscription_requests": 1,
+          "local_requests": 0
+        },
+        "coverage": {
+          "status": "partial",
+          "observed_requests": 0,
+          "unobserved_attempts": 0,
+          "unresolved_events": 1,
+          "missing_requests": 0,
+          "telemetry_errors": 0,
+          "tokens_complete": false,
+          "money_complete": true,
+          "requests_complete": false,
+          "scope": "instrumented_executions",
+          "cli_detail": "linked_and_reconciled_only",
+          "execution_sources": [
+            "resonance.sqlite3"
+          ],
+          "execution_reference_errors": 0
+        },
+        "statuses": {
+          "completed": 1,
+          "unknown": 1
+        },
+        "cost_behavior": "observe_only",
+        "experiment_id": "technical-reconciliation-observation",
+        "operation_id": "io_0eecc4ec44136984a081f261"
+      }
+    ],
+    "all_plaintext_workspaces_removed": true,
+    "real_marked_calls": 2,
+    "canonical_unchanged": true,
+    "final_pin_unchanged": true
+  },
+  "verified_trial_rows": [
+    {
+      "id": "it_1ba9e8807ecdff701a13a216",
+      "status": "completed",
+      "generation": 6,
+      "failure_reason": null,
+      "engine_at": 1792779746.3337924,
+      "materialization_hash": "23f6ab2b330121795e3f537c5efac060a3aec766b89b96833a6b890020dc4ac2",
+      "created_at": 1792779721.1622598,
+      "updated_at": 1792779770.9019253,
+      "call_status": "ok",
+      "request_version": 3,
+      "variant": "baseline",
+      "deadline_at": 1792779901.1602595,
+      "workspace_prepared": true,
+      "plaintext_removed": true,
+      "result_published": true,
+      "trace_count": 18
+    },
+    {
+      "id": "it_894ba6ee3cc0534f5c5319e3",
+      "status": "not_run",
+      "generation": 4,
+      "failure_reason": "authority_changed",
+      "engine_at": null,
+      "materialization_hash": "3a92695176b0084aa0b2ba3b6f454473bf7f5cfe4faba29cd32017dbd5f19aa6",
+      "created_at": 1792779872.2034035,
+      "updated_at": 1792779944.924626,
+      "call_status": "refunded",
+      "request_version": 4,
+      "variant": "baseline",
+      "deadline_at": 1792780049.6188688,
+      "workspace_prepared": true,
+      "plaintext_removed": true,
+      "result_published": false,
+      "trace_count": 0
+    }
+  ],
+  "usage_totals": {
+    "tokens_in": 8673,
+    "tokens_out": 822,
+    "subscription_equivalent_usd": 0.0658008,
+    "coverage": "partial",
+    "cash_usd": null,
+    "requests": null
+  },
+  "scope_ready_to_final_seconds": 234.04952144622803,
+  "business_proof": false,
+  "genuine_paired_execution": false,
+  "selected_final_exercised": false,
+  "live_activation_granted": false,
+  "diagnostics": {
+    "read_only_current_host_guard": {
+      "passed": true,
+      "seconds": 9.140999999988708,
+      "raw_sha256": "e7cda0e1b371f92589e36407c89d1055a908c428ebd7ba5cad29a1bcc827cf3d",
+      "model_calls": 0
+    },
+    "invalid_baseline_event_shapes": [
+      {
+        "sequence": 10,
+        "type": "tool_result",
+        "valid_shape": false,
+        "keys": [
+          "id",
+          "is_error",
+          "type"
+        ],
+        "is_error": null
+      }
+    ],
+    "lease_starvation_hypothesis": "Preparation holds the runner mutex across slow filesystem I/O, delaying the validating heartbeat beyond its60s lease. Read-only current guard passes; controlled runner reproduction is next, not yet proof of the exact original exception."
+  },
+  "limits": [
+    "Only two marked model calls. First v4 BASELINE cell materialized/prepared, then authority_changed before an engine marker; reservation refunded. No second cell or selection/final claim.",
+    "The generic recorded failure does not expose its exception cause; do not label it timeout or conclusively lease expiry before reproduction.",
+    "No unchanged retry, deadline/lease duration increase, owner arbitration or output normalization.",
+    "Canonical unchanged and all plaintext workspaces removed. Asset-use/reasoning remain unknown; actual nullable native tool_result also leaves event/side-effect coverage unknown."
+  ]
+}

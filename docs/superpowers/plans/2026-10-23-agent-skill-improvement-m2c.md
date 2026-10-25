@@ -493,9 +493,9 @@ faults and both recovery namespaces, then existing worker/lifetime consumers.
   fix and verify; no fake readiness/adapter or scope reduction to obtain green.
 - [x] Rewrite both changelogs around the final verified implementation before the
   last CI run; reservation wording is not final release documentation.
-- [ ] Exact final-head Linux CI, fresh main/version/head checks, authorized straight
+- [x] Exact final-head Linux CI, fresh main/version/head checks, authorized straight
   merge, merged-tree equality and actual publication success. No deploy/restart.
-- [ ] Update engineering/business/rollout progress separately and continue D's
+- [x] Update engineering/business/rollout progress separately and continue D's
   real effective view. Positive final qualification, business pilot, activation,
   later agent/skill expansion and full M0–M8 remain open until actual evidence.
 
@@ -510,8 +510,11 @@ The same whole-C reviewer closed both Important findings and approved only the
 scoped fixture/main/changelog corrections afterward. Final21-script affected
 regression passed663.451s in two source-qualified segments; only one standalone
 test synchronization changed after the first15 successes, with an incorrect-join
-negative control still failing. Exact-final Linux CI/integration/publication
-remain pending; Task9 is not complete yet.
+negative control still failing. Exact-final LinuxCI39929264818 passed d05f4881;
+PR801 merged2727edcc with identical tree5712b6ba, and actual publication39933347548
+including Build & push succeeded. Task9's published verifier and completion
+ledger ran successfully. D1 now starts from that released source in draftPR803;
+full D/E/F/M2 and M3–M8 business/live gates remain open.
 
 ## Pre-flight interface audit for canonicalization
 

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "profile_hash": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "qualification_evidence": "2026-10-24-m2d1-native-qualification-skill-reads.json",
+  "qualification_sha256": "bf793edf18abf0cbeecf83983ee619ae4a4c96415b844cc488b2ed1ed9c09a4a",
+  "registration_source_sha256": "66b41eb84e78e653f9a91fde90302318389004c636a01d0dcb878fcd5ad00bda",
+  "metadata_test_sha256": "0577b5181fb090ba897ec8c3d0fce10fe88d2d09d03839497150cdacf6e793e0",
+  "author": {
+    "red_tests": 7,
+    "red_failures": 1,
+    "red_seconds": 0.129,
+    "red_log_sha256": "00cb11f34af0978dc04b9bd6f6c9eba8ba486d758e8e45a2cc2c93496c38102b",
+    "green_tests": 7,
+    "green_seconds": 0.126,
+    "green_log_sha256": "912c10fff3588335bb0654837b6e69d342a107da39b707b235d22a9fa5f41c28"
+  },
+  "independent_review": {
+    "verdict": "approved",
+    "tests": 7,
+    "seconds": 0.127,
+    "log_sha256": "f0079c7ac2f758e5be5ea2c8d500c2843496fc385c3141123184bc7aafc06fef",
+    "profile_source_pins_verified": 83,
+    "qualification_test_pins_verified": 6,
+    "raw_records_verified": 3,
+    "logs_verified": 4,
+    "full_record_files_verified": 1183,
+    "prior_registrations_unchanged": 6,
+    "lookup_ast_unchanged": true,
+    "unrelated_fixture_ast_unchanged": true,
+    "only_registry_and_metadata_test_changed_since_qualification": true,
+    "source_and_test_pins_unchanged_during_review": true
+  },
+  "limits": {
+    "selected_account_readiness_proof": false,
+    "selected_account_calls": 0,
+    "actual_native_success_error_flag": null,
+    "actual_native_denial_error_flag": true,
+    "asset_observed_use": "unknown",
+    "actual_reasoning": "unknown",
+    "image_and_configuration_coverage": "unknown",
+    "business_proof": false,
+    "live_activation_granted": false,
+    "goal_complete": false
+  }
+}

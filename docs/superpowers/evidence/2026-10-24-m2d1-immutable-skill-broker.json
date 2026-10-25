@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "evidence_class": "technical/standalone-immutable-broker",
+  "source_base_commit": "3dcf1e26c435574f056e75dd3e0bef8ca16d936f",
+  "source_pins_authoritative": true,
+  "source_hashes": {
+    "server/improvement_skill_asset_broker.py": "b30198f8ffc5e75985b099ad6ed429681776d315d08b89d3a0949d1ecb7f6a47",
+    "tests/python/test_improvement_skill_asset_broker.py": "d8bb8c3e64f9462d5f4acdfe5435da4641f8d528b9040bbb8b07961f51ffc683"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0"
+  },
+  "red": {
+    "tests": 12,
+    "failed": 12,
+    "reason": "component absent",
+    "unittest_seconds": 0.002,
+    "whole_invocation_ms": 634,
+    "log_sha256": "0ef81a47728e19075930b7cee99ab6edae3ae0f5a2cd3567cc5cf24fa9d407b7"
+  },
+  "implementation_green": {
+    "tests": 12,
+    "passed": 12,
+    "unittest_seconds": 0.03,
+    "whole_invocation_ms": 699,
+    "log_sha256": "43de137200623dd14af0309cd12dc0f1b83360376cd418ea0bf4ad32c2bd14b3"
+  },
+  "independent_parent_review": {
+    "decision": "approved scoped broker source and behavioral tests",
+    "source_review": "Full manifest/input/attempt identity, exact closed read args, immutable pinned bytes/history, per-read unpredictable identity and no filesystem/connector paths verified; no actionable finding.",
+    "actual_test_result": {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_skill_asset_broker.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.703,
+      "tests": 12,
+      "log": "green-2.log",
+      "sha256": "43de137200623dd14af0309cd12dc0f1b83360376cd418ea0bf4ad32c2bd14b3"
+    },
+    "full_source_record_sha256": "94714b3ed49a031a4eb1205a6c5fce5f5be151ee9caf768f293a3bf333932f64"
+  },
+  "selected_account_calls": 0,
+  "native_cli_calls": 0,
+  "native_observed_use": "unknown",
+  "production_reachable": false,
+  "reachable_profile_hash_unchanged": "972175a29309295afc596902ef711ea51400ba77c2f39e27aab1141f9a0f6a10",
+  "constraints": [
+    "Real pure broker behavior with labeled synthetic manifest; no SDK/native/account/query proof.",
+    "Request returns only exact pinned materialized asset bytes; malformed/foreign calls return generic content-free misses.",
+    "Fresh canonical response text/hash plus unique observation_id are future correlation inputs; broker success alone cannot set observed_use or receipt PASS.",
+    "Baseline/candidate SDK inventory, native ToolUse/ToolResult/session correlation, v3 receipt/checker and complete exact native qualification remain unimplemented integration work.",
+    "No fixture-only operation role, owner/grant, model, deadline, retry, all18 gate or activation behavior changed.",
+    "Add this module to PROFILE_SOURCES when it becomes reachable from native execution."
+  ]
+}

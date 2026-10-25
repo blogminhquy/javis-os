@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "status": "actual_fixed_worker_startup2_routes_approved_pending_full_pipeline_qualification",
+  "source_sha256": {
+    "native_worker": "355573d3398ce7f6241cb318dde7c706d194f4bddbd7c60ebb49313b177b1018",
+    "trial_worker": "da0824dc170eaca04773f7604b8d4fccff794fd77f25a3b0192cfb0ec02890e1",
+    "operation_worker": "5c2f698f4f786680901253181dae62f4b326536d68f30cb19f4e79ab2ba94417"
+  },
+  "test_sha256": "ae7a383afd9fc2522c6a858d8788f95180817542729b5778a68f2beb7a2260c9",
+  "red": {
+    "tests": 9,
+    "failures_including_subtests": 8,
+    "errors": 3,
+    "seconds": 0.613,
+    "log_sha256": "1aae140da10e188218c03d551e66ca6a5f54882bee6a49cb9628ace7175aa838"
+  },
+  "author": {
+    "tests": 14,
+    "seconds": 2.698,
+    "exit": 0,
+    "log_sha256": "2ff20646a15c7d694288499e9b152da7a283136f7fe9dc80e884a503e9fcc45f"
+  },
+  "independent": {
+    "tests": 14,
+    "seconds": 2.394,
+    "exit": 0,
+    "log_sha256": "e6b7dac76dd7eed7b14ee9ae020c9e1b95bb497447bf0bcd38cdf8d2cc4eb4d9"
+  },
+  "affected_legacy": [
+    {
+      "kind": "trial",
+      "tests": 3,
+      "seconds": 1.546,
+      "exit": 0,
+      "log_sha256": "f68beac668dd295ddb055ebe5a998c04ddeb5b1a750d3a3065b29c2de2efff7b"
+    },
+    {
+      "kind": "operation",
+      "tests": 4,
+      "seconds": 1.387,
+      "exit": 0,
+      "log_sha256": "aca1b2539ab128ee4e3966c604d9ab6a640abb2d01a07c67d040b4faa9ff034a"
+    }
+  ],
+  "behavior": [
+    "Actual mains route original startup2 bytes through strict decoder and adopt before application imports",
+    "Static admission precedes guarded preflight; observed verification follows guarded observations",
+    "Trial4/operation2 bind actual runtime before query and require exact typed accounting ACK",
+    "Mandatory runtime close precedes worker_complete; outer owner always closes",
+    "New inputs refuse legacy native launch route; NativeWorkerSessionV2 class prefix unchanged"
+  ],
+  "limitations": [
+    "Engineering session/runtime/adapter/binding seams for new route tests; no actual native/account/provider",
+    "One legacy isolated-child import test is genuine but does not qualify new native path",
+    "Full host callbacks/results/materialization/qualification/registration still required"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-startup2-routes"
+}

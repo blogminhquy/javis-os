@@ -335,8 +335,10 @@ class ImprovementCaseTests(unittest.TestCase):
         with patch.object(self.rs, "_backup_before", side_effect=backup), ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(migrate, (1, 2)))
         self.assertEqual(results, [None, None])
-        self.assertEqual(backups, [("improvement_experiments", ".pre-improvement-m2-experiments.bak"),
-                                   ("improvement_preparations", ".pre-improvement-m2-generated.bak")])
+        self.assertEqual(backups, [("improvement_compositions", ".pre-improvement-m2-compose.bak"),
+                                   ("improvement_experiments", ".pre-improvement-m2-experiments.bak"),
+                                   ("improvement_preparations", ".pre-improvement-m2-generated.bak"),
+                                   ("improvement_effective_views", ".pre-improvement-m2-views.bak")])
         for _, suffix in backups:
             with sqlite3.connect(self.rs.path.with_name(self.rs.path.name + suffix)) as connection:
                 self.assertEqual(connection.execute("SELECT version FROM improvement_schema").fetchone()[0], 1)

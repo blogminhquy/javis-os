@@ -1,0 +1,190 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 owned view controls and cold metadata",
+  "parent": "ec6f1d6c4c66a47cdf6923df857487b5de8c5ba2",
+  "sources": {
+    "server/improvement_experiment_requests.py": "b64da7ec5bc1ae1550d33f644d2dc2104e27f9c3b4dc5a120f4e6c0dd79bdde6",
+    "server/improvement_experiment_api.py": "7d6857a1ea8f919e9e5331842178838720ed47b8e49c06fe828f214f9a343762",
+    "server/improvement_experiment_service.py": "96c32dd7e60e6c80ec69a46978b80411eb8fac56463283ecd11e439a1a5215d4",
+    "tests/python/test_improvement_view_api.py": "3d6597bccdf15db5e5161160e4c09165933ee9611bf6727a0db8e1cf1d3dee7a",
+    "tests/python/test_improvement_experiment_main.py": "700f33f3d741e97ee69f01dc425e27f65c7a620391133ee92a86aa466ce5c0e3",
+    "tests/python/route_table.json": "83cdf0c95a3d65d11eadb4d2c07347136e84c8126e83c26f94863ebc7f6f435a"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_api.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 67.969,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-0.log",
+      "log_sha256": "c63b929bc69330732694722f41902602ea652da0d5923919dec2863ac6fce6dd",
+      "tests": 5
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_main.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 4.375,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-1.log",
+      "log_sha256": "0498f76ffdd7d2bce48b374c6d4900948601291c8d27256611687142ae5a40a4",
+      "tests": 3
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_api.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 18.047,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-2.log",
+      "log_sha256": "b5f14f5960629e7153ec593539feb184d4bc02864d666c392287f8521f91b269",
+      "tests": 5
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_service.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 49.625,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-3.log",
+      "log_sha256": "43a073b0d39bd765bcddabe64fd276ca338dffa272b9e65ac50dc88756c99f49",
+      "tests": 14
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_lifetime.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 19.235,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-4.log",
+      "log_sha256": "f002bf288f3d3eadfb11dd5215e4809acd37fee7817afe865a8489a6d963852a",
+      "tests": 3
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_c_stop.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 60.141,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-5.log",
+      "log_sha256": "0294513df6cf507045e78022f5e37f9837569cbf772ba9543656b0481223c67b",
+      "tests": 7
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_workflow_api.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 53.609,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-6.log",
+      "log_sha256": "663c4b9c5a63af4c781313e995333dad6866af40a6bb835005161a8a9dbb146e",
+      "tests": 8
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "ViewReservationTests.test_actual_v4_pair_reserves_existing_calls_links_and_cold_replay",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 19.797,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-7.log",
+      "log_sha256": "231db664ba57f1d126cb2d0ba9ae8719bc371a8694c949b321591656a4f13c98",
+      "tests": 2
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_route_table.py"
+      ],
+      "exit_code": 0,
+      "seconds": 2.328,
+      "seconds_basis": "subprocess wall",
+      "log": "task5-view-controls-8.log",
+      "log_sha256": "7cb9fb453281b129ab675b055ba87d4a174d07801baed839f3830fa797cdd1fc",
+      "tests": null,
+      "checks": 1
+    }
+  ],
+  "total_tests": 47,
+  "route_snapshot_checks": 1,
+  "total_recorded_seconds": 295.126,
+  "seconds_basis": "Nine sequential subprocesses; one unchanged server/test/route source map throughout.",
+  "complete_source_log_record_sha256": "35a79ae629a1b02595fe3d19f8f50b22f967d208d87425a145b92e2db1da74dd",
+  "route_snapshot": {
+    "before": 618,
+    "after": 621,
+    "only_additions": [
+      "/improvement-experiments/{experiment_id}/view-evidence",
+      "/improvement-experiments/{experiment_id}/view-freeze",
+      "/improvement-experiments/{experiment_id}/views/{comparison_id}"
+    ],
+    "retained_routes_identical_except_consequent_order": true
+  },
+  "red": {
+    "log": "task5-view-api-red.log",
+    "sha256": "a3aa293e1b29774dffdeb2a6f19e1940d2de4402110c5f94d9f62638945d638e",
+    "reason": "Actual token-only owner view route returned404 before the route existed; required owner403 was absent."
+  },
+  "controlled_mutant": {
+    "evidence_class": "technical",
+    "mutant_rejected": true,
+    "only_mutation": "remove view-freeze/view-evidence from actual stop join kinds",
+    "source_sha256": "11e74b6cfe65cb633e28407821ab16dfbabc637beb5ed49bf1358777d64eae44",
+    "mutated_source_sha256": "366bfa679907c8baa5c50117fd3ac08afbdb13a52aaacfe5e3fb941be1a780bd",
+    "real_model_calls": 0,
+    "log": "task5-view-stop-mutant.log",
+    "log_sha256": "7c6ef4d3bf3a452db0493d69401aece4e810e30617d3477741dddf8144434ff7",
+    "expected_failure": "Stop must join its owned view source thread before final settlement"
+  },
+  "native_profile": {
+    "sources": 81,
+    "hash": "2221a8599529ac50cf3c9c98057cd003e9dfc45828ac808b5f11e802279511ba",
+    "qualified": false
+  },
+  "real_model_calls": 0,
+  "business_proof": false,
+  "positive_final_exercised": false,
+  "task3_complete": false,
+  "task5_complete": false,
+  "limits": [
+    "Real owner HTTP, actual view publication/current sources, cold history after off/revoke and actual stop thread joins.",
+    "Current evidence rechecks authority on a completed-key retry; it is not a persisted readiness or native proof.",
+    "New public operations do not invoke next/query, select a winner or mutate canonical skill bytes.",
+    "Existing B/C owner, stop, lifecycle and actual v4 paired-reservation paths pass on the same source map.",
+    "Controlled mutation was confined to one isolated test process; the checked source never omits the view stop joins.",
+    "Current native profile is unregistered. Genuine selected-final positive, exact native qualification, whole-D1 review and final CI remain open.",
+    "D2/E/F, business pilots and live acceptance remain open; no deployment, restart or activation."
+  ]
+}

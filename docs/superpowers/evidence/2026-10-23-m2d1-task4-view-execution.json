@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 v4 receipt/check/result identity and real tuning pipeline",
+  "parent": "c811b9d6dc4c8ba406df7f774e86da1d0d4c2249",
+  "sources": {
+    "server/improvement_claude.py": "2eb66576ea146746428c4fac261d1761d9f8c5cdae0e3e85f26e65cc77a89803",
+    "server/improvement_trial_checks.py": "4c04bc4fee56fe8dbcdb301ed42cc89a779cb543af433a763cdabd2b25396b6b",
+    "server/improvement_trial_results.py": "f87224f3abd4b833cad93b11db3bf08513b6044d7b7ab09cff6673c6637efe41",
+    "tests/python/test_improvement_view_checks.py": "3465a750ad47638bb2d007b1878584ebe58ae39c121e575dc8402387945b2311",
+    "tests/python/test_improvement_view_execution.py": "fc8bc0680b47d992dbb06dd08d30edaa3b2bd676db6b4f7ca8a498c28b06610e"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_execution.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 97.377,
+      "seconds_basis": "unittest elapsed from the direct completed invocation",
+      "source_basis": "No server/test edits between the last patch preceding that direct invocation and this snapshot; same bytes retained across affected regression.",
+      "log": "task4-view-execution-green.log",
+      "log_sha256": "f5ac12c923eba1cbc27ad6970b0a98134592fc7de3c01aae77057cb7ae3e0b92",
+      "tests": 1
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_checks.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.625,
+      "seconds_basis": "subprocess wall",
+      "log": "task4-view-execution-0.log",
+      "log_sha256": "d00d2e721779fa2c0e44a16142ea042c5fb61aadb9ce0775ddc53a47fa80be06",
+      "tests": 3
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_checks.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 1.5,
+      "seconds_basis": "subprocess wall",
+      "log": "task4-view-execution-1.log",
+      "log_sha256": "d1df73f7f1510c9a726ed866ecde23c0bd2fe552f063ca5b569b147583de865f",
+      "tests": 29
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_claude.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 2.031,
+      "seconds_basis": "subprocess wall",
+      "log": "task4-view-execution-2.log",
+      "log_sha256": "55504aba82efc5195693743c41850d022609eb4b7c744dc9d99453f47177fae7",
+      "tests": 22
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_results.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 11.187,
+      "seconds_basis": "subprocess wall",
+      "log": "task4-view-execution-3.log",
+      "log_sha256": "c5d3ab93b957178f1ca838ffd12c7414dc98dbc00de7c085704840a38b549b48",
+      "tests": 11
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_execution.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 14.344,
+      "seconds_basis": "subprocess wall",
+      "log": "task4-view-execution-4.log",
+      "log_sha256": "7ad254a42b8a091408ed06aa5ad7d66c25d9b48356e007ed90a56936de729380",
+      "tests": 2
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reports.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 48.453,
+      "seconds_basis": "subprocess wall",
+      "log": "task4-view-execution-5.log",
+      "log_sha256": "40ff519d0186a2a6860bfbc6cdece7af8810805217362f02b1ce60dc9455d6df",
+      "tests": 6
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "NativeFootprintTests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 0.609,
+      "seconds_basis": "subprocess wall",
+      "log": "task4-view-execution-6.log",
+      "log_sha256": "600a6604b8292fa1f86a333af9501ec57c4a54274853ffca3c3e333cb1a02f1c",
+      "tests": 1
+    }
+  ],
+  "total_tests": 75,
+  "total_recorded_seconds": 176.126,
+  "seconds_basis": "Direct pair test uses unittest elapsed; remaining rows use subprocess wall. No server/test edits intervened.",
+  "complete_source_log_record_sha256": "e99e0f854deb57a55ec6156462b6d16b850d2c12fbd603c96c5e4cdc4cc85315",
+  "red": [
+    {
+      "log": "task4-view-checks-red.log",
+      "reason": "Explicit4 record checks rejected and actual workspace2 receipt still version1.",
+      "sha256": "6b70f303fd4b31a2b4357c2ac1a9734a30f56feed13da83a7dc62b587e5e988f"
+    },
+    {
+      "log": "task4-view-execution-red.log",
+      "reason": "Real Runner produced a legacy result1 for actual request4.",
+      "sha256": "65c3fb123c889d492f5c83cffd562749b0184a7b2ecf7f1d7b6bb40f7016dce6"
+    }
+  ],
+  "native_profile": {
+    "sources": 79,
+    "hash": "2192bf86b6a49e0fa2d524324db79c4a52493d91f37c56b9f183a4fa8b922e4d",
+    "qualified": false
+  },
+  "actual_owned_pair_runner_calls_results_cleanup": true,
+  "full_eighteen_check_ids_preserved": true,
+  "v4_cold_result_and_comparison_history_after_revoke_and_off": true,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false,
+  "task4_complete": false,
+  "limits": [
+    "Engine adapter is explicitly simulated. Actual Runner, owner next, Trial/Call reservation/start, products, Fernet results and cleanup are real.",
+    "Two tuning cells form one genuine matrix pair, not a complete A/B comparison or 6/6/6 qualification.",
+    "Pure eighteen-check fixtures are untrusted shape/consistency inputs, never native or product acceptance.",
+    "Reasoning and asset use stay unknown; simulated overall results remain non-pass and selection unsupported.",
+    "Final holdout registry ownership, native isolation/scenarios on the exact final source, public controls and review/CI remain open.",
+    "No selected-model query, native registration, eligibility, activation, deployment or restart."
+  ]
+}

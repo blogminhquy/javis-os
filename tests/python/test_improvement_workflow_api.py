@@ -218,6 +218,35 @@ class RoleWorkflowApiTests(unittest.IsolatedAsyncioTestCase):
         roles.ProposalTests.setUp(self)
         self.mount()
 
+    async def test_http_invalid_semantic_output_is_explicit_and_replays_cold_after_stop(self):
+        await self.prepare()
+        candidate = self.f.plans.authoring.stage(self.owner, 'association-experiment', self.body_patch(),
+            event_key='http-manual-invalid-semantic-candidate')
+        self.acked, self.closed, self.hang = asyncio.Event(), asyncio.Event(), False
+        self.body = '```json\n{"version":1,"verdict":"pass","summary":"Synthetic assessment."}\n```'
+        self.service.operation_tasks.runner.adapter_factory = self.adapter
+        payload = {'candidate_id': candidate['candidate_id'], 'expected_generation': 3,
+                   'event_key': 'http-invalid-semantic-output'}
+        with patch('improvement_operation_adapter.ClaudeOperationAdapter.verify',
+                   return_value={'supported': True, 'capability_hash': 'c' * 64}):
+            response = await self.post('semantic-review', **payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()['result']
+        self.assertEqual(result['status'], 'invalid_output')
+        self.assertNotIn('receipt_id', result)
+        self.assertEqual(self.native_queries, 1)
+        generation = self.f.plans.records.get(self.owner, 'association-experiment')['generation']
+        self.host.revoke(self.owner, 'association-experiment', expected_generation=1, event_key='http-invalid-output-revoke')
+        self.assets.set_policy(self.owner, 'off', expected_version=0, event_key='http-invalid-output-off')
+        stopped = await self.post('cancel', expected_generation=generation, event_key='http-invalid-output-stop')
+        self.assertEqual(stopped.status_code, 200, stopped.text)
+        with patch.object(self.assets.blobs, 'read', side_effect=AssertionError('Stopped invalid-output history stays cold')), \
+             patch.object(self.host, '_snapshot_observe', side_effect=AssertionError('No source capture on replay')):
+            replay = await self.post('semantic-review', **payload)
+        self.assertEqual(replay.status_code, 200, replay.text)
+        self.assertEqual(replay.json()['result'], result)
+        self.assertEqual(self.native_queries, 1)
+
     async def test_actual_http_proposer_reviewer_owner_decision_and_revoked_cold_history(self):
         await self.prepare()
         self.acked, self.closed, self.hang = asyncio.Event(), asyncio.Event(), False

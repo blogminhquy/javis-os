@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "label": "standalone/pure-sdk116-query-argument-consistency",
+  "evidence_class": "technical",
+  "source_base_commit": "df0e24b1b0f1cb812e0407ff6813590d0122d135",
+  "production_reachable": false,
+  "selected_cli_or_account_calls": 0,
+  "sdk_client_connect_or_query_calls": 0,
+  "provider_calls": 0,
+  "ordinary_trusted_workspace_acl_setup_permitted": true,
+  "source_hashes": {
+    "server/improvement_query_dispatch.py": "9831cd30461fde5a5224ecccdb17d5742f107b521b43158668eb766898e1fe72",
+    "tests/python/test_improvement_query_dispatch.py": "f53eb9fd35cb6b1dfd518aa7b3804440a4f49156a93c0cae29a78d06b603f0bc"
+  },
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "test_command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe tests/python/test_improvement_query_dispatch.py -v",
+  "runtime": {"platform": "Windows", "python": "3.12.10", "sdk": "0.2.116"},
+  "author_red": {
+    "tests": 16,
+    "failures": 16,
+    "reason": "missing_component",
+    "exit_code": 1,
+    "unittest_seconds": 0.002,
+    "invocation_milliseconds": 1471,
+    "log_sha256": "f2f653e665134109ffdd92abfe64f7c1a48086fa2590bdbf25f2634e0fddf986"
+  },
+  "author_green": {
+    "tests": 16,
+    "exit_code": 0,
+    "unittest_seconds": 0.424,
+    "invocation_milliseconds": 1777,
+    "log_sha256": "a711951c2e18ed4d7916280fafe82d821f3af5c194d59c0eda59d70e2ffb4b01"
+  },
+  "independent_review": {
+    "verdict": "standalone_scoped_approval",
+    "tests": 16,
+    "exit_code": 0,
+    "unittest_seconds": 0.420,
+    "source_test_and_readonly_dependency_pins_unchanged": 11,
+    "all83_qualified_source_pins_unchanged": true,
+    "execution_caller_absent": true,
+    "log_sha256": "3ba3b4d2cb10de0f752db73bf8a45a6ed974d8eb044df895a790de30a66378c4"
+  },
+  "tested": [
+    "Actual existing bound3 TrialProfile options and SDK116 command builder at medium/high; no connect. Fixed Windows CLI/cwd substitutions are synthetic serialization fixtures; stdio matches SDKClient replacement.",
+    "Exact Windows raw command serialization, executable/cwd/creationflags and UTF16 command size.",
+    "Closed selected model/effort/prompt/tools; duplicate, foreign, missing, reordered and override flags refuse.",
+    "Inline duplicate-free strict-boolean settings and exactly two SDK MCP server descriptors.",
+    "NUL/surrogate rejection, defensive copies, sanitized generic errors and results; no parser IO."
+  ],
+  "result_basis": "query_argument_consistency",
+  "coverage": {
+    "os_boundary": "unknown",
+    "image": "unknown",
+    "provider_acceptance": "unknown",
+    "internal_reasoning": "unknown"
+  },
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-query-dispatch",
+  "limits": [
+    "Unreachable standalone component outside PROFILE_SOURCES; no actual query dispatch, native image, session or inference proof.",
+    "Local Windows execution only; actual Linux execution remains required in final-head CI.",
+    "The unchanged native20 qualification and standalone read-outcome39 evidence are reused by exact source scope, not rerun.",
+    "No manifest4/receipt4 integration, actual reasoning gate, all18 eligibility, business benefit or live rollout established."
+  ],
+  "goal_complete": false
+}

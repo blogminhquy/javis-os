@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "reviewer": "m2d1_whole_review",
+  "base_head": "754bfdc9",
+  "scope": "concrete QualificationSession no-launch foundation; separate empty reviewed-candidate registry; profile85 closure",
+  "verdict": "approved_scoped_session_foundation",
+  "before_pins": {
+    "server/improvement_qualification_session.py": "364b56842e875656f9d4a77382c3b7e0aa1277456132093511144c7c122b7de4",
+    "server/improvement_qualification_environment.py": "b0c36fe2a44f7982ea1c1046a411516d5f37e81f6c9c32e64de2b0935471cad2",
+    "server/improvement_sandbox.py": "e7e8b6263b7eb4e4410b5eeb237a5ff3a3541bf6b285a0d5a2b5411640a66dc6",
+    "server/improvement_native_release.py": "cdec514e2ae63f4e33ce63b56c1e525153cc2bacd88897a95605ac6f69f3593b",
+    "tests/python/test_improvement_qualification_session.py": "4c885ee253a0a1c770c78623c680632d36b805ac5cf703b4794bc977aebeb621",
+    "server/improvement_claude.py": "8d51fce8e7be96d7615e14c50ca2c8eeada8ff40291572886e9725e5e3cc9d56",
+    "tests/python/test_improvement_qualification_environment.py": "917e3607b8abe9665f3c594d2ecb3edccc70e21bad15e4c9da1617be2b9b3489",
+    "tests/python/test_improvement_native_release.py": "9a9a3fddf1a466f4b4bc39050125a87e0b9579200580b42492156ff9f08c393a",
+    "server/improvement_native_qualifications.py": "95a56aafa827ac7ede6adbe46205258f81fca889bec42d4bcf2b4901365f6fa5",
+    "server/improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+    "tests/python/test_improvement_native_sdk.py": "d5562bf2ab0da6518899ce1d04b466a710360f98af61efb23f0103684ab2e4b2"
+  },
+  "after_pins": {
+    "tests/python/test_improvement_native_release.py": "9a9a3fddf1a466f4b4bc39050125a87e0b9579200580b42492156ff9f08c393a",
+    "server/improvement_qualification_environment.py": "b0c36fe2a44f7982ea1c1046a411516d5f37e81f6c9c32e64de2b0935471cad2",
+    "server/improvement_claude.py": "8d51fce8e7be96d7615e14c50ca2c8eeada8ff40291572886e9725e5e3cc9d56",
+    "server/improvement_qualification_session.py": "364b56842e875656f9d4a77382c3b7e0aa1277456132093511144c7c122b7de4",
+    "tests/python/test_improvement_native_sdk.py": "d5562bf2ab0da6518899ce1d04b466a710360f98af61efb23f0103684ab2e4b2",
+    "server/improvement_native_protocol.py": "9ddcd57cd81378e814a96f5d3f2a29278e967a45e4a1c581e22ac45999ad3744",
+    "tests/python/test_improvement_qualification_session.py": "4c885ee253a0a1c770c78623c680632d36b805ac5cf703b4794bc977aebeb621",
+    "tests/python/test_improvement_qualification_environment.py": "917e3607b8abe9665f3c594d2ecb3edccc70e21bad15e4c9da1617be2b9b3489",
+    "server/improvement_sandbox.py": "e7e8b6263b7eb4e4410b5eeb237a5ff3a3541bf6b285a0d5a2b5411640a66dc6",
+    "server/improvement_native_qualifications.py": "95a56aafa827ac7ede6adbe46205258f81fca889bec42d4bcf2b4901365f6fa5",
+    "server/improvement_native_release.py": "cdec514e2ae63f4e33ce63b56c1e525153cc2bacd88897a95605ac6f69f3593b"
+  },
+  "tests": {
+    "seconds_sum": 7.566,
+    "skips": 0,
+    "timings": {
+      "session11": 7.558,
+      "environment5": 0.008
+    },
+    "runs": [
+      {
+        "name": "session11",
+        "sha256": "e44bfcd9eff6dbec50e08780d00bb8b296ee9ca10fe09de339671ffb8f5a5020",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-session-session11.log",
+        "exit": 0
+      },
+      {
+        "name": "environment5",
+        "sha256": "81705b32c04720d4084dc44a66dc440d81da57d5e666e0975af9eb421a4f78f0",
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-session-environment5.log",
+        "exit": 0
+      }
+    ],
+    "count": 16
+  },
+  "findings": [
+    {
+      "fix": "QualificationSession source added to PROFILE_SOURCES85; observe_release union seed recursively captures environment helper",
+      "title": "Qualifier owner omitted from observed candidate source closure",
+      "severity": "Important/P2",
+      "status": "closed",
+      "evidence": "Independent offline actual source/RECORD observe fixture verifies owner mutation refuses pinned profile and helper mutation changes fingerprint; runtime/bootstrap validation seams explicitly inert"
+    }
+  ],
+  "open_findings": [],
+  "observations": [
+    "Empty reviewed qualification candidate authority remains separate from empty live release registry",
+    "Static runtime and closure comparison occur before fresh scratch allocation; no CLI or account observer launched",
+    "Fresh private ACL root/read-only public root, generated fixture encryption key, actual GoalStore/M0/CallLedger same DB and immutable encrypted run record before calls",
+    "Actual distinct empty HOME directories under private root with literal dummy environment; foreign/parent traversal/closed/expired and corrupted scope refuse",
+    "Close preserves forensic state; explicit cleanup refuses placeholder retained owners"
+  ],
+  "limits": [
+    "Candidate/static runtime/release observation seams mocked for session tests; no actual installed full closure/runtime/auth/CLI observation",
+    "Offline closure fixture uses real source/RECORD hashing with explicitly inert runtime/manifest validation, not launch qualification",
+    "maximum_queries is recorded only; native owner attach/drain, typed verification, launch consumer and attempt/call links are not implemented by this foundation",
+    "Freshness at future launch, complete M0 domain publication/cold-read and promotion omission/downgrade fences remain mandatory before qualifier activation",
+    "No provider/account/default inventory/native child; no supported account capability/live registry/full18 eligible-final/business/finalCI claim"
+  ],
+  "slot_released": true,
+  "review_report_sha256": "62bfe34f35739434cbe396abbdbefb73b2068b8ffcd63e77f72c4ff5d9b5f906"
+}

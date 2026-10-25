@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "evidence_class": "technical",
+  "stage": "M2D1 Task3 actual reservation/current source checkpoint",
+  "parent": "b755699e",
+  "sources": {
+    "server/improvement_claude.py": "8f37e9563dac76e98f0592707eac6c28d61cd84480b80e04f356e6e176d8725f",
+    "server/improvement_experiment_lineage.py": "af17451baa694f76d27367d5f773fc49562fab2f921f7c7862915f53cb6699c2",
+    "server/improvement_trials.py": "6d8a75fd60445415aef054f662542c9df228835129c65318f6565924756b2b4f",
+    "server/improvement_views.py": "bdf259d0188d9917a9491a6e9a7182bdb2a6d09436aa9372572032eddd3a0d7b",
+    "server/improvement_trial_host.py": "380b304eebe04d6eba0ba9561b3e671f1f624e9b18cba5723ef7bfaf074fc9c7",
+    "server/improvement_trial_views.py": "604a9d9fc0dc0a4d071c675bb098d5f28a999903fac27c5d0e55c3821a5cc1bc",
+    "server/improvement_trial_products.py": "cd33a191d3310bdd29b94c2cef46bccc4ecbd24021e3fe9478a3b433d09b11f8",
+    "server/improvement_trial_results.py": "f92f28420a7b8cf305e63f7b10f6f372975ba90c19232a3dd7779b3176a08d1a",
+    "server/improvement_trial_decisions.py": "734e77449747da37c8274bd95de77b11774309ab280e99a81e7fabce1e35a40d",
+    "tests/python/test_improvement_view_reservations.py": "d3ba774521bb41ca4faa68612ef8ee749863455c44f3183e4820566a5eb1dd4d"
+  },
+  "runtime": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "sqlite": "3.49.1"
+  },
+  "results": [
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_reservations.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 89.89,
+      "log": "task3-reservations-0.log",
+      "log_sha256": "f3580ef7b595d873cf32b3c60784815a0d57aff6be855de846da05191ce4ab86",
+      "tests": 7
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trials.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 21.406,
+      "log": "task3-reservations-1.log",
+      "log_sha256": "5c3fc96a0849282541444d9fa9ae0ea70c4544c823fa83b54c253e6a82dce141",
+      "tests": 34
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_experiment_lineage.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 55.938,
+      "log": "task3-reservations-2.log",
+      "log_sha256": "35865bbc25cfed85dd524a91bcfeda5e5bd0c2142802a2df87ea998a24bd22d0",
+      "tests": 18
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_host.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 14.265,
+      "log": "task3-reservations-3.log",
+      "log_sha256": "41bbac110b6026e329b1c9888167c54e422b0de335ac0f77a58c0c57c3d2dfc5",
+      "tests": 24
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_results.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 11.187,
+      "log": "task3-reservations-4.log",
+      "log_sha256": "f41d6dff72e719c64e27d9a49c42b72e75bc3529e750735b9a6e560b6eb3a82d",
+      "tests": 11
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_decisions.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 13.203,
+      "log": "task3-reservations-5.log",
+      "log_sha256": "798c7666d5a7cd3b27d3e1524a807c24bd995f7d4e32cd8aac0ab315ee362dd5",
+      "tests": 16
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_trial_views.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 6.797,
+      "log": "task3-reservations-6.log",
+      "log_sha256": "2b1c5ab9ceb1b69411b3655580771961c4523dae92f6677e7b669184c8f9f8d4",
+      "tests": 7
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_claude.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 1.89,
+      "log": "task3-reservations-7.log",
+      "log_sha256": "df24c24a57ec0c5f21dc2053934d710974380f7a7d8d51e683eb17bc3110b5ba",
+      "tests": 22
+    },
+    {
+      "command": [
+        "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe",
+        "tests/python/test_improvement_view_sources.py",
+        "EffectiveViewSourceTests.test_host_freezes_real_pair_and_resolves_exact_authorized_bytes",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 16.672,
+      "log": "task3-reservations-8.log",
+      "log_sha256": "641e71f77cae4b763161c38d94f79424b185b219757861982541ec88fda8879d",
+      "tests": 1
+    }
+  ],
+  "total_tests": 140,
+  "total_subprocess_seconds": 231.248,
+  "complete_source_log_record_sha256": "6ae76b08f6041cf7afb157dab5da979f41e8748b4c84e8b99d56ad93f77cce7a",
+  "red": {
+    "log": "task3-view-reserve-red.log",
+    "reason": "Missing concrete resolver binding and old native footprint still matches C",
+    "sha256": "92d3e5ac22f438400475b7b441f006c0e7633cce3283edab98664b4951c8a479"
+  },
+  "native_profile": {
+    "source_count": 76,
+    "sources": {
+      "improvement_claude.py": "8f37e9563dac76e98f0592707eac6c28d61cd84480b80e04f356e6e176d8725f",
+      "improvement_sandbox.py": "3a319550fe40f62f1bc9a17ef855cdd739c1cc5c186c834cb4cf4e9bc6e95bb9",
+      "improvement_worker.py": "f846e736507688a1f4a4039d3dcf75caf20c135715f9d9a902151390372fc065",
+      "claude_sdk_engine.py": "6b13f5b77f78e0dfe3ffc1268e46ef70d8d800324e8dd2664f793f0b8df49906",
+      "improvement_native_transport.py": "29b34bdfbbbaf6702ea7370a623110e1b5bf9a6fb48755f56b4fcfef54dd5927",
+      "improvement_operation_adapter.py": "ca771aa7d7ce82d1be94eece3cee3d54dfe1df1ff85671d47bcee2afa950c021",
+      "improvement_operation_worker.py": "3da7d208f0bf93a93ccab12ff3f3fe8977c130fcc288b1bc424a0e0c111c6cbc",
+      "improvement_operation_profile.py": "551b2420b45ba0911fb851b862efe1087fa04147e9f6a60e1db4eba5b6b8f534",
+      "improvement_operation_workspace.py": "8317b1a958062d7e3bcfd36c5f5ccc4f0c73d73e5f94102018270c43b9f04f51",
+      "improvement_operation_protocol.py": "5cca76867faaebc0096cf618643def2749c5406dfd952807b2d4ffc3efbd8bd4",
+      "improvement_operation_execution.py": "c6934000343fe196d399392244f9cfa754a7e821f81d190cf9167b7bb6a095fb",
+      "improvement_operation_evidence.py": "145e70c5cdbd68dfaf91334e6b3a5125285843663cad740889908c575f5b7e56",
+      "improvement_trial_evidence.py": "aca5906576ce9ecfd2cb6671cb7da7577c961aeb947a8b9f4186f15e0a819373",
+      "improvement_operation_checks.py": "d02125284d72339121b6fb65a7b2a976da34b80475dbd1ee753d355e9b5a7a1c",
+      "improvement_operation_results.py": "58adf6b13bd67c587fd405235ece13f2bbc2eabddf5b9f43f043e0baae625389",
+      "improvement_trial_checks.py": "06f04ee1764968c2ed477c9db402d48308a51db555089ef8bb2162f4c399e10e",
+      "improvement_operation_runner.py": "828a86b13930a5da6883d49e62a66d7c345f63edf33aa477b4f98a1afde088a1",
+      "improvement_operation_tasks.py": "b3f39697914070342ad9953fe21956b9264b8ccc2839ecb3e01f65bdb6a98106",
+      "improvement_operation_recovery.py": "7139f70cbe1b846effb16a3f6ebfe83acd979cec0789f695b1e206c05b7201e4",
+      "improvement_operation_retry.py": "7a69f760df6949588cb4802c6de39ab66508453545b26b147d2f741616028fcd",
+      "improvement_operation_schema.py": "53bcada765678337712051b950b26cbb285b548c66c30e07526471f808530512",
+      "improvement_operation_records.py": "57d755666f93278551aa2b655b383e2aa58bdc5b2aa600f5c0f92a1137aa3e3d",
+      "improvement_improver_inputs.py": "e8159a538599691d8d01dbbd7d24a58a3e0d23cb7a1359567ef6b24940fb7192",
+      "improvement_generation_protocol.py": "247824007fe4860079d1a3ec5d7ffde47b63337a1a78fc7b6a01830e9e9d0bbe",
+      "improvement_comparison_plans.py": "607eb439db944a119ed06d1f854333690f828dbe57486c0095ad86e58415c50e",
+      "improvement_proposals.py": "59a5dec3e118a78719f3ba82041d70e12d28a1c9cee7f2ea4b56f2cbc6cc4f72",
+      "improvement_skill_candidates.py": "881d402a3df0629aacfecac590b25f667043b1e7d6e0ef5cd7b6ba09c4886c9e",
+      "improvement_role_workflow.py": "f29affd5dc98564fc7389536ecf5317d4b10daf7493cee3af439a9d2261af9c2",
+      "improvement_semantic_review.py": "852a31995a118943c8c98ee8a6901320416a75c6db544b3093fe32f5e2d280c1",
+      "improvement_semantic_protocol.py": "4fe16034f9461cc15f624c3bfa8574b0de68dcdfe18d62b37b9e5a4fff684a98",
+      "improvement_semantic_records.py": "7fb620313eacc8f4548e371face9c0698012cf7f48cca277a2aff34b6a6a0b79",
+      "improvement_dependency_evidence.py": "08df1576dfe0e146c5bdcb12cafc1e769c737565b1b49938e35aa7e7957dff09",
+      "improvement_execution_limits.py": "1b1830df34b295408ffca49e5ea1f446c6a334d49d085ea79932bf3aa829c6cc",
+      "improvement_native_lifetime.py": "bd9cd7cda7883814c22cbed2e6866adf097cefce923a22595eaa34d0722f415b",
+      "improvement_trials.py": "6d8a75fd60445415aef054f662542c9df228835129c65318f6565924756b2b4f",
+      "improvement_trial_host.py": "380b304eebe04d6eba0ba9561b3e671f1f624e9b18cba5723ef7bfaf074fc9c7",
+      "improvement_trial_records.py": "58c958cc8d424eea0fb4592c9ae1df49ff86f64c795a1922511f26c28bf56d12",
+      "improvement_trial_admission.py": "d1b6f271880fe0b9bc4da6dc6132106fd60dd87520e1fd471f210d8fd138da62",
+      "improvement_trial_context.py": "cd18fbeb5904ac1147dc2b9877bcb9e289bb5a6c4137c3ece92db4b7a905227f",
+      "improvement_trial_sources.py": "1d4c1f0162f2fe9b7e135681d3f6bd3e644f82e2e3a04324234ab38418109669",
+      "improvement_trial_sql_context.py": "1079187f392478ead14ebf05c45c1681415c7d6317eea9d04a055629bb88e4ca",
+      "improvement_trial_dashboard.py": "2b227a5cc08949c7fa613116dd785d68ac7ae09571a4c0bff504a323801dabaa",
+      "improvement_trial_file_sources.py": "df07158a0c97a789ef1f5f2dee064fcba276c3179ddb9a5264d6cc28735e755e",
+      "improvement_trial_selection.py": "3631090451525c9d9f0e5505deac29c3c04ea10babd0727f90337bf0472eae8e",
+      "improvement_trial_service.py": "ab92d939cc9453a5de6b9b5ad423d2c6d5bd6dc27d913ee9f13a73d78aa9125c",
+      "improvement_trial_associations.py": "c3d59f5d0b4edd4b965e026bb221238f6dc55ca7111ea30bc2fe39a064fdbfcc",
+      "improvement_trial_runner.py": "c87a7fe34d4db7c5edd8856fc30a0650a89e109aeb9d6a49bb459d423c46ffbc",
+      "improvement_trial_tasks.py": "7d3b19b70f6ae99d86a7189d37f4816726bdf3322ae0680f2d96ff558ed816f6",
+      "improvement_trial_results.py": "f92f28420a7b8cf305e63f7b10f6f372975ba90c19232a3dd7779b3176a08d1a",
+      "improvement_trial_products.py": "cd33a191d3310bdd29b94c2cef46bccc4ecbd24021e3fe9478a3b433d09b11f8",
+      "improvement_trial_decisions.py": "734e77449747da37c8274bd95de77b11774309ab280e99a81e7fabce1e35a40d",
+      "improvement_trial_views.py": "604a9d9fc0dc0a4d071c675bb098d5f28a999903fac27c5d0e55c3821a5cc1bc",
+      "improvement_trial_schema.py": "ac7066cdac48cf35213ed2591ed462d53d4f22955ea127904f568c69643dcae1",
+      "improvement_experiment_lineage.py": "af17451baa694f76d27367d5f773fc49562fab2f921f7c7862915f53cb6699c2",
+      "improvement_experiment_admission.py": "6505f4b718109764211817997503be0ea6a2989a8a7fb826c150b84b3d2fe42c",
+      "improvement_experiment_service.py": "a67c07a51b3d2f0ec385246fd69c72d4d1d0c93315cea6ba0dd769c1bb40fa90",
+      "improvement_experiment_protocol.py": "66b55574a087cba950e17ae8bbb6edd4ab528045718762879c720fb5559e1add",
+      "improvement_experiment_qualification.py": "23121c1e392b3bc82a439218ebf07eeb209420182ae9321e3592024cd50c6197",
+      "improvement_experiments.py": "e48b74bac4a8f8cbfc31b20049019fc7ec6ff80b551e3c2add1c835f78b138b2",
+      "improvement_experiment_schema.py": "ac545c99df80d3bdcfef74951bd1b7342827de62820cbedd0c832b3f19abe61d",
+      "improvement_comparison_results.py": "4dcca9ef2cad419bec6cbd913ddecdb85bfb1ad8f95921307bf3588a99870e43",
+      "improvement_comparison_links.py": "73063d3ae1218a81a6ad12108a2d299b3d41c67204e014a19827d2631accf97a",
+      "improvement_views.py": "bdf259d0188d9917a9491a6e9a7182bdb2a6d09436aa9372572032eddd3a0d7b",
+      "improvement_view_sources.py": "32702f516d5ce7ceef2f3dc4b9544a077209890f11e3f500aaf8d7e3fb3e3fb3",
+      "improvement_view_history.py": "7b3525d0b7c481bc071cc494945d42f86d29f0262c42ea7fd5d05e41efc72df0",
+      "improvement_view_lineage.py": "7c633430af3c3066dbea5df2df0b5ae2b484754b04efc9b5e2922d435000629a",
+      "improvement_view_trial_protocol.py": "1bbb63cc22ac174e2fe2eb3479a49a03ea91d57d05bd518bd2b61ac8e533e521",
+      "improvement_view_protocol.py": "bc9ddf145bc031fd8308bec91de92de5c9cff07e1eca5faadc5df763c9c5c2c1",
+      "improvement_view_schema.py": "4893bd2048baf3384a185d8988cc044b09f4ece2bbd74fe3813db2a0790a5002",
+      "improvement_store.py": "c237f7138c5cbe2fb8f0def70ffde677616c9db7fc15daf64ca4d6b6bec79536",
+      "improvement_blobs.py": "cca420e46e961fc2bbc6cea4a0929cd2f3ef8b9ccf1de6cc4a1ff7598f7bb4b6",
+      "improvement_cases.py": "561d848331eca7ce6b4e84d6b68b1cac031a62f8dc0e4ce14250bda7f80d2b9d",
+      "improvement_case_schema.py": "54554b40dc20e58d37cdcb3964fc8384ff11ae95683277352a949ad37dad6865",
+      "improvement_candidate_records.py": "0a864da2e6dff8b85f37372836d4054b2901ac26fd909df32245979878092b27",
+      "improvement_candidate_schema.py": "6d29c83299ecc9e081912f4b3cf6f549890f71abeeb3af9684e9d3f0e66ee5da",
+      "improvement_skill_patch.py": "c06eb301c2c8d9ab7d68368f42256b9cb55108780c3782e3cf06aa0cdcbd87d3"
+    },
+    "version": "claude-isolated-roles-v2",
+    "hash": "51b62052babed7b4ceee02f8edf5a7101c92cefe0873280fc6148a6b7dcf7e3c",
+    "qualified": false,
+    "registration_unchanged": true,
+    "prior_c_qualification_does_not_match": true
+  },
+  "actual_v4_trial_created": true,
+  "actual_existing_call_ledger_reserved": true,
+  "engine_at": null,
+  "real_model_calls": 0,
+  "business_proof": false,
+  "task3_complete": false,
+  "limits": [
+    "Only genuine existing Trial/CallLedger reservations and links; SDK fixtures are synthetic technical evidence.",
+    "Current source/semantic/lineage observation preserves protected content and all original unknowns.",
+    "No v4 workspace/native query can execute yet: materialization explicitly refuses version4 pending Task4.",
+    "Final cells still refuse until typed ownership in the existing qualification registry is implemented.",
+    "Shared bounded stop/recovery/report/next/admission consumers and public controls remain open.",
+    "No new native registration, real query, live activation, deploy or restart."
+  ]
+}

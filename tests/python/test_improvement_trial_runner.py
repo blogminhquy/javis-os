@@ -139,6 +139,46 @@ class TrialRunnerTests(unittest.IsolatedAsyncioTestCase):
     def call(self):
         return self.f.ledger.get(self.trial["attempts"][0]["call_id"])
 
+    async def test_cancelled_verification_retains_execution_until_thread_settles(self):
+        entered, release = threading.Event(), threading.Event()
+        original_factory = self.factory
+
+        def factory(*args, **kwargs):
+            adapter = original_factory(*args, **kwargs)
+            original = adapter.verify
+
+            def blocked():
+                entered.set()
+                if not release.wait(15):
+                    raise RuntimeError("synthetic verification barrier expired")
+                return original()
+
+            adapter.verify = blocked
+            return adapter
+
+        task = asyncio.create_task(self.run_trial(adapter_factory=factory))
+        try:
+            self.assertTrue(await asyncio.to_thread(entered.wait, 15))
+            task.cancel()
+            await asyncio.sleep(.05)
+            task.cancel()
+            await asyncio.wait((task,), timeout=1)
+            self.assertFalse(task.done(), "verification escaped its owned execution")
+            other = self.f.trials.workspace.acquire_brain_execution(self.f.owner.brain_id)
+            try:
+                self.assertIsNone(other, "verification released its brain lifetime early")
+            finally:
+                if other is not None:
+                    other.close()
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertNotIn("execute", self.log)
+        self.assertIsNone(self.call()["engine_at"])
+        self.assertEqual(self.call()["status"], "refunded")
+
     async def test_success_orders_marker_and_recorder_before_ack_and_cleanup_before_evaluation(self):
         original = self.f.trials.stage_evaluation
 

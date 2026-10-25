@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "reviewer": "m2d1_whole_review",
+  "base_head": "3cfde82e",
+  "scope": "Explicit native baseline5 trace/receipt/product/result consumers; one runner version guard only",
+  "verdict": "approved_scoped_consumers",
+  "before_pins": {
+    "server/improvement_trial_products.py": "5d6e7f2868758476c7ebbd47104d03a8ec92f71d987e93183018a20a73dbc8a2",
+    "server/improvement_trial_results.py": "1db0090fa9675aa70e36c41bb1b4cb669300b74964c5895c4b0dc53e13ad3472",
+    "tests/python/test_improvement_native_runner_evidence.py": "6f206e0ccaa8f7cb551db782f12aa85d2fad6dbe9a435686ac42b761a6ab9063",
+    "server/improvement_native_trace_checks.py": "9218058c5d9a8b30dd85c8eb9248b2f1224564027421905a875d946cfeca8026",
+    "tests/python/test_improvement_trial_checks.py": "9f1837df85cb9865b28cfbf39563964b9a2e0f861f89e94b858ef21dcd021c2f",
+    "server/improvement_trial_checks.py": "c2393e894452499a575502785b97bcaad920dc037f5f2ae37f94cbb3f0c6e3b6",
+    "tests/python/test_improvement_baseline5_consumers.py": "6b9abbe370065376feffcc82b24b9970878b2377b0ae3d8f4f911cc7a766c9e0",
+    "tests/python/test_improvement_native_trace_checks.py": "021efd15b20a0150f7ad36c950e199da20a98ead5c5565c3f99a17ad0b6fc587",
+    "tests/python/test_improvement_native_result_consumers.py": "5767adf6da01a72c293dcd277d60ea72ee32f5e60828ff111552c645351678f3",
+    "server/improvement_trial_runner.py": "e117cac9b0f57e795488766da98db9e9b5084809365d8be6b11837e590f4bb04"
+  },
+  "after_pins": {
+    "tests/python/test_improvement_native_trace_checks.py": "021efd15b20a0150f7ad36c950e199da20a98ead5c5565c3f99a17ad0b6fc587",
+    "tests/python/test_improvement_native_result_consumers.py": "5767adf6da01a72c293dcd277d60ea72ee32f5e60828ff111552c645351678f3",
+    "server/improvement_trial_runner.py": "e117cac9b0f57e795488766da98db9e9b5084809365d8be6b11837e590f4bb04",
+    "server/improvement_trial_checks.py": "c2393e894452499a575502785b97bcaad920dc037f5f2ae37f94cbb3f0c6e3b6",
+    "server/improvement_trial_products.py": "5d6e7f2868758476c7ebbd47104d03a8ec92f71d987e93183018a20a73dbc8a2",
+    "tests/python/test_improvement_native_runner_evidence.py": "6f206e0ccaa8f7cb551db782f12aa85d2fad6dbe9a435686ac42b761a6ab9063",
+    "server/improvement_trial_results.py": "1db0090fa9675aa70e36c41bb1b4cb669300b74964c5895c4b0dc53e13ad3472",
+    "tests/python/test_improvement_baseline5_consumers.py": "6b9abbe370065376feffcc82b24b9970878b2377b0ae3d8f4f911cc7a766c9e0",
+    "tests/python/test_improvement_trial_checks.py": "9f1837df85cb9865b28cfbf39563964b9a2e0f861f89e94b858ef21dcd021c2f",
+    "server/improvement_native_trace_checks.py": "9218058c5d9a8b30dd85c8eb9248b2f1224564027421905a875d946cfeca8026"
+  },
+  "tests": {
+    "runs": [
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-consumers-new10.log",
+        "exit": 0,
+        "sha256": "d98aa6ef00fdcfb51681ffaf8a18bbae70ae8af873a1cb7e343efac104f613bf",
+        "name": "new10"
+      },
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-consumers-trace12.log",
+        "exit": 0,
+        "sha256": "daed5a51137354fe27abac8a48e934744032263074747bec16ce4d5e288ac263",
+        "name": "trace12"
+      },
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-consumers-checks29.log",
+        "exit": 0,
+        "sha256": "649495ff8e93759abfcfaa658dbbd6bc7262ce5250946d776076241c14aa4cb6",
+        "name": "checks29"
+      },
+      {
+        "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-baseline/whole-review-consumers-results7.log",
+        "exit": 0,
+        "sha256": "35900bb10541fdf231a14363ee17c87bae33bad909d4216a11000c511f3c4690",
+        "name": "results7"
+      }
+    ],
+    "seconds_sum": 80.353,
+    "skips": 0,
+    "count": 58,
+    "timings": {
+      "trace12": 0.401,
+      "new10": 12.694,
+      "checks29": 1.711,
+      "results7": 65.547
+    }
+  },
+  "actionable_findings": [],
+  "observations": [
+    "Trace policy remains explicit/closed: trial baseline_inline or pinned_skill; operation fixture_only; old default mapping unchanged",
+    "Receipt5 exact base plus native_input_delivery; fake view/read proof and foreign rehashed native incarnation refuse; absent delivery/durable decisions remain UNKNOWN",
+    "Checks/products require baseline5 non-view baseline request; unchanged old receipt/protocol and V1 lazy product semantics remain tested",
+    "Products/results bind full original attempt/config/capability scope and actual four encrypted M0 allows, reread original decisions in final publication transaction and authenticate cold history after cleanup",
+    "Final transaction test executes real evaluator then changes actual original M0 decision before publication; cold-read test removes actual encrypted decision blob; both meaningfully refuse",
+    "Runner review limited to guard4-to4/5 and three baseline wrappers exercising original raw global sequence/usage, repeated cancel and revoked late evidence; no self-approval of unchanged runner architecture"
+  ],
+  "limits": [
+    "All native process/trace inputs remain synthetic fixtures or engineering seams, with actual SQLite/encrypted product/result/history stores",
+    "No selected account/provider/native child, final-source qualification/registration or emitter/materializer activation",
+    "Asset observed use, actual reasoning and unregistered native qualification remain UNKNOWN; completed execution is not eligible final/business proof",
+    "No broad runner19 rerun; prior independent runner review is separate and unchanged mechanisms reused"
+  ],
+  "slot_released": true,
+  "review_report_sha256": "9864d62e9c58f02ef602ebd61e72f39492e680f467c1fd5eaa375bbd1943b3fb",
+  "author_logs": {
+    "red-consumers10.log": "6821650ba8f7001db0f0177e51675b1d7a57a7eb704b9585756439cabe76ac92",
+    "red-consumers-results3.log": "051dd3925d8059db4d167daa8b4947f09de7343d6b98eabaf5a728c060ceb409",
+    "green-consumers10.log": "754a96092776cbf596edd7bcea6998b752c1b6769ef9b4c79dcc76b31ecba0e6"
+  },
+  "author_lineage": "Initial10 2FAIL8ERROR19.855s includes result fixture public workspace key mistake; corrected actual SQL read then3 RED unexpected tool_policy errors3.073s. Final10 PASS13.183s."
+}

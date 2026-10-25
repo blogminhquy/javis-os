@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "label": "design-only/inert-owned-Windows-process",
+  "evidence_class": "technical",
+  "production_reachable": false,
+  "selected_account_calls": 0,
+  "sdk_or_claude_queries": 0,
+  "business_proof": false,
+  "original_before_first_resume_requirement": "failed",
+  "v1": {
+    "create_event_before_initial_resume": false,
+    "bounded_wait_seconds": 12,
+    "exact_owned_job_terminated_and_debug_exit_drained": true,
+    "process_signaled_before_guard_release": true,
+    "driver_exit_code": 1
+  },
+  "v2": {
+    "distinct_lifecycle": "job assignment, initial Resume1, held pre-user-mode CREATE event, image attestation, rearmed suspension, ContinueCREATE, final Resume1",
+    "initial_resume_before_attestation_in_both_cases": true,
+    "positive": {
+      "actual_debug_image_hFile_volume_and_128bit_file_id_match_held_guard": true,
+      "actual_debug_image_hFile_hash_matches": true,
+      "rearmed_suspend_previous_count": 0,
+      "final_resume_previous_count": 1,
+      "exit_code": 0,
+      "stdout_bytes": 193,
+      "own_marker_observed": true
+    },
+    "negative": {
+      "identical_bytes_hash": true,
+      "actual_debug_image_file_id_differs": true,
+      "refused_while_create_event_uncontinued": true,
+      "no_post_attestation_resume": true,
+      "exit_code": 73,
+      "stdout_bytes": 0
+    },
+    "same_creator_thread_waits_and_continues_through_exit": true,
+    "actual_process_and_initial_thread_incarnation_and_job_checked": true,
+    "all_processes_terminal_before_job_close_and_guard_release": true,
+    "event_process_thread_handles_invalid_after_continued_exit": true,
+    "independent_retained_process_handles_signaled": true,
+    "explicit_image_and_dll_file_handle_cleanup": true,
+    "detach_used": false,
+    "driver_exit_code": 0
+  },
+  "image_sha256": "f51fab8041e5023d7290b540a2106f051ef0bd2bc3443c9daf318628b560fa29",
+  "raw_evidence": {
+    "directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+    "evidence-manifest.json": "bb0ce00e9d5f7b4bd8b32bffa4cc0c6758630f327296029612527487f92aa1a2",
+    "debug-image-v1-report.json": "2a8fae388aeb450b51fcff39b1f9c8ebf0ec6a23ed25c37432516a8a24e37084",
+    "debug-image-v2-report.json": "4c974efb260e894c4a2dd6d2996dbf4ad7ef1082c0a6903e567a24aef42ac5e6",
+    "probe_debug_image_v1.py": "18ca63182b8371791e2499d4e5fc8f9fe3a8a76a88e8f7af46b7cdbb64b80b8d",
+    "probe_debug_image_v2.py": "de1ed926d52a8029c1b7a3bcd40578abb0896bd07f1b8f6d6b00f9d7250781a5",
+    "design-addendum-confidential-guardian.md": "4b01967df742d3fe76e45b3a52fa691c999f5111f17011c1806103a950328f71"
+  },
+  "review_scope": "Parent read the actual image-ID/hash/job/thread/continue/terminal/cleanup source and reports; limited design evidence only, no production integration approval.",
+  "open_boundaries": [
+    "Actual SDK/anyio creator-thread affinity and persistent debug pump are unverified.",
+    "Guardian must not receive model input, authentication or actual configured SDK argv/env.",
+    "DuplicateHandle alone cannot prove a worker-supplied file handle originated in the claimed kernel CREATE event.",
+    "A fixed-worker DEBUG_PROCESS descendant chain is an alternative design, not an implemented or qualified path.",
+    "Cancellation, worker/guardian death, handle inheritance whitelist and full job/debug drain need actual controls.",
+    "Metadata mutation exclusion, native image/configuration/effort coverage and all18 eligibility remain unproven."
+  ]
+}

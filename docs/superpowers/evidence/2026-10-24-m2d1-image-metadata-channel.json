@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "label": "standalone/async-closed-image-metadata-channel",
+  "evidence_class": "technical",
+  "source_parent_commit": "5563ab908bc7bd56e94a001dff4d1ef070d50535",
+  "production_reachable": false,
+  "source_hashes": {
+    "server/improvement_image_channel.py": "12cce11132a77d024cf678f54982bb3d97bc0e9b6e6a0c1b6c3d36af96434297",
+    "tests/python/test_improvement_image_channel.py": "2df8f4fa77a2f69897559b7e8f66e8ca955d1d034a9c896fac6c336b52c18e3d"
+  },
+  "qualified83_profile_unchanged": "04c8c77baec04d04019752bc8abc2f9a5906e094ededfbdd56cfc3c712aef126",
+  "test_command": "D:\\Project\\Javis-OS\\.venv\\Scripts\\python.exe -B -m unittest discover -s tests/python -p test_improvement_image_channel.py -v",
+  "author_runs": [
+    {
+      "stage": "missing_module_red",
+      "failures": 11,
+      "exit_code": 1,
+      "seconds": 0.333
+    },
+    {
+      "stage": "first_implementation_failed",
+      "tests": 13,
+      "failures": 1,
+      "errors": 3,
+      "exit_code": 1,
+      "seconds": 5.502,
+      "cleanup_success": false,
+      "reason": "Windows shutdown alone did not finish pending WSARecv; owners remained unproven. Test teardown cancelled residual test tasks and logged WinError6. Failed test process subsequently exited.",
+      "source_sha256": "01d9aa5261ed5e5bf188cfc13a0f6be8febb3f9ba9117945db81ec0ca95bb508",
+      "log_sha256": "6bbc75f0f5c12bedc185370a184b432ba13041da4089cb31619f74e9995559aa"
+    },
+    {
+      "stage": "corrected_green",
+      "tests": 13,
+      "exit_code": 0,
+      "seconds": 1.588,
+      "warnings": false,
+      "log_sha256": "a47fe42920d9aabafddd3f74946b01944664f64768aeed34e0e6e9ba403537e9"
+    }
+  ],
+  "independent_review": {
+    "verdict": "standalone_scoped_approval",
+    "tests": 13,
+    "exit_code": 0,
+    "seconds": 1.447,
+    "warnings": false,
+    "source_test_harness_hashes_unchanged": true,
+    "all83_pins_unchanged": true,
+    "log_sha256": "c101c6403e24e1b8520e7624d7ce59dc2646b8237fb6642a80313bab3fdd7f24"
+  },
+  "tested": [
+    "Exclusive owned connected noninheritable stream socket; one ordered worker CREATE/guardian-built ACK exchange with nonce/PID/birth binding and replay refusal.",
+    "Four-byte length, <=8192 canonical ASCII JSON; size before allocation, flat depth before parse, strict builtin types, duplicate/float/constant/large-number/schema rejection.",
+    "Actual fragmented/partial frames, EOF, blocked send/receive, repeated cancellation and deadline on private socketpairs.",
+    "Poison, shutdown, known socket-close success, then retained UNCANCELLED logical IO completion before closed=true. Buffers/tasks stay owned throughout.",
+    "Live pre-close fault permits retry; a fault after real close models lost authority and remains permanently unproven. It is not a real induced OS close failure; the test socket is closed and no IO remains, while proof-owner stays retained until process drain."
+  ],
+  "peer_process_provenance": "unknown",
+  "cross_process_socket_sharing": "not_run",
+  "sdk_or_native_child_calls": 0,
+  "selected_cli_or_account_calls": 0,
+  "provider_calls": 0,
+  "author_manifest": {
+    "files": 23,
+    "sha256": "e1e81d6cd7dbc3b2d6c38a9026bf895ae1a0a7835581281ced9c5c4ee27017c3"
+  },
+  "author_report_sha256": "f1f6b5f3d5965736a09cdcb79414d4c58f29fa6e25a40deafabea9b5655b0c98",
+  "runtime_dependency_manifest_sha256": "6e6a6b9330ebe0ed9fbe25b9942105ef6092a735354db6b2d7e735d558823374",
+  "raw_evidence_directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+  "limits": [
+    "No generic payload API or argv/env/auth/prompt data. Metadata grammar grants no model/production authority.",
+    "No share/fromshare/bootstrap transfer or retained source-process authentication; future transfer must use actual original held live target incarnation.",
+    "No guardian object/image checks, durable host ACK, whole-job/worker-death recovery or full three-actor SDK transport qualification.",
+    "Lost close authority/permanently uncooperative IO stays unproven until enclosing process drain; green tests do not claim all negative fixtures produced successful cleanup.",
+    "Capture/bootstrap/profile consumers unchanged; no historical capture11/bootstrap13/native20/V6/where rerun.",
+    "Windows socketpair proof only; final-head Linux CI, all18 eligibility, business and rollout gates remain open."
+  ],
+  "goal_complete": false
+}

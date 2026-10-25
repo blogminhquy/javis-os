@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "status": "scoped_independent_approval_default_inventory_historical_observation",
+  "pins": {
+    "server/improvement_native_release.py": "cdec514e2ae63f4e33ce63b56c1e525153cc2bacd88897a95605ac6f69f3593b",
+    "tests/python/test_improvement_native_release.py": "9a9a3fddf1a466f4b4bc39050125a87e0b9579200580b42492156ff9f08c393a"
+  },
+  "actual_default_before": {
+    "status": "refused",
+    "error": "native_release_path",
+    "seconds": 6.078,
+    "report_sha256": "0f38319e23bf1386327a339fbae7b7a23799f459da3d4df844096e5e02dc170c"
+  },
+  "actual_default_observation": {
+    "status": "observed",
+    "counts": {
+      "imports": 1629,
+      "runtime": 2,
+      "source": 206
+    },
+    "fingerprint": "73d43cd9966d13ceba98e4fa9c866c86d1c97f149726b9ae7f9e4a4b1faa2948",
+    "source_sha256": "b7110ba70f01285a908d38776a684cb110a86763e5ea276bd5235f80cddf0629",
+    "seconds": 44.187,
+    "coverage": {
+      "authority": "unknown",
+      "dynamic_import_closure": "unknown",
+      "initial_loaded_sections": "unknown",
+      "unlisted_import_exclusion": "unknown"
+    },
+    "report_sha256": "b709bda73bb54077561ace7aa2f7ce54ff35082caa97744f768220343ec83042",
+    "manifest_sha256": "ebfd5e3be3329b7847f464b8228c06726e2dc8eba267039dd0f0d0dfe10bccfb",
+    "scope": "Historical b711 builder before final stricter-tail line; genuine default roots, no CLI/account launch or authority"
+  },
+  "ancillary_scan": {
+    "records": 6,
+    "report_sha256": "31bfcb91010a11ebdc524453e41f5d1c4c703a50087bb623320f90bf1e8dbade",
+    "scope": "Installed segno/yt_dlp manual/doc/shell completion paths outside import root; never followed"
+  },
+  "red_green": [
+    {
+      "tests": 1,
+      "seconds": 0.138,
+      "exit": 1,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release/red-ancillary1.log",
+      "log_sha256": "e2556c5e1862541c8d77397f6cec3a9044eecfd89a8f0607f9ba83e47a88025c",
+      "errors": 1
+    },
+    {
+      "tests": 1,
+      "seconds": 0.416,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release/green-ancillary1.log",
+      "log_sha256": "f020a45d4a513e0cce226bc2f1aaccab95ba2fc80010dd858f89ea39ab3935ad"
+    },
+    {
+      "tests": 1,
+      "seconds": 0.381,
+      "exit": 1,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release/red-ancillary-tail1.log",
+      "log_sha256": "7bc1b53aff3b98d22fb448b98ad5b432f00d226f268252bce6d460ba9f087176",
+      "subtest_failures": 4
+    },
+    {
+      "tests": 1,
+      "seconds": 0.416,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release/green-ancillary-tail1.log",
+      "log_sha256": "f020a45d4a513e0cce226bc2f1aaccab95ba2fc80010dd858f89ea39ab3935ad"
+    }
+  ],
+  "review": {
+    "reviewer": "m2d1_whole_review",
+    "resolved": "Validate Windows canonical tail before ancillary omission; arbitrary traversal/colon/backslash/trailing-dot/space aliases remain rejected",
+    "final_report_sha256": "f67792ad0c88b5cab290b3a2359bc0cdf586fdf166e505b9dbeea27bc5914100"
+  },
+  "limits": [
+    "Standard manuals/docs/completions are omitted as non-import data; selected RECORD bytes remain fully hashed",
+    "Historical Scripts omission branch unchanged; no new import or path authority",
+    "No final-source/full-pipeline qualification, registration, provider/account, business or activation proof",
+    "Default full inventory took44.187s in this environment. No caching or speedup claim; final qualification must use exact final source",
+    "Final tail-validation line only narrows refused paths; historical source/import/runtime observation is not relabeled current fingerprint"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release",
+  "independent": {
+    "tests": 11,
+    "seconds": 2.578,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-release/whole-review-ancillary11.log",
+    "log_sha256": "8eee5e64ae7f4e2e388569b69b802904d887ac7925db06203d1ccf631db3366d"
+  }
+}

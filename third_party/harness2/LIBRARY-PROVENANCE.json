@@ -1,0 +1,326 @@
+{
+  "upstream_commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+  "license": "Apache-2.0",
+  "modules": [
+    {
+      "file": "library.py",
+      "blob": "39e50684b4044e483a3c16a447958044d4b5e6de",
+      "upstream_commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+      "source_url": "https://github.com/google-research/harness2/blob/1cfe254e8d25b15f37048c3730134686abe60335/harness2/core/library.py",
+      "raw_sha256": "00219fda201a030f43b35b49c4e73ccf336aedc81164144c435b4b06a1256dd3",
+      "exact_git_blob_verified": true,
+      "target": "server/improvement_harness2_library.py",
+      "target_sha256": "1317c3c85a7f7cad2fb89dc26bf036d8a69d75cfb614104ddc7e79bae465c5d1",
+      "imports": "import re\nimport shutil\nfrom dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import Sequence\nimport improvement_harness2_context as context\nimport improvement_harness2_tree as harness_tree\nfrom improvement_harness2_tree import SurfaceSpec\n",
+      "definitions": [
+        {
+          "name": "slug",
+          "source_lines": [
+            39,
+            40
+          ],
+          "source_raw_sha256": "13572fda6d68b10f2079165e7e0655cbdbd9978ff957e849c6753e05cd32d68e",
+          "source_ast_sha256": "f510c331b1beb6bd74bebcd10f63181fc2219b727bd98f1c2c2bfa96f27bbf89",
+          "adapted_raw_sha256": "13572fda6d68b10f2079165e7e0655cbdbd9978ff957e849c6753e05cd32d68e",
+          "adapted_ast_sha256": "f510c331b1beb6bd74bebcd10f63181fc2219b727bd98f1c2c2bfa96f27bbf89",
+          "boundary_diffs": []
+        },
+        {
+          "name": "has_experience",
+          "source_lines": [
+            43,
+            47
+          ],
+          "source_raw_sha256": "cbe13ce532dfa30795f8e135f40f898aa50e9b8357dbc4da5f925a6583370247",
+          "source_ast_sha256": "2d53f493997796cd662f47436e099bc00d3b4d1fa788e11dbc0cdbf58a0f12d1",
+          "adapted_raw_sha256": "cbe13ce532dfa30795f8e135f40f898aa50e9b8357dbc4da5f925a6583370247",
+          "adapted_ast_sha256": "2d53f493997796cd662f47436e099bc00d3b4d1fa788e11dbc0cdbf58a0f12d1",
+          "boundary_diffs": []
+        },
+        {
+          "name": "domain_dir",
+          "source_lines": [
+            50,
+            54
+          ],
+          "source_raw_sha256": "ecfbbdafa60c0de0c106e8127f31598aba2f0d17da565765d060536eb49d4498",
+          "source_ast_sha256": "8fcf51fc02c36bf1c557ea5cf7318ed3e7a736434676b2eda6c26fbff570683c",
+          "adapted_raw_sha256": "ecfbbdafa60c0de0c106e8127f31598aba2f0d17da565765d060536eb49d4498",
+          "adapted_ast_sha256": "8fcf51fc02c36bf1c557ea5cf7318ed3e7a736434676b2eda6c26fbff570683c",
+          "boundary_diffs": []
+        },
+        {
+          "name": "Library",
+          "source_lines": [
+            57,
+            181
+          ],
+          "source_raw_sha256": "4a2a9cca047816ddb54b93068f7062a2d06a3ed03ae88141ccf93ca4eb6ba104",
+          "source_ast_sha256": "7a0baf9ae5f9bcd08acac89c6398309769b81ffaa816d3699ed1455d8d881db8",
+          "adapted_raw_sha256": "4a2a9cca047816ddb54b93068f7062a2d06a3ed03ae88141ccf93ca4eb6ba104",
+          "adapted_ast_sha256": "7a0baf9ae5f9bcd08acac89c6398309769b81ffaa816d3699ed1455d8d881db8",
+          "boundary_diffs": []
+        },
+        {
+          "name": "_inventory",
+          "source_lines": [
+            184,
+            203
+          ],
+          "source_raw_sha256": "b472c6c9e7876088a80ae14277f2573a7a6d6fecae744082207547054fd30dbc",
+          "source_ast_sha256": "d5d7e2f50f900b7272a883e2454815d391f59696c0c59fdc8a9d0f3ca5f11948",
+          "adapted_raw_sha256": "b472c6c9e7876088a80ae14277f2573a7a6d6fecae744082207547054fd30dbc",
+          "adapted_ast_sha256": "d5d7e2f50f900b7272a883e2454815d391f59696c0c59fdc8a9d0f3ca5f11948",
+          "boundary_diffs": []
+        },
+        {
+          "name": "_field",
+          "source_lines": [
+            206,
+            212
+          ],
+          "source_raw_sha256": "2daa343fe51bfc949a4ae5216e6df6ea0f406347a05098377e60fbd46314764d",
+          "source_ast_sha256": "d51a2d5fea1c3705a06b0870713df0d6aaed81d120a77396813ee3ca5ee90088",
+          "adapted_raw_sha256": "2daa343fe51bfc949a4ae5216e6df6ea0f406347a05098377e60fbd46314764d",
+          "adapted_ast_sha256": "d51a2d5fea1c3705a06b0870713df0d6aaed81d120a77396813ee3ca5ee90088",
+          "boundary_diffs": []
+        }
+      ]
+    },
+    {
+      "file": "tree.py",
+      "blob": "c9bf1341226aac448f6ec82038cb6d3896799412",
+      "upstream_commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+      "source_url": "https://github.com/google-research/harness2/blob/1cfe254e8d25b15f37048c3730134686abe60335/harness2/core/tree.py",
+      "raw_sha256": "c2a15690b1b6b02156e922c5e0b1a215c5065d7bea5a3bae2e56b47309197552",
+      "exact_git_blob_verified": true,
+      "target": "server/improvement_harness2_tree.py",
+      "target_sha256": "44e30fee114e1526593bba6b2f043f26c1b3d088ee679175c275c82ab0451c0a",
+      "imports": "import re\nfrom dataclasses import dataclass\nfrom functools import lru_cache\nfrom pathlib import Path\n",
+      "definitions": [
+        {
+          "name": "Tree",
+          "source_lines": [
+            31,
+            31
+          ],
+          "source_raw_sha256": "129de20849d01579e708b948b810a0679a0e6107aa340f6c97277829b319006b",
+          "source_ast_sha256": "12fd8210ed599cc94725be22e30945ebff1749c1e56cacc73013ea9cea2933d7",
+          "adapted_raw_sha256": "129de20849d01579e708b948b810a0679a0e6107aa340f6c97277829b319006b",
+          "adapted_ast_sha256": "12fd8210ed599cc94725be22e30945ebff1749c1e56cacc73013ea9cea2933d7",
+          "boundary_diffs": []
+        },
+        {
+          "name": "_NAME",
+          "source_lines": [
+            37,
+            37
+          ],
+          "source_raw_sha256": "a1370336d5f5a3544fcfa9a09d94f20fe86986c780dc2f90f1f004417ef0fa03",
+          "source_ast_sha256": "e1023791adc394276ffadaa507976c3a258a6ee46067d6b99f16c8107c56c5ef",
+          "adapted_raw_sha256": "a1370336d5f5a3544fcfa9a09d94f20fe86986c780dc2f90f1f004417ef0fa03",
+          "adapted_ast_sha256": "e1023791adc394276ffadaa507976c3a258a6ee46067d6b99f16c8107c56c5ef",
+          "boundary_diffs": []
+        },
+        {
+          "name": "SurfaceSpec",
+          "source_lines": [
+            40,
+            60
+          ],
+          "source_raw_sha256": "9793bcf757abab3b9c6ab57df85403438aed959391eeadbc5d85c1e69f972075",
+          "source_ast_sha256": "da35daf8a5d195c643a8e1591e291a0273d3626fce28bfaede45b16f6a73829f",
+          "adapted_raw_sha256": "9793bcf757abab3b9c6ab57df85403438aed959391eeadbc5d85c1e69f972075",
+          "adapted_ast_sha256": "da35daf8a5d195c643a8e1591e291a0273d3626fce28bfaede45b16f6a73829f",
+          "boundary_diffs": []
+        },
+        {
+          "name": "_res",
+          "source_lines": [
+            63,
+            75
+          ],
+          "source_raw_sha256": "f1dc0af27bfa911efee483eaab283d550a0259da9256d357eb3551fbf84cb92e",
+          "source_ast_sha256": "c933c7decb6b560bc08a06d5ccda87c915ebfede6393e9f050bf1c9ffd9fa7aa",
+          "adapted_raw_sha256": "f1dc0af27bfa911efee483eaab283d550a0259da9256d357eb3551fbf84cb92e",
+          "adapted_ast_sha256": "c933c7decb6b560bc08a06d5ccda87c915ebfede6393e9f050bf1c9ffd9fa7aa",
+          "boundary_diffs": []
+        },
+        {
+          "name": "_rx",
+          "source_lines": [
+            78,
+            79
+          ],
+          "source_raw_sha256": "5a2095a1c82dbbccf5329eafe2214fc7f9d42b9446b9bfd69c493982af176675",
+          "source_ast_sha256": "22f90065b57b122d7aab93ed65d97d992a49a09cdfcfdb03ffe6b5d2e7321bf7",
+          "adapted_raw_sha256": "5a2095a1c82dbbccf5329eafe2214fc7f9d42b9446b9bfd69c493982af176675",
+          "adapted_ast_sha256": "22f90065b57b122d7aab93ed65d97d992a49a09cdfcfdb03ffe6b5d2e7321bf7",
+          "boundary_diffs": []
+        },
+        {
+          "name": "normalize_rel",
+          "source_lines": [
+            82,
+            89
+          ],
+          "source_raw_sha256": "cdbf1b1dcc7b83a1399ad1f0173537f291ad37c9812bba164ad0f9f48cc3b57b",
+          "source_ast_sha256": "b52229c9f72135ff21e30ef4148d5cb09df54f48efa27368360e80333dc05fdb",
+          "adapted_raw_sha256": "cdbf1b1dcc7b83a1399ad1f0173537f291ad37c9812bba164ad0f9f48cc3b57b",
+          "adapted_ast_sha256": "b52229c9f72135ff21e30ef4148d5cb09df54f48efa27368360e80333dc05fdb",
+          "boundary_diffs": []
+        },
+        {
+          "name": "is_allowed",
+          "source_lines": [
+            92,
+            110
+          ],
+          "source_raw_sha256": "4ff2ac87e665414bda80be69ed08d09e33a7712205d2f9c82b02a217889b5c7b",
+          "source_ast_sha256": "1a69d387f8d6a693a72213562ac5a7a60e37bed0185ae7aa94e6ef14ef9d3f39",
+          "adapted_raw_sha256": "4ff2ac87e665414bda80be69ed08d09e33a7712205d2f9c82b02a217889b5c7b",
+          "adapted_ast_sha256": "1a69d387f8d6a693a72213562ac5a7a60e37bed0185ae7aa94e6ef14ef9d3f39",
+          "boundary_diffs": []
+        },
+        {
+          "name": "_stub_paths",
+          "source_lines": [
+            123,
+            124
+          ],
+          "source_raw_sha256": "55eaa1978c47ea495378d35c9bc770922633fd0d4f2051fdfba654f114070b6a",
+          "source_ast_sha256": "4fc078cf95c7405d7e872dd1546ab8a4477e07baf979b50981a0bb5261aa1022",
+          "adapted_raw_sha256": "55eaa1978c47ea495378d35c9bc770922633fd0d4f2051fdfba654f114070b6a",
+          "adapted_ast_sha256": "4fc078cf95c7405d7e872dd1546ab8a4477e07baf979b50981a0bb5261aa1022",
+          "boundary_diffs": []
+        },
+        {
+          "name": "read_tree",
+          "source_lines": [
+            127,
+            148
+          ],
+          "source_raw_sha256": "326676ad6127c1538649c17b3763c3a3d26c75f705e23b3c61be0f53aa0225ce",
+          "source_ast_sha256": "e8e1614380eb36375d9f5b45cd99ea3dbe3135283270aa6e739b68a3364ff8f0",
+          "adapted_raw_sha256": "33532240ec577ad358e5acafbf4793cee0656e7ee5ebec89812d4c44f7ff4f95",
+          "adapted_ast_sha256": "9a85e12e11d324236f4bb1429ea63550ed430523186dd4f956081d164bad1b01",
+          "boundary_diffs": [
+            {
+              "before": "rel = str(p.relative_to(d))",
+              "after": "rel = p.relative_to(d).as_posix()"
+            },
+            {
+              "before": "out[rel] = p.read_text(encoding=\"utf-8\", errors=\"replace\")",
+              "after": "out[rel] = p.read_bytes().decode(\"utf-8\")"
+            }
+          ]
+        },
+        {
+          "name": "write_tree",
+          "source_lines": [
+            156,
+            185
+          ],
+          "source_raw_sha256": "14fbf92589a66b7a89544cd6ff2fd6df18701329ea79109535675290c82840be",
+          "source_ast_sha256": "ebb9bf9aea0d435a2648479ddf8a08e87d52f8cd8b55c97b87d1eb5f54339803",
+          "adapted_raw_sha256": "426d77ef8d7525d87c441b47c1e28b90faad47c7a0cbb0285345edb3ba6afe78",
+          "adapted_ast_sha256": "bb2e29b9a6f1bac9a7dc0c161f779f18d1c500e167b599bb59401ee78f445595",
+          "boundary_diffs": [
+            {
+              "before": "p.write_text(content, encoding=\"utf-8\")",
+              "after": "p.write_text(content, encoding=\"utf-8\", newline=\"\\n\")"
+            }
+          ]
+        },
+        {
+          "name": "always_on_text",
+          "source_lines": [
+            188,
+            189
+          ],
+          "source_raw_sha256": "f6827164ce12ef3b0541d21faaacc7d97cd2f4693a7f74d31450076ebcce8bd2",
+          "source_ast_sha256": "6017d0e990feeca9365e1aafc4d25a57d7608f80330d33ded1acfd189539f4fa",
+          "adapted_raw_sha256": "f6827164ce12ef3b0541d21faaacc7d97cd2f4693a7f74d31450076ebcce8bd2",
+          "adapted_ast_sha256": "6017d0e990feeca9365e1aafc4d25a57d7608f80330d33ded1acfd189539f4fa",
+          "boundary_diffs": []
+        }
+      ]
+    },
+    {
+      "file": "context.py",
+      "blob": "72f2868b06c13e30c031cb91c0f04dcd80293ec9",
+      "upstream_commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+      "source_url": "https://github.com/google-research/harness2/blob/1cfe254e8d25b15f37048c3730134686abe60335/harness2/core/context.py",
+      "raw_sha256": "63dd482e5d9467d7e659d186a11289fc7861d08c8aed603244ff0cee92de91f3",
+      "exact_git_blob_verified": true,
+      "target": "server/improvement_harness2_context.py",
+      "target_sha256": "e38e72f407f783dd7657bcb4eb9d5c4936569371020a65ecdb2ecdb5a1f588b2",
+      "imports": "from pathlib import Path\nfrom typing import Mapping, Sequence\n",
+      "definitions": [
+        {
+          "name": "GRADER_VERDICT_MARKERS",
+          "source_lines": [
+            419,
+            427
+          ],
+          "source_raw_sha256": "224c841a8267e844f54ffaa66f67a23249a9a9827ec019d9205ae12f048bba6a",
+          "source_ast_sha256": "3c8ada6254ca09b7793fccb91239809164d787a3ccf720b7290775c1ea239f2c",
+          "adapted_raw_sha256": "224c841a8267e844f54ffaa66f67a23249a9a9827ec019d9205ae12f048bba6a",
+          "adapted_ast_sha256": "3c8ada6254ca09b7793fccb91239809164d787a3ccf720b7290775c1ea239f2c",
+          "boundary_diffs": []
+        },
+        {
+          "name": "_MARKER_SCAN_SUFFIXES",
+          "source_lines": [
+            429,
+            451
+          ],
+          "source_raw_sha256": "ca8e00ebe888a5e9db0213baa53103fe81b1607bb0b8d0418d20d9cbaada23a7",
+          "source_ast_sha256": "3d06b0f2867b9e09c1d770946f3cb6500c91076144ee203710d2a69c744827cb",
+          "adapted_raw_sha256": "ca8e00ebe888a5e9db0213baa53103fe81b1607bb0b8d0418d20d9cbaada23a7",
+          "adapted_ast_sha256": "3d06b0f2867b9e09c1d770946f3cb6500c91076144ee203710d2a69c744827cb",
+          "boundary_diffs": []
+        },
+        {
+          "name": "assert_tree_has_no_grader_verdicts",
+          "source_lines": [
+            493,
+            518
+          ],
+          "source_raw_sha256": "00ef75be07099ae12acd0b72373a7cb562c8198f639361ab4dc670876fe3d8cc",
+          "source_ast_sha256": "9c2a7b4f8afdb7dabb20ea3dec034980f85e498fad0be02f421e98a3accaaf9e",
+          "adapted_raw_sha256": "00ef75be07099ae12acd0b72373a7cb562c8198f639361ab4dc670876fe3d8cc",
+          "adapted_ast_sha256": "9c2a7b4f8afdb7dabb20ea3dec034980f85e498fad0be02f421e98a3accaaf9e",
+          "boundary_diffs": []
+        }
+      ]
+    }
+  ],
+  "test_adaptation": {
+    "commit": "1cfe254e8d25b15f37048c3730134686abe60335",
+    "path": "tests/test_workflow.py",
+    "git_blob": "2b7ebeb1816346f606922816a6f3609c64e8f8cc",
+    "source_sha256": "fda03aa8d1d4bb1a43b16a96da4a272427969a1a540cc0954709aeed7a03a4aa",
+    "exact_git_blob_verified": true,
+    "reviewed_library_cases": [
+      "test_complete_evidence_and_library_prefix:108-129",
+      "test_no_entry_stays_out_of_library_on_resume:187-203"
+    ],
+    "reuse": "Adapt actual marker, library-prefix and NO_ENTRY assertions to the extracted Library and private snapshot; exclude unrelated DemoAdapter/schedule/provider integration. No claim of full upstream suite execution."
+  },
+  "boundary": "Derived private filesystem snapshot only; no canonical authority or consumer integration.",
+  "import_modifications": {
+    "library.py": [
+      "from . import context -> import improvement_harness2_context as context",
+      "from . import tree as harness_tree -> import improvement_harness2_tree as harness_tree",
+      "from .tree import SurfaceSpec -> from improvement_harness2_tree import SurfaceSpec"
+    ],
+    "tree.py": [
+      "Only required standard-library imports retained: re, dataclass, lru_cache, Path; unrelated json import omitted."
+    ],
+    "context.py": [
+      "Only required Path, Mapping and Sequence imports retained; unrelated context/runtime dependencies omitted."
+    ]
+  },
+  "definition_extraction": "Exact original byte blocks include decorators and terminating newline; AST hashes use ast.dump(include_attributes=False) with UTF-8 SHA-256. Only the three listed read_tree/write_tree boundary lines differ."
+}

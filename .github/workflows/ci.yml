@@ -62,6 +62,9 @@ jobs:
       - name: Fetch 0.293.0 for the improvement schema5 reader check
         run: git fetch --no-tags --depth=1 origin 47f50f707268681dd4cbe8c7e443945155376237
 
+      - name: Fetch 0.296.0 for the improvement schema6 reader check
+        run: git fetch --no-tags --depth=1 origin 2727edcc5cdfab6f2dcf2e2871164f22f2771f92
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

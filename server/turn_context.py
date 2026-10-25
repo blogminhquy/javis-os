@@ -157,7 +157,7 @@ def execution_metadata(value) -> Optional[dict]:
         for key in ("experiment_id", "operation_id"):
             if not isinstance(value[key], str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", value[key]):
                 return None
-        purposes = {"improver": "improve_propose", "semantic_reviewer": "improve_evaluate"}
+        purposes = {"improver": "improve_propose", "semantic_reviewer": "improve_evaluate", "composer": "improve_compose"}
         if (type(value["role"]) is not str or value["role"] not in purposes
                 or value["purpose"] != purposes[value["role"]] or value["learning_origin"] != "compose"
                 or value["execution_id"] != "improvement_operation:" + value["operation_id"]

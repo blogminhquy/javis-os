@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "status": "engineering_component_approved_not_runtime_qualified",
+  "scope": "Guardian-first fixed worker creation, held image authorization and independently observed native drain",
+  "source_sha256": "4b9ee58c36732ff5cea7463163725e5f43cb3aaea8063cb03d6d707acc44bf6f",
+  "test_sha256": "370474d2c157e32acd595d1163ca283a49cc8031388cf3b9bc7e791a3286fde9",
+  "image_channel_dependency_sha256": "b8a5a50b4fcaf59ff333948fd90ad66b031ce7012b31251969e9712062ac2315",
+  "command": "base Python 3.12 -I -S -B .superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe/run_guardian_v2_tests.py",
+  "author": {"tests": 25, "seconds": 14.978, "exit": 0, "log_sha256": "0807ce555e5bcee05b2a48ef15cc610c81ba2c21981d83e206d727f709dfbc60"},
+  "independent": {"tests": 25, "seconds": 15.124, "exit": 0, "log_sha256": "27d812bce1a6919fd3e5e9e741dfe5cf2c94f032e6fc8af28bedab77298a62d3"},
+  "frozen_local_evidence": {
+    "directory": ".superpowers/sdd/2026-10-24-agent-skill-improvement-debug-image-probe",
+    "manifest_sha256": "8392da9eb2164f3a017cc0e60ac28bacedaa42be4a6f0048a0c92cbc4ffe2069",
+    "report_sha256": "96ac03c1bad46fcf39af2bc361e70c9436768ad504ca30373ae68075760f9806",
+    "dependencies_sha256": "89e9559f7d968d207ff5be68a29d76f51a5decfe23da6e24e22593b4f3cf875c",
+    "explicit_files_verified": 66,
+    "pinset_is_exhaustive_import_exclusion_proof": false
+  },
+  "actual_checks": [
+    "Exclusive durable fences and kill-on-close job precede atomic fixed-worker assignment; retained original process capabilities remain duplication authority",
+    "Actual root CREATE image comparison and creator-thread debug pump through terminal EXIT; root release follows complete guardian stdio sealing",
+    "Actual worker socket share/fromshare and inert native capture; public file identity comparison, process/thread incarnation and exact outer-job checks",
+    "Closed canonical control2 and startup2, per-direction sequence, fixed overall lifetime and unused image-channel timers starting only on actual readiness",
+    "EOF/cancellation/denial cleanup requires actual terminal handles, cumulative inventory/job0 and closed guards before fence removal",
+    "Raw cancelled control IO retains unknown completion and its owner; native drain and control closure remain separate facts"
+  ],
+  "preserved_failures": [
+    "Missing owner: 11 RED. Early DebugSetProcessKillOnExit before a debug connection refused with WinError6; corrected documented startup order",
+    "First full11: 99.383s, 18 test/cleanup errors and unproven cleanup; redundant termination prevented own EXIT pumping",
+    "First post-create injection PASS was a wrongly installed test patch, not product evidence; corrected gated injection reproduced the real partial-creation failure before repair",
+    "Earlier independent25 failed after7 tests1.328s; delayed-unused-channel marker absent, exact cause UNKNOWN. A later focused pass did not establish its cause",
+    "Test-only split verifies no timer/read task before actual CREATE, then uses the production8s positive gate; held-ACK50ms negative remains unchanged",
+    "Reviewer reproduced raw-cancelled control IO falsely becoming closed; corrected before final author25 and independent25"
+  ],
+  "limitations": [
+    "Controller and guardian share a test process here; worker is a real separate process. Separate guardian bootstrap/control sharing, host remote duplication and actual guardian death require host integration proof",
+    "Qualified worker capture plus guardian object checks is the association basis; no malicious-guardian memory isolation or independent kernel association claim",
+    "No selected CLI/account, actual SDK query, model/provider, user-input delivery or comprehension proof",
+    "Some negative cases retain unknown owners until test process drain; not every injected cleanup outcome is successful",
+    "Historical83-source runtime registration remains historical after changed sources; no new qualification or registration",
+    "Subsequent dependency changes require affected verification; this record describes only these exact source hashes"
+  ]
+}

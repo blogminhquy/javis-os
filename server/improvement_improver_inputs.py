@@ -20,6 +20,8 @@ from improvement_preparation_lineage import load_preparation_lineage
 from improvement_skill_patch import body_layout
 from improvement_trial_evidence import decode_trace
 from improvement_trial_records import _brain
+from improvement_result_domain import require_product_report
+from improvement_tuning_history import sealed_history
 
 
 def _bytes(blobs, brain, digest):
@@ -30,6 +32,7 @@ def _bytes(blobs, brain, digest):
 
 
 def _assessment(report):
+    require_product_report(report)
     # Checker reasons/evidence can contain evaluator-private answers. Expose only
     # typed verdicts, never arbitrary checker feedback or private contract config.
     criteria = [{**{key: row[key] for key in ('id', 'category', 'critical', 'verdict')},
@@ -54,6 +57,18 @@ _EVENT_FIELDS = {
 
 def project_packet(packet):
     """Retain observable tool/error/timing/result metadata; never reasoning text."""
+    if type(packet.get('version')) is int and packet['version'] == 2:
+        # Caller authenticates complete stored history and result/trace hashes.
+        # This is a derived model-input projection, never a legacy wire record.
+        source, body = packet.get('source'), packet.get('body')
+        if (source not in ('worker', 'guardian') or type(body) is not dict
+                or any(type(packet.get(k)) is not int or packet[k] < 1 for k in ('sequence', 'source_sequence'))):
+            raise ValueError('invalid_improver_native_projection')
+        allowed = source == 'worker' and body.get('type') in ('engine_event', 'fixture_event',
+            'worker_ready', 'engine_start_requested', 'worker_complete', 'worker_error')
+        observation = project_packet(body) if allowed else {'type': 'withheld', 'reason': 'native_control_metadata'}
+        return {'type': 'native_observation2_projection', 'sequence': packet['sequence'],
+            'source': source, 'source_sequence': packet['source_sequence'], 'observation': observation}
     kind = packet['type']
     if kind == 'engine_event':
         event = packet['event']
@@ -80,15 +95,8 @@ class ImproverInputs:
 
     @staticmethod
     def _holdout(connection, brain, case_set_id):
-        # No consumed qualification exception: all aliases stay out of tuning.
-        if connection.execute("SELECT 1 FROM improvement_case_families t JOIN improvement_case_families h "
-                "ON h.brain_id=t.brain_id AND h.fingerprint=t.fingerprint WHERE t.brain_id=? AND t.case_set_id=? "
-                "AND t.split='tuning' AND h.split IN ('qualification','regression') LIMIT 1", (brain, case_set_id)).fetchone():
-            raise PermissionError('improver_holdout_alias')
-        if connection.execute("SELECT 1 FROM improvement_case_families t JOIN improvement_qualification_claims q "
-                "ON q.brain_id=t.brain_id AND q.fingerprint=t.fingerprint WHERE t.brain_id=? AND t.case_set_id=? "
-                "AND t.split='tuning' LIMIT 1", (brain, case_set_id)).fetchone():
-            raise PermissionError('improver_holdout_alias')
+        from improvement_experiment_qualification import require_tuning_families
+        require_tuning_families(connection, brain, case_set_id)
 
     def _snapshot(self, connection, principal, identifier, generation):
         brain = _brain(principal)
@@ -97,41 +105,13 @@ class ImproverInputs:
             raise IM.ConflictError('improver_preparation_incomplete')
         value = prepared[0]
         self._holdout(connection, brain, value['case_set_id'])
-        preparation = connection.execute('SELECT * FROM improvement_preparations WHERE experiment_id=? AND brain_id=?',
-                                         (identifier, brain)).fetchone()
-        if preparation is None:
-            raise IM.ConflictError('improver_preparation_incomplete')
-        snapshot = self.preparation._completion_snapshot(connection, brain, preparation)
-        complete = [json.loads(item[0]) for item in connection.execute("SELECT result_json FROM improvement_events "
-            "WHERE brain_id=? AND operation='preparation_complete' ORDER BY id", (brain,))]
-        complete = [item for item in complete if item.get('experiment_id') == identifier]
-        if not complete or any(item != complete[0] for item in complete):
-            raise IM.ConflictError('improver_preparation_unsealed')
-        complete = complete[0]
-        refs = [{'trial_id': link['trial_id'], 'attempt': link['current_attempt'], 'request_hash': link['request_hash'],
-                 **json.loads(link['result_json'])} for link in snapshot[0]]
-        if (set(complete) != {'experiment_id', 'preparation_id', 'schedule_hash', 'phase', 'generation', 'result_refs'}
-                or complete['preparation_id'] != preparation['id'] or complete['schedule_hash'] != preparation['schedule_hash']
-                or complete['phase'] != 'proposing' or type(complete['generation']) is not int
-                or not 1 <= complete['generation'] <= generation or complete['result_refs'] != refs):
-            raise IM.ConflictError('improver_sealed_results_changed')
+        history = sealed_history(self, connection, principal, identifier, generation)
         state = self.plans.authoring._state(connection, principal, identifier, value['target_id'], value['base_revision_id'], value['base_hash'])
         candidates = [dict(item) for item in connection.execute('SELECT id,ordinal FROM improvement_skill_candidates '
             'WHERE experiment_id=? AND brain_id=? ORDER BY ordinal', (identifier, brain))]
         if len(candidates) > 2:
             raise IM.ConflictError('improver_candidate_limit_changed')
-        evidence = []
-        for ref in refs:
-            identity = (ref['trial_id'], brain, ref['attempt'])
-            trace = [dict(item) for item in connection.execute('SELECT * FROM improvement_trial_observations '
-                'WHERE trial_id=? AND brain_id=? AND attempt=? ORDER BY sequence', identity)]
-            products = {}
-            for name in ('artifacts', 'receipts'):
-                item = connection.execute('SELECT * FROM improvement_trial_' + name + ' WHERE trial_id=? AND brain_id=? AND attempt=?', identity).fetchone()
-                products[name] = dict(item) if item is not None else None
-            evidence.append({'trace': trace, **products})
-        return {'prepared': prepared, 'preparation': dict(preparation), 'completion': complete,
-                'links': snapshot[0], 'attempts': snapshot[1], 'authoring': state, 'candidates': candidates, 'evidence': evidence}
+        return {'prepared': prepared, **history, 'authoring': state, 'candidates': candidates}
 
     def _tuning(self, connection, principal, snapshot):
         brain, trials = _brain(principal), self.preparation.trials
@@ -146,6 +126,7 @@ class ImproverInputs:
             # _solver loads only the exact case snapshots; it never opens answers.
             solver = trials.cases._solver(connection, brain, case)
             report = trials.read_result(principal, ref['trial_id'], ref['attempt'], result_id=ref['result_id'])
+            require_product_report(report)
             if IM._hash(report) != ref['result_hash'] or ref['blob_hash'] != ref['result_hash']:
                 raise IM.ConflictError('improver_result_changed')
             records = evidence['trace']

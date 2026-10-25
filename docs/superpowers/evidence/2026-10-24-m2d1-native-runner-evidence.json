@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "status": "scoped_independent_approval",
+  "pins": {
+    "server/improvement_trial_runner.py": "8c52e552433333521371785a26bc00f8c080f9f91faf0f7f67aef9f03ae119e4",
+    "server/improvement_operation_runner.py": "803a3222752d239054088b777fdcef83a3ddbdcc388c04ab94132954f469dd8d",
+    "tests/python/test_improvement_native_runner_evidence.py": "6f206e0ccaa8f7cb551db782f12aa85d2fad6dbe9a435686ac42b761a6ab9063"
+  },
+  "independent": {
+    "tests": 19,
+    "seconds": 74.671,
+    "exit": 0,
+    "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-runner-evidence/root-final19.log",
+    "log_sha256": "e5807494e8ff08db653d8d792a014d7c53e231a9032c5898f78667657f1a57fe"
+  },
+  "affected_legacy": [
+    {
+      "tests": 3,
+      "seconds": 3.881,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-runner-evidence/legacy-trial.log",
+      "log_sha256": "6cdec7839a3db031b72d85115dab5c621a5c675fdeaea7cd3c89936674664e30"
+    },
+    {
+      "tests": 2,
+      "seconds": 8.054,
+      "exit": 0,
+      "log": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-runner-evidence/legacy-operation.log",
+      "log_sha256": "2cb925c41247acc1ace867b55ad03612bbcd68489ec9ad4a8118bf1f0845463c"
+    }
+  ],
+  "review": {
+    "static_reviewer": "immutable_skill_broker_component",
+    "execution_reviewer": "root",
+    "open_scoped_findings": 0
+  },
+  "behavior": [
+    "Concrete adapters bind current actual M0/lease/source authority and await same-loop async verification before exposure",
+    "Immutable raw observation2 envelopes and original global usage sequence survive closing/error/repeated cancellation",
+    "Closing evidence failure poisons success; pending late records use original writer/attempt without lease renewal or image allow",
+    "Separate recorder copy preserves original raw bytes even after interpretation mutates its input"
+  ],
+  "limits": [
+    "Real SQLite/encrypted stores/CallLedger/NativeUsageRecorder with synthetic native adapters",
+    "No native provenance, provider/account, full qualification, business or activation proof"
+  ],
+  "local_ledger": ".superpowers/sdd/2026-10-24-agent-skill-improvement-native-runner-evidence"
+}

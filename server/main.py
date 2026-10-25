@@ -84,6 +84,7 @@ import mcp_store
 import mcp_client
 import mcp_catalog
 import mcp_hub
+from improvement_task_skill_turn import TaskSkillTurn
 import connect_health   # sức khoẻ kết nối: vòng check nền + phân loại lỗi tiếng người
 import purge          # xoá kết nối cho sạch: chủ sở hữu duy nhất của việc dọn dấu vết
 import core_off       # năng lực MẶC ĐỊNH gỡ được: trạng thái ghi ở STATE_DIR, không sửa cây code
@@ -3014,7 +3015,9 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                     coding_ctx_cua_phien=_cctx,
                 )
                 inventory_tools, inventory_route = mcp_hub.registry_inventory(
-                    mode, vault_root=vault_root, force_lazy=force_lazy, staging=True)
+                    mode, vault_root=vault_root, force_lazy=force_lazy, staging=True,
+                    workspace_root=list(_cctx.workspace_roots) if _cctx is not None else None,
+                    coding_ctx_cua_phien=_cctx)
             else:
                 servers = mcp_store.servers_for_client()
                 if servers:
@@ -3404,6 +3407,12 @@ def _schedule_registry_shadow(trace, brain, tools, route, query, provider, model
     đúng cái filter mà Phase 9 dựa vào - không bao giờ quan sát được.
     """
     if not trace:
+        return
+
+    from improvement_task_skill_scope import has_binding
+    if has_binding():
+        # Frozen task descriptors belong to the private owner, never the global
+        # derived source. Shadow publication is optional observational work.
         return
 
     async def _job():
@@ -7524,6 +7533,7 @@ async def skill_toggle(slug: str = Form(...), enabled: str = Form(...), brain: s
         else:
             if mirror_slug.is_dir():
                 shutil.rmtree(mirror_slug)       # tắt → gỡ mirror để native không còn nạp
+            await asyncio.to_thread(_improvement_suspend_skill, brain, slug)
             # Gọi lại mirror_skills NGAY ở đây, không chỉ chờ lượt gọi tự nhiên kế tiếp (CRITICAL 1
             # đã vá): rename ở trên vừa đổi cây <root>/skills nên chữ ký của nó đã đổi, và lệnh này
             # ép cache ghi nhận đúng chữ ký-đã-tắt NGAY LẬP TỨC. Thiếu dòng này: `rename` giữ nguyên
@@ -7623,6 +7633,8 @@ async def delete_skill(slug: str = Form(...), brain: str = Form("brain")):
                 found = True
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
+    if found:
+        await asyncio.to_thread(_improvement_suspend_skill, brain, slug)
     return {"ok": True} if found else JSONResponse({"error": localefmt.chu("Không tìm thấy skill", "Skill not found")}, status_code=404)
 
 
@@ -15868,7 +15880,8 @@ async def websocket_endpoint(ws: WebSocket):
 
     try:
         async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
-                           has_attachments=False, resume_attempt=0, user_mid=0, user_text=None):
+                           has_attachments=False, resume_attempt=0, user_mid=0, user_text=None,
+                           _task_skills=None, _turn_token=None):
             ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
             # 0.190.0: what the brain's memory looks like before the turn, for the "Đã nhớ · Hoàn tác" line and the
             # empty-claim check after it (memory_receipt).
@@ -16632,6 +16645,13 @@ async def websocket_endpoint(ws: WebSocket):
                     }))
                 else:
                     # ===== API/OAuth: Phase 8 sources canary, fallback độc lập về legacy =====
+                    if _task_skills is not None:
+                        await _task_skills.start(
+                            _cfg_all, provider_kind=kind, tool_provider=prov in _API_TOOL_PROVIDERS,
+                            hub_enabled=_hub_enabled(), api_key=api_key, root=_brain_root(brain),
+                            turn_token=_turn_token, runtime=_CONTEXT_RUNTIME, trace=runtime_trace,
+                            assets_factory=_improvement_write_store,
+                        )
                     def _phase8_base(include_memory: bool, include_skills: bool) -> str:
                         # The project's INSTRUCTIONS ride along, as on Telegram and the CLI
                         # (`_nen_goc`): they are a behaviour contract, its file list is not.
@@ -17131,10 +17151,14 @@ async def websocket_endpoint(ws: WebSocket):
             # 0.206.0: from here on, a message the owner sends goes to this turn (steer_inbox.py).
             _steer_tok = steer_inbox.INBOX.open(conv_sid, turn_tag)
             _engine_outcome_reset(conv_sid)
+            # Local import: tests exec run_turn from its source in a namespace without this module's globals.
+            from improvement_task_skill_turn import TaskSkillTurn as _TaskSkillTurn
+            _task_skills = _TaskSkillTurn()
             try:
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
                     resume_attempt=resume_attempt, user_mid=user_mid, user_text=user_text,
+                    _task_skills=_task_skills, _turn_token=_luot_token,
                 )
                 _resonance_after_turn(conv_sid, brain, user_mid, _t0_luot, runtime_trace)
                 # Phiên TRỢ LÝ mở từ một lệnh "/" gõ ở khung Trò chuyện: câu trả lời quay về
@@ -17167,6 +17191,7 @@ async def websocket_endpoint(ws: WebSocket):
                                                                           f"Processing error: {type(e).__name__}: {e}"),
                                 "session_id": conv_sid, **context_runtime.event_fields(runtime_trace)})
             finally:
+                _task_skills.close()
                 luot_dang_chay.ket_thuc(_khoa_luot)
                 _steer_left = steer_inbox.INBOX.close(conv_sid, turn_tag, _steer_tok)
                 if _steer_left:
@@ -26822,6 +26847,42 @@ improvement_api.register(app, improvement_api.ImprovementApiDeps(
     agent_key=lambda root, slug: _agent_jobs_key(root, slug, register=True),
 ))
 
+# M2E manual activation: owner applies an authorized candidate to one assistant chat. Read time
+# resolves the pointer for in-process engines only; nothing here writes a canonical skill file.
+import improvement_activation  # noqa: E402
+import improvement_activation_api  # noqa: E402
+
+improvement_activation.configure(Path(cfgmod.STATE_DIR) / "resonance.sqlite3",
+                                 RevisionBlobs(Path(cfgmod.STATE_DIR) / "improvement"))
+def _improvement_activation_agent(root, slug):
+    # Only an assistant that has its file in this brain gets (or keeps) an identity here.
+    if not skill_router.valid_file_slug(slug) or not (_agents_dir(root) / f"{slug}.md").is_file():
+        return ""
+    return _agent_jobs_key(root, slug, register=True) or ""
+
+
+def _improvement_activations():
+    return improvement_activation.Activations(_improvement_write_store(), agent_key=_improvement_activation_agent)
+
+
+def _improvement_suspend_skill(brain, slug):
+    """A disabled or deleted skill invalidates its applied overlays now, so re-enabling never revives them."""
+    try:
+        root = str(Path(_brain_root(brain)).resolve(strict=True))
+        if _improvement_read_store() is not None:
+            _improvement_activations().suspend_source(resonance_store.Principal("owner", "owner", root), slug)
+    except Exception as error:  # noqa: BLE001 - bookkeeping must never fail the skill toggle
+        print(f"[improvement activation] suspend {slug}: {type(error).__name__}: {error}", file=sys.stderr)
+
+
+improvement_activation_api.register(app, improvement_activation_api.ActivationApiDeps(
+    activations=_improvement_activations,
+    read_store=_improvement_read_store,
+    owner_session=_doi_phien_that,
+    resolve_brain=lambda value: improvement_api.strict_brain(value,
+        default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
+))
+
 
 # Explicit owner trials are lazy; importing routes does not start or recover work.
 import improvement_trial_api  # noqa: E402
@@ -26966,6 +27027,7 @@ import improvement_experiment_api  # noqa: E402
 
 improvement_experiment_api.register(app, improvement_experiment_api.ExperimentApiDeps(
     read_store=_improvement_read_store,
+    write_store=_improvement_write_store,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
     owner_session=_doi_phien_that,
