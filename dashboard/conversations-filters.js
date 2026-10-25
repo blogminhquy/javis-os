@@ -12,7 +12,10 @@
   "use strict";
 
   var KEY = "javis.inbox.filters";
-  var STATUSES = ["", "unread", "need_reply", "human"];
+  // 2026-10-25, from the owner's Pancake screenshots: "waiting" is "need reply" sorted waiting-longest first ("đợi phản hồi
+  // lâu nhất") and "contact" is "the customer left a phone number or email" ("lọc có SĐT"). Both are one more choice in
+  // the status dropdown, as in Pancake's single-choice filter list, so the filter row stays one row.
+  var STATUSES = ["", "unread", "need_reply", "waiting", "human", "contact"];
   var TYPES = ["", "group", "private"];
   var BOT_COLORS = 4;          // c0..c3 trong console.css; không dùng màu cảnh báo vì nó dành cho "cần trả lời" và "tôi lo"
 
@@ -23,7 +26,8 @@
     });
   }
 
-  function emptyState() { return { bot: "", status: "", type: "", channel: "" }; }
+  // `tag`: an inbox tag id (string of digits).
+  function emptyState() { return { bot: "", status: "", type: "", channel: "", tag: "" }; }
 
   // Giá trị lạ (bản cũ còn lưu, trình duyệt bị sửa tay) thì về "không lọc", không bao giờ làm hòm thư trống trơn.
   function sanitize(raw) {
@@ -33,6 +37,7 @@
       status: STATUSES.indexOf(r.status) >= 0 ? r.status : "",
       type: TYPES.indexOf(r.type) >= 0 ? r.type : "",
       channel: typeof r.channel === "string" ? r.channel.slice(0, 40) : "",
+      tag: /^\d{1,9}$/.test(String(r.tag || "")) ? String(r.tag) : "",
     };
   }
 
@@ -46,16 +51,19 @@
 
   function activeCount(state) {
     var s = sanitize(state);
-    return ["bot", "status", "type", "channel"].filter(function (k) { return !!s[k]; }).length;
+    return ["bot", "status", "type", "channel", "tag"].filter(function (k) { return !!s[k]; }).length;
   }
 
   // Phần query cho GET /conversations. Chỉ gửi khoá đang lọc; giá trị đã qua sanitize nên an toàn để ghép.
   function query(state) {
     var s = sanitize(state), q = "";
     if (s.bot) q += "&bot_id=" + encodeURIComponent(s.bot);
-    if (s.status) q += "&status=" + encodeURIComponent(s.status);
+    if (s.status === "waiting") q += "&status=need_reply&sort=waiting";
+    else if (s.status === "contact") q += "&has_contact=1";
+    else if (s.status) q += "&status=" + encodeURIComponent(s.status);
     if (s.type) q += "&chat_type=" + encodeURIComponent(s.type);
     if (s.channel) q += "&channel=" + encodeURIComponent(s.channel);
+    if (s.tag) q += "&tag=" + s.tag;
     return q;
   }
 
@@ -95,7 +103,38 @@
     return opt("", tt("ht.f_st_all"), current) +
       opt("unread", tt("ht.f_st_unread", { n: num(s.unread) }), current) +
       opt("need_reply", tt("ht.f_st_need", { n: num(s.need_reply) }), current) +
-      opt("human", tt("ht.f_st_human", { n: num(s.human) }), current);
+      opt("waiting", tt("ht.f_st_wait", { n: num(s.need_reply) }), current) +
+      opt("human", tt("ht.f_st_human", { n: num(s.human) }), current) +
+      opt("contact", tt("ht.f_st_contact", { n: num(facets && facets.has_contact) }), current);
+  }
+
+  // Tag dropdown (2026-10-25). `tags`: [{id, name, color, count}] from the server, in the owner's order. A tag that was
+  // deleted while selected still gets an option, so the dropdown never says "all" while the list is filtered.
+  function tagOptions(tags, current) {
+    var html = opt("", tt("ht.f_tag_all"), current), seen = false;
+    (tags || []).forEach(function (g) {
+      if (String(g.id) === String(current || "")) seen = true;
+      html += opt(g.id, g.name + " (" + num(g.count) + ")", current);
+    });
+    if (current && !seen) html += opt(current, tt("ht.f_tag_gone"), current);
+    return html;
+  }
+
+  // The fixed tag palette (server conversations.TAG_COLORS); an unknown colour draws grey.
+  var TAG_COLORS = ["gray", "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"];
+  function tagColor(c) { return TAG_COLORS.indexOf(c) >= 0 ? c : "gray"; }
+  function tagChip(g) {
+    return '<span class="ht-tag" data-c="' + tagColor(g.color) + '" title="' + esc(g.name) + '">' + esc(g.name) + '</span>';
+  }
+  // Chips on a list row: the first `max` tags, then "+N" for the rest (named in its tooltip).
+  function tagChips(tags, max) {
+    var list = tags || [], m = max || 2;
+    var html = list.slice(0, m).map(tagChip).join("");
+    if (list.length > m) {
+      var rest = list.slice(m).map(function (g) { return g.name; }).join(", ");
+      html += '<span class="ht-tag-more" title="' + esc(rest) + '">+' + (list.length - m) + '</span>';
+    }
+    return html;
   }
 
   function typeOptions(facets, current) {
@@ -120,6 +159,7 @@
   window.JavisConvFilters = {
     emptyState: emptyState, sanitize: sanitize, load: load, save: save, activeCount: activeCount, query: query,
     botColor: botColor, botOptions: botOptions, statusOptions: statusOptions, typeOptions: typeOptions,
-    channelOptions: channelOptions,
+    channelOptions: channelOptions, tagOptions: tagOptions, tagChips: tagChips, tagChip: tagChip, tagColor: tagColor,
+    TAG_COLORS: TAG_COLORS,
   };
 })();
