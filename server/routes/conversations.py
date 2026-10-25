@@ -146,16 +146,22 @@ def register(app, deps: ConversationsDeps):
     @router.get("/conversations")
     async def conversations_list(channel: str = "", bot_id: str = "", account_id: str = "",
                                  q: str = "", mode: str = "", limit: int = 50, offset: int = 0,
-                                 status: str = "", chat_type: str = ""):
+                                 status: str = "", chat_type: str = "", tag: int = 0, has_contact: int = 0,
+                                 sort: str = ""):
         """Danh sách hội thoại mới nhất trước, kèm vài con số đầu trang (cùng bộ lọc).
 
         0.65.3: thêm `status` (unread | need_reply | human) và `chat_type` (group | private); mỗi hàng có `bot_name`;
         `facets` là số hội thoại cho từng lựa chọn dropdown (toàn hòm thư, không theo bộ lọc) và `bots` là danh sách bot
-        có hội thoại kèm tên, cho dropdown Bot."""
+        có hội thoại kèm tên, cho dropdown Bot.
+
+        2026-10-25: `tag` (inbox tag id), `has_contact=1` (the customer left a phone number or email) and `sort=waiting`
+        (unanswered customer message waiting longest first). Each row has `tags`; the first page also returns `tags`, the
+        owner's tag list with counts, and `facets.has_contact`."""
         hesitant = _hesitant()
+        extra = dict(tag=tag, has_contact=bool(has_contact), sort=sort)
         items = conversations.danh_sach(channel=channel, bot_id=bot_id, account_id=account_id,
                                         q=q, mode=mode, limit=limit, offset=offset,
-                                        status=status, chat_type=chat_type, hesitant=hesitant)
+                                        status=status, chat_type=chat_type, hesitant=hesitant, **extra)
         if offset > 0:
             # Trang thứ hai trở đi (0.65.11, cuộn xuống thì tải thêm) chỉ cần các dòng: số đếm, bộ lọc và danh sách bot đã có từ trang
             # đầu, tính lại cho mỗi trang là tốn công vô ích.
@@ -168,7 +174,7 @@ def register(app, deps: ConversationsDeps):
                 and (not account_id or account_id.startswith("zalo_personal:")):
             items, phone_lookup = await _tim_sdt_tren_zalo(items, q, dict(
                 channel=channel, bot_id=bot_id, account_id=account_id, q=q, mode=mode, limit=limit,
-                status=status, chat_type=chat_type, hesitant=hesitant))
+                status=status, chat_type=chat_type, hesitant=hesitant, **extra))
         facets = conversations.dem_bo_loc(hesitant)
         ten = {bid: _ten_bot(bid) for bid in facets["bots"] if bid}
         for it in items:
@@ -178,6 +184,7 @@ def register(app, deps: ConversationsDeps):
                 "stats": conversations.thong_ke(bot_id=bot_id, channel=channel, account_id=account_id),
                 "facets": facets,
                 "bots": [{"id": bid, "name": ten[bid], **facets["bots"][bid]} for bid in ten],
+                "tags": conversations.list_tags(),
                 "channels": channels.cho_giao_dien(), "phone_lookup": phone_lookup}
 
     async def _tim_sdt_tren_zalo(items: list, q: str, loc: dict) -> tuple:
@@ -206,6 +213,39 @@ def register(app, deps: ConversationsDeps):
     async def conversations_stats(bot_id: str = "", channel: str = "", account_id: str = ""):
         return {"ok": True, "stats": conversations.thong_ke(bot_id=bot_id, channel=channel,
                                                               account_id=account_id)}
+
+    # ---- inbox tags (2026-10-25). Declared before /conversations/{conv_id}, which would otherwise catch "tags".
+    _TAG_ERR = {
+        "empty": (400, "Tên tag đang trống", "The tag name is empty"),
+        "duplicate": (409, "Đã có tag tên này", "A tag with this name already exists"),
+        "limit": (400, f"Tối đa {conversations.MAX_INBOX_TAGS} tag", f"At most {conversations.MAX_INBOX_TAGS} tags"),
+        "missing": (404, "Không có tag này", "No such tag"),
+    }
+
+    def _tag_err(code: str):
+        st, vi, en = _TAG_ERR.get(code, _TAG_ERR["missing"])
+        return JSONResponse({"ok": False, "code": code, "error": localefmt.chu(vi, en)}, status_code=st)
+
+    @router.get("/conversations/tags")
+    async def conversations_tags():
+        """The owner's inbox tags with how many conversations carry each, and the colour palette."""
+        return {"ok": True, "tags": conversations.list_tags(), "colors": list(conversations.TAG_COLORS)}
+
+    @router.post("/conversations/tags")
+    async def conversations_tag_create(name: str = Form(...), color: str = Form("")):
+        tag, err = conversations.create_tag(name, color)
+        return {"ok": True, "tag": tag, "tags": conversations.list_tags()} if tag else _tag_err(err)
+
+    @router.post("/conversations/tags/{tag_id}")
+    async def conversations_tag_update(tag_id: int, name: Optional[str] = Form(None), color: Optional[str] = Form(None)):
+        """Rename and/or recolour a tag (fields left out stay as they are)."""
+        ok, err = conversations.update_tag(tag_id, name=name, color=color)
+        return {"ok": True, "tags": conversations.list_tags()} if ok else _tag_err(err)
+
+    @router.delete("/conversations/tags/{tag_id}")
+    async def conversations_tag_delete(tag_id: int):
+        """Delete a tag; it comes off every conversation."""
+        return {"ok": True, "tags": conversations.list_tags()} if conversations.delete_tag(tag_id) else _tag_err("missing")
 
     @router.get("/conversations/channels")
     async def conversations_channels():
@@ -258,6 +298,12 @@ def register(app, deps: ConversationsDeps):
         """Ghim (pinned=1) hoặc bỏ ghim (pinned=0) một cuộc chat lên đầu hòm thư."""
         ok = conversations.dat_ghim(conv_id, str(pinned).strip().lower() not in ("0", "false", ""))
         return {"ok": True, "conversation": conversations.chi_tiet(conv_id)} if ok else _404()
+
+    @router.post("/conversations/{conv_id}/tags")
+    async def conversations_set_tag(conv_id: int, tag_id: int = Form(...), on: str = Form("1")):
+        """Put a tag on this conversation (on=1) or take it off (on=0). Returns the conversation's tags."""
+        tags = conversations.set_conversation_tag(conv_id, tag_id, str(on).strip().lower() not in ("0", "false", ""))
+        return {"ok": True, "tags": tags} if tags is not None else _404()
 
     @router.post("/conversations/{conv_id}/reply")
     async def conversations_reply(conv_id: int, text: str = Form(...)):

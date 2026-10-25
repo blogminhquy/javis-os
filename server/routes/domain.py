@@ -9,8 +9,10 @@ nên việc bóc file không đụng tới nó. Nhưng đừng bao giờ đổi 
 TRƯỚC khi xin chứng chỉ, mất quyền công khai là nó nhận 401 thay vì 200/403 và việc cấp
 chứng chỉ trên production hỏng.
 """
+import asyncio
 import os
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -31,7 +33,11 @@ class DomainDeps:
 _DEPS: DomainDeps = None
 
 _DOMAIN_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
-_PUBLIC_IP_CACHE = {"ip": None, "ts": 0.0}
+_PUBLIC_IP_CACHE = {"ip": None, "ts": 0.0, "miss_ts": 0.0}
+# Owner report 25/10/2026: a failed lookup is remembered too. Before, only a found address was cached, so on a server
+# that cannot reach the three IP services every dashboard load asked all three again (3 x DNS + 4s timeout each).
+PUBLIC_IP_TTL, PUBLIC_IP_MISS_TTL = 600.0, 120.0
+_PUBLIC_IP_LOCK = threading.Lock()
 
 
 def _norm_domain(d):
@@ -61,10 +67,31 @@ def _domain_deploy_target(request: Request = None):
 
 
 def _detect_public_ip():
+    """This server's public address, or None. BLOCKING (DNS plus up to three HTTPS requests): call it in a thread,
+    never on the event loop. Owner report 25/10/2026: every page that opened Javis asked /domain/status, which ran this
+    on the loop; on a server whose DNS or outbound HTTPS is slow that froze the whole server for 12 to 24 seconds, and
+    everyone else's live socket missed its pong ("Mất kết nối" as soon as another person opened Javis)."""
     import time as _t
-    now = _t.time()
-    if _PUBLIC_IP_CACHE["ip"] and now - _PUBLIC_IP_CACHE["ts"] < 600:
-        return _PUBLIC_IP_CACHE["ip"]
+    c = _PUBLIC_IP_CACHE
+    if c["ip"] and _t.time() - c["ts"] < PUBLIC_IP_TTL:
+        return c["ip"]
+    if _t.time() - c["miss_ts"] < PUBLIC_IP_MISS_TTL:
+        return None
+    with _PUBLIC_IP_LOCK:   # pages opened together share one lookup instead of each holding a worker thread
+        now = _t.time()
+        if c["ip"] and now - c["ts"] < PUBLIC_IP_TTL:
+            return c["ip"]
+        if now - c["miss_ts"] < PUBLIC_IP_MISS_TTL:
+            return None
+        ip = _lookup_public_ip()
+        if ip:
+            c.update(ip=ip, ts=now)
+        else:
+            c["miss_ts"] = now
+        return ip
+
+
+def _lookup_public_ip():
     ip = None
     for url in ("https://api.ipify.org", "https://ifconfig.me/ip", "https://icanhazip.com"):
         try:
@@ -75,8 +102,6 @@ def _detect_public_ip():
                 break
         except Exception:
             ip = None
-    if ip:
-        _PUBLIC_IP_CACHE.update(ip=ip, ts=now)
     return ip
 
 
@@ -350,13 +375,14 @@ def _make_router() -> APIRouter:
         dom = cfg.get("domain", {}) or {}
         custom = _norm_domain(dom.get("custom", ""))
         ssl_enabled = bool(dom.get("ssl_enabled", False))
-        server_ip = _detect_public_ip()
+        # Both lookups block (DNS, HTTPS): in threads, since every dashboard load asks this route.
+        server_ip = await asyncio.to_thread(_detect_public_ip)
         dns_ip = None
         dns_ok = False
         if custom:
             try:
                 import socket as _sock
-                dns_ip = _sock.gethostbyname(custom)
+                dns_ip = await asyncio.to_thread(_sock.gethostbyname, custom)
                 dns_ok = bool(server_ip) and dns_ip == server_ip
             except Exception:
                 dns_ip = None

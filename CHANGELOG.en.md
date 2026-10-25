@@ -8,6 +8,17 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.313.0] - 2026-10-25
+### Added
+- **Coloured tags on each chat** in the bot inbox, like Pancake: create, rename, recolour and delete tags right in the chat. Tags show as coloured chips in the list (the first 2, the rest as "+N") and can be used as a filter.
+- **Filter customers who left a phone number or email.** Javis picks up numbers and emails customers type in their messages (0912..., +84..., with or without spaces), older chats included. "Has phone/email" is a filter of its own, so it combines with others, such as "Needs reply" and has a phone number. The number or email shows at the top of the chat, ready to copy.
+- **On phones the filters fold into one "Filters" button** next to the search box (with the number of filters on), so the chat list gets almost the whole screen. On a computer the filters keep their full text and wrap to a second line instead of being cut.
+- **Customers waiting longest for a reply come first** with "Waiting longest" in the Status filter.
+- **The conversation list column can be dragged** wider or narrower on a computer. Drag it all the way in to leave only initials; double-click to reset.
+### Fixed
+- **Someone opening Javis on another machine no longer shows "Connection lost" on every open page.** Each page load looked up the server's public IP and its domain right on the main loop; on a server with slow outbound network that froze it for 12 to 24 seconds and every other browser dropped. The lookups now run on their own, and a failed one is remembered for two minutes so the next visitor does not wait again.
+- **Bot inbox: clearing a search brings the list back.** After searching and switching tabs, the search box came back empty while the list stayed filtered, with nothing to clear. The box now keeps the text that filters the list, and clearing it shows every chat again.
+
 ## [0.312.0] - 2026-10-25
 ### Improved
 - **Connections are easier to find.** The Connected tab has a search box: type a service or account name to filter right away, built-in Claude Code sources included.
