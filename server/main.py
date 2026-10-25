@@ -1048,7 +1048,11 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
         try:
             system_sync.ensure_synced(root)
             system_sync.mirror_skills(root)
-            skill_meta = skill_router.list_skills(root)
+            # This prompt serves API engines only (subscription engines keep build_system_prompt), so the
+            # owner-applied routing descriptions of the main chat (M4) belong here and nowhere else.
+            import improvement_routing
+            skill_meta = improvement_routing.with_descriptions(
+                skill_router.list_skills(root), improvement_routing.main_chat_descriptions(root))
             parts.append(_skill_router_block(brain, root, skill_meta))
         except Exception:
             # The caller records source fallback through Phase 8 status; empty router
@@ -3126,6 +3130,9 @@ def _get_adaptive_context():
             cfgmod.STATE_DIR, _CAPABILITY_REGISTRY, _CONTEXT_COMPILER,
             _CONTEXT_RUNTIME, cfgmod.read_settings,
         )
+        import improvement_routing
+        # M4: owner-applied routing descriptions for the brain's main chat; the canary skips them for CLI engines.
+        _ADAPTIVE_CONTEXT.routing_descriptions = improvement_routing.main_chat_descriptions
     return _ADAPTIVE_CONTEXT
 
 
@@ -26890,6 +26897,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
     read_store=_improvement_read_store,
     owner_session=_doi_phien_that,
     canaries=_improvement_canaries,
+    routing=lambda: __import__("improvement_routing").Routing(_improvement_write_store()),
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
 ))

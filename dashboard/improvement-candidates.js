@@ -136,6 +136,47 @@
     }
     if (!data.activations.length) s.applied.append(node("p", tr("no_activations")));
     await grants(s, version);
+    await routing(s, version);
+  }
+  // M4: a description candidate is measured against intent cases with Javis's own router, then
+  // applied to the brain's main chat (API engines). Each case line: kind | expected skill | question.
+  async function routing(s, version) {
+    const data = await request(s, "/improvement-routing?target_id=" + encodeURIComponent(s.context.target_id));
+    if (!alive(s, version)) return;
+    const box = node("div", null, "routing"); box.append(node("h3", tr("routing_title")));
+    info(box, tr("routing_hint"));
+    for (const overlay of (data.overlays || []).filter(x => x.state === "active")) {
+      const line = node("div", null, "routing-overlay-" + overlay.overlay_id);
+      line.append(node("p", tr("routing_active") + ": " + overlay.description));
+      line.append(button(tr("revert"), "routing-revert-" + overlay.overlay_id, async () => {
+        try { await write(s, "/improvement-routing-overlays/" + encodeURIComponent(overlay.overlay_id) + "/revert",
+          {expected_generation: overlay.generation}, "routing-revert-" + overlay.overlay_id); await activations(s); }
+        catch (error) { failure(s, error); }
+      }));
+      box.append(line);
+    }
+    const description = field(box, "routing_description"); description.rows = 2;
+    const cases = field(box, "routing_cases"); cases.rows = 6;
+    const result = node("div", null, "routing-result");
+    box.append(button(tr("routing_evaluate"), "routing-evaluate", async () => {
+      if (!alive(s, version)) return;
+      try {
+        const parsed = cases.value.split(/\r?\n/).map(line => line.split("|").map(x => x.trim())).filter(x => x.length === 3 && x[2])
+          .map(([kind, expected, query]) => ({kind, expected: kind === "negative" ? "" : expected, query}));
+        const value = (await write(s, "/improvement-routing/evaluate", {target_id: s.context.target_id,
+          description: description.value, cases: parsed}, "routing-evaluate")).routing;
+        const report = value.report, o = report.outcomes;
+        result.replaceChildren(node("p", `${tr("routing_verdict")}: ${tr("routing_verdict_" + value.verdict)}`),
+          node("p", `${tr("routing_wins")}: ${o.win} · ${tr("routing_losses")}: ${o.loss} · ${tr("routing_ties")}: ${o.tie}`),
+          node("p", tr("routing_cli_not_measured")));
+        if (value.verdict !== "rejected") result.append(button(tr("routing_apply"), "routing-apply", async () => {
+          try { await write(s, "/improvement-routing/" + encodeURIComponent(value.candidate_id) + "/apply", {}, "routing-apply-" + value.candidate_id); await activations(s); }
+          catch (error) { failure(s, error); }
+        }));
+      } catch (error) { failure(s, error); }
+    }));
+    box.append(result);
+    s.applied.append(box);
   }
   // M3: observation of one canary. Only explicit owner verdicts count; the server decides sufficiency.
   async function canary(s, row, card) {

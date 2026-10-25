@@ -5722,5 +5722,20 @@
   "improve.conclusion_improved_in_scope": "Improved within the tested scope",
   "improve.conclusion_equivalent": "Equivalent",
   "improve.conclusion_worse": "Worse",
-  "improve.conclusion_insufficient_evidence": "Not enough evidence"
+  "improve.conclusion_insufficient_evidence": "Not enough evidence",
+  "improve.routing_title": "Routing: skill description",
+  "improve.routing_hint": "The skill description decides when Javis's main chat picks this skill (brains that run through an API). Each sample line reads: kind | skill to pick | question, where kind is positive (pick this skill), negative (pick none, leave the middle empty) or competing (pick another skill). A description that makes a negative or competing question go wrong is rejected. Assistant chats list skill names only, so they are unaffected; Claude Code and Codex pick skills from the skill folder themselves, which is not measured here.",
+  "improve.routing_active": "In use in the main chat",
+  "improve.routing_description": "New description (150 characters max)",
+  "improve.routing_cases": "Sample questions",
+  "improve.routing_evaluate": "Evaluate",
+  "improve.routing_verdict": "Result",
+  "improve.routing_verdict_eligible": "Clearly better routing",
+  "improve.routing_verdict_inconclusive": "No clear difference",
+  "improve.routing_verdict_rejected": "Rejected: causes wrong picks",
+  "improve.routing_wins": "Newly right",
+  "improve.routing_losses": "Newly wrong",
+  "improve.routing_ties": "Unchanged",
+  "improve.routing_cli_not_measured": "Measures Javis's skill router only; Claude Code and Codex are not measured.",
+  "improve.routing_apply": "Use this description in the main chat"
 }

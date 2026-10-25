@@ -250,8 +250,12 @@ class ActivationTests(ActivationBase):
         """A released-10 store: version 11 minus the add-only activation objects."""
         import improvement_activation_schema as S
         import improvement_canary_schema as C
+        import improvement_routing_schema as RS
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
+            for name in ("improvement_routing_overlays", "improvement_routing_candidates"):
+                connection.execute(f"DROP TABLE IF EXISTS {name}")  # their triggers and index go with them
+            assert not any(connection.execute("SELECT 1 FROM sqlite_master WHERE name=?", (n,)).fetchone() for n in RS._NAMES)
             for name in reversed(C._NAMES):
                 kind = "TABLE" if name in ("improvement_canaries", "improvement_canary_exposures", "improvement_canary_verdicts",
                     "improvement_auto_scopes") else "INDEX" if name.endswith("_live") else "TRIGGER"

@@ -99,7 +99,9 @@ class LazySkillSource:
 
     def resolve(self, brain: str | Path, query: str, min_score: float = 0.24,
                 ambiguity_margin: float = 0.08, max_body_chars: int = 12000,
-                lang: str = "") -> SkillSelection:
+                lang: str = "", descriptions: dict | None = None) -> SkillSelection:
+        """`descriptions`: owner-applied routing descriptions (M4) for this chat, {slug: text}. With
+        any, ranking runs over the frozen manifest projection so the overlay text is what is scored."""
         from improvement_task_skill_scope import current, ScopeUnavailable
         from improvement_blobs import AssetUnavailable
         try:
@@ -118,6 +120,13 @@ class LazySkillSource:
                 # AdaptiveContext treats exceptions/fallback as permission to restore
                 # its legacy router. A dead bound owner must suppress that fallback.
                 return SkillSelection('none', 'task_scope_unavailable')
+        elif descriptions:
+            import improvement_routing
+            manifests = improvement_routing.with_descriptions(skill_router.list_skill_manifests(brain, lang), descriptions)
+            revision = hashlib.sha256(json.dumps({'routing_overlay': manifests}, ensure_ascii=False, sort_keys=True,
+                separators=(',', ':')).encode()).hexdigest()
+            incomplete = any(not str(item['description'] or '').strip() for item in manifests)
+            candidates = _task_candidates(brain, manifests)
         else:
             # Unbound: a registry error still propagates, so the caller keeps the legacy router.
             self.refresh(brain, lang)
@@ -189,7 +198,10 @@ class LazySkillSource:
             metadata={"slug": slug, "capability_revision": top.get("capability_revision") or "",
                       "policy_version": SKILL_SOURCE_POLICY_VERSION,
                       **({'task_scope_hash': scope.scope_hash, 'task_inventory_hash': scope.inventory_hash}
-                          if scope is not None else {})},
+                          if scope is not None else {}),
+                      # M4 telemetry: which description the router scored for the selected skill.
+                      **({'routing_description': 'overlay' if slug in descriptions else 'canonical'}
+                         if descriptions and scope is None else {})},
         )
         return SkillSelection("load", "selected", top["capability_id"], slug,
                               round(top_score, 6), round(runner, 6), revision, item)

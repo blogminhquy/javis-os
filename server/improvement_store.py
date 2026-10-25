@@ -17,7 +17,7 @@ from pathlib import Path
 
 from improvement_blobs import AssetUnavailable, MAX_ASSET_BYTES, RevisionBlobs  # noqa: F401
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 _SOURCE = re.compile(r"(?:skills/[a-z0-9][a-z0-9_-]*/SKILL\.md|agents/[a-z0-9][a-z0-9_-]*\.md)")
 _SCHEMA = (
     "CREATE TABLE improvement_schema(id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL)",
@@ -91,7 +91,7 @@ def _schema_version(store) -> int:
         if not row:
             return 0
         version = connection.execute("SELECT version FROM improvement_schema WHERE id=1").fetchone()
-        if not version or version["version"] not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, SCHEMA_VERSION):
+        if not version or version["version"] not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, SCHEMA_VERSION):
             raise SchemaError("unsupported_improvement_schema")
         return version["version"]
 
@@ -128,23 +128,35 @@ def ensure(store) -> None:
     from improvement_recipe_view_schema import assert_installed as assert_recipe_views, migrate as migrate_recipe_views
     from improvement_activation_schema import assert_installed as assert_activations, migrate as migrate_activations
     from improvement_canary_schema import assert_installed as assert_canaries, migrate as migrate_canaries
+    from improvement_routing_schema import assert_installed as assert_routing, migrate as migrate_routing
     if installed == SCHEMA_VERSION:
         with closing(store._conn()) as connection:
             assert_compose(connection)
             assert_recipe_views(connection)
             assert_activations(connection)
             assert_canaries(connection)
+            assert_routing(connection)
         return
     with migration_transaction(store) as connection:
         exists = connection.execute("SELECT name FROM sqlite_master WHERE name='improvement_schema'").fetchone()
         installed = connection.execute("SELECT version FROM improvement_schema WHERE id=1").fetchone() if exists else None
-        if exists and (not installed or installed["version"] not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, SCHEMA_VERSION)):
+        if exists and (not installed or installed["version"] not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, SCHEMA_VERSION)):
             raise SchemaError("unsupported_improvement_schema")
         if installed and installed["version"] == SCHEMA_VERSION:
             assert_compose(connection)
             assert_recipe_views(connection)
             assert_activations(connection)
             assert_canaries(connection)
+            assert_routing(connection)
+            return
+        if installed and installed["version"] == 12:
+            assert_compose(connection)
+            assert_recipe_views(connection)
+            assert_activations(connection)
+            assert_canaries(connection)
+            store._backup_before("improvement_routing_candidates", ".pre-improvement-m4-routing.bak")
+            migrate_routing(connection)
+            connection.execute("UPDATE improvement_schema SET version=? WHERE id=1", (SCHEMA_VERSION,))
             return
         if installed and installed["version"] == 11:
             assert_compose(connection)
@@ -152,6 +164,8 @@ def ensure(store) -> None:
             assert_activations(connection)
             store._backup_before("improvement_canaries", ".pre-improvement-m3-canaries.bak")
             migrate_canaries(connection)
+            connection.execute("UPDATE improvement_schema SET version=12 WHERE id=1")
+            migrate_routing(connection)
             connection.execute("UPDATE improvement_schema SET version=? WHERE id=1", (SCHEMA_VERSION,))
             return
         if installed and installed["version"] == 10:
@@ -161,6 +175,8 @@ def ensure(store) -> None:
             migrate_activations(connection)
             connection.execute("UPDATE improvement_schema SET version=11 WHERE id=1")
             migrate_canaries(connection)
+            connection.execute("UPDATE improvement_schema SET version=12 WHERE id=1")
+            migrate_routing(connection)
             connection.execute("UPDATE improvement_schema SET version=? WHERE id=1", (SCHEMA_VERSION,))
             return
         if installed and installed["version"] == 9:
@@ -174,6 +190,8 @@ def ensure(store) -> None:
             migrate_activations(connection)
             connection.execute("UPDATE improvement_schema SET version=11 WHERE id=1")
             migrate_canaries(connection)
+            connection.execute("UPDATE improvement_schema SET version=12 WHERE id=1")
+            migrate_routing(connection)
             connection.execute("UPDATE improvement_schema SET version=? WHERE id=1", (SCHEMA_VERSION,))
             return
         _assert_absent(connection)
@@ -241,6 +259,8 @@ def ensure(store) -> None:
         migrate_activations(connection)
         connection.execute("UPDATE improvement_schema SET version=11 WHERE id=1")
         migrate_canaries(connection)
+        connection.execute("UPDATE improvement_schema SET version=12 WHERE id=1")
+        migrate_routing(connection)
         connection.execute("UPDATE improvement_schema SET version=? WHERE id=1", (SCHEMA_VERSION,))
 
 
