@@ -994,6 +994,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .amb-details summary::-webkit-details-marker { display: none; }
 .amb-details summary h3::before { content: "▸ "; opacity: .6; }
 .amb-details[open] summary h3::before { content: "▾ "; }
+/* Connected tab search and the built-in CLI sources (0.312.0) */
+.conn-search { max-width: 420px; font-size: 16px; margin: 10px 0 6px; }
+.amb-card .prov-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.amb-host { color: var(--text3); overflow-wrap: anywhere; }
+.amb-hidden { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 4px;
+  padding: 10px 14px; border: 1px dashed var(--glass-brd); border-radius: 12px; font-size: 16px; color: var(--text2); }
+.amb-hidden span { flex: 1; min-width: 200px; }
+.amb-off-list { display: grid; gap: 10px; margin-top: 10px; }
+.amb-off-list[hidden], #connNone[hidden] { display: none; }
+#mcpTabDaNoi.searching .conn-guide, #mcpTabDaNoi.searching #ambWrap .mp-empty, #mcpTabDaNoi.searching #ambWrap .amb-hidden { display: none !important; }
+#mcpMessenger:not(:empty) { margin-top: 18px; }
+.amb-off { opacity: .7; }
 @media (max-width: 700px) {
   .cat-grid { grid-template-columns: 1fr; }
   .conn-accounts { flex-wrap: wrap; }
