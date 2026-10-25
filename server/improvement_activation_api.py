@@ -109,6 +109,17 @@ def register(app, deps: ActivationApiDeps):
         except _ERRORS as error:
             return _fail(error)
 
+    @app.get("/improvement-pilot-reports/{report_id}")
+    async def pilot_report(report_id: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                raise PermissionError("report_unavailable")
+            service = await canaries()
+            return {"ok": True, "pilot": await asyncio.to_thread(service.pilot_report, principal, report_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
     @app.post("/improvement-canaries/{activation_id}/verdicts")
     async def canary_verdict(activation_id: str, request: Request, brain: str = "brain"):
         def call(service, principal, data):

@@ -136,6 +136,24 @@ class Canaries:
                 (activation_id, brain))]
         return result
 
+    def pilot_report(self, principal, report_id: str) -> dict:
+        """The honest per-business conclusion of one published comparison report (spec 24.3)."""
+        brain = IM._brain(principal)
+        if type(report_id) is not str or not re.fullmatch(r"icr_[0-9a-f]{32}", report_id):
+            raise ValueError("invalid_report")
+        with closing(self.store._conn()) as connection:
+            row = connection.execute("SELECT r.report_hash,r.blob_hash,c.kind,c.ordinal,c.experiment_id "
+                "FROM improvement_comparison_reports r JOIN improvement_comparisons c ON c.id=r.comparison_id "
+                "AND c.brain_id=r.brain_id WHERE r.id=? AND r.brain_id=?", (report_id, brain)).fetchone()
+        if row is None:
+            raise PermissionError("report_unavailable")
+        report = json.loads(self.assets.blobs.read(brain, row["blob_hash"]).decode("utf-8"))
+        if IM._hash(report) != row["report_hash"]:
+            raise IM.ConflictError("report_changed")
+        return {"report_id": report_id, "experiment_id": row["experiment_id"], "ordinal": row["ordinal"],
+                **pilot_conclusion(report["summary"], row["kind"]),
+                "evidence_class": report["summary"].get("evidence_class")}
+
     # -- owner verdicts and monitoring -------------------------------------------------------------
 
     def verdict(self, principal, activation_id: str, session_id: str, message_id: int, verdict: str, *,

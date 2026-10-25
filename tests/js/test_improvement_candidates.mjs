@@ -25,7 +25,7 @@ const candidate = { candidate_id: "candidate-one", experiment_id: "experiment-on
 async function fixture(lang = "en", withExperiments = false) {
   const dict = JSON.parse(fs.readFileSync(new URL(`../../dashboard/i18n/${lang}.json`, import.meta.url)));
   const body = new Element("body"), head = new Element("head"), calls = [], intervals = [];
-  let applied = [];
+  let applied = [], granted = [];
   let brain = "brain-one", rows = [candidate], deferred = null, corrupt = false, failStage = false, pages = false, failAfterStage = false, failRows = false;
   const ctx = { document: { body, head, createElement: tag => new Element(tag), getElementById: () => null, addEventListener() {} },
     window: { currentBrainPath: () => brain }, TextEncoder, TextDecoder, crypto: webcrypto, URL, URLSearchParams, Blob,
@@ -59,6 +59,8 @@ async function fixture(lang = "en", withExperiments = false) {
       else if (path === "/improvement-activations") { const body = JSON.parse(options.body); applied = [{activation_id:"iac_" + "1".repeat(32), state:"active", generation:1, evidence_level:"manual_trial", reason:"owner_apply", selector:{context:"dm", agent_key:"agent-1", agent_slug:body.agent_slug}}]; value = {activation: applied[0]}; }
       else if (path.endsWith("/revert")) { applied = [{...applied[0], state:"reverted", generation:2}]; value = {activation: applied[0]}; }
       else if (path === "/agents") value = {agents:[{slug:"ke-toan", name:"Accountant", description:"Books"}]};
+      else if (path === "/improvement-auto-scopes" && !options.method) value = {grants: granted};
+      else if (path === "/improvement-auto-scopes") { granted = [{grant_id:"ias_" + "2".repeat(32), status:"active", generation:1, allocation_pct:10, selector:{agent_slug:JSON.parse(options.body).agent_slug}}]; value = {grant: granted[0]}; }
       else throw Error(`Unexpected request ${path}`);
       return {ok:true,status:200,json:async()=>({ok:true,...value})};
     } };
@@ -199,6 +201,22 @@ for (const lang of ["vi","en"]) {
   const revert = f.calls.find(x=>x.url.startsWith(`/improvement-activations/${id}/revert`));
   assert.equal(JSON.parse(revert.body).expected_generation, 1);
   assert.equal(f.body.querySelector(`[data-action="revert-${id}"]`), null, "A reverted pointer offers no second revert");
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+{
+  // M3: a canary share sends allocation_pct; an owner grant posts a 10% auto-scope for the same assistant.
+  const f = await fixture();
+  f.setRows([{...candidate, edit_authority:{authority_id:"authority-two", kind:"exact_diff", generation:1, status:"active"}}]);
+  await f.find("review-candidate-one").onclick();
+  f.find("apply-agent").value = "ke-toan";
+  f.find("apply-share").value = "10";
+  await f.find("apply-candidate").onclick();
+  const apply = f.calls.find(x=>x.url.startsWith("/improvement-activations?") && x.method === "POST");
+  assert.equal(JSON.parse(apply.body).allocation_pct, 10);
+  await f.find("grant-auto").onclick();
+  const grant = f.calls.find(x=>x.url.startsWith("/improvement-auto-scopes?") && x.method === "POST");
+  assert.deepEqual({...JSON.parse(grant.body), event_key: undefined}, {target_id:"target-one", agent_slug:"ke-toan", allocation_pct:10, event_key: undefined});
+  assert.ok(f.find("revoke-grant-ias_" + "2".repeat(32)));
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {

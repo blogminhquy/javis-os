@@ -184,6 +184,27 @@ class SimulatedFeasibilityTests(unittest.TestCase):
                          [{"activation_id": applied["activation_id"], "reason": "candidate_rejected"}])
         self.assertEqual(self.seen(), self.canonical)
 
+    def test_pilot_conclusions_follow_each_outcome(self):
+        import improvement_canary as CN
+        canaries = CN.Canaries(self.activations)
+        cases = {"tie": (lambda variant, criterion: "pass", "equivalent"),
+                 "loss": (lambda variant, criterion: "fail" if variant == "candidate" and criterion == self.required else "pass",
+                          "worse")}
+        for name, (verdict, expected) in cases.items():
+            with self.subTest(name=name):
+                fresh = type(self)(self._testMethodName)
+                fresh.setUp()
+                self.addCleanup(fresh.doCleanups)
+                saved, _ = fresh.seed(verdict)
+                pilot = CN.Canaries(fresh.activations).pilot_report(fresh.owner, saved["report_id"])
+                self.assertEqual(pilot["conclusion"], expected)
+                self.assertEqual(pilot["business_eligibility"], "unverified")
+        saved, _ = self.seed(lambda variant, criterion: "fail" if variant == "baseline" and criterion == self.primary else "pass")
+        win = canaries.pilot_report(self.owner, saved["report_id"])
+        # A tuning win selects a candidate; it is never an improvement conclusion on its own.
+        self.assertEqual((win["conclusion"], win["kind"]), ("insufficient_evidence", "tuning"))
+        self.assertGreater(win["wins"], 0)
+
     def test_unknown_cells_stay_in_coverage_and_keep_the_baseline(self):
         saved, summary = self.seed(lambda variant, criterion: "unknown" if variant == "candidate" else "pass")
         self.assertEqual(summary["mechanical_verdict"], "inconclusive")

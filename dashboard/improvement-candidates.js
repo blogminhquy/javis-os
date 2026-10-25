@@ -115,6 +115,10 @@
       card.append(node("p", `${who} · ${tr("state_" + row.state)}`));
       card.append(node("p", tr(row.evidence_level === "qualified" ? "qualified" : "manual_trial")));
       if (row.state === "suspended") card.append(node("p", tr("reason_" + row.reason)));
+      if (row.canary) {
+        card.append(node("p", `${tr("canary")} ${row.canary.allocation_pct}% · ${tr("canary_state_" + row.canary.state)}`));
+        if (row.canary.state === "canary") card.append(button(tr("canary_open"), "canary-" + row.activation_id, () => canary(s, row, card)));
+      }
       if (row.state === "active") {
         const revert = button(tr("revert"), "revert-" + row.activation_id, async () => {
           if (!alive(s, version) || revert.disabled) return;
@@ -131,6 +135,57 @@
       s.applied.append(card);
     }
     if (!data.activations.length) s.applied.append(node("p", tr("no_activations")));
+    await grants(s, version);
+  }
+  // M3: observation of one canary. Only explicit owner verdicts count; the server decides sufficiency.
+  async function canary(s, row, card) {
+    const version = s.version;
+    const value = (await request(s, "/improvement-canaries/" + encodeURIComponent(row.activation_id))).canary;
+    if (!alive(s, version)) return;
+    const box = node("div", null, "canary-panel-" + row.activation_id); card.append(box);
+    const o = value.observation, arms = o.arms;
+    box.append(node("p", `${tr("canary_days")}: ${o.days} / ${o.required.days}`));
+    box.append(node("p", `${tr("canary_arm_canary")}: ${arms.canary.pass} ${tr("verdict_pass")} · ${arms.canary.fail} ${tr("verdict_fail")} · ${arms.canary.exposures} ${tr("canary_exposures")}`));
+    box.append(node("p", `${tr("canary_arm_control")}: ${arms.control.pass} ${tr("verdict_pass")} · ${arms.control.fail} ${tr("verdict_fail")} · ${arms.control.exposures} ${tr("canary_exposures")}`));
+    box.append(node("p", tr(o.sufficient ? "canary_sufficient" : "canary_insufficient")));
+    for (const exposure of value.exposures.filter(x => !x.verdict).slice(0, 20)) {
+      const line = node("div", null, "exposure-" + exposure.session_id + "-" + exposure.message_id);
+      line.append(node("span", new Date(exposure.at * 1000).toLocaleString() + " · " + tr("canary_arm_" + exposure.arm)));
+      for (const verdict of ["pass", "fail"]) {
+        line.append(button(tr("verdict_" + verdict), "verdict-" + verdict + "-" + exposure.session_id + "-" + exposure.message_id, async () => {
+          try {
+            await write(s, "/improvement-canaries/" + encodeURIComponent(row.activation_id) + "/verdicts",
+              {session_id: exposure.session_id, message_id: exposure.message_id, verdict}, "verdict-" + row.activation_id + exposure.session_id + exposure.message_id);
+            await activations(s);
+          } catch (error) { failure(s, error); }
+        }));
+      }
+      box.append(line);
+    }
+    const promote = button(tr("canary_promote"), "promote-" + row.activation_id, async () => {
+      if (!alive(s, version) || promote.disabled) return;
+      promote.disabled = true;
+      try {
+        await write(s, "/improvement-canaries/" + encodeURIComponent(row.activation_id) + "/promote",
+          {expected_generation: value.generation}, "promote-" + row.activation_id);
+        await activations(s);
+      } catch (error) { failure(s, error); promote.disabled = false; }
+    });
+    promote.disabled = !o.sufficient || value.state !== "canary";
+    box.append(promote);
+  }
+  async function grants(s, version) {
+    const data = await request(s, "/improvement-auto-scopes?target_id=" + encodeURIComponent(s.context.target_id));
+    if (!alive(s, version)) return;
+    for (const grant of (data.grants || []).filter(x => x.status === "active")) {
+      const line = node("div", null, "grant-" + grant.grant_id);
+      line.append(node("p", `${tr("auto_scope")}: ${grant.selector.agent_slug || grant.selector.agent_key} · ${grant.allocation_pct}%`));
+      line.append(button(tr("auto_scope_revoke"), "revoke-grant-" + grant.grant_id, async () => {
+        try { await write(s, "/improvement-auto-scopes/" + encodeURIComponent(grant.grant_id) + "/revoke", {expected_generation: grant.generation}, "revoke-grant-" + grant.grant_id); await activations(s); }
+        catch (error) { failure(s, error); }
+      }));
+      s.applied.append(line);
+    }
   }
   async function applyBlock(s, current, version) {
     const authority = current.edit_authority;
@@ -139,6 +194,10 @@
     info(box, tr("apply_hint"));
     const label = node("label", tr("apply_agent")), choose = node("select", null, "apply-agent");
     label.append(choose); box.append(label);
+    const shareLabel = node("label", tr("apply_share")), share = node("select", null, "apply-share");
+    for (const value of [100, 10, 25, 50]) { const option = node("option", value === 100 ? tr("apply_share_all") : tr("canary") + " " + value + "%"); option.value = String(value); share.append(option); }
+    share.value = "100"; // Default: the assistant's whole chat, the M2E manual apply.
+    shareLabel.append(share); box.append(shareLabel);
     const agents = (await request(s, "/agents?prompt=0")).agents || [];
     if (!alive(s, version)) return;
     for (const agent of agents) {
@@ -151,8 +210,9 @@
       if (!alive(s, version) || apply.disabled || !choose.value) return;
       apply.disabled = true;
       try {
-        await write(s, "/improvement-activations", {candidate_id:current.candidate_id, agent_slug:choose.value},
-          "apply-" + current.candidate_id + "-" + choose.value);
+        const pct = Number(share.value) || 100;
+        await write(s, "/improvement-activations", {candidate_id:current.candidate_id, agent_slug:choose.value,
+          ...(pct < 100 ? {allocation_pct: pct} : {})}, "apply-" + current.candidate_id + "-" + choose.value + "-" + pct);
         s.status.textContent = tr("applied_ok");
         await activations(s);
       } catch (error) { failure(s, error); }
@@ -160,6 +220,19 @@
     });
     apply.disabled = !agents.length;
     box.append(apply);
+    const grant = button(tr("auto_scope_grant"), "grant-auto", async () => {
+      if (!alive(s, version) || grant.disabled || !choose.value) return;
+      grant.disabled = true;
+      try {
+        await write(s, "/improvement-auto-scopes", {target_id: s.context.target_id, agent_slug: choose.value, allocation_pct: 10},
+          "grant-" + s.context.target_id + "-" + choose.value);
+        await activations(s);
+      } catch (error) { failure(s, error); }
+      grant.disabled = false;
+    });
+    grant.disabled = !agents.length;
+    box.append(grant);
+    info(box, tr("auto_scope_hint"));
     if (!agents.length) box.append(node("p", tr("no_agents")));
     s.review.append(box);
     if (window.JavisAgentPicker) window.JavisAgentPicker.enhance(choose, {title: t("ap.title")});
