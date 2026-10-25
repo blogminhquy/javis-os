@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.314.0] - 2026-10-25
+### Improved
+- **Evidence-based improvement (engineering only, not enabled on real brains).** Skill trials now pin the exact skill version for each turn and record proof of what was loaded. The feature stays in suggest-only mode; nothing is applied automatically.
+
 ## [0.312.0] - 2026-10-25
 ### Improved
 - **Connections are easier to find.** The Connected tab has a search box: type a service or account name to filter right away, built-in Claude Code sources included.
