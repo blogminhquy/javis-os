@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.336.0] - 2026-10-26
+### Added
+- **Javis learns from your chats on its own.** (in progress)
+
 ## [0.334.0] - 2026-10-26
 ### Added
 - **Customers' reactions on personal Zalo are read.** When a customer hearts, likes or laughs at a message, the inbox shows one small line: who, which emoji, and on which message (the bot's own replies included). Taking a reaction back is recorded too.
