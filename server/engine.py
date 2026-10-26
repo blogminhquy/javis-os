@@ -287,7 +287,7 @@ def ev_loi_http(nhan, status, body_text, headers=None, fact=None, cat=300):
     kích thước hoặc hết quota có thật, chạy lại y nguyên chỉ tốn thêm một lượt để nhận lại
     đúng lỗi đó. Phải co lại hoặc chờ cửa sổ trượt qua trước.
     """
-    ev = {"type": "error", "content": f"{nhan} {status}: {str(body_text or '')[:cat]}"}
+    ev = {"type": "error", "content": f"{nhan} {status}: {provider_message(body_text)[:cat]}"}
     if fact is None and (status in _RETRY_STATUS or _is_transient_body(str(body_text or ""))):
         ev["tam_thoi"] = True
         # Giữ status thật để tầng thử lại chọn được nhịp chờ đúng loại. 429 là hạn mức, cửa
@@ -298,6 +298,39 @@ def ev_loi_http(nhan, status, body_text, headers=None, fact=None, cat=300):
         if cho is not None:
             ev["cho"] = cho
     return ev
+
+
+def provider_message(body_text) -> str:
+    """The human sentence inside a provider's JSON error body, else the body as it came (0.335.0).
+
+    Gemini answers a 503 with `[{"error": {"code": 503, "message": "This model is currently experiencing high demand...",
+    "status": "UNAVAILABLE"}}]`, and that whole block reached the chat (owner report 26/10/2026). OpenAI, Anthropic and
+    OpenRouter use the same `error.message` shape, sometimes with a bare `message`."""
+    raw = str(body_text or "").strip()
+    if not raw.startswith(("{", "[")):
+        return raw
+    try:
+        d = json.loads(raw)
+    except ValueError:
+        return raw
+    if isinstance(d, list) and d:
+        d = d[0]
+    if not isinstance(d, dict):
+        return raw
+    err = d.get("error")
+    msg = err.get("message") if isinstance(err, dict) else (err if isinstance(err, str) else d.get("message"))
+    if not (isinstance(msg, str) and msg.strip()):
+        return raw
+    # The provider's own error code stays in brackets, so the line can still be looked up (`rate_limit_error`,
+    # `UNAVAILABLE`): Anthropic's 429 says only "Error" in its message.
+    kind = (err.get("type") or err.get("status")) if isinstance(err, dict) else None
+    return msg.strip() + (f" ({kind})" if isinstance(kind, str) and kind.strip() else "")
+
+
+def _qua_tai(ev: dict) -> bool:
+    """The provider is overloaded (503/529 or an "overloaded"/"high demand" body), not a broken request."""
+    low = str(ev.get("content") or "").lower()
+    return ev.get("ma") in (503, 529) or any(p in low for p in ("overloaded", "high demand", "at capacity"))
 
 
 def ev_loi_exc(nhan, exc):
@@ -406,8 +439,11 @@ async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
             # Nhịp mặc định 1s-2s-4s vá được cú vấp mạng, còn với 429 thì nó vô dụng: ba lần
             # thử gói gọn trong bảy giây, trong khi cửa sổ hạn mức của Anthropic tính theo
             # phút. Hỏi lại ba lần trong bảy giây chỉ là ăn đúng cú 429 đó ba lần.
-            cho = (_jittered_backoff(lan, base=5.0, max_delay=20.0)
-                   if loi_hoan.get("ma") == 429 else _jittered_backoff(lan))
+            # An overloaded model (Gemini 503 "high demand", Anthropic 529) needs seconds, not one: the old 1s-2s pace
+            # spent all three tries inside the same spike (owner report 26/10/2026).
+            cho = (_jittered_backoff(lan, base=5.0, max_delay=20.0) if loi_hoan.get("ma") == 429
+                   else _jittered_backoff(lan, base=4.0, max_delay=15.0) if _qua_tai(loi_hoan)
+                   else _jittered_backoff(lan))
         # Nhà cung cấp bảo chờ lâu hơn ngưỡng người ta chịu ngồi im thì đừng chờ - báo ngay để
         # họ biết mà làm việc khác, thay vì nhìn màn hình đứng yên nửa phút.
         if lan >= so_lan or cho > _WINDOW_WAIT_MAX:
@@ -430,6 +466,13 @@ async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
                     + (f", the window reopens in about {cho:.0f}s" if cho > _WINDOW_WAIT_MAX else "")
                     + ". Wait for the window to pass, or switch the bot's brain on the Models page."
                 )
+            elif _qua_tai(loi_hoan):
+                cuoi["content"] += _c(
+                    " - model này đang quá tải phía nhà cung cấp, không phải lỗi của Javis hay của bạn. Thường hết sau "
+                    "vài phút: gửi lại sau ít phút, hoặc bấm chip model ở ô chat để đổi sang model khác.",
+                    " - this model is overloaded on the provider's side; it is not a fault in Javis or on your end. It "
+                    "usually passes within minutes: send again shortly, or press the model chip in the chat box to "
+                    "switch to another model.")
             yield cuoi
             return
         print(f"[thử lại {nhan or '?'}] lần {lan} gãy tạm thời, chờ {cho:.1f}s: "
@@ -1317,7 +1360,7 @@ async def _openrouter_stream_once(api_key, model, messages, reasoning="off", fas
                                    "requested": _fact.requested,
                                    "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                        yield {"type": "error", "content": f"OpenRouter {r.status_code}: {body_text[:300]}"}
+                        yield {"type": "error", "content": f"OpenRouter {r.status_code}: {provider_message(body_text)[:300]}"}
                         return
                     sent_model = False
                     reasoning = ""

@@ -153,7 +153,11 @@ class IntakeTests(unittest.IsolatedAsyncioTestCase):
         for ext in za.TEXT_EXTENSIONS:
             p=self.root/('a'+ext); p.write_text('doanh thu 123')
             self.assertIn('doanh thu 123',za.turn_text(p))
+        # 0.336.0: PDF, Word and Excel are read to text (zalo_attachments.turn_text + doc_text); a broken one says so.
         p=self.root/'a.xlsx'; p.write_bytes(b'PK')
+        t=za.turn_text(p)
+        self.assertIn('không đọc được',t); self.assertIn('Không suy đoán',t)
+        p=self.root/'a.pptx'; p.write_bytes(b'PK')
         self.assertIn('chưa đọc nội dung',za.turn_text(p))
         p=self.root/'a.txt';p.write_bytes(b'\xff')
         self.assertIn('Không đọc được',za.turn_text(p))

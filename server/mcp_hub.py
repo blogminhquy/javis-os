@@ -859,7 +859,7 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         # loop (WebSocket/telegram poller/loop scheduler đều chạy chung loop này).
         # bump tự nuốt lỗi → sidecar hỏng không bao giờ làm gãy việc nạp skill.
         await asyncio.to_thread(skill_usage.bump, vault_root, asset.slug)
-        try:  # 0.336.0: automatic learning remembers which skill this chat turn used
+        try:  # 0.337.0: automatic learning remembers which skill this chat turn used
             import auto_learning
             _turn = turn_context.current() or {}
             if _turn.get("session_id"):

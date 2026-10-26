@@ -6,10 +6,21 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.336.0] - 2026-10-26
+## [0.337.0] - 2026-10-26
 ### Thêm mới
 - **Javis tự học từ những lần trò chuyện, không cần bạn duyệt.** Khi bạn chat, Javis tự chấm lại những lượt có dùng skill, trợ lý hay quy trình, nhận ra chỗ làm sai qua câu bạn nhắn tiếp (ví dụ "sai rồi, quên VAT"). Cùng một lỗi lặp lại ba lần thì Javis tự soạn bộ câu thử, sửa phần hướng dẫn, chạy so với bản cũ và chỉ áp dụng khi bản mới tốt hơn rõ ràng mà không làm hỏng câu nào bản cũ vốn đúng.
 - **An toàn và có giới hạn.** Javis học hoàn toàn bằng chữ, không gọi công cụ nào nên không thể gửi tin hay đặt hàng. Mỗi ngày tối đa 40 lượt chấm và một lần sửa, chạy bằng bộ não bạn đang chọn. Trợ lý chỉ được thêm quy trình đã học, file trợ lý bạn viết giữ nguyên. Bản cũ luôn được giữ: xem và hoàn tác ở mục "Javis tự học từ trò chuyện" trong bảng cải tiến skill. Tắt tự cải tiến của bộ não thì Javis ngừng tự học.
+
+## [0.336.0] - 2026-10-26
+### Sửa lỗi
+- **Bot Zalo cá nhân đọc được file PDF, Word, Excel khách gửi.** Trước đây bot chỉ đọc file chữ trơn (.txt, .csv...), còn PDF thì tải về nhưng không đọc nên bot trả lời "chưa đọc được PDF". Giờ chữ trong PDF, Word, Excel được đưa thẳng vào lượt trả lời, bot nào cũng đọc được. File scan dạng ảnh hoặc file hỏng thì bot nói rõ là không đọc được, không đoán.
+- **Trong nhóm, gửi file rồi mới gọi bot vẫn được.** File gửi riêng mà chưa gọi bot thì được giữ 10 phút; người đó gọi bot ngay sau (tag hoặc gọi tên) là bot đọc file đó. Trả lời trích dẫn vào một tin có file rồi gọi bot cũng được.
+
+## [0.335.0] - 2026-10-26
+### Thêm mới
+- **Gói trong Javis Store có bản mới thì chuông báo.** Javis tự kiểm mỗi 6 giờ. Gói bạn đã cài có bản mới trong Store thì chuông có một thông báo ghi rõ gói nào, bản đang dùng và bản mới; bấm vào là mở Javis Store để cập nhật. Mỗi bản mới chỉ báo một lần, và Javis không tự cập nhật: bản mới vẫn qua màn hình xác nhận như lúc cài.
+### Sửa lỗi
+- **Model quá tải (như Gemini báo 503 "high demand") giờ nói rõ chuyện gì đang xảy ra.** Trước đây khung chat dán nguyên một cục mã JSON của Google. Giờ chỉ hiện câu báo của nhà cung cấp, kèm lời giải thích đây là quá tải phía nhà cung cấp chứ không phải lỗi của bạn, và cách xử lý: gửi lại sau ít phút hoặc đổi model ở chip model. Javis cũng chờ lâu hơn giữa các lần thử lại (vài giây thay vì một giây), nên một đợt quá tải ngắn thường tự qua.
 
 ## [0.334.0] - 2026-10-26
 ### Thêm mới

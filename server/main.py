@@ -10927,7 +10927,7 @@ async def _ghi_lich_su(gen, *, brain, slug, name, input, source, session_id, run
             elif t == "done":
                 ket = "done"
                 st.ket_thuc(rid, "done", output=str(ev.get("result") or ""))
-                try:  # 0.336.0: a finished run is a workflow episode for automatic learning
+                try:  # 0.337.0: a finished run is a workflow episode for automatic learning
                     await asyncio.to_thread(_auto_learner().observe_workflow, _brain_key(brain), slug, rid,
                                             input or "", str(ev.get("result") or ""), session_id or "", source or "")
                 except Exception as _e:  # noqa: BLE001
@@ -13205,7 +13205,14 @@ async def _start_scheduler():
                 #      chạy ở tác vụ riêng sau khi giữ chỗ sổ lượt chung.
                 if not _PULSE_TICK_BUSY[0]:
                     asyncio.create_task(_pulse_tick())
-                # 3b5) Automatic learning from chat (0.336.0): judging and learning runs in a worker thread, own busy
+                # 3b5) Store packs with a newer version (0.335.0): one bell notice per new version, own 6-hour rhythm,
+                #      fetched in the background so a slow Store never holds this loop.
+                try:
+                    import pack_updates
+                    asyncio.create_task(pack_updates.tick())
+                except Exception as pue:
+                    print(f"[pack updates tick] {type(pue).__name__}: {pue}", file=__import__('sys').stderr)
+                # 3b6) Automatic learning from chat (0.337.0): judging and learning runs in a worker thread, own busy
                 #      flag; hard daily caps live in auto_learning.
                 if not _AUTO_LEARNING_BUSY[0]:
                     asyncio.create_task(_auto_learning_tick())
@@ -15910,7 +15917,7 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text, turn_s
         await learn_feature.enqueue(brain, conv_sid, user_message, clean)
     except Exception as _e:
         print(f"[learn enqueue hook] {_e}", file=__import__('sys').stderr)
-    try:  # 0.336.0: automatic learning records the turn; judging happens later, off the reply path
+    try:  # 0.337.0: automatic learning records the turn; judging happens later, off the reply path
         _row = store.get_session(conv_sid) or {}
         await asyncio.to_thread(_auto_learner().observe_turn, _brain_key(brain), conv_sid, _row.get("channel") or "",
                                 user_message, clean, _answer_mid, turn_started)
@@ -27159,7 +27166,7 @@ def _improvement_loop_runs():
         return _IMPROVEMENT_LOOP_RUNS[0]
 
 
-# -- Automatic learning from chat (0.336.0): skills, agents and workflows learn from real mistakes ------------------
+# -- Automatic learning from chat (0.337.0): skills, agents and workflows learn from real mistakes ------------------
 
 _AUTO_LEARNER = [None]
 _AUTO_LEARNER_LOCK = __import__("threading").Lock()

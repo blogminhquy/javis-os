@@ -5094,6 +5094,7 @@
   "ach.telegram_owner": "Your Telegram (receives reports)",
   "ach.telegram_owner_ph": "One chat ID from the list above",
   "ach.telegram_owner_hint": "Reports without a chat of their own go to Javis Core and also to this chat. Left empty with a single ID in the list, Javis uses that ID; with several IDs Javis does not guess and reports on the dashboard only.",
+  "noti.open_store": "Open the Javis Store",
   "noti.open_core": "Open in Javis Core",
   "noti.no_target": "No known destination, so it is kept here only",
   "noti.ask_core": "Ask Javis Core",
