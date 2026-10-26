@@ -57,6 +57,8 @@ class LoopRunTests(unittest.TestCase):
         self.assertTrue(R.check(case, "```json\n" + json.dumps(case.answer) + "\n```")["pass"])
         self.assertEqual(R.check(case, '{"code": "A", "n": -1}')["score"], 0.5)
         self.assertFalse(R.check(R.L.Case("x", "x", "tuning", "p", {"ok": True}), '{"ok": 1}')["pass"])  # True is not 1
+        self.assertEqual(R.split_frontmatter("\ufeff---\r\nname: x\r\n---\r\nBody\r\n"),
+                         ("---\nname: x\n---\n", "Body\n"))  # a Windows-saved skill still splits
         write_examples(self.brain, n=12)
         with self.assertRaisesRegex(ValueError, "examples_count"):
             R.load_cases(self.brain, "doi-soat")
@@ -91,18 +93,21 @@ class LoopRunTests(unittest.TestCase):
             self.runs.apply(str(self.brain), started["run_id"])
         self.assertIn("Owner edit.", self.skill.read_text(encoding="utf-8"))
 
-    def test_a_reused_sealed_set_cannot_prove_help_again(self):
+    def test_a_used_sealed_set_moves_to_tuning_and_never_judges_again(self):
         write_examples(self.brain)
-        self.start("start-run-1")
-        second = self.start("start-run-2")
-        run = self.runs.get(str(self.brain), second["run_id"])
-        self.assertEqual((run["sealed_reused"], run["result"]["report"]["verdict"], run["result"]["report"]["reason"]),
-                         (True, "inconclusive", "sealed_set_reused"))
-        with self.assertRaisesRegex(PermissionError, "inconclusive"):
-            self.runs.apply(str(self.brain), second["run_id"])
-        write_examples(self.brain, offset=100)  # new families: a fresh sealed set
-        third = self.start("start-run-3")
-        self.assertFalse(self.runs.get(str(self.brain), third["run_id"])["sealed_reused"])
+        first = self.runs.get(str(self.brain), self.start("start-run-1")["run_id"])
+        with self.assertRaisesRegex(ValueError, "examples_need_fresh_sealed"):  # 12 families now known, 4 fresh
+            self.start("start-run-2")
+        self.assertEqual(self.runs.status(str(self.brain), "doi-soat")["examples"]["reason"], "examples_need_fresh_sealed")
+        write_examples(self.brain, n=24)  # 8 new families join the 4 untouched ones
+        consumed = R.consumed_families(self.runs._runs(str(self.brain)), "doi-soat")
+        self.assertEqual(consumed, frozenset(first["sealed_families"]))
+        cases = R.load_cases(self.brain, "doi-soat", consumed)
+        self.assertTrue(all(c.split == "tuning" for c in cases if c.family in consumed))
+        self.assertEqual(sum(c.split == "qualification" for c in cases), 12)
+        third = self.runs.get(str(self.brain), self.start("start-run-3")["run_id"])
+        self.assertFalse(third["sealed_reused"])
+        self.assertFalse(set(third["sealed_families"]) & consumed)
 
     def test_interrupted_run_never_blocks_and_cancel_stops(self):
         write_examples(self.brain)
@@ -111,9 +116,13 @@ class LoopRunTests(unittest.TestCase):
         with self.assertRaisesRegex(ConflictError, "busy"):
             background.start(str(self.brain), "doi-soat", event_key="start-bg-2")
         self.assertEqual(background.cancel(str(self.brain), started["run_id"])["cancelling"], True)
-        background.clock = lambda: 10 ** 10  # no heartbeat for ages: a restart or a hung engine
-        self.assertEqual(background.get(str(self.brain), started["run_id"])["error"], "interrupted")
-        background.start(str(self.brain), "doi-soat", event_key="start-bg-3")  # no longer blocked
+        self.assertTrue(background.get(str(self.brain), started["run_id"])["cancel_requested"])
+        background.clock = lambda: 10 ** 10  # a long run whose worker is alive here is never cut off
+        self.assertEqual(background.get(str(self.brain), started["run_id"])["state"], "running")
+        restarted = R.LoopRuns(self.tmp / "state", engines=engines, protected=lambda b, s: False,
+                               clock=lambda: 10 ** 10, spawn=lambda fn: None)  # no worker owns it any more
+        self.assertEqual(restarted.get(str(self.brain), started["run_id"])["error"], "interrupted")
+        restarted.start(str(self.brain), "doi-soat", event_key="start-bg-3")  # no longer blocked
         R.BOOT_ID, old = "another-process", R.BOOT_ID
         try:
             self.assertTrue(all(r["state"] != "running" for r in background._runs(str(self.brain))))

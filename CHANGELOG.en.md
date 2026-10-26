@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.333.0] - 2026-10-26
 ### Added
-- **Javis improves a skill on its own when you ask.** Press "Let Javis improve it": Javis proposes fixes from two angles, test-runs them against the current version, combines what works and picks the best on a sealed question set. The current version stays unless the new one is clearly better, and applying is still your call. Nothing to install: it uses the brain you already selected.
+- **Javis improves a skill on its own when you ask.** Press "Let Javis improve it": Javis proposes fixes from two angles, test-runs them against the current version, combines what works and picks the best on a sealed question set. The current version stays unless the new one is clearly better, and applying is still your call. The skill needs an examples file with answers (at least 13; you can ask Javis to write it in chat). Nothing to install: it uses the brain you already selected (Claude Code, Codex or an API brain).
 
 ## [0.331.0] - 2026-10-26
 ### Fixed

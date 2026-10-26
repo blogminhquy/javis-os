@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.333.0] - 2026-10-26
 ### Thêm mới
-- **Javis tự cải tiến một skill khi bạn yêu cầu.** Bấm "Để Javis tự cải tiến", Javis tự đề xuất bản sửa theo hai hướng, chạy thử có đối chứng với bản cũ, ghép phần tốt, rồi chọn bản tốt nhất trên bộ câu hỏi giữ kín. Bản cũ luôn được giữ nếu bản mới không hơn rõ ràng; áp dụng hay không vẫn do bạn quyết. Không cần cài thêm gì: dùng đúng bộ não bạn đang chọn.
+- **Javis tự cải tiến một skill khi bạn yêu cầu.** Bấm "Để Javis tự cải tiến", Javis tự đề xuất bản sửa theo hai hướng, chạy thử có đối chứng với bản cũ, ghép phần tốt, rồi chọn bản tốt nhất trên bộ câu hỏi giữ kín. Bản cũ luôn được giữ nếu bản mới không hơn rõ ràng; áp dụng hay không vẫn do bạn quyết. Skill cần một file ví dụ có đáp án (ít nhất 13 câu, bạn có thể nhờ Javis viết trong chat). Không cần cài thêm gì: dùng đúng bộ não bạn đang chọn (Claude Code, Codex hoặc bộ não API).
 
 ## [0.331.0] - 2026-10-26
 ### Sửa lỗi

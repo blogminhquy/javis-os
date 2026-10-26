@@ -27092,11 +27092,11 @@ def _improvement_loop_engines(root):
     def solve(skill, prompt):
         system = ("You are a Javis assistant. Follow the skill below exactly.\n\n<skill>\n" + skill +
                   "\n</skill>\n\nAnswer only in the format the skill asks for.")
-        return _improvement_text_call(system, prompt, "improvement-loop-solve")
+        return _improvement_text_call(system, prompt, "improvement-loop-solve-" + __import__("secrets").token_hex(4))
 
     def improve(instructions):
         return _improvement_text_call("You improve skills for the Javis assistant. Keep the skill's language and "
-                                      "style.", instructions, "improvement-loop-improve")
+                                      "style.", instructions, "improvement-loop-improve-" + __import__("secrets").token_hex(4))
     return solve, improve
 
 

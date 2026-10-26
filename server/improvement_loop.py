@@ -77,6 +77,8 @@ def _evidence(cases: dict, rollouts: list, label: str, limit: int = 6000) -> str
     """Tuning-only evidence of one version: task, output, checker feedback. Qualification never enters here."""
     parts = []
     for r in rollouts:
+        if getattr(r, "error", False):
+            continue  # an engine failure says nothing about the skill
         case = cases[r.case_id]
         if case.split != "tuning":
             raise ValueError("evidence_boundary")  # defensive: the loop never passes these
@@ -187,7 +189,7 @@ class Loop:
         self.result.calls["solve"] += len(jobs)
         failed = sum(r.error for r in rows)
         self.errors += failed
-        if failed > MAX_ERROR_SHARE * len(rows):
+        if failed > max(1, MAX_ERROR_SHARE * len(rows)):
             raise EngineUnavailable(f"{failed} of {len(rows)} engine calls failed")
         return rows
 
@@ -258,6 +260,7 @@ class Loop:
 
 
 def _mean(rows: list) -> float:
+    rows = [r for r in rows if not getattr(r, "error", False)]  # engine failures are unknowns, not zeros
     return round(sum(r.score for r in rows) / len(rows), 4) if rows else 0.0
 
 

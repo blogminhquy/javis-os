@@ -603,7 +603,8 @@
     const run = (data.runs || [])[0];
     const running = run && run.state === "running";
     if (data.protected) box.append(node("p", tr("loop_protected"), "loop-protected"));
-    else if (!data.examples.ok) box.append(node("p", tr("loop_examples_missing"), "loop-examples"));
+    else if (!data.examples.ok) box.append(node("p", tr(data.examples.reason === "examples_need_fresh_sealed"
+      ? "loop_examples_fresh" : "loop_examples_missing"), "loop-examples"));
     else box.append(node("p", tr("loop_examples").replace("{t}", data.examples.tuning).replace("{q}", data.examples.qualification)
       .replace("{n}", data.examples.estimated_calls), "loop-examples"));
     const start = button(tr("loop_start"), "loop-start", async () => {
@@ -618,9 +619,11 @@
     if (!run) return;
     if (running) {
       const last = (run.progress || []).slice(-1)[0];
-      box.append(node("p", tr("loop_running") + (last && last.version ? " · " + last.version : ""), "loop-state"));
-      box.append(button(tr("loop_cancel"), "loop-cancel", async () => {
-        try { await write(s, "/improvement-loops/" + encodeURIComponent(run.run_id) + "/cancel", {}, "loop-cancel-" + run.run_id); }
+      box.append(node("p", tr(run.cancel_requested ? "loop_stopping" : "loop_running") +
+        (last && last.version ? " · " + last.version : ""), "loop-state"));
+      if (!run.cancel_requested) box.append(button(tr("loop_cancel"), "loop-cancel", async () => {
+        try { await write(s, "/improvement-loops/" + encodeURIComponent(run.run_id) + "/cancel", {}, "loop-cancel-" + run.run_id);
+          await selfLearning(s); }
         catch (error) { failure(s, error); }
       }));
       setTimeout(() => { if (alive(s)) selfLearning(s); }, 5000);

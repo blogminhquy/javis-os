@@ -77,6 +77,17 @@ class LoopTests(unittest.TestCase):
         self.assertEqual((result.report["dropped_pairs"], sum(result.report["outcomes"].values())), (2, 5))
         self.assertEqual(result.report["engine_errors"], 4)  # both arms of both repeats, never scored as wrong
 
+        once = []
+
+        def blip(skill, prompt):  # one timeout in a four-case tuning roll: unknown, not wrong, not fatal
+            if "TUNING TASK 0" in prompt and not once:
+                once.append(1)
+                raise TimeoutError("slow")
+            return solve(skill, prompt)
+        result = L.Loop(cases(), solve=blip, improve=Improver(), check=check).run(BASE, k=1)
+        self.assertEqual(result.tuning["base"], 0.0)  # the error row is left out, not counted as a miss
+        self.assertEqual(result.chosen, "c1")
+
         def down(skill, prompt):
             raise ConnectionError("not signed in")
         with self.assertRaises(L.EngineUnavailable):
