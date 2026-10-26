@@ -1,4 +1,4 @@
-# Áp dụng thử, canary, định tuyến, quy trình trợ lý, gói và quay lại (M2E, M3, M4, M5, M6)
+# Áp dụng thử, canary, định tuyến, quy trình trợ lý, gói, phép thử nhóm và quay lại (M2E tới M7)
 
 Tài liệu vận hành cho phần áp dụng thủ công của **Cải tiến có kiểm chứng**, phát hành ở 0.314.0.
 Spec gốc: [agent-skill evidence improvement](../superpowers/specs/2026-10-22-agent-skill-evidence-improvement-design.md), mục 14, 18 và 19.
@@ -181,6 +181,33 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
   event_key}`, `POST /improvement-agent-bundles/{id}/revert` `{expected_generation, event_key}`.
 - Chưa có: helper chạy được trong sandbox (cần chủ cấp quyền loại executable), tách/gộp skill có alias, phép thử
   nhánh agent-only/skill-only thật (cần chạy model).
+
+## Phép thử nhóm và chuyển kinh nghiệm (M7, 0.327.0)
+
+- Chốt nhóm (`POST /improvement-team-pins` `{team_id, task_id?, event_key}`): host chụp nhóm trưởng, chế độ nhóm
+  trưởng, chế độ làm việc (gated/full), thành viên và vai trò; mỗi thành viên: hash file trợ lý và luật chủ, quy
+  trình M5 đang phục vụ trên bề mặt `team`, hash nội dung từng skill được cấp, nhà cung cấp và model mà bộ chạy
+  nhóm thật sự chọn (kể cả lùi về model chính), mức suy nghĩ. Có `task_id` thì chụp kèm tiêu chí nghiệm thu của
+  đúng việc đó (`team_acceptance`), việc phải thuộc nhóm. Không hash cả lời nhắc vì nó chứa bài học tự học lớn dần.
+  Cùng nền thì dùng lại bản chụp cũ; gửi lại đúng khoá sự kiện thì trả bản chụp đầu.
+- So hai nhánh (T01): chỉ so khi khác đúng thay đổi đã khai `{kind, ref}`: `procedure` của một thành viên (chỉ
+  quy trình người đó đổi) hoặc `skill` theo slug (chỉ nội dung skill đó đổi). Khác đội hình, vai trò, nhóm trưởng,
+  chế độ, tiêu chí là `topology_changed`; khác model là `model_changed`; sửa file trợ lý hay luật chủ là
+  `agent_changed`; cấp thêm/bớt skill là `skill_grant_changed`; đổi chỗ khác là `unexpected_change`; không thấy
+  thay đổi đã khai là `change_not_observed`. Hai bản chụp của hai nhóm khác nhau bị từ chối.
+- Báo cáo (`POST /improvement-team-trials`, T02): chủ ghi kết quả nhánh mới so với nhánh gốc; báo cáo chỉ có giá
+  trị cho nhóm và thay đổi đó (`transfer: untested`, `production_effects: []`). Mô-đun không phụ thuộc bộ chạy
+  nhóm nên ghi báo cáo không thể nghiệm thu việc thật hay gửi đầu ra. `learning_frozen: false`: chưa có bộ chạy
+  phép thử nhóm nên bài học viết ra trong lúc chạy các nhánh chưa được đóng băng.
+- Chuyển kinh nghiệm (`POST /improvement-recipe-transfers` `{recipe_id, target: {kind: agent|team|engine, ref}}`):
+  luôn là ứng viên `untested` ở chỗ mới, không mang kết quả hay bằng chứng; kinh nghiệm gốc phải còn hiệu lực và
+  chưa hết hạn. Danh sách (`GET ...?kind=&ref=`) lọc đúng đích và nguồn còn hiệu lực trước khi xếp, tối đa 3 mục;
+  hiện chưa có đường truy hồi nào khác dùng danh sách này.
+- Lưu trữ: schema 16 thêm `improvement_team_pins`, `improvement_team_trials`, `improvement_transfers` (đều bất
+  biến). Từ 15 lên 16 sao lưu một lần `*.pre-improvement-m7-team.bak`.
+- Chưa có: bộ chạy phép thử nhóm thật (cần chạy model và chủ chấm), bàn giao sản phẩm riêng theo bước, nghiệm thu
+  tổng hợp của phép thử, chụp kế hoạch/đồ thị phụ thuộc và nguồn dữ liệu, giao diện. L02 theo nghĩa đầy đủ (không
+  nâng bằng chứng của kinh nghiệm chỉ thắng ở bước chọn) vẫn nằm ở kho kinh nghiệm M2, không thêm ở đây.
 
 ## Giới hạn hiện tại
 

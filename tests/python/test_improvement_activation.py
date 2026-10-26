@@ -253,7 +253,7 @@ class ActivationTests(ActivationBase):
         import improvement_routing_schema as RS
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_bundle_members", "improvement_bundle_activations", "improvement_agent_overlays", "improvement_agent_procedures", "improvement_routing_overlays", "improvement_routing_candidates"):
+            for name in ("improvement_transfers", "improvement_team_trials", "improvement_team_pins", "improvement_bundle_members", "improvement_bundle_activations", "improvement_agent_overlays", "improvement_agent_procedures", "improvement_routing_overlays", "improvement_routing_candidates"):
                 connection.execute(f"DROP TABLE IF EXISTS {name}")  # their triggers and index go with them
             assert not any(connection.execute("SELECT 1 FROM sqlite_master WHERE name=?", (n,)).fetchone() for n in RS._NAMES)
             for name in reversed(C._NAMES):
