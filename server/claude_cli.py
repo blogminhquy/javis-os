@@ -1033,6 +1033,13 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
         print(f"[claude engine] JAVIS_CLAUDE_ENGINE={mode} đã gỡ từ v0.9.37 - engine Claude "
               "luôn chạy Agent SDK. Gặp lỗi hãy báo issue kèm log.", file=sys.stderr)
     from claude_sdk_engine import ClaudeSDK
+    # 0.326.0: Claude Code's rate_limit_event -> the plan usage ring. Hooked here, when the SDK is loaded
+    # anyway, not at server import (that would load the whole SDK at startup; test_khoi_dong_nhe).
+    try:
+        import plan_limits
+        plan_limits.cai_vao_claude_sdk()
+    except Exception:  # noqa: BLE001 - a meter must never stop a turn
+        pass
     return ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
                      allowed_tools=allowed_tools, model=model)
 

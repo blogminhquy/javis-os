@@ -146,7 +146,11 @@ ev_pin = json.loads((ROOT / "docs/superpowers/evidence/2026-10-25-m5-native-qual
 check("CANARY: claude_sdk_engine.py giữ nguyên đúng bản đã kiểm định native",
       hashlib.sha256((ROOT / "server/claude_sdk_engine.py").read_bytes()).hexdigest()
       == ev_pin["source_hashes"]["claude_sdk_engine.py"])
-check("main.py cài móc lúc khởi động", "_plan_limits.cai_vao_claude_sdk()" in (ROOT / "server" / "main.py").read_text(encoding="utf-8"))
+_cli = (ROOT / "server" / "claude_cli.py").read_text(encoding="utf-8")
+_eng = _cli[_cli.find("def claude_engine("):]
+check("móc gắn lúc tạo engine Claude (không phải lúc nạp main: khởi động phải nhẹ)",
+      "plan_limits.cai_vao_claude_sdk()" in _eng[:_eng.find("return ClaudeSDK(")]
+      and "cai_vao_claude_sdk" not in (ROOT / "server" / "main.py").read_text(encoding="utf-8"))
 
 # 8. Route: Claude chạy API key thì không có gói, không hiện vòng.
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
