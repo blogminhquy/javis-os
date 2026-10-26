@@ -81,8 +81,9 @@
         if (window.JavisComposerMenu) window.JavisComposerMenu.openItem("folder");
       });
     }
-    var fast = document.getElementById("fastBtn");
-    if (chip.parentElement !== host || chip.previousElementSibling !== fast) host.insertBefore(chip, fast ? fast.nextSibling : null);
+    // 0.329.0: right after the plan usage ring, which took the old bolt's place.
+    var ring = document.getElementById("limitBtn");
+    if (chip.parentElement !== host || chip.previousElementSibling !== ring) host.insertBefore(chip, ring ? ring.nextSibling : null);
     chip.classList.toggle("cp-pin-gone", folder.exists === false);
     chip.title = folder.path + (folder.exists === false ? "\n" + tw("cp.pin_gone") : "") + (inBrain ? "" : "\n" + tw("cp.pin_outside")) +
       (extras.length ? "\n" + tw("cp.pin_extra", { names: extras.join(", ") }) : "");

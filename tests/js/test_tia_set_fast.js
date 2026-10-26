@@ -51,7 +51,17 @@ check("UI and server agree on which Claude ids support Fast mode",
   fastNote("anthropic-cli", "claude-opus-5-50").supported === false && fastNote("anthropic-cli", "claude-opus-5-20261001").supported === true
   && fastNote("anthropic-cli", "opus").supported === true);
 check("clicking the bolt saves settings.model.fast", src.indexOf("saveModel({ fast: state.fast })") !== -1);
-check("the dimmed bolt uses aria-disabled, not disabled", src.indexOf('setAttribute("aria-disabled"') !== -1 && src.indexOf("fb.disabled") === -1);
+// 0.329.0 (owner, 25/10): the bolt moved into the Effort popover's top-right corner; the composer button is the
+// plan usage ring now (plan-limit.js). The particles on the slider only run while Fast mode is on.
+const slider = fs.readFileSync(path.join(ROOT, "dashboard/effort-slider.js"), "utf8");
+const html = fs.readFileSync(path.join(ROOT, "dashboard/index.html"), "utf8");
+check("the dimmed bolt uses aria-disabled, not disabled", slider.indexOf('setAttribute("aria-disabled"') !== -1 && !/fastBtn\.disabled/.test(slider));
+check("the composer has no bolt button any more", html.indexOf('id="fastBtn"') === -1 && src.indexOf("#fastBtn") === -1);
+check("the bolt is drawn in the Effort popover head", /class="eff-head"[\s\S]{0,200}eff-fast/.test(slider));
+check("the picker hands the popover the Fast state, its tooltip and the save", /fast: \{[\s\S]{0,300}supported: fn\.supported, on: state\.fast, title: fastTitle/.test(src));
+check("particles are drawn only while Fast mode is on", /if \(fastOn\) parts\.forEach/.test(slider));
+check("the animation frame repeats only while Fast mode is on", /if \(fastOn && !still\) raf = requestAnimationFrame\(draw\)/.test(slider));
+check("the Effort chip shows a small bolt while Fast mode is on", html.indexOf('id="effFast"') !== -1 && src.indexOf('$("effFast")') !== -1);
 
 if (fails.length) { console.log("\nFAIL - test_tia_set_fast: " + fails.length); process.exit(1); }
 console.log("\nOK - test_tia_set_fast: all pass");

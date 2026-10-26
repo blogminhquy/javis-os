@@ -239,17 +239,23 @@
   window.addEventListener("javis:react-positive", function () { moment("heart"); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && the && the.querySelector(".sn-x")) the.querySelector(".sn-x").click(); });
 
-  // Nút sao nhỏ luôn có sẵn dưới số phiên bản ở góc trái: ai muốn tặng sao lúc nào cũng tìm được.
+  // Nút "Tặng sao" luôn có sẵn ở chân thanh bên trái: ai muốn tặng sao lúc nào cũng tìm được.
+  // Là một HÀNG RIÊNG trải hết bề ngang dưới số phiên bản và nút thu/mở (chủ repo 25/10: nhét
+  // vào cột phiên bản thì chữ "Give a star" bị gãy làm hai dòng). Thanh thu gọn chỉ còn ngôi sao.
   function ganNutGoc() {
-    var meta = document.querySelector(".rail-foot .rf-meta");
-    if (!meta || meta.querySelector(".rf-star")) return;
+    var chan = document.querySelector(".rail-foot");
+    if (!chan || chan.querySelector(".rf-star")) return;
     var b = document.createElement("button");
     b.type = "button";
     b.className = "rf-star";
-    b.innerHTML = ic("star") + " <span>" + esc(t("star.rail")) + "</span>";
-    b.title = t("star.go");
+    veNutGoc(b);
     b.onclick = function () { moment("manual"); };
-    meta.appendChild(b);
+    chan.appendChild(b);
+  }
+  function veNutGoc(b) {
+    b.innerHTML = ic("star") + '<span class="rf-star-chu">' + esc(t("star.rail")) + "</span>";
+    b.title = t("star.go");
+    b.setAttribute("aria-label", t("star.go"));
   }
   function batDau() {
     ganNutGoc();
@@ -259,7 +265,7 @@
   else batDau();
   window.addEventListener("javis:i18n", function () {
     var b = document.querySelector(".rf-star");
-    if (b) { b.innerHTML = ic("star") + " <span>" + esc(t("star.rail")) + "</span>"; b.title = t("star.go"); }
+    if (b) veNutGoc(b);
   });
 
   /** Thẻ "Ủng hộ Javis" cố định trên trang Cập nhật (console.js gắn nút bấm). */

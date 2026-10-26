@@ -6,6 +6,23 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.329.0] - 2026-10-26
+### Thêm mới
+- **Trang Mức dùng có thêm phần "24 giờ qua"**, ngay dưới ba ô đầu trang:
+  - **Cửa sổ 5 giờ theo từng giờ:** đường đi lên hay xuống, vạch mốc là trần bạn khai (hoặc mức cao nhất bạn từng chạm), đổi màu khi tới gần mốc, kèm một câu cho biết còn dư hay nên dời việc nặng.
+  - **Token từng giờ:** giờ nào sáng nay đốt nhiều token, tách theo Claude, ChatGPT và API.
+  - **Giờ AI dồn nhiều trong 7 ngày:** ô màu từ ít tới nhiều cho 24 giờ trong ngày, kèm gợi ý giờ vắng để đặt việc nền.
+- **Vòng tròn hạn mức gói ngay cạnh chip Effort**, cho Claude Code đăng nhập gói Pro/Max và ChatGPT qua Codex:
+  - Xanh khi còn nhiều, vàng từ 50%, **đỏ từ 80% của phiên 5 giờ hoặc của tuần**, cái nào sát hơn thì tính cái đó.
+  - Bấm vào là thấy hai thanh "Phiên 5 giờ" và "Tuần", kèm giờ làm mới, giống bảng hạn mức của Claude.
+  - Tiêu đề bảng ghi luôn tên gói đang dùng, ví dụ "Claude · Max" hay "ChatGPT · Plus".
+  - Số lấy thẳng từ Claude Code và Codex sau mỗi lượt chat, Javis không đọc mã đăng nhập của bạn. Model chạy bằng API key thì không hiện vòng này.
+  - **Grok Build và Antigravity** không báo số %, nên vòng của hai bộ não này màu xám và chỉ chuyển đỏ khi chúng từ chối một lượt vì hết hạn mức, kèm giờ làm mới nếu có.
+### Cải thiện
+- **Nút tia sét (Fast mode) chuyển vào góc trên bên phải khung Effort.** Bật sét thì thanh mức suy nghĩ có hạt sáng chạy, tắt thì chỉ là dải màu đứng yên. Chip Effort hiện một tia sét nhỏ khi Fast mode đang bật.
+- **Biểu đồ token theo ngày** giãn hết bề ngang, số ngày to và dễ đọc hơn (trước đây dồn vào một góc, chữ rất nhỏ).
+- **Nút "Tặng sao" ở góc trái gọn gàng hơn:** giờ là một nút riêng trải hết bề ngang, nằm dưới số phiên bản, chữ luôn trên một dòng (trước đây "Give a star" bị gãy làm hai dòng). Khi thu gọn thanh bên, nút chỉ còn hình ngôi sao.
+
 ## [0.327.0] - 2026-10-26
 ### Thêm mới
 - **Thử cải tiến cho cả nhóm trợ lý một cách công bằng.** Javis chụp lại đội hình, vai trò, model và tiêu chí nghiệm thu của mỗi lần thử; hai lần thử khác nhau ngoài đúng chỗ đang thử thì không được đem ra so. Kết quả chỉ ghi vào hồ sơ, không tự đánh dấu việc thật là xong hay gửi đi đâu.

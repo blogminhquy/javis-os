@@ -36,7 +36,7 @@ function makeEnv() {
     return e;
   }
   const host = el("cpChips");
-  host.insertBefore(el("fastBtn"), null);
+  host.insertBefore(el("limitBtn"), null);
   const env = { brain: "D:/brains/A", sid: "", calls: [], replies: {}, notes: [], events: [], registered: null };
   const win = {
     t: (k, v) => k + (v ? JSON.stringify(v) : ""),

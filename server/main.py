@@ -16041,6 +16041,16 @@ async def websocket_endpoint(ws: WebSocket):
                     _note_pin_limit(lim.engine or engine_hint, float(lim.reset_epoch or 0))
                     frame["limit"] = {"engine": lim.engine, "scope": lim.scope,
                                       "reset_epoch": float(lim.reset_epoch or 0)}
+                # 0.329.0: the plan usage ring turns red. Grok and Antigravity print no fixed sentence for
+                # it, so plain quota words in their error count too (only for those two engines).
+                try:
+                    import plan_limits
+                    if noi:
+                        plan_limits.ghi_het(engine_hint, float(lim.reset_epoch or 0))
+                    elif engine_hint in ("grok-cli", "antigravity-cli") and plan_limits.la_het_han_muc(raw):
+                        plan_limits.ghi_het(engine_hint)
+                except Exception:  # noqa: BLE001 - a meter must never break a turn
+                    pass
                 return json.dumps(frame)
             # NGÔN NGỮ chốt MỘT LẦN cho cả lượt, ngay đây. Chốt sớm và chốt một chỗ là để câu
             # trả lời, giọng đọc và các cổng chặn không bao giờ hiểu khác nhau trong cùng một
@@ -27270,3 +27280,48 @@ star_nudge_routes.register(app, star_nudge_routes.StarNudgeDeps(
     state_dir=Path(cfgmod.STATE_DIR),
     version=_app_version,
 ))
+
+
+# Usage page, hourly view (0.329.0): last 24 hours, the 5-hour window over time, busy hours of the
+# last 7 days. Registered LAST so route_table.json only grows at the end.
+@app.get("/usage/theo-gio")
+async def usage_theo_gio():
+    """Ba goc nhin theo gio cua trang Muc dung (usage_index.theo_gio) kem MOC so sanh cua so 5 gio:
+    tran nguoi dung tu khai, khong thi muc cao nhat tung cham trong 60 ngay (giong /usage/tong-quan)."""
+    d = await asyncio.to_thread(usage_index.theo_gio, 5.0)
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    tran = int(mcfg.get("tran_5h") or 0)
+    dinh = {}
+    if not tran:
+        try:
+            dinh = await asyncio.to_thread(usage_index.dinh_cua_so, 5.0)
+        except Exception:  # noqa: BLE001
+            dinh = {}
+    d["moc"] = {"tokens": tran or int(dinh.get("tokens") or 0), "loai": "tran" if tran else "dinh",
+                "luc": dinh.get("hour") or ""}
+    return d
+
+
+@app.get("/plan-limits")
+async def plan_limits_get(goi: int = 0):
+    """0.329.0: the composer ring. The 5-hour and weekly meters of each brain that runs on a plan
+    (Claude Code on its signed-in session, ChatGPT through Codex), as the CLIs last reported them.
+    Grok Build and Antigravity report no meter, so theirs only turns red once a turn was refused.
+    `goi=1` (the popover opening) also names each plan: Claude from `claude auth status`, ChatGPT
+    from the sign-in Javis holds, Grok from its own auth file. Antigravity keeps no plan name."""
+    import plan_limits
+    await asyncio.to_thread(plan_limits.quet_codex)
+    d = await asyncio.to_thread(plan_limits.doc)
+    # On an API key a brain bills per token: no plan, so no ring for it.
+    grok_k = await asyncio.to_thread(grok_cli.auth_status)
+    co_goi = {"anthropic-cli": not claude_auth.env_cho_cli(), "openai-oauth": True,
+              "grok-cli": grok_k.get("method") != "xai-api-key", "antigravity-cli": True}
+    ten = {}
+    if goi:
+        cl = await asyncio.to_thread(claude_auth_status)
+        oa = (cfgmod.read_settings().get("model", {}) or {}).get("openai_oauth") or {}
+        ten = {"claude": plan_limits.ten_goi(cl.get("goi") or ""),
+               "codex": plan_limits.ten_goi((d.get("codex") or {}).get("goi") or oa.get("plan") or ""),
+               "grok": plan_limits.ten_goi(grok_k.get("plan") or ""), "agy": ""}
+    return {"claude": d.get("claude"), "codex": d.get("codex"), "grok": d.get("grok"), "agy": d.get("agy"),
+            "plan": co_goi, "ten_goi": ten, "nguong": {"canh_bao": plan_limits.CANH_BAO, "sat": plan_limits.SAT}}

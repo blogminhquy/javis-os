@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=143">
+  <link rel="stylesheet" href="/static/style.css?v=145">
   <link rel="stylesheet" href="/static/console.css?v=120">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -601,10 +601,13 @@
           </button>
           <button type="button" class="cp-eff" id="effBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="effPop"
                   title="Mức suy nghĩ" data-i18n-title="eff.title">
-            <span id="effTxt">Off</span><span class="mb-caret">▾</span>
+            <span class="cp-eff-fast" id="effFast" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></span><span id="effTxt">Off</span><span class="mb-caret">▾</span>
           </button>
-          <button type="button" class="cp-fast" id="fastBtn" aria-pressed="false" title="Fast mode" aria-label="Fast mode">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+          <!-- Plan usage ring (plan-limit.js, 0.329.0): took the place of the Fast mode bolt, which moved into the
+               Effort popover. Shown only for brains on a plan (Claude Code signed in, ChatGPT through Codex). -->
+          <button type="button" class="cp-limit" id="limitBtn" hidden aria-haspopup="dialog" aria-expanded="false" aria-controls="limitPop"
+                  title="Hạn mức gói" data-i18n-title="lim.title" aria-label="Hạn mức gói" data-i18n-aria="lim.title" data-muc="none">
+            <svg width="20" height="20" viewBox="0 0 36 36" aria-hidden="true"><circle class="lim-bg" cx="18" cy="18" r="14" pathLength="100"/><circle class="lim-fg" cx="18" cy="18" r="14" pathLength="100" stroke-dasharray="0 100"/></svg>
           </button>
         </div>
         <span class="cp-gap"></span>
@@ -644,6 +647,7 @@
       </div>
       <div class="mb-pop" id="mbPop" hidden></div>
       <div class="eff-pop" id="effPop" role="dialog" aria-label="Effort" hidden></div>
+      <div class="eff-pop lim-pop" id="limitPop" role="dialog" aria-label="Hạn mức gói" data-i18n-aria="lim.title" hidden></div>
       <div class="cp-menu" id="plusMenu" role="menu" hidden></div>
     </div><!-- /hudVoice -->
   </div>
@@ -1022,16 +1026,17 @@
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=152"></script>
+  <script src="/static/app.js?v=153"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
        studio.js (ô Model của trợ lý) vì cả hai gọi window.JavisModelList lúc vẽ. -->
   <script src="/static/model-list.js?v=3"></script>
-  <script src="/static/effort-slider.js?v=2"></script>
-  <script src="/static/model-picker.js?v=15"></script>
+  <script src="/static/effort-slider.js?v=3"></script>
+  <script src="/static/plan-limit.js?v=2"></script>
+  <script src="/static/model-picker.js?v=16"></script>
   <script src="/static/composer-plus.js?v=3"></script>
-  <script src="/static/composer-folder.js?v=3"></script>
+  <script src="/static/composer-folder.js?v=4"></script>
   <script src="/static/branding.js?v=11"></script>
   <script src="/static/quick-settings.js?v=11"></script>
   <script src="/static/remote-access.js?v=2"></script>
@@ -1071,7 +1076,7 @@
   <script src="/static/ht-media.js?v=3"></script>
   <script src="/static/conversations.js?v=15"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
-  <script src="/static/usage.js?v=2"></script>
+  <script src="/static/usage.js?v=3"></script>
   <!-- Trang Code (terminal): nạp TRƯỚC console.js để renderCode ủy quyền được. File này CHỈ có
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
   <script src="/static/code-term.js?v=3"></script>
@@ -1098,8 +1103,8 @@
   <script src="/static/push.js?v=3"></script>
   <script src="/static/install-nudge.js?v=1"></script>
   <!-- Mời tặng sao GitHub (0.324.0): thẻ hiện ở khoảnh khắc vui, xem server/star_nudge.py. -->
-  <link rel="stylesheet" href="/static/star-nudge.css?v=1">
-  <script src="/static/star-nudge.js?v=1"></script>
+  <link rel="stylesheet" href="/static/star-nudge.css?v=3">
+  <script src="/static/star-nudge.js?v=2"></script>
   <script src="/static/notifications.js?v=9"></script>
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->

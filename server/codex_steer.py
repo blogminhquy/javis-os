@@ -391,6 +391,12 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     yield {"type": "tool_call", "name": cc._codex_tool_name(ei), "item": ei, "id": ei["id"]}
                 elif t and t not in _QUIET_TYPES:
                     yield {"type": "item", "item": exec_item(it)}
+            elif method == "account/rateLimits/updated":
+                try:   # 0.329.0: the plan's 5-hour and weekly meters, for the composer ring
+                    import plan_limits
+                    plan_limits.ghi_codex(p)
+                except Exception:  # noqa: BLE001
+                    pass
             elif method == "thread/tokenUsage/updated" and p.get("turnId") == turn_id:
                 lu = ((p.get("tokenUsage") or {}).get("last") or {})
                 tok_in += int(lu.get("inputTokens") or 0)

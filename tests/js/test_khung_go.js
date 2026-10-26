@@ -17,7 +17,7 @@ function check(name, cond) { console.log((cond ? "ok   " : "FAIL ") + name); if 
 const card = (html.match(/<div class="hud-voice" id="hudVoice">[\s\S]*?<!-- \/hudVoice -->/) || [""])[0];
 check("the #hudVoice card is found (ends with the <!-- /hudVoice --> marker)", !!card);
 ["voiceFocusResume", "attachBar", "fileInput", "chatInput", "cpRow", "plusBtn", "cpChips",
- "mbOpen", "effBtn", "effTxt", "fastBtn", "voiceBtn", "stopBtn", "sendBtn", "mbPop", "effPop", "plusMenu"].forEach(id => {
+ "mbOpen", "effBtn", "effTxt", "limitBtn", "voiceBtn", "stopBtn", "sendBtn", "mbPop", "effPop", "limitPop", "plusMenu"].forEach(id => {
   check("the card contains #" + id, card.indexOf('id="' + id + '"') !== -1);
 });
 const order = ["attachBar", "chatInput", "cpRow"].map(id => card.indexOf('id="' + id + '"'));
