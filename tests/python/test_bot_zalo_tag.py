@@ -337,6 +337,29 @@ check("the MCP pool cleans every zalo_send* call, the one path all tool calls sh
 check("không dùng em dash trong file này và code mới", chr(0x2014) not in open(__file__, encoding="utf-8").read()
       and chr(0x2014) not in (SERVER / "channels" / "zalo_personal.py").read_text(encoding="utf-8"))
 
+# ============================================================
+# Hai tag chồng lên nhau (0.331.0)
+# ============================================================
+# Field report 2026-10-26 (Zalo on a phone, community group): the bot answered Tuan Fernel and the phone showed
+# `@Tuannntion href="zm://Profile/394120609_mention">@Tuan Fernel</a_mention> Dạ bác`, while Zalo on a computer looked
+# fine. The reply tag covered "@Tuan Fernel" (0..12) and the name finder ALSO tagged "@Tuan" (0..5) for another member
+# called Tuan. A phone lays the second tag over the markup of the first one, so the markup shows as text. The
+# 2026-10-25 report (`@Hotline Gsmsuppliershref="zm://...">@Trinh Tran</a_mention>`) has the same shape.
+DANH_BA.append({"uid": "8880001", "name": "Tuan"})
+TUAN = {"uid": "394120609", "name": "Tuan Fernel"}
+reset()
+ok, _ = send("@Tuan Fernel Dạ bác, cách nông dân của bác là cách chuẩn ạ", mention=TUAN)
+specs = [x for x in (CLI[0]["opts"] if CLI else []) if x.count(":") == 2]
+check("CANARY: one stretch of text carries one tag (no '@Tuan' inside '@Tuan Fernel')",
+      ok and specs == ["0:394120609:12"], CLI)
+reset()
+ok, _ = send("Dạ @Tuan Fernel và @Tuan ơi", mention=TUAN)
+specs = [x for x in (CLI[0]["opts"] if CLI else []) if x.count(":") == 2]
+check("the other Tuan, written separately, is still tagged", ok and specs == ["3:394120609:12", "19:8880001:5"], specs)
+check("overlap filter keeps the first claim and sorts by position",
+      zp._khong_chong([(0, "1", 12), (0, "2", 5), (14, "3", 4), (10, "4", 6)]) == [(0, "1", 12), (14, "3", 4)])
+DANH_BA.pop()
+
 if fails:
     print("\nFAIL - test_bot_zalo_tag: " + str(len(fails)) + " lỗi: " + ", ".join(fails))
     sys.exit(1)

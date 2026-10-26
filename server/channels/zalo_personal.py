@@ -122,7 +122,7 @@ def _bo_dau(s: str) -> str:
     return "".join(out)
 
 
-def tag_ten_trong_cau(text: str, danh_ba, bo_qua=()) -> list:
+def tag_ten_trong_cau(text: str, danh_ba, bo_qua=(), chiem=()) -> list:
     """`[(pos, uid, len)]` (UTF-16 units) for every "@Name" in `text` that names someone in `danh_ba`.
 
     Field report 2026-10-14: a bot told to tag "@Minh Quý" and "@Phạm Đại" wrote both names, but only
@@ -130,7 +130,10 @@ def tag_ten_trong_cau(text: str, danh_ba, bo_qua=()) -> list:
     one. `danh_ba` is `[{uid, name}]` (conversations.group_speakers: everyone who has written in the
     group). Longest names are tried first ("@Minh Quý Phạm" beats "@Minh Quý"), case and diacritics
     are ignored ("@minh quy" still tags), a name must end on a word boundary, and `bo_qua` holds uids
-    already tagged (the person being answered) or never to tag (the account itself)."""
+    already tagged (the person being answered) or never to tag (the account itself).
+
+    `chiem` holds `(pos, len)` stretches that already carry a tag (the person being answered). An "@" inside one is
+    skipped: "@Tuan Fernel" must not also become "@Tuan" for another member (0.331.0, see `_khong_chong`)."""
     import re as _re
     ten = []
     for d in danh_ba or []:
@@ -145,6 +148,9 @@ def tag_ten_trong_cau(text: str, danh_ba, bo_qua=()) -> list:
     ra, da_tag = [], set(bo_qua)
     for m in _re.finditer("@", text):
         i = m.start() + 1
+        at = _utf16_len(text[:m.start()])
+        if any(p <= at < p + n_ for p, n_ in chiem):
+            continue
         for key, uid, n in ten:
             if uid in da_tag or chuan[i:i + n] != key:
                 continue
@@ -155,6 +161,19 @@ def tag_ten_trong_cau(text: str, danh_ba, bo_qua=()) -> list:
             da_tag.add(uid)
             break
     return ra
+
+
+def _khong_chong(specs) -> list:
+    """`[(pos, uid, len)]` with no two tags over the same text, sorted by position. The first claim wins.
+
+    Field report 2026-10-26: the reply tag covered "@Tuan Fernel" and the name finder also tagged "@Tuan" at the same
+    spot for another member. Zalo on a computer drew one tag; Zalo on a phone laid the second tag over the markup
+    of the first and showed `@Tuannntion href="zm://Profile/..._mention">@Tuan Fernel</a_mention>` as text."""
+    giu = []
+    for pos, uid, ln in specs:
+        if all(pos + ln <= p or p + n <= pos for p, _u, n in giu):
+            giu.append((pos, uid, ln))
+    return sorted(giu)
 
 
 def _danh_ba_nhom(conn_id: str, chat_id: str) -> list:
@@ -211,12 +230,13 @@ async def _send_tagged(conn: dict, chat_id: str, text: str, mention) -> Optional
     if uid:
         final, pos, ln = tagged_text(text, name)
         specs.append((pos, uid, ln))
-    # Every other "@Name" the message carries (0.123.0), never the account itself.
+    # Every other "@Name" the message carries (0.123.0), never the account itself, never inside the reply tag.
     minh = str((zc._ID_MINH.get(cid) or {}).get("uid") or "")
-    specs += tag_ten_trong_cau(final, _danh_ba_nhom(cid, chat_id), bo_qua={u for u in (uid, minh) if u})
+    specs += tag_ten_trong_cau(final, _danh_ba_nhom(cid, chat_id), bo_qua={u for u in (uid, minh) if u},
+                               chiem=[(p, n) for p, _u, n in specs])
     if not specs:
         return None
-    specs.sort()
+    specs = _khong_chong(specs)
     # Tiếng vọng của tin có tag mang cả "@Tên": nhớ luôn bản này, không thì vòng đọc tưởng chủ vừa tự tay nhắn và bot im 10 phút.
     zc.ghi_da_gui(cid, chat_id, final)
     ok, _data, err = await zalo_cli.run_cli(
