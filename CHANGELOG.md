@@ -12,6 +12,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Bot tự quyết có trả lời một cảm xúc hay không, và tự học.** Cảm xúc của khách tới bộ phán xử (nhóm ở chế độ Tự đánh giá) hoặc Agent (chat riêng) như một tin. Javis không có luật cứng nào: bấm đúng hoặc sai ở nhật ký bộ phán xử là lần sau bot làm theo.
 - **Bot thả được cảm xúc vào tin khách.** Bộ phán xử hoặc Agent chọn thả tim, like... lên tin khách, có thể kèm câu trả lời hoặc chỉ thả mà không nhắn gì. Bot không bao giờ thả lên một cảm xúc. Javis trong chat cũng thả được khi bạn nhờ.
 
+## [0.333.0] - 2026-10-26
+### Thêm mới
+- **Javis tự cải tiến một skill khi bạn yêu cầu.** Bấm "Để Javis tự cải tiến", Javis tự đề xuất bản sửa theo hai hướng, chạy thử có đối chứng với bản cũ, ghép phần tốt, rồi chọn bản tốt nhất trên bộ câu hỏi giữ kín. Bản cũ luôn được giữ nếu bản mới không hơn rõ ràng; áp dụng hay không vẫn do bạn quyết. Skill cần một file ví dụ có đáp án (ít nhất 13 câu, bạn có thể nhờ Javis viết trong chat). Không cần cài thêm gì: dùng đúng bộ não bạn đang chọn (Claude Code, Codex hoặc bộ não API).
+
 ## [0.332.0] - 2026-10-26
 ### Sửa lỗi
 - **Xem file PDF trên điện thoại luôn có nút đóng.** Trên iPhone, khung PDF tự kéo dài theo cả tài liệu nên khi cuộn đọc, thanh nút (có nút đóng) trôi mất lên trên. Giờ PDF cuộn trong khung riêng, và trên điện thoại có thêm một nút X tròn nổi ở góc dưới bên phải, cuộn tới đâu cũng bấm được.

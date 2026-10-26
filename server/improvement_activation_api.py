@@ -39,6 +39,7 @@ class ActivationApiDeps:
     governance: Callable = None  # () -> improvement_library.Governance (M8)
     imports: Callable = None  # () -> improvement_library.Imports (M8)
     export: Callable = None  # (principal, procedure_ids) -> package (M8)
+    loop_runs: Callable = None  # () -> improvement_loop_runs.LoopRuns (self-learning runs)
 
 
 def _fail(error):
@@ -423,6 +424,62 @@ def register(app, deps: ActivationApiDeps):
             if deps.export is None:
                 raise PermissionError("export_unavailable")
             return {"ok": True, "package": await asyncio.to_thread(deps.export, principal, data["procedure_ids"])}
+        except _ERRORS as error:
+            return _fail(error)
+
+    # Self-learning runs: the owner starts one for a user skill with examples; nothing changes until Apply.
+    @app.get("/improvement-loops")
+    async def loop_status(slug: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            service = await m7(deps.loop_runs, "loop_runs")
+            return {"ok": True, **await asyncio.to_thread(service.status, principal.brain_id, slug)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-loops")
+    async def loop_start(request: Request, brain: str = "brain"):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            data = await _body(request, {"slug", "event_key"})
+            service = await m7(deps.loop_runs, "loop_runs")
+            return {"ok": True, "run": await asyncio.to_thread(service.start, principal.brain_id, data["slug"],
+                                                               event_key=data["event_key"])}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.get("/improvement-loops/{run_id}")
+    async def loop_get(run_id: str, brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            service = await m7(deps.loop_runs, "loop_runs")
+            return {"ok": True, "run": await asyncio.to_thread(service.get, principal.brain_id, run_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-loops/{run_id}/cancel")
+    async def loop_cancel(run_id: str, request: Request, brain: str = "brain"):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            await _body(request, {"event_key"})
+            service = await m7(deps.loop_runs, "loop_runs")
+            return {"ok": True, "run": await asyncio.to_thread(service.cancel, principal.brain_id, run_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-loops/{run_id}/apply")
+    async def loop_apply(run_id: str, request: Request, brain: str = "brain"):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            await _body(request, {"event_key"})
+            service = await m7(deps.loop_runs, "loop_runs")
+            return {"ok": True, "applied": await asyncio.to_thread(service.apply, principal.brain_id, run_id)}
         except _ERRORS as error:
             return _fail(error)
 

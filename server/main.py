@@ -27068,6 +27068,80 @@ def _improvement_team_member(root, agent_key):
             "provider": spec.get("provider") or "", "model": spec.get("model") or "", "reasoning": info.get("reasoning") or ""}
 
 
+def _improvement_text_call(system, prompt, tag):
+    """One text-only answer from the brain's selected engine: empty folder, no MCP, every tool refused (the same
+    sandbox as judges and text-only team turns). Works for every provider the user already set up."""
+    settings = cfgmod.read_settings() or {}
+    spec = team_engine.choose_spec("", "", _effective_main(settings), _agent_model_provider,
+                                   lambda sp: aux_engine.availability(sp, settings))
+    base = _reply_policy_sandbox_engine(system, tag, cwd_name="improvement_loop_cwd")
+    eng = team_engine.build(spec, base, tag, settings)
+    prompt = _team_reasoning(eng, (settings.get("model") or {}).get("reasoning") or AGENT_REASONING_DEFAULT, prompt)
+
+    async def run():
+        outcome = team_runner.TextOnlyOutcome()
+        async for ev in eng.query(prompt):
+            outcome.note(ev)
+        res = outcome.result()
+        return str(res.get("text") if isinstance(res, dict) else res or "")
+
+    async def bounded():
+        try:
+            return await asyncio.wait_for(run(), timeout=300)  # a hung engine must not hold the run forever
+        except asyncio.TimeoutError:
+            await asyncio.to_thread(claude_cli.cancel_all, tag)
+            raise
+    return asyncio.run(bounded())
+
+
+def _improvement_loop_engines(root):
+    """(solve, improve) for one self-learning run on the brain's selected engine, text only. Raises before any run
+    when that engine cannot answer text-only (e.g. Grok Build, Antigravity), so no fake verdict is reported."""
+    settings = cfgmod.read_settings() or {}
+    spec = team_engine.choose_spec("", "", _effective_main(settings), _agent_model_provider,
+                                   lambda sp: aux_engine.availability(sp, settings))
+    try:
+        team_engine.build(spec, _reply_policy_sandbox_engine("probe", "improvement-loop-probe",
+                                                             cwd_name="improvement_loop_cwd"), "improvement-loop-probe", settings)
+    except team_engine.TeamEngineUnavailable as error:
+        raise PermissionError(f"engine_unavailable: {error.reason}") from None
+    def solve(skill, prompt):
+        system = ("You are a Javis assistant. Follow the skill below exactly.\n\n<skill>\n" + skill +
+                  "\n</skill>\n\nAnswer only in the format the skill asks for.")
+        return _improvement_text_call(system, prompt, "improvement-loop-solve-" + __import__("secrets").token_hex(4))
+
+    def improve(instructions):
+        return _improvement_text_call("You improve skills for the Javis assistant. Keep the skill's language and "
+                                      "style.", instructions, "improvement-loop-improve-" + __import__("secrets").token_hex(4))
+    return solve, improve
+
+
+def _improvement_skill_protected(root, slug):
+    """System and pack skills belong to their maintainers: a run may read them but never applies to them."""
+    import improvement_assets
+    import system_sync
+    if system_sync.is_system_skill(slug):
+        return True
+    try:
+        improvement_assets.capture_source(Path(root), "skill", slug, pack_state_dir=Path(cfgmod.STATE_DIR) / "packs-state")
+    except Exception:  # noqa: BLE001 - unknown ownership is treated as not ours
+        return True
+    return False
+
+
+_IMPROVEMENT_LOOP_RUNS = [None]
+_IMPROVEMENT_LOOP_RUNS_LOCK = __import__("threading").Lock()
+
+
+def _improvement_loop_runs():
+    with _IMPROVEMENT_LOOP_RUNS_LOCK:  # one service, one lock: two first requests cannot start two runs
+        if _IMPROVEMENT_LOOP_RUNS[0] is None:
+            import improvement_loop_runs
+            _IMPROVEMENT_LOOP_RUNS[0] = improvement_loop_runs.LoopRuns(
+                Path(cfgmod.STATE_DIR), engines=_improvement_loop_engines, protected=_improvement_skill_protected)
+        return _IMPROVEMENT_LOOP_RUNS[0]
+
+
 def _improvement_activations():
     return improvement_activation.Activations(_improvement_write_store(), agent_key=_improvement_activation_agent)
 
@@ -27112,6 +27186,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
             _improvement_write_store(), activations=_improvement_activations(), procedures=_improvement_agents()),
         canaries=_improvement_canaries()),
     imports=lambda: __import__("improvement_library").Imports(_improvement_write_store()),
+    loop_runs=_improvement_loop_runs,
     export=lambda principal, ids: __import__("improvement_library").export_procedures(
         _improvement_write_store(), principal, ids, version=_read_version()),
     review_proposals=_agent_review_proposals,
