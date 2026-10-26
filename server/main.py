@@ -27083,7 +27083,8 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
         _improvement_write_store(), activations=_improvement_activations(), procedures=_improvement_agents(),
         routing=__import__("improvement_routing").Routing(_improvement_write_store(), registry=_CAPABILITY_REGISTRY),
         bundles=__import__("improvement_bundle").Bundles(
-            _improvement_write_store(), activations=_improvement_activations(), procedures=_improvement_agents())),
+            _improvement_write_store(), activations=_improvement_activations(), procedures=_improvement_agents()),
+        canaries=_improvement_canaries()),
     imports=lambda: __import__("improvement_library").Imports(_improvement_write_store()),
     export=lambda principal, ids: __import__("improvement_library").export_procedures(
         _improvement_write_store(), principal, ids, version=VERSION),

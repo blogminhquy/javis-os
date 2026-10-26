@@ -401,7 +401,9 @@ def register(app, deps: ActivationApiDeps):
             if await asyncio.to_thread(deps.read_store) is None:
                 return {"ok": True, "live": []}
             service = await m7(deps.governance, "governance")
-            return {"ok": True, "live": await asyncio.to_thread(service.live, principal)}
+            await asyncio.to_thread(service.reconcile, principal)
+            return {"ok": True, "live": await asyncio.to_thread(service.live, principal),
+                    "grants": await asyncio.to_thread(service.grants, principal)}
         except _ERRORS as error:
             return _fail(error)
 

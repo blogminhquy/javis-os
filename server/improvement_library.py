@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import secrets
 import sys
@@ -46,11 +47,15 @@ def rank_needs(signals, *, now: float, half_life_s: float = 7 * 86400) -> list:
         family = signal.get("family")
         if type(family) is not str or not _FAMILY.fullmatch(family):
             continue
-        tasks = int(signal.get("independent_tasks") or 0)
-        if signal["source"] == "repeated_failure" and tasks < 2:
+        try:
+            tasks = int(signal.get("independent_tasks") or 0)
+            last = float(signal.get("last_at") or 0)
+        except (TypeError, ValueError, OverflowError):
+            continue  # a malformed signal is dropped, never a reason to stop ranking the rest
+        if signal["source"] == "repeated_failure" and tasks < 2 or not math.isfinite(last):
             continue
-        age = max(0.0, float(now) - float(signal.get("last_at") or 0))
-        score = SEVERITY.get(signal.get("severity"), 1) * 10 + min(tasks, 10) + 10 * 0.5 ** (age / half_life_s)
+        fresh = 10 * 0.5 ** (max(0.0, float(now) - last) / half_life_s)
+        score = SEVERITY.get(signal.get("severity"), 1) * 10 + min(max(tasks, 0), 10) + fresh
         if signal["source"] == "owner_request":
             score += 100  # the owner asked: first, but still one item, never a brain-wide sweep
         item = needs.setdefault(family, {"family": family, "score": 0.0, "sources": set()})
@@ -77,6 +82,20 @@ def _scrub(text: str) -> str:
     return scrub(text)
 
 
+# Private data a procedure must not carry out of the brain: phone numbers, e-mail addresses, long opaque tokens.
+_PRIVATE = re.compile(r"(?:\+?84|\b0)\d{9,10}\b|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|\b[A-Fa-f0-9]{24,}\b|"
+                      r"\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,}\b")
+
+
+def _shareable(text: str) -> str:
+    """Refuse rather than rewrite: the owner sees why, and a rewrite could grow the text past its limit."""
+    if _scrub(text) != text:
+        raise ValueError("export_secret_detected")
+    if _PRIVATE.search(text):
+        raise ValueError("export_private_data_detected")
+    return text
+
+
 def export_package(procedures: list, dependencies: dict, reports: list) -> dict:
     """Owner-chosen items -> a shareable package. Raises on any field outside the closed shapes."""
     clean_procedures = []
@@ -85,7 +104,7 @@ def export_package(procedures: list, dependencies: dict, reports: list) -> dict:
             raise ValueError("invalid_export_procedure")
         import improvement_agent
         clean_procedures.append({"agent_slug": str(item["agent_slug"]),
-                                 "text": improvement_agent.validate_procedure(_scrub(item["text"]))})
+                                 "text": _shareable(improvement_agent.validate_procedure(item["text"]))})
     if type(dependencies) is not dict or any(type(k) is not str or type(v) is not str for k, v in dependencies.items()):
         raise ValueError("invalid_export_dependencies")
     clean_reports = []
@@ -109,69 +128,148 @@ def import_package(package) -> list:
     if package.get("package_hash") != IM._hash(body):
         raise ValueError("import_package_hash_mismatch")
     import improvement_agent
+    import skill_router
+    procedures = package.get("procedures") or []
+    if type(procedures) is not list or len(procedures) > 20:
+        raise ValueError("import_package_too_large")
     out = []
-    for item in package.get("procedures") or []:
-        if type(item) is not dict or set(item) != {"agent_slug", "text"}:
+    for item in procedures:
+        if (type(item) is not dict or set(item) != {"agent_slug", "text"} or type(item["agent_slug"]) is not str
+                or not skill_router.valid_file_slug(item["agent_slug"])):
             raise ValueError("invalid_import_procedure")
-        out.append({"kind": "procedure", "agent_slug": str(item["agent_slug"]),
-                    "text": improvement_agent.validate_procedure(_scrub(item["text"])), "evidence": "untested"})
+        out.append({"kind": "procedure", "agent_slug": item["agent_slug"],
+                    "text": _shareable(improvement_agent.validate_procedure(item["text"])), "evidence": "untested"})
     return out
 
 
 class Governance:
-    """Brain-wide view and suspension of live improvement pointers, through each kind's own service."""
+    """Brain-wide view and pause of live improvement pointers (spec 18.2 "tạm ngừng").
 
-    def __init__(self, assets, *, activations=None, procedures=None, routing=None, bundles=None,
+    Pause moves every live pointer to `suspended` with reason `owner_pause`, so the record tells a governance pause
+    from single owner reverts; new work uses the baseline at once. Bundles in flight are failed by CAS first (their
+    running apply loses its heartbeat and rolls itself back), active bundles are suspended with their members, and
+    active auto-scope grants are revoked so no canary opens on its own afterwards. Everything is database state, so
+    it holds across restarts and processes; new owner applies stay possible (pause is not policy `off`)."""
+
+    _TABLES = {"bundle": "improvement_bundle_activations", "skill": "improvement_activations",
+               "procedure": "improvement_agent_overlays", "routing": "improvement_routing_overlays"}
+
+    def __init__(self, assets, *, activations=None, procedures=None, routing=None, bundles=None, canaries=None,
                  clock: Callable[[], float] = time.time):
         if type(assets) is not IM.ImprovementStore:
             raise TypeError("concrete_governance_assets_required")
         self.assets, self.store, self.clock = assets, assets.store, clock
-        self.services = {"bundle": bundles, "skill": activations, "procedure": procedures, "routing": routing}
+        self.activations, self.procedures, self.routing, self.bundles, self.canaries = (
+            activations, procedures, routing, bundles, canaries)
 
-    def live(self, principal) -> list:
-        brain = IM._brain(principal)
-        queries = {"bundle": "SELECT id,generation FROM improvement_bundle_activations WHERE brain_id=? AND state='active'",
-                   "skill": "SELECT id,generation FROM improvement_activations WHERE brain_id=? AND state='active'",
-                   "procedure": "SELECT id,generation FROM improvement_agent_overlays WHERE brain_id=? AND state='active'",
-                   "routing": "SELECT id,generation FROM improvement_routing_overlays WHERE brain_id=? AND state='active'"}
-        out = []
-        with closing(self.store._conn()) as connection:
-            tables = {r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            for kind, query in queries.items():
-                table = query.split(" FROM ")[1].split()[0]
-                if table in tables:
-                    out += [{"kind": kind, "pointer_id": r["id"], "generation": r["generation"]}
-                            for r in connection.execute(query, (brain,))]
-        return out
+    def _tables(self, connection) -> set:
+        return {r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
-    def suspend_all(self, principal, *, event_key: str) -> dict:
-        """Owner's "pause every improvement": bundles first (so members leave together), then the rest. Each
-        revert is its own CAS; a pointer that changed meanwhile is reported, not forced."""
-        IM._brain(principal)
-        if type(event_key) is not str or not 8 <= len(event_key) <= 120:
-            raise ValueError("invalid_event_key")
-        done, skipped = [], []
-        # Bundles first so their members leave together; then read again for what is still live.
-        self._each(principal, [i for i in self.live(principal) if i["kind"] == "bundle"], event_key, done, skipped)
-        self._each(principal, [i for i in self.live(principal) if i["kind"] != "bundle"], event_key, done, skipped)
-        return {"suspended": done, "skipped": skipped, "remaining": self.live(principal)}
-
-    def _each(self, principal, items, event_key, done, skipped):
-        for item in items:
-            service = self.services.get(item["kind"])
+    def reconcile(self, principal) -> None:
+        """Record drift first, so the live list is what the next turn would really serve."""
+        for service in (self.bundles, self.activations, self.procedures, self.routing):
             if service is None:
-                skipped.append({**item, "reason": "service_unavailable"})
                 continue
             try:
-                service.revert(principal, item["pointer_id"], expected_generation=item["generation"],
-                               event_key=f"{event_key}-{item['kind']}-{item['pointer_id']}")
+                service.reconcile(principal)
+            except Exception as error:  # noqa: BLE001 - a view must still answer
+                print(f"[improvement governance] reconcile: {type(error).__name__}: {error}", file=sys.stderr)
+
+    def live(self, principal) -> list:
+        """Live pointers; a member of a live bundle is listed under its bundle, not on its own."""
+        brain = IM._brain(principal)
+        out = []
+        with closing(self.store._conn()) as connection:
+            tables = self._tables(connection)
+            members = set()
+            if "improvement_bundle_members" in tables:
+                members = {(r["kind"], r["pointer_id"]) for r in connection.execute(
+                    "SELECT m.kind,m.pointer_id FROM improvement_bundle_members m JOIN improvement_bundle_activations b "
+                    "ON b.id=m.bundle_id AND b.brain_id=m.brain_id WHERE m.brain_id=? AND b.state IN ('applying','active')",
+                    (brain,))}
+            for kind, table in self._TABLES.items():
+                if table not in tables:
+                    continue
+                states = "('applying','active')" if kind == "bundle" else "('active')"
+                for r in connection.execute(f"SELECT id,generation,state FROM {table} WHERE brain_id=? AND state IN {states}",
+                                            (brain,)):
+                    if (kind, r["id"]) not in members:
+                        out.append({"kind": kind, "pointer_id": r["id"], "generation": r["generation"], "state": r["state"]})
+        return out
+
+    def grants(self, principal) -> list:
+        if self.canaries is None:
+            return []
+        return [g for g in self.canaries.grants(principal) if g.get("status") == "active"]
+
+    @staticmethod
+    def _key(event_key, *parts) -> str:
+        # A fixed-length derived key: any accepted outer key stays within the event-key limit.
+        return "gov-" + IM._hash([event_key, *parts])[:48]
+
+    def _suspend(self, principal, kind, pointer_id, generation) -> bool:
+        brain = IM._brain(principal)
+        if kind == "skill":
+            with closing(self.store._conn()) as connection:
+                row = connection.execute("SELECT * FROM improvement_activations WHERE id=? AND brain_id=?",
+                                         (pointer_id, brain)).fetchone()
+            if row is None or row["state"] != "active" or row["generation"] != generation:
+                return False
+            return self.activations._suspend(brain, row, "owner_pause")  # also ends a running canary
+        with self.store._Tx(self.store) as connection:
+            return bool(connection.execute(
+                f"UPDATE {self._TABLES[kind]} SET state='suspended',reason='owner_pause',generation=generation+1,"
+                "updated_at=? WHERE id=? AND brain_id=? AND state='active' AND generation=?",
+                (self.clock(), pointer_id, brain, generation)).rowcount)
+
+    def suspend_all(self, principal, *, event_key: str) -> dict:
+        brain = IM._brain(principal)
+        if type(event_key) is not str or not 8 <= len(event_key) <= 160:
+            raise ValueError("invalid_event_key")
+        done, skipped = [], []
+        # 1. Bundles: in flight -> failed (CAS), live -> suspended; then their members leave with them.
+        for item in [i for i in self.live(principal) if i["kind"] == "bundle"]:
+            if item["state"] == "applying":
+                won = self.bundles._fail(principal, item["pointer_id"], "owner_pause", expected_generation=item["generation"])
+            else:
+                won = self._suspend(principal, "bundle", item["pointer_id"], item["generation"])
+            if not won:
+                skipped.append({**item, "reason": "changed_meanwhile"})
+                continue
+            with closing(self.store._conn()) as connection:
+                row = connection.execute("SELECT manifest_json FROM improvement_bundle_activations WHERE id=? AND brain_id=?",
+                                         (item["pointer_id"], brain)).fetchone()
+                members = self.bundles._members(connection, brain, item["pointer_id"], json.loads(row["manifest_json"]))
+            for kind, pointer in members:
+                with closing(self.store._conn()) as connection:
+                    member = connection.execute(f"SELECT generation,state FROM {self._TABLES[kind]} WHERE id=? AND brain_id=?",
+                                                (pointer, brain)).fetchone()
+                if member is not None and member["state"] == "active":
+                    self._suspend(principal, kind, pointer, member["generation"])
+            done.append(item)
+        # 2. Everything else that is live now (members of finished bundles included).
+        for item in self.live(principal):
+            if item["kind"] == "bundle":
+                skipped.append({**item, "reason": "bundle_started_meanwhile"})
+            elif self._suspend(principal, item["kind"], item["pointer_id"], item["generation"]):
                 done.append(item)
+            else:
+                skipped.append({**item, "reason": "changed_meanwhile"})
+        # 3. No canary may open on its own after a pause.
+        revoked = []
+        for grant in self.grants(principal):
+            try:
+                self.canaries.revoke_grant(principal, grant["grant_id"], expected_generation=grant["generation"],
+                                           event_key=self._key(event_key, "grant", grant["grant_id"]))
+                revoked.append(grant["grant_id"])
             except (IM.ConflictError, PermissionError, ValueError) as error:
-                # A member already left with its bundle, or someone acted first: nothing to force.
-                skipped.append({**item, "reason": str(error)})
-            except Exception as error:  # noqa: BLE001
-                print(f"[improvement governance] {item['kind']} {item['pointer_id']}: {error}", file=sys.stderr)
-                skipped.append({**item, "reason": "storage_unavailable"})
+                skipped.append({"kind": "grant", "pointer_id": grant["grant_id"], "reason": str(error)})
+        # The audit record of this pause (each pointer row already says `owner_pause`).
+        payload = {"paused": [[i["kind"], i["pointer_id"]] for i in done], "grants": revoked}
+        with self.store._Tx(self.store) as connection:
+            self.assets._event(connection, principal, self._key(event_key, "summary", repr(self.clock())),
+                               "governance_pause", payload, {"paused": len(done), "grants": len(revoked)})
+        return {"suspended": done, "revoked_grants": revoked, "skipped": skipped, "remaining": self.live(principal)}
 
 
 class Refinements:
@@ -202,13 +300,14 @@ class Refinements:
         for value in (family, cycle):
             if type(value) is not str or not _FAMILY.fullmatch(value):
                 raise ValueError("invalid_refinement")
-        if type(changed) is not bool or type(owner_assigned) is not bool or type(evidence_ref) is not str:
+        if (type(changed) is not bool or type(owner_assigned) is not bool or type(holdout_consumed) is not bool
+                or type(evidence_ref) is not str or len(evidence_ref) > 128):
             raise ValueError("invalid_refinement")
         IM.ensure(self.store)
         if not self._available():
             raise PermissionError("refinements_unavailable")
         payload = {"family": family, "cycle": cycle, "changed": changed, "evidence_ref": evidence_ref,
-                   "owner_assigned": owner_assigned}
+                   "owner_assigned": owner_assigned, "holdout_consumed": holdout_consumed}
         with self.store._Tx(self.store) as connection:
             replay = self.assets._replay(connection, brain, event_key, "refinement", payload)
             if replay is not None:
@@ -216,7 +315,12 @@ class Refinements:
             rows = connection.execute("SELECT step,changed,evidence_ref FROM improvement_refinements WHERE brain_id=? "
                                       "AND family=? AND cycle=? ORDER BY step", (brain, family, cycle)).fetchall()
             seen = {r["evidence_ref"] for r in rows}
-            new_evidence = bool(evidence_ref) and evidence_ref not in seen
+            # New evidence is a trial or comparison report of this brain not used before in this cycle; free text
+            # never counts, so the two-step bound cannot be walked around with invented references.
+            known = bool(evidence_ref) and any(connection.execute(
+                f"SELECT 1 FROM {table} WHERE id=? AND brain_id=?", (evidence_ref, brain)).fetchone()
+                for table in ("improvement_trials", "improvement_comparison_reports"))
+            new_evidence = known and evidence_ref not in seen
             decision = refinement_decision([{"changed": bool(r["changed"])} for r in rows], new_evidence=new_evidence,
                                            owner_assigned=owner_assigned, holdout_consumed=holdout_consumed)
             if not decision["allowed"]:
