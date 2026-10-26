@@ -97,9 +97,10 @@ jobs:
           # chưa chạy assertion nào.
           pip install pytest
 
-      # KHÔNG còn vòng lặp shell: tests/run.py chạy từng file trong tiến trình Python riêng, mỗi file một thư mục tạm riêng
-      # (an toàn khi 4 file chạy cùng lúc), trả mã 1 khi có file đỏ, in TRỌN output của file đỏ ở cuối log và đẩy tên
-      # file đỏ lên phần tóm tắt của trang Actions. Không có `| tee` hay ống nào nuốt mã thoát.
+      # KHÔNG còn vòng lặp shell: tests/run.py chạy từng file trong tiến trình Python riêng, mỗi luồng trên một bản sao repo
+      # riêng (trạng thái app nằm trong cây mã, 4 luồng chung một cây là giẫm lên nhau), trả mã 1 khi có file đỏ, in TRỌN
+      # output của file đỏ ở cuối log và đẩy tên file đỏ lên phần tóm tắt của trang Actions. Không có `| tee` hay ống nào
+      # nuốt mã thoát.
       # Test tự nạp đường dẫn qua tests/python/_paths.py nên chạy được từ bất kỳ thư mục làm việc nào.
       - name: Chạy test Python (auth/secret/MCP-perm/traversal/CSRF + plugin)
         env:

@@ -19,6 +19,7 @@ mất ~67 phút). Mỗi file vẫn là một tiến trình Python riêng với t
 """
 import json
 import os
+import queue
 import shutil
 import stat
 import subprocess
@@ -70,15 +71,8 @@ def xoa_cay(p) -> None:
 _SOT = []
 
 
-def chay_mot(cmd, env, co_lap=False):
+def chay_mot(cmd, env, cwd=ROOT):
     """Chạy một file test với thư mục tạm riêng, xoá ngay sau khi tiến trình thoát.
-
-    `co_lap` (bật khi chạy nhiều file cùng lúc, 0.342.0): trạng thái app (JAVIS_STATE_DIR, mặc định là
-    server/) và kho brain (BRAINS_DIR, mặc định là brains/ ở gốc repo) của file đó cũng nằm trong thư
-    mục tạm này, trống như một bản checkout mới. Thiếu nó thì các file chạy cùng lúc ghi chung
-    `brains/Brain Default` và server/*.json: CI 26/10 đỏ ở test_chat_disconnect vì một file khác
-    ghi vào brain đúng lúc lượt chat đang chạy, server thấy brain đổi nên thêm một dòng báo.
-    Test tự đặt hai biến này (`os.environ[...] =` hay `setdefault`) vẫn được thư mục riêng như cũ.
 
     Xem tests/python/_paths.py: test tự dọn thư mục tạm lúc atexit, nhưng trên Windows sqlite
     còn mở ở biến module thì lúc đó chưa xoá được, còn test JS thì không tự dọn. Tạo thư mục ở
@@ -88,10 +82,8 @@ def chay_mot(cmd, env, co_lap=False):
     """
     tam = tempfile.mkdtemp(prefix=f"jt-{os.getpid()}-")
     env = dict(env, TMP=tam, TEMP=tam, TMPDIR=tam, JAVIS_TEST_TMP=tam)
-    if co_lap:
-        env.update(JAVIS_STATE_DIR=os.path.join(tam, "state"), BRAINS_DIR=os.path.join(tam, "brains"))
     try:
-        return subprocess.run(cmd, cwd=str(ROOT), env=env, capture_output=True, text=True,
+        return subprocess.run(cmd, cwd=str(cwd), env=env, capture_output=True, text=True,
                               encoding="utf-8", errors="replace")
     finally:
         # Tiến trình cháu (server, CLI giả) có thể nhả file chậm hơn một chút - thử lại vài lần.
@@ -109,6 +101,30 @@ def doc_thoi_gian() -> dict:
         return {k: float(v) for k, v in json.loads(TIMINGS.read_text(encoding="utf-8"))["giay"].items()}
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return {}
+
+
+def ban_sao_repo(so: int) -> list:
+    """`so` bản sao của repo, mỗi luồng chạy song song dùng riêng một bản (0.342.0).
+
+    Vì sao: trạng thái app mặc định nằm NGAY TRONG cây mã (server/*.json, server/*.db, brains/), và
+    nhiều test đọc ghi đúng chỗ đó. Chạy lần lượt thì không sao, chạy 4 file cùng lúc thì chúng giẫm
+    lên nhau: CI 26/10 đỏ ở test_chat_disconnect vì một file khác ghi vào `brains/Brain Default` đúng
+    lúc lượt chat đang chạy. Đổi JAVIS_STATE_DIR/BRAINS_DIR thì lại sai với test tự đặt hai biến đó
+    bằng `setdefault` và với code tìm module trong STATE_DIR. Bản sao giữ nguyên mọi đường dẫn mặc
+    định: mỗi luồng là một "CI cũ" thu nhỏ, các file trong luồng chạy lần lượt trên một cây riêng.
+
+    Chép cả `.git` (test quay về phiên bản cũ đọc commit lịch sử) và cả thay đổi chưa commit, để
+    chạy ở máy dev vẫn kiểm đúng code đang sửa. Bỏ `.venv` (nặng, và trình thông dịch vẫn trỏ về
+    bản gốc) cùng `__pycache__`.
+    """
+    goc = tempfile.mkdtemp(prefix=f"jt-{os.getpid()}-w")
+    ds = []
+    for k in range(so):
+        dich = Path(goc) / str(k)
+        shutil.copytree(ROOT, dich, symlinks=True,
+                        ignore=shutil.ignore_patterns(".venv", "__pycache__"))
+        ds.append(dich)
+    return ds
 
 
 def uoc_giay(giay: dict):
@@ -244,10 +260,23 @@ def main() -> int:
     def ra(s=""):
         print(s, flush=True)
 
+    # Nhiều luồng: mỗi luồng mượn một bản sao repo, chạy xong trả lại (xem ban_sao_repo).
+    # Chỉ đổi đường dẫn file test sang bản sao; trình thông dịch (.venv của bản gốc) giữ nguyên.
+    cho_trong = queue.Queue()
+    sao = ban_sao_repo(ts["jobs"]) if ts["jobs"] > 1 else [ROOT]
+    for d in sao:
+        cho_trong.put(d)
+
     def chay_do_gio(cmd):
-        t = time.perf_counter()
-        r = chay_mot(cmd, env, co_lap=ts["jobs"] > 1)
-        return r, time.perf_counter() - t
+        goc = cho_trong.get()
+        try:
+            cmd = [str(goc / Path(c).relative_to(ROOT)) if Path(c).is_relative_to(ROOT / "tests") else c
+                   for c in cmd]
+            t = time.perf_counter()
+            r = chay_mot(cmd, env, cwd=goc)
+            return r, time.perf_counter() - t
+        finally:
+            cho_trong.put(goc)
 
     tren_ci = os.environ.get("GITHUB_ACTIONS") == "true"
     ra(f"Chạy {len(viec)} test{nhan} bằng {py}, {ts['jobs']} file cùng lúc\n")
@@ -273,6 +302,8 @@ def main() -> int:
                         ra("       " + ln)
 
     giay = time.perf_counter() - t0
+    if ts["jobs"] > 1:
+        xoa_cay(sao[0].parent)
     # Trên CI in TRỌN output của test đỏ, gom ở cuối (chạy song song thì in giữa chừng sẽ lẫn vào nhau),
     # mỗi file một nhóm gập được trên trang Actions.
     if tren_ci:
