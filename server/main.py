@@ -10927,6 +10927,11 @@ async def _ghi_lich_su(gen, *, brain, slug, name, input, source, session_id, run
             elif t == "done":
                 ket = "done"
                 st.ket_thuc(rid, "done", output=str(ev.get("result") or ""))
+                try:  # 0.341.0: a finished run is a workflow episode for automatic learning
+                    await asyncio.to_thread(_auto_learner().observe_workflow, _brain_key(brain), slug, rid,
+                                            input or "", str(ev.get("result") or ""), session_id or "", source or "")
+                except Exception as _e:  # noqa: BLE001
+                    print(f"[auto-learning workflow] {type(_e).__name__}: {_e}", file=sys.stderr)
             yield ev
     finally:
         if ket is None:
@@ -13200,6 +13205,10 @@ async def _start_scheduler():
                 #      chạy ở tác vụ riêng sau khi giữ chỗ sổ lượt chung.
                 if not _PULSE_TICK_BUSY[0]:
                     asyncio.create_task(_pulse_tick())
+                # 3b5) Automatic learning from chat (0.341.0): judging and learning runs in a worker thread, own busy
+                #      flag; hard daily caps live in auto_learning.
+                if not _AUTO_LEARNING_BUSY[0]:
+                    asyncio.create_task(_auto_learning_tick())
                 # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
                 #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
                 #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.
@@ -15859,7 +15868,7 @@ async def _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resu
         loi = kq["loi"] or {}
         text = workflow_chat.tin_loi(loi.get("i"), loi.get("agent", ""), loi.get("content", ""))
     await emit({"type": "stream", "content": text})
-    await _persist_turn(store, conv_sid, brain, user_message, text)
+    await _persist_turn(store, conv_sid, brain, user_message, text, turn_started=t0)
     return text
 
 
@@ -15908,6 +15917,12 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text, turn_s
         await learn_feature.enqueue(brain, conv_sid, user_message, clean)
     except Exception as _e:
         print(f"[learn enqueue hook] {_e}", file=__import__('sys').stderr)
+    try:  # 0.341.0: automatic learning records the turn; judging happens later, off the reply path
+        _row = store.get_session(conv_sid) or {}
+        await asyncio.to_thread(_auto_learner().observe_turn, _brain_key(brain), conv_sid, _row.get("channel") or "",
+                                user_message, clean, _answer_mid, turn_started)
+    except Exception as _e:  # noqa: BLE001
+        print(f"[auto-learning observe] {type(_e).__name__}: {_e}", file=sys.stderr)
     return _answer_mid
 
 
@@ -17054,6 +17069,8 @@ async def websocket_endpoint(ws: WebSocket):
                         etype = event["type"]
                         if etype in ("tool_call", "tool_result"):
                             _resonance_note_write(conv_sid, user_mid, brain, event)
+                            if etype == "tool_call":
+                                await asyncio.to_thread(_auto_learning_note_tool, brain, conv_sid, event)
                         elif etype in ("final", "error"):
                             _engine_outcome_note(conv_sid, event)
                         if etype == "tool_call":
@@ -27075,12 +27092,12 @@ def _improvement_team_member(root, agent_key):
             "provider": spec.get("provider") or "", "model": spec.get("model") or "", "reasoning": info.get("reasoning") or ""}
 
 
-def _improvement_text_call(system, prompt, tag):
-    """One text-only answer from the brain's selected engine: empty folder, no MCP, every tool refused (the same
-    sandbox as judges and text-only team turns). Works for every provider the user already set up."""
+def _improvement_text_call(system, prompt, tag, spec=None):
+    """One text-only answer from the brain's selected engine (or `spec`): empty folder, no MCP, every tool refused (the
+    same sandbox as judges and text-only team turns). Works for every provider the user already set up."""
     settings = cfgmod.read_settings() or {}
-    spec = team_engine.choose_spec("", "", _effective_main(settings), _agent_model_provider,
-                                   lambda sp: aux_engine.availability(sp, settings))
+    spec = spec or team_engine.choose_spec("", "", _effective_main(settings), _agent_model_provider,
+                                           lambda sp: aux_engine.availability(sp, settings))
     base = _reply_policy_sandbox_engine(system, tag, cwd_name="improvement_loop_cwd")
     eng = team_engine.build(spec, base, tag, settings)
     prompt = _team_reasoning(eng, (settings.get("model") or {}).get("reasoning") or AGENT_REASONING_DEFAULT, prompt)
@@ -27149,6 +27166,215 @@ def _improvement_loop_runs():
         return _IMPROVEMENT_LOOP_RUNS[0]
 
 
+# -- Automatic learning from chat (0.341.0): skills, agents and workflows learn from real mistakes ------------------
+
+_AUTO_LEARNER = [None]
+_AUTO_LEARNER_LOCK = __import__("threading").Lock()
+_AUTO_LEARNING_BUSY = [False]
+
+
+def _auto_learning_policy_on(root):
+    """Learning follows the brain's improvement policy: mode "off" stops it. No schema yet means the default (on)."""
+    try:
+        store = _improvement_read_store()
+        if store is None:
+            return True
+        principal = resonance_store.Principal("owner", "owner", str(Path(root).resolve(strict=True)))
+        return store.get_policy(principal).get("mode") != "off"
+    except Exception as _e:  # noqa: BLE001 - unknown policy: do not learn
+        print(f"[auto-learning policy] {type(_e).__name__}: {_e}", file=sys.stderr)
+        return False
+
+
+def _auto_learning_spec():
+    """Learning runs on the brain's selected engine. When that engine has no text-only path (Grok Build, Antigravity),
+    it falls back to the background model the Models page sets for "tự học", so nobody has to change anything."""
+    settings = cfgmod.read_settings() or {}
+    main = _effective_main(settings)
+    if team_engine.text_only_supported(main.get("provider")):
+        return None  # _improvement_text_call's own choice: the main engine
+    background = aux_engine.read_spec(settings)
+    if team_engine.text_only_supported(background.get("provider")) and aux_engine.availability(background, settings)[0]:
+        return {"provider": background["provider"], "model": background.get("model") or "", "source": "aux", "note": ""}
+    return None
+
+
+def _auto_learning_engine_ready(root):
+    spec = _auto_learning_spec()
+    if spec is None:
+        _improvement_loop_engines(root)  # raises engine_unavailable when the main engine cannot run text-only
+        return
+    settings = cfgmod.read_settings() or {}
+    try:
+        team_engine.build(spec, _reply_policy_sandbox_engine("probe", "auto-learning-probe", cwd_name="improvement_loop_cwd"),
+                          "auto-learning-probe", settings)
+    except team_engine.TeamEngineUnavailable as error:
+        raise PermissionError(f"engine_unavailable: {error.reason}") from None
+
+
+def _auto_learning_settings(root):
+    """The "Tự học" page drives learning from chat: on/off, write mode, and the Skill/Agent/Workflow switches."""
+    cfg = learn_feature.read_config()
+    caps = cfg.get("capabilities") or {}
+    return {"enabled": bool(cfg.get("enabled")), "mode": str(cfg.get("mode") or "auto"),
+            "kinds": {kind for kind in ("skill", "agent", "workflow") if caps.get(kind)}}
+
+
+def _auto_learning_principal(root):
+    return resonance_store.Principal("owner", "owner", str(Path(root).resolve(strict=True)))
+
+
+def _auto_learning_agent_procedure(root, slug):
+    """The assistant's active learned/owner procedure: text, overlay id, generation; {} when none."""
+    service = _improvement_agents()
+    principal = _auto_learning_principal(root)
+    key = service.key(principal, slug)
+    if not key:
+        return {}
+    active = [o for o in service.overlays(principal, agent_key=key) if o["state"] == "active"]
+    if not active:
+        return {}
+    overlay = active[0]
+    row = service.procedure(principal, overlay["procedure_id"])
+    if row is None:
+        import auto_learning
+        raise auto_learning.ConflictError("agent_procedure_unreadable")
+    return {"text": row["text"], "overlay_id": overlay["overlay_id"],
+            "procedure_id": overlay["procedure_id"], "generation": overlay["generation"], "surfaces": overlay["surfaces"]}
+
+
+def _auto_learning_swap(root, slug, out_overlay, in_procedure, surfaces, tag):
+    """Revert `out_overlay` (may be {}) and apply `in_procedure` on `surfaces`; if the apply fails, the reverted overlay's
+    procedure is put back so the assistant never ends up with nothing. Returns the new overlay."""
+    import auto_learning
+    import improvement_agent
+    service, principal = _improvement_agents(), _auto_learning_principal(root)
+    # Revert has no policy gate but apply has, and a procedure written for older owner rules cannot be applied:
+    # check both before touching anything, so the assistant never loses its procedure halfway.
+    if not _auto_learning_policy_on(root):
+        raise PermissionError("improvement_disabled")
+    rules = improvement_agent.owner_rules_hash(*_improvement_read_agent(root, slug))
+    for procedure_id in [in_procedure] + ([out_overlay["procedure_id"]] if out_overlay else []):
+        row = service.procedure(principal, procedure_id)
+        if row is None or row["owner_rules_hash"] != rules:
+            raise auto_learning.ConflictError("agent_owner_rules_changed")
+    if out_overlay:
+        service.revert(principal, out_overlay["overlay_id"], expected_generation=out_overlay["generation"],
+                       event_key=f"auto-learn-revert-{tag}")
+    try:
+        return service.apply(principal, in_procedure, surfaces, owner_confirmed=True, event_key=f"auto-learn-apply-{tag}")
+    except Exception:
+        if out_overlay:
+            service.apply(principal, out_overlay["procedure_id"], out_overlay["surfaces"], owner_confirmed=True,
+                          event_key=f"auto-learn-putback-{tag}")
+        raise
+
+
+def _auto_learning_agent_apply(root, slug, text, started_from):
+    """Learned procedure goes live as the assistant's overlay, on the surfaces the current one had (all when none);
+    the current one is reverted first and remembered for undo. If the owner changed the procedure while the run
+    worked, nothing is applied. The owner authorised automatic learning (26/10/2026), so it is applied as confirmed."""
+    import auto_learning
+    import improvement_agent
+    previous = _auto_learning_agent_procedure(root, slug)
+    if previous.get("overlay_id") != (started_from or {}).get("overlay_id") or \
+            previous.get("generation") != (started_from or {}).get("generation"):
+        raise auto_learning.ConflictError("target_changed")
+    tag = __import__("secrets").token_hex(8)
+    staged = _improvement_agents().stage(_auto_learning_principal(root), slug, text, source="learn",
+                                         event_key=f"auto-learn-stage-{tag}")
+    surfaces = previous.get("surfaces") or sorted(improvement_agent.SURFACES)
+    overlay = _auto_learning_swap(root, slug, previous, staged["procedure_id"], surfaces, tag)
+    return {"slug": slug, "overlay_id": overlay["overlay_id"], "procedure_id": staged["procedure_id"],
+            "surfaces": surfaces, "previous": previous.get("procedure_id"), "previous_surfaces": previous.get("surfaces")}
+
+
+def _auto_learning_agent_undo(root, info):
+    """Back to the procedure before the learned one (or none). If restoring fails, the learned one stays live."""
+    import auto_learning
+    current = _auto_learning_agent_procedure(root, info["slug"])
+    if current.get("overlay_id") != info["overlay_id"]:
+        raise auto_learning.ConflictError("changed_since")
+    tag = __import__("secrets").token_hex(8)
+    if info.get("previous"):
+        _auto_learning_swap(root, info["slug"], current, info["previous"], info.get("previous_surfaces") or current["surfaces"], tag)
+    else:
+        _improvement_agents().revert(_auto_learning_principal(root), info["overlay_id"],
+                                     expected_generation=current["generation"], event_key=f"auto-learn-undo-{tag}")
+
+
+def _auto_learning_reaction(session_id, message_id):
+    try:
+        row = get_store().dm_reaction_of(session_id, int(message_id))
+    except Exception:  # noqa: BLE001
+        return ""
+    if not row:
+        return ""
+    reasons = row.get("reasons") or []
+    return f"{row.get('value', '')} " + (", ".join(str(r) for r in reasons) if reasons else "") + (
+        f" ({row.get('comment')})" if row.get("comment") else "")
+
+
+def _auto_learning_workflow_run(run_id):
+    import workflow_runs
+    row = workflow_runs.get_store().lay(run_id) if run_id else None
+    if not row:
+        return None
+    steps = row.get("steps") if isinstance(row.get("steps"), list) else json.loads(row.get("steps_json") or "[]")
+    return {**row, "steps": steps}
+
+
+def _auto_learner():
+    with _AUTO_LEARNER_LOCK:
+        if _AUTO_LEARNER[0] is None:
+            import auto_learning
+            state = Path(cfgmod.STATE_DIR) / "improvement"
+            host = auto_learning.Host(
+                text_call=lambda system, prompt: _improvement_text_call(
+                    system, prompt, "auto-learning-" + __import__("secrets").token_hex(4), _auto_learning_spec()),
+                engine_ready=_auto_learning_engine_ready,
+                policy_on=_auto_learning_policy_on,
+                skill_protected=_improvement_skill_protected,
+                workflows_dir=_workflows_dir,
+                agent_text=lambda root, slug: (lambda p: p.read_text(encoding="utf-8") if p is not None else "")(
+                    _agent_md_path(root, slug)),
+                agent_procedure=_auto_learning_agent_procedure,
+                agent_apply=_auto_learning_agent_apply,
+                agent_undo=_auto_learning_agent_undo,
+                reaction=_auto_learning_reaction,
+                workflow_run=_auto_learning_workflow_run,
+                backups=state / "auto-learning-backups",
+                settings=_auto_learning_settings)
+            _AUTO_LEARNER[0] = auto_learning.AutoLearner(auto_learning.Store(state / "auto_learning.sqlite3"), host)
+            auto_learning.SKILL_USE_HOOK[0] = lambda root, session_id, slug: _AUTO_LEARNER[0].note_skill_use(
+                _brain_key(root), session_id, slug)
+        return _AUTO_LEARNER[0]
+
+
+def _auto_learning_note_tool(brain, conv_sid, event):
+    """Claude Code loads skills natively (Skill tool, or reading SKILL.md): those loads never reach the hub."""
+    try:
+        import auto_learning
+        slug = auto_learning.skill_from_tool(event.get("name") or "", event.get("input") or {})
+        if slug:
+            _auto_learner().note_skill_use(_brain_key(brain), conv_sid, slug)
+    except Exception as _e:  # noqa: BLE001 - learning never breaks a turn
+        print(f"[auto-learning note] {type(_e).__name__}: {_e}", file=sys.stderr)
+
+
+async def _auto_learning_tick():
+    """Scheduler: one unit of learning work (judge a few turns, or one learning run) in a worker thread."""
+    if _AUTO_LEARNING_BUSY[0] or os.environ.get("JAVIS_AUTO_LEARNING_PAUSED") == "1":
+        return
+    _AUTO_LEARNING_BUSY[0] = True
+    try:
+        await asyncio.to_thread(_auto_learner().step)
+    except Exception as _e:  # noqa: BLE001
+        print(f"[auto-learning tick] {type(_e).__name__}: {_e}", file=sys.stderr)
+    finally:
+        _AUTO_LEARNING_BUSY[0] = False
+
+
 def _improvement_activations():
     return improvement_activation.Activations(_improvement_write_store(), agent_key=_improvement_activation_agent)
 
@@ -27194,6 +27420,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
         canaries=_improvement_canaries()),
     imports=lambda: __import__("improvement_library").Imports(_improvement_write_store()),
     loop_runs=_improvement_loop_runs,
+    auto_learning=_auto_learner,
     export=lambda principal, ids: __import__("improvement_library").export_procedures(
         _improvement_write_store(), principal, ids, version=_read_version()),
     review_proposals=_agent_review_proposals,

@@ -88,7 +88,7 @@ def _evidence(cases: dict, rollouts: list, label: str, limit: int = 6000) -> str
     return text[:limit * 4]
 
 
-def propose_instructions(angle: str, current: str, evidence: str, history: str = "") -> str:
+def propose_instructions(angle: str, current: str, evidence: str, history: str = "", context: str = "") -> str:
     return (
         "You improve a skill: written instructions an AI assistant follows for one kind of work.\n"
         f"Change ONE thing about {ANGLES[angle]}.\n"
@@ -97,10 +97,11 @@ def propose_instructions(angle: str, current: str, evidence: str, history: str =
         "return the current skill unchanged.\n"
         "Return ONLY the full new skill text between <skill> and </skill>.\n\n"
         f"## Current skill\n<current>\n{current}\n</current>\n\n## Tuning evidence\n{evidence}\n"
+        + (f"\n## What the owner said in real use\n{context}\n" if context else "")
         + (f"\n## Earlier attempts in this run\n{history}\n" if history else ""))
 
 
-def compose_instructions(current: str, pool: list) -> str:
+def compose_instructions(current: str, pool: list, context: str = "") -> str:
     listing = "\n\n".join(f"## Candidate {label} (tuning score {score:.2f})\n<candidate>\n{text}\n</candidate>"
                           for label, text, score in pool)
     return (
@@ -109,7 +110,8 @@ def compose_instructions(current: str, pool: list) -> str:
         "skill that keeps what helped, drops what hurt or did nothing, and stays coherent and concise. Do not paste "
         "case data or answers. If nothing helped, return the current skill unchanged.\n"
         "Return ONLY the full skill text between <skill> and </skill>.\n\n"
-        f"## Current skill\n<current>\n{current}\n</current>\n\n{listing}\n")
+        f"## Current skill\n<current>\n{current}\n</current>\n\n{listing}\n"
+        + (f"\n## What the owner said in real use\n{context}\n" if context else ""))
 
 
 def extract_skill(text: str) -> str:
@@ -150,7 +152,9 @@ def _same(a: str, b: str) -> bool:
 class Loop:
     def __init__(self, cases: list, *, solve: Callable, improve: Callable, check: Callable, width: int = 4,
                  clock: Callable[[], float] = time.monotonic, on_event: Callable = lambda kind, data: None,
-                 stop: Callable[[], bool] = lambda: False):
+                 stop: Callable[[], bool] = lambda: False, context: str = ""):
+        """`context`: what the owner said about real mistakes (corrections from chat). It never contains a
+        qualification case; the improver may read it, the sealed verdict still decides."""
         ids = [c.id for c in cases]
         if len(set(ids)) != len(ids) or any(c.split not in ("tuning", "qualification") for c in cases):
             raise ValueError("invalid_cases")
@@ -163,7 +167,7 @@ class Loop:
         if not self.tuning or not self.qualification:
             raise ValueError("both_splits_required")
         self.solve, self.improve, self.check = solve, improve, check
-        self.width, self.clock, self.on_event, self.stop = width, clock, on_event, stop
+        self.width, self.clock, self.on_event, self.stop, self.context = width, clock, on_event, stop, context
         self.result = LoopResult()
         self.errors = 0
 
@@ -173,11 +177,12 @@ class Loop:
         started = self.clock()
         try:
             output, error = self.solve(skill, case.prompt), False
+            verdict = self.check(case, output)  # a model grader can fail too: same rule
         except LoopStopped:
             raise
         except Exception as exc:  # noqa: BLE001 - an engine failure is an unknown, never a fake wrong answer
             output, error = f"<engine error: {type(exc).__name__}>", True
-        verdict = {"pass": False, "score": 0.0, "feedback": "engine error"} if error else self.check(case, output)
+            verdict = {"pass": False, "score": 0.0, "feedback": "engine error"}
         row = Rollout(label, case.id, repeat, output, bool(verdict["pass"]), float(verdict["score"]),
                       str(verdict.get("feedback", "")), self.clock() - started)
         row.error = error
@@ -226,14 +231,14 @@ class Loop:
             pool = [("current", current, _mean(current_rows))]
             for angle in ("INV", "DOM"):
                 label = f"{angle.lower()}{t}"
-                text = self._improve(propose_instructions(angle, current, evidence, past), current, label)
+                text = self._improve(propose_instructions(angle, current, evidence, past, self.context), current, label)
                 res.versions[label] = text
                 rows = self._roll(label, text, self.tuning, tuning_repeats)
                 res.tuning[label] = _mean(rows)
                 pool.append((label, text, res.tuning[label]))
                 history.append(label)
             label = f"c{t}"
-            composed = self._improve(compose_instructions(current, pool), current, label)
+            composed = self._improve(compose_instructions(current, pool, self.context), current, label)
             res.versions[label] = composed
             current_rows = self._roll(label, composed, self.tuning, tuning_repeats)
             res.tuning[label] = _mean(current_rows)
