@@ -27087,7 +27087,7 @@ improvement_activation_api.register(app, improvement_activation_api.ActivationAp
         canaries=_improvement_canaries()),
     imports=lambda: __import__("improvement_library").Imports(_improvement_write_store()),
     export=lambda principal, ids: __import__("improvement_library").export_procedures(
-        _improvement_write_store(), principal, ids, version=VERSION),
+        _improvement_write_store(), principal, ids, version=_read_version()),
     review_proposals=_agent_review_proposals,
     resolve_brain=lambda value: improvement_api.strict_brain(value,
         default_root=Path(BRAINS_DIR) / "Brain Default", brains_root=Path(BRAINS_DIR)),
