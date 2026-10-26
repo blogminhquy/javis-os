@@ -65,21 +65,22 @@ async def fake_lay(lam_moi=False):
 STALE, VER = [False], ["1.6.0"]
 packs_store.lay = fake_lay
 pack_install.doc_so = lambda: {"javis.zalo": {"version": "1.3.0"}}
-t0 = PU._STARTED
-asyncio.run(PU.tick(t0 + 10))
-check("no check in the first minutes after start", not CALLS)
-asyncio.run(PU.tick(t0 + PU.FIRST_DELAY + 1))
-check("the first check runs after the delay and announces", len(CALLS) == 1 and PU._load().get("javis.zalo") == "1.6.0",
+t0 = 1_900_000_000.0
+asyncio.run(PU.on_open(t0))
+check("opening the dashboard checks and announces", len(CALLS) == 1 and PU._load().get("javis.zalo") == "1.6.0",
       PU._load())
-asyncio.run(PU.tick(t0 + PU.FIRST_DELAY + 60))
-check("then waits its interval", len(CALLS) == 1)
+asyncio.run(PU.on_open(t0 + 60))
+check("opening it again within six hours does nothing", len(CALLS) == 1)
 STALE[0], VER[0] = True, "1.7.0"
-asyncio.run(PU.tick(t0 + PU.FIRST_DELAY + PU.INTERVAL + 5))
+asyncio.run(PU.on_open(t0 + PU.INTERVAL + 5))
 check("a stale catalog is read but never announced", len(CALLS) == 2 and PU._load().get("javis.zalo") == "1.6.0",
       (len(CALLS), PU._load()))
 
+# 0.340.0, owner 2026-10-26: no background scan. Nothing on the scheduler loop; the dashboard opening drives it.
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("the 30-second scheduler runs the check in the background", "asyncio.create_task(pack_updates.tick())" in src)
+check("no timer runs the Store check any more", "pack_updates.tick" not in src and not hasattr(PU, "tick"))
+check("the check rides on the dashboard opening (/version)",
+      "asyncio.create_task(pack_updates.on_open())" in src[src.index('@app.get("/version")'):][:800])
 nj = (ROOT / "dashboard" / "notifications.js").read_text(encoding="utf-8")
 check("pressing the notice opens the Javis Store",
       'item.channel === "store:updates"' in nj and "window.JavisPacks.moKho(\"\")" in nj)

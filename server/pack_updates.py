@@ -5,6 +5,12 @@ already shows a banner with the packs that can be updated, but only to someone w
 background and puts ONE notice in the bell (the inbox) listing what can be updated; pressing it opens the Store, where
 the banner and the "Có bản mới" filter take it from there.
 
+No background scan (0.340.0, owner 2026-10-26: "khi có bản mới thì mới báo chứ lại tự quét như này anh thấy không
+ổn, tốn tài nguyên"). 0.335.0 ran a timer on the 30-second scheduler loop that fetched the catalog every six hours
+whether anyone used Javis or not. Now nothing runs on its own: the check rides on the dashboard opening (the
+`/version` call it already makes for the version label), at most once per `INTERVAL`, and reads the catalog through
+`packs_store.lay`, whose cache answers without any network for six hours. A Javis nobody opens does no work at all.
+
 Rules:
   - Only packs installed from the Store or a zip (they have a row in the install ledger, `pack_install.doc_so`); the
     connectors that ship with the app update with the app.
@@ -25,14 +31,12 @@ from config import STATE_DIR
 import localefmt
 
 STATE = STATE_DIR / "pack-update-notices.json"
-INTERVAL = 6 * 3600         # same rhythm as the catalog cache (`packs_store.TTL`)
-FIRST_DELAY = 300           # the first check waits a few minutes after start, off the busy startup path
+INTERVAL = 6 * 3600         # at most one check per six hours, the same as the catalog cache (`packs_store.TTL`)
 CHANNEL = "store:updates"   # the dashboard opens the Store for a bell item on this channel (notifications.js)
 MAX_LINES = 8
 
 _LAST = [0.0]
 _BUSY = [False]
-_STARTED = time.time()
 
 
 def _name(g: dict) -> str:
@@ -113,14 +117,11 @@ async def check() -> Optional[dict]:
     return notify(find_updates(d.get("packs") or [], pack_install.doc_so()))
 
 
-async def tick(now: Optional[float] = None) -> None:
-    """Called by the 30-second scheduler loop; keeps its own rhythm (first check after `FIRST_DELAY`, then every
-    `INTERVAL`). A failed check only logs: the next one comes in six hours."""
+async def on_open(now: Optional[float] = None) -> None:
+    """Called when the owner opens the dashboard (main's `/version`, as a background task). Checks at most once per
+    `INTERVAL`; any other call returns at once. A failed check only logs: the next open after six hours tries again."""
     now = time.time() if now is None else now
-    if _BUSY[0]:
-        return
-    due = (now - _STARTED >= FIRST_DELAY) if not _LAST[0] else (now - _LAST[0] >= INTERVAL)
-    if not due:
+    if _BUSY[0] or (_LAST[0] and now - _LAST[0] < INTERVAL):
         return
     _BUSY[0], _LAST[0] = True, now
     try:

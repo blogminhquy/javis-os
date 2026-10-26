@@ -13200,13 +13200,6 @@ async def _start_scheduler():
                 #      chạy ở tác vụ riêng sau khi giữ chỗ sổ lượt chung.
                 if not _PULSE_TICK_BUSY[0]:
                     asyncio.create_task(_pulse_tick())
-                # 3b5) Store packs with a newer version (0.335.0): one bell notice per new version, own 6-hour rhythm,
-                #      fetched in the background so a slow Store never holds this loop.
-                try:
-                    import pack_updates
-                    asyncio.create_task(pack_updates.tick())
-                except Exception as pue:
-                    print(f"[pack updates tick] {type(pue).__name__}: {pue}", file=__import__('sys').stderr)
                 # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
                 #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
                 #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.
@@ -13697,6 +13690,13 @@ async def _latest_remote_version(cur: str = ""):
 
 @app.get("/version")
 async def version_info():
+    # Store packs with a newer version (0.340.0): checked when the owner opens the dashboard (this call draws its
+    # version label), at most once per six hours, in the background. No timer runs it, see pack_updates.
+    try:
+        import pack_updates
+        asyncio.create_task(pack_updates.on_open())
+    except Exception as pue:
+        print(f"[pack updates] {type(pue).__name__}: {pue}", file=sys.stderr)
     cur = _read_version()
     latest, err = await _latest_remote_version(cur)
     mode = _deploy_mode()
