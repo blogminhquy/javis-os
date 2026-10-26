@@ -2972,6 +2972,7 @@
         </div>
       </div>
 
+      <div class="si-log"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("improve.auto_title"))}${infoBtn()}</h3>${infoBody(esc(window.t("cs.ln_chat_note")))}<div id="lnChat">${esc(window.t("common.loading"))}</div></div>
       <div class="si-log"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.ln_review_head"))}</h3><div id="lnReview">${esc(window.t("common.loading"))}</div></div>
       <div class="si-log"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.ln_log_head"))}</h3><div id="lnLog">${esc(window.t("common.loading"))}</div></div>
     </div>`;
@@ -3042,6 +3043,37 @@
       loadAll();
     };
 
+    // Learning from chat (0.337.0): what Javis changed on its own; undo, or apply in "Đề xuất" mode.
+    async function loadChat() {
+      const box = el.querySelector("#lnChat");
+      let d = {}; try { d = await (await fetch(`/auto-learning?brain=${encodeURIComponent(fbrain())}`)).json(); } catch (e) { }
+      if (!d.ok) { box.innerHTML = ""; return; }
+      const st = d.stats || {}, open = Object.values(st.mistakes || {}).reduce((a, b) => a + b, 0);
+      const head = `<div class="dim" style="color:var(--text3)">${esc(window.t("improve.auto_stats").replace("{p}", st.pending || 0).replace("{m}", open))}</div>`;
+      const rows = (d.history || []).slice(0, 10);
+      if (!rows.length) { box.innerHTML = head + `<div class="dim" style="color:var(--text3)">${esc(window.t("improve.auto_empty"))}</div>`; return; }
+      const KIND = {skill: window.t("improve.auto_kind_skill"), agent: window.t("improve.auto_kind_agent"),
+                    workflow: window.t("improve.auto_kind_workflow")};
+      const STATE = {undone: window.t("improve.auto_undone"), applied: window.t("improve.auto_applied"),
+                     proposed: window.t("improve.auto_proposed"), running: window.t("improve.auto_running"),
+                     failed: window.t("improve.auto_failed"), skipped: window.t("improve.auto_skipped"),
+                     kept: window.t("improve.auto_kept")};
+      box.innerHTML = head + rows.map(r => {
+        const what = (KIND[r.kind] || r.kind) + " " + r.slug + (r.kind === "workflow" ? " #" + (r.step + 1) : "");
+        const state = r.undone_at ? "undone" : r.applied ? "applied" : r.proposed ? "proposed" : r.state === "running" ? "running"
+          : r.state === "failed" ? "failed" : r.state === "skipped" ? "skipped" : "kept";
+        const act = r.proposed ? `<button class="s-btn-ghost" data-al-apply="${esc(r.id)}">${esc(window.t("improve.auto_apply"))}</button>`
+          : (r.applied && !r.undone_at) ? `<button class="s-btn-ghost" data-al-undo="${esc(r.id)}">${esc(window.t("improve.auto_undo"))}</button>` : "";
+        return `<div class="le">${esc(new Date(r.started_at * 1000).toLocaleString())} · <b>${esc(what)}</b> · ${esc(STATE[state])} ${act}</div>`;
+      }).join("");
+      const post = async (id, verb) => {
+        await fetch(`/auto-learning/${encodeURIComponent(id)}/${verb}?brain=${encodeURIComponent(fbrain())}`, {method: "POST",
+          headers: {"Content-Type": "application/json"}, body: JSON.stringify({event_key: `ln-${verb}-${id}`})});
+        loadChat();
+      };
+      box.querySelectorAll("[data-al-apply]").forEach(b => b.onclick = () => post(b.dataset.alApply, "apply"));
+      box.querySelectorAll("[data-al-undo]").forEach(b => b.onclick = () => post(b.dataset.alUndo, "undo"));
+    }
     async function loadMetrics() {
       let m = {}; try { m = await (await fetch(`/learn/metrics?brain=${encodeURIComponent(fbrain())}`)).json(); } catch (e) { }
       el.querySelector("#lnMetrics").innerHTML =
@@ -3125,7 +3157,7 @@
       el.querySelector("#bkStatus").innerHTML = `${esc(window.t("cs.bk_last"))} ${esc(when)}${s.last_status ? " · " + esc(s.last_status) : ""}${brainsNote}${gitNote}`;
     }
 
-    function loadAll() { loadMetrics(); loadReview(); loadLog(); loadBackup(); }
+    function loadAll() { loadMetrics(); loadChat(); loadReview(); loadLog(); loadBackup(); }
     loadAll();
   }
 

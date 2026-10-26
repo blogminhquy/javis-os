@@ -74,7 +74,8 @@ class AutoLearningTests(unittest.TestCase):
                                                       {"slug": s, "overlay_id": "iao_x"})[2],
             agent_undo=lambda b, info: self.agent_applied.pop(),
             reaction=lambda sid, mid: "angry wrong_facts", workflow_run=lambda rid: self.workflow_runs.get(rid),
-            backups=self.tmp / "backups")
+            backups=self.tmp / "backups", settings=lambda b: dict(self.settings))
+        self.settings = {"enabled": True, "mode": "auto", "kinds": {"skill", "agent", "workflow"}}
         self.learner = A.AutoLearner(A.Store(self.tmp / "al.sqlite3"), self.host, clock=lambda: self.now[0], width=2)
         self.b = str(self.brain)
 
@@ -329,6 +330,47 @@ class AutoLearningTests(unittest.TestCase):
             A.check_candidate("skill", "Write it.\n- Model: gpt-9", "Write it.")
         self.mistakes()
         self.assertTrue(self.learner.step()["run"]["applied"])
+
+    def test_learning_page_switches_decide_everything(self):
+        self.settings["kinds"] = {"skill"}  # the default page: Skill on, Role and Step chain off
+        self.assertEqual(self.learner.observe_turn(self.b, "g1", "agent:writer", "hi", "hello", 3), [])
+        self.assertEqual(self.learner.observe_workflow(self.b, "quote", "r1", "x", "y", "g2", "web"), "")
+        self.assertEqual(len(self.turn(session="g3")), 1)
+        self.settings["enabled"] = False  # "Bật tự học" off: nothing is recorded, pending work is closed
+        self.assertEqual(self.turn(session="g4"), [])
+        self.now[0] += A.READY_AFTER_S + 1
+        self.learner.judge_ready()
+        self.assertEqual(self.learner.store.read("SELECT verdict FROM episodes WHERE session_id='g3'")[0]["verdict"],
+                         "learning_off")
+
+    def test_dry_run_only_judges(self):
+        self.settings["mode"] = "dry-run"
+        self.mistakes()
+        self.assertEqual(len(self.learner.store.read("SELECT * FROM mistakes")), 3)
+        self.assertEqual(self.learner.step(), {})  # mistakes recorded, no learning run
+        self.assertEqual(self.skill.read_bytes().decode("utf-8"), SKILL)
+
+    def test_suggest_mode_prepares_everything_and_waits_for_apply(self):
+        self.settings["mode"] = "suggest"
+        self.mistakes()
+        run = self.learner.step()["run"]
+        self.assertEqual((run["verdict"], run["applied"]), ("helped", False))
+        self.assertEqual(self.skill.read_bytes().decode("utf-8"), SKILL)
+        self.assertTrue(self.learner.history(self.b)[0]["proposed"])
+        self.learner.apply_proposal(self.b, run["run_id"])
+        self.assertIn("Always apply RULE-X.", self.skill.read_text(encoding="utf-8"))
+        self.assertTrue(self.learner.apply_proposal(self.b, run["run_id"])["applied"])  # a retry changes nothing
+        self.learner.undo(self.b, run["run_id"])
+        self.assertEqual(self.skill.read_bytes().decode("utf-8"), SKILL)
+
+    def test_a_proposal_never_lands_on_an_edited_skill(self):
+        self.settings["mode"] = "suggest"
+        self.mistakes()
+        run = self.learner.step()["run"]
+        self.skill.write_text(SKILL + "Owner line.\n", encoding="utf-8")
+        with self.assertRaisesRegex(ConflictError, "changed_since"):
+            self.learner.apply_proposal(self.b, run["run_id"])
+        self.assertIn("Owner line.", self.skill.read_text(encoding="utf-8"))
 
     def test_build_cases_split(self):
         cases = A.build_cases(json.loads(FakeEngine()("write test sets", "")[8:-4]))

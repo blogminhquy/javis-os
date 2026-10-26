@@ -27092,12 +27092,12 @@ def _improvement_team_member(root, agent_key):
             "provider": spec.get("provider") or "", "model": spec.get("model") or "", "reasoning": info.get("reasoning") or ""}
 
 
-def _improvement_text_call(system, prompt, tag):
-    """One text-only answer from the brain's selected engine: empty folder, no MCP, every tool refused (the same
-    sandbox as judges and text-only team turns). Works for every provider the user already set up."""
+def _improvement_text_call(system, prompt, tag, spec=None):
+    """One text-only answer from the brain's selected engine (or `spec`): empty folder, no MCP, every tool refused (the
+    same sandbox as judges and text-only team turns). Works for every provider the user already set up."""
     settings = cfgmod.read_settings() or {}
-    spec = team_engine.choose_spec("", "", _effective_main(settings), _agent_model_provider,
-                                   lambda sp: aux_engine.availability(sp, settings))
+    spec = spec or team_engine.choose_spec("", "", _effective_main(settings), _agent_model_provider,
+                                           lambda sp: aux_engine.availability(sp, settings))
     base = _reply_policy_sandbox_engine(system, tag, cwd_name="improvement_loop_cwd")
     eng = team_engine.build(spec, base, tag, settings)
     prompt = _team_reasoning(eng, (settings.get("model") or {}).get("reasoning") or AGENT_REASONING_DEFAULT, prompt)
@@ -27184,6 +27184,40 @@ def _auto_learning_policy_on(root):
     except Exception as _e:  # noqa: BLE001 - unknown policy: do not learn
         print(f"[auto-learning policy] {type(_e).__name__}: {_e}", file=sys.stderr)
         return False
+
+
+def _auto_learning_spec():
+    """Learning runs on the brain's selected engine. When that engine has no text-only path (Grok Build, Antigravity),
+    it falls back to the background model the Models page sets for "tự học", so nobody has to change anything."""
+    settings = cfgmod.read_settings() or {}
+    main = _effective_main(settings)
+    if team_engine.text_only_supported(main.get("provider")):
+        return None  # _improvement_text_call's own choice: the main engine
+    background = aux_engine.read_spec(settings)
+    if team_engine.text_only_supported(background.get("provider")) and aux_engine.availability(background, settings)[0]:
+        return {"provider": background["provider"], "model": background.get("model") or "", "source": "aux", "note": ""}
+    return None
+
+
+def _auto_learning_engine_ready(root):
+    spec = _auto_learning_spec()
+    if spec is None:
+        _improvement_loop_engines(root)  # raises engine_unavailable when the main engine cannot run text-only
+        return
+    settings = cfgmod.read_settings() or {}
+    try:
+        team_engine.build(spec, _reply_policy_sandbox_engine("probe", "auto-learning-probe", cwd_name="improvement_loop_cwd"),
+                          "auto-learning-probe", settings)
+    except team_engine.TeamEngineUnavailable as error:
+        raise PermissionError(f"engine_unavailable: {error.reason}") from None
+
+
+def _auto_learning_settings(root):
+    """The "Tự học" page drives learning from chat: on/off, write mode, and the Skill/Agent/Workflow switches."""
+    cfg = learn_feature.read_config()
+    caps = cfg.get("capabilities") or {}
+    return {"enabled": bool(cfg.get("enabled")), "mode": str(cfg.get("mode") or "auto"),
+            "kinds": {kind for kind in ("skill", "agent", "workflow") if caps.get(kind)}}
 
 
 def _auto_learning_principal(root):
@@ -27297,8 +27331,8 @@ def _auto_learner():
             state = Path(cfgmod.STATE_DIR) / "improvement"
             host = auto_learning.Host(
                 text_call=lambda system, prompt: _improvement_text_call(
-                    system, prompt, "auto-learning-" + __import__("secrets").token_hex(4)),
-                engine_ready=lambda root: _improvement_loop_engines(root) and None,
+                    system, prompt, "auto-learning-" + __import__("secrets").token_hex(4), _auto_learning_spec()),
+                engine_ready=_auto_learning_engine_ready,
                 policy_on=_auto_learning_policy_on,
                 skill_protected=_improvement_skill_protected,
                 workflows_dir=_workflows_dir,
@@ -27309,7 +27343,8 @@ def _auto_learner():
                 agent_undo=_auto_learning_agent_undo,
                 reaction=_auto_learning_reaction,
                 workflow_run=_auto_learning_workflow_run,
-                backups=state / "auto-learning-backups")
+                backups=state / "auto-learning-backups",
+                settings=_auto_learning_settings)
             _AUTO_LEARNER[0] = auto_learning.AutoLearner(auto_learning.Store(state / "auto_learning.sqlite3"), host)
             auto_learning.SKILL_USE_HOOK[0] = lambda root, session_id, slug: _AUTO_LEARNER[0].note_skill_use(
                 _brain_key(root), session_id, slug)

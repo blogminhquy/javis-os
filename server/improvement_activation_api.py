@@ -497,6 +497,20 @@ def register(app, deps: ActivationApiDeps):
         except _ERRORS as error:
             return _fail(error)
 
+    @app.post("/auto-learning/{run_id}/apply")
+    async def auto_learning_apply(run_id: str, request: Request, brain: str = "brain"):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            await _body(request, {"event_key"})
+            if not re.fullmatch(r"alr_[0-9a-f]{16}", run_id):
+                raise ValueError("invalid_run")
+            service = await m7(deps.auto_learning, "auto_learning")
+            return {"ok": True, **await asyncio.to_thread(service.apply_proposal, principal.brain_id, run_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
     @app.post("/auto-learning/{run_id}/undo")
     async def auto_learning_undo(run_id: str, request: Request, brain: str = "brain"):
         try:

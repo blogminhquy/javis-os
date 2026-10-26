@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS mistakes(id TEXT PRIMARY KEY, brain TEXT, target TEXT
 CREATE INDEX IF NOT EXISTS mistakes_target ON mistakes(brain, target, run_id);
 CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, brain TEXT, target TEXT, kind TEXT, slug TEXT, step INTEGER,
     state TEXT, started_at REAL, finished_at REAL, verdict TEXT, report TEXT, applied INTEGER DEFAULT 0,
-    undo TEXT, new_hash TEXT, undone_at REAL, error TEXT);
+    undo TEXT, new_hash TEXT, undone_at REAL, error TEXT, proposal TEXT, base_sha TEXT);
 CREATE INDEX IF NOT EXISTS runs_target ON runs(brain, target, started_at);
 CREATE TABLE IF NOT EXISTS counters(brain TEXT, day TEXT, judged INTEGER DEFAULT 0, runs INTEGER DEFAULT 0,
     PRIMARY KEY(brain, day));
@@ -159,6 +159,10 @@ class Store:
         self._lock = threading.Lock()
         with self._conn() as c:
             c.executescript(_SCHEMA)
+            for table, column, kind in (("episodes", "attempts", "INTEGER DEFAULT 0"), ("runs", "proposal", "TEXT"),
+                                        ("runs", "base_sha", "TEXT")):
+                if column not in {r[1] for r in c.execute(f"PRAGMA table_info({table})")}:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
 
     def _conn(self):
         conn = sqlite3.connect(self.path, timeout=15)
@@ -193,6 +197,8 @@ class Host:
     reaction: Callable[[str, int], str] = lambda session_id, mid: ""   # owner's reaction on an answer, as text
     workflow_run: Callable[[str], Optional[dict]] = lambda run_id: None
     backups: Path = None                                 # folder for skill/workflow backups
+    # The owner's "Tự học" page: on/off, write mode (dry-run | suggest | auto) and which kinds may learn.
+    settings: Callable[[str], dict] = lambda brain: {"enabled": True, "mode": "auto", "kinds": set(KINDS)}
 
 
 # -- prompts -----------------------------------------------------------------------------------------
@@ -419,6 +425,20 @@ class AutoLearner:
         self.store.write(lambda c: c.execute("UPDATE runs SET state='failed', error='interrupted', finished_at=? "
                                              "WHERE state='running'", (self.clock(),)))
 
+    def _allowed(self, brain: str, kind: str) -> bool:
+        """Learning for this kind is switched on on the "Tự học" page and the brain's improvement policy is not off."""
+        try:
+            cfg = self.host.settings(brain) or {}
+        except Exception:  # noqa: BLE001 - unknown settings: do not learn
+            return False
+        return bool(cfg.get("enabled")) and kind in set(cfg.get("kinds") or ()) and self.host.policy_on(brain)
+
+    def _mode(self, brain: str) -> str:
+        try:
+            return str((self.host.settings(brain) or {}).get("mode") or "auto")
+        except Exception:  # noqa: BLE001
+            return "dry-run"
+
     # recording (cheap, no model call; safe to call from request handlers)
 
     def note_skill_use(self, brain: str, session_id: str, slug: str) -> None:
@@ -445,6 +465,7 @@ class AutoLearner:
             targets = [("skill", s) for s in sorted(set(slugs))]
             if str(channel or "").startswith("agent:"):
                 targets.append(("agent", str(channel).split(":", 1)[1]))
+            targets = [t for t in targets if t[0] in allowed]
             for kind, slug in targets:
                 episode_id = "ep_" + secrets.token_hex(8)
                 c.execute("INSERT INTO episodes(id, brain, kind, slug, session_id, answer_mid, request, answer, follow_up, extra, "
@@ -452,7 +473,8 @@ class AutoLearner:
                           (episode_id, brain, kind, slug, session_id, int(answer_mid or 0), _cut(request, 4000),
                            _cut(answer, 8000), None, "{}", now, "pending", None, None))
                 created.append(episode_id)
-        if not self.host.policy_on(brain):
+        allowed = {k for k in KINDS if self._allowed(brain, k)}
+        if not allowed:
             self.store.write(lambda c: c.execute("DELETE FROM skill_uses WHERE session_id=? AND brain=?", (session_id, brain)))
             return []
         self.store.write(tx)
@@ -462,7 +484,7 @@ class AutoLearner:
                          source: str = "web") -> str:
         """Only runs the owner started in person (Studio or a workflow chat): unattended runs have nobody to react,
         and a busy loop would eat the day's judgments."""
-        if source != "web" or not session_id or not self.host.policy_on(brain):
+        if source != "web" or not session_id or not self._allowed(brain, "workflow"):
             return ""
         episode_id = "ep_" + secrets.token_hex(8)
         self.store.write(lambda c: c.execute("INSERT INTO episodes(id, brain, kind, slug, session_id, answer_mid, request, answer, follow_up, extra, "
@@ -507,8 +529,8 @@ class AutoLearner:
             if done >= JUDGE_BATCH:
                 break
             brain = episode["brain"]
-            if not self.host.policy_on(brain):
-                self._close(episode["id"], "skipped", "policy_off")
+            if not self._allowed(brain, episode["kind"]):
+                self._close(episode["id"], "skipped", "learning_off")
                 continue
             if self._count(brain, "judged") >= JUDGE_PER_DAY:
                 continue
@@ -597,7 +619,9 @@ class AutoLearner:
                                "GROUP BY brain, target HAVING n>=? ORDER BY MIN(created_at)", (MIN_MISTAKES,))
         for row in rows:
             brain, target = row["brain"], row["target"]
-            if not self.host.policy_on(brain) or self._count(brain, "runs") >= RUNS_PER_DAY:
+            if not self._allowed(brain, row["kind"]) or self._mode(brain) == "dry-run":
+                continue  # "Chạy thử" only judges and records what it would learn
+            if self._count(brain, "runs") >= RUNS_PER_DAY:
                 continue
             if self.store.read("SELECT 1 FROM skips WHERE brain=? AND target=? AND until>?", (brain, target, now)):
                 continue
@@ -677,9 +701,14 @@ class AutoLearner:
                                                      [(run_id, m) for m in used]))
             if result.report.get("verdict") != "helped" or result.report.get("regressions"):
                 return finish("done", result.report.get("verdict", "keep_base"), report)
-            if not self.host.policy_on(brain):  # the owner switched improvement off while this ran
-                return finish("done", "helped", {**report, "not_applied": "policy_off"})
-            applied = self.targets.apply(brain, target, result.versions[result.chosen], run_id)
+            if not self._allowed(brain, kind):  # the owner switched learning off while this ran
+                return finish("done", "helped", {**report, "not_applied": "learning_off"})
+            chosen = check_candidate(kind, result.versions[result.chosen], target.text)
+            if self._mode(brain) != "auto":  # "Đề xuất": everything is ready, the owner presses Apply
+                self.store.write(lambda c: c.execute("UPDATE runs SET proposal=?, base_sha=? WHERE id=?",
+                                                     (chosen, _sha(target.text), run_id)))
+                return finish("done", "helped", {**report, "not_applied": "suggest_mode"})
+            applied = self.targets.apply(brain, target, chosen, run_id)
             return finish("done", "helped", report, applied=applied)
         except L.EngineUnavailable as error:
             return finish("failed", error=f"engine_unavailable: {error}"[:300])
@@ -690,9 +719,10 @@ class AutoLearner:
 
     def history(self, brain: str, limit: int = 20) -> list:
         rows = self.store.read("SELECT id, target, kind, slug, step, state, verdict, started_at, finished_at, applied, "
-                               "undone_at, error, report FROM runs WHERE brain=? ORDER BY started_at DESC LIMIT ?",
+                               "undone_at, error, report, proposal FROM runs WHERE brain=? ORDER BY started_at DESC LIMIT ?",
                                (brain, limit))
         for row in rows:
+            row["proposed"] = bool(row.pop("proposal")) and not row["applied"]
             report = json.loads(row.pop("report") or "{}")
             row["summary"] = {k: report.get(k) for k in ("outcomes", "p_value", "base_pass_rate",
                                                          "candidate_pass_rate", "regressions", "case_count")}
@@ -704,6 +734,26 @@ class AutoLearner:
                                         "GROUP BY target", (brain,))
         return {"pending": pending, "mistakes": {r["target"]: r["n"] for r in open_mistakes},
                 "judged_today": self._count(brain, "judged"), "runs_today": self._count(brain, "runs")}
+
+    def apply_proposal(self, brain: str, run_id: str) -> dict:
+        """"Đề xuất" mode: the owner applies a helped result; only over the exact text the run started from."""
+        rows = self.store.read("SELECT * FROM runs WHERE id=? AND brain=?", (run_id, brain))
+        if not rows:
+            raise ValueError("run_not_found")
+        run = rows[0]
+        if run["applied"]:
+            return {"run_id": run_id, "applied": True}  # a retry after a lost response
+        if not run["proposal"]:
+            raise ConflictError("nothing_to_apply")
+        if not self.host.policy_on(brain):
+            raise PermissionError("improvement_disabled")
+        target = self.targets.read(brain, run["kind"], run["slug"], run["step"])
+        if target is None or _sha(target.text) != run["base_sha"]:
+            raise ConflictError("changed_since")
+        applied = self.targets.apply(brain, target, run["proposal"], run_id)
+        self.store.write(lambda c: c.execute("UPDATE runs SET applied=1, undo=?, new_hash=? WHERE id=?",
+                                             (json.dumps(applied), applied.get("new_hash"), run_id)))
+        return {"run_id": run_id, "applied": True}
 
     def undo(self, brain: str, run_id: str) -> dict:
         rows = self.store.read("SELECT * FROM runs WHERE id=? AND brain=?", (run_id, brain))

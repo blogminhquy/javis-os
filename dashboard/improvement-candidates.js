@@ -669,9 +669,14 @@
     for (const row of rows) {
       const line = node("div", null, "auto-run-" + row.id);
       const what = tr("auto_kind_" + row.kind) + " " + row.slug + (row.kind === "workflow" ? " #" + (row.step + 1) : "");
-      const state = row.undone_at ? "auto_undone" : row.applied ? "auto_applied" : row.state === "running" ? "auto_running"
+      const state = row.undone_at ? "auto_undone" : row.applied ? "auto_applied" : row.proposed ? "auto_proposed" : row.state === "running" ? "auto_running"
         : row.state === "failed" ? "auto_failed" : row.state === "skipped" ? "auto_skipped" : "auto_kept";
       line.append(node("p", new Date(row.started_at * 1000).toLocaleString() + " · " + what + " · " + tr(state)));
+      if (row.proposed) line.append(button(tr("auto_apply"), "auto-apply-" + row.id, async () => {
+        try { await write(s, "/auto-learning/" + encodeURIComponent(row.id) + "/apply", {}, "auto-apply-" + row.id);
+          s.status.textContent = tr("auto_apply_done"); await autoLearned(s); }
+        catch (error) { failure(s, error); }
+      }));
       if (row.applied && !row.undone_at) line.append(button(tr("auto_undo"), "auto-undo-" + row.id, async () => {
         try { await write(s, "/auto-learning/" + encodeURIComponent(row.id) + "/undo", {}, "auto-undo-" + row.id);
           s.status.textContent = tr("auto_undo_done"); await autoLearned(s); }
