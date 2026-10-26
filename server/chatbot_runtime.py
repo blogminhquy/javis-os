@@ -1020,7 +1020,8 @@ def _rp_collect(cfg: dict) -> tuple:
     except Exception as e:      # noqa: BLE001
         print(f"[reply_policy] đọc link Google của Agent lỗi: {type(e).__name__}", file=sys.stderr)
     try:
-        _RP_HAS_DOCS[str(cfg.get("id") or "")] = bool(linked) or bool(chatbot_grounding.chi_muc(root).get("manh"))
+        _RP_HAS_DOCS[str(cfg.get("id") or "")] = (bool(linked) or bool(chatbot_grounding.chi_muc(root).get("manh"))
+                                                   or chatbot_grounding.has_scoped_docs(root))
     except Exception as e:      # noqa: BLE001 - chưa biết thì giữ luật chặt (phải có căn cứ)
         print(f"[reply_policy] đếm tài liệu lỗi: {type(e).__name__}", file=sys.stderr)
     return _rp_agent_text(cfg), [d["title"] for d in linked] + chatbot_reply_policy.list_doc_titles(root)
@@ -1120,7 +1121,7 @@ class PolicyHooks:
         try:
             await chatbot_reply_policy.decide(
                 ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
-                doc_search=lambda t: _tra_cho_phan_xu(self.bot_id, cfg, t), commit=False, mode="shadow")
+                doc_search=lambda t: _tra_cho_phan_xu(self.bot_id, cfg, t, ev.chat_id), commit=False, mode="shadow")
         except Exception as e:      # noqa: BLE001
             print(f"[reply_policy {self.bot_id}] chạy thử lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         finally:
@@ -1508,14 +1509,17 @@ def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None) -> 
         print(f"[chatbot conversations] {type(e).__name__}: {e}", file=sys.stderr)
 
 
-async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str) -> dict:
+async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str, chat_id: str = "") -> dict:
     """Tra brain của bot cho MỘT câu hỏi. Quét đĩa + chấm điểm là việc CHẶN, đẩy sang thread để
-    không chẹn event loop (poller của các bot khác và của cả Javis đều chạy chung một loop)."""
+    không chẹn event loop (poller của các bot khác và của cả Javis đều chạy chung một loop).
+
+    `chat_id` (0.338.0): the chat of the message, from the channel, so that chat's scoped documents join the search
+    (see `chatbot_grounding.scoped_docs`). "" searches the shared documents only."""
     tl = {"co": False, "khoi": "", "nguon": []}
     try:
         root = _deps["brain_root"](cfg["brain"])
         linked = await asyncio.to_thread(_linked_docs, cfg)
-        tl = await asyncio.to_thread(chatbot_grounding.thu_thap, root, text, 4, linked["docs"])
+        tl = await asyncio.to_thread(chatbot_grounding.thu_thap, root, text, 4, linked["docs"], chat_id)
         if linked["warnings"]:
             # The answer still goes out; the owner sees why a linked file was left out on the bot card.
             tl = dict(tl, canh_bao_link=" · ".join(linked["warnings"])[:500])
@@ -1542,16 +1546,16 @@ def _linked_docs(cfg: dict) -> dict:
     return bot_linked_docs.collect(links)
 
 
-async def _tra_cho_phan_xu(bot_id: str, cfg: dict, text: str) -> dict:
+async def _tra_cho_phan_xu(bot_id: str, cfg: dict, text: str, chat_id: str = "") -> dict:
     """`doc_search` của bộ phán xử. Như `_tra_tai_lieu`, cộng MỤC LỤC tài liệu khi bot ở mức "Đọc tài
     liệu" mà khớp chữ trượt: bot đó tự mở được tài liệu, nên "khách gõ khác chữ" không còn là lý do
     để im (xem `chatbot_reply_policy.decide`). Mức khác giữ nguyên luật cũ."""
-    tl = await _tra_tai_lieu(bot_id, cfg, text)
+    tl = await _tra_tai_lieu(bot_id, cfg, text, chat_id)
     if tl.get("co") or str(cfg.get("muc_quyen") or "").strip().lower() != chatbot_doc_tools.MODE:
         return tl
     try:
         root = _deps["brain_root"](cfg["brain"])
-        ml = await asyncio.to_thread(chatbot_doc_tools.table_of_contents, root)
+        ml = await asyncio.to_thread(chatbot_doc_tools.table_of_contents, root, chatbot_doc_tools.INDEX_MAX, chat_id)
     except Exception as e:
         print(f"[chatbot {bot_id}] dựng mục lục lỗi: {e}", file=sys.stderr)
         ml = ""
@@ -1636,7 +1640,7 @@ def _make_answer_fn(bot_id: str):
                     return {"text": "", "files": [], "im_lang": True}
                 dec = await chatbot_reply_policy.decide(
                     ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
-                    doc_search=lambda t: _tra_cho_phan_xu(bot_id, cfg, t))
+                    doc_search=lambda t: _tra_cho_phan_xu(bot_id, cfg, t, chat_id))
             except Exception as e:      # noqa: BLE001 - hỏng thì IM, không tự mở miệng
                 print(f"[reply_policy {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
                 return {"text": "", "files": [], "im_lang": True}
@@ -1644,11 +1648,11 @@ def _make_answer_fn(bot_id: str):
                 # The judge may still put a reaction on the message while staying quiet (0.334.0).
                 return {"text": "", "files": [], "im_lang": True, "reaction": dec.reaction or None}
             rp_dec = dec
-            tl = dec.doc or await _tra_tai_lieu(bot_id, cfg, text)
+            tl = dec.doc or await _tra_tai_lieu(bot_id, cfg, text, chat_id)
         elif tu_dong:
             if not chatbot_tu_dong.nhin_nhu_cau_hoi(text)[0]:
                 return {"text": "", "files": [], "im_lang": True}
-            tl = await _tra_tai_lieu(bot_id, cfg, text)
+            tl = await _tra_tai_lieu(bot_id, cfg, text, chat_id)
             ma = "" if tl.get("co") else "khong_co_tai_lieu"
             if ma:
                 _ghi_bo_qua(bot_id, cfg, meta, text, ma, tl)
@@ -1668,7 +1672,7 @@ def _make_answer_fn(bot_id: str):
         # Tra tài liệu TRƯỚC rồi nhét vào prompt, thay vì trông vào việc model tự chịu mở file.
         # Lượt Tự đánh giá đã tra ở trên rồi, dùng lại kết quả đó chứ không quét đĩa lần hai.
         if tl is None:
-            tl = await _tra_tai_lieu(bot_id, cfg, text)
+            tl = await _tra_tai_lieu(bot_id, cfg, text, chat_id)
         cfg["_tai_lieu"] = tl
         cfg["_kenh_luot"] = kenh_luot
         cfg["_tu_dong"] = tu_dong
@@ -1963,7 +1967,7 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
             print(f"[chatbot {bot_id}] đọc phiên cho bản nháp lỗi: {type(e).__name__}", file=sys.stderr)
     try:
         text = chu_khach
-        tl = await _tra_tai_lieu(bot_id, cfg, text)
+        tl = await _tra_tai_lieu(bot_id, cfg, text, meta["chat_id"])
         _aid, kenh = _tai_khoan_cua(cfg, meta)
         cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, False
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh, _aid)

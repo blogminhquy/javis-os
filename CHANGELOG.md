@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.338.0] - 2026-10-26
+### Thêm mới
+- **Tài liệu riêng theo nhóm cho bot.** Một bot trả lời nhiều nhóm khách giờ đọc được trọn hồ sơ của đúng khách trong nhóm đang chat (hợp đồng, tiền cọc, lịch hẹn), mà không bao giờ thấy hồ sơ của khách khác, kể cả tên file. Cách dùng: đặt hồ sơ vào `rieng-theo-nhom/<id nhóm>/` trong brain của bot, hoặc thêm dòng `chat_scope: <id nhóm>` ở đầu file. Áp dụng cho phần tra sẵn, ba công cụ tự tìm của mức Đọc tài liệu và bộ phán xử, giống nhau ở mọi bộ não. Hồ sơ đọc nguyên văn, không còn bị cắt 900 ký tự. Cảm ơn anh Hồ Hùng Sơn (SOHO Wedding) đã đề xuất.
+
 ## [0.336.0] - 2026-10-26
 ### Sửa lỗi
 - **Bot Zalo cá nhân đọc được file PDF, Word, Excel khách gửi.** Trước đây bot chỉ đọc file chữ trơn (.txt, .csv...), còn PDF thì tải về nhưng không đọc nên bot trả lời "chưa đọc được PDF". Giờ chữ trong PDF, Word, Excel được đưa thẳng vào lượt trả lời, bot nào cũng đọc được. File scan dạng ảnh hoặc file hỏng thì bot nói rõ là không đọc được, không đoán.

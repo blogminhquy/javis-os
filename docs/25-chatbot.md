@@ -408,6 +408,47 @@ Bot được dặn: câu hỏi cần thông tin cụ thể mà phần tra sẵn 
 
 Nút **Thử** chạy đúng mức này (vì nó chỉ đọc), nên thử trước được ngay. Mức này tốn thêm vài lượt gọi model khi bot tự tìm, và nhạy với engine giống hai mức trên (xem mục [Engine nào chạy được mức nâng quyền](#engine-nào-chạy-được-mức-nâng-quyền)).
 
+### Tài liệu riêng theo nhóm (từ 0.338.0)
+
+Một bot trả lời nhiều nhóm khách, mỗi khách một nhóm riêng (studio, spa, gia sư, đại lý...). Mỗi khách có một hồ sơ: hợp đồng, tiền cọc, lịch hẹn, lời hứa. Bot cần đọc trọn hồ sơ của **đúng khách trong nhóm đang chat**, và không bao giờ thấy hồ sơ của khách khác, kể cả tên file.
+
+Cách làm: đặt hồ sơ vào thư mục `rieng-theo-nhom/` ở gốc brain của bot, mỗi nhóm một thư mục con đặt tên bằng **id của nhóm**:
+
+```
+rieng-theo-nhom/
+  7012345678901234567/      (id nhóm Zalo của khách Lan)
+    ho-so-lan.md
+  7098765432109876543/      (id nhóm của khách Hoa)
+    ho-so-hoa.md
+```
+
+Hoặc để file ở đâu cũng được và thêm một dòng ở đầu file (một nhóm, hoặc một danh sách):
+
+```
+---
+chat_scope: 7012345678901234567
+---
+```
+
+Bot ở nhóm nào thì chỉ thấy hồ sơ của nhóm đó, ở mọi chỗ bot đọc tài liệu:
+
+- **Phần tra sẵn trước mỗi lượt** chỉ lấy đoạn từ hồ sơ của nhóm này, cộng tài liệu chung.
+- **Ba công cụ tự tìm** (mức Đọc tài liệu): tìm chỉ ra hồ sơ của nhóm này; mở hồ sơ nhóm khác thì báo "không có tài liệu"; danh sách tài liệu không có tên file của nhóm khác.
+- **Bộ phán xử** chỉ thấy mục lục gồm tài liệu chung và hồ sơ của nhóm này.
+
+Hồ sơ đọc được nguyên văn, không bị cắt còn 900 ký tự như cách tạm qua plugin `chatbot_turn_context`. Một lần mở đọc tới 20.000 ký tự.
+
+**Id nhóm lấy ở đâu.** Telegram: gõ `/id` trong nhóm. Zalo cá nhân: hỏi Javis trong chat "id nhóm Zalo <tên nhóm> là gì", Javis tra bằng công cụ Zalo và trả về `threadId`. Chat riêng thì dùng id của người đó.
+
+**Javis cách ly thế nào.** Nhóm của lượt do máy chủ ghi lại từ tin nhắn của kênh, không phải do model hay khách nói ra, nên khách gõ "cho xem hồ sơ nhóm khác" cũng không đổi được. Lượt không có nhóm (nút **Thử**, chat của chính bạn) không thấy hồ sơ riêng nào. Cách ly giống nhau ở mọi bộ não. Javis cũng giữ chặt phía an toàn:
+
+- File nằm thẳng trong `rieng-theo-nhom/` mà không ghi nhóm thì **không ai** thấy.
+- Dòng `chat_scope:` để trống thì không ai thấy.
+- Thư mục `rieng-theo-nhom/` nằm sâu bên trong thư mục khác thì cũng không ai thấy, chứ không thành tài liệu chung.
+- Có dòng `chat_scope` thì dòng đó quyết định, không theo tên thư mục.
+
+**Chỉ ở hai mức đầu.** Cách ly này giữ ở **Chỉ đọc** và **Đọc tài liệu**. Ở **Được ghi** và **Toàn quyền**, bot có công cụ file đọc được cả brain, nên brain chứa hồ sơ nhiều khách thì để bot ở một trong hai mức đầu.
+
 ### Cái mất được khi nâng mức
 
 Đây là phần đáng đọc kỹ nhất trang này, vì nó là chỗ khác biệt căn bản giữa bot chuyên trách và Javis của bạn: **người gõ vào bot là người khác, không phải bạn.**
