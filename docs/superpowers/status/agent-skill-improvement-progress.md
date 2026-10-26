@@ -1,5 +1,22 @@
 # Agent and skill improvement Goal progress
 
+## Checkpoint 26/10/2026: self-learning loop and first real-model measurements
+
+Owner permission in chat 26/10 ("làm cả 3 phần để test hiệu quả"). Branch `claude/self-learning-loop`, PR #834
+(0.333.0). The M2 native trial pipeline still cannot compare for real (empty `REVIEWED_RELEASES`, integrity check
+`actual_reasoning` never passes), so the loop runs text-only on the selected engine instead.
+
+- Built: `server/improvement_loop.py` (Harness² sequential recursion with the baseline rule, interleaved sealed
+  pairs, regression gate), `server/improvement_loop_runs.py` (owner-started runs, body-only, Apply on "helped"
+  over unchanged bytes, recovery, cancel), Studio section, `tools/self_learning_pilot.py`.
+- Measured with real model calls (claude-opus-5-5, effort medium, Max plan, 410 calls, about 21 minutes, about
+  6.4 USD equivalent) on synthetic shop-reconciliation fixtures
+  ([evidence](../evidence/2026-10-26-self-learning-pilots.json)):
+  pilot 1 inconclusive (p 0.0625, pass 37.5% -> 68.8%), pilot 2 helped by the sign test but 2 regressions so
+  refused by the gate (pass 50% -> 87.5%), pilot 3 helped with no regression (p 0.0002, pass 45.8% -> 100%).
+- Not shown: value on the owner's real skills and data, other engines, more than one task; round 2 did not beat
+  round 1; learned skill quality varies between runs, which the regression gate and fresh sealed sets handle.
+
 ## Checkpoint Claude Opus 5.5, 26/10/2026: M0 to M8 engineering complete
 
 Every milestone M0 to M8 has its engineering scope built, reviewed independently, natively re-qualified where the

@@ -1,0 +1,755 @@
+{
+ "version": 1,
+ "date": "2026-10-26",
+ "label": "real-model pilot / synthetic business fixtures",
+ "owner_permission": "chat 26/10/2026: 'anh cho phép làm cả 3 phần để test hiệu quả luôn nhé'",
+ "task": "reconcile a shop's orders with bank transfers under shop conventions (tools/self_learning_pilot.py)",
+ "loop": "server/improvement_loop.py: Harness² sequential recursion (INV, DOM, compose) with the Javis baseline rule",
+ "decision_rule": "sign test over sealed cases, p < 0.05, baseline wins ties; regression on any case the baseline fully passed refuses 'helped' (added after pilot 2, applied to pilots 1-2 below by recomputation)",
+ "scope_of_claim": "Measured on synthetic fixtures with answers by construction, one task, one engine (claude-opus-5-5, effort medium). Not a production business pilot and not proof for other skills.",
+ "pilots": [
+  {
+   "pilot": 1,
+   "design": "design 1: 8 tuning, 16 sealed; tuning COD fees happened to be all 30.000",
+   "seed": 26102026,
+   "k": 1,
+   "engine": {
+    "cli": "claude 2.1.310 (installed)",
+    "flags": "-p --safe-mode --tools '' --no-session-persistence",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "models_seen": [
+     "claude-opus-5-5"
+    ]
+   },
+   "usage": {
+    "calls": 99,
+    "errors": 0,
+    "seconds": 325,
+    "cost_usd_equivalent": 1.6572
+   },
+   "cases": {
+    "tuning": 8,
+    "qualification": 16
+   },
+   "tuning_scores": {
+    "base": 0.75,
+    "inv1": 1.0,
+    "dom1": 1.0,
+    "c1": 1.0
+   },
+   "chosen": "c1",
+   "verdict_as_run": "inconclusive",
+   "verdict_with_regression_gate": "inconclusive",
+   "outcomes": {
+    "win": 5,
+    "tie": 11,
+    "loss": 0
+   },
+   "p_value": 0.0625,
+   "regressions": [],
+   "regression_families": [],
+   "base_pass_rate": 0.375,
+   "candidate_pass_rate": 0.6875,
+   "base_mean": 0.6875,
+   "candidate_mean": 0.8438,
+   "per_case": [
+    {
+     "case": "q01",
+     "base": 0.5,
+     "candidate": 0.5,
+     "outcome": "tie",
+     "base_pass": 0,
+     "candidate_pass": 0,
+     "family": "cod_fee+combined"
+    },
+    {
+     "case": "q02",
+     "base": 0.5,
+     "candidate": 0.5,
+     "outcome": "tie",
+     "base_pass": 0,
+     "candidate_pass": 0,
+     "family": "cod_fee+refund"
+    },
+    {
+     "case": "q03",
+     "base": 0.5,
+     "candidate": 0.5,
+     "outcome": "tie",
+     "base_pass": 0,
+     "candidate_pass": 0,
+     "family": "cod_fee+overpay"
+    },
+    {
+     "case": "q04",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "combined+split"
+    },
+    {
+     "case": "q05",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "combined+unknown"
+    },
+    {
+     "case": "q06",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "refund+split_short"
+    },
+    {
+     "case": "q07",
+     "base": 0.625,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "code_format+refund"
+    },
+    {
+     "case": "q08",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "amount_format+split"
+    },
+    {
+     "case": "q09",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "cod_fee_too_big+combined"
+    },
+    {
+     "case": "q10",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "split_short+unknown"
+    },
+    {
+     "case": "q11",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "code_format+overpay"
+    },
+    {
+     "case": "q12",
+     "base": 0.5,
+     "candidate": 0.5,
+     "outcome": "tie",
+     "base_pass": 0,
+     "candidate_pass": 0,
+     "family": "amount_format+cod_fee+unpaid"
+    },
+    {
+     "case": "q13",
+     "base": 0.625,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "combined+refund+split"
+    },
+    {
+     "case": "q14",
+     "base": 0.5,
+     "candidate": 0.5,
+     "outcome": "tie",
+     "base_pass": 0,
+     "candidate_pass": 0,
+     "family": "cod_fee+split_short"
+    },
+    {
+     "case": "q15",
+     "base": 0.25,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "code_format+combined+overpay"
+    },
+    {
+     "case": "q16",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "amount_format+refund+unknown"
+    }
+   ],
+   "chosen_skill_sha256": "ab86d849c88b4e956dcde29524f01fe1994b4df19ce2fd7ed6b4ac0e9e702dfd",
+   "chosen_skill": "# Doi soat don hang voi giao dich ngan hang\n\nMuc tieu: cho danh sach don hang va danh sach giao dich ngan hang, xac dinh don nao da duoc thanh toan.\n\nCach lam:\n1. Voi moi giao dich, tim ma don hang trong noi dung chuyen khoan (ke ca khi chi ghi so, vd \"tt don 5083\" la DH5083). Mot giao dich co the ghi nhieu ma don (chuyen gop).\n2. Tinh so tien da nhan cua tung don theo quy tac sau:\n   - Doc dung cac cach viet so tien: \"2892k\" = 2892000, \"1.345.000\" = 1345000.\n   - Cong tat ca giao dich thu tien cua don (chuyen nhieu lan, coc + tra them...). Giao dich gop nhieu don: so sanh tong tien voi tong cac don.\n   - Giao dich hoan tien (so am, noi dung \"hoan tien\", doi hang, do shop chuyen ra) KHONG tru vao so tien da nhan, khong lam don bi lech tien va khong xep vao giao dich la.\n   - Giao dich COD tu don vi van chuyen (Viettel Post, GHN...) da tru phi thu ho co dinh 30.000: neu so nhan dung bang so tien don tru 30.000 thi coi nhu da thu du. Neu chenh lech khac 30.000 thi la lech tien (da_nhan la so tien thuc nhan).\n3. Neu so tien da nhan (sau quy tac tren) bang so tien don: don do da khop.\n4. Neu co giao dich cho don nhung so tien khac: ghi vao lech tien.\n5. Don khong co giao dich nao: chua thanh toan.\n6. Giao dich khong khop don nao: giao dich la.\n\nTra ve DUY NHAT mot JSON:\n{\"da_khop\": [ma don], \"chua_thanh_toan\": [ma don], \"lech_tien\": [{\"ma\": ma don, \"can_thu\": so, \"da_nhan\": so}], \"giao_dich_la\": [ma giao dich]}\nSo tien la so nguyen VND, khong dau cham.",
+   "cases_sha256": "85d0086dbcde82098a2fe24fcde4c5a2e4da36fc73ad297a3f346820ed35bf22"
+  },
+  {
+   "pilot": 2,
+   "design": "design 2 (pre-registered after pilot 1): fresh seed, tuning fees varied, 10 tuning, 24 sealed, k=1",
+   "seed": 27102026,
+   "k": 1,
+   "engine": {
+    "cli": "claude 2.1.310 (installed)",
+    "flags": "-p --safe-mode --tools '' --no-session-persistence",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "models_seen": [
+     "claude-opus-5-5"
+    ]
+   },
+   "usage": {
+    "calls": 139,
+    "errors": 0,
+    "seconds": 424,
+    "cost_usd_equivalent": 2.1074
+   },
+   "cases": {
+    "tuning": 10,
+    "qualification": 24
+   },
+   "tuning_scores": {
+    "base": 0.725,
+    "inv1": 0.95,
+    "dom1": 0.875,
+    "c1": 0.95
+   },
+   "chosen": "c1",
+   "verdict_as_run": "helped",
+   "verdict_with_regression_gate": "regression",
+   "outcomes": {
+    "win": 11,
+    "tie": 11,
+    "loss": 2
+   },
+   "p_value": 0.0225,
+   "regressions": [
+    "q09",
+    "q24"
+   ],
+   "regression_families": [
+    "cod_fee_too_big+combined",
+    "cod_fee_too_big+split"
+   ],
+   "base_pass_rate": 0.5,
+   "candidate_pass_rate": 0.875,
+   "base_mean": 0.7396,
+   "candidate_mean": 0.9375,
+   "per_case": [
+    {
+     "case": "q01",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+combined"
+    },
+    {
+     "case": "q02",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+refund"
+    },
+    {
+     "case": "q03",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+overpay"
+    },
+    {
+     "case": "q04",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "combined+split"
+    },
+    {
+     "case": "q05",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "combined+unknown"
+    },
+    {
+     "case": "q06",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "refund+split_short"
+    },
+    {
+     "case": "q07",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "code_format+refund"
+    },
+    {
+     "case": "q08",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "amount_format+split"
+    },
+    {
+     "case": "q09",
+     "base": 1.0,
+     "candidate": 0.5,
+     "outcome": "loss",
+     "base_pass": 2,
+     "candidate_pass": 0,
+     "family": "cod_fee_too_big+combined"
+    },
+    {
+     "case": "q10",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "split_short+unknown"
+    },
+    {
+     "case": "q11",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "code_format+overpay"
+    },
+    {
+     "case": "q12",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "amount_format+cod_fee+unpaid"
+    },
+    {
+     "case": "q13",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "combined+refund+split"
+    },
+    {
+     "case": "q14",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+split_short"
+    },
+    {
+     "case": "q15",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "code_format+combined+overpay"
+    },
+    {
+     "case": "q16",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "amount_format+refund+unknown"
+    },
+    {
+     "case": "q17",
+     "base": 0.25,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+code_format"
+    },
+    {
+     "case": "q18",
+     "base": 0.5,
+     "candidate": 0.5,
+     "outcome": "tie",
+     "base_pass": 0,
+     "candidate_pass": 0,
+     "family": "cod_fee_too_big+refund"
+    },
+    {
+     "case": "q19",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "overpay+split"
+    },
+    {
+     "case": "q20",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "combined+split_short"
+    },
+    {
+     "case": "q21",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+unknown"
+    },
+    {
+     "case": "q22",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "amount_format+overpay"
+    },
+    {
+     "case": "q23",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "code_format+split"
+    },
+    {
+     "case": "q24",
+     "base": 1.0,
+     "candidate": 0.5,
+     "outcome": "loss",
+     "base_pass": 2,
+     "candidate_pass": 0,
+     "family": "cod_fee_too_big+split"
+    }
+   ],
+   "chosen_skill_sha256": "efb9c0aed99af70a1345f714683647896337376e003e5d158e164d80031fb493",
+   "chosen_skill": "# Doi soat don hang voi giao dich ngan hang\n\nMuc tieu: cho danh sach don hang va danh sach giao dich ngan hang, xac dinh don nao da duoc thanh toan.\n\nCach lam:\n1. Voi moi giao dich, tim ma don hang trong noi dung chuyen khoan. Chap nhan ca ma viet thieu tien to (vd \"don 1234\" ung voi \"DH1234\" neu ma do co trong danh sach don). Bo cac ky tu thua o so tien (dau cham, chu \"d\").\n2. Tinh tong so tien da nhan cho moi don:\n   - Nhieu giao dich cung mot ma don (tra nhieu lan): cong lai.\n   - Mot giao dich ghi nhieu ma don (tra gop): neu tong tien bang tong cac don thi tat ca cac don do da khop.\n3. Giao dich thu ho COD tu don vi van chuyen (nguoi chuyen hoac noi dung co \"COD\", ten hang van chuyen): don vi van chuyen da tru phi. Neu so tien nhan nho hon hoac bang so tien don thi coi don do la da khop, KHONG ghi lech tien. Neu so tien nhan lon hon so tien don thi van ghi lech tien.\n4. Giao dich so tien am co ghi ma don (hoan tien, doi hang): la giao dich lien quan den don, KHONG phai giao dich la va KHONG lam thay doi trang thai khop cua don. Bo qua no khi tinh tong.\n5. Neu tong da nhan bang so tien don: da khop.\n6. Neu co giao dich cho don nhung tong khac so tien don (thieu hoac thua, tru truong hop COD o buoc 3): ghi vao lech tien voi da_nhan la tong da nhan.\n7. Don khong co giao dich nao: chua thanh toan.\n8. Giao dich la: chi nhung giao dich khong lien quan den bat ky don nao trong danh sach.\n\nTra ve DUY NHAT mot JSON:\n{\"da_khop\": [ma don], \"chua_thanh_toan\": [ma don], \"lech_tien\": [{\"ma\": ma don, \"can_thu\": so, \"da_nhan\": so}], \"giao_dich_la\": [ma giao dich]}\nSo tien la so nguyen VND, khong dau cham.",
+   "cases_sha256": "6034f39b40931bc8fdee2bcab05a8ab1f9ecbd0ab14b614a590e009e0f50659b"
+  },
+  {
+   "pilot": 3,
+   "design": "design 2, fresh seed, k=2 (Harness² depth), regression gate in the decision rule",
+   "seed": 28102026,
+   "k": 2,
+   "engine": {
+    "cli": "claude 2.1.310 (installed)",
+    "flags": "-p --safe-mode --tools '' --no-session-persistence",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "models_seen": [
+     "claude-opus-5-5"
+    ]
+   },
+   "usage": {
+    "calls": 172,
+    "errors": 0,
+    "seconds": 554,
+    "cost_usd_equivalent": 2.6648
+   },
+   "cases": {
+    "tuning": 10,
+    "qualification": 24
+   },
+   "tuning_scores": {
+    "base": 0.775,
+    "inv1": 1.0,
+    "dom1": 1.0,
+    "c1": 1.0,
+    "inv2": 1.0,
+    "dom2": 1.0,
+    "c2": 0.95
+   },
+   "chosen": "c1",
+   "verdict_as_run": "helped",
+   "verdict_with_regression_gate": "helped",
+   "outcomes": {
+    "win": 13,
+    "tie": 11,
+    "loss": 0
+   },
+   "p_value": 0.0002,
+   "regressions": [],
+   "regression_families": [],
+   "base_pass_rate": 0.4583,
+   "candidate_pass_rate": 1.0,
+   "base_mean": 0.7188,
+   "candidate_mean": 1.0,
+   "per_case": [
+    {
+     "case": "q01",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+combined"
+    },
+    {
+     "case": "q02",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+refund"
+    },
+    {
+     "case": "q03",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+overpay"
+    },
+    {
+     "case": "q04",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "combined+split"
+    },
+    {
+     "case": "q05",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "combined+unknown"
+    },
+    {
+     "case": "q06",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "refund+split_short"
+    },
+    {
+     "case": "q07",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "code_format+refund"
+    },
+    {
+     "case": "q08",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "amount_format+split"
+    },
+    {
+     "case": "q09",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "cod_fee_too_big+combined"
+    },
+    {
+     "case": "q10",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "split_short+unknown"
+    },
+    {
+     "case": "q11",
+     "base": 0.25,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "code_format+overpay"
+    },
+    {
+     "case": "q12",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "amount_format+cod_fee+unpaid"
+    },
+    {
+     "case": "q13",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "combined+refund+split"
+    },
+    {
+     "case": "q14",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+split_short"
+    },
+    {
+     "case": "q15",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "code_format+combined+overpay"
+    },
+    {
+     "case": "q16",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "amount_format+refund+unknown"
+    },
+    {
+     "case": "q17",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+code_format"
+    },
+    {
+     "case": "q18",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee_too_big+refund"
+    },
+    {
+     "case": "q19",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "overpay+split"
+    },
+    {
+     "case": "q20",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "combined+split_short"
+    },
+    {
+     "case": "q21",
+     "base": 0.5,
+     "candidate": 1.0,
+     "outcome": "win",
+     "base_pass": 0,
+     "candidate_pass": 2,
+     "family": "cod_fee+unknown"
+    },
+    {
+     "case": "q22",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "amount_format+overpay"
+    },
+    {
+     "case": "q23",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "code_format+split"
+    },
+    {
+     "case": "q24",
+     "base": 1.0,
+     "candidate": 1.0,
+     "outcome": "tie",
+     "base_pass": 2,
+     "candidate_pass": 2,
+     "family": "cod_fee_too_big+split"
+    }
+   ],
+   "chosen_skill_sha256": "99eec7eebc43fc731bad90d6fcdef695021038d43e0aaed18a3aa2fc58c461ee",
+   "chosen_skill": "# Doi soat don hang voi giao dich ngan hang\n\nMuc tieu: cho danh sach don hang va danh sach giao dich ngan hang, xac dinh don nao da duoc thanh toan.\n\nCach lam:\n1. Voi moi giao dich, tim ma don hang trong noi dung chuyen khoan.\n2. Truoc khi so tien, phan loai giao dich dac biet (la khoan dieu chinh, khong phai khach tra thieu/thua):\n   - Giao dich hoan tien cua shop (so tien am, noi dung kieu \"hoan tien\" + ma don): la nghiep vu rieng. KHONG tru vao so da nhan cua don, KHONG xep vao giao dich la. Don van doi soat chi bang cac khoan khach tra.\n   - Giao dich thu ho COD tu don vi van chuyen (GHTK, GHN..., nguoi chuyen/noi dung co \"COD\"): don vi da tru phi thu ho. Neu so nhan thap hon so tien don toi da 30.000 thi coi la da khop. Neu thap hon qua 30.000, hoac cao hon so tien don, thi ghi vao lech tien.\n3. Neu tim thay ma don va so tien bang so tien don: don do da khop.\n4. Neu tim thay ma don nhung so tien khac: ghi vao lech tien.\n5. Don khong co giao dich nao: chua thanh toan.\n6. Giao dich khong khop don nao: giao dich la.\n\nTra ve DUY NHAT mot JSON:\n{\"da_khop\": [ma don], \"chua_thanh_toan\": [ma don], \"lech_tien\": [{\"ma\": ma don, \"can_thu\": so, \"da_nhan\": so}], \"giao_dich_la\": [ma giao dich]}\nSo tien la so nguyen VND, khong dau cham.",
+   "cases_sha256": "4a7c3ccf1f42fce94376ffa62f517ff32cb0ec0652c0cd05b5b0af052a632346"
+  }
+ ],
+ "summary": {
+  "pilot_1": "inconclusive (p 0.0625): +5 wins, 0 losses; learned 'fixed 30.000 COD fee' because tuning lacked other fees",
+  "pilot_2": "helped by the sign test (p 0.0225) but 2 regressions on COD fees above 30.000: refused by the gate",
+  "pilot_3": "helped (p 0.0002): 13 wins, 0 losses, no regression, pass rate 45.8% -> 100%; round 2 did not beat round 1"
+ }
+}
