@@ -50,7 +50,7 @@ import channels as _channels   # noqa: E402  (nhẹ: sổ không kéo httpx hay 
 KENH = _channels.ids()
 KENH_NHAN = _channels.nhan_theo_id()
 NGUOI_GUI = ("customer", "ai", "human", "system")
-LOAI_TIN = ("text", "image", "file", "audio", "video", "sticker", "other")
+LOAI_TIN = ("text", "image", "file", "audio", "video", "sticker", "reaction", "other")
 CHE_DO = ("ai", "human", "waiting", "closed")
 CHE_DO_DEFAULT = "ai"
 
@@ -262,7 +262,7 @@ def chuan_hoa(ev: dict) -> dict:
         sender_type          customer | ai | human | system
         sender_id            id người gửi phía kênh (khách) - rỗng với ai/human/system
         sender_name          tên người gửi
-        message_type         text | image | file | audio | video | sticker | other
+        message_type         text | image | file | audio | video | sticker | reaction | other
         text                 nội dung chữ (hoặc mô tả media)
         external_message_id  id tin phía kênh, dùng chống trùng (tuỳ chọn)
         created_at           epoch giây (mặc định: bây giờ)
@@ -570,6 +570,50 @@ def tin_theo_id(channel: str, account_id: str, external_chat_id: str, external_m
     except Exception as ex:      # noqa: BLE001
         print(f"[conversations] đọc tin theo id lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
         return {}
+
+
+def own_messages_without_id(channel: str, account_id: str, external_chat_id: str, since: float, n: int = 10) -> list:
+    """Messages this account sent in a chat (the bot, or the owner from the inbox) since `since` that still have no
+    channel message id, newest first: `[{id, text}]` (0.334.0). Never raises.
+
+    Javis writes those rows before Zalo gives the message an id; the id comes back with the message's echo in the read
+    loop (`zalo_personal_channel.attach_echo_id`). A customer's reaction names the message by that id, so without
+    it a heart on the bot's price quote could not be told apart from a heart on anything else."""
+    try:
+        with _lock:
+            rows = _conn().execute(
+                "SELECT m.id, m.text FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND m.sender_type IN ('ai', 'human')"
+                " AND (m.external_message_id IS NULL OR m.external_message_id='') AND m.created_at>=?"
+                " ORDER BY m.id DESC LIMIT ?",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id), float(since), int(n))).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] đọc tin chưa có mã lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return []
+
+
+def set_message_id(row_id: int, external_message_id: str) -> bool:
+    """Give a stored message its channel id (see `own_messages_without_id`). False when the id is empty, already used in the
+    same conversation, or the row already has one. Never raises."""
+    mid = str(external_message_id or "").strip()
+    if not mid:
+        return False
+    try:
+        with _lock:
+            db = _conn()
+            r = db.execute("SELECT conversation_id, external_message_id FROM messages WHERE id=?", (int(row_id),)).fetchone()
+            if r is None or str(r["external_message_id"] or ""):
+                return False
+            if db.execute("SELECT 1 FROM messages WHERE conversation_id=? AND external_message_id=?",
+                          (r["conversation_id"], mid)).fetchone():
+                return False
+            db.execute("UPDATE messages SET external_message_id=? WHERE id=?", (mid, int(row_id)))
+            db.commit()
+        return True
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] gắn mã tin lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return False
 
 
 # ============================================================

@@ -2389,6 +2389,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-msg.hethong .ht-bubble { background: none; border-style: dashed; color: var(--text3); font-size: 12.5px; }
 .ht-bubble p { margin: 0 0 .5em; } .ht-bubble p:last-child { margin: 0; }
 .ht-loai { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text3); margin-right: 6px; }
+.ht-react-row { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text3); line-height: 1.4; }
+.ht-react-emoji { font-size: 20px; line-height: 1; }
+.ht-react.off .ht-react-emoji { opacity: .45; }
 .ht-msg-loi { font-size: 11.5px; color: var(--warn-ink); margin: 3px 4px 0; display: inline-flex; gap: 4px; align-items: center; }
 .ht-foot { padding: 8px 12px; border-top: 1px solid var(--hairline); font-size: 12.5px; color: var(--text3); }
 .ht-empty { text-align: center; color: var(--text3); padding: 40px 16px; display: flex; flex-direction: column;
