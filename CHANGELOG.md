@@ -9,6 +9,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.332.0] - 2026-10-26
 ### Sửa lỗi
 - **Xem file PDF trên điện thoại luôn có nút đóng.** Trên iPhone, khung PDF tự kéo dài theo cả tài liệu nên khi cuộn đọc, thanh nút (có nút đóng) trôi mất lên trên. Giờ PDF cuộn trong khung riêng, và trên điện thoại có thêm một nút X tròn nổi ở góc dưới bên phải, cuộn tới đâu cũng bấm được.
+### Cải thiện
+- **Facebook Messenger về đúng chỗ trên trang Kết nối.** Không còn là một khung riêng lạc dưới danh sách: Messenger giờ là một thẻ trong tab "Kết nối sẵn có" như Zalo, bấm Kết nối thì form mở trong hộp thoại giống các dịch vụ khác, và Fanpage đã nối nằm ngay trong danh sách "Đã kết nối".
 
 ## [0.331.0] - 2026-10-26
 ### Sửa lỗi

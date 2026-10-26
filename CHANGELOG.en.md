@@ -11,6 +11,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.332.0] - 2026-10-26
 ### Fixed
 - **Viewing a PDF on a phone always has a close button.** On an iPhone the PDF frame stretched to the whole document, so scrolling through it carried the toolbar (with its close button) off the top. The PDF now scrolls in its own box, and on a phone a round X button floats in the bottom right corner, reachable however far you scroll.
+### Improved
+- **Facebook Messenger is back in its proper place on the Connections page.** It is no longer a stray section under the list: Messenger is now a card in the "Available connections" tab like Zalo, Connect opens its form in the same dialog as every other service, and connected Pages sit right in the "Connected" list.
 
 ## [0.331.0] - 2026-10-26
 ### Fixed
