@@ -1148,6 +1148,48 @@ def anh_duoc_quote(conn_id: str, thread: str, md: dict) -> str:
     return _link_trong_quote(rt)
 
 
+# Files in a group (0.336.0). Owner report 2026-10-26: someone sent a PDF to a group, then tagged the bot to read it, and
+# the bot answered it could not read PDFs: a file nobody addressed to the bot is never downloaded, so the tag that came
+# next had no file. Same idea as bare photos (`_nho_anh_tron`): the file is remembered (only its Zalo link, nothing is
+# downloaded) and handed to the sender's next message that calls the bot; a message that QUOTES a file gets that file.
+BARE_FILE_TTL = 600         # seconds a bare group file waits for its sender to call the bot
+BARE_FILE_MAX = 3           # files kept per sender (the newest)
+_BARE_FILES: Dict[tuple, list] = {}     # (account, chat, sender) -> [(time, attachment)]
+
+
+def remember_bare_file(conn_id: str, thread: str, sender: str, att, ts: Optional[float] = None) -> None:
+    if not sender or not isinstance(att, dict) or not str(att.get("url") or "").startswith("https://"):
+        return
+    now = time.time()
+    key = (str(conn_id), str(thread), str(sender))
+    items = [x for x in _BARE_FILES.get(key, []) if now - x[0] < BARE_FILE_TTL]
+    items.append((float(ts or now), dict(att)))
+    _BARE_FILES[key] = items[-BARE_FILE_MAX:]
+    if len(_BARE_FILES) > 500:
+        for k in list(_BARE_FILES)[:250]:
+            _BARE_FILES.pop(k, None)
+
+
+def take_bare_files(conn_id: str, thread: str, sender: str, now: Optional[float] = None) -> list:
+    """The sender's recent bare files in this group, oldest first, used up (a later call does not get them again)."""
+    now = time.time() if now is None else now
+    items = _BARE_FILES.pop((str(conn_id), str(thread), str(sender)), [])
+    return [att for t, att in items if now - t < BARE_FILE_TTL]
+
+
+def quoted_file(conn_id: str, thread: str, md: dict) -> list:
+    """The file a message QUOTES (replies to), from the inbox row of that message: `[attachment]` or []."""
+    rt = (md or {}).get("replyTo")
+    if not isinstance(rt, dict):
+        return []
+    mid = str(_lay(rt, "msgId", "globalMsgId", "id", mac_dinh="") or "").strip()
+    if not mid:
+        return []
+    goc = conversations.tin_theo_id(KENH, str(conn_id), str(thread), mid)
+    att = (goc.get("metadata") or {}).get("attachment") if goc.get("message_type") == "file" else None
+    return [dict(att)] if isinstance(att, dict) and str(att.get("url") or "").startswith("https://") else []
+
+
 def dang_ky_bot(conn_id: str, tb: Any) -> None:
     _BOTS[str(conn_id)] = tb
     start()

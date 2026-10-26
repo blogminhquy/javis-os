@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.336.0] - 2026-10-26
+### Fixed
+- **The personal Zalo bot reads PDF, Word and Excel files customers send.** It used to read only plain text files (.txt, .csv...); a PDF was downloaded but not read, so the bot said it could not read PDFs. The text of a PDF, Word or Excel file now goes straight into the turn, so every brain can read it. A scanned (image-only) or broken file is reported as unreadable, never guessed.
+- **In a group, sending a file and then calling the bot works.** A file nobody addressed to the bot is kept for 10 minutes; when its sender calls the bot next (tag or name), the bot reads it. Replying to a message that carries a file and calling the bot works too.
+
 ## [0.335.0] - 2026-10-26
 ### Added
 - **The bell tells you when a Javis Store pack has a new version.** Javis checks every 6 hours. When a pack you installed has a newer version in the Store, the bell gets one notice naming the pack, the version you run and the new one; pressing it opens the Javis Store to update. Each new version is announced once, and Javis never updates on its own: a new version still goes through the confirm screen, like an install.
