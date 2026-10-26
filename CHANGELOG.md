@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.342.0] - 2026-10-26
+### Cải thiện
+- **Kiểm tra tự động trước khi phát hành nhanh hơn nhiều.** Trước đây mỗi lần sửa code phải chờ khoảng 68 phút để chạy hết gần 1.000 bài kiểm tra, lần lượt từng bài. Giờ bài kiểm tra chia cho 2 máy, mỗi máy chạy 4 bài cùng lúc, nên bản sửa lỗi tới tay bạn sớm hơn. Số bài kiểm tra giữ nguyên, không bỏ bài nào.
+
 ## [0.340.0] - 2026-10-26
 ### Cải thiện
 - **Báo bản mới của gói Store không còn tự quét nền.** Trước đây Javis tự kiểm Store mỗi 6 giờ, kể cả lúc không ai dùng. Giờ không có vòng nào chạy ngầm: Javis chỉ xem có bản mới khi bạn mở Javis, tối đa một lần mỗi 6 giờ, và đọc từ bản lưu sẵn nên gần như không tốn gì. Có bản mới thì chuông vẫn báo như cũ, mỗi bản một lần.
