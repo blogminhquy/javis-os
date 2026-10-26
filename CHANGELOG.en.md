@@ -11,6 +11,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.335.0] - 2026-10-26
 ### Added
 - **The bell tells you when a Javis Store pack has a new version.** Javis checks every 6 hours. When a pack you installed has a newer version in the Store, the bell gets one notice naming the pack, the version you run and the new one; pressing it opens the Javis Store to update. Each new version is announced once, and Javis never updates on its own: a new version still goes through the confirm screen, like an install.
+### Fixed
+- **An overloaded model (like Gemini's 503 "high demand") now says what is going on.** The chat used to paste Google's whole JSON block. It now shows only the provider's sentence, explains that the provider is overloaded rather than anything being wrong on your side, and says what to do: send again in a few minutes or switch models with the model chip. Javis also waits longer between retries (a few seconds instead of one), so a short spike often passes on its own.
 
 ## [0.334.0] - 2026-10-26
 ### Added
