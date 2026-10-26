@@ -5,6 +5,11 @@
  * four things an owner can copy from developers.facebook.com and lets the server (server/messenger_setup.py) do the rest:
  * Page token, app webhook, Page subscription. It then shows a checklist, and each saved Page has Check and Repair buttons.
  *
+ * 0.332.0 (owner, 2026-10-26: "lạc quẻ"): Messenger used to be its own section under the connected list, with the form
+ * opening inside the page. It now follows the page's own frame like every other service: a card in the "Available" grid
+ * (`catCard`), the form in the shared connection dialog (`window.JavisConnModal`, from console.js), and the connected
+ * Pages as one card in the "Connected" list (`mount`), drawn only once a Page is connected.
+ *
  * The server never sends a token back; the form fields are cleared after a submit. Render helpers are pure (tested with node). */
 (function () {
   "use strict";
@@ -91,7 +96,7 @@
 
   function formHtml(setup, preset) {
     var https = setup && setup.https;
-    return '<div class="lv-card lv-card-new msc-form">'
+    return '<div class="msc-form">'
       + '<div class="msc-form-head"><b>' + esc(tw("msc.form_head")) + "</b>" + infoBtn() + "</div>"
       + infoBody(esc(tw("msc.form_how")))
       + (https ? "" : '<div class="msc-warn">' + esc(tw("msc.need_https")) + infoBtn() + "</div>"
@@ -119,80 +124,119 @@
     } catch (e) { return { ok: false, error: tw("msc.err_net") }; }
   }
 
-  function mount(el) {
-    if (!el) return;
-    el.innerHTML = '<div class="cview-section msc">'
-      + '<h3>◆ ' + esc(tw("msc.head")) + infoBtn() + "</h3>"
-      + infoBody(esc(tw("msc.intro")))
-      + '<div class="msc-list"></div><div class="msc-new"></div>'
-      + '<button class="mp-btn primary msc-add" type="button" style="margin-left:0">' + ic("plus") + " "
-      + esc(tw("msc.add")) + "</button></div>";
-    var q = function (s) { return el.querySelector(s); };
-    var setup = null;
-
-    function openForm(preset) {
-      q(".msc-add").hidden = true;
-      q(".msc-new").innerHTML = formHtml(setup, preset);
-      var form = q(".msc-new .msc-form");
-      if (preset && preset.page_id) form.querySelector('[data-f="page_id"]').value = preset.page_id;
-      if (preset && preset.app_id) form.querySelector('[data-f="app_id"]').value = preset.app_id;
-      form.querySelector('[data-f="cancel"]').onclick = function () { q(".msc-new").innerHTML = ""; q(".msc-add").hidden = false; };
-      form.querySelector('[data-f="go"]').onclick = async function () {
-        var v = {};
-        ["page_id", "app_id", "app_secret", "token", "label"].forEach(function (k) {
-          v[k] = (form.querySelector('[data-f="' + k + '"]').value || "").trim();
-        });
-        v.brain = brain();
-        var msg = form.querySelector(".lv-msg");
-        var go = form.querySelector('[data-f="go"]');
-        go.disabled = true;
-        msg.textContent = tw("msc.working");
-        var r = await api("/messenger/connect", v);
-        go.disabled = false;
-        if (!r.ok) { msg.textContent = r.error || tw("msc.err_net"); return; }
-        // The secrets have done their job; do not leave them sitting in the page.
-        form.querySelector('[data-f="app_secret"]').value = "";
-        form.querySelector('[data-f="token"]').value = "";
-        msg.textContent = tw(r.updated ? "msc.updated" : "msc.saved");
-        form.querySelector(".msc-slot").innerHTML = summaryHtml(r.check) + checklistHtml(r.check)
-          + (r.repair_errors && r.repair_errors.length ? '<div class="lv-note">' + r.repair_errors.map(esc).join("<br>") + "</div>" : "");
-        load();
-      };
-      setTimeout(function () { try { form.querySelector('[data-f="page_id"]').focus(); } catch (e) {} }, 30);
-    }
-
-    async function act(card, id, what) {
-      if (what === "renew") {
-        var a = (setup.accounts || []).filter(function (x) { return x.id === id; })[0] || {};
-        openForm(a);
-        return;
-      }
-      var slot = card.querySelector(".msc-slot");
-      slot.innerHTML = '<div class="lv-meta">' + esc(tw("msc.working")) + "</div>";
-      var r = await api("/messenger/check", { account_id: id, repair: what === "repair" });
-      if (!r.ok) { slot.innerHTML = '<div class="lv-note">' + esc(r.error || tw("msc.err_net")) + "</div>"; return; }
-      slot.innerHTML = summaryHtml(r.check) + checklistHtml(r.check)
-        + (r.repair_errors && r.repair_errors.length ? '<div class="lv-note">' + r.repair_errors.map(esc).join("<br>") + "</div>" : "");
-    }
-
-    async function load() {
-      var b = brain();
-      setup = await api("/messenger/setup" + (b ? "?brain=" + encodeURIComponent(b) : ""));
-      if (!setup || !setup.ok) { q(".msc-list").innerHTML = '<div class="lv-note">' + esc((setup && setup.error) || tw("msc.err_net")) + "</div>"; return; }
-      var list = q(".msc-list");
-      list.innerHTML = (setup.accounts || []).map(accountHtml).join("");
-      list.querySelectorAll(".msc-acc").forEach(function (card) {
-        card.querySelectorAll("[data-act]").forEach(function (btn) {
-          btn.onclick = function () { act(card, card.dataset.id, btn.dataset.act); };
-        });
-      });
-    }
-
-    q(".msc-add").onclick = function () { openForm(null); };
-    load();
+  function logo(size) {
+    var I = typeof window !== "undefined" && window.Icons;
+    return I && I.kenh ? I.kenh("messenger", { size: size }) : ic("message-circle");
   }
 
-  var api_ = { mount: mount, checklistHtml: checklistHtml, summaryHtml: summaryHtml, accountHtml: accountHtml, formHtml: formHtml };
+  // The card in the "Available" grid, same frame as the catalog cards. `category` is the catalog's own key for
+  // messaging services (console.js passes the one Zalo carries), so the category filter keeps working.
+  function catCard(category) {
+    return '<div class="cat-card msc-cat" data-cat="' + esc(category || "") + '">'
+      + '<div class="cat-ico">' + logo("28px") + "</div>"
+      + '<div class="cat-name">' + esc(tw("msc.head")) + ' <span class="prov-kind">' + esc(tw("msc.badge")) + "</span>"
+      + infoBtn() + "</div>"
+      + '<div class="cat-desc j-clamp2">' + esc(tw("msc.card_desc")) + "</div>"
+      + infoBody(esc(tw("msc.intro")))
+      + '<button class="gcard-btn" type="button" data-msc-open="1">' + esc(tw("models.connect")) + "</button></div>";
+  }
+
+  // The connected Pages, as one card in the "Connected" list. Empty string when nothing is connected yet.
+  function groupHtml(accounts) {
+    if (!accounts || !accounts.length) return "";
+    return '<div class="prov-card conn-card msc-group">'
+      + '<div class="prov-head"><span class="conn-ico">' + logo("24px") + "</span>"
+      + '<div class="prov-info"><div class="prov-name">' + esc(tw("msc.head")) + infoBtn() + "</div>"
+      + '<div class="prov-status j-clamp2">' + esc(tw("msc.card_desc")) + "</div>"
+      + infoBody(esc(tw("msc.intro"))) + "</div></div>"
+      + '<div class="msc-list">' + accounts.map(accountHtml).join("") + "</div>"
+      + '<div class="conn-accounts"><button class="conn-chip add" type="button" data-msc-open="1">＋ '
+      + esc(tw("msc.add_more")) + "</button></div></div>";
+  }
+
+  var setup = null, host = null;
+
+  async function load() {
+    var b = brain();
+    setup = await api("/messenger/setup" + (b ? "?brain=" + encodeURIComponent(b) : ""));
+    if (!host) return setup;
+    if (!setup || !setup.ok) {
+      host.innerHTML = '<div class="lv-note">' + esc((setup && setup.error) || tw("msc.err_net")) + "</div>";
+      return setup;
+    }
+    var accounts = setup.accounts || [];
+    host.innerHTML = groupHtml(accounts);
+    // A Page counts as a connection: the "nothing connected yet" line must not sit on top of it.
+    var empty = document.querySelector("#connList > .mp-empty");
+    if (empty) empty.hidden = accounts.length > 0;
+    // ...and the account count in the heading counts the Pages too.
+    var cnt = document.getElementById("connCount");
+    if (cnt) cnt.textContent = tw("cs.cn_account_n", { so: (parseInt(cnt.getAttribute("data-n"), 10) || 0) + accounts.length });
+    host.querySelectorAll("[data-msc-open]").forEach(function (b) { b.onclick = function () { openForm(null); }; });
+    host.querySelectorAll(".msc-acc").forEach(function (card) {
+      card.querySelectorAll("[data-act]").forEach(function (btn) {
+        btn.onclick = function () { act(card, card.dataset.id, btn.dataset.act); };
+      });
+    });
+    return setup;
+  }
+
+  // The form, in the same dialog every other service opens from this page.
+  async function openForm(preset) {
+    var M = typeof window !== "undefined" && window.JavisConnModal;
+    if (!M) return;
+    if (!setup) await load();
+    var m = M.open(M.head(esc(tw("msc.dialog_head"))) + '<div class="conn-form">' + formHtml(setup || {}, preset) + "</div>", 640);
+    var form = m.querySelector(".msc-form");
+    if (preset && preset.page_id) form.querySelector('[data-f="page_id"]').value = preset.page_id;
+    if (preset && preset.app_id) form.querySelector('[data-f="app_id"]').value = preset.app_id;
+    form.querySelector('[data-f="cancel"]').onclick = function () { M.close(); };
+    form.querySelector('[data-f="go"]').onclick = async function () {
+      var v = {};
+      ["page_id", "app_id", "app_secret", "token", "label"].forEach(function (k) {
+        v[k] = (form.querySelector('[data-f="' + k + '"]').value || "").trim();
+      });
+      v.brain = brain();
+      var msg = form.querySelector(".lv-msg");
+      var go = form.querySelector('[data-f="go"]');
+      go.disabled = true;
+      msg.textContent = tw("msc.working");
+      var r = await api("/messenger/connect", v);
+      go.disabled = false;
+      if (!r.ok) { msg.textContent = r.error || tw("msc.err_net"); return; }
+      // The secrets have done their job; do not leave them sitting in the page.
+      form.querySelector('[data-f="app_secret"]').value = "";
+      form.querySelector('[data-f="token"]').value = "";
+      msg.textContent = tw(r.updated ? "msc.updated" : "msc.saved");
+      form.querySelector(".msc-slot").innerHTML = summaryHtml(r.check) + checklistHtml(r.check)
+        + (r.repair_errors && r.repair_errors.length ? '<div class="lv-note">' + r.repair_errors.map(esc).join("<br>") + "</div>" : "");
+      load();
+    };
+    setTimeout(function () { try { form.querySelector('[data-f="page_id"]').focus(); } catch (e) {} }, 30);
+  }
+
+  async function act(card, id, what) {
+    if (what === "renew") {
+      var a = ((setup && setup.accounts) || []).filter(function (x) { return x.id === id; })[0] || {};
+      openForm(a);
+      return;
+    }
+    var slot = card.querySelector(".msc-slot");
+    slot.innerHTML = '<div class="lv-meta">' + esc(tw("msc.working")) + "</div>";
+    var r = await api("/messenger/check", { account_id: id, repair: what === "repair" });
+    if (!r.ok) { slot.innerHTML = '<div class="lv-note">' + esc(r.error || tw("msc.err_net")) + "</div>"; return; }
+    slot.innerHTML = summaryHtml(r.check) + checklistHtml(r.check)
+      + (r.repair_errors && r.repair_errors.length ? '<div class="lv-note">' + r.repair_errors.map(esc).join("<br>") + "</div>" : "");
+  }
+
+  // `el` is the slot under the connected list. Draws the connected Pages there (nothing when there are none).
+  function mount(el) {
+    host = el || null;
+    if (host) load();
+  }
+
+  var api_ = { mount: mount, openForm: openForm, catCard: catCard, groupHtml: groupHtml, checklistHtml: checklistHtml,
+    summaryHtml: summaryHtml, accountHtml: accountHtml, formHtml: formHtml };
   if (typeof window !== "undefined") window.JavisMessenger = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

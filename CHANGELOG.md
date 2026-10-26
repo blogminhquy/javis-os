@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.332.0] - 2026-10-26
+### Sửa lỗi
+- **Xem file PDF trên điện thoại luôn có nút đóng.** Trên iPhone, khung PDF tự kéo dài theo cả tài liệu nên khi cuộn đọc, thanh nút (có nút đóng) trôi mất lên trên. Giờ PDF cuộn trong khung riêng, và trên điện thoại có thêm một nút X tròn nổi ở góc dưới bên phải, cuộn tới đâu cũng bấm được.
+- **Chat với Claude Code không còn ra bong bóng "(không có nội dung trả về)".** Thỉnh thoảng Claude kết thúc lượt mà không viết chữ nào (chỉ nghĩ rồi dừng), nên một câu hỏi bình thường nhận về bong bóng trống. Giờ Javis tự hỏi lại Claude một lần trong cùng mạch hội thoại và hiện câu trả lời; lượt báo lỗi hay hết hạn mức thì không hỏi lại.
+### Cải thiện
+- **Facebook Messenger về đúng chỗ trên trang Kết nối.** Không còn là một khung riêng lạc dưới danh sách: Messenger giờ là một thẻ trong tab "Kết nối sẵn có" như Zalo, bấm Kết nối thì form mở trong hộp thoại giống các dịch vụ khác, và Fanpage đã nối nằm ngay trong danh sách "Đã kết nối".
+
 ## [0.331.0] - 2026-10-26
 ### Sửa lỗi
 - **Tag người trong nhóm Zalo không còn hiện thành mã trên điện thoại.** Khi bot trả lời một người (ví dụ "@Tuan Fernel") mà trong nhóm có người khác tên ngắn hơn ("Tuan"), Javis từng gắn thêm một tag thứ hai đè lên tag đầu. Máy tính vẫn hiện đúng, còn điện thoại hiện ra một đoạn mã `href="zm://..."`. Giờ mỗi chữ chỉ mang một tag, và người tên "Tuan" viết riêng ở chỗ khác trong câu vẫn được tag đúng.
