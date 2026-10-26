@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.326.0] - 2026-10-26
+## [0.329.0] - 2026-10-26
 ### Thêm mới
 - **Trang Mức dùng có thêm phần "24 giờ qua"**, ngay dưới ba ô đầu trang:
   - **Cửa sổ 5 giờ theo từng giờ:** đường đi lên hay xuống, vạch mốc là trần bạn khai (hoặc mức cao nhất bạn từng chạm), đổi màu khi tới gần mốc, kèm một câu cho biết còn dư hay nên dời việc nặng.
@@ -22,6 +22,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Nút tia sét (Fast mode) chuyển vào góc trên bên phải khung Effort.** Bật sét thì thanh mức suy nghĩ có hạt sáng chạy, tắt thì chỉ là dải màu đứng yên. Chip Effort hiện một tia sét nhỏ khi Fast mode đang bật.
 - **Biểu đồ token theo ngày** giãn hết bề ngang, số ngày to và dễ đọc hơn (trước đây dồn vào một góc, chữ rất nhỏ).
 - **Nút "Tặng sao" ở góc trái gọn gàng hơn:** giờ là một nút riêng trải hết bề ngang, nằm dưới số phiên bản, chữ luôn trên một dòng (trước đây "Give a star" bị gãy làm hai dòng). Khi thu gọn thanh bên, nút chỉ còn hình ngôi sao.
+
+## [0.327.0] - 2026-10-26
+### Thêm mới
+- **Thử cải tiến cho cả nhóm trợ lý một cách công bằng.** Javis chụp lại đội hình, vai trò, model và tiêu chí nghiệm thu của mỗi lần thử; hai lần thử khác nhau ngoài đúng chỗ đang thử thì không được đem ra so. Kết quả chỉ ghi vào hồ sơ, không tự đánh dấu việc thật là xong hay gửi đi đâu.
+- **Kinh nghiệm đem sang trợ lý, nhóm hay bộ não khác luôn được ghi là "chưa kiểm"** cho tới khi thử lại ở chỗ mới.
+
+## [0.325.0] - 2026-10-26
+### Thêm mới
+- **Áp dụng bản sửa skill và quy trình của một trợ lý thành một gói.** Hai phần bật và gỡ cùng lúc: phần nào hỏng hay bị gỡ thì cả gói dừng, trợ lý quay về bản gốc, không bao giờ nửa mới nửa cũ.
 
 ## [0.324.0] - 2026-10-26
 ### Thêm mới

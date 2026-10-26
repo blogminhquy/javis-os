@@ -392,7 +392,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                 elif t and t not in _QUIET_TYPES:
                     yield {"type": "item", "item": exec_item(it)}
             elif method == "account/rateLimits/updated":
-                try:   # 0.326.0: the plan's 5-hour and weekly meters, for the composer ring
+                try:   # 0.329.0: the plan's 5-hour and weekly meters, for the composer ring
                     import plan_limits
                     plan_limits.ghi_codex(p)
                 except Exception:  # noqa: BLE001

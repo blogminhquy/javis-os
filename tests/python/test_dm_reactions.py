@@ -200,7 +200,8 @@ check("phiên chat riêng khác của cùng trợ lý dùng chung ngữ cảnh d
       "Sai số liệu" in main._agent_turn_system_prompt(str(BR), "lan", S_LAN2))
 src = inspect.getsource(main)
 check("lượt chat trợ lý ghép khối phản hồi giống hệt _agent_turn_system_prompt",
-      "sysprompt = (_agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid) + _session_block(conv_sid)\n" in src
+      "_agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid, skill_served=skill_served)\n" in src
+      and "+ _session_block(conv_sid)\n" in src
       and "+ _dm_feedback_prompt(brain, _persona[1], conv_sid)\n" in src
       # T3 phần L: cả hai chỗ còn ghép bài học phạm vi chat riêng + chung.
       and "+ _dm_lessons_prompt(brain, _persona[1], conv_sid))" in src

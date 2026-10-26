@@ -81,7 +81,7 @@
         if (window.JavisComposerMenu) window.JavisComposerMenu.openItem("folder");
       });
     }
-    // 0.326.0: right after the plan usage ring, which took the old bolt's place.
+    // 0.329.0: right after the plan usage ring, which took the old bolt's place.
     var ring = document.getElementById("limitBtn");
     if (chip.parentElement !== host || chip.previousElementSibling !== ring) host.insertBefore(chip, ring ? ring.nextSibling : null);
     chip.classList.toggle("cp-pin-gone", folder.exists === false);

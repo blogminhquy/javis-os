@@ -1536,7 +1536,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 }
 .cp-eff:hover, .cp-eff[aria-expanded="true"] { border-color: var(--accent); }
 .cp-limit[hidden] { display: none; }
-/* Plan usage ring (plan-limit.js, 0.326.0): fills with the larger of the 5-hour and weekly meters,
+/* Plan usage ring (plan-limit.js, 0.329.0): fills with the larger of the 5-hour and weekly meters,
    green, then amber from 50%, red from 80%. Grey while no number has come in yet. */
 .cp-limit svg { transform: rotate(-90deg); }
 .cp-limit circle { fill: none; stroke-width: 4.5; }

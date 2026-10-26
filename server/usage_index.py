@@ -1187,7 +1187,7 @@ def dinh_cua_so(gio: float = 5.0, ngay_gan_day: int = 60, now: datetime = None) 
 
 
 def theo_gio(gio_cua_so: float = 5.0, now: datetime = None) -> dict:
-    """Ba goc nhin THEO GIO cho trang Muc dung (0.326.0, chu repo 26/10: "lam phan muc dung
+    """Ba goc nhin THEO GIO cho trang Muc dung (0.329.0, chu repo 26/10: "lam phan muc dung
     huu dung hon", kem anh mot bang theo doi token theo gio).
 
     - `gio_24`: 24 gio gan nhat, token tung gio tach theo provider. Bieu do theo NGAY khong

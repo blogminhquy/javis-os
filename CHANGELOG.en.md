@@ -8,7 +8,7 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.326.0] - 2026-10-26
+## [0.329.0] - 2026-10-26
 ### Added
 - **The Usage page has a new "Last 24 hours" section**, right under the three top boxes:
   - **The 5-hour window hour by hour:** whether it is rising or falling, a dashed mark at your declared cap (or the highest you ever reached), a colour change as it nears the mark, and one line saying there is room or heavy work should wait.
@@ -24,6 +24,15 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **The lightning bolt (Fast mode) moved to the top-right corner of the Effort popover.** With it on, light particles run along the effort bar; off, the bar is a still gradient. The Effort chip shows a small bolt while Fast mode is on.
 - **The tokens-per-day chart** now spans the full width with larger, readable day numbers (it used to sit squeezed in a corner with tiny labels).
 - **The "Give a star" button at the bottom left is tidier:** it is now its own full-width button under the version number, always on one line (it used to wrap onto two). With the sidebar collapsed, it shows just the star.
+
+## [0.327.0] - 2026-10-26
+### Added
+- **Fair improvement trials for a whole team.** Javis snapshots the roster, roles, models and acceptance criteria of each trial; two trials that differ beyond the one thing being tested are not compared. Results go into the record only and never mark real work as done or send anything.
+- **Experience moved to another assistant, team or engine is always marked "untested"** until it is tried again there.
+
+## [0.325.0] - 2026-10-26
+### Added
+- **Apply a skill fix and an assistant procedure as one bundle.** Both turn on and off together: if one part breaks or is removed, the whole bundle stops and the assistant goes back to the original, never half new.
 
 ## [0.324.0] - 2026-10-26
 ### Added

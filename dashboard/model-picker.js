@@ -165,7 +165,7 @@
     renderFast();
   }
 
-  // 0.326.0: the bolt sits in the Effort popover (effort-slider.js) and the composer button became the plan usage
+  // 0.329.0: the bolt sits in the Effort popover (effort-slider.js) and the composer button became the plan usage
   // ring (plan-limit.js). The Effort chip carries a small bolt while Fast mode is on, so it stays visible.
   function fastTitle(on) {
     const eff = effective();

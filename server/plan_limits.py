@@ -1,4 +1,4 @@
-"""Plan usage limits (0.326.0): how much of the subscription's 5-hour and weekly allowance is used.
+"""Plan usage limits (0.329.0): how much of the subscription's 5-hour and weekly allowance is used.
 
 The composer ring shows these two meters for the brains that run on a plan the user already pays
 for: Claude Code signed in to Pro/Max, and ChatGPT through Codex. Javis never reads either login

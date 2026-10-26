@@ -426,7 +426,7 @@ class RecipeArchive:
         decision = _decision(decision)
         payload = {'experiment_id': experiment_id, 'candidate_id': candidate_id, 'decision': decision,
                    'expected_generation': expected_generation, 'expected_context_generation': expected_context_generation}
-        if type(self.store) is not GoalStore or IM._schema_version(self.store) not in (9, 10, 11, 12, 13, 14):
+        if type(self.store) is not GoalStore or IM._schema_version(self.store) not in (9, 10, 11, 12, 13, 14, 15, 16):
             raise PermissionError('recipe_writer_unavailable')
         with closing(self.store._conn()) as connection:
             replay = self.assets._replay(connection, brain, event_key, 'recipe_capture', payload)

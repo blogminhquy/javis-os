@@ -1,4 +1,4 @@
-# Áp dụng thử, canary, định tuyến, quy trình trợ lý và quay lại (M2E, M3, M4, M5)
+# Áp dụng thử, canary, định tuyến, quy trình trợ lý, gói, phép thử nhóm và quay lại (M2E tới M7)
 
 Tài liệu vận hành cho phần áp dụng thủ công của **Cải tiến có kiểm chứng**, phát hành ở 0.314.0.
 Spec gốc: [agent-skill evidence improvement](../superpowers/specs/2026-10-22-agent-skill-evidence-improvement-design.md), mục 14, 18 và 19.
@@ -149,6 +149,65 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
   `{expected_generation, event_key}`.
 - Chưa có (cần chủ): pilot một trợ lý theo phạm vi với brief chủ chấm, canary quy trình trợ lý, duyệt mâu thuẫn tự
   động bằng model.
+
+## Gói bản sửa skill + quy trình (M6, 0.325.0)
+
+- Là gì: một con trỏ chủ áp dụng trên hai phần đã có sẵn của MỘT trợ lý: bản sửa skill (M2E, chat riêng của trợ lý)
+  và quy trình (M5). Hai phần bật và tắt cùng nhau.
+- Kiểm trước khi ghi (A04): đúng hai thành phần khác loại, khoá thành phần duy nhất, phụ thuộc chỉ giữa các thành
+  phần và không vòng, quy trình thuộc đúng trợ lý, quy trình chỉ ở `dm` vì bản sửa skill chỉ phục vụ chat riêng.
+- Nơi gói thật sự chạy: lượt chat riêng ở dashboard trên bộ não API (chỗ duy nhất đọc được bản sửa skill). Ở CLI,
+  Telegram hay bộ não gói thuê bao (Claude Code, Codex...) cả hai phần đều dùng bản gốc. Gói không ghim theo phiên:
+  như phần skill, mọi lượt mới sau khi áp đều dùng gói. Nhãn bằng chứng của gói luôn là `manual_trial` (chưa có
+  phép thử riêng của gói).
+- Có thì có đủ (S02): lúc gói đang áp, mọi lớp phủ của trợ lý đó dùng bản gốc. Thành phần của gói chỉ được phục vụ
+  khi gói `active` và mọi thành phần còn hiệu lực (skill còn đúng hash gốc). Gỡ lẻ một thành phần qua API bị từ
+  chối (409 `bundle_member_revert_with_bundle`); nếu một thành phần rời đi bằng đường khác thì thành phần còn lại
+  thôi phục vụ ngay ở lúc đọc và lượt đối soát kế tiếp đánh dấu gói `suspended` (`member_unavailable`), gỡ nốt.
+  Điều kiện "còn hiệu lực" của skill giống hệt bộ phân giải skill: đích còn sống, quyền sửa đúng từng chữ còn,
+  đúng hash và định danh file. Gói đã kết thúc mà còn sót con trỏ (đứt giữa lúc gỡ) thì lượt đối soát gỡ nốt, và
+  lúc đó gỡ lẻ từng phần cũng mở lại.
+- Đứt giữa chừng: gói kẹt `applying` quá 120 giây (không có nhịp tim) thì đối soát chiếm quyền bằng CAS, đánh dấu
+  `failed` (`interrupted`) rồi mới gỡ các phần đã áp (tìm theo khoá sự kiện cố định của từng thành phần). Lượt áp
+  đang chạy thấy mất quyền ở nhịp tim kế tiếp thì dừng và tự gỡ phần của mình. Một thành phần áp lỗi thì gỡ ngay và `failed`
+  (`member_apply_failed`).
+- Quy kết tác dụng (Q06, Q07): `improvement_bundle.attribution` chỉ là báo cáo thuần trên các nhánh chủ đã chạy;
+  chỉ có gốc với cả gói thì phần agent và phần skill là `confounded`; cả gói không thừa hưởng kết quả của từng
+  phần (tốt riêng mà hỏng khi ghép là `conflict`).
+- Lưu trữ: schema 15 thêm `improvement_bundle_activations` (applying -> active|failed, active -> reverted|suspended,
+  một gói đang áp hoặc đang dùng mỗi trợ lý) và `improvement_bundle_members` (ghi một lần). Từ 14 lên 15 sao lưu
+  một lần `*.pre-improvement-m6-bundles.bak`.
+- API: `GET /improvement-agent-bundles?agent=<slug>`, `POST /improvement-agent-bundles` `{agent, manifest, owner_confirmed,
+  event_key}`, `POST /improvement-agent-bundles/{id}/revert` `{expected_generation, event_key}`.
+- Chưa có: helper chạy được trong sandbox (cần chủ cấp quyền loại executable), tách/gộp skill có alias, phép thử
+  nhánh agent-only/skill-only thật (cần chạy model).
+
+## Phép thử nhóm và chuyển kinh nghiệm (M7, 0.327.0)
+
+- Chốt nhóm (`POST /improvement-team-pins` `{team_id, task_id?, event_key}`): host chụp nhóm trưởng, chế độ nhóm
+  trưởng, chế độ làm việc (gated/full), thành viên và vai trò; mỗi thành viên: hash file trợ lý và luật chủ, quy
+  trình M5 đang phục vụ trên bề mặt `team`, hash nội dung từng skill được cấp, nhà cung cấp và model mà bộ chạy
+  nhóm thật sự chọn (kể cả lùi về model chính), mức suy nghĩ. Có `task_id` thì chụp kèm tiêu chí nghiệm thu của
+  đúng việc đó (`team_acceptance`), việc phải thuộc nhóm. Không hash cả lời nhắc vì nó chứa bài học tự học lớn dần.
+  Cùng nền thì dùng lại bản chụp cũ; gửi lại đúng khoá sự kiện thì trả bản chụp đầu.
+- So hai nhánh (T01): chỉ so khi khác đúng thay đổi đã khai `{kind, ref}`: `procedure` của một thành viên (chỉ
+  quy trình người đó đổi) hoặc `skill` theo slug (chỉ nội dung skill đó đổi). Khác đội hình, vai trò, nhóm trưởng,
+  chế độ, tiêu chí là `topology_changed`; khác model là `model_changed`; sửa file trợ lý hay luật chủ là
+  `agent_changed`; cấp thêm/bớt skill là `skill_grant_changed`; đổi chỗ khác là `unexpected_change`; không thấy
+  thay đổi đã khai là `change_not_observed`. Hai bản chụp của hai nhóm khác nhau bị từ chối.
+- Báo cáo (`POST /improvement-team-trials`, T02): chủ ghi kết quả nhánh mới so với nhánh gốc; báo cáo chỉ có giá
+  trị cho nhóm và thay đổi đó (`transfer: untested`, `production_effects: []`). Mô-đun không phụ thuộc bộ chạy
+  nhóm nên ghi báo cáo không thể nghiệm thu việc thật hay gửi đầu ra. `learning_frozen: false`: chưa có bộ chạy
+  phép thử nhóm nên bài học viết ra trong lúc chạy các nhánh chưa được đóng băng.
+- Chuyển kinh nghiệm (`POST /improvement-recipe-transfers` `{recipe_id, target: {kind: agent|team|engine, ref}}`):
+  luôn là ứng viên `untested` ở chỗ mới, không mang kết quả hay bằng chứng; kinh nghiệm gốc phải còn hiệu lực và
+  chưa hết hạn. Danh sách (`GET ...?kind=&ref=`) lọc đúng đích và nguồn còn hiệu lực trước khi xếp, tối đa 3 mục;
+  hiện chưa có đường truy hồi nào khác dùng danh sách này.
+- Lưu trữ: schema 16 thêm `improvement_team_pins`, `improvement_team_trials`, `improvement_transfers` (đều bất
+  biến). Từ 15 lên 16 sao lưu một lần `*.pre-improvement-m7-team.bak`.
+- Chưa có: bộ chạy phép thử nhóm thật (cần chạy model và chủ chấm), bàn giao sản phẩm riêng theo bước, nghiệm thu
+  tổng hợp của phép thử, chụp kế hoạch/đồ thị phụ thuộc và nguồn dữ liệu, giao diện. L02 theo nghĩa đầy đủ (không
+  nâng bằng chứng của kinh nghiệm chỉ thắng ở bước chọn) vẫn nằm ở kho kinh nghiệm M2, không thêm ở đây.
 
 ## Giới hạn hiện tại
 

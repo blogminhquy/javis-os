@@ -140,7 +140,7 @@
       + ".tk-up{color:var(--red)}.tk-down{color:var(--green)}"
       + ".tk-sec{font-size:11.5px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin:22px 0 12px;font-weight:600}"
       // --- Biểu đồ ngày + hàng mốc sự kiện ngay dưới trục
-      // Cột GIÃN hết bề ngang (0.326.0): cột cố định 9px dồn cả tháng vào một phần ba bên trái,
+      // Cột GIÃN hết bề ngang (0.329.0): cột cố định 9px dồn cả tháng vào một phần ba bên trái,
       // nhãn ngày 8px thì không đọc nổi. Nhãn chỉ hiện cách quãng khi kỳ dài (xem paint).
       + ".tk-chart{display:flex;align-items:flex-end;gap:3px;height:160px;padding:6px 2px 0;border-bottom:1px solid var(--glass-brd)}"
       + ".tk-col{flex:1 1 0;min-width:3px;max-width:40px;display:flex;flex-direction:column-reverse;align-items:stretch;height:100%;cursor:default}"

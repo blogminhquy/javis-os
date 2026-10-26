@@ -1,4 +1,4 @@
-/* plan-limit.js - the composer's plan usage ring (0.326.0).
+/* plan-limit.js - the composer's plan usage ring (0.329.0).
  * Takes the place of the old Fast mode bolt (which moved into the Effort popover). It shows only for brains
  * that run on a plan the user already pays for: Claude Code on its signed-in session, ChatGPT through Codex.
  * The ring fills with the larger of the two meters (5-hour session, weekly) and turns amber, then red, when

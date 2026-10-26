@@ -90,7 +90,19 @@ QUALIFIED_PROFILES = {('win32', '2.1.308',
     ('win32', '2.1.310',
     'f9a3920634ae3b961ee92c2eb58d0051f5f8852b120983d0a4f57b6a5efeba61', '0.2.116',
     'claude-isolated-roles-v2', 'c509f9a1560d3c93631c38ad1a461d5a5430f3149cf20ab51724fab6bfd6ed19'):
-    '9ef3d110ba01f71f24378166a31cba679adcd425bdf5d680b9a3abf2cc36347d'}
+    '9ef3d110ba01f71f24378166a31cba679adcd425bdf5d680b9a3abf2cc36347d',
+    # M6 source (bundle schema 15 in the store footprint), CLI 2.1.310; all20 native enforcement checks.
+    # docs/superpowers/evidence/2026-10-26-m6-native-qualification-cli310.json
+    ('win32', '2.1.310',
+    'f9a3920634ae3b961ee92c2eb58d0051f5f8852b120983d0a4f57b6a5efeba61', '0.2.116',
+    'claude-isolated-roles-v2', 'b609a52ac28ea3d8837b74b7738ee3fd5c45b9d16169bb8564ed3b7f423da403'):
+    '03337d8cfac919e427647a0e9b68f4e6641c4f2dffe31f3273261e2f1326867e',
+    # M7 source (team schema 16 in the store footprint), CLI 2.1.310; all20 native enforcement checks.
+    # docs/superpowers/evidence/2026-10-26-m7-native-qualification-cli310.json
+    ('win32', '2.1.310',
+    'f9a3920634ae3b961ee92c2eb58d0051f5f8852b120983d0a4f57b6a5efeba61', '0.2.116',
+    'claude-isolated-roles-v2', '3c5543a3c14634b3736b51eb278b7c7f805554e3ab59ac8a908772230151d1f5'):
+    '6867a378c310670b094fd29d36814c41d189dac67d74de2880f6450813df250f'}
 
 
 def profile_qualification(pin, platform):

@@ -89,6 +89,18 @@ def _fmt(e):
 def main_():
     cur = snapshot()
 
+    # Two routes with the same path and method: the one registered later is never reached (0.325.0 review found a
+    # new POST /improvement-bundles silently shadowing the trial bundle route). Refuse before any snapshot.
+    seen, dup = set(), []
+    for e in cur:
+        for m in e.get("methods") or []:
+            if (e["path"], m) in seen:
+                dup.append(f"{m} {e['path']}")
+            seen.add((e["path"], m))
+    if dup:
+        print("FAIL route trùng đường dẫn và phương thức (route đăng ký sau không bao giờ chạy): " + ", ".join(dup))
+        return 1
+
     if "--update" in sys.argv:
         # newline="\n" cố ý: file này bị sinh lại nhiều lần trong đợt chẻ main.py, mà git
         # chuẩn hoá về LF khi commit. Không ép ở đây thì trên Windows file ghi ra CRLF và

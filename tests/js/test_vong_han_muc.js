@@ -1,4 +1,4 @@
-/* Plan usage ring (0.326.0): only for brains on a plan, red near either limit, reset text, wiring.
+/* Plan usage ring (0.329.0): only for brains on a plan, red near either limit, reset text, wiring.
 
        node tests/js/test_vong_han_muc.js
 

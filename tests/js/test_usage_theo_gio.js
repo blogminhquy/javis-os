@@ -1,4 +1,4 @@
-/* Trang Mức dùng, phần "24 giờ qua" (0.326.0): nối dây đúng và chữ đủ cả hai thứ tiếng.
+/* Trang Mức dùng, phần "24 giờ qua" (0.329.0): nối dây đúng và chữ đủ cả hai thứ tiếng.
 
        node tests/js/test_usage_theo_gio.js
 

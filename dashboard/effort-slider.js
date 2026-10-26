@@ -1,6 +1,6 @@
 /* effort-slider.js - the composer's thinking-level slider (0.153.0).
  * Pure parts (stops, position, lock) are tested with node; drawing (orange particle canvas) runs only in the browser.
- * 0.326.0: the Fast mode bolt lives in the top-right corner of this popover (it used to be its own composer
+ * 0.329.0: the Fast mode bolt lives in the top-right corner of this popover (it used to be its own composer
  * button, now the plan usage ring). The particles only run while Fast mode is on; off, the fill is a still gradient.
  */
 (function () {

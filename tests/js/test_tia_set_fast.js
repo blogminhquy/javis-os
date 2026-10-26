@@ -51,7 +51,7 @@ check("UI and server agree on which Claude ids support Fast mode",
   fastNote("anthropic-cli", "claude-opus-5-50").supported === false && fastNote("anthropic-cli", "claude-opus-5-20261001").supported === true
   && fastNote("anthropic-cli", "opus").supported === true);
 check("clicking the bolt saves settings.model.fast", src.indexOf("saveModel({ fast: state.fast })") !== -1);
-// 0.326.0 (owner, 25/10): the bolt moved into the Effort popover's top-right corner; the composer button is the
+// 0.329.0 (owner, 25/10): the bolt moved into the Effort popover's top-right corner; the composer button is the
 // plan usage ring now (plan-limit.js). The particles on the slider only run while Fast mode is on.
 const slider = fs.readFileSync(path.join(ROOT, "dashboard/effort-slider.js"), "utf8");
 const html = fs.readFileSync(path.join(ROOT, "dashboard/index.html"), "utf8");

@@ -1,4 +1,4 @@
-"""Trang Mức dùng, phần "24 giờ qua" (0.326.0): ba góc nhìn theo giờ phải đúng số.
+"""Trang Mức dùng, phần "24 giờ qua" (0.329.0): ba góc nhìn theo giờ phải đúng số.
 
     python tests/run.py muc_dung_theo_gio
 

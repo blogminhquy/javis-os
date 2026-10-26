@@ -1,4 +1,4 @@
-"""Vòng tròn hạn mức gói (0.326.0): số 5 giờ và số tuần lấy đúng từ chính CLI, không đọc token.
+"""Vòng tròn hạn mức gói (0.329.0): số 5 giờ và số tuần lấy đúng từ chính CLI, không đọc token.
 
     python tests/run.py plan_limits
 
