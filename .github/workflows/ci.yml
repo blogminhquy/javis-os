@@ -17,9 +17,27 @@ on:
   # cho việc chạy lại một commit cũ mà không phải đẩy thêm commit rác.
   workflow_dispatch:
 
+# Commit mới lên cùng một PR (hoặc cùng một nhánh) thì huỷ lượt cũ đang chạy dở: lượt cũ kiểm một commit không còn ai merge.
+# - Nhóm theo LOẠI SỰ KIỆN + số PR (hay ref): lượt `push` và lượt `pull_request` của cùng một commit nằm hai nhóm khác nhau,
+#   không huỷ lẫn nhau (giữ đúng lựa chọn "hai run xanh" ở trên); PR khác, kể cả PR từ fork, có nhóm riêng.
+# - `main` không bao giờ bị huỷ: mỗi commit lên main giữ trọn lượt kiểm của nó. Phát hành nằm ở docker-publish.yml, workflow
+#   riêng, nên nhóm ở đây không chạm tới.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
-  test:
+  # Test Python chia 2 máy, mỗi máy chạy 4 file cùng lúc (0.342.0). Trước đó một máy chạy lần lượt 940 file mất ~67 phút.
+  # Máy ubuntu-latest của repo công khai có 4 nhân và miễn phí. Cách chia nằm ở tests/run.py (`--shard`, `--plan`): danh sách
+  # luôn quét từ thư mục nên test mới tự vào đúng một nhóm; tests/test_timings.json chỉ giúp hai nhóm dài bằng nhau.
+  python:
+    name: Test Python (nhóm ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      # Một nhóm đỏ không huỷ nhóm kia: thấy trọn danh sách test đỏ trong một lượt.
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
 
@@ -79,6 +97,31 @@ jobs:
           # chưa chạy assertion nào.
           pip install pytest
 
+      # KHÔNG còn vòng lặp shell: tests/run.py chạy từng file trong tiến trình Python riêng, mỗi file một thư mục tạm riêng
+      # (an toàn khi 4 file chạy cùng lúc), trả mã 1 khi có file đỏ, in TRỌN output của file đỏ ở cuối log và đẩy tên
+      # file đỏ lên phần tóm tắt của trang Actions. Không có `| tee` hay ống nào nuốt mã thoát.
+      # Test tự nạp đường dẫn qua tests/python/_paths.py nên chạy được từ bất kỳ thư mục làm việc nào.
+      - name: Chạy test Python (auth/secret/MCP-perm/traversal/CSRF + plugin)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python tests/run.py --py --shard ${{ matrix.shard }}/2 --jobs 4 -v
+
+  # Các kiểm tra vốn nằm trong job `test` cũ, ngoài test Python: byte-compile, import thật main, test JS.
+  chung:
+    name: Byte-compile, import, test JS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cài dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
       - name: Byte-compile toàn bộ server + plugin
         run: python -m compileall -q server system/plugins
 
@@ -118,27 +161,26 @@ jobs:
           fi
           exit $status
 
-      # KHÔNG còn `cd server`: từ 0.9.242 test tự nạp đường dẫn qua tests/python/_paths.py
-      # nên chạy được từ bất kỳ thư mục làm việc nào. Trước đây chạy sai chỗ là hàng loạt
-      # test đỏ vì `import main` không thấy module, hoặc lặng lẽ đọc nhầm file.
-      - name: Chạy test Python (auth/secret/MCP-perm/traversal/CSRF + plugin)
+  # Job tổng hợp mang ĐÚNG tên `test`: quy tắc bảo vệ nhánh main đòi check tên này xanh. Nó chỉ xanh khi MỌI job phụ thuộc
+  # ra `success`; đỏ, bị huỷ hay bị bỏ qua đều tính là trượt.
+  # `if: always()` là bắt buộc: thiếu nó thì job phụ thuộc đỏ làm job này bị BỎ QUA, mà GitHub coi check bị bỏ qua là ĐẠT,
+  # tức là PR có test đỏ vẫn merge được. Không dùng `!cancelled()` vì cùng lý do: huỷ lượt chạy thì check này phải đỏ.
+  test:
+    needs: [python, chung]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mọi nhóm test đều phải xanh
         env:
-          PYTHONIOENCODING: utf-8
+          KQ_PYTHON: ${{ needs.python.result }}
+          KQ_CHUNG: ${{ needs.chung.result }}
         run: |
-          status=0
-          dsdo=""
-          for f in tests/python/test_*.py; do
-            echo "==== $(basename "$f") ===="
-            python "$f" || { status=1; dsdo="$dsdo $(basename "$f")"; }
-          done
-          if [ -n "$dsdo" ]; then
-            echo ""
-            echo "======================================================"
-            echo "ĐỎ (test Python):$dsdo"
-            echo "======================================================"
-            { echo "### Test Python đỏ"; for t in $dsdo; do echo "- \`$t\`"; done; } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit $status
+          echo "Test Python (2 nhóm): $KQ_PYTHON"
+          echo "Byte-compile, import, test JS: $KQ_CHUNG"
+          [ "$KQ_PYTHON" = "success" ] && [ "$KQ_CHUNG" = "success" ] || {
+            echo "Có job không xanh (failure / cancelled / skipped đều không tính là đạt)."
+            exit 1
+          }
 
   # Ảnh Docker nặng thêm bao nhiêu vì thư viện trình duyệt? Build THẬT rồi đọc số, không đoán.
   # KHÔNG đẩy lên registry: workflow phát hành gắn tag `:latest` mà VPS người dùng kéo đúng tag
