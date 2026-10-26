@@ -6109,12 +6109,16 @@
       // Cả hai khối đều NẰM TRONG DOM, chỉ ẩn đi - phần dây nối bên dưới tìm theo id và
       // chạy một lần cho cả hai, nên đổi tab không phải vẽ lại hay nối lại gì cả.
       + '<div id="mcpTabDaNoi"' + (_mcpTab === "danoi" ? "" : " hidden") + '>'
-      + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_connected_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_account_n", { so: conns.length })) + '</span>' + infoBtn() + '</h3>'
+      + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_connected_head")) + ' <span style="opacity:.5" id="connCount" data-n="' + conns.length + '">' + esc(window.t("cs.cn_account_n", { so: conns.length })) + '</span>' + infoBtn() + '</h3>'
       + infoBody(esc(window.t("cs.cn_intro")))
       + (conns.length > 3 ? '<input class="js-input conn-search" id="connQ" type="search" placeholder="' + esc(window.t("cs.cn_conn_search_ph")) + '">' : "")
       + '<div class="gcard-meta" style="max-width:740px">'
       + '<label style="cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> ' + esc(window.t("cs.cn_strict")) + '</label></div>'
-      + '<div class="prov-list" id="connList" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">' + esc(window.t("cs.cn_empty_a")) + ' <b>' + esc(window.t("cs.cn_tab_sanco")) + '</b> ' + esc(window.t("cs.cn_empty_b")) + '</div>') + '</div><div class="mp-empty" id="connNone" hidden>' + esc(window.t("cs.cn_conn_search_none")) + '</div></div>'
+      + '<div class="prov-list" id="connList" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">' + esc(window.t("cs.cn_empty_a")) + ' <b>' + esc(window.t("cs.cn_tab_sanco")) + '</b> ' + esc(window.t("cs.cn_empty_b")) + '</div>') + '</div>'
+      // Connected Facebook Pages (messenger-connect.js), one card in this same list, drawn only once a Page is
+      // connected. 0.332.0: it used to be a section of its own further down, with the form open in the page.
+      + '<div class="prov-list" id="mcpMessenger"></div>'
+      + '<div class="mp-empty" id="connNone" hidden>' + esc(window.t("cs.cn_conn_search_none")) + '</div></div>'
       // Lối đi tiếp, đặt ngay dưới danh sách. Không có nó thì tab này là ngõ cụt với
       // người chưa đấu gì: họ nhìn một ô trống mà không biết bước kế tiếp ở đâu.
       + '<div class="conn-guide" style="border:1px dashed var(--border);border-radius:12px;'
@@ -6122,8 +6126,6 @@
       + '<span style="flex:1;min-width:240px">' + esc(window.t("cs.cn_more_services")) + '</span>'
       + '<button class="mp-btn" id="mcpDiSanCo">' + esc(window.t("cs.cn_tab_sanco")) + '</button>'
       + '<button class="mp-btn primary" id="mcpDiKho">Javis Store</button></div>'
-      // Facebook Messenger setup card (0.301.0): drawn by messenger-connect.js into this slot.
-      + '<div id="mcpMessenger"></div>'
       + '<details class="cview-section amb-details" id="ambWrap"><summary><h3 style="display:inline">◆ ' + esc(window.t("cs.cn_amb_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_amb_hint")) + '</span></h3></summary>'
       + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">' + esc(window.t("cs.cn_amb_desc_a")) + ' <code>codex mcp</code>' + esc(window.t("cs.cn_amb_desc_b")) + '</div>'
       + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">' + esc(window.t("cs.cn_amb_click")) + '</div></div>'
@@ -6133,7 +6135,12 @@
       + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_tab_sanco")) + '</h3>'
       + '<div class="cat-tools"><input class="js-input" id="catQ" placeholder="' + esc(window.t("cs.cn_search_ph")) + '" style="max-width:220px">'
       + '<span class="cat-filter"><button class="cat-chip on" data-catf="">' + esc(window.t("studio.all")) + '</button>' + cats.map(x => '<button class="cat-chip" data-catf="' + esc(x) + '">' + esc(nhanDanhMuc(x)) + '</button>').join("") + '</span></div>'
-      + '<div class="cat-grid" id="catGrid">' + catalogCard(byId.custom) + groupCards(cat, conns) + catSolo(cat).map(catalogCard).join("") + '</div></div>'
+      + '<div class="cat-grid" id="catGrid">' + catalogCard(byId.custom) + groupCards(cat, conns)
+      // Facebook Messenger is set up by its own form (messenger-connect.js), but it sits in this grid like every
+      // other service (0.332.0), filed under the same category as Zalo so the category chips find it.
+      + (window.JavisMessenger && window.JavisMessenger.catCard
+        ? window.JavisMessenger.catCard((cat.find(c => c.id === "zalo") || {}).category || "") : "")
+      + catSolo(cat).map(catalogCard).join("") + '</div></div>'
       // Hai khu kết nối sẵn của CLI: GẬP mặc định (dân thường không cần thấy) + LAZY:
       // chỉ gọi /mcp/ambient (chậm - phải health check) khi người dùng thật sự mở ra.
       + '</div>';
@@ -6155,7 +6162,12 @@
       { nhan: window.t("cs.cn_tab_sanco"), chon: _mcpTab === "sanco", bam: () => doiTab("sanco") },
     ]);
     if (tabKho) el.insertBefore(tabKho, el.firstChild);
+    // messenger-connect.js opens its form in this page's shared connection dialog.
+    window.JavisConnModal = { open: connModal, head: mHead, close: closeConnModal };
     if (window.JavisMessenger) window.JavisMessenger.mount(document.getElementById("mcpMessenger"));
+    el.querySelectorAll("#catGrid [data-msc-open]").forEach(b => b.onclick = () => {
+      if (window.JavisMessenger && window.JavisMessenger.openForm) window.JavisMessenger.openForm(null);
+    });
     const nutSanCo = document.getElementById("mcpDiSanCo");
     if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
     // Từ banner mồ côi sang thẳng gói cần cài, ô tìm điền sẵn id connector. Thả người dùng vào
@@ -9703,8 +9715,13 @@
     }
     // .pdf: trình duyệt tự đọc được, nên xem NGAY tại chỗ thay vì mời tải về. Popup cũ của trang
     // Tệp tin có sẵn khung xem này; bỏ popup mà không mang theo là mất một thứ đang chạy tốt.
+    // 0.332.0 (owner, phone): Safari on an iPhone grows a PDF iframe to the whole document, so scrolling
+    // through it carried the toolbar (and its close button) off the top with no way back. The PDF now
+    // scrolls inside its own box, and on a phone a round close button floats over it (.pdf-float-close).
     if (VT_FRAME_EXTS.includes(ext)) {
-      body.innerHTML = `<iframe class="ne-frame" src="${_vtRaw(rel)}"></iframe>`;
+      body.innerHTML = `<div class="ne-pdf"><iframe class="ne-frame" src="${_vtRaw(rel)}"></iframe></div>` +
+        `<button type="button" class="pdf-float-close" title="${esc(window.t("cs.ne_close"))}" aria-label="${esc(window.t("cs.ne_close"))}">${X_ICON}</button>`;
+      body.querySelector(".pdf-float-close").onclick = closeNote;
       _neCommonBtns(actions, rel, it); _vtMarkActive(null); return;
     }
     if (VT_TEXT_EXTS.includes(ext)) {

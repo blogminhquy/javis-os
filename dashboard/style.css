@@ -2852,6 +2852,21 @@ body.ni-dragging, body.ni-dragging * { cursor: ew-resize !important; user-select
 .ni-status.ni-err { border-color: var(--red); }
 /* .pdf xem tại chỗ (nền trắng vì trình xem PDF của trình duyệt tự vẽ trên nền của nó) */
 .ne-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: #fff; }
+/* 0.332.0: the PDF scrolls inside this box. Safari on an iPhone grows a PDF iframe to the whole document;
+   without a scrolling box of its own the page scrolled instead and took the toolbar with it. */
+.ne-pdf { flex: 1; display: flex; min-width: 0; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
+.ne-pdf .ne-frame { display: block; }
+/* Round close button floating over a PDF on a phone: reachable however far the PDF was scrolled.
+   Bottom right, clear of the toolbar's own close button and of the iPhone home bar. */
+.pdf-float-close { display: none; }
+@media (max-width: 860px), (pointer: coarse) {
+  .pdf-float-close { display: flex; align-items: center; justify-content: center; position: fixed; z-index: 3500;
+    right: calc(env(safe-area-inset-right, 0px) + 16px); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+    width: 52px; height: 52px; padding: 0; border-radius: 50%; cursor: pointer;
+    background: rgba(20, 20, 28, .82); color: #fff; border: 1px solid rgba(255, 255, 255, .35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .35); }
+  .pdf-float-close .ic, .pdf-float-close svg { width: 24px; height: 24px; }
+}
 .ne-dl { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   color: var(--text2); padding: 24px; text-align: center; }
 .ne-dl .ne-dl-ico { font-size: 46px; }

@@ -142,7 +142,8 @@
       ".jvfe-note a{color:var(--accent)}" +
       ".jvfe-img{padding:16px;text-align:center;overflow:auto}" +
       ".jvfe-img img{max-width:100%;height:auto;border-radius:8px}" +
-      ".jvfe-frame{width:100%;height:72vh;border:0;background:#fff}";
+      ".jvfe-frame{width:100%;height:72vh;border:0;background:#fff;display:block}" +
+      ".jvfe-pdf{max-height:72vh;overflow:auto;-webkit-overflow-scrolling:touch}";
     document.head.appendChild(s);
   }
 
@@ -263,9 +264,15 @@
     elActions.appendChild(shareBtn(b, ceil)); elActions.appendChild(openLink(b, ceil)); elActions.appendChild(dlLink(b, ceil)); elActions.appendChild(closeBtn());
     elBody.innerHTML = '<div class="jvfe-img"><img src="' + esc(rawUrl(b, ceil)) + '" alt="' + esc(baseOf(brainRel)) + '"></div>';
   }
+  // 0.332.0: same as the pinned editor (console.js): the PDF scrolls in its own box, and a phone gets a
+  // floating close button, because Safari on an iPhone grows a PDF iframe to the whole document.
   function renderPdf(b, ceil, brainRel) {
     elActions.appendChild(openLink(b, ceil)); elActions.appendChild(dlLink(b, ceil)); elActions.appendChild(closeBtn());
-    elBody.innerHTML = '<iframe class="jvfe-frame" src="' + esc(rawUrl(b, ceil)) + '"></iframe>';
+    elBody.innerHTML = '<div class="jvfe-pdf"><iframe class="jvfe-frame" src="' + esc(rawUrl(b, ceil)) + '"></iframe></div>';
+    var x = closeBtn();
+    x.className = "pdf-float-close";
+    x.setAttribute("aria-label", tw("fedit.close_esc"));
+    elBody.appendChild(x);
   }
   function renderReadonly(b, ceil, brainRel, d) {
     elActions.appendChild(openLink(b, ceil)); elActions.appendChild(dlLink(b, ceil)); elActions.appendChild(closeBtn());
