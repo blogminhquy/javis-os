@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.343.0] - 2026-10-27
+### Cải thiện
+- **Tự học rẻ hơn nhiều.** (đang viết)
+
 ## [0.341.0] - 2026-10-26
 ### Thêm mới
 - **Javis tự học từ những lần trò chuyện, không cần bạn duyệt.** Khi bạn chat, Javis tự chấm lại những lượt có dùng skill, trợ lý hay quy trình, nhận ra chỗ làm sai qua câu bạn nhắn tiếp (ví dụ "sai rồi, quên VAT"). Cùng một lỗi lặp lại ba lần thì Javis tự soạn bộ câu thử, sửa phần hướng dẫn, chạy so với bản cũ và chỉ áp dụng khi bản mới tốt hơn rõ ràng mà không làm hỏng câu nào bản cũ vốn đúng.

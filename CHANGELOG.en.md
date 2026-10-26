@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.343.0] - 2026-10-27
+### Improved
+- **Learning from chat costs far less.** (in progress)
+
 ## [0.341.0] - 2026-10-26
 ### Added
 - **Javis learns from your chats on its own, nothing to approve.** While you chat, Javis reviews the turns that used a skill, an assistant or a workflow and spots mistakes from your next message (say "wrong, you forgot the VAT"). After the same mistake three times it writes its own test questions, revises the instructions, compares with the current version and applies the change only when it is clearly better and breaks nothing the current version got right.
