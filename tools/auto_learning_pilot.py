@@ -105,8 +105,10 @@ def main():
     log["fixed_before"] = before
     for i, (items, correction) in enumerate(CHAT):
         session = f"chat-{i}"
+        clock[0] += 60  # the owner reads the answer before writing back
         learner.note_skill_use(b, session, "bao-gia-cua")
         learner.observe_turn(b, session, "web", request_text(items), answer_with(SKILL, items), i + 1)
+        clock[0] += 60
         learner.observe_turn(b, session, "web", correction, "Dạ em làm lại ạ.", i + 100)
     while learner.judge_ready():
         pass

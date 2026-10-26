@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.336.0] - 2026-10-26
 ### Thêm mới
-- **Javis tự học từ những lần trò chuyện.** (đang viết)
+- **Javis tự học từ những lần trò chuyện, không cần bạn duyệt.** Khi bạn chat, Javis tự chấm lại những lượt có dùng skill, trợ lý hay quy trình, nhận ra chỗ làm sai qua câu bạn nhắn tiếp (ví dụ "sai rồi, quên VAT"). Cùng một lỗi lặp lại ba lần thì Javis tự soạn bộ câu thử, sửa phần hướng dẫn, chạy so với bản cũ và chỉ áp dụng khi bản mới tốt hơn rõ ràng mà không làm hỏng câu nào bản cũ vốn đúng.
+- **An toàn và có giới hạn.** Javis học hoàn toàn bằng chữ, không gọi công cụ nào nên không thể gửi tin hay đặt hàng. Mỗi ngày tối đa 40 lượt chấm và một lần sửa, chạy bằng bộ não bạn đang chọn. Trợ lý chỉ được thêm quy trình đã học, file trợ lý bạn viết giữ nguyên. Bản cũ luôn được giữ: xem và hoàn tác ở mục "Javis tự học từ trò chuyện" trong bảng cải tiến skill. Tắt tự cải tiến của bộ não thì Javis ngừng tự học.
 
 ## [0.334.0] - 2026-10-26
 ### Thêm mới

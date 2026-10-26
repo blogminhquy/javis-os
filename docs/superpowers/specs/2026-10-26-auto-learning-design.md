@@ -64,3 +64,12 @@ and workflows, not only skills. Users install nothing extra.
    - The caps above are fixed constants; nothing is added to Settings.
    - A small "Javis đã tự học" list in the improvement panel shows what changed, with undo. There are no
      notifications.
+
+## Not covered yet (known gaps)
+
+- Telegram, Zalo and CLI owner turns carry no session id in the turn context, so skills loaded there are not recorded,
+  and agent turns there are not `agent:` sessions.
+- Codex reading SKILL.md through shell commands is not seen; Codex loads through `javis_use_skill` are.
+- Workflows installed by store packs are not protected the way pack skills are.
+- Kanban jobs, team chats and `nodes[]` workflows are out of scope.
+- The host side of agent apply/undo (real `AgentProcedures`) is exercised only through fakes in tests.
