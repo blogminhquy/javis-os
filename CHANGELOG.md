@@ -11,6 +11,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Đọc được cảm xúc khách thả trên Zalo cá nhân.** Khách thả tim, like hay haha lên một tin thì Hộp thư hiện một dòng nhỏ: ai thả, biểu tượng gì, vào tin nào (kể cả tin bot vừa trả lời). Khách gỡ cảm xúc cũng được ghi lại.
 - **Bot tự quyết có trả lời một cảm xúc hay không, và tự học.** Cảm xúc của khách tới bộ phán xử (nhóm ở chế độ Tự đánh giá) hoặc Agent (chat riêng) như một tin. Javis không có luật cứng nào: bấm đúng hoặc sai ở nhật ký bộ phán xử là lần sau bot làm theo.
 - **Bot thả được cảm xúc vào tin khách.** Bộ phán xử hoặc Agent chọn thả tim, like... lên tin khách, có thể kèm câu trả lời hoặc chỉ thả mà không nhắn gì. Bot không bao giờ thả lên một cảm xúc. Javis trong chat cũng thả được khi bạn nhờ.
+
 ## [0.332.0] - 2026-10-26
 ### Sửa lỗi
 - **Xem file PDF trên điện thoại luôn có nút đóng.** Trên iPhone, khung PDF tự kéo dài theo cả tài liệu nên khi cuộn đọc, thanh nút (có nút đóng) trôi mất lên trên. Giờ PDF cuộn trong khung riêng, và trên điện thoại có thêm một nút X tròn nổi ở góc dưới bên phải, cuộn tới đâu cũng bấm được.
