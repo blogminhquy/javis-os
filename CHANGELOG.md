@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.328.0] - 2026-10-26
+### Thêm mới
+- **Nút tạm ngừng mọi bản cải tiến của một bộ não.** Một lần bấm gỡ mọi bản sửa skill, quy trình trợ lý, mô tả định tuyến và gói đang dùng; trợ lý quay về bản gốc. Khác với tắt tự cải tiến, vốn giữ các bản bạn đã áp.
+- **Cải tiến có giới hạn và chỉ khi có lý do thật.** Mỗi loại lỗi chỉ được tinh chỉnh hai bước liền, bước sau cần bằng chứng mới hoặc bạn giao; ba lần không đổi gì thì dừng. Xuất gói chỉ mang quy trình bạn chọn và đã che khoá bí mật; gói nhập về luôn là bản chưa kiểm.
+
 ## [0.327.0] - 2026-10-26
 ### Thêm mới
 - **Thử cải tiến cho cả nhóm trợ lý một cách công bằng.** Javis chụp lại đội hình, vai trò, model và tiêu chí nghiệm thu của mỗi lần thử; hai lần thử khác nhau ngoài đúng chỗ đang thử thì không được đem ra so. Kết quả chỉ ghi vào hồ sơ, không tự đánh dấu việc thật là xong hay gửi đi đâu.

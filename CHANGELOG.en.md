@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.328.0] - 2026-10-26
+### Added
+- **One button to pause every improvement in a brain.** It removes every skill fix, assistant procedure, routing description and bundle in use; assistants go back to the original. Different from turning self-improvement off, which keeps what you applied.
+- **Improvement stays bounded and needs a real reason.** Each failure family gets at most two refinement steps in a row; the next needs new evidence or your say; three steps with no change stop it. Exports carry only the procedures you choose, secrets masked; imported packages always arrive untested.
+
 ## [0.327.0] - 2026-10-26
 ### Added
 - **Fair improvement trials for a whole team.** Javis snapshots the roster, roles, models and acceptance criteria of each trial; two trials that differ beyond the one thing being tested are not compared. Results go into the record only and never mark real work as done or send anything.
