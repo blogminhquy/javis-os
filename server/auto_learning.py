@@ -304,10 +304,11 @@ def split_frontmatter(text: str) -> tuple:
 
 def workflow_steps(text: str) -> list:
     """The `steps` list of a workflow file (steps format only), [] otherwise."""
+    import fastyaml
     import yaml
     front, _body = split_frontmatter(text or "")
     try:
-        meta = yaml.safe_load(front[4:-5]) if front else None
+        meta = fastyaml.safe_load(front[4:-5]) if front else None
     except yaml.YAMLError:
         return []
     steps = meta.get("steps") if isinstance(meta, dict) else None
@@ -387,13 +388,14 @@ class Targets:
             old = path.read_bytes()
             new = (target.meta["front"] + new_text.rstrip() + "\n").encode("utf-8")
         else:
+            import fastyaml
             import yaml
             path = Path(target.meta["path"])
             old = path.read_bytes()
             if hashlib.sha256(old).hexdigest() != target.meta["hash"]:
                 raise ConflictError("target_changed")
             front, body = split_frontmatter(old.decode("utf-8"))
-            meta = yaml.safe_load(front[4:-5])
+            meta = fastyaml.safe_load(front[4:-5])
             meta["steps"][target.step]["task"] = new_text.strip()
             new = ("---\n" + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False) + "---\n" + body).encode("utf-8")
         backup = backups / f"{target.kind}-{re.sub(r'[^A-Za-z0-9_.-]', '_', target.slug)}-{run_id}.bak"
