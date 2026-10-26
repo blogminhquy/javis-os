@@ -70,8 +70,15 @@ def xoa_cay(p) -> None:
 _SOT = []
 
 
-def chay_mot(cmd, env):
+def chay_mot(cmd, env, co_lap=False):
     """Chạy một file test với thư mục tạm riêng, xoá ngay sau khi tiến trình thoát.
+
+    `co_lap` (bật khi chạy nhiều file cùng lúc, 0.342.0): trạng thái app (JAVIS_STATE_DIR, mặc định là
+    server/) và kho brain (BRAINS_DIR, mặc định là brains/ ở gốc repo) của file đó cũng nằm trong thư
+    mục tạm này, trống như một bản checkout mới. Thiếu nó thì các file chạy cùng lúc ghi chung
+    `brains/Brain Default` và server/*.json: CI 26/10 đỏ ở test_chat_disconnect vì một file khác
+    ghi vào brain đúng lúc lượt chat đang chạy, server thấy brain đổi nên thêm một dòng báo.
+    Test tự đặt hai biến này (`os.environ[...] =` hay `setdefault`) vẫn được thư mục riêng như cũ.
 
     Xem tests/python/_paths.py: test tự dọn thư mục tạm lúc atexit, nhưng trên Windows sqlite
     còn mở ở biến module thì lúc đó chưa xoá được, còn test JS thì không tự dọn. Tạo thư mục ở
@@ -81,6 +88,8 @@ def chay_mot(cmd, env):
     """
     tam = tempfile.mkdtemp(prefix=f"jt-{os.getpid()}-")
     env = dict(env, TMP=tam, TEMP=tam, TMPDIR=tam, JAVIS_TEST_TMP=tam)
+    if co_lap:
+        env.update(JAVIS_STATE_DIR=os.path.join(tam, "state"), BRAINS_DIR=os.path.join(tam, "brains"))
     try:
         return subprocess.run(cmd, cwd=str(ROOT), env=env, capture_output=True, text=True,
                               encoding="utf-8", errors="replace")
@@ -237,7 +246,7 @@ def main() -> int:
 
     def chay_do_gio(cmd):
         t = time.perf_counter()
-        r = chay_mot(cmd, env)
+        r = chay_mot(cmd, env, co_lap=ts["jobs"] > 1)
         return r, time.perf_counter() - t
 
     tren_ci = os.environ.get("GITHUB_ACTIONS") == "true"
