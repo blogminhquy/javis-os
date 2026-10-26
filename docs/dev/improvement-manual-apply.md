@@ -1,4 +1,4 @@
-# Áp dụng thử, canary, định tuyến, quy trình trợ lý, gói, phép thử nhóm và quay lại (M2E tới M7)
+# Áp dụng thử, canary, định tuyến, quy trình trợ lý, gói, phép thử nhóm, quản trị và quay lại (M2E tới M8)
 
 Tài liệu vận hành cho phần áp dụng thủ công của **Cải tiến có kiểm chứng**, phát hành ở 0.314.0.
 Spec gốc: [agent-skill evidence improvement](../superpowers/specs/2026-10-22-agent-skill-evidence-improvement-design.md), mục 14, 18 và 19.
@@ -208,6 +208,31 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
 - Chưa có: bộ chạy phép thử nhóm thật (cần chạy model và chủ chấm), bàn giao sản phẩm riêng theo bước, nghiệm thu
   tổng hợp của phép thử, chụp kế hoạch/đồ thị phụ thuộc và nguồn dữ liệu, giao diện. L02 theo nghĩa đầy đủ (không
   nâng bằng chứng của kinh nghiệm chỉ thắng ở bước chọn) vẫn nằm ở kho kinh nghiệm M2, không thêm ở đây.
+
+## Ưu tiên có giới hạn, xuất/nhập và tạm ngừng tất cả (M8, 0.328.0)
+
+- Xếp nhu cầu (`improvement_library.rank_needs`): chỉ nhận nguồn spec 8.1 cho phép (chủ yêu cầu, cùng lỗi ở ít nhất
+  hai việc độc lập, chủ góp ý chỉ rõ lỗi, lượt rà soát có dấu vết). Cảm xúc, nhiều agent đồng tình, dùng nhiều, để
+  lâu không tự mở việc; không có nguồn thì hàng rỗng, không gọi model. Không lấy chi phí làm mục tiêu.
+- Sổ tinh chỉnh (`improvement_refinements`): mỗi bước của một loại lỗi trong một chu kỳ ghi một dòng. Tối đa hai
+  bước liền; bước thứ ba cần bằng chứng mới (khác bằng chứng đã dùng) hoặc chủ giao. Ba bước liền không đổi gì là
+  `no_progress`; bộ kín đã tiêu (`holdout_consumed`) không cho lặp, kể cả khi chủ giao. Bước bị từ chối không ghi.
+  Hiện chưa có vòng V4 tự chạy nào gọi sổ này (cần chạy model); sổ là cổng cho vòng đó.
+- Xuất (`POST /improvement-export` `{procedure_ids, event_key}`): host đọc đúng chữ quy trình đã lưu theo id (không
+  nhận chữ từ trình duyệt), kèm phiên bản Javis; không có báo cáo, luật chủ, hội thoại hay dữ liệu khách; khoá bí
+  mật được che; gói có hash nội dung.
+- Nhập (`POST /improvement-imports` `{package, event_key}`, `GET /improvement-imports`): gói lạ được kiểm định
+  dạng và hash; từng mục thành ứng viên `untested`, không áp dụng, không cấp quyền, không mang điểm. Muốn dùng thì
+  chủ dán chữ vào bảng quy trình như một bản nháp và tự xác nhận.
+- Tạm ngừng tất cả (`GET /improvement-governance`, `POST /improvement-governance/suspend-all` `{event_key}`): liệt
+  kê và gỡ mọi con trỏ đang dùng của bộ não (gói trước để thành phần rời cùng gói, rồi bản sửa skill, quy trình, mô
+  tả định tuyến), mỗi con trỏ một CAS; bản vừa đổi ở nơi khác được báo lại, không ép. Trạng thái nằm trong kho nên
+  giữ qua khởi động lại và nhiều tiến trình. Khác `off`: theo spec 18.2, `off` dừng thử nghiệm mới nhưng giữ các bản
+  chủ đã áp. Nút "Tạm ngừng tất cả" nằm trong bảng Cải tiến kèm số bản đang dùng.
+- Lưu trữ: schema 17 thêm `improvement_refinements`, `improvement_imports` (bất biến). Từ 16 lên 17 sao lưu một lần
+  `*.pre-improvement-m8-library.bak`.
+- Chưa có: vòng V4 tự xếp và tự chạy (cần chạy model và quyền `trial`/`auto_scoped`), gộp kinh nghiệm có nguồn,
+  compose có kiểm lại tự động, giao diện xuất/nhập.
 
 ## Giới hạn hiện tại
 

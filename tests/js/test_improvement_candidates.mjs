@@ -26,7 +26,7 @@ const candidate = { candidate_id: "candidate-one", experiment_id: "experiment-on
 async function fixture(lang = "en", withExperiments = false) {
   const dict = JSON.parse(fs.readFileSync(new URL(`../../dashboard/i18n/${lang}.json`, import.meta.url)));
   const body = new Element("body"), head = new Element("head"), calls = [], intervals = [];
-  let applied = [], granted = [], routed = [], lastRouting = null, procs = [], overlays = [], packs = [], lastBundle = null;
+  let applied = [], granted = [], routed = [], lastRouting = null, procs = [], overlays = [], packs = [], lastBundle = null, governed = [{kind: "skill", pointer_id: "iac_1", generation: 1}];
   let brain = "brain-one", rows = [candidate], deferred = null, corrupt = false, failStage = false, pages = false, failAfterStage = false, failRows = false;
   const ctx = { document: { body, head, createElement: tag => new Element(tag), getElementById: () => null, addEventListener() {} },
     window: { currentBrainPath: () => brain }, TextEncoder, TextDecoder, crypto: webcrypto, URL, URLSearchParams, Blob,
@@ -61,6 +61,8 @@ async function fixture(lang = "en", withExperiments = false) {
       else if (path === "/improvement-agent-procedures" && !options.method) value = {procedures: procs, overlays, coverage: {served: ["dm"]}};
       else if (path === "/improvement-agent-procedures") { const b = JSON.parse(options.body); procs = [{procedure_id: "iap_" + "5".repeat(32), agent_key: "agent-1", text: b.text}]; value = {procedure: procs[0]}; }
       else if (path.startsWith("/improvement-agent-procedures/")) { const b = JSON.parse(options.body); overlays = [{overlay_id: "iao_" + "6".repeat(32), procedure_id: procs[0].procedure_id, agent_key: "agent-1", state: "active", generation: 1, reason: "owner_apply", surfaces: b.surfaces, owner_confirmed: b.owner_confirmed}]; value = {overlay: overlays[0]}; }
+      else if (path === "/improvement-governance" && !options.method) value = {live: governed};
+      else if (path === "/improvement-governance/suspend-all") { governed = []; value = {suspended: [], skipped: [], remaining: []}; }
       else if (path === "/improvement-agent-bundles" && !options.method) value = {bundles: packs};
       else if (path === "/improvement-agent-bundles") { lastBundle = JSON.parse(options.body); packs = [{bundle_id: "iba_" + "7".repeat(32), state: "active", generation: 2, reason: "owner_apply", members: [{kind: "procedure", pointer_id: "iao_" + "8".repeat(32)}]}]; value = {bundle: packs[0]}; }
       else if (path.startsWith("/improvement-agent-bundles/")) { packs = [{...packs[0], state: "reverted", generation: 3}]; value = {bundle: packs[0]}; }
@@ -286,6 +288,16 @@ for (const lang of ["vi", "en"]) {
   assert.equal(sent.owner_confirmed, true);
   await f.find("bundle-revert-iba_" + "7".repeat(32)).onclick();
   assert.ok(f.calls.some(x => x.url.startsWith("/improvement-agent-bundles/iba_" + "7".repeat(32) + "/revert")));
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+{
+  // M8: the pause button shows the live count and empties it in one call.
+  const f = await fixture();
+  assert.ok(f.find("governance-count").textContent.includes("1"));
+  await f.find("governance-pause").onclick();
+  assert.ok(f.calls.some(x => x.url.startsWith("/improvement-governance/suspend-all")));
+  assert.ok(f.find("governance-count").textContent.includes("0"));
+  assert.equal(f.find("governance-pause").disabled, true);
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {

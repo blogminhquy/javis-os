@@ -55,7 +55,8 @@ PROFILE_SOURCES = ("improvement_claude.py", "improvement_sandbox.py", "improveme
                    "improvement_qualification_session.py", "improvement_qualification_results.py",
                    "improvement_activation_schema.py", "improvement_canary_schema.py",
                    "improvement_routing_schema.py", "improvement_agent_schema.py",
-                   "improvement_bundle_schema.py", "improvement_team_schema.py")
+                   "improvement_bundle_schema.py", "improvement_team_schema.py",
+                   "improvement_library_schema.py")
 VERIFIED_NATIVE_RUNTIMES = {("win32", "2.1.304",
     "019e5174d5d954585edb1a946fe280e44a973050b4897034adf0e16306f85fdd", "0.2.116"),
     ("win32", "2.1.308", "c9796ba22a9221586b36371b36f5b66198d66eb4badf6a4cf4a5f7b07becea53", "0.2.116"),

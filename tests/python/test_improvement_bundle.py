@@ -221,7 +221,7 @@ class BundleServiceTests(procedure_base.AgentProcedureBase):
         import improvement_bundle_schema as S
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_transfers", "improvement_team_trials", "improvement_team_pins",
+            for name in ("improvement_imports", "improvement_refinements", "improvement_transfers", "improvement_team_trials", "improvement_team_pins",
                          "improvement_bundle_members", "improvement_bundle_activations"):
                 connection.execute(f"DROP TABLE {name}")
             self.assertFalse(any(connection.execute("SELECT 1 FROM sqlite_master WHERE name=?", (n,)).fetchone() for n in S._NAMES))
