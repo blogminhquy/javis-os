@@ -347,6 +347,31 @@ def main() -> int:
         i += 1
         bao(i, ten, *chay_do_gio(cmd))
 
+    # File đỏ lúc chạy CHUNG được chạy lại MỘT MÌNH, và kết quả chạy một mình là kết quả chính thức: đó đúng là điều CI cũ đòi
+    # (chạy từng file lần lượt). Lượt 29e3699 đỏ ở test_team_t4_perf (p95 vẽ 412 ms > 250 ms) chỉ vì máy đang chạy 3 file
+    # khác; danh sách CHAY_RIENG không thể biết trước hết mọi test đo thời gian. Code hỏng thật thì chạy một mình vẫn đỏ.
+    # Không chạy lại file quá giờ (lần treo 26/10 xảy ra lúc máy đã rảnh) và không chạy lại khi đỏ hơn 10 file (hỏng thật,
+    # chạy lại chỉ kéo dài CI). Mọi file phải chạy lại đều được kể tên để làm cho nó chắc hơn hoặc thêm vào CHAY_RIENG.
+    chay_lai, cuu = [], []
+    if ts["jobs"] > 1:
+        theo_ten = dict((n, c) for c, n in viec)
+        chay_lai = [t for t, r in do_day_du if r.returncode != 124 and t not in CHAY_RIENG]
+        if len(chay_lai) > 10:
+            ra(f"\n{len(chay_lai)} file đỏ khi chạy chung: quá nhiều để là nhiễu do chạy song song, không chạy lại.")
+            chay_lai = []
+        for ten in chay_lai:
+            r, g = chay_do_gio(theo_ten[ten])
+            if r.returncode == 0:
+                ra(f"  chạy lại một mình: ok   {ten}  (đỏ khi chạy chung với file khác)")
+                cuu.append(ten)
+            else:
+                ra(f"  chạy lại một mình: ĐỎ   {ten}")
+                do_day_du.append((ten, r))
+        do = [t for t in do if t not in cuu]
+        do_day_du = [(t, r) for t, r in do_day_du if t not in cuu]
+        # Mỗi file chỉ in output một lần: giữ lần chạy một mình (được thêm sau cùng).
+        do_day_du = list({t: (t, r) for t, r in do_day_du}.values())
+
     giay = time.perf_counter() - t0
     if ts["jobs"] > 1:
         xoa_cay(sao[0].parent)
@@ -360,6 +385,8 @@ def main() -> int:
             ra("::endgroup::")
     cham_nhat = sorted(da_do.items(), key=lambda x: -x[1])[:10]
     ra(f"\nChậm nhất: " + ", ".join(f"{t} {g:.0f}s" for t, g in cham_nhat))
+    if cuu:
+        ra("Đỏ khi chạy chung, xanh khi chạy một mình (nên làm chắc hơn hoặc thêm vào CHAY_RIENG): " + ", ".join(cuu))
     ra(f"{len(viec) - len(do)}/{len(viec)} xanh{nhan} trong {giay:.0f} giây")
 
     if ts["update"]:
@@ -380,6 +407,8 @@ def main() -> int:
             fh.write(f"### Test{nhan}: {len(viec) - len(do)}/{len(viec)} xanh trong {giay / 60:.1f} phút\n")
             for t in do:
                 fh.write(f"- ĐỎ `{t}`\n")
+            for t in cuu:
+                fh.write(f"- Xanh khi chạy một mình, đỏ khi chạy chung: `{t}`\n")
     if do:
         ra("ĐỎ: " + ", ".join(do))
         ra("Chạy lại một cái để xem chi tiết:  python tests/run.py <tên> -v")
