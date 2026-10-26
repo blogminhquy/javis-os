@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.332.0] - 2026-10-26
+### Fixed
+- **Viewing a PDF on a phone always has a close button.** On an iPhone the PDF frame stretched to the whole document, so scrolling through it carried the toolbar (with its close button) off the top. The PDF now scrolls in its own box, and on a phone a round X button floats in the bottom right corner, reachable however far you scroll.
+
 ## [0.331.0] - 2026-10-26
 ### Fixed
 - **Tagging someone in a Zalo group no longer shows as code on a phone.** When the bot answered someone (say "@Tuan Fernel") in a group that also has a member with a shorter name ("Tuan"), Javis added a second tag on top of the first. Zalo on a computer still looked right, while a phone showed a chunk of `href="zm://..."` code. Each stretch of text now carries one tag, and a "Tuan" written separately elsewhere in the message is still tagged correctly.

@@ -9703,8 +9703,13 @@
     }
     // .pdf: trình duyệt tự đọc được, nên xem NGAY tại chỗ thay vì mời tải về. Popup cũ của trang
     // Tệp tin có sẵn khung xem này; bỏ popup mà không mang theo là mất một thứ đang chạy tốt.
+    // 0.332.0 (owner, phone): Safari on an iPhone grows a PDF iframe to the whole document, so scrolling
+    // through it carried the toolbar (and its close button) off the top with no way back. The PDF now
+    // scrolls inside its own box, and on a phone a round close button floats over it (.pdf-float-close).
     if (VT_FRAME_EXTS.includes(ext)) {
-      body.innerHTML = `<iframe class="ne-frame" src="${_vtRaw(rel)}"></iframe>`;
+      body.innerHTML = `<div class="ne-pdf"><iframe class="ne-frame" src="${_vtRaw(rel)}"></iframe></div>` +
+        `<button type="button" class="pdf-float-close" title="${esc(window.t("cs.ne_close"))}" aria-label="${esc(window.t("cs.ne_close"))}">${X_ICON}</button>`;
+      body.querySelector(".pdf-float-close").onclick = closeNote;
       _neCommonBtns(actions, rel, it); _vtMarkActive(null); return;
     }
     if (VT_TEXT_EXTS.includes(ext)) {
