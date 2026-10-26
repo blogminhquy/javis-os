@@ -165,12 +165,13 @@ class TeamTrialStoreTests(StoreBase):
     def test_schema_sixteen_from_fifteen_adds_tables_once(self):
         import improvement_team_schema as S
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_transfers", "improvement_team_trials", "improvement_team_pins"):
+            for name in ("improvement_imports", "improvement_refinements",
+                         "improvement_transfers", "improvement_team_trials", "improvement_team_pins"):
                 connection.execute(f"DROP TABLE {name}")
             self.assertFalse(any(connection.execute("SELECT 1 FROM sqlite_master WHERE name=?", (n,)).fetchone() for n in S._NAMES))
             connection.execute("UPDATE improvement_schema SET version=15 WHERE id=1")
         IM.ensure(self.store)
-        self.assertEqual(IM._schema_version(self.store), 16)
+        self.assertEqual(IM._schema_version(self.store), IM.SCHEMA_VERSION)
         self.assertEqual(len(list(self.store.path.parent.glob(self.store.path.name + ".pre-improvement-m7-team.bak"))), 1)
         with patch.object(self.store, "_backup_before", side_effect=AssertionError("no second backup")):
             IM.ensure(self.store)

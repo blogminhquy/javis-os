@@ -1,5 +1,5 @@
 """Owner routes for activation (M2E), canaries (M3), routing descriptions (M4), agent procedures (M5), bundles (M6),
-Team trials and recipe transfers (M7)."""
+Team trials and recipe transfers (M7), governance, export and import (M8)."""
 from __future__ import annotations
 
 import asyncio
@@ -36,6 +36,9 @@ class ActivationApiDeps:
     bundles: Callable = None  # () -> improvement_bundle.Bundles over the same write store (M6)
     team_trials: Callable = None  # () -> improvement_team.TeamTrials (M7)
     recipe_transfers: Callable = None  # () -> improvement_team.RecipeTransfers (M7)
+    governance: Callable = None  # () -> improvement_library.Governance (M8)
+    imports: Callable = None  # () -> improvement_library.Imports (M8)
+    export: Callable = None  # (principal, procedure_ids) -> package (M8)
 
 
 def _fail(error):
@@ -389,5 +392,55 @@ def register(app, deps: ActivationApiDeps):
                     event_key=data["event_key"])}
         return await m7_write(request, brain, {"recipe_id", "target", "event_key"}, deps.recipe_transfers,
                               "recipe_transfers", call)
+
+    # M8: every live improvement of the brain, and the owner's one-step pause of all of them (spec 18.2).
+    @app.get("/improvement-governance")
+    async def governance_view(brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                return {"ok": True, "live": []}
+            service = await m7(deps.governance, "governance")
+            await asyncio.to_thread(service.reconcile, principal)
+            return {"ok": True, "live": await asyncio.to_thread(service.live, principal),
+                    "grants": await asyncio.to_thread(service.grants, principal)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-governance/suspend-all")
+    async def governance_suspend_all(request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, **service.suspend_all(principal, event_key=data["event_key"])}
+        return await m7_write(request, brain, {"event_key"}, deps.governance, "governance", call)
+
+    @app.post("/improvement-export")
+    async def improvement_export(request: Request, brain: str = "brain"):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            data = await _body(request, {"procedure_ids", "event_key"})
+            if deps.export is None:
+                raise PermissionError("export_unavailable")
+            return {"ok": True, "package": await asyncio.to_thread(deps.export, principal, data["procedure_ids"])}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.get("/improvement-imports")
+    async def import_list(brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            if await asyncio.to_thread(deps.read_store) is None:
+                return {"ok": True, "imports": []}
+            service = await m7(deps.imports, "imports")
+            return {"ok": True, "imports": await asyncio.to_thread(service.list, principal)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-imports")
+    async def import_stage(request: Request, brain: str = "brain"):
+        def call(service, principal, data):
+            return {"ok": True, "items": service.stage(principal, data["package"], event_key=data["event_key"])}
+        return await m7_write(request, brain, {"package", "event_key"}, deps.imports, "imports", call)
 
     return deps

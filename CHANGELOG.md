@@ -10,6 +10,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Sửa lỗi
 - **Tag người trong nhóm Zalo không còn hiện thành mã trên điện thoại.** Khi bot trả lời một người (ví dụ "@Tuan Fernel") mà trong nhóm có người khác tên ngắn hơn ("Tuan"), Javis từng gắn thêm một tag thứ hai đè lên tag đầu. Máy tính vẫn hiện đúng, còn điện thoại hiện ra một đoạn mã `href="zm://..."`. Giờ mỗi chữ chỉ mang một tag, và người tên "Tuan" viết riêng ở chỗ khác trong câu vẫn được tag đúng.
 
+## [0.330.0] - 2026-10-26
+### Thêm mới
+- **Nút tạm ngừng mọi bản cải tiến của một bộ não.** Một lần bấm gỡ mọi bản sửa skill, quy trình trợ lý, mô tả định tuyến và gói đang dùng; trợ lý quay về bản gốc. Khác với tắt tự cải tiến, vốn giữ các bản bạn đã áp.
+- **Cải tiến có giới hạn và chỉ khi có lý do thật.** Mỗi loại lỗi chỉ được tinh chỉnh hai bước liền, bước sau cần bằng chứng mới hoặc bạn giao; ba lần không đổi gì thì dừng. Xuất gói chỉ mang quy trình bạn chọn và đã che khoá bí mật; gói nhập về luôn là bản chưa kiểm.
+
 ## [0.329.0] - 2026-10-26
 ### Thêm mới
 - **Trang Mức dùng có thêm phần "24 giờ qua"**, ngay dưới ba ô đầu trang:
