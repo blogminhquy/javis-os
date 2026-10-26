@@ -55,6 +55,10 @@ class ChiaNhom(unittest.TestCase):
         with self.assertRaises(ValueError):
             R.chia_nhom(["a.py"], 0, {})
 
+    def test_chay_rieng_tro_dung_file_that(self):
+        # Đổi tên một test đo thời gian mà quên sửa CHAY_RIENG thì nó lặng lẽ quay lại chạy chung và đỏ oan.
+        self.assertEqual(sorted(R.CHAY_RIENG - set(_ten_that())), [])
+
     def test_tham_so(self):
         ts = R.doc_tham_so(["--py", "--shard", "2/2", "--jobs=4", "-v", "zalo"])
         self.assertEqual((ts["shard"], ts["jobs"], ts["py"], ts["ver"], ts["loc"]), ((2, 2), 4, True, True, ["zalo"]))

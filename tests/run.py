@@ -36,6 +36,14 @@ JS_DIR = ROOT / "tests" / "js"
 # Thời gian chạy từng file (giây), chỉ dùng để chia nhóm cho đều. Sai lệch hay thiếu file chỉ làm
 # các nhóm lệch nhau vài phút, không bao giờ làm sót hay trùng test: danh sách luôn quét từ thư mục.
 TIMINGS = ROOT / "tests" / "test_timings.json"
+# Test đo THỜI GIAN (tỉ lệ nạp main so với fastapi, trần suy từ hằng số chờ...). Chạy nhiều luồng thì các file này chạy
+# MỘT MÌNH sau cùng: lượt CI e243532 đỏ ở test_khoi_dong_nhe (tỉ lệ 6.63 > 5.0) chỉ vì 3 file khác đang chiếm CPU lúc đo.
+# Danh sách lấy từ chính các test đo thời gian mà tests/python/test_ci_noi_ro_test_do.py đã ghim; thêm vào khi có test mới
+# kiểu này. Thiếu tên ở đây không làm sót test, chỉ làm test đó chạy chung với các file khác.
+CHAY_RIENG = frozenset({
+    "test_khoi_dong_nhe.py", "test_khoi_dong_cham.py", "test_settings_khong_treo_theo_cli.py",
+    "test_dua_token_claude.py", "test_terminal.py", "test_claude_khong_tu_dang_xuat.py",
+})
 
 
 def trinh_thong_dich() -> str:
@@ -312,24 +320,32 @@ def main() -> int:
     ra(f"Chạy {len(viec)} test{nhan} bằng {py}, {ts['jobs']} file cùng lúc\n")
     do, do_day_du, da_do, t0 = [], [], {}, time.perf_counter()
     # Một luồng chỉ chờ một tiến trình con, nên ThreadPool là đủ; mỗi test vẫn là tiến trình riêng.
+    def bao(i, ten, r, giay):
+        da_do[ten] = giay
+        cham = f"  ({giay:.0f}s)" if giay >= 5 else ""
+        if r.returncode == 0:
+            ra(f"  [{i:>2}/{len(viec)}] ok   {ten}{cham}")
+            return
+        ra(f"  [{i:>2}/{len(viec)}] ĐỎ   {ten}{cham}")
+        do.append(ten)
+        do_day_du.append((ten, r))
+        if ver and not tren_ci:
+            for ln in (r.stdout or "").split("\n")[-25:]:
+                ra("       " + ln)
+            for ln in (r.stderr or "").split("\n")[-15:]:
+                ra("       " + ln)
+
+    # Test đo THỜI GIAN chạy một mình, sau khi cả nhóm xong: 3 luồng khác đang chiếm CPU thì phép đo nhiễu (xem CHAY_RIENG).
+    rieng = [(c, n) for c, n in viec if n in CHAY_RIENG] if ts["jobs"] > 1 else []
+    i = 0
     with ThreadPoolExecutor(max_workers=ts["jobs"]) as pool:
-        tuong_lai = {pool.submit(chay_do_gio, cmd): ten for cmd, ten in viec}
-        for i, f in enumerate(as_completed(tuong_lai), 1):
-            ten = tuong_lai[f]
-            r, giay = f.result()
-            da_do[ten] = giay
-            cham = f"  ({giay:.0f}s)" if giay >= 5 else ""
-            if r.returncode == 0:
-                ra(f"  [{i:>2}/{len(viec)}] ok   {ten}{cham}")
-            else:
-                ra(f"  [{i:>2}/{len(viec)}] ĐỎ   {ten}{cham}")
-                do.append(ten)
-                do_day_du.append((ten, r))
-                if ver and not tren_ci:
-                    for ln in (r.stdout or "").split("\n")[-25:]:
-                        ra("       " + ln)
-                    for ln in (r.stderr or "").split("\n")[-15:]:
-                        ra("       " + ln)
+        tuong_lai = {pool.submit(chay_do_gio, cmd): ten for cmd, ten in viec if (cmd, ten) not in rieng}
+        for f in as_completed(tuong_lai):
+            i += 1
+            bao(i, tuong_lai[f], *f.result())
+    for cmd, ten in rieng:
+        i += 1
+        bao(i, ten, *chay_do_gio(cmd))
 
     giay = time.perf_counter() - t0
     if ts["jobs"] > 1:
