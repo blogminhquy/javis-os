@@ -240,6 +240,9 @@ def writer_prompt(kind: str, target_text: str, mistakes: list, oks: list) -> str
         "- \"mistake\": one per mistake below, close to its test prompt;\n"
         "- \"variant\": 2 or 3 per mistake, the same trap in different situations (new facts, new wording);\n"
         "- \"keep\": at least 6 ordinary cases of this work the current version should keep getting right.\n"
+        "Every criterion of every case, keep cases included, must agree with the owner's corrections below: where a "
+        "correction applies to a keep case, its criteria follow the correction too; never write a case that expects "
+        "the behaviour the owner corrected.\n"
         "Return ONLY JSON: {\"testable\": true, \"cases\": [{\"family\": \"...\", \"type\": \"mistake|variant|keep\", "
         "\"prompt\": \"...\", \"criteria\": [\"...\"]}]}\n\n"
         f"## Current {kind}\n{_cut(target_text)}\n\n## Mistakes seen in real use\n{listing}\n\n"
@@ -661,7 +664,14 @@ class AutoLearner:
             said = "\n".join(f"- What went wrong: {m['what']} Right behaviour: {m['right_way']}" for m in mistakes)
             loop = L.Loop(cases, solve=solve, improve=improve, check=check, width=self.width, context=said)
             result = loop.run(target.text, k=1, qualification_repeats=2)
-            report = {**result.report, "chosen": result.chosen, "tuning": result.tuning, "case_count": len(cases)}
+            report = {**result.report, "chosen": result.chosen, "tuning": result.tuning, "case_count": len(cases),
+                      "case_list": [{"id": c.id, "family": c.family, "split": c.split, "prompt": _cut(c.prompt, 600),
+                                     "criteria": c.answer} for c in cases]}
+            lost = set(result.report.get("regressions") or []) | {
+                c["case"] for c in result.report.get("cases") or [] if c.get("outcome") == "loss"}
+            report["lost_outputs"] = [{"case": r.case_id, "version": r.version, "repeat": r.repeat,
+                                       "output": _cut(r.output, 1200), "feedback": r.feedback}
+                                      for r in result.qualification if r.case_id in lost][:12]
             used = [m["id"] for m in mistakes]
             self.store.write(lambda c: c.executemany("UPDATE mistakes SET run_id=? WHERE id=?",
                                                      [(run_id, m) for m in used]))
