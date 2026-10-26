@@ -59,7 +59,12 @@ and workflows, not only skills. Users install nothing extra.
    - Agent: the text of a learned procedure overlay (stage plus apply on all surfaces); the agent file stays
      untouched.
    - Workflow: the `task` text of the faulty step in the frontmatter (steps format only).
-5. **Switches and limits.**
+5. **Switches and limits.** (Owner, 26/10: "turning on the learning features on the Learning page is all it
+   takes".) Learning from chat follows the existing Learning page: "Bật tự học" plus the Skill, Role (Agent) and
+   Step chain (Workflow) switches decide what learns. Auto-write mode applies on its own, Suggest prepares everything
+   and waits for Apply, Dry run only judges. The page lists the changes with Apply and Undo. When the main engine
+   has no text-only path (Grok Build, Antigravity), learning uses the background model set for learning on the
+   Models page. The earlier points below still hold.
    - It is on by default, a call made by Claude. It follows the brain's improvement policy: mode `off` stops it.
    - The caps above are fixed constants; nothing is added to Settings.
    - A small "Javis đã tự học" list in the improvement panel shows what changed, with undo. There are no
