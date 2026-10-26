@@ -46,6 +46,18 @@ _OVERRIDES = re.compile(
 _PROCEDURE_HEADER = "# Quy trình đã được chủ duyệt (Javis quản lý)"
 
 
+def unsafe_reason(text: str) -> str:
+    """Why a text must not go live without the owner reading it ("" when fine): host markers, protected settings,
+    wording that overrides the owner. Shared with automatic learning for skill and workflow text."""
+    if _MARKERS.search(text):
+        return "agent_procedure_host_marker"
+    if _SETTINGS.search(text):
+        return "agent_procedure_protected_setting"
+    if _OVERRIDES.search(text):
+        return "agent_procedure_overrides_owner"
+    return ""
+
+
 def validate_procedure(text) -> str:
     if type(text) is not str:
         raise ValueError("invalid_agent_procedure")

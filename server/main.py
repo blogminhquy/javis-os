@@ -10929,7 +10929,7 @@ async def _ghi_lich_su(gen, *, brain, slug, name, input, source, session_id, run
                 st.ket_thuc(rid, "done", output=str(ev.get("result") or ""))
                 try:  # 0.336.0: a finished run is a workflow episode for automatic learning
                     await asyncio.to_thread(_auto_learner().observe_workflow, _brain_key(brain), slug, rid,
-                                            input or "", str(ev.get("result") or ""), session_id or "")
+                                            input or "", str(ev.get("result") or ""), session_id or "", source or "")
                 except Exception as _e:  # noqa: BLE001
                     print(f"[auto-learning workflow] {type(_e).__name__}: {_e}", file=sys.stderr)
             yield ev
@@ -15913,7 +15913,7 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text, turn_s
     try:  # 0.336.0: automatic learning records the turn; judging happens later, off the reply path
         _row = store.get_session(conv_sid) or {}
         await asyncio.to_thread(_auto_learner().observe_turn, _brain_key(brain), conv_sid, _row.get("channel") or "",
-                                user_message, clean, _answer_mid)
+                                user_message, clean, _answer_mid, turn_started)
     except Exception as _e:  # noqa: BLE001
         print(f"[auto-learning observe] {type(_e).__name__}: {_e}", file=sys.stderr)
     return _answer_mid
@@ -17063,7 +17063,7 @@ async def websocket_endpoint(ws: WebSocket):
                         if etype in ("tool_call", "tool_result"):
                             _resonance_note_write(conv_sid, user_mid, brain, event)
                             if etype == "tool_call":
-                                _auto_learning_note_tool(brain, conv_sid, event)
+                                await asyncio.to_thread(_auto_learning_note_tool, brain, conv_sid, event)
                         elif etype in ("final", "error"):
                             _engine_outcome_note(conv_sid, event)
                         if etype == "tool_call":
@@ -27199,37 +27199,53 @@ def _auto_learning_agent_procedure(root, slug):
             "procedure_id": overlay["procedure_id"], "generation": overlay["generation"], "surfaces": overlay["surfaces"]}
 
 
-def _auto_learning_agent_apply(root, slug, text):
-    """Learned procedure goes live as the assistant's overlay on every surface; the previous one is reverted first
-    and remembered for undo. The owner authorised automatic learning (26/10/2026), so it is applied as confirmed."""
-    import improvement_agent
-    service = _improvement_agents()
-    principal = _auto_learning_principal(root)
-    tag = __import__("secrets").token_hex(8)
-    staged = service.stage(principal, slug, text, source="learn", event_key=f"auto-learn-stage-{tag}")
-    previous = _auto_learning_agent_procedure(root, slug)
-    if previous:
-        service.revert(principal, previous["overlay_id"], expected_generation=previous["generation"],
+def _auto_learning_swap(root, slug, out_overlay, in_procedure, surfaces, tag):
+    """Revert `out_overlay` (may be {}) and apply `in_procedure` on `surfaces`; if the apply fails, the reverted overlay's
+    procedure is put back so the assistant never ends up with nothing. Returns the new overlay."""
+    service, principal = _improvement_agents(), _auto_learning_principal(root)
+    if out_overlay:
+        service.revert(principal, out_overlay["overlay_id"], expected_generation=out_overlay["generation"],
                        event_key=f"auto-learn-revert-{tag}")
-    overlay = service.apply(principal, staged["procedure_id"], sorted(improvement_agent.SURFACES), owner_confirmed=True,
-                            event_key=f"auto-learn-apply-{tag}")
-    return {"slug": slug, "overlay_id": overlay["overlay_id"], "previous": previous.get("procedure_id") if previous else None,
-            "previous_surfaces": previous.get("surfaces") if previous else None}
+    try:
+        return service.apply(principal, in_procedure, surfaces, owner_confirmed=True, event_key=f"auto-learn-apply-{tag}")
+    except Exception:
+        if out_overlay:
+            service.apply(principal, out_overlay["procedure_id"], out_overlay["surfaces"], owner_confirmed=True,
+                          event_key=f"auto-learn-putback-{tag}")
+        raise
+
+
+def _auto_learning_agent_apply(root, slug, text, started_from):
+    """Learned procedure goes live as the assistant's overlay, on the surfaces the current one had (all when none);
+    the current one is reverted first and remembered for undo. If the owner changed the procedure while the run
+    worked, nothing is applied. The owner authorised automatic learning (26/10/2026), so it is applied as confirmed."""
+    import auto_learning
+    import improvement_agent
+    previous = _auto_learning_agent_procedure(root, slug)
+    if previous.get("overlay_id") != (started_from or {}).get("overlay_id") or \
+            previous.get("generation") != (started_from or {}).get("generation"):
+        raise auto_learning.ConflictError("target_changed")
+    tag = __import__("secrets").token_hex(8)
+    staged = _improvement_agents().stage(_auto_learning_principal(root), slug, text, source="learn",
+                                         event_key=f"auto-learn-stage-{tag}")
+    surfaces = previous.get("surfaces") or sorted(improvement_agent.SURFACES)
+    overlay = _auto_learning_swap(root, slug, previous, staged["procedure_id"], surfaces, tag)
+    return {"slug": slug, "overlay_id": overlay["overlay_id"], "procedure_id": staged["procedure_id"],
+            "surfaces": surfaces, "previous": previous.get("procedure_id"), "previous_surfaces": previous.get("surfaces")}
 
 
 def _auto_learning_agent_undo(root, info):
+    """Back to the procedure before the learned one (or none). If restoring fails, the learned one stays live."""
     import auto_learning
-    import improvement_agent
-    service = _improvement_agents()
-    principal = _auto_learning_principal(root)
     current = _auto_learning_agent_procedure(root, info["slug"])
     if current.get("overlay_id") != info["overlay_id"]:
         raise auto_learning.ConflictError("changed_since")
     tag = __import__("secrets").token_hex(8)
-    service.revert(principal, info["overlay_id"], expected_generation=current["generation"], event_key=f"auto-learn-undo-{tag}")
     if info.get("previous"):
-        service.apply(principal, info["previous"], info.get("previous_surfaces") or sorted(improvement_agent.SURFACES),
-                      owner_confirmed=True, event_key=f"auto-learn-restore-{tag}")
+        _auto_learning_swap(root, info["slug"], current, info["previous"], info.get("previous_surfaces") or current["surfaces"], tag)
+    else:
+        _improvement_agents().revert(_auto_learning_principal(root), info["overlay_id"],
+                                     expected_generation=current["generation"], event_key=f"auto-learn-undo-{tag}")
 
 
 def _auto_learning_reaction(session_id, message_id):

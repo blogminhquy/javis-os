@@ -46,6 +46,31 @@ MIN_CASES, MAX_CASES = 16, 24
 MIN_SEALED, MIN_TUNING = 10, 3
 TEXT_LIMIT = 6000
 KINDS = ("skill", "agent", "workflow")
+KEEP_EPISODES_S = 30 * 86400
+_PLACEHOLDER = re.compile(r"\{\{\s*\w+\s*\}\}")
+_NOT_OWNER_CHANNELS = ("team", "teammate", "bot", "chatbot")
+
+
+class EngineError(Exception):
+    """A model call failed: the work stays queued for a later tick."""
+
+
+def placeholders(text: str) -> set:
+    return set(_PLACEHOLDER.findall(text or ""))
+
+
+def check_candidate(kind: str, text: str, original: str) -> str:
+    """Every text Javis would put live is checked like an owner-applied procedure: no host markers, no wording that
+    overrides the owner, no settings lines; a workflow task keeps exactly the placeholders it had."""
+    import improvement_agent
+    if kind == "agent":
+        return improvement_agent.validate_procedure(text)
+    reason = improvement_agent.unsafe_reason(text)
+    if reason:
+        raise ValueError(reason)
+    if kind == "workflow" and placeholders(text) != placeholders(original):
+        raise ValueError("workflow_placeholders_changed")
+    return text
 
 
 SKILL_USE_HOOK = [None]  # set by the host: (brain root, session id, slug) -> None
@@ -162,7 +187,7 @@ class Host:
     workflows_dir: Callable[[str], Path]                 # brain -> folder of workflow files
     agent_text: Callable[[str, str], str]                # (brain, slug) -> agent file text ("" when missing)
     agent_procedure: Callable[[str, str], dict]          # (brain, slug) -> {"text", "overlay_id", "procedure_id", "generation"}
-    agent_apply: Callable[[str, str, str], dict]         # (brain, slug, text) -> undo info (JSON-able)
+    agent_apply: Callable[[str, str, str, dict], dict]   # (brain, slug, text, overlay the run started from) -> undo info
     agent_undo: Callable[[str, dict], None]              # (brain, undo info) -> None
     reaction: Callable[[str, int], str] = lambda session_id, mid: ""   # owner's reaction on an answer, as text
     workflow_run: Callable[[str], Optional[dict]] = lambda run_id: None
@@ -183,8 +208,10 @@ def judge_prompt(kind: str, target_text: str, episode: dict, reaction: str) -> s
         "shows it, or the answer clearly breaks the request or the target's own instructions) AND clearer or "
         "different instructions in the target would have prevented it. A tool outage, missing data or the owner "
         "simply changing the subject is not a mistake of the target. When unsure, say \"unsure\".\n"
-        "For a mistake, write one test case that reproduces it WITHOUT tools: put every fact the assistant needs "
-        "into the prompt, and list 2 to 5 short, checkable criteria a correct answer meets.\n"
+        "For a mistake, write one test case that reproduces it WITHOUT tools: the prompt is the owner's original "
+        "request with every fact the assistant needs (prices, names, numbers), but NEVER the rule, convention or "
+        "correction the answer should follow: that is what the target must teach, so it goes only into 2 to 5 short, "
+        "checkable criteria a correct answer meets.\n"
         + ("For a workflow, also give the index of the step at fault (0-based).\n" if kind == "workflow" else "")
         + "Return ONLY JSON: {\"verdict\": \"ok|mistake|unsure\", \"what\": \"...\", \"right\": \"...\", "
         "\"case\": {\"prompt\": \"...\", \"criteria\": [\"...\"]}"
@@ -203,8 +230,10 @@ def writer_prompt(kind: str, target_text: str, mistakes: list, oks: list) -> str
                        for i, o in enumerate(oks)) or "(none)"
     return (
         f"You write a test set to check whether a revised {kind} fixes real mistakes without breaking what works.\n"
-        "Every case must be answerable WITHOUT tools or outside data: put all needed facts into the prompt. "
-        "If this kind of work cannot be tested that way, return {\"testable\": false}.\n"
+        "Every case must be answerable WITHOUT tools or outside data: put all needed facts (prices, names, numbers) "
+        "into the prompt. A prompt is a realistic request as the owner or a customer would write it and NEVER states "
+        "the rules, conventions or corrections below: those are what the target must know, so they appear only in "
+        "the criteria. If this kind of work cannot be tested that way, return {\"testable\": false}.\n"
         f"Write {MIN_CASES} to {MAX_CASES} cases. Each has a unique short family name, a prompt, 2 to 5 short "
         "checkable criteria, and a type:\n"
         "- \"mistake\": one per mistake below, close to its test prompt;\n"
@@ -263,6 +292,18 @@ def split_frontmatter(text: str) -> tuple:
     return "", text
 
 
+def workflow_steps(text: str) -> list:
+    """The `steps` list of a workflow file (steps format only), [] otherwise."""
+    import yaml
+    front, _body = split_frontmatter(text or "")
+    try:
+        meta = yaml.safe_load(front[4:-5]) if front else None
+    except yaml.YAMLError:
+        return []
+    steps = meta.get("steps") if isinstance(meta, dict) else None
+    return steps if isinstance(steps, list) and all(isinstance(s, dict) for s in steps) else []
+
+
 @dataclass
 class Target:
     kind: str
@@ -307,29 +348,24 @@ class Targets:
         path = Path(self.host.workflows_dir(brain)) / f"{slug}.md"
         if not path.is_file():
             return None
-        raw = path.read_text(encoding="utf-8")
-        front, _body = split_frontmatter(raw)
-        meta = yaml.safe_load(front[4:-5]) if front else None
-        steps = (meta or {}).get("steps")
-        if not isinstance(steps, list) or not 0 <= step < len(steps) or not isinstance(steps[step], dict):
+        raw = path.read_bytes()
+        steps = workflow_steps(raw.decode("utf-8"))
+        if not isinstance(step, int) or isinstance(step, bool) or not 0 <= step < len(steps):
             return None
         agent_slug = str(steps[step].get("agent") or "")
         persona = split_frontmatter(self.host.agent_text(brain, agent_slug) or "")[1].strip() if agent_slug else ""
 
-        def prompt(version, material):
-            if "{{input}}" in version or "{{prev}}" in version:
-                return version.replace("{{input}}", material).replace("{{prev}}", material)
-            return version + "\n\n" + material
+        def prompt(version, material):  # exactly what the runner sends: the two placeholders replaced, nothing added
+            return version.replace("{{input}}", material).replace("{{prev}}", material)
         return Target("workflow", slug, step, str(steps[step].get("task") or ""), lambda v: (
             persona or "You are a Javis assistant doing one step of a workflow."), prompt,
-            meta={"hash": _sha(raw), "path": str(path)})
+            meta={"hash": hashlib.sha256(raw).hexdigest(), "path": str(path)})
 
     # apply returns undo info; undo restores it
     def apply(self, brain: str, target: Target, new_text: str, run_id: str) -> dict:
+        new_text = check_candidate(target.kind, new_text, target.text)
         if target.kind == "agent":
-            import improvement_agent
-            return {"kind": "agent", **self.host.agent_apply(brain, target.slug,
-                                                             improvement_agent.validate_procedure(new_text))}
+            return {"kind": "agent", **self.host.agent_apply(brain, target.slug, new_text, target.meta.get("current") or {})}
         backups = Path(self.host.backups)
         backups.mkdir(parents=True, exist_ok=True)
         if target.kind == "skill":
@@ -344,7 +380,7 @@ class Targets:
             import yaml
             path = Path(target.meta["path"])
             old = path.read_bytes()
-            if _sha(old.decode("utf-8")) != target.meta["hash"]:
+            if hashlib.sha256(old).hexdigest() != target.meta["hash"]:
                 raise ConflictError("target_changed")
             front, body = split_frontmatter(old.decode("utf-8"))
             meta = yaml.safe_load(front[4:-5])
@@ -375,6 +411,9 @@ class AutoLearner:
     def __init__(self, store: Store, host: Host, *, clock: Callable[[], float] = time.time, width: int = 3):
         self.store, self.host, self.clock, self.width = store, host, clock, width
         self.targets = Targets(host)
+        # One process runs the learner: a run still "running" at start was cut off by a restart.
+        self.store.write(lambda c: c.execute("UPDATE runs SET state='failed', error='interrupted', finished_at=? "
+                                             "WHERE state='running'", (self.clock(),)))
 
     # recording (cheap, no model call; safe to call from request handlers)
 
@@ -384,16 +423,18 @@ class AutoLearner:
         self.store.write(lambda c: c.execute("INSERT OR REPLACE INTO skill_uses VALUES(?,?,?,?)",
                                              (session_id, brain, slug, self.clock())))
 
-    def observe_turn(self, brain: str, session_id: str, channel: str, request: str, answer: str, answer_mid) -> list:
-        """Close a chat turn: the new request is the follow-up of this chat's open episodes; skills used in this turn
-        and agent chats become episodes. Returns the new episode ids."""
-        if not session_id or str(channel or "").startswith(("team", "teammate")):
+    def observe_turn(self, brain: str, session_id: str, channel: str, request: str, answer: str, answer_mid,
+                     turn_started: float = 0) -> list:
+        """Close a chat turn: the new request is the follow-up of this chat's open episodes from EARLIER turns;
+        skills used in this turn and agent chats become episodes. Returns the new episode ids."""
+        if not session_id or str(channel or "").startswith(_NOT_OWNER_CHANNELS):
             return []
         now, created = self.clock(), []
+        before = turn_started or now - 5  # a workflow run this very turn started is not its own follow-up
 
         def tx(c):
             c.execute("UPDATE episodes SET follow_up=? WHERE session_id=? AND brain=? AND state='pending' "
-                      "AND follow_up IS NULL", (_cut(request, 4000), session_id, brain))
+                      "AND follow_up IS NULL AND created_at<?", (_cut(request, 4000), session_id, brain, before))
             slugs = [r[0] for r in c.execute("SELECT slug FROM skill_uses WHERE session_id=? AND brain=?",
                                              (session_id, brain))]
             c.execute("DELETE FROM skill_uses WHERE session_id=? AND brain=?", (session_id, brain))
@@ -412,8 +453,11 @@ class AutoLearner:
         self.store.write(tx)
         return created
 
-    def observe_workflow(self, brain: str, slug: str, run_id: str, request: str, output: str, session_id: str = "") -> str:
-        if not self.host.policy_on(brain):
+    def observe_workflow(self, brain: str, slug: str, run_id: str, request: str, output: str, session_id: str = "",
+                         source: str = "web") -> str:
+        """Only runs the owner started in person (Studio or a workflow chat): unattended runs have nobody to react,
+        and a busy loop would eat the day's judgments."""
+        if source != "web" or not session_id or not self.host.policy_on(brain):
             return ""
         episode_id = "ep_" + secrets.token_hex(8)
         self.store.write(lambda c: c.execute("INSERT INTO episodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
@@ -438,7 +482,8 @@ class AutoLearner:
         self.store.write(lambda c: (
             c.execute("UPDATE episodes SET state='expired' WHERE state='pending' AND created_at<?", (now - EXPIRE_AFTER_S,)),
             c.execute("DELETE FROM mistakes WHERE run_id IS NULL AND created_at<?", (now - MISTAKE_TTL_S,)),
-            c.execute("DELETE FROM skill_uses WHERE ts<?", (now - 86400,))))
+            c.execute("DELETE FROM skill_uses WHERE ts<?", (now - 86400,)),
+            c.execute("DELETE FROM episodes WHERE state!='pending' AND created_at<?", (now - KEEP_EPISODES_S,))))
         judged = self.judge_ready()
         if judged:
             return {"judged": judged}
@@ -462,9 +507,11 @@ class AutoLearner:
                 continue
             try:
                 self.judge(episode)
-            except Exception as error:  # noqa: BLE001 - an engine failure leaves the episode for a later tick
-                print(f"[auto-learning judge] {type(error).__name__}: {error}", flush=True)
+            except EngineError as error:  # the engine is down: leave the episode for a later tick
+                print(f"[auto-learning judge] {error}", flush=True)
                 return done
+            except Exception as error:  # noqa: BLE001 - this episode cannot be judged; never block the others
+                self._close(episode["id"], "skipped", f"error: {type(error).__name__}"[:60])
             done += 1
         return done
 
@@ -494,8 +541,11 @@ class AutoLearner:
             return "skipped"
         reaction = self.host.reaction(episode["session_id"], episode["answer_mid"]) if episode["answer_mid"] else ""
         self._bump(brain, "judged")
-        raw = self.host.text_call("You are a careful reviewer. Answer with JSON only.",
-                                  judge_prompt(kind, target_text, episode, reaction))
+        try:
+            raw = self.host.text_call("You are a careful reviewer. Answer with JSON only.",
+                                      judge_prompt(kind, target_text, episode, reaction))
+        except Exception as error:  # noqa: BLE001
+            raise EngineError(f"{type(error).__name__}: {error}") from error
         try:
             data = parse_json(raw)
         except ValueError:
@@ -505,8 +555,9 @@ class AutoLearner:
         case = data.get("case") if isinstance(data.get("case"), dict) else {}
         criteria = [str(c).strip() for c in case.get("criteria") or [] if str(c).strip()][:5]
         step = data.get("step") if kind == "workflow" else -1
-        if verdict == "mistake" and (not str(case.get("prompt") or "").strip() or not criteria
-                                     or (kind == "workflow" and not (isinstance(step, int) and step >= 0))):
+        bad_step = kind == "workflow" and not (isinstance(step, int) and not isinstance(step, bool)
+                                               and 0 <= step < len(workflow_steps(target_text)))
+        if verdict == "mistake" and (not str(case.get("prompt") or "").strip() or not criteria or bad_step):
             verdict = "unsure"  # a mistake Javis cannot turn into a test teaches nothing
         if verdict == "mistake":
             step = int(step) if kind == "workflow" else -1
@@ -519,7 +570,7 @@ class AutoLearner:
 
     def _workflow_text(self, brain, slug):
         path = Path(self.host.workflows_dir(brain)) / f"{slug}.md"
-        return path.read_text(encoding="utf-8") if path.is_file() else None
+        return path.read_bytes().decode("utf-8") if path.is_file() else None
 
     def next_target(self) -> Optional[tuple]:
         now = self.clock()
@@ -539,7 +590,6 @@ class AutoLearner:
 
     def learn(self, brain: str, kind: str, slug: str, step: int = -1) -> dict:
         key, run_id, now = target_key(kind, slug, step), "alr_" + secrets.token_hex(8), self.clock()
-        self._bump(brain, "runs")
         self.store.write(lambda c: c.execute("INSERT INTO runs(id, brain, target, kind, slug, step, state, started_at) "
                                              "VALUES(?,?,?,?,?,?,?,?)", (run_id, brain, key, kind, slug, step, "running", now)))
 
@@ -553,11 +603,15 @@ class AutoLearner:
 
         try:
             self.host.engine_ready(brain)
-            target = self.targets.read(brain, kind, slug, step)
-            if target is None:
-                return finish("skipped", error="target_unavailable")
             mistakes = self.store.read("SELECT * FROM mistakes WHERE brain=? AND target=? AND run_id IS NULL "
                                        "ORDER BY created_at DESC LIMIT 8", (brain, key))
+            target = self.targets.read(brain, kind, slug, step)
+            if target is None or (kind == "workflow" and not placeholders(target.text)):
+                # Gone, protected, or a step that never sees its input: these mistakes cannot teach this target.
+                self.store.write(lambda c: c.execute("UPDATE mistakes SET run_id=? WHERE brain=? AND target=? "
+                                                     "AND run_id IS NULL", (run_id, brain, key)))
+                return finish("skipped", error="target_unavailable" if target is None else "untestable")
+            self._bump(brain, "runs")
             oks = self.store.read("SELECT request, answer FROM episodes WHERE brain=? AND kind=? AND slug=? "
                                   "AND verdict='ok' ORDER BY judged_at DESC LIMIT 6", (brain, kind, slug))
             shown = {"skill": target.text, "agent": target.system(target.text),
@@ -576,8 +630,11 @@ class AutoLearner:
                 return self.host.text_call(target.system(version), target.prompt(version, case_prompt))
 
             def improve(instructions):
-                return self.host.text_call(f"You improve the instructions of a Javis {kind}. Keep their language "
-                                           "and style.", instructions)
+                answer = self.host.text_call(f"You improve the instructions of a Javis {kind}. Keep their language "
+                                             "and style." + (" Keep every {{placeholder}} exactly as it is."
+                                                             if kind == "workflow" else ""), instructions)
+                check_candidate(kind, L.extract_skill(answer), target.text)  # unsafe text never enters the run
+                return answer
 
             def check(case, output):
                 data = parse_json(self.host.text_call(GRADER_SYSTEM, grader_prompt(case.prompt, case.answer, output)))
@@ -585,19 +642,22 @@ class AutoLearner:
                 return {"pass": bool(data.get("pass")) and score >= 0.999, "score": score,
                         "feedback": str(data.get("feedback") or "")[:300]}
 
-            loop = L.Loop(cases, solve=solve, improve=improve, check=check, width=self.width)
+            said = "\n".join(f"- What went wrong: {m['what']} Right behaviour: {m['right_way']}" for m in mistakes)
+            loop = L.Loop(cases, solve=solve, improve=improve, check=check, width=self.width, context=said)
             result = loop.run(target.text, k=1, qualification_repeats=2)
-            report = {**result.report, "chosen": result.chosen, "tuning": result.tuning, "cases": len(cases)}
+            report = {**result.report, "chosen": result.chosen, "tuning": result.tuning, "case_count": len(cases)}
             used = [m["id"] for m in mistakes]
             self.store.write(lambda c: c.executemany("UPDATE mistakes SET run_id=? WHERE id=?",
                                                      [(run_id, m) for m in used]))
             if result.report.get("verdict") != "helped" or result.report.get("regressions"):
                 return finish("done", result.report.get("verdict", "keep_base"), report)
+            if not self.host.policy_on(brain):  # the owner switched improvement off while this ran
+                return finish("done", "helped", {**report, "not_applied": "policy_off"})
             applied = self.targets.apply(brain, target, result.versions[result.chosen], run_id)
             return finish("done", "helped", report, applied=applied)
         except L.EngineUnavailable as error:
             return finish("failed", error=f"engine_unavailable: {error}"[:300])
-        except (ConflictError, PermissionError, ValueError, OSError) as error:
+        except Exception as error:  # noqa: BLE001 - a run never stays "running"
             return finish("failed", error=f"{type(error).__name__}: {error}"[:300])
 
     # owner view
@@ -609,7 +669,7 @@ class AutoLearner:
         for row in rows:
             report = json.loads(row.pop("report") or "{}")
             row["summary"] = {k: report.get(k) for k in ("outcomes", "p_value", "base_pass_rate",
-                                                         "candidate_pass_rate", "regressions", "cases")}
+                                                         "candidate_pass_rate", "regressions", "case_count")}
         return rows
 
     def stats(self, brain: str) -> dict:
@@ -624,7 +684,9 @@ class AutoLearner:
         if not rows:
             raise ValueError("run_not_found")
         run = rows[0]
-        if not run["applied"] or run["undone_at"]:
+        if run["undone_at"]:
+            return {"run_id": run_id, "undone": True}  # a retry after a lost response
+        if not run["applied"]:
             raise ConflictError("nothing_to_undo")
         self.targets.undo(brain, json.loads(run["undo"]))
         self.store.write(lambda c: c.execute("UPDATE runs SET undone_at=? WHERE id=?", (self.clock(), run_id)))
