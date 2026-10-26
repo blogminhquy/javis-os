@@ -197,6 +197,9 @@ class Host:
     reaction: Callable[[str, int], str] = lambda session_id, mid: ""   # owner's reaction on an answer, as text
     workflow_run: Callable[[str], Optional[dict]] = lambda run_id: None
     backups: Path = None                                 # folder for skill/workflow backups
+    # The background model the Models page sets for "tự học": judging, writing cases, grading and writing the
+    # revision run here; only doing the test work runs on text_call (the brain's own engine). None = text_call.
+    background_call: Optional[Callable[[str, str], str]] = None
     # The owner's "Tự học" page: on/off, write mode (dry-run | suggest | auto) and which kinds may learn.
     settings: Callable[[str], dict] = lambda brain: {"enabled": True, "mode": "auto", "kinds": set(KINDS)}
 
@@ -423,6 +426,7 @@ class AutoLearner:
     def __init__(self, store: Store, host: Host, *, clock: Callable[[], float] = time.time, width: int = 3):
         self.store, self.host, self.clock, self.width = store, host, clock, width
         self.targets = Targets(host)
+        self.background = host.background_call or host.text_call
         # One process runs the learner: a run still "running" at start was cut off by a restart.
         self.store.write(lambda c: c.execute("UPDATE runs SET state='failed', error='interrupted', finished_at=? "
                                              "WHERE state='running'", (self.clock(),)))
@@ -584,7 +588,7 @@ class AutoLearner:
             return "skipped"
         reaction = self.host.reaction(episode["session_id"], episode["answer_mid"]) if episode["answer_mid"] else ""
         try:
-            raw = self.host.text_call("You are a careful reviewer. Answer with JSON only.",
+            raw = self.background("You are a careful reviewer. Answer with JSON only.",
                                       judge_prompt(kind, target_text, episode, reaction))
         except Exception as error:  # noqa: BLE001
             raise EngineError(f"{type(error).__name__}: {error}") from error
@@ -663,7 +667,7 @@ class AutoLearner:
                      "workflow": f"Step task:\n{target.text}\n\nAssistant doing the step:\n{target.system(target.text)}\n"
                                  "(each test prompt is the material the step receives)"}[kind]
             try:
-                cases = build_cases(parse_json(self.host.text_call(
+                cases = build_cases(parse_json(self.background(
                     "You write test sets. Answer with JSON only.", writer_prompt(kind, shown, mistakes, oks))))
             except ValueError as error:
                 if str(error) == "untestable":
@@ -675,21 +679,21 @@ class AutoLearner:
                 return self.host.text_call(target.system(version), target.prompt(version, case_prompt))
 
             def improve(instructions):
-                answer = self.host.text_call(f"You improve the instructions of a Javis {kind}. Keep their language "
+                answer = self.background(f"You improve the instructions of a Javis {kind}. Keep their language "
                                              "and style." + (" Keep every {{placeholder}} exactly as it is."
                                                              if kind == "workflow" else ""), instructions)
                 check_candidate(kind, L.extract_skill(answer), target.text)  # unsafe text never enters the run
                 return answer
 
             def check(case, output):
-                data = parse_json(self.host.text_call(GRADER_SYSTEM, grader_prompt(case.prompt, case.answer, output)))
+                data = parse_json(self.background(GRADER_SYSTEM, grader_prompt(case.prompt, case.answer, output)))
                 score = max(0.0, min(1.0, float(data.get("score", 0))))
                 return {"pass": bool(data.get("pass")) and score >= 0.999, "score": score,
                         "feedback": str(data.get("feedback") or "")[:300]}
 
             said = "\n".join(f"- What went wrong: {m['what']} Right behaviour: {m['right_way']}" for m in mistakes)
             loop = L.Loop(cases, solve=solve, improve=improve, check=check, width=self.width, context=said)
-            result = loop.run(target.text, k=1, qualification_repeats=2)
+            result = loop.run(target.text, k=1, qualification_repeats=2, early_stop=True)
             report = {**result.report, "chosen": result.chosen, "tuning": result.tuning, "case_count": len(cases),
                       "case_list": [{"id": c.id, "family": c.family, "split": c.split, "prompt": _cut(c.prompt, 600),
                                      "criteria": c.answer} for c in cases]}

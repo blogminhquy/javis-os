@@ -27199,6 +27199,16 @@ def _auto_learning_spec():
     return None
 
 
+def _auto_learning_background_spec():
+    """Judging, writing cases, grading and writing revisions run on the background model ("Mô hình nền", the one
+    the Models page sets for loops, Kanban and learning); when it cannot run text-only, on the learning engine."""
+    settings = cfgmod.read_settings() or {}
+    background = aux_engine.read_spec(settings)
+    if team_engine.text_only_supported(background.get("provider")) and aux_engine.availability(background, settings)[0]:
+        return {"provider": background["provider"], "model": background.get("model") or "", "source": "aux", "note": ""}
+    return _auto_learning_spec()
+
+
 def _auto_learning_engine_ready(root):
     spec = _auto_learning_spec()
     if spec is None:
@@ -27332,6 +27342,9 @@ def _auto_learner():
             host = auto_learning.Host(
                 text_call=lambda system, prompt: _improvement_text_call(
                     system, prompt, "auto-learning-" + __import__("secrets").token_hex(4), _auto_learning_spec()),
+                background_call=lambda system, prompt: _improvement_text_call(
+                    system, prompt, "auto-learning-bg-" + __import__("secrets").token_hex(4),
+                    _auto_learning_background_spec()),
                 engine_ready=_auto_learning_engine_ready,
                 policy_on=_auto_learning_policy_on,
                 skill_protected=_improvement_skill_protected,

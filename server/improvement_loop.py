@@ -143,6 +143,7 @@ class EngineUnavailable(Exception):
 
 
 MAX_ERROR_SHARE = 0.2
+EARLY_WINS = 8  # one repeat, 8 wins and no loss: sign test p 0.008
 
 
 def _same(a: str, b: str) -> bool:
@@ -219,7 +220,10 @@ class Loop:
         return fallback
 
     def run(self, base_skill: str, *, k: int = 1, tuning_repeats: int = 1, qualification_repeats: int = 2,
-            margin: float = 0.0) -> LoopResult:
+            margin: float = 0.0, early_stop: bool = False) -> LoopResult:
+        """`early_stop`: run the sealed pairs one repeat at a time and stop once the answer is clear: the candidate
+        does not win more cases than it loses (it cannot be "helped"), or it wins EARLY_WINS cases with no loss and
+        no regression. Every stop is still judged by the same report."""
         res = self.result
         res.versions["base"] = base_skill
         base_rows = self._roll("base", base_skill, self.tuning, tuning_repeats)
@@ -254,8 +258,26 @@ class Loop:
             res.report = {"verdict": "keep_base", "reason": "no_tuning_improvement", "engine_errors": self.errors}
             return res
         # Baseline and candidate run as interleaved pairs, so an outage or rate limit hits both arms alike.
+        arms = (("base", base_skill), (res.chosen, res.versions[res.chosen]))
+        if early_stop:
+            rows = []
+            for repeat in range(1, qualification_repeats + 1):
+                rows += self._run_jobs([(label, text, c, repeat) for c in self.qualification for label, text in arms])
+                if repeat == qualification_repeats:
+                    break
+                so_far = paired_report([r for r in rows if r.version == "base"], [r for r in rows if r.version != "base"])
+                o = so_far["outcomes"]
+                if o["loss"] >= o["win"] or (o["win"] >= EARLY_WINS and not o["loss"] and not so_far["regressions"]):
+                    self.result.notes["qualification"] = f"early_stop_after_{repeat}"
+                    break
+            self.on_event("rolled", {"version": "qualification", "rows": len(rows), "mean": _mean(rows)})
+            res.qualification = rows
+            res.report = paired_report([r for r in rows if r.version == "base"], [r for r in rows if r.version != "base"])
+            res.report["engine_errors"] = self.errors
+            res.report["repeats"] = max(r.repeat for r in rows)
+            return res
         jobs = [(label, text, c, r) for c in self.qualification for r in range(1, qualification_repeats + 1)
-                for label, text in (("base", base_skill), (res.chosen, res.versions[res.chosen]))]
+                for label, text in arms]
         rows = self._run_jobs(jobs)
         self.on_event("rolled", {"version": "qualification", "rows": len(rows), "mean": _mean(rows)})
         res.qualification = rows
