@@ -40,6 +40,7 @@ import channel_accounts
 import channels
 import chatbot_doc_tools
 import bot_images
+import bot_reaction
 import bot_split
 import bot_linked_docs
 import chatbot_grounding
@@ -417,6 +418,9 @@ def build_bot_prompt(bot: dict) -> str:
     # The channel of THIS turn sends several short messages (0.281.0): the Agent may split its answer, see bot_split.
     if (bot or {}).get("_kenh_luot") in bot_split.SPLIT_CHANNELS:
         phan.append(bot_split.PROMPT_HINT)
+    # The channel of THIS turn can put an emoji reaction on the customer's message (0.334.0, bot_reaction).
+    if (bot or {}).get("_kenh_luot") in bot_reaction.CHANNELS:
+        phan.append(bot_reaction.PROMPT_HINT)
     # Lượt Tự đánh giá do _make_answer_fn gắn. Cờ chứ không suy từ meta: prompt được dựng ở đây,
     # nơi không có meta của lượt.
     if (bot or {}).get("_tu_dong"):
@@ -937,7 +941,9 @@ def _rp_event(cfg: dict, profile, text: str, meta: dict, owner_typing: bool = Fa
         sender_role=chatbot_reply_policy.sender_role(profile, uid), mentioned=bool((meta or {}).get("mentioned")),
         reply_to_bot=bool((meta or {}).get("reply_to_bot")),
         window=chatbot_reply_policy.window_of(bot_id, chat_id, now),
-        bot_last_spoke_ts=last, last_bot_addressee=addressee, owner_typing=bool(owner_typing))
+        bot_last_spoke_ts=last, last_bot_addressee=addressee, owner_typing=bool(owner_typing),
+        is_reaction=bool((meta or {}).get("reaction")),
+        can_react=bool((meta or {}).get("react_to")) and _tai_khoan_cua(cfg, meta or {})[1] in bot_reaction.CHANNELS)
 
 
 def _rp_named_meta(cfg: dict, text: str, meta) -> dict:
@@ -948,7 +954,8 @@ def _rp_named_meta(cfg: dict, text: str, meta) -> dict:
     callback không truyền sang callback kia; mỗi chỗ dùng tự gọi hàm này.
     """
     m = dict(meta or {})
-    if not _rp_is_group(m) or m.get("mentioned") or m.get("reply_to_bot"):
+    # A reaction's line quotes the message it was put on (0.334.0): the bot's name in that quote is not a call.
+    if not _rp_is_group(m) or m.get("mentioned") or m.get("reply_to_bot") or m.get("reaction"):
         return m
     try:
         profile = _rp_profile(cfg, m, with_role=False)
@@ -1066,6 +1073,10 @@ class PolicyHooks:
         profile = _rp_profile(cfg, meta, with_role=(rpc["mode"] != "off"))
         ev = _rp_event(cfg, profile, text, meta, owner_typing)
         addr = chatbot_reply_policy.detect_address(ev, profile)
+        if meta.get("reaction") and addr.level == "certain":
+            # A reaction's line quotes the message it was put on (0.334.0): the bot's name in that quote is not a call,
+            # so the judge still weighs it like any message nobody addressed.
+            addr = chatbot_reply_policy.AddressResult("possible", list(addr.evidence) + ["reaction"])
         if addr.level == "certain":
             meta["mentioned"] = True
             ev.mentioned = True
@@ -1630,7 +1641,8 @@ def _make_answer_fn(bot_id: str):
                 print(f"[reply_policy {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
                 return {"text": "", "files": [], "im_lang": True}
             if dec.verdict != "reply":
-                return {"text": "", "files": [], "im_lang": True}
+                # The judge may still put a reaction on the message while staying quiet (0.334.0).
+                return {"text": "", "files": [], "im_lang": True, "reaction": dec.reaction or None}
             rp_dec = dec
             tl = dec.doc or await _tra_tai_lieu(bot_id, cfg, text)
         elif tu_dong:
@@ -1725,6 +1737,18 @@ def _make_answer_fn(bot_id: str):
             out = {"text": "", "files": []}
 
         dap = (out or {}).get("text") or ""
+        # The Agent's own reaction (0.334.0, `[CAM_XUC:<name>]`): the marker always leaves the text, so it never reaches a
+        # customer; the reaction is kept only where the channel can put one. Rides along with every outcome below except
+        # a reply dropped as stale.
+        reaction = None
+        if not loi_ky_thuat and dap:
+            dap, reaction = bot_reaction.pick(dap)
+            out = dict(out or {})
+            out["text"] = dap
+        if not loi_ky_thuat and not reaction and rp_dec is not None:
+            reaction = rp_dec.reaction or None       # the judge chose one when it let the bot speak
+        if kenh_luot not in bot_reaction.CHANNELS:
+            reaction = None
         # Bot TỰ QUYẾT im lặng (được dạy ở Zalo cá nhân và ở lượt Tự đánh giá, xem _CAU_ZALO_CA_NHAN
         # và _CAU_NHOM_TU_DONG). Đây không phải lượt "bí" và cũng không phải lượt lỗi: bot hiểu
         # tin nhắn và chọn không nhân danh chủ trả lời. Ghi vào nhật ký để chủ soi lại được, nhưng
@@ -1744,7 +1768,7 @@ def _make_answer_fn(bot_id: str):
                 "chuyen_nguoi": rang, "bi": False,
                 "muc_quyen": cfg.get("muc_quyen") or "suggest",
             })
-            return {"text": "", "files": [], "im_lang": True, "bao_chu": True}
+            return {"text": "", "files": [], "im_lang": True, "bao_chu": True, "reaction": reaction}
         if not loi_ky_thuat and IM_LANG.lower() in dap.lower():
             _rp_retract(rp_dec, "agent_silent")
             _BI_LIEN_TIEP[(bot_id, chat_id)] = 0
@@ -1756,7 +1780,20 @@ def _make_answer_fn(bot_id: str):
                 "chuyen_nguoi": False, "bi": False,
                 "muc_quyen": cfg.get("muc_quyen") or "suggest",
             })
-            return {"text": "", "files": [], "im_lang": True}
+            return {"text": "", "files": [], "im_lang": True, "reaction": reaction}
+        if not loi_ky_thuat and reaction and not dap.strip() and not (out or {}).get("files"):
+            # Only a reaction, no words (0.334.0): the customer gets the reaction, nothing else is sent.
+            _rp_retract(rp_dec, "agent_silent")
+            _BI_LIEN_TIEP[(bot_id, chat_id)] = 0
+            chatbot_log.ghi(bot_id, {
+                "chat_id": chat_id, "chat_type": (meta or {}).get("chat_type"),
+                "user_name": (meta or {}).get("user_name"), "hoi": text,
+                "dap": f"(bot chỉ thả cảm xúc {bot_reaction.emoji_of(reaction)})", "loi": "", "bo_qua": "bot_reacted_only",
+                "co_tai_lieu": bool(tl.get("co")), "nguon": tl.get("nguon"),
+                "chuyen_nguoi": False, "bi": False,
+                "muc_quyen": cfg.get("muc_quyen") or "suggest",
+            })
+            return {"text": "", "files": [], "im_lang": True, "reaction": reaction}
         # Zalo chat riêng: khách đã nhắn thêm chữ trong lúc bot soạn thì câu này là CŨ (0.172.0). Không gửi, không vào
         # Hộp thư như lời bot nói; lượt kế tiếp đọc cả tin mới lẫn tin của lượt này và trả lời một lần.
         if not loi_ky_thuat and dap and _luot_cu(meta):
@@ -1844,6 +1881,9 @@ def _make_answer_fn(bot_id: str):
                                    f"Latest: {str(text)[:200]}"))
         if loi_ky_thuat:
             return {"text": "", "files": [], "im_lang": True}
+        if reaction:
+            out = dict(out or {})
+            out["reaction"] = reaction
         return out
     return _answer
 

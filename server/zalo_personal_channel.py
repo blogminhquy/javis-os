@@ -396,6 +396,40 @@ def _bao_xin_vao(conn: dict, theo_nhom: Dict[str, dict]) -> None:
         t.add_done_callback(_VIEC.discard)
 
 
+def _reaction_meta(conn: dict, msg: dict, thread: str, sender_id: str) -> dict:
+    """A reaction entry of the feed (javis-zalo >= 1.7.0, `type: "reaction"`) -> `metadata.reaction` (0.334.0).
+
+    Looks up the message it was put on in the inbox, so the line the judge and the Agent read says WHAT was reacted
+    to and whose it was: `target_side` "ours" (this account: the bot or the owner), "self" (the reactor's own), or
+    the member's name. A message the inbox never stored keeps an empty `target_text`."""
+    import bot_reaction
+    r = msg.get("reaction") if isinstance(msg.get("reaction"), dict) else {}
+    name = str(r.get("name") or "").strip().lower()
+    target_id = str(r.get("targetMsgId") or "").strip()
+    target = conversations.tin_theo_id(KENH, conn["id"], thread, target_id) if target_id else {}
+    kind = str(target.get("message_type") or "")
+    text = str(target.get("text") or "")
+    if kind == "image":
+        text = conversations.chu_thich_anh(text) or localefmt.chu("(ảnh)", "(photo)")
+    elif kind == "reaction":
+        text = ""
+    elif kind and kind != "text" and text.startswith("["):
+        text = f"({kind})"
+    author = str(target.get("sender_type") or "")
+    if author in ("ai", "human"):
+        side = "ours"
+    elif author == "customer":
+        side = ("self" if str(target.get("sender_id") or "") == str(sender_id or "")
+                else (str(target.get("sender_name") or "").strip() or "self"))
+    else:
+        side = ""
+    return {
+        "name": name, "emoji": str(r.get("emoji") or "") or bot_reaction.emoji_of(name), "code": str(r.get("code") or ""),
+        "removed": bool(r.get("removed")), "target_msg_id": target_id,
+        "target_cli_msg_id": str(r.get("targetCliMsgId") or ""), "target_text": text, "target_side": side,
+    }
+
+
 def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]:
     """Một tin của `zalo_get_messages` -> sự kiện chung của kho. None nếu không biết thread."""
     if not isinstance(msg, dict):
@@ -428,6 +462,11 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
         ten_moi = sender_name or sender_id
         text = localefmt.chu(f"[{ten_moi} xin vào nhóm]", f"[{ten_moi} asked to join the group]")
     cua_minh = _la_cua_minh(msg)
+    reaction = _reaction_meta(conn, msg, thread, sender_id) if loai == "reaction" else None
+    if reaction is not None:
+        import bot_reaction
+        text = bot_reaction.describe(localefmt.chu("Bên mình", "We") if cua_minh else (sender_name or sender_id),
+                                     reaction)
     return {
         "channel": KENH,
         "account_id": conn["id"],
@@ -444,8 +483,9 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
         "text": text,
         "external_message_id": str(_lay(msg, "id", "msgId", "message_id", mac_dinh="") or ""),
         "created_at": _ts(_lay(msg, "ts", "timestamp", "time", mac_dinh=0)),
-        "metadata": dict({k: msg.get(k) for k in ("replyTo", "mentions", "mediaUrl", "url", "fileName")
+        "metadata": dict({k: msg.get(k) for k in ("replyTo", "mentions", "mediaUrl", "url", "fileName", "cliMsgId")
                           if msg.get(k) not in (None, "")},
+                         **({"reaction": reaction} if reaction is not None else {}),
                          **({"chua_ro_loai": True} if _chua_ro_loai(msg, ten) else {}),
                          **({"member_join": vao_nhom} if vao_nhom is not None else {}),
                          **({"join_request": xin_vao} if xin_vao is not None else {}),
@@ -626,6 +666,24 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
         ev = chuan_hoa_tin(conn, m, ten)
         if not ev:
             continue
+        if ev.get("message_type") == "reaction":
+            # A reaction (0.334.0) is never the owner typing and never an echo of a sentence: it goes to the inbox as
+            # it is. This account's own one is the bot's when the bot just put it (`remember_bot_reaction`), else the owner's.
+            # A customer's goes to the bot like a message; whether it deserves anything is the judge's call (or the
+            # Agent's), never decided here. Taking a reaction back is only recorded.
+            if ev["sender_type"] == "human":
+                bot = _bot_reaction_echo(conn["id"], ev["external_chat_id"], (ev.get("metadata") or {}).get("reaction"))
+                if bot is not None:
+                    ev = dict(ev, sender_type="ai", sender_name=bot)
+            kq = conversations.ghi_su_kien(ev)
+            if kq.get("ok"):
+                if kq.get("trung"):
+                    trung += 1
+                else:
+                    moi += 1
+                    if ev["sender_type"] == "customer" and not ((ev.get("metadata") or {}).get("reaction") or {}).get("removed"):
+                        _giao_cho_bot(conn, ev)
+            continue
         if ev["sender_type"] == "human":
             _hoc_danh_tinh(conn["id"], m)
             # Tin chủ gửi đi. Tiếng vọng của câu BOT vừa gửi thì bỏ (bot đã tự ghi câu đó vào
@@ -634,6 +692,7 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
             if _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"]) or (
                     ev.get("message_type") == "image"
                     and _la_vong_anh(conn["id"], ev["external_chat_id"])):
+                attach_echo_id(conn["id"], ev)
                 trung += 1
                 continue
             _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
@@ -646,6 +705,7 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
             # có thể quay về như tin của một KHÁCH. Để lọt thì trong nhóm bot sẽ tự trả lời chính
             # nó, và Hộp thư ghi câu bot nói thành tin khách. Chỉ áp cho tin đủ dài: "Dạ" hay "ok"
             # khách nói trùng câu bot vừa nói là chuyện thường, còn một đoạn dài y hệt thì là vọng.
+            attach_echo_id(conn["id"], ev)
             trung += 1
             continue
         kq = conversations.ghi_su_kien(ev)
@@ -1149,6 +1209,55 @@ def ghi_da_gui_anh(conn_id: str, thread: str, so: int = 1) -> None:
             _DA_GUI_ANH.pop(k, None)
 
 
+def attach_echo_id(conn_id: str, ev: dict) -> bool:
+    """The echo of a message this account sent came back with Zalo's id: give the inbox row of that message the id
+    (0.334.0, `conversations.own_messages_without_id`). A customer's reaction names the message by it. Matched like
+    the echo itself (same text, or one starts with the other: a long answer goes out in parts). Never raises."""
+    msg_id = str((ev or {}).get("external_message_id") or "")
+    if not msg_id:
+        return False
+    echo = _chuan((ev or {}).get("text"))
+    try:
+        for row in conversations.own_messages_without_id(KENH, str(conn_id), str(ev.get("external_chat_id") or ""),
+                                                         time.time() - ECHO_TTL):
+            sent = _chuan(row.get("text"))
+            if echo and sent and (echo == sent or sent.startswith(echo[:80]) or echo.startswith(sent[:80])):
+                return conversations.set_message_id(int(row["id"]), msg_id)
+    except Exception as e:      # noqa: BLE001 - worst case a reaction to this message reads "a message"
+        print(f"[zalo-personal] attaching a message id failed: {type(e).__name__}", file=sys.stderr)
+    return False
+
+
+_BOT_REACTIONS: Dict[tuple, list] = {}     # (account, chat) -> [(time, target message id, reaction name, bot name)]
+
+
+def remember_bot_reaction(conn_id: str, thread: str, target_msg_id: str, name: str, bot_name: str) -> None:
+    """The bot is about to put a reaction: remember it, so its echo is filed as the bot's, not the owner's."""
+    key = (str(conn_id), str(thread))
+    now = time.time()
+    items = [x for x in _BOT_REACTIONS.get(key, []) if now - x[0] < ECHO_TTL]
+    items.append((now, str(target_msg_id), str(name or ""), str(bot_name or "")))
+    _BOT_REACTIONS[key] = items[-20:]
+    if len(_BOT_REACTIONS) > 500:
+        for k in list(_BOT_REACTIONS)[:250]:
+            _BOT_REACTIONS.pop(k, None)
+
+
+def _bot_reaction_echo(conn_id: str, thread: str, reaction) -> Optional[str]:
+    """The bot's name when this account's reaction is one the bot just put (used up), else None."""
+    r = reaction if isinstance(reaction, dict) else {}
+    key = (str(conn_id), str(thread))
+    now = time.time()
+    items = [x for x in _BOT_REACTIONS.get(key, []) if now - x[0] < ECHO_TTL]
+    for i, (_, target, name, bot) in enumerate(items):
+        if target == str(r.get("target_msg_id") or "") and name == str(r.get("name") or ""):
+            del items[i]
+            _BOT_REACTIONS[key] = items
+            return bot or "Bot"
+    _BOT_REACTIONS[key] = items
+    return None
+
+
 def _la_vong_anh(conn_id: str, thread: str) -> bool:
     """One remembered image echo for this chat, used up. False when the bot sent none lately."""
     khoa = (str(conn_id), str(thread))
@@ -1344,21 +1453,29 @@ def gop_tin(evs: List[dict]) -> dict:
     ảnh rồi nhắn 'xem giúp em'" tới bot thành một câu hỏi kèm ảnh. File đi theo lượt trong
     `metadata.attachments` (tối đa `MAX_FILE_GOP` file mới nhất), nên "gửi file rồi nhắn 'xem giúp
     em'" cũng thành một câu hỏi kèm file; lượt chỉ có file là tin file. Tiếng, sticker chỉ tính là
-    khách còn đang nhắn, không góp chữ.
-    `metadata.gop` = số tin đã gộp: `xu_ly` lấy chữ nguyên như đã gộp, không bóc chú thích lại."""
+    khách còn đang nhắn, không góp chữ. Cảm xúc khách thả (0.334.0) góp dòng mô tả của nó; lượt chỉ có cảm
+    xúc là tin `reaction`.
+    `metadata.gop` = số tin đã gộp: `xu_ly` lấy chữ nguyên như đã gộp, không bóc chú thích lại.
+    `metadata.react_to` = mã tin khách cuối có nội dung, tin bot được thả cảm xúc vào ("" khi lượt chỉ có cảm xúc)."""
     import bot_gateway
     cuoi = evs[-1]
     phan: List[str] = []
     co_anh, link = False, ""
     files: List[dict] = []
+    react_to, react_to_cli = "", ""
     for e in evs:
         loai = e.get("message_type")
+        if loai in ("text", "image", "file") and e.get("external_message_id"):
+            # The bot reacts to a message, never to a reaction.
+            react_to = str(e["external_message_id"])
+            react_to_cli = str((e.get("metadata") or {}).get("cliMsgId") or "")
         if loai == "file":
             att = (e.get("metadata") or {}).get("attachment")
             if isinstance(att, dict):
                 files.append(att)
             continue
-        if loai == "text":
+        if loai in ("text", "reaction"):
+            # A reaction (0.334.0) reads as its describing line, in order with the messages around it.
             t = str(e.get("text") or "").strip()
         elif loai == "image":
             co_anh = True
@@ -1374,7 +1491,10 @@ def gop_tin(evs: List[dict]) -> dict:
     if files:
         md["attachments"] = files[-MAX_FILE_GOP:]
     md["gop"] = len(evs)
-    kieu = "image" if co_anh else ("text" if phan or not files else "file")
+    md.pop("reaction", None)
+    md["react_to"], md["react_to_cli"] = react_to, react_to_cli
+    only_reactions = all(e.get("message_type") == "reaction" for e in evs)
+    kieu = "image" if co_anh else ("reaction" if only_reactions else ("text" if phan or not files else "file"))
     return dict(cuoi, message_type=kieu, text=bot_gateway.noi_tin(phan), metadata=md)
 
 

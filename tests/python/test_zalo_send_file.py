@@ -163,14 +163,17 @@ def find_zalo(o):
 zalo = find_zalo(cat)
 # 0.183.0: v1.5.0 (history kept across restarts, `sync` coverage on reads); still has zalo_send_file from v1.4.0.
 # 0.282.0: v1.6.1 (zalo_get_labels, the chat tags the bot reads; tools call the live API after a re-login).
+# 0.334.0: v1.7.0 (emoji reactions in the live feed, zalo_add_reaction, cliMsgId on every message).
 check("CANARY: the three javis-zalo pins agree and are v1.4.0 or later (the first with zalo_send_file)",
-      Z.CLI_PACKAGE == zalo_login._CLI_PACKAGE and Z.CLI_PACKAGE in zalo["args"] and Z.CLI_PACKAGE.endswith("/v1.6.1"),
+      Z.CLI_PACKAGE == zalo_login._CLI_PACKAGE and Z.CLI_PACKAGE in zalo["args"] and Z.CLI_PACKAGE.endswith("/v1.7.0"),
       (Z.CLI_PACKAGE, zalo_login._CLI_PACKAGE, zalo["args"]))
 check("the previous pins are listed as old commands, so existing connections move to the new one",
-      all(Z.CLI_PACKAGE.replace("v1.6.1", v) in [a for c in zalo["lenh_cu"] for a in (c.get("args") or [])]
-          for v in ("v1.3.0", "v1.4.0", "v1.5.0", "v1.6.0")))
+      all(Z.CLI_PACKAGE.replace("v1.7.0", v) in [a for c in zalo["lenh_cu"] for a in (c.get("args") or [])]
+          for v in ("v1.3.0", "v1.4.0", "v1.5.0", "v1.6.0", "v1.6.1")))
 check("zalo_send_file is in the danger group (it sends, like zalo_send_message)",
       "zalo_send_file" in zalo["tool_meta"]["danger"] and "zalo_send_message" in zalo["tool_meta"]["danger"])
+check("zalo_add_reaction is in the danger group too: the contact sees the reaction",
+      "zalo_add_reaction" in zalo["tool_meta"]["danger"])
 
 check("no em dash in this file or zalo_cli.py", chr(0x2014) not in open(__file__, encoding="utf-8").read()
       and chr(0x2014) not in (SERVER / "zalo_cli.py").read_text(encoding="utf-8"))

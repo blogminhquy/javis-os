@@ -1418,6 +1418,7 @@
     var ai = t.sender_type === "customer" ? (t.sender_name || "")
            : t.sender_type === "ai" ? (t.sender_name || window.t("ht.bot"))
            : t.sender_type === "human" ? window.t("ht.ban") : "";
+    if (t.message_type === "reaction") return renderReaction(t, lop, ai);
     var than;
     // Ảnh và file khách gửi (0.171.0, ht-media.js): ảnh hiện thẳng trong bong bóng, file thành thẻ bấm tải về. Chỉ còn chú
     // thích thật của khách đi kèm; dòng "đã tải về: <đường dẫn máy chủ>" và link ảnh trần không hiện ra nữa.
@@ -1441,6 +1442,23 @@
     return '<div class="ht-msg ' + lop + '">' +
       '<div class="ht-msg-h">' + esc(ai) + (ai ? ' · ' : '') + esc(gio(t.created_at)) + '</div>' +
       '<div class="ht-bubble">' + loai + than + '</div>' + loi +
+    '</div>';
+  }
+
+  // An emoji reaction (0.334.0): one small line beside the side that reacted, the emoji and what it was put on, instead
+  // of a bubble that would read as something they wrote.
+  function renderReaction(t, lop, ai) {
+    var r = (t.metadata && t.metadata.reaction) || {};
+    var bieu = r.emoji || r.code || "";
+    var quote = String(r.target_text || "").replace(/\s+/g, " ").trim();
+    if (quote.length > 80) quote = quote.slice(0, 79) + "…";
+    var who = ai || window.t("ht.bot");
+    var cau = r.removed ? window.t("ht.react_off", { who: who })
+            : quote ? window.t("ht.react_on", { who: who, quote: "\u201c" + quote + "\u201d" })
+            : window.t("ht.react_any", { who: who });
+    return '<div class="ht-msg ht-react ' + lop + (r.removed ? " off" : "") + '">' +
+      '<div class="ht-react-row"><span class="ht-react-emoji">' + esc(bieu) + '</span>' +
+      '<span class="ht-react-txt">' + esc(cau) + ' · ' + esc(gio(t.created_at)) + '</span></div>' +
     '</div>';
   }
 
