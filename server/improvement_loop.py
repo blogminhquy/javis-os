@@ -173,11 +173,12 @@ class Loop:
         started = self.clock()
         try:
             output, error = self.solve(skill, case.prompt), False
+            verdict = self.check(case, output)  # a model grader can fail too: same rule
         except LoopStopped:
             raise
         except Exception as exc:  # noqa: BLE001 - an engine failure is an unknown, never a fake wrong answer
             output, error = f"<engine error: {type(exc).__name__}>", True
-        verdict = {"pass": False, "score": 0.0, "feedback": "engine error"} if error else self.check(case, output)
+            verdict = {"pass": False, "score": 0.0, "feedback": "engine error"}
         row = Rollout(label, case.id, repeat, output, bool(verdict["pass"]), float(verdict["score"]),
                       str(verdict.get("feedback", "")), self.clock() - started)
         row.error = error
