@@ -33,6 +33,9 @@ jobs:
   python:
     name: Test Python (nhóm ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    # Lưới an toàn cuối: bình thường ~10-13 phút. Từng file đã có hạn 20 phút (`--timeout 1200`), nên chạm mốc này
+    # nghĩa là chính tests/run.py kẹt. Thiếu dòng này thì GitHub chờ tới trần mặc định 6 tiếng (lượt 26/10 treo 52 phút).
+    timeout-minutes: 45
     strategy:
       # Một nhóm đỏ không huỷ nhóm kia: thấy trọn danh sách test đỏ trong một lượt.
       fail-fast: false
@@ -105,7 +108,7 @@ jobs:
       - name: Chạy test Python (auth/secret/MCP-perm/traversal/CSRF + plugin)
         env:
           PYTHONIOENCODING: utf-8
-        run: python tests/run.py --py --shard ${{ matrix.shard }}/2 --jobs 4 -v
+        run: python tests/run.py --py --shard ${{ matrix.shard }}/2 --jobs 4 --timeout 1200 -v
 
   # Các kiểm tra vốn nằm trong job `test` cũ, ngoài test Python: byte-compile, import thật main, test JS.
   chung:

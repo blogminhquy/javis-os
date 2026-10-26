@@ -9,6 +9,7 @@
     python tests/run.py --py --shard 1/2 # chỉ chạy nhóm 1 trong 2 nhóm (CI chia máy theo cách này)
     python tests/run.py --py --plan 2    # in cách chia 2 nhóm rồi thoát, không chạy gì
     python tests/run.py --update-timings # chạy xong thì ghi thời gian đo được vào tests/test_timings.json
+    python tests/run.py --timeout 1200   # file nào chạy quá 1200 giây thì dừng và tính là đỏ
 
 Vì sao có file này: CI quét thư mục bằng vòng lặp shell, nhưng trên máy Windows thì gõ lại
 vòng lặp đó mỗi lần rất phiền, và dễ chạy nhầm bằng python hệ thống (thiếu thư viện) thay vì
@@ -71,7 +72,20 @@ def xoa_cay(p) -> None:
 _SOT = []
 
 
-def chay_mot(cmd, env, cwd=ROOT):
+def _giet_ca_cay(p) -> None:
+    """Giết tiến trình test VÀ mọi tiến trình con cháu của nó (server dựng thật, CLI giả...).
+    Chỉ giết tiến trình cha thì cháu còn giữ ống stdout, và việc đọc output sau đó treo tiếp."""
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
+        else:
+            os.killpg(p.pid, 9)
+    except OSError:
+        pass
+    p.kill()
+
+
+def chay_mot(cmd, env, cwd=ROOT, han_giay=None):
     """Chạy một file test với thư mục tạm riêng, xoá ngay sau khi tiến trình thoát.
 
     Xem tests/python/_paths.py: test tự dọn thư mục tạm lúc atexit, nhưng trên Windows sqlite
@@ -79,12 +93,28 @@ def chay_mot(cmd, env, cwd=ROOT):
     ĐÂY (cùng tiền tố `jt-<pid>-` của _paths để lượt bị giết ngang cũng được quét), trỏ
     TMP/TEMP/TMPDIR/JAVIS_TEST_TMP của tiến trình con vào đó, chờ nó thoát rồi xoá - lúc này
     file đã được nhả. Một tầng, không lồng: thêm tầng là đường dẫn vượt 260 ký tự trên Windows.
+
+    `han_giay` (`--timeout`, 0.342.0): quá hạn thì giết cả cây tiến trình và trả mã 124 kèm dòng
+    "QUÁ GIỜ". Không có hạn thì một file treo giữ máy CI tới trần 6 tiếng mà log không nói file nào.
     """
     tam = tempfile.mkdtemp(prefix=f"jt-{os.getpid()}-")
     env = dict(env, TMP=tam, TEMP=tam, TMPDIR=tam, JAVIS_TEST_TMP=tam)
+    nhom = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
     try:
-        return subprocess.run(cmd, cwd=str(cwd), env=env, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+        p = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True, encoding="utf-8", errors="replace", **nhom)
+        try:
+            out, err = p.communicate(timeout=han_giay)
+            ma = p.returncode
+        except subprocess.TimeoutExpired:
+            _giet_ca_cay(p)
+            try:
+                out, err = p.communicate(timeout=30)
+            except subprocess.TimeoutExpired:
+                out, err = "", ""
+            ma = 124
+            err = (err or "") + f"\nQUÁ GIỜ: chạy quá {han_giay} giây, đã dừng cả cây tiến trình.\n"
+        return subprocess.CompletedProcess(cmd, ma, out, err)
     finally:
         # Tiến trình cháu (server, CLI giả) có thể nhả file chậm hơn một chút - thử lại vài lần.
         for _ in range(3):
@@ -168,13 +198,13 @@ def chia_nhom(ten: list, so_nhom: int, giay: dict) -> list:
 
 def doc_tham_so(args: list) -> dict:
     """`--jobs 4` và `--jobs=4` đều được. Tham số không bắt đầu bằng `-` là bộ lọc tên như trước."""
-    ts = {"ver": False, "js": False, "py": False, "jobs": 1, "shard": None, "plan": None,
+    ts = {"ver": False, "js": False, "py": False, "jobs": 1, "shard": None, "plan": None, "timeout": None,
           "update": False, "loc": []}
     i = 0
     while i < len(args):
         a = args[i]
         ten, co_bang, gia_tri = a.partition("=")
-        if ten in ("--jobs", "--shard", "--plan"):
+        if ten in ("--jobs", "--shard", "--plan", "--timeout"):
             if not co_bang:
                 i += 1
                 if i >= len(args):
@@ -273,7 +303,7 @@ def main() -> int:
             cmd = [str(goc / Path(c).relative_to(ROOT)) if Path(c).is_relative_to(ROOT / "tests") else c
                    for c in cmd]
             t = time.perf_counter()
-            r = chay_mot(cmd, env, cwd=goc)
+            r = chay_mot(cmd, env, cwd=goc, han_giay=ts["timeout"])
             return r, time.perf_counter() - t
         finally:
             cho_trong.put(goc)
