@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.340.0] - 2026-10-26
+### Cải thiện
+- **Báo bản mới của gói Store không còn tự quét nền.** Trước đây Javis tự kiểm Store mỗi 6 giờ, kể cả lúc không ai dùng. Giờ không có vòng nào chạy ngầm: Javis chỉ xem có bản mới khi bạn mở Javis, tối đa một lần mỗi 6 giờ, và đọc từ bản lưu sẵn nên gần như không tốn gì. Có bản mới thì chuông vẫn báo như cũ, mỗi bản một lần.
+
 ## [0.339.0] - 2026-10-26
 ### Sửa lỗi
 - **Nút ghi âm thành chữ chạy lại trên điện thoại.** Trên iPhone, bấm ghi âm thì đồng hồ vẫn chạy nhưng không ra chữ nào. Lý do: điện thoại chỉ cho một thứ dùng micro mỗi lúc, mà nút này mở hai thứ cùng lúc nên cả hai đều không nghe được. Giờ trên điện thoại nó chỉ dùng một đường: máy có API key Groq hoặc OpenAI thì ghi âm, bấm dừng là chữ hiện ra; không có key thì dùng bộ nghe của trình duyệt. Không nghe ra chữ nào thì Javis báo rõ thay vì im lặng.
