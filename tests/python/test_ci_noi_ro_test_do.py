@@ -50,7 +50,9 @@ def _doc(ten):
 # ============================================================
 # Cả hai bước (JS và Python) đều phải có, không chỉ một: lần đỏ 03/09 rơi vào bước Python,
 # nhưng bước JS có đúng cùng hình dạng vòng lặp nên cùng một khe hở.
-for nhan, lenh in (("JS", "node"), ("Python", "python")):
+# Từ 0.344.0 bước Python chạy qua tests/run.py (chia 2 máy, 4 file cùng lúc), nên bốn tính chất
+# dưới đây được ghim ở run.py thay vì ở vòng lặp bash; bước JS vẫn là vòng lặp bash.
+for nhan, lenh in (("JS", "node"),):
     khoi = re.search(r"- name: Chạy test " + nhan + r"[\s\S]*?exit \$status", CI)
     khoi = khoi.group(0) if khoi else ""
     check(f"bước test {nhan}: có gom tên file đỏ lại",
@@ -63,6 +65,29 @@ for nhan, lenh in (("JS", "node"), ("Python", "python")):
     check(f"bước test {nhan}: vẫn thoát với mã lỗi", "exit $status" in khoi)
     check(f"bước test {nhan}: vẫn chạy hết mọi file chứ không dừng ở file đỏ đầu tiên",
           "status=1" in khoi and "break" not in khoi)
+
+RUN = (ROOT / "tests" / "run.py").read_text(encoding="utf-8")
+_buoc_py = re.search(r"- name: Chạy test Python[\s\S]*?run: (.*)", CI)
+_lenh_py = _buoc_py.group(1) if _buoc_py else ""
+check("bước test Python: chạy qua tests/run.py, có chia nhóm", "tests/run.py" in _lenh_py and "--shard" in _lenh_py,
+      _lenh_py)
+# Ống (`| tee`, `| tail`) nuốt mã thoát của run.py: CI xanh trong khi test đỏ.
+check("bước test Python: không có ống nào nuốt mã thoát", "|" not in _lenh_py, _lenh_py)
+check("run.py: gom tên file đỏ lại", "do.append(ten)" in RUN)
+check("run.py: in danh sách đỏ ở CUỐI", 'ra("ĐỎ: " + ", ".join(do))' in RUN)
+check("run.py: đẩy tên file đỏ lên tóm tắt của GitHub", "GITHUB_STEP_SUMMARY" in RUN and "- ĐỎ `{t}`" in RUN)
+check("run.py: vẫn thoát với mã lỗi khi có file đỏ", re.search(r"if do:[\s\S]{0,200}?return 1", RUN) is not None)
+check("run.py: vẫn chạy hết mọi file chứ không dừng ở file đỏ đầu tiên", "break" not in RUN.split("def main", 1)[1])
+
+# Job tổng hợp `test` (quy tắc bảo vệ nhánh đòi đúng tên này). Thiếu `if: always()` thì job phụ thuộc đỏ làm nó bị bỏ
+# qua, và GitHub coi check bị bỏ qua là ĐẠT: PR có test đỏ vẫn merge được.
+_tong = re.search(r"\n  test:\n([\s\S]*?)(?=\n  [\w-]+:\n)", CI)
+_tong = _tong.group(1) if _tong else ""
+check("CANARY: job tổng hợp `test` còn tồn tại", bool(_tong))
+check("CANARY: job `test` phụ thuộc mọi nhóm test", "python" in _tong and "chung" in _tong, _tong[:80])
+check("CANARY: job `test` có `if: always()`", re.search(r"^\s*if: always\(\)\s*$", _tong, re.M) is not None)
+check("CANARY: job `test` chỉ xanh khi mọi job ra `success`",
+      '"$KQ_PYTHON" = "success"' in _tong and '"$KQ_CHUNG" = "success"' in _tong and "exit 1" in _tong)
 
 # `do` là TỪ KHOÁ của bash. Đặt tên biến là `do` thì tuỳ chỗ mà shell hiểu khác nhau, và lỗi
 # kiểu đó chỉ lộ ra lúc CI chạy thật chứ không lộ lúc đọc file.
