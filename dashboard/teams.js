@@ -2348,7 +2348,8 @@
         if (st === "idle") { var inp = S.el.querySelector(".tm-input"); if (inp) inp.focus(); }
       },
       onError: function (code) {
-        setNote(tw(code === "denied" ? "teams.mic_denied" : code === "unsupported" ? "teams.mic_unsupported" : "teams.mic_failed"));
+        setNote(tw(code === "denied" ? "teams.mic_denied" : code === "unsupported" ? "teams.mic_unsupported"
+          : code === "nothing" ? "dict.nothing" : "teams.mic_failed"));
       }
     });
     S.dict.start();

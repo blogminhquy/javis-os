@@ -13,6 +13,12 @@
    0.230.0: the main chat composer uses it too (composer-dictate.js), with cancel() and a level meter (onStream),
    and a run the browser ends on its own restarts until the owner presses stop.
 
+   0.339.0: a PHONE lets only ONE thing capture the mic (the rule voice.js learned in 0.59.35, see _nhaMicStream).
+   Opening the recorder (or the level meter) next to Web Speech left both deaf on an iPhone: the timer ran, the meter
+   stayed flat and no word ever arrived (owner report 2026-10-26). On a phone a press now uses one engine only:
+   with an upload ear, record only (the text arrives on stop, the meter works); without one, Web Speech only (no
+   meter, no recorder). iOS also gets non-continuous runs, the restart loop strings them together.
+
    joinText is pure so node tests can run it. */
 (function () {
   "use strict";
@@ -35,6 +41,10 @@
     return "vi-VN";
   }
 
+  // Restarts of a run the browser ended by itself. iOS ends a run after every utterance, so the cap is generous; the
+  // composer stops the whole recording after five minutes anyway.
+  var MAX_RESTARTS = 200;
+
   var earKind = null;   // cached answer of GET /voice/ear: "upload", "" (none) or null (not asked yet)
   var earAt = 0;        // asked again after a minute, so a key added on the Models page counts without a reload
   function askEar() {
@@ -49,15 +59,41 @@
     return (typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition)) || null;
   }
 
+  // iPhone, iPad (iPadOS reports itself as a Mac with touch) or Android. `nav` is injectable for node tests.
+  function isIOS(nav) {
+    nav = nav || (typeof navigator !== "undefined" ? navigator : {});
+    var ua = String(nav.userAgent || "");
+    return /iP(hone|ad|od)/.test(ua) || (nav.platform === "MacIntel" && (nav.maxTouchPoints || 0) > 1);
+  }
+  function isPhone(nav) {
+    nav = nav || (typeof navigator !== "undefined" ? navigator : {});
+    return isIOS(nav) || /Android/i.test(String(nav.userAgent || ""));
+  }
+
+  // Which engines one press runs: { speech, record, meter }. A computer runs Web Speech and the recorder side by
+  // side; a phone runs exactly one capture (see the 0.339.0 note at the top). Pure, for node tests.
+  function plan(o) {
+    var canRecord = !!(o.ear === "upload" && o.mediaRecorder);
+    if (!o.phone) return { speech: !!o.speech, record: canRecord, meter: !!o.wantMeter };
+    if (canRecord) return { speech: false, record: true, meter: !!o.wantMeter };
+    return { speech: !!o.speech, record: false, meter: false };
+  }
+
   // opts: onText(text, final) gets the WHOLE spoken text so far; onState("listening" | "transcribing" | "idle");
-  // onError(code) with "unsupported", "denied" or "failed"; onStream(stream | null) when given also opens the mic
-  // for a level meter even without an upload ear (0.230.0). Returns { start, stop, cancel, active, busy }.
+  // onError(code) with "unsupported", "denied", "failed" or "nothing" (0.339.0: the run ended with no word at all,
+  // reported only when no other error was); onStream(stream | null) when given also opens the mic for a level meter
+  // even without an upload ear (0.230.0). Returns { start, stop, cancel, active, busy }.
   function create(opts) {
     opts = opts || {};
     var rec = null, media = null, stream = null, chunks = [], on = false, spoken = "", cancelled = false;
     var finishing = false;
     var state = function (s) { if (opts.onState) opts.onState(s); };
-    var err = function (c) { if (opts.onError) opts.onError(c); };
+    var reported = false;   // an error was already shown for this press: "nothing" would only hide it
+    var err = function (c) {
+      if (c === "nothing" && reported) return;
+      reported = true;
+      if (opts.onError) opts.onError(c);
+    };
 
     function stopStream() {
       if (stream) {
@@ -79,15 +115,16 @@
     }
 
     // Opens the mic when something needs it: the recorder (upload ear) or the caller's level meter.
-    function openMic(record) {
+    function openMic(record, noMeter) {
       if (typeof navigator === "undefined" || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         return Promise.resolve(false);
       }
       if (record && typeof MediaRecorder === "undefined") record = false;
-      if (!record && !opts.onStream) return Promise.resolve(false);
+      var meter = !!opts.onStream && !noMeter;
+      if (!record && !meter) return Promise.resolve(false);
       return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
         stream = s; chunks = [];
-        if (opts.onStream) opts.onStream(s);
+        if (meter) opts.onStream(s);
         if (record) {
           media = new MediaRecorder(s);
           media.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
@@ -114,14 +151,20 @@
       if (finishing) return;
       var hadRecorder = !!media;
       on = false;
-      if (cancelled || !hadRecorder) { stopRecorder(); state("idle"); return; }
+      if (cancelled || !hadRecorder) {
+        stopRecorder();
+        // Nothing was heard and nothing can listen again: say so instead of closing the bar in silence.
+        if (!cancelled && !spoken) err("nothing");
+        state("idle");
+        return;
+      }
       finishing = true;
       state("transcribing");
       stopRecorder().then(upload).then(function (text) {
         finishing = false;
         if (cancelled) { state("idle"); return; }
         if (text) opts.onText && opts.onText(text, true);
-        else if (!spoken && !recognizer()) err("unsupported");
+        else if (!spoken) err("nothing");
         state("idle");
       });
     }
@@ -132,7 +175,9 @@
       var r = new SR();
       rec = r;
       r.lang = langTag();
-      r.continuous = true;
+      // iOS cannot run a continuous session: it turns into an endless "recording" that never yields text (voice.js
+      // learned this in 0.59.x). One utterance per run there; onend below starts the next one.
+      r.continuous = !isIOS();
       r.interimResults = true;
       var done = kept, fatal = false;
       r.onresult = function (e) {
@@ -152,7 +197,7 @@
       r.onend = function () {
         if (rec !== r) return;
         rec = null;
-        if (on && !cancelled && !fatal && restarts < 30) {
+        if (on && !cancelled && !fatal && restarts < MAX_RESTARTS) {
           try { runRecognizer(SR, spoken, restarts + 1); return; } catch (x) { rec = null; }
         }
         finish();
@@ -162,14 +207,17 @@
 
     function start() {
       if (on || finishing) return;
-      on = true; spoken = ""; cancelled = false;
+      on = true; spoken = ""; cancelled = false; reported = false;
       var SR = recognizer();
       askEar().then(function (ear) {
         if (!on) return;
-        if (!SR && ear !== "upload") { on = false; err("unsupported"); state("idle"); return; }
-        openMic(ear === "upload").then(function () {
+        var p = plan({ phone: isPhone(), ear: ear, speech: !!SR, wantMeter: !!opts.onStream,
+          mediaRecorder: typeof MediaRecorder !== "undefined" });
+        if (!p.speech && !p.record) { on = false; err("unsupported"); state("idle"); return; }
+        var micUp = (p.record || p.meter) ? openMic(p.record, !p.meter) : Promise.resolve(false);
+        micUp.then(function () {
           if (!on) { stopRecorder(); return; }
-          if (!SR) {
+          if (!p.speech) {
             if (!media) { on = false; stopRecorder(); state("idle"); return; }
             state("listening"); return;
           }
@@ -203,7 +251,8 @@
   }
 
   // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
-  var api = { create: create, joinText: joinText, ear: function () { return earKind; } };
+  var api = { create: create, joinText: joinText, plan: plan, isPhone: isPhone, isIOS: isIOS,
+    ear: function () { return earKind; } };
   if (typeof window !== "undefined") window.JavisDictate = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

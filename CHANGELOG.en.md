@@ -8,10 +8,19 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.337.0] - 2026-10-26
+## [0.340.0] - 2026-10-26
 ### Added
 - **Javis learns from your chats on its own, nothing to approve.** While you chat, Javis reviews the turns that used a skill, an assistant or a workflow and spots mistakes from your next message (say "wrong, you forgot the VAT"). After the same mistake three times it writes its own test questions, revises the instructions, compares with the current version and applies the change only when it is clearly better and breaks nothing the current version got right.
 - **Safe and bounded.** Learning is text only, with no tools, so it cannot send messages or place orders. At most 40 reviews and one change a day, on the brain you selected. An assistant only gains a learned procedure; the assistant file you wrote stays as it is. The old version is always kept: see and undo changes under "Javis learns from your chats" in the skill improvement panel. Everything follows the Learning page: turning on Learning plus Skill, Role and Step chain is all it takes (Auto-write applies on its own, Suggest waits for you to press Apply, Dry run only records). Skills learn by default; Role and Step chain are switched on on the same page.
+
+## [0.339.0] - 2026-10-26
+### Fixed
+- **Dictation works on phones again.** On an iPhone, pressing the record button ran the timer but no words ever appeared. A phone lets only one thing use the microphone at a time, and this button opened two at once, so neither heard anything. On a phone it now uses one path only: with a Groq or OpenAI API key it records and the text appears when you press stop; without a key it uses the browser's own listener. When no words were heard, Javis now says so instead of staying silent.
+- **A voice call picks up again after waiting.** After about 30 quiet seconds a voice call goes on hold; on an iPhone, speaking again left Javis unable to hear you or make a sound. The call now keeps the audio it opened when you pressed call, so speaking again carries on the conversation. Hanging up releases it.
+
+## [0.338.0] - 2026-10-26
+### Added
+- **Per-group private documents for bots.** A bot that answers many customer groups now reads the whole file of the customer in the chat it is answering (contract, deposit, appointments) and never sees another customer's file, not even its name. Put the files under `rieng-theo-nhom/<group id>/` in the bot's brain, or add a `chat_scope: <group id>` line at the top of a file. It applies to the pre-turn search, the three lookup tools of the Read documents level and the reply judge, the same on every brain. Files are read in full, no longer cut to 900 characters. Thanks to Ho Hung Son (SOHO Wedding) for the proposal.
 
 ## [0.336.0] - 2026-10-26
 ### Fixed

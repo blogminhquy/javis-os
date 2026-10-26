@@ -256,6 +256,7 @@
   "dict.unsupported": "This browser cannot turn speech into text yet. Try Chrome, Edge or Safari, or turn on the Groq ear under Voice in Settings.",
   "dict.denied": "Javis may not use the microphone yet. Click the lock in the address bar, allow Microphone and try again.",
   "dict.failed": "Dictation failed, please try again.",
+  "dict.nothing": "No words were heard. Speak closer to the mic and try again. On a phone, add a Groq API key (free) on the Models page for steadier dictation.",
   "dict.no_ear": "Mixed-language speech is heard far better with a Groq (free) or OpenAI API key on the Models page.",
   "call.connecting": "Connecting",
   "call.listening": "Listening",

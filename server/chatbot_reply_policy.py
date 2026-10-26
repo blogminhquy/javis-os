@@ -1120,7 +1120,10 @@ async def maybe_teach(ev: Event, profile: BotProfile, level: str, store, ask, *,
 # Hồ sơ vai: máy soạn từ Agent và mục lục tài liệu của CHÍNH bot
 # ============================================================
 def list_doc_titles(root: str, limit: int = 40) -> List[str]:
-    """Tên các tài liệu .md trong brain của bot (tối đa `limit`, sâu tối đa 2 tầng), dừng sớm khi đủ."""
+    """Tên các tài liệu .md trong brain của bot (tối đa `limit`, sâu tối đa 2 tầng), dừng sớm khi đủ.
+
+    Chat-scoped documents (0.338.0, `chatbot_grounding.SCOPED_DIR` or a `chat_scope` line) are left out: these
+    titles feed the bot's role profile, which every chat shares, and a customer's file name is often their name."""
     out: List[str] = []
     if not root or not os.path.isdir(root):
         return out
@@ -1139,8 +1142,9 @@ def list_doc_titles(root: str, limit: int = 40) -> List[str]:
             if e.name.startswith((".", "_")):
                 continue
             if e.is_dir(follow_symlinks=False):
-                walk(e.path, depth + 1)
-            elif e.name.lower().endswith(".md"):
+                if e.name.lower() != chatbot_grounding.SCOPED_DIR:
+                    walk(e.path, depth + 1)
+            elif e.name.lower().endswith(".md") and chatbot_grounding.file_scope(Path(e.path)) is None:
                 out.append(os.path.splitext(e.name)[0])
 
     walk(root, 0)

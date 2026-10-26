@@ -19,6 +19,12 @@ So this module is the WHOLE tool set of that level, and it is deliberately tiny:
    therefore never reveal anything the keyword search could not already put in a prompt.
 3. **The path a customer types never touches the filesystem.** `docs_read` matches it against
    that list and opens the LISTED file, so `../`, absolute paths and symlinks lead nowhere.
+4. **Chat-scoped documents (0.338.0) belong to one chat.** A file under `rieng-theo-nhom/<chat id>/`
+   or with a `chat_scope` frontmatter line joins the list only in a turn of that chat, for all three
+   tools and the reply judge's table of contents alike (`chatbot_grounding.scoped_paths` is the one
+   filter). The chat id is read from the turn the server bound (`turn_context`), in-process for API
+   engines and through the `X-Javis-Turn` key for Claude Code, never from a tool argument. No turn,
+   no chat id: no scoped document, and the list never names another chat's file.
 """
 from __future__ import annotations
 
@@ -27,6 +33,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import chatbot_grounding
+import turn_context
 
 MODE = "read_docs"
 
@@ -51,13 +58,19 @@ def _root(vault_root: Any) -> Optional[Path]:
     return r if r.is_dir() else None
 
 
-def allowed_docs(vault_root: Any) -> List[str]:
-    """Relative posix paths of every document the tools may show, in a stable order."""
+def turn_chat_id() -> str:
+    """The chat of the turn running this tool call, "" when no turn is bound (then no scoped document)."""
+    return str((turn_context.current() or {}).get("chat_id") or "").strip()
+
+
+def allowed_docs(vault_root: Any, chat_id: Any = None) -> List[str]:
+    """Relative posix paths of every document the tools may show, in a stable order. `chat_id` adds that chat's
+    scoped documents (see `chatbot_grounding.scoped_paths`)."""
     r = _root(vault_root)
     if r is None:
         return []
     out = []
-    for rel in chatbot_grounding.ds_tai_lieu(r):
+    for rel in chatbot_grounding.ds_tai_lieu(r, chat_id):
         parts = rel.split("/")
         if any(p.lower() in EXTRA_SKIP for p in parts[:-1]):
             continue
@@ -77,13 +90,13 @@ def _norm(p: Any) -> str:
     return s.lstrip("/")
 
 
-def _match(vault_root: Any, requested: Any) -> Optional[str]:
+def _match(vault_root: Any, requested: Any, chat_id: Any = None) -> Optional[str]:
     """The listed document the request names, or None. Exact first, then case-insensitive, then
     a unique file-name match (models often drop the folder)."""
     want = _norm(requested)
     if not want:
         return None
-    docs = allowed_docs(vault_root)
+    docs = allowed_docs(vault_root, chat_id)
     if want in docs:
         return want
     low = want.lower()
@@ -94,14 +107,14 @@ def _match(vault_root: Any, requested: Any) -> Optional[str]:
     return by_name[0] if len(by_name) == 1 else None
 
 
-def _headings(vault_root: Any) -> Dict[str, List[str]]:
+def _headings(vault_root: Any, chat_id: Any = None) -> Dict[str, List[str]]:
     """{path: [section titles]} from the cached keyword index (no extra disk scan)."""
     r = _root(vault_root)
     if r is None:
         return {}
-    ok = set(allowed_docs(r))
+    ok = set(allowed_docs(r, chat_id))
     out: Dict[str, List[str]] = {}
-    for m in chatbot_grounding.chi_muc(r).get("manh") or []:
+    for m in chatbot_grounding.chi_muc(r, chatbot_grounding.scoped_docs(r, chat_id) or None).get("manh") or []:
         path = str(m.get("path") or "").replace("\\", "/")
         if path not in ok:
             continue
@@ -114,12 +127,12 @@ def _headings(vault_root: Any) -> Dict[str, List[str]]:
     return out
 
 
-def table_of_contents(vault_root: Any, max_chars: int = INDEX_MAX) -> str:
+def table_of_contents(vault_root: Any, max_chars: int = INDEX_MAX, chat_id: Any = None) -> str:
     """One line per document ("path: heading · heading"), cut at `max_chars`. Empty when the brain
     has no documents. Used by the reply judge: a bot that can open documents itself should not be
     silenced just because the customer's words missed the keyword search."""
     rows, used = [], 0
-    for path, hs in sorted(_headings(vault_root).items()):
+    for path, hs in sorted(_headings(vault_root, chat_id).items()):
         line = path + (": " + " · ".join(hs[:8]) if hs else "")
         if used + len(line) + 1 > max_chars:
             rows.append("…")
@@ -148,8 +161,10 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
     if r is None:
         return [], {}
 
+    # The chat id is read at CALL time: one tool set serves every turn of the brain (`discover_all` builds it per
+    # request, the Claude Code config file is shared), so it must never be captured when the tools are built.
     async def _list(args):
-        hs = _headings(r)
+        hs = _headings(r, turn_chat_id())
         if not hs:
             return "(brain này chưa có tài liệu nào)"
         rows, used = [], 0
@@ -166,8 +181,9 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
         q = str((args or {}).get("query") or "").strip()
         if not q:
             return "ERROR: thiếu query"
-        ok = set(allowed_docs(r))
-        hits = [h for h in chatbot_grounding.tim(r, q, k=SEARCH_K * 3)
+        chat = turn_chat_id()
+        ok = set(allowed_docs(r, chat))
+        hits = [h for h in chatbot_grounding.tim(r, q, k=SEARCH_K * 3, chat_id=chat)
                 if str(h.get("path") or "").replace("\\", "/") in ok][:SEARCH_K]
         if not hits:
             return (f"Không có đoạn nào chứa các chữ của '{q}'. Thử lại bằng từ khác (từ đồng nghĩa, "
@@ -180,7 +196,7 @@ def build(vault_root: Any) -> Tuple[List[dict], Dict[str, dict]]:
         return "\n\n".join(parts)
 
     async def _read(args):
-        rel = _match(r, (args or {}).get("path"))
+        rel = _match(r, (args or {}).get("path"), turn_chat_id())
         if not rel:
             return (f"ERROR: không có tài liệu '{(args or {}).get('path')}' trong danh sách được đọc. "
                     f"Gọi javis_docs_list để xem đường dẫn đúng.")

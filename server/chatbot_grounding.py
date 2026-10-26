@@ -42,7 +42,11 @@ BO_QUA = {"inbox", "attachments", "javis", ".git", ".obsidian", ".trash", "node_
           # Old copies (0.172.0): a backup of a price list or of an agent is out of date by definition, and quoting it
           # to a customer as the shop's document is wrong twice. Dot folders were already skipped (see `_duyet`);
           # `.backup` is listed so that rule cannot drop it unnoticed.
-          ".backup", "backup", "backups"}
+          ".backup", "backup", "backups",
+          # Chat-scoped documents (0.338.0) live in `rieng-theo-nhom/` at the brain root and reach a turn only through
+          # `scoped_docs`. Listed here so the general scan never reads them, and so a folder of that name anywhere
+          # else is hidden from everyone instead of shared with everyone.
+          "rieng-theo-nhom"}
 
 # Javis's own operating folders AT THE BRAIN ROOT (0.172.0): `agents/` holds the bot's own role file and its
 # colleagues', `workflows/` the step chains. Searched as documents, the bot quoted its internal rules (and a
@@ -142,6 +146,7 @@ def _tach_cap(s: str) -> List[tuple]:
 # ============================================================
 _lock = threading.Lock()
 _CACHE: Dict[str, dict] = {}
+_CACHE_MAX = 64     # one slot per brain, plus one per chat with scoped documents (0.338.0); oldest dropped first
 
 
 def _dau_van(root: Path) -> tuple:
@@ -158,35 +163,185 @@ def _dau_van(root: Path) -> tuple:
     return (n, round(moi, 3))
 
 
-def _duyet(root: Path):
+def _ung_vien(root: Path):
+    """Every file that may be a document of the bot, as (path, scope). `scope` is None for a document every chat
+    may see, else the tuple of chat ids that may see it (empty: nobody). See `file_scope` and `SCOPED_DIR`."""
     try:
         it = sorted(root.rglob("*"))
     except OSError:
         return
-    dem = 0
     for p in it:
-        if dem >= MAX_FILE:
-            return
         if p.suffix.lower() not in DUOI or not p.is_file():
             continue
         thu_muc = p.relative_to(root).parts[:-1]
+        if thu_muc and thu_muc[0].lower() == SCOPED_DIR:
+            if any(x.startswith(".") for x in thu_muc):
+                continue
+            scope = file_scope(p)
+            if scope is None:
+                # No `chat_scope` line: the first folder under `rieng-theo-nhom/` names the chat. A file lying
+                # directly in `rieng-theo-nhom/` names none, so nobody sees it (fail closed).
+                scope = (thu_muc[1],) if len(thu_muc) > 1 else ()
+            yield p, scope
+            continue
         if any(x.lower() in BO_QUA or x.startswith(".") for x in thu_muc):
             continue
         if thu_muc and thu_muc[0].lower() in BO_QUA_GOC:
             continue
         if p.name.lower() in BO_QUA_FILE:
             continue
+        yield p, file_scope(p)
+
+
+def _duyet(root: Path):
+    """The documents every chat may see, capped at `MAX_FILE`. A file whose frontmatter carries `chat_scope` is
+    never one of them, wherever it lies: the owner marked it private, so it must not leak through the general
+    index just because it sits outside `rieng-theo-nhom/`."""
+    dem = 0
+    for p, scope in _ung_vien(root):
+        if scope is not None:
+            continue
+        if dem >= MAX_FILE:
+            return
         dem += 1
         yield p
 
 
-def ds_tai_lieu(root: Any) -> List[str]:
+# ============================================================
+# Chat-scoped documents (0.338.0)
+# ============================================================
+# A shop with one bot answering many customer groups keeps one file per customer (contract, deposit, promises).
+# The bot must read the WHOLE file of the customer in the chat it is answering, and never anything of another
+# customer, not even a file name. Two ways to mark such a file, both read here and nowhere else:
+#   - put it under `rieng-theo-nhom/<chat id>/` (the chat id is the Zalo threadId or Telegram chat id), or
+#   - give it a frontmatter line `chat_scope: <chat id>` (or a list), anywhere in the brain.
+# A frontmatter line wins over the folder name. The chat id of a turn comes from the server (`turn_context`, or
+# the channel message for the pre-turn search), never from what the model or the customer types. A turn with no
+# chat id (Try bot, the owner's chats) sees no scoped document at all.
+SCOPED_DIR = "rieng-theo-nhom"
+MAX_SCOPED_FILES = 5_000    # walk cap for scoped files; one per customer, so far more than general documents
+_HEAD_BYTES = 4_096         # how much of a file is read to find its frontmatter
+_SCOPE_CACHE: Dict[str, tuple] = {}     # path -> ((mtime_ns, size), scope)
+_SCOPE_CACHE_MAX = 20_000
+
+
+def _parse_scope(fm: str) -> Optional[tuple]:
+    """The `chat_scope` value of one frontmatter block: None when the key is absent, else a tuple of ids. Parsed by
+    hand rather than with YAML: a chat id is an opaque string, and YAML would turn `0123` or `-100123` into a number
+    and lose the exact text."""
+    lines = fm.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"^chat_scope\s*:(.*)$", line)
+        if not m:
+            continue
+        val = m.group(1).strip()
+        if val.startswith("["):
+            items = val.strip("[]").split(",")
+        elif val:
+            items = [val]
+        else:
+            items = []
+            for nxt in lines[i + 1:]:
+                b = re.match(r"^\s*-\s*(.*)$", nxt)
+                if not b:
+                    break
+                items.append(b.group(1))
+        out = []
+        for it in items:
+            v = re.sub(r"\s+#.*$", "", it).strip().strip("'\"").strip()
+            if v and v not in out:
+                out.append(v)
+        return tuple(out)
+    return None
+
+
+def file_scope(p: Path) -> Optional[tuple]:
+    """The chat ids a file's frontmatter `chat_scope` names, None when it has no such line. Cached on
+    (mtime, size), so the per-message scan reads each file's head once until it changes. A file that cannot be
+    read reads as "nobody" (an empty tuple), never as a document every chat may see."""
+    try:
+        st = p.stat()
+    except OSError:
+        return ()
+    key, sig = str(p), (st.st_mtime_ns, st.st_size)
+    with _lock:
+        hit = _SCOPE_CACHE.get(key)
+    if hit and hit[0] == sig:
+        return hit[1]
+    scope = None
+    try:
+        with open(p, "rb") as f:
+            head = f.read(_HEAD_BYTES).decode("utf-8", "replace").replace("\r\n", "\n")
+        m = re.match(r"\A\ufeff?---\n(.*?)\n---\s*(\n|\Z)", head, flags=re.DOTALL)
+        if m:
+            scope = _parse_scope(m.group(1))
+        elif head.lstrip("\ufeff").startswith("---\n") and re.search(r"(?m)^chat_scope\s*:", head):
+            scope = ()      # a frontmatter too long to read whole that still names a scope: nobody, not everyone
+    except OSError:
+        return ()
+    with _lock:
+        if len(_SCOPE_CACHE) >= _SCOPE_CACHE_MAX:
+            _SCOPE_CACHE.clear()
+        _SCOPE_CACHE[key] = (sig, scope)
+    return scope
+
+
+def _clean_chat_id(chat_id: Any) -> str:
+    return str(chat_id or "").strip()
+
+
+def scoped_paths(root: Any, chat_id: Any) -> List[str]:
+    """Relative posix paths of the scoped documents of ONE chat. Empty without a chat id."""
+    cid = _clean_chat_id(chat_id)
+    if not cid:
+        return []
+    r = Path(str(root))
+    out = []
+    try:
+        for n, (p, scope) in enumerate(_ung_vien(r)):
+            if n >= MAX_FILE + MAX_SCOPED_FILES:
+                break
+            if scope and cid in scope:
+                out.append(p.relative_to(r).as_posix())
+    except Exception as e:
+        print(f"[chatbot grounding] tài liệu riêng của {r} lỗi: {e}", file=sys.stderr)
+        return []
+    return out
+
+
+def has_scoped_docs(root: Any) -> bool:
+    """True when some chat has at least one scoped document, so a brain whose only documents are scoped still counts
+    as a brain with documents (the reply judge then grounds on documents, not on the role alone)."""
+    try:
+        return any(scope for _, scope in _ung_vien(Path(str(root))))
+    except Exception:
+        return False
+
+
+def scoped_docs(root: Any, chat_id: Any) -> List[dict]:
+    """The scoped documents of ONE chat as extra documents ({path, title, text}) for `chi_muc`/`tim`/`thu_thap`,
+    frontmatter stripped. Empty without a chat id."""
+    r = Path(str(root))
+    out = []
+    for rel in scoped_paths(r, chat_id):
+        try:
+            raw = (r / rel).read_text(encoding="utf-8", errors="replace")[:MAX_BYTES]
+        except OSError:
+            continue
+        raw = re.sub(r"\A\ufeff?---\n.*?\n---\n", "", raw, flags=re.DOTALL)
+        out.append({"path": rel, "title": Path(rel).stem, "text": raw})
+    return out
+
+
+def ds_tai_lieu(root: Any, chat_id: Any = None) -> List[str]:
     """Đường dẫn tương đối (dạng posix) của mọi file được tính là tài liệu của bot. Bộ công cụ đọc
     tài liệu ở mức "Đọc tài liệu" (`chatbot_doc_tools`) chỉ mở được đúng những file trong danh sách
-    này, nên nó không bao giờ thấy nhiều hơn phần tra sẵn đã thấy."""
+    này, nên nó không bao giờ thấy nhiều hơn phần tra sẵn đã thấy.
+
+    `chat_id` (0.338.0): add the scoped documents of that chat (see `scoped_docs`). None or "" adds none."""
     r = Path(str(root))
     try:
-        return [p.relative_to(r).as_posix() for p in _duyet(r)]
+        return [p.relative_to(r).as_posix() for p in _duyet(r)] + scoped_paths(r, chat_id)
     except Exception as e:
         print(f"[chatbot grounding] liệt kê {r} lỗi: {e}", file=sys.stderr)
         return []
@@ -285,6 +440,9 @@ def chi_muc(root: Any, extra: Optional[List[dict]] = None) -> dict:
             return c["ix"]
     ix = _dung_chi_muc(r, extra)
     with _lock:
+        _CACHE.pop(key, None)
+        while len(_CACHE) >= _CACHE_MAX:
+            _CACHE.pop(next(iter(_CACHE)))
         _CACHE[key] = {"van": van, "ix": ix}
     return ix
 
@@ -292,17 +450,22 @@ def chi_muc(root: Any, extra: Optional[List[dict]] = None) -> dict:
 def xoa_cache() -> None:
     with _lock:
         _CACHE.clear()
+        _SCOPE_CACHE.clear()
 
 
 # ============================================================
 # Tìm
 # ============================================================
-def tim(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None) -> List[dict]:
-    """Các mảnh tài liệu khớp nhất với câu hỏi, sắp theo điểm giảm dần."""
+def tim(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None,
+        chat_id: Any = None) -> List[dict]:
+    """Các mảnh tài liệu khớp nhất với câu hỏi, sắp theo điểm giảm dần.
+
+    `chat_id` (0.338.0): also search the scoped documents of that chat, and only that chat."""
     cap = _tach_cap(cau_hoi)
     if not cap:
         return []
-    ix = chi_muc(root, extra)
+    scoped = scoped_docs(root, chat_id)
+    ix = chi_muc(root, list(extra or []) + scoped if scoped else extra)
     idf = ix["idf"]
     # Một từ bỏ dấu có thể ứng với nhiều dạng có dấu trong CÙNG câu hỏi; giữ tất cả để chỉ cần
     # tài liệu khớp một dạng là tính khớp thật.
@@ -349,7 +512,8 @@ def tim(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None)
             for d, p, n, m in ra[:k]]
 
 
-def thu_thap(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None) -> dict:
+def thu_thap(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None,
+             chat_id: Any = None) -> dict:
     """Khối tài liệu nhét vào prompt cho MỘT câu hỏi.
 
     Trả `{"co": bool, "khoi": str, "nguon": [path...]}`. `co=False` nghĩa là brain không có gì
@@ -357,7 +521,7 @@ def thu_thap(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = 
     lặng thì model tự lấp bằng trí nhớ chung của nó.
     """
     try:
-        hit = tim(root, cau_hoi, k, extra)
+        hit = tim(root, cau_hoi, k, extra, chat_id)
     except Exception as e:
         print(f"[chatbot grounding] tìm lỗi: {e}", file=sys.stderr)
         return {"co": False, "khoi": "", "nguon": []}
