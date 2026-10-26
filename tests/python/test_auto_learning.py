@@ -372,6 +372,16 @@ class AutoLearningTests(unittest.TestCase):
             self.learner.apply_proposal(self.b, run["run_id"])
         self.assertIn("Owner line.", self.skill.read_text(encoding="utf-8"))
 
+    def test_only_the_test_work_runs_on_the_main_engine(self):
+        main_calls = []
+        self.host.background_call = self.engine
+        self.host.text_call = lambda system, prompt: (main_calls.append(system), self.engine(system, prompt))[1]
+        self.learner = A.AutoLearner(A.Store(self.tmp / "al2.sqlite3"), self.host, clock=lambda: self.now[0], width=2)
+        self.mistakes()
+        self.assertTrue(self.learner.step()["run"]["applied"])
+        self.assertTrue(main_calls)
+        self.assertTrue(all("Follow the skill below" in system for system in main_calls))  # judge, writer, grader, improver: background
+
     def test_build_cases_split(self):
         cases = A.build_cases(json.loads(FakeEngine()("write test sets", "")[8:-4]))
         tuning = [c for c in cases if c.split == "tuning"]
