@@ -1,0 +1,169 @@
+{
+ "version": 1,
+ "date": "2026-10-26",
+ "label": "real-model pilot / synthetic chat",
+ "owner_permission": "chat 26/10/2026: automatic learning from chat for skills, agents and workflows, no approval",
+ "engine": {
+  "cli": "claude 2.1.310",
+  "flags": "-p --safe-mode --tools '' --no-session-persistence",
+  "model": "claude-opus-5-5",
+  "effort": "medium"
+ },
+ "scenario": "tools/auto_learning_pilot.py: a door shop's quote skill misses 8% VAT, a 30% deposit and a 200.000 delivery fee below 5.000.000; 4 chat turns answered by the real model with the current skill, each followed by the owner's correction; then judge, case writer, Harness² loop with a model grader, apply",
+ "fixed_check": "6 fresh requests, deterministic numbers, never seen by Javis (VAT on goods only)",
+ "scope_of_claim": "One skill, synthetic chat, one engine. Agents and workflows run the same pipeline but were only exercised with fakes. Not a production measurement.",
+ "pilots": [
+  {
+   "pilot": 1,
+   "note": "code before review fixes: the judge's test prompts stated the shop rules, so the old skill already passed them",
+   "judged": [
+    {
+     "verdict": "mistake",
+     "n": 4
+    }
+   ],
+   "usage": {
+    "calls": 184,
+    "cost_usd": 3.018328600000001,
+    "errors": 0,
+    "models": [
+     "claude-opus-5-5"
+    ]
+   },
+   "fixed_check_before": 0,
+   "fixed_check_after": 0,
+   "run": {
+    "verdict": "regression",
+    "applied": false,
+    "outcomes": {
+     "win": 6,
+     "tie": 6,
+     "loss": 2
+    },
+    "p_value": 0.2891,
+    "regressions": [
+     "q11",
+     "q13"
+    ],
+    "base_pass_rate": 0.2857,
+    "candidate_pass_rate": 0.2857,
+    "tuning": {
+     "base": 0.7,
+     "inv1": 0.7667,
+     "dom1": 0.7667,
+     "c1": 0.7667
+    },
+    "cases": 20
+   }
+  },
+  {
+   "pilot": 2,
+   "note": "no run: the pilot froze its clock, so the owner's correction never counted as a follow-up (pilot bug, fixed)",
+   "judged": [
+    {
+     "verdict": null,
+     "n": 4
+    }
+   ],
+   "usage": {
+    "calls": 16,
+    "cost_usd": 0.230488,
+    "errors": 0,
+    "models": [
+     "claude-opus-5-5"
+    ]
+   },
+   "fixed_check_before": 0,
+   "fixed_check_after": 0
+  },
+  {
+   "pilot": 3,
+   "note": "test prompts no longer state the rules; one keep case contradicted the owner's corrections",
+   "judged": [
+    {
+     "verdict": "mistake",
+     "n": 4
+    }
+   ],
+   "usage": {
+    "calls": 176,
+    "cost_usd": 3.102166800000001,
+    "errors": 0,
+    "models": [
+     "claude-opus-5-5"
+    ]
+   },
+   "fixed_check_before": 0,
+   "fixed_check_after": 0,
+   "run": {
+    "verdict": "regression",
+    "applied": false,
+    "outcomes": {
+     "win": 9,
+     "tie": 3,
+     "loss": 1
+    },
+    "p_value": 0.0215,
+    "regressions": [
+     "q12"
+    ],
+    "base_pass_rate": 0.3077,
+    "candidate_pass_rate": 0.9231,
+    "tuning": {
+     "base": 0.6,
+     "inv1": 1.0,
+     "dom1": 1.0,
+     "c1": 1.0
+    },
+    "cases": 19
+   }
+  },
+  {
+   "pilot": 4,
+   "note": "cases must agree with the owner's corrections",
+   "judged": [
+    {
+     "verdict": "mistake",
+     "n": 4
+    }
+   ],
+   "usage": {
+    "calls": 176,
+    "cost_usd": 3.016697599999999,
+    "errors": 0,
+    "models": [
+     "claude-opus-5-5"
+    ]
+   },
+   "fixed_check_before": 0,
+   "fixed_check_after": 2,
+   "run": {
+    "verdict": "helped",
+    "applied": true,
+    "outcomes": {
+     "win": 13,
+     "tie": 0,
+     "loss": 0
+    },
+    "p_value": 0.0002,
+    "regressions": [],
+    "base_pass_rate": 0.0,
+    "candidate_pass_rate": 0.9231,
+    "tuning": {
+     "base": 0.3333,
+     "inv1": 1.0,
+     "dom1": 1.0,
+     "c1": 1.0
+    },
+    "cases": 19
+   },
+   "skill_after": "---\nname: bao-gia-cua\ndescription: Viết báo giá cửa cho khách của cửa hàng\ngroup: Sales\n---\nKhi khách hỏi giá, viết báo giá ngắn gọn bằng tiếng Việt:\n- Liệt kê từng sản phẩm: tên, số lượng, đơn giá, thành tiền.\n- Ghi **Tạm tính (chưa VAT)** = tổng thành tiền các sản phẩm. Không gọi dòng này là \"tổng cộng\".\n- Phí giao hàng nội thành: nếu tạm tính tiền hàng dưới 5.000.000đ thì tự thêm dòng phí giao 200.000đ. Từ 5.000.000đ trở lên thì miễn phí giao, không thêm dòng phí. Luôn áp dụng quy tắc này, không hỏi lại khách hay chủ shop về phí giao.\n- **VAT 8%** = 8% × (tạm tính + phí giao nếu có).\n- **Tổng cộng (đã gồm VAT)** = tạm tính + phí giao nếu có + VAT.\n- **Đặt cọc 30%** = 30% × tổng cộng đã gồm VAT.\n- **Còn lại** = tổng cộng − tiền cọc.\n- Mỗi dòng phải ghi số tiền cụ thể. Trước khi gửi, kiểm tra lại từng phép tính.\n- Lời chào lịch sự ở cuối.\n",
+   "skill_after_sha256": "7f0bd53e53b20cb5d326f58eebdef483bea21ae848367259eb3122a4025d95be",
+   "recheck": {
+    "vat_on_goods_only": 2,
+    "vat_on_goods_and_delivery": 6,
+    "note": "the owner's corrections never said whether VAT covers the delivery fee; the learned skill taxes goods plus delivery, consistently"
+   }
+  }
+ ]
+}
