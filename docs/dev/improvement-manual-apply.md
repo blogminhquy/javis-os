@@ -209,7 +209,7 @@ idempotent theo `event_key`. Không ghi đè file, không phát lại hành đ�
   tổng hợp của phép thử, chụp kế hoạch/đồ thị phụ thuộc và nguồn dữ liệu, giao diện. L02 theo nghĩa đầy đủ (không
   nâng bằng chứng của kinh nghiệm chỉ thắng ở bước chọn) vẫn nằm ở kho kinh nghiệm M2, không thêm ở đây.
 
-## Ưu tiên có giới hạn, xuất/nhập và tạm ngừng tất cả (M8, 0.328.0)
+## Ưu tiên có giới hạn, xuất/nhập và tạm ngừng tất cả (M8, 0.330.0)
 
 - Xếp nhu cầu (`improvement_library.rank_needs`): chỉ nhận nguồn spec 8.1 cho phép (chủ yêu cầu, cùng lỗi ở ít nhất
   hai việc độc lập, chủ góp ý chỉ rõ lỗi, lượt rà soát có dấu vết). Cảm xúc, nhiều agent đồng tình, dùng nhiều, để

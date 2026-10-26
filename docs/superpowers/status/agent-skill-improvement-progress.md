@@ -10,7 +10,7 @@ ships with #831. Four kinds of evidence are kept apart:
 - **Tested with real models:** none in this Goal phase. Native enforcement qualification uses dummy auth and
   localhost providers; it proves isolation, not quality.
 - **Proven business value:** none claimed. Every applied improvement is labelled `manual_trial`.
-- **Released:** 0.314.0 (M2), 0.316.0 (M3), 0.320.0 (M4), 0.323.0 (M5), 0.325.0 (M6), 0.327.0 (M7), 0.328.0 (M8,
+- **Released:** 0.314.0 (M2), 0.316.0 (M3), 0.320.0 (M4), 0.323.0 (M5), 0.325.0 (M6), 0.327.0 (M7), 0.330.0 (M8,
   pending merge). VPS has not pulled any of them.
 
 Blocked on the owner (Phase 2, Goal section 13), not on engineering: real feasibility and pilots on a chosen business
@@ -46,7 +46,7 @@ Done in this session:
 | M5 (agent procedure overlay, surfaces dm/team/kanban/workflow, session pin, owner-rule drift, learn/review staging, lesson linkage, UI) | **Released 0.323.0** (`22ef0375`, #825): CI green, review 4 important + 6 minor fixed, native re-qualified (20/20) | None; agent pilot and agent canary PENDING (owner) | Off until the owner applies |
 | M6 (agent-skill bundle: validator, atomic pointer, all-or-nothing read gate, recovery, attribution labels, UI) | **Released 0.325.0** (`485ad69f`, #828): CI green, review 1 critical + 7 important fixed, native re-qualified (20/20). Not built: executable helpers in the sandbox (owner grant for the executable kind), skill split/merge with alias, real ablation arms and a bundle qualification | None; real agent-only/skill-only arms PENDING | Off until the owner applies |
 | M7 (Team trial pins and comparison T01, scoped reports T02, untested recipe transfer, API) | **Released 0.327.0** (`409219ad`, #830): CI green, review 1 critical + 5 important fixed, native re-qualified (20/20). Not built: a real Team trial runner, per-step artifact handoff, aggregate trial acceptance, plan/source pinning, lesson freezing during arms, UI | None; a Team business comparison PENDING (owner, real runs) | API only |
-| M8 (source-gated need ranking, bounded refinement ledger, filtered export/import, pause every improvement, UI button) | Ready on #831 (0.328.0): review 1 critical + 4 important fixed, native re-qualified (20/20), CI pending at this commit. Not built: the self-running V4 loop (needs model runs and trial/auto_scoped policy), consolidation, automatic compose re-check, export/import UI, resume after pause | None | Pause button live; rest API/library |
+| M8 (source-gated need ranking, bounded refinement ledger, filtered export/import, pause every improvement, UI button) | Ready on #831 (0.330.0): review 1 critical + 4 important fixed, native re-qualified (20/20), CI pending at this commit. Not built: the self-running V4 loop (needs model runs and trial/auto_scoped policy), consolidation, automatic compose re-check, export/import UI, resume after pause | None | Pause button live; rest API/library |
 
 Blocked on owner, not engineering: any model-backed feasibility/pilot (needs explicit permission to
 run the selected Claude subscription engine), live canary (7 days and 10 real tasks), activation on a

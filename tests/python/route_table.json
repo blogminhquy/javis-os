@@ -6754,5 +6754,25 @@
    "POST"
   ],
   "trong": 675
+ },
+ {
+  "order": 678,
+  "type": "APIRoute",
+  "path": "/usage/theo-gio",
+  "name": "usage_theo_gio",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 679,
+  "type": "APIRoute",
+  "path": "/plan-limits",
+  "name": "plan_limits_get",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
  }
 ]

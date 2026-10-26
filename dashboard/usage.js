@@ -140,13 +140,16 @@
       + ".tk-up{color:var(--red)}.tk-down{color:var(--green)}"
       + ".tk-sec{font-size:11.5px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin:22px 0 12px;font-weight:600}"
       // --- Biểu đồ ngày + hàng mốc sự kiện ngay dưới trục
-      + ".tk-chart{display:flex;align-items:flex-end;gap:3px;height:160px;padding:6px 2px 0;overflow-x:auto}"
-      + ".tk-col{flex:0 0 auto;width:9px;display:flex;flex-direction:column-reverse;align-items:stretch;height:100%;cursor:default}"
+      // Cột GIÃN hết bề ngang (0.329.0): cột cố định 9px dồn cả tháng vào một phần ba bên trái,
+      // nhãn ngày 8px thì không đọc nổi. Nhãn chỉ hiện cách quãng khi kỳ dài (xem paint).
+      + ".tk-chart{display:flex;align-items:flex-end;gap:3px;height:160px;padding:6px 2px 0;border-bottom:1px solid var(--glass-brd)}"
+      + ".tk-col{flex:1 1 0;min-width:3px;max-width:40px;display:flex;flex-direction:column-reverse;align-items:stretch;height:100%;cursor:default}"
+      + ".tk-col:hover{background:rgba(127,127,127,.12)}"
       + ".tk-seg2{width:100%;min-height:0}"
-      + ".tk-xrow{display:flex;gap:3px;border-top:1px solid var(--glass-brd);padding-top:5px;overflow-x:auto}"
-      + ".tk-x{flex:0 0 auto;width:9px;text-align:center;font-size:8px;color:var(--text3)}"
-      + ".tk-mrow{display:flex;gap:3px;overflow-x:auto;margin-top:2px;height:14px}"
-      + ".tk-m{flex:0 0 auto;width:9px;text-align:center;line-height:1;color:var(--accent);cursor:default}"
+      + ".tk-xrow{display:flex;gap:3px;padding-top:5px}"
+      + ".tk-x{flex:1 1 0;min-width:3px;max-width:40px;text-align:center;font-size:11px;color:var(--text3);white-space:nowrap;overflow:visible}"
+      + ".tk-mrow{display:flex;gap:3px;margin-top:2px;height:14px}"
+      + ".tk-m{flex:1 1 0;min-width:3px;max-width:40px;text-align:center;line-height:1;color:var(--accent);cursor:default}"
       + ".tk-m svg{width:11px;height:11px;vertical-align:top}"
       + ".tk-legend{display:flex;gap:14px;font-size:12px;color:var(--text2);margin-top:9px;flex-wrap:wrap}"
       + ".tk-dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}"
@@ -207,7 +210,47 @@
       + ".tk-tien .tien .v{color:var(--accent2,var(--accent))}"
       + ".tk-muc-toast{padding:9px 13px;border-radius:10px;font-size:13px;margin-top:10px;border:1px solid var(--glass-brd)}"
       + ".tk-muc-toast.ok{border-color:var(--accent)}"
-      + ".tk-muc-toast.err{color:var(--red)}";
+      + ".tk-muc-toast.err{color:var(--red)}"
+      // --- 24 giờ qua (gioHtml)
+      + ".tg-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px}"
+      + "@media(max-width:760px){.tg-grid{grid-template-columns:1fr}}"
+      + ".tg-card{border:1px solid var(--glass-brd);background:var(--glass);border-radius:14px;padding:14px 16px;min-width:0}"
+      + ".tg-full{grid-column:1/-1}"
+      + ".tg-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:14px;font-weight:600;color:var(--text)}"
+      + ".tg-h b{font-size:16px;font-variant-numeric:tabular-nums}"
+      + ".tg-now.ok{color:var(--green)}.tg-now.warn{color:var(--accent)}.tg-now.bad{color:var(--red)}"
+      + ".tg-plot{display:flex;gap:8px;height:150px}"
+      + ".tg-y{position:relative;width:38px;flex:0 0 auto;font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums}"
+      + ".tg-y span{position:absolute;right:0;transform:translateY(-50%)}"
+      + ".tg-box{position:relative;flex:1;min-width:0;border-left:1px solid var(--glass-brd);border-bottom:1px solid var(--glass-brd)}"
+      + ".tg-box svg{position:absolute;inset:0;width:100%;height:100%}"
+      + ".tg-area{fill:var(--accent);opacity:.14}.tg-area.ok{fill:var(--green)}.tg-area.bad{fill:var(--red)}"
+      + ".tg-line{fill:none;stroke:var(--accent);stroke-width:2.2;vector-effect:non-scaling-stroke;stroke-linejoin:round}"
+      + ".tg-line.ok{stroke:var(--green)}.tg-line.bad{stroke:var(--red)}"
+      + ".tg-dot{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--bg2)}"
+      + ".tg-dot.ok{background:var(--green)}.tg-dot.bad{background:var(--red)}"
+      + ".tg-moc{position:absolute;left:0;right:0;border-top:1.5px dashed var(--yellow,#e8b500)}"
+      + ".tg-moc span{position:absolute;right:4px;bottom:2px;font-size:11px;color:var(--yellow,#e8b500);background:var(--bg2);padding:0 4px;border-radius:4px}"
+      + ".tg-hover{position:absolute;inset:0;display:flex}"
+      + ".tg-hover div{flex:1}"
+      + ".tg-hover div:hover{background:rgba(127,127,127,.12)}"
+      + ".tg-x{display:flex;margin:5px 0 0 46px;font-size:11px;color:var(--text3)}"
+      + ".tg-card .tg-bars+.tg-x{margin-left:0}"
+      + ".tg-x span{flex:1;text-align:left;white-space:nowrap;overflow:visible}"
+      + ".tg-bars{display:flex;align-items:flex-end;gap:2px;height:150px;border-bottom:1px solid var(--glass-brd)}"
+      + ".tg-col{flex:1;display:flex;flex-direction:column-reverse;height:100%;cursor:default}"
+      + ".tg-col div{width:100%;border-radius:2px 2px 0 0}"
+      + ".tg-col:hover{background:rgba(127,127,127,.12)}"
+      + ".tg-s{margin-top:10px;font-size:13px;color:var(--text2);line-height:1.5}"
+      + ".tg-heat{display:grid;grid-template-columns:repeat(24,1fr);gap:3px}"
+      + "@media(max-width:640px){.tg-heat{grid-template-columns:repeat(12,1fr)}}"
+      + ".tg-o{height:34px;border-radius:6px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;font-size:10.5px;color:var(--text3);background:var(--surface-2);cursor:default}"
+      + ".tg-o.l1{background:rgba(253,97,0,.18)}.tg-o.l2{background:rgba(253,97,0,.38)}"
+      + ".tg-o.l3{background:rgba(253,97,0,.62);color:var(--text)}.tg-o.l4{background:rgba(253,97,0,.9);color:#fff}"
+      + ".tg-thang{display:flex;align-items:center;gap:3px;font-size:11.5px;font-weight:400;color:var(--text3)}"
+      + ".tg-thang i{display:inline-block;width:12px;height:12px;border-radius:3px}"
+      + ".tg-thang i.l1{background:rgba(253,97,0,.18)}.tg-thang i.l2{background:rgba(253,97,0,.38)}"
+      + ".tg-thang i.l3{background:rgba(253,97,0,.62)}.tg-thang i.l4{background:rgba(253,97,0,.9)}";
     var s = document.createElement("style"); s.textContent = css; document.head.appendChild(s);
   }
 
@@ -317,9 +360,11 @@
       loadMuc(false),
       loadViec(false),
       fetch("/cache-keepwarm").then(jsonOk).catch(function () { return null; }),
+      fetch("/usage/theo-gio").then(jsonOk).catch(function () { return null; }),
     ]).then(function (res) {
       state.tq = res[2] || null;
       state.kw = res[5] || null;
+      state.gio = res[6] || null;
       paint(res[0] || {}, (res[1] || {}).items || []);
     }).catch(function (e) {
       loi(e && e.message ? e.message : "");
@@ -626,6 +671,116 @@
       + "</div>";
   }
 
+  // ===== 24 giờ qua: cửa sổ 5 giờ theo thời gian, token từng giờ, giờ cao điểm 7 ngày =====
+  // Chủ repo 26/10 gửi ảnh một bảng theo dõi token tự dựng và bảo làm trang này "hữu dụng hơn".
+  // Ba thứ đáng lấy từ bảng đó, vì trang cũ KHÔNG trả lời được:
+  //   1. Cửa sổ 5 giờ đang lên hay xuống. Ô "Cửa sổ 5 giờ" chỉ là một điểm; gói thuê bao chặn
+  //      theo cửa sổ trượt, nên cần thấy cả đường và vạch mốc để biết sắp chạm trần chưa.
+  //   2. Sáng nay giờ nào đốt token. Biểu đồ theo NGÀY gộp cả ngày lại; chip "Hôm nay" chỉ ra
+  //      đúng một cột.
+  //   3. Giờ nào trong ngày AI dồn nhiều, giờ nào vắng: để dời việc nền sang giờ vắng.
+  // Những thứ KHÔNG lấy: "% hạn mức gói" chính thức (Javis không đọc token đăng nhập của gói,
+  // nên vạch mốc là trần người dùng tự khai hoặc mức cao nhất từng chạm, và nói rõ là cái nào),
+  // bảng "AI đang chạy" (gần như luôn trống, đã có dải việc nền), ô màu giờ có số trần không
+  // đơn vị (ở đây số nằm trong chú thích khi rê chuột, màu có thang chú giải).
+  function gioHtml() {
+    var g = state.gio;
+    if (!g || !g.gio_24 || !g.gio_24.length) return "";
+    var tong24 = g.gio_24.reduce(function (a, x) { return a + (x.total || 0); }, 0);
+    return '<div class="tk-sec">' + window.t("usage.gio.sec") + '</div><div class="tg-grid">'
+      + '<div class="tg-card">' + cuaSoHtml(g) + "</div>"
+      + '<div class="tg-card">' + gio24Html(g, tong24) + "</div>"
+      + '<div class="tg-card tg-full">' + nhietHtml(g.nhiet_7 || {}) + "</div></div>";
+  }
+
+  function nhanGio(h) { return h + "h"; }
+
+  function cuaSoHtml(g) {
+    var cs = g.cua_so || [];
+    var moc = (g.moc && g.moc.tokens) || 0;
+    var maxV = Math.max.apply(null, cs.map(function (x) { return x.tokens || 0; }).concat([moc, 1]));
+    var top = maxV * 1.1;
+    var W = 600, H = 160;
+    var pts = cs.map(function (x, i) {
+      return [(i / Math.max(1, cs.length - 1)) * W, H - (x.tokens || 0) / top * H];
+    });
+    var line = pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ");
+    var area = line + " L" + W + " " + H + " L0 " + H + " Z";
+    var cuoi = cs.length ? (cs[cs.length - 1].tokens || 0) : 0;
+    var tl = moc ? cuoi / moc : 0;
+    var muc = !moc ? "" : tl >= 0.9 ? "bad" : tl >= 0.7 ? "warn" : "ok";
+    var mocY = moc ? (H - moc / top * H) / H * 100 : 0;
+    var nhanMoc = g.moc && g.moc.loai === "tran" ? window.t("usage.gio.moc_tran") : window.t("usage.gio.moc_dinh");
+    var cot = cs.map(function (x) {
+      return '<div title="' + esc(nhanGio(x.gio) + ": " + fTok(x.tokens) + " " + window.t("usage.gio.trong_5h")) + '"></div>';
+    }).join("");
+    var lp = pts.length ? pts[pts.length - 1] : [W, H];
+    return '<div class="tg-h"><span>' + window.t("usage.gio.cs_tieu_de") + "</span>"
+      + '<b class="tg-now ' + muc + '">' + fTok(cuoi) + (moc ? " · " + Math.round(tl * 100) + "%" : "") + "</b></div>"
+      + '<div class="tg-plot">'
+      + '<div class="tg-y"><span style="top:0">' + fTok(top) + '</span><span style="top:50%">' + fTok(top / 2) + '</span><span style="top:100%">0</span></div>'
+      + '<div class="tg-box"><svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" aria-hidden="true">'
+      + '<path class="tg-area ' + muc + '" d="' + area + '"/><path class="tg-line ' + muc + '" d="' + line + '"/></svg>'
+      + '<span class="tg-dot ' + muc + '" style="left:' + (lp[0] / W * 100) + "%;top:" + (lp[1] / H * 100) + '%"></span>'
+      + (moc ? '<div class="tg-moc" style="top:' + mocY + '%"><span>' + esc(nhanMoc) + " " + fTok(moc) + "</span></div>" : "")
+      + '<div class="tg-hover">' + cot + "</div></div></div>"
+      + '<div class="tg-x">' + cs.map(function (x, i) {
+        return "<span>" + (i % 6 === 0 || i === cs.length - 1 ? nhanGio(x.gio) : "") + "</span>";
+      }).join("") + "</div>"
+      + '<div class="tg-s">' + (moc
+        ? (tl >= 0.9 ? window.t("usage.gio.cs_sat", { pc: Math.round(tl * 100) }) : window.t("usage.gio.cs_on", { pc: Math.round(tl * 100) }))
+        : window.t("usage.gio.cs_chua_moc")) + "</div>";
+  }
+
+  function gio24Html(g, tong24) {
+    var ds = g.gio_24 || [];
+    var maxV = Math.max.apply(null, ds.map(function (x) { return x.total || 0; }).concat([1]));
+    var cols = ds.map(function (x) {
+      function k(v, col) { return v > 0 ? '<div style="height:' + (v / maxV * 100) + "%;background:" + col + '"></div>' : ""; }
+      var tip = nhanGio(x.gio) + ": " + fTok(x.total) + " token · " + window.t("usage.gio.luot", { count: x.turns || 0 });
+      return '<div class="tg-col" title="' + esc(tip) + '">' + k(x.claude, PROV_COLOR.claude) + k(x.codex, PROV_COLOR.codex) + k(x.api, PROV_COLOR.api) + "</div>";
+    }).join("");
+    var dinh = ds.reduce(function (a, x) { return (x.total || 0) > (a.total || 0) ? x : a; }, {});
+    return '<div class="tg-h"><span>' + window.t("usage.gio.g24_tieu_de") + "</span><b>" + fTok(tong24) + "</b></div>"
+      + '<div class="tg-bars">' + cols + "</div>"
+      + '<div class="tg-x">' + ds.map(function (x, i) {
+        return "<span>" + (i % 6 === 0 || i === ds.length - 1 ? nhanGio(x.gio) : "") + "</span>";
+      }).join("") + "</div>"
+      + '<div class="tg-s">' + (dinh.total ? window.t("usage.gio.g24_dinh", { gio: nhanGio(dinh.gio), tok: fTok(dinh.total) }) : window.t("usage.gio.g24_trong")) + "</div>";
+  }
+
+  /** Khung giờ liền nhau (tính vòng qua nửa đêm) có tổng lớn nhất / nhỏ nhất, dài `n` giờ. */
+  function khungGio(arr, n, lonNhat) {
+    var best = null, bi = 0;
+    for (var i = 0; i < 24; i++) {
+      var s2 = 0;
+      for (var k = 0; k < n; k++) s2 += arr[(i + k) % 24] || 0;
+      if (best === null || (lonNhat ? s2 > best : s2 < best)) { best = s2; bi = i; }
+    }
+    return { tu: bi, den: (bi + n) % 24, tong: best };
+  }
+
+  function nhietHtml(nh) {
+    var arr = nh.tb_moi_gio || [];
+    var maxV = Math.max.apply(null, arr.concat([1]));
+    var o = arr.map(function (v, h) {
+      var lv = !v ? 0 : Math.min(4, 1 + Math.floor(v / maxV * 3.999));
+      var tip = nhanGio(h) + ": " + window.t("usage.gio.nhiet_tip", { tok: fTok(v) });
+      return '<div class="tg-o l' + lv + '" title="' + esc(tip) + '"><span>' + h + "</span></div>";
+    }).join("");
+    var cau;
+    if (!nh.so_ngay) cau = window.t("usage.gio.nhiet_chua");
+    else {
+      var cao = khungGio(arr, 3, true), vang = khungGio(arr, 4, false);
+      cau = window.t("usage.gio.nhiet_cau", { cao: nhanGio(cao.tu) + "-" + nhanGio(cao.den),
+        vang: nhanGio(vang.tu) + "-" + nhanGio(vang.den), so: nh.so_ngay });
+    }
+    return '<div class="tg-h"><span>' + window.t("usage.gio.nhiet_tieu_de") + "</span>"
+      + '<span class="tg-thang">' + window.t("usage.gio.it") + ' <i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i> ' + window.t("usage.gio.nhieu") + "</span></div>"
+      + '<div class="tg-heat">' + o + "</div>"
+      + '<div class="tg-s">' + esc(cau) + "</div>";
+  }
+
   function card(k, v, sub, accent, extra) {
     return '<div class="tk-card' + (accent ? " accent" : "") + '"><div class="k">' + esc(k) + (extra || "") + '</div><div class="v">' + v + '</div><div class="s">' + (sub || "") + "</div></div>";
   }
@@ -767,7 +922,11 @@
       return '<div class="tk-col" title="' + esc(tip) + '">'
         + seg2(d.claude, PROV_COLOR.claude) + seg2(d.codex, PROV_COLOR.codex) + seg2(d.api, PROV_COLOR.api) + "</div>";
     }).join("");
-    var xs = ts.map(function (d) { return '<div class="tk-x">' + esc(d.day.slice(8)) + "</div>"; }).join("");
+    // Kỳ dài thì cách quãng nhãn, không thì 30 con số dính vào nhau.
+    var buocX = ts.length > 62 ? 14 : ts.length > 31 ? 7 : ts.length > 16 ? 3 : 1;
+    var xs = ts.map(function (d, i) {
+      return '<div class="tk-x">' + (i % buocX === 0 || i === ts.length - 1 ? esc(String(+d.day.slice(8))) : "") + "</div>";
+    }).join("");
     var ms = ts.map(function (d) {
       var mm = mocTheoNgay[d.day];
       if (!mm || !mm.length) return '<div class="tk-m"></div>';
@@ -815,7 +974,7 @@
       quy_doi: "<b>" + window.t("usage.note_quy_doi") + "</b>",
     }));
 
-    el.innerHTML = '<div class="tk-wrap">' + mucHtml(state.muc) + bar1 + heroHtml() + act + cards + note + chart + grid + tables + loopHtml() + engineHtml() + insHtml + "</div>";
+    el.innerHTML = '<div class="tk-wrap">' + mucHtml(state.muc) + bar1 + heroHtml() + act + gioHtml() + cards + note + chart + grid + tables + loopHtml() + engineHtml() + insHtml + "</div>";
     // Thông báo đã hiện xong thì thôi. Không xoá ở đây thì câu "Đã chuyển sang mức Tối ưu"
     // bám vào trang qua mọi lần đổi chip kỳ, mọi lần Làm mới, cho tới khi người dùng F5 -
     // và một thông báo nói về việc xảy ra mười phút trước thì chỉ gây hiểu nhầm.
