@@ -256,6 +256,7 @@
   "dict.unsupported": "Trình duyệt này chưa ghi âm thành chữ được. Thử Chrome, Edge hoặc Safari, hoặc bật tai nghe Groq ở phần Giọng nói trong Cài đặt.",
   "dict.denied": "Javis chưa được dùng micro. Bấm ổ khoá trên thanh địa chỉ, cho phép Micro rồi thử lại.",
   "dict.failed": "Ghi âm thành chữ bị lỗi, thử lại nhé.",
+  "dict.nothing": "Chưa nghe ra chữ nào. Nói gần micro hơn rồi thử lại. Trên điện thoại, thêm API key Groq (miễn phí) ở trang Models để ghi âm ra chữ chắc hơn.",
   "dict.no_ear": "Câu pha tiếng Anh sẽ nghe chuẩn hơn khi có API key Groq (miễn phí) hoặc OpenAI ở trang Models.",
   "call.connecting": "Đang kết nối",
   "call.listening": "Đang nghe",

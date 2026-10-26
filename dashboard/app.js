@@ -3953,6 +3953,8 @@ function tatRanhTay() {
   voice.cancelListening();
   voice.stopSpeaking();
   tatLive();
+  // Hang-up (0.339.0): tatLive only suspends the Live audio so the call can reopen after the wait; let it go now.
+  try { if (window.JavisVoiceLive && window.JavisVoiceLive.release) window.JavisVoiceLive.release(); } catch (e) {}
   runActions(turn.micOff());
   updateVoiceFocus();
   try { if (window.JavisTts) window.JavisTts.set(false); } catch (e) {}
@@ -4009,6 +4011,9 @@ voiceBtn.addEventListener("click", () => {
   try { if (window.JavisTts) window.JavisTts.set(handsFree); } catch (e) {}
   // Voice V2 bậc Live: nút mic mở phiên nghe nói thẳng thay cho Web Speech + TTS.
   if (voiceMode === "live") {
+    // 0.339.0: unlock the call's audio inside this press, so a session reopened later without one (after the wait)
+    // still hears and sounds on an iPhone (voice-live.js unlock).
+    if (handsFree) { try { if (window.JavisVoiceLive && window.JavisVoiceLive.unlock) window.JavisVoiceLive.unlock(); } catch (e) {} }
     // 0.203.0: a call answered from the incoming-call card opens with its reminder line (goiDenTheoLich).
     if (handsFree) batLive(layMoDauGoiDen());
     else tatRanhTay();
@@ -4056,7 +4061,11 @@ setInterval(() => {
   }
 }, 500);
 
-document.getElementById("voiceFocusResume").addEventListener("click", () => resumeVoiceFocus());
+document.getElementById("voiceFocusResume").addEventListener("click", () => {
+  // A press: unlock the Live audio again before the session reopens (0.339.0, voice-live.js unlock).
+  try { if (voiceMode === "live" && window.JavisVoiceLive && window.JavisVoiceLive.unlock) window.JavisVoiceLive.unlock(); } catch (e) {}
+  resumeVoiceFocus();
+});
 
 // Phím Space KHÔNG còn mở mic (0.65.18, chủ dự án chốt 01/10): bấm mic là gọi, Esc là cúp. Bỏ để
 // không ai lỡ chạm Space mà mở mic, và không còn kiểu bộ đàm song song với kiểu gọi điện.
