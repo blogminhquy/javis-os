@@ -2222,6 +2222,12 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
 # không có nghĩa cả lượt đã xong: lượt có thể bị huỷ ở bước lưu sau đó. Huỷ hay lỗi thắng final trước đó.
 _TURN_ENGINE: dict = {}
 
+# Sent in the same Claude Code thread when a chat turn ended cleanly with no text at all (0.332.0). Model prompt:
+# Vietnamese, like the other Javis notes to the model.
+EMPTY_ANSWER_NUDGE = ("[Javis] Lượt vừa rồi bạn kết thúc mà không viết chữ nào cho người dùng, nên họ chỉ thấy một "
+                      "bong bóng trống. Hãy trả lời tin nhắn cuối cùng của họ ngay bây giờ (kể cả khi chỉ là một câu "
+                      "ngắn). Việc lượt trước đã làm bằng công cụ là ĐÃ xong, đừng làm lại.")
+
 
 def _engine_outcome_reset(conv_sid) -> None:
     _TURN_ENGINE[str(conv_sid)] = {"final": None, "errors": [], "exception": "", "turn": ""}
@@ -17031,10 +17037,11 @@ async def websocket_endpoint(ws: WebSocket):
                 )
                 _t0_cli = time.time()
                 _da_ghi: list = []      # đường dẫn moi từ tham số tool trong lượt (Write/Edit/Bash...)
+                _cli_err = False        # the engine reported an error this turn (already shown to the user)
 
                 async def _consume_claude(prompt, suppress_resume_error=False):
                     """Một lần gọi `claude`. Trả True nếu mạch cũ không còn (resume trượt)."""
-                    nonlocal final_text, _streamed, _cli_sid, _cost, _ctx_in
+                    nonlocal final_text, _streamed, _cli_sid, _cost, _ctx_in, _cli_err
                     resume_failed = False
                     async for event in cli.query(prompt):
                         etype = event["type"]
@@ -17080,6 +17087,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 resume_failed = True
                                 if suppress_resume_error:
                                     continue      # sẽ mồi lại ngay dưới, không bắn câu lỗi ra
+                            _cli_err = True
                             # Hết lượt gói Claude thì Claude Code in nguyên văn câu tiếng Anh (có khi
                             # là dạng máy "…reached|<epoch>"). Dịch sang câu nói được TRƯỚC khi đẩy
                             # ra khung chat; cuối lượt lưu câu đó và hẹn tự chạy lại (xem _limit_state).
@@ -17107,6 +17115,14 @@ async def websocket_endpoint(ws: WebSocket):
                                  if _m["role"] in ("user", "assistant") and _m.get("content")]
                     await _consume_claude(compaction.bootstrap_prompt(
                         _cli_raw2, _cli_prompt, summary=_row0.get("compact_summary") or ""))
+                if not (final_text or _streamed) and _cli_sid and not _cli_err and not _limit_state.get("notice"):
+                    # Claude Code ended the turn cleanly without writing a single word (owner report 26/10/2026: a
+                    # plain question answered with "(không có nội dung trả về)"). The model sometimes stops after its
+                    # thinking alone. Ask once more in the same thread, which already holds the question and any
+                    # work this turn did, instead of leaving the owner an empty bubble to resend.
+                    print(f"[claude] {conv_sid}: turn ended with no text, asking once more", file=sys.stderr)
+                    cli.session_id = _cli_sid
+                    await _consume_claude(EMPTY_ANSWER_NUDGE)
                 # Khung `response` PHẢI nằm NGOÀI vòng lặp. Trước đây nó nằm trong nhánh
                 # `final`, nên luồng đứt trước khi có `final` (engine chết, mạng rớt) là client
                 # không nhận `response` nào cả và bong bóng chat treo mãi - trong khi phần chữ
