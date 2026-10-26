@@ -6,9 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.342.0] - 2026-10-26
+## [0.344.0] - 2026-10-27
 ### Cải thiện
 - **Kiểm tra tự động trước khi phát hành nhanh hơn nhiều.** Trước đây mỗi lần sửa code phải chờ khoảng 68 phút để chạy hết gần 1.000 bài kiểm tra, lần lượt từng bài. Giờ bài kiểm tra chia cho 2 máy, mỗi máy chạy 4 bài cùng lúc, nên bản sửa lỗi tới tay bạn sớm hơn. Số bài kiểm tra giữ nguyên, không bỏ bài nào.
+
+## [0.343.0] - 2026-10-27
+### Cải thiện
+- **Tự học từ trò chuyện rẻ hơn nhiều.** Chấm lượt chat, soạn bộ câu thử, chấm điểm và viết bản sửa giờ chạy bằng mô hình nền (đặt ở trang Mô hình). Chỉ phần làm bài thử còn chạy bằng bộ não chính, để biết bản mới có giúp đúng model đang trả lời bạn hay không. Muốn rẻ, hãy chọn một model nhẹ làm mô hình nền.
+- **Dừng sớm khi kết quả đã rõ.** Bản mới thắng hẳn hoặc không hơn ngay vòng đầu thì Javis khỏi chạy vòng so sánh thứ hai.
 
 ## [0.341.0] - 2026-10-26
 ### Thêm mới

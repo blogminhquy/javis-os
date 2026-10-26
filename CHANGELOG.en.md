@@ -8,9 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.342.0] - 2026-10-26
+## [0.344.0] - 2026-10-27
 ### Improved
 - **The automatic checks before each release are much faster.** Every code change used to wait about 68 minutes while nearly 1,000 tests ran one after another. Now the tests are split across 2 machines that each run 4 at a time, so fixes reach you sooner. The same tests still run, none were dropped.
+
+## [0.343.0] - 2026-10-27
+### Improved
+- **Learning from chat costs far less.** Reviewing chat turns, writing test questions, grading and writing the revision now run on the background model (set on the Models page). Only the test work itself still runs on your main brain, so the result shows whether the new version helps the model that actually answers you. For the lowest cost, pick a light model as the background model.
+- **Stops early once the result is clear.** When the new version clearly wins, or does not beat the old one, in the first round, Javis skips the second comparison round.
 
 ## [0.341.0] - 2026-10-26
 ### Added

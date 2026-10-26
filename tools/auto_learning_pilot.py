@@ -78,9 +78,11 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--model", default="claude-opus-5-5")
     ap.add_argument("--effort", default="medium")
+    ap.add_argument("--background-model", default="", help="model for judge/writer/grader/improver (default: --model)")
     args = ap.parse_args()
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     engine = CliEngine(args.model, args.effort)
+    background = CliEngine(args.background_model, args.effort) if args.background_model else engine
     tmp = Path(tempfile.mkdtemp(prefix="javis-auto-learning-"))
     brain = tmp / "brain"
     (brain / "skills" / "bao-gia-cua").mkdir(parents=True)
@@ -88,7 +90,7 @@ def main():
     skill_path = brain / "skills" / "bao-gia-cua" / "SKILL.md"
     skill_path.write_text(SKILL, encoding="utf-8")
     clock = [time.time()]
-    host = A.Host(text_call=engine._call, engine_ready=lambda b: None, policy_on=lambda b: True,
+    host = A.Host(text_call=engine._call, background_call=background._call, engine_ready=lambda b: None, policy_on=lambda b: True,
                   skill_protected=lambda b, s: False, workflows_dir=lambda b: Path(b) / "workflows",
                   agent_text=lambda b, s: "", agent_procedure=lambda b, s: {}, agent_apply=lambda b, s, t: {},
                   agent_undo=lambda b, i: None, backups=tmp / "backups")
@@ -123,10 +125,15 @@ def main():
     log["skill_after"] = after_text
     log["fixed_after"] = [fixed_check(answer_with(after_text, items), items) for items in FRESH]
     log["usage"] = {**{k: v for k, v in engine.usage.items() if k != "models"}, "models": sorted(engine.usage["models"])}
+    if background is not engine:
+        log["usage_background"] = {**{k: v for k, v in background.usage.items() if k != "models"},
+                                   "models": sorted(background.usage["models"])}
+        log["usage_total_cost_usd"] = round(engine.usage["cost_usd"] + background.usage["cost_usd"], 4)
     (out / "result.json").write_text(json.dumps(log, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     shutil.copy(tmp / "al.sqlite3", out / "al.sqlite3")
     print(json.dumps({"run": run, "fixed_before": sum(x["pass"] for x in before),
                       "fixed_after": sum(x["pass"] for x in log["fixed_after"]), "usage": log["usage"],
+                      "usage_background": log.get("usage_background"), "total_cost": log.get("usage_total_cost_usd"),
                       "judged": log["judged"]}, ensure_ascii=False, default=str))
 
 

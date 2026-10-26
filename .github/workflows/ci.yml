@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Test Python chia 2 máy, mỗi máy chạy 4 file cùng lúc (0.342.0). Trước đó một máy chạy lần lượt 940 file mất ~67 phút.
+  # Test Python chia 2 máy, mỗi máy chạy 4 file cùng lúc (0.344.0). Trước đó một máy chạy lần lượt 940 file mất ~67 phút.
   # Máy ubuntu-latest của repo công khai có 4 nhân và miễn phí. Cách chia nằm ở tests/run.py (`--shard`, `--plan`): danh sách
   # luôn quét từ thư mục nên test mới tự vào đúng một nhóm; tests/test_timings.json chỉ giúp hai nhóm dài bằng nhau.
   python:

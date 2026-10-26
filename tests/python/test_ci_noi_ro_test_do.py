@@ -50,7 +50,7 @@ def _doc(ten):
 # ============================================================
 # Cả hai bước (JS và Python) đều phải có, không chỉ một: lần đỏ 03/09 rơi vào bước Python,
 # nhưng bước JS có đúng cùng hình dạng vòng lặp nên cùng một khe hở.
-# Từ 0.342.0 bước Python chạy qua tests/run.py (chia 2 máy, 4 file cùng lúc), nên bốn tính chất
+# Từ 0.344.0 bước Python chạy qua tests/run.py (chia 2 máy, 4 file cùng lúc), nên bốn tính chất
 # dưới đây được ghim ở run.py thay vì ở vòng lặp bash; bước JS vẫn là vòng lặp bash.
 for nhan, lenh in (("JS", "node"),):
     khoi = re.search(r"- name: Chạy test " + nhan + r"[\s\S]*?exit \$status", CI)

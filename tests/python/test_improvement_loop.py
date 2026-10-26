@@ -93,6 +93,23 @@ class LoopTests(unittest.TestCase):
         with self.assertRaises(L.EngineUnavailable):
             L.Loop(cases(), solve=down, improve=Improver(), check=check).run(BASE, k=1)
 
+    def test_early_stop_ends_the_sealed_comparison_once_it_is_clear(self):
+        calls = []
+
+        def counting(skill, prompt):
+            calls.append(prompt)
+            return solve(skill, prompt)
+        result = L.Loop(cases(n_qual=10), solve=counting, improve=Improver(), check=check).run(BASE, k=1, early_stop=True)
+        sealed = [p for p in calls if p.startswith("SEALED")]
+        self.assertEqual((result.report["verdict"], result.report["repeats"], len(sealed)), ("helped", 1, 20))
+        self.assertEqual(result.notes["qualification"], "early_stop_after_1")
+        calls.clear()
+        no_help = L.Loop(cases(n_qual=10), solve=counting, improve=Improver(add="RULE-B"), check=check)
+        self.assertEqual(no_help.run(BASE, k=1, early_stop=True).report["verdict"], "keep_base")  # tuning saw nothing
+        calls.clear()
+        few = L.Loop(cases(n_qual=6), solve=counting, improve=Improver(), check=check).run(BASE, k=1, early_stop=True)
+        self.assertEqual((few.report["repeats"], len([p for p in calls if p.startswith("SEALED")])), (2, 24))  # 6 wins: not clear yet
+
     def test_owner_cancel_stops_the_run(self):
         calls = []
 

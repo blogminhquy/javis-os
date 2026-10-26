@@ -1,4 +1,4 @@
-"""Cách tests/run.py chia test thành nhóm cho CI (0.342.0): không sót, không trùng, xác định được.
+"""Cách tests/run.py chia test thành nhóm cho CI (0.344.0): không sót, không trùng, xác định được.
 
     python tests/run.py run_chia_nhom
 

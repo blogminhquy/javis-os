@@ -15,7 +15,7 @@ Vì sao có file này: CI quét thư mục bằng vòng lặp shell, nhưng trê
 vòng lặp đó mỗi lần rất phiền, và dễ chạy nhầm bằng python hệ thống (thiếu thư viện) thay vì
 .venv. Script này tự tìm .venv và tự chọn đúng trình thông dịch.
 
-Từ 0.342.0 CI cũng chạy qua đây: 2 máy, mỗi máy 4 file cùng lúc (trước đó một máy chạy lần lượt
+Từ 0.344.0 CI cũng chạy qua đây: 2 máy, mỗi máy 4 file cùng lúc (trước đó một máy chạy lần lượt
 mất ~67 phút). Mỗi file vẫn là một tiến trình Python riêng với thư mục tạm riêng, như cũ.
 """
 import json
@@ -102,7 +102,7 @@ def chay_mot(cmd, env, cwd=ROOT, han_giay=None):
     TMP/TEMP/TMPDIR/JAVIS_TEST_TMP của tiến trình con vào đó, chờ nó thoát rồi xoá - lúc này
     file đã được nhả. Một tầng, không lồng: thêm tầng là đường dẫn vượt 260 ký tự trên Windows.
 
-    `han_giay` (`--timeout`, 0.342.0): quá hạn thì giết cả cây tiến trình và trả mã 124 kèm dòng
+    `han_giay` (`--timeout`, 0.344.0): quá hạn thì giết cả cây tiến trình và trả mã 124 kèm dòng
     "QUÁ GIỜ". Không có hạn thì một file treo giữ máy CI tới trần 6 tiếng mà log không nói file nào.
     """
     tam = tempfile.mkdtemp(prefix=f"jt-{os.getpid()}-")
@@ -142,7 +142,7 @@ def doc_thoi_gian() -> dict:
 
 
 def ban_sao_repo(so: int) -> list:
-    """`so` bản sao của repo, mỗi luồng chạy song song dùng riêng một bản (0.342.0).
+    """`so` bản sao của repo, mỗi luồng chạy song song dùng riêng một bản (0.344.0).
 
     Vì sao: trạng thái app mặc định nằm NGAY TRONG cây mã (server/*.json, server/*.db, brains/), và
     nhiều test đọc ghi đúng chỗ đó. Chạy lần lượt thì không sao, chạy 4 file cùng lúc thì chúng giẫm
