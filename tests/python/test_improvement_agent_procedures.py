@@ -171,7 +171,7 @@ class AgentProcedureTests(AgentProcedureBase):
         import improvement_agent_schema as S
         IM.ensure(self.store)
         with self.store._Tx(self.store) as connection:
-            for name in ("improvement_transfers", "improvement_team_trials", "improvement_team_pins",
+            for name in ("improvement_imports", "improvement_refinements", "improvement_transfers", "improvement_team_trials", "improvement_team_pins",
                          "improvement_bundle_members", "improvement_bundle_activations",
                          "improvement_agent_overlays", "improvement_agent_procedures"):
                 connection.execute(f"DROP TABLE {name}")

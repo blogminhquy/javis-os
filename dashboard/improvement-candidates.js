@@ -138,6 +138,28 @@
     await grants(s, version);
     await routing(s, version);
     await procedures(s, version);
+    await governance(s, version);
+  }
+  // M8: pause every live improvement of the brain at once (skill fixes, procedures, descriptions, bundles).
+  async function governance(s, version) {
+    const data = await request(s, "/improvement-governance");
+    if (!alive(s, version)) return;
+    const live = data.live || [];
+    const box = node("div", null, "governance"); box.append(node("h3", tr("governance_title")));
+    info(box, tr("governance_hint"));
+    box.append(node("p", tr("governance_live").replace("{n}", String(live.length)), "governance-count"));
+    const pause = button(tr("governance_pause"), "governance-pause", async () => {
+      if (!alive(s, version) || pause.disabled || !live.length) return;
+      pause.disabled = true;
+      try {
+        const result = await write(s, "/improvement-governance/suspend-all", {}, "governance-pause-" + live.length);
+        s.status.textContent = tr(result.remaining && result.remaining.length ? "governance_partial" : "governance_done");
+        await activations(s);
+      } catch (error) { failure(s, error); pause.disabled = false; }
+    });
+    pause.disabled = !live.length;
+    box.append(pause);
+    s.applied.append(box);
   }
   // M4: a description candidate is measured against intent cases with Javis's own router, then
   // applied to the brain's main chat (API engines). Each case line: kind | expected skill | question.
