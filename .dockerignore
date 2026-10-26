@@ -84,6 +84,7 @@ server/usage-events.jsonl*
 server/usage_index.db*
 server/session_brain.db*
 server/kanban.sqlite3*
+server/improvement/
 server/conversations.db
 server/conversations.db-wal
 server/conversations.db-shm

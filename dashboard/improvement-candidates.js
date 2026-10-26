@@ -653,8 +653,42 @@
       box.append(apply);
     } else if (run.applied_at) box.append(node("p", tr("loop_applied"), "loop-applied"));
   }
+  // Automatic learning from chat (0.341.0): what Javis changed on its own, brain-wide, with undo. Nothing to start.
+  async function autoLearned(s) {
+    let data;
+    try { data = await request(s, "/auto-learning"); }
+    catch (error) { return; } // older server or refused: no section
+    if (!alive(s)) return;
+    const box = s.auto; box.replaceChildren(node("h3", tr("auto_title")));
+    info(box, tr("auto_hint"));
+    const stats = data.stats || {};
+    const open = Object.values(stats.mistakes || {}).reduce((a, b) => a + b, 0);
+    box.append(node("p", tr("auto_stats").replace("{p}", String(stats.pending || 0)).replace("{m}", String(open)), "auto-stats"));
+    const rows = (data.history || []).slice(0, 10);
+    if (!rows.length) { box.append(node("p", tr("auto_empty"), "auto-empty")); return; }
+    for (const row of rows) {
+      const line = node("div", null, "auto-run-" + row.id);
+      const what = tr("auto_kind_" + row.kind) + " " + row.slug + (row.kind === "workflow" ? " #" + (row.step + 1) : "");
+      const state = row.undone_at ? "auto_undone" : row.applied ? "auto_applied" : row.proposed ? "auto_proposed" : row.state === "running" ? "auto_running"
+        : row.state === "failed" ? "auto_failed" : row.state === "skipped" ? "auto_skipped" : "auto_kept";
+      line.append(node("p", new Date(row.started_at * 1000).toLocaleString() + " · " + what + " · " + tr(state)));
+      if (row.proposed) line.append(button(tr("auto_apply"), "auto-apply-" + row.id, async () => {
+        try { await write(s, "/auto-learning/" + encodeURIComponent(row.id) + "/apply", {}, "auto-apply-" + row.id);
+          s.status.textContent = tr("auto_apply_done"); await autoLearned(s); }
+        catch (error) { failure(s, error); }
+      }));
+      if (row.applied && !row.undone_at) line.append(button(tr("auto_undo"), "auto-undo-" + row.id, async () => {
+        try { await write(s, "/auto-learning/" + encodeURIComponent(row.id) + "/undo", {}, "auto-undo-" + row.id);
+          s.status.textContent = tr("auto_undo_done"); await autoLearned(s); }
+        catch (error) { failure(s, error); }
+      }));
+      box.append(line);
+    }
+  }
   async function open({brain, slug, isCurrent}) {
     const s = shell(brain, slug, isCurrent);
+    s.auto = node("div", null, "auto-learning"); s.panel.append(s.auto);
+    await autoLearned(s);
     s.loop = node("div", null, "self-learning"); s.panel.append(s.loop);
     await selfLearning(s);
     const contextLabel = node("label", tr("context")); s.choose = node("select", null, "context"); contextLabel.append(s.choose); s.panel.append(contextLabel);

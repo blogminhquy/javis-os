@@ -3,6 +3,7 @@ Team trials and recipe transfers (M7), governance, export and import (M8)."""
 from __future__ import annotations
 
 import asyncio
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Callable
@@ -40,6 +41,7 @@ class ActivationApiDeps:
     imports: Callable = None  # () -> improvement_library.Imports (M8)
     export: Callable = None  # (principal, procedure_ids) -> package (M8)
     loop_runs: Callable = None  # () -> improvement_loop_runs.LoopRuns (self-learning runs)
+    auto_learning: Callable = None  # () -> auto_learning.AutoLearner (automatic learning from chat)
 
 
 def _fail(error):
@@ -480,6 +482,46 @@ def register(app, deps: ActivationApiDeps):
             await _body(request, {"event_key"})
             service = await m7(deps.loop_runs, "loop_runs")
             return {"ok": True, "applied": await asyncio.to_thread(service.apply, principal.brain_id, run_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    # Automatic learning from chat: what Javis changed on its own, and undo.
+    @app.get("/auto-learning")
+    async def auto_learning_view(brain: str = "brain"):
+        try:
+            principal = await owner(brain)
+            service = await m7(deps.auto_learning, "auto_learning")
+            history = await asyncio.to_thread(service.history, principal.brain_id)
+            stats = await asyncio.to_thread(service.stats, principal.brain_id)
+            return {"ok": True, "history": history, "stats": stats}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/auto-learning/{run_id}/apply")
+    async def auto_learning_apply(run_id: str, request: Request, brain: str = "brain"):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            await _body(request, {"event_key"})
+            if not re.fullmatch(r"alr_[0-9a-f]{16}", run_id):
+                raise ValueError("invalid_run")
+            service = await m7(deps.auto_learning, "auto_learning")
+            return {"ok": True, **await asyncio.to_thread(service.apply_proposal, principal.brain_id, run_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/auto-learning/{run_id}/undo")
+    async def auto_learning_undo(run_id: str, request: Request, brain: str = "brain"):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            await _body(request, {"event_key"})
+            if not re.fullmatch(r"alr_[0-9a-f]{16}", run_id):
+                raise ValueError("invalid_run")
+            service = await m7(deps.auto_learning, "auto_learning")
+            return {"ok": True, **await asyncio.to_thread(service.undo, principal.brain_id, run_id)}
         except _ERRORS as error:
             return _fail(error)
 

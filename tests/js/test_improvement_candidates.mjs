@@ -27,7 +27,9 @@ async function fixture(lang = "en", withExperiments = false) {
   const dict = JSON.parse(fs.readFileSync(new URL(`../../dashboard/i18n/${lang}.json`, import.meta.url)));
   const body = new Element("body"), head = new Element("head"), calls = [], intervals = [];
   let applied = [], granted = [], routed = [], lastRouting = null, procs = [], overlays = [], packs = [], lastBundle = null, governed = [{kind: "skill", pointer_id: "iac_1", generation: 1}],
-    loopState = {examples: {ok: true, tuning: 4, qualification: 12, estimated_calls: 67}, protected: false, exists: true, runs: []};
+    loopState = {examples: {ok: true, tuning: 4, qualification: 12, estimated_calls: 67}, protected: false, exists: true, runs: []},
+    autoState = {stats: {pending: 2, mistakes: {"skill:bao-gia": 1}}, history: [{id: "alr_" + "1".repeat(16), kind: "skill",
+      slug: "bao-gia", step: -1, state: "done", verdict: "helped", applied: 1, undone_at: null, started_at: 1800000000}]};
   let brain = "brain-one", rows = [candidate], deferred = null, corrupt = false, failStage = false, pages = false, failAfterStage = false, failRows = false;
   const ctx = { document: { body, head, createElement: tag => new Element(tag), getElementById: () => null, addEventListener() {} },
     window: { currentBrainPath: () => brain }, TextEncoder, TextDecoder, crypto: webcrypto, URL, URLSearchParams, Blob,
@@ -62,6 +64,8 @@ async function fixture(lang = "en", withExperiments = false) {
       else if (path === "/improvement-agent-procedures" && !options.method) value = {procedures: procs, overlays, coverage: {served: ["dm"]}};
       else if (path === "/improvement-agent-procedures") { const b = JSON.parse(options.body); procs = [{procedure_id: "iap_" + "5".repeat(32), agent_key: "agent-1", text: b.text}]; value = {procedure: procs[0]}; }
       else if (path.startsWith("/improvement-agent-procedures/")) { const b = JSON.parse(options.body); overlays = [{overlay_id: "iao_" + "6".repeat(32), procedure_id: procs[0].procedure_id, agent_key: "agent-1", state: "active", generation: 1, reason: "owner_apply", surfaces: b.surfaces, owner_confirmed: b.owner_confirmed}]; value = {overlay: overlays[0]}; }
+      else if (path === "/auto-learning" && !options.method) value = autoState;
+      else if (path.startsWith("/auto-learning/")) { autoState = {...autoState, history: [{...autoState.history[0], undone_at: 2}]}; value = {undone: true}; }
       else if (path === "/improvement-loops" && !options.method) value = loopState;
       else if (path === "/improvement-loops") { loopState = {...loopState, runs: [{run_id: "ilr_" + "9".repeat(24), state: "done", result: {chosen: "c1", chosen_text: "New skill text", report: {verdict: "helped", outcomes: {win: 5, tie: 1, loss: 0}, base_pass_rate: 0.4, candidate_pass_rate: 0.9}}}]}; value = {run: loopState.runs[0]}; }
       else if (path.startsWith("/improvement-loops/")) { loopState = {...loopState, runs: [{...loopState.runs[0], applied_at: 1}]}; value = {applied: {applied: true}}; }
@@ -292,6 +296,16 @@ for (const lang of ["vi", "en"]) {
   assert.equal(sent.owner_confirmed, true);
   await f.find("bundle-revert-iba_" + "7".repeat(32)).onclick();
   assert.ok(f.calls.some(x => x.url.startsWith("/improvement-agent-bundles/iba_" + "7".repeat(32) + "/revert")));
+  f.ctx.window.JavisImprovementCandidates.close();
+}
+{
+  // Automatic learning: the brain-wide list shows what Javis changed on its own, and undo reverts it.
+  const f = await fixture();
+  assert.ok(f.find("auto-stats").textContent.includes("2"));
+  assert.ok(f.find("auto-run-alr_" + "1".repeat(16)).children[0].textContent.includes("bao-gia"));
+  await f.find("auto-undo-alr_" + "1".repeat(16)).onclick();
+  assert.ok(f.calls.some(x => x.url.startsWith("/auto-learning/alr_" + "1".repeat(16) + "/undo") && x.method === "POST"));
+  assert.throws(() => f.find("auto-undo-alr_" + "1".repeat(16)), /Missing action/);  // undone: no second undo
   f.ctx.window.JavisImprovementCandidates.close();
 }
 {

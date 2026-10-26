@@ -859,6 +859,13 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         # loop (WebSocket/telegram poller/loop scheduler đều chạy chung loop này).
         # bump tự nuốt lỗi → sidecar hỏng không bao giờ làm gãy việc nạp skill.
         await asyncio.to_thread(skill_usage.bump, vault_root, asset.slug)
+        try:  # 0.341.0: automatic learning remembers which skill this chat turn used
+            import auto_learning
+            _turn = turn_context.current() or {}
+            if _turn.get("session_id"):
+                await asyncio.to_thread(auto_learning.note_skill_use_hook, vault_root, _turn["session_id"], asset.slug)
+        except Exception:  # noqa: BLE001 - learning never breaks loading a skill
+            pass
         try:
             if scope is not None and current(vault_root) is not scope:
                 raise ScopeUnavailable('task_skill_scope_changed')
