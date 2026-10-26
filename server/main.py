@@ -15861,7 +15861,7 @@ async def _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resu
         loi = kq["loi"] or {}
         text = workflow_chat.tin_loi(loi.get("i"), loi.get("agent", ""), loi.get("content", ""))
     await emit({"type": "stream", "content": text})
-    await _persist_turn(store, conv_sid, brain, user_message, text)
+    await _persist_turn(store, conv_sid, brain, user_message, text, turn_started=t0)
     return text
 
 
@@ -27193,16 +27193,30 @@ def _auto_learning_agent_procedure(root, slug):
     active = [o for o in service.overlays(principal, agent_key=key) if o["state"] == "active"]
     if not active:
         return {}
-    texts = {p["procedure_id"]: p["text"] for p in service.procedures(principal, slug)}
     overlay = active[0]
-    return {"text": texts.get(overlay["procedure_id"], ""), "overlay_id": overlay["overlay_id"],
+    row = service.procedure(principal, overlay["procedure_id"])
+    if row is None:
+        import auto_learning
+        raise auto_learning.ConflictError("agent_procedure_unreadable")
+    return {"text": row["text"], "overlay_id": overlay["overlay_id"],
             "procedure_id": overlay["procedure_id"], "generation": overlay["generation"], "surfaces": overlay["surfaces"]}
 
 
 def _auto_learning_swap(root, slug, out_overlay, in_procedure, surfaces, tag):
     """Revert `out_overlay` (may be {}) and apply `in_procedure` on `surfaces`; if the apply fails, the reverted overlay's
     procedure is put back so the assistant never ends up with nothing. Returns the new overlay."""
+    import auto_learning
+    import improvement_agent
     service, principal = _improvement_agents(), _auto_learning_principal(root)
+    # Revert has no policy gate but apply has, and a procedure written for older owner rules cannot be applied:
+    # check both before touching anything, so the assistant never loses its procedure halfway.
+    if not _auto_learning_policy_on(root):
+        raise PermissionError("improvement_disabled")
+    rules = improvement_agent.owner_rules_hash(*_improvement_read_agent(root, slug))
+    for procedure_id in [in_procedure] + ([out_overlay["procedure_id"]] if out_overlay else []):
+        row = service.procedure(principal, procedure_id)
+        if row is None or row["owner_rules_hash"] != rules:
+            raise auto_learning.ConflictError("agent_owner_rules_changed")
     if out_overlay:
         service.revert(principal, out_overlay["overlay_id"], expected_generation=out_overlay["generation"],
                        event_key=f"auto-learn-revert-{tag}")

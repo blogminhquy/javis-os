@@ -302,6 +302,34 @@ class AutoLearningTests(unittest.TestCase):
         self.assertEqual(self.learner.store.read("SELECT state, error FROM runs WHERE id='alr_0'")[0],
                          {"state": "failed", "error": "interrupted"})
 
+    def test_a_judge_call_that_keeps_failing_is_given_up_on(self):
+        self.turn(session="f1")
+        self.now[0] += A.READY_AFTER_S + 1
+        original = FakeEngine.__call__
+
+        def refuses(engine, system, prompt):
+            if "careful reviewer" in system:
+                raise RuntimeError("provider refused")
+            return original(engine, system, prompt)
+        FakeEngine.__call__ = refuses
+        try:
+            for _ in range(A.JUDGE_ATTEMPTS):
+                self.learner.judge_ready()
+        finally:
+            FakeEngine.__call__ = original
+        row = self.learner.store.read("SELECT state, verdict, attempts FROM episodes WHERE session_id='f1'")[0]
+        self.assertEqual(row, {"state": "skipped", "verdict": "engine_failed", "attempts": A.JUDGE_ATTEMPTS})
+        self.assertEqual(self.learner.stats(self.b)["judged_today"], 0)  # failed calls cost no judgment
+
+    def test_lines_the_owner_already_wrote_do_not_block_learning(self):
+        self.skill.write_text(SKILL + "- Provider: Facebook Ads\n", encoding="utf-8")
+        owner = "Write it.\n- Provider: Facebook Ads"
+        self.assertEqual(A.check_candidate("skill", owner + "\nRULE-X", owner), owner + "\nRULE-X")
+        with self.assertRaisesRegex(ValueError, "protected_setting"):
+            A.check_candidate("skill", "Write it.\n- Model: gpt-9", "Write it.")
+        self.mistakes()
+        self.assertTrue(self.learner.step()["run"]["applied"])
+
     def test_build_cases_split(self):
         cases = A.build_cases(json.loads(FakeEngine()("write test sets", "")[8:-4]))
         tuning = [c for c in cases if c.split == "tuning"]

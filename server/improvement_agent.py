@@ -46,14 +46,18 @@ _OVERRIDES = re.compile(
 _PROCEDURE_HEADER = "# Quy trình đã được chủ duyệt (Javis quản lý)"
 
 
-def unsafe_reason(text: str) -> str:
+def unsafe_reason(text: str, original: str = "") -> str:
     """Why a text must not go live without the owner reading it ("" when fine): host markers, protected settings,
-    wording that overrides the owner. Shared with automatic learning for skill and workflow text."""
-    if _MARKERS.search(text):
+    wording that overrides the owner. Shared with automatic learning for skill and workflow text, where only what the
+    candidate ADDS counts: lines the owner already wrote stay allowed."""
+    def added(pattern):
+        found = {m.group(0) for m in pattern.finditer(text)}
+        return found - {m.group(0) for m in pattern.finditer(original or "")}
+    if added(_MARKERS):
         return "agent_procedure_host_marker"
-    if _SETTINGS.search(text):
+    if added(_SETTINGS):
         return "agent_procedure_protected_setting"
-    if _OVERRIDES.search(text):
+    if added(_OVERRIDES):
         return "agent_procedure_overrides_owner"
     return ""
 
@@ -194,6 +198,15 @@ class AgentProcedures:
                                       "WHERE brain_id=? AND agent_slug=? ORDER BY created_at DESC LIMIT 50",
                                       (brain, agent_slug)).fetchall()
         return [{**dict(row), "procedure_id": row["id"]} for row in rows]
+
+    def procedure(self, principal, procedure_id: str) -> dict | None:
+        brain = IM._brain(principal)
+        if not self._available():
+            return None
+        with closing(self.store._conn()) as connection:
+            row = connection.execute("SELECT id,agent_key,agent_slug,text,source,owner_rules_hash,created_at FROM "
+                                     "improvement_agent_procedures WHERE id=? AND brain_id=?", (procedure_id, brain)).fetchone()
+        return {**dict(row), "procedure_id": row["id"]} if row else None
 
     def overlays(self, principal, *, agent_key: str | None = None) -> list:
         brain = IM._brain(principal)

@@ -42,6 +42,7 @@ READY_AFTER_S = 2 * 3600       # judged without a follow-up after this long
 EXPIRE_AFTER_S = 7 * 86400     # never judged: dropped
 MISTAKE_TTL_S = 30 * 86400
 JUDGE_BATCH = 3
+JUDGE_ATTEMPTS = 3
 MIN_CASES, MAX_CASES = 16, 24
 MIN_SEALED, MIN_TUNING = 10, 3
 TEXT_LIMIT = 6000
@@ -65,7 +66,7 @@ def check_candidate(kind: str, text: str, original: str) -> str:
     import improvement_agent
     if kind == "agent":
         return improvement_agent.validate_procedure(text)
-    reason = improvement_agent.unsafe_reason(text)
+    reason = improvement_agent.unsafe_reason(text, original)
     if reason:
         raise ValueError(reason)
     if kind == "workflow" and placeholders(text) != placeholders(original):
@@ -135,7 +136,7 @@ CREATE TABLE IF NOT EXISTS skill_uses(session_id TEXT, brain TEXT, slug TEXT, ts
     PRIMARY KEY(session_id, brain, slug));
 CREATE TABLE IF NOT EXISTS episodes(id TEXT PRIMARY KEY, brain TEXT, kind TEXT, slug TEXT, session_id TEXT,
     answer_mid INTEGER, request TEXT, answer TEXT, follow_up TEXT, extra TEXT, created_at REAL,
-    state TEXT, verdict TEXT, judged_at REAL);
+    state TEXT, verdict TEXT, judged_at REAL, attempts INTEGER DEFAULT 0);
 CREATE INDEX IF NOT EXISTS episodes_state ON episodes(state, created_at);
 CREATE INDEX IF NOT EXISTS episodes_session ON episodes(session_id, state);
 CREATE TABLE IF NOT EXISTS mistakes(id TEXT PRIMARY KEY, brain TEXT, target TEXT, kind TEXT, slug TEXT, step INTEGER,
@@ -355,8 +356,8 @@ class Targets:
         agent_slug = str(steps[step].get("agent") or "")
         persona = split_frontmatter(self.host.agent_text(brain, agent_slug) or "")[1].strip() if agent_slug else ""
 
-        def prompt(version, material):  # exactly what the runner sends: the two placeholders replaced, nothing added
-            return version.replace("{{input}}", material).replace("{{prev}}", material)
+        def prompt(version, material):  # what the runner sends: placeholders replaced, nothing added; step 0 has no prev
+            return version.replace("{{input}}", material).replace("{{prev}}", material if step > 0 else "")
         return Target("workflow", slug, step, str(steps[step].get("task") or ""), lambda v: (
             persona or "You are a Javis assistant doing one step of a workflow."), prompt,
             meta={"hash": hashlib.sha256(raw).hexdigest(), "path": str(path)})
@@ -443,7 +444,8 @@ class AutoLearner:
                 targets.append(("agent", str(channel).split(":", 1)[1]))
             for kind, slug in targets:
                 episode_id = "ep_" + secrets.token_hex(8)
-                c.execute("INSERT INTO episodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                c.execute("INSERT INTO episodes(id, brain, kind, slug, session_id, answer_mid, request, answer, follow_up, extra, "
+                          "created_at, state, verdict, judged_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                           (episode_id, brain, kind, slug, session_id, int(answer_mid or 0), _cut(request, 4000),
                            _cut(answer, 8000), None, "{}", now, "pending", None, None))
                 created.append(episode_id)
@@ -460,7 +462,8 @@ class AutoLearner:
         if source != "web" or not session_id or not self.host.policy_on(brain):
             return ""
         episode_id = "ep_" + secrets.token_hex(8)
-        self.store.write(lambda c: c.execute("INSERT INTO episodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+        self.store.write(lambda c: c.execute("INSERT INTO episodes(id, brain, kind, slug, session_id, answer_mid, request, answer, follow_up, extra, "
+                          "created_at, state, verdict, judged_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
             episode_id, brain, "workflow", slug, session_id or "", 0, _cut(request, 4000), _cut(output, 8000), None,
             json.dumps({"run_id": run_id}), self.clock(), "pending", None, None)))
         return episode_id
@@ -495,7 +498,8 @@ class AutoLearner:
     def judge_ready(self) -> int:
         now, done = self.clock(), 0
         rows = self.store.read("SELECT * FROM episodes WHERE state='pending' AND (follow_up IS NOT NULL OR created_at<?) "
-                               "ORDER BY created_at LIMIT 50", (now - READY_AFTER_S,))
+                               "ORDER BY attempts, created_at LIMIT 50", (now - READY_AFTER_S,))
+        engines = {}
         for episode in rows:
             if done >= JUDGE_BATCH:
                 break
@@ -505,10 +509,22 @@ class AutoLearner:
                 continue
             if self._count(brain, "judged") >= JUDGE_PER_DAY:
                 continue
+            if brain not in engines:  # an engine that cannot be built is nobody's episode's fault
+                try:
+                    self.host.engine_ready(brain)
+                    engines[brain] = True
+                except Exception:  # noqa: BLE001
+                    engines[brain] = False
+            if not engines[brain]:
+                continue
             try:
                 self.judge(episode)
-            except EngineError as error:  # the engine is down: leave the episode for a later tick
+            except EngineError as error:  # a failed call: retried later, given up on after a few tries
                 print(f"[auto-learning judge] {error}", flush=True)
+                tries = int(episode.get("attempts") or 0) + 1
+                self.store.write(lambda c: c.execute("UPDATE episodes SET attempts=? WHERE id=?", (tries, episode["id"])))
+                if tries >= JUDGE_ATTEMPTS:
+                    self._close(episode["id"], "skipped", "engine_failed")
                 return done
             except Exception as error:  # noqa: BLE001 - this episode cannot be judged; never block the others
                 self._close(episode["id"], "skipped", f"error: {type(error).__name__}"[:60])
@@ -540,12 +556,12 @@ class AutoLearner:
             self._close(episode["id"], "skipped", "target_unavailable")
             return "skipped"
         reaction = self.host.reaction(episode["session_id"], episode["answer_mid"]) if episode["answer_mid"] else ""
-        self._bump(brain, "judged")
         try:
             raw = self.host.text_call("You are a careful reviewer. Answer with JSON only.",
                                       judge_prompt(kind, target_text, episode, reaction))
         except Exception as error:  # noqa: BLE001
             raise EngineError(f"{type(error).__name__}: {error}") from error
+        self._bump(brain, "judged")
         try:
             data = parse_json(raw)
         except ValueError:
