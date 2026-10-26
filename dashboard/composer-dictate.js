@@ -197,10 +197,18 @@
         if (st === "idle" && was !== "idle") finished();
       },
       onError: function (code) {
-        note(code === "denied" ? "dict.denied" : code === "unsupported" ? "dict.unsupported" : "dict.failed");
+        note(code === "denied" ? "dict.denied" : code === "unsupported" ? "dict.unsupported"
+          : code === "nothing" ? "dict.nothing" : "dict.failed");
       },
       onStream: onStream
     });
+    // iOS only lets an AudioContext run when it is made inside the press; the mic stream arrives a moment later,
+    // outside it, and a context made then stays suspended (a flat meter). Make or wake it here (0.339.0).
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC && !S.ctx) S.ctx = new AC();
+      if (S.ctx && S.ctx.state !== "running" && S.ctx.resume) S.ctx.resume();
+    } catch (e) {}
     // Show the bar at once; the mic and the ear answer a moment later.
     S.state = "listening";
     drawState("listening");

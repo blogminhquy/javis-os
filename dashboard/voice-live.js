@@ -18,6 +18,13 @@
    dữ liệu "oai-events" (offer thiếu nó là bị từ chối), gửi offer qua khung webrtc_offer, nhận
    webrtc_answer rồi nói chuyện THẲNG với OpenAI; tiếng Javis là track remote. onReady chỉ báo
    sau khi bắt tay xong, vì chữ gửi trước lúc đó (câu gọi Javis) không có phiên nào nhận.
+
+   One call, one set of audio parts (0.339.0). After 30 quiet seconds the call closes the provider and waits (app.js
+   tickVoiceFocus); the first real sentence reopens it. That reopen happens in no press, and an iPhone only lets audio
+   run when it was started by one: the new AudioContexts stayed suspended, so the model heard nothing and Javis made
+   no sound ("khi nghe lại âm thanh thì không còn đàm thoại được", owner 2026-10-26). So stop() now only suspends the
+   two contexts and keeps the remote <audio> element, all of them unlocked by the press that started the call, and
+   the next session reuses them. unlock() is called inside a press; release() closes everything at hang-up.
    Ghi chú: KHÔNG dùng ký tự em dash. */
 (function () {
   "use strict";
@@ -26,6 +33,11 @@
   var WORKLET_URL = "/static/voice-live-worklet.js?v=1";
   var ws = null, inCtx = null, outCtx = null, proc = null, src = null, stream = null;
   var workletReady = null;   // Promise<boolean>: the capture worklet loaded into inCtx
+  var workletLoad = null;    // the addModule promise of the CURRENT inCtx (a module registers once per context)
+  var rtcAudioEl = null;     // the remote <audio> element, kept for the whole call (unlocked by a press)
+  // The same 10 ms silent WAV voice.js plays to unlock its element (_moKhoaAudioIOS).
+  var SILENT_WAV = "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0Ya" +
+    new Array(219).join("A");
   var nextAt = 0, playing = [], on = false, opts = {};
   var wasSpeaking = false, speakTimer = null;
   var generation = 0, starting = null, cancelOpen = null;
@@ -129,8 +141,7 @@
   function attachRemote(remote, id) {
     if (id !== generation) return;
     try {
-      remoteAudio = new Audio();
-      remoteAudio.autoplay = true;
+      remoteAudio = audioEl();
       remoteAudio.srcObject = remote;
       var p = remoteAudio.play();
       // iOS có thể chặn phát vì không còn trong cử chỉ bấm: phát qua outCtx đã mở khoá lúc bấm mic.
@@ -215,20 +226,57 @@
     return task;
   }
 
+  // The two contexts of the call: made once (inside a press when possible), reused by every session until release().
+  function ensureContexts() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!inCtx || inCtx.state === "closed") {
+      try { inCtx = new AC({ sampleRate: IN_RATE }); } catch (e) { inCtx = new AC(); }
+      workletLoad = null;
+    }
+    if (!outCtx || outCtx.state === "closed") outCtx = new AC({ sampleRate: OUT_RATE });
+  }
+
+  function audioEl() {
+    if (!rtcAudioEl) {
+      rtcAudioEl = new Audio();
+      rtcAudioEl.autoplay = true;
+      try { rtcAudioEl.setAttribute("playsinline", ""); } catch (e) {}
+    }
+    return rtcAudioEl;
+  }
+
+  // Call this INSIDE the press that starts or resumes a call: makes and wakes the contexts and plays a blank sound on
+  // the remote <audio> element, so a session opened later with no press (resuming after the wait) can still sound.
+  function unlock() {
+    try {
+      ensureContexts();
+      inCtx.resume().catch(function () {});
+      outCtx.resume().catch(function () {});
+    } catch (e) {}
+    try {
+      var a = audioEl();
+      if (!a.srcObject) {
+        a.src = SILENT_WAV;
+        var p = a.play();
+        if (p && p.catch) p.catch(function () {});
+      }
+    } catch (e) {}
+  }
+
   async function startSession(id) {
     // Mở context ngay trong thao tác bấm mic, trước await xin quyền microphone.
-    var AC = window.AudioContext || window.webkitAudioContext;
-    try {
-      try { inCtx = new AC({ sampleRate: IN_RATE }); } catch (e) { inCtx = new AC(); }
-      outCtx = new AC({ sampleRate: OUT_RATE });
-    } catch (e) { stop(); emit("onError", "audio"); return false; }
+    try { ensureContexts(); } catch (e) { stop(); emit("onError", "audio"); return false; }
     inCtx.resume().catch(function () {});
     outCtx.resume().catch(function () {});
-    // Load the capture worklet while the mic permission is pending; failure means the fallback.
+    // Load the capture worklet while the mic permission is pending; failure means the fallback. Loaded once per
+    // context: adding it again to a reused context would register the processor twice and fail.
     try {
-      workletReady = inCtx.audioWorklet && window.AudioWorkletNode
-        ? inCtx.audioWorklet.addModule(WORKLET_URL).then(function () { return true; }, function () { return false; })
-        : Promise.resolve(false);
+      if (!workletLoad) {
+        workletLoad = inCtx.audioWorklet && window.AudioWorkletNode
+          ? inCtx.audioWorklet.addModule(WORKLET_URL).then(function () { return true; }, function () { return false; })
+          : Promise.resolve(false);
+      }
+      workletReady = workletLoad;
     } catch (e) { workletReady = Promise.resolve(false); }
     if (!opts.deferMic) {
       try {
@@ -426,6 +474,7 @@
     clearInterval(rtcTimer); rtcTimer = null;
     try { if (pc) { pc.ontrack = pc.onconnectionstatechange = null; pc.close(); } } catch (e) {}
     pc = null; rtcSender = null;
+    // The element itself stays (rtcAudioEl): it is the one a press unlocked, the next session plays through it.
     try { if (remoteAudio) { remoteAudio.pause(); remoteAudio.srcObject = null; } } catch (e) {}
     remoteAudio = null;
     try { if (remoteSrc) remoteSrc.disconnect(); } catch (e) {}
@@ -458,13 +507,23 @@
     proc = null; src = null; pcmSocket = null; workletReady = null;
     try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
     stream = null;
-    try { if (inCtx) inCtx.close().catch(function () {}); } catch (e) {}
-    try { if (outCtx) outCtx.close().catch(function () {}); } catch (e) {}
-    inCtx = null; outCtx = null;
+    // Suspend, do not close: a context made by a press can be resumed later without one, a new one cannot (iPhone).
+    try { if (inCtx && inCtx.suspend) inCtx.suspend().catch(function () {}); } catch (e) {}
+    try { if (outCtx && outCtx.suspend) outCtx.suspend().catch(function () {}); } catch (e) {}
     emit("onStopped");
   }
 
-  window.JavisVoiceLive = { start: start, stop: stop, sendText: sendText, sendContext: sendContext, ask: ask, attachMic: attachMic,
+  // Hang-up: stop the session and let go of the contexts and the remote element.
+  function release() {
+    if (on || starting || ws) stop();   // tatLive usually stopped it already; one onStopped is enough
+    try { if (inCtx) inCtx.close().catch(function () {}); } catch (e) {}
+    try { if (outCtx) outCtx.close().catch(function () {}); } catch (e) {}
+    inCtx = null; outCtx = null; workletLoad = null;
+    try { if (rtcAudioEl) { rtcAudioEl.pause(); rtcAudioEl.srcObject = null; rtcAudioEl.removeAttribute("src"); } } catch (e) {}
+    rtcAudioEl = null;
+  }
+
+  window.JavisVoiceLive = { start: start, stop: stop, unlock: unlock, release: release, sendText: sendText, sendContext: sendContext, ask: ask, attachMic: attachMic,
                             hasMic: function () { return !!stream; },
                             playedMs: playedMs, progress: progress, resetProgress: resetProgress,
                             setMuted: setMuted, isMuted: function () { return muted; },
