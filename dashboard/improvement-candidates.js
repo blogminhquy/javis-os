@@ -588,11 +588,15 @@
     return s;
   }
   // Self-learning run for this skill: examples next to the skill, Javis proposes, tests and picks; the owner applies.
+  // Independent of the context section below, whose reloads bump s.version: it only checks that the panel lives.
   async function selfLearning(s) {
-    // Independent of the context section below, whose reloads bump s.version: only check that the panel lives.
     let data;
     try { data = await request(s, "/improvement-loops?slug=" + encodeURIComponent(s.slug)); }
-    catch (error) { return; } // older server: no section
+    catch (error) {
+      if (error && error.status) return; // older server or refused: no section
+      if (alive(s)) setTimeout(() => { if (alive(s)) selfLearning(s); }, 5000); // aborted by a context reload: retry
+      return;
+    }
     if (!alive(s)) return;
     const box = s.loop; box.replaceChildren(node("h3", tr("loop_title")));
     info(box, tr("loop_hint"));
@@ -600,12 +604,14 @@
     const running = run && run.state === "running";
     if (data.protected) box.append(node("p", tr("loop_protected"), "loop-protected"));
     else if (!data.examples.ok) box.append(node("p", tr("loop_examples_missing"), "loop-examples"));
-    else box.append(node("p", tr("loop_examples").replace("{t}", data.examples.tuning).replace("{q}", data.examples.qualification), "loop-examples"));
+    else box.append(node("p", tr("loop_examples").replace("{t}", data.examples.tuning).replace("{q}", data.examples.qualification)
+      .replace("{n}", data.examples.estimated_calls), "loop-examples"));
     const start = button(tr("loop_start"), "loop-start", async () => {
       if (!alive(s) || start.disabled) return;
       start.disabled = true;
-      try { await write(s, "/improvement-loops", {slug: s.slug}, "loop-start-" + s.slug); await selfLearning(s); }
-      catch (error) { failure(s, error); start.disabled = false; }
+      try { await write(s, "/improvement-loops", {slug: s.slug}, "loop-start-" + s.slug); }
+      catch (error) { failure(s, error); }
+      await selfLearning(s);
     });
     start.disabled = !!(data.protected || !data.examples.ok || running);
     box.append(start);
@@ -613,18 +619,26 @@
     if (running) {
       const last = (run.progress || []).slice(-1)[0];
       box.append(node("p", tr("loop_running") + (last && last.version ? " · " + last.version : ""), "loop-state"));
+      box.append(button(tr("loop_cancel"), "loop-cancel", async () => {
+        try { await write(s, "/improvement-loops/" + encodeURIComponent(run.run_id) + "/cancel", {}, "loop-cancel-" + run.run_id); }
+        catch (error) { failure(s, error); }
+      }));
       setTimeout(() => { if (alive(s)) selfLearning(s); }, 5000);
       return;
     }
-    if (run.state === "failed") { box.append(node("p", tr("loop_failed"), "loop-state")); return; }
+    if (run.state === "failed" || run.state === "cancelled") {
+      box.append(node("p", tr(run.state === "cancelled" ? "loop_cancelled" : String(run.error || "").startsWith("engine_unavailable")
+        ? "loop_engine_unavailable" : "loop_failed"), "loop-state"));
+      return;
+    }
     const result = run.result || {}, report = result.report || {};
-    box.append(node("p", tr("loop_verdict_" + (report.verdict || "keep_base")), "loop-state"));
+    box.append(node("p", tr(report.reason === "sealed_set_reused" ? "loop_sealed_reused" : "loop_verdict_" + (report.verdict || "keep_base")), "loop-state"));
     if (report.outcomes) {
       box.append(node("p", tr("loop_outcomes").replace("{w}", report.outcomes.win).replace("{t}", report.outcomes.tie)
         .replace("{l}", report.outcomes.loss).replace("{b}", Math.round(100 * report.base_pass_rate))
         .replace("{c}", Math.round(100 * report.candidate_pass_rate)), "loop-outcomes"));
     }
-    if (result.chosen && result.chosen !== "base" && report.verdict !== "hurt" && !run.applied_at) {
+    if (result.chosen && result.chosen !== "base" && report.verdict === "helped" && !run.applied_at) {
       box.append(node("pre", result.chosen_text, "loop-text"));
       const apply = button(tr("loop_apply"), "loop-apply", async () => {
         if (!alive(s) || apply.disabled) return;

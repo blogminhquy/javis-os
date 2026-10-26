@@ -68,13 +68,43 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(result.versions["c1"], BASE)
         self.assertEqual(result.calls["improve"], 6)  # one retry per stage
 
-    def test_engine_error_is_a_failed_row_not_a_crash(self):
+    def test_engine_errors_drop_the_pair_and_too_many_fail_the_run(self):
         def flaky(skill, prompt):
-            if "TASK 0" in prompt:
+            if "SEALED TASK 0" in prompt:
                 raise TimeoutError("slow")
             return solve(skill, prompt)
         result = L.Loop(cases(), solve=flaky, improve=Improver(), check=check).run(BASE, k=1)
-        self.assertEqual(result.report["outcomes"]["tie"], 1)  # q0 fails on both arms
+        self.assertEqual((result.report["dropped_pairs"], sum(result.report["outcomes"].values())), (2, 5))
+        self.assertEqual(result.report["engine_errors"], 4)  # both arms of both repeats, never scored as wrong
+
+        def down(skill, prompt):
+            raise ConnectionError("not signed in")
+        with self.assertRaises(L.EngineUnavailable):
+            L.Loop(cases(), solve=down, improve=Improver(), check=check).run(BASE, k=1)
+
+    def test_owner_cancel_stops_the_run(self):
+        calls = []
+
+        def counting(skill, prompt):
+            calls.append(prompt)
+            return solve(skill, prompt)
+        with self.assertRaises(L.LoopStopped):
+            L.Loop(cases(), solve=counting, improve=Improver(), check=check, width=1,
+                   stop=lambda: len(calls) >= 2).run(BASE, k=1)
+        self.assertEqual(len(calls), 2)
+
+    def test_a_candidate_equal_to_the_baseline_is_never_chosen(self):
+        rolls = iter([0.0] * 4 + [1.0] * 100)  # the re-roll of an unchanged text scores better by chance
+
+        def lucky(skill, prompt):
+            return "A" if next(rolls) else "?"
+
+        class Same:
+            def __call__(self, instructions):
+                current = instructions.split("<current>\n", 1)[1].split("\n</current>", 1)[0]
+                return f"<skill>{current}  </skill>"  # whitespace only
+        result = L.Loop(cases(), solve=lucky, improve=Same(), check=check, width=1).run(BASE, k=1)
+        self.assertEqual((result.chosen, result.report["verdict"]), ("base", "keep_base"))
 
     def test_case_rules(self):
         bad = cases() + [L.Case("q-dup", "tf0", "qualification", "x", "A")]
@@ -82,6 +112,16 @@ class LoopTests(unittest.TestCase):
                               (cases() + [cases()[0]], "invalid_cases")):
             with self.subTest(reason=reason), self.assertRaisesRegex(ValueError, reason):
                 L.Loop(wrong, solve=solve, improve=Improver(), check=check)
+
+    def test_a_regression_on_a_case_the_baseline_got_right_refuses_helped(self):
+        def row(version, case, repeat, passed):
+            return L.Rollout(version, case, repeat, "", passed, 1.0 if passed else 0.0, "", 0.0)
+        base = [row("base", f"q{i}", r, i < 2) for i in range(12) for r in (1, 2)]
+        cand = [row("c1", f"q{i}", r, i >= 1) for i in range(12) for r in (1, 2)]
+        report = L.paired_report(base, cand)
+        self.assertEqual((report["outcomes"], report["regressions"]), ({"win": 10, "tie": 1, "loss": 1}, ["q0"]))
+        self.assertLess(report["p_value"], 0.05)
+        self.assertEqual(report["verdict"], "regression")  # a better total never excuses breaking q0
 
     def test_sign_test_and_skill_extraction(self):
         self.assertAlmostEqual(L.sign_test(6, 0), 0.03125)

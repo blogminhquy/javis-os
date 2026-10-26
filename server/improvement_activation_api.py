@@ -445,7 +445,8 @@ def register(app, deps: ActivationApiDeps):
             principal = await owner(brain)
             data = await _body(request, {"slug", "event_key"})
             service = await m7(deps.loop_runs, "loop_runs")
-            return {"ok": True, "run": await asyncio.to_thread(service.start, principal.brain_id, data["slug"])}
+            return {"ok": True, "run": await asyncio.to_thread(service.start, principal.brain_id, data["slug"],
+                                                               event_key=data["event_key"])}
         except _ERRORS as error:
             return _fail(error)
 
@@ -455,6 +456,18 @@ def register(app, deps: ActivationApiDeps):
             principal = await owner(brain)
             service = await m7(deps.loop_runs, "loop_runs")
             return {"ok": True, "run": await asyncio.to_thread(service.get, principal.brain_id, run_id)}
+        except _ERRORS as error:
+            return _fail(error)
+
+    @app.post("/improvement-loops/{run_id}/cancel")
+    async def loop_cancel(run_id: str, request: Request, brain: str = "brain"):
+        try:
+            if (denied := deps.owner_session(request)) is not None:
+                return denied
+            principal = await owner(brain)
+            await _body(request, {"event_key"})
+            service = await m7(deps.loop_runs, "loop_runs")
+            return {"ok": True, "run": await asyncio.to_thread(service.cancel, principal.brain_id, run_id)}
         except _ERRORS as error:
             return _fail(error)
 

@@ -24,9 +24,11 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -242,18 +244,22 @@ class CliEngine:
         self.model, self.effort, self.timeout = model, effort, timeout
         self.cwd = Path(tempfile.mkdtemp(prefix="javis-pilot-"))
         self.usage = {"calls": 0, "cost_usd": 0.0, "models": set(), "errors": 0}
+        self.binary = shutil.which("claude") or "claude"  # claude.exe / claude.cmd on Windows
+        self.lock = threading.Lock()
 
     def _call(self, system: str, prompt: str) -> str:
-        command = ["claude", "-p", "--safe-mode", "--tools", "", "--no-session-persistence", "--model", self.model,
+        command = [self.binary, "-p", "--safe-mode", "--tools", "", "--no-session-persistence", "--model", self.model,
                    "--effort", self.effort, "--output-format", "json", "--system-prompt", system]
         done = subprocess.run(command, input=prompt, capture_output=True, text=True, encoding="utf-8",
                               cwd=self.cwd, timeout=self.timeout)
-        self.usage["calls"] += 1
         data = json.loads(done.stdout)
-        self.usage["cost_usd"] += float(data.get("total_cost_usd") or 0)
-        self.usage["models"].update((data.get("modelUsage") or {}).keys())
+        with self.lock:  # four worker threads share these counters
+            self.usage["calls"] += 1
+            self.usage["cost_usd"] += float(data.get("total_cost_usd") or 0)
+            self.usage["models"].update((data.get("modelUsage") or {}).keys())
+            if data.get("is_error"):
+                self.usage["errors"] += 1
         if data.get("is_error"):
-            self.usage["errors"] += 1
             raise RuntimeError(str(data.get("result"))[:200])
         return str(data.get("result") or "")
 

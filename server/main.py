@@ -27068,11 +27068,27 @@ def _improvement_text_call(system, prompt, tag):
             outcome.note(ev)
         res = outcome.result()
         return str(res.get("text") if isinstance(res, dict) else res or "")
-    return asyncio.run(run())
+
+    async def bounded():
+        try:
+            return await asyncio.wait_for(run(), timeout=300)  # a hung engine must not hold the run forever
+        except asyncio.TimeoutError:
+            await asyncio.to_thread(claude_cli.cancel_all, tag)
+            raise
+    return asyncio.run(bounded())
 
 
 def _improvement_loop_engines(root):
-    """(solve, improve) for one self-learning run on the brain's selected engine, text only."""
+    """(solve, improve) for one self-learning run on the brain's selected engine, text only. Raises before any run
+    when that engine cannot answer text-only (e.g. Grok Build, Antigravity), so no fake verdict is reported."""
+    settings = cfgmod.read_settings() or {}
+    spec = team_engine.choose_spec("", "", _effective_main(settings), _agent_model_provider,
+                                   lambda sp: aux_engine.availability(sp, settings))
+    try:
+        team_engine.build(spec, _reply_policy_sandbox_engine("probe", "improvement-loop-probe",
+                                                             cwd_name="improvement_loop_cwd"), "improvement-loop-probe", settings)
+    except team_engine.TeamEngineUnavailable as error:
+        raise PermissionError(f"engine_unavailable: {error.reason}") from None
     def solve(skill, prompt):
         system = ("You are a Javis assistant. Follow the skill below exactly.\n\n<skill>\n" + skill +
                   "\n</skill>\n\nAnswer only in the format the skill asks for.")
@@ -27098,14 +27114,16 @@ def _improvement_skill_protected(root, slug):
 
 
 _IMPROVEMENT_LOOP_RUNS = [None]
+_IMPROVEMENT_LOOP_RUNS_LOCK = __import__("threading").Lock()
 
 
 def _improvement_loop_runs():
-    if _IMPROVEMENT_LOOP_RUNS[0] is None:
-        import improvement_loop_runs
-        _IMPROVEMENT_LOOP_RUNS[0] = improvement_loop_runs.LoopRuns(Path(cfgmod.STATE_DIR), engines=_improvement_loop_engines,
-                                                                   protected=_improvement_skill_protected)
-    return _IMPROVEMENT_LOOP_RUNS[0]
+    with _IMPROVEMENT_LOOP_RUNS_LOCK:  # one service, one lock: two first requests cannot start two runs
+        if _IMPROVEMENT_LOOP_RUNS[0] is None:
+            import improvement_loop_runs
+            _IMPROVEMENT_LOOP_RUNS[0] = improvement_loop_runs.LoopRuns(
+                Path(cfgmod.STATE_DIR), engines=_improvement_loop_engines, protected=_improvement_skill_protected)
+        return _IMPROVEMENT_LOOP_RUNS[0]
 
 
 def _improvement_activations():

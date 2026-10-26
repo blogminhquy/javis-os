@@ -54,6 +54,7 @@ class Rollout:
     score: float
     feedback: str
     seconds: float
+    error: bool = False
 
 
 @dataclass
@@ -129,9 +130,25 @@ def sign_test(wins: int, losses: int) -> float:
     return min(1.0, 2 * tail)
 
 
+class LoopStopped(Exception):
+    """The owner cancelled the run."""
+
+
+class EngineUnavailable(Exception):
+    """Too many engine failures to judge anything: the run fails instead of reporting a fake verdict."""
+
+
+MAX_ERROR_SHARE = 0.2
+
+
+def _same(a: str, b: str) -> bool:
+    return " ".join(a.split()) == " ".join(b.split())
+
+
 class Loop:
     def __init__(self, cases: list, *, solve: Callable, improve: Callable, check: Callable, width: int = 4,
-                 clock: Callable[[], float] = time.monotonic, on_event: Callable = lambda kind, data: None):
+                 clock: Callable[[], float] = time.monotonic, on_event: Callable = lambda kind, data: None,
+                 stop: Callable[[], bool] = lambda: False):
         ids = [c.id for c in cases]
         if len(set(ids)) != len(ids) or any(c.split not in ("tuning", "qualification") for c in cases):
             raise ValueError("invalid_cases")
@@ -144,35 +161,52 @@ class Loop:
         if not self.tuning or not self.qualification:
             raise ValueError("both_splits_required")
         self.solve, self.improve, self.check = solve, improve, check
-        self.width, self.clock, self.on_event = width, clock, on_event
+        self.width, self.clock, self.on_event, self.stop = width, clock, on_event, stop
         self.result = LoopResult()
+        self.errors = 0
+
+    def _one(self, label: str, skill: str, case: Case, repeat: int) -> Rollout:
+        if self.stop():
+            raise LoopStopped()
+        started = self.clock()
+        try:
+            output, error = self.solve(skill, case.prompt), False
+        except LoopStopped:
+            raise
+        except Exception as exc:  # noqa: BLE001 - an engine failure is an unknown, never a fake wrong answer
+            output, error = f"<engine error: {type(exc).__name__}>", True
+        verdict = {"pass": False, "score": 0.0, "feedback": "engine error"} if error else self.check(case, output)
+        row = Rollout(label, case.id, repeat, output, bool(verdict["pass"]), float(verdict["score"]),
+                      str(verdict.get("feedback", "")), self.clock() - started)
+        row.error = error
+        return row
+
+    def _run_jobs(self, jobs: list) -> list:
+        with ThreadPoolExecutor(max_workers=max(1, self.width)) as pool:
+            rows = list(pool.map(lambda job: self._one(*job), jobs))
+        self.result.calls["solve"] += len(jobs)
+        failed = sum(r.error for r in rows)
+        self.errors += failed
+        if failed > MAX_ERROR_SHARE * len(rows):
+            raise EngineUnavailable(f"{failed} of {len(rows)} engine calls failed")
+        return rows
 
     def _roll(self, label: str, skill: str, cases: list, repeats: int = 1) -> list:
-        jobs = [(c, r) for c in cases for r in range(1, repeats + 1)]
-
-        def one(job):
-            case, repeat = job
-            started = self.clock()
-            try:
-                output = self.solve(skill, case.prompt)
-            except Exception as error:  # noqa: BLE001 - an engine failure is an unknown, kept as a failed row
-                output = f"<engine error: {type(error).__name__}>"
-            verdict = self.check(case, output)
-            return Rollout(label, case.id, repeat, output, bool(verdict["pass"]), float(verdict["score"]),
-                           str(verdict.get("feedback", "")), self.clock() - started)
-        with ThreadPoolExecutor(max_workers=max(1, self.width)) as pool:
-            rows = list(pool.map(one, jobs))
-        self.result.calls["solve"] += len(jobs)
+        rows = self._run_jobs([(label, skill, c, r) for c in cases for r in range(1, repeats + 1)])
         self.on_event("rolled", {"version": label, "rows": len(rows), "mean": _mean(rows)})
         return rows
 
     def _improve(self, instructions: str, fallback: str, label: str) -> str:
         for attempt in (1, 2):  # one retry, as upstream STAGE_ATTEMPTS
+            if self.stop():
+                raise LoopStopped()
             self.result.calls["improve"] += 1
             try:
                 skill = extract_skill(self.improve(instructions))
-                self.result.notes[label] = "kept_current" if skill.strip() == fallback.strip() else "changed"
+                self.result.notes[label] = "kept_current" if _same(skill, fallback) else "changed"
                 return skill
+            except LoopStopped:
+                raise
             except Exception as error:  # noqa: BLE001
                 self.result.notes[label] = f"fell_back: {type(error).__name__}: {error}"[:200]
         return fallback
@@ -203,18 +237,23 @@ class Loop:
             res.tuning[label] = _mean(current_rows)
             current = composed
             history.append(label)
-        # Javis rule: the baseline stays in the choice and wins ties.
-        best = max((lbl for lbl in res.tuning if lbl != "base"), key=lambda lbl: (res.tuning[lbl], lbl.startswith("c")),
-                   default="base")
-        res.chosen = best if res.tuning.get(best, 0) > res.tuning["base"] + margin else "base"
+        # Javis rule: the baseline stays in the choice and wins ties; a text equal to the baseline is not a candidate
+        # (an unchanged re-roll beating the baseline's roll is chance, not improvement).
+        real = [lbl for lbl in res.tuning if lbl != "base" and not _same(res.versions[lbl], base_skill)]
+        best = max(real, key=lambda lbl: (res.tuning[lbl], lbl.startswith("c")), default="base")
+        res.chosen = best if best != "base" and res.tuning[best] > res.tuning["base"] + margin else "base"
         self.on_event("chosen", {"chosen": res.chosen, "tuning": res.tuning})
         if res.chosen == "base":
-            res.report = {"verdict": "keep_base", "reason": "no_tuning_improvement"}
+            res.report = {"verdict": "keep_base", "reason": "no_tuning_improvement", "engine_errors": self.errors}
             return res
-        base_q = self._roll("base", base_skill, self.qualification, qualification_repeats)
-        cand_q = self._roll(res.chosen, res.versions[res.chosen], self.qualification, qualification_repeats)
-        res.qualification = base_q + cand_q
-        res.report = paired_report(base_q, cand_q)
+        # Baseline and candidate run as interleaved pairs, so an outage or rate limit hits both arms alike.
+        jobs = [(label, text, c, r) for c in self.qualification for r in range(1, qualification_repeats + 1)
+                for label, text in (("base", base_skill), (res.chosen, res.versions[res.chosen]))]
+        rows = self._run_jobs(jobs)
+        self.on_event("rolled", {"version": "qualification", "rows": len(rows), "mean": _mean(rows)})
+        res.qualification = rows
+        res.report = paired_report([r for r in rows if r.version == "base"], [r for r in rows if r.version != "base"])
+        res.report["engine_errors"] = self.errors
         return res
 
 
@@ -223,28 +262,40 @@ def _mean(rows: list) -> float:
 
 
 def paired_report(base_rows: list, cand_rows: list) -> dict:
-    """Per qualification case: mean score over repeats, candidate vs baseline -> win/tie/loss; sign test."""
-    def by_case(rows):
-        out = {}
-        for r in rows:
-            out.setdefault(r.case_id, []).append(r)
-        return out
-    base, cand = by_case(base_rows), by_case(cand_rows)
+    """Per qualification case: mean score over valid pairs (both arms answered), candidate vs baseline; sign test.
+    A pair where either arm hit an engine error is dropped and counted, never scored as a wrong answer."""
+    base = {(r.case_id, r.repeat): r for r in base_rows}
+    cand = {(r.case_id, r.repeat): r for r in cand_rows}
+    pairs, dropped = {}, 0
+    for key in sorted(base):
+        b, c = base[key], cand.get(key)
+        if c is None or getattr(b, "error", False) or getattr(c, "error", False):
+            dropped += 1
+            continue
+        pairs.setdefault(key[0], []).append((b, c))
     outcomes = {"win": 0, "tie": 0, "loss": 0}
     cases = []
-    for case_id in sorted(base):
-        b, c = _mean(base[case_id]), _mean(cand.get(case_id, []))
+    for case_id, items in sorted(pairs.items()):
+        bs, cs = [b for b, _ in items], [c for _, c in items]
+        b, c = _mean(bs), _mean(cs)
         outcome = "win" if c > b else "loss" if c < b else "tie"
         outcomes[outcome] += 1
-        cases.append({"case": case_id, "base": b, "candidate": c, "outcome": outcome,
-                      "base_pass": sum(r.passed for r in base[case_id]), "candidate_pass": sum(r.passed for r in cand.get(case_id, []))})
+        cases.append({"case": case_id, "base": b, "candidate": c, "outcome": outcome, "pairs": len(items),
+                      "base_pass": sum(r.passed for r in bs), "candidate_pass": sum(r.passed for r in cs)})
     p = sign_test(outcomes["win"], outcomes["loss"])
-    verdict = ("helped" if outcomes["win"] > outcomes["loss"] and p < 0.05 else
-               "hurt" if outcomes["loss"] > outcomes["win"] and p < 0.05 else "inconclusive")
-    return {"verdict": verdict, "outcomes": outcomes, "p_value": round(p, 4),
-            "base_mean": _mean(base_rows), "candidate_mean": _mean(cand_rows),
-            "base_pass_rate": round(sum(r.passed for r in base_rows) / max(1, len(base_rows)), 4),
-            "candidate_pass_rate": round(sum(r.passed for r in cand_rows) / max(1, len(cand_rows)), 4),
+    # Spec Q04: a higher total never excuses breaking work the baseline got fully right. A case the baseline passed
+    # on every pair and the candidate failed on any is a regression; one is enough to refuse "helped". With a
+    # nondeterministic engine this is deliberately conservative: a flaky miss blocks rather than slips through.
+    regressions = [c["case"] for c in cases if c["base_pass"] == c["pairs"] and c["candidate_pass"] < c["base_pass"]]
+    verdict = ("hurt" if outcomes["loss"] > outcomes["win"] and p < 0.05 else
+               "regression" if regressions else
+               "helped" if outcomes["win"] > outcomes["loss"] and p < 0.05 else "inconclusive")
+    valid_b = [b for items in pairs.values() for b, _ in items]
+    valid_c = [c for items in pairs.values() for _, c in items]
+    return {"verdict": verdict, "outcomes": outcomes, "p_value": round(p, 4), "regressions": regressions,
+            "dropped_pairs": dropped, "base_mean": _mean(valid_b), "candidate_mean": _mean(valid_c),
+            "base_pass_rate": round(sum(r.passed for r in valid_b) / max(1, len(valid_b)), 4),
+            "candidate_pass_rate": round(sum(r.passed for r in valid_c) / max(1, len(valid_c)), 4),
             "cases": cases}
 
 

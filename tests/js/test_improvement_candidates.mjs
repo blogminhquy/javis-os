@@ -27,7 +27,7 @@ async function fixture(lang = "en", withExperiments = false) {
   const dict = JSON.parse(fs.readFileSync(new URL(`../../dashboard/i18n/${lang}.json`, import.meta.url)));
   const body = new Element("body"), head = new Element("head"), calls = [], intervals = [];
   let applied = [], granted = [], routed = [], lastRouting = null, procs = [], overlays = [], packs = [], lastBundle = null, governed = [{kind: "skill", pointer_id: "iac_1", generation: 1}],
-    loopState = {examples: {ok: true, tuning: 4, qualification: 8}, protected: false, exists: true, runs: []};
+    loopState = {examples: {ok: true, tuning: 4, qualification: 12, estimated_calls: 67}, protected: false, exists: true, runs: []};
   let brain = "brain-one", rows = [candidate], deferred = null, corrupt = false, failStage = false, pages = false, failAfterStage = false, failRows = false;
   const ctx = { document: { body, head, createElement: tag => new Element(tag), getElementById: () => null, addEventListener() {} },
     window: { currentBrainPath: () => brain }, TextEncoder, TextDecoder, crypto: webcrypto, URL, URLSearchParams, Blob,
