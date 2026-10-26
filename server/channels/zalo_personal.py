@@ -573,7 +573,8 @@ class Transport:
             saved, why = await zalo_attachments.fetch_file(att, inbox)
             if saved:
                 da_tai.append(saved)
-                text += "\n" + zalo_attachments.turn_text(saved)
+                # Off the event loop: a long PDF takes a moment to turn into text (0.336.0).
+                text += "\n" + await asyncio.to_thread(zalo_attachments.turn_text, saved)
             else:
                 text += "\n[Không tải được file Zalo: " + why + ". Không suy đoán nội dung.]"
         if zc._BOTS.get(self.conn_id) is not self:
@@ -763,6 +764,15 @@ class Transport:
                     pol = None
                     print(f"[zalo-personal bot {self.conn_id}] bộ phán xử lỗi: {type(e).__name__}: {e}", file=sys.stderr)
                 duoc_goi = duoc_goi or bool(meta.get("mentioned"))
+        if nhom and not vao_nhom and not is_reaction:
+            # Files in a group (0.336.0, see `zc.remember_bare_file`): a file nobody addressed to the bot waits for its
+            # sender's next call; a call that quotes a file, or comes right after the sender's bare file, gets it.
+            nguoi = str(ev.get("sender_id") or "")
+            if chi_file and files and not duoc_goi and self._che_do_nhom() != "always":
+                zc.remember_bare_file(self.conn_id, thread, nguoi, files[0], float(ev.get("created_at") or 0))
+            elif (duoc_goi and not files and nguoi and ev.get("sender_type") == "customer" and self.precheck_fn
+                  and str(ev.get("account_id") or "") == self.conn_id):
+                files = zc.quoted_file(self.conn_id, thread, md0) or zc.take_bare_files(self.conn_id, thread, nguoi)
         try:
             if self.precheck_fn:
                 r = self.precheck_fn(text, meta)

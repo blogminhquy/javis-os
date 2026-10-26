@@ -6,6 +6,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.336.0] - 2026-10-26
+### Sửa lỗi
+- **Bot Zalo cá nhân đọc được file PDF, Word, Excel khách gửi.** Trước đây bot chỉ đọc file chữ trơn (.txt, .csv...), còn PDF thì tải về nhưng không đọc nên bot trả lời "chưa đọc được PDF". Giờ chữ trong PDF, Word, Excel được đưa thẳng vào lượt trả lời, bot nào cũng đọc được. File scan dạng ảnh hoặc file hỏng thì bot nói rõ là không đọc được, không đoán.
+- **Trong nhóm, gửi file rồi mới gọi bot vẫn được.** File gửi riêng mà chưa gọi bot thì được giữ 10 phút; người đó gọi bot ngay sau (tag hoặc gọi tên) là bot đọc file đó. Trả lời trích dẫn vào một tin có file rồi gọi bot cũng được.
+
+## [0.335.0] - 2026-10-26
+### Thêm mới
+- **Gói trong Javis Store có bản mới thì chuông báo.** Javis tự kiểm mỗi 6 giờ. Gói bạn đã cài có bản mới trong Store thì chuông có một thông báo ghi rõ gói nào, bản đang dùng và bản mới; bấm vào là mở Javis Store để cập nhật. Mỗi bản mới chỉ báo một lần, và Javis không tự cập nhật: bản mới vẫn qua màn hình xác nhận như lúc cài.
+### Sửa lỗi
+- **Model quá tải (như Gemini báo 503 "high demand") giờ nói rõ chuyện gì đang xảy ra.** Trước đây khung chat dán nguyên một cục mã JSON của Google. Giờ chỉ hiện câu báo của nhà cung cấp, kèm lời giải thích đây là quá tải phía nhà cung cấp chứ không phải lỗi của bạn, và cách xử lý: gửi lại sau ít phút hoặc đổi model ở chip model. Javis cũng chờ lâu hơn giữa các lần thử lại (vài giây thay vì một giây), nên một đợt quá tải ngắn thường tự qua.
+
 ## [0.334.0] - 2026-10-26
 ### Thêm mới
 - **Đọc được cảm xúc khách thả trên Zalo cá nhân.** Khách thả tim, like hay haha lên một tin thì Hộp thư hiện một dòng nhỏ: ai thả, biểu tượng gì, vào tin nào (kể cả tin bot vừa trả lời). Khách gỡ cảm xúc cũng được ghi lại.
