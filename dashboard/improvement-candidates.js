@@ -653,7 +653,7 @@
       box.append(apply);
     } else if (run.applied_at) box.append(node("p", tr("loop_applied"), "loop-applied"));
   }
-  // Automatic learning from chat (0.340.0): what Javis changed on its own, brain-wide, with undo. Nothing to start.
+  // Automatic learning from chat (0.341.0): what Javis changed on its own, brain-wide, with undo. Nothing to start.
   async function autoLearned(s) {
     let data;
     try { data = await request(s, "/auto-learning"); }

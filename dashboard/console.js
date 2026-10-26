@@ -3043,7 +3043,7 @@
       loadAll();
     };
 
-    // Learning from chat (0.340.0): what Javis changed on its own; undo, or apply in "Đề xuất" mode.
+    // Learning from chat (0.341.0): what Javis changed on its own; undo, or apply in "Đề xuất" mode.
     async function loadChat() {
       const box = el.querySelector("#lnChat");
       let d = {}; try { d = await (await fetch(`/auto-learning?brain=${encodeURIComponent(fbrain())}`)).json(); } catch (e) { }
