@@ -5094,6 +5094,7 @@
   "ach.telegram_owner": "Telegram của bạn (nhận báo cáo)",
   "ach.telegram_owner_ph": "Một chat ID trong danh sách trên",
   "ach.telegram_owner_hint": "Báo cáo không có hội thoại riêng sẽ về khung Javis Core và gửi thêm cho chat này. Để trống mà danh sách chỉ có một ID thì Javis dùng ID đó; có nhiều ID thì Javis không đoán, chỉ báo trên dashboard.",
+  "noti.open_store": "Mở Javis Store",
   "noti.open_core": "Mở trong Javis Core",
   "noti.no_target": "Không rõ gửi về đâu nên chỉ giữ ở đây",
   "noti.ask_core": "Hỏi Javis Core",

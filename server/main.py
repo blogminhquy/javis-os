@@ -13200,6 +13200,13 @@ async def _start_scheduler():
                 #      chạy ở tác vụ riêng sau khi giữ chỗ sổ lượt chung.
                 if not _PULSE_TICK_BUSY[0]:
                     asyncio.create_task(_pulse_tick())
+                # 3b5) Store packs with a newer version (0.335.0): one bell notice per new version, own 6-hour rhythm,
+                #      fetched in the background so a slow Store never holds this loop.
+                try:
+                    import pack_updates
+                    asyncio.create_task(pack_updates.tick())
+                except Exception as pue:
+                    print(f"[pack updates tick] {type(pue).__name__}: {pue}", file=__import__('sys').stderr)
                 # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
                 #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
                 #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.

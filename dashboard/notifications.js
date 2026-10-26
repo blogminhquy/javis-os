@@ -190,6 +190,10 @@
     docThu({ id: item.id }).then(render);
     // 0.191.0 (owner, 16/10/2026): a notice with no chat of its own opens in Javis Core (copied there with its source
     // and time, once); a notice that answers a chat opens that chat. No separate "Ask Javis Core" button.
+    // 0.335.0: "Store has updates" opens the Javis Store, whose banner lists what can be updated.
+    if (item.channel === "store:updates" && window.JavisPacks && window.JavisPacks.moKho) {
+      closePanel(); window.JavisPacks.moKho(""); return;
+    }
     if (!item.session_id) { closePanel(); hoiCore("inbox", item.id); return; }
     closePanel();
     if (chuyenBrainNeuCan(item)) { setTimeout(function () { moThuTiep(item); }, 450); return; }
@@ -237,7 +241,8 @@
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
     // Where a press takes you: the chat it answers, or Javis Core for a notice with no chat of its own (0.191.0).
-    var phu = window.t(!item.session_id || item.channel === "agent:javis-core" ? "noti.open_core" : "noti.reopen_chat");
+    var phu = window.t(item.channel === "store:updates" ? "noti.open_store"
+      : !item.session_id || item.channel === "agent:javis-core" ? "noti.open_core" : "noti.reopen_chat");
     return '<article class="noti-card' + chua + '" tabindex="0" role="button" data-thu-id="' + esc(item.id) + '">' +
       '<div class="noti-card-top"><span class="noti-kind ' + esc(item.kind || "answer") + '">' +
       esc(nhanLoai(item.kind)) + '</span><span class="noti-time">' + esc(thoiGian(item.ts)) + "</span></div>" +
