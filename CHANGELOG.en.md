@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.333.0] - 2026-10-26
+### Added
+- **Javis improves a skill on its own when you ask.** Press "Let Javis improve it": Javis proposes fixes from two angles, test-runs them against the current version, combines what works and picks the best on a sealed question set. The current version stays unless the new one is clearly better, and applying is still your call. Nothing to install: it uses the brain you already selected.
+
 ## [0.331.0] - 2026-10-26
 ### Fixed
 - **Tagging someone in a Zalo group no longer shows as code on a phone.** When the bot answered someone (say "@Tuan Fernel") in a group that also has a member with a shorter name ("Tuan"), Javis added a second tag on top of the first. Zalo on a computer still looked right, while a phone showed a chunk of `href="zm://..."` code. Each stretch of text now carries one tag, and a "Tuan" written separately elsewhere in the message is still tagged correctly.

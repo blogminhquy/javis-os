@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.333.0] - 2026-10-26
+### Thêm mới
+- **Javis tự cải tiến một skill khi bạn yêu cầu.** Bấm "Để Javis tự cải tiến", Javis tự đề xuất bản sửa theo hai hướng, chạy thử có đối chứng với bản cũ, ghép phần tốt, rồi chọn bản tốt nhất trên bộ câu hỏi giữ kín. Bản cũ luôn được giữ nếu bản mới không hơn rõ ràng; áp dụng hay không vẫn do bạn quyết. Không cần cài thêm gì: dùng đúng bộ não bạn đang chọn.
+
 ## [0.331.0] - 2026-10-26
 ### Sửa lỗi
 - **Tag người trong nhóm Zalo không còn hiện thành mã trên điện thoại.** Khi bot trả lời một người (ví dụ "@Tuan Fernel") mà trong nhóm có người khác tên ngắn hơn ("Tuan"), Javis từng gắn thêm một tag thứ hai đè lên tag đầu. Máy tính vẫn hiện đúng, còn điện thoại hiện ra một đoạn mã `href="zm://..."`. Giờ mỗi chữ chỉ mang một tag, và người tên "Tuan" viết riêng ở chỗ khác trong câu vẫn được tag đúng.
