@@ -133,7 +133,15 @@ có cả `owner` để hai repo cùng tên khác chủ không đè nhau.
 
 ## 5. Kết nối GitHub và vòng đời repo
 
-### 5.1. Đăng nhập [ĐỀ XUẤT]
+### 5.1. Đăng nhập
+
+**[CHỐT 27/10/2026] Kết nối GitHub dựng sẵn trong lõi Javis.** Thẻ GitHub luôn có trên trang Kết
+nối của mọi bản cài, không phải cài gói Store, không qua MCP ngoài. Mã nằm trong `server/`, chạy
+cả khi người dùng tắt hết gói mở rộng. Brain đã có token sao lưu GitHub (`git_brain`) thì thẻ đề
+nghị dùng chung token đó: kiểm quyền trước, thiếu quyền nào thì nói đúng quyền đó và cách thêm,
+không âm thầm dùng token thiếu quyền.
+
+Phần dưới là [ĐỀ XUẤT]:
 
 - Bản đầu dùng **fine-grained personal access token**, mỗi brain một token, mã hoá bằng
   `secrets_store`. Quyền tối thiểu: Contents (đọc, ghi), Pull requests (đọc, ghi),
@@ -415,7 +423,7 @@ Mỗi giai đoạn là một hoặc vài PR, mỗi PR mang số phiên bản ri�
 
 | Giai đoạn | Nội dung | Xong khi |
 |---|---|---|
-| G1. Kết nối và clone | Token GitHub, liệt kê repo, clone vào `STATE_DIR/repos`, gắn vào chat, ba thao tác gỡ | Chọn repo trong chat, Javis sửa được trong worktree như thư mục thường |
+| G1. Kết nối và clone | Thẻ GitHub dựng sẵn trên trang Kết nối (mục 5.1), liệt kê repo, clone vào `STATE_DIR/repos`, gắn vào chat, ba thao tác gỡ | Chọn repo trong chat, Javis sửa được trong worktree như thư mục thường |
 | G2. Cổng chất lượng | 7.1 luật repo cho engine API, 7.2 lệnh kiểm tra cục bộ, 7.3 quét secret, 7.4 rào ăn gian | Một việc đỏ ở máy không bao giờ được push |
 | G3. Push, PR, CI một repo | Mục 8, 9; vòng CI đỏ thì sửa; restart giữa chừng | Một repo đi hết vòng tới sẵn sàng merge, kể cả ca CI đỏ rồi sửa |
 | G4. Biểu tượng, merge | Mục 11, 12 | Bốn biểu tượng đúng bằng chứng, merge theo chính sách, việc kế tiếp chạy đúng phụ thuộc |
@@ -470,3 +478,57 @@ từng bước, mở bảng chi tiết, merge.
 - **Tự sinh việc mới khi CI xanh.** Chỉ chạy việc người dùng đã giao.
 - **Bỏ qua, tắt hay cách ly test để có CI xanh.** Không bao giờ, kể cả khi người dùng bật Toàn quyền.
 - **Clone repo vào trong cây brain.** Xem 4.3.
+
+## 19. Lệnh goal triển khai trọn gói
+
+Dán nguyên khối dưới vào một phiên Claude Code mở trên repo `javis-os`. Phiên đó tự làm từ G1 tới
+G5, mỗi giai đoạn một PR theo quy ước, xong hết mới kiểm toàn bộ và tự sửa tới khi sạch.
+
+```text
+/goal Triển khai TRỌN spec docs/dev/2026-10-github-trong-chat-spec.md, giai đoạn G1 tới G5,
+rồi tự kiểm toàn bộ và tự sửa cho tới khi đạt đủ 15 tiêu chí mục 16. Chỉ dừng khi xong hết
+hoặc chỉ còn việc cần chính anh làm.
+
+TRƯỚC KHI CODE
+- Đọc CLAUDE.md, docs/quy-uoc-dev.md, spec trên và docs/dev/2026-09-coding-workspace-spec.md.
+- Mục [CHỐT] làm đúng nguyên văn. Mục [ĐỀ XUẤT] làm theo đúng đề xuất trong spec, không tự
+  đổi thiết kế. Thấy spec sai so với mã thật thì sửa spec trong cùng PR và ghi lý do.
+- Kết nối GitHub DỰNG SẴN trong lõi Javis (mục 5.1): thẻ GitHub luôn có trên trang Kết nối,
+  không qua gói Store, không qua MCP ngoài.
+- Dùng lại hạ tầng có sẵn (bảng mục 3), không dựng bộ điều phối thứ hai.
+
+MỖI GIAI ĐOẠN G1 -> G5, LÀM ĐÚNG THỨ TỰ
+1. Xí chỗ số phiên bản theo docs/quy-uoc-dev.md, mở PR nháp mang số đó ngay đầu nhánh.
+2. Viết code: tiếng Anh cho code và comment; chữ trên màn hình qua i18n (vi.json + en.json,
+   localefmt.chu phía server); giải thích dài vào nút (i); chữ tối thiểu 16px; chạy được
+   trên điện thoại.
+3. Viết test cho các tiêu chí mục 16 thuộc giai đoạn đó. Test KHÔNG gọi GitHub thật: dùng
+   repo git tạm và API GitHub giả.
+4. Chạy python tests/run.py cùng test JS. Đỏ thì tìm gốc rồi sửa. TUYỆT ĐỐI không skip,
+   xoá hay nới test để cho xanh.
+5. Tự review diff như người soi lỗi (bảo mật token, chống lặp, restart giữa chừng, nhiều
+   repo), sửa hết rồi mới push.
+6. Viết CHANGELOG.md và CHANGELOG.en.md cho người đọc trên điện thoại, 3-4 gạch đầu dòng.
+7. Push, chờ CI. CI đỏ thì đọc log, tái hiện ở máy, sửa, push lại cho tới khi xanh. CI xanh
+   thì merge vào main theo quy ước repo và xác nhận bản phát hành đã ra.
+8. Giai đoạn sau tách nhánh từ main mới nhất.
+
+VÒNG KIỂM CUỐI (sau G5, lặp tới khi sạch)
+- Lấy main mới nhất, chạy toàn bộ test.
+- Chạy app thật, đi hết luồng bằng GitHub giả: kết nối, chọn repo trong chat, giao việc, cổng
+  chất lượng, push, PR, CI đỏ rồi tự sửa, CI xanh rồi tự merge, bốn biểu tượng, gỡ repo.
+  Chụp màn hình ở khổ máy tính và khổ điện thoại.
+- Lập bảng 15 tiêu chí mục 16: đạt/không đạt kèm bằng chứng (tên test, ảnh chụp).
+- Còn tiêu chí nào không đạt, còn test đỏ hay lỗi giao diện: mở PR sửa (có số phiên bản),
+  merge khi xanh, rồi chạy lại TOÀN BỘ vòng kiểm cuối từ đầu.
+
+KHÔNG LÀM
+- Thử nghiệm T (Claude SDK với model ngoài Claude), OpenCode, xoá repo trên GitHub, clone
+  vào trong cây brain, để model tự push hay merge.
+
+GẶP CHỖ CHỈ ANH LÀM ĐƯỢC (token thật, tài khoản, quyết định ngoài spec)
+- Không đoán. Ghi vào danh sách "Cần anh", làm tiếp phần còn lại.
+
+BÁO CÁO CUỐI (tiếng Việt, ngắn): các PR và số phiên bản đã phát hành, bảng 15 tiêu chí,
+danh sách "Cần anh".
+```
