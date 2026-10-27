@@ -623,6 +623,11 @@ class _FallbackChain:
             # A quota error on one API key rests that ACCOUNT for chat too (model_routing), so the next chat turn and
             # the next job start on key 2 instead of paying for the same dead key again.
             acc = getattr(e, "account_id", "")
+            plan = getattr(e, "account_provider", None)
+            if isinstance(plan, str) and plan and secs != COOLDOWN_QUOTA_S:
+                # A plan account rests for chat on quota only: a model this job asked for that the plan lacks, or the
+                # service being down, says nothing about the account (0.355.0).
+                return
             if isinstance(acc, str) and acc:
                 # Plan engines (Codex, Grok, Claude) carry `account_provider`; API engines carry `provider` (0.353.0).
                 model_routing.mark_rest(getattr(e, "account_provider", None) or getattr(e, "provider", ""), acc,
@@ -926,7 +931,9 @@ def _plan_accounts_for(prov: str, settings) -> list:
                 return []                   # Claude on an API key: no plan account to rotate
         if not plan_accounts.has_extra(m, prov):
             return []
-        return plan_accounts.usable(m, prov)
+        # None usable: the first switched-on account still runs (and reports its quota), never one switched off.
+        fb = plan_accounts.fallback(m, prov)
+        return plan_accounts.usable(m, prov) or ([fb] if fb else [])
     except Exception as e:  # noqa: BLE001 - account rotation must never cost the step
         print(f"[aux] tài khoản {prov}: {type(e).__name__}: {e}", file=sys.stderr)
         return []

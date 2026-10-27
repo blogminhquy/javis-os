@@ -4890,7 +4890,8 @@
     const MO = window.JavisModelsOrder;
     const save = async (patch) => { await saveSetting("model", patch); c.again(); };
     const items = (pid) => (c.accts[pid] || []).map(a => ({ id: a.id, label: a.label, enabled: !!a.enabled }));
-    const saveAcc = (pid, list) => save({ accounts: { provider: pid, items: list } });
+    // `removed` names the accounts to delete; one merely missing from `list` (a stale page) is kept by the server.
+    const saveAcc = (pid, list, removed) => save({ accounts: { provider: pid, items: list, removed: removed || [] } });
 
     el.querySelectorAll(".ord-swap[data-swap]").forEach(b => b.onclick = () => {
       b.disabled = true;
@@ -5056,8 +5057,8 @@
       if (rm) rm.onclick = () => {
         const l = items(pid), i = idx();
         if (!window.confirm(t("models.pacct_rm_q", { ten: l[i].label || t("models.pacct_n", { n: i + 1 }) }))) return;
-        l.splice(i, 1);
-        saveAcc(pid, l);
+        const gone = l.splice(i, 1)[0];
+        saveAcc(pid, l, [gone.id]);
       };
     });
     el.querySelectorAll("[data-pacct-add]").forEach(b => b.onclick = () => {

@@ -10,6 +10,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Cải thiện
 - **Model "mặc định" giờ ghi rõ là model nào.** Ở trang Models, chip model và bảng chọn model hiện ví dụ "mặc định (llama-3.3-70b-versatile)" thay cho chữ "mặc định" trơn, để bạn biết thẻ đó đang chạy model gì khi chưa chọn riêng. Thẻ gói (Claude Code, ChatGPT, Grok) chưa đặt model thì ghi "mặc định của CLI (tự chọn theo gói)". Chip model ở khung chat cũng gọi đúng tên model đó.
 - **Gợi ý đặt tên tài khoản gói rõ ràng hơn.** Ô tên khi thêm tài khoản giờ gợi ý kiểu "Gói Pro 2" hay "Gói Max 200".
+### Sửa lỗi
+- **Nhiều tài khoản một gói chạy đúng hơn.** Hai cuộc trò chuyện cùng lúc không còn cho nghỉ nhầm tài khoản (tài khoản nghỉ là đúng tài khoản vừa hết lượt). Việc nền gọi một model mà gói không có không còn khiến tài khoản đó nghỉ luôn cho chat; chỉ hết lượt thật mới nghỉ. Tài khoản bạn đã tắt không bao giờ bị dùng, kể cả khi các tài khoản khác đều đang nghỉ.
+- **Đăng nhập lại không còn báo xong ngay.** Trước đây bấm Đăng nhập lại cho tài khoản Grok hay Claude thứ hai thì trang báo xong trong vài giây vì thấy file đăng nhập cũ; giờ phải đăng nhập xong thật mới tính.
+- **Không còn mất tài khoản khi mở trang Models ở hai nơi.** Đổi thứ tự hay bật tắt ở một trang cũ (mở trước khi thêm tài khoản) không còn xoá tài khoản mới thêm; chỉ bấm Gỡ mới xoá.
+- **Tài khoản Claude thêm dùng được các MCP bạn đã nối trong Claude Code**, giống tài khoản 1. Trên Linux và Windows, tài khoản Claude chỉ tính là đã đăng nhập khi có file đăng nhập thật.
 
 ## [0.354.0] - 2026-10-27
 ### Cải thiện

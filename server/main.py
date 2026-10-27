@@ -2676,16 +2676,18 @@ def _plan_account_apply(engine, provider: str, mcfg=None) -> str:
     return aid
 
 
-def _note_pin_limit(engine_hint: str, reset_epoch: float = 0.0, now: float = None) -> None:
+def _note_pin_limit(engine_hint: str, reset_epoch: float = 0.0, now: float = None, account: str = None) -> None:
     prov = _LIMIT_ENGINE_PROVIDER.get(str(engine_hint or ""))
     if not prov:
         return
     now = time.time() if now is None else now
     until = float(reset_epoch) if reset_epoch and reset_epoch > now else now + PIN_LIMIT_DEFAULT_S
     # 0.353.0: the account that ran out rests; while another account of the same plan can run, the plan is not
-    # out of quota and nothing is pinned away from it.
+    # out of quota and nothing is pinned away from it. `account` is the account the failing turn ran on; without
+    # it the last account any turn picked stands in (another chat may have picked a different one since).
     try:
-        model_routing.mark_rest(prov, _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN), until=until, persist=True)
+        aid = account or _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN)
+        model_routing.mark_rest(prov, aid, until=until, persist=True)
         if plan_accounts.in_use(prov):   # Claude on an API key has no other account to move on to
             m = cfgmod.read_settings().get("model") or {}
             if plan_accounts.has_extra(m, prov) and plan_accounts.usable(m, prov, now):
@@ -2745,7 +2747,7 @@ def _route_account_no(mcfg, prov: str, key: str = ""):
         return 0, ""
 
 
-def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=()) -> dict:
+def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_account: str = None) -> dict:
     """Where a chat turn that ran out of quota goes next (0.354.0), or {} when nothing is left.
 
     The failing account is already resting (`_note_pin_limit`, `_note_api_limit`), so `_route_ready` and the
@@ -2758,7 +2760,8 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=()) -> dict:
     try:
         if plan_accounts.in_use(failed) and plan_accounts.has_extra(mcfg, failed) and _route_ready(mcfg, failed):
             acc = plan_accounts.pick(mcfg, failed)
-            if acc and acc["id"] != _PLAN_ACCOUNT_LAST.get(failed, plan_accounts.MAIN):
+            ran = failed_account or _PLAN_ACCOUNT_LAST.get(failed, plan_accounts.MAIN)
+            if acc and acc["id"] != ran:
                 same = (failed, d.get("kind", "cli"), "", acc["id"])
         elif d.get("kind") == "api" and failed not in _ROUTING_SINGLE_KEY and _route_ready(mcfg, failed):
             key = _provider_key(mcfg, d)
@@ -2774,7 +2777,7 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=()) -> dict:
         if prov == "openrouter":
             model = model or mcfg.get("openrouter_model")
         old_no, old_lab = _route_account_no(mcfg, prov, failed_key if kind == "api" else
-                                            _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN))
+                                            (failed_account or _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN)))
         new_no, new_lab = _route_account_no(mcfg, prov, ref)
         if kind == "api":
             new_s, old_s = (new_lab or f"key {new_no}"), (old_lab or f"key {old_no}")
@@ -4794,6 +4797,23 @@ def _plan_login_ok(provider: str, account_id: str) -> dict:
     return {"ok": True, "connected": True, "account_id": account_id}
 
 
+def _plan_login_fresh(provider: str, account_id: str, folder) -> bool:
+    """A sign-in counts only when its login file was written after the sign-in started. "Sign in again" keeps the old
+    (expired) file in the folder, and seeing it must not finish the new sign-in at once (0.355.0)."""
+    since = float((_PLAN_LOGIN.get(account_id) or {}).get("ts") or 0) - 2
+    try:
+        kind = plan_accounts.KIND[provider]
+        if kind == "grok":
+            f = grok_cli._doc_phien(folder)[0]
+        else:
+            f = Path(folder) / ".credentials.json"
+            if not f.exists():
+                return sys.platform == "darwin"   # macOS keeps Claude's token in the Keychain: no file to date
+        return bool(f) and Path(f).stat().st_mtime >= since
+    except Exception:  # noqa: BLE001
+        return False
+
+
 @app.post("/plan-accounts/login-start")
 async def plan_account_login_start(request: Request):
     """Start signing in an extra account. Body {provider, label, account_id?}; account_id re-signs an account."""
@@ -4827,7 +4847,7 @@ async def plan_account_login_start(request: Request):
         d = await asyncio.to_thread(grok_cli.login_start, 30.0, folder)
         if not d.get("ok"):
             return d
-        if d.get("xong"):
+        if d.get("xong") and _plan_login_fresh(prov, aid, folder):
             return _plan_login_ok(prov, aid)
         return {"ok": True, "account_id": aid, "url": d.get("url", ""), "code": d.get("code", ""), "needs_code": False}
     d = await asyncio.to_thread(claude_cli.auth_login_ui_start, plan_accounts.env_for(prov, folder))
@@ -4853,7 +4873,8 @@ async def plan_account_login_code(request: Request):
         return {"ok": False, "error": localefmt.chu("Chưa bắt đầu đăng nhập.", "Sign-in has not started.")}
     d = await asyncio.to_thread(claude_cli.auth_login_ui_code, str(body.get("code") or ""))
     folder = plan_accounts.home(prov, aid)
-    if d.get("ok") or (await asyncio.to_thread(claude_cli.auth_status_folder, folder)).get("connected"):
+    if d.get("ok") or ((await asyncio.to_thread(claude_cli.auth_status_folder, folder)).get("connected")
+                       and _plan_login_fresh(prov, aid, folder)):
         return _plan_login_ok(prov, aid)
     return {"ok": False, "error": d.get("error") or localefmt.chu("Đăng nhập chưa xong.", "Sign-in not finished.")}
 
@@ -4873,11 +4894,11 @@ async def plan_account_login_poll(provider: str = "", account_id: str = ""):
         return {"ok": d.get("status") != "error", "connected": False, "error": d.get("error", "")}
     if kind == "grok":
         d = await asyncio.to_thread(grok_cli.login_trang_thai, folder)
-        if d.get("connected"):
+        if d.get("connected") and _plan_login_fresh(provider, account_id, folder):
             return _plan_login_ok(provider, account_id)
         return {"ok": True, "connected": False, "error": "" if d.get("dang_cho") else d.get("error", "")}
     d = await asyncio.to_thread(claude_cli.auth_status_folder, folder)
-    if d.get("connected"):
+    if d.get("connected") and _plan_login_fresh(provider, account_id, folder):
         return _plan_login_ok(provider, account_id)
     return {"ok": True, "connected": False}
 
@@ -5877,7 +5898,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             if plan_accounts.supported(pid) and isinstance(pa.get("items"), list):
                 # A plan card's accounts carry no key: order, label and on/off only. Removing one deletes its login
                 # folder; account 1 (the machine's own login) stays (0.353.0).
-                plan_accounts.save(m, pid, pa["items"])
+                plan_accounts.save(m, pid, pa["items"], removed=pa.get("removed"))
             if kf and isinstance(pa.get("items"), list):
                 items = []
                 cur = {a["id"]: a for a in model_routing.accounts(m, pid, kf)}
@@ -16660,6 +16681,7 @@ async def websocket_endpoint(ws: WebSocket):
             # Lượt này vấp "hết lượt gói thuê bao"? Bốn nhánh engine thuê bao ghi vào đây qua
             # `_limit_frame`; cuối lượt đọc ra để lưu câu báo và hẹn tự chạy lại.
             _limit_state = {}
+            _turn_acc = {}     # 0.355.0: provider -> plan account THIS turn runs on (the one that rests on a quota error)
 
             def _limit_frame(raw, engine_hint, model=""):
                 """Khung `error` (đã json) cho một lỗi engine. Là lỗi hết lượt gói thuê bao thì
@@ -16672,7 +16694,8 @@ async def websocket_endpoint(ws: WebSocket):
                         {"engine": engine_hint, "model": model or ""})
                     _limit_state.update(notice=noi, limit=lim, quota=True)
                     # A chat pinned to this plan runs on the main model until it resets (0.285.0).
-                    _note_pin_limit(lim.engine or engine_hint, float(lim.reset_epoch or 0))
+                    _note_pin_limit(lim.engine or engine_hint, float(lim.reset_epoch or 0),
+                                    account=_turn_acc.get(_LIMIT_ENGINE_PROVIDER.get(lim.engine or engine_hint, "")))
                     frame["limit"] = {"engine": lim.engine, "scope": lim.scope,
                                       "reset_epoch": float(lim.reset_epoch or 0)}
                 # 0.329.0: the plan usage ring turns red. Grok and Antigravity print no fixed sentence for
@@ -16685,7 +16708,7 @@ async def websocket_endpoint(ws: WebSocket):
                         plan_limits.ghi_het(engine_hint)
                         _limit_state["quota"] = True   # 0.354.0: the next route may take over
                         if engine_hint == "grok-cli":
-                            _note_pin_limit("grok-cli")   # 0.353.0: rest that Grok account, the next one takes over
+                            _note_pin_limit("grok-cli", account=_turn_acc.get("grok-cli"))   # 0.353.0: that account rests
                 except Exception:  # noqa: BLE001 - a meter must never break a turn
                     pass
                 return json.dumps(frame)
@@ -16756,7 +16779,6 @@ async def websocket_endpoint(ws: WebSocket):
             # Code nằm theo thư mục đó, đúng ý: mỗi repo một mạch riêng.
             cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=_cwd_luot_chat(_row0, brain), tag=turn_tag)
             cli.session_id = _row0.get("cli_session_id") or None    # --resume đúng mạch phiên này
-            _plan_account_apply(cli, "anthropic-cli", mcfg)   # 0.353.0: the Claude account that should run now
             final_text = ""
             ws.can_hold = _hops_left > 0      # 0.354.0: hold a quota error back while another route may take over
             used_fast_path = False
@@ -16948,7 +16970,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # Hub trỏ BRAIN kể cả khi cwd là repo: MCP, cron và nhắc hẹn thuộc bộ não của
                 # người dùng, không thuộc cây mã nguồn đang mở.
                 _apply_grok_hub(kcli, _brain_root(brain))
-                _plan_account_apply(kcli, "grok-cli", mcfg)   # 0.353.0: the Grok account that should run now
+                _turn_acc["grok-cli"] = _plan_account_apply(kcli, "grok-cli", mcfg)   # 0.353.0: the Grok account to run
                 if not kcli.is_available():
                     final_text = ("⚠ Chưa cài Grok Build CLI trên máy này. Cài một lần:\n\n"
                                   f"`{grok_cli.lenh_cai()}`\n\n"
@@ -17121,7 +17143,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # Hub vẫn trỏ BRAIN kể cả khi cwd là repo: MCP, cron và nhắc hẹn thuộc về bộ
                 # não của người dùng, không thuộc về cây mã nguồn đang mở.
                 _apply_codex_hub(ccli, _brain_root(brain))   # MCP + đúng brain cho cron/nhắc hẹn
-                _plan_account_apply(ccli, "openai-oauth", mcfg)   # 0.353.0: after the hub profile is written
+                _turn_acc["openai-oauth"] = _plan_account_apply(ccli, "openai-oauth", mcfg)   # after the hub profile
                 stored_codex_thread = (_row0.get("codex_thread_id") or "").strip()
                 # Mạch Codex đã phình quá ngưỡng thì THÔI resume: mở mạch mới rồi mồi lại
                 # bằng transcript trong SQLite. Không làm bước này thì mỗi lượt tiếp theo
@@ -17619,6 +17641,8 @@ async def websocket_endpoint(ws: WebSocket):
                 # model". Rơi về bộ não mặc định là có chủ ý, nhưng phải rơi cả MODEL theo nó.
                 cli.model = ((api_model if prov == "anthropic-cli" else "")
                              or mcfg.get("claude_model") or None)   # alias opus/sonnet/haiku/fable
+                # 0.353.0: the Claude account that should run now (only here: other engines never touch it).
+                _turn_acc["anthropic-cli"] = _plan_account_apply(cli, "anthropic-cli", mcfg)
                 # Cùng luật với Codex: mạch phình quá ngưỡng thì thôi --resume, mở mạch mới.
                 # Claude Code cũng tự quản transcript nên Javis chỉ có đúng con số token vào
                 # của lượt trước làm dấu hiệu.
@@ -17818,7 +17842,8 @@ async def websocket_endpoint(ws: WebSocket):
             # the next route (next account of the card, then the next card). Nothing of this run is kept or shown.
             if (_limit_state.get("quota") and _hops_left > 0 and ws.untouched()
                     and (not final_text or (kind == "api" and not ws.said.strip()))):
-                _nxt = _chat_next_route(mcfg, prov, api_key if kind == "api" else "", _tried)
+                _nxt = _chat_next_route(mcfg, prov, api_key if kind == "api" else "", _tried,
+                                        failed_account=_turn_acc.get(prov))
                 if _nxt:
                     ws.drop()
                     _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "routing.reroute",
@@ -17885,7 +17910,7 @@ async def websocket_endpoint(ws: WebSocket):
                             conv_sid, 0,
                             lambda attempt, _n=_half: _start_resumed_turn(
                                 conv_sid, user_message, brain, attempt, _n, user_mid=user_mid, user_text=user_text),
-                            engine={"anthropic-cli": "claude-code", "openai-oauth": "codex"}.get(prov, prov),
+                            engine=_NHA_SANG_ENGINE.get(prov, prov),
                             attempt=int(resume_attempt or 0), auto_default=False, partial=True)
                         await ws.send_text(json.dumps({"type": "resume", "state": "off", **_item.payload()}))
                     except Exception as _e:  # noqa: BLE001
@@ -21674,11 +21699,10 @@ def _tg_lich_su_kho(store, conv_sid, text):
     return msgs, tom_tat
 
 
-def _tg_quota_out(out: str, prov: str, kind: str, api_key: str, mcfg) -> bool:
+def _tg_quota_out(out: str, prov: str, kind: str, api_key: str, mcfg, account: str = None) -> bool:
     """Whether a channel turn's error string says the route ran out of quota (0.354.0). When it does, the account
     that ran out rests, as on the web chat, so the next route and the next turns skip it."""
-    hint = {"anthropic-cli": "claude-code", "openai-oauth": "codex", "grok-cli": "grok-cli",
-            "antigravity-cli": "antigravity-cli"}.get(prov, "")
+    hint = _NHA_SANG_ENGINE.get(prov, "")
     noi, lim = _subscription_limit_event(out or "", hint) if hint else ("", None)
     quota = bool(noi) or aux_engine.cooldown_for(out or "") == aux_engine.COOLDOWN_QUOTA_S
     if not quota:
@@ -21686,8 +21710,16 @@ def _tg_quota_out(out: str, prov: str, kind: str, api_key: str, mcfg) -> bool:
     if kind == "api":
         _note_api_limit(mcfg, prov, api_key, out)
     elif hint:
-        _note_pin_limit(getattr(lim, "engine", "") or hint, float(getattr(lim, "reset_epoch", 0) or 0))
+        _note_pin_limit(getattr(lim, "engine", "") or hint, float(getattr(lim, "reset_epoch", 0) or 0),
+                        account=account)
     return True
+
+
+def _tg_turn_account(sess, prov: str):
+    """The plan account a channel turn just ran on: plan_accounts.use left it on that chat's engine object."""
+    eng = (sess or {}).get({"openai-oauth": "codex", "grok-cli": "grok", "anthropic-cli": "cli"}.get(prov, ""))
+    acc = getattr(eng, "account_id", None)
+    return acc if isinstance(acc, str) and acc else None
 
 
 async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None,
@@ -21824,8 +21856,9 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         # one progress line saying why. Customer bots keep their own model and never hop.
         _tried = []
         while (isinstance(out, str) and not bot and not _hop_acted[0] and len(_tried) < REROUTE_MAX_HOPS
-               and _tg_quota_out(out, prov, kind, api_key, mcfg)):
-            _nxt = _chat_next_route(mcfg, prov, api_key if kind == "api" else "", _tried)
+               and _tg_quota_out(out, prov, kind, api_key, mcfg, account=_tg_turn_account(sess, prov))):
+            _nxt = _chat_next_route(mcfg, prov, api_key if kind == "api" else "", _tried,
+                                    failed_account=_tg_turn_account(sess, prov))
             if not _nxt:
                 break
             _tried = _nxt["tried"]
