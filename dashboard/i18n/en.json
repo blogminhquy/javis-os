@@ -664,6 +664,7 @@
   "models.ord_more": "Connect another provider ({n})",
   "models.ord_empty": "No provider is signed in yet. Press Connect another provider below.",
   "models.ord_keys": "{ok}/{n} keys usable",
+  "models.sheet_all": "All models",
   "models.acct_ready": "Ready",
   "models.acct_off": "Off",
   "models.acct_rest": "Out of quota, back at {gio}",

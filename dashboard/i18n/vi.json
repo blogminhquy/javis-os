@@ -664,6 +664,7 @@
   "models.ord_more": "Kết nối thêm nhà cung cấp ({n})",
   "models.ord_empty": "Chưa có nhà nào đăng nhập. Bấm Kết nối thêm nhà cung cấp bên dưới.",
   "models.ord_keys": "{ok}/{n} key dùng được",
+  "models.sheet_all": "Tất cả model",
   "models.acct_ready": "Sẵn sàng",
   "models.acct_off": "Đã tắt",
   "models.acct_rest": "Hết lượt, mở lại {gio}",

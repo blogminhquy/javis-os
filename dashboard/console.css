@@ -223,8 +223,31 @@ body.in-console .hud-actions { display: none; }
 .ord-drop-line[hidden] { display: none; }
 body.ord-is-dragging, body.ord-is-dragging * { cursor: grabbing !important; user-select: none; }
 .ord-pressing { outline: 2px dashed var(--accent-line); outline-offset: 3px; }
+.ord-badges-m { display: none; }
+/* Phone pickers (0.352.0): a bottom sheet with a title and a close button instead of a popover over the card. */
+.ord-sheet-back { position: fixed; inset: 0; z-index: 900; background: rgba(0, 0, 0, .5); }
+.ord-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 901; display: flex; flex-direction: column;
+  max-height: min(78vh, 680px); background: var(--bg2); border: 1px solid var(--border); border-bottom: 0;
+  border-radius: 18px 18px 0 0; box-shadow: var(--shadow-3); padding: 6px 16px calc(16px + env(safe-area-inset-bottom)); }
+.ord-sheet-grab { width: 40px; height: 4px; border-radius: 4px; background: var(--border); margin: 4px auto 8px; }
+.ord-sheet-head { display: flex; align-items: center; gap: 10px; padding: 0 0 10px; font-size: 17px; }
+.ord-sheet-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ord-sheet-x { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: var(--bg3); color: var(--text); cursor: pointer; }
+.ord-sheet-body { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; min-height: 0; }
+.ord-sheet .mb-search { position: sticky; top: 0; z-index: 1; font-size: 16px; padding: 12px 14px; margin-bottom: 8px; border-radius: 12px; }
+.ord-sheet .mb-item { font-size: 16px; min-height: 48px; padding: 12px; border-radius: 10px; }
+.ord-sheet .mb-prov { font-size: 14px; padding: 14px 8px 6px; }
+.ord-sheet .eff-head { font-size: 16px; }
+.ord-sheet .eff-track { height: 36px; }
+.ord-mname { min-width: 0; overflow-wrap: anywhere; }
+.ord-msec { cursor: default; border-top: 1px solid var(--border); margin-top: 6px; }
 @media (max-width: 600px) {
   .ord-menu { padding-left: 4px; }
+  /* Name, kind label and status get the whole head; the MAIN / Fallback badge moves to the end of the chip row. */
+  .ord-head .ord-badges { display: none; }
+  .ord-chips .ord-badges-m { display: flex; flex-direction: row; align-items: center; gap: 6px; margin-left: auto; }
+  .ord-head .prov-status { overflow-wrap: anywhere; }
   .aux-now { flex-wrap: wrap; }
   .aux-now-act.ord-chips { width: 100%; justify-content: flex-end; }
 }
