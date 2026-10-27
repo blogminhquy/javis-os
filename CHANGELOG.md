@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.352.0] - 2026-10-27
+### Cải thiện
+- **Lời nhắc về rủi ro khoá tài khoản viết lại nhẹ nhàng hơn.** Dùng gói đăng ký (Claude Pro/Max, gói xAI) cho việc nền vẫn có nguy cơ bị nhà cung cấp khoá tài khoản, nhưng Javis chưa ghi nhận trường hợp nào. Nếu bạn gặp, hãy báo cho nhà phát triển để mọi người cùng biết.
+
 ## [0.351.0] - 2026-10-27
 ### Cải thiện
 - **Trang Models mới: một danh sách Thứ tự dùng.** Chỉ hiện các nhà đã đăng nhập, thẻ trên cùng là mô hình chính (MAIN), các thẻ sau là Dự phòng 1, 2... Kéo thẻ (trên điện thoại giữ nút 6 chấm hoặc nhấn giữ thẻ) hoặc bấm Đảo để đổi thứ tự. Mỗi thẻ có chip chọn mô hình và chip Effort riêng, giống khung chat. Thẻ dự phòng đang thay MAIN chạy chat thì sáng chữ ĐANG DÙNG.

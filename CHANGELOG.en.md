@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.352.0] - 2026-10-27
+### Improved
+- **Gentler wording for the account lock risk.** Running background work on a subscription plan (Claude Pro/Max, the xAI plan) still carries a risk of the provider locking the account, but Javis has no reported case so far. If it happens to you, please tell the developer so everyone knows.
+
 ## [0.351.0] - 2026-10-27
 ### Improved
 - **New Models page: one Usage order list.** Only signed-in providers show, the top card is the main model (MAIN), the next ones are Fallback 1, 2... Drag a card (on a phone hold the 6-dot handle or press and hold the card) or press Swap to reorder. Each card has its own model chip and Effort chip, like the chat composer. A fallback card running chat in place of MAIN lights up IN USE.
