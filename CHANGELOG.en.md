@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.351.0] - 2026-10-27
+### Improved
+- **New Models page: one Usage order list.** Only signed-in providers show, the top card is the main model (MAIN), the next ones are Fallback 1, 2... Drag a card (on a phone hold the 6-dot handle or press and hold the card) or press Swap to reorder. Each card has its own model chip and Effort chip, like the chat composer. A fallback card running chat in place of MAIN lights up IN USE.
+- **Several API keys per provider.** API cards show a numbered key list: add a key, name it, move it up or down, turn it off, change it, remove it. The key in use is highlighted, a key out of quota shows when it comes back.
+- **The background model sits right under the Usage order**, with its own Effort chip. On a phone its picker looks like the chat composer's and opens upward. The picker lists connected providers only. When the background model is out of quota, a line says what background work runs on for now.
+- **Tidier:** providers not connected wait behind Connect another provider; the Main Model, Telegram model and global Reasoning boxes are gone (Telegram follows MAIN, type /model in a chat to pin that chat).
+
 ## [0.350.0] - 2026-10-27
 ### Improved
 - **Background work follows a clear order.** It runs on the background model first; when that is out of quota it moves through the fallback providers (each on its own default setup) and uses the main model last. Javis no longer slips in Claude or free OpenRouter when you have not connected them.

@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.351.0] - 2026-10-27
+### Cải thiện
+- **Trang Models mới: một danh sách Thứ tự dùng.** Chỉ hiện các nhà đã đăng nhập, thẻ trên cùng là mô hình chính (MAIN), các thẻ sau là Dự phòng 1, 2... Kéo thẻ (trên điện thoại giữ nút 6 chấm hoặc nhấn giữ thẻ) hoặc bấm Đảo để đổi thứ tự. Mỗi thẻ có chip chọn mô hình và chip Effort riêng, giống khung chat. Thẻ dự phòng đang thay MAIN chạy chat thì sáng chữ ĐANG DÙNG.
+- **Nhiều API key cho một nhà cung cấp.** Thẻ API hiện danh sách key đánh số: thêm key, đổi tên, chuyển lên xuống, tắt, đổi key, gỡ. Key đang chạy được tô màu, key hết lượt ghi giờ mở lại.
+- **Mô hình việc nền nằm ngay dưới Thứ tự dùng**, có chip Effort riêng. Trên điện thoại bảng chọn giống khung chat, mở lên trên. Bảng chọn chỉ liệt kê nhà đã kết nối. Khi mô hình nền hết lượt, một dòng cho biết việc nền đang chạy tạm bằng gì.
+- **Gọn hơn:** nhà chưa kết nối gom vào nút Kết nối thêm nhà cung cấp; bỏ ô Main Model, ô Model Telegram và ô Suy nghĩ chung (Telegram theo MAIN, gõ /model trong một cuộc trò chuyện để ghim riêng).
+
 ## [0.350.0] - 2026-10-27
 ### Cải thiện
 - **Việc nền đi theo thứ tự rõ ràng.** Chạy bằng mô hình nền trước, hết lượt thì lần lượt sang các nhà cung cấp dự phòng (mỗi nhà chạy cấu hình mặc định của nó), mô hình chính dùng sau cùng. Javis không còn tự chen Claude hay OpenRouter miễn phí vào khi bạn chưa kết nối chúng.
