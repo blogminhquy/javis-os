@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.363.0] - 2026-10-28
+### Thêm mới
+- **Javis tự kiểm tra code sau mỗi lượt có sửa repo GitHub.** Nó chạy đúng các lệnh CI của repo ngay trên máy (đọc từ thư mục workflows của repo, bỏ các bước cài vào máy, cần secret hay deploy), rồi báo kết quả vào chính cuộc trò chuyện.
+- **Chặn trước khi đẩy:** diff có thứ giống mật khẩu, token thì không cho commit; bỏ qua test, xoá test, sửa workflow để cho CI xanh thì bị đánh dấu để người xem trước khi merge.
+- **Mọi engine đều đọc luật của repo** (AGENTS.md, CLAUDE.md, CONTRIBUTING.md), không riêng Claude Code. Danh sách lệnh kiểm tra của từng repo sửa được ở thẻ GitHub trên trang Kết nối.
+
 ## [0.362.0] - 2026-10-28
 ### Thêm mới
 - **Kết nối GitHub có sẵn trên trang Kết nối.** Dán token một lần, hoặc bấm dùng chung token sao lưu brain. Không phải cài thêm gói nào.
