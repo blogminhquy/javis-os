@@ -6,11 +6,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.347.0] - 2026-10-27
+### Cải thiện
+- **Thanh bên gọn hơn: bỏ nhóm Code, Terminal chuyển vào nhóm Năng lực.** Giờ khung chat nào cũng gắn được thư mục và viết code được, nên không cần khu Code riêng nữa. Trang Coding cũ vẫn mở được từ link cũ hay lệnh nói, chỉ không nằm trên thanh bên. Nói "mở nhóm code" giờ mở nhóm Năng lực, nơi có Terminal.
+### Sửa lỗi
+- **Cuộc gọi không còn tự cúp khi chuyển màn hình.** Vào trang Cộng sự, bấm sang hội thoại khác hay đường gọi ChatGPT Live chợt rớt mạng đều từng cúp máy. Giờ cuộc gọi ở lại với đúng hội thoại lúc bắt đầu gọi, rớt kết nối thì chờ bạn nói tiếp rồi tự nối lại. Muốn cúp thì bấm Cúp máy hoặc bấm vào linh vật.
+- **Gọi lâu không còn bị điếc mic.** Sau nhiều phút gọi, bộ nghe của trình duyệt có lúc treo, Javis không nghe nữa và gọi lại cũng báo "mic chưa đóng xong" cho tới khi tải lại trang. Giờ Javis tự nhận ra bộ nghe bị treo và dựng lại ngay.
+
 ## [0.346.0] - 2026-10-27
 ### Thêm mới
 - **Javis đọc và sửa được ghi chú ghim trong nhóm Zalo.** Hỏi Javis "nhóm này đang ghim gì" là ra danh sách ghi chú, tin ghim, bình chọn, kèm ai tạo, ai sửa cuối và lúc nào, kể cả ghi chú nhân viên hay khách sửa tay trên điện thoại. Nhờ Javis sửa một ghi chú thì nó sửa đúng ghi chú cũ, không tạo cái mới chồng lên. Cần gói Store "Zalo mở rộng" 1.5.0.
 ### Sửa lỗi
 - **Sửa ghi chú không còn làm mất ghim.** Trước đây sửa một ghi chú đang ghim mà không ghi rõ "ghim" thì Zalo gỡ nó khỏi mục ghim. Giờ ghim giữ nguyên, chỉ gỡ khi bạn nói rõ.
+
 ## [0.345.0] - 2026-10-27
 ### Cải thiện
 - **Chào hỏi, cảm ơn gần như không tốn token.** Tin nhắn chỉ có lời chào hay lời cảm ơn giờ được trả lời theo đường nhanh trên mọi bộ não, ở mọi mức tiết kiệm. Trên Claude Code, "chào em" từ khoảng 60.800 token còn khoảng 2.100.

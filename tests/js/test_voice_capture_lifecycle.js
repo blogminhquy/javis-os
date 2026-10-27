@@ -145,6 +145,42 @@ test('Live handoff waits until browser capture has really ended', async () => {
   assert.equal(released, true); assert.deepEqual(received, []);
 });
 
+// 0.347.0 (owner, 27/10/2026: "after 5 minutes it stops hearing, calling again does not help"): Chrome sometimes
+// never answers start()/stop(). The flags stayed set for good until a reload; now the recognizer is rebuilt.
+test('a recognizer that never confirms closing is rebuilt and releases the capture', async () => {
+  const { voice, timers } = setup();
+  const old = voice.recognition;
+  voice.isListening = true; voice._stopping = true;
+  let released = null;
+  const ending = voice.waitForCaptureEnd().then(ok => { released = ok; });
+  await tick(); assert.equal(released, null);
+  [...timers.values()].forEach(fn => fn());   // the 2 s wait runs out, no onend ever came
+  await ending;
+  assert.equal(released, true, 'the waiter is released instead of failing the call');
+  assert.notEqual(voice.recognition, old, 'a fresh recognizer replaces the wedged one');
+  assert.equal(old.onend, null, 'the wedged one can no longer fire into the voice state');
+  assert.equal(voice.isListening || voice._starting || voice._stopping, false);
+});
+test('a start that never answered is rebuilt on the next startListening', () => {
+  const { voice } = setup();
+  let starts = 0;
+  voice._startMicMeter = () => {};
+  voice._starting = true; voice._chuyenLuc = Date.now() - 6000;   // older than KET_MS
+  const old = voice.recognition;
+  const SR = old.constructor;
+  SR.prototype.start = function () { starts++; };
+  voice.startListening();
+  assert.notEqual(voice.recognition, old);
+  assert.equal(starts, 1, 'the fresh recognizer is started');
+  assert.equal(voice._starting, true);
+});
+test('a start that is only briefly pending is left alone', () => {
+  const { voice } = setup();
+  voice._starting = true; voice._chuyenLuc = Date.now();
+  const old = voice.recognition;
+  voice.startListening();
+  assert.equal(voice.recognition, old);
+});
 test('recorder keeps the final dataavailable chunk delivered by stop', async () => {
   const { voice } = setup();
   voice.sttUpload = true; voice.micStream = {}; voice.isListening = true;

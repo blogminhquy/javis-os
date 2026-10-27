@@ -24,11 +24,30 @@ const context = {
   hideActivity() {}, goMoiTinCu() {}, chatArea: { innerHTML: '' },
   persistSession() {}, notifySessions() {}, syncActiveUI() {}, savedSessionId: 'old',
 };
-load(context, ['tatRanhTay', 'resetChatView', 'capNhatTinNguoiDung', 'goTinNguoiDungCuoi', 'datTinCho', 'guiTinCho', 'guiTinDutMang']);
+load(context, ['tatRanhTay', 'resetChatView', 'boViecPhienCu', 'capNhatTinNguoiDung', 'goTinNguoiDungCuoi', 'datTinCho', 'guiTinCho', 'guiTinDutMang']);
 let failures = 0;
 function test(name, fn) { try { fn(); console.log('ok', name); } catch (e) { failures++; console.error('FAIL', name, e.message); } }
 test('leaving a conversation cancels capture even outside hands-free mode', () => {
   context.resetChatView(); assert.equal(cancelled, 1); assert.equal(context.savedSessionId, null);
+});
+// 0.347.0 (owner, 27/10/2026): leaving a conversation during a call (Partners page, history) keeps the call; only
+// what was heading to the old conversation is dropped.
+test('during a call, leaving a conversation keeps the call and drops queued sends', () => {
+  let hungUp = 0;
+  const tat = context.tatRanhTay;
+  context.tatRanhTay = () => { hungUp++; };
+  try {
+    context.handsFree = true; context.voiceMode = 'basic'; context._sendEpoch = 0; context._tinDutMang = ['câu ở A'];
+    cancelled = 0;
+    context.resetChatView();
+    assert.equal(hungUp, 0, 'the call is not hung up');
+    assert.equal(context.handsFree, true);
+    assert.equal(context._sendEpoch, 1, 'sends still in flight to the old conversation are invalidated');
+    assert.equal(context._tinDutMang.length, 0, 'a reconnect resend cannot reach the new conversation');
+    assert.equal(cancelled, 1, 'half-heard words are dropped, the hands-free loop listens again');
+  } finally {
+    context.tatRanhTay = tat; context.handsFree = false; context.savedSessionId = 'old';
+  }
 });
 test('a delayed correction cannot overwrite a newer user message', () => {
   context.convo = [{ role: 'user', text: 'câu mới' }];

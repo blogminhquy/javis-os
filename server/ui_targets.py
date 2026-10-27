@@ -83,14 +83,16 @@ _EXACT_PAGE = {"nhom": "teams"}
 # Nhóm trên thanh bên = RAIL_GROUPS trong dashboard/console.js (khoá `id`) và GROUPS trong
 # dashboard/ui-actions.js. Mở NHÓM khác mở TRANG: người dùng hay muốn bung phần đang gập để
 # nhìn xem trong đó có gì, chứ chưa chọn trang nào.
-GROUPS = ("bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong")
+GROUPS = ("bo_nao", "nang_luc", "viec", "ket_noi", "he_thong")
 
 GROUP_ALIASES = {
     # Nhóm "Trợ lý" đã bỏ ở 0.58.0 (gộp vào Bộ não); giữ bí danh cũ trỏ sang Bộ não để
     # câu lệnh bằng lời quen tay không chết.
     "tro ly": "bo_nao", "assistant": "bo_nao",
     "bo nao": "bo_nao", "second brain": "bo_nao", "brain": "bo_nao",
-    "code": "code", "lap trinh": "code",
+    # The "Code" group left the rail in 0.347.0; Terminal now sits in Capabilities, so the old
+    # words open that group instead of failing.
+    "code": "nang_luc", "lap trinh": "nang_luc",
     "nang luc": "nang_luc", "kha nang": "nang_luc", "capability": "nang_luc",
     "viec": "viec", "cong viec": "viec", "task": "viec",
     "ket noi": "ket_noi", "connect": "ket_noi", "ket noi va model": "ket_noi",

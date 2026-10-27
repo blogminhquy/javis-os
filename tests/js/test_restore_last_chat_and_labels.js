@@ -30,7 +30,7 @@ function functionSource(src, name) {
     currentBrainPath: () => selected,
     window: { JavisResume: null },
     datMoiTinCu() {}, notifySessions() {}, syncActiveUI() {},
-    resetChatView() { resets++; }, openStoredSession() { opened++; }, capNhatManChinh() {},
+    resetChatView() { resets++; }, openStoredSession() { opened++; }, capNhatManChinh() {}, tatRanhTay() {},
     _trangGiuKhungChat: () => false,
   };
   vm.createContext(ctx);

@@ -31,7 +31,7 @@ const box = {
     toolCall: () => [], turnDone: () => [], ttsEnd: () => [], interim: () => []},
   _tinChoTimer: null, _tinChoLuot: null, _tinDutMangTimer: null, _tinDutMang: [], _choTaiLen: null,
   _sendEpoch: 0, _tuGiong: false,
-  _theoLoi: null, _liveCtxTimer: null,
+  _theoLoi: null, _liveCtxTimer: null, _callSid: null,
   runActions: noop, petReact: noop, nhapGiong: t => drafts.push(t), veTinTuGiong: t => t, sendMessage: t => sent.push(t),
   capNhatOrb: noop, appendUserMessage: noop, recordTurn: (role, text) => stored.push([role, text]),
   currentBrainPath: () => 'brain', persistSession: noop, guiNguCanhLive: noop,
@@ -51,6 +51,7 @@ function load(name) {
 ['batLive', 'tatRanhTay'].forEach(load);
 // tatLive is a one-line function, not suitable for the function extractor.
 vm.runInContext(source.match(/^function tatLive\(\).*$/m)[0], box);
+vm.runInContext(source.match(/^function cuocGoiTrenManHinh\(\).*$/m)[0], box);
 const run = s => vm.runInContext(s, box);
 function final(text) { if (voiceOptions.acceptTranscript(text)) voiceOptions.onTranscript(text); }
 (async () => {
@@ -149,5 +150,35 @@ function final(text) { if (voiceOptions.acceptTranscript(text)) voiceOptions.onT
   await box.batLive('');
   assert.equal(basicCalls, 1, 'a first-connect failure still falls back to Basic');
   startResult = true;
+
+  // 0.347.0: a Live connection that drops AFTER ready no longer hangs the call up: the call waits and speaking
+  // reopens it (owner, 27/10/2026). Only Hang up, the mascot or Esc end the call.
+  run('_liveWaitingWake = false; _cuocGoiDaNoi = true'); box.handsFree = true; box.voiceMode = 'live'; notes.length = 0;
+  await box.batLive('');
+  liveOptions.onReady({});
+  liveOptions.onClosed();
+  assert.equal(box.handsFree, true, 'a dropped Live line keeps the call');
+  assert.equal(run('_liveWaitingWake'), true, 'the call goes back to waiting for speech');
+  assert.deepEqual(notes, ['call.dropped']);
+  // A late close from an older Live session is ignored.
+  run('_liveWaitingWake = false'); notes.length = 0;
+  const oldClosed = liveOptions.onClosed;
+  await box.batLive(''); liveOptions.onReady({});
+  oldClosed();
+  assert.equal(run('_liveWaitingWake'), false, 'a stale session close does not touch the new one');
+  assert.deepEqual(notes, []);
+
+  // The call is pinned to its conversation: Live reconnects reuse it even after another conversation was opened.
+  run("_callSid = 'session-call'"); box.savedSessionId = 'session-agent';
+  await box.batLive('');
+  assert.equal(liveOptions.sessionId(), 'session-call', 'Live reconnects into the call conversation');
+  stored.length = 0;
+  liveOptions.onTranscript('user', 'xin chào', true);
+  assert.deepEqual(stored, [], 'no bubble of the call is drawn into another conversation');
+  box.savedSessionId = 'session-call';
+  liveOptions.onTranscript('user', 'xin chào', true);
+  assert.deepEqual(stored, [['user', 'xin chào']], 'back on the call conversation, bubbles show again');
+  box.tatRanhTay();
+  assert.equal(run('_callSid'), null, 'hang-up forgets the pinned conversation');
   console.log('voice focus app: basic listens through the call, Live sleeps at 30 s and wakes on real speech, duplicate ready, stale handoff, no mid-call voice switch pass');
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -8,11 +8,19 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.347.0] - 2026-10-27
+### Improved
+- **A leaner sidebar: the Code group is gone and Terminal moves into Capabilities.** Every chat can now attach a folder and write code, so a separate Code area is no longer needed. The old Coding page still opens from old links or voice commands, it just is not on the sidebar. Saying "open the code group" now opens Capabilities, where Terminal lives.
+### Fixed
+- **A call no longer hangs up when you switch screens.** Opening the Partners page, switching to another conversation or a dropped ChatGPT Live line all used to end the call. The call now stays with the conversation it started in, and after a drop it waits for you to speak, then reconnects. To hang up, press Hang up or tap the mascot.
+- **Long calls no longer lose the mic.** After several minutes the browser's listener could freeze: Javis stopped hearing, and calling again said "mic not closed yet" until a page reload. Javis now notices a frozen listener and rebuilds it at once.
+
 ## [0.346.0] - 2026-10-27
 ### Added
 - **Javis reads and edits pinned notes in Zalo groups.** Ask Javis what a group has pinned and you get its notes, pinned messages and polls, with who created and last edited each one and when, including notes staff or customers edited by hand on their phones. Ask Javis to update a note and it edits that same note instead of adding a new one on top. Needs the Store pack "Zalo extras" 1.5.0.
 ### Fixed
 - **Editing a note no longer unpins it.** Editing a pinned note without saying "pin" used to make Zalo take it off the pin bar. The pin now stays as it was and comes off only when you ask.
+
 ## [0.345.0] - 2026-10-27
 ### Improved
 - **Greetings and thanks cost almost no tokens.** A message that is only a greeting or a thanks now gets its answer through the fast path on every brain, at every saving level. On Claude Code, "hi" dropped from about 60,800 tokens to about 2,100.

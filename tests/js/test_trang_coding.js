@@ -117,10 +117,6 @@ check("icon đó có thật trong bộ icon đã sinh sẵn", (() => {
   const co = Object.values(man.groups).some((g) => g.includes("code-xml"));
   return co && D("vendor/lucide-icons.js").includes('"code-xml":');
 })());
-check("nhóm Code giữ icon file-code như trước khi có mục Coding",
-  /\bcode: ic\("file-code"\)/.test(CON));
-check("icon nhóm và icon mục KHÔNG trùng nhau",
-  (CON.match(/\bcode: ic\("([a-z-]+)"\)/) || [])[1] !== (CON.match(/coding: "([a-z-]+)"/) || [])[1]);
 
 // ---- 4. Cột trái MƯỢN nguyên cột hội thoại của trang Trò chuyện ----
 check("gắn module lịch sử thật, không tự vẽ danh sách",
@@ -322,7 +318,11 @@ check("menu đo chỗ trống thật quanh chip rồi mới đặt",
 
 // ---- 9. Nối vào rail ----
 check("coding có trong RAIL_ITEMS", /"terminal", "coding"/.test(CON));
-check("coding nằm trong NHÓM Code", /ids: \["terminal", "coding"\]/.test(CON));
+// 0.347.0: the Code group left the rail; coding happens in any chat with a folder. The page still
+// exists (old links, voice commands) but is hidden from the rail.
+check("Coding is hidden from the rail but still a real page",
+  /const RAIL_AN = new Set\(\[[^\]]*"coding"/.test(CON) && !/ids: \[[^\]]*"coding"/.test(CON)
+  && /if \(id === "coding"\)\s+return renderCoding\(el\)/.test(CON));
 check("index.html nạp coding.js TRƯỚC console.js",
   HTML.indexOf("coding.js") > 0 && HTML.indexOf("coding.js") < HTML.indexOf("console.js?"));
 check("nhãn trang có ở cả hai từ điển", !!VI["page.coding.label"] && !!EN["page.coding.label"]);
