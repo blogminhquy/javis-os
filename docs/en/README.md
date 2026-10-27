@@ -49,6 +49,7 @@ The dashboard's navigation rail groups **19 pages** into **5 groups**: Brain · 
 
 ### The brain and data
 - [13 - Second Brain: memory, Wiki, INGEST](13-second-brain.md) - multiple brains, living memory, digesting knowledge.
+- [34 - GitHub inside chat](34-github-in-chat.md) - attach repos to a conversation; Javis checks, pushes, opens a PR, watches CI, fixes red CI and merges when green.
 - [18 - Backing the brain up to GitHub](18-github-backup.md) - two-way sync to a private repo, recovering after losing a machine or VPS.
 - [19 - Tasks and Dataview in notes](19-tasks-and-dataview.md) - Obsidian-style self-saving checkboxes, ```dataview blocks that really run.
 
