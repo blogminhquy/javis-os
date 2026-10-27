@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.356.0] - 2026-10-27
+### Fixed
+- (in progress)
+
 ## [0.355.0] - 2026-10-27
 ### Improved
 - **"Default" model now says which model it is.** On the Models page, the model chip and the model list show for example "default (llama-3.3-70b-versatile)" instead of a bare "default", so you know what a card runs when you have not picked a model. A plan card (Claude Code, ChatGPT, Grok) with no model set says "CLI default (picked by your plan)". The chat composer's model chip names that model too.
