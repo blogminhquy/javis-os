@@ -4496,3 +4496,4 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-local-meta { color: var(--text2); flex: 1; min-width: 120px; }
 .gh-chip svg { width: 15px; height: 15px; flex: none; }
 .gh-apply[disabled] { opacity: .55; cursor: default; }
+.gh-checks-box { width: 100%; min-height: 160px; font-family: var(--mono, ui-monospace, monospace); font-size: 16px; line-height: 1.45; resize: vertical; }

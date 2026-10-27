@@ -6,6 +6,8 @@
     GET  /github/repos?q=&brain=               the account's repos, marking the ones this brain has cloned
     GET  /github/local?brain=                  repos cloned in this brain
     POST /github/local/remove                  brain, full_name: delete the local clone (GitHub untouched)
+    GET  /github/local/checks                  the repo's local check commands (saved, or suggested from its CI)
+    POST /github/local/checks                  brain, full_name, commands (one per line) or reset=1
     GET  /github/session/{sid}?brain=          repos attached to a conversation, with its branch and worktree
     POST /github/session/{sid}/repos           brain, repos (comma separated full names): set the chat's repos
     POST /github/session/{sid}/detach          brain, full_name, force: remove one repo from this chat only
@@ -82,6 +84,29 @@ def _make_router() -> APIRouter:
     async def gh_local_remove(brain: str = Form(""), full_name: str = Form(...)):
         busy = _DEPS.busy_jobs(brain, full_name) if (_DEPS and _DEPS.busy_jobs) else []
         return await _call(github_repos.remove_from_brain, brain, full_name, busy)
+
+    @r.get("/github/local/checks")
+    async def gh_checks(brain: str = Query(""), full_name: str = Query(...)):
+        return await _call(github_repos.get_checks, brain, full_name)
+
+    @r.post("/github/local/checks")
+    async def gh_checks_set(brain: str = Form(""), full_name: str = Form(...), commands: str = Form(""),
+                            reset: str = Form("")):
+        """`commands`: one command per line (a line ending in a backslash continues). `reset=1` goes back to the
+        commands Javis suggests from the repo's CI."""
+        if str(reset).strip() in ("1", "true"):
+            return await _call(github_repos.set_checks, brain, full_name, None)
+        lines, buf = [], ""
+        for raw in str(commands or "").splitlines():
+            buf = (buf + "\n" + raw) if buf else raw
+            if raw.rstrip().endswith("\\"):
+                continue
+            if buf.strip():
+                lines.append({"run": buf.strip()})
+            buf = ""
+        if buf.strip():
+            lines.append({"run": buf.strip()})
+        return await _call(github_repos.set_checks, brain, full_name, lines)
 
     @r.get("/github/session/{sid}")
     async def gh_session(sid: str, brain: str = Query("")):

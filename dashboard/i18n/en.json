@@ -6013,5 +6013,13 @@
   "gh.chip_branch": "Branch: {branch}",
   "gh.chip_label": "GitHub repos: {names}",
   "gh.apply_pick": "Tick the repos to attach to this chat",
+  "gh.checks": "Checks",
+  "gh.checks_head": "Checks for {name}",
+  "gh.checks_label": "One command per line",
+  "gh.checks_how": "After every turn that changes code, Javis runs these commands in the chat's working folder, before pushing to GitHub. If one fails, nothing is pushed. The first time Javis reads them from the repo's CI (.github/workflows) and package.json, leaving out steps that install into the machine, need secrets or deploy. End a line with a backslash to continue a long command. A command that cannot run because a tool is missing counts as skipped, and CI decides.",
+  "gh.checks_custom": "Using the list you edited.",
+  "gh.checks_suggested": "Using the list Javis read from the repo's CI.",
+  "gh.checks_reset": "Use the list read from CI",
+  "gh.save": "Save",
   "gh.token_ph": "Example: github_pat_..."
 }

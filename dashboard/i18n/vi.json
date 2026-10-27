@@ -6013,5 +6013,13 @@
   "gh.chip_branch": "Nhánh: {branch}",
   "gh.chip_label": "Repo GitHub: {names}",
   "gh.apply_pick": "Tích chọn repo để gắn vào cuộc trò chuyện",
+  "gh.checks": "Lệnh kiểm tra",
+  "gh.checks_head": "Lệnh kiểm tra của {name}",
+  "gh.checks_label": "Mỗi dòng một lệnh",
+  "gh.checks_how": "Sau mỗi lượt có sửa code, Javis chạy các lệnh này trong thư mục làm việc của cuộc trò chuyện, trước khi đẩy lên GitHub. Lệnh nào đỏ thì không đẩy. Lần đầu Javis tự đọc từ CI của repo (.github/workflows) và package.json, bỏ các bước cài vào máy, cần secret hay deploy. Một lệnh dài nhiều dòng thì kết thúc dòng bằng dấu gạch chéo ngược. Lệnh không chạy được vì máy thiếu công cụ thì tính là bỏ qua, để CI quyết định.",
+  "gh.checks_custom": "Đang dùng danh sách bạn đã sửa.",
+  "gh.checks_suggested": "Đang dùng danh sách Javis tự đọc từ CI của repo.",
+  "gh.checks_reset": "Dùng lại danh sách tự đọc",
+  "gh.save": "Lưu",
   "gh.token_ph": "Ví dụ: github_pat_..."
 }
