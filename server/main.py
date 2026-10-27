@@ -24463,6 +24463,63 @@ async def sessions_compact(session_id: str):
     return res
 
 
+_DONG_TEP_CUOI = re.compile(r"(?:\s*\n\U0001F4CE [^\n]*)+\s*$")
+
+
+def _tim_tin_tua_lai(msgs, text: str, nth: int = 0):
+    """The stored user message the Rewind button points at: counted from the END, the (nth+1)-th user message whose
+    typed text equals `text` (whitespace folded). The bubble only knows the typed text; the stored content may carry
+    the context blocks the dashboard puts in front (`share_render.chu_nguoi_go`, the same rule as the bubble's
+    chuNguoiGo) and the attachment lines a message sent mid-turn gets at the end. Equality, not "contains": "ok" must
+    not match a later "ok làm đi", because the dashboard counts `nth` by equality."""
+    gon = lambda s: " ".join(str(s or "").split())
+    can = gon(text)
+    if not can:
+        return None
+    for m in reversed(msgs):
+        if m.get("role") != "user":
+            continue
+        if gon(_DONG_TEP_CUOI.sub("", share_render.chu_nguoi_go(m.get("content") or ""))) != can:
+            continue
+        if nth <= 0:
+            return m
+        nth -= 1
+    return None
+
+
+@app.post("/sessions/{session_id}/rewind")
+async def sessions_rewind(session_id: str, text: str = Form(...), nth: int = Form(0)):
+    """Rewind button under a question in the chat (0.349.0): delete that question and everything after it, so the
+    conversation continues from just before it. The dashboard then puts the question back in the composer.
+
+    The engines' native threads still hold the deleted turns, so they are dropped like `/compact` drops them: the next
+    turn opens a fresh thread seeded from the remaining transcript. A compaction summary that covers deleted turns is
+    dropped too. Refused while the chat is answering, like `/compact`.
+    """
+    st = get_store()
+    if not st.get_session(session_id):
+        return JSONResponse({"error": localefmt.chu("phiên không tồn tại", "session does not exist")}, status_code=404)
+    if _CHAT_RUNTIME.get_job(session_id):
+        return JSONResponse({"error": localefmt.chu("phiên đang trả lời", "session is still answering"),
+                             "ly_do": "dang_chay"}, status_code=409)
+    tin = _tim_tin_tua_lai(st.get_messages(session_id), text, max(0, int(nth or 0)))
+    if not tin:
+        return JSONResponse({"error": localefmt.chu("không tìm thấy câu này trong hội thoại đã lưu",
+                                                    "this message is not in the saved conversation"),
+                             "ly_do": "khong_thay"}, status_code=404)
+    da_xoa = st.rewind_from(session_id, int(tin["id"]))
+    con = [m for m in st.get_messages(session_id)
+           if m.get("role") in ("user", "assistant") and (m.get("content") or "").strip()]
+    sess = st.get_session(session_id) or {}
+    if int(sess.get("compact_count") or 0) > len(con):
+        st.set_compact(session_id, "", 0)
+    mach = st.clear_native_threads(session_id)
+    st.mark_thread_rotated(session_id)
+    st.set_last_input_tokens(session_id, 0)
+    limit_resume.REGISTRY.cancel(session_id)   # a pending quota rerun would answer the deleted question
+    return {"ok": True, "deleted": da_xoa, "remaining": st.count_messages(session_id), "threads": mach}
+
+
 @app.get("/slash/status")
 async def slash_status(session_id: str = Query(""), brain: str = Query("brain")):
     """`/status` trong khung chat: engine + model THẬT của phiên, brain, và phiên có đang chạy không.

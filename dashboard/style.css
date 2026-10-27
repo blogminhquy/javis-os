@@ -1134,7 +1134,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 6px; }
 .msg-act:hover { color: var(--text-hi); border-color: var(--border); }
 /* Đang chạy một lượt thì không cho bấm gửi lại (app.js gắn .busy vào #chatArea) */
-.transcript.busy .msg-act[data-act="retry"] { opacity: 0.35; pointer-events: none; }
+.transcript.busy .msg-act[data-act="rewind"] { opacity: 0.35; pointer-events: none; }
 
 /* 0.177.0 reactions on answers (chat-reactions.js + reactions.js), like Zalo (owner, 2026-10-16). A zero-height anchor
    right after the bubble, as wide as the bubble (same max-width, same font so `ch` matches), holds the corner on the

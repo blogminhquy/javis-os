@@ -900,6 +900,26 @@ class SessionStore:
             return True
         return bool(self._write(_do))
 
+    def rewind_from(self, session_id: str, message_id: int) -> int:
+        """Delete user message `message_id` and EVERY message after it (display order `ts, id`). Returns how many
+        were deleted, 0 when that message is not a user message of this session.
+
+        The chat's Rewind button (0.349.0): the conversation goes back to just before that question. The caller
+        also drops the engines' native threads, which still hold the deleted turns."""
+        def _do(conn):
+            row = conn.execute("SELECT ts, role FROM messages WHERE id = ? AND session_id = ?",
+                               (int(message_id), session_id)).fetchone()
+            if not row or row[1] != "user":
+                return 0
+            ts = float(row[0])
+            n = conn.execute(
+                "DELETE FROM messages WHERE session_id = ? AND (ts > ? OR (ts = ? AND id >= ?))",
+                (session_id, ts, ts, int(message_id))).rowcount
+            conn.execute("UPDATE sessions SET msg_count = (SELECT COUNT(*) FROM messages WHERE session_id = ?), "
+                         "updated_at = ? WHERE id = ?", (session_id, time.time(), session_id))
+            return int(n or 0)
+        return int(self._write(_do) or 0)
+
     @staticmethod
     def _tin(r: sqlite3.Row) -> Dict[str, Any]:
         """Một dòng bảng messages -> dict trả ra ngoài (mở gói tool_calls_json). T2: kèm `content_sha` của nội dung đã
