@@ -335,6 +335,8 @@ check("chưa có danh mục: chỉ còn HOST_MODEL", image_gen.host_model_candid
 
 _loi_55 = "ChatGPT 400: The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account."
 check("nhận ra lỗi 'model is not supported'", image_gen.model_rejected(400, _loi_55))
+_loi_854 = "ChatGPT 400: Tool choice ' image_generation' not found in 'tools' parameter."
+check("issue #854: model không có công cụ tạo ảnh cũng là lý do đổi model", image_gen.model_rejected(400, _loi_854))
 check("lỗi khác không bị coi là từ chối model", not image_gen.model_rejected(401, "ChatGPT 401: unauthorized")
       and not image_gen.model_rejected(400, "ChatGPT 400: prompt too long"))
 

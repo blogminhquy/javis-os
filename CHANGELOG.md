@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.356.0] - 2026-10-27
 ### Sửa lỗi
-- (đang viết)
+- **Tạo ảnh bằng gói ChatGPT không còn chết ở lỗi "Tool choice image_generation not found".** Model ChatGPT nào không có công cụ tạo ảnh thì Javis tự chuyển sang model khác của tài khoản, như khi model bị từ chối (issue #854).
+- **Đăng nhập Google Workspace khi chạy Javis bằng Docker trên máy tính.** Trước đây bấm đồng ý xong trình duyệt báo không kết nối được localhost:8000. Giờ Javis tự lo phần trong container; bạn chỉ cần mở cổng 8000 một lần bằng file docker-compose.google.yml (cổng chỉ mở cho chính máy đó), và bấm Kết nối lần đầu sẽ có lời nhắc đúng lệnh cần chạy. Cập nhật bằng update.sh giữ nguyên cổng này (issue #855).
 
 ## [0.355.0] - 2026-10-27
 ### Cải thiện

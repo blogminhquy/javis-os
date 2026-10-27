@@ -39,6 +39,11 @@ if [ "$MODE" = "docker" ] || { [ "$MODE" = "auto" ] && is_docker; }; then
     HTTPS_ARGS="-f docker-compose.yml -f docker-compose.multi.yml"
     echo "==> Shared proxy (javis-web) detected → keeping the multi-instance setup."
   fi
+  # Đã mở cổng 8000 cho đăng nhập Google Workspace (docker-compose.google.yml, issue #855)? Giữ lại.
+  if [ -f docker-compose.google.yml ] && docker port "$NAME" 8000 >/dev/null 2>&1; then
+    HTTPS_ARGS="${HTTPS_ARGS:--f docker-compose.yml} -f docker-compose.google.yml"
+    echo "==> Google sign-in port (8000) detected → keeping it."
+  fi
   docker compose $HTTPS_ARGS pull
   docker compose $HTTPS_ARGS up -d
   echo "==> Done. Follow the logs:  docker compose logs -f"
