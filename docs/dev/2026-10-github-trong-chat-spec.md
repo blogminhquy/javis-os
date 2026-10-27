@@ -1,6 +1,7 @@
 # Spec: GitHub ngay trong khung chat
 
-Trạng thái: **BẢN NHÁP, CHỜ CHỦ REPO DUYỆT.** Chưa có dòng code nào theo spec này.
+Trạng thái: **ĐÃ CHỐT MỘT PHẦN ngày 27/10/2026** (chính sách merge và các giới hạn mặc định, xem
+mục 17). Các mục còn nhãn [ĐỀ XUẤT] vẫn chờ duyệt. Chưa có dòng code nào theo spec này.
 
 Nguồn: bản brainstorm "Javis - Brainstorm tích hợp GitHub vào chat" (28/10/2026, phiên Codex),
 cộng bản đánh giá đối chiếu với mã nguồn `javis-os` ngày 27/10/2026 (phiên Claude Code). Spec
@@ -174,7 +175,7 @@ trong `STATE_DIR/repos`). Thư mục người dùng tự thêm bằng tay giữ 
   `javis/` như hiện nay để người dùng nhận ra nhánh do Javis tạo.
 - Mở rộng `coding_store` để worktree bám **từng repo** chứ không chỉ thư mục chính. Việc một repo
   vẫn đi đúng đường cũ.
-- Sửa code chạy song song được. Giới hạn số việc chạy đồng thời mỗi brain, mặc định **3**. [ĐỀ XUẤT]
+- Sửa code chạy song song được. Giới hạn số việc chạy đồng thời mỗi brain, mặc định **3**. [CHỐT]
 - Không cho hai tiến trình cùng điều khiển một phiên engine đang ghi (khoá theo việc).
 - Endpoint, model, credential đặt **theo tiến trình**, không đổi biến môi trường chung, để hai
   việc chọn hai model không gọi nhầm nhau.
@@ -239,7 +240,7 @@ xanh. Javis ghi lại cả hai lần chạy vào bản ghi việc làm bằng ch
 
 ### 7.6. Diff nhỏ, một PR một việc
 
-Ngưỡng mặc định 400 dòng đổi, không tính lockfile và file sinh tự động. Vượt ngưỡng thì Javis
+Ngưỡng mặc định 400 dòng đổi [CHỐT], không tính lockfile và file sinh tự động. Vượt ngưỡng thì Javis
 đề xuất tách việc, nối bằng `deps` trên Kanban. Người dùng vẫn được chọn giữ nguyên.
 
 ## 8. Commit, push, PR
@@ -287,7 +288,7 @@ buộc, và cho người dùng chỉnh danh sách theo repo.
 | Javis khởi động lại | Đọc bản ghi đã lưu, đối chiếu GitHub, rồi mới làm tiếp |
 | Sự kiện lặp, timeout chưa rõ kết quả | Kiểm trạng thái thật trước khi thử lại. Mọi bước ghi dấu đã làm để không tạo trùng commit, PR, merge hay việc kế tiếp |
 
-### 9.4. Giới hạn [ĐỀ XUẤT]
+### 9.4. Giới hạn [CHỐT]
 
 Mặc định, chỉnh được theo repo: tối đa **3 vòng sửa CI** mỗi việc, chờ CI tối đa **60 phút** mỗi
 SHA, ngân sách token mỗi việc theo cấu hình hiện có của Javis. Vượt giới hạn thì trạng thái **kẹt**
@@ -309,13 +310,16 @@ Sau khi CI xanh, Javis giao diff cho **một engine khác với engine đã vi�
 
 ## 11. Merge và việc kế tiếp
 
-### 11.1. Chính sách merge [MỞ, đề xuất mặc định]
+### 11.1. Chính sách merge [CHỐT 27/10/2026]
 
-- Mặc định: dừng ở **sẵn sàng merge**. Người dùng bấm Merge trong bảng chi tiết hoặc nói trong chat.
-- Bật được **tự merge theo từng repo**. Với repo `javis-os`, quy ước dev hiện tại (merge thẳng
-  `main` khi CI xanh) khớp với lựa chọn này.
-- Tự merge chỉ chạy khi đủ: CI bắt buộc xanh trên đúng SHA, `mergeable` đúng, không có cảnh báo
-  mục 7.4, review chéo không còn phát hiện mở, và yêu cầu review của repo (nếu có) đã thoả.
+Anh Quý chốt: "xanh merge luôn, auto merge theo repo".
+
+- Mặc định: **CI xanh thì tự merge luôn**, không dừng chờ bấm tay.
+- Công tắc **tự merge theo từng repo**, mặc định bật. Tắt ở repo nào thì repo đó dừng ở **sẵn
+  sàng merge**, người dùng bấm Merge trong bảng chi tiết hoặc nói trong chat. Repo `javis-os`
+  khớp sẵn với quy ước dev hiện tại (merge thẳng `main` khi CI xanh).
+- "Xanh" ở đây là đủ cả bộ điều kiện dưới, không chỉ dấu tích của CI. Tự merge chỉ chạy khi đủ:
+  CI bắt buộc xanh trên đúng SHA, `mergeable` đúng, không có cảnh báo mục 7.4, review chéo không còn phát hiện mở, và yêu cầu review của repo (nếu có) đã thoả.
 - Kiểu merge theo cài đặt repo trên GitHub (squash, rebase, merge commit), không tự chọn.
 - Nhiều việc cùng nhắm một nhánh đích thì merge **theo hàng đợi**, mỗi lần một việc, kiểm lại
   `mergeable` trước từng lần.
@@ -447,11 +451,11 @@ từng bước, mở bảng chi tiết, merge.
 
 | Câu hỏi | Đề xuất của spec |
 |---|---|
-| CI xanh thì tự merge hay chờ duyệt? | Mặc định chờ, bật tự merge theo từng repo |
+| CI xanh thì tự merge hay chờ duyệt? | **ĐÃ CHỐT 27/10:** xanh thì tự merge luôn, công tắc tự merge theo từng repo (mục 11.1) |
 | Repo không có CI thì "xong" là gì? | Mặc định: cổng chất lượng cục bộ xanh thì sẵn sàng merge, nhưng ghi rõ "không có CI" và không tự merge |
 | Đăng nhập GitHub bằng gì? | Token fine-grained mỗi brain trước, GitHub App sau |
 | Chọn repo ở mức chat hay từng việc? | Gắn ở chat; mỗi việc lưu danh sách repo thực dùng |
-| Giới hạn mặc định | 3 việc song song, 3 vòng sửa CI, chờ CI 60 phút, diff 400 dòng |
+| Giới hạn mặc định | **ĐÃ CHỐT 27/10:** 3 việc song song, 3 vòng sửa CI, chờ CI 60 phút, diff 400 dòng |
 | Vị trí bản clone | `STATE_DIR/repos/<brain>/<owner>/<repo>`, ngoài cây brain (mục 4.3) |
 | Model ngoài Claude qua Claude SDK | Thử nghiệm một ngày, không phải trục chính (mục 4.2) |
 | Có review chéo mặc định không? | Bật khi có từ hai engine trở lên |
