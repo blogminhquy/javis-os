@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.345.0] - 2026-10-27
+### Cải thiện
+- **Chào hỏi, cảm ơn gần như không tốn token.** Tin nhắn chỉ có lời chào hay lời cảm ơn giờ được trả lời theo đường nhanh trên mọi bộ não, ở mọi mức tiết kiệm. Trên Claude Code, "chào em" từ khoảng 60.800 token còn khoảng 2.100.
+- **Câu hỏi thường trên Claude Code nhẹ hơn khoảng 23%.** Claude Code không còn đọc bộ luật Javis hai lần (bản cài thường), và bộ luật gọn lại: phần hướng dẫn tạo plugin, trợ lý, quy trình chỉ nạp khi cần. Đo thật: từ 60.800 xuống 46.600 token. Mọi bộ não khác cũng bớt khoảng 1.900 token mỗi lượt.
+- **Cuộc chat dài trên Claude Code không còn phình tới gần 1 triệu token mỗi lượt.** Claude Code tự tóm tắt mạch khi chạm khoảng 180 nghìn token thay vì 980 nghìn, nên cuối một cuộc chat dài mỗi câu rẻ hơn tới 5 lần mà Javis vẫn nhớ mạch.
+- **Dòng số token dưới câu trả lời giờ chỉ hiện token mới.** Phần ngữ cảnh đã gửi trước đó được nhà cung cấp đọc lại từ cache, rẻ hơn nhiều, nên không cộng vào nữa: lượt chat thứ hai trên Claude Code hiện khoảng 4,5k token thay vì 53k. Rê chuột vào dòng đó để thấy số token cache, ví dụ "45k token cache". Áp dụng cho Claude Code và ChatGPT (Codex).
+### Sửa lỗi
+- **Hỏi giờ giữa một cuộc chat dài trên Claude Code giờ trả lời đúng giờ.** Trước đây Javis có thể trả lời theo giờ của tin nhắn đầu tiên trong cuộc chat.
+
 ## [0.344.0] - 2026-10-27
 ### Cải thiện
 - **Kiểm tra tự động trước khi phát hành nhanh hơn nhiều.** Trước đây mỗi lần sửa code phải chờ khoảng 68 phút để chạy hết gần 1.000 bài kiểm tra, lần lượt từng bài. Giờ bài kiểm tra chia cho 2 máy, mỗi máy chạy 4 bài cùng lúc, nên bản sửa lỗi tới tay bạn sớm hơn. Số bài kiểm tra giữ nguyên, không bỏ bài nào.

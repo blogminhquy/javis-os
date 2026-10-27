@@ -331,7 +331,7 @@ check("đường chưa gán cũng quy về đường cũ, không nói 'chưa rõ
 # làm (chủ repo báo "có chỗ thì không hiện gì"). Bài kiểm đầy đủ - mọi gói `response` đều
 # phải mang nhãn - nằm ở test_duong_tat_bi_chan.
 check("CANARY: các nhánh engine đều gắn thông tin đường chạy",
-      _MAIN.count("**_ctx_frame(runtime_trace, _ctx_in)") >= 3)
+      _MAIN.count("**_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)") >= 3)
 check("có cộng dồn token vào của lượt", _MAIN.count("_ctx_in +=") >= 3)
 check("giao diện có hàm vẽ dòng đó", "function _renderCtxLine(" in _APP and "msg-ctx" in _APP)
 # Định nghĩa hàm cũng chứa "_renderCtxLine(msgEl, data" nên phải soi lời GỌI có dấu chấm phẩy,

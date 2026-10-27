@@ -34,22 +34,25 @@ class _Cli:
 tok = fast_mode.use(True)
 c = _Cli("claude-opus-5-5")
 srv._cli_fast(c)
-check("Claude Code + bolt on + Opus 5.5: fastMode setting", json.loads(c.fast_settings or "{}") == {"fastMode": True}, c.fast_settings)
+check("Claude Code + bolt on + Opus 5.5: fastMode setting", json.loads(c.fast_settings or "{}").get("fastMode") is True, c.fast_settings)
 s = _Cli("claude-sonnet-5-5")
 srv._cli_fast(s)
-check("Claude Code + Sonnet: fastMode false (model does not support it)", json.loads(s.fast_settings) == {"fastMode": False})
+check("Claude Code + Sonnet: fastMode false (model does not support it)", json.loads(s.fast_settings).get("fastMode") is False)
 fast_mode.CURRENT.reset(tok)
 o = _Cli("claude-opus-5-5")
 srv._cli_fast(o)
-check("Claude Code + bolt off: fastMode false, so a persisted /fast cannot bill 2x", json.loads(o.fast_settings) == {"fastMode": False})
+check("Claude Code + bolt off: fastMode false, so a persisted /fast cannot bill 2x", json.loads(o.fast_settings).get("fastMode") is False)
 
 e = ClaudeSDK(tag="chat", model="claude-opus-5-5")
 e.fast_settings = fast_mode.claude_sdk_settings("claude-opus-5-5", True)
 opts = e._options()
-check("ClaudeAgentOptions carries settings when fast", getattr(opts, "settings", None) == '{"fastMode": true}', getattr(opts, "settings", None))
+# 0.345.0: settings also carries claudeMdExcludes (test_token_luot_claude.py), so read the fastMode field.
+check("ClaudeAgentOptions carries settings when fast",
+      json.loads(getattr(opts, "settings", None) or "{}").get("fastMode") is True, getattr(opts, "settings", None))
 e2 = ClaudeSDK(tag="chat", model="claude-opus-5-5")
 check("background Claude Code runs (never touched by _cli_fast) send fastMode false",
-      getattr(e2._options(), "settings", None) == '{"fastMode": false}', getattr(e2._options(), "settings", None))
+      json.loads(getattr(e2._options(), "settings", None) or "{}").get("fastMode") is False,
+      getattr(e2._options(), "settings", None))
 
 # The SDK passes Claude Code's init data through; Javis remembers the real Fast mode state.
 from claude_agent_sdk import SystemMessage  # noqa: E402
