@@ -60,16 +60,17 @@ MOBILE_CHAT = (ROOT / "dashboard" / "mobile-chat.js").read_text(encoding="utf-8"
 check("mobile-chat đo visualViewport và gắn lớp kb-open",
       "visualViewport" in MOBILE_CHAT and '"kb-open"' in MOBILE_CHAT and "--vv-h" in MOBILE_CHAT)
 _sync_viewport = re.search(r"function syncKeyboard\(\) \{([\s\S]*?)\n    \}\n    function henKeyboard", MOBILE_CHAT)
-check("mobile shell keeps visualViewport geometry with the keyboard closed",
-      'document.body.classList.toggle("vv-layout", mq.matches);' in MOBILE_CHAT
-      and 'body.vv-layout .hud {' in CSS
-      and 'body.vv-layout .cview {' in CSS
+check("idle PWA does not apply double visualViewport offsets",
+      '"vv-layout"' not in MOBILE_CHAT
+      and 'body.vv-layout .hud {' not in CSS
+      and 'body.vv-layout .cview {' not in CSS
       and _sync_viewport is not None
-      and _sync_viewport.group(1).find('rootStyle.setProperty("--vv-h"') >= 0
-      and _sync_viewport.group(1).find('rootStyle.setProperty("--vv-h"')
-      < _sync_viewport.group(1).find("var mo ="))
+      and _sync_viewport.group(1).find("var mo =")
+      < _sync_viewport.group(1).find('rootStyle.setProperty("--vv-h"'))
+check("iOS standalone does not force deprecated translucent status bar",
+      'name="apple-mobile-web-app-status-bar-style" content="black-translucent"' not in INDEX)
 check("khung chat đặt theo vùng nhìn thấy khi bàn phím mở",
-      "body.vv-layout .hud {" in CSS and "var(--vv-h" in CSS and "body.vv-layout .cview {" in CSS)
+      "body.kb-open .hud {" in CSS and "var(--vv-h" in CSS and "body.kb-open .cview {" in CSS)
 check("bàn phím mở thì ô nhập bỏ lề an toàn", "body.kb-open .hud-voice { margin-bottom: 6px; }" in CSS)
 check("trang quản lý không cộng chồng hai lề đáy dưới ô nhập", ".cview .hud-voice { margin-bottom: 0; }" in CSS)
 check("Android co trang theo bàn phím", "interactive-widget=resizes-content" in INDEX)
@@ -79,7 +80,7 @@ check("menu chip Coding có nền đặc, không dùng lớp phủ trong suốt"
 
 # 0.64.64: .hud KHÔNG được fixed khi bàn phím mở - fixed dựng ngữ cảnh xếp chồng mới và ép
 # bảng chọn model (con của header) xuống dưới .cview, kẹt sau khung chat.
-_kb = re.search(r"body\.vv-layout \.hud \{[^}]*\}", CSS)
+_kb = re.search(r"body\.kb-open \.hud \{[^}]*\}", CSS)
 check("khung chính khi bàn phím mở không dựng ngữ cảnh xếp chồng (không fixed)",
       _kb is not None and "position: fixed" not in _kb.group(0) and "position: relative" in _kb.group(0))
 PICKER = (ROOT / "dashboard" / "model-picker.js").read_text(encoding="utf-8")

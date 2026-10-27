@@ -213,8 +213,11 @@
     function syncKeyboard() {
       kbHen = 0;
       if (!vv) return;
-      document.body.classList.toggle("vv-layout", mq.matches);
-      if (mq.matches) {
+      var go = dangGo();
+      if (!go || !mocCao) mocCao = Math.max(go ? mocCao : 0, vv.height);
+      var mo = mq.matches && go && mocCao - vv.height > 120;
+      document.body.classList.toggle("kb-open", mo);
+      if (mo) {
         rootStyle.setProperty("--vv-h", Math.round(vv.height) + "px");
         rootStyle.setProperty("--vv-top", Math.max(0, Math.round(vv.offsetTop)) + "px");
         rootStyle.setProperty("--vv-ptop", Math.max(0, Math.round(vv.pageTop)) + "px");
@@ -223,10 +226,6 @@
         rootStyle.removeProperty("--vv-top");
         rootStyle.removeProperty("--vv-ptop");
       }
-      var go = dangGo();
-      if (!go || !mocCao) mocCao = Math.max(go ? mocCao : 0, vv.height);
-      var mo = mq.matches && go && mocCao - vv.height > 120;
-      document.body.classList.toggle("kb-open", mo);
     }
     function henKeyboard() {
       if (!kbHen) kbHen = (window.requestAnimationFrame || setTimeout)(syncKeyboard);

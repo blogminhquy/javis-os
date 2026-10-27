@@ -978,18 +978,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .cview .hud-voice { margin-bottom: 0; }
   .cview .chatpage-main, .cview .ws-main { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
 
-  /* Installed iOS PWAs can report a visible viewport that differs from 100dvh with the
-     keyboard closed. Use visualViewport for the shell in every mobile state. Keep the HUD
-     relative so its header and model picker do not fall behind the sibling console view. */
-  body.vv-layout .hud {
+  /* Keep visualViewport positioning ONLY while the keyboard is open.
+     Do not apply pageTop + offsetTop to the resting standalone PWA shell. */
+  body.kb-open .hud {
     position: relative; top: var(--vv-ptop, 0px);
     height: var(--vv-h, 100dvh);
   }
-  body.vv-layout .hud-top { top: var(--vv-top, 0px); }
-  body.vv-layout .cview {
+  body.kb-open .hud-top { top: var(--vv-top, 0px); }
+  body.kb-open .cview {
     top: calc(var(--vv-top, 0px) + var(--topbar-h)); bottom: auto;
     height: calc(var(--vv-h, 100dvh) - var(--topbar-h));
   }
+  /* Leave the existing native iPhone safe-area spacing unchanged when idle. */
   /* The home indicator is below the virtual keyboard, so do not reserve its safe area there. */
   body.kb-open .hud-voice { margin-bottom: 6px; }
   body.kb-open .cview .hud-voice { margin-bottom: 0; }
