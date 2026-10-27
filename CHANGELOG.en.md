@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.345.0] - 2026-10-27
+### Improved
+- **Each answer costs far fewer tokens.** (in progress)
+
 ## [0.344.0] - 2026-10-27
 ### Improved
 - **The automatic checks before each release are much faster.** Every code change used to wait about 68 minutes while nearly 1,000 tests ran one after another. Now the tests are split across 2 machines that each run 4 at a time, so fixes reach you sooner. The same tests still run, none were dropped.
