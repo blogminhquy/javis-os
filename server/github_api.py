@@ -157,6 +157,9 @@ class GitHub:
         """Merge the base branch into the PR branch (branch protection that wants it up to date)."""
         self.put(f"/repos/{full_name}/pulls/{int(number)}/update-branch", json={"expected_head_sha": expected_head})
 
+    def comment(self, full_name: str, number: int, body: str) -> None:
+        self.post(f"/repos/{full_name}/issues/{int(number)}/comments", json={"body": body})
+
     # ---- checks ----
     def check_runs(self, full_name: str, sha: str) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []

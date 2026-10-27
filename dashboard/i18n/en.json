@@ -6052,5 +6052,15 @@
   "gh.queue_head": "Next jobs, run once the PR is merged",
   "gh.queue_cancel": "Drop",
   "gh.detail_head": "GitHub of this chat",
-  "gh.auto_merge": "Auto-merge on green CI"
+  "gh.auto_merge": "Auto-merge on green CI",
+  "gh.metrics": "Numbers",
+  "gh.metrics_head": "Numbers per model: {name}",
+  "gh.metrics_how": "Every merged job records the engine and model that wrote it, whether CI was green on the first push, how many fix rounds it took, how many issues the cross review caught and how long it took. After a few dozen jobs this table shows which model fits this repo, in real numbers.",
+  "gh.m_model": "Engine · model",
+  "gh.m_jobs": "Jobs",
+  "gh.m_first": "Green first push",
+  "gh.m_rounds": "Avg fix rounds",
+  "gh.m_findings": "Review findings",
+  "gh.m_minutes": "Avg minutes",
+  "gh.m_none": "No job merged on this repo yet."
 }

@@ -6052,5 +6052,15 @@
   "gh.queue_head": "Việc kế tiếp, làm khi PR đã merge",
   "gh.queue_cancel": "Bỏ",
   "gh.detail_head": "GitHub của cuộc trò chuyện",
-  "gh.auto_merge": "Tự merge khi CI xanh"
+  "gh.auto_merge": "Tự merge khi CI xanh",
+  "gh.metrics": "Số đo",
+  "gh.metrics_head": "Số đo theo model: {name}",
+  "gh.metrics_how": "Mỗi việc đã merge ghi lại engine và model đã viết code, CI có xanh ngay lần đẩy đầu không, mấy vòng sửa, review chéo bắt được mấy lỗi và mất bao lâu. Sau vài chục việc, bảng này cho biết model nào hợp với repo này bằng số thật.",
+  "gh.m_model": "Engine · model",
+  "gh.m_jobs": "Việc",
+  "gh.m_first": "Xanh lần đầu",
+  "gh.m_rounds": "Vòng sửa TB",
+  "gh.m_findings": "Lỗi review bắt",
+  "gh.m_minutes": "Phút TB",
+  "gh.m_none": "Chưa có việc nào merge ở repo này."
 }

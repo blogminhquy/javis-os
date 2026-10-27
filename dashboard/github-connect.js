@@ -88,6 +88,7 @@
             '<label class="gh-auto"><input type="checkbox" data-gh-auto="' + esc(r.full_name) + '"' + (r.auto_merge !== false ? " checked" : "") + "> " +
             esc(tw("gh.auto_merge")) + "</label>" +
             '<button class="s-btn-ghost" type="button" data-gh-checks="' + esc(r.full_name) + '">' + esc(tw("gh.checks")) + "</button>" +
+            '<button class="s-btn-ghost" type="button" data-gh-metrics="' + esc(r.full_name) + '">' + esc(tw("gh.metrics")) + "</button>" +
             '<button class="s-btn-ghost" type="button" data-gh-remove="' + esc(r.full_name) + '">' + esc(tw("gh.remove_brain")) + "</button></div>";
         }).join("") : '<div class="mp-empty">' + esc(tw("gh.local_none")) + "</div>") +
         '<div class="lv-msg" role="status" data-gh-msg></div></div>';
@@ -121,6 +122,9 @@
     };
     cardHost.querySelectorAll("[data-gh-auto]").forEach(function (b) {
       b.onchange = function () { api("/github/local/automerge", { brain: pageBrain(), full_name: b.getAttribute("data-gh-auto"), on: b.checked ? "1" : "0" }); };
+    });
+    cardHost.querySelectorAll("[data-gh-metrics]").forEach(function (b) {
+      b.onclick = function () { openMetrics(b.getAttribute("data-gh-metrics")); };
     });
     cardHost.querySelectorAll("[data-gh-checks]").forEach(function (b) {
       b.onclick = function () { openChecks(b.getAttribute("data-gh-checks")); };
@@ -165,6 +169,20 @@
     form.querySelector('[data-f="save"]').onclick = function () { send({ commands: box.value }); };
     form.querySelector('[data-f="reset"]').onclick = function () { send({ reset: "1" }); };
     form.querySelector('[data-f="cancel"]').onclick = function () { M.close(); };
+  }
+  // Numbers per engine and model for one repo (spec 13.2): pick a model with data, not with a hunch.
+  async function openMetrics(name) {
+    var M = window.JavisConnModal;
+    if (!M) return;
+    var d = await api("/github/local/metrics?full_name=" + encodeURIComponent(name));
+    var rows = (d && d.rows) || [];
+    var body = rows.length ? '<div class="gh-table-wrap"><table class="gh-table"><thead><tr><th>' + esc(tw("gh.m_model")) + "</th><th>" +
+      esc(tw("gh.m_jobs")) + "</th><th>" + esc(tw("gh.m_first")) + "</th><th>" + esc(tw("gh.m_rounds")) + "</th><th>" + esc(tw("gh.m_findings")) +
+      "</th><th>" + esc(tw("gh.m_minutes")) + "</th></tr></thead><tbody>" + rows.map(function (r) {
+        return "<tr><td>" + esc(r.engine + (r.model ? " · " + r.model : "")) + "</td><td>" + r.jobs + "</td><td>" + r.first_push_green_pct +
+          "%</td><td>" + r.avg_fix_rounds + "</td><td>" + r.review_findings + "</td><td>" + r.avg_minutes + "</td></tr>";
+      }).join("") + "</tbody></table></div>" : '<div class="mp-empty">' + esc(tw("gh.m_none")) + "</div>";
+    M.open(M.head(esc(tw("gh.metrics_head", { name: name }))) + '<div class="conn-form">' + infoBody(esc(tw("gh.metrics_how"))) + body + "</div>", 680);
   }
   function openForm(st) {
     var M = window.JavisConnModal;

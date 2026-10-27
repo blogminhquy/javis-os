@@ -38,6 +38,7 @@ class FakeGitHub:
         self.logs = {}            # job id -> text
         self.reruns = []          # job ids
         self.calls = []           # (method, path)
+        self.comments = []        # (full_name, number, body)
         self.scopes = scopes
         self.login = login
         self.token = GOOD_TOKEN
@@ -220,6 +221,10 @@ class FakeGitHub:
                           "base": {"ref": body.get("base") or rep["default_branch"]}, "merge_commit_sha": None}
                     fake.pulls[fn].append(pr)
                     return self._send(201, pr)
+                mc = re.match(r"^/issues/(\d+)/comments$", rest)
+                if mc and method == "POST":
+                    fake.comments.append((fn, int(mc.group(1)), body.get("body")))
+                    return self._send(201, {"id": len(fake.comments)})
                 mu = re.match(r"^/pulls/(\d+)/update-branch$", rest)
                 if mu and method == "PUT":
                     pr = next((p for p in fake.pulls[fn] if p["number"] == int(mu.group(1))), None)
