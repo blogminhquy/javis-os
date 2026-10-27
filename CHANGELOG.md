@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.365.0] - 2026-10-28
+### Thêm mới
+- **CI xanh là Javis tự merge PR**, có công tắc bật tắt cho từng repo trên thẻ GitHub. Thay đổi bị đánh dấu, còn góp ý chưa xử lý, repo không có CI hay repo còn điều kiện chưa đạt thì không tự merge. Người vẫn bấm Merge được trong bảng chi tiết.
+- **Mỗi cuộc trò chuyện có biểu tượng trạng thái GitHub** ngay cạnh tên trong danh sách chat: đang làm, sẵn sàng, đã merge, cần người xem. Bấm vào để xem nhánh, PR, kết quả kiểm tra và lý do bị kẹt.
+- **Xếp hàng việc tiếp theo:** việc mới chỉ bắt đầu khi PR trước đã merge và kiểm tra sau merge đã xanh. Nhánh tụt sau main thì GitHub cập nhật trước, xung đột thì Javis mở một vòng sửa.
+
 ## [0.364.0] - 2026-10-28
 ### Thêm mới
 - **Javis tự đẩy code lên GitHub và mở PR nháp** sau lượt chat có sửa repo và qua được bước kiểm tra. Commit đứng tên tài khoản đã kết nối, không bao giờ đẩy đè.
