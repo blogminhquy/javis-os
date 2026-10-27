@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.348.0] - 2026-10-27
 ### Sửa lỗi
-- **Chọn model cho trợ lý bấm được vào tên nhà cung cấp.** (đang viết)
+- **Chọn model cho trợ lý: bấm tên nhà cung cấp là sổ ra danh sách model.** Trước đây ở trang Cộng sự, bấm vào tên nhà cung cấp (Claude Code, ChatGPT...) trong ô Model thì cả bảng đóng mất, không chọn được model nào ngoài nhà đang sổ sẵn.
 
 ## [0.347.0] - 2026-10-27
 ### Cải thiện

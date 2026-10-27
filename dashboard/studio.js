@@ -901,7 +901,11 @@
       // So bằng CHÍNH phần tử, không phải closest("#agModelPick"): trang Cộng sự có thể đang
       // mở form trong cột phải trong khi Studio bật thêm form trong modal, tức hai khung cùng
       // id trên một trang - so theo id là bấm vào khung này lại không đóng khung kia.
-      if (!mPop.hidden && !(mPick && mPick.contains(e.target))) dongPop();
+      // 0.348.0: follow the click's path, not e.target. Clicking a provider name redraws the list right away
+      // (veModelPop), so by the time this runs the clicked row has left the DOM, contains() says "outside" and the
+      // list closed instead of opening that provider (owner, 27/10/2026). Same fix as chat-goal.js.
+      const duong = e.composedPath ? e.composedPath() : [e.target];
+      if (!mPop.hidden && !(mPick && duong.indexOf(mPick) >= 0)) dongPop();
     };
     const escKhung = (e) => {
       if (!mPop || !mPop.isConnected) { document.removeEventListener("keydown", escKhung); return; }

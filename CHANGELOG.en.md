@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.348.0] - 2026-10-27
 ### Fixed
-- **The assistant's model list opens a provider again.** (in progress)
+- **Picking an assistant's model: clicking a provider name opens its models.** On the Partners page, clicking a provider (Claude Code, ChatGPT...) in the Model list used to close the whole list, so only the provider already open could be picked from.
 
 ## [0.347.0] - 2026-10-27
 ### Improved
