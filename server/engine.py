@@ -632,6 +632,17 @@ DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODELS_URL = "https://api.deepseek.com/models"
 DEEPSEEK_DEFAULT_MODEL = "deepseek-flash"
 
+# 0.355.0: the model each API engine runs when its card leaves the model on "default". The Models page shows this name
+# next to "default"; the fallbacks in the engine functions below must stay equal to it (tests/python/test_model_mac_dinh.py).
+DEFAULT_MODELS = {
+    "openai": "gpt-4o-mini",
+    "gemini": "gemini-2.5-flash",
+    "anthropic-api": "claude-sonnet-4-6",
+    "openrouter": "openai/gpt-4o-mini",
+    "groq": GROQ_DEFAULT_MODEL,
+    "deepseek": DEEPSEEK_DEFAULT_MODEL,
+}
+
 # Ollama - model chạy NGAY TRÊN MÁY người dùng. Khác mọi provider trên ở hai điểm, và cả hai
 # đều ăn vào cách viết mã chứ không chỉ là cấu hình:
 #   1. KHÔNG có API key. Nó nghe trên máy nhà nên không có gì để xác thực. Header Authorization

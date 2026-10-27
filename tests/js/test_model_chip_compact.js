@@ -30,7 +30,9 @@ Object.keys(cases).forEach((id) => check("model name: " + id + " -> " + cases[id
 check("chip text is the model name only, provider and pin move to the tooltip",
   /mt\.textContent = chipLabel\(eff, p\);/.test(mp) && !/mt\.textContent = \(p \? provShort/.test(mp)
   && /mt\.title = \(p \? p\.label/.test(mp));
-check("no model set: the provider name stands in", /eff\.model \? prettyModel\(eff\.model\) : \(p \? provShort\(p\.label\) : "Model"\)/.test(mp));
+// 0.355.0: no model set names the provider's default model when the server knows it, else the provider name stands in.
+check("no model set: the default model's name, else the provider name",
+  /\(state\.defaults \|\| \{\}\)\[eff\.provider\] \? prettyModel\(state\.defaults\[eff\.provider\]\) : \(p \? provShort\(p\.label\) : "Model"\)/.test(mp));
 check("a broken pin still shows, as the dot colour", /classList\.toggle\("is-pin-broken", pinBroken\)/.test(mp)
   && css.includes(".mb-chip.is-pin-broken .mb-dot { background: var(--warn-ink); }"));
 check("the per-session pin stays visible: a pin icon on the chip, in words for screen readers",

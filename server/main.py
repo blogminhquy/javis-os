@@ -5690,6 +5690,34 @@ def settings_get():
     return safe
 
 
+def _default_model_name(mcfg, prov: str) -> str:
+    """The model a card runs when its model is left on "default" (0.355.0, owner 27/10: "default" alone tells nothing).
+    "" when only the CLI itself knows (it picks by plan and we cannot read it): the page then says "default" alone."""
+    try:
+        if prov == "openrouter" and (mcfg.get("openrouter_model") or "").strip():
+            return mcfg["openrouter_model"].strip()
+        if prov in engine.DEFAULT_MODELS:
+            return engine.DEFAULT_MODELS[prov]
+        if prov == "openai-oauth":
+            m = _codex_safe_model("")
+            if m:
+                return m
+            cfg = grok_cli._doc_toml(plan_accounts.default_home(prov) / "config.toml")
+            return str(cfg.get("model") or "").strip()
+        if prov == "anthropic-cli":
+            m = (mcfg.get("claude_model") or "").strip()
+            if m:
+                return m
+            f = plan_accounts.default_home(prov) / "settings.json"
+            return str((json.loads(f.read_text(encoding="utf-8")) or {}).get("model") or "").strip() if f.is_file() else ""
+        if prov == "grok-cli":
+            cfg = grok_cli._doc_toml(plan_accounts.default_home(prov) / "config.toml")
+            return str(((cfg.get("models") or {}) or {}).get("default") or "").strip()
+    except Exception:  # noqa: BLE001 - an unreadable config only means the plain "default" label
+        pass
+    return ""
+
+
 def _routing_view(mcfg, providers) -> dict:
     """What the Models page draws (spec 2.1-2.4): the usage order of signed-in cards, each card's model and effort,
     the background model, and which card chat and background work run on right now. Built from the provider list
@@ -5707,7 +5735,8 @@ def _routing_view(mcfg, providers) -> dict:
         print(f"[routing] view: {type(e).__name__}: {e}", file=sys.stderr)
     return {"order": o, "profiles": {p: model_routing.profile(mcfg, p) for p in o},
             "background": model_routing.background_spec(mcfg), "chat_in_use": chat, "bg_in_use": bg,
-            "multi_key": list(_routing_key_fields()), "multi_plan": list(plan_accounts.KIND)}
+            "multi_key": list(_routing_key_fields()), "multi_plan": list(plan_accounts.KIND),
+            "defaults": {p["id"]: d for p in providers if (d := _default_model_name(mcfg, p["id"]))}}
 
 
 @app.post("/settings")

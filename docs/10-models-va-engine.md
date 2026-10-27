@@ -276,7 +276,7 @@ Thẻ nào lên đầu là thành MAIN ngay, không phải bấm lưu.
 
 **Model và Effort của từng thẻ.** Mỗi thẻ có hai chip giống hệt chip dưới khung chat:
 
-- **Chip model** (chấm xanh, tên model, ▾): mở danh sách model của riêng nhà đó, có ô tìm ở trên. Dòng đầu **mặc định** nghĩa là dùng model mặc định của nhà cung cấp. Danh sách được nạp từ chính nhà cung cấp, nên mới đổi tên model là thấy ngay.
+- **Chip model** (chấm xanh, tên model, ▾): mở danh sách model của riêng nhà đó, có ô tìm ở trên. Dòng đầu **mặc định** nghĩa là dùng model mặc định của nhà cung cấp; Javis biết đó là model nào thì ghi tên trong ngoặc, ví dụ **mặc định (llama-3.3-70b-versatile)**. Thẻ gói (Claude Code, ChatGPT, Grok, Antigravity) chưa đặt model thì do chính CLI tự chọn theo gói, trang ghi **mặc định của CLI (tự chọn theo gói)**. Danh sách được nạp từ chính nhà cung cấp, nên mới đổi tên model là thấy ngay.
 - **Chip Effort** (mức, ▾): mở thanh trượt 6 nấc **Off**, **Light**, **Medium**, **High**, **Extra**, **Ultra** (xem mục F).
 
 Mỗi thẻ nhớ model và Effort riêng, nên đổi thứ tự không làm mất lựa chọn của thẻ nào. Effort của thẻ MAIN chính là mức hiện trên chip Effort ở khung chat.
@@ -297,7 +297,7 @@ Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và *
 
 **Thêm tài khoản.** Khi thẻ đã đăng nhập và nằm trong Thứ tự dùng, dưới phần đăng nhập có nút **＋ Thêm tài khoản**:
 
-1. Bấm **＋ Thêm tài khoản** và gõ tên cho tài khoản (ví dụ "Gói của vợ").
+1. Bấm **＋ Thêm tài khoản** và gõ tên cho tài khoản (ví dụ "Gói Pro 2" hay "Gói Max 200").
 2. Đọc dòng cảnh báo nhẹ: "Nhiều tài khoản cho một gói có nguy cơ bị khoá, dù Javis chưa ghi nhận ca nào. Nếu gặp, hãy báo cho nhà phát triển qua mục Issues trên GitHub của Javis."
 3. Bấm **Lấy link đăng nhập**, mở link trên máy nào cũng được, rồi đăng nhập đúng tài khoản cần thêm.
    - **ChatGPT** và **Grok Build**: thẻ hiện link kèm một mã. Đăng nhập xong là tự hoàn tất: trang kiểm tra mỗi 3 giây, chờ tối đa 15 phút.
