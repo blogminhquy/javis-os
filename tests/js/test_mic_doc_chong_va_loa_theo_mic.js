@@ -88,7 +88,8 @@ check("CANARY: thả Space KHÔNG tắt loa", !/JavisTts/.test(keyup));
 // 7 từ 0.58.2: chỗ thứ 7 cũng HOÃN - câu gửi lúc mất WebSocket, gửi lại khi nối lại được.
 // 10 từ 0.65.28: chỗ thứ 10 cũng HOÃN - câu nói lúc Javis đang trả lời trong cuộc gọi, gửi khi lượt xong.
 // 11 từ 0.203.0: chỗ thứ 11 là cú bấm Nghe trên thẻ cuộc gọi hẹn giờ (người bấm, không phải mic tự gửi).
-check("có 11 chỗ (thêm cú bấm Nghe cuộc gọi hẹn giờ) gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 11,
+// 10 từ 0.349.0: nút "Gửi lại câu này" thành nút Tua lại, chỉ đưa câu hỏi về ô nhập chứ không tự gửi.
+check("có 10 chỗ (thêm cú bấm Nghe cuộc gọi hẹn giờ, bớt nút Gửi lại) gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 10,
   (app.match(/(?<!function )\bsendMessage\(/g) || []).length);
 
 // ---- 5. Mic là công tắc DUY NHẤT (chủ repo chốt 02/09: "không cần nút bật tắt loa nữa") ----

@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.349.0] - 2026-10-27
+### Cải thiện
+- **Tua lại hội thoại từ một câu hỏi.** Dưới mỗi câu bạn hỏi giờ có nút ↺ Tua lại, thay cho hai nút Gửi lại và Sửa lại. Bấm vào, Javis hỏi xác nhận rồi xoá câu đó cùng mọi thứ bên dưới, đưa câu hỏi về ô nhập để bạn sửa hoặc gửi lại. Hội thoại đi tiếp từ đó, bộ não đang chat cũng quên phần đã xoá. Đang trả lời thì bấm Dừng trước rồi mới tua lại được.
+
 ## [0.348.0] - 2026-10-27
 ### Sửa lỗi
 - **Chọn model cho trợ lý: bấm tên nhà cung cấp là sổ ra danh sách model.** Trước đây ở trang Cộng sự, bấm vào tên nhà cung cấp (Claude Code, ChatGPT...) trong ô Model thì cả bảng đóng mất, không chọn được model nào ngoài nhà đang sổ sẵn.

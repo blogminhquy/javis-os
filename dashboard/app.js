@@ -2261,7 +2261,7 @@ window.JavisSessions = { open: openStoredSession, new: newChat, brain: () => cur
 // Báo các UI khác (sidebar Lịch sử trong chat workspace) biết phiên/danh sách vừa đổi
 function notifySessions() { try { window.dispatchEvent(new Event("javis:sessions-changed")); } catch (e) {} }
 
-// Hàng nút dưới bong bóng (giờ + gửi lại / sửa lại / copy). Tách sang chat-acts.js để
+// Hàng nút dưới bong bóng (giờ + tua lại / trích dẫn / copy). Tách sang chat-acts.js để
 // test được bằng node; ở đây chỉ là lối thoát khi file đó chưa kịp nạp.
 function actsHtml(role, ts, canResend) {
   return window.JavisActs ? window.JavisActs.actsHtml(role, ts, canResend) : "";
@@ -2397,7 +2397,7 @@ function appendUserMessage(text, attachments, ts) {
   text = chuNguoiGo(text);
   const div = document.createElement("div");
   div.className = "msg msg-user";
-  div.dataset.text = text || "";   // giữ nguyên văn để gửi lại / sửa lại đúng chữ gốc
+  div.dataset.text = text || "";   // giữ nguyên văn để tua lại đúng chữ gốc
   const attHtml = attachHtml(attachments);
   // Tin dài (>10 dòng hoặc >900 ký tự) thu gọn lại, bấm "Xem thêm" để mở (chat-acts.js, dùng chung với trang Nhóm)
   const isLong = window.JavisActs.isLongText(text);
@@ -2707,9 +2707,8 @@ function flashCopied(btn, label) {
   btn.innerHTML = ic("check", { cls: "ic-ok" }) + " " + window.t("app.copied");
   setTimeout(() => { btn.textContent = label || old; }, 1200);
 }
-// Bấm một nút trong hàng .msg-acts. Gửi lại / sửa lại đều lấy chữ GỐC của tin người
-// dùng (dataset.text) chứ không đọc lại DOM, vì tin dài đang thu gọn và tin Javis đã
-// thành HTML. Gửi lại = một lượt MỚI ở cuối hội thoại, không xoá gì của lượt cũ.
+// Bấm một nút trong hàng .msg-acts. Tua lại lấy chữ GỐC của tin người dùng (dataset.text)
+// chứ không đọc lại DOM, vì tin dài đang thu gọn và tin Javis đã thành HTML.
 function runMsgAct(btn) {
   const msgEl = btn.closest(".msg");
   if (!msgEl) return;
@@ -2743,20 +2742,47 @@ function runMsgAct(btn) {
     }
     return;
   }
-  // Chi tin NGUOI DUNG mang nut gui lai / sua lai, nen chu goc luon nam ngay tren chinh no.
+  // Chi tin NGUOI DUNG mang nut tua lai, nen chu goc luon nam ngay tren chinh no.
   // Truoc day con mot nhanh nguoc len tim tin nguoi dung gan nhat - do la duong cua nut "tra
   // loi lai cau hoi phia tren" o tin Javis, da bo o 0.52.13.
   const text = msgEl.dataset.text || "";
   if (!text) return;
-  if (act === "edit") {
-    // Chỉ đổ chữ vào ô nhập, KHÔNG tự gửi - để anh sửa xong tự bấm gửi.
-    chatInput.value = text;
-    chatInput.style.height = "auto";
-    chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + "px";
-    try { chatInput.focus(); chatInput.setSelectionRange(text.length, text.length); } catch (e) {}
+  if (act === "rewind") tuaLai(msgEl, text);
+}
+// Put a question back in the composer, NOT sent, so it can be edited first.
+function datVaoONhap(text) {
+  chatInput.value = text;
+  chatInput.style.height = "auto";
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + "px";
+  try { chatInput.focus(); chatInput.setSelectionRange(text.length, text.length); } catch (e) {}
+}
+// 0.349.0: Rewind (owner, 27/10/2026). Delete this question and everything after it on the server (the engines'
+// threads too), redraw the chat from what is left, and put the question back in the composer: the conversation goes
+// on from there. It replaces "Send again" and "Edit": sending the restored question unchanged is the old resend.
+// Deleting cannot be undone, so it asks first, and it waits while Javis is answering (Stop first).
+async function tuaLai(msgEl, text) {
+  if (isProcessing) { alert(window.t("cact.rewind_busy")); return; }
+  const sid = savedSessionId;
+  if (!sid) { datVaoONhap(text); return; }
+  if (!confirm(window.t("cact.rewind_confirm"))) return;
+  // The bubble knows only the text, so the server finds the question by it, counted from the end: nth = how many
+  // later questions carry the same text.
+  const sau = [...chatArea.querySelectorAll(".msg-user")];
+  const nth = sau.slice(sau.indexOf(msgEl) + 1).filter(el => (el.dataset.text || "") === text).length;
+  const fd = new FormData();
+  fd.append("text", text);
+  fd.append("nth", String(nth));
+  let d = null;
+  try {
+    const r = await fetch(`/sessions/${encodeURIComponent(sid)}/rewind`, { method: "POST", body: fd });
+    d = await r.json();
+  } catch (e) { d = { error: String(e && e.message || e) }; }
+  if (!d || !d.ok) {
+    alert(d && d.ly_do === "dang_chay" ? window.t("cact.rewind_busy") : window.t("cact.rewind_fail") + ((d && d.error) || ""));
     return;
   }
-  if (act === "retry" && !isProcessing) sendMessage(text);
+  if (savedSessionId === sid) await openStoredSession(sid);
+  datVaoONhap(text);
 }
 chatArea.addEventListener("click", (e) => {
   const t = e.target;

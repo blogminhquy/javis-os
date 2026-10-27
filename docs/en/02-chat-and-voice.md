@@ -322,14 +322,15 @@ Hovering over a message (yours or Javis's) reveals a small button row underneath
 | Button | Tooltip | What it does |
 |---|---|---|
 | Timestamp | The full date, for example "Wednesday, 29/07/2026 14:05" | Display only |
-| ↻ | "Send this again" (your message) or "Answer the question above again" (Javis's message) | Resends the original text as a NEW turn at the end of the conversation, deleting nothing from the old turn |
-| ✎ | "Edit and send" | Only on your messages. Loads the original text into the input for editing; it does **not** send by itself |
+| ↺ | "Rewind to here" | Only on your messages. Asks first, then **deletes this message and everything below it** and puts the question back in the input to edit or resend; the conversation goes on from there as if the deleted turns never happened |
 | ⧉ | "Copy content" | Copies the whole message; the button briefly reads "✓ Copied" |
 
 Common points:
 
-- While a turn is running, ↻ dims and cannot be clicked, which prevents overlapping turns.
-- Messages with only an image and no text have no ↻ or ✎ buttons (there is nothing to resend).
+- While a turn is running, ↺ dims and cannot be clicked: press Stop first, then rewind.
+- Rewind really deletes, on the server too (a reload does not bring it back) and from the chatting brain's memory: on the next turn Javis only knows what is above. It cannot be undone, so Javis asks first.
+- To ask the same question again unchanged: rewind, then press send.
+- Messages with only an image and no text have no ↺ button (there is no text to put back).
 - Messages saved before timestamps existed simply hide the time rather than showing a made-up current time.
 - **Long** messages of yours (over 10 lines or over 900 characters) collapse, with **Show more** / **Show less** buttons.
 - Every code block has its own **⧉ Copy** button in the corner.

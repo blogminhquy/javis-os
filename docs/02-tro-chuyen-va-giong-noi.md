@@ -339,14 +339,15 @@ Rê chuột vào một tin nhắn (của bạn hay của Javis đều được) 
 | Nút | Gợi ý khi rê chuột | Làm gì |
 |---|---|---|
 | Giờ gửi | Ngày đầy đủ, ví dụ "Thứ tư, 29/07/2026 14:05" | Chỉ để xem |
-| ↻ | "Gửi lại câu này" (tin của bạn) hoặc "Trả lời lại câu hỏi phía trên" (tin của Javis) | Gửi lại đúng chữ gốc thành một lượt MỚI ở cuối hội thoại, không xoá gì của lượt cũ |
-| ✎ | "Sửa lại rồi gửi" | Chỉ có ở tin của bạn. Đổ chữ gốc vào ô nhập để bạn sửa; **không** tự gửi |
+| ↺ | "Tua lại từ câu này" | Chỉ có ở tin của bạn. Hỏi xác nhận, rồi **xoá câu này cùng mọi thứ bên dưới** và đưa câu hỏi về ô nhập để sửa hoặc gửi lại; hội thoại đi tiếp từ đó như thể các lượt đã xoá chưa từng có |
 | ⧉ | "Sao chép nội dung" | Copy cả tin nhắn, nút đổi thành "✓ Đã copy" trong giây lát |
 
 Vài điểm hay gặp:
 
-- Đang chạy một lượt thì nút ↻ mờ đi và không bấm được, tránh chồng lượt.
-- Tin chỉ có ảnh mà không kèm chữ thì không có nút ↻ và ✎ (không có gì để gửi lại).
+- Đang chạy một lượt thì nút ↺ mờ đi và không bấm được: bấm Dừng trước rồi mới tua lại.
+- Tua lại xoá thật, kể cả trên máy chủ (F5 vẫn mất) và trong trí nhớ của bộ não đang chat: lượt sau Javis chỉ còn biết phần phía trên. Không hoàn tác được, nên Javis hỏi lại trước khi xoá.
+- Muốn hỏi lại y nguyên một câu: tua lại rồi bấm gửi luôn.
+- Tin chỉ có ảnh mà không kèm chữ thì không có nút ↺ (không có chữ để đưa về ô nhập).
 - Tin lưu từ trước bản có mốc giờ thì phần giờ được ẩn đi chứ không lấy giờ hiện tại đắp vào.
 - Tin **dài** của bạn (trên 10 dòng hoặc trên 900 ký tự) được thu gọn, có nút **Xem thêm** / **Thu gọn** để mở ra đóng lại.
 - Mỗi khối code có nút **⧉ Copy** riêng ở góc.
