@@ -113,7 +113,7 @@ class CodingToolContext:
         goc = []
         try:
             for r in (coding_store.thu_muc_cua_phien(sid) or []):
-                d = str((r or {}).get("duong_dan") or "")
+                d = str((r or {}).get("lam_viec") or (r or {}).get("duong_dan") or "")
                 if d and Path(d).is_dir():
                     goc.append(str(Path(d).resolve()))
         except Exception:

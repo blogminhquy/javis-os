@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.362.0] - 2026-10-28
+### Added
+- **GitHub is built into the Connections page.** Paste a token once, or reuse the brain-backup token with one click. Nothing to install.
+- **Attach GitHub repos to a conversation:** press plus, pick GitHub repo, tick one or more repos. Javis downloads them to this machine (outside the brain folder), and each conversation works on its own branch and folder, so two chats editing the same repo never overwrite each other.
+- **Removing a repo from the brain** deletes only the local copy; the repo on GitHub stays as it is. Javis refuses while there are unsaved edits or commits not pushed yet.
+- This release does not push code to GitHub yet. Checking, pushing, opening a PR and watching CI come in the next releases.
+
 ## [0.361.0] - 2026-10-27
 ### Improved
 - **Internal:** the pet emotion test no longer fails at random on CI. The pet blinks at random moments, and about 1 run in 400 the test looked at the eyes during a blink frame. The test now lets the blink finish before it looks. The pet in the app is unchanged.
