@@ -175,6 +175,18 @@ class FakeGitHub:
                 path, q = u.path, {k: v[0] for k, v in parse_qs(u.query).items()}
                 with fake.lock:
                     fake.calls.append((method, path))
+                if path.startswith("/_control/"):
+                    # Test driver only (end-to-end runs in another process): set CI results, read PRs.
+                    body = self._body() if method == "POST" else {}
+                    with fake.lock:
+                        if path == "/_control/checks":
+                            fake.set_checks(body["sha"], [tuple(r) for r in body.get("runs") or []])
+                            return self._send(200, {"ok": True})
+                        if path == "/_control/state":
+                            return self._send(200, {"pulls": fake.pulls, "comments": fake.comments,
+                                                    "heads": {fn: {b: fake.branch_sha(fn, b) for b in q.get("branches", "main").split(",")}
+                                                              for fn in fake.repos}})
+                    return self._send(404, {"message": "no such control"})
                 if not self._auth():
                     return
                 body = self._body() if method in ("POST", "PUT", "PATCH") else {}
