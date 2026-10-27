@@ -39,22 +39,19 @@ const CON_CODE = khongComment(CON);
 const CODE_CODE = khongComment(CODE);
 
 // ============================================================
-// 1. "Code" là NHÓM RIÊNG trên rail, Terminal là một mục trong đó
+// 1. Terminal sits in the Capabilities group (0.347.0)
 // ============================================================
-// Nhãn nhóm rail nay là getter đọc từ điển (`t("nav.group.code")`) chứ không phải chuỗi
-// viết cứng, nên bám vào KHOÁ thay vì bám vào chữ hiển thị. Bám chữ hiển thị thì mỗi lần
-// đổi cách viết một nhãn là test đỏ vì lý do chẳng liên quan.
-const nhomCode = /nav\.group\.code"\)[\s\S]{0,140}?ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
-check("rail có nhóm riêng tên 'Code'", !!nhomCode);
-check("Terminal là một mục trong nhóm Code", !!nhomCode && /"terminal"/.test(nhomCode[1]));
+// Owner, 27/10/2026: drop the "Code" group, Terminal goes into Capabilities, since every chat now
+// works in a folder and can code. Group labels are dictionary getters, so match the KEY.
+const nhomNangLuc = /nav\.group\.nang_luc"\)[\s\S]{0,140}?ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
+check("Terminal is an item of the Capabilities group", !!nhomNangLuc && /"terminal"/.test(nhomNangLuc[1]));
+check("the Code group is gone from the rail, its key and its icon",
+      !/nav\.group\.code/.test(CON_CODE) && !/GICON\.code\b/.test(CON_CODE) && !VI_JSON["nav.group.code"]);
 // Bản 0.34.0 nhét "Code" thành một mục của nhóm Bộ não. Chủ repo báo ngay (2026-08-14):
 // "ở sidebar sai rồi... chứ không phải chức năng trong bộ não".
 const nhomBoNao = /nav\.group\.bo_nao"\)[\s\S]{0,140}?ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
 check("CANARY: nhóm Bộ não KHÔNG chứa Code/Terminal",
       !!nhomBoNao && !/"code"|"terminal"/.test(nhomBoNao[1]));
-// GICON khoá theo id nhóm (code, bo_nao...) từ khi bỏ tên nhóm tiếng Việt khỏi mã chạy.
-check("nhóm Code có icon riêng ở tầng nhãn nhóm",
-      /\bcode:\s*ic\(/.test(CON_CODE) && /icon:\s*GICON\.code\b/.test(CON_CODE));
 
 check("VIEW_ICON có mục 'terminal'", /\bterminal:\s*"terminal"/.test(CON_CODE));
 // RAIL_ITEMS nay là danh sách ID; nhãn lấy từ dashboard/i18n/*.json qua t().

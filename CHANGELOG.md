@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.347.0] - 2026-10-27
 ### Cải thiện
-- **Thanh bên gọn hơn.** (đang viết)
+- **Thanh bên gọn hơn: bỏ nhóm Code, Terminal chuyển vào nhóm Năng lực.** Giờ khung chat nào cũng gắn được thư mục và viết code được, nên không cần khu Code riêng nữa. Trang Coding cũ vẫn mở được từ link cũ hay lệnh nói, chỉ không nằm trên thanh bên. Nói "mở nhóm code" giờ mở nhóm Năng lực, nơi có Terminal.
 
 ## [0.345.0] - 2026-10-27
 ### Cải thiện

@@ -1,8 +1,8 @@
-# The Code group: a Terminal right in the dashboard
+# A Terminal right in the dashboard
 
 *[Tiếng Việt](../27-tab-code-terminal.md) · **English***
 
-**Code** is its own group on the navigation rail, Javis's developer-style workspace. The first item in the group is **Terminal**: a real command line, running on the very machine running Javis, opened right in the browser. No more opening SSH in another window.
+**Terminal** sits in the **Capabilities** group on the navigation rail: a real command line, running on the very machine running Javis, opened right in the browser. No more opening SSH in another window. (Since 0.347.0 there is no separate Code group: every chat can attach a folder and write code.)
 
 ## What this feature is
 
@@ -13,7 +13,7 @@ The terminal here is **a real operating-system pseudo-terminal**, not a simulate
 - There are colours, Tab completion, command history (up and down arrows), and `Ctrl+C` kills the running command rather than the whole session.
 - Resizing the window is noticed by the shell immediately, so text does not wrap oddly.
 
-The Code group is laid out to grow: today it contains only **Terminal**, and other developer tools will become further items in the same group.
+To write code you need no separate page: attach a folder to any chat and Javis reads, edits and runs things in it.
 
 ## Where to open it in Javis
 
@@ -100,5 +100,5 @@ How to set variables: [.env configuration](16-env-configuration.md).
 
 - [05 - File manager](05-file-manager.md) - browsing and editing those same folders through the interface.
 - [24 - The Javis CLI (terminal)](24-cli.md) - the opposite direction: typing `javis "..."` from your own machine's terminal.
-- [14 - Security and accounts](14-security-and-accounts.md) - the login fence covering the Code group.
+- [14 - Security and accounts](14-security-and-accounts.md) - the login fence covering the Terminal.
 - [16 - .env configuration](16-env-configuration.md) - every environment variable.

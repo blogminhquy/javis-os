@@ -1003,7 +1003,7 @@ def login_huong_dan() -> dict:
         "cai": lenh_cai(),
         "dang_nhap": "agy",
         "ghi_chu": localefmt.chu(
-            "Dùng trang Code (Terminal) NGAY TRONG Javis - nó mở shell bằng đúng user "
+            "Dùng trang Terminal (nhóm Năng lực) NGAY TRONG Javis - nó mở shell bằng đúng user "
             "đang chạy Javis, đăng nhập ở đó là Javis nhận liền. (SSH bằng user khác, "
             "vd root, đăng nhập xong Javis vẫn không thấy - đây là lý do hay gặp nhất "
             "của cảnh 'cài rồi mà không nhận'.) Gõ `agy`: nó in ra một đường link. Mở "

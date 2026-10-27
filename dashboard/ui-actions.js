@@ -20,7 +20,8 @@
   // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS
   // trong plugin javis-ui. Mở một NHÓM khác với mở một TRANG: người dùng hay muốn bung phần
   // đang gập lại để nhìn xem có gì, chứ chưa chọn trang nào.
-  var GROUPS = ["bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong"];
+  // "code" left the rail in 0.347.0 (Terminal moved into nang_luc); an old "code" still opens nang_luc.
+  var GROUPS = ["bo_nao", "nang_luc", "viec", "ket_noi", "he_thong"];
   var ACTIONS = ["open_page", "open_file", "open_task", "scroll", "open_group", "sidebar"];
   // Phạm vi cuộn. Cùng danh sách với SCROLL_TARGETS trong server/ui_targets.py. `top`/`bottom` để
   // TRANG NÀY tự chọn (xem khungCuonTrang): người nói "cuộn xuống" muốn cuộn thứ họ đang nhìn, mà chỉ
@@ -61,6 +62,7 @@
     } else if (action === "scroll") {
       if (SCROLLS.indexOf(target) < 0) return { ok: false, error: tw("ui.err_scroll", { list: SCROLLS.join(", ") }) };
     } else if (action === "open_group") {
+      if (target === "code") target = "nang_luc";
       if (GROUPS.indexOf(target) < 0) return { ok: false, error: tw("ui.err_group", { group: target }) };
     } else if (action === "sidebar") {
       if (target !== "open" && target !== "close") return { ok: false, error: tw("ui.err_sidebar") };

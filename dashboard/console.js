@@ -70,10 +70,6 @@
   // RAIL_GROUPS, không theo tên nhóm: tên là chữ hiện ra, đã nằm ở từ điển (nav.group.*).
   const GICON = {
     bo_nao: ic("brain"),
-    // Giữ "file-code" như trước khi có mục Coding. 0.63.1 từng đổi sang "wrench" để nhường
-    // icon cho mục con, nhưng 0.63.4 mục con đã sang "code-xml" nên không còn trùng nữa, mà
-    // cờ lê thì nói "sửa chữa, cài đặt" chứ không nói "mã nguồn". Chủ dự án đòi trả lại.
-    code: ic("file-code"),
     nang_luc: ic("lightbulb"),
     viec: ic("clipboard-check"),
     ket_noi: ic("link"),
@@ -121,15 +117,12 @@
     // đứng thành một tầng riêng ngang hàng với Bộ não là thừa một bậc. Hai mục dồn xuống
     // "Bộ não" và đứng đầu nhóm, vì đó là hai trang được mở nhiều nhất.
     { id: "bo_nao", get label() { return t("nav.group.bo_nao"); },      icon: GICON.bo_nao,      ids: ["home", "chat", "files", "learn"] },
-    // "Code" là NHÓM riêng, không phải một mục nhét vào "Bộ não". Đây là một KHU VỰC làm việc
-    // sẽ dày lên (Terminal hôm nay, các công cụ lập trình khác sau này), chứ không phải một
-    // chức năng của Second Brain - chủ repo nói rõ điều đó khi thấy bản đầu xếp nhầm.
-    // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
-    // CHUC_NANG của dashboard/code-term.js.
-    { id: "code", get label() { return t("nav.group.code"); },        icon: GICON.code,        ids: ["terminal", "coding"] },
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON.nang_luc,    ids: ["workspace", "teams", "conversations", "skills", "plugins"] },
+    // 0.347.0: the "Code" group is gone (owner, 27/10/2026): every chat now works in a folder and
+    // can code, so a separate Coding area is redundant. Terminal lives here; Coding stays a real
+    // page (old links, voice commands) but is hidden from the rail, see RAIL_AN.
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON.nang_luc,    ids: ["workspace", "teams", "conversations", "skills", "plugins", "terminal"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON.viec,        ids: ["kanban", "selfimprove", "webhooks"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON.ket_noi,     ids: ["mcp", "packs", "channels", "logins", "models"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON.he_thong,    ids: ["settings", "share", "account"], foot: true },
@@ -149,7 +142,9 @@
   // "chatbots" (0.61.0): trang Chatbot gộp vào trang Hội thoại làm tab thứ ba. Id còn đó để
   // lệnh nói / bookmark cũ đi tới đúng tab, nhưng không còn là một mục trên thanh bên.
   // Các id cũ vẫn dùng được qua lệnh UI và lối tắt, nhưng mở tab trong Cài đặt.
-  const RAIL_AN = new Set(["chatbots", "usage", "pet", "logs"]);
+  // "coding" (0.347.0): coding happens in any chat with a folder attached, so the Coding page left
+  // the rail with the Code group; its id still opens it.
+  const RAIL_AN = new Set(["chatbots", "usage", "pet", "logs", "coding"]);
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
   function railGroups() {
     const seen = new Set();

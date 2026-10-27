@@ -1,8 +1,8 @@
-# Nhóm Code: Terminal ngay trong dashboard
+# Terminal ngay trong dashboard
 
 ***Tiếng Việt** · [English](en/27-code-terminal.md)*
 
-**Code** là một nhóm riêng trên thanh điều hướng - khu vực làm việc kiểu lập trình viên của Javis. Mục đầu tiên trong nhóm là **Terminal**: một dòng lệnh thật, chạy trên đúng máy đang chạy Javis, mở ngay trong trình duyệt. Không cần mở SSH ở cửa sổ khác nữa.
+**Terminal** nằm trong nhóm **Năng lực** trên thanh điều hướng: một dòng lệnh thật, chạy trên đúng máy đang chạy Javis, mở ngay trong trình duyệt. Không cần mở SSH ở cửa sổ khác nữa. (Từ 0.347.0 nhóm Code riêng đã bỏ, vì mọi khung chat đều gắn được thư mục và viết code được.)
 
 ## Tính năng này là gì
 
@@ -13,7 +13,7 @@ Terminal ở đây là **pseudo-terminal thật của hệ điều hành**, khô
 - Có màu, có gợi ý Tab, có lịch sử lệnh (mũi tên lên/xuống), có `Ctrl+C` giết đúng lệnh đang chạy chứ không giết cả phiên.
 - Đổi cỡ cửa sổ thì shell biết ngay, nên chữ không bị gãy dòng lung tung.
 
-Nhóm Code dựng sẵn theo hướng còn mở rộng: hôm nay trong nhóm mới có đúng mục **Terminal**, các công cụ lập trình khác sẽ thành các mục kế tiếp trong cùng nhóm đó.
+Muốn viết code thì không cần trang riêng: gắn một thư mục vào bất kỳ khung chat nào là Javis đọc, sửa và chạy được trong thư mục đó.
 
 ## Mở ở đâu trong Javis
 
@@ -100,5 +100,5 @@ Chi tiết cách đặt biến xem [Cấu hình .env](16-cau-hinh-env.md).
 
 - [05 - Quản lý tệp tin](05-quan-ly-tep-tin.md) - duyệt và sửa cùng thư mục đó bằng giao diện.
 - [24 - Javis CLI (terminal)](24-cli-terminal.md) - chiều ngược lại: gõ `javis "..."` từ terminal của máy bạn.
-- [14 - Bảo mật & tài khoản](14-bao-mat-tai-khoan.md) - hàng rào đăng nhập che nhóm Code.
+- [14 - Bảo mật & tài khoản](14-bao-mat-tai-khoan.md) - hàng rào đăng nhập che Terminal.
 - [16 - Cấu hình .env](16-cau-hinh-env.md) - mọi biến môi trường.

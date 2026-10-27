@@ -6,7 +6,7 @@ Detailed guides for every feature of Javis OS. Each page is a standalone how-to:
 
 > Just starting? Read [Installation in the README](../../README.md#-installation) first, then go to [01 - Getting started and first setup](01-getting-started.md).
 
-The dashboard's navigation rail groups **19 pages** into **7 groups**: Assistant · Brain · Code · Capabilities · Work · Connections · System. The table of contents below follows the same logic.
+The dashboard's navigation rail groups **19 pages** into **5 groups**: Brain · Capabilities · Work · Connections · System. The table of contents below follows the same logic.
 
 ## Table of contents
 
@@ -19,8 +19,8 @@ The dashboard's navigation rail groups **19 pages** into **7 groups**: Assistant
 - [04 - Sessions](04-sessions.md) - saving, reopening, renaming, deleting, full-text search, compacting a long session.
 - [05 - File manager](05-file-manager.md) - browsing the brain, finding files by name or content, editing .md/.txt directly, uploading and downloading.
 
-### Code (the Code group)
-- [27 - The Code group: Terminal](27-code-terminal.md) - a real command line on the machine running Javis, opened right in the dashboard, with no SSH.
+### Terminal (the Capabilities group)
+- [27 - Terminal](27-code-terminal.md) - a real command line on the machine running Javis, opened right in the dashboard, with no SSH.
 
 ### Extending capabilities (the Capabilities group)
 - [06 - Skills](06-skills.md) - grouping, searching, enabling and disabling, adding, editing and deleting, importing and exporting skills.

@@ -350,13 +350,12 @@ Open Javis and the setup wizard walks you through it, in your browser's language
 
 ## 📖 Using Javis
 
-The left rail groups the pages into **6 groups**. Every page has a guide in [docs/en/](docs/en/README.md).
+The left rail groups the pages into **5 groups**. Every page has a guide in [docs/en/](docs/en/README.md).
 
 | Group | Pages | Guides |
 |---|---|---|
 | **Brain** | Graph, Chat, Files, Self-learning | [Chat and voice](docs/en/02-chat-and-voice.md) · [Knowledge graph](docs/en/03-knowledge-graph.md) · [Sessions](docs/en/04-sessions.md) · [File manager](docs/en/05-file-manager.md) · [Self-learning](docs/en/22-self-learning.md) |
-| **Code** | Terminal, Coding | [Code terminal](docs/en/27-code-terminal.md) |
-| **Capabilities** | Partners (agents and workflows), Chatbot, Skills, Plugins | [Agents and workflows](docs/en/07-agents-and-workflows.md) · [Chatbots](docs/en/25-chatbots.md) · [Customer conversations](docs/en/28-customer-conversations.md) · [Skills](docs/en/06-skills.md) · [Plugins](docs/en/20-plugins.md) |
+| **Capabilities** | Partners (agents and workflows), Chatbot, Skills, Plugins, Terminal | [Agents and workflows](docs/en/07-agents-and-workflows.md) · [Chatbots](docs/en/25-chatbots.md) · [Customer conversations](docs/en/28-customer-conversations.md) · [Skills](docs/en/06-skills.md) · [Plugins](docs/en/20-plugins.md) · [Terminal](docs/en/27-code-terminal.md) |
 | **Work** | Tasks, Scheduled | [Tasks (Kanban)](docs/en/21-kanban-work.md) · [Recurring jobs and reminders](docs/en/08-recurring-jobs.md) |
 | **Connections** | Connections, Javis Store, Channels, Models | [Connections and business data](docs/en/09-connections-and-business-data.md) · [Telegram](docs/en/11-telegram.md) · [Zalo](docs/en/12-zalo-agent-mcp.md) · [Models and engines](docs/en/10-models-and-engines.md) |
 | **System** | Settings, Share links, Account | [Getting started](docs/en/01-getting-started.md) · [Security and accounts](docs/en/14-security-and-accounts.md) · [Usage and cost](docs/en/23-usage-and-cost.md) · [Javis CLI](docs/en/24-cli.md) |
