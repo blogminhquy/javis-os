@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.350.0] - 2026-10-27
+### Cải thiện
+- **Việc nền đi theo thứ tự rõ ràng.** Chạy bằng mô hình nền trước, hết lượt thì lần lượt sang các nhà cung cấp dự phòng (mỗi nhà chạy cấu hình mặc định của nó), mô hình chính dùng sau cùng. Javis không còn tự chen Claude hay OpenRouter miễn phí vào khi bạn chưa kết nối chúng.
+- **Không bao giờ làm một việc hai lần.** Engine nào đã gọi công cụ (gửi tin, đăng bài...) rồi mới hỏng thì Javis dừng và báo, không chạy lại bằng engine khác. Nhờ vậy việc ở mức Toàn quyền giờ cũng có dự phòng.
+- **Chat tự né nhà đang hết lượt.** Mô hình chính đang hết lượt (đã biết trước) thì lượt chat bắt đầu luôn ở nhà kế tiếp còn lượt, lượt sau tự quay lại. Một nhà có nhiều API key thì key đang hết lượt được bỏ qua. Bảng chọn mô hình ở khung chat chỉ còn các nhà đã kết nối.
+- **Telegram ghim theo từng cuộc trò chuyện.** Gõ `/model` trong một cuộc trò chuyện Telegram giờ chỉ ghim cho đúng cuộc trò chuyện đó, không đổi mô hình trên web nữa; các cuộc khác vẫn theo mô hình chính. Ghim chung cũ (nếu có) tự chuyển thành ghim của từng cuộc trò chuyện.
+
 ## [0.349.0] - 2026-10-27
 ### Cải thiện
 - **Tua lại hội thoại từ một câu hỏi.** Dưới mỗi câu bạn hỏi giờ có nút ↺ Tua lại, thay cho hai nút Gửi lại và Sửa lại. Bấm vào, Javis hỏi xác nhận rồi xoá câu đó cùng mọi thứ bên dưới, đưa câu hỏi về ô nhập để bạn sửa hoặc gửi lại. Hội thoại đi tiếp từ đó, bộ não đang chat cũng quên phần đã xoá. Đang trả lời thì bấm Dừng trước rồi mới tua lại được.

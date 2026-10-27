@@ -9,6 +9,9 @@ lệnh /model trên Telegram ghi thẳng vào model.main - tức đổi trên đ
 Dáng đã chốt: mặc định "theo model chính" (không đổi gì cho người đang dùng), ghim chỉ khi
 chọn. Ghim rồi thì /model trên Telegram sửa ô Telegram, /status nói rõ đang ghim - vì điện
 thoại không có banner như web, một ghim chết mà không ai nói là hỏng câm.
+
+0.350.0 (docs/dev/2026-10-model-routing-spec.md 2.5): a pin belongs to ONE Telegram chat. /model inside a chat pins
+that chat only and never changes the main model any more; chats without a pin follow the web's main model.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -80,48 +83,53 @@ m = _dat("anthropic-cli", "opus", "gemini-cli", "gemini-2.5-pro")
 check("CANARY: provider đã gỡ khỏi app thì ô ghim tự về rỗng lúc đọc settings",
       not (cfgmod.read_settings()["model"]["telegram"] or {}).get("provider"))
 
-# ---- 4. Lệnh trên Telegram ghi vào đúng ô -----------------------------------
+# ---- 4. 0.350.0: every pin belongs to ONE Telegram chat (docs/dev/2026-10-model-routing-spec.md 2.5) ----
 _dat("anthropic-cli", "opus")
 r = chay(main._tg_command("model", "ghim", chat="1"))
 mm = cfgmod.read_settings()["model"]
-check("/model ghim khoá Telegram vào model ĐANG DÙNG",
-      mm["telegram"] == {"provider": "anthropic-cli", "model": "opus"}, mm["telegram"])
+check("/model ghim khoá CUỘC TRÒ CHUYỆN NÀY vào model đang dùng",
+      (mm.get("telegram_chats") or {}).get("1") == {"provider": "anthropic-cli", "model": "opus"}, mm.get("telegram_chats"))
 check("và câu trả lời nói web đổi không còn kéo theo", "không còn kéo" in (r or {}).get("reply", ""))
-# Đang ghim: /model <tên> chỉ đổi Telegram, model chính đứng yên.
+check("ghim của chat 1 không đụng chat 2", "2" not in (mm.get("telegram_chats") or {}))
 r = chay(main._tg_command("model", "sonnet", chat="1"))
 mm = cfgmod.read_settings()["model"]
-check("CANARY: đang ghim thì /model <tên> đổi ô Telegram, KHÔNG đụng model chính",
-      mm["telegram"]["model"] == "sonnet" and mm["main"]["model"] == "opus",
-      (mm["telegram"], mm["main"]))
+check("CANARY: /model <tên> chỉ đổi ghim của chat đó, KHÔNG đụng model chính",
+      mm["telegram_chats"]["1"]["model"] == "sonnet" and mm["main"]["model"] == "opus",
+      (mm.get("telegram_chats"), mm["main"]))
+check("chat 1 chạy model ghim", main._chat_provider_kenh(mm, "telegram", "1")[3] == "sonnet")
+check("chat 2 (chưa ghim) theo model chính", main._chat_provider_kenh(mm, "telegram", "2")[3] == "opus")
 r = chay(main._tg_command("status", "", chat="1"))
-check("/status nói rõ đang ghim riêng cho Telegram", "ghim riêng" in (r or {}).get("reply", ""))
-check("/model (menu) cũng nói đang ghim", "GHIM" in main._model_header())
+check("/status của chat 1 nói đang ghim riêng", "ghim riêng" in (r or {}).get("reply", ""))
+check("/model (menu) của chat 1 nói đang ghim", "GHIM" in main._model_header("1"))
+check("/model (menu) của chat 2 nói đang theo model chính", "GHIM" not in main._model_header("2"))
 r = chay(main._tg_command("model", "theo", chat="1"))
 mm = cfgmod.read_settings()["model"]
-check("/model theo bỏ ghim", not mm["telegram"].get("provider"))
+check("/model theo bỏ ghim của chat đó", "1" not in (mm.get("telegram_chats") or {}))
 check("và /status nói theo model chính",
       "theo model chính" in (chay(main._tg_command("status", "", chat="1")) or {}).get("reply", ""))
-# Chưa ghim: hành vi CŨ giữ nguyên - /model <tên> đổi model chính (và web đổi theo).
+# Đổi từ Telegram giờ CHỈ ghim chat đó, không còn đổi model chính (khác bản cũ).
 r = chay(main._tg_command("model", "haiku", chat="1"))
 mm = cfgmod.read_settings()["model"]
-check("chưa ghim thì /model <tên> vẫn đổi model chính như trước", mm["main"]["model"] == "haiku")
+check("chưa ghim thì /model <tên> ghim chat đó, model chính đứng yên",
+      mm["main"]["model"] == "opus" and mm["telegram_chats"]["1"]["model"] == "haiku", (mm["main"], mm.get("telegram_chats")))
+# Web đổi model chính: chat chưa ghim đổi theo, chat đã ghim giữ nguyên.
+s = cfgmod.read_settings(); main._set_main_model(s, "anthropic-cli", "fable"); cfgmod.write_settings(s)
+mm = cfgmod.read_settings()["model"]
+check("web đổi model chính: chat chưa ghim đổi theo", main._chat_provider_kenh(mm, "telegram", "2")[3] == "fable")
+check("web đổi model chính: chat đã ghim giữ nguyên", main._chat_provider_kenh(mm, "telegram", "1")[3] == "haiku")
 
 # ---- 5. Ràng buộc kiến trúc ---------------------------------------------------
 _src = (SERVER / "main.py").read_text(encoding="utf-8")
 _tg = _src.split("async def _tg_answer(", 1)[1].split("\ndef _tg_ket(", 1)[0]
-check("CANARY: lượt chủ trên Telegram đi qua _chat_provider_kenh", "_chat_provider_kenh(mcfg, channel)" in _tg)
-# Bot chuyên trách vẫn KHÔNG ăn theo ghim của chủ - đó mới là điều canary này canh. Từ
-# 0.62.3 nó đi qua `_chat_provider_bot` (model của Agent, rơi về model chính) thay vì
-# `_chat_provider` thẳng, nên canary bám tên hàm mới; điều kiện "không phải ghim kênh" thì
-# giữ nguyên.
-# Phép ba ngôi `A if bot else B`: nhánh bot là _chat_provider_bot (model của Agent, rơi về
-# model chính), nhánh chủ mới là _chat_provider_kenh. Chỉ cần thấy đúng dạng này là đã chắc
-# ghim kênh không chảy sang bot.
+check("CANARY: lượt chủ trên Telegram đi qua _chat_provider_kenh với khoá của chat",
+      "_chat_provider_kenh(mcfg, channel, str(chat_id))" in _tg)
+# Bot chuyên trách vẫn KHÔNG ăn theo ghim của chủ: nhánh bot là _chat_provider_bot, nhánh chủ mới là
+# _chat_provider_kenh.
 check("CANARY: bot chuyên trách KHÔNG ăn theo ghim của chủ",
       "_chat_provider_bot(mcfg, bot) if bot" in _tg
-      and "else _chat_provider_kenh(mcfg, channel)" in _tg)
+      and "else _chat_provider_kenh(mcfg, channel, str(chat_id))" in _tg)
 _cb = _src.split("async def _tg_callback(", 1)[1].split("\nasync def _tg_command(", 1)[0]
-check("nút chọn model trên Telegram cũng ghi qua _tg_dat_model", "_tg_dat_model(s, pid, mdl)" in _cb)
+check("nút chọn model trên Telegram cũng ghi qua _tg_dat_model, cho đúng chat", "_tg_dat_model(s, pid, mdl, chat_key)" in _cb)
 _help = chay(main._tg_help_text("brain"))
 check("/help có nhắc /model ghim", "/model ghim" in _help)
 _js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")

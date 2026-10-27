@@ -226,6 +226,7 @@
       short,
       mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""),
       noWait: true,
+      connectedOnly: true,   // 0.350.0: providers not connected are not listed in the chat picker
     };
     let html = await window.JavisModelList.render(o);
     if (luot !== luotVe || pop.hidden) return;

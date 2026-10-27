@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.350.0] - 2026-10-27
+### Improved
+- **Background work follows a clear order.** It runs on the background model first; when that is out of quota it moves through the fallback providers (each on its own default setup) and uses the main model last. Javis no longer slips in Claude or free OpenRouter when you have not connected them.
+- **Nothing is done twice.** An engine that already used a tool (sent a message, posted an article...) and then broke stops the job with a clear error instead of running it again on another engine. That is why jobs at Full access now get a fallback too.
+- **Chat steps around a provider that is out of quota.** When the main model is known to be out of quota, the chat turn starts on the next provider that still has quota, and the next turn tries the main model again. A provider with several API keys skips the keys that are out of quota. The model picker in the chat lists connected providers only.
+- **Telegram pins per chat.** Typing `/model` in a Telegram chat now pins that chat only and no longer changes the model on the web; other chats keep following the main model. An old shared Telegram pin turns into a pin for each chat.
+
 ## [0.349.0] - 2026-10-27
 ### Improved
 - **Rewind a chat to one of your questions.** Under each question you asked there is now a ↺ Rewind button, replacing Send again and Edit. Press it, confirm, and Javis deletes that question and everything below it, then puts the question back in the message box to edit or resend. The chat goes on from there, and the chatting brain forgets the deleted part too. While Javis is answering, press Stop first.
