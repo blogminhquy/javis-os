@@ -74,11 +74,12 @@ check("mức auto vẫn được gọi MCP qua hub", "mcp__javis" in _t_mcp)
 
 
 # ============================================================
-# 2. Chuỗi engine dự phòng KHÔNG được bật ở mức full
+# 2. Mức full CÓ chuỗi dự phòng từ 0.350.0, nhờ luật dừng sau khi gọi công cụ
 # ============================================================
-# Rơi engine ở mức full tệ hơn chết hẳn: engine API không có tool native nên việc dừng giữa
-# chừng, model không biết mình vừa bị đổi engine nên báo sai lý do, và mắt trước có thể đã làm
-# xong một phần việc (đăng được 1 trong 3 bài) rồi mới gãy.
+# Trước 0.350.0 mức full không có chuỗi: rơi engine giữa chừng có thể đăng lại bài đã đăng. Spec
+# docs/dev/2026-10-model-routing-spec.md 2.7 giải đúng chỗ đó: mắt nào đã gọi công cụ rồi mới hỏng thì
+# _FallbackChain DỪNG, không chạy lại bằng engine khác (test_aux_fallback canh luật dừng). Hỏng TRƯỚC
+# công cụ đầu tiên (hết lượt ngay từ đầu, mất đăng nhập) thì chưa có gì xảy ra ra ngoài, chuyển là an toàn.
 class _FakeCli:
     def __init__(self):
         self.model = None
@@ -91,24 +92,23 @@ class _FakeCli:
 
 _S_OR = {"model": {"openrouter_key": "sk-or", "auxiliary": {"provider": "anthropic-cli", "model": ""}}}
 
-_out_full = aux_engine.swap(_FakeCli(), mode="full", tag="reminder", settings=_S_OR)
-check("CANARY: mức full KHÔNG dựng chuỗi dự phòng, dù có sẵn key OpenRouter",
-      not isinstance(_out_full, aux_engine._FallbackChain))
+_cli_full = _FakeCli()
+_out_full = aux_engine.swap(_cli_full, mode="full", tag="reminder", settings=_S_OR)
+check("mức full có chuỗi dự phòng, mắt đầu vẫn là engine Claude của nơi gọi (giữ nguyên rào/allowlist)",
+      isinstance(_out_full, aux_engine._FallbackChain) and _out_full._all()[0] is _cli_full)
+check("mức full: mắt API trong chuỗi chạy ĐÚNG mức full ở hub",
+      all(getattr(e, "javis_mode", "full") == "full" for e in _out_full._all()[1:]))
 
-# Ở mức auto/suggest thì chuỗi dự phòng vẫn là thứ tốt: việc chỉ đọc/ghi vault chạy được trên
-# engine nào cũng xong, và "việc nền phải chạy chứ không chết" vẫn đúng ở đó.
 _out_auto = aux_engine.swap(_FakeCli(), mode="auto", tag="loop", settings=_S_OR)
 check("mức auto VẪN có chuỗi dự phòng (việc nhẹ thì chạy được là hơn)",
       isinstance(_out_auto, aux_engine._FallbackChain))
 
-# User chọn hẳn một provider API cho việc nền thì tôn trọng, nhưng vẫn KHÔNG nối thêm mắt sau.
+# User chọn hẳn một provider API cho việc nền thì mắt đầu là đúng provider đó.
 _S_API = {"model": {"openrouter_key": "sk-or", "groq_api_key": "sk-groq",
                     "auxiliary": {"provider": "groq", "model": "llama"}}}
 _out_api = aux_engine.swap(_FakeCli(), mode="full", tag="reminder", settings=_S_API)
-check("full + user chọn provider API -> dùng đúng provider đó",
-      getattr(_out_api, "provider", None) == "groq")
-check("full + provider API -> vẫn KHÔNG có chuỗi dự phòng",
-      not isinstance(_out_api, aux_engine._FallbackChain))
+_first = _out_api._all()[0] if isinstance(_out_api, aux_engine._FallbackChain) else _out_api
+check("full + user chọn provider API -> mắt đầu dùng đúng provider đó", getattr(_first, "provider", None) == "groq")
 
 # Provider chưa có key thì lui về Claude chứ không chết - hành vi cũ, giữ nguyên ở mức full.
 _S_THIEU = {"model": {"auxiliary": {"provider": "groq", "model": "llama"}}}

@@ -113,7 +113,7 @@ check("GET /model/fast-state returns the remembered states",
 # 3. Wiring: both chat entry points set the per-turn choice next to the thinking level, and call the helpers.
 src = open(os.path.join(SERVER, "main.py"), encoding="utf-8").read()
 check("dashboard and Telegram turns set fast_mode next to the thinking level",
-      src.count("reasoning = _reasoning_level(mcfg)\n") >= 2 and src.count("fast_mode.use(mcfg.get(\"fast\") is True") >= 2)
+      src.count("reasoning = _chat_reasoning(mcfg, prov)") >= 2 and src.count("fast_mode.use(mcfg.get(\"fast\") is True") >= 2)
 check("Codex call sites apply the tier right after the effort", src.count("_codex_fast(ccli)") >= 2)
 check("Claude Code call sites apply fast right after the effort", src.count("_cli_fast(cli)") >= 2)
 check("customer chatbots do not inherit the owner's bolt", 'fast_mode.use(mcfg.get("fast") is True and not bot)' in src)

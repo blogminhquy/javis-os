@@ -64,7 +64,9 @@ Việc nền có model riêng, cố định, không chạy theo MAIN. Trang Mode
    Sau đó **giữ cố định**, đổi MAIN không kéo theo.
 3. Thứ tự chạy của việc nền: **Model nền → Dự phòng 1 → Dự phòng 2 → ... → MAIN sau cùng**.
    Mỗi bước sau bước đầu chạy **cấu hình mặc định lúc mới đăng nhập của nhà đó** (không phải model
-   người dùng chọn cho chat). Bỏ bước trùng (cùng nhà, cùng model).
+   người dùng chọn cho chat). Bỏ bước trùng (cùng nhà, cùng model). Nhà chạy bằng gói (Claude Code,
+   ChatGPT, Grok Build, Antigravity) chỉ xuất hiện **một lần**: hạn mức của gói tính theo tài khoản chứ
+   không theo model, thử lại cùng gói bằng model khác chỉ tốn thêm một lượt gọi hỏng.
 4. Trang **không** hiện chuỗi thứ tự này. Chỉ khi model nền hết lượt mới hiện một dòng:
    "Haiku 5.5 đang hết lượt, việc nền chạy tạm ChatGPT · GPT-5.5."
 5. Bảng chọn model nền: **máy tính** dùng bảng hai cột như hiện tại (nhà | model); **điện thoại**

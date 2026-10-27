@@ -269,7 +269,8 @@ The **◆ Background model** block decides which model runs what Javis does whil
 A few things to know:
 
 - **Every provider you connected is selectable**, not just Claude: Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API. Choosing another provider makes background work run on that provider's plan or key rather than eating Claude quota.
-- If you pick a provider that is **not connected**, the block warns that the provider is not connected and that background work will fall back to Claude. Background work does not die, it just does not save you anything.
+- **Out of quota, it follows an order (since 0.350.0).** Background work runs on the background model first; when that model is out of quota or not connected it moves through your other connected providers, each on its own default setup, and uses the main model last. A provider with several API keys tries each key before moving on. Javis never slips in a provider you have not connected.
+- **Nothing is done twice.** An engine that already used a tool (sent a message, posted an article, created an order...) and then broke stops the job with an error instead of running it again on another engine.
 - **Tools differ between routes.** Claude Code and Codex read and write brain files directly. API models (OpenRouter, OpenAI, Gemini, Anthropic API) read and write through Javis's vault tools and **cannot run shell commands**, so they suit read-summarise-write-a-note work; leave any background job needing shell commands on Claude.
 - On the API route, the file-writing tool locks itself while a loop is in `suggest` mode, exactly as it does on Claude.
 

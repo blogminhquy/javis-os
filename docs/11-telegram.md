@@ -207,6 +207,7 @@ Chi tiết cách gõ `/model`:
 - Gõ thẳng tên cũng được: tên có dấu `/` (vd `openai/gpt-4o`) là model OpenRouter; `gpt-...` hoặc `...-codex` là model ChatGPT (cần đã kết nối OAuth); còn lại (vd `opus`, `sonnet`, `fable`) là model Claude.
 - Từ 0.33.7, bảng nút hiện **đủ 10 nhà cung cấp** như trang Models trên dashboard, gồm cả **Antigravity CLI** - trước đó nó là một danh sách chép tay 5 dòng nên mấy nhà thêm sau không đổi được từ điện thoại. Nhà nào chưa liệt kê được model nào (hay gặp: CLI đã cài nhưng chưa đăng nhập) thì ẩn đi cho gọn, trừ nhà đang dùng.
 - Gõ thẳng `/model <tên model>` thì Javis dò tên đó trong danh sách thật của các nhà đã kết nối rồi chuyển đúng nhà. Tên có ở nhiều nhà mà không nhà nào đang dùng thì nó hỏi lại thay vì đoán, vì đoán trượt là âm thầm đổi cả đường tiền (gói thuê bao so với API tính theo lượt gọi).
+- **Từ 0.350.0, đổi model trên Telegram chỉ ghim cho ĐÚNG cuộc trò chuyện đó.** Nó không còn đổi model chính trên web, và các cuộc trò chuyện Telegram khác vẫn đi theo model chính. Cuộc trò chuyện chưa ghim thì đổi theo mỗi khi bạn đổi model trên web. `/model theo` gỡ ghim, `/model ghim` ghim vào model đang chạy; `/status` cho biết cuộc trò chuyện đang ghim hay đang theo model chính.
 
 ## MCP và skill qua Telegram
 

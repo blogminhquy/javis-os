@@ -528,6 +528,9 @@ _SECRET_PATHS = (
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
     "model.groq_api_key", "model.deepseek_api_key", "model.ollama_key", "model.ollama_local_key", "model.openai_compat_key",
     "model.anthropic_compat_key",
+    # 0.350.0: keys of every account in a provider card (model_routing). Account ids are generated,
+    # so the whole dict is secret.
+    "model.account_keys.*",
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
     # Gemini CLI (đăng nhập Google ngay trên dashboard). Refresh token ở đây mở được cả gói
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.

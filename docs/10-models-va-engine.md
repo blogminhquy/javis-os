@@ -269,7 +269,8 @@ Khối **◆ Model việc nền** quyết định model nào chạy những vi�
 Vài điều cần biết:
 
 - **Chọn được MỌI provider bạn đã đấu**, không riêng Claude: Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API. Chọn nhà cung cấp khác thì việc nền chạy bằng gói hoặc khoá của nhà đó, không ăn vào hạn mức Claude nữa.
-- Nếu bạn chọn một provider **chưa kết nối**, khối này hiện cảnh báo "⚠ nhà cung cấp này chưa kết nối - việc nền sẽ tự dùng lại Claude". Việc nền không chết, chỉ là không tiết kiệm được.
+- **Hết lượt thì đi theo thứ tự (từ 0.350.0).** Việc nền chạy model nền trước; model nền hết lượt hay chưa kết nối thì lần lượt sang các nhà cung cấp khác đã kết nối, mỗi nhà chạy cấu hình mặc định của nó, và model chính được dùng sau cùng. Một nhà có nhiều API key thì thử từng key trước khi sang nhà kế. Javis không tự chen một nhà bạn chưa kết nối vào.
+- **Không làm một việc hai lần.** Engine nào đã gọi công cụ (gửi tin, đăng bài, tạo đơn...) rồi mới hỏng thì việc đó dừng và báo lỗi, không chạy lại bằng engine khác.
 - **Công cụ không giống nhau giữa các đường.** Claude Code và Codex đọc/ghi file trực tiếp trong brain. Các model API (OpenRouter, OpenAI, Gemini, Anthropic API) đọc/ghi qua công cụ vault của Javis và **không chạy được lệnh máy**, nên hợp với việc đọc - tổng hợp - ghi ghi chú; việc nền nào cần chạy lệnh thì cứ để Claude.
 - Với đường API, công cụ ghi file tự khoá lại khi loop đang ở mức `suggest`, đúng như khi chạy bằng Claude.
 
@@ -279,7 +280,7 @@ Javis có ba chỗ đặt model, và câu hỏi hay gặp nhất là "cái nào 
 
 | Bạn đang ở đâu | Model chạy thật |
 |---|---|
-| Chat thường trên dashboard / Telegram | Model chính (hoặc ghim riêng của phiên, của kênh Telegram) |
+| Chat thường trên dashboard / Telegram | Model chính (hoặc ghim riêng của phiên web, hay của đúng cuộc trò chuyện Telegram đã gõ `/model`) |
 | Chat với một trợ lý ở trang Cộng sự | Model của trợ lý đó; để **Mặc định** thì model chính |
 | **Chatbot** trả lời khách ngoài | Model của trợ lý mà bot trỏ tới; để **Mặc định** thì model chính |
 | Một bước trong quy trình (workflow) | Model của trợ lý ở bước đó; để **Mặc định** thì **model việc nền** |

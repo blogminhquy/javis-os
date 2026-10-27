@@ -80,6 +80,7 @@ import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói Su
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
+import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
 import mcp_store
 import mcp_client
 import mcp_catalog
@@ -1777,6 +1778,55 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
 ]
 
 _PROVIDER_KEY_FIELDS = tuple(p["key_field"] for p in PROVIDER_DEFS if p.get("key_field"))
+# Providers addressed by an endpoint, not by an account: one key at most, no account list (0.350.0).
+_ROUTING_SINGLE_KEY = ("openai-compat", "anthropic-compat", "ollama-local")
+
+
+def _routing_key_fields() -> dict:
+    """{provider: old key field} of the API cards that hold a list of keys (model_routing)."""
+    return {p["id"]: p["key_field"] for p in PROVIDER_DEFS
+            if p.get("key_field") and p["id"] not in _ROUTING_SINGLE_KEY}
+
+
+def _routing_defaults() -> dict:
+    """Each provider's starting config (spec 2.4.2): plan and CLI cards run the provider's own default model with no
+    reasoning parameter; an API card runs the first model this app ships for it (OpenRouter: the free auto-pick)."""
+    out = {}
+    for p in PROVIDER_DEFS:
+        model = ""
+        if p["kind"] == "api" and p["id"] != "openrouter":
+            model = (p.get("default_models") or [""])[0]
+        out[p["id"]] = {"model": model, "reasoning": "off"}
+    return out
+
+
+def _routing_connected_ids(cfg) -> list:
+    """Providers counted as signed in, in PROVIDER_DEFS order. Same flags the Models page shows; a plan card whose
+    binary is missing does not count (it could not run a turn)."""
+    try:
+        return [p["id"] for p in _providers_view(cfg) if p.get("configured") and p.get("cli_found") is not False]
+    except Exception as e:  # noqa: BLE001 - a broken check must not stop the server from starting
+        print(f"[routing] connected providers: {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+
+
+def _routing_telegram_chat_keys(cfg) -> list:
+    """Telegram chats the owner talks in: configured ids plus every chat the bot remembers (not customer bots)."""
+    keys = [str(x) for x in tg_parse_ids((cfg.get("telegram") or {}).get("chat_id", ""))]
+    for k in list(_TG_SID_MAP.keys()):
+        if not str(k).startswith("bot:") and "@" not in str(k):
+            keys.append(str(k))
+    return keys
+
+
+def _routing_migrate(cfg) -> bool:
+    """One-time move of the settings to the 0.350.0 layout (model_routing.migrate). True when it changed cfg."""
+    m = cfg.setdefault("model", {})
+    if int(m.get("routing_version") or 0) >= model_routing.ROUTING_VERSION:
+        return False
+    return model_routing.migrate(
+        m, connected_ids=_routing_connected_ids(cfg), defaults=_routing_defaults(),
+        key_fields=_routing_key_fields(), telegram_chat_keys=_routing_telegram_chat_keys(cfg))
 
 
 def _provider_def(pid):
@@ -1906,14 +1956,10 @@ def _set_telegram_model(cfg, provider, model):
     cfg["model"]["telegram"] = {"provider": provider, "model": model or ""}
 
 
-def _tg_dat_model(cfg, provider, model):
-    """Lệnh đổi model gõ TỪ Telegram ghi vào đâu: đang ghim thì vào ô Telegram, chưa ghim thì
-    vào model chính như trước (và web đổi theo - đó là hành vi cũ, giữ nguyên để ai không ghim
-    không thấy gì khác)."""
-    if _tg_ghim(cfg.get("model") or {}):
-        _set_telegram_model(cfg, provider, model)
-    else:
-        _set_main_model(cfg, provider, model)
+def _tg_dat_model(cfg, provider, model, chat_key):
+    """A model chosen FROM Telegram pins that Telegram chat only (0.350.0, spec 2.5): it no longer changes MAIN or the
+    web, and other Telegram chats keep following MAIN."""
+    model_routing.set_telegram_pin(cfg["model"], chat_key, provider, model)
 
 
 def _set_main_model(cfg, provider, model):
@@ -1927,6 +1973,9 @@ def _set_main_model(cfg, provider, model):
         usage_saving.ghi_moc("model", f"{provider}/{model}",
                              f"{_cu.get('provider') or ''}/{_cu.get('model') or ''}",
                              f"Đổi bộ não sang {model or provider}")
+    # 0.350.0: MAIN is the top card of the usage order. Choosing a provider here (composer chip, Telegram
+    # fallback paths, disconnect handlers) moves its card to the top; the others keep their order.
+    model_routing.promote(m, provider, model)
     m["main"] = {"provider": provider, "model": model}
     if provider == "openrouter":
         m["engine"] = "openrouter"; m["openrouter_model"] = model
@@ -1954,6 +2003,29 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "anthropic-compat"
     else:  # anthropic-cli
         m["engine"] = "cli"; m["claude_model"] = model
+
+def _sync_legacy_engine(m) -> None:
+    """After the usage order or MAIN's card changed: rewrite the old engine fields from MAIN (0.350.0)."""
+    main = m.get("main") or {}
+    if main.get("provider") and _provider_def(main["provider"]):
+        _set_main_model({"model": m}, main["provider"], main.get("model") or "")
+
+
+def _routing_key_saved(m, key_field) -> None:
+    """A key typed into a card's old single key box (connect, change key): it becomes account 1 of that card, and a
+    newly connected card joins the END of the usage order (spec 2.1.5)."""
+    d = next((p for p in PROVIDER_DEFS if p.get("key_field") == key_field), None)
+    if not d:
+        return
+    if d["id"] not in _ROUTING_SINGLE_KEY:
+        cur = model_routing.accounts(m, d["id"], key_field)
+        if cur and cur[0]["key"] != m[key_field]:
+            cur[0] = dict(cur[0], key=m[key_field], enabled=True)
+        elif not cur:
+            cur = [{"id": model_routing.new_account_id(), "label": "Key 1", "enabled": True, "key": m[key_field]}]
+        model_routing.save_accounts(m, d["id"], cur, key_field)
+    model_routing.add_to_order(m, d["id"])
+
 
 def _aux_model():
     """Model việc nền khi provider là Claude. '' = không đổi (mặc định CLI).
@@ -2492,19 +2564,59 @@ def _provider_key(mcfg, d):
         if not (mcfg.get("anthropic_compat_base") or "").strip():
             return ""
         return (mcfg.get("anthropic_compat_key") or "").strip() or "none"
-    return mcfg.get(d["key_field"], "") if d.get("key_field") else ""
+    if not d.get("key_field"):
+        return ""
+    # 0.350.0: several keys per provider, used top to bottom; a key put to rest after a quota error is skipped.
+    acc = model_routing.active_account(mcfg, d["id"], d["key_field"])
+    return acc["key"] if acc else (mcfg.get(d["key_field"], "") or "")
+
+
+def _route_ready(mcfg, prov) -> bool:
+    """Whether a card can take a chat turn right now: an API card needs a key that is not resting, a plan card must
+    not be known to be out of quota. Unknown means yes: the turn itself reports the provider's own error."""
+    d = _provider_def(prov)
+    if not d:
+        return False
+    if d.get("kind") == "api":
+        if d.get("key_field") and d["id"] not in _ROUTING_SINGLE_KEY:
+            return bool(model_routing.usable_accounts(mcfg, prov, d["key_field"]))
+        return bool(_provider_key(mcfg, d))
+    return not _pin_limited_until(prov)
 
 
 def _chat_provider(mcfg):
-    """Provider dùng cho chat (id, kind, key, model) - từ model chính hiệu lực."""
+    """Provider dùng cho chat (id, kind, key, model).
+
+    0.350.0 (docs/dev/2026-10-model-routing-spec.md): MAIN is the top card of the usage order. When MAIN cannot run
+    right now (every key resting, the plan out of quota) the turn starts on the next card that can, with that card's
+    own model. Nothing saved changes: the next turn tries MAIN again."""
     em = _effective_main({"model": mcfg})
     prov, model = em["provider"], em["model"]
+    if not _route_ready(mcfg, prov):
+        # Only cards still signed in can take over (the stored order keeps a card that lost its login until the
+        # Models page saves again). Computed here only, MAIN being unable to run is the rare path.
+        try:
+            signed_in = set(_routing_connected_ids(cfgmod.read_settings()))
+        except Exception:  # noqa: BLE001
+            signed_in = None
+        for cand in model_routing.order(mcfg)[1:]:
+            if (signed_in is None or cand in signed_in) and _route_ready(mcfg, cand):
+                prov, model = cand, model_routing.profile(mcfg, cand)["model"]
+                break
     d = _provider_def(prov) or {}
     kind = d.get("kind", "cli")
     key = _provider_key(mcfg, d)
     if prov == "openrouter":
         model = model or mcfg.get("openrouter_model")
     return prov, kind, key, model
+
+
+def _chat_reasoning(mcfg, prov) -> str:
+    """Effort of the card a chat turn runs on (0.350.0: effort belongs to each card, MAIN's mirrors `reasoning`)."""
+    if prov == model_routing.main_provider(mcfg):
+        return _reasoning_level(mcfg)
+    r = model_routing.profile(mcfg, prov).get("reasoning")
+    return r if r in engine.REASONING_LEVELS else "off"
 
 
 # Provider mà AGENT chạy THẬT được. Không phải mọi provider ở trang Models: aux_engine chỉ
@@ -2585,8 +2697,12 @@ def _chat_provider_for_session(mcfg, row):
     return pprov, kind, key, model
 
 
-def _tg_ghim(mcfg) -> dict:
-    """{'provider','model'} đang GHIM cho kênh Telegram, hoặc {} nếu đang theo model chính."""
+def _tg_ghim(mcfg, chat_key="") -> dict:
+    """{'provider','model'} pinned for ONE Telegram chat (0.350.0), or {} when it follows MAIN. Settings not yet moved
+    to 0.350.0 still carry the old shared Telegram pin, which then applies to every chat."""
+    pin = model_routing.telegram_pin(mcfg, chat_key) if chat_key else {}
+    if pin:
+        return pin
     tg = (mcfg or {}).get("telegram") or {}
     return {"provider": tg["provider"], "model": tg.get("model") or ""} if tg.get("provider") else {}
 
@@ -2632,13 +2748,13 @@ def _chat_provider_bot(mcfg, bot):
                                              "pinned_model": g["model"]})
 
 
-def _chat_provider_kenh(mcfg, channel):
-    """Provider cho một lượt theo KÊNH: Telegram có ghim riêng thì theo ghim, còn lại theo
-    model chính. Dùng lại đúng luật rơi-về của ghim phiên web (`_chat_provider_for_session`):
+def _chat_provider_kenh(mcfg, channel, chat_key=""):
+    """Provider cho một lượt theo KÊNH: a Telegram chat with its own pin (set by /model inside it) runs that pin, every
+    other turn follows MAIN. Dùng lại đúng luật rơi-về của ghim phiên web (`_chat_provider_for_session`):
     provider đã gỡ hay key đã bị xoá thì lui về model chính chứ không chết lượt chat."""
     if channel != "telegram":
         return _chat_provider(mcfg)
-    g = _tg_ghim(mcfg)
+    g = _tg_ghim(mcfg, chat_key)
     if not g:
         return _chat_provider(mcfg)
     return _chat_provider_for_session(mcfg, {"pinned_provider": g["provider"],
@@ -4312,9 +4428,13 @@ async def oauth_openai_browser_finish(request: Request):
 @app.post("/oauth/openai/disconnect")
 def oauth_openai_disconnect():
     cfg = cfgmod.read_settings()
-    if _effective_main(cfg).get("provider") == "openai-oauth":   # đang là MAIN → về Claude Code CLI
+    # 0.350.0: the card leaves the usage order; the next card becomes MAIN when it was MAIN.
+    model_routing.drop_from_order(cfg["model"], "openai-oauth")
+    if _effective_main(cfg).get("provider") == "openai-oauth":   # đang là MAIN (thẻ duy nhất) → về Claude Code CLI
         _set_main_model(cfg, "anthropic-cli", cfg["model"].get("claude_model") or "opus")
-        cfgmod.write_settings(cfg)
+    else:
+        _sync_legacy_engine(cfg["model"])
+    cfgmod.write_settings(cfg)
     openai_oauth.disconnect()
     try:
         connect_health.probe_engines()   # ngắt chủ động → đèn đổi ngay theo Main Model mới
@@ -4374,6 +4494,21 @@ async def _cap_nhat_claude(ly_do: str) -> dict:
 async def claude_update_now():
     """Nút "Cập nhật Claude Code" trên trang Models: chạy ngay, không chờ vòng hằng ngày."""
     return await _cap_nhat_claude("tay")
+
+
+@app.on_event("startup")
+async def _routing_migrate_on_start():
+    """0.350.0: move the settings to the usage-order layout once (docs/dev/2026-10-model-routing-spec.md, part 4)."""
+    def _run():
+        with cfgmod._SETTINGS_LOCK:
+            cfg = cfgmod.read_settings()
+            if _routing_migrate(cfg):
+                cfgmod.write_settings(cfg)
+                print("[routing] settings moved to the 0.350.0 usage order", file=sys.stderr)
+    try:
+        await asyncio.to_thread(_run)
+    except Exception as e:  # noqa: BLE001 - routing still works on the old fields until the next start
+        print(f"[routing] migration failed: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 @app.on_event("startup")
@@ -4519,7 +4654,20 @@ async def grok_logout():
     Khác thẻ `agy` - ở đó không có nút Ngắt vì token nằm trong keyring không đụng tới được.
     Grok có lệnh đăng xuất chính chủ nên nút này làm đúng việc nó hứa.
     """
-    return await asyncio.to_thread(grok_cli.logout)
+    out = await asyncio.to_thread(grok_cli.logout)
+    # 0.350.0: the card leaves the usage order (the next card becomes MAIN when it was MAIN).
+    try:
+        def _drop():
+            with cfgmod._SETTINGS_LOCK:
+                cfg = cfgmod.read_settings()
+                if "grok-cli" in model_routing.stored_order(cfg["model"]):
+                    model_routing.drop_from_order(cfg["model"], "grok-cli")
+                    _sync_legacy_engine(cfg["model"])
+                    cfgmod.write_settings(cfg)
+        await asyncio.to_thread(_drop)
+    except Exception as e:  # noqa: BLE001 - the logout itself already happened
+        print(f"[routing] grok logout: {type(e).__name__}: {e}", file=sys.stderr)
+    return out
 
 
 @app.post("/grok/check")
@@ -5221,6 +5369,14 @@ def settings_get():
         k = cfg["model"].get(kf, "")
         safe["model"][kf] = ("••••" + k[-4:]) if k else ""
         safe["model"][kf + "_set"] = bool(k)
+    # 0.350.0: account keys never leave the server. The Models page gets each card's accounts with the last 4 characters.
+    safe["model"].pop("account_keys", None)
+    safe["model"]["accounts"] = {
+        pid: [{"id": a["id"], "label": a["label"], "enabled": a["enabled"],
+               "key": ("••••" + a["key"][-4:]) if a["key"] else "",
+               "resting_until": model_routing.resting_until(pid, a["id"])}
+              for a in model_routing.accounts(cfg["model"], pid, kf)]
+        for pid, kf in _routing_key_fields().items() if model_routing.accounts(cfg["model"], pid, kf)}
     o = cfg["model"].get("openai_oauth") or {}
     safe["model"]["openai_oauth"] = {   # che token, chỉ lộ trạng thái
         "connected": bool(o.get("access_token") or o.get("refresh_token")),
@@ -5299,6 +5455,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         for kf in _PROVIDER_KEY_FIELDS:
             if patch.get(kf) and not str(patch[kf]).startswith("••••"):
                 m[kf] = str(patch[kf]).strip()
+                _routing_key_saved(m, kf)
         if "openai_compat_base" in patch:
             new_base = str(patch["openai_compat_base"] or "").strip().rstrip("/")
             if new_base != (m.get("openai_compat_base") or "") and not (
@@ -5321,6 +5478,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             d = _provider_def(patch["clear_key"])
             if d and d.get("key_field"):
                 m[d["key_field"]] = ""
+                # 0.350.0: every key of the card goes, and the card leaves the usage order (the next card becomes MAIN).
+                if d["id"] not in _ROUTING_SINGLE_KEY:
+                    model_routing.save_accounts(m, d["id"], [], d["key_field"])
+                model_routing.drop_from_order(m, d["id"])
                 if patch["clear_key"] == "openai-compat":
                     m["openai_compat_base"] = ""
                     _PROV_MODELS_CACHE.pop("openai-compat", None)
@@ -5340,10 +5501,14 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if "auxiliary" in patch:   # model phụ cho việc nền (provider + model)
             aux_patch = patch["auxiliary"] or {}
             aux = m.setdefault("auxiliary", {})
-            aux["model"] = aux_patch.get("model", "")
-            # Thiếu provider (client cũ) = Claude, đúng hành vi trước khi mở nhiều provider.
-            prov = aux_patch.get("provider") or aux_engine.CLAUDE
-            aux["provider"] = prov if _provider_def(prov) else aux_engine.CLAUDE
+            if "model" in aux_patch or "provider" in aux_patch:
+                aux["model"] = aux_patch.get("model", "")
+                # Thiếu provider (client cũ) = Claude, đúng hành vi trước khi mở nhiều provider.
+                prov = aux_patch.get("provider") or aux_engine.CLAUDE
+                aux["provider"] = prov if _provider_def(prov) else aux_engine.CLAUDE
+            if "reasoning" in aux_patch:   # 0.350.0: the background model keeps its own effort
+                r = aux_patch["reasoning"]
+                aux["reasoning"] = r if r in engine.REASONING_LEVELS else "off"
         if "telegram" in patch:   # model riêng cho kênh Telegram; provider rỗng = theo model chính
             tg_patch = patch["telegram"] or {}
             tg = m.setdefault("telegram", {})
@@ -5356,6 +5521,49 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if "reasoning" in patch:
             r = patch["reasoning"]
             m["reasoning"] = r if r in engine.REASONING_LEVELS else "off"
+            # 0.350.0: the composer's effort chip is MAIN's card effort.
+            model_routing.set_profile(m, model_routing.main_provider(m), reasoning=m["reasoning"])
+        # 0.350.0 Models page: usage order, one card's model/effort, one card's accounts or keys.
+        if isinstance(patch.get("order"), list):
+            ids = [p for p in patch["order"] if _provider_def(str(p or ""))]
+            if ids:
+                model_routing.set_order(m, ids)
+                _sync_legacy_engine(m)
+        if isinstance(patch.get("profile"), dict):
+            pp = patch["profile"]
+            pid = str(pp.get("provider") or "")
+            if _provider_def(pid):
+                r = pp.get("reasoning")
+                model_routing.set_profile(m, pid, model=pp.get("model") if "model" in pp else None,
+                                          reasoning=(r if r in engine.REASONING_LEVELS else "off") if "reasoning" in pp else None)
+                if model_routing.main_provider(m) == pid:
+                    _sync_legacy_engine(m)
+        if isinstance(patch.get("accounts"), dict):
+            pa = patch["accounts"]
+            pid = str(pa.get("provider") or "")
+            kf = _routing_key_fields().get(pid)
+            if kf and isinstance(pa.get("items"), list):
+                items = []
+                cur = {a["id"]: a for a in model_routing.accounts(m, pid, kf)}
+                for it in pa["items"]:
+                    if not isinstance(it, dict):
+                        continue
+                    aid = str(it.get("id") or "") or model_routing.new_account_id()
+                    key = str(it.get("key") or "").strip()
+                    if key.startswith("••••"):
+                        key = ""
+                    if not key and aid not in cur:
+                        continue                      # a new account needs its key
+                    items.append({"id": aid, "label": str(it.get("label") or ""),
+                                  "enabled": it.get("enabled") is not False, "key": key or cur.get(aid, {}).get("key", "")})
+                if pa["items"] and not items:
+                    items = None                      # nothing valid in a non-empty list: never wipe the card for that
+                if items is not None:
+                    model_routing.save_accounts(m, pid, items, kf)
+                if items:
+                    model_routing.add_to_order(m, pid)
+                elif items is not None:
+                    model_routing.drop_from_order(m, pid)
         # Fast mode (composer bolt, 0.153.0). This POST drops unknown keys, so it needs its own branch.
         if "fast" in patch:
             m["fast"] = patch["fast"] is True
@@ -16134,7 +16342,7 @@ async def websocket_endpoint(ws: WebSocket):
                         f"Assistant '{_persona[1]}' is no longer in this brain. Open the Partners page to pick another one.")}))
                 return ""
             prov, kind, api_key, api_model = _chat_provider_for_session(mcfg, _row0)
-            reasoning = _reasoning_level(mcfg)
+            reasoning = _chat_reasoning(mcfg, prov)   # 0.350.0: effort of the card this turn runs on
             if _persona and _persona[0] == "agent":
                 # 0.193.0: an assistant's chat thinks at the assistant's own level (default medium).
                 try:
@@ -21102,7 +21310,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     # "Default").
     prov, kind, api_key, api_model = (_chat_provider_bot(mcfg, bot) if bot
                                       else _chat_provider_bot(mcfg, {"agent": agent}) if agent
-                                      else _chat_provider_kenh(mcfg, channel))
+                                      else _chat_provider_kenh(mcfg, channel, str(chat_id)))
     # Nhãn engine phải do VỎ quyết định rồi truyền xuống lõi: hai bên tự suy ra độc lập là
     # có ngày phiên bị dán nhãn 'cli' trong khi lượt thật chạy qua OpenRouter.
     engine_label = ("codex" if prov == "openai-oauth"
@@ -21795,7 +22003,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     trả CHUỖI khi là thông báo lỗi (vỏ `_tg_answer` dựa vào đó để biết lượt nào đáng lưu)."""
     sess["last"] = text
     sess["sent"] = set()    # lượt mới → reset dedupe (endpoint /telegram/send-file add vào đây)
-    reasoning = _reasoning_level(mcfg)
+    reasoning = _chat_reasoning(mcfg, prov)   # 0.350.0: effort of the card this turn runs on
     # The bolt is the owner's: customer chatbots answering strangers never inherit it.
     fast_mode.use(mcfg.get("fast") is True and not bot)
     runtime_trace = context_runtime.current_trace()
@@ -22617,26 +22825,28 @@ def _tg_model_list_text(pid):
     return f"⚙️ {_tg_prov_label(pid)} - chọn model ({n}):{tip}"
 
 
-def _tg_model_hieu_luc():
-    """(provider, model, đang_ghim) mà kênh Telegram THẬT SỰ chạy. Điện thoại không có banner
+def _tg_model_hieu_luc(chat_key=""):
+    """(provider, model, đang_ghim) mà MỘT cuộc trò chuyện Telegram THẬT SỰ chạy. Điện thoại không có banner
     như web, nên chỗ nào hiện model cho Telegram cũng phải nói được nó là ghim hay theo chính."""
     m = cfgmod.read_settings().get("model", {})
-    g = _tg_ghim(m)
+    g = _tg_ghim(m, chat_key)
     if g and _provider_def(g["provider"]):
         return g["provider"], (g["model"] or "mặc định"), True
     prov, cur = _model_current()
     return prov, cur, False
 
 
-def _model_header():
-    prov, cur, ghim = _tg_model_hieu_luc()
-    return ("⚙️ Cấu hình model\n"
-            f"Hiện tại: {cur}\n"
-            f"Provider: {_tg_prov_label(prov)}\n"
-            + ("📌 Telegram đang GHIM riêng (web đổi không ảnh hưởng). /model theo để bỏ ghim.\n\n"
+def _model_header(chat_key=""):
+    prov, cur, ghim = _tg_model_hieu_luc(chat_key)
+    return (localefmt.chu("⚙️ Cấu hình model\n", "⚙️ Model settings\n")
+            + localefmt.chu(f"Hiện tại: {cur}\n", f"Current: {cur}\n")
+            + f"Provider: {_tg_prov_label(prov)}\n"
+            + (localefmt.chu("📌 Cuộc trò chuyện này đang GHIM riêng (web đổi không ảnh hưởng). /model theo để bỏ ghim.\n\n",
+                             "📌 This chat has its own pin (web changes do not affect it). /model theo removes it.\n\n")
                if ghim else
-               "🔗 Telegram đang theo model chính. /model ghim để khoá riêng cho Telegram.\n\n")
-            + "Chọn provider (chỉ hiện provider đã kết nối):")
+               localefmt.chu("🔗 Cuộc trò chuyện này đang theo model chính. Chọn một model bên dưới là ghim riêng cho nó.\n\n",
+                             "🔗 This chat follows the main model. Picking a model below pins it to this chat only.\n\n"))
+            + localefmt.chu("Chọn provider (chỉ hiện provider đã kết nối):", "Pick a provider (connected ones only):"))
 
 
 # ---- Menu chọn brain cho PHIÊN Telegram (inline keyboard, giống menu model) ----
@@ -22689,7 +22899,7 @@ async def _tg_callback(data, chat=None):
     if data == "noop":
         return None   # nút chỉ-hiển-thị (số trang) - answer callback cho tắt spinner, không sửa tin
     if data in ("mp:back", "model"):
-        return {"text": _model_header(), "reply_markup": await _model_provider_kb()}
+        return {"text": _model_header(chat_key), "reply_markup": await _model_provider_kb()}
     if data.startswith("mp:"):
         pid = data.split(":", 1)[1]
         if pid not in dict(_tg_providers()):
@@ -22723,7 +22933,7 @@ async def _tg_callback(data, chat=None):
             return {"alert": f"{_tg_prov_label(pid)} chưa kết nối - vào dashboard trang Models"}
         if pid == "anthropic-cli":
             mdl = mdl.lower()   # alias opus/sonnet/haiku/fable
-        _tg_dat_model(s, pid, mdl); cfgmod.write_settings(s)
+        _tg_dat_model(s, pid, mdl, chat_key); cfgmod.write_settings(s)
         note = {"anthropic-cli": "Claude Code - đầy đủ MCP/skill",
                 "openai-oauth": "ChatGPT qua Codex CLI - có MCP",
                 "openrouter": "OpenRouter - chat + MCP đa-model",
@@ -22758,47 +22968,54 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
         return {"reply": "🔄 Đã reset hội thoại (chỉ phiên của bạn)."}
     if cmd in ("cli", "claude"):
         s = cfgmod.read_settings()
-        _tg_dat_model(s, "anthropic-cli", (s["model"].get("main") or {}).get("model") or s["model"].get("claude_model") or "opus")
+        _tg_dat_model(s, "anthropic-cli", (s["model"].get("main") or {}).get("model") or s["model"].get("claude_model") or "opus", chat_key)
         cfgmod.write_settings(s)
         return {"reply": "✅ Provider: Anthropic (Claude Code) - đầy đủ MCP, hỏi POS/Ads/vault được."}
     if cmd in ("or", "openrouter"):
         s = cfgmod.read_settings()
         if not s["model"].get("openrouter_key"):
             return {"reply": "⚠ Chưa có OpenRouter key - đặt trong Models trên dashboard trước."}
-        _tg_dat_model(s, "openrouter", s["model"].get("openrouter_model")); cfgmod.write_settings(s)
+        _tg_dat_model(s, "openrouter", s["model"].get("openrouter_model"), chat_key); cfgmod.write_settings(s)
         return {"reply": f"✅ Provider: OpenRouter ({s['model'].get('openrouter_model')}) - chat + MCP đa-model."}
     if cmd in ("help", "menu", "start"):
         return {"reply": await _tg_help_text(brain)}
     if cmd == "skills":
         return {"reply": await _tg_skills_text(brain)}
     if cmd == "status":
-        prov, model, ghim = _tg_model_hieu_luc()
+        prov, model, ghim = _tg_model_hieu_luc(chat_key)
         busy = _tg_chat_busy(chat_key)
         bname = brain_label.display(_brain_root(brain))
         return {"reply": ("📊 Trạng thái Javis\n"
                           f"Provider: {prov}\n"
                           f"Model: {model}"
-                          + (" (📌 ghim riêng cho Telegram)" if ghim else " (theo model chính)") + "\n"
+                          + (localefmt.chu(" (📌 ghim riêng cho cuộc trò chuyện này)", " (📌 pinned to this chat)")
+                             if ghim else localefmt.chu(" (theo model chính)", " (follows the main model)")) + "\n"
                           f"Brain: {bname} (đổi bằng /brain)\n"
                           f"Phiên: {chat_key} (ngữ cảnh riêng)\n"
                           f"Đang xử lý: {'có (gửi /stop để dừng)' if busy else 'rảnh'}")}
     if cmd == "model":
         s = cfgmod.read_settings(); m = s["model"]
         a = arg.strip()
-        # /model ghim: khoá Telegram vào model ĐANG DÙNG, từ đó web đổi gì cũng mặc.
-        # /model theo: bỏ ghim, Telegram lại đi theo model chính.
+        # 0.350.0: every pin belongs to THIS chat only. /model ghim: pin the model this chat runs now, so web changes no
+        # longer move it. /model theo: drop the pin, this chat follows MAIN again.
         if a.lower() in ("ghim", "pin"):
-            em = _effective_main(s)
-            _set_telegram_model(s, em["provider"], em["model"]); cfgmod.write_settings(s)
-            return {"reply": (f"📌 Đã ghim Telegram vào {_tg_prov_label(em['provider'])}: "
-                              f"{em['model'] or 'mặc định'}.\nĐổi model trên web không còn kéo "
-                              "Telegram theo. Gõ /model <tên> để đổi riêng cho Telegram, "
-                              "/model theo để bỏ ghim.")}
+            prov_now, model_now, _g = _tg_model_hieu_luc(chat_key)
+            model_now = "" if model_now == "mặc định" else model_now
+            _tg_dat_model(s, prov_now, model_now, chat_key); cfgmod.write_settings(s)
+            return {"reply": localefmt.chu(
+                f"📌 Đã ghim cuộc trò chuyện này vào {_tg_prov_label(prov_now)}: {model_now or 'mặc định'}.\n"
+                "Đổi model trên web không còn kéo cuộc trò chuyện này theo. /model theo để bỏ ghim.",
+                f"📌 This chat is pinned to {_tg_prov_label(prov_now)}: {model_now or 'default'}.\n"
+                "Changing the model on the web no longer moves this chat. /model theo removes the pin.")}
         if a.lower() in ("theo", "bo-ghim", "unpin"):
-            _set_telegram_model(s, "", ""); cfgmod.write_settings(s)
+            _tg_dat_model(s, "", "", chat_key)
+            if (s["model"].get("telegram") or {}).get("provider"):
+                s["model"]["telegram"] = {"provider": "", "model": ""}   # old shared pin (settings not yet moved)
+            cfgmod.write_settings(s)
             em = _effective_main(s)
-            return {"reply": (f"🔗 Đã bỏ ghim. Telegram theo model chính: "
-                              f"{_tg_prov_label(em['provider'])} {em['model'] or 'mặc định'}.")}
+            return {"reply": localefmt.chu(
+                f"🔗 Đã bỏ ghim. Cuộc trò chuyện này theo model chính: {_tg_prov_label(em['provider'])} {em['model'] or 'mặc định'}.",
+                f"🔗 Pin removed. This chat follows the main model: {_tg_prov_label(em['provider'])} {em['model'] or 'default'}.")}
         if a:
             # HỎI DANH SÁCH THẬT TRƯỚC, đoán sau. Mấy luật đoán bên dưới ra đời khi Telegram chỉ
             # biết 3 provider, và giờ chúng gán nhầm một cách im lặng: gõ tên model của
@@ -22806,7 +23023,7 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
             # CLAUDE, lượt chat sau mới báo lỗi mà chẳng ai hiểu vì sao.
             _pid, _ung_vien = await _tg_provider_cho_model(a, m)
             if _pid:
-                _tg_dat_model(s, _pid, a); cfgmod.write_settings(s)
+                _tg_dat_model(s, _pid, a, chat_key); cfgmod.write_settings(s)
                 return {"reply": f"✅ {_tg_prov_label(_pid)}: {a}."}
             if len(_ung_vien) > 1:
                 _ten = ", ".join(_tg_prov_label(p) for p in _ung_vien)
@@ -22815,17 +23032,17 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
             # Không provider nào khai model này (danh sách hỏng, hoặc tên mới tinh) → về mấy
             # luật đoán cũ: id chứa "/" = OpenRouter; gpt*/*-codex = ChatGPT; còn lại = Claude.
             if "/" in a:
-                _tg_dat_model(s, "openrouter", a); cfgmod.write_settings(s)
+                _tg_dat_model(s, "openrouter", a, chat_key); cfgmod.write_settings(s)
                 return {"reply": f"✅ OpenRouter model: {a}."}
             if _is_codex_model(a):
                 if not _tg_prov_ready("openai-oauth", m):
                     return {"reply": "⚠ Chưa kết nối ChatGPT (OpenAI OAuth) - nối ở dashboard trang Models trước."}
-                _tg_dat_model(s, "openai-oauth", a); cfgmod.write_settings(s)
+                _tg_dat_model(s, "openai-oauth", a, chat_key); cfgmod.write_settings(s)
                 return {"reply": f"✅ ChatGPT (Codex) model: {a}."}
-            _tg_dat_model(s, "anthropic-cli", a.lower()); cfgmod.write_settings(s)
+            _tg_dat_model(s, "anthropic-cli", a.lower(), chat_key); cfgmod.write_settings(s)
             return {"reply": f"✅ Model Claude: {a.lower()}. Nếu CLI chưa hỗ trợ tên này, query sẽ báo lỗi."}
         # Không tham số → mở menu nút bấm (chọn provider → chọn model, phân trang)
-        return {"reply": _model_header(), "reply_markup": await _model_provider_kb()}
+        return {"reply": _model_header(chat_key), "reply_markup": await _model_provider_kb()}
     if cmd == "usage":
         try:
             _or = await _openrouter_credits(cfgmod.read_settings().get("model", {}) or {})

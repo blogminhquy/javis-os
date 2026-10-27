@@ -122,7 +122,7 @@ def lap_gia():
     main.get_store = lambda: kho
     main._tg_answer_engine = _loi_engine
     main._chat_provider = lambda mcfg: ("anthropic-cli", "cli", "", "opus")
-    main._chat_provider_kenh = lambda mcfg, kenh: ("anthropic-cli", "cli", "", "opus")
+    main._chat_provider_kenh = lambda mcfg, kenh, chat_key="": ("anthropic-cli", "cli", "", "opus")
     main._tg_brain = lambda chat_id: BRAIN
     main._brain_root = lambda b: BRAIN
     main.log_conversation = lambda brain, u, j: None

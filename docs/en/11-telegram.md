@@ -207,6 +207,7 @@ Details on typing `/model`:
 - Typing a name works too: a name with a `/` (for example `openai/gpt-4o`) is an OpenRouter model; `gpt-...` or `...-codex` is a ChatGPT model (requiring OAuth); anything else (`opus`, `sonnet`, `fable`) is a Claude model.
 - Since 0.33.7 the picker shows **all 10 providers** like the dashboard Models page, **Antigravity CLI** included; before that it was a hand-written 5-row list, so later providers could not be switched to from a phone. Providers listing no models (commonly: the CLI is installed but not signed in) are hidden for tidiness, except the one in use.
 - Typing `/model <model name>` makes Javis look that name up in the real lists of connected providers and switch to the right one. If the name exists at several providers and none is currently in use, it asks rather than guessing, because guessing wrong silently changes which account pays (a subscription versus per-call API billing).
+- **Since 0.350.0, changing the model in Telegram pins THAT chat only.** It no longer changes the main model on the web, and other Telegram chats keep following the main model. A chat without a pin follows every model change you make on the web. `/model theo` removes the pin, `/model ghim` pins the model the chat runs now; `/status` says whether the chat is pinned or follows the main model.
 
 ## MCP and skills over Telegram
 
