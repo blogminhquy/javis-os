@@ -188,8 +188,8 @@ TEXT_ONLY_NOTE = ("# LƯỢT NHÓM CHỈ CHỮ\nLượt này trong nhóm chat kh
 WORK_TOOLS_NOTE = ("# LƯỢT LÀM VIỆC CÓ CÔNG CỤ\nĐây là lượt bạn làm một bước của việc chủ nhóm giao. Bạn có bộ công cụ như khi "
                    "chủ chat riêng với bạn: đọc và ghi file trong bộ não và thư mục làm việc của nhóm, gọi kết nối (MCP) đã "
                    "nối, dùng skill, chạy lệnh nếu engine của bạn có. TỰ LÀM bước này tới kết quả thật (file đã ghi, link đã "
-                   "chạy, số liệu đã lấy), đừng bảo chủ nhóm chuyển sang chat riêng. Trả lời trong nhóm bằng kết quả: đã làm "
-                   "gì, file hay link nào, còn vướng gì. Chỉ làm đúng phạm vi bước được giao; hành động ra ngoài (gửi tin, đăng "
+                   "chạy, số liệu đã lấy), đừng bảo chủ nhóm chuyển sang chat riêng. Trả lời trong nhóm NGẮN bằng kết quả: đã "
+                   "làm gì, file hay link nào, còn vướng gì. Chỉ làm đúng phạm vi bước được giao; hành động ra ngoài (gửi tin, đăng "
                    "bài, thanh toán, xoá dữ liệu) chỉ làm khi việc nói rõ. Thành viên khác làm lần lượt trên cùng thư mục, "
                    "nên đừng sửa file của bước khác khi bước của bạn không cần.")
 # 0.207.0: owner approval is a real gate (team_approval.py, team_gate.py). Any step of a job may ask with this directive;
@@ -230,7 +230,14 @@ INTERNAL_GROUP_NOTE = ("# NHÓM NỘI BỘ CỦA CHỦ",
                        "trưởng nhóm (người ghi \"trưởng nhóm\" trong danh sách thành viên) được gọi \"@Chủ nhóm\", ngay "
                        "trước câu chủ cần đọc, trả lời hay quyết định; tin đó báo về máy chủ nhóm. Thành viên khác cần chủ "
                        "quyết thì gọi trưởng nhóm, trưởng nhóm gom lại rồi hỏi chủ một lần. Không gọi ai khi không cần họ "
-                       "đáp.")
+                       "đáp.",
+                       # 0.358.0 (owner, 27/10/2026): "trong nhóm thì bọn nó nói ngắn gọn thôi, không cần trình bày dài dòng,
+                       # xem loạn lắm". Applies to every team turn; the JAVIS_TEAM blocks are directives, not chat text.
+                       "NÓI NGẮN như nhắn tin trong nhóm: thường 1 đến 3 câu, nhiều ý thì tối đa 5 gạch đầu dòng ngắn. Vào "
+                       "thẳng ý chính; không chào hỏi, không nhắc lại câu hỏi, không tiêu đề, không bảng, không tóm tắt lại "
+                       "điều người khác vừa nói. Sản phẩm dài (bài viết, báo cáo, danh sách) thì ghi vào file khi lượt có công "
+                       "cụ, rồi trong nhóm chỉ báo file nào và 1 đến 2 dòng chính; chỉ dán nguyên văn khi chủ nhóm đòi xem ngay "
+                       "trong chat. Khối <!-- JAVIS_TEAM ... --> không tính vào độ dài.")
 # Trợ lý gọi chủ nhóm trong tin (0.192.0, INTERNAL_GROUP_NOTE): tin đó được đánh dấu chờ chủ trả lời (meta.asks_owner).
 # Từ 0.197.0 chỉ tin của trưởng nhóm (hay của bất kỳ ai khi nhóm không có trưởng nhóm) mới được đánh dấu và báo về máy.
 ASKS_OWNER_RE = re.compile(r"@(?:chủ nhóm|chủ team|chu nhom|owner)(?![\w])", re.IGNORECASE)
@@ -947,7 +954,7 @@ class TeamRunner:
         team = await self._io(self._team, team_id)
         role = "leader_reply" if key == team["leader_key"] else "member_reply"
         body = (f"Chủ nhóm vừa nhắn (tin #{mid}):\n{text}\n\n"
-                "Trả lời ngắn gọn, đúng vai của bạn trong nhóm.")
+                "Trả lời ngắn gọn (1 đến 3 câu), đúng vai của bạn trong nhóm.")
         if role == "leader_reply":
             body += ("\nNếu trao đổi này nên thành một việc nhóm, bạn có thể ĐỀ XUẤT (chủ nhóm bấm mới thành việc): "
                      '<!-- JAVIS_TEAM: {"op": "propose_job", "title": "...", "brief": "..."} -->')
@@ -3507,8 +3514,9 @@ class TeamRunner:
                     "xong và nhận kết quả của chúng. Các phần không có \"wait\" chạy cùng lúc.\n"
                     "Việc nhỏ thì tự làm luôn và trả kết quả, không cần giao.")
         if step["kind"] == "synthesize":
-            return ("Tổng hợp kết quả các bước (ở phần Đầu vào) thành một kết quả cuối cho chủ nhóm. Một thành viên có "
-                    "nhiều tin thì tin mới nhất (số # lớn hơn) thay cho tin cũ.")
+            return ("Tổng hợp kết quả các bước (ở phần Đầu vào) thành một kết quả cuối NGẮN cho chủ nhóm: kết quả chính, "
+                    "file hay link nào, còn vướng gì. Không kể lại từng bước. Một thành viên có nhiều tin thì tin mới nhất "
+                    "(số # lớn hơn) thay cho tin cũ.")
         return ("Làm phần việc của bạn và trả kết quả. Cần hỏi thành viên khác thì dùng: "
                 '<!-- JAVIS_TEAM: {"op": "request_help", "agent": "<mã thành viên>", "question": "..."} -->')
 

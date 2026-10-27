@@ -1102,6 +1102,10 @@
   // Mo tab moi, Dong; bam nen den hoac Esc de dong; bam vao anh de doi qua lai giua "vua man"
   // va "co that" (1:1) roi keo xem chi tiet. Tren dien thoai co them pinch va keo mot ngon.
   var _lb = null, _lbUrl = "", _lbTen = "", _lbDayLichSu = false;
+  // 0.358.0 (chu repo 27/10/2026: "xem anh trong doan chat thi khong co slide de vuot trai vuot phai xem luon cac anh
+  // khac"): the lightbox is a gallery of every picture in the same chat. `_lbDs` = [{url, ten}], `_lbI` = the one shown,
+  // `_lbChuyen(buoc)` = go one picture back (-1) or on (+1), set while a lightbox is open (arrow keys use it).
+  var _lbDs = [], _lbI = 0, _lbChuyen = null;
 
   function lightboxPinchStep(state, from, to) {
     var scale = Math.max(1, Math.min(4, state.scale * to.distance / from.distance));
@@ -1109,6 +1113,20 @@
     return { scale: scale,
       x: to.x - (from.x - state.x) * ratio,
       y: to.y - (from.y - state.y) * ratio };
+  }
+
+  // Picture links that open the lightbox: a picture in any chat, and a customer's photo in the inbox (ht-media.js).
+  var LB_LINKS = "a.jv-img-link, a.ht-anh";
+  // Next index of a gallery of `n` pictures from `i` by `buoc` (-1, +1). No wrap: the first and last stay put.
+  function lightboxGalleryStep(n, i, buoc) {
+    if (!(n > 1)) return 0;
+    return Math.max(0, Math.min(n - 1, (Number(i) || 0) + (buoc < 0 ? -1 : buoc > 0 ? 1 : 0)));
+  }
+  // A finished one-finger move -> -1 (swiped right: previous), +1 (swiped left: next) or 0. Needs 50px and a mostly
+  // sideways move, so a tap or a vertical move never changes the picture.
+  function lightboxSwipe(dx, dy) {
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return 0;
+    return dx < 0 ? 1 : -1;
   }
 
   function lightboxClampPan(state, size) {
@@ -1137,7 +1155,7 @@
   // dung cai vua mo.
   function _goLopPhu() {
     if (!_lb) return;
-    _lb.remove(); _lb = null; _lbUrl = ""; _lbTen = "";
+    _lb.remove(); _lb = null; _lbUrl = ""; _lbTen = ""; _lbDs = []; _lbI = 0; _lbChuyen = null;
     document.body.classList.remove("jv-lb-open");
   }
   function dongLightbox() {
@@ -1151,35 +1169,117 @@
       try { history.back(); } catch (e) {}
     }
   }
-  function moLightbox(url, ten) {
+  // One picture link of a chat as {url, ten}.
+  function lbMuc(a) {
+    var img = a.querySelector ? a.querySelector("img") : null;
+    var href = a.getAttribute("href") || (img && img.src) || "";
+    if (a.classList && a.classList.contains("ht-anh")) {
+      return { url: href, ten: window.JavisHtMedia && window.JavisHtMedia.tenAnh ? window.JavisHtMedia.tenAnh(href) : "" };
+    }
+    var vp = a.getAttribute("data-vault-path") || "";
+    // `data-img-ten` la ten do NGUOI GUI dat, dung cho anh khong nam trong vault (vd file vua
+    // dan vao khung chat, phuc vu qua /upload/raw?name=...). Suy ten tu href o day ra chu
+    // "raw" - dung ten endpoint lam ten anh, vua sai vua kho hieu.
+    var ten = a.getAttribute("data-img-ten") || "";
+    if (!ten) ten = vp ? vp.split("/").pop() : href.split("/").pop().split("?")[0];
+    return { url: href, ten: ten };
+  }
+  // The chat a picture belongs to: the nearest list that scrolls (main chat, Team chat, customer inbox, a bot test
+  // chat...), so the gallery holds that chat's pictures and nothing from another panel.
+  function lbVung(a) {
+    for (var el = a.parentElement; el && el !== document.body; el = el.parentElement) {
+      if (el.matches && el.matches("[data-lb-scope], .transcript, .tm-msgs, .tm-info-imgs")) return el;
+      var oy = getComputedStyle(el).overflowY;
+      if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) return el;
+    }
+    return document.body;
+  }
+  // Open the picture `a` with every picture of its chat, in the order they appear (same picture twice counts once).
+  function moTuLink(a) {
+    var links = Array.prototype.slice.call(lbVung(a).querySelectorAll(LB_LINKS));
+    if (links.indexOf(a) < 0) links = [a];
+    var ds = [], thay = {}, viTri = 0;
+    links.forEach(function (l) {
+      if (l.classList.contains("hong")) return;
+      var m = lbMuc(l);
+      if (!m.url) return;
+      if (l === a) viTri = thay[m.url] !== undefined ? thay[m.url] : ds.length;
+      if (thay[m.url] !== undefined) return;
+      thay[m.url] = ds.length;
+      ds.push(m);
+    });
+    var muc = ds[viTri] || lbMuc(a);
+    moLightbox(muc.url, muc.ten, ds, viTri);
+  }
+
+  // `ds` (optional): every picture of the chat as [{url, ten}], `viTri` the index of this one. Without it the lightbox
+  // shows the one picture, as before (a file opened from the vault tree).
+  function moLightbox(url, ten, ds, viTri) {
     _goLopPhu();
     _lbUrl = url; _lbTen = ten || "";
+    _lbDs = Array.isArray(ds) && ds.length ? ds : [{ url: url, ten: ten || "" }];
+    _lbI = Math.max(0, Math.min(_lbDs.length - 1, Number(viTri) || 0));
+    var nhieu = _lbDs.length > 1;
     _lb = document.createElement("div");
-    _lb.className = "jv-lb";
+    _lb.className = "jv-lb" + (nhieu ? " co-ds" : "");
     _lb.innerHTML =
       '<div class="jv-lb-bar">' +
         '<span class="jv-lb-ten"></span>' +
+        (nhieu ? '<span class="jv-lb-dem" aria-live="polite"></span>' : "") +
         '<span class="jv-lb-nut">' +
           '<button type="button" data-lb="tai" title="' + esc(tw("crender.lb_dl_title")) + '">' + ic("download") + " " + esc(tw("common.download")) + "</button>" +
           '<button type="button" data-lb="tab" title="' + esc(tw("crender.lb_tab")) + '">' + ic("external-link") + "</button>" +
           '<button type="button" data-lb="dong" title="' + esc(tw("crender.close_esc")) + '">' + ic("x") + "</button>" +
         "</span>" +
       "</div>" +
-      '<div class="jv-lb-khung"><img class="jv-lb-img" alt="" draggable="false"></div>';
-    // Ten file dat bang textContent, KHONG noi vao innerHTML: ten do nguoi dung dat, noi thang
-    // la mo duong cho HTML la lot vao trang.
-    _lb.querySelector(".jv-lb-ten").textContent = _lbTen;
+      '<div class="jv-lb-khung"><img class="jv-lb-img" alt="" draggable="false"></div>' +
+      (nhieu ? '<button type="button" class="jv-lb-di jv-lb-truoc" data-lb="truoc" aria-label="' + esc(tw("crender.lb_prev")) +
+        '" title="' + esc(tw("crender.lb_prev")) + '">' + ic("chevron-left") + "</button>" +
+        '<button type="button" class="jv-lb-di jv-lb-sau" data-lb="sau" aria-label="' + esc(tw("crender.lb_next")) +
+        '" title="' + esc(tw("crender.lb_next")) + '">' + ic("chevron-right") + "</button>" : "");
     var img = _lb.querySelector(".jv-lb-img");
     var khung = _lb.querySelector(".jv-lb-khung");
-    // An image from another site (a customer's Zalo photo on zdn.vn) is shown with no referrer, the same way the
-    // inbox thumbnail is, or the CDN refuses it (0.231.0).
-    try {
-      if (/^https?:/i.test(url) && new URL(url).origin !== location.origin) img.referrerPolicy = "no-referrer";
-    } catch (e) {}
-    img.src = url;
-    img.alt = _lbTen;
     var zoom = { scale: 1, x: 0, y: 0 };
-    var lanTruoc = null, keoTruoc = null, vuaKeoLuc = 0;
+    var lanTruoc = null, keoTruoc = null, vuaKeoLuc = 0, vuot = null;
+
+    // Show picture `i` of the gallery: name, counter, arrows, back to fit-the-screen.
+    function hienAnh(i) {
+      _lbI = i;
+      var muc = _lbDs[i] || { url: url, ten: ten };
+      _lbUrl = muc.url; _lbTen = muc.ten || "";
+      // Ten file dat bang textContent, KHONG noi vao innerHTML: ten do nguoi dung dat, noi thang
+      // la mo duong cho HTML la lot vao trang.
+      _lb.querySelector(".jv-lb-ten").textContent = _lbTen;
+      var dem = _lb.querySelector(".jv-lb-dem");
+      if (dem) dem.textContent = tw("crender.lb_count").replace("{i}", String(i + 1)).replace("{n}", String(_lbDs.length));
+      var truoc = _lb.querySelector(".jv-lb-truoc"), sau = _lb.querySelector(".jv-lb-sau");
+      if (truoc) truoc.disabled = i <= 0;
+      if (sau) sau.disabled = i >= _lbDs.length - 1;
+      zoom = { scale: 1, x: 0, y: 0 };
+      _lb.classList.remove("that", "pinch");
+      img.style.transform = "";
+      // An image from another site (a customer's Zalo photo on zdn.vn) is shown with no referrer, the same way the
+      // inbox thumbnail is, or the CDN refuses it (0.231.0).
+      img.referrerPolicy = "";
+      try {
+        if (/^https?:/i.test(_lbUrl) && new URL(_lbUrl).origin !== location.origin) img.referrerPolicy = "no-referrer";
+      } catch (e) {}
+      img.src = _lbUrl;
+      img.alt = _lbTen;
+      // The next and previous pictures load now, so a swipe shows them at once.
+      [i - 1, i + 1].forEach(function (k) {
+        if (k < 0 || k >= _lbDs.length) return;
+        var pre = new Image();
+        if (/^https?:/i.test(_lbDs[k].url)) pre.referrerPolicy = "no-referrer";
+        pre.src = _lbDs[k].url;
+      });
+    }
+    function chuyen(buoc) {
+      var k = lightboxGalleryStep(_lbDs.length, _lbI, buoc);
+      if (k !== _lbI) hienAnh(k);
+    }
+    _lbChuyen = chuyen;
+    hienAnh(_lbI);
 
     function tam(touch) {
       var rect = khung.getBoundingClientRect();
@@ -1223,6 +1323,8 @@
       } else if (ev.touches.length === 1) {
         keoTruoc = tam(ev.touches[0]);
         lanTruoc = null;
+        // A one-finger swipe on a picture at screen size goes to the previous or next picture (touchend decides).
+        vuot = { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
       }
     }, { passive: false });
     khung.addEventListener("touchmove", function (ev) {
@@ -1261,6 +1363,12 @@
       }
     }, { passive: false });
     function ketThucCham(ev) {
+      if (vuot && ev.type === "touchend" && !ev.touches.length && ev.changedTouches && ev.changedTouches[0] &&
+          zoom.scale <= 1 && !_lb.classList.contains("that")) {
+        var buoc = lightboxSwipe(ev.changedTouches[0].clientX - vuot.x, ev.changedTouches[0].clientY - vuot.y);
+        if (buoc) { vuaKeoLuc = Date.now(); chuyen(buoc); }
+      }
+      if (ev.touches.length !== 1) vuot = null;
       lanTruoc = ev.touches.length >= 2 ? haiNgon(ev.touches) : null;
       keoTruoc = ev.touches.length === 1 ? tam(ev.touches[0]) : null;
     }
@@ -1283,7 +1391,9 @@
         ev.stopPropagation();
         var act = b.getAttribute("data-lb");
         if (act === "tai") return _lbTaiVe();
-        if (act === "tab") return window.open(url, "_blank", "noopener");
+        if (act === "tab") return window.open(_lbUrl, "_blank", "noopener");
+        if (act === "truoc") return chuyen(-1);
+        if (act === "sau") return chuyen(1);
         return dongLightbox();
       }
       if (Date.now() - vuaKeoLuc < 400 && ev.target.closest(".jv-lb-khung")) return;
@@ -1303,9 +1413,13 @@
   if (typeof document !== "undefined") {
     // Gan o TRONG khoi nay: file con duoc require duoi node de test ham thuan, ma duoi node
     // khong co `window` - gan o ngoai la module nem ngay luc nap.
-    window.JavisLightbox = { open: moLightbox, close: dongLightbox };
+    window.JavisLightbox = { open: moLightbox, close: dongLightbox, openFrom: moTuLink };
     document.addEventListener("keydown", function (e) {
       if (_lb && e.key === "Escape") { e.preventDefault(); dongLightbox(); }
+      else if (_lb && _lbChuyen && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        _lbChuyen(e.key === "ArrowLeft" ? -1 : 1);
+      }
     });
     window.addEventListener("popstate", function () {
       if (!_lb) return;
@@ -1323,14 +1437,7 @@
       if (e.target.closest('[contenteditable="true"], .jvfe-modal, .note-editor')) return;
       e.preventDefault();
       e.stopPropagation();
-      var img = a.querySelector("img");
-      var vp = a.getAttribute("data-vault-path") || "";
-      // `data-img-ten` la ten do NGUOI GUI dat, dung cho anh khong nam trong vault (vd file vua
-      // dan vao khung chat, phuc vu qua /upload/raw?name=...). Suy ten tu href o day ra chu
-      // "raw" - dung ten endpoint lam ten anh, vua sai vua kho hieu.
-      var ten = a.getAttribute("data-img-ten") || "";
-      if (!ten) ten = vp ? vp.split("/").pop() : (a.getAttribute("href") || "").split("/").pop().split("?")[0];
-      moLightbox(a.getAttribute("href") || (img && img.src) || "", ten);
+      moTuLink(a);
     }, true);
     // TAI FILE TREN IPHONE (0.64.46). App cai ra man hinh chinh (standalone) KHONG co nut Back.
     // Mot link tai file (<a download>, hay link toi /files/raw, /files/zip, /upload/raw) ma di
@@ -1493,6 +1600,7 @@
       laLinkTaiFile: laLinkTaiFile, laIOS: laIOS,
       // Xuat them de test chay THAT chuoi du phong cua anh (xem ungVienAnh / imgGone).
       ungVienAnh: ungVienAnh, ghepDuong: ghepDuong, imgGone: imgGone,
-      lightboxPinchStep: lightboxPinchStep, lightboxClampPan: lightboxClampPan };
+      lightboxPinchStep: lightboxPinchStep, lightboxClampPan: lightboxClampPan,
+      lightboxGalleryStep: lightboxGalleryStep, lightboxSwipe: lightboxSwipe };
   }
 })();

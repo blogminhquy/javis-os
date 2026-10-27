@@ -4172,3 +4172,42 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .tm-task-quality { flex-basis: 100%; min-width: 0; width: 100%; }
 .tm-filterbar:has(.tm-task-quality) { flex-wrap: wrap; }
 .tm-task-quality .tm-sec { overflow-wrap: anywhere; }
+
+/* 0.358.0 (owner, 27/10/2026: "uxui nhìn điện thoại trong phần team loạn lắm"): a calmer Team chat on a phone. Fewer
+   boxes and lines, more width for the words, rich answers read as a chat message instead of a document. Text stays 16px. */
+@media (max-width: 760px) {
+  /* Header: one slim row of plain icon buttons, no boxed borders. */
+  .tm-chat-head { min-height: 48px; padding: 2px 4px; gap: 2px; }
+  .tm-chat-head .ws-btn.tm-icon, .tm-chat-head .tm-back { border-color: transparent; background: none; box-shadow: none; }
+  .tm-chat-head .tm-ava, .tm-chat-head .tm-gava { flex: none; }
+  /* Messages: no outline around an assistant's message, tighter spacing, more room for the text. */
+  .tm-msgs { padding: 8px 8px 12px; gap: 4px; }
+  .tm-msg-agent { margin-bottom: 6px; }
+  .tm-msg-agent .tm-bubble { border-color: transparent; }
+  .tm-msg-agent .tm-col { max-width: calc(100% - 34px); }
+  .tm-msg-owner .tm-col { max-width: 88%; }
+  .tm-bubble { padding: 7px 11px; }
+  .tm-mdwrap.msg-javis .bubble { line-height: 1.5; }
+  .tm-text { line-height: 1.5; }
+  .tm-msg-agent .tm-who { font-size: 16px; }
+  /* Headings inside a message are bold lines of the same size; tables stay compact and scroll sideways. */
+  .tm-bubble h1, .tm-bubble h2, .tm-bubble h3, .tm-bubble h4, .tm-bubble h5, .tm-bubble h6 { font-size: 16px; line-height: 1.4;
+    margin: 6px 0 2px; }
+  .tm-bubble table { display: block; max-width: 100%; overflow-x: auto; font-size: 16px; }
+  .tm-bubble th, .tm-bubble td { padding: 4px 8px; white-space: nowrap; }
+  .tm-bubble p { margin: 4px 0; }
+  .tm-bubble ul, .tm-bubble ol { margin: 4px 0; padding-left: 20px; }
+  .tm-chat-head .tm-title strong { font-size: 17px; }
+  .tm-chat-head .tm-sub { font-size: 16px; }
+  /* Team list: the title on the left, Create and Import together on the right at the same height. */
+  .tm-list-bar { flex-wrap: wrap; gap: 8px; }
+  .tm-list-bar .tm-new { margin-left: auto; }
+  .tm-list-bar .ws-btn { min-height: 44px; font-size: 16px; }
+  /* Side panel: one text size (16px) everywhere, section titles in plain case at the same size, room between sections. */
+  .tm-side, .tm-side .tm-tab, .tm-side .ws-btn, .tm-side label, .tm-side .tm-level, .tm-side .tm-radio, .tm-side .tm-rs,
+  .tm-side .tm-field, .tm-side .tm-sub, .tm-side .tm-mhead, .tm-side input, .tm-side select, .tm-side textarea { font-size: 16px; }
+  .tm-side .tm-qhead { font-size: 16px; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text2);
+    margin-top: 18px; }
+  .tm-side .tm-add-open { margin-bottom: 4px; }
+  .tm-side .tm-close { border-color: transparent; background: none; }
+}
