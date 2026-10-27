@@ -176,13 +176,14 @@ def _identity_env() -> Dict[str, str]:
 
 def commit_all(worktree: str, message: str) -> str:
     """Commit every change in the worktree (respecting .gitignore). Returns HEAD."""
-    import os
     import subprocess
+    import winproc
     github_repos.git(["add", "-A"], worktree)
     if github_repos.git_out(["diff", "--cached", "--name-only"], worktree):
         env = dict(github_repos.git_env(""), **_identity_env())
         p = subprocess.run(["git", "commit", "-q", "-F", "-"], cwd=worktree, input=message, text=True,
-                           capture_output=True, env=env, encoding="utf-8", errors="replace")
+                           capture_output=True, env=env, encoding="utf-8", errors="replace",
+                           creationflags=winproc.no_window())
         if p.returncode != 0:
             raise github_repos.RepoError(_c("Không commit được: ", "Commit failed: ")
                                          + ((p.stderr or p.stdout or "").strip().splitlines() or ["?"])[-1])
