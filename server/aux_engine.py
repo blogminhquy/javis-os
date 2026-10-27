@@ -544,6 +544,8 @@ def cooldown_for(error) -> float:
 def _cool_key(e) -> str:
     """provider:model(:account) for API links, class:model for CLI links; "" for anything else (never rests)."""
     prov = getattr(e, "provider", None)
+    if not (isinstance(prov, str) and prov):
+        prov = getattr(e, "account_provider", None)   # a plan engine pointed at one account (plan_accounts, 0.353.0)
     kind = prov if isinstance(prov, str) and prov else (type(e).__name__ if type(e).__name__ in _COOL_CLASSES else "")
     acc = getattr(e, "account_id", "") if isinstance(getattr(e, "account_id", ""), str) else ""
     return (f"{kind}:{getattr(e, 'model', '') or ''}" + (f":{acc}" if acc else "")) if kind else ""
@@ -622,7 +624,9 @@ class _FallbackChain:
             # the next job start on key 2 instead of paying for the same dead key again.
             acc = getattr(e, "account_id", "")
             if isinstance(acc, str) and acc:
-                model_routing.mark_rest(getattr(e, "provider", ""), acc, seconds=secs)
+                # Plan engines (Codex, Grok, Claude) carry `account_provider`; API engines carry `provider` (0.353.0).
+                model_routing.mark_rest(getattr(e, "account_provider", None) or getattr(e, "provider", ""), acc,
+                                        seconds=secs)
 
     async def query(self, prompt: str):
         fail = "chuỗi engine việc nền rỗng"
@@ -910,6 +914,36 @@ def _cli_effort(level: str):
     return {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "ultra": "high"}.get(level or "")
 
 
+def _plan_accounts_for(prov: str, settings) -> list:
+    """Usable accounts of a plan card that holds more than one (plan_accounts, 0.353.0); [] = run as before."""
+    try:
+        import plan_accounts
+        s = settings if settings is not None else cfgmod.read_settings()
+        m = s.get("model", {}) or {}
+        if prov == CLAUDE:
+            import claude_auth
+            if claude_auth.che_do(s) == claude_auth.API_KEY:
+                return []                   # Claude on an API key: no plan account to rotate
+        if not plan_accounts.has_extra(m, prov):
+            return []
+        return plan_accounts.usable(m, prov)
+    except Exception as e:  # noqa: BLE001 - account rotation must never cost the step
+        print(f"[aux] tài khoản {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+
+
+def _per_account(prov: str, first, settings, more) -> list:
+    """One link per usable account: `first` takes account 1 of the list, `more()` builds each further link."""
+    accs = _plan_accounts_for(prov, settings)
+    if not accs:
+        return [first]
+    import plan_accounts
+    out = [plan_accounts.use(first, prov, accs[0]["id"])]
+    for a in accs[1:]:
+        out.append(plan_accounts.use(more(), prov, a["id"]))
+    return out
+
+
 def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_used: list) -> list:
     """Engines for one step of the background order. An API card gives one link per usable account (key 1, key 2...);
     a plan card gives one link; a step that cannot run on this machine gives none."""
@@ -926,16 +960,23 @@ def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_
         eff = _cli_effort(level)
         if eff and hasattr(e, "effort"):
             e.effort = eff
-        return [e]
+
+        def _more():
+            c = copy.copy(e)
+            claude_used.append(c)
+            return c
+        return _per_account(CLAUDE, e, settings, _more)
     ok, why = availability(sp, settings)
     if not ok:
         print(f"[aux] {why} → bỏ bước {prov}.", file=sys.stderr)
         return []
     try:
         if prov == CODEX:
-            return [_build_codex(sp, cli, mode, tag, codex_profile)]
+            return _per_account(CODEX, _build_codex(sp, cli, mode, tag, codex_profile), settings,
+                                lambda: _build_codex(sp, cli, mode, tag, codex_profile))
         if prov == GROK_CLI:
-            return [_build_grok(sp, cli, mode, tag)]
+            return _per_account(GROK_CLI, _build_grok(sp, cli, mode, tag), settings,
+                                lambda: _build_grok(sp, cli, mode, tag))
         if prov == ANTIGRAVITY:
             return [_build_antigravity(sp, cli, mode, tag)]
         if prov in API_PROVIDERS:

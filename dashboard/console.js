@@ -4330,10 +4330,65 @@
             <span class="gcard-meta ord-addmsg"></span></div>
         </div>`;
     };
+    const multiPlan = R.multi_plan || [];
+    const planReady = (a) => a.enabled && a.signed_in && !(a.resting_until > nowS);
     const ordStatus = (p) => {
+      if (multiPlan.indexOf(p.id) >= 0) {
+        const pl = accts[p.id] || [];
+        return pl.length > 1 ? " · " + t("models.pacct_keys", { ok: pl.filter(planReady).length, n: pl.length }) : "";
+      }
       if (multiKey.indexOf(p.id) < 0) return "";
       const list = accts[p.id] || [];
       return " · " + t("models.ord_keys", { ok: list.filter(acctReady).length, n: list.length });
+    };
+
+    // ---- 0.353.0: several accounts on a plan card (ChatGPT, Grok, Claude Code). Account 1 is the login above. ----
+    const planAccts = (p, ord) => {
+      if (!ord || multiPlan.indexOf(p.id) < 0) return "";
+      if (p.id === "anthropic-cli" && p.auth_mode === "api_key") return "";   // Claude on an API key: no plan accounts
+      const list = accts[p.id] || [];
+      const n = list.length;
+      const cur = list.find(planReady);
+      const useChat = R.chat_in_use === p.id, useBg = !!bgUse && bgUse.provider === p.id;
+      const rows = n < 2 ? "" : list.map((a, i) => {
+        const isCur = !!cur && cur.id === a.id;
+        const name = a.label || (a.main ? t("models.pacct_main") : t("models.pacct_n", { n: i + 1 }));
+        const st = !a.enabled ? t("models.acct_off") : !a.signed_in ? t("models.pacct_out") : a.resting_until > nowS
+          ? t("models.acct_rest", { gio: new Date(a.resting_until * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })
+          : t("models.pacct_ok");
+        const cls = !a.enabled ? "off" : !a.signed_in ? "off" : a.resting_until > nowS ? "rest" : "ready";
+        const pills = (isCur && useChat ? `<span class="ord-pill chat">${esc(t("models.acct_chat"))}</span>` : "")
+          + (isCur && useBg ? `<span class="ord-pill bg">${esc(t("models.acct_bg"))}</span>` : "");
+        return `<li class="ord-acct${a.enabled ? "" : " off"}${isCur && useChat ? " inuse" : isCur && useBg ? " inuse-bg" : ""}" data-dnd="pacct:${esc(p.id)}" data-id="${esc(a.id)}">
+            <button type="button" class="ord-grip" aria-label="${esc(t("models.ord_drag", { ten: name }))}">${ORD_GRIP}</button>
+            <span class="ord-num">${i + 1}</span>
+            <span class="ord-atxt"><span class="ord-aname"><span class="ord-dot ${cls}">●</span> ${esc(name)}</span>
+              <span class="ord-ast">${esc(st)}</span>${pills}</span>
+            <span class="ord-actl">
+              <button type="button" class="ord-ib" data-pacct-move="-1" ${i === 0 ? "disabled" : ""} aria-label="${esc(t("models.acct_up", { ten: name }))}">${ic("chevron-up")}</button>
+              <button type="button" class="ord-ib" data-pacct-move="1" ${i === n - 1 ? "disabled" : ""} aria-label="${esc(t("models.acct_down", { ten: name }))}">${ic("chevron-down")}</button>
+              <button type="button" class="ord-ib" data-acct-menu="1" aria-expanded="false" aria-label="${esc(t("models.acct_menu", { ten: name }))}">${ic("ellipsis")}</button>
+            </span>
+            <div class="ord-menu" hidden>
+              <button type="button" class="gcard-btn ghost" data-pacct-act="toggle">${esc(a.enabled ? t("models.acct_disable") : t("models.acct_enable"))}</button>
+              ${a.main ? "" : `<button type="button" class="gcard-btn ghost" data-pacct-act="relogin">${esc(t("models.pacct_relogin"))}</button>
+              <button type="button" class="gcard-btn ghost danger" data-pacct-act="remove">${esc(t("models.acct_rm"))}</button>`}
+            </div>
+          </li>`;
+      }).join("");
+      return `<div class="ord-pacct" data-p="${esc(p.id)}">
+          ${n > 1 ? `<div class="prov-auth-title">${esc(t("models.pacct_h"))}${infoBtn()}</div>${infoBody(esc(t("models.pacct_note")))}
+          <ol class="ord-accts">${rows}</ol>` : ""}
+          <button type="button" class="ord-add" data-pacct-add="${esc(p.id)}">＋ ${esc(t("models.pacct_add"))}</button>
+          <div class="ord-addbox" data-pacct-box="${esc(p.id)}" hidden>
+            <input class="js-input" data-f="label" placeholder="${esc(t("models.pacct_label_ph"))}">
+            <div class="prov-auth-warn">${esc(t("models.pacct_warn"))}<br>${esc(t("models.pacct_warn2"))}</div>
+            <div class="ord-pstep"></div>
+            <div class="prov-action" style="margin-top:0"><button type="button" class="gcard-btn" data-pacct-go="${esc(p.id)}">${esc(t("models.pacct_get_link"))}</button>
+              <button type="button" class="gcard-btn ghost" data-pacct-cancel="1">${esc(t("common.cancel"))}</button>
+              <span class="gcard-meta ord-addmsg"></span></div>
+          </div>
+        </div>`;
     };
 
     // withInfo: an (i) after the name; the card puts infoBody(...) right after this head.
@@ -4399,6 +4454,7 @@
                  <button class="gcard-btn ghost" data-oauth-browser="1">${esc(t("models.via_browser"))}</button>`}
             <span id="oauthMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
           </div>
+          ${on ? planAccts(p, ord) : ""}
         </div>`;
       }
       if (p.id === "grok-cli") {
@@ -4424,6 +4480,7 @@
                  <button class="gcard-btn ghost" data-grokcheck="1">${esc(t("qs.recheck"))}</button>`}
             <span id="grokMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
           </div>
+          ${on ? planAccts(p, ord) : ""}
         </div>`;
       }
       if (p.id === "antigravity-cli") {
@@ -4484,6 +4541,7 @@
               <span><b>${esc(t("models.auth_key"))}</b>
               ${p.auth_api_key_set ? "" : ` <i>${esc(t("models.auth_key_none"))}</i>`}</span></label>
           </div>
+          ${planAccts(p, ord)}
         </div>`;
       }
       const masked = (m[KEYFIELD[p.id]] || "").slice(-4);
@@ -4833,10 +4891,11 @@
     MO.bindDrag(el, { onDrop: (key, from, to) => {
       if (key === "prov") save({ order: MO.move(c.order, from, to) });
       else if (key.indexOf("acct:") === 0) saveAcc(key.slice(5), MO.move(items(key.slice(5)), from, to));
+      else if (key.indexOf("pacct:") === 0) saveAcc(key.slice(6), MO.move(items(key.slice(6)), from, to));
     } });
 
     // ---- the keys of an API card ----
-    el.querySelectorAll(".ord-acct").forEach(li => {
+    el.querySelectorAll('.ord-acct[data-dnd^="acct:"]').forEach(li => {
       const pid = li.dataset.dnd.slice(5), id = li.dataset.id;
       const idx = () => items(pid).findIndex(a => a.id === id);
       li.querySelectorAll("[data-acct-move]").forEach(b => b.onclick = () => {
@@ -4889,6 +4948,121 @@
       l.push({ label: box.querySelector('[data-f="label"]').value.trim() || t("models.acct_n", { n: l.length + 1 }), enabled: true, key: key });
       b.disabled = true;
       saveAcc(pid, l);
+    });
+
+    // ---- the accounts of a plan card (0.353.0): order, on/off, sign in again, remove, add ----
+    const menuToggle = (menu, mb) => {
+      const open = menu.hidden;
+      el.querySelectorAll(".ord-menu").forEach(x => { x.hidden = true; });
+      el.querySelectorAll("[data-acct-menu]").forEach(x => x.setAttribute("aria-expanded", "false"));
+      menu.hidden = !open;
+      mb.setAttribute("aria-expanded", String(open));
+    };
+    const planBox = (pid) => el.querySelector(`[data-pacct-box="${pid}"]`);
+    const resetBox = (box) => {
+      box.querySelector(".ord-pstep").innerHTML = "";
+      box.querySelector(".ord-addmsg").textContent = "";
+      box.querySelector("[data-pacct-go]").hidden = false;
+      delete box.dataset.acc;
+      delete box.dataset.re;
+    };
+    async function planLogin(pid, box) {
+      const msg = box.querySelector(".ord-addmsg"), step = box.querySelector(".ord-pstep");
+      const go = box.querySelector("[data-pacct-go]");
+      go.disabled = true;
+      msg.textContent = t("models.opening");
+      let r;
+      try {
+        r = await postJson("/plan-accounts/login-start", { provider: pid, account_id: box.dataset.re || "",
+          label: box.querySelector('[data-f="label"]').value.trim() }, 60000);
+      } catch (e) { r = { ok: false, error: String(e) }; }
+      go.disabled = false;
+      msg.textContent = "";
+      if (!r || !r.ok) { msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap")); return; }
+      if (r.connected) { c.again(); return; }
+      box.dataset.acc = r.account_id;
+      go.hidden = true;
+      step.innerHTML = `<div>${esc(t("models.pacct_open"))}</div>
+        <div class="ord-plink"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a></div>`
+        + (r.code ? `<div>${esc(t("models.pacct_code"))} <code class="ord-pcode">${esc(r.code)}</code></div>` : "")
+        + (r.needs_code
+          ? `<div class="prov-action" style="margin-top:0"><input class="js-input" data-f="code" autocomplete="off" placeholder="${esc(t("models.pacct_paste"))}">
+              <button type="button" class="gcard-btn" data-pacct-code="1">${esc(t("models.pacct_confirm"))}</button></div>`
+          : `<div class="gcard-meta">${ic("loader", { cls: "ic-spin" })} ${esc(t("models.pacct_wait"))}</div>`);
+      if (r.needs_code) {
+        const btn = step.querySelector("[data-pacct-code]");
+        btn.onclick = async () => {
+          const code = step.querySelector('[data-f="code"]').value.trim();
+          if (!code) { step.querySelector('[data-f="code"]').focus(); return; }
+          btn.disabled = true;
+          let d;
+          try { d = await postJson("/plan-accounts/login-code", { provider: pid, account_id: r.account_id, code: code }, 60000); }
+          catch (e) { d = { ok: false, error: String(e) }; }
+          btn.disabled = false;
+          if (d && d.ok) { c.again(); return; }
+          msg.innerHTML = WARN_ICON + " " + esc((d && d.error) || t("app.err_cap"));
+        };
+        return;
+      }
+      // ChatGPT and Grok finish on the web: ask every 3 seconds, for up to 15 minutes (the code's lifetime).
+      const han = Date.now() + 15 * 60 * 1000;
+      const tick = async () => {
+        if (!box.isConnected || box.hidden || box.dataset.acc !== r.account_id) return;
+        let d = null;
+        try {
+          d = await (await fetch("/plan-accounts/login-poll?provider=" + encodeURIComponent(pid)
+            + "&account_id=" + encodeURIComponent(r.account_id))).json();
+        } catch (e) {}
+        if (d && d.connected) { c.again(); return; }
+        if (d && d.ok === false && d.error) { msg.innerHTML = WARN_ICON + " " + esc(d.error); return; }
+        if (Date.now() < han) setTimeout(tick, 3000);
+        else msg.innerHTML = WARN_ICON + " " + esc(t("models.timeout_login"));
+      };
+      setTimeout(tick, 3000);
+    }
+    el.querySelectorAll('.ord-acct[data-dnd^="pacct:"]').forEach(li => {
+      const pid = li.dataset.dnd.slice(6), id = li.dataset.id;
+      const idx = () => items(pid).findIndex(a => a.id === id);
+      li.querySelectorAll("[data-pacct-move]").forEach(b => b.onclick = () => {
+        const i = idx();
+        saveAcc(pid, MO.move(items(pid), i, i + Number(b.dataset.pacctMove)));
+      });
+      const menu = li.querySelector(".ord-menu"), mb = li.querySelector("[data-acct-menu]");
+      mb.onclick = () => menuToggle(menu, mb);
+      menu.querySelector('[data-pacct-act="toggle"]').onclick = () => {
+        const l = items(pid);
+        l[idx()].enabled = !l[idx()].enabled;
+        saveAcc(pid, l);
+      };
+      const rl = menu.querySelector('[data-pacct-act="relogin"]');
+      if (rl) rl.onclick = () => {
+        const box = planBox(pid);
+        resetBox(box);
+        box.dataset.re = id;
+        box.querySelector('[data-f="label"]').value = (items(pid)[idx()] || {}).label || "";
+        box.hidden = false;
+        menu.hidden = true;
+        planLogin(pid, box);
+      };
+      const rm = menu.querySelector('[data-pacct-act="remove"]');
+      if (rm) rm.onclick = () => {
+        const l = items(pid), i = idx();
+        if (!window.confirm(t("models.pacct_rm_q", { ten: l[i].label || t("models.pacct_n", { n: i + 1 }) }))) return;
+        l.splice(i, 1);
+        saveAcc(pid, l);
+      };
+    });
+    el.querySelectorAll("[data-pacct-add]").forEach(b => b.onclick = () => {
+      const box = planBox(b.dataset.pacctAdd);
+      box.hidden = !box.hidden;
+      if (!box.hidden) { resetBox(box); box.querySelector('[data-f="label"]').focus(); }
+    });
+    el.querySelectorAll("[data-pacct-go]").forEach(b => b.onclick = () => planLogin(b.dataset.pacctGo, b.closest(".ord-addbox")));
+    el.querySelectorAll("[data-pacct-cancel]").forEach(b => b.onclick = () => {
+      const box = b.closest(".ord-addbox"), pid = box.dataset.pacctBox;
+      if (box.dataset.acc) postJson("/plan-accounts/login-cancel", { provider: pid, account_id: box.dataset.acc }).catch(() => {});
+      resetBox(box);
+      box.hidden = true;
     });
 
     const more = el.querySelector("#ordMore");

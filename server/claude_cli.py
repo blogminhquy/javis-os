@@ -689,6 +689,23 @@ def auth_status(bo_qua_cache: bool = False):
         return {"connected": False, "unknown": True, "error": f"{type(e).__name__}: {e}"}
 
 
+def auth_status_folder(folder) -> dict:
+    """Sign-in state of an extra Claude account (its own CLAUDE_CONFIG_DIR). No cache: called only while
+    that account is signing in, and by the Models page through plan_accounts (which reads the folder first)."""
+    cli = find_claude_cli()
+    if not cli or not folder:
+        return {"connected": False}
+    try:
+        r = subprocess.run([cli, "auth", "status", "--json"], capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=15, creationflags=_no_window(),
+                           env={**os.environ, "CLAUDE_CONFIG_DIR": str(folder)})
+        d = json.loads((r.stdout or "").strip() or "{}")
+        return {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
+                "plan": d.get("subscriptionType", "") or ""}
+    except Exception as e:  # noqa: BLE001
+        return {"connected": False, "unknown": True, "error": f"{type(e).__name__}: {e}"}
+
+
 def auth_quen_cache():
     """Xoá bản nhớ - gọi sau khi đăng nhập/ngắt để thẻ hiện trạng thái mới ngay.
 
@@ -833,7 +850,9 @@ _LOGIN = {"proc": None, "url": "", "done": False, "error": "", "lines": []}
 _LOGIN_URL_RE = _re_login.compile(r"https?://\S+")
 
 
-def auth_login_ui_start():
+def auth_login_ui_start(env: Optional[dict] = None):
+    """`env`: extra variables for the login process; an extra Claude account passes its CLAUDE_CONFIG_DIR
+    (plan_accounts, 0.353.0) so the login lands in that account's folder."""
     cli = find_claude_cli()
     if not cli:
         return {"ok": False, "error": cau_thieu_cli("claude", "Claude")}
@@ -849,6 +868,7 @@ def auth_login_ui_start():
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
             creationflags=_no_window(), start_new_session=(os.name != "nt"),
+            env=({**os.environ, **env} if env else None),
         )
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -1506,9 +1526,14 @@ def _codex_home() -> Path:
 # tài khoản không có hồ sơ là Codex mù home, không thấy auth.json, trong khi Javis (đọc
 # USERPROFILE/HOME qua `_home_dir`) vẫn thấy đăng nhập ChatGPT đầy đủ. Đặt CODEX_HOME thì Codex
 # bỏ qua hẳn bước hỏi Windows, và cả hai bên nhìn cùng một thư mục.
-def codex_env() -> dict:
-    """Biến môi trường cho MỌI tiến trình Codex mà Javis bật."""
+def codex_env(codex_home: Optional[str] = None) -> dict:
+    """Biến môi trường cho MỌI tiến trình Codex mà Javis bật.
+
+    `codex_home`: the folder of an extra ChatGPT account (plan_accounts, 0.353.0). None = account 1, as before."""
     env = dict(os.environ)
+    if codex_home:
+        env["CODEX_HOME"] = str(codex_home)
+        return env
     if str(env.get("CODEX_HOME") or "").strip():
         return env                      # người dùng tự trỏ chỗ khác: tôn trọng
     home = _home_dir()
@@ -1675,6 +1700,8 @@ class CodexCLI:
         # True only on the main engine of a chat turn (web or chat channel, set by main.py): the turn then runs on
         # `codex app-server` and takes the owner's messages mid-way (codex_steer.py, 0.213.0).
         self.steer = False
+        # Folder of an extra ChatGPT account (plan_accounts.use, 0.353.0). None = account 1 (~/.codex).
+        self.codex_home = None
 
     def is_available(self) -> bool:
         return self.cli_path is not None
@@ -1778,7 +1805,7 @@ class CodexCLI:
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
                     creationflags=creationflags, start_new_session=(os.name != "nt"),
-                    env=codex_env(),
+                    env=codex_env(getattr(self, "codex_home", None)),
                 )
                 with _PROC_LOCK:
                     _ACTIVE_PROCS[proc] = self.tag
