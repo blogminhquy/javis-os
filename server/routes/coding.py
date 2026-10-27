@@ -104,7 +104,7 @@ def _brain_fields(sid: str, brain: str) -> dict:
     # 0.159.0: extra folders bound before the composer pin existed (they still reach the prompt),
     # so the chip can show "+N" instead of hiding them.
     out["extra_folders"] = [r.get("ten") or "" for r in coding_store.thu_muc_cua_phien(sid)
-                            if r.get("id") != tm.get("id")]
+                            if r.get("id") != tm.get("id") and r.get("nguon") != "github"]
     return out
 
 
@@ -125,7 +125,7 @@ def _session_view(sid: str, brain: str) -> dict:
         # trong thư mục của tiến trình server - trả lời về một cây người dùng không hỏi.
         "cay_sach": coding_store.cay_sach(cwd) if cwd else None,
         # 0.158.0: English fields for the composer chip (old fields above stay as they are).
-        "folder": _folder_view(tm),
+        "folder": _folder_view(tm) if tm and tm.get("nguon") != "github" else None,
         **_brain_fields(sid, brain),
     }
 
@@ -134,9 +134,11 @@ def _pin(sid: str, raw: str, brain: str):
     """POST /coding/session/{sid}/pin body, run in a worker thread (git and disk reads).
     Returns (status, payload)."""
     try:
+        # GitHub repos attached to the chat (0.362.0) are not the pinned folder: pinning or unpinning keeps them.
+        repos = [r["id"] for r in coding_store.thu_muc_cua_phien(sid) if r.get("nguon") == "github"]
         if not raw:
-            old = [r["id"] for r in coding_store.thu_muc_cua_phien(sid)]   # main first, then extras
-            coding_store.dat_rang_buoc(sid, thu_muc_id="")
+            old = [r["id"] for r in coding_store.thu_muc_cua_phien(sid) if r.get("nguon") != "github"]
+            coding_store.dat_rang_buoc(sid, thu_muc_ids=repos)
             # Forget folders no other conversation uses, so the registry does not grow forever.
             # Only the registry entries go; nothing on disk is touched.
             for tid in old:
@@ -156,7 +158,10 @@ def _pin(sid: str, raw: str, brain: str):
         # Re-pinning the folder that is already the main one changes nothing: rebinding would
         # reset the worktree, the branch and the extra folders of that session.
         if rec["id"] != (coding_store.rang_buoc(sid).get("thu_muc") or ""):
-            coding_store.dat_rang_buoc(sid, thu_muc_id=rec["id"])
+            if repos:
+                coding_store.dat_rang_buoc(sid, thu_muc_ids=[rec["id"]] + [x for x in repos if x != rec["id"]])
+            else:
+                coding_store.dat_rang_buoc(sid, thu_muc_id=rec["id"])
     except coding_store.LoiCoding as e:
         return 400, {"ok": False, "error": str(e)}
     return 200, {"ok": True, "folder": _folder_view(rec), **_brain_fields(sid, brain)}

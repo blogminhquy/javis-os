@@ -263,11 +263,15 @@ def thu_muc(tid: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def them_thu_muc(duong_dan: str, brain: str = "", ten: str = "") -> Dict[str, Any]:
+def them_thu_muc(duong_dan: str, brain: str = "", ten: str = "", nguon: str = "",
+                 repo: str = "") -> Dict[str, Any]:
     """Khai một thư mục làm chỗ làm việc. KHÔNG đòi nó là repo git.
 
     Chỉ từ chối ba thứ không thể làm việc được: chuỗi rỗng, đường dẫn đọc không ra, và thứ
     không phải thư mục. Còn lại nhận hết - có git hay không là chuyện đọc ra sau.
+
+    `nguon="github"` and `repo="owner/name"` (0.362.0) mark a clone that github_repos made. Such a folder keeps its
+    registry entry when a chat unpins it, and only github_repos deletes it from disk (spec section 5.3).
     """
     raw = str(duong_dan or "").strip()
     if not raw:
@@ -283,6 +287,9 @@ def them_thu_muc(duong_dan: str, brain: str = "", ten: str = "") -> Dict[str, An
         d = _load()
         for r in d["thu_muc"]:
             if r.get("duong_dan") == str(p) and (r.get("brain") or "") == (brain or ""):
+                if nguon and (r.get("nguon") != nguon or r.get("repo") != repo):
+                    r["nguon"], r["repo"] = nguon, repo
+                    _save(d)
                 return dict(r)
         rec = {
             "id": uuid.uuid4().hex[:12],
@@ -291,6 +298,8 @@ def them_thu_muc(duong_dan: str, brain: str = "", ten: str = "") -> Dict[str, An
             "brain": brain or "",
             "them_luc": _now(),
         }
+        if nguon:
+            rec["nguon"], rec["repo"] = nguon, repo
         d["thu_muc"].append(rec)
         _save(d)
         return dict(rec)
@@ -395,6 +404,32 @@ def xoa_rang_buoc(sid: str) -> None:
             _save(d)
 
 
+def worktree_thu_muc(sid: str, tid: str) -> str:
+    """This session's worktree of folder `tid` (0.362.0, one per GitHub repo), or ""."""
+    wts = rang_buoc(sid).get("worktrees")
+    return str((wts or {}).get(str(tid or ""), "") or "") if isinstance(wts, dict) else ""
+
+
+def dat_worktree_thu_muc(sid: str, tid: str, path: str) -> None:
+    """Set (or clear with "") the session's worktree of one folder. Only github_repos calls this."""
+    sid, tid = str(sid or "").strip(), str(tid or "").strip()
+    if not sid or not tid:
+        return
+    with _lock:
+        d = _load()
+        cu = dict(d["phien"].get(sid, {}))
+        wts = dict(cu.get("worktrees") or {})
+        if path:
+            wts[tid] = str(path)
+        else:
+            wts.pop(tid, None)
+        cu["worktrees"] = wts
+        cu.setdefault("muc_quyen", MUC_QUYEN_MAC_DINH)
+        cu["sua_luc"] = _now()
+        d["phien"][sid] = cu
+        _save(d)
+
+
 def muc_quyen_cua_phien(sid: str) -> str:
     return rang_buoc(sid).get("muc_quyen") or MUC_QUYEN_MAC_DINH
 
@@ -404,8 +439,12 @@ def thu_muc_cua_phien(sid: str) -> List[Dict[str, Any]]:
 
     Chỉ trả về thư mục còn trong sổ: gỡ một thư mục khỏi Javis mà vẫn để lại id chết trong
     ràng buộc thì lượt chat sau nói với engine về một đường dẫn không tồn tại.
+
+    Each record carries `lam_viec` (0.362.0): where this session actually works in that folder, its own worktree when
+    it has one (GitHub repos), else the folder itself. Prompts and tool roots must use it, not `duong_dan`.
     """
     rb = rang_buoc(sid)
+    wts = rb.get("worktrees") if isinstance(rb.get("worktrees"), dict) else {}
     ids = rb.get("thu_mucs")
     if not isinstance(ids, list):
         mot = (rb.get("thu_muc") or "").strip()
@@ -414,6 +453,8 @@ def thu_muc_cua_phien(sid: str) -> List[Dict[str, Any]]:
     for tid in ids:
         r = thu_muc(tid)
         if r:
+            wt = str(wts.get(tid) or "")
+            r["lam_viec"] = wt if wt and Path(wt).is_dir() else r["duong_dan"]
             ra.append(r)
     return ra
 
@@ -429,6 +470,11 @@ def cwd_cua_phien(sid: str) -> str:
     mất một thư mục tạm không đáng để cả phiên không nhắn được.
     """
     rb = rang_buoc(sid)
+    # A GitHub repo as main folder works in this session's own worktree of it (0.362.0).
+    wts = rb.get("worktrees") if isinstance(rb.get("worktrees"), dict) else {}
+    wt_main = str(wts.get(rb.get("thu_muc") or "") or "")
+    if wt_main and Path(wt_main).is_dir():
+        return wt_main
     wt = (rb.get("worktree") or "").strip()
     if wt and Path(wt).is_dir():
         return wt
@@ -600,8 +646,8 @@ def khoi_prompt(sid: str) -> str:
     # Thư mục PHỤ (0.63.8). Engine chỉ đứng được ở MỘT chỗ, nên các thư mục còn lại đi vào
     # prompt bằng đường dẫn tuyệt đối. Đường chat chạy ở mức bỏ qua hỏi quyền nên engine có
     # shell đọc ghi được chúng bình thường; engine chỉ có API thì không, xem ghi chú ở dưới.
-    phu = [r["duong_dan"] for r in thu_muc_cua_phien(sid)
-           if r["duong_dan"] != cwd and Path(r["duong_dan"]).is_dir()]
+    phu = [r["lam_viec"] for r in thu_muc_cua_phien(sid)
+           if r["lam_viec"] != cwd and Path(r["lam_viec"]).is_dir()]
     if phu:
         dong.append("Thư mục khác cũng thuộc việc này, dùng ĐƯỜNG DẪN TUYỆT ĐỐI để đọc và sửa:")
         dong += [f"  - {p}" for p in phu]
@@ -643,8 +689,8 @@ def pinned_folder_prompt(sid: str, brain_root: str) -> str:
             rel = ""
     if rel and rel != ".":
         lines.append(f"Thư mục này nằm trong brain: {rel} (công cụ file của brain dùng đường dẫn này).")
-    extra = [r["duong_dan"] for r in thu_muc_cua_phien(sid)
-             if r["duong_dan"] != cwd and Path(r["duong_dan"]).is_dir()]
+    extra = [r["lam_viec"] for r in thu_muc_cua_phien(sid)
+             if r["lam_viec"] != cwd and Path(r["lam_viec"]).is_dir()]
     if extra:
         lines.append("Thư mục khác cũng thuộc việc này, dùng ĐƯỜNG DẪN TUYỆT ĐỐI:")
         lines += [f"  - {p}" for p in extra]

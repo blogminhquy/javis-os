@@ -3244,7 +3244,7 @@ def _coding_ctx_luot(row, brain=None, sid="", chat_id=""):
             if cwd:
                 goc.append(str(Path(cwd).resolve()))
             for r in (coding_store.thu_muc_cua_phien(sid) or []):
-                d = str((r or {}).get("duong_dan") or "")
+                d = str((r or {}).get("lam_viec") or (r or {}).get("duong_dan") or "")
                 if d and Path(d).is_dir() and str(Path(d).resolve()) not in goc:
                     goc.append(str(Path(d).resolve()))
         except Exception:
@@ -6828,8 +6828,15 @@ def _khoi_coding(row, brain: str = "") -> str:
         if not sid:
             return ""
         if str((row or {}).get("channel") or "").startswith("coding:"):
-            return coding_store.khoi_prompt(sid)
-        return coding_store.pinned_folder_prompt(sid, _brain_root(brain) if brain else "")
+            block = coding_store.khoi_prompt(sid)
+        else:
+            block = coding_store.pinned_folder_prompt(sid, _brain_root(brain) if brain else "")
+        try:
+            import github_repos
+            block += github_repos.prompt_block(sid, brain)
+        except Exception as _e:  # noqa: BLE001 - a GitHub hiccup must never break the turn
+            print(f"[github prompt] {type(_e).__name__}: {_e}", file=sys.stderr)
+        return block
     except Exception:
         return ""
 
@@ -17482,7 +17489,7 @@ async def websocket_endpoint(ws: WebSocket):
                             "dashboard", {"session_id": conv_sid},
                             telegram_running=bool(_TG_BOT), port=_javis_port(),
                             brain_root=_brain_root(brain),
-                        )
+                        ) + _khoi_coding(_row0, brain)   # 0.362.0: pinned folder and GitHub repos reach API brains too
 
                     if _persona:
                         # Phiên cộng sự: prompt luôn là _agent_chat_prompt, không cần tốn công
@@ -19544,6 +19551,12 @@ async def sessions_delete(session_id: str):
         await asyncio.to_thread(coding_checkpoint.don_phien, session_id)
     except Exception:
         pass
+    # 0.362.0: the chat's GitHub worktrees go with it, except one still holding unsaved or unpushed work.
+    try:
+        import github_repos
+        await asyncio.to_thread(github_repos.forget_session, session_id)
+    except Exception as e:  # noqa: BLE001
+        print(f"[github forget] {type(e).__name__}: {e}", file=sys.stderr)
     # Phase 8 state is a disposable projection; purge it with the source transcript.
     if _ADAPTIVE_CONTEXT is not None:
         try:
@@ -24884,6 +24897,11 @@ coding_routes.register(app, coding_routes.CodingDeps(
     brain_keys=_brain_keys,
     resolve_path=lambda b, rel: str(_safe_serve_path(b, rel)),
     brain_root=lambda b: str(_brain_root(b))))
+
+# GitHub inside chat (0.362.0, docs/dev/2026-10-github-trong-chat-spec.md): the built-in GitHub connection, repo
+# clones per brain (outside the brain tree) and the repos attached to a conversation.
+import routes.github as github_routes   # noqa: E402
+github_routes.register(app, github_routes.GitHubDeps(brain_root=lambda b: str(_brain_root(b))))
 
 
 @app.post("/telegram/test")

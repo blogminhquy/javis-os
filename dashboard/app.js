@@ -1730,6 +1730,14 @@ function sendMessage(text, opts) {
     try { if (window.JavisModelBar) window.JavisModelBar.claimPending(savedSessionId); } catch (e) {}
     // A working folder pinned on the empty chat follows the session that was just minted (0.158.0).
     try { if (window.JavisPinnedFolder) _pinWait = window.JavisPinnedFolder.claimPending(savedSessionId); } catch (e) {}
+    // GitHub repos picked on the empty chat (0.362.0): attached AFTER the pin, never at the same time (both rewrite
+    // the session's folder list), and before the turn runs so it starts inside the repos.
+    try {
+      if (window.JavisGithubRepos) {
+        const _sidNew = savedSessionId;
+        _pinWait = (_pinWait || Promise.resolve()).then(() => window.JavisGithubRepos.claimPending(_sidNew), () => window.JavisGithubRepos.claimPending(_sidNew));
+      }
+    } catch (e) {}
   }
   const sid = savedSessionId;
   // Phiên đang trả lời thì không gửi chồng lượt. NHƯNG tin từ MIC (hay gõ trong lúc rảnh tay)

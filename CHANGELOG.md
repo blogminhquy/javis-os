@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.362.0] - 2026-10-28
+### Thêm mới
+- **Kết nối GitHub có sẵn trên trang Kết nối.** Dán token một lần, hoặc bấm dùng chung token sao lưu brain. Không phải cài thêm gói nào.
+- **Gắn repo GitHub vào cuộc trò chuyện:** bấm dấu cộng, chọn Repo GitHub, tích một hay nhiều repo. Javis tải repo về máy (ngoài thư mục brain), mỗi cuộc trò chuyện làm trên nhánh và thư mục riêng, nên hai cuộc cùng sửa một repo không đè việc của nhau.
+- **Gỡ repo khỏi brain** chỉ xoá bản trên máy, repo trên GitHub giữ nguyên. Javis từ chối gỡ khi còn sửa đổi chưa lưu hay commit chưa đẩy lên.
+- Bản này chưa tự đẩy code lên GitHub. Phần kiểm tra, đẩy lên, mở PR và theo dõi CI đến ở các bản kế tiếp.
+
 ## [0.361.0] - 2026-10-27
 ### Cải thiện
 - **Nội bộ:** test cảm xúc của linh vật không còn đỏ ngẫu nhiên trên CI. Linh vật chớp mắt vào lúc ngẫu nhiên, và khoảng 1/400 lần chạy test soi mắt đúng khung hình đang nhắm. Giờ test chờ qua cái chớp mắt rồi mới soi. Linh vật trong app không đổi gì.

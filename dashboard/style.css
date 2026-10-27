@@ -4487,3 +4487,12 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .step-header .agent-picker { flex: 1; }
 .step-row:not(.open) .step-header .agent-picker { display: none; }
 .st-verify .agent-picker { flex: 1; min-width: 160px; }
+
+/* GitHub inside chat (0.362.0, github-connect.js): the built-in card on Connections and the repo chip. */
+.gh-card .gh-local { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.gh-local-head { font-weight: 600; font-size: 16px; }
+.gh-local-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 16px; }
+.gh-local-name { font-weight: 600; word-break: break-all; }
+.gh-local-meta { color: var(--text2); flex: 1; min-width: 120px; }
+.gh-chip svg { width: 15px; height: 15px; flex: none; }
+.gh-apply[disabled] { opacity: .55; cursor: default; }
