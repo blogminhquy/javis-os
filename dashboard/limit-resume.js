@@ -114,7 +114,10 @@
       return out;
     }
     var reason = info.reason || "off";
-    if (reason === "no_reset") {
+    if (reason === "partial") {
+      // 0.354.0: het luot giua cau tra loi. Khong bao gio tu chay (co the da goi cong cu), chi co nut chay lai.
+      out.text = tw("lres.partial");
+    } else if (reason === "no_reset") {
       out.text = tw("lres.no_reset");
     } else if (reason === "too_far") {
       out.text = tw("lres.too_far", { gio: when });

@@ -37,6 +37,9 @@ d = R.describe({ state: "off", auto: false, reason: "off", resume_at: base + 600
 check("off: noi moc mo lai va khong tu chay", d.text === "Hạn mức mở lại lúc 10:10. Không tự chạy lại." && d.showAuto && !d.auto);
 d = R.describe({ state: "off", auto: false, reason: "no_reset" }, base);
 check("no_reset: giai thich, KHONG co o tick (bat cung vo nghia)", /không nói lúc nào/.test(d.text) && !d.showAuto && d.showNow);
+d = R.describe({ state: "off", auto: false, reason: "partial" }, base);
+check("partial (0.354.0): het luot giua cau tra loi, chi co nut chay lai, khong o tick",
+  /giữa chừng/.test(d.text) && !d.showAuto && d.showNow && !d.busy);
 d = R.describe({ state: "off", auto: false, reason: "max_attempts", max_attempts: 3 }, base);
 check("max_attempts: noi da thu 3 lan", /3 lần/.test(d.text) && !d.showAuto);
 d = R.describe({ state: "off", auto: false, reason: "too_far", resume_at: base + 86400 * 3 }, base);

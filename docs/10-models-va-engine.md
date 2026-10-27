@@ -328,6 +328,17 @@ Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và *
 - Claude Code chạy bằng API key Anthropic không có danh sách tài khoản.
 - Trên macOS, một tài khoản Claude được tính là đã đăng nhập khi Javis thấy bước đăng nhập hoàn tất (token nằm trong Keychain).
 
+### D2. Hết lượt giữa một lượt chat (từ 0.354.0)
+
+Đường đang chạy (một tài khoản hay một key) báo hết lượt **trước khi viết chữ nào hay gọi công cụ nào** thì Javis chạy lại ngay đúng câu hỏi đó bằng đường kế tiếp: tài khoản hay key kế của cùng thẻ trước, rồi tới thẻ kế trong Thứ tự dùng. Bạn không phải gửi lại.
+
+- Trong khung chat hiện một dòng nhạt, ví dụ "Đang dùng ChatGPT vì Claude Code hết lượt." hoặc "Đang dùng ChatGPT (tài khoản 2) vì tài khoản 1 hết lượt.", rồi câu trả lời của đường mới hiện bên dưới như thường.
+- Tối đa 3 lần đổi đường cho một câu hỏi. Hết đường thì Javis báo hết lượt và hẹn tự chạy lại như trước.
+- **Hết lượt giữa chừng** (đã viết được một đoạn): câu trả lời dừng ở đó, kèm thẻ **Chạy lại ngay**. Bấm vào là hỏi lại câu đó bằng đường còn lượt, câu trả lời dở được thay bằng câu mới. Javis không tự chạy lại trường hợp này.
+- **Đã gọi công cụ rồi mới hết lượt**: Javis dừng và báo, không chạy lại ở đường khác, để không gửi tin hay đăng bài hai lần.
+- Telegram cũng tự đổi đường như vậy, dòng "Đang dùng..." hiện ở tin trạng thái. Bot chuyên trách nói với khách thì không đổi: nó luôn chạy model của Agent nó trỏ tới.
+- Đổi đường không sửa thứ tự hay model đã lưu. Lượt sau bắt đầu lại từ MAIN, trừ khi MAIN vẫn đang nghỉ.
+
 ### E. Chọn model việc nền
 
 Khối **◆ Model việc nền** quyết định model nào chạy những việc Javis làm khi bạn không ngồi trước máy: **loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn**. Đây thường là phần đốt hạn mức âm thầm nhất, nên chọn model rẻ ở đây tiết kiệm thấy rõ.

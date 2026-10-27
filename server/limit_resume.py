@@ -54,7 +54,7 @@ class PendingResume:
     runner: Runner
     attempt: int = 0            # lượt vừa vấp là lần chạy lại thứ mấy (0 = lượt gốc)
     auto: bool = True           # còn hẹn tự chạy lại không
-    reason: str = ""            # vì sao KHÔNG tự chạy: no_reset | too_far | max_attempts | off
+    reason: str = ""            # vì sao KHÔNG tự chạy: no_reset | too_far | max_attempts | off | partial
     scope: str = ""
     created: float = field(default_factory=time.time)
     task: Optional[asyncio.Task] = None
@@ -90,7 +90,7 @@ class LimitResumeRegistry:
     def schedule(self, session_id: str, resume_at: float, runner: Runner, *,
                  engine: str = "", notice: str = "", scope: str = "",
                  attempt: int = 0, auto_default: bool = True,
-                 now: Optional[float] = None) -> PendingResume:
+                 now: Optional[float] = None, partial: bool = False) -> PendingResume:
         """Ghi một mục chờ cho phiên. Mục cũ của cùng phiên bị thay.
 
         `auto_default` là ý người dùng đã chọn (ô "tự tiếp tục"); các rào bên dưới chỉ có
@@ -100,7 +100,11 @@ class LimitResumeRegistry:
         item = PendingResume(session_id=session_id, resume_at=float(resume_at or 0),
                              engine=engine, notice=notice, runner=runner,
                              attempt=int(attempt or 0), scope=scope, auto=bool(auto_default))
-        if not item.resume_at:
+        if partial:
+            # 0.354.0: out of quota halfway through an answer. Never runs by itself (a tool may already have acted);
+            # the card only offers "Run again", which goes to the route that has quota now.
+            item.auto, item.reason = False, "partial"
+        elif not item.resume_at:
             item.auto, item.reason = False, "no_reset"
         elif item.resume_at - ts > self.max_wait:
             item.auto, item.reason = False, "too_far"
@@ -119,7 +123,7 @@ class LimitResumeRegistry:
         if not item:
             return None
         if enabled:
-            if item.reason in ("no_reset", "too_far", "max_attempts"):
+            if item.reason in ("no_reset", "too_far", "max_attempts", "partial"):
                 return item      # rào cứng, không bật được; giữ nguyên lý do để thẻ nói
             if not item.auto:
                 item.auto, item.reason = True, ""

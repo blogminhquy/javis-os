@@ -328,6 +328,17 @@ The cards of three plan providers, **ChatGPT (Codex)**, **Grok Build** and **Cla
 - Claude Code on an Anthropic API key has no account list.
 - On macOS, a Claude account counts as signed in once Javis saw the sign-in finish (the token lives in the Keychain).
 
+### D2. Running out of quota during a chat turn (from 0.354.0)
+
+When the route that is running (an account or a key) reports it is out of quota **before writing a single word or calling a tool**, Javis runs the same question again right away on the next route: the next account or key of the same card first, then the next card in the usage order. You do not have to send it again.
+
+- A quiet line shows in the chat, for example "Using ChatGPT because Claude Code is out of quota." or "Using ChatGPT (account 2) because account 1 is out of quota.", and the new route's answer appears below it as usual.
+- At most 3 route changes per question. With no route left, Javis reports the quota and schedules the automatic rerun as before.
+- **Out of quota halfway** (part of the answer already written): the answer stops there, with a **Run again now** card. Tapping it asks the same question again on a route that still has quota, and the half answer is replaced by the new one. Javis never reruns this case by itself.
+- **Out of quota after a tool call**: Javis stops and reports, and does not rerun on another route, so nothing gets sent or posted twice.
+- Telegram changes route the same way, with the "Using..." line in the status message. A customer chatbot does not: it always runs the model of the Agent it points to.
+- Changing route does not touch your saved order or models. The next turn starts from MAIN again, unless MAIN is still resting.
+
 ### E. Choosing the background model
 
 The **◆ Background model** block decides which model runs what Javis does while you are away: **loops · Kanban work · reminders · self-learning · source ingestion**. This is usually the quietest quota burner, so picking a cheap model here saves visibly.

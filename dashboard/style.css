@@ -1446,6 +1446,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   text-align: center; color: var(--text3); font-size: 12px; font-family: var(--font);
   padding: 2px 12px; opacity: 0.85;
 }
+/* 0.354.0: the turn moved to the next route (out of quota). Stays in the chat, readable on a phone. */
+.msg-ghichu.msg-doiduong { font-size: 16px; opacity: 1; padding: 4px 12px; }
 /* Trả lời của lệnh "/" hệ thống (/status, /usage, /tasks...). Nền nhạt, chữ nhỏ hơn và viền
    trái màu nhấn: nhìn ra ngay đây là KẾT QUẢ LỆNH của giao diện chứ không phải lời của model. */
 .msg-lenh .bubble {

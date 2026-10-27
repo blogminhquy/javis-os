@@ -2586,7 +2586,7 @@ def _route_ready(mcfg, prov) -> bool:
         return bool(_provider_key(mcfg, d))
     if _pin_limited_until(prov):
         return False
-    if plan_accounts.supported(prov) and plan_accounts.has_extra(mcfg, prov):
+    if plan_accounts.in_use(prov) and plan_accounts.has_extra(mcfg, prov):
         return plan_accounts.pick(mcfg, prov) is not None   # every account of the plan off, resting or signed out
     return True
 
@@ -2686,13 +2686,124 @@ def _note_pin_limit(engine_hint: str, reset_epoch: float = 0.0, now: float = Non
     # out of quota and nothing is pinned away from it.
     try:
         model_routing.mark_rest(prov, _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN), until=until, persist=True)
-        if plan_accounts.supported(prov):
+        if plan_accounts.in_use(prov):   # Claude on an API key has no other account to move on to
             m = cfgmod.read_settings().get("model") or {}
             if plan_accounts.has_extra(m, prov) and plan_accounts.usable(m, prov, now):
                 return
     except Exception as e:  # noqa: BLE001
         print(f"[plan accounts] rest {prov}: {type(e).__name__}: {e}", file=sys.stderr)
     _PIN_LIMITED[prov] = until
+
+
+def _note_api_limit(mcfg, prov: str, key: str, raw: str = "", seconds: float = 0.0) -> None:
+    """An API key ran out of quota in a chat turn: that key rests (0.354.0), so the turn and the next ones run on the
+    provider's next key, or on the next card when it has none."""
+    try:
+        d = _provider_def(prov) or {}
+        acc = model_routing.account_for_key(mcfg or {}, prov, key, d.get("key_field") or "")
+        if acc:
+            secs = seconds or aux_engine.cooldown_for(raw) or aux_engine.COOLDOWN_QUOTA_S
+            model_routing.mark_rest(prov, acc["id"], seconds=secs)
+    except Exception as e:  # noqa: BLE001
+        print(f"[routing] rest {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+# 0.354.0 (spec 6.4): a chat turn that runs out of quota before writing a word or calling a tool runs again at once on
+# the next route: the next account of the same card, then the next card of the usage order. At most this many hops.
+REROUTE_MAX_HOPS = 3
+# Lines Javis itself writes into the step list; they are not tool calls of the model.
+_REROUTE_QUIET_TOOLS = ("javis_nen_mach", "javis_autoshrink")
+_ROUTE_SHORT = {"anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "grok-cli": "Grok Build",
+                "antigravity-cli": "Antigravity"}
+
+
+class _RerouteText(str):
+    """What `_do_turn` returns when its turn must run again on another route: no answer, plus where to go."""
+    reroute = None
+
+
+def _route_name(prov: str) -> str:
+    if prov in _ROUTE_SHORT:
+        return _ROUTE_SHORT[prov]
+    lab = _api_label(prov)
+    return lab if lab != prov else ((_provider_def(prov) or {}).get("label") or prov)
+
+
+def _route_account_no(mcfg, prov: str, key: str = ""):
+    """(number, label) of the account a route runs on: the plan account picked now, or the API key given."""
+    try:
+        if plan_accounts.supported(prov):
+            lst = plan_accounts.accounts(mcfg, prov)
+            aid = (plan_accounts.pick(mcfg, prov) or {}).get("id") if key == "" else key
+            i = next((n for n, a in enumerate(lst) if a["id"] == aid), None)
+            return (i + 1, lst[i]["label"]) if i is not None else (0, "")
+        d = _provider_def(prov) or {}
+        lst = model_routing.accounts(mcfg, prov, d.get("key_field") or "")
+        i = next((n for n, a in enumerate(lst) if key and a.get("key") == key), None)
+        return (i + 1, lst[i].get("label") or "") if i is not None else (0, "")
+    except Exception:  # noqa: BLE001 - a missing number only shortens the status line
+        return 0, ""
+
+
+def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=()) -> dict:
+    """Where a chat turn that ran out of quota goes next (0.354.0), or {} when nothing is left.
+
+    The failing account is already resting (`_note_pin_limit`, `_note_api_limit`), so `_route_ready` and the
+    account pickers skip it. Same card first while it still has an account that can run, then the usage order,
+    skipping cards already tried in this turn. Returns {'route': (prov, kind, key, model), 'status': str,
+    'tried': [...]}; nothing saved changes."""
+    tried = list(tried or ()) + ([failed] if failed and failed not in (tried or ()) else [])
+    d = _provider_def(failed) or {}
+    same = None
+    try:
+        if plan_accounts.in_use(failed) and plan_accounts.has_extra(mcfg, failed) and _route_ready(mcfg, failed):
+            acc = plan_accounts.pick(mcfg, failed)
+            if acc and acc["id"] != _PLAN_ACCOUNT_LAST.get(failed, plan_accounts.MAIN):
+                same = (failed, d.get("kind", "cli"), "", acc["id"])
+        elif d.get("kind") == "api" and failed not in _ROUTING_SINGLE_KEY and _route_ready(mcfg, failed):
+            key = _provider_key(mcfg, d)
+            if key and key != failed_key:
+                same = (failed, "api", key, key)
+    except Exception as e:  # noqa: BLE001
+        print(f"[routing] next account {failed}: {type(e).__name__}: {e}", file=sys.stderr)
+    if same:
+        prov, kind, key, ref = same
+        model = model_routing.profile(mcfg, prov).get("model") or ""
+        if prov == model_routing.main_provider(mcfg):
+            model = _effective_main({"model": mcfg}).get("model") or model
+        if prov == "openrouter":
+            model = model or mcfg.get("openrouter_model")
+        old_no, old_lab = _route_account_no(mcfg, prov, failed_key if kind == "api" else
+                                            _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN))
+        new_no, new_lab = _route_account_no(mcfg, prov, ref)
+        if kind == "api":
+            new_s, old_s = (new_lab or f"key {new_no}"), (old_lab or f"key {old_no}")
+            vi = f"Đang dùng {_route_name(prov)} ({new_s}) vì {old_s} hết lượt."
+            en = f"Using {_route_name(prov)} ({new_s}) because {old_s} is out of quota."
+        else:
+            vi = (f"Đang dùng {_route_name(prov)} ({new_lab or f'tài khoản {new_no}'}) vì "
+                  f"{old_lab or f'tài khoản {old_no}'} hết lượt.")
+            en = (f"Using {_route_name(prov)} ({new_lab or f'account {new_no}'}) because "
+                  f"{old_lab or f'account {old_no}'} is out of quota.")
+        return {"route": (prov, kind, key, model), "status": localefmt.chu(vi, en), "tried": tried}
+    try:
+        signed_in = set(_routing_connected_ids(cfgmod.read_settings()))
+    except Exception:  # noqa: BLE001
+        signed_in = None
+    for cand in model_routing.order(mcfg):
+        if cand in tried or (signed_in is not None and cand not in signed_in) or not _route_ready(mcfg, cand):
+            continue
+        cd = _provider_def(cand) or {}
+        model = model_routing.profile(mcfg, cand).get("model") or ""
+        if cand == model_routing.main_provider(mcfg):
+            model = _effective_main({"model": mcfg}).get("model") or model
+        if cand == "openrouter":
+            model = model or mcfg.get("openrouter_model")
+        vi = f"Đang dùng {_route_name(cand)} vì {_route_name(failed)} hết lượt."
+        en = f"Using {_route_name(cand)} because {_route_name(failed)} is out of quota."
+        return {"route": (cand, cd.get("kind", "cli"), _provider_key(mcfg, cd), model),
+                "status": localefmt.chu(vi, en), "tried": tried}
+    return {}
 
 
 def _pin_limited_until(provider: str, now: float = None) -> float:
@@ -16452,6 +16563,24 @@ async def websocket_endpoint(ws: WebSocket):
         def __init__(self, sid, runtime_trace=None):
             self._sid = sid
             self._runtime_trace = runtime_trace
+            # 0.354.0: what the turn has put out so far, to know whether it can run again on the next route.
+            self.acted = False      # the model called a tool (Javis's own housekeeping lines aside)
+            self.said = ""          # streamed text, first 2000 characters
+            self.can_hold = False   # armed by _do_turn when another route may take over
+            self._held = None       # frames held back after an error while nothing was put out yet
+
+        def untouched(self) -> bool:
+            """Nothing the owner could lose: no tool ran and no word was written (a streamed out-of-quota sentence
+            is not a word of the answer)."""
+            return not self.acted and (not self.said.strip() or _het_luot_ap_dao(self.said))
+
+        async def flush(self):
+            held, self._held = self._held, None
+            for o in held or ():
+                await _CHAT_RUNTIME.publish(voice_turn_protocol.frame(o))
+
+        def drop(self):
+            self._held = None
 
         async def send_text(self, txt):
             try:
@@ -16462,12 +16591,29 @@ async def websocket_endpoint(ws: WebSocket):
                     _CONTEXT_RUNTIME.note_error(self._runtime_trace, "engine_error_event")
             except Exception:
                 return
+            t = o.get("type")
+            real = ((t == "tool_call" and o.get("tool") not in _REROUTE_QUIET_TOOLS)
+                    or (t == "stream" and str(o.get("content") or "").strip()))
+            if t == "tool_call" and real:
+                self.acted = True
+            elif t == "stream":
+                self.said = (self.said + str(o.get("content") or ""))[:2000]
+            if self._held is not None:
+                if not real and t in ("error", "response", "status", "system"):
+                    self._held.append(o)
+                    return
+                await self.flush()      # the engine went on after all: show everything, in order
+            elif self.can_hold and t == "error" and self.untouched():
+                self._held = [o]
+                return
             await _CHAT_RUNTIME.publish(voice_turn_protocol.frame(o))
 
     try:
         async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
                            has_attachments=False, resume_attempt=0, user_mid=0, user_text=None,
-                           _task_skills=None, _turn_token=None):
+                           _task_skills=None, _turn_token=None, _route=None, _tried=(), _hops_left=0):
+            # `_route`, `_tried`, `_hops_left` (0.354.0): run_turn reruns the turn on the next route after a quota error
+            # that came before any output (_chat_next_route); `_hops_left` 0 means this run may not hand over.
             ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
             # 0.190.0: what the brain's memory looks like before the turn, for the "Đã nhớ · Hoàn tác" line and the
             # empty-claim check after it (memory_receipt).
@@ -16495,7 +16641,7 @@ async def websocket_endpoint(ws: WebSocket):
                     _CONTEXT_RUNTIME.record_runtime_event(
                         runtime_trace, "subscription.limit_reached",
                         {"engine": engine_hint, "model": model or ""})
-                    _limit_state.update(notice=noi, limit=lim)
+                    _limit_state.update(notice=noi, limit=lim, quota=True)
                     # A chat pinned to this plan runs on the main model until it resets (0.285.0).
                     _note_pin_limit(lim.engine or engine_hint, float(lim.reset_epoch or 0))
                     frame["limit"] = {"engine": lim.engine, "scope": lim.scope,
@@ -16508,6 +16654,7 @@ async def websocket_endpoint(ws: WebSocket):
                         plan_limits.ghi_het(engine_hint, float(lim.reset_epoch or 0))
                     elif engine_hint in ("grok-cli", "antigravity-cli") and plan_limits.la_het_han_muc(raw):
                         plan_limits.ghi_het(engine_hint)
+                        _limit_state["quota"] = True   # 0.354.0: the next route may take over
                         if engine_hint == "grok-cli":
                             _note_pin_limit("grok-cli")   # 0.353.0: rest that Grok account, the next one takes over
                 except Exception:  # noqa: BLE001 - a meter must never break a turn
@@ -16539,7 +16686,7 @@ async def websocket_endpoint(ws: WebSocket):
                         f"Trợ lý '{_persona[1]}' không còn trong brain này. Mở trang Cộng sự để chọn trợ lý khác.",
                         f"Assistant '{_persona[1]}' is no longer in this brain. Open the Partners page to pick another one.")}))
                 return ""
-            prov, kind, api_key, api_model = _chat_provider_for_session(mcfg, _row0)
+            prov, kind, api_key, api_model = _route or _chat_provider_for_session(mcfg, _row0)
             reasoning = _chat_reasoning(mcfg, prov)   # 0.350.0: effort of the card this turn runs on
             if _persona and _persona[0] == "agent":
                 # 0.193.0: an assistant's chat thinks at the assistant's own level (default medium).
@@ -16582,6 +16729,7 @@ async def websocket_endpoint(ws: WebSocket):
             cli.session_id = _row0.get("cli_session_id") or None    # --resume đúng mạch phiên này
             _plan_account_apply(cli, "anthropic-cli", mcfg)   # 0.353.0: the Claude account that should run now
             final_text = ""
+            ws.can_hold = _hops_left > 0      # 0.354.0: hold a quota error back while another route may take over
             used_fast_path = False
 
             await ws.send_text(json.dumps({
@@ -17374,6 +17522,11 @@ async def websocket_endpoint(ws: WebSocket):
                                         await ws.send_text(json.dumps({
                                             "type": "error", "content": ev["content"],
                                         }))
+                                        # 0.354.0: a key out of quota rests; the turn may run on the next one.
+                                        if (not final_text and aux_engine.cooldown_for(ev["content"])
+                                                == aux_engine.COOLDOWN_QUOTA_S):
+                                            _limit_state["quota"] = True
+                                            _note_api_limit(mcfg, prov, api_key, ev["content"])
                             if not _limit_hit or _attempt == 2:
                                 break
                             # Thử lại chỉ có nghĩa khi việc cần làm là CO NHỎ. Hết hạn mức
@@ -17411,6 +17564,11 @@ async def websocket_endpoint(ws: WebSocket):
                                     f"shrinking the context to {_target:,} tokens and retrying..."),
                             }))
                             or_messages = _shrink_messages(or_messages, _target)
+                        if _limit_hit and not final_text and str(_limit_hit.get("remedy") or "") != "shrink":
+                            # 0.354.0: out of quota (not a request too big): that key rests, the next route may take over.
+                            _limit_state["quota"] = True
+                            _note_api_limit(mcfg, prov, api_key, str(_limit_hit.get("raw") or ""),
+                                            3600 if _limit_hit.get("remedy") == "wait_long" else 0)
                         if _limit_hit:
                             final_text = final_text or _limit_autoshrink_message(
                                 prov, actual_model, _limit_hit)
@@ -17627,6 +17785,19 @@ async def websocket_endpoint(ws: WebSocket):
                 except Exception as _e:
                     print(f"[last_input_tokens] {type(_e).__name__}: {_e}", file=sys.stderr)
 
+            # 0.354.0 (spec 6.4): out of quota before a single word or tool call -> run_turn reruns this turn at once on
+            # the next route (next account of the card, then the next card). Nothing of this run is kept or shown.
+            if (_limit_state.get("quota") and _hops_left > 0 and ws.untouched()
+                    and (not final_text or (kind == "api" and not ws.said.strip()))):
+                _nxt = _chat_next_route(mcfg, prov, api_key if kind == "api" else "", _tried)
+                if _nxt:
+                    ws.drop()
+                    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "routing.reroute",
+                                                          {"from": prov, "to": _nxt["route"][0]})
+                    _out = _RerouteText("")
+                    _out.reroute = _nxt
+                    return _out
+            await ws.flush()
             # Vấp hạn mức gói thuê bao mà KHÔNG có câu trả lời nào: lưu câu báo vào kho phiên
             # (để F5 còn thấy, đi thẳng vào kho chứ không qua _persist_turn: một câu báo lỗi
             # không đáng vào nhật ký Memory hay hàng đợi tự học), rồi hẹn chạy lại đúng lượt
@@ -17674,6 +17845,22 @@ async def websocket_endpoint(ws: WebSocket):
             if final_text:
                 await _persist_turn(store, conv_sid, brain, user_message, final_text,
                                     turn_started=(_mem_snap or {}).get("t0") or 0)
+                if _limit_state.get("quota") and not ws.untouched():
+                    # 0.354.0: out of quota halfway (words written or tools run): the turn stops where it is, never
+                    # reruns by itself (a tool may have sent or posted something). A "Run again" card under the answer
+                    # reruns the question on the route that has quota now, replacing this half answer.
+                    try:
+                        _last = (store.get_messages(conv_sid) or [{}])[-1]
+                        _half = (_last.get("content") or "") if _last.get("role") == "assistant" else ""
+                        _item = limit_resume.REGISTRY.schedule(
+                            conv_sid, 0,
+                            lambda attempt, _n=_half: _start_resumed_turn(
+                                conv_sid, user_message, brain, attempt, _n, user_mid=user_mid, user_text=user_text),
+                            engine={"anthropic-cli": "claude-code", "openai-oauth": "codex"}.get(prov, prov),
+                            attempt=int(resume_attempt or 0), auto_default=False, partial=True)
+                        await ws.send_text(json.dumps({"type": "resume", "state": "off", **_item.payload()}))
+                    except Exception as _e:  # noqa: BLE001
+                        print(f"[limit resume] half answer: {type(_e).__name__}: {_e}", file=sys.stderr)
                 # 0.190.0: the turn saved, changed or forgot a memory -> one small line under the answer with Undo;
                 # it said so but nothing changed -> one line of fact. Stored like every pushed line, so F5 keeps it.
                 try:
@@ -17778,8 +17965,25 @@ async def websocket_endpoint(ws: WebSocket):
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
                     resume_attempt=resume_attempt, user_mid=user_mid, user_text=user_text,
-                    _task_skills=_task_skills, _turn_token=_luot_token,
+                    _task_skills=_task_skills, _turn_token=_luot_token, _hops_left=3,
                 )
+                # 0.354.0: the route ran out of quota before writing anything -> same turn again on the next route,
+                # with one line saying why (spec 6.4). _do_turn stops handing over after 3 hops.
+                _hop = 0
+                while getattr(final_text, "reroute", None):
+                    _hop += 1
+                    _nxt = final_text.reroute
+                    _engine_outcome_reset(conv_sid)
+                    _task_skills.close()                    # one task-skill scope per engine run
+                    _task_skills = _TaskSkillTurn()
+                    await send_raw({"type": "reroute", "content": _nxt["status"], "session_id": conv_sid,
+                                    **context_runtime.event_fields(runtime_trace)})
+                    final_text = await _do_turn(
+                        conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
+                        resume_attempt=resume_attempt, user_mid=user_mid, user_text=user_text,
+                        _task_skills=_task_skills, _turn_token=_luot_token,
+                        _route=_nxt["route"], _tried=_nxt["tried"], _hops_left=3 - _hop,
+                    )
                 _resonance_after_turn(conv_sid, brain, user_mid, _t0_luot, runtime_trace)
                 # Phiên TRỢ LÝ mở từ một lệnh "/" gõ ở khung Trò chuyện: câu trả lời quay về
                 # đúng khung đó, kèm link mở lại cuộc hội thoại (cùng luật với quy trình).
@@ -21441,6 +21645,22 @@ def _tg_lich_su_kho(store, conv_sid, text):
     return msgs, tom_tat
 
 
+def _tg_quota_out(out: str, prov: str, kind: str, api_key: str, mcfg) -> bool:
+    """Whether a channel turn's error string says the route ran out of quota (0.354.0). When it does, the account
+    that ran out rests, as on the web chat, so the next route and the next turns skip it."""
+    hint = {"anthropic-cli": "claude-code", "openai-oauth": "codex", "grok-cli": "grok-cli",
+            "antigravity-cli": "antigravity-cli"}.get(prov, "")
+    noi, lim = _subscription_limit_event(out or "", hint) if hint else ("", None)
+    quota = bool(noi) or aux_engine.cooldown_for(out or "") == aux_engine.COOLDOWN_QUOTA_S
+    if not quota:
+        return False
+    if kind == "api":
+        _note_api_limit(mcfg, prov, api_key, out)
+    elif hint:
+        _note_pin_limit(getattr(lim, "engine", "") or hint, float(getattr(lim, "reset_epoch", 0) or 0))
+    return True
+
+
 async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None,
                      phien_kho="", ghi_kho=True, agent=None, project_id=""):
     """Vỏ ngoài một lượt KHÔNG-WEBSOCKET: khớp phiên trong kho -> chạy engine -> LƯU lượt.
@@ -21559,10 +21779,40 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     _trace_token = context_runtime.bind_trace(runtime_trace)
     _luot_token = turn_context.bind(_luot)
     try:
+        _hop_acted = [False]
+
+        async def _hop_progress(s):
+            # 0.354.0: a "⚙" line is a tool call; after one, a quota error never reruns the turn elsewhere.
+            if str(s or "").startswith("⚙"):
+                _hop_acted[0] = True
+            if progress:
+                await progress(s)
         out = await _tg_answer_engine(
-            text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
-            prov=prov, kind=kind, api_key=api_key, api_model=api_model,
+            text, meta, _hop_progress, chat_id=chat_id, sess=sess, brain=brain,
+            mcfg=mcfg, prov=prov, kind=kind, api_key=api_key, api_model=api_model,
             store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
+        # 0.354.0 (spec 6.4): out of quota before any tool ran -> the same message again on the next route, with
+        # one progress line saying why. Customer bots keep their own model and never hop.
+        _tried = []
+        while (isinstance(out, str) and not bot and not _hop_acted[0] and len(_tried) < REROUTE_MAX_HOPS
+               and _tg_quota_out(out, prov, kind, api_key, mcfg)):
+            _nxt = _chat_next_route(mcfg, prov, api_key if kind == "api" else "", _tried)
+            if not _nxt:
+                break
+            _tried = _nxt["tried"]
+            prov, kind, api_key, api_model = _nxt["route"]
+            _tg_ngat_mach(sess, tru=("codex" if prov == "openai-oauth" else prov if prov in ("grok-cli", "antigravity-cli")
+                                     else prov if ((kind == "api" and api_key) or kind == "oauth") else "cli"))
+            _CONTEXT_RUNTIME.set_route(runtime_trace, prov, api_model or mcfg.get("claude_model") or "mặc định")
+            if progress:
+                try:
+                    await progress("↻ " + _nxt["status"])
+                except Exception:  # noqa: BLE001
+                    pass
+            out = await _tg_answer_engine(
+                text, meta, _hop_progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
+                prov=prov, kind=kind, api_key=api_key, api_model=api_model,
+                store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
 
         if agent and isinstance(out, dict):
             # The agent prompt asks for JAVIS_LESSON / JAVIS_RULE lines and says they are saved. The
