@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.360.0] - 2026-10-27
+### Improved
+- **Internal:** the pet emotion test no longer fails at random on CI. The pet blinks at random moments, and about 1 run in 400 the test looked at the eyes during a blink frame. The test now lets the blink finish before it looks. The pet in the app is unchanged.
+
 ## [0.359.0] - 2026-10-27
 ### Fixed
 - **The chat on an iPhone home-screen app no longer loses its top or leaves a gap under the composer.** With the keyboard closed the chat takes the exact height of the visible screen, and a page iOS left scrolled after the keyboard closes is pulled back. The status bar looks the same as before. Thanks to hwangrin for the report and the proposal in PR #850.

@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.360.0] - 2026-10-27
+### Cải thiện
+- **Nội bộ:** test cảm xúc của linh vật không còn đỏ ngẫu nhiên trên CI. Linh vật chớp mắt vào lúc ngẫu nhiên, và khoảng 1/400 lần chạy test soi mắt đúng khung hình đang nhắm. Giờ test chờ qua cái chớp mắt rồi mới soi. Linh vật trong app không đổi gì.
+
 ## [0.359.0] - 2026-10-27
 ### Sửa lỗi
 - **Khung chat trên iPhone khi cài như app (Thêm vào MH chính) không còn hụt đầu hay thừa khoảng trống dưới ô nhập.** Lúc không gõ, khung chat lấy đúng chiều cao phần màn hình nhìn thấy; bàn phím hạ xuống mà trang bị trượt lên thì tự kéo về. Thanh trạng thái giữ nguyên như cũ. Cảm ơn hwangrin đã báo và đề xuất ở PR #850.
