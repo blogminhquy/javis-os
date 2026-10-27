@@ -4207,7 +4207,10 @@ function _renderCtxLine(msgEl, data) {
               + (data.model ? " · " + _shortModel(data.model) : ""));
   }
   if (data.ctx_path) phan.push(CTX_PATH_LABEL[data.ctx_path] ? window.t(CTX_PATH_LABEL[data.ctx_path]) : data.ctx_path);
-  if (tok) phan.push(_fmtTok(tok) + " token");
+  // 0.345.0: chỉ hiện token MỚI. Phần đọc lại từ cache (ctx_cache) rẻ hơn nhiều, tính chung vào thì một câu chào
+  // trên Claude Code hiện "60k token" và khách tưởng mình vừa trả 60k token. Phần cache nằm ở chú thích.
+  const cache = Math.min(Number(data.ctx_cache) || 0, tok);
+  if (tok) phan.push(_fmtTok(tok - cache) + " token");
   el.textContent = phan.join(" · ");
   const chuThich = [];
   if (data.engine) {
@@ -4217,6 +4220,8 @@ function _renderCtxLine(msgEl, data) {
     chuThich.push(cu ? window.t("app.ctx_hint_full")
                      : window.t("app.ctx_hint_saving"));
   }
+  if (tok) chuThich.push(cache ? window.t("app.ctx_hint_tokens_new", { n: _fmtTok(cache) })
+                               : window.t("app.ctx_hint_tokens"));
   el.title = chuThich.join("\n");
   msgEl.appendChild(el);
 }

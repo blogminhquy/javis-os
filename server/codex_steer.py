@@ -309,7 +309,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         last = time.monotonic()
         busy = 0
         final_text = ""
-        tok_in = tok_out = 0
+        tok_in = tok_out = tok_cache = 0
         error_msg = ""
         sandbox_broken = False
         steering: Dict[int, list] = {}   # steer request id -> inbox items, put back if Codex refuses
@@ -401,6 +401,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                 lu = ((p.get("tokenUsage") or {}).get("last") or {})
                 tok_in += int(lu.get("inputTokens") or 0)
                 tok_out += int(lu.get("outputTokens") or 0)
+                tok_cache += int(lu.get("cachedInputTokens") or 0)   # 0.345.0: đã nằm trong inputTokens
             elif method == "error":
                 e = p.get("error") or {}
                 msg = str(e.get("message") or "")
@@ -426,7 +427,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     except Exception as e:
                         print(f"[anh codex] {type(e).__name__}: {e}", file=sys.stderr)
                     yield {"type": "final", "content": final_text, "session_id": thread_id,
-                           "tokens_in": tok_in, "tokens_out": tok_out}
+                           "tokens_in": tok_in, "tokens_cache_read": tok_cache, "tokens_out": tok_out}
                 elif status == "failed":
                     msg = str(((turn.get("error") or {}).get("message")) or error_msg or "turn failed")
                     yield {"type": "error", "content": "Codex: " + msg,

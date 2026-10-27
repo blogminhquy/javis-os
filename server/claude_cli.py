@@ -1035,13 +1035,106 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
     from claude_sdk_engine import ClaudeSDK
     # 0.329.0: Claude Code's rate_limit_event -> the plan usage ring. Hooked here, when the SDK is loaded
     # anyway, not at server import (that would load the whole SDK at startup; test_khoi_dong_nhe).
+    # 0.345.0: token cache count on the turn's final event. Installed BEFORE plan_limits so its
+    # own "already wrapped?" check keeps seeing itself on top (no stacked wrappers per turn).
+    try:
+        _cai_dem_cache()
+    except Exception:  # noqa: BLE001 - a counter must never stop a turn
+        pass
     try:
         import plan_limits
         plan_limits.cai_vao_claude_sdk()
     except Exception:  # noqa: BLE001 - a meter must never stop a turn
         pass
-    return ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
-                     allowed_tools=allowed_tools, model=model)
+    eng = ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
+                    allowed_tools=allowed_tools, model=model)
+    # Every run (chat, loops, reminders, bots) skips the repo CLAUDE.md and compacts at ~180k;
+    # main._cli_fast keeps both.
+    eng.fast_settings = javis_claude_settings()
+    return eng
+
+
+def _claude_md_repo() -> list:
+    """The repo's own CLAUDE.md, in both spellings Claude Code may compare against."""
+    p = Path(__file__).resolve().parent.parent / "CLAUDE.md"
+    return list(dict.fromkeys([str(p), p.as_posix()]))
+
+
+# 0.345.0: Claude Code compacts a thread natively once it nears this many tokens. Its "auto" default
+# follows the model's context window, which measured 980,000 on a 1M-context model: a long chat then
+# re-reads close to a million tokens on every turn. 200k is the classic Claude window, so a 200k
+# model behaves exactly as before and a 1M model compacts at ~180k (Claude Code keeps a 20k buffer)
+# with its own summary, keeping the thread. `JAVIS_CLAUDE_COMPACT_WINDOW=auto` restores the default.
+CLAUDE_COMPACT_WINDOW = 200_000
+
+
+def _compact_window():
+    v = os.getenv("JAVIS_CLAUDE_COMPACT_WINDOW", "").strip().lower()
+    if v in ("auto", "0", "off"):
+        return None
+    try:
+        n = int(v.rstrip("k")) * (1000 if v.endswith("k") else 1) if v else CLAUDE_COMPACT_WINDOW
+    except ValueError:
+        return CLAUDE_COMPACT_WINDOW
+    # Claude Code accepts 100k to 1M and rejects anything else.
+    return max(100_000, min(n, 1_000_000))
+
+
+def javis_claude_settings(settings: str = None) -> str:
+    """Claude Code settings JSON for every Javis run (0.345.0), merged over `settings`.
+
+    - `claudeMdExcludes`: a native install keeps brains under the repo (BRAINS_DIR defaults to
+      <repo>/brains), and Claude Code walks up from its cwd loading every CLAUDE.md it meets. The
+      repo one IS the Javis system prompt, which Javis already appends, so each turn paid for it
+      twice (about 12k tokens, measured on a plain "chào em").
+    - `autoCompactWindow`: see CLAUDE_COMPACT_WINDOW. Must be a number: "200k" is ignored here.
+    - `fastMode` stays explicit false unless the caller set it.
+    Older Claude Code versions ignore keys they do not know."""
+    try:
+        d = json.loads(settings) if settings else {}
+    except (TypeError, ValueError):
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    d.setdefault("fastMode", False)
+    cu = d.get("claudeMdExcludes")
+    cu = cu if isinstance(cu, list) else []
+    d["claudeMdExcludes"] = list(dict.fromkeys([*cu, *_claude_md_repo()]))
+    w = _compact_window()
+    if w:
+        d.setdefault("autoCompactWindow", w)
+    return json.dumps(d, ensure_ascii=False)
+
+
+def _cai_dem_cache() -> bool:
+    """Add `tokens_cache_read` to Claude Code's final event without editing claude_sdk_engine.py.
+
+    That file is pinned by the native qualification evidence (see plan_limits.cai_vao_claude_sdk),
+    so this wraps its module-level `map_message` the same way. Idempotent across the whole wrapper
+    chain, whichever order the wrappers went on."""
+    import claude_sdk_engine as eng
+    f = eng.map_message
+    while f is not None:
+        if getattr(f, "_dem_cache", False):
+            return True
+        f = getattr(f, "__wrapped__", None)
+    goc = eng.map_message
+
+    def map_message(msg):
+        out = goc(msg)
+        if type(msg).__name__ == "ResultMessage":
+            try:
+                n = int((getattr(msg, "usage", None) or {}).get("cache_read_input_tokens") or 0)
+                for ev in out[0]:
+                    if isinstance(ev, dict) and ev.get("type") == "final":
+                        ev.setdefault("tokens_cache_read", n)
+            except Exception:  # noqa: BLE001 - a counter must never break a turn
+                pass
+        return out
+    map_message._dem_cache = True
+    map_message.__wrapped__ = goc
+    eng.map_message = map_message
+    return True
 
 
 # ============================================================
@@ -1879,6 +1972,7 @@ class CodexCLI:
                 yield {"type": "final", "content": final_text, "session_id": self.session_id,
                        # Codex đã tính cached_input_tokens trong input_tokens.
                        "tokens_in": u.get("input_tokens") or 0,
+                       "tokens_cache_read": u.get("cached_input_tokens") or 0,
                        "tokens_out": u.get("output_tokens") or 0}
             elif t in ("error", "stream.error") and la_thong_bao_ket_noi_lai(ev.get("message")):
                 # "Reconnecting... 2/5 (...)": Codex đang tự thử lại, lượt CHƯA hỏng. Đẩy lên thành

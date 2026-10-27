@@ -13,6 +13,14 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Javis reads and edits pinned notes in Zalo groups.** Ask Javis what a group has pinned and you get its notes, pinned messages and polls, with who created and last edited each one and when, including notes staff or customers edited by hand on their phones. Ask Javis to update a note and it edits that same note instead of adding a new one on top. Needs the Store pack "Zalo extras" 1.5.0.
 ### Fixed
 - **Editing a note no longer unpins it.** Editing a pinned note without saying "pin" used to make Zalo take it off the pin bar. The pin now stays as it was and comes off only when you ask.
+## [0.345.0] - 2026-10-27
+### Improved
+- **Greetings and thanks cost almost no tokens.** A message that is only a greeting or a thanks now gets its answer through the fast path on every brain, at every saving level. On Claude Code, "hi" dropped from about 60,800 tokens to about 2,100.
+- **Regular questions on Claude Code are about 23% lighter.** Claude Code no longer reads Javis's rules twice (regular installs), and the rules got leaner: the guides for creating plugins, assistants and workflows load only when needed. Measured: from 60,800 down to 46,600 tokens. Every other brain also saves about 1,900 tokens per turn.
+- **Long chats on Claude Code no longer grow to nearly a million tokens per turn.** Claude Code now summarizes the thread at about 180 thousand tokens instead of 980 thousand, so late in a long chat each message costs up to 5 times less while Javis keeps the thread.
+- **The token line under each answer now shows only new tokens.** Context sent earlier is read back from cache by the provider at a far lower price, so it is no longer added in: a second chat turn on Claude Code shows about 4.5k tokens instead of 53k. Hover the line to see the cache share, for example "45k cached tokens". Applies to Claude Code and ChatGPT (Codex).
+### Fixed
+- **Asking the time in the middle of a long chat on Claude Code now gives the right time.** Javis could answer with the time of the first message in the chat.
 
 ## [0.344.0] - 2026-10-27
 ### Improved
