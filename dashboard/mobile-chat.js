@@ -189,16 +189,16 @@
       if (!mq.matches && document.body.classList.contains("brain-max")) setBrainMax(false);
     }
 
-    // ---- 7) Bàn phím ảo: khung chat bám đúng phần màn hình còn nhìn thấy ----
+    // ---- 7) Mobile viewport: keep the shell aligned with the visible screen ----
     // Chủ repo báo 27/09 (kèm ảnh so với app Claude và Telegram): gõ trên điện thoại thì ô
     // nhập đứng cách bàn phím một khoảng trống to. Nguyên nhân: ô nhập luôn chừa lề đáy bằng
     // safe-area-inset-bottom (34px trên iPhone có vạch Home), mà lúc bàn phím mở thì vạch Home
     // nằm DƯỚI bàn phím, chừa nữa là chừa cho khoảng không. Cộng thêm iOS không co 100dvh theo
     // bàn phím mà trượt cả trang lên, nên phần đáy trang lộ ra dưới ô nhập.
-    // Cách sửa: đo visualViewport (phần thật sự nhìn thấy), gắn lớp `kb-open` lên body, rồi
-    // CSS đặt khung chat đúng bằng vùng đó và bỏ lề an toàn. Nhận ra bàn phím bằng cách so với
-    // chiều cao lúc KHÔNG gõ (mốc), vì trên iOS innerHeight không đổi còn trên Android (có
-    // interactive-widget=resizes-content) thì innerHeight co theo, so với nó là không thấy gì.
+    // `visualViewport` can differ from 100dvh in an installed iOS PWA even with the keyboard
+    // closed. Keep shell geometry synced all the time; `kb-open` only controls keyboard spacing.
+    // Compare the visible height with the last idle height to detect the keyboard. innerHeight
+    // does not change on iOS, while Android may shrink it with interactive-widget=resizes-content.
     var vv = window.visualViewport;
     var rootStyle = document.documentElement.style;
     var mocCao = 0, kbHen = 0;
@@ -213,11 +213,8 @@
     function syncKeyboard() {
       kbHen = 0;
       if (!vv) return;
-      var go = dangGo();
-      if (!go || !mocCao) mocCao = Math.max(go ? mocCao : 0, vv.height);
-      var mo = mq.matches && go && mocCao - vv.height > 120;
-      document.body.classList.toggle("kb-open", mo);
-      if (mo) {
+      document.body.classList.toggle("vv-layout", mq.matches);
+      if (mq.matches) {
         rootStyle.setProperty("--vv-h", Math.round(vv.height) + "px");
         rootStyle.setProperty("--vv-top", Math.max(0, Math.round(vv.offsetTop)) + "px");
         rootStyle.setProperty("--vv-ptop", Math.max(0, Math.round(vv.pageTop)) + "px");
@@ -226,6 +223,10 @@
         rootStyle.removeProperty("--vv-top");
         rootStyle.removeProperty("--vv-ptop");
       }
+      var go = dangGo();
+      if (!go || !mocCao) mocCao = Math.max(go ? mocCao : 0, vv.height);
+      var mo = mq.matches && go && mocCao - vv.height > 120;
+      document.body.classList.toggle("kb-open", mo);
     }
     function henKeyboard() {
       if (!kbHen) kbHen = (window.requestAnimationFrame || setTimeout)(syncKeyboard);
