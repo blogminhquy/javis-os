@@ -9,7 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.345.0] - 2026-10-27
 ### Cải thiện
 - **Mỗi câu trả lời trên Claude Code tốn ít token hơn khoảng 20%.** Với bản cài thường, Claude Code trước đây đọc bộ luật của Javis hai lần mỗi lượt. Giờ chỉ đọc một lần: đo thật, một câu chào giảm từ khoảng 60.800 xuống 48.400 token. Bản Docker vốn không bị.
-- **Dòng số token dưới câu trả lời giờ chỉ hiện token mới.** Phần ngữ cảnh đã gửi trước đó được nhà cung cấp đọc lại từ cache, rẻ hơn nhiều, nên không cộng vào nữa: lượt chat thứ hai trên Claude Code hiện khoảng 4,5k token thay vì 53k. Rê chuột vào dòng đó để xem đã bỏ ra bao nhiêu token cache. Áp dụng cho Claude Code và ChatGPT (Codex).
+- **Dòng số token dưới câu trả lời giờ chỉ hiện token mới.** Phần ngữ cảnh đã gửi trước đó được nhà cung cấp đọc lại từ cache, rẻ hơn nhiều, nên không cộng vào nữa: lượt chat thứ hai trên Claude Code hiện khoảng 4,5k token thay vì 53k. Rê chuột vào dòng đó để thấy số token cache, ví dụ "45k token cache". Áp dụng cho Claude Code và ChatGPT (Codex).
 ### Sửa lỗi
 - **Hỏi giờ giữa một cuộc chat dài trên Claude Code giờ trả lời đúng giờ.** Trước đây Javis có thể trả lời theo giờ của tin nhắn đầu tiên trong cuộc chat.
 
