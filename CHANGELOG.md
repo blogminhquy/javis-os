@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.355.0] - 2026-10-27
 ### Cải thiện
-- **Model "mặc định" giờ ghi rõ là model nào.** Ở trang Models, chip model và bảng chọn model hiện ví dụ "mặc định (llama-3.3-70b-versatile)" thay cho chữ "mặc định" trơn, để bạn biết thẻ đó đang chạy model gì khi chưa chọn riêng.
+- **Model "mặc định" giờ ghi rõ là model nào.** Ở trang Models, chip model và bảng chọn model hiện ví dụ "mặc định (llama-3.3-70b-versatile)" thay cho chữ "mặc định" trơn, để bạn biết thẻ đó đang chạy model gì khi chưa chọn riêng. Thẻ gói (Claude Code, ChatGPT, Grok) chưa đặt model thì ghi "mặc định của CLI (tự chọn theo gói)". Chip model ở khung chat cũng gọi đúng tên model đó.
 - **Gợi ý đặt tên tài khoản gói rõ ràng hơn.** Ô tên khi thêm tài khoản giờ gợi ý kiểu "Gói Pro 2" hay "Gói Max 200".
 
 ## [0.354.0] - 2026-10-27

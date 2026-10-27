@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.355.0] - 2026-10-27
 ### Improved
-- **"Default" model now says which model it is.** On the Models page, the model chip and the model list show for example "default (llama-3.3-70b-versatile)" instead of a bare "default", so you know what a card runs when you have not picked a model.
+- **"Default" model now says which model it is.** On the Models page, the model chip and the model list show for example "default (llama-3.3-70b-versatile)" instead of a bare "default", so you know what a card runs when you have not picked a model. A plan card (Claude Code, ChatGPT, Grok) with no model set says "CLI default (picked by your plan)". The chat composer's model chip names that model too.
 - **Clearer hint for naming a plan account.** The name box when adding an account now suggests names like "Pro plan 2" or "Max 200 plan".
 
 ## [0.354.0] - 2026-10-27
