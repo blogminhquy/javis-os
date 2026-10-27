@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.346.0] - 2026-10-27
+### Thêm mới
+- **Javis đọc và sửa được ghi chú ghim trong nhóm Zalo.** Hỏi Javis "nhóm này đang ghim gì" là ra danh sách ghi chú, tin ghim, bình chọn, kèm ai tạo, ai sửa cuối và lúc nào, kể cả ghi chú nhân viên hay khách sửa tay trên điện thoại. Nhờ Javis sửa một ghi chú thì nó sửa đúng ghi chú cũ, không tạo cái mới chồng lên. Cần gói Store "Zalo mở rộng" 1.5.0.
+### Sửa lỗi
+- **Sửa ghi chú không còn làm mất ghim.** Trước đây sửa một ghi chú đang ghim mà không ghi rõ "ghim" thì Zalo gỡ nó khỏi mục ghim. Giờ ghim giữ nguyên, chỉ gỡ khi bạn nói rõ.
+
 ## [0.344.0] - 2026-10-27
 ### Cải thiện
 - **Kiểm tra tự động trước khi phát hành nhanh hơn nhiều.** Trước đây mỗi lần sửa code phải chờ khoảng 68 phút để chạy hết gần 1.000 bài kiểm tra, lần lượt từng bài. Giờ bài kiểm tra chia cho 2 máy, mỗi máy chạy 4 bài cùng lúc, nên bản sửa lỗi tới tay bạn sớm hơn. Số bài kiểm tra giữ nguyên, không bỏ bài nào.
