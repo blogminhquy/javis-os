@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.354.0] - 2026-10-27
+### Cải thiện
+- **Hết lượt thì chat tự chạy lại bằng đường kế tiếp.** Mô hình đang chạy báo hết lượt trước khi kịp viết chữ nào hay gọi công cụ nào thì Javis hỏi lại ngay đúng câu đó bằng tài khoản hoặc key kế của cùng nhà, rồi tới nhà kế trong Thứ tự dùng. Khung chat hiện một dòng như "Đang dùng ChatGPT vì Claude Code hết lượt." và bạn không phải gửi lại. Telegram cũng vậy.
+- **Hết lượt giữa chừng thì có nút Chạy lại ngay.** Câu trả lời dừng ở đoạn đã viết, bấm nút là hỏi lại bằng mô hình còn lượt. Javis không tự chạy lại khi đã gọi công cụ, để không gửi tin hay đăng bài hai lần.
+
 ## [0.353.0] - 2026-10-27
 ### Thêm mới
 - **Nhiều tài khoản cho một gói đăng ký.** Thẻ ChatGPT, Grok Build và Claude Code ở trang Models giờ có danh sách tài khoản. Bấm Thêm tài khoản, đăng nhập bằng link và mã ngay trên trang (chạy được cả trên VPS). Tài khoản 1 là tài khoản máy đang dùng. Hết lượt thì tài khoản kế tiếp tự chạy tiếp, dùng hết các tài khoản của một thẻ rồi mới sang thẻ sau. Tài khoản hết lượt tự quay lại khi tới giờ mở. Kéo hoặc bấm mũi tên để đổi thứ tự, tắt hay gỡ từng tài khoản.
