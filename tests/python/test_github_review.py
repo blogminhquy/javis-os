@@ -145,6 +145,22 @@ check("green CI on the same commit does not lift the stuck state", r["exec"] == 
 check("the chat icon says it needs attention", github_store.icon(S().for_session("cc9"))["state"] == "broken")
 review_answer["text"] = '{"findings": []}'
 
+# ---- a later job in the same chat: its own request names the PR and guides the review ----
+TASKS = {"cc7": "Đổi lời chào thành tiếng Anh"}
+w.configure(session_info=lambda sid: {"title": "Tiêu đề cũ của cuộc trò chuyện", "task": TASKS.get(sid, ""),
+                                      "engine": ENGINES.get(sid[:2], "anthropic-cli"), "model": "m-" + sid[:2]})
+wts = setup("cc7", ["acme/task"])
+change("cc7", wts["acme/task"], "src/a.py", "a = 11\n")
+pr7 = fake.pulls["acme/task"][0]
+check("the PR is named after the job's own request, not the chat title", pr7["title"] == "Đổi lời chào thành tiếng Anh")
+n = len(reviews)
+fake.set_checks(S().get("cc7", "acme/task")["head_sha"], [("test", "completed", "success")])
+run(w.tick())
+check("the reviewer gets the latest request to judge against", len(reviews) == n + 1
+      and "Đổi lời chào thành tiếng Anh" in reviews[-1][1])
+w.configure(session_info=lambda sid: {"title": f"Việc {sid}", "engine": ENGINES.get(sid[:2], "anthropic-cli"),
+                                      "model": "m-" + sid[:2]})
+
 # ---- no reviewer of another family: noted on the PR, merge goes on ----
 w.configure(reviewers=lambda: ["anthropic-cli"])
 wts = setup("cc3", ["acme/solo"])

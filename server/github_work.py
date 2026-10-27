@@ -288,9 +288,15 @@ def ship(sid: str, brain: str, repo: Dict[str, Any], report: Dict[str, Any]) -> 
     """Gate passed: commit, push, open or reuse the PR, record the pushed commit as CI pending."""
     fn = repo["full_name"]
     info = _session(sid)
-    title = (info.get("title") or "").strip() or _c("Thay đổi từ Javis", "Changes from Javis")
+    # The job's own request names the PR; the chat title only describes the chat's FIRST job.
+    task_line = (str(info.get("task") or "").strip().splitlines() or [""])[0]
+    title = (task_line[:100] or (info.get("title") or "").strip() or _c("Thay đổi từ Javis", "Changes from Javis"))
     row = st().ensure(sid, fn, brain=brain, worktree=repo["worktree"], base_branch=repo.get("default_branch") or "main",
-                      title=title[:200], engine=str(info.get("engine") or ""), model=str(info.get("model") or ""))
+                      engine=str(info.get("engine") or ""), model=str(info.get("model") or ""))
+    if not row.get("pr_number") or row.get("integ") == "merged":
+        row = st().update(sid, fn, title=title[:200])    # a new job: its request names it
+    else:
+        title = row.get("title") or title               # the same job's later pushes keep the PR's name
     if row.get("integ") == "merged":
         # The last PR of this chat is merged: what comes now is a new job on the branch the worktree is on.
         row = st().update(sid, fn, branch="", head_sha="", pr_number=0, pr_url="", pr_node_id="", ci="none",
@@ -900,6 +906,9 @@ def _record_metric(row: Dict[str, Any], outcome: str) -> None:
 # ============================================================
 REVIEW_PROMPT = """Bạn là người review code độc lập cho PR "{title}" trên repo {repo}. Một engine khác đã viết thay đổi này.
 
+Yêu cầu mới nhất của người dùng cho việc này (đánh giá thay đổi theo đúng yêu cầu này, không theo việc cũ):
+{task}
+
 Chỉ nêu LỖI có đường gây hỏng CỤ THỂ: với đầu vào hay tình huống nào thì ra kết quả sai, chương trình hỏng, mất dữ liệu,
 hay một lỗ hổng bảo mật. KHÔNG nêu đặt tên, phong cách, khẩu vị, gợi ý cải tiến, hay thứ có từ trước thay đổi này.
 Không chắc thì không nêu. Không có lỗi thì trả danh sách rỗng.
@@ -981,7 +990,8 @@ async def cross_review(row: Dict[str, Any]) -> Dict[str, Any]:
     findings: Optional[List[Dict[str, Any]]] = None
     try:
         diff = await asyncio.to_thread(_review_diff, row)
-        prompt = REVIEW_PROMPT.format(title=row.get("title") or "", repo=fn, diff=diff)
+        task = str(_session(sid).get("task") or row.get("title") or "")[:2000]
+        prompt = REVIEW_PROMPT.format(title=row.get("title") or "", repo=fn, diff=diff, task=task)
         raw = await asyncio.wait_for(_review(prompt, reviewer), timeout=REVIEW_TIMEOUT_S)
         findings = parse_findings(raw)
     except Exception as e:  # noqa: BLE001 - a broken reviewer must not hold the PR forever

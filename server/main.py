@@ -24933,10 +24933,25 @@ async def _github_start_turn(sid: str, text: str) -> bool:
 
 
 def _github_session_info(sid: str) -> dict:
-    """Title and the engine/model a chat runs on, for the PR body and the metrics."""
-    row = get_store().get_session(sid) or {}
+    """Title, the person's latest request, and the engine/model a chat runs on, for the PR, the review and metrics.
+
+    `task` is the latest message the PERSON wrote (not a fix round Javis opened): a chat can hold several jobs, and
+    the chat title only describes the first one."""
+    store = get_store()
+    row = store.get_session(sid) or {}
+    task = ""
+    try:
+        for m in reversed(store.get_messages(sid) or []):
+            if m.get("role") != "user":
+                continue
+            text = chat_recall.strip_block(str(m.get("content") or "")).strip()
+            if text and not text.startswith("[Javis GitHub]"):
+                task = text
+                break
+    except Exception:  # noqa: BLE001
+        task = ""
     main_m = (cfgmod.read_settings().get("model") or {}).get("main") or {}
-    return {"title": row.get("title") or "",
+    return {"title": row.get("title") or "", "task": task[:2000],
             "engine": row.get("pinned_provider") or main_m.get("provider") or "",
             "model": row.get("pinned_model") or main_m.get("model") or ""}
 
