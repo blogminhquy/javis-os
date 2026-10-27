@@ -505,7 +505,12 @@ SYSTEM_PROMPT = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exi
 # chính test đó canh sự khớp: sửa một bên mà quên bên kia là đỏ. Đó là cái chặn thật - muốn
 # nâng trần thì phải sửa HAI chỗ và phải viết ra lý do ở cả hai, đủ ma sát để người sửa dừng
 # lại nghĩ thay vì gõ số mới cho xong.
-PROMPT_KERNEL_MAX_CHARS = 33_600
+#
+# 0.345.0: lowered from 33,600 to 29,200. The plugin, capability-building, attached-file and
+# agent/workflow sections were condensed (their templates and details already live in the
+# javis-builder skill and the tool descriptions), saving about 1,850 tokens on every turn of every
+# engine. The cap moves down with it so the saving is not quietly refilled; same ~600 spare chars.
+PROMPT_KERNEL_MAX_CHARS = 29_200
 
 # Bộ nhớ dài hạn - lưu TRONG vault đang chọn để đi theo vault
 MEMORY_SEED = (
@@ -2764,6 +2769,11 @@ def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="cha
                         tag=tag, allowed_tools=CLAUDE_SUB_KHONG_TOOL,
                         model=_claude_api_model(model) or None)
     cli.system_prompt_raw = bool(tiet_kiem)
+    # 0.345.0: no tool may run here (CLAUDE_SUB_KHONG_TOOL), yet Claude Code still sent every tool
+    # schema and the skill list: measured 27,665 input tokens for "chào em" on the fast path. "*"
+    # takes them all out of the request, tools added by future Claude Code versions included
+    # (measured: 183 input tokens). This path is chat only, so nothing is lost.
+    cli.disallowed_tools = ["*"]
     return _claude_sub_doc(cli, _claude_kem_anh(messages, _cli_do_sau(cli, reasoning, prompt)), model)
 
 
@@ -4056,9 +4066,9 @@ def _cli_do_sau_khac(cli, mod, reasoning, message):
 def _cli_fast(cli):
     """Fast mode for Claude Code (0.164.0): `settings='{"fastMode": true}'` on the SDK options
     when this turn has the bolt on and the model supports it (Opus 5.5, Opus 5, Opus 4.8).
-    0.345.0: keeps the repo CLAUDE.md excluded (claude_cli.them_loai_claude_md)."""
+    0.345.0: keeps the repo CLAUDE.md excluded (claude_cli.javis_claude_settings)."""
     try:
-        cli.fast_settings = claude_cli.them_loai_claude_md(
+        cli.fast_settings = claude_cli.javis_claude_settings(
             fast_mode.claude_sdk_settings(getattr(cli, "model", "") or "", fast_mode.current()))
     except Exception:  # noqa: BLE001 - an engine without this attribute just runs at the normal tier
         pass

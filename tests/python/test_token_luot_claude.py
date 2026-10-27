@@ -58,11 +58,20 @@ g = claude_cli.claude_engine(tag="loop", allowed_tools=["Read"])
 check("lượt nền khoá quyền cũng loại (cùng cwd brain trong repo)",
       str(CLAUDE_MD) in json.loads(g._options().settings).get("claudeMdExcludes", []))
 check("danh sách loại sẵn có được giữ, không trùng",
-      json.loads(claude_cli.them_loai_claude_md('{"claudeMdExcludes": ["/x/CLAUDE.md"]}'))["claudeMdExcludes"][0]
+      json.loads(claude_cli.javis_claude_settings('{"claudeMdExcludes": ["/x/CLAUDE.md"]}'))["claudeMdExcludes"][0]
       == "/x/CLAUDE.md"
-      and len(json.loads(claude_cli.them_loai_claude_md(claude_cli.them_loai_claude_md()))["claudeMdExcludes"])
-      == len(json.loads(claude_cli.them_loai_claude_md())["claudeMdExcludes"]))
-check("settings hỏng thì vẫn ra JSON hợp lệ", json.loads(claude_cli.them_loai_claude_md("{hỏng")).get("fastMode") is False)
+      and len(json.loads(claude_cli.javis_claude_settings(claude_cli.javis_claude_settings()))["claudeMdExcludes"])
+      == len(json.loads(claude_cli.javis_claude_settings())["claudeMdExcludes"]))
+check("settings hỏng thì vẫn ra JSON hợp lệ", json.loads(claude_cli.javis_claude_settings("{hỏng")).get("fastMode") is False)
+# Native compaction window (0.345.0): measured effectiveWindow=980000 by default on a 1M model,
+# 180000 with autoCompactWindow=200000 (a number: the string "200k" is ignored in settings).
+check("every Claude run compacts natively near 200k", cfg.get("autoCompactWindow") == 200_000, cfg)
+check("...also with fast mode on", cfg2.get("autoCompactWindow") == 200_000, cfg2)
+for env, want in (("auto", None), ("150k", 150_000), ("50000", 100_000), ("5000000", 1_000_000), ("rác", 200_000)):
+    os.environ["JAVIS_CLAUDE_COMPACT_WINDOW"] = env
+    got = json.loads(claude_cli.javis_claude_settings()).get("autoCompactWindow")
+    check(f"JAVIS_CLAUDE_COMPACT_WINDOW={env} -> {want}", got == want, got)
+os.environ.pop("JAVIS_CLAUDE_COMPACT_WINDOW", None)
 
 # ---- 2. Giờ gửi tin cho lượt nối phiên ----
 now = datetime.datetime(2026, 10, 27, 8, 53, tzinfo=datetime.timezone(datetime.timedelta(hours=7)))

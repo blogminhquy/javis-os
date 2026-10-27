@@ -1048,8 +1048,9 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
         pass
     eng = ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
                     allowed_tools=allowed_tools, model=model)
-    # Every run (chat, loops, reminders, bots) skips the repo CLAUDE.md; main._cli_fast keeps it.
-    eng.fast_settings = them_loai_claude_md()
+    # Every run (chat, loops, reminders, bots) skips the repo CLAUDE.md and compacts at ~180k;
+    # main._cli_fast keeps both.
+    eng.fast_settings = javis_claude_settings()
     return eng
 
 
@@ -1059,13 +1060,36 @@ def _claude_md_repo() -> list:
     return list(dict.fromkeys([str(p), p.as_posix()]))
 
 
-def them_loai_claude_md(settings: str = None) -> str:
-    """Claude Code settings JSON that also excludes the repo CLAUDE.md (0.345.0).
+# 0.345.0: Claude Code compacts a thread natively once it nears this many tokens. Its "auto" default
+# follows the model's context window, which measured 980,000 on a 1M-context model: a long chat then
+# re-reads close to a million tokens on every turn. 200k is the classic Claude window, so a 200k
+# model behaves exactly as before and a 1M model compacts at ~180k (Claude Code keeps a 20k buffer)
+# with its own summary, keeping the thread. `JAVIS_CLAUDE_COMPACT_WINDOW=auto` restores the default.
+CLAUDE_COMPACT_WINDOW = 200_000
 
-    A native install keeps brains under the repo (BRAINS_DIR defaults to <repo>/brains), and
-    Claude Code walks up from its cwd loading every CLAUDE.md it meets. The repo one IS the Javis
-    system prompt, which Javis already appends, so each turn paid for it twice (about 12k tokens,
-    measured on a plain "chào em"). `fastMode` stays explicit false unless the caller set it."""
+
+def _compact_window():
+    v = os.getenv("JAVIS_CLAUDE_COMPACT_WINDOW", "").strip().lower()
+    if v in ("auto", "0", "off"):
+        return None
+    try:
+        n = int(v.rstrip("k")) * (1000 if v.endswith("k") else 1) if v else CLAUDE_COMPACT_WINDOW
+    except ValueError:
+        return CLAUDE_COMPACT_WINDOW
+    # Claude Code accepts 100k to 1M and rejects anything else.
+    return max(100_000, min(n, 1_000_000))
+
+
+def javis_claude_settings(settings: str = None) -> str:
+    """Claude Code settings JSON for every Javis run (0.345.0), merged over `settings`.
+
+    - `claudeMdExcludes`: a native install keeps brains under the repo (BRAINS_DIR defaults to
+      <repo>/brains), and Claude Code walks up from its cwd loading every CLAUDE.md it meets. The
+      repo one IS the Javis system prompt, which Javis already appends, so each turn paid for it
+      twice (about 12k tokens, measured on a plain "chào em").
+    - `autoCompactWindow`: see CLAUDE_COMPACT_WINDOW. Must be a number: "200k" is ignored here.
+    - `fastMode` stays explicit false unless the caller set it.
+    Older Claude Code versions ignore keys they do not know."""
     try:
         d = json.loads(settings) if settings else {}
     except (TypeError, ValueError):
@@ -1076,6 +1100,9 @@ def them_loai_claude_md(settings: str = None) -> str:
     cu = d.get("claudeMdExcludes")
     cu = cu if isinstance(cu, list) else []
     d["claudeMdExcludes"] = list(dict.fromkeys([*cu, *_claude_md_repo()]))
+    w = _compact_window()
+    if w:
+        d.setdefault("autoCompactWindow", w)
     return json.dumps(d, ensure_ascii=False)
 
 

@@ -44,6 +44,29 @@ def stable_bucket(session_id: str, salt: str, buckets: int = 10_000) -> int:
     return int.from_bytes(digest[:8], "big") % max(1, int(buckets or 10_000))
 
 
+# 0.345.0: pure small talk ("chào em", "cảm ơn em nhé", "hi Javis") takes the fast path on every
+# engine, whatever the saving level. On Claude Code the full path costs ~48k tokens for a greeting;
+# the lean fast path costs a few hundred. The match is deliberately strict: EVERY word must be a
+# greeting, a thanks, or an address/particle word, so "chào em, doanh thu hôm nay?" or "ok làm đi"
+# never qualifies. "ok" is left out on purpose: it is how people say "go ahead".
+_ST_GREET = r"xin chao|chao|hello|helo|hi|hey|alo|good morning|good afternoon|good evening"
+_ST_THANK = r"cam on|thanks|thank you|thank u|thank|thx|tks|many thanks"
+_ST_FILL = (r"em|anh|chi|ban|minh|javis|a|nhe|nha|nhieu|lam|oi|ha|ca nha|rat|very much|so much|"
+            r"buoi sang|buoi chieu|buoi toi")
+_ST_FULL = re.compile(rf"^(?:(?:{_ST_GREET}|{_ST_THANK}|{_ST_FILL})\b\s*)+$")
+_ST_CORE = re.compile(rf"\b(?:{_ST_GREET}|{_ST_THANK})\b")
+SMALL_TALK_MAX_CHARS = 60
+
+
+def is_small_talk(text: str) -> bool:
+    """True when the whole message is a greeting or a thanks and nothing else."""
+    raw = str(text or "").strip()
+    if not raw or len(raw) > SMALL_TALK_MAX_CHARS:
+        return False
+    words = " ".join(re.sub(r"[^a-z0-9\s]", " ", _norm(raw)).split())
+    return bool(words) and bool(_ST_FULL.match(words)) and bool(_ST_CORE.search(words))
+
+
 @dataclass(frozen=True)
 class IntentDecision:
     eligible: bool
@@ -116,6 +139,15 @@ class QuotaRule:
     window_seconds: int
     priority: int
     rule_id: str
+
+
+# Budget for a small-talk capsule when the engine has no quota rule of its own (a subscription with
+# no `subscription_context`). Generous on purpose: the capsule is about 1k tokens, and this only
+# keeps the compiler's preflight honest, it never rejects a greeting.
+SMALL_TALK_RULE = QuotaRule(
+    provider="*", model_pattern="*", rolling_tpm=1_000_000, hard_max_input_tokens=32_000,
+    reserved_output_tokens=1_024, window_seconds=60, priority=-2, rule_id="small-talk",
+)
 
 
 @dataclass(frozen=True)
@@ -271,19 +303,34 @@ class FastPathCanary:
         if not trace:
             return FastPathPlan("legacy", "trace_unavailable", "legacy")
         bucket = stable_bucket(trace.session_id, policy.salt)
-        if policy.mode not in ("canary", "on"):
-            return self._legacy(trace, policy, bucket, "mode_not_canary")
-        if policy.allocation_basis_points <= bucket:
-            return self._legacy(trace, policy, bucket, "outside_allocation")
-        if channel not in policy.channels:
-            return self._legacy(trace, policy, bucket, "channel_not_allowed")
-        if provider_kind not in policy.provider_kinds:
-            return self._legacy(trace, policy, bucket, "provider_kind_not_allowed")
+        # Small talk skips the saving-level gates (mode, allocation, channel, engine kind), the
+        # language-dependent intent classifier (a 7-character greeting is too short to detect its
+        # language) and the capability resolver (a greeting needs no tool). Quota and the compiler's
+        # preflight below still apply.
+        small_talk = not has_attachments and is_small_talk(objective)
+        if not small_talk:
+            if policy.mode not in ("canary", "on"):
+                return self._legacy(trace, policy, bucket, "mode_not_canary")
+            if policy.allocation_basis_points <= bucket:
+                return self._legacy(trace, policy, bucket, "outside_allocation")
+            if channel not in policy.channels:
+                return self._legacy(trace, policy, bucket, "channel_not_allowed")
+            if provider_kind not in policy.provider_kinds:
+                return self._legacy(trace, policy, bucket, "provider_kind_not_allowed")
         rule = policy.quota_rule(provider, model)
         if rule is None and str(provider_kind or "") in ("cli", "oauth"):
             rule = policy._rule_thue_bao(self.settings_reader() or {})
+        if rule is None and small_talk:
+            rule = SMALL_TALK_RULE
         if rule is None:
             return self._legacy(trace, policy, bucket, "hard_quota_unknown")
+        if small_talk:
+            self.runtime.record_runtime_event(trace, "fast_path.small_talk", {"chars": len(objective)})
+            return self._compile_and_admit(
+                trace, policy, bucket, rule, objective, brain, channel, provider, model,
+                provider_kind, lang_tra_loi,
+                {"ranked": [], "selected": [], "selected_count": 0, "candidate_count": 0},
+            )
 
         intent = self.classifier.classify(
             objective, has_attachments=has_attachments,
@@ -355,6 +402,15 @@ class FastPathCanary:
         if diem_chan_kind >= policy.min_resolver_score:
             return self._legacy(trace, policy, bucket, "capability_kind_blocked")
 
+        return self._compile_and_admit(
+            trace, policy, bucket, rule, objective, brain, channel, provider, model,
+            provider_kind, lang_tra_loi, resolution,
+        )
+
+    def _compile_and_admit(self, trace, policy: CanaryPolicy, bucket: Optional[int],
+                           rule: QuotaRule, objective: str, brain: str, channel: str,
+                           provider: str, model: str, provider_kind: str, lang_tra_loi: str,
+                           resolution: dict) -> FastPathPlan:
         compile_resolution = dict(resolution)
         # Resolver miss "index_or_alias" nghĩa là không tìm thấy capability, không đồng nghĩa
         # chat-thuần bị lỗi. Classifier bảo thủ ở trên là authority để chọn path fast.
