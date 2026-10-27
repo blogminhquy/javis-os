@@ -62,6 +62,19 @@ check("mobile-chat đo visualViewport và gắn lớp kb-open",
 check("khung chat đặt theo vùng nhìn thấy khi bàn phím mở",
       "body.kb-open .hud {" in CSS and "var(--vv-h" in CSS and "body.kb-open .cview {" in CSS)
 check("bàn phím mở thì ô nhập bỏ lề an toàn", "body.kb-open .hud-voice { margin-bottom: 6px; }" in CSS)
+# 0.359.0 (PR #850): app cài trên iPhone, lúc KHÔNG gõ 100dvh có khi lệch vùng nhìn thấy (hụt đầu, thừa đáy). Khung chat
+# lúc nghỉ lấy đúng chiều cao visualViewport, không cộng độ lệch; bàn phím hạ thì kéo trang về đầu; giữ black-translucent.
+_sync = re.search(r"function syncKeyboard\(\) \{([\s\S]*?)\n    \}\n    function henKeyboard", MOBILE_CHAT)
+_sb = _sync.group(1) if _sync else ""
+check("lúc không gõ, khung chat dùng chiều cao vùng nhìn thấy (--app-h)",
+      'rootStyle.setProperty("--app-h", Math.round(vv.height) + "px");' in _sb and "mq.matches && !go" in _sb)
+check("--app-h chỉ là chiều cao, không cộng offsetTop hay pageTop",
+      _sb.count("--app-h") >= 1 and "vv.offsetTop" not in _sb.split('"--app-h"')[1].split("vuaGo = go")[0])
+check("bàn phím vừa hạ mà trang bị trượt thì kéo về đầu", "if (vuaGo && (window.scrollY || document.documentElement.scrollTop)) window.scrollTo(0, 0);" in _sb)
+check("khung chính điện thoại cao theo --app-h, thiếu thì 100dvh",
+      CSS.count("height: 100vh; height: var(--app-h, 100dvh);") == 2)
+check("giữ thanh trạng thái trong suốt (giao diện không đổi)",
+      'name="apple-mobile-web-app-status-bar-style" content="black-translucent"' in INDEX)
 check("trang quản lý không cộng chồng hai lề đáy dưới ô nhập", ".cview .hud-voice { margin-bottom: 0; }" in CSS)
 check("Android co trang theo bàn phím", "interactive-widget=resizes-content" in INDEX)
 _cd = re.search(r"\.cd-menu \{[^}]*\}", CSS)

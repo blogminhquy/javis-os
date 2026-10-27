@@ -873,7 +873,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   /* Không còn chừa 56px đáy cho rail; chat chiếm hết */
   body.has-rail .hud {
     margin-left: 0; width: 100%;
-    height: 100vh; height: 100dvh;
+    height: 100vh; height: var(--app-h, 100dvh);
   }
   .cview { left: 0; bottom: 0; }
   .cview-body { padding: 16px 14px; }
@@ -889,7 +889,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   html, body { width: 100%; height: 100%; overflow: hidden; }
   body.in-console .hud-body { visibility: hidden; }   /* trang quản lý: giấu quả cầu cockpit phía sau */
   .hud {
-    height: 100vh; height: 100dvh;
+    /* --app-h: chiều cao vùng nhìn thấy lúc không gõ (mobile-chat.js, 0.359.0); 100dvh của app cài trên iPhone có khi lệch. */
+    height: 100vh; height: var(--app-h, 100dvh);
     grid-template-rows: minmax(0, 1fr) auto auto;
     padding-top: calc(46px + env(safe-area-inset-top, 0px));
   }  /* header fixed; ba hàng còn lại = body + đính kèm + ô nhập */
