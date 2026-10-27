@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.346.0] - 2026-10-27
+### Added
+- **Javis reads and edits pinned notes in Zalo groups.** Ask Javis what a group has pinned and you get its notes, pinned messages and polls, with who created and last edited each one and when, including notes staff or customers edited by hand on their phones. Ask Javis to update a note and it edits that same note instead of adding a new one on top. Needs the Store pack "Zalo extras" 1.5.0.
+### Fixed
+- **Editing a note no longer unpins it.** Editing a pinned note without saying "pin" used to make Zalo take it off the pin bar. The pin now stays as it was and comes off only when you ask.
 ## [0.345.0] - 2026-10-27
 ### Improved
 - **Greetings and thanks cost almost no tokens.** A message that is only a greeting or a thanks now gets its answer through the fast path on every brain, at every saving level. On Claude Code, "hi" dropped from about 60,800 tokens to about 2,100.
