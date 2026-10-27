@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.347.0] - 2026-10-27
+### Cải thiện
+- **Thanh bên gọn hơn.** (đang viết)
+
 ## [0.345.0] - 2026-10-27
 ### Cải thiện
 - **Chào hỏi, cảm ơn gần như không tốn token.** Tin nhắn chỉ có lời chào hay lời cảm ơn giờ được trả lời theo đường nhanh trên mọi bộ não, ở mọi mức tiết kiệm. Trên Claude Code, "chào em" từ khoảng 60.800 token còn khoảng 2.100.
