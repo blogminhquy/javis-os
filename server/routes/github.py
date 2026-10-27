@@ -8,6 +8,10 @@
     POST /github/local/remove                  brain, full_name: delete the local clone (GitHub untouched)
     GET  /github/local/checks                  the repo's local check commands (saved, or suggested from its CI)
     POST /github/local/checks                  brain, full_name, commands (one per line) or reset=1
+    POST /github/local/automerge               brain, full_name, on: the per-repo auto-merge switch (default on)
+    GET  /github/icons?sids=a,b                status icon per conversation for the chat list
+    POST /github/session/{sid}/merge           full_name: a person merges a ready PR
+    POST /github/session/{sid}/next            text: a job to start once this chat's PRs are merged; cancel=<id>
     GET  /github/session/{sid}?brain=          repos attached to a conversation, with its branch and worktree
     POST /github/session/{sid}/repos           brain, repos (comma separated full names): set the chat's repos
     POST /github/session/{sid}/detach          brain, full_name, force: remove one repo from this chat only
@@ -107,6 +111,39 @@ def _make_router() -> APIRouter:
         if buf.strip():
             lines.append({"run": buf.strip()})
         return await _call(github_repos.set_checks, brain, full_name, lines)
+
+    @r.post("/github/local/automerge")
+    async def gh_automerge(brain: str = Form(""), full_name: str = Form(...), on: str = Form("1")):
+        return await _call(github_repos.set_auto_merge, brain, full_name, str(on).strip() in ("1", "true", "on"))
+
+    @r.get("/github/icons")
+    async def gh_icons(sids: str = Query("")):
+        """Status icon per conversation for the chat list (spec 12.1). Only chats with GitHub work are returned."""
+        def icons():
+            import github_store
+            rows = github_store.store().sessions([s.strip() for s in str(sids or "").split(",") if s.strip()])
+            return {"icons": {sid: github_store.icon(rs) for sid, rs in rows.items()}}
+        return await _call(icons)
+
+    @r.post("/github/session/{sid}/merge")
+    async def gh_merge(sid: str, full_name: str = Form(...)):
+        """A person presses Merge (auto-merge off, no CI, or a change Javis would not merge alone)."""
+        import github_work
+        try:
+            return {"ok": True, **(await github_work.merge_by_person(sid, full_name))}
+        except github_repos.RepoError as e:
+            return _err(str(e))
+
+    @r.post("/github/session/{sid}/next")
+    async def gh_next(sid: str, text: str = Form(""), cancel: str = Form("")):
+        """Queue a next job for after this chat's PRs are merged, or cancel one (`cancel`=<id>)."""
+        import github_work
+        try:
+            if str(cancel).strip():
+                return {"ok": True, **github_work.cancel_next(sid, int(cancel))}
+            return {"ok": True, **github_work.queue_next(sid, text)}
+        except (github_repos.RepoError, ValueError) as e:
+            return _err(str(e))
 
     @r.get("/github/session/{sid}")
     async def gh_session(sid: str, brain: str = Query("")):

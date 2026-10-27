@@ -1858,8 +1858,11 @@
         if (hit && hit.classList.contains("ren")) { e.stopPropagation(); renSession(s); return; }
         openSession(s.id);
       };
+      item.setAttribute("data-sid", s.id);
       listEl.appendChild(item);
     });
+    // GitHub status icon per conversation (0.365.0, github-connect.js). Only chats with GitHub work get one.
+    try { if (window.JavisGithubRepos && window.JavisGithubRepos.decorate) window.JavisGithubRepos.decorate(listEl); } catch (e) {}
     if (hasMore) {
       var more = el('<button class="cside-more" type="button">' + esc(window.t("sess.more", { so: PAGE })) + '</button>');
       more.onclick = function () { shown += PAGE; loadList(); };

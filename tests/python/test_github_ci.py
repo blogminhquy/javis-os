@@ -62,6 +62,8 @@ github_repos.connect(GOOD_TOKEN)
 github_repos.attach("chat", BRAIN, BRAIN, ["acme/app"])
 wt = Path(github_repos.session_repos("chat", BRAIN)[0]["worktree"])
 github_repos.set_checks(BRAIN, "acme/app", [{"run": "true"}])
+# This file is about CI per commit; merging (on by default since G4) is covered by test_github_merge.py.
+github_repos.set_auto_merge(BRAIN, "acme/app", False)
 S = github_store.store
 
 

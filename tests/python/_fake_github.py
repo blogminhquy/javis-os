@@ -122,6 +122,16 @@ class FakeGitHub:
         git(["push", "-q", "origin", base], work)
         return git(["rev-parse", "HEAD"], work).stdout.strip()
 
+    def _update_branch(self, full_name, pr):
+        rep = self.repos[full_name]
+        work = Path(tempfile.mkdtemp(prefix="fake-upd-"))
+        git(["clone", "-q", rep["bare"], str(work)], self.root)
+        git(["config", "user.email", "upd@test"], work)
+        git(["config", "user.name", "Upd"], work)
+        git(["checkout", "-q", pr["head"]["ref"]], work)
+        git(["merge", "-q", "--no-edit", f"origin/{pr['base']['ref']}"], work)
+        git(["push", "-q", "origin", pr["head"]["ref"]], work)
+
     def _pr_view(self, full_name, pr):
         head_sha = self.branch_sha(full_name, pr["head"]["ref"]) if not pr["merged"] else pr["head"]["sha"]
         pr["head"]["sha"] = head_sha or pr["head"]["sha"]
@@ -210,6 +220,14 @@ class FakeGitHub:
                           "base": {"ref": body.get("base") or rep["default_branch"]}, "merge_commit_sha": None}
                     fake.pulls[fn].append(pr)
                     return self._send(201, pr)
+                mu = re.match(r"^/pulls/(\d+)/update-branch$", rest)
+                if mu and method == "PUT":
+                    pr = next((p for p in fake.pulls[fn] if p["number"] == int(mu.group(1))), None)
+                    if not pr:
+                        return self._send(404, {"message": "Not Found"})
+                    fake._update_branch(fn, pr)
+                    pr["mergeable_state"] = "clean"
+                    return self._send(202, {"message": "Updating pull request branch."})
                 m2 = re.match(r"^/pulls/(\d+)(/merge)?$", rest)
                 if m2:
                     pr = next((p for p in fake.pulls[fn] if p["number"] == int(m2.group(1))), None)
@@ -223,7 +241,10 @@ class FakeGitHub:
                         cur = fake.branch_sha(fn, pr["head"]["ref"])
                         if body.get("sha") and body["sha"] != cur:
                             return self._send(409, {"message": "Head branch was modified"})
-                        sha = fake._merge(fn, pr, body.get("merge_method") or "merge")
+                        meth = body.get("merge_method") or "merge"
+                        if meth in fake.repos[fn].get("disallowed_methods", []):
+                            return self._send(405, {"message": f"{meth.capitalize()} merges are not allowed on this repository."})
+                        sha = fake._merge(fn, pr, meth)
                         if not sha:
                             pr["mergeable"] = False
                             return self._send(405, {"message": "Merge conflict"})

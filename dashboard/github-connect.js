@@ -31,7 +31,17 @@
     return a.length === b.length && a.every(function (x, i) { return x === b[i]; });
   }
 
-  var pure = { chipText: chipText, toggle: toggle, sameSet: sameSet };
+  // Icon of a conversation (spec 12.1): server state -> what to draw. Pure so node tests can check every state.
+  function iconSpec(ic) {
+    if (!ic || !ic.state) return null;
+    var key = { working: "gh.st_working", ready: "gh.st_ready", merged: "gh.st_merged", broken: "gh.st_broken" }[ic.state];
+    if (!key) return null;
+    return { cls: "gh-st gh-" + ic.state + (ic.merged_warning ? " gh-warn" : "") + (ic.sub ? " gh-sub-" + ic.sub : ""),
+      key: key, count: ic.state === "working" && ic.running > 1 ? ic.running : 0,
+      subKey: ic.merged_warning ? "gh.st_post_red" : (ic.sub ? "gh.sub_" + ic.sub : "") };
+  }
+
+  var pure = { chipText: chipText, toggle: toggle, sameSet: sameSet, iconSpec: iconSpec };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
   if (typeof document === "undefined") return;
 
@@ -75,6 +85,8 @@
         (local.length ? local.map(function (r) {
           return '<div class="gh-local-row"><span class="gh-local-name">' + esc(r.full_name) + "</span>" +
             '<span class="gh-local-meta">' + esc(tw("gh.local_chats", { n: r.chats || 0 })) + "</span>" +
+            '<label class="gh-auto"><input type="checkbox" data-gh-auto="' + esc(r.full_name) + '"' + (r.auto_merge !== false ? " checked" : "") + "> " +
+            esc(tw("gh.auto_merge")) + "</label>" +
             '<button class="s-btn-ghost" type="button" data-gh-checks="' + esc(r.full_name) + '">' + esc(tw("gh.checks")) + "</button>" +
             '<button class="s-btn-ghost" type="button" data-gh-remove="' + esc(r.full_name) + '">' + esc(tw("gh.remove_brain")) + "</button></div>";
         }).join("") : '<div class="mp-empty">' + esc(tw("gh.local_none")) + "</div>") +
@@ -107,6 +119,9 @@
       await api("/github/disconnect", {});
       loadCard();
     };
+    cardHost.querySelectorAll("[data-gh-auto]").forEach(function (b) {
+      b.onchange = function () { api("/github/local/automerge", { brain: pageBrain(), full_name: b.getAttribute("data-gh-auto"), on: b.checked ? "1" : "0" }); };
+    });
     cardHost.querySelectorAll("[data-gh-checks]").forEach(function (b) {
       b.onclick = function () { openChecks(b.getAttribute("data-gh-checks")); };
     });
@@ -204,10 +219,14 @@
     if (chip.parentElement !== host || chip.previousElementSibling !== after) host.insertBefore(chip, after ? after.nextSibling : null);
     chip.title = list.join("\n") + (attached.length && attached[0].branch ? "\n" + tw("gh.chip_branch", { branch: attached[0].branch }) : "");
     chip.setAttribute("aria-label", tw("gh.chip_label", { names: list.join(", ") }));
-    chip.innerHTML = LOGO + "<span>" + esc(chipText(list, narrow() ? 10 : 18)) + "</span>";
+    chip.innerHTML = LOGO + "<span>" + esc(chipText(list, narrow() ? 10 : 18)) + "</span>" + (chipIcon ? iconHtml(chipIcon) : "");
+    var st = chip.querySelector(".gh-st");
+    if (st) st.addEventListener("click", function (e) { e.stopPropagation(); openDetail(sid()); });
   }
+  var chipIcon = null;
   function apply(d) {
     attached = (d && d.repos) || [];
+    chipIcon = (d && d.icon && d.icon.state) ? d.icon : null;
     renderChip();
     announce();
   }
@@ -315,6 +334,108 @@
     });
   }
 
+  // ============================================================
+  // 4. Status icons in the chat list, and the detail panel (spec 12)
+  // ============================================================
+  var SVG = {
+    working: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-6 3.5-10 6"/></svg>',
+    ready: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M6 8.5v7"/><path d="M13 13l3 3 6-6"/></svg>',
+    merged: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="14" r="2.5"/><path d="M6 8.5v7M6 8.5c0 4 5 5.5 9.5 5.5"/></svg>',
+    broken: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>'
+  };
+  function iconHtml(ic) {
+    var s = iconSpec(ic);
+    if (!s) return "";
+    var title = tw(s.key) + (s.subKey ? " · " + tw(s.subKey) : "");
+    return '<span class="' + s.cls + '" role="button" tabindex="0" title="' + esc(title) + '" aria-label="' + esc(title) + '">' +
+      SVG[ic.state] + (s.count ? "<b>" + s.count + "</b>" : "") + "</span>";
+  }
+  var decoSeq = 0, lastList = null;
+  function decorate(listEl) {
+    lastList = listEl || lastList;
+    if (!lastList) return;
+    var rows = Array.prototype.slice.call(lastList.querySelectorAll(".cside-item[data-sid]"));
+    if (!rows.length) return;
+    var n = ++decoSeq, sids = rows.map(function (r) { return r.getAttribute("data-sid"); });
+    api("/github/icons?sids=" + encodeURIComponent(sids.join(","))).then(function (d) {
+      if (n !== decoSeq || !d || d.ok === false) return;
+      var icons = d.icons || {};
+      rows.forEach(function (row) {
+        var old = row.querySelector(".gh-st");
+        if (old) old.remove();
+        var html = iconHtml(icons[row.getAttribute("data-sid")]);
+        row.classList.toggle("has-gh", !!html);
+        if (!html) return;
+        var tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        var el = tmp.firstChild;
+        el.addEventListener("click", function (e) { e.stopPropagation(); openDetail(row.getAttribute("data-sid")); });
+        el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); openDetail(row.getAttribute("data-sid")); } });
+        row.appendChild(el);
+      });
+    });
+  }
+  var CI_KEY = { none: "gh.ci_none", pending: "gh.ci_pending", running: "gh.ci_running", green: "gh.ci_green", red: "gh.ci_red",
+    no_ci: "gh.ci_no_ci", cancelled: "gh.ci_cancelled" };
+  var INTEG_KEY = { no_pr: "gh.in_no_pr", pr_open: "gh.in_pr_open", ready: "gh.in_ready", merged: "gh.in_merged",
+    conflict: "gh.in_conflict", merge_failed: "gh.in_merge_failed" };
+  function closeDetail() { var m = document.getElementById("ghDetail"); if (m) m.remove(); }
+  function detailHtml(d) {
+    var work = d.work || [];
+    var rows = work.length ? work.map(function (r) {
+      var checks = (r.checks_summary || []).map(function (c) {
+        return '<li class="gh-chk gh-chk-' + esc(c.conclusion || "") + '">' + (c.url ? '<a href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.name) + "</a>" : esc(c.name)) +
+          " · " + esc(c.conclusion || "") + "</li>";
+      }).join("");
+      var canMerge = (r.integ === "ready") && (r.ci === "green" || r.ci === "no_ci");
+      return '<div class="gh-row" data-repo="' + esc(r.full_name) + '"><div class="gh-row-head"><b>' + esc(r.full_name) + "</b>" +
+        (r.branch ? ' <code>' + esc(r.branch) + "</code>" : "") + "</div>" +
+        '<div class="gh-row-state">' + esc(tw(CI_KEY[r.ci] || "gh.ci_none")) + " · " + esc(tw(INTEG_KEY[r.integ] || "gh.in_no_pr")) +
+        (r.post_merge === "red" ? " · " + esc(tw("gh.st_post_red")) : "") + (r.fix_rounds ? " · " + esc(tw("gh.rounds", { n: r.fix_rounds })) : "") + "</div>" +
+        (r.stuck_reason ? '<div class="lv-note">' + esc(r.stuck_reason) + "</div>" : "") +
+        ((r.merge_block || []).length ? '<div class="lv-note">' + esc(tw("gh.needs_person")) + " " + r.merge_block.map(function (x) { return esc(x.path + " (" + x.kind + ")"); }).join(", ") + "</div>" : "") +
+        (checks ? '<ul class="gh-checks">' + checks + "</ul>" : "") +
+        '<div class="lv-form-act">' + (r.pr_url ? '<a class="s-btn-ghost" href="' + esc(r.pr_url) + '" target="_blank" rel="noopener">' + esc(tw("gh.open_pr", { n: r.pr_number })) + "</a>" : "") +
+        (canMerge ? '<button class="s-btn" type="button" data-merge="' + esc(r.full_name) + '">' + esc(tw("gh.merge")) + "</button>" : "") +
+        '<span class="lv-msg" role="status"></span></div></div>';
+    }).join("") : '<div class="mp-empty">' + esc(tw("gh.no_work")) + "</div>";
+    var queue = (d.queue || []).length ? '<div class="gh-queue"><div class="gh-local-head">' + esc(tw("gh.queue_head")) + "</div>" +
+      d.queue.map(function (q) { return '<div class="gh-local-row"><span class="gh-local-meta">' + esc(q.text) + '</span><button class="s-btn-ghost" type="button" data-unqueue="' + q.id + '">' + esc(tw("gh.queue_cancel")) + "</button></div>"; }).join("") + "</div>" : "";
+    return rows + queue;
+  }
+  function openDetail(id) {
+    if (!id) return;
+    closeDetail();
+    var m = document.createElement("div");
+    m.id = "ghDetail"; m.className = "mp-overlay open";
+    m.innerHTML = '<div class="mp-box gh-detail" style="max-width:640px" role="dialog" aria-modal="true"><div class="mp-head"><div class="mp-title">' +
+      esc(tw("gh.detail_head")) + '</div><button class="mp-x" type="button" data-x="1" aria-label="' + esc(tw("gh.cancel")) + '">×</button></div>' +
+      '<div class="gh-detail-body"><div class="mp-empty">' + esc(tw("gh.loading")) + "</div></div></div>";
+    document.body.appendChild(m);
+    m.addEventListener("click", function (e) { if (e.target === m || (e.target.closest && e.target.closest("[data-x]"))) closeDetail(); });
+    var body = m.querySelector(".gh-detail-body");
+    function load() {
+      api("/github/session/" + encodeURIComponent(id) + "?brain=" + encodeURIComponent(chatBrain())).then(function (d) {
+        if (!d || d.ok === false) { body.innerHTML = '<div class="lv-note">' + esc((d && d.error) || tw("gh.err_net")) + "</div>"; return; }
+        body.innerHTML = detailHtml(d);
+        body.querySelectorAll("[data-merge]").forEach(function (b) {
+          b.onclick = function () {
+            var msg = b.parentElement.querySelector(".lv-msg");
+            b.disabled = true; msg.textContent = tw("gh.merging");
+            api("/github/session/" + encodeURIComponent(id) + "/merge", { full_name: b.getAttribute("data-merge") }).then(function (r) {
+              if (!r || r.ok === false) { b.disabled = false; msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
+              load(); decorate();
+            });
+          };
+        });
+        body.querySelectorAll("[data-unqueue]").forEach(function (b) {
+          b.onclick = function () { api("/github/session/" + encodeURIComponent(id) + "/next", { cancel: b.getAttribute("data-unqueue") }).then(load); };
+        });
+      });
+    }
+    load();
+  }
+
   function init() {
     if (window.JavisComposerMenu) {
       window.JavisComposerMenu.register({ id: "github", order: 25, icon: LOGO, label: "gh.menu",
@@ -325,8 +446,15 @@
     window.addEventListener("javis:i18n", renderChip);
     window.addEventListener("javis:pinned-folder-changed", renderChip);
     refresh();
+    // CI and merges move on their own: refresh the icons and the chip every 30 seconds while the page is visible.
+    setInterval(function () {
+      if (document.hidden) return;
+      decorate();
+      if (sid()) refresh();
+    }, 30000);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
-  window.JavisGithubRepos = { mount: mount, claimPending: claimPending, refresh: refresh, current: function () { return attached.slice(); } };
+  window.JavisGithubRepos = { mount: mount, claimPending: claimPending, refresh: refresh, decorate: decorate, openDetail: openDetail,
+    current: function () { return attached.slice(); } };
 })();

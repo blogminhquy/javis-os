@@ -385,9 +385,12 @@ def ensure_clone(brain: str, brain_root: str, full_name: str) -> Dict[str, Any]:
                 auth=True, timeout=CLONE_TIMEOUT)
         if not rec:
             rec = {"id": uuid.uuid4().hex[:12], "brain": brain, "added_at": _now()}
+        # Merge methods the repo allows, in Javis's order of preference (spec 11.1: follow the repo's settings).
+        allowed = [m for m, k in (("squash", "allow_squash_merge"), ("merge", "allow_merge_commit"),
+                                  ("rebase", "allow_rebase_merge")) if meta.get(k, True)]
         rec.update({"full_name": full_name, "path": str(dest), "default_branch": default_branch,
                     "clone_url": clone_url, "private": bool(meta.get("private")), "can_push": can_push,
-                    "fetched_at": _now()})
+                    "merge_methods": allowed or ["squash", "merge", "rebase"], "fetched_at": _now()})
         folder = coding_store.them_thu_muc(str(dest), brain=brain, ten=full_name.split("/", 1)[1],
                                            nguon=SOURCE, repo=full_name)
         rec["folder_id"] = folder["id"]
@@ -592,7 +595,7 @@ def local_view(brain: str) -> List[Dict[str, Any]]:
         users = coding_store.sessions_using(r.get("folder_id") or "")
         out.append({"full_name": r["full_name"], "path": r["path"], "exists": Path(r["path"]).is_dir(),
                     "default_branch": r.get("default_branch") or "", "chats": len(users),
-                    "fetched_at": r.get("fetched_at") or 0})
+                    "auto_merge": auto_merge_on(r), "fetched_at": r.get("fetched_at") or 0})
     return out
 
 
@@ -681,3 +684,17 @@ def get_checks(brain: str, full_name: str) -> Dict[str, Any]:
     saved = rec.get("checks")
     return {"full_name": rec["full_name"], "custom": isinstance(saved, list),
             "checks": saved if isinstance(saved, list) else suggested, "suggested": suggested}
+
+
+def auto_merge_on(rec: Dict[str, Any]) -> bool:
+    """Spec 11.1 (owner 2026-10-27): green CI merges on its own; a per-repo switch turns it off. Default on."""
+    return rec.get("auto_merge", True) is not False
+
+
+def set_auto_merge(brain: str, full_name: str, on: bool) -> Dict[str, Any]:
+    rec = find(brain, full_name)
+    if not rec:
+        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+    rec["auto_merge"] = bool(on)
+    _put(rec)
+    return {"full_name": rec["full_name"], "auto_merge": bool(on)}

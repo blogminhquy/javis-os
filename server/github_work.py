@@ -272,6 +272,10 @@ def ship(sid: str, brain: str, repo: Dict[str, Any], report: Dict[str, Any]) -> 
     title = (info.get("title") or "").strip() or _c("Thay đổi từ Javis", "Changes from Javis")
     row = st().ensure(sid, fn, brain=brain, worktree=repo["worktree"], base_branch=repo.get("default_branch") or "main",
                       title=title[:200], engine=str(info.get("engine") or ""), model=str(info.get("model") or ""))
+    if row.get("integ") == "merged":
+        # The last PR of this chat is merged: what comes now is a new job on the branch the worktree is on.
+        row = st().update(sid, fn, branch="", head_sha="", pr_number=0, pr_url="", pr_node_id="", ci="none",
+                          integ="no_pr", post_merge="", merged_sha="", fix_rounds=0, rerun_used=0)
     sha = commit_all(repo["worktree"], f"{title[:72]}\n\nJavis chat {sid[:8]}")
     branch = row.get("branch") or _final_branch(sid, repo, title)
     pushed_sha, pushed_now = push(repo, branch)
@@ -512,6 +516,8 @@ def _base_also_red(row: Dict[str, Any], failed_names: List[str]) -> bool:
 async def check_row(row: Dict[str, Any]) -> Dict[str, Any]:
     """One watcher pass over one row. Returns the updated row."""
     sid, fn = row["sid"], row["full_name"]
+    if row.get("integ") == "merged":
+        return await check_post_merge(row) if row.get("post_merge") == "pending" else row
     try:
         snap = await asyncio.to_thread(_ci_snapshot, row)
     except (GitHubError, github_repos.RepoError):
@@ -596,25 +602,146 @@ async def on_red(row: Dict[str, Any], snap: Dict[str, Any]) -> Dict[str, Any]:
     return st().get(sid, fn) or row
 
 
+def _merge_blockers(row: Dict[str, Any], pr: Dict[str, Any]) -> List[str]:
+    """Why Javis must not merge this PR on its own right now (spec 11.1). Empty list = it may."""
+    out = []
+    rec = github_repos.find(row.get("brain") or "", row["full_name"]) or {}
+    if not github_repos.auto_merge_on(rec):
+        out.append(_c("tự merge đang tắt cho repo này", "auto-merge is off for this repo"))
+    if row.get("merge_block"):
+        what = ", ".join(f"{x['path']} ({x['kind']})" for x in row["merge_block"][:5])
+        out.append(_c(f"thay đổi cần người xem: {what}", f"changes a person must look at: {what}"))
+    if row.get("ci") != "green":
+        out.append(_c("chưa có CI xanh trên commit này", "no green CI on this commit"))
+    review = (row.get("gate") or {}).get("review_open") or []
+    if review:
+        out.append(_c(f"review chéo còn {len(review)} phát hiện mở", f"cross review has {len(review)} open findings"))
+    if pr.get("mergeable_state") == "blocked":
+        out.append(_c("repo còn điều kiện chưa đạt (cần người duyệt hoặc kiểm tra bắt buộc)",
+                      "the repo still requires something (a review or a required check)"))
+    return out
+
+
+_MERGE_LOCKS: Dict[str, asyncio.Lock] = {}
+
+
+async def merge_now(row: Dict[str, Any], pr: Dict[str, Any], by_person: bool = False) -> Dict[str, Any]:
+    """Merge the PR at exactly the head CI was green on. One merge at a time per repo (spec 11.1 queue)."""
+    sid, fn, head = row["sid"], row["full_name"], row["head_sha"]
+    lock = _MERGE_LOCKS.setdefault(fn.lower(), asyncio.Lock())
+    async with lock:
+        # A person pressing Merge again after a failure is a new decision; the automatic attempt happens once per head.
+        key = f"merge:{fn}:{head}" + (f":person:{time.time():.0f}" if by_person else "")
+        if not st().mark_step(key):
+            return st().get(sid, fn) or row
+        gh = github_repos.client()
+        # Fresh read right before merging: the base may have moved since the tick that saw green.
+        try:
+            fresh = await asyncio.to_thread(gh.pull, fn, row["pr_number"])
+        except GitHubError:
+            fresh = pr
+        if (fresh.get("head") or {}).get("sha") not in (None, "", head):
+            st().update(sid, fn, head_sha=fresh["head"]["sha"], ci="pending", pushed_at=time.time(), integ="pr_open")
+            return st().get(sid, fn) or row
+        if fresh.get("mergeable") is False:
+            return await _conflict(row)
+        rec = github_repos.find(row.get("brain") or "", fn) or {}
+        last_err = ""
+        for method in rec.get("merge_methods") or ["squash", "merge", "rebase"]:
+            try:
+                res = await asyncio.to_thread(gh.merge_pull, fn, row["pr_number"], head, method)
+            except GitHubError as e:
+                last_err = e.message
+                if e.status == 405 and "not allowed" in e.message.lower():
+                    continue
+                if e.status == 409:       # head moved under us: the next tick follows the new head
+                    st().update(sid, fn, ci="pending", pushed_at=time.time(), integ="pr_open")
+                    return st().get(sid, fn) or row
+                break
+            sha = (res or {}).get("sha") or ""
+            row = st().update(sid, fn, integ="merged", merged_sha=sha, post_merge="pending", pushed_at=time.time(),
+                              exec="done", stuck_reason="")
+            _record_metric(row, "merged")
+            who = _c("Đã tự merge", "Auto-merged") if not by_person else _c("Đã merge", "Merged")
+            await _say(sid, _c(f"**{fn}**: {who} PR #{row['pr_number']} ({method}). Đang chờ kiểm tra trên nhánh "
+                               f"{row.get('base_branch')}.{_pr_tail(row)}",
+                               f"**{fn}**: {who} PR #{row['pr_number']} ({method}). Waiting for the checks on "
+                               f"{row.get('base_branch')}.{_pr_tail(row)}"), True, once=f"merged:{sid}:{fn}:{row['pr_number']}")
+            await asyncio.to_thread(_restart_branch, row)
+            return row
+        reason = _c(f"Merge không được: {last_err}", f"Merge failed: {last_err}")
+        st().update(sid, fn, integ="merge_failed", stuck_reason=reason)
+        await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"mergefail:{sid}:{fn}:{head}")
+        return st().get(sid, fn) or row
+
+
+async def _conflict(row: Dict[str, Any]) -> Dict[str, Any]:
+    sid, fn = row["sid"], row["full_name"]
+    reason = _c("PR bị xung đột với nhánh chính, cần làm lại.", "The PR conflicts with the base branch.")
+    st().update(sid, fn, integ="conflict", stuck_reason=reason)
+    await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"conflict:{sid}:{fn}:{row['head_sha']}")
+    # A conflict is work for the chat: one fix round to merge the base branch in and resolve it.
+    await request_fix(st().get(sid, fn) or row, _c("PR xung đột với nhánh chính", "The PR conflicts with the base"),
+                      f"Trong thư mục làm việc của {fn}: `git fetch origin` rồi `git merge origin/{row.get('base_branch')}`, "
+                      "giải quyết xung đột giữ đúng ý của cả hai bên, chạy lại test. Không rebase, không force push.",
+                      f"{sid}:{fn}:conflict:{row['head_sha']}")
+    return st().get(sid, fn) or row
+
+
+def _restart_branch(row: Dict[str, Any]) -> None:
+    """After a merge, move the chat's worktree to a fresh branch from the updated base, when nothing is left on it.
+
+    The next job then starts clean instead of stacking on a branch whose history was squashed into the base.
+    """
+    wt = row.get("worktree") or ""
+    try:
+        if not wt or github_repos.is_dirty(wt):
+            return
+        if github_repos.git_out(["rev-parse", "HEAD"], wt) != row.get("head_sha"):
+            return
+        github_repos.git(["fetch", "origin"], wt, auth=True, timeout=300)
+        base = f"origin/{row.get('base_branch') or 'main'}"
+        stem = github_repos.session_branch(row["sid"])
+        n = 2
+        while github_repos.git(["rev-parse", "--verify", "--quiet", f"refs/heads/{stem}-r{n}"], wt,
+                               check=False).returncode == 0:
+            n += 1
+        github_repos.git(["checkout", "-q", "-b", f"{stem}-r{n}", base], wt)
+    except github_repos.RepoError:
+        pass
+
+
 async def on_green(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
-    """CI green on the current head. Phase G3: PR ready for review and `integ=ready` when GitHub says mergeable."""
+    """CI green on the current head: ready, and merged right away when nothing stands in the way (spec 11.1)."""
     sid, fn = row["sid"], row["full_name"]
     if pr.get("mergeable") is None:
         return row      # GitHub is still computing mergeability: ask again next tick
-    if pr.get("mergeable") is False:
-        reason = _c("PR bị xung đột với nhánh chính, cần làm lại.", "The PR conflicts with the base branch.")
-        st().update(sid, fn, integ="conflict", stuck_reason=reason)
-        await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"conflict:{sid}:{fn}:{row['head_sha']}")
-        return st().get(sid, fn) or row
+    if pr.get("mergeable") is False or pr.get("mergeable_state") == "dirty":
+        return await _conflict(row)
+    if pr.get("mergeable_state") == "behind" and st().mark_step(f"update:{fn}:{row['head_sha']}"):
+        # Branch protection wants the branch up to date: GitHub merges the base in, CI runs again on the new head.
+        try:
+            await asyncio.to_thread(github_repos.client().update_branch, fn, row["pr_number"], row["head_sha"])
+            st().update(sid, fn, ci="pending", pushed_at=time.time(), integ="pr_open")
+            await _say(sid, _c(f"**{fn}**: nhánh cũ hơn {row.get('base_branch')}, GitHub đang cập nhật nhánh, CI chạy lại.",
+                               f"**{fn}**: the branch is behind {row.get('base_branch')}; GitHub is updating it and CI "
+                               "runs again."), True)
+            return st().get(sid, fn) or row
+        except (GitHubError, github_repos.RepoError):
+            pass
     if pr.get("draft") and row.get("pr_node_id"):
         try:
             await asyncio.to_thread(github_repos.client().mark_ready, fn, row["pr_node_id"])
         except (GitHubError, github_repos.RepoError):
             pass
     row = st().update(sid, fn, integ="ready")
-    await _say(sid, _c(f"**{fn}**: CI xanh, PR #{row['pr_number']} sẵn sàng merge.{_pr_tail(row)}",
-                       f"**{fn}**: CI green, PR #{row['pr_number']} is ready to merge.{_pr_tail(row)}"), True,
-               once=f"green:{sid}:{fn}:{row['head_sha']}")
+    blockers = await asyncio.to_thread(_merge_blockers, row, pr)
+    if not blockers:
+        return await merge_now(row, pr)
+    await _say(sid, _c(f"**{fn}**: CI xanh, PR #{row['pr_number']} sẵn sàng merge. Javis chưa tự merge vì "
+                       f"{'; '.join(blockers)}.{_pr_tail(row)}",
+                       f"**{fn}**: CI green, PR #{row['pr_number']} is ready to merge. Javis did not merge it because "
+                       f"{'; '.join(blockers)}.{_pr_tail(row)}"), True, once=f"green:{sid}:{fn}:{row['head_sha']}")
     return row
 
 
@@ -633,12 +760,96 @@ async def on_no_ci(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def on_merged(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
+    """The PR was merged on GitHub (by a person, or by Javis on an earlier tick)."""
     sid, fn = row["sid"], row["full_name"]
-    row = st().update(sid, fn, integ="merged", merged_sha=pr.get("merge_commit_sha") or "", exec="done")
+    if row.get("integ") == "merged":
+        return row
+    row = st().update(sid, fn, integ="merged", merged_sha=pr.get("merge_commit_sha") or "", exec="done",
+                      post_merge="pending" if pr.get("merge_commit_sha") else "", pushed_at=time.time(), stuck_reason="")
+    _record_metric(row, "merged")
     await _say(sid, _c(f"**{fn}**: PR #{row['pr_number']} đã merge.{_pr_tail(row)}",
                        f"**{fn}**: PR #{row['pr_number']} is merged.{_pr_tail(row)}"), True,
                once=f"merged:{sid}:{fn}:{row['pr_number']}")
+    await asyncio.to_thread(_restart_branch, row)
+    if not row.get("post_merge"):
+        await maybe_next(sid)
     return row
+
+
+async def check_post_merge(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Checks of the merge commit on the base branch (spec 11.2): what next jobs wait for."""
+    sid, fn, sha = row["sid"], row["full_name"], row.get("merged_sha") or ""
+    if not sha:
+        row = st().update(sid, fn, post_merge="")
+        await maybe_next(sid)
+        return row
+    try:
+        gh = github_repos.client()
+        runs = await asyncio.to_thread(gh.check_runs, fn, sha)
+        try:
+            statuses = await asyncio.to_thread(gh.statuses, fn, sha)
+        except GitHubError:
+            statuses = []
+    except (GitHubError, github_repos.RepoError):
+        return row
+    verdict = aggregate(normalize_runs(runs, statuses), None)
+    age = time.time() - float(row.get("pushed_at") or time.time())
+    if verdict in ("none", "no_ci"):
+        if age > NO_CI_GRACE_S:
+            row = st().update(sid, fn, post_merge="")
+            await maybe_next(sid)
+        return row
+    if verdict == "running":
+        if age > CI_WAIT_S:
+            row = st().update(sid, fn, post_merge="")
+            await maybe_next(sid)
+        return row
+    if verdict in ("red", "cancelled"):
+        row = st().update(sid, fn, post_merge="red")
+        await _say(sid, _c(f"**{fn}**: đã merge, nhưng kiểm tra trên nhánh {row.get('base_branch')} sau merge bị đỏ. "
+                           "Việc kế tiếp đang chờ sẽ không chạy cho tới khi nhánh xanh lại.",
+                           f"**{fn}**: merged, but the checks on {row.get('base_branch')} after the merge failed. "
+                           "Waiting next jobs will not start until the branch is green again."), False,
+                   once=f"postred:{sid}:{fn}:{sha}")
+        return row
+    row = st().update(sid, fn, post_merge="green")
+    await maybe_next(sid)
+    return row
+
+
+async def maybe_next(sid: str) -> bool:
+    """Start the chat's next queued job when every repo of it is merged and settled (spec 11.2)."""
+    rows = st().for_session(sid)
+    if not rows or not all(r["integ"] == "merged" and r.get("post_merge") in ("", "green") for r in rows):
+        return False
+    job = st().queue_take(sid)
+    if not job:
+        return False
+    prompt = (f"{FIX_MARKER} Việc kế tiếp người dùng đã giao (PR trước đã merge, kiểm tra sau merge đã qua):\n"
+              f"{job['text']}\n\nLàm việc này trên nhánh mới tách từ nhánh chính mới nhất. Chỉ làm đúng việc này.")
+    started = False
+    if _start_turn is not None:
+        try:
+            started = bool(await _start_turn(sid, prompt))
+        except Exception:
+            started = False
+    if not started:
+        await _say(sid, _c(f"Việc kế tiếp đã tới lượt nhưng chưa tự mở được lượt chat: {job['text']}\n"
+                           "Nhắn \"làm tiếp\" để Javis bắt đầu.",
+                           f"The next job is due but no automatic turn could start: {job['text']}\n"
+                           "Send \"go on\" and Javis starts it."), False, once=f"next:{job['id']}")
+    return started
+
+
+def _record_metric(row: Dict[str, Any], outcome: str) -> None:
+    try:
+        st().add_metric(sid=row["sid"], full_name=row["full_name"], engine=row.get("engine") or "",
+                        model=row.get("model") or "", first_push_green=int(row.get("fix_rounds") or 0) == 0,
+                        fix_rounds=int(row.get("fix_rounds") or 0),
+                        review_findings=len((row.get("gate") or {}).get("review_confirmed") or []),
+                        seconds=time.time() - float(row.get("created_at") or time.time()), outcome=outcome)
+    except Exception:
+        pass
 
 
 # ============================================================
@@ -686,7 +897,37 @@ async def run_watcher() -> None:
 # ============================================================
 def session_state(sid: str) -> Dict[str, Any]:
     rows = st().for_session(sid)
-    return {"icon": github_store.icon(rows), "repos": [_row_view(r) for r in rows]}
+    return {"icon": github_store.icon(rows), "repos": [_row_view(r) for r in rows],
+            "queue": [{"id": q["id"], "text": q["text"]} for q in st().queue_list(sid)]}
+
+
+def queue_next(sid: str, text: str) -> Dict[str, Any]:
+    text = str(text or "").strip()
+    if not text:
+        raise ValueError(_c("Chưa có nội dung việc kế tiếp.", "The next job has no text."))
+    if not st().for_session(sid) and not github_repos.session_repos(sid):
+        raise ValueError(_c("Cuộc trò chuyện này chưa gắn repo GitHub nào.", "This chat has no GitHub repo attached."))
+    qid = st().queue_add(sid, text[:4000])
+    return {"id": qid, "queue": [{"id": q["id"], "text": q["text"]} for q in st().queue_list(sid)]}
+
+
+def cancel_next(sid: str, qid: int) -> Dict[str, Any]:
+    return {"cancelled": st().queue_cancel(sid, qid),
+            "queue": [{"id": q["id"], "text": q["text"]} for q in st().queue_list(sid)]}
+
+
+async def merge_by_person(sid: str, full_name: str) -> Dict[str, Any]:
+    row = st().get(sid, full_name)
+    if not row or not row.get("pr_number"):
+        raise github_repos.RepoError(_c("Cuộc này chưa có PR cho repo đó.", "This chat has no PR for that repo."))
+    if row.get("integ") == "merged":
+        return {"row": _row_view(row)}
+    if row.get("ci") not in ("green", "no_ci"):
+        raise github_repos.RepoError(_c("CI chưa xanh trên commit hiện tại.", "CI is not green on the current commit."))
+    pr = await asyncio.to_thread(github_repos.client().pull, full_name, row["pr_number"])
+    if pr.get("merged"):
+        return {"row": _row_view(await on_merged(row, pr))}
+    return {"row": _row_view(await merge_now(row, pr, by_person=True))}
 
 
 def _row_view(r: Dict[str, Any]) -> Dict[str, Any]:
