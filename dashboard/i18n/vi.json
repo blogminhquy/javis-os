@@ -4466,6 +4466,7 @@
   "teams.block.agent_busy_long": "Cộng sự bận ở team khác quá lâu",
   "teams.block.waiting_user": "Chờ bạn trả lời",
   "teams.block.cancelled": "Đã huỷ",
+  "teams.sent_ok": "Đã gửi",
   "teams.via_core": "qua Javis Core",
   "teams.as_job": "Giao việc",
   "teams.send": "Gửi",

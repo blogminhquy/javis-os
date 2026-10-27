@@ -7,8 +7,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.358.0] - 2026-10-27
+### Sửa lỗi
+- **Tin anh chị vừa gửi trong Nhóm luôn hiện.** Trước đây thỉnh thoảng gửi xong không thấy câu của mình vì 3 lý do, giờ đã sửa cả 3:
+  - Trên điện thoại, bàn phím hay khung soạn cao lên làm tin mới nhất bị che dưới khung soạn. Giờ khung chat tự giữ tin cuối trong tầm nhìn (chat chính cũng được sửa theo).
+  - Lần tải lại tin bị lỗi mạng hay về muộn từng xoá mất bong bóng tin vừa gửi. Giờ bong bóng chỉ biến mất khi bản trên máy chủ đã hiện, và ghi "Đã gửi" trong lúc chờ.
+  - Gửi tin khi đang lọc xem một việc giờ tự quay về cả cuộc trò chuyện để thấy tin đó.
+
 ### Cải thiện
-- **Nhóm (Team): thành viên trả lời ngắn gọn, giao diện điện thoại gọn lại, tin vừa gửi luôn hiện** (đang làm).
+- **Thành viên Nhóm nói ngắn gọn như nhắn tin**: thường 1 đến 3 câu, không chào hỏi, không tiêu đề hay bảng. Sản phẩm dài thì ghi vào file và chỉ báo file nào kèm ý chính. Bước tổng hợp cuối cũng ngắn, không kể lại từng bước.
+- **Trang Nhóm trên điện thoại gọn hơn**: đầu khung chat bỏ viền hộp quanh các nút, tin của trợ lý bỏ khung viền và rộng chỗ cho chữ hơn, tiêu đề trong tin cùng cỡ chữ, bảng gọn và cuộn ngang. Ngăn cài đặt Team dùng một cỡ chữ 16px và tiêu đề mục đều nhau. Nút Tạo team và Nhập team đứng cùng hàng.
 
 ## [0.357.0] - 2026-10-27
 ### Thêm mới

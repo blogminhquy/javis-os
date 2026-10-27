@@ -10,6 +10,7 @@
        is moving over a message (moved in the last HOLD_MOVE_MS), so the Copy button does not slide away right under the
        cursor (0.180.0, owner: "bấm copy mà tin cứ chạy mất"). When the hold ends, it catches up.
      - keep(fn): run fn (which adds older messages ABOVE) and keep the reader on the same message.
+     - The list getting shorter (phone keyboard, a taller composer) keeps the end in view while following (0.358.0).
 
    attach(area, opts) -> controller. opts: button (an existing element; one is made otherwise), buttonClass, msg (the
    message selector, ".msg"), hold (selectors that hold the follow while hovered), near (px, 90), suspended() (true while
@@ -129,6 +130,21 @@
       st.stuck = nearEnd();
       update();                                     // leaving the end shows the button at once, no new message needed
     }
+    // 0.358.0 (owner: "gửi xong không thấy hiện câu của mình"): the list gets SHORTER without any scroll event when the
+    // phone keyboard opens, the composer grows (reply bar, file chips, a note line) or is drawn after the messages. The
+    // browser keeps scrollTop, so the newest message slid under the composer. While following the end, stay at it.
+    var lastH = area.clientHeight;
+    var ro = null;
+    function onResize() {
+      var h = area.clientHeight;
+      if (h === lastH) return;
+      lastH = h;
+      if (st.stuck && !(opts.suspended && opts.suspended())) area.scrollTop = area.scrollHeight;
+    }
+    if (win && typeof win.ResizeObserver === "function") {
+      ro = new win.ResizeObserver(onResize);
+      ro.observe(area);
+    }
     function onMove(e) { if (e.target && e.target.closest && e.target.closest(msgSel)) st.movedAt = now(); }
     function onLeave() { st.movedAt = 0; }
     function onClick() { toBottom(true); }
@@ -159,6 +175,7 @@
         area.removeEventListener("mouseleave", onLeave);
         btn.removeEventListener("click", onClick);
         if (win && win.removeEventListener) win.removeEventListener("javis:i18n", onLang);
+        if (ro) { ro.disconnect(); ro = null; }
       }
     };
   }

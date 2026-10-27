@@ -40,8 +40,24 @@ check("send: queues the message with a fresh client id and frees the composer be
   /var entry = \{ cid: newClientId\(\),/.test(send) && /client_msg_id: entry\.cid/.test(send) && /S\.outbox\.push\(entry\);/.test(send)
   && send.indexOf('input.value = "";') < send.indexOf("postEntry(entry);") && /drawMsgs\(true\);/.test(send));
 const post = fnBody("postEntry");
-check("POST ok: kept as sent until the reload shows the server's copy, then dropped",
-  /entry\.state = "sent";/.test(post) && /loadMsgs\(false\)\.then\(function \(\) \{ dropEntry\(entry, true\); drawMsgs\(false\); \}\);/.test(post));
+check("POST ok: kept as sent until the server's copy is really in the list (0.358.0: a failed or late reload no longer "
+  + "takes the owner's message away)", /entry\.state = "sent";/.test(post)
+  && /loadMsgs\(false\)\.then\(function \(\) \{ pruneOutbox\(\); drawMsgs\(false\); \}\);/.test(post)
+  && !/dropEntry\(entry, true\)/.test(post));
+const prune = fnBody("pruneOutbox");
+check("pruneOutbox drops only delivered entries whose copy is on screen", /p\.state === "sent" && \(have\[p\.cid\] \|\| \(p\.mid && ids\[Number\(p\.mid\)\]\)\)/.test(prune)
+  && /dropEntry\(p, true\)/.test(prune));
+h = T.pendingHtml({ cid: "c-3", text: "x", ts: 1, state: "sent", atts: [] });
+check("delivered but not on screen yet: says Sent, never Sending... forever", h.includes(vi["teams.sent_ok"]) && !h.includes(vi["app.sending"])
+  && vi["teams.sent_ok"] === "Đã gửi" && en["teams.sent_ok"] === "Sent", h);
+check("sending while one job is filtered goes back to the whole chat, where the message lands",
+  /if \(S\.filterTask\) \{ S\.filterTask = ""; S\.taskDetail = null; drawFilterbar\(\); \}/.test(send)
+  && send.indexOf("S.filterTask = \"\"") < send.indexOf("postEntry(entry);"));
+const lm = fnBody("loadMsgs");
+check("only the latest load of the newest page replaces the list (a late older load is ignored)",
+  /var seq = older \? S\.msgsSeq : \(S\.msgsSeq = \(S\.msgsSeq \|\| 0\) \+ 1\);/.test(lm) && /seq !== S\.msgsSeq\) return;/.test(lm));
+check("messages the socket brought while the load was on its way are kept",
+  /got = got\.concat\(S\.msgs\.filter\(function \(m\) \{ return Number\(m\.id\) > last; \}\)\);/.test(lm));
 check("refused (4xx) with an empty composer: the draft goes back with the error, as before",
   /r\.code >= 400 && r\.code < 500 && inp && !inp\.value\.trim\(\)/.test(post) && /inp\.value = entry\.typed;/.test(post) && /fail\(r\); drawHint\(\);/.test(post));
 check("network error, timeout or 5xx: Not sent", /failed\(tw\("teams\.err_network"\)\)/.test(post) && /entry\.state = "failed"; entry\.err = why;/.test(post));

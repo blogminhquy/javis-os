@@ -102,5 +102,26 @@ check("CSS: the Team button looks like the main chat's", /#newMsgBtn, \.jv-new-m
 check("chat-scroll.js loads before app.js and teams.js",
   indexHtml.indexOf("/static/chat-scroll.js?v=") > 0 && indexHtml.indexOf("/static/chat-scroll.js?v=") < indexHtml.indexOf("/static/app.js?v="));
 
+// 0.358.0 (owner: "gửi xong không thấy hiện câu của mình"): the list getting shorter (phone keyboard, a taller composer)
+// fires no scroll event; while following the end, the end stays in view. Reading higher up, nothing moves.
+{
+  let roCb = null, observed = null, disconnected = false;
+  const rwin = Object.assign({}, win, { ResizeObserver: function (cb) { roCb = cb; this.observe = (el) => { observed = el; };
+    this.disconnect = () => { disconnected = true; }; } });
+  const ra = makeArea(ids(1, 20, 100));
+  const rc = CS.attach(ra, { msg: ".tm-msg", win: rwin });
+  ra.scrollTop = ra.scrollHeight - ra.clientHeight;
+  ra.fire("scroll");
+  ra.clientHeight = 339;                       // the composer grew by 61px
+  roCb();
+  check("resize while at the end: the newest message stays above the composer", observed === ra && rc.stuck()
+    && ra.scrollTop === ra.scrollHeight, ra.scrollTop);
+  ra.scrollTop = 200; ra.fire("scroll");
+  ra.clientHeight = 300; roCb();
+  check("resize while reading higher up: the view does not move", ra.scrollTop === 200 && !rc.stuck());
+  rc.detach();
+  check("detach stops watching the size", disconnected);
+}
+
 if (fails) { console.log("\nFAIL - test_team_scroll: " + fails); process.exit(1); }
 console.log("\nOK - test_team_scroll");

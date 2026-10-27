@@ -4466,6 +4466,7 @@
   "teams.block.agent_busy_long": "The assistant was busy in another team too long",
   "teams.block.waiting_user": "Waiting for your answer",
   "teams.block.cancelled": "Cancelled",
+  "teams.sent_ok": "Sent",
   "teams.via_core": "via Javis Core",
   "teams.as_job": "Assign job",
   "teams.send": "Send",
