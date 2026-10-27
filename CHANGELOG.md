@@ -9,6 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.352.0] - 2026-10-27
 ### Cải thiện
 - **Lời nhắc về rủi ro khoá tài khoản viết lại nhẹ nhàng hơn.** Dùng gói đăng ký (Claude Pro/Max, gói xAI) cho việc nền vẫn có nguy cơ bị nhà cung cấp khoá tài khoản, nhưng Javis chưa ghi nhận trường hợp nào. Nếu bạn gặp, hãy báo cho nhà phát triển để mọi người cùng biết.
+- **Chọn model trên điện thoại dễ hơn.** Ở trang Models, bấm chip model, chip Effort hay "Đổi model" của việc nền giờ mở một bảng trượt lên từ đáy màn hình, có tiêu đề và nút đóng, hàng to dễ bấm. Bàn phím chỉ bật khi bạn chạm vào ô tìm. Danh sách model xếp gọn: "mặc định" trên cùng, model đang dùng ngay sau, còn lại theo thứ tự chữ cái. Nhãn MAIN hay Dự phòng chuyển xuống hàng chip để tên nhà cung cấp không bị bẻ dòng.
 
 ## [0.351.0] - 2026-10-27
 ### Cải thiện
