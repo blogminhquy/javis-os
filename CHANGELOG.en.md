@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.359.0] - 2026-10-27
+### Fixed
+- **The chat on an iPhone home-screen app no longer loses its top or leaves a gap under the composer.** With the keyboard closed the chat takes the exact height of the visible screen, and a page iOS left scrolled after the keyboard closes is pulled back. The status bar looks the same as before. Thanks to hwangrin for the report and the proposal in PR #850.
+
 ## [0.358.0] - 2026-10-27
 ### Fixed
 - **A message you just sent in a Team always shows.** It sometimes seemed to vanish after sending, for 3 reasons, all fixed:

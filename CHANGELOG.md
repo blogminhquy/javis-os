@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.359.0] - 2026-10-27
+### Sửa lỗi
+- **Khung chat trên iPhone khi cài như app (Thêm vào MH chính) không còn hụt đầu hay thừa khoảng trống dưới ô nhập.** Lúc không gõ, khung chat lấy đúng chiều cao phần màn hình nhìn thấy; bàn phím hạ xuống mà trang bị trượt lên thì tự kéo về. Thanh trạng thái giữ nguyên như cũ. Cảm ơn hwangrin đã báo và đề xuất ở PR #850.
+
 ## [0.358.0] - 2026-10-27
 ### Sửa lỗi
 - **Tin anh chị vừa gửi trong Nhóm luôn hiện.** Trước đây thỉnh thoảng gửi xong không thấy câu của mình vì 3 lý do, giờ đã sửa cả 3:

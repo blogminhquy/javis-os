@@ -199,9 +199,14 @@
     // CSS đặt khung chat đúng bằng vùng đó và bỏ lề an toàn. Nhận ra bàn phím bằng cách so với
     // chiều cao lúc KHÔNG gõ (mốc), vì trên iOS innerHeight không đổi còn trên Android (có
     // interactive-widget=resizes-content) thì innerHeight co theo, so với nó là không thấy gì.
+    // 0.359.0 (PR #850 của hwangrin, iPhone cài như app): lúc KHÔNG gõ, 100dvh của iOS standalone có khi lệch với phần
+    // màn hình thật sự nhìn thấy (đầu khung chat bị hụt, dưới ô nhập thừa một dải trống). Khung chat lúc nghỉ dùng đúng
+    // chiều cao visualViewport (`--app-h`, chỉ chiều cao, không cộng độ lệch: không có bàn phím thì vùng nhìn thấy bắt
+    // đầu từ mép trên), và bàn phím hạ xuống mà iOS để trang trượt lên thì kéo trang về đầu. Giữ nguyên thanh trạng
+    // thái trong suốt (black-translucent) nên giao diện không đổi.
     var vv = window.visualViewport;
     var rootStyle = document.documentElement.style;
-    var mocCao = 0, kbHen = 0;
+    var mocCao = 0, kbHen = 0, vuaGo = false;
     function dangGo() {
       var a = document.activeElement;
       if (!a || a === document.body) return false;
@@ -226,6 +231,14 @@
         rootStyle.removeProperty("--vv-top");
         rootStyle.removeProperty("--vv-ptop");
       }
+      if (mq.matches && !go && Math.abs((vv.scale || 1) - 1) < 0.01 && vv.height > 200) {
+        rootStyle.setProperty("--app-h", Math.round(vv.height) + "px");
+        // Bàn phím vừa hạ: trang (vốn không cuộn được) bị iOS để trượt lên, đầu khung chat nằm khuất trên mép màn.
+        if (vuaGo && (window.scrollY || document.documentElement.scrollTop)) window.scrollTo(0, 0);
+      } else if (!mq.matches) {
+        rootStyle.removeProperty("--app-h");
+      }
+      vuaGo = go;
     }
     function henKeyboard() {
       if (!kbHen) kbHen = (window.requestAnimationFrame || setTimeout)(syncKeyboard);
