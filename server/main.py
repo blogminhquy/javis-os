@@ -24957,7 +24957,7 @@ def _github_session_info(sid: str) -> dict:
 
 
 async def _github_review_ask(prompt: str, provider: str) -> str:
-    """Cross review (0.365.0, spec 10): ONE text-only turn on exactly `provider`, no tools, empty folder, like the
+    """Cross review (0.366.0, spec 10): ONE text-only turn on exactly `provider`, no tools, empty folder, like the
     group-chat judge. The diff comes from someone else's repo, so the reviewer gets nothing it could act with."""
     base = _reply_policy_sandbox_engine("Bạn là người review code độc lập. Chỉ trả về đúng khuôn JSON được yêu cầu.",
                                         "gh-review", cwd_name="gh_review_cwd")
