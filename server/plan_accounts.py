@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -32,6 +33,8 @@ ENV = {"codex": "CODEX_HOME", "grok": "GROK_HOME", "claude": "CLAUDE_CONFIG_DIR"
 # the same settings and MCP servers (Codex `config.toml` and Javis's hub profile, Grok `config.toml`, Claude
 # `settings.json`). Logins and history are never copied.
 _SHARED = {"codex": ("*.toml",), "grok": ("config.toml",), "claude": ("settings.json",)}
+# Claude keeps user-scope MCP servers (added through Claude Code's own MCP, `--scope user`) in `.claude.json` NEXT TO the
+# config folder, together with that login's account data. Only its `mcpServers` list is carried over (0.355.0).
 _MARK = ".javis-signed-in"
 
 
@@ -99,6 +102,29 @@ def prepare(provider: str, folder) -> None:
                     shutil.copy2(f, dst)
             except OSError:
                 pass
+    if KIND[provider] == "claude":
+        _share_claude_mcp(src, Path(folder))
+
+
+def _share_claude_mcp(src_home: Path, folder: Path) -> None:
+    """Copy account 1's user-scope MCP servers into an extra Claude account's `.claude.json`, keeping everything else
+    that file holds for that account. Best effort."""
+    src = (src_home / ".claude.json") if (src_home / ".claude.json").is_file() else (src_home.parent / ".claude.json")
+    try:
+        servers = (json.loads(src.read_text(encoding="utf-8")) or {}).get("mcpServers")
+    except (OSError, ValueError, AttributeError):
+        return
+    if not isinstance(servers, dict):
+        return
+    dst = folder / ".claude.json"
+    try:
+        cur = json.loads(dst.read_text(encoding="utf-8")) if dst.is_file() else {}
+        if not isinstance(cur, dict) or cur.get("mcpServers") == servers:
+            return
+        cur["mcpServers"] = servers
+        dst.write_text(json.dumps(cur, ensure_ascii=False, indent=2), encoding="utf-8")
+    except (OSError, ValueError):
+        pass
 
 
 def mark_signed_in(provider: str, folder) -> None:
@@ -134,7 +160,9 @@ def signed_in(provider: str, account_id: str) -> bool:
             return False
     if (folder / ".credentials.json").exists():
         return True
-    return (folder / _MARK).exists()
+    # Only macOS keeps the Claude token in the Keychain, where no file proves it; elsewhere a missing credentials
+    # file means signed out, whatever Javis remembered (0.355.0).
+    return sys.platform == "darwin" and (folder / _MARK).exists()
 
 
 def accounts(m: dict, provider: str) -> list:
@@ -168,23 +196,36 @@ def pick(m: dict, provider: str):
     return u[0] if u else None
 
 
-def save(m: dict, provider: str, items: list) -> None:
-    """Write the account list (order, label, on/off). Account 1 cannot be removed; a removed extra account's
-    folder (its login) is deleted."""
-    before = {a["id"] for a in accounts(m, provider)}
+def fallback(m: dict, provider: str):
+    """The account to run when none is usable: the first switched-on, signed-in one even if resting (the provider then
+    says it is out of quota), never an account the owner switched off. None when every account is off."""
+    return next((a for a in accounts(m, provider) if a["enabled"] and signed_in(provider, a["id"])), None)
+
+
+def save(m: dict, provider: str, items: list, removed=None) -> None:
+    """Write the account list (order, label, on/off). Only accounts named in `removed` are deleted (with their login
+    folder); one merely missing from `items`, as from a page drawn before it signed in, stays at the end of the list.
+    Account 1 cannot be removed."""
+    old = accounts(m, provider)
+    before = {a["id"] for a in old}
+    gone_ids = {str(x) for x in (removed or []) if str(x) != MAIN} & before
     clean, seen = [], set()
     for a in items or []:
         if not isinstance(a, dict):
             continue
         aid = str(a.get("id") or "")
-        if aid not in before or aid in seen:
+        if aid not in before or aid in seen or aid in gone_ids:
             continue
         seen.add(aid)
         clean.append({"id": aid, "label": str(a.get("label") or "")[:60], "enabled": a.get("enabled") is not False})
     if MAIN not in seen:
-        clean.insert(0, {"id": MAIN, "label": "", "enabled": True})
+        clean.insert(0, next((dict(a) for a in old if a["id"] == MAIN), {"id": MAIN, "label": "", "enabled": True}))
+        seen.add(MAIN)
+    for a in old:                      # missing from a stale page, not removed: keep it
+        if a["id"] not in seen and a["id"] not in gone_ids:
+            clean.append(dict(a))
     m.setdefault("accounts", {})[provider] = clean
-    for gone in before - seen - {MAIN}:
+    for gone in gone_ids:
         remove_folder(provider, gone)
         model_routing.clear_rest(provider, gone)
 
@@ -240,7 +281,7 @@ def apply(engine, provider: str, m: dict):
     when no account can run, so the turn reports the provider's own error as before)."""
     if engine is None or not in_use(provider):
         return MAIN
-    acc = pick(m, provider) if has_extra(m, provider) else None
+    acc = (pick(m, provider) or fallback(m, provider)) if has_extra(m, provider) else None
     aid = acc["id"] if acc else MAIN
     use(engine, provider, aid)
     return aid

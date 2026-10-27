@@ -4246,6 +4246,7 @@
     // Code as signed in whenever the binary exists, so a definite "not signed in" from /claude/status moves it out
     // (a timeout or an unknown answer keeps it where the server put it).
     const R = m.routing || {};
+    MODEL_DEFAULTS = R.defaults || {};
     const pById = (id) => providers.find(p => p.id === id);
     const claudeP = pById("anthropic-cli") || {};
     const claudeOut = !!(claudeSt && !claudeSt.connected && !claudeSt.unknown && !claudeSt.cli_missing
@@ -4279,7 +4280,7 @@
       if (!ord) return "";
       const pr = prof(p.id);
       return `<div class="ord-chips" data-p="${esc(p.id)}">
-          <button type="button" class="mb-chip ord-mchip" data-ordpop="model" aria-expanded="false" title="${esc(t("models.change_model"))}"><span class="mb-dot"></span><span class="ord-mtxt">${esc(pr.model || t("models.mp_default"))}</span><span class="mb-caret">▾</span></button>
+          <button type="button" class="mb-chip ord-mchip" data-ordpop="model" aria-expanded="false" title="${esc(t("models.change_model"))}"><span class="mb-dot"></span><span class="ord-mtxt">${esc(pr.model || defName(p.id))}</span><span class="mb-caret">▾</span></button>
           <button type="button" class="cp-eff ord-echip" data-ordpop="eff" aria-expanded="false" title="${esc(t("eff.head"))}"><span class="ord-etxt">${esc(effName(pr.reasoning))}</span><span class="mb-caret">▾</span></button>
           ${ordBadges(p, ord, "ord-badges-m")}
         </div>`;
@@ -4586,11 +4587,11 @@
     };
 
     const swapRow = (i) => `<div class="ord-swap-row"><button type="button" class="ord-swap" data-swap="${i}" aria-label="${esc(t("models.ord_swap_aria", { a: connList[i - 1].label, b: connList[i].label }))}">${ORD_SWAP} ${esc(t("models.ord_swap"))}</button></div>`;
-    const bgName = bgCfg.model || t("models.mp_default");
+    const bgName = bgCfg.model || defName(bgCfg.provider);
     const useP = bgUse ? (pById(bgUse.provider) || {}) : {};
     const bgLine = !bgUse ? `<div class="aux-note warn">${WARN_ICON} ${esc(t("models.bg_none"))}</div>`
       : bgUse.step !== "background" ? `<div class="aux-note">${esc(t("models.bg_using", { bg: bgName,
-          dung: (useP.label || bgUse.provider) + " · " + (bgUse.model || t("models.mp_default")) }))}</div>` : "";
+          dung: (useP.label || bgUse.provider) + " · " + (bgUse.model || defName(bgUse.provider)) }))}</div>` : "";
     el.innerHTML = `
       <div class="cview-section">
         <h3>◆ ${esc(t("models.h_order"))} <span style="opacity:.5">${esc(t("models.h_order_sub"))}</span>${infoBtn()}</h3>
@@ -4878,11 +4879,19 @@
   // ---- Card Claude Code: status + login/logout (giống OpenAI OAuth) ----
   // 0.351.0: what the Models page's usage order does (docs/dev/2026-10-model-routing-spec.md 2.1-2.4). Called after
   // every draw of the tab; each change saves at once and draws the tab again from the server's answer.
+  // 0.355.0 (owner 27/10): "default" alone tells nothing, so it names the model it stands for when the server knows it.
+  let MODEL_DEFAULTS = {};
+  // A subscription CLI with nothing set picks its own model by plan, which Javis cannot read: say so instead of "default".
+  const PLAN_CLI = ["anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli"];
+  const defName = (pid) => MODEL_DEFAULTS[pid] ? t("models.mp_default_is", { m: MODEL_DEFAULTS[pid] })
+    : PLAN_CLI.indexOf(pid) >= 0 ? t("models.mp_default_cli") : t("models.mp_default");
+
   function bindOrderCards(el, c) {
     const MO = window.JavisModelsOrder;
     const save = async (patch) => { await saveSetting("model", patch); c.again(); };
     const items = (pid) => (c.accts[pid] || []).map(a => ({ id: a.id, label: a.label, enabled: !!a.enabled }));
-    const saveAcc = (pid, list) => save({ accounts: { provider: pid, items: list } });
+    // `removed` names the accounts to delete; one merely missing from `list` (a stale page) is kept by the server.
+    const saveAcc = (pid, list, removed) => save({ accounts: { provider: pid, items: list, removed: removed || [] } });
 
     el.querySelectorAll(".ord-swap[data-swap]").forEach(b => b.onclick = () => {
       b.disabled = true;
@@ -5048,8 +5057,8 @@
       if (rm) rm.onclick = () => {
         const l = items(pid), i = idx();
         if (!window.confirm(t("models.pacct_rm_q", { ten: l[i].label || t("models.pacct_n", { n: i + 1 }) }))) return;
-        l.splice(i, 1);
-        saveAcc(pid, l);
+        const gone = l.splice(i, 1)[0];
+        saveAcc(pid, l, [gone.id]);
       };
     });
     el.querySelectorAll("[data-pacct-add]").forEach(b => b.onclick = () => {
@@ -5166,13 +5175,13 @@
       let ids = ML ? ML.peek(pid) : [], q = "";
       const row = (id) => {
         const on = id === (cur.model || "");
-        return `<div class="mb-item${on ? " cur" : ""}" role="option" tabindex="0" aria-selected="${on}" data-m="${esc(id)}"><span class="tick">${on ? ic("check", { cls: "ic-ok" }) : ""}</span><span class="ord-mname">${esc(id || t("models.mp_default"))}</span></div>`;
+        return `<div class="mb-item${on ? " cur" : ""}" role="option" tabindex="0" aria-selected="${on}" data-m="${esc(id)}"><span class="tick">${on ? ic("check", { cls: "ic-ok" }) : ""}</span><span class="ord-mname">${esc(id || defName(pid))}</span></div>`;
       };
       const draw = () => {
         const box = sh.body.querySelector(".ord-mlist");
         if (ids == null) { box.innerHTML = `<div class="mb-empty">${esc(t("mpick.loading"))}</div>`; return; }
         const f = q.trim().toLowerCase();
-        const hit = (id) => !f || (id || t("models.mp_default")).toLowerCase().includes(f);
+        const hit = (id) => !f || (id || defName(pid)).toLowerCase().includes(f);
         const now = cur.model || "";
         const rest = ids.filter(id => id && id !== now).sort((a, b) => a.localeCompare(b));
         const top = [""].concat(now ? [now] : []).filter(hit);
@@ -5191,7 +5200,7 @@
         if (!it) return;
         const mid = it.dataset.m;
         closePop();
-        btn.querySelector(".ord-mtxt").textContent = mid || t("models.mp_default");
+        btn.querySelector(".ord-mtxt").textContent = mid || defName(pid);
         save({ profile: { provider: pid, model: mid } });
       };
       sh.body.onkeydown = (e) => { if (e.key === "Enter" && e.target.classList.contains("mb-item")) e.target.click(); };
@@ -5556,7 +5565,7 @@
       modal.innerHTML = `
         <div class="mp-box">
           <div class="mp-head">
-            <div><div class="mp-title">${esc(opts.title || "SET MAIN MODEL")}</div><div class="mp-sub">${esc(t("models.mp_current"))} ${esc(main.model || t("models.mp_default"))} · ${esc(main.provider || "")}</div></div>
+            <div><div class="mp-title">${esc(opts.title || "SET MAIN MODEL")}</div><div class="mp-sub">${esc(t("models.mp_current"))} ${esc(main.model || defName(main.provider))} · ${esc(main.provider || "")}</div></div>
             <button class="mp-x" data-act="close">${X_ICON}</button>
           </div>
           <input class="mp-filter" placeholder="${esc(t("models.mp_filter"))}" value="${esc(filterQ)}">

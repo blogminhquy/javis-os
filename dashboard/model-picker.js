@@ -29,7 +29,7 @@
     return { supported: false, note: "fast.none" };
   }
   // FAST_NOTE_END
-  let state = { providers: [], main: { provider: "", model: "" }, reasoning: "off", fast: false };
+  let state = { providers: [], main: { provider: "", model: "" }, reasoning: "off", fast: false, defaults: {} };
   let agentEff = null;   // { slug, level } while the chat in front is an assistant's (0.193.0)
   let sessionPin = null;   // {provider, model} phiên đang mở đã ghim; null = theo mặc định chung
   let pinBroken = false;   // phiên có ghim nhưng ghim HỎNG (provider mất key) - server đang chạy mặc định chung
@@ -43,7 +43,12 @@
   const provShort = (lbl) => (lbl || "").split(" ")[0];
   // Chip text: the model name alone. No model set means the provider's own default, so the provider name stands in
   // ("Claude") rather than a bare "Default".
-  const chipLabel = (eff, p) => (eff.model ? prettyModel(eff.model) : (p ? provShort(p.label) : "Model"));
+  // 0.355.0: when the server knows which model "default" stands for, the chip names it.
+  const chipLabel = (eff, p) => (eff.model ? prettyModel(eff.model)
+    : (state.defaults || {})[eff.provider] ? prettyModel(state.defaults[eff.provider]) : (p ? provShort(p.label) : "Model"));
+  const defText = (pid) => (state.defaults || {})[pid] ? window.t("models.mp_default_is", { m: state.defaults[pid] })
+    : ["anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli"].indexOf(pid) >= 0
+      ? window.t("models.mp_default_cli") : window.t("models.mp_default");
   // "claude-opus-4-8-20260101" -> "Opus 4.8", "gpt-5.1-codex" -> "GPT-5.1 codex", "openai/gpt-4o" -> "GPT-4o",
   // "gemini-2.5-pro" -> "Gemini 2.5 pro". Pure, so the node test can run it.
   function prettyModel(id) {
@@ -94,6 +99,7 @@
       state.main = m.main || { provider: "anthropic-cli", model: "" };
       state.reasoning = m.reasoning || "off";
       state.fast = m.fast === true;
+      state.defaults = (m.routing || {}).defaults || {};
     } catch (e) {}
   }
 
@@ -127,7 +133,7 @@
       // 0.180.0 (owner): the chip shows the model name only, like "Opus 5.5" in the Claude app. The provider moves to
       // the tooltip; the pin state shows as an icon (below).
       mt.textContent = chipLabel(eff, p);
-      mt.title = (p ? p.label + " · " + (eff.model || window.t("models.mp_default")) + "\n" : "") + (sessionPin
+      mt.title = (p ? p.label + " · " + (eff.model || defText(eff.provider)) + "\n" : "") + (sessionPin
         ? window.t("mpick.pin_title")
         : pinBroken
           ? window.t(pinLimited ? "mpick.pin_limited_title" : "mpick.pin_broken_title")

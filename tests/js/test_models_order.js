@@ -57,7 +57,9 @@ check("drag and Swap save the whole order", /save\(\{ order: MO\.move\(c\.order,
 check("a card's model saves to its profile", /save\(\{ profile: \{ provider: pid, model: mid \} \}\)/.test(B));
 check("a card's effort saves to its profile, the background's to auxiliary",
   /\{ auxiliary: \{ reasoning: v \} \}/.test(B) && /\{ profile: \{ provider: pid, reasoning: v \} \}/.test(B));
-check("keys save as one list (order, on/off, new key)", /save\(\{ accounts: \{ provider: pid, items: list \} \}\)/.test(B));
+check("keys save as one list (order, on/off, new key)", /save\(\{ accounts: \{ provider: pid, items: list, removed: removed \|\| \[\] \} \}\)/.test(B));
+check("removing a plan account names it, a stale page never drops one (0.355.0)",
+  /const gone = l\.splice\(i, 1\)\[0\];\s*saveAcc\(pid, l, \[gone\.id\]\);/.test(B));
 check("removing the last key warns that the provider leaves the order", /models\.acct_rm_last_q/.test(B));
 check("the background picker lists signed-in providers only", /openModelPicker\(c\.connList,/.test(B) && /connectedOnly: true/.test(B));
 check("on a phone the background picker is the composer-style list", /matchMedia\("\(max-width: 600px\)"\)/.test(B) && /JavisModelList\.render\(o\)/.test(B));

@@ -62,8 +62,10 @@ check("auth.json with tokens = signed in", P.signed_in("openai-oauth", "acc_b"))
 fc = P.home("anthropic-cli", "acc_k")
 check("an extra Claude account starts signed out", not P.signed_in("anthropic-cli", "acc_k"))
 P.mark_signed_in("anthropic-cli", fc)
-check("Claude counts as signed in once Javis saw the sign-in finish (macOS keeps it in the Keychain)",
-      P.signed_in("anthropic-cli", "acc_k"))
+# 0.355.0: the "sign-in finished" mark counts on macOS only (token in the Keychain); elsewhere the credentials file must exist.
+check("Claude: the sign-in mark alone counts on macOS only", P.signed_in("anthropic-cli", "acc_k") == (sys.platform == "darwin"))
+(fc / ".credentials.json").write_text("{}", encoding="utf-8")
+check("Claude: a credentials file = signed in", P.signed_in("anthropic-cli", "acc_k"))
 (P.default_home("openai-oauth") / "javis.config.toml").write_text("[profiles.javis]\n", encoding="utf-8")
 (P.default_home("openai-oauth") / "auth.json").write_text("{}", encoding="utf-8")
 P.prepare("openai-oauth", fb)
@@ -82,11 +84,18 @@ check("account 1 back: it runs first again", P.pick(m, "openai-oauth")["id"] == 
 R.clear_rest("openai-oauth", "acc_b")
 P.save(m, "openai-oauth", [{"id": "acc_b", "label": "Plus phụ", "enabled": True},
                            {"id": "main", "label": "", "enabled": False}])
+check("an account missing from a stale page is kept, at the end (0.355.0)",
+      [a["id"] for a in P.accounts(m, "openai-oauth")] == ["acc_b", "main", "acc_c"])
+P.home("openai-oauth", "acc_c")   # its folder, so the removal below can be seen deleting it
+P.save(m, "openai-oauth", [{"id": "acc_b", "label": "Plus phụ", "enabled": True},
+                           {"id": "main", "label": "", "enabled": False}], removed=["acc_c"])
 check("the owner's order and on/off are kept", [(a["id"], a["enabled"]) for a in P.accounts(m, "openai-oauth")]
       == [("acc_b", True), ("main", False)])
 check("a removed extra account loses its folder", not P.home("openai-oauth", "acc_c", create=False).exists())
 P.save(m, "openai-oauth", [{"id": "acc_b", "label": "", "enabled": True}])
 check("account 1 cannot be removed", any(a["id"] == "main" for a in P.accounts(m, "openai-oauth")))
+P.save(m, "openai-oauth", P.accounts(m, "openai-oauth"), removed=["main"])
+check("account 1 cannot be removed even by name", any(a["id"] == "main" for a in P.accounts(m, "openai-oauth")))
 
 
 # ---- 4. engines are pointed at the account ---------------------------------------------------------------------
@@ -163,6 +172,52 @@ check("account 2 out of quota too: now the plan counts as out of quota",
 R.clear_rest("openai-oauth", "main")
 R.clear_rest("openai-oauth", "acc_b")
 main._PIN_LIMITED.clear()
+
+# ---- 6b. code review fixes (0.355.0) ---------------------------------------------------------------------------
+main._PLAN_ACCOUNT_LAST["openai-oauth"] = "acc_b"            # another chat picked account 2 since
+main._note_pin_limit("codex", account="main")                 # ...but THIS turn ran on account 1
+check("the account the failing turn ran on rests, not the last one any chat picked",
+      R.resting_until("openai-oauth", "main") > 0 and not R.resting_until("openai-oauth", "acc_b"))
+nxt = main._chat_next_route(mcfg, "openai-oauth", failed_account="main")
+check("next route after account 1 runs out: account 2 of the same card",
+      bool(nxt) and nxt["route"][0] == "openai-oauth" and "2" in nxt["status"], str(nxt.get("status")))
+R.clear_rest("openai-oauth", "main")
+main._PIN_LIMITED.clear()
+
+import aux_engine  # noqa: E402
+e = P.use(FakeCodex(), "openai-oauth", "acc_b")
+aux_engine._FallbackChain._rest(e, "model_not_found: gpt-x is not available on this plan")
+check("a background 'model not found' does not rest the plan account for chat", not R.resting_until("openai-oauth", "acc_b"))
+aux_engine._FallbackChain._rest(e, "You've hit your usage limit")
+check("a background quota error rests it", R.resting_until("openai-oauth", "acc_b") > 0)
+R.clear_rest("openai-oauth", "acc_b")
+aux_engine._COOLDOWN.clear()
+
+m_off = {"accounts": {"openai-oauth": [{"id": "main", "label": "", "enabled": False},
+                                       {"id": "acc_b", "label": "", "enabled": True}]}}
+R.mark_rest("openai-oauth", "acc_b", seconds=600)
+check("nothing usable and account 1 switched off: account 2 still runs (and reports its quota)",
+      P.apply(FakeCodex(), "openai-oauth", m_off) == "acc_b" and P.fallback(m_off, "openai-oauth")["id"] == "acc_b")
+R.clear_rest("openai-oauth", "acc_b")
+
+ch = P.default_home("anthropic-cli")
+ch.mkdir(parents=True, exist_ok=True)
+(ch.parent / ".claude.json").write_text(json.dumps({"mcpServers": {"gmail": {"type": "http", "url": "https://x"}},
+                                                    "oauthAccount": {"emailAddress": "one@x"}}), encoding="utf-8")
+fk = P.home("anthropic-cli", "acc_k")
+(fk / ".claude.json").write_text(json.dumps({"oauthAccount": {"emailAddress": "two@x"}}), encoding="utf-8")
+P.prepare("anthropic-cli", fk)
+kj = json.loads((fk / ".claude.json").read_text(encoding="utf-8"))
+check("an extra Claude account sees account 1's user-scope MCP servers, keeping its own login data",
+      "gmail" in (kj.get("mcpServers") or {}) and kj["oauthAccount"]["emailAddress"] == "two@x")
+
+import time as _t  # noqa: E402
+main._PLAN_LOGIN["acc_k"] = {"provider": "anthropic-cli", "ts": _t.time() + 60}
+check("sign in again: the old credentials file does not finish the new sign-in",
+      not main._plan_login_fresh("anthropic-cli", "acc_k", fk))
+main._PLAN_LOGIN["acc_k"]["ts"] = _t.time() - 60
+check("a credentials file written after the sign-in started finishes it", main._plan_login_fresh("anthropic-cli", "acc_k", fk))
+main._PLAN_LOGIN.pop("acc_k", None)
 
 # ---- 7. Models page --------------------------------------------------------------------------------------------
 v = main.settings_get()["model"]

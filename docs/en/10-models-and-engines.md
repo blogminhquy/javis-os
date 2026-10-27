@@ -276,7 +276,7 @@ Whichever card reaches the top becomes MAIN immediately, with nothing to save.
 
 **Each card's model and Effort.** Every card has two chips exactly like the ones under the chat composer:
 
-- **Model chip** (green dot, model name, ▾): opens a list of that provider's models only, with a search box at the top. The first row, **default**, means the provider's default model. The list comes from the provider itself, so a renamed model shows up right away.
+- **Model chip** (green dot, model name, ▾): opens a list of that provider's models only, with a search box at the top. The first row, **default**, means the provider's default model; when Javis knows which model that is, its name follows in brackets, for example **default (llama-3.3-70b-versatile)**. A plan card (Claude Code, ChatGPT, Grok, Antigravity) with no model set runs whatever the CLI picks for your plan, shown as **CLI default (picked by your plan)**. The list comes from the provider itself, so a renamed model shows up right away.
 - **Effort chip** (level, ▾): opens a 6-step slider **Off**, **Light**, **Medium**, **High**, **Extra**, **Ultra** (see section F).
 
 Each card remembers its own model and Effort, so reordering never loses any card's choice. MAIN's Effort is the level shown on the chat composer's Effort chip.
@@ -297,7 +297,7 @@ The cards of three plan providers, **ChatGPT (Codex)**, **Grok Build** and **Cla
 
 **Adding an account.** When the card is signed in and sits in the Usage order, an **＋ Add an account** button appears under the sign-in controls:
 
-1. Press **＋ Add an account** and type a name for the account (for example "Family plan").
+1. Press **＋ Add an account** and type a name for the account (for example "Pro plan 2" or "Max 200 plan").
 2. Read the gentle warning: "Several accounts on one plan carry a lock risk, though Javis has no reported case. If it happens, please tell the developer through Issues on Javis's GitHub."
 3. Press **Get the sign-in link**, open the link on any device, and sign in with the account you want to add.
    - **ChatGPT** and **Grok Build**: the card shows a link plus a code. Once you sign in it finishes on its own: the page checks every 3 seconds, for up to 15 minutes.
