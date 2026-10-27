@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.364.0] - 2026-10-28
+### Thêm mới
+- **Javis tự đẩy code lên GitHub và mở PR nháp** sau lượt chat có sửa repo và qua được bước kiểm tra. Commit đứng tên tài khoản đã kết nối, không bao giờ đẩy đè.
+- **Javis theo dõi CI của từng commit.** Xanh thì báo trong chat và chuyển PR sang sẵn sàng. Đỏ thì tự mở lượt sửa ngay trong chat đó, kèm log lỗi đã che bí mật, tối đa 3 vòng rồi dừng và nhờ người xem.
+- **Biết lúc nào không phải lỗi của mình:** nhánh chính cũng đỏ thì dừng, máy chạy CI hỏng thì chạy lại đúng một lần, repo không có CI thì nói rõ là chưa được kiểm chứng.
+- Khởi động lại máy giữa chừng cũng không đẩy hay mở PR hai lần.
+
 ## [0.363.0] - 2026-10-28
 ### Thêm mới
 - **Javis tự kiểm tra code sau mỗi lượt có sửa repo GitHub.** Nó chạy đúng các lệnh CI của repo ngay trên máy (đọc từ thư mục workflows của repo, bỏ các bước cài vào máy, cần secret hay deploy), rồi báo kết quả vào chính cuộc trò chuyện.
