@@ -38,8 +38,9 @@ Việc nền có model riêng, cố định, không chạy theo MAIN. Trang Mode
    viền nét đứt giống trang Kết nối.
 2. **Tự xoay vòng tuần tự:** dùng tài khoản 1 tới khi hết lượt, sang 2, ... hết cả nhà thì sang
    thẻ kế. Tài khoản 1 hồi lượt thì quay lại dùng nó trước. Không chia đều từng câu.
-3. Thêm nhiều tài khoản gói thuê bao: người dùng **tự chịu rủi ro**. Form thêm hiện một dòng cảnh
-   báo khoá tài khoản, không bắt tích ô xác nhận.
+3. Thêm nhiều tài khoản gói thuê bao: người dùng **tự chịu rủi ro**. Form thêm hiện một dòng nhắc
+   giọng nhẹ nhàng (chủ repo, 0.352.0): có nguy cơ bị khoá nhưng Javis chưa ghi nhận trường hợp
+   nào, gặp thì báo nhà phát triển qua Issues. Không bắt tích ô xác nhận.
 4. Nhiều key API trong một nhà được hỗ trợ đầy đủ. Không bắt khai nhóm hạn mức: Javis thử lần
    lượt, key đang nghỉ thì bỏ qua ngay.
 5. Antigravity CLI chỉ 1 tài khoản (token trong keyring của máy), thẻ ghi rõ lý do, không có nút thêm.

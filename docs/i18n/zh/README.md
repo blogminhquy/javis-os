@@ -149,7 +149,7 @@ Javis OS **不是**聊天机器人。它是一个运行在你自己的机器或 
 每个大脑都可以调用你已连接的 MCP 服务器、读写 Brain、运行 Skill、排入 Kanban 任务，以及创建 Agent、Workflow、Loop 和提醒。CLI 引擎还额外能运行 **shell 命令**、**抓取和搜索网页**，以及**启动并行的子 Agent**。
 
 > [!WARNING]
-> **在让订阅账号运行后台任务之前，请先读这一段。** Anthropic 将 Claude Pro/Max 限定为 Claude Code 的**普通个人使用**。持续的后台执行（Loop、提醒、Kanban 任务、聊天机器人）、在 VPS 上运行，或多人共用一个账号，都超出了这个范围，已经有账号因此**被封禁**。Javis 从不读取你的登录令牌：它运行的是真正的 `claude` 程序，但这并不能让全天候的后台使用变得合规。稳妥起见，请在 Models 页面把 Claude Code 设置为使用 **API key** 运行，或把**后台任务模型**指向其他提供商。同样的注意事项也适用于 xAI 订阅。参见 `server/claude_auth.py`。
+> **让订阅账号运行后台任务之前的提示。** Anthropic 将 Claude Pro/Max 限定为 Claude Code 的**普通个人使用**。持续的后台执行（Loop、提醒、Kanban 任务、聊天机器人）、在 VPS 上运行，或多人共用一个账号，都超出了这个范围，因此存在账号**被锁定**的风险，不过到目前为止 Javis 尚未收到任何此类案例。如果你遇到了，请通过 [Issues](https://github.com/blogminhquy/javis-os/issues/new/choose) 告诉开发者。Javis 从不读取你的登录令牌：它运行的是真正的 `claude` 程序，但这并不能让全天候的后台使用变得合规。稳妥起见，请在 Models 页面把 Claude Code 设置为使用 **API key** 运行，或把**后台任务模型**指向其他提供商。同样的注意事项也适用于 xAI 订阅。参见 `server/claude_auth.py`。
 
 ---
 
