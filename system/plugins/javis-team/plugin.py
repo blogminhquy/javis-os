@@ -12,6 +12,9 @@ Luật an toàn
 - `vault_root` rỗng -> lỗi rõ, không bao giờ đoán brain (giống `javis_task`).
 - Xoá chỉ nhận nhóm ĐÃ lưu trữ và phải có `confirm: true`; model chỉ đặt cờ đó khi chủ nói rõ là xoá.
 - Mức `safe`: chỉ ghi file trợ lý và dữ liệu nhóm trong máy, không thao tác ra ngoài. Chỉ chủ dùng (`OWNER_ONLY_TOOLS`).
+- op=dispatch / job (0.357.0, issue #826): Javis Core giao một việc cho nhóm có sẵn và đọc lại trạng thái, nghiệm thu.
+  Luật nằm ở `team_dispatch.py`: chỉ lượt của chủ hay việc nền chủ đã lên lịch, không bao giờ từ một bước việc nhóm;
+  nơi báo kết quả lấy từ lượt, không từ model.
 """
 from __future__ import annotations
 
@@ -19,12 +22,14 @@ import asyncio
 
 try:
     import team_api
+    import team_dispatch
+    import turn_context
 except Exception:          # chạy lẻ ngoài máy chủ
-    team_api = None
+    team_api = team_dispatch = turn_context = None
 
 _LIST_MAX = 30
 _OPS = ("list", "get", "list_agents", "create", "update", "archive", "unarchive", "delete", "add_member",
-        "remove_member", "set_leader", "create_agent", "set_agent_model")
+        "remove_member", "set_leader", "create_agent", "set_agent_model", "dispatch", "job")
 _NO_OPS = ("ERROR: bộ quản lý nhóm chưa sẵn sàng (máy chủ đang khởi động?). Thử lại sau vài giây, "
            "hoặc làm ở trang Nhóm trên dashboard.")
 
@@ -48,6 +53,43 @@ def _err_text(ex: Exception) -> str:
     if team_api is not None and isinstance(ex, team_api.OpError):
         return f"ERROR: {ex.vi}"
     return f"ERROR: {ex}"
+
+
+def _dispatch(ops, root, team, args, turn) -> str:
+    """op=dispatch (0.357.0, issue #826): Javis Core giao MỘT việc cho nhóm có sẵn, kết quả tự báo về khung chat đã giao."""
+    got = team_dispatch.dispatch(ops, root, team, args.get("objective") or args.get("description"), turn,
+                                 assignee=_s(args.get("assignee") or args.get("slug")),
+                                 request_id=_s(args.get("request_id")))
+    task = got["task"]
+    out = [("Việc này đã giao trước đó (cùng mã đối chiếu), KHÔNG tạo việc thứ hai."
+            if not got["created"] else f"Đã giao việc cho nhóm {team['name']}."),
+           f"Mã việc: {got['task_id']}", f"Mã đối chiếu: {got['correlation_id']}",
+           "Trạng thái: " + team_dispatch.phase(task, None, team)[1]]
+    if got["report_to"]:
+        out.append("Nhóm làm xong, bị chặn hay cần chủ quyết thì Javis tự báo về đúng khung chat này (và hòm thư); "
+                   "không cần chờ hay hứa báo lại. Xem tiến độ: op=job với task là mã việc.")
+    else:
+        out.append("Không rõ khung chat để báo, nên kết quả về Javis Core của brain và hòm thư. Xem tiến độ: op=job.")
+    if got["quality"]:
+        out.append("Nhóm bật nghiệm thu: việc chỉ tính ĐẠT khi qua kiểm hay chủ xác nhận trên thẻ; Javis không tự duyệt.")
+    if got["paused"]:
+        out.append("CẢNH BÁO: nhóm đang tạm dừng nên việc NẰM CHỜ, chưa chạy. Nói rõ với chủ: bật lại nhóm ở trang Nhóm.")
+    return "\n".join(out)
+
+
+def _job(ops, team, args) -> str:
+    v = team_dispatch.view(ops, team, team_dispatch.find(ops, team, args.get("task") or args.get("request_id")))
+    nghiem = {"pass": "ĐẠT (đã kiểm hay chủ xác nhận)", "pending": "chưa xác nhận đạt",
+              "none": "nhóm không bật nghiệm thu"}[v["verdict"]]
+    out = [f"Việc {v['task_id']} của nhóm {v['team']}: {v['title']}", f"Trạng thái: {v['line']}",
+           f"Nghiệm thu: {nghiem}" + (f" ({v['acceptance_status']})" if v["acceptance_status"] else "")]
+    if v["correlation_id"]:
+        out.append(f"Mã đối chiếu: {v['correlation_id']}")
+    if v["steps"]:
+        out.append("Các bước: " + "; ".join(f"{x['agent_key'] or '-'} {x['kind']} {x['status']}" for x in v["steps"]))
+    if v["result"]:
+        out.append("Kết quả:\n" + v["result"][:4000])
+    return "\n".join(out)
 
 
 def _agents(ops, root) -> list:
@@ -110,7 +152,7 @@ def _new_agent(ops, root, spec: dict) -> str:
                                        model_provider=_s(spec.get("model_provider")), tags=spec.get("tags") or None)
 
 
-def _do(op: str, args: dict, root: str) -> str:
+def _do(op: str, args: dict, root: str, turn=None) -> str:
     ops = _ops()
     if op == "list":
         if not ops.api.exists():
@@ -171,8 +213,15 @@ def _do(op: str, args: dict, root: str) -> str:
         return f"Đã đặt model của '{slug}': " + (r["model"] or "dùng model chính") + (
             f" ({r['model_provider']})" if r["model_provider"] else "") + "."
 
+    if op == "dispatch":
+        # Danh tính kiểm TRƯỚC khi tra nhóm: lượt không phải của chủ thì không biết gì thêm về nhóm.
+        turn = team_dispatch.check_caller(turn)
     team = _find_team(ops, root, args.get("team"))
     tid = team["team_id"]
+    if op == "dispatch":
+        return _dispatch(ops, root, team, args, turn)
+    if op == "job":
+        return _job(ops, team, args)
     if op == "update":
         fields = {k: args.get(k) for k in ("name", "description") if args.get(k) is not None}
         if not fields:
@@ -218,7 +267,9 @@ async def _run(args, ctx) -> str:
                 "Làm ở trang Nhóm trên dashboard, ở đó brain đã xác định rõ.")
     try:
         root = _ops().root(str(ctx.vault_root))
-        return await asyncio.to_thread(_do, op, args, root)
+        # Lượt đang chạy đọc Ở ĐÂY (luồng của lượt), không trong luồng phụ: danh tính người giao việc (op=dispatch).
+        turn = turn_context.current() if turn_context is not None else None
+        return await asyncio.to_thread(_do, op, args, root, turn)
     except _Fail as ex:
         return str(ex)
     except Exception as ex:  # noqa: BLE001 - lỗi kho/luật trả về chữ cho model, không làm hỏng lượt
@@ -239,6 +290,10 @@ def register(ctx):
         "op=update: team + name/description. op=archive / unarchive: team. "
         "op=delete: chỉ nhóm ĐÃ lưu trữ, và chỉ kèm confirm=true khi chủ nói rõ là xoá (không hoàn tác). "
         "op=add_member: team + slug. op=remove_member / set_leader: team + member (slug). "
+        "op=dispatch: GIAO MỘT VIỆC cho nhóm có sẵn khi chủ nhờ nhóm làm: team + objective (việc cần làm, đủ ý), "
+        "assignee (slug thành viên, bỏ trống thì trưởng nhóm điều phối), request_id (mã đối chiếu nếu có; gọi lại cùng "
+        "mã không tạo việc thứ hai). Kết quả TỰ báo về khung chat đang hỏi khi xong, bị chặn hay cần chủ quyết. "
+        "op=job: team + task (mã việc hay mã đối chiếu) -> trạng thái, kết quả, nghiệm thu (XONG khác ĐẠT). "
         "team nhận mã nhóm hay tên nhóm. Model riêng: model là tên model (vd sonnet, haiku, opus, gpt-5.5), "
         "model_provider là nhà chạy (anthropic-cli, openai-oauth, openrouter, ...); bỏ trống provider thì Javis tự suy.",
         _run,
@@ -263,6 +318,10 @@ def register(ctx):
                 "include_archived": {"type": "boolean"},
                 "confirm": {"type": "boolean", "description": "Chỉ true khi chủ nói rõ là xoá nhóm"},
                 "client_req_id": {"type": "string"},
+                "objective": {"type": "string", "description": "dispatch: việc giao cho nhóm"},
+                "assignee": {"type": "string", "description": "dispatch: slug thành viên nhận việc (tuỳ chọn)"},
+                "request_id": {"type": "string", "description": "dispatch/job: mã đối chiếu chống giao trùng"},
+                "task": {"type": "string", "description": "job: mã việc (t_...) hay mã đối chiếu"},
             },
             "required": ["op"],
         },

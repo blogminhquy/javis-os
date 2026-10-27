@@ -1571,6 +1571,62 @@ class TaskStore:
         return self._team_move(task_id, TEAM_OPEN_STATUS, "cancelled", "team_cancelled", reason,
                                block_kind="cancelled", block_reason=reason, run_status="cancelled")
 
+    # ───── Javis Core giao việc cho nhóm (0.357.0, issue #826) ─────
+    # Việc nhóm không dùng `metadata_json` ở đâu khác, nên nơi giao việc nằm ở đó: `core` (mã đối chiếu, nơi báo kết
+    # quả, kênh), `core_said` (trạng thái đã báo gần nhất), `core_closed` (đã báo lần cuối, thôi theo dõi).
+
+    def team_core_mark(self, task_id: str, info: dict) -> None:
+        """Ghi nơi giao của một việc nhóm do Core mở. Chỉ ghi lần đầu: gửi lại cùng mã đối chiếu không đổi nơi báo."""
+        with self._lock:
+            row = self._db.execute("SELECT metadata_json FROM tasks WHERE id=? AND lane='team'", (task_id,)).fetchone()
+            if not row:
+                return
+            meta = _loads(row["metadata_json"], {}) or {}
+            if isinstance(meta.get("core"), dict):
+                return
+            meta["core"] = dict(info or {})
+            self._db.execute("UPDATE tasks SET metadata_json=? WHERE id=?", (_json(meta), task_id))
+            self._db.commit()
+
+    def team_core_watch(self, limit: int = 200) -> list:
+        """Việc nhóm do Core mở mà chưa báo lần cuối, cũ nhất trước."""
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT * FROM tasks WHERE lane='team' AND metadata_json LIKE '%"core":{%'
+                     AND metadata_json NOT LIKE '%"core_closed":true%' ORDER BY updated_at LIMIT ?""",
+                (int(limit),),
+            ).fetchall()
+        return [self._task_from_row(r) for r in rows]
+
+    def team_core_find(self, team_id: str, correlation_id: str) -> Optional[dict]:
+        """Việc nhóm do Core mở theo mã đối chiếu (mới nhất nếu trùng)."""
+        cid = str(correlation_id or "").strip()
+        if not cid:
+            return None
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT * FROM tasks WHERE lane='team' AND team_id=? AND metadata_json LIKE ?
+                   ORDER BY created_at DESC LIMIT 20""",
+                (team_id, '%"correlation_id":' + _json(cid) + '%'),
+            ).fetchall()
+        for row in rows:
+            task = self._task_from_row(row)
+            if ((task.get("metadata") or {}).get("core") or {}).get("correlation_id") == cid:
+                return task
+        return None
+
+    def team_core_said(self, task_id: str, said: str, closed: bool = False) -> None:
+        with self._lock:
+            row = self._db.execute("SELECT metadata_json FROM tasks WHERE id=? AND lane='team'", (task_id,)).fetchone()
+            if not row:
+                return
+            meta = _loads(row["metadata_json"], {}) or {}
+            meta["core_said"] = str(said or "")
+            if closed:
+                meta["core_closed"] = True
+            self._db.execute("UPDATE tasks SET metadata_json=? WHERE id=?", (_json(meta), task_id))
+            self._db.commit()
+
     def team_amend(self, task_id: str, addition: str) -> Optional[int]:
         """Chủ sửa yêu cầu của việc chưa kết thúc: nối phần thêm vào `intent`, tăng `team_rev`."""
         addition = str(addition or "").strip()

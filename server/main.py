@@ -26500,7 +26500,8 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     describe=_team_describe, mandate_deps=lambda: _MandateDeps(),
     check_command=lambda cmd, cwd: _MandateDeps().run_test(cmd, cwd),
     brain_root=lambda team: Path(_brain_root(team["brain_id"])),
-    work_dir=lambda team: coding_store.cwd_cua_phien(team.get("session_id") or "") if team.get("session_id") else ""))
+    work_dir=lambda team: coding_store.cwd_cua_phien(team.get("session_id") or "") if team.get("session_id") else "",
+    report=_notify_owner))
 
 
 # ============================================================

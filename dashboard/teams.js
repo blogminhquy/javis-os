@@ -684,6 +684,8 @@
     } else if (mine && meta.as_job) {
       head.push('<span class="tm-tag tm-tag-new">' + ic("list-todo") + esc(tw("teams.as_job")) + "</span>");
     }
+    // 0.357.0: a job Javis Core gave the team on the owner's behalf (javis_team op=dispatch, issue #826).
+    if (mine && meta.via_core) head.push('<span class="tm-role">' + esc(tw("teams.via_core")) + "</span>");
     if (meta.job_result) head.push('<span class="tm-result">' + esc(tw("teams.job_result")) + "</span>");
     var late = !mine && LATE.indexOf(meta.status) >= 0;
     var body = bodyHtml(m, mine, !!(ctx.unclamped && ctx.unclamped[m.id]));

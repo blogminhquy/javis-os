@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.357.0] - 2026-10-27
+### Added
+- **Give a Team a job straight from chat.** Tell Javis "have the Content team write 3 posts" and it gives that Team exactly one job, coordinated by the Team as if you had given it on the Teams page. When it is done, blocked or needs your decision, the result comes back to the chat you asked in (web, Telegram, Zalo) and to the inbox.
+- The message says whether the job is **DONE** or **PASSED acceptance**. A job that needs your approval still stops on your card; Javis never approves for you. Repeating the same request never makes a second job. Only the owner can give jobs; a Team of another brain is refused before any job exists (issue #826).
+
 ## [0.356.0] - 2026-10-27
 ### Fixed
 - **Image generation on a ChatGPT plan no longer dies on "Tool choice image_generation not found".** When a ChatGPT model has no image tool, Javis moves to another model of the account, as it does when a model is refused (issue #854).

@@ -287,6 +287,18 @@ Khi cộng sự nộp kết quả, Javis kiểm chính sản phẩm (file) theo 
 
 Sửa yêu cầu của việc làm bằng chứng cũ hết hiệu lực. Sau khi đã nghiệm thu, sửa file sản phẩm thì thẻ ghi "Sản phẩm đã đổi sau lần kiểm". Điểm học của cộng sự chỉ được cộng khi nghiệm thu đạt hay bạn xác nhận, mỗi việc một lần.
 
+## Giao việc cho Team ngay từ chat (từ 0.357.0)
+
+Bạn không cần mở trang Nhóm để giao việc. Cứ nói với Javis ở khung chat web, Telegram hay Zalo, ví dụ "giao cho Phòng nội dung viết 3 bài về nước mắm", Javis chọn đúng Team của brain đang mở và giao **một việc** vào Team đó. Việc chạy y như khi bạn tự giao ở trang Nhóm: trưởng nhóm điều phối, có hàng đợi, nghiệm thu và lịch sử của Team.
+
+- **Kết quả tự báo về đúng khung chat đã giao**: khi việc xong, bị huỷ, bị chặn hay đang chờ bạn quyết. Mỗi trạng thái báo một lần, và luôn có một bản trong hòm thư.
+- **XONG khác ĐẠT**: tin báo nói rõ việc đã qua nghiệm thu chưa. Team không bật nghiệm thu thì Javis nói thẳng là chưa ai xác nhận đạt.
+- **Cổng duyệt vẫn là của bạn**: việc cần bạn duyệt hay xác nhận nghiệm thu vẫn dừng ở thẻ việc trên trang Nhóm. Javis chỉ báo, không bấm duyệt thay.
+- **Không giao trùng**: Javis lỡ gọi lại cùng yêu cầu thì vẫn chỉ có một việc. Trong khung chat nhóm, tin giao việc có nhãn "qua Javis Core".
+- Hỏi "việc đó tới đâu rồi" thì Javis đọc lại trạng thái, kết quả và nghiệm thu của việc.
+
+Chỉ chủ (hoặc việc nền chủ đã lên lịch) mới giao được. Bot chăm khách, Team của brain khác hay một bước việc của chính Team đều bị từ chối trước khi có việc nào được tạo.
+
 ## Thao tác nhanh và khắc phục sự cố
 
 - **Tạo mới:** chọn tab rồi bấm nút tạo ở cuối cột trái; hoặc mở **Javis Store**.

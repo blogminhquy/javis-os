@@ -668,8 +668,12 @@ class TeamRunner:
     # ───────────── tin của chủ nhóm ─────────────
 
     def submit(self, team_id: str, text: str, *, mentions: Optional[list] = None, as_job: bool = False,
-               client_msg_id: str = "", files: Optional[list] = None, mention_all: bool = False) -> dict:
+               client_msg_id: str = "", files: Optional[list] = None, mention_all: bool = False,
+               via: Optional[dict] = None) -> dict:
         """Ghi tin của chủ nhóm rồi định tuyến (spec 7.1 tới 7.3). Không gọi model ở đây.
+
+        `via` (0.357.0): tin do Javis Core gửi thay chủ khi chủ giao việc cho nhóm từ chat (`javis_team` op=dispatch):
+        {correlation_id, kenh}. Nằm ở `meta.via_core` để khung chat nhóm ghi rõ "qua Javis Core".
 
         `mention_all` (0.192.0, chủ gõ @all): gọi MỌI thành viên đang hoạt động, không tính vào trần @ mỗi tin; chủ cố ý
         gọi cả team cùng phối hợp."""
@@ -712,6 +716,8 @@ class TeamRunner:
         meta = {"mentions": valid, "as_job": bool(as_job), "notes": list(out["notes"])}
         if mention_all:
             meta["mention_all"] = True
+        if via:
+            meta["via_core"] = {k: str(via.get(k) or "") for k in ("correlation_id", "kenh")}
         if files:
             # 0.191.0: the attached files (already team documents) for the bubble to show as chips.
             meta["files"] = [{"name": str(f.get("name") or ""), "path": str(f.get("path") or ""),
