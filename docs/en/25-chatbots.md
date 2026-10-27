@@ -102,7 +102,6 @@ Click **New bot** and fill in:
 | Which channel accounts this bot serves | Tick one or more channels (only channels with no bot on duty can be ticked; channels another bot serves are greyed out with a lock and that bot's name). None yet: open **Add a new account with a token**, pick the channel type, paste the token, Check. See [Choosing Telegram or Zalo](#choosing-telegram-or-zalo) |
 | Bot name | The name you use to tell your bots apart |
 | The Agent as its brain | Pick an Agent in the open brain, or click **Create Agent** |
-| What the bot answers from | See the two modes below |
 | What the bot may do | The permission level. Leave it at **Read only** the first time; read [The four permission levels](#the-four-permission-levels-what-the-bot-may-do) before raising it |
 | The on-duty Chat ID | The Telegram number of the person receiving handovers (see below) |
 | Allowed groups | Shown only when an account is on a channel that supports groups (Telegram). Leaving it empty is fine, drop the bot into a group then allow it with one click later (see Step 4) |
@@ -132,7 +131,7 @@ The bot then has two handover routes: calling a human by itself when it is **stu
 
 Leaving this field empty means **the bot still answers normally** by its Agent, it simply has nobody to hand over to. Anyone typing `/nhanvien` is told honestly that no human line is available and invited to keep asking.
 
-To make the bot stay silent when it finds no documents, that is the job of the **Documents only** mode above, not of this field.
+To make the bot say it has no information when it finds no documents, write that rule into the bot's Agent file; this field does not do it.
 
 ### Step 4: Dropping the bot into a group
 
@@ -242,24 +241,17 @@ A price list or guide that lives on Google does not need copying into the brain.
 
 At the **Reads documents** level, the bot's three search tools still open only brain files. Google link content reaches the bot through the lookup done before each turn.
 
-### Two modes, chosen when creating the bot
+### No mode to choose (from 0.352.0)
 
-The difference lies only in **what happens when no matching document is found**. When one is found, both modes behave identically.
+Since 0.352.0 the form no longer has the **What the bot answers from** choice. Every bot answers from its **Agent plus the brain's documents**. A bot saved earlier as "documents only" keeps that mode (its card may still show a small "documents only" label) until you click **Edit** and save it again, at which point it switches to Agent and documents.
 
-| Mode | What the bot does with no document found | Suits |
-|---|---|---|
-| **The Agent's expertise** (default) | Javis adds nothing; the Agent handles it by the rules you wrote | Advisory, coaching, training and know-how bots |
-| **Documents only** | One rule is added: say there is no information, do not use general knowledge | Bots quoting figures and rules, where a wrong sentence is a real loss |
-
-Choosing wrong is obvious immediately: a coaching Agent running in "documents only" answers "I do not have that information" to questions squarely in its expertise, however carefully you wrote the role instructions. Change the mode with the **Edit** button, effective immediately.
+To make a bot stick to its documents, for example saying "I do not have that information" when nothing matches, write that rule into the bot's Agent file.
 
 ### Javis does NOT write rules for the bot
 
 This is the most important thing to know about this page.
 
 The bot runs on **exactly the content of your Agent file**, nothing more. Javis inserts no rules on top: it does not tell it how to address people, does not forbid a topic, does not force short answers. The rules you write in the Agent are the only rules the bot has.
-
-The one exception is the "documents only" mode above, and that is a rule **you deliberately turned on**, not a Javis default.
 
 So **the Agent file decides the bot's quality almost entirely**. Write it like briefing a new hire: how to speak, how far the scope goes, what must not be promised, and in which cases to hand over to a human. When the bot behaves wrongly, fix the Agent rather than hunting for another button.
 
@@ -385,7 +377,7 @@ Click **Log** on the bot card. There are two tabs, and the one that opens is the
 
 Deduplication strips diacritics, so "Giá bao nhiêu?" and "gia bao nhieu" count as one question. Otherwise the same question would split into several separate lines and you would not see how often it is really asked.
 
-"Stuck" is measured by **what the bot itself just said**: it said it has no information, or it had to hand over to a human. For a bot running "documents only", finding no documents counts too.
+"Stuck" is measured by **what the bot itself just said**: it said it has no information, or it had to hand over to a human. For an older bot still running "documents only" (not edited since 0.352.0), finding no documents counts too.
 
 The most notable kind of stuck is the one where the bot **did find documents**: the documents exist but lack the exact point people need. That kind points at documentation written incompletely, which is subtler than having no file at all.
 

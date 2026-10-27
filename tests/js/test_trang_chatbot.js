@@ -124,19 +124,12 @@ check("form nói rõ bot tạo ra ở trạng thái tắt",
   /<b>' \+\s*\n?\s*esc\(window\.t\("cb\.tao_xong_tat"\)\) \+ '<\/b>/.test(CB)
   && VI["cb.tao_xong_tat"] === "TẮT" && tu("cb.tao_xong_1", "trạng thái"));
 check("form nói rõ bot đọc tài liệu của brain nào", noi("cb2.s_ai_hint", "chỉ đọc tài liệu trong brain"));
-// Lựa chọn quyết định bot "ăn nhập với Agent" hay không. Bản 0.20.0 ép cứng chế độ chỉ-tài-
-// liệu cho mọi bot, và một Agent coach viết rất kỹ vẫn trả lời "em chưa có thông tin" cho
-// đúng câu thuộc chuyên môn của nó. Phải cho chọn, và phải giải thích ngay tại chỗ chọn.
-check("form cho chọn nguồn trả lời (nút bấm chọn một)", /htmlSeg\("cbNguon", "cbNguon"/.test(CB));
-check("mặc định là chuyên môn Agent", /nguon0 = \(b && b\.nguon_tra_loi === "tai_lieu"\) \? "tai_lieu" : "agent"/.test(CB));
-check("giải thích khi nào dùng chế độ nào", noi("cb2.nguon_tl_h", "giá và chính sách"));
-// Trang phải nói ĐÚNG việc Javis làm: nó không viết luật cho bot, nó chỉ khoá phạm vi brain.
-// Hứa nhiều hơn thế là dạy người dùng tin vào một rào không tồn tại.
-check("nói rõ Javis không thêm luật của mình vào Agent",
-  noi("cb2.nguon_agent_h", "Javis không thêm luật nào của"));
+// 0.352.0 (owner): the "what does the bot answer from" choice is gone. Every bot answers from its Agent and the
+// brain's documents, so the form shows no choice and always sends "agent".
+check("form không còn mục chọn nguồn trả lời", !/cbNguon/.test(CB) && !/cb2\.s_nguon/.test(CB));
+check("bot luôn gửi nguồn trả lời là Agent và tài liệu", /nguon_tra_loi: "agent"/.test(CB));
 check("nói rõ rào duy nhất là chỉ đọc được brain này",
   CB.includes("cb.intro_chi_doc") && /chỉ đọc\b[\s\S]{0,40}brain này/.test(VI["cb.intro_chi_doc"] || ""));
-check("lựa chọn được gửi lên server", /nguon_tra_loi: giaTri\("cbNguon"\)/.test(CB));
 check("thẻ bot hiện đang chạy chế độ nào",
   /b\.nguon_tra_loi === "tai_lieu" \? window\.t\("cb\.nguon_tl_ngan"\)/.test(CB)
   && tu("cb.nguon_tl_ngan", "chỉ tài liệu"));
@@ -407,11 +400,10 @@ check("form KHÔNG còn ô người trực nhận chuyển tiếp và không g�
 check("thẻ bot KHÔNG còn nhãn cảnh báo 'chưa đặt người nhận' (hết chỗ để đặt)",
   !/cb\.chua_nguoi_nhan/.test(CB));
 // 0.64.85: form một cuộn, bốn phần theo đúng thứ tự, phần "bot trả lời ai" là phần nổi bật thứ hai.
-check("bốn phần theo đúng thứ tự: Bot là ai, Bot trả lời ai, Bot dựa vào đâu, Bot được làm gì",
+check("các phần theo đúng thứ tự: Bot là ai, Bot trả lời ai, Bot được làm gì",
   CB.indexOf('secH("bot", "cb2.s_ai")') > -1 &&
   CB.indexOf('secH("bot", "cb2.s_ai")') < CB.indexOf('secH("users", "cb2.s_doituong")') &&
-  CB.indexOf('secH("users", "cb2.s_doituong")') < CB.indexOf('secH("book-open", "cb2.s_nguon")') &&
-  CB.indexOf('secH("book-open", "cb2.s_nguon")') < CB.indexOf('secH("shield", "cb2.s_quyen")'));
+  CB.indexOf('secH("users", "cb2.s_doituong")') < CB.indexOf('secH("shield", "cb2.s_quyen")'));
 check("'Bot trả lời ai' có bốn thẻ chọn: tự động hóa tất cả, mọi cuộc chat, nhóm thì chọn, chỉ người và nhóm chọn",
   /htmlThe\("auto"/.test(CB) && /htmlThe\("all"/.test(CB) && /htmlThe\("nhom"/.test(CB) && /htmlThe\("chon"/.test(CB) &&
   /name="cbAud"/.test(CB) && tu("cb2.aud_all_t", "Mọi cuộc chat") && tu("cb2.aud_chon_t", "Chỉ người và nhóm") &&
