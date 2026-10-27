@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.360.0] - 2026-10-27
+### Cải thiện
+- **Đã chốt bản thiết kế "GitHub ngay trong khung chat".** Sắp tới bạn chọn repo GitHub từ nút cộng của khung chat, giao việc bằng lời, Javis sửa trên nhánh riêng, tự kiểm tra, mở PR, theo dõi CI, xanh thì tự merge (tắt được theo từng repo). Bản này chỉ có tài liệu thiết kế, chưa có tính năng mới.
+- Kết nối GitHub sẽ có sẵn trên trang Kết nối, không phải cài thêm gói nào.
+
 ## [0.359.0] - 2026-10-27
 ### Sửa lỗi
 - **Khung chat trên iPhone khi cài như app (Thêm vào MH chính) không còn hụt đầu hay thừa khoảng trống dưới ô nhập.** Lúc không gõ, khung chat lấy đúng chiều cao phần màn hình nhìn thấy; bàn phím hạ xuống mà trang bị trượt lên thì tự kéo về. Thanh trạng thái giữ nguyên như cũ. Cảm ơn hwangrin đã báo và đề xuất ở PR #850.
