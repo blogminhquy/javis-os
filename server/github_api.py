@@ -153,6 +153,10 @@ class GitHub:
         return self.put(f"/repos/{full_name}/pulls/{int(number)}/merge",
                         json={"sha": sha, "merge_method": method})
 
+    def update_branch(self, full_name: str, number: int, expected_head: str) -> None:
+        """Merge the base branch into the PR branch (branch protection that wants it up to date)."""
+        self.put(f"/repos/{full_name}/pulls/{int(number)}/update-branch", json={"expected_head_sha": expected_head})
+
     # ---- checks ----
     def check_runs(self, full_name: str, sha: str) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []

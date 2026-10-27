@@ -102,6 +102,14 @@ class Store:
                     seen_at REAL NOT NULL,
                     PRIMARY KEY (full_name, sha, name)
                 );
+                CREATE TABLE IF NOT EXISTS queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sid TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    state TEXT NOT NULL DEFAULT 'waiting',
+                    created_at REAL NOT NULL,
+                    started_at REAL NOT NULL DEFAULT 0
+                );
                 CREATE TABLE IF NOT EXISTS metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     sid TEXT NOT NULL,
@@ -208,6 +216,7 @@ class Store:
     def delete_session(self, sid: str) -> None:
         with self._lock:
             self._db.execute("DELETE FROM work WHERE sid=?", (sid,))
+            self._db.execute("DELETE FROM queue WHERE sid=?", (sid,))
             self._db.commit()
 
     # ---- steps (idempotency) ----
@@ -242,6 +251,37 @@ class Store:
             rows = self._db.execute("SELECT * FROM checks WHERE full_name=? AND sha=? ORDER BY name",
                                     (full_name, sha)).fetchall()
         return [dict(r) for r in rows]
+
+    # ---- next jobs (spec 11.2): what the person asked to do once this chat's PRs are merged ----
+    def queue_add(self, sid: str, text: str) -> int:
+        with self._lock:
+            cur = self._db.execute("INSERT INTO queue (sid, text, created_at) VALUES (?,?,?)", (sid, text, time.time()))
+            self._db.commit()
+            return int(cur.lastrowid)
+
+    def queue_list(self, sid: str, state: str = "waiting") -> List[Dict[str, Any]]:
+        with self._lock:
+            rows = self._db.execute("SELECT * FROM queue WHERE sid=? AND state=? ORDER BY id", (sid, state)).fetchall()
+        return [dict(r) for r in rows]
+
+    def queue_take(self, sid: str) -> Optional[Dict[str, Any]]:
+        """The oldest waiting job of a chat, marked started in the same transaction (never handed out twice)."""
+        with self._lock:
+            r = self._db.execute("SELECT * FROM queue WHERE sid=? AND state='waiting' ORDER BY id LIMIT 1",
+                                 (sid,)).fetchone()
+            if not r:
+                return None
+            cur = self._db.execute("UPDATE queue SET state='started', started_at=? WHERE id=? AND state='waiting'",
+                                   (time.time(), r["id"]))
+            self._db.commit()
+            return dict(r) if cur.rowcount == 1 else None
+
+    def queue_cancel(self, sid: str, qid: int) -> bool:
+        with self._lock:
+            cur = self._db.execute("UPDATE queue SET state='cancelled' WHERE sid=? AND id=? AND state='waiting'",
+                                   (sid, int(qid)))
+            self._db.commit()
+            return cur.rowcount == 1
 
     # ---- metrics (G5) ----
     def add_metric(self, **m) -> None:

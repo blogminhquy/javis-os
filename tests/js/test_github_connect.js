@@ -22,6 +22,18 @@ check("chip text: nothing attached means no chip", gh.chipText([], 18) === "");
 check("toggle adds then removes", JSON.stringify(gh.toggle(gh.toggle([], "a/b"), "a/b")) === "[]");
 check("sameSet ignores order", gh.sameSet(["a/b", "c/d"], ["c/d", "a/b"]) && !gh.sameSet(["a/b"], ["a/b", "c/d"]));
 
+// Status icons (spec 12.1)
+check("no GitHub work: no icon", gh.iconSpec({ state: "" }) === null && gh.iconSpec(null) === null);
+check("working shows its count only when more than one job runs",
+  gh.iconSpec({ state: "working", running: 2, sub: "waiting_ci" }).count === 2 && gh.iconSpec({ state: "working", running: 1 }).count === 0);
+check("each of the four states has its own label", ["working", "ready", "merged", "broken"].every(s => {
+  const k = gh.iconSpec({ state: s }).key; return vi[k] && en[k]; }));
+check("merged with a red post-merge check carries the warning class and text",
+  /gh-warn/.test(gh.iconSpec({ state: "merged", merged_warning: true }).cls) && gh.iconSpec({ state: "merged", merged_warning: true }).subKey === "gh.st_post_red");
+check("secondary marks have labels", ["waiting_ci", "waiting_review", "stuck"].every(s => vi["gh.sub_" + s] && en["gh.sub_" + s]));
+const sess = read("dashboard/sessions-ui.js");
+check("the chat list rows carry their session id and ask for GitHub icons",
+  /item\.setAttribute\("data-sid", s\.id\)/.test(sess) && /JavisGithubRepos\.decorate\(listEl\)/.test(sess));
 check("the module loads after composer-folder.js",
   html.indexOf("/static/composer-folder.js") !== -1 && html.indexOf("/static/composer-folder.js") < html.indexOf("/static/github-connect.js"));
 check("the Connections page always mounts the GitHub card, first in the connected list",

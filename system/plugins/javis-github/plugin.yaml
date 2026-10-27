@@ -1,0 +1,12 @@
+name: GitHub trong khung chat
+name_en: "GitHub in chat"
+slug: javis-github
+version: 1.0.0
+description: Xem trạng thái repo GitHub của khung chat (nhánh, PR, CI, merge) và xếp việc kế tiếp để Javis tự làm khi PR hiện tại đã merge xong.
+description_en: "Shows the chat's GitHub repos (branch, PR, CI, merge) and queues the next job, which Javis starts on its own once the current PR is merged."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_github
+hooks: []
