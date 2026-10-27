@@ -48,9 +48,20 @@ FIX_MARKER = "[Javis GitHub]"
 Notify = Callable[[str, str, bool], Awaitable[Any]]
 StartTurn = Callable[[str, str], Awaitable[bool]]
 SessionInfo = Callable[[str], Dict[str, Any]]
+# review(prompt, provider) -> raw text of a text-only turn on THAT provider (phase G5, spec section 10).
+Review = Callable[[str, str], Awaitable[str]]
 _notify: Optional[Notify] = None
 _start_turn: Optional[StartTurn] = None
 _session_info: Optional[SessionInfo] = None
+_review: Optional[Review] = None
+_reviewers: Optional[Callable[[], List[str]]] = None
+_brain_root: Callable[[str], str] = lambda b: b
+REVIEW_DIFF_MAX = 60000
+REVIEW_TIMEOUT_S = 600
+LESSONS_MAX = 30
+# Provider families: a reviewer from the author's own family is not a second pair of eyes.
+_FAMILY = {"anthropic-cli": "claude", "anthropic-api": "claude", "anthropic-compat": "claude",
+           "openai-oauth": "openai", "openai": "openai"}
 
 _last_gate: Dict[str, str] = {}
 _running: Dict[str, bool] = {}
@@ -62,14 +73,22 @@ def _c(vi: str, en: str) -> str:
 
 
 def configure(notify: Optional[Notify] = None, start_turn: Optional[StartTurn] = None,
-              session_info: Optional[SessionInfo] = None) -> None:
-    global _notify, _start_turn, _session_info
+              session_info: Optional[SessionInfo] = None, review: Optional[Review] = None,
+              reviewers: Optional[Callable[[], List[str]]] = None,
+              brain_root: Optional[Callable[[str], str]] = None) -> None:
+    global _notify, _start_turn, _session_info, _review, _reviewers, _brain_root
     if notify is not None:
         _notify = notify
     if start_turn is not None:
         _start_turn = start_turn
     if session_info is not None:
         _session_info = session_info
+    if review is not None:
+        _review = review
+    if reviewers is not None:
+        _reviewers = reviewers
+    if brain_root is not None:
+        _brain_root = brain_root
 
 
 def st() -> github_store.Store:
@@ -269,9 +288,15 @@ def ship(sid: str, brain: str, repo: Dict[str, Any], report: Dict[str, Any]) -> 
     """Gate passed: commit, push, open or reuse the PR, record the pushed commit as CI pending."""
     fn = repo["full_name"]
     info = _session(sid)
-    title = (info.get("title") or "").strip() or _c("Thay đổi từ Javis", "Changes from Javis")
+    # The job's own request names the PR; the chat title only describes the chat's FIRST job.
+    task_line = (str(info.get("task") or "").strip().splitlines() or [""])[0]
+    title = (task_line[:100] or (info.get("title") or "").strip() or _c("Thay đổi từ Javis", "Changes from Javis"))
     row = st().ensure(sid, fn, brain=brain, worktree=repo["worktree"], base_branch=repo.get("default_branch") or "main",
-                      title=title[:200], engine=str(info.get("engine") or ""), model=str(info.get("model") or ""))
+                      engine=str(info.get("engine") or ""), model=str(info.get("model") or ""))
+    if not row.get("pr_number") or row.get("integ") == "merged":
+        row = st().update(sid, fn, title=title[:200])    # a new job: its request names it
+    else:
+        title = row.get("title") or title               # the same job's later pushes keep the PR's name
     if row.get("integ") == "merged":
         # The last PR of this chat is merged: what comes now is a new job on the branch the worktree is on.
         row = st().update(sid, fn, branch="", head_sha="", pr_number=0, pr_url="", pr_node_id="", ci="none",
@@ -303,7 +328,11 @@ async def request_fix(row: Dict[str, Any], why: str, details: str, key: str) -> 
     rounds = int(row.get("fix_rounds") or 0) + 1
     if rounds > MAX_FIX_ROUNDS:
         reason = _c(f"Đã sửa {MAX_FIX_ROUNDS} vòng mà vẫn đỏ: {why}", f"Still red after {MAX_FIX_ROUNDS} fix rounds: {why}")
-        st().update(sid, fn, exec="stuck", stuck_reason=reason)
+        # Remember which commit it got stuck on: a later green tick on that SAME commit must not clear it (the cross
+        # review can exhaust the rounds on a commit whose CI is green).
+        gate = dict(row.get("gate") or {})
+        gate["stuck_head"] = row.get("head_sha") or ""
+        st().update(sid, fn, exec="stuck", stuck_reason=reason, gate=gate)
         await _say(sid, f"**{fn}**: " + reason + _pr_tail(row), False, once=f"stuck:{key}")
         return False
     st().update(sid, fn, fix_rounds=rounds, exec="running")
@@ -357,16 +386,25 @@ async def after_turn(sid: str, brain: str, user_message: str = "") -> List[Dict[
     out = []
     for repo in repos:
         try:
-            out.append(await _after_turn_repo(sid, brain, repo))
+            out.append(await _after_turn_repo(sid, brain, repo, user_message))
         except Exception as e:  # noqa: BLE001 - one repo's failure must not stop the others
             await _say(sid, f"**{repo['full_name']}**: {e}", False)
     return [x for x in out if x]
 
 
-async def _after_turn_repo(sid: str, brain: str, repo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+async def _after_turn_repo(sid: str, brain: str, repo: Dict[str, Any], user_message: str = "") -> Optional[Dict[str, Any]]:
     fn = repo["full_name"]
     row = st().get(sid, fn) or {}
     if not await asyncio.to_thread(_unpushed, repo, row):
+        # A review round that changed nothing: the author weighed the findings and rejected them (spec 10). Its
+        # reasons are in the chat; the findings no longer hold the merge.
+        if row and _is_review_turn(user_message) and (row.get("gate") or {}).get("review_open"):
+            gate = dict(row.get("gate") or {})
+            gate["review_dismissed"] = gate.pop("review_open")
+            st().update(sid, fn, gate=gate, exec="done")
+            await _say(sid, _c(f"**{fn}**: tác giả bác bỏ các phát hiện của review chéo (lý do ở trên), không sửa gì.",
+                               f"**{fn}**: the author rejected the cross-review findings (reasons above) and changed "
+                               "nothing."), True, once=f"dismiss:{sid}:{fn}:{row.get('head_sha')}")
         return None
     st().ensure(sid, fn, brain=brain, worktree=repo["worktree"])
     st().update(sid, fn, exec="running", stuck_reason="")
@@ -380,6 +418,7 @@ async def _after_turn_repo(sid: str, brain: str, repo: Dict[str, Any]) -> Option
         why = _c("Kiểm tra ở máy đỏ trước khi đẩy lên", "Local checks failed before push") if not report["secrets"] \
             else _c("Diff có thứ giống thông tin bí mật, chưa commit", "The diff looks like it has a secret, not committed")
         details = github_gate.summary(report) + _fail_output(report)
+        await asyncio.to_thread(learn_from_gate, brain, fn, report)
         await _say(sid, f"**{fn}**\n{github_gate.summary(report)}", False)
         await request_fix(row, why, details, f"{sid}:{fn}:gate:{head}:{_fingerprint_short(repo)}")
         return report
@@ -563,7 +602,14 @@ async def check_row(row: Dict[str, Any]) -> Dict[str, Any]:
         row = st().update(sid, fn, ci="no_ci", checks_summary=summary)
         await on_no_ci(row, pr)
         return st().get(sid, fn) or row
+    prev_fail = [x for x in (row.get("checks_summary") or []) if x.get("conclusion") in _BAD]
+    if row.get("exec") == "stuck" and (row.get("gate") or {}).get("stuck_head") == row["head_sha"]:
+        # Stuck on this very commit (fix rounds used up): green CI does not lift it; a new commit or a person does.
+        st().update(sid, fn, ci="green", checks_summary=summary)
+        return st().get(sid, fn) or row
     row = st().update(sid, fn, ci="green", checks_summary=summary, exec="done", stuck_reason="")
+    if int(row.get("fix_rounds") or 0) > 0:
+        await asyncio.to_thread(learn_from_fix, row, prev_fail)
     return await on_green(row, pr)
 
 
@@ -735,6 +781,9 @@ async def on_green(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
         except (GitHubError, github_repos.RepoError):
             pass
     row = st().update(sid, fn, integ="ready")
+    row = await cross_review(row)
+    if (row.get("gate") or {}).get("review_running"):
+        return row
     blockers = await asyncio.to_thread(_merge_blockers, row, pr)
     if not blockers:
         return await merge_now(row, pr)
@@ -846,10 +895,211 @@ def _record_metric(row: Dict[str, Any], outcome: str) -> None:
         st().add_metric(sid=row["sid"], full_name=row["full_name"], engine=row.get("engine") or "",
                         model=row.get("model") or "", first_push_green=int(row.get("fix_rounds") or 0) == 0,
                         fix_rounds=int(row.get("fix_rounds") or 0),
-                        review_findings=len((row.get("gate") or {}).get("review_confirmed") or []),
+                        review_findings=int((row.get("gate") or {}).get("review_found") or 0),
                         seconds=time.time() - float(row.get("created_at") or time.time()), outcome=outcome)
     except Exception:
         pass
+
+
+# ============================================================
+# Cross review (phase G5, spec section 10)
+# ============================================================
+REVIEW_PROMPT = """Bạn là người review code độc lập cho PR "{title}" trên repo {repo}. Một engine khác đã viết thay đổi này.
+
+Yêu cầu mới nhất của người dùng cho việc này (đánh giá thay đổi theo đúng yêu cầu này, không theo việc cũ):
+{task}
+
+Chỉ nêu LỖI có đường gây hỏng CỤ THỂ: với đầu vào hay tình huống nào thì ra kết quả sai, chương trình hỏng, mất dữ liệu,
+hay một lỗ hổng bảo mật. KHÔNG nêu đặt tên, phong cách, khẩu vị, gợi ý cải tiến, hay thứ có từ trước thay đổi này.
+Không chắc thì không nêu. Không có lỗi thì trả danh sách rỗng.
+
+Trả về DUY NHẤT một JSON, không lời dẫn:
+{{"findings": [{{"file": "đường/dẫn", "line": 12, "problem": "lỗi gì", "scenario": "đầu vào nào thì hỏng ra sao"}}]}}
+
+Diff:
+```diff
+{diff}
+```"""
+
+
+def _family(provider: str) -> str:
+    return _FAMILY.get(provider or "", provider or "")
+
+
+def pick_reviewer(author_provider: str) -> str:
+    """The first available engine of ANOTHER family than the author's, "" when there is none (spec 10)."""
+    try:
+        avail = list(_reviewers() if _reviewers else [])
+    except Exception:
+        avail = []
+    fam = _family(author_provider)
+    for p in avail:
+        if _family(p) != fam:
+            return p
+    return ""
+
+
+def parse_findings(raw: str) -> Optional[List[Dict[str, Any]]]:
+    """Findings from a reviewer's answer. None = not readable (counts as no review)."""
+    import json
+    text = str(raw or "")
+    m = re.search(r"\{.*\}", text, re.S)
+    if not m:
+        return None
+    try:
+        d = json.loads(m.group(0))
+    except ValueError:
+        return None
+    out = []
+    for f in (d.get("findings") if isinstance(d, dict) else None) or []:
+        if isinstance(f, dict) and str(f.get("problem") or "").strip():
+            out.append({"file": str(f.get("file") or "")[:200], "line": int(f.get("line") or 0) if str(f.get("line") or "0").isdigit() else 0,
+                        "problem": str(f.get("problem"))[:500], "scenario": str(f.get("scenario") or "")[:500]})
+    return out[:10]
+
+
+def _review_diff(row: Dict[str, Any]) -> str:
+    wt = row.get("worktree") or ""
+    base = f"origin/{row.get('base_branch') or 'main'}"
+    diff = github_repos.git_out(["diff", "--no-color", f"{base}...HEAD"], wt)
+    return diff[:REVIEW_DIFF_MAX] + ("\n[... diff cắt bớt ...]" if len(diff) > REVIEW_DIFF_MAX else "")
+
+
+async def cross_review(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Review the head commit once with another engine. Findings go back to the author as a fix round."""
+    sid, fn, head = row["sid"], row["full_name"], row["head_sha"]
+    gate = dict(row.get("gate") or {})
+    if gate.get("reviewed_sha") == head:
+        return row
+    reviewer = pick_reviewer(row.get("engine") or "")
+    if not reviewer or _review is None:
+        gate["reviewed_sha"] = head
+        gate["review_skipped"] = True
+        row = st().update(sid, fn, gate=gate)
+        if row.get("pr_number") and st().mark_step(f"noreview:{fn}:{row['pr_number']}"):
+            try:
+                await asyncio.to_thread(github_repos.client().comment, fn, row["pr_number"],
+                                        "Not cross-reviewed: only one engine family is connected to Javis.")
+            except Exception:
+                pass
+        return row
+    if not st().mark_step(f"review:{fn}:{head}"):
+        return row
+    gate["review_running"] = True
+    st().update(sid, fn, gate=gate)
+    findings: Optional[List[Dict[str, Any]]] = None
+    try:
+        diff = await asyncio.to_thread(_review_diff, row)
+        task = str(_session(sid).get("task") or row.get("title") or "")[:2000]
+        prompt = REVIEW_PROMPT.format(title=row.get("title") or "", repo=fn, diff=diff, task=task)
+        raw = await asyncio.wait_for(_review(prompt, reviewer), timeout=REVIEW_TIMEOUT_S)
+        findings = parse_findings(raw)
+    except Exception as e:  # noqa: BLE001 - a broken reviewer must not hold the PR forever
+        print(f"[github review] {fn}: {type(e).__name__}: {e}")
+    gate = dict((st().get(sid, fn) or row).get("gate") or {})
+    gate.pop("review_running", None)
+    gate["reviewed_sha"] = head
+    gate["reviewer"] = reviewer
+    if findings is None:
+        gate["review_skipped"] = True
+        row = st().update(sid, fn, gate=gate)
+        await _say(sid, _c(f"**{fn}**: review chéo bằng {reviewer} không chạy được, bỏ qua lần này.",
+                           f"**{fn}**: cross review with {reviewer} did not run; skipped this time."), True,
+                   once=f"reviewfail:{fn}:{head}")
+        return row
+    if not findings:
+        gate["review_open"] = []
+        return st().update(sid, fn, gate=gate)
+    gate["review_open"] = findings
+    gate["review_found"] = int(gate.get("review_found") or 0) + len(findings)
+    row = st().update(sid, fn, gate=gate, integ="pr_open")
+    lines = [f"- `{f['file']}:{f['line']}` {f['problem']}" + (f" (khi: {f['scenario']})" if f["scenario"] else "")
+             for f in findings]
+    await _say(sid, _c(f"**{fn}**: review chéo ({reviewer}) có {len(findings)} phát hiện.",
+                       f"**{fn}**: cross review ({reviewer}) found {len(findings)} issue(s).") + "\n" + "\n".join(lines),
+               False, once=f"reviewsay:{fn}:{head}")
+    await request_fix(row, f"Review chéo ({reviewer}) có {len(findings)} phát hiện",
+                      "\n".join(lines) + "\n\nKiểm chứng TỪNG phát hiện bằng cách lần theo đúng đường gây hỏng. Đúng thì "
+                      "sửa (kèm test tái hiện). Sai thì nói rõ vì sao bác bỏ, không sửa gì cho phát hiện đó.",
+                      f"{sid}:{fn}:review:{head}")
+    return st().get(sid, fn) or row
+
+
+def _is_review_turn(user_message: str) -> bool:
+    s = str(user_message or "").lstrip()
+    return s.startswith(f"{FIX_MARKER} Review chéo")
+
+
+# ============================================================
+# Lessons per repo (phase G5, spec 13.1)
+# ============================================================
+def lessons_path(brain: str, full_name: str):
+    from pathlib import Path
+    root = Path(_brain_root(brain) or brain or ".")
+    return root / "Javis" / "learned" / "repos" / (full_name.replace("/", "__") + ".md")
+
+
+def read_lessons(brain: str, full_name: str) -> List[str]:
+    p = lessons_path(brain, full_name)
+    try:
+        return [ln[2:].strip() for ln in p.read_text(encoding="utf-8").splitlines() if ln.startswith("- ")]
+    except OSError:
+        return []
+
+
+def add_lesson(brain: str, full_name: str, lesson: str) -> bool:
+    """One line per lesson, deduplicated, at most LESSONS_MAX (oldest go first). Stored in the brain, never the repo."""
+    lesson = " ".join(str(lesson or "").split())[:300]
+    if not lesson:
+        return False
+    cur = read_lessons(brain, full_name)
+    if any(lesson.lower() == x.lower() for x in cur):
+        return False
+    cur = (cur + [lesson])[-LESSONS_MAX:]
+    p = lessons_path(brain, full_name)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(f"# Bài học của repo {full_name}\n\nJavis tự ghi khi một lỗi thật vừa được sửa. Mỗi dòng một bài học.\n\n"
+                 + "\n".join(f"- {x}" for x in cur) + "\n", encoding="utf-8")
+    return True
+
+
+def learn_from_fix(row: Dict[str, Any], failed_before: List[Dict[str, Any]]) -> None:
+    """CI went green after fix rounds: write down which checks broke, so the next turn runs them first."""
+    brain, fn = row.get("brain") or "", row["full_name"]
+    for f in failed_before[:3]:
+        add_lesson(brain, fn, f"Kiểm tra CI `{f.get('name')}` từng đỏ ở repo này: chạy lệnh tương ứng ở máy và "
+                              "cho xanh trước khi kết thúc lượt.")
+
+
+def learn_from_gate(brain: str, full_name: str, report: Dict[str, Any]) -> None:
+    for r in (report.get("failed") or [])[:2]:
+        add_lesson(brain, full_name, f"Lệnh `{r['run'].splitlines()[0][:120]}` từng đỏ ở máy: chạy nó trước khi "
+                                     "kết thúc lượt.")
+
+
+# ============================================================
+# Metrics (phase G5, spec 13.2)
+# ============================================================
+def metrics_summary(full_name: str = "") -> List[Dict[str, Any]]:
+    """Per engine/model: jobs merged, share green on the first push, average fix rounds, review findings."""
+    agg: Dict[str, Dict[str, Any]] = {}
+    for m in st().metrics(full_name):
+        k = f"{m['engine']}|{m['model']}"
+        a = agg.setdefault(k, {"engine": m["engine"], "model": m["model"], "jobs": 0, "first_green": 0,
+                               "rounds": 0, "findings": 0, "seconds": 0.0})
+        a["jobs"] += 1
+        a["first_green"] += int(m["first_push_green"])
+        a["rounds"] += int(m["fix_rounds"])
+        a["findings"] += int(m["review_findings"])
+        a["seconds"] += float(m["seconds"])
+    out = []
+    for a in agg.values():
+        n = max(1, a["jobs"])
+        out.append({"engine": a["engine"], "model": a["model"], "jobs": a["jobs"],
+                    "first_push_green_pct": round(100.0 * a["first_green"] / n),
+                    "avg_fix_rounds": round(a["rounds"] / n, 2), "review_findings": a["findings"],
+                    "avg_minutes": round(a["seconds"] / n / 60, 1)})
+    return sorted(out, key=lambda x: -x["jobs"])
 
 
 # ============================================================

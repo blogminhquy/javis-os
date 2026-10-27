@@ -622,9 +622,15 @@ def prompt_block(sid: str, brain: str = "") -> str:
                  "tự commit, đẩy lên nhánh của cuộc này, mở PR và theo dõi CI. CI đỏ thì Javis mở một lượt sửa "
                  "kèm log, tối đa 3 vòng.")
     # Spec 7.1: the repo's own rules reach every engine, not only the ones that read CLAUDE.md natively.
+    # Spec 13.1: plus the lessons Javis wrote down for this repo after real failures (kept in the brain).
     try:
         import github_gate
+        import github_work
         for r in repos:
+            lessons = github_work.read_lessons(brain, r["full_name"])
+            if lessons:
+                lines.append(f"Bài học đã ghi cho repo {r['full_name']} (từ lỗi thật trước đây):")
+                lines += [f"- {x}" for x in lessons]
             rules = github_gate.repo_rules(r["worktree"])
             if rules["files"]:
                 lines.append(f"Luật của repo {r['full_name']} (đọc đủ ở: {', '.join(rules['files'])}):")

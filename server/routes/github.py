@@ -9,6 +9,7 @@
     GET  /github/local/checks                  the repo's local check commands (saved, or suggested from its CI)
     POST /github/local/checks                  brain, full_name, commands (one per line) or reset=1
     POST /github/local/automerge               brain, full_name, on: the per-repo auto-merge switch (default on)
+    GET  /github/local/metrics?full_name=      per engine and model: first-push green, fix rounds, review findings
     GET  /github/icons?sids=a,b                status icon per conversation for the chat list
     POST /github/session/{sid}/merge           full_name: a person merges a ready PR
     POST /github/session/{sid}/next            text: a job to start once this chat's PRs are merged; cancel=<id>
@@ -115,6 +116,12 @@ def _make_router() -> APIRouter:
     @r.post("/github/local/automerge")
     async def gh_automerge(brain: str = Form(""), full_name: str = Form(...), on: str = Form("1")):
         return await _call(github_repos.set_auto_merge, brain, full_name, str(on).strip() in ("1", "true", "on"))
+
+    @r.get("/github/local/metrics")
+    async def gh_metrics(full_name: str = Query("")):
+        """Per engine and model: jobs merged, share green on the first push, fix rounds, review findings (spec 13.2)."""
+        import github_work
+        return await _call(lambda: {"rows": github_work.metrics_summary(full_name)})
 
     @r.get("/github/icons")
     async def gh_icons(sids: str = Query("")):

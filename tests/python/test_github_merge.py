@@ -100,6 +100,14 @@ check("criterion 15: the next job starts once, as the job that was asked for",
       len(turns) == 1 and "Thêm trang đăng ký" in turns[0][1] and turns[0][1].startswith(w.FIX_MARKER))
 run(w.tick())
 check("the next job is never handed out twice", len(turns) == 1 and w.session_state("c1")["queue"] == [])
+merge_calls = lambda: [c for c in fake.calls if c[0] == "PUT" and c[1] == "/repos/acme/app/pulls/1/merge"]  # noqa: E731
+n_calls = len(merge_calls())
+github_store._STORE = None          # a restart: the state is read back from disk
+for _ in range(3):
+    run(w.tick())
+run(w.after_turn("c1", BRAIN, "không đổi gì"))
+check("criterion 10: repeated ticks and a restart after the merge make no second PR, merge or next job",
+      n_calls == 1 and len(merge_calls()) == 1 and len(fake.pulls["acme/app"]) == 1 and len(turns) == 1)
 check("after the merge the worktree moved to a fresh branch from the new base",
       git(["rev-parse", "--abbrev-ref", "HEAD"], wt).stdout.strip() == "javis/c1-r2"
       and git(["merge-base", "--is-ancestor", "origin/main", "HEAD"], wt, check=False).returncode == 0)

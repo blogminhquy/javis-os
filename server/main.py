@@ -24933,15 +24933,75 @@ async def _github_start_turn(sid: str, text: str) -> bool:
 
 
 def _github_session_info(sid: str) -> dict:
-    """Title and the engine/model a chat runs on, for the PR body and the metrics."""
-    row = get_store().get_session(sid) or {}
+    """Title, the person's latest request, and the engine/model a chat runs on, for the PR, the review and metrics.
+
+    `task` is the latest message the PERSON wrote (not a fix round Javis opened): a chat can hold several jobs, and
+    the chat title only describes the first one."""
+    store = get_store()
+    row = store.get_session(sid) or {}
+    task = ""
+    try:
+        for m in reversed(store.get_messages(sid) or []):
+            if m.get("role") != "user":
+                continue
+            text = chat_recall.strip_block(str(m.get("content") or "")).strip()
+            if text and not text.startswith("[Javis GitHub]"):
+                task = text
+                break
+    except Exception:  # noqa: BLE001
+        task = ""
     main_m = (cfgmod.read_settings().get("model") or {}).get("main") or {}
-    return {"title": row.get("title") or "",
+    return {"title": row.get("title") or "", "task": task[:2000],
             "engine": row.get("pinned_provider") or main_m.get("provider") or "",
             "model": row.get("pinned_model") or main_m.get("model") or ""}
 
 
-github_work.configure(start_turn=_github_start_turn, session_info=_github_session_info)
+async def _github_review_ask(prompt: str, provider: str) -> str:
+    """Cross review (0.366.0, spec 10): ONE text-only turn on exactly `provider`, no tools, empty folder, like the
+    group-chat judge. The diff comes from someone else's repo, so the reviewer gets nothing it could act with."""
+    base = _reply_policy_sandbox_engine("Bạn là người review code độc lập. Chỉ trả về đúng khuôn JSON được yêu cầu.",
+                                        "gh-review", cwd_name="gh_review_cwd")
+    spec = {"provider": provider, "model": ""}
+    eng = aux_engine.strip_tools(
+        aux_engine.swap(base, mode="suggest", tag="gh-review", spec=spec, codex_profile=_write_codex_profile), base)
+    eng, info = resonance.pick_text_only_link(eng, base, spec, aux_engine._FallbackChain)
+    if eng is None:
+        raise RuntimeError(str((info or {}).get("reason") or "reviewer not available"))
+    final = ""
+    async for ev in eng.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    return final
+
+
+def _github_reviewers() -> list:
+    """Engines usable as a reviewer right now, in the Models page order (API cards with a key, signed-in plans)."""
+    s = cfgmod.read_settings()
+    m = s.get("model", {}) or {}
+    order = []
+    try:
+        order = [x for x in (model_routing.stored_order(m) or []) if isinstance(x, str)]
+    except Exception:
+        order = []
+    order += [aux_engine.CLAUDE, aux_engine.CODEX] + list(aux_engine.API_PROVIDERS)
+    out = []
+    for p in order:
+        if p in out:
+            continue
+        try:
+            ok, _why = aux_engine.availability({"provider": p}, s)
+        except Exception:
+            ok = False
+        if ok and (p not in (aux_engine.CLAUDE, aux_engine.CODEX) or aux_engine._co_binary(p)):
+            out.append(p)
+    return out
+
+
+github_work.configure(start_turn=_github_start_turn, session_info=_github_session_info,
+                      review=_github_review_ask, reviewers=_github_reviewers,
+                      brain_root=lambda b: str(_brain_root(b)))
 github_routes._DEPS.busy_jobs = github_work.busy_jobs
 
 

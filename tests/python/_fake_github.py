@@ -38,6 +38,7 @@ class FakeGitHub:
         self.logs = {}            # job id -> text
         self.reruns = []          # job ids
         self.calls = []           # (method, path)
+        self.comments = []        # (full_name, number, body)
         self.scopes = scopes
         self.login = login
         self.token = GOOD_TOKEN
@@ -174,6 +175,18 @@ class FakeGitHub:
                 path, q = u.path, {k: v[0] for k, v in parse_qs(u.query).items()}
                 with fake.lock:
                     fake.calls.append((method, path))
+                if path.startswith("/_control/"):
+                    # Test driver only (end-to-end runs in another process): set CI results, read PRs.
+                    body = self._body() if method == "POST" else {}
+                    with fake.lock:
+                        if path == "/_control/checks":
+                            fake.set_checks(body["sha"], [tuple(r) for r in body.get("runs") or []])
+                            return self._send(200, {"ok": True})
+                        if path == "/_control/state":
+                            return self._send(200, {"pulls": fake.pulls, "comments": fake.comments,
+                                                    "heads": {fn: {b: fake.branch_sha(fn, b) for b in q.get("branches", "main").split(",")}
+                                                              for fn in fake.repos}})
+                    return self._send(404, {"message": "no such control"})
                 if not self._auth():
                     return
                 body = self._body() if method in ("POST", "PUT", "PATCH") else {}
@@ -220,6 +233,10 @@ class FakeGitHub:
                           "base": {"ref": body.get("base") or rep["default_branch"]}, "merge_commit_sha": None}
                     fake.pulls[fn].append(pr)
                     return self._send(201, pr)
+                mc = re.match(r"^/issues/(\d+)/comments$", rest)
+                if mc and method == "POST":
+                    fake.comments.append((fn, int(mc.group(1)), body.get("body")))
+                    return self._send(201, {"id": len(fake.comments)})
                 mu = re.match(r"^/pulls/(\d+)/update-branch$", rest)
                 if mu and method == "PUT":
                     pr = next((p for p in fake.pulls[fn] if p["number"] == int(mu.group(1))), None)

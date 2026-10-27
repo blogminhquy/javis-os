@@ -325,16 +325,14 @@ def icon(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     running = sum(1 for r in rows if r["exec"] == "running" or r["ci"] in ("pending", "running"))
     broken = [r for r in rows if r["integ"] in ("conflict", "merge_failed")]
     stuck = [r for r in rows if r["exec"] == "stuck"]
-    if broken:
-        state = "broken"
+    if broken or stuck:
+        state = "broken"       # a person is needed: never hide it behind "ready" or "working"
     elif running:
         state = "working"
     elif all(r["integ"] == "merged" for r in rows):
         state = "merged"
     elif rows and all(r["integ"] in ("ready", "merged") for r in rows):
         state = "ready"
-    elif stuck:
-        state = "broken"
     else:
         state = "working" if any(r["head_sha"] for r in rows) else ""
     sub = "stuck" if stuck else ("waiting_ci" if any(r["ci"] in ("pending", "running") for r in rows) else

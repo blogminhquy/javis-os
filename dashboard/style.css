@@ -4522,3 +4522,6 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-chk-failure, .gh-chk-timed_out { color: var(--danger-ink, #b3261e); }
 .gh-chk-success { color: var(--green, #2c7a4b); }
 .gh-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; cursor: pointer; }
+.gh-table-wrap { overflow-x: auto; margin-top: 10px; }
+.gh-table { border-collapse: collapse; width: 100%; font-size: 16px; }
+.gh-table th, .gh-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
