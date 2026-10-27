@@ -322,7 +322,11 @@ async def request_fix(row: Dict[str, Any], why: str, details: str, key: str) -> 
     rounds = int(row.get("fix_rounds") or 0) + 1
     if rounds > MAX_FIX_ROUNDS:
         reason = _c(f"Đã sửa {MAX_FIX_ROUNDS} vòng mà vẫn đỏ: {why}", f"Still red after {MAX_FIX_ROUNDS} fix rounds: {why}")
-        st().update(sid, fn, exec="stuck", stuck_reason=reason)
+        # Remember which commit it got stuck on: a later green tick on that SAME commit must not clear it (the cross
+        # review can exhaust the rounds on a commit whose CI is green).
+        gate = dict(row.get("gate") or {})
+        gate["stuck_head"] = row.get("head_sha") or ""
+        st().update(sid, fn, exec="stuck", stuck_reason=reason, gate=gate)
         await _say(sid, f"**{fn}**: " + reason + _pr_tail(row), False, once=f"stuck:{key}")
         return False
     st().update(sid, fn, fix_rounds=rounds, exec="running")
@@ -593,6 +597,10 @@ async def check_row(row: Dict[str, Any]) -> Dict[str, Any]:
         await on_no_ci(row, pr)
         return st().get(sid, fn) or row
     prev_fail = [x for x in (row.get("checks_summary") or []) if x.get("conclusion") in _BAD]
+    if row.get("exec") == "stuck" and (row.get("gate") or {}).get("stuck_head") == row["head_sha"]:
+        # Stuck on this very commit (fix rounds used up): green CI does not lift it; a new commit or a person does.
+        st().update(sid, fn, ci="green", checks_summary=summary)
+        return st().get(sid, fn) or row
     row = st().update(sid, fn, ci="green", checks_summary=summary, exec="done", stuck_reason="")
     if int(row.get("fix_rounds") or 0) > 0:
         await asyncio.to_thread(learn_from_fix, row, prev_fail)

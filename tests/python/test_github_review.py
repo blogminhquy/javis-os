@@ -128,6 +128,23 @@ fake.set_checks(r["head_sha"], [("test", "completed", "success")])
 run(w.tick())
 check("the fixed commit is reviewed again, clean, and merges", S().get("cc2", "acme/two")["integ"] == "merged")
 
+# ---- review findings that keep coming use up the rounds: stuck stays stuck while CI is green ----
+wts = setup("cc9", ["acme/stubborn"])
+wst = wts["acme/stubborn"]
+review_answer["text"] = '{"findings": [{"file": "src/a.py", "line": 1, "problem": "vẫn sai", "scenario": "luôn"}]}'
+for i in range(4):
+    change("cc9", wst, "src/a.py", f"a = {100 + i}\n", msg=turns[-1][1] if i else "làm đi")
+    fake.set_checks(S().get("cc9", "acme/stubborn")["head_sha"], [("test", "completed", "success")])
+    run(w.tick())
+r = S().get("cc9", "acme/stubborn")
+check("review rounds used up: stuck, not merged", r["exec"] == "stuck" and r["integ"] != "merged")
+run(w.tick())
+run(w.tick())
+r = S().get("cc9", "acme/stubborn")
+check("green CI on the same commit does not lift the stuck state", r["exec"] == "stuck" and r["stuck_reason"])
+check("the chat icon says it needs attention", github_store.icon(S().for_session("cc9"))["state"] == "broken")
+review_answer["text"] = '{"findings": []}'
+
 # ---- no reviewer of another family: noted on the PR, merge goes on ----
 w.configure(reviewers=lambda: ["anthropic-cli"])
 wts = setup("cc3", ["acme/solo"])
