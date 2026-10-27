@@ -2,16 +2,16 @@
 
 *[Tiếng Việt](../10-models-va-engine.md) · **English***
 
-The **Models** page is where you pick Javis's "brain": which engine and model answers you, signing into AI providers, choosing a cheap model for background work, and enabling deeper reasoning. This page decides how smart Javis is and whose quota it spends.
+The **Models** page is where you pick Javis's "brain": signing into AI providers, ordering them by use (the top card is the main model, the cards below are fallbacks), choosing a model and a thinking level for each provider, and choosing a cheap model for background work. This page decides how smart Javis is and whose quota it spends.
 
 If you are just starting, read [Getting started & first-run setup](01-getting-started.md) first. To attach external tools to Javis, see [Connections & business data](09-connections-and-business-data.md).
 
 ## What this feature is
 
-Javis can run on many different "engines" (AI providers). You pick 1 as the **Main Model** (the conversation model), and optionally also:
+Javis can run on many different "engines" (AI providers). The providers you connected sit in one **Usage order** list: the top card is **MAIN** (the conversation model), the cards below are **Fallback 1, 2...**, and chat moves down automatically when the card above runs out of quota. In addition:
 
 - **Background model**: a cheaper model for what Javis runs while you are away: loops, Kanban work, reminders, self-learning, source ingestion.
-- **Reasoning**: how hard the model thinks before answering.
+- **Effort (thinking level)**: how hard the model thinks before answering. Each provider card has its own level, and the background model has its own too.
 
 The most important thing to understand: **changing model does NOT cost Javis any capability.** Every provider gets the same toolkit through Javis's connection hub (MCP Hub): calling the Connections you wired, reading and writing files in the brain, running skills, queueing Kanban work (the `javis_task` tool), creating agents/workflows/loops/reminders (the `javis_schedule` tool).
 
@@ -51,15 +51,17 @@ In short: **capability lives in Javis, not in the model.** The three CLI engines
 
 1. Open the Javis dashboard (port `7777` by default).
 2. In the left sidebar, open the **Connections** group and click **Models**.
-3. The Models page shows 4 blocks in order: **◆ Main Model** ("the conversation model"), **◆ Providers** ("sign into / connect model providers"), **◆ Background model** ("loops · Kanban work · reminders · self-learning · source ingestion"), **◆ Reasoning** ("thinking depth when answering").
+3. The **Cloud Model** tab shows 2 blocks in order: **◆ Usage order** ("signed-in providers, the top card is MAIN") and **◆ Background model** ("loops · Kanban tasks · reminders · self-learning"). At the bottom is a **＋ Connect another provider (N)** button, which reveals the providers not yet connected. Each block has an (i) button next to its name for a short explanation.
+
+> **The Models page was slimmed down in 0.351.0.** Before that it had 4 blocks (**◆ Main Model**, **◆ Providers**, **◆ Background model**, **◆ Reasoning**) plus a Telegram model box. Main Model and Providers are now merged into **Usage order**, the global Reasoning level is replaced by an **Effort** chip on each card, and Telegram follows MAIN (see [Telegram](11-telegram.md) to pin a model for a single conversation with `/model`).
 
 ## The ten available providers
 
-The **Providers** block lists 10 providers. **Connected ones are sorted first**, unconnected ones below; within each group the original order below is preserved. That way a machine with a few providers wired shows them immediately without scrolling.
+The table below lists the available providers. **Connected** providers sit in the **Usage order** block, in the order you set. Providers **not connected** are hidden to reduce clutter: they wait behind the **＋ Connect another provider (N)** button at the bottom of the page (N is how many are waiting), and pressing it shows their cards with the usual sign-in form or key field. Once connected, a provider joins the **end** of the Usage order.
 
 | Provider (on-screen label) | Connection type | Notes |
 |---|---|---|
-| **Claude Code** | Claude Code sign-in, no key needed | Full MCP/skills/shell. The default Main Model |
+| **Claude Code** | Claude Code sign-in, no key needed | Full MCP/skills/shell. Usually the default MAIN card |
 | **OpenAI OAuth (ChatGPT)** | Device code (ChatGPT plan sign-in) | Runs through Codex, wires the Connections store through the hub and uses skills through the router |
 | **xAI Grok Build CLI** | Sign in **on the Models page itself** (device code), no key needed | Uses your existing **SuperGrok / X Premium+** plan. Runs through the `grok` binary. Full MCP/skills/shell, and can resume a conversation thread. It is the **only CLI card that can sign in while Javis runs on a VPS**, see [B1a](#b1a-connecting-grok-build-cli-using-a-supergrok--x-premium-plan) |
 | **Google Antigravity CLI** | Type `agy` **once in a terminal**, no key needed | Google's designated replacement for Gemini CLI. Runs through the `agy` binary. Full MCP/skills/shell, and can pick **exactly the Antigravity IDE model lineup** (non-Google models included) |
@@ -71,7 +73,7 @@ The **Providers** block lists 10 providers. **Connected ones are sorted first**,
 | **DeepSeek (API)** | Paste an API key from platform.deepseek.com | MCP + file tools + skills through the hub. Models `deepseek-flash` (cheap, takes images) and `deepseek-v4-pro`. With thinking depth set to **Off** DeepSeek answers directly; turned on, it thinks first, and if an older conversation does not fit that mode Javis answers in normal mode with a one-line notice |
 | **Ollama Cloud** | Paste an API key from ollama.com | MCP + file tools + skills through the hub. Large open-source models (gpt-oss, qwen3-coder, deepseek) running on Ollama's servers |
 
-Each provider card shows **● Connected** or **○ Not connected**, the number of available models, and a type label next to the name: **MCP/skills** (Claude Code), **Device code** (ChatGPT), **Javis MCP** (API providers). The card currently serving as Main Model carries a **MAIN** label.
+Each provider card shows **● Connected** or **○ Not connected**, the number of available models, and a type label next to the name: **MCP/skills** (Claude Code), **Device code** (ChatGPT), **Javis MCP** (API providers). In the Usage order the top card carries a **MAIN** label and the cards after it read **Fallback 1**, **Fallback 2**... (see section D).
 
 > Before 0.9.270 the API providers were labelled **chat**, which made people think they could only chat. Wrong: they call the Connections store, read and write the brain and run skills exactly like the two CLI engines. The label is now **Javis MCP**, which is accurate.
 
@@ -81,7 +83,7 @@ Each provider card shows **● Connected** or **○ Not connected**, the number 
 
 This is the default engine. It can use every tool, skill and memory, plus run shell commands. It is not mandatory: if you have no Claude plan, skip this and go straight to section B (ChatGPT) or C (API keys), where Javis has the same functionality minus shell commands.
 
-1. Open **Models** and find the **Claude Code** card.
+1. Open **Models** and find the **Claude Code** card (while it is not signed in, it sits behind the **＋ Connect another provider** button at the bottom of the page).
 2. If you are not signed in, the card reads **○ Not signed in** with two buttons: **Sign into Claude** and **↻ Re-check**. If the machine running Javis has no `claude` command, the card reads **○ Claude Code not installed**, shows one install box (Docker build: update Javis; manual install: one command to copy) and offers only **↻ Re-check**.
 3. Click **Sign into Claude**. Javis shows "**1)** Open this link to sign into claude.ai" with the link.
 4. Open that link and sign into your claude.ai account.
@@ -116,7 +118,9 @@ Some ChatGPT workspaces disable the device code route, and the first button repo
 
 Because it only needs a pasted URL, this route also works when Javis runs on a VPS and the browser is on your machine.
 
-To disconnect: click **Disconnect** on the card. If ChatGPT was the Main Model when you disconnect, Javis switches the Main Model back to Claude Code so chat does not break.
+Once connected, the ChatGPT card joins the end of the **Usage order**. To chat with it, drag the card to the top (or press **⇅ Swap**) so it becomes MAIN, then pick a model with the model chip on the card (see section D).
+
+To disconnect: click **Disconnect** on the card. ChatGPT leaves the Usage order; if it was MAIN, the next card becomes MAIN so chat does not break.
 
 Note: this is an experimental channel (running Codex underneath). For maximum stability, use Claude Code or OpenRouter.
 
@@ -128,8 +132,8 @@ This is the **xAI** route on the plan you already pay for, rather than buying a 
    - Linux/macOS: `curl -fsSL https://x.ai/cli/install.sh | bash`
    - Windows PowerShell: `irm https://x.ai/cli/install.ps1 | iex`
    - Docker edition (from 0.85.1): **skip this step**, Javis installs it by itself at startup. While it does, the card says "Javis is installing"; click **Check again** about a minute later.
-2. Open **Models**, the **xAI Grok Build CLI** card, and click **Sign in**. It shows a link and a code. Open that link on your machine (a phone works too), enter the code and confirm. The card switches to **● Signed in** with nothing else to click.
-3. Click **Change model ▾** in the Main Model block, pick this provider and pick a model.
+2. Open **Models**, press **＋ Connect another provider** at the bottom of the page, find the **xAI Grok Build CLI** card and click **Sign in**. It shows a link and a code. Open that link on your machine (a phone works too), enter the code and confirm. The card switches to **● Signed in** with nothing else to click.
+3. The newly signed-in card joins the end of the **Usage order**. Drag it to the top (or press **⇅ Swap**) so it becomes MAIN, then pick a model with the model chip on the card.
 
 **Which plan you need:** Grok Build comes with **SuperGrok** or **X Premium+**. With only an `XAI_API_KEY` the CLI technically runs, but Grok Build access is tied to the PLAN rather than the key, so a card reporting *"the signed-in account has no Grok Build access"* is a plan issue, not a configuration error. Click **Re-check** to be sure: that button runs a real chat turn rather than just inspecting files.
 
@@ -157,8 +161,8 @@ This is the route **Google designated** after cutting Gemini CLI off from person
 2. Type `agy` once **in a terminal on the machine running Javis** (the **Code** page inside Javis is the safest spot - it runs as the exact user Javis runs as). A desktop with a screen opens a browser. A server with no screen (VPS, Docker - including Docker on your own Mac) prints a link instead: open it in a browser on your machine, sign into Google, and the browser then jumps to an `http://localhost:...` address that **fails to load, which is the right step** - copy that whole address from the URL bar and paste it back into the terminal, then Enter. The session lives in the operating system keyring, so this is a one-time step.
 
    > Why the manual paste: `agy` collects the code through a loopback port on the machine running it, and your browser sits on another machine. Since 0.55.46 the Javis terminal declares itself a remote session (`SSH_CONNECTION`) so `agy` asks where to paste instead of waiting in silence. If your `agy` is older and never asks, open a second terminal session and run `curl "<the localhost address you copied>"`. Unusual setups (X11 forwarding, a desktop with a screen) can turn this off with `JAVIS_TERMINAL_REMOTE=0`.
-3. Return to **Models**, the **Google Antigravity CLI** card, and click **Re-check** (it runs a real chat turn). The card switches to **● Signed in**.
-4. Click **Change model ▾** in the Main Model block, pick this provider and pick a model.
+3. Return to **Models**, press **＋ Connect another provider** at the bottom of the page, find the **Google Antigravity CLI** card and click **Re-check** (it runs a real chat turn). The card switches to **● Signed in**.
+4. The newly signed-in card joins the end of the **Usage order**. Drag it to the top (or press **⇅ Swap**) so it becomes MAIN, then pick a model with the model chip on the card.
 
 The model list **asks `agy models` directly** rather than using a hand-written table, so you see exactly the models your account is granted, and Google renaming models does not make the picker stale. A new model only appears once `agy` itself is on a build that knows it, so since 0.137.0 Javis runs `agy update` once a day, Docker included (turn it off with the environment variable `JAVIS_AGY_AUTO_UPDATE=0`). If `agy` is up to date and a model is still missing, your Google account has not been granted that model.
 
@@ -188,12 +192,24 @@ A few things worth knowing up front, to avoid confusion:
 
 ### C. Connecting a provider with an API key (OpenRouter / Anthropic API / OpenAI API / Gemini / Groq / DeepSeek)
 
-1. Open **Models** and find the provider card.
-2. Paste the API key into the field (labelled "paste an API key to connect").
+1. Open **Models**, press **＋ Connect another provider** at the bottom of the page and find the provider card.
+2. Paste the API key into the field (labelled "Paste an API key to connect").
 3. Click **Connect**.
-4. The card switches to **● Connected** with a model count.
+4. The card switches to **● Connected** with a model count and joins the end of the **Usage order**. To chat with it, drag the card to the top (or press **⇅ Swap**) so it becomes MAIN, then pick a model with the model chip on the card.
 
-To change the key later: enter a new one and click **Change key** (the field then reads "change key" with the last 4 characters of the old one). To disconnect: click **Disconnect** (this deletes the key). If that provider was the Main Model when disconnected, Javis switches back to Claude Code.
+Ollama Cloud connects exactly the same way, with a key from ollama.com.
+
+**Several API keys per provider (since 0.351.0).** An API provider's card in the Usage order (OpenRouter, Anthropic API, OpenAI API, Gemini API, Groq, DeepSeek, Ollama Cloud) shows a numbered list of keys 1, 2, 3...:
+
+- Each row shows its number, the key's name, the last 4 characters of the key and a status: **Ready**, **Off**, or **Out of quota, back at HH:MM**.
+- Reorder keys with the up/down arrows or by dragging the row. The **⋯** button at the end of the row offers **Turn off** / **Turn on**, **Change key** (paste the new key, then **Save**) and **Remove**.
+- **＋ Add a key**: give it a recognisable name (for example "Project B key"), paste the key and click **Save**. A new key goes to the end of the list.
+- Javis uses keys **top to bottom**: key 1 until it runs out of quota, then key 2, skipping a resting key straight away; only when every key of this provider is used up does it move to the next card. Once key 1 recovers, it is used first again.
+- The key running right now is highlighted: green **Chat uses this**, purple **Background uses this**.
+- The card's status line sums it up, for example "Connected · 3 model · 2/2 keys usable".
+- Removing the last key disconnects that provider: Javis asks first ("It is the last key: this provider leaves the usage order."), and once you agree the card leaves the Usage order; if it was MAIN, the next card becomes MAIN.
+
+Providers where you enter your own address (OpenAI Compatible, Anthropic Compatible, Ollama Local) keep their single address and key form as before (see C1 and G).
 
 Where to get a key:
 
@@ -214,10 +230,10 @@ Use this when you bought a Claude key (or another model) from a reseller that of
 
 **Connect:**
 
-1. Open **Models**, choose the **Cloud Model** tab and find the **Anthropic Compatible** card.
+1. Open **Models**, choose the **Cloud Model** tab, press **＋ Connect another provider** at the bottom of the page and find the **Anthropic Compatible** card.
 2. Fill the 3 boxes from top to bottom: Base URL, model names (separate several with commas), API key.
 3. Click **Connect**. Javis sends one very short test message to the seller first; on success the card shows **● Connected** with a model count.
-4. Make it the main model as in section D: pick the **Anthropic Compatible** provider, then the model name. Send a test message; a small line under the reply reading "Anthropic Compatible · model-name" means it went the right way.
+4. Make it the main model as in section D: the **Anthropic Compatible** card has just joined the end of the Usage order, so drag it to the top (or press **⇅ Swap**) and pick the model name with the model chip on the card. Send a test message; a small line under the reply reading "Anthropic Compatible · model-name" means it went the right way.
 
 Javis only saves when the check succeeds, so an error means nothing was saved. The model name box is needed because most such gateways do not list their models, so Javis cannot know which ones the seller has. When a gateway does list them, Javis adds them too.
 
@@ -238,48 +254,93 @@ If chat later reports **429** or **529**, the seller is overloaded or you have u
 - Change the key: enter the new key in the API key box and click **Save**. Leaving the key box empty keeps the old key.
 - Add or remove models: edit the model name box and click **Save**.
 - Switching to a different Base URL requires entering the key again: Javis never sends a saved key to a new address.
-- Stop using it: click **Disconnect** (clears the address, key and model names). If it was the Main Model, Javis switches back to Claude Code.
+- Stop using it: click **Disconnect** (clears the address, key and model names). The card leaves the Usage order; if it was MAIN, the next card becomes MAIN.
 - Javis sends the key both ways (`x-api-key` and `Bearer`), so it works whichever one the seller reads.
 - This gateway gets MCP, reading and writing the brain, skills, agents, background work and chatbots like the other API engines. Like every API engine it cannot run shell commands (see "The four things API engines lack").
 
-### D. Setting the Main Model
+### D. Usage order: choosing MAIN and fallbacks
 
-1. In the **◆ Main Model** block at the top of the Models page you see the current model and provider.
-2. Click **Change model ▾**.
-3. The **SET MAIN MODEL** dialog opens, with a subtitle reading "current: &lt;model&gt; · &lt;provider&gt;":
-   - Left column: the provider list. Unconnected providers are marked **⚠ needs connecting**; the one in use is marked **IN USE**.
-   - Right column: the models of the selected provider.
-   - A **Filter providers / models…** box at the top for quick searching (it filters both columns at once).
-4. Click a provider on the left, then a model on the right. The current model is labelled **IN USE**.
-5. Click **Switch** to apply, or **Cancel** (or ✕) to close.
+The **◆ Usage order** block at the top of the Cloud Model tab holds only the providers that are **signed in / connected**, as cards in the order they are used:
 
-The model list is loaded live from the provider itself (labelled **· live**). If the network fails, Javis uses a fallback list (labelled **· catalog**); while loading it shows **· loading…**. Your choice is saved and applies to new chat sessions.
+- **The top card is MAIN** (labelled **MAIN**): this is your chat model.
+- The cards after it read **Fallback 1**, **Fallback 2**... When MAIN is out of quota, or fails before doing anything, chat moves to the next card. A fallback card carrying chat right now shows a green **IN USE** badge.
+- **Once a step has run, a failure does not switch.** An engine that already called a tool (sent a message, posted an article, created an order...) and then fails makes Javis stop and report, rather than run that step again on another provider, so nothing gets sent or posted twice.
+- Falling back only changes the route of that one turn; it **does not change** your saved order or models.
 
-The Main Model block also carries a line about the engine in use, stating the route and the real limits: "Through Claude Code, Javis MCP + skills + loops + shell commands", "Through Codex, Javis MCP + skills + loops + shell commands", or "Direct API, Javis MCP + skills + loops (no shell commands)". Before 0.9.270 that last line read "plain chat (no MCP)", which was wrong and has been removed.
+**Changing the order:**
+
+- **Drag a card**: on a computer, hold the mouse anywhere on the card's head and drag. On a phone, hold the 6-dot handle at the head of the card, or press and hold the card for about a third of a second, then drag.
+- Or press the **⇅ Swap** button between two neighbouring cards to swap them.
+
+Whichever card reaches the top becomes MAIN immediately, with nothing to save.
+
+**Each card's model and Effort.** Every card has two chips exactly like the ones under the chat composer:
+
+- **Model chip** (green dot, model name, ▾): opens a list of that provider's models only, with a search box at the top. The first row, **default**, means the provider's default model. The list comes from the provider itself, so a renamed model shows up right away.
+- **Effort chip** (level, ▾): opens a 6-step slider **Off**, **Light**, **Medium**, **High**, **Extra**, **Ultra** (see section F).
+
+Each card remembers its own model and Effort, so reordering never loses any card's choice. MAIN's Effort is the level shown on the chat composer's Effort chip.
+
+**How it ties to the chat composer.** The composer works as before: picking a model on the model chip under the chat pins it for that session and also changes the main model. Picking a model from **another provider** there moves that provider's card **to the top** as MAIN; the other cards keep their order and the old MAIN becomes Fallback 1. The composer's model list now **shows connected providers only**.
+
+**Plan provider cards** (Claude Code, ChatGPT, Grok Build, Antigravity) keep their sign-in controls inside the card: the **Runs on** choice (your signed-in plan or an Anthropic API key) and the **↻ Update Claude Code** button on the Claude card, **Re-check**, **Disconnect** and so on, as in sections A, B, B1a and B1b. In this version each plan provider still has a single account; API provider cards accept several keys (see section C).
+
+With no provider signed in yet, the block says "No provider is signed in yet. Press Connect another provider below."
+
+Telegram follows MAIN too: changing MAIN on the web changes your Telegram conversations with it, except a conversation you pinned yourself with `/model` (see [Telegram](11-telegram.md)).
 
 ### E. Choosing the background model
 
 The **◆ Background model** block decides which model runs what Javis does while you are away: **loops · Kanban work · reminders · self-learning · source ingestion**. This is usually the quietest quota burner, so picking a cheap model here saves visibly.
 
-1. Scroll to **◆ Background model**. The large line says what is in use: unchanged, it reads **Claude Code default** with the smaller line "no model override, using the default".
-2. Click **Change model ▾**. The dialog is identical to the Main Model picker but titled **BACKGROUND MODEL**, footed with "Background work: loops · Kanban work · reminders · self-learning · source ingestion", and its apply button is named **Select**.
-3. Pick a provider on the left, a model on the right, then click **Select**.
-4. To revert: click **Back to default** (this button only appears once you set a specific model).
+1. The **◆ Background model** block sits right under the Usage order. The large orange line is the model name, the smaller line under it is the provider. Next to it are the background work's own **Effort** chip and a **Change model ▾** button.
+2. Click **Change model ▾**. On a computer, the two-column picker (provider | model) opens, titled **BACKGROUND MODEL**. On a phone (screen up to 600px wide), it opens a list like the chat composer's model chip: a search box at the top, provider names in capitals that open or collapse when tapped, and a ✓ on the current model. Both **list connected providers only**.
+3. Pick a provider, then a model.
+4. Adjust the **Effort** chip next to it if you want background work to think deeper or run faster.
+
+There is no **Back to default** button any more (removed in 0.351.0). To return to a provider's default model, open **Change model ▾** and pick that provider's **default** row.
 
 A few things to know:
 
-- **Every provider you connected is selectable**, not just Claude: Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API. Choosing another provider makes background work run on that provider's plan or key rather than eating Claude quota.
-- **Out of quota, it follows an order (since 0.350.0).** Background work runs on the background model first; when that model is out of quota or not connected it moves through your other connected providers, each on its own default setup, and uses the main model last. A provider with several API keys tries each key before moving on. Javis never slips in a provider you have not connected.
+- **The background model does not follow MAIN.** The first time (a new install, or an upgrade where it was never set) Javis picks the provider's default setup: its default model and that model's default Effort. After that the background model **stays fixed** until you change it; dragging another card up to MAIN does not drag the background model along.
+- **Every provider you connected is selectable**, not just Claude: Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API... Choosing another provider makes background work run on that provider's plan or key rather than eating Claude quota.
+- **Out of quota, it follows the Usage order (since 0.350.0, tied to the Usage order since 0.351.0).** Background work runs on the background model first; when that model is out of quota it moves through **Fallback 1, Fallback 2...** and uses **MAIN last**, each on its provider's default setup (not the model you picked for chat). A provider with several API keys tries each key before moving on. Javis never slips in a provider you have not connected.
+- **The page only speaks up when needed.** The chain above is not shown all the time. Only when the background model is out of quota does a line appear, for example "Haiku 5.5 is out of quota, background work runs on ChatGPT · GPT-5.5 for now." If the background model's provider is not connected, a warning reads "This provider is not connected, background work starts from Fallback 1." When nothing can run, it says "No account can run background work right now."
 - **Nothing is done twice.** An engine that already used a tool (sent a message, posted an article, created an order...) and then broke stops the job with an error instead of running it again on another engine.
 - **Tools differ between routes.** Claude Code and Codex read and write brain files directly. API models (OpenRouter, OpenAI, Gemini, Anthropic API) read and write through Javis's vault tools and **cannot run shell commands**, so they suit read-summarise-write-a-note work; leave any background job needing shell commands on Claude.
 - On the API route, the file-writing tool locks itself while a loop is in `suggest` mode, exactly as it does on Claude.
 
-### F. Setting Reasoning
+### E1. Which model runs where (lookup table)
+
+Javis has three places to set a model, and the most common question is "which one wins". The order: **the Agent's model** (the Model field in the assistant's settings) beats **the main model**, while **the background model** only applies to background routes.
+
+| Where you are | The model that actually runs |
+|---|---|
+| Ordinary chat on the dashboard / Telegram | The MAIN card of the Usage order, falling back to Fallback 1, 2... when it is out of quota (or the web session's own pin, or the pin of exactly the Telegram conversation where you typed `/model`) |
+| Chatting with an assistant on the Partners page | That assistant's model; left on **Default**, the main model |
+| A **Chatbot** answering outside customers | The model of the assistant the bot points to; left on **Default**, the main model |
+| A step in a workflow | The model of the assistant at that step; left on **Default**, the **background model** |
+| Loops, Kanban work, reminders, self-learning, source ingestion | The background model |
+
+If the provider an assistant picked has its key removed, Javis falls back to the main model rather than leaving the assistant or bot dead silent.
+
+The **Model** field in the assistant's settings uses the same picker as the model bar under the chat: type to search, and providers without an API key still appear with a lock, clicking which takes you to the Models page to unlock them. (The picker in the chat composer itself now lists connected providers only.)
+
+### F. Setting the thinking level (Effort)
 
 Turn it up to make the model think harder before answering: more accurate, but slower and more expensive.
 
-1. Scroll to **◆ Reasoning**.
-2. Click one of 4 levels: **Off**, **Low**, **Medium**, **High**.
+1. On a provider card in **◆ Usage order**, click the **Effort** chip (for background work, click the Effort chip in the **◆ Background model** block).
+2. Slide to one of 6 steps: **Off**, **Light**, **Medium**, **High**, **Extra**, **Ultra**.
+
+Each card remembers its own level together with its model. MAIN's Effort is the level shown on the chat composer's Effort chip; changing either one changes the other. An assistant (agent) with its own level keeps it.
+
+> **The global Reasoning box was removed in 0.351.0.** Before that the **◆ Reasoning** block had 4 buttons, Off, Low, Medium, High, applied to every engine at once. Now each provider has its own level, so moving MAIN to another provider no longer carries over a level that does not suit the new model.
+
+A few things to know:
+
+- **Off** means no thinking parameter is sent. A model that must think runs at its own default level; a model with no thinking runs as Off.
+- A model lacking the exact step you chose runs at the **nearest step** it has (on a tie, the lower one). Your saved choice is not altered, so switching back to the old model returns to the old level.
 
 It applies differently per engine:
 
@@ -302,7 +363,7 @@ The **Local Model** tab (next to Cloud Model on the Models page) connects Javis 
 
 Still not connecting after three steps? On the host run `ss -ltnp | grep 11434`: no output means Ollama is not running (`systemctl status ollama`); a line with `127.0.0.1` means step 2 did not take effect.
 
-**Choosing a model:** the Recommended section is ordered by machine capability. A machine without a GPU (an ordinary VPS) should prefer **instruct** builds (for example `qwen3:4b-instruct`), which answer directly. Long-thinking builds (plain qwen3, deepseek-r1) on a CPU can spend minutes just "thinking" before the first character appears, and the tab says so on each card. Once downloaded, click **Use as main model** right there in the installed list; the model picker under the chat updates immediately.
+**Choosing a model:** the Recommended section is ordered by machine capability. A machine without a GPU (an ordinary VPS) should prefer **instruct** builds (for example `qwen3:4b-instruct`), which answer directly. Long-thinking builds (plain qwen3, deepseek-r1) on a CPU can spend minutes just "thinking" before the first character appears, and the tab says so on each card. Once downloaded, click **Use as main model** right there in the installed list: the **Ollama (Local)** card moves to the top of the Usage order as MAIN, and the model picker under the chat updates immediately.
 
 ## What the Claude engine runs on underneath
 
@@ -315,11 +376,11 @@ Since 0.9.37, Javis's Claude engine runs **exclusively through the Claude Agent 
 
 This is the easiest thing to get wrong, so be clear about it:
 
-- **Main Model = Claude Code**: the strongest option. Native file reads and writes, shell commands, MCP calls, native skills, automatic loops, session resume. The mode that gets the most out of Javis OS.
-- **Main Model = ChatGPT OAuth (Codex)**: it can call the entire Connections store (the hub pushes them into Codex, local connections such as Zalo included), has Codex's own file tools, and uses skills through the router (Javis injects the skill list into the system prompt plus the `javis_use_skill` tool; Codex runs with cwd=brain so it reads `skills/<slug>/SKILL.md` directly). Codex additionally loads its OWN MCP registry (servers you registered with `codex mcp add`, visible in the collapsed "◆ Claude Code and Codex built-in connections" block on the Connections page), the same way the Claude engine uses Claude Code's native MCPs.
-- **Main Model = OpenRouter / OpenAI (API) / Anthropic (API) / Gemini**: since version 0.9 all four call the Connections store through tool-call rounds, with vault file read/write tools and skill activation (`javis_use_skill`). **Background work also runs on these providers** (see section E). The remaining differences from Claude Code: no shell tool (Bash), no WebFetch, and no CLI session resume.
+- **MAIN = Claude Code**: the strongest option. Native file reads and writes, shell commands, MCP calls, native skills, automatic loops, session resume. The mode that gets the most out of Javis OS.
+- **MAIN = ChatGPT OAuth (Codex)**: it can call the entire Connections store (the hub pushes them into Codex, local connections such as Zalo included), has Codex's own file tools, and uses skills through the router (Javis injects the skill list into the system prompt plus the `javis_use_skill` tool; Codex runs with cwd=brain so it reads `skills/<slug>/SKILL.md` directly). Codex additionally loads its OWN MCP registry (servers you registered with `codex mcp add`, visible in the collapsed "◆ Claude Code and Codex built-in connections" block on the Connections page), the same way the Claude engine uses Claude Code's native MCPs.
+- **MAIN = OpenRouter / OpenAI (API) / Anthropic (API) / Gemini**: since version 0.9 all four call the Connections store through tool-call rounds, with vault file read/write tools and skill activation (`javis_use_skill`). **Background work also runs on these providers** (see section E). The remaining differences from Claude Code: no shell tool (Bash), no WebFetch, and no CLI session resume.
 
-The practical conclusion: for the fullest "working" Javis, keep Main on **Claude Code**. Move to an API provider when you want to try a specific model from another vendor, or to push background work onto a cheaper plan and spare your Claude quota.
+The practical conclusion: for the fullest "working" Javis, keep the **Claude Code** card on top (MAIN). Move to an API provider when you want to try a specific model from another vendor, or to push background work onto a cheaper plan and spare your Claude quota.
 
 ## Token saving applies to subscriptions too
 
@@ -335,13 +396,15 @@ Since version 0.12.4 this works for **all three brain kinds**, not only API-key 
 
 Opening the page shows a **Current brain** block: which kind the current brain is, which saving measures apply to it, and which do not and why. Some measures deliberately only run on API-key brains, for example resending conversation history, because Claude Code and Codex already remember their own thread and sending it again sends it twice.
 
-**When a subscription runs out of turns**, Javis says so plainly: which plan ran out, roughly how long until it resets, and which brains you already have wired to use meanwhile. Javis **does not switch brains for you**, because switching spends another account's quota and can cost real money, so that is your decision (made on this page, with the conversation intact). Note that this kind of limit counts **turns per hour** rather than length, so shortening questions does not help.
+**When a subscription runs out of turns**, chat follows the **Usage order** you set: when MAIN is out of quota, that turn runs on the Fallback 1 card (with that card's model and Effort), then Fallback 2... Javis only moves to providers **you connected and placed there yourself**, because moving spends another account's quota and can cost real money. To keep a provider from ever stepping in, disconnect it, or for an API provider **Turn off** its keys. Falling back changes nothing saved: the next turn tries MAIN first again. When no card can run, Javis says so plainly: which plan ran out and roughly how long until it resets. Note that this kind of limit counts **turns per hour** rather than length, so shortening questions does not help.
 
 Since 0.55.44, when the provider states the **reset time**, a card **"Auto-resume at HH:MM"** appears under that notice: at that time Javis asks the same question again and answers in the same conversation, even with the tab closed or the phone screen off (the job lives on the server). The card carries an **"Auto-continue when limits reset"** checkbox (off means it only shows the time; the choice is remembered for next time) and a **"Retry now"** button. Sending a new message while waiting cancels the schedule. Javis only schedules when it knows the reset time, at most 3 times per question, never more than a day ahead; a server restart drops pending schedules, and the limit notice stays in the conversation so you can hit "Resend".
 
 ## Switching model quickly
 
-You do not have to leave the Models page to change model: click **Change model ▾** in the Main Model block to open **SET MAIN MODEL**, pick a provider and model, then **Switch**. The choice is saved and applies to new chat sessions. The **◆ Background model** block has its own **Change model ▾** (opening **BACKGROUND MODEL**), and the level buttons in **◆ Reasoning** apply immediately on click.
+On the Models page: drag the provider you want to the top of the **Usage order** (or press **⇅ Swap**) and pick a model with the model chip on that card. The top card becomes MAIN immediately. The **◆ Background model** block has its own **Change model ▾** (opening **BACKGROUND MODEL**), and the **Effort** chip on each card applies as soon as you pick a level.
+
+You do not even need the Models page: pick a model on the model chip under the chat. Picking a model from another provider moves that provider's card to the top of the Usage order.
 
 ## Switching model mid-conversation
 
@@ -360,27 +423,35 @@ Up to and including 0.42.1 there was a bug in exactly this place: only ChatGPT/C
 
 | Button / text | Where | What it means |
 |---|---|---|
-| **MAIN** | Corner of a provider card | This provider is the Main Model |
-| **● Connected** / **○ Not connected** | Provider card | The state, with the number of available models |
+| **MAIN** | Top card of the Usage order | This provider is chat's main model |
+| **Fallback 1**, **Fallback 2**... | The following cards of the Usage order | The order chat moves down when the card above is out of quota |
+| **IN USE** (green) | A fallback card | Chat is temporarily running on this card because the one above cannot run |
+| **⇅ Swap** | Between two cards in the Usage order | Swap those two cards |
+| 6-dot handle | Head of a card (phone) | Hold to drag a card or a key row |
+| Model chip / **Effort** chip | On each card | Pick the model (the **default** row = the provider's default model) / pick that card's thinking level |
+| **● Connected** / **○ Not connected** | Provider card | The state, with the number of available models (a multi-key provider adds something like "2/2 keys usable") |
+| **Ready** / **Off** / **Out of quota, back at HH:MM** | Key row on an API provider card | Each key's state |
+| **Chat uses this** (green) / **Background uses this** (purple) | Key row on an API provider card | The key carrying chat / background work right now |
+| **⋯** | End of a key row | Turn off / Turn on, Change key, Remove |
+| **＋ Add a key** | API provider card | Add a named key, at the end of the list |
+| **＋ Connect another provider (N)** | Bottom of the page | Show the N providers not yet connected, to sign in / paste a key |
 | **○ Not signed in** | Claude Code card | Claude Code is not signed in on this machine |
 | **○ Claude Code not installed** | Claude Code card | The machine running Javis has no `claude` command; follow the install box on the card |
 | **Sign into Claude** | Claude Code card | Start the link-based sign-in flow |
 | **↻ Re-check** | Claude Code card (only while signed out) | Re-query the sign-in state |
 | **Sign into ChatGPT** | OpenAI OAuth card | Sign in with a device code |
 | **Through the browser** | OpenAI OAuth card | The fallback when the workspace blocks device codes |
-| **Connect** / **Change key** / **Disconnect** | API provider card | Save a new key / replace the key / delete the key |
-| **Change model ▾** | Main Model and Background model | Open the matching model picker |
-| **Back to default** | Background model | Return background work to Claude Code's default model |
-| **IN USE** | Model picker | The provider or model currently set |
-| **⚠ needs connecting** | Model picker, left column | That provider has no key / is not signed in |
-| **· live** / **· catalog** | Model picker | The list came from the network / the fallback list |
-| **Switch** / **Select** | Model picker footer | Apply to the Main Model / to the background model |
+| **Connect** | API provider card not yet connected | Save the first key; the provider joins the end of the Usage order |
+| **Save** / **Disconnect** | OpenAI Compatible, Anthropic Compatible card | Save the address, key, models / clear everything and leave the Usage order |
+| **Change model ▾** | Background model | Open the background model picker (**BACKGROUND MODEL** on a computer, a composer-style list on a phone) |
 
 ## Tips
 
-- If you just want Javis to remember and work smoothly, do not move Main off Claude Code. The other providers are for specific needs.
+- If you just want Javis to remember and work smoothly, keep the Claude Code card on top (MAIN). The other providers are for specific needs.
+- Put at least one fallback card under MAIN (an API key provider, for example) so chat keeps going when your main plan runs out instead of waiting.
+- If you have several API keys for the same provider, add them all to that card with **＋ Add a key**: Javis uses them in turn and skips any that are resting.
 - Set the **Background model** to something cheap so loops, Kanban work, reminders, self-learning and ingestion do not eat your main plan's quota. To see what is burning most, look at [Usage: tokens & cost](23-usage-and-cost.md).
-- Turn **Reasoning** to Medium or High for hard questions (analysis, strategy); turn it off for quick questions to avoid waiting.
+- Push the **Effort** chip to Medium or High for hard questions (analysis, strategy); leave it on Off or Light for quick questions to avoid waiting.
 - OpenRouter is convenient if you want to try many models from many vendors with one key.
 - To let ChatGPT call your sales tools: wire the connection on the [Connections & business data](09-connections-and-business-data.md) page first, and Javis pushes it into Codex.
 
@@ -389,12 +460,14 @@ Up to and including 0.42.1 there was a bug in exactly this place: only ChatGPT/C
 - **The Claude Code card reports that the Claude CLI is not installed**: the machine has no Claude Code CLI. The Claude engine requires it (the SDK calls that CLI underneath). Install it and click **↻ Re-check**. See [Getting started & first-run setup](01-getting-started.md).
 - **ChatGPT sign-in produces no code, or errors immediately**: your workspace may block device codes. Use the **Through the browser** button in section B.
 - **ChatGPT sign-in reports "Expired, try again"**: Javis waits about 16 minutes before giving up. Click **Sign into ChatGPT** again for a new code.
-- **A provider is selectable but its model column is empty**: that provider is not connected, or has no models. Reconnect it in the Providers block, or add models in `settings.json` (under `model.catalog`). See [.env configuration](16-env-configuration.md).
-- **The model returns nothing**: retry, or pick another model in SET MAIN MODEL. With the Anthropic API, the message also carries the reason (for example hitting max_tokens: say "continue" and the model writes on).
+- **The model chip opens an empty list**: that provider could not return its model list yet, or has no models. Click **Re-check** or reconnect that provider, or add models in `settings.json` (under `model.catalog`). See [.env configuration](16-env-configuration.md).
+- **A provider is missing from the Usage order**: it is not connected (or Claude Code is not signed in). Press **＋ Connect another provider** at the bottom of the page.
+- **The model returns nothing**: retry, or pick another model with the model chip on the MAIN card. With the Anthropic API, the message also carries the reason (for example hitting max_tokens: say "continue" and the model writes on).
 - **The Connections page shows a yellow line saying the Main Model does not support tool calling**: since 0.9.270 **no bundled provider** triggers that line any more. Before that, Google Gemini was missing from the list and was misreported even though MCP through the hub worked normally. The yellow line now only guards unknown providers. Claude Code, OpenRouter, OpenAI, Anthropic API, Gemini and Groq all show GREEN cards; ChatGPT OAuth has its own green card noting that it runs through the Codex CLI.
 
 - **A red banner reading "⚠ the claude brain lost its sign-in" on a machine that never had Claude**: fixed in 0.9.270. The brain status lights kept state in RAM with nobody clearing it, so a red light lit while Claude was the Main Model hung around forever after you switched to OpenRouter. The lights now only count brains you ACTUALLY selected (the Main Model, plus the background model when its provider is explicit), and clear as soon as you switch provider rather than waiting for the 10-minute sweep.
-- **Disconnecting the provider that is the Main Model**: Javis switches Main back to Claude Code so chat does not break. That is deliberate, not a fault.
+- **Disconnecting (or removing the last key of) the provider that is MAIN**: that provider leaves the Usage order and the next card becomes MAIN so chat does not break. That is deliberate, not a fault.
+- **Chat answers from a provider other than MAIN**: MAIN is out of quota (or every one of its keys is resting), so that turn ran on a fallback card, which carries the **IN USE** badge. The next turn tries MAIN first again.
 - **ChatGPT OAuth reports that the Codex CLI is not installed**: this channel needs the Codex CLI on the machine. Since 0.28.8 both npm CLI engines (Claude Code, Codex) are installed during Javis setup, in the Docker image, `install.sh` and `setup.bat`, so this usually means an older installation and **updating Javis** once is enough. Installing by hand also works: `npm i -g @openai/codex`.
 
 ## Related

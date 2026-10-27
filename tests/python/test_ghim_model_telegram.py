@@ -133,8 +133,8 @@ check("nút chọn model trên Telegram cũng ghi qua _tg_dat_model, cho đúng 
 _help = chay(main._tg_help_text("brain"))
 check("/help có nhắc /model ghim", "/model ghim" in _help)
 _js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("trang Models có khối Model Telegram", 'id="tgCard"' in _js and 'telegram: { provider: prov, model: mod }' in _js)
-check("bỏ ghim trên web ghi provider rỗng (= theo model chính)", 'telegram: { provider: "", model: "" }' in _js)
+# 0.351.0 (spec 2.5): the Models page has no Telegram box any more. Telegram follows MAIN; /model in a chat pins that chat.
+check("trang Models không còn khối Model Telegram", 'id="tgCard"' not in _js and 'telegram: { provider: prov' not in _js)
 
 print()
 if _fails:

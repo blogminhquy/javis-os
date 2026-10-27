@@ -1780,6 +1780,8 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
 _PROVIDER_KEY_FIELDS = tuple(p["key_field"] for p in PROVIDER_DEFS if p.get("key_field"))
 # Providers addressed by an endpoint, not by an account: one key at most, no account list (0.350.0).
 _ROUTING_SINGLE_KEY = ("openai-compat", "anthropic-compat", "ollama-local")
+# Plan providers: their quota belongs to the account, so the background order lists each once (same rule as aux_engine).
+_ROUTING_PLAN_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli")
 
 
 def _routing_key_fields() -> dict:
@@ -5404,7 +5406,28 @@ def settings_get():
     safe["backup"]["token_set"] = bool(bt)
     safe["model"]["providers"] = _providers_view(cfg)   # danh sách provider + trạng thái + model
     safe["model"]["main"] = _effective_main(cfg)         # model chính hiệu lực (suy từ legacy nếu cần)
+    safe["model"]["routing"] = _routing_view(cfg["model"], safe["model"]["providers"])
     return safe
+
+
+def _routing_view(mcfg, providers) -> dict:
+    """What the Models page draws (spec 2.1-2.4): the usage order of signed-in cards, each card's model and effort,
+    the background model, and which card chat and background work run on right now. Built from the provider list
+    already computed for this response, so the page costs no second round of CLI checks."""
+    conn = [p["id"] for p in providers if p.get("configured") and p.get("cli_found") is not False]
+    o = model_routing.order(mcfg, conn)
+    chat = next((p for p in o if _route_ready(mcfg, p)), "")
+    bg = None
+    try:
+        for st in model_routing.background_chain(mcfg, conn, once=_ROUTING_PLAN_PROVIDERS):
+            if st["provider"] in conn and _route_ready(mcfg, st["provider"]):
+                bg = {"provider": st["provider"], "model": st["model"], "step": st["step"]}
+                break
+    except Exception as e:  # noqa: BLE001 - a broken view must not take the whole settings page down
+        print(f"[routing] view: {type(e).__name__}: {e}", file=sys.stderr)
+    return {"order": o, "profiles": {p: model_routing.profile(mcfg, p) for p in o},
+            "background": model_routing.background_spec(mcfg), "chat_in_use": chat, "bg_in_use": bg,
+            "multi_key": list(_routing_key_fields())}
 
 
 @app.post("/settings")
