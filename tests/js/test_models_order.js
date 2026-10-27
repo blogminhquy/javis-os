@@ -75,6 +75,10 @@ check("model list: Default first, the model in use next, the rest A-Z",
 check("on a phone the MAIN / Fallback badge moves to the chip row", /ordBadges\(p, ord, "ord-badges-m"\)/.test(CL)
   && /\.ord-head \.ord-badges \{ display: none; \}/.test(D("console.css")));
 
+check("the card holding an open popover is lifted above the next card (each card is its own layer)",
+  /raised\.classList\.add\("ord-raise"\)/.test(B) && /openPop\.raised\.classList\.remove\("ord-raise"\)/.test(B)
+  && /\.prov-card\.ord-raise, \.gcard\.ord-raise \{ position: relative; z-index: 70; \}/.test(D("console.css")));
+
 // ---- 3. loading and words ----
 check("models-order.js loads before console.js",
   HTML.indexOf("/static/models-order.js") > 0 && HTML.indexOf("/static/models-order.js") < HTML.indexOf("/static/console.js"));

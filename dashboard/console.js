@@ -4906,6 +4906,7 @@
       if (openPop.slider) openPop.slider.destroy();
       openPop.el.remove();
       if (openPop.back) openPop.back.remove();
+      if (openPop.raised) openPop.raised.classList.remove("ord-raise");
       openPop.btn.setAttribute("aria-expanded", "false");
       openPop = null;
     };
@@ -4943,7 +4944,11 @@
       document.addEventListener("keydown", (e) => { if (e.key === "Escape" && el._ordClose) el._ordClose(); });
     }
     const opened = (btn, sh, slider) => {
-      openPop = { el: sh.pop, btn: btn, slider: slider || null, back: sh.back || null };
+      // Each card is its own stacking layer (backdrop-filter), so a popover that opens downward was painted UNDER the
+      // next card (owner's screenshot, 27/10). The card holding the open popover is lifted above its neighbours.
+      const raised = sh.sheet ? null : btn.closest(".prov-card, .gcard");
+      if (raised) raised.classList.add("ord-raise");
+      openPop = { el: sh.pop, btn: btn, slider: slider || null, back: sh.back || null, raised: raised };
       btn.setAttribute("aria-expanded", "true");
       if (!sh.sheet) MO.place(sh.pop);
     };

@@ -224,6 +224,7 @@ body.in-console .hud-actions { display: none; }
 body.ord-is-dragging, body.ord-is-dragging * { cursor: grabbing !important; user-select: none; }
 .ord-pressing { outline: 2px dashed var(--accent-line); outline-offset: 3px; }
 .ord-badges-m { display: none; }
+.prov-card.ord-raise, .gcard.ord-raise { position: relative; z-index: 70; }
 /* Phone pickers (0.352.0): a bottom sheet with a title and a close button instead of a popover over the card. */
 .ord-sheet-back { position: fixed; inset: 0; z-index: 900; background: rgba(0, 0, 0, .5); }
 .ord-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 901; display: flex; flex-direction: column;
