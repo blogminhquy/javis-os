@@ -270,6 +270,18 @@ When a member hands in the result, Javis checks the product itself (the files) a
 
 Editing the job voids the old evidence. After acceptance, editing a product file shows "The product changed after the check" on the card. A member's learning score only goes up from a passed acceptance or your confirmation, once per job.
 
+## Give a Team a job straight from chat (from 0.357.0)
+
+You do not need to open the Teams page to give a Team a job. Tell Javis in the web chat, Telegram or Zalo, for example "have the Content team write 3 posts about fish sauce", and Javis picks the right Team of the open brain and gives it **one job**. The job runs exactly as if you had given it on the Teams page: the leader coordinates, with the Team's queue, acceptance and history.
+
+- **The result comes back to the chat you asked in**: when the job is done, cancelled, blocked or waiting for your decision. One message per state, and always a copy in the inbox.
+- **DONE is not PASSED**: the message says whether the job passed acceptance. When the Team has no acceptance check, Javis says plainly that nobody confirmed a pass.
+- **Approvals stay yours**: a job that needs your approval or acceptance still stops on the job card in Teams. Javis only reports, it never approves for you.
+- **No duplicates**: if Javis repeats the same request, there is still one job. In the team chat that message carries a "via Javis Core" label.
+- Ask "how is that job going" and Javis reads back the job's state, result and acceptance.
+
+Only the owner (or background work the owner scheduled) can give a Team a job. Customer bots, a Team of another brain, or a step of the Team's own job are refused before any job is created.
+
 ## Quick actions and troubleshooting
 
 - **Create:** choose a tab and use the create button at the bottom left, or open **Javis Store**.

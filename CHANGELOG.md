@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.357.0] - 2026-10-27
 ### Thêm mới
-- **Javis Core giao việc thẳng cho một Nhóm có sẵn rồi báo kết quả về đúng khung chat đã giao** (đang làm, issue #826).
+- **Giao việc cho Team ngay từ chat.** Nói với Javis "giao cho Phòng nội dung viết 3 bài", Javis giao đúng một việc vào Team đó, Team tự điều phối như khi bạn giao ở trang Nhóm. Xong, bị chặn hay cần bạn quyết thì kết quả tự báo về đúng khung chat đã giao (web, Telegram, Zalo) và hòm thư.
+- Tin báo nói rõ việc **XONG** hay đã **ĐẠT nghiệm thu**. Việc cần bạn duyệt vẫn dừng ở thẻ của bạn, Javis không duyệt thay. Lỡ gọi lại cùng yêu cầu cũng không ra việc thứ hai. Chỉ chủ mới giao được; Team của brain khác bị từ chối trước khi tạo việc (issue #826).
 
 ## [0.356.0] - 2026-10-27
 ### Sửa lỗi

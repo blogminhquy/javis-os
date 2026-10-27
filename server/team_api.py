@@ -71,6 +71,9 @@ class TeamApiDeps:
     check_command: Optional[Callable[[str, Any], dict]] = None
     brain_root: Optional[Callable[[dict], Any]] = None   # team -> Path of its brain (acceptance product paths)
     work_dir: Optional[Callable[[dict], str]] = None     # team -> pinned working folder, "" when none (0.260.0)
+    # 0.357.0: report a job Javis Core gave the team back where it was asked (main._notify_owner):
+    # (owner_chat, text, *, kind, label, source, ngan, brain, dedup) -> (ok, error), sync or async. None: no reports.
+    report: Optional[Callable[..., Any]] = None
 
 
 async def _body(request: Request) -> dict:
@@ -379,6 +382,29 @@ class TeamApi:
         if now - self._last_remind >= REMIND_EVERY_S:
             self._last_remind = now
             await r._io(r.remind_blocked)
+        await self.core_reports()
+
+    async def core_reports(self) -> int:
+        """0.357.0 (issue #826): jobs Javis Core gave a team report back to the chat that asked, once per state worth
+        reporting (done, cancelled, stopped for the owner). A failed send is retried next tick; the inbox copy dedupes."""
+        if self.deps.report is None:
+            return 0
+        import team_dispatch
+        sent = 0
+        for it in await self.io(team_dispatch.due_reports, self):
+            try:
+                res = self.deps.report(it["report_to"], it["text"], kind="report", label=localefmt.chu("Team", "Team"),
+                                       source="team", ngan=it["short"], brain=it["brain"], dedup=it["dedup"])
+                if asyncio.iscoroutine(res):
+                    res = await res
+            except Exception as ex:  # noqa: BLE001 - one bad channel never stops the team loop
+                print(f"[team core report] {type(ex).__name__}: {ex}", file=sys.stderr)
+                continue
+            if isinstance(res, tuple) and res and not res[0]:
+                continue
+            await self.io(self.deps.task_store().team_core_said, it["task_id"], it["key"], it["closed"])
+            sent += 1
+        return sent
 
     async def _judge_tick_without_teams(self) -> None:
         """Chưa có kho nhóm (chỉ dùng chat riêng): vẫn cho lần chờ của tin chủ động ở chat riêng hết hạn đúng giờ."""
