@@ -220,18 +220,26 @@ def view(m: dict, provider: str) -> list:
 
 # ---------------------------------------------------------------- engines
 
-def apply(engine, provider: str, m: dict):
-    """Point one engine at the account that should run now. Returns the account id (MAIN when account 1 runs or
-    when no account can run, so the turn reports the provider's own error as before)."""
-    if engine is None or not supported(provider):
-        return MAIN
+def in_use(provider: str) -> bool:
+    """Whether the plan account list drives this provider now. False for Claude Code running on an Anthropic API
+    key: the key pays, there is no plan account to pick or to move on to."""
+    if not supported(provider):
+        return False
     if provider == "anthropic-cli":
         try:
             import claude_auth
             if claude_auth.che_do() == claude_auth.API_KEY:
-                return MAIN          # Claude on an Anthropic API key: the key pays, no plan account to pick
+                return False
         except Exception:  # noqa: BLE001
             pass
+    return True
+
+
+def apply(engine, provider: str, m: dict):
+    """Point one engine at the account that should run now. Returns the account id (MAIN when account 1 runs or
+    when no account can run, so the turn reports the provider's own error as before)."""
+    if engine is None or not in_use(provider):
+        return MAIN
     acc = pick(m, provider) if has_extra(m, provider) else None
     aid = acc["id"] if acc else MAIN
     use(engine, provider, aid)

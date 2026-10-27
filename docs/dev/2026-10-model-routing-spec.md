@@ -185,10 +185,19 @@ Mỗi bản là một PR, CI xanh thì merge, mỗi bản một số phiên bả
    Chưa đi theo tài khoản (ghi rõ trong hướng dẫn): đồng hồ hạn mức, tạo ảnh, giọng nói và các
    đường ChatGPT không qua Codex CLI vẫn dùng tài khoản 1. Claude trên macOS giữ token trong
    Keychain; Javis coi tài khoản là đã đăng nhập khi thấy lượt đăng nhập xong (file đánh dấu).
-4. **0.35x: chat tự chuyển khi hết lượt.** Lượt chat hỏng vì hết lượt trước khi có chữ hoặc công
+4. **0.354.0: chat tự chuyển khi hết lượt.** Lượt chat hỏng vì hết lượt trước khi có chữ hoặc công
    cụ nào thì chạy lại ngay bằng đường kế tiếp, kèm một dòng "Đang dùng ChatGPT vì Claude hết lượt".
    Hỏng giữa chừng thì dừng, có nút "Chạy lại". Trước bản này, chat vẫn chọn đường còn lượt ngay
    từ đầu lượt (bản 1).
+   Cách làm: `_SendProxy` của lượt đếm chữ đã stream và công cụ đã gọi (dòng nén mạch, co ngữ cảnh
+   của Javis không tính), giữ lại khung lỗi tới cuối lượt khi chưa có gì. Cuối `_do_turn`, lỗi hết
+   lượt (gói: `_limit_frame`; API: `limit_exceeded` không phải "co nhỏ" hoặc lỗi 429/quota, key đó
+   nghỉ qua `_note_api_limit`) mà chưa có gì thì `_chat_next_route` chọn đường kế (tài khoản/key kế
+   cùng thẻ, rồi thẻ kế, bỏ thẻ đã thử), bỏ các khung đã giữ, không lưu câu báo; `run_turn` gửi khung
+   `reroute` (dòng "Đang dùng...") rồi chạy lại, tối đa 3 lần. Hỏng giữa chừng: giữ câu dở, thẻ
+   limit_resume lý do `partial` (không tự chạy, chỉ nút Chạy lại ngay). Telegram: `_tg_answer` lặp
+   lại `_tg_answer_engine` khi lõi trả câu hết lượt và chưa có dòng "⚙" nào; bot chuyên trách không
+   đổi đường. Test: `tests/python/test_chat_doi_duong.py`.
 
 ## 7. Tiêu chí nghiệm thu
 

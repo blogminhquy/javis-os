@@ -3260,6 +3260,7 @@
   "lres.reset_at": "Hạn mức mở lại lúc {gio}.",
   "lres.auto_at": "Tự chạy lại lúc {gio}",
   "lres.due_waiting": "Đến giờ rồi, đang chờ máy chủ chạy lại...",
+  "lres.partial": "Hết lượt giữa chừng nên câu trả lời dừng ở đây. Bấm Chạy lại ngay để hỏi lại bằng mô hình còn lượt.",
   "lres.no_reset": "Nhà cung cấp không nói lúc nào mở lại, nên không hẹn giờ được.",
   "lres.too_far": "Hạn mức mở lại lúc {gio}, quá xa để hẹn tự chạy.",
   "lres.max_attempts": "Đã tự chạy lại {count} lần mà vẫn hết lượt, thôi không hẹn nữa.",
