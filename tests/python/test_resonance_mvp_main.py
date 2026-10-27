@@ -254,8 +254,9 @@ check("chạy lại sau hạn mức: truyền đúng user_mid và user_text củ
       len(_resume) == 1 and ast.unparse(_kw(_resume[0], "user_mid")) == "user_mid"
       and ast.unparse(_kw(_resume[0], "user_text")) == "user_text")
 _sched = _calls(_fns["_do_turn"], "_start_resumed_turn")
+# 0.354.0: two schedules, the out-of-quota card and the half-answer "Run again" card; both carry the original turn.
 check("hẹn chạy lại mang theo id và lời người dùng của lượt gốc",
-      len(_sched) == 1 and _kw(_sched[0], "user_mid") is not None and _kw(_sched[0], "user_text") is not None)
+      len(_sched) == 2 and all(_kw(c, "user_mid") is not None and _kw(c, "user_text") is not None for c in _sched))
 _ws = _fns["_start_resumed_turn"]
 _handler = next(n for n in ast.walk(_tree) if isinstance(n, ast.AsyncFunctionDef)
                 and any(f is _ws for f in ast.walk(n)) and n is not _ws)
