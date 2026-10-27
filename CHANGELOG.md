@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.357.0] - 2026-10-27
+### Thêm mới
+- **Javis Core giao việc thẳng cho một Nhóm có sẵn rồi báo kết quả về đúng khung chat đã giao** (đang làm, issue #826).
+
 ## [0.356.0] - 2026-10-27
 ### Sửa lỗi
 - **Tạo ảnh bằng gói ChatGPT không còn chết ở lỗi "Tool choice image_generation not found".** Model ChatGPT nào không có công cụ tạo ảnh thì Javis tự chuyển sang model khác của tài khoản, như khi model bị từ chối (issue #854).

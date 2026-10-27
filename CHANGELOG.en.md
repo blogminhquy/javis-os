@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.357.0] - 2026-10-27
+### Added
+- **Javis Core hands a job straight to an existing Team and reports the result back to the chat it came from** (in progress, issue #826).
+
 ## [0.356.0] - 2026-10-27
 ### Fixed
 - **Image generation on a ChatGPT plan no longer dies on "Tool choice image_generation not found".** When a ChatGPT model has no image tool, Javis moves to another model of the account, as it does when a model is refused (issue #854).
