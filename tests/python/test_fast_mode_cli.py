@@ -46,10 +46,13 @@ check("Claude Code + bolt off: fastMode false, so a persisted /fast cannot bill 
 e = ClaudeSDK(tag="chat", model="claude-opus-5-5")
 e.fast_settings = fast_mode.claude_sdk_settings("claude-opus-5-5", True)
 opts = e._options()
-check("ClaudeAgentOptions carries settings when fast", getattr(opts, "settings", None) == '{"fastMode": true}', getattr(opts, "settings", None))
+# 0.345.0: settings also carries claudeMdExcludes (test_token_luot_claude.py), so read the fastMode field.
+check("ClaudeAgentOptions carries settings when fast",
+      json.loads(getattr(opts, "settings", None) or "{}").get("fastMode") is True, getattr(opts, "settings", None))
 e2 = ClaudeSDK(tag="chat", model="claude-opus-5-5")
 check("background Claude Code runs (never touched by _cli_fast) send fastMode false",
-      getattr(e2._options(), "settings", None) == '{"fastMode": false}', getattr(e2._options(), "settings", None))
+      json.loads(getattr(e2._options(), "settings", None) or "{}").get("fastMode") is False,
+      getattr(e2._options(), "settings", None))
 
 # The SDK passes Claude Code's init data through; Javis remembers the real Fast mode state.
 from claude_agent_sdk import SystemMessage  # noqa: E402

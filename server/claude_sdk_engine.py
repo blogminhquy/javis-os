@@ -23,6 +23,7 @@ import re
 import collections
 import fnmatch
 import json
+from pathlib import Path
 import os
 import sys
 import threading
@@ -411,6 +412,9 @@ def map_message(msg):
             "duration_ms": msg.duration_ms,
             "tokens_in": ((u.get("input_tokens") or 0) + (u.get("cache_read_input_tokens") or 0)
                           + (u.get("cache_creation_input_tokens") or 0)),
+            # 0.345.0: phần của tokens_in chỉ ĐỌC LẠI từ cache (rẻ hơn nhiều so với token mới). Khung chat
+            # tách nó ra, để "60k token" cho một câu chào không bị đọc như 60k token mới tinh.
+            "tokens_cache_read": u.get("cache_read_input_tokens") or 0,
             "tokens_out": u.get("output_tokens") or 0,
         })
         return events, (None if resume_failed else msg.session_id)
@@ -698,6 +702,26 @@ class ClaudeSDK:
                 servers["javis"] = hub
         return servers, self.mcp_strict
 
+    def _settings_json(self) -> str:
+        """`ClaudeAgentOptions(settings=...)`: chế độ nhanh (xem fast_mode) + loại CLAUDE.md của chính Javis.
+
+        Vì sao loại (0.345.0): CLAUDE.md ở gốc repo LÀ prompt Javis, đã gắn vào mỗi lượt qua
+        --append-system-prompt-file. Bản cài thường để brain TRONG repo (`brains/`), và Claude Code tự
+        đi ngược từ cwd lên tìm CLAUDE.md, nên nạp nó thêm một lần nữa: đo thật 27/10/2026, một câu
+        "chào em" tốn 60.808 token, bản thứ hai này chiếm ~12.300. Chỉ loại ĐÚNG file đó: CLAUDE.md
+        của người dùng (~/.claude) và của brain vẫn nạp như cũ. Khoá lạ không làm CLI cũ hỏng (đã thử).
+        """
+        try:
+            cfg = json.loads(getattr(self, "fast_settings", None) or '{"fastMode": false}')
+        except ValueError:
+            cfg = {"fastMode": False}
+        try:
+            p = Path(__file__).resolve().parent.parent / "CLAUDE.md"
+            cfg["claudeMdExcludes"] = sorted({str(p), p.as_posix()})
+        except Exception:  # noqa: BLE001 - thiếu dòng này chỉ tốn token, không được làm hỏng lượt
+            pass
+        return json.dumps(cfg)
+
     def _write_sysprompt_file(self, text):
         """Ghi system prompt ra file tạm để truyền qua --append-system-prompt-file.
         Trả path; nhớ vào _tmp_files để query() dọn sau."""
@@ -837,7 +861,7 @@ class ClaudeSDK:
         # reminders, bots) says fastMode false explicitly, so a /fast persisted in the user's
         # ~/.claude/settings.json cannot make background work run (and bill) fast.
         if "settings" in fields:
-            kw["settings"] = getattr(self, "fast_settings", None) or '{"fastMode": false}'
+            kw["settings"] = self._settings_json()
         if self.session_id:
             kw["resume"] = self.session_id
         servers, strict = self._mcp_servers()

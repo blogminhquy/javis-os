@@ -1879,6 +1879,7 @@ class CodexCLI:
                 yield {"type": "final", "content": final_text, "session_id": self.session_id,
                        # Codex đã tính cached_input_tokens trong input_tokens.
                        "tokens_in": u.get("input_tokens") or 0,
+                       "tokens_cache_read": u.get("cached_input_tokens") or 0,
                        "tokens_out": u.get("output_tokens") or 0}
             elif t in ("error", "stream.error") and la_thong_bao_ket_noi_lai(ev.get("message")):
                 # "Reconnecting... 2/5 (...)": Codex đang tự thử lại, lượt CHƯA hỏng. Đẩy lên thành

@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.345.0] - 2026-10-27
 ### Improved
-- **Each answer costs far fewer tokens.** (in progress)
+- **Each answer on Claude Code costs about 20% fewer tokens.** On a regular install, Claude Code used to read Javis's rules twice every turn. Now it reads them once: measured, a simple greeting dropped from about 60,800 to 48,400 tokens. Docker installs were not affected.
+- **The token count under each answer now shows the part read back from the cache**, for example "48k tokens (13k from cache)". Cached tokens are context sent earlier, which the provider reads back for far less. Hover over the line for the explanation. Applies to Claude Code and ChatGPT (Codex).
+### Fixed
+- **Asking the time in the middle of a long chat on Claude Code now gives the right time.** Javis could answer with the time of the first message in the chat.
 
 ## [0.344.0] - 2026-10-27
 ### Improved

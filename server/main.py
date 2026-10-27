@@ -3947,6 +3947,21 @@ def _cli_think(reasoning, message):
     return f"{message}\n\n(Suy nghĩ kỹ trước khi trả lời - {kw})"
 
 
+def _gio_luot_noi_mach(cli, prompt, lang: str = ""):
+    """Gắn giờ gửi tin vào đầu prompt khi lượt này NỐI LẠI phiên Claude Code (`cli.session_id` có giá trị).
+
+    Claude Code giữ system prompt của lượt đầu phiên khi --resume, nên câu đồng hồ trong system prompt đông cứng
+    (xem context_compiler.dong_ho_ngan). Phiên MỚI không gắn: system prompt của nó vừa dựng, giờ trong đó đúng.
+    Lỗi gì cũng trả nguyên prompt: thiếu dòng giờ không được làm hỏng lượt chat.
+    """
+    if not getattr(cli, "session_id", None) or not isinstance(prompt, str):
+        return prompt
+    try:
+        return context_compiler.dong_ho_ngan(lang=lang or lang_mod.detect(prompt)[0]) + "\n" + prompt
+    except Exception:  # noqa: BLE001
+        return prompt
+
+
 def _cli_do_sau(cli, reasoning, message):
     """Đặt độ sâu suy nghĩ cho engine Claude Code, rồi trả prompt để gửi đi.
 
@@ -16129,6 +16144,7 @@ async def websocket_endpoint(ws: WebSocket):
                     api_model or mcfg.get("claude_model") or "mặc định", kind,
                 )
             _ctx_in = 0        # token VÀO của lượt này, để khung chat nói được nó tốn bao nhiêu
+            _ctx_cache = 0     # phần của _ctx_in chỉ đọc lại từ cache (0.345.0, Claude Code + Codex)
             # cwd = THƯ MỤC BRAIN, không phải gốc project (0.55.58). Trước đó nhánh này là chỗ
             # DUY NHẤT trong bốn engine chat còn chạy cwd=CLAUDE_CWD (/app trong Docker) - Codex,
             # Antigravity, Grok và mọi workflow/loop/lint đều đã cwd=brain. Hậu quả chủ repo báo
@@ -16269,7 +16285,7 @@ async def websocket_endpoint(ws: WebSocket):
                     "type": "response", "content": final_text,
                     "engine": "javis_schedule", "model": "gateway",
                     "session_id": conv_sid,
-                    **_ctx_frame(runtime_trace, _ctx_in),
+                    **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache),
                 }))
             elif _codex_fast_plan is not None and kind in ("oauth", "cli"):
                 steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: one model call, no step to read at
@@ -16344,7 +16360,7 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "grok-cli",
                         "model": actual_model or "", "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
                 else:
                     _k_mach = (_row0.get("grok_session_id") or "").strip()
                     if _k_mach and compaction.nen_mach_thue_bao(
@@ -16410,7 +16426,7 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "grok-cli",
                         "model": actual_model or "", "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
             elif prov == "antigravity-cli":
                 steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: one-shot CLI, messages wait for the end
                 # ===== Gói Google qua ANTIGRAVITY CLI (`agy`) - tool native + MCP hub =====
@@ -16436,7 +16452,7 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "antigravity-cli",
                         "model": actual_model or "", "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
                 else:
                     _a_cur = _cli_do_sau_khac(acli, antigravity_cli, reasoning, user_message)
                     _a_raw = [{"role": _m["role"], "content": _m["content"]}
@@ -16473,7 +16489,7 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "antigravity-cli",
                         "model": actual_model or "", "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
             elif prov == "openai-oauth":
                 if not codex_steer.enabled():
                     # 0.206.0: `codex exec` is one-shot, messages wait for the end. Since 0.213.0 the chat engine runs
@@ -16560,7 +16576,7 @@ async def websocket_endpoint(ws: WebSocket):
                         # được lưu, người dùng chỉ thấy "Lỗi xử lý". Đây là hàm con DUY NHẤT
                         # đụng vào _ctx_in; hai nhánh engine kia cộng thẳng trong _do_turn nên
                         # không dính.
-                        nonlocal final_text, _ctx_in
+                        nonlocal final_text, _ctx_in, _ctx_cache
                         resume_failed = False
                         # Đo theo từng invocation thật: nhánh khôi phục thread có thể gọi lần hai.
                         _CONTEXT_RUNTIME.observe_payload(
@@ -16596,6 +16612,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
                                 _ctx_in += int(ev.get("tokens_in", 0) or 0)
+                                _ctx_cache += int(ev.get("tokens_cache_read", 0) or 0)
                                 usage_store.record("codex", actual_model, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
                                 _CONTEXT_RUNTIME.record_usage(
                                     runtime_trace, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
@@ -16640,7 +16657,7 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "codex",
                         "model": actual_model, "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
             elif (kind == "api" and api_key) or kind == "oauth":
                 orchestrator_plan = None
                 readonly_plan = None
@@ -16703,7 +16720,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text,
                         "engine": "javis-gateway", "model": api_model or "?",
                         "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in),
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache),
                     }))
                 elif kind == "api" and api_key and not _persona:
                     # Mọi exception trong prepare của canary phải rơi tiếp xuống nhánh
@@ -16769,7 +16786,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text,
                         "engine": "javis-gateway", "model": api_model or "?",
                         "session_id": conv_sid, "task_id": runtime_trace.task_id,
-                        **_ctx_frame(runtime_trace, _ctx_in),
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache),
                     }))
                 elif readonly_plan and readonly_plan.action == "execute":
                     used_fast_path = True
@@ -16789,7 +16806,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text,
                         "engine": "javis-gateway", "model": api_model or "?",
                         "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in),
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache),
                     }))
                 elif fast_plan and fast_plan.action == "execute":
                     used_fast_path = True
@@ -16809,7 +16826,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text,
                         "engine": "javis-gateway", "model": api_model or "?",
                         "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in),
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache),
                     }))
                 else:
                     # ===== API/OAuth: Phase 8 sources canary, fallback độc lập về legacy =====
@@ -16864,7 +16881,7 @@ async def websocket_endpoint(ws: WebSocket):
                             "type": "response", "content": final_text,
                             "engine": "javis-gateway", "model": api_model or "?",
                             "session_id": conv_sid,
-                            **_ctx_frame(runtime_trace, _ctx_in),
+                            **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache),
                         }))
                     else:
                         sysprompt = (_phase8_plan.system_prompt
@@ -16983,7 +17000,7 @@ async def websocket_endpoint(ws: WebSocket):
                         await ws.send_text(json.dumps({
                             "type": "response", "content": final_text, "engine": prov,
                             "model": actual_model, "session_id": conv_sid,
-                            **_ctx_frame(runtime_trace, _ctx_in),
+                            **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache),
                         }))
             else:
                 # ===== PROVIDER anthropic-cli - qua Claude Code, đầy đủ MCP / skill / session =====
@@ -17027,7 +17044,7 @@ async def websocket_endpoint(ws: WebSocket):
                 _streamed = ""      # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
                 _cli_sid = None
                 _cost = None
-                _cli_prompt = _cli_do_sau(cli, reasoning, user_message)
+                _cli_prompt = _gio_luot_noi_mach(cli, _cli_do_sau(cli, reasoning, user_message), _lang_qd.lang)
                 _cli_fast(cli)
                 if not cli.session_id:
                     # Bỏ --resume là Claude Code mất sạch mạch cũ. Mở mạch mới mà không mang
@@ -17063,7 +17080,7 @@ async def websocket_endpoint(ws: WebSocket):
 
                 async def _consume_claude(prompt, suppress_resume_error=False):
                     """Một lần gọi `claude`. Trả True nếu mạch cũ không còn (resume trượt)."""
-                    nonlocal final_text, _streamed, _cli_sid, _cost, _ctx_in, _cli_err
+                    nonlocal final_text, _streamed, _cli_sid, _cost, _ctx_in, _ctx_cache, _cli_err
                     resume_failed = False
                     async for event in cli.query(prompt):
                         etype = event["type"]
@@ -17102,6 +17119,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 except Exception:
                                     pass
                             _ctx_in += int(event.get("tokens_in", 0) or 0)
+                            _ctx_cache += int(event.get("tokens_cache_read", 0) or 0)
                             usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
                                                event.get("tokens_in", 0), event.get("tokens_out", 0), event.get("cost_usd") or 0)
                             _CONTEXT_RUNTIME.record_usage(
@@ -17175,7 +17193,7 @@ async def websocket_endpoint(ws: WebSocket):
                     "type": "response", "content": final_text, "session_id": conv_sid,
                     "cli_session_id": _cli_sid, "cost_usd": _cost, "engine": "cli",
                     "model": (cli.model or mcfg.get("claude_model") or "mặc định"),
-                    **_ctx_frame(runtime_trace, _ctx_in)}))
+                    **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
 
             # Token VÀO của lượt vừa xong. Với engine gói thuê bao đây là DẤU HIỆU DUY NHẤT
             # cho biết mạch hội thoại của chúng đã phình tới đâu: Claude Code và Codex tự quản
@@ -17227,7 +17245,7 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "session_id": conv_sid,
                         "tts": False,
-                        **_ctx_frame(runtime_trace, _ctx_in),
+                        **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache),
                     }))
 
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
@@ -19567,7 +19585,7 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
             "vi_sao": _vi_sao_chua_di_tat(snapshot.get("tasks") or [])}
 
 
-def _ctx_frame(trace, tokens_in) -> dict:
+def _ctx_frame(trace, tokens_in, tokens_cache=0) -> dict:
     """Cho khung chat biết lượt vừa rồi đi đường nào và tốn bao nhiêu token vào.
 
     Vì sao cần: trước đây không có cách nào biết một lượt đã đi đường tiết kiệm hay lặng lẽ
@@ -19580,8 +19598,14 @@ def _ctx_frame(trace, tokens_in) -> dict:
         path = str(getattr(trace, "execution_path", "") or "")
     except Exception:  # noqa: BLE001 - phần hiển thị, không được phá lượt chat
         path = ""
-    return {"ctx_path": path if path and path != "unassigned" else "legacy",
-            "ctx_in": max(0, int(tokens_in or 0))}
+    tin = max(0, int(tokens_in or 0))
+    out = {"ctx_path": path if path and path != "unassigned" else "legacy", "ctx_in": tin}
+    # 0.345.0: phần đọc lại từ cache. `ctx_in` là TỔNG mọi vòng gọi model trong lượt, gồm cả phần cache rẻ hơn nhiều,
+    # nên một câu chào trên Claude Code hiện "60k token" và người dùng tưởng mình vừa tiêu 60k token mới.
+    ca = max(0, min(int(tokens_cache or 0), tin))
+    if ca:
+        out["ctx_cache"] = ca
+    return out
 
 
 async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
@@ -22299,7 +22323,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         _streamed = ""   # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
         loi = []
         _pinged = False
-        _cli_prompt = _cli_do_sau(cli, reasoning, text)
+        _cli_prompt = _gio_luot_noi_mach(cli, _cli_do_sau(cli, reasoning, text))
         _cli_fast(cli)
         if not getattr(cli, "session_id", None):
             # Chưa có mạch native (phiên mới, hoặc vừa restart nên object engine dựng lại từ
