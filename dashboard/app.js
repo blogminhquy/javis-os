@@ -510,6 +510,21 @@ function datCheDoGiong(mode) {
 // `var`, không `let/const`: capNhatOrb có thể chạy trước dòng này (vùng chết tạm thời ném lỗi).
 var _callInfo = { engine: "basic", voice_mode: "standard", basic_mode: "standard", live_provider: "" };
 var _callMuted = false;
+// 0.347.0: the conversation a call belongs to. Opening another conversation (Partners page, history, the bell) no
+// longer hangs up (owner, 27/10/2026: the mascot already has a hang-up button), so a ChatGPT Live call stays with
+// the conversation it started in: reconnects reuse it, and its bubbles are drawn only while that one is on screen
+// (the server stores every turn in it either way). Cleared on hang-up.
+var _callSid = null;
+function cuocGoiTrenManHinh() { return !_callSid || _callSid === savedSessionId; }
+// Leaving a conversation during a call: drop what was still heading to it (half-heard words, a queued barge-in, a
+// reconnect resend) without ending the call. The same lines tatRanhTay runs before it hangs up.
+function boViecPhienCu() {
+  _sendEpoch++;
+  clearTimeout(_tinChoTimer); _tinChoTimer = null; _tinChoLuot = null;
+  _cauChoLuot = []; _cauChoOpts = null;
+  clearTimeout(_tinDutMangTimer); _tinDutMangTimer = null; _tinDutMang = [];
+  if (voiceMode !== "live") voice.cancelListening();   // the hands-free loop opens the mic again
+}
 var callBar = window.JavisCallBar ? window.JavisCallBar.create({
   el: document.getElementById("callBar"),
   t: (k, p) => window.t(k, p),
@@ -803,7 +818,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     if (!phien.pendingWake || !phien.readySeen || ticket !== _liveStartSeq) return;
     const text = phien.pendingWake; phien.pendingWake = ""; // some providers emit ready twice
     window.JavisVoiceLive.sendText(text);
-    appendUserMessage(text, []); recordTurn("user", text, []);
+    if (cuocGoiTrenManHinh()) { appendUserMessage(text, []); recordTurn("user", text, []); }
     _liveBusyUntil = Date.now() + 120000;
   };
   if (som) {
@@ -816,7 +831,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
   _liveJavisText = ""; _liveJavisBubble = null;
   const startP = window.JavisVoiceLive.start({
     deferMic: som,
-    sessionId: () => savedSessionId,
+    sessionId: () => _callSid || savedSessionId,
     brain: () => currentBrainPath(),
     language: () => voice.langAuto ? "auto" : voice.lang,
     onStarted: () => {
@@ -825,7 +840,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     },
     onStopped: () => {
       clearInterval(_liveCtxTimer); _liveCtxTimer = null; nhapGiong("");
-      if (_liveJavisText.trim()) recordTurn("javis", _liveJavisText.trim(), null, null);
+      if (_liveJavisText.trim() && cuocGoiTrenManHinh()) recordTurn("javis", _liveJavisText.trim(), null, null);
       if (_theoLoi && _theoLoi.live) ketThucTheoLoi(true);
       _liveJavisText = ""; _liveJavisBubble = null;
       voiceBtn.classList.remove("recording"); runActions(turn.micOff());
@@ -834,6 +849,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
       if (ticket !== _liveStartSeq || !handsFree) return;
       if (!readySeen) { readySeen = phien.readySeen = true; _cuocGoiDaNoi = true; _liveBusyUntil = 0; attention.keepActive(); }
       if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); }
+      if (d && d.session_id && !_callSid) _callSid = d.session_id;
       // Nối sớm: mic chưa gắn thì câu đánh thức chờ noiTiepPhienSom gửi sau khi gắn mic.
       if (_liveSom !== phien) phien.guiCauDanhThuc();
     },
@@ -843,7 +859,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     // Kết quả ĐẦY ĐỦ của bộ não chính (bảng, link, file) thành bong bóng riêng: model nói chuyện
     // chỉ đọc phần tóm tắt, không có bong bóng này thì số liệu chi tiết mất hút (0.65.17).
     onToolResult: (name, text) => {
-      if (!String(text || "").trim()) return;
+      if (!String(text || "").trim() || !cuocGoiTrenManHinh()) return;
       appendJavisMessage(text, Date.now(), currentBrainPath());
       recordTurn("javis", text, null, null);
     },
@@ -855,13 +871,16 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
       if (status === "running") runActions(turn.toolCall(name)); else runActions(turn.turnDone());
     },
     onTranscript: (role, text, final) => {
+      const trenManHinh = cuocGoiTrenManHinh();
       if (role === "user") {
         if (text.trim()) { attention.keepActive(); _liveBusyUntil = Date.now() + 120000; }
+        if (!trenManHinh) return;
         if (final && text.trim()) { nhapGiong(""); appendUserMessage(text.trim(), []); recordTurn("user", text.trim(), []); }
         else nhapGiong(text);
         return;
       }
       _liveJavisText += text;
+      if (!trenManHinh) return;
       if (!_liveJavisBubble) _liveJavisBubble = createStreamingBubble();
       _liveJavisBubble.dataset.md = _liveJavisText;   // copy ra markdown gốc, kể cả hội thoại bằng giọng
       if (dangTheoLoi()) batTheoLoi(_liveJavisBubble, _liveJavisText, null, true);   // V3: chữ theo tiếng
@@ -869,7 +888,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     },
     onTurnDone: () => {
       _liveBusyUntil = 0; attention.keepActive();
-      if (_liveJavisText.trim()) recordTurn("javis", _liveJavisText.trim(), null, null);
+      if (_liveJavisText.trim() && cuocGoiTrenManHinh()) recordTurn("javis", _liveJavisText.trim(), null, null);
       if (_theoLoi && _theoLoi.live && _theoLoi.el === _liveJavisBubble) _theoLoi.chuaXong = false;   // vẽ đủ khi loa im
       _liveJavisText = ""; _liveJavisBubble = null;
       runActions(turn.turnDone());
@@ -883,7 +902,14 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     // Đóng TRƯỚC khi sẵn sàng là mở không được: để nhánh dưới chuyển sang đường Cơ bản.
     onClosed: () => {
       if (_liveSom === phien) { _liveSom = null; clearTimeout(phien.henHuy); capNhatThanhGoi(); return; }
-      if (readySeen) tatRanhTay();
+      if (!readySeen || ticket !== _liveStartSeq) return;
+      // 0.347.0: a Live connection that drops in the middle of a call (network, the provider, the browser) used to
+      // hang the whole call up. Now the call waits, like after a silence: speaking reopens Live. Only the Hang up
+      // button, the mascot or Esc end the call (owner, 27/10/2026).
+      if (!handsFree) return;
+      ghiChuThoang(window.t("call.dropped"));
+      _liveWaitingWake = true;   // tickVoiceFocus opens the wake listener
+      capNhatThanhGoi(); updateVoiceFocus();
     },
   });
   phien.promise = startP;
@@ -2165,7 +2191,9 @@ async function taiTinCu() {
 // ============================================
 let sessionOpenSeq = 0;
 async function openStoredSession(id, stillCurrent) {
-  tatRanhTay();
+  // 0.347.0: switching conversation keeps a call (see _callSid). Only the Hang up button, the mascot, Esc or a
+  // brain switch end it. Outside a call this still cancels capture, as before.
+  if (handsFree) boViecPhienCu(); else tatRanhTay();
   const ticket = ++sessionOpenSeq;
   try {
     const sess = await (await fetch(`/sessions/${encodeURIComponent(id)}?limit=${TIN_MOI_LUOT}`)).json();
@@ -2209,7 +2237,9 @@ async function openStoredSession(id, stillCurrent) {
 // Xoá trắng khung chat về trạng thái "hội thoại mới" - dùng chung cho nút + Hội thoại mới
 // và lúc ĐỔI BRAIN (không focus input để đổi brain không bật bàn phím trên mobile).
 function resetChatView() {
-  tatRanhTay();
+  // 0.347.0: an empty chat view keeps a call too (it stays in its own conversation, see _callSid): leaving the
+  // Partners page opens one, and that used to hang the call up. A brain switch still ends it, at its own call site.
+  if (handsFree) boViecPhienCu(); else tatRanhTay();
   convo = [];
   hideActivity();          // dọn chip + timer trước khi xoá trắng khung
   _tinCu = null; goMoiTinCu();
@@ -2975,6 +3005,7 @@ graphSource.addEventListener("change", () => {
     const muon = _trangGiuKhungChat();
     if (savedSessionId && !muon) _viewByBrain[_lastBrain] = savedSessionId;
     _lastBrain = nb;
+    tatRanhTay();                                          // a call belongs to the old brain: end it
     resetChatView();                                       // xoá ngay khung của brain cũ
     if (!muon && _viewByBrain[nb]) openStoredSession(_viewByBrain[nb]);   // brain quen → mở lại phiên đang dở
   }
@@ -3939,6 +3970,7 @@ function tatRanhTay() {
   // Bọc try: vài test bóc riêng hàm này ra chạy, ở đó không có thanh gọi.
   try {
     _callMuted = false; voice.muted = false;
+    _callSid = null;
     if (callBar) callBar.hide();
     voiceBtn.classList.remove("in-call");
     voiceBtn.title = window.t("bar.mic");
@@ -3997,6 +4029,7 @@ voiceBtn.addEventListener("click", () => {
   if (handsFree) {
     // Bấm mic là GỌI: hiện thanh gọi, nút mic thành Cúp máy (0.65.18).
     _callMuted = false;
+    _callSid = savedSessionId || null;
     voiceBtn.classList.add("in-call");
     voiceBtn.title = window.t("call.hangup");
     voiceBtn.setAttribute("aria-label", window.t("call.hangup"));

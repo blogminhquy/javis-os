@@ -9,6 +9,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.347.0] - 2026-10-27
 ### Cải thiện
 - **Thanh bên gọn hơn: bỏ nhóm Code, Terminal chuyển vào nhóm Năng lực.** Giờ khung chat nào cũng gắn được thư mục và viết code được, nên không cần khu Code riêng nữa. Trang Coding cũ vẫn mở được từ link cũ hay lệnh nói, chỉ không nằm trên thanh bên. Nói "mở nhóm code" giờ mở nhóm Năng lực, nơi có Terminal.
+### Sửa lỗi
+- **Cuộc gọi không còn tự cúp khi chuyển màn hình.** Vào trang Cộng sự, bấm sang hội thoại khác hay đường gọi ChatGPT Live chợt rớt mạng đều từng cúp máy. Giờ cuộc gọi ở lại với đúng hội thoại lúc bắt đầu gọi, rớt kết nối thì chờ bạn nói tiếp rồi tự nối lại. Muốn cúp thì bấm Cúp máy hoặc bấm vào linh vật.
+- **Gọi lâu không còn bị điếc mic.** Sau nhiều phút gọi, bộ nghe của trình duyệt có lúc treo, Javis không nghe nữa và gọi lại cũng báo "mic chưa đóng xong" cho tới khi tải lại trang. Giờ Javis tự nhận ra bộ nghe bị treo và dựng lại ngay.
 
 ## [0.345.0] - 2026-10-27
 ### Cải thiện

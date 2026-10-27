@@ -3952,6 +3952,7 @@
   "settings.vc_eleven_opt": "ElevenLabs voice",
   "settings.vc_openai_note": "For OpenAI voices, paste an OpenAI API key on the Models page.",
   "call.reconnect_failed": "Couldn't reconnect ChatGPT Live. Just speak again to retry.",
+  "call.dropped": "The call line dropped. Just keep talking and Javis reconnects.",
   "resonance.card_title": "What Javis is working toward",
   "resonance.no_understanding": "The result is not clear yet; still exploring",
   "resonance.st_succeeded": "Achieved",

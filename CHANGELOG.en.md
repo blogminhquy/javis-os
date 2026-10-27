@@ -11,6 +11,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.347.0] - 2026-10-27
 ### Improved
 - **A leaner sidebar: the Code group is gone and Terminal moves into Capabilities.** Every chat can now attach a folder and write code, so a separate Code area is no longer needed. The old Coding page still opens from old links or voice commands, it just is not on the sidebar. Saying "open the code group" now opens Capabilities, where Terminal lives.
+### Fixed
+- **A call no longer hangs up when you switch screens.** Opening the Partners page, switching to another conversation or a dropped ChatGPT Live line all used to end the call. The call now stays with the conversation it started in, and after a drop it waits for you to speak, then reconnects. To hang up, press Hang up or tap the mascot.
+- **Long calls no longer lose the mic.** After several minutes the browser's listener could freeze: Javis stopped hearing, and calling again said "mic not closed yet" until a page reload. Javis now notices a frozen listener and rebuilds it at once.
 
 ## [0.345.0] - 2026-10-27
 ### Improved

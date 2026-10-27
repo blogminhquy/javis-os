@@ -14,6 +14,12 @@ class JavisVoice {
   // luôn ngắt hơi trước mốc này, nên nó chỉ cắt đúng thứ đáng cắt: một dòng tiếng liên tục
   // của TV hay của người khác trong phòng.
   static TRAN_LUOT_MS = 30000;
+  // 0.347.0: how long start()/stop() may go unanswered (no onstart, onend or onerror) before the recognizer counts as
+  // wedged. Chrome sometimes stops answering after many open/close cycles, which is exactly what the wait-for-name
+  // loop of a long ChatGPT Live call does (owner, 27/10/2026: "after 5 minutes it stops hearing, calling again does
+  // not help either"). The flags then stayed set for good: no more listening, and every new call said "mic not
+  // closed yet" until the page was reloaded. See _goKet.
+  static KET_MS = 5000;
 
   // ---- Ngắt lời bằng giọng: mẹo NHÁ TIẾNG (0.57.14) ----
   // Đo mức âm mic KHÔNG phân biệt nổi giọng người với tiếng LOA NGOÀI vọng lại, nên bản cũ
@@ -463,6 +469,7 @@ class JavisVoice {
           // nửa câu đầu biến mất.
           this._committed = JavisVoice.ghepDuoiTam(this.accumulatedTranscript || this._committed, this._duoiTam);
           this._duoiTam = "";
+          this._chuyenLuc = Date.now();
           this._starting = true;
           this.recognition.start();
           return;
@@ -692,6 +699,7 @@ class JavisVoice {
       this.onError("not-supported");
       return;
     }
+    if (this._dangKet()) this._goKet();
     if (this.isListening || this._starting || this._stopping || (tuDong && this.isTranscribing)) return;
     if (this._micHong) {
       if (tuDong) return;
@@ -732,6 +740,7 @@ class JavisVoice {
     try {
       this._startRecorder(); // nếu đã có stream, bắt đầu thu TRƯỚC SpeechRecognition
       this._recognitionStarted = true;
+      this._chuyenLuc = Date.now();
       this.recognition.start();
     } catch (e) {
       // "InvalidStateError" = phiên trước đã/đang mở (vòng lặp giữ mic của chế độ rảnh tay gọi
@@ -754,6 +763,7 @@ class JavisVoice {
     if (this.recognition && this.isListening) {
       this.userStopped = true;     // đánh dấu user chủ động dừng → không auto-restart
       this._stopping = true;
+      this._chuyenLuc = Date.now();
       try { this.recognition.stop(); } catch (e) { this._stopping = false; }
     } else if (this._starting) {
       // Phiên đang mở dở (start() đã gọi, onstart chưa chạy) nên chưa có gì để dừng. Ghi nợ
@@ -767,7 +777,9 @@ class JavisVoice {
     if (!this.isListening && !this._starting && !this._stopping) return Promise.resolve(true);
     return new Promise(resolve => {
       const done = ok => { clearTimeout(timer); this._captureWaiters.delete(done); resolve(ok); };
-      const timer = setTimeout(() => done(false), 2000);
+      // 0.347.0: two silent seconds used to return false, and the caller then hung the call up with "mic not closed
+      // yet". A recognizer that does not close when told to is wedged: rebuild it, which releases the capture.
+      const timer = setTimeout(() => this._goKet(), 2000);
       this._captureWaiters.add(done);
     });
   }
@@ -890,7 +902,33 @@ class JavisVoice {
     this._duoiTam = "";                  // cả đuôi chữ tạm, kẻo onend ghép nó thành tin
     this.onInterim("");                  // xoá chữ đang hiện dở trên màn hình
     this._stopRecorder().catch(() => {}); // Voice V2: bỏ đoạn ghi âm dở, không gửi Groq
+    this._chuyenLuc = Date.now();
     try { this.recognition.abort(); } catch (e) {}
+  }
+
+  // The recognizer has been opening or closing for longer than KET_MS without a single event from the browser.
+  _dangKet() {
+    return !!(this._starting || this._stopping) && !!this._chuyenLuc
+      && Date.now() - this._chuyenLuc > JavisVoice.KET_MS;
+  }
+
+  // Drop a wedged recognizer and build a fresh one (same language, same settings), then release anyone waiting
+  // for the capture to end. Without this only a page reload recovered (see KET_MS).
+  _goKet() {
+    const cu = this.recognition;
+    if (cu) {
+      try { cu.onstart = cu.onresult = cu.onerror = cu.onend = null; } catch (e) {}
+      try { cu.abort(); } catch (e) {}
+    }
+    const silenceMs = this.silenceMs;
+    this.isListening = false;
+    this._stopping = false;
+    this._recognitionStarted = false;
+    this._chuyenLuc = 0;
+    this._initRecognition();          // resets _starting, _stopPending, userStopped and the handlers
+    this.silenceMs = silenceMs;
+    try { console.warn("[voice] the browser recognizer stopped answering; rebuilt it"); } catch (e) {}
+    for (const done of this._captureWaiters) done(true);
   }
 
   _audioActuallyStarted(epoch) {

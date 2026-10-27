@@ -3952,6 +3952,7 @@
   "settings.vc_eleven_opt": "Giọng ElevenLabs",
   "settings.vc_openai_note": "Muốn dùng giọng OpenAI: dán API key OpenAI ở trang Models.",
   "call.reconnect_failed": "Chưa nối lại được ChatGPT Live. Cứ nói lại là Javis thử tiếp.",
+  "call.dropped": "Đường gọi vừa rớt. Cứ nói tiếp là Javis nối lại.",
   "resonance.card_title": "Javis đang hướng tới",
   "resonance.no_understanding": "Chưa rõ kết quả cần tạo, đang ở bước tìm hiểu",
   "resonance.st_succeeded": "Đã đạt",
