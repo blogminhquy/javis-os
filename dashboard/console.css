@@ -162,6 +162,72 @@ body.in-console .hud-actions { display: none; }
 .prov-status.on { color: var(--green); }
 .prov-badge { font-family: var(--font); font-size: 16px; letter-spacing: 0.5px; color: var(--accent); border: 1px solid var(--accent); border-radius: 5px; padding: 2px 6px; }
 .prov-action { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+/* 0.351.0 usage order (models-order.js). The top card is MAIN; a fallback card chat runs on right now turns green. */
+.ord-card.ord-inuse:not(.main) { border-color: var(--green); box-shadow: 0 0 0 1px color-mix(in srgb, var(--green) 45%, transparent); }
+.ord-head { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.ord-badges { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex: none; }
+.ord-pos { font-size: 16px; color: var(--text3); white-space: nowrap; }
+.prov-badge.ord-live { color: var(--green); border-color: var(--green); }
+.ord-grip { flex: none; width: 34px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 8px;
+  background: transparent; color: var(--text3); cursor: grab; touch-action: none; margin-right: -6px; }
+.ord-grip:hover { color: var(--text); background: var(--bg3); }
+.ord-chips { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.ord-chips .mb-chip, .ord-chips .cp-eff { font-size: 15px; padding: 6px 13px; min-height: 36px; }
+.ord-chips .mb-chip { max-width: 100%; }
+.ord-mtxt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ord-chips .mb-pop { left: 0; width: min(340px, calc(100vw - 32px)); }
+.ord-chips .eff-pop { left: 0; }
+.ord-chips .mb-item, .ord-chips .mb-search { font-size: 15px; }
+.aux-now-act.ord-chips { margin-top: 0; flex-wrap: nowrap; }
+.aux-now-act.ord-chips .mb-pop, .aux-now-act.ord-chips .eff-pop { left: auto; right: 0; }
+.ord-swap-row { display: flex; justify-content: center; margin: -4px 0; }
+.ord-swap { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font: inherit; font-size: 15px; cursor: pointer; }
+.ord-swap:hover { border-color: var(--accent); color: var(--accent-ink); }
+.ord-accts { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ord-acct { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 6px 6px 8px; border-radius: 22px;
+  border: 1px solid var(--border); background: var(--bg2); font-size: 16px; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.ord-acct.off { opacity: .55; }
+.ord-acct.inuse { border-color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+.ord-acct.inuse-bg { border-color: var(--accent2-ink); background: var(--accent2-wash); }
+.ord-acct .ord-grip { width: 28px; height: 34px; margin: 0 -6px 0 -2px; }
+.ord-num { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--border);
+  background: var(--bg3); font-size: 14px; font-weight: 600; }
+.ord-acct.inuse .ord-num { background: var(--green); border-color: var(--green); color: #fff; }
+.ord-acct.inuse-bg .ord-num { background: var(--accent2-ink); border-color: var(--accent2-ink); color: #fff; }
+.ord-atxt { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+.ord-aname { font-weight: 600; overflow-wrap: anywhere; }
+.ord-dot { font-size: 12px; }
+.ord-dot.ready { color: var(--green); } .ord-dot.rest { color: var(--warn-ink); } .ord-dot.off { color: var(--text3); }
+.ord-ast { color: var(--text3); }
+.ord-pill { font-weight: 600; overflow-wrap: anywhere; }
+.ord-pill.chat { color: var(--green); }
+.ord-pill.bg { color: var(--accent2-ink); }
+.ord-actl { display: flex; gap: 4px; flex: none; margin-left: auto; }
+.ord-ib { width: 36px; height: 36px; border-radius: 50%; border: 0; background: transparent; color: var(--text2); display: grid; place-items: center; cursor: pointer; }
+.ord-ib:hover:not(:disabled) { background: var(--bg3); color: var(--text); }
+.ord-ib:disabled { opacity: .3; cursor: not-allowed; }
+.ord-menu { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 4px 4px 38px; }
+.ord-menu[hidden], .ord-rekey[hidden], .ord-addbox[hidden], .ord-off[hidden] { display: none; }
+.ord-menu .danger { color: var(--red); }
+.ord-rekey { flex-basis: 100%; display: flex; gap: 8px; }
+.ord-rekey .js-input { flex: 1; min-width: 0; }
+.ord-add, .ord-more { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 14px; border-radius: 22px;
+  border: 1px dashed var(--border); background: transparent; color: var(--text2); font: inherit; font-size: 16px; cursor: pointer; }
+.ord-add:hover, .ord-more:hover { background: var(--bg3); color: var(--text); }
+.ord-more { margin: 0 0 10px; }
+.ord-addbox { border: 1px dashed var(--accent-line); background: var(--accent-wash); border-radius: 12px; padding: 12px; margin-top: 8px;
+  display: flex; flex-direction: column; gap: 10px; }
+.ord-dragging { position: relative; z-index: 5; box-shadow: var(--shadow-3) !important; cursor: grabbing; transition: none; }
+.ord-drop-line { position: fixed; height: 4px; border-radius: 4px; background: var(--accent); z-index: 70; pointer-events: none; }
+.ord-drop-line[hidden] { display: none; }
+body.ord-is-dragging, body.ord-is-dragging * { cursor: grabbing !important; user-select: none; }
+.ord-pressing { outline: 2px dashed var(--accent-line); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .ord-menu { padding-left: 4px; }
+  .aux-now { flex-wrap: wrap; }
+  .aux-now-act.ord-chips { width: 100%; justify-content: flex-end; }
+}
 /* Messages under the buttons of a provider card. They used to sit INSIDE the flex row of buttons,
    so a long CLI message became a narrow column and stretched the buttons to its height (owner's
    screenshot 2026-10-17). Here they get the full width of the card and vanish when empty. */

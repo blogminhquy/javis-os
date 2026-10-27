@@ -252,8 +252,9 @@ check("lượt gọi /claude/status chặn màn hình phải có AbortController
       "new AbortController()" in _cloud and "ac.abort()" in _cloud, _cloud[:400])
 check("và trần chờ phải được dọn (clearTimeout) để không rò hẹn giờ",
       "clearTimeout(hen)" in _cloud)
-check("quá hạn thì VẼ TIẾP chứ không dừng (claudeOn khởi tạo false)",
-      "let claudeOn = false;" in _cloud)
+# 0.351.0: the whole answer is kept (null until it arrives); an unknown state keeps Claude where the server put it.
+check("quá hạn thì VẼ TIẾP chứ không dừng (claudeSt khởi tạo null)",
+      "let claudeSt = null;" in _cloud and "const claudeOn = !!(claudeSt && claudeSt.connected);" in _cloud)
 # refreshClaudeCard vẫn phải hỏi, chỉ là bất đồng bộ và không chặn nét vẽ đầu.
 check("refreshClaudeCard vẫn hỏi trạng thái (bất đồng bộ, không chặn)",
       "/claude/status" in _con)

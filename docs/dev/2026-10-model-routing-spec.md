@@ -167,9 +167,13 @@ Mỗi bản là một PR, CI xanh thì merge, mỗi bản một số phiên bả
    cũ, chuỗi việc nền mới (model nền → dự phòng mặc định → MAIN), luật dừng sau `tool_call`,
    nhiều key API có xoay vòng, Telegram ghim theo chat, Effort gần nhất, chip khung chat chỉ hiện
    nhà đã kết nối. Kèm test.
-2. **0.35x: giao diện trang Models** theo bản duyệt: Thứ tự dùng (kéo thả, ⇅, chip model/Effort),
-   danh sách tài khoản và key, ô Model việc nền (bảng chọn hai kiểu, mở lên trên), ẩn nhà chưa kết
-   nối, bỏ ô Telegram và ô Mức suy luận chung.
+2. **0.351.0: giao diện trang Models** theo bản duyệt: Thứ tự dùng (kéo thả, ⇅, chip model/Effort),
+   danh sách key của thẻ API, ô Model việc nền (bảng chọn hai kiểu, mở lên trên), ẩn nhà chưa kết
+   nối, bỏ ô Telegram, ô Main Model và ô Mức suy luận chung. Server gửi kèm `model.routing` (thứ tự,
+   profile từng thẻ, model nền, thẻ chat và việc nền đang chạy) để trang không tự suy.
+   Chưa làm ở bản này: chip `Extra → High` (2.3.3) cần bảng mức suy luận của từng model, mà danh
+   sách model hiện chỉ có tên. Tới khi có bảng đó, chip hiện đúng mức đã chọn và engine tự hạ mức
+   như trước. Danh sách tài khoản cho gói (CLI) đi cùng bản 3.
 3. **0.35x: nhiều tài khoản cho CLI.** Codex (`CODEX_HOME` riêng) và Grok (`GROK_HOME` riêng)
    trước; Claude Code (`CLAUDE_CONFIG_DIR` riêng) sau khi kiểm chứng tách được trên macOS
    (Keychain), Linux và Windows. Mỗi tài khoản một thư mục trong `STATE_DIR/accounts/<id>/`.

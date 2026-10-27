@@ -1,4 +1,4 @@
-/* Khối "Model Telegram" trên trang Models: mặc định theo model chính, ghim khi chọn.
+/* Khối "Model Telegram" trên trang Models đã bỏ ở 0.351.0: Telegram theo MAIN, /model trong một chat ghim chat đó.
 
        node tests/js/test_ghim_model_telegram.js
 
@@ -20,21 +20,13 @@ const check = (name, cond, them) => {
 const i = JS.indexOf("async function renderModelsCloudTab(el)");
 check("tìm được khung Cloud", i > 0);
 const CL = JS.slice(i, JS.indexOf("\n  async function", i + 10) > 0 ? JS.indexOf("\n  async function", i + 10) : JS.length);
-check("có khối Model Telegram", /id="tgCard"/.test(CL));
-check("khối nằm SAU khối việc nền (cùng họ 'model theo làn')", CL.indexOf('id="tgCard"') > CL.indexOf('id="auxChange"'));
-check("chưa ghim thì hiện 'theo model chính', không hiện tên model như thể đã ghim",
-  /tgPinned \? esc\(tgModel \|\| "-"\) : esc\(t\("models\.tg_follow"\)\)/.test(CL));
-check("nút đổi khi chưa ghim ghi là GHIM, đã ghim thì là Đổi model",
-  /tgPinned \? t\("models\.change_model"\) : t\("models\.tg_pin"\)/.test(CL));
-check("CANARY: bỏ ghim ghi provider RỖNG", /telegram: \{ provider: "", model: "" \}/.test(CL));
-check("ghim lưu đúng ô telegram", /telegram: \{ provider: prov, model: mod \}/.test(CL));
-check("cảnh báo khi provider ghim chưa kết nối", /models\.tg_warn/.test(CL) && /tgReady/.test(CL));
-for (const k of ["models.h_tg", "models.h_tg_sub", "models.tg_meta", "models.tg_follow", "models.tg_follow_sub",
-                 "models.tg_pin", "models.tg_reset", "models.tg_warn", "models.tg_note", "models.tg_title", "models.tg_note2"]) {
-  check("vi có " + k, !!VI[k]);
-  check("en có " + k, !!EN[k]);
+// 0.351.0 (docs/dev/2026-10-model-routing-spec.md 2.5, owner's call): the Models page has no Telegram box any more.
+// Telegram follows MAIN; /model typed in a Telegram chat pins that chat only (server side, the .py twin of this test).
+check("không còn khối Model Telegram", !/id="tgCard"/.test(CL) && !/tgPinned/.test(CL));
+check("trang không còn ghi ô telegram nào", !/telegram: \{ provider:/.test(CL));
+for (const k of ["models.h_tg", "models.tg_pin", "models.tg_reset", "models.tg_warn"]) {
+  check("khoá cũ đã gỡ khỏi vi/en: " + k, !(k in VI) && !(k in EN));
 }
-check("chữ nhắc /status vì điện thoại không có banner", /\/status/.test(VI["models.tg_note"] || ""));
 console.log();
 if (fails.length) { console.log("ĐỎ " + fails.length + " mục"); process.exit(1); }
 console.log("Tất cả xanh.");

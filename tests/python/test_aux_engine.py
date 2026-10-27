@@ -197,8 +197,10 @@ check("UI: khong con day chip model viec nen", "auxGroups" not in console)
 check("UI: co hang tom tat lua chon hien tai", 'class="aux-now"' in console)
 # 0.9.293: danh sach provider duoc sap xep (da ket noi len dau) roi moi truyen vao picker,
 # nen bien la provList chu khong con la providers tho.
-check("UI: nut mo picker", 'id="auxChange"' in console and "openModelPicker(provList, { provider: auxProv" in console)
-check("UI: co duong ve mac dinh", 'id="auxReset"' in console)
+# 0.351.0 (spec 2.4.4): the picker lists signed-in providers only; there is no "back to default" (owner: the
+# background model starts on the provider's default and then stays fixed).
+check("UI: nut mo picker", 'id="auxChange"' in console and "openModelPicker(c.connList, { provider: c.bgCfg.provider" in console)
+check("UI: khong con nut ve mac dinh", 'id="auxReset"' not in console)
 check("UI: picker nhan tuy chon (dung chung cho model chinh va model nen)",
       "function openModelPicker(providers, main, onDone, opts)" in console)
 check("UI: picker luu qua SAVE cua nguoi goi", "await SAVE(selProv, selModel)" in console)

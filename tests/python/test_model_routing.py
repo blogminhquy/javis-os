@@ -225,6 +225,24 @@ check("GET /settings has no account key in clear", "gsk-secret-1234" not in view
 check("GET /settings shows each account with its last 4 characters",
       main.settings_get()["model"]["accounts"]["groq"][0]["key"] == "••••1234")
 
+# ---- 9. what the Models page draws -------------------------------------------------------------------
+asyncio.run(main.settings_set("model", json.dumps({"order": ["groq", "anthropic-cli"]})))
+asyncio.run(main.settings_set("model", json.dumps({"auxiliary": {"provider": "anthropic-cli", "model": "haiku"}})))
+mcfg = cfgmod.read_settings()["model"]
+provs = [{"id": "anthropic-cli", "configured": True, "cli_found": True}, {"id": "groq", "configured": True},
+         {"id": "gemini", "configured": False}, {"id": "openai-oauth", "configured": True, "cli_found": False}]
+v = main._routing_view(mcfg, provs)
+check("the page's order lists signed-in cards only, MAIN first", v["order"] == ["groq", "anthropic-cli"], v["order"])
+check("each card in the order carries its model and effort", set(v["profiles"]) == {"groq", "anthropic-cli"})
+check("chat in use is MAIN when it can run", v["chat_in_use"] == "groq")
+check("background in use is the background model", v["bg_in_use"]["step"] == "background"
+      and v["bg_in_use"]["model"] == "haiku", v["bg_in_use"])
+check("API cards with a key list are named for the page", "groq" in v["multi_key"] and "openai-compat" not in v["multi_key"])
+acc = R.accounts(mcfg, "groq", "groq_api_key")[0]
+R.mark_rest("groq", acc["id"], seconds=600)
+check("a resting MAIN shows chat on the next card", main._routing_view(mcfg, provs)["chat_in_use"] == "anthropic-cli")
+R.clear_rest("groq", acc["id"])
+
 print()
 if _fails:
     print(f"ĐỎ {len(_fails)}: " + "; ".join(_fails))

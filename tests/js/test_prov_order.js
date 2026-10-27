@@ -15,7 +15,8 @@ function check(name, cond) {
 
 // ---- console.js phai co dung co che nay ----
 check("renderModels hoi /claude/status de biet Claude co dang nhap that khong",
-  /claudeOn = !!\(await \(await fetch\("\/claude\/status", \{ signal: ac\.signal \}\)\)\.json\(\)\)\.connected/.test(CONSOLE_JS));
+  /claudeSt = await \(await fetch\("\/claude\/status", \{ signal: ac\.signal \}\)\)\.json\(\)/.test(CONSOLE_JS)
+  && CONSOLE_JS.includes("const claudeOn = !!(claudeSt && claudeSt.connected);"));
 // 06/09: luot goi nay CHAN net ve dau tien va truoc day khong co timeout, nen mot `claude`
 // treo la trang Models ket o "Dang tai..." vinh vien (fetch treo thi catch khong cuu duoc vi
 // no khong reject). freshSettings ngay tren da co AbortController tu lau; cho nay phai co.
@@ -28,11 +29,14 @@ check("provOn: rieng anthropic-cli lay theo claudeOn, con lai lay theo configure
   /const provOn = \(p\) => \(p\.id === "anthropic-cli" \? claudeOn : !!p\.configured\)/.test(CONSOLE_JS));
 check("sort co tiebreak theo chi so goc (on dinh, khong phu thuoc engine)",
   /\.sort\(\(a, b\) => \(provOn\(b\.p\) - provOn\(a\.p\)\) \|\| \(a\.i - b\.i\)\)/.test(CONSOLE_JS));
-check("danh sach card dung ban da sap xep", CONSOLE_JS.includes("${provList.map(provCard).join(\"\")}"));
-check("hop Doi model chinh cung dung ban da sap xep",
-  CONSOLE_JS.includes("openModelPicker(provList, main,"));
-check("hop Doi model viec nen cung dung ban da sap xep",
-  CONSOLE_JS.includes("openModelPicker(provList, { provider: auxProv, model: aux }"));
+// 0.351.0: signed-in cards follow the server's usage order; the cards still to connect keep this sorted list.
+check("the chua ket noi dung ban da sap xep",
+  CONSOLE_JS.includes("const offList = provList.filter(p => order.indexOf(p.id) < 0);")
+  && CONSOLE_JS.includes("offList.map(p => provCard(p, null))"));
+check("the da dang nhap theo thu tu dung cua server",
+  CONSOLE_JS.includes("const order = (R.order || []).filter(") && CONSOLE_JS.includes("connList.map((p, i) =>"));
+check("hop Doi model viec nen chi liet ke nha da dang nhap",
+  CONSOLE_JS.includes("openModelPicker(c.connList, { provider: c.bgCfg.provider, model: c.bgCfg.model }"));
 // Chi soi cho GOI, khong soi dong dinh nghia `function openModelPicker(providers, ...)`.
 check("KHONG con cho nao render thang mang providers chua sap",
   !CONSOLE_JS.includes("providers.map(provCard)")

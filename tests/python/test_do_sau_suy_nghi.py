@@ -273,8 +273,9 @@ check("thiếu config -> off", srv._reasoning_level({}) == "off")
 check("config None -> off", srv._reasoning_level(None) == "off")
 
 # ---- 8. Giao diện phải khớp server ----
+# 0.351.0: the Models page's Effort chips mount the composer's slider, so the slider file owns the scale there.
 for f, ten in ((ROOT / "dashboard" / "model-picker.js", "thanh chat"),
-               (ROOT / "dashboard" / "console.js", "trang Models")):
+               (ROOT / "dashboard" / "effort-slider.js", "trang Models (thanh trượt Effort)")):
     txt = f.read_text(encoding="utf-8")
     thieu = [r for r in engine.REASONING_LEVELS if '"%s"' % r not in txt]
     check("%s có đủ mọi nấc của server" % ten, not thieu, thieu)
