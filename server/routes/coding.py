@@ -134,7 +134,7 @@ def _pin(sid: str, raw: str, brain: str):
     """POST /coding/session/{sid}/pin body, run in a worker thread (git and disk reads).
     Returns (status, payload)."""
     try:
-        # GitHub repos attached to the chat (0.361.0) are not the pinned folder: pinning or unpinning keeps them.
+        # GitHub repos attached to the chat (0.362.0) are not the pinned folder: pinning or unpinning keeps them.
         repos = [r["id"] for r in coding_store.thu_muc_cua_phien(sid) if r.get("nguon") == "github"]
         if not raw:
             old = [r["id"] for r in coding_store.thu_muc_cua_phien(sid) if r.get("nguon") != "github"]

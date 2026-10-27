@@ -19551,7 +19551,7 @@ async def sessions_delete(session_id: str):
         await asyncio.to_thread(coding_checkpoint.don_phien, session_id)
     except Exception:
         pass
-    # 0.361.0: the chat's GitHub worktrees go with it, except one still holding unsaved or unpushed work.
+    # 0.362.0: the chat's GitHub worktrees go with it, except one still holding unsaved or unpushed work.
     try:
         import github_repos
         await asyncio.to_thread(github_repos.forget_session, session_id)
@@ -24898,7 +24898,7 @@ coding_routes.register(app, coding_routes.CodingDeps(
     resolve_path=lambda b, rel: str(_safe_serve_path(b, rel)),
     brain_root=lambda b: str(_brain_root(b))))
 
-# GitHub inside chat (0.361.0, docs/dev/2026-10-github-trong-chat-spec.md): the built-in GitHub connection, repo
+# GitHub inside chat (0.362.0, docs/dev/2026-10-github-trong-chat-spec.md): the built-in GitHub connection, repo
 # clones per brain (outside the brain tree) and the repos attached to a conversation.
 import routes.github as github_routes   # noqa: E402
 github_routes.register(app, github_routes.GitHubDeps(brain_root=lambda b: str(_brain_root(b))))

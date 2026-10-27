@@ -144,7 +144,7 @@ không âm thầm dùng token thiếu quyền.
 Phần dưới là [ĐỀ XUẤT]:
 
 - Bản đầu dùng **fine-grained personal access token**, **một kết nối cho cả bản cài** (sửa lúc làm
-  G1, 0.361.0: bản nháp ghi mỗi brain một token, nhưng token sao lưu brain vốn là một cho cả bản
+  G1, 0.362.0: bản nháp ghi mỗi brain một token, nhưng token sao lưu brain vốn là một cho cả bản
   cài, và chưa có người dùng nào cần hai tài khoản GitHub theo brain). Token mã hoá khi lưu qua
   `_SECRET_PATHS` của `config.py` (`github.token`); sổ repo vẫn tách theo brain. Quyền tối thiểu: Contents (đọc, ghi), Pull requests (đọc, ghi),
   Checks (đọc), Actions (đọc), Commit statuses (đọc), Metadata (đọc).

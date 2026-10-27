@@ -1,4 +1,4 @@
-/* github-connect.js - GitHub inside chat, phase G1 (0.361.0, docs/dev/2026-10-github-trong-chat-spec.md).
+/* github-connect.js - GitHub inside chat, phase G1 (0.362.0, docs/dev/2026-10-github-trong-chat-spec.md).
  *
  * Three pieces, one module:
  *   1. The GitHub card on the Connections page. It is built into Javis (owner, 2026-10-27): always shown, connected

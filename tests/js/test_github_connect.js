@@ -1,4 +1,4 @@
-/* GitHub inside chat, phase G1 (0.361.0): the built-in GitHub card, the "GitHub repo" item of the + menu, the chip.
+/* GitHub inside chat, phase G1 (0.362.0): the built-in GitHub card, the "GitHub repo" item of the + menu, the chip.
 
        node tests/js/test_github_connect.js
 */

@@ -6593,7 +6593,7 @@
       + (conns.length > 3 ? '<input class="js-input conn-search" id="connQ" type="search" placeholder="' + esc(window.t("cs.cn_conn_search_ph")) + '">' : "")
       + '<div class="gcard-meta" style="max-width:740px">'
       + '<label style="cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> ' + esc(window.t("cs.cn_strict")) + '</label></div>'
-      // GitHub is built into Javis (0.361.0, github-connect.js): its card is always first, connected or not.
+      // GitHub is built into Javis (0.362.0, github-connect.js): its card is always first, connected or not.
       + '<div class="prov-list" id="mcpGithub" style="margin-top:12px"></div>'
       + '<div class="prov-list" id="connList" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">' + esc(window.t("cs.cn_empty_a")) + ' <b>' + esc(window.t("cs.cn_tab_sanco")) + '</b> ' + esc(window.t("cs.cn_empty_b")) + '</div>') + '</div>'
       // Connected Facebook Pages (messenger-connect.js), one card in this same list, drawn only once a Page is

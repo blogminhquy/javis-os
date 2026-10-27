@@ -270,7 +270,7 @@ def them_thu_muc(duong_dan: str, brain: str = "", ten: str = "", nguon: str = ""
     Chỉ từ chối ba thứ không thể làm việc được: chuỗi rỗng, đường dẫn đọc không ra, và thứ
     không phải thư mục. Còn lại nhận hết - có git hay không là chuyện đọc ra sau.
 
-    `nguon="github"` and `repo="owner/name"` (0.361.0) mark a clone that github_repos made. Such a folder keeps its
+    `nguon="github"` and `repo="owner/name"` (0.362.0) mark a clone that github_repos made. Such a folder keeps its
     registry entry when a chat unpins it, and only github_repos deletes it from disk (spec section 5.3).
     """
     raw = str(duong_dan or "").strip()
@@ -405,7 +405,7 @@ def xoa_rang_buoc(sid: str) -> None:
 
 
 def worktree_thu_muc(sid: str, tid: str) -> str:
-    """This session's worktree of folder `tid` (0.361.0, one per GitHub repo), or ""."""
+    """This session's worktree of folder `tid` (0.362.0, one per GitHub repo), or ""."""
     wts = rang_buoc(sid).get("worktrees")
     return str((wts or {}).get(str(tid or ""), "") or "") if isinstance(wts, dict) else ""
 
@@ -440,7 +440,7 @@ def thu_muc_cua_phien(sid: str) -> List[Dict[str, Any]]:
     Chỉ trả về thư mục còn trong sổ: gỡ một thư mục khỏi Javis mà vẫn để lại id chết trong
     ràng buộc thì lượt chat sau nói với engine về một đường dẫn không tồn tại.
 
-    Each record carries `lam_viec` (0.361.0): where this session actually works in that folder, its own worktree when
+    Each record carries `lam_viec` (0.362.0): where this session actually works in that folder, its own worktree when
     it has one (GitHub repos), else the folder itself. Prompts and tool roots must use it, not `duong_dan`.
     """
     rb = rang_buoc(sid)
@@ -470,7 +470,7 @@ def cwd_cua_phien(sid: str) -> str:
     mất một thư mục tạm không đáng để cả phiên không nhắn được.
     """
     rb = rang_buoc(sid)
-    # A GitHub repo as main folder works in this session's own worktree of it (0.361.0).
+    # A GitHub repo as main folder works in this session's own worktree of it (0.362.0).
     wts = rb.get("worktrees") if isinstance(rb.get("worktrees"), dict) else {}
     wt_main = str(wts.get(rb.get("thu_muc") or "") or "")
     if wt_main and Path(wt_main).is_dir():
