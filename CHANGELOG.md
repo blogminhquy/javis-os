@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.350.0] - 2026-10-27
+### Thêm mới
+- **Trang Mô hình: thứ tự dự phòng, nhiều tài khoản cho mỗi nhà cung cấp, mô hình nền riêng.** (đang làm)
+
 ## [0.349.0] - 2026-10-27
 ### Cải thiện
 - **Tua lại hội thoại từ một câu hỏi.** Dưới mỗi câu bạn hỏi giờ có nút ↺ Tua lại, thay cho hai nút Gửi lại và Sửa lại. Bấm vào, Javis hỏi xác nhận rồi xoá câu đó cùng mọi thứ bên dưới, đưa câu hỏi về ô nhập để bạn sửa hoặc gửi lại. Hội thoại đi tiếp từ đó, bộ não đang chat cũng quên phần đã xoá. Đang trả lời thì bấm Dừng trước rồi mới tua lại được.

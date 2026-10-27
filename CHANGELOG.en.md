@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.350.0] - 2026-10-27
+### Added
+- **Models page: fallback order, several accounts per provider, a separate background model.** (in progress)
+
 ## [0.349.0] - 2026-10-27
 ### Improved
 - **Rewind a chat to one of your questions.** Under each question you asked there is now a ↺ Rewind button, replacing Send again and Edit. Press it, confirm, and Javis deletes that question and everything below it, then puts the question back in the message box to edit or resend. The chat goes on from there, and the chatting brain forgets the deleted part too. While Javis is answering, press Stop first.
