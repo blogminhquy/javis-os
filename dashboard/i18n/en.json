@@ -1720,7 +1720,7 @@
   "app.ctx_engine": "The REAL brain that ran this turn{model} (declared by the server, not the model's own claim).",
   "app.ctx_hint_full": "Sending everything. Click to pick a saving level.",
   "app.ctx_hint_saving": "Saving tokens. Click for details.",
-  "app.ctx_cached": "{n} from cache",
+  "app.ctx_hint_tokens_new": "New tokens this turn. Leaves out {n} tokens read back from cache (far cheaper).",
   "app.ctx_hint_tokens": "Total of every model call in this turn, including tokens read back from cache (far cheaper than new ones).",
   "app.tg_no_token": "On, but no token yet",
   "app.tg_only_chat": "· only chat_id",

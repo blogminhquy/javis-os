@@ -123,10 +123,13 @@ STEER = (SERVER / "codex_steer.py").read_text(encoding="utf-8")
 check("Codex cộng cachedInputTokens", 'tok_cache += int(lu.get("cachedInputTokens")' in STEER
       and '"tokens_cache_read": tok_cache' in STEER)
 APP = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
-check("dashboard vẽ phần từ cache", "data.ctx_cache" in APP and 'window.t("app.ctx_cached"' in APP)
+# Chủ repo 27/10/2026: dòng token chỉ hiện phần MỚI, phần đọc lại từ cache chỉ nêu trong chú thích.
+check("dòng token chỉ hiện token mới (trừ phần cache)", "data.ctx_cache" in APP
+      and '_fmtTok(tok - cache) + " token"' in APP and "app.ctx_cached" not in APP)
+check("chú thích nêu phần cache đã bỏ ra", 'window.t("app.ctx_hint_tokens_new", { n: _fmtTok(cache) })' in APP)
 for lang in ("vi", "en"):
     d = json.loads((ROOT / "dashboard" / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
-    check(f"i18n {lang}: có chữ cho cache và chú thích", "{n}" in d.get("app.ctx_cached", "")
+    check(f"i18n {lang}: có chữ cho cache và chú thích", "{n}" in d.get("app.ctx_hint_tokens_new", "")
           and d.get("app.ctx_hint_tokens"))
 
 print()

@@ -1720,7 +1720,7 @@
   "app.ctx_engine": "Bộ não THẬT đã chạy lượt này{model} (máy chủ khai, không phải model tự nhận).",
   "app.ctx_hint_full": "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm.",
   "app.ctx_hint_saving": "Đang tiết kiệm token. Bấm để xem chi tiết.",
-  "app.ctx_cached": "{n} từ cache",
+  "app.ctx_hint_tokens_new": "Token mới của lượt này. Không tính {n} token đọc lại từ cache (rẻ hơn nhiều).",
   "app.ctx_hint_tokens": "Tổng mọi lần gọi model trong lượt, gồm cả phần đọc lại từ cache (rẻ hơn nhiều so với token mới).",
   "app.tg_no_token": "Đã bật nhưng chưa có token",
   "app.tg_only_chat": "· chỉ chat_id",
