@@ -1721,7 +1721,7 @@
   "app.ctx_hint_full": "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm.",
   "app.ctx_hint_saving": "Đang tiết kiệm token. Bấm để xem chi tiết.",
   "app.ctx_cached": "{n} từ cache",
-  "app.ctx_hint_tokens": "Số token là TỔNG mọi lần gọi model trong lượt này, kể cả phần đọc lại từ cache. Phần từ cache là ngữ cảnh đã gửi ở lượt trước, nhà cung cấp đọc lại với giá thấp hơn nhiều so với token mới.",
+  "app.ctx_hint_tokens": "Tổng mọi lần gọi model trong lượt, gồm cả phần đọc lại từ cache (rẻ hơn nhiều so với token mới).",
   "app.tg_no_token": "Đã bật nhưng chưa có token",
   "app.tg_only_chat": "· chỉ chat_id",
   "app.tg_everyone": "· MỌI người (nên đặt chat_id)",

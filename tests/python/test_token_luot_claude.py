@@ -21,7 +21,7 @@ os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-tokluot-
 import context_compiler  # noqa: E402
 import fast_mode  # noqa: E402
 import main  # noqa: E402
-from claude_sdk_engine import ClaudeSDK  # noqa: E402
+import claude_cli  # noqa: E402
 
 fails = []
 
@@ -33,24 +33,36 @@ def check(name, cond, extra=""):
 
 
 # ---- 1. CLAUDE.md của Javis không nạp hai lần ----
+# claude_sdk_engine.py bị ghim băm bởi bằng chứng kiểm định native, nên việc này làm ở factory
+# claude_cli.claude_engine (mọi engine Claude đều dựng qua đó) và ở main._cli_fast (lượt chat).
 CLAUDE_MD = (ROOT / "CLAUDE.md").resolve()
-e = ClaudeSDK(tag="chat")
+e = claude_cli.claude_engine(tag="chat")
 cfg = json.loads(e._options().settings)
 check("settings loại đúng CLAUDE.md của repo (prompt Javis)", str(CLAUDE_MD) in cfg.get("claudeMdExcludes", []),
       cfg)
 check("chỉ loại MỘT file đó, không loại CLAUDE.md của người dùng hay của brain",
       {os.path.basename(p) for p in cfg["claudeMdExcludes"]} == {"CLAUDE.md"}
-      and all(p.replace("\\\\", "/").startswith(str(ROOT).replace("\\\\", "/")) for p in cfg["claudeMdExcludes"]),
+      and all(p.replace("\\", "/").startswith(str(ROOT).replace("\\", "/")) for p in cfg["claudeMdExcludes"]),
       cfg["claudeMdExcludes"])
 check("main.CLAUDE_MD_PATH trỏ cùng file đã loại (đổi chỗ prompt thì phải đổi cả hai)",
       main.CLAUDE_MD_PATH.resolve() == CLAUDE_MD)
 check("vẫn giữ fastMode false mặc định", cfg.get("fastMode") is False, cfg)
-e.fast_settings = fast_mode.claude_sdk_settings("claude-opus-5-5", True)
+tok = fast_mode.use(True)
+e.model = "claude-opus-5-5"
+main._cli_fast(e)
+fast_mode.CURRENT.reset(tok)
 cfg2 = json.loads(e._options().settings)
-check("chế độ nhanh vẫn đi cùng danh sách loại", cfg2.get("fastMode") is True and cfg2.get("claudeMdExcludes"), cfg2)
-g = ClaudeSDK(tag="loop", allowed_tools=["Read"])
+check("chế độ nhanh vẫn đi cùng danh sách loại", cfg2.get("fastMode") is True
+      and str(CLAUDE_MD) in cfg2.get("claudeMdExcludes", []), cfg2)
+g = claude_cli.claude_engine(tag="loop", allowed_tools=["Read"])
 check("lượt nền khoá quyền cũng loại (cùng cwd brain trong repo)",
       str(CLAUDE_MD) in json.loads(g._options().settings).get("claudeMdExcludes", []))
+check("danh sách loại sẵn có được giữ, không trùng",
+      json.loads(claude_cli.them_loai_claude_md('{"claudeMdExcludes": ["/x/CLAUDE.md"]}'))["claudeMdExcludes"][0]
+      == "/x/CLAUDE.md"
+      and len(json.loads(claude_cli.them_loai_claude_md(claude_cli.them_loai_claude_md()))["claudeMdExcludes"])
+      == len(json.loads(claude_cli.them_loai_claude_md())["claudeMdExcludes"]))
+check("settings hỏng thì vẫn ra JSON hợp lệ", json.loads(claude_cli.them_loai_claude_md("{hỏng")).get("fastMode") is False)
 
 # ---- 2. Giờ gửi tin cho lượt nối phiên ----
 now = datetime.datetime(2026, 10, 27, 8, 53, tzinfo=datetime.timezone(datetime.timedelta(hours=7)))
@@ -82,8 +94,31 @@ check("cache không bao giờ vượt tổng", main._ctx_frame(None, 100, 999).g
 check("mọi khung kết thúc lượt chat mang theo cache",
       SRC.count("_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)") >= 10
       and "_ctx_frame(runtime_trace, _ctx_in)" not in SRC)
-ENG = (SERVER / "claude_sdk_engine.py").read_text(encoding="utf-8")
-check("engine Claude Code báo tokens_cache_read", '"tokens_cache_read": u.get("cache_read_input_tokens")' in ENG)
+# Engine Claude Code: bọc map_message từ ngoài (như plan_limits), chạy trên ResultMessage THẬT của SDK.
+import claude_sdk_engine as ENG  # noqa: E402
+from claude_agent_sdk import ResultMessage  # noqa: E402
+
+
+def _chuoi_boc():
+    f, n = ENG.map_message, 0
+    while f is not None:
+        n += 1
+        f = getattr(f, "__wrapped__", None)
+    return n
+
+
+claude_cli.claude_engine(tag="chat")
+n1 = _chuoi_boc()
+claude_cli.claude_engine(tag="chat")
+check("dựng engine nhiều lần không chồng thêm lớp bọc", _chuoi_boc() == n1 == 3, (n1, _chuoi_boc()))
+kq = ResultMessage(subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=1,
+                   session_id="s-tok", result="Chào anh", usage={
+                       "input_tokens": 9, "cache_read_input_tokens": 13357, "cache_creation_input_tokens": 47442,
+                       "output_tokens": 30})
+ev, _sid = ENG.map_message(kq)
+fin = [x for x in ev if x.get("type") == "final"]
+check("engine Claude Code báo tokens_cache_read trên sự kiện final",
+      fin and fin[0].get("tokens_cache_read") == 13357 and fin[0].get("tokens_in") == 60808, fin)
 STEER = (SERVER / "codex_steer.py").read_text(encoding="utf-8")
 check("Codex cộng cachedInputTokens", 'tok_cache += int(lu.get("cachedInputTokens")' in STEER
       and '"tokens_cache_read": tok_cache' in STEER)

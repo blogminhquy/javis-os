@@ -1721,7 +1721,7 @@
   "app.ctx_hint_full": "Sending everything. Click to pick a saving level.",
   "app.ctx_hint_saving": "Saving tokens. Click for details.",
   "app.ctx_cached": "{n} from cache",
-  "app.ctx_hint_tokens": "The token count is the TOTAL of every model call in this turn, including what was read back from the cache. Cached tokens are context already sent in an earlier turn, which the provider reads back for far less than new tokens.",
+  "app.ctx_hint_tokens": "Total of every model call in this turn, including tokens read back from cache (far cheaper than new ones).",
   "app.tg_no_token": "On, but no token yet",
   "app.tg_only_chat": "· only chat_id",
   "app.tg_everyone": "· EVERYONE (better to set a chat_id)",

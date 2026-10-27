@@ -1035,13 +1035,79 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
     from claude_sdk_engine import ClaudeSDK
     # 0.329.0: Claude Code's rate_limit_event -> the plan usage ring. Hooked here, when the SDK is loaded
     # anyway, not at server import (that would load the whole SDK at startup; test_khoi_dong_nhe).
+    # 0.345.0: token cache count on the turn's final event. Installed BEFORE plan_limits so its
+    # own "already wrapped?" check keeps seeing itself on top (no stacked wrappers per turn).
+    try:
+        _cai_dem_cache()
+    except Exception:  # noqa: BLE001 - a counter must never stop a turn
+        pass
     try:
         import plan_limits
         plan_limits.cai_vao_claude_sdk()
     except Exception:  # noqa: BLE001 - a meter must never stop a turn
         pass
-    return ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
-                     allowed_tools=allowed_tools, model=model)
+    eng = ClaudeSDK(system_prompt=system_prompt, cwd=cwd, tag=tag,
+                    allowed_tools=allowed_tools, model=model)
+    # Every run (chat, loops, reminders, bots) skips the repo CLAUDE.md; main._cli_fast keeps it.
+    eng.fast_settings = them_loai_claude_md()
+    return eng
+
+
+def _claude_md_repo() -> list:
+    """The repo's own CLAUDE.md, in both spellings Claude Code may compare against."""
+    p = Path(__file__).resolve().parent.parent / "CLAUDE.md"
+    return list(dict.fromkeys([str(p), p.as_posix()]))
+
+
+def them_loai_claude_md(settings: str = None) -> str:
+    """Claude Code settings JSON that also excludes the repo CLAUDE.md (0.345.0).
+
+    A native install keeps brains under the repo (BRAINS_DIR defaults to <repo>/brains), and
+    Claude Code walks up from its cwd loading every CLAUDE.md it meets. The repo one IS the Javis
+    system prompt, which Javis already appends, so each turn paid for it twice (about 12k tokens,
+    measured on a plain "chào em"). `fastMode` stays explicit false unless the caller set it."""
+    try:
+        d = json.loads(settings) if settings else {}
+    except (TypeError, ValueError):
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    d.setdefault("fastMode", False)
+    cu = d.get("claudeMdExcludes")
+    cu = cu if isinstance(cu, list) else []
+    d["claudeMdExcludes"] = list(dict.fromkeys([*cu, *_claude_md_repo()]))
+    return json.dumps(d, ensure_ascii=False)
+
+
+def _cai_dem_cache() -> bool:
+    """Add `tokens_cache_read` to Claude Code's final event without editing claude_sdk_engine.py.
+
+    That file is pinned by the native qualification evidence (see plan_limits.cai_vao_claude_sdk),
+    so this wraps its module-level `map_message` the same way. Idempotent across the whole wrapper
+    chain, whichever order the wrappers went on."""
+    import claude_sdk_engine as eng
+    f = eng.map_message
+    while f is not None:
+        if getattr(f, "_dem_cache", False):
+            return True
+        f = getattr(f, "__wrapped__", None)
+    goc = eng.map_message
+
+    def map_message(msg):
+        out = goc(msg)
+        if type(msg).__name__ == "ResultMessage":
+            try:
+                n = int((getattr(msg, "usage", None) or {}).get("cache_read_input_tokens") or 0)
+                for ev in out[0]:
+                    if isinstance(ev, dict) and ev.get("type") == "final":
+                        ev.setdefault("tokens_cache_read", n)
+            except Exception:  # noqa: BLE001 - a counter must never break a turn
+                pass
+        return out
+    map_message._dem_cache = True
+    map_message.__wrapped__ = goc
+    eng.map_message = map_message
+    return True
 
 
 # ============================================================

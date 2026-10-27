@@ -4055,9 +4055,11 @@ def _cli_do_sau_khac(cli, mod, reasoning, message):
 
 def _cli_fast(cli):
     """Fast mode for Claude Code (0.164.0): `settings='{"fastMode": true}'` on the SDK options
-    when this turn has the bolt on and the model supports it (Opus 5.5, Opus 5, Opus 4.8)."""
+    when this turn has the bolt on and the model supports it (Opus 5.5, Opus 5, Opus 4.8).
+    0.345.0: keeps the repo CLAUDE.md excluded (claude_cli.them_loai_claude_md)."""
     try:
-        cli.fast_settings = fast_mode.claude_sdk_settings(getattr(cli, "model", "") or "", fast_mode.current())
+        cli.fast_settings = claude_cli.them_loai_claude_md(
+            fast_mode.claude_sdk_settings(getattr(cli, "model", "") or "", fast_mode.current()))
     except Exception:  # noqa: BLE001 - an engine without this attribute just runs at the normal tier
         pass
 
