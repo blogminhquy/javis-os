@@ -67,6 +67,17 @@ function nhip(t) {
   den.forEach(h => h.cb());
   const ds = hangRaf.splice(0); ds.forEach(cb => cb(t));
 }
+// Pet chớp mắt NGẪU NHIÊN (2,8 tới 6 giây một lần, mỗi lần 130ms, mở mắt lại bằng setTimeout). Một nhịp vẽ có thể rơi
+// đúng lúc vừa nhắm, và dáng mắt khi đó là hai vạch ngang chứ không phải dáng đang kiểm. Trong trình duyệt cái chớp qua
+// đi sau 130ms; ở đây cho đồng hồ giả chạy qua đúng chừng đó, CHỈ các hẹn giờ (không chạy vòng vẽ), rồi mới soi mắt.
+// Không có hàm này thì test đỏ ngẫu nhiên khoảng 1/400 lần chạy (CI 27/10/2026, PR #860).
+function hetChop() {
+  const t = now + 140;
+  now = t;
+  const den = hangHen.filter(h => h.luc <= t);
+  hangHen = hangHen.filter(h => h.luc > t);
+  den.forEach(h => h.cb());
+}
 
 // ---- 1. Mic bắt được giọng ----
 P.setState("listening");
@@ -104,6 +115,7 @@ nhip(now + 16);
 check("đọc xong mới vui: mắt cười", /pet-line/.test(mat()) && /Q0 -7/.test(mat()), mat());
 check("và nhảy lên một cái", el.dataset.anim === "hop", el.dataset.anim);
 nhip(now + 2000);
+hetChop();
 check("hết phản ứng thì trả về đúng trạng thái nghỉ", /<ellipse rx="7\.2" ry="17\.5"\/>/.test(mat()), mat());
 P.setState("thinking");
 P.react("xong");
@@ -117,6 +129,7 @@ P.react("click");
 check("bấm vào thì có biểu cảm và cú bẹp",
   mat() !== "" && (nhip(now + 16), el.dataset.anim === "squish"));
 P.react("choang");
+hetChop();
 check("bấm dồn dập thì chóng mặt", /M-8 -8 L8 8/.test(mat()));
 
 // ---- 5. Ngủ gật khi ngồi không ----
