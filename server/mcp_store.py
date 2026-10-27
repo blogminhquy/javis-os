@@ -297,6 +297,14 @@ def update_connection(cid, patch):
     return True
 
 
+# workspace-mcp in Docker (issue #855, see where it is applied). Port 8000 is the package's own default.
+WORKSPACE_MCP_DOCKER_ENV = {
+    "WORKSPACE_MCP_BASE_URI": "http://0.0.0.0",
+    "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:8000/oauth2callback",
+    "WORKSPACE_EXTERNAL_URL": "http://localhost:8000",
+}
+
+
 def _cred_dir(conn, con=None):
     """{env, path} thư mục token RIÊNG của 1 connection, hoặc None nếu connector không khai.
 
@@ -463,6 +471,18 @@ def resolved(enabled_only=True):
                     env.setdefault(k, v)
             except Exception as e:
                 print(f"[mcp_store] env playwright: {type(e).__name__}: {e}", file=sys.stderr)
+        # workspace-mcp (Google Workspace, Google Tasks) in DOCKER (issue #855): its OAuth callback listens on the
+        # container's own loopback, which the browser on the host never reaches. Listen on every container address
+        # instead and keep the redirect at http://localhost:8000 (a "Desktop app" OAuth client accepts any loopback
+        # port); docker-compose.google.yml publishes that port on the host's loopback only.
+        if "workspace-mcp" in (str(lenh or "") + " " + " ".join(str(a) for a in args)).lower():
+            try:
+                import deploy_info
+                if deploy_info.deploy_mode() == "docker":
+                    for k, v in WORKSPACE_MCP_DOCKER_ENV.items():
+                        env.setdefault(k, v)
+            except Exception as e:  # noqa: BLE001
+                print(f"[mcp_store] env workspace-mcp: {type(e).__name__}: {e}", file=sys.stderr)
         cred = _cred_dir(c, con)
         if cred:
             try:

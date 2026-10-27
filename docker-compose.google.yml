@@ -1,0 +1,28 @@
+# ============================================================================
+# Javis OS - override cho kết nối Google Workspace / Google Tasks khi chạy Docker TRÊN MÁY TÍNH
+# (Docker Desktop Windows/macOS, hoặc Linux có màn hình). Issue #855.
+#
+# Vì sao cần: hai kết nối này đăng nhập Google bằng OAuth "ứng dụng máy tính". Bấm đồng ý xong,
+# Google chuyển trình duyệt về http://localhost:8000/oauth2callback trên CHÍNH MÁY bạn. Javis nằm
+# trong container nên cổng 8000 đó phải được mở từ máy bạn vào container. Javis tự lo phần trong
+# container (cho chỗ nhận kết quả nghe trên mọi địa chỉ của container); file này mở cổng ở máy bạn.
+#
+# Cổng chỉ mở cho CHÍNH MÁY này (127.0.0.1), không ra mạng LAN hay Internet.
+#
+# CÁCH DÙNG (một lần, trong thư mục chứa docker-compose.yml):
+#   curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.google.yml
+#   docker compose -f docker-compose.yml -f docker-compose.google.yml up -d
+#
+# Cập nhật về sau: update.sh tự giữ file này khi container đang mở cổng 8000. Tự chạy lệnh thì
+# nhớ kèm `-f docker-compose.google.yml`, không thì lần up đó gỡ mất cổng.
+#
+# Máy đã có chương trình khác dùng cổng 8000: tắt chương trình đó khi đăng nhập Google, vì Google
+# chỉ trả về đúng localhost:8000.
+#
+# Trên VPS (truy cập qua tên miền) KHÔNG dùng file này: dùng hai thẻ Lịch và Gmail riêng, hai thẻ
+# đó đăng nhập ngay trong dashboard.
+# ============================================================================
+services:
+  javis:
+    ports:
+      - "127.0.0.1:8000:8000"

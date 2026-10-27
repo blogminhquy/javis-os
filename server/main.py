@@ -5324,6 +5324,19 @@ async def connect_add(request: Request):
                     "VPS, use the separate Calendar and Gmail cards (those two sign in right inside "
                     "the dashboard). If the machine running Javis has a screen and you will click "
                     "Allow there, click Connect again.")}
+        if _deploy_mode() == "docker":
+            # Issue #855: Javis in Docker on the same computer. Google sends the browser back to localhost:8000 on that
+            # computer, which reaches the sign-in listener only when the container publishes port 8000
+            # (docker-compose.google.yml). Javis cannot see the host's port mapping from inside, so it says it once.
+            return {"ok": False, "can_force": True, "error": localefmt.chu(
+                    "Javis đang chạy trong Docker. Sau khi bấm đồng ý, Google chuyển trình duyệt về "
+                    "localhost:8000 trên máy bạn, nên container phải mở cổng 8000 (chỉ cho chính máy này). "
+                    "Làm một lần trong thư mục Javis: docker compose -f docker-compose.yml -f "
+                    "docker-compose.google.yml up -d. Đã làm rồi thì bấm Kết nối lần nữa.",
+                    "Javis is running in Docker. After you click Allow, Google sends the browser back to "
+                    "localhost:8000 on your computer, so the container must publish port 8000 (to this "
+                    "computer only). Do it once in the Javis folder: docker compose -f docker-compose.yml -f "
+                    "docker-compose.google.yml up -d. If you already did, click Connect again.")}
     # Dùng lại key OAuth client của connection khác (vd Gmail dùng lại key đã tạo cho
     # Calendar) - copy server-side, secrets không bao giờ về browser.
     fields_in = mcp_store.reuse_client_fields(
