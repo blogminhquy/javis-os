@@ -64,6 +64,21 @@ check("on a phone the background picker is the composer-style list", /matchMedia
 check("every popover is placed (opens upward, clamped)", /MO\.place\(pop\)/.test(B));
 check("Escape and a tap outside close the popover", /e\.key === "Escape"/.test(B) && /closest\("\.ord-chips"\)/.test(B));
 
+// ---- 2b. phone pickers (0.352.0, owner's screenshots 27/10) ----
+check("a phone gets a bottom sheet, not a popover over the card",
+  /const phone = \(\) => window\.matchMedia\("\(max-width: 600px\)"\)\.matches;/.test(B) && /ord-sheet-back/.test(B) && /ord-sheet-x/.test(B));
+check("the keyboard waits until the search box is tapped", /if \(!sh\.sheet\) inp\.focus\(\);/.test(B) && !/\n\s*inp\.focus\(\);\n\s*\}\);/.test(B));
+check("the sheet closes on its own button, the backdrop and Escape",
+  /\.ord-sheet-x"\)\.onclick = \(\) => closePop\(\)/.test(B) && /closest\("\.ord-chips, \.ord-pop"\)/.test(B));
+check("model list: Default first, the model in use next, the rest A-Z",
+  /\[""\]\.concat\(now \? \[now\] : \[\]\)/.test(B) && /sort\(\(a, b\) => a\.localeCompare\(b\)\)/.test(B));
+check("on a phone the MAIN / Fallback badge moves to the chip row", /ordBadges\(p, ord, "ord-badges-m"\)/.test(CL)
+  && /\.ord-head \.ord-badges \{ display: none; \}/.test(D("console.css")));
+
+check("the card holding an open popover is lifted above the next card (each card is its own layer)",
+  /raised\.classList\.add\("ord-raise"\)/.test(B) && /openPop\.raised\.classList\.remove\("ord-raise"\)/.test(B)
+  && /\.prov-card\.ord-raise, \.gcard\.ord-raise \{ position: relative; z-index: 70; \}/.test(D("console.css")));
+
 // ---- 3. loading and words ----
 check("models-order.js loads before console.js",
   HTML.indexOf("/static/models-order.js") > 0 && HTML.indexOf("/static/models-order.js") < HTML.indexOf("/static/console.js"));

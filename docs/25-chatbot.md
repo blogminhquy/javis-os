@@ -101,7 +101,6 @@ Bấm **Bot mới**. Từ 0.64.85 form có **bốn phần**, mỗi phần một 
 |---|---|
 | **Bot là ai** | Tích một hay nhiều tài khoản kênh (chỉ hiện tài khoản của brain này mà chưa bot nào trực), đặt tên bot, chọn Agent làm bộ não hoặc bấm **Tạo Agent**. Kênh đang do bot khác trực hiện **mờ kèm ổ khoá**, ghi rõ bot nào (và brain nào nếu khác brain đang mở) đang giữ. Chưa có kênh thì bấm **Kết nối kênh mới**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
 | **Bot trả lời ai** | Bốn thẻ chọn một, xem mục [Bot trả lời ai](#bot-trả-lời-ai) ngay dưới. Chọn nhóm hay người thì tick trong danh sách, không phải gõ id. Kèm nút chọn **khi nào bot lên tiếng trong nhóm**: Được gọi tên (mặc định), Tự đánh giá, hoặc Mọi tin (thẻ Tự động hóa tất cả đã quyết sẵn nên ẩn nút này) |
-| **Bot dựa vào đâu để trả lời** | Agent và tài liệu, hoặc Chỉ tài liệu. Xem mục hai chế độ ở dưới |
 | **Bot được làm gì** | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Bốn mức quyền](#bốn-mức-quyền---bot-được-làm-gì) trước khi nâng |
 | Nâng cao | Ngôn ngữ trả lời |
 
@@ -138,7 +137,7 @@ Thấy chưa ổn thì tắt đi, sửa Agent hoặc bổ sung tài liệu vào 
 
 Từ 0.64.83 form **không còn ô Chat ID người trực** (đó là số Telegram, không dùng được cho bot Zalo). Bot mới không tự nhắn cho ai khi bí.
 
-Bot bí thì vẫn trả lời theo Agent, hoặc nói chưa có thông tin nếu bạn chọn chế độ **Chỉ tài liệu**. Câu nó không trả lời nổi ghi vào tab **Bot bí** để bạn bổ sung tài liệu. Muốn tự trả lời một cuộc chat thì bấm **Tiếp quản** ở trang **Hội thoại**, bot sẽ im ở cuộc đó. Ai gõ `/nhanvien` được nói thật là chưa nối máy sang người trực được, và mời hỏi tiếp.
+Bot bí thì vẫn trả lời theo Agent. Muốn nó nói chưa có thông tin khi tài liệu không có thì viết luật đó vào file Agent của bot. Câu nó không trả lời nổi ghi vào tab **Bot bí** để bạn bổ sung tài liệu. Muốn tự trả lời một cuộc chat thì bấm **Tiếp quản** ở trang **Hội thoại**, bot sẽ im ở cuộc đó. Ai gõ `/nhanvien` được nói thật là chưa nối máy sang người trực được, và mời hỏi tiếp.
 
 Bot đã đặt người trực từ trước 0.64.83 thì **giữ nguyên** (thẻ bot ghi "có chuyển người trực") và chạy như mô tả ở mục [Khi nào người trực bị gọi](#khi-nào-người-trực-bị-gọi).
 
@@ -343,24 +342,17 @@ Bảng giá hay hướng dẫn đang nằm trên Google thì không cần chép 
 
 Ở mức **Đọc tài liệu**, ba công cụ tự tìm của bot vẫn chỉ mở file trong brain. Nội dung link Google đến với bot qua phần tra sẵn trước mỗi lượt.
 
-### Hai chế độ, chọn khi tạo bot
+### Không còn chọn chế độ (từ 0.352.0)
 
-Khác biệt chỉ nằm ở **lúc không tìm thấy tài liệu nào khớp**. Tìm thấy thì hai chế độ hành xử y hệt.
+Từ 0.352.0 form bỏ ô **Bot dựa vào đâu để trả lời**. Mọi bot trả lời dựa trên **Agent và tài liệu** của brain. Bot nào trước đây lưu ở chế độ "chỉ tài liệu" vẫn giữ chế độ đó (thẻ bot có thể còn nhãn nhỏ "chỉ tài liệu") cho tới khi anh bấm **Sửa** rồi lưu lại, lúc đó nó chuyển sang Agent và tài liệu.
 
-| Chế độ | Không tìm thấy tài liệu thì bot làm gì | Hợp với |
-|---|---|---|
-| **Chuyên môn của Agent** (mặc định) | Javis không nói gì thêm; Agent tự xử theo quy định anh viết | Bot tư vấn, coach, đào tạo, giải đáp nghiệp vụ |
-| **Chỉ tài liệu** | Thêm một luật: nói chưa có thông tin, đừng dùng kiến thức chung | Bot đọc con số và quy định, nơi một câu sai là thiệt hại thật |
-
-Chọn sai thì thấy ngay: một Agent coach chạy ở chế độ "chỉ tài liệu" sẽ trả lời "em chưa có thông tin" cho đúng câu thuộc chuyên môn của nó, dù anh viết hướng dẫn vai rất kỹ. Đổi chế độ ở nút **Sửa**, có hiệu lực ngay.
+Muốn bot chỉ nói theo tài liệu, ví dụ nói "em chưa có thông tin" khi không tìm thấy gì, thì viết luật đó vào file Agent của bot.
 
 ### Javis KHÔNG viết luật cho bot
 
 Đây là điều quan trọng nhất nên biết về trang này.
 
 Bot chạy bằng **đúng nội dung file Agent** của anh, không hơn. Javis không chèn thêm luật nào lên trên: không dặn nó xưng hô thế nào, không cấm nó nói về chủ đề gì, không ép nó trả lời ngắn. Quy định anh viết trong Agent là quy định duy nhất bot có.
-
-Ngoại lệ duy nhất là chế độ "chỉ tài liệu" ở trên, và đó là luật **anh chủ động bật**, không phải mặc định của Javis.
 
 Nên **file Agent là thứ quyết định chất lượng bot, gần như hoàn toàn**. Viết như dặn một người mới vào làm: nói năng thế nào, phạm vi tới đâu, cái gì không được hứa, gặp trường hợp nào thì chuyển người thật. Bot cư xử sai thì sửa Agent, đừng tìm nút nào khác.
 
@@ -529,7 +521,7 @@ Bấm **Nhật ký** trên thẻ bot. Có hai tab, và tab mở sẵn là tab qu
 
 Gom trùng có bỏ dấu, nên "Giá bao nhiêu?" và "gia bao nhieu" được tính là một câu. Nếu không thì cùng một câu hỏi bị tách thành mấy dòng lẻ và anh không thấy được nó thật ra được hỏi nhiều.
 
-"Bí" đo bằng **chính câu bot vừa nói**: nó nói chưa có thông tin, hoặc nó phải chuyển người thật. Với bot chạy chế độ "chỉ tài liệu" thì không tìm ra tài liệu cũng tính luôn.
+"Bí" đo bằng **chính câu bot vừa nói**: nó nói chưa có thông tin, hoặc nó phải chuyển người thật. Với bot cũ còn chạy chế độ "chỉ tài liệu" (chưa sửa lại từ 0.352.0) thì không tìm ra tài liệu cũng tính luôn.
 
 Đáng chú ý nhất là loại bí mà bot **vẫn tìm ra tài liệu**: tài liệu có nhưng thiếu đúng ý người ta cần. Loại đó chỉ ra chỗ tài liệu viết chưa đủ, tinh vi hơn loại không có file nào.
 

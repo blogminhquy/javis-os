@@ -856,7 +856,6 @@
     var chonSan = (truoc && truoc.account_id) ? [truoc.account_id] : [];
     var buoc = (truoc && truoc.buoc) || (sua ? 2 : 1);
     var aud0 = (b && b.audience) || "nhom";
-    var nguon0 = (b && b.nguon_tra_loi === "tai_lieu") ? "tai_lieu" : "agent";
     var muc0 = (b && b.muc_quyen) || "suggest";
     var rw0 = (b && (b.reply_when === "auto" || b.reply_when === "always")) ? b.reply_when : "mention";
     // "Tự động hóa tất cả" không phải một giá trị lưu riêng: nó là "mọi cuộc chat" cộng "tự đánh giá" gộp làm MỘT cú chọn
@@ -948,14 +947,8 @@
             '</div>' +
           '</div>' +
 
-          // 3. Bot dựa vào đâu để trả lời. Đặt ngay dưới Agent/đối tượng chứ không giấu trong khối gấp:
-          // nó quyết định bot "ăn nhập với Agent" hay chỉ đọc tài liệu, cần hiểu TRƯỚC khi bấm tạo.
-          '<div class="cb-sec">' + secH("book-open", "cb2.s_nguon") +
-            htmlSeg("cbNguon", "cbNguon", [
-              { v: "agent", t: window.t("cb2.nguon_agent") },
-              { v: "tai_lieu", t: window.t("cb2.nguon_tl") }], nguon0) +
-            '<div class="cb-hint" id="cbNguonH"></div>' +
-          '</div>' +
+          // 0.352.0 (owner): no "what does the bot answer from" choice any more. Every bot answers from its Agent
+          // and the brain's documents; the old "documents only" mode is no longer offered.
 
           // 4. Bot được làm gì. Mức quyền KHÔNG bao giờ nằm trong khối gấp: đây là quyết định nặng
           // nhất trong cả form, phải đọc trước khi bấm tạo chứ không phải một ô phải bấm mới thấy.
@@ -1061,15 +1054,6 @@
         i.parentNode.classList.toggle("on", i.checked);
       });
     }
-
-    // ---- Nguồn trả lời: mỗi lựa chọn một dòng
-    var NGUON_H = { agent: "cb2.nguon_agent_h", tai_lieu: "cb2.nguon_tl_h" };
-    function veNguon() {
-      dongBo("cbNguon");
-      box.querySelector("#cbNguonH").textContent = window.t(NGUON_H[giaTri("cbNguon")] || NGUON_H.agent);
-    }
-    box.querySelectorAll('input[name="cbNguon"]').forEach(function (i) { i.onchange = veNguon; });
-    veNguon();
 
     // ---- Mức quyền: đổi mức là vẽ lại cảnh báo NGAY, và ô đồng ý luôn bắt đầu ở trạng thái chưa
     // tick. Giữ lại tick cũ khi đổi từ "Được ghi" sang "Toàn quyền" là để chủ đồng ý với một danh
@@ -1487,7 +1471,7 @@
       // Không tài khoản nào đứng được trong nhóm thì gửi danh sách nhóm rỗng: bản ghi mang một danh
       // sách nhóm không bao giờ dùng tới là một lời hứa suông nằm lại trong dữ liệu.
       var chung = { name: ten, agent_slug: ag, agent_brain: br, brain: br,
-                    nguon_tra_loi: giaTri("cbNguon") || "agent", muc_quyen: muc, xac_nhan_rui_ro: "1",
+                    nguon_tra_loi: "agent", muc_quyen: muc, xac_nhan_rui_ro: "1",
                     ngon_ngu: (document.getElementById("cbNgonNgu") || {}).value || "auto",
                     audience: aud, people: ds("private").join("\n"),
                     groups: co ? ds("group").join("\n") : "",

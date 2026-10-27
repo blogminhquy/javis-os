@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.352.0] - 2026-10-27
+### Improved
+- **Gentler wording for the account lock risk.** Running background work on a subscription plan (Claude Pro/Max, the xAI plan) still carries a risk of the provider locking the account, but Javis has no reported case so far. If it happens to you, please tell the developer so everyone knows.
+- **Easier model picking on a phone.** On the Models page, the model chip, the Effort chip and the background model's "Change model" now open a sheet that slides up from the bottom, with a title, a close button and large rows. The keyboard only comes up when you tap the search box. The model list is tidier: "default" first, the model in use next, the rest A to Z. The MAIN or Fallback label moves to the chip row so the provider name no longer breaks across lines.
+- **The "What the bot answers from" choice is gone from the chatbot form.** Every bot answers from its Agent and documents, so there is nothing to pick. An older bot set to "Documents only" keeps it until you edit and save it; to keep a bot to its documents, write that rule into its Agent file.
+### Fixed
+- **The model picker is no longer hidden behind the next card.** On a computer, a model or Effort picker opening downward was covered by the next provider card and could not be clicked. It now always sits on top.
+
 ## [0.351.0] - 2026-10-27
 ### Improved
 - **New Models page: one Usage order list.** Only signed-in providers show, the top card is the main model (MAIN), the next ones are Fallback 1, 2... Drag a card (on a phone hold the 6-dot handle or press and hold the card) or press Swap to reorder. Each card has its own model chip and Effort chip, like the chat composer. A fallback card running chat in place of MAIN lights up IN USE.

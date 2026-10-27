@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.352.0] - 2026-10-27
+### Cải thiện
+- **Lời nhắc về rủi ro khoá tài khoản viết lại nhẹ nhàng hơn.** Dùng gói đăng ký (Claude Pro/Max, gói xAI) cho việc nền vẫn có nguy cơ bị nhà cung cấp khoá tài khoản, nhưng Javis chưa ghi nhận trường hợp nào. Nếu bạn gặp, hãy báo cho nhà phát triển để mọi người cùng biết.
+- **Chọn model trên điện thoại dễ hơn.** Ở trang Models, bấm chip model, chip Effort hay "Đổi model" của việc nền giờ mở một bảng trượt lên từ đáy màn hình, có tiêu đề và nút đóng, hàng to dễ bấm. Bàn phím chỉ bật khi bạn chạm vào ô tìm. Danh sách model xếp gọn: "mặc định" trên cùng, model đang dùng ngay sau, còn lại theo thứ tự chữ cái. Nhãn MAIN hay Dự phòng chuyển xuống hàng chip để tên nhà cung cấp không bị bẻ dòng.
+- **Bỏ mục "Bot dựa vào đâu để trả lời" ở form tạo chatbot.** Bot nào cũng trả lời theo Agent và tài liệu, nên không cần chọn nữa. Bot cũ đang để "Chỉ tài liệu" giữ nguyên tới khi bạn sửa và lưu lại; muốn bot chỉ nói theo tài liệu thì ghi luật đó vào file Agent.
+### Sửa lỗi
+- **Bảng chọn model không còn bị thẻ bên dưới che.** Trên máy tính, bảng chọn model hay Effort mở xuống dưới từng bị thẻ nhà cung cấp kế tiếp đè lên, không bấm được. Giờ bảng luôn nằm trên cùng.
+
 ## [0.351.0] - 2026-10-27
 ### Cải thiện
 - **Trang Models mới: một danh sách Thứ tự dùng.** Chỉ hiện các nhà đã đăng nhập, thẻ trên cùng là mô hình chính (MAIN), các thẻ sau là Dự phòng 1, 2... Kéo thẻ (trên điện thoại giữ nút 6 chấm hoặc nhấn giữ thẻ) hoặc bấm Đảo để đổi thứ tự. Mỗi thẻ có chip chọn mô hình và chip Effort riêng, giống khung chat. Thẻ dự phòng đang thay MAIN chạy chat thì sáng chữ ĐANG DÙNG.

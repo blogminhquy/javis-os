@@ -31,28 +31,32 @@ SUBSCRIPTION = "subscription"
 API_KEY = "api_key"
 
 # Nguyên văn dán ở trang Models và trả kèm khi đặt việc nền chạy bằng gói subscription.
-# Đừng rút gọn: người đọc cần đủ ba thứ - điều bị cấm, cái gì làm mình giống bot, và lối ra.
+# Đừng rút gọn: người đọc cần đủ ba thứ - phạm vi gói, cái gì có thể làm mình giống bot, và lối ra.
+# 0.352.0 (chủ repo): giọng nhẹ nhàng, nói đúng mức rủi ro. Có nguy cơ, nhưng Javis chưa ghi nhận
+# trường hợp nào bị khoá; gặp thì báo nhà phát triển để mọi người cùng biết.
 CANH_BAO_SUBSCRIPTION = (
-    "Gói Claude Pro/Max chỉ được Anthropic tính cho việc dùng cá nhân thông thường của "
-    "Claude Code. Chạy nền liên tục (loop, nhắc hẹn, việc Kanban, chatbot), chạy trên VPS, "
-    "hoặc nhiều người dùng chung một tài khoản đều nằm NGOÀI phạm vi đó và đã có người bị "
-    "khoá tài khoản vì lý do này. Muốn chạy nền yên tâm thì đổi sang API key ở trang Models, "
-    "hoặc trỏ 'model việc nền' sang một provider khác."
+    "Gói Claude Pro/Max được Anthropic tính cho việc dùng cá nhân thông thường của Claude Code. "
+    "Chạy nền liên tục (loop, nhắc hẹn, việc Kanban, chatbot), chạy trên VPS, hoặc nhiều người "
+    "dùng chung một tài khoản nằm ngoài phạm vi đó nên có nguy cơ bị khoá tài khoản, dù tới nay "
+    "Javis chưa ghi nhận trường hợp nào. Nếu bạn gặp, hãy báo cho nhà phát triển qua mục Issues "
+    "trên GitHub của Javis. Muốn chạy nền yên tâm hơn thì đổi sang API key ở trang Models, hoặc "
+    "trỏ 'model việc nền' sang một provider khác."
 )
 
 CANH_BAO_SUBSCRIPTION_EN = (
-    "Anthropic counts a Claude Pro/Max plan only for ordinary personal use of Claude Code. "
+    "Anthropic counts a Claude Pro/Max plan for ordinary personal use of Claude Code. "
     "Continuous background runs (loops, reminders, Kanban work, chatbots), running on a VPS, "
-    "or several people sharing one account all fall OUTSIDE that, and accounts have been "
-    "locked for it. To run background work safely, switch to an API key on the Models page, "
-    "or point the 'background model' at another provider."
+    "or several people sharing one account fall outside that, so there is a risk of the account "
+    "being locked, although Javis has no reported case so far. If it happens to you, please tell "
+    "the developer through Issues on Javis's GitHub. For more peace of mind, switch to an API key "
+    "on the Models page, or point the 'background model' at another provider."
 )
 
 # Câu ngắn cho chỗ chật (badge, tooltip, dòng trạng thái).
-CANH_BAO_NGAN = ("Chạy nền bằng gói subscription có thể bị Anthropic khoá tài khoản. "
-                 "Dùng API key cho việc nền là an toàn nhất.")
-CANH_BAO_NGAN_EN = ("Running background work on a subscription plan can get the account locked by "
-                    "Anthropic. An API key is the safest choice for background work.")
+CANH_BAO_NGAN = ("Chạy nền bằng gói subscription có nguy cơ bị khoá tài khoản, dù Javis chưa ghi nhận "
+                 "trường hợp nào. Dùng API key cho việc nền là yên tâm nhất.")
+CANH_BAO_NGAN_EN = ("Running background work on a subscription plan carries a risk of the account being "
+                    "locked, though Javis has no reported case so far. An API key is the safest choice.")
 
 
 def che_do(settings: dict = None) -> str:

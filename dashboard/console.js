@@ -4269,7 +4269,9 @@
     const chatLive = (p, ord) => !!ord && ord.idx > 0 && R.chat_in_use === p.id;
     const ordGrip = (p, ord) => ord && connList.length > 1
       ? `<button type="button" class="ord-grip" aria-label="${esc(t("models.ord_drag", { ten: p.label }))}">${ORD_GRIP}</button>` : "";
-    const ordBadges = (p, ord) => !ord ? "" : `<div class="ord-badges">${ord.idx === 0
+    // `cls` "ord-badges-m": the same badges again at the end of the chip row, shown instead of the head's on a phone,
+    // where the head is too narrow for name, kind label and badge on one line (owner's screenshot, 27/10).
+    const ordBadges = (p, ord, cls) => !ord ? "" : `<div class="${cls || "ord-badges"}">${ord.idx === 0
       ? '<span class="prov-badge">MAIN</span>'
       : `<span class="ord-pos">${esc(t("models.ord_backup", { n: ord.idx }))}</span>`}${chatLive(p, ord)
       ? `<span class="prov-badge ord-live">${esc(t("models.ord_live"))}</span>` : ""}</div>`;
@@ -4279,6 +4281,7 @@
       return `<div class="ord-chips" data-p="${esc(p.id)}">
           <button type="button" class="mb-chip ord-mchip" data-ordpop="model" aria-expanded="false" title="${esc(t("models.change_model"))}"><span class="mb-dot"></span><span class="ord-mtxt">${esc(pr.model || t("models.mp_default"))}</span><span class="mb-caret">▾</span></button>
           <button type="button" class="cp-eff ord-echip" data-ordpop="eff" aria-expanded="false" title="${esc(t("eff.head"))}"><span class="ord-etxt">${esc(effName(pr.reasoning))}</span><span class="mb-caret">▾</span></button>
+          ${ordBadges(p, ord, "ord-badges-m")}
         </div>`;
     };
     const cardOpen = (p, ord) => `<div class="prov-card${(ord ? ord.idx === 0 : p.is_main) ? " main" : ""}${ord ? " ord-card" : ""}${chatLive(p, ord) ? " ord-inuse" : ""}"${ord ? ` data-dnd="prov" data-p="${esc(p.id)}"` : ""}>`;
@@ -4902,21 +4905,52 @@
       if (!openPop) return;
       if (openPop.slider) openPop.slider.destroy();
       openPop.el.remove();
+      if (openPop.back) openPop.back.remove();
+      if (openPop.raised) openPop.raised.classList.remove("ord-raise");
       openPop.btn.setAttribute("aria-expanded", "false");
       openPop = null;
+    };
+    // A phone gets a bottom sheet instead of a popover (owner's screenshots, 27/10: the popover opened over the card,
+    // the keyboard came up at once and covered the list). The sheet slides up from the bottom with a title and a close
+    // button, rows are finger-sized, and the keyboard waits until the search box is tapped.
+    const phone = () => window.matchMedia("(max-width: 600px)").matches;
+    const shell = (wrap, cls, title) => {
+      if (!phone()) {
+        const pop = document.createElement("div");
+        pop.className = cls + " ord-pop";
+        wrap.appendChild(pop);
+        return { pop: pop, body: pop, sheet: false };
+      }
+      const back = document.createElement("div");
+      back.className = "ord-sheet-back";
+      const pop = document.createElement("div");
+      pop.className = "ord-pop ord-sheet";
+      pop.setAttribute("aria-modal", "true");
+      pop.innerHTML = `<div class="ord-sheet-grab" aria-hidden="true"></div>
+        <div class="ord-sheet-head"><b>${esc(title)}</b>
+          <button type="button" class="ord-sheet-x" aria-label="${esc(t("common.close"))}">${X_ICON}</button></div>
+        <div class="ord-sheet-body"></div>`;
+      document.body.appendChild(back);
+      document.body.appendChild(pop);
+      pop.querySelector(".ord-sheet-x").onclick = () => closePop();
+      return { pop: pop, body: pop.querySelector(".ord-sheet-body"), sheet: true, back: back };
     };
     el._ordClose = closePop;
     if (!el._ordDocBound) {
       el._ordDocBound = true;
       document.addEventListener("pointerdown", (e) => {
-        if (el._ordClose && !(e.target.closest && e.target.closest(".ord-chips"))) el._ordClose();
+        if (el._ordClose && !(e.target.closest && e.target.closest(".ord-chips, .ord-pop"))) el._ordClose();
       }, true);
       document.addEventListener("keydown", (e) => { if (e.key === "Escape" && el._ordClose) el._ordClose(); });
     }
-    const opened = (btn, pop, slider) => {
-      openPop = { el: pop, btn: btn, slider: slider || null };
+    const opened = (btn, sh, slider) => {
+      // Each card is its own stacking layer (backdrop-filter), so a popover that opens downward was painted UNDER the
+      // next card (owner's screenshot, 27/10). The card holding the open popover is lifted above its neighbours.
+      const raised = sh.sheet ? null : btn.closest(".prov-card, .gcard");
+      if (raised) raised.classList.add("ord-raise");
+      openPop = { el: sh.pop, btn: btn, slider: slider || null, back: sh.back || null, raised: raised };
       btn.setAttribute("aria-expanded", "true");
-      MO.place(pop);
+      if (!sh.sheet) MO.place(sh.pop);
     };
 
     el.querySelectorAll("[data-ordpop]").forEach(btn => btn.onclick = () => {
@@ -4928,14 +4962,13 @@
       const curProv = isBg ? c.bgCfg.provider : pid;
       if (btn.dataset.ordpop === "eff") {
         const S = window.JavisEffortSlider;
-        const pop = document.createElement("div");
-        pop.className = "eff-pop ord-pop";
-        pop.setAttribute("role", "dialog");
-        pop.setAttribute("aria-label", t("eff.head"));
-        wrap.appendChild(pop);
+        const label = isBg ? t("models.h_aux") : ((c.connList.find(p => p.id === pid) || {}).label || pid);
+        const sh = shell(wrap, "eff-pop", t("eff.head") + " · " + label);
+        sh.pop.setAttribute("role", "dialog");
+        sh.pop.setAttribute("aria-label", t("eff.head"));
         const locked = S.isLocked(curProv, cur.model);
         let tm = 0;
-        const slider = S.mount(pop, { value: cur.reasoning, locked: locked, lockedValue: locked ? S.lockedLevel(cur.model) : "",
+        const slider = S.mount(sh.body, { value: cur.reasoning, locked: locked, lockedValue: locked ? S.lockedLevel(cur.model) : "",
           onChange: (v) => {
             cur.reasoning = v;
             btn.querySelector(".ord-etxt").textContent = c.effName(v);
@@ -4943,34 +4976,43 @@
             tm = setTimeout(() => saveSetting("model", isBg ? { auxiliary: { reasoning: v } }
               : { profile: { provider: pid, reasoning: v } }), 300);
           } });
-        opened(btn, pop, slider);
-        if (slider.focus) slider.focus();
+        opened(btn, sh, slider);
+        if (slider.focus && !sh.sheet) slider.focus();
         return;
       }
-      // One card's own models, plus "Default" (the provider picks), like the chat composer's list.
-      const pop = document.createElement("div");
-      pop.className = "mb-pop ord-pop";
-      pop.setAttribute("role", "listbox");
+      // One card's own models: "Default" (the provider picks) first, then the model in use, then the rest A-Z, so a
+      // long catalog (Groq lists dozens of odd ids) never buries the one row people look for.
       const label = (c.connList.find(p => p.id === pid) || {}).label || pid;
-      pop.innerHTML = `<input class="mb-search" placeholder="${esc(t("mpick.search_ph"))}"><div class="mb-prov"><span>${esc(label)}</span></div><div class="ord-mlist"></div>`;
-      wrap.appendChild(pop);
+      const sh = shell(wrap, "mb-pop", label);
+      const pop = sh.pop;
+      pop.setAttribute("role", "listbox");
+      sh.body.innerHTML = `<input class="mb-search" type="search" enterkeyhint="search" placeholder="${esc(t("mpick.search_ph"))}">`
+        + (sh.sheet ? "" : `<div class="mb-prov"><span>${esc(label)}</span></div>`) + `<div class="ord-mlist"></div>`;
       const ML = window.JavisModelList;
       let ids = ML ? ML.peek(pid) : [], q = "";
+      const row = (id) => {
+        const on = id === (cur.model || "");
+        return `<div class="mb-item${on ? " cur" : ""}" role="option" tabindex="0" aria-selected="${on}" data-m="${esc(id)}"><span class="tick">${on ? ic("check", { cls: "ic-ok" }) : ""}</span><span class="ord-mname">${esc(id || t("models.mp_default"))}</span></div>`;
+      };
       const draw = () => {
+        const box = sh.body.querySelector(".ord-mlist");
+        if (ids == null) { box.innerHTML = `<div class="mb-empty">${esc(t("mpick.loading"))}</div>`; return; }
         const f = q.trim().toLowerCase();
-        const rows = [""].concat(ids || []).filter(id => !f || (id || t("models.mp_default")).toLowerCase().includes(f));
-        pop.querySelector(".ord-mlist").innerHTML = ids == null ? `<div class="mb-empty">${esc(t("mpick.loading"))}</div>`
-          : rows.length ? rows.slice(0, 200).map(id => {
-            const on = id === (cur.model || "");
-            return `<div class="mb-item${on ? " cur" : ""}" role="option" tabindex="0" aria-selected="${on}" data-m="${esc(id)}"><span class="tick">${on ? ic("check", { cls: "ic-ok" }) : ""}</span><span>${esc(id || t("models.mp_default"))}</span></div>`;
-          }).join("") : `<div class="mb-empty">${esc(t("mpick.no_match"))}</div>`;
+        const hit = (id) => !f || (id || t("models.mp_default")).toLowerCase().includes(f);
+        const now = cur.model || "";
+        const rest = ids.filter(id => id && id !== now).sort((a, b) => a.localeCompare(b));
+        const top = [""].concat(now ? [now] : []).filter(hit);
+        const all = rest.filter(hit);
+        box.innerHTML = !top.length && !all.length ? `<div class="mb-empty">${esc(t("mpick.no_match"))}</div>`
+          : top.map(row).join("") + (all.length ? `<div class="mb-prov ord-msec"><span>${esc(t("models.sheet_all"))}</span></div>`
+            + all.slice(0, 200).map(row).join("") : "");
       };
       draw();
-      opened(btn, pop);
-      if (ids == null && ML) ML.models(pid).then(x => { ids = x; if (openPop && openPop.el === pop) { draw(); MO.place(pop); } });
-      const inp = pop.querySelector(".mb-search");
+      opened(btn, sh);
+      if (ids == null && ML) ML.models(pid).then(x => { ids = x; if (openPop && openPop.el === pop) { draw(); if (!sh.sheet) MO.place(pop); } });
+      const inp = sh.body.querySelector(".mb-search");
       inp.oninput = () => { q = inp.value; draw(); };
-      pop.onclick = (e) => {
+      sh.body.onclick = (e) => {
         const it = e.target.closest(".mb-item[data-m]");
         if (!it) return;
         const mid = it.dataset.m;
@@ -4978,8 +5020,9 @@
         btn.querySelector(".ord-mtxt").textContent = mid || t("models.mp_default");
         save({ profile: { provider: pid, model: mid } });
       };
-      pop.onkeydown = (e) => { if (e.key === "Enter" && e.target.classList.contains("mb-item")) e.target.click(); };
-      inp.focus();
+      sh.body.onkeydown = (e) => { if (e.key === "Enter" && e.target.classList.contains("mb-item")) e.target.click(); };
+      // A computer types at once; a phone keeps the keyboard down until the search box is tapped.
+      if (!sh.sheet) inp.focus();
     });
 
     // Background model: the two-column picker on a computer, the composer-style list on a phone. Both list signed-in
@@ -4998,12 +5041,11 @@
       const was = !!openPop && openPop.btn === auxChg;
       closePop();
       if (was) return;
-      const pop = document.createElement("div");
-      pop.className = "mb-pop ord-pop ord-bgpop";
+      const sh = shell(auxChg.closest(".ord-chips"), "mb-pop ord-bgpop", t("models.h_aux"));
+      const pop = sh.pop;
       pop.setAttribute("role", "listbox");
       pop.setAttribute("aria-label", t("models.h_aux"));
-      auxChg.closest(".ord-chips").appendChild(pop);
-      opened(auxChg, pop);
+      opened(auxChg, sh);
       const st = { expanded: c.bgCfg.provider, filter: "" };
       const draw = async () => {
         const o = { providers: c.connList, connectedOnly: true, expanded: st.expanded, filter: st.filter, noWait: true,
@@ -5011,16 +5053,16 @@
         const html = await window.JavisModelList.render(o);
         if (!openPop || openPop.el !== pop) return;
         const typing = document.activeElement && document.activeElement.id === "ordBgSearch";
-        pop.innerHTML = html;
-        MO.place(pop);
-        const inp = pop.querySelector("#ordBgSearch");
+        sh.body.innerHTML = html;
+        if (!sh.sheet) MO.place(pop);
+        const inp = sh.body.querySelector("#ordBgSearch");
         if (inp) {
           inp.oninput = () => { st.filter = inp.value; draw(); };
           if (typing) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
         }
         if (o.cho.length) Promise.all(o.cho).then(() => { if (openPop && openPop.el === pop) draw(); });
       };
-      pop.onclick = (e) => {
+      sh.body.onclick = (e) => {
         const it = e.target.closest(".mb-item[data-model]");
         if (it) { closePop(); save({ auxiliary: { provider: it.dataset.prov, model: it.dataset.model } }); return; }
         const h = e.target.closest(".mb-prov[data-prov]");
