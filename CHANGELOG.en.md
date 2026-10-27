@@ -8,9 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.360.0] - 2026-10-27
+## [0.361.0] - 2026-10-27
 ### Improved
 - **Internal:** the pet emotion test no longer fails at random on CI. The pet blinks at random moments, and about 1 run in 400 the test looked at the eyes during a blink frame. The test now lets the blink finish before it looks. The pet in the app is unchanged.
+
+## [0.360.0] - 2026-10-27
+### Improved
+- **The design for "GitHub inside chat" is settled.** Soon you pick GitHub repos from the chat's plus button, give a task in words, and Javis edits on its own branch, checks its work, opens a PR, watches CI and merges when green (switchable per repo). This release only adds the design document, no new feature yet.
+- The GitHub connection will be built into the Connections page, with nothing extra to install.
 
 ## [0.359.0] - 2026-10-27
 ### Fixed
