@@ -16529,6 +16529,15 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text, turn_s
         await learn_feature.enqueue(brain, conv_sid, user_message, clean)
     except Exception as _e:
         print(f"[learn enqueue hook] {_e}", file=__import__('sys').stderr)
+    # 0.362.0 GitHub inside chat: a turn that changed an attached repo runs the quality gate (github_work), in the
+    # background so the reply is never held up by a test suite.
+    try:
+        import github_work
+        _gt = asyncio.create_task(github_work.after_turn(str(conv_sid), brain))
+        _PUSH_TASKS.add(_gt)
+        _gt.add_done_callback(_PUSH_TASKS.discard)
+    except Exception as _e:  # noqa: BLE001
+        print(f"[github after turn] {type(_e).__name__}: {_e}", file=sys.stderr)
     try:  # 0.341.0: automatic learning records the turn; judging happens later, off the reply path
         _row = store.get_session(conv_sid) or {}
         await asyncio.to_thread(_auto_learner().observe_turn, _brain_key(brain), conv_sid, _row.get("channel") or "",
@@ -24902,6 +24911,10 @@ coding_routes.register(app, coding_routes.CodingDeps(
 # clones per brain (outside the brain tree) and the repos attached to a conversation.
 import routes.github as github_routes   # noqa: E402
 github_routes.register(app, github_routes.GitHubDeps(brain_root=lambda b: str(_brain_root(b))))
+import github_work   # noqa: E402
+# 0.362.0: the gate result (and from G3 the PR and CI news) lands in the chat that owns the repo, plus the inbox.
+github_work.configure(notify=lambda sid, text, ok: _notify_owner(
+    f"{WEB_CHAT_PREFIX}{sid}", text, label="GitHub", source="github", quiet=bool(ok)))
 
 
 @app.post("/telegram/test")

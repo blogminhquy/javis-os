@@ -75,6 +75,7 @@
         (local.length ? local.map(function (r) {
           return '<div class="gh-local-row"><span class="gh-local-name">' + esc(r.full_name) + "</span>" +
             '<span class="gh-local-meta">' + esc(tw("gh.local_chats", { n: r.chats || 0 })) + "</span>" +
+            '<button class="s-btn-ghost" type="button" data-gh-checks="' + esc(r.full_name) + '">' + esc(tw("gh.checks")) + "</button>" +
             '<button class="s-btn-ghost" type="button" data-gh-remove="' + esc(r.full_name) + '">' + esc(tw("gh.remove_brain")) + "</button></div>";
         }).join("") : '<div class="mp-empty">' + esc(tw("gh.local_none")) + "</div>") +
         '<div class="lv-msg" role="status" data-gh-msg></div></div>';
@@ -106,6 +107,9 @@
       await api("/github/disconnect", {});
       loadCard();
     };
+    cardHost.querySelectorAll("[data-gh-checks]").forEach(function (b) {
+      b.onclick = function () { openChecks(b.getAttribute("data-gh-checks")); };
+    });
     cardHost.querySelectorAll("[data-gh-remove]").forEach(function (b) {
       b.onclick = async function () {
         var name = b.getAttribute("data-gh-remove");
@@ -118,6 +122,34 @@
         loadCard();
       };
     });
+  }
+  // Local check commands of one repo (spec 7.2): suggested from its CI, editable, one command per line.
+  async function openChecks(name) {
+    var M = window.JavisConnModal;
+    if (!M) return;
+    var d = await api("/github/local/checks?brain=" + encodeURIComponent(pageBrain()) + "&full_name=" + encodeURIComponent(name));
+    if (!d || d.ok === false) { window.alert((d && d.error) || tw("gh.err_net")); return; }
+    var text = (d.checks || []).map(function (c) { return String(c.run).split("\n").join(" \\\n"); }).join("\n");
+    var html = M.head(esc(tw("gh.checks_head", { name: name }))) + '<div class="conn-form gh-form">' +
+      '<div class="si-field"><label>' + esc(tw("gh.checks_label")) + infoBtn() + "</label>" + infoBody(esc(tw("gh.checks_how"))) +
+      '<textarea class="js-input gh-checks-box" data-f="cmds" rows="8" spellcheck="false"></textarea></div>' +
+      '<div class="lv-meta">' + esc(d.custom ? tw("gh.checks_custom") : tw("gh.checks_suggested")) + "</div>" +
+      '<div class="lv-form-act"><button class="s-btn" type="button" data-f="save">' + esc(tw("gh.save")) + "</button>" +
+      '<button class="s-btn-ghost" type="button" data-f="reset">' + esc(tw("gh.checks_reset")) + "</button>" +
+      '<button class="s-btn-ghost" type="button" data-f="cancel">' + esc(tw("gh.cancel")) + "</button>" +
+      '<span class="lv-msg" role="status"></span></div></div>';
+    var m = M.open(html, 640);
+    var form = m.querySelector(".gh-form"), box = form.querySelector('[data-f="cmds"]'), msg = form.querySelector(".lv-msg");
+    box.value = text;
+    async function send(body) {
+      msg.textContent = "";
+      var r = await api("/github/local/checks", Object.assign({ brain: pageBrain(), full_name: name }, body));
+      if (!r || r.ok === false) { msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
+      M.close();
+    }
+    form.querySelector('[data-f="save"]').onclick = function () { send({ commands: box.value }); };
+    form.querySelector('[data-f="reset"]').onclick = function () { send({ reset: "1" }); };
+    form.querySelector('[data-f="cancel"]').onclick = function () { M.close(); };
   }
   function openForm(st) {
     var M = window.JavisConnModal;

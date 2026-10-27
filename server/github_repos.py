@@ -603,6 +603,19 @@ def prompt_block(sid: str, brain: str = "") -> str:
                      f"tách từ {r['default_branch'] or 'main'})")
     lines.append("Chỉ sửa trong các thư mục trên, KHÔNG sửa bản clone gốc. KHÔNG tự `git push`, không tự merge, "
                  "không đổi remote: việc đẩy lên GitHub do Javis làm.")
+    lines.append("Trước khi kết thúc lượt có sửa code: tự chạy test và lint của repo. Sửa lỗi thì viết hoặc chạy một "
+                 "test TÁI HIỆN lỗi trước (đỏ), sửa, rồi chạy lại đúng test đó cho xanh. KHÔNG bỏ qua, xoá hay nới "
+                 "test, không sửa workflow CI để cho xanh. Sau mỗi lượt Javis tự chạy bộ kiểm tra của repo.")
+    # Spec 7.1: the repo's own rules reach every engine, not only the ones that read CLAUDE.md natively.
+    try:
+        import github_gate
+        for r in repos:
+            rules = github_gate.repo_rules(r["worktree"])
+            if rules["files"]:
+                lines.append(f"Luật của repo {r['full_name']} (đọc đủ ở: {', '.join(rules['files'])}):")
+                lines.append(rules["text"])
+    except Exception:
+        pass
     return "\n".join(lines) + "\n"
 
 
@@ -627,3 +640,32 @@ def forget_session(sid: str) -> Dict[str, Any]:
     if not kept:
         coding_store.xoa_rang_buoc(sid)
     return {"kept": kept}
+
+
+def set_checks(brain: str, full_name: str, checks: Optional[List[Dict[str, str]]]) -> Dict[str, Any]:
+    """Save the repo's local check commands (None = go back to the suggested ones)."""
+    rec = find(brain, full_name)
+    if not rec:
+        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+    if checks is None:
+        rec.pop("checks", None)
+    else:
+        clean = []
+        for c in checks:
+            run = str((c or {}).get("run") or "").strip()
+            if run:
+                clean.append({"name": str((c or {}).get("name") or run.splitlines()[0])[:80], "run": run[:2000]})
+        rec["checks"] = clean[:30]
+    _put(rec)
+    return get_checks(brain, full_name)
+
+
+def get_checks(brain: str, full_name: str) -> Dict[str, Any]:
+    rec = find(brain, full_name)
+    if not rec:
+        raise RepoError(_c(f"Brain này không có repo {full_name}.", f"This brain has no repo {full_name}."))
+    import github_gate
+    suggested = github_gate.suggest_checks(rec["path"]) if Path(rec["path"]).is_dir() else []
+    saved = rec.get("checks")
+    return {"full_name": rec["full_name"], "custom": isinstance(saved, list),
+            "checks": saved if isinstance(saved, list) else suggested, "suggested": suggested}
