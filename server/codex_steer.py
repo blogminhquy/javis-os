@@ -239,7 +239,8 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
     from claude_sdk_engine import tran_watchdog
 
     sid = steer_inbox.current_sid()
-    overrides = profile_overrides(cli.profile, cc._codex_home())
+    _acct_home = getattr(cli, "codex_home", None)   # extra ChatGPT account (plan_accounts, 0.353.0)
+    overrides = profile_overrides(cli.profile, Path(_acct_home) if _acct_home else cc._codex_home())
     args = [cli.cli_path]
     for c in overrides + list(cli.extra_config or []):
         args += ["-c", c]
@@ -265,7 +266,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
             args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cli.cwd, text=True,
             encoding="utf-8", errors="replace", bufsize=1,
             creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0),
-            start_new_session=(os.name != "nt"), env=cc.codex_env())
+            start_new_session=(os.name != "nt"), env=cc.codex_env(_acct_home))
     except Exception as e:
         raise Fallback(f"spawn: {type(e).__name__}: {e}")
     with cc._PROC_LOCK:

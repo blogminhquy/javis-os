@@ -283,11 +283,50 @@ Each card remembers its own model and Effort, so reordering never loses any card
 
 **How it ties to the chat composer.** The composer works as before: picking a model on the model chip under the chat pins it for that session and also changes the main model. Picking a model from **another provider** there moves that provider's card **to the top** as MAIN; the other cards keep their order and the old MAIN becomes Fallback 1. The composer's model list now **shows connected providers only**.
 
-**Plan provider cards** (Claude Code, ChatGPT, Grok Build, Antigravity) keep their sign-in controls inside the card: the **Runs on** choice (your signed-in plan or an Anthropic API key) and the **↻ Update Claude Code** button on the Claude card, **Re-check**, **Disconnect** and so on, as in sections A, B, B1a and B1b. In this version each plan provider still has a single account; API provider cards accept several keys (see section C).
+**Plan provider cards** (Claude Code, ChatGPT, Grok Build, Antigravity) keep their sign-in controls inside the card: the **Runs on** choice (your signed-in plan or an Anthropic API key) and the **↻ Update Claude Code** button on the Claude card, **Re-check**, **Disconnect** and so on, as in sections A, B, B1a and B1b. Since 0.353.0 the ChatGPT, Grok Build and Claude Code cards accept several accounts (see section D1), while Antigravity stays at one account; API provider cards accept several keys (see section C).
 
 With no provider signed in yet, the block says "No provider is signed in yet. Press Connect another provider below."
 
 Telegram follows MAIN too: changing MAIN on the web changes your Telegram conversations with it, except a conversation you pinned yourself with `/model` (see [Telegram](11-telegram.md)).
+
+### D1. Several accounts on one plan (from 0.353.0)
+
+The cards of three plan providers, **ChatGPT (Codex)**, **Grok Build** and **Claude Code**, accept several accounts. When one account is out of quota, Javis carries on with the next account of the same plan before moving to a fallback card.
+
+**Account 1** is the sign-in the machine already has, done with the existing controls at the top of the card as in sections A, B and B1a. Nothing about it changes.
+
+**Adding an account.** When the card is signed in and sits in the Usage order, an **＋ Add an account** button appears under the sign-in controls:
+
+1. Press **＋ Add an account** and type a name for the account (for example "Family plan").
+2. Read the gentle warning: "Several accounts on one plan carry a lock risk, though Javis has no reported case. If it happens, please tell the developer through Issues on Javis's GitHub."
+3. Press **Get the sign-in link**, open the link on any device, and sign in with the account you want to add.
+   - **ChatGPT** and **Grok Build**: the card shows a link plus a code. Once you sign in it finishes on its own: the page checks every 3 seconds, for up to 15 minutes.
+   - **Claude Code**: the card shows a link. After signing in, paste the code shown back into the box on the card and press **Confirm**.
+4. To stop a sign-in that has not finished, press **Cancel**.
+
+**The Accounts list.** With 2 or more accounts the card shows an **Accounts** block with an (i) button:
+
+- Each row is numbered 1, 2, 3... with its state: **Signed in**, **Not signed in**, **Off** or **Out of quota, back at HH:MM**.
+- The account carrying the work has a green **Chat uses this** or a purple **Background uses this** label.
+- Reorder with the up / down arrows, or drag the row.
+- The **⋯** button at the end of a row: **Turn off** / **Turn on**; accounts other than account 1 also get **Sign in again** and **Remove**. Removing deletes that account's sign-in folder on this machine. Account 1 cannot be removed here.
+- The card's status line adds "x/y accounts usable".
+
+**How they take turns:**
+
+- Top to bottom: an account that reports out of quota rests until its reset time and the next one runs; once it is back it is used first again.
+- All accounts of a card are used before the next card of the Usage order. The card only counts as out of quota when none of its accounts can run.
+- The same goes for chat (web and Telegram) and background work (each account is its own fallback link).
+
+**Underneath.** Each extra account has its own sign-in folder on the machine (under the Javis state folder, `accounts/<id>/codex`, `accounts/<id>/grok` or `accounts/<id>/claude`), and the CLI runs pointed at it (`CODEX_HOME`, `GROK_HOME`, `CLAUDE_CONFIG_DIR`). Javis copies account 1's settings into it (the Codex config and the Javis hub profile, Grok's `config.toml`, Claude's `settings.json`); sign-ins are never copied.
+
+**Limits to know:**
+
+- Switching account mid-conversation starts a fresh CLI thread for that turn, and Javis reloads the history.
+- Usage meters, image generation, voice and the ChatGPT paths that do not use the Codex CLI still use account 1.
+- Antigravity stays at one account (its token is in the OS keyring).
+- Claude Code on an Anthropic API key has no account list.
+- On macOS, a Claude account counts as signed in once Javis saw the sign-in finish (the token lives in the Keychain).
 
 ### E. Choosing the background model
 
@@ -304,7 +343,7 @@ A few things to know:
 
 - **The background model does not follow MAIN.** The first time (a new install, or an upgrade where it was never set) Javis picks the provider's default setup: its default model and that model's default Effort. After that the background model **stays fixed** until you change it; dragging another card up to MAIN does not drag the background model along.
 - **Every provider you connected is selectable**, not just Claude: Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API... Choosing another provider makes background work run on that provider's plan or key rather than eating Claude quota.
-- **Out of quota, it follows the Usage order (since 0.350.0, tied to the Usage order since 0.351.0).** Background work runs on the background model first; when that model is out of quota it moves through **Fallback 1, Fallback 2...** and uses **MAIN last**, each on its provider's default setup (not the model you picked for chat). A provider with several API keys tries each key before moving on. Javis never slips in a provider you have not connected.
+- **Out of quota, it follows the Usage order (since 0.350.0, tied to the Usage order since 0.351.0).** Background work runs on the background model first; when that model is out of quota it moves through **Fallback 1, Fallback 2...** and uses **MAIN last**, each on its provider's default setup (not the model you picked for chat). A provider with several API keys tries each key before moving on, and a plan card with several accounts tries each account first too (see section D1). Javis never slips in a provider you have not connected.
 - **The page only speaks up when needed.** The chain above is not shown all the time. Only when the background model is out of quota does a line appear, for example "Haiku 5.5 is out of quota, background work runs on ChatGPT · GPT-5.5 for now." If the background model's provider is not connected, a warning reads "This provider is not connected, background work starts from Fallback 1." When nothing can run, it says "No account can run background work right now."
 - **Nothing is done twice.** An engine that already used a tool (sent a message, posted an article, created an order...) and then broke stops the job with an error instead of running it again on another engine.
 - **Tools differ between routes.** Claude Code and Codex read and write brain files directly. API models (OpenRouter, OpenAI, Gemini, Anthropic API) read and write through Javis's vault tools and **cannot run shell commands**, so they suit read-summarise-write-a-note work; leave any background job needing shell commands on Claude.
@@ -396,7 +435,7 @@ Since version 0.12.4 this works for **all three brain kinds**, not only API-key 
 
 Opening the page shows a **Current brain** block: which kind the current brain is, which saving measures apply to it, and which do not and why. Some measures deliberately only run on API-key brains, for example resending conversation history, because Claude Code and Codex already remember their own thread and sending it again sends it twice.
 
-**When a subscription runs out of turns**, chat follows the **Usage order** you set: when MAIN is out of quota, that turn runs on the Fallback 1 card (with that card's model and Effort), then Fallback 2... Javis only moves to providers **you connected and placed there yourself**, because moving spends another account's quota and can cost real money. To keep a provider from ever stepping in, disconnect it, or for an API provider **Turn off** its keys. Falling back changes nothing saved: the next turn tries MAIN first again. When no card can run, Javis says so plainly: which plan ran out and roughly how long until it resets. Note that this kind of limit counts **turns per hour** rather than length, so shortening questions does not help.
+**When a subscription runs out of turns**, chat follows the **Usage order** you set: when MAIN is out of quota, that turn runs on the Fallback 1 card (with that card's model and Effort), then Fallback 2... A plan card with several accounts uses all of them before moving on (see section D1). Javis only moves to providers **you connected and placed there yourself**, because moving spends another account's quota and can cost real money. To keep a provider from ever stepping in, disconnect it, or for an API provider **Turn off** its keys. Falling back changes nothing saved: the next turn tries MAIN first again. When no card can run, Javis says so plainly: which plan ran out and roughly how long until it resets. Note that this kind of limit counts **turns per hour** rather than length, so shortening questions does not help.
 
 Since 0.55.44, when the provider states the **reset time**, a card **"Auto-resume at HH:MM"** appears under that notice: at that time Javis asks the same question again and answers in the same conversation, even with the tab closed or the phone screen off (the job lives on the server). The card carries an **"Auto-continue when limits reset"** checkbox (off means it only shows the time; the choice is remembered for next time) and a **"Retry now"** button. Sending a new message while waiting cancels the schedule. Javis only schedules when it knows the reset time, at most 3 times per question, never more than a day ahead; a server restart drops pending schedules, and the limit notice stays in the conversation so you can hit "Resend".
 
@@ -434,6 +473,9 @@ Up to and including 0.42.1 there was a bug in exactly this place: only ChatGPT/C
 | **Chat uses this** (green) / **Background uses this** (purple) | Key row on an API provider card | The key carrying chat / background work right now |
 | **⋯** | End of a key row | Turn off / Turn on, Change key, Remove |
 | **＋ Add a key** | API provider card | Add a named key, at the end of the list |
+| **＋ Add an account** | ChatGPT, Grok Build, Claude Code card (signed in) | Add another account to the same plan (see section D1) |
+| **Get the sign-in link** | The add-account box | Get the link (ChatGPT, Grok with a code) to sign in the account being added; for Claude Code paste the code and press **Confirm** |
+| **Accounts** list | Plan provider card with 2 or more accounts | Used top to bottom; states **Signed in** / **Not signed in** / **Off** / **Out of quota, back at HH:MM**; **⋯** for Turn off / Turn on, Sign in again, Remove |
 | **＋ Connect another provider (N)** | Bottom of the page | Show the N providers not yet connected, to sign in / paste a key |
 | **○ Not signed in** | Claude Code card | Claude Code is not signed in on this machine |
 | **○ Claude Code not installed** | Claude Code card | The machine running Javis has no `claude` command; follow the install box on the card |
@@ -450,6 +492,7 @@ Up to and including 0.42.1 there was a bug in exactly this place: only ChatGPT/C
 - If you just want Javis to remember and work smoothly, keep the Claude Code card on top (MAIN). The other providers are for specific needs.
 - Put at least one fallback card under MAIN (an API key provider, for example) so chat keeps going when your main plan runs out instead of waiting.
 - If you have several API keys for the same provider, add them all to that card with **＋ Add a key**: Javis uses them in turn and skips any that are resting.
+- If you have more than one ChatGPT, Grok or Claude account, add them to that card with **＋ Add an account** (see section D1): when the account above runs out, the one below carries on before another provider is needed. Read the lock-risk warning before adding one.
 - Set the **Background model** to something cheap so loops, Kanban work, reminders, self-learning and ingestion do not eat your main plan's quota. To see what is burning most, look at [Usage: tokens & cost](23-usage-and-cost.md).
 - Push the **Effort** chip to Medium or High for hard questions (analysis, strategy); leave it on Off or Light for quick questions to avoid waiting.
 - OpenRouter is convenient if you want to try many models from many vendors with one key.

@@ -283,11 +283,50 @@ Mỗi thẻ nhớ model và Effort riêng, nên đổi thứ tự không làm m�
 
 **Liên hệ với khung chat.** Khung chat vẫn chạy như cũ: chọn model ở chip model dưới khung chat là ghim cho phiên đó và đổi luôn model chính. Chọn model của **một nhà khác** ở đó thì thẻ nhà ấy **tự lên đầu** thành MAIN, các thẻ còn lại giữ thứ tự, MAIN cũ thành Dự phòng 1. Danh sách model ở khung chat nay **chỉ liệt kê nhà đã kết nối**.
 
-**Thẻ nhà chạy bằng gói** (Claude Code, ChatGPT, Grok Build, Antigravity) giữ nguyên phần đăng nhập ngay trong thẻ: lựa chọn **Chạy bằng** (gói đang đăng nhập hay API key Anthropic) và nút **↻ Cập nhật Claude Code** của thẻ Claude, nút **Kiểm tra lại**, **Ngắt**... như các mục A, B, B1a, B1b. Bản này mỗi nhà chạy bằng gói vẫn chỉ một tài khoản; thẻ nhà API thì nhận được nhiều key (xem mục C).
+**Thẻ nhà chạy bằng gói** (Claude Code, ChatGPT, Grok Build, Antigravity) giữ nguyên phần đăng nhập ngay trong thẻ: lựa chọn **Chạy bằng** (gói đang đăng nhập hay API key Anthropic) và nút **↻ Cập nhật Claude Code** của thẻ Claude, nút **Kiểm tra lại**, **Ngắt**... như các mục A, B, B1a, B1b. Từ 0.353.0, thẻ ChatGPT, Grok Build và Claude Code nhận được nhiều tài khoản (xem mục D1), còn Antigravity vẫn một tài khoản; thẻ nhà API thì nhận được nhiều key (xem mục C).
 
 Chưa có nhà nào đăng nhập thì khối này báo "Chưa có nhà nào đăng nhập. Bấm Kết nối thêm nhà cung cấp bên dưới."
 
 Telegram cũng đi theo MAIN: đổi MAIN trên web là các cuộc trò chuyện Telegram đổi theo, trừ cuộc trò chuyện bạn đã tự ghim bằng `/model` (xem [Telegram](11-telegram.md)).
+
+### D1. Nhiều tài khoản cho một gói (từ 0.353.0)
+
+Thẻ của ba nhà chạy bằng gói **ChatGPT (Codex)**, **Grok Build** và **Claude Code** nhận được nhiều tài khoản. Tài khoản này hết lượt thì Javis chạy tiếp bằng tài khoản kế của cùng gói, rồi mới sang thẻ dự phòng.
+
+**Tài khoản 1** là đăng nhập sẵn có trên máy, đăng nhập bằng chính các nút ở phần trên của thẻ như mục A, B, B1a. Không có gì thay đổi với nó.
+
+**Thêm tài khoản.** Khi thẻ đã đăng nhập và nằm trong Thứ tự dùng, dưới phần đăng nhập có nút **＋ Thêm tài khoản**:
+
+1. Bấm **＋ Thêm tài khoản** và gõ tên cho tài khoản (ví dụ "Gói của vợ").
+2. Đọc dòng cảnh báo nhẹ: "Nhiều tài khoản cho một gói có nguy cơ bị khoá, dù Javis chưa ghi nhận ca nào. Nếu gặp, hãy báo cho nhà phát triển qua mục Issues trên GitHub của Javis."
+3. Bấm **Lấy link đăng nhập**, mở link trên máy nào cũng được, rồi đăng nhập đúng tài khoản cần thêm.
+   - **ChatGPT** và **Grok Build**: thẻ hiện link kèm một mã. Đăng nhập xong là tự hoàn tất: trang kiểm tra mỗi 3 giây, chờ tối đa 15 phút.
+   - **Claude Code**: thẻ hiện link. Đăng nhập xong, dán mã hiện ra vào ô trên thẻ rồi bấm **Xác nhận**.
+4. Muốn dừng một lần đăng nhập chưa xong thì bấm **Huỷ**.
+
+**Danh sách Tài khoản.** Có từ 2 tài khoản trở lên thì thẻ hiện khối **Tài khoản** kèm nút (i):
+
+- Mỗi dòng đánh số 1, 2, 3... kèm trạng thái: **Đã đăng nhập**, **Chưa đăng nhập**, **Đã tắt** hoặc **Hết lượt, mở lại HH:MM**.
+- Tài khoản đang gánh việc có nhãn xanh **Chat đang dùng** hoặc nhãn tím **Việc nền đang dùng**.
+- Đổi thứ tự bằng mũi tên lên / xuống, hoặc kéo dòng.
+- Nút **⋯** cuối dòng: **Tắt** / **Bật**; với các tài khoản khác tài khoản 1 có thêm **Đăng nhập lại** và **Gỡ**. Gỡ là xoá thư mục đăng nhập của tài khoản đó trên máy này. Tài khoản 1 không gỡ ở đây được.
+- Dòng trạng thái của thẻ ghi thêm "x/y tài khoản dùng được".
+
+**Dùng lần lượt thế nào:**
+
+- Từ trên xuống: tài khoản báo hết lượt thì nghỉ tới giờ mở lại và tài khoản kế chạy thay; hồi lượt thì nó lại được dùng trước.
+- Dùng hết các tài khoản của một thẻ rồi mới sang thẻ kế trong Thứ tự dùng. Thẻ chỉ tính là hết lượt khi không còn tài khoản nào của nó chạy được.
+- Áp như nhau cho chat (web và Telegram) và việc nền (mỗi tài khoản là một mắt dự phòng riêng).
+
+**Bên dưới.** Mỗi tài khoản thêm có thư mục đăng nhập riêng trên máy (trong thư mục trạng thái của Javis, `accounts/<id>/codex`, `accounts/<id>/grok` hoặc `accounts/<id>/claude`), và CLI chạy trỏ vào đó (`CODEX_HOME`, `GROK_HOME`, `CLAUDE_CONFIG_DIR`). Javis chép cài đặt của tài khoản 1 sang (cấu hình Codex và hồ sơ hub của Javis, `config.toml` của Grok, `settings.json` của Claude); đăng nhập thì không bao giờ được chép.
+
+**Giới hạn cần biết:**
+
+- Đổi tài khoản giữa cuộc trò chuyện thì lượt đó mở một mạch CLI mới, Javis tự nạp lại lịch sử.
+- Đồng hồ hạn mức, tạo ảnh, giọng nói và những đường ChatGPT không đi qua Codex CLI vẫn dùng tài khoản 1.
+- Antigravity vẫn chỉ một tài khoản (token nằm trong keyring của hệ điều hành).
+- Claude Code chạy bằng API key Anthropic không có danh sách tài khoản.
+- Trên macOS, một tài khoản Claude được tính là đã đăng nhập khi Javis thấy bước đăng nhập hoàn tất (token nằm trong Keychain).
 
 ### E. Chọn model việc nền
 
@@ -304,7 +343,7 @@ Vài điều cần biết:
 
 - **Model việc nền không chạy theo MAIN.** Lần đầu (máy mới, hoặc nâng cấp mà chưa từng đặt) Javis chọn sẵn cấu hình mặc định của nhà cung cấp: model mặc định và mức Effort mặc định của nó. Sau đó model nền **giữ cố định** tới khi bạn tự đổi; kéo thẻ khác lên làm MAIN không kéo model nền đổi theo.
 - **Chọn được MỌI nhà bạn đã kết nối**, không riêng Claude: Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API... Chọn nhà cung cấp khác thì việc nền chạy bằng gói hoặc khoá của nhà đó, không ăn vào hạn mức Claude nữa.
-- **Hết lượt thì đi theo Thứ tự dùng (từ 0.350.0, gắn với Thứ tự dùng từ 0.351.0).** Việc nền chạy model nền trước; model nền hết lượt thì lần lượt sang **Dự phòng 1, Dự phòng 2...**, và **MAIN sau cùng**, mỗi nhà chạy cấu hình mặc định của nó (không phải model bạn chọn cho chat). Một nhà có nhiều API key thì thử từng key trước khi sang nhà kế. Javis không tự chen một nhà bạn chưa kết nối vào.
+- **Hết lượt thì đi theo Thứ tự dùng (từ 0.350.0, gắn với Thứ tự dùng từ 0.351.0).** Việc nền chạy model nền trước; model nền hết lượt thì lần lượt sang **Dự phòng 1, Dự phòng 2...**, và **MAIN sau cùng**, mỗi nhà chạy cấu hình mặc định của nó (không phải model bạn chọn cho chat). Một nhà có nhiều API key thì thử từng key trước khi sang nhà kế, và thẻ gói có nhiều tài khoản cũng thử từng tài khoản trước (xem mục D1). Javis không tự chen một nhà bạn chưa kết nối vào.
 - **Trang chỉ lên tiếng khi cần.** Chuỗi thứ tự trên không hiện ra thường xuyên. Chỉ khi model nền hết lượt mới có một dòng, ví dụ "Haiku 5.5 đang hết lượt, việc nền chạy tạm ChatGPT · GPT-5.5." Nhà của model nền chưa kết nối thì có dòng cảnh báo "Nhà cung cấp này chưa kết nối, việc nền bắt đầu từ Dự phòng 1." Không còn nhà nào chạy được thì báo "Không còn tài khoản nào chạy được việc nền."
 - **Không làm một việc hai lần.** Engine nào đã gọi công cụ (gửi tin, đăng bài, tạo đơn...) rồi mới hỏng thì việc đó dừng và báo lỗi, không chạy lại bằng engine khác.
 - **Công cụ không giống nhau giữa các đường.** Claude Code và Codex đọc/ghi file trực tiếp trong brain. Các model API (OpenRouter, OpenAI, Gemini, Anthropic API) đọc/ghi qua công cụ vault của Javis và **không chạy được lệnh máy**, nên hợp với việc đọc - tổng hợp - ghi ghi chú; việc nền nào cần chạy lệnh thì cứ để Claude.
@@ -396,7 +435,7 @@ Từ bản 0.12.4, phần này chạy được cho **cả ba loại bộ não**,
 
 Mở trang là thấy ngay khối **Bộ não đang dùng**: nó nói bộ não hiện tại thuộc loại nào, đang ăn được mấy mảng tiết kiệm, và mảng nào không áp cho nó cùng lý do. Có mảng cố ý chỉ chạy trên bộ não dùng API key - ví dụ phần gửi lại lịch sử hội thoại, vì Claude Code và Codex vốn tự nhớ mạch hội thoại của chúng, gửi thêm là gửi hai lần.
 
-**Hết lượt gói thuê bao** thì chat đi theo **Thứ tự dùng** bạn đã xếp: MAIN hết lượt thì lượt đó chạy thẻ Dự phòng 1 (với model và Effort của thẻ đó), rồi Dự phòng 2... Javis chỉ chuyển sang những nhà **chính bạn đã kết nối và xếp vào đó**, vì chuyển là tiêu hạn mức của một tài khoản khác, có khi mất tiền thật. Muốn một nhà không bao giờ được dùng thay thì ngắt nó, hoặc với nhà API thì **Tắt** các key của nó. Chuyển như vậy không sửa gì đã lưu: lượt sau Javis lại thử MAIN trước. Không còn thẻ nào chạy được thì Javis nói bằng tiếng Việt: hết lượt gói nào và còn khoảng bao lâu nữa. Lưu ý loại hạn mức này đếm **lượt dùng theo giờ** chứ không đếm độ dài, nên rút gọn câu hỏi không giúp gì.
+**Hết lượt gói thuê bao** thì chat đi theo **Thứ tự dùng** bạn đã xếp: MAIN hết lượt thì lượt đó chạy thẻ Dự phòng 1 (với model và Effort của thẻ đó), rồi Dự phòng 2... Thẻ gói có nhiều tài khoản thì dùng hết các tài khoản của nó trước khi chuyển (xem mục D1). Javis chỉ chuyển sang những nhà **chính bạn đã kết nối và xếp vào đó**, vì chuyển là tiêu hạn mức của một tài khoản khác, có khi mất tiền thật. Muốn một nhà không bao giờ được dùng thay thì ngắt nó, hoặc với nhà API thì **Tắt** các key của nó. Chuyển như vậy không sửa gì đã lưu: lượt sau Javis lại thử MAIN trước. Không còn thẻ nào chạy được thì Javis nói bằng tiếng Việt: hết lượt gói nào và còn khoảng bao lâu nữa. Lưu ý loại hạn mức này đếm **lượt dùng theo giờ** chứ không đếm độ dài, nên rút gọn câu hỏi không giúp gì.
 
 Từ 0.55.44, khi nhà cung cấp nói rõ **mốc mở lại**, dưới câu báo có thẻ **"Tự chạy lại lúc HH:MM"**: đến giờ Javis tự hỏi lại đúng câu đó và trả lời vào cùng hội thoại, tab đóng hay điện thoại tắt màn hình vẫn chạy (việc nằm ở máy chủ). Trên thẻ có ô **"Tự tiếp tục khi hạn mức reset"** (tắt là chỉ nhắc giờ, không tự chạy; lựa chọn được nhớ cho lần sau) và nút **"Chạy lại ngay"**. Gửi tin mới trong lúc chờ là lịch tự huỷ. Javis chỉ hẹn khi biết mốc, tối đa 3 lần cho một câu hỏi, và không hẹn mốc xa hơn một ngày; khởi động lại máy chủ thì lịch đang chờ mất, câu báo hết lượt vẫn còn trong hội thoại để bạn bấm "Gửi lại".
 
@@ -434,6 +473,9 @@ Từ 0.42.1 trở về trước có lỗi ở đúng chỗ này: chỉ mạch c�
 | **Chat đang dùng** (xanh) / **Việc nền đang dùng** (tím) | Dòng key trong thẻ nhà API | Key đang gánh chat / việc nền lúc này |
 | **⋯** | Cuối dòng key | Tắt / Bật, Đổi key, Gỡ |
 | **＋ Thêm key** | Thẻ nhà API | Thêm một key có tên, vào cuối danh sách |
+| **＋ Thêm tài khoản** | Thẻ ChatGPT, Grok Build, Claude Code (đã đăng nhập) | Thêm một tài khoản nữa cho cùng gói (xem mục D1) |
+| **Lấy link đăng nhập** | Ô thêm tài khoản | Lấy link (ChatGPT, Grok kèm mã) để đăng nhập tài khoản cần thêm; Claude Code thì dán mã rồi bấm **Xác nhận** |
+| Danh sách **Tài khoản** | Thẻ nhà chạy bằng gói có từ 2 tài khoản | Dùng lần lượt từ trên xuống; trạng thái **Đã đăng nhập** / **Chưa đăng nhập** / **Đã tắt** / **Hết lượt, mở lại HH:MM**; **⋯** để Tắt / Bật, Đăng nhập lại, Gỡ |
 | **＋ Kết nối thêm nhà cung cấp (N)** | Cuối trang | Hiện N nhà chưa kết nối để đăng nhập / dán key |
 | **○ Chưa đăng nhập** | Card Claude Code | Chưa đăng nhập Claude Code trên máy |
 | **○ Chưa cài Claude Code** | Card Claude Code | Máy chạy Javis chưa có lệnh `claude`, làm theo khung hướng dẫn cài trên card |
@@ -450,6 +492,7 @@ Từ 0.42.1 trở về trước có lỗi ở đúng chỗ này: chỉ mạch c�
 - Nếu chỉ muốn Javis nhớ và làm việc trơn tru, cứ để thẻ Claude Code trên cùng (MAIN). Các provider khác dành cho nhu cầu đặc biệt.
 - Xếp ít nhất một thẻ dự phòng dưới MAIN (ví dụ một nhà API key) để gói chính hết lượt thì chat vẫn chạy tiếp thay vì đứng chờ.
 - Có nhiều API key cho cùng một nhà thì thêm hết vào thẻ đó bằng **＋ Thêm key**: Javis tự dùng lần lượt, key nào nghỉ thì bỏ qua.
+- Có hơn một tài khoản ChatGPT, Grok hoặc Claude thì thêm vào thẻ đó bằng **＋ Thêm tài khoản** (xem mục D1): tài khoản trên hết lượt là tài khoản dưới chạy tiếp, chưa phải sang nhà khác. Đọc kỹ dòng cảnh báo về nguy cơ khoá trước khi thêm.
 - Đặt **Model việc nền** là model rẻ để loop, việc Kanban, nhắc hẹn, tự học và tiêu hoá nguồn không ngốn hết hạn mức của gói chính. Muốn biết chỗ nào đang đốt nhiều nhất thì xem [Mức dùng: token & chi phí](23-muc-dung-token.md).
 - Đẩy chip **Effort** lên Medium hoặc High khi hỏi việc khó (phân tích, chiến lược); để Off hoặc Light khi chỉ hỏi nhanh để đỡ chờ.
 - OpenRouter là lựa chọn tiện nếu muốn thử nhiều model của nhiều hãng chỉ với một key.

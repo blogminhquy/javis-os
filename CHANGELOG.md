@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.353.0] - 2026-10-27
+### Thêm mới
+- **Nhiều tài khoản cho một gói đăng ký.** Thẻ ChatGPT, Grok Build và Claude Code ở trang Models giờ có danh sách tài khoản. Bấm Thêm tài khoản, đăng nhập bằng link và mã ngay trên trang (chạy được cả trên VPS). Tài khoản 1 là tài khoản máy đang dùng. Hết lượt thì tài khoản kế tiếp tự chạy tiếp, dùng hết các tài khoản của một thẻ rồi mới sang thẻ sau. Tài khoản hết lượt tự quay lại khi tới giờ mở. Kéo hoặc bấm mũi tên để đổi thứ tự, tắt hay gỡ từng tài khoản.
+- Dùng nhiều tài khoản cùng gói có nguy cơ bị nhà cung cấp khoá, dù Javis chưa ghi nhận trường hợp nào. Nếu gặp, hãy báo cho nhà phát triển.
+
 ## [0.352.0] - 2026-10-27
 ### Cải thiện
 - **Lời nhắc về rủi ro khoá tài khoản viết lại nhẹ nhàng hơn.** Dùng gói đăng ký (Claude Pro/Max, gói xAI) cho việc nền vẫn có nguy cơ bị nhà cung cấp khoá tài khoản, nhưng Javis chưa ghi nhận trường hợp nào. Nếu bạn gặp, hãy báo cho nhà phát triển để mọi người cùng biết.

@@ -112,8 +112,12 @@ _LUAT_CHAN = {
 }
 
 
-def _grok_home() -> Path:
-    """Thư mục cấu hình của `grok`. GROK_HOME thắng, đúng như CLI xử lý."""
+def _grok_home(home=None) -> Path:
+    """Thư mục cấu hình của `grok`. GROK_HOME thắng, đúng như CLI xử lý.
+
+    `home`: the folder of an extra Grok account (plan_accounts, 0.353.0). None = account 1."""
+    if home:
+        return Path(home)
     env = (os.environ.get("GROK_HOME") or "").strip()
     if env:
         return Path(env).expanduser()
@@ -156,7 +160,7 @@ def lenh_cai() -> str:
     return LENH_CAI_WIN if os.name == "nt" else LENH_CAI
 
 
-def _moi_truong() -> dict:
+def _moi_truong(home=None) -> dict:
     """Môi trường cho một lượt chạy `grok`: kế thừa của server, tắt bộ tự cập nhật.
 
     Vì sao phải tắt: Javis chạy `grok` headless trên VPS và trong container. Bộ tự cập nhật của
@@ -170,6 +174,8 @@ def _moi_truong() -> dict:
     """
     env = dict(os.environ)
     env.setdefault("GROK_DISABLE_AUTOUPDATER", "1")
+    if home:
+        env["GROK_HOME"] = str(home)   # an extra Grok account's folder (plan_accounts, 0.353.0)
     return env
 
 
@@ -526,13 +532,13 @@ def _tim_chuoi(o, ten, sau: int = 0) -> str:
     return ""
 
 
-def _doc_phien() -> tuple:
+def _doc_phien(home=None) -> tuple:
     """Tìm file phiên đăng nhập trong thư mục của `grok`. Trả (path|None, dict|None).
 
     Quét `_FILE_PHIEN` trước, rồi mới tới mọi `*.json` còn lại trong thư mục - CLI đổi tên file
     là chuyện xảy ra, và Javis không nên chết vì một cái tên.
     """
-    home = _grok_home()
+    home = _grok_home(home)
     ten_da_thu = set()
     ds = []
     for ten in _FILE_PHIEN:
@@ -556,7 +562,7 @@ def _doc_phien() -> tuple:
     return None, None
 
 
-def auth_status() -> dict:
+def auth_status(home=None) -> dict:
     """Đã đăng nhập chưa: {connected, method, account, plan, error}.
 
     ĐỌC FILE, không gọi CLI - mỗi lần mở trang Models mà đẻ một tiến trình là vài trăm ms cho
@@ -570,13 +576,16 @@ def auth_status() -> dict:
         return {"connected": False, "method": "", "account": "", "plan": "",
                 "error": localefmt.chu(f"Chưa cài Grok CLI ({lenh_cai()}).",
                                        f"Grok CLI is not installed ({lenh_cai()}).")}
-    f, auth = _doc_phien()
+    f, auth = _doc_phien(home)
     if auth is not None:
         acc = _tim_chuoi(auth, ("email", "account", "username", "handle", "user", "name"))
         plan = _tim_chuoi(auth, ("plan", "subscription", "tier"))
         pt = _tim_chuoi(auth, ("issuer", "method", "provider")) or "oauth"
         return {"connected": True, "method": pt, "account": acc, "plan": plan,
                 "error": "", "file": str(f)}
+    if home:
+        # An extra account is signed in only by its own login file, never by a key in the server's environment.
+        return {"connected": False, "method": "", "account": "", "plan": "", "error": ""}
     if (os.environ.get("XAI_API_KEY") or "").strip():
         return {"connected": True, "method": "xai-api-key", "account": "", "plan": "",
                 "error": ""}
@@ -774,7 +783,7 @@ def _doc_luong(proc) -> None:
         pass
 
 
-def login_start(cho_giay: float = 30.0) -> dict:
+def login_start(cho_giay: float = 30.0, home=None) -> dict:
     """Mở `grok login --device-auth`, trả {ok, url, code} để giao diện hiện ra cho người dùng.
 
     Tiến trình được GIỮ LẠI chạy tiếp sau khi hàm này trả về: nó còn phải hỏi máy chủ tới khi
@@ -792,7 +801,7 @@ def login_start(cho_giay: float = 30.0) -> dict:
         proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, encoding="utf-8",
                                 errors="replace", bufsize=1, creationflags=_no_window(),
-                                env=_moi_truong(), start_new_session=(os.name != "nt"))
+                                env=_moi_truong(home), start_new_session=(os.name != "nt"))
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     from collections import deque
@@ -811,7 +820,7 @@ def login_start(cho_giay: float = 30.0) -> dict:
             break
         time.sleep(0.2)
     if not _LOGIN["url"]:
-        if proc.poll() is not None and auth_status().get("connected"):
+        if proc.poll() is not None and auth_status(home).get("connected"):
             return {"ok": True, "xong": True, "url": "", "code": ""}
         return {"ok": False,
                 "error": localefmt.chu(
@@ -824,7 +833,7 @@ def login_start(cho_giay: float = 30.0) -> dict:
             "nhat_ky": nhat_ky_dang_nhap()}
 
 
-def login_trang_thai() -> dict:
+def login_trang_thai(home=None) -> dict:
     """Vòng đăng nhập đang tới đâu. Giao diện gọi lặp lại cái này sau `login_start`.
 
     Kèm `nhat_ky` - những dòng CLI vừa in ra. Đây là điểm khác bản 0.50.0 và là lý do bản đó
@@ -832,13 +841,13 @@ def login_trang_thai() -> dict:
     đứng im hay chết lặng thì màn hình chỉ có một dòng "đang chờ" quay mãi.
     """
     proc = _LOGIN.get("proc")
-    d = auth_status()
+    d = auth_status(home)
     dang_chay = bool(proc and proc.poll() is None)
     if not d.get("connected") and proc is not None and not dang_chay:
         # Tiến trình vừa thoát. File phiên có thể còn đang được ghi - hỏi lại một nhịp trước
         # khi kết luận là hỏng, kẻo báo lỗi ngay lúc nó sắp thành công.
         time.sleep(0.6)
-        d = auth_status()
+        d = auth_status(home)
     loi = ""
     if not d.get("connected") and not dang_chay:
         ma = _LOGIN.get("ma_thoat")
@@ -1051,6 +1060,8 @@ class GrokCLI:
         # và headless mà CLI dừng lại hỏi duyệt là treo tới vô tận, im lặng, không một dòng ra
         # stdout để vòng readline thoát. Watchdog dưới đây là thứ duy nhất gỡ được ca đó.
         self.timeout = float(os.environ.get("JAVIS_GROK_TIMEOUT") or 900)
+        # Folder of an extra Grok account (plan_accounts.use, 0.353.0). None = account 1 (~/.grok).
+        self.grok_home = None
 
     def is_available(self) -> bool:
         return self.cli_path is not None
@@ -1188,7 +1199,7 @@ class GrokCLI:
                     args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE, cwd=self.cwd, text=True, encoding="utf-8",
                     errors="replace", bufsize=1, creationflags=_no_window(),
-                    env=_moi_truong(), start_new_session=(os.name != "nt"),
+                    env=_moi_truong(getattr(self, "grok_home", None)), start_new_session=(os.name != "nt"),
                 )
                 try:   # lệnh chạy ngầm Grok bỏ lại sẽ được theo dõi sau lượt (tien_trinh_nen)
                     import tien_trinh_nen

@@ -175,9 +175,16 @@ Mỗi bản là một PR, CI xanh thì merge, mỗi bản một số phiên bả
    Chưa làm ở bản này: chip `Extra → High` (2.3.3) cần bảng mức suy luận của từng model, mà danh
    sách model hiện chỉ có tên. Tới khi có bảng đó, chip hiện đúng mức đã chọn và engine tự hạ mức
    như trước. Danh sách tài khoản cho gói (CLI) đi cùng bản 3.
-3. **0.35x: nhiều tài khoản cho CLI.** Codex (`CODEX_HOME` riêng) và Grok (`GROK_HOME` riêng)
-   trước; Claude Code (`CLAUDE_CONFIG_DIR` riêng) sau khi kiểm chứng tách được trên macOS
-   (Keychain), Linux và Windows. Mỗi tài khoản một thư mục trong `STATE_DIR/accounts/<id>/`.
+3. **0.353.0: nhiều tài khoản cho CLI** (chủ repo bảo làm cả ba cùng lúc). Codex (`CODEX_HOME`),
+   Grok (`GROK_HOME`) và Claude Code (`CLAUDE_CONFIG_DIR`), mỗi tài khoản thêm một thư mục
+   `STATE_DIR/accounts/<id>/<codex|grok|claude>/`; tài khoản 1 giữ nguyên thư mục mặc định của CLI.
+   Mã ở `server/plan_accounts.py`. Đăng nhập tài khoản thêm: ChatGPT bằng luồng device code của
+   Javis (token ghi vào `auth.json` của thư mục đó), Grok bằng `grok login --device-auth`, Claude
+   bằng `claude auth login` (link rồi dán mã). Hết lượt: tài khoản đó nghỉ (`mark_rest`), tài
+   khoản kế chạy; chỉ khi không còn tài khoản nào thì thẻ mới tính là hết lượt (`_PIN_LIMITED`).
+   Chưa đi theo tài khoản (ghi rõ trong hướng dẫn): đồng hồ hạn mức, tạo ảnh, giọng nói và các
+   đường ChatGPT không qua Codex CLI vẫn dùng tài khoản 1. Claude trên macOS giữ token trong
+   Keychain; Javis coi tài khoản là đã đăng nhập khi thấy lượt đăng nhập xong (file đánh dấu).
 4. **0.35x: chat tự chuyển khi hết lượt.** Lượt chat hỏng vì hết lượt trước khi có chữ hoặc công
    cụ nào thì chạy lại ngay bằng đường kế tiếp, kèm một dòng "Đang dùng ChatGPT vì Claude hết lượt".
    Hỏng giữa chừng thì dừng, có nút "Chạy lại". Trước bản này, chat vẫn chọn đường còn lượt ngay

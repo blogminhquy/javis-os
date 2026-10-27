@@ -79,10 +79,26 @@ check("the card holding an open popover is lifted above the next card (each card
   /raised\.classList\.add\("ord-raise"\)/.test(B) && /openPop\.raised\.classList\.remove\("ord-raise"\)/.test(B)
   && /\.prov-card\.ord-raise, \.gcard\.ord-raise \{ position: relative; z-index: 70; \}/.test(D("console.css")));
 
+// ---- 2c. several accounts on a plan card (0.353.0) ----
+check("ChatGPT, Grok and Claude cards list their accounts", /const planAccts = \(p, ord\) =>/.test(CL)
+  && (CL.match(/planAccts\(p, ord\)/g) || []).length >= 3);
+check("Claude on an API key shows no plan account list", /p\.id === "anthropic-cli" && p\.auth_mode === "api_key"/.test(CL));
+check("adding an account shows the gentle warning and asks for a sign-in link",
+  /models\.pacct_warn/.test(CL) && /models\.pacct_warn2/.test(CL) && /data-pacct-go/.test(CL));
+check("sign-in: link and code, a pasted code for Claude, polling for ChatGPT and Grok",
+  /\/plan-accounts\/login-start/.test(B) && /\/plan-accounts\/login-code/.test(B) && /\/plan-accounts\/login-poll/.test(B)
+  && /setTimeout\(tick, 3000\)/.test(B));
+check("account 1 can be turned off but not removed or re-signed here", /\$\{a\.main \? "" : `<button type="button" class="gcard-btn ghost" data-pacct-act="relogin">/.test(CL));
+check("plan accounts reorder by drag and arrows", /key\.indexOf\("pacct:"\) === 0/.test(B) && /data-pacct-move/.test(B));
+check("cancel stops a sign-in that never finished", /\/plan-accounts\/login-cancel/.test(B));
+const warn = (VI["models.pacct_warn"] || "") + " " + (VI["models.pacct_warn2"] || "");
+check("the warning is gentle: a risk, no reported case, tell the developer",
+  /nguy cơ/.test(warn) && /chưa ghi nhận/.test(warn) && /nhà phát triển/.test(warn));
+
 // ---- 3. loading and words ----
 check("models-order.js loads before console.js",
   HTML.indexOf("/static/models-order.js") > 0 && HTML.indexOf("/static/models-order.js") < HTML.indexOf("/static/console.js"));
-const keys = [...new Set(((CL + B).match(/t\("(models\.(?:ord|acct|bg|h_order|order)[\w.]*)"/g) || []).map((s) => s.slice(3, -1)))];
+const keys = [...new Set(((CL + B).match(/t\("(models\.(?:ord|acct|pacct|bg|h_order|order)[\w.]*)"/g) || []).map((s) => s.slice(3, -1)))];
 check("the new words are found", keys.length >= 20, String(keys.length));
 const noVi = keys.filter((k) => !VI[k]), noEn = keys.filter((k) => !EN[k]);
 check("every new key is in vi.json", noVi.length === 0, noVi.join(", "));

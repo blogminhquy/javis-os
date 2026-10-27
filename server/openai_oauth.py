@@ -279,6 +279,69 @@ def poll():
     return {"status": "connected", "account_id": o.get("account_id", ""), "plan": o.get("plan", "")}
 
 
+# ---- An extra ChatGPT account (plan_accounts, 0.353.0) ----
+# Same device-code flow, but the tokens go straight into that account's own `auth.json` (its CODEX_HOME), never
+# into settings: Codex refreshes them there itself, and account 1's slot in settings stays untouched.
+_pending_acc: dict = {}
+
+
+def start_device_for(key: str) -> dict:
+    """Ask OpenAI for a device code for an extra account. Keeps account 1's pending sign-in, if any, intact."""
+    keep = dict(_pending)
+    try:
+        out = start_device()
+        _pending_acc[key] = dict(_pending)
+    finally:
+        _pending.clear()
+        _pending.update(keep)
+    return out
+
+
+def poll_for(key: str, folder) -> dict:
+    """Poll once for an extra account; on success write `<folder>/auth.json` in the format Codex reads."""
+    p = _pending_acc.get(key)
+    if not p:
+        return {"status": "error", "error": localefmt.chu("Chưa bắt đầu đăng nhập.", "Sign-in has not started.")}
+    if time.time() - p["ts"] > 15 * 60:
+        _pending_acc.pop(key, None)
+        return {"status": "error", "error": localefmt.chu("Mã hết hạn (15 phút), thử lại.", "The code expired (15 minutes), try again.")}
+    try:
+        r = httpx.post(DEVICE_TOKEN_URL, json={"device_auth_id": p["device_auth_id"], "user_code": p["user_code"]},
+                       headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": UA}, timeout=20)
+    except Exception as e:
+        return {"status": "pending", "note": f"{type(e).__name__}"}
+    if r.status_code in (403, 404):
+        return {"status": "pending"}
+    if r.status_code != 200:
+        return {"status": "error", "error": f"{r.status_code}: {r.text[:200]}"}
+    d = r.json()
+    if not d.get("authorization_code") or not d.get("code_verifier"):
+        return {"status": "pending"}
+    try:
+        tok = _exchange(d["authorization_code"], d["code_verifier"])
+        claims = _decode_jwt_claims(tok.get("id_token", ""))
+        auth = claims.get("https://api.openai.com/auth") or {}
+        path = Path(folder) / "auth.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "OPENAI_API_KEY": None,
+            "tokens": {"id_token": tok.get("id_token", ""), "access_token": tok.get("access_token", ""),
+                       "refresh_token": tok.get("refresh_token", ""),
+                       "account_id": auth.get("chatgpt_account_id", "")},
+            "last_refresh": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+        }), encoding="utf-8")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    except Exception as e:
+        return {"status": "error", "error": localefmt.chu(f"Đổi token lỗi: {type(e).__name__}: {e}",
+                                                         f"Token exchange failed: {type(e).__name__}: {e}")}
+    _pending_acc.pop(key, None)
+    return {"status": "connected", "plan": auth.get("chatgpt_plan_type", ""),
+            "email": (claims.get("email") or "")}
+
+
 # ---- Luồng B: Browser OAuth (Authorization Code + PKCE) ----
 
 def _gen_pkce():

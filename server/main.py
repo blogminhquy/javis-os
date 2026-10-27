@@ -81,6 +81,7 @@ import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - t
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
+import plan_accounts   # 0.353.0: several accounts on one subscription plan card (Codex, Grok, Claude Code)
 import mcp_store
 import mcp_client
 import mcp_catalog
@@ -2583,7 +2584,11 @@ def _route_ready(mcfg, prov) -> bool:
         if d.get("key_field") and d["id"] not in _ROUTING_SINGLE_KEY:
             return bool(model_routing.usable_accounts(mcfg, prov, d["key_field"]))
         return bool(_provider_key(mcfg, d))
-    return not _pin_limited_until(prov)
+    if _pin_limited_until(prov):
+        return False
+    if plan_accounts.supported(prov) and plan_accounts.has_extra(mcfg, prov):
+        return plan_accounts.pick(mcfg, prov) is not None   # every account of the plan off, resting or signed out
+    return True
 
 
 def _chat_provider(mcfg):
@@ -2652,8 +2657,23 @@ def _agent_model_provider(model: str, provider: str = "") -> str:
 # runs on the main chat's model instead. Set by the chat turn when an engine reports "usage limit reached"; the reset
 # time it gives is used, or an hour when it gives none. Only the pin falls back: the main model is never changed.
 _PIN_LIMITED: dict = {}
-_LIMIT_ENGINE_PROVIDER = {"claude-code": "anthropic-cli", "codex": "openai-oauth"}
+_LIMIT_ENGINE_PROVIDER = {"claude-code": "anthropic-cli", "codex": "openai-oauth", "grok-cli": "grok-cli"}
 PIN_LIMIT_DEFAULT_S = 3600
+# provider -> account id the last chat engine of that provider ran on (plan_accounts, 0.353.0). Read when that turn
+# reports "out of quota", so the account that ran out is the one that rests.
+_PLAN_ACCOUNT_LAST: dict = {}
+
+
+def _plan_account_apply(engine, provider: str, mcfg=None) -> str:
+    """Point a chat engine at the subscription account that should run now; account 1 when there is no other."""
+    try:
+        m = mcfg if mcfg is not None else (cfgmod.read_settings().get("model") or {})
+        aid = plan_accounts.apply(engine, provider, m)
+    except Exception as e:  # noqa: BLE001 - choosing an account must never stop a chat turn
+        print(f"[plan accounts] {provider}: {type(e).__name__}: {e}", file=sys.stderr)
+        aid = plan_accounts.MAIN
+    _PLAN_ACCOUNT_LAST[provider] = aid
+    return aid
 
 
 def _note_pin_limit(engine_hint: str, reset_epoch: float = 0.0, now: float = None) -> None:
@@ -2661,7 +2681,18 @@ def _note_pin_limit(engine_hint: str, reset_epoch: float = 0.0, now: float = Non
     if not prov:
         return
     now = time.time() if now is None else now
-    _PIN_LIMITED[prov] = float(reset_epoch) if reset_epoch and reset_epoch > now else now + PIN_LIMIT_DEFAULT_S
+    until = float(reset_epoch) if reset_epoch and reset_epoch > now else now + PIN_LIMIT_DEFAULT_S
+    # 0.353.0: the account that ran out rests; while another account of the same plan can run, the plan is not
+    # out of quota and nothing is pinned away from it.
+    try:
+        model_routing.mark_rest(prov, _PLAN_ACCOUNT_LAST.get(prov, plan_accounts.MAIN), until=until, persist=True)
+        if plan_accounts.supported(prov):
+            m = cfgmod.read_settings().get("model") or {}
+            if plan_accounts.has_extra(m, prov) and plan_accounts.usable(m, prov, now):
+                return
+    except Exception as e:  # noqa: BLE001
+        print(f"[plan accounts] rest {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+    _PIN_LIMITED[prov] = until
 
 
 def _pin_limited_until(provider: str, now: float = None) -> float:
@@ -4632,6 +4663,139 @@ def grok_status():
     return d
 
 
+# ---- Extra accounts on a subscription plan card (plan_accounts, 0.353.0) ----
+# Account 1 keeps its own card controls above. An extra account signs in into its own folder: ChatGPT through
+# Javis's device-code flow (tokens written to that folder's auth.json), Grok through `grok login --device-auth`,
+# Claude Code through `claude auth login` (a link, then a code pasted back). One sign-in runs at a time.
+_PLAN_LOGIN: dict = {}
+
+
+def _plan_login_ok(provider: str, account_id: str) -> dict:
+    """Finish an extra account's sign-in: remember it, put it at the end of the card's list."""
+    p = _PLAN_LOGIN.pop(account_id, None) or {}
+    folder = plan_accounts.home(provider, account_id)
+    plan_accounts.mark_signed_in(provider, folder)
+    with cfgmod._SETTINGS_LOCK:
+        cfg = cfgmod.read_settings()
+        plan_accounts.add(cfg["model"], provider, account_id, p.get("label", ""))
+        model_routing.clear_rest(provider, account_id)
+        cfgmod.write_settings(cfg)
+    return {"ok": True, "connected": True, "account_id": account_id}
+
+
+@app.post("/plan-accounts/login-start")
+async def plan_account_login_start(request: Request):
+    """Start signing in an extra account. Body {provider, label, account_id?}; account_id re-signs an account."""
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    prov = str(body.get("provider") or "")
+    if not plan_accounts.supported(prov):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Thẻ này không thêm được tài khoản.",
+                                                                 "This card cannot hold another account.")}, 400)
+    aid = str(body.get("account_id") or "") or model_routing.new_account_id()
+    if aid == plan_accounts.MAIN:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Tài khoản 1 đăng nhập ở phần trên của thẻ.",
+                                                                 "Account 1 signs in at the top of the card.")}, 400)
+    folder = plan_accounts.home(prov, aid)
+    if not folder:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không tạo được thư mục cho tài khoản.",
+                                                                 "Could not create the account's folder.")}, 500)
+    plan_accounts.prepare(prov, folder)
+    _PLAN_LOGIN[aid] = {"provider": prov, "label": str(body.get("label") or "")[:60], "ts": time.time()}
+    kind = plan_accounts.KIND[prov]
+    if kind == "codex":
+        try:
+            d = await asyncio.to_thread(openai_oauth.start_device_for, aid)
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "account_id": aid, "url": d.get("verification_uri", ""), "code": d.get("user_code", ""),
+                "needs_code": False}
+    if kind == "grok":
+        d = await asyncio.to_thread(grok_cli.login_start, 30.0, folder)
+        if not d.get("ok"):
+            return d
+        if d.get("xong"):
+            return _plan_login_ok(prov, aid)
+        return {"ok": True, "account_id": aid, "url": d.get("url", ""), "code": d.get("code", ""), "needs_code": False}
+    d = await asyncio.to_thread(claude_cli.auth_login_ui_start, plan_accounts.env_for(prov, folder))
+    if not d.get("ok"):
+        return d
+    for _ in range(40):          # the login link shows within a few seconds
+        u = claude_cli._LOGIN.get("url")
+        if u:
+            break
+        await asyncio.sleep(0.25)
+    return {"ok": True, "account_id": aid, "url": claude_cli._LOGIN.get("url", ""), "code": "", "needs_code": True}
+
+
+@app.post("/plan-accounts/login-code")
+async def plan_account_login_code(request: Request):
+    """Claude Code only: the code shown after signing in on the web. Body {provider, account_id, code}."""
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    prov, aid = str(body.get("provider") or ""), str(body.get("account_id") or "")
+    if prov != "anthropic-cli" or aid not in _PLAN_LOGIN:
+        return {"ok": False, "error": localefmt.chu("Chưa bắt đầu đăng nhập.", "Sign-in has not started.")}
+    d = await asyncio.to_thread(claude_cli.auth_login_ui_code, str(body.get("code") or ""))
+    folder = plan_accounts.home(prov, aid)
+    if d.get("ok") or (await asyncio.to_thread(claude_cli.auth_status_folder, folder)).get("connected"):
+        return _plan_login_ok(prov, aid)
+    return {"ok": False, "error": d.get("error") or localefmt.chu("Đăng nhập chưa xong.", "Sign-in not finished.")}
+
+
+@app.get("/plan-accounts/login-poll")
+async def plan_account_login_poll(provider: str = "", account_id: str = ""):
+    """Has the extra account finished signing in? ChatGPT and Grok finish on the web, without a code."""
+    if not plan_accounts.supported(provider) or account_id not in _PLAN_LOGIN:
+        return {"ok": False, "connected": False,
+                "error": localefmt.chu("Chưa bắt đầu đăng nhập.", "Sign-in has not started.")}
+    folder = plan_accounts.home(provider, account_id)
+    kind = plan_accounts.KIND[provider]
+    if kind == "codex":
+        d = await asyncio.to_thread(openai_oauth.poll_for, account_id, folder)
+        if d.get("status") == "connected":
+            return _plan_login_ok(provider, account_id)
+        return {"ok": d.get("status") != "error", "connected": False, "error": d.get("error", "")}
+    if kind == "grok":
+        d = await asyncio.to_thread(grok_cli.login_trang_thai, folder)
+        if d.get("connected"):
+            return _plan_login_ok(provider, account_id)
+        return {"ok": True, "connected": False, "error": "" if d.get("dang_cho") else d.get("error", "")}
+    d = await asyncio.to_thread(claude_cli.auth_status_folder, folder)
+    if d.get("connected"):
+        return _plan_login_ok(provider, account_id)
+    return {"ok": True, "connected": False}
+
+
+@app.post("/plan-accounts/login-cancel")
+async def plan_account_login_cancel(request: Request):
+    """Stop a sign-in that was started and not finished; a never-finished account's empty folder goes too."""
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    prov, aid = str(body.get("provider") or ""), str(body.get("account_id") or "")
+    p = _PLAN_LOGIN.pop(aid, None)
+    if p and plan_accounts.supported(prov):
+        m = cfgmod.read_settings().get("model") or {}
+        if not any(a["id"] == aid for a in plan_accounts.accounts(m, prov)):
+            plan_accounts.remove_folder(prov, aid)
+        if plan_accounts.KIND[prov] == "grok":
+            grok_cli.logout_huy_tien_trinh()
+        elif plan_accounts.KIND[prov] == "claude":
+            try:
+                proc = claude_cli._LOGIN.get("proc")
+                if proc and proc.poll() is None:
+                    claude_cli._kill_tree(proc)
+            except Exception:  # noqa: BLE001
+                pass
+    return {"ok": True}
+
+
 @app.post("/grok/login-start")
 async def grok_login_start():
     """Bước 1: mở vòng device code, trả link + mã để người dùng mở trên máy của họ.
@@ -5379,6 +5543,11 @@ def settings_get():
                "resting_until": model_routing.resting_until(pid, a["id"])}
               for a in model_routing.accounts(cfg["model"], pid, kf)]
         for pid, kf in _routing_key_fields().items() if model_routing.accounts(cfg["model"], pid, kf)}
+    for pid in plan_accounts.KIND:   # plan cards: account 1 plus any extra account (0.353.0)
+        try:
+            safe["model"]["accounts"][pid] = plan_accounts.view(cfg["model"], pid)
+        except Exception as e:  # noqa: BLE001 - one unreadable folder must not take the settings page down
+            print(f"[plan accounts] view {pid}: {type(e).__name__}: {e}", file=sys.stderr)
     o = cfg["model"].get("openai_oauth") or {}
     safe["model"]["openai_oauth"] = {   # che token, chỉ lộ trạng thái
         "connected": bool(o.get("access_token") or o.get("refresh_token")),
@@ -5427,7 +5596,7 @@ def _routing_view(mcfg, providers) -> dict:
         print(f"[routing] view: {type(e).__name__}: {e}", file=sys.stderr)
     return {"order": o, "profiles": {p: model_routing.profile(mcfg, p) for p in o},
             "background": model_routing.background_spec(mcfg), "chat_in_use": chat, "bg_in_use": bg,
-            "multi_key": list(_routing_key_fields())}
+            "multi_key": list(_routing_key_fields()), "multi_plan": list(plan_accounts.KIND)}
 
 
 @app.post("/settings")
@@ -5565,6 +5734,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             pa = patch["accounts"]
             pid = str(pa.get("provider") or "")
             kf = _routing_key_fields().get(pid)
+            if plan_accounts.supported(pid) and isinstance(pa.get("items"), list):
+                # A plan card's accounts carry no key: order, label and on/off only. Removing one deletes its login
+                # folder; account 1 (the machine's own login) stays (0.353.0).
+                plan_accounts.save(m, pid, pa["items"])
             if kf and isinstance(pa.get("items"), list):
                 items = []
                 cur = {a["id"]: a for a in model_routing.accounts(m, pid, kf)}
@@ -16335,6 +16508,8 @@ async def websocket_endpoint(ws: WebSocket):
                         plan_limits.ghi_het(engine_hint, float(lim.reset_epoch or 0))
                     elif engine_hint in ("grok-cli", "antigravity-cli") and plan_limits.la_het_han_muc(raw):
                         plan_limits.ghi_het(engine_hint)
+                        if engine_hint == "grok-cli":
+                            _note_pin_limit("grok-cli")   # 0.353.0: rest that Grok account, the next one takes over
                 except Exception:  # noqa: BLE001 - a meter must never break a turn
                     pass
                 return json.dumps(frame)
@@ -16405,6 +16580,7 @@ async def websocket_endpoint(ws: WebSocket):
             # Code nằm theo thư mục đó, đúng ý: mỗi repo một mạch riêng.
             cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=_cwd_luot_chat(_row0, brain), tag=turn_tag)
             cli.session_id = _row0.get("cli_session_id") or None    # --resume đúng mạch phiên này
+            _plan_account_apply(cli, "anthropic-cli", mcfg)   # 0.353.0: the Claude account that should run now
             final_text = ""
             used_fast_path = False
 
@@ -16595,6 +16771,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # Hub trỏ BRAIN kể cả khi cwd là repo: MCP, cron và nhắc hẹn thuộc bộ não của
                 # người dùng, không thuộc cây mã nguồn đang mở.
                 _apply_grok_hub(kcli, _brain_root(brain))
+                _plan_account_apply(kcli, "grok-cli", mcfg)   # 0.353.0: the Grok account that should run now
                 if not kcli.is_available():
                     final_text = ("⚠ Chưa cài Grok Build CLI trên máy này. Cài một lần:\n\n"
                                   f"`{grok_cli.lenh_cai()}`\n\n"
@@ -16767,6 +16944,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # Hub vẫn trỏ BRAIN kể cả khi cwd là repo: MCP, cron và nhắc hẹn thuộc về bộ
                 # não của người dùng, không thuộc về cây mã nguồn đang mở.
                 _apply_codex_hub(ccli, _brain_root(brain))   # MCP + đúng brain cho cron/nhắc hẹn
+                _plan_account_apply(ccli, "openai-oauth", mcfg)   # 0.353.0: after the hub profile is written
                 stored_codex_thread = (_row0.get("codex_thread_id") or "").strip()
                 # Mạch Codex đã phình quá ngưỡng thì THÔI resume: mở mạch mới rồi mồi lại
                 # bằng transcript trong SQLite. Không làm bước này thì mỗi lượt tiếp theo
@@ -22253,6 +22431,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             kcli.instructions = sysprompt
         kcli.mode = "full"
         _apply_grok_hub(kcli, _brain_root(brain))
+        _plan_account_apply(kcli, "grok-cli")   # 0.353.0: the Grok account that should run now
         if not kcli.is_available():
             return ("⚠ Chưa cài Grok Build CLI trên máy chạy Javis. Cài một lần:\n"
                     f"`{grok_cli.lenh_cai()}`\n"
@@ -22378,6 +22557,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             ccli.model = actual_model
             ccli.instructions = sysprompt
         _apply_codex_hub(ccli, _brain_root(brain))
+        _plan_account_apply(ccli, "openai-oauth")   # 0.353.0: the ChatGPT account that should run now
         ccli.steer = True   # 0.213.0: a channel turn takes messages mid-way when its gateway opened an inbox (codex_steer.py)
         if not ccli.is_available():
             return "⚠ Chưa cài Codex CLI trong container nên ChatGPT chưa dùng được tool."
@@ -22560,6 +22740,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         cli.model = ((api_model if prov == "anthropic-cli" else "")
                      or mcfg.get("claude_model") or None)
         _apply_mcp(cli, brain=brain)
+        _plan_account_apply(cli, "anthropic-cli", mcfg)   # 0.353.0: the Claude account that should run now
         t0 = time.time()
         written = []   # file agent ghi bằng tool Write trong lượt này (ứng viên auto-gửi)
         out = ""
