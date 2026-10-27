@@ -4503,7 +4503,7 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-st { display: inline-flex; align-items: center; gap: 2px; cursor: pointer; border-radius: 6px; padding: 2px; line-height: 1; }
 .cside-item .gh-st { position: absolute; right: 8px; top: 7px; }
 .gh-st svg { width: 17px; height: 17px; }
-.gh-st b { font-size: 12px; font-weight: 700; }
+.gh-st b { font-size: 16px; font-weight: 700; line-height: 1; }
 .gh-st:hover, .gh-st:focus-visible { background: var(--info-wash); outline: none; }
 .gh-working { color: var(--accent, #c06a2b); }
 .gh-working svg { animation: gh-pulse 1.6s ease-in-out infinite; }
@@ -4516,7 +4516,7 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-chip .gh-st { margin-left: 2px; padding: 0; }
 .gh-detail-body { display: flex; flex-direction: column; gap: 14px; padding: 6px 2px 4px; font-size: 16px; max-height: 70vh; overflow-y: auto; }
 .gh-row { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
-.gh-row-head code { font-size: 14px; word-break: break-all; }
+.gh-row-head code { font-size: 16px; word-break: break-all; }
 .gh-row-state { color: var(--text2); }
 .gh-checks { margin: 0; padding-left: 18px; color: var(--text2); }
 .gh-chk-failure, .gh-chk-timed_out { color: var(--danger-ink, #b3261e); }
