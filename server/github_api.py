@@ -182,6 +182,16 @@ class GitHub:
                 ctx.append(c["context"])
         return ctx
 
+    def branch_sha(self, full_name: str, branch: str) -> str:
+        """Head commit of a branch, "" when it does not exist."""
+        try:
+            d = self.get(f"/repos/{full_name}/branches/{branch}")
+        except GitHubError as e:
+            if e.status == 404:
+                return ""
+            raise
+        return str(((d or {}).get("commit") or {}).get("sha") or "")
+
     def job_log(self, full_name: str, job_id: int) -> str:
         """Plain-text log of one Actions job ("" when GitHub does not give one)."""
         try:

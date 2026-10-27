@@ -1,40 +1,97 @@
-"""What Javis does with a conversation's GitHub repos after each turn (spec docs/dev/2026-10-github-trong-chat-spec.md).
+"""What Javis does with a conversation's GitHub repos (spec docs/dev/2026-10-github-trong-chat-spec.md, sections 8-9).
 
-Phase G2 (this file's first version): when a turn changed a repo's worktree, run the pre-push quality gate
-(github_gate) and post its result into the same conversation. Nothing is pushed yet; phase G3 adds commit, push, PR and
-CI tracking on top of the same hook.
+After every saved turn (`after_turn`), for each attached repo whose worktree changed:
 
-The hook is `after_turn(sid, brain)`, called by main right after a turn is saved. main injects how to reach the chat
-(`configure(notify=...)`); this module never imports main.
+    gate (section 7) --red--> a fix turn in the same chat (counted, at most MAX_FIX_ROUNDS)
+         |
+        green --> commit --> push the branch --> open or reuse the PR (draft) --> CI pending
+
+A background watcher (`tick`, every POLL_FAST_S / POLL_SLOW_S) then reads GitHub for every pushed commit:
+
+    CI red    --> flaky-looking infra failure: rerun the job once; otherwise a fix turn with the failing logs.
+                  Red on the base branch too: not this chat's failure, say so and stop.
+    CI green  --> PR ready for review, `integ=ready` (phase G4 adds the merge)
+    no checks --> after NO_CI_GRACE_S: `no_ci`, never treated as green
+    too long  --> after CI_WAIT_S: stuck, with the reason
+
+Every result is read from git and GitHub, never from what a model said (section 4.1). Every outward action is guarded
+by a step key in github_store, so a repeated event or a restart never pushes, opens a PR or starts a fix round twice.
+Results land in the chat that owns the repo (`notify`), and a fix round runs as the next turn of that same chat
+(`start_turn`), so it works in the same worktree with the same engine.
+
+main injects notify / start_turn / session_info through `configure`; this module never imports main.
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 import threading
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+import time
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 import github_gate
 import github_repos
+import github_store
 import localefmt
+from github_api import GitHubError
 
-# notify(sid, text, ok) posts a Javis message into the web chat `sid`. ok=False makes it a visible alert.
+MAX_FIX_ROUNDS = 3          # spec 9.4, owner 2026-10-27
+CI_WAIT_S = 60 * 60         # spec 9.4: an hour per commit
+NO_CI_GRACE_S = 180         # spec 9.3: three minutes for checks to appear
+POLL_FAST_S = 30            # first ten minutes after a push
+POLL_SLOW_S = 120
+FAST_WINDOW_S = 600
+LOG_TAIL = 6000
+FIX_MARKER = "[Javis GitHub]"
+
 Notify = Callable[[str, str, bool], Awaitable[Any]]
+StartTurn = Callable[[str, str], Awaitable[bool]]
+SessionInfo = Callable[[str], Dict[str, Any]]
 _notify: Optional[Notify] = None
-# Last gated state per (session, repo): a turn that changed nothing in a repo does not rerun its checks.
+_start_turn: Optional[StartTurn] = None
+_session_info: Optional[SessionInfo] = None
+
 _last_gate: Dict[str, str] = {}
 _running: Dict[str, bool] = {}
 _lock = threading.Lock()
 
 
-def configure(notify: Optional[Notify] = None) -> None:
-    global _notify
+def _c(vi: str, en: str) -> str:
+    return localefmt.chu(vi, en)
+
+
+def configure(notify: Optional[Notify] = None, start_turn: Optional[StartTurn] = None,
+              session_info: Optional[SessionInfo] = None) -> None:
+    global _notify, _start_turn, _session_info
     if notify is not None:
         _notify = notify
+    if start_turn is not None:
+        _start_turn = start_turn
+    if session_info is not None:
+        _session_info = session_info
 
 
+def st() -> github_store.Store:
+    return github_store.store()
+
+
+async def _say(sid: str, text: str, ok: bool, once: str = "") -> None:
+    """Post into the chat. `once` makes the message idempotent across repeats and restarts."""
+    if once and not st().mark_step("notify:" + once):
+        return
+    if _notify is None or not text:
+        return
+    try:
+        await _notify(sid, text, ok)
+    except Exception:
+        pass
+
+
+# ============================================================
+# Gate (phase G2)
+# ============================================================
 def checks_for(rec: Dict[str, Any], worktree: str) -> List[Dict[str, str]]:
-    """The repo's saved local checks, or the suggested ones when the owner never edited them."""
     saved = rec.get("checks")
     if isinstance(saved, list):
         return [c for c in saved if isinstance(c, dict) and c.get("run")]
@@ -42,11 +99,29 @@ def checks_for(rec: Dict[str, Any], worktree: str) -> List[Dict[str, str]]:
 
 
 def fingerprint(worktree: str) -> str:
-    """Changes in the worktree relative to its last gate: HEAD plus every uncommitted edit."""
     head = github_repos.git_out(["rev-parse", "HEAD"], worktree)
     status = github_repos.git_out(["status", "--porcelain", "--untracked-files=all"], worktree)
     diff = github_repos.git_out(["diff", "HEAD"], worktree)
     return hashlib.sha256(f"{head}\n{status}\n{diff}".encode("utf-8", "replace")).hexdigest()
+
+
+def _base(repo: Dict[str, Any]) -> str:
+    return f"origin/{repo.get('default_branch') or 'main'}"
+
+
+def _has_work(repo: Dict[str, Any]) -> bool:
+    wt = repo["worktree"]
+    ahead = github_repos.git_out(["rev-list", "--count", f"{_base(repo)}..HEAD"], wt) or "0"
+    return ahead != "0" or github_repos.is_dirty(wt)
+
+
+def _unpushed(repo: Dict[str, Any], row: Dict[str, Any]) -> bool:
+    """Something here that GitHub does not have yet (uncommitted edits, or HEAD differs from the pushed commit)."""
+    wt = repo["worktree"]
+    if github_repos.is_dirty(wt):
+        return True
+    head = github_repos.git_out(["rev-parse", "HEAD"], wt)
+    return head != (row.get("head_sha") or "") and _has_work(repo)
 
 
 def gate_repo(sid: str, brain: str, repo: Dict[str, Any], force: bool = False) -> Optional[Dict[str, Any]]:
@@ -59,21 +134,17 @@ def gate_repo(sid: str, brain: str, repo: Dict[str, Any], force: bool = False) -
         fp = fingerprint(wt)
     except github_repos.RepoError:
         return None
-    base = f"origin/{repo.get('default_branch') or 'main'}"
     with _lock:
         if _running.get(key) or (not force and _last_gate.get(key) == fp):
             return None
         _running[key] = True
     try:
-        # A worktree identical to the base (no commit, no edit) has nothing to check.
-        ahead = github_repos.git_out(["rev-list", "--count", f"{base}..HEAD"], wt) or "0"
-        dirty = github_repos.is_dirty(wt)
-        if ahead == "0" and not dirty:
+        if not _has_work(repo):
             with _lock:
                 _last_gate[key] = fp
             return None
         rec = github_repos.find(brain, repo["full_name"]) or {}
-        report = github_gate.run_gate(wt, base, checks_for(rec, wt))
+        report = github_gate.run_gate(wt, _base(repo), checks_for(rec, wt))
         report["full_name"] = repo["full_name"]
         with _lock:
             _last_gate[key] = fp
@@ -83,16 +154,189 @@ def gate_repo(sid: str, brain: str, repo: Dict[str, Any], force: bool = False) -
             _running.pop(key, None)
 
 
-def _message(reports: List[Dict[str, Any]]) -> str:
-    parts = []
-    for r in reports:
-        body = github_gate.summary(r) or localefmt.chu("Không có lệnh kiểm tra nào chạy được ở máy.",
-                                                        "No local check could run on this machine.")
-        parts.append(f"**{r['full_name']}**\n{body}")
-    return "\n\n".join(parts)
+# ============================================================
+# Commit, push, PR (section 8)
+# ============================================================
+def _slug(text: str) -> str:
+    import unicodedata
+    s = str(text or "").replace("đ", "d").replace("Đ", "D")   # NFKD does not split the Vietnamese d with stroke
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return "-".join(s.split("-")[:6])[:40].strip("-")
 
 
-async def after_turn(sid: str, brain: str) -> List[Dict[str, Any]]:
+def _identity_env() -> Dict[str, str]:
+    conn = github_repos.status()
+    login = conn.get("login") or "javis"
+    uid = github_repos.user_id()
+    email = f"{uid}+{login}@users.noreply.github.com" if uid else f"{login}@users.noreply.github.com"
+    return {"GIT_AUTHOR_NAME": login, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": login,
+            "GIT_COMMITTER_EMAIL": email}
+
+
+def commit_all(worktree: str, message: str) -> str:
+    """Commit every change in the worktree (respecting .gitignore). Returns HEAD."""
+    import subprocess
+    import winproc
+    github_repos.git(["add", "-A"], worktree)
+    if github_repos.git_out(["diff", "--cached", "--name-only"], worktree):
+        env = dict(github_repos.git_env(""), **_identity_env())
+        p = subprocess.run(["git", "commit", "-q", "-F", "-"], cwd=worktree, input=message, text=True,
+                           capture_output=True, env=env, encoding="utf-8", errors="replace",
+                           creationflags=winproc.no_window())
+        if p.returncode != 0:
+            raise github_repos.RepoError(_c("Không commit được: ", "Commit failed: ")
+                                         + ((p.stderr or p.stdout or "").strip().splitlines() or ["?"])[-1])
+    return github_repos.git_out(["rev-parse", "HEAD"], worktree)
+
+
+def _final_branch(sid: str, repo: Dict[str, Any], title: str) -> str:
+    """`javis/<slug>-<id6>` decided at the first push (spec 6); after that the branch never changes."""
+    wt = repo["worktree"]
+    cur = github_repos.git_out(["rev-parse", "--abbrev-ref", "HEAD"], wt)
+    short = github_repos.session_branch(sid)
+    slug = _slug(title)
+    if cur != short or not slug:
+        return cur
+    new = f"javis/{slug}-{short.split('/', 1)[1][:6]}"
+    r = github_repos.git(["branch", "-m", new], wt, check=False)
+    return new if r.returncode == 0 else cur
+
+
+def push(repo: Dict[str, Any], branch: str) -> Tuple[str, bool]:
+    """Push HEAD to origin/<branch>. Returns (sha, pushed_now). Never forces."""
+    wt = repo["worktree"]
+    sha = github_repos.git_out(["rev-parse", "HEAD"], wt)
+    remote = github_repos.git(["ls-remote", "origin", f"refs/heads/{branch}"], wt, auth=True).stdout.split()
+    if remote and remote[0] == sha:
+        return sha, False
+    p = github_repos.git(["push", "origin", f"HEAD:refs/heads/{branch}"], wt, auth=True, check=False, timeout=300)
+    if p.returncode != 0:
+        msg = github_repos._redact((p.stderr or "").strip().splitlines()[-1] if p.stderr else "?")
+        if "non-fast-forward" in (p.stderr or "") or "fetch first" in (p.stderr or ""):
+            raise github_repos.RepoError(_c(f"Nhánh {branch} trên GitHub có commit mà máy này không có, Javis không "
+                                            f"ghi đè. ({msg})",
+                                            f"Branch {branch} on GitHub has commits this machine lacks; Javis does "
+                                            f"not overwrite them. ({msg})"))
+        raise github_repos.RepoError(_c(f"Đẩy lên không được: {msg}", f"Push failed: {msg}"))
+    github_repos.git(["branch", f"--set-upstream-to=origin/{branch}"], wt, check=False)
+    return sha, True
+
+
+def pr_body(info: Dict[str, Any], report: Dict[str, Any], sid: str) -> str:
+    lines = ["Opened by Javis from a chat.", ""]
+    if info.get("task"):
+        lines += ["**Task**", "", "> " + str(info["task"])[:1500].replace("\n", "\n> "), ""]
+    res = report.get("checks") or []
+    if res:
+        lines += ["**Local checks before push**", ""]
+        for r in res:
+            mark = {"pass": "passed", "fail": "FAILED", "skipped": "skipped (tool missing here, CI decides)"}[r["status"]]
+            lines.append(f"- `{r['run'].splitlines()[0][:100]}`: {mark}")
+        lines.append("")
+    else:
+        lines += ["No local check could run before push.", ""]
+    if report.get("merge_block"):
+        lines += ["**Needs a person before merging**", ""]
+        lines += [f"- `{x['path']}`: {x['kind']}" for x in report["merge_block"][:10]]
+        lines.append("")
+    if report.get("too_big"):
+        lines += [f"Diff: {report['diff_lines']} lines, over the {github_gate.DIFF_THRESHOLD}-line threshold.", ""]
+    eng = " ".join(x for x in (info.get("engine"), info.get("model")) if x)
+    if eng:
+        lines.append(f"Engine: {eng}")
+    lines.append(f"Javis chat: `{sid[:8]}`")
+    return "\n".join(lines)
+
+
+def ensure_pr(repo: Dict[str, Any], branch: str, title: str, body: str) -> Dict[str, Any]:
+    gh = github_repos.client()
+    fn = repo["full_name"]
+    pr = gh.find_pull(fn, branch)
+    if pr and pr.get("state") == "open":
+        return pr
+    return gh.create_pull(fn, branch, repo.get("default_branch") or "main", title[:120] or branch, body, draft=True)
+
+
+def _session(sid: str) -> Dict[str, Any]:
+    try:
+        return dict((_session_info(sid) if _session_info else {}) or {})
+    except Exception:
+        return {}
+
+
+def ship(sid: str, brain: str, repo: Dict[str, Any], report: Dict[str, Any]) -> Dict[str, Any]:
+    """Gate passed: commit, push, open or reuse the PR, record the pushed commit as CI pending."""
+    fn = repo["full_name"]
+    info = _session(sid)
+    title = (info.get("title") or "").strip() or _c("Thay đổi từ Javis", "Changes from Javis")
+    row = st().ensure(sid, fn, brain=brain, worktree=repo["worktree"], base_branch=repo.get("default_branch") or "main",
+                      title=title[:200], engine=str(info.get("engine") or ""), model=str(info.get("model") or ""))
+    sha = commit_all(repo["worktree"], f"{title[:72]}\n\nJavis chat {sid[:8]}")
+    branch = row.get("branch") or _final_branch(sid, repo, title)
+    pushed_sha, pushed_now = push(repo, branch)
+    pr = ensure_pr(repo, branch, title, pr_body(info, report, sid))
+    fields = dict(branch=branch, head_sha=pushed_sha, exec="done", stuck_reason="",
+                  pr_number=int(pr.get("number") or 0), pr_url=pr.get("html_url") or "", pr_node_id=pr.get("node_id") or "",
+                  merge_block=report.get("merge_block") or [], gate={k: report.get(k) for k in
+                                                                       ("diff_lines", "too_big", "skipped")},
+                  integ="pr_open")
+    if pushed_sha != row.get("head_sha") or row.get("ci") in ("none", ""):
+        fields.update(ci="pending", pushed_at=time.time(), rerun_used=0)
+    row = st().update(sid, fn, **fields)
+    row["_pushed_now"] = pushed_now
+    return row
+
+
+# ============================================================
+# Fix rounds
+# ============================================================
+async def request_fix(row: Dict[str, Any], why: str, details: str, key: str) -> bool:
+    """Ask the chat's engine to fix something, as the next turn of that chat. Counted; stuck past the limit."""
+    sid, fn = row["sid"], row["full_name"]
+    if not st().mark_step("fix:" + key):
+        return False
+    rounds = int(row.get("fix_rounds") or 0) + 1
+    if rounds > MAX_FIX_ROUNDS:
+        reason = _c(f"Đã sửa {MAX_FIX_ROUNDS} vòng mà vẫn đỏ: {why}", f"Still red after {MAX_FIX_ROUNDS} fix rounds: {why}")
+        st().update(sid, fn, exec="stuck", stuck_reason=reason)
+        await _say(sid, f"**{fn}**: " + reason + _pr_tail(row), False, once=f"stuck:{key}")
+        return False
+    st().update(sid, fn, fix_rounds=rounds, exec="running")
+    prompt = "\n".join([
+        f"{FIX_MARKER} {why} (vòng sửa {rounds}/{MAX_FIX_ROUNDS}, repo {fn}"
+        + (f", PR #{row['pr_number']}" if row.get("pr_number") else "") + ")",
+        details,
+        "",
+        "Làm đúng thứ tự: 1) tái hiện ĐÚNG lỗi này ở máy, trong thư mục làm việc của repo (chạy lại đúng lệnh đã đỏ); "
+        "2) tìm nguyên nhân gốc rồi sửa; 3) chạy lại đúng lệnh đó cho xanh. KHÔNG bỏ qua, xoá hay nới test, không sửa "
+        "workflow CI để cho xanh. Nếu lỗi không do thay đổi của nhánh này thì nói rõ vì sao và dừng. "
+        "Javis tự kiểm tra và đẩy lên sau lượt này.",
+    ])
+    started = False
+    if _start_turn is not None:
+        try:
+            started = bool(await _start_turn(sid, prompt))
+        except Exception:
+            started = False
+    if not started:
+        reason = _c("Cần một lượt chat để sửa nhưng chưa mở được lượt tự động (máy chủ vừa khởi động lại?). "
+                    "Nhắn \"sửa tiếp\" để Javis làm.",
+                    "A fix turn is needed but could not start on its own (did the server restart?). "
+                    "Send \"keep fixing\" and Javis takes it from there.")
+        st().update(sid, fn, exec="stuck", stuck_reason=reason)
+        await _say(sid, f"**{fn}**: {why}\n\n{details}\n\n{reason}", False, once=f"nofix:{key}")
+    return started
+
+
+def _pr_tail(row: Dict[str, Any]) -> str:
+    return f"\n{row['pr_url']}" if row.get("pr_url") else ""
+
+
+# ============================================================
+# after_turn
+# ============================================================
+async def after_turn(sid: str, brain: str, user_message: str = "") -> List[Dict[str, Any]]:
     """Called after every saved web turn. Cheap when the chat has no GitHub repo (one registry read)."""
     try:
         repos = await asyncio.to_thread(github_repos.session_repos, sid, brain)
@@ -101,15 +345,360 @@ async def after_turn(sid: str, brain: str) -> List[Dict[str, Any]]:
     repos = [r for r in repos if r.get("worktree")]
     if not repos:
         return []
-    reports = []
+    # A turn the person started (not a fix round) resets the round count: it is a new instruction.
+    if user_message and not str(user_message).lstrip().startswith(FIX_MARKER):
+        for r in repos:
+            if st().get(sid, r["full_name"]):
+                st().update(sid, r["full_name"], fix_rounds=0)
+    out = []
     for repo in repos:
-        rep = await asyncio.to_thread(gate_repo, sid, brain, repo)
-        if rep is not None:
-            reports.append(rep)
-    if reports and _notify is not None:
-        ok = all(r["ok"] and not r["merge_block"] for r in reports)
         try:
-            await _notify(sid, _message(reports), ok)
-        except Exception:
+            out.append(await _after_turn_repo(sid, brain, repo))
+        except Exception as e:  # noqa: BLE001 - one repo's failure must not stop the others
+            await _say(sid, f"**{repo['full_name']}**: {e}", False)
+    return [x for x in out if x]
+
+
+async def _after_turn_repo(sid: str, brain: str, repo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    fn = repo["full_name"]
+    row = st().get(sid, fn) or {}
+    if not await asyncio.to_thread(_unpushed, repo, row):
+        return None
+    st().ensure(sid, fn, brain=brain, worktree=repo["worktree"])
+    st().update(sid, fn, exec="running", stuck_reason="")
+    report = await asyncio.to_thread(gate_repo, sid, brain, repo)
+    if report is None:
+        st().update(sid, fn, exec="done" if row.get("head_sha") else "idle")
+        return None
+    row = st().get(sid, fn) or {}
+    if not report["ok"]:
+        head = await asyncio.to_thread(github_repos.git_out, ["rev-parse", "HEAD"], repo["worktree"])
+        why = _c("Kiểm tra ở máy đỏ trước khi đẩy lên", "Local checks failed before push") if not report["secrets"] \
+            else _c("Diff có thứ giống thông tin bí mật, chưa commit", "The diff looks like it has a secret, not committed")
+        details = github_gate.summary(report) + _fail_output(report)
+        await _say(sid, f"**{fn}**\n{github_gate.summary(report)}", False)
+        await request_fix(row, why, details, f"{sid}:{fn}:gate:{head}:{_fingerprint_short(repo)}")
+        return report
+    if not repo.get("can_push", True):
+        reason = _c("Token không có quyền đẩy lên repo này.", "The token cannot push to this repo.")
+        st().update(sid, fn, exec="stuck", stuck_reason=reason)
+        await _say(sid, f"**{fn}**: {reason}", False)
+        return report
+    try:
+        row = await asyncio.to_thread(ship, sid, brain, repo, report)
+    except (github_repos.RepoError, GitHubError) as e:
+        st().update(sid, fn, exec="stuck", stuck_reason=str(e))
+        await _say(sid, f"**{fn}**: {e}", False)
+        return report
+    if row.get("_pushed_now"):
+        msg = _c(f"Đã đẩy lên nhánh `{row['branch']}`, PR #{row['pr_number']}: {row['pr_url']}\nĐang chờ CI.",
+                 f"Pushed to `{row['branch']}`, PR #{row['pr_number']}: {row['pr_url']}\nWaiting for CI.")
+        summary = github_gate.summary(report)
+        await _say(sid, f"**{fn}**\n{summary}\n{msg}" if summary else f"**{fn}**\n{msg}", True,
+                   once=f"pushed:{sid}:{fn}:{row['head_sha']}")
+    return report
+
+
+def _fingerprint_short(repo: Dict[str, Any]) -> str:
+    try:
+        return fingerprint(repo["worktree"])[:12]
+    except Exception:
+        return str(time.time())
+
+
+def _fail_output(report: Dict[str, Any]) -> str:
+    out = []
+    for r in report.get("failed") or []:
+        out.append(f"\nLệnh đỏ: `{r['run']}`\n```\n{_redact(r.get('output') or '')[-LOG_TAIL:]}\n```")
+    return "".join(out)
+
+
+def _redact(text: str) -> str:
+    try:
+        import secret_redact
+        return secret_redact.redact_secrets(github_repos._redact(text))
+    except Exception:
+        return text
+
+
+# ============================================================
+# CI (section 9)
+# ============================================================
+_BAD = {"failure", "timed_out", "action_required", "startup_failure"}
+_OK = {"success", "neutral"}
+
+
+def normalize_runs(runs: List[Dict[str, Any]], statuses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for r in runs:
+        out.append({"name": r.get("name") or "", "status": r.get("status") or "",
+                    "conclusion": r.get("conclusion") or "", "url": r.get("html_url") or r.get("details_url") or "",
+                    "job_id": int(r.get("id") or 0) if ((r.get("app") or {}).get("slug") == "github-actions") else 0})
+    for s in statuses:
+        state = s.get("state") or ""
+        out.append({"name": s.get("context") or "", "status": "completed" if state != "pending" else "in_progress",
+                    "conclusion": {"success": "success", "failure": "failure", "error": "failure"}.get(state, ""),
+                    "url": s.get("target_url") or "", "job_id": 0})
+    # The same check can appear once per rerun: keep the last one per name.
+    seen: Dict[str, Dict[str, Any]] = {}
+    for x in out:
+        seen[x["name"]] = x
+    return list(seen.values())
+
+
+def aggregate(items: List[Dict[str, Any]], required: Optional[List[str]]) -> str:
+    """CI verdict of ONE commit: none | running | red | cancelled | no_ci | green (spec 9.2-9.3)."""
+    if required:
+        by = {x["name"]: x for x in items}
+        items = [by.get(n) or {"name": n, "status": "queued", "conclusion": ""} for n in required]
+    if not items:
+        return "none"
+    if any(x["status"] != "completed" for x in items):
+        return "running"
+    if any(x["conclusion"] in _BAD for x in items):
+        return "red"
+    if any(x["conclusion"] == "cancelled" for x in items):
+        return "cancelled"
+    if not any(x["conclusion"] in _OK for x in items):
+        return "no_ci"          # everything skipped: nothing actually checked this commit
+    return "green"
+
+
+_INFRA = re.compile(r"(runner has received a shutdown signal|lost communication with the server|"
+                    r"The operation was canceled|ECONNRESET|ETIMEDOUT|rate limit|503 Service Unavailable|"
+                    r"Could not resolve host|No space left on device|exit code 143)", re.I)
+
+
+def _ci_snapshot(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Read GitHub for a row: the PR, the checks of its CURRENT head, the base branch's checks when needed."""
+    gh = github_repos.client()
+    fn = row["full_name"]
+    pr = gh.pull(fn, row["pr_number"]) if row.get("pr_number") else {}
+    head = ((pr.get("head") or {}).get("sha")) or row["head_sha"]
+    runs = gh.check_runs(fn, head)
+    try:
+        statuses = gh.statuses(fn, head)
+    except GitHubError:
+        statuses = []
+    items = normalize_runs(runs, statuses)
+    required = gh.required_checks(fn, row.get("base_branch") or "main")
+    return {"pr": pr, "head": head, "items": items, "required": required}
+
+
+def _failed_logs(row: Dict[str, Any], failed: List[Dict[str, Any]]) -> str:
+    gh = github_repos.client()
+    parts = []
+    for f in failed[:3]:
+        log = gh.job_log(row["full_name"], f["job_id"]) if f.get("job_id") else ""
+        tail = _redact(log)[-LOG_TAIL:] if log else ""
+        parts.append(f"Kiểm tra đỏ: {f['name']} ({f.get('url') or ''})" + (f"\n```\n{tail}\n```" if tail else ""))
+    return "\n\n".join(parts)
+
+
+def _base_also_red(row: Dict[str, Any], failed_names: List[str]) -> bool:
+    """The same checks fail on the base branch's head: not this chat's failure (spec 9.3)."""
+    try:
+        gh = github_repos.client()
+        base_sha = gh.branch_sha(row["full_name"], row.get("base_branch") or "main")
+        if not base_sha:
+            return False
+        items = normalize_runs(gh.check_runs(row["full_name"], base_sha), [])
+        bad = {x["name"] for x in items if x["conclusion"] in _BAD}
+        return bool(failed_names) and all(n in bad for n in failed_names)
+    except Exception:
+        return False
+
+
+async def check_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """One watcher pass over one row. Returns the updated row."""
+    sid, fn = row["sid"], row["full_name"]
+    try:
+        snap = await asyncio.to_thread(_ci_snapshot, row)
+    except (GitHubError, github_repos.RepoError):
+        return row      # GitHub unreachable or not connected: try again next tick, change nothing
+    pr = snap["pr"] or {}
+    # The PR itself first: merged or closed by a person outside Javis.
+    if pr.get("merged"):
+        return await on_merged(row, pr)
+    if pr and pr.get("state") == "closed":
+        reason = _c("PR đã bị đóng mà không merge.", "The PR was closed without merging.")
+        st().update(sid, fn, exec="stuck", stuck_reason=reason, integ="no_pr", ci="none")
+        await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"closed:{sid}:{fn}:{row['pr_number']}")
+        return st().get(sid, fn) or row
+    if snap["head"] != row["head_sha"]:
+        # A newer commit replaced the one Javis recorded: its CI result belongs to that commit only (spec 9.3).
+        row = st().update(sid, fn, head_sha=snap["head"], ci="pending", pushed_at=time.time(), rerun_used=0,
+                          integ="pr_open")
+    st().save_checks(fn, row["head_sha"], snap["items"])
+    verdict = aggregate(snap["items"], snap["required"])
+    summary = [{"name": x["name"], "conclusion": x["conclusion"] or x["status"], "url": x["url"]} for x in snap["items"]]
+    age = time.time() - float(row.get("pushed_at") or time.time())
+    if verdict == "none":
+        if age > NO_CI_GRACE_S:
+            row = st().update(sid, fn, ci="no_ci", checks_summary=summary)
+            await on_no_ci(row, pr)
+        return st().get(sid, fn) or row
+    if verdict == "running":
+        if age > CI_WAIT_S:
+            reason = _c("CI chạy quá 60 phút chưa xong.", "CI has run for over 60 minutes.")
+            st().update(sid, fn, ci="running", exec="stuck", stuck_reason=reason, checks_summary=summary)
+            await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"slow:{sid}:{fn}:{row['head_sha']}")
+        else:
+            st().update(sid, fn, ci="running", checks_summary=summary)
+        return st().get(sid, fn) or row
+    if verdict == "red":
+        return await on_red(st().update(sid, fn, ci="red", checks_summary=summary), snap)
+    if verdict == "cancelled":
+        reason = _c("CI bị huỷ (không phải xanh).", "CI was cancelled (not green).")
+        st().update(sid, fn, ci="cancelled", exec="stuck", stuck_reason=reason, checks_summary=summary)
+        await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"cancel:{sid}:{fn}:{row['head_sha']}")
+        return st().get(sid, fn) or row
+    if verdict == "no_ci":
+        row = st().update(sid, fn, ci="no_ci", checks_summary=summary)
+        await on_no_ci(row, pr)
+        return st().get(sid, fn) or row
+    row = st().update(sid, fn, ci="green", checks_summary=summary, exec="done", stuck_reason="")
+    return await on_green(row, pr)
+
+
+async def on_red(row: Dict[str, Any], snap: Dict[str, Any]) -> Dict[str, Any]:
+    sid, fn = row["sid"], row["full_name"]
+    failed = [x for x in snap["items"] if x["conclusion"] in _BAD]
+    if snap.get("required"):
+        failed = [x for x in failed if x["name"] in snap["required"]] or failed
+    names = [x["name"] for x in failed]
+    logs = await asyncio.to_thread(_failed_logs, row, failed)
+    if await asyncio.to_thread(_base_also_red, row, names):
+        reason = _c(f"CI đỏ ({', '.join(names)}) nhưng nhánh {row.get('base_branch')} cũng đỏ đúng các kiểm tra đó: "
+                    "không phải lỗi của thay đổi này. Javis không sửa lan ra ngoài phạm vi.",
+                    f"CI is red ({', '.join(names)}) but {row.get('base_branch')} fails the same checks: not this "
+                    "change's fault. Javis does not widen the job to fix it.")
+        st().update(sid, fn, exec="stuck", stuck_reason=reason)
+        await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"basered:{sid}:{fn}:{row['head_sha']}")
+        return st().get(sid, fn) or row
+    # One rerun, only for a failure that looks like the runner and not the code (spec 9.3).
+    if not row.get("rerun_used") and _INFRA.search(logs or "") and any(x.get("job_id") for x in failed):
+        if st().mark_step(f"rerun:{sid}:{fn}:{row['head_sha']}"):
+            try:
+                gh = github_repos.client()
+                for x in failed:
+                    if x.get("job_id"):
+                        await asyncio.to_thread(gh.rerun_job, fn, x["job_id"])
+                st().update(sid, fn, rerun_used=1, ci="running", pushed_at=time.time())
+                await _say(sid, _c(f"**{fn}**: CI đỏ vì lỗi máy chạy CI, chạy lại một lần.",
+                                   f"**{fn}**: CI failed on the runner, rerunning once."), True)
+                return st().get(sid, fn) or row
+            except (GitHubError, github_repos.RepoError):
+                pass
+    why = _c(f"CI đỏ: {', '.join(names) or '?'}", f"CI failed: {', '.join(names) or '?'}")
+    await _say(sid, f"**{fn}**: {why}{_pr_tail(row)}", False, once=f"red:{sid}:{fn}:{row['head_sha']}")
+    await request_fix(row, why, logs, f"{sid}:{fn}:ci:{row['head_sha']}")
+    return st().get(sid, fn) or row
+
+
+async def on_green(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
+    """CI green on the current head. Phase G3: PR ready for review and `integ=ready` when GitHub says mergeable."""
+    sid, fn = row["sid"], row["full_name"]
+    if pr.get("mergeable") is None:
+        return row      # GitHub is still computing mergeability: ask again next tick
+    if pr.get("mergeable") is False:
+        reason = _c("PR bị xung đột với nhánh chính, cần làm lại.", "The PR conflicts with the base branch.")
+        st().update(sid, fn, integ="conflict", stuck_reason=reason)
+        await _say(sid, f"**{fn}**: {reason}{_pr_tail(row)}", False, once=f"conflict:{sid}:{fn}:{row['head_sha']}")
+        return st().get(sid, fn) or row
+    if pr.get("draft") and row.get("pr_node_id"):
+        try:
+            await asyncio.to_thread(github_repos.client().mark_ready, fn, row["pr_node_id"])
+        except (GitHubError, github_repos.RepoError):
             pass
-    return reports
+    row = st().update(sid, fn, integ="ready")
+    await _say(sid, _c(f"**{fn}**: CI xanh, PR #{row['pr_number']} sẵn sàng merge.{_pr_tail(row)}",
+                       f"**{fn}**: CI green, PR #{row['pr_number']} is ready to merge.{_pr_tail(row)}"), True,
+               once=f"green:{sid}:{fn}:{row['head_sha']}")
+    return row
+
+
+async def on_no_ci(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
+    """No check ran on the commit. Never green: ready to merge by hand only (spec 17, proposal)."""
+    sid, fn = row["sid"], row["full_name"]
+    if pr.get("mergeable") is False:
+        return await on_green(row, pr)      # conflict wording and state are the same
+    st().update(sid, fn, integ="ready")
+    await _say(sid, _c(f"**{fn}**: repo không có CI cho commit này. Kiểm tra ở máy đã qua; PR #{row['pr_number']} "
+                       f"chờ người bấm merge, Javis không tự merge khi không có CI.{_pr_tail(row)}",
+                       f"**{fn}**: no CI ran on this commit. Local checks passed; PR #{row['pr_number']} waits for a "
+                       f"person to merge, Javis never auto-merges without CI.{_pr_tail(row)}"), True,
+               once=f"noci:{sid}:{fn}:{row['head_sha']}")
+    return st().get(sid, fn) or row
+
+
+async def on_merged(row: Dict[str, Any], pr: Dict[str, Any]) -> Dict[str, Any]:
+    sid, fn = row["sid"], row["full_name"]
+    row = st().update(sid, fn, integ="merged", merged_sha=pr.get("merge_commit_sha") or "", exec="done")
+    await _say(sid, _c(f"**{fn}**: PR #{row['pr_number']} đã merge.{_pr_tail(row)}",
+                       f"**{fn}**: PR #{row['pr_number']} is merged.{_pr_tail(row)}"), True,
+               once=f"merged:{sid}:{fn}:{row['pr_number']}")
+    return row
+
+
+# ============================================================
+# Watcher
+# ============================================================
+async def tick() -> int:
+    """One pass over every row that waits on GitHub. Returns how many were looked at."""
+    rows = await asyncio.to_thread(st().active)
+    for row in rows:
+        try:
+            await check_row(row)
+        except Exception as e:  # noqa: BLE001 - one row must not stop the watcher
+            print(f"[github watcher] {row.get('full_name')}: {type(e).__name__}: {e}")
+    return len(rows)
+
+
+def reconcile_on_start() -> None:
+    """A restart in the middle of a gate leaves `exec=running`: put it back so the next turn or tick decides."""
+    for row in st().active():
+        if row["exec"] == "running" and row["ci"] not in ("pending", "running"):
+            st().update(row["sid"], row["full_name"], exec="done" if row["head_sha"] else "idle")
+
+
+async def run_watcher() -> None:
+    try:
+        await asyncio.to_thread(reconcile_on_start)
+    except Exception:
+        pass
+    while True:
+        delay = POLL_SLOW_S
+        try:
+            rows = await asyncio.to_thread(st().active)
+            if rows:
+                await tick()
+                now = time.time()
+                if any(now - float(r.get("pushed_at") or 0) < FAST_WINDOW_S for r in rows):
+                    delay = POLL_FAST_S
+        except Exception as e:  # noqa: BLE001
+            print(f"[github watcher] {type(e).__name__}: {e}")
+        await asyncio.sleep(delay)
+
+
+# ============================================================
+# Views
+# ============================================================
+def session_state(sid: str) -> Dict[str, Any]:
+    rows = st().for_session(sid)
+    return {"icon": github_store.icon(rows), "repos": [_row_view(r) for r in rows]}
+
+
+def _row_view(r: Dict[str, Any]) -> Dict[str, Any]:
+    keep = ("full_name", "branch", "head_sha", "pr_number", "pr_url", "exec", "ci", "integ", "post_merge",
+            "stuck_reason", "fix_rounds", "merge_block", "checks_summary", "gate", "updated_at")
+    return {k: r.get(k) for k in keep}
+
+
+def busy_jobs(brain: str, full_name: str) -> List[str]:
+    """Chats still working on a repo (removal from the brain refuses while any is listed)."""
+    out = []
+    for r in st().for_repo(brain, full_name):
+        if r["exec"] == "running" or r["ci"] in ("pending", "running"):
+            out.append(f"{r.get('title') or r['sid'][:8]}")
+    return out

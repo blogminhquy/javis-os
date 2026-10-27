@@ -110,7 +110,13 @@ def _make_router() -> APIRouter:
 
     @r.get("/github/session/{sid}")
     async def gh_session(sid: str, brain: str = Query("")):
-        return await _call(github_repos.session_view, sid, brain)
+        def view():
+            import github_work
+            v = github_repos.session_view(sid, brain)
+            state = github_work.session_state(sid)
+            v["icon"], v["work"] = state["icon"], state["repos"]
+            return v
+        return await _call(view)
 
     @r.post("/github/session/{sid}/repos")
     async def gh_session_repos(sid: str, brain: str = Form(""), repos: str = Form("")):

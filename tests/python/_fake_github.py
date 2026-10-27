@@ -173,7 +173,7 @@ class FakeGitHub:
             def _dispatch(self, method, path, q, body):
                 if path == "/user":
                     h = {"X-OAuth-Scopes": fake.scopes} if fake.scopes is not None else {}
-                    return self._send(200, {"login": fake.login}, headers=h)
+                    return self._send(200, {"login": fake.login, "id": 4242}, headers=h)
                 if path == "/user/repos":
                     page = int(q.get("page") or 1)
                     items = list(fake.repos.values()) if page == 1 else []
@@ -238,6 +238,12 @@ class FakeGitHub:
                         return self._send(200, {"total_count": len(runs), "check_runs": runs if int(q.get("page") or 1) == 1 else []})
                     st = fake.statuses.get(sha, [])
                     return self._send(200, {"state": "pending", "statuses": st})
+                mb = re.match(r"^/branches/([^/]+)$", rest)
+                if mb and method == "GET":
+                    sha = fake.branch_sha(fn, mb.group(1))
+                    if not sha:
+                        return self._send(404, {"message": "Branch not found"})
+                    return self._send(200, {"name": mb.group(1), "commit": {"sha": sha}})
                 m4 = re.match(r"^/branches/([^/]+)/protection/required_status_checks$", rest)
                 if m4:
                     req = fake.required.get((fn, m4.group(1)), "absent")

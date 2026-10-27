@@ -16529,11 +16529,11 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text, turn_s
         await learn_feature.enqueue(brain, conv_sid, user_message, clean)
     except Exception as _e:
         print(f"[learn enqueue hook] {_e}", file=__import__('sys').stderr)
-    # 0.363.0 GitHub inside chat: a turn that changed an attached repo runs the quality gate (github_work), in the
-    # background so the reply is never held up by a test suite.
+    # GitHub inside chat (0.363.0 gate, 0.364.0 push/PR/CI): a turn that changed an attached repo runs github_work in
+    # the background, so the reply is never held up by a test suite or a push.
     try:
         import github_work
-        _gt = asyncio.create_task(github_work.after_turn(str(conv_sid), brain))
+        _gt = asyncio.create_task(github_work.after_turn(str(conv_sid), brain, user_message))
         _PUSH_TASKS.add(_gt)
         _gt.add_done_callback(_PUSH_TASKS.discard)
     except Exception as _e:  # noqa: BLE001
@@ -19563,7 +19563,9 @@ async def sessions_delete(session_id: str):
     # 0.362.0: the chat's GitHub worktrees go with it, except one still holding unsaved or unpushed work.
     try:
         import github_repos
+        import github_store
         await asyncio.to_thread(github_repos.forget_session, session_id)
+        await asyncio.to_thread(github_store.store().delete_session, session_id)
     except Exception as e:  # noqa: BLE001
         print(f"[github forget] {type(e).__name__}: {e}", file=sys.stderr)
     # Phase 8 state is a disposable projection; purge it with the source transcript.
@@ -24915,6 +24917,39 @@ import github_work   # noqa: E402
 # 0.363.0: the gate result (and from G3 the PR and CI news) lands in the chat that owns the repo, plus the inbox.
 github_work.configure(notify=lambda sid, text, ok: _notify_owner(
     f"{WEB_CHAT_PREFIX}{sid}", text, label="GitHub", source="github", quiet=bool(ok)))
+
+
+async def _github_start_turn(sid: str, text: str) -> bool:
+    """A fix round (0.364.0) runs as the next turn of the same chat: same worktree, same engine. It goes through
+    the follow-up opener the chat's WebSocket handler left in `_NOI_TIEP_WEB` (it waits for the chat to be idle).
+    False when this process has none for the chat (after a restart): github_work then asks the person instead."""
+    runner = _NOI_TIEP_WEB.get(str(sid or ""))
+    if runner is None:
+        return False
+    t = asyncio.create_task(runner(text, 0))
+    _PUSH_TASKS.add(t)
+    t.add_done_callback(_PUSH_TASKS.discard)
+    return True
+
+
+def _github_session_info(sid: str) -> dict:
+    """Title and the engine/model a chat runs on, for the PR body and the metrics."""
+    row = get_store().get_session(sid) or {}
+    main_m = (cfgmod.read_settings().get("model") or {}).get("main") or {}
+    return {"title": row.get("title") or "",
+            "engine": row.get("pinned_provider") or main_m.get("provider") or "",
+            "model": row.get("pinned_model") or main_m.get("model") or ""}
+
+
+github_work.configure(start_turn=_github_start_turn, session_info=_github_session_info)
+github_routes._DEPS.busy_jobs = github_work.busy_jobs
+
+
+@app.on_event("startup")
+async def _github_watcher():
+    """0.364.0: watch every pushed commit's CI and PR until it settles (github_work.run_watcher)."""
+    t = asyncio.create_task(github_work.run_watcher())
+    _PUSH_TASKS.add(t)
 
 
 @app.post("/telegram/test")

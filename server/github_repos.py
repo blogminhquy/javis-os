@@ -81,7 +81,7 @@ def _read_conn() -> Dict[str, Any]:
 def _write_conn(conn: Dict[str, Any]) -> None:
     """Replace the whole `github` section. The token is encrypted at rest by config (`github.token` is in
     `_SECRET_PATHS`), so it is written here in clear and never by hand-rolled crypto."""
-    empty = {"source": "", "token": "", "login": "", "missing": [], "connected_at": 0}
+    empty = {"source": "", "token": "", "login": "", "user_id": 0, "missing": [], "connected_at": 0}
     _settings().update_settings({"github": {**empty, **(conn or {})}})
 
 
@@ -95,6 +95,14 @@ def token() -> str:
     if conn.get("source") == "backup":
         return backup_token()
     return str(conn.get("token") or "").strip() if conn.get("source") == "own" else ""
+
+
+def user_id() -> int:
+    """GitHub numeric id of the connected account (for the noreply commit email), 0 when unknown."""
+    try:
+        return int(_read_conn().get("user_id") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _check_token(tok: str) -> Dict[str, Any]:
@@ -115,13 +123,14 @@ def _check_token(tok: str) -> Dict[str, Any]:
         missing.append("repo")
     if scopes is not None and "workflow" not in scopes:
         missing.append("workflow")
-    return {"login": u.get("login") or "", "missing": missing, "classic": scopes is not None}
+    return {"login": u.get("login") or "", "id": int(u.get("id") or 0), "missing": missing,
+            "classic": scopes is not None}
 
 
 def connect(tok: str) -> Dict[str, Any]:
     tok = (tok or "").strip()
     info = _check_token(tok)
-    _write_conn({"source": "own", "token": tok, "login": info["login"],
+    _write_conn({"source": "own", "token": tok, "login": info["login"], "user_id": info["id"],
                  "missing": info["missing"], "connected_at": _now()})
     _REPO_CACHE.update(at=0.0, items=[])
     return status()
@@ -132,7 +141,8 @@ def connect_backup() -> Dict[str, Any]:
     if not tok:
         raise RepoError(_c("Chưa có token sao lưu brain để dùng chung.", "There is no brain-backup token to reuse."))
     info = _check_token(tok)
-    _write_conn({"source": "backup", "login": info["login"], "missing": info["missing"], "connected_at": _now()})
+    _write_conn({"source": "backup", "login": info["login"], "user_id": info["id"], "missing": info["missing"],
+                 "connected_at": _now()})
     _REPO_CACHE.update(at=0.0, items=[])
     return status()
 
@@ -605,7 +615,9 @@ def prompt_block(sid: str, brain: str = "") -> str:
                  "không đổi remote: việc đẩy lên GitHub do Javis làm.")
     lines.append("Trước khi kết thúc lượt có sửa code: tự chạy test và lint của repo. Sửa lỗi thì viết hoặc chạy một "
                  "test TÁI HIỆN lỗi trước (đỏ), sửa, rồi chạy lại đúng test đó cho xanh. KHÔNG bỏ qua, xoá hay nới "
-                 "test, không sửa workflow CI để cho xanh. Sau mỗi lượt Javis tự chạy bộ kiểm tra của repo.")
+                 "test, không sửa workflow CI để cho xanh. Sau mỗi lượt Javis tự chạy bộ kiểm tra của repo; xanh thì Javis "
+                 "tự commit, đẩy lên nhánh của cuộc này, mở PR và theo dõi CI. CI đỏ thì Javis mở một lượt sửa "
+                 "kèm log, tối đa 3 vòng.")
     # Spec 7.1: the repo's own rules reach every engine, not only the ones that read CLAUDE.md natively.
     try:
         import github_gate
