@@ -91,9 +91,9 @@ def _workflow_triggers_on_change(on: Any) -> bool:
 
 def commands_from_workflow(text: str) -> List[Dict[str, str]]:
     """`run:` steps of a workflow that make sense on this machine, in order. Each item: {name, run}."""
-    import yaml
+    import fastyaml
     try:
-        doc = yaml.safe_load(text) or {}
+        doc = fastyaml.safe_load(text) or {}
     except Exception:
         return []
     if not isinstance(doc, dict):
