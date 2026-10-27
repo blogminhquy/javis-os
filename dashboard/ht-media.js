@@ -124,6 +124,8 @@
       if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
       e.preventDefault();
       e.stopPropagation();
+      // 0.358.0: with every photo of this conversation, swipe or arrows go to the others.
+      if (window.JavisLightbox.openFrom) { window.JavisLightbox.openFrom(a); return; }
       var href = a.getAttribute("href") || "";
       window.JavisLightbox.open(href, tenAnh(href));
     }, true);

@@ -2548,6 +2548,22 @@ body.jv-lb-open { overflow: hidden; }        /* khoá cuộn nền để lăn ch
   .jv-lb-bar { padding: 8px 10px; }
   .jv-lb-nut button { padding: 6px 9px; }
 }
+/* 0.358.0: a gallery of every picture in the chat. Counter "2 / 4" in the bar, round arrows on the sides (a swipe does
+   the same on a phone), the first and last picture dim the arrow that leads nowhere. */
+.jv-lb-dem { color: #fff; font-size: 16px; font-variant-numeric: tabular-nums; flex: none; opacity: .9; }
+.jv-lb-di { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; display: inline-flex; align-items: center;
+  justify-content: center; width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.45); color: #fff; cursor: pointer; font-size: 20px; }
+.jv-lb-di:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
+.jv-lb-di:disabled { opacity: .25; cursor: default; }
+.jv-lb-truoc { left: calc(12px + env(safe-area-inset-left, 0px)); }
+.jv-lb-sau { right: calc(12px + env(safe-area-inset-right, 0px)); }
+.jv-lb.that .jv-lb-di, .jv-lb.pinch .jv-lb-di { display: none; }
+@media (max-width: 700px) {
+  .jv-lb-di { width: 44px; height: 44px; background: rgba(0, 0, 0, 0.3); }
+  .jv-lb-truoc { left: calc(4px + env(safe-area-inset-left, 0px)); }
+  .jv-lb-sau { right: calc(4px + env(safe-area-inset-right, 0px)); }
+}
 
 /* Code block: header nhan ngon ngu + nut Copy + to mau cu phap */
 .code-wrap { position: relative; margin: 8px 0; }

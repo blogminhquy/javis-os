@@ -15,6 +15,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ### Cải thiện
 - **Thành viên Nhóm nói ngắn gọn như nhắn tin**: thường 1 đến 3 câu, không chào hỏi, không tiêu đề hay bảng. Sản phẩm dài thì ghi vào file và chỉ báo file nào kèm ý chính. Bước tổng hợp cuối cũng ngắn, không kể lại từng bước.
+- **Xem ảnh trong chat vuốt trái, phải sang các ảnh khác** của cùng khung chat, có bộ đếm "2 / 4" như trình xem ảnh của điện thoại. Trên máy tính dùng nút mũi tên hai bên hay phím ← →. Áp cho mọi khung chat: chat chính, chat Nhóm, ngăn Thông tin của Nhóm, Hội thoại khách hàng.
 - **Trang Nhóm trên điện thoại gọn hơn**: đầu khung chat bỏ viền hộp quanh các nút, tin của trợ lý bỏ khung viền và rộng chỗ cho chữ hơn, tiêu đề trong tin cùng cỡ chữ, bảng gọn và cuộn ngang. Ngăn cài đặt Team dùng một cỡ chữ 16px và tiêu đề mục đều nhau. Nút Tạo team và Nhập team đứng cùng hàng.
 
 ## [0.357.0] - 2026-10-27
