@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.358.0] - 2026-10-27
+### Cải thiện
+- **Nhóm (Team): thành viên trả lời ngắn gọn, giao diện điện thoại gọn lại, tin vừa gửi luôn hiện** (đang làm).
+
 ## [0.357.0] - 2026-10-27
 ### Thêm mới
 - **Giao việc cho Team ngay từ chat.** Nói với Javis "giao cho Phòng nội dung viết 3 bài", Javis giao đúng một việc vào Team đó, Team tự điều phối như khi bạn giao ở trang Nhóm. Xong, bị chặn hay cần bạn quyết thì kết quả tự báo về đúng khung chat đã giao (web, Telegram, Zalo) và hòm thư.
