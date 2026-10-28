@@ -4072,12 +4072,14 @@ chatInput.addEventListener("input", () => {
 // conversation's engine process before the message lands (warm_pool.prewarm). Nothing is sent while a turn runs.
 let _typingHintAt = 0, _typingHintSid = "";
 function sendTypingHint() {
-  const sid = savedSessionId;
-  if (!sid || isProcessing || !chatInput.value.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const now = Date.now();
-  if (sid === _typingHintSid && now - _typingHintAt < 20000) return;
-  _typingHintAt = now; _typingHintSid = sid;
-  try { ws.send(JSON.stringify({ action: "typing", session_id: sid })); } catch (e) {}
+  // A hint, not a message: with no open socket there is simply nothing to warm.
+  const sid = savedSessionId, now = Date.now();
+  const open = !!ws && ws.readyState === WebSocket.OPEN;
+  const due = sid !== _typingHintSid || now - _typingHintAt >= 20000;
+  if (sid && open && due && !isProcessing && chatInput.value.trim()) {
+    _typingHintAt = now; _typingHintSid = sid;
+    try { ws.send(JSON.stringify({ action: "typing", session_id: sid })); } catch (e) {}
+  }
 }
 // Enter sends on a computer; an IME composition and a touch screen (Enter = new line) never send. The rules live in
 // chat-acts.js (JavisActs.enterSends) so the Team chat follows the same ones.
