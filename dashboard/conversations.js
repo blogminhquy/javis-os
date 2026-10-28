@@ -1093,8 +1093,9 @@
     _msgs = []; _conCu = false; _dangTaiCu = false; _vetMeta = "";       // hội thoại khác: tải lại từ tin mới nhất
     _host.querySelector(".ht-wrap").classList.add("thread-on");
     veDanhSach();
-    await taiTin(false);
+    // Read first: an opened chat leaves "Needs you" (owner, 2026-10-28), so the bar above it must not still say it.
     try { await api("/conversations/" + id + "/read", { method: "POST" }); } catch (e) {}
+    await taiTin(false);
     tai(true);
   }
 
@@ -1877,7 +1878,11 @@
     var bieu = r.emoji || r.code || "";
     var quote = String(r.target_text || "").replace(/\s+/g, " ").trim();
     if (quote.length > 80) quote = quote.slice(0, 79) + "…";
-    var who = ai || window.t("ht.bot");
+    // Who reacted follows the side it came from (owner, 2026-10-28: a customer's heart read "Bot thả cảm xúc"). A
+    // customer reaction often has no sender name: a one-to-one chat is named after that customer; a group says "Customer".
+    var c = _conv || {};
+    var who = ai || (lop === "khach" ? (c.chat_type !== "group" && (c.customer_name || c.title)) || window.t("ht.react_cust")
+                     : lop === "nguoi" ? window.t("ht.ban") : window.t("ht.bot"));
     var cau = r.removed ? window.t("ht.react_off", { who: who })
             : quote ? window.t("ht.react_on", { who: who, quote: "\u201c" + quote + "\u201d" })
             : window.t("ht.react_any", { who: who });

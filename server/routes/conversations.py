@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import mimetypes
 import time
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -150,6 +151,13 @@ def register(app, deps: ConversationsDeps):
         b = chatbot_store.get_bot(bot_id)
         return str((b or {}).get("name") or "") or localefmt.chu("Bot đã xoá", "Deleted bot")
 
+    # Chats logged before 0.380.0 by a channel that records without a bot (Zalo "record chats") get the bot on duty for
+    # their nick once, at start (owner, 2026-10-28: "a chat in the inbox already has an A.I.").
+    try:
+        conversations.fill_missing_bots()
+    except Exception as e:      # noqa: BLE001
+        print(f"[conversations] fill_missing_bots: {e}", file=sys.stderr)
+
     class _StateCtx:
         """Per-request cache for the "who is handling it" state (Chatbot v5): bot records, running flags and approval
         queues are read once per bot, not once per row."""
@@ -174,7 +182,7 @@ def register(app, deps: ConversationsDeps):
                     self.pending[bid] = {}
             bot = self.bots.get(bid) if bid else None
             return inbox_state.state(row, bot, self.running.get(bid, False), self.pending.get(bid, {}),
-                                     conversations.can_tra_loi(row, self.hesitant),
+                                     conversations.khach_dang_cho(row, self.hesitant),
                                      no_bot_wanted=str(row.get("channel_account_id") or "") in self.no_bot)
 
     def _attach_state(items: list, ctx: "_StateCtx") -> None:

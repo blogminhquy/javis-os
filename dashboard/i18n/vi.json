@@ -3559,6 +3559,7 @@
   "ht.chua_co_goi_y": "Tin sẽ hiện ở đây khi có khách nhắn tới một kênh đang ghi: bot đang bật, hoặc Zalo cá nhân đã bật Ghi hội thoại ở tab Bot, mục Kênh chưa có bot.",
   "ht.bot": "Bot",
   "ht.ban": "Bạn",
+  "ht.react_cust": "Khách",
   "ht.react_on": "{who} thả cảm xúc vào: {quote}",
   "ht.react_any": "{who} thả cảm xúc vào một tin",
   "ht.react_off": "{who} bỏ cảm xúc",

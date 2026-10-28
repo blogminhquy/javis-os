@@ -300,7 +300,9 @@ def chuan_hoa(ev: dict) -> dict:
         "channel": kenh,
         "account_id": account_id,
         "account_name": _s(ev.get("account_name"), MAX_TEN).strip(),
-        "bot_id": _s(ev.get("bot_id"), 64).strip(),
+        # A chat logged by the channel itself (Zalo "record chats") comes without a bot; it still belongs to the bot on
+        # duty for that nick or Page, or the inbox would offer to "create an A.I." for a channel that has one.
+        "bot_id": _s(ev.get("bot_id"), 64).strip() or bot_of_account(account_id),
         "external_chat_id": chat,
         "chat_type": chat_type,
         "chat_title": _s(ev.get("chat_title"), MAX_TEN).strip(),
@@ -671,6 +673,30 @@ def can_tra_loi(item: dict, hesitant=None) -> bool:
         return True
     return (str(item.get("bot_id") or ""), str(item.get("external_chat_id") or "")) in {
         (str(a), str(b)) for a, b in (hesitant or [])}
+
+
+# Zalo writes "X đã đồng ý kết bạn" / "Bạn vừa kết bạn với X" into the chat as if the other side had typed it. Nobody is
+# waiting for an answer to that (owner, 2026-10-28), so it never puts a chat under "Needs you".
+_TIN_KET_BAN = re.compile(r"(đã đồng ý kết bạn|vừa kết bạn với|đã trở thành bạn|accepted your friend request|are now friends)",
+                          re.IGNORECASE)
+
+
+def la_tin_ket_ban(text: Any) -> bool:
+    """The message only says a friend request was accepted (no question in it)."""
+    return bool(_TIN_KET_BAN.search(str(text or "")))
+
+
+def khach_dang_cho(item: dict, hesitant=None) -> bool:
+    """A customer waits for the OWNER right now (Chatbot v5 "Needs you"): the last message is the customer's and nobody
+    answered it (`can_tra_loi`), the owner has not opened the chat since (it is still unread: opening it, or a reply, takes
+    it off the list until the customer writes again), and it is more than a friend-request notice."""
+    if not can_tra_loi(item, hesitant):
+        return False
+    if int(item.get("unread_count") or 0) <= 0:
+        return False
+    return not la_tin_ket_ban(item.get("last_message"))
+
+
 BOT_KHONG_CO = "-"      # giá trị `bot_id` của bộ lọc để chỉ lấy cuộc chat KHÔNG có bot trực
 
 
@@ -738,7 +764,7 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
             args += [f"%{v}%", f"%{v}%"]
         where.append("(" + " OR ".join(dk) + ")")
     cols = ("c.id, c.bot_id, c.chat_type, c.external_chat_id, c.channel_account_id, c.mode, c.last_sender_type,"
-            " c.metadata_json, a.channel AS channel" if _light else
+            " c.unread_count, c.last_message, c.metadata_json, a.channel AS channel" if _light else
             "c.*, a.channel AS channel, a.display_name AS account_name,"
             " k.name AS customer_name, k.external_user_id AS customer_external_id, k.phone AS customer_phone")
     sql = (
@@ -858,7 +884,7 @@ def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "
                pinned: bool = False) -> List[dict]:
     """Every conversation matching the inbox filters (newest first, at most MAX_STATE_ROWS), with only the columns the
     "who is handling it" state needs: id, bot_id, chat_type, external_chat_id, channel_account_id, channel, mode,
-    last_sender_type, metadata. Same filters as `danh_sach`, no paging."""
+    last_sender_type, unread_count, last_message, metadata. Same filters as `danh_sach`, no paging."""
     rows = danh_sach(channel=channel, bot_id=bot_id, q=q, status=status, chat_type=chat_type, hesitant=hesitant,
                      tag=tag, has_contact=has_contact, hidden=hidden, account_ids=account_ids, tags_any=tags_any,
                      tags_none=tags_none, sort=sort, since=since, until=until, last_by=last_by, pinned=pinned,
@@ -1354,6 +1380,37 @@ def set_account_bot(account_key: str, bot_id: str) -> int:
         cur = db.execute("UPDATE conversations SET bot_id=? WHERE channel_account_id=?", (str(bot_id or ""), str(account_key)))
         db.commit()
     return cur.rowcount
+
+
+def bot_of_account(account_id: str) -> str:
+    """The bot on duty for a raw channel account id ("" when none). One bot per account (`chatbot_store.owner_of`)."""
+    if not account_id:
+        return ""
+    try:
+        import chatbot_store
+        bots = chatbot_store.bots_using_account(str(account_id))
+    except Exception:      # noqa: BLE001
+        return ""
+    return str(bots[0].get("id") or "") if bots else ""
+
+
+def fill_missing_bots() -> int:
+    """Chats logged before the fix above have no bot although their nick or Page has one: give them that bot.
+    Returns how many chats changed. Cheap and idempotent (only rows with an empty bot_id)."""
+    try:
+        import chatbot_store
+        pairs = [(aid, b["id"]) for b in chatbot_store.list_bots() for aid in chatbot_store.account_ids_of(b)]
+    except Exception:      # noqa: BLE001
+        return 0
+    n = 0
+    with _lock:
+        db = _conn()
+        for aid, bid in pairs:
+            cur = db.execute("UPDATE conversations SET bot_id=? WHERE bot_id=''"
+                             " AND substr(channel_account_id, instr(channel_account_id, ':') + 1)=?", (str(bid), str(aid)))
+            n += int(cur.rowcount or 0)
+        db.commit()
+    return n
 
 
 def no_bot_accounts() -> set:
