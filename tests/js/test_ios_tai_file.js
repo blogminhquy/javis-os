@@ -69,6 +69,23 @@ check("không nhận cú bấm đã có người xử lý (ảnh -> lightbox)", 
 const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard/i18n/vi.json"), "utf8"));
 const en = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard/i18n/en.json"), "utf8"));
 check("câu báo lỗi có đủ hai thứ tiếng", !!vi["crender.ios_dl_fail"] && !!en["crender.ios_dl_fail"]);
+// 0.369.0 (chủ repo 28/10/2026: bấm Tải về trong khung xem ảnh trên iPhone chỉ mở một trang mới). Ảnh lưu vào máy qua
+// bảng chia sẻ của iOS ("Lưu hình ảnh"); bảng đó phải mở ngay trong cú bấm, nên ảnh được tải sẵn khi hiện lên.
+const taiVe = src.slice(src.indexOf("function _lbTaiVe()"), src.indexOf("function _lbTaiVe()") + 900);
+check("iPhone: bấm Tải về mở bảng chia sẻ với ảnh đã tải sẵn (có nút Lưu hình ảnh)",
+  /if \(laIOS\(\) && _lbTep && _lbTep\.url === _lbUrl && navigator\.share\)/.test(taiVe)
+  && /navigator\.share\(\{ files: \[tep\] \}\)/.test(taiVe));
+check("bảng chia sẻ gọi NGAY trong cú bấm, không đợi mạng", taiVe.indexOf("navigator.share") < taiVe.indexOf("createElement")
+  && !/fetch\(/.test(taiVe.slice(0, taiVe.indexOf("navigator.share"))));
+check("tự đóng bảng chia sẻ thì thôi; lỗi khác thì mở ảnh ở cửa sổ mới như cũ",
+  /err\.name === "AbortError"\) return;/.test(taiVe) && /window\.open\(xem, "_blank"\)/.test(taiVe));
+check("ảnh đang xem được tải sẵn thành File, chỉ trên iOS, bỏ khi đã sang ảnh khác",
+  /_lbChuanBiTep\(_lbUrl, _lbTen\);/.test(src) && /if \(!url \|\| !laIOS\(\)/.test(src)
+  && /if \(_lbUrl !== url \|\| !b \|\| !b\.size\) return;/.test(src) && /credentials: "same-origin"/.test(src));
+check("đóng khung xem thì bỏ ảnh đã tải sẵn", /_lbChuyen = null; _lbTep = null;/.test(src));
+check("tên file lưu luôn có đuôi ảnh", CR.lightboxFileName("bao-gia.png", "image/png") === "bao-gia.png"
+  && CR.lightboxFileName("raw", "image/jpeg") === "raw.jpg" && CR.lightboxFileName("anh", "image/webp") === "anh.webp"
+  && CR.lightboxFileName("", "") === "anh.jpg" && CR.lightboxFileName("x.jpg?v=2", "image/jpeg") === "x.jpg");
 
 console.log(fails.length ? "\nFAIL: " + fails.join(", ") : "\nTat ca OK");
 process.exit(fails.length ? 1 : 0);
