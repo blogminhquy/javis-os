@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.371.0] - 2026-10-28
 ### Thêm mới
-- Đang làm: nền cho trang Chatbot mới (đặt chỗ số phiên bản).
+- **Phần nền cho trang Chatbot mới** (giao diện ra ở bản kế tiếp). Mỗi cuộc chat giờ có một trạng thái chung: A.I. đang xử lý, Bạn đang xử lý, Cần bạn, hoặc Chỉ ghi lại.
+- **Chế độ mới "A.I. soạn, tôi duyệt":** bot viết sẵn câu trả lời nhưng không gửi, chờ bạn bấm Gửi, Viết lại hoặc Bỏ.
+- **Tắt A.I. ở riêng một cuộc chat** mà không phải đổi cài đặt cả bot, và **ra lệnh cho A.I.** (ví dụ "báo giá sỉ 20 thùng") để nó viết câu trả lời cho khách.
 
 ## [0.370.0] - 2026-10-28
 ### Thêm mới

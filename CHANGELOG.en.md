@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.371.0] - 2026-10-28
 ### Added
-- In progress: groundwork for the new Chatbot page (version reserved).
+- **Groundwork for the new Chatbot page** (the screen itself comes in the next release). Every chat now has one shared state: AI is handling it, You are handling it, Needs you, or Only logged.
+- **New "AI drafts, I approve" mode:** the bot writes its reply but does not send it; it waits for you to Send, Rewrite or Drop.
+- **Switch the AI off in a single chat** without changing the whole bot, and **give the AI an instruction** (for example "quote 20 cases wholesale") to write the reply to the customer.
 
 ## [0.370.0] - 2026-10-28
 ### Added
