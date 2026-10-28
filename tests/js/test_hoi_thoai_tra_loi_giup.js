@@ -1,73 +1,90 @@
-/* Hai nút "Trả lời giúp tin này" và "Gợi ý câu trả lời" của Hộp thư (0.65.5): canh bằng cấu trúc mã.
+/* "A.I. reply", the draft box and "Ask the A.I. to answer this" in the inbox: guarded by code structure, and the draft
+   box builder of inbox-v5.js runs for real.
 
        node tests/js/test_hoi_thoai_tra_loi_giup.js
 
-   Chủ dự án (2026-09-30): muốn nhanh chóng chọn cho bot tự trả lời ngay trong hòm thư khi đang đúng chế độ. Ba thứ được canh:
-     1. Nút: hai nút cùng cao chia đôi bề ngang; nút chưa dùng được VẪN HIỆN và chạm vào nói lý do; không bấm chồng khi đang soạn.
-     2. Kết quả: gửi hỏng mà bot đã soạn thì chữ nằm trong ô nhập; bản nháp không đè chữ đang gõ nếu chưa được đồng ý.
-     3. Từ điển và CSS đủ.
+   0.65.5 had two buttons ("answer this message" and "suggest a reply") over the composer. Chatbot v5 (owner,
+   2026-10-28: "nhiều khi anh gõ kiểu ra lệnh để nó trả lời khách") replaced them:
+     1. The composer has Send (sent word for word) and "A.I. reply": what is typed is an ORDER for the A.I.; an empty box
+        lets it read the chat and write on its own. The result is always a draft, never sent by itself.
+     2. The draft (from the drafts mode or from an order) sits in a dashed box with Discard / Rewrite / Send; Rewrite asks
+        again with the same order; the owner's edits survive the 5-second redraws; Send goes through POST /draft.
+     3. Under a message the bot stayed silent on: "Ask the A.I. to answer this" answers and sends now.
 */
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
 
 const ROOT = path.join(__dirname, "..", "..");
 const src = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
 const CV = src("dashboard/conversations.js");
-const CSS = src("dashboard/console.css");
+const V5SRC = src("dashboard/inbox-v5.js");
+const CSS = src("dashboard/inbox-v5.css");
 const VI = JSON.parse(src("dashboard/i18n/vi.json"));
 const EN = JSON.parse(src("dashboard/i18n/en.json"));
 
 const fails = [];
 const check = (name, cond, extra) => { console.log((cond ? "ok   " : "FAIL ") + name + (!cond && extra ? "  [" + extra + "]" : "")); if (!cond) fails.push(name); };
+const fnBody = (sig) => { const i = CV.indexOf(sig); if (i < 0) return ""; const j = CV.indexOf("\n  }\n", i); return CV.slice(i, j); };
 
-const fn = (name) => { const i = CV.indexOf("function " + name + "("); return i < 0 ? "" : CV.slice(i, i + 4500); };
-const ACT = fn("renderActions");
-const ONACT = CV.slice(CV.indexOf("async function onAction("), CV.indexOf("async function onAction(") + 4500);
+const win = { t: (k, v) => k + (v ? "#" + Object.keys(v).map((x) => v[x]).join(",") : "") };
+const ctx = { window: win, console, String, Object, Array, Number, JSON };
+vm.createContext(ctx);
+vm.runInContext(V5SRC, ctx);
+const V = win.JavisInboxV5;
 
-// ---- 1. nút ----
-check("hàng nút nằm NGAY SAU dòng trạng thái và TRƯỚC ô nhập", /renderStatusLine\(c, human\) \+ renderActions\(c, human, guiDuoc\)/.test(CV));
-check("chế độ Tự động: 'Trả lời giúp tin này' (nút chính) + 'Gợi ý câu trả lời'",
-  /actionButton\("answer", "zap", "ht\.act_answer", whyAnswer, true\)/.test(ACT) && /actionButton\("draft", "sparkles", "ht\.act_draft", whyDraft, false\)/.test(ACT));
-check("chế độ Tôi trả lời: 'Gợi ý câu trả lời' + 'Trả lại cho bot' (và không có nút Trả lời giúp)",
-  /human\s*\?\s*actionButton\("draft"[\s\S]{0,120}actionButton\("back", "undo-2", "ht\.act_back"/.test(ACT));
-check("nút 'Trả lời giúp' chỉ dùng được khi: không tiếp quản, kênh gửi được, bot đang chạy, tin cuối là của khách",
-  /whyAnswer = human \? "ht\.why_human" : !guiDuoc \? "ht\.why_nosend" : !_running \? "ht\.why_off" : !lastCustomer \? "ht\.why_done" : ""/.test(ACT) &&
-  /sender_type === "customer"/.test(ACT));
-check("nút 'Gợi ý' cần có tin khách và kênh gửi được (dùng được cả lúc đang tiếp quản)",
-  /whyDraft = !hasCustomerMsg \? "ht\.why_nomsg" : !guiDuoc \? "ht\.why_nosend" : ""/.test(ACT));
-check("nút chưa dùng được VẪN HIỆN (không ẩn, không disabled câm): có data-why, aria-disabled, và chạm vào thì nói lý do",
-  /data-why="' \+ why/.test(ACT) && /aria-disabled="true"/.test(ACT) && /if \(b\.dataset\.why\) return setActionNote\(window\.t\(b\.dataset\.why\), false\)/.test(ONACT));
-check("đang soạn thì khoá cả hai nút và hiện 'Đang soạn…', không cho bấm chồng",
-  /_actBusy \? " disabled" : ""/.test(ACT) && /ht\.act_busy/.test(ACT) && /if \(_actBusy\) return;/.test(ONACT));
-check("bấm 'Trả lại cho bot' chỉ gạt chế độ về Tự động (API cũ, không API mới)", /if \(a === "back"\) return doiMode\(c\.id, "ai"\)/.test(ONACT));
-check("gọi đúng endpoint với mode send hoặc draft", /\/ai-reply", \{ method: "POST", body: fd\(\{ mode: a === "draft" \? "draft" : "send" \}\)/.test(ONACT));
+// ---- 1. composer ----
+const COMP = fnBody("function veCompose(c) {");
+check("composer: one box, 'A.I. reply' next to Send (only when a bot is on duty)", /class="ib-cin"/.test(COMP) &&
+  /\(laBot \? '<button type="button" class="s-btn-ghost ib-ask"/.test(COMP) && /class="s-btn ht-send"/.test(COMP));
+check("the example order shows under the box until a draft is waiting", /\(laBot && !draft \? '<div class="ib-hint">' \+ esc\(t\("ib\.cmd_hint"\)\)/.test(COMP));
+check("Send still takes over only in 'A.I. replies' mode, and the note says so", /if \(laBot && c\.ai_allowed && modeOf\(c\) === "ai"\) ghiChu = t\("ib\.send_takes_over"\)/.test(COMP));
+const AI = fnBody("async function aiReply(c, lenh, kind) {");
+check("'A.I. reply' sends the typed text as the instruction, always as a draft", /\/ai-reply", \{ method: "POST", body: fd\(\{ mode: "draft", instruction: lenh \|\| "" \}\) \}/.test(AI));
+check("the A.I. button passes what is typed; Rewrite passes the draft's own order", /aiReply\(c, ta\.value\.trim\(\), "ask"\)/.test(CV) &&
+  /aiReply\(c, dr\.instruction \|\| "", "redo"\)/.test(CV));
+check("while the A.I. writes, its buttons are locked and say so (no double press)", /if \(_aiBusy\) return;/.test(AI) &&
+  /_aiBusy === "ask" \? "loader" : "sparkles"/.test(COMP) && /_aiBusy \? " disabled" : ""/.test(COMP));
+check("after a good answer the order leaves the box; an error or a silent A.I. says it in one line", /if \(kind === "ask"\) \{ var ta = /.test(AI) &&
+  /ta\.value = ""/.test(AI) && /ht\.act_fail/.test(AI) && /ib\.ai_silent/.test(AI));
+check("lỗi mạng cũng được báo, không nuốt", /catch \(e\) \{ loi = e\.message; \}/.test(AI));
 
-// ---- 2. kết quả ----
-check("gửi hỏng mà bot đã soạn: chữ đổ vào ô nhập để chủ gửi tay, kèm dòng báo lỗi",
-  /if \(text && ta2\) \{ ta2\.value = text; \}/.test(ONACT) && /ht\.act_send_failed/.test(ONACT) && /d\.text|\(d && d\.text\)/.test(ONACT));
-check("Agent chọn im thì nói thẳng, không gửi gì", /if \(d\.silent\) return setActionNote\(window\.t\("ht\.act_silent"\), false\)/.test(ONACT));
-check("bản nháp đổ vào ô nhập và đưa con trỏ vào, chưa gửi", /ta2\.value = text; ta2\.focus\(\)/.test(ONACT) && /ht\.act_drafted/.test(ONACT));
-check("ô nhập đang có chữ thì HỎI trước khi đè bằng bản nháp", /ta\.value\.trim\(\) && !confirm\(window\.t\("ht\.act_overwrite"\)\)/.test(ONACT));
-check("gửi xong nói có dạy bot hay không (taught)", /d\.taught \? "ht\.act_sent_taught" : "ht\.act_sent"/.test(ONACT));
-check("gửi xong tải lại tin và danh sách; dòng ghi chú sống qua lần vẽ lại khung",
-  /await taiTin\(false\)/.test(ONACT) && /tai\(true\)/.test(ONACT) && /_actNote \? '<div class="ht-acts-note/.test(ACT));
-check("đổi cuộc chat thì bỏ dòng ghi chú cũ", /_chon = id;\s*_dauVetTin = "";\s*_actNote = null;/.test(CV));
+// ---- 2. draft box ----
+const d1 = V.draftHtml({ text: "Dạ <b>", instruction: "báo giá sỉ" }, "", null);
+check("draft box: the order in its title, the text editable and escaped, Discard / Rewrite / Send",
+  /ib\.dr_cmd#báo giá sỉ/.test(d1) && /<textarea class="ib-draft-t" rows="3">Dạ &lt;b&gt;<\/textarea>/.test(d1) &&
+  /ib-dr-drop/.test(d1) && /ib-dr-redo/.test(d1) && /ib-dr-send/.test(d1));
+check("a draft of the drafts mode has no order in its title", /ib\.dr_ready/.test(V.draftHtml({ text: "x" })));
+const d2 = V.draftHtml({ text: "x" }, "send", (n) => "[" + n + "]");
+check("while sending, the three buttons are disabled and Send spins", (d2.match(/ disabled/g) || []).length === 3 && /\[loader\] ib\.dr_send/.test(d2));
+check("the draft box shows whenever the chat has a waiting draft, whatever the mode", /var draft = c\.draft && String\(c\.draft\.text \|\| ""\)\.trim\(\) \? c\.draft : null;/.test(COMP) &&
+  /\(draft && V \? V\.draftHtml\(draft/.test(COMP));
+check("the owner's edits to the draft survive the 5-second redraw (same draft only)", /if \(_draftEdit && _draftEdit\.ts === dr\.ts\) dt\.value = _draftEdit\.text;/.test(CV) &&
+  /dt\.oninput = function \(\) \{ _draftEdit = \{ ts: dr\.ts, text: dt\.value \}; \};/.test(CV));
+const SEND = fnBody("async function sendDraft(c) {");
+check("Send posts the edited text to /draft action=send", /\/draft", \{ method: "POST", body: fd\(\{ action: "send", text: txt \}\) \}/.test(SEND));
+check("Discard posts action=discard and says so in a toast", /\/draft", \{ method: "POST", body: fd\(\{ action: "discard" \}\) \}/.test(fnBody("async function dropDraft(c) {")) &&
+  /toast\(window\.t\("ib\.t_dropped"\)\)/.test(CV));
+
+// ---- 3. ask the A.I. now ----
+const NOW = fnBody("async function askNow(c) {");
+check("'Ask the A.I. to answer this' answers and sends now (mode send)", /\/ai-reply", \{ method: "POST", body: fd\(\{ mode: "send" \}\) \}/.test(NOW));
+check("gửi hỏng mà A.I. đã soạn: chữ đổ vào ô nhập để chủ gửi tay, kèm dòng báo lỗi", /if \(loi && d\.text\)/.test(NOW) && /ta\.value = d\.text/.test(NOW) &&
+  /ht\.act_send_failed/.test(NOW));
+check("gửi xong nói có dạy bot hay không (taught)", /d\.taught \? "ib\.t_sent_taught" : "ib\.t_sent"/.test(NOW));
 check("giao diện đọc bot_running từ server", /_running = !!d\.bot_running/.test(CV));
-check("lỗi mạng cũng được báo, không nuốt", /catch \(e\) \{ loi = e\.message; \}/.test(ONACT));
+check("đổi cuộc chat thì bỏ dòng ghi chú cũ và bản sửa nháp cũ", /_chon = id;\s*_dauVetTin = "";\s*_actNote = null;/.test(CV) &&
+  /if \(id !== _chon\) \{[^}]*_draftEdit = null;/.test(CV));
 
-// ---- 3. CSS + từ điển ----
-check("CSS: hai nút cùng cao, chia đôi bề ngang, chữ dài thì cắt bằng dấu ba chấm chứ không rớt dòng",
-  /\.ht-acts \{ display: grid; grid-template-columns: 1fr 1fr;/.test(CSS) && /\.ht-act \{ height: 34px;/.test(CSS) &&
-  /\.ht-act span \{[^}]*text-overflow: ellipsis; white-space: nowrap/.test(CSS));
-check("CSS: nút chính, nút chưa dùng được (viền đứt), dòng ghi chú lỗi", /\.ht-act\.pri \{/.test(CSS) && /\.ht-act\.off, \.ht-act\.pri\.off \{[^}]*dashed/.test(CSS) &&
-  /\.ht-acts-note\.err \{/.test(CSS));
-check("CSS: ô nhập không còn viền trên ngay sau hàng nút (khỏi hai đường kẻ)", /\.ht-acts ~ \.ht-compose \{ border-top: 0; \}/.test(CSS));
-const moi = ["ht.act_answer", "ht.act_draft", "ht.act_back", "ht.act_busy", "ht.why_human", "ht.why_off", "ht.why_done", "ht.why_nosend", "ht.why_nomsg",
-  "ht.act_sent", "ht.act_sent_taught", "ht.act_drafted", "ht.act_silent", "ht.act_fail", "ht.act_send_failed", "ht.act_overwrite"];
-check("khoá mới có ở cả vi và en", moi.every((k) => VI[k] && EN[k]), moi.filter((k) => !VI[k] || !EN[k]).join(","));
-check("đều được mã dùng", moi.every((k) => CV.indexOf('"' + k + '"') > 0), moi.filter((k) => CV.indexOf('"' + k + '"') < 0).join(","));
-check("lý do khi nút tắt nói rõ cách bật lại", /Tự động/.test(VI["ht.why_human"]) && /tab Bot/.test(VI["ht.why_off"]));
-check("tên hàm mới bằng tiếng Anh (quy ước từ 0.65.0)", ["renderActions", "setActionNote", "onAction", "renderStatusLine", "renderSilenceLine"].every((n) => CV.indexOf("function " + n + "(") > 0));
+// ---- CSS and dictionary ----
+check("CSS: dashed draft box, composer row, phone layout puts the box on its own line", /\.ib-draft \{ border: 1\.5px dashed/.test(CSS) &&
+  /\.ib-cin \{ display: flex;/.test(CSS) && /\.ib-cin textarea \{ flex-basis: 100%; \}/.test(CSS));
+const keys = ["ib.ai_reply", "ib.ai_reply_t", "ib.ai_busy", "ib.cin_ph_ai", "ib.cmd_hint", "ib.dr_cmd", "ib.dr_ready", "ib.dr_drop", "ib.dr_redo",
+  "ib.dr_send", "ib.ask_ai_now", "ib.ai_silent", "ib.t_sent", "ib.t_sent_taught", "ib.t_dropped", "ib.send_takes_over", "ht.act_fail", "ht.act_send_failed"];
+check("khoá có ở cả vi và en", keys.every((k) => VI[k] && EN[k]), keys.filter((k) => !VI[k] || !EN[k]).join(","));
+check("the old two buttons and their keys are gone", !/renderActions|onAction\(|setActionNote|ht\.act_answer|ht\.act_draft"|ht\.why_/.test(CV) &&
+  ["ht.act_answer", "ht.act_draft", "ht.act_back", "ht.why_human", "ht.act_overwrite"].every((k) => !(k in VI) && !(k in EN)));
+check("Vietnamese says A.I. with dots on these buttons", /A\.I\./.test(VI["ib.ai_reply"]) && /A\.I\./.test(VI["ib.ask_ai_now"]));
 check("không dùng em dash trong test này", fs.readFileSync(__filename, "utf8").indexOf(String.fromCharCode(0x2014)) < 0);
 
 if (fails.length) { console.log("\nĐỎ: " + fails.length + ": " + fails.join(" | ")); process.exit(1); }

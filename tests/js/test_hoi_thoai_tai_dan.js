@@ -46,7 +46,7 @@ check("CANARY: tự tải bằng SỰ KIỆN CUỘN gần đáy, KHÔNG dùng In
   /box\.onscroll = function \(\) \{ if \(_conDS && box\.scrollHeight - box\.scrollTop - box\.clientHeight < 240\) taiThem\(\); \};/.test(CV) &&
   !/new IntersectionObserver/.test(CV));
 check("CANARY: tự lấp đầy chỉ khi khung ĐÃ ĐO ĐƯỢC (clientHeight > 0)", /_conDS && box\.clientHeight > 0 && box\.scrollHeight <= box\.clientHeight \+ 40/.test(CV));
-check("dòng đếm hiện 'N+' khi còn trang sau, không còn mốc cứng 60+", /n: _items\.length \+ \(_conDS \? "\+" : ""\)/.test(CV) && !/TRANG \+ "\+"/.test(CV));
+check("còn trang sau thì có nút Xem thêm ở cuối danh sách, không còn mốc cứng 60+", /\(_conDS \? '<div class="ht-more">/.test(CV) && !/TRANG \+ "\+"/.test(CV));
 
 // ---- 2. khung tin: 40 tin mới nhất, nhịp chỉ hỏi phần mới ----
 check("mở hội thoại lấy 40 tin mới nhất (không còn limit=200 cho mọi nhịp)", /var TIN_TRANG = 40;/.test(CV) && /"limit=" \+ TIN_TRANG/.test(CV) && !/messages\?limit=200"/.test(CV));
@@ -84,8 +84,7 @@ check("trang thứ hai của danh sách không tính lại số đếm", /if off
 check("có kiểu cho nút Xem thêm và nút Xem tin cũ hơn", /\.ht-more \{/.test(CSS) && /\.ht-older \{/.test(CSS) && /\.ht-older\.busy \{/.test(CSS));
 check("hai khoá chữ mới có ở vi và en, và được mã dùng", VI["ht.xem_them"] && EN["ht.xem_them"] && VI["ht.tin_cu"] && EN["ht.tin_cu"] &&
   CV.indexOf('"ht.xem_them"') > 0 && CV.indexOf('"ht.tin_cu"') > 0);
-check("hết icon robot ở trạng thái bot và nút Trả lại cho bot", !/ic\("bot"/.test(CV) && !/actionButton\("[a-z]+", "bot"/.test(CV) && !/: "bot"\)/.test(CV) &&
-  /"undo-2", "ht\.act_back"/.test(CV) && /off \? "circle-stop" : "sparkles"/.test(CV));
+check("hết icon robot trong hộp thư (A.I. dùng sparkles)", !/ic\("bot"/.test(CV) && !/: "bot"\)/.test(CV) && /ic\("sparkles"\)/.test(CV));
 check("không dùng em dash trong test này", fs.readFileSync(__filename, "utf8").indexOf(String.fromCharCode(0x2014)) < 0);
 
 if (fails.length) { console.log("\nĐỎ: " + fails.length + ": " + fails.join(" | ")); process.exit(1); }

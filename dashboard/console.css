@@ -2189,42 +2189,13 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    Hai cột trên màn rộng (danh sách | lịch sử tin), một cột trên điện thoại (bấm một hội thoại
    là mở lịch sử, có nút quay lại). Chữ chính 16px trên màn nhỏ theo chuẩn đọc của chủ repo. */
 .ht-wrap { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
-.ht-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.ht-loc { display: flex; flex-wrap: wrap; gap: 6px; }
-.ht-loc-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px;
-  border: 1px solid var(--border); background: var(--bg3); color: var(--text2); font-size: 13.5px; cursor: pointer; }
-.ht-loc-chip:hover { color: var(--text); border-color: var(--accent); }
-.ht-loc-chip.on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
 .ht-search { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg3);
   color: var(--text); font-size: 16px; min-width: 0; flex: 1 1 200px; }
-/* Bộ lọc dropdown (0.65.3): một hàng chung với ô tìm. Đang lọc thì dropdown sáng màu nhấn để nhìn là biết. */
-.ht-f { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg3); color: var(--text);
-  font-size: 16px; min-width: 0; max-width: 100%; }
-.ht-f.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-wash); }
-.ht-f[hidden], .ht-fclear[hidden] { display: none; }
-/* "Has phone/email" is an on/off filter of its own (combines with a status), drawn like the dropdowns next to it. */
-.ht-f-contact { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
-.ht-f-contact svg { width: 16px; height: 16px; flex: none; }
-/* Wide screens: the filter panel is just part of the row and the Filters button is never shown. */
-.ht-fpanel { display: contents; }
-.ht-fbtn { display: none; }
-.ht-fsum { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text3);
-  min-height: 20px; padding: 0 4px; }
 /* 0.216.0: kết quả hỏi Zalo khi ô tìm là một số điện thoại. */
 .ht-sdt { margin: 0 4px 6px; padding: 8px 10px; border-radius: 9px; background: var(--accent-wash); color: var(--text);
   font-size: 16px; line-height: 1.45; display: flex; flex-direction: column; gap: 4px; }
 .ht-sdt[hidden] { display: none; }
 .ht-sdt svg { width: 16px; height: 16px; vertical-align: -3px; color: var(--accent); }
-.ht-fclear { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer;
-  text-decoration: underline; }
-.ht-item-tags { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
-.ht-bot-tag, .ht-need { flex: none; max-width: 100%; font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
-  font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ht-bot-tag.c0 { background: var(--accent2-wash); color: var(--accent2-ink); }
-.ht-bot-tag.c1 { background: var(--info-wash); color: var(--info-ink); }
-.ht-bot-tag.c2 { background: var(--ok-wash); color: var(--green); }
-.ht-bot-tag.c3 { background: var(--accent-wash); color: var(--accent-ink); }
-.ht-need { background: var(--warn-wash); color: var(--warn-ink); }
 /* 2026-10-25 (owner: "thêm tag khách hàng", Pancake-style chips): the owner's tags, one colour each from a fixed palette
    (conversations.TAG_COLORS). Tint, ink and border are mixed from one hue so a chip reads in light and dark themes. */
 .ht-tag { --tc: #8b8f98; display: inline-block; vertical-align: middle; min-width: 0; max-width: 140px; padding: 0 8px;
@@ -2246,21 +2217,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-has-contact { flex: none; display: inline-flex; color: var(--green); }
 .ht-has-contact svg { width: 14px; height: 14px; }
 .ht-item-ava { display: none; }
-/* Wide screens: one filter row when it fits (owner: no wall of buttons). Every control keeps its full text; when the
-   page is too narrow for all of them the row wraps instead of cutting words, and the search box takes what is left. */
-@media (min-width: 901px) {
-  .ht-bar { flex-wrap: wrap; }
-  .ht-bar .ht-search { flex: 1 1 220px; min-width: 200px; }
-  .ht-bar .ht-f { flex: 0 0 auto; }
-  /* The tag dropdown is as wide as its longest tag name; capped so one long tag does not squeeze the rest. */
-  .ht-bar .ht-f-tag { max-width: 170px; }
-}
-/* Thread: phone/email the customer left, this chat's tags, the Tag button and its picker. */
+/* A chat's tags, the Tag button and its picker (in the Info panel since Chatbot v5). */
 .ht-tagrow { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px;
   border-bottom: 1px solid var(--hairline); font-size: 16px; }
 .ht-tagrow:empty { display: none; }
-.ht-contact { display: inline-flex; align-items: center; gap: 5px; color: var(--text); font-size: 16px; user-select: all; }
-.ht-contact svg { width: 16px; height: 16px; color: var(--green); }
 .ht-tag-on { display: inline-flex; align-items: center; gap: 2px; max-width: 240px; padding-right: 2px; }
 .ht-tag-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ht-tag-x { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
@@ -2310,28 +2270,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border: 2px solid var(--bg2); box-shadow: 0 0 0 1px var(--border); }
 .ht-sw.on { box-shadow: 0 0 0 2px var(--text); }
 @media (max-width: 640px) {
-  /* Phones (owner, 2026-10-25: the filters took half the screen): search and a Filters button share one row; the
-     filters open below them on demand, two per row, Bot and Channel full width. The button shows how many are on. */
-  .ht-bar { flex-wrap: nowrap; }
   .ht-search { flex: 1 1 auto; }
-  .ht-fbtn { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 8px 12px; border-radius: 9px;
-    border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 16px; cursor: pointer; }
-  .ht-fbtn svg { width: 16px; height: 16px; }
-  .ht-fbtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); }
-  .ht-fbtn-n { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent);
-    color: var(--on-accent, #fff); font-size: 16px; line-height: 22px; text-align: center; }
-  .ht-fbtn-n[hidden] { display: none; }
-  .ht-fpanel { display: none; }
-  .ht-fpanel.open { display: flex; flex-wrap: wrap; gap: 8px; position: absolute; left: 0; right: 0; top: calc(100% + 6px);
-    z-index: 30; padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, .18); }
-  .ht-wrap .ht-bar { position: relative; }
-  .ht-f { flex: 1 1 42%; font-size: 16px; }
-  .ht-f-bot, .ht-f-channel, .ht-f-contact { flex-basis: 100%; }
-  .ht-f-contact { justify-content: center; }
 }
 /* Từ 0.65.10 vùng làm việc lấp đầy phần còn lại của khung (trước là calc(100vh - 300px), thấp hơn thật khoảng 90px nên cả trang phải cuộn
-   và khung tin bị đẩy xuống). Cột trái = dòng đếm + danh sách; danh sách và khung tin tự cuộn bên trong. */
+   và khung tin bị đẩy xuống). Cột trái = đầu danh sách + danh sách; danh sách và khung tin tự cuộn bên trong. */
 .ht-body { display: flex; gap: 12px; flex: 1 1 auto; min-height: 260px; }
 .ht-listcol { width: 320px; flex: none; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
 .ht-list { flex: 1 1 auto; min-height: 0; width: 100%; overflow: auto; display: flex; flex-direction: column; gap: 4px;
@@ -2347,7 +2289,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border-radius: 10px; border: 1px solid transparent; background: none; color: var(--text2); cursor: pointer; }
 .ht-item:hover { background: var(--surface-2); color: var(--text); }
 .ht-item.on { border-color: var(--accent); background: var(--accent-wash); color: var(--text); }
-.ht-item-ic { flex: none; opacity: .8; margin-top: 2px; }
 .ht-item-text { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
 .ht-item-top { display: flex; align-items: baseline; gap: 6px; }
 .ht-item-top strong { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden;
@@ -2425,8 +2366,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Tổng số tin của cuộc (0.148.0): viên xám trung tính, tách hẳn số đỏ (cam) của tin chưa đọc. */
 .ht-count { flex: none; font-size: 11px; line-height: 18px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border);
   color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.ht-mode { flex: none; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: var(--warn-wash);
-  color: var(--warn-ink); font-weight: 600; }
 .ht-thread { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--border);
   border-radius: 12px; background: var(--surface-1); overflow: hidden; }
 .ht-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--hairline); }
@@ -2434,39 +2373,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-head-text strong { font-size: 15px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ht-head-text small { font-size: 12.5px; color: var(--text3); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .ht-back { display: none; padding: 6px 9px; }
-/* Công tắc hai nấc Tự động / Tôi trả lời (0.65.4). */
-.ht-seg { flex: none; display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px;
-  background: var(--bg3); }
-.ht-seg-b { border: 0; background: none; color: var(--text2); padding: 5px 11px; border-radius: 999px; font-size: 13px;
-  cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.ht-seg-b:hover { color: var(--text); }
-.ht-seg-b.on { background: var(--accent-wash); color: var(--accent-ink); font-weight: 600; }
-.ht-seg-b.on[data-m="human"] { background: var(--warn-wash); color: var(--warn-ink); }
-/* Điện thoại: công tắc xuống hàng riêng, rộng hết chiều ngang (dễ chạm một tay) thay vì chèn tiêu đề còn vài chục điểm ảnh. */
+/* Phones: a long name may push the Info button to its own line. */
 @media (max-width: 640px) {
   .ht-head { flex-wrap: wrap; }
-  .ht-seg { order: 3; flex: 1 1 100%; }
-  .ht-seg-b { flex: 1 1 50%; justify-content: center; padding: 8px 11px; font-size: 14px; }
 }
-/* Dòng trạng thái: ai đang trực cuộc chat. Đứng riêng một dòng, không chung hàng với nút nào. */
-.ht-status { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--hairline);
-  font-size: 12.5px; color: var(--text3); }
-.ht-status.ai { color: var(--green); }
-.ht-status.human { color: var(--warn-ink); background: var(--warn-wash); }
-.ht-status.off { color: var(--warn-ink); background: var(--warn-wash); }
-/* Hai nút hành động (0.65.5): cùng cao, chia đôi bề ngang, không bao giờ rớt dòng. Nút chưa dùng được vẫn hiện, viền đứt. */
-.ht-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 12px 0; }
-.ht-act { height: 34px; padding: 0 8px; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 6px;
-  border-radius: 9px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 13px; cursor: pointer; }
-.ht-act span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ht-act:hover { border-color: var(--accent); }
-.ht-act.pri { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-.ht-act.off, .ht-act.pri.off { background: var(--bg3); border: 1px dashed var(--border); color: var(--text3); font-weight: 400; }
-.ht-act.busy { cursor: progress; }
-.ht-act:disabled { cursor: progress; }
-.ht-acts-note { display: flex; align-items: flex-start; gap: 6px; padding: 6px 12px 0; font-size: 12.5px; color: var(--text2); }
-.ht-acts-note.err { color: var(--red, #e5484d); }
-.ht-acts ~ .ht-compose { border-top: 0; }
 .ht-silent { align-self: flex-start; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px;
   color: var(--text3); }
 .ht-silent-why { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer;
@@ -2527,7 +2437,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .ht-listcol { width: var(--ht-list-w, 320px); position: relative; }
   .ht-listcol > .col-resize { display: block; position: absolute; top: 0; bottom: 0; right: -10px; width: 8px; z-index: 6;
     cursor: col-resize; touch-action: none; }
-  .ht-mini .ht-fsum, .ht-mini .ht-sdt, .ht-mini .ht-item-text, .ht-mini .ht-item-ic, .ht-mini .ht-more { display: none; }
+  .ht-mini .ht-sdt, .ht-mini .ht-item-text, .ht-mini .ht-more { display: none; }
   .ht-mini .ht-list { padding: 6px 4px; align-items: center; }
   .ht-mini .ht-item { justify-content: center; padding: 6px 0; width: 52px; }
   .ht-mini .ht-item-ava { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px;
@@ -2629,7 +2539,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Ô trả lời khách (0.61.0): chỉ hiện khi kênh gửi được từ Javis. */
 .ht-compose { border-top: 1px solid var(--hairline); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
 .ht-compose-note { font-size: 12.5px; color: var(--text3); display: flex; gap: 5px; align-items: center; }
-.ht-compose-row { display: flex; gap: 8px; align-items: flex-end; }
 .ht-compose textarea { flex: 1 1 auto; min-width: 0; resize: vertical; padding: 8px 10px; border-radius: 9px;
   border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 14px; font-family: inherit; line-height: 1.45; }
 .ht-compose textarea:focus { border-color: var(--info-line); outline: none; }

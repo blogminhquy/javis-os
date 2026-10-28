@@ -36,8 +36,10 @@ function check(name, cond, extra) {
 check("không còn ô .ht-stats và hàm veStats", !/ht-stats/.test(CV) && !/function veStats/.test(CV) && !/veStats\(/.test(CV));
 check("không còn CSS thẻ số liệu", !/\.ht-stats\b/.test(CSS) && !/\.ht-stat\b/.test(CSS));
 check("bốn khoá chữ của thẻ số liệu đã bỏ (vi, en)", ["ht.st_tong", "ht.st_hom_nay", "ht.st_chua_doc", "ht.st_can_nguoi"].every((k) => !(k in VI) && !(k in EN)));
-check("số chưa đọc vẫn hiện thành huy hiệu trên tab", /_stats\.chua_doc\) \? '<span class="ht-badge">'/.test(CV));
-check("số liệu vẫn được nạp (ô lọc kênh dùng theo_kenh)", /_stats\.theo_kenh/.test(CV) && /_stats = /.test(CV));
+// Chatbot v5 (2026-10-28): the tab counts the chats that NEED YOU (server who_counts), not unread ones.
+check("the Conversations tab shows the 'Needs you' count as its badge", /var canBan = t === "inbox" && _whoCounts \? \(_whoCounts\.you_total != null \? _whoCounts\.you_total : _whoCounts\.you\) : 0;/.test(CV) &&
+  /'<span class="ht-badge" title="'/.test(CV));
+check("số liệu vẫn được nạp (who_counts cho lọc nhanh và huy hiệu)", /_whoCounts = d\.who_counts/.test(CV) && /_stats = /.test(CV));
 
 // ---- 2. đầu trang: tiêu đề cùng hàng với tab ----
 check("tiêu đề và tab cùng một hàng .ht-top", /<div class="ht-top">/.test(CV) && /<div class="ht-title">/.test(CV) &&
@@ -58,8 +60,9 @@ check("danh sách là ô cuộn riêng trong cột, khung tin cũng vậy", /\.h
 
 // ---- 4. dòng đếm nằm trong cột danh sách, KHÔNG nằm trong ô cuộn ----
 const cot = (CV.match(/<div class="ht-listcol">' \+[\s\S]*?<div class="ht-list">/) || [""])[0];
-check("dòng đếm và chip lọc nằm trong cột danh sách, TRƯỚC ô .ht-list", /ht-fsum/.test(cot) && /ht-fcount/.test(cot) && /ht-fclear/.test(cot));
-check("CANARY: dòng đếm KHÔNG nằm trong .ht-list (JS ghi đè nội dung ô đó mỗi lần vẽ lại)", !/<div class="ht-list">[^']*ht-fsum/.test(CV));
+check("the list head (picker, search, quick filters, chips) sits in the list column, BEFORE .ht-list",
+  /ib-lhead/.test(cot) && /ib-picker/.test(cot) && /ib-quick/.test(cot) && /ib-activef/.test(cot));
+check("CANARY: the list head is NOT inside .ht-list (JS rewrites that box on every redraw)", !/<div class="ht-list">[^']*ib-lhead/.test(CV));
 check("cột danh sách có bề ngang cố định trên màn rộng", /\.ht-listcol \{ width: 320px; flex: none; min-height: 0; display: flex; flex-direction: column;/.test(CSS));
 
 // ---- 5. điện thoại ----

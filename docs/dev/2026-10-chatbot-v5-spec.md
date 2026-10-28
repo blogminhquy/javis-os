@@ -52,14 +52,17 @@ Hai thứ tách nhau:
    - `draft` = **A.I. soạn, tôi duyệt** (mới): lượt bot chạy như thường nhưng câu trả lời KHÔNG gửi; nó nằm trong
      `metadata.draft` của hội thoại (`text`, `ts`, `for_message_id`) và cuộc chat chuyển sang Cần bạn. Bạn bấm Gửi
      (gửi đúng chữ đang sửa, ghi vào Hộp thư là lời A.I.), Viết lại (nhờ soạn lần nữa) hoặc Bỏ. Tin khách mới tới khi
-     bản cũ chưa duyệt thì bản mới thay bản cũ.
+     bản cũ chưa duyệt thì bản mới thay bản cũ. Đổi chế độ KHÔNG xoá bản đang chờ (bấm Hoàn tác là có lại đủ); bạn
+     tự gửi tay (`/reply`) thì bản đó bỏ đi vì đã có câu trả lời. Còn bản chờ là cuộc chat ở Cần bạn, ở chế độ nào cũng vậy.
    - `human` = Tôi trả lời (như cũ: A.I. im).
 
 Đường mới `POST /conversations/{id}/ai` với `on=0|1`: bật thì gỡ khỏi `blocked`, thêm vào `groups`/`people` khi audience
 cần danh sách, và bỏ khỏi hàng chờ duyệt; tắt thì làm ngược lại (audience đang mở thì thêm vào `blocked`). Trả về hội
 thoại kèm trạng thái mới.
 
-`POST /conversations/{id}/mode` nhận thêm `draft`. `POST /conversations/{id}/draft` với `action=send|discard`
+`POST /conversations/{id}/mode` nhận thêm `draft`. `POST /conversations/{id}/note` lưu ghi chú của bạn (vào khách nếu cuộc
+chat có khách, không thì vào chính cuộc chat). Mỗi dòng danh sách còn kèm `reply_when` và `yield_min` (số phút nhường) của
+bot để bảng Thông tin hiện đúng. `POST /conversations/{id}/draft` với `action=send|discard`
 (gửi thì nhận `text` đã sửa).
 
 ## 5. Nút "A.I. trả lời" (ra lệnh cho A.I.)
@@ -68,7 +71,8 @@ thoại kèm trạng thái mới.
 **lệnh** cho A.I. (ví dụ "báo giá sỉ 20 thùng, hẹn giao thứ 5"); ô trống thì A.I. tự đọc cuộc chat mà soạn.
 `POST /conversations/{id}/ai-reply` nhận thêm `instruction`. Lệnh đi vào lượt như một ghi chú của chủ chỉ model đọc
 (cùng đường `ghi_chu_dau` đã có), không vào Hộp thư. Kết quả luôn là bản nháp hiện trong khung nét đứt, ghi rõ lệnh,
-kèm Bỏ / Viết lại / Gửi. Không bao giờ tự gửi.
+kèm Bỏ / Viết lại / Gửi. Không bao giờ tự gửi. Bản nháp này lưu ở server như bản của chế độ A.I. soạn (tải lại trang vẫn
+còn), Gửi và Bỏ đi qua cùng đường `/draft`.
 
 ## 6. Tab Hội thoại
 

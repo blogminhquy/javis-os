@@ -49,6 +49,9 @@ def state(conv: dict, bot: Optional[dict], running: bool, pending: Optional[dict
     out = {"ai_allowed": allowed, "pending": pending, "draft": draft}
     if pending and not allowed:
         return dict(out, who="you", who_code="pending")
+    if draft:
+        # A reply the A.I. wrote waits for the owner, whatever the mode (drafts mode, or the owner's "A.I. reply").
+        return dict(out, who="you", who_code="draft_ready")
     if not allowed:
         if waiting:
             return dict(out, who="you", who_code="waiting")
@@ -56,8 +59,6 @@ def state(conv: dict, bot: Optional[dict], running: bool, pending: Optional[dict
     if mode == "human":
         return dict(out, who="you", who_code="waiting_you") if waiting else dict(out, who="owner", who_code="you")
     if mode == "draft":
-        if draft:
-            return dict(out, who="you", who_code="draft_ready")
         return dict(out, who="ai", who_code="draft_mode")
     if not running:
         return dict(out, who="you", who_code="bot_off_waiting") if waiting else dict(out, who="log", who_code="bot_off")
