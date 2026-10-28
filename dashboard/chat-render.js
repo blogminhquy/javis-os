@@ -1137,8 +1137,44 @@
       y: Math.max(-maxY, Math.min(maxY, state.y)) };
   }
 
+  // iPhone (0.368.0, chủ repo 28/10/2026: "ấn nút tải về trên điện thoại thì nó đang mở 1 trang mới chứ không tải được
+  // ảnh"). iOS không cho trang web tải ảnh thẳng vào máy; đường lưu ảnh của iOS là bảng chia sẻ, có nút "Lưu hình ảnh".
+  // Bảng đó chỉ mở được NGAY trong cú bấm (đợi mạng xong mới gọi là iOS từ chối), nên ảnh đang xem được tải sẵn thành
+  // File từ lúc hiện lên; bấm Tải về là mở bảng chia sẻ liền. Chưa tải xong hay máy không chia sẻ được thì như cũ: mở ảnh
+  // ở cửa sổ mới để bấm giữ, "Lưu vào Ảnh".
+  var _lbTep = null;   // {url, file} của ảnh đang xem, chỉ trên iOS
+  function _lbDuoi(mime) {
+    var m = /^image\/(png|jpe?g|gif|webp|heic|bmp)/i.exec(mime || "");
+    return m ? "." + m[1].toLowerCase().replace("jpeg", "jpg") : "";
+  }
+  function _lbTenTep(ten, mime) {
+    ten = String(ten || "").split("?")[0] || "anh";
+    return /\.[a-z0-9]{2,5}$/i.test(ten) ? ten : ten + (_lbDuoi(mime) || ".jpg");
+  }
+  function _lbChuanBiTep(url, ten) {
+    _lbTep = null;
+    if (!url || !laIOS() || typeof fetch !== "function" || typeof File !== "function" || !navigator.canShare) return;
+    try {
+      fetch(url, { credentials: "same-origin" }).then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.blob();
+      }).then(function (b) {
+        if (_lbUrl !== url || !b || !b.size) return;          // đã sang ảnh khác
+        var f = new File([b], _lbTenTep(ten, b.type), { type: b.type || "image/jpeg" });
+        if (navigator.canShare({ files: [f] })) _lbTep = { url: url, file: f };
+      }).catch(function () {});
+    } catch (e) {}
+  }
   function _lbTaiVe() {
     if (!_lbUrl) return;
+    if (laIOS() && _lbTep && _lbTep.url === _lbUrl && navigator.share) {
+      var tep = _lbTep.file, xem = _lbUrl;
+      navigator.share({ files: [tep] }).catch(function (err) {
+        if (err && err.name === "AbortError") return;        // người dùng tự đóng bảng chia sẻ
+        window.open(xem, "_blank");
+      });
+      return;
+    }
     var a = document.createElement("a");
     // /files/raw?...&dl=1 la duong SERVER ep tai kem dung ten file (ke ca ten tieng Viet).
     // Anh ngoai vault khong co duong do -> dua thuoc tinh download, cung lam gi hon duoc.
@@ -1155,7 +1191,7 @@
   // dung cai vua mo.
   function _goLopPhu() {
     if (!_lb) return;
-    _lb.remove(); _lb = null; _lbUrl = ""; _lbTen = ""; _lbDs = []; _lbI = 0; _lbChuyen = null;
+    _lb.remove(); _lb = null; _lbUrl = ""; _lbTen = ""; _lbDs = []; _lbI = 0; _lbChuyen = null; _lbTep = null;
     document.body.classList.remove("jv-lb-open");
   }
   function dongLightbox() {
@@ -1266,6 +1302,7 @@
       } catch (e) {}
       img.src = _lbUrl;
       img.alt = _lbTen;
+      _lbChuanBiTep(_lbUrl, _lbTen);
       // The next and previous pictures load now, so a swipe shows them at once.
       [i - 1, i + 1].forEach(function (k) {
         if (k < 0 || k >= _lbDs.length) return;
@@ -1601,6 +1638,6 @@
       // Xuat them de test chay THAT chuoi du phong cua anh (xem ungVienAnh / imgGone).
       ungVienAnh: ungVienAnh, ghepDuong: ghepDuong, imgGone: imgGone,
       lightboxPinchStep: lightboxPinchStep, lightboxClampPan: lightboxClampPan,
-      lightboxGalleryStep: lightboxGalleryStep, lightboxSwipe: lightboxSwipe };
+      lightboxGalleryStep: lightboxGalleryStep, lightboxSwipe: lightboxSwipe, lightboxFileName: _lbTenTep };
   }
 })();
