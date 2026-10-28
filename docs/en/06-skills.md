@@ -187,6 +187,15 @@ Deletion is final: the whole skill folder is removed from disk, with no recycle 
 
 Note: skill content is instructions the AI follows, so only import packages from sources you trust. Details on packaging with dependencies are in [Agents & Workflows](07-agents-and-workflows.md).
 
+## Recommended repos in the Javis Store
+
+The first tab of the **Javis Store** is **Recommended repos**: skills copied **word for word** from the author's own GitHub repo (Remotion's official skills, for example, or Lemo-Opuscar for short films made in code). Nothing is translated or changed: you read exactly what the author wrote.
+
+- Each card has a **Follows the source repo** line linking to the GitHub repo, with the day the latest version was taken.
+- Every day the store compares them with the source repo. When the author changes a skill, the pack gets a new version, Javis tells you in the bell and you press **Update** (through the usual confirm screen).
+- Skills you have edited yourself are kept when you update, never overwritten.
+- When a skill ships its own files (`scripts/`, `references/`...), Javis tells the model the skill's folder when it loads the skill, so those files can be found.
+
 ## Asking Javis to create a skill in words
 
 You do not have to fill in the form. You can open the chat and ask Javis to create the skill, for example: "Create me a skill for writing Facebook captions for a cosmetics shop, triggering when I ask for sales captions." Javis writes `SKILL.md` and saves it in `skills/`. Chat basics are in [Chat & voice](02-chat-and-voice.md).

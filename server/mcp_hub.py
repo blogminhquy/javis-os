@@ -832,6 +832,23 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
             str(args.get("file_glob") or ""), args.get("limit") or coding_files.TIM_MAC_DINH,
             args.get("offset") or 0, args.get("context") or 0, Path(hien_thi))
 
+    def _skill_base_line(root, asset):
+        """0.370.0: a skill that ships its own files (scripts/, references/, rules/...) names them relative to its
+        folder, and Claude Code's own skill loader says where that folder is. Without the same line an engine
+        here gets the SKILL.md text alone and cannot find `scripts/setup.sh` or `rules/x.md` (Store packs that
+        follow their source repo, such as Remotion's skills, rely on this). A skill that is just its SKILL.md
+        gets nothing extra."""
+        try:
+            rel = Path(str(asset.relative_path))
+            if rel.name != "SKILL.md" or rel.is_absolute() or ".." in rel.parts:
+                return ""
+            folder = Path(root).resolve() / rel.parent
+            if not any(p.name != "SKILL.md" for p in folder.iterdir()):
+                return ""
+            return f"Base directory for this skill: {folder}\n\n"
+        except (OSError, ValueError, TypeError):
+            return ""
+
     async def _skill(args):
         name = str((args or {}).get("name") or "").strip()
         from improvement_task_skill_scope import current, ScopeUnavailable
@@ -851,7 +868,7 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         if asset is None:
             return ("ERROR: không có skill đó. Skill khả dụng: "
                     + (", ".join(_list_skills(vault_root)) or "(chưa có)"))
-        text = asset.text[:60_000]
+        text = _skill_base_line(vault_root, asset) + asset.text[:60_000]
         # ĐIỂM ĐẾM DUY NHẤT: mọi engine nạp skill qua tool này đều đi ngang đây. Chỉ đếm ở
         # đường THÀNH CÔNG - nhánh trên đã lọc slug sai/skill tắt nên không đếm gõ nhầm.
         # Count the slug verified by the shared reader, not the raw name from the engine.

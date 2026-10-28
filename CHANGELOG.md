@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.370.0] - 2026-10-28
 ### Thêm mới
-- **Repo khuyên dùng trong Javis Store** (đang làm).
+- **Repo khuyên dùng trong Javis Store.** Tab mới đứng đầu Store, gồm các bộ skill chép nguyên văn từ repo GitHub của chính tác giả, không dịch, không sửa. Mỗi thẻ có link về repo gốc và ngày lấy bản mới nhất. Kho so lại với repo gốc mỗi ngày: tác giả sửa skill là gói lên bản mới, Javis báo trong chuông, bạn bấm Cập nhật. Skill bạn đã tự sửa thì giữ nguyên.
+- **Hai bộ đầu tiên:** Remotion (12 skill chính chủ để làm video bằng React: tạo dự án, hoạt hình, phụ đề, bản đồ, xuất video) và Lemo-Opuscar (dựng phim ngắn hoàn toàn bằng code theo 59 phong cách).
+
+### Cải thiện
+- **Skill kèm tệp riêng chạy được trên mọi engine.** Skill có `scripts/` hay `references/` giờ nói cho model biết thư mục của nó khi được nạp, như Claude Code vẫn làm, nên model tìm đúng tệp thay vì đoán.
 
 ## [0.369.0] - 2026-10-28
 ### Sửa lỗi

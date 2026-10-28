@@ -103,6 +103,19 @@ check("size không phải số thì về 0",
 # index và chỉ nhận ảnh. Thẻ về ô chữ cái chứ KHÔNG BAO GIỜ vẽ ảnh từ host lạ.
 check("bộ đọc giữ lại icon để lưới vẽ logo",
       packs_store._lam_sach({"id": "a", "icon": "packs/a/assets/a.png"})["icon"] == "packs/a/assets/a.png")
+# Recommended repos (0.370.0): `upstream` becomes a github.com link on the card, so only a plain owner/name passes.
+up = packs_store._lam_sach({"id": "a", "upstream": {"repo": "remotion-dev/skills", "ref": "main",
+                                                   "commit": "30d4553ecd46fbc5212fd0ff006ae43af522158b",
+                                                   "synced": "2026-10-28", "extra": "x"}})["upstream"]
+check("upstream keeps repo, ref, commit and date", up == {"repo": "remotion-dev/skills", "ref": "main",
+      "commit": "30d4553ecd46fbc5212fd0ff006ae43af522158b", "synced": "2026-10-28"})
+for bad in ("https://evil.dev/x", "a/b/c", "javascript:alert(1)", "../x", "a/..", "", None):
+    check(f"upstream with a repo that is not owner/name is dropped: {bad!r}",
+          packs_store._lam_sach({"id": "a", "upstream": {"repo": bad}})["upstream"] == {})
+odd = packs_store._lam_sach({"id": "a", "upstream": {"repo": "a/b", "commit": "<b>", "synced": "hôm qua",
+                                                    "ref": "x y"}})["upstream"]
+check("odd commit, date and ref are blanked, the repo stays", odd == {"repo": "a/b", "ref": "", "commit": "", "synced": ""})
+check("a pack without upstream has an empty one", packs_store._lam_sach({"id": "a"})["upstream"] == {})
 
 # ─────────────── 4. Kho: đọc, cache, và suy biến ───────────────
 INDEX_TOT = json.dumps({
