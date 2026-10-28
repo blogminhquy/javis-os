@@ -150,7 +150,10 @@ check("the bot form enhances #cbAgent and passes the full role",
   CHATBOTS.includes('JavisAgentPicker.enhance(box.querySelector("#cbAgent")') && CHATBOTS.includes("data-desc="));
 check("workflow steps enhance both agent selects",
   STUDIO.includes('enhance(row.querySelector(".st-agent")') && STUDIO.includes('enhance(row.querySelector(".st-verify-agent")'));
-const apCss = CSS.slice(CSS.indexOf(".ap-native"));
+// Only the picker's own rules (selectors with .ap-): slicing to the end of the file also measured every block
+// written after it, such as the GitHub picker (0.368.0), which follows its own type sizes.
+const apCss = (CSS.slice(CSS.indexOf(".ap-native")).match(/[^{}]*\{[^}]*\}/g) || [])
+  .filter((rule) => /\.ap-/.test(rule.split("{")[0])).join("\n");
 const sizes = (apCss.match(/font-size:\s*([\d.]+)px/g) || []).map((s) => parseFloat(s.replace(/[^\d.]/g, "")));
 check("every picker text is at least 16px", sizes.length > 0 && sizes.every((n) => n >= 16), sizes);
 check("phone layout is a bottom sheet with tall touch rows",

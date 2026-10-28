@@ -74,6 +74,19 @@ class FakeGitHub:
         self.pulls.setdefault(full_name, [])
         return bare
 
+    def add_branch(self, full_name, branch, filename="BRANCH.md", text="branch\n"):
+        """A second branch on GitHub, one commit ahead of the default branch."""
+        rep = self.repos[full_name]
+        work = Path(tempfile.mkdtemp(prefix="fake-branch-"))
+        git(["clone", "-q", rep["bare"], str(work)], self.root)
+        git(["config", "user.email", "other@test"], work)
+        git(["config", "user.name", "Other"], work)
+        git(["checkout", "-q", "-b", branch], work)
+        (work / filename).write_text(text, encoding="utf-8")
+        git(["add", "-A"], work)
+        git(["commit", "-q", "-m", f"on {branch}"], work)
+        git(["push", "-q", "origin", branch], work)
+
     def branch_sha(self, full_name, branch):
         r = git(["rev-parse", f"refs/heads/{branch}"], self.repos[full_name]["bare"], check=False)
         return r.stdout.strip() if r.returncode == 0 else ""
@@ -276,6 +289,10 @@ class FakeGitHub:
                         return self._send(200, {"total_count": len(runs), "check_runs": runs if int(q.get("page") or 1) == 1 else []})
                     st = fake.statuses.get(sha, [])
                     return self._send(200, {"state": "pending", "statuses": st})
+                if rest == "/branches" and method == "GET":
+                    refs = git(["for-each-ref", "--format=%(refname:short)", "refs/heads"], fake.repos[fn]["bare"]).stdout.split()
+                    page = int(q.get("page") or 1)
+                    return self._send(200, [{"name": b, "commit": {"sha": fake.branch_sha(fn, b)}} for b in refs] if page == 1 else [])
                 mb = re.match(r"^/branches/([^/]+)$", rest)
                 if mb and method == "GET":
                     sha = fake.branch_sha(fn, mb.group(1))

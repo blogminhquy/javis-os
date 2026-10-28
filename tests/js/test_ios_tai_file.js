@@ -69,7 +69,7 @@ check("không nhận cú bấm đã có người xử lý (ảnh -> lightbox)", 
 const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard/i18n/vi.json"), "utf8"));
 const en = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard/i18n/en.json"), "utf8"));
 check("câu báo lỗi có đủ hai thứ tiếng", !!vi["crender.ios_dl_fail"] && !!en["crender.ios_dl_fail"]);
-// 0.368.0 (chủ repo 28/10/2026: bấm Tải về trong khung xem ảnh trên iPhone chỉ mở một trang mới). Ảnh lưu vào máy qua
+// 0.369.0 (chủ repo 28/10/2026: bấm Tải về trong khung xem ảnh trên iPhone chỉ mở một trang mới). Ảnh lưu vào máy qua
 // bảng chia sẻ của iOS ("Lưu hình ảnh"); bảng đó phải mở ngay trong cú bấm, nên ảnh được tải sẵn khi hiện lên.
 const taiVe = src.slice(src.indexOf("function _lbTaiVe()"), src.indexOf("function _lbTaiVe()") + 900);
 check("iPhone: bấm Tải về mở bảng chia sẻ với ảnh đã tải sẵn (có nút Lưu hình ảnh)",

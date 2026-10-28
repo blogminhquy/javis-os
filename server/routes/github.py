@@ -4,6 +4,7 @@
     POST /github/connect                       token=...  or  use_backup=1 (reuse the brain-backup token after a check)
     POST /github/disconnect
     GET  /github/repos?q=&brain=               the account's repos, marking the ones this brain has cloned
+    GET  /github/branches?full_name=           a repo's branches, the default one first (the branch picker)
     GET  /github/local?brain=                  repos cloned in this brain
     POST /github/local/remove                  brain, full_name: delete the local clone (GitHub untouched)
     GET  /github/local/checks                  the repo's local check commands (saved, or suggested from its CI)
@@ -16,6 +17,7 @@
     GET  /github/session/{sid}?brain=          repos attached to a conversation, with its branch and worktree
     POST /github/session/{sid}/repos           brain, repos (comma separated full names): set the chat's repos
     POST /github/session/{sid}/detach          brain, full_name, force: remove one repo from this chat only
+    POST /github/session/{sid}/base            brain, full_name, branch: the base branch this chat works from
 
 Every handler runs its git and HTTP work in a worker thread: a clone can take minutes and must not block the loop.
 Errors from github_repos are already localized and safe to show (no token in them).
@@ -166,6 +168,14 @@ def _make_router() -> APIRouter:
     async def gh_session_repos(sid: str, brain: str = Form(""), repos: str = Form("")):
         names = [x.strip() for x in str(repos or "").split(",") if x.strip()]
         return await _call(github_repos.attach, sid, brain, _root(brain), names)
+
+    @r.get("/github/branches")
+    async def gh_branches(full_name: str = Query(...)):
+        return await _call(github_repos.branches, full_name)
+
+    @r.post("/github/session/{sid}/base")
+    async def gh_session_base(sid: str, brain: str = Form(""), full_name: str = Form(...), branch: str = Form(...)):
+        return await _call(github_repos.set_base, sid, brain, full_name, branch)
 
     @r.post("/github/session/{sid}/detach")
     async def gh_session_detach(sid: str, brain: str = Form(""), full_name: str = Form(...),

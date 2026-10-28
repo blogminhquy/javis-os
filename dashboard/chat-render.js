@@ -1137,7 +1137,7 @@
       y: Math.max(-maxY, Math.min(maxY, state.y)) };
   }
 
-  // iPhone (0.368.0, chủ repo 28/10/2026: "ấn nút tải về trên điện thoại thì nó đang mở 1 trang mới chứ không tải được
+  // iPhone (0.369.0, chủ repo 28/10/2026: "ấn nút tải về trên điện thoại thì nó đang mở 1 trang mới chứ không tải được
   // ảnh"). iOS không cho trang web tải ảnh thẳng vào máy; đường lưu ảnh của iOS là bảng chia sẻ, có nút "Lưu hình ảnh".
   // Bảng đó chỉ mở được NGAY trong cú bấm (đợi mạng xong mới gọi là iOS từ chối), nên ảnh đang xem được tải sẵn thành
   // File từ lúc hiện lên; bấm Tải về là mở bảng chia sẻ liền. Chưa tải xong hay máy không chia sẻ được thì như cũ: mở ảnh

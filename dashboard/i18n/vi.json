@@ -6068,5 +6068,18 @@
   "gh.back": "Quay lại",
   "msc.pages_n": "{n} Fanpage",
   "msc.view": "Xem chi tiết",
-  "msc.pages_head": "Fanpage đã kết nối ({n})"
+  "msc.pages_head": "Fanpage đã kết nối ({n})",
+  "gh.change_repo": "Đổi repo",
+  "gh.change_branch": "Đổi nhánh",
+  "gh.branch_default": "mặc định",
+  "gh.view_status": "Xem trạng thái",
+  "gh.connect_more": "Kết nối thêm",
+  "gh.sec_selected": "Đã chọn",
+  "gh.sec_repos": "Repo",
+  "gh.branch_which": "Chọn repo để đổi nhánh",
+  "gh.branch_of": "Nhánh của {name}",
+  "gh.branch_search_ph": "Tìm nhánh...",
+  "gh.branch_none": "Không thấy nhánh nào.",
+  "gh.branch_switching": "Đang đổi nhánh...",
+  "gh.branch_how": "Cuộc trò chuyện làm việc trên nhánh riêng tách từ nhánh này, PR mở vào nhánh này. Chỉ đổi được khi cuộc này chưa có việc dở."
 }

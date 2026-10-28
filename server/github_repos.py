@@ -243,7 +243,7 @@ def unpushed_count(path: str) -> int:
 # Registry
 # ============================================================
 def _empty() -> dict:
-    return {"version": 1, "repos": []}
+    return {"version": 1, "repos": [], "bases": {}}
 
 
 def _load() -> dict:
@@ -316,6 +316,60 @@ def _drop(rid: str) -> None:
         d = _load()
         d["repos"] = [r for r in d["repos"] if r.get("id") != rid]
         _save(d)
+
+
+# ---- base branch per conversation (0.368.0) ----
+# A chat works on its own branch cut from a base: the repo's default branch unless the person picked another one
+# ("Change branch" on the repo chip). The pick lives here, keyed by chat and repo, and the PR targets it.
+def session_base(sid: str, full_name: str) -> str:
+    bases = (_load().get("bases") or {}).get(str(sid or ""), {}) or {}
+    return str(bases.get(str(full_name or "").lower()) or "")
+
+
+def _set_session_base(sid: str, full_name: str, base: str) -> None:
+    with _lock:
+        d = _load()
+        bases = d.setdefault("bases", {})
+        per = bases.setdefault(str(sid), {})
+        if base:
+            per[str(full_name).lower()] = base
+        else:
+            per.pop(str(full_name).lower(), None)
+        if not per:
+            bases.pop(str(sid), None)
+        _save(d)
+
+
+def _forget_bases(sid: str) -> None:
+    with _lock:
+        d = _load()
+        if (d.get("bases") or {}).pop(str(sid), None) is not None:
+            _save(d)
+
+
+def norm_branch(name: str) -> str:
+    """A branch name safe to hand to git: no leading dash, no `..`, no `.lock`, nothing outside [A-Za-z0-9._/-]."""
+    s = str(name or "").strip()
+    if (not s or len(s) > 200 or s.startswith(("-", "/")) or s.endswith(("/", ".", ".lock")) or ".." in s
+            or "//" in s or not re.match(r"^[A-Za-z0-9._/-]+$", s)):
+        raise RepoError(_c(f"Tên nhánh không hợp lệ: {name}", f"Invalid branch name: {name}"))
+    return s
+
+
+def branches(full_name: str) -> Dict[str, Any]:
+    """Branches of a repo for the branch picker: the default branch first, then the rest by name."""
+    fn = norm_full_name(full_name)
+    tok = token()
+    if not tok:
+        raise RepoError(_c("Chưa kết nối GitHub.", "GitHub is not connected."))
+    gh = GitHub(tok)
+    try:
+        default = str((gh.repo(fn) or {}).get("default_branch") or "main")
+        # Javis's own working branches (javis/...) are where chats push, never a base to start from.
+        names = sorted({b for b in gh.branches(fn) if not b.startswith("javis/")} - {default}, key=str.lower)
+    except GitHubError as e:
+        raise RepoError(_c(f"Không lấy được danh sách nhánh: {e}", f"Could not list branches: {e}"))
+    return {"default": default, "items": [default] + names}
 
 
 def _repo_lock(path: str) -> threading.Lock:
@@ -428,11 +482,15 @@ def ensure_worktree(sid: str, rec: Dict[str, Any]) -> Dict[str, str]:
         if dest.exists() and not (dest / ".git").exists():
             shutil.rmtree(dest, ignore_errors=True)
         if not dest.exists():
-            base = f"origin/{rec.get('default_branch') or 'main'}"
+            base_name = session_base(sid, rec.get("full_name") or "") or rec.get("default_branch") or "main"
+            if not have and base_name != (rec.get("default_branch") or "main"):
+                git(["fetch", "origin", f"+refs/heads/{base_name}:refs/remotes/origin/{base_name}"], clone, auth=True,
+                    timeout=300)
+            base = f"origin/{base_name}"
             args = ["worktree", "add", str(dest), branch] if have else ["worktree", "add", "-b", branch, str(dest), base]
             git(args, clone)
             # The branch tracks nothing yet; the first push sets its upstream.
-            git(["config", f"branch.{branch}.javisBase", rec.get("default_branch") or "main"], clone, check=False)
+            git(["config", f"branch.{branch}.javisBase", base_name], clone, check=False)
     coding_store.dat_worktree_thu_muc(sid, rec["folder_id"], str(dest))
     return {"worktree": str(dest), "branch": branch}
 
@@ -581,8 +639,47 @@ def session_repos(sid: str, brain: str = "") -> List[Dict[str, Any]]:
                     "clone": folder["duong_dan"], "worktree": wt,
                     "branch": coding_store.nhanh_hien_tai(wt) if wt and Path(wt).is_dir() else "",
                     "default_branch": rec.get("default_branch") or "", "repo_id": rec.get("id") or "",
+                    "base_branch": session_base(sid, folder.get("repo") or rec.get("full_name") or "")
+                    or rec.get("default_branch") or "main",
                     "can_push": rec.get("can_push", True)})
     return out
+
+
+def set_base(sid: str, brain: str, full_name: str, base: str) -> Dict[str, Any]:
+    """Move this chat's work in one repo onto another base branch (spec 6, "Change branch" on the repo chip).
+
+    Only while the chat has nothing on its branch yet: no unsaved edit and no commit the current base lacks (an open
+    PR always has one). Then the chat's branch restarts from the new base and the next PR targets it.
+    """
+    fn = norm_full_name(full_name)
+    base = norm_branch(base)
+    repo = next((r for r in session_repos(sid, brain) if r["full_name"].lower() == fn.lower()), None)
+    if not repo:
+        raise RepoError(_c(f"{fn} chưa gắn vào cuộc trò chuyện này.", f"{fn} is not attached to this chat."))
+    if base == repo["base_branch"]:
+        return session_view(sid, brain)
+    if base not in branches(fn)["items"]:
+        raise RepoError(_c(f"Không thấy nhánh {base} trên GitHub.", f"Branch {base} does not exist on GitHub."))
+    wt = repo.get("worktree") or ""
+    if wt and Path(wt).is_dir():
+        if is_dirty(wt):
+            raise RepoError(_c(f"{fn}: còn sửa đổi chưa lưu trong cuộc này, xong việc đó rồi đổi nhánh.",
+                               f"{fn}: this chat still has unsaved edits; finish that work before changing branch."))
+        try:
+            ahead = int(git_out(["rev-list", "--count", f"origin/{repo['base_branch']}..HEAD"], wt) or 0)
+        except (RepoError, ValueError):
+            ahead = 1
+        if ahead:
+            raise RepoError(_c(f"{fn}: nhánh của cuộc này đang có việc chưa merge vào {repo['base_branch']}. "
+                               "Xong việc đó (hoặc mở cuộc trò chuyện mới) rồi đổi nhánh.",
+                               f"{fn}: this chat's branch has work not merged into {repo['base_branch']} yet. Finish it "
+                               "(or start a new chat) before changing branch."))
+        git(["fetch", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}"], wt, auth=True, timeout=300)
+        cur = coding_store.nhanh_hien_tai(wt) or session_branch(sid)
+        git(["checkout", "-q", "-B", cur, f"origin/{base}"], wt)
+        git(["config", f"branch.{cur}.javisBase", base], wt, check=False)
+    _set_session_base(sid, fn, "" if base == (repo.get("default_branch") or "main") else base)
+    return session_view(sid, brain)
 
 
 def session_view(sid: str, brain: str = "") -> Dict[str, Any]:
@@ -613,7 +710,7 @@ def prompt_block(sid: str, brain: str = "") -> str:
     lines = ["", "# === REPO GITHUB CỦA CUỘC TRÒ CHUYỆN NÀY ==="]
     for r in repos:
         lines.append(f"- {r['full_name']}: sửa trong {r['worktree']} (nhánh {r['branch'] or session_branch(sid)}, "
-                     f"tách từ {r['default_branch'] or 'main'})")
+                     f"tách từ {r.get('base_branch') or r['default_branch'] or 'main'})")
     lines.append("Chỉ sửa trong các thư mục trên, KHÔNG sửa bản clone gốc. KHÔNG tự `git push`, không tự merge, "
                  "không đổi remote: việc đẩy lên GitHub do Javis làm.")
     lines.append("Trước khi kết thúc lượt có sửa code: tự chạy test và lint của repo. Sửa lỗi thì viết hoặc chạy một "
@@ -660,6 +757,7 @@ def forget_session(sid: str) -> Dict[str, Any]:
         coding_store.dat_worktree_thu_muc(sid, folder["id"], "")
     if not kept:
         coding_store.xoa_rang_buoc(sid)
+        _forget_bases(sid)
     return {"kept": kept}
 
 

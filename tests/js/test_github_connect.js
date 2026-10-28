@@ -56,6 +56,22 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
     /JavisConnModal/.test(pop) && pop.includes("reposHtml(local)") && pop.includes('openChecks(b.getAttribute("data-gh-checks"), back)') && pop.includes('openMetrics(b.getAttribute("data-gh-metrics"), back)'));
 }
 
+// 0.368.0 (owner, 28/10/2026, after Claude Code's picker): the chip and + menu open "Change repo / Change branch";
+// the repo list has "Selected" and "Repos" sections; a branch list per repo.
+{
+  const pan = js.slice(js.indexOf("function panel(box, menuApi)"), js.indexOf("// 4. Status icons"));
+  check("the GitHub panel opens on the short menu once repos are attached, else on the repo list",
+    /\(held \|\| names\(\)\.length\) \? homeView\(box, menuApi\) : reposView\(box, menuApi, false\)/.test(pan));
+  check("the menu offers Change repo and Change branch", pan.includes('data-gh-go="repos"') && pan.includes('data-gh-go="branch"'));
+  check("the repo list splits Selected from the rest", pan.includes("gh.sec_selected") && pan.includes("gh.sec_repos"));
+  check("several repos: pick the repo, then its branch", pan.includes("branchReposView") && pan.includes("branchView(box, menuApi, repos["));
+  check("the branch pick goes to the server for a live chat, and waits with the held repos on an empty one",
+    pan.includes('"/base"') && /heldBase\[fullName\] = heldValue/.test(pan));
+  check("the held branch is applied right after the held repos, before the first turn",
+    /claimPending[\s\S]*"\/base"/.test(js.slice(js.indexOf("function claimPending"), js.indexOf("function panel("))));
+  check("a non-default base rides on the chip", js.includes("gh-chip-br") && js.includes("function chipBase()"));
+}
+
 // The "Connected" heading (0.367.0): MCP accounts plus GitHub plus Facebook Pages, whichever card loads last.
 {
   const attrs = [{ name: "id", value: "connCount" }, { name: "style", value: "opacity:.5" }, { name: "data-n", value: "2" }];

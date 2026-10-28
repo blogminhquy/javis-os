@@ -189,6 +189,18 @@ class GitHub:
                 ctx.append(c["context"])
         return ctx
 
+    def branches(self, full_name: str) -> List[str]:
+        """Branch names of a repo, as GitHub lists them (paged, at most 1000)."""
+        out: List[str] = []
+        for page in range(1, 11):
+            batch = self.get(f"/repos/{full_name}/branches", params={"per_page": 100, "page": page})
+            if not isinstance(batch, list):
+                break
+            out.extend(str(b.get("name")) for b in batch if isinstance(b, dict) and b.get("name"))
+            if len(batch) < 100:
+                break
+        return out
+
     def branch_sha(self, full_name: str, branch: str) -> str:
         """Head commit of a branch, "" when it does not exist."""
         try:
