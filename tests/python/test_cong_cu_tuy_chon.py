@@ -121,17 +121,91 @@ check("chỉ hỏi lại tiến độ khi ĐANG tải, không quay vòng vô íc
 
 ap = open(os.path.join(ROOT, "dashboard", "app.js"), encoding="utf-8").read()
 ix = open(os.path.join(ROOT, "dashboard", "index.html"), encoding="utf-8").read()
-check("trình hướng dẫn có ô chọn cài trình duyệt", 'id="wzCtBrowser"' in ix and 'id="wzCongCu"' in ix)
-check("khối đó MẶC ĐỊNH ẨN, chỉ hiện khi máy thật sự thiếu",
-      'id="wzCongCu" style="display:none' in ix and 'ct.trang_thai === "chua_cai"' in ap)
-check("tick rồi thì gọi cài ở nền, không chặn đường vào app",
-      re.search(r'_ctB && _ctB\.checked[\s\S]{0,300}/tools/optional/install', ap) is not None)
+# 0.375.0: the server downloads on first start, so the wizard no longer asks (fewer settings).
+check("setup wizard no longer asks about the browser",
+      "wzCtBrowser" not in ix and "wzCongCu" not in ix and "wzCtBrowser" not in ap)
+
+# ---- 9b. First-start download (0.375.0) ----
+import asyncio  # noqa: E402
+
+_orig = (ct.duong_dan_chrome, ct.shutil.which, ct._chay_tai)
+os.environ.pop("JAVIS_SKIP_BROWSER", None)
+os.environ.pop("JAVIS_BROWSER_DEPS", None)
+ct.REMOVED_MARKER.unlink(missing_ok=True)
+ct.duong_dan_chrome = lambda: ""
+ct.shutil.which = lambda name: "/usr/bin/npx" if name == "npx" else None
+check("bare machine with npx: download runs", ct.auto_install_skip_reason() == "")
+
+ct.duong_dan_chrome = lambda: "/opt/google/chrome/chrome"
+check("system Chrome present: no download", "already present" in ct.auto_install_skip_reason())
+ct.duong_dan_chrome = lambda: ""
+
+os.environ["JAVIS_SKIP_BROWSER"] = "1"
+check("JAVIS_SKIP_BROWSER turns it off", "JAVIS_SKIP_BROWSER" in ct.auto_install_skip_reason())
+os.environ.pop("JAVIS_SKIP_BROWSER")
+
+os.environ["JAVIS_BROWSER_DEPS"] = "0"
+check("image without the system libraries: no download", "libraries" in ct.auto_install_skip_reason())
+os.environ.pop("JAVIS_BROWSER_DEPS")
+
+ct.shutil.which = lambda name: None
+check("no npx: skipped quietly, the button explains", "npx" in ct.auto_install_skip_reason())
+ct.shutil.which = lambda name: "/usr/bin/npx" if name == "npx" else None
+
+# Remove leaves a marker so the next start does not download again; a manual install clears it.
+ct.BROWSERS_DIR.mkdir(parents=True, exist_ok=True)
+(ct.BROWSERS_DIR / "chromium_headless_shell-1248").mkdir(exist_ok=True)
+check("remove succeeds", ct.go("browser").get("ok") is True)
+check("remove writes the opt-out marker", ct.REMOVED_MARKER.exists())
+check("after remove: no automatic download", "removed" in ct.auto_install_skip_reason())
+
+ran, refreshed = [], []
+
+
+async def _fake_run(tool):
+    ran.append(tool)
+    ct._viec[tool] = {"dang_chay": False, "loi": ""}
+
+ct._chay_tai = _fake_run
+check("skipped download does not run the installer",
+      asyncio.run(ct.auto_install_browser(lambda: refreshed.append(1))).startswith("skipped") and not ran)
+
+
+async def _manual_then_auto():
+    ct.bat_dau_cai("browser")       # manual install clears the marker
+    await asyncio.sleep(0)
+    return await ct.auto_install_browser(lambda: refreshed.append(1))
+
+ran.clear()
+out = asyncio.run(_manual_then_auto())
+check("manual install clears the marker", not ct.REMOVED_MARKER.exists())
+check("successful download refreshes the hub", out == "installed" and refreshed == [1], out)
+
+
+async def _fail(tool):
+    ct._viec[tool] = {"dang_chay": False, "loi": "network down"}
+
+ct._chay_tai = _fail
+refreshed.clear()
+out = asyncio.run(ct.auto_install_browser(lambda: refreshed.append(1)))
+check("failed download is reported, hub untouched", out.startswith("failed") and not refreshed, out)
+
+ct.duong_dan_chrome, ct.shutil.which, ct._chay_tai = _orig
+ct._viec.clear()
+
+tr = open(os.path.join(ROOT, "server", "routes", "tools.py"), encoding="utf-8").read()
+check("download starts from a startup hook, never at import (tests import main.py)",
+      '@app.on_event("startup")' in tr and "auto_install_browser(on_ready=_DEPS.lam_moi_hub)" in tr)
+check("Dockerfile tells the server when the image lacks the libraries",
+      "ENV JAVIS_BROWSER_DEPS=${WITH_BROWSER_DEPS}" in df)
+pp = open(os.path.join(ROOT, "tests", "python", "_paths.py"), encoding="utf-8").read()
+check("tests never download a real browser", '_os.environ["JAVIS_SKIP_BROWSER"] = "1"' in pp)
 
 # ---- 10. Chữ hiện cho người dùng phải có dấu, và không có em dash ----
 import json  # noqa: E402
 vi = json.load(open(os.path.join(ROOT, "dashboard", "i18n", "vi.json"), encoding="utf-8"))
 en = json.load(open(os.path.join(ROOT, "dashboard", "i18n", "en.json"), encoding="utf-8"))
-khoa = [k for k in vi if k.startswith(("cs.ct_", "wz.ct_"))]
+khoa = [k for k in vi if k.startswith("cs.ct_")]
 check("có đủ chuỗi cho cả hai ngôn ngữ", len(khoa) >= 10 and all(k in en for k in khoa), len(khoa))
 check("chuỗi tiếng Việt CÓ DẤU", any(re.search(r"[ạảãáàâăêôơưđ]", vi[k], re.I) for k in khoa))
 check("không có em dash trong chuỗi mới",
