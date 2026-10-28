@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.371.0] - 2026-10-28
+### Thêm mới
+- Đang làm: nền cho trang Chatbot mới (đặt chỗ số phiên bản).
+
 ## [0.370.0] - 2026-10-28
 ### Thêm mới
 - **Repo khuyên dùng trong Javis Store.** Tab mới đứng đầu Store, gồm các bộ skill chép nguyên văn từ repo GitHub của chính tác giả, không dịch, không sửa. Mỗi thẻ có link về repo gốc và ngày lấy bản mới nhất. Kho so lại với repo gốc mỗi ngày: tác giả sửa skill là gói lên bản mới, Javis báo trong chuông, bạn bấm Cập nhật. Skill bạn đã tự sửa thì giữ nguyên.
