@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.386.0] - 2026-10-28
 ### Cải thiện
-- **Javis Store trên điện thoại:** chọn loại bằng ô thả xuống (đang viết).
+- **Javis Store trên điện thoại:** sáu nút tab loại đổi thành ô thả xuống, đặt cạnh ô chọn nhóm trên cùng một hàng đứng yên khi cuộn. Mỗi lựa chọn ghi sẵn số mục và số bản mới, chữ to dễ bấm hơn. Máy tính giữ nguyên tab như cũ.
 
 ## [0.385.0] - 2026-10-28
 ### Sửa lỗi

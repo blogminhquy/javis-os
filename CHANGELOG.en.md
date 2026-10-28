@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.386.0] - 2026-10-28
 ### Improved
-- **Javis Store on phones:** pick the kind from a dropdown (in progress).
+- **Javis Store on phones:** the six kind tabs become a dropdown, next to the group dropdown in one row that stays put while you scroll. Each choice shows its item count and new versions, in larger, easier to tap text. Computers keep the tabs.
 
 ## [0.385.0] - 2026-10-28
 ### Fixed

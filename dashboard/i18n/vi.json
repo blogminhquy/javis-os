@@ -3316,6 +3316,7 @@
   "store.count_items.one": "{count} mục",
   "store.count_items.other": "{count} mục",
   "store.refresh": "Làm mới",
+  "store.kind_label": "Loại",
   "store.from_zip": "Cài từ tệp .zip",
   "store.empty_installed": "Chưa cài mục nào trong {loai}.",
   "store.empty_updates": "Mọi gói đã cài trong {loai} đều đang ở bản mới nhất.",
