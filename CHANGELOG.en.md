@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.384.0] - 2026-10-28
 ### Improved
-- **A tidier Javis Store** (in progress).
+- **A tidier Javis Store:** the repeated heading and intro lines are gone, and the tabs plus the Refresh and Install from .zip buttons share one row that **stays put while you scroll**. The group list moved to the right and stays put too.
+- **18 items per page**, with previous and next buttons. Moving to a page takes you to its first card.
+- **No more broken layout on phones:** the six tabs fit one row, groups are picked from a dropdown beside the search box, and Refresh and Install from .zip shrink to icons.
 
 ## [0.382.0] - 2026-10-28
 ### Improved

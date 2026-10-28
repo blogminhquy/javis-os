@@ -1323,8 +1323,38 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    ============================================================ */
 /* Hàng tab LOẠI: gạch chân, không phải viên thuốc. Đây là trục chính của kho (đang xem trợ lý
    hay kỹ năng), còn cột nhóm bên trái là trục phụ - hai kiểu khác nhau để mắt không lẫn. */
-.kho-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border);
-  margin-bottom: 18px; overflow-x: auto; }
+/* The Store navbar (0.384.0): kind tabs plus Refresh / Install from .zip in one row, pinned to the
+   top of the page scroller while the cards scroll. Bleeds over the side padding so the cards
+   never show through at its edges. `top` cancels the scroller's 24px top padding (sticky stops
+   inside it, which left a strip of cards showing above the bar). No negative top margin: the
+   back button, the updates banner or the disabled notice may sit above it. */
+.kho-thanh { position: sticky; top: -24px; z-index: 6; display: flex; align-items: flex-end;
+  gap: 14px; margin: 0 -26px 18px; padding: 4px 26px 0;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border); }
+.kho-tabs { position: relative; display: flex; gap: 2px; flex: 1 1 auto; min-width: 0; overflow-x: auto;
+  scrollbar-width: none; }
+.kho-tabs::-webkit-scrollbar { display: none; }
+.kho-hd { display: flex; align-items: center; gap: 8px; flex: none; padding-bottom: 6px; }
+.kho-hd-btn { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  padding: 8px 13px; font-size: 14px; }
+.kho-hd-btn svg { width: 16px; height: 16px; flex: none; }
+/* The catalog time shows only where the row has room; it is also the Refresh tooltip. */
+.kho-luc { white-space: nowrap; display: none; }
+@media (min-width: 1600px) { .kho-luc { display: inline; } }
+/* Medium screens: the two buttons drop their labels so the six tabs keep theirs. */
+@media (max-width: 1360px) {
+  .kho-thanh > .kho-hd .kho-hd-btn { width: 40px; height: 40px; padding: 0; justify-content: center; }
+  .kho-thanh > .kho-hd .kho-hd-btn span { display: none; }
+}
+@media (min-width: 861px) and (max-width: 1100px) {
+  .kho-than { gap: 18px; }
+  .kho-cot { width: 170px; }
+  .kho-thanh .kho-tab { padding: 11px 10px; font-size: 14px; }
+}
+/* The copy beside the search box is the phone's; the navbar keeps the computer's. */
+.kho-hd-dt { display: none; }
 /* `font: inherit` là BẮT BUỘC trên mọi <button>: phần tử form không thừa kế phông của trang,
    trình duyệt áp phông hệ thống riêng. Thiếu nó thì giữa một trang Be Vietnam Pro có vài nút hiện
    bằng phông mặc định của máy - trông như trang bị lỗi tải phông. */
@@ -1339,7 +1369,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   color: var(--accent); }
 
 .kho-than { display: flex; gap: 26px; align-items: flex-start; }
-.kho-cot { width: 190px; flex: none; display: flex; flex-direction: column; gap: 2px; }
+/* Group column on the right, pinned under the navbar so the filter stays in reach while scrolling. */
+.kho-cot { width: 200px; flex: none; display: flex; flex-direction: column; gap: 2px;
+  position: sticky; top: 46px; max-height: calc(100vh - 220px); overflow-y: auto; }
+.kho-chon-nhom { display: none; }
 .kho-cot-tieu { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--text3);
   padding: 4px 10px 8px; text-transform: uppercase; }
 .kho-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -1352,6 +1385,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .kho-nav.ngan { margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
 .kho-navdem { font-size: 12px; color: var(--text3); }
 .kho-chinh { flex: 1; min-width: 0; }
+/* The grid fills the column and lines up with the search row and the pager: the shared 980px
+   cap of .cat-grid left the toolbar running past the last card. */
+.kho-chinh .cat-grid { max-width: none; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.kho-loc { margin-top: 0; }
+.kho-so-muc { margin-left: auto; white-space: nowrap; }
 
 .kho-the { gap: 10px; }
 .kho-dau { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
@@ -1406,9 +1444,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 .kho-trang { display: flex; align-items: center; gap: 6px; margin-top: 22px; padding-top: 16px;
   border-top: 1px solid var(--border); flex-wrap: wrap; }
+.kho-trang-so { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 .kho-so { min-width: 36px; height: 36px; padding: 0 11px; border-radius: 8px;
   border: 1px solid var(--border); background: var(--surface-1); color: inherit;
-  font: inherit; font-size: 14px; cursor: pointer; }
+  font: inherit; font-size: 14px; cursor: pointer; display: inline-grid; place-items: center; }
+.kho-so svg { width: 16px; height: 16px; }
+.kho-so:disabled { opacity: .4; cursor: default; }
 
 /* Chữ trong thẻ của kho to hơn thẻ danh mục thường: đây là chỗ người ta ĐỌC để quyết định có
    cài hay không, không phải một dòng nhãn liếc qua. */
@@ -1423,65 +1464,68 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .kho-quaylai:hover { border-color: var(--accent); }
 .kho-so.on { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 
-.kho-tim { width: 100%; max-width: 320px; }
+.kho-tim { flex: 1 1 260px; width: auto; max-width: 380px; min-width: 0; }
 
-/* ---------- Điện thoại và máy tính bảng ----------
-   Breakpoint 860px trùng với breakpoint chính của app, nên kho đổi bố cục CÙNG LÚC với thanh
-   bên và khung chat - không có khoảng nào mà nửa trang ở chế độ này, nửa kia ở chế độ khác.
+/* ---------- Phones and tablets ----------
+   860px is the app's main breakpoint, so the Store switches layout together with the sidebar and
+   the chat frame.
 
-   Ba thứ đổi hình, và mỗi thứ đều vì một lý do cụ thể chứ không phải cho gọn:
+   KIND TABS become a segmented strip with the count UNDER the label: six items fit a phone row
+   that way, beside each other they get cut.
 
-   TAB LOẠI thành một dải phân đoạn, số đếm xuống DƯỚI nhãn. Trên màn hẹp, để số nằm cạnh chữ
-   thì năm mục không đủ chỗ và chữ bị cắt; xếp dọc thì mỗi mục chỉ cần rộng bằng chữ dài nhất.
+   GROUPS become a <select> next to the search box (0.384.0). The old wrapped pills (no sideways
+   strip, since phone users do not swipe a row of buttons and miss the groups at its end) showed
+   them all but pushed the first card most of a screen down; the select shows them all in one row.
 
-   CỘT NHÓM thành các viên thuốc XUỐNG DÒNG, không phải dải cuộn ngang. Dải cuộn giấu mất
-   nhóm ở cuối, mà người dùng điện thoại thường không nghĩ tới việc vuốt ngang một hàng nút -
-   họ chỉ thấy có bốn nhóm trong khi thật ra có mười.
-
-   Ô TÌM chiếm trọn hàng, hai nút phụ xuống hàng dưới. */
+   Refresh and Install from .zip leave the pinned navbar for two icon buttons beside the search. */
 @media (max-width: 860px) {
-  .kho-than { flex-direction: column; gap: 16px; }
+  .kho-than { flex-direction: column; gap: 14px; }
+  /* Navbar on a phone: only the six tabs, edge to edge, still pinned. */
+  .kho-thanh { top: -16px; margin: 0 -14px 14px; padding: 6px 14px; border-bottom: 0;
+    box-shadow: 0 1px 0 var(--border); }
+  .kho-thanh > .kho-hd { display: none; }
 
-  .kho-tabs { border-bottom: 0; background: var(--surface-2); border-radius: 14px;
-    padding: 4px; gap: 2px; overflow-x: auto; }
-  /* `flex: 1 1 0` chứ không phải grid 5 cột: số loại nằm ở JS, và một ngày nó thêm loại thứ
-     sáu thì bố cục tự chia lại thay vì vỡ. */
-  .kho-tab { flex: 1 1 0; min-width: 62px; flex-direction: column; gap: 3px;
-    padding: 9px 4px; border-bottom: 0; margin-bottom: 0; border-radius: 11px;
+  .kho-tabs { background: var(--surface-2); border-radius: 14px; padding: 4px; gap: 2px; }
+  /* `1 0 auto`: tabs share the row when it is wide enough and scroll sideways (the active one
+     kept in view by packs.js) when a long label in some language does not fit. */
+  .kho-tab { flex: 1 0 auto; flex-direction: column; gap: 3px;
+    padding: 8px 6px; border-bottom: 0; margin-bottom: 0; border-radius: 11px;
     font-size: 12.5px; justify-content: center; text-align: center; }
   .kho-tab.on { background: var(--surface-1); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
   .kho-dem { font-size: 11.5px; padding: 0 7px; }
 
-  .kho-cot { width: 100%; flex-direction: row; flex-wrap: wrap; overflow: visible; gap: 8px; }
-  .kho-cot-tieu { display: none; }
-  /* Cao 40px là ngưỡng bấm được bằng ngón tay mà không cần ngắm. */
-  .kho-nav { flex: 0 0 auto; white-space: nowrap; border: 1px solid var(--border);
-    border-radius: 999px; padding: 9px 14px; gap: 7px; }
-  .kho-nav.on { border-color: var(--accent); }
-  /* Vạch ngăn trên chỉ có nghĩa khi các mục xếp DỌC. Xuống dòng ngang rồi thì nó thành một
-     nét lạ giữa hàng, nên trả về viền viên thuốc bình thường. */
-  .kho-nav.ngan { margin-top: 0; padding-top: 9px; border-top: 1px solid var(--border); }
+  /* Groups: the select beside the search box replaces the column. */
+  .kho-cot { display: none; }
+  .kho-loc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0; }
+  .kho-loc > .kho-tim { order: 1; }
+  .kho-loc > .kho-hd-dt { order: 2; }
+  .kho-loc > .kho-chon-nhom { order: 3; }
+  .kho-loc > .kho-so-muc { order: 4; }
+  .kho-tim { max-width: none; width: 100%; font-size: 16px; }
+  .kho-hd-dt { display: flex; padding: 0; gap: 6px; }
+  .kho-hd-dt .kho-hd-btn { width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .kho-hd-dt .kho-hd-btn span { display: none; }
+  .kho-hd-dt .kho-hd-btn svg { width: 18px; height: 18px; }
+  .kho-chon-nhom { display: block; width: 100%; min-width: 0; font-size: 16px; }
+  .kho-so-muc { margin: 0; align-self: center; }
 
-  .kho-tim { max-width: none; flex: 1 1 100%; }
-
-  /* Giấu tiêu đề khối: nó lặp gần nguyên văn tiêu đề trang ngay phía trên. Trên máy tính thì
-     vô hại, còn trên điện thoại nó đẩy hàng tab xuống gần một phần tư màn hình - đúng thứ
-     người ta cần thấy đầu tiên. Câu mô tả bên dưới thì GIỮ, vì nó nói một điều khác: bấm Cài
-     là mở ra cho xem trước rồi mới hỏi. */
-  .kho-khoi > h3 { display: none; }
   .kho-the { gap: 12px; }
   .kho-nut { flex-wrap: wrap; }
   .kho-btn { min-height: 44px; }
+  .kho-trang { justify-content: center; }
+  .kho-trang > .prov-meta { flex: 1 1 100%; text-align: center; }
+  .kho-trang-so { margin: 0 auto; justify-content: center; }
   .kho-so { min-width: 40px; height: 40px; }
   .kho-quaylai { min-height: 40px; }
 }
 
-/* Màn thật hẹp: lưới một cột, chữ trong tab co lại một nấc để năm mục vẫn vừa một hàng. */
+/* Very narrow screens: one column of cards, tab labels one size smaller. */
 @media (max-width: 480px) {
   .cat-grid { grid-template-columns: 1fr; }
-  .kho-tab { font-size: 11.5px; min-width: 56px; padding: 8px 2px; }
+  .kho-chinh .cat-grid { grid-template-columns: 1fr; }
+  .kho-tab { font-size: 11.5px; padding: 8px 3px; }
+  .kho-tabs { gap: 0; padding: 3px; }
   .kho-dem { font-size: 11px; padding: 0 6px; }
-  .kho-nav { padding: 9px 12px; font-size: 13.5px; }
 }
 
 /* Hàng tab dẫn sang Kho cài đặt, đặt trên đầu năm trang năng lực.
@@ -4134,4 +4178,3 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .kho-goc svg { width: 14px; height: 14px; flex: none; }
 .kho-goc a { color: var(--accent); text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }
 .kho-goc a:hover { text-decoration: underline; }
-.kho-goc-gt { margin: 10px 0 4px; }

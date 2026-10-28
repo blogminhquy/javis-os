@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.384.0] - 2026-10-28
 ### Cải thiện
-- **Javis Store gọn lại** (đang viết).
+- **Javis Store gọn lại:** bỏ tiêu đề và các dòng giới thiệu lặp lại, thanh tab cùng hai nút Làm mới, Cài từ tệp .zip gộp thành một hàng **đứng yên khi cuộn**. Cột nhóm chuyển sang bên phải và cũng đứng yên.
+- **Phân trang 18 mục một trang**, có nút trang trước, trang sau. Sang trang mới là về ngay thẻ đầu tiên.
+- **Trên điện thoại hết vỡ khung:** sáu tab vừa một hàng, nhóm chọn bằng một ô thả xuống cạnh ô tìm, hai nút Làm mới và Cài từ tệp thu thành biểu tượng.
 
 ## [0.382.0] - 2026-10-28
 ### Cải thiện

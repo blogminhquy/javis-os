@@ -220,7 +220,7 @@ const NGOAI_LE_DU_LIEU = {
   "app.js": { tran: 12, vi_sao: "khối ngữ cảnh gửi cho AI (file đính kèm, FILE ĐANG MỞ) và tiền tố để bóc chúng khỏi bong bóng" },
   "chat-slash.js": { tran: 5, vi_sao: "lời dặn dùng skill gửi cho AI, và gập dấu tên skill" },
   "console.js": { tran: 11, vi_sao: "từ khoá xếp loại nhật ký thay đổi, đơn vị thời gian người dùng gõ, tên danh mục làm khoá lọc, gập dấu" },
-  "packs.js": { tran: 12, vi_sao: "tên nhóm của kho gói là khoá lọc data-kho-nhom, nhãn hiện ra đã dịch qua tw()" },
+  "packs.js": { tran: 11, vi_sao: "tên nhóm của kho gói là khoá lọc data-kho-nhom, nhãn hiện ra đã dịch qua tw()" },
   "ui-context.js": { tran: 4, vi_sao: "khối [NGỮ CẢNH GIAO DIỆN: ...] gửi cho AI, server đọc đúng các nhãn này" },
   "voice-adaptive-ui.js": { tran: 1, vi_sao: "regex bóc lời gọi \"javis ơi\" người dùng nói" },
   "voice-attention.js": { tran: 1, vi_sao: "regex bắt lời gọi tên Javis nghe nhầm khi nói tiếng Việt" },
