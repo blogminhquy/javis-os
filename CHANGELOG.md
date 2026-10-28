@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.387.0] - 2026-10-29
+### Sửa lỗi
+- **Claude Code và Codex giờ thật sự được giữ sẵn giữa các tin nhắn.** Ở 0.382.0, Javis tưởng cấu hình đổi sau mỗi tin (vì Claude Code và Codex tự ghi lại file đăng nhập) nên lần nào cũng mở lại từ đầu. Đo lại trên dashboard: tin nhắn tiếp theo hiện chữ sau khoảng 2 giây, thay vì 8 tới 14 giây.
+- **Gõ là mở sẵn, giờ chạy thật** với cả Claude Code và Codex, và nhớ được cuộc chat đã nghỉ tới 12 tiếng (trước là 1 tiếng). Đăng nhập hay đăng xuất thì Javis tự mở lại bằng tài khoản mới.
+
 ## [0.386.0] - 2026-10-28
 ### Cải thiện
 - **Javis Store trên điện thoại:** sáu nút tab loại đổi thành ô thả xuống, đặt cạnh ô chọn nhóm trên cùng một hàng đứng yên khi cuộn. Mỗi lựa chọn ghi sẵn số mục và số bản mới, chữ to dễ bấm hơn. Máy tính giữ nguyên tab như cũ.

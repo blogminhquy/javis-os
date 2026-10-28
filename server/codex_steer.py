@@ -358,6 +358,18 @@ def _stat(p) -> str:
         return "-"
 
 
+def _codex_account(home: str) -> str:
+    """Who Codex is signed in as, without the file's stat: Javis rewrites auth.json on every turn when it holds the
+    ChatGPT tokens (openai_oauth.write_codex_auth stamps last_refresh), and a refreshed token is the same account."""
+    try:
+        with open(os.path.join(home, "auth.json"), encoding="utf-8") as f:
+            data = json.load(f) or {}
+        tokens = data.get("tokens") or {}
+        return str(tokens.get("account_id") or ("api-key" if data.get("OPENAI_API_KEY") else ""))
+    except Exception:
+        return "-"
+
+
 def _fingerprint(cli, args: List[str]) -> str:
     """What the warm process was opened with. The thread id is part of it: a rotated or reset thread runs cold."""
     import hashlib
@@ -371,8 +383,8 @@ def _fingerprint(cli, args: List[str]) -> str:
     import claude_cli as cc
     home = str(getattr(cli, "codex_home", None) or cc._codex_home())
     raw = json.dumps([binary, args, home, cli.cwd, cli.sandbox or "", cli.model or "", str(cli.session_id or ""),
-                      # a new sign-in or a config edit needs a new process (Codex reads both at start-up)
-                      _stat(os.path.join(home, "auth.json")), _stat(os.path.join(home, "config.toml"))],
+                      # another account or a config edit needs a new process (Codex reads both at start-up)
+                      _codex_account(home), _stat(os.path.join(home, "config.toml"))],
                      ensure_ascii=False)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
