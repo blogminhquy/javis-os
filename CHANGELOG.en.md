@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.372.0] - 2026-10-28
+### Added
+- **The new Conversations tab of the Chatbot page** (in progress).
+
 ## [0.371.0] - 2026-10-28
 ### Added
 - **Groundwork for the new Chatbot page** (the screen itself comes in the next release). Every chat now has one shared state: AI is handling it, You are handling it, Needs you, or Only logged.
