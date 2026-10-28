@@ -2067,6 +2067,7 @@ function restoreSession() {
       if (t.mid != null && window.JavisChatReactions && !el.classList.contains("msg-nho")) window.JavisChatReactions.attach(el, { sid: savedSessionId, mid: t.mid,
         sha: t.sha || "", brain: t.brain || s.brain, reaction: t.reaction || null, entry: t });
     } catch (e) {}
+    if (t.pinned && t.mid != null) datGhim(el, true);
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
   });
@@ -2119,10 +2120,12 @@ function veTinDaLuu(m, brainCua, sidCua) {
     // T2 (0.154.0): mã tin, content_sha và reaction đi theo bong bóng lẫn convo, để thả cảm xúc được và F5 vẫn còn.
     const entry = { role: "javis", text: m.content || "", atts: [], ts, brain: brainCua,
                     mid: m.id, sha: m.content_sha || "", reaction: m.reaction || null };
+    entry.pinned = !!m.pinned;   // 0.374.0: pinned into the chat's contents (marks rail)
     try {
       if (window.JavisChatReactions && !el.classList.contains("msg-nho")) window.JavisChatReactions.attach(el, { sid: sidCua, mid: m.id, sha: m.content_sha || "",
         brain: brainCua, reaction: m.reaction || null, entry });
     } catch (e) {}
+    if (m.pinned) datGhim(el, true);
     return entry;
   }
   return null;
@@ -2779,12 +2782,76 @@ function runMsgAct(btn) {
     }
     return;
   }
+  if (act === "pin") { doiGhim(msgEl, btn); return; }
+  if (act === "speak") { docThanhTieng(msgEl, btn); return; }
   // Chi tin NGUOI DUNG mang nut tua lai, nen chu goc luon nam ngay tren chinh no.
   // Truoc day con mot nhanh nguoc len tim tin nguoi dung gan nhat - do la duong cua nut "tra
   // loi lai cau hoi phia tren" o tin Javis, da bo o 0.52.13.
   const text = msgEl.dataset.text || "";
   if (!text) return;
   if (act === "rewind") tuaLai(msgEl, text);
+}
+// 0.374.0: pin an answer into the chat's table of contents (the marks rail lists pinned answers among the questions).
+// The bubble carries data-pinned="1"; the convo entry keeps `pinned` so a reload from local storage still shows it.
+// A pin changes an attribute, not the chat's children, so the rail is told with a "jv-pins" event on #chatArea.
+function datGhim(msgEl, on) {
+  if (!msgEl) return;
+  if (on) msgEl.dataset.pinned = "1"; else delete msgEl.dataset.pinned;
+  const b = msgEl.querySelector('.msg-act[data-act="pin"]');
+  if (b) {
+    b.classList.toggle("on", !!on);
+    b.title = window.t(on ? "cact.unpin" : "cact.pin");
+  }
+  try { chatArea.dispatchEvent(new CustomEvent("jv-pins")); } catch (e) {}
+}
+async function doiGhim(msgEl, btn) {
+  const mid = msgEl.dataset.mid, sid = msgEl.dataset.sid || savedSessionId;
+  if (!mid || !sid || btn.disabled) return;
+  const on = msgEl.dataset.pinned !== "1";
+  datGhim(msgEl, on);   // show it at once; put it back if the server says no
+  btn.disabled = true;
+  let ok = false, loi = "";
+  try {
+    const r = await fetch(`/sessions/${encodeURIComponent(sid)}/messages/${encodeURIComponent(mid)}/pin`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pinned: on }) });
+    const d = await r.json().catch(() => ({}));
+    ok = r.ok && d.ok; loi = d.error || "";
+  } catch (e) { loi = String(e); }
+  btn.disabled = false;
+  if (!ok) { datGhim(msgEl, !on); alert(loi || window.t("cact.pin_failed")); return; }
+  const entry = (msgEl._jr && msgEl._jr.entry) || convo.find(x => x && x.role === "javis" && String(x.mid) === String(mid));
+  if (entry) { entry.pinned = on; persistSession(); }
+}
+// 0.374.0: read one answer aloud, whatever the "read answers aloud" setting says (force). Pressing again while it is
+// still reading stops it. The button shows a stop square while that answer is being read.
+let _docTin = null;
+function docThanhTieng(msgEl, btn) {
+  // Same answer pressed again = stop, even before the first audio has arrived (isSpeaking() is still false then).
+  const dangDocTinNay = !!(_docTin && _docTin.el === msgEl);
+  voice.stopSpeaking();
+  if (_docTin) { clearInterval(_docTin.hen); veNutDoc(_docTin.btn, false); _docTin = null; }
+  if (dangDocTinNay) return;
+  const b = msgEl.querySelector(".bubble");
+  const text = window.JavisVisibleMarkdown(msgEl.dataset.md || (b ? b.innerText : "")).trim();
+  if (!text) return;
+  voice.speak(text, { force: true });
+  veNutDoc(btn, true);
+  const cua = { el: msgEl, btn };
+  // Watch for the end: the voice queue has no per-request callback, so poll it. A grace period covers the moment
+  // before the first audio starts, when isSpeaking() is still false.
+  const batDau = Date.now();
+  cua.hen = setInterval(() => {
+    if (Date.now() - batDau < 4000 || voice.isSpeaking()) return;
+    clearInterval(cua.hen); veNutDoc(btn, false);
+    if (_docTin === cua) _docTin = null;
+  }, 500);
+  _docTin = cua;
+}
+function veNutDoc(btn, on) {
+  if (!btn) return;
+  btn.classList.toggle("on", !!on);
+  btn.title = window.t(on ? "cact.stop_speak" : "cact.speak");
+  btn.innerHTML = ic(on ? "square" : "volume-2");
 }
 // Put a question back in the composer, NOT sent, so it can be edited first.
 function datVaoONhap(text) {
@@ -4286,7 +4353,6 @@ function _renderCtxLine(msgEl, data) {
   // và bỏ cả dòng chỉ vì thiếu một nửa là mất luôn nửa đang có.
   if (!msgEl || !data || !(data.ctx_path || data.engine)) return;
   const cu = data.ctx_path === "legacy";
-  const tok = Number(data.ctx_in) || 0;
   const old = msgEl.querySelector(".msg-ctx");
   if (old) old.remove();
   const el = document.createElement("div");
@@ -4303,10 +4369,7 @@ function _renderCtxLine(msgEl, data) {
               + (data.model ? " · " + _shortModel(data.model) : ""));
   }
   if (data.ctx_path) phan.push(CTX_PATH_LABEL[data.ctx_path] ? window.t(CTX_PATH_LABEL[data.ctx_path]) : data.ctx_path);
-  // 0.345.0: chỉ hiện token MỚI. Phần đọc lại từ cache (ctx_cache) rẻ hơn nhiều, tính chung vào thì một câu chào
-  // trên Claude Code hiện "60k token" và khách tưởng mình vừa trả 60k token. Phần cache nằm ở chú thích.
-  const cache = Math.min(Number(data.ctx_cache) || 0, tok);
-  if (tok) phan.push(_fmtTok(tok - cache) + " token");
+  // 0.374.0: no token count on the line any more (owner 28/10/2026); the Usage page has the numbers.
   el.textContent = phan.join(" · ");
   const chuThich = [];
   if (data.engine) {
@@ -4316,8 +4379,6 @@ function _renderCtxLine(msgEl, data) {
     chuThich.push(cu ? window.t("app.ctx_hint_full")
                      : window.t("app.ctx_hint_saving"));
   }
-  if (tok) chuThich.push(cache ? window.t("app.ctx_hint_tokens_new", { n: _fmtTok(cache) })
-                               : window.t("app.ctx_hint_tokens"));
   el.title = chuThich.join("\n");
   msgEl.appendChild(el);
 }

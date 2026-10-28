@@ -1371,6 +1371,20 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Bên máy tính số thứ tự là thừa: dãy vạch đã nói vị trí bằng hình rồi. */
 #chatMarks .cm-so { display: none; }
 
+/* 0.374.0: answers pinned into the contents (pin button under an answer, chat-marks.js). They sit among the questions
+   in conversation order, marked by a pin instead of a number, in the accent colour on the rail as well. */
+.cm-vach.cm-ghim { height: 3px; background: var(--accent); opacity: .7; }
+#chatMarks .cm-muc.cm-ghim .cm-so { display: inline-flex; }
+.cm-muc.cm-ghim .cm-so { display: inline-flex; vertical-align: -2px; color: var(--accent); }
+.cm-muc.cm-ghim .cm-so svg { width: 13px; height: 13px; }
+.msg-javis.cm-vua-nhay .bubble { animation: cmNhay 1.2s ease; }
+/* The pin button appears once the answer is saved (it has a message id); while it streams there is nothing to pin. */
+.msg-javis:not([data-mid]) .msg-act[data-act="pin"] { display: none; }
+.msg-act svg { width: 14px; height: 14px; vertical-align: -2px; }
+.msg-act.on { color: var(--accent); }
+/* A pinned answer keeps its button row visible, so the filled pin says it is in the contents. */
+.msg-javis[data-pinned] .msg-acts { opacity: 1; }
+
 /* Điện thoại: nút đứng TRÊN HÀNG NHÃN (JS cắm vào .panel-acts hoặc .chatpage-bar), không
    còn là lớp dính trong khung cuộn - xem ngoại lệ ở đầu chat-marks.js. Ở đó khối bọc phải là
    một ô bình thường trên hàng, và nút không được định vị tuyệt đối nữa. */

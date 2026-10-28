@@ -52,7 +52,13 @@ check("tin javis: có copy", has(h, 'data-act="copy"'));
 // 0.171.0: thêm nút Trích dẫn (chủ repo 15/10/2026: hỏi tiếp một câu trả lời cũ mà khỏi gõ lại). Bấm
 // trượt vô hại: nó chỉ đặt đoạn trích lên ô nhập, không chạy gì, nên được đứng cạnh nút sao chép.
 check("tin javis: có nút trích dẫn", has(h, 'data-act="quote"'));
-check("tin javis: đúng 2 nút (trích dẫn + copy)", (h.match(/class="msg-act"/g) || []).length === 2);
+// 0.374.0 (chủ repo 28/10/2026): thêm nút ghim vào mục lục và nút loa đọc thành tiếng. Cả hai bấm trượt vô hại
+// (ghim bấm lại là bỏ, loa bấm lại là dừng), không chạy lại lượt nào.
+check("tin javis: có nút ghim vào mục lục", has(h, 'data-act="pin"'));
+check("tin javis: có nút đọc thành tiếng", has(h, 'data-act="speak"'));
+check("tin javis: đúng 4 nút (trích dẫn, copy, ghim, loa)", (h.match(/class="msg-act"/g) || []).length === 4);
+check("tin người dùng: không có ghim hay loa",
+  !has(A.actsHtml("user", TS), 'data-act="pin"') && !has(A.actsHtml("user", TS), 'data-act="speak"'));
 // Đường hỏi lại KHÔNG mất: nó nằm trên chính bong bóng câu hỏi của người dùng.
 check("tua lại vẫn còn ở tin người dùng", has(A.actsHtml("user", TS), 'data-act="rewind"'));
 

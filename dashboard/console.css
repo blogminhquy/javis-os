@@ -1363,6 +1363,13 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   place-items: center; font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -.02em; }
 /* Logo thật thì KHÔNG tô nền: nền màu sau một logo có nền trắng trông như lỗi in. */
 .kho-ava-img { background: none; }
+/* 0.376.0: icon of the kind (skill, workflow, tool) on a light tile in the card's own colour, and the agent
+   portrait for agents. Replaces the solid letter tiles. */
+.kho-ava-ic { background: color-mix(in srgb, var(--kho-mau, var(--accent)) 15%, var(--surface-1, #fff));
+  color: var(--kho-mau, var(--accent)); border: 1px solid color-mix(in srgb, var(--kho-mau, var(--accent)) 28%, transparent); }
+.kho-ava-ic svg { width: 22px; height: 22px; }
+.kho-ava-agent { background: none; }
+.pkm-dau .kho-ava-ic svg { width: 25px; height: 25px; }
 .kho-ava-img svg, .kho-ava-img img { width: 34px; height: 34px; object-fit: contain; }
 .kho-daicai { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
   color: var(--ok-ink, #2f855a); }
@@ -4122,13 +4129,9 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   .tm-side .tm-close { border-color: transparent; background: none; }
 }
 
-/* Recommended repos (0.370.0): the "Follows the source repo" line on a Store card, and the lead line of its tab. */
+/* Recommended tab (0.370.0, renamed 0.376.0): the "Updated from the author" line on a Store card, and the tab's lead line. */
 .kho-goc { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .kho-goc svg { width: 14px; height: 14px; flex: none; }
 .kho-goc a { color: var(--accent); text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }
 .kho-goc a:hover { text-decoration: underline; }
 .kho-goc-gt { margin: 10px 0 4px; }
-/* On a phone the tabs share one row, and "Recommended repos" is the one long label: let it wrap. */
-@media (max-width: 860px) {
-  .kho-tab[data-kho-loai="repo"] { white-space: normal; line-height: 1.2; overflow-wrap: anywhere; }
-}
