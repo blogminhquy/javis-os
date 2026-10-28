@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.382.0] - 2026-10-28
 ### Cải thiện
-- **Javis trả lời nhanh hơn với Claude Code và Codex.** (đang làm)
+- **Claude Code trả lời nhanh hơn từ tin nhắn thứ hai.** Javis giữ sẵn Claude Code giữa các tin nhắn của một cuộc chat thay vì mở lại mỗi lần. Đo trên máy thật: tin nhắn tiếp theo từ khoảng 10 giây còn khoảng 4 giây.
+- **Codex hiện chữ ngay khi đang viết**, không còn bắt chờ hết cả đoạn. Codex cũng được giữ sẵn giữa các tin nhắn, và luật của Javis chỉ gửi một lần mỗi cuộc chat thay vì gửi kèm mọi tin, nên cuộc chat dài không chậm dần.
+- Chỉ cần bắt đầu gõ là Javis mở sẵn bộ não cho cuộc chat vừa nghỉ quá 5 phút. Số bộ não giữ sẵn tự giới hạn theo RAM trống của máy, việc chạy nền và bot khách vẫn chạy như cũ.
 
 ## [0.380.0] - 2026-10-28
 ### Sửa lỗi

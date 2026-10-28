@@ -18,6 +18,14 @@ Differences from exec handled here, each found by trying it:
 - app-server refuses `-p <profile>`, so the profile file is flattened into `-c key=value` overrides;
 - items arrive in camelCase (`commandExecution`, `aggregatedOutput`): `exec_item` turns them into the exec shape the
   rest of Javis reads (tool labels, file paths, `aggregated_output`).
+
+0.382.0 (docs/dev/2026-10-toc-do-luot-chat-spec.md):
+- the answer streams as Codex writes it (`item/agentMessage/delta`) instead of one block per finished message;
+- the system prompt goes once, as `developerInstructions` of `thread/start`, instead of in front of every message.
+  Checked with Codex 0.160: a new process that resumes the thread without them still follows them;
+- a conversation that sets `cli.warm_key` keeps its app-server and thread for the next turn (warm_pool.py), which then
+  starts with `turn/start` only. On POSIX a turn that ran a shell command hands its process back the old way (stdin
+  closed, process group recorded) so tien_trinh_nen still adopts what it left running.
 """
 from __future__ import annotations
 
@@ -32,6 +40,7 @@ from pathlib import Path
 from typing import AsyncIterator, Dict, List, Optional
 
 import steer_inbox
+import warm_pool
 
 ENV_SWITCH = "JAVIS_CODEX_STEER"
 POLL_S = 0.25            # how often a running turn looks for messages to pass on
@@ -151,15 +160,44 @@ class _Rpc:
         self.stderr: List[str] = []
         self._ids = 0
         self._lock = threading.Lock()
+        self._held: list = []     # lines that came while no turn listened (a warm process between turns)
+        self.keep_reading = False  # True for a warm process: outlive the loop of the turn that opened it
         threading.Thread(target=self._read_out, daemon=True).start()
         threading.Thread(target=self._read_err, daemon=True).start()
 
+    def attach(self, loop: asyncio.AbstractEventLoop) -> None:
+        """A new turn listens on a warm process. What came between turns belongs to the last one: dropped, except
+        EOF (the process died meanwhile)."""
+        with self._lock:
+            died = None in self._held
+            self._held = []
+            self.loop = loop
+            self.queue = asyncio.Queue()
+        if died:
+            self.queue.put_nowait(None)
+
+    def detach(self) -> None:
+        with self._lock:
+            self.loop = None
+
     def _push(self, item) -> bool:
+        with self._lock:
+            loop, queue = self.loop, self.queue
+            if loop is None:
+                if len(self._held) < 500 or item is None:
+                    self._held.append(item)
+                return True
         try:
-            self.loop.call_soon_threadsafe(self.queue.put_nowait, item)
+            loop.call_soon_threadsafe(queue.put_nowait, item)
             return True
-        except RuntimeError:   # the turn is over and its loop closed: nobody is listening any more
-            return False
+        except RuntimeError:   # the turn is over and its loop closed
+            if not self.keep_reading:
+                return False   # nobody is listening any more
+            with self._lock:
+                if self.loop is loop:
+                    self.loop = None
+                self._held.append(item)
+            return True
 
     def _read_out(self):
         try:
@@ -222,12 +260,106 @@ async def _call(rpc: _Rpc, method: str, params: dict, deadline: float, seen: lis
         seen.append(line)
 
 
-def _thread_params(cli) -> dict:
+def _thread_params(cli, start: bool = False) -> dict:
     p = {"cwd": cli.cwd, "approvalPolicy": "never",
          "sandbox": cli.sandbox or "danger-full-access"}
     if cli.model:
         p["model"] = cli.model
+    if start and (cli.instructions or "").strip():
+        # Once per thread (0.382.0). A resumed thread already carries them: from its own thread/start, or, for a thread
+        # an older Javis or `codex exec` opened, in front of its first message.
+        p["developerInstructions"] = cli.instructions.strip()
     return p
+
+
+class CodexHandle(warm_pool.Handle):
+    """A `codex app-server` with its thread open, kept between turns of one conversation."""
+    kind = "codex"
+
+    def __init__(self, proc, rpc: "_Rpc", thread_id: str, lane=None):
+        self.proc = proc
+        self.rpc = rpc
+        self.thread_id = thread_id
+        self.lane = lane
+
+    def alive(self) -> bool:
+        return self.proc.poll() is None
+
+    async def close(self) -> None:
+        _close_proc(self.proc)
+        if self.lane is not None:
+            self.lane.close()
+
+
+def _close_proc(proc) -> None:
+    """Close the way `codex exec` ends: stdin closed, so background commands keep their process group."""
+    try:
+        proc.stdin.close()
+    except Exception:
+        pass
+
+    def _reap(p=proc):
+        try:
+            p.wait(timeout=10)
+        except Exception:
+            try:
+                p.terminate()
+            except Exception:
+                pass
+    threading.Thread(target=_reap, daemon=True).start()
+
+
+def _fingerprint(cli, args: List[str]) -> str:
+    """What the warm process was opened with. The thread id is part of it: a rotated or reset thread runs cold."""
+    import hashlib
+    try:
+        st = os.stat(cli.cli_path)
+        binary = f"{cli.cli_path}:{st.st_size}:{st.st_mtime_ns}"
+    except OSError:
+        binary = str(cli.cli_path)
+    # The hub turn key changes with every lane, so it is left out: the slot keeps its own lane.
+    args = [a for a in args if not a.startswith("mcp_servers.javis.http_headers.X-Javis-Turn")]
+    raw = json.dumps([binary, args, str(getattr(cli, "codex_home", None) or ""), cli.cwd, cli.sandbox or "",
+                      cli.model or "", str(cli.session_id or "")], ensure_ascii=False)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _args(cli, turn_key: Optional[str]) -> List[str]:
+    """argv of app-server. `turn_key` is the `-c` carrying the hub turn key (a lane's fixed key on a warm process)."""
+    import claude_cli as cc
+    _acct_home = getattr(cli, "codex_home", None)   # extra ChatGPT account (plan_accounts, 0.353.0)
+    overrides = profile_overrides(cli.profile, Path(_acct_home) if _acct_home else cc._codex_home())
+    args = [cli.cli_path]
+    for c in overrides + list(cli.extra_config or []):
+        args += ["-c", c]
+    if turn_key:
+        args += ["-c", turn_key]
+    if (cli.transport or cc.codex_transport()) == "http":
+        for c in cc.codex_http_config():
+            args += ["-c", c]
+    args.append("app-server")
+    return args
+
+
+def _turn_key(cli, lane) -> Optional[str]:
+    if not cli.hub_turn:
+        return None
+    try:
+        import turn_context
+        if lane is not None:
+            return f'{turn_context.CODEX_HEADER_KEY}="{lane.key}"'
+        return turn_context.codex_override()
+    except Exception:
+        return None
+
+
+def _spawn(args: List[str], cwd: str, acct_home):
+    import claude_cli as cc
+    return subprocess.Popen(
+        args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, text=True,
+        encoding="utf-8", errors="replace", bufsize=1,
+        creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0),
+        start_new_session=(os.name != "nt"), env=cc.codex_env(acct_home))
 
 
 async def run(cli, prompt: str) -> AsyncIterator[dict]:
@@ -239,71 +371,101 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
     from claude_sdk_engine import tran_watchdog
 
     sid = steer_inbox.current_sid()
-    _acct_home = getattr(cli, "codex_home", None)   # extra ChatGPT account (plan_accounts, 0.353.0)
-    overrides = profile_overrides(cli.profile, Path(_acct_home) if _acct_home else cc._codex_home())
-    args = [cli.cli_path]
-    for c in overrides + list(cli.extra_config or []):
-        args += ["-c", c]
-    if cli.hub_turn:
-        try:
-            import turn_context
-            luot = turn_context.codex_override()
-        except Exception:
-            luot = None
-        if luot:
-            args += ["-c", luot]
-    if (cli.transport or cc.codex_transport()) == "http":
-        for c in cc.codex_http_config():
-            args += ["-c", c]
-    args.append("app-server")
-
+    _acct_home = getattr(cli, "codex_home", None)
+    warm_key = str(getattr(cli, "warm_key", "") or "")
+    lane = None
+    if warm_key:
+        import turn_context
+        lane = turn_context.Lane()
+    try:
+        args = _args(cli, _turn_key(cli, lane))      # an unreadable profile raises Fallback here, as before
+    except BaseException:
+        if lane is not None:
+            lane.close()
+        raise
+    fp = _fingerprint(cli, args) if warm_key else ""
     resume_requested = bool(cli.session_id)
     t_start = time.time()
-    full_prompt = (cli.instructions.strip() + "\n\n" + prompt) if cli.instructions else prompt
     loop = asyncio.get_running_loop()
-    try:
-        proc = subprocess.Popen(
-            args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cli.cwd, text=True,
-            encoding="utf-8", errors="replace", bufsize=1,
-            creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0),
-            start_new_session=(os.name != "nt"), env=cc.codex_env(_acct_home))
-    except Exception as e:
-        raise Fallback(f"spawn: {type(e).__name__}: {e}")
-    with cc._PROC_LOCK:
-        cc._ACTIVE_PROCS[proc] = cli.tag
-    try:
-        import tien_trinh_nen
-        tien_trinh_nen.ghi_nhom(cli.tag, proc.pid)
-    except Exception:
-        pass
-    rpc = _Rpc(proc, loop)
+    slot = warm_pool.POOL.take(warm_key, "codex", fp) if (warm_key and cli.session_id) else None
+    proc = rpc = None
     seen: list = []
     started = False
-    try:
-        deadline = time.monotonic() + START_TIMEOUT_S
+    thread_id = ""
+    turn_id = ""
+    if slot is not None:
+        # Warm: the process and the thread are open already, so the lane made above is not needed.
+        if lane is not None:
+            lane.close()
+        h = slot.handle
+        proc, rpc, lane, thread_id = h.proc, h.rpc, h.lane, h.thread_id
+        rpc.attach(loop)
+        if lane is not None:
+            lane.attach()
         try:
-            await _call(rpc, "initialize", {"clientInfo": {"name": "javis", "version": "1"}}, deadline, seen)
-            rpc.send("initialized", {}, notify=True)
-            if cli.session_id:
-                res = await _call(rpc, "thread/resume", {**_thread_params(cli), "threadId": cli.session_id,
-                                                          "excludeTurns": True}, deadline, seen)
-            else:
-                res = await _call(rpc, "thread/start", _thread_params(cli), deadline, seen)
-            thread_id = str(((res.get("thread") or {}).get("id")) or "")
-            if not thread_id:
-                raise Fallback("no thread id")
-            res = await _call(rpc, "turn/start", {"threadId": thread_id,
-                                                  "input": [{"type": "text", "text": full_prompt}]}, deadline, seen)
+            res = await _call(rpc, "turn/start", {"threadId": thread_id, "input": [{"type": "text", "text": prompt}]},
+                              time.monotonic() + 30.0, seen)
             turn_id = str(((res.get("turn") or {}).get("id")) or "")
-            if not turn_id:
-                raise Fallback("no turn id")
-        except asyncio.TimeoutError:
-            raise Fallback("start timed out")
-        except (OSError, ValueError) as e:
-            raise Fallback(f"{type(e).__name__}: {e}")
+        except (Fallback, asyncio.TimeoutError, OSError, ValueError) as e:
+            print(f"[codex warm] turn/start on the warm process failed ({e}), opening a new one", file=sys.stderr)
+            turn_id = ""
+        if not turn_id:
+            warm_pool.POOL.release(slot, keep=False)
+            slot = None
+            proc = rpc = None
+            seen = []
+            import turn_context
+            lane = turn_context.Lane()
+            args = _args(cli, _turn_key(cli, lane))
+    if proc is None:
+        if lane is not None:
+            lane.attach()
+        try:
+            proc = _spawn(args, cli.cwd, _acct_home)
+        except Exception as e:
+            if lane is not None:
+                lane.close()
+            raise Fallback(f"spawn: {type(e).__name__}: {e}")
+        rpc = _Rpc(proc, loop)
+        rpc.keep_reading = bool(warm_key)
+        if not warm_key:
+            # One process per turn, as before 0.382.0: its group is recorded now. A warm-capable turn records it only
+            # when it hands the process back (end of this function), else the warm process itself would read as work
+            # left running in the background.
+            try:
+                import tien_trinh_nen
+                tien_trinh_nen.ghi_nhom(cli.tag, proc.pid)
+            except Exception:
+                pass
+    with cc._PROC_LOCK:
+        cc._ACTIVE_PROCS[proc] = cli.tag
+    keep = False
+    try:
+        if not turn_id:
+            deadline = time.monotonic() + START_TIMEOUT_S
+            try:
+                await _call(rpc, "initialize", {"clientInfo": {"name": "javis", "version": "1"}}, deadline, seen)
+                rpc.send("initialized", {}, notify=True)
+                if cli.session_id:
+                    res = await _call(rpc, "thread/resume", {**_thread_params(cli), "threadId": cli.session_id,
+                                                              "excludeTurns": True}, deadline, seen)
+                else:
+                    res = await _call(rpc, "thread/start", _thread_params(cli, start=True), deadline, seen)
+                thread_id = str(((res.get("thread") or {}).get("id")) or "")
+                if not thread_id:
+                    raise Fallback("no thread id")
+                res = await _call(rpc, "turn/start", {"threadId": thread_id,
+                                                      "input": [{"type": "text", "text": prompt}]}, deadline, seen)
+                turn_id = str(((res.get("turn") or {}).get("id")) or "")
+                if not turn_id:
+                    raise Fallback("no turn id")
+            except asyncio.TimeoutError:
+                raise Fallback("start timed out")
+            except (OSError, ValueError) as e:
+                raise Fallback(f"{type(e).__name__}: {e}")
         started = True
         cli.session_id = thread_id
-        yield {"type": "session", "session_id": thread_id}
+        yield {"type": "session", "session_id": thread_id, "warm": slot is not None}
 
         IDLE = tran_watchdog("JAVIS_CLAUDE_IDLE_TIMEOUT", "0")
         TOOL_IDLE = tran_watchdog("JAVIS_CLAUDE_TOOL_TIMEOUT", "3600")
@@ -315,8 +477,12 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         sandbox_broken = False
         steering: Dict[int, list] = {}   # steer request id -> inbox items, put back if Codex refuses
         done = False
+        status = ""
+        ran_command = False
         settle_until = 0.0
         pending = list(seen)
+        streamed = set()       # agentMessage ids already shown delta by delta (0.382.0)
+        shown_any = False      # some answer text already went out this turn
 
         while True:
             if not done and sid:
@@ -372,10 +538,22 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
             p = m.get("params") or {}
             if p.get("threadId") not in (None, thread_id):
                 continue   # a sub-agent's own thread
-            if method == "item/started":
+            if p.get("turnId") not in (None, turn_id):
+                continue   # late news of an earlier turn on a warm process
+            if method == "item/agentMessage/delta":
+                d = engine_mod.strip_provider_markers(str(p.get("delta") or ""))
+                iid = str(p.get("itemId") or "")
+                if d:
+                    if iid not in streamed and shown_any:
+                        yield {"type": "text", "content": "\n"}
+                    streamed.add(iid)
+                    shown_any = True
+                    yield {"type": "text", "content": d}
+            elif method == "item/started":
                 it = p.get("item") or {}
                 if it.get("type") in TOOL_TYPES:
                     busy += 1
+                    ran_command = ran_command or it.get("type") == "commandExecution"
                     ei = exec_item(it)
                     yield {"type": "progress", "name": cc._codex_tool_name(ei), "item": ei, "id": ei["id"]}
             elif method == "item/completed":
@@ -385,9 +563,14 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     txt = engine_mod.strip_provider_markers(it.get("text") or "")
                     if txt.strip():
                         final_text += (("\n" if final_text else "") + txt)
-                        yield {"type": "text", "content": txt}
+                        if str(it.get("id") or "") not in streamed:
+                            if shown_any:
+                                yield {"type": "text", "content": "\n"}
+                            shown_any = True
+                            yield {"type": "text", "content": txt}
                 elif t in TOOL_TYPES:
                     busy = max(0, busy - 1)
+                    ran_command = ran_command or t == "commandExecution"
                     ei = exec_item(it)
                     yield {"type": "tool_call", "name": cc._codex_tool_name(ei), "item": ei, "id": ei["id"]}
                 elif t and t not in _QUIET_TYPES:
@@ -414,7 +597,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     error_msg = msg or error_msg
             elif method == "turn/completed" and (p.get("turn") or {}).get("id") == turn_id:
                 turn = p.get("turn") or {}
-                status = turn.get("status")
+                status = str(turn.get("status") or "")
                 done = True
                 settle_until = time.monotonic() + STEER_SETTLE_S
                 if status == "completed":
@@ -434,24 +617,68 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     yield {"type": "error", "content": "Codex: " + msg,
                            "resume_failed": resume_requested and cc._looks_like_codex_resume_error(msg)}
                 # "interrupted": the owner pressed Stop; nothing to add.
+        # Keep the process for the next turn only after a clean, finished turn. On POSIX a shell command may have left
+        # something running in this process group, which only the old hand-back lets tien_trinh_nen adopt.
+        keep = (bool(warm_key) and done and status == "completed" and not steering
+                and proc.poll() is None and not (ran_command and os.name != "nt"))
     finally:
         if not started:
             print(f"[codex steer] fallback to exec ({' | '.join(rpc.stderr[-2:])[:200]})", file=sys.stderr)
         with cc._PROC_LOCK:
             cc._ACTIVE_PROCS.pop(proc, None)
-        # Closing stdin ends app-server the way `codex exec` ends: background commands it started keep their process
-        # group, which tien_trinh_nen adopts.
-        try:
-            proc.stdin.close()
-        except Exception:
-            pass
-
-        def _reap(p=proc):
-            try:
-                p.wait(timeout=10)
-            except Exception:
+        if lane is not None:
+            lane.detach()
+        handled = False
+        if keep:
+            rpc.detach()
+            fp_now = _fingerprint(cli, args)    # the session id is this thread now
+            if slot is not None:
+                warm_pool.POOL.release(slot, fingerprint=fp_now)
+                handled = True
+            else:
+                new = warm_pool.POOL.admit(warm_key, "codex", fp_now, CodexHandle(proc, rpc, thread_id, lane),
+                                           recipe=_recipe(cli, args, _acct_home, thread_id))
+                if new is not None:
+                    warm_pool.POOL.release(new)
+                    handled = True
+        elif slot is not None:
+            # A warm turn that ends badly: hand the process back the old way so a left-over command is adopted.
+            warm_pool.POOL.forget(warm_key)
+            slot = None
+        if not handled:
+            if warm_key:
                 try:
-                    p.terminate()
+                    import tien_trinh_nen
+                    tien_trinh_nen.ghi_nhom(cli.tag, proc.pid)
                 except Exception:
                     pass
-        threading.Thread(target=_reap, daemon=True).start()
+            _close_proc(proc)
+            if lane is not None:
+                lane.close()
+
+
+def _recipe(cli, args: List[str], acct_home, thread_id: str):
+    """How to reopen this process for a prewarm: same argv, same thread, resumed. The instructions live on the thread."""
+    cwd, params = cli.cwd, {**_thread_params(cli), "threadId": thread_id, "excludeTurns": True}
+    lane_arg = next((a for a in args if a.startswith("mcp_servers.javis.http_headers.")), None)
+
+    async def _open() -> CodexHandle:
+        import turn_context
+        lane = turn_context.Lane() if lane_arg else None
+        argv = [(f'{turn_context.CODEX_HEADER_KEY}="{lane.key}"' if (lane and a == lane_arg) else a) for a in args]
+        proc = _spawn(argv, cwd, acct_home)
+        rpc = _Rpc(proc, asyncio.get_running_loop())
+        rpc.keep_reading = True
+        try:
+            deadline = time.monotonic() + START_TIMEOUT_S
+            await _call(rpc, "initialize", {"clientInfo": {"name": "javis", "version": "1"}}, deadline, [])
+            rpc.send("initialized", {}, notify=True)
+            await _call(rpc, "thread/resume", params, deadline, [])
+        except BaseException:
+            _close_proc(proc)
+            if lane is not None:
+                lane.close()
+            raise
+        rpc.detach()
+        return CodexHandle(proc, rpc, thread_id, lane)
+    return _open

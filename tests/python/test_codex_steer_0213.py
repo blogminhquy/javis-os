@@ -100,24 +100,30 @@ def out(m):
         sys.stdout.write(json.dumps(m) + "\n"); sys.stdout.flush()
 def note(method, **p):
     out({"method": method, "params": p})
-def turn(tid, ref):
-    note("turn/started", threadId=tid, turn={"id": "tu1", "status": "inProgress"})
-    cmd = {"type": "commandExecution", "id": "c1", "command": "sleep 1", "aggregatedOutput": "", "status": "inProgress"}
-    note("item/started", threadId=tid, turnId="tu1", item=cmd)
-    time.sleep(float(os.environ.get("FAKE_TOOL_S", "1")))
-    note("item/completed", threadId=tid, turnId="tu1", item={**cmd, "aggregatedOutput": "A\n", "exitCode": 0, "status": "completed"})
+def turn(tid, ref, tu):
+    note("turn/started", threadId=tid, turn={"id": tu, "status": "inProgress"})
+    if not os.environ.get("FAKE_NO_CMD"):
+        cmd = {"type": "commandExecution", "id": "c1", "command": "sleep 1", "aggregatedOutput": "", "status": "inProgress"}
+        note("item/started", threadId=tid, turnId=tu, item=cmd)
+        time.sleep(float(os.environ.get("FAKE_TOOL_S", "1")))
+        note("item/completed", threadId=tid, turnId=tu, item={**cmd, "aggregatedOutput": "A\n", "exitCode": 0, "status": "completed"})
     note("item/completed", threadId="sub-thread", turnId="x", item={"type": "agentMessage", "id": "s", "text": "SUB AGENT"})
-    note("thread/tokenUsage/updated", threadId=tid, turnId="tu1", tokenUsage={"last": {"inputTokens": 10, "outputTokens": 4}})
+    note("thread/tokenUsage/updated", threadId=tid, turnId=tu, tokenUsage={"last": {"inputTokens": 10, "outputTokens": 4}})
     time.sleep(0.4)
     with lock:
         said = " ".join(steers)
     text = "DONE" + (" BANANA" if "BANANA" in said else "")
-    note("item/completed", threadId=tid, turnId="tu1", item={"type": "agentMessage", "id": "a1", "text": text})
-    note("thread/tokenUsage/updated", threadId=tid, turnId="tu1", tokenUsage={"last": {"inputTokens": 5, "outputTokens": 1}})
+    if os.environ.get("FAKE_DELTA"):
+        for part in (text[:2], text[2:]):
+            note("item/agentMessage/delta", threadId=tid, turnId=tu, itemId="a" + tu, delta=part)
+            time.sleep(0.05)
+    note("item/completed", threadId=tid, turnId=tu, item={"type": "agentMessage", "id": "a" + tu, "text": text})
+    note("thread/tokenUsage/updated", threadId=tid, turnId=tu, tokenUsage={"last": {"inputTokens": 5, "outputTokens": 1}})
     with lock:
         ended[0] = True
-    note("turn/completed", threadId=tid, turn={"id": "tu1", "status": "completed"})
+    note("turn/completed", threadId=tid, turn={"id": tu, "status": "completed"})
 ended = [False]
+nturn = [0]
 for line in sys.stdin:
     m = json.loads(line)
     meth, mid, p = m.get("method"), m.get("id"), m.get("params") or {}
@@ -132,8 +138,13 @@ for line in sys.stdin:
         else:
             out({"id": mid, "result": {"thread": {"id": p["threadId"]}}})
     elif meth == "turn/start":
-        out({"id": mid, "result": {"turn": {"id": "tu1", "status": "inProgress"}}})
-        threading.Thread(target=turn, args=(p["threadId"], p), daemon=True).start()
+        nturn[0] += 1
+        tu = "tu%d" % nturn[0]
+        with lock:
+            ended[0] = False
+        open(os.environ["FAKE_ARGV"], "a").write(json.dumps({"turn/start": p}) + "\n")
+        out({"id": mid, "result": {"turn": {"id": tu, "status": "inProgress"}}})
+        threading.Thread(target=turn, args=(p["threadId"], p, tu), daemon=True).start()
     elif meth == "turn/steer":
         with lock:
             late = ended[0] or os.environ.get("FAKE_REFUSE_STEER")
@@ -147,6 +158,10 @@ for line in sys.stdin:
 fake = TMP / "codex"
 fake.write_text(FAKE.replace("#!/usr/bin/env python3", "#!" + sys.executable), encoding="utf-8")
 fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+if os.name == "nt":
+    # Windows cannot start a shebang script (WinError 193): run the same fake through a .cmd, as npm installs codex.
+    (TMP / "codex.cmd").write_text(f'@"{sys.executable}" "{fake}" %*\r\n', encoding="utf-8")
+    fake = TMP / "codex.cmd"
 os.environ["FAKE_ARGV"] = str(TMP / "argv.jsonl")
 (TMP / "codex-home" / "javis.config.toml").write_text(
     '[mcp_servers.javis]\nurl = "http://127.0.0.1:7777/hub/mcp"\nstartup_timeout_sec = 20\n'
@@ -244,6 +259,68 @@ evs = asyncio.run(no_turn())
 rows = argv_log()
 check("background work stays on exec", any(e.get("content") == "EXEC PATH" for e in evs if e["type"] == "final")
       and not any(isinstance(r, list) and "app-server" in r for r in rows))
+
+# ---- 0.382.0: streamed text, instructions once, a warm process for the next turn ----
+import warm_pool  # noqa: E402
+
+os.environ["JAVIS_WARM_BUDGET_MB"] = "500"
+os.environ["FAKE_NO_CMD"] = "1"
+os.environ["FAKE_DELTA"] = "1"
+
+
+async def turns(*clis):
+    out = []
+    prev = None
+    for i, kw in enumerate(clis):
+        c = new_cli(**kw)
+        if prev is not None and "session_id" not in kw:
+            c.session_id = prev.session_id
+        out.append((await drive(c, f"web:w{i}"))[0])
+        prev = c
+    st = warm_pool.POOL.status()
+    await warm_pool.POOL.close_all()
+    return out, st
+
+
+(r1, r2), st = asyncio.run(turns({"instructions": "LUAT JAVIS", "warm_key": "conv-w"},
+                                 {"instructions": "LUAT JAVIS", "warm_key": "conv-w"}))
+rows = argv_log()
+spawns = [r for r in rows if isinstance(r, list) and r[-1:] == ["app-server"]]
+tstart = [r["thread/start"] for r in rows if isinstance(r, dict) and "thread/start" in r]
+tturns = [r["turn/start"] for r in rows if isinstance(r, dict) and "turn/start" in r]
+check("deltas: the answer arrives piece by piece and is not sent again as a block",
+      [e["content"] for e in r1 if e["type"] == "text"] == ["DO", "NE"])
+check("deltas: final still carries the whole answer", any(e.get("content") == "DONE" for e in r1 if e["type"] == "final"))
+check("instructions go once, as developerInstructions of thread/start",
+      len(tstart) == 1 and tstart[0].get("developerInstructions") == "LUAT JAVIS")
+check("the message itself no longer carries the instructions",
+      len(tturns) == 2 and all("LUAT JAVIS" not in json.dumps(t["input"]) for t in tturns))
+check("warm: the second turn runs on the same process (one spawn, no resume, two turns)",
+      len(spawns) == 1 and not any(isinstance(r, dict) and "thread/resume" in r for r in rows))
+check("warm: the second turn says it was warm and has its own answer",
+      any(e.get("warm") for e in r2 if e["type"] == "session")
+      and any(e.get("content") == "DONE" for e in r2 if e["type"] == "final"))
+check("warm: the pool held one codex slot and served one hit", st["hits"] == 1 and st["admitted"] == 1)
+
+(r1, r2), st = asyncio.run(turns({"warm_key": "conv-m"}, {"warm_key": "conv-m", "model": "gpt-5.4"}))
+spawns = [r for r in argv_log() if isinstance(r, list) and r[-1:] == ["app-server"]]
+check("warm: another model is another fingerprint, so the turn opens a new process", len(spawns) == 2)
+
+del os.environ["FAKE_NO_CMD"]
+(r1,), st = asyncio.run(turns({"warm_key": "conv-c"}))
+argv_log()
+if os.name == "nt":
+    check("Windows: a turn that ran a command keeps its process (nothing to adopt there)", len(st["slots"]) == 1)
+else:
+    check("POSIX: a turn that ran a command hands its process back for adoption", st["slots"] == [])
+
+os.environ["JAVIS_WARM_BUDGET_MB"] = "0"
+os.environ["FAKE_NO_CMD"] = "1"
+(r1,), st = asyncio.run(turns({"warm_key": "conv-z"}))
+argv_log()
+check("budget 0 turns the pool off", st["slots"] == [] and any(e["type"] == "final" for e in r1))
+for k in ("JAVIS_WARM_BUDGET_MB", "FAKE_NO_CMD", "FAKE_DELTA"):
+    os.environ.pop(k, None)
 
 # ---- wiring ----
 src = (SERVER / "main.py").read_text(encoding="utf-8")
