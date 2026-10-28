@@ -187,6 +187,15 @@ Xoá là thao tác dứt điểm: cả thư mục skill bị xoá khỏi ổ đ�
 
 Lưu ý: nội dung skill là hướng dẫn cho AI làm theo, nên chỉ nhập gói từ nguồn bạn tin tưởng. Chi tiết cơ chế đóng gói kèm phụ thuộc ở [Agents & Workflows](07-agents-va-workflows.md).
 
+## Repo khuyên dùng trong Javis Store
+
+Tab đầu tiên của **Javis Store** là **Repo khuyên dùng**: skill chép **nguyên văn** từ repo GitHub của chính tác giả (ví dụ bộ skill chính chủ của Remotion, hay Lemo-Opuscar để dựng phim ngắn bằng code). Không dịch, không sửa, đọc đúng như tác giả viết.
+
+- Mỗi thẻ có dòng **Theo repo gốc** dẫn tới repo GitHub kèm ngày lấy bản mới nhất.
+- Mỗi ngày kho so lại với repo gốc. Tác giả sửa skill thì gói lên bản mới, Javis báo trong chuông, bạn bấm **Cập nhật** (vẫn qua màn hình xác nhận như mọi lần).
+- Skill bạn đã tự sửa thì Javis giữ nguyên khi cập nhật, không ghi đè.
+- Skill kèm tệp riêng (`scripts/`, `references/`...) thì khi nạp, Javis nói cho model biết thư mục của skill để nó tìm đúng các tệp đó.
+
 ## Nhờ Javis tạo skill bằng lời
 
 Bạn không bắt buộc phải điền biểu mẫu. Có thể mở cửa sổ trò chuyện và yêu cầu Javis tạo skill giúp, ví dụ: "Tạo cho tôi một skill viết caption Facebook cho shop mỹ phẩm, kích hoạt khi tôi nhờ viết caption bán hàng." Javis sẽ viết `SKILL.md` và lưu vào `skills/`. Cách trò chuyện xem thêm ở [Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md).

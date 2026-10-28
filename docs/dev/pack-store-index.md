@@ -70,6 +70,21 @@ cái. Luật cùng host là để một mục trong kho không thành beacon gõ
 lần người dùng mở lưới. Kho chính đặt logo ngay trong gói (`packs/<id>/assets/`), nên thẻ trong
 kho và trang Kết nối sau khi cài dùng đúng một tệp.
 
+`upstream` (từ 0.370.0, không bắt buộc) đánh dấu gói **theo repo gốc**: skill chép nguyên văn từ repo
+GitHub của tác giả và kho tự lấy bản mới mỗi ngày (`tools/theo-goc.py` trong repo kho, cấu hình ở
+`theo-goc/<id>.json`).
+
+```json
+"upstream": {"repo": "remotion-dev/skills", "ref": "main",
+             "commit": "30d4553ecd46fbc5212fd0ff006ae43af522158b", "synced": "2026-10-28"}
+```
+
+Javis hiện các gói này ở tab **Repo khuyên dùng** (tab đầu, chỉ có khi kho có ít nhất một gói như
+vậy), và thẻ có dòng "Theo repo gốc" dẫn tới `https://github.com/<repo>` kèm ngày lấy bản mới nhất.
+`repo` phải đúng dạng `chủ/tên`, sai thì `packs_store._upstream` bỏ cả trường và thẻ hiện như gói
+thường. `commit` là commit gốc mà nội dung bản đang phát hành được lấy từ đó; `synced` là ngày lấy.
+Cập nhật vẫn đi qua chuông báo và màn hình xác nhận như mọi gói khác: Javis không tự cài bản mới.
+
 ---
 
 ## Năm điều dễ hiểu sai

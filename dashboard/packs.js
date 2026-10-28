@@ -206,8 +206,13 @@
     tool:      { nhan: "store.kind.tool",      icon: "toolbox",  trang: "plugins" },
     connector: { nhan: "store.kind.connector", icon: "plug",     trang: "mcp" },
     bundle:    { nhan: "store.kind.bundle",    icon: "package",  trang: "" },
+    // Recommended repos (0.370.0): not a kind but a tab of its own, listing every Store entry that follows
+    // its author's GitHub repo (`upstream`), whatever its kind. It only shows when the Store has one.
+    repo:      { nhan: "store.kind.repo",      icon: "git-branch", trang: "" },
   };
   const THU_TU_LOAI = ["agent", "skill", "workflow", "tool", "connector"];
+  const theoGoc = g => !!(g && g.upstream && g.upstream.repo);
+  const trongTab = (g, loai) => loai === "repo" ? theoGoc(g) : (g.kind || "bundle") === loai;
 
   // Trần dung lượng tệp .zip, do server nói (`/packs` trả `max_mb`). Giữ ở module để hộp thoại
   // chọn tệp nói đúng con số ngay cả khi nó mở lại sau một lần lỗi, lúc không còn `d` trong tay.
@@ -543,6 +548,17 @@
       + tw("store.installed_latest", { ver: esc(g.installed_version) }) + '</div>';
   }
 
+  // "Follows the source repo" line: the author's GitHub repo as a link, and the day the Store last took a new
+  // version from it. The repo is a plain owner/name (checked server-side in `packs_store._upstream`).
+  function dongGoc(g) {
+    if (!theoGoc(g)) return "";
+    const u = g.upstream;
+    return '<div class="prov-meta kho-goc">' + ic("git-branch") + ' ' + tw("store.upstream_follows")
+      + ' <a href="https://github.com/' + esc(u.repo) + '" target="_blank" rel="noopener noreferrer">'
+      + esc(u.repo) + '</a>'
+      + (u.synced ? ' · ' + esc(tw("store.upstream_synced", { ngay: u.synced })) : "") + '</div>';
+  }
+
   function theKho(g) {
     const bac = BAC[g.tier] || BAC.data;
     const lo = LOAI[g.kind] || LOAI.bundle;
@@ -572,6 +588,7 @@
       + '<div class="cat-desc' + (dai ? " j-clamp2" : "") + '">' + esc(moTa) + '</div>'
       + (dai ? infoBody(esc(moTa)) : "")
       + '<div class="prov-meta">' + meta + '</div>'
+      + dongGoc(g)
       + dongDaCai(g)
       + '<div class="kho-nut">'
       // Bật/tắt tạm một gói đã cài. Trước 0.55.34 nút này chỉ có ở khối "Đã cài" dưới trang;
@@ -658,7 +675,8 @@
   function veLuoi(el, host) {
     const d = _kho.dl || { packs: [] };
     const ds = d.packs || [];
-    const cungLoai = ds.filter(g => (g.kind || "bundle") === _kho.loai);
+    if (_kho.loai === "repo" && !ds.some(theoGoc)) _kho.loai = "skill";
+    const cungLoai = ds.filter(g => trongTab(g, _kho.loai));
     const daCai = cungLoai.filter(g => g.installed);
     // Đếm bản mới trên MỌI loại, không chỉ tab đang mở. Đây là chỗ sửa cái lỗi nặng nhất của
     // tầng này: lưới lọc theo `_kho.loai` và tab mặc định là "Kết nối", nên một gói Kỹ năng có
@@ -701,9 +719,9 @@
     _kho.trang = trang;
     const hienThi = hop.slice((trang - 1) * MOI_TRANG, trang * MOI_TRANG);
 
-    const tabLoai = THU_TU_LOAI.map(k => {
+    const tabLoai = (ds.some(theoGoc) ? ["repo"] : []).concat(THU_TU_LOAI).map(k => {
       const on = k === _kho.loai;
-      const trong = ds.filter(g => (g.kind || "bundle") === k);
+      const trong = ds.filter(g => trongTab(g, k));
       const nMoi = trong.filter(coBanMoi).length;
       return '<button class="kho-tab' + (on ? " on" : "") + '" data-kho-loai="' + k + '">'
         + esc(tw(LOAI[k].nhan))
@@ -738,6 +756,10 @@
       (d.stale ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">' + tw("store.stale") + '</div>' : "")
       + bangMoi
       + '<div class="kho-tabs">' + tabLoai + '</div>'
+      + (_kho.loai === "repo"
+          ? '<div class="prov-meta kho-goc-gt">' + tw("store.repo_lead") + ' ' + infoBtn() + '</div>'
+            + infoBody(esc(tw("store.repo_info")))
+          : "")
       + '<div class="kho-than">'
       + '<div class="kho-cot">'
       + '<div class="kho-cot-tieu">' + tw("studio.groups") + '</div>'

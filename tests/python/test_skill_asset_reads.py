@@ -80,6 +80,19 @@ class SkillAssetReadTests(unittest.TestCase):
             path.write_bytes(b'OWNER_EDIT_AFTER_RETURN')
             self.assertEqual(asset.content, raw)
 
+    def test_skill_with_its_own_files_names_its_folder(self):
+        # 0.370.0: SKILL.md alone gets no extra line; once the folder holds scripts/ or rules/, the hub says
+        # where the folder is, as Claude Code's own loader does, so `scripts/setup.sh` can be found.
+        path = self.write()
+        call = self.handler()
+        alone = asyncio.run(call({'name': self.slug}))
+        self.assertTrue(alone.startswith('---'), alone[:80])
+        (path.parent / 'scripts').mkdir()
+        (path.parent / 'scripts' / 'setup.sh').write_text('echo 1\n')
+        out = asyncio.run(call({'name': self.slug}))
+        self.assertTrue(out.startswith(f'Base directory for this skill: {path.parent.resolve()}\n\n'), out[:200])
+        self.assertTrue(out.endswith('COUNT_ALL_ROWS'))
+
     def test_ordinary_learning_locked_source_is_readable_without_edit_permission(self):
         self.write(extra=b'learn_lock: true\r\nmanaged_by: system\r\n')
         self.assertIn('COUNT_ALL_ROWS', skill_router.read_skill_asset(self.root, self.slug).text)

@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.370.0] - 2026-10-28
+### Added
+- **Recommended repos in the Javis Store.** A new first tab in the Store with skill sets copied word for word from the author's own GitHub repo, nothing translated or changed. Each card links to the source repo with the day the latest version was taken. The store compares them with the source every day: when the author changes a skill the pack gets a new version, Javis tells you in the bell and you press Update. Skills you edited yourself are kept.
+- **The first two:** Remotion (12 official skills for making videos in React: new projects, animation, captions, maps, rendering) and Lemo-Opuscar (short films made entirely in code, in 59 styles).
+
+### Improved
+- **Skills that ship their own files work on every engine.** A skill with `scripts/` or `references/` now tells the model its folder when it is loaded, as Claude Code does, so the model finds those files instead of guessing.
+
 ## [0.369.0] - 2026-10-28
 ### Fixed
 - **Download in the picture viewer on an iPhone now saves the picture.** It used to only open the picture in a new page. It now opens the iPhone share sheet, where "Save Image" puts it straight into Photos. After swiping to another picture, Download saves the one on screen.
