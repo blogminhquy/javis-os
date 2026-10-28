@@ -302,6 +302,13 @@ check("warm: the second turn says it was warm and has its own answer",
       and any(e.get("content") == "DONE" for e in r2 if e["type"] == "final"))
 check("warm: the pool held one codex slot and served one hit", st["hits"] == 1 and st["admitted"] == 1)
 
+(r1,), st = asyncio.run(turns({"instructions": "LUAT JAVIS", "session_id": "old-thread"}))
+tturns = [r["turn/start"] for r in argv_log() if isinstance(r, dict) and "turn/start" in r]
+check("a thread from before 0.382.0 (rules only in its first message) still gets them in front of the message",
+      len(tturns) == 1 and json.dumps(tturns[0]["input"], ensure_ascii=False).count("LUAT JAVIS") == 1)
+check("a thread opened with developerInstructions is on record", codex_steer.carries_instructions("th1")
+      and not codex_steer.carries_instructions("old-thread"))
+
 (r1, r2), st = asyncio.run(turns({"warm_key": "conv-m"}, {"warm_key": "conv-m", "model": "gpt-5.4"}))
 spawns = [r for r in argv_log() if isinstance(r, list) and r[-1:] == ["app-server"]]
 check("warm: another model is another fingerprint, so the turn opens a new process", len(spawns) == 2)
@@ -309,10 +316,8 @@ check("warm: another model is another fingerprint, so the turn opens a new proce
 del os.environ["FAKE_NO_CMD"]
 (r1,), st = asyncio.run(turns({"warm_key": "conv-c"}))
 argv_log()
-if os.name == "nt":
-    check("Windows: a turn that ran a command keeps its process (nothing to adopt there)", len(st["slots"]) == 1)
-else:
-    check("POSIX: a turn that ran a command hands its process back for adoption", st["slots"] == [])
+check("a turn that ran a shell command hands its process back (adoption on POSIX, Stop on Windows)",
+      st["slots"] == [] and any(e["type"] == "final" for e in r1))
 
 os.environ["JAVIS_WARM_BUDGET_MB"] = "0"
 os.environ["FAKE_NO_CMD"] = "1"

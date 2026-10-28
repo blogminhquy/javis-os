@@ -141,6 +141,7 @@ class Pool:
         self._lock = threading.Lock()
         self._reaper: Optional[asyncio.Task] = None
         self._prewarming: set = set()
+        self._gen: Dict[str, int] = {}           # key -> bumped by every turn that looks for its slot
         self.stats = {"hits": 0, "misses": 0, "admitted": 0, "refused": 0, "evicted": 0, "expired": 0,
                       "prewarmed": 0}
 
@@ -152,6 +153,7 @@ class Pool:
             return None
         stale = None
         with self._lock:
+            self._gen[key] = self._gen.get(key, 0) + 1   # a prewarm started before this turn must not land after it
             slot = self._slots.get(key)
             if slot is not None and not slot.busy:
                 try:
@@ -169,15 +171,21 @@ class Pool:
             self._close_soon(stale)
         return None
 
-    def admit(self, key: str, kind: str, fingerprint: str, handle: Handle, recipe=None) -> Optional[Slot]:
+    def admit(self, key: str, kind: str, fingerprint: str, handle: Handle, recipe=None, may_evict: bool = True,
+              gen: Optional[int] = None) -> Optional[Slot]:
         """A cold turn opened `handle`: keep it for the next turn if the budget allows (evicting idle slots). Returns
-        the slot, busy, or None when it did not fit (the caller closes the handle as before)."""
+        the slot, busy, or None when it did not fit (the caller closes the handle as before).
+        A prewarm passes may_evict=False and the generation it started at: it never pushes anyone out, never replaces a
+        slot, and gives up when a turn looked for this conversation meanwhile (that turn's own process is newer)."""
         if not key or not handle.alive():
             return None
         weight = SLOT_MB.get(kind, 300)
         evict = []
         with self._lock:
             old = self._slots.get(key)
+            if gen is not None and (old is not None or self._gen.get(key, 0) != gen):
+                self.stats["refused"] += 1
+                return None
             if old is not None and old.busy:
                 self.stats["refused"] += 1
                 return None        # the same conversation is running elsewhere: never two warm processes for it
@@ -186,7 +194,7 @@ class Pool:
             used = sum(s.weight for s in self._slots.values())
             cap = budget_mb(used)
             idle = sorted((s for s in self._slots.values() if not s.busy), key=lambda s: s.last_used)
-            while used + weight > cap and idle:
+            while may_evict and used + weight > cap and idle:
                 s = idle.pop(0)
                 self._slots.pop(s.key, None)
                 evict.append(s)
@@ -246,13 +254,14 @@ class Pool:
                     self._recipes.pop(key, None)
                     return False
                 self._prewarming.add(key)
-            asyncio.get_running_loop().create_task(self._prewarm(key, rec))
+                gen = self._gen.get(key, 0)
+            self._keep_task(asyncio.get_running_loop().create_task(self._prewarm(key, rec, gen)))
             return True
         except Exception as e:  # noqa: BLE001
             print(f"[warm pool] prewarm {type(e).__name__}: {e}", file=sys.stderr)
             return False
 
-    async def _prewarm(self, key: str, rec: tuple) -> None:
+    async def _prewarm(self, key: str, rec: tuple, gen: int) -> None:
         kind, fingerprint, recipe, _ = rec
         handle = None
         try:
@@ -261,7 +270,7 @@ class Pool:
             if used + SLOT_MB.get(kind, 300) > budget_mb(used):
                 return     # no room without evicting someone actually in use recently: not worth a guess
             handle = await recipe()
-            slot = self.admit(key, kind, fingerprint, handle, recipe)
+            slot = self.admit(key, kind, fingerprint, handle, recipe, may_evict=False, gen=gen)
             if slot is None:
                 await handle.close()
                 return
@@ -279,6 +288,13 @@ class Pool:
                 self._prewarming.discard(key)
 
     # ---- housekeeping ----
+    _tasks: set = set()
+
+    def _keep_task(self, task) -> None:
+        """Hold a reference until the task is done (asyncio keeps only weak ones)."""
+        Pool._tasks.add(task)
+        task.add_done_callback(Pool._tasks.discard)
+
     def _close_soon(self, slot: Slot) -> None:
         async def _close():
             try:
@@ -290,7 +306,7 @@ class Pool:
         except RuntimeError:
             loop = None
         if loop is not None and loop is slot.loop:
-            loop.create_task(_close())
+            self._keep_task(loop.create_task(_close()))
         elif slot.loop is not None and not slot.loop.is_closed():
             try:
                 asyncio.run_coroutine_threadsafe(_close(), slot.loop)

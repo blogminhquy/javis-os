@@ -19662,6 +19662,7 @@ async def sessions_rename(session_id: str, title: str = Form(...)):
 @app.post("/sessions/{session_id}/delete")
 async def sessions_delete(session_id: str):
     get_store().delete(session_id)
+    warm_pool.POOL.forget(session_id)   # 0.382.0: its warm engine process and prewarm recipe go with it
     # 0.256.0: terminal của engine API giữ tiến trình nền, thư mục và biến môi trường theo phiên,
     # kho mốc khôi phục giữ ref theo phiên. Phiên mất thì dọn theo, kẻo dev server chạy mãi.
     try:

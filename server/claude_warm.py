@@ -46,9 +46,33 @@ class ClaudeHandle(warm_pool.Handle):
             return False
         try:
             proc = self.client._transport._process
-            return proc is not None and proc.returncode is None
+            if proc is None or proc.returncode is not None:
+                return False
+            q = self.client._query
+            task = getattr(q, "_read_task", None)
+            return not getattr(q, "_closed", False) and not (task is not None and task.done())
         except Exception:  # noqa: BLE001 - an SDK without those fields: trust our own flag
             return True
+
+    def quiet(self) -> bool:
+        """Nothing left over from the last turn. The client has ONE message stream: whatever the CLI wrote after the
+        last result (a background task's news, a turn it started by itself) would be read as this turn's. Only the
+        end-of-turn system notes are drained; anything else means the process is not in a known state."""
+        try:
+            import anyio
+            stream = self.client._query._message_receive
+        except Exception:  # noqa: BLE001
+            return True
+        while True:
+            try:
+                m = stream.receive_nowait()
+            except anyio.WouldBlock:
+                return True
+            except Exception:  # noqa: BLE001 - closed or broken: not reusable
+                return False
+            sub = str((m or {}).get("subtype") or "") if isinstance(m, dict) else ""
+            if not (isinstance(m, dict) and m.get("type") == "system" and not sub.startswith("task_")):
+                return False
 
     async def close(self) -> None:
         self.dead = True
@@ -90,6 +114,18 @@ def _stat(p) -> str:
         return "-"
 
 
+def _skills_stat(root: str) -> str:
+    """Every SKILL.md under the mirrored skills folder: an edited skill changes its file, not the folder."""
+    out = [_stat(root)]
+    try:
+        for e in sorted(os.scandir(root), key=lambda e: e.name):
+            if e.is_dir():
+                out.append(e.name + "=" + _stat(os.path.join(e.path, "SKILL.md")))
+    except OSError:
+        pass
+    return hashlib.sha256("|".join(out).encode("utf-8")).hexdigest()
+
+
 def fingerprint(cli, opts) -> str:
     """What decides whether a warm process still fits this turn. The resumed session is part of it."""
     import turn_context
@@ -116,6 +152,7 @@ def fingerprint(cli, opts) -> str:
     cli_path = getattr(opts, "cli_path", None) or ""
     sp = getattr(opts, "system_prompt", None)
     cwd = str(getattr(opts, "cwd", "") or "")
+    conf_dir = env.get("CLAUDE_CONFIG_DIR") or os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
     parts = [
         str(cli_path), _stat(cli_path) if cli_path else "", cwd, getattr(opts, "model", None),
         getattr(opts, "effort", None), str(getattr(opts, "settings", None)), getattr(opts, "permission_mode", None),
@@ -125,8 +162,12 @@ def fingerprint(cli, opts) -> str:
         hashlib.sha256(json.dumps(auth).encode()).hexdigest(), cli.javis_mode, str(cli.javis_vault or ""),
         bool(getattr(opts, "hooks", None)), str(getattr(opts, "resume", None) or ""),
         # Claude Code reads these at start-up only: a new skill or a CLAUDE.md edit needs a new process.
-        _stat(os.path.join(cwd, "CLAUDE.md")), _stat(os.path.join(cwd, ".claude", "skills")),
-        _stat(os.path.join(cwd, ".mcp.json")),
+        _stat(os.path.join(cwd, "CLAUDE.md")), _skills_stat(os.path.join(cwd, ".claude", "skills")),
+        _stat(os.path.join(cwd, ".mcp.json")), _stat(os.path.join(cwd, ".claude", "settings.json")),
+        _stat(os.path.join(cwd, ".claude", "settings.local.json")), _stat(os.path.join(conf_dir, "settings.json")),
+        # a new sign-in (another account) replaces this file; the running process would keep the old login
+        _stat(os.path.join(conf_dir, ".credentials.json")),
+        bool(getattr(opts, "strict_mcp_config", False)),
     ]
     return hashlib.sha256(json.dumps(parts, default=str, ensure_ascii=False).encode("utf-8")).hexdigest()
 
@@ -195,6 +236,10 @@ def _recipe(cli, opts, sysprompt_text: Optional[str]):
     return _again
 
 
+class _WarmStartFailed(Exception):
+    """The warm process refused the message before the turn started: rerun the turn cold."""
+
+
 async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
     """One chat turn, on the conversation's warm `claude` when it has one that fits, else cold, keeping the process
     afterwards when the pool has room. Same events as `ClaudeSDK.query`."""
@@ -202,6 +247,21 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
         async for ev in cli.query(prompt):
             yield ev
         return
+    try:
+        async for ev in _query(cli, prompt, key, allow_warm=True):
+            yield ev
+    except _WarmStartFailed as e:
+        print(f"[claude warm] the warm process failed before the turn started ({e}), running it cold", file=sys.stderr)
+        async for ev in _query(cli, prompt, key, allow_warm=False):
+            yield ev
+
+
+def _options_and_fingerprint(cli):
+    opts = cli._options()
+    return opts, fingerprint(cli, opts)
+
+
+async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]:
     import claude_sdk_engine as eng
     import localefmt
     import turn_context
@@ -215,9 +275,12 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
     tran_init = eng.ap_tran_khoi_dong()
     cli._stderr_tail.clear()
     loop = asyncio.get_running_loop()
-    opts = await asyncio.to_thread(cli._options)
-    fp = fingerprint(cli, opts)
-    slot = warm_pool.POOL.take(key, "claude", fp) if cli.session_id else None
+    # Off the loop: _options loads plugins and writes the prompt file, the fingerprint stats a few files.
+    opts, fp = await asyncio.to_thread(_options_and_fingerprint, cli)
+    slot = warm_pool.POOL.take(key, "claude", fp) if (cli.session_id and allow_warm) else None
+    if slot is not None and not slot.handle.quiet():
+        warm_pool.POOL.release(slot, keep=False)
+        slot = None
     handle: Optional[ClaudeHandle] = None
     if slot is not None:
         handle = slot.handle
@@ -226,6 +289,7 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
     started = time.time()
     tools_running = 0
     got_any = False
+    auth_race = False
     clean = False              # the turn reached its ResultMessage: the client is in a known state
     sysprompt_text = cli.system_prompt if not cli.system_prompt_raw else None
     try:
@@ -247,14 +311,19 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
         client = handle.client
         with eng._LOCK:
             eng._ACTIVE[client] = (cli.tag, loop)
-        if isinstance(prompt, list):
-            blocks = prompt
+        try:
+            if isinstance(prompt, list):
+                blocks = prompt
 
-            async def _one_message():
-                yield {"type": "user", "message": {"role": "user", "content": blocks}, "parent_tool_use_id": None}
-            await client.query(_one_message())
-        else:
-            await client.query(prompt)
+                async def _one_message():
+                    yield {"type": "user", "message": {"role": "user", "content": blocks}, "parent_tool_use_id": None}
+                await client.query(_one_message())
+            else:
+                await client.query(prompt)
+        except Exception as e:
+            if slot is not None:
+                raise _WarmStartFailed(f"{type(e).__name__}: {e}")
+            raise
         yield {"type": "warm", "warm": slot is not None}
         agen = client.receive_response().__aiter__()
         while True:
@@ -318,6 +387,8 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
                         pass
                 cli.session_id = sid
             for ev in events:
+                if ev.get("auth_refresh_race") or ev.get("dua_token"):
+                    auth_race = True   # another process spent the refresh token: a new process reads the fresh file
                 if ev["type"] == "tool_call":
                     tools_running += 1
                 elif ev["type"] == "tool_result":
@@ -327,8 +398,13 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
                 yield ev
             completion.observe(msg, tools_running, loop.time())
             if isinstance(msg, ResultMessage):
-                clean = not getattr(msg, "is_error", False) and bool(cli.session_id)
+                # Reusable only in a known state: a good result, nothing still running in the background.
+                clean = (not getattr(msg, "is_error", False) and bool(cli.session_id) and not auth_race
+                         and not completion.tasks and not completion.untracked_work)
                 break
+    except _WarmStartFailed:
+        clean = False
+        raise
     except Exception as e:
         chan_doan = None
         if "Control request timeout: initialize" in str(e):
@@ -347,7 +423,7 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
         if handle is not None:
             if clean:
                 opts.resume = cli.session_id
-                fp_now = fingerprint(cli, opts)
+                fp_now = await asyncio.to_thread(fingerprint, cli, opts)
                 if slot is not None:
                     slot.recipe = _recipe(cli, opts, sysprompt_text)   # a later prewarm resumes this session
                     warm_pool.POOL.release(slot, fingerprint=fp_now)

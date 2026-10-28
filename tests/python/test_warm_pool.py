@@ -121,6 +121,82 @@ async def pool_cases():
 asyncio.run(pool_cases())
 
 
+async def prewarm_race():
+    """A prewarm that lands after the owner's turn already ran cold must not replace that turn's newer process,
+    and a prewarm never pushes another conversation out."""
+    os.environ["JAVIS_WARM_BUDGET_MB"] = "400"
+    pool = warm_pool.Pool()
+    late = []
+
+    async def slow_recipe():
+        await asyncio.sleep(0.2)
+        h = FakeHandle("claude")
+        late.append(h)
+        return h
+    pool.remember("R", "claude", "fpR", slow_recipe)
+    check("race: prewarm scheduled", pool.prewarm("R"))
+    check("race: the turn arrives first and misses", pool.take("R", "claude", "fpR") is None)
+    fresh = FakeHandle("claude")
+    s = pool.admit("R", "claude", "fpR", fresh)
+    pool.release(s)
+    await asyncio.sleep(0.4)
+    check("race: the turn's own process stays, the late prewarm is closed (or never opened)",
+          pool._slots["R"].handle is fresh and all(h.closed for h in late))
+    # Same race with room for both: the prewarm does open, and must still give way.
+    os.environ["JAVIS_WARM_BUDGET_MB"] = "1000"
+    late.clear()
+    pool.remember("R2", "claude", "fpR2", slow_recipe)
+    pool.prewarm("R2")
+    pool.take("R2", "claude", "fpR2")
+    fresh2 = FakeHandle("claude")
+    pool.release(pool.admit("R2", "claude", "fpR2", fresh2))
+    await asyncio.sleep(0.4)
+    check("race with room: the prewarmed process opened, then gave way to the newer one",
+          len(late) == 1 and late[0].closed and pool._slots["R2"].handle is fresh2)
+    pool.forget("R2")
+    os.environ["JAVIS_WARM_BUDGET_MB"] = "400"
+    other = FakeHandle("claude")
+    pool.remember("Q", "claude", "fpQ", slow_recipe)
+    pool.prewarm("Q")
+    await asyncio.sleep(0.4)
+    check("prewarm never evicts: R stays, Q is not opened beyond the budget",
+          "R" in pool._slots and not fresh.closed and "Q" not in pool._slots and not other.closed)
+    await pool.close_all()
+    del os.environ["JAVIS_WARM_BUDGET_MB"]
+
+
+asyncio.run(prewarm_race())
+
+
+# ---- a warm Claude client must be quiet before reuse ----
+import anyio  # noqa: E402
+
+
+class _Stream:
+    def __init__(self, items):
+        self.items = list(items)
+
+    def receive_nowait(self):
+        if not self.items:
+            raise anyio.WouldBlock
+        return self.items.pop(0)
+
+
+def _handle_with(items):
+    h = warm_pool.Handle.__new__(warm_pool.Handle)
+    import claude_warm as cw
+    ch = cw.ClaudeHandle(types.SimpleNamespace(_query=types.SimpleNamespace(_message_receive=_Stream(items))), None)
+    return ch
+
+
+import claude_warm  # noqa: E402,F811
+check("quiet: nothing pending", _handle_with([]).quiet())
+check("quiet: an end-of-turn system note is drained", _handle_with([{"type": "system", "subtype": "session_state_changed"}]).quiet())
+check("not quiet: a background task's news is pending", not _handle_with([{"type": "system", "subtype": "task_started"}]).quiet())
+check("not quiet: an answer the CLI produced on its own is pending", not _handle_with([{"type": "assistant"}]).quiet())
+check("not quiet: a result is pending", not _handle_with([{"type": "result"}]).quiet())
+
+
 # ---- the lane key ----
 lane = turn_context.Lane()
 check("outside a turn the lane attaches to nobody", not lane.attach() and turn_context.resolve_key(lane.key) is None)

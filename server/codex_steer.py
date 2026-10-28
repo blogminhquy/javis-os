@@ -309,6 +309,54 @@ def _close_proc(proc) -> None:
     threading.Thread(target=_reap, daemon=True).start()
 
 
+_INSTR_FILE = "codex_instr_threads.json"
+_INSTR_MAX = 2000
+_instr_lock = threading.Lock()
+
+
+def _instr_path() -> Path:
+    from config import STATE_DIR
+    return Path(STATE_DIR) / _INSTR_FILE
+
+
+def _instr_threads() -> List[str]:
+    try:
+        data = json.loads(_instr_path().read_text(encoding="utf-8"))
+        return [str(x) for x in data] if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def mark_instructions(thread_id: str) -> None:
+    """This thread got the system prompt as developerInstructions at thread/start (0.382.0)."""
+    if not thread_id:
+        return
+    with _instr_lock:
+        ids = [t for t in _instr_threads() if t != thread_id] + [thread_id]
+        try:
+            p = _instr_path()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = p.with_suffix(".tmp")
+            tmp.write_text(json.dumps(ids[-_INSTR_MAX:]), encoding="utf-8")
+            os.replace(tmp, p)
+        except Exception as e:  # noqa: BLE001 - worst case the next turn sends the prompt again, as before
+            print(f"[codex steer] cannot record instructions of {thread_id}: {e}", file=sys.stderr)
+
+
+def carries_instructions(thread_id: str) -> bool:
+    """False for a thread an older Javis or `codex exec` opened: its rules are only in its first message, which
+    Codex's own compaction may summarise away, so such a thread keeps getting them in front of every message."""
+    return bool(thread_id) and thread_id in _instr_threads()
+
+
+def _stat(p) -> str:
+    try:
+        st = os.stat(p)
+        return f"{st.st_size}:{st.st_mtime_ns}"
+    except OSError:
+        return "-"
+
+
 def _fingerprint(cli, args: List[str]) -> str:
     """What the warm process was opened with. The thread id is part of it: a rotated or reset thread runs cold."""
     import hashlib
@@ -319,8 +367,12 @@ def _fingerprint(cli, args: List[str]) -> str:
         binary = str(cli.cli_path)
     # The hub turn key changes with every lane, so it is left out: the slot keeps its own lane.
     args = [a for a in args if not a.startswith("mcp_servers.javis.http_headers.X-Javis-Turn")]
-    raw = json.dumps([binary, args, str(getattr(cli, "codex_home", None) or ""), cli.cwd, cli.sandbox or "",
-                      cli.model or "", str(cli.session_id or "")], ensure_ascii=False)
+    import claude_cli as cc
+    home = str(getattr(cli, "codex_home", None) or cc._codex_home())
+    raw = json.dumps([binary, args, home, cli.cwd, cli.sandbox or "", cli.model or "", str(cli.session_id or ""),
+                      # a new sign-in or a config edit needs a new process (Codex reads both at start-up)
+                      _stat(os.path.join(home, "auth.json")), _stat(os.path.join(home, "config.toml"))],
+                     ensure_ascii=False)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -373,6 +425,8 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
     sid = steer_inbox.current_sid()
     _acct_home = getattr(cli, "codex_home", None)
     warm_key = str(getattr(cli, "warm_key", "") or "")
+    if cli.session_id and cli.instructions and not carries_instructions(cli.session_id):
+        prompt = cli.instructions.strip() + "\n\n" + prompt   # a thread from before 0.382.0: as before
     lane = None
     if warm_key:
         import turn_context
@@ -409,6 +463,10 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         except (Fallback, asyncio.TimeoutError, OSError, ValueError) as e:
             print(f"[codex warm] turn/start on the warm process failed ({e}), opening a new one", file=sys.stderr)
             turn_id = ""
+        except BaseException:
+            # Stop or a dropped socket right here: the process may have taken the turn with nobody listening.
+            warm_pool.POOL.release(slot, keep=False)
+            raise
         if not turn_id:
             warm_pool.POOL.release(slot, keep=False)
             slot = None
@@ -416,7 +474,11 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
             seen = []
             import turn_context
             lane = turn_context.Lane()
-            args = _args(cli, _turn_key(cli, lane))
+            try:
+                args = _args(cli, _turn_key(cli, lane))
+            except BaseException:
+                lane.close()
+                raise
     if proc is None:
         if lane is not None:
             lane.attach()
@@ -450,10 +512,13 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     res = await _call(rpc, "thread/resume", {**_thread_params(cli), "threadId": cli.session_id,
                                                               "excludeTurns": True}, deadline, seen)
                 else:
-                    res = await _call(rpc, "thread/start", _thread_params(cli, start=True), deadline, seen)
+                    tparams = _thread_params(cli, start=True)
+                    res = await _call(rpc, "thread/start", tparams, deadline, seen)
                 thread_id = str(((res.get("thread") or {}).get("id")) or "")
                 if not thread_id:
                     raise Fallback("no thread id")
+                if not cli.session_id and "developerInstructions" in tparams:
+                    await asyncio.to_thread(mark_instructions, thread_id)
                 res = await _call(rpc, "turn/start", {"threadId": thread_id,
                                                       "input": [{"type": "text", "text": prompt}]}, deadline, seen)
                 turn_id = str(((res.get("turn") or {}).get("id")) or "")
@@ -617,10 +682,11 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     yield {"type": "error", "content": "Codex: " + msg,
                            "resume_failed": resume_requested and cc._looks_like_codex_resume_error(msg)}
                 # "interrupted": the owner pressed Stop; nothing to add.
-        # Keep the process for the next turn only after a clean, finished turn. On POSIX a shell command may have left
-        # something running in this process group, which only the old hand-back lets tien_trinh_nen adopt.
+        # Keep the process for the next turn only after a clean, finished turn that ran no shell command. A command may
+        # have left something running: on POSIX only the old hand-back lets tien_trinh_nen adopt it, and on Windows a
+        # later Stop (taskkill /T on the warm process) would take it down with the process.
         keep = (bool(warm_key) and done and status == "completed" and not steering
-                and proc.poll() is None and not (ran_command and os.name != "nt"))
+                and proc.poll() is None and not ran_command)
     finally:
         if not started:
             print(f"[codex steer] fallback to exec ({' | '.join(rpc.stderr[-2:])[:200]})", file=sys.stderr)

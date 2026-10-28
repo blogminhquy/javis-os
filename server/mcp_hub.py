@@ -1442,7 +1442,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     ent = cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)
-            and ent["mtime"] == mt and (task_scope is None or ent.get('epoch') == epoch)):
+            and ent["mtime"] == mt and ent.get('epoch') == epoch):
         if task_scope is not None:
             task_scope.manifests(lang)  # fresh enabled/source checks on a private cache hit
         return ent["tools"], ent["route"]
@@ -1559,6 +1559,10 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         if current(vault_root) is not task_scope or _cache_epoch != epoch:
             raise ScopeUnavailable('task_skill_discovery_changed')
         task_scope.manifests(lang)
+    elif _cache_epoch != epoch:
+        # invalidate_cache() ran while this dial was out (0.382.0: a background refresh makes that likelier): the
+        # list may predate the change, so hand it to this caller only and do not store it.
+        return tools_spec, route
     cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt, 'epoch': epoch,
                    "ttl": _CACHE_TTL_THIEU if bo_qua else _CACHE_TTL,
                    "inventory_tools": inventory_tools, "inventory_route": inventory_route}

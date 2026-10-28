@@ -46,6 +46,8 @@ Một kho dùng chung cho cả Claude và Codex, theo hội thoại:
 - **Rảnh quá 300 s** (`JAVIS_WARM_IDLE_S`) thì tự đóng. 300 s khớp thời hạn đệm prompt 5 phút của nhà cung cấp: quá
   mốc đó lượt sau vẫn phải nạp lại ngữ cảnh, giữ tiến trình chỉ còn đỡ phần khởi động.
 - **Lỗi bất kỳ** (tiến trình chết, hết giờ, ngắt giữa chừng mà không chốt được) thì bỏ ô.
+- **Mở sẵn không bao giờ đuổi ai và không bao giờ thay ô có sẵn**: lượt thật nào đã tìm ô của hội thoại trong lúc đang mở
+  sẵn thì tiến trình mở sẵn bị đóng (tiến trình của lượt đó mới hơn).
 - **Mở sẵn khi gõ**: dashboard gửi `{"type": "typing"}` (tối đa một lần mỗi 20 s) khi chủ bắt đầu gõ. Hội thoại vừa có ô
   bị đóng vì rảnh thì kho mở lại tiến trình bằng đúng công thức của lượt trước (đã lưu lúc trả ô), resume đúng phiên.
   Lượt thật tới có dấu vân tay khớp thì dùng luôn, không khớp thì bỏ. Mở sẵn cũng chịu trần RAM như mọi ô.
@@ -69,18 +71,24 @@ theo từng lượt, nên `turn_context.current()` trong plugin luôn thấy lư
   nên tiến trình ấm không làm đổi hành vi.
 - Vòng đọc sự kiện dùng lại `map_message`, `_CompletionWatch`, `tran_watchdog`, `loi_de_hieu` của `claude_sdk_engine`, và
   đăng ký client vào `_ACTIVE` để nút Dừng (`cancel_all`) vẫn ngắt được.
-- Sau lượt: client giữ lại trong ô, `session_id` cập nhật theo phiên mới nhất.
+- Sau lượt: client chỉ được giữ khi lượt chốt bằng `ResultMessage` tốt, không còn tác vụ nền (`task_*`), không dính tranh
+  token làm mới. Lượt sau lấy ô ra thì xả hàng đợi tin của SDK: còn gì ngoài ghi chú hệ thống cuối lượt (tin của tác vụ
+  nền, một lượt CLI tự chạy) là bỏ ô, chạy lạnh. Ô ấm hỏng ngay lúc gửi tin thì chạy lại lượt đó bằng đường lạnh.
+- Dấu vân tay gồm thêm `strict_mcp_config`, file đăng nhập `.credentials.json`, các file settings và từng `SKILL.md`.
 
 ### 3.5 Codex (`server/codex_steer.py`)
 
 1. **Hiện chữ dần**: đọc `item/agentMessage/delta`, đẩy từng mẩu. Đoạn đã có delta thì `item/completed` không đẩy lại.
 2. **Chỉ dẫn hệ thống gửi một lần**: `developerInstructions` ở `thread/start`, không ghép vào tin nhắn nữa. Đo thật: tắt
    tiến trình, mở tiến trình mới, `thread/resume` không gửi lại chỉ dẫn, model vẫn trả đúng "mã bí mật" trong chỉ dẫn. Luồng
-   cũ (tạo bằng `codex exec` hay bản trước) đã mang chỉ dẫn trong tin nhắn đầu nên resume cũng không ghép lại. Đường dự
-   phòng `codex exec` vẫn ghép như cũ vì exec không có trường này.
-3. **Giữ ấm**: ô Codex giữ `app-server` và luồng đã mở; lượt sau gửi thẳng `turn/start`, không spawn, không resume. Trên
-   POSIX, lượt nào đã chạy lệnh shell thì trả ô theo đường cũ (đóng stdin, ghi nhóm tiến trình) để cơ chế nhận nuôi lệnh
-   chạy ngầm (`tien_trinh_nen`) chạy y nguyên. Trên Windows không có nhận nuôi nên luôn giữ ấm.
+   cũ (tạo bằng `codex exec` hay bản trước) chỉ mang chỉ dẫn ở tin nhắn đầu, mà Codex tự nén hội thoại sớm hơn ngưỡng
+   xoay mạch 1 triệu token của Javis, nên luồng nào KHÔNG có trong sổ `codex_instr_threads.json` (luồng mở bằng
+   `developerInstructions`) vẫn được ghép chỉ dẫn vào đầu mỗi tin như trước. Đã thử: `thread/resume` kèm chỉ dẫn mới không
+   thay được chỉ dẫn cũ. Đường dự phòng `codex exec` vẫn ghép như cũ vì exec không có trường này.
+3. **Giữ ấm**: ô Codex giữ `app-server` và luồng đã mở; lượt sau gửi thẳng `turn/start`, không spawn, không resume. Lượt
+   nào đã chạy lệnh shell thì trả tiến trình theo đường cũ (đóng stdin, ghi nhóm tiến trình), trên mọi hệ điều hành: lệnh
+   có thể còn chạy ngầm, POSIX cần đường cũ để `tien_trinh_nen` nhận nuôi, Windows thì một lần bấm Dừng sau đó
+   (`taskkill /T` lên tiến trình ấm) sẽ giết luôn lệnh đó.
 4. Lượt chạy trên ô ấm không ghi nhóm tiến trình, nên không dính 2 s ân hạn.
 
 ### 3.6 Hub MCP: dùng bản đã lưu, làm mới ở nền
