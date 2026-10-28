@@ -24898,6 +24898,9 @@ conversations_routes.register(app, conversations_routes.ConversationsDeps(
     manual_answer=chatbot_runtime.manual_answer,
     manual_done=chatbot_runtime.manual_done,
     brain_root=_brain_root,
+    pending=chatbot_runtime.nhom_cho,
+    drop_pending=chatbot_runtime.bo_nhom_cho,
+    manual_meta=chatbot_runtime.manual_meta,
 ))
 
 # Trang Coding (0.63.0): sổ repo, ràng buộc phiên, worktree, điểm hồi. Không có deps - kho

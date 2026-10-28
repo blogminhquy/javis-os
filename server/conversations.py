@@ -51,7 +51,9 @@ KENH = _channels.ids()
 KENH_NHAN = _channels.nhan_theo_id()
 NGUOI_GUI = ("customer", "ai", "human", "system")
 LOAI_TIN = ("text", "image", "file", "audio", "video", "sticker", "reaction", "other")
-CHE_DO = ("ai", "human", "waiting", "closed")
+# "draft" (Chatbot v5, 2026-10-28): the bot writes its reply but does not send it; the reply waits in the conversation's
+# `metadata.draft` for the owner to send, rewrite or drop (see `save_draft`).
+CHE_DO = ("ai", "human", "waiting", "closed", "draft")
 CHE_DO_DEFAULT = "ai"
 
 MAX_CHU = 8_000          # trần độ dài một tin lưu lại
@@ -648,7 +650,7 @@ _LOC_TINH_TRANG = {
     "unread": "c.unread_count>0",
     "human": "c.mode='human'",
 }
-_KHACH_CHUA_DAP = "c.last_sender_type='customer' AND c.mode IN ('ai','waiting')"
+_KHACH_CHUA_DAP = "c.last_sender_type='customer' AND c.mode IN ('ai','waiting','draft')"
 
 
 def _sql_can_tra_loi(hesitant) -> tuple:
@@ -663,7 +665,7 @@ def _sql_can_tra_loi(hesitant) -> tuple:
 
 def can_tra_loi(item: dict, hesitant=None) -> bool:
     """Bản Python của điều kiện SQL ở trên, cho từng hàng danh sách (thẻ "Cần trả lời")."""
-    if item.get("last_sender_type") != "customer" or str(item.get("mode") or "ai") not in ("ai", "waiting"):
+    if item.get("last_sender_type") != "customer" or str(item.get("mode") or "ai") not in ("ai", "waiting", "draft"):
         return False
     if item.get("chat_type") != "group":
         return True
@@ -675,7 +677,8 @@ BOT_KHONG_CO = "-"      # giá trị `bot_id` của bộ lọc để chỉ lấy
 def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str = "",
               mode: str = "", limit: int = 50, offset: int = 0, status: str = "", chat_type: str = "",
               hesitant=None, tag: int = 0, has_contact: bool = False, sort: str = "",
-              hidden: str = "") -> List[dict]:
+              hidden: str = "", account_ids=None, ids=None, tags_any=None, tags_none=None,
+              _light: bool = False) -> List[dict]:
     """Danh sách hội thoại, ĐÃ GHIM rồi tới MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
 
     `q` tìm theo tên khách, tiêu đề, id chat, tin cuối (LIKE, không phân biệt hoa thường).
@@ -689,10 +692,15 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
     `hidden` (2026-10-25, row menu "Hide conversation"): "exclude" leaves hidden conversations out (the inbox list),
     "only" returns just them (the "Hidden" filter), "" ignores the flag (other callers, such as the bot form's chat
     picker, still see every chat).
+
+    Chatbot v5 (2026-10-28): `account_ids` (several account keys, "<channel>:<id>") keeps only those accounts, the
+    channel picker's ticks; `ids` keeps only these conversation ids, in the usual order (the inbox filters by who is
+    handling a chat in Python, then asks for one page of the ids it kept); `tags_any` / `tags_none` (tag ids) keep
+    conversations carrying at least one of, or none of, those tags.
     """
-    n = max(1, min(int(limit or 50), MAX_DANH_SACH))
+    n = max(1, min(int(limit or 50), MAX_STATE_ROWS if _light else MAX_DANH_SACH))
     o = max(0, int(offset or 0))
-    where, args = [], []
+    where, args = _base_where(account_ids, ids, tags_any, tags_none)
     if channel:
         where.append("a.channel=?"); args.append(str(channel))
     if bot_id == BOT_KHONG_CO:
@@ -728,9 +736,12 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
             dk += ["k.phone LIKE ?", "c.external_chat_id LIKE ?"]
             args += [f"%{v}%", f"%{v}%"]
         where.append("(" + " OR ".join(dk) + ")")
+    cols = ("c.id, c.bot_id, c.chat_type, c.external_chat_id, c.channel_account_id, c.mode, c.last_sender_type,"
+            " c.metadata_json, a.channel AS channel" if _light else
+            "c.*, a.channel AS channel, a.display_name AS account_name,"
+            " k.name AS customer_name, k.external_user_id AS customer_external_id, k.phone AS customer_phone")
     sql = (
-        "SELECT c.*, a.channel AS channel, a.display_name AS account_name,"
-        " k.name AS customer_name, k.external_user_id AS customer_external_id, k.phone AS customer_phone"
+        "SELECT " + cols +
         " FROM conversations c"
         " JOIN channel_accounts a ON a.id=c.channel_account_id"
         " LEFT JOIN customers k ON k.id=c.customer_id"
@@ -742,6 +753,13 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
     args += [n, o]
     with _lock:
         rows = _conn().execute(sql, args).fetchall()
+    if _light:
+        out = []
+        for r in rows:
+            d = _row(r)
+            d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
+            out.append(d)
+        return out
     out = [_conv_public(_row(r)) for r in rows]
     tags = conversation_tags([c["id"] for c in out])
     for c in out:
@@ -791,6 +809,44 @@ def dem_bo_loc(hesitant=None) -> dict:
         out["type"]["private"] += tong - int(r["grp"] or 0)
         out["has_contact"] += int(r["contact"] or 0)
     return out
+
+
+def _base_where(account_ids=None, ids=None, tags_any=None, tags_none=None) -> tuple:
+    """WHERE parts shared by `danh_sach` and `state_rows` for the Chatbot v5 filters."""
+    where, args = [], []
+    accs = [str(a) for a in (account_ids or []) if str(a).strip()][:200]
+    if accs:
+        where.append("c.channel_account_id IN (" + ",".join("?" * len(accs)) + ")"); args += accs
+    if ids is not None:
+        keep = [int(i) for i in ids][:MAX_STATE_ROWS]
+        if not keep:
+            where.append("0")
+        else:
+            where.append("c.id IN (" + ",".join("?" * len(keep)) + ")"); args += keep
+    tany = [int(t) for t in (tags_any or []) if str(t).isdigit()][:50]
+    if tany:
+        where.append("c.id IN (SELECT conversation_id FROM conversation_tags WHERE tag_id IN ("
+                     + ",".join("?" * len(tany)) + "))"); args += tany
+    tnone = [int(t) for t in (tags_none or []) if str(t).isdigit()][:50]
+    if tnone:
+        where.append("c.id NOT IN (SELECT conversation_id FROM conversation_tags WHERE tag_id IN ("
+                     + ",".join("?" * len(tnone)) + "))"); args += tnone
+    return where, args
+
+
+MAX_STATE_ROWS = 5000     # most conversations the "who is handling it" filter looks at in one request
+
+
+def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "", chat_type: str = "",
+               hesitant=None, tag: int = 0, has_contact: bool = False, hidden: str = "", account_ids=None,
+               tags_any=None, tags_none=None, sort: str = "") -> List[dict]:
+    """Every conversation matching the inbox filters (newest first, at most MAX_STATE_ROWS), with only the columns the
+    "who is handling it" state needs: id, bot_id, chat_type, external_chat_id, channel_account_id, channel, mode,
+    last_sender_type, metadata. Same filters as `danh_sach`, no paging."""
+    rows = danh_sach(channel=channel, bot_id=bot_id, q=q, status=status, chat_type=chat_type, hesitant=hesitant,
+                     tag=tag, has_contact=has_contact, hidden=hidden, account_ids=account_ids, tags_any=tags_any,
+                     tags_none=tags_none, sort=sort, limit=MAX_STATE_ROWS, _light=True)
+    return rows
 
 
 def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: int = 80) -> List[dict]:
@@ -1082,6 +1138,72 @@ def che_do(channel: str, account_id: str, external_chat_id: str) -> str:
         return str(r["mode"]) if r else CHE_DO_DEFAULT
     except Exception:
         return CHE_DO_DEFAULT
+
+
+# ============================================================
+# Drafts the bot wrote in "draft" mode (Chatbot v5)
+# ============================================================
+MAX_DRAFT = 4000
+
+
+def _set_meta_key(conversation_id: int, key: str, value) -> bool:
+    """Set (or remove, when `value` is None) one key of a conversation's metadata. False when there is no such
+    conversation."""
+    with _lock:
+        db = _conn()
+        r = db.execute("SELECT metadata_json FROM conversations WHERE id=?", (int(conversation_id),)).fetchone()
+        if r is None:
+            return False
+        meta = _loads(r["metadata_json"], {})
+        if not isinstance(meta, dict):
+            meta = {}
+        if value is None:
+            meta.pop(key, None)
+        else:
+            meta[key] = value
+        db.execute("UPDATE conversations SET metadata_json=?, updated_at=? WHERE id=?",
+                   (_json(meta), _now(), int(conversation_id)))
+        db.commit()
+    return True
+
+
+def conversation_id_of(channel: str, account_id: str, external_chat_id: str) -> int:
+    """Id of the conversation for a channel key, 0 when there is none yet."""
+    try:
+        with _lock:
+            r = _conn().execute(
+                "SELECT id FROM conversations WHERE channel_account_id=? AND external_chat_id=?",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id))).fetchone()
+        return int(r["id"]) if r else 0
+    except Exception:      # noqa: BLE001
+        return 0
+
+
+def save_draft(conversation_id: int, text: str, for_message_id: int = 0, instruction: str = "") -> bool:
+    """Keep the bot's unsent reply on the conversation. A newer draft replaces the older one: the owner only ever reviews
+    the reply to the latest customer message."""
+    t = str(text or "").strip()[:MAX_DRAFT]
+    if not t:
+        return False
+    return _set_meta_key(conversation_id, "draft", {"text": t, "ts": _now(), "for_message_id": int(for_message_id or 0),
+                                                    "instruction": str(instruction or "")[:500]})
+
+
+def clear_draft(conversation_id: int) -> bool:
+    return _set_meta_key(conversation_id, "draft", None)
+
+
+def draft_of(conv: dict) -> Optional[dict]:
+    """The waiting draft of a conversation row (`metadata.draft`), or None."""
+    d = ((conv or {}).get("metadata") or {}).get("draft")
+    return d if isinstance(d, dict) and str(d.get("text") or "").strip() else None
+
+
+def last_customer_message_id(conversation_id: int) -> int:
+    with _lock:
+        r = _conn().execute("SELECT MAX(id) FROM messages WHERE conversation_id=? AND sender_type='customer'",
+                            (int(conversation_id),)).fetchone()
+    return int(r[0] or 0) if r else 0
 
 
 # ============================================================
