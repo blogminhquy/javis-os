@@ -49,6 +49,12 @@ _CACHE_TTL = 60
 # mất nguồn. Bản thiếu vẫn phải cache (không thì một nguồn chết là mỗi lượt lại đi dò lại từ
 # đầu), chỉ là cache NGẮN để lượt sau còn cơ hội thấy nguồn đã hồi.
 _CACHE_TTL_THIEU = 10
+# 0.382.0: a COMPLETE list past its 60 s is still served (up to this age) while a refresh runs in the background, so a
+# chat turn that opens an engine after a pause does not wait for every source to be dialled again. A partial list
+# keeps the short synchronous rule above; any change to the connection store (mtime) or invalidate_cache() still
+# drops the entry at once.
+_CACHE_STALE_MAX = 900
+_refreshing: set = set()
 _cache = {}          # (mode, vault_root) -> {"tools", "route", "ts", "mtime"}
 _cache_epoch = 0
 _rate = {}           # conn_id -> deque[timestamps]
@@ -1436,9 +1442,28 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     ent = cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)
-            and ent["mtime"] == mt and (task_scope is None or ent.get('epoch') == epoch)):
+            and ent["mtime"] == mt and ent.get('epoch') == epoch):
         if task_scope is not None:
             task_scope.manifests(lang)  # fresh enabled/source checks on a private cache hit
+        return ent["tools"], ent["route"]
+    if (not force_refresh and ent and task_scope is None and ent["mtime"] == mt and ent.get("epoch") == epoch
+            and ent.get("ttl", _CACHE_TTL) == _CACHE_TTL and time.time() - ent["ts"] < _CACHE_STALE_MAX):
+        if key not in _refreshing:
+            _refreshing.add(key)
+
+            async def _refresh():
+                try:
+                    await discover_all(mode, vault_root, include_plugins, include_ambient, force_refresh=True,
+                                       force_lazy=force_lazy, staging=staging, workspace_root=workspace_root,
+                                       coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot)
+                except Exception as e:  # noqa: BLE001 - the next caller simply dials again
+                    print(f"[hub] background refresh failed: {type(e).__name__}: {e}", file=sys.stderr)
+                finally:
+                    _refreshing.discard(key)
+            try:
+                asyncio.get_running_loop().create_task(_refresh())
+            except RuntimeError:
+                _refreshing.discard(key)
         return ent["tools"], ent["route"]
 
     # Phần đồng bộ của lượt dò (giải mã kho kết nối, đọc mọi SKILL.md, nạp plugin) chạy ở
@@ -1534,6 +1559,10 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         if current(vault_root) is not task_scope or _cache_epoch != epoch:
             raise ScopeUnavailable('task_skill_discovery_changed')
         task_scope.manifests(lang)
+    elif _cache_epoch != epoch:
+        # invalidate_cache() ran while this dial was out (0.382.0: a background refresh makes that likelier): the
+        # list may predate the change, so hand it to this caller only and do not store it.
+        return tools_spec, route
     cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt, 'epoch': epoch,
                    "ttl": _CACHE_TTL_THIEU if bo_qua else _CACHE_TTL,
                    "inventory_tools": inventory_tools, "inventory_route": inventory_route}

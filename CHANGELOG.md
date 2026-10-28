@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.382.0] - 2026-10-28
+### Cải thiện
+- **Claude Code trả lời nhanh hơn từ tin nhắn thứ hai.** Javis giữ sẵn Claude Code giữa các tin nhắn của một cuộc chat thay vì mở lại mỗi lần. Đo trên máy thật: tin nhắn tiếp theo từ khoảng 10 giây còn khoảng 4 giây.
+- **Codex hiện chữ ngay khi đang viết**, không còn bắt chờ hết cả đoạn. Codex cũng được giữ sẵn giữa các tin nhắn, và luật của Javis chỉ gửi một lần mỗi cuộc chat thay vì gửi kèm mọi tin, nên cuộc chat dài không chậm dần.
+- Chỉ cần bắt đầu gõ là Javis mở sẵn bộ não cho cuộc chat vừa nghỉ quá 5 phút. Số bộ não giữ sẵn tự giới hạn theo RAM trống của máy, việc chạy nền và bot khách vẫn chạy như cũ.
+
 ## [0.381.0] - 2026-10-28
 ### Cải thiện
 - Mục **Models** chuyển từ nhóm Kết nối sang nhóm **Hệ thống** trên thanh bên: chọn não A.I. là cài đặt của chính Javis, còn Kết nối dành cho dịch vụ bên ngoài.

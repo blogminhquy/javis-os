@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.382.0] - 2026-10-28
+### Improved
+- **Claude Code answers faster from the second message on.** Javis keeps Claude Code running between the messages of a chat instead of starting it again every time. Measured on a real machine: the next message went from about 10 seconds to about 4.
+- **Codex shows its answer as it writes** instead of making you wait for the whole paragraph. Codex is also kept running between messages, and Javis's rules go once per chat instead of with every message, so long chats no longer slow down.
+- Just start typing and Javis gets the brain ready again for a chat that has been idle over 5 minutes. How many stay ready is capped by the machine's free RAM; background work and customer bots run as before.
+
 ## [0.381.0] - 2026-10-28
 ### Improved
 - **Models** moves from the Connections group to the **System** group in the sidebar: choosing the AI brain is Javis's own setting, while Connections is for outside services.
