@@ -1,4 +1,4 @@
-"""0.382.0: engine processes kept warm between the owner's chat turns (warm_pool.py, claude_warm.py, turn_context.Lane).
+"""0.382.0: engine processes kept warm between the owner's chat turns (warm_pool.py, claude_warm.py, turn_lane.Lane).
 
 Spec: docs/dev/2026-10-toc-do-luot-chat-spec.md. Covers the pool (budget, LRU, idle, fingerprint, prewarm), the lane
 key that lets a warm process carry the running turn to the hub, what makes a Claude turn eligible and what its
@@ -17,6 +17,7 @@ import types
 os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-warm-")
 
 import turn_context  # noqa: E402
+import turn_lane  # noqa: E402
 import warm_pool  # noqa: E402
 
 fails = []
@@ -198,7 +199,7 @@ check("not quiet: a result is pending", not _handle_with([{"type": "result"}]).q
 
 
 # ---- the lane key ----
-lane = turn_context.Lane()
+lane = turn_lane.Lane()
 check("outside a turn the lane attaches to nobody", not lane.attach() and turn_context.resolve_key(lane.key) is None)
 tok = turn_context.bind(turn_context.make("dashboard", chat_id="s1", la_chu=True))
 check("inside a turn it points at that turn", lane.attach()
@@ -215,11 +216,14 @@ tok = turn_context.bind(turn_context.make("dashboard", chat_id="s2", la_chu=True
 lane.attach()
 check("the next turn on the same process is the one it carries",
       (turn_context.resolve_key(lane.key) or {}).get("chat_id") == "s2")
-old = lane._owner
+lane.detach()
+check("detach at the end of the query: nobody at once, before the turn resets",
+      turn_context.resolve_key(lane.key) is None and lane.context().run(turn_context.current) is None)
 turn_context.reset(tok)
-lane.detach(old)
 lane.close()
 check("a closed lane never resolves again", turn_context.resolve_key(lane.key) is None)
+check("turn_context.py is untouched (pinned by the native qualification evidence)",
+      "Lane" not in (SERVER / "turn_context.py").read_text(encoding="utf-8"))
 
 
 # ---- Claude: eligibility and fingerprint ----
@@ -268,7 +272,7 @@ with open(os.path.join(eng.cwd, "CLAUDE.md"), "w") as f:
     f.write("edited")
 check("an edited CLAUDE.md is (Claude Code reads it at start-up only)", claude_warm.fingerprint(eng, opts()) != fp)
 
-h = claude_warm.ClaudeHandle(None, turn_context.Lane())
+h = claude_warm.ClaudeHandle(None, turn_lane.Lane())
 o = claude_warm._warm_options(eng, opts(), h)
 check("warm options carry the lane key in the hub header",
       o.mcp_servers["javis"]["headers"][turn_context.HEADER] == h.lane.key

@@ -10,7 +10,7 @@ helpers by module attribute (`eng.map_message`, so the plan_limits wrapper still
 
 What stays exactly as before: the options (built by the engine's own `_options`), the watchdogs, the events yielded.
 What differs for a warm client:
-- the hub turn header is the slot's lane key (turn_context.Lane), pointed at the running turn each time;
+- the hub turn header is the slot's lane key (turn_lane.Lane), pointed at the running turn each time;
 - the client connects inside the lane's context, so hooks and in-process plugin tools (they run in tasks the SDK
   creates at connect time) see the turn that is running, not the first one;
 - the steer hook and the stderr callback go through the handle to the engine of the running turn.
@@ -29,6 +29,7 @@ import sys
 import time
 from typing import AsyncIterator, Optional
 
+import turn_lane
 import warm_pool
 
 
@@ -218,7 +219,7 @@ def _recipe(cli, opts, sysprompt_text: Optional[str]):
             tmp = cli._write_sysprompt_file(sysprompt_text)
             extra["append-system-prompt-file"] = tmp
             o.extra_args = extra
-        handle = ClaudeHandle(None, turn_context.Lane())
+        handle = ClaudeHandle(None, turn_lane.Lane())
         handle.cli = cli
         o = _warm_options(cli, o, handle)
         try:
@@ -301,7 +302,7 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
         except Exception:
             pass
         if handle is None:
-            handle = ClaudeHandle(None, turn_context.Lane())
+            handle = ClaudeHandle(None, turn_lane.Lane())
             handle.lane.attach()
             handle.cli = cli
             await _open(_warm_options(cli, opts, handle), handle)

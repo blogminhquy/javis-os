@@ -70,13 +70,12 @@ class _Binding:
     # `alive` goes False in `reset`. Tasks spawned during a turn copy the context, so they still
     # hold this binding after the turn ends; a dead binding must read as "no turn" there, and
     # must not mint a fresh key for a turn that is over.
-    __slots__ = ("turn", "keys", "alive", "lanes")
+    __slots__ = ("turn", "keys", "alive")
 
     def __init__(self, turn: dict):
         self.turn = turn
         self.keys: list = []
         self.alive = True
-        self.lanes: list = []   # Lane objects this turn attached (0.382.0), detached in `reset`
 
 
 class Token:
@@ -91,7 +90,6 @@ class Token:
 _CURRENT: contextvars.ContextVar[Optional[_Binding]] = contextvars.ContextVar(
     "javis_turn_context", default=None)
 _KEYS: dict = {}          # key -> (turn dict, expires_at)
-_LANES: dict = {}         # lane key -> Lane (0.382.0)
 _LOCK = threading.Lock()  # CLI engines build argv from worker threads too
 
 
@@ -224,9 +222,6 @@ def reset(token: Token) -> None:
             with _LOCK:
                 for k in b.keys:
                     _KEYS.pop(k, None)
-        for lane in list(b.lanes):
-            lane.detach(b)
-        b.lanes.clear()
     _CURRENT.reset(token._cv)
 
 
@@ -261,72 +256,10 @@ def resolve_key(key) -> Optional[dict]:
     if not k:
         return None
     with _LOCK:
-        lane = _LANES.get(k)
         ent = _KEYS.get(k)
-    if lane is not None:
-        return lane.turn()
     if ent is None or ent[1] < time.time():
         return None
     return _copy(ent[0])
-
-
-class Lane:
-    """A turn key that outlives one turn, for an engine process kept warm across turns (warm_pool.py, 0.382.0).
-
-    A warm `claude` or `codex app-server` connects to the hub ONCE, so the `X-Javis-Turn` header it sends is fixed for
-    its whole life. The lane gives it one fixed key; `attach` points that key at the turn running now and the turn's
-    `reset` points it back at nobody. Between two turns the key resolves to None, which keeps the old rule that a key
-    dies with its turn: a background command left over from the last turn cannot act as anyone.
-
-    `context()` is a context whose current turn follows the lane, for the SDK's background task (hooks and in-process
-    plugin tools run there, created once at connect time, so they would otherwise see the first turn forever)."""
-
-    def __init__(self):
-        self.key = secrets.token_urlsafe(24)
-        self._binding = _Binding({})
-        self._binding.alive = False
-        self._owner: Optional[_Binding] = None
-        with _LOCK:
-            _LANES[self.key] = self
-
-    def attach(self) -> bool:
-        """Point the lane at the current turn until that turn resets. False (and nobody) outside a live turn."""
-        b = _CURRENT.get()
-        if b is None or not b.alive or b is self._binding:
-            self.detach()
-            return False
-        with _LOCK:
-            self._binding.turn = _copy(b.turn)
-            self._binding.alive = True
-            self._owner = b
-        b.lanes.append(self)
-        return True
-
-    def detach(self, owner: Optional[_Binding] = None) -> None:
-        """Back to nobody. With `owner`, only when that turn is still the one attached (a later turn may own it)."""
-        with _LOCK:
-            if owner is not None and self._owner is not owner:
-                return
-            self._binding.alive = False
-            self._binding.turn = {}
-            self._owner = None
-            for k in self._binding.keys:   # keys minted from inside the lane's context die with the turn too
-                _KEYS.pop(k, None)
-            self._binding.keys = []
-
-    def close(self) -> None:
-        self.detach()
-        with _LOCK:
-            _LANES.pop(self.key, None)
-
-    def turn(self) -> Optional[dict]:
-        with _LOCK:
-            return _copy(self._binding.turn) if self._binding.alive else None
-
-    def context(self) -> contextvars.Context:
-        ctx = contextvars.copy_context()
-        ctx.run(_CURRENT.set, self._binding)
-        return ctx
 
 
 def codex_override() -> Optional[str]:

@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import AsyncIterator, Dict, List, Optional
 
 import steer_inbox
+import turn_lane
 import warm_pool
 
 ENV_SWITCH = "JAVIS_CODEX_STEER"
@@ -430,7 +431,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
     lane = None
     if warm_key:
         import turn_context
-        lane = turn_context.Lane()
+        lane = turn_lane.Lane()
     try:
         args = _args(cli, _turn_key(cli, lane))      # an unreadable profile raises Fallback here, as before
     except BaseException:
@@ -473,7 +474,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
             proc = rpc = None
             seen = []
             import turn_context
-            lane = turn_context.Lane()
+            lane = turn_lane.Lane()
             try:
                 args = _args(cli, _turn_key(cli, lane))
             except BaseException:
@@ -730,7 +731,7 @@ def _recipe(cli, args: List[str], acct_home, thread_id: str):
 
     async def _open() -> CodexHandle:
         import turn_context
-        lane = turn_context.Lane() if lane_arg else None
+        lane = turn_lane.Lane() if lane_arg else None
         argv = [(f'{turn_context.CODEX_HEADER_KEY}="{lane.key}"' if (lane and a == lane_arg) else a) for a in args]
         proc = _spawn(argv, cwd, acct_home)
         rpc = _Rpc(proc, asyncio.get_running_loop())
