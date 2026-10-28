@@ -101,7 +101,7 @@ check("co bang bao ban moi dat NGOAI tabs", /kho-bao-moi/.test(SRC));
 check("chip tren bang nhay sang dung tab va loc san",
   /data-kho-moi/.test(SRC) && /_kho\.nhom = "Có bản mới"/.test(SRC));
 check("tab mang huy hieu so ban moi cua rieng no", /kho-dem moi/.test(SRC));
-check("cot ben trai co hang loc 'Co ban moi'", /hangNhom\("Có bản mới"/.test(SRC));
+check("cot nhom co hang loc 'Co ban moi'", /\["Có bản mới", capNhatLoai\.length/.test(SRC) && /dsNhom\.map/.test(SRC));
 check("danh muc qua cu thi tu lay lai mot lan o nen",
   /CU_QUA/.test(SRC) && /packs\/store\?refresh=1/.test(SRC));
 // Chu "Danh muc luc ..." da vao tu dien i18n o 0.55.54, nen soi chuoi tieng Viet literal trong

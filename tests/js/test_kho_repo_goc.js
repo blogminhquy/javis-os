@@ -70,7 +70,8 @@ check("ten repo duoc escape truoc khi vao HTML", !doc_.includes("<script>"));
   check("tab repo liet ke moi goi theo repo goc, bat ke loai",
     h.includes("javis.remotion") && h.includes("javis.lemo"));
   check("tab repo khong lan goi thuong", !h.includes("javis.thuong") && !h.includes("javis.kn"));
-  check("tab repo co dong gioi thieu ngan kem nut (i)", h.includes("kho-goc-gt"));
+  // The lead line under the tab went in 0.384.0 (owner: the cards explain themselves).
+  check("tab repo khong con dong gioi thieu thua", !h.includes("kho-goc-gt"));
 
   await P.veKho({}, host, false, "skill");
   const h2 = host.innerHTML;

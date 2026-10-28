@@ -217,6 +217,8 @@
   // Trần dung lượng tệp .zip, do server nói (`/packs` trả `max_mb`). Giữ ở module để hộp thoại
   // chọn tệp nói đúng con số ngay cả khi nó mở lại sau một lần lỗi, lúc không còn `d` trong tay.
   let _maxMb = 25;
+  // Folder the installs land in (`/packs` returns `dir`), told in the (i) of the .zip dialog.
+  let _thuMuc = "";
 
   // Loại được chọn sẵn khi mở kho. `moKho()` đặt, `render()` lấy rồi XOÁ ngay - nó là ý định
   // của MỘT lần bấm tab, không phải trạng thái của trang.
@@ -607,7 +609,9 @@
   // Trạng thái lưới kho. Để ở module vì mọi lần bấm tab, bấm nhóm hay đổi trang đều chỉ VẼ LẠI
   // từ dữ liệu đã tải, không gọi lại mạng.
   let _kho = { dl: null, loai: "connector", nhom: "Tất cả", trang: 1, tim: "" };
-  const MOI_TRANG = 20;
+  // 18, not 20 (owner, 2026-10-28): it splits evenly into the 3 and 2 column grids, so the last
+  // row of a full page is never left half empty.
+  const MOI_TRANG = 18;
   // Danh mục cũ hơn ngần này (giây) thì trang Kho tự lấy lại một lần ở nền. Xem `veKho`.
   const CU_QUA = 30 * 60;
 
@@ -671,6 +675,21 @@
     try {
       if (nho.dau !== null && nho.dau !== undefined) moi.setSelectionRange(nho.dau, nho.cuoi);
     } catch (e) {}
+  }
+
+  // A new page starts at its first card. The pager sits under the last row, so without this the
+  // next page opens at its bottom. Only scrolls UP, and stops below the pinned navbar.
+  function lenDauLuoi(host) {
+    try {
+      const than = host.querySelector(".kho-than");
+      const thanh = host.querySelector(".kho-thanh");
+      let sc = than && than.parentElement;
+      while (sc && sc !== document.body && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+      if (!than || !sc) return;
+      const lech = than.getBoundingClientRect().top - sc.getBoundingClientRect().top
+        - (thanh ? thanh.offsetHeight : 0) - 8;
+      if (lech < 0) sc.scrollTop += lech;
+    } catch (e) { /* no layout (node tests): nothing to scroll */ }
   }
 
   function veLuoi(el, host) {
@@ -752,44 +771,57 @@
         + '</div>'
       : "";
 
+    // Group filter as a native <select>, shown on phones in place of the column (CSS swaps them):
+    // a wrapped row of ten pills pushed the cards a full screen down, and a sideways strip hides
+    // the groups at its end. The select shows every group and costs one row.
+    // One list feeds both: [filter key, count, label, starts the field groups].
+    const dsNhom = [["Tất cả", cungLoai.length, tw("studio.all")], ["Đã cài", daCai.length, tw("ol.installed")]]
+      .concat(capNhatLoai.length ? [["Có bản mới", capNhatLoai.length, tw("cs.upd_have_new")]] : [])
+      .concat(congDong.length ? [["Cộng đồng", congDong.length, tw("store.community")]] : [])
+      .concat(tenNhom.map((t, i) => [t, dem[t], nhanNhom(t), i === 0]));
+    const chonNhom = dsNhom.map(([ten, so, nhan]) => '<option value="' + esc(ten) + '"'
+      + (_kho.nhom === ten ? " selected" : "") + '>' + esc(nhan) + ' (' + so + ')</option>').join("");
+
+    // Refresh and Install from .zip, drawn twice: in the navbar (computer) and beside the search
+    // box (phone), CSS shows one. Hence data attributes rather than ids.
+    const nutHd = '<button class="mp-btn kho-hd-btn" data-kho-lammoi="1"'
+      + (gioLay ? ' title="' + esc(tw("store.catalog_at", { luc: gioLay })) + '"' : "")
+      + ' aria-label="' + esc(tw("store.refresh")) + '">'
+      + ic("rotate-cw") + '<span>' + tw("store.refresh") + '</span></button>'
+      + '<button class="mp-btn kho-hd-btn" data-kho-zip="1" aria-label="' + esc(tw("store.from_zip")) + '">'
+      + ic("upload-cloud") + '<span>' + tw("store.from_zip") + '</span></button>';
+
     const nhoConTro = ghiConTro(host);
     host.innerHTML =
       (d.stale ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">' + tw("store.stale") + '</div>' : "")
       + bangMoi
+      // The Store's own navbar: kind tabs on the left, Refresh and Install from .zip on the right,
+      // one row that stays pinned while the cards scroll (owner, 2026-10-28). On phones the six
+      // tabs need the whole row, so the two buttons move next to the search box as icons.
+      + '<div class="kho-thanh">'
       + '<div class="kho-tabs">' + tabLoai + '</div>'
-      + (_kho.loai === "repo"
-          ? '<div class="prov-meta kho-goc-gt">' + tw("store.repo_lead") + ' ' + infoBtn() + '</div>'
-            + infoBody(esc(tw("store.repo_info")))
-          : "")
+      + '<div class="kho-hd">'
+      // Say when this catalog was fetched. Without it "why don't I see the new version" is a
+      // question nobody can answer, not even the person who wrote it.
+      + (gioLay ? '<span class="prov-meta kho-luc">' + esc(tw("store.catalog_at", { luc: gioLay })) + '</span>' : "")
+      + nutHd
+      + '</div></div>'
       + '<div class="kho-than">'
-      + '<div class="kho-cot">'
-      + '<div class="kho-cot-tieu">' + tw("studio.groups") + '</div>'
-      + hangNhom("Tất cả", cungLoai.length, _kho.nhom === "Tất cả", false, tw("studio.all"))
-      + hangNhom("Đã cài", daCai.length, laDaCai, false, tw("ol.installed"))
-      + (capNhatLoai.length
-          ? hangNhom("Có bản mới", capNhatLoai.length, laMoi, false, tw("cs.upd_have_new")) : "")
-      + (congDong.length
-          ? hangNhom("Cộng đồng", congDong.length, laCongDong, false, tw("store.community")) : "")
-      + tenNhom.map((t, i) => hangNhom(t, dem[t], _kho.nhom === t, i === 0, nhanNhom(t))).join("")
-      + '</div>'
       + '<div class="kho-chinh">'
-      + '<div class="cat-tools">'
-      // Bề rộng do CSS lo, không viết cứng ở đây: trên điện thoại ô này phải chiếm trọn hàng,
-      // mà style nội tuyến thì media query không đè được nếu không kèm !important.
+      + '<div class="cat-tools kho-loc">'
+      // Width comes from CSS, not written here: on a phone this box takes the whole row, and an
+      // inline style cannot be overridden by a media query without !important.
       + '<input class="js-input kho-tim" id="pkQ" placeholder="'
       + esc(tw("store.search_ph", { loai: tw(LOAI[_kho.loai].nhan) }))
       + '" value="' + esc(_kho.tim) + '">'
-      + '<span class="prov-meta">'
+      + '<select class="js-input kho-chon-nhom" id="pkNhom" aria-label="' + esc(tw("studio.groups")) + '">'
+      + chonNhom + '</select>'
+      + '<span class="kho-hd kho-hd-dt">' + nutHd + '</span>'
+      + '<span class="prov-meta kho-so-muc">'
       + (laDaCai ? tw("store.count_installed", { count: hop.length })
          : laMoi ? tw("store.count_updates", { count: hop.length })
          : laCongDong ? tw("store.count_community", { count: hop.length })
          : tw("store.count_items", { count: hop.length })) + '</span>'
-      + '<span style="flex:1"></span>'
-      // Nói ra danh mục này lấy lúc nào. Không có dòng này thì "sao tôi không thấy bản mới"
-      // là câu không ai trả lời được, kể cả người viết ra nó.
-      + (gioLay ? '<span class="prov-meta">' + esc(tw("store.catalog_at", { luc: gioLay })) + '</span>' : "")
-      + '<button class="mp-btn" id="pkLamMoi">' + tw("store.refresh") + '</button>'
-      + '<button class="mp-btn" id="pkChon2">' + tw("store.from_zip") + '</button>'
       + '</div>'
       + '<div class="cat-grid" id="pkGrid">' + hienThi.map(theKho).join("") + '</div>'
       + (hienThi.length ? "" : '<div class="mp-empty">'
@@ -801,12 +833,24 @@
             + tw("store.paging", { tu: ((trang - 1) * MOI_TRANG + 1),
                                    den: Math.min(trang * MOI_TRANG, hop.length),
                                    tong: hop.length })
-            + '</span><span style="flex:1"></span>'
+            + '</span><span class="kho-trang-so">'
+            + '<button class="kho-so" data-kho-trang="' + (trang - 1) + '"' + (trang === 1 ? " disabled" : "")
+            + ' aria-label="' + esc(tw("store.page_prev")) + '">' + ic("chevron-left") + '</button>'
             + Array.from({ length: soTrang }, (_, i) =>
                 '<button class="kho-so' + (i + 1 === trang ? " on" : "") + '" data-kho-trang="'
                 + (i + 1) + '">' + (i + 1) + '</button>').join("")
-            + '</div>'
-          : "");
+            + '<button class="kho-so" data-kho-trang="' + (trang + 1) + '"' + (trang === soTrang ? " disabled" : "")
+            + ' aria-label="' + esc(tw("store.page_next")) + '">' + ic("chevron-right") + '</button>'
+            + '</span></div>'
+          : "")
+      + '</div>'
+      // Group column on the RIGHT (owner, 2026-10-28): the app sidebar is already on the left,
+      // and two menus side by side read as one long menu.
+      + '<div class="kho-cot">'
+      + '<div class="kho-cot-tieu">' + tw("studio.groups") + '</div>'
+      + dsNhom.map(([ten, so, nhan, ngan]) => hangNhom(ten, so, _kho.nhom === ten, !!ngan, nhan)).join("")
+      + '</div>'
+      + '</div>';
 
     traConTro(host, nhoConTro);
 
@@ -823,8 +867,10 @@
       _kho.trang = 1; _kho.tim = ""; lai();
     });
     host.querySelectorAll("[data-kho-trang]").forEach(b => b.onclick = () => {
-      _kho.trang = Number(b.dataset.khoTrang); lai();
+      _kho.trang = Number(b.dataset.khoTrang); lai(); lenDauLuoi(host);
     });
+    const sn = host.querySelector ? host.querySelector("#pkNhom") : null;
+    if (sn) sn.onchange = () => { _kho.nhom = sn.value; _kho.trang = 1; lai(); };
     const o = document.getElementById("pkQ");
     if (o) {
       const loc = () => { _kho.tim = o.value; _kho.trang = 1; lai(); };
@@ -834,10 +880,19 @@
       o.oninput = (ev) => { if (!(ev && ev.isComposing)) loc(); };
       o.oncompositionend = loc;
     }
-    const lm = document.getElementById("pkLamMoi");
-    if (lm) lm.onclick = () => veKho(el, host, true, _kho.loai);
-    const ct = document.getElementById("pkChon2");
-    if (ct) ct.onclick = () => manHinhChon(el, _maxMb);
+    host.querySelectorAll("[data-kho-lammoi]").forEach(b => b.onclick = () => veKho(el, host, true, _kho.loai));
+    host.querySelectorAll("[data-kho-zip]").forEach(b => b.onclick = () => manHinhChon(el, _maxMb));
+    // The active tab in view: on a narrow phone the tab strip can scroll sideways.
+    // Sets scrollLeft by hand: scrollIntoView would also move the page vertically.
+    // One frame later: the page is drawn off screen first and has no width yet.
+    const tabOn = host.querySelector ? host.querySelector(".kho-tab.on") : null;
+    const dai = tabOn && tabOn.parentElement;
+    if (dai && typeof requestAnimationFrame === "function") requestAnimationFrame(() => {
+      if (dai.scrollWidth <= dai.clientWidth) return;
+      const t = tabOn.offsetLeft, w = tabOn.offsetWidth;
+      if (t < dai.scrollLeft) dai.scrollLeft = t;
+      else if (t + w > dai.scrollLeft + dai.clientWidth) dai.scrollLeft = t + w - dai.clientWidth;
+    });
 
     const theo = {};
     ds.forEach(g => { theo[g.id] = g; });
@@ -882,7 +937,8 @@
     const m = modal(
       pkmDau(null, (tuy.tieu || tw("store.from_zip")) + infoBtn(), tuy.phu || tw("store.pick.body"))
       // Trust note and what the next step shows: behind the (i) on the title; the next screen shows the real warning.
-      + (tuy.tinHtml || infoBody(esc(tw("store.pick.trust"))))
+      + (tuy.tinHtml || infoBody(esc(tw("store.pick.trust"))
+          + (_thuMuc ? "<br><br>" + tw("store.dir_note", { duong: "<code>" + esc(_thuMuc) + "</code>" }) : "")))
       + '<div class="pkm-than">'
       + '<label class="pkm-tha" id="pkTha">'
       + '<input type="file" accept=".zip" id="pkTepHop" style="display:none">'
@@ -1205,20 +1261,19 @@
         ? '<button class="kho-quaylai" id="pkQuayLai">← '
           + tw("store.back_to", { trang: esc(veTrang.nhan) }) + '</button>'
         : "")
-      + '<div class="cview-section kho-khoi"><h3>◆ Javis Store</h3>'
-      + '<div class="gcard-meta" style="max-width:740px">' + tw("store.intro") + ' '
-      + tw("store.intro_press", { nut: '<b>' + tw("store.btn.install") + '</b>' }) + '</div>'
+      // No heading and no intro here (owner, 2026-10-28): the page header right above already says
+      // "Javis Store" and what it holds, and the cards explain themselves. Where installs land on
+      // disk moved into the (i) of the Install from .zip dialog, the one place it matters.
+      + '<div class="kho-khoi">'
       + (d.disabled
-        ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-top:12px">'
+        ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">'
           + tw("store.disabled_env", { bien: '<code>JAVIS_DISABLE_PACKS</code>' }) + '</div>'
         : "")
-      + '<div id="pkKho" style="margin-top:12px"></div>'
-      + '<div class="gcard-meta" style="margin-top:16px;opacity:.7">'
-      + tw("store.dir_note", { duong: '<code>' + esc(d.dir || "") + '</code>' }) + ' '
-      + tw("store.zip_limit", { mb: (d.max_mb || 25) }) + '</div>'
+      + '<div id="pkKho"></div>'
       + '</div>';
 
     _maxMb = d.max_mb || 25;
+    _thuMuc = d.dir || "";
     const nutVe = document.getElementById("pkQuayLai");
     if (nutVe) nutVe.onclick = () => {
       const s = window.Alpine && Alpine.store("nav");
