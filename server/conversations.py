@@ -678,6 +678,7 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
               mode: str = "", limit: int = 50, offset: int = 0, status: str = "", chat_type: str = "",
               hesitant=None, tag: int = 0, has_contact: bool = False, sort: str = "",
               hidden: str = "", account_ids=None, ids=None, tags_any=None, tags_none=None,
+              since: float = 0, until: float = 0, last_by: str = "", pinned: bool = False,
               _light: bool = False) -> List[dict]:
     """Danh sách hội thoại, ĐÃ GHIM rồi tới MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
 
@@ -700,7 +701,7 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
     """
     n = max(1, min(int(limit or 50), MAX_STATE_ROWS if _light else MAX_DANH_SACH))
     o = max(0, int(offset or 0))
-    where, args = _base_where(account_ids, ids, tags_any, tags_none)
+    where, args = _base_where(account_ids, ids, tags_any, tags_none, since, until, last_by, pinned)
     if channel:
         where.append("a.channel=?"); args.append(str(channel))
     if bot_id == BOT_KHONG_CO:
@@ -811,9 +812,23 @@ def dem_bo_loc(hesitant=None) -> dict:
     return out
 
 
-def _base_where(account_ids=None, ids=None, tags_any=None, tags_none=None) -> tuple:
-    """WHERE parts shared by `danh_sach` and `state_rows` for the Chatbot v5 filters."""
+LAST_BY = ("customer", "ai", "human")
+
+
+def _base_where(account_ids=None, ids=None, tags_any=None, tags_none=None, since: float = 0, until: float = 0,
+                last_by: str = "", pinned: bool = False) -> tuple:
+    """WHERE parts shared by `danh_sach` and `state_rows` for the Chatbot v5 filters: picked accounts, ids, tags
+    any/none, the last message between `since` and `until` (timestamps, 0 = open), who sent the last message
+    (customer | ai | human, anything else ignored) and pinned chats only."""
     where, args = [], []
+    if since:
+        where.append("c.last_message_at>=?"); args.append(float(since))
+    if until:
+        where.append("c.last_message_at<?"); args.append(float(until))
+    if last_by in LAST_BY:
+        where.append("c.last_sender_type=?"); args.append(last_by)
+    if pinned:
+        where.append("c.pinned=1")
     accs = [str(a) for a in (account_ids or []) if str(a).strip()][:200]
     if accs:
         where.append("c.channel_account_id IN (" + ",".join("?" * len(accs)) + ")"); args += accs
@@ -839,13 +854,15 @@ MAX_STATE_ROWS = 5000     # most conversations the "who is handling it" filter l
 
 def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "", chat_type: str = "",
                hesitant=None, tag: int = 0, has_contact: bool = False, hidden: str = "", account_ids=None,
-               tags_any=None, tags_none=None, sort: str = "") -> List[dict]:
+               tags_any=None, tags_none=None, sort: str = "", since: float = 0, until: float = 0, last_by: str = "",
+               pinned: bool = False) -> List[dict]:
     """Every conversation matching the inbox filters (newest first, at most MAX_STATE_ROWS), with only the columns the
     "who is handling it" state needs: id, bot_id, chat_type, external_chat_id, channel_account_id, channel, mode,
     last_sender_type, metadata. Same filters as `danh_sach`, no paging."""
     rows = danh_sach(channel=channel, bot_id=bot_id, q=q, status=status, chat_type=chat_type, hesitant=hesitant,
                      tag=tag, has_contact=has_contact, hidden=hidden, account_ids=account_ids, tags_any=tags_any,
-                     tags_none=tags_none, sort=sort, limit=MAX_STATE_ROWS, _light=True)
+                     tags_none=tags_none, sort=sort, since=since, until=until, last_by=last_by, pinned=pinned,
+                     limit=MAX_STATE_ROWS, _light=True)
     return rows
 
 
@@ -1317,6 +1334,71 @@ def ghi_trang_thai(key: str, value: str) -> None:
             db.commit()
     except Exception as e:
         print(f"[conversations] ghi trạng thái lỗi: {e}", file=sys.stderr)
+
+
+# ---- "No bot needed" (Chatbot v5 Channels tab): the owner says a nick or Page is fine without an A.I., so its chats are
+# "logged only" and it stops counting as something to do. Kept per account key ("<channel>:<raw id>") in sync_state,
+# which holds every kind of account (a personal Zalo nick has no record in channel_accounts.json).
+_NO_BOT = "no_bot:"
+
+
+def set_no_bot(account_key: str, on: bool) -> None:
+    ghi_trang_thai(_NO_BOT + str(account_key), "1" if on else "")
+
+
+def set_account_bot(account_key: str, bot_id: str) -> int:
+    """The bot on duty for a channel account changed (Channels tab): its chats follow, so the inbox, the "who is
+    handling it" state and the per-chat A.I. switch all see the new bot (or none). Returns how many chats moved."""
+    with _lock:
+        db = _conn()
+        cur = db.execute("UPDATE conversations SET bot_id=? WHERE channel_account_id=?", (str(bot_id or ""), str(account_key)))
+        db.commit()
+    return cur.rowcount
+
+
+def no_bot_accounts() -> set:
+    try:
+        with _lock:
+            rows = _conn().execute("SELECT key FROM sync_state WHERE key LIKE ? AND value='1'", (_NO_BOT + "%",)).fetchall()
+        return {str(r["key"])[len(_NO_BOT):] for r in rows}
+    except Exception:
+        return set()
+
+
+def insights(since: float, until: float) -> dict:
+    """Numbers for the Stats tab (Chatbot v5) between two timestamps: messages the A.I. sent, messages the owner sent,
+    customer messages, the average wait of a customer for the first answer (A.I. or owner), and the same counts per
+    channel and per bot. A waiting run starts at the first customer message after an answer; reactions do not count."""
+    with _lock:
+        rows = _conn().execute(
+            "SELECT m.conversation_id AS cid, m.sender_type AS who, m.created_at AS ts, a.channel AS channel,"
+            " c.bot_id AS bot_id FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+            " JOIN channel_accounts a ON a.id=c.channel_account_id"
+            " WHERE m.created_at>=? AND m.created_at<? AND m.sender_type IN ('customer','ai','human')"
+            " AND m.message_type!='reaction' ORDER BY m.conversation_id, m.created_at, m.id",
+            (float(since), float(until))).fetchall()
+    out = {"ai": 0, "human": 0, "customer": 0, "wait_avg": None, "waits": 0, "by_channel": {}, "by_bot": {}}
+    waits, start, cur = [], None, None
+    for r in rows:
+        who, ts = str(r["who"]), float(r["ts"] or 0)
+        if r["cid"] != cur:
+            cur, start = r["cid"], None
+        ch = out["by_channel"].setdefault(str(r["channel"] or ""), {"customer": 0, "ai": 0, "human": 0})
+        ch[who] += 1
+        out[who] += 1
+        if who == "customer":
+            if start is None:
+                start = ts
+        else:
+            if who == "ai" and r["bot_id"]:
+                out["by_bot"][str(r["bot_id"])] = out["by_bot"].get(str(r["bot_id"]), 0) + 1
+            if start is not None:
+                waits.append(max(0.0, ts - start))
+                start = None
+    if waits:
+        out["wait_avg"] = round(sum(waits) / len(waits), 1)
+        out["waits"] = len(waits)
+    return out
 
 
 def xoa_trang_thai(tien_to: str) -> None:

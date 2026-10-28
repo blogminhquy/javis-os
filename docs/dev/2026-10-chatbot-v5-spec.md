@@ -82,8 +82,8 @@ Cột trái, từ trên xuống:
 - **Hộp chọn kênh** (thả xuống): ô tìm, "Tất cả kênh", rồi từng kênh có logo thật, mỗi nick/Page một ô tick (tick tên
   kênh = cả kênh), số Cần bạn từng nơi; dưới cùng Bỏ chọn / Xong, và "Quản lý kênh". Chọn lưu ở trình duyệt.
   Server nhận `account_ids` (danh sách khoá tài khoản, cách nhau dấu phẩy).
-- **Ô tìm** và nút **Lọc** mở menu hai tầng: Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Thông tin khách
-  (có SĐT), Đã ẩn. Bộ lọc đang bật hiện thành chip có dấu x.
+- **Ô tìm** và nút **Lọc** mở menu hai tầng: Thời gian (bộ chọn ngày `date-range.js`, gửi `from`/`to` dạng YYYY-MM-DD, tính theo tin cuối), Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Thông tin khách
+  (có SĐT, chỉ chat đã ghim: `pinned=1`), Tin cuối của ai (`last_by=customer|ai|human`), Đã ẩn. Bộ lọc đang bật hiện thành chip có dấu x.
 - **Bốn nút lọc nhanh có chấm màu:** Cần bạn · A.I. đang xử lý · Bạn đang xử lý · Tất cả, có số. Server nhận `who`.
 - **Dòng khách:** viền trái màu theo `who`, ảnh đại diện có logo kênh ở góc, tên, giờ, tin cuối (có "A.I.:" hoặc
   "Bạn:"), số chưa đọc, tối đa 2 thẻ cộng "+n", tên nick/Page khi đang xem nhiều nơi. Giữ menu dòng (ghim, ẩn, chưa
@@ -106,6 +106,15 @@ bot, **Lưu**). Phải: nick/Page đang chọn, **ô chọn "A.I. trực nick n�
 với công tắc "A.I. ở đây" (gọi `POST /conversations/{id}/ai`), trạng thái `who`, Cho phép, Mở chat. Có lựa chọn
 "Không cần bot" để tài khoản không bị đếm vào việc cần xử lý.
 
+Server (0.377.0): `POST /channels/accounts/{id}/bot` (`bot_id`, rỗng = không bot) gỡ tài khoản khỏi bot đang giữ (bot hết
+tài khoản thì tắt, như khi xoá tài khoản) rồi gắn cho bot mới, và **các cuộc chat cũ của tài khoản đổi theo bot mới**
+(không thì công tắc "A.I. ở đây" báo chưa có bot). `POST /channels/no-bot` (`account_key`, `on`) lưu cờ "Không cần bot"
+trong `sync_state` của kho hội thoại (tài khoản Zalo cá nhân không có bản ghi trong `channel_accounts.json`); gắn bot là
+cờ tự bỏ. `GET /channels/accounts` trả thêm `no_bot`. `POST /conversations/{id}/ai` báo lỗi `chat_id` khi danh sách của
+bot không giữ được mã cuộc chat đó, thay vì báo xong mà không đổi gì. Số trên tab Kênh = tài khoản lỗi + tài khoản chưa
+có bot mà không đặt "Không cần bot". Tab Bot không còn mục "Kênh chưa có bot": thẻ tài khoản (ghi hội thoại, nhập tin cũ,
+sửa, xoá) nằm trong khung phải của tab Kênh.
+
 ## 8. Tab Bot
 
 Lưới thẻ bot (tên, bật tắt, cộng sự, mức quyền, đang trực ở đâu kèm logo, số tin hôm nay). Bấm thẻ mở trang bot với
@@ -115,15 +124,17 @@ cũ (wizard) vẫn dùng để tạo bot mới cho tới khi trang mới làm đ
 
 ## 9. Tab Thống kê
 
-Hôm nay / 7 ngày / 30 ngày. Bốn ô: A.I. đã trả lời (tin `ai`), Chuyển cho bạn (số lần tiếp quản + bản nháp chờ duyệt),
-Khách chờ trung bình (từ tin khách tới câu trả lời đầu tiên), Đang chờ bạn. Thanh ngang theo kênh và theo bot. Tính từ
-kho hội thoại, so với kỳ trước. Đường `GET /conversations/insights?days=1|7|30`.
+Kỳ chọn bằng bộ chọn ngày (chọn nhanh hoặc hai ngày trên lịch, nhớ trong trình duyệt). Bốn ô: A.I. đã trả lời (tin `ai`), Bạn đã trả lời (tin `human` gửi từ Javis; số lần tiếp
+quản không được ghi lại nên không đếm được), Khách chờ trung bình (từ tin khách đầu tiên chưa ai đáp tới câu trả lời đầu
+tiên, một chuỗi tin khách liền nhau tính một lần chờ), Đang chờ bạn (bấm vào là mở Hội thoại ở Cần bạn). Thanh ngang
+một màu: A.I. trả lời theo kênh và theo bot, số ghi ở cuối thanh. Tính từ kho hội thoại, so với kỳ trước cùng độ dài.
+Đường `GET /conversations/insights?from=YYYY-MM-DD&to=YYYY-MM-DD` (hai ngày đều tính, nửa đêm giờ máy chủ; `days=` cũ vẫn nhận).
 
 ## 10. Chia đợt phát hành
 
 1. **0.371.0** Nền phía server: mục 3, 4, 5, `account_ids` và `who` cho danh sách, spec này.
 2. **Đợt 2** Tab Hội thoại mới (mục 6).
-3. **Đợt 3** Tab Kênh, Bot, Thống kê (mục 7, 8, 9).
+3. **Đợt 3 (0.377.0)** Tab Kênh, Bot, Thống kê (mục 7, 8, 9).
 4. **Đợt 4** Rà lỗi đầu cuối trên máy tính và điện thoại, sửa tới khi sạch.
 
 Mỗi đợt một số phiên bản, merge khi CI xanh.

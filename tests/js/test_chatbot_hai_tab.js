@@ -33,33 +33,34 @@ function check(name, cond, extra) {
 }
 
 // ---- 1. hai tab, id cũ vẫn chạy ----
-check("chỉ còn hai tab: inbox và bot", /var TABS = \["inbox", "bot"\];/.test(CV));
-check("id tab cũ 'kenh' và 'chatbot' được đổi về 'bot'", /var TAB_CU = \{ kenh: "bot", chatbot: "bot" \};/.test(CV) &&
+// Chatbot v5 (2026-10-28): four tabs again, Hội thoại · Bot · Kênh · Thống kê; the channel accounts moved to "kenh".
+check("bốn tab: inbox, bot, kenh, thongke", /var TABS = \["inbox", "bot", "kenh", "thongke"\];/.test(CV));
+check("id tab cũ 'chatbot' được đổi về 'bot' ('kenh' là tab Kênh thật)", /var TAB_CU = \{ chatbot: "bot" \};/.test(CV) &&
   /function chuanTab\(id\) \{ return TAB_CU\[id\] \|\| id; \}/.test(CV));
 check("chonTab, render và moTu đều chuẩn hoá id tab", /id = chuanTab\(id\);\s*\n\s*if \(TABS\.indexOf\(id\) < 0\) return;/.test(CV) &&
   /TABS\.indexOf\(chuanTab\(_cho\.tab\)\) >= 0\) _tab = chuanTab\(_cho\.tab\)/.test(CV) && /var tabMo = chuanTab\(_cho\.tab \|\| ""\);/.test(CV));
 check("console.js chọn tab Bot khi vào bằng id trang cũ 'chatbots'", CON.indexOf('chonTab("bot", true)') > 0);
-check("hai nhãn tab: Hòm thư bot và Bot (vi, en); hai khoá tab cũ đã bỏ",
-  VI["ht.tab_inbox"] === "Hòm thư bot" && VI["ht.tab_bot"] === "Bot" && EN["ht.tab_bot"] === "Bots" &&
-  !("ht.tab_kenh" in VI) && !("ht.tab_chatbot" in VI) && !("ht.tab_kenh" in EN) && !("ht.tab_chatbot" in EN));
-check("tab Bot dựng danh sách bot (chatbots.js) vào ô trên và mục kênh vào ô dưới, trong cùng một tab",
-  /function renderBot\(body\)/.test(CV) && /class="ht-tab-bot"><div class="ht-bot-ds"><\/div><div class="ht-kenh-sec"><\/div>/.test(CV) &&
-  /window\.JavisChatbots && window\.JavisChatbots\.render/.test(CV) && /renderKenhSec\(body\.querySelector\("\.ht-kenh-sec"\)\)/.test(CV));
+check("nhãn tab: Hội thoại, Bot, Kênh, Thống kê (vi, en); khoá tab cũ đã bỏ",
+  VI["ib.tab_inbox"] === "Hội thoại" && VI["ht.tab_bot"] === "Bot" && EN["ht.tab_bot"] === "Bots" && VI["ib.tab_kenh"] === "Kênh" &&
+  VI["ib.tab_stats"] === "Thống kê" && !("ht.tab_kenh" in VI) && !("ht.tab_chatbot" in VI) && !("ht.tab_kenh" in EN) && !("ht.tab_chatbot" in EN));
+check("tab Bot dựng danh sách bot (chatbots.js); tài khoản kênh nằm ở tab Kênh",
+  /function renderBot\(body\)/.test(CV) && /class="ht-tab-bot"><div class="ht-bot-ds"><\/div><\/div>/.test(CV) &&
+  /window\.JavisChatbots && window\.JavisChatbots\.render/.test(CV) && /renderSub\(body, window\.JavisInboxChannels/.test(CV));
 check("KHÔNG dùng lại lớp 'ht-bot' (tên cũ của ô chọn bot ở Hòm thư, test_hoi_thoai_bo_loc canh nó)", !/class="ht-bot"/.test(CV));
-check("nhịp làm mới danh sách kênh chạy ở tab Bot", /else if \(_tab === "bot"\) \{\s*\n\s*taiTK\(true\);/.test(CV) && /if \(_tab === "bot"\) veKenh\(\);/.test(CV));
+check("nhịp làm mới danh sách kênh chạy ở tab Kênh", /else if \(_tab === "kenh"\) \{\s*\n\s*taiTK\(true\);/.test(CV) &&
+  /if \(_tab === "kenh" && window\.JavisInboxChannels\) window\.JavisInboxChannels\.paint\(\);/.test(CV));
 
-// ---- 2. mục Kênh chưa có bot ----
-check("mục kênh có tiêu đề, công tắc 'Xem mọi brain', nút Thêm kênh",
-  /ht\.kenh_ranh/.test(CV) && /class="ht-tk-moi-brain"/.test(CV) && /ht\.tk_xem_moi_brain/.test(CV) && /class="s-btn-ghost ht-them-tk"/.test(CV));
-check("CANARY: chỉ liệt kê kênh CHƯA có bot, cộng (khi xem mọi brain) kênh đang do bot của brain KHÁC trực",
-  /return !a\.bot_id \|\| \(_tkMoiBrain && a\.bot_brain && a\.bot_brain !== brain\(\)\);/.test(CV));
-check("tự mở khi có việc cần làm, tự gập khi hết; người dùng bấm thì theo họ",
-  /function kenhDangMo\(ds\) \{ return _kenhMo === null \? ds\.length > 0 : _kenhMo; \}/.test(CV) && /_kenhMo = !kenhDangMo\(dsKenhRanh\(\)\);/.test(CV));
-check("hết kênh chưa có bot thì nói rõ (không để mục trống trơn)", /ht\.kenh_ranh_het/.test(CV) && VI["ht.kenh_ranh_het"] && EN["ht.kenh_ranh_het"]);
-check("vẫn nói đang lọc theo brain nào (danh sách ngắn đi phải có lý do)", /ht\.tk_loc_tat_ca/.test(CV) && /ht\.tk_loc_brain/.test(CV));
+// ---- 2. tab Kênh (Chatbot v5, inbox-channels.js) ----
+const KN = fs.readFileSync(path.join(root, "dashboard", "inbox-channels.js"), "utf8");
+check("tab Kênh có nút Kết nối kênh mới và công tắc 'Xem mọi brain'",
+  /kn-add/.test(KN) && /kn-allbr-cb/.test(KN) && /ht\.tk_xem_moi_brain/.test(KN) && /setAllBrains: function \(on\)/.test(CV));
+check("CANARY: xem mọi brain thì liệt kê MỌI tài khoản, kể cả kênh đang do bot của brain KHÁC trực (không lọc theo bot_id)",
+  /function accs\(\) \{ return C\.accounts\(\)\.filter\(function \(a\) \{ return a && a\.account_key; \}\); \}/.test(KN) &&
+  /\(_tkMoiBrain \? "&tat_ca=1" : ""\)/.test(CV));
+check("chưa có tài khoản nào thì nói rõ (không để trống trơn)", /ht\.tk_rong/.test(KN) && VI["ht.tk_rong"] && EN["ht.tk_rong"]);
 check("'Tạo bot cho kênh này' mở form ngay tại tab Bot, không dựng lại tab", /if \(_tab !== "bot"\) chonTab\("bot"\);/.test(CV) &&
   /javis:chatbot-new/.test(CV) && VI["ht.tk_tao_bot"] === "Tạo bot cho kênh này");
-check("hộp thư trống chỉ sang tab Bot", /nut\.onclick = function \(\) \{ chonTab\("bot"\); \};/.test(CV));
+check("hộp thư trống chỉ sang tab Kênh (nơi thêm tài khoản)", /nut\.onclick = function \(\) \{ chonTab\("kenh"\); \};/.test(CV));
 
 // ---- 3. chip kênh trên thẻ bot: quản lý kênh không mất ----
 check("chip kênh kiểu bot là NÚT bấm được, gọi JavisConversations.suaKenh",
@@ -71,7 +72,7 @@ check("chip 'Thêm kênh' trên thẻ mở form Sửa thẳng ở bước chọn
 check("sửa kênh: bảng sửa có nút Xoá kênh (kênh kiểu bot) và dùng chung một hàm xoá với thẻ kênh",
   /class="s-btn-ghost ht-xoa-tk"/.test(CV) && /nutXoa\.onclick = function \(\) \{ dong\(\); xoaTK\(a\); \}/.test(CV) &&
   /xoa\.onclick = function \(\) \{ xoaTK\(a\); \}/.test(CV) && (CV.match(/\/channels\/accounts\/" \+ encodeURIComponent\(a\.id\) \+ "\/delete"/g) || []).length === 1);
-check("xoá xong thì dựng lại tab để chip của kênh vừa xoá biến mất", /if \(_tab === "bot"\) veTab\(\);/.test(CV));
+check("xoá xong thì dựng lại tab để chip của kênh vừa xoá biến mất", /if \(_tab === "bot" \|\| _tab === "kenh"\) veTab\(\);/.test(CV));
 check("suaKenh và tenBrain được xuất cho chatbots.js", /suaKenh: suaKenh, tenBrain: tenBrain/.test(CV));
 check("chỉ kênh sửa được (sua_duoc) mới mở bảng sửa", /if \(a && a\.sua_duoc\) moSuaTK\(a\);/.test(CV));
 
@@ -92,7 +93,7 @@ check("icon mới: tai nghe cho tab, người cho Agent", /bot: \["ht\.tab_bot",
 // ---- 6. giao diện ----
 check("có kiểu cho mục kênh, chip bấm được và dòng khoá",
   /\.ht-kenh-sec \{/.test(CSS) && /\.cb-kenh-sua|button\.cb-kenh-chip/.test(CSS) && /\.cb-kenh-them \{/.test(CSS) && /\.cb-tk-khoa \{/.test(CSS));
-const moi = ["ht.kenh_ranh", "ht.kenh_ranh_het", "ht.kenh_ranh_het_goi_y", "ht.xoa_kenh", "cb.sua_kenh_title", "cb.tk_khoa", "cb.tk_khoa_brain"];
+const moi = ["ht.xoa_kenh", "cb.sua_kenh_title", "cb.tk_khoa", "cb.tk_khoa_brain"];
 check("khoá mới có ở cả vi và en", moi.every((k) => VI[k] && EN[k]), moi.filter((k) => !VI[k] || !EN[k]).join(","));
 check("mọi khoá mới đều được mã dùng", moi.every((k) => (CV + CB).indexOf('"' + k + '"') > 0), moi.filter((k) => (CV + CB).indexOf('"' + k + '"') < 0).join(","));
 const cu = ["tab Kênh của bot", "tab Chatbot", "Bot channels tab", "Chatbot tab"];

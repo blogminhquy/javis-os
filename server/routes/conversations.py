@@ -157,6 +157,7 @@ def register(app, deps: ConversationsDeps):
         def __init__(self, hesitant):
             self.hesitant = hesitant
             self.bots, self.running, self.pending = {}, {}, {}
+            self.no_bot = conversations.no_bot_accounts()
 
         def of(self, row: dict) -> dict:
             bid = str(row.get("bot_id") or "")
@@ -173,7 +174,8 @@ def register(app, deps: ConversationsDeps):
                     self.pending[bid] = {}
             bot = self.bots.get(bid) if bid else None
             return inbox_state.state(row, bot, self.running.get(bid, False), self.pending.get(bid, {}),
-                                     conversations.can_tra_loi(row, self.hesitant))
+                                     conversations.can_tra_loi(row, self.hesitant),
+                                     no_bot_wanted=str(row.get("channel_account_id") or "") in self.no_bot)
 
     def _attach_state(items: list, ctx: "_StateCtx") -> None:
         for it in items:
@@ -184,6 +186,19 @@ def register(app, deps: ConversationsDeps):
                       draft=st["draft"], reply_when=str(bot.get("reply_when") or ""),
                       yield_min=yield_min if isinstance(yield_min, int) else None)
 
+    def _day_range(date_from: str, date_to: str) -> tuple:
+        """("YYYY-MM-DD", "YYYY-MM-DD"), both days included, in the server's time zone -> (since, until) timestamps.
+        A missing or unreadable end stays open (0); the two ends swap when given backwards."""
+        def midnight(v: str) -> float:
+            try:
+                return time.mktime(time.strptime(str(v or "").strip()[:10], "%Y-%m-%d"))
+            except (ValueError, OverflowError):
+                return 0.0
+        a, b = midnight(date_from), midnight(date_to)
+        if a and b and b < a:
+            a, b = b, a
+        return a, (midnight(time.strftime("%Y-%m-%d", time.localtime(b + 36 * 3600))) if b else 0.0)
+
     def _ids_param(raw: str) -> list:
         return [x.strip() for x in str(raw or "").split(",") if x.strip()]
 
@@ -192,7 +207,8 @@ def register(app, deps: ConversationsDeps):
                                  q: str = "", mode: str = "", limit: int = 50, offset: int = 0,
                                  status: str = "", chat_type: str = "", tag: int = 0, has_contact: int = 0,
                                  sort: str = "", account_ids: str = "", who: str = "", tags_any: str = "",
-                                 tags_none: str = ""):
+                                 tags_none: str = "", date_from: str = Query("", alias="from"),
+                                 date_to: str = Query("", alias="to"), last_by: str = "", pinned: int = 0):
         """Danh sách hội thoại mới nhất trước, kèm vài con số đầu trang (cùng bộ lọc).
 
         0.65.3: thêm `status` (unread | need_reply | human) và `chat_type` (group | private); mỗi hàng có `bot_name`;
@@ -214,8 +230,10 @@ def register(app, deps: ConversationsDeps):
         counts them."""
         hesitant = _hesitant()
         hidden = "only" if status == "hidden" else ("" if q.strip() else "exclude")
+        since, until = _day_range(date_from, date_to)
         extra = dict(tag=tag, has_contact=bool(has_contact), sort=sort, hidden=hidden,
-                     account_ids=_ids_param(account_ids), tags_any=_ids_param(tags_any), tags_none=_ids_param(tags_none))
+                     account_ids=_ids_param(account_ids), tags_any=_ids_param(tags_any), tags_none=_ids_param(tags_none),
+                     since=since, until=until, last_by=last_by, pinned=bool(pinned))
         ctx = _StateCtx(hesitant)
         who = who if who in inbox_state.WHO else ""
         who_counts = None
@@ -232,7 +250,8 @@ def register(app, deps: ConversationsDeps):
             # "Needs you" per channel account (the channel picker's badges) and in all (the tab's badge) count the whole
             # inbox: ticking one Page or searching must not make the other Pages' numbers vanish.
             narrowed = bool(channel or bot_id or account_id or q or status or chat_type or tag or has_contact
-                            or base["account_ids"] or base["tags_any"] or base["tags_none"])
+                            or base["account_ids"] or base["tags_any"] or base["tags_none"] or since or until
+                            or base["last_by"] or pinned)
             every = conversations.state_rows(hesitant=hesitant, hidden="exclude") if narrowed else light
             by_acc, you_total = {}, 0
             for r in every:
@@ -300,6 +319,30 @@ def register(app, deps: ConversationsDeps):
                 it.get("channel_account_id") == x["account_id"]
                 and x["uid"] in (it.get("customer_external_id"), it.get("external_chat_id")) for it in items)
         return items, r
+
+    @router.get("/conversations/insights")
+    async def conversations_insights(days: int = 7, date_from: str = Query("", alias="from"),
+                                     date_to: str = Query("", alias="to")):
+        """The Stats tab (Chatbot v5): this period against the one of the same length right before it, plus "needs you"
+        right now and the bot names. The period is `from`..`to` (days included, the date range picker), or else the
+        last `days` (1, 7 or 30) counted from midnight of the server's day."""
+        now = time.time()
+        since, until = _day_range(date_from, date_to)
+        if since and until:
+            n = max(1, round((until - since) / 86400))
+            until = min(until, now)
+        else:
+            n = days if days in (1, 7, 30) else 7
+            lt = time.localtime()
+            midnight = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+            since, until = midnight - (n - 1) * 86400, now
+        cur = conversations.insights(since, until)
+        prev = conversations.insights(since - n * 86400, since)
+        ctx = _StateCtx(_hesitant())
+        you = sum(1 for r in conversations.state_rows(hesitant=ctx.hesitant, hidden="exclude") if ctx.of(r)["who"] == "you")
+        names = {bid: _ten_bot(bid) for bid in set(cur["by_bot"]) | set(prev["by_bot"])}
+        return {"ok": True, "days": n, "since": since, "until": until, "now": cur, "before": prev, "needs_you": you, "bot_names": names,
+                "channels": channels.cho_giao_dien()}
 
     @router.get("/conversations/stats")
     async def conversations_stats(bot_id: str = "", channel: str = "", account_id: str = ""):
@@ -547,10 +590,18 @@ def register(app, deps: ConversationsDeps):
                 "Cuộc chat này chưa có bot nào trực", "No bot is on duty in this chat")}, status_code=400)
         bat = str(on).strip().lower() not in ("0", "false", "")
         chat_id = str(c.get("external_chat_id") or "")
-        patch = chatbot_store.allow_patch(bot, str(c.get("chat_type") or "private"), chat_id, bat)
+        ctype = str(c.get("chat_type") or "private")
+        patch = chatbot_store.allow_patch(bot, ctype, chat_id, bat)
         ok, err = chatbot_store.update_bot(bot_id, patch)
         if not ok:
             return JSONResponse({"ok": False, "error": err}, status_code=400)
+        # The bot's lists only keep ids that look like a real platform chat id; one they drop would leave the switch
+        # where it was while the screen says "done". Say it instead.
+        if chatbot_store.chat_allowed(chatbot_store.get_bot(bot_id), ctype, chat_id, inbox_state.raw_account(c)) != bat:
+            return JSONResponse({"ok": False, "code": "chat_id", "error": localefmt.chu(
+                "Không đổi được A.I. riêng cho cuộc chat này (mã cuộc chat không hợp lệ). Đổi ở cài đặt bot.",
+                "Could not change the A.I. for this chat alone (its chat id is not valid). Change it in the bot settings.")},
+                status_code=400)
         if _DEPS.drop_pending:
             try:
                 _DEPS.drop_pending(bot_id, chat_id)

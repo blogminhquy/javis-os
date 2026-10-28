@@ -47,7 +47,7 @@ Each row has a **left edge** in that colour, an avatar with the **channel's logo
 At the top of the left column:
 
 - **Channel picker**: opens the list of nicks and Pages with checkboxes, grouped by channel with real logos. Ticking a channel ticks all of it; each one shows its **Needs you** count. Nothing ticked means everything. It has a search box, **Clear**, **Done** and **Manage channels**.
-- **Search** (name, phone number, text) and the **Filter** button: a two-level menu with Has tag, Without tag, Chat type, Answering bot, Status (unread, waiting longest, hidden) and Customer info (left a phone or email). Active filters show as chips with an x underneath.
+- **Search** (name, phone number, text) and the **Filter** button: a two-level menu with Time (when the last message came: today, last 7, 30 or 90 days, last month, week or month to date, or days picked on the calendar), Has tag, Without tag, Chat type, Answering bot, Status (unread, waiting longest, hidden), Last message by (customer, AI, you) and Customer info (left a phone or email, pinned chats only). Active filters show as chips with an x underneath.
 - **Four quick filters**: Needs you · AI is handling · You are handling · All, with counts. The page first opens on **Needs you**; when nothing needs you it says so, with **Show all**.
 
 Every choice is remembered in the browser. The number on the **Conversations** tab is the **Needs you** count.
@@ -99,11 +99,27 @@ Two things to know:
 
 ## The Channels tab
 
+Since 0.377.0 every nick and Page lives on the **Channels** tab. On the left: **Connect a new channel**, the **See every brain** switch, then each channel with its real logo and its nicks or Pages; each row says which AI is on duty (or "No AI yet", "No AI needed") and how many chats need you. A channel with two or more places offers **Put an AI on several Pages**: tick them, pick a bot, Save.
+
+Pick a nick or Page and the right side shows:
+
+- **AI on duty for this Page**: one bot dropdown. **Cancel** and **Save** appear only after a change; nothing changes before Save. **No AI needed** means the place is only logged and no longer counts as a job on the tab. Changing the bot moves the place's existing chats to the new bot. A bot left with nothing to serve is switched off, and Javis says so.
+- **The account card**: state, record switch, import history, edit, delete (described below).
+- **Groups and people**: one **AI here** switch per chat, a sentence on who is handling it, **Allow** when someone called the AI in a group not allowed yet, and **Open chat**. Every change can be undone.
+
+The number on the Channels tab counts the places that need you: an account in error, or one with no bot that you did not mark "No AI needed".
+
+## The Stats tab
+
+Press the period button to open the date picker: a quick range (today, yesterday, last 7, 30 or 90 days, last month, week or month to date) or a start and end day on the calendar, then **Apply**. Javis remembers the period you looked at last. Four tiles: AI answered, You answered (messages sent from Javis), Average customer wait (from a customer message to its first answer), Waiting for you (opens the Needs you list). Each compares with the period before of the same length. Below, two bar lists: AI answers by channel and by bot. Numbers come from the Javis inbox.
+
+## The account card
+
 Every account customers write to appears as **the same kind of card**, whatever the channel: channel logo and name, account name, state (running, off, error with the reason), the bot on duty, conversation and unread counts, and the channel's capabilities (groups, files, reply from Javis). No channel gets its own section, Zalo included. A channel added later simply shows up as one more card.
 
 Two kinds of account, differing in how you get them, not in how they look:
 
-**Bot accounts** (Telegram, Zalo Bot) are a token. Press **Add account**, pick the channel type, paste the token, press **Check** so Javis asks the right platform which bot it is, give it a display name and Save. A bot account records into the inbox while the bot serving it is enabled; with no bot on duty the card says so and offers **Create a bot**, which opens the form on the Chatbots tab with that account ticked. It can be deleted once no bot serves it; recorded conversations stay.
+**Bot accounts** (Telegram, Zalo Bot) are a token. Press **Add account**, pick the channel type, paste the token, press **Check** so Javis asks the right platform which bot it is, give it a display name and Save. A bot account records into the inbox while the bot serving it is enabled; with no bot on duty the card says so and offers **Create a bot**, which opens the form on the Bot tab with that account ticked. It can be deleted once no bot serves it; recorded conversations stay.
 
 **Your own accounts** (personal Zalo) come from the **Connections** page (QR scan in Zalo Agent MCP) and appear here with a **Record conversations** switch. Turn it on and Javis reads new messages every 20 seconds through the MCP and writes them into the inbox. Three plain facts about this channel:
 

@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.377.0] - 2026-10-28
+### Thêm mới
+- **Tab Kênh trên trang Chatbot:** mọi nick Zalo, Page, bot Telegram xếp theo kênh với logo thật. Chọn A.I. trực từng nơi bằng một hộp chọn, đổi xong mới hiện Huỷ và Lưu. Có "Không cần A.I.", "Gắn A.I. cho nhiều Page" một lần, và công tắc A.I. từng nhóm, từng người có Hoàn tác.
+- **Tab Thống kê:** A.I. đã trả lời bao nhiêu tin, bạn đã trả lời bao nhiêu, khách chờ trung bình bao lâu, so với kỳ trước, kèm biểu đồ theo kênh và theo bot. Chọn kỳ bằng bộ chọn ngày đầy đủ: hôm nay, 7, 30, 90 ngày, tháng trước, đầu tuần, đầu tháng, hoặc chọn ngày trên lịch.
+- **Bộ lọc Hội thoại đầy đủ hơn:** thêm Thời gian (cùng bộ chọn ngày), Tin cuối của ai (khách, A.I., bạn) và Chỉ chat đã ghim. Danh sách trống vì lọc thì có nút Bỏ lọc ngay giữa.
+
+### Sửa lỗi
+- Đổi bot trực một Page thì các cuộc chat cũ của Page đó cũng theo bot mới, không còn báo "chưa có bot". Tắt A.I. ở một chat mà không lưu được thì báo lỗi rõ thay vì báo đã xong.
 ## [0.376.0] - 2026-10-28
 ### Cải thiện
 - **Dưới mỗi câu trả lời có thêm nút ghim và nút loa.** Nút ghim đưa câu trả lời vào mục lục của cuộc trò chuyện (dải vạch bên phải, nút ≡ trên điện thoại), có dấu ghim màu cam, bấm là nhảy tới; ghim lưu trên máy chủ nên máy khác vẫn thấy. Nút loa đọc thành tiếng đúng câu đó, bấm lần nữa là dừng.

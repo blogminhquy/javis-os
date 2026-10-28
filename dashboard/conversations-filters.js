@@ -21,6 +21,17 @@
   // a browser that saved them is moved over by `sanitize`.
   var WHOS = ["", "you", "ai", "owner"];
   var TYPES = ["", "group", "private"];
+  // Owner, 2026-10-28 ("lọc như kia hơi ít"): when the last message came (a quick range or days picked on the calendar,
+  // date-range.js), who wrote it, and pinned chats only.
+  var LAST_BY = ["", "customer", "ai", "human"];
+  var RANGES = ["today", "yesterday", "d7", "d30", "d90", "last_month", "week", "month"];
+  function cleanWhen(w) {
+    if (!w || typeof w !== "object") return null;
+    if (RANGES.indexOf(w.preset) >= 0) return { preset: w.preset };
+    var re = /^\d{4}-\d{2}-\d{2}$/;
+    if (re.test(String(w.from || "")) && re.test(String(w.to || ""))) return w.from <= w.to ? { from: w.from, to: w.to } : { from: w.to, to: w.from };
+    return null;
+  }
 
   function tt(k, v) { return window.t(k, v); }
   function esc(s) {
@@ -32,7 +43,8 @@
   // `contact`: "1" keeps only chats where the customer left a phone or email. `who`: the quick filter ("" = everyone),
   // `accs`: ticked channel account keys, `tagsAny` / `tagsNone`: tag ids (strings of digits) a chat must have / must not have.
   function emptyState() {
-    return { bot: "", status: "", type: "", channel: "", contact: "", who: "", accs: [], tagsAny: [], tagsNone: [] };
+    return { bot: "", status: "", type: "", channel: "", contact: "", who: "", accs: [], tagsAny: [], tagsNone: [],
+             when: null, lastBy: "", pinned: "" };
   }
   function idList(v, re, max) {
     return (Array.isArray(v) ? v : []).map(String).filter(function (x, i, a) { return re.test(x) && a.indexOf(x) === i; }).slice(0, max);
@@ -58,6 +70,9 @@
       accs: idList(r.accs, /^[A-Za-z0-9_.:@+-]{1,120}$/, 200),
       tagsAny: tagsAny,
       tagsNone: idList(r.tagsNone, /^\d{1,9}$/, 50),
+      when: cleanWhen(r.when),
+      lastBy: LAST_BY.indexOf(r.lastBy) >= 0 ? r.lastBy : "",
+      pinned: r.pinned === "1" || r.pinned === true ? "1" : "",
     };
   }
 
@@ -77,7 +92,7 @@
   // How many filters the "Filter" menu holds (the quick "who" filters and the channel picker have their own controls).
   function activeCount(state) {
     var s = sanitize(state);
-    return ["bot", "status", "type", "channel", "contact"].filter(function (k) { return !!s[k]; }).length +
+    return ["bot", "status", "type", "channel", "contact", "when", "lastBy", "pinned"].filter(function (k) { return !!s[k]; }).length +
       s.tagsAny.length + s.tagsNone.length;
   }
 
@@ -94,6 +109,11 @@
     if (s.accs.length) q += "&account_ids=" + encodeURIComponent(s.accs.join(","));
     if (s.tagsAny.length) q += "&tags_any=" + s.tagsAny.join(",");
     if (s.tagsNone.length) q += "&tags_none=" + s.tagsNone.join(",");
+    // A quick range is turned into days at every request, so "last 7 days" moves with the calendar.
+    var DR = window.JavisDateRange, d = s.when && (DR ? DR.dates(s.when) : s.when.from ? s.when : null);
+    if (d && d.from && d.to) q += "&from=" + d.from + "&to=" + d.to;
+    if (s.lastBy) q += "&last_by=" + s.lastBy;
+    if (s.pinned) q += "&pinned=1";
     return q;
   }
 

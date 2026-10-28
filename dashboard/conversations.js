@@ -55,9 +55,10 @@
   var TRANG = 40;           // số hội thoại một trang (0.65.11: cuộn xuống cuối thì tải trang kế, trước đó cố định 60 và không tải thêm được)
   var MAX_DONG_NHIP = 200;  // nhịp 5 giây làm mới tối đa chừng này dòng đầu; phần đã tải sâu hơn giữ nguyên
   var TIN_TRANG = 40;       // số tin một lần tải (mở hội thoại lấy 40 tin MỚI NHẤT, kéo lên thì lấy thêm 40 tin cũ hơn)
-  var TABS = ["inbox", "bot"];
-  // Id tab cũ (0.61.0 đến 0.65.8: "kenh", "chatbot") vẫn dẫn về tab Bot: console.js, thông báo và bookmark cũ còn dùng chúng.
-  var TAB_CU = { kenh: "bot", chatbot: "bot" };
+  // Chatbot v5 (2026-10-28): Hội thoại · Bot · Kênh · Thống kê. "kenh" is a tab again (the nicks and Pages, their bot,
+  // A.I. per chat); the old id "chatbot" still leads to the Bot tab (console.js, notices and old bookmarks use it).
+  var TABS = ["inbox", "bot", "kenh", "thongke"];
+  var TAB_CU = { chatbot: "bot" };
   function chuanTab(id) { return TAB_CU[id] || id; }
   var _host = null, _timer = null, _tab = "inbox";
   var _items = [], _stats = {}, _dauVet = "";
@@ -67,7 +68,8 @@
   // Chatbot v5 (2026-10-28, docs/dev/2026-10-chatbot-v5-spec.md): who is handling the chat (the quick filters), the ticked
   // channel accounts (the channel picker) and tags any/none (the Filter menu). Saved with the rest by JavisConvFilters.
   var _who = "you", _accs = [], _tagsAny = [], _tagsNone = [], _whoCounts = null;
-  var _pick = false, _pickQ = "", _fm = false, _fmCat = "tagsAny";   // channel picker / Filter menu open, picker search, menu category
+  var _when = null, _lastBy = "", _pinned = "";   // when the last message came, who wrote it, pinned only (Filter menu)
+  var _pick = false, _pickQ = "", _fm = false, _fmCat = "time";   // channel picker / Filter menu open, picker search, menu category
   var _info = null;         // Info panel: null = decided by the width (open on wide screens), true/false = the owner chose
   var _aiBusy = "";         // "ask" | "redo" | "send" | "now" while the A.I. writes or a draft goes out
   var _draftEdit = null;    // {ts, text}: the owner's edits to the waiting draft, kept across the 5-second redraws
@@ -86,7 +88,6 @@
   var _tk = [];             // mọi tài khoản kênh, một khuôn
   var _dauVetTK = "";
   var _tkMoiBrain = false;  // mục Kênh chưa có bot: đang xem của MỌI brain thay vì brain đang mở
-  var _kenhMo = null;       // mục Kênh chưa có bot mở hay gập: null = tự quyết (mở khi có việc cần làm), true/false = người dùng đã bấm
   var _cho = null;          // bộ lọc / tab chờ áp khi trang mở từ nơi khác (nút trên thẻ bot)
   var _dangGui = false;
 
@@ -164,11 +165,14 @@
   function veTabs() {
     var b = _host && _host.querySelector(".ht-tabs");
     if (!b) return;
-    var NHAN = { inbox: ["ib.tab_inbox", "messages-square"], bot: ["ht.tab_bot", "headset"] };
+    var NHAN = { inbox: ["ib.tab_inbox", "messages-square"], bot: ["ht.tab_bot", "headset"], kenh: ["ib.tab_kenh", "plug"],
+                 thongke: ["ib.tab_stats", "chart-column"] };
     b.innerHTML = TABS.map(function (t) {
       // The Conversations tab counts the chats that need you (Chatbot v5), not unread ones: unread is what the A.I. already handles.
       var canBan = t === "inbox" && _whoCounts ? (_whoCounts.you_total != null ? _whoCounts.you_total : _whoCounts.you) : 0;
-      var chuaDoc = canBan ? '<span class="ht-badge" title="' + esc(window.t("ib.who_you")) + '">' + canBan + '</span>' : "";
+      // The Channels tab counts the nicks and Pages that need something (an error, or no bot and none was declined).
+      if (t === "kenh" && window.JavisInboxChannels) canBan = window.JavisInboxChannels.jobs(_tk);
+      var chuaDoc = canBan ? '<span class="ht-badge" title="' + esc(window.t(t === "kenh" ? "ib.kn_jobs" : "ib.who_you")) + '">' + canBan + '</span>' : "";
       return '<button type="button" class="ht-tab' + (t === _tab ? " on" : "") + '" data-t="' + t + '">' +
         ic(NHAN[t][1]) + ' <span>' + esc(window.t(NHAN[t][0])) + '</span>' + chuaDoc + '</button>';
     }).join("");
@@ -195,6 +199,8 @@
     closeRowMenu(false);
     body.innerHTML = "";
     if (_tab === "bot") return renderBot(body);
+    if (_tab === "kenh") return renderSub(body, window.JavisInboxChannels, "inbox-channels.js");
+    if (_tab === "thongke") return renderSub(body, window.JavisInboxStats, "inbox-stats.js");
     return renderInbox(body);
   }
 
@@ -206,21 +212,56 @@
       if (_tab === "inbox") {
         tai(true);
         if (_chon) taiTin(true);
-      } else if (_tab === "bot") {
+      } else if (_tab === "kenh") {
         taiTK(true);
       }
     }, NHIP);
   }
 
-  // Tab Bot: chatbots.js dựng danh sách bot vào ô phía trên (nó tự có nhịp riêng, tự dừng khi ô bị tháo); ngay dưới là mục
-  // "Kênh chưa có bot" do file này dựng. Hai nửa dùng chung một tab để thêm kênh và tạo bot là MỘT chuyện, không phải hai tab.
+  // Tab Bot: chatbots.js dựng danh sách bot (nó tự có nhịp riêng, tự dừng khi ô bị tháo). The nicks and Pages without a
+  // bot, which used to sit under it, live on the Channels tab since Chatbot v5.
   function renderBot(body) {
-    body.innerHTML = '<div class="ht-tab-bot"><div class="ht-bot-ds"></div><div class="ht-kenh-sec"></div></div>';
+    body.innerHTML = '<div class="ht-tab-bot"><div class="ht-bot-ds"></div></div>';
     var ds = body.querySelector(".ht-bot-ds");
     var fn = window.JavisChatbots && window.JavisChatbots.render;
     if (fn) { try { fn(ds); } catch (e) { ds.innerHTML = '<div class="ht-empty">' + esc(e.message) + '</div>'; } }
     else ds.innerHTML = '<div class="ht-empty">' + esc(window.t("cs.mod_not_ready", { ten: "chatbots.js" })) + '</div>';
-    renderKenhSec(body.querySelector(".ht-kenh-sec"));
+  }
+
+  // Channels and Stats tabs (inbox-channels.js, inbox-stats.js) draw themselves from this context: the helpers and
+  // actions of this file, so a channel account is listed, edited or deleted one way only.
+  function renderSub(body, mod, file) {
+    if (!mod) { body.innerHTML = '<div class="ht-empty">' + esc(window.t("cs.mod_not_ready", { ten: file })) + '</div>'; return; }
+    try { mod.render(body, subCtx()); } catch (e) { body.innerHTML = '<div class="ht-empty">' + esc(e.message) + '</div>'; }
+  }
+
+  function subCtx() {
+    return {
+      api: api, fd: fd, esc: esc, ic: ic, brain: brain, toast: toast, brainName: function () { return tenBrain(brain()); },
+      logo: logoKenh, channel: kenhCua, channelName: nhanKenh, avatar: avatarHtml,
+      accounts: function () { return _tk; },
+      youByAcc: youByAcc,
+      allBrains: function () { return _tkMoiBrain; },
+      setAllBrains: function (on) { _tkMoiBrain = !!on; _dauVetTK = ""; return taiTK(false); },
+      reloadAccounts: function () { _dauVetTK = ""; return Promise.all([taiTK(false), whoCounts()]).then(function () { veTabs(); }); },
+      accountCard: function (a) { return theTK(a); },
+      addAccount: function () { moThemTK(); },
+      openBot: function (id) {
+        chonTab("bot");
+        try { document.dispatchEvent(new CustomEvent("javis:chatbot-open", { detail: { bot_id: id } })); } catch (e) { /* old browser */ }
+      },
+      // Open one chat on the Conversations tab, every filter put aside so it is surely in the list.
+      openChat: function (id) { _cho = {}; _chon = id; _msgs = []; _conv = null; _dauVetTin = ""; _vetMeta = ""; chonTab("inbox"); },
+      goWho: function (w) { _who = w || ""; saveFilters(); chonTab("inbox"); },
+    };
+  }
+
+  // The "needs you" counts without drawing the list (Channels tab badges, after a change there).
+  async function whoCounts() {
+    try {
+      var d = await api("/conversations?limit=1");
+      if (d.who_counts) _whoCounts = d.who_counts;
+    } catch (e) { /* keep the last counts */ }
   }
 
   // ---------------------------------------------------------------- tài khoản kênh (dùng chung)
@@ -237,7 +278,8 @@
       if (!im) throw e;
       return false;
     }
-    if (_tab === "bot") veKenh();
+    if (_tab === "kenh" && window.JavisInboxChannels) window.JavisInboxChannels.paint();
+    veTabs();
     return true;
   }
 
@@ -253,12 +295,14 @@
       _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || "";
       _accs = _cho.account_key ? [_cho.account_key] : [];
       _who = ""; _statusLoc = ""; _typeLoc = ""; _tagsAny = []; _tagsNone = []; _contactLoc = ""; _q = "";
+      _when = null; _lastBy = ""; _pinned = "";
       _cho = null;
       saveFilters();
     } else if (F) {
       var saved = F.load();
       _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel; _contactLoc = saved.contact;
       _who = saved.who; _accs = saved.accs; _tagsAny = saved.tagsAny; _tagsNone = saved.tagsNone;
+      _when = saved.when; _lastBy = saved.lastBy; _pinned = saved.pinned;
     }
     _pick = false; _fm = false;
     body.innerHTML =
@@ -285,6 +329,7 @@
           '<div class="ht-info" hidden></div>' +
         '</div>' +
       '</div>';
+    if (_chon) body.querySelector(".ht-wrap").classList.add("thread-on");     // a chat opened from another tab
     var s = body.querySelector(".ht-search");
     // The query lives in `_q`, which outlives this box: the inbox is rebuilt on every tab or page switch. Put it back in
     // the new box, or the list stays filtered by a search nobody can see and "clearing" the empty box does nothing
@@ -319,7 +364,7 @@
 
   function filterState() {
     return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc, contact: _contactLoc,
-             who: _who, accs: _accs, tagsAny: _tagsAny, tagsNone: _tagsNone };
+             who: _who, accs: _accs, tagsAny: _tagsAny, tagsNone: _tagsNone, when: _when, lastBy: _lastBy, pinned: _pinned };
   }
   function saveFilters() { if (window.JavisConvFilters) window.JavisConvFilters.save(filterState()); }
   function onFilterChange() { saveFilters(); paintHead(); tai(); }
@@ -379,6 +424,9 @@
     else if (k === "status") _statusLoc = "";
     else if (k === "contact") _contactLoc = "";
     else if (k === "channel") _kenhLoc = "";
+    else if (k === "when") _when = null;
+    else if (k === "lastBy") _lastBy = "";
+    else if (k === "pinned") _pinned = "";
   }
 
   // ---- the two popovers: channel picker and Filter menu. One open at a time; they redraw only on the owner's own
@@ -458,9 +506,13 @@
     else if (t.name === "ib-bot") _botLoc = t.dataset.v;
     else if (t.name === "ib-st") _statusLoc = t.dataset.v;
     else if (t.classList.contains("ib-fm-contact")) _contactLoc = t.checked ? "1" : "";
+    else if (t.classList.contains("ib-fm-pinned")) _pinned = t.checked ? "1" : "";
+    else if (t.name === "ib-time") _when = t.dataset.v ? { preset: t.dataset.v } : null;
+    else if (t.name === "ib-last") _lastBy = t.dataset.v;
     else return;
     onFilterChange();
-    var sel = t.dataset.tag != null ? 'input[data-tag="' + t.dataset.tag + '"]' : t.name ? 'input[name="' + t.name + '"][data-v="' + t.dataset.v + '"]' : ".ib-fm-contact";
+    var sel = t.dataset.tag != null ? 'input[data-tag="' + t.dataset.tag + '"]' : t.name ? 'input[name="' + t.name + '"][data-v="' + t.dataset.v + '"]'
+      : t.classList.contains("ib-fm-pinned") ? ".ib-fm-pinned" : ".ib-fm-contact";
     paintPops();
     var again = _host && _host.querySelector(".ib-fm " + sel);
     if (again) again.focus();
@@ -474,11 +526,19 @@
       paintPops();
       var on = _host.querySelector('.ib-fm-cat[data-cat="' + _fmCat + '"]');
       if (on) on.focus();
+    } else if (b.classList.contains("ib-fm-cal")) {
+      // Any days on the calendar (date-range.js); the Filter menu stays open under it.
+      if (window.JavisDateRange) window.JavisDateRange.open(b, _when, function (r) { _when = r; onFilterChange(); paintPops(); }, { all: true });
     } else if (b.classList.contains("ib-fm-clear")) {
-      _tagsAny = []; _tagsNone = []; _typeLoc = _botLoc = _statusLoc = _contactLoc = "";
-      onFilterChange();
+      clearMenuFilters();
       paintPops();
     } else if (b.classList.contains("ib-fm-done")) { setPop(""); focusOpener(".ib-fbtn"); }
+  }
+
+  // "Clear" in the Filter menu, and the same button on an empty list the filters emptied.
+  function clearMenuFilters() {
+    _tagsAny = []; _tagsNone = []; _typeLoc = _botLoc = _statusLoc = _contactLoc = _lastBy = _pinned = ""; _when = null;
+    onFilterChange();
   }
 
   function focusOpener(sel) { var b = _host && _host.querySelector(sel); if (b) b.focus(); }
@@ -496,11 +556,11 @@
     document.addEventListener("mousedown", function (ev) {
       if ((!_pick && !_fm) || !_host || !document.body.contains(_host)) return;
       var t = ev.target;
-      if (t.closest && (t.closest(".ib-pop") || t.closest(".ib-picker") || t.closest(".ib-fbtn"))) return;
+      if (t.closest && (t.closest(".ib-pop") || t.closest(".ib-picker") || t.closest(".ib-fbtn") || t.closest(".dr-pop"))) return;
       setPop("");
     });
     document.addEventListener("keydown", function (ev) {
-      if (ev.key !== "Escape" || (!_pick && !_fm) || !_host) return;
+      if (ev.key !== "Escape" || (!_pick && !_fm) || !_host || document.querySelector(".dr-pop")) return;
       var from = _pick ? ".ib-picker" : ".ib-fbtn";
       setPop("");
       focusOpener(from);
@@ -628,7 +688,8 @@
     if (!_items.length) {
       closeRowMenu(false);
       var coNguon = _tk.some(function (a) { return a.ghi; });
-      var loc = !!(_q || _kenhLoc || _botLoc || _accs.length || _statusLoc || _typeLoc || _tagsAny.length || _tagsNone.length || _contactLoc);
+      var loc = !!(_q || _kenhLoc || _botLoc || _accs.length || _statusLoc || _typeLoc || _tagsAny.length || _tagsNone.length || _contactLoc ||
+        _when || _lastBy || _pinned);
       // Only the quick "who" filter hides everything (no chat needs you right now): say it kindly, one tap shows them all.
       if (_who && !loc && (_whoCounts ? ["you", "ai", "owner", "log"].some(function (w) { return _whoCounts[w]; }) : coNguon)) {
         box.innerHTML = '<div class="ht-empty">' + ic(_who === "you" ? "circle-check" : "messages-square") +
@@ -637,15 +698,20 @@
         box.querySelector(".ib-see-all").onclick = function () { _who = ""; onFilterChange(); };
         return;
       }
+      // The Filter menu emptied the list: one tap clears it, rather than pointing at channels.
+      var menuLoc = window.JavisConvFilters.activeCount(Object.assign(filterState(), { channel: "" })) > 0;
       box.innerHTML = '<div class="ht-empty">' + ic("messages-square") +
         '<b>' + esc(loc || _who ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
-          (!coNguon ? infoBtn() : "") + '</b>' +
+          (!coNguon && !menuLoc ? infoBtn() : "") + '</b>' +
+        (menuLoc ? '<button type="button" class="s-btn-ghost ib-empty-clear">' + esc(window.t("ib.f_clear")) + '</button>' :
         // Where messages come from opens from (i); the button to add an account stays visible (0.214.0).
-        (!coNguon ? infoBody(esc(window.t("ht.chua_co_goi_y"))) +
+        !coNguon ? infoBody(esc(window.t("ht.chua_co_goi_y"))) +
           '<button class="s-btn ht-mo-kenh" type="button">' + ic("plug") + ' ' + esc(window.t("ht.them_tk")) + '</button>' : "") +
         '</div>';
       var nut = box.querySelector(".ht-mo-kenh");
-      if (nut) nut.onclick = function () { chonTab("bot"); };
+      if (nut) nut.onclick = function () { chonTab("kenh"); };
+      var bo = box.querySelector(".ib-empty-clear");
+      if (bo) bo.onclick = clearMenuFilters;
       return;
     }
     var F = window.JavisConvFilters;
@@ -1819,76 +1885,11 @@
     '</div>';
   }
 
-  // ---------------------------------------------------------------- KÊNH CHƯA CÓ BOT
-  function renderKenhSec(box) {
-    box.innerHTML =
-      '<div class="ht-kenh-h">' +
-        '<button type="button" class="ht-kenh-tog" aria-expanded="true">' + ic("chevron-down") +
-          ' <span class="ht-kenh-t">' + esc(window.t("ht.kenh_ranh")) + '</span> <span class="ht-kenh-n"></span></button>' +
-        '<label class="ht-switch ht-kenh-moi"><input type="checkbox" class="ht-tk-moi-brain"' + (_tkMoiBrain ? " checked" : "") + '>' +
-          '<span>' + esc(window.t("ht.tk_xem_moi_brain")) + '</span></label>' +
-        '<button class="s-btn-ghost ht-them-tk" type="button">' + ic("plus") + ' ' + esc(window.t("ht.them_tk")) + '</button>' +
-      '</div>' +
-      // Nói THẲNG đang lọc theo brain nào. Không nói thì một danh sách ngắn đi trông hệt như mất dữ liệu, và đó đúng là cái
-      // bẫy mà việc lọc này dễ tạo ra.
-      '<div class="ht-tk-loc"><span class="ht-tk-loc-txt"></span></div>' +
-      '<div class="ht-acc-grid"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>';
-    box.querySelector(".ht-them-tk").onclick = function () { moThemTK(); };
-    box.querySelector(".ht-kenh-tog").onclick = function () {
-      _kenhMo = !kenhDangMo(dsKenhRanh());
-      veKenh();
-    };
-    box.querySelector(".ht-tk-moi-brain").onchange = function (e) {
-      _tkMoiBrain = !!e.target.checked;
-      _dauVetTK = "";
-      taiTK(false).catch(function () {});
-    };
-    _dauVetTK = "";
-    taiTK(false).catch(function (e) {
-      var g = box.querySelector(".ht-acc-grid");
-      if (g) g.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
-    });
-  }
-
-  // Kênh nào nằm trong mục này: kênh CHƯA có bot. Đang xem "mọi brain" thì thêm cả kênh đang do bot của brain KHÁC trực, vì bot
-  // đó không hiện ở trang này nên không còn chỗ nào khác để tìm lại, sửa hay xoá kênh (chủ repo báo 21/09).
-  function dsKenhRanh() {
-    return _tk.filter(function (a) {
-      return !a.bot_id || (_tkMoiBrain && a.bot_brain && a.bot_brain !== brain());
-    });
-  }
-  // Tự quyết mở hay gập: có kênh chưa có bot là có việc cần làm thì mở, hết việc thì gập. Người dùng đã bấm thì theo họ.
-  function kenhDangMo(ds) { return _kenhMo === null ? ds.length > 0 : _kenhMo; }
-
+  // ---------------------------------------------------------------- the account card (Channels tab)
   var TT_TK = {
     running: ["ht.tk_dang_chay", "ok"], starting: ["ht.tk_khoi_dong", "wait"],
     error: ["ht.tk_loi", "err"], off: ["ht.tk_tat", "off"], chua_gan: ["ht.tk_chua_gan", "off"],
   };
-
-  function veKenh() {
-    var sec = _host && _host.querySelector(".ht-kenh-sec");
-    var g = sec && sec.querySelector(".ht-acc-grid");
-    if (!g) return;
-    var ds = dsKenhRanh();
-    var mo = kenhDangMo(ds);
-    sec.classList.toggle("dong", !mo);
-    sec.querySelector(".ht-kenh-tog").setAttribute("aria-expanded", mo ? "true" : "false");
-    sec.querySelector(".ht-kenh-n").textContent = ds.length ? String(ds.length) : "";
-    var loc = sec.querySelector(".ht-tk-loc-txt");
-    if (loc) loc.innerHTML = ic("brain") + ' ' +
-      esc(_tkMoiBrain ? window.t("ht.tk_loc_tat_ca") : window.t("ht.tk_loc_brain", { brain: tenBrain(brain()) }));
-    if (!mo) { g.innerHTML = ""; return; }
-    if (!ds.length) {
-      g.innerHTML = '<div class="ht-empty ht-kenh-het">' + ic("plug") +
-        '<b>' + esc(window.t(_tk.length ? "ht.kenh_ranh_het" : "ht.tk_rong")) + (_tk.length ? "" : infoBtn()) + '</b>' +
-        // The short hint stays visible; the longer how-to for an empty brain opens from (i) (0.214.0).
-        (_tk.length ? '<div>' + esc(window.t("ht.kenh_ranh_het_goi_y")) + '</div>'
-          : infoBody(esc(window.t("ht.tk_rong_goi_y")))) + '</div>';
-      return;
-    }
-    g.innerHTML = "";
-    ds.forEach(function (a) { g.appendChild(theTK(a)); });
-  }
 
   // Ô chọn brain cho tài khoản. Danh sách đổ từ CHÍNH ô chọn brain của app (#graphSource),
   // không gọi /brains riêng: `currentBrainPath()` sinh giá trị từ ô đó, nên lấy chỗ khác là
@@ -2035,7 +2036,7 @@
     _dauVetTK = "";
     taiTK(true);
     // Thẻ bot (chatbots.js) còn chip của kênh vừa xoá: nạp lại tab để chip biến mất.
-    if (_tab === "bot") veTab();
+    if (_tab === "bot" || _tab === "kenh") veTab();
   }
 
   // Thêm tài khoản: bước 1 chọn LOẠI kênh (mọi kênh trong sổ, kể cả kênh không nhận token,
@@ -2215,7 +2216,7 @@
       dong();
       _dauVetTK = "";
       taiTK(true);
-      if (_tab === "bot") veTab();
+      if (_tab === "bot" || _tab === "kenh") veTab();
     };
   }
 

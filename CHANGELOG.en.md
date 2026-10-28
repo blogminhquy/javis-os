@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.377.0] - 2026-10-28
+### Added
+- **Channels tab on the Chatbot page:** every Zalo nick, Page and Telegram bot grouped by channel with real logos. Pick the AI on duty for each with one dropdown; Cancel and Save appear only after a change. Also "No AI needed", "Put an AI on several Pages" at once, and an AI switch per group or person with Undo.
+- **Stats tab:** how many messages the AI and you answered, how long customers waited, against the period before, with bars by channel and by bot. Pick the period with a full date picker: today, last 7, 30 or 90 days, last month, week or month to date, or days on the calendar.
+- **Fuller Conversations filter:** Time (the same date picker), Last message by (customer, AI, you) and Pinned chats only. A list emptied by filters offers Clear right in the middle.
+
+### Fixed
+- Changing the bot on duty for a Page moves its existing chats to the new bot, so they no longer say "no bot". Switching the AI off in one chat that cannot be saved now says so instead of claiming it is done.
 ## [0.376.0] - 2026-10-28
 ### Improved
 - **Pin and speaker buttons under every answer.** The pin puts an answer into the conversation's contents (the marks rail on the right, the ≡ button on phones), marked with an orange pin, one click to jump back; pins are kept on the server so other devices see them. The speaker reads that answer aloud; press again to stop.

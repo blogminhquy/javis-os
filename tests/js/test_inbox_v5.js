@@ -64,9 +64,11 @@ check("the search matches a nick's name or its bot's, and hides channels with no
   /telegram:b/.test(found) && !/telegram:a/.test(found) && !/zalo:1/.test(found) && !/data-ch="zalo"/.test(found));
 
 // ---- 3. Filter menu and chips ----
-const cats = V.filterCats({ tagsAny: ["1", "2"], bot: "b" });
-check("Filter menu categories, with how many are on in each", cats.map((c) => c.id).join() === "tagsAny,tagsNone,type,bot,status,contact" &&
-  cats[0].n === 2 && cats[3].n === 1 && cats[1].n === 0);
+const cats = V.filterCats({ tagsAny: ["1", "2"], bot: "b", when: { preset: "d7" }, lastBy: "ai", pinned: "1" });
+check("Filter menu categories, with how many are on in each", cats.map((c) => c.id).join() === "time,tagsAny,tagsNone,type,bot,status,last,contact" &&
+  cats[0].n === 1 && cats[1].n === 2 && cats[4].n === 1 && cats[2].n === 0 && cats[6].n === 1 && cats[7].n === 1);
+const tc = V.activeChips({ when: { preset: "d30" }, lastBy: "customer", pinned: "1" }, [], []);
+check("chips for time, last message by, pinned", tc.map((c) => c.k).join() === "when,lastBy,pinned");
 const chips = V.activeChips({ type: "group", bot: "-", status: "unread", contact: "1" }, [], []);
 check("chips for the active filters, each removable by its key", chips.map((c) => c.k).join() === "type,bot,status,contact" &&
   chips[1].text === "ib.fc_nobot" && chips[2].text === "ib.fc_st_unread");
