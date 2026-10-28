@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.382.0] - 2026-10-28
+### Improved
+- **Javis answers faster on Claude Code and Codex.** (in progress)
+
 ## [0.380.0] - 2026-10-28
 ### Fixed
 - **Conversations list:** the number of messages in each chat is back (grey "12 msgs") next to the red unread count. The reply box drops its two notes, keeping only the warning that a personal account sends under your own name.
