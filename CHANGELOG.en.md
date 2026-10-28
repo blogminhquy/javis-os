@@ -6,7 +6,11 @@ Javis OS release history, newest first. You can also read it inside the app unde
 
 English entries start at 0.66.0. Every earlier release is described in the Vietnamese [CHANGELOG.md](CHANGELOG.md), which remains the maintainer's original; the in-app Updates page shows those older entries in Vietnamese.
 
-Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
+Format: each release is a `## [0.373.0] - 2026-10-28
+### Improved
+- **The "Recommended repos" tab is now "Curated".** A shorter name without the jargon, one line on a phone. The card line now reads "Updated from the author".
+
+## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
 ## [0.371.0] - 2026-10-28
 ### Added
