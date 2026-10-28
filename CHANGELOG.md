@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.386.0] - 2026-10-28
+### Cải thiện
+- **Javis Store trên điện thoại:** chọn loại bằng ô thả xuống (đang viết).
+
 ## [0.385.0] - 2026-10-28
 ### Sửa lỗi
 - **Đăng nhập Claude trên trang Models không còn báo xong rồi lại về "Chưa đăng nhập".** Claude CLI vẫn báo thành công cả khi không lưu được phiên (trên Mac là Keychain bị khoá), Javis tin theo nên thẻ quay về như cũ mà không nói gì. Giờ Javis kiểm lại ngay, và nếu chưa lưu được thì nói rõ lý do kèm cách xử lý.
