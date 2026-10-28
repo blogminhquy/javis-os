@@ -55,6 +55,8 @@ check("file is tracked for cleanup after the turn", path in cli._tmp_files)
 from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport  # noqa: E402
 
 t = SubprocessCLITransport(prompt="xin chào", options=opts)
+# CI has no `claude` binary; the path is only resolved at connect(), and only the arguments matter here.
+t._cli_path = t._cli_path or "claude"
 cmd = t._build_command()
 longest = max(len(str(a).encode("utf-8")) for a in cmd)
 check("no argv entry crosses MAX_ARG_STRLEN", longest < MAX_ARG_STRLEN, longest)
