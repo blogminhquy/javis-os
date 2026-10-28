@@ -97,11 +97,13 @@ const ctx = { window: win, document: doc, fetch: fakeFetch, console, setInterval
 win.document = doc;
 vm.createContext(ctx);
 vm.runInContext(MOD, ctx);
+vm.runInContext(src("dashboard/inbox-v5.js"), ctx);
 vm.runInContext(CV, ctx);
 const F = win.JavisConvFilters;
 const C = win.JavisConversations;
 const flush = async () => { for (let i = 0; i < 12; i++) await new Promise((r) => setTimeout(r, 0)); };
 const lastListUrl = () => fetched.filter((u) => u.indexOf("/conversations?") === 0).slice(-1)[0] || "";
+const rows = () => (DOM.get(".ht-list").innerHTML.match(/class="ht-item /g) || []).length;
 const qOf = (u) => decodeURIComponent((u.match(/[?&]q=([^&]*)/) || [])[1] || "");
 
 (async () => {
@@ -114,7 +116,7 @@ const qOf = (u) => decodeURIComponent((u.match(/[?&]q=([^&]*)/) || [])[1] || "")
   box.oninput();
   await flush();
   check("typing a search asks the server for it", qOf(lastListUrl()) === "Tôn", lastListUrl());
-  check("the list shows the one match", DOM.get(".ht-fcount").textContent === "ht.f_count#1,0", DOM.get(".ht-fcount").textContent);
+  check("the list shows the one match", rows() === 1, rows());
 
   C.render(host);          // leave the inbox (tab or page switch) and come back: the inbox is rebuilt from scratch
   await flush();
@@ -125,8 +127,7 @@ const qOf = (u) => decodeURIComponent((u.match(/[?&]q=([^&]*)/) || [])[1] || "")
   box.value = "";
   box.oninput();
   await flush();
-  check("clearing the box brings every conversation back", qOf(lastListUrl()) === "" &&
-    DOM.get(".ht-fcount").textContent === "ht.f_count#3,0", DOM.get(".ht-fcount").textContent);
+  check("clearing the box brings every conversation back", qOf(lastListUrl()) === "" && rows() === 3, rows());
 
   box.value = "Hai";
   box.oninput();

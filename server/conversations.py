@@ -888,6 +888,8 @@ def chi_tiet(conversation_id: int) -> Optional[dict]:
     d = _conv_public(_row(r))
     d["customer_tags"] = _loads(d.pop("customer_tags_json", "[]"), [])
     d["tags"] = conversation_tags([d["id"]]).get(int(d["id"]), [])
+    meta = d.get("metadata") if isinstance(d.get("metadata"), dict) else {}
+    d["note"] = str(d.get("customer_note") or "") if d.get("customer_id") else str(meta.get("note") or "")
     return d
 
 
@@ -1191,6 +1193,20 @@ def save_draft(conversation_id: int, text: str, for_message_id: int = 0, instruc
 
 def clear_draft(conversation_id: int) -> bool:
     return _set_meta_key(conversation_id, "draft", None)
+
+
+def set_note(conversation_id: int, note: str) -> bool:
+    """The owner's note on a chat (Chatbot v5 Info panel). It belongs to the customer when the chat has one (the same
+    note then follows them into every chat), else to the conversation itself (a group). False when there is no such
+    conversation."""
+    text = _s(str(note or "").strip(), MAX_GHI_CHU)
+    with _lock:
+        r = _conn().execute("SELECT customer_id FROM conversations WHERE id=?", (int(conversation_id),)).fetchone()
+    if r is None:
+        return False
+    if r["customer_id"]:
+        return dat_ghi_chu_khach(int(r["customer_id"]), text)
+    return _set_meta_key(conversation_id, "note", text or None)
 
 
 def draft_of(conv: dict) -> Optional[dict]:

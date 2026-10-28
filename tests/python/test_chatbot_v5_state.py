@@ -96,6 +96,8 @@ check("human: you are handling it", who(dict(row, mode="human")) == ("owner", "y
 check("human and waiting: needs you", who(dict(row, mode="human"), waiting=True) == ("you", "waiting_you"))
 check("draft mode, nothing written yet: ai", who(dict(row, mode="draft")) == ("ai", "draft_mode"))
 check("draft waiting: needs you", who(dict(row, mode="draft", metadata={"draft": {"text": "Dạ"}})) == ("you", "draft_ready"))
+check("draft waiting in a not-allowed chat (owner's order): needs you",
+      who(dict(grp, metadata={"draft": {"text": "Dạ"}})) == ("you", "draft_ready"))
 check("group not allowed: log", who(grp) == ("log", "not_allowed"))
 check("group not allowed, someone called the bot: needs you", who(grp, pending={"-5": 2}) == ("you", "pending"))
 s = inbox_state.state(grp, bot, True, {"-5": 2})
@@ -191,6 +193,12 @@ check("list: rows carry who fields", row and row["who"] == "you" and row["who_co
 check("list: who_counts on the first page", isinstance(r.get("who_counts"), dict) and r["who_counts"]["you"] >= 1, r.get("who_counts"))
 check("list: needs-you per account", sum((r["who_counts"].get("you_by_account") or {}).values()) == r["who_counts"]["you"],
       r.get("who_counts"))
+check("list: needs-you in all, for the tab", r["who_counts"].get("you_total") == r["who_counts"]["you"], r.get("who_counts"))
+whole = r["who_counts"]
+r = cl.get("/conversations?account_ids=nobody:x&q=zzz").json()
+check("list: picker and tab counts stay whole-inbox under filters (other Pages' numbers do not vanish)",
+      r["who_counts"]["you"] == 0 and r["who_counts"]["you_by_account"] == whole["you_by_account"]
+      and r["who_counts"]["you_total"] == whole["you_total"], r.get("who_counts"))
 r = cl.get("/conversations?who=you&limit=50").json()
 check("list: who=you keeps only needs-you rows", r["items"] and all(x["who"] == "you" for x in r["items"]), r["items"][:2])
 r = cl.get("/conversations?who=owner").json()
@@ -208,7 +216,10 @@ check("POST /ai on=1 unblocks", r.get("ok") and "900" not in chatbot_store.get_b
 check("POST /ai without a bot: no_bot", cl.post(f"/conversations/{c1}/ai", data={"on": "1"}).json().get("code") == "no_bot")
 
 r = cl.post(f"/conversations/{cid}/mode", data={"mode": "human"}).json()
-check("leaving draft mode drops the waiting draft", r.get("ok") and conversations.draft_of(conversations.chi_tiet(cid)) is None, r)
+check("changing the mode keeps the waiting draft (Undo brings it back)",
+      r.get("ok") and conversations.draft_of(conversations.chi_tiet(cid)) is not None, r)
+check("a waiting draft needs you in any mode", r["conversation"]["who"] == "you" and r["conversation"]["who_code"] == "draft_ready",
+      r.get("conversation"))
 conversations.dat_che_do(cid, "draft")
 conversations.save_draft(cid, "Dạ 120k ạ")
 r = cl.post(f"/conversations/{cid}/draft", data={"action": "discard"}).json()
@@ -231,6 +242,9 @@ check("draft send: recorded as the bot's words",
       any(m["sender_type"] == "ai" and m["text"] == "Dạ 120k một chai ạ" for m in conversations.tin_nhan(cid)))
 check("draft send: draft cleared", conversations.draft_of(conversations.chi_tiet(cid)) is None)
 check("draft send: empty refused", cl.post(f"/conversations/{cid}/draft", data={"action": "send", "text": " "}).status_code == 400)
+conversations.save_draft(cid, "Dạ để em xem ạ")
+r = cl.post(f"/conversations/{cid}/reply", data={"text": "Dạ còn hàng ạ"}).json()
+check("owner's own reply drops the A.I. draft", r.get("ok") and conversations.draft_of(conversations.chi_tiet(cid)) is None, r)
 
 ASKED = []
 
@@ -245,10 +259,22 @@ r = cl.post(f"/conversations/{cid}/ai-reply", data={"mode": "send", "instruction
 check("ai-reply with an instruction: always a draft, instruction passed",
       r.get("ok") and r.get("draft") and ASKED[-1] == (True, "báo giá sỉ 20 thùng") and not SENT[-1][2] == "Dạ em báo giá ạ",
       (r, ASKED))
+d = conversations.draft_of(conversations.chi_tiet(cid))
+check("ai-reply draft is kept as the chat's draft, with the instruction",
+      d and d["text"] == "Dạ em báo giá ạ" and d["instruction"] == "báo giá sỉ 20 thùng"
+      and (r.get("conversation") or {}).get("draft", {}).get("text") == "Dạ em báo giá ạ", (d, r.get("conversation")))
 r = cl.post(f"/conversations/{cid}/ai-reply", data={"mode": "draft"}).json()
 check("ai-reply without an instruction keeps the old call", r.get("ok") and ASKED[-1] == (True, ""), (r, ASKED))
 r = cl.get(f"/conversations/{cid}/messages").json()
 check("messages: the conversation carries who fields", "who" in (r.get("conversation") or {}), r.get("conversation"))
+check("messages: the conversation carries the bot's reply_when", "reply_when" in (r.get("conversation") or {}), r.get("conversation"))
+
+# The owner's note (Info panel): on the customer when the chat has one, else on the chat itself.
+r = cl.post(f"/conversations/{cid}/note", data={"note": "  Khách sỉ, hay hỏi giá  "}).json()
+check("note: saved and read back trimmed", r.get("ok") and r["conversation"]["note"] == "Khách sỉ, hay hỏi giá", r)
+check("note: unknown chat is 404", cl.post("/conversations/999999/note", data={"note": "x"}).status_code == 404)
+r = cl.post(f"/conversations/{cid}/note", data={"note": ""}).json()
+check("note: cleared", r.get("ok") and r["conversation"]["note"] == "", r)
 
 print()
 if _fails:
