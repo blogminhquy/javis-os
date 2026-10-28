@@ -41,7 +41,6 @@ The dashboard's navigation rail groups **19 pages** into **5 groups**: Brain · 
 
 ### Connections and channels (the Connections group)
 - [09 - Connections and business data](09-connections-and-business-data.md) - the multi-account store of external services, permissions, reporting real figures.
-- [10 - Models and engines](10-models-and-engines.md) - switching the brain between Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic, Groq and Ollama without losing capability; thinking levels, the background work model.
 - [11 - The Telegram channel](11-telegram.md) - asking Javis from a phone, sending and receiving files.
 - [26 - The Zalo Bot channel](26-zalo-bot-channel.md) - asking Javis on Zalo through the official API, paired with one click.
 - [12 - Zalo Agent MCP](12-zalo-agent-mcp.md) - signing in by QR, reading and searching history, sending messages through the standard MCP.
@@ -54,6 +53,7 @@ The dashboard's navigation rail groups **19 pages** into **5 groups**: Brain · 
 - [19 - Tasks and Dataview in notes](19-tasks-and-dataview.md) - Obsidian-style self-saving checkboxes, ```dataview blocks that really run.
 
 ### Accounts, branding, configuration (the System group)
+- [10 - Models and engines](10-models-and-engines.md) - switching the brain between Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic, Groq and Ollama without losing capability; thinking levels, the background work model.
 - [14 - Security and accounts](14-security-and-accounts.md) - forced login, passwords, rate limiting, secret-key encryption.
 - [15 - Branding and custom domains](15-branding-and-domains.md) - changing the logo and avatar, pointing a domain and enabling HTTPS.
 - [16 - .env configuration](16-env-configuration.md) - a reference for every environment variable.
