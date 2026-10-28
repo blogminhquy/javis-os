@@ -1363,6 +1363,13 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   place-items: center; font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -.02em; }
 /* Logo thật thì KHÔNG tô nền: nền màu sau một logo có nền trắng trông như lỗi in. */
 .kho-ava-img { background: none; }
+/* 0.373.0: icon of the kind (skill, workflow, tool) on a light tile in the card's own colour, and the agent
+   portrait for agents. Replaces the solid letter tiles. */
+.kho-ava-ic { background: color-mix(in srgb, var(--kho-mau, var(--accent)) 15%, var(--surface-1, #fff));
+  color: var(--kho-mau, var(--accent)); border: 1px solid color-mix(in srgb, var(--kho-mau, var(--accent)) 28%, transparent); }
+.kho-ava-ic svg { width: 22px; height: 22px; }
+.kho-ava-agent { background: none; }
+.pkm-dau .kho-ava-ic svg { width: 25px; height: 25px; }
 .kho-ava-img svg, .kho-ava-img img { width: 34px; height: 34px; object-fit: contain; }
 .kho-daicai { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
   color: var(--ok-ink, #2f855a); }

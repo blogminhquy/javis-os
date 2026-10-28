@@ -454,17 +454,10 @@
   }
 
   // ---- Ảnh đại diện của một mục ----
-  // Ưu tiên icon THẬT của mục (connector đi kèm app đều có logo). Không có thì dựng một ô chữ
-  // cái: đó là chỗ dựa của lưới - mắt nhận ra hàng nào là hàng nào trước khi kịp đọc chữ.
+  // Ưu tiên icon THẬT của mục (connector đi kèm app đều có logo). Không có thì icon của loại trên
+  // ô màu riêng theo id: đó là chỗ dựa của lưới, mắt nhận ra hàng nào là hàng nào trước khi đọc chữ.
   const MAU_AVATAR = ["#2563eb", "#e8590c", "#0f766e", "#16a34a", "#7c3aed", "#0891b2",
                       "#ca8a04", "#dc2626", "#0d9488", "#db2777"];
-
-  function chuCai(ten) {
-    const w = String(ten || "?").trim().split(/\s+/).filter(Boolean);
-    if (!w.length) return "?";
-    if (w.length === 1) return w[0].slice(0, 2).replace(/^./, c => c.toUpperCase());
-    return (w[0][0] + w[1][0]).toUpperCase();
-  }
 
   function mauTheoId(id) {
     let h = 0;
@@ -473,24 +466,32 @@
   }
 
   function veAvatar(g) {
-    // Ba dạng, xử lý đúng thứ tự của `console.js iconInner` - trường `icon` của connector đã
-    // mang cả ba từ lâu và không thể ép về một dạng:
+    // Thứ tự, đúng như `console.js iconInner` cho phần logo:
     //   đường dẫn/URL ảnh (logo hãng)  -> <img>
-    //   tên icon Lucide                -> SVG, đặt trên nền màu
-    //   không có gì                    -> ô chữ cái
+    //   tên icon Lucide                -> SVG trên ô màu nhạt
+    //   trợ lý (agent)                 -> chân dung trợ lý y như trang Cộng sự (`JavisAvatar`)
+    //   còn lại                        -> icon của LOẠI (skill = mảnh ghép, quy trình, công cụ...)
     //
     // `ic()` KHÔNG tự nhận đường dẫn (đó là việc của `iconInner`), nên bỏ nhánh <img> là mọi
     // logo hãng hiện thành dấu hỏi - đúng lỗi thấy trên màn hình bản dựng đầu.
+    //
+    // 0.373.0: ô chữ cái đậm màu ("Su", "LP") bị chủ repo chê là xấu và không nói lên gì. Giờ ô là
+    // icon của đúng loại năng lực, màu riêng theo id nhưng nhạt nền, nên lưới đọc ra ngay đâu là
+    // skill, đâu là trợ lý, mà các thẻ cạnh nhau vẫn khác màu.
     const src = String((g && g.icon) || "");
     if (/^(https?:|\/)/.test(src)) {
       return '<div class="kho-ava kho-ava-img"><img src="' + esc(src)
         + '" alt="" loading="lazy"></div>';
     }
-    const nen = ' style="background:' + mauTheoId(g.id) + '"';
-    if (src && window.Icons && window.Icons.has && window.Icons.has(src)) {
-      return '<div class="kho-ava"' + nen + '>' + ic(src) + '</div>';
+    const kind = (g && g.kind) || "bundle";
+    const A = typeof window !== "undefined" && window.JavisAvatar;
+    if (kind === "agent" && A && A.html && window.JavisPet) {
+      try { return '<div class="kho-ava kho-ava-agent">' + A.html({ slug: g.id || "" }, 40) + '</div>'; }
+      catch (e) { /* the mascot library is not ready: fall back to the kind icon */ }
     }
-    return '<div class="kho-ava"' + nen + '>' + esc(chuCai(nn(g.name, g.id))) + '</div>';
+    const coIcon = src && window.Icons && window.Icons.has && window.Icons.has(src);
+    const ten = coIcon ? src : (LOAI[kind] || LOAI.bundle).icon;
+    return '<div class="kho-ava kho-ava-ic" style="--kho-mau:' + mauTheoId(g.id) + '">' + ic(ten) + '</div>';
   }
 
   // ---- Nút trên thẻ ----
