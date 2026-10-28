@@ -729,8 +729,7 @@
       var pre = c.last_sender_type === "ai" ? window.t("ib.pre_ai") : c.last_sender_type === "human" ? window.t("ib.pre_you") : "";
       var who = V && V.WHO.indexOf(c.who) >= 0 ? c.who : "log";
       // The row's coloured edge says who is handling it; the hover text says it in words (Chatbot v5).
-      var say = (V ? V.whoLabel(who) + ": " + V.whoSentence(c) : "") +
-        (c.message_count ? " · " + window.t("ht.so_tin_title", { count: c.message_count }) : "");
+      var say = V ? V.whoLabel(who) + ": " + V.whoSentence(c) : "";
       // Nút ghim (0.223.0) là <span role=button>: cả hàng đã là một <button>, nút lồng trong nút là HTML sai.
       // Since the row menu (2026-10-25) pinning lives in "...": only a PINNED row shows its pin (click it to unpin), so
       // unpinned rows stay clean like Zalo's. The "..." is a <span role=button> for the same reason as the pin.
@@ -756,6 +755,10 @@
           '<span class="ht-item-sub">' +
             '<small>' + (pre ? '<span class="ib-pre">' + esc(pre) + ' </span>' : "") +
               esc(window.JavisHtMedia ? window.JavisHtMedia.tomTat(c.last_message || "", window.t) : (c.last_message || "")) + '</small>' +
+            // Messages in the whole conversation (0.148.0), grey; the red number is only the UNREAD ones (owner, 2026-10-28:
+            // v5 dropped it and he reads it to see how far a chat has gone).
+            (c.message_count ? '<span class="ht-count" title="' + esc(window.t("ht.so_tin_title", { count: c.message_count })) + '">' +
+              esc(window.t("sess.msgs", { count: c.message_count })) + '</span>' : "") +
             (c.unread_count ? '<span class="ht-badge" title="' + esc(window.t("ht.chua_doc_title", { count: c.unread_count })) + '">' +
               c.unread_count + '</span>' : "") +
           '</span>' +
@@ -1090,8 +1093,9 @@
     _msgs = []; _conCu = false; _dangTaiCu = false; _vetMeta = "";       // hội thoại khác: tải lại từ tin mới nhất
     _host.querySelector(".ht-wrap").classList.add("thread-on");
     veDanhSach();
-    await taiTin(false);
+    // Read first: an opened chat leaves "Needs you" (owner, 2026-10-28), so the bar above it must not still say it.
     try { await api("/conversations/" + id + "/read", { method: "POST" }); } catch (e) {}
+    await taiTin(false);
     tai(true);
   }
 
@@ -1794,9 +1798,9 @@
     var V = window.JavisInboxV5, k = kenhCua(c.channel), t = window.t;
     var laBot = !!c.bot_id;
     var draft = c.draft && String(c.draft.text || "").trim() ? c.draft : null;
-    var ghiChu = "";
-    if (laBot && c.ai_allowed && modeOf(c) === "ai") ghiChu = t("ib.send_takes_over");
-    else if (k.kind === "account") ghiChu = t("ht.gui_ten_ban", { kenh: k.nhan });
+    // Only the warning that matters stays above the box: on a personal account the message goes out under the owner's
+    // own name. The "sending takes over" and "example command" notes went (owner, 2026-10-28: a good UI needs no notes).
+    var ghiChu = k.kind === "account" ? t("ht.gui_ten_ban", { kenh: k.nhan }) : "";
     var busy = _aiBusy === "redo" || _aiBusy === "send" ? _aiBusy : "";
     return '<div class="ht-compose">' + noteHtml() +
       (draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
@@ -1807,7 +1811,6 @@
           ic(_aiBusy === "ask" ? "loader" : "sparkles") + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
         '<button type="button" class="s-btn ht-send">' + ic("send") + '<span>' + esc(t("ht.gui")) + '</span></button>' +
       '</div>' +
-      (laBot && !draft ? '<div class="ib-hint">' + esc(t("ib.cmd_hint")) + '</div>' : "") +
     '</div>';
   }
 
@@ -1875,7 +1878,11 @@
     var bieu = r.emoji || r.code || "";
     var quote = String(r.target_text || "").replace(/\s+/g, " ").trim();
     if (quote.length > 80) quote = quote.slice(0, 79) + "…";
-    var who = ai || window.t("ht.bot");
+    // Who reacted follows the side it came from (owner, 2026-10-28: a customer's heart read "Bot thả cảm xúc"). A
+    // customer reaction often has no sender name: a one-to-one chat is named after that customer; a group says "Customer".
+    var c = _conv || {};
+    var who = ai || (lop === "khach" ? (c.chat_type !== "group" && (c.customer_name || c.title)) || window.t("ht.react_cust")
+                     : lop === "nguoi" ? window.t("ht.ban") : window.t("ht.bot"));
     var cau = r.removed ? window.t("ht.react_off", { who: who })
             : quote ? window.t("ht.react_on", { who: who, quote: "\u201c" + quote + "\u201d" })
             : window.t("ht.react_any", { who: who });

@@ -24,7 +24,8 @@ const window = { t: (k, v) => {
 } };
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const gio = () => "10:20";
-const renderReaction = new Function("window", "esc", "gio", CV.slice(i0, i1 + 4) + "\nreturn renderReaction;")(window, esc, gio);
+const conv = { chat_type: "private", customer_name: "Vĩnh Đông Y", title: "" };
+const renderReaction = new Function("window", "esc", "gio", "_conv", CV.slice(i0, i1 + 4) + "\nreturn renderReaction;")(window, esc, gio, conv);
 
 const tim = renderReaction({ message_type: "reaction", created_at: 1, metadata: { reaction: {
   emoji: "❤️", target_text: "Dạ còn ạ, 50k một bông", target_side: "ours" } } }, "khach", "Lan");
@@ -38,8 +39,16 @@ const la = renderReaction({ metadata: { reaction: { emoji: "👍", target_text: 
 check("unknown target: 'a message', never a guess", la.indexOf("Hoa thả cảm xúc vào một tin") !== -1);
 const xau = renderReaction({ metadata: { reaction: { emoji: "<b>", target_text: "<script>x</script>" } } }, "khach", "<i>");
 check("everything is escaped", xau.indexOf("<script>") === -1 && xau.indexOf("<b>") === -1 && xau.indexOf("<i>") === -1);
+// Owner, 2026-10-28: a customer's heart with no sender name read "Bot thả cảm xúc".
+const noName = renderReaction({ metadata: { reaction: { emoji: "❤️", target_text: "Dạ anh xem bài 01" } } }, "khach", "");
+check("a customer's reaction without a name takes the customer's name, never 'Bot'",
+  noName.indexOf("Vĩnh Đông Y thả cảm xúc vào") !== -1 && noName.indexOf("Bot") === -1);
+conv.chat_type = "group"; conv.title = "Nhóm học viên";
+const inGroup = renderReaction({ metadata: { reaction: { emoji: "👍", target_text: "" } } }, "khach", "");
+check("in a group (the chat is named after the group) it says 'Khách'", inGroup.indexOf("Khách thả cảm xúc vào một tin") !== -1);
+check("the bot's own reaction still says the bot", renderReaction({ metadata: { reaction: { emoji: "👍" } } }, "bot", "").indexOf(vi["ht.bot"]) !== -1);
 check("veTin hands reaction rows to renderReaction", /if \(t\.message_type === "reaction"\) return renderReaction\(t, lop, ai\);/.test(CV));
-["ht.react_on", "ht.react_any", "ht.react_off"].forEach(k => check(k + " in vi and en with the same placeholders",
+["ht.react_on", "ht.react_any", "ht.react_off", "ht.react_cust"].forEach(k => check(k + " in vi and en with the same placeholders",
   !!vi[k] && !!en[k] && JSON.stringify((vi[k].match(/\{\w+\}/g) || []).sort()) === JSON.stringify((en[k].match(/\{\w+\}/g) || []).sort())));
 check("CSS for the reaction line", CSS.indexOf(".ht-react-row") !== -1 && CSS.indexOf(".ht-react-emoji") !== -1);
 

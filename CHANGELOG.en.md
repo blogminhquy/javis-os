@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.380.0] - 2026-10-28
+### Fixed
+- **Conversations list:** the number of messages in each chat is back (grey "12 msgs") next to the red unread count. The reply box drops its two notes, keeping only the warning that a personal account sends under your own name.
+- **A truer "Needs you":** opening a chat takes it off Needs you until the customer writes again. Friend-request notices ("accepted your friend request") do not count as a customer waiting. Chats of a nick that has an AI no longer offer "Create an AI for this channel".
+- **Channels tab:** a nick's groups and people come 20 a page (Previous / Next, "21-40 of 289") and the search covers every page. The channel list on the left stays in view while scrolling and has its own search.
+- A customer's emoji reaction is shown under the customer's name, no longer as "Bot reacted".
+
 ## [0.379.0] - 2026-10-28
 ### Fixed
 - **Allowing a Zalo Bot group now sticks.** Zalo Bot group ids look like `zgr-...` and were silently dropped: "Allow this group" said done, yet the group stayed "waiting for approval" and the bot never answered there. Thanks to @VQTPiano for the report and the fix (#875).

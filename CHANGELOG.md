@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.380.0] - 2026-10-28
+### Sửa lỗi
+- **Danh sách Hội thoại:** hiện lại số tin của cả cuộc chat (ô xám "12 tin") cạnh số đỏ chưa đọc. Ô trả lời bỏ hai dòng chú thích, chỉ giữ cảnh báo tin đi dưới tên bạn ở tài khoản cá nhân.
+- **"Cần bạn" đúng hơn:** mở đọc cuộc chat là ra khỏi Cần bạn, khách nhắn mới mới quay lại. Tin báo kết bạn ("đã đồng ý kết bạn") không tính là khách chờ. Cuộc chat của nick đã có A.I. không còn hiện "Tạo A.I. cho kênh này".
+- **Tab Kênh:** nhóm và người của một nick chia trang 20 cuộc (Trước/Sau, "21-40 / 289"), tìm được trên mọi trang. Cột kênh bên trái đứng yên khi cuộn và có ô tìm nick, Page (gõ không dấu cũng được).
+- Khách thả cảm xúc thì ghi đúng tên khách, không còn ghi "Bot thả cảm xúc".
+
 ## [0.379.0] - 2026-10-28
 ### Sửa lỗi
 - **Cho phép nhóm của Zalo Bot giờ lưu được.** Mã nhóm của Zalo Bot có dạng `zgr-...` nên trước đây bị bỏ ngầm: bấm "Cho phép nhóm này" báo xong mà nhóm vẫn đứng ở "chờ duyệt" và bot không trả lời trong nhóm. Cảm ơn @VQTPiano đã báo lỗi kèm cách sửa (#875).

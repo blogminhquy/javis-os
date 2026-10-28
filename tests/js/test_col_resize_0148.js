@@ -74,11 +74,13 @@ check("col-resize.js nạp trước app.js và console.js",
   html.indexOf("/static/col-resize.js") < html.indexOf("/static/console.js"));
 
 // ───────────── số tin ở trang Chatbot ─────────────
-// Chatbot v5 (2026-10-28): the row keeps only the red unread count; the total number of messages moved into the row's
-// hover text, after who is handling the chat.
-check("dòng hội thoại: số chưa đọc (đỏ) trên dòng, tổng số tin trong chữ di chuột",
-  /c\.message_count \? " · " \+ window\.t\("ht\.so_tin_title", \{ count: c\.message_count \}\)/.test(conv) &&
-  /class="ht-badge" title="' \+ esc\(window\.t\("ht\.chua_doc_title"/.test(conv) && !/class="ht-count"/.test(conv));
+// Owner, 2026-10-28: v5 had moved the total into the hover text and he lost it; the grey "N tin" is back on the row,
+// before the red unread count (two different numbers), at 16px like the rest of the v5 list.
+check("dòng hội thoại: tổng số tin (xám) và số chưa đọc (đỏ) cùng nằm trên dòng",
+  /\(c\.message_count \? '<span class="ht-count" title="' \+ esc\(window\.t\("ht\.so_tin_title", \{ count: c\.message_count \}\)\)/.test(conv) &&
+  /window\.t\("sess\.msgs", \{ count: c\.message_count \}\)/.test(conv) &&
+  conv.indexOf('class="ht-count"') < conv.indexOf('class="ht-badge" title="\' + esc(window.t("ht.chua_doc_title"') &&
+  /\.ib-v5 \.ht-count \{ font-size: 16px;/.test(fs.readFileSync(path.join(ROOT, "dashboard/inbox-v5.css"), "utf8")));
 check("i18n đủ vi/en", ["common.resize_col", "common.resize_hint", "common.resize_vault", "common.resize_chatcol",
   "common.resize_chatside", "ht.so_tin_title", "ht.chua_doc_title"].every((k) => vi[k] && en[k]));
 

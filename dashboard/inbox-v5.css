@@ -126,6 +126,7 @@
 .ib-v5 .ht-item.unread .ht-item-sub small { color: var(--text); font-weight: 500; }
 .ib-pre { color: var(--text3); }
 .ib-v5 .ht-badge { font-size: 16px; padding: 0 8px; line-height: 1.5; }
+.ib-v5 .ht-count { font-size: 16px; line-height: 1.5; padding: 0 8px; }
 .ib-v5 .ht-item-utags { margin-top: 3px; gap: 5px; }
 .ib-acc { margin-left: auto; padding-left: 6px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   min-width: 0; flex: 0 1 auto; }
@@ -268,6 +269,12 @@
 .kn-wrap { max-width: 1200px; }
 .kn-grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
 .kn-tree { display: flex; flex-direction: column; gap: 10px; }
+/* The channel list stays in view while the right side scrolls (owner, 2026-10-28): it sticks to the top of the page and
+   scrolls on its own when it is taller than the screen. Phones show one side at a time, so it is left alone there. */
+@media (min-width: 901px) {
+  .kn-tree { position: sticky; top: 0; max-height: calc(100vh - 150px); overflow-y: auto; overscroll-behavior: contain; }
+  .kn-tree > * { flex-shrink: 0; }
+}
 .kn-top { display: flex; flex-direction: column; gap: 8px; }
 .kn-top .s-btn { font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .kn-allbr { display: flex; gap: 8px; align-items: center; color: var(--text2); }
@@ -301,9 +308,17 @@
 .kn-ch { padding: 12px 0 0; }
 .kn-chh { display: flex; gap: 10px; align-items: center; padding: 0 16px; flex-wrap: wrap; }
 .kn-chh b { font-size: 17px; }
+.kn-tq { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 9px 12px;
+  background: var(--bg3); color: var(--text); font: inherit; font-size: 16px; }
+.kn-secs { display: flex; flex-direction: column; gap: 10px; }
+.kn-secs > * { flex-shrink: 0; }
 .kn-q { margin-left: auto; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; background: var(--bg3); color: var(--text);
   font: inherit; font-size: 16px; min-width: 0; flex: 0 1 260px; }
 .kn-ch > .ib-hint { padding: 6px 16px 8px; margin: 0; }
+.kn-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--hairline); }
+.kn-pg { display: inline-flex; align-items: center; gap: 4px; font-size: 16px; }
+.kn-pg svg { width: 18px; height: 18px; }
+.kn-pg-n { color: var(--text2); font-variant-numeric: tabular-nums; min-width: 8ch; text-align: center; }
 .kn-chat { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 0 12px; align-items: center; padding: 11px 16px;
   border-top: 1px solid var(--hairline); border-left: 4px solid color-mix(in srgb, var(--ib-log) 45%, transparent); }
 .kn-chat.w-you { border-left-color: var(--ib-you); } .kn-chat.w-ai { border-left-color: var(--ib-ai); }

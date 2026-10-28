@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import mimetypes
 import time
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -150,6 +151,13 @@ def register(app, deps: ConversationsDeps):
         b = chatbot_store.get_bot(bot_id)
         return str((b or {}).get("name") or "") or localefmt.chu("Bot đã xoá", "Deleted bot")
 
+    # Chats logged before 0.380.0 by a channel that records without a bot (Zalo "record chats") get the bot on duty for
+    # their nick once, at start (owner, 2026-10-28: "a chat in the inbox already has an A.I.").
+    try:
+        conversations.fill_missing_bots()
+    except Exception as e:      # noqa: BLE001
+        print(f"[conversations] fill_missing_bots: {e}", file=sys.stderr)
+
     class _StateCtx:
         """Per-request cache for the "who is handling it" state (Chatbot v5): bot records, running flags and approval
         queues are read once per bot, not once per row."""
@@ -174,7 +182,7 @@ def register(app, deps: ConversationsDeps):
                     self.pending[bid] = {}
             bot = self.bots.get(bid) if bid else None
             return inbox_state.state(row, bot, self.running.get(bid, False), self.pending.get(bid, {}),
-                                     conversations.can_tra_loi(row, self.hesitant),
+                                     conversations.khach_dang_cho(row, self.hesitant),
                                      no_bot_wanted=str(row.get("channel_account_id") or "") in self.no_bot)
 
     def _attach_state(items: list, ctx: "_StateCtx") -> None:
@@ -236,7 +244,7 @@ def register(app, deps: ConversationsDeps):
                      since=since, until=until, last_by=last_by, pinned=bool(pinned))
         ctx = _StateCtx(hesitant)
         who = who if who in inbox_state.WHO else ""
-        who_counts = None
+        who_counts, total = None, None
         if who or offset == 0:
             # The state needs the bot record, so it is worked out here rather than in SQL: every matching row once,
             # then one page of the ids that kept the wanted `who`.
@@ -247,6 +255,8 @@ def register(app, deps: ConversationsDeps):
                                              hesitant=hesitant, **base)
             states = [(r["id"], ctx.of(r)["who"]) for r in light]
             who_counts = inbox_state.count({"who": w} for _, w in states)
+            # Every row the filters match (the Channels tab pages through an account's chats with it).
+            total = len(states)
             # "Needs you" per channel account (the channel picker's badges) and in all (the tab's badge) count the whole
             # inbox: ticking one Page or searching must not make the other Pages' numbers vanish.
             narrowed = bool(channel or bot_id or account_id or q or status or chat_type or tag or has_contact
@@ -291,7 +301,7 @@ def register(app, deps: ConversationsDeps):
         for it in items:
             it["bot_name"] = ten.get(str(it.get("bot_id") or "")) or _ten_bot(str(it.get("bot_id") or ""))
             it["need_reply"] = conversations.can_tra_loi(it, hesitant)
-        return {"ok": True, "items": items, "who_counts": who_counts,
+        return {"ok": True, "items": items, "who_counts": who_counts, "total": total,
                 "stats": conversations.thong_ke(bot_id=bot_id, channel=channel, account_id=account_id),
                 "facets": facets,
                 "bots": [{"id": bid, "name": ten[bid], **facets["bots"][bid]} for bid in ten],

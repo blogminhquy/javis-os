@@ -151,6 +151,14 @@ check("pinned only", ids("&pinned=1") == {"501"}, ids("&pinned=1"))
 r = cl.get("/conversations?limit=5&pinned=1&who=").json()
 check("filters keep the picker and tab counts whole-inbox", r["who_counts"]["you_total"] >= r["who_counts"]["you"], r["who_counts"])
 
+# ---- 5. paging an account's chats (Channels tab, owner 2026-10-28) -----------------------------------------------------
+everything = cl.get("/conversations?limit=200").json()
+p1 = cl.get("/conversations?limit=1").json()
+p2 = cl.get("/conversations?limit=1&offset=1").json()
+check("page 0 says how many match in all, later pages repeat nothing", p1["total"] == len(everything["items"]) >= 2 and
+      p2.get("total") is None and p1["items"][0]["id"] != p2["items"][0]["id"], (p1["total"], len(everything["items"])))
+check("the total follows the filters", cl.get("/conversations?limit=1&pinned=1").json()["total"] == 1)
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL")
