@@ -4512,7 +4512,6 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-foot { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .gh-foot .gh-apply { width: 100%; }
 .gh-foot .gh-apply[hidden] { display: none; }
-.gh-branch-how { padding: 6px 10px 2px; font-size: 12.5px; }
 .gh-repo .cp-mi-hint { display: inline-flex; align-items: center; gap: 4px; }
 .gh-repo .cp-mi-hint .cp-ic { width: 14px; height: 14px; }
 .gh-chip-br { display: inline-flex; align-items: center; gap: 3px; color: var(--text2); font-size: 12px; max-width: 90px; overflow: hidden;

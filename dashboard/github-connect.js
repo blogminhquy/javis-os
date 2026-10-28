@@ -358,6 +358,15 @@
   // branch list per repo. Three views in the same box; each one has a back row to the menu.
   function panel(box, menuApi) {
     box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.loading")) + "</div>";
+    // The + menu stops clicks from bubbling to the page, so the shared (i) handler of info-tip.js never sees them.
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("button.info-i") : null;
+      var k = b && b.parentElement && b.parentElement.nextElementSibling;
+      if (!k || !k.classList.contains("info-body")) return;
+      k.hidden = !k.hidden;
+      b.setAttribute("aria-expanded", k.hidden ? "false" : "true");
+      b.classList.toggle("on", !k.hidden);
+    });
     api("/github/status").then(function (st) {
       if (!st || !st.connected) {
         box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.panel_not_connected")) + "</div>" +
@@ -496,10 +505,9 @@
     outerBack(box, false);
     var all = [], def = "", cur = repo.base_branch || "";
     box.innerHTML = backRow(fromRepos ? tw("gh.change_branch") : tw("gh.menu")) + '<div class="cp-sep"></div>' +
-      '<div class="gh-sec">' + esc(tw("gh.branch_of", { name: repo.full_name })) + "</div>" +
+      '<div class="gh-sec">' + esc(tw("gh.branch_of", { name: repo.full_name })) + infoBtn() + "</div>" + infoBody(esc(tw("gh.branch_how"))) +
       '<input type="search" class="cp-search" placeholder="' + esc(tw("gh.branch_search_ph")) + '" aria-label="' + esc(tw("gh.branch_search_ph")) + '">' +
       '<div class="cp-results gh-results"><div class="cp-empty">' + esc(tw("gh.loading")) + "</div></div>" +
-      '<div class="lv-meta gh-branch-how">' + esc(tw("gh.branch_how")) + "</div>" +
       '<div class="cp-pin-err" role="status"></div>';
     var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), err = box.querySelector(".cp-pin-err");
     box.querySelector("[data-gh-back]").onclick = function () { fromRepos ? branchReposView(box, menuApi) : homeView(box, menuApi); };
