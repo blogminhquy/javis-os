@@ -41,11 +41,25 @@
       subKey: ic.merged_warning ? "gh.st_post_red" : (ic.sub ? "gh.sub_" + ic.sub : "") };
   }
 
-  var pure = { chipText: chipText, toggle: toggle, sameSet: sameSet, iconSpec: iconSpec };
+  var pure = { chipText: chipText, toggle: toggle, sameSet: sameSet, iconSpec: iconSpec, addToConnCount: addToConnCount };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
   if (typeof document === "undefined") return;
 
   function tw(k, v) { return window.t ? window.t(k, v) : k; }
+  // The "Connected" heading counts MCP accounts (data-n, drawn by console.js) plus what the built-in cards add,
+  // each under its own data-* key (github-connect.js: data-gh, messenger-connect.js: data-fb), so neither card
+  // overwrites the other's share. Returns the new total.
+  function addToConnCount(key, n) {
+    var cnt = document.getElementById("connCount");
+    if (!cnt) return 0;
+    cnt.setAttribute("data-" + key, String(n));
+    var total = 0;
+    for (var i = 0; i < cnt.attributes.length; i++) {
+      if (cnt.attributes[i].name.indexOf("data-") === 0) total += parseInt(cnt.attributes[i].value, 10) || 0;
+    }
+    cnt.textContent = tw("cs.cn_account_n", { so: total });
+    return total;
+  }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function infoBtn() { return window.JavisInfo ? window.JavisInfo.btn(tw("info.more")) : ""; }
   function infoBody(html) { return window.JavisInfo ? window.JavisInfo.body(html) : '<div class="info-body">' + html + "</div>"; }
@@ -109,9 +123,11 @@
       local = (l && l.items) || [];
     }
     cardHost.innerHTML = cardHtml(st, local);
-    // A connected GitHub counts as a connection: the "nothing connected yet" line must not sit under it.
+    // A connected GitHub counts as a connection: in the heading, and the "nothing connected yet" line must not sit
+    // under it.
+    var total = addToConnCount("gh", st.connected ? 1 : 0);
     var empty = document.querySelector("#connList > .mp-empty");
-    if (empty && st.connected) empty.hidden = true;
+    if (empty) empty.hidden = total > 0;
     var open = cardHost.querySelector("[data-gh-open]");
     if (open) open.onclick = function () { openForm(st); };
     var off = cardHost.querySelector("[data-gh-off]");
