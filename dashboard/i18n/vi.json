@@ -4977,6 +4977,8 @@
   "ib.kn_prev": "Trước",
   "ib.kn_next": "Sau",
   "ib.kn_range": "{from}-{to} / {n}",
+  "ib.kn_tree_q": "Tìm kênh, nick hoặc Page",
+  "ib.kn_tree_none": "Không có nick hay Page nào khớp.",
   "ib.kn_private": "Nhắn riêng",
   "ib.kn_q": "Tìm nhóm hoặc người",
   "ib.kn_saved": "Đã lưu A.I. trực.",

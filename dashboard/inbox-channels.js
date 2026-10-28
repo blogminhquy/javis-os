@@ -20,6 +20,7 @@
   // The chats of the picked nick or Page, one page at a time (owner, 2026-10-28: a nick with 289 chats drew them all).
   // The search asks the server, so it finds a chat on any page.
   var PAGE = 20, _page = 0, _total = 0, _qTimer = null;
+  var _treeQ = "";              // the search over the channel list on the left (owner, 2026-10-28)
   var _bots = null;             // [{id, name, enabled}] of the open brain
 
   function t(k, v) { return window.t(k, v); }
@@ -66,21 +67,38 @@
   function paintTree() {
     var box = _body.querySelector(".kn-tree");
     if (!box) return;
-    var list = accs(), order = [];
-    list.forEach(function (a) { if (order.indexOf(a.channel) < 0) order.push(a.channel); });
-    var you = C.youByAcc();
+    var list = accs();
     var html = '<div class="kn-top"><button type="button" class="s-btn kn-add">' + ic("plus") + ' ' + esc(t("ib.kn_add")) + '</button>' +
       '<label class="kn-allbr"><input type="checkbox" class="kn-allbr-cb"' + (C.allBrains() ? " checked" : "") + '> <span>' +
       esc(t("ht.tk_xem_moi_brain")) + '</span></label>' +
       // Say which brain the list is filtered by: a shorter list must have a reason on screen (0.62.4).
       '<span class="kn-brain">' + ic("brain") + ' ' + esc(C.allBrains() ? t("ht.tk_loc_tat_ca") : t("ht.tk_loc_brain", { brain: C.brainName() })) +
       '</span></div>';
-    if (!list.length) html += '<div class="ht-empty">' + ic("plug") + '<b>' + esc(t("ht.tk_rong")) + '</b></div>';
+    if (list.length) html += '<input type="search" class="kn-tq" placeholder="' + esc(t("ib.kn_tree_q")) + '" aria-label="' + esc(t("ib.kn_tree_q")) + '">';
+    html += '<div class="kn-secs">' + sectionsHtml(list) + '</div>';
+    box.innerHTML = html;
+    var q = box.querySelector(".kn-tq");
+    if (q) q.value = _treeQ;
+  }
+
+  // Lower case without Vietnamese marks, so "zalo vu" finds "Zalo Vũ".
+  function fold(v) { return String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0111/g, "d"); }
+
+  // The channel sections, narrowed by the search: a nick or Page matches on its name, its channel or the bot on duty.
+  function sectionsHtml(list) {
+    if (!list.length) return '<div class="ht-empty">' + ic("plug") + '<b>' + esc(t("ht.tk_rong")) + '</b></div>';
+    var q = fold(_treeQ).trim();
+    var shown = q ? list.filter(function (a) {
+      return [a.label, C.channelName(a.channel), a.bot_name].some(function (v) { return fold(v).indexOf(q) >= 0; });
+    }) : list;
+    if (!shown.length) return '<div class="ht-empty small">' + esc(t("ib.kn_tree_none")) + '</div>';
+    var order = [], you = C.youByAcc(), html = "";
+    shown.forEach(function (a) { if (order.indexOf(a.channel) < 0) order.push(a.channel); });
     order.forEach(function (ch) {
-      var ds = list.filter(function (a) { return a.channel === ch; });
+      var ds = shown.filter(function (a) { return a.channel === ch; });
       html += '<section class="kn-sec"><div class="kn-sh">' + C.logo(ch, "22px") + '<b>' + esc(C.channelName(ch)) + '</b><small>' +
         esc(t("ib.kn_count", { n: ds.length, unit: unit(ch) })) + '</small></div>' +
-        (ds.length > 1 ? '<button type="button" class="ib-link kn-bulk" data-ch="' + esc(ch) + '">' + ic("sparkles") + ' ' +
+        (ds.length > 1 && !q ? '<button type="button" class="ib-link kn-bulk" data-ch="' + esc(ch) + '">' + ic("sparkles") + ' ' +
           esc(t("ib.kn_bulk", { unit: unit(ch) })) + '</button>' : "") +
         ds.map(function (a) {
           var n = Number(you[a.account_key]) || 0;
@@ -92,7 +110,7 @@
             (a.loi ? ' · <span class="kn-err">' + esc(t("ht.tk_loi")) + '</span>' : "") + '</small></span><span class="ib-dot ' + dot + '"></span></button>';
         }).join("") + '</section>';
     });
-    box.innerHTML = html;
+    return html;
   }
 
   function botOptions(cur) {
@@ -225,6 +243,12 @@
 
   function onInput(e) {
     // The server searches every chat of the account; a short pause so each key press does not ask again.
+    if (e.target.classList.contains("kn-tq")) {
+      _treeQ = e.target.value;
+      var secs = _body.querySelector(".kn-secs");
+      if (secs) secs.innerHTML = sectionsHtml(accs());
+      return;
+    }
     if (e.target.classList.contains("kn-q")) {
       _chatQ = e.target.value.trim();
       clearTimeout(_qTimer);

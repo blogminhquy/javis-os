@@ -4977,6 +4977,8 @@
   "ib.kn_prev": "Previous",
   "ib.kn_next": "Next",
   "ib.kn_range": "{from}-{to} of {n}",
+  "ib.kn_tree_q": "Search channels, nicks or Pages",
+  "ib.kn_tree_none": "No nick or Page matches.",
   "ib.kn_private": "Private chat",
   "ib.kn_q": "Search groups or people",
   "ib.kn_saved": "AI on duty saved.",

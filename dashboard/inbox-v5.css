@@ -308,6 +308,10 @@
 .kn-ch { padding: 12px 0 0; }
 .kn-chh { display: flex; gap: 10px; align-items: center; padding: 0 16px; flex-wrap: wrap; }
 .kn-chh b { font-size: 17px; }
+.kn-tq { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 9px 12px;
+  background: var(--bg3); color: var(--text); font: inherit; font-size: 16px; }
+.kn-secs { display: flex; flex-direction: column; gap: 10px; }
+.kn-secs > * { flex-shrink: 0; }
 .kn-q { margin-left: auto; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; background: var(--bg3); color: var(--text);
   font: inherit; font-size: 16px; min-width: 0; flex: 0 1 260px; }
 .kn-ch > .ib-hint { padding: 6px 16px 8px; margin: 0; }

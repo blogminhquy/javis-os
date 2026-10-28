@@ -10,7 +10,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Sửa lỗi
 - Danh sách Hội thoại hiện lại số tin của cả cuộc chat (ô xám "12 tin") cạnh số đỏ chưa đọc. Bản 0.372.0 lỡ bỏ mất con số này.
 - Ô trả lời khách gọn hơn: bỏ hai dòng chú thích "Gửi tay là bạn trả lời..." và "Ví dụ lệnh...". Riêng cảnh báo tin đi dưới tên bạn (tài khoản cá nhân) vẫn giữ.
-- Tab Kênh: danh sách nhóm và người của một nick chia trang 20 cuộc, có Trước/Sau và số "21-40 / 289". Ô tìm tìm trên mọi trang. Cột danh sách kênh bên trái đứng yên khi cuộn bên phải.
+- Tab Kênh: danh sách nhóm và người của một nick chia trang 20 cuộc, có Trước/Sau và số "21-40 / 289". Ô tìm tìm trên mọi trang. Cột danh sách kênh bên trái đứng yên khi cuộn bên phải và có ô tìm nick, Page (gõ không dấu cũng được).
 ## [0.379.0] - 2026-10-28
 ### Sửa lỗi
 - **Cho phép nhóm của Zalo Bot giờ lưu được.** Mã nhóm của Zalo Bot có dạng `zgr-...` nên trước đây bị bỏ ngầm: bấm "Cho phép nhóm này" báo xong mà nhóm vẫn đứng ở "chờ duyệt" và bot không trả lời trong nhóm. Cảm ơn @VQTPiano đã báo lỗi kèm cách sửa (#875).
