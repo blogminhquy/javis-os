@@ -166,7 +166,7 @@ Cột **Chi phí quy đổi** và cột **Quy đổi** trong bảng model đư�
 
 Nghĩa là con số quy đổi luôn là ước lượng, và luôn thấp hơn thực tế nếu bạn dùng model chưa có trong bảng giá. Muốn chính xác hơn thì sửa file đó bằng tay rồi khởi động lại server.
 
-**Số dư thật của OpenRouter** là thứ duy nhất trên trang này là tiền thật. Thẻ "OpenRouter còn" chỉ xuất hiện khi bạn đã lưu key OpenRouter ở trang **Models** (nhóm Kết nối). Javis hỏi thẳng OpenRouter số tín dụng đã nạp và đã dùng, rồi hiện phần còn lại kèm dòng "tiền thật đã dùng $...". Không cắm key thì không có thẻ này, và không có nhà cung cấp nào khác cho lấy số tương đương.
+**Số dư thật của OpenRouter** là thứ duy nhất trên trang này là tiền thật. Thẻ "OpenRouter còn" chỉ xuất hiện khi bạn đã lưu key OpenRouter ở trang **Models** (nhóm Hệ thống). Javis hỏi thẳng OpenRouter số tín dụng đã nạp và đã dùng, rồi hiện phần còn lại kèm dòng "tiền thật đã dùng $...". Không cắm key thì không có thẻ này, và không có nhà cung cấp nào khác cho lấy số tương đương.
 
 ## Các đề xuất tiết kiệm
 
@@ -229,7 +229,7 @@ Nếu bản cài không đọc được log thô (điển hình là bản Docker
 - **Trang báo toàn số 0.** Thường là bản cài không đọc được log thô, hay gặp nhất trên Docker/VPS vì thư mục `~/.claude` và `~/.codex` của bạn không nằm trong container. Từ bản mới, Javis lấy nhật ký nội bộ làm nguồn dự phòng nên vẫn ra số, nhưng chỉ tính từ thời điểm bạn nâng cấp trở đi. Đã nâng cấp mà vẫn 0 thì nghĩa là chưa có lượt chat nào được ghi lại kể từ đó, hãy chat vài câu rồi bấm **↻ Làm mới**.
 - **Số thấp hơn nhiều so với cảm nhận.** Kiểm tra bạn có đang lọc một nhà cung cấp không, và kiểm tra kỳ đang chọn. Ngoài ra phần "Bạn gõ tay" chỉ đếm được khi bạn chạy Claude Code trên **cùng máy** với Javis.
 - **Cắm key Google Gemini nhưng cột API không nhúc nhích.** Lượt Gemini có được ghi vào nhật ký nội bộ, nhưng bộ dựng chỉ mục hiện chỉ nhận các nhà cung cấp OpenRouter, OpenAI và Anthropic vào cột API, nên phần Gemini chưa lên đồ thị này.
-- **Không thấy thẻ "OpenRouter còn".** Thẻ chỉ hiện khi có key OpenRouter trong Cài đặt model và OpenRouter trả lời được. Vào trang **Models** (nhóm Kết nối) kiểm tra key, xem [Models & engine](10-models-va-engine.md).
+- **Không thấy thẻ "OpenRouter còn".** Thẻ chỉ hiện khi có key OpenRouter trong Cài đặt model và OpenRouter trả lời được. Vào trang **Models** (nhóm Hệ thống) kiểm tra key, xem [Models & engine](10-models-va-engine.md).
 - **Trang hiện bảng đơn giản kiểu "Hôm nay / Tổng tích luỹ" thay vì bộ lọc kỳ.** Đó là giao diện dự phòng, xuất hiện khi tệp giao diện mới chưa nạp được. Tải lại trang, xoá cache trình duyệt nếu cần.
 - **Chi phí quy đổi hiện "-" cho model mình đang dùng.** Model đó chưa có trong bảng giá `server/usage_pricing.json`. Đây là bảng cập nhật tay, thêm dòng cho model của bạn rồi khởi động lại server.
 - **Vừa nâng cấp Javis nhưng trang chưa có gì đổi.** Trang này có phần chạy ở backend, nên sau khi cập nhật cần **khởi động lại server** rồi mới tải lại trang.
