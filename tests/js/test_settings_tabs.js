@@ -9,7 +9,7 @@ const src = fs.readFileSync(path.join(__dirname, "../../dashboard/console.js"), 
 const railCtx = { ICON: {}, GICON: {}, t: k => k };
 vm.createContext(railCtx);
 vm.runInContext(src.slice(src.indexOf("  const RAIL_ITEMS ="), src.indexOf("  // Nhãn nhóm chứa")) + "\nglobalThis.groups = railGroups();", railCtx);
-assert.deepEqual(Array.from(railCtx.groups.find(g => g.foot).items, i => i.id), ["settings", "share", "account"]);
+assert.deepEqual(Array.from(railCtx.groups.find(g => g.foot).items, i => i.id), ["models", "settings", "share", "account"]);  // Models moved under System (owner, 2026-10-28)
 assert.ok(!railCtx.groups.flatMap(g => g.items).some(i => ["pet", "usage", "logs", "chatbots"].includes(i.id)),
   "legacy targets must not reappear through the ungrouped-items fallback");
 function fn(name) {

@@ -337,7 +337,7 @@ import re as _re
 _an = _re.search(r"const RAIL_AN = new Set\((.*?)\);", src_con)
 check("kho hiện trên thanh bên", _an is not None and '"packs"' not in _an.group(1))
 # 0.251.0: the Login vault joined the same group, between Channels and Models.
-check("và nằm trong nhóm Kết nối", '"mcp", "packs", "channels", "logins", "models"' in src_con)
+check("và nằm trong nhóm Kết nối", '"mcp", "packs", "channels", "logins"' in src_con)
 check("vẫn giữ trong danh sách trang (nguồn icon và nhãn)",
       '"packs", "logs", "account", "usage",' in src_con)
 # VIEW_META thiếu "packs" từ đầu nên header trang kho ghi nhầm là tiêu đề Trang chủ.
