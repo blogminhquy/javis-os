@@ -6062,5 +6062,11 @@
   "gh.m_rounds": "Vòng sửa TB",
   "gh.m_findings": "Lỗi review bắt",
   "gh.m_minutes": "Phút TB",
-  "gh.m_none": "Chưa có việc nào merge ở repo này."
+  "gh.m_none": "Chưa có việc nào merge ở repo này.",
+  "gh.repos_n": "{n} repo",
+  "gh.view": "Xem chi tiết",
+  "gh.back": "Quay lại",
+  "msc.pages_n": "{n} Fanpage",
+  "msc.view": "Xem chi tiết",
+  "msc.pages_head": "Fanpage đã kết nối ({n})"
 }

@@ -41,12 +41,27 @@
       subKey: ic.merged_warning ? "gh.st_post_red" : (ic.sub ? "gh.sub_" + ic.sub : "") };
   }
 
-  var pure = { chipText: chipText, toggle: toggle, sameSet: sameSet, iconSpec: iconSpec };
+  var pure = { chipText: chipText, toggle: toggle, sameSet: sameSet, iconSpec: iconSpec, addToConnCount: addToConnCount };
   if (typeof module !== "undefined" && module.exports) module.exports = pure;
   if (typeof document === "undefined") return;
 
   function tw(k, v) { return window.t ? window.t(k, v) : k; }
+  // The "Connected" heading counts MCP accounts (data-n, drawn by console.js) plus what the built-in cards add,
+  // each under its own data-* key (github-connect.js: data-gh, messenger-connect.js: data-fb), so neither card
+  // overwrites the other's share. Returns the new total.
+  function addToConnCount(key, n) {
+    var cnt = document.getElementById("connCount");
+    if (!cnt) return 0;
+    cnt.setAttribute("data-" + key, String(n));
+    var total = 0;
+    for (var i = 0; i < cnt.attributes.length; i++) {
+      if (cnt.attributes[i].name.indexOf("data-") === 0) total += parseInt(cnt.attributes[i].value, 10) || 0;
+    }
+    cnt.textContent = tw("cs.cn_account_n", { so: total });
+    return total;
+  }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function ic(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }
   function infoBtn() { return window.JavisInfo ? window.JavisInfo.btn(tw("info.more")) : ""; }
   function infoBody(html) { return window.JavisInfo ? window.JavisInfo.body(html) : '<div class="info-body">' + html + "</div>"; }
   function chatBrain() { try { return (window.JavisSessions && window.JavisSessions.brain()) || "brain"; } catch (e) { return "brain"; } }
@@ -78,20 +93,17 @@
     var warn = st.connected && st.missing && st.missing.length
       ? '<div class="lv-note">' + esc(tw("gh.missing_scopes", { scopes: st.missing.join(", ") })) + "</div>" : "";
     var noGit = st.has_git === false ? '<div class="lv-note">' + esc(tw("gh.no_git")) + "</div>" : "";
+    // The repo list opens in a popup (owner, 28/10/2026, same as the bot cards on the Chatbot page): a brain can hold many
+    // repos, and listing them inline stretched the Connections page. The card keeps one compact row with the counts.
     var repos = "";
     if (st.connected) {
-      repos = '<div class="gh-local"><div class="gh-local-head">' + esc(tw("gh.local_head", { n: local.length })) + infoBtn() + "</div>" +
-        infoBody(esc(tw("gh.local_how"))) +
-        (local.length ? local.map(function (r) {
-          return '<div class="gh-local-row"><span class="gh-local-name">' + esc(r.full_name) + "</span>" +
-            '<span class="gh-local-meta">' + esc(tw("gh.local_chats", { n: r.chats || 0 })) + "</span>" +
-            '<label class="gh-auto"><input type="checkbox" data-gh-auto="' + esc(r.full_name) + '"' + (r.auto_merge !== false ? " checked" : "") + "> " +
-            esc(tw("gh.auto_merge")) + "</label>" +
-            '<button class="s-btn-ghost" type="button" data-gh-checks="' + esc(r.full_name) + '">' + esc(tw("gh.checks")) + "</button>" +
-            '<button class="s-btn-ghost" type="button" data-gh-metrics="' + esc(r.full_name) + '">' + esc(tw("gh.metrics")) + "</button>" +
-            '<button class="s-btn-ghost" type="button" data-gh-remove="' + esc(r.full_name) + '">' + esc(tw("gh.remove_brain")) + "</button></div>";
-        }).join("") : '<div class="mp-empty">' + esc(tw("gh.local_none")) + "</div>") +
-        '<div class="lv-msg" role="status" data-gh-msg></div></div>';
+      var chats = local.reduce(function (n, r) { return n + (r.chats || 0); }, 0);
+      repos = local.length
+        ? '<button type="button" class="cb-st gh-more" data-gh-repos aria-haspopup="dialog"><span class="cb-st-chips">' +
+          '<span class="cb-st-chip">' + esc(tw("gh.repos_n", { n: local.length })) + "</span>" +
+          (chats ? '<span class="cb-st-chip">' + esc(tw("gh.local_chats", { n: chats })) + "</span>" : "") + "</span>" +
+          '<span class="cb-st-more">' + esc(tw("gh.view")) + " " + ic("chevron-right") + "</span></button>"
+        : '<div class="lv-meta">' + esc(tw("gh.local_none")) + "</div>";
     }
     var acts = '<div class="conn-accounts">' + (st.connected
       ? '<button class="conn-chip" type="button" data-gh-open>' + esc(tw("gh.change_token")) + "</button>" +
@@ -109,9 +121,11 @@
       local = (l && l.items) || [];
     }
     cardHost.innerHTML = cardHtml(st, local);
-    // A connected GitHub counts as a connection: the "nothing connected yet" line must not sit under it.
+    // A connected GitHub counts as a connection: in the heading, and the "nothing connected yet" line must not sit
+    // under it.
+    var total = addToConnCount("gh", st.connected ? 1 : 0);
     var empty = document.querySelector("#connList > .mp-empty");
-    if (empty && st.connected) empty.hidden = true;
+    if (empty) empty.hidden = total > 0;
     var open = cardHost.querySelector("[data-gh-open]");
     if (open) open.onclick = function () { openForm(st); };
     var off = cardHost.querySelector("[data-gh-off]");
@@ -120,30 +134,58 @@
       await api("/github/disconnect", {});
       loadCard();
     };
-    cardHost.querySelectorAll("[data-gh-auto]").forEach(function (b) {
-      b.onchange = function () { api("/github/local/automerge", { brain: pageBrain(), full_name: b.getAttribute("data-gh-auto"), on: b.checked ? "1" : "0" }); };
+    var more = cardHost.querySelector("[data-gh-repos]");
+    if (more) more.onclick = function () { openRepos(local); };
+  }
+  function reposHtml(local) {
+    return local.map(function (r) {
+      return '<div class="gh-local-row"><span class="gh-local-name">' + esc(r.full_name) + "</span>" +
+        '<span class="gh-local-meta">' + esc(tw("gh.local_chats", { n: r.chats || 0 })) + "</span>" +
+        '<label class="gh-auto"><input type="checkbox" data-gh-auto="' + esc(r.full_name) + '"' + (r.auto_merge !== false ? " checked" : "") + "> " +
+        esc(tw("gh.auto_merge")) + "</label>" +
+        '<button class="s-btn-ghost" type="button" data-gh-checks="' + esc(r.full_name) + '">' + esc(tw("gh.checks")) + "</button>" +
+        '<button class="s-btn-ghost" type="button" data-gh-metrics="' + esc(r.full_name) + '">' + esc(tw("gh.metrics")) + "</button>" +
+        '<button class="s-btn-ghost" type="button" data-gh-remove="' + esc(r.full_name) + '">' + esc(tw("gh.remove_brain")) + "</button></div>";
+    }).join("");
+  }
+  // The repos of this brain, one row each with its switches. Checks and Numbers open in the same dialog and come back here.
+  function openRepos(local) {
+    var M = window.JavisConnModal;
+    if (!M) return;
+    var back = function () { openRepos(local); };
+    var m = M.open(M.head(esc(tw("gh.local_head", { n: local.length })) + infoBtn()) + '<div class="conn-form gh-local">' +
+      infoBody(esc(tw("gh.local_how"))) + reposHtml(local) +
+      '<div class="lv-msg" role="status" data-gh-msg></div></div>', 720);
+    m.querySelectorAll("[data-gh-auto]").forEach(function (b) {
+      b.onchange = function () {
+        var name = b.getAttribute("data-gh-auto");
+        local.forEach(function (r) { if (r.full_name === name) r.auto_merge = b.checked; });
+        api("/github/local/automerge", { brain: pageBrain(), full_name: name, on: b.checked ? "1" : "0" });
+      };
     });
-    cardHost.querySelectorAll("[data-gh-metrics]").forEach(function (b) {
-      b.onclick = function () { openMetrics(b.getAttribute("data-gh-metrics")); };
+    m.querySelectorAll("[data-gh-metrics]").forEach(function (b) {
+      b.onclick = function () { openMetrics(b.getAttribute("data-gh-metrics"), back); };
     });
-    cardHost.querySelectorAll("[data-gh-checks]").forEach(function (b) {
-      b.onclick = function () { openChecks(b.getAttribute("data-gh-checks")); };
+    m.querySelectorAll("[data-gh-checks]").forEach(function (b) {
+      b.onclick = function () { openChecks(b.getAttribute("data-gh-checks"), back); };
     });
-    cardHost.querySelectorAll("[data-gh-remove]").forEach(function (b) {
+    m.querySelectorAll("[data-gh-remove]").forEach(function (b) {
       b.onclick = async function () {
         var name = b.getAttribute("data-gh-remove");
         if (!window.confirm(tw("gh.remove_q", { name: name }))) return;
-        var msg = cardHost.querySelector("[data-gh-msg]");
+        var msg = m.querySelector("[data-gh-msg]");
         b.disabled = true;
         var r = await api("/github/local/remove", { brain: pageBrain(), full_name: name });
         b.disabled = false;
         if (!r || r.ok === false) { if (msg) msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
+        local = local.filter(function (x) { return x.full_name !== name; });
         loadCard();
+        if (local.length) openRepos(local); else M.close();
       };
     });
   }
   // Local check commands of one repo (spec 7.2): suggested from its CI, editable, one command per line.
-  async function openChecks(name) {
+  async function openChecks(name, back) {
     var M = window.JavisConnModal;
     if (!M) return;
     var d = await api("/github/local/checks?brain=" + encodeURIComponent(pageBrain()) + "&full_name=" + encodeURIComponent(name));
@@ -164,14 +206,14 @@
       msg.textContent = "";
       var r = await api("/github/local/checks", Object.assign({ brain: pageBrain(), full_name: name }, body));
       if (!r || r.ok === false) { msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
-      M.close();
+      if (back) back(); else M.close();
     }
     form.querySelector('[data-f="save"]').onclick = function () { send({ commands: box.value }); };
     form.querySelector('[data-f="reset"]').onclick = function () { send({ reset: "1" }); };
-    form.querySelector('[data-f="cancel"]').onclick = function () { M.close(); };
+    form.querySelector('[data-f="cancel"]').onclick = function () { if (back) back(); else M.close(); };
   }
   // Numbers per engine and model for one repo (spec 13.2): pick a model with data, not with a hunch.
-  async function openMetrics(name) {
+  async function openMetrics(name, back) {
     var M = window.JavisConnModal;
     if (!M) return;
     var d = await api("/github/local/metrics?full_name=" + encodeURIComponent(name));
@@ -182,7 +224,11 @@
         return "<tr><td>" + esc(r.engine + (r.model ? " · " + r.model : "")) + "</td><td>" + r.jobs + "</td><td>" + r.first_push_green_pct +
           "%</td><td>" + r.avg_fix_rounds + "</td><td>" + r.review_findings + "</td><td>" + r.avg_minutes + "</td></tr>";
       }).join("") + "</tbody></table></div>" : '<div class="mp-empty">' + esc(tw("gh.m_none")) + "</div>";
-    M.open(M.head(esc(tw("gh.metrics_head", { name: name }))) + '<div class="conn-form">' + infoBody(esc(tw("gh.metrics_how"))) + body + "</div>", 680);
+    var m = M.open(M.head(esc(tw("gh.metrics_head", { name: name }))) + '<div class="conn-form">' + infoBody(esc(tw("gh.metrics_how"))) + body +
+      (back ? '<div class="lv-form-act"><button class="s-btn-ghost" type="button" data-f="back">' + esc(tw("gh.back")) + "</button></div>" : "") +
+      "</div>", 680);
+    var bk = m.querySelector('[data-f="back"]');
+    if (bk) bk.onclick = back;
   }
   function openForm(st) {
     var M = window.JavisConnModal;

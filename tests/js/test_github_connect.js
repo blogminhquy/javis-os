@@ -46,6 +46,31 @@ check("the token field is cleared after a submit", /data-f="token"\]'\)\.value =
 check("the card never asks the server for the token back", !/token\s*:\s*st\./.test(js));
 check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2013") === -1);
 
+// 0.367.0 (owner, 28/10/2026): the repo list opens in a popup like the bot cards on the Chatbot page, not inline.
+{
+  const card = js.slice(js.indexOf("function cardHtml"), js.indexOf("async function loadCard"));
+  check("the card shows a compact repo row, not the repo rows themselves",
+    card.includes("data-gh-repos") && card.includes("gh.repos_n") && !card.includes("data-gh-remove"));
+  const pop = js.slice(js.indexOf("function openRepos"), js.indexOf("// Local check commands"));
+  check("the popup carries every repo action and comes back from Checks and Numbers",
+    /JavisConnModal/.test(pop) && pop.includes("reposHtml(local)") && pop.includes('openChecks(b.getAttribute("data-gh-checks"), back)') && pop.includes('openMetrics(b.getAttribute("data-gh-metrics"), back)'));
+}
+
+// The "Connected" heading (0.367.0): MCP accounts plus GitHub plus Facebook Pages, whichever card loads last.
+{
+  const attrs = [{ name: "id", value: "connCount" }, { name: "style", value: "opacity:.5" }, { name: "data-n", value: "2" }];
+  const cnt = { attributes: attrs, textContent: "",
+    setAttribute(n, v) { const a = attrs.find(x => x.name === n); if (a) a.value = v; else attrs.push({ name: n, value: v }); } };
+  global.document = { getElementById: id => (id === "connCount" ? cnt : null) };
+  global.window = { t: (k, v) => (k === "cs.cn_account_n" ? v.so + " accounts" : k) };
+  const fb = require(path.join(ROOT, "dashboard/messenger-connect.js"));
+  check("a connected GitHub adds one to the MCP accounts", gh.addToConnCount("gh", 1) === 3 && cnt.textContent === "3 accounts");
+  check("Pages loading after GitHub keep GitHub in the count", fb.addToConnCount("fb", 2) === 5 && cnt.textContent === "5 accounts");
+  check("GitHub reloading after the Pages keeps the Pages", gh.addToConnCount("gh", 1) === 5);
+  check("disconnecting GitHub takes only its own share off", gh.addToConnCount("gh", 0) === 4 && cnt.textContent === "4 accounts");
+  delete global.document; delete global.window;
+}
+
 const keys = Array.from(new Set((js.match(/tw\("(gh\.[a-z_]+)"/g) || []).map(m => m.slice(4, -1))));
 check("every gh.* key used exists in vi.json and en.json", keys.length > 20 && keys.every(k => vi[k] && en[k]));
 check("Vietnamese texts carry diacritics", /Kết nối/.test(vi["gh.connect"]) && /Gỡ khỏi brain/.test(vi["gh.remove_brain"]));

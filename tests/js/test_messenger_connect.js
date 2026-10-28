@@ -57,8 +57,11 @@ check("a card in the Available grid, filed under messaging, opening the form", (
 });
 check("connected Pages are one card in the Connected list, nothing when none", () => {
   assert.strictEqual(M.groupHtml([]), "");
-  const h = M.groupHtml([{ id: "a1", page_id: "1", page_name: "Shop", bots: [] }]);
-  assert.ok(h.includes("prov-card conn-card msc-group") && h.includes('data-id="a1"') && /data-msc-open="1"/.test(h));
+  const h = M.groupHtml([{ id: "a1", page_id: "1", page_name: "Shop", bots: [] }, { id: "a2", page_id: "2", page_name: "Kho", bots: [] }]);
+  assert.ok(h.includes("prov-card conn-card msc-group") && /data-msc-open="1"/.test(h));
+  // 0.367.0 (owner, 28/10/2026): the Pages open in a popup like the bot cards; the card shows only the count.
+  assert.ok(h.includes("data-msc-pages") && h.includes("msc.pages_n") && !h.includes('data-id="a1"'), "pages are not inlined");
+  assert.ok(M.accountHtml({ id: "a1", page_id: "1", bots: [] }).includes('data-id="a1"') && typeof M.openPages === "function");
   const i = con.indexOf('id="connList"'), j = con.indexOf('id="mcpMessenger"'), k = con.indexOf('id="connNone"');
   assert.ok(i > 0 && j > i && k > j, "slot sits right under the connected list, inside its section");
 });

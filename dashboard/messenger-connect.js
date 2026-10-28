@@ -23,6 +23,20 @@
     }
     return s;
   }
+  // The "Connected" heading counts MCP accounts (data-n, drawn by console.js) plus what the built-in cards add,
+  // each under its own data-* key (github-connect.js: data-gh, messenger-connect.js: data-fb), so neither card
+  // overwrites the other's share. Returns the new total.
+  function addToConnCount(key, n) {
+    var cnt = document.getElementById("connCount");
+    if (!cnt) return 0;
+    cnt.setAttribute("data-" + key, String(n));
+    var total = 0;
+    for (var i = 0; i < cnt.attributes.length; i++) {
+      if (cnt.attributes[i].name.indexOf("data-") === 0) total += parseInt(cnt.attributes[i].value, 10) || 0;
+    }
+    cnt.textContent = tw("cs.cn_account_n", { so: total });
+    return total;
+  }
   function esc(t) {
     return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -149,7 +163,11 @@
       + '<div class="prov-info"><div class="prov-name">' + esc(tw("msc.head")) + infoBtn() + "</div>"
       + '<div class="prov-status j-clamp2">' + esc(tw("msc.card_desc")) + "</div>"
       + infoBody(esc(tw("msc.intro"))) + "</div></div>"
-      + '<div class="msc-list">' + accounts.map(accountHtml).join("") + "</div>"
+      // The Pages open in a popup (owner, 28/10/2026, same as the bot cards on the Chatbot page): a shop can connect many
+      // Pages, and one full card each stretched the Connections page. The card keeps one compact row with the count.
+      + '<button type="button" class="cb-st msc-more" data-msc-pages aria-haspopup="dialog"><span class="cb-st-chips">'
+      + '<span class="cb-st-chip">' + esc(tw("msc.pages_n", { n: accounts.length })) + "</span></span>"
+      + '<span class="cb-st-more">' + esc(tw("msc.view")) + " " + icon("chevron-right") + "</span></button>"
       + '<div class="conn-accounts"><button class="conn-chip add" type="button" data-msc-open="1">＋ '
       + esc(tw("msc.add_more")) + "</button></div></div>";
   }
@@ -166,19 +184,28 @@
     }
     var accounts = setup.accounts || [];
     host.innerHTML = groupHtml(accounts);
-    // A Page counts as a connection: the "nothing connected yet" line must not sit on top of it.
+    // A Page counts as a connection: in the heading, and the "nothing connected yet" line must not sit on top of it.
+    var total = addToConnCount("fb", accounts.length);
     var empty = document.querySelector("#connList > .mp-empty");
-    if (empty) empty.hidden = accounts.length > 0;
-    // ...and the account count in the heading counts the Pages too.
-    var cnt = document.getElementById("connCount");
-    if (cnt) cnt.textContent = tw("cs.cn_account_n", { so: (parseInt(cnt.getAttribute("data-n"), 10) || 0) + accounts.length });
+    if (empty) empty.hidden = total > 0;
     host.querySelectorAll("[data-msc-open]").forEach(function (b) { b.onclick = function () { openForm(null); }; });
-    host.querySelectorAll(".msc-acc").forEach(function (card) {
+    var more = host.querySelector("[data-msc-pages]");
+    if (more) more.onclick = function () { openPages(); };
+    return setup;
+  }
+
+  // Every connected Page with its Check / Repair / Renew buttons, in the dialog this page opens for every service.
+  function openPages() {
+    var M = typeof window !== "undefined" && window.JavisConnModal;
+    var accounts = (setup && setup.accounts) || [];
+    if (!M || !accounts.length) return;
+    var m = M.open(M.head(esc(tw("msc.pages_head", { n: accounts.length })))
+      + '<div class="conn-form msc-list">' + accounts.map(accountHtml).join("") + "</div>", 680);
+    m.querySelectorAll(".msc-acc").forEach(function (card) {
       card.querySelectorAll("[data-act]").forEach(function (btn) {
         btn.onclick = function () { act(card, card.dataset.id, btn.dataset.act); };
       });
     });
-    return setup;
   }
 
   // The form, in the same dialog every other service opens from this page.
@@ -236,7 +263,8 @@
   }
 
   var api_ = { mount: mount, openForm: openForm, catCard: catCard, groupHtml: groupHtml, checklistHtml: checklistHtml,
-    summaryHtml: summaryHtml, accountHtml: accountHtml, formHtml: formHtml };
+    summaryHtml: summaryHtml, accountHtml: accountHtml, formHtml: formHtml, addToConnCount: addToConnCount,
+    openPages: openPages };
   if (typeof window !== "undefined") window.JavisMessenger = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();
