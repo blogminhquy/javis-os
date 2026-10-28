@@ -324,6 +324,8 @@ Hovering over a message (yours or Javis's) reveals a small button row underneath
 | Timestamp | The full date, for example "Wednesday, 29/07/2026 14:05" | Display only |
 | ↺ | "Rewind to here" | Only on your messages. Asks first, then **deletes this message and everything below it** and puts the question back in the input to edit or resend; the conversation goes on from there as if the deleted turns never happened |
 | ⧉ | "Copy content" | Copies the whole message; the button briefly reads "✓ Copied" |
+| Pin | "Pin to contents" | Only on Javis's answers. Pins the answer into the conversation's **contents** (the marks rail on the right, or the ≡ button on phones): it sits in its place among your questions, with a pin instead of a number, and a click jumps to it. Click again to unpin. A pinned answer always shows its button row, with the pin in orange |
+| Speaker | "Read aloud" | Only on Javis's answers. Reads that answer aloud, even outside a call. While it reads, the button becomes a square "Stop reading"; click it to stop |
 
 Common points:
 
@@ -334,6 +336,8 @@ Common points:
 - Messages saved before timestamps existed simply hide the time rather than showing a made-up current time.
 - **Long** messages of yours (over 10 lines or over 900 characters) collapse, with **Show more** / **Show less** buttons.
 - Every code block has its own **⧉ Copy** button in the corner.
+- An answer that is still streaming has no pin button yet: it appears as soon as the answer is saved. Pins are kept on the server, so another device shows them too; rewinding past an answer removes its pin with it.
+- The small line under an answer now shows only the engine, the model and the context mode. The token count is gone from the chat; the **Usage** page has it.
 - If you have scrolled up to reread something while Javis answers, the chat does NOT jump down; a **↓ New messages** button appears at the bottom to jump when you are ready.
 
 ## Choosing a model, Effort and the engine badge

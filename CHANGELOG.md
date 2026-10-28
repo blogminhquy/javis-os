@@ -8,6 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.373.0] - 2026-10-28
 ### Cải thiện
+- **Dưới mỗi câu trả lời có thêm nút ghim và nút loa.** Nút ghim đưa câu trả lời vào mục lục của cuộc trò chuyện (dải vạch bên phải, nút ≡ trên điện thoại), có dấu ghim màu cam, bấm là nhảy tới; ghim lưu trên máy chủ nên máy khác vẫn thấy. Nút loa đọc thành tiếng đúng câu đó, bấm lần nữa là dừng.
+- **Bỏ số token ở dòng nhỏ dưới câu trả lời.** Dòng đó chỉ còn engine, model và chế độ ngữ cảnh; số token xem ở trang Mức dùng.
 - **Tab "Repo khuyên dùng" đổi tên thành "Khuyên dùng".** Tên ngắn hơn, bỏ từ kỹ thuật "repo", vừa một hàng trên điện thoại. Dòng trên thẻ đổi thành "Cập nhật từ tác giả".
 - **Icon trong Javis Store đẹp và rõ hơn.** Bỏ ô chữ cái đậm màu. Kỹ năng hiện icon mảnh ghép như trang Kỹ năng, quy trình và công cụ có icon riêng, mỗi thẻ một màu nhạt. Trợ lý hiện chân dung trợ lý giống trang Cộng sự. Gói có logo thật thì vẫn hiện logo.
 

@@ -19258,15 +19258,52 @@ async def sessions_messages(session_id: str, limit: int = Query(30),
 
 
 def _gan_reaction(store, session_id, msgs) -> None:
-    """T2: mỗi tin đã có `content_sha` (kho phiên); tin `assistant` thêm `reaction` (khuôn R của hợp đồng hay null)."""
+    """T2: mỗi tin đã có `content_sha` (kho phiên); tin `assistant` thêm `reaction` (khuôn R của hợp đồng hay null).
+    0.374.0: và `pinned` (đã ghim vào mục lục của cuộc chat hay chưa)."""
+    ids = [m["id"] for m in msgs if m.get("role") == "assistant"]
     try:
-        got = store.dm_reactions_for(session_id, [m["id"] for m in msgs if m.get("role") == "assistant"])
+        got = store.dm_reactions_for(session_id, ids)
     except Exception as _e:   # noqa: BLE001
         print(f"[dm reactions] {type(_e).__name__}: {_e}", file=sys.stderr)
         got = {}
+    try:
+        ghim = store.pinned_message_ids(session_id, ids)
+    except Exception as _e:   # noqa: BLE001 - a broken pin read never hides the chat
+        print(f"[message pins] {type(_e).__name__}: {_e}", file=sys.stderr)
+        ghim = set()
     for m in msgs:
         if m.get("role") == "assistant":
             m["reaction"] = reaction_values.public(got.get(int(m["id"])))
+            m["pinned"] = int(m["id"]) in ghim
+
+
+@app.post("/sessions/{session_id}/messages/{message_id}/pin")
+async def sessions_message_pin(session_id: str, message_id: int, request: Request):
+    """0.374.0: pin an answer into the chat's table of contents, or unpin it. Body {"pinned": true|false}. Only Javis's
+    answers are pinned (a question is already in the list). Writes nothing else and starts no turn."""
+    try:
+        body = await request.json()
+    except Exception:   # noqa: BLE001
+        body = None
+    if not isinstance(body, dict) or not isinstance(body.get("pinned"), bool):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Thân yêu cầu không hợp lệ", "Invalid request body")},
+                            status_code=400)
+
+    def _do():
+        store = get_store()
+        if not store.get_session(session_id):
+            return 404, localefmt.chu("Không có cuộc trò chuyện này", "No such chat")
+        msg = store.message_row(session_id, int(message_id))
+        if msg is None:
+            return 404, localefmt.chu("Không có tin này trong cuộc trò chuyện", "No such message in this chat")
+        if msg.get("role") != "assistant":
+            return 409, localefmt.chu("Chỉ ghim được câu trả lời", "Only answers can be pinned")
+        store.set_message_pinned(session_id, int(message_id), body["pinned"])
+        return 200, ""
+    code, err = await asyncio.to_thread(_do)
+    if code != 200:
+        return JSONResponse({"ok": False, "error": err}, status_code=code)
+    return {"ok": True, "pinned": body["pinned"]}
 
 
 # ============================================================

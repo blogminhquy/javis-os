@@ -341,6 +341,8 @@ Rê chuột vào một tin nhắn (của bạn hay của Javis đều được) 
 | Giờ gửi | Ngày đầy đủ, ví dụ "Thứ tư, 29/07/2026 14:05" | Chỉ để xem |
 | ↺ | "Tua lại từ câu này" | Chỉ có ở tin của bạn. Hỏi xác nhận, rồi **xoá câu này cùng mọi thứ bên dưới** và đưa câu hỏi về ô nhập để sửa hoặc gửi lại; hội thoại đi tiếp từ đó như thể các lượt đã xoá chưa từng có |
 | ⧉ | "Sao chép nội dung" | Copy cả tin nhắn, nút đổi thành "✓ Đã copy" trong giây lát |
+| Đinh ghim | "Ghim vào mục lục" | Chỉ có ở câu trả lời của Javis. Ghim câu trả lời vào **mục lục** của cuộc trò chuyện (dải mốc bên phải, hay nút ≡ trên điện thoại): nó đứng đúng chỗ của nó giữa các câu hỏi, có dấu ghim thay cho số thứ tự, bấm là nhảy tới. Bấm lần nữa để bỏ ghim. Câu đã ghim luôn hiện hàng nút, đinh ghim màu cam |
+| Loa | "Đọc thành tiếng" | Chỉ có ở câu trả lời của Javis. Đọc to câu trả lời đó, kể cả khi không trong cuộc gọi. Đang đọc thì nút thành ô vuông "Dừng đọc", bấm là dừng |
 
 Vài điểm hay gặp:
 
@@ -351,6 +353,8 @@ Vài điểm hay gặp:
 - Tin lưu từ trước bản có mốc giờ thì phần giờ được ẩn đi chứ không lấy giờ hiện tại đắp vào.
 - Tin **dài** của bạn (trên 10 dòng hoặc trên 900 ký tự) được thu gọn, có nút **Xem thêm** / **Thu gọn** để mở ra đóng lại.
 - Mỗi khối code có nút **⧉ Copy** riêng ở góc.
+- Câu trả lời đang chạy chưa có nút ghim: nút hiện ra ngay khi câu trả lời được lưu. Ghim lưu trên máy chủ, mở cuộc trò chuyện ở máy khác vẫn còn; tua lại xoá câu trả lời thì ghim của nó đi theo.
+- Dòng nhỏ dưới câu trả lời chỉ còn engine, model và chế độ ngữ cảnh. Số token đã bỏ khỏi khung chat; xem ở trang **Mức dùng**.
 - Khi bạn đang cuộn lên đọc lại mà Javis trả lời tiếp, khung chat KHÔNG giật xuống; một nút **↓ Tin mới** hiện ở đáy để bấm nhảy xuống khi sẵn sàng.
 
 ## Chọn model, Effort và badge engine

@@ -85,6 +85,17 @@ CREATE INDEX IF NOT EXISTS dm_reaction_log_effect ON dm_reaction_log(effect_stat
 CREATE INDEX IF NOT EXISTS dm_reaction_log_pair ON dm_reaction_log(session_id, message_id, reactor, id);
 """
 
+# 0.374.0: an answer the owner pinned into the chat's table of contents (the marks rail / "≡ n/m" list). Deleting the
+# message (rewind) or the chat removes the pin with it.
+_MSG_PIN_SQL = """
+CREATE TABLE IF NOT EXISTS message_pins (
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    created_at REAL NOT NULL,
+    PRIMARY KEY(session_id, message_id)
+);
+"""
+
 
 def content_sha(text: Any) -> str:
     """Hash nội dung ĐÃ LƯU của một tin (đã bóc khối điều khiển trước khi lưu), dùng chung cho chat riêng và nhóm."""
@@ -548,6 +559,7 @@ class SessionStore:
                     self._conn.execute(
                         f"ALTER TABLE projects ADD COLUMN {name} {ddl}")
             self._conn.executescript(_DM_REACTION_SQL)
+            self._conn.executescript(_MSG_PIN_SQL)
             if self._probe_fts5():
                 try:
                     self._conn.executescript(_FTS_SQL)
@@ -1085,6 +1097,28 @@ class SessionStore:
         rows = self._read(f"SELECT * FROM dm_reactions WHERE session_id = ? AND reactor = ? AND message_id IN "
                           f"({','.join('?' * len(ids))})", tuple([session_id, reactor] + ids))
         return {int(r["message_id"]): self._dm_reaction(r) for r in rows}
+
+    def set_message_pinned(self, session_id: str, message_id: int, pinned: bool) -> bool:
+        """Pin or unpin one message of a chat. False when the message is not in that chat."""
+        if self.message_row(session_id, int(message_id)) is None:
+            return False
+        if pinned:
+            self._write(lambda c: c.execute(
+                "INSERT OR IGNORE INTO message_pins (session_id, message_id, created_at) VALUES (?, ?, ?)",
+                (session_id, int(message_id), time.time())))
+        else:
+            self._write(lambda c: c.execute(
+                "DELETE FROM message_pins WHERE session_id = ? AND message_id = ?", (session_id, int(message_id))))
+        return True
+
+    def pinned_message_ids(self, session_id: str, message_ids: List[int]) -> set:
+        """The ids among `message_ids` that are pinned in this chat (one read)."""
+        ids = [int(x) for x in message_ids or []]
+        if not ids:
+            return set()
+        rows = self._read(f"SELECT message_id FROM message_pins WHERE session_id = ? AND message_id IN "
+                          f"({','.join('?' * len(ids))})", tuple([session_id] + ids))
+        return {int(r["message_id"]) for r in rows}
 
     @staticmethod
     def _dm_log(r: sqlite3.Row) -> Dict[str, Any]:

@@ -8,8 +8,8 @@ tốn 60.808 token. Ba thứ ghim ở đây:
      cwd lên và nạp nó thêm lần nữa (~12.300 token). `claudeMdExcludes` loại đúng file đó.
   2. Claude Code giữ system prompt của lượt ĐẦU khi nối phiên, nên giờ trong system prompt đông cứng
      (đo thật: hỏi lúc 08:53, Javis trả 08:51). Lượt nối phiên mang giờ gửi tin ở đầu prompt.
-  3. Khung chat tách phần token chỉ đọc lại từ cache (`ctx_cache`), để "60k token" không bị đọc như
-     60k token mới.
+  3. Engine báo phần token chỉ đọc lại từ cache (`tokens_cache_read`). Khung chat từng hiện số token mới dưới
+     mỗi câu trả lời; từ 0.374.0 chủ repo bỏ hẳn số đó khỏi khung chat (xem trang Mức dùng).
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import datetime
@@ -132,14 +132,14 @@ STEER = (SERVER / "codex_steer.py").read_text(encoding="utf-8")
 check("Codex cộng cachedInputTokens", 'tok_cache += int(lu.get("cachedInputTokens")' in STEER
       and '"tokens_cache_read": tok_cache' in STEER)
 APP = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
-# Chủ repo 27/10/2026: dòng token chỉ hiện phần MỚI, phần đọc lại từ cache chỉ nêu trong chú thích.
-check("dòng token chỉ hiện token mới (trừ phần cache)", "data.ctx_cache" in APP
-      and '_fmtTok(tok - cache) + " token"' in APP and "app.ctx_cached" not in APP)
-check("chú thích nêu phần cache đã bỏ ra", 'window.t("app.ctx_hint_tokens_new", { n: _fmtTok(cache) })' in APP)
+# 0.374.0, chủ repo 28/10/2026: dòng dưới câu trả lời KHÔNG hiện số token nữa (trước đó, 0.345.0, nó hiện token mới
+# trừ phần cache). Engine vẫn báo tokens_cache_read như trên; con số chỉ còn ở trang Mức dùng.
+ctx = APP[APP.index("function _renderCtxLine"):APP.index("async function refreshTgStatus")]
+check("dòng dưới câu trả lời không còn số token", '" token"' not in ctx and "ctx_in" not in ctx and "_fmtTok" not in ctx)
 for lang in ("vi", "en"):
     d = json.loads((ROOT / "dashboard" / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
-    check(f"i18n {lang}: có chữ cho cache và chú thích", "{n}" in d.get("app.ctx_hint_tokens_new", "")
-          and d.get("app.ctx_hint_tokens"))
+    check(f"i18n {lang}: bỏ hai chú thích token không còn dùng", "app.ctx_hint_tokens" not in d
+          and "app.ctx_hint_tokens_new" not in d)
 
 print()
 if fails:
