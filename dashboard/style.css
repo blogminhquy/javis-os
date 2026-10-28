@@ -4496,6 +4496,31 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-local-meta { color: var(--text2); flex: 1; min-width: 120px; }
 .gh-chip svg { width: 15px; height: 15px; flex: none; }
 .gh-apply[disabled] { opacity: .55; cursor: default; }
+/* Repo and branch picker in the + menu (0.368.0, after Claude Code's picker): sections, grouped rows, two-line names. */
+.gh-sec { padding: 10px 10px 4px; font-size: 12.5px; color: var(--text3); font-weight: 600; }
+.gh-group { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.gh-group > .cp-mi { border-radius: 0; }
+.gh-group > .cp-mi + .cp-mi { border-top: 1px solid var(--border); }
+.gh-group > .cp-mi:hover, .gh-group > .cp-mi:focus-visible { background: var(--bg2); }
+.cp-menu [hidden] { display: none; }
+.gh-two { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.gh-owner { font-size: 12px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-tick { flex: none; display: inline-flex; color: var(--accent, #3b82f6); }
+.gh-tick svg { width: 18px; height: 18px; }
+.gh-results { display: flex; flex-direction: column; gap: 2px; }
+.gh-foot { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.gh-foot .gh-apply { width: 100%; }
+.gh-foot .gh-apply[hidden] { display: none; }
+.gh-branch-how { padding: 6px 10px 2px; font-size: 12.5px; }
+.gh-repo .cp-mi-hint { display: inline-flex; align-items: center; gap: 4px; }
+.gh-repo .cp-mi-hint .cp-ic { width: 14px; height: 14px; }
+.gh-chip-br { display: inline-flex; align-items: center; gap: 3px; color: var(--text2); font-size: 12px; max-width: 90px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.gh-chip-br .cp-ic { width: 12px; height: 12px; }
+.cp-pin.gh-chip { max-width: 260px; }
+.cp-pin.gh-chip > span:first-of-type { min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 860px) { .cp-pin.gh-chip { max-width: 200px; } .gh-chip-br { max-width: 64px; } }
 .gh-checks-box { width: 100%; min-height: 160px; font-family: var(--mono, ui-monospace, monospace); font-size: 16px; line-height: 1.45; resize: vertical; }
 /* GitHub status icon per conversation (0.365.0, spec 12.1): right of the title in the chat list, and in the repo chip. */
 .cside-item.has-gh { position: relative; }

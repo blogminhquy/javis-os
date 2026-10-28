@@ -66,8 +66,10 @@ fake.add_branch("acme/app", "dev", "DEV.md")
 fake.add_branch("acme/app", "release/1.0", "REL.md")
 
 # ---- the list ----
+fake.add_branch("acme/app", "javis/old-work", "OLD.md")
 b = r.branches("acme/app")
 check("the default branch comes first, the rest by name", b["items"] == ["main", "dev", "release/1.0"] and b["default"] == "main")
+check("Javis's own working branches are not offered as a base", not any(x.startswith("javis/") for x in b["items"]))
 
 # ---- switch a fresh chat onto dev ----
 r.attach("c1", BRAIN, BRAIN, ["acme/app"])

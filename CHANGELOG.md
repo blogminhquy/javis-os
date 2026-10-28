@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.368.0] - 2026-10-28
 ### Cải thiện
-- **Chọn repo và nhánh gọn hơn.** Bấm chip repo trong khung chat là hiện menu nhỏ "Đổi repo" và "Đổi nhánh".
+- **Chọn repo và nhánh gọn hơn.** Bấm chip repo trong khung chat (hoặc dấu cộng, mục Repo GitHub) là hiện menu nhỏ "Đổi repo" và "Đổi nhánh". Danh sách repo tách hai mục "Đã chọn" và "Repo", tên chủ repo nhỏ phía trên, tên repo to bên dưới, có nút "Kết nối thêm".
+- **Làm việc từ nhánh khác nhánh mặc định.** Chọn nhánh (ví dụ dev) trước hoặc giữa cuộc trò chuyện: Javis tách nhánh làm việc từ đó và mở PR vào đúng nhánh đó. Nhánh đang chọn hiện ngay trên chip. Cuộc trò chuyện đang có việc dở thì Javis không cho đổi, để không mất việc.
 
 ## [0.367.0] - 2026-10-28
 ### Cải thiện

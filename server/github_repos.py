@@ -365,7 +365,8 @@ def branches(full_name: str) -> Dict[str, Any]:
     gh = GitHub(tok)
     try:
         default = str((gh.repo(fn) or {}).get("default_branch") or "main")
-        names = sorted(set(gh.branches(fn)) - {default}, key=str.lower)
+        # Javis's own working branches (javis/...) are where chats push, never a base to start from.
+        names = sorted({b for b in gh.branches(fn) if not b.startswith("javis/")} - {default}, key=str.lower)
     except GitHubError as e:
         raise RepoError(_c(f"Không lấy được danh sách nhánh: {e}", f"Could not list branches: {e}"))
     return {"default": default, "items": [default] + names}

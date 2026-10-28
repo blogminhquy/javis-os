@@ -10,7 +10,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.368.0] - 2026-10-28
 ### Improved
-- **Tidier repo and branch picking.** Tapping the repo chip in the chat box opens a small menu with "Change repo" and "Change branch".
+- **Tidier repo and branch picking.** Tapping the repo chip in the chat box (or plus, GitHub repo) opens a small menu with "Change repo" and "Change branch". The repo list has "Selected" and "Repos" sections, the owner small above the repo name, and a "Connect more" button.
+- **Work from a branch other than the default.** Pick a branch (dev, say) before or during a chat: Javis cuts its working branch from it and opens the PR into it. The chosen branch shows on the chip. A chat with work in progress cannot switch, so nothing is lost.
 
 ## [0.367.0] - 2026-10-28
 ### Improved
