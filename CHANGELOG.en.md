@@ -13,6 +13,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Claude Code and Codex now really stay running between messages.** In 0.382.0 Javis thought the setup had changed after every message (Claude Code and Codex rewrite their sign-in file themselves), so it started them again each time. Measured again on the dashboard: the next message shows text after about 2 seconds instead of 8 to 14.
 - **Getting ready as you type now actually works** for both Claude Code and Codex, and covers a chat left idle for up to 12 hours (was 1 hour). Signing in or out makes Javis start them again on the new account.
 
+## [0.386.0] - 2026-10-28
+### Improved
+- **Javis Store on phones:** the six kind tabs become a dropdown, next to the group dropdown in one row that stays put while you scroll. Each choice shows its item count and new versions, in larger, easier to tap text. Computers keep the tabs.
+
 ## [0.385.0] - 2026-10-28
 ### Fixed
 - **Signing in to Claude on the Models page no longer says done and then falls back to "Not signed in".** The Claude CLI reports success even when it could not save the sign-in (on a Mac, a locked Keychain), and Javis took its word for it, so the card went back with no reason. Javis now checks right away and, if nothing was saved, says why and what to do.

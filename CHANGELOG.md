@@ -11,6 +11,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Claude Code và Codex giờ thật sự được giữ sẵn giữa các tin nhắn.** Ở 0.382.0, Javis tưởng cấu hình đổi sau mỗi tin (vì Claude Code và Codex tự ghi lại file đăng nhập) nên lần nào cũng mở lại từ đầu. Đo lại trên dashboard: tin nhắn tiếp theo hiện chữ sau khoảng 2 giây, thay vì 8 tới 14 giây.
 - **Gõ là mở sẵn, giờ chạy thật** với cả Claude Code và Codex, và nhớ được cuộc chat đã nghỉ tới 12 tiếng (trước là 1 tiếng). Đăng nhập hay đăng xuất thì Javis tự mở lại bằng tài khoản mới.
 
+## [0.386.0] - 2026-10-28
+### Cải thiện
+- **Javis Store trên điện thoại:** sáu nút tab loại đổi thành ô thả xuống, đặt cạnh ô chọn nhóm trên cùng một hàng đứng yên khi cuộn. Mỗi lựa chọn ghi sẵn số mục và số bản mới, chữ to dễ bấm hơn. Máy tính giữ nguyên tab như cũ.
+
 ## [0.385.0] - 2026-10-28
 ### Sửa lỗi
 - **Đăng nhập Claude trên trang Models không còn báo xong rồi lại về "Chưa đăng nhập".** Claude CLI vẫn báo thành công cả khi không lưu được phiên (trên Mac là Keychain bị khoá), Javis tin theo nên thẻ quay về như cũ mà không nói gì. Giờ Javis kiểm lại ngay, và nếu chưa lưu được thì nói rõ lý do kèm cách xử lý.

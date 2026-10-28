@@ -1372,7 +1372,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Group column on the right, pinned under the navbar so the filter stays in reach while scrolling. */
 .kho-cot { width: 200px; flex: none; display: flex; flex-direction: column; gap: 2px;
   position: sticky; top: 46px; max-height: calc(100vh - 220px); overflow-y: auto; }
-.kho-chon-nhom { display: none; }
+/* Phone-only dropdowns for kind and group; computers keep the tabs and the right-hand column. */
+.kho-chon-loai, .kho-chon-nhom { display: none; }
 .kho-cot-tieu { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--text3);
   padding: 4px 10px 8px; text-transform: uppercase; }
 .kho-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -1470,44 +1471,36 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    860px is the app's main breakpoint, so the Store switches layout together with the sidebar and
    the chat frame.
 
-   KIND TABS become a segmented strip with the count UNDER the label: six items fit a phone row
-   that way, beside each other they get cut.
-
-   GROUPS become a <select> next to the search box (0.384.0). The old wrapped pills (no sideways
-   strip, since phone users do not swipe a row of buttons and miss the groups at its end) showed
-   them all but pushed the first card most of a screen down; the select shows them all in one row.
+   KIND and GROUP become two dropdowns side by side in the pinned bar (0.386.0). Six kind tabs only
+   fit a phone row squeezed into tiny type, and the old wrapped group pills (no sideways strip,
+   since phone users do not swipe a row of buttons and miss the groups at its end) pushed the
+   first card most of a screen down. A dropdown lists every item and costs half a row.
 
    Refresh and Install from .zip leave the pinned navbar for two icon buttons beside the search. */
 @media (max-width: 860px) {
   .kho-than { flex-direction: column; gap: 14px; }
-  /* Navbar on a phone: only the six tabs, edge to edge, still pinned. */
-  .kho-thanh { top: -16px; margin: 0 -14px 14px; padding: 6px 14px; border-bottom: 0;
+  /* Navbar on a phone: the two dropdowns, edge to edge, still pinned. */
+  .kho-thanh { top: -16px; margin: 0 -14px 14px; padding: 8px 14px; border-bottom: 0;
     box-shadow: 0 1px 0 var(--border); }
   .kho-thanh > .kho-hd { display: none; }
 
-  .kho-tabs { background: var(--surface-2); border-radius: 14px; padding: 4px; gap: 2px; }
-  /* `1 0 auto`: tabs share the row when it is wide enough and scroll sideways (the active one
-     kept in view by packs.js) when a long label in some language does not fit. */
-  .kho-tab { flex: 1 0 auto; flex-direction: column; gap: 3px;
-    padding: 8px 6px; border-bottom: 0; margin-bottom: 0; border-radius: 11px;
-    font-size: 12.5px; justify-content: center; text-align: center; }
-  .kho-tab.on { background: var(--surface-1); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
-  .kho-dem { font-size: 11.5px; padding: 0 7px; }
+  /* Kind and group as two dropdowns side by side in the pinned bar (0.386.0, owner: a dropdown
+     suits a phone better than six squeezed buttons). Nothing hides off screen, and both filters
+     stay in reach while the cards scroll. */
+  .kho-thanh { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .kho-thanh > .kho-tabs { display: none; }
+  .kho-chon-loai, .kho-chon-nhom { display: block; width: 100%; min-width: 0; min-height: 44px;
+    font-size: 16px; font-weight: 600; }
 
-  /* Groups: the select beside the search box replaces the column. */
   .kho-cot { display: none; }
   .kho-loc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0; }
-  .kho-loc > .kho-tim { order: 1; }
-  .kho-loc > .kho-hd-dt { order: 2; }
-  .kho-loc > .kho-chon-nhom { order: 3; }
-  .kho-loc > .kho-so-muc { order: 4; }
+  /* The count is already in each dropdown option, so the row keeps only search and the buttons. */
+  .kho-loc > .kho-so-muc { display: none; }
   .kho-tim { max-width: none; width: 100%; font-size: 16px; }
   .kho-hd-dt { display: flex; padding: 0; gap: 6px; }
   .kho-hd-dt .kho-hd-btn { width: 44px; height: 44px; padding: 0; justify-content: center; }
   .kho-hd-dt .kho-hd-btn span { display: none; }
   .kho-hd-dt .kho-hd-btn svg { width: 18px; height: 18px; }
-  .kho-chon-nhom { display: block; width: 100%; min-width: 0; font-size: 16px; }
-  .kho-so-muc { margin: 0; align-self: center; }
 
   .kho-the { gap: 12px; }
   .kho-nut { flex-wrap: wrap; }
@@ -1519,13 +1512,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .kho-quaylai { min-height: 40px; }
 }
 
-/* Very narrow screens: one column of cards, tab labels one size smaller. */
+/* Very narrow screens: one column of cards. */
 @media (max-width: 480px) {
   .cat-grid { grid-template-columns: 1fr; }
   .kho-chinh .cat-grid { grid-template-columns: 1fr; }
-  .kho-tab { font-size: 11.5px; padding: 8px 3px; }
-  .kho-tabs { gap: 0; padding: 3px; }
-  .kho-dem { font-size: 11px; padding: 0 6px; }
 }
 
 /* Hàng tab dẫn sang Kho cài đặt, đặt trên đầu năm trang năng lực.

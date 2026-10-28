@@ -360,6 +360,9 @@ check("không lặp tiêu đề Javis Store trong thân trang", "◆ Javis Store
 check("thanh tab của kho cố định khi cuộn",
       ".kho-thanh { position: sticky;" in (DASHBOARD / "console.css").read_text(encoding="utf-8"))
 check("phân trang 18 mục một trang", "const MOI_TRANG = 18;" in src_js)
+# 0.386.0 (owner): on phones the kind tabs are a dropdown, in the pinned bar next to the group one.
+check("điện thoại chọn loại bằng ô thả xuống", 'id="pkLoai"' in src_js and "sl.onchange" in src_js
+      and src_js.index('id="pkLoai"') < src_js.index('id="pkNhom"') < src_js.index('class="kho-than"'))
 
 # Mục trong danh mục trỏ vào tệp NGAY TRONG REPO thì tệp đó phải có thật và đúng dấu vân tay.
 # Đây là lỗi khó thấy nhất của một kho: index đã trỏ sang bản mới mà tệp thì quên chưa đẩy,
