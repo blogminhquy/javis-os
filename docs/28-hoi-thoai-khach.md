@@ -4,13 +4,13 @@
 
 Mọi tin khách nhắn cho **bot chuyên trách** (Telegram hoặc Zalo Bot) và cho **tài khoản Zalo cá nhân** đã nối đều được gom về một hộp thư trong Javis. Bạn đọc lại cuộc trò chuyện giữa khách và bot, thấy cuộc nào bot đang bí, và **tiếp quản** một cuộc chat khi cần người thật.
 
-Từ bản 0.61.0 trang này gộp luôn phần Chatbot: **một mục trên thanh bên, hai tab** (Hòm thư bot và Bot; từ 0.65.9, trước đó là ba tab Hòm thư bot, Tài khoản bot, Tạo chatbot), và bạn **trả lời khách ngay trong Hòm thư bot**.
+Từ bản 0.61.0 trang này gộp luôn phần Chatbot: **một mục trên thanh bên, hai tab** (Hội thoại và Bot; tab Hội thoại tên cũ là Hòm thư bot, đổi tên và làm lại giao diện ở 0.372.0), và bạn **trả lời khách ngay trong tab Hội thoại**.
 
 ## Mở ở đâu trong Javis
 
 Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Chatbot**. Trong trang có hai tab:
 
-- **Hòm thư bot**: mọi tin khách, đọc lại, tiếp quản, trả lời.
+- **Hội thoại**: mọi tin khách, ai đang lo cuộc chat nào, trả lời, nhờ A.I. soạn.
 - **Bot**: nhân viên AI đứng trực các kênh, kèm mục **Kênh chưa có bot** ngay dưới (bot Telegram, bot Zalo, Zalo cá nhân... trong brain đang mở, thêm kênh, bật ghi). Kênh đã có bot hiện thành chip trên thẻ bot; bấm chip để sửa hoặc xoá kênh đó. Xem [Chatbot](25-chatbot.md).
 
 Nói bằng lời cũng được: "mở hộp thư khách", "hòm thư bot", "tài khoản bot", và "mở chatbot" vẫn tới đúng tab Bot. Nói "hội thoại" trần vẫn ra trang Trò chuyện như trước.
@@ -28,39 +28,70 @@ Bốn khái niệm, đọc một lần rồi khỏi đoán:
 
 Bên dưới, mọi kênh đều đưa tin về **một khuôn chung** rồi vào cùng một kho: tài khoản kênh, khách, hội thoại, tin. Hòm thư bot không cần biết tin đến từ Telegram hay Zalo.
 
-## Tab Hòm thư bot
+## Tab Hội thoại
 
-Từ 0.65.10 đầu trang gọn hơn để khung làm việc chiếm gần hết màn hình: tiêu đề **Chatbot**, hai tab, ô tìm và hàng lọc nằm trên cùng, còn danh sách và khung tin lấp đầy phần còn lại, mỗi bên cuộn riêng và ô soạn tin ghim ở đáy. Bốn thẻ số liệu và dòng phụ đề đã bỏ. Số **chưa đọc** vẫn hiện thành huy hiệu trên tab, và "người thật đang xử lý" xem bằng ô lọc **Tình trạng**.
+Từ 0.372.0 (Chatbot v5) máy tính chia **ba cột**: danh sách khách bên trái, khung chat ở giữa, bảng **Thông tin** bên phải (đóng được; màn hẹp hơn 1200px thì bảng trượt đè lên khung chat khi bạn bấm **Thông tin**). Trên điện thoại một cột: danh sách, chạm để mở chat, nút ⓘ mở bảng Thông tin.
 
-Bên trái là danh sách hội thoại, mới nhất trước. Mỗi dòng: tên khách (hoặc tên nhóm), logo kênh, tin cuối, giờ, và số tin chưa đọc. Phía trên có ô tìm theo tên hoặc nội dung và **một hàng dropdown lọc** (từ 0.65.3, thay cho hàng chip): **Bot**, **Tình trạng** (chưa đọc, cần trả lời, tôi tiếp quản), **Loại** (chỉ nhóm hay chỉ chat riêng), và **Kênh** (chỉ hiện khi có từ hai kênh). Số hội thoại nằm ngay trong từng lựa chọn, tính trên cả hòm thư nên không nhảy khi lọc. Bộ lọc được nhớ ở trình duyệt; dòng ngay trên danh sách ghi "N hội thoại · M bộ lọc" kèm nút **Xoá lọc**. Khi có từ hai bot, mỗi dòng có thẻ tên bot (mỗi bot một màu cố định), và dòng đáng chú ý có thẻ **Cần trả lời** hoặc **Người thật**.
+**Ai đang lo cuộc chat này.** Server tính cho mỗi cuộc chat một trạng thái, mọi chỗ trên trang đọc đúng nó:
 
-**"Cần trả lời" nghĩa là gì.** Khách nhắn cuối, chưa ai đáp, chưa có người tiếp quản, và: là chat riêng, hoặc là nhóm mà bot vừa **cân nhắc nói rồi im** (chưa chắc, hết hạn mức tự nói, hay bộ phán xử lỗi, trong 24 giờ qua và bạn chưa bấm Đúng/Sai). Nhóm thì phải có điều kiện thứ hai, vì bot chỉ nói khi được gọi thì khách nhắn cuối trong nhóm là chuyện bình thường; đếm hết vào thì bộ lọc đầy rác. Cần bật Tự đánh giá thì mới có dấu "bot cân nhắc" này (xem [Bộ phán xử](25-chatbot.md#bộ-phán-xử-bot-tự-quyết-nói-hay-im-và-học-từ-nhóm)).
+| Màu | Tên | Khi nào |
+|---|---|---|
+| vàng | **Cần bạn** | khách chờ mà không ai lo, có người gọi A.I. ở nhóm chưa cho phép, A.I. soạn xong chờ bạn duyệt |
+| tím | **A.I. đang xử lý** | A.I. được phép trả lời ở đây và bot đang chạy |
+| xanh | **Bạn đang xử lý** | bạn chọn Tôi trả lời và khách không chờ |
+| xám | **Chỉ ghi lại** | A.I. không trả lời ở đây (chưa cho phép, kênh chưa có bot, bot tắt) và không ai chờ |
+
+Mỗi dòng khách có **viền trái** theo màu đó, ảnh đại diện có **logo kênh** ở góc, tên, giờ, tin cuối (có "A.I.:" hay "Bạn:" phía trước), số chưa đọc, tối đa hai thẻ cộng "+n", và tên nick hay Page khi đang xem nhiều nơi. Rê chuột lên dòng là đọc một câu nói chuyện gì đang xảy ra.
+
+Đầu cột trái, từ trên xuống:
+
+- **Hộp chọn kênh**: bấm để mở danh sách nick và Page có ô tick, xếp theo kênh với logo thật. Tick tên kênh là chọn cả kênh; mỗi nơi có số chat **Cần bạn**. Không tick gì là xem tất cả. Có ô tìm, **Bỏ chọn**, **Xong** và **Quản lý kênh**.
+- **Ô tìm** (tên, số điện thoại, nội dung) và nút **Lọc**: menu hai tầng gồm Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Tình trạng (chưa đọc, chờ lâu nhất, đã ẩn), Thông tin khách (có SĐT hay email). Bộ lọc đang bật hiện thành chip có dấu x ngay dưới.
+- **Bốn nút lọc nhanh**: Cần bạn · A.I. đang xử lý · Bạn đang xử lý · Tất cả, kèm số. Mở trang lần đầu là ở **Cần bạn**; không còn chat nào cần bạn thì trang nói vậy, kèm nút **Xem tất cả**.
+
+Mọi lựa chọn được nhớ ở trình duyệt. Số trên tab **Hội thoại** là số chat **Cần bạn**.
+
+**"Khách đang chờ" nghĩa là gì** (một trong các lý do của Cần bạn). Khách nhắn cuối, chưa ai đáp, và: là chat riêng, hoặc là nhóm mà bot vừa **cân nhắc nói rồi im** (chưa chắc, hết hạn mức tự nói, hay bộ phán xử lỗi, trong 24 giờ qua và bạn chưa bấm Đúng/Sai). Nhóm thì phải có điều kiện thứ hai, vì bot chỉ nói khi được gọi thì khách nhắn cuối trong nhóm là chuyện bình thường; đếm hết vào thì bộ lọc đầy rác. Cần bật Tự đánh giá thì mới có dấu "bot cân nhắc" này (xem [Bộ phán xử](25-chatbot.md#bộ-phán-xử-bot-tự-quyết-nói-hay-im-và-học-từ-nhóm)).
 
 **Nhóm chỉ giữ 100 tin gần nhất** (từ 0.65.12). Hòm thư lưu hết tin của chat riêng với khách, nhưng mỗi **nhóm** chỉ giữ 100 tin mới nhất; tin cũ hơn tự xoá khi có tin mới về. Lý do: kho không phình mãi, và Javis không giữ lời của người lạ trong nhóm lâu hơn cần thiết (nick Zalo cá nhân ở nhiều nhóm thì Hòm thư ghi cả nhóm bot chưa được phép trả lời). Lần đầu sau khi cập nhật, các nhóm cũ đang có hơn 100 tin được cắt xuống 100; Javis **sao lưu nguyên file kho một lần** trước khi cắt (file `customer_conversations.sqlite3.bak-truoc-cat-nhom-...` cạnh file kho) và **tự xoá bản sao lưu sau 14 ngày**. Muốn lấy lại tin đã cắt thì chép bản sao lưu đè lên file kho trong vòng 14 ngày đó. Số "tin từng nhận" của hội thoại không giảm theo.
 
-**Tải dần, không đơ máy** (từ 0.65.11). Danh sách chỉ tải 40 dòng đầu; cuộn gần tới cuối thì tự tải 40 dòng nữa (hoặc bấm **Xem thêm**), dòng đếm ghi "40+ hội thoại" cho tới khi hết. Khung tin cũng vậy: mở một hội thoại chỉ tải 40 tin **mới nhất**, kéo lên gần đầu (hoặc bấm **Xem tin cũ hơn**) thì tải thêm 40 tin cũ hơn và giữ nguyên chỗ bạn đang đọc. Cứ 5 giây Javis chỉ hỏi các tin **mới hơn tin cuối** rồi chèn vào cuối khung; đang đọc tin cũ mà có tin mới về thì khung đứng yên, không kéo bạn về đầu như trước.
+**Tải dần, không đơ máy** (từ 0.65.11). Danh sách chỉ tải 40 dòng đầu; cuộn gần tới cuối thì tự tải 40 dòng nữa (hoặc bấm **Xem thêm**). Khung tin cũng vậy: mở một hội thoại chỉ tải 40 tin **mới nhất**, kéo lên gần đầu (hoặc bấm **Xem tin cũ hơn**) thì tải thêm 40 tin cũ hơn và giữ nguyên chỗ bạn đang đọc. Cứ 5 giây Javis chỉ hỏi các tin **mới hơn tin cuối** rồi chèn vào cuối khung; đang đọc tin cũ mà có tin mới về thì khung đứng yên, không kéo bạn về đầu như trước.
 
-Bấm một hội thoại là lịch sử tin hiện bên phải: tin khách bên trái, câu bot và câu bạn tự nhắn từ điện thoại bên phải. Lượt bot bị gãy cũng nằm đó kèm lý do kỹ thuật, để bạn phân biệt "bot trả lời sai" với "bot đang hỏng".
+Bấm một hội thoại là lịch sử tin hiện ở giữa: tin khách bên trái, câu A.I. (nhãn "A.I. · tên bot") và câu bạn bên phải. Lượt bot bị gãy cũng nằm đó kèm lý do kỹ thuật, để bạn phân biệt "bot trả lời sai" với "bot đang hỏng". Trang tự làm mới mỗi vài giây, không cần tải lại.
 
-Trên điện thoại trang chỉ một cột: bấm một hội thoại là mở lịch sử, có nút quay lại. Trang tự làm mới mỗi vài giây, không cần tải lại.
+## Ai trả lời: thanh ngay dưới tên khách
 
-## Trả lời khách, tiếp quản và trả lại AI
+Thanh này cùng màu với trạng thái của cuộc chat và luôn có **một câu** nói chuyện gì đang xảy ra (ví dụ "A.I. đã soạn xong câu trả lời, chờ bạn duyệt"). Bên cạnh là nút hợp với lúc đó:
 
-**Công tắc Tự động | Tôi trả lời** (từ 0.65.4) nằm ở đầu mỗi cuộc chat có bot, thay cho nút Tiếp quản nhỏ. Gạt sang **Tôi trả lời** là bạn tiếp quản; gạt về **Tự động** là trả cuộc chat lại cho bot. Bấm đúng nấc đang bật thì không làm gì. Trên điện thoại công tắc xuống một hàng riêng, rộng hết chiều ngang. Ngay trên ô nhập có **một dòng trạng thái** nói ai đang trực ("Nhi Mai đang trực cuộc chat này" hoặc "Bạn đang tiếp quản, bot im"), đứng riêng một dòng nên không lệch với ô nhập.
+- **A.I. được phép trả lời ở đây**: ba chế độ **A.I. tự trả lời**, **A.I. soạn, tôi duyệt**, **Tôi trả lời**. Đang ở Tôi trả lời thì có thêm **Trả lại cho A.I.**
+- **Chưa cho phép**: nút **Cho A.I. trả lời ở đây**. Bot vẫn giữ nguyên ai được trả lời ở các cuộc khác.
+- **Có người gọi A.I. ở một nhóm chưa cho phép**: **Cho phép** hoặc **Bỏ qua**.
+- **Kênh chưa có bot**: **Tạo A.I. cho kênh này** mở form tạo bot với kênh đó tích sẵn.
 
-**Hai nút hành động** nằm ngay dưới dòng trạng thái (từ 0.65.5), cùng cao và chia đôi bề ngang:
+Mọi thay đổi hiện một dòng báo ở đáy màn hình kèm **Hoàn tác**.
 
-- **Trả lời giúp tin này**: bot trả lời NGAY tin khách cuối bằng đúng Agent của nó, dù lúc nãy bộ phán xử đã chọn im. Câu trả lời được gửi qua kênh (nhóm Zalo đi đúng kiểu nhóm), ghi vào Hộp thư như lời của bot, và cuộc chat **vẫn ở Tự động** (khác gõ tay là tiếp quản). Nếu đó đúng là tin bộ phán xử đã im, bot còn **học thêm một ca** (nhãn "im nhầm" nặng nhất): lần sau gặp tin giống vậy bot sẽ nói. Không đi qua cổng "có nên nói", bộ phán xử hay hạn mức tự nói, vì đây là lời nhờ của chính bạn; quyền và giới hạn của Agent thì nguyên vẹn.
-- **Gợi ý câu trả lời**: bot soạn nháp vào ô nhập, chưa gửi. Bạn sửa rồi bấm Gửi (gửi là tiếp quản). Bản nháp **không để lại dấu vết**: không vào kho phiên, không vào Hộp thư, lịch sử tạm của bot được dọn, nên nháp bỏ đi thì bot không "nhớ" mình từng nói câu đó với khách. Dùng được cả lúc bạn đang tiếp quản; ô nhập đang có chữ thì hỏi trước khi thay.
-- Chế độ **Tôi trả lời** thì nút thứ nhất thành **Trả lại cho bot**.
+**A.I. soạn, tôi duyệt** (mới ở 0.371.0): lượt bot chạy như thường nhưng câu trả lời **không gửi**. Nó nằm trong **khung nét đứt** trên ô nhập, cuộc chat chuyển sang Cần bạn. Bạn sửa chữ nếu cần rồi bấm **Gửi** (ghi vào hộp thư là lời A.I.), **Viết lại** (nhờ soạn lần nữa) hoặc **Bỏ**. Tin khách mới tới khi bản cũ chưa duyệt thì bản mới thay bản cũ. Đổi chế độ không xoá bản đang chờ; bạn tự gửi tay thì bản đó bỏ đi.
 
-**Nút chưa dùng được vẫn hiện** (viền đứt) và chạm vào thì nói lý do: đang tiếp quản, bot đang tắt (dòng trạng thái cũng nói thẳng "đang tắt nên không tự trả lời"), tin cuối không phải của khách, hay kênh chưa gửi được từ Javis. Bot soạn xong mà gửi hỏng thì câu đã soạn nằm trong ô nhập để bạn gửi tay. Agent chọn im thì báo, không gửi gì. Mỗi cuộc chat chỉ chạy một lượt nhờ-bot một lúc. Tệp đính kèm bot soạn không đi kèm (chỉ chữ).
+**Tắt A.I. ở riêng một cuộc chat**: chọn "Không cho A.I. trả lời ở đây" trong bảng Thông tin. Chỉ cuộc chat đó im; khách khác và nhóm khác vẫn như cũ.
 
-Dưới tin khách cuối có dòng **"Bot im: lý do"** khi bộ phán xử đã ghi lý do (ví dụ "Điểm thấp hơn ngưỡng (0.52 / 0.60)"), kèm nút **Vì sao** mở thẳng bảng Bộ phán xử của bot đó. Dòng này chỉ hiện khi cuộc chat đang ở Tự động, tin cuối là của khách và quyết định gần nhất là im cho đúng tin đó; người thật đang tiếp quản thì bot im là hiển nhiên nên không nói.
+## Trả lời khách và nút "A.I. trả lời"
 
-Dưới cùng một hội thoại là ô soạn tin: gõ rồi **Enter** để gửi (Shift+Enter xuống dòng). Tin đi qua đúng kênh của cuộc chat: bot Telegram hay Zalo Bot gửi bằng token của tài khoản đó, Zalo cá nhân gửi qua chính tài khoản bạn đã quét QR, **dưới tên bạn** (ô soạn tin nói rõ điều này). Kênh nào chưa gửi được từ Javis thì ô soạn tin thay bằng một dòng nói vậy.
+Ô nhập có hai nút:
 
-Gửi từ đây ở một cuộc chat có bot là bạn **tiếp quản** cuộc đó: bot im với khách này cho tới khi bạn gạt về **Tự động**. Không thì khách đọc hai giọng một lúc. Gạt công tắc sang **Tôi trả lời** làm y như vậy mà không cần gửi gì; gạt xong bạn trả lời trong app của kênh cũng được.
+- **Gửi**: gửi nguyên văn cho khách. **Enter** để gửi, Shift+Enter xuống dòng.
+- **A.I. trả lời**: chữ trong ô là **lệnh cho A.I.**, ví dụ "báo giá sỉ 20 thùng, hẹn giao thứ 5". A.I. viết thành câu trả lời lịch sự trong khung nét đứt, ghi rõ lệnh của bạn, kèm Bỏ / Viết lại / Gửi. Ô trống thì A.I. tự đọc cuộc chat mà soạn. **Không bao giờ tự gửi.** Lệnh chỉ A.I. đọc, không vào hộp thư.
+
+Dưới tin khách cuối có dòng **"Bot im: lý do"** khi bộ phán xử đã ghi lý do (ví dụ "Điểm thấp hơn ngưỡng (0.52 / 0.60)"), kèm nút **Vì sao** mở thẳng bảng Bộ phán xử của bot đó, và nút **Nhờ A.I. trả lời tin này**: A.I. trả lời ngay tin đó và gửi luôn, cuộc chat vẫn ở A.I. tự trả lời. Nếu đó đúng là tin bộ phán xử đã im, bot còn **học thêm một ca**: lần sau gặp tin giống vậy bot sẽ nói. Gửi hỏng mà A.I. đã soạn xong thì câu đó nằm trong ô nhập để bạn gửi tay.
+
+Tin đi qua đúng kênh của cuộc chat: bot Telegram hay Zalo Bot gửi bằng token của tài khoản đó, Zalo cá nhân gửi qua chính tài khoản bạn đã quét QR, **dưới tên bạn** (ô nhập nói rõ điều này). Kênh nào chưa gửi được từ Javis thì ô nhập thay bằng một dòng nói vậy.
+
+Gửi tay ở một cuộc chat đang **A.I. tự trả lời** là bạn **tiếp quản** cuộc đó: A.I. im với khách này cho tới khi bạn chọn lại A.I. tự trả lời. Không thì khách đọc hai giọng một lúc. Chọn **Tôi trả lời** làm y như vậy mà không cần gửi gì; chọn xong bạn trả lời trong app của kênh cũng được.
+
+## Bảng Thông tin
+
+- **Khách**: tên, nick hay Page, số điện thoại hoặc email khách để lại, **thẻ** (thêm, bớt, tạo thẻ mới ngay tại chỗ) và **ghi chú** chỉ bạn thấy (lưu khi bạn bấm ra ngoài ô; ghi chú theo khách, sang cuộc chat khác của cùng khách vẫn thấy).
+- **A.I. ở cuộc chat này**: Ai trả lời (tắt ở đây, hoặc một trong ba chế độ); với nhóm thì **A.I. lên tiếng khi** (được gọi tên, khi thấy cần, mọi tin); **Bạn nhắn tay thì A.I. nhường** bao lâu. Hai ô sau là cài đặt chung của cả bot, bảng nói rõ điều này. Có lối **Mở cài đặt bot**.
+- **Kênh**: logo, tên kênh và nick hay Page.
 
 Hai điều nên biết:
 

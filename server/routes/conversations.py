@@ -178,8 +178,11 @@ def register(app, deps: ConversationsDeps):
     def _attach_state(items: list, ctx: "_StateCtx") -> None:
         for it in items:
             st = ctx.of(it)
+            bot = ctx.bots.get(str(it.get("bot_id") or "")) or {}
+            yield_min = bot.get("nhuong_tay_phut")
             it.update(who=st["who"], who_code=st["who_code"], ai_allowed=st["ai_allowed"], ai_pending=st["pending"],
-                      draft=st["draft"])
+                      draft=st["draft"], reply_when=str(bot.get("reply_when") or ""),
+                      yield_min=yield_min if isinstance(yield_min, int) else None)
 
     def _ids_param(raw: str) -> list:
         return [x.strip() for x in str(raw or "").split(",") if x.strip()]
@@ -203,7 +206,8 @@ def register(app, deps: ConversationsDeps):
         Chatbot v5 (2026-10-28): `account_ids` (comma-separated account keys, the channel picker), `tags_any` /
         `tags_none` (comma-separated tag ids), and `who` (you | ai | owner | log, see `inbox_state`). Every row carries
         `who`, `who_code`, `ai_allowed`, `ai_pending` and `draft`; the first page also returns `who_counts` for the
-        same filters without `who` (plus `you_by_account`: "Needs you" per account key).
+        same filters without `who`, plus `you_by_account` ("Needs you" per account key) and `you_total`, both over the
+        whole inbox whatever the filters.
 
         2026-10-25 (row menu): hidden conversations stay out of the list unless `status=hidden` asks for exactly them;
         a search (`q`) finds them too, so a customer the owner hid can always be looked up. `facets.status.hidden`
@@ -225,12 +229,19 @@ def register(app, deps: ConversationsDeps):
                                              hesitant=hesitant, **base)
             states = [(r["id"], ctx.of(r)["who"]) for r in light]
             who_counts = inbox_state.count({"who": w} for _, w in states)
-            # "Needs you" per channel account, for the channel picker's badges.
-            who_counts["you_by_account"] = {}
-            for r, (_, w) in zip(light, states):
-                if w == "you":
+            # "Needs you" per channel account (the channel picker's badges) and in all (the tab's badge) count the whole
+            # inbox: ticking one Page or searching must not make the other Pages' numbers vanish.
+            narrowed = bool(channel or bot_id or account_id or q or status or chat_type or tag or has_contact
+                            or base["account_ids"] or base["tags_any"] or base["tags_none"])
+            every = conversations.state_rows(hesitant=hesitant, hidden="exclude") if narrowed else light
+            by_acc, you_total = {}, 0
+            for r in every:
+                if ctx.of(r)["who"] == "you":
                     k = str(r.get("channel_account_id") or "")
-                    who_counts["you_by_account"][k] = who_counts["you_by_account"].get(k, 0) + 1
+                    by_acc[k] = by_acc.get(k, 0) + 1
+                    you_total += 1
+            who_counts["you_by_account"] = by_acc
+            who_counts["you_total"] = you_total
         if who:
             keep = [i for i, w in states if w == who]
             page = keep[max(0, offset):max(0, offset) + max(1, min(int(limit or 50), conversations.MAX_DANH_SACH))]
@@ -436,6 +447,8 @@ def register(app, deps: ConversationsDeps):
         if c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
             conversations.dat_che_do(conv_id, "human")
             tiep_quan = True
+        # The owner answered by hand: an A.I. draft still waiting is no longer needed (Chatbot v5).
+        conversations.clear_draft(conv_id)
         return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
                 "conversation": conversations.chi_tiet(conv_id)}
 
@@ -485,7 +498,11 @@ def register(app, deps: ConversationsDeps):
         if r.get("silent"):
             return {"ok": True, "silent": True, "text": ""}
         if not send:
-            return {"ok": True, "silent": False, "text": r["text"], "draft": True}
+            # Kept as the chat's waiting draft (Chatbot v5), so it survives a reload and is sent or dropped through
+            # /draft like a draft the bot wrote in "drafts" mode.
+            conversations.save_draft(conv_id, r["text"], conversations.last_customer_message_id(conv_id), lenh)
+            return {"ok": True, "silent": False, "text": r["text"], "draft": True,
+                    "conversation": _detail_with_state(conv_id)}
         ok, loi = await _gui_tin(c, r["text"], tieng_vong=True, reply_to=msgs[-1])
         if not ok:
             # Không gửi được thì trả chữ đã soạn để chủ dán vào ô nhập gửi tay, khỏi mất công soạn lại.
@@ -505,8 +522,8 @@ def register(app, deps: ConversationsDeps):
     @router.post("/conversations/{conv_id}/mode")
     async def conversations_mode(conv_id: int, mode: str = Form(...)):
         """ai | human | waiting | closed | draft. `human` = người thật tiếp quản, bot im ở cuộc chat đó. `draft` (Chatbot v5)
-        = the bot writes its reply and waits for the owner. Leaving `draft` drops a draft still waiting: it was written
-        for a mode the owner just turned off."""
+        = the bot writes its reply and waits for the owner. A draft still waiting stays when the mode changes (the owner
+        may still send it, and Undo puts the old mode back with its draft); /reply and /draft clear it."""
         ok, err = conversations.dat_che_do(conv_id, mode)
         if not ok:
             # Chế độ hợp lệ mà vẫn hỏng thì chỉ có thể là không có hội thoại đó. Không dò chữ
@@ -514,8 +531,6 @@ def register(app, deps: ConversationsDeps):
             hop_le = str(mode or "").strip().lower() in conversations.CHE_DO
             return JSONResponse({"ok": False, "error": err},
                                 status_code=404 if hop_le else 400)
-        if str(mode or "").strip().lower() != "draft":
-            conversations.clear_draft(conv_id)
         return {"ok": True, "conversation": _detail_with_state(conv_id)}
 
     @router.post("/conversations/{conv_id}/ai")
@@ -541,6 +556,13 @@ def register(app, deps: ConversationsDeps):
                 _DEPS.drop_pending(bot_id, chat_id)
             except Exception:      # noqa: BLE001
                 pass
+        return {"ok": True, "conversation": _detail_with_state(conv_id)}
+
+    @router.post("/conversations/{conv_id}/note")
+    async def conversations_note(conv_id: int, note: str = Form("")):
+        """The owner's note about the customer of this chat (Chatbot v5 Info panel; only the owner sees it)."""
+        if not conversations.set_note(conv_id, note):
+            return _404()
         return {"ok": True, "conversation": _detail_with_state(conv_id)}
 
     @router.post("/conversations/{conv_id}/draft")

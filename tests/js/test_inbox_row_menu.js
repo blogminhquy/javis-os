@@ -45,12 +45,15 @@ stored = JSON.stringify({ status: "hidden", bot: "b1", junk: 1 });
 const loaded = F.load();
 check("a saved state with the hidden filter loads back, junk dropped", loaded.status === "hidden" && loaded.bot === "b1" && !("junk" in loaded));
 stored = "{not json";
-check("a broken saved state loads as no filter", JSON.stringify(F.load()) === JSON.stringify(F.emptyState()));
+check("a broken saved state loads as no filter (the list opens on 'Needs you')",
+  JSON.stringify(F.load()) === JSON.stringify(Object.assign(F.emptyState(), { who: "you" })));
 check("the hidden filter asks the server for status=hidden", F.query({ status: "hidden" }) === "&status=hidden");
 check("the hidden filter counts as an active filter", F.activeCount({ status: "hidden" }) === 1);
-const so = F.statusOptions({ status: { unread: 2, need_reply: 1, human: 0, hidden: 3 } }, "hidden");
-check("status dropdown ends with 'Hidden (N)', selected when on", /value="hidden" selected>ht\.f_st_hidden#3/.test(so), so);
-check("no count from an old server reads 0", F.statusOptions({ status: {} }, "").indexOf("ht.f_st_hidden#0") > 0);
+// Chatbot v5: the status choices live in the Filter menu (inbox-v5.js), one radio each.
+vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "inbox-v5.js"), "utf8"), ctx);
+const so = win.JavisInboxV5.filterMenuHtml({ status: "hidden" }, "status", [], { status: { unread: 2, need_reply: 1, hidden: 3 } }, [], null, null);
+check("Filter menu status ends with 'Hidden (N)', ticked when on", /data-v="hidden" checked> <span>ht\.f_st_hidden#3/.test(so), so);
+check("no count from an old server reads 0", win.JavisInboxV5.filterMenuHtml({}, "status", [], { status: {} }, []).indexOf("ht.f_st_hidden#0") > 0);
 
 // ---- 2. what the menu offers ----
 const acts = (c) => F.rowMenuItems(c).filter((x) => !x.sep).map((x) => x.act);
@@ -61,7 +64,11 @@ check("unread chat offers 'mark read'; pinned offers 'unpin'; hidden offers 'unh
   JSON.stringify(acts({ ...base, unread_count: 2, pinned: 1, hidden: 1 })) === JSON.stringify(["read", "unpin", "tags", "unhide"]));
 const withBot = F.rowMenuItems({ ...base, bot_id: "b", mode: "human" });
 const ai = withBot.find((x) => x.act === "mode_ai"), me = withBot.find((x) => x.act === "mode_human");
-check("a bot chat shows both reply modes, the current one checked", ai && me && ai.on === false && me.on === true && ai.radio && me.radio);
+const dr = withBot.find((x) => x.act === "mode_draft");
+check("a bot chat shows the three reply modes of the 'Who replies' bar, the current one checked",
+  ai && dr && me && ai.on === false && dr.on === false && me.on === true && ai.radio && dr.radio && me.radio && dr.key === "ib.m_draft");
+check("a chat where the A.I. is not allowed offers no reply mode (it is switched on from the chat or Info)",
+  !F.rowMenuItems({ ...base, bot_id: "b", ai_allowed: false }).some((x) => /^mode_/.test(x.act || "")));
 check("'waiting' counts as the bot answering, like the header switch",
   F.rowMenuItems({ ...base, bot_id: "b", mode: "waiting" }).find((x) => x.act === "mode_ai").on === true);
 check("the mode group has its heading", withBot.some((x) => x.sep && x.key === "ht.rm_mode"));

@@ -61,10 +61,18 @@
   function chuanTab(id) { return TAB_CU[id] || id; }
   var _host = null, _timer = null, _tab = "inbox";
   var _items = [], _stats = {}, _dauVet = "";
-  var _kenhLoc = "", _botLoc = "", _tkLoc = "", _q = "";
-  var _statusLoc = "", _typeLoc = "";   // bộ lọc dropdown (0.65.3), lưu ở trình duyệt qua JavisConvFilters
-  var _tagLoc = "";         // 2026-10-25: tag filter (tag id), saved the same way
+  var _kenhLoc = "", _botLoc = "", _q = "";
+  var _statusLoc = "", _typeLoc = "";   // bộ lọc (0.65.3), lưu ở trình duyệt qua JavisConvFilters
   var _contactLoc = "";     // 2026-10-25: "1" = only chats where the customer left a phone number or email
+  // Chatbot v5 (2026-10-28, docs/dev/2026-10-chatbot-v5-spec.md): who is handling the chat (the quick filters), the ticked
+  // channel accounts (the channel picker) and tags any/none (the Filter menu). Saved with the rest by JavisConvFilters.
+  var _who = "you", _accs = [], _tagsAny = [], _tagsNone = [], _whoCounts = null;
+  var _pick = false, _pickQ = "", _fm = false, _fmCat = "tagsAny";   // channel picker / Filter menu open, picker search, menu category
+  var _info = null;         // Info panel: null = decided by the width (open on wide screens), true/false = the owner chose
+  var _aiBusy = "";         // "ask" | "redo" | "send" | "now" while the A.I. writes or a draft goes out
+  var _draftEdit = null;    // {ts, text}: the owner's edits to the waiting draft, kept across the 5-second redraws
+  var _noteEdit = null;     // {id, text}: the note being typed in the Info panel, same reason
+  var _toastT = null;
   var _tags = [];           // the owner's inbox tags [{id, name, color, count}], from the list endpoint
   var _tagPop = false, _tagEdit = 0, _tagNewColor = "green", _tagErr = "";   // thread tag picker: open, tag being edited, new tag colour, last error
   var _facets = null, _botList = [];    // số đếm cho dropdown và các bot có hội thoại (server cấp, toàn hòm thư)
@@ -73,7 +81,6 @@
   var _running = false;     // bot của cuộc chat đang mở có đang chạy không (server cấp)
   var _soTrang = 1, _conDS = false, _dangTaiDS = false;   // phân trang danh sách: số trang đã tải, còn trang sau không
   var _conCu = false, _dangTaiCu = false, _vetMeta = "";   // khung tin: còn tin cũ không, đang tải tin cũ, chữ ký phần đầu khung
-  var _actBusy = "";        // "answer" | "draft" khi đang chờ bot soạn
   var _actNote = null;      // {text, err}: dòng nói kết quả của lần bấm gần nhất, sống qua các lần vẽ lại khung
   var _kenhDS = [];         // các LOẠI kênh (server: id, nhan, logo, kind, nang_luc...)
   var _tk = [];             // mọi tài khoản kênh, một khuôn
@@ -157,9 +164,11 @@
   function veTabs() {
     var b = _host && _host.querySelector(".ht-tabs");
     if (!b) return;
-    var NHAN = { inbox: ["ht.tab_inbox", "messages-square"], bot: ["ht.tab_bot", "headset"] };
+    var NHAN = { inbox: ["ib.tab_inbox", "messages-square"], bot: ["ht.tab_bot", "headset"] };
     b.innerHTML = TABS.map(function (t) {
-      var chuaDoc = (t === "inbox" && _stats.chua_doc) ? '<span class="ht-badge">' + _stats.chua_doc + '</span>' : "";
+      // The Conversations tab counts the chats that need you (Chatbot v5), not unread ones: unread is what the A.I. already handles.
+      var canBan = t === "inbox" && _whoCounts ? (_whoCounts.you_total != null ? _whoCounts.you_total : _whoCounts.you) : 0;
+      var chuaDoc = canBan ? '<span class="ht-badge" title="' + esc(window.t("ib.who_you")) + '">' + canBan + '</span>' : "";
       return '<button type="button" class="ht-tab' + (t === _tab ? " on" : "") + '" data-t="' + t + '">' +
         ic(NHAN[t][1]) + ' <span>' + esc(window.t(NHAN[t][0])) + '</span>' + chuaDoc + '</button>';
     }).join("");
@@ -232,50 +241,48 @@
     return true;
   }
 
-  // ---------------------------------------------------------------- HỘP THƯ
+  // ---------------------------------------------------------------- HỘP THƯ (Chatbot v5 layout, 2026-10-28)
+  // Wide screens: customers | chat | Info. The list head holds the channel picker (tick several nicks and Pages), the
+  // search box with the two-level Filter menu, the quick "who is handling it" filters and the active filters as chips.
+  // The pure HTML builders live in inbox-v5.js; the drawing and the events are here.
   function renderInbox(body) {
+    var F = window.JavisConvFilters;
     if (_cho) {
-      // Mở từ nơi khác (nút trên thẻ bot, mục Kênh chưa có bot): lọc đúng thứ được chỉ, bỏ tình trạng và loại đã lưu để
-      // khỏi giấu mất hội thoại người ta muốn xem.
-      _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || ""; _tkLoc = _cho.account_key || "";
-      _statusLoc = ""; _typeLoc = ""; _tagLoc = ""; _contactLoc = ""; _q = "";
+      // Opened from elsewhere (a bot card, an account card): show exactly what was pointed at, whoever handles it. The
+      // saved filters are put aside so they cannot hide the chat the owner wants to see.
+      _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || "";
+      _accs = _cho.account_key ? [_cho.account_key] : [];
+      _who = ""; _statusLoc = ""; _typeLoc = ""; _tagsAny = []; _tagsNone = []; _contactLoc = ""; _q = "";
       _cho = null;
       saveFilters();
-    } else if (window.JavisConvFilters) {
-      var saved = window.JavisConvFilters.load();
-      _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel;
-      _tagLoc = saved.tag; _contactLoc = saved.contact;
+    } else if (F) {
+      var saved = F.load();
+      _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel; _contactLoc = saved.contact;
+      _who = saved.who; _accs = saved.accs; _tagsAny = saved.tagsAny; _tagsNone = saved.tagsNone;
     }
+    _pick = false; _fm = false;
     body.innerHTML =
-      '<div class="ht-wrap">' +
-        '<div class="ht-bar">' +
-          '<input class="ht-search" placeholder="' + esc(window.t("ht.tim_ph")) + '">' +
-          // Phones: the filters fold behind this one button so the chat list keeps the screen (owner, 2026-10-25).
-          // Wide screens never show it; there the panel below is just part of the row (display: contents).
-          '<button type="button" class="ht-fbtn" aria-expanded="false">' + ic("sliders-horizontal") + ' ' +
-            esc(window.t("ht.f_btn")) + '<span class="ht-fbtn-n" hidden></span></button>' +
-          '<div class="ht-fpanel">' +
-          '<select class="ht-f ht-f-bot" aria-label="' + esc(window.t("ht.f_aria_bot")) + '"></select>' +
-          '<select class="ht-f ht-f-status" aria-label="' + esc(window.t("ht.f_aria_status")) + '"></select>' +
-          '<select class="ht-f ht-f-type" aria-label="' + esc(window.t("ht.f_aria_type")) + '"></select>' +
-          '<select class="ht-f ht-f-channel" aria-label="' + esc(window.t("ht.f_aria_kenh")) + '" hidden></select>' +
-          '<select class="ht-f ht-f-tag" aria-label="' + esc(window.t("ht.f_aria_tag")) + '" hidden></select>' +
-          '<button type="button" class="ht-f ht-f-contact" aria-pressed="false">' + ic("phone") +
-            '<span class="ht-f-contact-t"></span></button>' +
-          '</div>' +
-        '</div>' +
+      '<div class="ht-wrap ib-v5">' +
         '<div class="ht-body">' +
-          // Dòng đếm và chip lọc nằm ngay trên danh sách mà chúng nói về, không chiếm cả một hàng suốt bề ngang (0.65.10).
           '<div class="ht-listcol">' +
-            '<div class="ht-fsum">' +
-              '<span class="ht-fcount"></span><span class="ht-loc"></span>' +
-              '<button type="button" class="ht-fclear" hidden>' + esc(window.t("ht.f_clear")) + '</button>' +
+            '<div class="ib-lhead">' +
+              '<button type="button" class="ib-picker" aria-haspopup="dialog" aria-expanded="false"></button>' +
+              '<div class="ib-srow"><span class="ib-swrap">' + ic("search") +
+                '<input class="ht-search" type="search" placeholder="' + esc(window.t("ib.search_ph")) + '" aria-label="' +
+                esc(window.t("ib.search_ph")) + '"></span>' +
+                '<button type="button" class="ib-fbtn" aria-haspopup="dialog" aria-expanded="false">' + ic("sliders-horizontal") +
+                  ' <span>' + esc(window.t("ib.f_btn")) + '</span><span class="ib-fbtn-n" hidden></span></button></div>' +
+              '<div class="ib-quick" role="group" aria-label="' + esc(window.t("ib.quick_aria")) + '"></div>' +
+              '<div class="ib-activef"></div>' +
+              '<div class="ib-pop ib-pk" role="dialog" aria-label="' + esc(window.t("ib.pk_aria")) + '" hidden></div>' +
+              '<div class="ib-pop ib-fm" role="dialog" aria-label="' + esc(window.t("ib.f_title")) + '" hidden></div>' +
             '</div>' +
             '<div class="ht-sdt" role="status" hidden></div>' +
             '<div class="ht-list"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>' +
           '</div>' +
           '<div class="ht-thread"><div class="ht-empty ht-thread-empty">' + ic("messages-square") +
             '<div>' + esc(window.t("ht.chon_mot")) + '</div></div></div>' +
+          '<div class="ht-info" hidden></div>' +
         '</div>' +
       '</div>';
     var s = body.querySelector(".ht-search");
@@ -284,39 +291,220 @@
     // (owner, 2026-10-25: "1 hội thoại" stuck after searching).
     s.value = _q;
     s.oninput = function () { _q = s.value.trim(); tai(); };
-    body.querySelector(".ht-f-bot").onchange = function (e) { _botLoc = e.target.value; onFilterChange(); };
-    body.querySelector(".ht-f-status").onchange = function (e) { _statusLoc = e.target.value; onFilterChange(); };
-    body.querySelector(".ht-f-type").onchange = function (e) { _typeLoc = e.target.value; onFilterChange(); };
-    body.querySelector(".ht-f-channel").onchange = function (e) { _kenhLoc = e.target.value; onFilterChange(); };
-    body.querySelector(".ht-f-tag").onchange = function (e) { _tagLoc = e.target.value; onFilterChange(); };
-    body.querySelector(".ht-f-contact").onclick = function () { _contactLoc = _contactLoc ? "" : "1"; onFilterChange(); };
-    var fbtn = body.querySelector(".ht-fbtn"), fpanel = body.querySelector(".ht-fpanel");
-    function setPanel(open) {
-      fpanel.classList.toggle("open", open);
-      fbtn.setAttribute("aria-expanded", open ? "true" : "false");
-    }
-    fbtn.onclick = function () { setPanel(!fpanel.classList.contains("open")); };
-    // A tap anywhere outside the bar (the list, a chat) folds the panel away again.
-    body.addEventListener("click", function (e) {
-      if (fpanel.classList.contains("open") && !body.querySelector(".ht-bar").contains(e.target)) setPanel(false);
-    });
-    body.querySelector(".ht-fclear").onclick = function () {
-      _botLoc = _statusLoc = _typeLoc = _kenhLoc = _tkLoc = _tagLoc = _contactLoc = "";
+    body.querySelector(".ib-picker").onclick = function () { setPop(_pick ? "" : "pick"); };
+    body.querySelector(".ib-fbtn").onclick = function () { setPop(_fm ? "" : "fm"); };
+    body.querySelector(".ib-quick").onclick = function (e) {
+      var b = e.target.closest && e.target.closest(".ib-q");
+      if (!b) return;
+      _who = b.dataset.who || "";
       onFilterChange();
     };
+    body.querySelector(".ib-activef").onclick = function (e) {
+      var b = e.target.closest && e.target.closest("button[data-k]");
+      if (!b) return;
+      dropFilter(b.dataset.k, b.dataset.v);
+      onFilterChange();
+    };
+    var pk = body.querySelector(".ib-pk"), fm = body.querySelector(".ib-fm");
+    pk.addEventListener("input", onPickInput);
+    pk.addEventListener("change", onPickChange);
+    pk.addEventListener("click", onPickClick);
+    fm.addEventListener("change", onFmChange);
+    fm.addEventListener("click", onFmClick);
     attachListResize(body);
-    taiTK(false).catch(function () {}).then(function () { tai(); if (_chon) taiTin(false); });
+    watchPopOutside();
+    paintHead();
+    taiTK(false).catch(function () {}).then(function () { paintHead(); tai(); if (_chon) taiTin(false); });
   }
 
   function filterState() {
-    return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc, tag: _tagLoc, contact: _contactLoc };
+    return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc, contact: _contactLoc,
+             who: _who, accs: _accs, tagsAny: _tagsAny, tagsNone: _tagsNone };
   }
   function saveFilters() { if (window.JavisConvFilters) window.JavisConvFilters.save(filterState()); }
-  function onFilterChange() { saveFilters(); tai(); }
+  function onFilterChange() { saveFilters(); paintHead(); tai(); }
 
   function urlDanhSach(limit, offset) {
-    return "/conversations?limit=" + limit + (offset ? "&offset=" + offset : "") + "&account_id=" + encodeURIComponent(_tkLoc) +
+    return "/conversations?limit=" + limit + (offset ? "&offset=" + offset : "") +
       "&q=" + encodeURIComponent(_q) + (window.JavisConvFilters ? window.JavisConvFilters.query(filterState()) : "");
+  }
+
+  // The channel accounts the picker offers: the ones of the open brain (`/channels/accounts`), each with its key.
+  function accList() { return _tk.filter(function (a) { return a && a.account_key; }); }
+  function youByAcc() { return (_whoCounts && _whoCounts.you_by_account) || {}; }
+  function logoPick(ch) { return logoKenh(ch, "20px"); }
+
+  // The head of the list: picker summary, quick filters with counts, chips for the active filters, the Filter count.
+  function paintHead() {
+    var V = window.JavisInboxV5, F = window.JavisConvFilters;
+    if (!_host || !V) return;
+    var accs = accList();
+    var sum = V.pickerSummary(accs, _accs);
+    var pb = _host.querySelector(".ib-picker");
+    if (pb) {
+      var chans = sum.channels.length ? sum.channels : [];
+      if (!chans.length) accs.forEach(function (a) { if (chans.indexOf(a.channel) < 0) chans.push(a.channel); });
+      var sub = sum.one ? nhanKenh(sum.one.channel) : sum.sub;
+      var ph = '<span class="ib-stack">' + chans.slice(0, 4).map(function (ch) { return logoKenh(ch, "22px"); }).join("") + '</span>' +
+        '<span class="ib-pk-tt"><b>' + esc(sum.title) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : "") + '</span>' + ic("chevron-down");
+      if (pb.dataset.sig !== ph) { pb.innerHTML = ph; pb.dataset.sig = ph; }
+    }
+    var q = _host.querySelector(".ib-quick");
+    if (q) {
+      var qh = V.quickHtml(_who, _whoCounts, ic);
+      if (q.dataset.sig !== qh) { q.innerHTML = qh; q.dataset.sig = qh; }
+    }
+    var st = filterState();
+    var chips = V.activeChips(st, _tags, _botList);
+    if (_kenhLoc) chips.unshift({ k: "channel", v: "", text: nhanKenh(_kenhLoc) });
+    var af = _host.querySelector(".ib-activef");
+    if (af) af.innerHTML = chips.map(function (c) {
+      return '<span class="ib-fchip"><span>' + esc(c.text) + '</span><button type="button" data-k="' + esc(c.k) + '" data-v="' + esc(c.v) +
+        '" aria-label="' + esc(window.t("ib.fc_remove", { f: c.text })) + '">' + ic("x") + '</button></span>';
+    }).join("");
+    var n = F ? F.activeCount(st) : 0;
+    var fb = _host.querySelector(".ib-fbtn");
+    if (fb) {
+      fb.classList.toggle("on", n > 0);
+      var nn = fb.querySelector(".ib-fbtn-n");
+      if (nn) { nn.textContent = String(n); nn.hidden = !n; }
+    }
+  }
+
+  function dropFilter(k, v) {
+    if (k === "tagsAny") _tagsAny = _tagsAny.filter(function (x) { return x !== v; });
+    else if (k === "tagsNone") _tagsNone = _tagsNone.filter(function (x) { return x !== v; });
+    else if (k === "type") _typeLoc = "";
+    else if (k === "bot") _botLoc = "";
+    else if (k === "status") _statusLoc = "";
+    else if (k === "contact") _contactLoc = "";
+    else if (k === "channel") _kenhLoc = "";
+  }
+
+  // ---- the two popovers: channel picker and Filter menu. One open at a time; they redraw only on the owner's own
+  // actions, never on the 5-second refresh, so a tick or a typed search is never lost under the cursor.
+  function setPop(which) {
+    if (!_host) return;
+    _pick = which === "pick"; _fm = which === "fm";
+    if (_pick) _pickQ = "";
+    paintPops();
+    var f = _pick ? _host.querySelector(".ib-pk .ib-pk-q") : _fm ? _host.querySelector(".ib-fm .ib-fm-cat.on") : null;
+    if (f) f.focus();
+  }
+
+  function paintPops() {
+    var V = window.JavisInboxV5, F = window.JavisConvFilters;
+    if (!_host || !V) return;
+    var pk = _host.querySelector(".ib-pk"), fm = _host.querySelector(".ib-fm");
+    var pb = _host.querySelector(".ib-picker"), fb = _host.querySelector(".ib-fbtn");
+    if (pb) pb.setAttribute("aria-expanded", String(_pick));
+    if (fb) fb.setAttribute("aria-expanded", String(_fm));
+    if (pk) {
+      pk.hidden = !_pick;
+      pk.innerHTML = _pick ? V.pickerHtml(accList(), _accs, youByAcc(), _pickQ, logoPick, nhanKenh, ic) : "";
+      pk.querySelectorAll("input[data-half]").forEach(function (x) { x.indeterminate = true; });
+    }
+    if (fm) {
+      fm.hidden = !_fm;
+      fm.innerHTML = _fm ? V.filterMenuHtml(filterState(), _fmCat, _tags, _facets, _botList, ic, F ? F.tagChip : null) : "";
+    }
+  }
+
+  function onPickInput(e) {
+    if (!e.target.classList.contains("ib-pk-q")) return;
+    _pickQ = e.target.value;
+    var pos = e.target.selectionStart;
+    paintPops();
+    var q = _host && _host.querySelector(".ib-pk .ib-pk-q");
+    if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (err) { /* type=search may refuse */ } }
+  }
+
+  function onPickChange(e) {
+    var t = e.target;
+    if (t.classList.contains("ib-pk-all")) _accs = [];
+    else if (t.classList.contains("ib-pk-ch")) {
+      // Ticking a channel ticks every nick or Page of it (not only the ones the search shows).
+      var keys = accList().filter(function (a) { return a.channel === t.dataset.ch; }).map(function (a) { return a.account_key; });
+      _accs = _accs.filter(function (k) { return keys.indexOf(k) < 0; });
+      if (t.checked) _accs = _accs.concat(keys);
+    } else if (t.classList.contains("ib-pk-acc")) {
+      var k = t.dataset.k;
+      _accs = _accs.filter(function (x) { return x !== k; });
+      if (t.checked) _accs.push(k);
+    } else return;
+    onFilterChange();
+    paintPops();
+    var again = _host && _host.querySelector(t.classList.contains("ib-pk-acc") ? '.ib-pk-acc[data-k="' + t.dataset.k + '"]'
+      : t.classList.contains("ib-pk-ch") ? '.ib-pk-ch[data-ch="' + t.dataset.ch + '"]' : ".ib-pk-all");
+    if (again) again.focus();
+  }
+
+  function onPickClick(e) {
+    var b = e.target.closest && e.target.closest("button");
+    if (!b) return;
+    if (b.classList.contains("ib-pk-clear")) { _accs = []; onFilterChange(); paintPops(); }
+    else if (b.classList.contains("ib-pk-done")) { setPop(""); focusOpener(".ib-picker"); }
+    else if (b.classList.contains("ib-pk-manage")) { setPop(""); chonTab("bot"); }
+  }
+
+  function onFmChange(e) {
+    var t = e.target;
+    if (t.dataset.tag != null) {
+      var none = _fmCat === "tagsNone";
+      var arr = (none ? _tagsNone : _tagsAny).filter(function (x) { return x !== t.dataset.tag; });
+      if (t.checked) arr.push(t.dataset.tag);
+      if (none) _tagsNone = arr; else _tagsAny = arr;
+    } else if (t.name === "ib-type") _typeLoc = t.dataset.v;
+    else if (t.name === "ib-bot") _botLoc = t.dataset.v;
+    else if (t.name === "ib-st") _statusLoc = t.dataset.v;
+    else if (t.classList.contains("ib-fm-contact")) _contactLoc = t.checked ? "1" : "";
+    else return;
+    onFilterChange();
+    var sel = t.dataset.tag != null ? 'input[data-tag="' + t.dataset.tag + '"]' : t.name ? 'input[name="' + t.name + '"][data-v="' + t.dataset.v + '"]' : ".ib-fm-contact";
+    paintPops();
+    var again = _host && _host.querySelector(".ib-fm " + sel);
+    if (again) again.focus();
+  }
+
+  function onFmClick(e) {
+    var b = e.target.closest && e.target.closest("button");
+    if (!b) return;
+    if (b.classList.contains("ib-fm-cat")) {
+      _fmCat = b.dataset.cat;
+      paintPops();
+      var on = _host.querySelector('.ib-fm-cat[data-cat="' + _fmCat + '"]');
+      if (on) on.focus();
+    } else if (b.classList.contains("ib-fm-clear")) {
+      _tagsAny = []; _tagsNone = []; _typeLoc = _botLoc = _statusLoc = _contactLoc = "";
+      onFilterChange();
+      paintPops();
+    } else if (b.classList.contains("ib-fm-done")) { setPop(""); focusOpener(".ib-fbtn"); }
+  }
+
+  function focusOpener(sel) { var b = _host && _host.querySelector(sel); if (b) b.focus(); }
+
+  var _popOutside = false;
+  function watchPopOutside() {
+    if (_popOutside) return;
+    _popOutside = true;
+    // Crossing 1200px (a window resized, a phone turned): the Info panel follows the width unless the owner chose.
+    try {
+      var mq = window.matchMedia("(max-width: 1200px)");
+      var follow = function () { if (_info === null && _host && document.body.contains(_host)) paintInfo(); };
+      if (mq.addEventListener) mq.addEventListener("change", follow); else if (mq.addListener) mq.addListener(follow);
+    } catch (e) { /* old browser: the panel keeps its state */ }
+    document.addEventListener("mousedown", function (ev) {
+      if ((!_pick && !_fm) || !_host || !document.body.contains(_host)) return;
+      var t = ev.target;
+      if (t.closest && (t.closest(".ib-pop") || t.closest(".ib-picker") || t.closest(".ib-fbtn"))) return;
+      setPop("");
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Escape" || (!_pick && !_fm) || !_host) return;
+      var from = _pick ? ".ib-picker" : ".ib-fbtn";
+      setPop("");
+      focusOpener(from);
+    });
   }
 
   // Số di động Việt Nam đầy đủ (0912345678, 84912345678, +84 912 345 678), cùng luật với `conversations.chuan_hoa_sdt`: chỉ khi đó
@@ -374,9 +562,10 @@
       _stats = d.stats || {};
       _facets = d.facets || null;
       _botList = d.bots || [];
+      if (d.who_counts) _whoCounts = d.who_counts;
       if (d.tags) _tags = d.tags;
       if (d.channels) _kenhDS = d.channels;
-      var vet = JSON.stringify([_items, _stats, _facets, _botList, _conDS, _tags]);
+      var vet = JSON.stringify([_items, _stats, _facets, _botList, _conDS, _tags, _whoCounts]);
       if (im && vet === _dauVet) return;
       _dauVet = vet;
     } catch (e) {
@@ -385,7 +574,7 @@
       if (!im) box.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
       return;
     }
-    paintFilters();
+    paintHead();
     veDanhSach();
     veTabs();
   }
@@ -411,66 +600,24 @@
       return;
     }
     _dangTaiDS = false;
-    paintFilters();
     veDanhSach();
   }
 
-  // Bộ lọc dropdown (0.65.3): một hàng chung với ô tìm, số đếm nằm trong từng lựa chọn (chip chiếm quá nhiều chỗ khi
-  // chạy nhiều bot). Phần dựng chuỗi <option> nằm ở conversations-filters.js.
-  var FILTER_SEL = { bot: ".ht-f-bot", status: ".ht-f-status", type: ".ht-f-type", channel: ".ht-f-channel", tag: ".ht-f-tag" };
+  // The nick or Page a chat came through: the account's own name, else the label it has on the Channels list.
+  function accLabel(c) {
+    if (c.account_name) return c.account_name;
+    var a = _tk.filter(function (x) { return x.account_key === c.channel_account_id; })[0];
+    return a ? a.label || "" : "";
+  }
 
-  function paintFilters() {
-    var F = window.JavisConvFilters;
-    if (!_host || !F) return;
-    var st = filterState();
-    var html = {
-      bot: F.botOptions(_botList, _facets, st.bot),
-      status: F.statusOptions(_facets, st.status),
-      type: F.typeOptions(_facets, st.type),
-      channel: F.channelOptions(_stats.theo_kenh || {}, st.channel, nhanKenh),
-      tag: F.tagOptions(_tags, st.tag),
-    };
-    Object.keys(FILTER_SEL).forEach(function (k) {
-      var sel = _host.querySelector(FILTER_SEL[k]);
-      if (!sel) return;
-      // Đang mở dropdown thì KHÔNG dựng lại: nhịp tự làm mới 5 giây sẽ đóng nó giữa chừng, đúng lúc người ta chọn.
-      if (document.activeElement !== sel && sel.dataset.sig !== html[k]) {
-        sel.innerHTML = html[k];
-        sel.dataset.sig = html[k];
-      }
-      sel.value = st[k];
-      sel.classList.toggle("on", !!st[k]);
-    });
-    // Kênh chỉ đáng có khi hòm thư có từ 2 kênh (hoặc đang lọc theo một kênh).
-    var ch = _host.querySelector(FILTER_SEL.channel);
-    if (ch) ch.hidden = Object.keys(_stats.theo_kenh || {}).length < 2 && !st.channel;
-    // Tag dropdown only once the owner has made a tag (they make them from a conversation's tag button).
-    var tg = _host.querySelector(FILTER_SEL.tag);
-    if (tg) tg.hidden = !_tags.length && !st.tag;
-
-    var ct = _host.querySelector(".ht-f-contact");
-    if (ct) {
-      ct.querySelector(".ht-f-contact-t").textContent = F.contactLabel(_facets);
-      ct.setAttribute("aria-pressed", st.contact ? "true" : "false");
-      ct.classList.toggle("on", !!st.contact);
-    }
-    var active = F.activeCount(st) + (_tkLoc ? 1 : 0);
-    var fn = _host.querySelector(".ht-fbtn-n");
-    if (fn) { fn.textContent = String(active); fn.hidden = !active; }
-    var cnt = _host.querySelector(".ht-fcount");
-    if (cnt) cnt.textContent = window.t(active ? "ht.f_count_f" : "ht.f_count",
-      { n: _items.length + (_conDS ? "+" : ""), f: active });
-    var clr = _host.querySelector(".ht-fclear");
-    if (clr) clr.hidden = !active;
-    // Đang lọc theo MỘT tài khoản (mở từ mục Kênh chưa có bot): một chip có nút bỏ.
-    var tkChip = _tkLoc ? (_tk.filter(function (a) { return a.account_key === _tkLoc; })[0] || null) : null;
-    var loc = _host.querySelector(".ht-loc");
-    if (loc) {
-      loc.innerHTML = tkChip ? '<button type="button" class="ht-loc-chip on ht-loc-tk">' + logoKenh(tkChip.channel) + ' ' +
-        esc(tkChip.label) + ' ' + ic("x") + '</button>' : "";
-      var bo = loc.querySelector(".ht-loc-tk");
-      if (bo) bo.onclick = function () { _tkLoc = ""; tai(); };
-    }
+  // Avatar: the first letter (a group gets the group icon), with the channel's real logo in the corner (owner, 2026-10-28:
+  // "kênh nào thì lấy logo kênh đấy"). In the folded strip (.ht-mini) it is all that shows, with a dot for unread.
+  function avatarHtml(c, ten) {
+    var ch = String(ten || "?").trim().charAt(0).toUpperCase() || "?";
+    var grp = c.chat_type === "group";
+    return '<span class="ht-item-ava' + (grp ? " g" : "") + '" aria-hidden="true">' + (grp ? ic("users") : esc(ch)) +
+      '<span class="ib-kl">' + logoKenh(c.channel, "21px") + '</span>' +
+      (c.unread_count ? '<span class="ht-item-ava-dot"></span>' : "") + '</span>';
   }
 
   function veDanhSach() {
@@ -479,8 +626,17 @@
     if (!_items.length) {
       closeRowMenu(false);
       var coNguon = _tk.some(function (a) { return a.ghi; });
+      var loc = !!(_q || _kenhLoc || _botLoc || _accs.length || _statusLoc || _typeLoc || _tagsAny.length || _tagsNone.length || _contactLoc);
+      // Only the quick "who" filter hides everything (no chat needs you right now): say it kindly, one tap shows them all.
+      if (_who && !loc && (_whoCounts ? ["you", "ai", "owner", "log"].some(function (w) { return _whoCounts[w]; }) : coNguon)) {
+        box.innerHTML = '<div class="ht-empty">' + ic(_who === "you" ? "circle-check" : "messages-square") +
+          '<b>' + esc(window.t("ib.empty_" + _who)) + '</b>' +
+          '<button type="button" class="s-btn-ghost ib-see-all">' + esc(window.t("ib.see_all")) + '</button></div>';
+        box.querySelector(".ib-see-all").onclick = function () { _who = ""; onFilterChange(); };
+        return;
+      }
       box.innerHTML = '<div class="ht-empty">' + ic("messages-square") +
-        '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc || _statusLoc || _typeLoc || _tagLoc || _contactLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
+        '<b>' + esc(loc || _who ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
           (!coNguon ? infoBtn() : "") + '</b>' +
         // Where messages come from opens from (i); the button to add an account stays visible (0.214.0).
         (!coNguon ? infoBody(esc(window.t("ht.chua_co_goi_y"))) +
@@ -498,29 +654,26 @@
       var fr = ae.closest(".ht-item");
       if (fr) keep = { id: fr.dataset.id, sel: ae.classList.contains("ht-rmore") ? ".ht-rmore" : ae.classList.contains("ht-pin") ? ".ht-pin" : "" };
     }
+    var V = window.JavisInboxV5;
+    var many = _accs.length !== 1;      // several nicks or Pages in view: each row names the one it came through
     box.innerHTML = _items.map(function (c) {
       var ten = c.title || c.customer_name || c.external_chat_id;
-      var ai = c.last_sender_type === "ai" ? window.t("ht.bot") + ": "
-             : c.last_sender_type === "human" ? window.t("ht.ban") + ": " : "";
-      // Dòng thẻ: tên bot (chỉ khi có từ 2 bot, một bot thì là nhiễu) và tình trạng. Không có thẻ nào thì không có dòng.
-      var tags = [];
-      if (_botList.length >= 2 && c.bot_name) {
-        tags.push('<span class="ht-bot-tag c' + (F ? F.botColor(c.bot_id) : 0) + '">' + esc(c.bot_name) + '</span>');
-      }
-      if (c.mode === "human") tags.push('<span class="ht-mode">' + esc(window.t("ht.mode_human")) + '</span>');
-      else if (c.need_reply) tags.push('<span class="ht-need">' + esc(window.t("ht.tag_need")) + '</span>');
+      var pre = c.last_sender_type === "ai" ? window.t("ib.pre_ai") : c.last_sender_type === "human" ? window.t("ib.pre_you") : "";
+      var who = V && V.WHO.indexOf(c.who) >= 0 ? c.who : "log";
+      // The row's coloured edge says who is handling it; the hover text says it in words (Chatbot v5).
+      var say = (V ? V.whoLabel(who) + ": " + V.whoSentence(c) : "") +
+        (c.message_count ? " · " + window.t("ht.so_tin_title", { count: c.message_count }) : "");
       // Nút ghim (0.223.0) là <span role=button>: cả hàng đã là một <button>, nút lồng trong nút là HTML sai.
       // Since the row menu (2026-10-25) pinning lives in "...": only a PINNED row shows its pin (click it to unpin), so
       // unpinned rows stay clean like Zalo's. The "..." is a <span role=button> for the same reason as the pin.
-      // The owner's tags (2026-10-25): their own line under the preview, two chips then "+N" (Pancake's list row).
-      var userTags = (F && c.tags && c.tags.length) ? '<span class="ht-item-utags">' + F.tagChips(c.tags, 2) + '</span>' : "";
-      return '<button type="button" class="ht-item' + (c.id === _chon ? " on" : "") +
+      // The owner's tags: two chips then "+N" (Pancake's list row), and the nick or Page name at the end of that line.
+      var userTags = (F && c.tags && c.tags.length) ? F.tagChips(c.tags, 2) : "";
+      var accName = many ? accLabel(c) : "";
+      var acc = accName ? '<span class="ib-acc">' + esc(accName) + '</span>' : "";
+      return '<button type="button" class="ht-item w-' + who + (c.id === _chon ? " on" : "") +
           (c.unread_count ? " unread" : "") + (c.pinned ? " ghim" : "") + (c.hidden ? " hid" : "") +
-          (_rm && _rm.id === c.id ? " menu-on" : "") + '" data-id="' + c.id + '">' +
-        '<span class="ht-item-ic">' + (c.chat_type === "group" ? ic("users") : ic("user-round")) + '</span>' +
-        // Only shown while the column is dragged into a strip (.ht-mini): the first letter, and a dot for unread.
-        '<span class="ht-item-ava" aria-hidden="true">' + esc(String(ten || "?").trim().charAt(0).toUpperCase() || "?") +
-          (c.unread_count ? '<span class="ht-item-ava-dot"></span>' : "") + '</span>' +
+          (_rm && _rm.id === c.id ? " menu-on" : "") + '" data-id="' + c.id + '" title="' + esc(say) + '">' +
+        avatarHtml(c, ten) +
         '<span class="ht-item-text">' +
           '<span class="ht-item-top"><strong>' + esc(ten) + '</strong>' +
             (c.contact ? '<span class="ht-has-contact" title="' + esc(window.t("ht.contact_left", { v: c.contact })) + '">' +
@@ -532,16 +685,13 @@
             '<span class="ht-rmore" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="' + !!(_rm && _rm.id === c.id) +
               '" aria-label="' + esc(window.t("ht.rm_more", { name: ten })) + '" title="' + esc(window.t("ht.rm_more_short")) + '">' +
               ic("ellipsis") + '</span></span>' +
-          (tags.length ? '<span class="ht-item-tags">' + tags.join("") + '</span>' : "") +
-          '<span class="ht-item-sub">' + logoKenh(c.channel) +
-            '<small>' + esc(ai + (window.JavisHtMedia ? window.JavisHtMedia.tomTat(c.last_message || "", window.t)
-                                                     : (c.last_message || ""))) + '</small>' +
-            // Tổng số tin của cuộc (0.148.0, như cột Lịch sử của Trò chuyện), khác số đỏ là số tin CHƯA ĐỌC.
-            (c.message_count ? '<span class="ht-count" title="' + esc(window.t("ht.so_tin_title", { count: c.message_count })) + '">' +
-              esc(window.t("sess.msgs", { count: c.message_count })) + '</span>' : "") +
+          '<span class="ht-item-sub">' +
+            '<small>' + (pre ? '<span class="ib-pre">' + esc(pre) + ' </span>' : "") +
+              esc(window.JavisHtMedia ? window.JavisHtMedia.tomTat(c.last_message || "", window.t) : (c.last_message || "")) + '</small>' +
             (c.unread_count ? '<span class="ht-badge" title="' + esc(window.t("ht.chua_doc_title", { count: c.unread_count })) + '">' +
               c.unread_count + '</span>' : "") +
-          '</span>' + userTags +
+          '</span>' +
+          (userTags || acc ? '<span class="ht-item-utags">' + userTags + acc + '</span>' : "") +
         '</span></button>';
     }).join("") + (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +
                             esc(window.t("ht.xem_them")) + '</button></div>' : "");
@@ -783,9 +933,9 @@
         // Leaves the list it no longer belongs to: hidden out of the normal list, unhidden out of the "Hidden" filter.
         // A search shows both, so there the row stays and only its eye mark changes.
         if (!_q) _items = _items.filter(function (k) { return k.id !== id || (_statusLoc === "hidden") === !!k.hidden; });
-      } else if (act === "mode_ai" || act === "mode_human") {
-        var mode = act === "mode_ai" ? "ai" : "human";
-        if ((c.mode === "human") === (mode === "human")) return closeRowMenu(true);
+      } else if (act === "mode_ai" || act === "mode_draft" || act === "mode_human") {
+        var mode = act.slice(5);
+        if (modeOf(c) === mode) return closeRowMenu(true);
         await api("/conversations/" + id + "/mode", { method: "POST", body: fd({ mode: mode }) });
         c.mode = mode;
         if (_conv && _conv.id === id) { _conv.mode = mode; _dauVetTin = ""; taiTin(false); }
@@ -823,6 +973,7 @@
     closeRowMenu(false);
     await mo(convId);
     _tagPop = true; _tagEdit = 0; _tagErr = "";
+    if (!infoOpen()) setInfo(true);
     veTagRow();
     var n = _host && _host.querySelector(".ht-tagpop-nname");
     if (n) n.focus();
@@ -864,7 +1015,7 @@
   // ---------------------------------------------------------------- một hội thoại
   async function mo(id) {
     closeRowMenu(false);
-    if (id !== _chon) { _tagPop = false; _tagEdit = 0; _tagErr = ""; }
+    if (id !== _chon) { _tagPop = false; _tagEdit = 0; _tagErr = ""; _draftEdit = null; _noteEdit = null; }
     _chon = id;
     _dauVetTin = "";
     _actNote = null;
@@ -884,6 +1035,7 @@
     var th = _host.querySelector(".ht-thread");
     if (th) th.innerHTML = '<div class="ht-empty ht-thread-empty">' +
       ic("messages-square") + '<div>' + esc(window.t("ht.chon_mot")) + '</div></div>';
+    paintInfo();
     veDanhSach();
   }
 
@@ -927,8 +1079,8 @@
   function metaSig() {
     var c = _conv || {}, u = _msgs[_msgs.length - 1] || {};
     return JSON.stringify([c.id, c.mode, c.bot_id, c.bot_name, c.title, c.customer_name, c.channel, c.chat_type, c.account_name,
-      c.tags || [], c.contact || "",
-      _silence, _running, u.sender_type, _msgs.some(function (m) { return m.sender_type === "customer" && (m.text || "").trim(); })]);
+      c.tags || [], c.contact || "", c.note || "", c.who, c.who_code, c.ai_allowed, c.ai_pending, c.draft || null, c.reply_when,
+      c.yield_min, _silence, _running, u.sender_type]);
   }
 
   // Chèn tin mới vào cuối khung, trước dòng "Bot im" nếu có. Đang ở đáy thì trượt theo tin mới; đang đọc tin cũ thì đứng yên.
@@ -987,65 +1139,267 @@
     if (nut) nut.onclick = taiCu;
   }
 
+  function modeOf(c) { return c && c.mode === "human" ? "human" : c && c.mode === "draft" ? "draft" : "ai"; }
+
+  // The chat column (Chatbot v5): head with the Info button, the "Who replies" bar in the colour of who is handling the
+  // chat (three modes when the A.I. may answer here, "Let the A.I. answer here" when not, Allow / Dismiss when someone
+  // called it in a chat not allowed yet) plus one sentence about what is going on, the messages, then the draft box
+  // and the composer with "A.I. reply" next to Send.
   function veThread() {
     var box = _host.querySelector(".ht-thread");
     if (!box) return;
+    var V = window.JavisInboxV5;
     var c = _conv || {};
     var ten = c.title || c.customer_name || c.external_chat_id;
-    var human = c.mode === "human";
-    var laBot = !!c.bot_id;
     var guiDuoc = nangLuc(c.channel, "tra_loi_tu_javis");
     var cuon = box.querySelector(".ht-msgs");
     var oDay = !cuon || (cuon.scrollHeight - cuon.scrollTop - cuon.clientHeight < 80);
     var tuDay = cuon ? cuon.scrollHeight - cuon.scrollTop : 0;      // đang đọc giữa chừng thì vẽ lại xong phải đứng đúng chỗ cũ (đo theo đáy)
-    // Giữ chữ đang gõ dở khi nhịp tự làm mới vẽ lại khung.
-    var oCu = box.querySelector(".ht-compose textarea");
-    var nhapDo = oCu ? oCu.value : "";
+    // Giữ chữ đang gõ dở (và chỗ con trỏ) khi nhịp tự làm mới vẽ lại khung.
+    var oCu = box.querySelector(".ib-cin textarea");
+    var nhapDo = oCu ? oCu.value : "", goDo = !!(oCu && document.activeElement === oCu);
+    var dCu = box.querySelector(".ib-draft-t"), suaDo = !!(dCu && document.activeElement === dCu);
+    var who = V && V.WHO.indexOf(c.who) >= 0 ? c.who : "log";
+    var bar = V ? V.modeBarHtml(c, ic) : "";
+    var threeModes = !!(c.bot_id && c.ai_allowed);
     box.innerHTML =
       '<div class="ht-head">' +
-        '<button type="button" class="s-btn-ghost ht-back">' + ic("arrow-left") + '</button>' +
+        '<button type="button" class="s-btn-ghost ht-back" aria-label="' + esc(window.t("ib.back")) + '">' + ic("arrow-left") + '</button>' +
+        avatarHtml(c, ten) +
         '<div class="ht-head-text"><strong>' + esc(ten) + '</strong>' +
-          '<small>' + chipKenh(c.channel) + (c.account_name ? ' · ' + esc(c.account_name) : "") +
+          '<small>' + chipKenh(c.channel) + (accLabel(c) ? ' · ' + esc(accLabel(c)) : "") +
           (c.chat_type === "group" ? ' · ' + esc(window.t("ht.nhom")) : "") + '</small></div>' +
-        // Công tắc hai nấc thay nút Tiếp quản nhỏ (0.65.4): thấy ngay cuộc chat đang do ai lo và gạt được bằng một chạm.
-        (laBot
-          ? '<div class="ht-seg" role="group" aria-label="' + esc(window.t("ht.sw_aria")) + '">' +
-              '<button type="button" class="ht-seg-b' + (human ? "" : " on") + '" data-m="ai" aria-pressed="' + (!human) + '">' +
-                ic("sparkles") + ' ' + esc(window.t("ht.sw_auto")) + '</button>' +
-              '<button type="button" class="ht-seg-b' + (human ? " on" : "") + '" data-m="human" aria-pressed="' + human + '">' +
-                ic("hand") + ' ' + esc(window.t("ht.sw_mine")) + '</button>' +
-            '</div>'
-          : "") +
+        '<button type="button" class="s-btn-ghost ib-info-btn" aria-expanded="' + infoOpen() + '" title="' + esc(window.t("ib.info_t")) + '">' +
+          ic("info") + '<span>' + esc(window.t("ib.info")) + '</span></button>' +
       '</div>' +
-      '<div class="ht-tagrow"></div>' +
+      '<div class="ib-aibar w-' + who + '">' + (threeModes ? bar : "") +
+        '<span class="ib-say"><span class="ib-dot w-' + who + '"></span><span><b>' + esc(V ? V.whoLabel(who) : "") + ':</b> ' +
+          esc(V ? V.whoSentence(c) : "") + '</span></span>' +
+        (threeModes ? (c.mode === "human" ? '<button type="button" class="ib-link ib-back-ai">' + esc(window.t("ib.back_ai")) + '</button>' : "") : bar) +
+      '</div>' +
       '<div class="ht-msgs">' + nutTinCu() + _msgs.map(veTin).join("") + renderSilenceLine(c) + '</div>' +
-      (laBot ? renderStatusLine(c, human) + renderActions(c, human, guiDuoc) : "") +
-      (guiDuoc ? veCompose(c, laBot, human) :
-        '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>');
+      (guiDuoc ? veCompose(c) : '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>');
     box.querySelector(".ht-back").onclick = dongThread;
-    veTagRow();
-    box.querySelectorAll(".ht-seg-b").forEach(function (b) {
-      b.onclick = function () { if (b.dataset.m !== (human ? "human" : "ai")) doiMode(c.id, b.dataset.m); };
+    box.querySelector(".ib-info-btn").onclick = function () { setInfo(!infoOpen()); };
+    box.querySelectorAll(".ib-m").forEach(function (b) {
+      b.onclick = function () { setWho(c, b.dataset.m); };
     });
-    box.querySelectorAll(".ht-act").forEach(function (b) { b.onclick = function () { onAction(c, b); }; });
+    box.querySelectorAll(".ib-allow").forEach(function (b) {
+      b.onclick = function () { setWho(c, b.dataset.on === "1" ? modeOf(c) : "off", b.dataset.on !== "1" && !!c.ai_pending); };
+    });
+    var back = box.querySelector(".ib-back-ai");
+    if (back) back.onclick = function () { setWho(c, "ai"); };
+    var mk = box.querySelector(".ib-make-bot");
+    if (mk) mk.onclick = function () { makeBot(c); };
     var why = box.querySelector(".ht-silent-why");
     if (why) why.onclick = function () {
       if (window.JavisReplyPolicy) window.JavisReplyPolicy.openPanel({ id: c.bot_id, name: c.bot_name || "" });
     };
+    var now = box.querySelector(".ib-silent-ask");
+    if (now) now.onclick = function () { askNow(c); };
     var m = box.querySelector(".ht-msgs");
     if (oDay) m.scrollTop = m.scrollHeight;
     else if (cuon) m.scrollTop = m.scrollHeight - tuDay;
     noiTinCu(m);
     m.onscroll = function () { if (_conCu && m.scrollTop < 120) taiCu(); };
     if (_conCu && m.clientHeight > 0 && m.scrollHeight <= m.clientHeight + 40) taiCu();      // 40 tin ngắn chưa đủ cao để cuộn thì kéo thêm tin cũ cho tới khi cuộn được
-    var ta = box.querySelector(".ht-compose textarea");
+    var dt = box.querySelector(".ib-draft-t");
+    if (dt) {
+      var dr = c.draft || {};
+      if (_draftEdit && _draftEdit.ts === dr.ts) dt.value = _draftEdit.text;
+      dt.oninput = function () { _draftEdit = { ts: dr.ts, text: dt.value }; };
+      if (suaDo) dt.focus();
+      box.querySelector(".ib-dr-drop").onclick = function () { dropDraft(c); };
+      box.querySelector(".ib-dr-redo").onclick = function () { aiReply(c, dr.instruction || "", "redo"); };
+      box.querySelector(".ib-dr-send").onclick = function () { sendDraft(c); };
+    }
+    var ta = box.querySelector(".ib-cin textarea");
     if (ta) {
       ta.value = nhapDo;
+      if (goDo) { ta.focus(); try { ta.setSelectionRange(nhapDo.length, nhapDo.length); } catch (e) { /* ignore */ } }
       ta.onkeydown = function (e) {
         if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); gui(c); }
       };
       box.querySelector(".ht-send").onclick = function () { gui(c); };
+      var ask = box.querySelector(".ib-ask");
+      if (ask) ask.onclick = function () { aiReply(c, ta.value.trim(), "ask"); };
     }
+    paintInfo();
+  }
+
+  // ---------------------------------------------------------------- Info panel (Chatbot v5)
+  // The customer (contact, tags, the owner's note), "A.I. in this chat" (who replies; in a group when the A.I. speaks up;
+  // how long it waits after you type), and the channel. Every field is a dropdown; a change shows a toast with Undo.
+  function narrow() { try { return window.matchMedia("(max-width: 1200px)").matches; } catch (e) { return false; } }
+  function infoOpen() { return _info === null ? !narrow() : _info; }
+  function setInfo(on) {
+    _info = !!on;
+    var b = _host && _host.querySelector(".ib-info-btn");
+    if (b) b.setAttribute("aria-expanded", String(_info));
+    paintInfo();
+    if (_info) { var x = _host && _host.querySelector(".ht-info .ib-x"); if (x && narrow()) x.focus(); }
+    else if (b && narrow()) b.focus();
+  }
+
+  var YIELD_MIN = [0, 5, 10, 30, 60];
+  function paintInfo() {
+    var p = _host && _host.querySelector(".ht-info");
+    if (!p) return;
+    var c = _conv;
+    var open = !!(_chon && c && c.id === _chon && infoOpen());
+    p.hidden = !open;
+    if (!open) { p.innerHTML = ""; return; }
+    var t = window.t, k = kenhCua(c.channel);
+    var ten = c.title || c.customer_name || c.external_chat_id;
+    var nb = p.querySelector(".ib-notebox"), noteFocus = !!(nb && document.activeElement === nb);
+    var sel = function (key, label, opts, cur, hint) {
+      return '<div class="ib-fld"><label for="ibSet-' + key + '">' + esc(label) + '</label><select id="ibSet-' + key + '" data-set="' + key + '">' +
+        opts.map(function (o) {
+          return '<option value="' + esc(o[0]) + '"' + (String(o[0]) === String(cur) ? " selected" : "") + '>' + esc(o[1]) + '</option>';
+        }).join("") + '</select>' + (hint ? '<p class="ib-hint">' + esc(hint) + '</p>' : "") + '</div>';
+    };
+    var ai;
+    if (c.bot_id) {
+      var bot = c.bot_name || t("ht.bot");
+      var yOpts = [["", t("ib.i_yield_def")]].concat(YIELD_MIN.map(function (n) { return [String(n), n ? t("ib.i_yield_n", { n: n }) : t("ib.i_yield_0")]; }));
+      if (c.yield_min != null && YIELD_MIN.indexOf(c.yield_min) < 0) yOpts.push([String(c.yield_min), t("ib.i_yield_n", { n: c.yield_min })]);
+      ai = '<div class="ib-sec"><h4>' + ic("sparkles") + ' ' + esc(t("ib.i_ai")) + '</h4>' +
+        sel("who", t("ib.i_who"), [["off", t("ib.i_off")], ["ai", t("ib.m_ai")], ["draft", t("ib.m_draft")], ["human", t("ib.m_human")]],
+            c.ai_allowed ? modeOf(c) : "off") +
+        (c.chat_type === "group" && c.ai_allowed ? sel("when", t("ib.i_when"),
+            [["mention", t("ib.i_when_mention")], ["auto", t("ib.i_when_auto")], ["always", t("ib.i_when_always")]], c.reply_when || "mention") : "") +
+        (c.ai_allowed ? sel("yield", t("ib.i_yield"), yOpts, c.yield_min == null ? "" : String(c.yield_min)) +
+          '<p class="ib-hint">' + esc(t("ib.i_botwide", { bot: bot })) + '</p>' : "") +
+        '<button type="button" class="ib-link ib-open-bot">' + ic("settings") + ' ' + esc(t("ib.i_open_bot", { bot: bot })) + '</button></div>';
+    } else {
+      ai = '<div class="ib-sec"><h4>' + ic("sparkles") + ' ' + esc(t("ib.i_ai")) + '</h4><p class="ib-muted">' + esc(t("ib.i_nobot")) + '</p>' +
+        '<button type="button" class="s-btn ib-make-bot">' + ic("plus") + ' ' + esc(t("ib.make_bot")) + '</button></div>';
+    }
+    var mail = c.contact && String(c.contact).indexOf("@") > 0;
+    p.innerHTML =
+      '<div class="ib-ih">' + ic("user-round") + ' <span>' + esc(t("ib.info")) + '</span>' +
+        '<button type="button" class="s-btn-ghost ib-x" aria-label="' + esc(t("common.close")) + '">' + ic("x") + '</button></div>' +
+      '<div class="ib-sec"><div class="ib-kh">' + avatarHtml(c, ten) + '<span><b>' + esc(ten) + '</b><small>' + logoKenh(c.channel) + ' ' +
+          esc(accLabel(c) || k.nhan) + '</small></span></div>' +
+        // A group has no one customer to call back: the contact line is for private chats (or a group that left one).
+        (c.chat_type !== "group" || c.contact ? '<div class="ib-line">' + ic(mail ? "mail" : "phone") + (c.contact ? '<span>' + esc(c.contact) + '</span>'
+          : '<span class="ib-muted">' + esc(t("ib.i_no_contact")) + '</span>') + '</div>' : "") +
+        '<div class="ht-tagrow"></div>' +
+        '<textarea class="ib-notebox" rows="3" maxlength="4000" placeholder="' + esc(t("ib.i_note_ph")) + '" aria-label="' +
+          esc(t("ib.i_note")) + '"></textarea></div>' +
+      ai +
+      '<div class="ib-sec"><h4>' + ic("plug") + ' ' + esc(t("ib.i_channel")) + '</h4><div class="ib-line">' + logoKenh(c.channel) + ' <span>' +
+        esc(k.nhan) + (accLabel(c) ? ' · ' + esc(accLabel(c)) : "") + '</span></div></div>';
+    veTagRow();
+    var note = p.querySelector(".ib-notebox");
+    note.value = _noteEdit && _noteEdit.id === c.id ? _noteEdit.text : (c.note || "");
+    note.oninput = function () { _noteEdit = { id: c.id, text: note.value }; };
+    note.onblur = function () { saveNote(c.id); };
+    if (noteFocus) note.focus();
+    p.querySelector(".ib-x").onclick = function () { setInfo(false); };
+    p.querySelectorAll("select[data-set]").forEach(function (s) {
+      s.onchange = function () { onInfoSet(c, s.dataset.set, s.value); };
+    });
+    var ob = p.querySelector(".ib-open-bot");
+    if (ob) ob.onclick = function () {
+      chonTab("bot");
+      try { document.dispatchEvent(new CustomEvent("javis:chatbot-open", { detail: { bot_id: c.bot_id } })); } catch (e) { /* old browser */ }
+    };
+    var mk = p.querySelector(".ib-make-bot");
+    if (mk) mk.onclick = function () { makeBot(c); };
+  }
+
+  async function saveNote(id) {
+    if (!_noteEdit || _noteEdit.id !== id) return;
+    var text = _noteEdit.text;
+    if (_conv && _conv.id === id && String(_conv.note || "") === text.trim()) { _noteEdit = null; return; }
+    try {
+      var d = await api("/conversations/" + id + "/note", { method: "POST", body: fd({ note: text }) });
+      if (_noteEdit && _noteEdit.id === id && _noteEdit.text === text) _noteEdit = null;
+      if (_conv && _conv.id === id && d.conversation) _conv.note = d.conversation.note;
+      _vetMeta = metaSig();
+      toast(window.t("ib.t_note"));
+    } catch (e) { toast(window.t("ht.act_fail", { err: e.message })); }
+  }
+
+  async function onInfoSet(c, key, v) {
+    if (key === "who") return setWho(c, v);
+    if (!c.bot_id) return;
+    var patch = {}, prev = {};
+    if (key === "when") { patch.reply_when = v; prev.reply_when = c.reply_when || "mention"; }
+    else if (key === "yield") { patch.nhuong_tay_phut = v; prev.nhuong_tay_phut = c.yield_min == null ? "" : String(c.yield_min); }
+    else return;
+    await setBot(c.bot_id, patch, prev, key === "when" ? "ib.t_when" : "ib.t_yield");
+  }
+
+  // Bot-wide settings changed from a chat (reply_when, how long the A.I. waits after you type). Same route as the bot form.
+  async function setBot(botId, patch, prev, key, noUndo) {
+    try { await api("/chatbots/" + encodeURIComponent(botId) + "/update", { method: "POST", body: fd(patch) }); }
+    catch (e) { setNote(window.t("ht.act_fail", { err: e.message }), true); return; }
+    toast(window.t(key), noUndo ? null : function () { setBot(botId, prev, patch, key, true); });
+    refreshChat();
+  }
+
+  // "Who replies": off (the A.I. may not answer here) | ai | draft | human. Switching the A.I. on first allows it in this
+  // chat (POST /ai), then sets the mode. `dismiss`: the owner said "Dismiss" to someone calling the A.I. in a group.
+  async function setWho(c, v, dismiss, noUndo) {
+    var wasOn = !!c.ai_allowed, wasMode = modeOf(c);
+    if ((v === "off" && !wasOn && !c.ai_pending) || (v !== "off" && wasOn && v === wasMode)) return;
+    try {
+      if (v === "off") await api("/conversations/" + c.id + "/ai", { method: "POST", body: fd({ on: "0" }) });
+      else {
+        if (!wasOn) await api("/conversations/" + c.id + "/ai", { method: "POST", body: fd({ on: "1" }) });
+        if (v !== wasMode) await api("/conversations/" + c.id + "/mode", { method: "POST", body: fd({ mode: v }) });
+      }
+    } catch (e) { setNote(window.t("ht.act_fail", { err: e.message }), true); refreshChat(); return; }
+    var msg = dismiss ? "ib.t_dismissed" : v === "off" ? "ib.t_ai_off" : !wasOn ? "ib.t_ai_on" : "ib.t_mode_" + v;
+    toast(window.t(msg, { bot: c.bot_name || window.t("ht.bot") }), noUndo || dismiss ? null : function () {
+      var now = { id: c.id, ai_allowed: v !== "off", mode: v === "off" ? wasMode : v, bot_name: c.bot_name };
+      setWho(now, wasOn ? wasMode : "off", false, true);
+    });
+    refreshChat();
+  }
+
+  function refreshChat() {
+    _dauVetTin = "";
+    if (_chon) taiTin(false);
+    tai(true);
+  }
+
+  // No bot answers this channel account yet: open the bot form with the account ticked (same path as the account card).
+  function makeBot(c) {
+    var a = _tk.filter(function (x) { return x.account_key === c.channel_account_id; })[0];
+    chonTab("bot");
+    try { document.dispatchEvent(new CustomEvent("javis:chatbot-new", { detail: { account_id: a ? a.id : "" } })); } catch (e) { /* old browser */ }
+  }
+
+  // A line under the composer about the last action (an error, "the A.I. chose to stay silent").
+  function setNote(text, err) {
+    _actNote = text ? { text: text, err: !!err } : null;
+    var box = _host && _host.querySelector(".ht-thread .ht-compose");
+    if (!box) return;
+    var cu = box.querySelector(".ib-note");
+    if (cu) cu.parentNode.removeChild(cu);
+    if (_actNote) box.insertAdjacentHTML("afterbegin", noteHtml());
+  }
+  function noteHtml() {
+    return _actNote ? '<div class="ib-note' + (_actNote.err ? " err" : "") + '" role="status">' + ic(_actNote.err ? "triangle-alert" : "info") +
+      ' <span>' + esc(_actNote.text) + '</span></div>' : "";
+  }
+
+  // A short message at the bottom of the screen, with Undo when the change can be put back.
+  function toast(text, undo) {
+    var old = document.getElementById("ibToast");
+    if (old) old.parentNode.removeChild(old);
+    clearTimeout(_toastT);
+    var t = document.createElement("div");
+    t.id = "ibToast";
+    t.className = "ib-toast";
+    t.setAttribute("role", "status");
+    t.innerHTML = '<span>' + esc(text) + '</span>' + (undo ? '<button type="button">' + esc(window.t("ib.undo")) + '</button>' : "");
+    document.body.appendChild(t);
+    if (undo) t.querySelector("button").onclick = function () { if (t.parentNode) t.parentNode.removeChild(t); undo(); };
+    _toastT = setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 6000);
   }
 
   // ---------------------------------------------------------------- tags on a conversation (2026-10-25)
@@ -1096,7 +1450,7 @@
 
   var _tagEditColor = "", _tagNewText = "", _tagEditText = null;   // picker colour being edited, and what is typed (kept across redraws)
   function veTagRow() {
-    var row = _host && _host.querySelector(".ht-thread .ht-tagrow");
+    var row = _host && _host.querySelector(".ht-info .ht-tagrow");
     var F = window.JavisConvFilters;
     if (!row || !_conv || !F) return;
     var c = _conv, on = {};
@@ -1104,8 +1458,6 @@
     var nOld = row.querySelector(".ht-tagpop-nname");
     var focusNew = !!(nOld && document.activeElement === nOld);
     row.innerHTML =
-      (c.contact ? '<span class="ht-contact" title="' + esc(window.t("ht.contact_left", { v: c.contact })) + '">' +
-        ic(c.contact.indexOf("@") > 0 ? "mail" : "phone") + ' <span>' + esc(c.contact) + '</span></span>' : "") +
       (c.tags || []).map(function (g) {
         return '<span class="ht-tag ht-tag-on" data-c="' + F.tagColor(g.color) + '" title="' + esc(g.name) + '"><span class="ht-tag-name">' +
           esc(g.name) + '</span>' +
@@ -1167,7 +1519,7 @@
     _tagOutside = true;
     document.addEventListener("mousedown", function (ev) {
       if (!_tagPop || !_host) return;
-      var row = _host.querySelector(".ht-thread .ht-tagrow");
+      var row = _host.querySelector(".ht-info .ht-tagrow");
       if (row && !row.contains(ev.target)) { _tagPop = false; _tagEdit = 0; _tagErr = ""; veTagRow(); }
     });
   }
@@ -1183,7 +1535,12 @@
         return { id: g.id, name: by[g.id].name, color: by[g.id].color };
       });
     }
-    if (_tagLoc && !by[_tagLoc]) { _tagLoc = ""; saveFilters(); }
+    var keep = function (id) { return !!by[id]; };
+    if (_tagsAny.some(function (id) { return !keep(id); }) || _tagsNone.some(function (id) { return !keep(id); })) {
+      _tagsAny = _tagsAny.filter(keep); _tagsNone = _tagsNone.filter(keep);
+      saveFilters();
+      paintHead();
+    }
     _vetMeta = metaSig();
     veTagRow();
     tai(true);
@@ -1279,88 +1636,74 @@
     list.addEventListener("click", hide);
   }
 
-  // Một dòng nói ai đang trực cuộc chat này. Đứng riêng (không nhét vào ô nhập) để hai nút hành động ở lát sau có chỗ
-  // và dòng này không bao giờ bị nút đẩy xuống hàng.
-  function renderStatusLine(c, human) {
-    // Bot đang tắt mà vẫn ghi "đang trực" là nói dối: khách nhắn vào sẽ không ai đáp. Nói thẳng, và chỉ cách bật.
-    var off = !human && !_running;
-    var key = human ? "ht.st_human" : off ? "ht.st_off" : (c.bot_name ? "ht.st_ai" : "ht.st_ai_0");
-    return '<div class="ht-status ' + (human ? "human" : off ? "off" : "ai") + '">' + ic(human ? "hand" : off ? "circle-stop" : "sparkles") +
-      ' <span>' + esc(window.t(key, { bot: c.bot_name || window.t("ht.bot") })) + '</span></div>';
-  }
-
-  // Hai nút hành động (0.65.5), cùng cao và chia đôi bề ngang: "Trả lời giúp tin này" (bot trả lời NGAY tin khách cuối, dù bộ
-  // phán xử đã chọn im) và "Gợi ý câu trả lời" (bot soạn nháp vào ô nhập, chưa gửi). Chế độ Tôi trả lời thì nút thứ hai là "Trả
-  // lại cho bot". Nút chưa dùng được VẪN HIỆN, chạm vào nói lý do (nút ẩn hay xám câm thì không ai biết phải làm gì để bật nó).
-  function renderActions(c, human, guiDuoc) {
-    var lastCustomer = !!_msgs.length && _msgs[_msgs.length - 1].sender_type === "customer";
-    var hasCustomerMsg = _msgs.some(function (m) { return m.sender_type === "customer" && (m.text || "").trim(); });
-    var whyAnswer = human ? "ht.why_human" : !guiDuoc ? "ht.why_nosend" : !_running ? "ht.why_off" : !lastCustomer ? "ht.why_done" : "";
-    var whyDraft = !hasCustomerMsg ? "ht.why_nomsg" : !guiDuoc ? "ht.why_nosend" : "";
-    function actionButton(a, icon, label, why, pri) {
-      var isBusy = _actBusy === a;
-      return '<button type="button" class="ht-act' + (pri ? " pri" : "") + (why ? " off" : "") + (isBusy ? " busy" : "") +
-        '" data-a="' + a + '"' + (why ? ' data-why="' + why + '" aria-disabled="true"' : "") + (_actBusy ? " disabled" : "") + '>' +
-        ic(isBusy ? "loader" : icon) + ' <span>' + esc(window.t(isBusy ? "ht.act_busy" : label)) + '</span></button>';
-    }
-    var row = human
-      ? actionButton("draft", "sparkles", "ht.act_draft", whyDraft, false) + actionButton("back", "undo-2", "ht.act_back", "", false)
-      : actionButton("answer", "zap", "ht.act_answer", whyAnswer, true) + actionButton("draft", "sparkles", "ht.act_draft", whyDraft, false);
-    return '<div class="ht-acts">' + row + '</div>' +
-      (_actNote ? '<div class="ht-acts-note' + (_actNote.err ? " err" : "") + '">' + ic(_actNote.err ? "triangle-alert" : "info") +
-        ' <span>' + esc(_actNote.text) + '</span></div>' : "");
-  }
-
-  function setActionNote(text, err) {
-    _actNote = text ? { text: text, err: !!err } : null;
-    var box = _host && _host.querySelector(".ht-thread");
-    var cu = box && box.querySelector(".ht-acts-note");
-    if (cu) cu.parentNode.removeChild(cu);
-    var acts = box && box.querySelector(".ht-acts");
-    if (acts && _actNote) {
-      acts.insertAdjacentHTML("afterend", '<div class="ht-acts-note' + (_actNote.err ? " err" : "") + '">' +
-        ic(_actNote.err ? "triangle-alert" : "info") + ' <span>' + esc(_actNote.text) + '</span></div>');
-    }
-  }
-
-  async function onAction(c, b) {
-    var a = b.dataset.a;
-    if (a === "back") return doiMode(c.id, "ai");
-    if (b.dataset.why) return setActionNote(window.t(b.dataset.why), false);      // chưa dùng được: nói vì sao
-    if (_actBusy) return;
-    var box = _host.querySelector(".ht-thread");
-    var ta = box && box.querySelector(".ht-compose textarea");
-    if (a === "draft" && ta && ta.value.trim() && !confirm(window.t("ht.act_overwrite"))) return;
-    _actBusy = a;
-    setActionNote("", false);
+  // "A.I. reply" (owner, 2026-10-28: "nhiều khi anh gõ kiểu ra lệnh để nó trả lời khách"): what is typed in the box is an
+  // ORDER for the A.I. ("quote 20 cases wholesale, delivery Thursday"); an empty box lets it read the chat and write on its
+  // own. The answer is always a draft in the dashed box (kept on the server), never sent by itself. "Rewrite" asks again
+  // with the same order.
+  async function aiReply(c, lenh, kind) {
+    if (_aiBusy) return;
+    _aiBusy = kind;
+    _actNote = null;
     veThread();
-    var loi = "", text = "", d = {};
+    var d = {}, loi = "";
     try {
-      var r = await fetch("/conversations/" + c.id + "/ai-reply", { method: "POST", body: fd({ mode: a === "draft" ? "draft" : "send" }) });
+      var r = await fetch("/conversations/" + c.id + "/ai-reply", { method: "POST", body: fd({ mode: "draft", instruction: lenh || "" }) });
       try { d = await r.json(); } catch (e) { d = {}; }
       if (!r.ok || d.ok === false) loi = (d && d.error) || window.t("cb.loi_ma", { ma: r.status });
-      text = (d && d.text) || "";
     } catch (e) { loi = e.message; }
-    _actBusy = "";
-    _dauVetTin = "";
-    await taiTin(false);
-    var ta2 = _host.querySelector(".ht-thread .ht-compose textarea");
-    if (loi) {
-      // Không gửi được mà bot đã soạn xong: đổ vào ô nhập để chủ gửi tay, khỏi mất công soạn lại.
-      if (text && ta2) { ta2.value = text; }
-      setActionNote(window.t(text ? "ht.act_send_failed" : "ht.act_fail", { err: loi }), true);
-      return;
+    _aiBusy = "";
+    if (!loi && !d.silent) {
+      _draftEdit = null;
+      if (kind === "ask") { var ta = _host && _host.querySelector(".ht-thread .ib-cin textarea"); if (ta) ta.value = ""; }
     }
-    if (d.silent) return setActionNote(window.t("ht.act_silent"), false);
-    if (a === "draft") {
-      if (ta2) { ta2.value = text; ta2.focus(); }
-      return setActionNote(window.t("ht.act_drafted", { bot: c.bot_name || window.t("ht.bot") }), false);
-    }
-    tai(true);
-    setActionNote(window.t(d.taught ? "ht.act_sent_taught" : "ht.act_sent"), false);
+    _actNote = loi ? { text: window.t("ht.act_fail", { err: loi }), err: true } : d.silent ? { text: window.t("ib.ai_silent"), err: false } : null;
+    refreshChat();
   }
 
-  // "Bot im: lý do" ngay dưới tin khách cuối, lấy từ nhật ký bộ phán xử, khỏi phải mở menu Bộ phán xử để hỏi vì sao.
+  async function sendDraft(c) {
+    var t = _host && _host.querySelector(".ht-thread .ib-draft-t");
+    var txt = t ? t.value.trim() : "";
+    if (!txt || _aiBusy) return;
+    _aiBusy = "send";
+    veThread();
+    try {
+      await api("/conversations/" + c.id + "/draft", { method: "POST", body: fd({ action: "send", text: txt }) });
+      _draftEdit = null; _actNote = null;
+    } catch (e) { _actNote = { text: window.t("ht.act_fail", { err: e.message }), err: true }; }
+    _aiBusy = "";
+    refreshChat();
+  }
+
+  async function dropDraft(c) {
+    if (_aiBusy) return;
+    try { await api("/conversations/" + c.id + "/draft", { method: "POST", body: fd({ action: "discard" }) }); }
+    catch (e) { setNote(window.t("ht.act_fail", { err: e.message }), true); return; }
+    _draftEdit = null;
+    toast(window.t("ib.t_dropped"));
+    refreshChat();
+  }
+
+  // "Ask the A.I. to answer this message" under a message the bot stayed silent on: it answers and the reply is sent.
+  async function askNow(c) {
+    if (_aiBusy) return;
+    _aiBusy = "now";
+    veThread();
+    var d = {}, loi = "";
+    try {
+      var r = await fetch("/conversations/" + c.id + "/ai-reply", { method: "POST", body: fd({ mode: "send" }) });
+      try { d = await r.json(); } catch (e) { d = {}; }
+      if (!r.ok || d.ok === false) loi = (d && d.error) || window.t("cb.loi_ma", { ma: r.status });
+    } catch (e) { loi = e.message; }
+    _aiBusy = "";
+    _actNote = loi ? { text: window.t(d.text ? "ht.act_send_failed" : "ht.act_fail", { err: loi }), err: true }
+      : d.silent ? { text: window.t("ib.ai_silent"), err: false } : null;
+    if (loi && d.text) { var ta = _host && _host.querySelector(".ht-thread .ib-cin textarea"); if (ta) ta.value = d.text; }
+    else if (!loi && !d.silent) toast(window.t(d.taught ? "ib.t_sent_taught" : "ib.t_sent"));
+    refreshChat();
+  }
+
+  // "Bot im: lý do" ngay dưới tin khách cuối, lấy từ nhật ký bộ phán xử, khỏi phải mở menu Bộ phán xử để hỏi vì sao. When the
+  // A.I. may answer here and the customer's message is still the last one, one tap asks it to answer that message now.
   function renderSilenceLine(c) {
     var s = _silence;
     if (!s || !c.bot_id) return "";
@@ -1369,28 +1712,40 @@
     if (!lyDo) return "";
     var diem = (s.score == null) ? "" : " (" + Number(s.score).toFixed(2) +
       (s.threshold != null ? " / " + Number(s.threshold).toFixed(2) : "") + ")";
+    var last = _msgs[_msgs.length - 1];
+    var canAsk = c.ai_allowed && modeOf(c) === "ai" && _running && last && last.sender_type === "customer";
     return '<div class="ht-silent">' + ic("info") + ' <span>' + esc(window.t("ht.silent", { why: lyDo + diem })) + '</span>' +
-      (RP ? ' <button type="button" class="ht-silent-why">' + esc(window.t("ht.silent_why")) + '</button>' : "") + '</div>';
+      (RP ? ' <button type="button" class="ht-silent-why">' + esc(window.t("ht.silent_why")) + '</button>' : "") +
+      (canAsk ? ' <button type="button" class="ib-silent-ask"' + (_aiBusy ? " disabled" : "") + '>' +
+        esc(window.t(_aiBusy === "now" ? "ib.ai_busy" : "ib.ask_ai_now")) + '</button>' : "") + '</div>';
   }
 
-  // Ô trả lời khách. Nói rõ hai điều trước khi bấm gửi: gửi từ đây là TIẾP QUẢN (bot đang
-  // trực sẽ im ở cuộc này), và với kênh tài khoản cá nhân thì tin đi dưới tên chính bạn.
-  function veCompose(c, laBot, human) {
-    var k = kenhCua(c.channel);
+  // Ô trả lời khách: Gửi (gửi nguyên văn) và A.I. trả lời (chữ trong ô là lệnh cho A.I.). Nói rõ trước khi bấm gửi: gửi từ đây
+  // là TIẾP QUẢN (bot đang trực sẽ im ở cuộc này), và với kênh tài khoản cá nhân thì tin đi dưới tên chính bạn.
+  function veCompose(c) {
+    var V = window.JavisInboxV5, k = kenhCua(c.channel), t = window.t;
+    var laBot = !!c.bot_id;
+    var draft = c.draft && String(c.draft.text || "").trim() ? c.draft : null;
     var ghiChu = "";
-    if (laBot && !human) ghiChu = window.t("ht.gui_tiep_quan");
-    else if (k.kind === "account") ghiChu = window.t("ht.gui_ten_ban", { kenh: k.nhan });
-    return '<div class="ht-compose">' +
+    if (laBot && c.ai_allowed && modeOf(c) === "ai") ghiChu = t("ib.send_takes_over");
+    else if (k.kind === "account") ghiChu = t("ht.gui_ten_ban", { kenh: k.nhan });
+    var busy = _aiBusy === "redo" || _aiBusy === "send" ? _aiBusy : "";
+    return '<div class="ht-compose">' + noteHtml() +
+      (draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
       (ghiChu ? '<div class="ht-compose-note">' + ic("info") + ' ' + esc(ghiChu) + '</div>' : "") +
-      '<div class="ht-compose-row">' +
-        '<textarea rows="2" placeholder="' + esc(window.t("ht.gui_ph")) + '"></textarea>' +
-        '<button type="button" class="s-btn ht-send">' + ic("send") + ' ' + esc(window.t("ht.gui")) + '</button>' +
-      '</div></div>';
+      '<div class="ib-cin">' +
+        '<textarea rows="1" placeholder="' + esc(t(laBot ? "ib.cin_ph_ai" : "ht.gui_ph")) + '" aria-label="' + esc(t("ht.gui_ph")) + '"></textarea>' +
+        (laBot ? '<button type="button" class="s-btn-ghost ib-ask"' + (_aiBusy ? " disabled" : "") + ' title="' + esc(t("ib.ai_reply_t")) + '">' +
+          ic(_aiBusy === "ask" ? "loader" : "sparkles") + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
+        '<button type="button" class="s-btn ht-send">' + ic("send") + '<span>' + esc(t("ht.gui")) + '</span></button>' +
+      '</div>' +
+      (laBot && !draft ? '<div class="ib-hint">' + esc(t("ib.cmd_hint")) + '</div>' : "") +
+    '</div>';
   }
 
   async function gui(c) {
     var box = _host.querySelector(".ht-thread");
-    var ta = box && box.querySelector(".ht-compose textarea");
+    var ta = box && box.querySelector(".ib-cin textarea");
     var nut = box && box.querySelector(".ht-send");
     if (!ta || _dangGui) return;
     var txt = ta.value.trim();
@@ -1408,7 +1763,7 @@
     _dauVetTin = "";
     await taiTin(false);
     tai(true);
-    var ta2 = box && box.querySelector(".ht-compose textarea");
+    var ta2 = box && box.querySelector(".ib-cin textarea");
     if (ta2) ta2.focus();
   }
 
@@ -1460,15 +1815,6 @@
       '<div class="ht-react-row"><span class="ht-react-emoji">' + esc(bieu) + '</span>' +
       '<span class="ht-react-txt">' + esc(cau) + ' · ' + esc(gio(t.created_at)) + '</span></div>' +
     '</div>';
-  }
-
-  async function doiMode(id, mode) {
-    try {
-      await api("/conversations/" + id + "/mode", { method: "POST", body: fd({ mode: mode }) });
-    } catch (e) { alert(window.t("ht.loi_mode") + " " + e.message); return; }
-    _dauVetTin = "";
-    taiTin(false);
-    tai(true);
   }
 
   // ---------------------------------------------------------------- KÊNH CHƯA CÓ BOT

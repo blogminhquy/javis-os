@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.372.0] - 2026-10-28
 ### Thêm mới
-- **Tab Hội thoại mới của trang Chatbot** (đang làm).
+- **Tab Hội thoại mới của trang Chatbot.** Máy tính chia ba cột: khách, khung chat, bảng Thông tin. Mỗi dòng khách có viền màu cho biết ai đang lo: Cần bạn, A.I. đang xử lý, Bạn đang xử lý.
+- **Chọn kênh bằng ô tick:** gộp nhiều nick Zalo, nhiều Page cùng lúc, mỗi nơi có số chat Cần bạn. Nút **Lọc** gom thẻ, loại chat, bot, tình trạng vào một menu.
+- **Thanh "Ai trả lời" ngay dưới tên khách:** A.I. tự trả lời, A.I. soạn rồi bạn duyệt, hoặc Tôi trả lời. Đổi xong có Hoàn tác.
+- **Nút "A.I. trả lời":** gõ lệnh (ví dụ "báo giá sỉ 20 thùng"), A.I. viết thành câu trả lời trong khung nháp, bạn sửa rồi mới gửi. Bảng Thông tin có ghi chú về khách.
 
 ## [0.371.0] - 2026-10-28
 ### Thêm mới

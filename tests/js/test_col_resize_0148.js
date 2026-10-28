@@ -74,9 +74,11 @@ check("col-resize.js nạp trước app.js và console.js",
   html.indexOf("/static/col-resize.js") < html.indexOf("/static/console.js"));
 
 // ───────────── số tin ở trang Chatbot ─────────────
-check("dòng hội thoại có số tin (viên xám) tách khỏi số chưa đọc (đỏ)",
-  /c\.message_count \? '<span class="ht-count"[\s\S]{0,200}window\.t\("sess\.msgs", \{ count: c\.message_count \}\)/.test(conv) &&
-  /class="ht-count"[\s\S]{0,400}class="ht-badge" title=/.test(conv) && /\.ht-count \{ flex: none;/.test(css));
+// Chatbot v5 (2026-10-28): the row keeps only the red unread count; the total number of messages moved into the row's
+// hover text, after who is handling the chat.
+check("dòng hội thoại: số chưa đọc (đỏ) trên dòng, tổng số tin trong chữ di chuột",
+  /c\.message_count \? " · " \+ window\.t\("ht\.so_tin_title", \{ count: c\.message_count \}\)/.test(conv) &&
+  /class="ht-badge" title="' \+ esc\(window\.t\("ht\.chua_doc_title"/.test(conv) && !/class="ht-count"/.test(conv));
 check("i18n đủ vi/en", ["common.resize_col", "common.resize_hint", "common.resize_vault", "common.resize_chatcol",
   "common.resize_chatside", "ht.so_tin_title", "ht.chua_doc_title"].every((k) => vi[k] && en[k]));
 
