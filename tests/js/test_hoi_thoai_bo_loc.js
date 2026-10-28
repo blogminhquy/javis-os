@@ -116,7 +116,7 @@ check("Escape or a click outside closes a popover and gives focus back to its bu
   /ev\.key !== "Escape"/.test(CV) && /focusOpener\(from\)/.test(CV));
 check("trạng thái rỗng tính cả bộ lọc mới, and only the quick filter hiding everything offers 'Show all'",
   /var loc = !!\(_q \|\| _kenhLoc \|\| _botLoc \|\| _accs\.length \|\| _statusLoc \|\| _typeLoc \|\| _tagsAny\.length \|\| _tagsNone\.length \|\| _contactLoc\)/.test(CV) &&
-  /ib\.empty_" \+ _who/.test(CV) && /ib-see-all/.test(CV));
+  /EMPTY_WHO\[_who\]/.test(CV) && /ib-see-all/.test(CV));
 check("index.html nạp module lọc và inbox-v5 TRƯỚC conversations.js, kèm CSS", HTML.indexOf("conversations-filters.js") > 0 &&
   HTML.indexOf("conversations-filters.js") < HTML.indexOf("/static/conversations.js") &&
   HTML.indexOf("/static/inbox-v5.js") > 0 && HTML.indexOf("/static/inbox-v5.js") < HTML.indexOf("/static/conversations.js") &&

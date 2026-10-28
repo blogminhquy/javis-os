@@ -610,6 +610,8 @@
     return a ? a.label || "" : "";
   }
 
+  var EMPTY_WHO = { you: "ib.empty_you", ai: "ib.empty_ai", owner: "ib.empty_owner" };   // the list is empty under one quick filter
+
   // Avatar: the first letter (a group gets the group icon), with the channel's real logo in the corner (owner, 2026-10-28:
   // "kênh nào thì lấy logo kênh đấy"). In the folded strip (.ht-mini) it is all that shows, with a dot for unread.
   function avatarHtml(c, ten) {
@@ -630,7 +632,7 @@
       // Only the quick "who" filter hides everything (no chat needs you right now): say it kindly, one tap shows them all.
       if (_who && !loc && (_whoCounts ? ["you", "ai", "owner", "log"].some(function (w) { return _whoCounts[w]; }) : coNguon)) {
         box.innerHTML = '<div class="ht-empty">' + ic(_who === "you" ? "circle-check" : "messages-square") +
-          '<b>' + esc(window.t("ib.empty_" + _who)) + '</b>' +
+          '<b>' + esc(window.t(EMPTY_WHO[_who] || "ib.empty_you")) + '</b>' +
           '<button type="button" class="s-btn-ghost ib-see-all">' + esc(window.t("ib.see_all")) + '</button></div>';
         box.querySelector(".ib-see-all").onclick = function () { _who = ""; onFilterChange(); };
         return;
