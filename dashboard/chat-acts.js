@@ -1,7 +1,7 @@
 /* chat-acts.js - hang nut duoi moi tin nhan trong khung chat Javis.
 
    Moi bong bong co mot hang nho ben duoi. Tin cua NGUOI DUNG: gio gui, tua lai,
-   trich dan, sao chep. Tin cua JAVIS: gio gui, trich dan, sao chep. Hang nay AN san (opacity 0), chi hien khi
+   trich dan, sao chep. Tin cua JAVIS: gio gui, trich dan, sao chep, ghim vao muc luc, doc thanh tieng. Hang nay AN san (opacity 0), chi hien khi
    hover tren may tinh hoac khi cham vao tin tren dien thoai (.acts-on).
 
    File nay chi giu phan THUAN (khong dung tai lieu DOM that) de test bang node:
@@ -85,9 +85,16 @@
     // Tin nguoi dung chi co anh thi khong co chu de trich, bo nut nhu nut gui lai.
     var quote = (role === "user" && canResend === false) ? "" :
       '<button class="msg-act" type="button" data-act="quote" title="' + esc(tw("cact.quote")) + '">' + ic("quote") + '</button>';
+    // 0.374.0 (chu repo 28/10/2026): duoi cau tra loi them nut GHIM vao muc luc cua cuoc chat (thanh moc /
+    // nut "≡ n/m") va nut LOA doc thanh tieng cau do. Nut ghim chi hien khi bong bong da co ma tin (CSS
+    // .msg-javis[data-mid]): cau dang stream chua luu thi chua ghim duoc.
+    var them = role === "javis"
+      ? '<button class="msg-act" type="button" data-act="pin" title="' + esc(tw("cact.pin")) + '">' + ic("pin") + '</button>' +
+        '<button class="msg-act" type="button" data-act="speak" title="' + esc(tw("cact.speak")) + '">' + ic("volume-2") + '</button>'
+      : "";
     return '<div class="msg-acts">' + time + send + quote +
       '<button class="msg-act" type="button" data-act="copy" title="' + esc(tw("cact.copy")) + '">⧉</button>' +
-      "</div>";
+      them + "</div>";
   }
 
   function isUserMsg(el) {

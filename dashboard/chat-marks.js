@@ -1,5 +1,8 @@
 /* chat-marks.js - thanh mốc hội thoại: nhảy nhanh về một câu hỏi cũ trong khung chat.
  *
+ * 0.374.0: câu trả lời được GHIM (nút ghim dưới câu trả lời, app.js doiGhim) cũng là một mốc, đúng chỗ của nó
+ * trong cuộc chat, vẽ bằng icon ghim thay cho số thứ tự. Đây là "mục lục" của cuộc chat.
+ *
  * Người dùng Trưng Minh đề nghị qua chủ repo (2026-08-12): quen ChatGPT, ở đó cột phải có một
  * dãy vạch nhỏ, mỗi vạch là một câu mình đã hỏi; rê vào thì hiện danh sách để nhảy thẳng về
  * prompt cũ. Hội thoại dài mà thiếu cái này thì tìm lại một câu hỏi cũ phải kéo tay cả khung.
@@ -64,12 +67,31 @@
     return s.length > DAI_XEM_TRUOC ? s.slice(0, DAI_XEM_TRUOC - 1) + "…" : s;
   }
 
+  // Tên của một câu trả lời đã ghim: dòng tiêu đề đầu tiên (# ...), không có thì dòng chữ đầu tiên, bỏ ký hiệu
+  // markdown. Đọc markdown gốc (dataset.md) chứ không đọc chữ đã vẽ: bảng, code, ảnh vẽ ra thì dòng đầu là rác.
+  function tenTraLoi(el) {
+    var md = el.dataset && el.dataset.md != null ? el.dataset.md : "";
+    if (window.JavisVisibleMarkdown) { try { md = window.JavisVisibleMarkdown(md); } catch (e) {} }
+    var dong = String(md || el.textContent || "").split("\n").map(function (x) { return x.trim(); })
+      .filter(function (x) { return x && !/^(```|\||---|!\[)/.test(x); });
+    var tieuDe = dong.filter(function (x) { return /^#{1,6}\s/.test(x); })[0];
+    var t = (tieuDe || dong[0] || "")
+      .replace(/^#{1,6}\s+/, "").replace(/^([-*+]|\d+[.)])\s+/, "")
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[*_`~]+/g, "");
+    return gonChu(t);
+  }
+
+  // Mốc = các câu hỏi của mình, cộng (0.374.0) các câu trả lời đã ghim (`data-pinned`), đúng thứ tự trong cuộc chat.
   function docMoc() {
     var ds = [];
     if (!chatArea) return ds;
-    var els = chatArea.querySelectorAll(".msg-user");
+    var els = chatArea.querySelectorAll(".msg-user, .msg-javis[data-pinned]");
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
+      if (el.classList.contains("msg-javis")) {
+        ds.push({ el: el, text: tenTraLoi(el) || window.t("cmark.answer_untitled"), ghim: true });
+        continue;
+      }
       // dataset.text là nguyên văn user gõ (app.js giữ lại để gửi lại / sửa lại). Rơi về chữ
       // hiện trên bong bóng khi thiếu, vd tin dựng từ đường khác.
       var t = el.dataset && el.dataset.text != null ? el.dataset.text : el.textContent;
@@ -203,10 +225,14 @@
   function mucHtml() {
     var h = "";
     for (var i = 0; i < moc.length; i++) {
-      h += '<button type="button" class="cm-muc" data-cm="' + i + '">'
-        + '<span class="cm-so">' + (i + 1) + "</span>" + escHtml(moc[i].text) + "</button>";
+      h += '<button type="button" class="cm-muc' + (moc[i].ghim ? " cm-ghim" : "") + '" data-cm="' + i + '">'
+        + '<span class="cm-so">' + (moc[i].ghim ? icGhim() : (i + 1)) + "</span>" + escHtml(moc[i].text) + "</button>";
     }
     return h;
+  }
+
+  function icGhim() {
+    return window.ic ? window.ic("pin") : "";
   }
 
   function veLai() {
@@ -217,7 +243,7 @@
 
     // Đổi chế độ (xoay ngang máy, kéo cửa sổ) phải dựng lại từ đầu: hai chế độ có cấu trúc
     // node khác hẳn nhau, giữ lại bản cũ là còn nguyên dãy vạch trên điện thoại.
-    var van = (hep ? "m|" : "d|") + moc.length + "|" + moc.map(function (m) { return m.text; }).join("");
+    var van = (hep ? "m|" : "d|") + moc.length + "|" + moc.map(function (m) { return (m.ghim ? "\u0001" : "") + m.text; }).join("");
     var chu = (hep && choNut()) || chatArea;   // nút điện thoại đứng ở hàng nhãn, dãy vạch ở trong khung
     var daGan = boc && boc.parentNode === chu;
     if (van === vanTruoc && daGan) { doCao(); capNhatDangDoc(); return; }
@@ -240,8 +266,9 @@
       ray = boc.querySelector(".cm-ray");
       var rayHtml = "";
       for (var i = 0; i < moc.length; i++) {
-        rayHtml += '<button type="button" class="cm-vach" data-cm="' + i + '" tabindex="-1" '
-          + 'aria-label="' + escHtml(window.t("cmark.question_n", { so: i + 1 })) + '"></button>';
+        rayHtml += '<button type="button" class="cm-vach' + (moc[i].ghim ? " cm-ghim" : "") + '" data-cm="' + i + '" tabindex="-1" '
+          + 'aria-label="' + escHtml(moc[i].ghim ? window.t("cmark.pinned_answer", { ten: moc[i].text })
+                                               : window.t("cmark.question_n", { so: i + 1 })) + '"></button>';
       }
       // Dựng MỘT LƯỢT cả vạch lẫn hộp: hộp là con của ray nên ghi ray.innerHTML riêng sẽ xoá
       // mất nó, rồi biến `hop` thành con trỏ tới một node đã rời khỏi trang - hover không
@@ -338,6 +365,9 @@
     try {
       new MutationObserver(hen).observe(chatArea, { childList: true });
     } catch (e) {}
+    // 0.374.0: ghim/bỏ ghim một câu trả lời là đổi THUỘC TÍNH của bong bóng, không phải con của #chatArea, nên
+    // MutationObserver trên không thấy. app.js bắn sự kiện "jv-pins" lên #chatArea (vẫn không ai gọi thẳng ai).
+    chatArea.addEventListener("jv-pins", hen);
     chatArea.addEventListener("scroll", function () {
       if (choScroll) return;
       choScroll = requestAnimationFrame(function () { choScroll = 0; capNhatDangDoc(); });
