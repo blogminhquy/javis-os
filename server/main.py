@@ -3015,6 +3015,42 @@ async def _claude_sub_doc(cli, prompt, model):
             yield {"type": "error", "content": str(ev.get("content") or localefmt.chu("lỗi không rõ", "unknown error"))}
 
 
+def _sdk_has_system_prompt_file() -> bool:
+    """Whether the installed claude-agent-sdk maps `{"type": "file"}` to --system-prompt-file."""
+    try:
+        from claude_agent_sdk import types as _sdk_types
+        return hasattr(_sdk_types, "SystemPromptFile")
+    except Exception:  # noqa: BLE001 - no SDK: the caller keeps the inline prompt
+        return False
+
+
+def _raw_prompt_through_file(cli):
+    """Send a raw (no preset) system prompt as --system-prompt-file instead of one argv entry (#871, 0.378.0).
+
+    The raw branch of `ClaudeSDK._options` hands the prompt to the SDK as a string, which becomes
+    `--system-prompt <text>`: ONE argument, and Linux caps one argument at MAX_ARG_STRLEN = 131,072
+    bytes whatever ARG_MAX says. A dedicated bot with a long agent file plus per-turn context crossed
+    it and every turn died with "[Errno 7] Argument list too long". The file keeps the raw semantics
+    (no claude_code preset, so the token savings stay).
+
+    Wraps this instance's `_options` instead of editing claude_sdk_engine.py: that file is pinned by
+    the native qualification evidence (plan_limits.py wraps it from outside for the same reason). The file is written with
+    the engine's own helper, so its usual cleanup after the turn removes it.
+    """
+    if not _sdk_has_system_prompt_file():
+        return cli
+    base = cli._options
+
+    def _options():
+        opts = base()
+        sp = getattr(opts, "system_prompt", None)
+        if isinstance(sp, str) and sp:
+            opts.system_prompt = {"type": "file", "path": cli._write_sysprompt_file(sp)}
+        return opts
+    cli._options = _options
+    return cli
+
+
 def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
                        tiet_kiem=False):
     """Gói Claude Code, KHÔNG tool - thay cho đường gọi thẳng /v1/messages bằng token OAuth.
@@ -3032,6 +3068,8 @@ def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="cha
                         tag=tag, allowed_tools=CLAUDE_SUB_KHONG_TOOL,
                         model=_claude_api_model(model) or None)
     cli.system_prompt_raw = bool(tiet_kiem)
+    if cli.system_prompt_raw:
+        _raw_prompt_through_file(cli)
     # 0.345.0: no tool may run here (CLAUDE_SUB_KHONG_TOOL), yet Claude Code still sent every tool
     # schema and the skill list: measured 27,665 input tokens for "chào em" on the fast path. "*"
     # takes them all out of the request, tools added by future Claude Code versions included
