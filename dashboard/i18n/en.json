@@ -6062,5 +6062,11 @@
   "gh.m_rounds": "Avg fix rounds",
   "gh.m_findings": "Review findings",
   "gh.m_minutes": "Avg minutes",
-  "gh.m_none": "No job merged on this repo yet."
+  "gh.m_none": "No job merged on this repo yet.",
+  "gh.repos_n": "{n} repos",
+  "gh.view": "View details",
+  "gh.back": "Back",
+  "msc.pages_n": "{n} Pages",
+  "msc.view": "View details",
+  "msc.pages_head": "Connected Pages ({n})"
 }

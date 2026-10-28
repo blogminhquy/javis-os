@@ -7,6 +7,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.367.0] - 2026-10-28
+### Cải thiện
+- **Thẻ GitHub và thẻ Messenger trên trang Kết nối gọn lại.** Thẻ chỉ còn một hàng đếm số repo hoặc số Fanpage, bấm "Xem chi tiết" mới mở cửa sổ đầy đủ, giống thẻ bot ở trang Chatbot. Nối nhiều repo hay nhiều Fanpage không còn kéo dài cả trang.
+
 ### Sửa lỗi
 - **Trang Kết nối đếm cả GitHub.** Dòng "Đã kết nối" trước đây ghi "0 tài khoản" dù GitHub đã nối. Giờ GitHub và các Page Facebook đều được cộng vào cùng một con số, thẻ nào hiện sau cũng không làm mất số của thẻ kia.
 
