@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.379.0] - 2026-10-28
+### Fixed
+- **Allowing a Zalo Bot group now sticks.** Zalo Bot group ids look like `zgr-...` and were silently dropped: "Allow this group" said done, yet the group stayed "waiting for approval" and the bot never answered there. Thanks to @VQTPiano for the report and the fix (#875).
+
 ## [0.378.0] - 2026-10-28
 ### Fixed
 - **Customer bots with a long profile no longer go silent.** On a Linux server, a bot on the Claude plan whose prompt passed about 128 KB (a long assistant profile plus the customer context of each turn) could not start Claude, so the customer got no reply. The prompt now goes through a file, so any length works. Thanks to @QuanAMG for the report and diagnosis (#871).
