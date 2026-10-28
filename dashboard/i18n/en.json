@@ -6068,5 +6068,18 @@
   "gh.back": "Back",
   "msc.pages_n": "{n} Pages",
   "msc.view": "View details",
-  "msc.pages_head": "Connected Pages ({n})"
+  "msc.pages_head": "Connected Pages ({n})",
+  "gh.change_repo": "Change repo",
+  "gh.change_branch": "Change branch",
+  "gh.branch_default": "default",
+  "gh.view_status": "View status",
+  "gh.connect_more": "Connect more",
+  "gh.sec_selected": "Selected",
+  "gh.sec_repos": "Repos",
+  "gh.branch_which": "Pick a repo to change its branch",
+  "gh.branch_of": "Branches of {name}",
+  "gh.branch_search_ph": "Search branches...",
+  "gh.branch_none": "No branch found.",
+  "gh.branch_switching": "Changing branch...",
+  "gh.branch_how": "The chat works on its own branch cut from this one, and its PR targets this one. It can change only while the chat has no work in progress."
 }

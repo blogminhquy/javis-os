@@ -80,7 +80,10 @@
   }
   var LOGO = '<svg class="cp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>';
   var CHECK = '<svg class="cp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
-  var BOX = '<svg class="cp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>';
+  var BRANCH = '<svg class="cp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="5" r="2.2"/><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 7.2v9.6M18 9.2c0 5-6 4-11 7.6"/></svg>';
+  var CHEV = '<svg class="cp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+  var BACK = '<svg class="cp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+  var PLUS = '<svg class="cp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
   // ============================================================
   // 1. Connections page card
@@ -263,7 +266,7 @@
   // ============================================================
   // 2 and 3. Repos of the open conversation: + menu panel and chip
   // ============================================================
-  var attached = [], held = null, heldBrain = "", seq = 0;
+  var attached = [], held = null, heldBrain = "", heldBase = {}, seq = 0;
   function names() { return attached.map(function (r) { return r.full_name; }); }
   function announce() {
     try { window.dispatchEvent(new CustomEvent("javis:github-repos-changed", { detail: { sid: sid(), repos: attached } })); } catch (e) {}
@@ -281,13 +284,23 @@
     }
     var after = document.getElementById("pinChip") || document.getElementById("limitBtn");
     if (chip.parentElement !== host || chip.previousElementSibling !== after) host.insertBefore(chip, after ? after.nextSibling : null);
-    chip.title = list.join("\n") + (attached.length && attached[0].branch ? "\n" + tw("gh.chip_branch", { branch: attached[0].branch }) : "");
-    chip.setAttribute("aria-label", tw("gh.chip_label", { names: list.join(", ") }));
-    chip.innerHTML = LOGO + "<span>" + esc(chipText(list, narrow() ? 10 : 18)) + "</span>" + (chipIcon ? iconHtml(chipIcon) : "");
+    var base = chipBase();
+    chip.title = list.join("\n") + (base ? "\n" + tw("gh.chip_branch", { branch: base }) : "");
+    chip.setAttribute("aria-label", tw("gh.chip_label", { names: list.join(", ") }) + (base ? ", " + tw("gh.chip_branch", { branch: base }) : ""));
+    chip.innerHTML = LOGO + "<span>" + esc(chipText(list, narrow() ? 10 : 18)) + "</span>" +
+      (base ? '<span class="gh-chip-br">' + BRANCH + esc(base) + "</span>" : "") + (chipIcon ? iconHtml(chipIcon) : "");
     var st = chip.querySelector(".gh-st");
     if (st) st.addEventListener("click", function (e) { e.stopPropagation(); openDetail(sid()); });
   }
   var chipIcon = null;
+  // A base branch other than the default rides on the chip, so the chat shows where its work will land.
+  function chipBase() {
+    var r = chatRepos();
+    if (r.length !== 1) return "";
+    if (held) return r[0].base_branch;
+    var a = attached[0] || {};
+    return a.base_branch && a.base_branch !== a.default_branch ? a.base_branch : "";
+  }
   function apply(d) {
     attached = (d && d.repos) || [];
     chipIcon = (d && d.icon && d.icon.state) ? d.icon : null;
@@ -307,6 +320,7 @@
     if (!id) {
       held = list.length ? list.slice() : null;
       heldBrain = chatBrain();
+      Object.keys(heldBase).forEach(function (fn) { if (list.indexOf(fn) < 0) delete heldBase[fn]; });
       renderChip();
       return Promise.resolve("");
     }
@@ -320,84 +334,228 @@
   // app.js: the first message just minted a session id. Attach the repos held on the empty chat before the turn runs.
   function claimPending(newSid) {
     if (!newSid || !held) return null;
-    var list = held, sameBrain = heldBrain === chatBrain();
-    held = null; heldBrain = "";
+    var list = held, bases = heldBase, sameBrain = heldBrain === chatBrain();
+    held = null; heldBrain = ""; heldBase = {};
     if (!sameBrain) { renderChip(); return null; }
     return api("/github/session/" + encodeURIComponent(newSid) + "/repos", { brain: chatBrain(), repos: list.join(",") }).then(function (d) {
-      if (d && d.ok !== false) { apply(d); return; }
+      if (d && d.ok !== false) {
+        // The branch picked on the empty chat applies before the first turn runs.
+        var picks = Object.keys(bases).filter(function (fn) { return list.indexOf(fn) >= 0; });
+        return picks.reduce(function (p, fn) {
+          return p.then(function (last) {
+            return api("/github/session/" + encodeURIComponent(newSid) + "/base", { brain: chatBrain(), full_name: fn, branch: bases[fn] })
+              .then(function (r) { return r && r.ok !== false ? r : last; });
+          });
+        }, Promise.resolve(d)).then(apply);
+      }
       apply(null);
       if (window.JavisAttach) window.JavisAttach.note((d && d.error) || tw("gh.err_net"));
     });
   }
 
+  // The GitHub panel of the + menu, and of the repo chip (owner, 28/10/2026, after Claude Code's own picker): a short
+  // menu "Change repo / Change branch" once repos are attached, a repo list split into "Selected" and "Repos", and a
+  // branch list per repo. Three views in the same box; each one has a back row to the menu.
   function panel(box, menuApi) {
     box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.loading")) + "</div>";
+    // The + menu stops clicks from bubbling to the page, so the shared (i) handler of info-tip.js never sees them.
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("button.info-i") : null;
+      var k = b && b.parentElement && b.parentElement.nextElementSibling;
+      if (!k || !k.classList.contains("info-body")) return;
+      k.hidden = !k.hidden;
+      b.setAttribute("aria-expanded", k.hidden ? "false" : "true");
+      b.classList.toggle("on", !k.hidden);
+    });
     api("/github/status").then(function (st) {
       if (!st || !st.connected) {
         box.innerHTML = '<div class="cp-empty">' + esc(tw("gh.panel_not_connected")) + "</div>" +
           '<button type="button" class="cp-mi" data-go-connect="1">' + LOGO + '<span class="cp-mi-lbl">' + esc(tw("gh.open_connections")) + "</span></button>";
-        box.querySelector("[data-go-connect]").onclick = function () {
-          menuApi.close();
-          try { window.Alpine.store("nav").go("mcp"); } catch (e) { location.hash = "#mcp"; }
-        };
+        box.querySelector("[data-go-connect]").onclick = function () { menuApi.close(); goConnections(); };
         return;
       }
-      var chosen = held ? held.slice() : names(), start = chosen.slice(), items = [], timer = 0, n = 0;
-      box.innerHTML = '<input type="search" class="cp-search" placeholder="' + esc(tw("gh.search_ph")) + '" aria-label="' + esc(tw("gh.search_ph")) + '">' +
-        '<div class="cp-results" role="listbox" aria-multiselectable="true"></div><div class="cp-sep"></div>' +
-        '<button type="button" class="cp-mi gh-apply" data-apply="1" disabled><span class="cp-mi-lbl"></span></button>' +
-        '<div class="cp-pin-err" role="status"></div>';
-      var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), applyBtn = box.querySelector("[data-apply]"),
-        err = box.querySelector(".cp-pin-err");
-      function drawApply() {
-        var changed = !sameSet(chosen, start);
-        applyBtn.disabled = !changed;
-        applyBtn.querySelector(".cp-mi-lbl").textContent = chosen.length ? tw("gh.apply_n", { n: chosen.length })
-          : (start.length ? tw("gh.apply_none") : tw("gh.apply_pick"));
-      }
-      function draw() {
-        out.innerHTML = items.length ? items.map(function (r, i) {
-          var on = chosen.indexOf(r.full_name) >= 0;
-          return '<button type="button" class="cp-mi" role="option" aria-selected="' + on + '" data-i="' + i + '">' + (on ? CHECK : BOX) +
-            '<span class="cp-mi-lbl">' + esc(r.full_name) + "</span>" +
-            '<span class="cp-mi-hint">' + esc(r.cloned ? tw("gh.cloned") : (r.private ? tw("gh.private") : "")) + "</span></button>";
-        }).join("") : '<div class="cp-empty">' + esc(tw("gh.none_found")) + "</div>";
-        drawApply();
-      }
-      function load() {
-        var q = input.value.trim(), k = ++n;
-        api("/github/repos?brain=" + encodeURIComponent(chatBrain()) + "&q=" + encodeURIComponent(q)).then(function (d) {
-          if (k !== n) return;
-          if (!d || d.ok === false) { err.textContent = (d && d.error) || tw("gh.err_net"); items = []; draw(); return; }
-          items = d.items || [];
-          // Attached repos stay visible at the top even when the search hides them, so they can be unticked.
-          chosen.forEach(function (name) {
-            if (!items.some(function (x) { return x.full_name === name; }) && !q) items.unshift({ full_name: name, cloned: true });
-          });
-          draw();
-        });
-      }
-      out.addEventListener("click", function (e) {
-        var b = e.target.closest ? e.target.closest("[data-i]") : null;
-        if (!b) return;
-        var r = items[+b.getAttribute("data-i")];
-        if (r) { chosen = toggle(chosen, r.full_name); draw(); }
-      });
-      applyBtn.onclick = function () {
-        applyBtn.disabled = true;
-        err.textContent = chosen.length ? tw("gh.cloning") : "";
-        setRepos(chosen).then(function (msg) {
-          if (msg) { err.textContent = msg; drawApply(); return; }
-          menuApi.close();
-          var i = document.getElementById("chatInput"); if (i) i.focus();
-        });
-      };
-      input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(load, 200); });
-      input.focus();
-      load();
+      (held || names().length) ? homeView(box, menuApi) : reposView(box, menuApi, false);
     });
   }
-
+  function goConnections() { try { window.Alpine.store("nav").go("mcp"); } catch (e) { location.hash = "#mcp"; } }
+  // Inside a sub view our own back row leads back to the GitHub menu; the + menu's back row above it would only
+  // repeat "Repo GitHub", so it hides there and comes back on the menu view.
+  function outerBack(box, show) {
+    var host = box.parentElement;
+    if (!host) return;
+    var b = host.querySelector(":scope > [data-back]"), sep = b && b.nextElementSibling;
+    if (b) b.hidden = !show;
+    if (sep && sep.classList.contains("cp-sep")) sep.hidden = !show;
+  }
+  function backRow(label) {
+    return '<button type="button" class="cp-mi cp-back gh-back" data-gh-back="1">' + BACK + "<span>" + esc(label) + "</span></button>";
+  }
+  // Repos of the chat with their base branch: attached ones from the server, or the ones held on an empty chat.
+  function chatRepos() {
+    if (held) return held.map(function (n) { return { full_name: n, base_branch: heldBase[n] || "" }; });
+    return attached.map(function (r) { return { full_name: r.full_name, base_branch: r.base_branch || r.default_branch || "" }; });
+  }
+  function homeView(box, menuApi) {
+    outerBack(box, true);
+    var repos = chatRepos();
+    var bases = repos.map(function (r) { return r.base_branch; }).filter(Boolean);
+    var branchHint = repos.length === 1 ? (bases[0] || tw("gh.branch_default")) : tw("gh.repos_n", { n: repos.length });
+    box.innerHTML =
+      '<button type="button" class="cp-mi" data-gh-go="repos">' + LOGO + '<span class="cp-mi-lbl">' + esc(tw("gh.change_repo")) + "</span>" +
+        '<span class="cp-mi-hint">' + esc(chipText(repos.map(function (r) { return r.full_name; }), 18)) + "</span>" + CHEV + "</button>" +
+      '<button type="button" class="cp-mi" data-gh-go="branch">' + BRANCH + '<span class="cp-mi-lbl">' + esc(tw("gh.change_branch")) + "</span>" +
+        '<span class="cp-mi-hint">' + esc(branchHint) + "</span>" + CHEV + "</button>" +
+      (chipIcon && sid() ? '<button type="button" class="cp-mi" data-gh-go="status">' + iconHtml(chipIcon) +
+        '<span class="cp-mi-lbl">' + esc(tw("gh.view_status")) + "</span>" + CHEV + "</button>" : "");
+    box.querySelector('[data-gh-go="repos"]').onclick = function () { reposView(box, menuApi, true); };
+    box.querySelector('[data-gh-go="branch"]').onclick = function () {
+      var list = chatRepos();
+      list.length === 1 ? branchView(box, menuApi, list[0]) : branchReposView(box, menuApi);
+    };
+    var stb = box.querySelector('[data-gh-go="status"]');
+    if (stb) stb.onclick = function () { menuApi.close(); openDetail(sid()); };
+    var first = box.querySelector(".cp-mi"); if (first) first.focus();
+  }
+  // One repo row: the owner small above, the name large, a check on the right when chosen.
+  function repoRow(r, i, on) {
+    var parts = String(r.full_name).split("/");
+    var tag = r.cloned ? tw("gh.cloned") : (r.private ? tw("gh.private") : "");
+    return '<button type="button" class="cp-mi gh-repo" role="option" aria-selected="' + on + '" data-gh-i="' + i + '">' +
+      '<span class="gh-two"><span class="gh-owner">' + esc(parts[0]) + (tag ? " · " + esc(tag) : "") + "</span>" +
+      '<span class="gh-name">' + esc(parts[1] || r.full_name) + "</span></span>" +
+      (on ? '<span class="gh-tick">' + CHECK + "</span>" : "") + "</button>";
+  }
+  function reposView(box, menuApi, canBack) {
+    outerBack(box, !canBack);
+    var chosen = held ? held.slice() : names(), start = chosen.slice(), items = [], timer = 0, n = 0;
+    box.innerHTML = (canBack ? backRow(tw("gh.menu")) + '<div class="cp-sep"></div>' : "") +
+      '<input type="search" class="cp-search" placeholder="' + esc(tw("gh.search_ph")) + '" aria-label="' + esc(tw("gh.search_ph")) + '">' +
+      '<div class="cp-results gh-results" role="listbox" aria-multiselectable="true"></div>' +
+      '<div class="gh-foot"><button type="button" class="s-btn gh-apply" data-apply="1" hidden></button>' +
+      '<button type="button" class="cp-mi gh-more-conn" data-gh-conn="1">' + PLUS + '<span class="cp-mi-lbl">' + esc(tw("gh.connect_more")) + "</span></button></div>" +
+      '<div class="cp-pin-err" role="status"></div>';
+    var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), applyBtn = box.querySelector("[data-apply]"),
+      err = box.querySelector(".cp-pin-err");
+    var back = box.querySelector("[data-gh-back]");
+    if (back) back.onclick = function () { homeView(box, menuApi); };
+    box.querySelector("[data-gh-conn]").onclick = function () { menuApi.close(); goConnections(); };
+    function drawApply() {
+      var changed = !sameSet(chosen, start);
+      applyBtn.hidden = !changed;
+      applyBtn.textContent = chosen.length ? tw("gh.apply_n", { n: chosen.length }) : tw("gh.apply_none");
+    }
+    function draw() {
+      var sel = [], rest = [];
+      items.forEach(function (r, i) { (chosen.indexOf(r.full_name) >= 0 ? sel : rest).push(repoRow(r, i, chosen.indexOf(r.full_name) >= 0)); });
+      out.innerHTML = (sel.length ? '<div class="gh-sec">' + esc(tw("gh.sec_selected")) + '</div><div class="gh-group">' + sel.join("") + "</div>" : "") +
+        (rest.length ? '<div class="gh-sec">' + esc(tw("gh.sec_repos")) + '</div><div class="gh-group">' + rest.join("") + "</div>" : "") +
+        (!items.length ? '<div class="cp-empty">' + esc(tw("gh.none_found")) + "</div>" : "");
+      drawApply();
+    }
+    function load() {
+      var q = input.value.trim(), k = ++n;
+      api("/github/repos?brain=" + encodeURIComponent(chatBrain()) + "&q=" + encodeURIComponent(q)).then(function (d) {
+        if (k !== n) return;
+        if (!d || d.ok === false) { err.textContent = (d && d.error) || tw("gh.err_net"); items = []; draw(); return; }
+        items = d.items || [];
+        // Attached repos stay listed (in "Selected") even when the search hides them, so they can be unticked.
+        chosen.forEach(function (name) {
+          if (!items.some(function (x) { return x.full_name === name; }) && !q) items.unshift({ full_name: name, cloned: true });
+        });
+        draw();
+      });
+    }
+    out.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-gh-i]") : null;
+      if (!b) return;
+      var r = items[+b.getAttribute("data-gh-i")];
+      if (r) { chosen = toggle(chosen, r.full_name); draw(); }
+    });
+    applyBtn.onclick = function () {
+      applyBtn.disabled = true;
+      err.textContent = chosen.length ? tw("gh.cloning") : "";
+      setRepos(chosen).then(function (msg) {
+        applyBtn.disabled = false;
+        if (msg) { err.textContent = msg; drawApply(); return; }
+        if (chosen.length) homeView(box, menuApi);
+        else { menuApi.close(); var i = document.getElementById("chatInput"); if (i) i.focus(); }
+      });
+    };
+    input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(load, 200); });
+    input.focus();
+    load();
+  }
+  // Several repos: pick the repo first, then its branch.
+  function branchReposView(box, menuApi) {
+    outerBack(box, false);
+    var repos = chatRepos();
+    box.innerHTML = backRow(tw("gh.menu")) + '<div class="cp-sep"></div><div class="gh-sec">' + esc(tw("gh.branch_which")) + '</div><div class="gh-group">' +
+      repos.map(function (r, i) {
+        var parts = String(r.full_name).split("/");
+        return '<button type="button" class="cp-mi gh-repo" data-gh-r="' + i + '"><span class="gh-two"><span class="gh-owner">' + esc(parts[0]) + "</span>" +
+          '<span class="gh-name">' + esc(parts[1] || r.full_name) + "</span></span>" +
+          '<span class="cp-mi-hint">' + BRANCH + " " + esc(r.base_branch || tw("gh.branch_default")) + "</span>" + CHEV + "</button>";
+      }).join("") + "</div>";
+    box.querySelector("[data-gh-back]").onclick = function () { homeView(box, menuApi); };
+    box.querySelectorAll("[data-gh-r]").forEach(function (b) {
+      b.onclick = function () { branchView(box, menuApi, repos[+b.getAttribute("data-gh-r")], true); };
+    });
+  }
+  function branchView(box, menuApi, repo, fromRepos) {
+    outerBack(box, false);
+    var all = [], def = "", cur = repo.base_branch || "";
+    box.innerHTML = backRow(fromRepos ? tw("gh.change_branch") : tw("gh.menu")) + '<div class="cp-sep"></div>' +
+      '<div class="gh-sec">' + esc(tw("gh.branch_of", { name: repo.full_name })) + infoBtn() + "</div>" + infoBody(esc(tw("gh.branch_how"))) +
+      '<input type="search" class="cp-search" placeholder="' + esc(tw("gh.branch_search_ph")) + '" aria-label="' + esc(tw("gh.branch_search_ph")) + '">' +
+      '<div class="cp-results gh-results"><div class="cp-empty">' + esc(tw("gh.loading")) + "</div></div>" +
+      '<div class="cp-pin-err" role="status"></div>';
+    var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), err = box.querySelector(".cp-pin-err");
+    box.querySelector("[data-gh-back]").onclick = function () { fromRepos ? branchReposView(box, menuApi) : homeView(box, menuApi); };
+    function draw() {
+      var q = input.value.trim().toLowerCase();
+      var list = all.filter(function (b) { return !q || b.toLowerCase().indexOf(q) >= 0; });
+      out.innerHTML = list.length ? '<div class="gh-group">' + list.map(function (b) {
+        var on = b === (cur || def);
+        return '<button type="button" class="cp-mi gh-branch" role="option" aria-selected="' + on + '" data-gh-b="' + esc(b) + '">' + BRANCH +
+          '<span class="cp-mi-lbl">' + esc(b) + "</span>" + (b === def ? '<span class="cp-mi-hint">' + esc(tw("gh.branch_default")) + "</span>" : "") +
+          (on ? '<span class="gh-tick">' + CHECK + "</span>" : "") + "</button>";
+      }).join("") + "</div>" : '<div class="cp-empty">' + esc(tw("gh.branch_none")) + "</div>";
+    }
+    out.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-gh-b]") : null;
+      if (!b) return;
+      var name = b.getAttribute("data-gh-b");
+      if (name === (cur || def)) return;
+      err.textContent = tw("gh.branch_switching");
+      setBase(repo.full_name, name === def ? "" : name, name).then(function (msg) {
+        if (msg) { err.textContent = msg; return; }
+        err.textContent = "";
+        homeView(box, menuApi);
+      });
+    });
+    input.addEventListener("input", draw);
+    api("/github/branches?full_name=" + encodeURIComponent(repo.full_name)).then(function (d) {
+      if (!d || d.ok === false) { out.innerHTML = ""; err.textContent = (d && d.error) || tw("gh.err_net"); return; }
+      all = d.items || []; def = d.default || "";
+      draw();
+      input.focus();
+    });
+  }
+  // Save the chat's base branch for one repo. An empty chat keeps it with the held repos until the first message.
+  function setBase(fullName, heldValue, branch) {
+    var id = sid();
+    if (!id) {
+      if (heldValue) heldBase[fullName] = heldValue; else delete heldBase[fullName];
+      renderChip();
+      return Promise.resolve("");
+    }
+    var n = ++seq;
+    return api("/github/session/" + encodeURIComponent(id) + "/base", { brain: chatBrain(), full_name: fullName, branch: branch }).then(function (d) {
+      if (!d || d.ok === false) return (d && d.error) || tw("gh.err_net");
+      if (n === seq && id === sid()) apply(Object.assign({ icon: chipIcon }, d));
+      return "";
+    });
+  }
   // ============================================================
   // 4. Status icons in the chat list, and the detail panel (spec 12)
   // ============================================================
