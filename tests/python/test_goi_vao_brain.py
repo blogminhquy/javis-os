@@ -207,8 +207,9 @@ check("thẻ kho vẫn hiện nhãn chính chủ hoặc cộng đồng",
 # ("Cộng đồng" ở đây là GIÁ TRỊ lọc, vừa là vế so sánh vừa là payload data-kho-nhom, nên cố ý
 # không dịch và vẫn nằm nguyên trong .js.)
 check("lọc riêng được hàng cộng đồng", 'laCongDong' in src_js and '"Cộng đồng"' in src_js)
+# 0.384.0: the group list feeds both the right-hand column and the phone <select>.
 check("và chỉ hiện lối lọc đó khi kho thật sự có hàng cộng đồng",
-      re.search(r'congDong\.length\s*\?\s*hangNhom\("Cộng đồng"', src_js) is not None)
+      re.search(r'congDong\.length\s*\?\s*\[\["Cộng đồng"', src_js) is not None)
 check("gói cộng đồng có cảnh báo riêng trên màn hình xác nhận",
       'tw("store.inspect.community.body")' in src_js
       and "chưa qua " in _VI.get("store.inspect.community.body", "")
