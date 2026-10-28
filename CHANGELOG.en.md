@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.378.0] - 2026-10-28
+### Fixed
+- **Customer bots with a long profile no longer go silent.** On a Linux server, a bot on the Claude plan whose prompt passed about 128 KB (a long assistant profile plus the customer context of each turn) could not start Claude, so the customer got no reply. The prompt now goes through a file, so any length works. Thanks to @QuanAMG for the report and diagnosis (#871).
+
 ## [0.377.0] - 2026-10-28
 ### Added
 - **Channels tab on the Chatbot page:** every Zalo nick, Page and Telegram bot grouped by channel with real logos. Pick the AI on duty for each with one dropdown; Cancel and Save appear only after a change. Also "No AI needed", "Put an AI on several Pages" at once, and an AI switch per group or person with Undo.
