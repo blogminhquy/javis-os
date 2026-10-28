@@ -3362,8 +3362,6 @@
   "store.dir_note": "Thứ cài thêm nằm ở {duong}. Thả thẳng một thư mục vào đó cũng được, không bắt buộc phải qua tệp nén.",
   "store.zip_limit": "Tệp .zip tối đa {mb}MB.",
   "store.catalog_at": "Danh mục lúc {luc}",
-  "wz.ct_head": "Công cụ tuỳ chọn",
-  "wz.ct_browser": "Cài trình duyệt để Javis tự kiểm thử giao diện sau khi sửa code (khoảng 100 MB, tải ở nền)",
   "settings.grp_lang": "NGÔN NGỮ",
   "top.theme_auto_light": "Tự động theo giờ, đang tông sáng - bấm để chọn tay tông tối",
   "top.theme_auto_dark": "Tự động theo giờ, đang tông tối - bấm để chọn tay tông sáng",

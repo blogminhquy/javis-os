@@ -99,7 +99,7 @@ Two things to know:
 
 ## The Channels tab
 
-Since 0.374.0 every nick and Page lives on the **Channels** tab. On the left: **Connect a new channel**, the **See every brain** switch, then each channel with its real logo and its nicks or Pages; each row says which AI is on duty (or "No AI yet", "No AI needed") and how many chats need you. A channel with two or more places offers **Put an AI on several Pages**: tick them, pick a bot, Save.
+Since 0.377.0 every nick and Page lives on the **Channels** tab. On the left: **Connect a new channel**, the **See every brain** switch, then each channel with its real logo and its nicks or Pages; each row says which AI is on duty (or "No AI yet", "No AI needed") and how many chats need you. A channel with two or more places offers **Put an AI on several Pages**: tick them, pick a bot, Save.
 
 Pick a nick or Page and the right side shows:
 

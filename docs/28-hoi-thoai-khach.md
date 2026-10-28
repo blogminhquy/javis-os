@@ -102,7 +102,7 @@ Hai điều nên biết:
 
 ## Tab Kênh
 
-Từ 0.374.0 mọi nick và Page nằm ở tab **Kênh** (trước đó là mục "Kênh chưa có bot" dưới tab Bot). Bên trái: nút **Kết nối kênh mới**, công tắc **Xem mọi brain**, rồi từng kênh với logo thật và các nick hay Page của nó; mỗi dòng nói A.I. nào đang trực (hoặc "Chưa có A.I.", "Không cần A.I.") và số chat Cần bạn. Kênh có từ hai nơi thì có **Gắn A.I. cho nhiều Page**: tick các nơi, chọn bot, bấm Lưu.
+Từ 0.377.0 mọi nick và Page nằm ở tab **Kênh** (trước đó là mục "Kênh chưa có bot" dưới tab Bot). Bên trái: nút **Kết nối kênh mới**, công tắc **Xem mọi brain**, rồi từng kênh với logo thật và các nick hay Page của nó; mỗi dòng nói A.I. nào đang trực (hoặc "Chưa có A.I.", "Không cần A.I.") và số chat Cần bạn. Kênh có từ hai nơi thì có **Gắn A.I. cho nhiều Page**: tick các nơi, chọn bot, bấm Lưu.
 
 Bấm một nick hay Page, bên phải hiện:
 

@@ -106,7 +106,7 @@ bot, **Lưu**). Phải: nick/Page đang chọn, **ô chọn "A.I. trực nick n�
 với công tắc "A.I. ở đây" (gọi `POST /conversations/{id}/ai`), trạng thái `who`, Cho phép, Mở chat. Có lựa chọn
 "Không cần bot" để tài khoản không bị đếm vào việc cần xử lý.
 
-Server (0.374.0): `POST /channels/accounts/{id}/bot` (`bot_id`, rỗng = không bot) gỡ tài khoản khỏi bot đang giữ (bot hết
+Server (0.377.0): `POST /channels/accounts/{id}/bot` (`bot_id`, rỗng = không bot) gỡ tài khoản khỏi bot đang giữ (bot hết
 tài khoản thì tắt, như khi xoá tài khoản) rồi gắn cho bot mới, và **các cuộc chat cũ của tài khoản đổi theo bot mới**
 (không thì công tắc "A.I. ở đây" báo chưa có bot). `POST /channels/no-bot` (`account_key`, `on`) lưu cờ "Không cần bot"
 trong `sync_state` của kho hội thoại (tài khoản Zalo cá nhân không có bản ghi trong `channel_accounts.json`); gắn bot là
@@ -134,7 +134,7 @@ một màu: A.I. trả lời theo kênh và theo bot, số ghi ở cuối thanh.
 
 1. **0.371.0** Nền phía server: mục 3, 4, 5, `account_ids` và `who` cho danh sách, spec này.
 2. **Đợt 2** Tab Hội thoại mới (mục 6).
-3. **Đợt 3 (0.374.0)** Tab Kênh, Bot, Thống kê (mục 7, 8, 9).
+3. **Đợt 3 (0.377.0)** Tab Kênh, Bot, Thống kê (mục 7, 8, 9).
 4. **Đợt 4** Rà lỗi đầu cuối trên máy tính và điện thoại, sửa tới khi sạch.
 
 Mỗi đợt một số phiên bản, merge khi CI xanh.
