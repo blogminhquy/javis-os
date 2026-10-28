@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.367.0] - 2026-10-28
+### Sửa lỗi
+- **Trang Kết nối đếm cả GitHub.** Dòng "Đã kết nối" trước đây ghi "0 tài khoản" dù GitHub đã nối. Giờ GitHub và các Page Facebook đều được cộng vào cùng một con số, thẻ nào hiện sau cũng không làm mất số của thẻ kia.
+
 ## [0.366.0] - 2026-10-28
 ### Thêm mới
 - **Một engine khác kiểm tra chéo trước khi merge.** CI xanh rồi, diff được gửi cho một engine khác hãng với engine đã viết code (ví dụ code bằng Claude thì ChatGPT xem). Góp ý phải chỉ ra đường lỗi cụ thể, quay về cho engine viết code tự kiểm và sửa, chưa xử lý xong thì chưa merge. Chỉ có một hãng thì Javis ghi rõ trên PR là chưa được kiểm tra chéo.

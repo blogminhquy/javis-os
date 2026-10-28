@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.367.0] - 2026-10-28
+### Fixed
+- **The Connections page counts GitHub.** The "Connected" heading used to say "0 accounts" while GitHub was connected. GitHub and Facebook Pages now add into the same number, and whichever card loads last no longer wipes out the other's count.
+
 ## [0.366.0] - 2026-10-28
 ### Added
 - **A second engine reviews before merging.** After green CI the diff goes to an engine from a different vendor than the one that wrote it (code written with Claude is read by ChatGPT, for example). Findings must name a concrete failure path, go back to the author to verify and fix, and hold the merge until handled. With only one vendor connected, Javis notes on the PR that it was not cross-reviewed.
