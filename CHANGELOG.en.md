@@ -11,6 +11,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.380.0] - 2026-10-28
 ### Fixed
 - The Conversations list shows the number of messages in each chat again (grey "12 msgs") next to the red unread count. 0.372.0 had dropped it.
+- A cleaner reply box: the two notes "Sending by hand means you answer..." and "Example command..." are gone. The warning that a message goes out under your own name (personal accounts) stays.
 
 ## [0.378.0] - 2026-10-28
 ### Fixed

@@ -9,6 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.380.0] - 2026-10-28
 ### Sửa lỗi
 - Danh sách Hội thoại hiện lại số tin của cả cuộc chat (ô xám "12 tin") cạnh số đỏ chưa đọc. Bản 0.372.0 lỡ bỏ mất con số này.
+- Ô trả lời khách gọn hơn: bỏ hai dòng chú thích "Gửi tay là bạn trả lời..." và "Ví dụ lệnh...". Riêng cảnh báo tin đi dưới tên bạn (tài khoản cá nhân) vẫn giữ.
 
 ## [0.378.0] - 2026-10-28
 ### Sửa lỗi

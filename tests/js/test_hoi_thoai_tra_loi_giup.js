@@ -37,8 +37,8 @@ const V = win.JavisInboxV5;
 const COMP = fnBody("function veCompose(c) {");
 check("composer: one box, 'A.I. reply' next to Send (only when a bot is on duty)", /class="ib-cin"/.test(COMP) &&
   /\(laBot \? '<button type="button" class="s-btn-ghost ib-ask"/.test(COMP) && /class="s-btn ht-send"/.test(COMP));
-check("the example order shows under the box until a draft is waiting", /\(laBot && !draft \? '<div class="ib-hint">' \+ esc\(t\("ib\.cmd_hint"\)\)/.test(COMP));
-check("Send still takes over only in 'A.I. replies' mode, and the note says so", /if \(laBot && c\.ai_allowed && modeOf\(c\) === "ai"\) ghiChu = t\("ib\.send_takes_over"\)/.test(COMP));
+check("no explanatory notes around the reply box (owner, 2026-10-28), only the personal-account warning",
+  !/ib\.send_takes_over|ib\.cmd_hint/.test(COMP) && /var ghiChu = k\.kind === "account" \? t\("ht\.gui_ten_ban"/.test(COMP));
 const AI = fnBody("async function aiReply(c, lenh, kind) {");
 check("'A.I. reply' sends the typed text as the instruction, always as a draft", /\/ai-reply", \{ method: "POST", body: fd\(\{ mode: "draft", instruction: lenh \|\| "" \}\) \}/.test(AI));
 check("the A.I. button passes what is typed; Rewrite passes the draft's own order", /aiReply\(c, ta\.value\.trim\(\), "ask"\)/.test(CV) &&
@@ -79,8 +79,8 @@ check("đổi cuộc chat thì bỏ dòng ghi chú cũ và bản sửa nháp cũ
 // ---- CSS and dictionary ----
 check("CSS: dashed draft box, composer row, phone layout puts the box on its own line", /\.ib-draft \{ border: 1\.5px dashed/.test(CSS) &&
   /\.ib-cin \{ display: flex;/.test(CSS) && /\.ib-cin textarea \{ flex-basis: 100%; \}/.test(CSS));
-const keys = ["ib.ai_reply", "ib.ai_reply_t", "ib.ai_busy", "ib.cin_ph_ai", "ib.cmd_hint", "ib.dr_cmd", "ib.dr_ready", "ib.dr_drop", "ib.dr_redo",
-  "ib.dr_send", "ib.ask_ai_now", "ib.ai_silent", "ib.t_sent", "ib.t_sent_taught", "ib.t_dropped", "ib.send_takes_over", "ht.act_fail", "ht.act_send_failed"];
+const keys = ["ib.ai_reply", "ib.ai_reply_t", "ib.ai_busy", "ib.cin_ph_ai", "ib.dr_cmd", "ib.dr_ready", "ib.dr_drop", "ib.dr_redo",
+  "ib.dr_send", "ib.ask_ai_now", "ib.ai_silent", "ib.t_sent", "ib.t_sent_taught", "ib.t_dropped", "ht.act_fail", "ht.act_send_failed"];
 check("khoá có ở cả vi và en", keys.every((k) => VI[k] && EN[k]), keys.filter((k) => !VI[k] || !EN[k]).join(","));
 check("the old two buttons and their keys are gone", !/renderActions|onAction\(|setActionNote|ht\.act_answer|ht\.act_draft"|ht\.why_/.test(CV) &&
   ["ht.act_answer", "ht.act_draft", "ht.act_back", "ht.why_human", "ht.act_overwrite"].every((k) => !(k in VI) && !(k in EN)));

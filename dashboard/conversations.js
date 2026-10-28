@@ -1797,9 +1797,9 @@
     var V = window.JavisInboxV5, k = kenhCua(c.channel), t = window.t;
     var laBot = !!c.bot_id;
     var draft = c.draft && String(c.draft.text || "").trim() ? c.draft : null;
-    var ghiChu = "";
-    if (laBot && c.ai_allowed && modeOf(c) === "ai") ghiChu = t("ib.send_takes_over");
-    else if (k.kind === "account") ghiChu = t("ht.gui_ten_ban", { kenh: k.nhan });
+    // Only the warning that matters stays above the box: on a personal account the message goes out under the owner's
+    // own name. The "sending takes over" and "example command" notes went (owner, 2026-10-28: a good UI needs no notes).
+    var ghiChu = k.kind === "account" ? t("ht.gui_ten_ban", { kenh: k.nhan }) : "";
     var busy = _aiBusy === "redo" || _aiBusy === "send" ? _aiBusy : "";
     return '<div class="ht-compose">' + noteHtml() +
       (draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
@@ -1810,7 +1810,6 @@
           ic(_aiBusy === "ask" ? "loader" : "sparkles") + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
         '<button type="button" class="s-btn ht-send">' + ic("send") + '<span>' + esc(t("ht.gui")) + '</span></button>' +
       '</div>' +
-      (laBot && !draft ? '<div class="ib-hint">' + esc(t("ib.cmd_hint")) + '</div>' : "") +
     '</div>';
   }
 
