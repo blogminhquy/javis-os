@@ -269,6 +269,12 @@
 .kn-wrap { max-width: 1200px; }
 .kn-grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
 .kn-tree { display: flex; flex-direction: column; gap: 10px; }
+/* The channel list stays in view while the right side scrolls (owner, 2026-10-28): it sticks to the top of the page and
+   scrolls on its own when it is taller than the screen. Phones show one side at a time, so it is left alone there. */
+@media (min-width: 901px) {
+  .kn-tree { position: sticky; top: 0; max-height: calc(100vh - 150px); overflow-y: auto; overscroll-behavior: contain; }
+  .kn-tree > * { flex-shrink: 0; }
+}
 .kn-top { display: flex; flex-direction: column; gap: 8px; }
 .kn-top .s-btn { font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .kn-allbr { display: flex; gap: 8px; align-items: center; color: var(--text2); }
