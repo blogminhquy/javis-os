@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.375.0] - 2026-10-28
+### Improved
+- **Javis now sets up a browser right after install.** If the machine has no Chrome or Edge, Javis downloads a compact Chromium (about 100 MB) in the background on first start, so nobody has to find the button on the Tools page. Javis stays usable while it downloads.
+- Machines that already have Chrome or Edge use it as is and download nothing. If you pressed Remove on the browser, Javis respects that and does not download it again.
+- To turn the automatic download off, set the environment variable `JAVIS_SKIP_BROWSER=1`.
+
 ## [0.372.0] - 2026-10-28
 ### Added
 - **New Conversations tab on the Chatbot page.** On a computer: customers, chat and an Info panel side by side. Each row's coloured edge says who is on it: Needs you, AI is handling, You are handling.

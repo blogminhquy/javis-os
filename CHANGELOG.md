@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.375.0] - 2026-10-28
+### Cải thiện
+- **Javis tự chuẩn bị trình duyệt ngay sau khi cài.** Máy chưa có Chrome hay Edge thì Javis tự tải một bản Chromium gọn (khoảng 100 MB) ở nền lần khởi động đầu, không phải vào trang Công cụ bấm nút nữa. Javis vẫn mở dùng được ngay trong lúc tải.
+- Máy đã có Chrome hoặc Edge thì Javis dùng luôn, không tải thêm gì. Ai đã bấm Gỡ trình duyệt thì Javis tôn trọng, không tự tải lại.
+- Không muốn tự tải: đặt biến môi trường `JAVIS_SKIP_BROWSER=1`.
+
 ## [0.372.0] - 2026-10-28
 ### Thêm mới
 - **Tab Hội thoại mới của trang Chatbot.** Máy tính chia ba cột: khách, khung chat, bảng Thông tin. Mỗi dòng khách có viền màu cho biết ai đang lo: Cần bạn, A.I. đang xử lý, Bạn đang xử lý.
