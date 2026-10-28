@@ -305,6 +305,10 @@
 .kn-q { margin-left: auto; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; background: var(--bg3); color: var(--text);
   font: inherit; font-size: 16px; min-width: 0; flex: 0 1 260px; }
 .kn-ch > .ib-hint { padding: 6px 16px 8px; margin: 0; }
+.kn-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--hairline); }
+.kn-pg { display: inline-flex; align-items: center; gap: 4px; font-size: 16px; }
+.kn-pg svg { width: 18px; height: 18px; }
+.kn-pg-n { color: var(--text2); font-variant-numeric: tabular-nums; min-width: 8ch; text-align: center; }
 .kn-chat { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 0 12px; align-items: center; padding: 11px 16px;
   border-top: 1px solid var(--hairline); border-left: 4px solid color-mix(in srgb, var(--ib-log) 45%, transparent); }
 .kn-chat.w-you { border-left-color: var(--ib-you); } .kn-chat.w-ai { border-left-color: var(--ib-ai); }

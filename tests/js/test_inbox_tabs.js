@@ -67,6 +67,10 @@ check("'Put an A.I. on several' ticks the places without a bot, one request each
   /for \(var i = 0; i < ids\.length; i\+\+\)/.test(KN) && /ib\.kn_bulk_done/.test(KN) && /ib\.kn_bulk_some/.test(KN));
 check("the account card (record, import, edit, delete) is the same one, from conversations.js", /C\.accountCard\(a\)/.test(KN) &&
   /accountCard: function \(a\) \{ return theTK\(a\); \}/.test(CV));
+check("a nick's groups and people come 20 a page, Previous / Next with 'from-to of n', search asks the server",
+  /var PAGE = 20/.test(KN) && /"&offset=" \+ pg \* PAGE/.test(KN) && /if \(d\.total != null\) _total = d\.total/.test(KN) &&
+  /ib\.kn_range/.test(KN) && /\(q \? "&q=" \+ encodeURIComponent\(q\) : ""\)/.test(KN) && /setTimeout\(function \(\) \{ loadChats\(_sel, 0\); \}, 300\)/.test(KN) &&
+  !/limit=200/.test(KN));
 check("phones: the list, then the picked nick or Page with a back button", /kn-grid\.det \.kn-tree, \.kn-grid:not\(\.det\) \.kn-pane \{ display: none; \}/.test(CSS) &&
   /_det = true; paint\(\)/.test(KN));
 

@@ -17,6 +17,9 @@
   var _det = false;             // phones: showing the right side
   var _pend = null;             // {key, val}: the dropdown changed but not saved
   var _chats = [], _chatsFor = "", _chatQ = "", _busy = false;
+  // The chats of the picked nick or Page, one page at a time (owner, 2026-10-28: a nick with 289 chats drew them all).
+  // The search asks the server, so it finds a chat on any page.
+  var PAGE = 20, _page = 0, _total = 0, _qTimer = null;
   var _bots = null;             // [{id, name, enabled}] of the open brain
 
   function t(k, v) { return window.t(k, v); }
@@ -132,15 +135,14 @@
     q.value = _chatQ;
     var card = C.accountCard(a);
     if (card) box.querySelector(".kn-card").appendChild(card);
-    if (_chatsFor !== a.account_key) loadChats(a.account_key);
+    if (_chatsFor !== a.account_key) loadChats(a.account_key, _page);
   }
 
   function chatRows(a) {
     if (_chatsFor !== a.account_key) return '<div class="ht-empty small">' + esc(t("common.loading")) + '</div>';
-    var V = window.JavisInboxV5, qq = _chatQ.toLowerCase();
-    var ds = _chats.filter(function (c) { return !qq || String(c.title || c.customer_name || "").toLowerCase().indexOf(qq) >= 0; });
-    if (!ds.length) return '<div class="ht-empty small">' + esc(t(_chats.length ? "ht.khong_khop" : "ib.kn_no_chats")) + '</div>';
-    return ds.map(function (c) {
+    var V = window.JavisInboxV5;
+    if (!_chats.length) return '<div class="ht-empty small">' + esc(t(_chatQ ? "ht.khong_khop" : "ib.kn_no_chats")) + '</div>';
+    return _chats.map(function (c) {
       var ten = c.title || c.customer_name || c.external_chat_id;
       var who = V && V.WHO.indexOf(c.who) >= 0 ? c.who : "log";
       var on = !!c.ai_allowed;
@@ -153,15 +155,34 @@
         '<label class="kn-sw"><span>' + esc(t("ib.kn_ai_here")) + '</span><button type="button" class="ib-tg' + (on ? " on" : "") +
           '" role="switch" aria-checked="' + on + '" data-id="' + c.id + '"' + (a.bot_id ? "" : " disabled") + ' aria-label="' +
           esc(t("ib.kn_ai_here") + ": " + ten) + '"></button></label></div>';
-    }).join("");
+    }).join("") + pagerHtml();
   }
 
-  async function loadChats(key) {
+  // "21-40 of 289" with Previous / Next; nothing when everything fits on one page.
+  function pagerHtml() {
+    var pages = Math.max(1, Math.ceil(_total / PAGE));
+    if (pages <= 1) return "";
+    var from = _page * PAGE + 1, to = Math.min(_total, from + _chats.length - 1);
+    return '<nav class="kn-pager" aria-label="' + esc(t("ib.kn_pages")) + '">' +
+      '<button type="button" class="s-btn-ghost kn-pg" data-pg="' + (_page - 1) + '"' + (_page ? "" : " disabled") + '>' +
+        ic("chevron-left") + '<span>' + esc(t("ib.kn_prev")) + '</span></button>' +
+      '<span class="kn-pg-n" aria-live="polite">' + esc(t("ib.kn_range", { from: from, to: to, n: _total })) + '</span>' +
+      '<button type="button" class="s-btn-ghost kn-pg" data-pg="' + (_page + 1) + '"' + (_page + 1 < pages ? "" : " disabled") + '>' +
+        '<span>' + esc(t("ib.kn_next")) + '</span>' + ic("chevron-right") + '</button></nav>';
+  }
+
+  // One page of the account's chats. Page 0 also brings the count of every match, kept for the later pages.
+  async function loadChats(key, page) {
+    var pg = Math.max(0, page || 0), q = _chatQ;
     _chatsFor = "";
     try {
-      var d = await C.api("/conversations?limit=200&account_ids=" + encodeURIComponent(key));
-      if (key !== _sel) return;
+      var d = await C.api("/conversations?limit=" + PAGE + "&offset=" + pg * PAGE + "&account_ids=" + encodeURIComponent(key) +
+                          (q ? "&q=" + encodeURIComponent(q) : ""));
+      if (key !== _sel || q !== _chatQ) return;
       _chats = d.items || [];
+      _page = pg;
+      if (d.total != null) _total = d.total;
+      else if (!pg) _total = _chats.length;
       _chatsFor = key;
     } catch (e) { _chats = []; _chatsFor = key; }
     var l = _body && _body.querySelector(".kn-list");
@@ -175,7 +196,13 @@
   function onClick(e) {
     var b = e.target.closest && e.target.closest("button");
     if (!b || !_body.contains(b)) return;
-    if (b.classList.contains("kn-row")) { _sel = b.dataset.k; _pend = null; _chatQ = ""; _det = true; paint(); return; }
+    if (b.classList.contains("kn-row")) { _sel = b.dataset.k; _pend = null; _chatQ = ""; _page = 0; _det = true; paint(); return; }
+    if (b.classList.contains("kn-pg")) {
+      loadChats(_sel, parseInt(b.dataset.pg, 10)).then(function () {
+        var top = _body.querySelector(".kn-ch"); if (top && top.scrollIntoView) top.scrollIntoView({ block: "start" });
+      });
+      return;
+    }
     if (b.classList.contains("kn-back")) { _det = false; paint(); return; }
     if (b.classList.contains("kn-add")) return C.addAccount();
     if (b.classList.contains("kn-bulk")) return openBulk(b.dataset.ch);
@@ -197,7 +224,12 @@
   }
 
   function onInput(e) {
-    if (e.target.classList.contains("kn-q")) { _chatQ = e.target.value.trim(); refreshChats(); }
+    // The server searches every chat of the account; a short pause so each key press does not ask again.
+    if (e.target.classList.contains("kn-q")) {
+      _chatQ = e.target.value.trim();
+      clearTimeout(_qTimer);
+      _qTimer = setTimeout(function () { loadChats(_sel, 0); }, 300);
+    }
   }
 
   // Save the dropdown: a bot, no bot yet, or "No A.I. needed" (no bot, and the account stops counting as a job).
@@ -235,9 +267,9 @@
     try { await C.api("/conversations/" + id + "/ai", { method: "POST", body: C.fd({ on: on ? "1" : "0" }) }); }
     catch (e) { C.toast(t("ht.act_fail", { err: e.message })); return; }
     C.toast(t(on ? "ib.kn_on" : "ib.kn_off"), function () {
-      C.api("/conversations/" + id + "/ai", { method: "POST", body: C.fd({ on: on ? "0" : "1" }) }).then(function () { loadChats(_sel); });
+      C.api("/conversations/" + id + "/ai", { method: "POST", body: C.fd({ on: on ? "0" : "1" }) }).then(function () { loadChats(_sel, _page); });
     });
-    loadChats(_sel);
+    loadChats(_sel, _page);
   }
 
   // "Put an A.I. on several Pages": tick the accounts, pick a bot, Save. One request per account, in order.

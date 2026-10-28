@@ -236,7 +236,7 @@ def register(app, deps: ConversationsDeps):
                      since=since, until=until, last_by=last_by, pinned=bool(pinned))
         ctx = _StateCtx(hesitant)
         who = who if who in inbox_state.WHO else ""
-        who_counts = None
+        who_counts, total = None, None
         if who or offset == 0:
             # The state needs the bot record, so it is worked out here rather than in SQL: every matching row once,
             # then one page of the ids that kept the wanted `who`.
@@ -247,6 +247,8 @@ def register(app, deps: ConversationsDeps):
                                              hesitant=hesitant, **base)
             states = [(r["id"], ctx.of(r)["who"]) for r in light]
             who_counts = inbox_state.count({"who": w} for _, w in states)
+            # Every row the filters match (the Channels tab pages through an account's chats with it).
+            total = len(states)
             # "Needs you" per channel account (the channel picker's badges) and in all (the tab's badge) count the whole
             # inbox: ticking one Page or searching must not make the other Pages' numbers vanish.
             narrowed = bool(channel or bot_id or account_id or q or status or chat_type or tag or has_contact
@@ -291,7 +293,7 @@ def register(app, deps: ConversationsDeps):
         for it in items:
             it["bot_name"] = ten.get(str(it.get("bot_id") or "")) or _ten_bot(str(it.get("bot_id") or ""))
             it["need_reply"] = conversations.can_tra_loi(it, hesitant)
-        return {"ok": True, "items": items, "who_counts": who_counts,
+        return {"ok": True, "items": items, "who_counts": who_counts, "total": total,
                 "stats": conversations.thong_ke(bot_id=bot_id, channel=channel, account_id=account_id),
                 "facets": facets,
                 "bots": [{"id": bid, "name": ten[bid], **facets["bots"][bid]} for bid in ten],
