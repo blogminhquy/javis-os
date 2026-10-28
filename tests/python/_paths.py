@@ -43,6 +43,8 @@ _os.environ["JAVIS_NO_REAL_JUDGE_ENGINE"] = "1"
 _os.environ["JAVIS_NO_REAL_REVIEW_ENGINE"] = "1"
 # Lượt nhóm, lượt quét, lượt học (`main._team_engine_for`): test quên thay `team_engine.build` thì dừng, không dựng CLI thật.
 _os.environ["JAVIS_NO_REAL_TEAM_ENGINE"] = "1"
+# A test that boots the real server must not download a real browser on startup (0.375.0).
+_os.environ["JAVIS_SKIP_BROWSER"] = "1"
 
 
 # ─────────── Thư mục tạm: một thư mục riêng cho mỗi tiến trình test, tự xoá khi thoát ───────────

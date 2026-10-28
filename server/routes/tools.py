@@ -7,6 +7,8 @@ Xác thực: theo đúng luật của trang Gói (`routes/packs.py`). Cài một
 và chạy nó, nên đường này đòi PHIÊN ĐĂNG NHẬP THẬT và KHÔNG nhận API token - "tự động tải một
 trình duyệt về máy chủ" đúng là thứ không nên có đường tồn tại.
 """
+import asyncio
+import sys
 import threading
 from dataclasses import dataclass
 from typing import Callable
@@ -27,6 +29,7 @@ class ToolsDeps:
 
 
 _DEPS: "ToolsDeps" = None   # type: ignore
+_TASKS: set = set()   # strong refs so the startup download task is not garbage-collected
 
 
 def _tu_choi():
@@ -40,6 +43,24 @@ def register(app, deps: ToolsDeps):
     # xoá cả trăm MB file nhỏ mất vài giây, không được bắt server chờ lúc khởi động.
     threading.Thread(target=optional_tools.don_thu_vien_cu, daemon=True,
                      name="javis-don-pylibs").start()
+
+    @app.on_event("startup")
+    async def _auto_install_browser_on_start():
+        """0.375.0: a machine with no browser gets one in the background, no button needed.
+
+        A startup hook, not a call in `register()`: tests import main.py without starting the
+        app, and they must never download a real browser. Waits a minute so the download does
+        not compete with the rest of startup.
+        """
+        async def _run():
+            await asyncio.sleep(60)
+            try:
+                outcome = await optional_tools.auto_install_browser(on_ready=_DEPS.lam_moi_hub)
+            except Exception as e:  # noqa: BLE001 - the Tools button remains the fallback
+                outcome = f"error: {type(e).__name__}: {e}"
+            print(f"[cong-cu] automatic browser download: {outcome}", file=sys.stderr)
+        _TASKS.add(t := asyncio.create_task(_run()))
+        t.add_done_callback(_TASKS.discard)
 
     @router.get("/tools/optional")
     async def tools_list(request: Request):
