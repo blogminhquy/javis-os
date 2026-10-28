@@ -846,8 +846,65 @@ def auth_login():
 # Chạy `claude auth login --claudeai` với pipe: đọc LINK nó in cho user mở, nhận CODE user dán rồi
 # ghi vào stdin. Trạng thái giữ ở _LOGIN (1 phiên 1 lúc là đủ). KHÔNG mở browser trên server.
 import re as _re_login
-_LOGIN = {"proc": None, "url": "", "done": False, "error": "", "lines": []}
+_LOGIN = {"proc": None, "url": "", "done": False, "error": "", "lines": [], "env": None}
 _LOGIN_URL_RE = _re_login.compile(r"https?://\S+")
+# Lines the CLI prints for a code it will not take. It keeps waiting after them, so the user can paste again.
+_LOGIN_BAD_CODE = ("invalid code", "wasn't accepted", "login failed", "oauth error")
+
+
+def _login_line_done(low: str) -> bool:
+    """Only the CLI's own success line counts. Matching a bare "logged in" (as before 0.383.0) also matched
+    "you are not logged in"."""
+    return "login successful" in low
+
+
+def _login_line_error(low: str) -> bool:
+    return any(x in low for x in _LOGIN_BAD_CODE) or low.startswith("error")
+
+
+def _login_tail(n: int = 3) -> str:
+    """The last lines the CLI printed, minus the sign-in link: the real reason when it says no."""
+    keep = [x for x in _LOGIN.get("lines", []) if not _LOGIN_URL_RE.search(x)
+            and not x.lower().startswith("opening browser") and not _login_line_done(x.lower())]
+    return " ".join(keep[-n:])[:400]
+
+
+def _login_verify() -> dict:
+    """Ask `claude auth status` whether the sign-in really landed.
+
+    `claude auth login` prints "Login successful." and exits 0 even when it could not SAVE the credentials (it
+    only fails on a transient storage error). On a Mac the store is the Keychain; a locked or unreachable one
+    leaves the CLI signed out while the login flow said yes, and the Models card went straight back to
+    "Not signed in" with no word of why (customer report 28/10/2026, MacBook, 4-5 attempts).
+    """
+    env = _LOGIN.get("env") or {}
+    folder = env.get("CLAUDE_CONFIG_DIR")
+    if folder:
+        st = auth_status_folder(folder)
+    else:
+        auth_quen_cache()
+        st = auth_status(bo_qua_cache=True)
+    if st.get("connected") or st.get("unknown"):
+        # Unknown (the check timed out) is not a no: the CLI said yes, the card's own check will settle it.
+        return {"ok": True}
+    print("[claude auth] login flow said success but `claude auth status` reports signed out. CLI output: "
+          + " | ".join(_LOGIN.get("lines", [])[-6:]), file=sys.stderr)
+    if sys.platform == "darwin":
+        msg = localefmt.chu(
+            "Claude báo đăng nhập xong nhưng không lưu được phiên vào Keychain của Mac, nên máy vẫn chưa đăng nhập. "
+            "Mở Terminal trên máy chạy Javis, gõ: claude auth login (nếu Keychain đang khoá thì mở khoá trước: "
+            "security unlock-keychain), xong bấm Kiểm tra lại.",
+            "Claude said the sign-in worked but could not save it to the Mac Keychain, so this machine is still "
+            "signed out. Open Terminal on the machine running Javis and run: claude auth login (if the Keychain is "
+            "locked, unlock it first: security unlock-keychain), then click Check again.")
+    else:
+        msg = localefmt.chu(
+            "Claude báo đăng nhập xong nhưng không lưu được phiên đăng nhập, nên máy vẫn chưa đăng nhập. Mở terminal "
+            "trên máy chạy Javis, gõ: claude auth login, xong bấm Kiểm tra lại.",
+            "Claude said the sign-in worked but could not save it, so this machine is still signed out. Open a "
+            "terminal on the machine running Javis and run: claude auth login, then click Check again.")
+    tail = _login_tail()
+    return {"ok": False, "error": msg + (f" ({tail})" if tail else "")}
 
 
 def auth_login_ui_start(env: Optional[dict] = None):
@@ -861,7 +918,7 @@ def auth_login_ui_start(env: Optional[dict] = None):
             _kill_tree(_LOGIN["proc"])
     except Exception:
         pass
-    _LOGIN.update({"proc": None, "url": "", "done": False, "error": "", "lines": []})
+    _LOGIN.update({"proc": None, "url": "", "done": False, "error": "", "lines": [], "env": dict(env or {})})
     try:
         proc = subprocess.Popen(
             [cli, "auth", "login", "--claudeai"],
@@ -877,7 +934,9 @@ def auth_login_ui_start(env: Optional[dict] = None):
     def _reader():
         try:
             for line in proc.stdout:
-                line = line.rstrip()
+                # The prompt "Paste code here if prompted > " has no newline, so the CLI's answer lands on the
+                # same line after it. Drop the prompt so the line reads as the answer.
+                line = line.replace("Paste code here if prompted >", "").strip()
                 if not line:
                     continue
                 _LOGIN["lines"].append(line)
@@ -885,10 +944,11 @@ def auth_login_ui_start(env: Optional[dict] = None):
                     m = _LOGIN_URL_RE.search(line)
                     if m:
                         _LOGIN["url"] = m.group(0)
+                        continue
                 low = line.lower()
-                if "success" in low or "logged in" in low:
+                if _login_line_done(low):
                     _LOGIN["done"] = True
-                elif "error" in low or "failed" in low or "invalid" in low:
+                elif _login_line_error(low):
                     _LOGIN["error"] = line
         except Exception as e:
             _LOGIN["error"] = f"{type(e).__name__}: {e}"
@@ -914,23 +974,35 @@ def auth_login_ui_code(code):
     if not proc:
         return {"ok": False, "error": localefmt.chu("Chưa bắt đầu đăng nhập (bấm Đăng nhập trước).",
                                                     "Sign-in has not started (click Sign in first).")}
-    try:
-        proc.stdin.write((code or "").strip() + "\n")
-        proc.stdin.flush()
-    except Exception as e:
-        return {"ok": False, "error": localefmt.chu(f"Không gửi được code: {e}", f"Could not send the code: {e}")}
+    if proc.poll() is not None and not _LOGIN["done"]:
+        return {"ok": False, "error": localefmt.chu(
+            "Phiên đăng nhập này đã kết thúc. Bấm Đăng nhập Claude để lấy link mới.",
+            "This sign-in has ended. Click Sign in to Claude for a new link.")
+            + (f" ({_login_tail()})" if _login_tail() else "")}
+    # A wrong code leaves the CLI waiting for another one; the old error must not answer the new code.
+    _LOGIN["error"] = ""
+    if not _LOGIN["done"]:
+        try:
+            proc.stdin.write((code or "").strip() + "\n")
+            proc.stdin.flush()
+        except Exception as e:
+            return {"ok": False, "error": localefmt.chu(f"Không gửi được code: {e}", f"Could not send the code: {e}")}
     for _ in range(120):   # ~24s
         if _LOGIN["done"]:
-            auth_quen_cache()   # đăng nhập xong thẻ phải xanh NGAY, không chờ hết hạn nhớ
-            return {"ok": True}
+            return _login_verify()
         if _LOGIN["error"]:
             return {"ok": False, "error": _LOGIN["error"]}
         if proc.poll() is not None:
-            return {"ok": proc.returncode == 0,
-                    "error": "" if proc.returncode == 0 else localefmt.chu("Đăng nhập thất bại - thử lại.",
-                                                                           "Sign-in failed - try again.")}
+            time.sleep(0.3)   # let the reader take the last line
+            if proc.returncode == 0 or _LOGIN["done"]:
+                return _login_verify()
+            tail = _login_tail()
+            return {"ok": False, "error": localefmt.chu("Đăng nhập thất bại - thử lại.", "Sign-in failed - try again.")
+                    + (f" ({tail})" if tail else "")}
         time.sleep(0.2)
-    return {"ok": _LOGIN["done"], "error": _LOGIN.get("error", "")}
+    return {"ok": False, "error": _LOGIN.get("error") or localefmt.chu(
+        "Claude chưa trả lời sau 24 giây. Bấm Kiểm tra lại, hoặc lấy link mới.",
+        "Claude has not answered after 24 seconds. Click Check again, or get a new link.")}
 
 
 # ---- MCP native (cho server OAuth - Claude Code tự lo OAuth; scope user = dùng chung mọi cwd) ----
