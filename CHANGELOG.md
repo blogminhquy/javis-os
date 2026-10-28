@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.384.0] - 2026-10-28
+### Cải thiện
+- **Javis Store gọn lại** (đang viết).
+
 ## [0.382.0] - 2026-10-28
 ### Cải thiện
 - **Claude Code trả lời nhanh hơn từ tin nhắn thứ hai.** Javis giữ sẵn Claude Code giữa các tin nhắn của một cuộc chat thay vì mở lại mỗi lần. Đo trên máy thật: tin nhắn tiếp theo từ khoảng 10 giây còn khoảng 4 giây.
