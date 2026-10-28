@@ -40,6 +40,7 @@ class ClaudeHandle(warm_pool.Handle):
         self.client = client
         self.lane = lane
         self.cli = None          # the engine of the turn now running (hook and stderr target)
+        self.parts = None        # fingerprint parts it was last released with (to log what changed on a miss)
         self.dead = False
 
     def alive(self) -> bool:
@@ -129,6 +130,19 @@ def _skills_stat(root: str) -> str:
 
 def fingerprint(cli, opts) -> str:
     """What decides whether a warm process still fits this turn. The resumed session is part of it."""
+    return _hash_parts(fingerprint_parts(cli, opts))
+
+
+def _hash_parts(parts: dict) -> str:
+    return hashlib.sha256(json.dumps(parts, default=str, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def changed_parts(old: dict, new: dict) -> list:
+    """Names of the fingerprint parts that differ, for the one log line a missed warm process leaves."""
+    return sorted(k for k in set(old) | set(new) if old.get(k) != new.get(k))
+
+
+def fingerprint_parts(cli, opts) -> dict:
     import turn_context
     servers = {}
     raw = getattr(opts, "mcp_servers", None)
@@ -154,23 +168,30 @@ def fingerprint(cli, opts) -> str:
     sp = getattr(opts, "system_prompt", None)
     cwd = str(getattr(opts, "cwd", "") or "")
     conf_dir = env.get("CLAUDE_CONFIG_DIR") or os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
-    parts = [
-        str(cli_path), _stat(cli_path) if cli_path else "", cwd, getattr(opts, "model", None),
-        getattr(opts, "effort", None), str(getattr(opts, "settings", None)), getattr(opts, "permission_mode", None),
-        list(getattr(opts, "setting_sources", None) or []), list(getattr(opts, "disallowed_tools", None) or []),
-        bool(getattr(opts, "include_partial_messages", False)), bool(getattr(opts, "include_hook_events", False)),
-        sp.get("type") if isinstance(sp, dict) else ("raw" if sp else ""), servers, plugins,
-        hashlib.sha256(json.dumps(auth).encode()).hexdigest(), cli.javis_mode, str(cli.javis_vault or ""),
-        bool(getattr(opts, "hooks", None)), str(getattr(opts, "resume", None) or ""),
+    return {
+        "cli": [str(cli_path), _stat(cli_path) if cli_path else ""], "cwd": cwd, "model": getattr(opts, "model", None),
+        "effort": getattr(opts, "effort", None), "settings": str(getattr(opts, "settings", None)),
+        "permission_mode": getattr(opts, "permission_mode", None),
+        "setting_sources": list(getattr(opts, "setting_sources", None) or []),
+        "disallowed_tools": list(getattr(opts, "disallowed_tools", None) or []),
+        "stream_flags": [bool(getattr(opts, "include_partial_messages", False)),
+                         bool(getattr(opts, "include_hook_events", False))],
+        "system_prompt_type": sp.get("type") if isinstance(sp, dict) else ("raw" if sp else ""),
+        "mcp_servers": servers, "plugins": plugins, "auth_env": hashlib.sha256(json.dumps(auth).encode()).hexdigest(),
+        "mode": cli.javis_mode, "vault": str(cli.javis_vault or ""), "hooks": bool(getattr(opts, "hooks", None)),
+        "resume": str(getattr(opts, "resume", None) or ""),
         # Claude Code reads these at start-up only: a new skill or a CLAUDE.md edit needs a new process.
-        _stat(os.path.join(cwd, "CLAUDE.md")), _skills_stat(os.path.join(cwd, ".claude", "skills")),
-        _stat(os.path.join(cwd, ".mcp.json")), _stat(os.path.join(cwd, ".claude", "settings.json")),
-        _stat(os.path.join(cwd, ".claude", "settings.local.json")), _stat(os.path.join(conf_dir, "settings.json")),
-        # a new sign-in (another account) replaces this file; the running process would keep the old login
-        _stat(os.path.join(conf_dir, ".credentials.json")),
-        bool(getattr(opts, "strict_mcp_config", False)),
-    ]
-    return hashlib.sha256(json.dumps(parts, default=str, ensure_ascii=False).encode("utf-8")).hexdigest()
+        "claude_md": _stat(os.path.join(cwd, "CLAUDE.md")),
+        "skills": _skills_stat(os.path.join(cwd, ".claude", "skills")),
+        "mcp_json": _stat(os.path.join(cwd, ".mcp.json")),
+        "project_settings": [_stat(os.path.join(cwd, ".claude", "settings.json")),
+                             _stat(os.path.join(cwd, ".claude", "settings.local.json"))],
+        "user_settings": _stat(os.path.join(conf_dir, "settings.json")),
+        # NOT the credentials file: Claude Code rewrites it on every run, so its stat changes every turn and no warm
+        # process would ever be reused (0.387.0). A sign-in or sign-out through Javis drops the Claude slots instead
+        # (warm_pool.drop_kind in main's /claude/login* and /claude/logout).
+        "strict_mcp": bool(getattr(opts, "strict_mcp_config", False)),
+    }
 
 
 def _warm_options(cli, opts, handle: ClaudeHandle):
@@ -259,7 +280,8 @@ async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
 
 def _options_and_fingerprint(cli):
     opts = cli._options()
-    return opts, fingerprint(cli, opts)
+    parts = fingerprint_parts(cli, opts)
+    return opts, _hash_parts(parts), parts
 
 
 async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]:
@@ -277,7 +299,12 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
     cli._stderr_tail.clear()
     loop = asyncio.get_running_loop()
     # Off the loop: _options loads plugins and writes the prompt file, the fingerprint stats a few files.
-    opts, fp = await asyncio.to_thread(_options_and_fingerprint, cli)
+    opts, fp, parts = await asyncio.to_thread(_options_and_fingerprint, cli)
+    if cli.session_id and allow_warm:
+        held = warm_pool.POOL.peek(key)
+        if held is not None and held.fingerprint != fp and getattr(held.handle, "parts", None):
+            print(f"[claude warm] {key[:12]}: config changed ({', '.join(changed_parts(held.handle.parts, parts))}),"
+                  f" opening a new process", file=sys.stderr)
     slot = warm_pool.POOL.take(key, "claude", fp) if (cli.session_id and allow_warm) else None
     if slot is not None and not slot.handle.quiet():
         warm_pool.POOL.release(slot, keep=False)
@@ -424,7 +451,9 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
         if handle is not None:
             if clean:
                 opts.resume = cli.session_id
-                fp_now = await asyncio.to_thread(fingerprint, cli, opts)
+                parts_now = await asyncio.to_thread(fingerprint_parts, cli, opts)
+                fp_now = _hash_parts(parts_now)
+                handle.parts = parts_now
                 if slot is not None:
                     slot.recipe = _recipe(cli, opts, sysprompt_text)   # a later prewarm resumes this session
                     warm_pool.POOL.release(slot, fingerprint=fp_now)

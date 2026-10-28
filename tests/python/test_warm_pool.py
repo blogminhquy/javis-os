@@ -11,6 +11,7 @@ from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
 import os
 import tempfile
+import sys
 import time
 import types
 
@@ -272,6 +273,67 @@ with open(os.path.join(eng.cwd, "CLAUDE.md"), "w") as f:
     f.write("edited")
 check("an edited CLAUDE.md is (Claude Code reads it at start-up only)", claude_warm.fingerprint(eng, opts()) != fp)
 
+# 0.387.0: the bug that kept 0.382.0 from ever reusing a process on a real brain. Claude Code rewrites its credentials
+# file on every run, and the fingerprint had that file's stat in it, so every turn looked like a new config.
+conf = tempfile.mkdtemp(prefix="javis-claude-conf-")
+cred = os.path.join(conf, ".credentials.json")
+with open(cred, "w") as f:
+    f.write('{"claudeAiOauth": {"accessToken": "a1"}}')
+fp_c = claude_warm.fingerprint(eng, opts(env={"CLAUDE_CONFIG_DIR": conf}))
+time.sleep(0.05)
+with open(cred, "w") as f:
+    f.write('{"claudeAiOauth": {"accessToken": "a2-refreshed-longer"}}')
+check("Claude Code rewriting its credentials file does not change the fingerprint",
+      claude_warm.fingerprint(eng, opts(env={"CLAUDE_CONFIG_DIR": conf})) == fp_c)
+check("another config folder (another plan account) does",
+      claude_warm.fingerprint(eng, opts(env={"CLAUDE_CONFIG_DIR": conf + "-2"})) != fp_c)
+parts_a = claude_warm.fingerprint_parts(eng, opts())
+parts_b = claude_warm.fingerprint_parts(eng, opts(model="opus"))
+check("a miss names what changed", claude_warm.changed_parts(parts_a, parts_b) == ["model"])
+
+import codex_steer  # noqa: E402
+
+chome = tempfile.mkdtemp(prefix="javis-codex-home-")
+ccli = types.SimpleNamespace(cli_path=sys.executable, codex_home=chome, cwd=eng.cwd, sandbox=None, model="gpt-5.5",
+                             session_id="th1")
+
+
+def write_auth(account, stamp):
+    with open(os.path.join(chome, "auth.json"), "w") as f:
+        f.write('{"tokens": {"account_id": "%s", "access_token": "t%s"}, "last_refresh": "%s"}' % (account, stamp, stamp))
+
+
+write_auth("acct-1", "1")
+fp_x = codex_steer._fingerprint(ccli, ["codex", "app-server"])
+time.sleep(0.05)
+write_auth("acct-1", "2")
+check("Javis rewriting auth.json each Codex turn (same account) does not change the fingerprint",
+      codex_steer._fingerprint(ccli, ["codex", "app-server"]) == fp_x)
+write_auth("acct-2", "3")
+check("another ChatGPT account does", codex_steer._fingerprint(ccli, ["codex", "app-server"]) != fp_x)
+
+
+async def drop_cases():
+    os.environ["JAVIS_WARM_BUDGET_MB"] = "1000"
+    pool = warm_pool.Pool()
+    a, b = FakeHandle("claude"), FakeHandle("codex")
+    pool.release(pool.admit("A", "claude", "x", a, recipe=lambda: None))
+    pool.release(pool.admit("B", "codex", "y", b))
+    n = pool.drop_kind("claude")
+    await settle()
+    check("a sign-in drops every Claude slot and recipe, and only those",
+          n == 1 and a.closed and not b.closed and not pool.prewarm("A") and "B" in pool._slots)
+    for i in range(warm_pool.MAX_RECIPES + 5):
+        pool.remember(f"k{i}", "claude", "f", lambda: None)
+    check("recipes are capped, oldest dropped first",
+          len(pool._recipes) == warm_pool.MAX_RECIPES and "k0" not in pool._recipes and f"k{warm_pool.MAX_RECIPES + 4}" in pool._recipes)
+    await pool.close_all()
+    del os.environ["JAVIS_WARM_BUDGET_MB"]
+
+
+asyncio.run(drop_cases())
+check("a recipe lives long enough for a chat left over lunch", warm_pool.RECIPE_TTL_S >= 6 * 3600)
+
 h = claude_warm.ClaudeHandle(None, turn_lane.Lane())
 o = claude_warm._warm_options(eng, opts(), h)
 check("warm options carry the lane key in the hub header",
@@ -287,6 +349,9 @@ check("main: only the web chat Codex engine gets a warm key", src.count("ccli.wa
 check("main: the first output of a turn is timed", '"engine.first_output"' in src and "[turn timing]" in src)
 check("main: typing asks the pool to prewarm", 'action == "typing"' in src and "warm_pool.POOL.prewarm(" in src)
 check("main: warm processes close at shutdown", "await warm_pool.POOL.close_all()" in src)
+check("main: Claude sign-in (both ways) and sign-out drop the warm Claude processes",
+      src.count('warm_pool.POOL.drop_kind("claude")') == 3)
+check("main: ChatGPT disconnect drops the warm Codex processes", src.count('warm_pool.POOL.drop_kind("codex")') == 1)
 app = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8", errors="replace")
 check("dashboard: the composer sends a throttled typing hint", 'action: "typing"' in app and "20000" in app)
 for f in ("warm_pool.py", "claude_warm.py", "codex_steer.py", "turn_context.py"):

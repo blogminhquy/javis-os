@@ -4623,6 +4623,7 @@ def oauth_openai_disconnect():
         _sync_legacy_engine(cfg["model"])
     cfgmod.write_settings(cfg)
     openai_oauth.disconnect()
+    warm_pool.POOL.drop_kind("codex")   # 0.387.0: a warm app-server keeps the login it started with
     try:
         connect_health.probe_engines()   # ngắt chủ động → đèn đổi ngay theo Main Model mới
     except Exception:
@@ -5051,6 +5052,7 @@ async def grok_check(brain: str = "brain"):
 
 @app.post("/claude/login")
 def claude_login():
+    warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
     return claude_auth_login()
 
 
@@ -5065,6 +5067,7 @@ def claude_login_code(code: str = Form("")):
     """Nhận code user dán sau khi mở link đăng nhập."""
     d = auth_login_ui_code(code)
     if d.get("ok"):
+        warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
         # Vừa đăng nhập xong: đèn báo não phải xanh NGAY, không chờ vòng probe 10 phút
         # (banner 'chưa kết nối Model AI' treo sau khi đã kết nối là lỗi khách báo 27/08).
         connect_health.engine_reconnected("claude")
@@ -5074,6 +5077,7 @@ def claude_login_code(code: str = Form("")):
 @app.post("/claude/logout")
 def claude_logout():
     d = claude_auth_logout()
+    warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
     try:
         connect_health.probe_engines()   # ngắt chủ động → đèn phải đổi ngay, khỏi chờ vòng quét
     except Exception:

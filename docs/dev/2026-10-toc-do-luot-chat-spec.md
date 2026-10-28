@@ -110,3 +110,32 @@ dò lại đồng bộ). Đổi kết nối vẫn làm `mtime` đổi nên khôn
 - `tests/python/test_codex_steer_0213.py` mở rộng: delta, `developerInstructions`, hai lượt trên một tiến trình.
 - `tests/python/test_hub_swr.py`: trả bản lưu, làm mới nền một lần, bản thiếu không dùng luật mới.
 - Đo lại bằng tay trên máy thật: hai lượt liên tiếp Claude và Codex, đọc `engine.first_output`.
+
+## 6. Bản vá 0.387.0 (29/10/2026)
+
+Thử lại trên dashboard thật (server thử cổng 7788, `JAVIS_WARM_IDLE_S=15`) thì 0.382.0 **không dùng lại tiến trình nào**:
+ba lượt liền nhau đều `warm=False`. Phép thử hôm trước chạy trên mã trước vòng sửa review, nên không bắt được. Dòng log
+mới `[claude warm] ...: config changed (...)` chỉ đúng thủ phạm: `credentials`.
+
+- Claude Code tự ghi lại `.credentials.json` mỗi lần chạy, nên dấu vân tay đổi theo từng lượt. Bỏ file đó khỏi dấu vân
+  tay; thay vào, `/claude/login`, `/claude/login-code` và `/claude/logout` gọi `warm_pool.POOL.drop_kind("claude")`.
+  Đổi tài khoản phụ (plan_accounts) vẫn đổi `CLAUDE_CONFIG_DIR` nên vẫn nằm trong dấu vân tay.
+- Codex: `openai_oauth.write_codex_auth()` ghi lại `auth.json` mỗi lượt (đóng dấu `last_refresh`). Dấu vân tay lấy
+  `tokens.account_id` thay cho stat của file; ngắt ChatGPT thì `drop_kind("codex")`.
+- Công thức mở sẵn sống 12 giờ thay vì 1 giờ, tối đa 200 công thức (bỏ cái cũ nhất trước).
+- Log mới: `[warm pool] closed idle ...` và `[warm pool] prewarmed ...`.
+
+Đo sau bản vá, cùng một cuộc chat:
+
+| | lạnh | lượt liền sau | nghỉ, đóng vì rảnh, gõ rồi gửi |
+|---|---|---|---|
+| Claude Code | 8,6 tới 9,0 s | 1,6 s | 2,0 s |
+| Codex | 14,0 s | 2,5 s | 2,6 s |
+
+Chưa làm, có chủ ý:
+- **Cuộc chat mới tinh** và **ngay sau khi server khởi động lại**: không có công thức để mở lại. Muốn mở sẵn thì phải dựng
+  đúng system prompt của lượt đầu, mà prompt đó mang id phiên, khối kênh trả kết quả và ngôn ngữ dò từ chính câu hỏi.
+  Các bước dựng nằm rải trong `_do_turn` của main.py; tách chúng ra là một đợt tái cấu trúc riêng. Mở sẵn bằng prompt
+  của cuộc chat khác thì model nhận sai id phiên, tức kết quả việc nền gửi nhầm chỗ.
+- **7 engine API**: không có tiến trình để giữ; mỗi lượt là một request HTTP từ chính server.
+
