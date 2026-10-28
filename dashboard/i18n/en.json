@@ -6082,9 +6082,9 @@
   "gh.branch_none": "No branch found.",
   "gh.branch_switching": "Changing branch...",
   "gh.branch_how": "The chat works on its own branch cut from this one, and its PR targets this one. It can change only while the chat has no work in progress.",
-  "store.kind.repo": "Recommended repos",
-  "store.upstream_follows": "Follows the source repo",
+  "store.kind.repo": "Curated",
+  "store.upstream_follows": "Updated from the author",
   "store.upstream_synced": "latest version taken {ngay}",
-  "store.repo_lead": "Skills copied word for word from the author's GitHub repo, updated when the author changes them.",
+  "store.repo_lead": "Skill sets Javis picked, as the author wrote them, updated when the author changes them.",
   "store.repo_info": "Every day the Javis Store compares these packs with the source repo. When the source changes a skill, the pack gets a new version, Javis tells you in the bell and you press Update, through the usual confirm screen. Skills you have edited yourself are kept, never overwritten. Nothing is translated or changed: you read exactly what the author wrote."
 }

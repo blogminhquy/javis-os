@@ -4213,13 +4213,9 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   .tm-side .tm-close { border-color: transparent; background: none; }
 }
 
-/* Recommended repos (0.370.0): the "Follows the source repo" line on a Store card, and the lead line of its tab. */
+/* Curated tab (0.370.0, renamed 0.373.0): the "Updated from the author" line on a Store card, and the tab's lead line. */
 .kho-goc { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .kho-goc svg { width: 14px; height: 14px; flex: none; }
 .kho-goc a { color: var(--accent); text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }
 .kho-goc a:hover { text-decoration: underline; }
 .kho-goc-gt { margin: 10px 0 4px; }
-/* On a phone the tabs share one row, and "Recommended repos" is the one long label: let it wrap. */
-@media (max-width: 860px) {
-  .kho-tab[data-kho-loai="repo"] { white-space: normal; line-height: 1.2; overflow-wrap: anywhere; }
-}

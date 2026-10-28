@@ -6,11 +6,14 @@ Javis OS release history, newest first. You can also read it inside the app unde
 
 English entries start at 0.66.0. Every earlier release is described in the Vietnamese [CHANGELOG.md](CHANGELOG.md), which remains the maintainer's original; the in-app Updates page shows those older entries in Vietnamese.
 
-Format: each release is a `## [0.373.0] - 2026-10-28
+Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
+
+## [0.373.0] - 2026-10-28
 ### Improved
 - **The "Recommended repos" tab is now "Curated".** A shorter name without the jargon, one line on a phone. The card line now reads "Updated from the author".
 
-## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
+### Added
+- **Curated gains 15 of the most popular skill sets**, each taken as the author wrote it and updated with them: Superpowers, GitNexus, REA, Matt Pocock's skills, Anthropic Skills, Vercel, planning with files, UI/UX Pro Max, Marketing Skills (52 skills), Humanizer, Claude for Marketing, Sales and Small Business, HyperFrames, Video Use. Already in the Javis Store, no app update needed.
 
 ## [0.371.0] - 2026-10-28
 ### Added

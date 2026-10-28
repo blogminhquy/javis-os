@@ -4,11 +4,14 @@
 
 Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại **Cài đặt → Cập nhật**.
 
-Định dạng: mỗi phiên bản là một khối `## [0.373.0] - 2026-10-28
+Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
+
+## [0.373.0] - 2026-10-28
 ### Cải thiện
 - **Tab "Repo khuyên dùng" đổi tên thành "Tuyển chọn".** Tên ngắn hơn, không còn từ kỹ thuật, vừa một hàng trên điện thoại. Dòng trên thẻ đổi thành "Cập nhật từ tác giả".
 
-## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
+### Thêm mới
+- **Tuyển chọn có thêm 15 bộ kỹ năng nổi nhất**, đều lấy nguyên bản và tự cập nhật theo tác giả: Superpowers, GitNexus, REA, bộ skill của Matt Pocock, Anthropic Skills, Vercel, lập kế hoạch bằng tệp, UI/UX Pro Max, Marketing Skills (52 skill), Humanizer, Claude cho Marketing, Bán hàng và Doanh nghiệp nhỏ, HyperFrames, Video Use. Có ngay trong Javis Store, không cần cập nhật app.
 
 ## [0.371.0] - 2026-10-28
 ### Thêm mới

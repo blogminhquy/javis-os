@@ -206,7 +206,7 @@
     tool:      { nhan: "store.kind.tool",      icon: "toolbox",  trang: "plugins" },
     connector: { nhan: "store.kind.connector", icon: "plug",     trang: "mcp" },
     bundle:    { nhan: "store.kind.bundle",    icon: "package",  trang: "" },
-    // Recommended repos (0.370.0): not a kind but a tab of its own, listing every Store entry that follows
+    // Curated (0.370.0, "Recommended repos" until 0.373.0): not a kind but a tab of its own, listing every Store entry that follows
     // its author's GitHub repo (`upstream`), whatever its kind. It only shows when the Store has one.
     repo:      { nhan: "store.kind.repo",      icon: "git-branch", trang: "" },
   };
@@ -548,7 +548,7 @@
       + tw("store.installed_latest", { ver: esc(g.installed_version) }) + '</div>';
   }
 
-  // "Follows the source repo" line: the author's GitHub repo as a link, and the day the Store last took a new
+  // "Updated from the author" line: the author's GitHub repo as a link, and the day the Store last took a new
   // version from it. The repo is a plain owner/name (checked server-side in `packs_store._upstream`).
   function dongGoc(g) {
     if (!theoGoc(g)) return "";
