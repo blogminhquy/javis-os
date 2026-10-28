@@ -8,9 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.374.0] - 2026-10-28
 ### Thêm mới
-- **Tab Kênh trên trang Chatbot:** mọi nick Zalo, Page, bot Telegram xếp theo kênh với logo thật. Chọn A.I. trực từng nơi bằng một hộp chọn, đổi xong mới hiện Huỷ và Lưu. Có lựa chọn "Không cần A.I." và "Gắn A.I. cho nhiều Page" một lần.
-- **Bật tắt A.I. từng nhóm, từng người** ngay trong tab Kênh, có Hoàn tác, kèm nút Cho phép khi có người gọi A.I. và Mở chat.
-- **Tab Thống kê:** A.I. đã trả lời bao nhiêu tin, bạn đã trả lời bao nhiêu, khách chờ trung bình bao lâu, so với kỳ trước, kèm biểu đồ theo kênh và theo bot.
+- **Tab Kênh trên trang Chatbot:** mọi nick Zalo, Page, bot Telegram xếp theo kênh với logo thật. Chọn A.I. trực từng nơi bằng một hộp chọn, đổi xong mới hiện Huỷ và Lưu. Có "Không cần A.I.", "Gắn A.I. cho nhiều Page" một lần, và công tắc A.I. từng nhóm, từng người có Hoàn tác.
+- **Tab Thống kê:** A.I. đã trả lời bao nhiêu tin, bạn đã trả lời bao nhiêu, khách chờ trung bình bao lâu, so với kỳ trước, kèm biểu đồ theo kênh và theo bot. Chọn kỳ bằng bộ chọn ngày đầy đủ: hôm nay, 7, 30, 90 ngày, tháng trước, đầu tuần, đầu tháng, hoặc chọn ngày trên lịch.
+- **Bộ lọc Hội thoại đầy đủ hơn:** thêm Thời gian (cùng bộ chọn ngày), Tin cuối của ai (khách, A.I., bạn) và Chỉ chat đã ghim. Danh sách trống vì lọc thì có nút Bỏ lọc ngay giữa.
 
 ### Sửa lỗi
 - Đổi bot trực một Page thì các cuộc chat cũ của Page đó cũng theo bot mới, không còn báo "chưa có bot". Tắt A.I. ở một chat mà không lưu được thì báo lỗi rõ thay vì báo đã xong.

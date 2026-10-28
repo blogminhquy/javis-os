@@ -130,6 +130,26 @@ check("GET /conversations/insights: this period, the one before, needs-you now, 
       r["now"]["ai"] >= 1 and "before" in r and isinstance(r["needs_you"], int) and r["bot_names"].get(b2) == "Hoa", r)
 check("GET /conversations/insights: an odd day count falls back to 7", cl.get("/conversations/insights?days=5").json()["days"] == 7)
 check("GET /conversations/insights: today only", cl.get("/conversations/insights?days=1").json()["days"] == 1)
+today = time.strftime("%Y-%m-%d")
+r = cl.get(f"/conversations/insights?from={today}&to={today}").json()
+check("GET /conversations/insights: a picked range (today) counts today's messages", r["days"] == 1 and r["now"]["ai"] >= 1, r)
+r = cl.get("/conversations/insights?from=2001-01-01&to=2001-01-31").json()
+check("GET /conversations/insights: an old range is empty, its 'before' is the 31 days before it", r["days"] == 31 and r["now"]["ai"] == 0, r)
+
+# ---- 4. more inbox filters: time range, who wrote last, pinned ----------------------------------------------------------
+ids = lambda q: {x["external_chat_id"] for x in cl.get("/conversations?limit=100" + q).json()["items"]}
+check("from/to today keeps today's chats", {"501", "502"} <= ids(f"&from={today}&to={today}"))
+check("an old range keeps nothing", ids("&from=2001-01-01&to=2001-01-02") == set())
+check("ends given backwards are swapped, an unreadable end stays open", {"501", "502"} <= ids(f"&from={today}&to=2001-01-01") and
+      {"501", "502"} <= ids("&from=xx"))
+check("last message by the A.I. / by you / by the customer", "501" in ids("&last_by=ai") and "502" not in ids("&last_by=ai") and
+      "502" in ids("&last_by=human") and "501" not in ids("&last_by=customer"))
+check("an odd last_by is ignored", {"501", "502"} <= ids("&last_by=boss"))
+c501 = next(x for x in cl.get("/conversations?limit=100").json()["items"] if x["external_chat_id"] == "501")
+cl.post(f"/conversations/{c501['id']}/pin", data={"pinned": "1"})
+check("pinned only", ids("&pinned=1") == {"501"}, ids("&pinned=1"))
+r = cl.get("/conversations?limit=5&pinned=1&who=").json()
+check("filters keep the picker and tab counts whole-inbox", r["who_counts"]["you_total"] >= r["who_counts"]["you"], r["who_counts"])
 
 print()
 if _fails:

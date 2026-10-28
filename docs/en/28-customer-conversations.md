@@ -47,7 +47,7 @@ Each row has a **left edge** in that colour, an avatar with the **channel's logo
 At the top of the left column:
 
 - **Channel picker**: opens the list of nicks and Pages with checkboxes, grouped by channel with real logos. Ticking a channel ticks all of it; each one shows its **Needs you** count. Nothing ticked means everything. It has a search box, **Clear**, **Done** and **Manage channels**.
-- **Search** (name, phone number, text) and the **Filter** button: a two-level menu with Has tag, Without tag, Chat type, Answering bot, Status (unread, waiting longest, hidden) and Customer info (left a phone or email). Active filters show as chips with an x underneath.
+- **Search** (name, phone number, text) and the **Filter** button: a two-level menu with Time (when the last message came: today, last 7, 30 or 90 days, last month, week or month to date, or days picked on the calendar), Has tag, Without tag, Chat type, Answering bot, Status (unread, waiting longest, hidden), Last message by (customer, AI, you) and Customer info (left a phone or email, pinned chats only). Active filters show as chips with an x underneath.
 - **Four quick filters**: Needs you · AI is handling · You are handling · All, with counts. The page first opens on **Needs you**; when nothing needs you it says so, with **Show all**.
 
 Every choice is remembered in the browser. The number on the **Conversations** tab is the **Needs you** count.
@@ -111,7 +111,7 @@ The number on the Channels tab counts the places that need you: an account in er
 
 ## The Stats tab
 
-Pick **Today**, **7 days** or **30 days**. Four tiles: AI answered, You answered (messages sent from Javis), Average customer wait (from a customer message to its first answer), Waiting for you (opens the Needs you list). Each compares with the period before of the same length. Below, two bar lists: AI answers by channel and by bot. Numbers come from the Javis inbox.
+Press the period button to open the date picker: a quick range (today, yesterday, last 7, 30 or 90 days, last month, week or month to date) or a start and end day on the calendar, then **Apply**. Javis remembers the period you looked at last. Four tiles: AI answered, You answered (messages sent from Javis), Average customer wait (from a customer message to its first answer), Waiting for you (opens the Needs you list). Each compares with the period before of the same length. Below, two bar lists: AI answers by channel and by bot. Numbers come from the Javis inbox.
 
 ## The account card
 

@@ -82,8 +82,8 @@ Cột trái, từ trên xuống:
 - **Hộp chọn kênh** (thả xuống): ô tìm, "Tất cả kênh", rồi từng kênh có logo thật, mỗi nick/Page một ô tick (tick tên
   kênh = cả kênh), số Cần bạn từng nơi; dưới cùng Bỏ chọn / Xong, và "Quản lý kênh". Chọn lưu ở trình duyệt.
   Server nhận `account_ids` (danh sách khoá tài khoản, cách nhau dấu phẩy).
-- **Ô tìm** và nút **Lọc** mở menu hai tầng: Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Thông tin khách
-  (có SĐT), Đã ẩn. Bộ lọc đang bật hiện thành chip có dấu x.
+- **Ô tìm** và nút **Lọc** mở menu hai tầng: Thời gian (bộ chọn ngày `date-range.js`, gửi `from`/`to` dạng YYYY-MM-DD, tính theo tin cuối), Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Thông tin khách
+  (có SĐT, chỉ chat đã ghim: `pinned=1`), Tin cuối của ai (`last_by=customer|ai|human`), Đã ẩn. Bộ lọc đang bật hiện thành chip có dấu x.
 - **Bốn nút lọc nhanh có chấm màu:** Cần bạn · A.I. đang xử lý · Bạn đang xử lý · Tất cả, có số. Server nhận `who`.
 - **Dòng khách:** viền trái màu theo `who`, ảnh đại diện có logo kênh ở góc, tên, giờ, tin cuối (có "A.I.:" hoặc
   "Bạn:"), số chưa đọc, tối đa 2 thẻ cộng "+n", tên nick/Page khi đang xem nhiều nơi. Giữ menu dòng (ghim, ẩn, chưa
@@ -124,11 +124,11 @@ cũ (wizard) vẫn dùng để tạo bot mới cho tới khi trang mới làm đ
 
 ## 9. Tab Thống kê
 
-Hôm nay / 7 ngày / 30 ngày. Bốn ô: A.I. đã trả lời (tin `ai`), Bạn đã trả lời (tin `human` gửi từ Javis; số lần tiếp
+Kỳ chọn bằng bộ chọn ngày (chọn nhanh hoặc hai ngày trên lịch, nhớ trong trình duyệt). Bốn ô: A.I. đã trả lời (tin `ai`), Bạn đã trả lời (tin `human` gửi từ Javis; số lần tiếp
 quản không được ghi lại nên không đếm được), Khách chờ trung bình (từ tin khách đầu tiên chưa ai đáp tới câu trả lời đầu
 tiên, một chuỗi tin khách liền nhau tính một lần chờ), Đang chờ bạn (bấm vào là mở Hội thoại ở Cần bạn). Thanh ngang
 một màu: A.I. trả lời theo kênh và theo bot, số ghi ở cuối thanh. Tính từ kho hội thoại, so với kỳ trước cùng độ dài.
-Đường `GET /conversations/insights?days=1|7|30` (số khác rơi về 7; "Hôm nay" tính từ nửa đêm giờ máy chủ).
+Đường `GET /conversations/insights?from=YYYY-MM-DD&to=YYYY-MM-DD` (hai ngày đều tính, nửa đêm giờ máy chủ; `days=` cũ vẫn nhận).
 
 ## 10. Chia đợt phát hành
 

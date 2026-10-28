@@ -48,7 +48,7 @@ Mỗi dòng khách có **viền trái** theo màu đó, ảnh đại diện có 
 Đầu cột trái, từ trên xuống:
 
 - **Hộp chọn kênh**: bấm để mở danh sách nick và Page có ô tick, xếp theo kênh với logo thật. Tick tên kênh là chọn cả kênh; mỗi nơi có số chat **Cần bạn**. Không tick gì là xem tất cả. Có ô tìm, **Bỏ chọn**, **Xong** và **Quản lý kênh**.
-- **Ô tìm** (tên, số điện thoại, nội dung) và nút **Lọc**: menu hai tầng gồm Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Tình trạng (chưa đọc, chờ lâu nhất, đã ẩn), Thông tin khách (có SĐT hay email). Bộ lọc đang bật hiện thành chip có dấu x ngay dưới.
+- **Ô tìm** (tên, số điện thoại, nội dung) và nút **Lọc**: menu hai tầng gồm Thời gian (tin cuối trong khoảng nào: hôm nay, 7, 30, 90 ngày, tháng trước, đầu tuần, đầu tháng, hoặc chọn ngày trên lịch), Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Tình trạng (chưa đọc, chờ lâu nhất, đã ẩn), Tin cuối của ai (khách, A.I., bạn), Thông tin khách (có SĐT hay email, chỉ chat đã ghim). Bộ lọc đang bật hiện thành chip có dấu x ngay dưới.
 - **Bốn nút lọc nhanh**: Cần bạn · A.I. đang xử lý · Bạn đang xử lý · Tất cả, kèm số. Mở trang lần đầu là ở **Cần bạn**; không còn chat nào cần bạn thì trang nói vậy, kèm nút **Xem tất cả**.
 
 Mọi lựa chọn được nhớ ở trình duyệt. Số trên tab **Hội thoại** là số chat **Cần bạn**.
@@ -114,7 +114,7 @@ Số trên tab Kênh là số nơi cần bạn xử lý: tài khoản lỗi, ho�
 
 ## Tab Thống kê
 
-Chọn **Hôm nay**, **7 ngày** hoặc **30 ngày**. Bốn ô: A.I. đã trả lời, Bạn đã trả lời (tin gửi từ Javis), Khách chờ trung bình (từ lúc khách nhắn tới câu trả lời đầu tiên), Đang chờ bạn (bấm vào là mở danh sách Cần bạn). Mỗi ô so với kỳ trước cùng độ dài. Dưới là hai thanh ngang: A.I. trả lời theo kênh và theo bot. Số liệu tính từ hộp thư của Javis.
+Bấm nút kỳ để mở bộ chọn ngày: chọn nhanh (hôm nay, hôm qua, 7, 30, 90 ngày qua, tháng trước, đầu tuần, đầu tháng đến nay) hoặc bấm ngày bắt đầu và ngày kết thúc trên lịch rồi **Áp dụng**. Javis nhớ kỳ bạn xem lần cuối. Bốn ô: A.I. đã trả lời, Bạn đã trả lời (tin gửi từ Javis), Khách chờ trung bình (từ lúc khách nhắn tới câu trả lời đầu tiên), Đang chờ bạn (bấm vào là mở danh sách Cần bạn). Mỗi ô so với kỳ trước cùng độ dài. Dưới là hai thanh ngang: A.I. trả lời theo kênh và theo bot. Số liệu tính từ hộp thư của Javis.
 
 ## Thẻ tài khoản kênh
 

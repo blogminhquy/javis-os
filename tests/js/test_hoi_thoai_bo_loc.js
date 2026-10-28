@@ -44,7 +44,7 @@ check("dropdown builders of the pre-v5 filter row are gone", ["botOptions", "sta
   "tagOptions", "contactLabel", "botColor"].every((k) => !(k in F)));
 
 // ---- 1. hàm thuần ----
-const EMPTY = '{"bot":"","status":"","type":"","channel":"","contact":"","who":"","accs":[],"tagsAny":[],"tagsNone":[]}';
+const EMPTY = '{"bot":"","status":"","type":"","channel":"","contact":"","who":"","accs":[],"tagsAny":[],"tagsNone":[],"when":null,"lastBy":"","pinned":""}';
 check("trạng thái rỗng", JSON.stringify(F.emptyState()) === EMPTY, JSON.stringify(F.emptyState()));
 check("giá trị lạ về không lọc (tình trạng, loại, who không nằm trong bảng)",
   F.sanitize({ bot: "b1", status: "hack", type: "??", channel: "zalo", who: "boss" }).status === "" &&
@@ -53,16 +53,26 @@ check("kiểu sai không làm sập", F.sanitize(null).bot === "" && F.sanitize(
   F.sanitize({ accs: "a" }).accs.length === 0 && F.sanitize({ tagsAny: [{}] }).tagsAny.length === 0);
 check("giữ giá trị hợp lệ", JSON.stringify(F.sanitize({ bot: "-", status: "unread", type: "group", channel: "telegram", who: "ai",
   accs: ["zalo:1", "zalo:1", "telegram:acc_9"], tagsAny: ["7"], tagsNone: ["8", "x"] }))
-  === '{"bot":"-","status":"unread","type":"group","channel":"telegram","contact":"","who":"ai","accs":["zalo:1","telegram:acc_9"],"tagsAny":["7"],"tagsNone":["8"]}');
+  === '{"bot":"-","status":"unread","type":"group","channel":"telegram","contact":"","who":"ai","accs":["zalo:1","telegram:acc_9"],"tagsAny":["7"],"tagsNone":["8"],"when":null,"lastBy":"","pinned":""}');
 check("an old saved status moves to the matching quick filter (need_reply = Needs you, human = You are handling)",
   F.sanitize({ status: "need_reply" }).who === "you" && F.sanitize({ status: "need_reply" }).status === "" &&
   F.sanitize({ status: "human" }).who === "owner" && F.sanitize({ status: "human" }).status === "");
 check("an old saved single tag becomes a 'has tag' filter", JSON.stringify(F.sanitize({ tag: "7" }).tagsAny) === '["7"]' &&
   !("tag" in F.sanitize({ tag: "7" })));
 check("an account key with odd characters is dropped", F.sanitize({ accs: ["zalo:1", "a b", "<x>"] }).accs.join() === "zalo:1");
+// Owner, 2026-10-28 ("lọc như kia hơi ít"): when the last message came, who wrote it, pinned only.
+check("a time filter keeps a known quick range or two real dates (swapped when backwards), drops the rest",
+  JSON.stringify(F.sanitize({ when: { preset: "d30" } }).when) === '{"preset":"d30"}' && F.sanitize({ when: { preset: "d999" } }).when === null &&
+  JSON.stringify(F.sanitize({ when: { from: "2026-10-09", to: "2026-10-01" } }).when) === '{"from":"2026-10-01","to":"2026-10-09"}' &&
+  F.sanitize({ when: { from: "x", to: "2026-10-01" } }).when === null && F.sanitize({ when: "d7" }).when === null);
+check("'last message by' takes customer, A.I. or you; pinned is on or off", F.sanitize({ lastBy: "ai" }).lastBy === "ai" &&
+  F.sanitize({ lastBy: "boss" }).lastBy === "" && F.sanitize({ pinned: "1" }).pinned === "1" && F.sanitize({ pinned: "yes" }).pinned === "");
+check("the new filters count in the Filter button", F.activeCount({ when: { preset: "d7" }, lastBy: "customer", pinned: "1" }) === 3);
+const q2 = F.query({ when: { from: "2026-10-01", to: "2026-10-09" }, lastBy: "customer", pinned: "1" });
+check("query: from/to as days, last_by, pinned=1", /&from=2026-10-01&to=2026-10-09/.test(q2) && /&last_by=customer/.test(q2) && /&pinned=1/.test(q2));
 F.save({ bot: "b1", status: "unread", type: "private", channel: "", who: "" });
 check("lưu rồi đọc lại đúng (chosen 'All' stays All)", JSON.stringify(F.load()) ===
-  '{"bot":"b1","status":"unread","type":"private","channel":"","contact":"","who":"","accs":[],"tagsAny":[],"tagsNone":[]}');
+  '{"bot":"b1","status":"unread","type":"private","channel":"","contact":"","who":"","accs":[],"tagsAny":[],"tagsNone":[],"when":null,"lastBy":"","pinned":""}');
 store["javis.inbox.filters"] = JSON.stringify({ bot: "b1" });
 check("nothing saved about who yet (first visit, pre-v5 browser): opens on Needs you", F.load().who === "you" && F.load().bot === "b1");
 store["javis.inbox.filters"] = "không phải json";
@@ -104,18 +114,18 @@ check("the popovers redraw only on the owner's own actions, never on the 5-secon
 check("a quick filter, a picker tick, a menu choice or a chip x saves the filters and reloads",
   /function onFilterChange\(\) \{ saveFilters\(\); paintHead\(\); tai\(\); \}/.test(CV) &&
   /_who = b\.dataset\.who \|\| "";\s*onFilterChange\(\)/.test(CV) && /dropFilter\(b\.dataset\.k, b\.dataset\.v\);\s*onFilterChange\(\)/.test(CV) &&
-  (CV.match(/onFilterChange\(\);\n\s*paintPops\(\);/g) || []).length >= 2);
+  (CV.match(/onFilterChange\(\);\n\s*paintPops\(\);/g) || []).length >= 1 && /clearMenuFilters\(\);\n\s*paintPops\(\);/.test(CV));
 check("ticking a channel ticks every nick or Page of it, not only the ones the search shows",
   /accList\(\)\.filter\(function \(a\) \{ return a\.channel === t\.dataset\.ch; \}\)/.test(CV));
 check("khôi phục bộ lọc đã lưu khi mở hòm thư; mở từ nơi khác thì bỏ mọi bộ lọc có thể giấu cuộc chat",
   /JavisConvFilters\.load\(\)|F\.load\(\)/.test(CV) &&
   /_who = ""; _statusLoc = ""; _typeLoc = ""; _tagsAny = \[\]; _tagsNone = \[\]; _contactLoc = ""; _q = "";/.test(CV) &&
   /_accs = _cho\.account_key \? \[_cho\.account_key\] : \[\]/.test(CV));
-check("Filter menu 'Clear' resets every filter of the menu", /_tagsAny = \[\]; _tagsNone = \[\]; _typeLoc = _botLoc = _statusLoc = _contactLoc = "";/.test(CV));
+check("Filter menu 'Clear' resets every filter of the menu", /_tagsAny = \[\]; _tagsNone = \[\]; _typeLoc = _botLoc = _statusLoc = _contactLoc = _lastBy = _pinned = ""; _when = null;/.test(CV));
 check("Escape or a click outside closes a popover and gives focus back to its button", /function watchPopOutside\(\)/.test(CV) &&
   /ev\.key !== "Escape"/.test(CV) && /focusOpener\(from\)/.test(CV));
 check("trạng thái rỗng tính cả bộ lọc mới, and only the quick filter hiding everything offers 'Show all'",
-  /var loc = !!\(_q \|\| _kenhLoc \|\| _botLoc \|\| _accs\.length \|\| _statusLoc \|\| _typeLoc \|\| _tagsAny\.length \|\| _tagsNone\.length \|\| _contactLoc\)/.test(CV) &&
+  /var loc = !!\(_q \|\| _kenhLoc \|\| _botLoc \|\| _accs\.length \|\| _statusLoc \|\| _typeLoc \|\| _tagsAny\.length \|\| _tagsNone\.length \|\| _contactLoc \|\|\s+_when \|\| _lastBy \|\| _pinned\)/.test(CV) &&
   /EMPTY_WHO\[_who\]/.test(CV) && /ib-see-all/.test(CV));
 check("index.html nạp module lọc và inbox-v5 TRƯỚC conversations.js, kèm CSS", HTML.indexOf("conversations-filters.js") > 0 &&
   HTML.indexOf("conversations-filters.js") < HTML.indexOf("/static/conversations.js") &&

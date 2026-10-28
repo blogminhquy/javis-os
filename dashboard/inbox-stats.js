@@ -1,6 +1,7 @@
 /* Stats tab of the Chatbot page (Chatbot v5, owner 2026-10-28; docs/dev/2026-10-chatbot-v5-spec.md section 9).
  *
- * Today / 7 days / 30 days. Four tiles: messages the A.I. answered, messages you answered, how long a customer waits
+ * Any period from the date range picker (date-range.js: today, last 7 / 30 / 90 days, last month, ... or days on the
+ * calendar). Four tiles: messages the A.I. answered, messages you answered, how long a customer waits
  * for a first answer, and chats that need you right now; each against the period before (GET
  * /conversations/insights). Then two single-series bar lists: A.I. answers per channel and per bot, values written at
  * the end of each bar, the period's numbers in each bar's hover text.
@@ -9,7 +10,11 @@
 (function () {
   "use strict";
 
-  var C = null, _body = null, _days = 7, _data = null, _err = "";
+  var C = null, _body = null, _data = null, _err = "";
+  // The period: a quick range ({preset}) or days picked on the calendar ({from, to}), date-range.js. Remembered in this
+  // browser so the tab opens on the period the owner last looked at.
+  var KEY = "javis.stats.range", _range = { preset: "d7" };
+  try { var saved = JSON.parse(window.localStorage.getItem(KEY) || "null"); if (saved && (saved.preset || saved.from)) _range = saved; } catch (e) { /* no storage */ }
 
   function t(k, v) { return window.t(k, v); }
   function esc(s) {
@@ -63,14 +68,17 @@
 
   function render(body, ctx) {
     C = ctx; _body = body;
-    body.innerHTML = '<div class="ib-v5 st-wrap"><div class="st-bar" role="group" aria-label="' + esc(t("ib.st_period")) + '">' +
-      [[1, "ib.st_d1"], [7, "ib.st_d7"], [30, "ib.st_d30"]].map(function (n) {
-        return '<button type="button" class="st-seg" data-d="' + n[0] + '">' + esc(t(n[1])) + '</button>';
-      }).join("") +
-      '</div><div class="st-body"><div class="ht-empty">' + esc(t("common.loading")) + '</div></div></div>';
-    body.querySelector(".st-bar").onclick = function (e) {
-      var b = e.target.closest && e.target.closest(".st-seg");
-      if (b) { _days = parseInt(b.dataset.d, 10); load(); }
+    body.innerHTML = '<div class="ib-v5 st-wrap"><div class="st-bar"><button type="button" class="st-range" aria-haspopup="dialog" aria-label="' +
+      esc(t("ib.st_period")) + '"></button><span class="st-dates"></span></div>' +
+      '<div class="st-body"><div class="ht-empty">' + esc(t("common.loading")) + '</div></div></div>';
+    var rb = body.querySelector(".st-range");
+    rb.onclick = function () {
+      if (!window.JavisDateRange) return;
+      window.JavisDateRange.open(rb, _range, function (r) {
+        _range = r || { preset: "d7" };
+        try { window.localStorage.setItem(KEY, JSON.stringify(_range)); } catch (e) { /* no storage */ }
+        load();
+      });
     };
     body.addEventListener("click", function (e) { var g = e.target.closest && e.target.closest("[data-go]"); if (g) C.goWho(g.dataset.go); });
     body.addEventListener("keydown", function (e) {
@@ -82,12 +90,11 @@
 
   async function load() {
     if (!_body) return;
-    _body.querySelectorAll(".st-seg").forEach(function (b) {
-      var on = parseInt(b.dataset.d, 10) === _days;
-      b.classList.toggle("on", on);
-      b.setAttribute("aria-pressed", String(on));
-    });
-    try { _data = await C.api("/conversations/insights?days=" + _days); _err = ""; }
+    var DR = window.JavisDateRange, d = DR ? DR.dates(_range) : null;
+    var rb = _body.querySelector(".st-range"), sd = _body.querySelector(".st-dates");
+    if (rb) rb.innerHTML = C.ic("calendar") + ' <span>' + esc(DR ? DR.label(_range) : t("ib.st_period")) + '</span> ' + C.ic("chevron-down");
+    if (sd) sd.textContent = d && _range.preset ? DR.label({ from: d.from, to: d.to }) : "";
+    try { _data = await C.api("/conversations/insights?" + (d ? "from=" + d.from + "&to=" + d.to : "days=7")); _err = ""; }
     catch (e) { _err = e.message; }
     paint();
   }

@@ -678,6 +678,7 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
               mode: str = "", limit: int = 50, offset: int = 0, status: str = "", chat_type: str = "",
               hesitant=None, tag: int = 0, has_contact: bool = False, sort: str = "",
               hidden: str = "", account_ids=None, ids=None, tags_any=None, tags_none=None,
+              since: float = 0, until: float = 0, last_by: str = "", pinned: bool = False,
               _light: bool = False) -> List[dict]:
     """Danh sách hội thoại, ĐÃ GHIM rồi tới MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
 
@@ -700,7 +701,7 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
     """
     n = max(1, min(int(limit or 50), MAX_STATE_ROWS if _light else MAX_DANH_SACH))
     o = max(0, int(offset or 0))
-    where, args = _base_where(account_ids, ids, tags_any, tags_none)
+    where, args = _base_where(account_ids, ids, tags_any, tags_none, since, until, last_by, pinned)
     if channel:
         where.append("a.channel=?"); args.append(str(channel))
     if bot_id == BOT_KHONG_CO:
@@ -811,9 +812,23 @@ def dem_bo_loc(hesitant=None) -> dict:
     return out
 
 
-def _base_where(account_ids=None, ids=None, tags_any=None, tags_none=None) -> tuple:
-    """WHERE parts shared by `danh_sach` and `state_rows` for the Chatbot v5 filters."""
+LAST_BY = ("customer", "ai", "human")
+
+
+def _base_where(account_ids=None, ids=None, tags_any=None, tags_none=None, since: float = 0, until: float = 0,
+                last_by: str = "", pinned: bool = False) -> tuple:
+    """WHERE parts shared by `danh_sach` and `state_rows` for the Chatbot v5 filters: picked accounts, ids, tags
+    any/none, the last message between `since` and `until` (timestamps, 0 = open), who sent the last message
+    (customer | ai | human, anything else ignored) and pinned chats only."""
     where, args = [], []
+    if since:
+        where.append("c.last_message_at>=?"); args.append(float(since))
+    if until:
+        where.append("c.last_message_at<?"); args.append(float(until))
+    if last_by in LAST_BY:
+        where.append("c.last_sender_type=?"); args.append(last_by)
+    if pinned:
+        where.append("c.pinned=1")
     accs = [str(a) for a in (account_ids or []) if str(a).strip()][:200]
     if accs:
         where.append("c.channel_account_id IN (" + ",".join("?" * len(accs)) + ")"); args += accs
@@ -839,13 +854,15 @@ MAX_STATE_ROWS = 5000     # most conversations the "who is handling it" filter l
 
 def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "", chat_type: str = "",
                hesitant=None, tag: int = 0, has_contact: bool = False, hidden: str = "", account_ids=None,
-               tags_any=None, tags_none=None, sort: str = "") -> List[dict]:
+               tags_any=None, tags_none=None, sort: str = "", since: float = 0, until: float = 0, last_by: str = "",
+               pinned: bool = False) -> List[dict]:
     """Every conversation matching the inbox filters (newest first, at most MAX_STATE_ROWS), with only the columns the
     "who is handling it" state needs: id, bot_id, chat_type, external_chat_id, channel_account_id, channel, mode,
     last_sender_type, metadata. Same filters as `danh_sach`, no paging."""
     rows = danh_sach(channel=channel, bot_id=bot_id, q=q, status=status, chat_type=chat_type, hesitant=hesitant,
                      tag=tag, has_contact=has_contact, hidden=hidden, account_ids=account_ids, tags_any=tags_any,
-                     tags_none=tags_none, sort=sort, limit=MAX_STATE_ROWS, _light=True)
+                     tags_none=tags_none, sort=sort, since=since, until=until, last_by=last_by, pinned=pinned,
+                     limit=MAX_STATE_ROWS, _light=True)
     return rows
 
 

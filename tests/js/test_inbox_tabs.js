@@ -45,8 +45,9 @@ const bars = S.barsHtml("By channel", [{ label: "<Zalo>", value: 10 }, { label: 
 check("bars: one hue, the longest is full width, the value written at the end, labels escaped",
   /width:100%/.test(bars) && /width:50%/.test(bars) && /width:2%/.test(bars) && /st-num">10</.test(bars) && bars.indexOf("<Zalo>") < 0);
 check("bars: nothing in the period says so", /ib-hint">none</.test(S.barsHtml("x", [], "none")));
-check("period choice: today, 7 days, 30 days, pressed state for screen readers", /\[1, "ib\.st_d1"\], \[7, "ib\.st_d7"\], \[30, "ib\.st_d30"\]/.test(ST) &&
-  /setAttribute\("aria-pressed", String\(on\)\)/.test(ST) && /\/conversations\/insights\?days=/.test(ST));
+check("period: the date range picker (quick ranges or days on the calendar), remembered in this browser, sent as from/to",
+  /window\.JavisDateRange\.open\(rb, _range/.test(ST) && /localStorage\.setItem\(KEY/.test(ST) &&
+  /\/conversations\/insights\?" \+ \(d \? "from=" \+ d\.from \+ "&to=" \+ d\.to/.test(ST) && /aria-haspopup="dialog"/.test(ST));
 
 // ---- 2. Channels ----
 check("Channels badge counts the nicks and Pages that need something", K.jobs([{ loi: "x", bot_id: "b" }, { bot_id: "" }, { bot_id: "", no_bot: true },

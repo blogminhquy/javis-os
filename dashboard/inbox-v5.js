@@ -96,12 +96,14 @@
   function filterCats(st) {
     var s = st || {};
     return [
+      { id: "time", icon: "calendar", key: "ib.f_time", n: s.when ? 1 : 0 },
       { id: "tagsAny", icon: "tag", key: "ib.f_tags_any", n: (s.tagsAny || []).length },
       { id: "tagsNone", icon: "tag", key: "ib.f_tags_none", n: (s.tagsNone || []).length },
       { id: "type", icon: "users", key: "ib.f_type", n: s.type ? 1 : 0 },
       { id: "bot", icon: "headset", key: "ib.f_bot", n: s.bot ? 1 : 0 },
       { id: "status", icon: "mail", key: "ib.f_status", n: s.status ? 1 : 0 },
-      { id: "contact", icon: "phone", key: "ib.f_info", n: s.contact ? 1 : 0 },
+      { id: "last", icon: "message-circle", key: "ib.f_last", n: s.lastBy ? 1 : 0 },
+      { id: "contact", icon: "phone", key: "ib.f_info", n: (s.contact ? 1 : 0) + (s.pinned ? 1 : 0) },
     ];
   }
 
@@ -112,7 +114,7 @@
   }
 
   function filterMenuHtml(st, cat, tags, facets, bots, icon, tagChip) {
-    var I = icon || noIcon, s = st || {}, f = facets || {}, c = cat || "tagsAny";
+    var I = icon || noIcon, s = st || {}, f = facets || {}, c = cat || "time";
     var cats = filterCats(s).map(function (k) {
       return '<button type="button" class="ib-fm-cat' + (k.id === c ? " on" : "") + '" data-cat="' + k.id + '">' + I(k.icon) +
         '<span>' + esc(tt(k.key)) + '</span>' + (k.n ? '<span class="ib-fm-n">' + k.n + '</span>' : "") + '</button>';
@@ -141,9 +143,22 @@
       o = radio("ib-st", "", s.status, tt("ht.f_st_all")) + radio("ib-st", "unread", s.status, tt("ht.f_st_unread", { n: Number(stt.unread) || 0 })) +
         radio("ib-st", "waiting", s.status, tt("ht.f_st_wait", { n: Number(stt.need_reply) || 0 })) +
         radio("ib-st", "hidden", s.status, tt("ht.f_st_hidden", { n: Number(stt.hidden) || 0 }));
+    } else if (c === "time") {
+      // The calendar for any days first (it is the one a long list would hide), then the quick ranges (date-range.js).
+      var DR = window.JavisDateRange, cur = s.when && s.when.preset ? s.when.preset : s.when ? "custom" : "";
+      o = '<button type="button" class="s-btn-ghost ib-fm-cal' + (cur === "custom" ? " on" : "") + '">' + I("calendar") + ' ' +
+        esc(cur === "custom" && DR ? DR.label(s.when) : tt("ib.f_time_pick")) + '</button>' +
+        radio("ib-time", "", cur, tt("dr.all")) + ((DR && DR.PRESETS) || []).map(function (p) {
+          return radio("ib-time", p, cur, DR.label({ preset: p }));
+        }).join("");
+    } else if (c === "last") {
+      o = radio("ib-last", "", s.lastBy, tt("ib.f_last_any")) + radio("ib-last", "customer", s.lastBy, tt("ib.f_last_customer")) +
+        radio("ib-last", "ai", s.lastBy, tt("ib.f_last_ai")) + radio("ib-last", "human", s.lastBy, tt("ib.f_last_you"));
     } else {
       o = '<label class="ib-fm-o"><input type="checkbox" class="ib-fm-contact"' + (s.contact ? " checked" : "") + '> <span>' +
-        esc(tt("ht.f_st_contact", { n: Number(f.has_contact) || 0 })) + '</span></label>';
+        esc(tt("ht.f_st_contact", { n: Number(f.has_contact) || 0 })) + '</span></label>' +
+        '<label class="ib-fm-o"><input type="checkbox" class="ib-fm-pinned"' + (s.pinned ? " checked" : "") + '> <span>' +
+        esc(tt("ib.f_pinned")) + '</span></label>';
     }
     return '<div class="ib-fm-cats"><div class="ib-fm-h">' + esc(tt("ib.f_title")) + '</div>' + cats + '</div>' +
       '<div class="ib-fm-opts" data-cat="' + c + '">' + o + '</div>' +
@@ -153,7 +168,8 @@
 
   // Chips for the active filters under the quick filters, each with an "x". Returns [{k, v, text}].
   function activeChips(st, tags, bots) {
-    var s = st || {}, out = [];
+    var s = st || {}, out = [], DR = window.JavisDateRange;
+    if (s.when) out.push({ k: "when", v: "", text: tt("ib.fc_time", { t: DR ? DR.label(s.when) : "" }) });
     var name = function (id) { var g = (tags || []).filter(function (x) { return String(x.id) === String(id); })[0]; return g ? g.name : "#" + id; };
     (s.tagsAny || []).forEach(function (id) { out.push({ k: "tagsAny", v: id, text: tt("ib.fc_tag", { t: name(id) }) }); });
     (s.tagsNone || []).forEach(function (id) { out.push({ k: "tagsNone", v: id, text: tt("ib.fc_notag", { t: name(id) }) }); });
@@ -163,7 +179,10 @@
       out.push({ k: "bot", v: "", text: s.bot === "-" ? tt("ib.fc_nobot") : tt("ib.fc_bot", { bot: b ? b.name : s.bot }) });
     }
     if (s.status) out.push({ k: "status", v: "", text: tt("ib.fc_st_" + s.status) });
+    var LAST = { customer: "ib.fc_last_customer", ai: "ib.fc_last_ai", human: "ib.fc_last_human" };
+    if (LAST[s.lastBy]) out.push({ k: "lastBy", v: "", text: tt(LAST[s.lastBy]) });
     if (s.contact) out.push({ k: "contact", v: "", text: tt("ib.fc_contact") });
+    if (s.pinned) out.push({ k: "pinned", v: "", text: tt("ib.fc_pinned") });
     return out;
   }
 

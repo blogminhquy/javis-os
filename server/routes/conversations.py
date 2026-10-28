@@ -186,6 +186,19 @@ def register(app, deps: ConversationsDeps):
                       draft=st["draft"], reply_when=str(bot.get("reply_when") or ""),
                       yield_min=yield_min if isinstance(yield_min, int) else None)
 
+    def _day_range(date_from: str, date_to: str) -> tuple:
+        """("YYYY-MM-DD", "YYYY-MM-DD"), both days included, in the server's time zone -> (since, until) timestamps.
+        A missing or unreadable end stays open (0); the two ends swap when given backwards."""
+        def midnight(v: str) -> float:
+            try:
+                return time.mktime(time.strptime(str(v or "").strip()[:10], "%Y-%m-%d"))
+            except (ValueError, OverflowError):
+                return 0.0
+        a, b = midnight(date_from), midnight(date_to)
+        if a and b and b < a:
+            a, b = b, a
+        return a, (midnight(time.strftime("%Y-%m-%d", time.localtime(b + 36 * 3600))) if b else 0.0)
+
     def _ids_param(raw: str) -> list:
         return [x.strip() for x in str(raw or "").split(",") if x.strip()]
 
@@ -194,7 +207,8 @@ def register(app, deps: ConversationsDeps):
                                  q: str = "", mode: str = "", limit: int = 50, offset: int = 0,
                                  status: str = "", chat_type: str = "", tag: int = 0, has_contact: int = 0,
                                  sort: str = "", account_ids: str = "", who: str = "", tags_any: str = "",
-                                 tags_none: str = ""):
+                                 tags_none: str = "", date_from: str = Query("", alias="from"),
+                                 date_to: str = Query("", alias="to"), last_by: str = "", pinned: int = 0):
         """Danh sách hội thoại mới nhất trước, kèm vài con số đầu trang (cùng bộ lọc).
 
         0.65.3: thêm `status` (unread | need_reply | human) và `chat_type` (group | private); mỗi hàng có `bot_name`;
@@ -216,8 +230,10 @@ def register(app, deps: ConversationsDeps):
         counts them."""
         hesitant = _hesitant()
         hidden = "only" if status == "hidden" else ("" if q.strip() else "exclude")
+        since, until = _day_range(date_from, date_to)
         extra = dict(tag=tag, has_contact=bool(has_contact), sort=sort, hidden=hidden,
-                     account_ids=_ids_param(account_ids), tags_any=_ids_param(tags_any), tags_none=_ids_param(tags_none))
+                     account_ids=_ids_param(account_ids), tags_any=_ids_param(tags_any), tags_none=_ids_param(tags_none),
+                     since=since, until=until, last_by=last_by, pinned=bool(pinned))
         ctx = _StateCtx(hesitant)
         who = who if who in inbox_state.WHO else ""
         who_counts = None
@@ -234,7 +250,8 @@ def register(app, deps: ConversationsDeps):
             # "Needs you" per channel account (the channel picker's badges) and in all (the tab's badge) count the whole
             # inbox: ticking one Page or searching must not make the other Pages' numbers vanish.
             narrowed = bool(channel or bot_id or account_id or q or status or chat_type or tag or has_contact
-                            or base["account_ids"] or base["tags_any"] or base["tags_none"])
+                            or base["account_ids"] or base["tags_any"] or base["tags_none"] or since or until
+                            or base["last_by"] or pinned)
             every = conversations.state_rows(hesitant=hesitant, hidden="exclude") if narrowed else light
             by_acc, you_total = {}, 0
             for r in every:
@@ -304,20 +321,27 @@ def register(app, deps: ConversationsDeps):
         return items, r
 
     @router.get("/conversations/insights")
-    async def conversations_insights(days: int = 7):
-        """The Stats tab (Chatbot v5): this period (`days` = 1, 7 or 30, the last one counted from midnight of the server's
-        day) against the period before it, plus "needs you" right now and the bot names."""
-        n = days if days in (1, 7, 30) else 7
-        lt = time.localtime()
-        midnight = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
-        since = midnight - (n - 1) * 86400
+    async def conversations_insights(days: int = 7, date_from: str = Query("", alias="from"),
+                                     date_to: str = Query("", alias="to")):
+        """The Stats tab (Chatbot v5): this period against the one of the same length right before it, plus "needs you"
+        right now and the bot names. The period is `from`..`to` (days included, the date range picker), or else the
+        last `days` (1, 7 or 30) counted from midnight of the server's day."""
         now = time.time()
-        cur = conversations.insights(since, now)
+        since, until = _day_range(date_from, date_to)
+        if since and until:
+            n = max(1, round((until - since) / 86400))
+            until = min(until, now)
+        else:
+            n = days if days in (1, 7, 30) else 7
+            lt = time.localtime()
+            midnight = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+            since, until = midnight - (n - 1) * 86400, now
+        cur = conversations.insights(since, until)
         prev = conversations.insights(since - n * 86400, since)
         ctx = _StateCtx(_hesitant())
         you = sum(1 for r in conversations.state_rows(hesitant=ctx.hesitant, hidden="exclude") if ctx.of(r)["who"] == "you")
         names = {bid: _ten_bot(bid) for bid in set(cur["by_bot"]) | set(prev["by_bot"])}
-        return {"ok": True, "days": n, "since": since, "now": cur, "before": prev, "needs_you": you, "bot_names": names,
+        return {"ok": True, "days": n, "since": since, "until": until, "now": cur, "before": prev, "needs_you": you, "bot_names": names,
                 "channels": channels.cho_giao_dien()}
 
     @router.get("/conversations/stats")
