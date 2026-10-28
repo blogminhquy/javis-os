@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.380.0] - 2026-10-28
+### Sửa lỗi
+- Danh sách Hội thoại hiện lại số tin của cả cuộc chat (ô xám "12 tin") cạnh số đỏ chưa đọc. Bản 0.372.0 lỡ bỏ mất con số này.
+
 ## [0.378.0] - 2026-10-28
 ### Sửa lỗi
 - **Bot chat khách có hồ sơ dài không còn im lặng.** Trên VPS, bot chạy bằng gói Claude có prompt vượt khoảng 128 KB (hồ sơ trợ lý dài cộng ngữ cảnh khách mỗi lượt) thì Claude không khởi động được và khách không nhận được trả lời. Giờ prompt đi qua tệp, dài bao nhiêu cũng chạy. Cảm ơn @QuanAMG đã báo lỗi kèm chẩn đoán (#871).

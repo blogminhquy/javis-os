@@ -126,6 +126,7 @@
 .ib-v5 .ht-item.unread .ht-item-sub small { color: var(--text); font-weight: 500; }
 .ib-pre { color: var(--text3); }
 .ib-v5 .ht-badge { font-size: 16px; padding: 0 8px; line-height: 1.5; }
+.ib-v5 .ht-count { font-size: 16px; line-height: 1.5; padding: 0 8px; }
 .ib-v5 .ht-item-utags { margin-top: 3px; gap: 5px; }
 .ib-acc { margin-left: auto; padding-left: 6px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   min-width: 0; flex: 0 1 auto; }
