@@ -739,7 +739,17 @@
     _kho.trang = trang;
     const hienThi = hop.slice((trang - 1) * MOI_TRANG, trang * MOI_TRANG);
 
-    const tabLoai = (ds.some(theoGoc) ? ["repo"] : []).concat(THU_TU_LOAI).map(k => {
+    const dsLoai = (ds.some(theoGoc) ? ["repo"] : []).concat(THU_TU_LOAI);
+    // The same kinds as a <select> for phones (owner, 2026-10-28: a dropdown fits a phone better
+    // than six squeezed buttons). Each option keeps its count and its "N new" badge as text.
+    const chonLoai = dsLoai.map(k => {
+      const trong = ds.filter(g => trongTab(g, k));
+      const nMoi = trong.filter(coBanMoi).length;
+      return '<option value="' + k + '"' + (k === _kho.loai ? " selected" : "") + '>'
+        + esc(tw(LOAI[k].nhan)) + ' (' + trong.length + ')'
+        + (nMoi ? ' · ' + esc(tw("store.tab_new_count", { count: nMoi })) : "") + '</option>';
+    }).join("");
+    const tabLoai = dsLoai.map(k => {
       const on = k === _kho.loai;
       const trong = ds.filter(g => trongTab(g, k));
       const nMoi = trong.filter(coBanMoi).length;
@@ -771,7 +781,7 @@
         + '</div>'
       : "";
 
-    // Group filter as a native <select>, shown on phones in place of the column (CSS swaps them):
+    // Group filter as a native <select> in the pinned bar, shown on phones in place of the column:
     // a wrapped row of ten pills pushed the cards a full screen down, and a sideways strip hides
     // the groups at its end. The select shows every group and costs one row.
     // One list feeds both: [filter key, count, label, starts the field groups].
@@ -800,6 +810,10 @@
       // tabs need the whole row, so the two buttons move next to the search box as icons.
       + '<div class="kho-thanh">'
       + '<div class="kho-tabs">' + tabLoai + '</div>'
+      + '<select class="js-input kho-chon-loai" id="pkLoai" aria-label="' + esc(tw("store.kind_label")) + '">'
+      + chonLoai + '</select>'
+      + '<select class="js-input kho-chon-nhom" id="pkNhom" aria-label="' + esc(tw("studio.groups")) + '">'
+      + chonNhom + '</select>'
       + '<div class="kho-hd">'
       // Say when this catalog was fetched. Without it "why don't I see the new version" is a
       // question nobody can answer, not even the person who wrote it.
@@ -814,8 +828,6 @@
       + '<input class="js-input kho-tim" id="pkQ" placeholder="'
       + esc(tw("store.search_ph", { loai: tw(LOAI[_kho.loai].nhan) }))
       + '" value="' + esc(_kho.tim) + '">'
-      + '<select class="js-input kho-chon-nhom" id="pkNhom" aria-label="' + esc(tw("studio.groups")) + '">'
-      + chonNhom + '</select>'
       + '<span class="kho-hd kho-hd-dt">' + nutHd + '</span>'
       + '<span class="prov-meta kho-so-muc">'
       + (laDaCai ? tw("store.count_installed", { count: hop.length })
@@ -855,9 +867,10 @@
     traConTro(host, nhoConTro);
 
     const lai = () => veLuoi(el, host);
-    host.querySelectorAll("[data-kho-loai]").forEach(b => b.onclick = () => {
-      _kho.loai = b.dataset.khoLoai; _kho.nhom = "Tất cả"; _kho.trang = 1; _kho.tim = ""; lai();
-    });
+    const doiLoai = (k) => { _kho.loai = k; _kho.nhom = "Tất cả"; _kho.trang = 1; _kho.tim = ""; lai(); };
+    host.querySelectorAll("[data-kho-loai]").forEach(b => b.onclick = () => doiLoai(b.dataset.khoLoai));
+    const sl = host.querySelector ? host.querySelector("#pkLoai") : null;
+    if (sl) sl.onchange = () => doiLoai(sl.value);
     host.querySelectorAll("[data-kho-nhom]").forEach(b => b.onclick = () => {
       _kho.nhom = b.dataset.khoNhom; _kho.trang = 1; lai();
     });
