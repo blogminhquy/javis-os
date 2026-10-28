@@ -206,7 +206,7 @@
     tool:      { nhan: "store.kind.tool",      icon: "toolbox",  trang: "plugins" },
     connector: { nhan: "store.kind.connector", icon: "plug",     trang: "mcp" },
     bundle:    { nhan: "store.kind.bundle",    icon: "package",  trang: "" },
-    // Recommended (0.370.0, "Recommended repos" until 0.373.0): not a kind but a tab of its own, listing every Store entry that follows
+    // Recommended (0.370.0, "Recommended repos" until 0.376.0): not a kind but a tab of its own, listing every Store entry that follows
     // its author's GitHub repo (`upstream`), whatever its kind. It only shows when the Store has one.
     repo:      { nhan: "store.kind.repo",      icon: "git-branch", trang: "" },
   };
@@ -475,7 +475,7 @@
     // `ic()` KHÔNG tự nhận đường dẫn (đó là việc của `iconInner`), nên bỏ nhánh <img> là mọi
     // logo hãng hiện thành dấu hỏi - đúng lỗi thấy trên màn hình bản dựng đầu.
     //
-    // 0.373.0: ô chữ cái đậm màu ("Su", "LP") bị chủ repo chê là xấu và không nói lên gì. Giờ ô là
+    // 0.376.0: ô chữ cái đậm màu ("Su", "LP") bị chủ repo chê là xấu và không nói lên gì. Giờ ô là
     // icon của đúng loại năng lực, màu riêng theo id nhưng nhạt nền, nên lưới đọc ra ngay đâu là
     // skill, đâu là trợ lý, mà các thẻ cạnh nhau vẫn khác màu.
     const src = String((g && g.icon) || "");

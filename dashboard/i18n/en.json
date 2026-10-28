@@ -3360,8 +3360,6 @@
   "store.dir_note": "Add-ons live in {duong}. You can drop a folder straight in there, no zip file required.",
   "store.zip_limit": ".zip files up to {mb}MB.",
   "store.catalog_at": "Catalog as of {luc}",
-  "wz.ct_head": "Optional tools",
-  "wz.ct_browser": "Install a browser so Javis can check the UI itself after code changes (about 100 MB, downloads in the background)",
   "settings.grp_lang": "LANGUAGE",
   "top.theme_auto_light": "Auto by time, light now - click to pick dark by hand",
   "top.theme_auto_dark": "Auto by time, dark now - click to pick light by hand",

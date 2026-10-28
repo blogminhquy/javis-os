@@ -58,7 +58,11 @@ RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 #
 # Để riêng MỘT lớp để đo được nó tốn bao nhiêu (`docker history`), và để tắt được bằng
 # `--build-arg WITH_BROWSER_DEPS=0` khi ai đó muốn ảnh gọn nhất có thể.
+#
+# Since 0.375.0 the server downloads the browser itself on first start when nothing is there
+# (server/optional_tools.py). Without the libraries it could not run, so tell the server.
 ARG WITH_BROWSER_DEPS=1
+ENV JAVIS_BROWSER_DEPS=${WITH_BROWSER_DEPS}
 RUN if [ "$WITH_BROWSER_DEPS" = "1" ]; then \
         npx -y playwright@latest install-deps chromium \
         && rm -rf /var/lib/apt/lists/* /root/.npm; \

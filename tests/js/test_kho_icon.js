@@ -1,4 +1,4 @@
-// Kho cai dat: icon tren the (0.373.0).
+// Kho cai dat: icon tren the (0.376.0).
 //
 //     node tests/js/test_kho_icon.js
 //
