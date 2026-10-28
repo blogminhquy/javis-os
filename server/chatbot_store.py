@@ -54,7 +54,9 @@ _SLUG_CAM = re.compile(r"[/\\\x00-\x1f\x7f]")           # tách đường dẫn 
 # khuôn cho cả hai, vì bản ghi bot chỉ có một trường `groups` và kênh nào cũng đổ vào đó.
 # Từ 0.71.0 thêm id kênh/người Slack (C0ABC123, G..., D..., U...: chữ HOA và số). Số WhatsApp
 # là chữ số nên đã khớp nhánh đầu.
-_CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|[0-9a-fA-F]{8,40}|[CGDUW][A-Z0-9]{6,20})$")
+# Zalo Bot group ids carry a "zgr-" prefix (e.g. "zgr-72749471121efb40a20f", #875, 0.379.0).
+# Without it here "Allow this group" returned OK while the id was silently dropped.
+_CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|(?:zgr-)?[0-9a-fA-F]{8,40}|[CGDUW][A-Z0-9]{6,20})$")
 
 # Kênh nhắn tin của bot. Trường này có từ 0.20.0 nhưng ghim cứng "telegram"; 0.26.5 cho nó
 # thành lựa chọn thật; 0.61.0 đọc từ SỔ ĐĂNG KÝ KÊNH (`channels`) thay vì chép ở đây: kênh nào

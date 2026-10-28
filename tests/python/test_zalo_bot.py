@@ -228,6 +228,10 @@ check("mỗi kênh có câu chỉ chỗ lấy token riêng",
       "BotFather" in chatbot_store.KENH_NGUON_TOKEN["telegram"])
 check("id cuộc chat Zalo (chuỗi hex) được nhận là id nhóm hợp lệ",
       chatbot_store._clean_groups("6ede9afa66b88fe6d6a9") == ["6ede9afa66b88fe6d6a9"])
+check("Zalo Bot group id with zgr- prefix is accepted (#875)",
+      chatbot_store._clean_groups("zgr-72749471121efb40a20f") == ["zgr-72749471121efb40a20f"])
+check("zgr- prefix alone or with non-hex is still rejected",
+      chatbot_store._clean_groups(["zgr-", "zgr-nothex!!", "zgr-12"]) == [])
 check("id nhóm Telegram (số âm) vẫn nhận như cũ",
       chatbot_store._clean_groups("-1001234567890") == ["-1001234567890"])
 check("danh sách nhóm không bị cắt ở 50 (spa có hàng trăm nhóm khách)",

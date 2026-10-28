@@ -13,6 +13,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - The Conversations list shows the number of messages in each chat again (grey "12 msgs") next to the red unread count. 0.372.0 had dropped it.
 - A cleaner reply box: the two notes "Sending by hand means you answer..." and "Example command..." are gone. The warning that a message goes out under your own name (personal accounts) stays.
 - Channels tab: a nick's groups and people come 20 a page, with Previous / Next and "21-40 of 289". The search looks through every page.
+## [0.379.0] - 2026-10-28
+### Fixed
+- **Allowing a Zalo Bot group now sticks.** Zalo Bot group ids look like `zgr-...` and were silently dropped: "Allow this group" said done, yet the group stayed "waiting for approval" and the bot never answered there. Thanks to @VQTPiano for the report and the fix (#875).
 
 ## [0.378.0] - 2026-10-28
 ### Fixed
