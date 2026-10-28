@@ -13,6 +13,7 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const SRC = fs.readFileSync(path.join(ROOT, "dashboard", "conversations.js"), "utf8");
+const KN = fs.readFileSync(path.join(ROOT, "dashboard", "inbox-channels.js"), "utf8");
 const CSS = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
 const SCSS = fs.readFileSync(path.join(ROOT, "dashboard", "style.css"), "utf8");
 const CB = fs.readFileSync(path.join(ROOT, "dashboard", "chatbots.js"), "utf8");
@@ -79,8 +80,8 @@ check("khong doan gi theo id kenh: logo va nhan lay tu danh sach server (khong c
 check("tra loi khach tu Hop thu qua /reply, chi khi kenh co nang luc",
       SRC.includes('"/reply", { method: "POST", body: fd({ text: txt })') &&
       SRC.includes('nangLuc(c.channel, "tra_loi_tu_javis")'));
-check("hai tab Hop thu | Bot (0.65.9), tab Bot uy quyen cho chatbots.js",
-      /TABS = \["inbox", "bot"\]/.test(SRC) && SRC.includes("window.JavisChatbots.render"));
+check("bon tab Hoi thoai | Bot | Kenh | Thong ke (Chatbot v5), tab Bot uy quyen cho chatbots.js",
+      /TABS = \["inbox", "bot", "kenh", "thongke"\]/.test(SRC) && SRC.includes("window.JavisChatbots.render"));
 check("dien thoai: mo hoi thoai la them lop thread-on, co nut quay lai",
       SRC.includes('classList.add("thread-on")') && SRC.includes(".ht-back") &&
       /\.ht-wrap\.thread-on \.ht-list \{ display: none; \}/.test(CSS) &&
@@ -126,9 +127,9 @@ check("tab goi API kem brain dang mo",
       /api\("\/channels\/accounts\?brain=" \+ encodeURIComponent\(brain\(\)\)/.test(SRC));
 check("co cong tac xem MOI brain, de tim lai tai khoan gan nham cho",
       /_tkMoiBrain \? "&tat_ca=1" : ""/.test(SRC) &&
-      SRC.includes('window.t("ht.tk_xem_moi_brain")') && /class="ht-tk-moi-brain"/.test(SRC));
+      KN.includes('t("ht.tk_xem_moi_brain")') && /class="kn-allbr-cb"/.test(KN));
 check("hang loc noi ro dang xem brain nao (danh sach ngan di phai co ly do)",
-      SRC.includes('window.t("ht.tk_loc_brain", { brain: tenBrain(brain()) })') &&
+      KN.includes('t("ht.tk_loc_brain", { brain: C.brainName() })') && SRC.includes("brainName: function () { return tenBrain(brain()); }") &&
       VI["ht.tk_loc_brain"].includes("{brain}"));
 // Khoa brain that la "brain" hoac mot duong dan tuyet doi. Dan nguyen no len giao dien thi ra
 // "brain brain" hoac mot dong path dai ngoang - da thay tan mat luc chup man hinh 21/09.

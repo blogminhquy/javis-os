@@ -157,6 +157,7 @@ def register(app, deps: ConversationsDeps):
         def __init__(self, hesitant):
             self.hesitant = hesitant
             self.bots, self.running, self.pending = {}, {}, {}
+            self.no_bot = conversations.no_bot_accounts()
 
         def of(self, row: dict) -> dict:
             bid = str(row.get("bot_id") or "")
@@ -173,7 +174,8 @@ def register(app, deps: ConversationsDeps):
                     self.pending[bid] = {}
             bot = self.bots.get(bid) if bid else None
             return inbox_state.state(row, bot, self.running.get(bid, False), self.pending.get(bid, {}),
-                                     conversations.can_tra_loi(row, self.hesitant))
+                                     conversations.can_tra_loi(row, self.hesitant),
+                                     no_bot_wanted=str(row.get("channel_account_id") or "") in self.no_bot)
 
     def _attach_state(items: list, ctx: "_StateCtx") -> None:
         for it in items:
@@ -300,6 +302,23 @@ def register(app, deps: ConversationsDeps):
                 it.get("channel_account_id") == x["account_id"]
                 and x["uid"] in (it.get("customer_external_id"), it.get("external_chat_id")) for it in items)
         return items, r
+
+    @router.get("/conversations/insights")
+    async def conversations_insights(days: int = 7):
+        """The Stats tab (Chatbot v5): this period (`days` = 1, 7 or 30, the last one counted from midnight of the server's
+        day) against the period before it, plus "needs you" right now and the bot names."""
+        n = days if days in (1, 7, 30) else 7
+        lt = time.localtime()
+        midnight = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+        since = midnight - (n - 1) * 86400
+        now = time.time()
+        cur = conversations.insights(since, now)
+        prev = conversations.insights(since - n * 86400, since)
+        ctx = _StateCtx(_hesitant())
+        you = sum(1 for r in conversations.state_rows(hesitant=ctx.hesitant, hidden="exclude") if ctx.of(r)["who"] == "you")
+        names = {bid: _ten_bot(bid) for bid in set(cur["by_bot"]) | set(prev["by_bot"])}
+        return {"ok": True, "days": n, "since": since, "now": cur, "before": prev, "needs_you": you, "bot_names": names,
+                "channels": channels.cho_giao_dien()}
 
     @router.get("/conversations/stats")
     async def conversations_stats(bot_id: str = "", channel: str = "", account_id: str = ""):
@@ -547,10 +566,18 @@ def register(app, deps: ConversationsDeps):
                 "Cuộc chat này chưa có bot nào trực", "No bot is on duty in this chat")}, status_code=400)
         bat = str(on).strip().lower() not in ("0", "false", "")
         chat_id = str(c.get("external_chat_id") or "")
-        patch = chatbot_store.allow_patch(bot, str(c.get("chat_type") or "private"), chat_id, bat)
+        ctype = str(c.get("chat_type") or "private")
+        patch = chatbot_store.allow_patch(bot, ctype, chat_id, bat)
         ok, err = chatbot_store.update_bot(bot_id, patch)
         if not ok:
             return JSONResponse({"ok": False, "error": err}, status_code=400)
+        # The bot's lists only keep ids that look like a real platform chat id; one they drop would leave the switch
+        # where it was while the screen says "done". Say it instead.
+        if chatbot_store.chat_allowed(chatbot_store.get_bot(bot_id), ctype, chat_id, inbox_state.raw_account(c)) != bat:
+            return JSONResponse({"ok": False, "code": "chat_id", "error": localefmt.chu(
+                "Không đổi được A.I. riêng cho cuộc chat này (mã cuộc chat không hợp lệ). Đổi ở cài đặt bot.",
+                "Could not change the A.I. for this chat alone (its chat id is not valid). Change it in the bot settings.")},
+                status_code=400)
         if _DEPS.drop_pending:
             try:
                 _DEPS.drop_pending(bot_id, chat_id)

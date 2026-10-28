@@ -4,14 +4,16 @@
 
 Mọi tin khách nhắn cho **bot chuyên trách** (Telegram hoặc Zalo Bot) và cho **tài khoản Zalo cá nhân** đã nối đều được gom về một hộp thư trong Javis. Bạn đọc lại cuộc trò chuyện giữa khách và bot, thấy cuộc nào bot đang bí, và **tiếp quản** một cuộc chat khi cần người thật.
 
-Từ bản 0.61.0 trang này gộp luôn phần Chatbot: **một mục trên thanh bên, hai tab** (Hội thoại và Bot; tab Hội thoại tên cũ là Hòm thư bot, đổi tên và làm lại giao diện ở 0.372.0), và bạn **trả lời khách ngay trong tab Hội thoại**.
+Từ bản 0.61.0 trang này gộp luôn phần Chatbot: **một mục trên thanh bên, bốn tab** (Hội thoại, Bot, Kênh, Thống kê; tab Hội thoại tên cũ là Hòm thư bot, đổi tên và làm lại giao diện ở 0.372.0), và bạn **trả lời khách ngay trong tab Hội thoại**.
 
 ## Mở ở đâu trong Javis
 
-Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Chatbot**. Trong trang có hai tab:
+Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Chatbot**. Trong trang có bốn tab:
 
 - **Hội thoại**: mọi tin khách, ai đang lo cuộc chat nào, trả lời, nhờ A.I. soạn.
-- **Bot**: nhân viên AI đứng trực các kênh, kèm mục **Kênh chưa có bot** ngay dưới (bot Telegram, bot Zalo, Zalo cá nhân... trong brain đang mở, thêm kênh, bật ghi). Kênh đã có bot hiện thành chip trên thẻ bot; bấm chip để sửa hoặc xoá kênh đó. Xem [Chatbot](25-chatbot.md).
+- **Bot**: nhân viên A.I. đứng trực các kênh. Kênh đã có bot hiện thành chip trên thẻ bot; bấm chip để sửa hoặc xoá kênh đó. Xem [Chatbot](25-chatbot.md).
+- **Kênh**: mọi nick và Page, bot nào trực, bật tắt A.I. từng nhóm hay người.
+- **Thống kê**: A.I. và bạn đã trả lời bao nhiêu, khách chờ bao lâu.
 
 Nói bằng lời cũng được: "mở hộp thư khách", "hòm thư bot", "tài khoản bot", và "mở chatbot" vẫn tới đúng tab Bot. Nói "hội thoại" trần vẫn ra trang Trò chuyện như trước.
 
@@ -98,13 +100,29 @@ Hai điều nên biết:
 - Lượt bot đang soạn dở đúng lúc bạn tiếp quản vẫn gửi nốt câu đó. Cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
 - Tiếp quản là theo **từng cuộc chat**, không tắt bot. Các khách khác vẫn được bot trả lời.
 
-## Kênh chưa có bot (tab Bot)
+## Tab Kênh
+
+Từ 0.374.0 mọi nick và Page nằm ở tab **Kênh** (trước đó là mục "Kênh chưa có bot" dưới tab Bot). Bên trái: nút **Kết nối kênh mới**, công tắc **Xem mọi brain**, rồi từng kênh với logo thật và các nick hay Page của nó; mỗi dòng nói A.I. nào đang trực (hoặc "Chưa có A.I.", "Không cần A.I.") và số chat Cần bạn. Kênh có từ hai nơi thì có **Gắn A.I. cho nhiều Page**: tick các nơi, chọn bot, bấm Lưu.
+
+Bấm một nick hay Page, bên phải hiện:
+
+- **A.I. trực Page này**: một hộp chọn bot. Đổi xong mới hiện **Huỷ** và **Lưu**; chưa bấm Lưu thì chưa có gì thay đổi. Chọn **Không cần A.I.** là nơi đó chỉ ghi lại tin và không bị đếm vào số việc trên tab. Đổi bot thì các cuộc chat cũ của nơi đó cũng theo bot mới. Bot cũ hết nơi để trực thì tự tắt, và Javis nói ra.
+- **Thẻ tài khoản**: trạng thái, ghi hội thoại, nhập tin cũ, sửa, xoá (như mô tả bên dưới).
+- **Nhóm và người**: mỗi cuộc chat một công tắc **A.I. ở đây**, câu nói ai đang lo, nút **Cho phép** khi có người gọi A.I. ở nhóm chưa cho phép, và **Mở chat**. Mọi thay đổi có Hoàn tác.
+
+Số trên tab Kênh là số nơi cần bạn xử lý: tài khoản lỗi, hoặc chưa có bot mà bạn chưa chọn "Không cần A.I.".
+
+## Tab Thống kê
+
+Chọn **Hôm nay**, **7 ngày** hoặc **30 ngày**. Bốn ô: A.I. đã trả lời, Bạn đã trả lời (tin gửi từ Javis), Khách chờ trung bình (từ lúc khách nhắn tới câu trả lời đầu tiên), Đang chờ bạn (bấm vào là mở danh sách Cần bạn). Mỗi ô so với kỳ trước cùng độ dài. Dưới là hai thanh ngang: A.I. trả lời theo kênh và theo bot. Số liệu tính từ hộp thư của Javis.
+
+## Thẻ tài khoản kênh
 
 Mọi tài khoản khách nhắn tới hiện thành **cùng một kiểu thẻ**, bất kể kênh: logo và tên kênh, tên tài khoản, trạng thái (đang chạy, đang tắt, lỗi kèm lý do), bot đang trực, số hội thoại và số chưa đọc, và các năng lực của kênh đó (vào nhóm, gửi file, trả lời từ Javis). Không kênh nào có mục riêng, kể cả Zalo. Kênh thêm về sau chỉ việc xuất hiện thêm một thẻ.
 
 Có hai loại tài khoản, khác nhau ở cách có nó chứ không ở cách hiện ra:
 
-**Tài khoản bot** (Telegram, Zalo Bot) là một token. Bấm **Thêm kênh**, chọn loại kênh, dán token, bấm **Kiểm tra** để Javis hỏi đúng nền tảng token đó là bot nào, đặt tên gợi nhớ rồi Lưu. Tài khoản bot ghi vào hộp thư khi bot trực nó đang bật; chưa có bot trực thì thẻ nói thẳng và có nút **Tạo bot cho kênh này** mở sẵn form Bot mới với kênh đó được tick. Mục **Kênh chưa có bot** chỉ liệt kê kênh chưa có bot; tự mở khi có kênh cần xử lý, tự gập khi hết.
+**Tài khoản bot** (Telegram, Zalo Bot) là một token. Bấm **Thêm kênh**, chọn loại kênh, dán token, bấm **Kiểm tra** để Javis hỏi đúng nền tảng token đó là bot nào, đặt tên gợi nhớ rồi Lưu. Tài khoản bot ghi vào hộp thư khi bot trực nó đang bật; chưa có bot trực thì thẻ nói thẳng và có nút **Tạo bot cho kênh này** mở sẵn form Bot mới với kênh đó được tick.
 
 ### Tài khoản bot thuộc về một brain (0.62.4)
 
@@ -155,7 +173,7 @@ Thêm một kênh = thêm một file ở sổ, một dòng đăng ký, một log
 - **Bot đang bật mà không thấy hội thoại nào**: kho chỉ ghi từ lúc kênh được nối; nhắn thử cho bot một câu. Nếu vẫn trống, bấm Nhật ký trên thẻ bot ở tab Bot.
 - **Thẻ bot báo "chưa có tài khoản kênh nào"**: bot chưa trực token nào. Bấm Sửa, tích một tài khoản có sẵn hoặc dán token mới.
 - **Gửi từ Hòm thư bot báo lỗi**: câu lỗi là của chính nền tảng (token bị thu hồi, khách đã chặn bot, phiên Zalo hết hạn). Tin không đi thì không được ghi vào kho.
-- **Zalo cá nhân báo lỗi đỏ ở mục Kênh chưa có bot**: thường là phiên QR hết hạn hoặc máy thiếu Node.js 20. Vào trang Kết nối kiểm tra kết nối Zalo, quét QR lại nếu cần. Vòng đọc tự thử lại sau 90 giây.
+- **Zalo cá nhân báo lỗi đỏ ở tab Kênh**: thường là phiên QR hết hạn hoặc máy thiếu Node.js 20. Vào trang Kết nối kiểm tra kết nối Zalo, quét QR lại nếu cần. Vòng đọc tự thử lại sau 90 giây.
 - **Gạt sang Tôi trả lời mà bot vẫn trả lời một câu**: đó là lượt đã chạy dở từ trước khi bấm. Từ tin sau bot im.
 
 ## Muốn hơn thế: gói Quản lý khách hàng (CRM)

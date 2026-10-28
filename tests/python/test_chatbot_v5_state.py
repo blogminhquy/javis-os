@@ -214,6 +214,11 @@ check("POST /ai returns the new state", r["conversation"]["ai_allowed"] is False
 r = cl.post(f"/conversations/{cid}/ai", data={"on": "1"}).json()
 check("POST /ai on=1 unblocks", r.get("ok") and "900" not in chatbot_store.get_bot(bid)["blocked"], r)
 check("POST /ai without a bot: no_bot", cl.post(f"/conversations/{c1}/ai", data={"on": "1"}).json().get("code") == "no_bot")
+odd = conversations.ghi_su_kien({"channel": "telegram", "account_id": "acc9", "external_chat_id": "khach-la", "chat_type": "private",
+                                 "sender_type": "customer", "sender_id": "x", "sender_name": "X", "text": "hi", "bot_id": bid})
+r = cl.post(f"/conversations/{odd['conversation_id']}/ai", data={"on": "0"})
+check("POST /ai on a chat id the bot's lists cannot keep: an error, never a silent 'done'",
+      r.status_code == 400 and r.json().get("code") == "chat_id", r.text)
 
 r = cl.post(f"/conversations/{cid}/mode", data={"mode": "human"}).json()
 check("changing the mode keeps the waiting draft (Undo brings it back)",
