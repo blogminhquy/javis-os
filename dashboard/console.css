@@ -4220,7 +4220,7 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   .tm-side .tm-close { border-color: transparent; background: none; }
 }
 
-/* Curated tab (0.370.0, renamed 0.373.0): the "Updated from the author" line on a Store card, and the tab's lead line. */
+/* Recommended tab (0.370.0, renamed 0.373.0): the "Updated from the author" line on a Store card, and the tab's lead line. */
 .kho-goc { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .kho-goc svg { width: 14px; height: 14px; flex: none; }
 .kho-goc a { color: var(--accent); text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }

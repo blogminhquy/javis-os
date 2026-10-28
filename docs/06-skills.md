@@ -187,9 +187,9 @@ Xoá là thao tác dứt điểm: cả thư mục skill bị xoá khỏi ổ đ�
 
 Lưu ý: nội dung skill là hướng dẫn cho AI làm theo, nên chỉ nhập gói từ nguồn bạn tin tưởng. Chi tiết cơ chế đóng gói kèm phụ thuộc ở [Agents & Workflows](07-agents-va-workflows.md).
 
-## Tuyển chọn trong Javis Store
+## Khuyên dùng trong Javis Store
 
-Tab đầu tiên của **Javis Store** là **Tuyển chọn**: skill chép **nguyên văn** từ repo GitHub của chính tác giả (ví dụ bộ skill chính chủ của Remotion, hay Lemo-Opuscar để dựng phim ngắn bằng code). Không dịch, không sửa, đọc đúng như tác giả viết.
+Tab đầu tiên của **Javis Store** là **Khuyên dùng**: skill chép **nguyên văn** từ repo GitHub của chính tác giả (ví dụ bộ skill chính chủ của Remotion, hay Lemo-Opuscar để dựng phim ngắn bằng code). Không dịch, không sửa, đọc đúng như tác giả viết.
 
 - Mỗi thẻ có dòng **Cập nhật từ tác giả** dẫn tới repo GitHub kèm ngày lấy bản mới nhất.
 - Mỗi ngày kho so lại với repo gốc. Tác giả sửa skill thì gói lên bản mới, Javis báo trong chuông, bạn bấm **Cập nhật** (vẫn qua màn hình xác nhận như mọi lần).

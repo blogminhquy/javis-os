@@ -6082,7 +6082,7 @@
   "gh.branch_none": "Không thấy nhánh nào.",
   "gh.branch_switching": "Đang đổi nhánh...",
   "gh.branch_how": "Cuộc trò chuyện làm việc trên nhánh riêng tách từ nhánh này, PR mở vào nhánh này. Chỉ đổi được khi cuộc này chưa có việc dở.",
-  "store.kind.repo": "Tuyển chọn",
+  "store.kind.repo": "Khuyên dùng",
   "store.upstream_follows": "Cập nhật từ tác giả",
   "store.upstream_synced": "bản mới nhất lấy ngày {ngay}",
   "store.repo_lead": "Bộ kỹ năng hay do Javis chọn, lấy nguyên bản từ tác giả, tự có bản mới khi tác giả sửa.",

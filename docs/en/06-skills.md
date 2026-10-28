@@ -187,9 +187,9 @@ Deletion is final: the whole skill folder is removed from disk, with no recycle 
 
 Note: skill content is instructions the AI follows, so only import packages from sources you trust. Details on packaging with dependencies are in [Agents & Workflows](07-agents-and-workflows.md).
 
-## Curated in the Javis Store
+## Recommended in the Javis Store
 
-The first tab of the **Javis Store** is **Curated**: skills copied **word for word** from the author's own GitHub repo (Remotion's official skills, for example, or Lemo-Opuscar for short films made in code). Nothing is translated or changed: you read exactly what the author wrote.
+The first tab of the **Javis Store** is **Recommended**: skills copied **word for word** from the author's own GitHub repo (Remotion's official skills, for example, or Lemo-Opuscar for short films made in code). Nothing is translated or changed: you read exactly what the author wrote.
 
 - Each card has an **Updated from the author** line linking to the GitHub repo, with the day the latest version was taken.
 - Every day the store compares them with the source repo. When the author changes a skill, the pack gets a new version, Javis tells you in the bell and you press **Update** (through the usual confirm screen).

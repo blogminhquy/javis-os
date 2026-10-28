@@ -6082,7 +6082,7 @@
   "gh.branch_none": "No branch found.",
   "gh.branch_switching": "Changing branch...",
   "gh.branch_how": "The chat works on its own branch cut from this one, and its PR targets this one. It can change only while the chat has no work in progress.",
-  "store.kind.repo": "Curated",
+  "store.kind.repo": "Recommended",
   "store.upstream_follows": "Updated from the author",
   "store.upstream_synced": "latest version taken {ngay}",
   "store.repo_lead": "Skill sets Javis picked, as the author wrote them, updated when the author changes them.",
