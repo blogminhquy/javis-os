@@ -304,15 +304,15 @@
 .kn-wrap .kn-assign select { height: 34px; padding: 0 8px; font-size: 13px; min-width: 160px; border-radius: 10px; }
 .kn-wrap .kn-assign .s-btn, .kn-wrap .kn-assign .s-btn-ghost { height: 34px; font-size: 13px; padding: 0 10px; border-radius: 10px; }
 .kn-wrap .kn-unsaved { font-size: 13px; }
-.kn-wrap .kn-card { padding: 12px 14px 0; }
-.kn-wrap .kn-card .ht-acc { padding: 12px 14px; border-radius: 12px; gap: 6px; font-size: 14px; }
-.kn-wrap .kn-card .ht-acc-title strong { font-size: 15px; }
-.kn-wrap .kn-card .ht-acc small, .kn-wrap .kn-card .ht-acc-meta, .kn-wrap .kn-card .cb-state, .kn-wrap .kn-card .ht-acc-loi { font-size: 13px; }
-.kn-wrap .kn-card .ht-acc-nl { font-size: 12px; }
-.kn-wrap .kn-card .ht-acc-nl span { padding: 1px 8px; }
-.kn-wrap .kn-card .ht-acc-acts { gap: 6px; margin-top: 4px; }
-.kn-wrap .kn-card .ht-acc-acts .s-btn-ghost { height: 32px; font-size: 13px; padding: 0 10px; border-radius: 9px; }
-.kn-wrap .kn-card .ht-switch { font-size: 13px; }
+.kn-infobox .kn-card { padding: 0; }
+.kn-infobox .kn-card .ht-acc { padding: 12px 14px; border-radius: 12px; gap: 6px; font-size: 14px; }
+.kn-infobox .kn-card .ht-acc-title strong { font-size: 15px; }
+.kn-infobox .kn-card .ht-acc small, .kn-infobox .kn-card .ht-acc-meta, .kn-infobox .kn-card .cb-state, .kn-infobox .kn-card .ht-acc-loi { font-size: 13px; }
+.kn-infobox .kn-card .ht-acc-nl { font-size: 12px; }
+.kn-infobox .kn-card .ht-acc-nl span { padding: 1px 8px; }
+.kn-infobox .kn-card .ht-acc-acts { gap: 6px; margin-top: 4px; }
+.kn-infobox .kn-card .ht-acc-acts .s-btn-ghost { height: 32px; font-size: 13px; padding: 0 10px; border-radius: 9px; }
+.kn-infobox .kn-card .ht-switch { font-size: 13px; }
 .kn-wrap .kn-ch { padding: 12px 0 0; }
 .kn-wrap .kn-chh { padding: 0 14px; gap: 10px; }
 .kn-wrap .kn-chh b { font-size: 15px; }
