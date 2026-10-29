@@ -9,6 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.406.0] - 2026-10-29
 ### Cải thiện
 - **Trang Models lần đầu vào dễ bắt đầu hơn.** Chưa có nhà cung cấp nào đăng nhập thì mục **Kết nối thêm nhà cung cấp** nằm trên cùng và mở sẵn danh sách các nhà, bấm là kết nối được ngay. Trước đây mục này nằm cuối trang và phải bấm mới xổ ra.
+- **Căn thẳng hàng trang Models.** Nút **Đổi model** giờ cao bằng và thẳng hàng với nút mức suy nghĩ (Off) bên cạnh. Trên điện thoại, tiêu đề mỗi khối không còn bị bóp thành hai cột: nút (i) nằm ngay cạnh tên, dòng mô tả xuống dòng riêng.
 
 ## [0.405.0] - 2026-10-29
 ### Cải thiện

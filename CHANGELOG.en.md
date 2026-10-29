@@ -11,6 +11,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.406.0] - 2026-10-29
 ### Improved
 - **An easier first visit to the Models page.** With no provider signed in yet, **Connect another provider** sits at the top with the list of providers already open, ready to connect. It used to sit at the bottom of the page, closed.
+- **Aligned Models page.** **Change model** now has the same height as the Effort chip (Off) beside it and lines up with it. On a phone, each section title no longer squeezes into two columns: the (i) sits next to the name and the sub-label takes its own line.
 
 ## [0.405.0] - 2026-10-29
 ### Improved
