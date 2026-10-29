@@ -34,6 +34,18 @@ Partner conversations are separate from Javis's main chat history. Returning to 
 
 **Javis Core's model** (from 0.402.0): Javis Core follows the main model by default, so changing the main model changes Core too. Picking another model in the model bar of any Javis Core chat pins it for **all of Javis Core**: every Core chat, new reports included, uses it until you change it. Pick **Follow the main chat's model** in the list to remove the pin.
 
+### Javis Core runs the notifications
+
+From 0.403.0 Javis Core decides which notices ring (red dot on the bell, phone push, your Telegram).
+
+- Every notice belongs to a **group** (Reminders, Questions for you, Chatbot and customers, Connections and sign-in, Incidents, Job results, Assistants reaching out, Teams, Costs, Updates, Other) and has a **level**: normal, important or urgent.
+- **By default only urgent notices ring**: reminders, questions waiting for you, a customer asking for a person, a failing chatbot, Javis not usable, a change on a page you watch. Other notices stay in the bell, under **Filtered (N)** at the end of the list. A job you gave from a chat still reports back into that chat.
+- The bell's **Filter** tab: each group picks **Everything**, **Important and up**, **Urgent only** or **Off**; see the kinds with their own rule; see and **Undo** recent changes.
+- Every notice has a **Feedback** button: the Resonance emoji set (👍 ❤️ 😂 😮 😢 😡) plus **Needed** and **Not needed**. Javis Core adjusts itself from it: Not needed filters that kind; Needed on a filtered notice makes that kind always ring; a group that gets many bad reactions moves one notch down. Each time, Javis Core says so in its chat.
+- A kind that rings a 3rd time within 6 hours is filtered as "repeated" for the rest of those 6 hours.
+- Javis Core **never hides an urgent notice by itself**. Only you can, with Off or Not needed.
+- You can also say it in the Javis Core chat, for example "turn off Zalo sign-in notices" or "tell me everything": Javis Core uses the `javis_notify` tool and gives you a code to undo it.
+
 ### Unread messages and muting
 
 From 0.205.0 the partner list works like a message list:

@@ -464,6 +464,46 @@ button, input, select, textarea { font-family: inherit; }
 }
 /* 0.204.0: display above beat the hidden attribute, so an empty tab showed a "0" pill. */
 .noti-tab-count[hidden] { display: none; }
+/* 0.403.0: Javis Core as the notification commander. Filter tab, filtered notices, feedback row, filter view. */
+.noti-tab-filter { margin-left: auto; }
+.noti-why { display: inline-block; margin: 8px 8px 0 0; padding: 2px 7px; border-radius: 6px; font-size: 11px;
+  color: var(--text3); background: var(--surface-2); }
+.noti-react { margin-top: 8px; }
+.noti-react-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--hairline);
+  border-radius: 999px; background: var(--surface-1); color: var(--text2); font: 500 12px var(--font); cursor: pointer; }
+.noti-react-btn svg { width: 14px; height: 14px; }
+.noti-react-btn:hover { border-color: var(--accent-line); color: var(--text); }
+.noti-react-pop { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.noti-react-pop[hidden] { display: none; }
+.noti-emo { width: 36px; height: 36px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface-1);
+  font-size: 18px; line-height: 1; cursor: pointer; }
+.noti-axis { height: 36px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface-1);
+  color: var(--text2); font: 600 12.5px var(--font); cursor: pointer; }
+.noti-emo.on, .noti-axis.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-ink); }
+.noti-axis.no.on { border-color: var(--warn-ink); background: var(--warn-wash); color: var(--warn-ink); }
+.noti-react-note { margin-top: 6px !important; font-size: 12px !important; color: var(--text2) !important; }
+.noti-sub-head { display: flex; align-items: center; gap: 8px; padding: 6px 4px 10px; }
+.noti-sub-head b { font-size: 14px; color: var(--text); }
+.noti-sub-head .noti-text-btn { display: inline-flex; align-items: center; gap: 2px; }
+.noti-sub-head svg { width: 15px; height: 15px; }
+.noti-filter { padding: 0 4px 8px; font-size: 13px; color: var(--text2); }
+.noti-filter .info-pair { display: block; margin-bottom: 8px; }
+.noti-fg { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0;
+  border-bottom: 1px solid var(--hairline); }
+.noti-fg-n { display: flex; flex-direction: column; color: var(--text); font-weight: 500; }
+.noti-fg-n small { color: var(--accent-ink); font-size: 11px; font-weight: 600; }
+.noti-fg select { height: 34px; max-width: 58%; padding: 0 8px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--bg2); color: var(--text); font: 500 13px var(--font); }
+.noti-filter h5 { margin: 14px 0 6px; font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; }
+.noti-fl { list-style: none; margin: 0; padding: 0; }
+.noti-fl li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0;
+  border-bottom: 1px solid var(--hairline); line-height: 1.45; }
+.noti-fl li small { color: var(--text3); }
+.noti-fl-empty { margin: 0; color: var(--text3); }
+@media (pointer: coarse) {
+  .noti-react-btn, .noti-filter { font-size: 15px; }
+  .noti-fg select { height: 40px; font-size: 15px; }
+}
 /* Công tắc thông báo đẩy - nằm ngay trên chân panel, thấy được lúc đang đọc thư. */
 .noti-push {
   flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;

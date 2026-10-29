@@ -391,7 +391,7 @@ def _bao_xin_vao(conn: dict, theo_nhom: Dict[str, dict]) -> None:
         return
     for nhom in theo_nhom.values():
         cau = cau_bao_xin_vao(conn, nhom["ten"], nhom["nguoi"])
-        t = loop.create_task(NOTIFY_OWNER("", cau, kind="system", label="Zalo", source="zalo"))
+        t = loop.create_task(NOTIFY_OWNER("", cau, kind="system", label="Zalo", source="zalo-group"))
         _VIEC.add(t)
         t.add_done_callback(_VIEC.discard)
 

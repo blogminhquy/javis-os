@@ -15,7 +15,15 @@
   var MAX_ITEMS = 30;
   var PAGE_SIZE = 5;
   var state = { items: [], read: new Set(), loadedAt: 0, loading: false, visibleCount: PAGE_SIZE,
-                thu: [], thuChuaDoc: 0, tab: "mine" };
+                thu: [], thuChuaDoc: 0, tab: "mine", view: "list", note: {}, policy: null };
+  // 0.403.0, Javis Core as the notification commander (docs/dev/2026-10-javis-core-chi-huy-thong-bao.md): notices
+  // its rules kept quiet are `filtered` and live under "Filtered"; every card takes the owner's feedback in the
+  // Resonance emoji set plus "Needed" / "Not needed"; the "Filter" view sets each group's mode and undoes changes.
+  var GROUPS = ["reminder", "question", "chatbot", "connection", "incident", "job", "agent", "team", "cost", "update", "other"];
+  var MODES = ["all", "important", "urgent", "off"];
+  var EMO = [["like", "👍"], ["love", "❤️"], ["haha", "😂"], ["wow", "😮"], ["sad", "😢"], ["angry", "😡"]];
+  function emoOf(v) { var e = EMO.find(function (x) { return x[0] === v; }); return e ? e[1] : ""; }
+  function icon(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }
   // Ngày giờ đi theo NGÔN NGỮ đang chọn, không viết cứng "vi-VN": người đọc bản tiếng Anh
   // mà thấy định dạng ngày kiểu Việt là lạc quẻ. Cả dashboard lấy locale từ đúng chỗ này.
   function LOC() { return (window.JavisI18n && JavisI18n.locale()) || "vi-VN"; }
@@ -238,8 +246,37 @@
       if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", "javis-core", r.id);
     } catch (e) {}
   }
+  function phanHoiHtml(item) {
+    var re = item.reaction || {};
+    var cur = (re.value ? emoOf(re.value) + " " : "") + (re.axis ? window.t(re.axis === "needed" ? "noti.needed" : "noti.not_needed") : "");
+    return '<div class="noti-react">' +
+      '<button type="button" class="noti-react-btn" data-react-toggle aria-expanded="false" aria-label="' + esc(window.t("noti.react")) + '">' +
+      (cur ? esc(cur) : icon("smile") + "<span>" + esc(window.t("noti.react")) + "</span>") + "</button>" +
+      '<div class="noti-react-pop" hidden>' + EMO.map(function (e) {
+        return '<button type="button" class="noti-emo' + (re.value === e[0] ? " on" : "") + '" data-react-v="' + e[0] + '" aria-label="' + e[0] + '">' + e[1] + "</button>";
+      }).join("") +
+      '<button type="button" class="noti-axis' + (re.axis === "needed" ? " on" : "") + '" data-react-a="needed">' + esc(window.t("noti.needed")) + "</button>" +
+      '<button type="button" class="noti-axis no' + (re.axis === "not_needed" ? " on" : "") + '" data-react-a="not_needed">' + esc(window.t("noti.not_needed")) + "</button>" +
+      "</div>" + (state.note[item.id] ? '<p class="noti-react-note">' + esc(state.note[item.id]) + "</p>" : "") + "</div>";
+  }
+  async function guiPhanHoi(item, value, axis) {
+    var re = item.reaction || {};
+    var body = { id: item.id, value: value != null ? value : (re.value || ""), axis: axis != null ? axis : (re.axis || "") };
+    if (value != null && re.value === value) body.value = "";   // the same emoji again takes it back
+    if (axis != null && re.axis === axis) body.axis = "";
+    try {
+      var r = await (await fetch("/inbox/react", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body) })).json();
+      if (!r || !r.ok) { state.note[item.id] = (r && r.error) || window.t("noti.react_err"); render(); return; }
+      item.reaction = r.reaction || null;
+      state.note[item.id] = [window.t("noti.react_saved")].concat(r.messages || []).join(" ");
+      state.policy = null;
+      render();
+    } catch (e) { state.note[item.id] = window.t("noti.react_err"); render(); }
+  }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
+    var why = item.filtered ? (item.why === "repeat" ? "noti.why_repeat" : item.why === "muted" ? "noti.why_muted" : "noti.why_mode") : "";
     // Where a press takes you: the chat it answers, or Javis Core for a notice with no chat of its own (0.191.0).
     var phu = window.t(item.channel === "store:updates" ? "noti.open_store"
       : !item.session_id || item.channel === "agent:javis-core" ? "noti.open_core" : "noti.reopen_chat");
@@ -248,27 +285,114 @@
       esc(nhanLoai(item.kind)) + '</span><span class="noti-time">' + esc(thoiGian(item.ts)) + "</span></div>" +
       "<h4>" + esc(item.title || window.t("noti.msg_title")) + "</h4>" +
       '<p class="noti-card-body">' + esc(item.body || "") + "</p>" +
-      (phu ? '<span class="noti-cta">' + phu + "</span>" : "") + "</article>";
+      (why ? '<span class="noti-why">' + esc(window.t(why)) + "</span>" : "") +
+      (phu ? '<span class="noti-cta">' + phu + "</span>" : "") + phanHoiHtml(item) + "</article>";
+  }
+  function dauMuc(key) {
+    return '<div class="noti-sub-head"><button type="button" class="noti-text-btn" data-noti-back>' + icon("chevron-left") +
+      esc(window.t("noti.back")) + "</button><b>" + esc(window.t(key)) + "</b></div>";
   }
   function veHomThu(list) {
-    if (!state.thu.length) {
-      list.innerHTML = '<div class="noti-empty">' + esc(window.t("noti.inbox_empty")) + "<br>" +
-        esc(window.t("noti.inbox_empty_sub")) + "</div>";
-      return;
+    if (state.view === "filter") { veBoLoc(list); return; }
+    var loc = state.view === "filtered";
+    var ds = state.thu.filter(function (x) { return !!x.filtered === loc; });
+    var nLoc = state.thu.filter(function (x) { return x.filtered; }).length;
+    var linkLoc = !loc && nLoc ? '<button class="noti-load-more" type="button" data-noti-filtered>' +
+      esc(window.t("noti.filtered_n", { count: nLoc })) + "</button>" : "";
+    var head = loc ? dauMuc("noti.filtered_title") : "";
+    if (!ds.length) {
+      list.innerHTML = head + '<div class="noti-empty">' + (loc ? esc(window.t("noti.filtered_empty")) :
+        esc(window.t("noti.inbox_empty")) + "<br>" + esc(window.t("noti.inbox_empty_sub"))) + "</div>" + linkLoc;
+    } else {
+      list.innerHTML = head + ds.slice(0, MAX_ITEMS).map(theThu).join("") + linkLoc;
     }
-    list.innerHTML = state.thu.slice(0, MAX_ITEMS).map(theThu).join("");
+    noiDanhSach(list);
+  }
+  function noiDanhSach(list) {
+    var back = list.querySelector("[data-noti-back]");
+    if (back) back.addEventListener("click", function () { state.view = "list"; render(); });
+    var mo = list.querySelector("[data-noti-filtered]");
+    if (mo) mo.addEventListener("click", function () { state.view = "filtered"; render(); });
     list.querySelectorAll("[data-thu-id]").forEach(function (card) {
-      function chay() {
-        var it = state.thu.find(function (x) { return String(x.id) === card.dataset.thuId; });
-        if (it) moThu(it);
-      }
-      card.addEventListener("click", chay);
+      function thu() { return state.thu.find(function (x) { return String(x.id) === card.dataset.thuId; }); }
+      card.addEventListener("click", function (e) {
+        var t = e.target;
+        if (t.closest(".noti-react")) {
+          e.stopPropagation();
+          var it = thu();
+          if (!it) return;
+          var tg = t.closest("[data-react-toggle]"), v = t.closest("[data-react-v]"), a = t.closest("[data-react-a]");
+          if (tg) {
+            var pop = card.querySelector(".noti-react-pop");
+            pop.hidden = !pop.hidden;
+            tg.setAttribute("aria-expanded", pop.hidden ? "false" : "true");
+          } else if (v) guiPhanHoi(it, v.dataset.reactV, null);
+          else if (a) guiPhanHoi(it, null, a.dataset.reactA);
+          return;
+        }
+        var it2 = thu();
+        if (it2) moThu(it2);
+      });
       card.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chay(); }
+        if (e.target !== card) return;
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); var it = thu(); if (it) moThu(it); }
       });
     });
   }
+  // The "Filter" view: each group's mode, the per-kind rules, Javis Core's recent changes (each can be undone).
+  async function taiBoLoc() {
+    try { state.policy = await (await fetch("/notify/policy", { cache: "no-store" })).json(); } catch (e) { state.policy = { ok: false }; }
+    render();
+  }
+  async function guiBoLoc(url, body) {
+    try {
+      var r = await (await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+      if (r && r.ok) state.policy = r;
+    } catch (e) {}
+    render();
+  }
+  function veBoLoc(list) {
+    var p = state.policy;
+    var head = dauMuc("noti.filter_title");
+    var info = window.JavisInfo ? window.JavisInfo.pair(esc(window.t("noti.filter_info")), window.t("noti.filter_info_l")) : "";
+    if (!p) { list.innerHTML = head + '<div class="noti-loading">' + esc(window.t("noti.loading")) + "</div>"; taiBoLoc(); noiDanhSach(list); return; }
+    if (!p.ok) { list.innerHTML = head + '<div class="noti-empty">' + esc(window.t("noti.load_fail")) + "</div>"; noiDanhSach(list); return; }
+    var byG = {};
+    (p.groups || []).forEach(function (g) { byG[g.group] = g; });
+    var rows = GROUPS.filter(function (g) { return byG[g]; }).map(function (g) {
+      var cur = byG[g];
+      return '<label class="noti-fg"><span class="noti-fg-n">' + esc(window.t("noti.grp_" + g)) +
+        (cur.set_by === "core" ? '<small>' + esc(window.t("noti.by_core")) + "</small>" : "") + "</span>" +
+        '<select data-grp="' + g + '">' + MODES.map(function (m) {
+          return '<option value="' + m + '"' + (cur.mode === m ? " selected" : "") + ">" + esc(window.t("noti.mode_" + m)) + "</option>";
+        }).join("") + "</select></label>";
+    }).join("");
+    var rules = (p.rules || []).map(function (r) {
+      return '<li><span>' + esc(r.label || r.sig) + ' <small>' + esc(window.t(r.rule === "mute" ? "noti.rule_mute" : "noti.rule_always")) +
+        "</small></span>" + '<button type="button" class="noti-text-btn" data-rule="' + esc(r.key) + '">' + esc(window.t("noti.rule_remove")) + "</button></li>";
+    }).join("");
+    var changes = (p.changes || []).slice(0, 10).map(function (c) {
+      return '<li><span>' + esc(c.text || "") + "</span>" + (c.undone ? '<small>' + esc(window.t("noti.undone")) + "</small>"
+        : '<button type="button" class="noti-text-btn" data-undo="' + esc(c.id) + '">' + esc(window.t("noti.undo")) + "</button>") + "</li>";
+    }).join("");
+    list.innerHTML = head + '<div class="noti-filter">' + info + rows +
+      "<h5>" + esc(window.t("noti.rules_title")) + "</h5>" + (rules ? '<ul class="noti-fl">' + rules + "</ul>" : '<p class="noti-fl-empty">' + esc(window.t("noti.none")) + "</p>") +
+      "<h5>" + esc(window.t("noti.changes_title")) + "</h5>" + (changes ? '<ul class="noti-fl">' + changes + "</ul>" : '<p class="noti-fl-empty">' + esc(window.t("noti.none")) + "</p>") +
+      "</div>";
+    noiDanhSach(list);
+    list.querySelectorAll("select[data-grp]").forEach(function (sel) {
+      sel.addEventListener("change", function () { guiBoLoc("/notify/policy/group", { group: sel.dataset.grp, mode: sel.value }); });
+    });
+    list.querySelectorAll("[data-rule]").forEach(function (b) {
+      b.addEventListener("click", function () { guiBoLoc("/notify/policy/rule", { key: b.dataset.rule, rule: "" }); });
+    });
+    list.querySelectorAll("[data-undo]").forEach(function (b) {
+      b.addEventListener("click", function () { guiBoLoc("/notify/policy/undo", { id: b.dataset.undo }); });
+    });
+  }
   function chonTab(tab) {
+    state.view = tab === "filter" ? "filter" : "list";
+    if (tab === "filter") state.policy = null;
     state.tab = tab === "news" ? "news" : "mine";
     try { localStorage.setItem(TAB_KEY, state.tab); } catch (e) {}
     state.visibleCount = PAGE_SIZE;
@@ -297,7 +421,9 @@
 
     var tabMine = byId("notiTabMine"), tabNews = byId("notiTabNews");
     if (tabMine && tabNews) {
-      tabMine.classList.toggle("active", state.tab === "mine");
+      tabMine.classList.toggle("active", state.tab === "mine" && state.view !== "filter");
+      var tabF = byId("notiTabFilter");
+      if (tabF) tabF.classList.toggle("active", state.tab === "mine" && state.view === "filter");
       tabNews.classList.toggle("active", state.tab === "news");
       tabMine.setAttribute("aria-selected", state.tab === "mine" ? "true" : "false");
       tabNews.setAttribute("aria-selected", state.tab === "news" ? "true" : "false");
@@ -497,6 +623,8 @@
     var tm = byId("notiTabMine"), tn = byId("notiTabNews");
     if (tm) tm.addEventListener("click", function () { chonTab("mine"); });
     if (tn) tn.addEventListener("click", function () { chonTab("news"); });
+    var tf = byId("notiTabFilter");
+    if (tf) tf.addEventListener("click", function () { chonTab("filter"); });
     gaNutPush();
     veNutPush();
     document.addEventListener("keydown", function (event) { if (event.key === "Escape") closePanel(); });

@@ -115,11 +115,14 @@ Chạy ngay sau mỗi phản hồi, và mỗi khi một tin bị chặn vì lặ
    - từ -4 trở xuống: hạ nhóm một nấc (`all` → `important` → `urgent` → `off` của Core);
    - từ +4 trở lên, tính trên tin đã lọc: nâng nhóm một nấc.
 4. **Lặp lại**: cùng một loại tin báo to tới lần thứ 3 trong 6 tiếng thì các lần sau trong 6 tiếng đó bị lọc, ghi
-   "lặp lại". Không áp cho tin khẩn.
+   "lặp lại" trên thẻ thư. Không áp cho tin khẩn. Đây là chặn tạm, không phải một thay đổi luật, nên không vào nhật ký
+   và Core không nói gì trong chat.
 
 Mỗi lần chỉnh: một dòng trong nhật ký thay đổi (`notify_policy` giữ 100 dòng gần nhất) với lý do, ai chỉnh (`core` /
 `owner`) và nút **Hoàn tác**, và một câu ngắn trong chat Javis Core của brain đang dùng. Ví dụ: "Em vừa chuyển nhóm
-Kết nối và đăng nhập sang Chỉ tin khẩn vì bạn đã bấm Không cần báo 2 lần. Hoàn tác ở Cài đặt thông báo."
+Kết nối và đăng nhập sang Chỉ tin khẩn. Hoàn tác ở Bộ lọc thông báo của chuông."
+
+Thông báo hệ thống không gắn brain thì Core nói trong chat Core của brain mặc định.
 
 ### 4.4 Ra lệnh bằng lời
 
@@ -131,7 +134,7 @@ nhất), `op=set` (đặt chế độ một nhóm), `op=mute` / `op=unmute` (m�
 
 - Chuông, tab "Của tôi": tin bị lọc không nằm trong danh sách chính. Cuối danh sách có dòng "Đã lọc (N)" mở ngăn tin
   đã lọc. Mỗi thẻ thư có nút phản hồi mở hàng emoji và hai nút Nên báo / Không cần báo.
-- Phần cài đặt của chuông có thẻ **Bộ lọc thông báo**: mỗi nhóm một ô chọn bốn chế độ, danh sách loại tin đang bị lọc
+- Chuông có thêm tab **Bộ lọc** (thẻ Bộ lọc thông báo): mỗi nhóm một ô chọn bốn chế độ, danh sách loại tin đang bị lọc
   hoặc luôn báo (bỏ được), và nhật ký thay đổi gần đây với nút Hoàn tác. Chữ dài để sau nút (i).
 
 ## 6. Dữ liệu
