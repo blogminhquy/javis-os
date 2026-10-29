@@ -93,9 +93,13 @@ Luật an toàn: **Core không bao giờ làm im tin khẩn.** Chỉ người d�
 
 ### 4.1 Phản hồi
 
-Mỗi thông báo trong chuông có hàng phản hồi dùng đúng bộ emoji của Cộng hưởng (`reaction_values.REACTION_EMOJI`:
-👍 ❤️ 😂 😮 😢 😡) và hai nút theo trục "nên nói / nên im" của Cộng hưởng, đổi chữ cho thông báo:
-**Nên báo** / **Không cần báo**. `POST /inbox/react`.
+Chủ repo chốt lại 29/10/2026: thẻ thông báo trên chuông chỉ có hai nút **Nên báo** / **Không cần báo**
+(`POST /inbox/react`, trục `needed` / `not_needed`). Emoji không nằm trên chuông: bấm **Mở trong Javis Core** thì thông báo
+thành một tin trong chat Javis Core (có dấu ẩn `javis-cite:inbox:<mã thư>`), người dùng thả emoji của Cộng hưởng
+(`reaction_values.REACTION_EMOJI`: 👍 ❤️ 😂 😮 😢 😡) lên tin đó như mọi câu trả lời. Route reaction của chat
+(`POST /sessions/{id}/messages/{mid}/reaction`) thấy dấu đó trên một chat Core thì chuyển emoji cho bộ phán xử của Core;
+trục "Đáng lẽ nên nói" / "Nên im" của chat được hiểu là Nên báo / Không cần báo. Thông báo tự đổ vào chat Core cũng
+mang dấu này, chỉ ở bản trong chat (chuông và Telegram không có).
 
 Điểm của một phản hồi: 👍 ❤️ 😮 = +1, 😂 = 0, 😢 😡 = -1, Nên báo = +2, Không cần báo = -2.
 
@@ -133,7 +137,7 @@ nhất), `op=set` (đặt chế độ một nhóm), `op=mute` / `op=unmute` (m�
 ## 5. Giao diện
 
 - Chuông, tab "Của tôi": tin bị lọc không nằm trong danh sách chính. Cuối danh sách có dòng "Đã lọc (N)" mở ngăn tin
-  đã lọc. Mỗi thẻ thư có nút phản hồi mở hàng emoji và hai nút Nên báo / Không cần báo.
+  đã lọc. Mỗi thẻ thư có hai nút Nên báo / Không cần báo.
 - Chuông có thêm tab **Bộ lọc** (thẻ Bộ lọc thông báo): mỗi nhóm một ô chọn bốn chế độ, danh sách loại tin đang bị lọc
   hoặc luôn báo (bỏ được), và nhật ký thay đổi gần đây với nút Hoàn tác. Chữ dài để sau nút (i).
 

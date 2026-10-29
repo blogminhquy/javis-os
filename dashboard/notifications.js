@@ -18,7 +18,8 @@
                 thu: [], thuChuaDoc: 0, tab: "mine", view: "list", note: {}, policy: null };
   // 0.403.0, Javis Core as the notification commander (docs/dev/2026-10-javis-core-chi-huy-thong-bao.md): notices
   // its rules kept quiet are `filtered` and live under "Filtered"; every card takes the owner's feedback in the
-  // Resonance emoji set plus "Needed" / "Not needed"; the "Filter" view sets each group's mode and undoes changes.
+  // two buttons, "Needed" / "Not needed" (owner, 2026-10-29: emoji go on the notice once it is opened in Javis Core's
+  // chat, where every answer already takes the six reactions); the "Filter" view sets each group's mode, undoes changes.
   var GROUPS = ["reminder", "question", "chatbot", "connection", "incident", "job", "agent", "team", "cost", "update", "other"];
   var MODES = ["all", "important", "urgent", "off"];
   // Full keys spelled out, so the i18n check finds every one of them.
@@ -26,12 +27,6 @@
     connection: "noti.grp_connection", incident: "noti.grp_incident", job: "noti.grp_job", agent: "noti.grp_agent",
     team: "noti.grp_team", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
   var MODE_KEY = { all: "noti.mode_all", important: "noti.mode_important", urgent: "noti.mode_urgent", off: "noti.mode_off" };
-  // The six reactions come from the shared module (reactions.js, loaded first): one table for chat, teams and the bell.
-  function EMOS() {
-    var R = window.JavisReactions;
-    return (R && R.EMOJI ? R.EMOJI : []).map(function (r) { return [r.value, r.emoji]; });
-  }
-  function emoOf(v) { var e = EMOS().find(function (x) { return x[0] === v; }); return e ? e[1] : ""; }
   function icon(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }
   // Ngày giờ đi theo NGÔN NGỮ đang chọn, không viết cứng "vi-VN": người đọc bản tiếng Anh
   // mà thấy định dạng ngày kiểu Việt là lạc quẻ. Cả dashboard lấy locale từ đúng chỗ này.
@@ -257,22 +252,17 @@
   }
   function phanHoiHtml(item) {
     var re = item.reaction || {};
-    var cur = (re.value ? emoOf(re.value) + " " : "") + (re.axis ? window.t(re.axis === "needed" ? "noti.needed" : "noti.not_needed") : "");
-    return '<div class="noti-react">' +
-      '<button type="button" class="noti-react-btn" data-react-toggle aria-expanded="false" aria-label="' + esc(window.t("noti.react")) + '">' +
-      (cur ? esc(cur) : icon("smile") + "<span>" + esc(window.t("noti.react")) + "</span>") + "</button>" +
-      '<div class="noti-react-pop" hidden>' + EMOS().map(function (e) {
-        return '<button type="button" class="noti-emo' + (re.value === e[0] ? " on" : "") + '" data-react-v="' + e[0] + '" aria-label="' + e[0] + '">' + e[1] + "</button>";
-      }).join("") +
-      '<button type="button" class="noti-axis' + (re.axis === "needed" ? " on" : "") + '" data-react-a="needed">' + esc(window.t("noti.needed")) + "</button>" +
-      '<button type="button" class="noti-axis no' + (re.axis === "not_needed" ? " on" : "") + '" data-react-a="not_needed">' + esc(window.t("noti.not_needed")) + "</button>" +
-      "</div>" + (state.note[item.id] ? '<p class="noti-react-note">' + esc(state.note[item.id]) + "</p>" : "") + "</div>";
+    return '<div class="noti-react" role="group" aria-label="' + esc(window.t("noti.react")) + '">' +
+      '<button type="button" class="noti-axis' + (re.axis === "needed" ? " on" : "") + '" aria-pressed="' + (re.axis === "needed") +
+        '" data-react-a="needed">' + icon("bell") + esc(window.t("noti.needed")) + "</button>" +
+      '<button type="button" class="noti-axis no' + (re.axis === "not_needed" ? " on" : "") + '" aria-pressed="' + (re.axis === "not_needed") +
+        '" data-react-a="not_needed">' + icon("bell-off") + esc(window.t("noti.not_needed")) + "</button>" +
+      (state.note[item.id] ? '<p class="noti-react-note">' + esc(state.note[item.id]) + "</p>" : "") + "</div>";
   }
-  async function guiPhanHoi(item, value, axis) {
+  async function guiPhanHoi(item, axis) {
     var re = item.reaction || {};
-    var body = { id: item.id, value: value != null ? value : (re.value || ""), axis: axis != null ? axis : (re.axis || "") };
-    if (value != null && re.value === value) body.value = "";   // the same emoji again takes it back
-    if (axis != null && re.axis === axis) body.axis = "";
+    var body = { id: item.id, value: "", axis: axis };
+    if (re.axis === axis) body.axis = "";   // pressing the lit button again takes it back
     try {
       var r = await (await fetch("/inbox/react", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body) })).json();
@@ -330,13 +320,8 @@
           e.stopPropagation();
           var it = thu();
           if (!it) return;
-          var tg = t.closest("[data-react-toggle]"), v = t.closest("[data-react-v]"), a = t.closest("[data-react-a]");
-          if (tg) {
-            var pop = card.querySelector(".noti-react-pop");
-            pop.hidden = !pop.hidden;
-            tg.setAttribute("aria-expanded", pop.hidden ? "false" : "true");
-          } else if (v) guiPhanHoi(it, v.dataset.reactV, null);
-          else if (a) guiPhanHoi(it, null, a.dataset.reactA);
+          var a = t.closest("[data-react-a]");
+          if (a) guiPhanHoi(it, a.dataset.reactA);
           return;
         }
         var it2 = thu();

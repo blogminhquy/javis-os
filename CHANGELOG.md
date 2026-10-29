@@ -11,7 +11,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Javis Core chỉ huy thông báo.** Mỗi thông báo có nhóm (Nhắc lịch, Câu hỏi chờ bạn, Chatbot và khách, Kết nối và đăng nhập, Sự cố, Kết quả việc...) và mức: bình thường, đáng chú ý hoặc khẩn.
 - **Mặc định chỉ tin khẩn mới báo:** nhắc lịch, câu hỏi chờ bạn, khách cần người thật, chatbot lỗi, Javis không dùng được, trang bạn theo dõi thay đổi. Tin khác vẫn nằm trong chuông ở ngăn **Đã lọc**, không chấm đỏ, không đẩy lên điện thoại, không gửi Telegram. Việc giao từ một khung chat vẫn báo về đúng khung chat đó.
 - Tab **Bộ lọc** trong chuông: mỗi nhóm chọn Tất cả, Đáng chú ý trở lên, Chỉ tin khẩn hoặc Tắt; xem loại tin có luật riêng; hoàn tác thay đổi.
-- Mỗi thông báo có nút **Phản hồi** dùng bộ emoji của Cộng hưởng, cùng hai nút **Nên báo** và **Không cần báo**. Javis Core tự chỉnh theo đó, nói một câu trong chat của nó, và không bao giờ tự giấu tin khẩn.
+- Mỗi thông báo có hai nút **Nên báo** và **Không cần báo**. Muốn chấm bằng emoji thì bấm **Mở trong Javis Core** rồi thả emoji lên tin đó trong chat như mọi câu trả lời. Javis Core tự chỉnh theo đó, nói một câu trong chat của nó, và không bao giờ tự giấu tin khẩn.
 - Tin cùng loại báo tới lần thứ 3 trong 6 tiếng thì các lần sau bị lọc là "lặp lại".
 - Nói trong chat Javis Core, ví dụ "tắt thông báo đăng nhập Zalo", là Javis Core đổi ngay bằng công cụ mới `javis_notify`.
 

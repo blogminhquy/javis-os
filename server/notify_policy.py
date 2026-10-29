@@ -299,7 +299,7 @@ def react(item: dict, value: str = "", axis: str = "") -> List[dict]:
     - The group's score since its last change, over 30 days: -GROUP_STEP or less lowers the group one notch;
       +GROUP_STEP or more, counted on filtered items, raises it one notch.
     """
-    g = str(item.get("group") or "other")
+    g = str(item.get("group") or "") or group_of(source=item.get("source") or "", kind=item.get("kind") or "")
     g = g if g in GROUPS else "other"
     sig = str(item.get("sig") or signature(item.get("title") or ""))
     filtered = bool(item.get("filtered"))

@@ -12316,7 +12316,16 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
         return bool(vao_hom), ("" if vao_hom else "no_target")
     ok, err = False, ""
     if chat:
-        ok, err = await _gui_qua_kenh(f"{WEB_CHAT_PREFIX}{chat}", text, ngan=ngan, viec=viec, web=web, card=card)
+        # 0.403.0: in Javis Core's chat the notice carries the bell item's marker, so an emoji on it there is feedback
+        # on this notice (`_notice_feedback_from_chat`). Only the chat copy: the bell and other channels stay clean.
+        mark = ""
+        try:
+            if vao_hom and vao_hom.get("id") and javis_core.is_core_channel((get_store().get_session(chat) or {}).get("channel")):
+                mark = f"\n<!-- javis-cite:inbox:{vao_hom['id']} -->"
+        except Exception:  # noqa: BLE001
+            mark = ""
+        ok, err = await _gui_qua_kenh(f"{WEB_CHAT_PREFIX}{chat}", text + mark, ngan=ngan, viec=viec,
+                                      web=(web + mark) if web else web, card=card)
     ext = route.get("external") or ""
     if ext:
         # Each channel on its own: one that fails does not stop the other or lose the report.
@@ -27141,6 +27150,12 @@ async def sessions_message_reaction(session_id: str, message_id: int, request: R
                                     agent_config_version=ver, goal_id=str(receipt.get("goal_id") or ""), **extra)
         if not got["replayed"] and not extra:
             _feedback_projector().project("dm", got["log_id"])
+        # 0.403.0 (owner, 2026-10-29): a notice opened in Javis Core is a chat message; the emoji the owner puts on it
+        # there is Javis Core's feedback on that notice (`notify_policy.react`). The marker names the bell item.
+        if not got["replayed"] and javis_core.is_core_channel(sess.get("channel")):
+            m = _CITE_INBOX_RE.search(str(msg.get("content") or ""))
+            if m:
+                got = dict(got, notice=m.group(1), notice_value=n["value"] or "", notice_axis=n["axis"] or "")
         return got, store.dm_reaction_of(session_id, int(message_id))
 
     try:
@@ -27148,6 +27163,8 @@ async def sessions_message_reaction(session_id: str, message_id: int, request: R
     except sessions.DmReactionError as ex:
         return JSONResponse({"ok": False, "error": localefmt.chu(ex.vi, ex.en)}, status_code=ex.code)
     r = reaction_values.public(state)
+    if got.get("notice"):
+        await _notice_feedback_from_chat(got["notice"], got.get("notice_value") or "", got.get("notice_axis") or "")
     if not got["replayed"]:
         try:
             await _CHAT_RUNTIME.publish({"type": "chat_reaction", "session_id": session_id,
@@ -27158,6 +27175,26 @@ async def sessions_message_reaction(session_id: str, message_id: int, request: R
 
 
 _FEEDBACK_PULSE_BUSY = [False]
+_CITE_INBOX_RE = re.compile(r"<!-- javis-cite:inbox:([0-9a-f]{6,32}) -->")
+# The chat's speak/silent axis on a notice means "should have rung" / "should have stayed quiet".
+_NOTICE_AXIS = {"should_speak": "needed", "should_silent": "not_needed"}
+
+
+async def _notice_feedback_from_chat(item_id: str, value: str, axis: str) -> None:
+    """An emoji (and the speak/silent axis) the owner put on a notice inside Javis Core's chat, passed to Javis Core's
+    judge like the bell's buttons (0.403.0). Taking a reaction back changes nothing. Never raises."""
+    try:
+        ax = _NOTICE_AXIS.get(axis, "")
+        if not (value or ax):
+            return
+        item = inbox.lay(item_id)
+        if not item:
+            return
+        changes = notify_policy.react(item, value, ax)
+        if changes:
+            await _core_say(item.get("brain") or "", "\n".join(notify_policy.describe(c) for c in changes))
+    except Exception as e:  # noqa: BLE001 - feedback must never cost the reaction itself
+        print(f"[notify policy] chat feedback: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def _dm_resolve_pending_authors(limit: int = 200) -> int:

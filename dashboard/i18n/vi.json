@@ -142,7 +142,7 @@
   "noti.filtered_empty": "Không có tin nào bị lọc.",
   "noti.filter_title": "Bộ lọc thông báo",
   "noti.filter_info_l": "Bộ lọc chạy thế nào",
-  "noti.filter_info": "Mỗi thông báo thuộc một nhóm và có một mức: bình thường, đáng chú ý hoặc khẩn. Mỗi nhóm chọn từ mức nào thì báo (chấm đỏ, đẩy lên điện thoại, Telegram). Tin dưới mức vẫn nằm trong chuông, ở ngăn Đã lọc. Javis Core tự chỉnh theo phản hồi của bạn trên từng thông báo (emoji, Nên báo, Không cần báo) và theo tin lặp lại, nhưng không bao giờ giấu tin khẩn. Mọi thay đổi của Javis Core đều hoàn tác được ở đây.",
+  "noti.filter_info": "Mỗi thông báo thuộc một nhóm và có một mức: bình thường, đáng chú ý hoặc khẩn. Mỗi nhóm chọn từ mức nào thì báo (chấm đỏ, đẩy lên điện thoại, Telegram). Tin dưới mức vẫn nằm trong chuông, ở ngăn Đã lọc. Javis Core tự chỉnh theo hai nút Nên báo, Không cần báo trên thông báo, theo emoji bạn thả lên thông báo khi mở nó trong chat Javis Core, và theo tin lặp lại, nhưng không bao giờ giấu tin khẩn. Mọi thay đổi của Javis Core đều hoàn tác được ở đây.",
   "noti.grp_reminder": "Nhắc lịch",
   "noti.grp_question": "Câu hỏi chờ bạn",
   "noti.grp_chatbot": "Chatbot và khách",

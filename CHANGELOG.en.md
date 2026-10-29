@@ -13,7 +13,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Javis Core runs the notifications.** Every notice has a group (Reminders, Questions for you, Chatbot and customers, Connections and sign-in, Incidents, Job results...) and a level: normal, important or urgent.
 - **By default only urgent notices ring:** reminders, questions for you, a customer asking for a person, a failing chatbot, Javis not usable, a change on a page you watch. Other notices stay in the bell under **Filtered**, with no red dot, no phone push and no Telegram. A job given from a chat still reports back into that chat.
 - A **Filter** tab in the bell: each group picks Everything, Important and up, Urgent only or Off; see the kinds with their own rule; undo changes.
-- Every notice has a **Feedback** button with the Resonance emoji set plus **Needed** and **Not needed**. Javis Core adjusts itself from it, says so in its chat, and never hides an urgent notice by itself.
+- Every notice has two buttons, **Needed** and **Not needed**. To rate it with an emoji, press **Open in Javis Core** and put the emoji on it in the chat like on any answer. Javis Core adjusts itself from it, says so in its chat, and never hides an urgent notice by itself.
 - A kind that rings a 3rd time within 6 hours is filtered as "repeated" after that.
 - Say it in the Javis Core chat, for example "turn off Zalo sign-in notices", and Javis Core changes it with the new `javis_notify` tool.
 

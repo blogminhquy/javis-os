@@ -193,6 +193,39 @@ check("'Needed' on a filtered notice: that kind always rings from now on",
 run(main._notify_owner("", "Ngân sách API đã dùng 85%", kind="system", source="cost", level="important"))
 check("...and rings", not items()["Ngân sách API đã dùng 85%"].get("filtered"))
 
+# emoji on a notice opened in Javis Core's chat are Javis Core's feedback on that notice (owner, 2026-10-29)
+NP.set_mode("job", "all", set_by="owner")
+run(main._notify_owner("", "Việc 'Sao lưu ảnh' xong", kind="answer", quiet=True))
+bk = items()["Việc 'Sao lưu ảnh' xong"]
+cite = client.post("/javis-core/cite", json={"source": "inbox", "id": bk["id"], "brain": "brain"}).json()
+csid = cite.get("id")
+cmsg = [m for m in main.get_store().get_messages(csid) if f"javis-cite:inbox:{bk['id']}" in str(m.get("content") or "")]
+check("'Open in Javis Core' puts the notice in Core's chat with the item's marker", cite.get("ok") and len(cmsg) == 1, cite)
+sent.clear()
+rr = client.post(f"/sessions/{csid}/messages/{cmsg[0]['id']}/reaction?brain=brain",
+                 json={"value": "angry", "reasons": [], "axis": "should_silent", "comment": "", "nonce": "n-cite-1"})
+check("an emoji (and 'should stay quiet') on that chat message reaches Javis Core's judge: that kind is muted",
+      rr.status_code == 200 and any(r["rule"] == "mute" and "sao lưu ảnh" in r["sig"] for r in NP.status()["rules"]) and
+      any("Sao lưu ảnh" in t for _c, t in sent), (rr.text, NP.status()["rules"], sent))
+rr = client.post(f"/sessions/{csid}/messages/{cmsg[0]['id']}/reaction?brain=brain",
+                 json={"value": "angry", "reasons": [], "axis": "should_silent", "comment": "", "nonce": "n-cite-1"})
+check("the same nonce sent again is a replay and changes nothing more", rr.status_code == 200 and
+      len([c for c in NP.status(100)["changes"] if "sao lưu ảnh" in str(c.get("target"))]) == 1)
+plain = main.get_store().create_session(brain=KB)
+main.get_store().append_message(plain, "assistant", f"Không phải chat Core <!-- javis-cite:inbox:{bk['id']} -->")
+pm = main.get_store().get_messages(plain)[-1]
+n0 = len(NP.status(100)["changes"])
+client.post(f"/sessions/{plain}/messages/{pm['id']}/reaction?brain=brain",
+            json={"value": "love", "reasons": [], "axis": "should_speak", "comment": "", "nonce": "n-plain-1"})
+check("a reaction in an ordinary chat is not notice feedback, even with the marker", len(NP.status(100)["changes"]) == n0)
+NP.set_mode("reminder", "urgent", set_by="owner")
+sent.clear()
+run(main._notify_owner("", "Nhắc bạn: kiểm kho", kind="report", source="reminder", brain=str(BR)))
+rem = items()["Nhắc bạn: kiểm kho"]
+check("a notice that lands in Javis Core's chat carries its marker there (so it can take emoji), not on Telegram",
+      any(c == "web:" + core and f"javis-cite:inbox:{rem['id']}" in t for c, t in sent) and
+      all("javis-cite" not in t for c, t in sent if c == "111"), sent)
+
 # ---- 4. off ----
 NP.set_mode("update", "off", set_by="owner")
 d = NP.decide("update", "urgent", "Bản vá")
@@ -240,10 +273,9 @@ vi = json.loads((ROOT / "dashboard/i18n/vi.json").read_text(encoding="utf-8"))
 en = json.loads((ROOT / "dashboard/i18n/en.json").read_text(encoding="utf-8"))
 check("bell: filtered notices leave the main list for a 'Filtered (N)' view",
       "!!x.filtered === loc" in js and '"noti.filtered_n"' in js and "data-noti-filtered" in js)
-check("bell: feedback uses the Resonance emoji set plus Needed / Not needed, sent to /inbox/react",
-      "window.JavisReactions" in js and "R.EMOJI" in js and
-      html.index("/static/reactions.js") < html.index("/static/notifications.js") and
-      'data-react-a="needed"' in js and 'data-react-a="not_needed"' in js and '"/inbox/react"' in js)
+check("bell: only Needed / Not needed on a notice, sent to /inbox/react; no emoji there (they go on it in Javis Core)",
+      'data-react-a="needed"' in js and 'data-react-a="not_needed"' in js and '"/inbox/react"' in js and
+      "JavisReactions" not in js and "data-react-v" not in js and "noti-emo" not in js)
 check("bell: a Filter tab with each group's mode, rules and undo", 'id="notiTabFilter"' in html and '"/notify/policy/group"' in js and
       '"/notify/policy/undo"' in js and '"/notify/policy/rule"' in js)
 keys = set()

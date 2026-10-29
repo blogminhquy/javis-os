@@ -142,7 +142,7 @@
   "noti.filtered_empty": "No notice was filtered.",
   "noti.filter_title": "Notification filter",
   "noti.filter_info_l": "How the filter works",
-  "noti.filter_info": "Every notice belongs to a group and has a level: normal, important or urgent. Each group picks the level that rings (red dot, phone push, Telegram). Notices below it stay in the bell, under Filtered. Javis Core adjusts itself from your feedback on each notice (emoji, Needed, Not needed) and from repeats, but never hides an urgent notice. Every change Javis Core makes can be undone here.",
+  "noti.filter_info": "Every notice belongs to a group and has a level: normal, important or urgent. Each group picks the level that rings (red dot, phone push, Telegram). Notices below it stay in the bell, under Filtered. Javis Core adjusts itself from the Needed and Not needed buttons on a notice, from the emoji you put on a notice once it is opened in the Javis Core chat, and from repeats, but never hides an urgent notice. Every change Javis Core makes can be undone here.",
   "noti.grp_reminder": "Reminders",
   "noti.grp_question": "Questions for you",
   "noti.grp_chatbot": "Chatbot and customers",

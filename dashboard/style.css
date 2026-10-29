@@ -468,20 +468,14 @@ button, input, select, textarea { font-family: inherit; }
 .noti-tab-filter { margin-left: auto; }
 .noti-why { display: inline-block; margin: 8px 8px 0 0; padding: 2px 7px; border-radius: 6px; font-size: 11px;
   color: var(--text3); background: var(--surface-2); }
-.noti-react { margin-top: 8px; }
-.noti-react-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--hairline);
-  border-radius: 999px; background: var(--surface-1); color: var(--text2); font: 500 12px var(--font); cursor: pointer; }
-.noti-react-btn svg { width: 14px; height: 14px; }
-.noti-react-btn:hover { border-color: var(--accent-line); color: var(--text); }
-.noti-react-pop { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.noti-react-pop[hidden] { display: none; }
-.noti-emo { width: 36px; height: 36px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface-1);
-  font-size: 18px; line-height: 1; cursor: pointer; }
-.noti-axis { height: 36px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface-1);
-  color: var(--text2); font: 600 12.5px var(--font); cursor: pointer; }
-.noti-emo.on, .noti-axis.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-ink); }
+.noti-react { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.noti-axis { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border: 1px solid var(--hairline);
+  border-radius: 999px; background: var(--surface-1); color: var(--text2); font: 600 12px var(--font); cursor: pointer; }
+.noti-axis svg { width: 14px; height: 14px; }
+.noti-axis:hover { border-color: var(--accent-line); color: var(--text); }
+.noti-axis.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-ink); }
 .noti-axis.no.on { border-color: var(--warn-ink); background: var(--warn-wash); color: var(--warn-ink); }
-.noti-react-note { margin-top: 6px !important; font-size: 12px !important; color: var(--text2) !important; }
+.noti-react-note { flex-basis: 100%; margin-top: 2px !important; font-size: 12px !important; color: var(--text2) !important; }
 .noti-sub-head { display: flex; align-items: center; gap: 8px; padding: 6px 4px 10px; }
 .noti-sub-head b { font-size: 14px; color: var(--text); }
 .noti-sub-head .noti-text-btn { display: inline-flex; align-items: center; gap: 2px; }
@@ -501,7 +495,8 @@ button, input, select, textarea { font-family: inherit; }
 .noti-fl li small { color: var(--text3); }
 .noti-fl-empty { margin: 0; color: var(--text3); }
 @media (pointer: coarse) {
-  .noti-react-btn, .noti-filter { font-size: 15px; }
+  .noti-axis { height: 36px; font-size: 14px; }
+  .noti-filter { font-size: 15px; }
   .noti-fg select { height: 40px; font-size: 15px; }
 }
 /* Công tắc thông báo đẩy - nằm ngay trên chân panel, thấy được lúc đang đọc thư. */
