@@ -21,6 +21,11 @@
   // Resonance emoji set plus "Needed" / "Not needed"; the "Filter" view sets each group's mode and undoes changes.
   var GROUPS = ["reminder", "question", "chatbot", "connection", "incident", "job", "agent", "team", "cost", "update", "other"];
   var MODES = ["all", "important", "urgent", "off"];
+  // Full keys spelled out, so the i18n check finds every one of them.
+  var GROUP_KEY = { reminder: "noti.grp_reminder", question: "noti.grp_question", chatbot: "noti.grp_chatbot",
+    connection: "noti.grp_connection", incident: "noti.grp_incident", job: "noti.grp_job", agent: "noti.grp_agent",
+    team: "noti.grp_team", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
+  var MODE_KEY = { all: "noti.mode_all", important: "noti.mode_important", urgent: "noti.mode_urgent", off: "noti.mode_off" };
   var EMO = [["like", "👍"], ["love", "❤️"], ["haha", "😂"], ["wow", "😮"], ["sad", "😢"], ["angry", "😡"]];
   function emoOf(v) { var e = EMO.find(function (x) { return x[0] === v; }); return e ? e[1] : ""; }
   function icon(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }
@@ -361,10 +366,10 @@
     (p.groups || []).forEach(function (g) { byG[g.group] = g; });
     var rows = GROUPS.filter(function (g) { return byG[g]; }).map(function (g) {
       var cur = byG[g];
-      return '<label class="noti-fg"><span class="noti-fg-n">' + esc(window.t("noti.grp_" + g)) +
+      return '<label class="noti-fg"><span class="noti-fg-n">' + esc(window.t(GROUP_KEY[g])) +
         (cur.set_by === "core" ? '<small>' + esc(window.t("noti.by_core")) + "</small>" : "") + "</span>" +
         '<select data-grp="' + g + '">' + MODES.map(function (m) {
-          return '<option value="' + m + '"' + (cur.mode === m ? " selected" : "") + ">" + esc(window.t("noti.mode_" + m)) + "</option>";
+          return '<option value="' + m + '"' + (cur.mode === m ? " selected" : "") + ">" + esc(window.t(MODE_KEY[m])) + "</option>";
         }).join("") + "</select></label>";
     }).join("");
     var rules = (p.rules || []).map(function (r) {
