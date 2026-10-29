@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.390.0] - 2026-10-29
+### Improved
+- **A cleaner Javis Store** (in progress).
+
 ## [0.387.0] - 2026-10-29
 ### Fixed
 - **Claude Code and Codex now really stay running between messages.** In 0.382.0 Javis thought the setup had changed after every message (Claude Code and Codex rewrite their sign-in file themselves), so it started them again each time. Measured again on the dashboard: the next message shows text after about 2 seconds instead of 8 to 14.
