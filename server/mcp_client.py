@@ -584,7 +584,13 @@ def _spec_hash(spec):
     elif t == "internal":
         core = (spec.get("internal"), tuple(sorted((spec.get("secrets") or {}).items())))
     else:
-        core = (spec.get("url"), tuple(sorted((spec.get("headers") or {}).items())))
+        hdr = dict(spec.get("headers") or {})
+        if spec.get("oauth_conn_id"):
+            # 0.400.0: the bearer of an OAuth connection changes at every refresh. Hashing it closed the live session
+            # each time, a tool call running on it included (a Canva design mid-generation). `_get` puts the new
+            # token on the session that is already open instead.
+            hdr.pop("Authorization", None)
+        core = (spec.get("url"), tuple(sorted(hdr.items())))
     return hash(core)
 
 
@@ -652,6 +658,8 @@ class SessionPool:
         if not ent:
             ent = {"obj": self._make(spec), "hash": h, "last": time.time(), "epoch": next(_EPOCH)}
             self._sessions[key] = ent
+        elif isinstance(ent["obj"], McpHttpSession):
+            ent["obj"].base_headers = dict(spec.get("headers") or {})   # the current OAuth bearer
         ent["last"] = time.time()
         return key, ent["obj"]
 
@@ -795,8 +803,48 @@ class SessionPool:
         finally:
             self._danh_dau_ban(key, -1)
 
+    @staticmethod
+    async def _oauth_fresh(spec, force=False, rejected=""):
+        """The spec with the CURRENT bearer of its OAuth connection (0.400.0), or the spec itself.
+
+        The hub keeps the spec of a route for up to 15 minutes (mcp_hub `_CACHE_STALE_MAX`) with the header it had at
+        discovery, so a call made after that token expired went out with it and got 401. Asking oauth_mcp here, right
+        before the request, costs nothing while the token is fresh and refreshes it when it is not."""
+        cid = spec.get("oauth_conn_id")
+        if not cid:
+            return spec
+        try:
+            import oauth_mcp
+            fresh = await oauth_mcp.auth_headers(cid, force=force, rejected=rejected)
+        except Exception as e:
+            print(f"[mcp oauth] {spec.get('label') or cid}: {type(e).__name__}: {e}", file=sys.stderr)
+            return spec
+        if not fresh:
+            return spec
+        return dict(spec, headers={**(spec.get("headers") or {}), **fresh})
+
+    @staticmethod
+    def _is_401(e) -> bool:
+        return isinstance(e, McpHttpError) and str(e).startswith("HTTP 401")
+
+    async def _with_oauth(self, spec, run):
+        """Run `run(spec)` with a fresh bearer; on 401, refresh once more and run again. A 401 means the server turned
+        the request down before doing anything, so running a tool call again cannot do it twice."""
+        spec = await self._oauth_fresh(spec)
+        try:
+            return await run(spec)
+        except Exception as e:
+            if not (spec.get("oauth_conn_id") and self._is_401(e)):
+                raise
+            sent = (spec.get("headers") or {}).get("Authorization", "")
+            again = await self._oauth_fresh(spec, force=True, rejected=sent)
+            if (again.get("headers") or {}).get("Authorization", "") == sent:
+                raise                      # no new token (refresh token revoked): sign in again
+            return await run(again)
+
     async def list_tools(self, spec):
-        tools = await self._retry(spec, lambda s: s.list_tools(), idempotent=True)
+        tools = await self._with_oauth(
+            spec, lambda sp: self._retry(sp, lambda s: s.list_tools(), idempotent=True))
         # Dò được là nguồn đã sống lại (nút Kiểm tra, vòng quét sức khoẻ): bỏ dấu "vừa hỏng" ngay.
         self._down.pop(spec.get("key") or _spec_hash(spec), None)
         self._init_errors.pop(spec.get("key") or _spec_hash(spec), None)
@@ -850,7 +898,7 @@ class SessionPool:
             return await s.call_tool(tool, args)
 
         try:
-            res = await self._retry(spec, _op, idempotent=False, ban=True)
+            res = await self._with_oauth(spec, lambda sp: self._retry(sp, _op, idempotent=False, ban=True))
             self._down.pop(key, None)
             return res
         except Exception as e:
@@ -877,6 +925,7 @@ def _conn_spec(conn):
             "env": conn.get("env") or {}, "internal": conn.get("internal") or "",
             "secrets": conn.get("secrets") or {}, "config": conn.get("config") or {},
             "inject_args": conn.get("inject_args") or {},
+            "oauth_conn_id": conn["id"] if conn.get("auth") == "oauth" else "",
             "label": conn.get("label", "")}
 
 

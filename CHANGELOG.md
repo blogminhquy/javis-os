@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.400.0] - 2026-10-29
+### Sửa lỗi
+- **Canva và các kết nối đăng nhập OAuth không còn rớt giữa phiên.** Khi token sắp hết hạn, nhiều lệnh cùng lúc từng tự gia hạn bằng cùng một mã, mà Canva chỉ nhận mã đó một lần nên chặn luôn phiên đăng nhập. Giờ chỉ một lệnh đi gia hạn, các lệnh khác dùng chung token mới.
+- Gọi tool giữa cuộc chat luôn dùng token mới nhất. Lỡ máy chủ từ chối token (lỗi 401) thì Javis tự gia hạn và thử lại một lần, không bắt bạn kết nối lại.
+- Token đổi không còn cắt ngang việc đang chạy dở, ví dụ một thiết kế Canva đang tạo.
+
 ## [0.399.0] - 2026-10-29
 ### Cải thiện
 - **Thống kê Chatbot cho thấy A.I. giúp bạn được gì.** Đầu trang là khối lợi ích: A.I. đã trả lời thay bạn bao nhiêu tin, lo bao nhiêu phần trăm câu trả lời, ước tính bạn được rảnh bao nhiêu giờ, và trả lời bao nhiêu tin lúc bạn nghỉ (21h đến 7h).
