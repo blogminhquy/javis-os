@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.396.0] - 2026-10-29
+### Improved
+- **Group chats now keep their latest 1,000 messages in the inbox, up from 100.** A busy group stays readable for days back. Private chats with customers still keep everything.
+- Messages already cut earlier do not come back; from now on a group fills up to 1,000 before the oldest start to go.
+
 ## [0.394.0] - 2026-10-29
 ### Fixed
 - **Switching to another app and back, a running turn no longer looks stopped.** Javis kept working on the server while you were away, but on reconnecting the chat removed the "Javis is thinking" line and did not show what had been written, so the command looked stopped until the finished answer popped up. The status line now comes back at once, with the text Javis wrote while you were away.
