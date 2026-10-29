@@ -118,7 +118,7 @@ The number on the Channels tab counts the places that need you: an account in er
 
 ## The Stats tab
 
-Press the period button to open the date picker: a quick range (today, yesterday, last 7, 30 or 90 days, last month, week or month to date) or a start and end day on the calendar, then **Apply**. Javis remembers the period you looked at last. Four tiles: AI answered, You answered (messages sent from Javis), Average customer wait (from a customer message to its first answer), Waiting for you (opens the Needs you list). Each compares with the period before of the same length. Below, two bar lists: AI answers by channel and by bot. Numbers come from the Javis inbox.
+Press the period button to open the date picker: a quick range (today, yesterday, last 7, 30 or 90 days, last month, week or month to date) or a start and end day on the calendar, then **Apply**. Javis remembers the period you looked at last. Since 0.399.0 the page opens with a **benefit band**: how many messages the AI answered for you (against the period before), its share of all answers, **the time it freed for you** (estimated at 1 minute per AI answer) and **how many answers it sent while you rest** (9 pm to 7 am in the brain's time zone). Four tiles: Customers served (with the new ones, private chats whose first message is in the period), First answer after (the AI against you, the typical value), You answered, Waiting for you (opens the Needs you list). A **When customers write** chart has 24 columns, your rest hours in a stronger colour and the busiest hour named. Last, two bar lists: AI answers by channel and by bot. Numbers come from the Javis inbox.
 
 ## The account card
 

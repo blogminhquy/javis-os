@@ -219,3 +219,123 @@
   .cview.cview-hoi-thoai:has(.ht-wrap.thread-on) .cview-body { padding: 0; }
   .ht-wrap.thread-on .ht-body { border: 0; border-radius: 0; }
 }
+
+/* ================= Stats tab, compact (0.399.0; owner, 2026-10-29) =================
+   Same type as the Conversations tab. A band with what the A.I. did for the owner, four tiles, customer messages per
+   hour (rest hours in the A.I.'s colour), then the two bar lists. */
+.ib-v5.st-wrap { max-width: 1180px; gap: 12px; font-size: 14px; }
+.st-wrap .st-bar { gap: 10px; }
+.st-wrap .st-range { height: 34px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 600; background: var(--bg2); }
+.st-wrap .st-range svg { width: 15px; height: 15px; }
+.st-wrap .st-dates { font-size: 13px; }
+.st-wrap .st-body { gap: 12px; }
+.st-hero { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--ib-ai) 30%, transparent); background: var(--ib-ai-wash); }
+.st-hero-h { display: flex; align-items: center; gap: 12px; }
+.st-hero-ic { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--ib-ai); color: #fff; display: inline-flex;
+  align-items: center; justify-content: center; }
+.st-hero-ic svg { width: 21px; height: 21px; }
+.st-hero-tt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.st-hero-tt b { font-size: 19px; line-height: 1.3; color: var(--text); }
+.st-hero-k { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.st-hero-k > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--bg2); }
+.st-hero-k b { font-size: 24px; line-height: 1.2; color: var(--ib-ai-ink); font-variant-numeric: tabular-nums; }
+.st-hero-k span { font-size: 13px; color: var(--text2); }
+.st-wrap .st-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.st-wrap .st-tile { padding: 12px 14px; border-radius: 14px; gap: 4px; background: var(--bg2); }
+.st-wrap .st-k { font-size: 13px; }
+.st-wrap .st-k svg { width: 15px; height: 15px; }
+.st-wrap .st-v { font-size: 24px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.st-wrap .st-d { font-size: 12.5px; }
+.st-sp { display: flex; flex-direction: column; gap: 2px; font-size: 15px; font-weight: 700; line-height: 1.35; }
+.st-sp-ai { color: var(--ib-ai-ink); }
+.st-sp-you { color: var(--ib-owner-ink); }
+.st-wrap .st-panel { padding: 14px 16px; border-radius: 14px; background: var(--bg2); }
+.st-wrap .st-panel h3 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.st-wrap .st-panel h3 small { font-size: 13px; font-weight: 500; color: var(--text3); }
+.st-wrap .st-row { grid-template-columns: minmax(0, 170px) minmax(0, 1fr) 52px; padding: 4px 0; font-size: 14px; }
+.st-wrap .st-track { height: 10px; }
+.st-cols { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; align-items: end; height: 120px; }
+.st-col { height: 100%; display: flex; align-items: flex-end; border-radius: 4px; background: var(--surface-1); }
+.st-col > span { display: block; width: 100%; border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--ib-ai) 40%, transparent); }
+.st-col.rest > span { background: var(--ib-ai); }
+.st-col.peak > span { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ib-ai) 35%, transparent); }
+.st-cols-x { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11.5px; color: var(--text3); }
+.st-legend { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 12.5px; color: var(--text3); }
+.st-lg { width: 10px; height: 10px; border-radius: 3px; background: var(--ib-ai); }
+.st-wrap > .st-body > .ib-hint { font-size: 12.5px; margin: 0; }
+@media (max-width: 900px) {
+  .st-wrap .st-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .st-hero { padding: 14px; }
+  .st-hero-tt b { font-size: 17px; }
+  .st-hero-k { grid-template-columns: 1fr; gap: 6px; }
+  .st-hero-k > div { flex-direction: row; align-items: baseline; gap: 10px; }
+  .st-hero-k b { font-size: 20px; min-width: 4.5em; }
+  .st-cols { gap: 2px; height: 96px; }
+}
+
+/* ================= Channels tab, compact (0.399.0) =================
+   The nick list on the left and the picked nick on the right at the Conversations tab's sizes: 14px rows, slim
+   buttons, the account card as one tidy block, chat rows with a smaller switch. */
+.ib-v5.kn-wrap { max-width: 1240px; font-size: 14px; }
+.kn-wrap .kn-grid { grid-template-columns: 300px minmax(0, 1fr); gap: 12px; }
+.kn-wrap .kn-top { gap: 6px; }
+.kn-wrap .kn-top .s-btn { height: 36px; font-size: 13px; padding: 0 12px; border-radius: 10px; }
+.kn-wrap .kn-allbr, .kn-wrap .kn-brain { font-size: 13px; }
+.kn-wrap .kn-brain svg { width: 15px; height: 15px; }
+.kn-wrap .kn-tq { height: 36px; padding: 6px 12px; border-radius: 10px; font-size: 13px; }
+.kn-wrap .kn-sec { border-radius: 14px; background: var(--bg2); }
+.kn-wrap .kn-sh { padding: 10px 12px; font-size: 14px; gap: 8px; }
+.kn-wrap .kn-sh small { font-size: 12.5px; }
+.kn-wrap .kn-bulk { padding: 0 12px 8px; font-size: 13px; }
+.kn-wrap .kn-row { padding: 8px 12px 8px 40px; gap: 8px; }
+.kn-wrap .kn-row.on::before { width: 3px; }
+.kn-wrap .kn-rt b { font-size: 14px; }
+.kn-wrap .kn-rt small { font-size: 12.5px; }
+.kn-wrap .kn-row .ib-dot { width: 8px; height: 8px; }
+.kn-wrap .kn-pane { border-radius: 14px; background: var(--bg2); }
+.kn-wrap .kn-ph { padding: 10px 14px; gap: 10px; }
+.kn-wrap .kn-ph h3 { font-size: 16px; flex: 1 1 180px; }
+.kn-wrap .kn-ph h3 svg, .kn-wrap .kn-ph h3 img { width: 20px; height: 20px; }
+.kn-wrap .kn-assign { gap: 6px; font-size: 13px; }
+.kn-wrap .kn-assign label { font-size: 13px; color: var(--text3); }
+.kn-wrap .kn-assign select { height: 34px; padding: 0 8px; font-size: 13px; min-width: 160px; border-radius: 10px; }
+.kn-wrap .kn-assign .s-btn, .kn-wrap .kn-assign .s-btn-ghost { height: 34px; font-size: 13px; padding: 0 10px; border-radius: 10px; }
+.kn-wrap .kn-unsaved { font-size: 13px; }
+.kn-wrap .kn-card { padding: 12px 14px 0; }
+.kn-wrap .kn-card .ht-acc { padding: 12px 14px; border-radius: 12px; gap: 6px; font-size: 14px; }
+.kn-wrap .kn-card .ht-acc-title strong { font-size: 15px; }
+.kn-wrap .kn-card .ht-acc small, .kn-wrap .kn-card .ht-acc-meta, .kn-wrap .kn-card .cb-state, .kn-wrap .kn-card .ht-acc-loi { font-size: 13px; }
+.kn-wrap .kn-card .ht-acc-nl { font-size: 12px; }
+.kn-wrap .kn-card .ht-acc-nl span { padding: 1px 8px; }
+.kn-wrap .kn-card .ht-acc-acts { gap: 6px; margin-top: 4px; }
+.kn-wrap .kn-card .ht-acc-acts .s-btn-ghost { height: 32px; font-size: 13px; padding: 0 10px; border-radius: 9px; }
+.kn-wrap .kn-card .ht-switch { font-size: 13px; }
+.kn-wrap .kn-ch { padding: 12px 0 0; }
+.kn-wrap .kn-chh { padding: 0 14px; gap: 10px; }
+.kn-wrap .kn-chh b { font-size: 15px; }
+.kn-wrap .kn-q { height: 34px; padding: 0 10px; border-radius: 10px; font-size: 13px; flex: 0 1 240px; }
+.kn-wrap .kn-ch > .ib-hint { padding: 4px 14px 8px; font-size: 12.5px; }
+.kn-wrap .kn-chat { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 0 10px; padding: 8px 14px; border-left-width: 3px; }
+.kn-wrap .kn-chat .ht-item-ava { width: 36px; height: 36px; font-size: 14px; }
+.kn-wrap .kn-chat .ht-item-ava.g { border-radius: 11px; }
+.kn-wrap .kn-chat .ib-kl { width: 15px; height: 15px; right: -3px; bottom: -3px; }
+.kn-wrap .kn-chat .ib-kl svg, .kn-wrap .kn-chat .ib-kl img { width: 15px; height: 15px; }
+.kn-wrap .kn-ct { gap: 1px; }
+.kn-wrap .kn-ct b { font-size: 14px; }
+.kn-wrap .kn-ct small { font-size: 12.5px; display: flex; align-items: center; gap: 5px; min-width: 0; }
+.kn-wrap .kn-ct small .ib-dot { width: 7px; height: 7px; }
+.kn-wrap .kn-ca { gap: 8px; font-size: 13px; }
+.kn-wrap .kn-ca .s-btn { font-size: 13px; padding: 2px 10px; }
+.kn-wrap .kn-sw { font-size: 11.5px; gap: 3px; }
+.kn-wrap .ib-tg { width: 40px; height: 22px; }
+.kn-wrap .ib-tg::after { top: 2px; left: 2px; width: 18px; height: 18px; }
+.kn-wrap .ib-tg.on::after { left: 20px; }
+.kn-wrap .kn-pager { padding: 8px 14px; }
+.kn-wrap .kn-pg { font-size: 13px; }
+@media (max-width: 900px) {
+  .kn-wrap .kn-grid { grid-template-columns: 1fr; }
+  .kn-wrap .kn-row { padding-left: 12px; }
+}

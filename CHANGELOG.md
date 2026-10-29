@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.399.0] - 2026-10-29
+### Cải thiện
+- **Thống kê Chatbot cho thấy A.I. giúp bạn được gì.** Đầu trang là khối lợi ích: A.I. đã trả lời thay bạn bao nhiêu tin, lo bao nhiêu phần trăm câu trả lời, ước tính bạn được rảnh bao nhiêu giờ, và trả lời bao nhiêu tin lúc bạn nghỉ (21h đến 7h).
+- **Thêm chỉ số mới:** số khách được phục vụ và khách mới, tốc độ trả lời đầu tiên của A.I. so với bạn, biểu đồ giờ khách nhắn nhiều nhất trong ngày.
+- **Tab Kênh và Thống kê gọn hơn**, cùng cỡ chữ và kiểu nút với tab Hội thoại.
+- **Nút (i) giải thích giờ mở thành popup** ngay cạnh nút (trên điện thoại là bảng trượt từ dưới lên), không còn xổ chữ ra làm xô lệch trang. Áp dụng cho mọi nút (i) trong Javis.
+
 ## [0.398.0] - 2026-10-29
 ### Sửa lỗi
 - **Trả lời khách trên điện thoại: Enter là xuống dòng.** Ở trang Chatbot, bấm Enter trên bàn phím điện thoại trước đây gửi tin luôn, không cách nào viết được dòng thứ hai. Giờ Enter xuống dòng như khung chat chính, muốn gửi thì bấm nút gửi. Trên máy tính giữ nguyên: Enter gửi, Shift+Enter xuống dòng.

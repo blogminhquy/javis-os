@@ -4274,8 +4274,8 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rsa-goals-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-top: 12px; }
 /* 0.175.0: các câu giải thích của Auto gập lại, mở khi cần đọc. */
 /* Nút "i" mở lời giải thích (0.175.0, info-tip.js): chủ repo thấy tab Cài đặt "nhiều thông tin quá". Nút tròn nhỏ cạnh tiêu đề
-   mục, đứng cùng dòng chữ; vùng chạm nới ra 44px trên cảm ứng bằng một lớp trong suốt, không đẩy chữ. Khối giải thích là một ô
-   nền nhạt ngay dưới tiêu đề. */
+   mục, đứng cùng dòng chữ; vùng chạm nới ra 44px trên cảm ứng bằng một lớp trong suốt, không đẩy chữ. Từ 0.399.0 khối giải
+   thích luôn ẩn trong trang và mở trong popup (.info-pop, bên dưới). */
 .info-i { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
   margin-left: 6px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text3); cursor: pointer;
   vertical-align: middle; flex: none; }
@@ -4287,6 +4287,23 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   font-size: 16px; line-height: 1.55; font-weight: 400; display: block; overflow-wrap: anywhere;
   text-align: left; text-transform: none; letter-spacing: normal; }
 .info-body[hidden] { display: none; }
+/* 0.399.0 (owner, 2026-10-29): the (i) opens a popup next to the button instead of unfolding the block in the page
+   (info-tip.js). Above every modal (3210) and drawer; a sheet from the bottom on a phone, with a dimmed backdrop. On a
+   computer the backdrop is clear and only catches the click that closes the popup. */
+.info-pop-bg { position: fixed; inset: 0; z-index: 3400; background: transparent; }
+.info-pop { position: fixed; z-index: 3401; width: min(360px, calc(100vw - 16px)); max-height: min(60vh, 480px); overflow-y: auto;
+  box-sizing: border-box; padding: 12px 40px 12px 14px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--panel-solid, var(--bg2)); color: var(--text2); box-shadow: var(--shadow-2); font-size: 14px; line-height: 1.55;
+  text-align: left; text-transform: none; letter-spacing: normal; font-weight: 400; overflow-wrap: anywhere; outline: none; }
+.info-pop-c > * { margin: 0; font-size: inherit; }
+.info-pop-c > :is(div, p, ul, ol, pre) + :is(div, p, ul, ol, pre) { margin-top: 6px; }
+.info-pop-x { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; display: inline-flex; align-items: center;
+  justify-content: center; border: 0; border-radius: 8px; background: none; color: var(--text3); cursor: pointer; padding: 0; }
+.info-pop-x:hover { background: var(--surface-2); color: var(--text); }
+.info-pop-x svg { width: 16px; height: 16px; }
+.info-pop.sheet { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-height: 70vh; border-radius: 18px 18px 0 0;
+  padding: 18px 48px 22px 18px; font-size: 16px; }
+@media (max-width: 600px) { .info-pop-bg { background: var(--scrim, rgba(0, 0, 0, .45)); } .info-pop-x { width: 40px; height: 40px; } }
 div.info-body > * { margin: 0; font-size: inherit; }
 /* Block, not flex (review 0.214.0): a folded sentence often mixes <b>, <code> and <a> with text, and flex turned each of
    those into its own stacked line. Block children (one line per div, p or list) still get a small gap. */
