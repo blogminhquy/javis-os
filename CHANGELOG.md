@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.406.0] - 2026-10-29
+### Cải thiện
+- **Trang Models lần đầu vào dễ bắt đầu hơn.** Chưa có nhà cung cấp nào đăng nhập thì mục **Kết nối thêm nhà cung cấp** nằm trên cùng và mở sẵn danh sách các nhà, bấm là kết nối được ngay. Trước đây mục này nằm cuối trang và phải bấm mới xổ ra.
+
 ## [0.405.0] - 2026-10-29
 ### Cải thiện
 - **Sơ đồ và hình phóng to, kéo được trên cả máy tính và điện thoại.** Khung xem Sơ đồ, hình SVG và ảnh mở trong trình sửa giờ lăn chuột hoặc chụm hai ngón để phóng to, thu nhỏ, giữ chuột hoặc một ngón để kéo. Có nút **+**, **−**, **Vừa khung** và chạm đúp để phóng to nhanh. Trước đây sơ đồ rộng chỉ hiện bé xíu trên điện thoại mà không phóng to được.
