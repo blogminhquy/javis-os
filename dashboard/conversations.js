@@ -177,7 +177,7 @@
       // The Channels tab counts the nicks and Pages that need something (an error, or no bot and none was declined).
       if (t === "kenh" && window.JavisInboxChannels) canBan = window.JavisInboxChannels.jobs(_tk);
       var chuaDoc = canBan ? '<span class="ht-badge" title="' + esc(window.t(t === "kenh" ? "ib.kn_jobs" : "ib.who_you")) + '">' + canBan + '</span>' : "";
-      // Phones show the icon only (0.395.0), so the name is also the button's tooltip and its spoken label.
+      // Phones show the icon only (0.397.0), so the name is also the button's tooltip and its spoken label.
       var ten = window.t(NHAN[t][0]);
       return '<button type="button" class="ht-tab' + (t === _tab ? " on" : "") + '" data-t="' + t + '"' + (t === _tab ? ' aria-current="page"' : "") +
         ' title="' + esc(ten) + '">' + ic(NHAN[t][1]) + ' <span class="ht-tab-t">' + esc(ten) + '</span>' + chuaDoc + '</button>';
@@ -315,7 +315,7 @@
       '<div class="ht-wrap ib-v5">' +
         '<div class="ht-body">' +
           '<div class="ht-listcol">' +
-            // 0.395.0 (owner, 2026-10-29): the search with Filter inside it, then one row with two dropdowns, "who" on
+            // 0.397.0 (owner, 2026-10-29): the search with Filter inside it, then one row with two dropdowns, "who" on
             // the left and the channel picker on the right. Nothing wraps onto a second line in the narrow column.
             '<div class="ib-lhead">' +
               '<div class="ib-srow"><span class="ib-swrap">' + ic("search") +
@@ -405,7 +405,7 @@
       var chans = sum.channels.length ? sum.channels : [];
       if (!chans.length) accs.forEach(function (a) { if (chans.indexOf(a.channel) < 0) chans.push(a.channel); });
       var sub = sum.one ? nhanKenh(sum.one.channel) : sum.sub;
-      // One line since 0.395.0: the names behind "3 places picked" (or "every nick and Page together") are the tooltip.
+      // One line since 0.397.0: the names behind "3 places picked" (or "every nick and Page together") are the tooltip.
       var ph = '<span class="ib-stack">' + chans.slice(0, 3).map(function (ch) { return logoKenh(ch, "18px"); }).join("") + '</span>' +
         '<span class="ib-pk-tt"><b>' + esc(sum.title) + '</b></span>' + ic("chevron-down");
       if (pb.dataset.sig !== ph) { pb.innerHTML = ph; pb.dataset.sig = ph; }
@@ -761,7 +761,7 @@
       // Since the row menu (2026-10-25) pinning lives in "...": only a PINNED row shows its pin (click it to unpin), so
       // unpinned rows stay clean like Zalo's. The "..." is a <span role=button> for the same reason as the pin.
       // The owner's tags: two chips then "+N" (Pancake's list row), on a third line only when the chat has tags. The nick or
-      // Page a chat came through is in the row's tooltip since 0.395.0 (it was a line of its own on every row), its
+      // Page a chat came through is in the row's tooltip since 0.397.0 (it was a line of its own on every row), its
       // channel is the logo on the avatar.
       var userTags = (F && c.tags && c.tags.length) ? F.tagChips(c.tags, 2) : "";
       var accName = many ? accLabel(c) : "";
@@ -1264,7 +1264,7 @@
     var bar = V ? V.modeBarHtml(c, ic) : "";
     var threeModes = !!(c.bot_id && c.ai_allowed);
     var say = V ? V.whoLabel(who) + ": " + V.whoSentence(c) : "";
-    // 0.395.0 (owner, 2026-10-29): when the A.I. may answer here the three modes sit in the head (a chip opening a sheet
+    // 0.397.0 (owner, 2026-10-29): when the A.I. may answer here the three modes sit in the head (a chip opening a sheet
     // on a narrow column) and the coloured bar under it only shows when the chat needs the owner. Otherwise the bar
     // carries what can be done (Allow, Let the A.I. answer here, Create an A.I.) as before.
     var calm = threeModes && who !== "you";
@@ -1888,7 +1888,7 @@
     var laBot = !!c.bot_id;
     var draft = c.draft && String(c.draft.text || "").trim() ? c.draft : null;
     // On a personal account the message goes out under the owner's own name: the box says so in its placeholder
-    // (0.395.0, the note line above the box took a row of the chat). The "sending takes over" and "example command"
+    // (0.397.0, the note line above the box took a row of the chat). The "sending takes over" and "example command"
     // notes went (owner, 2026-10-28: a good UI needs no notes).
     var ten = k.kind === "account" ? accLabel(c) || k.nhan : "";
     var ph = ten ? t(laBot ? "ib.cin_ph_as_ai" : "ib.cin_ph_as", { ten: ten }) : t(laBot ? "ib.cin_ph_ai" : "ht.gui_ph");
@@ -1957,7 +1957,7 @@
         ' ' + esc(t.message_type) + '</span>' : "";
     var loi = t.metadata && t.metadata.loi
       ? '<div class="ht-msg-loi">' + ic("triangle-alert") + ' ' + esc(t.metadata.loi) + '</div>' : "";
-    // Who and when go under the bubble (0.395.0). A private chat's customer is named in the head already, so only a
+    // Who and when go under the bubble (0.397.0). A private chat's customer is named in the head already, so only a
     // group shows who wrote each message.
     if (lop === "khach" && _conv && _conv.chat_type !== "group") ai = "";
     return '<div class="ht-msg ' + lop + '">' +

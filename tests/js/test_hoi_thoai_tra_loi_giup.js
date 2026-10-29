@@ -37,7 +37,7 @@ const V = win.JavisInboxV5;
 const COMP = fnBody("function veCompose(c) {");
 check("composer: one box, 'A.I. reply' next to Send (only when a bot is on duty)", /class="ib-cin"/.test(COMP) &&
   /\(laBot \? '<button type="button" class="s-btn-ghost ib-ask"/.test(COMP) && /class="s-btn ht-send"/.test(COMP));
-check("no notes around the reply box (owner, 2026-10-28); a personal account says 'Send as <name>' in the placeholder (0.395.0)",
+check("no notes around the reply box (owner, 2026-10-28); a personal account says 'Send as <name>' in the placeholder (0.397.0)",
   !/ib\.send_takes_over|ib\.cmd_hint|ht-compose-note/.test(COMP) && /var ten = k\.kind === "account" \? accLabel\(c\) \|\| k\.nhan : "";/.test(COMP) &&
   /t\(laBot \? "ib\.cin_ph_as_ai" : "ib\.cin_ph_as", \{ ten: ten \}\)/.test(COMP));
 const AI = fnBody("async function aiReply(c, lenh, kind) {");

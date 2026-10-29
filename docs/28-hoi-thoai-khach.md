@@ -32,9 +32,9 @@ Bên dưới, mọi kênh đều đưa tin về **một khuôn chung** rồi và
 
 ## Tab Hội thoại
 
-Từ 0.372.0 (Chatbot v5) máy tính chia **ba cột**: danh sách khách bên trái, khung chat ở giữa, bảng **Thông tin** bên phải. Từ 0.395.0 bảng Thông tin **đóng sẵn** để khung chat rộng, bấm nút ⓘ ở góc phải đầu cuộc chat mới mở (Javis nhớ lựa chọn của bạn trên trình duyệt đó); màn hẹp hơn 1200px thì bảng trượt đè lên khung chat. Chữ trên máy tính cũng gọn lại: danh sách 14px, tin nhắn 15px, và tin nằm trong một cột giữa vừa tầm mắt.
+Từ 0.372.0 (Chatbot v5) máy tính chia **ba cột**: danh sách khách bên trái, khung chat ở giữa, bảng **Thông tin** bên phải. Từ 0.397.0 bảng Thông tin **đóng sẵn** để khung chat rộng, bấm nút ⓘ ở góc phải đầu cuộc chat mới mở (Javis nhớ lựa chọn của bạn trên trình duyệt đó); màn hẹp hơn 1200px thì bảng trượt đè lên khung chat. Chữ trên máy tính cũng gọn lại: danh sách 14px, tin nhắn 15px, và tin nằm trong một cột giữa vừa tầm mắt.
 
-**Trên điện thoại** (từ 0.395.0): không còn chữ "Chatbot" ở đầu trang, bốn tab chỉ còn icon (giữ ngón tay hay đọc màn hình vẫn nghe tên tab). Mở một cuộc chat là nó **chiếm cả màn hình**: một hàng đầu gồm nút quay lại, tên khách, kênh, và một **nút chế độ** màu tím (ví dụ "A.I. trả lời ▾"). Bấm nút đó là một bảng trượt từ dưới lên với ba chế độ, mỗi cái một dòng giải thích, cùng **Thông tin khách và cài đặt A.I.** Ô nhập một hàng, hai nút tròn: ✨ để A.I. soạn hộ, mũi tên để gửi.
+**Trên điện thoại** (từ 0.397.0): không còn chữ "Chatbot" ở đầu trang, bốn tab chỉ còn icon (giữ ngón tay hay đọc màn hình vẫn nghe tên tab). Mở một cuộc chat là nó **chiếm cả màn hình**: một hàng đầu gồm nút quay lại, tên khách, kênh, và một **nút chế độ** màu tím (ví dụ "A.I. trả lời ▾"). Bấm nút đó là một bảng trượt từ dưới lên với ba chế độ, mỗi cái một dòng giải thích, cùng **Thông tin khách và cài đặt A.I.** Ô nhập một hàng, hai nút tròn: ✨ để A.I. soạn hộ, mũi tên để gửi.
 
 **Ai đang lo cuộc chat này.** Server tính cho mỗi cuộc chat một trạng thái, mọi chỗ trên trang đọc đúng nó:
 
@@ -50,7 +50,7 @@ Mỗi dòng khách có **viền trái** theo màu đó, ảnh đại diện có 
 Đầu cột trái, từ trên xuống:
 
 - **Ô tìm** (tên, số điện thoại, nội dung), nút **Lọc** là icon nằm ngay trong ô: menu hai tầng gồm Thời gian (tin cuối trong khoảng nào: hôm nay, 7, 30, 90 ngày, tháng trước, đầu tuần, đầu tháng, hoặc chọn ngày trên lịch), Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Tình trạng (chưa đọc, chờ lâu nhất, đã ẩn), Tin cuối của ai (khách, A.I., bạn), Thông tin khách (có SĐT hay email, chỉ chat đã ghim). Bộ lọc đang bật hiện thành chip có dấu x ngay dưới.
-- Hàng dưới có **hai nút thả xuống** (từ 0.395.0, thay cho bốn nút lọc nhanh trước đây hay bị gãy chữ):
+- Hàng dưới có **hai nút thả xuống** (từ 0.397.0, thay cho bốn nút lọc nhanh trước đây hay bị gãy chữ):
   - Bên trái, **ai đang lo**: nút luôn hiện chế độ đang xem kèm số, ví dụ "Cần bạn 4". Bấm ra bốn lựa chọn, mỗi cái một dòng giải thích: **Cần bạn** (khách đang chờ bạn trả lời hoặc duyệt), **A.I. lo** (A.I. đang tự trả lời khách), **Bạn lo** (bạn đã nhận tự trả lời, A.I. im), **Tất cả** (mọi cuộc chat, kể cả chỉ ghi lại). Mở trang lần đầu là ở **Cần bạn**; không còn chat nào cần bạn thì trang nói vậy, kèm nút **Xem tất cả**.
   - Bên phải, **hộp chọn kênh**: bấm để mở danh sách nick và Page có ô tick, xếp theo kênh với logo thật. Tick tên kênh là chọn cả kênh; mỗi nơi có số chat **Cần bạn**. Không tick gì là xem tất cả. Có ô tìm, **Bỏ chọn**, **Xong** và **Quản lý kênh**. Rê chuột lên nút là đọc tên các nơi đang chọn.
 
@@ -58,7 +58,7 @@ Mọi lựa chọn được nhớ ở trình duyệt. Số trên tab **Hội tho
 
 **"Khách đang chờ" nghĩa là gì** (một trong các lý do của Cần bạn). Khách nhắn cuối, chưa ai đáp, **bạn chưa mở đọc** (mở chat là ra khỏi Cần bạn cho tới khi khách nhắn tiếp), tin đó không chỉ là báo kết bạn ("đã đồng ý kết bạn"), và: là chat riêng, hoặc là nhóm mà bot vừa **cân nhắc nói rồi im** (chưa chắc, hết hạn mức tự nói, hay bộ phán xử lỗi, trong 24 giờ qua và bạn chưa bấm Đúng/Sai). Nhóm thì phải có điều kiện thứ hai, vì bot chỉ nói khi được gọi thì khách nhắn cuối trong nhóm là chuyện bình thường; đếm hết vào thì bộ lọc đầy rác. Cần bật Tự đánh giá thì mới có dấu "bot cân nhắc" này (xem [Bộ phán xử](25-chatbot.md#bộ-phán-xử-bot-tự-quyết-nói-hay-im-và-học-từ-nhóm)).
 
-**Nhóm chỉ giữ 100 tin gần nhất** (từ 0.65.12). Hòm thư lưu hết tin của chat riêng với khách, nhưng mỗi **nhóm** chỉ giữ 100 tin mới nhất; tin cũ hơn tự xoá khi có tin mới về. Lý do: kho không phình mãi, và Javis không giữ lời của người lạ trong nhóm lâu hơn cần thiết (nick Zalo cá nhân ở nhiều nhóm thì Hòm thư ghi cả nhóm bot chưa được phép trả lời). Lần đầu sau khi cập nhật, các nhóm cũ đang có hơn 100 tin được cắt xuống 100; Javis **sao lưu nguyên file kho một lần** trước khi cắt (file `customer_conversations.sqlite3.bak-truoc-cat-nhom-...` cạnh file kho) và **tự xoá bản sao lưu sau 14 ngày**. Muốn lấy lại tin đã cắt thì chép bản sao lưu đè lên file kho trong vòng 14 ngày đó. Số "tin từng nhận" của hội thoại không giảm theo.
+**Nhóm chỉ giữ 1.000 tin gần nhất** (từ 0.396.0; từ 0.65.12 tới trước đó là 100). Hòm thư lưu hết tin của chat riêng với khách, nhưng mỗi **nhóm** chỉ giữ 1.000 tin mới nhất; tin cũ hơn tự xoá khi có tin mới về. Lý do: kho không phình mãi, và Javis không giữ lời của người lạ trong nhóm lâu hơn cần thiết (nick Zalo cá nhân ở nhiều nhóm thì Hòm thư ghi cả nhóm bot chưa được phép trả lời). Lần đầu cập nhật lên 0.65.12, các nhóm cũ đang có hơn 100 tin đã được cắt xuống 100 (tin đó không tự quay lại khi nâng lên 1.000); Javis **sao lưu nguyên file kho một lần** trước khi cắt (file `customer_conversations.sqlite3.bak-truoc-cat-nhom-...` cạnh file kho) và **tự xoá bản sao lưu sau 14 ngày**. Muốn lấy lại tin đã cắt thì chép bản sao lưu đè lên file kho trong vòng 14 ngày đó. Số "tin từng nhận" của hội thoại không giảm theo.
 
 **Tải dần, không đơ máy** (từ 0.65.11). Danh sách chỉ tải 40 dòng đầu; cuộn gần tới cuối thì tự tải 40 dòng nữa (hoặc bấm **Xem thêm**). Khung tin cũng vậy: mở một hội thoại chỉ tải 40 tin **mới nhất**, kéo lên gần đầu (hoặc bấm **Xem tin cũ hơn**) thì tải thêm 40 tin cũ hơn và giữ nguyên chỗ bạn đang đọc. Cứ 5 giây Javis chỉ hỏi các tin **mới hơn tin cuối** rồi chèn vào cuối khung; đang đọc tin cũ mà có tin mới về thì khung đứng yên, không kéo bạn về đầu như trước.
 
@@ -68,7 +68,7 @@ Bấm một hội thoại là lịch sử tin hiện ở giữa: tin khách bên
 
 **A.I. được phép trả lời ở đây**: ba chế độ **A.I. trả lời**, **A.I. soạn**, **Tôi trả lời** nằm ngay trên đầu cuộc chat, bên phải tên khách (trên điện thoại là nút chế độ mở bảng chọn). Rê chuột lên đó là đọc một câu nói chuyện gì đang xảy ra.
 
-Ngay dưới tên khách là một **thanh mảnh** cùng màu với trạng thái, kèm **một câu** (ví dụ "A.I. đã soạn xong câu trả lời, chờ bạn duyệt"). Từ 0.395.0 thanh này **chỉ hiện khi cần bạn** hoặc khi có việc để bật, còn lúc A.I. đang lo yên ổn thì ẩn đi cho khung chat rộng. Nút đi kèm hợp với lúc đó:
+Ngay dưới tên khách là một **thanh mảnh** cùng màu với trạng thái, kèm **một câu** (ví dụ "A.I. đã soạn xong câu trả lời, chờ bạn duyệt"). Từ 0.397.0 thanh này **chỉ hiện khi cần bạn** hoặc khi có việc để bật, còn lúc A.I. đang lo yên ổn thì ẩn đi cho khung chat rộng. Nút đi kèm hợp với lúc đó:
 
 - Đang ở Tôi trả lời mà khách chờ: **Trả lại cho A.I.**
 - **Chưa cho phép**: nút **Cho A.I. trả lời ở đây**. Bot vẫn giữ nguyên ai được trả lời ở các cuộc khác.
@@ -86,7 +86,7 @@ Mọi thay đổi hiện một dòng báo ở đáy màn hình kèm **Hoàn tác
 Ô nhập có hai nút:
 
 - **Gửi**: gửi nguyên văn cho khách. **Enter** để gửi, Shift+Enter xuống dòng.
-- **A.I. soạn** (trước 0.395.0 tên là "A.I. trả lời"): chữ trong ô là **lệnh cho A.I.**, ví dụ "báo giá sỉ 20 thùng, hẹn giao thứ 5". A.I. viết thành câu trả lời lịch sự ngay trong khung ô nhập, ghi rõ lệnh của bạn, kèm Bỏ / Viết lại / Gửi. Ô trống thì A.I. tự đọc cuộc chat mà soạn. **Không bao giờ tự gửi.** Lệnh chỉ A.I. đọc, không vào hộp thư.
+- **A.I. soạn** (trước 0.397.0 tên là "A.I. trả lời"): chữ trong ô là **lệnh cho A.I.**, ví dụ "báo giá sỉ 20 thùng, hẹn giao thứ 5". A.I. viết thành câu trả lời lịch sự ngay trong khung ô nhập, ghi rõ lệnh của bạn, kèm Bỏ / Viết lại / Gửi. Ô trống thì A.I. tự đọc cuộc chat mà soạn. **Không bao giờ tự gửi.** Lệnh chỉ A.I. đọc, không vào hộp thư.
 
 Dưới tin khách cuối có dòng **"Bot im: lý do"** khi bộ phán xử đã ghi lý do (ví dụ "Điểm thấp hơn ngưỡng (0.52 / 0.60)"), kèm nút **Vì sao** mở thẳng bảng Bộ phán xử của bot đó, và nút **Nhờ A.I. trả lời tin này**: A.I. trả lời ngay tin đó và gửi luôn, cuộc chat vẫn ở A.I. tự trả lời. Nếu đó đúng là tin bộ phán xử đã im, bot còn **học thêm một ca**: lần sau gặp tin giống vậy bot sẽ nói. Gửi hỏng mà A.I. đã soạn xong thì câu đó nằm trong ô nhập để bạn gửi tay.
 

@@ -66,7 +66,7 @@ const vt = CV.slice(CV.indexOf("  function veThread() {"), CV.indexOf("  // ----
 check("the bar comes right after the head, before the messages, in the colour of who handles the chat",
   vt.indexOf('class="ht-head"') < vt.indexOf('class="ib-aibar') && vt.indexOf('class="ib-aibar') < vt.indexOf('class="ht-msgs"') &&
   /'<div class="ib-aibar w-' \+ who \+ '"' \+ \(calm \? " hidden" : ""\) \+ '>'/.test(vt));
-check("0.395.0: the three modes sit in the head (a chip on a narrow column); the bar hides unless the chat needs the owner",
+check("0.397.0: the three modes sit in the head (a chip on a narrow column); the bar hides unless the chat needs the owner",
   /var calm = threeModes && who !== "you";/.test(vt) && /\(threeModes \? '<span class="ib-hmode" title="' \+ esc\(say\) \+ '">' \+ bar/.test(vt) &&
   /V\.modeChipHtml\(c, ic\)/.test(vt) && vt.indexOf('class="ib-hmode"') < vt.indexOf('class="ht-msgs"'));
 check("Allow / Let the A.I. answer here / Create an A.I. stay in the bar, after the sentence", /: bar\) \+/.test(vt));

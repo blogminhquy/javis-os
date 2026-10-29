@@ -1,4 +1,4 @@
-/* Chatbot page, compact layout (0.395.0; owner, 2026-10-29, approved on the design canvas): on a computer smaller type,
+/* Chatbot page, compact layout (0.397.0; owner, 2026-10-29, approved on the design canvas): on a computer smaller type,
    a "who" dropdown instead of four wrapping chips, the three modes in the chat head, Info closed until asked; on a phone
    icon-only tabs, a full-screen chat, the mode as a chip opening a sheet, a one-row composer.
 

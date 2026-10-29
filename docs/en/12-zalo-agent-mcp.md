@@ -55,7 +55,7 @@ Right after you sign Zalo in to Javis, the Inbox only holds messages from the mo
 
 - Javis takes the messages javis-zalo pulls in on every connect: about the last **2 weeks**, since Zalo does not allow going further back. At most 5,000 messages per run.
 - Only chats with **no message yet** in the Inbox are filled. Chats that already have messages are skipped, since old messages added later would show in the wrong order.
-- The bot **does not answer** these messages, they are **not counted as unread**, and groups still keep only their latest 100 messages as usual.
+- The bot **does not answer** these messages, they are **not counted as unread**, and groups still keep only their latest 1,000 messages as usual.
 - Right after scanning the QR code, wait a few minutes for Zalo to finish loading old messages before pressing it. Pressing again never duplicates anything.
 
 ## The MCP tools

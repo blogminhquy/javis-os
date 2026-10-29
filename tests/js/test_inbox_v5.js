@@ -29,7 +29,7 @@ const V = win.JavisInboxV5;
 const I = (n) => "[" + n + "]";
 const L = (ch) => "<" + ch + ">";
 
-// ---- 1. the "who" dropdown (0.395.0: one button and a menu instead of four chips that wrapped) ----
+// ---- 1. the "who" dropdown (0.397.0: one button and a menu instead of four chips that wrapped) ----
 const C = { you: 3, ai: 9, owner: 2, log: 6 };
 const wb = V.whoButtonHtml("you", C, I);
 check("the button shows the current view, its count and a chevron", /ib-dot w-you"><\/span><span class="ib-who-t">ib\.wq_you<\/span><span class="ib-qn you">3<\/span>\[chevron-down\]/.test(wb));

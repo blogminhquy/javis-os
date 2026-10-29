@@ -31,9 +31,9 @@ Underneath, every channel normalizes its messages into **one common event** and 
 
 ## The Conversations tab
 
-Since 0.372.0 (Chatbot v5) a computer shows **three columns**: the customers on the left, the chat in the middle and the **Info** panel on the right. Since 0.395.0 Info **starts closed** so the chat gets the room; the ⓘ button at the right of the chat head opens it (Javis remembers your choice in that browser), and below 1200px wide it slides over the chat. The type on a computer is also smaller: 14px lists, 15px messages, with the messages in a centred column.
+Since 0.372.0 (Chatbot v5) a computer shows **three columns**: the customers on the left, the chat in the middle and the **Info** panel on the right. Since 0.397.0 Info **starts closed** so the chat gets the room; the ⓘ button at the right of the chat head opens it (Javis remembers your choice in that browser), and below 1200px wide it slides over the chat. The type on a computer is also smaller: 14px lists, 15px messages, with the messages in a centred column.
 
-**On a phone** (since 0.395.0): no "Chatbot" title at the top, and the four tabs show their icon only (a long press or a screen reader still gives the name). An open chat **fills the screen**: one head row with the back button, the customer's name, the channel and a violet **mode button** (for example "AI replies ▾"). It opens a sheet from the bottom with the three modes, a line on what each does, and **Customer info and AI settings**. The compose box is one row with two round buttons: ✨ for an AI draft, the arrow to send.
+**On a phone** (since 0.397.0): no "Chatbot" title at the top, and the four tabs show their icon only (a long press or a screen reader still gives the name). An open chat **fills the screen**: one head row with the back button, the customer's name, the channel and a violet **mode button** (for example "AI replies ▾"). It opens a sheet from the bottom with the three modes, a line on what each does, and **Customer info and AI settings**. The compose box is one row with two round buttons: ✨ for an AI draft, the arrow to send.
 
 **Who is handling this chat.** The server works out one state per chat and every part of the page reads it:
 
@@ -49,7 +49,7 @@ Each row has a **left edge** in that colour, an avatar with the **channel's logo
 At the top of the left column:
 
 - **Search** (name, phone number, text), with the **Filter** button as an icon inside the box: a two-level menu with Time (when the last message came: today, last 7, 30 or 90 days, last month, week or month to date, or days picked on the calendar), Has tag, Without tag, Chat type, Answering bot, Status (unread, waiting longest, hidden), Last message by (customer, AI, you) and Customer info (left a phone or email, pinned chats only). Active filters show as chips with an x underneath.
-- Under it, **two dropdowns** (since 0.395.0, instead of four quick filters that wrapped onto two lines):
+- Under it, **two dropdowns** (since 0.397.0, instead of four quick filters that wrapped onto two lines):
   - On the left, **who handles it**: the button always shows the current view with its count, for example "Needs you 4". It opens four choices, each with a line on what it means: **Needs you** (customers waiting for your reply or approval), **AI handles** (the AI is answering the customer), **You handle** (you took over, the AI stays quiet), **All** (every chat, logged-only ones too). The page first opens on **Needs you**; when nothing needs you it says so, with **Show all**.
   - On the right, the **channel picker**: opens the list of nicks and Pages with checkboxes, grouped by channel with real logos. Ticking a channel ticks all of it; each one shows its **Needs you** count. Nothing ticked means everything. It has a search box, **Clear**, **Done** and **Manage channels**. Hovering the button names the places picked.
 
@@ -57,7 +57,7 @@ Every choice is remembered in the browser. The number on the **Conversations** t
 
 **"A customer waits"** (one reason for Needs you): the customer wrote last, nobody answered, **you have not opened the chat since** (opening it takes it off Needs you until the customer writes again), and the message is more than a friend-request notice ("accepted your friend request").
 
-**Groups keep only the latest 100 messages** (since 0.65.12). The inbox stores every message of private chats with customers, but each **group** keeps just its 100 newest; older ones are deleted as new ones arrive. This keeps the store from growing forever and stops Javis from holding strangers' words longer than needed (a personal Zalo account in many groups records even groups the bot is not allowed to answer in). The first time after updating, existing groups with more than 100 messages are cut down to 100; Javis **backs up the whole store file once** before cutting (a `customer_conversations.sqlite3.bak-truoc-cat-nhom-...` file next to the store) and **deletes that backup after 14 days**. To get the cut messages back, copy the backup over the store file within those 14 days. A conversation's "messages ever received" counter does not go down.
+**Groups keep only the latest 1,000 messages** (since 0.396.0; 100 from 0.65.12 until then). The inbox stores every message of private chats with customers, but each **group** keeps just its 1,000 newest; older ones are deleted as new ones arrive. This keeps the store from growing forever and stops Javis from holding strangers' words longer than needed (a personal Zalo account in many groups records even groups the bot is not allowed to answer in). The first time after updating to 0.65.12, existing groups with more than 100 messages were cut down to 100 (those messages do not come back with the raise to 1,000); Javis **backs up the whole store file once** before cutting (a `customer_conversations.sqlite3.bak-truoc-cat-nhom-...` file next to the store) and **deletes that backup after 14 days**. To get the cut messages back, copy the backup over the store file within those 14 days. A conversation's "messages ever received" counter does not go down.
 
 **Loads gradually, no lag** (since 0.65.11). The list loads the first 40 rows; scrolling near the bottom loads 40 more (or press **Show more**). The message pane works the same way: opening a conversation loads only the **latest** 40 messages, scrolling up near the top (or pressing **Show older messages**) loads 40 older ones and keeps your place. Every 5 seconds Javis only asks for messages **newer than the last one** and appends them; if you are reading older messages when a new one arrives the pane stays still.
 
@@ -67,7 +67,7 @@ Click a conversation and its history opens in the middle: customer messages on t
 
 **The AI may answer here**: the three modes **AI replies**, **AI drafts**, **I reply** sit in the chat head, right of the customer's name (a mode button opening a sheet on a phone). Hovering them gives one sentence on what is going on.
 
-Under the name, a **slim bar** in the colour of the chat's state carries **one sentence** (for example "The AI wrote a reply and waits for you to approve it"). Since 0.395.0 it **only shows when the chat needs you** or there is something to switch on; while the AI handles things quietly it stays hidden so the chat gets the room. The controls that fit:
+Under the name, a **slim bar** in the colour of the chat's state carries **one sentence** (for example "The AI wrote a reply and waits for you to approve it"). Since 0.397.0 it **only shows when the chat needs you** or there is something to switch on; while the AI handles things quietly it stays hidden so the chat gets the room. The controls that fit:
 
 - In I reply with a customer waiting: **Hand back to the AI**.
 - **Not allowed yet**: **Let the AI answer here**. The bot keeps who it answers everywhere else.
@@ -85,7 +85,7 @@ Every change shows a line at the bottom of the screen with **Undo**.
 The compose box has two buttons:
 
 - **Send**: sends your text as it is. **Enter** sends, Shift+Enter adds a line.
-- **AI draft** (called "AI reply" before 0.395.0): what you typed is an **instruction for the AI**, for example "quote 20 cases wholesale, delivery Thursday". The AI writes a polite reply inside the compose box, naming your instruction, with Discard / Rewrite / Send. With an empty box it reads the chat and writes on its own. **It never sends by itself.** The instruction is read by the AI only and never lands in the inbox.
+- **AI draft** (called "AI reply" before 0.397.0): what you typed is an **instruction for the AI**, for example "quote 20 cases wholesale, delivery Thursday". The AI writes a polite reply inside the compose box, naming your instruction, with Discard / Rewrite / Send. With an empty box it reads the chat and writes on its own. **It never sends by itself.** The instruction is read by the AI only and never lands in the inbox.
 
 Under the last customer message, a **"Bot silent: reason"** line appears when the reply policy logged one (for example "Score below threshold (0.52 / 0.60)"), with **Why** opening that bot's reply policy panel, and **Ask the AI to answer this**: the AI answers that message now and sends it, the chat stays in AI replies. If the policy had stayed silent on it, the bot also **learns one more case**. If sending fails after the AI wrote the reply, the text lands in the compose box for you to send by hand.
 

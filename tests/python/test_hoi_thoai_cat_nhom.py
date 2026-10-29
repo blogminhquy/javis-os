@@ -1,11 +1,11 @@
-"""Nhóm chat chỉ giữ 100 tin gần nhất trong Hòm thư và bot xem 30 tin gần nhất làm ngữ cảnh (0.65.12).
+"""Nhóm chat chỉ giữ 1000 tin gần nhất (100 từ 0.65.12, nâng lên 1000 ở 0.396.0) trong Hòm thư và bot xem 30 tin gần nhất làm ngữ cảnh (0.65.12).
 
     python tests/run.py hoi_thoai_cat_nhom      (KHÔNG mạng, engine giả)
 
 Chủ dự án (30/09/2026): lo kho chat phình mãi; nhóm chỉ cần 100 tin gần nhất, khách hàng (chat riêng) thì lưu hết. Bot trong nhóm chỉ thấy tin gọi nó nên
 không hiểu "câu trên"; cho nó 30 tin ngay trước tin đang hỏi. Xoá dữ liệu là không hoàn tác, nên những chỗ này khoá kỹ:
   1. CHỈ NHÓM bị cắt. Chat riêng với khách nguyên vẹn dù dài bao nhiêu.
-  2. Cắt đúng: giữ 100 tin MỚI nhất, không cắt nhầm tin mới; `message_count` vẫn là số tin từng nhận.
+  2. Cắt đúng: giữ đúng `GIU_TIN_NHOM` tin MỚI nhất, không cắt nhầm tin mới; `message_count` vẫn là số tin từng nhận.
   3. Di trú nhóm cũ: sao lưu NGUYÊN file trước khi cắt, chỉ chạy một lần, không đụng chat riêng.
   4. Ngữ cảnh cho bot: không có tin đang hỏi (nó đã đi riêng), chỉ trong nhóm, đã gỡ marker và thẻ `<chat_data>` (tin nhắn không đóng được khối), có trần
      độ dài, nằm trong prompt hệ thống chứ không trong tin của người hỏi.
@@ -63,25 +63,30 @@ def texts(cid):
 # ============================================================
 # 1. Cắt ngay khi ghi
 # ============================================================
-for i in range(1, 131):
+CAP = conversations.GIU_TIN_NHOM
+check("the group cap is 1000 messages (owner, 29/10/2026)", CAP == 1000, CAP)
+N = CAP + 30
+for i in range(1, N + 1):
     G = ghi("nhom1", i)["conversation_id"]
     P = ghi("rieng1", i, typ="private")["conversation_id"]
-check("nhóm: ghi 130 tin thì chỉ còn 100", dem(G) == 100, dem(G))
+check(f"group: writing {N} messages leaves only {CAP}", dem(G) == CAP, dem(G))
 t = texts(G)
-check("giữ đúng 100 tin MỚI nhất (tin 31 đến tin 130), không cắt nhầm tin mới", t[0] == "tin 31" and t[-1] == "tin 130" and len(t) == 100, (t[0], t[-1]))
-check("CANARY: chat RIÊNG với khách không bị cắt dù dài hơn 100", dem(P) == 130, dem(P))
+check(f"keeps exactly the {CAP} NEWEST (msg 31 to msg {N}), no new message cut by mistake",
+      t[0] == "tin 31" and t[-1] == f"tin {N}" and len(t) == CAP, (t[0], t[-1]))
+check(f"CANARY: a PRIVATE chat with a customer is not cut even past {CAP}", dem(P) == N, dem(P))
 ct = conversations.chi_tiet(G)
-check("message_count vẫn là số tin từng nhận (130), không giảm theo", ct["message_count"] == 130, ct["message_count"])
-check("tin cuối của hội thoại vẫn đúng", ct["last_message"] == "tin 130")
-r = ghi("nhom1", 130)
-check("gửi lại một tin đã có thì báo trùng, không ghi, không cắt thêm", r["trung"] is True and dem(G) == 100)
-ghi("nhom1", 131)
-check("ghi tiếp thì vẫn đúng 100 và tin cũ nhất trôi đi một", dem(G) == 100 and texts(G)[0] == "tin 32" and texts(G)[-1] == "tin 131")
+check(f"message_count stays the number ever received ({N}), it does not drop", ct["message_count"] == N, ct["message_count"])
+check("the conversation's last message is still right", ct["last_message"] == f"tin {N}")
+r = ghi("nhom1", N)
+check("resending a stored message reports a duplicate, no write, no extra cut", r["trung"] is True and dem(G) == CAP)
+ghi("nhom1", N + 1)
+check(f"writing one more keeps exactly {CAP} and the oldest drops by one",
+      dem(G) == CAP and texts(G)[0] == "tin 32" and texts(G)[-1] == f"tin {N + 1}")
 for i in range(1, 60):
     H = ghi("nhom_ngan", i)["conversation_id"]
-check("nhóm chưa tới 100 tin thì không mất tin nào", dem(H) == 59)
-kh = ghi("nhom1", 500, loai="ai")
-check("tin của bot trong nhóm cũng tính vào 100 (không có ngoại lệ khiến nhóm phình)", dem(G) == 100)
+check(f"a group under {CAP} messages loses nothing", dem(H) == 59)
+kh = ghi("nhom1", N + 500, loai="ai")
+check(f"the bot's own messages in a group count toward {CAP} too (no exception that lets a group grow)", dem(G) == CAP)
 
 # ============================================================
 # 2. Di trú nhóm cũ: sao lưu trước, một lần, không đụng chat riêng
@@ -93,19 +98,19 @@ with conversations._lock:
     CU = db.execute("SELECT id FROM conversations WHERE external_chat_id='nhom_cu'").fetchone()[0]
     db.executemany("INSERT INTO messages(conversation_id, external_message_id, sender_type, sender_id, sender_name, message_type, text,"
                    " metadata_json, created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-                   [(CU, f"cu-{i}", "customer", "u1", "Lan", "text", f"cũ {i}", "{}", NOW - 5000 + i) for i in range(1, 251)])
+                   [(CU, f"cu-{i}", "customer", "u1", "Lan", "text", f"cũ {i}", "{}", NOW - 5000 + i) for i in range(1, CAP + 151)])
     db.commit()
-check("(chuẩn bị) nhóm cũ có 250 tin vượt mức", dem(CU) == 250)
+check(f"(setup) the old group has {CAP + 150} messages, over the cap", dem(CU) == CAP + 150)
 truoc_rieng = dem(P)
 kq = conversations.cat_nhom_cu()
 check("di trú chạy, cắt đúng một nhóm, xoá 150 tin", kq["da_chay"] and kq["nhom"] == 1 and kq["da_xoa"] == 150 and not kq["loi"], kq)
-check("nhóm cũ còn 100 tin MỚI nhất", dem(CU) == 100 and texts(CU)[0] == "cũ 151" and texts(CU)[-1] == "cũ 250")
+check(f"the old group keeps its {CAP} NEWEST", dem(CU) == CAP and texts(CU)[0] == "cũ 151" and texts(CU)[-1] == f"cũ {CAP + 150}")
 check("CANARY: chat riêng không bị đụng", dem(P) == truoc_rieng)
 bak = Path(kq["sao_luu"])
 check("có file sao lưu, tên ghi rõ lý do", bak.is_file() and "bak-truoc-cat-nhom" in bak.name, kq["sao_luu"])
 con = sqlite3.connect(str(bak))
-check("CANARY: bản sao lưu còn NGUYÊN 250 tin của nhóm cũ (cắt xong vẫn lấy lại được)",
-      con.execute("SELECT COUNT(*) FROM messages WHERE conversation_id=?", (CU,)).fetchone()[0] == 250)
+check(f"CANARY: the backup still holds ALL {CAP + 150} messages of the old group (recoverable after the cut)",
+      con.execute("SELECT COUNT(*) FROM messages WHERE conversation_id=?", (CU,)).fetchone()[0] == CAP + 150)
 con.close()
 kq2 = conversations.cat_nhom_cu()
 check("CANARY: chạy lần hai thì KHÔNG làm gì nữa (không sao lưu thêm, không cắt)", kq2["da_chay"] and kq2["da_xoa"] == 0 and not kq2["sao_luu"], kq2)
@@ -122,7 +127,7 @@ check("CANARY: bản sao lưu QUÁ HẠN tự xoá, bản mới (còn trong hạ
 # 3. Tin gần đây cho bot
 # ============================================================
 ds = conversations.tin_gan_day("zalo_personal", "zp1", "nhom1", 5)
-check("tin_gan_day: đúng 5 tin cuối, cũ trước mới sau", [x["text"] for x in ds][-2:] == ["tin 131", "tin 500"] and len(ds) == 5 and [x["id"] for x in ds] == sorted(x["id"] for x in ds))
+check("tin_gan_day: đúng 5 tin cuối, cũ trước mới sau", [x["text"] for x in ds][-2:] == [f"tin {N + 1}", f"tin {N + 500}"] and len(ds) == 5 and [x["id"] for x in ds] == sorted(x["id"] for x in ds))
 check("cuộc chat chưa có thì rỗng, không ném", conversations.tin_gan_day("zalo_personal", "zp1", "khong-co", 5) == [])
 
 # ============================================================

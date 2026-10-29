@@ -1,4 +1,4 @@
-/* Chatbot page, compact layout (0.395.0; owner, 2026-10-29, approved on the design canvas).
+/* Chatbot page, compact layout (0.397.0; owner, 2026-10-29, approved on the design canvas).
    "Chữ của bản máy tính khá là to ... bố trí chưa hợp lý", and on phones "diện tích để đọc tin nhắn thì quá nhỏ".
    Loaded after inbox-v5.css and overrides it for the Conversations tab only; the Channels and Stats tabs keep their
    sizes. Computer: 14px lists, 15px messages, two-line rows (a third only for tags), a centred message column, Info
