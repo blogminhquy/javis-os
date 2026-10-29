@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.400.0] - 2026-10-29
+### Fixed
+- **Canva and other OAuth connections no longer drop mid-session.** Near expiry, several calls at once each renewed the token with the same code, and Canva accepts that code only once, so it shut the sign-in. Now one call renews and the others share the new token.
+- A tool call mid-chat always uses the latest token. If the server still rejects it (error 401), Javis renews and tries once more instead of asking you to reconnect.
+- A token change no longer cuts off work in progress, such as a Canva design being generated.
+
 ## [0.399.0] - 2026-10-29
 ### Improved
 - **Chatbot Stats shows what the AI does for you.** A band at the top: how many messages the AI answered for you, its share of all answers, the hours it freed for you (estimated), and how many answers it sent while you rest (9 pm to 7 am).

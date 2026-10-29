@@ -7,6 +7,7 @@ Luồng: discovery (RFC 9728 / .well-known) → DCR (RFC 7591, nếu server hỗ
 Store: STATE_DIR/.oauth_mcp.json - token mã hoá qua secrets_store.
 Không import mcp_client/mcp_hub (tránh vòng import).
 """
+import asyncio
 import base64
 import hashlib
 import json
@@ -484,16 +485,37 @@ async def _refresh(conn_id, ent):
     return ent
 
 
-async def auth_headers(conn_id):
-    """{"Authorization": "Bearer ..."} cho connection oauth; tự refresh khi sắp hết hạn."""
-    store = _load()
-    ent = store.get(conn_id)
+# One refresh at a time per connection (0.400.0). Discovery, the health sweep and parallel tool calls all ask for
+# headers, and near expiry each of them used to refresh on its own with the SAME refresh token. Providers that rotate
+# refresh tokens (Canva: single use) reject the second use, and OAuth 2.1 lets them revoke the whole grant on reuse,
+# which is the "Canva lost its connection mid-session" report (owner, 2026-10-29). Callers that queue behind a refresh
+# read the token it saved instead of refreshing again.
+_refresh_locks: dict = {}
+
+
+def _bearer(ent) -> dict:
+    tok = secrets_store.decrypt((ent or {}).get("access_token", ""))
+    return {"Authorization": f"Bearer {tok}"} if tok else {}
+
+
+async def auth_headers(conn_id, force=False, rejected=""):
+    """{"Authorization": "Bearer ..."} cho connection oauth; tự refresh khi sắp hết hạn.
+
+    `force` (0.400.0): the server just answered 401 to the header `rejected` (the full "Bearer ..." value). Refresh
+    even though `expires_at` says the token is fresh, unless another caller already replaced that token."""
+    ent = _load().get(conn_id)
     if not ent or not ent.get("access_token"):
         return {}
-    if time.time() > float(ent.get("expires_at") or 0) - 60:
-        ent = await _refresh(conn_id, ent) or ent
-    tok = secrets_store.decrypt(ent.get("access_token", ""))
-    return {"Authorization": f"Bearer {tok}"} if tok else {}
+    if not force and time.time() <= float(ent.get("expires_at") or 0) - 60:
+        return _bearer(ent)
+    lock = _refresh_locks.setdefault(conn_id, asyncio.Lock())
+    async with lock:
+        ent = _load().get(conn_id) or ent          # someone may have refreshed while we waited
+        due = time.time() > float(ent.get("expires_at") or 0) - 60
+        replaced = force and _bearer(ent).get("Authorization", "") != rejected
+        if due or (force and not replaced):
+            ent = await _refresh(conn_id, ent) or ent
+    return _bearer(ent)
 
 
 def credentials_file(conn_id, fmt):
