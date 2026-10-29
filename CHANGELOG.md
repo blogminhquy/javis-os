@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.398.0] - 2026-10-29
+### Sửa lỗi
+- **Trả lời khách trên điện thoại: Enter là xuống dòng.** (đang làm)
+
 ## [0.397.0] - 2026-10-29
 ### Cải thiện
 - **Trang Chatbot trên điện thoại: chỗ đọc tin rộng gấp đôi.** Mở một cuộc chat là nó chiếm cả màn hình: một hàng đầu gồm nút quay lại, tên khách và nút chế độ màu tím. Bấm nút đó để chọn A.I. trả lời, A.I. soạn hay Tôi trả lời, mỗi cái kèm một dòng giải thích. Ô nhập gọn còn một hàng với hai nút tròn.
