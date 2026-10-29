@@ -411,6 +411,18 @@ button, input, select, textarea { font-family: inherit; }
 .noti-kind.community { color: var(--info-ink); background: var(--info-wash); }
 .noti-kind.security { color: var(--warn-ink); background: var(--warn-wash); }
 .noti-time { color: var(--text3); font-size: 10.5px; }
+/* 0.408.0: X on every card, beside the time. Muted until hovered: it is the second thing on the card, not the first. */
+.noti-top-r { display: inline-flex; align-items: center; gap: 4px; }
+.noti-x { display: inline-grid; place-items: center; width: 26px; height: 26px; margin: -4px -6px -4px 0; padding: 0;
+  border: 0; border-radius: 7px; background: transparent; color: var(--text3); cursor: pointer; }
+.noti-x svg { width: 15px; height: 15px; }
+.noti-x:hover, .noti-x:focus-visible { color: var(--text-hi); background: var(--surface-3); }
+@media (pointer: coarse) { .noti-x { width: 34px; height: 34px; } .noti-x svg { width: 17px; height: 17px; } }
+/* "Show N read notices" / "Hide read notices" under the list. */
+.noti-read-toggle { display: block; margin: 8px auto 4px; font-size: 13px; }
+/* What Javis Core learned from "Not needed", shown once above the list after that card left it. */
+.noti-flash { margin: 2px 4px 8px; padding: 9px 11px; border-radius: 9px; font-size: 13px; line-height: 1.5;
+  color: var(--text2); background: var(--surface-2); }
 .noti-card h4 { margin: 8px 0 4px; color: var(--text); font-size: 14px; line-height: 1.35; }
 .noti-card p { margin: 0; color: var(--text2); font-size: 12px; line-height: 1.5; }
 .noti-card-summary,

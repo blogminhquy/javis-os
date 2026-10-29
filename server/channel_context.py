@@ -680,6 +680,27 @@ def _ask_to_text(payload: str) -> str:
     return "\n".join(lines)
 
 
+SILENT_MARK = "[SILENT]"
+
+
+def is_silent_report(text: str) -> bool:
+    """True when a background answer carries the [SILENT] flag: "nothing to report, do not notify".
+
+    The flag counts when it OPENS the answer or CLOSES it (0.408.0). Models told "start with [SILENT] when there is
+    nothing to report" often write a sentence first and put the flag last ("I will check the failed POSCake runs.
+    [SILENT]"), and that leaked into the bell as a report (owner, 2026-10-29). A flag in the middle of prose is the
+    model explaining something, so it does not count. Control blocks, whitespace, quotes and markdown emphasis
+    around the flag are ignored.
+    """
+    def _sach(dong: str) -> str:
+        return dong.strip().strip("`*_>").strip()
+
+    dong = [d for d in (_sach(x) for x in strip_control_blocks(text or "").splitlines()) if d]
+    if not dong:
+        return False
+    return dong[0].upper().startswith(SILENT_MARK) or dong[-1].upper().endswith(SILENT_MARK)
+
+
 def strip_control_blocks(text: str) -> str:
     """Bóc mọi khối <!-- JAVIS_*: ... --> khỏi text.
 
