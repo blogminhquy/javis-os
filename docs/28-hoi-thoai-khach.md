@@ -113,7 +113,7 @@ Bấm một nick hay Page, bên phải hiện:
 
 - **A.I. trực Page này**: một hộp chọn bot. Đổi xong mới hiện **Huỷ** và **Lưu**; chưa bấm Lưu thì chưa có gì thay đổi. Chọn **Không cần A.I.** là nơi đó chỉ ghi lại tin và không bị đếm vào số việc trên tab. Đổi bot thì các cuộc chat cũ của nơi đó cũng theo bot mới. Bot cũ hết nơi để trực thì tự tắt, và Javis nói ra.
 - **Thông tin**: nút cạnh hộp chọn bot. Bấm vào là thẻ tài khoản hiện lên dạng popup: trạng thái, ghi hội thoại, nhập tin cũ, sửa, xoá (như mô tả bên dưới), và **Cài đặt bot** khi đã có bot trực. Tài khoản đang lỗi thì nút có chấm đỏ. Từ 0.404.0 thẻ không còn nằm trên đầu danh sách chat.
-- **Nhóm và người**: mỗi cuộc chat một công tắc **A.I. ở đây**, câu nói ai đang lo, nút **Cho phép** khi có người gọi A.I. ở nhóm chưa cho phép, và **Mở chat**. Mọi thay đổi có Hoàn tác.
+- **Nhóm và người**: mỗi cuộc chat một công tắc **A.I. ở đây**, câu nói ai đang lo, nút **Cho phép** khi có người gọi A.I. ở nhóm chưa cho phép, và **Mở chat**. Mọi thay đổi có Hoàn tác. Chưa chọn A.I. trực thì công tắc mờ đi, bấm vào sẽ nhắc chọn ở ô phía trên.
 
 Số trên tab Kênh là số nơi cần bạn xử lý: tài khoản lỗi, hoặc chưa có bot mà bạn chưa chọn "Không cần A.I.".
 

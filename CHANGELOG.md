@@ -10,7 +10,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Cải thiện
 - **Tab Kênh gọn hơn.** Thẻ thông tin của nick (trạng thái, bot trực, số hội thoại, Ghi hội thoại, Nhập tin cũ, Xem hội thoại, Mở Kết nối) không còn chiếm chỗ trên đầu danh sách. Bấm nút **Thông tin** cạnh ô "A.I. trực" là thẻ hiện lên dạng popup, y như cũ. Nick đang lỗi thì nút có chấm đỏ.
 - Nút "Cài đặt bot" chuyển vào cuối popup đó.
-- Bỏ câu hướng dẫn thừa trên danh sách "Nhóm và người".
+- Bỏ các câu hướng dẫn trên danh sách "Nhóm và người". Nơi chưa có A.I. trực thì công tắc "A.I. ở đây" mờ đi, bấm vào sẽ nhắc chọn A.I. trực ở ô phía trên.
 
 ## [0.403.0] - 2026-10-29
 ### Thêm mới

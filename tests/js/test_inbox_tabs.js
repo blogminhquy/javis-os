@@ -91,8 +91,8 @@ check("Save posts the bot to the account, and the 'No bot needed' mark when ther
   /\/channels\/accounts\/" \+ encodeURIComponent\(a\.id\) \+ "\/bot"/.test(DUTY) && /\/channels\/no-bot"/.test(DUTY) && /val === "__none" \? "1" : "0"/.test(DUTY));
 check("Save has Undo back to the bot before, and says when the old bot was switched off", /ib\.kn_saved_off/.test(KN) &&
   /duty\(a, before\)\.then\(after\)/.test(KN));
-check("per-chat switch: role=switch with its state, disabled without a bot, POST /ai, Undo", /role="switch" aria-checked="' \+ on/.test(KN) &&
-  /\(a\.bot_id \? "" : " disabled"\)/.test(KN) && /\/conversations\/" \+ id \+ "\/ai"/.test(KN) && /on \? "0" : "1"/.test(KN));
+check("per-chat switch: role=switch with its state, dimmed without a bot, POST /ai, Undo", /role="switch" aria-checked="' \+ on/.test(KN) &&
+  /\(a\.bot_id \? "" : ' aria-disabled="true"'\)/.test(KN) && /\/conversations\/" \+ id \+ "\/ai"/.test(KN) && /on \? "0" : "1"/.test(KN));
 check("Allow appears when someone called the A.I. in a chat not allowed", /c\.ai_pending && !on && a\.bot_id/.test(KN));
 check("'Put an A.I. on several' ticks the places without a bot, one request each, says how many worked", /\(a\.bot_id \? "" : " checked"\)/.test(KN) &&
   /for \(var i = 0; i < ids\.length; i\+\+\)/.test(KN) && /ib\.kn_bulk_done/.test(KN) && /ib\.kn_bulk_some/.test(KN));
@@ -108,8 +108,10 @@ check("the Info popup: the same card, Bot settings when there is a bot, closes o
   /C\.accountCard\(a\)/.test(INFO) && /role="dialog" aria-modal="true"/.test(INFO) && /a\.bot_id \? '<div class="ht-form-acts"><button type="button" class="s-btn-ghost kn-botset">/.test(INFO) &&
   /e\.key === "Escape"/.test(INFO) && /e\.target === box/.test(INFO) && /\.ht-acc-acts button"\)\) setTimeout\(close, 0\)/.test(INFO) &&
   /C\.openBot\(a\.bot_id\)/.test(INFO));
-check("the hint above the chat list is gone; only the no-bot hint stays", !/ib\.kn_hint"/.test(KN) && !("ib.kn_hint" in VI) && !("ib.kn_hint" in EN) &&
-  /\(a\.bot_id \? "" : '<p class="ib-hint">' \+ esc\(t\("ib\.kn_hint_nobot"\)\)/.test(PANE));
+check("no hint lines above the chat list; with no bot the switch is dimmed and says to pick one when pressed",
+  !/ib-hint/.test(PANE) && !("ib.kn_hint" in VI) && !("ib.kn_hint_nobot" in VI) && !("ib.kn_hint_nobot" in EN) &&
+  /\(a\.bot_id \? "" : ' aria-disabled="true"'\)/.test(KN) && /if \(ac && !ac\.bot_id\) \{\s*C\.toast\(t\("ib\.kn_need_bot"/.test(KN) &&
+  /\.ib-tg\[aria-disabled="true"\]/.test(CSS) && !!VI["ib.kn_need_bot"] && !!EN["ib.kn_need_bot"]);
 check("a nick's groups and people come 20 a page, Previous / Next with 'from-to of n', search asks the server",
   /var PAGE = 20/.test(KN) && /"&offset=" \+ pg \* PAGE/.test(KN) && /if \(d\.total != null\) _total = d\.total/.test(KN) &&
   /ib\.kn_range/.test(KN) && /\(q \? "&q=" \+ encodeURIComponent\(q\) : ""\)/.test(KN) && /setTimeout\(function \(\) \{ loadChats\(_sel, 0\); \}, 300\)/.test(KN) &&

@@ -342,7 +342,7 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: left .15s; }
 .ib-tg.on { background: var(--ib-ai); }
 .ib-tg.on::after { left: 25px; }
-.ib-tg:disabled { opacity: .45; cursor: not-allowed; }
+.ib-tg:disabled, .ib-tg[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 .kn-bulkbox { max-width: 460px; }
 .kn-bl { display: flex; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--hairline); font-size: 16px; }
 .kn-bl small { margin-left: auto; color: var(--text3); font-size: 16px; }

@@ -151,7 +151,7 @@
         '</div></div>' +
       '<div class="kn-ch"><div class="kn-chh"><b>' + esc(t("ib.kn_chats")) + '</b>' +
         '<input type="search" class="kn-q" placeholder="' + esc(t("ib.kn_q")) + '" aria-label="' + esc(t("ib.kn_q")) + '"></div>' +
-        (a.bot_id ? "" : '<p class="ib-hint">' + esc(t("ib.kn_hint_nobot")) + '</p>') + '<div class="kn-list">' + chatRows(a) + '</div></div>';
+        '<div class="kn-list">' + chatRows(a) + '</div></div>';
     var q = box.querySelector(".kn-q");
     q.value = _chatQ;
     if (_chatsFor !== a.account_key) loadChats(a.account_key, _page);
@@ -172,7 +172,7 @@
             esc(t("ib.allow")) + '</button>' : "") +
           '<button type="button" class="ib-link kn-open" data-id="' + c.id + '">' + esc(t("ib.kn_open")) + '</button></span></span>' +
         '<label class="kn-sw"><span>' + esc(t("ib.kn_ai_here")) + '</span><button type="button" class="ib-tg' + (on ? " on" : "") +
-          '" role="switch" aria-checked="' + on + '" data-id="' + c.id + '"' + (a.bot_id ? "" : " disabled") + ' aria-label="' +
+          '" role="switch" aria-checked="' + on + '" data-id="' + c.id + '"' + (a.bot_id ? "" : ' aria-disabled="true"') + ' aria-label="' +
           esc(t("ib.kn_ai_here") + ": " + ten) + '"></button></label></div>';
     }).join("") + pagerHtml();
   }
@@ -231,6 +231,13 @@
     if (b.classList.contains("kn-open")) return C.openChat(parseInt(b.dataset.id, 10));
     if (b.classList.contains("kn-allow")) return setAi(parseInt(b.dataset.id, 10), true);
     if (b.classList.contains("ib-tg")) {
+      // No bot on duty yet: the dimmed switch says so when pressed, instead of a hint line above the list (owner, 2026-10-29).
+      var ac = acc(_sel);
+      if (ac && !ac.bot_id) {
+        C.toast(t("ib.kn_need_bot", { unit: unit(ac.channel) }));
+        var sb = _body.querySelector(".kn-bot"); if (sb) sb.focus();
+        return;
+      }
       var c = _chats.filter(function (x) { return x.id === parseInt(b.dataset.id, 10); })[0];
       if (c) setAi(c.id, !c.ai_allowed);
     }

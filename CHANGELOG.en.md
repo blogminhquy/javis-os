@@ -12,7 +12,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ### Improved
 - **A tidier Channels tab.** The account card (status, bot on duty, chat counts, Record chats, Import old messages, View chats, Open Connections) no longer sits above the chat list. The new **Info** button next to "AI on duty" opens it as a popup, unchanged. The button shows a red dot when the account has an error.
 - The "Bot settings" button moved to the bottom of that popup.
-- Removed the hint line above the "Groups and people" list.
+- Removed the hint lines above the "Groups and people" list. With no AI on duty yet, the "AI here" switch is dimmed and, when pressed, says to pick one in the box above.
 
 ## [0.403.0] - 2026-10-29
 ### Added
