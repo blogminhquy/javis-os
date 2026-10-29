@@ -1063,7 +1063,12 @@ function _checkSocket() {
     return;
   }
   if (now - _wsLastFrameAt < WS_IM_MS) return;
-  _wsPingAt = now;
+  _pingNow();
+}
+// Ask the server "still there?" now; _checkSocket drops the socket when no pong comes within WS_PONG_MS.
+function _pingNow() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || _wsPingAt) return;
+  _wsPingAt = Date.now();
   try { ws.send(JSON.stringify({ action: "ping" })); } catch (e) { _dropDeadSocket(); }
 }
 setInterval(_checkSocket, 5000);
@@ -1098,6 +1103,9 @@ function _resumeSauNgu(force) {
     // khung chat không có câu trả lời nào, phải hỏi lại. Hỏi server tin CUỐI một cái (rẻ),
     // lệch với khung đang hiện thì mới tải lại, không thì để yên.
     _dongBoNeuLech();
+    // 0.388.0: such a socket was only noticed after WS_IM_MS of silence plus the pong wait, up to 50 s of a chat
+    // that looked stopped while its turn ran on the server. Ask the server right away instead.
+    _pingNow();
   }
 }
 
@@ -1163,6 +1171,7 @@ function handleMessage(data) {
     try { if (window.JavisResume) window.JavisResume.fromHello(data.resumes || [], savedSessionId); } catch (e) {}
     runActions(turn.wsUp());   // socket đã nối: orb thôi "ĐANG KẾT NỐI LẠI"
     baoDutMang(false);
+    redrawRunningTurn();       // after baoDutMang: it removes the shared chip, the running turn's included
     if(adaptiveCapable) adaptiveOutbox.forEach(p=>ws.send(JSON.stringify(p.payload)));
     guiTinDutMang();           // và những câu nói lúc mất mạng được gửi đi, không bốc hơi
     return;
@@ -2688,6 +2697,22 @@ function hideActivity() {
   if (activityTimer) { clearInterval(activityTimer); activityTimer = null; }
   if (activityEl && activityEl.parentNode) activityEl.parentNode.removeChild(activityEl);
   activityEl = null;
+}
+// 0.388.0: the socket came back (the phone had switched apps) and the open chat's turn is still running on the server.
+// The "connection lost" note had taken the activity chip and went away with it, and frames sent meanwhile never
+// arrived, so the chat showed no sign of life until the answer landed and looked stopped. Draw the turn again: its
+// chip, and the text the server has so far (from `hello`) in its bubble.
+function redrawRunningTurn() {
+  const sid = savedSessionId, t = sid ? turns[sid] : null;
+  if (!t || !t.running) return;
+  if (t.text) {
+    if (!(t.bubble && t.bubble.isConnected)) t.bubble = createStreamingBubble();
+    t.bubble.dataset.md = t.text;
+    if (!dangTheoLoi()) t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV);
+  }
+  if (!activityEl) showActivity(t.text ? Icons.msg("pen-line", window.t("app.act_writing")) : window.t("app.act_thinking"));
+  else chatAppend(activityEl);   // keep the chip under the bubble
+  scrollBottom();
 }
 function setProcessing(s) { isProcessing = s; sendBtn.disabled = s || sendBtn.dataset.wsLock === "1"; }
 // workspace.js calls this after changing its lock, so send ends up disabled for the right reason.
