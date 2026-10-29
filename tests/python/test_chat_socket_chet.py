@@ -58,7 +58,11 @@ check("pong không vào handleMessage", 'if (data.type !== "pong") handleMessage
 
 chk = fn("_checkSocket")
 check("chỉ kiểm socket OPEN và tab đang hiện", "ws.readyState !== WebSocket.OPEN" in chk and "document.hidden" in chk)
-check("im quá ngưỡng thì gửi ping", 'action: "ping"' in chk and "now - _wsLastFrameAt < WS_IM_MS" in chk)
+check("im quá ngưỡng thì gửi ping", "_pingNow();" in chk and "now - _wsLastFrameAt < WS_IM_MS" in chk)
+ping = fn("_pingNow")
+check("ping now: only on an OPEN socket with no ping pending, marks the wait",
+      "ws.readyState !== WebSocket.OPEN || _wsPingAt) return;" in ping and "_wsPingAt = Date.now();" in ping
+      and 'action: "ping"' in ping)
 check("ping không ai đáp thì bỏ socket", "now - _wsPingAt > WS_PONG_MS) _dropDeadSocket()" in chk)
 
 drop = fn("_dropDeadSocket")

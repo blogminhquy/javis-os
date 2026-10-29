@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.394.0] - 2026-10-29
+### Fixed
+- **Switching to another app and back, a running turn no longer looks stopped.** Javis kept working on the server while you were away, but on reconnecting the chat removed the "Javis is thinking" line and did not show what had been written, so the command looked stopped until the finished answer popped up. The status line now comes back at once, with the text Javis wrote while you were away.
+- **Back in the app, a dead connection is noticed after about 20 seconds instead of up to 50,** so the chat catches up sooner on phones.
+
 ## [0.393.0] - 2026-10-29
 ### Fixed
 - **The phone menu opens again.** On iPhone, the menu button only dimmed the screen with no menu on it: Safari drew the menu while it slid in, then dropped it. The menu now slides in a way Safari does not mangle, and is fully hidden when shut.
