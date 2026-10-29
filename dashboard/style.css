@@ -2740,6 +2740,22 @@ body.jv-artpanel-open { overflow: hidden; }
 .jv-ap-mermaid { min-height: 100%; display: flex; align-items: center; justify-content: center;
   padding: 16px; background: var(--bg); color: var(--text2); }
 .jv-ap-mermaid svg { max-width: 100%; height: auto; }
+/* SVG picture in the viewer: an <img> on white, zoomed by pan-zoom.js (0.405.0). */
+.jv-ap-svg { height: 100%; background: #fff; }
+/* pan-zoom.js: the box clips, the content moves from its top left corner, touch gestures stay with the box. */
+.jv-pz { position: relative; overflow: hidden !important; padding: 0 !important; display: block !important;
+  height: 100%; min-height: 0; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.jv-pz.jv-pz-grab { cursor: grabbing; }
+.jv-pz > .jv-pz-item { position: absolute; left: 0; top: 0; transform-origin: 0 0; border-radius: 0; }
+.jv-pz-bar { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 2px; padding: 4px;
+  border-radius: 12px; background: var(--panel-solid, var(--bg2)); border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .25); cursor: default; z-index: 2; }
+.jv-pz-bar button { width: 36px; height: 36px; border: 0; border-radius: 9px; background: transparent; color: var(--text2);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.jv-pz-bar button:hover { background: var(--bg3); color: var(--text-hi, var(--text)); }
+.jv-pz-bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.jv-pz-bar svg { width: 18px; height: 18px; }
+.jv-pz-pct { min-width: 52px; text-align: center; font-size: 13px; color: var(--text2); font-variant-numeric: tabular-nums; }
 /* MẶC ĐỊNH XUỐNG DÒNG. `overflow-wrap: anywhere` để một chuỗi dài không có dấu cách (URL,
    chuỗi base64, đường dẫn) cũng ngắt được - thiếu nó thì "xuống dòng" vẫn đẩy ngang một dòng
    duy nhất ra ngoài hộp. Không còn nút tắt (bỏ 0.64.79): chủ repo không hiểu nó để làm gì. */

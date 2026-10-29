@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.405.0] - 2026-10-29
+### Cải thiện
+- **Sơ đồ và hình phóng to, kéo được trên cả máy tính và điện thoại.** Khung xem Sơ đồ, hình SVG và ảnh mở trong trình sửa giờ lăn chuột hoặc chụm hai ngón để phóng to, thu nhỏ, giữ chuột hoặc một ngón để kéo. Có nút **+**, **−**, **Vừa khung** và chạm đúp để phóng to nhanh. Trước đây sơ đồ rộng chỉ hiện bé xíu trên điện thoại mà không phóng to được.
+
 ## [0.404.0] - 2026-10-29
 ### Cải thiện
 - **Tab Kênh gọn hơn.** Thẻ thông tin của nick (trạng thái, bot trực, số hội thoại, Ghi hội thoại, Nhập tin cũ, Xem hội thoại, Mở Kết nối) không còn chiếm chỗ trên đầu danh sách. Bấm nút **Thông tin** cạnh ô "A.I. trực" là thẻ hiện lên dạng popup, y như cũ. Nick đang lỗi thì nút có chấm đỏ.

@@ -6335,5 +6335,8 @@
   "cact.speak": "Read aloud",
   "cact.stop_speak": "Stop reading",
   "cmark.pinned_answer": "Pinned answer: {ten}",
-  "cmark.answer_untitled": "Pinned answer"
+  "cmark.answer_untitled": "Pinned answer",
+  "pz.in": "Zoom in",
+  "pz.out": "Zoom out",
+  "pz.fit": "Fit"
 }

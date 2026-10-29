@@ -9279,6 +9279,8 @@
   let _vtWired = false;        // đã gắn handler search/toolbar chưa
   let _vtIndex = null;         // chỉ mục file toàn vault (crawl client) - cho tìm theo Tên không cần server restart
   let _neSaveFn = null;        // hàm lưu của editor đang mở (cho Ctrl+S), trả true nếu lưu được
+  let _nePz = null;            // zoom and pan of a picture open in the editor (pan-zoom.js), dropped on the next open
+  function _neDropPz() { if (_nePz) { try { _nePz.destroy(); } catch (e) {} _nePz = null; } }
   let _neOpenRel = "";         // file đang mở trong trình sửa (đường dẫn theo TRẦN DUYỆT)
   let _neLayNoiDung = null;    // () -> nội dung ĐANG soạn (markdown nếu là .md ở chế độ Sửa)
   let _neGocText = null;       // nội dung lúc VỪA MỞ, để biết có sửa gì chưa (xem _neCoSuaChua)
@@ -9765,6 +9767,7 @@
   function closeNote() {
     _neHideLocationSide();
     const ed = document.getElementById("noteEditor"); if (!ed) return;
+    _neDropPz();
     ed.hidden = true; ed.classList.remove("ne-full"); _neSyncFull();
     // Đóng trình sửa ở trang Trò chuyện = trả chỗ lại cho khung chat. Không trả thì khung chat
     // vẫn bị ẩn và người dùng nhìn vào một trang trống, tưởng chat hỏng.
@@ -10189,10 +10192,17 @@
     try { if (window.__javisGraph && window.__javisGraph.pause) window.__javisGraph.pause(); } catch (e) {}
     document.getElementById("neTitle").innerHTML = `<span class="vt-ico">${_fileIcon(ext)}</span>${esc(it.name || rel)}`;
     const actions = document.getElementById("neActions"); const body = document.getElementById("neBody");
+    _neDropPz();
     actions.innerHTML = ""; body.innerHTML = ""; body.className = "ne-body"; _neSaveFn = null;
 
     if (VT_IMG_EXTS.includes(ext)) {
-      body.innerHTML = `<div class="ne-img"><img src="${_vtRaw(rel)}" alt="${esc(it.name || "")}"></div>`;
+      body.innerHTML = `<div class="ne-img"><img src="${_vtRaw(rel)}" alt="${esc(it.name || "")}" draggable="false"></div>`;
+      // 0.405.0: zoom and pan (pan-zoom.js) once the picture knows its size; the page itself cannot pinch-zoom.
+      const pic = body.querySelector(".ne-img img");
+      pic.onload = () => {
+        if (!window.JavisPanZoom || !pic.isConnected || !pic.naturalWidth) return;
+        _nePz = window.JavisPanZoom.attach(pic.parentNode, pic, { w: pic.naturalWidth, h: pic.naturalHeight });
+      };
       _neCommonBtns(actions, rel, it); _vtMarkActive(null); return;
     }
     // .pdf: trình duyệt tự đọc được, nên xem NGAY tại chỗ thay vì mời tải về. Popup cũ của trang

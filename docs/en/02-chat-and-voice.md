@@ -267,6 +267,7 @@ The card also shows the line count and a "click to view" hint, with an **Open �
 - Two tabs, **Preview** and **Source** (long code only has the source tab).
 - A **⧉** button to copy the source, a **⇩** button to download it as a file, and a **✕** button to close the panel.
 - Pressing **Esc** also closes the panel.
+- Since 0.405.0, diagrams and SVG pictures **zoom and pan**: the mouse wheel or a two-finger pinch zooms, dragging with the mouse or one finger pans, a double tap zooms in or back to fit. The bottom corner has **-**, **+** and **Fit** buttons. A picture opened in the editor works the same way.
 
 Mermaid diagrams need a rendering library fetched from the internet; offline, the panel says the library could not load and shows the source instead. ```` ```dataview ```` and ```` ```tasks ```` blocks do not become artifacts; they run and render as result tables, see [Tasks & Dataview in notes](19-tasks-and-dataview.md).
 
