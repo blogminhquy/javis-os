@@ -704,7 +704,7 @@
   "models.ord_swap_aria": "Đảo thứ tự {a} và {b}",
   "models.ord_drag": "Kéo {ten} để đổi thứ tự",
   "models.ord_more": "Kết nối thêm nhà cung cấp ({n})",
-  "models.ord_empty": "Chưa có nhà nào đăng nhập. Bấm Kết nối thêm nhà cung cấp bên dưới.",
+  "models.ord_empty": "Chưa có nhà nào đăng nhập. Chọn một nhà bên dưới để bắt đầu.",
   "models.ord_keys": "{ok}/{n} key dùng được",
   "models.sheet_all": "Tất cả model",
   "models.pacct_h": "Tài khoản",

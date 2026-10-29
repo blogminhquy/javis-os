@@ -51,7 +51,7 @@ In short: **capability lives in Javis, not in the model.** The three CLI engines
 
 1. Open the Javis dashboard (port `7777` by default).
 2. In the left sidebar, open the **Connections** group and click **Models**.
-3. The **Cloud Model** tab shows 2 blocks in order: **◆ Usage order** ("signed-in providers, the top card is MAIN") and **◆ Background model** ("loops · Kanban tasks · reminders · self-learning"). At the bottom is a **＋ Connect another provider (N)** button, which reveals the providers not yet connected. Each block has an (i) button next to its name for a short explanation.
+3. The **Cloud Model** tab shows 2 blocks in order: **◆ Usage order** ("signed-in providers, the top card is MAIN") and **◆ Background model** ("loops · Kanban tasks · reminders · self-learning"). At the bottom is a **＋ Connect another provider (N)** button, which reveals the providers not yet connected. Since 0.406.0, when no provider is signed in yet (a first visit), this button moves to the **top** with the provider list already open. Each block has an (i) button next to its name for a short explanation.
 
 > **The Models page was slimmed down in 0.351.0.** Before that it had 4 blocks (**◆ Main Model**, **◆ Providers**, **◆ Background model**, **◆ Reasoning**) plus a Telegram model box. Main Model and Providers are now merged into **Usage order**, the global Reasoning level is replaced by an **Effort** chip on each card, and Telegram follows MAIN (see [Telegram](11-telegram.md) to pin a model for a single conversation with `/model`).
 

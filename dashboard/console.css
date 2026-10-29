@@ -216,6 +216,7 @@ body.in-console .hud-actions { display: none; }
   border: 1px dashed var(--border); background: transparent; color: var(--text2); font: inherit; font-size: 16px; cursor: pointer; }
 .ord-add:hover, .ord-more:hover { background: var(--bg3); color: var(--text); }
 .ord-more { margin: 0 0 10px; }
+.ord-first > .prov-note { margin: 0 0 10px; }
 .ord-addbox { border: 1px dashed var(--accent-line); background: var(--accent-wash); border-radius: 12px; padding: 12px; margin-top: 8px;
   display: flex; flex-direction: column; gap: 10px; }
 .ord-dragging { position: relative; z-index: 5; box-shadow: var(--shadow-3) !important; cursor: grabbing; transition: none; }
