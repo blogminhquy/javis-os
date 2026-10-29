@@ -206,6 +206,7 @@
     toggleClamp: toggleClamp,
     selectedIn: selectedIn,
     enterSends: enterSends,
+    touchMain: touchMain,
     trackComposition: trackComposition,
     fmtTime: fmtTime,
     fmtTimeFull: fmtTimeFull,

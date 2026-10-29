@@ -85,7 +85,7 @@ Mọi thay đổi hiện một dòng báo ở đáy màn hình kèm **Hoàn tác
 
 Ô nhập có hai nút:
 
-- **Gửi**: gửi nguyên văn cho khách. **Enter** để gửi, Shift+Enter xuống dòng.
+- **Gửi**: gửi nguyên văn cho khách. Trên máy tính **Enter** để gửi, Shift+Enter xuống dòng. Trên điện thoại (từ 0.398.0) **Enter là xuống dòng** như khung chat chính, muốn gửi thì bấm nút gửi.
 - **A.I. soạn** (trước 0.397.0 tên là "A.I. trả lời"): chữ trong ô là **lệnh cho A.I.**, ví dụ "báo giá sỉ 20 thùng, hẹn giao thứ 5". A.I. viết thành câu trả lời lịch sự ngay trong khung ô nhập, ghi rõ lệnh của bạn, kèm Bỏ / Viết lại / Gửi. Ô trống thì A.I. tự đọc cuộc chat mà soạn. **Không bao giờ tự gửi.** Lệnh chỉ A.I. đọc, không vào hộp thư.
 
 Dưới tin khách cuối có dòng **"Bot im: lý do"** khi bộ phán xử đã ghi lý do (ví dụ "Điểm thấp hơn ngưỡng (0.52 / 0.60)"), kèm nút **Vì sao** mở thẳng bảng Bộ phán xử của bot đó, và nút **Nhờ A.I. trả lời tin này**: A.I. trả lời ngay tin đó và gửi luôn, cuộc chat vẫn ở A.I. tự trả lời. Nếu đó đúng là tin bộ phán xử đã im, bot còn **học thêm một ca**: lần sau gặp tin giống vậy bot sẽ nói. Gửi hỏng mà A.I. đã soạn xong thì câu đó nằm trong ô nhập để bạn gửi tay.

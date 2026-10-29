@@ -252,7 +252,9 @@
     window.addEventListener("keydown", function (e) {
       if (S.state === "idle") return;
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); return; }
-      if (e.key === "Enter" && !e.shiftKey && e.target === $("chatInput")) {
+      // Enter follows the chat's own rule (JavisActs.enterSends): a phone's Enter stays a new line here too.
+      var sends = window.JavisActs ? window.JavisActs.enterSends(e, false) : e.key === "Enter" && !e.shiftKey;
+      if (sends && e.target === $("chatInput")) {
         e.preventDefault(); e.stopPropagation(); sendNow();
       }
     }, true);
