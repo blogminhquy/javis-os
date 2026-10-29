@@ -32,6 +32,8 @@ Trên màn hình hẹp, dùng nút mở danh sách hoặc cột chi tiết để
 
 Hội thoại cộng sự tách khỏi lịch sử chat chính của Javis. Quay lại một cộng sự sẽ mở tiếp phiên gần nhất của cộng sự đó.
 
+**Model của Javis Core** (từ 0.402.0): Javis Core mặc định chạy theo model chính, đổi model chính là Core đổi theo. Chọn một model khác trên thanh model của bất kỳ chat Javis Core nào là ghim model đó cho **cả Javis Core**: mọi chat Core, kể cả báo cáo mới về, dùng model đó cho tới khi bạn đổi. Chọn **Theo model của khung chat chính** trong danh sách để gỡ ghim.
+
 ### Tin chưa đọc và tắt thông báo
 
 Từ 0.205.0 danh sách cộng sự chạy như danh sách tin nhắn:

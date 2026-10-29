@@ -180,8 +180,11 @@ class IncidentDesk:
         followup = None
         async with self._io:
             items = self._load()
+            # 0.402.0: an incident already waiting on the owner ("needs_you") also takes the next failures of the same
+            # job. It used to open a new incident and post "Incident needs you" again on every failure.
             open_inc = next((i for i in reversed(items) if i.get("source") == source and i.get("ref") == ref
-                             and i.get("status") in ("open", "retrying") and now - float(i.get("at") or 0) < REOPEN_AFTER_S),
+                             and i.get("status") in ("open", "retrying", "needs_you")
+                             and now - float(i.get("at") or 0) < REOPEN_AFTER_S),
                             None)
             if open_inc is not None:
                 open_inc["count"] = int(open_inc.get("count") or 1) + 1

@@ -79,7 +79,10 @@ async def main():
     n_posts = len(posts)
     desk.report("kanban", "t_1", brain="/b", title="Quét đơn", error="again")
     await desk.wait_idle()
-    check("repeat after needs_you opens a fresh incident (status closed)", len(desk.list()) == 2)
+    # 0.402.0 (owner, 2026-10-29: repeated notices): an incident already waiting on the owner takes the next failures
+    # of the same job, counted, without a new incident or a new message. It used to open a fresh one and post again.
+    check("repeat after needs_you is counted on the open incident, no new message",
+          len(desk.list()) == 1 and desk.list()[0]["count"] == 3 and len(posts) == n_posts)
 
     # person-only error: the model says retry, the host refuses
     answer["text"] = 'Example: {"action": "quiet"} ... {"action": "retry", "message": "x"}'

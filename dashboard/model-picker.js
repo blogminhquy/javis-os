@@ -134,7 +134,7 @@
       // the tooltip; the pin state shows as an icon (below).
       mt.textContent = chipLabel(eff, p);
       mt.title = (p ? p.label + " · " + (eff.model || defText(eff.provider)) + "\n" : "") + (sessionPin
-        ? window.t("mpick.pin_title")
+        ? window.t(agentEff && agentEff.slug === "javis-core" ? "mpick.core_pin_title" : "mpick.pin_title")
         : pinBroken
           ? window.t(pinLimited ? "mpick.pin_limited_title" : "mpick.pin_broken_title")
           : window.t("mpick.follow_default"));

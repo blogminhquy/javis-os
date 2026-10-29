@@ -8,7 +8,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.402.0] - 2026-10-29
 ### Sửa lỗi
-- Đang làm: Javis Core chọn được model; bớt thông báo đăng nhập báo sai.
+- **Javis Core chọn được model.** Mặc định Core theo model chính, đổi model chính là Core đổi theo ngay. Chọn model khác trên thanh model của một chat Core là ghim cho cả Core: mọi chat Core dùng model đó cho tới khi bạn chọn "Theo model của khung chat chính". Trước đây chat Core tự đóng băng ở model của ngày nó được tạo.
+- **Bớt thông báo đăng nhập báo sai:**
+  - Câu trả lời bình thường có nhắc chữ "not logged in" không còn làm Javis báo "Javis chưa dùng được".
+  - Báo hỏng rồi thì khởi động lại không báo lại.
+  - Kết nối đang tải lần đầu sau khi khởi động không bị tính là hỏng.
+  - Một việc định kỳ hỏng nhiều lần chỉ thành một sự cố "cần bạn", không báo lại ở mỗi lần hỏng.
+  - Báo Zalo bị giành phiên không lặp lại sau mỗi lần khởi động.
 
 ## [0.401.0] - 2026-10-29
 ### Sửa lỗi

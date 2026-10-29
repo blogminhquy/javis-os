@@ -287,12 +287,52 @@ ENGINE_FIX_EN = {
 ENGINE_FIX_DEFAULT_EN = "Go to the Models page to connect and use Javis."
 
 
+_ENGINE_NOTICE_FILE = "engine_down_notified.json"   # in STATE_DIR (0.402.0)
+
+
+def _engine_notice_path():
+    import config
+    return Path(config.STATE_DIR) / _ENGINE_NOTICE_FILE
+
+
+def _engine_notified_saved() -> dict:
+    """{engine name: time} of the down notices already sent and not yet followed by a recovery (0.402.0). Kept on disk
+    so a restart while an engine is still down does not send the same "Javis is not usable" notice again."""
+    try:
+        d = json.loads(_engine_notice_path().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _engine_notified_set(name: str, on: bool) -> None:
+    d = _engine_notified_saved()
+    if bool(d.get(name)) == on:
+        return
+    if on:
+        d[name] = time.time()
+    else:
+        d.pop(name, None)
+    try:
+        _engine_notice_path().write_text(json.dumps(d), encoding="utf-8")
+    except OSError as e:
+        print(f"[engine health] cannot save notice state: {e}", file=sys.stderr)
+
+
+def looks_like_error_line(text) -> bool:
+    """A result short enough to be an error line rather than an answer (0.402.0). A real sign-in failure comes back as
+    one short line ("Invalid API key · Please run /login"); an answer that merely mentions those words is longer."""
+    t = str(text or "").strip()
+    return bool(t) and len(t) <= 300 and t.count("\n") <= 2
+
+
 def _set_engine(name, ok, message="", source="probe"):
     prev = _engines.get(name) or {}
     rec = {"ok": ok, "message": message, "source": source, "ts": time.time(),
-           "notified": bool(prev.get("notified"))}
+           "notified": bool(prev.get("notified")) or bool(_engine_notified_saved().get(name))}
     if ok:
         rec["notified"] = False   # hồi sinh → lần chết sau lại được báo
+        _engine_notified_set(name, False)
     _engines[name] = rec
     if not ok and not rec["notified"] and on_engine_down:
         # Chỉ báo Telegram khi bộ não này ĐANG là Main Model. Đèn của bộ não khác (vd lượt
@@ -305,6 +345,7 @@ def _set_engine(name, ok, message="", source="probe"):
         except Exception:
             pass
         rec["notified"] = True
+        _engine_notified_set(name, True)
         try:
             # Nói theo góc NGƯỜI DÙNG: với họ chỉ có một sự thật là chưa dùng được Javis,
             # và một việc phải làm. Tên engine để trong ngoặc cho ai cần đi tra, không đặt
@@ -602,9 +643,10 @@ async def startup_smoke(version: str = "", pool=None, retry_after: float | None 
             except Exception as e:  # noqa: BLE001
                 results[conn["id"]] = {"ok": False, "kind": "unknown", "message": f"{type(e).__name__}: {e}"}
     labels = {c["id"]: c.get("label") or c["id"] for c in conns}
+    # 0.402.0: a source still in its first download ("starting") is not broken; it used to be reported as one.
     failed = [{"id": cid, "label": labels[cid], "kind": rec.get("kind") or "",
                "message": rec.get("message") or "", "message_en": rec.get("message_en") or ""}
-              for cid, rec in results.items() if not rec.get("ok")]
+              for cid, rec in results.items() if not rec.get("ok") and rec.get("kind") != "starting"]
     fingerprint = sorted(f"{f['id']}:{f['kind']}" for f in failed)
     already = fingerprint == _last_notified()
     _smoke = {"version": version, "at": time.time(), "checked": len(conns),

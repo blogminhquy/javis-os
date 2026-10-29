@@ -32,6 +32,8 @@ On narrow screens, use the list and details buttons to open the side drawers. Sw
 
 Partner conversations are separate from Javis's main chat history. Returning to a partner resumes its most recent conversation.
 
+**Javis Core's model** (from 0.402.0): Javis Core follows the main model by default, so changing the main model changes Core too. Picking another model in the model bar of any Javis Core chat pins it for **all of Javis Core**: every Core chat, new reports included, uses it until you change it. Pick **Follow the main chat's model** in the list to remove the pin.
+
 ### Unread messages and muting
 
 From 0.205.0 the partner list works like a message list:
