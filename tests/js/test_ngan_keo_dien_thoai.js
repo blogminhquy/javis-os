@@ -24,6 +24,14 @@ var rail = m ? m[1] : "";
 check("tìm thấy luật ngăn kéo trên điện thoại", !!rail);
 check("ngăn kéo không làm mờ nền (cả bản -webkit-)", /\bbackdrop-filter: none;/.test(rail) && /-webkit-backdrop-filter: none;/.test(rail));
 check("ngăn kéo có nền đặc", /background: var\(--bg\);/.test(rail));
+// 0.393.0 (owner, iPhone video: the drawer showed mid-slide, then only the dim screen stayed). No transform layer on
+// the drawer: it slides on `left`, is hidden while shut, and is the only scroller inside it.
+check("ngăn kéo không trượt bằng transform", /transform: none;/.test(rail) && /will-change: auto;/.test(rail)
+  && /left: calc\(-1 \* min\(280px, 82vw\)\);/.test(rail));
+check("ngăn kéo đóng thì ẩn hẳn", /visibility: hidden;/.test(rail)
+  && /body\.nav-open \.rail \{ left: 0; visibility: visible;/.test(CSS));
+check("danh sách menu không tự cuộn bên trong ngăn kéo",
+  /\.rail-nav \{ flex-direction: column; overflow: visible;/.test(CSS));
 check("nền mờ mặc định ẩn, kể cả khi thiếu thuộc tính hidden",
   /\.nav-backdrop, \.nav-backdrop\[hidden\] \{[^}]*display: none;/.test(CSS));
 check("nền mờ chỉ hiện khi ngăn kéo mở", /body\.nav-open \.nav-backdrop \{ display: block; \}/.test(CSS));

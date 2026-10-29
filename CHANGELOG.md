@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.393.0] - 2026-10-29
+### Sửa lỗi
+- **Menu trên điện thoại mở được trở lại.** Trên iPhone, bấm nút ba gạch chỉ làm màn hình tối đi mà không thấy menu: Safari vẽ menu lúc đang trượt rồi làm mất nó. Menu giờ trượt theo cách Safari không vẽ hỏng, đóng là ẩn hẳn.
+### Cải thiện
+- Trên điện thoại, **nút giao diện sáng tối** chuyển xuống dòng phiên bản ở đáy menu, nằm cạnh nút thu mở thanh bên cho gọn.
+
 ## [0.391.0] - 2026-10-29
 ### Sửa lỗi
 - **Chỉ mục năng lực `Javis/index.md` giờ tự cập nhật ở mọi brain**, không chỉ Brain Default. Trước đây brain nào chưa có loop thì file này đứng yên từ ngày tạo, nên vẫn ghi "0 agent" dù brain đã có hàng chục agent, và AI đọc nó để kiểm tra trùng thì bị sai.

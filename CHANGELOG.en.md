@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.393.0] - 2026-10-29
+### Fixed
+- **The phone menu opens again.** On iPhone, the menu button only dimmed the screen with no menu on it: Safari drew the menu while it slid in, then dropped it. The menu now slides in a way Safari does not mangle, and is fully hidden when shut.
+### Improved
+- On phones the **light/dark button** moves to the version row at the bottom of the menu, next to the sidebar collapse button.
+
 ## [0.391.0] - 2026-10-29
 ### Fixed
 - **The capability index `Javis/index.md` now updates itself in every brain**, not only Brain Default. A brain with no loop used to keep the file from the day it was created, so it still said "0 agents" after dozens were added, and an AI reading it to avoid duplicates was misled.
