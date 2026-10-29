@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.396.0] - 2026-10-29
+### Cải thiện
+- **Nhóm chat giờ giữ 1.000 tin gần nhất trong Hòm thư, thay vì 100.** Nhóm đông người nói nhiều cũng xem lại được mấy ngày chat. Chat riêng với khách vẫn lưu hết như cũ.
+- Tin đã bị cắt trước đây không tự quay lại; từ giờ nhóm tích dần tới 1.000 tin rồi mới bắt đầu xoá tin cũ nhất.
+
 ## [0.394.0] - 2026-10-29
 ### Sửa lỗi
 - **Chuyển sang app khác rồi quay lại, lượt đang chạy không còn trông như đã dừng.** Javis vẫn làm tiếp trên máy chủ khi bạn rời app, nhưng lúc nối lại khung chat xoá mất dòng "Javis đang suy nghĩ" và không hiện phần đã viết, nên trông như lệnh bị dừng cho tới khi câu trả lời xong mới bật ra. Giờ dòng trạng thái quay lại ngay, kèm phần chữ Javis đã viết trong lúc bạn đi vắng.
