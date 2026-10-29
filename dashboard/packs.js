@@ -238,10 +238,6 @@
   let _veTrang = null;
   let _veLuot = null;
 
-  const BAC = {
-    data: { nhan: "store.tier.data", mau: "var(--ok-ink,#2f855a)" },
-    code: { nhan: "store.tier.code", mau: "var(--warn-ink,#b7791f)" },
-  };
 
   function vaultTom(v) {
     // Tóm tắt "gói này thêm gì vào bộ não", dạng "2 trợ lý, 1 kỹ năng".
@@ -563,7 +559,6 @@
   }
 
   function theKho(g) {
-    const bac = BAC[g.tier] || BAC.data;
     const lo = LOAI[g.kind] || LOAI.bundle;
     const n = nutThe(g);
     // Số hiệu KHÔNG nằm ở đây khi gói đã cài. Dòng meta lấy `g.version` (số của KHO), nên thẻ
@@ -577,15 +572,17 @@
     const dai = moTa.length > 90;
     return '<div class="cat-card kho-the" data-loai="' + esc(g.kind || "bundle") + '"'
       + ' data-nhom="' + esc(g.nhom || "") + '" data-ng="' + (g.verified ? "1" : "0") + '">'
+      // Tags (0.390.0, owner): no kind tag (the open tab already says it) and no official/community
+      // tag (community packs keep their own filter and their own warning on the confirm screen).
+      // Of the tier only the exception shows: "Runs code", a small amber chip beside the group one.
+      // "Data only" is most packs and the safe case, so a tag on every card would say nothing.
+      // The title line keeps just the name and the (i).
       + '<div class="kho-dau">' + veAvatar(g)
-      + '<span class="kho-nhom">' + esc(g.nhom ? nhanNhom(g.nhom) : tw(lo.nhan)) + '</span></div>'
+      + '<span class="kho-chips">'
+      + (g.tier === "code" ? '<span class="kho-chip-ma">' + tw("store.tier.code") + '</span>' : "")
+      + '<span class="kho-nhom">' + esc(g.nhom ? nhanNhom(g.nhom) : tw(lo.nhan)) + '</span>'
+      + '</span></div>'
       + '<div class="kho-ten">' + esc(nn(g.name, g.id))
-      + ' <span class="prov-kind">' + esc(tw(lo.nhan)) + '</span>'
-      + ' <span class="prov-kind" style="color:' + bac.mau + '">' + tw(bac.nhan) + '</span>'
-      + (g.verified
-          ? ' <span class="prov-kind" style="color:var(--ok-ink,#2f855a)">'
-            + tw("store.verified") + '</span>'
-          : ' <span class="prov-kind">' + tw("store.community") + '</span>')
       + (dai ? infoBtn() : "")
       + '</div>'
       + '<div class="cat-desc' + (dai ? " j-clamp2" : "") + '">' + esc(moTa) + '</div>'
@@ -793,7 +790,9 @@
       + (_kho.nhom === ten ? " selected" : "") + '>' + esc(nhan) + ' (' + so + ')</option>').join("");
 
     // Refresh and Install from .zip, drawn twice: in the navbar (computer) and beside the search
-    // box (phone), CSS shows one. Hence data attributes rather than ids.
+    // box (phone), CSS shows one. Hence data attributes rather than ids. The catalog time rides on
+    // the Refresh tooltip: without it "why don't I see the new version" has no answer, but as
+    // text in the navbar it pushed Refresh past the edge (0.390.0).
     const nutHd = '<button class="mp-btn kho-hd-btn" data-kho-lammoi="1"'
       + (gioLay ? ' title="' + esc(tw("store.catalog_at", { luc: gioLay })) + '"' : "")
       + ' aria-label="' + esc(tw("store.refresh")) + '">'
@@ -815,9 +814,6 @@
       + '<select class="js-input kho-chon-nhom" id="pkNhom" aria-label="' + esc(tw("studio.groups")) + '">'
       + chonNhom + '</select>'
       + '<div class="kho-hd">'
-      // Say when this catalog was fetched. Without it "why don't I see the new version" is a
-      // question nobody can answer, not even the person who wrote it.
-      + (gioLay ? '<span class="prov-meta kho-luc">' + esc(tw("store.catalog_at", { luc: gioLay })) + '</span>' : "")
       + nutHd
       + '</div></div>'
       + '<div class="kho-than">'

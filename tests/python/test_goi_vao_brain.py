@@ -199,8 +199,9 @@ src_js = (DASHBOARD / "packs.js").read_text(encoding="utf-8")
 # Thiếu vế đầu thì gỡ hẳn dòng chữ khỏi giao diện vẫn xanh; thiếu vế sau thì đổi khoá thành câu
 # ngược nghĩa vẫn xanh.
 _VI = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
-check("thẻ kho vẫn hiện nhãn chính chủ hoặc cộng đồng",
-      'tw("store.verified")' in src_js and "chính chủ" in _VI.get("store.verified", "")
+# 0.390.0 (owner): the card drops the official/community tag; community packs keep their own
+# filter (below) and their own warning on the confirm screen.
+check("thẻ kho không còn nhãn chính chủ / cộng đồng", 'tw("store.verified")' not in src_js
       and 'tw("store.community")' in src_js and "cộng đồng" in _VI.get("store.community", ""))
 # Bộ lọc nguồn dọn từ hàng tab riêng xuống cột nhóm bên trái ở 0.55.31 (bố cục mới), nhưng
 # KHÔNG được mất: kho lớn dần thì "xem riêng hàng cộng đồng" là bộ lọc người ta tìm đầu tiên.
