@@ -92,6 +92,7 @@ import purge          # xoá kết nối cho sạch: chủ sở hữu duy nhất
 import core_off       # năng lực MẶC ĐỊNH gỡ được: trạng thái ghi ở STATE_DIR, không sửa cây code
 import packs          # GÓI mở rộng: thả thư mục vào STATE_DIR/packs là có thêm connector
 import cred_exchange   # đổi credential hộ user (vd App Password -> Google master token) khi đấu
+import ops_index_watch   # keeps every brain's Javis/index.md current, cheaply
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
 import image_gen      # tạo ảnh bằng gói ChatGPT (OAuth) - Codex Responses + tool image_generation
@@ -13615,6 +13616,48 @@ def rebuild_javis_index(brain: str) -> dict:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
+def _ops_index_signature(root: str) -> str:
+    return ops_index_watch.brain_signature(root, _agents_dir(root), _workflows_dir(root),
+                                           plugins_host.vault_plugins_dir(root))
+
+
+_OPS_INDEX_WATCH = ops_index_watch.IndexWatcher(
+    signature_of=_ops_index_signature, rebuild=rebuild_javis_index,
+    shared_signature=plugins_host.shared_signature)
+
+
+def _ops_index_brains() -> list:
+    """Every brain whose Javis/index.md the scheduler keeps current, as resolved roots (one entry per brain).
+
+    The folders in BRAINS_DIR that are real brains (they have Javis/), plus the brains the loop scheduler knows,
+    which may live outside BRAINS_DIR. Before 0.389.0 only the second list was swept, so a brain with no loop kept
+    the index from the day it was created."""
+    cands = []
+    try:
+        cands += [str(p) for p in sorted(Path(BRAINS_DIR).iterdir())
+                  if p.is_dir() and not p.name.startswith(".") and (p / "Javis").is_dir()]
+    except OSError:
+        pass
+    try:
+        cands += [_brain_root(b) for b in loop_feature.scheduler_brains()]
+    except Exception:
+        pass
+    out, seen = [], set()
+    for c in cands:
+        try:
+            rp = str(Path(c).resolve())
+        except OSError:
+            continue
+        if rp not in seen and os.path.isdir(rp):
+            seen.add(rp)
+            out.append(rp)
+    return out
+
+
+def _ops_index_sweep() -> list:
+    return _OPS_INDEX_WATCH.sweep(_ops_index_brains())
+
+
 def _dong_lan_chay_gan_nhat(brain) -> str:
     """Một dòng cho system prompt: lần chạy quy trình gần nhất của brain, rỗng nếu chưa có.
     Nhờ dòng này, hỏi "quy trình chạy gần nhất ra sao" ở khung chat chính là Javis biết ngay
@@ -13884,10 +13927,10 @@ async def _start_scheduler():
                             await asyncio.to_thread(_do_backup)   # 1 lần: toàn bộ thư mục brains, 2 chiều
                 except Exception as be:
                     print(f"[backup tick] {type(be).__name__}: {be}", file=__import__('sys').stderr)
-                # 5) Javis index: dựng lại chỉ mục tầng vận hành (chỉ ghi khi đổi → không churn)
+                # 5) Javis index: every brain, but only the ones whose agents/skills/workflows/loops/plugins
+                #    changed on disk (stat-only signature, see ops_index_watch), a few per tick.
                 try:
-                    for _ib in loop_feature.scheduler_brains():
-                        await asyncio.to_thread(rebuild_javis_index, _ib)
+                    await asyncio.to_thread(_ops_index_sweep)
                 except Exception as ie:
                     print(f"[javis index tick] {type(ie).__name__}: {ie}", file=__import__('sys').stderr)
                 # 6) Dọn media quá hạn: attachments/ + inbox/ là VÙNG CACHE chứ không phải
