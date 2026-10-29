@@ -69,12 +69,20 @@
       var foot = railEl.querySelector(".rail-foot");
       railEl.insertBefore(sysHost, foot || null);
     }
-    function moveEl(el, toBtns) {
+    // `toFoot` (0.393.0, owner): the light/dark switch goes to the drawer's foot, just left of the collapse button,
+    // instead of a row of its own under the "System" label.
+    function moveEl(el, toBtns, toFoot) {
       if (!el) return;
       ensureSysHost();
       if (!sysHost) return;
       moved.push({ el: el, parent: el.parentElement, next: el.nextSibling });
-      (toBtns ? sysBtns : sysHost).appendChild(el);
+      var foot = toFoot && railEl && railEl.querySelector(".rail-foot");
+      if (foot) foot.insertBefore(el, foot.querySelector(".rail-collapse-btn"));
+      else (toBtns ? sysBtns : sysHost).appendChild(el);
+    }
+    function traVe(m) {
+      if (m.next && m.next.parentElement === m.parent) m.parent.insertBefore(m.el, m.next);
+      else m.parent.appendChild(m.el);
     }
     // Gỡ hẳn khung "Hệ thống" khỏi rail. PHẢI có hàm này: `ensureSysHost` dựng khung một lần
     // rồi giữ tham chiếu, còn `placeSystem` trước đây chỉ trả các nút về chỗ cũ mà KHÔNG dọn
@@ -89,7 +97,7 @@
       if (mq.matches) {
         if (!moved.length) {
           moveEl(document.querySelector(".navbar-brain"), false);
-          moveEl(document.getElementById("themeToggle"), true);
+          moveEl(document.getElementById("themeToggle"), true, true);
           // Nút loa header đã bỏ (0.48.3), nút loa thanh nhập cũng bỏ (02/09): giọng đi theo
           // mic, bấm mic là bật loa. Không còn nút loa nào để dời cả.
           // Dải "VỪA GỌI" cũng bỏ (0.64.15): bước tool đã hiện ngay trong khung chat.
@@ -98,14 +106,13 @@
         // đường (đổi brain, đổi trang) - lúc đó chúng biến mất khỏi khung này và để lại đúng
         // cái nhãn trơ ra. Còn nút thì giữ, hết nút thì dọn.
         if (sysHost && !sysHost.querySelector(".navbar-brain, #themeToggle")) {
-          moved = [];
+          var cu = moved; moved = [];
+          // Whatever still sits in the foot goes home, so the next pass borrows it again from its real place.
+          cu.forEach(function (m) { if (m.el.parentElement && m.el.parentElement !== m.parent) traVe(m); });
           boSysHost();
         }
       } else if (moved.length) {
-        moved.forEach(function (m) {
-          if (m.next && m.next.parentElement === m.parent) m.parent.insertBefore(m.el, m.next);
-          else m.parent.appendChild(m.el);
-        });
+        moved.forEach(traVe);
         moved = [];
         boSysHost();   // trả nút về desktop rồi thì cái khung rỗng cũng phải đi theo
       } else {
