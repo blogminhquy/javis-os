@@ -290,7 +290,13 @@ check("long explanations sit behind (i): the filter's text is only in an info pa
 check("short texts stay under 100 characters", all(len(vi[k]) <= 100 and len(en[k]) <= 100 for k in keys if k != "noti.filter_info"),
       [k for k in keys if k != "noti.filter_info" and (len(vi.get(k, "")) > 100 or len(en.get(k, "")) > 100)])
 check("English writes AI plainly, no 'A.I.'", not any("A.I." in en[k] for k in keys))
-check("cache versions bumped", "notifications.js?v=11" in html and "style.css?v=151" in html)
+def _ver(name):
+    m = re.search(re.escape(name) + r"\?v=(\d+)", html)
+    return int(m.group(1)) if m else 0
+
+
+# At least the 0.403.0 versions: a later release bumps them again, so an exact number would break on every bump.
+check("cache versions bumped", _ver("notifications.js") >= 11 and _ver("style.css") >= 151)
 
 dashes = [chr(0x2014), chr(0x2013)]
 texts = [Path(__file__).read_text(encoding="utf-8"), (SERVER / "notify_policy.py").read_text(encoding="utf-8"),
