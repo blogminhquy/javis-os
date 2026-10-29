@@ -70,7 +70,11 @@
   var _who = "you", _accs = [], _tagsAny = [], _tagsNone = [], _whoCounts = null;
   var _when = null, _lastBy = "", _pinned = "";   // when the last message came, who wrote it, pinned only (Filter menu)
   var _pick = false, _pickQ = "", _fm = false, _fmCat = "time";   // channel picker / Filter menu open, picker search, menu category
-  var _info = null;         // Info panel: null = decided by the width (open on wide screens), true/false = the owner chose
+  var _wm = false;          // the "who" dropdown of the list is open
+  // Info panel: closed until the owner opens it (owner, 2026-10-29: the chat gets the room), and remembered in this browser.
+  var INFO_KEY = "javis_ib_info";
+  var _info = (function () { try { return localStorage.getItem(INFO_KEY) === "1"; } catch (e) { return false; } })();
+  var _msheet = false;      // the phone's "who replies" sheet is open
   var _aiBusy = "";         // "ask" | "redo" | "send" | "now" while the A.I. writes or a draft goes out
   var _draftEdit = null;    // {ts, text}: the owner's edits to the waiting draft, kept across the 5-second redraws
   var _noteEdit = null;     // {id, text}: the note being typed in the Info panel, same reason
@@ -173,8 +177,10 @@
       // The Channels tab counts the nicks and Pages that need something (an error, or no bot and none was declined).
       if (t === "kenh" && window.JavisInboxChannels) canBan = window.JavisInboxChannels.jobs(_tk);
       var chuaDoc = canBan ? '<span class="ht-badge" title="' + esc(window.t(t === "kenh" ? "ib.kn_jobs" : "ib.who_you")) + '">' + canBan + '</span>' : "";
-      return '<button type="button" class="ht-tab' + (t === _tab ? " on" : "") + '" data-t="' + t + '">' +
-        ic(NHAN[t][1]) + ' <span>' + esc(window.t(NHAN[t][0])) + '</span>' + chuaDoc + '</button>';
+      // Phones show the icon only (0.397.0), so the name is also the button's tooltip and its spoken label.
+      var ten = window.t(NHAN[t][0]);
+      return '<button type="button" class="ht-tab' + (t === _tab ? " on" : "") + '" data-t="' + t + '"' + (t === _tab ? ' aria-current="page"' : "") +
+        ' title="' + esc(ten) + '">' + ic(NHAN[t][1]) + ' <span class="ht-tab-t">' + esc(ten) + '</span>' + chuaDoc + '</button>';
     }).join("");
     b.querySelectorAll(".ht-tab").forEach(function (n) {
       n.onclick = function () { chonTab(n.dataset.t); };
@@ -304,20 +310,26 @@
       _who = saved.who; _accs = saved.accs; _tagsAny = saved.tagsAny; _tagsNone = saved.tagsNone;
       _when = saved.when; _lastBy = saved.lastBy; _pinned = saved.pinned;
     }
-    _pick = false; _fm = false;
+    _pick = false; _fm = false; _wm = false;
     body.innerHTML =
       '<div class="ht-wrap ib-v5">' +
         '<div class="ht-body">' +
           '<div class="ht-listcol">' +
+            // 0.397.0 (owner, 2026-10-29): the search with Filter inside it, then one row with two dropdowns, "who" on
+            // the left and the channel picker on the right. Nothing wraps onto a second line in the narrow column.
             '<div class="ib-lhead">' +
-              '<button type="button" class="ib-picker" aria-haspopup="dialog" aria-expanded="false"></button>' +
               '<div class="ib-srow"><span class="ib-swrap">' + ic("search") +
                 '<input class="ht-search" type="search" placeholder="' + esc(window.t("ib.search_ph")) + '" aria-label="' +
-                esc(window.t("ib.search_ph")) + '"></span>' +
-                '<button type="button" class="ib-fbtn" aria-haspopup="dialog" aria-expanded="false">' + ic("sliders-horizontal") +
-                  ' <span>' + esc(window.t("ib.f_btn")) + '</span><span class="ib-fbtn-n" hidden></span></button></div>' +
-              '<div class="ib-quick" role="group" aria-label="' + esc(window.t("ib.quick_aria")) + '"></div>' +
+                esc(window.t("ib.search_ph")) + '">' +
+                '<button type="button" class="ib-fbtn" aria-haspopup="dialog" aria-expanded="false" aria-label="' + esc(window.t("ib.f_aria")) +
+                  '" title="' + esc(window.t("ib.f_aria")) + '">' + ic("sliders-horizontal") + '<span class="ib-fbtn-n" hidden></span></button></span></div>' +
+              '<div class="ib-lrow">' +
+                '<button type="button" class="ib-whobtn" aria-haspopup="menu" aria-expanded="false" aria-label="' +
+                  esc(window.t("ib.quick_aria")) + '"></button>' +
+                '<button type="button" class="ib-picker" aria-haspopup="dialog" aria-expanded="false"></button>' +
+              '</div>' +
               '<div class="ib-activef"></div>' +
+              '<div class="ib-pop ib-wm" role="menu" aria-label="' + esc(window.t("ib.quick_aria")) + '" hidden></div>' +
               '<div class="ib-pop ib-pk" role="dialog" aria-label="' + esc(window.t("ib.pk_aria")) + '" hidden></div>' +
               '<div class="ib-pop ib-fm" role="dialog" aria-label="' + esc(window.t("ib.f_title")) + '" hidden></div>' +
             '</div>' +
@@ -338,11 +350,14 @@
     s.oninput = function () { _q = s.value.trim(); tai(); };
     body.querySelector(".ib-picker").onclick = function () { setPop(_pick ? "" : "pick"); };
     body.querySelector(".ib-fbtn").onclick = function () { setPop(_fm ? "" : "fm"); };
-    body.querySelector(".ib-quick").onclick = function (e) {
-      var b = e.target.closest && e.target.closest(".ib-q");
+    body.querySelector(".ib-whobtn").onclick = function () { setPop(_wm ? "" : "who"); };
+    body.querySelector(".ib-wm").onclick = function (e) {
+      var b = e.target.closest && e.target.closest(".ib-wm-o");
       if (!b) return;
       _who = b.dataset.who || "";
+      setPop("");
       onFilterChange();
+      focusOpener(".ib-whobtn");
     };
     body.querySelector(".ib-activef").onclick = function (e) {
       var b = e.target.closest && e.target.closest("button[data-k]");
@@ -390,14 +405,17 @@
       var chans = sum.channels.length ? sum.channels : [];
       if (!chans.length) accs.forEach(function (a) { if (chans.indexOf(a.channel) < 0) chans.push(a.channel); });
       var sub = sum.one ? nhanKenh(sum.one.channel) : sum.sub;
-      var ph = '<span class="ib-stack">' + chans.slice(0, 4).map(function (ch) { return logoKenh(ch, "22px"); }).join("") + '</span>' +
-        '<span class="ib-pk-tt"><b>' + esc(sum.title) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : "") + '</span>' + ic("chevron-down");
+      // One line since 0.397.0: the names behind "3 places picked" (or "every nick and Page together") are the tooltip.
+      var ph = '<span class="ib-stack">' + chans.slice(0, 3).map(function (ch) { return logoKenh(ch, "18px"); }).join("") + '</span>' +
+        '<span class="ib-pk-tt"><b>' + esc(sum.title) + '</b></span>' + ic("chevron-down");
       if (pb.dataset.sig !== ph) { pb.innerHTML = ph; pb.dataset.sig = ph; }
+      pb.title = sub ? sum.title + ": " + sub : sum.title;
     }
-    var q = _host.querySelector(".ib-quick");
-    if (q) {
-      var qh = V.quickHtml(_who, _whoCounts, ic);
-      if (q.dataset.sig !== qh) { q.innerHTML = qh; q.dataset.sig = qh; }
+    var wb = _host.querySelector(".ib-whobtn");
+    if (wb) {
+      var wh = V.whoButtonHtml(_who, _whoCounts, ic);
+      if (wb.dataset.sig !== wh) { wb.innerHTML = wh; wb.dataset.sig = wh; }
+      wb.classList.toggle("w-you", _who === "you");
     }
     var st = filterState();
     var chips = V.activeChips(st, _tags, _botList);
@@ -433,20 +451,26 @@
   // actions, never on the 5-second refresh, so a tick or a typed search is never lost under the cursor.
   function setPop(which) {
     if (!_host) return;
-    _pick = which === "pick"; _fm = which === "fm";
+    _pick = which === "pick"; _fm = which === "fm"; _wm = which === "who";
     if (_pick) _pickQ = "";
     paintPops();
-    var f = _pick ? _host.querySelector(".ib-pk .ib-pk-q") : _fm ? _host.querySelector(".ib-fm .ib-fm-cat.on") : null;
+    var f = _pick ? _host.querySelector(".ib-pk .ib-pk-q") : _fm ? _host.querySelector(".ib-fm .ib-fm-cat.on") :
+      _wm ? _host.querySelector(".ib-wm .ib-wm-o.on") : null;
     if (f) f.focus();
   }
 
   function paintPops() {
     var V = window.JavisInboxV5, F = window.JavisConvFilters;
     if (!_host || !V) return;
-    var pk = _host.querySelector(".ib-pk"), fm = _host.querySelector(".ib-fm");
-    var pb = _host.querySelector(".ib-picker"), fb = _host.querySelector(".ib-fbtn");
+    var pk = _host.querySelector(".ib-pk"), fm = _host.querySelector(".ib-fm"), wm = _host.querySelector(".ib-wm");
+    var pb = _host.querySelector(".ib-picker"), fb = _host.querySelector(".ib-fbtn"), wb = _host.querySelector(".ib-whobtn");
     if (pb) pb.setAttribute("aria-expanded", String(_pick));
     if (fb) fb.setAttribute("aria-expanded", String(_fm));
+    if (wb) wb.setAttribute("aria-expanded", String(_wm));
+    if (wm) {
+      wm.hidden = !_wm;
+      wm.innerHTML = _wm ? V.whoMenuHtml(_who, _whoCounts, ic) : "";
+    }
     if (pk) {
       pk.hidden = !_pick;
       pk.innerHTML = _pick ? V.pickerHtml(accList(), _accs, youByAcc(), _pickQ, logoPick, nhanKenh, ic) : "";
@@ -547,21 +571,24 @@
   function watchPopOutside() {
     if (_popOutside) return;
     _popOutside = true;
-    // Crossing 1200px (a window resized, a phone turned): the Info panel follows the width unless the owner chose.
+    // Crossing 1200px (a window resized, a phone turned): the Info panel follows the state kept for that width.
     try {
       var mq = window.matchMedia("(max-width: 1200px)");
-      var follow = function () { if (_info === null && _host && document.body.contains(_host)) paintInfo(); };
+      var follow = function () { if (_host && document.body.contains(_host)) paintInfo(); };
       if (mq.addEventListener) mq.addEventListener("change", follow); else if (mq.addListener) mq.addListener(follow);
     } catch (e) { /* old browser: the panel keeps its state */ }
     document.addEventListener("mousedown", function (ev) {
-      if ((!_pick && !_fm) || !_host || !document.body.contains(_host)) return;
+      if ((!_pick && !_fm && !_wm) || !_host || !document.body.contains(_host)) return;
       var t = ev.target;
-      if (t.closest && (t.closest(".ib-pop") || t.closest(".ib-picker") || t.closest(".ib-fbtn") || t.closest(".dr-pop"))) return;
+      if (t.closest && (t.closest(".ib-pop") || t.closest(".ib-picker") || t.closest(".ib-fbtn") || t.closest(".ib-whobtn") ||
+                        t.closest(".dr-pop"))) return;
       setPop("");
     });
     document.addEventListener("keydown", function (ev) {
-      if (ev.key !== "Escape" || (!_pick && !_fm) || !_host || document.querySelector(".dr-pop")) return;
-      var from = _pick ? ".ib-picker" : ".ib-fbtn";
+      if (ev.key !== "Escape" || !_host || document.querySelector(".dr-pop")) return;
+      if (_msheet) { setSheet(false); return; }
+      if (!_pick && !_fm && !_wm) return;
+      var from = _pick ? ".ib-picker" : _wm ? ".ib-whobtn" : ".ib-fbtn";
       setPop("");
       focusOpener(from);
     });
@@ -733,13 +760,14 @@
       // Nút ghim (0.223.0) là <span role=button>: cả hàng đã là một <button>, nút lồng trong nút là HTML sai.
       // Since the row menu (2026-10-25) pinning lives in "...": only a PINNED row shows its pin (click it to unpin), so
       // unpinned rows stay clean like Zalo's. The "..." is a <span role=button> for the same reason as the pin.
-      // The owner's tags: two chips then "+N" (Pancake's list row), and the nick or Page name at the end of that line.
+      // The owner's tags: two chips then "+N" (Pancake's list row), on a third line only when the chat has tags. The nick or
+      // Page a chat came through is in the row's tooltip since 0.397.0 (it was a line of its own on every row), its
+      // channel is the logo on the avatar.
       var userTags = (F && c.tags && c.tags.length) ? F.tagChips(c.tags, 2) : "";
       var accName = many ? accLabel(c) : "";
-      var acc = accName ? '<span class="ib-acc">' + esc(accName) + '</span>' : "";
       return '<button type="button" class="ht-item w-' + who + (c.id === _chon ? " on" : "") +
           (c.unread_count ? " unread" : "") + (c.pinned ? " ghim" : "") + (c.hidden ? " hid" : "") +
-          (_rm && _rm.id === c.id ? " menu-on" : "") + '" data-id="' + c.id + '" title="' + esc(say) + '">' +
+          (_rm && _rm.id === c.id ? " menu-on" : "") + '" data-id="' + c.id + '" title="' + esc(accName ? accName + " · " + say : say) + '">' +
         avatarHtml(c, ten) +
         '<span class="ht-item-text">' +
           '<span class="ht-item-top"><strong>' + esc(ten) + '</strong>' +
@@ -762,7 +790,7 @@
             (c.unread_count ? '<span class="ht-badge" title="' + esc(window.t("ht.chua_doc_title", { count: c.unread_count })) + '">' +
               c.unread_count + '</span>' : "") +
           '</span>' +
-          (userTags || acc ? '<span class="ht-item-utags">' + userTags + acc + '</span>' : "") +
+          (userTags ? '<span class="ht-item-utags">' + userTags + '</span>' : "") +
         '</span></button>';
     }).join("") + (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +
                             esc(window.t("ht.xem_them")) + '</button></div>' : "");
@@ -1086,7 +1114,7 @@
   // ---------------------------------------------------------------- một hội thoại
   async function mo(id) {
     closeRowMenu(false);
-    if (id !== _chon) { _tagPop = false; _tagEdit = 0; _tagErr = ""; _draftEdit = null; _noteEdit = null; }
+    if (id !== _chon) { _tagPop = false; _tagEdit = 0; _tagErr = ""; _draftEdit = null; _noteEdit = null; _msheet = false; }
     _chon = id;
     _dauVetTin = "";
     _actNote = null;
@@ -1102,6 +1130,7 @@
   function dongThread() {
     _chon = null;
     _msgs = [];
+    _infoN = false; _msheet = false;
     var w = _host.querySelector(".ht-wrap");
     if (w) w.classList.remove("thread-on");
     var th = _host.querySelector(".ht-thread");
@@ -1234,25 +1263,49 @@
     var who = V && V.WHO.indexOf(c.who) >= 0 ? c.who : "log";
     var bar = V ? V.modeBarHtml(c, ic) : "";
     var threeModes = !!(c.bot_id && c.ai_allowed);
+    var say = V ? V.whoLabel(who) + ": " + V.whoSentence(c) : "";
+    // 0.397.0 (owner, 2026-10-29): when the A.I. may answer here the three modes sit in the head (a chip opening a sheet
+    // on a narrow column) and the coloured bar under it only shows when the chat needs the owner. Otherwise the bar
+    // carries what can be done (Allow, Let the A.I. answer here, Create an A.I.) as before.
+    var calm = threeModes && who !== "you";
+    var F = window.JavisConvFilters;
+    var tags = F && c.tags && c.tags.length ? F.tagChips(c.tags, 3) : "";
+    var item = _items.filter(function (k) { return k.id === c.id; })[0] || {};
+    var soTin = Number(c.message_count || item.message_count) || 0;
     box.innerHTML =
       '<div class="ht-head">' +
         '<button type="button" class="s-btn-ghost ht-back" aria-label="' + esc(window.t("ib.back")) + '">' + ic("arrow-left") + '</button>' +
         avatarHtml(c, ten) +
-        '<div class="ht-head-text"><strong>' + esc(ten) + '</strong>' +
+        '<div class="ht-head-text"><span class="ib-hname"><strong>' + esc(ten) + '</strong>' +
+          '<span class="ib-htags">' + tags + '<button type="button" class="ib-htag-add" aria-label="' + esc(window.t("ht.tag_title")) + '">' +
+            ic("plus") + '<span>' + esc(window.t("ht.tag_btn")) + '</span></button></span></span>' +
           '<small>' + chipKenh(c.channel) + (accLabel(c) ? ' · ' + esc(accLabel(c)) : "") +
-          (c.chat_type === "group" ? ' · ' + esc(window.t("ht.nhom")) : "") + '</small></div>' +
-        '<button type="button" class="s-btn-ghost ib-info-btn" aria-expanded="' + infoOpen() + '" title="' + esc(window.t("ib.info_t")) + '">' +
-          ic("info") + '<span>' + esc(window.t("ib.info")) + '</span></button>' +
+          (c.chat_type === "group" ? ' · ' + esc(window.t("ht.nhom")) : "") +
+          (soTin ? ' · ' + esc(window.t("sess.msgs", { count: soTin })) : "") + '</small></div>' +
+        (threeModes ? '<span class="ib-hmode" title="' + esc(say) + '">' + bar + '</span>' + (V ? V.modeChipHtml(c, ic) : "") : "") +
+        '<button type="button" class="s-btn-ghost ib-info-btn" aria-expanded="' + infoOpen() + '" aria-label="' + esc(window.t("ib.info_t")) +
+          '" title="' + esc(window.t("ib.info_t")) + '">' + ic("info") + '</button>' +
       '</div>' +
-      '<div class="ib-aibar w-' + who + '">' + (threeModes ? bar : "") +
+      '<div class="ib-aibar w-' + who + '"' + (calm ? " hidden" : "") + '>' +
         '<span class="ib-say"><span class="ib-dot w-' + who + '"></span><span><b>' + esc(V ? V.whoLabel(who) : "") + ':</b> ' +
           esc(V ? V.whoSentence(c) : "") + '</span></span>' +
         (threeModes ? (c.mode === "human" ? '<button type="button" class="ib-link ib-back-ai">' + esc(window.t("ib.back_ai")) + '</button>' : "") : bar) +
       '</div>' +
       '<div class="ht-msgs">' + nutTinCu() + _msgs.map(veTin).join("") + renderSilenceLine(c) + '</div>' +
-      (guiDuoc ? veCompose(c) : '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>');
+      (guiDuoc ? veCompose(c) : '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>') +
+      '<div class="ib-msheet"' + (_msheet && threeModes ? "" : " hidden") + '>' + (_msheet && threeModes && V ? V.modeSheetHtml(c, ic) : "") + '</div>';
     box.querySelector(".ht-back").onclick = dongThread;
     box.querySelector(".ib-info-btn").onclick = function () { setInfo(!infoOpen()); };
+    box.querySelector(".ib-htag-add").onclick = function () { _tagPop = true; _tagEdit = 0; _tagErr = ""; setInfo(true); };
+    var chip = box.querySelector(".ib-mchip");
+    if (chip) chip.onclick = function () { setSheet(true); };
+    box.querySelector(".ib-msheet").onclick = function (e) {
+      var b = e.target.closest && e.target.closest("[data-close], .ib-mso, .ib-mso-info");
+      if (!b) return;
+      setSheet(false);
+      if (b.classList.contains("ib-mso")) setWho(c, b.dataset.m);
+      else if (b.classList.contains("ib-mso-info")) setInfo(true);
+    };
     box.querySelectorAll(".ib-m").forEach(function (b) {
       b.onclick = function () { setWho(c, b.dataset.m); };
     });
@@ -1292,6 +1345,10 @@
       ta.onkeydown = function (e) {
         if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); gui(c); }
       };
+      // The box is one line and grows with what is typed (up to the CSS max-height), instead of a resize handle.
+      var grow = function () { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
+      ta.oninput = grow;
+      if (nhapDo) grow();
       box.querySelector(".ht-send").onclick = function () { gui(c); };
       var ask = box.querySelector(".ib-ask");
       if (ask) ask.onclick = function () { aiReply(c, ta.value.trim(), "ask"); };
@@ -1299,18 +1356,40 @@
     paintInfo();
   }
 
+  // The phone's "who replies" sheet: drawn inside the chat column, so the 5-second redraw keeps it as it is.
+  function setSheet(on) {
+    _msheet = !!on;
+    var V = window.JavisInboxV5, sh = _host && _host.querySelector(".ht-thread .ib-msheet");
+    if (!sh || !V) return;
+    sh.hidden = !_msheet;
+    sh.innerHTML = _msheet ? V.modeSheetHtml(_conv || {}, ic) : "";
+    var f = _msheet ? sh.querySelector(".ib-mso.on") : _host.querySelector(".ib-mchip");
+    if (f) f.focus();
+  }
+
   // ---------------------------------------------------------------- Info panel (Chatbot v5)
   // The customer (contact, tags, the owner's note), "A.I. in this chat" (who replies; in a group when the A.I. speaks up;
   // how long it waits after you type), and the channel. Every field is a dropdown; a change shows a toast with Undo.
   function narrow() { try { return window.matchMedia("(max-width: 1200px)").matches; } catch (e) { return false; } }
-  function infoOpen() { return _info === null ? !narrow() : _info; }
+  // Wide screens keep the owner's choice in this browser; on a narrow one the panel covers the chat, so it opens only
+  // when asked and closes when the chat does.
+  var _infoN = false;
+  function infoOpen() { return narrow() ? _infoN : _info; }
   function setInfo(on) {
-    _info = !!on;
+    if (narrow()) _infoN = !!on;
+    else {
+      _info = !!on;
+      try { localStorage.setItem(INFO_KEY, _info ? "1" : "0"); } catch (e) { /* private mode: this visit only */ }
+    }
     var b = _host && _host.querySelector(".ib-info-btn");
-    if (b) b.setAttribute("aria-expanded", String(_info));
+    if (b) b.setAttribute("aria-expanded", String(infoOpen()));
     paintInfo();
-    if (_info) { var x = _host && _host.querySelector(".ht-info .ib-x"); if (x && narrow()) x.focus(); }
-    else if (b && narrow()) b.focus();
+    if (infoOpen()) { var x = _host && _host.querySelector(".ht-info .ib-x"); if (x && narrow()) x.focus(); }
+    else if (narrow()) {
+      // On a phone the Info button is hidden behind the mode chip: give the focus back to whichever shows.
+      var back = b && b.offsetParent ? b : _host && _host.querySelector(".ib-mchip");
+      if (back) back.focus();
+    }
   }
 
   var YIELD_MIN = [0, 5, 10, 30, 60];
@@ -1521,7 +1600,17 @@
   }
 
   var _tagEditColor = "", _tagNewText = "", _tagEditText = null;   // picker colour being edited, and what is typed (kept across redraws)
+  // The tag chips beside the name in the chat head follow every change made in the Info panel (no thread redraw).
+  function paintHeadTags() {
+    var h = _host && _host.querySelector(".ht-thread .ib-htags"), F = window.JavisConvFilters;
+    if (!h || !_conv || !F) return;
+    var add = h.querySelector(".ib-htag-add");
+    h.querySelectorAll(".ht-tag, .ht-tag-more").forEach(function (x) { x.remove(); });
+    if (add && _conv.tags && _conv.tags.length) add.insertAdjacentHTML("beforebegin", F.tagChips(_conv.tags, 3));
+  }
+
   function veTagRow() {
+    paintHeadTags();
     var row = _host && _host.querySelector(".ht-info .ht-tagrow");
     var F = window.JavisConvFilters;
     if (!row || !_conv || !F) return;
@@ -1798,19 +1887,22 @@
     var V = window.JavisInboxV5, k = kenhCua(c.channel), t = window.t;
     var laBot = !!c.bot_id;
     var draft = c.draft && String(c.draft.text || "").trim() ? c.draft : null;
-    // Only the warning that matters stays above the box: on a personal account the message goes out under the owner's
-    // own name. The "sending takes over" and "example command" notes went (owner, 2026-10-28: a good UI needs no notes).
-    var ghiChu = k.kind === "account" ? t("ht.gui_ten_ban", { kenh: k.nhan }) : "";
+    // On a personal account the message goes out under the owner's own name: the box says so in its placeholder
+    // (0.397.0, the note line above the box took a row of the chat). The "sending takes over" and "example command"
+    // notes went (owner, 2026-10-28: a good UI needs no notes).
+    var ten = k.kind === "account" ? accLabel(c) || k.nhan : "";
+    var ph = ten ? t(laBot ? "ib.cin_ph_as_ai" : "ib.cin_ph_as", { ten: ten }) : t(laBot ? "ib.cin_ph_ai" : "ht.gui_ph");
     var busy = _aiBusy === "redo" || _aiBusy === "send" ? _aiBusy : "";
-    return '<div class="ht-compose">' + noteHtml() +
+    return '<div class="ht-compose' + (draft ? " has-draft" : "") + '">' + noteHtml() +
+      '<div class="ib-cbox">' +
       (draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
-      (ghiChu ? '<div class="ht-compose-note">' + ic("info") + ' ' + esc(ghiChu) + '</div>' : "") +
       '<div class="ib-cin">' +
-        '<textarea rows="1" placeholder="' + esc(t(laBot ? "ib.cin_ph_ai" : "ht.gui_ph")) + '" aria-label="' + esc(t("ht.gui_ph")) + '"></textarea>' +
-        (laBot ? '<button type="button" class="s-btn-ghost ib-ask"' + (_aiBusy ? " disabled" : "") + ' title="' + esc(t("ib.ai_reply_t")) + '">' +
+        '<textarea rows="1" placeholder="' + esc(ph) + '" aria-label="' + esc(t("ht.gui_ph")) + '"></textarea>' +
+        (laBot ? '<button type="button" class="s-btn-ghost ib-ask"' + (_aiBusy ? " disabled" : "") + ' title="' + esc(t("ib.ai_reply_t")) +
+          '" aria-label="' + esc(t("ib.ai_reply")) + '">' +
           ic(_aiBusy === "ask" ? "loader" : "sparkles") + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
-        '<button type="button" class="s-btn ht-send">' + ic("send") + '<span>' + esc(t("ht.gui")) + '</span></button>' +
-      '</div>' +
+        '<button type="button" class="s-btn ht-send" aria-label="' + esc(t("ht.gui")) + '">' + ic("send") + '<span>' + esc(t("ht.gui")) + '</span></button>' +
+      '</div></div>' +
     '</div>';
   }
 
@@ -1865,9 +1957,12 @@
         ' ' + esc(t.message_type) + '</span>' : "";
     var loi = t.metadata && t.metadata.loi
       ? '<div class="ht-msg-loi">' + ic("triangle-alert") + ' ' + esc(t.metadata.loi) + '</div>' : "";
+    // Who and when go under the bubble (0.397.0). A private chat's customer is named in the head already, so only a
+    // group shows who wrote each message.
+    if (lop === "khach" && _conv && _conv.chat_type !== "group") ai = "";
     return '<div class="ht-msg ' + lop + '">' +
-      '<div class="ht-msg-h">' + esc(ai) + (ai ? ' · ' : '') + esc(gio(t.created_at)) + '</div>' +
       '<div class="ht-bubble">' + loai + than + '</div>' + loi +
+      '<div class="ht-msg-h">' + esc(ai) + (ai ? ' · ' : '') + esc(gio(t.created_at)) + '</div>' +
     '</div>';
   }
 

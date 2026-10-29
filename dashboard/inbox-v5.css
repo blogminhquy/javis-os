@@ -23,7 +23,7 @@
 .ib-v5 .ht-list { border: 0; border-radius: 0; padding: 0; gap: 0; background: none; }
 .ib-v5 .ht-thread { border: 0; border-radius: 0; background: none; }
 
-/* ---- head of the list: channel picker, search + Filter, quick "who" filters, active filter chips ---- */
+/* ---- head of the list: search + Filter, the "who" dropdown and the channel picker, active filter chips ---- */
 .ib-lhead { padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--hairline); }
 .ib-picker { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 12px; border-radius: 12px;
   border: 1px solid var(--border); background: var(--bg3); color: var(--text); font: inherit; cursor: pointer; min-width: 0; }
@@ -44,11 +44,6 @@
 .ib-fbtn.on { border-color: var(--ib-ai); color: var(--ib-ai-ink); background: var(--ib-ai-wash); }
 .ib-fbtn-n { background: var(--ib-ai); color: #fff; border-radius: 999px; padding: 0 7px; font-weight: 600; line-height: 1.5; }
 .ib-fbtn-n[hidden] { display: none; }
-.ib-quick { display: flex; flex-wrap: wrap; gap: 6px; }
-.ib-q { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font: inherit; white-space: nowrap;
-  border: 1px solid var(--border); background: none; color: var(--text2); cursor: pointer; }
-.ib-q svg { width: 16px; height: 16px; }
-.ib-q.on { border-color: var(--text); color: var(--text); font-weight: 600; }
 .ib-qn { color: var(--text3); font-weight: 400; }
 .ib-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; background: var(--ib-log); }
 .ib-dot.w-you { background: var(--ib-you); } .ib-dot.w-ai { background: var(--ib-ai); }
@@ -241,8 +236,6 @@
   .ib-fm-ft { grid-column: 1; }
 }
 @media (max-width: 640px) {
-  .ib-quick { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .ib-q { flex: none; }
   .ib-mode-l { display: none; }
   .ib-mode { width: 100%; }
   .ib-m { flex: 1 1 0; justify-content: center; padding: 7px 4px; }

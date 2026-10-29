@@ -30,17 +30,29 @@
     return tt("ib.wc_" + (known.indexOf(code) >= 0 ? code : "not_allowed"));
   }
 
-  // Quick filters above the list: Needs you, A.I. is handling, You are handling, All. `counts` = server who_counts.
-  function quickHtml(current, counts, icon) {
-    var I = icon || noIcon, n = counts || {};
-    var all = ["you", "ai", "owner", "log"].reduce(function (s, k) { return s + (Number(n[k]) || 0); }, 0);
-    return [["you", "you"], ["ai", "ai"], ["owner", "owner"], ["", ""]].map(function (q) {
-      var on = (current || "") === q[0];
-      var mark = q[0] ? '<span class="ib-dot w-' + q[1] + '"></span>' : I("inbox");
-      var num = q[0] ? (Number(n[q[0]]) || 0) : all;
-      return '<button type="button" class="ib-q' + (on ? " on" : "") + '" data-who="' + q[0] + '" aria-pressed="' + on + '">' + mark +
-        '<span>' + esc(q[0] ? whoLabel(q[0]) : tt("ib.who_all")) + '</span>' + (counts ? '<span class="ib-qn">' + num + '</span>' : "") +
-        '</button>';
+  // The "who" view of the list (owner, 2026-10-29): one dropdown instead of four chips that wrapped onto two lines in
+  // the narrow list column. The button keeps the current view and its count in sight; the menu says what each one
+  // means. `counts` = server who_counts; null on the first paint, when no number is shown yet.
+  var WHO_VIEWS = ["you", "ai", "owner", ""];
+  function whoCount(w, counts) {
+    var n = counts || {};
+    if (w) return Number(n[w]) || 0;
+    return ["you", "ai", "owner", "log"].reduce(function (s, k) { return s + (Number(n[k]) || 0); }, 0);
+  }
+  function whoMark(w, I) { return w ? '<span class="ib-dot w-' + w + '"></span>' : I("inbox"); }
+  function whoButtonHtml(current, counts, icon) {
+    var I = icon || noIcon, w = WHO_VIEWS.indexOf(current || "") >= 0 ? current || "" : "";
+    return whoMark(w, I) + '<span class="ib-who-t">' + esc(tt("ib.wq_" + (w || "all"))) + '</span>' +
+      (counts ? '<span class="ib-qn' + (w === "you" ? " you" : "") + '">' + whoCount(w, counts) + '</span>' : "") + I("chevron-down");
+  }
+  function whoMenuHtml(current, counts, icon) {
+    var I = icon || noIcon;
+    return WHO_VIEWS.map(function (w) {
+      var on = (current || "") === w;
+      return '<button type="button" class="ib-wm-o' + (on ? " on" : "") + (w ? "" : " all") + '" role="menuitemradio" aria-checked="' + on +
+        '" data-who="' + w + '">' + whoMark(w, I) + '<span class="ib-wm-t"><b>' + esc(tt("ib.wq_" + (w || "all"))) + '</b><small>' +
+        esc(tt("ib.wq_" + (w || "all") + "_d")) + '</small></span>' + (counts ? '<span class="ib-qn">' + whoCount(w, counts) + '</span>' : "") +
+        '<span class="ib-wm-ck">' + (on ? I("check") : "") + '</span></button>';
     }).join("");
   }
 
@@ -205,6 +217,33 @@
       }).join("") + '</span>';
   }
 
+  // ---- "Who replies" on a narrow chat column (phones): one chip with the current mode, opening a sheet ------------------
+  // The sheet lists the three modes with a line each on what they do, then "Customer info" (the Info panel has no button
+  // of its own on a phone: the chip is the one place for the chat's settings).
+  var MODES = [["ai", "sparkles"], ["draft", "pen-line"], ["human", "hand"]];
+  function modeChipHtml(c, icon) {
+    var I = icon || noIcon, x = c || {};
+    var mode = x.mode === "human" ? "human" : x.mode === "draft" ? "draft" : "ai";
+    var m = MODES.filter(function (k) { return k[0] === mode; })[0];
+    return '<button type="button" class="ib-mchip m-' + mode + '" aria-haspopup="dialog" aria-label="' +
+      esc(tt("ib.mchip_aria", { mode: tt("ib.m_" + mode + "_s") })) + '">' + I(m[1]) + '<span>' + esc(tt("ib.m_" + mode + "_s")) + '</span>' +
+      I("chevron-down") + '</button>';
+  }
+  function modeSheetHtml(c, icon) {
+    var I = icon || noIcon, x = c || {};
+    var mode = x.mode === "human" ? "human" : x.mode === "draft" ? "draft" : "ai";
+    return '<div class="ib-msheet-bg" data-close="1"></div>' +
+      '<div class="ib-msheet-box" role="dialog" aria-modal="true" aria-labelledby="ibMsheetH"><span class="ib-msheet-grip" aria-hidden="true"></span>' +
+      '<h3 id="ibMsheetH">' + esc(tt("ib.msheet_h")) + '</h3>' +
+      MODES.map(function (m) {
+        var on = m[0] === mode;
+        return '<button type="button" class="ib-mso m-' + m[0] + (on ? " on" : "") + '" role="menuitemradio" aria-checked="' + on + '" data-m="' +
+          m[0] + '"><span class="ib-mso-ic">' + I(m[1]) + '</span><span class="ib-wm-t"><b>' + esc(tt("ib.m_" + m[0] + "_s")) + '</b><small>' +
+          esc(tt("ib.m_" + m[0] + "_d")) + '</small></span><span class="ib-wm-ck">' + (on ? I("check") : "") + '</span></button>';
+      }).join("") +
+      '<button type="button" class="ib-mso-info">' + I("info") + '<span>' + esc(tt("ib.info_t")) + '</span></button></div>';
+  }
+
   // ---- the draft box (a draft the bot wrote in "drafts" mode, or the answer to the owner's "A.I. reply") -------------
   function draftHtml(d, busy, icon) {
     var I = icon || noIcon, x = d || {};
@@ -218,7 +257,8 @@
   }
 
   window.JavisInboxV5 = {
-    WHO: WHO, whoLabel: whoLabel, whoSentence: whoSentence, quickHtml: quickHtml, pickerSummary: pickerSummary, pickerHtml: pickerHtml,
-    filterCats: filterCats, filterMenuHtml: filterMenuHtml, activeChips: activeChips, modeBarHtml: modeBarHtml, draftHtml: draftHtml,
+    WHO: WHO, whoLabel: whoLabel, whoSentence: whoSentence, whoButtonHtml: whoButtonHtml, whoMenuHtml: whoMenuHtml,
+    pickerSummary: pickerSummary, pickerHtml: pickerHtml, filterCats: filterCats, filterMenuHtml: filterMenuHtml, activeChips: activeChips,
+    modeBarHtml: modeBarHtml, modeChipHtml: modeChipHtml, modeSheetHtml: modeSheetHtml, draftHtml: draftHtml,
   };
 })();

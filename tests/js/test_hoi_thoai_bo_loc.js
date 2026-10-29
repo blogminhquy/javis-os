@@ -100,8 +100,8 @@ check("query thoát ký tự lạ trong id bot", F.query({ bot: "a&b=c d" }) ===
 check("query bỏ giá trị lạ của tình trạng (không gửi lên server)", F.query({ status: "hack", who: "x" }) === "");
 
 // ---- 2. hợp đồng với conversations.js ----
-check("list head: channel picker, search with the Filter button, quick filters, active chips, two popovers",
-  ["ib-picker", "ht-search", "ib-fbtn", "ib-quick", "ib-activef", "ib-pop ib-pk", "ib-pop ib-fm"].every((c) => CV.indexOf('class="' + c) > 0));
+check("list head: search with the Filter button, the who dropdown and the channel picker, active chips, three popovers",
+  ["ht-search", "ib-fbtn", "ib-whobtn", "ib-picker", "ib-activef", "ib-pop ib-wm", "ib-pop ib-pk", "ib-pop ib-fm"].every((c) => CV.indexOf('class="' + c) > 0));
 check("KHÔNG còn hàng dropdown cũ (bot, tình trạng, loại, kênh, thẻ) và chip tài khoản",
   !/ht-f-bot|ht-f-status|ht-f-type|ht-f-channel|ht-f-tag|ht-f-contact|ht-fclear|ht-loc-tk|_tkLoc|_tagLoc/.test(CV) && !/function paintFilters/.test(CV));
 check("gửi tham số lọc lên server qua JavisConvFilters.query", /JavisConvFilters\.query\(filterState\(\)\)/.test(CV) &&
@@ -111,9 +111,9 @@ check("đọc facets, bot, who_counts từ server, dùng cho cả nhịp làm m�
   /JSON\.stringify\(\[_items, _stats, _facets, _botList, _conDS, _tags, _whoCounts\]\)/.test(CV));
 check("the popovers redraw only on the owner's own actions, never on the 5-second refresh",
   /function paintPops\(\)/.test(CV) && !/function tai\(im\)[\s\S]*?paintPops\(\)[\s\S]*?\n  }\n/.test(CV.slice(CV.indexOf("async function tai(im)"), CV.indexOf("async function taiThem"))));
-check("a quick filter, a picker tick, a menu choice or a chip x saves the filters and reloads",
+check("a who choice, a picker tick, a menu choice or a chip x saves the filters and reloads",
   /function onFilterChange\(\) \{ saveFilters\(\); paintHead\(\); tai\(\); \}/.test(CV) &&
-  /_who = b\.dataset\.who \|\| "";\s*onFilterChange\(\)/.test(CV) && /dropFilter\(b\.dataset\.k, b\.dataset\.v\);\s*onFilterChange\(\)/.test(CV) &&
+  /_who = b\.dataset\.who \|\| "";\s*setPop\(""\);\s*onFilterChange\(\)/.test(CV) && /dropFilter\(b\.dataset\.k, b\.dataset\.v\);\s*onFilterChange\(\)/.test(CV) &&
   (CV.match(/onFilterChange\(\);\n\s*paintPops\(\);/g) || []).length >= 1 && /clearMenuFilters\(\);\n\s*paintPops\(\);/.test(CV));
 check("ticking a channel ticks every nick or Page of it, not only the ones the search shows",
   /accList\(\)\.filter\(function \(a\) \{ return a\.channel === t\.dataset\.ch; \}\)/.test(CV));
@@ -131,8 +131,8 @@ check("index.html nạp module lọc và inbox-v5 TRƯỚC conversations.js, kè
   HTML.indexOf("conversations-filters.js") < HTML.indexOf("/static/conversations.js") &&
   HTML.indexOf("/static/inbox-v5.js") > 0 && HTML.indexOf("/static/inbox-v5.js") < HTML.indexOf("/static/conversations.js") &&
   HTML.indexOf("/static/inbox-v5.css") > 0);
-check("CSS: popovers hide for real with [hidden]; phones scroll the quick filters sideways",
-  /\.ib-pop\[hidden\] \{ display: none; \}/.test(CSS) && /\.ib-quick \{ flex-wrap: nowrap; overflow-x: auto;/.test(CSS));
+check("CSS: popovers hide for real with [hidden]; the old chip row is gone", /\.ib-pop\[hidden\] \{ display: none; \}/.test(CSS) &&
+  !/\.ib-quick|\.ib-q\b/.test(CSS) && !/ib-quick|quickHtml/.test(CV));
 
 // ---- 3. từ điển ----
 const used = new Set();
