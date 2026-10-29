@@ -98,6 +98,18 @@ check("'Put an A.I. on several' ticks the places without a bot, one request each
   /for \(var i = 0; i < ids\.length; i\+\+\)/.test(KN) && /ib\.kn_bulk_done/.test(KN) && /ib\.kn_bulk_some/.test(KN));
 check("the account card (record, import, edit, delete) is the same one, from conversations.js", /C\.accountCard\(a\)/.test(KN) &&
   /accountCard: function \(a\) \{ return theTK\(a\); \}/.test(CV));
+// 0.404.0 (owner, 2026-10-29): the card took the top of the pane; it now opens from an Info button in a popup.
+const PANE = KN.slice(KN.indexOf("function paintPane("), KN.indexOf("function chatRows("));
+const INFO = KN.slice(KN.indexOf("function openInfo("), KN.indexOf("function openBulk("));
+check("the pane no longer draws the account card; an Info button does, with a red dot when the account has an error",
+  !/accountCard/.test(PANE) && !/kn-card/.test(PANE) && /class="s-btn-ghost kn-info" aria-haspopup="dialog"/.test(PANE) &&
+  /a\.loi \? '<span class="kn-info-bad"/.test(PANE) && /ib\.kn_info"/.test(PANE));
+check("the Info popup: the same card, Bot settings when there is a bot, closes on X, Escape, outside, or a card button",
+  /C\.accountCard\(a\)/.test(INFO) && /role="dialog" aria-modal="true"/.test(INFO) && /a\.bot_id \? '<div class="ht-form-acts"><button type="button" class="s-btn-ghost kn-botset">/.test(INFO) &&
+  /e\.key === "Escape"/.test(INFO) && /e\.target === box/.test(INFO) && /\.ht-acc-acts button"\)\) setTimeout\(close, 0\)/.test(INFO) &&
+  /C\.openBot\(a\.bot_id\)/.test(INFO));
+check("the hint above the chat list is gone; only the no-bot hint stays", !/ib\.kn_hint"/.test(KN) && !("ib.kn_hint" in VI) && !("ib.kn_hint" in EN) &&
+  /\(a\.bot_id \? "" : '<p class="ib-hint">' \+ esc\(t\("ib\.kn_hint_nobot"\)\)/.test(PANE));
 check("a nick's groups and people come 20 a page, Previous / Next with 'from-to of n', search asks the server",
   /var PAGE = 20/.test(KN) && /"&offset=" \+ pg \* PAGE/.test(KN) && /if \(d\.total != null\) _total = d\.total/.test(KN) &&
   /ib\.kn_range/.test(KN) && /\(q \? "&q=" \+ encodeURIComponent\(q\) : ""\)/.test(KN) && /setTimeout\(function \(\) \{ loadChats\(_sel, 0\); \}, 300\)/.test(KN) &&

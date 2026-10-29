@@ -298,6 +298,17 @@
 .kn-unsaved { color: var(--ib-you-ink); font-weight: 600; }
 .kn-card { padding: 12px 16px 0; }
 .kn-card .ht-acc { margin: 0; }
+/* Info button and the account card popup (0.404.0) */
+.kn-assign .kn-info { position: relative; }
+.kn-info-bad { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--red, #e5484d); border: 2px solid var(--bg2); }
+.kn-infobox { max-width: 560px; padding: 14px 16px 16px; }
+.kn-ih { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.kn-ih h3 { flex: 1; margin: 0; min-width: 0; }
+.kn-ih .kn-ix { padding: 4px 6px; display: inline-flex; }
+.kn-infobox .kn-card { padding: 0; }
+.kn-infobox .ht-form-acts { margin-top: 10px; }
+.kn-infobox .kn-botset { display: inline-flex; gap: 6px; align-items: center; }
 .kn-ch { padding: 12px 0 0; }
 .kn-chh { display: flex; gap: 10px; align-items: center; padding: 0 16px; flex-wrap: wrap; }
 .kn-chh b { font-size: 17px; }

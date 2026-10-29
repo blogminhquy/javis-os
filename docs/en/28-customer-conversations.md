@@ -111,7 +111,7 @@ Since 0.377.0 every nick and Page lives on the **Channels** tab. On the left: **
 Pick a nick or Page and the right side shows:
 
 - **AI on duty for this Page**: one bot dropdown. **Cancel** and **Save** appear only after a change; nothing changes before Save. **No AI needed** means the place is only logged and no longer counts as a job on the tab. Changing the bot moves the place's existing chats to the new bot. A bot left with nothing to serve is switched off, and Javis says so.
-- **The account card**: state, record switch, import history, edit, delete (described below).
+- **Info**: a button next to the bot dropdown. It opens the account card in a popup: state, record switch, import history, edit, delete (described below), and **Bot settings** when a bot is on duty. The button shows a red dot when the account has an error. Since 0.404.0 the card no longer sits above the chat list.
 - **Groups and people**: one **AI here** switch per chat, a sentence on who is handling it, **Allow** when someone called the AI in a group not allowed yet, and **Open chat**. Every change can be undone.
 
 The number on the Channels tab counts the places that need you: an account in error, or one with no bot that you did not mark "No AI needed".

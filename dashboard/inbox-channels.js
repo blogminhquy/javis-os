@@ -2,8 +2,8 @@
  *
  * Left: every nick and Page of the open brain grouped by channel with its real logo, "Connect a new channel", and per
  * channel "Put an A.I. on several ..." (tick, pick a bot, Save). Right: the picked nick or Page with ONE dropdown
- * "A.I. on duty here" (Cancel / Save appear only after a change; "No A.I. needed" is a choice too), its account card
- * (record switch, import history, edit, delete: the same card the Bot tab used to show), and its chats, each with a
+ * "A.I. on duty here" (Cancel / Save appear only after a change; "No A.I. needed" is a choice too), an Info button that
+ * opens its account card in a popup (record switch, import history, edit, delete, bot settings), and its chats, each with a
  * switch "A.I. here" (POST /conversations/{id}/ai), who is handling it, Allow when someone called the A.I., Open chat.
  *
  * conversations.js owns the page and hands this file a context object (helpers, the account list, actions), so the
@@ -143,16 +143,17 @@
           (changed ? '<span class="kn-unsaved">' + esc(t("ib.kn_unsaved")) + '</span>' +
             '<button type="button" class="s-btn-ghost kn-cancel">' + esc(t("common.cancel")) + '</button>' +
             '<button type="button" class="s-btn kn-save"' + (_busy ? " disabled" : "") + '>' + ic("check") + ' ' + esc(t("common.save")) + '</button>'
-          : (a.bot_id ? '<button type="button" class="s-btn-ghost kn-botset">' + ic("settings") + ' ' + esc(t("ib.kn_bot_settings")) + '</button>' : "")) +
+          : "") +
+          // The account card lives behind this button (owner, 2026-10-29: it took the top of the pane). A red dot when
+          // the account has an error, so hiding the card does not hide the error.
+          '<button type="button" class="s-btn-ghost kn-info" aria-haspopup="dialog"' + (a.loi ? ' title="' + esc(a.loi) + '"' : "") + '>' +
+            ic("info") + ' ' + esc(t("ib.kn_info")) + (a.loi ? '<span class="kn-info-bad" aria-hidden="true"></span>' : "") + '</button>' +
         '</div></div>' +
-      '<div class="kn-card"></div>' +
       '<div class="kn-ch"><div class="kn-chh"><b>' + esc(t("ib.kn_chats")) + '</b>' +
         '<input type="search" class="kn-q" placeholder="' + esc(t("ib.kn_q")) + '" aria-label="' + esc(t("ib.kn_q")) + '"></div>' +
-        '<p class="ib-hint">' + esc(t(a.bot_id ? "ib.kn_hint" : "ib.kn_hint_nobot")) + '</p><div class="kn-list">' + chatRows(a) + '</div></div>';
+        (a.bot_id ? "" : '<p class="ib-hint">' + esc(t("ib.kn_hint_nobot")) + '</p>') + '<div class="kn-list">' + chatRows(a) + '</div></div>';
     var q = box.querySelector(".kn-q");
     q.value = _chatQ;
-    var card = C.accountCard(a);
-    if (card) box.querySelector(".kn-card").appendChild(card);
     if (_chatsFor !== a.account_key) loadChats(a.account_key, _page);
   }
 
@@ -226,7 +227,7 @@
     if (b.classList.contains("kn-bulk")) return openBulk(b.dataset.ch);
     if (b.classList.contains("kn-cancel")) { _pend = null; paintPane(); return; }
     if (b.classList.contains("kn-save")) return saveDuty();
-    if (b.classList.contains("kn-botset")) { var a = acc(_sel); if (a) C.openBot(a.bot_id); return; }
+    if (b.classList.contains("kn-info")) { var a = acc(_sel); if (a) openInfo(a, b); return; }
     if (b.classList.contains("kn-open")) return C.openChat(parseInt(b.dataset.id, 10));
     if (b.classList.contains("kn-allow")) return setAi(parseInt(b.dataset.id, 10), true);
     if (b.classList.contains("ib-tg")) {
@@ -296,6 +297,37 @@
     loadChats(_sel, _page);
   }
 
+  // The account card of the picked nick or Page in a popup: the same card the pane used to show above the chats, plus
+  // "Bot settings". A button on the card that leads elsewhere (view chats, Connections, edit) closes the popup first.
+  function openInfo(a, from) {
+    var box = document.createElement("div");
+    box.className = "ht-modal";
+    box.innerHTML = '<div class="ht-form ib-v5 kn-infobox" role="dialog" aria-modal="true" aria-label="' + esc(t("ib.kn_info_title", { unit: unit(a.channel) })) + '">' +
+      '<div class="kn-ih"><h3>' + esc(t("ib.kn_info_title", { unit: unit(a.channel) })) + '</h3>' +
+        '<button type="button" class="s-btn-ghost kn-ix" aria-label="' + esc(t("common.close")) + '">' + ic("x") + '</button></div>' +
+      '<div class="kn-card"></div>' +
+      (a.bot_id ? '<div class="ht-form-acts"><button type="button" class="s-btn-ghost kn-botset">' + ic("settings") + ' ' +
+        esc(t("ib.kn_bot_settings")) + '</button></div>' : "") + '</div>';
+    var card = C.accountCard(a);
+    if (card) box.querySelector(".kn-card").appendChild(card);
+    document.body.appendChild(box);
+    var close = function () {
+      if (!box.parentNode) return;
+      box.parentNode.removeChild(box);
+      if (from && document.body.contains(from)) from.focus();
+    };
+    box.onmousedown = function (e) { if (e.target === box) close(); };
+    box.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+    box.querySelector(".kn-ix").onclick = close;
+    var bs = box.querySelector(".kn-botset");
+    if (bs) bs.onclick = function () { close(); C.openBot(a.bot_id); };
+    // Card buttons run their own handler first (bubbling reaches the box after the button), then the popup goes.
+    box.querySelector(".kn-card").addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest(".ht-acc-acts button")) setTimeout(close, 0);
+    });
+    box.querySelector(".kn-ix").focus();
+  }
+
   // "Put an A.I. on several Pages": tick the accounts, pick a bot, Save. One request per account, in order.
   function openBulk(ch) {
     var ds = accs().filter(function (a) { return a.channel === ch; });
@@ -339,5 +371,5 @@
   // Number on the Channels tab: nicks and Pages that need something (an error, or no bot and none was declined).
   function jobs(list) { return (list || []).filter(needsWork).length; }
 
-  window.JavisInboxChannels = { render: render, jobs: jobs, paint: paint };
+  window.JavisInboxChannels = { render: render, jobs: jobs, paint: paint, openInfo: openInfo };
 })();
