@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.399.0] - 2026-10-29
+### Cải thiện
+- **Tab Kênh và Thống kê của trang Chatbot gọn hơn, Thống kê có thêm chỉ số lợi ích.** (đang làm)
+
 ## [0.398.0] - 2026-10-29
 ### Sửa lỗi
 - **Trả lời khách trên điện thoại: Enter là xuống dòng.** Ở trang Chatbot, bấm Enter trên bàn phím điện thoại trước đây gửi tin luôn, không cách nào viết được dòng thứ hai. Giờ Enter xuống dòng như khung chat chính, muốn gửi thì bấm nút gửi. Trên máy tính giữ nguyên: Enter gửi, Shift+Enter xuống dòng.

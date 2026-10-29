@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.399.0] - 2026-10-29
+### Improved
+- **The Chatbot page's Channels and Stats tabs are tidier; Stats shows what the AI saves you.** (in progress)
+
 ## [0.398.0] - 2026-10-29
 ### Fixed
 - **Replying to customers on a phone: Enter adds a line.** On the Chatbot page, Enter on a phone keyboard used to send right away, with no way to write a second line. Enter now adds a line like in the main chat; press the send button to send. Computers are unchanged: Enter sends, Shift+Enter adds a line.
