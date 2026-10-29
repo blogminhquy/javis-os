@@ -241,7 +241,8 @@ en = json.loads((ROOT / "dashboard/i18n/en.json").read_text(encoding="utf-8"))
 check("bell: filtered notices leave the main list for a 'Filtered (N)' view",
       "!!x.filtered === loc" in js and '"noti.filtered_n"' in js and "data-noti-filtered" in js)
 check("bell: feedback uses the Resonance emoji set plus Needed / Not needed, sent to /inbox/react",
-      all(k in js for k in ('["like", "👍"]', '["love", "❤️"]', '["haha", "😂"]', '["wow", "😮"]', '["sad", "😢"]', '["angry", "😡"]')) and
+      "window.JavisReactions" in js and "R.EMOJI" in js and
+      html.index("/static/reactions.js") < html.index("/static/notifications.js") and
       'data-react-a="needed"' in js and 'data-react-a="not_needed"' in js and '"/inbox/react"' in js)
 check("bell: a Filter tab with each group's mode, rules and undo", 'id="notiTabFilter"' in html and '"/notify/policy/group"' in js and
       '"/notify/policy/undo"' in js and '"/notify/policy/rule"' in js)

@@ -26,8 +26,12 @@
     connection: "noti.grp_connection", incident: "noti.grp_incident", job: "noti.grp_job", agent: "noti.grp_agent",
     team: "noti.grp_team", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
   var MODE_KEY = { all: "noti.mode_all", important: "noti.mode_important", urgent: "noti.mode_urgent", off: "noti.mode_off" };
-  var EMO = [["like", "👍"], ["love", "❤️"], ["haha", "😂"], ["wow", "😮"], ["sad", "😢"], ["angry", "😡"]];
-  function emoOf(v) { var e = EMO.find(function (x) { return x[0] === v; }); return e ? e[1] : ""; }
+  // The six reactions come from the shared module (reactions.js, loaded first): one table for chat, teams and the bell.
+  function EMOS() {
+    var R = window.JavisReactions;
+    return (R && R.EMOJI ? R.EMOJI : []).map(function (r) { return [r.value, r.emoji]; });
+  }
+  function emoOf(v) { var e = EMOS().find(function (x) { return x[0] === v; }); return e ? e[1] : ""; }
   function icon(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }
   // Ngày giờ đi theo NGÔN NGỮ đang chọn, không viết cứng "vi-VN": người đọc bản tiếng Anh
   // mà thấy định dạng ngày kiểu Việt là lạc quẻ. Cả dashboard lấy locale từ đúng chỗ này.
@@ -257,7 +261,7 @@
     return '<div class="noti-react">' +
       '<button type="button" class="noti-react-btn" data-react-toggle aria-expanded="false" aria-label="' + esc(window.t("noti.react")) + '">' +
       (cur ? esc(cur) : icon("smile") + "<span>" + esc(window.t("noti.react")) + "</span>") + "</button>" +
-      '<div class="noti-react-pop" hidden>' + EMO.map(function (e) {
+      '<div class="noti-react-pop" hidden>' + EMOS().map(function (e) {
         return '<button type="button" class="noti-emo' + (re.value === e[0] ? " on" : "") + '" data-react-v="' + e[0] + '" aria-label="' + e[0] + '">' + e[1] + "</button>";
       }).join("") +
       '<button type="button" class="noti-axis' + (re.axis === "needed" ? " on" : "") + '" data-react-a="needed">' + esc(window.t("noti.needed")) + "</button>" +
