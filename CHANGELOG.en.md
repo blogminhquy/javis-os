@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.404.0] - 2026-10-29
+### Improved
+- **A tidier Channels tab.** The account card (status, bot on duty, chat counts, Record chats, Import old messages, View chats, Open Connections) no longer sits above the chat list. The new **Info** button next to "AI on duty" opens it as a popup, unchanged. The button shows a red dot when the account has an error.
+- The "Bot settings" button moved to the bottom of that popup.
+- Removed the hint line above the "Groups and people" list.
+
 ## [0.403.0] - 2026-10-29
 ### Added
 - **Javis Core runs the notifications.** Every notice has a group (Reminders, Questions for you, Chatbot and customers, Connections and sign-in, Incidents, Job results...) and a level: normal, important or urgent.

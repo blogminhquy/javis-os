@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.404.0] - 2026-10-29
+### Cải thiện
+- **Tab Kênh gọn hơn.** Thẻ thông tin của nick (trạng thái, bot trực, số hội thoại, Ghi hội thoại, Nhập tin cũ, Xem hội thoại, Mở Kết nối) không còn chiếm chỗ trên đầu danh sách. Bấm nút **Thông tin** cạnh ô "A.I. trực" là thẻ hiện lên dạng popup, y như cũ. Nick đang lỗi thì nút có chấm đỏ.
+- Nút "Cài đặt bot" chuyển vào cuối popup đó.
+- Bỏ câu hướng dẫn thừa trên danh sách "Nhóm và người".
+
 ## [0.403.0] - 2026-10-29
 ### Thêm mới
 - **Javis Core chỉ huy thông báo.** Mỗi thông báo có nhóm (Nhắc lịch, Câu hỏi chờ bạn, Chatbot và khách, Kết nối và đăng nhập, Sự cố, Kết quả việc...) và mức: bình thường, đáng chú ý hoặc khẩn.
