@@ -4260,7 +4260,10 @@
     const bgCfg = R.background || { provider: "anthropic-cli", model: "", reasoning: "off" };
     const bgP = pById(bgCfg.provider) || {};
     const bgUse = R.bg_in_use || null;
-    const ui = el._ordUi || (el._ordUi = { showOff: false });
+    const ui = el._ordUi || (el._ordUi = { showOff: false, set: false });
+    // First visit with nothing signed in (owner, 2026-10-29): the connect list comes first and open. Once the owner
+    // folds or opens it, that choice wins.
+    const showOff = ui.set ? ui.showOff : !connList.length;
 
     const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "deepseek": "deepseek_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key", "anthropic-compat": "anthropic_compat_key" };
     // ---- Usage order cards (0.351.0). `ord` = {idx} for a card in the order, null for a card still to connect. ----
@@ -4592,13 +4595,18 @@
     const bgLine = !bgUse ? `<div class="aux-note warn">${WARN_ICON} ${esc(t("models.bg_none"))}</div>`
       : bgUse.step !== "background" ? `<div class="aux-note">${esc(t("models.bg_using", { bg: bgName,
           dung: (useP.label || bgUse.provider) + " · " + (bgUse.model || defName(bgUse.provider)) }))}</div>` : "";
+    const moreHtml = offList.length ? `<div class="cview-section${connList.length ? "" : " ord-first"}">
+        ${connList.length ? "" : `<div class="prov-note warn">${WARN_ICON} ${esc(t("models.ord_empty"))}</div>`}
+        <button type="button" class="ord-more" id="ordMore" aria-expanded="${showOff ? "true" : "false"}">＋ ${esc(t("models.ord_more", { n: offList.length }))}</button>
+        <div class="prov-list ord-off" id="ordOff" ${showOff ? "" : "hidden"}>${offList.map(p => provCard(p, null)).join("")}</div>
+      </div>` : "";
     el.innerHTML = `
-      <div class="cview-section">
+      ${connList.length ? "" : moreHtml}
+      ${connList.length ? `<div class="cview-section">
         <h3>◆ ${esc(t("models.h_order"))} <span style="opacity:.5">${esc(t("models.h_order_sub"))}</span>${infoBtn()}</h3>
         ${infoBody(esc(t("models.order_note")))}
         <div class="prov-list ord-list">${connList.map((p, i) => (i ? swapRow(i) : "") + provCard(p, { idx: i })).join("")}</div>
-        ${connList.length ? "" : `<div class="prov-note warn">${WARN_ICON} ${esc(t("models.ord_empty"))}</div>`}
-      </div>
+      </div>` : ""}
       <div class="cview-section">
         <h3>◆ ${esc(t("models.h_aux"))} <span style="opacity:.5">${esc(t("models.h_aux_sub"))}</span>${infoBtn()}</h3>
         ${infoBody(esc(t("models.bg_note")))}
@@ -4617,10 +4625,7 @@
           ${bgLine}
         </div>
       </div>
-      ${offList.length ? `<div class="cview-section">
-        <button type="button" class="ord-more" id="ordMore" aria-expanded="${ui.showOff ? "true" : "false"}">＋ ${esc(t("models.ord_more", { n: offList.length }))}</button>
-        <div class="prov-list ord-off" id="ordOff" ${ui.showOff ? "" : "hidden"}>${offList.map(p => provCard(p, null)).join("")}</div>
-      </div>` : ""}`;
+      ${connList.length ? moreHtml : ""}`;
 
     bindOrderCards(el, { order, connList, prof, accts, bgCfg, effName, again: () => renderModelsCloudTab(el) });
     // Nguồn xác thực của gói Claude Code. Vẽ lại cả trang sau khi lưu vì cảnh báo phụ thuộc
@@ -5079,6 +5084,7 @@
       const box = el.querySelector("#ordOff");
       box.hidden = !box.hidden;
       el._ordUi.showOff = !box.hidden;
+      el._ordUi.set = true;
       more.setAttribute("aria-expanded", String(!box.hidden));
     };
 

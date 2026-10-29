@@ -216,6 +216,7 @@ body.in-console .hud-actions { display: none; }
   border: 1px dashed var(--border); background: transparent; color: var(--text2); font: inherit; font-size: 16px; cursor: pointer; }
 .ord-add:hover, .ord-more:hover { background: var(--bg3); color: var(--text); }
 .ord-more { margin: 0 0 10px; }
+.ord-first > .prov-note { margin: 0 0 10px; }
 .ord-addbox { border: 1px dashed var(--accent-line); background: var(--accent-wash); border-radius: 12px; padding: 12px; margin-top: 8px;
   display: flex; flex-direction: column; gap: 10px; }
 .ord-dragging { position: relative; z-index: 5; box-shadow: var(--shadow-3) !important; cursor: grabbing; transition: none; }
@@ -258,6 +259,9 @@ body.ord-is-dragging, body.ord-is-dragging * { cursor: grabbing !important; user
   .ord-head .prov-status { overflow-wrap: anywhere; }
   .aux-now { flex-wrap: wrap; }
   .aux-now-act.ord-chips { width: 100%; justify-content: flex-end; }
+  /* Section title: the (i) stays next to the name, the sub-label takes the next line whole. */
+  .cview-section h3 > .info-i { order: 1; margin-left: 0; }
+  .cview-section h3 > span { order: 2; flex-basis: 100%; }
 }
 /* Messages under the buttons of a provider card. They used to sit INSIDE the flex row of buttons,
    so a long CLI message became a narrow column and stretched the buttons to its height (owner's
@@ -328,6 +332,9 @@ body.ord-is-dragging, body.ord-is-dragging * { cursor: grabbing !important; user
 .aux-now-prov { font-size: 13px; color: var(--text3); margin-top: 3px; }
 .aux-now-act { display: flex; gap: 8px; flex-shrink: 0; }
 .aux-card .aux-now-act .gcard-btn { width: auto; }   /* thắng luật full-width của .gcard .gcard-btn */
+/* Change model sits next to the Effort chip: same height, no top margin, same text size (owner, 29/10: "Off and
+   Change model are misaligned"). */
+.aux-card .aux-now-act .gcard-btn { margin-top: 0; min-height: 36px; padding: 6px 14px; font-size: 15px; }
 .aux-warn { color: var(--yellow); }
 /* Ghi chú phụ: chữ nhỏ, mờ, một dòng ý - phần dài dòng đã cắt bớt ở console.js. */
 .aux-note { margin-top: 10px; font-size: 12.5px; line-height: 1.5; color: var(--text3); }
@@ -557,6 +564,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .cview-section h3 {
   font-family: var(--font); font-size: 14px; letter-spacing: 1px; text-transform: uppercase;
   color: var(--text2); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; row-gap: 2px;   /* a phone puts the sub-label on its own line, not in a squeezed second column */
 }
 
 /* Cài đặt: một cột đọc tập trung, nhóm ít dùng có thể gập lại thay vì trải kín màn hình. */

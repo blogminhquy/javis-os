@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.406.0] - 2026-10-29
+### Improved
+- **An easier first visit to the Models page.** With no provider signed in yet, **Connect another provider** sits at the top with the list of providers already open, ready to connect. It used to sit at the bottom of the page, closed.
+- **Aligned Models page.** **Change model** now has the same height as the Effort chip (Off) beside it and lines up with it. On a phone, each section title no longer squeezes into two columns: the (i) sits next to the name and the sub-label takes its own line.
+
 ## [0.405.0] - 2026-10-29
 ### Improved
 - **Diagrams and pictures zoom and pan on desktop and phone.** The diagram viewer, SVG pictures and pictures opened in the editor now zoom with the mouse wheel or a two-finger pinch and pan by dragging with the mouse or one finger. Buttons **+**, **-** and **Fit**, and a double tap zooms in fast. A wide diagram used to show tiny on a phone with no way to zoom.

@@ -51,7 +51,7 @@ Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Ba e
 
 1. Mở dashboard Javis (mặc định ở cổng `7777`).
 2. Ở thanh bên trái, mở nhóm **Kết nối**, rồi bấm mục **Models**.
-3. Tab **Cloud Model** hiện 2 khối theo thứ tự: **◆ Thứ tự dùng** ("nhà đã đăng nhập, thẻ trên cùng là MAIN") và **◆ Model việc nền** ("loop · việc Kanban · nhắc hẹn · tự học"). Dưới cùng là nút **＋ Kết nối thêm nhà cung cấp (N)**, bấm vào mới hiện các nhà chưa kết nối. Mỗi khối có nút (i) bên cạnh tên, bấm để đọc giải thích ngắn.
+3. Tab **Cloud Model** hiện 2 khối theo thứ tự: **◆ Thứ tự dùng** ("nhà đã đăng nhập, thẻ trên cùng là MAIN") và **◆ Model việc nền** ("loop · việc Kanban · nhắc hẹn · tự học"). Dưới cùng là nút **＋ Kết nối thêm nhà cung cấp (N)**, bấm vào mới hiện các nhà chưa kết nối. Từ 0.406.0, khi chưa có nhà nào đăng nhập (lần đầu vào), nút này lên **trên cùng** và danh sách các nhà mở sẵn để bắt đầu ngay. Mỗi khối có nút (i) bên cạnh tên, bấm để đọc giải thích ngắn.
 
 > **Trang Models gọn lại ở 0.351.0.** Trước đó trang có 4 khối (**◆ Main Model**, **◆ Providers**, **◆ Model việc nền**, **◆ Suy nghĩ**) cộng một ô Model Telegram. Nay Main Model và Providers gộp thành **Thứ tự dùng**, mức Suy nghĩ chung thay bằng chip **Effort** trên từng thẻ, còn Telegram đi theo MAIN (xem [Telegram](11-telegram.md) để ghim model cho riêng một cuộc trò chuyện bằng `/model`).
 

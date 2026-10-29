@@ -704,7 +704,7 @@
   "models.ord_swap_aria": "Swap {a} and {b}",
   "models.ord_drag": "Drag {ten} to reorder",
   "models.ord_more": "Connect another provider ({n})",
-  "models.ord_empty": "No provider is signed in yet. Press Connect another provider below.",
+  "models.ord_empty": "No provider is signed in yet. Pick one below to start.",
   "models.ord_keys": "{ok}/{n} keys usable",
   "models.sheet_all": "All models",
   "models.pacct_h": "Accounts",

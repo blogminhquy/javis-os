@@ -46,7 +46,19 @@ check("a fallback chat runs on right now is marked in use", /R\.chat_in_use === 
 check("each card has a model chip and an Effort chip", /data-ordpop="model"/.test(CL) && /data-ordpop="eff"/.test(CL));
 check("a Swap button stands between two cards", /\(i \? swapRow\(i\) : ""\)/.test(CL));
 check("API cards with several keys get the numbered key list", /multiKey\.indexOf\(p\.id\) >= 0 \? acctList\(p\)/.test(CL));
-check("unconnected providers hide behind one button", /id="ordMore"/.test(CL) && /id="ordOff" \$\{ui\.showOff \? "" : "hidden"\}/.test(CL));
+check("unconnected providers hide behind one button", /id="ordMore"/.test(CL) && /id="ordOff" \$\{showOff \? "" : "hidden"\}/.test(CL));
+// 0.406.0 (owner, 2026-10-29): a first visit with nothing signed in opens on the connect list, at the top.
+check("nothing signed in: the connect list comes first and open, until the owner folds or opens it",
+  /const showOff = ui\.set \? ui\.showOff : !connList\.length;/.test(CL) && /el\.innerHTML = `\s*\$\{connList\.length \? "" : moreHtml\}/.test(CL) &&
+  /\$\{connList\.length \? moreHtml : ""\}`;/.test(CL) && /el\._ordUi\.set = true;/.test(B));
+// 0.406.0 (owner, 2026-10-29: "Off and Change model are misaligned"): the button matches the Effort chip, and a
+// section title keeps its (i) next to the name on a phone instead of a squeezed second column.
+check("Change model has the Effort chip's height and no top margin", /\.aux-card \.aux-now-act \.gcard-btn \{ margin-top: 0; min-height: 36px;/.test(D("console.css")));
+check("section titles wrap; on a phone the (i) follows the name and the sub-label takes its own line",
+  /flex-wrap: wrap; row-gap: 2px;/.test(D("console.css")) && /\.cview-section h3 > \.info-i \{ order: 1; margin-left: 0; \}/.test(D("console.css")) &&
+  /\.cview-section h3 > span \{ order: 2; flex-basis: 100%; \}/.test(D("console.css")));
+check("nothing signed in: no empty order section, the note sits above the list", /\$\{connList\.length \? `<div class="cview-section">\s*<h3>◆ \$\{esc\(t\("models\.h_order"\)\)\}/.test(CL) &&
+  CL.indexOf('esc(t("models.ord_empty"))') < CL.indexOf('id="ordMore"'));
 check("the background card sits under the order", CL.indexOf("models.h_order") < CL.indexOf("models.h_aux"));
 check("the background card has its own Effort chip", /data-p="__bg"[\s\S]{0,200}data-ordpop="eff"/.test(CL));
 check("no 'back to MAIN' button on the background card", !/auxReset/.test(CL));
