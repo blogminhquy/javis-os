@@ -26,6 +26,12 @@ os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-homthu-"
 import inbox  # noqa: E402
 import main   # noqa: E402
 
+# 0.403.0: Javis Core rings only urgent notices by default (that default is tested in test_notify_commander.py). This
+# file checks how important notices are routed, so every group rings from "important" up, as before 0.403.0.
+import notify_policy  # noqa: E402
+for _g in notify_policy.GROUPS:
+    notify_policy.set_mode(_g, "important")
+
 fails = []
 
 
@@ -205,7 +211,7 @@ check("CANARY: vòng HỎNG và vòng tự tạm dừng vẫn kêu",
 # cho đúng ca này, và nhãn đó là thứ người dùng đọc trên thẻ thư để biết tin từ đâu ra.
 _mp = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 check("cảnh báo ngân sách vào hòm với nhãn hệ thống",
-      '_notify_owner("", tin, kind="system")' in _mp)
+      '_notify_owner("", tin, kind="system", source="cost",' in _mp)   # 0.403.0: + its group for Javis Core
 
 _tk = (ROOT / "server" / "tasks.py").read_text(encoding="utf-8")
 check("CANARY: việc Kanban vẫn giữ luật cũ (xong thì lặng, chặn/chờ duyệt thì kêu)",

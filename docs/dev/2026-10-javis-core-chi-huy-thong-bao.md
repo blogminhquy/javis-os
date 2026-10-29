@@ -93,9 +93,13 @@ Luật an toàn: **Core không bao giờ làm im tin khẩn.** Chỉ người d�
 
 ### 4.1 Phản hồi
 
-Mỗi thông báo trong chuông có hàng phản hồi dùng đúng bộ emoji của Cộng hưởng (`reaction_values.REACTION_EMOJI`:
-👍 ❤️ 😂 😮 😢 😡) và hai nút theo trục "nên nói / nên im" của Cộng hưởng, đổi chữ cho thông báo:
-**Nên báo** / **Không cần báo**. `POST /inbox/react`.
+Chủ repo chốt lại 29/10/2026: thẻ thông báo trên chuông chỉ có hai nút **Nên báo** / **Không cần báo**
+(`POST /inbox/react`, trục `needed` / `not_needed`). Emoji không nằm trên chuông: bấm **Mở trong Javis Core** thì thông báo
+thành một tin trong chat Javis Core (có dấu ẩn `javis-cite:inbox:<mã thư>`), người dùng thả emoji của Cộng hưởng
+(`reaction_values.REACTION_EMOJI`: 👍 ❤️ 😂 😮 😢 😡) lên tin đó như mọi câu trả lời. Route reaction của chat
+(`POST /sessions/{id}/messages/{mid}/reaction`) thấy dấu đó trên một chat Core thì chuyển emoji cho bộ phán xử của Core;
+trục "Đáng lẽ nên nói" / "Nên im" của chat được hiểu là Nên báo / Không cần báo. Thông báo tự đổ vào chat Core cũng
+mang dấu này, chỉ ở bản trong chat (chuông và Telegram không có).
 
 Điểm của một phản hồi: 👍 ❤️ 😮 = +1, 😂 = 0, 😢 😡 = -1, Nên báo = +2, Không cần báo = -2.
 
@@ -115,11 +119,14 @@ Chạy ngay sau mỗi phản hồi, và mỗi khi một tin bị chặn vì lặ
    - từ -4 trở xuống: hạ nhóm một nấc (`all` → `important` → `urgent` → `off` của Core);
    - từ +4 trở lên, tính trên tin đã lọc: nâng nhóm một nấc.
 4. **Lặp lại**: cùng một loại tin báo to tới lần thứ 3 trong 6 tiếng thì các lần sau trong 6 tiếng đó bị lọc, ghi
-   "lặp lại". Không áp cho tin khẩn.
+   "lặp lại" trên thẻ thư. Không áp cho tin khẩn. Đây là chặn tạm, không phải một thay đổi luật, nên không vào nhật ký
+   và Core không nói gì trong chat.
 
 Mỗi lần chỉnh: một dòng trong nhật ký thay đổi (`notify_policy` giữ 100 dòng gần nhất) với lý do, ai chỉnh (`core` /
 `owner`) và nút **Hoàn tác**, và một câu ngắn trong chat Javis Core của brain đang dùng. Ví dụ: "Em vừa chuyển nhóm
-Kết nối và đăng nhập sang Chỉ tin khẩn vì bạn đã bấm Không cần báo 2 lần. Hoàn tác ở Cài đặt thông báo."
+Kết nối và đăng nhập sang Chỉ tin khẩn. Hoàn tác ở Bộ lọc thông báo của chuông."
+
+Thông báo hệ thống không gắn brain thì Core nói trong chat Core của brain mặc định.
 
 ### 4.4 Ra lệnh bằng lời
 
@@ -130,8 +137,8 @@ nhất), `op=set` (đặt chế độ một nhóm), `op=mute` / `op=unmute` (m�
 ## 5. Giao diện
 
 - Chuông, tab "Của tôi": tin bị lọc không nằm trong danh sách chính. Cuối danh sách có dòng "Đã lọc (N)" mở ngăn tin
-  đã lọc. Mỗi thẻ thư có nút phản hồi mở hàng emoji và hai nút Nên báo / Không cần báo.
-- Phần cài đặt của chuông có thẻ **Bộ lọc thông báo**: mỗi nhóm một ô chọn bốn chế độ, danh sách loại tin đang bị lọc
+  đã lọc. Mỗi thẻ thư có hai nút Nên báo / Không cần báo.
+- Chuông có thêm tab **Bộ lọc** (thẻ Bộ lọc thông báo): mỗi nhóm một ô chọn bốn chế độ, danh sách loại tin đang bị lọc
   hoặc luôn báo (bỏ được), và nhật ký thay đổi gần đây với nút Hoàn tác. Chữ dài để sau nút (i).
 
 ## 6. Dữ liệu

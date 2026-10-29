@@ -1,0 +1,12 @@
+name: Chỉ huy thông báo
+name_en: "Notification commander"
+slug: javis-notify
+version: 1.0.0
+description: Xem và đổi thông báo nào được báo. Mỗi nhóm thông báo có một chế độ (tất cả, đáng chú ý trở lên, chỉ tin khẩn, tắt); lọc hoặc luôn báo một loại tin; hoàn tác thay đổi của Javis Core.
+description_en: "See and change which notices ring. Each notice group has a mode (everything, important and up, urgent only, off); filter or always ring one kind of notice; undo a change Javis Core made."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_notify
+hooks: []

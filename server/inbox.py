@@ -115,7 +115,8 @@ def _tieu_de(text: str) -> str:
 
 def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "",
         source: str = "", label: str = "", title: str = "", read: bool = False,
-        channel: str = "", dedup: str = "", routing: str = "") -> dict:
+        channel: str = "", dedup: str = "", routing: str = "", group: str = "", level: str = "", sig: str = "",
+        filtered: bool = False, why: str = "") -> dict:
     """Bỏ MỘT mẩu thư vào hòm. Trả về thư vừa tạo.
 
     `text` là nguyên văn nội dung đã gửi cho người dùng; hòm thư chỉ giữ bản cắt ngắn để
@@ -154,6 +155,19 @@ def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "
         item["dedup"] = str(dedup)[:200]
     if routing:
         item["routing"] = str(routing)[:40]
+    # 0.403.0 (notify_policy): what the notice is about, how serious it is, its kind, and whether Javis Core's rules kept
+    # it out of the main list ("filtered", shown under "Filtered" in the bell, always already read).
+    if group:
+        item["group"] = str(group)[:20]
+    if level:
+        item["level"] = str(level)[:12]
+    if sig:
+        item["sig"] = str(sig)[:100]
+    if filtered:
+        item["filtered"] = True
+        item["read"] = True
+        if why:
+            item["why"] = str(why)[:12]
     with _LOCK:
         d = _load()
         if dedup:
@@ -236,6 +250,28 @@ def doc_theo_phien(session_id: str) -> int:
         if n:
             _save(d)
         return n
+
+
+def lay(item_id: str) -> dict:
+    """One item by id, {} when it is gone."""
+    with _LOCK:
+        return dict(next((x for x in (_load().get("items") or []) if str(x.get("id")) == str(item_id)), {}) or {})
+
+
+def phan_hoi(item_id: str, value: str = "", axis: str = "") -> dict:
+    """The owner's reaction to one item (0.403.0): a Resonance emoji (`value`) and/or "needed" / "not_needed" (`axis`).
+    Empty both = take the reaction back. Returns the item as saved, {} when it is gone."""
+    with _LOCK:
+        d = _load()
+        for it in d.get("items") or []:
+            if str(it.get("id")) == str(item_id):
+                if value or axis:
+                    it["reaction"] = {"value": str(value or ""), "axis": str(axis or ""), "ts": time.time()}
+                else:
+                    it.pop("reaction", None)
+                _save(d)
+                return dict(it)
+    return {}
 
 
 def xoa(item_id: str) -> bool:

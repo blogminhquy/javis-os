@@ -22,6 +22,12 @@ os.environ["JAVIS_STATE_DIR"] = STATE
 import inbox  # noqa: E402
 import javis_core  # noqa: E402
 import main  # noqa: E402
+
+# 0.403.0: Javis Core rings only urgent notices by default (that default is tested in test_notify_commander.py). This
+# file checks how important notices are routed, so every group rings from "important" up, as before 0.403.0.
+import notify_policy  # noqa: E402
+for _g in notify_policy.GROUPS:
+    notify_policy.set_mode(_g, "important")
 import webpush  # noqa: E402
 from starlette.testclient import TestClient  # noqa: E402
 

@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=150">
+  <link rel="stylesheet" href="/static/style.css?v=151">
   <link rel="stylesheet" href="/static/console.css?v=127">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -163,6 +163,10 @@
         </button>
         <button class="noti-tab" id="notiTabNews" type="button" role="tab" aria-selected="false">
           <span data-i18n="noti.tab_news">Tin tức</span><span class="noti-tab-count" id="notiTabNewsCount" hidden>0</span>
+        </button>
+        <!-- 0.403.0: Javis Core's notification filter (each group's mode, per-kind rules, undo). -->
+        <button class="noti-tab noti-tab-filter" id="notiTabFilter" type="button" role="tab" aria-selected="false">
+          <span data-i18n="noti.filter_btn">Bộ lọc</span>
         </button>
       </div>
       <div class="noti-list" id="notificationList">
@@ -1105,7 +1109,7 @@
   <!-- Mời tặng sao GitHub (0.324.0): thẻ hiện ở khoảnh khắc vui, xem server/star_nudge.py. -->
   <link rel="stylesheet" href="/static/star-nudge.css?v=3">
   <script src="/static/star-nudge.js?v=2"></script>
-  <script src="/static/notifications.js?v=10"></script>
+  <script src="/static/notifications.js?v=11"></script>
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->
   <script src="/static/pet.js?v=1"></script>

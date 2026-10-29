@@ -203,3 +203,6 @@ server/stt_bench/
 # Loop watchdog heartbeat and restart log (server/loop_watch.py): runtime state written to the default state dir server/.
 server/loop_beat.json
 server/loop_restarts.json
+# 0.402.0 / 0.403.0: Javis Core's notice rules and the engine-down notice state (STATE_DIR defaults to server/).
+server/notify_policy.json
+server/engine_down_notified.json
