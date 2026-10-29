@@ -18948,9 +18948,7 @@ async def websocket_endpoint(ws: WebSocket):
             #   - ghim hỏng (provider mất key, đã rơi về mặc định chung) → thay bằng
             #     model đang chạy thật, thanh model thôi khoe ghim chết;
             #   - ghim lành → resolved == ghim, không có gì để ghi (no-op).
-            # 0.402.0: never on a Javis Core chat, which follows Javis Core's own pin or the main model (`_core_pin`).
-            if not javis_core.is_core_channel(_prow.get("channel")) and (
-                    (_prow.get("pinned_provider") or "").strip() != prov
+            if ((_prow.get("pinned_provider") or "").strip() != prov
                     or (_prow.get("pinned_model") or "") != (api_model or "")):
                 try:
                     store.set_pinned_model(conv_sid, prov, api_model or "")

@@ -351,11 +351,7 @@ def map_message(msg):
             import connect_health
             if dua_token:
                 connect_health.engine_run_ok("claude")
-            # 0.402.0: a sign-in error is looked for only in a failed turn or a one-line result. A normal answer that
-            # quotes "not logged in" or "invalid api key" used to light the red engine light and tell the owner that
-            # Javis is not usable.
-            elif not ((msg.is_error or connect_health.looks_like_error_line(msg.result or ""))
-                      and connect_health.flag_engine_auth_error("claude", msg.result or "")):
+            elif not connect_health.flag_engine_auth_error("claude", msg.result or ""):
                 if not msg.is_error:
                     connect_health.engine_run_ok("claude")
         except Exception:

@@ -366,7 +366,14 @@ def _set_engine(name, ok, message="", source="probe"):
 
 def flag_engine_auth_error(name, raw) -> bool:
     """Gọi từ engine khi một lượt chạy kết thúc: text khớp mẫu lỗi đăng nhập thì bật đèn đỏ.
-    Trả True nếu đã bật (caller khỏi phân tích lại)."""
+    Trả True nếu đã bật (caller khỏi phân tích lại).
+
+    0.402.0: only a short error line counts (`looks_like_error_line`). The engine passes the result of every turn, so
+    a normal answer that quoted "not logged in" or "invalid api key" used to light the red light and tell the owner
+    that Javis is not usable. The check lives here, not in the engine: `claude_sdk_engine.py` is part of the pinned
+    improvement profile (`improvement_claude.PROFILE_SOURCES`)."""
+    if not looks_like_error_line(raw):
+        return False
     low = (raw or "").lower()
     if not any(p in low for p in _ENGINE_AUTH_PATTERNS):
         return False

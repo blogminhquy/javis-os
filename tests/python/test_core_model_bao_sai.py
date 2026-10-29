@@ -95,9 +95,9 @@ check("an ordinary chat still pins only itself", r.json().get("scope") is None a
       (store.get_session(web) or {}).get("pinned_provider") == "groq" and not mcfg().get("core_provider"), r.text)
 
 src = (SERVER / "main.py").read_text(encoding="utf-8")
-check("CANARY: the first-turn stamp skips Core chats",
-      'if not javis_core.is_core_channel(_prow.get("channel")) and (' in src and
-      "store.set_pinned_model(conv_sid, prov, api_model or \"\")" in src)
+store.set_pinned_model(core2, "groq", "qwen3-32b")   # the first-turn stamp of a Core chat is harmless: ignored
+prov, _, _, model = main._chat_provider_for_session(mcfg(), store.get_session(core2))
+check("a first-turn stamp left on a Core chat does not pin it", (prov, model) == ("anthropic-cli", "sonnet"), (prov, model))
 mp = (ROOT / "dashboard" / "model-picker.js").read_text(encoding="utf-8")
 check("model bar: a Core chat's pin says it is for every Core chat", '"mpick.core_pin_title"' in mp)
 
@@ -105,9 +105,9 @@ check("model bar: a Core chat's pin says it is for every Core chat", '"mpick.cor
 check("a long answer is not an error line", not CH.looks_like_error_line("Đây là câu trả lời dài. " * 20 + "not logged in"))
 check("a short sign-in error is an error line", CH.looks_like_error_line("Invalid API key · Please run /login"))
 check("an empty result is not an error line", not CH.looks_like_error_line(""))
-eng = (SERVER / "claude_sdk_engine.py").read_text(encoding="utf-8")
-check("CANARY: the Claude engine looks for sign-in errors only in a failed turn or a one-line result",
-      '(msg.is_error or connect_health.looks_like_error_line(msg.result or ""))' in eng)
+check("a long answer quoting a sign-in phrase does not light the engine light",
+      not CH.flag_engine_auth_error("claude", "Câu trả lời bình thường. " * 20 + "Please run /login") and
+      CH._engines.get("claude") is None)
 
 sent = []
 
