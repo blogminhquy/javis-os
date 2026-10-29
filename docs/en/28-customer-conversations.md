@@ -84,7 +84,7 @@ Every change shows a line at the bottom of the screen with **Undo**.
 
 The compose box has two buttons:
 
-- **Send**: sends your text as it is. **Enter** sends, Shift+Enter adds a line.
+- **Send**: sends your text as it is. On a computer **Enter** sends and Shift+Enter adds a line. On a phone (since 0.398.0) **Enter adds a line** like in the main chat; press the send button to send.
 - **AI draft** (called "AI reply" before 0.397.0): what you typed is an **instruction for the AI**, for example "quote 20 cases wholesale, delivery Thursday". The AI writes a polite reply inside the compose box, naming your instruction, with Discard / Rewrite / Send. With an empty box it reads the chat and writes on its own. **It never sends by itself.** The instruction is read by the AI only and never lands in the inbox.
 
 Under the last customer message, a **"Bot silent: reason"** line appears when the reply policy logged one (for example "Score below threshold (0.52 / 0.60)"), with **Why** opening that bot's reply policy panel, and **Ask the AI to answer this**: the AI answers that message now and sends it, the chat stays in AI replies. If the policy had stayed silent on it, the bot also **learns one more case**. If sending fails after the AI wrote the reply, the text lands in the compose box for you to send by hand.

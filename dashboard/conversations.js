@@ -1342,8 +1342,12 @@
     if (ta) {
       ta.value = nhapDo;
       if (goDo) { ta.focus(); try { ta.setSelectionRange(nhapDo.length, nhapDo.length); } catch (e) { /* ignore */ } }
+      // Same Enter rule as the main chat (JavisActs.enterSends, owner 2026-10-29): on a phone Enter is a new line and the
+      // Send button sends; on a computer Enter sends and Shift+Enter is a new line; an IME composition never sends.
+      var A = window.JavisActs, soan = A ? A.trackComposition(ta) : function () { return false; };
       ta.onkeydown = function (e) {
-        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); gui(c); }
+        var send = A ? A.enterSends(e, soan()) : e.key === "Enter" && !e.shiftKey && !e.isComposing;
+        if (send) { e.preventDefault(); gui(c); }
       };
       // The box is one line and grows with what is typed (up to the CSS max-height), instead of a resize handle.
       var grow = function () { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
@@ -1891,13 +1895,16 @@
     // (0.397.0, the note line above the box took a row of the chat). The "sending takes over" and "example command"
     // notes went (owner, 2026-10-28: a good UI needs no notes).
     var ten = k.kind === "account" ? accLabel(c) || k.nhan : "";
-    var ph = ten ? t(laBot ? "ib.cin_ph_as_ai" : "ib.cin_ph_as", { ten: ten }) : t(laBot ? "ib.cin_ph_ai" : "ht.gui_ph");
+    // "Enter to send" in the placeholder is a computer's hint only: a phone's Enter is a new line.
+    var cham = !!(window.JavisActs && window.JavisActs.touchMain && window.JavisActs.touchMain());
+    var ph = ten ? t(laBot ? "ib.cin_ph_as_ai" : "ib.cin_ph_as", { ten: ten }) :
+      t(laBot ? "ib.cin_ph_ai" : cham ? "ib.cin_ph_touch" : "ht.gui_ph");
     var busy = _aiBusy === "redo" || _aiBusy === "send" ? _aiBusy : "";
     return '<div class="ht-compose' + (draft ? " has-draft" : "") + '">' + noteHtml() +
       '<div class="ib-cbox">' +
       (draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
       '<div class="ib-cin">' +
-        '<textarea rows="1" placeholder="' + esc(ph) + '" aria-label="' + esc(t("ht.gui_ph")) + '"></textarea>' +
+        '<textarea rows="1" placeholder="' + esc(ph) + '" aria-label="' + esc(t("ib.cin_aria")) + '"></textarea>' +
         (laBot ? '<button type="button" class="s-btn-ghost ib-ask"' + (_aiBusy ? " disabled" : "") + ' title="' + esc(t("ib.ai_reply_t")) +
           '" aria-label="' + esc(t("ib.ai_reply")) + '">' +
           ic(_aiBusy === "ask" ? "loader" : "sparkles") + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +

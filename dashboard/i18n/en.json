@@ -4927,6 +4927,8 @@
   "ib.m_human_d": "The AI stays out; you message this customer yourself.",
   "ib.cin_ph_as": "Send as {ten}...",
   "ib.cin_ph_as_ai": "Send as {ten}, or an order for the AI",
+  "ib.cin_ph_touch": "Type your reply...",
+  "ib.cin_aria": "Reply to the customer",
   "ib.cin_ph_ai": "Message, or an order for the AI",
   "ib.ask_ai_now": "Ask the AI to answer this",
   "ib.ai_silent": "The AI chose not to answer this message.",

@@ -4927,6 +4927,8 @@
   "ib.m_human_d": "A.I. đứng ngoài, bạn tự nhắn với khách này.",
   "ib.cin_ph_as": "Gửi dưới tên {ten}...",
   "ib.cin_ph_as_ai": "Gửi dưới tên {ten}, hoặc lệnh cho A.I.",
+  "ib.cin_ph_touch": "Nhập câu trả lời...",
+  "ib.cin_aria": "Tin trả lời cho khách",
   "ib.cin_ph_ai": "Gõ tin, hoặc lệnh cho A.I.",
   "ib.ask_ai_now": "Nhờ A.I. trả lời tin này",
   "ib.ai_silent": "A.I. chọn không trả lời tin này.",

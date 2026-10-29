@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.398.0] - 2026-10-29
 ### Sửa lỗi
-- **Trả lời khách trên điện thoại: Enter là xuống dòng.** (đang làm)
+- **Trả lời khách trên điện thoại: Enter là xuống dòng.** Ở trang Chatbot, bấm Enter trên bàn phím điện thoại trước đây gửi tin luôn, không cách nào viết được dòng thứ hai. Giờ Enter xuống dòng như khung chat chính, muốn gửi thì bấm nút gửi. Trên máy tính giữ nguyên: Enter gửi, Shift+Enter xuống dòng.
+- Lúc đang đọc chính tả trong khung chat, Enter trên điện thoại cũng là xuống dòng, không gửi bản ghi nữa.
 
 ## [0.397.0] - 2026-10-29
 ### Cải thiện
