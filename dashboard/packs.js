@@ -567,7 +567,8 @@
     // "Đã cài" kể chuyện phiên bản, một chỗ duy nhất và nói đủ cả hai số.
     const meta = [g.id, g.installed ? "" : (g.version ? "v" + g.version : ""),
                   (g.author && g.author.name) || ""].filter(Boolean).map(esc).join(" · ");
-    // A long description shows two lines on the card; the full text sits behind the (i) on the name.
+    // A description shows at most three lines and an ellipsis (`.kho-mo-ta`, 0.407.0); a long one
+    // also gets the (i) on the name, which holds the full text.
     const moTa = nn(g.description);
     const dai = moTa.length > 90;
     return '<div class="cat-card kho-the" data-loai="' + esc(g.kind || "bundle") + '"'
@@ -585,7 +586,7 @@
       + '<div class="kho-ten">' + esc(nn(g.name, g.id))
       + (dai ? infoBtn() : "")
       + '</div>'
-      + '<div class="cat-desc' + (dai ? " j-clamp2" : "") + '">' + esc(moTa) + '</div>'
+      + '<div class="cat-desc kho-mo-ta">' + esc(moTa) + '</div>'
       + (dai ? infoBody(esc(moTa)) : "")
       + '<div class="prov-meta">' + meta + '</div>'
       + dongGoc(g)
@@ -605,7 +606,29 @@
 
   // Trạng thái lưới kho. Để ở module vì mọi lần bấm tab, bấm nhóm hay đổi trang đều chỉ VẼ LẠI
   // từ dữ liệu đã tải, không gọi lại mạng.
-  let _kho = { dl: null, loai: "connector", nhom: "Tất cả", trang: 1, tim: "" };
+  let _kho = { dl: null, loai: "connector", nhom: "Tất cả", trang: 1, tim: "", sap: "" };
+  // Sort box (owner, 0.407.0). Only orders that need no server: install counts and stars wait for
+  // a central server (owner, 2026-10-29: later, with the business edition). The choice is a
+  // per-device convenience, so it lives in localStorage and the page works without it.
+  const SAP = { "de-xuat": "store.sort.recommended", "moi": "store.sort.recent", "ten": "store.sort.name" };
+  function docSap() {
+    try { const v = localStorage.getItem("javis.kho.sap"); return SAP[v] ? v : "de-xuat"; }
+    catch (e) { return "de-xuat"; }
+  }
+  // Stable: ties keep the catalog's own order, which is how the Store owner lays it out.
+  // Recommended = packs that follow their author's repo first, then catalog order.
+  function sapXep(ds, kieu) {
+    const co = ds.map((g, i) => [g, i]);
+    const theoThu = (a, b) => a[1] - b[1];
+    if (kieu === "moi") {
+      co.sort((a, b) => String(b[0].updated || "").localeCompare(String(a[0].updated || "")) || theoThu(a, b));
+    } else if (kieu === "ten") {
+      co.sort((a, b) => nn(a[0].name, a[0].id).localeCompare(nn(b[0].name, b[0].id), "vi") || theoThu(a, b));
+    } else {
+      co.sort((a, b) => (theoGoc(b[0]) ? 1 : 0) - (theoGoc(a[0]) ? 1 : 0) || theoThu(a, b));
+    }
+    return co.map(x => x[0]);
+  }
   // 18, not 20 (owner, 2026-10-28): it splits evenly into the 3 and 2 column grids, so the last
   // row of a full page is never left half empty.
   const MOI_TRANG = 18;
@@ -715,7 +738,8 @@
     const laCongDong = _kho.nhom === "Cộng đồng";
     const laMoi = _kho.nhom === "Có bản mới";
     const q = _kho.tim.trim().toLowerCase();
-    const hop = cungLoai.filter(g =>
+    if (!SAP[_kho.sap]) _kho.sap = docSap();
+    const hop = sapXep(cungLoai, _kho.sap).filter(g =>
       (_kho.nhom === "Tất cả"
         || (laDaCai ? g.installed
             : laMoi ? coBanMoi(g)
@@ -825,6 +849,11 @@
       + esc(tw("store.search_ph", { loai: tw(LOAI[_kho.loai].nhan) }))
       + '" value="' + esc(_kho.tim) + '">'
       + '<span class="kho-hd kho-hd-dt">' + nutHd + '</span>'
+      + '<label class="kho-sap"><span>' + tw("store.sort_label") + '</span>'
+      + '<select class="js-input" id="pkSap">'
+      + Object.keys(SAP).map(k => '<option value="' + k + '"' + (k === _kho.sap ? " selected" : "") + '>'
+          + esc(tw(SAP[k])) + '</option>').join("")
+      + '</select></label>'
       + '<span class="prov-meta kho-so-muc">'
       + (laDaCai ? tw("store.count_installed", { count: hop.length })
          : laMoi ? tw("store.count_updates", { count: hop.length })
@@ -878,6 +907,12 @@
     host.querySelectorAll("[data-kho-trang]").forEach(b => b.onclick = () => {
       _kho.trang = Number(b.dataset.khoTrang); lai(); lenDauLuoi(host);
     });
+    const ss = host.querySelector ? host.querySelector("#pkSap") : null;
+    if (ss) ss.onchange = () => {
+      _kho.sap = SAP[ss.value] ? ss.value : "de-xuat"; _kho.trang = 1;
+      try { localStorage.setItem("javis.kho.sap", _kho.sap); } catch (e) {}
+      lai();
+    };
     const sn = host.querySelector ? host.querySelector("#pkNhom") : null;
     if (sn) sn.onchange = () => { _kho.nhom = sn.value; _kho.trang = 1; lai(); };
     const o = document.getElementById("pkQ");

@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.407.0] - 2026-10-29
+### Improved
+- **The Store has a Sort box.** Pick Recommended (the default, recommended packs first), Recently updated, or Name A-Z. Javis remembers your choice on this device.
+- **Long descriptions on Store cards fit in three lines and end with "…".** The text used to run a few more lines and get cut off mid-line. Tap the (i) next to the name to read it all.
+
 ## [0.406.0] - 2026-10-29
 ### Improved
 - **An easier first visit to the Models page.** With no provider signed in yet, **Connect another provider** sits at the top with the list of providers already open, ready to connect. It used to sit at the bottom of the page, closed.
