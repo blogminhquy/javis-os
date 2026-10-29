@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.402.0] - 2026-10-29
+### Sửa lỗi
+- Đang làm: Javis Core chọn được model; bớt thông báo đăng nhập báo sai.
+
 ## [0.401.0] - 2026-10-29
 ### Sửa lỗi
 - **Thống kê Chatbot tách số theo từng tài khoản.** Trước đây phần trăm "câu trả lời do A.I. lo" gộp mọi nick, nên nick có người gõ tay kéo tụt phần trăm của nick chỉ có A.I. trả lời.

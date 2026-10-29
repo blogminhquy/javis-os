@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.402.0] - 2026-10-29
+### Fixed
+- In progress: Javis Core gets a model choice; fewer false sign-in notices.
+
 ## [0.401.0] - 2026-10-29
 ### Fixed
 - **Chatbot Stats split per account.** The "answers the AI handled" share used to mix every account, so an account where a person types lowered the share of one only the AI answers.
