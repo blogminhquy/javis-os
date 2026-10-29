@@ -1423,20 +1423,47 @@ def no_bot_accounts() -> set:
         return set()
 
 
+# Hours a customer counts as writing "while you rest" for the Stats tab (owner, 2026-10-29): 21:00 to 07:00 local time.
+NGHI_TU, NGHI_DEN = 21, 7
+
+
+def _trung_vi(xs: list) -> Optional[float]:
+    if not xs:
+        return None
+    v = sorted(xs)
+    m = len(v) // 2
+    return round(v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2, 1)
+
+
 def insights(since: float, until: float) -> dict:
     """Numbers for the Stats tab (Chatbot v5) between two timestamps: messages the A.I. sent, messages the owner sent,
     customer messages, the average wait of a customer for the first answer (A.I. or owner), and the same counts per
-    channel and per bot. A waiting run starts at the first customer message after an answer; reactions do not count."""
+    channel and per bot. A waiting run starts at the first customer message after an answer; reactions do not count.
+
+    0.399.0 (owner, 2026-10-29: show what the chatbot gives the owner) adds:
+      - the typical (median) wait when the A.I. answered first and when the owner did, so the two can be compared;
+      - `ai_rest`: A.I. answers sent while the owner rests (21:00 to 07:00 in the brain's time zone);
+      - `chats` / `new_chats`: chats where a customer wrote, and private chats whose very first message is in the period;
+      - `hours`: customer messages per hour of the day (24 numbers, the brain's time zone)."""
+    import localefmt
+    tz = localefmt.tz()
     with _lock:
-        rows = _conn().execute(
+        db = _conn()
+        rows = db.execute(
             "SELECT m.conversation_id AS cid, m.sender_type AS who, m.created_at AS ts, a.channel AS channel,"
             " c.bot_id AS bot_id FROM messages m JOIN conversations c ON c.id=m.conversation_id"
             " JOIN channel_accounts a ON a.id=c.channel_account_id"
             " WHERE m.created_at>=? AND m.created_at<? AND m.sender_type IN ('customer','ai','human')"
             " AND m.message_type!='reaction' ORDER BY m.conversation_id, m.created_at, m.id",
             (float(since), float(until))).fetchall()
-    out = {"ai": 0, "human": 0, "customer": 0, "wait_avg": None, "waits": 0, "by_channel": {}, "by_bot": {}}
-    waits, start, cur = [], None, None
+        moi = db.execute(
+            "SELECT COUNT(*) FROM (SELECT m.conversation_id, MIN(m.created_at) AS dau FROM messages m"
+            " JOIN conversations c ON c.id=m.conversation_id WHERE c.chat_type='private'"
+            " GROUP BY m.conversation_id HAVING dau>=? AND dau<?)", (float(since), float(until))).fetchone()[0]
+    out = {"ai": 0, "human": 0, "customer": 0, "wait_avg": None, "waits": 0, "by_channel": {}, "by_bot": {},
+           "wait_ai": None, "wait_human": None, "waits_ai": 0, "waits_human": 0, "ai_rest": 0,
+           "chats": 0, "new_chats": int(moi or 0), "hours": [0] * 24}
+    waits, w_ai, w_human, start, cur, khach = [], [], [], None, None, set()
     for r in rows:
         who, ts = str(r["who"]), float(r["ts"] or 0)
         if r["cid"] != cur:
@@ -1444,18 +1471,29 @@ def insights(since: float, until: float) -> dict:
         ch = out["by_channel"].setdefault(str(r["channel"] or ""), {"customer": 0, "ai": 0, "human": 0})
         ch[who] += 1
         out[who] += 1
+        gio = datetime.fromtimestamp(ts, tz).hour
         if who == "customer":
+            khach.add(r["cid"])
+            out["hours"][gio] += 1
             if start is None:
                 start = ts
         else:
-            if who == "ai" and r["bot_id"]:
-                out["by_bot"][str(r["bot_id"])] = out["by_bot"].get(str(r["bot_id"]), 0) + 1
+            if who == "ai":
+                if r["bot_id"]:
+                    out["by_bot"][str(r["bot_id"])] = out["by_bot"].get(str(r["bot_id"]), 0) + 1
+                if gio >= NGHI_TU or gio < NGHI_DEN:
+                    out["ai_rest"] += 1
             if start is not None:
-                waits.append(max(0.0, ts - start))
+                w = max(0.0, ts - start)
+                waits.append(w)
+                (w_ai if who == "ai" else w_human).append(w)
                 start = None
+    out["chats"] = len(khach)
     if waits:
         out["wait_avg"] = round(sum(waits) / len(waits), 1)
         out["waits"] = len(waits)
+    out["wait_ai"], out["waits_ai"] = _trung_vi(w_ai), len(w_ai)
+    out["wait_human"], out["waits_human"] = _trung_vi(w_human), len(w_human)
     return out
 
 

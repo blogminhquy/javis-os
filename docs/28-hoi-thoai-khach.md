@@ -119,7 +119,7 @@ Số trên tab Kênh là số nơi cần bạn xử lý: tài khoản lỗi, ho�
 
 ## Tab Thống kê
 
-Bấm nút kỳ để mở bộ chọn ngày: chọn nhanh (hôm nay, hôm qua, 7, 30, 90 ngày qua, tháng trước, đầu tuần, đầu tháng đến nay) hoặc bấm ngày bắt đầu và ngày kết thúc trên lịch rồi **Áp dụng**. Javis nhớ kỳ bạn xem lần cuối. Bốn ô: A.I. đã trả lời, Bạn đã trả lời (tin gửi từ Javis), Khách chờ trung bình (từ lúc khách nhắn tới câu trả lời đầu tiên), Đang chờ bạn (bấm vào là mở danh sách Cần bạn). Mỗi ô so với kỳ trước cùng độ dài. Dưới là hai thanh ngang: A.I. trả lời theo kênh và theo bot. Số liệu tính từ hộp thư của Javis.
+Bấm nút kỳ để mở bộ chọn ngày: chọn nhanh (hôm nay, hôm qua, 7, 30, 90 ngày qua, tháng trước, đầu tuần, đầu tháng đến nay) hoặc bấm ngày bắt đầu và ngày kết thúc trên lịch rồi **Áp dụng**. Javis nhớ kỳ bạn xem lần cuối. Từ 0.399.0 trang mở đầu bằng **khối lợi ích**: A.I. đã trả lời thay bạn bao nhiêu tin (so với kỳ trước), A.I. lo bao nhiêu phần trăm câu trả lời, **bạn được rảnh bao lâu** (ước 1 phút cho mỗi câu A.I. trả lời thay) và **bao nhiêu tin A.I. trả lời lúc bạn nghỉ** (21h đến 7h, theo múi giờ của brain). Bốn ô: Khách được phục vụ (kèm số khách mới, tức cuộc chat riêng có tin đầu tiên trong kỳ), Trả lời đầu tiên sau (A.I. so với bạn, lấy mức điển hình), Bạn đã trả lời, Đang chờ bạn (bấm vào là mở danh sách Cần bạn). Biểu đồ **Giờ khách nhắn nhiều nhất** có 24 cột, cột giờ bạn nghỉ tô đậm, ghi rõ giờ đông nhất. Dưới cùng là hai thanh ngang: A.I. trả lời theo kênh và theo bot. Số liệu tính từ hộp thư của Javis.
 
 ## Thẻ tài khoản kênh
 
