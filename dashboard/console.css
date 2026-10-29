@@ -1166,6 +1166,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .conn-card .conn-ico .ico-img { display: block; margin: 0 auto; }
 .cat-name { font-weight: 600; font-size: 14.5px; }
 .cat-desc { font-size: 12.5px; opacity: .7; flex: 1; line-height: 1.45; }
+/* A clamped description must not be the card's flex spacer (0.407.0). Stretched to fill the card,
+   its box grew past the clamped lines: the ellipsis landed after line 2 and the lines below still
+   showed, cut through the middle. The spacer is the margin now, so the box stays the clamped height
+   and what follows it still sits at the bottom of the card. */
+.cat-desc.j-clamp2, .cat-desc.kho-mo-ta { flex: none; margin-bottom: auto; }
 .cat-doc { font-size: 12px; opacity: .7; }
 .conn-form { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
 .conn-form::-webkit-scrollbar { width: 10px; }
@@ -1483,6 +1488,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Chữ trong thẻ của kho to hơn thẻ danh mục thường: đây là chỗ người ta ĐỌC để quyết định có
    cài hay không, không phải một dòng nhãn liếc qua. */
 .kho-the .cat-desc { font-size: 13.5px; opacity: .82; }
+/* Store cards: three lines, then an ellipsis (owner, 0.407.0); the full text is behind the (i). */
+.kho-mo-ta { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3;
+  overflow: hidden; }
 .kho-the .prov-meta { font-size: 12.5px; }
 
 /* Nút quay lại trang vừa đi ra. */
@@ -1494,6 +1502,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .kho-so.on { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 
 .kho-tim { flex: 1 1 260px; width: auto; max-width: 380px; min-width: 0; }
+.kho-sap { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text2); }
+.kho-sap select { width: auto; min-width: 150px; }
 
 /* ---------- Phones and tablets ----------
    860px is the app's main breakpoint, so the Store switches layout together with the sidebar and
@@ -1525,6 +1535,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   /* The count is already in each dropdown option, so the row keeps only search and the buttons. */
   .kho-loc > .kho-so-muc { display: none; }
   .kho-tim { max-width: none; width: 100%; font-size: 16px; }
+  /* Sort on its own row under the search: beside it the search box would be too narrow to type in. */
+  .kho-sap { grid-column: 1 / -1; font-size: 15px; }
+  .kho-sap select { flex: 1; min-height: 44px; font-size: 16px; }
   .kho-hd-dt { display: flex; padding: 0; gap: 6px; }
   .kho-hd-dt .kho-hd-btn { width: 44px; height: 44px; padding: 0; justify-content: center; }
   .kho-hd-dt .kho-hd-btn span { display: none; }
