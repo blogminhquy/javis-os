@@ -37,8 +37,9 @@ const V = win.JavisInboxV5;
 const COMP = fnBody("function veCompose(c) {");
 check("composer: one box, 'A.I. reply' next to Send (only when a bot is on duty)", /class="ib-cin"/.test(COMP) &&
   /\(laBot \? '<button type="button" class="s-btn-ghost ib-ask"/.test(COMP) && /class="s-btn ht-send"/.test(COMP));
-check("no explanatory notes around the reply box (owner, 2026-10-28), only the personal-account warning",
-  !/ib\.send_takes_over|ib\.cmd_hint/.test(COMP) && /var ghiChu = k\.kind === "account" \? t\("ht\.gui_ten_ban"/.test(COMP));
+check("no notes around the reply box (owner, 2026-10-28); a personal account says 'Send as <name>' in the placeholder (0.395.0)",
+  !/ib\.send_takes_over|ib\.cmd_hint|ht-compose-note/.test(COMP) && /var ten = k\.kind === "account" \? accLabel\(c\) \|\| k\.nhan : "";/.test(COMP) &&
+  /t\(laBot \? "ib\.cin_ph_as_ai" : "ib\.cin_ph_as", \{ ten: ten \}\)/.test(COMP));
 const AI = fnBody("async function aiReply(c, lenh, kind) {");
 check("'A.I. reply' sends the typed text as the instruction, always as a draft", /\/ai-reply", \{ method: "POST", body: fd\(\{ mode: "draft", instruction: lenh \|\| "" \}\) \}/.test(AI));
 check("the A.I. button passes what is typed; Rewrite passes the draft's own order", /aiReply\(c, ta\.value\.trim\(\), "ask"\)/.test(CV) &&

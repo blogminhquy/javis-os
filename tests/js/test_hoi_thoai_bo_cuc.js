@@ -60,8 +60,8 @@ check("danh sách là ô cuộn riêng trong cột, khung tin cũng vậy", /\.h
 
 // ---- 4. dòng đếm nằm trong cột danh sách, KHÔNG nằm trong ô cuộn ----
 const cot = (CV.match(/<div class="ht-listcol">' \+[\s\S]*?<div class="ht-list">/) || [""])[0];
-check("the list head (picker, search, quick filters, chips) sits in the list column, BEFORE .ht-list",
-  /ib-lhead/.test(cot) && /ib-picker/.test(cot) && /ib-quick/.test(cot) && /ib-activef/.test(cot));
+check("the list head (search, who dropdown, picker, chips) sits in the list column, BEFORE .ht-list",
+  /ib-lhead/.test(cot) && /ib-picker/.test(cot) && /ib-whobtn/.test(cot) && /ib-activef/.test(cot));
 check("CANARY: the list head is NOT inside .ht-list (JS rewrites that box on every redraw)", !/<div class="ht-list">[^']*ib-lhead/.test(CV));
 check("cột danh sách có bề ngang cố định trên màn rộng", /\.ht-listcol \{ width: 320px; flex: none; min-height: 0; display: flex; flex-direction: column;/.test(CSS));
 

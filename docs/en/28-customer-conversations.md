@@ -31,7 +31,9 @@ Underneath, every channel normalizes its messages into **one common event** and 
 
 ## The Conversations tab
 
-Since 0.372.0 (Chatbot v5) a computer shows **three columns**: the customers on the left, the chat in the middle and the **Info** panel on the right (it can be closed; below 1200px wide it slides over the chat when you press **Info**). A phone shows one column: the list, tap to open a chat, the ⓘ button opens Info.
+Since 0.372.0 (Chatbot v5) a computer shows **three columns**: the customers on the left, the chat in the middle and the **Info** panel on the right. Since 0.395.0 Info **starts closed** so the chat gets the room; the ⓘ button at the right of the chat head opens it (Javis remembers your choice in that browser), and below 1200px wide it slides over the chat. The type on a computer is also smaller: 14px lists, 15px messages, with the messages in a centred column.
+
+**On a phone** (since 0.395.0): no "Chatbot" title at the top, and the four tabs show their icon only (a long press or a screen reader still gives the name). An open chat **fills the screen**: one head row with the back button, the customer's name, the channel and a violet **mode button** (for example "AI replies ▾"). It opens a sheet from the bottom with the three modes, a line on what each does, and **Customer info and AI settings**. The compose box is one row with two round buttons: ✨ for an AI draft, the arrow to send.
 
 **Who is handling this chat.** The server works out one state per chat and every part of the page reads it:
 
@@ -42,13 +44,14 @@ Since 0.372.0 (Chatbot v5) a computer shows **three columns**: the customers on 
 | blue | **You are handling** | you chose I reply and the customer is not waiting |
 | grey | **Logged only** | the AI does not answer here (not allowed, no bot, bot off) and nobody waits |
 
-Each row has a **left edge** in that colour, an avatar with the **channel's logo** in its corner, the name, the time, the last message (with "AI:" or "You:" in front), the unread count, up to two tags plus "+n", and the nick or Page name when several are in view. Hovering a row says in one sentence what is going on.
+Each row has a **left edge** in that colour, an avatar with the **channel's logo** in its corner, the name, the time, the last message (with "AI:" or "You:" in front), the **chat's message count** (grey, for example "11 msgs") then the unread count (red), and a third line only when the chat has tags: up to two plus "+n". Hovering a row gives the nick or Page name (when several are in view) and one sentence on what is going on.
 
 At the top of the left column:
 
-- **Channel picker**: opens the list of nicks and Pages with checkboxes, grouped by channel with real logos. Ticking a channel ticks all of it; each one shows its **Needs you** count. Nothing ticked means everything. It has a search box, **Clear**, **Done** and **Manage channels**.
-- **Search** (name, phone number, text) and the **Filter** button: a two-level menu with Time (when the last message came: today, last 7, 30 or 90 days, last month, week or month to date, or days picked on the calendar), Has tag, Without tag, Chat type, Answering bot, Status (unread, waiting longest, hidden), Last message by (customer, AI, you) and Customer info (left a phone or email, pinned chats only). Active filters show as chips with an x underneath.
-- **Four quick filters**: Needs you · AI is handling · You are handling · All, with counts. The page first opens on **Needs you**; when nothing needs you it says so, with **Show all**.
+- **Search** (name, phone number, text), with the **Filter** button as an icon inside the box: a two-level menu with Time (when the last message came: today, last 7, 30 or 90 days, last month, week or month to date, or days picked on the calendar), Has tag, Without tag, Chat type, Answering bot, Status (unread, waiting longest, hidden), Last message by (customer, AI, you) and Customer info (left a phone or email, pinned chats only). Active filters show as chips with an x underneath.
+- Under it, **two dropdowns** (since 0.395.0, instead of four quick filters that wrapped onto two lines):
+  - On the left, **who handles it**: the button always shows the current view with its count, for example "Needs you 4". It opens four choices, each with a line on what it means: **Needs you** (customers waiting for your reply or approval), **AI handles** (the AI is answering the customer), **You handle** (you took over, the AI stays quiet), **All** (every chat, logged-only ones too). The page first opens on **Needs you**; when nothing needs you it says so, with **Show all**.
+  - On the right, the **channel picker**: opens the list of nicks and Pages with checkboxes, grouped by channel with real logos. Ticking a channel ticks all of it; each one shows its **Needs you** count. Nothing ticked means everything. It has a search box, **Clear**, **Done** and **Manage channels**. Hovering the button names the places picked.
 
 Every choice is remembered in the browser. The number on the **Conversations** tab is the **Needs you** count.
 
@@ -58,33 +61,35 @@ Every choice is remembered in the browser. The number on the **Conversations** t
 
 **Loads gradually, no lag** (since 0.65.11). The list loads the first 40 rows; scrolling near the bottom loads 40 more (or press **Show more**). The message pane works the same way: opening a conversation loads only the **latest** 40 messages, scrolling up near the top (or pressing **Show older messages**) loads 40 older ones and keeps your place. Every 5 seconds Javis only asks for messages **newer than the last one** and appends them; if you are reading older messages when a new one arrives the pane stays still.
 
-Click a conversation and its history opens in the middle: customer messages on the left, AI replies (labelled "AI · bot name") and yours on the right. A failed bot turn sits there too, with its technical reason, so you can tell "the bot answered wrong" from "the bot is broken". The page refreshes itself every few seconds.
+Click a conversation and its history opens in the middle: customer messages on the left (white), AI replies (light violet) and yours (blue) on the right; who and when sit right under each bubble, and the customer is named only in groups. The chat head has the customer's name with the chat's tags and a **+ Tag** button (it opens Info with the tag picker); the line under it gives the channel, the nick and the **message count**. A failed bot turn sits there too, with its technical reason, so you can tell "the bot answered wrong" from "the bot is broken". The page refreshes itself every few seconds.
 
-## Who replies: the bar under the customer's name
+## Who replies: the chat head and the coloured bar
 
-The bar has the colour of the chat's state and always **one sentence** about what is going on (for example "The AI wrote a reply and waits for you to approve it"). Next to it, the controls that fit:
+**The AI may answer here**: the three modes **AI replies**, **AI drafts**, **I reply** sit in the chat head, right of the customer's name (a mode button opening a sheet on a phone). Hovering them gives one sentence on what is going on.
 
-- **The AI may answer here**: three modes, **AI replies**, **AI drafts, I approve**, **I reply**. In I reply there is also **Hand back to the AI**.
+Under the name, a **slim bar** in the colour of the chat's state carries **one sentence** (for example "The AI wrote a reply and waits for you to approve it"). Since 0.395.0 it **only shows when the chat needs you** or there is something to switch on; while the AI handles things quietly it stays hidden so the chat gets the room. The controls that fit:
+
+- In I reply with a customer waiting: **Hand back to the AI**.
 - **Not allowed yet**: **Let the AI answer here**. The bot keeps who it answers everywhere else.
 - **Someone called the AI in a group not allowed yet**: **Allow** or **Dismiss**.
 - **The channel has no bot**: **Create an AI for this channel** opens the bot form with that account ticked.
 
 Every change shows a line at the bottom of the screen with **Undo**.
 
-**AI drafts, I approve** (new in 0.371.0): the bot's turn runs as usual but its reply is **not sent**. It waits in a **dashed box** above the compose box and the chat moves to Needs you. Edit it if needed, then **Send** (logged in the inbox as the AI's words), **Rewrite** or **Discard**. A newer customer message replaces a draft not approved yet. Changing the mode keeps a waiting draft; replying by hand drops it.
+**AI drafts, I approve** (new in 0.371.0): the bot's turn runs as usual but its reply is **not sent**. It waits **inside the compose box**, above where you type, on a light violet background, and the chat moves to Needs you. Edit it if needed, then **Send** (logged in the inbox as the AI's words), **Rewrite** or **Discard**. A newer customer message replaces a draft not approved yet. Changing the mode keeps a waiting draft; replying by hand drops it.
 
 **Switch the AI off in one chat only**: choose "The AI does not answer here" in the Info panel. Only that chat goes quiet.
 
-## Replying, and the "AI reply" button
+## Replying, and the "AI draft" button
 
 The compose box has two buttons:
 
 - **Send**: sends your text as it is. **Enter** sends, Shift+Enter adds a line.
-- **AI reply**: what you typed is an **instruction for the AI**, for example "quote 20 cases wholesale, delivery Thursday". The AI writes a polite reply in the dashed box, naming your instruction, with Discard / Rewrite / Send. With an empty box it reads the chat and writes on its own. **It never sends by itself.** The instruction is read by the AI only and never lands in the inbox.
+- **AI draft** (called "AI reply" before 0.395.0): what you typed is an **instruction for the AI**, for example "quote 20 cases wholesale, delivery Thursday". The AI writes a polite reply inside the compose box, naming your instruction, with Discard / Rewrite / Send. With an empty box it reads the chat and writes on its own. **It never sends by itself.** The instruction is read by the AI only and never lands in the inbox.
 
 Under the last customer message, a **"Bot silent: reason"** line appears when the reply policy logged one (for example "Score below threshold (0.52 / 0.60)"), with **Why** opening that bot's reply policy panel, and **Ask the AI to answer this**: the AI answers that message now and sends it, the chat stays in AI replies. If the policy had stayed silent on it, the bot also **learns one more case**. If sending fails after the AI wrote the reply, the text lands in the compose box for you to send by hand.
 
-The message goes out through the chat's own channel: a Telegram or Zalo bot sends with that account's token, personal Zalo sends through the very account you scanned, **under your own name** (the compose box says so). A channel that cannot send from Javis yet shows a line saying so instead of the box.
+The message goes out through the chat's own channel: a Telegram or Zalo bot sends with that account's token, personal Zalo sends through the very account you scanned, **under your own name** (the box's placeholder says so, for example "Send as Javis Vu..."). A channel that cannot send from Javis yet shows a line saying so instead of the box.
 
 Sending by hand in a chat in **AI replies** **takes the chat over**: the AI stays quiet with this customer until you pick AI replies again. Otherwise the customer would read two voices at once. Choosing **I reply** does the same without sending anything; after that you can also reply in the channel's own app.
 

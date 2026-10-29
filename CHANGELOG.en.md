@@ -10,7 +10,13 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.395.0] - 2026-10-29
 ### Improved
-- **The Chatbot page is tidier on phones and computers.** (in progress)
+- **Chatbot page on phones: twice the room to read messages.** An open chat fills the screen: one head row with the back button, the customer's name and a violet mode button. Tap it to pick AI replies, AI drafts or I reply, each with a line on what it does. The compose box is one row with two round buttons.
+- **On phones** the "Chatbot" title is gone and the four tabs show their icon only.
+- **Smaller, tidier type on computers.** Each customer takes 2 lines and still shows the chat's message count and unread number; a third line appears only for tags.
+- **The four filter buttons that wrapped** (Needs you, AI is handling...) are now **one dropdown** that always shows the Needs you count. Each choice has a line saying what it means.
+- **The three reply modes sit in the chat head.** The coloured bar under it only shows when something needs you. The customer's tags sit next to the name, with a "+ Tag" button.
+- **The Info panel starts closed**; the ⓘ button opens it and Javis remembers your choice. Messages sit in a centred, easy-to-read column.
+- The compose box's "AI reply" button is now **"AI draft"**, which is what it does: the AI writes, you press Send. The draft shows right inside the compose box.
 
 ## [0.394.0] - 2026-10-29
 ### Fixed

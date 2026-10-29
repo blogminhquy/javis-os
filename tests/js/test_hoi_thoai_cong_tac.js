@@ -64,9 +64,12 @@ check("the four who labels", ["you", "ai", "owner", "log"].every((w) => V.whoLab
 // ---- 2. conversations.js wiring ----
 const vt = CV.slice(CV.indexOf("  function veThread() {"), CV.indexOf("  // ---------------------------------------------------------------- Info panel"));
 check("the bar comes right after the head, before the messages, in the colour of who handles the chat",
-  vt.indexOf('class="ht-head"') < vt.indexOf('class="ib-aibar') && vt.indexOf('class="ib-aibar') < vt.indexOf('class="ht-msgs"') && /'<div class="ib-aibar w-' \+ who \+ '">'/.test(vt));
-check("three modes before the sentence; Allow / Let the A.I. answer after it", /\(threeModes \? bar : ""\)/.test(vt) &&
-  /: bar\) \+/.test(vt));
+  vt.indexOf('class="ht-head"') < vt.indexOf('class="ib-aibar') && vt.indexOf('class="ib-aibar') < vt.indexOf('class="ht-msgs"') &&
+  /'<div class="ib-aibar w-' \+ who \+ '"' \+ \(calm \? " hidden" : ""\) \+ '>'/.test(vt));
+check("0.395.0: the three modes sit in the head (a chip on a narrow column); the bar hides unless the chat needs the owner",
+  /var calm = threeModes && who !== "you";/.test(vt) && /\(threeModes \? '<span class="ib-hmode" title="' \+ esc\(say\) \+ '">' \+ bar/.test(vt) &&
+  /V\.modeChipHtml\(c, ic\)/.test(vt) && vt.indexOf('class="ib-hmode"') < vt.indexOf('class="ht-msgs"'));
+check("Allow / Let the A.I. answer here / Create an A.I. stay in the bar, after the sentence", /: bar\) \+/.test(vt));
 check("a mode button and the Allow buttons go through setWho; 'Hand back to the A.I.' when you reply yourself",
   /setWho\(c, b\.dataset\.m\)/.test(vt) && /setWho\(c, b\.dataset\.on === "1" \? modeOf\(c\) : "off"/.test(vt) && /ib-back-ai/.test(vt));
 const sw = CV.slice(CV.indexOf("  async function setWho("), CV.indexOf("  function refreshChat()"));

@@ -32,7 +32,9 @@ Bên dưới, mọi kênh đều đưa tin về **một khuôn chung** rồi và
 
 ## Tab Hội thoại
 
-Từ 0.372.0 (Chatbot v5) máy tính chia **ba cột**: danh sách khách bên trái, khung chat ở giữa, bảng **Thông tin** bên phải (đóng được; màn hẹp hơn 1200px thì bảng trượt đè lên khung chat khi bạn bấm **Thông tin**). Trên điện thoại một cột: danh sách, chạm để mở chat, nút ⓘ mở bảng Thông tin.
+Từ 0.372.0 (Chatbot v5) máy tính chia **ba cột**: danh sách khách bên trái, khung chat ở giữa, bảng **Thông tin** bên phải. Từ 0.395.0 bảng Thông tin **đóng sẵn** để khung chat rộng, bấm nút ⓘ ở góc phải đầu cuộc chat mới mở (Javis nhớ lựa chọn của bạn trên trình duyệt đó); màn hẹp hơn 1200px thì bảng trượt đè lên khung chat. Chữ trên máy tính cũng gọn lại: danh sách 14px, tin nhắn 15px, và tin nằm trong một cột giữa vừa tầm mắt.
+
+**Trên điện thoại** (từ 0.395.0): không còn chữ "Chatbot" ở đầu trang, bốn tab chỉ còn icon (giữ ngón tay hay đọc màn hình vẫn nghe tên tab). Mở một cuộc chat là nó **chiếm cả màn hình**: một hàng đầu gồm nút quay lại, tên khách, kênh, và một **nút chế độ** màu tím (ví dụ "A.I. trả lời ▾"). Bấm nút đó là một bảng trượt từ dưới lên với ba chế độ, mỗi cái một dòng giải thích, cùng **Thông tin khách và cài đặt A.I.** Ô nhập một hàng, hai nút tròn: ✨ để A.I. soạn hộ, mũi tên để gửi.
 
 **Ai đang lo cuộc chat này.** Server tính cho mỗi cuộc chat một trạng thái, mọi chỗ trên trang đọc đúng nó:
 
@@ -43,13 +45,14 @@ Từ 0.372.0 (Chatbot v5) máy tính chia **ba cột**: danh sách khách bên t
 | xanh | **Bạn đang xử lý** | bạn chọn Tôi trả lời và khách không chờ |
 | xám | **Chỉ ghi lại** | A.I. không trả lời ở đây (chưa cho phép, kênh chưa có bot, bot tắt) và không ai chờ |
 
-Mỗi dòng khách có **viền trái** theo màu đó, ảnh đại diện có **logo kênh** ở góc, tên, giờ, tin cuối (có "A.I.:" hay "Bạn:" phía trước), số chưa đọc, tối đa hai thẻ cộng "+n", và tên nick hay Page khi đang xem nhiều nơi. Rê chuột lên dòng là đọc một câu nói chuyện gì đang xảy ra.
+Mỗi dòng khách có **viền trái** theo màu đó, ảnh đại diện có **logo kênh** ở góc, tên, giờ, tin cuối (có "A.I.:" hay "Bạn:" phía trước), **số tin của cả cuộc chat** (ô xám, ví dụ "11 tin") rồi số chưa đọc (ô đỏ), và dòng thứ ba chỉ khi có thẻ: tối đa hai thẻ cộng "+n". Rê chuột lên dòng là đọc tên nick hay Page (khi đang xem nhiều nơi) và một câu nói chuyện gì đang xảy ra.
 
 Đầu cột trái, từ trên xuống:
 
-- **Hộp chọn kênh**: bấm để mở danh sách nick và Page có ô tick, xếp theo kênh với logo thật. Tick tên kênh là chọn cả kênh; mỗi nơi có số chat **Cần bạn**. Không tick gì là xem tất cả. Có ô tìm, **Bỏ chọn**, **Xong** và **Quản lý kênh**.
-- **Ô tìm** (tên, số điện thoại, nội dung) và nút **Lọc**: menu hai tầng gồm Thời gian (tin cuối trong khoảng nào: hôm nay, 7, 30, 90 ngày, tháng trước, đầu tuần, đầu tháng, hoặc chọn ngày trên lịch), Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Tình trạng (chưa đọc, chờ lâu nhất, đã ẩn), Tin cuối của ai (khách, A.I., bạn), Thông tin khách (có SĐT hay email, chỉ chat đã ghim). Bộ lọc đang bật hiện thành chip có dấu x ngay dưới.
-- **Bốn nút lọc nhanh**: Cần bạn · A.I. đang xử lý · Bạn đang xử lý · Tất cả, kèm số. Mở trang lần đầu là ở **Cần bạn**; không còn chat nào cần bạn thì trang nói vậy, kèm nút **Xem tất cả**.
+- **Ô tìm** (tên, số điện thoại, nội dung), nút **Lọc** là icon nằm ngay trong ô: menu hai tầng gồm Thời gian (tin cuối trong khoảng nào: hôm nay, 7, 30, 90 ngày, tháng trước, đầu tuần, đầu tháng, hoặc chọn ngày trên lịch), Có chứa thẻ, Loại trừ thẻ, Loại cuộc chat, Bot trả lời, Tình trạng (chưa đọc, chờ lâu nhất, đã ẩn), Tin cuối của ai (khách, A.I., bạn), Thông tin khách (có SĐT hay email, chỉ chat đã ghim). Bộ lọc đang bật hiện thành chip có dấu x ngay dưới.
+- Hàng dưới có **hai nút thả xuống** (từ 0.395.0, thay cho bốn nút lọc nhanh trước đây hay bị gãy chữ):
+  - Bên trái, **ai đang lo**: nút luôn hiện chế độ đang xem kèm số, ví dụ "Cần bạn 4". Bấm ra bốn lựa chọn, mỗi cái một dòng giải thích: **Cần bạn** (khách đang chờ bạn trả lời hoặc duyệt), **A.I. lo** (A.I. đang tự trả lời khách), **Bạn lo** (bạn đã nhận tự trả lời, A.I. im), **Tất cả** (mọi cuộc chat, kể cả chỉ ghi lại). Mở trang lần đầu là ở **Cần bạn**; không còn chat nào cần bạn thì trang nói vậy, kèm nút **Xem tất cả**.
+  - Bên phải, **hộp chọn kênh**: bấm để mở danh sách nick và Page có ô tick, xếp theo kênh với logo thật. Tick tên kênh là chọn cả kênh; mỗi nơi có số chat **Cần bạn**. Không tick gì là xem tất cả. Có ô tìm, **Bỏ chọn**, **Xong** và **Quản lý kênh**. Rê chuột lên nút là đọc tên các nơi đang chọn.
 
 Mọi lựa chọn được nhớ ở trình duyệt. Số trên tab **Hội thoại** là số chat **Cần bạn**.
 
@@ -59,33 +62,35 @@ Mọi lựa chọn được nhớ ở trình duyệt. Số trên tab **Hội tho
 
 **Tải dần, không đơ máy** (từ 0.65.11). Danh sách chỉ tải 40 dòng đầu; cuộn gần tới cuối thì tự tải 40 dòng nữa (hoặc bấm **Xem thêm**). Khung tin cũng vậy: mở một hội thoại chỉ tải 40 tin **mới nhất**, kéo lên gần đầu (hoặc bấm **Xem tin cũ hơn**) thì tải thêm 40 tin cũ hơn và giữ nguyên chỗ bạn đang đọc. Cứ 5 giây Javis chỉ hỏi các tin **mới hơn tin cuối** rồi chèn vào cuối khung; đang đọc tin cũ mà có tin mới về thì khung đứng yên, không kéo bạn về đầu như trước.
 
-Bấm một hội thoại là lịch sử tin hiện ở giữa: tin khách bên trái, câu A.I. (nhãn "A.I. · tên bot") và câu bạn bên phải. Lượt bot bị gãy cũng nằm đó kèm lý do kỹ thuật, để bạn phân biệt "bot trả lời sai" với "bot đang hỏng". Trang tự làm mới mỗi vài giây, không cần tải lại.
+Bấm một hội thoại là lịch sử tin hiện ở giữa: tin khách bên trái (nền trắng), câu A.I. (nền tím nhạt) và câu bạn (nền xanh) bên phải; tên người gửi và giờ nằm ngay dưới mỗi bong bóng, tên khách chỉ hiện trong nhóm. Đầu cuộc chat có tên khách kèm thẻ của cuộc chat và nút **+ Tag** (mở bảng Thông tin với bộ chọn thẻ), dòng dưới là kênh, nick và **số tin**. Lượt bot bị gãy cũng nằm đó kèm lý do kỹ thuật, để bạn phân biệt "bot trả lời sai" với "bot đang hỏng". Trang tự làm mới mỗi vài giây, không cần tải lại.
 
-## Ai trả lời: thanh ngay dưới tên khách
+## Ai trả lời: đầu cuộc chat và thanh màu
 
-Thanh này cùng màu với trạng thái của cuộc chat và luôn có **một câu** nói chuyện gì đang xảy ra (ví dụ "A.I. đã soạn xong câu trả lời, chờ bạn duyệt"). Bên cạnh là nút hợp với lúc đó:
+**A.I. được phép trả lời ở đây**: ba chế độ **A.I. trả lời**, **A.I. soạn**, **Tôi trả lời** nằm ngay trên đầu cuộc chat, bên phải tên khách (trên điện thoại là nút chế độ mở bảng chọn). Rê chuột lên đó là đọc một câu nói chuyện gì đang xảy ra.
 
-- **A.I. được phép trả lời ở đây**: ba chế độ **A.I. tự trả lời**, **A.I. soạn, tôi duyệt**, **Tôi trả lời**. Đang ở Tôi trả lời thì có thêm **Trả lại cho A.I.**
+Ngay dưới tên khách là một **thanh mảnh** cùng màu với trạng thái, kèm **một câu** (ví dụ "A.I. đã soạn xong câu trả lời, chờ bạn duyệt"). Từ 0.395.0 thanh này **chỉ hiện khi cần bạn** hoặc khi có việc để bật, còn lúc A.I. đang lo yên ổn thì ẩn đi cho khung chat rộng. Nút đi kèm hợp với lúc đó:
+
+- Đang ở Tôi trả lời mà khách chờ: **Trả lại cho A.I.**
 - **Chưa cho phép**: nút **Cho A.I. trả lời ở đây**. Bot vẫn giữ nguyên ai được trả lời ở các cuộc khác.
 - **Có người gọi A.I. ở một nhóm chưa cho phép**: **Cho phép** hoặc **Bỏ qua**.
 - **Kênh chưa có bot**: **Tạo A.I. cho kênh này** mở form tạo bot với kênh đó tích sẵn.
 
 Mọi thay đổi hiện một dòng báo ở đáy màn hình kèm **Hoàn tác**.
 
-**A.I. soạn, tôi duyệt** (mới ở 0.371.0): lượt bot chạy như thường nhưng câu trả lời **không gửi**. Nó nằm trong **khung nét đứt** trên ô nhập, cuộc chat chuyển sang Cần bạn. Bạn sửa chữ nếu cần rồi bấm **Gửi** (ghi vào hộp thư là lời A.I.), **Viết lại** (nhờ soạn lần nữa) hoặc **Bỏ**. Tin khách mới tới khi bản cũ chưa duyệt thì bản mới thay bản cũ. Đổi chế độ không xoá bản đang chờ; bạn tự gửi tay thì bản đó bỏ đi.
+**A.I. soạn, tôi duyệt** (mới ở 0.371.0): lượt bot chạy như thường nhưng câu trả lời **không gửi**. Nó nằm ngay **trong khung ô nhập**, phía trên chỗ gõ, nền tím nhạt, cuộc chat chuyển sang Cần bạn. Bạn sửa chữ nếu cần rồi bấm **Gửi** (ghi vào hộp thư là lời A.I.), **Viết lại** (nhờ soạn lần nữa) hoặc **Bỏ**. Tin khách mới tới khi bản cũ chưa duyệt thì bản mới thay bản cũ. Đổi chế độ không xoá bản đang chờ; bạn tự gửi tay thì bản đó bỏ đi.
 
 **Tắt A.I. ở riêng một cuộc chat**: chọn "Không cho A.I. trả lời ở đây" trong bảng Thông tin. Chỉ cuộc chat đó im; khách khác và nhóm khác vẫn như cũ.
 
-## Trả lời khách và nút "A.I. trả lời"
+## Trả lời khách và nút "A.I. soạn"
 
 Ô nhập có hai nút:
 
 - **Gửi**: gửi nguyên văn cho khách. **Enter** để gửi, Shift+Enter xuống dòng.
-- **A.I. trả lời**: chữ trong ô là **lệnh cho A.I.**, ví dụ "báo giá sỉ 20 thùng, hẹn giao thứ 5". A.I. viết thành câu trả lời lịch sự trong khung nét đứt, ghi rõ lệnh của bạn, kèm Bỏ / Viết lại / Gửi. Ô trống thì A.I. tự đọc cuộc chat mà soạn. **Không bao giờ tự gửi.** Lệnh chỉ A.I. đọc, không vào hộp thư.
+- **A.I. soạn** (trước 0.395.0 tên là "A.I. trả lời"): chữ trong ô là **lệnh cho A.I.**, ví dụ "báo giá sỉ 20 thùng, hẹn giao thứ 5". A.I. viết thành câu trả lời lịch sự ngay trong khung ô nhập, ghi rõ lệnh của bạn, kèm Bỏ / Viết lại / Gửi. Ô trống thì A.I. tự đọc cuộc chat mà soạn. **Không bao giờ tự gửi.** Lệnh chỉ A.I. đọc, không vào hộp thư.
 
 Dưới tin khách cuối có dòng **"Bot im: lý do"** khi bộ phán xử đã ghi lý do (ví dụ "Điểm thấp hơn ngưỡng (0.52 / 0.60)"), kèm nút **Vì sao** mở thẳng bảng Bộ phán xử của bot đó, và nút **Nhờ A.I. trả lời tin này**: A.I. trả lời ngay tin đó và gửi luôn, cuộc chat vẫn ở A.I. tự trả lời. Nếu đó đúng là tin bộ phán xử đã im, bot còn **học thêm một ca**: lần sau gặp tin giống vậy bot sẽ nói. Gửi hỏng mà A.I. đã soạn xong thì câu đó nằm trong ô nhập để bạn gửi tay.
 
-Tin đi qua đúng kênh của cuộc chat: bot Telegram hay Zalo Bot gửi bằng token của tài khoản đó, Zalo cá nhân gửi qua chính tài khoản bạn đã quét QR, **dưới tên bạn** (ô nhập nói rõ điều này). Kênh nào chưa gửi được từ Javis thì ô nhập thay bằng một dòng nói vậy.
+Tin đi qua đúng kênh của cuộc chat: bot Telegram hay Zalo Bot gửi bằng token của tài khoản đó, Zalo cá nhân gửi qua chính tài khoản bạn đã quét QR, **dưới tên bạn** (chữ mờ trong ô nhập nói rõ, ví dụ "Gửi dưới tên Javis Vũ..."). Kênh nào chưa gửi được từ Javis thì ô nhập thay bằng một dòng nói vậy.
 
 Gửi tay ở một cuộc chat đang **A.I. tự trả lời** là bạn **tiếp quản** cuộc đó: A.I. im với khách này cho tới khi bạn chọn lại A.I. tự trả lời. Không thì khách đọc hai giọng một lúc. Chọn **Tôi trả lời** làm y như vậy mà không cần gửi gì; chọn xong bạn trả lời trong app của kênh cũng được.
 

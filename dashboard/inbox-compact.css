@@ -1,0 +1,221 @@
+/* Chatbot page, compact layout (0.395.0; owner, 2026-10-29, approved on the design canvas).
+   "Chữ của bản máy tính khá là to ... bố trí chưa hợp lý", and on phones "diện tích để đọc tin nhắn thì quá nhỏ".
+   Loaded after inbox-v5.css and overrides it for the Conversations tab only; the Channels and Stats tabs keep their
+   sizes. Computer: 14px lists, 15px messages, two-line rows (a third only for tags), a centred message column, Info
+   closed until asked. Phone (and any chat column under 540px): no page title, icon-only tabs, a full-screen chat with
+   a one-row head, the mode as a chip opening a sheet, a one-row composer. */
+
+/* ---- page head: title and tabs ---- */
+.ht-page .ht-title { font-size: 17px; padding: 6px 0; }
+.ht-page .ht-tab { font-size: 14px; padding: 8px 10px; display: inline-flex; align-items: center; gap: 6px; }
+.ht-page .ht-tab svg { width: 16px; height: 16px; }
+
+/* ---- the Conversations tab ---- */
+.ib-v5 { font-size: 14px; }
+.ib-v5 .ht-body { border-radius: 14px; }
+@media (min-width: 901px) { .ib-v5 .ht-listcol { width: var(--ht-list-w, 340px); } }
+
+/* list head: search with Filter inside, then "who" and the channel picker on one row */
+.ib-lhead { padding: 10px 10px 8px; gap: 8px; }
+.ib-v5 .ib-swrap > svg { width: 16px; height: 16px; left: 10px; }
+.ib-v5 .ht-search { height: 36px; box-sizing: border-box; padding: 6px 40px 6px 32px; border-radius: 10px; font-size: 14px; }
+.ib-v5 .ib-fbtn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 30px; height: 28px; padding: 0;
+  justify-content: center; border: 0; border-radius: 8px; background: none; color: var(--text2); }
+.ib-v5 .ib-fbtn:hover { background: var(--surface-2); color: var(--text); }
+.ib-v5 .ib-fbtn svg { width: 16px; height: 16px; }
+.ib-v5 .ib-fbtn-n { position: absolute; top: -5px; right: -5px; min-width: 16px; padding: 0 4px; box-sizing: border-box; font-size: 11px;
+  line-height: 16px; text-align: center; }
+.ib-lrow { display: flex; gap: 8px; justify-content: space-between; min-width: 0; }
+.ib-whobtn, .ib-v5 .ib-picker { height: 34px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px 0 10px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); color: var(--text); font: inherit; font-size: 13px;
+  font-weight: 600; white-space: nowrap; cursor: pointer; min-width: 0; }
+.ib-whobtn { flex: none; }
+.ib-v5 .ib-picker { width: auto; flex: 0 1 auto; }
+.ib-whobtn:hover, .ib-whobtn[aria-expanded="true"] { border-color: var(--accent2-line); }
+.ib-whobtn.w-you { border-color: color-mix(in srgb, var(--ib-you) 70%, transparent); }
+.ib-whobtn > svg, .ib-v5 .ib-picker > svg { width: 14px; height: 14px; flex: none; color: var(--text3); }
+.ib-whobtn .ib-dot, .ib-wm-o .ib-dot { width: 8px; height: 8px; }
+.ib-wm-o .ib-dot { margin: 0 3.5px; }
+.ib-v5 .ib-pk-tt b { font-weight: 600; }
+.ib-v5 .ib-stack img, .ib-v5 .ib-stack svg { width: 18px; height: 18px; }
+.ib-v5 .ib-qn { font-size: 12px; color: var(--text3); font-weight: 600; }
+.ib-v5 .ib-qn.you { background: var(--ib-you-wash); color: var(--ib-you-ink); border-radius: 8px; padding: 0 6px; font-weight: 700; }
+.ib-v5 .ib-fchip { font-size: 13px; }
+
+/* the "who" menu and the two other popovers, placed under the row that opens them */
+.ib-v5 .ib-fm { top: 52px; }
+.ib-v5 .ib-pk { top: 96px; }
+.ib-wm { top: 96px; right: auto; width: min(300px, calc(100% - 24px)); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.ib-wm[hidden] { display: none; }
+.ib-wm-o { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: none;
+  color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.ib-wm-o:hover, .ib-wm-o:focus-visible { background: var(--surface-2); }
+.ib-wm-o.on { background: var(--surface-3); }
+.ib-wm-o.all { border-top: 1px solid var(--hairline); border-radius: 0 0 10px 10px; margin-top: 2px; }
+.ib-wm-o > svg { width: 15px; height: 15px; flex: none; color: var(--text2); }
+.ib-wm-t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ib-wm-t b { font-weight: 600; }
+.ib-wm-t small { font-size: 12.5px; color: var(--text3); }
+.ib-wm-ck { flex: none; width: 16px; display: inline-flex; color: var(--ib-ai-ink); }
+.ib-wm-ck svg { width: 16px; height: 16px; }
+
+/* rows: two lines (name and time, last message with the chat's message count and the unread number), tags on a third */
+.ib-v5 .ht-item { grid-template-columns: 38px minmax(0, 1fr); gap: 0 10px; border-left-width: 3px; padding: 9px 12px 9px 10px; font-size: 14px; }
+.ib-v5 .ht-item-ava { width: 38px; height: 38px; font-size: 15px; }
+.ib-v5 .ht-item-ava.g { border-radius: 12px; }
+.ib-v5 .ib-kl { width: 16px; height: 16px; right: -3px; bottom: -3px; }
+.ib-v5 .ib-kl svg, .ib-v5 .ib-kl img { width: 16px; height: 16px; }
+.ib-v5 .ht-item-text { gap: 2px; }
+.ib-v5 .ht-item-top strong { font-size: 14px; }
+.ib-v5 .ht-item-time { font-size: 12px; }
+.ib-v5 .ht-item-sub small { font-size: 13px; }
+.ib-v5 .ht-badge { font-size: 11px; line-height: 18px; min-width: 18px; padding: 0 5px; box-sizing: border-box; text-align: center; }
+.ib-v5 .ht-count { font-size: 11px; line-height: 16px; padding: 0 6px; }
+.ib-v5 .ht-item-utags { margin-top: 2px; gap: 4px; }
+.ib-v5 .ht-item-utags .ht-tag, .ib-v5 .ht-item-utags .ht-tag-more, .ib-htags .ht-tag, .ib-htags .ht-tag-more { font-size: 11px; line-height: 17px; }
+.ib-v5 .ht-rmore { font-size: 14px; }
+.ib-v5 .ht-more .s-btn-ghost { font-size: 14px; }
+.ib-v5 .ht-empty { font-size: 14px; }
+.ib-v5 .ht-empty b { font-size: 15px; }
+
+/* ---- chat head: name with its tags, channel · nick · message count; the three modes and the Info button ---- */
+.ib-v5 .ht-thread { position: relative; }
+.ib-v5 .ht-head { min-height: 58px; box-sizing: border-box; padding: 8px 10px 8px 16px; gap: 10px; flex-wrap: nowrap; }
+.ib-v5 .ht-head .ht-item-ava { width: 36px; height: 36px; font-size: 14px; }
+.ib-hname { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ib-v5 .ht-head-text .ib-hname strong { font-size: 15px; flex: 0 1 auto; min-width: 4em; }
+/* The tags give way before the name does. */
+.ib-htags { display: inline-flex; align-items: center; gap: 4px; flex: 0 100 auto; min-width: 0; overflow: hidden; }
+.ib-htags .ht-tag { flex: 0 1 auto; }
+.ib-htag-add { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px; border: 1px dashed var(--border);
+  border-radius: 6px; background: none; color: var(--text3); font: inherit; font-size: 11px; cursor: pointer; }
+.ib-htag-add svg { width: 11px; height: 11px; }
+.ib-htag-add:hover { color: var(--accent); border-color: var(--accent); }
+.ib-v5 .ht-head-text small { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ib-v5 .ht-head-text small .ht-chip { vertical-align: middle; }
+.ib-hmode { flex: none; display: inline-flex; }
+.ib-hmode .ib-mode-l, .ib-hmode .ib-l-long { display: none; }
+.ib-hmode .ib-l-short { display: inline; }
+.ib-hmode .ib-mode { border: 0; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
+.ib-hmode .ib-m { padding: 5px 10px; font-size: 13px; border-radius: 8px; }
+.ib-hmode .ib-m svg { width: 14px; height: 14px; }
+.ib-hmode .ib-m.on { background: var(--bg2); box-shadow: var(--shadow-1); font-weight: 600; }
+.ib-hmode .ib-m.on.m-ai, .ib-hmode .ib-m.on.m-draft { color: var(--ib-ai-ink); }
+.ib-hmode .ib-m.on.m-human { color: var(--ib-owner-ink); }
+.ib-v5 .ib-info-btn { width: 34px; height: 34px; padding: 0; justify-content: center; border: 1px solid var(--border); border-radius: 10px; }
+.ib-v5 .ib-info-btn svg { width: 17px; height: 17px; }
+.ib-v5 .ib-info-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+.ib-mchip { display: none; flex: none; align-items: center; gap: 5px; height: 36px; padding: 0 9px 0 11px; border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--ib-ai) 40%, transparent); background: var(--ib-ai-wash); color: var(--ib-ai-ink);
+  font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.ib-mchip.m-human { border-color: color-mix(in srgb, var(--ib-owner) 40%, transparent); background: var(--ib-owner-wash); color: var(--ib-owner-ink); }
+.ib-mchip svg { width: 15px; height: 15px; }
+
+/* the coloured bar: one slim line, only when the chat needs the owner or there is something to switch on */
+.ib-v5 .ib-aibar { min-height: 36px; box-sizing: border-box; padding: 5px 16px; gap: 8px; font-size: 13px; }
+.ib-v5 .ib-aibar[hidden] { display: none; }
+.ib-v5 .ib-aibar .ib-dot { width: 8px; height: 8px; }
+.ib-v5 .ib-aibar .s-btn, .ib-v5 .ib-aibar .s-btn-ghost { font-size: 13px; padding: 4px 10px; }
+
+/* ---- messages in a centred column; who and when under each bubble ---- */
+.ib-v5 .ht-msgs { padding: 18px max(16px, calc((100% - 760px) / 2)) 10px; gap: 8px; }
+.ib-v5 .ht-msg { max-width: min(72%, 560px); }
+.ib-v5 .ht-bubble { font-size: 15px; line-height: 1.45; padding: 8px 13px; border-radius: 16px; }
+.ib-v5 .ht-msg.khach .ht-bubble { background: var(--bg2); border-color: var(--border); border-bottom-left-radius: 5px; }
+.ib-v5 .ht-msg.bot .ht-bubble { border-color: transparent; border-bottom-right-radius: 5px; }
+.ib-v5 .ht-msg.nguoi .ht-bubble { border-bottom-right-radius: 5px; }
+.ib-v5 .ht-msg-h { font-size: 11.5px; margin: 3px 6px 0; }
+.ib-v5 .ht-loai, .ib-v5 .ht-msg-loi, .ib-v5 .ht-react-row { font-size: 12.5px; }
+.ib-v5 .ht-msg.hethong .ht-bubble { font-size: 13px; }
+.ib-v5 .ht-silent, .ib-v5 .ht-older, .ib-v5 .ht-foot { font-size: 13px; }
+
+/* ---- composer: one card, the A.I.'s draft on top of the box when there is one ---- */
+.ib-v5 .ht-compose { padding: 8px max(16px, calc((100% - 760px) / 2)) 14px; border-top: 0; gap: 6px; }
+.ib-cbox { border: 1px solid var(--border); border-radius: 16px; background: var(--bg2); box-shadow: var(--shadow-1); overflow: hidden; }
+.ib-cbox:focus-within { border-color: var(--accent-line); }
+.ht-compose.has-draft .ib-cbox { border-color: color-mix(in srgb, var(--ib-ai) 45%, transparent); }
+.ib-v5 .ib-draft { border: 0; border-bottom: 1px solid var(--hairline); border-radius: 0; padding: 8px 12px; }
+.ib-v5 .ib-draft-h { font-size: 13px; margin-bottom: 4px; }
+.ib-v5 .ib-draft .ib-draft-t { font-size: 15px; min-height: 60px; border: 0; background: none; box-shadow: none; padding: 2px 0; resize: none; }
+.ib-v5 .ib-draft-a button { font-size: 13px; }
+.ib-v5 .ib-cin { padding: 6px; gap: 6px; }
+.ib-v5 .ib-cin textarea { border: 0; background: none; padding: 9px 10px; font-size: 15px; min-height: 40px; max-height: 200px; resize: none;
+  outline: none; }
+.ib-v5 .ib-cin .s-btn, .ib-v5 .ib-cin .s-btn-ghost { min-height: 38px; font-size: 13px; padding: 0 12px; border-radius: 11px; }
+.ib-v5 .ib-cin .ib-ask { background: var(--ib-ai-wash); color: var(--ib-ai-ink); border: 1px solid color-mix(in srgb, var(--ib-ai) 35%, transparent); }
+.ib-v5 .ib-cin .ht-send { font-size: 14px; }
+
+/* ---- Info panel ---- */
+.ib-v5 .ht-info { width: 300px; font-size: 14px; }
+.ib-v5 .ib-sec { padding: 12px 14px; gap: 8px; }
+.ib-v5 .ib-sec h4 { font-size: 13px; }
+.ib-v5 .ib-kh .ht-item-ava { width: 46px; height: 46px; }
+.ib-v5 .ib-kh b { font-size: 16px; }
+.ib-v5 .ib-kh small, .ib-v5 .ib-hint { font-size: 12.5px; }
+.ib-v5 .ib-notebox, .ib-v5 .ib-fld select { font-size: 14px; }
+.ib-v5 .ht-info .ht-tag, .ib-v5 .ht-info .ht-tag-add { font-size: 13px; }
+
+/* ---- the phone's "who replies" sheet, inside the chat column ---- */
+.ib-msheet { position: absolute; inset: 0; z-index: 40; }
+.ib-msheet[hidden] { display: none; }
+.ib-msheet-bg { position: absolute; inset: 0; background: var(--scrim, rgba(0, 0, 0, .45)); }
+.ib-msheet-box { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 14px 16px;
+  background: var(--bg2); border-radius: 18px 18px 0 0; box-shadow: var(--shadow-2); }
+.ib-msheet-grip { align-self: center; width: 40px; height: 5px; border-radius: 3px; background: var(--border); margin-bottom: 6px; }
+.ib-msheet-box h3 { margin: 0 0 4px; font-size: 17px; text-transform: none; letter-spacing: normal; }
+.ib-mso { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 14px;
+  background: none; color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
+.ib-mso.on { border: 2px solid var(--ib-ai); background: var(--ib-ai-wash); padding: 10px 11px; }
+.ib-mso.on.m-human { border-color: var(--ib-owner); background: var(--ib-owner-wash); }
+.ib-mso-ic { flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2); display: inline-flex; align-items: center;
+  justify-content: center; color: var(--text2); }
+.ib-mso.on .ib-mso-ic { color: var(--ib-ai-ink); }
+.ib-mso .ib-wm-t small { font-size: 14px; }
+.ib-mso-info { display: flex; align-items: center; gap: 10px; height: 48px; margin-top: 6px; padding: 0 4px; border: 0;
+  border-top: 1px solid var(--hairline); background: none; color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
+.ib-mso-info svg { width: 20px; height: 20px; color: var(--text2); }
+
+/* A middling chat column (Info open on a laptop): the head keeps the name and the Tag button, the chips stay in Info. */
+@container (max-width: 700px) {
+  .ib-htags .ht-tag, .ib-htags .ht-tag-more { display: none; }
+}
+
+/* ---- a narrow chat column (phones, or a small window with Info open): the mode is a chip, the Info button goes into
+   its sheet, the tags stay in Info ---- */
+@container (max-width: 540px) {
+  .ib-hmode { display: none; }
+  .ib-mchip { display: inline-flex; }
+  .ht-head:has(.ib-mchip) .ib-info-btn { display: none; }
+  .ib-htags { display: none; }
+}
+
+/* ---- phones ---- */
+@media (max-width: 640px) {
+  .ht-page .ht-title { display: none; }
+  .ht-page .ht-tabs { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; gap: 0; }
+  .ht-page .ht-tab { flex-direction: row; justify-content: center; padding: 10px 2px; position: relative; }
+  .ht-page .ht-tab svg { width: 22px; height: 22px; }
+  .ht-page .ht-tab-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .ht-page .ht-tab .ht-badge { position: absolute; top: 3px; left: calc(50% + 6px); right: auto; margin: 0; }
+  .ib-v5 .ht-item { grid-template-columns: 44px minmax(0, 1fr); padding: 10px 14px 10px 11px; }
+  .ib-v5 .ht-item-ava { width: 44px; height: 44px; font-size: 16px; }
+  .ib-v5 .ht-item-top strong { font-size: 15px; }
+  .ib-v5 .ht-item-sub small { font-size: 14px; }
+  .ib-v5 .ht-head { padding: 6px 8px 6px 4px; gap: 6px; }
+  .ib-v5 .ht-back { border: 0; background: none; width: 40px; height: 40px; padding: 0; justify-content: center; }
+  .ib-v5 .ht-msgs { padding: 12px 12px 8px; }
+  .ib-v5 .ht-msg { max-width: 82%; }
+  .ib-v5 .ht-bubble { font-size: 16px; }
+  .ib-v5 .ht-compose { padding: 6px 8px 10px; }
+  .ib-v5 .ib-cin { flex-wrap: nowrap; }
+  .ib-v5 .ib-cin textarea { flex-basis: auto; font-size: 16px; }
+  .ib-v5 .ib-cin .s-btn, .ib-v5 .ib-cin .s-btn-ghost { flex: none; width: 40px; min-height: 40px; padding: 0; justify-content: center;
+    border-radius: 20px; }
+  .ib-v5 .ib-cin .s-btn span, .ib-v5 .ib-cin .s-btn-ghost span { display: none; }
+}
+/* A chat open on a phone takes the whole page: no tabs above it, no frame around it. */
+@media (max-width: 900px) {
+  .ht-page:has(.ht-wrap.thread-on) .ht-top { display: none; }
+  .cview.cview-hoi-thoai:has(.ht-wrap.thread-on) .cview-body { padding: 0; }
+  .ht-wrap.thread-on .ht-body { border: 0; border-radius: 0; }
+}

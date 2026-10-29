@@ -29,13 +29,19 @@ const V = win.JavisInboxV5;
 const I = (n) => "[" + n + "]";
 const L = (ch) => "<" + ch + ">";
 
-// ---- 1. quick filters ----
-const q = V.quickHtml("you", { you: 3, ai: 9, owner: 2, log: 6 }, I);
-check("four quick filters in order: Needs you, A.I. handling, You handling, All", /data-who="you"[\s\S]*data-who="ai"[\s\S]*data-who="owner"[\s\S]*data-who=""/.test(q));
-check("each has its colour dot and count; All counts every chat (log included)", /ib-dot w-you"><\/span><span>ib\.who_you<\/span><span class="ib-qn">3/.test(q) &&
-  /\[inbox\]<span>ib\.who_all<\/span><span class="ib-qn">20/.test(q));
-check("the current one is pressed", /class="ib-q on" data-who="you" aria-pressed="true"/.test(q) && /data-who="" aria-pressed="false"/.test(q));
-check("no counts yet (first paint): no numbers", V.quickHtml("", null, I).indexOf("ib-qn") < 0);
+// ---- 1. the "who" dropdown (0.395.0: one button and a menu instead of four chips that wrapped) ----
+const C = { you: 3, ai: 9, owner: 2, log: 6 };
+const wb = V.whoButtonHtml("you", C, I);
+check("the button shows the current view, its count and a chevron", /ib-dot w-you"><\/span><span class="ib-who-t">ib\.wq_you<\/span><span class="ib-qn you">3<\/span>\[chevron-down\]/.test(wb));
+check("'All' counts every chat, logged ones included", /\[inbox\]<span class="ib-who-t">ib\.wq_all<\/span><span class="ib-qn">20/.test(V.whoButtonHtml("", C, I)));
+check("an unknown view falls back to All", /ib\.wq_all/.test(V.whoButtonHtml("x", C, I)));
+check("no counts yet (first paint): no numbers", V.whoButtonHtml("", null, I).indexOf("ib-qn") < 0 && V.whoMenuHtml("", null, I).indexOf("ib-qn") < 0);
+const wm = V.whoMenuHtml("ai", C, I);
+check("the menu: Needs you, A.I. handles, You handle, All, in that order", /data-who="you"[\s\S]*data-who="ai"[\s\S]*data-who="owner"[\s\S]*data-who=""/.test(wm));
+check("each option says what it means and how many", ["you", "ai", "owner", "all"].every((w) => wm.indexOf("ib.wq_" + w + "_d") > 0) &&
+  /ib\.wq_owner<\/b><small>ib\.wq_owner_d<\/small><\/span><span class="ib-qn">2/.test(wm));
+check("the current option is checked, the others not", /class="ib-wm-o on" role="menuitemradio" aria-checked="true" data-who="ai"/.test(wm) &&
+  (wm.match(/aria-checked="false"/g) || []).length === 3 && /\[check\]/.test(wm));
 
 // ---- 2. channel picker ----
 const ACC = [
@@ -80,8 +86,9 @@ check("rows: coloured edge by who, avatar with the channel logo, 'A.I.:' or 'You
   /'<button type="button" class="ht-item w-' \+ who/.test(CV) && /'<span class="ib-kl">' \+ logoKenh\(c\.channel, "21px"\)/.test(CV) &&
   /c\.last_sender_type === "ai" \? window\.t\("ib\.pre_ai"\)/.test(CV));
 check("rows name the nick or Page only when several are in view", /var many = _accs\.length !== 1;/.test(CV));
-check("Info opens by itself on wide screens, as an overlay below 1200px only when asked", /function infoOpen\(\) \{ return _info === null \? !narrow\(\) : _info; \}/.test(CV) &&
-  /max-width: 1200px/.test(CV));
+check("Info stays closed until asked (owner, 2026-10-29), the choice kept in this browser on wide screens only",
+  /function infoOpen\(\) \{ return narrow\(\) \? _infoN : _info; \}/.test(CV) && /localStorage\.getItem\(INFO_KEY\) === "1"/.test(CV) &&
+  /if \(narrow\(\)\) _infoN = !!on;/.test(CV) && /localStorage\.setItem\(INFO_KEY/.test(CV) && /max-width: 1200px/.test(CV));
 const PI = CV.slice(CV.indexOf("  function paintInfo() {"), CV.indexOf("  async function saveNote("));
 check("Info: customer, contact (private chats), tags, note, A.I. in this chat, channel", /ib-kh/.test(PI) && /c\.chat_type !== "group" \|\| c\.contact/.test(PI) &&
   /class="ht-tagrow"/.test(PI) && /class="ib-notebox"/.test(PI) && /ib\.i_ai/.test(PI) && /ib\.i_channel/.test(PI));
@@ -112,8 +119,9 @@ check("every ib.* key has an English twin, and the other way round", ib.every((k
 check("Vietnamese calls the user 'bạn', never 'anh' (owner, 2026-10-28)", ib.every((k) => !/(^|\s)anh(\s|$)/i.test(VI[k])),
   ib.filter((k) => /(^|\s)anh(\s|$)/i.test(VI[k])).join(","));
 check("English keeps 'AI' without dots", Object.keys(EN).filter((k) => k.startsWith("ib.")).every((k) => EN[k].indexOf("A.I.") < 0));
-check("quick filter names as the owner wrote them", VI["ib.who_you"] === "Cần bạn" && VI["ib.who_ai"] === "A.I. đang xử lý" &&
-  VI["ib.who_owner"] === "Bạn đang xử lý");
+check("who names as the owner wrote them: the long ones in sentences, the short ones in the dropdown", VI["ib.who_you"] === "Cần bạn" &&
+  VI["ib.who_ai"] === "A.I. đang xử lý" && VI["ib.who_owner"] === "Bạn đang xử lý" && VI["ib.wq_you"] === "Cần bạn" &&
+  VI["ib.wq_ai"] === "A.I. lo" && VI["ib.wq_owner"] === "Bạn lo" && VI["ib.wq_all"] === "Tất cả");
 const dashes = [String.fromCharCode(0x2014), String.fromCharCode(0x2013)];
 check("no em or en dash in the module, this test or the ib.* strings", ![V5SRC, CSS, fs.readFileSync(__filename, "utf8"), ...ib.map((k) => VI[k] + EN[k])]
   .some((t) => dashes.some((d) => t.indexOf(d) >= 0)));

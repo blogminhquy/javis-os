@@ -8,7 +8,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.395.0] - 2026-10-29
 ### Cải thiện
-- **Trang Chatbot gọn hơn trên điện thoại và máy tính.** (đang làm)
+- **Trang Chatbot trên điện thoại: chỗ đọc tin rộng gấp đôi.** Mở một cuộc chat là nó chiếm cả màn hình: một hàng đầu gồm nút quay lại, tên khách và nút chế độ màu tím. Bấm nút đó để chọn A.I. trả lời, A.I. soạn hay Tôi trả lời, mỗi cái kèm một dòng giải thích. Ô nhập gọn còn một hàng với hai nút tròn.
+- **Trên điện thoại** bỏ chữ "Chatbot" ở đầu trang, bốn tab chỉ còn icon.
+- **Trên máy tính chữ nhỏ và gọn hơn.** Mỗi khách 2 dòng, vẫn có số tin của cả cuộc chat và số chưa đọc; dòng thứ ba chỉ hiện khi có tag.
+- **Bốn nút lọc hay gãy chữ** (Cần bạn, A.I. đang xử lý...) gộp thành **một nút thả xuống**, luôn hiện số "Cần bạn". Mỗi lựa chọn có một dòng nói rõ nghĩa.
+- **Ba chế độ trả lời nằm ngay đầu cuộc chat.** Thanh màu bên dưới chỉ hiện khi cần bạn làm gì đó. Tag của khách hiện cạnh tên, có nút "+ Tag".
+- **Bảng Thông tin đóng sẵn**, bấm nút ⓘ mới mở, Javis nhớ lựa chọn của bạn. Tin nhắn nằm trong một cột giữa dễ đọc.
+- Nút "A.I. trả lời" ở ô nhập đổi tên thành **"A.I. soạn"** cho đúng việc nó làm: A.I. viết sẵn, bạn bấm Gửi mới đi. Bản nháp hiện ngay trong khung ô nhập.
 
 ## [0.394.0] - 2026-10-29
 ### Sửa lỗi
