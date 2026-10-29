@@ -6,10 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.388.0] - 2026-10-29
+## [0.392.0] - 2026-10-29
 ### Sửa lỗi
 - **Chuyển sang app khác rồi quay lại, lượt đang chạy không còn trông như đã dừng.** Javis vẫn làm tiếp trên máy chủ khi bạn rời app, nhưng lúc nối lại khung chat xoá mất dòng "Javis đang suy nghĩ" và không hiện phần đã viết, nên trông như lệnh bị dừng cho tới khi câu trả lời xong mới bật ra. Giờ dòng trạng thái quay lại ngay, kèm phần chữ Javis đã viết trong lúc bạn đi vắng.
 - **Quay lại app, kết nối đã chết được phát hiện sau khoảng 20 giây thay vì có khi tới 50 giây,** nên khung chat bắt kịp nhanh hơn trên điện thoại.
+## [0.390.0] - 2026-10-29
+### Cải thiện
+- **Javis Store tối đa 3 cột thẻ**, vừa đúng 6 hàng cho mỗi trang 18 mục. Màn hẹp vẫn tự xuống 2 cột, điện thoại 1 cột.
+- **Thẻ bớt nhãn:** bỏ nhãn loại (tab đang mở đã nói rồi) và nhãn chính chủ, cộng đồng. Chỉ gói có chạy mã mới có một chip màu hổ phách nhỏ ở góc, cạnh chip nhóm, nên tên gói nằm gọn một dòng.
+- Nút Làm mới không còn bị đẩy ra ngoài mép trên màn rộng. Giờ lấy danh mục hiện khi rê chuột vào nút.
 
 ## [0.387.0] - 2026-10-29
 ### Sửa lỗi
