@@ -6,10 +6,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.392.0] - 2026-10-29
+## [0.394.0] - 2026-10-29
 ### Sửa lỗi
 - **Chuyển sang app khác rồi quay lại, lượt đang chạy không còn trông như đã dừng.** Javis vẫn làm tiếp trên máy chủ khi bạn rời app, nhưng lúc nối lại khung chat xoá mất dòng "Javis đang suy nghĩ" và không hiện phần đã viết, nên trông như lệnh bị dừng cho tới khi câu trả lời xong mới bật ra. Giờ dòng trạng thái quay lại ngay, kèm phần chữ Javis đã viết trong lúc bạn đi vắng.
 - **Quay lại app, kết nối đã chết được phát hiện sau khoảng 20 giây thay vì có khi tới 50 giây,** nên khung chat bắt kịp nhanh hơn trên điện thoại.
+
+## [0.393.0] - 2026-10-29
+### Sửa lỗi
+- **Menu trên điện thoại mở được trở lại.** Trên iPhone, bấm nút ba gạch chỉ làm màn hình tối đi mà không thấy menu: Safari vẽ menu lúc đang trượt rồi làm mất nó. Menu giờ trượt theo cách Safari không vẽ hỏng, đóng là ẩn hẳn.
+### Cải thiện
+- Trên điện thoại, **nút giao diện sáng tối** chuyển xuống dòng phiên bản ở đáy menu, nằm cạnh nút thu mở thanh bên cho gọn.
 
 ## [0.391.0] - 2026-10-29
 ### Sửa lỗi
