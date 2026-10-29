@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.401.0] - 2026-10-29
+### Fixed
+- **Chatbot Stats split per account.** The "answers the AI handled" share used to mix every account, so an account where a person types lowered the share of one only the AI answers.
+- An **account picker** sits next to the period button. Pick one account and the whole page counts only that one. Javis remembers the choice.
+- The per-channel list became **AI and hand replies per account**: one two-colour bar per account, with that account's own AI share.
+- "You answered" is now **Hand replies**, since it also counts messages someone else types on that account's phone.
+
 ## [0.400.0] - 2026-10-29
 ### Fixed
 - **Canva and other OAuth connections no longer drop mid-session.** Near expiry, several calls at once each renewed the token with the same code, and Canva accepts that code only once, so it shut the sign-in. Now one call renews and the others share the new token.

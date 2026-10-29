@@ -1435,7 +1435,7 @@ def _trung_vi(xs: list) -> Optional[float]:
     return round(v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2, 1)
 
 
-def insights(since: float, until: float) -> dict:
+def insights(since: float, until: float, account: str = "") -> dict:
     """Numbers for the Stats tab (Chatbot v5) between two timestamps: messages the A.I. sent, messages the owner sent,
     customer messages, the average wait of a customer for the first answer (A.I. or owner), and the same counts per
     channel and per bot. A waiting run starts at the first customer message after an answer; reactions do not count.
@@ -1444,23 +1444,30 @@ def insights(since: float, until: float) -> dict:
       - the typical (median) wait when the A.I. answered first and when the owner did, so the two can be compared;
       - `ai_rest`: A.I. answers sent while the owner rests (21:00 to 07:00 in the brain's time zone);
       - `chats` / `new_chats`: chats where a customer wrote, and private chats whose very first message is in the period;
-      - `hours`: customer messages per hour of the day (24 numbers, the brain's time zone)."""
+      - `hours`: customer messages per hour of the day (24 numbers, the brain's time zone).
+
+    0.401.0 (owner, 2026-10-29: "ở nick Javis Vũ anh không trả lời tý nào mà nó tính 45% câu do A.I. lo"): the totals mixed
+    every account, so one account's hand replies lowered another one's A.I. share. `account` (the inbox account key,
+    `"<channel>:<id>"`) keeps one account only, and `by_account` gives each account its own A.I., hand and customer counts."""
     import localefmt
     tz = localefmt.tz()
     with _lock:
         db = _conn()
         rows = db.execute(
             "SELECT m.conversation_id AS cid, m.sender_type AS who, m.created_at AS ts, a.channel AS channel,"
-            " c.bot_id AS bot_id FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+            " c.bot_id AS bot_id, a.id AS acc FROM messages m JOIN conversations c ON c.id=m.conversation_id"
             " JOIN channel_accounts a ON a.id=c.channel_account_id"
             " WHERE m.created_at>=? AND m.created_at<? AND m.sender_type IN ('customer','ai','human')"
-            " AND m.message_type!='reaction' ORDER BY m.conversation_id, m.created_at, m.id",
-            (float(since), float(until))).fetchall()
+            " AND m.message_type!='reaction'" + (" AND c.channel_account_id=?" if account else "") +
+            " ORDER BY m.conversation_id, m.created_at, m.id",
+            (float(since), float(until)) + ((str(account),) if account else ())).fetchall()
         moi = db.execute(
             "SELECT COUNT(*) FROM (SELECT m.conversation_id, MIN(m.created_at) AS dau FROM messages m"
-            " JOIN conversations c ON c.id=m.conversation_id WHERE c.chat_type='private'"
-            " GROUP BY m.conversation_id HAVING dau>=? AND dau<?)", (float(since), float(until))).fetchone()[0]
-    out = {"ai": 0, "human": 0, "customer": 0, "wait_avg": None, "waits": 0, "by_channel": {}, "by_bot": {},
+            " JOIN conversations c ON c.id=m.conversation_id WHERE c.chat_type='private'" +
+            (" AND c.channel_account_id=?" if account else "") +
+            " GROUP BY m.conversation_id HAVING dau>=? AND dau<?)",
+            ((str(account),) if account else ()) + (float(since), float(until))).fetchone()[0]
+    out = {"ai": 0, "human": 0, "customer": 0, "wait_avg": None, "waits": 0, "by_channel": {}, "by_bot": {}, "by_account": {},
            "wait_ai": None, "wait_human": None, "waits_ai": 0, "waits_human": 0, "ai_rest": 0,
            "chats": 0, "new_chats": int(moi or 0), "hours": [0] * 24}
     waits, w_ai, w_human, start, cur, khach = [], [], [], None, None, set()
@@ -1470,6 +1477,8 @@ def insights(since: float, until: float) -> dict:
             cur, start = r["cid"], None
         ch = out["by_channel"].setdefault(str(r["channel"] or ""), {"customer": 0, "ai": 0, "human": 0})
         ch[who] += 1
+        acc = out["by_account"].setdefault(str(r["acc"] or ""), {"customer": 0, "ai": 0, "human": 0})
+        acc[who] += 1
         out[who] += 1
         gio = datetime.fromtimestamp(ts, tz).hour
         if who == "customer":
@@ -1495,6 +1504,13 @@ def insights(since: float, until: float) -> dict:
     out["wait_ai"], out["waits_ai"] = _trung_vi(w_ai), len(w_ai)
     out["wait_human"], out["waits_human"] = _trung_vi(w_human), len(w_human)
     return out
+
+
+def stats_accounts() -> List[dict]:
+    """Every channel account the inbox knows, for the Stats tab's account picker: `[{id, channel, name}]` by name."""
+    with _lock:
+        rows = _conn().execute("SELECT id, channel, display_name FROM channel_accounts ORDER BY display_name, id").fetchall()
+    return [{"id": r["id"], "channel": r["channel"], "name": r["display_name"] or r["id"]} for r in rows]
 
 
 def xoa_trang_thai(tien_to: str) -> None:

@@ -61,6 +61,21 @@ const bars = S.barsHtml("By channel", [{ label: "<Zalo>", value: 10 }, { label: 
 check("bars: one hue, the longest is full width, the value written at the end, labels escaped",
   /width:100%/.test(bars) && /width:50%/.test(bars) && /width:2%/.test(bars) && /st-num">10</.test(bars) && bars.indexOf("<Zalo>") < 0);
 check("bars: nothing in the period says so", /ib-hint">none</.test(S.barsHtml("x", [], "none")));
+// 0.401.0 (owner, 2026-10-29: one account's hand replies lowered another account's A.I. share)
+const accs = S.accountsHtml([{ label: "<Javis Vũ>", ai: 1404, human: 0 }, { label: "Ngọc Thu", ai: 52, human: 1762 }]);
+check("per account: each account its own A.I. share, A.I. and hand replies as one two-colour bar, labels escaped",
+  /<b>100%<\/b>/.test(accs) && /<b>3%<\/b>/.test(accs) && /class="st-fill hu" style="width:97%"/.test(accs) &&
+  /class="st-fill" style="width:77%"/.test(accs) && accs.indexOf("<Javis Vũ>") < 0 && /ib\.st_lg_hand/.test(accs));
+check("per account: nothing in the period says so", /ib-hint">ib\.st_empty</.test(S.accountsHtml([])));
+check("account picker: every account first, the chosen one selected, hidden with one account",
+  /^<option value="">ib\.st_acc_all<\/option>/.test(S.accountPickerHtml([{ id: "z:1", name: "A" }, { id: "z:2", name: "B" }], "z:2")) &&
+  /value="z:2" selected/.test(S.accountPickerHtml([{ id: "z:1", name: "A" }, { id: "z:2", name: "B" }], "z:2")) &&
+  S.accountPickerHtml([{ id: "z:1", name: "A" }], "") === "");
+check("account: remembered in this browser, sent as account=, the per-channel list replaced by the per-account one",
+  /localStorage\.setItem\(ACC_KEY, _acc\)/.test(ST) && /"&account=" \+ encodeURIComponent\(_acc\)/.test(ST) &&
+  /accountsHtml\(accs\)/.test(ST) && !/ib\.st_by_ch"/.test(ST));
+check("nothing the period before reads once, not '... vs the period before'", S.vsText(S.delta(3, 0)) === "ib.st_new" &&
+  S.vsText(S.delta(12, 10)) === "ib.st_vs#+20%");
 check("period: the date range picker (quick ranges or days on the calendar), remembered in this browser, sent as from/to",
   /window\.JavisDateRange\.open\(rb, _range/.test(ST) && /localStorage\.setItem\(KEY/.test(ST) &&
   /\/conversations\/insights\?" \+ \(d \? "from=" \+ d\.from \+ "&to=" \+ d\.to/.test(ST) && /aria-haspopup="dialog"/.test(ST));

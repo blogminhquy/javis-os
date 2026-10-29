@@ -339,3 +339,15 @@
   .kn-wrap .kn-grid { grid-template-columns: 1fr; }
   .kn-wrap .kn-row { padding-left: 12px; }
 }
+
+/* ---- Stats per account (0.401.0): an account picker and A.I. vs hand replies per account ---- */
+.st-wrap .st-accsel { height: 34px; box-sizing: border-box; max-width: 220px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg2); color: var(--text1); font: inherit; font-size: 13px; font-weight: 600; }
+.st-accs .st-acc { padding: 6px 0; }
+.st-acc-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+.st-acc-h b { font-size: 15px; color: var(--ib-ai-ink); font-variant-numeric: tabular-nums; }
+.st-split { display: flex; margin: 6px 0 4px; }
+.st-split .st-fill { border-radius: 0; }
+.st-split .st-fill.hu { background: var(--ib-owner); }
+.st-acc-n { font-size: 12.5px; color: var(--text3); }
+.st-accs .st-legend .st-lg.hu { background: var(--ib-owner); margin-left: 8px; }
