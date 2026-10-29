@@ -50,10 +50,10 @@ def luc(d, h, m=0, s=0):
 n = 0
 
 
-def put(chat, kind, ts, ctype="private"):
+def put(chat, kind, ts, ctype="private", acc="acc1"):
     global n
     n += 1
-    r = conversations.ghi_su_kien({"channel": "telegram", "account_id": "acc1", "external_chat_id": chat, "chat_type": ctype,
+    r = conversations.ghi_su_kien({"channel": "telegram", "account_id": acc, "external_chat_id": chat, "chat_type": ctype,
                                    "sender_type": kind, "sender_id": "k" + chat, "sender_name": "Khách", "text": "tin " + str(n),
                                    "external_message_id": "m" + str(n), "created_at": ts})
     assert r.get("ok"), r
@@ -95,6 +95,26 @@ empty = conversations.insights(luc(2, 0), luc(3, 0))
 check("an empty period: zeros and no medians", empty["ai"] == 0 and empty["wait_ai"] is None and empty["wait_human"] is None and
       empty["ai_rest"] == 0 and empty["chats"] == 0 and empty["new_chats"] == 0 and sum(empty["hours"]) == 0, empty)
 check("rest hours are 21:00 to 07:00", (conversations.NGHI_TU, conversations.NGHI_DEN) == (21, 7))
+
+# 0.401.0 (owner, 2026-10-29: "ở nick Javis Vũ anh không trả lời tý nào mà nó tính 45% câu do A.I. lo"): a second account
+# answered by hand must not lower the first account's A.I. share.
+put("x", "customer", luc(22, 10), acc="acc2")
+put("x", "human", luc(22, 10, 1), acc="acc2")
+put("x", "human", luc(22, 10, 2), acc="acc2")
+put("y", "customer", luc(23, 11), acc="acc2")
+put("y", "ai", luc(23, 11, 0, 10), acc="acc2")
+tat_ca = conversations.insights(luc(20, 0), luc(27, 0))
+check("every account together: both accounts' answers", (tat_ca["ai"], tat_ca["human"], tat_ca["customer"]) == (5, 4, 9),
+      (tat_ca["ai"], tat_ca["human"], tat_ca["customer"]))
+check("per account: each account its own A.I., hand and customer counts",
+      tat_ca["by_account"].get("telegram:acc1") == {"customer": 7, "ai": 4, "human": 2} and
+      tat_ca["by_account"].get("telegram:acc2") == {"customer": 2, "ai": 1, "human": 2}, tat_ca["by_account"])
+mot = conversations.insights(luc(20, 0), luc(27, 0), "telegram:acc2")
+check("one account: only its messages, chats, new chats and waits", (mot["ai"], mot["human"], mot["customer"], mot["chats"], mot["new_chats"]) ==
+      (1, 2, 2, 2, 2) and mot["waits_human"] == 1 and mot["waits_ai"] == 1 and list(mot["by_account"]) == ["telegram:acc2"],
+      (mot["ai"], mot["human"], mot["customer"], mot["chats"], mot["new_chats"], mot["by_account"]))
+check("the account picker lists every inbox account by name", {a["id"] for a in conversations.stats_accounts()} >=
+      {"telegram:acc1", "telegram:acc2"})
 
 print()
 if _fails:

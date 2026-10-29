@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.401.0] - 2026-10-29
 ### Sửa lỗi
-- Đang làm: Thống kê Chatbot tách số theo từng tài khoản.
+- **Thống kê Chatbot tách số theo từng tài khoản.** Trước đây phần trăm "câu trả lời do A.I. lo" gộp mọi nick, nên nick có người gõ tay kéo tụt phần trăm của nick chỉ có A.I. trả lời.
+- Cạnh nút kỳ có ô **chọn tài khoản**. Chọn một nick thì cả trang chỉ tính nick đó. Javis nhớ lựa chọn này.
+- Bảng theo kênh đổi thành **A.I. và trả lời tay theo tài khoản**: mỗi nick một thanh hai màu, kèm phần trăm A.I. lo của riêng nick đó.
+- "Bạn đã trả lời" đổi thành **Trả lời tay**, vì số này gồm cả tin người khác gõ trên điện thoại của nick.
 
 ## [0.400.0] - 2026-10-29
 ### Sửa lỗi
