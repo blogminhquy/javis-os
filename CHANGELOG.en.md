@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.391.0] - 2026-10-29
+### Fixed
+- **The capability index `Javis/index.md` now updates itself in every brain**, not only Brain Default. A brain with no loop used to keep the file from the day it was created, so it still said "0 agents" after dozens were added, and an AI reading it to avoid duplicates was misled.
+- Adding, editing or deleting an agent, skill, workflow, loop or plugin updates the index within about 30 seconds, also when the AI writes the file itself. No more toggling a plugin to force a rebuild.
+- **Lighter than before:** Javis rebuilds only the brains that actually changed, so many brains do not slow the machine down.
+
 ## [0.390.0] - 2026-10-29
 ### Improved
 - **The Javis Store shows at most 3 columns of cards**, six full rows per 18-item page. Narrow screens still drop to 2 columns, phones to 1.
