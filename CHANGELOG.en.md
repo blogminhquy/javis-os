@@ -8,6 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.402.0] - 2026-10-29
+### Fixed
+- **Javis Core can pick a model.** By default Core follows the main model and changes with it. Picking another model in the model bar of a Core chat pins it for all of Core: every Core chat uses it until you choose "Follow the main chat's model". Core chats used to freeze on the model of the day they were made.
+- **Fewer false sign-in notices:**
+  - A normal answer that mentions "not logged in" no longer makes Javis say it is not usable.
+  - A failure already reported is not reported again after a restart.
+  - A connection still downloading on its first start is no longer counted as broken.
+  - A recurring job that keeps failing makes one "needs you" incident, not a new notice on every failure.
+  - The Zalo eviction notice no longer repeats after every restart.
+
 ## [0.401.0] - 2026-10-29
 ### Fixed
 - **Chatbot Stats split per account.** The "answers the AI handled" share used to mix every account, so an account where a person types lowered the share of one only the AI answers.

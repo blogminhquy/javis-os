@@ -2368,6 +2368,7 @@
   "mpick.pin_broken": "ghim hỏng",
   "mpick.pin_title": "Model ghim riêng cho phiên chat này (đổi ở phiên khác không ảnh hưởng)",
   "mpick.pin_broken_title": "Model ghim của phiên không còn dùng được (provider đã bị gỡ key) - đang chạy model mặc định chung",
+  "mpick.core_pin_title": "Model ghim cho Javis Core: mọi chat của Javis Core dùng model này",
   "mpick.follow_default": "Theo model mặc định chung",
   "mpick.follow_main": "Theo model của khung chat chính",
   "mpick.pin_limited_title": "Model ghim riêng của cuộc chat này đã hết hạn mức gói, tạm chạy model của khung chat chính tới khi gói mở lại",

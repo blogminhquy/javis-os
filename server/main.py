@@ -2825,7 +2825,13 @@ def _chat_provider_for_session(mcfg, row):
     Vì sao có hàm này (16/08): đổi model ở tab/phiên khác kéo model của MỌI phiên đổi
     theo, vì tất cả đọc chung settings.json. Chủ muốn phiên nhớ model cuối user đã chọn
     TRONG phiên đó. Ghim hỏng (provider không còn cấu hình) thì rơi về mặc định chung
-    thay vì chết lượt chat."""
+    thay vì chết lượt chat.
+
+    0.402.0 (owner, 29/10/2026): every Javis Core chat runs on Javis Core's own pin (`_core_pin`), or on the main
+    model while it has none; the pin of the single chat is ignored."""
+    if javis_core.is_core_channel((row or {}).get("channel")):
+        _cp = _core_pin(mcfg)
+        row = {"pinned_provider": _cp.get("provider") or "", "pinned_model": _cp.get("model") or ""}
     pprov = ((row or {}).get("pinned_provider") or "").strip()
     if not pprov:
         return _chat_provider(mcfg)
@@ -2845,6 +2851,13 @@ def _chat_provider_for_session(mcfg, row):
     if pprov == "openrouter":
         model = model or mcfg.get("openrouter_model")
     return pprov, kind, key, model
+
+
+def _core_pin(mcfg) -> dict:
+    """{'provider','model'} Javis Core is pinned to, or {} when it follows the main model (0.402.0). Set from the model
+    bar of any Javis Core chat (`POST /sessions/{id}/model`); "Follow the main model" clears it."""
+    prov = str((mcfg or {}).get("core_provider") or "").strip()
+    return {"provider": prov, "model": str((mcfg or {}).get("core_model") or "").strip()} if prov else {}
 
 
 def _tg_ghim(mcfg, chat_key="") -> dict:
@@ -19754,6 +19767,10 @@ async def sessions_meta(session_id: str):
     sess = get_store().get_session(session_id)
     if not sess:
         return JSONResponse({"error": "not found"}, status_code=404)
+    if javis_core.is_core_channel(sess.get("channel")):
+        # 0.402.0: a Javis Core chat shows the pin of Javis Core, not an old stamp of this one chat.
+        _cp = _core_pin(cfgmod.read_settings().get("model", {}))
+        sess["pinned_provider"], sess["pinned_model"] = _cp.get("provider") or None, _cp.get("model") or None
     pp = (sess.get("pinned_provider") or "").strip()
     if pp:
         d = _provider_def(pp)
@@ -19822,11 +19839,20 @@ async def sessions_set_model(session_id: str, provider: str = Form(""),
     Có `brain` thì tạo hàng nếu phiên chưa tồn tại - dashboard mint id phía client nên
     user có thể đổi model trước cả tin nhắn đầu tiên (cùng khuôn /sessions/{id}/project).
     CHỦ Ý không đi qua _set_main_model: hàm đó ghi mốc nhật ký usage cho việc đổi bộ não
-    TOÀN CỤC, ghim theo phiên mà đi qua đó là rác hoá biểu đồ token."""
+    TOÀN CỤC, ghim theo phiên mà đi qua đó là rác hoá biểu đồ token.
+
+    0.402.0: a Javis Core chat pins Javis Core as a whole (`model.core_provider/core_model`), see `_core_pin`."""
     prov = (provider or "").strip()
     if prov and not _provider_def(prov):
         return JSONResponse({"error": localefmt.chu(f"provider không tồn tại: {prov}",
                                                     f"provider does not exist: {prov}")}, status_code=400)
+    _row = get_store().get_session(session_id)
+    if _row and javis_core.is_core_channel(_row.get("channel")):
+        _mdl = (model or "").strip() if prov else ""
+        await asyncio.to_thread(cfgmod.update_settings, {"model": {"core_provider": prov, "core_model": _mdl}})
+        if (_row.get("pinned_provider") or "").strip():
+            get_store().set_pinned_model(session_id, "", "")   # an older stamp of this chat must not show as a pin
+        return {"ok": True, "pinned_provider": prov or None, "pinned_model": _mdl or None, "scope": "core"}
     ok = get_store().set_pinned_model(session_id, prov, model,
                                       brain=_brain_key(brain) if (brain or "").strip() else None)
     if not ok:

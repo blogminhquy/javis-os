@@ -2368,6 +2368,7 @@
   "mpick.pin_broken": "pin broken",
   "mpick.pin_title": "Model pinned to this chat session (changing it in another session has no effect)",
   "mpick.pin_broken_title": "This session's pinned model no longer works (the provider lost its key) - running the shared default model",
+  "mpick.core_pin_title": "Model pinned for Javis Core: every Javis Core chat uses it",
   "mpick.follow_default": "Following the shared default model",
   "mpick.follow_main": "Follow the main chat's model",
   "mpick.pin_limited_title": "This chat's own model is out of plan quota; it runs on the main chat's model until the plan resets",
