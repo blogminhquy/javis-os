@@ -6335,5 +6335,8 @@
   "cact.speak": "Đọc thành tiếng",
   "cact.stop_speak": "Dừng đọc",
   "cmark.pinned_answer": "Câu trả lời đã ghim: {ten}",
-  "cmark.answer_untitled": "Câu trả lời đã ghim"
+  "cmark.answer_untitled": "Câu trả lời đã ghim",
+  "pz.in": "Phóng to",
+  "pz.out": "Thu nhỏ",
+  "pz.fit": "Vừa khung"
 }

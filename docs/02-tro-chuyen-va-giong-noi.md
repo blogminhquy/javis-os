@@ -284,6 +284,7 @@ Thẻ ghi thêm số dòng và chữ "bam de xem", bên phải là nút **Mo ▸
 - Hai tab **Xem truoc** và **Ma nguon** (mã nguồn dài thì chỉ có tab mã nguồn).
 - Nút **⧉** copy mã nguồn, nút **⇩** tải về thành file, nút **✕** đóng panel.
 - Nhấn **Esc** cũng đóng panel.
+- Từ 0.405.0, sơ đồ và ảnh SVG **phóng to, kéo được**: lăn chuột hoặc chụm hai ngón để phóng to, thu nhỏ; giữ chuột hoặc một ngón để kéo; chạm đúp để phóng to nhanh hoặc trả về vừa khung. Góc dưới có nút **−**, **+** và **Vừa khung**. Ảnh mở trong trình sửa cũng vậy.
 
 Sơ đồ mermaid cần tải thư viện vẽ từ mạng; đang offline thì panel báo không tải được thư viện và hiện thẳng mã nguồn. Khối ```` ```dataview ```` và ```` ```tasks ```` không thành artifact mà chạy thành bảng kết quả, xem [Task & Dataview trong note](19-task-va-dataview.md).
 
