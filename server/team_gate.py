@@ -444,5 +444,7 @@ def provider_support(provider: str, *, codex_sandbox: Optional[str] = "workspace
 
 
 def unsupported_text(reason: str) -> str:
-    return (f"Nhóm đang ở quyền 'cần duyệt' mà {reason}. Đổi trợ lý làm bước này sang Claude, Codex hay một model API, "
-            "hoặc bật 'Nhóm tự làm hành động ra ngoài' trong cài đặt nhóm nếu anh tin nhóm này.")
+    return (f"Nhóm đang ở quyền 'cần duyệt' mà {reason}. Bước này chưa được tự chạy. "
+            "Ở trang Cộng sự, đổi model của đúng trợ lý sang một provider đã kết nối và hỗ trợ quyền cần duyệt "
+            "(ví dụ Claude Code hoặc model API), rồi bấm Thử lại việc này. Quyền nhóm và việc hiện tại được giữ nguyên; "
+            "Javis vẫn kiểm tra provider trước khi chạy.")
