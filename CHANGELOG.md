@@ -6,6 +6,29 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.394.0] - 2026-10-29
+### Sửa lỗi
+- **Chuyển sang app khác rồi quay lại, lượt đang chạy không còn trông như đã dừng.** Javis vẫn làm tiếp trên máy chủ khi bạn rời app, nhưng lúc nối lại khung chat xoá mất dòng "Javis đang suy nghĩ" và không hiện phần đã viết, nên trông như lệnh bị dừng cho tới khi câu trả lời xong mới bật ra. Giờ dòng trạng thái quay lại ngay, kèm phần chữ Javis đã viết trong lúc bạn đi vắng.
+- **Quay lại app, kết nối đã chết được phát hiện sau khoảng 20 giây thay vì có khi tới 50 giây,** nên khung chat bắt kịp nhanh hơn trên điện thoại.
+
+## [0.393.0] - 2026-10-29
+### Sửa lỗi
+- **Menu trên điện thoại mở được trở lại.** Trên iPhone, bấm nút ba gạch chỉ làm màn hình tối đi mà không thấy menu: Safari vẽ menu lúc đang trượt rồi làm mất nó. Menu giờ trượt theo cách Safari không vẽ hỏng, đóng là ẩn hẳn.
+### Cải thiện
+- Trên điện thoại, **nút giao diện sáng tối** chuyển xuống dòng phiên bản ở đáy menu, nằm cạnh nút thu mở thanh bên cho gọn.
+
+## [0.391.0] - 2026-10-29
+### Sửa lỗi
+- **Chỉ mục năng lực `Javis/index.md` giờ tự cập nhật ở mọi brain**, không chỉ Brain Default. Trước đây brain nào chưa có loop thì file này đứng yên từ ngày tạo, nên vẫn ghi "0 agent" dù brain đã có hàng chục agent, và AI đọc nó để kiểm tra trùng thì bị sai.
+- Thêm, sửa, xoá agent, skill, workflow, loop hay plugin thì chỉ mục cập nhật trong khoảng 30 giây, kể cả khi AI tự ghi file. Không cần tắt bật plugin để ép dựng lại nữa.
+- **Nhẹ hơn trước:** Javis chỉ dựng lại brain nào thực sự có thay đổi, nên có nhiều brain cũng không làm máy chậm đi.
+
+## [0.390.0] - 2026-10-29
+### Cải thiện
+- **Javis Store tối đa 3 cột thẻ**, vừa đúng 6 hàng cho mỗi trang 18 mục. Màn hẹp vẫn tự xuống 2 cột, điện thoại 1 cột.
+- **Thẻ bớt nhãn:** bỏ nhãn loại (tab đang mở đã nói rồi) và nhãn chính chủ, cộng đồng. Chỉ gói có chạy mã mới có một chip màu hổ phách nhỏ ở góc, cạnh chip nhóm, nên tên gói nằm gọn một dòng.
+- Nút Làm mới không còn bị đẩy ra ngoài mép trên màn rộng. Giờ lấy danh mục hiện khi rê chuột vào nút.
+
 ## [0.387.0] - 2026-10-29
 ### Sửa lỗi
 - **Claude Code và Codex giờ thật sự được giữ sẵn giữa các tin nhắn.** Ở 0.382.0, Javis tưởng cấu hình đổi sau mỗi tin (vì Claude Code và Codex tự ghi lại file đăng nhập) nên lần nào cũng mở lại từ đầu. Đo lại trên dashboard: tin nhắn tiếp theo hiện chữ sau khoảng 2 giây, thay vì 8 tới 14 giây.

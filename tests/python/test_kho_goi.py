@@ -361,6 +361,11 @@ check("thanh tab của kho cố định khi cuộn",
       ".kho-thanh { position: sticky;" in (DASHBOARD / "console.css").read_text(encoding="utf-8"))
 check("phân trang 18 mục một trang", "const MOI_TRANG = 18;" in src_js)
 # 0.386.0 (owner): on phones the kind tabs are a dropdown, in the pinned bar next to the group one.
+# 0.390.0 (owner): at most three card columns, and the card keeps only the "runs code" chip.
+_css = (DASHBOARD / "console.css").read_text(encoding="utf-8")
+check("lưới kho tối đa 3 cột", "calc((100% - 24px) / 3)" in _css)
+check("thẻ kho không còn nhãn loại, chỉ chip chạy mã", "kho-chip-ma" in src_js
+      and "' <span class=\"prov-kind\">' + esc(tw(lo.nhan))" not in src_js)
 check("điện thoại chọn loại bằng ô thả xuống", 'id="pkLoai"' in src_js and "sl.onchange" in src_js
       and src_js.index('id="pkLoai"') < src_js.index('id="pkNhom"') < src_js.index('class="kho-than"'))
 

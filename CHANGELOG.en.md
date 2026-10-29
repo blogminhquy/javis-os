@@ -8,6 +8,29 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.394.0] - 2026-10-29
+### Fixed
+- **Switching to another app and back, a running turn no longer looks stopped.** Javis kept working on the server while you were away, but on reconnecting the chat removed the "Javis is thinking" line and did not show what had been written, so the command looked stopped until the finished answer popped up. The status line now comes back at once, with the text Javis wrote while you were away.
+- **Back in the app, a dead connection is noticed after about 20 seconds instead of up to 50,** so the chat catches up sooner on phones.
+
+## [0.393.0] - 2026-10-29
+### Fixed
+- **The phone menu opens again.** On iPhone, the menu button only dimmed the screen with no menu on it: Safari drew the menu while it slid in, then dropped it. The menu now slides in a way Safari does not mangle, and is fully hidden when shut.
+### Improved
+- On phones the **light/dark button** moves to the version row at the bottom of the menu, next to the sidebar collapse button.
+
+## [0.391.0] - 2026-10-29
+### Fixed
+- **The capability index `Javis/index.md` now updates itself in every brain**, not only Brain Default. A brain with no loop used to keep the file from the day it was created, so it still said "0 agents" after dozens were added, and an AI reading it to avoid duplicates was misled.
+- Adding, editing or deleting an agent, skill, workflow, loop or plugin updates the index within about 30 seconds, also when the AI writes the file itself. No more toggling a plugin to force a rebuild.
+- **Lighter than before:** Javis rebuilds only the brains that actually changed, so many brains do not slow the machine down.
+
+## [0.390.0] - 2026-10-29
+### Improved
+- **The Javis Store shows at most 3 columns of cards**, six full rows per 18-item page. Narrow screens still drop to 2 columns, phones to 1.
+- **Fewer tags on a card:** no kind tag (the open tab already says it) and no official or community tag. Only packs that run code get a small amber chip in the corner, beside the group chip, so the name fits on one line.
+- Refresh is no longer pushed past the edge on wide screens. The catalog time now shows when you hover the button.
+
 ## [0.387.0] - 2026-10-29
 ### Fixed
 - **Claude Code and Codex now really stay running between messages.** In 0.382.0 Javis thought the setup had changed after every message (Claude Code and Codex rewrite their sign-in file themselves), so it started them again each time. Measured again on the dashboard: the next message shows text after about 2 seconds instead of 8 to 14.

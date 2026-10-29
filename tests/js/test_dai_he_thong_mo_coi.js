@@ -59,6 +59,10 @@ check("màn hẹp vẫn mượn đủ hai thứ",
   /moveEl\(document\.querySelector\("\.navbar-brain"\)/.test(place)
   && /moveEl\(document\.getElementById\("themeToggle"\)/.test(place), place);
 check("không còn mượn dải VỪA GỌI đã bỏ", !/sysBar/.test(JS));
+// 0.393.0 (owner): on phones the light/dark switch sits in the drawer foot, left of the collapse button.
+check("nút sáng tối xuống đáy ngăn kéo, cạnh nút thu mở",
+  /moveEl\(document\.getElementById\("themeToggle"\), true, true\)/.test(place)
+  && /foot\.insertBefore\(el, foot\.querySelector\("\.rail-collapse-btn"\)\)/.test(JS));
 check("và chỉ mượn khi chưa mượn (không mượn chồng)", /if \(!moved\.length\)/.test(place), place);
 
 console.log();

@@ -623,6 +623,12 @@ def _signature(vault_root: Optional[str], scope_vault: bool = True) -> tuple:
     return tuple(sig)
 
 
+def shared_signature() -> tuple:
+    """Signature of the plugin sources every brain shares (bundled, packs, global user plugins, plugins.json).
+    Stat calls only; ops_index_watch takes it once per sweep instead of once per brain."""
+    return _signature(None, scope_vault=False)
+
+
 def _import_entry(slug: str, source: str, entry: Path):
     """Nạp entry file thành module riêng. Chèn tạm dir vào sys.path để import phụ (nếu có)."""
     mod_name = f"javis_plugin_{source}_{re.sub(r'[^a-z0-9_]', '_', slug.lower())}"

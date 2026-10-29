@@ -841,15 +841,21 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     padding: max(10px, env(safe-area-inset-top, 0px)) 8px max(10px, env(safe-area-inset-bottom, 0px));
     gap: 4px;
     border-top: 0; border-right: 1px solid var(--glass-brd);
-    transform: translateX(-100%); transition: transform .22s ease; z-index: 60; overflow-y: auto;
+    z-index: 60; overflow-y: auto;
     /* 0.216.0 (owner, iPhone): the drawer slid in then vanished, leaving only the dim backdrop. Safari can stop painting
        a box that is blurred (backdrop-filter), moved (transform) and scrolled at once. The drawer sits over the dim
-       backdrop anyway, so it needs no blur: a solid background and its own layer. */
-    background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; will-change: transform;
+       backdrop anyway, so it needs no blur: a solid background.
+       0.393.0 (owner, iPhone video): it came back with the blur gone, the drawer showing mid-slide and then nothing.
+       So no transform layer at all: the drawer slides on `left`, is `visibility: hidden` while shut (Safari keeps no
+       stale layer for it), and is the only scroller inside (the nav list no longer scrolls on its own). */
+    background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none;
+    transform: none; will-change: auto; left: calc(-1 * min(280px, 82vw)); visibility: hidden;
+    transition: left .22s ease, visibility 0s linear .22s;
   }
-  body.nav-open .rail { transform: translateX(0); box-shadow: 8px 0 40px var(--shadow-veil); }
+  body.nav-open .rail { left: 0; visibility: visible; transition: left .22s ease, visibility 0s;
+    box-shadow: 8px 0 40px var(--shadow-veil); }
   .rail-top, .rail-foot { display: flex; }            /* hiện lại brand + version trong ngăn kéo */
-  .rail-nav { flex-direction: column; overflow-x: hidden; overflow-y: auto; gap: 2px; padding: 0; }
+  .rail-nav { flex-direction: column; overflow: visible; gap: 2px; padding: 0; }
   .rail-group, .rail-grp-items { display: block; }
   .rail-grp-lbl { display: flex; }
   .rail-item { flex: none; flex-direction: row; gap: 10px; padding: 9px 10px; border-radius: 9px; }
@@ -864,6 +870,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .rail-sys .graph-select { flex: 1 1 auto; min-width: 0; max-width: 100%; }
   .rail-sys-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .rail-sys-btns .hud-icon-btn { display: inline-flex; }
+  .rail-sys-btns:empty { display: none; }
+  /* Light/dark switch in the drawer's foot, beside the collapse button (owner, 0.393.0): same size and outline, so the
+     two read as one pair of small controls on the version row. */
+  .rail-foot #themeToggle { order: 2; margin-left: auto; display: inline-flex; align-items: center;
+    justify-content: center; width: 32px; height: 28px; padding: 0; border-radius: 8px; flex: 0 0 auto; }
+  .rail-foot #themeToggle svg { width: 17px; height: 17px; }
 
   /* Nền mờ khi mở ngăn kéo */
   /* Shown by the drawer's own state only (0.216.0): a dim screen with no drawer on it can no longer stay behind. */
@@ -1340,9 +1352,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .kho-hd-btn { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
   padding: 8px 13px; font-size: 14px; }
 .kho-hd-btn svg { width: 16px; height: 16px; flex: none; }
-/* The catalog time shows only where the row has room; it is also the Refresh tooltip. */
-.kho-luc { white-space: nowrap; display: none; }
-@media (min-width: 1600px) { .kho-luc { display: inline; } }
 /* Medium screens: the two buttons drop their labels so the six tabs keep theirs. */
 @media (max-width: 1360px) {
   .kho-thanh > .kho-hd .kho-hd-btn { width: 40px; height: 40px; padding: 0; justify-content: center; }
@@ -1388,14 +1397,25 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .kho-chinh { flex: 1; min-width: 0; }
 /* The grid fills the column and lines up with the search row and the pager: the shared 980px
    cap of .cat-grid left the toolbar running past the last card. */
-.kho-chinh .cat-grid { max-width: none; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+/* At most 3 columns (owner, 0.390.0): `max(250px, (100% - 2 gaps) / 3)` as the minimum track
+   width means a fourth card never fits, however wide the screen; narrower screens still drop to
+   2 and 1 columns. Matches 18 per page: six full rows of three. */
+.kho-chinh .cat-grid { max-width: none;
+  grid-template-columns: repeat(auto-fill, minmax(max(250px, calc((100% - 24px) / 3)), 1fr)); }
 .kho-loc { margin-top: 0; }
 .kho-so-muc { margin-left: auto; white-space: nowrap; }
 
 .kho-the { gap: 10px; }
 .kho-dau { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.kho-nhom { font-size: 12px; color: var(--text3); border: 1px solid var(--border);
+/* Card chips, top right: the group, plus "Runs code" when a pack has Python (0.390.0). Same shape
+   for both, colour only where it means something: amber from the theme's own warn tokens, so it
+   reads in light and dark alike (the old tags put green or brown text on a purple wash). */
+.kho-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; min-width: 0; }
+.kho-nhom, .kho-chip-ma { font-size: 13px; line-height: 1.4; border: 1px solid var(--border);
   border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.kho-nhom { color: var(--text3); }
+.kho-chip-ma { color: var(--warn-ink); background: var(--warn-wash); border-color: var(--warn-line);
+  font-weight: 600; }
 .kho-ten { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px;
   flex-wrap: wrap; }
 .kho-ava { width: 40px; height: 40px; flex: none; border-radius: 11px; display: grid;
