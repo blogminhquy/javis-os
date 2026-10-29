@@ -286,7 +286,7 @@ Pick the permission level as for a reminder (Read only, Can write files, Full ac
 
 **The secret is shown only once**, right after saving, together with a `curl` command to test it. The calling system sends it in the `Authorization: Bearer <token>` header (or the `X-Javis-Token` header, or `?token=` at the end of the link when it cannot set headers). Javis keeps only a hash, so if you lose it press **New token**; the old one stops working at once.
 
-**Where results go:** like a reminder, to the brain's Javis Core chat, the inbox (bell) and your Telegram. A result starting with `[SILENT]` is not reported.
+**Where results go:** like a reminder, to the brain's Javis Core chat, the inbox (bell) and your Telegram. A result that starts or ends with `[SILENT]` is not reported.
 
 **Safety rails:**
 

@@ -7,7 +7,7 @@ git-backed) + để scheduler nền (main._scheduler_loop, tick 30s) đánh th�
   - mode "notify" (mặc định): tới giờ bắn thẳng tin nhắc qua Telegram cho ĐÚNG người đã đặt.
   - mode "task"            : tới giờ chạy engine làm việc đã hẹn rồi gửi kết quả về Telegram.
                              Quyền theo `muc_quyen` (suggest | auto | full, mặc định full).
-                             Kết quả MỞ ĐẦU bằng [SILENT] → im lặng, vẫn lưu vào bản ghi.
+                             Kết quả MỞ ĐẦU hoặc KẾT THÚC bằng [SILENT] → im lặng, vẫn lưu vào bản ghi.
   - mode "script"          : job KHÔNG cần LLM (rẻ, để giám sát) - chạy script có sẵn trong
                              <brain>/Javis/scripts, đẩy stdout về Telegram; exit≠0 → cảnh báo lỗi,
                              stdout rỗng hoặc có cờ [SILENT] → im lặng (port ý no_agent của Hermes).
@@ -227,14 +227,13 @@ SILENT_MARK = "[SILENT]"
 
 
 def _is_silent_task_result(body: str) -> bool:
-    """True when a task reminder's answer opens with the [SILENT] flag.
+    """True when a task reminder's answer opens or closes with the [SILENT] flag.
 
     Script jobs go quiet on [SILENT] anywhere in stdout. A model answer is prose that may
     mention the flag while explaining something, so a task only counts as silent when the
-    answer STARTS with it (after control blocks, whitespace and markdown emphasis).
+    flag OPENS or CLOSES the answer (0.408.0, `channel_context.is_silent_report`).
     """
-    text = channel_context.strip_control_blocks(body or "").lstrip(" \t\r\n`*_>")
-    return text.startswith(SILENT_MARK)
+    return channel_context.is_silent_report(body)
 
 
 def _now() -> float:

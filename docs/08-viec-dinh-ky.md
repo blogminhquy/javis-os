@@ -286,7 +286,7 @@ Chọn mức quyền như nhắc hẹn (Chỉ đọc, Được ghi file, Toàn q
 
 **Mã bí mật chỉ hiện một lần**, ngay sau khi lưu, kèm một lệnh `curl` để thử. Hệ thống gọi tới gửi mã trong header `Authorization: Bearer <mã>` (hoặc header `X-Javis-Token`, hoặc `?token=` cuối link nếu nó không đặt được header). Javis chỉ giữ bản băm của mã, nên quên mã thì bấm **Tạo mã mới**; mã cũ ngừng chạy ngay.
 
-**Kết quả về đâu:** như nhắc hẹn, vào khung Javis Core của brain, hòm thư (chuông) và Telegram của bạn. Kết quả mở đầu bằng `[SILENT]` thì không báo.
+**Kết quả về đâu:** như nhắc hẹn, vào khung Javis Core của brain, hòm thư (chuông) và Telegram của bạn. Kết quả mở đầu hoặc kết thúc bằng `[SILENT]` thì không báo.
 
 **Rào an toàn:**
 

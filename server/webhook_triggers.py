@@ -497,7 +497,9 @@ def evaluate_closed(rules: dict, body: bytes, content_type: str, event: Optional
 
 
 def _is_silent(result: str) -> bool:
-    return str(result or "").lstrip().upper().startswith("[SILENT]")
+    # Same rule as reminders (0.408.0): the flag opening or closing the answer.
+    import channel_context
+    return channel_context.is_silent_report(str(result or ""))
 
 
 class WebhookFeature(webhook_worker.WebhookWorker):

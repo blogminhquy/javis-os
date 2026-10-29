@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.408.0] - 2026-10-29
+### Cải thiện
+- **Chuông thông báo gọn hơn: đọc rồi là ẩn đi.** Danh sách chỉ còn thông báo chưa đọc. Bấm **Đọc tất cả** là danh sách trống ngay. Muốn xem lại thì bấm dòng **Xem N thông báo đã đọc** ở cuối.
+- **Nút X trên từng thông báo** để xoá hẳn nó khỏi hàng đợi, không cần mở ra đọc.
+
+### Sửa lỗi
+- **Bấm "Không cần báo" là thông báo đó rời danh sách ngay.** Trước đây nó vẫn nằm nguyên trong chuông dù Javis đã ghi nhận. Dòng Javis Core học được gì hiện một lần ở đầu danh sách.
+- **Việc nền trả lời "không có gì để báo" không còn rơi vào chuông.** Javis chỉ nhận ra dấu `[SILENT]` khi nó đứng đầu câu trả lời, nên câu kiểu "Tôi sẽ kiểm tra các lượt POSCake bị lỗi. [SILENT]" vẫn thành một thông báo. Giờ dấu đứng đầu hay đứng cuối đều được, cho cả nhắc hẹn lẫn webhook.
+
 ## [0.407.0] - 2026-10-29
 ### Cải thiện
 - **Store có ô Sắp xếp.** Chọn Đề xuất (mặc định, gói Khuyên dùng lên đầu), Mới cập nhật, hoặc Tên A-Z. Javis nhớ lựa chọn của bạn trên máy này.

@@ -12,10 +12,16 @@
   var READ_KEY = "javis.notifications.read";
   var INIT_KEY = "javis.notifications.initialized";
   var TAB_KEY = "javis.notifications.tab";
+  // News items removed with their X (0.408.0). News comes from the changelog feed, so it cannot be deleted at the
+  // source: this device remembers the ids and never shows them again, not even under "Show read".
+  var HIDE_KEY = "javis.notifications.hidden";
   var MAX_ITEMS = 30;
   var PAGE_SIZE = 5;
   var state = { items: [], read: new Set(), loadedAt: 0, loading: false, visibleCount: PAGE_SIZE,
-                thu: [], thuChuaDoc: 0, tab: "mine", view: "list", note: {}, policy: null };
+                thu: [], thuChuaDoc: 0, tab: "mine", view: "list", note: {}, policy: null,
+                // 0.408.0 (owner: "read notices must hide, Mark all read must clear them"): both tabs list unread only;
+                // `xemDaDoc` is the "Show N read" link at the bottom, for this opening of the panel only.
+                xemDaDoc: false, an: new Set(), flash: "" };
   // 0.403.0, Javis Core as the notification commander (docs/dev/2026-10-javis-core-chi-huy-thong-bao.md): notices
   // its rules kept quiet are `filtered` and live under "Filtered"; every card takes the owner's feedback in the
   // two buttons, "Needed" / "Not needed" (owner, 2026-10-29: emoji go on the notice once it is opened in Javis Core's
@@ -28,6 +34,25 @@
     team: "noti.grp_team", cost: "noti.grp_cost", update: "noti.grp_update", other: "noti.grp_other" };
   var MODE_KEY = { all: "noti.mode_all", important: "noti.mode_important", urgent: "noti.mode_urgent", off: "noti.mode_off" };
   function icon(n) { return typeof window.ic === "function" ? window.ic(n) : ""; }
+  function loadAn() {
+    try { state.an = new Set(JSON.parse(localStorage.getItem(HIDE_KEY) || "[]").map(String)); } catch (e) { state.an = new Set(); }
+  }
+  function saveAn() {
+    // Newest 300 are plenty: the feed itself only carries the last few dozen.
+    try { localStorage.setItem(HIDE_KEY, JSON.stringify(Array.from(state.an).slice(-300))); } catch (e) {}
+  }
+  // The X on a card. A real <button> inside the card, so the card's own click handler must skip it.
+  function nutX() {
+    return '<button type="button" class="noti-x" data-noti-x aria-label="' + esc(window.t("noti.dismiss")) +
+      '" title="' + esc(window.t("noti.dismiss")) + '">' + (icon("x") || "&times;") + "</button>";
+  }
+  // The link under the list: "Show N read notices", or "Hide read notices" while they show.
+  function linkDaDoc(nDaDoc) {
+    if (state.xemDaDoc) return '<button class="noti-text-btn noti-read-toggle" type="button" data-noti-xemdadoc>' +
+      esc(window.t("noti.hide_read")) + "</button>";
+    return nDaDoc ? '<button class="noti-text-btn noti-read-toggle" type="button" data-noti-xemdadoc>' +
+      esc(window.t("noti.show_read", { count: nDaDoc })) + "</button>" : "";
+  }
   // Ngày giờ đi theo NGÔN NGỮ đang chọn, không viết cứng "vi-VN": người đọc bản tiếng Anh
   // mà thấy định dạng ngày kiểu Việt là lạc quẻ. Cả dashboard lấy locale từ đúng chỗ này.
   function LOC() { return (window.JavisI18n && JavisI18n.locale()) || "vi-VN"; }
@@ -117,6 +142,7 @@
   }
   // 0.204.0: "Read all" reads BOTH tabs. It used to read only the open one, so the bell kept a count after pressing it.
   function markAll() {
+    state.xemDaDoc = false;
     // Thư riêng: đã-đọc nằm ở SERVER, nên đánh dấu ở đây phải đi qua API chứ không
     // chỉ tô lại màu trên máy này.
     if (state.thuChuaDoc || state.thu.some(function (t) { return !t.read; })) {
@@ -270,6 +296,17 @@
       item.reaction = r.reaction || null;
       state.note[item.id] = [window.t("noti.react_saved")].concat(r.messages || []).join(" ");
       state.policy = null;
+      // 0.408.0 (owner: "I pressed Not needed and it still shows"): Not needed also reads this notice, so it leaves
+      // the list at once. Its card is gone, so what Javis Core learned shows above the list instead.
+      if (body.axis === "not_needed") {
+        state.flash = state.note[item.id];
+        delete state.note[item.id];
+        if (!item.read) {
+          item.read = true;
+          state.thuChuaDoc = Math.max(0, state.thuChuaDoc - 1);
+          docThu({ id: item.id }).then(render);
+        }
+      }
       render();
     } catch (e) { state.note[item.id] = window.t("noti.react_err"); render(); }
   }
@@ -281,7 +318,8 @@
       : !item.session_id || item.channel === "agent:javis-core" ? "noti.open_core" : "noti.reopen_chat");
     return '<article class="noti-card' + chua + '" tabindex="0" role="button" data-thu-id="' + esc(item.id) + '">' +
       '<div class="noti-card-top"><span class="noti-kind ' + esc(item.kind || "answer") + '">' +
-      esc(nhanLoai(item.kind)) + '</span><span class="noti-time">' + esc(thoiGian(item.ts)) + "</span></div>" +
+      esc(nhanLoai(item.kind)) + '</span><span class="noti-top-r"><span class="noti-time">' + esc(thoiGian(item.ts)) +
+      "</span>" + nutX() + "</span></div>" +
       "<h4>" + esc(item.title || window.t("noti.msg_title")) + "</h4>" +
       '<p class="noti-card-body">' + esc(item.body || "") + "</p>" +
       (why ? '<span class="noti-why">' + esc(window.t(why)) + "</span>" : "") +
@@ -294,16 +332,21 @@
   function veHomThu(list) {
     if (state.view === "filter") { veBoLoc(list); return; }
     var loc = state.view === "filtered";
-    var ds = state.thu.filter(function (x) { return !!x.filtered === loc; });
-    var nLoc = state.thu.filter(function (x) { return x.filtered; }).length;
+    var cungLoai = state.thu.filter(function (x) { return !!x.filtered === loc; });
+    var ds = cungLoai.filter(function (x) { return state.xemDaDoc || !x.read; });
+    var docRoi = linkDaDoc(cungLoai.filter(function (x) { return x.read; }).length);
+    var nLoc = state.thu.filter(function (x) { return x.filtered && !x.read; }).length;
     var linkLoc = !loc && nLoc ? '<button class="noti-load-more" type="button" data-noti-filtered>' +
       esc(window.t("noti.filtered_n", { count: nLoc })) + "</button>" : "";
-    var head = loc ? dauMuc("noti.filtered_title") : "";
+    var head = (loc ? dauMuc("noti.filtered_title") : "") +
+      (state.flash ? '<p class="noti-flash" role="status">' + esc(state.flash) + "</p>" : "");
     if (!ds.length) {
-      list.innerHTML = head + '<div class="noti-empty">' + (loc ? esc(window.t("noti.filtered_empty")) :
-        esc(window.t("noti.inbox_empty")) + "<br>" + esc(window.t("noti.inbox_empty_sub"))) + "</div>" + linkLoc;
+      // Everything read is not "no messages yet": say the list is clear, and keep the way back to the read ones.
+      var trong = cungLoai.length ? esc(window.t("noti.all_clear")) : loc ? esc(window.t("noti.filtered_empty")) :
+        esc(window.t("noti.inbox_empty")) + "<br>" + esc(window.t("noti.inbox_empty_sub"));
+      list.innerHTML = head + '<div class="noti-empty">' + trong + "</div>" + linkLoc + docRoi;
     } else {
-      list.innerHTML = head + ds.slice(0, MAX_ITEMS).map(theThu).join("") + linkLoc;
+      list.innerHTML = head + ds.slice(0, MAX_ITEMS).map(theThu).join("") + linkLoc + docRoi;
     }
     noiDanhSach(list);
   }
@@ -312,10 +355,12 @@
     if (back) back.addEventListener("click", function () { state.view = "list"; render(); });
     var mo = list.querySelector("[data-noti-filtered]");
     if (mo) mo.addEventListener("click", function () { state.view = "filtered"; render(); });
+    noiXemDaDoc(list);
     list.querySelectorAll("[data-thu-id]").forEach(function (card) {
       function thu() { return state.thu.find(function (x) { return String(x.id) === card.dataset.thuId; }); }
       card.addEventListener("click", function (e) {
         var t = e.target;
+        if (t.closest("[data-noti-x]")) { e.stopPropagation(); var x = thu(); if (x) xoaThu(x); return; }
         if (t.closest(".noti-react")) {
           e.stopPropagation();
           var it = thu();
@@ -332,6 +377,32 @@
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); var it = thu(); if (it) moThu(it); }
       });
     });
+  }
+  function noiXemDaDoc(list) {
+    var b = list.querySelector("[data-noti-xemdadoc]");
+    if (b) b.addEventListener("click", function () { state.xemDaDoc = !state.xemDaDoc; render(); });
+  }
+  // X on an inbox card: gone from the queue for good (`/inbox/delete`), on every device. It leaves the list at once;
+  // a failed delete brings it back on the next load.
+  async function xoaThu(item) {
+    state.thu = state.thu.filter(function (x) { return x !== item; });
+    if (!item.read) state.thuChuaDoc = Math.max(0, state.thuChuaDoc - 1);
+    render();
+    try {
+      var d = await (await fetch("/inbox/delete", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id }) })).json();
+      if (d && typeof d.unread === "number") { state.thuChuaDoc = d.unread; render(); }
+    } catch (e) { taiThu(); }
+  }
+  // X on a news card: read, and hidden on this device for good.
+  function anTin(id) {
+    id = String(id);
+    var moi = !state.read.has(id);
+    state.read.add(id);
+    state.an.add(id);
+    saveAn();
+    saveRead(moi ? [id] : null);
+    render();
   }
   // The "Filter" view: each group's mode, the per-kind rules, Javis Core's recent changes (each can be undone).
   async function taiBoLoc() {
@@ -388,6 +459,7 @@
     state.view = tab === "filter" ? "filter" : "list";
     if (tab === "filter") state.policy = null;
     state.tab = tab === "news" ? "news" : "mine";
+    state.xemDaDoc = false;
     try { localStorage.setItem(TAB_KEY, state.tab); } catch (e) {}
     state.visibleCount = PAGE_SIZE;
     render();
@@ -427,12 +499,19 @@
     }
     if (state.tab === "mine") { veHomThu(list); return; }
 
-    if (!state.items.length) {
+    var conLai = state.items.filter(function (item) { return !state.an.has(String(item.id)); });
+    if (!conLai.length) {
       list.innerHTML = '<div class="noti-empty">' + esc(window.t("noti.news_empty")) + "<br>" +
         esc(window.t("noti.news_empty_sub")) + "</div>";
       return;
     }
-    var limited = state.items.slice(0, MAX_ITEMS);
+    var docRoi = linkDaDoc(conLai.filter(function (item) { return !chuaDoc(item); }).length);
+    var limited = conLai.filter(function (item) { return state.xemDaDoc || chuaDoc(item); }).slice(0, MAX_ITEMS);
+    if (!limited.length) {
+      list.innerHTML = '<div class="noti-empty">' + esc(window.t("noti.all_clear")) + "</div>" + docRoi;
+      noiXemDaDoc(list);
+      return;
+    }
     var visible = limited.slice(0, state.visibleCount);
     var cards = visible.map(function (item) {
       var id = String(item.id);
@@ -449,7 +528,7 @@
       var cta = ctaLabel ? '<span class="noti-cta">' + esc(ctaLabel) + "</span>" : "";
       return '<article class="noti-card' + unreadClass + '" tabindex="0" role="button" data-noti-id="' + esc(id) + '">' +
         '<div class="noti-card-top"><span class="noti-kind ' + esc(kind) + '">' + esc(kindLabel(kind)) + '</span>' +
-        '<span class="noti-time">' + esc(item.published_at || "") + "</span></div>" +
+        '<span class="noti-top-r"><span class="noti-time">' + esc(item.published_at || "") + "</span>" + nutX() + "</span></div>" +
         "<h4>" + esc(item.title || window.t("noti.card_untitled")) + "</h4>" +
         '<p class="noti-card-summary">' + esc(item.summary || "") + "</p>" + body + cta + "</article>";
     }).join("");
@@ -458,14 +537,21 @@
       ? '<button class="noti-load-more" id="notificationLoadMore" type="button">' +
         esc(window.t("noti.load_more", { count: Math.min(PAGE_SIZE, remaining) })) + "</button>"
       : "";
-    list.innerHTML = cards + loadMore;
+    list.innerHTML = cards + loadMore + docRoi;
+    noiXemDaDoc(list);
     list.querySelectorAll("[data-noti-id]").forEach(function (card) {
       function activate() {
         var item = state.items.find(function (x) { return String(x.id) === card.dataset.notiId; });
         if (item) openItem(item);
       }
-      card.addEventListener("click", activate);
+      card.addEventListener("click", function (e) {
+        if (e.target && e.target.closest && e.target.closest("[data-noti-x]")) {
+          e.stopPropagation(); anTin(card.dataset.notiId); return;
+        }
+        activate();
+      });
       card.addEventListener("keydown", function (event) {
+        if (event.target !== card) return;   // Enter on the X is the X's own click, not "open"
         if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(); }
       });
     });
@@ -518,6 +604,7 @@
     veNutPush();
   }
   function closePanel() {
+    state.flash = "";
     var panel = byId("notificationPanel"), shade = byId("notificationShade"), trigger = byId("notificationTrigger");
     if (panel) { panel.hidden = true; panel.setAttribute("aria-hidden", "true"); }
     if (shade) shade.hidden = true;
@@ -604,6 +691,7 @@
     var trigger = byId("notificationTrigger");
     if (!trigger) return;
     loadRead();
+    loadAn();
     taiDaDoc().then(render);
     try { state.tab = localStorage.getItem(TAB_KEY) === "news" ? "news" : "mine"; } catch (e) {}
     trigger.addEventListener("click", function () {

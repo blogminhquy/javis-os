@@ -1,4 +1,4 @@
-"""Regression: a mode=task reminder whose answer opens with [SILENT] posts nothing.
+"""Regression: a mode=task reminder whose answer opens or closes with [SILENT] posts nothing.
 
 Script jobs already went quiet on [SILENT]; task reminders pushed the empty "[SILENT] ..."
 answer to Telegram / the web chat on every idle run of a 10-minute watcher. The answer must
@@ -98,6 +98,15 @@ async def run():
     mention = "Found 1 ticket. Idle runs answer [SILENT], this one did not."
     out = await fire_task("r_mention", mention)
     check("[SILENT] mentioned mid-answer does not mute the result", out == [("web:abc", mention)])
+
+    # 0.408.0, owner's screenshot 2026-10-29: the model wrote a sentence first and the flag LAST, and the bell got
+    # a report "Tôi sẽ đọc quy trình và kiểm tra các lượt POSCake bị lỗi. [SILENT]".
+    trailing = "Tôi sẽ đọc quy trình và kiểm tra các lượt POSCake bị lỗi.\n\n[SILENT]"
+    out = await fire_task("r_trailing", trailing)
+    check("[SILENT] closing the answer also stays quiet", out == [])
+    check("trailing-flag result is still saved on the record", stored("r_trailing").get("result") == trailing)
+    out = await fire_task("r_trailing_inline", "Không có lượt lỗi mới. **[SILENT]**")
+    check("[SILENT] at the end of the last line stays quiet", out == [])
 
 
 asyncio.run(run())
