@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.412.0] - 2026-10-30
+### Thêm mới
+- **Kênh Zalo OA (đang làm).**
+
 ## [0.411.0] - 2026-10-30
 ### Cải thiện
 - **Javis chỉ hỏi bạn khi thật sự cần.** Khu "Cần bạn xử lý" thành "Javis đang hỏi bạn", chỉ còn câu hỏi, xin phép và kết quả chờ duyệt; việc tạm dừng vì lỗi kỹ thuật chuyển sang khu "Javis đang tự lo", báo nhẹ không rung chuông và nói rõ bạn không cần làm gì.
