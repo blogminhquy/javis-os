@@ -34,8 +34,10 @@ check("media query hẹp không còn đè lại grid-template-columns cho kn-lay
   !/\.kn-layout\{grid-template-columns/.test(JS));
 
 const ops = (JS.match(/<div class="kn-layout" id="knOps">[\s\S]*?\n      <\/div>/) || [""])[0];
-check("bốn khu nằm THẲNG trong kn-layout, không còn hai cột bọc ngoài",
-  (ops.match(/<section class="kn-panel"/g) || []).length === 4
+// 0.411.0 (owner, 30/10/2026): a fifth area, "Javis is handling these", holds the stopped jobs the owner need not
+// touch, so "Javis is asking you" only shows what they alone can move on.
+check("năm khu nằm THẲNG trong kn-layout, không còn hai cột bọc ngoài",
+  (ops.match(/<section class="kn-panel"/g) || []).length === 5
   && !/flex-direction:column;gap:14px">\s*<section/.test(ops), ops.slice(0, 200));
 // Một cột thì thứ tự đọc chính là thứ tự ưu tiên. Khu cần ra tay phải đứng trước hai khu chỉ
 // để liếc trạng thái, không thì 20 ngoại lệ nằm dưới hai khung rỗng.
@@ -48,10 +50,13 @@ check("và Lịch sử đứng cuối", ops.indexOf("knHistory") > ops.indexOf("
 // ============================================================
 check("có nút xoá tất cả ở khu Cần bạn xử lý", /id="knWipeAttention" data-panel="attention"/.test(ops));
 check("có nút xoá tất cả ở khu Lịch sử", /id="knWipeHistory" data-panel="history"/.test(ops));
+check("có nút xoá tất cả ở khu Javis đang tự lo", /id="knWipeHandled" data-panel="handled"/.test(ops));
 check("KHÔNG bày nút đó ở khu Đang hoạt động / Hàng đợi",
-  (ops.match(/kn-wipe/g) || []).length === 2, (ops.match(/kn-wipe/g) || []).length);
+  (ops.match(/kn-wipe/g) || []).length === 3, (ops.match(/kn-wipe/g) || []).length);
 check("gọi endpoint dọn theo khu", /post\("\/kanban\/panel\/clear", \{ panel: khu \}\)/.test(JS));
-check("hỏi lại trước khi dọn", /confirm\(t\(khu === "attention"/.test(JS));
+check("hỏi lại trước khi dọn, mỗi khu một câu",
+  /attention: "kanban.confirm_wipe_attention", handled: "kanban.confirm_wipe_handled",\s*history: "kanban.confirm_wipe_history" \}\[khu\];/.test(JS)
+  && /if \(!cau \|\| !confirm\(t\(cau\)\)\) return;/.test(JS));
 // Hai khu hai hậu quả khác nhau (dọn khỏi bảng vs xoá hẳn) nên KHÔNG được dùng chung một câu.
 check("hai câu hỏi lại là hai câu khác nhau",
   VI["kanban.confirm_wipe_attention"] !== VI["kanban.confirm_wipe_history"]);

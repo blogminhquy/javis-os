@@ -1363,6 +1363,7 @@
     .kn-hint{margin:0 0 12px;padding:11px 13px;border:1px solid rgba(127,176,255,.35);border-radius:10px;background:rgba(127,176,255,.06);color:var(--text);font-size:14px;line-height:1.5}
     .kn-more{display:block;margin:6px auto 10px;background:none;border:none;padding:4px 8px;font:inherit;font-size:13px;color:var(--link-ink);cursor:pointer;text-decoration:underline;text-underline-offset:2px}.kn-more[hidden]{display:none}
     .kn-follow-note{margin-top:6px;font-size:13px}
+    .kn-task-calm{color:var(--text2);font-size:13px}.kn-tech{margin-top:8px;font-size:12px}.kn-tech summary{cursor:pointer;color:var(--text3)}
     .kn-task-result{margin-top:6px;color:var(--text3);font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .kn-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.kn-actions button{padding:3px 8px;border-radius:6px;border:1px solid var(--hairline);background:var(--surface-1);color:var(--text2);font-size:11px;cursor:pointer}.kn-actions button:hover{border-color:var(--link-ink);color:var(--text-hi)}.kn-actions button.danger{color:var(--red)}.kn-actions button.danger:hover{border-color:var(--red);color:var(--red)}
     .kn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}.kn-dot.live{background:var(--green);box-shadow:0 0 0 4px rgba(63,220,134,.12)}.kn-dot.off{background:var(--text3)}
@@ -3225,6 +3226,9 @@
           <button class="kn-wipe" id="knWipeAttention" data-panel="attention">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knAttention"></div></section>
         <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_active"))}</b><span id="knActiveCount">0 worker</span></div><div class="kn-list" id="knActive"></div></section>
         <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_queue"))}</b><span id="knQueueCount">0 task</span></div><div class="kn-list" id="knQueue"></div></section>
+        <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_handled"))}</b>
+          <span class="kn-head-right"><span>${esc(t("kanban.p_handled_sub"))}</span>
+          <button class="kn-wipe" id="knWipeHandled" data-panel="handled">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knHandled"></div></section>
         <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_history"))}</b>
           <span class="kn-head-right"><span>${esc(t("kanban.p_history_sub"))}</span>
           <button class="kn-wipe" id="knWipeHistory" data-panel="history">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knHistory"></div>
@@ -3473,10 +3477,12 @@
     function taskHtml(t, area) {
       const acts = taskActions(t);
       const ask = askBox(t);
-      const reason = !ask && t.block_reason ? `<div class="kn-task-result" style="color:var(--red)">${esc(t.block_reason)}</div>` : "";
+      // 0.411.0: a plain, calm sentence (server `_calm`) instead of the raw error in red. Most stopped jobs are
+      // technical hitches the owner cannot fix and need not: the error text only made them anxious.
+      const reason = !ask && t.calm ? `<div class="kn-task-result kn-task-calm">${esc(t.calm)}</div>` : "";
       const result = !reason && t.result ? `<div class="kn-task-result">${esc(t.result.slice(0, 240))}</div>` : "";
       return `<div class="kn-task" data-task="${esc(t.id)}">
-        <div class="kn-task-top"><div class="kn-task-title">${_prioIcon(t.priority)} ${esc(t.title)}</div><span class="kn-pill">${esc(_kstatus(t.status))}</span></div>
+        <div class="kn-task-top"><div class="kn-task-title">${_prioIcon(t.priority)} ${esc(t.title)}</div><span class="kn-pill">${esc(t.status === "blocked" ? window.t(t.waits_for_owner ? "kanban.st_waiting_you" : "kanban.st_handled") : _kstatus(t.status))}</span></div>
         <div class="kn-task-meta"><span>${esc(t.capability || "auto")}</span><span>${esc(window.t("kanban.attempt"))} ${Number(t.attempts || 0)}/${Number(t.max_attempts || 3)}</span><span>${ago(t.updated_at)}</span>${taskBadges(t)}</div>
         ${ask}${reason}${result}
         ${acts.length ? `<div class="kn-actions">${acts.join("")}</div>` : ""}
@@ -3536,7 +3542,9 @@
     // khu Cần bạn xử lý chỉ dọn khỏi bảng (vẫn tra lại được), khu Lịch sử là xoá hẳn.
     el.querySelectorAll(".kn-wipe").forEach(b => b.onclick = async () => {
       const khu = b.dataset.panel;
-      if (!confirm(t(khu === "attention" ? "kanban.confirm_wipe_attention" : "kanban.confirm_wipe_history"))) return;
+      const cau = { attention: "kanban.confirm_wipe_attention", handled: "kanban.confirm_wipe_handled",
+                    history: "kanban.confirm_wipe_history" }[khu];
+      if (!cau || !confirm(t(cau))) return;
       b.disabled = true;
       const r = await post("/kanban/panel/clear", { panel: khu });
       b.disabled = false;
@@ -3567,12 +3575,13 @@
         <div class="kn-task-meta" style="margin-top:10px"><span>${esc(_kstatus(t.status))}</span><span>${esc(t.capability || "auto")}</span><span>mode ${esc(t.execution_mode || "auto")}</span><span>${esc(window.t("kanban.prio_lc"))} ${Number(t.priority || 2)}</span></div>
         ${acts.length ? `<div class="kn-actions" style="margin-top:14px">${acts.join("")}</div>` : ""}
         ${pendingQuestion(t) ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.answer_title"))}${window.JavisInfo ? window.JavisInfo.btn(window.t("info.more")) : ""}</h4>${window.JavisInfo ? window.JavisInfo.body(esc(window.t("kanban.answer_info"))) : ""}${askBox(t)}</div>`
-          : (t.block_reason ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.blocked_reason"))}</h4><div style="color:var(--red)">${esc(t.block_reason)}</div></div>` : "")}
+          : (t.block_reason ? `<div class="kn-detail-block"><h4>${esc(window.t(t.waits_for_owner ? "kanban.why_waiting" : "kanban.why_paused"))}</h4>${t.calm ? `<div class="kn-task-calm">${esc(t.calm)}</div>` : ""}<details class="kn-tech"><summary>${esc(window.t("kanban.tech_detail"))}</summary><div class="dim">${esc(t.block_reason)}</div></details></div>` : "")}
         ${followBox(t)}
         ${qaHistory(t)}
         ${t.result ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.result"))}</h4><div style="white-space:pre-wrap">${esc(t.result)}</div></div>` : ""}
-        <div class="kn-detail-block"><h4>${esc(window.t("kanban.runs"))} (${runs.length})</h4>${runs.length ? runs.map(r => `<div class="kn-event"><b>${esc(r.status)}</b> · ${new Date(Number(r.started_at || 0) * 1000).toLocaleString()}${r.error ? `<div style="color:var(--red)">${esc(r.error)}</div>` : ""}</div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_runs"))}</div>`}</div>
-        <div class="kn-detail-block"><h4>${esc(window.t("kanban.lifecycle"))}</h4>${events.length ? events.map(v => `<div class="kn-event"><b>${esc(v.event_type)}</b> · ${new Date(Number(v.created_at || 0) * 1000).toLocaleString()}<div>${esc(v.message || "")}</div></div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_events"))}</div>`}</div>`;
+        <details class="kn-detail-block kn-tech"><summary>${esc(window.t("kanban.tech_log"))}</summary>
+        <div class="kn-detail-block"><h4>${esc(window.t("kanban.runs"))} (${runs.length})</h4>${runs.length ? runs.map(r => `<div class="kn-event"><b>${esc(r.status)}</b> · ${new Date(Number(r.started_at || 0) * 1000).toLocaleString()}${r.error ? `<div class="dim">${esc(r.error)}</div>` : ""}</div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_runs"))}</div>`}</div>
+        <div class="kn-detail-block"><h4>${esc(window.t("kanban.lifecycle"))}</h4>${events.length ? events.map(v => `<div class="kn-event"><b>${esc(v.event_type)}</b> · ${new Date(Number(v.created_at || 0) * 1000).toLocaleString()}<div>${esc(v.message || "")}</div></div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_events"))}</div>`}</div></details>`;
       bindActionButtons(drawerBody);
       bindAskBoxes(drawerBody);
       bindFollowBoxes(drawerBody);
@@ -3607,6 +3616,7 @@
       if (d.unchanged) return;
       rev = d.rev || "";
       const ops = d.operations || {}, active = ops.active || [], attention = ops.attention || [], queue = ops.queue || [], history = ops.history || [];
+      const handled = ops.handled || [];
       const live = !!(d.dispatcher && d.dispatcher.running), dot = el.querySelector("#knLiveDot");
       dot.classList.toggle("live", live); dot.classList.toggle("off", !live);
       el.querySelector("#knLiveText").textContent = live ? t("kanban.disp_on", { n: Number(d.dispatcher.max_workers || 0) }) : t("kanban.disp_off");
@@ -3624,13 +3634,15 @@
       fillList(el.querySelector("#knActive"), active, "active");
       fillList(el.querySelector("#knQueue"), queue, "queue");
       fillList(el.querySelector("#knAttention"), attention, "attention");
+      fillList(el.querySelector("#knHandled"), handled, "handled");
       fillList(el.querySelector("#knHistory"), history, "history");
       el.querySelector("#knHistMore").hidden = !d.history_more;
       renderHints(d.hints);
-      refreshDrawer([...active, ...attention, ...queue, ...history]);
+      refreshDrawer([...active, ...attention, ...handled, ...queue, ...history]);
       // Khu rỗng thì nút Xoá tất cả xám đi: bấm được một nút không xoá gì cả chỉ làm người ta
       // nghi ngờ là nó có chạy hay không.
       el.querySelector("#knWipeAttention").disabled = !attention.length;
+      el.querySelector("#knWipeHandled").disabled = !handled.length;
       el.querySelector("#knWipeHistory").disabled = !history.length;
       bindActions();
     }

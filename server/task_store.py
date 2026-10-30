@@ -732,6 +732,43 @@ class TaskStore:
                 self._db.rollback()
                 raise
 
+    # 0.411.0: a stopped job only the owner can move on (a question, a permission, a result to approve), as opposed
+    # to one Javis handles itself (technical hitch, usage limit). The Work page and the notices split on this.
+    OWNER_BLOCK_KINDS = ("needs_input", "capability")
+
+    @classmethod
+    def waits_for_owner(cls, task: dict) -> bool:
+        st = str(task.get("status") or "")
+        return st == "review" or (st == "blocked" and str(task.get("block_kind") or "") in cls.OWNER_BLOCK_KINDS)
+
+    def archive_attention(self, brain_root: str, owner: bool) -> int:
+        """Wipe one of the two stopped-job areas: `owner=True` the "Javis is asking you" area (review + owner
+        kinds), False the "Javis is handling it" area (every other blocked job). Same rules as archive_by_status."""
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT id, status, block_kind FROM tasks WHERE brain_root=? AND lane<>'team'
+                   AND status IN ('blocked', 'review')""", (brain_root,)).fetchall()
+        ids = [str(r["id"]) for r in rows if self.waits_for_owner(dict(r)) == bool(owner)]
+        if not ids:
+            return 0
+        with self._lock:
+            self._tx()
+            try:
+                ts = now()
+                for tid in ids:
+                    self._db.execute(
+                        """UPDATE tasks SET status='archived', block_kind='', block_reason='',
+                           claimed_by='', claim_expires_at=0, current_run_id='', updated_at=?
+                           WHERE id=? AND status IN ('blocked', 'review')""",
+                        (ts, tid),
+                    )
+                    self._event(tid, "operator_move", "-> archived: xoá tất cả")
+                self._db.commit()
+            except Exception:
+                self._db.rollback()
+                raise
+        return len(ids)
+
     def archive_by_status(self, brain_root: str, statuses: tuple) -> int:
         """Đẩy MỌI việc đang ở các trạng thái này sang `archived`. Trả số việc đã dọn.
 

@@ -74,7 +74,9 @@ check("tên việc được escape", m._bubble._html.indexOf("<b>tên</b>") === 
 check("có nút mở trang Việc bấm được", /class="viec-mo"/.test(m._bubble._html) && typeof m._nut._nghe.click === "function");
 m = msgGia("x");
 V.ve(m, { status: "blocked", title: "a" });
-check("việc bị chặn: lớp viec-blocked + nhãn bị chặn", m.classList.contains("viec-blocked") && m._bubble._html.indexOf("bị chặn") !== -1);
+// 0.411.0 (owner, 30/10/2026): a paused job is Javis's to handle, so the card says "paused, Javis is on it", not "blocked".
+check("việc tạm dừng: lớp viec-blocked + nhãn tạm dừng, Javis đang lo",
+  m.classList.contains("viec-blocked") && m._bubble._html.indexOf("tạm dừng, Javis đang lo") !== -1);
 
 // ---- 3. ve: dòng đã giao (giọng nói) nằm DƯỚI bong bóng, không biến bong bóng thành thẻ ----
 m = msgGia("Ừ, để xem ngay.");

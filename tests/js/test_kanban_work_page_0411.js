@@ -38,7 +38,7 @@ check("Check again calls /kanban/task/verify", /act === "verify"\) result = awai
 check("a note goes to /kanban/task/followup", /post\("\/kanban\/task\/followup", \{ id: box\.dataset\.follow, text \}\)/.test(kanban));
 check("the drawer shows the note box", /\$\{followBox\(t\)\}/.test(kanban) && /bindFollowBoxes\(drawerBody\);/.test(kanban));
 check("the open drawer follows its job unless the owner is typing",
-  /refreshDrawer\(\[\.\.\.active, \.\.\.attention, \.\.\.queue, \.\.\.history\]\)/.test(kanban)
+  /refreshDrawer\(\[\.\.\.active, \.\.\.attention, \.\.\.handled, \.\.\.queue, \.\.\.history\]\)/.test(kanban)
   && /if \(typing\) return;\s*showTask\(openTaskId, \{ silent: true \}\);/.test(kanban));
 check("a hint is dismissed then handed to Javis in chat",
   /post\("\/kanban\/hint\/dismiss", \{ key: h\.key \}\)/.test(kanban) && /window\.JavisSend\(msg\)/.test(kanban));
@@ -71,6 +71,16 @@ check("a note can go to a done, stopped or queued job",
 check("but not to a running job, nor one waiting for an answer (that has its own box)",
   !fns.canFollow({ status: "running", metadata: {} })
   && !fns.canFollow({ status: "blocked", block_kind: "needs_input", block_reason: "Which file?", metadata: {} }));
+
+// ---------------------------------------------------------------- calm wording (owner, 30/10/2026)
+check("a stopped job shows the calm sentence, never the raw error in red",
+  /const reason = !ask && t\.calm \? `<div class="kn-task-result kn-task-calm">/.test(kanban)
+  && !/esc\(t\.block_reason\)\}<\/div>` : ""/.test(kanban.split("function taskHtml")[1] || ""));
+check("the pill says who is on it", /window\.t\(t\.waits_for_owner \? "kanban\.st_waiting_you" : "kanban\.st_handled"\)/.test(kanban));
+check("the drawer folds the raw error under Technical detail", /<details class="kn-tech"><summary>\$\{esc\(window\.t\("kanban\.tech_detail"\)\)\}/.test(kanban));
+check("a separate area lists what Javis handles itself", /id="knHandled"/.test(kanban) && /fillList\(el\.querySelector\("#knHandled"\), handled, "handled"\)/.test(kanban));
+check("the asking area is named for what it holds", VI["kanban.kpi_attention"] === "Javis đang hỏi bạn" && !/xử lý/.test(VI["kanban.kpi_attention"]));
+check("the handled area says there is nothing to do", /không cần làm gì/.test(VI["kanban.p_handled_sub"]));
 
 // ---------------------------------------------------------------- every kanban.* text exists in both languages
 const keys = new Set([...JS.matchAll(/\bt\("(kanban\.[a-z0-9_]+)"/g)].map(m => m[1]));

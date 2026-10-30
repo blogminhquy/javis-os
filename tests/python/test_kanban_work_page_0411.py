@@ -378,6 +378,82 @@ def test_a_finished_run_records_how_long_it_took(tmp_path):
     feature.store.close()
 
 
+# ---------------------------------------------------------------- "Javis is asking you" vs "Javis is handling it"
+# Owner, 30/10/2026: "Needs you" made low-tech owners anxious about stopped jobs they could not fix, and need not.
+
+def _stopped_board(tmp_path):
+    feature, brain = _feature(tmp_path)
+    root = feature._ensure(brain)
+    s = feature.store
+    ids = {}
+    for name in ("question", "permission", "review", "technical", "limit"):
+        ids[name] = s.enqueue(root, name, "x", capability="files", status="ready", max_attempts=1)
+        assert s.claim(ids[name], "w")
+    s.ask(ids["question"], "w", "Which file?")
+    s.block(ids["permission"], "w", "capability", "needs to send for real")
+    s.complete(ids["review"], "w", "draft", needs_approval=True)
+    s.block(ids["technical"], "w", "transient", "ConnectionResetError: [Errno 104] peer reset")
+    s.block(ids["limit"], "w", "limit", "Gói Claude hết lượt, mốc mở lại quá xa để tự đợi (Nov 3).")
+    return feature, brain, root, ids
+
+
+def test_only_what_the_owner_alone_can_move_on_asks_for_them(tmp_path):
+    feature, brain, root, ids = _stopped_board(tmp_path)
+    ops = feature.board_view(brain)["operations"]
+    asking = {t["title"] for t in ops["attention"]}
+    handled = {t["title"]: t for t in ops["handled"]}
+    assert asking == {"question", "permission", "review"}, asking
+    assert set(handled) == {"technical", "limit"}, set(handled)
+    tech = handled["technical"]["calm"]
+    assert "không cần làm gì" in tech and "ConnectionResetError" not in tech
+    assert handled["limit"]["calm"].startswith("Gói Claude hết lượt")
+    assert all(t["waits_for_owner"] for t in ops["attention"])
+    # The raw error is still there for the drawer's technical detail.
+    assert "ConnectionResetError" in handled["technical"]["block_reason"]
+    feature.store.close()
+
+
+def test_wiping_one_area_leaves_the_other(tmp_path):
+    feature, brain, root, ids = _stopped_board(tmp_path)
+    assert feature.store.archive_attention(root, owner=False) == 2
+    ops = feature.board_view(brain)["operations"]
+    assert ops["handled"] == [] and len(ops["attention"]) == 3
+    assert feature.store.archive_attention(root, owner=True) == 3
+    assert feature.board_view(brain)["operations"]["attention"] == []
+    feature.store.close()
+
+
+def test_a_technical_pause_is_reported_quietly_and_asks_nothing(tmp_path):
+    import tasks as tasks_mod
+    feature, brain = _feature(tmp_path)
+    sent = []
+
+    async def report(chat_id, text, quiet=False, **kw):
+        sent.append({"text": text, "quiet": quiet})
+        return True
+
+    feature.deps.report = report
+    tasks_mod.BAO_GOM_GIAY = 0.05
+
+    async def go():
+        base = {"status": "blocked", "chat_id": "web:a", "brain_root": brain}
+        await feature._report({**base, "id": "a", "title": "Sync sheet", "block_kind": "transient",
+                               "block_reason": "HTTP 502 from sheets.googleapis.com"})
+        await feature._report({**base, "id": "b", "title": "Post the article", "block_kind": "capability",
+                               "block_reason": "needs to post for real"})
+        await asyncio.sleep(0.3)
+
+    asyncio.run(go())
+    tech = [m for m in sent if "Sync sheet" in m["text"]]
+    perm = [m for m in sent if "Post the article" in m["text"]]
+    assert len(tech) == 1 and len(perm) == 1, sent
+    assert tech[0]["quiet"] is True and "không cần làm gì" in tech[0]["text"]
+    assert "⚠" not in tech[0]["text"] and "cần bạn xem" not in tech[0]["text"]
+    assert tech[0]["text"].index("không cần làm gì") < tech[0]["text"].index("HTTP 502")
+    assert perm[0]["quiet"] is False and "cho phép" in perm[0]["text"]
+    feature.store.close()
+
+
 def test_store_keeps_old_boards_working(tmp_path):
     """A store from before 0.411.0 gains the hint table on open; nothing else changes shape."""
     path = tmp_path / "q.sqlite3"

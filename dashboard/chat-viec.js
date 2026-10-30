@@ -38,7 +38,8 @@
   var TRANG_THAI = {
     done: { ic: "circle-check", nhan: "viec.st_done" },
     review: { ic: "clipboard-check", nhan: "viec.st_review" },
-    blocked: { ic: "triangle-alert", nhan: "viec.st_blocked" },
+    // 0.411.0: an hourglass, not a warning sign: a paused job is Javis's to handle, not the owner's to fix.
+    blocked: { ic: "hourglass", nhan: "viec.st_blocked" },
     hoi: { ic: "circle-help", nhan: "viec.st_hoi" },
     failed: { ic: "circle-x", nhan: "viec.st_failed" },
     timeout: { ic: "hourglass", nhan: "viec.st_timeout" },

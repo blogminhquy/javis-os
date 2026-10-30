@@ -1327,6 +1327,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             "title": str(task.get("title") or ""),
             "reason": str(task.get("block_reason") or task.get("block_kind") or "").strip(),
             "waiting": cho,
+            "kind": str(task.get("block_kind") or ""),
         })
         cu = self._hen_bao.get(chat_id)
         if cu and not cu.done():
@@ -1341,16 +1342,61 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         await self._xa_bao(chat_id)
 
     async def _xa_bao(self, chat_id: str) -> None:
-        """Bắn rổ đã gom. MỘT việc thì giữ nguyên câu cũ - đừng biến nó thành danh sách một dòng."""
+        """Bắn rổ đã gom, tách làm hai loại tin (0.411.0, chủ repo 30/10/2026).
+
+        Trước đây mọi việc kẹt đều thành "⚠ ... bị chặn, cần bạn xem", và người dùng không rành kỹ thuật thì lo mà
+        không biết làm gì: phần lớn việc kẹt là lỗi kỹ thuật họ không sửa được, cũng không cần sửa (Javis Core nhận
+        sự cố qua incident_hook, tự thử lại khi an toàn, và tự nhắn khi thật sự cần người). Nên:
+          - xin quyền (`capability`): việc CHỈ chủ quyết được. Vẫn kêu, nói rõ đồng ý thì bấm gì, không thì thôi.
+          - mọi thứ khác: báo LẶNG vào hòm thư, nói thẳng là không cần làm gì, chi tiết kỹ thuật để cuối.
+        MỘT việc thì giữ một câu, đừng biến nó thành danh sách một dòng."""
         items = self._ro_bao.pop(chat_id, [])
         self._hen_bao.pop(chat_id, None)
         if not items or not self.deps.report:
             return
+        xin = [it for it in items if it.get("kind") == "capability"]
+        ky_thuat = [it for it in items if it.get("kind") != "capability"]
+        cid, _, root = chat_id.partition(_BUCKET_SEP)
+        for nhom, kieu in ((xin, "permission"), (ky_thuat, "technical")):
+            if not nhom:
+                continue
+            parts = self._tin_tam_dung(nhom, kieu)
+            try:
+                await self.deps.report(
+                    cid, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=(kieu == "technical"),
+                    **_report_extra(self.deps.report, root, ""))
+            except Exception as e:
+                print(f"[kanban] báo gộp việc kẹt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+    @staticmethod
+    def _tin_tam_dung(items: list, kieu: str) -> list:
+        """Câu chữ của tin việc tạm dừng. `kieu`: "permission" (chờ chủ cho phép) hoặc "technical"."""
+        xem = localefmt.chu("Xem ở trang Việc.", "See the Work page.")
+        if kieu == "permission":
+            if len(items) == 1:
+                parts = [localefmt.chu(
+                    f"🔐 Việc '{items[0]['title']}' cần bạn cho phép trước khi tự làm thật ra ngoài "
+                    "(gửi tin, đăng bài, tạo đơn...).",
+                    f"🔐 Job '{items[0]['title']}' needs your permission before it acts outside on its own "
+                    "(sending, posting, creating orders...)."),
+                    localefmt.chu("Lý do: ", "Reason: ") + (items[0]["reason"][:240] or localefmt.chu("không rõ", "unknown"))]
+            else:
+                parts = [localefmt.chu(f"🔐 {len(items)} việc đang chờ bạn cho phép:",
+                                       f"🔐 {len(items)} jobs are waiting for your permission:")]
+                parts += [f"- {it['title']}" for it in items[:BAO_GOM_LIET_KE]]
+                if len(items) > BAO_GOM_LIET_KE:
+                    con = len(items) - BAO_GOM_LIET_KE
+                    parts.append(localefmt.chu(f"…và {con} việc nữa.", f"…and {con} more."))
+            parts.append(localefmt.chu(
+                "Đồng ý thì bấm Cấp quyền ở trang Việc. Không đồng ý thì không cần làm gì, việc chỉ nằm chờ.",
+                "If you agree, press Grant on the Work page. If not, do nothing: the job just waits."))
+            return parts
         if len(items) == 1:
-            parts = [localefmt.chu(f"⚠ Việc '{items[0]['title']}' bị chặn, cần bạn xem.",
-                                   f"⚠ Job '{items[0]['title']}' is blocked and needs you."),
-                     localefmt.chu("Lý do: ", "Reason: ")
-                     + (items[0]["reason"][:240] or localefmt.chu("không rõ", "unknown"))]
+            parts = [localefmt.chu(
+                f"Việc '{items[0]['title']}' tạm dừng vì một trục trặc kỹ thuật. Bạn không cần làm gì: Javis đã ghi lại, "
+                "sẽ tự thử lại khi được, và chỉ nhắn bạn nếu thật sự cần bạn.",
+                f"Job '{items[0]['title']}' paused on a technical hitch. You do not need to do anything: Javis logged "
+                "it, will retry when it can, and only messages you if it really needs you.")]
             cho = items[0].get("waiting") or []
             if cho:
                 # A blocked parent never reaches Done, so these sit in Todo with no word of
@@ -1359,25 +1405,18 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 parts.append(localefmt.chu(
                     f"{len(cho)} việc đang chờ việc này xong mới chạy: {ten}.",
                     f"{len(cho)} job(s) wait for this one before they run: {ten}."))
-            parts.append(localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page."))
+            if items[0]["reason"]:
+                parts.append(localefmt.chu("Chi tiết kỹ thuật: ", "Technical detail: ") + items[0]["reason"][:240])
         else:
-            dong = [localefmt.chu(f"⚠ {len(items)} việc đang chờ bạn xử lý:",
-                                  f"⚠ {len(items)} jobs are waiting for you:")]
-            for it in items[:BAO_GOM_LIET_KE]:
-                dong.append(f"- {it['title']}: " + (it["reason"][:120]
-                                                    or localefmt.chu("không rõ lý do", "reason unknown")))
-            con = len(items) - BAO_GOM_LIET_KE
-            if con > 0:
-                dong.append(localefmt.chu(f"…và {con} việc nữa.", f"…and {con} more."))
-            dong.append(localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page."))
-            parts = dong
-        try:
-            cid, _, root = chat_id.partition(_BUCKET_SEP)
-            await self.deps.report(
-                cid, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=False,
-                **_report_extra(self.deps.report, root, ""))
-        except Exception as e:
-            print(f"[kanban] báo gộp việc kẹt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            parts = [localefmt.chu(
+                f"{len(items)} việc tạm dừng vì trục trặc kỹ thuật. Bạn không cần làm gì, Javis đang lo:",
+                f"{len(items)} jobs paused on technical hitches. You do not need to do anything, Javis is on it:")]
+            parts += [f"- {it['title']}" for it in items[:BAO_GOM_LIET_KE]]
+            if len(items) > BAO_GOM_LIET_KE:
+                con = len(items) - BAO_GOM_LIET_KE
+                parts.append(localefmt.chu(f"…và {con} việc nữa.", f"…and {con} more."))
+        parts.append(xem)
+        return parts
 
     async def xa_het_bao(self) -> None:
         """Bắn hết mọi rổ còn treo. Gọi lúc tắt server - hẹn giờ chết theo tiến trình, không
@@ -1574,9 +1613,40 @@ Trả DUY NHẤT một dòng JSON, không markdown:
     CARD_META_KEYS = ("qa", "acceptance", "acceptance_check", "agent", "effort", "provider", "specifier",
                       "once_pending", "run_seconds")
 
+    @staticmethod
+    def _calm(task: dict) -> str:
+        """One plain sentence on why a job is stopped or waiting, for people who cannot (and need not) read an error
+        (owner, 30/10/2026: "Needs you" made low-tech owners anxious about jobs they could not fix anyway). The raw
+        reason stays in `block_reason` for the drawer's technical detail. "" when there is nothing to say."""
+        st, kind = str(task.get("status") or ""), str(task.get("block_kind") or "")
+        reason = str(task.get("block_reason") or "").strip()
+        if st == "review":
+            return localefmt.chu("Đã làm xong, đang chờ bạn xem và duyệt kết quả.",
+                                 "Done, waiting for you to look at the result and approve it.")
+        if st == "blocked" and kind == "needs_input":
+            return ""      # the question itself is shown
+        if st == "blocked" and kind == "capability":
+            return localefmt.chu("Việc này cần bạn cho phép trước khi tự làm thật ra ngoài. Đồng ý thì bấm Cấp quyền, "
+                                 "không thì cứ để đó.",
+                                 "This job needs your permission before it acts outside on its own. Press Grant if "
+                                 "you agree, otherwise leave it.")
+        if kind == "limit" and reason:
+            return reason  # already written for people: which plan, and when it runs again
+        if st == "blocked":
+            return localefmt.chu("Tạm dừng vì một trục trặc kỹ thuật. Bạn không cần làm gì: Javis đã ghi lại, tự thử "
+                                 "lại khi được, và chỉ nhắn bạn nếu thật sự cần.",
+                                 "Paused on a technical hitch. You do not need to do anything: Javis logged it, retries "
+                                 "when it can, and only messages you if it really needs you.")
+        if st in ("ready", "todo", "triage") and kind:
+            return localefmt.chu("Lần trước gặp trục trặc, Javis sẽ tự chạy lại.",
+                                 "The last try hit a hitch; Javis will run it again by itself.")
+        return ""
+
     @classmethod
     def _card(cls, task: dict) -> dict:
         out = dict(task)
+        out["calm"] = cls._calm(task)
+        out["waits_for_owner"] = TaskStore.waits_for_owner(task)
         res = str(out.get("result") or "")
         if len(res) > cls.CARD_RESULT_CHARS:
             out["result"] = res[:cls.CARD_RESULT_CHARS]
@@ -1621,7 +1691,11 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             if self._worker_brains.get(tid) == root
         ]
         health = self.store.health(root)
-        attention = columns["blocked"] + columns["review"]
+        # 0.411.0: "Javis is asking you" holds only what the owner alone can move on; every other stopped job sits in
+        # "Javis is handling it", which asks nothing of them.
+        stopped = columns["blocked"] + columns["review"]
+        attention = [t for t in stopped if t["waits_for_owner"]]
+        handled = [t for t in stopped if not t["waits_for_owner"]]
         queue = columns["triage"] + columns["todo"] + columns["ready"]
         active = columns["running"]
         history = sorted(columns["done"] + columns["cancelled"],
@@ -1645,6 +1719,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             "operations": {
                 "active": active,
                 "attention": attention,
+                "handled": handled,
                 "queue": queue,
                 "history": history,
             },
@@ -1784,7 +1859,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             return {
                 "ok": True,
-                "task": task,
+                "task": {**task, "calm": self._calm(task), "waits_for_owner": TaskStore.waits_for_owner(task)},
                 "events": self.store.list_events(id, 100),
                 "runs": self.store.list_runs(id, 20),
             }
@@ -1894,12 +1969,14 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             khu = str(panel or "").strip().lower()
             if khu == "attention":
-                removed = self.store.archive_by_status(root, ("blocked", "review"))
+                removed = self.store.archive_attention(root, owner=True)
+            elif khu == "handled":
+                removed = self.store.archive_attention(root, owner=False)
             elif khu == "history":
                 removed = self.store.purge_terminal(
                     root, statuses=("archived", "cancelled", "done"))
             else:
-                return {"ok": False, "error": localefmt.chu("panel phải là 'attention' hoặc 'history'", "panel must be 'attention' or 'history'")}
+                return {"ok": False, "error": localefmt.chu("panel phải là 'attention', 'handled' hoặc 'history'", "panel must be 'attention', 'handled' or 'history'")}
             await self._asnapshot(root)
             return {"ok": True, "removed": removed}
 
