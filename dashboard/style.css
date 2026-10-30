@@ -4056,6 +4056,12 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   filter: drop-shadow(0 0 5px var(--pet-face, #f28c28));
 }
 .pet-rig { transform-origin: 160px 160px; }
+/* Nghỉ yên (pet.js, 0.418.0): vòng vẽ JS dừng, vành quay bằng hoạt ảnh này (pet.js đặt thời lượng và steps để chỉ đổi
+   10 lần mỗi giây, bắt đầu từ đúng chỗ vành đang đứng qua --vanh0), mắt liếc bằng transition. Transition cũng theo
+   steps(10): đổi transform của nhóm SVG bắt trình duyệt dàn lại bố cục MỖI khung, đo được bận 17% so với 14% khi chỉ
+   đổi 10 lần cho cả cú liếc (mỗi lần dịch chưa tới 1px, mắt không thấy bậc). */
+@keyframes petVanh { from { stroke-dashoffset: var(--vanh0, 0); } to { stroke-dashoffset: calc(var(--vanh0, 0) - 360); } }
+.pet.pet-nghi .pet-rig, .pet.pet-nghi .pet-eyes { transition: transform 2.4s steps(10); }
 
 /* PHẢN ỨNG TẠM của linh vật (pet.js -> dienPhanUng, 0.64.39). Gắn lên <svg> chứ không lên
    .pet-body: .pet-body đang giữ transform trượt ra/nép vào, đè lên đó là pet giật về mép.

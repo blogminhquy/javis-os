@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.418.0] - 2026-10-30
+### Cải thiện
+- **Mở Javis được cả khi máy chủ đang khởi động lại.** Trước đây tải lại trang đúng lúc máy chủ chưa lên là ra trang lỗi trắng của trình duyệt. Giờ Javis vẫn hiện đủ giao diện kèm dòng **Đang kết nối lại máy chủ…**, máy chủ lên là tự chạy tiếp. Nếu máy chủ vừa cập nhật lên bản mới, trang tự tải lại bản mới. Chỉ áp dụng khi mở Javis qua https (link tên miền hoặc link Truy cập từ xa); lúc máy chủ chạy bình thường, Javis luôn lấy bản mới nhất như cũ.
+- **Con pet nhẹ hơn hẳn khi ngồi yên.** Lúc không ai chạm hay rê chuột, pet giao việc vành quay và liếc mắt cho trình duyệt tự diễn thay vì vẽ từng khung bằng JS. Đo trên điện thoại giả lập ở trang Cộng sự lúc để yên: máy bận khoảng 26% thời gian, giờ khoảng 14%, gần bằng lúc không có pet. Có động tĩnh gì là pet phản ứng ngay như cũ.
+
 ## [0.417.0] - 2026-10-30
 ### Cải thiện
 - **Javis mở nhanh hơn, giai đoạn 2: lần mở đầu trên điện thoại 4G từ 5,1 xuống khoảng 4,7 giây.** Code của các trang lớn (Nhóm, Hội thoại, Chatbot, Javis Store, Thống kê, Webhook, Công việc của trợ lý) không còn tải lúc mở app nữa. Màn chính và khung chat hiện ra trước, phần còn lại tự tải ngầm ngay sau đó, nên lúc bạn bấm sang trang khác thì nó đã sẵn sàng. Mở thẳng vào trang nào thì trang đó tải đúng phần nó cần.
