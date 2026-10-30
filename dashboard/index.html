@@ -947,6 +947,42 @@
   <script src="/static/loi-may-khach.js?v=1"></script>
   <!-- Gộp các lượt đọc trùng nhau lúc mở app (fetch-gop.js, 0.416.0). Đứng trước mọi file gọi máy chủ. -->
   <script src="/static/fetch-gop.js?v=1"></script>
+  <!-- Code của từng trang nạp khi cần (nap-cham.js, 0.417.0): các file LỚN chỉ một trang dùng không còn chặn lúc mở app.
+       Nhóm nào trang nào cần: console.js renderPage. Trang rảnh thì nạp nốt ở nền theo đúng thứ tự dưới đây. -->
+  <script id="javis-lazy" type="application/json">{
+ "congviec": [
+  "/static/agent-jobs.js?v=6",
+  "/static/agent-pulse.js?v=4",
+  "/static/agent-lessons-ui.js?v=4",
+  "/static/agent-judge-ui.js?v=2"
+ ],
+ "teams": [
+  "/static/teams.js?v=20"
+ ],
+ "packs": [
+  "/static/packs.js?v=4"
+ ],
+ "hoithoai": [
+  "/static/inbox-v5.css?v=11",
+  "/static/inbox-compact.css?v=4",
+  "/static/chatbots-reply-policy.js?v=1",
+  "/static/chatbots-try.js?v=1",
+  "/static/chatbots.js?v=20",
+  "/static/conversations-filters.js?v=6",
+  "/static/date-range.js?v=1",
+  "/static/inbox-v5.js?v=4",
+  "/static/inbox-channels.js?v=5",
+  "/static/inbox-stats.js?v=4",
+  "/static/conversations.js?v=27"
+ ],
+ "usage": [
+  "/static/usage.js?v=3"
+ ],
+ "webhooks": [
+  "/static/webhooks.js?v=7"
+ ]
+}</script>
+  <script src="/static/nap-cham.js?v=1"></script>
   <script src="/static/auto-domain.js?v=1"></script>
   <script src="/static/i18n/index.js?v=2"></script>
   <script src="/static/vendor/lucide-icons.js?v=13"></script>
@@ -1053,38 +1089,20 @@
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
   <!-- Tab Công việc của trợ lý (0.142.0): nạp TRƯỚC workspace.js, workspace.js gọi window.JavisAgentJobs. -->
-  <script src="/static/agent-jobs.js?v=6"></script>
-  <script src="/static/agent-pulse.js?v=4"></script>
   <script src="/static/pulse-seen.js?v=1"></script>
-  <script src="/static/agent-lessons-ui.js?v=4"></script>
   <!-- Tag filter bar and tag picker shared by Cộng sự and Team (0.195.0): load BEFORE workspace.js and teams.js. -->
   <script src="/static/tag-picker.js?v=1"></script>
   <script src="/static/workspace.js?v=33"></script>
-  <script src="/static/packs.js?v=4"></script>
   <!-- Hộp chọn thành viên kiểu Zalo (0.142.0): nạp TRƯỚC teams.js, teams.js gọi window.JavisTeamPicker. -->
   <script src="/static/team-picker.js?v=1"></script>
   <!-- Bộ phán xử nói / chờ / im của từng trợ lý (T3 phần J 0.156.0): lịch sử quyết định và nút sửa. Nạp TRƯỚC teams.js
        (ngăn Nhóm gọi window.JavisAgentJudge.hydrate); góp phần "judge" vào khung nhịp qua window.JavisPulseParts. -->
-  <script src="/static/agent-judge-ui.js?v=2"></script>
   <!-- Nút mic nhập chữ của khung soạn Nhóm (0.176.0): nạp TRƯỚC teams.js. -->
   <script src="/static/dictate.js?v=4"></script>
   <script src="/static/composer-dictate.js?v=4"></script>
-  <script src="/static/teams.js?v=20"></script>
-  <script src="/static/chatbots-reply-policy.js?v=1"></script>
-  <script src="/static/chatbots-try.js?v=1"></script>
-  <script src="/static/chatbots.js?v=20"></script>
   <!-- Trang Hội thoại (hộp thư khách): nạp TRƯỚC console.js để renderConversations uỷ quyền được. -->
-  <script src="/static/conversations-filters.js?v=6"></script>
-  <script src="/static/date-range.js?v=1"></script>
-  <script src="/static/inbox-v5.js?v=4"></script>
-  <script src="/static/inbox-channels.js?v=5"></script>
-  <script src="/static/inbox-stats.js?v=4"></script>
-  <link rel="stylesheet" href="/static/inbox-v5.css?v=11">
-  <link rel="stylesheet" href="/static/inbox-compact.css?v=4">
   <script src="/static/ht-media.js?v=3"></script>
-  <script src="/static/conversations.js?v=27"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
-  <script src="/static/usage.js?v=3"></script>
   <!-- Trang Code (terminal): nạp TRƯỚC console.js để renderCode ủy quyền được. File này CHỈ có
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
   <script src="/static/code-term.js?v=3"></script>
@@ -1097,7 +1115,6 @@
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
   <!-- Webhooks section of the Work page (0.198.0): load BEFORE console.js, which mounts window.JavisWebhooks. -->
-  <script src="/static/webhooks.js?v=7"></script>
   <!-- Health section of the Work page (0.199.0): incidents Javis Core handles and the read-only scan. -->
   <script src="/static/health-panel.js?v=1"></script>
   <!-- Watch tab of the Recurring work page (0.239.0): token-free web page watching (server/web_watch.py). -->

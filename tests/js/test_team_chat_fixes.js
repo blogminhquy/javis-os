@@ -8,6 +8,7 @@
 //     node tests/js/test_team_chat_fixes.js
 "use strict";
 const fs = require("fs");
+const { napTruoc, coNap } = require("./_thu_tu_nap");   // load order that understands lazy groups (0.417.0)
 const path = require("path");
 const vm = require("vm");
 const D = path.join(__dirname, "..", "..", "dashboard");
@@ -49,8 +50,7 @@ check("(b) a failed chip keeps its File and offers Retry", /file: f \};/.test(te
 check("(b) Send with a failed file says so instead of dropping it silently",
   /if \(S\.atts\.some\(function \(a\) \{ return a\.err; \}\)\) \{ setNote\(tw\("app\.att_failed_send"\)\); return; \}/.test(teamsJs));
 check("(b) chat-upload.js loads before app.js and teams.js",
-  indexHtml.indexOf("/static/chat-upload.js?v=") > 0 && indexHtml.indexOf("/static/chat-upload.js?v=") < indexHtml.indexOf("/static/app.js?v=")
-  && indexHtml.indexOf("/static/chat-upload.js?v=") < indexHtml.indexOf("/static/teams.js?v="));
+  napTruoc("chat-upload.js", ["app.js", "teams.js"], indexHtml));
 
 // (c) chat-card.js with a fake document: presses inside a registered root go to that root's sender.
 const listeners = [];

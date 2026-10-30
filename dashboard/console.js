@@ -339,6 +339,7 @@
     // Trang Chatbot là TAB của trang Hội thoại từ 0.61.0: nhớ tab rồi đi tới trang đó.
     if (id === "chatbots") {
       if (window.JavisConversations && window.JavisConversations.chonTab) window.JavisConversations.chonTab("bot", true);
+      else _tabHoiThoaiCho = "bot";
       id = "conversations";
     }
     id = TRANG_GOP[id] || id;
@@ -511,6 +512,16 @@
   // ============================================
   // Render từng trang vào #cviewBody
   // ============================================
+  // Trang nào cần nhóm code nạp chậm nào (nap-cham.js, khối javis-lazy trong index.html).
+  const NHOM_TRANG = {
+    workspace: ["congviec"], teams: ["congviec", "teams"], packs: ["packs"], plugins: ["packs"], mcp: ["packs"],
+    conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"],
+  };
+  // Tab Hội thoại cần chọn khi conversations.js còn chưa nạp (navigateTo("chatbots") lúc đầu): renderPage chọn hộ sau khi nạp.
+  let _tabHoiThoaiCho = "";
+  // Gọi một hàm của module nạp chậm từ chỗ khác trang: chờ nhóm của nó rồi mới gọi.
+  const _goiNhom = (nhom, fn) => (window.JavisNapCham ? window.JavisNapCham.goi(nhom, fn) : Promise.resolve(fn()));
+
   async function renderPage(id) {
     let el = body();
     if (!el) return;
@@ -526,6 +537,20 @@
     const cv = document.getElementById("cview");
     if (cv) cv.classList.toggle("cview-hoi-thoai", id === "conversations" || id === "chatbots");
     _renderGen++;   // đổi trang → vô hiệu mọi render async đang dở (guard bổ sung cho renderer đã có)
+    // 0.417.0: code của trang này có thể chưa nạp (nap-cham.js). Chờ ĐỦ nhóm rồi mới vẽ; trong lúc chờ mà người dùng đã
+    // sang trang khác thì dừng hẳn, đừng vẽ (renderWorkspace mượn khung chat: vẽ vào trang đã tháo là mất khung chat).
+    const nhomCan = NHOM_TRANG[id];
+    if (nhomCan && window.JavisNapCham) {
+      const gen = _renderGen;
+      el.innerHTML = placeholder(id, window.t("common.loading"));
+      await window.JavisNapCham.cho(nhomCan);
+      if (gen !== _renderGen) return;
+      el.innerHTML = "";
+      if (id === "conversations" && _tabHoiThoaiCho) {
+        try { if (window.JavisConversations && window.JavisConversations.chonTab) window.JavisConversations.chonTab(_tabHoiThoaiCho, true); } catch (e) {}
+      }
+      _tabHoiThoaiCho = "";
+    }
     if (id === "chat")     return renderChat(el);
     if (id === "workspace") return renderWorkspace(el);
     if (STUDIO_PAGES.includes(id)) return renderStudioPage(el, id);
@@ -622,11 +647,11 @@
     // Truyền cả TRANG GỐC để kho vẽ được nút quay lại. Không truyền thì người dùng sang kho
     // rồi phải tự tìm đường về bằng thanh bên - mà kho không nằm trên thanh bên nữa, nên họ
     // dễ thấy mình bị lạc.
-    nut.onclick = () => {
+    nut.onclick = () => _goiNhom("packs", () => {
       if (window.JavisPacks && window.JavisPacks.moKho) {
         window.JavisPacks.moKho(kind, id, VIEW_META[id] ? VIEW_META[id].label : id);
       } else { const s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("packs"); }
-    };
+    });
     return row;
   }
 
@@ -761,6 +786,8 @@
   async function renderUsage(el) {
     // Trang Token nâng cấp (usage.js): index log thô Claude+Codex + lọc kỳ/provider + insight.
     // Ủy quyền sang module mới nếu đã nạp; nếu chưa thì rơi về bảng cũ (usage_store 30 ngày).
+    // Tab Thống kê trong Cài đặt cũng gọi hàm này mà không đi qua renderPage: tự chờ usage.js (0.417.0).
+    if (!window.JavisUsage && window.JavisNapCham) await window.JavisNapCham.cho("usage");
     if (window.JavisUsage && window.JavisUsage.render) { try { return window.JavisUsage.render(el); } catch (e) {} }
     _injectUsageCss();
     el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder" style="min-height:200px"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div class="dim">${window.t("cs.uz_loading")}</div></div></div>`;
@@ -2155,6 +2182,8 @@
       inp.addEventListener("keydown", (e) => { if (e.key === "Escape" && inp.value) { e.preventDefault(); setQuery(""); } });
       wrap.querySelector("#plClear").onclick = () => { setQuery(""); inp.focus(); };
       const zip = wrap.querySelector("#plZip");
+      // Không qua _goiNhom: caiPluginZip mở hộp chọn file, trình duyệt chỉ cho mở NGAY trong cú bấm. packs.js đã nạp
+      // sẵn khi trang Plugin vẽ (NHOM_TRANG.plugins).
       zip.onclick = () => {
         if (!window.JavisPacks || !window.JavisPacks.caiPluginZip) return;
         window.JavisPacks.caiPluginZip({
@@ -6170,6 +6199,7 @@
   // Open the consent screen of a connector's companion store pack. Returns what `caiGoiKho` returned,
   // or "" when there is nothing to offer. Never installs anything by itself.
   async function moiGoiDiKem(el, pack) {
+    if (pack && !window.JavisPacks && window.JavisNapCham) await window.JavisNapCham.cho("packs");   // nạp chậm, 0.417.0
     if (!pack || !window.JavisPacks || typeof window.JavisPacks.caiGoiKho !== "function") return "";
     return window.JavisPacks.caiGoiKho(pack, { batSan: true, sauKhiCai: () => renderConnect(el) });
   }
@@ -6866,6 +6896,7 @@
     el.querySelectorAll("[data-coreoff]").forEach(b => b.onclick = async (ev) => {
       ev.stopPropagation();
       const con = byId[b.dataset.coreoff] || {};
+      if (!window.JavisPacks && window.JavisNapCham) await window.JavisNapCham.cho("packs");   // nạp chậm, 0.417.0
       if (!window.JavisPacks || !window.JavisPacks.goApp) { alert(window.t("cs.cn_reload_retry")); return; }
       const r = await window.JavisPacks.goApp(con.name || b.dataset.coreoff, b.dataset.coreoff);
       if (r.ok) renderConnect(el);

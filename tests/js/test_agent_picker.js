@@ -4,6 +4,7 @@
 //
 //     node tests/js/test_agent_picker.js
 const fs = require("fs");
+const { napTruoc, coNap } = require("./_thu_tu_nap");   // load order that understands lazy groups (0.417.0)
 const path = require("path");
 const vm = require("vm");
 
@@ -143,9 +144,7 @@ check("choosing the current value fires nothing", AP.choose(sel, "ke-toan") === 
 
 // ---------------------------------------------------------------- wiring, styles, strings
 check("index.html loads agent-picker.js before studio.js and chatbots.js",
-  INDEX.indexOf("/static/agent-picker.js") > 0 &&
-  INDEX.indexOf("/static/agent-picker.js") < INDEX.indexOf("/static/studio.js") &&
-  INDEX.indexOf("/static/agent-picker.js") < INDEX.indexOf("/static/chatbots.js"));
+  napTruoc("agent-picker.js", ["studio.js", "chatbots.js"], INDEX));
 check("the bot form enhances #cbAgent and passes the full role",
   CHATBOTS.includes('JavisAgentPicker.enhance(box.querySelector("#cbAgent")') && CHATBOTS.includes("data-desc="));
 check("workflow steps enhance both agent selects",

@@ -229,8 +229,12 @@
     // 0.191.0 (owner, 16/10/2026): a notice with no chat of its own opens in Javis Core (copied there with its source
     // and time, once); a notice that answers a chat opens that chat. No separate "Ask Javis Core" button.
     // 0.335.0: "Store has updates" opens the Javis Store, whose banner lists what can be updated.
-    if (item.channel === "store:updates" && window.JavisPacks && window.JavisPacks.moKho) {
-      closePanel(); window.JavisPacks.moKho(""); return;
+    if (item.channel === "store:updates" && (window.JavisPacks || window.JavisNapCham)) {
+      closePanel();
+      // packs.js nạp chậm (nap-cham.js, 0.417.0).
+      var moStore = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(""); };
+      if (window.JavisNapCham) window.JavisNapCham.goi("packs", moStore); else moStore();
+      return;
     }
     if (!item.session_id) { closePanel(); hoiCore("inbox", item.id); return; }
     closePanel();
@@ -246,6 +250,14 @@
     // Thư về một NHÓM chat (kênh "team:<id>", vd. việc nhóm bị chặn) mở đúng nhóm ở trang Nhóm, nơi có nút giải quyết.
     // Đổ vào khung chat chính thì tin gõ tiếp thành tin không tác giả trong phiên nhóm.
     var mNhom = /^team:(.+)$/.exec(String(item.channel || ""));
+    // teams.js nạp chậm từ 0.417.0 (nap-cham.js): chưa có thì nạp rồi mở, đừng rơi sang mở nhầm khung chat chính.
+    if (mNhom && !window.JavisTeams && window.JavisNapCham) {
+      var nhomCho = mNhom[1];
+      window.JavisNapCham.goi(["congviec", "teams"], function () {
+        if (window.JavisTeams && window.JavisTeams.open) window.JavisTeams.open(nhomCho);
+      });
+      return;
+    }
     if (mNhom && window.JavisTeams && window.JavisTeams.open) {
       var nhom = mNhom[1];
       try { window.JavisTeams.open(nhom); return; } catch (e) {}

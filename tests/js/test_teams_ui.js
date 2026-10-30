@@ -6,6 +6,7 @@
 // thứ tự chạy, khung soạn (@ có cấu trúc, Giao việc), cài đặt một cột. Cộng các chỗ nối: thanh bên, script, CSS, i18n.
 "use strict";
 const fs = require("fs");
+const { napTruoc, coNap } = require("./_thu_tu_nap");   // load order that understands lazy groups (0.417.0)
 const path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
 const TM = require(path.join(ROOT, "dashboard", "teams.js"));
@@ -170,7 +171,8 @@ const rail = (consoleJs.match(/const RAIL_ITEMS = \[\s*([\s\S]*?)\]\.map/) || []
 check("thanh bên có mục teams ngay sau workspace", /"workspace", "teams"/.test(rail), rail);
 check("nhóm Năng lực chứa teams", /ids: \["workspace", "teams"/.test(consoleJs));
 check("icon và tiêu đề trang teams", /teams: "users"/.test(consoleJs) && consoleJs.includes('"teams"') && /id === "teams"/.test(consoleJs));
-check("index.html nạp teams.js", /<script src="\/static\/teams\.js\?v=\d+"><\/script>/.test(indexHtml));
+// 0.417.0: teams.js nạp chậm qua nap-cham.js (khối javis-lazy), không còn là thẻ <script>.
+check("index.html nạp teams.js", coNap("teams.js", indexHtml));
 check("app.js chuyển gói team_message, team_state thành sự kiện trang", appJs.includes('"team_message"') && appJs.includes("javis:team-event"));
 // 0.173.0: nhóm đang mở bị xoá (công cụ javis_team hay tab khác): khung chat đóng về trống, báo bằng chữ, không giữ nhóm ma.
 check("nhóm đang mở bị xoá: gói team_state deleted và GET nhóm 404 đều đóng khung qua closeGone",

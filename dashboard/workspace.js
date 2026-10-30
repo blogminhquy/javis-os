@@ -12,6 +12,8 @@
 (function () {
   "use strict";
   var t = function (k, v) { return (window.t ? window.t(k, v) : k); };
+  // Gọi sang module nạp chậm (teams.js, packs.js: nap-cham.js, 0.417.0): nạp nhóm nếu chưa có rồi gọi.
+  var nhom = function (ten, fn) { return window.JavisNapCham ? window.JavisNapCham.goi(ten, fn) : fn(); };
   // (i) button from info-tip.js; without it (node tests) the explanation is drawn inline.
   function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(t("info.more")) : ""; }
   function infoBody(html) {
@@ -601,7 +603,7 @@
       if (S.loai === "agent" && x && window.JavisChatSide.moTaiLieu) window.JavisChatSide.moTaiLieu(x.slug, x.name);
       else window.JavisChatSide.moKhungCuoc();
     };
-    el.querySelector("#wsStore").onclick = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); };
+    el.querySelector("#wsStore").onclick = function () { nhom("packs", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); }); };
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
     var page = el.querySelector("#wsPage");
     el.querySelector("#wsLeftBtn").onclick = function () { page.classList.toggle("left-open"); };
@@ -740,7 +742,10 @@
       },
       openChat: function (sid) { var x = dangChon(); if (x) moPhien(x, false, sid); },
       openTeam: function (teamId, taskId) {
-        if (window.JavisTeams && window.JavisTeams.open) window.JavisTeams.open(teamId, taskId);
+        // teams.js nạp chậm (nap-cham.js, 0.417.0): chờ nó rồi mở.
+        nhom(["congviec", "teams"], function () {
+          if (window.JavisTeams && window.JavisTeams.open) window.JavisTeams.open(teamId, taskId);
+        });
       },
       openWork: function () { if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("kanban"); } });
   }
@@ -1602,7 +1607,7 @@
     var nut = function (id, fn) { var b = host.querySelector(id); if (b) b.onclick = fn; };
     nut("#wsObAgent", function () { taoMoi("agent"); });
     nut("#wsObWf", function () { taoMoi("workflow"); });
-    nut("#wsObStore", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); });
+    nut("#wsObStore", function () { nhom("packs", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); }); });
   }
 
   // ---------- ẩn/hiện cột bên phải, nhớ lựa chọn (0.142.0) ----------

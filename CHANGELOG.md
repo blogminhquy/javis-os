@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.417.0] - 2026-10-30
+### Cải thiện
+- **Javis mở nhanh hơn, giai đoạn 2: lần mở đầu trên điện thoại 4G từ 5,1 xuống khoảng 4,7 giây.** Code của các trang lớn (Nhóm, Hội thoại, Chatbot, Javis Store, Thống kê, Webhook, Công việc của trợ lý) không còn tải lúc mở app nữa. Màn chính và khung chat hiện ra trước, phần còn lại tự tải ngầm ngay sau đó, nên lúc bạn bấm sang trang khác thì nó đã sẵn sàng. Mở thẳng vào trang nào thì trang đó tải đúng phần nó cần.
+
+### Sửa lỗi
+- **Máy chủ chập chờn không còn làm vỡ giao diện.** Khi máy chủ đang khởi động lại hoặc đường truyền đứt một nhịp, Javis tự thử lại trong khoảng 10 giây và hiện dòng nhỏ **Đang kết nối lại máy chủ…** ở đầu trang, nối được là dòng đó tự ẩn. Trước đây mỗi lần như vậy là các ô báo lỗi khó hiểu kiểu "The string did not match the expected pattern". Javis chỉ thử lại việc đọc dữ liệu, không bao giờ tự gửi lại một lệnh lưu hay gửi tin.
+
 ## [0.416.0] - 2026-10-30
 ### Cải thiện
 - **Javis mở nhanh hơn: lần đầu từ 6,3 xuống 5,1 giây, các lần sau từ 1,55 xuống 1,37 giây.** Đo trên điện thoại giả lập mạng 4G. Lượng tải lúc mở app giảm 35% (1,7 MB xuống 1,1 MB):
