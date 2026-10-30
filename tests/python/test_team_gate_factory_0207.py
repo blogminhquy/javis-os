@@ -174,7 +174,7 @@ check("codex gated with the user's own MCP servers: refused, named", not seen an
 seen, task, tm, t = one_job("agy", aux_engine.ANTIGRAVITY)
 check("antigravity gated: refused before the engine, job stopped with the reason",
       not seen and task["status"] == "team_blocked" and "Antigravity" in (task["block_reason"] or "")
-      and "Claude, Codex" in (task["block_reason"] or ""), task["block_reason"])
+      and "Claude Code" in (task["block_reason"] or "") and "Thử lại" in (task["block_reason"] or ""), task["block_reason"])
 
 # Full: the owner's switch gives the 0.194.0 private-chat level, no gate
 seen, task, tm, t = one_job("full", "anthropic-cli", work_mode="full")
