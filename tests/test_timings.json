@@ -840,6 +840,7 @@
   "test_usage_hotpath.py": 0.2,
   "test_usage_index.py": 0.1,
   "test_usage_parsers.py": 0.1,
+  "test_usage_summary_nho.py": 0.2,
   "test_vault_scaffold.py": 1.5,
   "test_vault_soi_md_mot_lan.py": 1.5,
   "test_version_khop_changelog.py": 1.5,

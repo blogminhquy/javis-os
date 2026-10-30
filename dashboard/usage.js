@@ -49,6 +49,7 @@
     period: "this_month", provider: "", el: null, busy: false,
     muc: null, tq: null, viec: null, toast: "", nsToast: "", nsForm: null,
     moMuc: false, moNganSach: false,
+    nho: {}, dangHien: null,   // "kỳ|nhánh" -> kết quả lần nạp trước, để mở lại trang hay đổi qua đổi lại kỳ là thấy số NGAY (0.421.0)
   };
 
   function esc(s) {
@@ -87,12 +88,19 @@
   function injectCss() {
     if (_css) return; _css = true;
     var css = ""
-      + ".tk-wrap{max-width:1000px}"
+      // Không để phần nào trong trang thò ra ngoài mép (0.421.0): chỉ một nhãn số ngày dưới biểu đồ lòi ra
+      // vài px là khung cuộn của trang đã trượt ngang được, và trên iPhone cả trang lệch sang trái, hụt mép phải
+      // (ảnh chủ repo 30/10/2026). `clip` chặn mà không biến khối thành một khung cuộn nữa; `hidden` cho máy cũ.
+      + ".tk-wrap{max-width:1000px;min-width:0;overflow-x:hidden;overflow-x:clip}"
       + ".tk-bar1{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}"
-      + ".tk-chips{display:flex;gap:6px;flex-wrap:wrap}"
-      + ".tk-chip{padding:6px 12px;border-radius:20px;border:1px solid var(--glass-brd);background:var(--glass);color:var(--text2);font-size:13px;cursor:pointer;transition:.12s;white-space:nowrap}"
-      + ".tk-chip:hover{color:var(--text)}"
-      + ".tk-chip.on{background:var(--accent-solid);border-color:var(--accent-solid);color:var(--on-accent);font-weight:600}"
+      // Chọn kỳ là MỘT ô thả xuống (0.421.0, chủ repo: "cho gọn"). Tám nút cũ chiếm ba hàng trên điện thoại.
+      + ".tk-sel{padding:7px 32px 7px 12px;border-radius:9px;border:1px solid var(--glass-brd);background-color:var(--glass);color:var(--text);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;"
+      + "-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);"
+      + "background-position:calc(100% - 17px) 55%,calc(100% - 12px) 55%;background-size:5px 5px;background-repeat:no-repeat}"
+      + ".tk-sel:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+      // Điện thoại: chữ 16px (dưới mức đó iOS tự phóng to trang khi chạm vào ô chọn), ô cao đủ để chạm.
+      // Hàng điều khiển trên điện thoại: ô kỳ và nút Làm mới chung một hàng, bốn nút nhánh xuống hàng dưới.
+      + "@media(max-width:640px){.tk-sel{font-size:16px;min-height:42px}.tk-seg button{font-size:15px;padding:8px 11px}.tk-refresh{font-size:15px;padding:8px 13px;order:2}.tk-seg{order:3}}"
       + ".tk-seg{display:flex;border:1px solid var(--glass-brd);border-radius:9px;overflow:hidden}"
       + ".tk-seg button{padding:6px 12px;background:transparent;border:0;color:var(--text2);font-size:12.5px;cursor:pointer}"
       + ".tk-seg button.on{background:var(--glass);color:var(--text);font-weight:600}"
@@ -148,6 +156,11 @@
       + ".tk-seg2{width:100%;min-height:0}"
       + ".tk-xrow{display:flex;gap:3px;padding-top:5px}"
       + ".tk-x{flex:1 1 0;min-width:3px;max-width:40px;text-align:center;font-size:11px;color:var(--text3);white-space:nowrap;overflow:visible}"
+      // Nhãn đầu và cuối canh vào trong: canh giữa một cột hẹp hơn chữ là chữ lòi ra ngoài mép trang.
+      + ".tk-x:first-child{text-align:left}.tk-x:last-child{text-align:right;direction:rtl}"
+      // Kỳ dài (3 tháng, Năm nay): 90-365 cột, mỗi cột tối thiểu 3px cộng khe 3px là rộng gấp mấy màn hình.
+      // Cột co về 0 và khe hẹp lại để cả kỳ nằm gọn trong bề ngang.
+      + ".tk-dai .tk-col,.tk-dai .tk-x,.tk-dai .tk-m{min-width:0}"
       + ".tk-mrow{display:flex;gap:3px;margin-top:2px;height:14px}"
       + ".tk-m{flex:1 1 0;min-width:3px;max-width:40px;text-align:center;line-height:1;color:var(--accent);cursor:default}"
       + ".tk-m svg{width:11px;height:11px;vertical-align:top}"
@@ -268,9 +281,11 @@
   function render(el) {
     injectCss();
     state.el = el;
+    state.dangHien = null;
     el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder" style="min-height:220px"><div class="ph-ico">' + ic("loader", { cls: "ic-xl ic-spin" }) + '</div><div class="dim">' + window.t("usage.dang_dung") + "</div></div></div>";
-    load(false);
-    quetNen(el);
+    // Quét nền đi SAU khi trang đã vẽ (0.421.0). Đo 30/10/2026: chạy song song với lượt nạp đầu, nó và sáu lượt hỏi
+    // kia tranh nhau một nhân Python, mỗi lượt từ 0,05 s thành 0,7-1,7 s, nên trang hiện chậm gấp mấy lần.
+    load(false).then(function () { quetNen(el); });
   }
 
   function _co_thay_doi(r) {
@@ -327,6 +342,7 @@
 
   function loi(msg) {
     if (!state.el) return;
+    state.dangHien = null;
     state.el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder">'
       + '<div class="ph-ico">' + ic("chart-column", { cls: "ic-xl ic-dim" }) + "</div>"
       + "<div>" + esc(msg || window.t("usage.err.tai")) + "</div>"
@@ -353,7 +369,12 @@
     var q = "?period=" + encodeURIComponent(state.period)
       + (state.provider ? "&provider=" + state.provider : "")
       + "&refresh=" + (doRefresh ? 1 : 0);
-    Promise.all([
+    // Vừa mở trang hay vừa đổi kỳ mà đã có số của đúng kỳ đó từ lần trước: vẽ ngay bằng nó, số mới về thì vẽ lại.
+    // Chỉ khi màn hình đang KHÔNG hiện kỳ này: lượt nạp sau khi bấm lưu, đổi mức... vẽ một lần bằng số mới, kẻo
+    // câu báo "Đã lưu" hiện trên bản cũ rồi bị lượt vẽ sau xoá mất.
+    var khoa = state.period + "|" + state.provider, cu = state.dangHien !== khoa && state.nho[khoa];
+    if (cu) { state.tq = cu.tq; paint(cu.s, cu.ins); state.dangHien = khoa; }
+    return Promise.all([
       fetch("/usage/summary" + q).then(jsonOk),
       fetch("/usage/insights?period=" + encodeURIComponent(state.period)).then(jsonOk).catch(function () { return { items: [] }; }),
       fetch("/usage/tong-quan?period=" + encodeURIComponent(state.period)).then(jsonOk).catch(function () { return null; }),
@@ -362,12 +383,17 @@
       fetch("/cache-keepwarm").then(jsonOk).catch(function () { return null; }),
       fetch("/usage/theo-gio").then(jsonOk).catch(function () { return null; }),
     ]).then(function (res) {
-      state.tq = res[2] || null;
       state.kw = res[5] || null;
       state.gio = res[6] || null;
+      state.nho[khoa] = { s: res[0] || {}, ins: (res[1] || {}).items || [], tq: res[2] || null };
+      // Người dùng đã đổi kỳ trong lúc chờ: giữ số này cho lần sau, đừng vẽ đè lên kỳ họ vừa chọn.
+      if (khoa !== state.period + "|" + state.provider) return;
+      state.tq = res[2] || null;
       paint(res[0] || {}, (res[1] || {}).items || []);
+      state.dangHien = khoa;
     }).catch(function (e) {
-      loi(e && e.message ? e.message : "");
+      // Đang hiện số của lần trước thì giữ nguyên, đừng thay bằng trang lỗi.
+      if (!cu) loi(e && e.message ? e.message : "");
     });
   }
 
@@ -875,13 +901,13 @@
     var el = state.el; if (!el) return;
     var k = s.kpi || {};
     var t = state.tq || {};
-    var chips = PERIODS().map(function (p) {
-      return '<button class="tk-chip' + (p[0] === state.period ? " on" : "") + '" data-period="' + p[0] + '">' + esc(p[1]) + "</button>";
-    }).join("");
+    var chips = '<select class="tk-sel" data-period-sel aria-label="' + esc(window.t("usage.ky.chon")) + '">' + PERIODS().map(function (p) {
+      return '<option value="' + p[0] + '"' + (p[0] === state.period ? " selected" : "") + ">" + esc(p[1]) + "</option>";
+    }).join("") + "</select>";
     var seg = PROVS().map(function (p) {
       return '<button class="' + (p[0] === state.provider ? "on" : "") + '" data-prov="' + p[0] + '">' + esc(p[1]) + "</button>";
     }).join("");
-    var bar1 = '<div class="tk-bar1"><div class="tk-chips">' + chips + '</div>'
+    var bar1 = '<div class="tk-bar1">' + chips
       + '<div class="tk-seg">' + seg + '</div>'
       + '<button class="tk-refresh" data-act="refresh">'
       + (state.busy ? window.t("usage.dang_quet") : window.t("noti.refresh")) + "</button></div>";
@@ -923,9 +949,21 @@
         + seg2(d.claude, PROV_COLOR.claude) + seg2(d.codex, PROV_COLOR.codex) + seg2(d.api, PROV_COLOR.api) + "</div>";
     }).join("");
     // Kỳ dài thì cách quãng nhãn, không thì 30 con số dính vào nhau.
-    var buocX = ts.length > 62 ? 14 : ts.length > 31 ? 7 : ts.length > 16 ? 3 : 1;
+    var buocX = ts.length > 120 ? 30 : ts.length > 62 ? 14 : ts.length > 31 ? 7 : ts.length > 16 ? 3 : 1;
+    var dai = ts.length > 45 ? ' tk-dai" style="gap:' + (ts.length > 120 ? 0 : 1) + 'px' : "";
+    // Kỳ dài hơn hai tháng: số ngày (1, 31, 2, 1...) không nói gì, nên ghi tên tháng ở ngày đầu mỗi tháng (năm thì cách
+    // một tháng, kẻo mười hai nhãn dính nhau trên điện thoại).
+    var buocThang = ts.length > 200 ? 2 : 1;
+    function nhanThang(day, dau) {
+      var th = +day.slice(5, 7);
+      if (!dau && (day.slice(8) !== "01" || (th - 1) % buocThang)) return "";
+      try { return new Date(+day.slice(0, 4), th - 1, 1).toLocaleDateString(LOC(), { month: "short" }); } catch (e) { return String(th); }
+    }
     var xs = ts.map(function (d, i) {
-      return '<div class="tk-x">' + (i % buocX === 0 || i === ts.length - 1 ? esc(String(+d.day.slice(8))) : "") + "</div>";
+      // Cột đầu luôn có nhãn tháng, để kỳ bắt đầu giữa tháng vẫn biết khúc đầu là tháng nào.
+      var nhan = ts.length > 62 ? nhanThang(d.day, i === 0 && +d.day.slice(8) < 20)
+        : (i % buocX === 0 || i === ts.length - 1 ? String(+d.day.slice(8)) : "");
+      return '<div class="tk-x">' + esc(nhan) + "</div>";
     }).join("");
     var ms = ts.map(function (d) {
       var mm = mocTheoNgay[d.day];
@@ -940,7 +978,8 @@
       + '<span><span class="tk-dot" style="background:' + PROV_COLOR.api + '"></span>API</span>'
       + "<span>" + ic("zap", { cls: "ic-sm ic-accent" }) + " " + window.t("usage.legend.doi_muc") + " · "
       + ic("brain", { cls: "ic-sm ic-accent" }) + " " + window.t("usage.legend.doi_nao") + "</span></div>";
-    var chart = ts.length ? ('<div class="tk-sec">' + window.t("usage.sec.theo_ngay") + '</div><div class="tk-chart">' + cols + '</div><div class="tk-xrow">' + xs + '</div><div class="tk-mrow">' + ms + "</div>" + legend) : "";
+    var chart = ts.length ? ('<div class="tk-sec">' + window.t("usage.sec.theo_ngay") + '</div><div class="tk-chart' + dai + '">' + cols
+      + '</div><div class="tk-xrow' + dai + '">' + xs + '</div><div class="tk-mrow' + dai + '">' + ms + "</div>" + legend) : "";
 
     var grid = '<div class="tk-grid">'
       + '<div><div class="tk-sec">' + window.t("usage.sec.nguon_tieu") + "</div>"
@@ -986,9 +1025,8 @@
 
   function bind() {
     var el = state.el; if (!el) return;
-    el.querySelectorAll("[data-period]").forEach(function (b) {
-      b.onclick = function () { state.period = b.getAttribute("data-period"); load(false); };
-    });
+    var sel = el.querySelector("[data-period-sel]");
+    if (sel) sel.onchange = function () { state.period = sel.value; load(false); };
     el.querySelectorAll("[data-prov]").forEach(function (b) {
       b.onclick = function () { state.provider = b.getAttribute("data-prov"); load(false); };
     });

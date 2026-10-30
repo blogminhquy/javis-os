@@ -10,7 +10,13 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.421.0] - 2026-10-30
 ### Fixed
-- (in progress)
+- **The Usage page no longer slides off the screen on phones.** Before, the page shifted left, cutting off text on the left and leaving a gap on the right. The cause was the day labels under the chart sticking out past the edge. Long periods like **3 months** or **This year** made the chart several screens wide. The chart now always fits, and long periods label months instead of days.
+### Improved
+- **Pick the period from one dropdown.** The eight buttons Today, Yesterday, This week... took three rows on a phone. Now there is a single dropdown, on the same row as **Refresh**.
+- **The Usage page opens faster.**
+  - The server no longer works out the same numbers three times each time the page opens.
+  - The log scan now runs after the page shows its numbers, instead of competing with it while it loads.
+  - Reopening the page, or switching back to a period you already viewed, shows the numbers at once and then updates them.
 
 ## [0.420.2] - 2026-10-30
 ### Fixed

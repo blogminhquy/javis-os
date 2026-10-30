@@ -8,7 +8,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.421.0] - 2026-10-30
 ### Sửa lỗi
-- (đang viết)
+- **Trang Mức dùng không còn lệch khung trên điện thoại.** Trước đây trang trượt sang trái, mép trái mất chữ, mép phải hở một khoảng. Nguyên nhân là nhãn ngày dưới biểu đồ thò ra ngoài mép. Kỳ dài như **3 tháng** hay **Năm nay** thì biểu đồ còn rộng gấp mấy màn hình. Giờ biểu đồ luôn nằm gọn, kỳ dài ghi tên tháng thay cho số ngày.
+### Cải thiện
+- **Chọn kỳ bằng một ô thả xuống.** Tám nút Hôm nay, Hôm qua, Tuần này... từng chiếm ba hàng trên điện thoại. Giờ chỉ còn một ô, nằm chung hàng với nút **Làm mới**.
+- **Trang Mức dùng mở nhanh hơn.**
+  - Máy chủ không còn tính cùng một bảng số liệu ba lần mỗi lần mở trang.
+  - Lượt quét nhật ký mới chạy sau khi trang đã hiện số, không chen vào lúc trang đang dựng.
+  - Mở lại trang, hay đổi qua lại giữa các kỳ đã xem, là thấy số ngay rồi tự cập nhật.
 
 ## [0.420.2] - 2026-10-30
 ### Sửa lỗi
