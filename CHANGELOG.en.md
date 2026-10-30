@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.422.0] - 2026-10-30
+### Added
+- In progress: the **Tasks** page merges Kanban and Recurring work.
+
 ## [0.421.0] - 2026-10-30
 ### Fixed
 - **The Usage page no longer slides off the screen on phones.** Before, the page shifted left, cutting off text on the left and leaving a gap on the right. The cause was the day labels under the chart sticking out past the edge. Long periods like **3 months** or **This year** made the chart several screens wide. The chart now always fits, and long periods label months instead of days.
