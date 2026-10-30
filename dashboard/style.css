@@ -1701,6 +1701,11 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   .dict-cancel, .dict-stop { width: 40px; height: 40px; }
   .dict-bar { height: 40px; }
 }
+/* 0.409.0: on a touch screen the box is only a display while recording; a tap on it must not focus it and bring the
+   keyboard (and iOS's AutoFill bubble) back (composer-dictate.js). */
+@media (pointer: coarse) {
+  .hud-voice.dictating .voice-input { pointer-events: none; }
+}
 .voice-input {
   flex: none; background: transparent; border: none; border-radius: 0;
   color: var(--text); font-size: 16px; padding: 6px 6px 8px; resize: none; outline: none;

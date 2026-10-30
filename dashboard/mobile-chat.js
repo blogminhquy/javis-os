@@ -213,7 +213,7 @@
     // thái trong suốt (black-translucent) nên giao diện không đổi.
     var vv = window.visualViewport;
     var rootStyle = document.documentElement.style;
-    var mocCao = 0, kbHen = 0, vuaGo = false;
+    var mocCao = 0, kbHen = 0, vuaGo = false, vuaMo = false;
     function dangGo() {
       var a = document.activeElement;
       if (!a || a === document.body) return false;
@@ -245,6 +245,11 @@
       } else if (!mq.matches) {
         rootStyle.removeProperty("--app-h");
       }
+      // 0.409.0: the keyboard can also go down while the box KEEPS its focus (it turned read-only for dictation). The
+      // page is still slid up then, and on a slid page iOS hit-tests the fixed chat layer away from where it draws it:
+      // taps on the dictation bar's X and stop landed on the text box (owner's iPhone, 2026-10-30). Slide it back.
+      if (mq.matches && vuaMo && !mo && (window.scrollY || document.documentElement.scrollTop)) window.scrollTo(0, 0);
+      vuaMo = mo;
       vuaGo = go;
     }
     function henKeyboard() {
