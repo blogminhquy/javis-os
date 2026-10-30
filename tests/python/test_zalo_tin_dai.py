@@ -120,7 +120,7 @@ check("lỗi nói rõ hỏng ở đoạn mấy", "2/" in loi, loi)
 TAG = []
 
 
-async def _tag_gia(conn, chat_id, text, mention):
+async def _tag_gia(conn, chat_id, text, mention, styles=()):
     TAG.append(mention)
     return None     # để gửi thường, chỉ ghi lại ai được tag
 

@@ -126,7 +126,7 @@ SENT.clear()
 TAGS = []
 
 
-async def _fake_tagged(conn, chat_id, text, mention):
+async def _fake_tagged(conn, chat_id, text, mention, styles=()):
     TAGS.append((text, mention))
     return True, ""
 

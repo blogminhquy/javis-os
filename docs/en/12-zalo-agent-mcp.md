@@ -243,6 +243,15 @@ Four things worth knowing:
   Javis says it is **not sure whether it was created** and asks you to check the group before trying again, so you do not get two polls.
 - **With several Zalo accounts attached, Javis asks** which one to use, same as for sending images.
 
+## Bold, coloured text and "typing..." (since 0.413.0)
+
+A bot answering on personal Zalo now writes more like a person:
+
+- **Bold, italic, strikethrough and coloured text.** When the bot writes `**85.000đ**`, the customer sees bold text, not the stars. Colours are written `{red:50% off}`, with `red`, `orange`, `yellow`, `green`, plus `{big:...}` and `{small:...}` for the size. A `- ` line becomes `•`, a heading becomes a bold line. The bot is told to stress only one or two things, as a person texting would.
+- **"Typing...".** In private chats the customer sees the typing indicator while the bot writes its reply. This needs javis-zalo 1.9.0 or later; with an older one the bot answers as usual, only without the indicator. Groups never show it, since the bot chooses to stay silent on many messages there.
+
+Formatted messages go through `javis-zalo msg send --style`. If that command fails, the message still goes out as plain text with the symbols removed.
+
 ## Using it in chat
 
 You can speak naturally:

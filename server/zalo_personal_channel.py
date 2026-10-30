@@ -1218,7 +1218,9 @@ def co_bot(conn_id: str) -> bool:
 
 
 def _chuan(text: str) -> str:
-    return " ".join(str(text or "").split())
+    # Compared as Zalo shows it (0.413.0): a reply sent as "**85.000đ**" comes back as "85.000đ" with a bold style,
+    # and must still be recognised as the bot's own echo, or the bot takes it for the owner and goes quiet.
+    return " ".join(plain_text(str(text or "")).split())
 
 
 # Zalo's own markup for a tag, e.g. `<a_mention href="zm://Profile/110413987_mention">@Minh</a_mention> Quý`.
@@ -1227,7 +1229,7 @@ def _chuan(text: str) -> str:
 # and outgoing (`channels.zalo_personal.gui`), leaving "@Minh Quý" for the real tag (`--mention`) to find.
 # Since 0.309.0 the stripping lives in `zalo_markup` (also used by the MCP pool for direct tool calls) and also
 # removes broken fragments such as a leftover `href="zm://...">`.
-from zalo_markup import strip_mention_markup  # noqa: E402,F401
+from zalo_markup import plain_text, strip_mention_markup  # noqa: E402,F401
 
 
 def ghi_da_gui(conn_id: str, thread: str, text: str) -> None:

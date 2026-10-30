@@ -128,8 +128,13 @@ check("model đã viết @Tên thì giữ nguyên chữ và tag đúng vị trí
 
 reset()
 ok, _ = send("- Bước 1: mở trang Models", mention=LAN)
+# Since 0.413.0 a Markdown bullet "- " goes out as "• " (zalo_markup.to_zalo); a "-" glued to a word stays as written.
 check("tin bắt đầu bằng '-' vẫn ổn: chữ đã có '@Tên ' đứng đầu nên không thành cờ",
-      ok and CLI[0]["pos"][1].startswith("@Minh Quý - Bước 1"), CLI)
+      ok and CLI[0]["pos"][1].startswith("@Minh Quý • Bước 1"), CLI)
+reset()
+ok, _ = send("-5% cho đơn hôm nay", mention=LAN)
+check("'-' dính chữ ở đầu tin giữ nguyên, '@Tên ' đứng trước nên không thành cờ",
+      ok and CLI[0]["pos"][1] == "@Minh Quý -5% cho đơn hôm nay", CLI)
 
 # ============================================================
 # 3. Khi nào KHÔNG tag

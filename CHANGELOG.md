@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.413.0] - 2026-10-30
+### Cải thiện
+- **Bot Zalo cá nhân nhắn có chữ đậm, chữ màu.** Bot viết in đậm hay tô màu (`{red:Giảm 50%}`) thì khách thấy đúng chữ đậm, chữ màu như người thật nhắn, không còn thấy dấu sao `**`.
+- **Hiện "đang soạn tin" trong lúc bot viết** câu trả lời ở chat riêng, khách khó phân biệt bot với người. Cần bản javis-zalo 1.9.0; bản cũ thì bot vẫn trả lời bình thường, chỉ chưa hiện dòng này.
+
 ## [0.412.0] - 2026-10-30
 ### Thêm mới
 - **Bot trả lời được hộp thư Zalo Official Account.** Chọn kênh **Zalo OA** ở Chatbot, Thêm kênh, dán App ID, App secret key, OA secret key và Refresh token; bot dùng chung Agent, giờ trực và Hộp thư như các kênh khác. Cần Javis có tên miền HTTPS.
