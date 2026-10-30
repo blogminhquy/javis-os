@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.424.0] - 2026-10-30
+### Added
+- **Habits with a streak.** Switch "Count as a habit" on a repeating task (or pick Kind of repeat: Habit when adding) for a Duolingo-style streak. One missed session freezes it, the next one done thaws it, two missed in a row lose it. **Only scheduled days count**, so a habit's rest days never freeze.
+- **Ticking lights a flame.** The ring pops into a flame; a frozen one melts first. A habit's details show the streak, Days done, Frozen, Longest and a month calendar.
+- **The Habits list** opens with four tiles (grey until reached) and Javis's star saying a line with a matching face: sulking when you skip, delighted when all are done, sleepy on rest days.
+- **Habit reminders:** Javis reminds (after your usual time, earlier while frozen), At a set time, or No reminder. At most once a day, only when not done yet.
+
 ## [0.423.0] - 2026-10-30
 ### Added
 - **A "Mine" tab on the Tasks page.** Keep your own tasks: Today, Upcoming, Overdue, No date, Recurring, Done, and by **project** (create, rename, recolour, pin, delete with undo).
