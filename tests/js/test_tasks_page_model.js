@@ -101,6 +101,41 @@ check("weekday cron", M.cronFor("weekdays", "2026-10-30", "08:00") === "0 8 * * 
 check("weekly cron uses the weekday of the date", M.cronFor("weekly", "2026-10-30", "09:00") === "0 9 * * 5");
 check("monthly cron uses the day of the month", M.cronFor("monthly", "2026-10-30", "09:00") === "0 9 30 * *");
 
+// ---- tab "Mine" (0.423.0) ----
+check("weekly T3/T5/T7 falls on Thursday, not Friday", M.occursOn({ unit: "week", n: 1, days: [2, 4, 6] }, "2026-09-01", "2026-10-29") && !M.occursOn({ unit: "week", n: 1, days: [2, 4, 6] }, "2026-09-01", "2026-10-30"));
+check("every 2 days counts from the start", M.occursOn({ unit: "day", n: 2 }, "2026-10-01", "2026-10-03") && !M.occursOn({ unit: "day", n: 2 }, "2026-10-01", "2026-10-02"));
+check("every 2 weeks skips the week in between", M.occursOn({ unit: "week", n: 2, days: [1] }, "2026-10-05", "2026-10-19") && !M.occursOn({ unit: "week", n: 2, days: [1] }, "2026-10-05", "2026-10-12"));
+check("a monthly 31st falls on the last day of a short month", M.occursOn({ unit: "month", n: 1 }, "2026-08-31", "2026-09-30") && !M.occursOn({ unit: "month", n: 1 }, "2026-08-31", "2026-09-29"));
+check("nothing occurs before the start", !M.occursOn({ unit: "day", n: 1 }, "2026-11-01", "2026-10-30"));
+check("next and previous occurrence", M.nextOcc({ unit: "week", n: 1, days: [2, 4, 6] }, "2026-09-01", "2026-10-30") === "2026-10-31"
+  && M.prevOcc({ unit: "week", n: 1, days: [2, 4, 6] }, "2026-09-01", "2026-10-30") === "2026-10-29");
+const store = { projects: [], tasks: [
+  { id: "a", title: "Call Lan", date: "2026-10-30", time: "14:00", status: "open", project: "p1" },
+  { id: "b", title: "Quote Hai Phong", date: "2026-10-29", status: "open" },
+  { id: "c", title: "Find a printer", date: null, status: "open" },
+  { id: "d", title: "Run PLR ads", date: "2026-10-29", status: "done", done_at: 1 },
+  { id: "e", title: "Read 30 min", date: "2026-10-01", time: "21:00", repeat: { unit: "day", n: 1 }, status: "open", done_dates: { "2026-10-28": { at: 1, by: "me" } } },
+  { id: "f", title: "Swim", date: "2026-09-01", repeat: { unit: "week", n: 1, days: [2, 4, 6] }, status: "open", done_dates: { "2026-10-29": { at: 1, by: "javis" } } },
+] };
+const mm = M.mineModel(store, "2026-10-30");
+const mi = id => mm.items.find(i => i.id === id);
+const mids = list => mm.items.filter(i => M.inList(i, list, "2026-10-30")).map(i => i.id).sort();
+check("a dated one-off task is today's, with its project", mi("m:a").date === "2026-10-30" && mi("m:a").proj === "p1");
+check("a one-off task dated yesterday is overdue", mi("m:b").over === true);
+check("an undated task goes to No date", JSON.stringify(mids("nodate")) === JSON.stringify(["m:c"]));
+check("a done task is done and not overdue", mi("m:d").st === "done" && !mi("m:d").over);
+check("a daily task has today's occurrence under its own id", mi("m:e").date === "2026-10-30" && mi("m:e").st === "todo");
+check("its missed yesterday is an overdue occurrence to tick", mi("mo:e:2026-10-29") && mi("mo:e:2026-10-29").over);
+check("a done occurrence shows in Done on its day", mi("md:e:2026-10-28").st === "done");
+check("a weekly task off today shows its next day with a dated id", mi("mn:f:2026-10-31") && mi("mn:f:2026-10-31").date === "2026-10-31");
+check("a weekly task done at its last session has no overdue", !mm.items.some(i => i.id.indexOf("mo:f:") === 0));
+check("repeating tasks are listed as recurring", mm.recurring.map(r => r.id).sort().join() === "m:e,m:f");
+check("Overdue holds the one-off and the missed occurrence", JSON.stringify(mids("over")) === JSON.stringify(["m:b", "mo:e:2026-10-29"]));
+check("a project list holds its open tasks", JSON.stringify(mids("proj:p1")) === JSON.stringify(["m:a"]));
+check("repeat text", M.repHuman({ unit: "week", n: 1, days: [6, 2] }) .indexOf("nv.rep.weekly") === 0);
+check("a weekly Javis schedule is a cron", M.javisSchedule({ unit: "week", n: 1, days: [4, 2] }, "2026-11-03", "06:30").cron === "30 6 * * 2,4");
+check("every 3 days for Javis is a fixed step", M.javisSchedule({ unit: "day", n: 3 }, "2026-11-03", "06:30").repeat_min === 4320);
+
 // no Vietnamese text in the running code of the page (it goes through i18n)
 const js = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "tasks.js"), "utf8");
 check("the nav points to the Tasks page", /ids: \["tasks", "webhooks"\]/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8")));

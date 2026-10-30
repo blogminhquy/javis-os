@@ -12740,6 +12740,9 @@ async def _send_voice_file(chat_id, path, brain) -> tuple:
     return await _TG_BOT.send_file(path, chat=cid)
 
 
+import my_tasks as my_tasks_mod
+# The owner's own tasks for the Tasks page, tab "Mine" (0.423.0): one JSON store per brain.
+my_tasks_feature = my_tasks_mod.register(app, my_tasks_mod.MyTasksDeps(brain_root=_brain_root, atomic_write_text=_atomic_write_text))
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,

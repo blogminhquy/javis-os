@@ -86,7 +86,8 @@
       "ellipsis",
       "skip-forward",
       "arrow-right-left",
-      "key-round"
+      "key-round",
+      "redo"
     ],
     "dieu-huong": [
       "chevron-down",
@@ -119,7 +120,9 @@
       "clock-alert",
       "circle-alert",
       "loader-circle",
-      "pause"
+      "pause",
+      "clock",
+      "sunrise"
     ],
     "tep-tin": [
       "file",

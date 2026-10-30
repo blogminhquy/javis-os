@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.423.0] - 2026-10-30
+### Added
+- **A "Mine" tab on the Tasks page.** Keep your own tasks: Today, Upcoming, Overdue, No date, Recurring, Done, and by **project** (create, rename, recolour, pin, delete with undo).
+- **Easier dates and repeats.** Quick picks When free, Today, Tomorrow, Next Monday, a month calendar and a time every 30 minutes. Repeat "Every [n] days, weeks, months, years", with weekday circles.
+- **Overdue also shows the latest missed run of a repeating task,** tickable right there. One-off tasks move to today with one button.
+- **Hand work back and forth with Javis.** "Give to Javis" turns your task into Javis work; "Do it myself" brings a Javis job to your tab. Both can be undone.
+
 ## [0.422.0] - 2026-10-30
 ### Added
 - **The Tasks page replaces Kanban and Scheduled.** The Work group now holds Tasks and Webhooks. What Javis does, reminders, loops and page watches sit in one place, split into lists: Today, Upcoming, Overdue, Recurring, Run errors, Done, Log, and one per assistant.
