@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.412.0] - 2026-10-30
 ### Added
-- **Zalo OA channel (in progress).**
+- **A bot can answer your Zalo Official Account inbox.** Pick the **Zalo OA** channel under Chatbot, Add channel, paste the App ID, App secret key, OA secret key and Refresh token; the bot shares the Agent, hours and Inbox of every other channel. Javis needs an HTTPS domain.
+- **Javis refreshes the Zalo OA token by itself.** A Zalo token lives about 25 hours and each refresh token works once; Javis swaps and stores the new pair at once, so you never fetch one again each day.
+- **Verify the Zalo domain right in the form.** Paste the `zalo_verifier...html` file name Zalo gives and press Save code; Javis serves that exact file so you can press Verify on Zalo. Step by step in guide 35.
 
 ## [0.411.0] - 2026-10-30
 ### Improved

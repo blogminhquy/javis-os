@@ -919,6 +919,7 @@
   "test_zalo_anh_rieng.py": 0.2,
   "test_zalo_anh_tron_nhom.py": 0.2,
   "test_zalo_bot.py": 0.2,
+  "test_zalo_oa.py": 2.5,
   "test_zalo_cau_tra_loi_cu.py": 4.3,
   "test_zalo_cho_khach_nhan_xong.py": 5.8,
   "test_zalo_chu_chua_tra_loi.py": 7.0,

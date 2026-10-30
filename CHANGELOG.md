@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.412.0] - 2026-10-30
 ### Thêm mới
-- **Kênh Zalo OA (đang làm).**
+- **Bot trả lời được hộp thư Zalo Official Account.** Chọn kênh **Zalo OA** ở Chatbot, Thêm kênh, dán App ID, App secret key, OA secret key và Refresh token; bot dùng chung Agent, giờ trực và Hộp thư như các kênh khác. Cần Javis có tên miền HTTPS.
+- **Javis tự làm mới token Zalo OA.** Token của Zalo chỉ sống khoảng 25 giờ và mỗi refresh token dùng được một lần, Javis tự đổi và cất cặp mới ngay, bạn không phải lấy lại mỗi ngày.
+- **Xác thực tên miền Zalo ngay trong form.** Dán tên file `zalo_verifier...html` Zalo đưa, bấm Lưu mã, Javis phục vụ đúng file đó để bạn bấm Xác thực bên Zalo. Hướng dẫn từng bước ở tài liệu 35.
 
 ## [0.411.0] - 2026-10-30
 ### Cải thiện

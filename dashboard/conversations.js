@@ -2218,14 +2218,39 @@
       try {
         var r = await api("/channels/webhook-info?channel=" + encodeURIComponent(k.id));
         if (chon !== k.id) return;
-        o.innerHTML = '<b>' + esc(window.t("ht.wh_url")) + '</b> <code>' + esc(r.webhook_url || "") + '</code><br>' +
-          '<b>' + esc(window.t("ht.wh_token")) + '</b> <code>' + esc(r.verify_token || "") + '</code>' +
-          (r.https ? "" : '<br><span class="cb-warn">' + esc(window.t("ht.wh_can_https")) + '</span>');
+        o.innerHTML = '<b>' + esc(window.t("ht.wh_url")) + '</b> <code>' + esc(r.webhook_url || "") + '</code>' +
+          (r.verify_token ? '<br><b>' + esc(window.t("ht.wh_token")) + '</b> <code>' + esc(r.verify_token) + '</code>' : "") +
+          (r.https ? "" : '<br><span class="cb-warn">' + esc(window.t(r.site_verify ? "ht.zo_can_https" : "ht.wh_can_https")) + '</span>') +
+          (r.site_verify ? veMaXacThuc(r.site_codes || []) : "");
         o.hidden = false;
+        if (r.site_verify) noiMaXacThuc(o);
       } catch (e) {
         o.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>';
         o.hidden = false;
       }
+    }
+    // Zalo OA (0.412.0): Zalo verifies the webhook domain by fetching /zalo_verifier<code>.html before it
+    // accepts the webhook, and that happens BEFORE the account exists, so the code is saved on its own here.
+    function veMaXacThuc(codes) {
+      return '<div class="ht-zo-site"><b>' + esc(window.t("ht.zo_site_lb")) + '</b>' +
+        '<div class="cb-row"><input id="htZoSite" placeholder="' + esc(window.t("ht.zo_site_ph")) + '">' +
+        '<button class="s-btn-ghost" id="htZoSiteLuu" type="button">' + esc(window.t("ht.zo_site_luu")) + '</button></div>' +
+        '<div id="htZoSiteNote">' + (codes.length ? esc(window.t("ht.zo_site_da", { file: "/zalo_verifier" + codes[0] + ".html" })) : "") +
+        '</div></div>';
+    }
+    function noiMaXacThuc(o) {
+      var nut = o.querySelector("#htZoSiteLuu");
+      if (!nut) return;
+      nut.onclick = async function () {
+        var note = o.querySelector("#htZoSiteNote");
+        var v = o.querySelector("#htZoSite").value.trim();
+        if (!v) return;
+        try {
+          var r = await api("/zalo-oa/site-verification", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                            body: JSON.stringify({ code: v }) });
+          note.textContent = window.t("ht.zo_site_da", { file: r.file || "" });
+        } catch (e) { note.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>'; }
+      };
     }
     box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.onclick = function () { apKenh(n.dataset.k); }; });
     if (chon) apKenh(chon);
