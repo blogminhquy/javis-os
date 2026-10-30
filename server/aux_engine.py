@@ -774,7 +774,8 @@ def la_viec_nen_theo_lich(tag) -> bool:
     t = str(tag or "").strip()
     if t.endswith("-main"):
         t = t[:-len("-main")]
-    return t in _TAG_VIEC_NEN_THEO_LICH or t.startswith("dispatch:")
+    # A reminder's own run is tagged "reminder:<id>" since 0.422.0 (so one run can be stopped).
+    return t in _TAG_VIEC_NEN_THEO_LICH or t.startswith(("dispatch:", "reminder:"))
 
 
 def _hub_bat_buoc_hong(text) -> bool:

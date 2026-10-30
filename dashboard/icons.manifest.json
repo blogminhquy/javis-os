@@ -54,7 +54,8 @@
       "user-round",
       "users",
       "arrow-left",
-      "hand"
+      "hand",
+      "list-checks"
     ],
     "hanh-dong": [
       "save",
@@ -82,7 +83,10 @@
       "thumbs-up",
       "at-sign",
       "square",
-      "ellipsis"
+      "ellipsis",
+      "skip-forward",
+      "arrow-right-left",
+      "key-round"
     ],
     "dieu-huong": [
       "chevron-down",
@@ -110,7 +114,12 @@
       "circle-dot",
       "info",
       "trending-up",
-      "trending-down"
+      "trending-down",
+      "list",
+      "clock-alert",
+      "circle-alert",
+      "loader-circle",
+      "pause"
     ],
     "tep-tin": [
       "file",

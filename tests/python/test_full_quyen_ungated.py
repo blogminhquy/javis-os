@@ -135,7 +135,7 @@ check("và cấm thẳng chuyện đổ cho quyền",
 # Nhắc hẹn và loop vốn ĐÃ đúng; canary ở đây để không ai vô tình bịt lại như tasks.py từng bị.
 _src_rem = (SERVER / "reminders.py").read_text(encoding="utf-8")
 check("nhắc hẹn mức full -> allowed_tools=None",
-      'tag="reminder", allowed_tools=None' in _src_rem)
+      'tag=_engine_tag(), allowed_tools=None' in _src_rem)   # per-reminder tag since 0.422.0
 _src_loop = (SERVER / "self_improve.py").read_text(encoding="utf-8")
 check("loop mức full -> allowed_tools=None",
       'tag="loop", allowed_tools=None' in _src_loop)

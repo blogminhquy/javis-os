@@ -41,6 +41,8 @@
     webhooks: "webhook",
     learn: "brain",
     kanban: "square-kanban",
+    // 0.422.0: the Tasks page (tasks.js) replaces Kanban and Scheduled under Work.
+    tasks: "list-checks",
     terminal: "terminal",
     // </> chứ không phải "một file mã": trang này là chỗ SAI VIỆC cho engine trên một thư
     // mục, không phải chỗ mở một file. Ký hiệu </> ai nhìn cũng hiểu ngay là lập trình.
@@ -105,7 +107,7 @@
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
-    "terminal", "coding", "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins",
+    "terminal", "coding", "tasks", "webhooks", "learn", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "logins", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
@@ -126,7 +128,7 @@
     // can code, so a separate Coding area is redundant. Terminal lives here; Coding stays a real
     // page (old links, voice commands) but is hidden from the rail, see RAIL_AN.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON.nang_luc,    ids: ["workspace", "teams", "conversations", "skills", "plugins", "terminal"] },
-    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON.viec,        ids: ["kanban", "selfimprove", "webhooks"] },
+    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON.viec,        ids: ["tasks", "webhooks"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON.ket_noi,     ids: ["mcp", "packs", "channels", "logins"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON.he_thong,    ids: ["models", "settings", "share", "account"], foot: true },
   ];
@@ -183,7 +185,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "selfimprove", "webhooks", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share", "logins"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "tasks", "webhooks", "chatbots", "conversations", "learn", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share", "logins"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -321,7 +323,8 @@
   // trắng không giải thích gì.
   // Trang Trợ lý và Quy trình gộp thành Cộng sự ở 0.59.0; ai bấm nút cũ trong chat hay
   // bookmark vẫn tới nơi.
-  const TRANG_GOP = { runtime: "usage", agents: "workspace", workflows: "workspace" };
+  // 0.422.0: Kanban and Scheduled became the Tasks page; the old Scheduled link opens its Recurring list.
+  const TRANG_GOP = { runtime: "usage", agents: "workspace", workflows: "workspace", kanban: "tasks", selfimprove: "tasks" };
   const TRANG_CUOI_KEY = "javis_last_page";
   function khoiPhucTrang() {
     let id = "home";
@@ -341,6 +344,7 @@
       else _tabHoiThoaiCho = "bot";
       id = "conversations";
     }
+    if (id === "selfimprove") { try { localStorage.setItem("javis.nv.view", "rep"); } catch (e) {} }
     id = TRANG_GOP[id] || id;
     const store = Alpine.store("nav");
     const oldTab = { pet: "pet", usage: "usage", logs: "updates" }[id];
@@ -515,6 +519,7 @@
   const NHOM_TRANG = {
     workspace: ["congviec"], teams: ["congviec", "teams"], packs: ["packs"], plugins: ["packs"], mcp: ["packs"],
     conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"],
+    tasks: ["nhiemvu"],
   };
   // Tab Hội thoại cần chọn khi conversations.js còn chưa nạp (navigateTo("chatbots") lúc đầu): renderPage chọn hộ sau khi nạp.
   let _tabHoiThoaiCho = "";
@@ -535,6 +540,8 @@
     // #cview (KHÔNG bị clone như cviewBody) nên phải bật/tắt ở MỌI lần đổi trang, không thì trang sau mất đầu trang.
     const cv = document.getElementById("cview");
     if (cv) cv.classList.toggle("cview-hoi-thoai", id === "conversations" || id === "chatbots");
+    // 0.422.0: the Tasks page carries its own title at the top of its left column (owner's design), no page header.
+    if (cv) cv.classList.toggle("cview-nv", id === "tasks");
     _renderGen++;   // đổi trang → vô hiệu mọi render async đang dở (guard bổ sung cho renderer đã có)
     // 0.417.0: code của trang này có thể chưa nạp (nap-cham.js). Chờ ĐỦ nhóm rồi mới vẽ; trong lúc chờ mà người dùng đã
     // sang trang khác thì dừng hẳn, đừng vẽ (renderWorkspace mượn khung chat: vẽ vào trang đã tháo là mất khung chat).
@@ -571,6 +578,15 @@
     if (id === "files")    return renderFiles(el);
     if (id === "coding")   return renderCoding(el);
     if (CODE_PAGES.includes(id)) return renderCode(el, id);
+    if (id === "tasks") {
+      // 0.422.0: the Tasks page lives in tasks.js (lazy group "nhiemvu").
+      if (!window.JavisTasks) {
+        el.innerHTML = placeholder("tasks", window.t("cs.mod_not_ready", { ten: "tasks.js" }));
+        return;
+      }
+      _pageLeave = () => { try { window.JavisTasks.unmount(); } catch (e) {} };
+      return window.JavisTasks.mount(el);
+    }
     if (id === "selfimprove") return renderSelfImprove(el);
     if (id === "webhooks") return renderWebhooks(el);
     if (id === "logins") {
@@ -2260,7 +2276,6 @@
     el.innerHTML = `<div class="cview-section">
       <div class="si-actions" style="margin-bottom:14px;align-items:center">
         <button class="s-btn" id="lpNew">+ ${esc(window.t("cs.si_add"))}</button>
-        <button class="s-btn-ghost" id="lpMorning">${ic("sun")} ${esc(window.t("cs.si_morning"))}</button>
         <button class="s-btn-ghost" id="lpStop">■ ${esc(window.t("cs.si_stop"))}</button>${infoBtn()}
       </div>
       ${infoBody(`${esc(window.t("cs.si_intro_a"))} <b>loop</b> ${esc(window.t("cs.si_intro_b"))} <b>${esc(window.t("cs.si_intro_c"))}</b> ${esc(window.t("cs.si_intro_d"))} <b>${esc(window.t("cs.si_intro_e"))}</b> ${esc(window.t("cs.si_intro_f"))} <b>${esc(window.t("cs.si_intro_g"))}</b> ${esc(window.t("cs.si_intro_h"))}`)}
@@ -2456,8 +2471,7 @@
     // openForm(loop) = tạo/sửa việc lặp · openForm(null, rem) = SỬA một nhắc hẹn/lịch cron.
     // Trước đây nhắc hẹn tạo xong là bất động (chỉ huỷ/chuyển brain) - muốn đổi giờ cron phải
     // xoá rồi tạo lại, đúng chỗ khách báo "không sửa được lịch cron".
-    // `tpl` (0.222.0): a ready-made reminder from /reminders/templates pre-fills a NEW reminder.
-    // Nothing is created until Save, so the usual checks (report channel, can_force) still apply.
+    // `tpl` (0.222.0): a ready-made reminder pre-fills a NEW reminder; nothing is created until Save.
     async function openForm(lp, rem, tpl) {
       await ensureBrains();   // đảm bảo ô brain luôn có lựa chọn dù /viec/all chưa tải xong
       fcur = { mode: lp ? lp.mode : "full" };
@@ -2509,12 +2523,6 @@
       el.querySelector("#lpName").focus();
     }
     el.querySelector("#lpNew").onclick = () => openForm(null);
-    el.querySelector("#lpMorning").onclick = async () => {
-      let d = null;
-      try { d = await (await fetch("/reminders/templates", { cache: "no-store" })).json(); } catch (e) {}
-      const tpl = ((d && d.templates) || []).find(x => x.id === "morning_brief");
-      if (tpl) openForm(null, null, tpl);
-    };
     el.querySelector("#lpCancel").onclick = () => { el.querySelector("#lpForm").style.display = "none"; };
 
     el.querySelector("#lpSave").onclick = async () => {

@@ -1371,7 +1371,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
     @staticmethod
     def _tin_tam_dung(items: list, kieu: str) -> list:
         """Câu chữ của tin việc tạm dừng. `kieu`: "permission" (chờ chủ cho phép) hoặc "technical"."""
-        xem = localefmt.chu("Xem ở trang Việc.", "See the Work page.")
+        xem = localefmt.chu("Xem ở trang Nhiệm vụ.", "See the Tasks page.")
         if kieu == "permission":
             if len(items) == 1:
                 parts = [localefmt.chu(
@@ -1388,8 +1388,8 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                     con = len(items) - BAO_GOM_LIET_KE
                     parts.append(localefmt.chu(f"…và {con} việc nữa.", f"…and {con} more."))
             parts.append(localefmt.chu(
-                "Đồng ý thì bấm Cấp quyền ở trang Việc. Không đồng ý thì không cần làm gì, việc chỉ nằm chờ.",
-                "If you agree, press Grant on the Work page. If not, do nothing: the job just waits."))
+                "Đồng ý thì bấm Cấp quyền ở trang Nhiệm vụ. Không đồng ý thì không cần làm gì, việc chỉ nằm chờ.",
+                "If you agree, press Grant on the Tasks page. If not, do nothing: the job just waits."))
             return parts
         if len(items) == 1:
             parts = [localefmt.chu(
@@ -1499,9 +1499,9 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                             f"❓ Job '{ten}' needs your answer to carry on.")
         cach = localefmt.chu(
             f"Trả lời ngay trong khung chat này (nói rõ là trả lời việc '{ten}', mã {tid}), "
-            "hoặc gõ vào ô trả lời của việc ở trang Việc.",
+            "hoặc gõ vào ô trả lời của việc ở trang Nhiệm vụ.",
             f"Reply right here in this chat (say it is for job '{ten}', id {tid}), "
-            "or type into the job's answer box on the Work page.")
+            "or type into the job's answer box on the Tasks page.")
         try:
             await self.deps.report(
                 task.get("chat_id", ""),
@@ -1576,7 +1576,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         # Bản cho KHUNG CHAT web: thẻ việc (dashboard/chat-viec.js) đã có dòng đầu nói trạng thái,
         # tên việc và nút mở trang Việc, nên bỏ câu đầu có emoji và câu "xem ở trang Việc".
         web = "\n\n".join(parts[1:]) or dau
-        xem = localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page.")
+        xem = localefmt.chu("Xem chi tiết ở trang Nhiệm vụ.", "See details on the Tasks page.")
         parts.append(xem)
         parts_ngan.append(xem)
         # Việc chạy xong TRÓT LỌT thì báo LẶNG: kết quả vẫn rơi vào khung chat đã giao việc và

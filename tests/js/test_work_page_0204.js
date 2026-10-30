@@ -16,12 +16,12 @@ const en = JSON.parse(read("dashboard/i18n/en.json"));
 let fails = 0;
 function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok) fails++; }
 
-check("webhooks in the Work group", /ids: \["kanban", "selfimprove", "webhooks"\]/.test(cons));
+check("webhooks in the Work group", /ids: \["tasks", "webhooks"\]/.test(cons));
 check("webhooks page has an icon, meta and a renderer",
   /webhooks: "webhook"/.test(cons) && /if \(id === "webhooks"\) return renderWebhooks\(el\);/.test(cons)
-  && /"selfimprove", "webhooks", "chatbots"/.test(cons));
+  && /"tasks", "webhooks", "chatbots"/.test(cons));
 check("page lists agree (console, ui-actions, ui_targets)",
-  /"selfimprove", "webhooks", "learn"/.test(cons) && /"selfimprove", "webhooks", "learn"/.test(uia) && /"selfimprove", "webhooks", "learn"/.test(tgt));
+  /"tasks", "webhooks", "learn"/.test(cons) && /"tasks", "webhooks", "learn"/.test(uia) && /"tasks", "webhooks", "learn"/.test(tgt));
 check("webhook cards in chat open the Webhooks page", /if \(kind === "webhook"\) return "webhooks";/.test(viec));
 check("the Scheduled page no longer mounts webhooks", !/JavisWebhooks\.mount\(el\.querySelector\("#whSection"\),\s*\{ brains: \(\) => allBrains/.test(cons));
 check("three tabs", ["jobs", "health", "log"].every((k) => cons.includes('data-si-tab="' + k + '"') && cons.includes('data-si-pane="' + k + '"')));
