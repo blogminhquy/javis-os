@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.411.0] - 2026-10-30
 ### Cải thiện
-- **Trang Việc nhẹ hơn và thông minh hơn.** (đang viết)
+- **Nhắn thêm cho việc ở mọi trạng thái.** Việc đã xong, bị chặn hay đang chờ đều có nút Nhắn thêm (ví dụ "viết lại đoạn 2 ngắn hơn"), việc chạy tiếp trên kết quả cũ chứ không làm lại từ đầu; việc trong hàng có thêm nút Chạy ngay.
+- **Biết việc xong đã được kiểm hay chưa.** Thẻ việc ghi Đã kiểm hoặc Chưa kiểm kèm thời gian chạy, việc chưa kiểm có nút Kiểm lại và kiểm không đạt thì quay về Cần bạn xử lý kèm lý do.
+- **Gợi ý biến việc lặp thành lịch tự chạy.** Việc bạn giao tay 3 lần trong 60 ngày sẽ được gợi ý thành nhắc hẹn hoặc quy trình; việc mới cũng tự đến đúng trợ lý chuyên môn, việc nhỏ chạy nhẹ cho đỡ tốn lượt.
+- **Trang Việc nhẹ hơn hẳn.** Chỉ tải lại khi có thay đổi, nghỉ khi tab ẩn, Lịch sử hiện việc mới nhất trước với nút Xem thêm, và khung chi tiết tự cập nhật.
 
 ## [0.410.0] - 2026-10-30
 ### Sửa lỗi

@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.411.0] - 2026-10-30
 ### Improved
-- **The Work page is lighter and smarter.** (in progress)
+- **Add a note to a job in any state.** A done, blocked or waiting job has Add a note (e.g. "rewrite paragraph 2 shorter") and continues from its last result instead of starting over; queued jobs get Run now.
+- **See whether a finished job was checked.** Cards say Checked or Not checked with the run time; an unchecked job has Check again, and a failed check sends it back to Needs you with the reason.
+- **Repeat jobs become a schedule.** A job you asked for by hand 3 times in 60 days gets a suggestion to become a reminder or workflow; new jobs also go to the assistant whose speciality fits, and small jobs run light to save usage.
+- **The Work page is much lighter.** It reloads only when something changed and pauses in a hidden tab, History shows the newest jobs first with Show more, and the detail panel updates itself.
 
 ## [0.410.0] - 2026-10-30
 ### Fixed

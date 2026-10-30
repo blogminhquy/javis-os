@@ -245,6 +245,10 @@ class TaskStore:
                 CREATE TABLE IF NOT EXISTS team_acceptance_applied(
                     task_id TEXT NOT NULL, decision_key TEXT NOT NULL, revision INTEGER NOT NULL,
                     PRIMARY KEY(task_id,decision_key));
+                -- 0.411.0: "this job keeps coming back" hints the owner dismissed, per brain.
+                CREATE TABLE IF NOT EXISTS board_hints_dismissed(
+                    brain_root TEXT NOT NULL, hint_key TEXT NOT NULL, created_at REAL NOT NULL,
+                    PRIMARY KEY(brain_root, hint_key));
                 """
             )
             self._db.commit()
@@ -380,11 +384,14 @@ class TaskStore:
                 self._db.rollback()
                 raise
 
-    def _task_from_row(self, row: sqlite3.Row) -> dict:
+    def _task_from_row(self, row: sqlite3.Row, deps: Optional[list] = None) -> dict:
         task = dict(row)
         task["needs_approval"] = bool(task.get("needs_approval"))
         task["metadata"] = _loads(task.pop("metadata_json", "{}"), {})
         task["artifacts"] = _loads(task.pop("artifacts_json", "[]"), [])
+        if deps is not None:
+            task["deps"] = deps
+            return task
         with self._lock:
             deps = self._db.execute(
                 "SELECT depends_on_id FROM task_dependencies WHERE task_id=? ORDER BY depends_on_id",
@@ -413,6 +420,61 @@ class TaskStore:
         with self._lock:
             rows = self._db.execute(sql, args).fetchall()
         return [self._task_from_row(r) for r in rows]
+
+    def board_lists(self, brain_root: str, history_limit: int = 20, cap: int = 500) -> dict:
+        """What the Work page shows, in a handful of queries (0.411.0).
+
+        `list_tasks` sorted everything by priority then age and cut at 500, then ran one dependency query per task.
+        On a busy brain that hid NEW jobs behind 500 old finished ones, showed the 20 OLDEST finished jobs as
+        History, and cost 500 queries per 3-second poll. Open jobs and history are now separate queries, history
+        newest first with its own limit, and dependencies come in one query."""
+        root = str(brain_root)
+        open_status = sorted(ACTIVE_STATUS)
+        hist = max(1, min(500, int(history_limit or 20)))
+        with self._lock:
+            open_rows = self._db.execute(
+                f"""SELECT * FROM tasks WHERE brain_root=? AND lane<>'team'
+                    AND status IN ({','.join('?' for _ in open_status)})
+                    ORDER BY priority, created_at LIMIT ?""",
+                (root, *open_status, max(1, int(cap))),
+            ).fetchall()
+            hist_rows = self._db.execute(
+                """SELECT * FROM tasks WHERE brain_root=? AND lane<>'team'
+                   AND status IN ('done', 'cancelled')
+                   ORDER BY updated_at DESC LIMIT ?""",
+                (root, hist + 1),
+            ).fetchall()
+            counts = {r["status"]: int(r["n"]) for r in self._db.execute(
+                """SELECT status, COUNT(*) AS n FROM tasks WHERE brain_root=? AND lane<>'team'
+                   GROUP BY status""", (root,)).fetchall()}
+            ids = [r["id"] for r in open_rows] + [r["id"] for r in hist_rows[:hist]]
+            deps: dict[str, list] = {i: [] for i in ids}
+            for start in range(0, len(ids), 500):
+                chunk = ids[start:start + 500]
+                for d in self._db.execute(
+                    f"""SELECT task_id, depends_on_id FROM task_dependencies
+                        WHERE task_id IN ({','.join('?' for _ in chunk)}) ORDER BY depends_on_id""",
+                    chunk,
+                ).fetchall():
+                    deps[d["task_id"]].append(str(d["depends_on_id"]))
+        return {
+            "open": [self._task_from_row(r, deps[r["id"]]) for r in open_rows],
+            "history": [self._task_from_row(r, deps[r["id"]]) for r in hist_rows[:hist]],
+            "history_more": len(hist_rows) > hist,
+            "counts": counts,
+        }
+
+    def board_rev(self, brain_root: str) -> str:
+        """A cheap fingerprint of a brain's board: any added, removed or changed job, or a mode switch, changes it."""
+        root = str(brain_root)
+        with self._lock:
+            row = self._db.execute(
+                """SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), 0) AS u FROM tasks
+                   WHERE brain_root=? AND lane<>'team'""", (root,)).fetchone()
+            board = self._db.execute(
+                "SELECT orchestration, updated_at FROM boards WHERE brain_root=?", (root,)).fetchone()
+        b = f"{board['orchestration']}:{board['updated_at']}" if board else ""
+        return f"{int(row['n'])}:{float(row['u']):.6f}:{b}"
 
     def list_events(self, task_id: str, limit: int = 100) -> list[dict]:
         with self._lock:
@@ -1119,6 +1181,158 @@ class TaskStore:
                 self._db.rollback()
                 raise
         return self.get_task(task_id), ""
+
+    # A follow-up can be sent to any job that is not running and not already waiting for an answer (that one goes
+    # through `answer`). Finished jobs included: "make paragraph 2 shorter" on a done job is the common case.
+    FOLLOWUP_STATUS = ("blocked", "review", "done", "cancelled", "triage", "todo", "ready")
+
+    def followup(self, task_id: str, text: str, by: str = "owner") -> tuple[Optional[dict], str]:
+        """The owner's extra instruction for a job, then back to the queue (0.411.0).
+
+        Before this the only way to change a stopped or finished job was Retry, which ran it again unchanged. The
+        note joins the job's Q&A log as an answered entry, with the last report as `progress`, so the next run
+        (`TasksFeature._hoi_dap`) builds on the earlier work instead of starting over, and does not resend what
+        was already sent. Attempts start fresh: this is a new instruction, not another try at the old one.
+        Returns (task, "") or (None, "empty" | "not_found" | "running" | "waiting")."""
+        text = (text or "").strip()
+        if not text:
+            return None, "empty"
+        with self._lock:
+            self._tx()
+            try:
+                row = self._db.execute(
+                    "SELECT * FROM tasks WHERE id=? AND lane<>'team'", (task_id,)
+                ).fetchone()
+                if not row:
+                    self._db.rollback()
+                    return None, "not_found"
+                if row["status"] == "running":
+                    self._db.rollback()
+                    return None, "running"
+                if row["status"] == "blocked" and row["block_kind"] == "needs_input":
+                    self._db.rollback()
+                    return None, "waiting"
+                if row["status"] not in self.FOLLOWUP_STATUS:
+                    self._db.rollback()
+                    return None, "not_found"
+                meta = _loads(row["metadata_json"], {})
+                qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
+                qa.append({
+                    "q": "Chủ nhắn thêm cho việc này",
+                    "a": text[:QA_TEXT_MAX], "kind": "followup", "by": by,
+                    "asked_at": now(), "answered_at": now(),
+                    "progress": str(row["result"] or "").strip()[:QA_PROGRESS_MAX],
+                })
+                meta["qa"] = qa[-QA_KEEP:]
+                meta.pop("once_pending", None)
+                if meta.get("acceptance_check") in ("unverified", "checking"):
+                    meta.pop("acceptance_check", None)
+                self._db.execute(
+                    """UPDATE tasks SET status='ready', block_kind='', block_reason='', attempts=0,
+                       metadata_json=?, claimed_by='', claim_expires_at=0, not_before=0,
+                       current_run_id='', updated_at=?
+                       WHERE id=?""",
+                    (_json(meta), now(), task_id),
+                )
+                self._event(task_id, "followup", text[:500], metadata={"by": by, "from": row["status"]})
+                self._db.commit()
+            except Exception:
+                self._db.rollback()
+                raise
+        return self.get_task(task_id), ""
+
+    def set_acceptance(self, task_id: str, state: str, why: str = "") -> Optional[dict]:
+        """Record a re-check of a finished job (0.411.0). `state`: "checking" while it runs, "ai" when it passed,
+        "failed" when it did not (the job moves to Needs you with the reason as its question, so the reply box can
+        fix it), "unverified" when the checker could not run again. Only a done or review job is touched."""
+        with self._lock:
+            self._tx()
+            try:
+                row = self._db.execute(
+                    "SELECT status, metadata_json FROM tasks WHERE id=? AND lane<>'team'", (task_id,)
+                ).fetchone()
+                if not row or row["status"] not in ("done", "review"):
+                    self._db.rollback()
+                    return None
+                meta = _loads(row["metadata_json"], {})
+                if state == "failed":
+                    reason = ("Chưa đạt điều kiện hoàn thành: " + (why or "lượt kiểm không nói rõ."))[:QA_TEXT_MAX]
+                    qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
+                    qa.append({"q": reason, "asked_at": now()})
+                    meta["qa"] = qa[-QA_KEEP:]
+                    meta["acceptance_check"] = "failed"
+                    self._db.execute(
+                        """UPDATE tasks SET status='blocked', block_kind='needs_input', block_reason=?,
+                           metadata_json=?, updated_at=? WHERE id=?""",
+                        (reason, _json(meta), now(), task_id),
+                    )
+                    self._event(task_id, "acceptance_failed", reason[:500])
+                else:
+                    meta["acceptance_check"] = state
+                    self._db.execute("UPDATE tasks SET metadata_json=?, updated_at=? WHERE id=?",
+                                     (_json(meta), now(), task_id))
+                    if state != "checking":
+                        self._event(task_id, "acceptance_" + state, why[:500])
+                self._db.commit()
+            except Exception:
+                self._db.rollback()
+                raise
+        return self.get_task(task_id)
+
+    # Repeat-job hints (0.411.0): a job the owner keeps asking for by hand is a reminder or a workflow waiting to
+    # happen. Only jobs a person asked for count; assistants, teams and schedules already run on their own.
+    HINT_SOURCES = ("user", "chat", "voice")
+    HINT_MIN_COUNT = 3
+    HINT_WINDOW_DAYS = 60
+    HINT_SCAN = 300
+
+    @staticmethod
+    def hint_words(title: str) -> frozenset:
+        """Words of a title with numbers dropped: "Báo cáo doanh thu 28/10" and "... 4/11" are the same job."""
+        return frozenset(w for w in norm_title(title).split() if not any(c.isdigit() for c in w) and len(w) > 1)
+
+    def repeat_hints(self, brain_root: str, limit: int = 3) -> list[dict]:
+        root = str(brain_root)
+        since = now() - self.HINT_WINDOW_DAYS * 86400
+        with self._lock:
+            rows = self._db.execute(
+                f"""SELECT id, title, intent, created_at FROM tasks
+                    WHERE brain_root=? AND lane<>'team' AND created_at>=?
+                      AND created_by IN ({','.join('?' for _ in self.HINT_SOURCES)})
+                    ORDER BY created_at DESC LIMIT ?""",
+                (root, since, *self.HINT_SOURCES, self.HINT_SCAN),
+            ).fetchall()
+            dismissed = {r["hint_key"] for r in self._db.execute(
+                "SELECT hint_key FROM board_hints_dismissed WHERE brain_root=?", (root,)).fetchall()}
+        groups: list[dict] = []
+        for r in rows:
+            words = self.hint_words(r["title"])
+            if len(words) < 2:
+                continue
+            for g in groups:
+                inter = len(words & g["words"])
+                if inter and inter / len(words | g["words"]) >= 0.7:
+                    g["count"] += 1
+                    break
+            else:
+                groups.append({"words": words, "count": 1, "title": r["title"], "intent": r["intent"],
+                               "task_id": r["id"], "last_at": float(r["created_at"])})
+        out = []
+        for g in groups:
+            key = " ".join(sorted(g["words"]))
+            if g["count"] >= self.HINT_MIN_COUNT and key not in dismissed:
+                out.append({"key": key, "count": g["count"], "title": g["title"],
+                            "intent": str(g["intent"] or "")[:600], "task_id": g["task_id"],
+                            "last_at": g["last_at"]})
+        out.sort(key=lambda h: (-h["count"], -h["last_at"]))
+        return out[:limit]
+
+    def dismiss_hint(self, brain_root: str, hint_key: str) -> None:
+        with self._lock:
+            self._db.execute(
+                "INSERT OR REPLACE INTO board_hints_dismissed(brain_root, hint_key, created_at) VALUES (?, ?, ?)",
+                (str(brain_root), str(hint_key)[:500], now()))
+            self._db.commit()
 
     def move(self, task_id: str, status: str, reason: str = "operator") -> bool:
         if status not in VALID_STATUS:
