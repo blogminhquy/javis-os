@@ -210,6 +210,57 @@ check("the chat turn runs on the added account",
 R.clear_rest("openai-oauth", "main")
 main._PIN_LIMITED.clear()
 
+# ---- 6d. account 1 signed in again, possibly as another account (0.420.2) --------------------------------------
+import connect_health  # noqa: E402
+connect_health.engine_reconnected = lambda name: None
+_saved_accounts = copy.deepcopy(cfgmod.read_settings()["model"].get("accounts") or {})
+for prov, hint in (("openai-oauth", "codex"), ("grok-cli", "grok-cli"), ("anthropic-cli", "claude-code")):
+    s = cfgmod.read_settings()
+    s["model"]["accounts"] = {}
+    cfgmod.write_settings(s)
+    mcfg = cfgmod.read_settings()["model"]
+    main._note_pin_limit(hint, account="main")
+    check(f"{prov}: account 1 ran out, the card is out of quota",
+          main._pin_limited_until(prov) > 0 and R.resting_until(prov, "main") > 0)
+    main._plan_main_signed_in(prov)
+    check(f"{prov}: account 1 signing in again lifts the mark and its rest",
+          not main._pin_limited_until(prov) and not R.resting_until(prov, "main") and main._route_ready(mcfg, prov))
+
+main._note_pin_limit("codex", account="main")
+main.openai_oauth.poll = lambda: {"status": "pending"}
+main.oauth_openai_poll()
+check("ChatGPT sign-in still pending: the mark stays", main._pin_limited_until("openai-oauth") > 0)
+main.openai_oauth.poll = lambda: {"status": "connected"}
+main.oauth_openai_poll()
+check("ChatGPT account 1 sign-in finished (device code): the mark goes", not main._pin_limited_until("openai-oauth"))
+main._note_pin_limit("codex", account="main")
+main.openai_oauth.finish_browser = lambda cb: {"status": "connected"}
+asyncio.run(main.oauth_openai_browser_finish(type("Req", (), {"json": staticmethod(lambda: asyncio.sleep(0, {}))})()))
+check("ChatGPT account 1 sign-in finished (browser): the mark goes", not main._pin_limited_until("openai-oauth"))
+
+main._note_pin_limit("claude-code", account="main")
+main.auth_login_ui_code = lambda code: {"ok": False}
+main.claude_login_code("bad")
+check("Claude wrong code: the mark stays", main._pin_limited_until("anthropic-cli") > 0)
+main.auth_login_ui_code = lambda code: {"ok": True}
+main.claude_login_code("good")
+check("Claude account 1 sign-in finished: the mark goes", not main._pin_limited_until("anthropic-cli"))
+
+main._note_pin_limit("grok-cli", account="main")
+main.grok_cli.login_trang_thai = lambda *a, **k: {"connected": True}
+main.grok_login_poll()
+check("Grok poll without a sign-in started here: the mark stays", main._pin_limited_until("grok-cli") > 0)
+main.grok_cli.login_start = lambda *a, **k: {"url": "x"}
+asyncio.run(main.grok_login_start())
+main.grok_login_poll()
+check("Grok account 1 sign-in finished: the mark goes", not main._pin_limited_until("grok-cli"))
+for prov in ("openai-oauth", "grok-cli", "anthropic-cli"):
+    R.clear_rest(prov, "main")
+main._PIN_LIMITED.clear()
+s = cfgmod.read_settings()
+s["model"]["accounts"] = _saved_accounts
+cfgmod.write_settings(s)
+
 import aux_engine  # noqa: E402
 e = P.use(FakeCodex(), "openai-oauth", "acc_b")
 aux_engine._FallbackChain._rest(e, "model_not_found: gpt-x is not available on this plan")

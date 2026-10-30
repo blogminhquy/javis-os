@@ -2738,6 +2738,17 @@ def _note_pin_limit(engine_hint: str, reset_epoch: float = 0.0, now: float = Non
     _PIN_LIMITED[prov] = until
 
 
+def _plan_main_signed_in(provider: str) -> None:
+    """Account 1 of a plan card just finished signing in (0.420.2). The owner may have signed in as ANOTHER account
+    after the old one ran out, so the old account's rest and the plan's out-of-quota mark go. Signing in the same
+    empty account again costs nothing: the next turn hits the limit before writing a word and moves on (spec 6.4)."""
+    try:
+        model_routing.clear_rest(provider, plan_accounts.MAIN)
+    except Exception as e:  # noqa: BLE001 - a sign-in must never fail on this
+        print(f"[plan accounts] clear rest {provider}: {type(e).__name__}: {e}", file=sys.stderr)
+    _PIN_LIMITED.pop(provider, None)
+
+
 def _note_api_limit(mcfg, prov: str, key: str, raw: str = "", seconds: float = 0.0) -> None:
     """An API key ran out of quota in a chat turn: that key rests (0.354.0), so the turn and the next ones run on the
     provider's next key, or on the next card when it has none."""
@@ -4655,6 +4666,7 @@ def oauth_openai_poll():
     if d.get("status") == "connected":
         # Vừa đăng nhập ChatGPT xong: đèn báo não phải xanh NGAY, không chờ vòng probe.
         connect_health.engine_reconnected("codex")
+        _plan_main_signed_in("openai-oauth")
     return d
 
 
@@ -4677,6 +4689,7 @@ async def oauth_openai_browser_finish(request: Request):
     d = openai_oauth.finish_browser(callback)
     if d.get("status") == "connected":
         connect_health.engine_reconnected("codex")   # đăng nhập xong đèn xanh ngay
+        _plan_main_signed_in("openai-oauth")
     return d
 
 
@@ -5045,13 +5058,24 @@ async def grok_login_start():
     đứng hỏi máy chủ tới khi người dùng bấm xong trên web, nên Javis không nhận lại mã nào cả.
     Giao diện gọi tiếp `/grok/login-poll` để biết đã xong chưa.
     """
+    global _GROK_MAIN_LOGIN_PENDING
+    _GROK_MAIN_LOGIN_PENDING = True
     return await asyncio.to_thread(grok_cli.login_start)
+
+
+# 0.420.2: set by login-start, so only a sign-in started here (not a page merely asking) lifts the quota mark.
+_GROK_MAIN_LOGIN_PENDING = False
 
 
 @app.get("/grok/login-poll")
 def grok_login_poll():
     """Bước 2: vòng đăng nhập tới đâu rồi. Giao diện hỏi lặp lại cái này sau login-start."""
-    return grok_cli.login_trang_thai()
+    global _GROK_MAIN_LOGIN_PENDING
+    d = grok_cli.login_trang_thai()
+    if d.get("connected") and _GROK_MAIN_LOGIN_PENDING:
+        _GROK_MAIN_LOGIN_PENDING = False
+        _plan_main_signed_in("grok-cli")
+    return d
 
 
 @app.post("/grok/logout")
@@ -5139,6 +5163,7 @@ def claude_login_code(code: str = Form("")):
         # Vừa đăng nhập xong: đèn báo não phải xanh NGAY, không chờ vòng probe 10 phút
         # (banner 'chưa kết nối Model AI' treo sau khi đã kết nối là lỗi khách báo 27/08).
         connect_health.engine_reconnected("claude")
+        _plan_main_signed_in("anthropic-cli")
     return d
 
 
