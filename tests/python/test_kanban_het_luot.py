@@ -205,6 +205,55 @@ def test_worker_moc_qua_xa_thi_chan_han_kem_ly_do(tmp_path, monkeypatch):
     feature.store.close()
 
 
+
+class _ErrorFinalCli:
+    """Claude Code ending a failed turn: some work, then a final flagged is_error."""
+
+    def __init__(self, text):
+        self.text = text
+
+    def is_available(self):
+        return True
+
+    async def query(self, _prompt):
+        yield {"type": "text", "content": "Reading the file."}
+        yield {"type": "tool_call", "name": "Read"}
+        yield {"type": "final", "content": self.text, "is_error": True, "subtype": "success"}
+
+
+def _run_with_engine(tmp_path, monkeypatch, text):
+    brain = tmp_path / "brain"; brain.mkdir()
+    feature = _feature(tmp_path, brain)
+    monkeypatch.setattr(aux_engine, "read_spec", lambda *a, **k: {"provider": "anthropic-cli"})
+    feature._base_cli = lambda *a, **k: _ErrorFinalCli(text)
+
+    async def go():
+        root = feature._ensure(str(brain))
+        tid = feature.store.enqueue(root, "Job", "do it", capability="files", status="ready")
+        assert await feature._claim_and_spawn(tid)
+        await feature._workers[tid]
+        return feature.store.get_task(tid)
+
+    t = asyncio.run(go())
+    feature.store.close()
+    return t
+
+
+def test_error_final_with_unknown_wording_is_never_done(tmp_path, monkeypatch):
+    """Field report 30/10/2026: a job that ran out of usage went to Done, its "result" being the
+    provider's message, because tasks._query ignored the final's is_error flag and the wording was
+    one limit_learner did not know. The flag alone must keep it out of Done."""
+    t = _run_with_engine(tmp_path, monkeypatch, 'API Error: 529 {"type":"error","error":{"type":"overloaded_error"}}')
+    assert t["status"] != "done", t["status"]
+    assert "529" in (t.get("block_reason") or "")
+
+
+def test_error_final_out_of_extra_usage_waits_for_the_reset(tmp_path, monkeypatch):
+    t = _run_with_engine(tmp_path, monkeypatch, "You're out of extra usage · resets 3pm (UTC)")
+    assert t["status"] == "ready" and t["block_kind"] == "limit", (t["status"], t["block_kind"])
+    assert float(t["not_before"]) > time.time()
+
+
 if __name__ == "__main__":
     # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
     import sys

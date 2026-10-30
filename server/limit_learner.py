@@ -308,6 +308,11 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
     # (field report 0.270, code 25). Same reason as above for the empty engine.
     ("sub_limit", "", "",
      re.compile(r"you'?ve\s+hit\s+your\s+limit\b", re.I)),
+    # "You're out of extra usage · resets 3pm (Asia/Saigon)": Claude Code once the plan's paid
+    # extra usage is spent too. Unmatched, a Kanban job read it as its report and went to Done
+    # (field report 30/10/2026). No engine named in the text, so the caller's hint decides.
+    ("sub_extra", "", "",
+     re.compile(r"you'?re\s+out\s+of\s+extra\s+usage", re.I)),
     # Gemini CLI. Câu chữ lấy từ chính bundle @google/gemini-cli và từ lỗi backend Google trả
     # về ("Quota exceeded for quota metric...", RESOURCE_EXHAUSTED). Gói đăng nhập Google có
     # hạn mức theo NGÀY, nên nói được "hết lượt hôm nay" là đúng chuyện đang xảy ra.

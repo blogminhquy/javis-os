@@ -3270,7 +3270,14 @@
     window._javisKanbanDrawerCleanup = cleanupDrawer;
 
     const bf = () => { const f = new FormData(); f.append("brain", fbrain()); return f; };
-    const post = async (url, extra) => { const f = bf(); for (const k in (extra || {})) f.append(k, extra[k]); return (await fetch(url, { method: "POST", body: f })).json(); };
+    // Never throws: a non-JSON reply (proxy error page, server restarting) used to throw before the caller re-enabled
+    // its button, leaving it grey until the page was reloaded.
+    const post = async (url, extra) => {
+      const f = bf(); for (const k in (extra || {})) f.append(k, extra[k]);
+      let r;
+      try { r = await fetch(url, { method: "POST", body: f }); } catch (e) { return { ok: false, error: t("kanban.cant_update") }; }
+      try { return await r.json(); } catch (e) { return { ok: false, error: `${t("kanban.cant_update")} (HTTP ${r.status})` }; }
+    };
 
     el.querySelector("#knAdd").onclick = () => { const b = el.querySelector("#knForm"); b.style.display = b.style.display === "none" ? "block" : "none"; };
     el.querySelector("#knCancel").onclick = () => { el.querySelector("#knForm").style.display = "none"; };
@@ -3337,6 +3344,9 @@
           try { r = await post("/kanban/task/answer", { id: box.dataset.ask, answer }); } catch (e) {}
           send.disabled = false;
           if (!r || !r.ok) { alert((r && r.error) || t("kanban.cant_update")); return; }
+          // Sent: empty the box, or fillList keeps treating the card as a reply being typed and never refreshes it.
+          input.value = "";
+          input.blur();
           closeDrawer();
           await load();
         };
@@ -3371,8 +3381,15 @@
       </div>`;
     }
 
+    // The board polls every 3 seconds. Rebuilding a list that did not change, or one holding a reply the owner is
+    // typing, replaced the reply box with an empty one mid-sentence: answering from a card was nearly impossible.
     function fillList(node, items, area) {
-      node.innerHTML = items.length ? items.map(x => taskHtml(x, area)).join("") : `<div class="kn-empty">${esc(area === "attention" ? t("kanban.empty_attention") : t("kanban.empty"))}</div>`;
+      const html = items.length ? items.map(x => taskHtml(x, area)).join("") : `<div class="kn-empty">${esc(area === "attention" ? t("kanban.empty_attention") : t("kanban.empty"))}</div>`;
+      if (node._knHtml === html) return;
+      const typing = [...node.querySelectorAll(".kn-ask-input")].some(i => i.value.trim() || i === document.activeElement);
+      if (typing) return;
+      node._knHtml = html;
+      node.innerHTML = html;
     }
 
     async function doTaskAction(id, act) {

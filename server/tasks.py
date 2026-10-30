@@ -698,6 +698,12 @@ class TasksFeature:
                 kind = event.get("type")
                 if kind == "final":
                     final = str(event.get("content") or "") or final
+                    # Claude Code ends a failed turn (out of usage, API 429, a mid-run crash) with a
+                    # final that still has text, flagged `is_error`. That text is the provider's error,
+                    # not the job's report: read as a result it went to Done whenever its wording was
+                    # one `limit_learner` did not know yet ("You're out of extra usage").
+                    if event.get("is_error"):
+                        error = error or (final.strip() or f"engine error ({event.get('subtype') or 'final'})")
                 elif kind == "text":
                     narration.append(str(event.get("content") or ""))
                 elif kind == "tool_call":

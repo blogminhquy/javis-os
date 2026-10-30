@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.410.0] - 2026-10-30
 ### Fixed
-- **A background job that ran out of plan usage is no longer marked Done.** (in progress)
+- **A job that ran out of usage is no longer marked Done.** When Claude reported the limit in wording Javis did not know yet (like "You're out of extra usage"), or an API error mid-run, the job still went to Done with that message as its result. A turn that ends in an error is now an error: the job waits for the plan to reopen, or sits under Needs you with the reason.
+- **Background work moves to the next provider in your order when Claude runs out**, as it already did for Codex, if nothing was done yet. A job already part done stops and reports instead, so nothing is sent twice.
+- **You can answer a job's question right on its card.** The Work page refreshes every 3 seconds and wiped whatever you were typing in the reply box. The box now keeps your text until you send it, and buttons no longer stay grey after a server error.
 
 ## [0.409.0] - 2026-10-30
 ### Fixed
