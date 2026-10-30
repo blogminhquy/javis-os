@@ -217,7 +217,9 @@
         if (st === "idle" && was !== "idle") finished();
       },
       onError: function (code) {
-        note(code === "denied" ? "dict.denied" : code === "unsupported" ? "dict.unsupported"
+        // 0.419.0: Safari on an iPhone has no padlock in the address bar; say where its mic switch really is.
+        var ios = D.isIOS && D.isIOS();
+        note(code === "denied" ? (ios ? "dict.denied_ios" : "dict.denied") : code === "unsupported" ? "dict.unsupported"
           : code === "nothing" ? "dict.nothing" : "dict.failed");
       },
       onStream: onStream

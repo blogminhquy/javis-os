@@ -9,6 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.419.0] - 2026-10-30
 ### Sửa lỗi
 - **Nút chép lời trên iPhone chạy lại.** Bấm mic là thanh ghi âm hiện ra và nghe ngay, không còn loé lên rồi tự tắt. iPhone chỉ cho bật mic ngay lúc vừa chạm, mà trước đây Javis hỏi máy chủ một lượt rồi mới bật nên lỡ mất lúc đó; giờ Javis hỏi trước ở nền và bật mic ngay trong cú chạm.
+- **iPhone chặn micro thì Javis chỉ đúng chỗ bật lại**: nút aA trên thanh địa chỉ Safari, Cài đặt trang web, Micrô, thay vì câu "bấm ổ khoá" vốn chỉ đúng trên máy tính.
 
 ## [0.418.0] - 2026-10-30
 ### Cải thiện

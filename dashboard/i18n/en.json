@@ -6389,5 +6389,6 @@
   "hp.cerr_none": "No interface errors recorded.",
   "hp.cerr_clear": "Clear list",
   "hp.cerr_intro": "Errors that happen in the browser of anyone using this Javis (computer or phone) are sent here automatically, grouped. Only technical details (error message, file, line, device type), never chat content. If something odd happens, a screenshot of this section is enough for the developer to fix it.",
-  "net.reconnecting": "Reconnecting to the server…"
+  "net.reconnecting": "Reconnecting to the server…",
+  "dict.denied_ios": "Safari has not let Javis use the microphone. Tap aA in the address bar, choose Website Settings, set Microphone to Allow and try again. If it still fails, open Settings, Apps, Safari, Microphone and choose Ask."
 }

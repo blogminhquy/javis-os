@@ -95,6 +95,14 @@ function fresh() {
   check("no ear: no getUserMedia next to it (one capture per phone)", mics === micsBefore + 2);
   d.cancel(); await tick();
 
+  // ── the "mic blocked" note on an iPhone points at Safari's real switch (aA > Website Settings), not a padlock ──
+  const fs = require("fs");
+  const CD = fs.readFileSync(path.join(ROOT, "dashboard/composer-dictate.js"), "utf8");
+  const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard/i18n/vi.json"), "utf8"));
+  const EN = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard/i18n/en.json"), "utf8"));
+  check("iPhone gets its own mic-blocked note", /ios \? "dict\.denied_ios" : "dict\.denied"/.test(CD));
+  check("that note names Safari's aA menu in both languages", /aA/.test(VI["dict.denied_ios"] || "") && /aA/.test(EN["dict.denied_ios"] || ""));
+
   Date.now = realNow;
   if (fails.length) { console.log("\nFAIL - test_dictate_inside_tap: " + fails.length); process.exit(1); }
   console.log("\nOK - test_dictate_inside_tap: all pass");
