@@ -10,7 +10,14 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.415.0] - 2026-10-30
 ### Fixed
-- **No more raw label codes after an update.** (in progress)
+- **No more screen full of label codes after an update.** If the page reloaded while the server was still starting, every label showed as a code like `nav.group.bo_nao`, the version read v0.4.3, an error said "The string did not match the expected pattern", and the page stayed that way. Javis now retries; once the server is up the page reloads once and shows everything correctly. If you are typing, it does not reload and the labels come back in place.
+- **The Update button waits until the server is fully ready** before reloading the page, instead of reloading as soon as it sees the new version number.
+
+### Improved
+- **Javis is lighter on a phone while idle.** On a simulated phone, the Team page kept the device busy about 26% of the time while doing nothing; now about 21%. Less heat, less battery, smoother scrolling:
+  - The pet draws 30 frames a second at rest and 15 while dozing (it was always 60). It looks the same, and goes back to 60 when you move the pointer or Javis is working.
+  - The starfield and the brain graph stop drawing while another page covers them. Before, opening the app straight onto the Team page kept the graph drawing behind it.
+- **Faster opening from the second visit.** Javis no longer re-downloads and checks 100+ interface files on every page load. Each set of files is checked once per device, right after an update. About half as many requests when the page opens.
 
 ## [0.414.0] - 2026-10-30
 ### Improved

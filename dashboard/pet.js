@@ -605,7 +605,13 @@
   function nhip(now) {
     raf = 0;
     if (!el || el.hidden) return;
-    var dt = Math.min((now - (truoc || now)) / 1000, 0.05);
+    // 0.415.0: lúc NGHỈ thì vẽ thưa. Mỗi khung hình pet ghi transform lên nhóm SVG, trình duyệt phải tính lại kiểu và
+    // bố cục: đo trên điện thoại giả lập, riêng pet giữ luồng chính bận 26% (không có pet: 12%) trong lúc app để yên,
+    // tức là nóng máy, hao pin và giật khi cuộn. Thở, liếc và vành quay đều là chuyển động chậm, 30 khung/giây (ngủ gật
+    // 15) nhìn không khác; có chuột, có cú gật hay đang làm việc thì vẫn đủ 60.
+    var khoang = nguGat ? 66 : (state === "idle" && now - chuotLuc > 1600 && gatLuc <= now ? 33 : 0);
+    if (khoang && truoc && now - truoc < khoang) { raf = requestAnimationFrame(nhip); return; }
+    var dt = Math.min((now - (truoc || now)) / 1000, 0.1);
     truoc = now;
 
     if (giamChuyenDong && giamChuyenDong.matches) {
