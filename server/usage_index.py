@@ -919,7 +919,9 @@ def _van_tay():
     for f in (str(DB_PATH), str(DB_PATH) + "-wal", str(getattr(up, "_PRICING_PATH", ""))):
         try:
             st = os.stat(f)
-            out.append((st.st_mtime_ns, st.st_size))
+            # File -wal RỖNG coi như không có: SQLite tạo nó lúc mở kết nối và xoá lúc kết nối cuối đóng, nên chỉ một
+            # luồng đang đọc song song cũng đủ đổi vân tay, mà dữ liệu chẳng đổi gì.
+            out.append((st.st_mtime_ns, st.st_size) if st.st_size else None)
         except OSError:
             out.append(None)
     return tuple(out)
@@ -941,15 +943,18 @@ def summary(period: str = "this_month", provider: str = None, project: str = Non
             o = _NHO_SUMMARY.get(khoa)
             if o and time.monotonic() - o[0] < _NHO_SONG:
                 return copy.deepcopy(o[1])
+        kq = None
         try:
             kq = _summary_that(period, provider, project, today)
         finally:
+            # Cất kết quả và gỡ dấu "đang tính" trong CÙNG một lần khoá: gỡ trước cất sau là có khe cho luồng đến
+            # đúng lúc đó thấy không có gì, rồi tự tính lại một lần nữa.
             with _NHO_KHOA:
+                if kq is not None:
+                    if len(_NHO_SUMMARY) >= _NHO_TOI_DA:
+                        _NHO_SUMMARY.clear()
+                    _NHO_SUMMARY[khoa] = (time.monotonic(), kq)
                 _NHO_DANG.pop(khoa, None)
-        with _NHO_KHOA:
-            if len(_NHO_SUMMARY) >= _NHO_TOI_DA:
-                _NHO_SUMMARY.clear()
-            _NHO_SUMMARY[khoa] = (time.monotonic(), kq)
         return copy.deepcopy(kq)
 
 
