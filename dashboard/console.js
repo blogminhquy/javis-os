@@ -204,7 +204,11 @@
   let _fmSauKhiDong = null;    // việc trang Tệp tin cần làm khi đóng trình sửa (nạp lại danh sách)
   let graphEnabled = true;
   const isNarrow = () => window.matchMedia("(max-width: 860px)").matches;
-  const liteMode = () => !graphEnabled || isNarrow();
+  // Màn hẹp KHÔNG còn tự tắt đồ thị (0.422.0). Lệnh tắt đó có từ trước khi đồ thị biết tự thôi vẽ lúc đứng yên
+  // (autoPauseRedraw, 0.63.7). Từ 0.415.0 nó còn chạy ngay sau khi đồ thị dựng xong, tức là dừng TRƯỚC khung vẽ đầu
+  // tiên, nên trên điện thoại khoang não trống trơn, chỉ còn tên các cụm (chủ repo báo 30/10/2026). Giờ đồ thị đứng
+  // yên thì cũng không tốn gì, nên điện thoại chạy như máy tính; chỉ công tắc Đồ thị trong Cài đặt tắt được nó.
+  const liteMode = () => !graphEnabled;
 
   const esc = (s) => (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   // (i) button (info-tip.js, 0.214.0): long explanations hide behind it. Without info-tip.js
@@ -292,11 +296,6 @@
   // Cho các module khác (studio.js - trang Kỹ năng) dùng chung, thay vì đẻ bản phân trang
   // thứ hai rồi hai bản trôi lệch nhau ngay lần sửa đầu.
   window.JavisPager = pager;
-
-  // Pause SỚM (chạy ngay khi parse, không chờ Alpine tải): màn hẹp → graph app.js vừa dựng
-  // dừng luôn, khỏi ngốn pin/GPU trong lúc Alpine đang tải. _animate có guard _paused nên
-  // dù load() chạy xong gọi lại cũng không bật lại.
-  if (isNarrow() && window.__javisGraph) { try { window.__javisGraph.pause(); } catch (e) {} }
 
   // ---- Điều khiển graph: chỉ chạy khi đang ở cockpit + không lite + không mở Studio ----
   function recomputeGraph() {
@@ -3758,7 +3757,7 @@
         <div class="cgrid">
           <div class="gcard">
             <div class="gcard-top"><span class="gcard-name">${esc(window.t("cs.ov_graph"))}</span><span class="gcard-tag">${gOn ? esc(window.t("cs.st_on_low")) : esc(window.t("cs.st_off_low"))}</span></div>
-            <div class="gcard-meta">${esc(window.t("cs.ov_graph_desc"))} ${isNarrow() ? esc(window.t("cs.ov_lite")) : ""}</div>
+            <div class="gcard-meta">${esc(window.t("cs.ov_graph_desc"))}</div>
             <div class="js-actions">
               <button class="gcard-btn ${gOn ? "ghost" : ""}" id="ovGraphToggle">${gOn ? esc(window.t("cs.ov_graph_off")) : esc(window.t("cs.ov_graph_on"))}</button>
             </div>

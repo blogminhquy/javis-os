@@ -15,12 +15,15 @@ parse lai (idempotent, khong can offset). Rieng usage-events.jsonl la append-onl
 from __future__ import annotations
 
 import localefmt
+import copy
 import glob
 import hashlib
 import json
 import os
 import sqlite3
 import sys
+import threading
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -896,7 +899,66 @@ def _group(rows, dim, prices):
     return out
 
 
+# Nho dem summary() (0.421.0). Mot lan mo trang Muc dung tinh CUNG MOT summary(this_month) ba lan:
+# /usage/summary, /usage/insights (goi summary ben trong) va /usage/tong-quan, ba luong song song
+# tranh nhau mot nhan Python. Do 30/10/2026 tren 15 nghin dong: moi lan 0,05 s khi chay rieng, ca
+# trang 0,7-1,7 s khi chay chung. summary() la ham THUAN cua file chi so + bang gia + ky, nen
+# khoa nho gom ky da giai (doi ngay la doi khoa) va dau van tay cua file .db, file -wal va bang
+# gia: co dong nao duoc ghi (refresh, test chen tay, tien trinh khac) la van tay doi, tinh lai.
+# Song them 30 giay de he tep co dong ho tho (mtime theo giay) cung khong giu so cu lau hon the.
+# Luong den sau cho luong dang tinh cung khoa thay vi tinh lai lan nua.
+_NHO_SUMMARY: dict = {}
+_NHO_KHOA = threading.Lock()
+_NHO_DANG: dict = {}
+_NHO_SONG = 30.0
+_NHO_TOI_DA = 32
+
+
+def _van_tay():
+    out = []
+    for f in (str(DB_PATH), str(DB_PATH) + "-wal", str(getattr(up, "_PRICING_PATH", ""))):
+        try:
+            st = os.stat(f)
+            # File -wal RỖNG coi như không có: SQLite tạo nó lúc mở kết nối và xoá lúc kết nối cuối đóng, nên chỉ một
+            # luồng đang đọc song song cũng đủ đổi vân tay, mà dữ liệu chẳng đổi gì.
+            out.append((st.st_mtime_ns, st.st_size) if st.st_size else None)
+        except OSError:
+            out.append(None)
+    return tuple(out)
+
+
 def summary(period: str = "this_month", provider: str = None, project: str = None, today: date = None) -> dict:
+    """Bao cao token cho mot ky (xem _summary_that), nho dem theo van tay chi so."""
+    khoa = (resolve_period(period, today), provider or None, project or None, _van_tay())
+    bay = time.monotonic()
+    with _NHO_KHOA:
+        o = _NHO_SUMMARY.get(khoa)
+        if o and bay - o[0] < _NHO_SONG:
+            return copy.deepcopy(o[1])
+        cho = _NHO_DANG.get(khoa)
+        if cho is None:
+            cho = _NHO_DANG[khoa] = threading.Lock()
+    with cho:
+        with _NHO_KHOA:
+            o = _NHO_SUMMARY.get(khoa)
+            if o and time.monotonic() - o[0] < _NHO_SONG:
+                return copy.deepcopy(o[1])
+        kq = None
+        try:
+            kq = _summary_that(period, provider, project, today)
+        finally:
+            # Cất kết quả và gỡ dấu "đang tính" trong CÙNG một lần khoá: gỡ trước cất sau là có khe cho luồng đến
+            # đúng lúc đó thấy không có gì, rồi tự tính lại một lần nữa.
+            with _NHO_KHOA:
+                if kq is not None:
+                    if len(_NHO_SUMMARY) >= _NHO_TOI_DA:
+                        _NHO_SUMMARY.clear()
+                    _NHO_SUMMARY[khoa] = (time.monotonic(), kq)
+                _NHO_DANG.pop(khoa, None)
+        return copy.deepcopy(kq)
+
+
+def _summary_that(period: str = "this_month", provider: str = None, project: str = None, today: date = None) -> dict:
     """Bao cao token cho mot ky: KPI + breakdowns + timeseries, kem so sanh ky truoc."""
     (cs, ce), (ps, pe) = resolve_period(period, today)
     cs_s, ce_s, ps_s, pe_s = cs.isoformat(), ce.isoformat(), ps.isoformat(), pe.isoformat()

@@ -6,6 +6,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.421.0] - 2026-10-30
+### Sửa lỗi
+- **Trang Mức dùng không còn lệch khung trên điện thoại.** Trước đây trang trượt sang trái, mép trái mất chữ, mép phải hở một khoảng. Nguyên nhân là nhãn ngày dưới biểu đồ thò ra ngoài mép. Kỳ dài như **3 tháng** hay **Năm nay** thì biểu đồ còn rộng gấp mấy màn hình. Giờ biểu đồ luôn nằm gọn, kỳ dài ghi tên tháng thay cho số ngày.
+- **Đồ thị bộ não hiện lại trên điện thoại.** Từ 0.415.0 khoang não trên điện thoại chỉ còn tên các cụm, không thấy chấm note nào. Lý do: màn hình hẹp tự tắt đồ thị để đỡ tốn pin, và lệnh tắt chạy trước cả khung vẽ đầu tiên. Giờ điện thoại chạy đồ thị như máy tính. Đồ thị đứng yên thì tự thôi vẽ nên không tốn pin, và vẫn tắt được bằng công tắc Đồ thị trong Cài đặt.
+### Cải thiện
+- **Kéo đồ thị tự do, buông tay là tự về giữa.** Kéo đi đâu, phóng to bao nhiêu cũng được. Buông tay 3 giây là cả đồ thị trôi về giữa, vừa khung như lúc mới mở. Chạm một chấm để mở note thì không bị kéo theo. Trên máy tính, chuột rời khỏi đồ thị 3 giây mới về.
+- **Chọn kỳ bằng một ô thả xuống.** Tám nút Hôm nay, Hôm qua, Tuần này... từng chiếm ba hàng trên điện thoại. Giờ chỉ còn một ô, nằm chung hàng với nút **Làm mới**.
+- **Trang Mức dùng mở nhanh hơn.**
+  - Máy chủ không còn tính cùng một bảng số liệu ba lần mỗi lần mở trang.
+  - Lượt quét nhật ký mới chạy sau khi trang đã hiện số, không chen vào lúc trang đang dựng.
+  - Mở lại trang, hay đổi qua lại giữa các kỳ đã xem, là thấy số ngay rồi tự cập nhật.
+
 ## [0.420.2] - 2026-10-30
 ### Sửa lỗi
 - **Ngắt rồi đăng nhập tài khoản khác ở thẻ ChatGPT, Grok Build hay Claude Code là chat được ngay.** Trước đây tài khoản cũ hết lượt thì dấu "hết lượt" vẫn bám vào thẻ sau khi bạn đăng nhập một tài khoản mới ở ô tài khoản 1, kể cả khi khởi động lại Javis, nên chat bị đẩy sang thẻ dự phòng tới giờ mở lại của tài khoản cũ. Giờ đăng nhập xong là dấu đó được gỡ.
