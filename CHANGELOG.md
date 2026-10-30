@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.419.0] - 2026-10-30
+### Sửa lỗi
+- **Nút chép lời trên iPhone chạy lại.** (đang viết)
+
 ## [0.418.0] - 2026-10-30
 ### Cải thiện
 - **Mở Javis được cả khi máy chủ đang khởi động lại.** Trước đây tải lại trang đúng lúc máy chủ chưa lên là ra trang lỗi trắng của trình duyệt. Giờ Javis vẫn hiện đủ giao diện kèm dòng **Đang kết nối lại máy chủ…**, máy chủ lên là tự chạy tiếp. Nếu máy chủ vừa cập nhật lên bản mới, trang tự tải lại bản mới. Chỉ áp dụng khi mở Javis qua https (link tên miền hoặc link Truy cập từ xa); lúc máy chủ chạy bình thường, Javis luôn lấy bản mới nhất như cũ.
