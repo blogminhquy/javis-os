@@ -88,5 +88,6 @@
  "star.body2": "content: the GitHub star invitation card is a message the owner wrote for this card (2026-10-25), not an explanation to fold into (i)",
  "star.step3": "content: a step of the star guide, inside a <details> the person opens on a phone",
  "star.wait_body": "content: the GitHub star invitation card is a message the owner wrote for this card (2026-10-25), not an explanation to fold into (i)",
- "star.thanks_body": "content: the thank-you shown after the person says they gave a star"
+ "star.thanks_body": "content: the thank-you shown after the person says they gave a star",
+ "kanban.hint_msg": "content: the message sent to Javis in chat for the owner, never shown as page text"
 }
