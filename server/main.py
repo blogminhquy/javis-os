@@ -404,7 +404,34 @@ DASHBOARD_PATH = Path(__file__).parent.parent / "dashboard"
 # Windows/mimetypes không biết .webp -> StaticFiles trả text/plain; khai rõ để logo webp đúng kiểu ảnh.
 import mimetypes
 mimetypes.add_type("image/webp", ".webp")
-app.mount("/static", StaticFiles(directory=str(DASHBOARD_PATH)), name="static")
+import tinh_gon  # noqa: E402
+
+
+class _TinhGonStatic(StaticFiles):
+    """StaticFiles, trừ .js/.css của dashboard thì gửi bản nén gọn (tinh_gon.py, 0.416.0).
+
+    ETag là crc32 của chính bản gửi đi, và 304 so theo nó; không gửi Last-Modified để trình duyệt khỏi hỏi lại bằng
+    ngày sửa file (ngày đó nói về bản gốc, không phải bản nén). Mọi thứ khác (ảnh, json, file .min.*) đi đường cũ."""
+
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        if resp.status_code != 200 or not tinh_gon.nen_duoc(path):
+            return resp
+        full = getattr(resp, "path", None)
+        if not full:
+            return resp
+        try:
+            data, crc = tinh_gon.ban_phuc_vu(Path(full), path)
+        except OSError:
+            return resp
+        etag = '"' + crc + '"'
+        from starlette.datastructures import Headers as _Headers
+        if _Headers(scope=scope).get("if-none-match") == etag:
+            return Response(status_code=304, headers={"etag": etag})
+        return Response(data, media_type=resp.media_type, headers={"etag": etag})
+
+
+app.mount("/static", _TinhGonStatic(directory=str(DASHBOARD_PATH)), name="static")
 
 
 class _NenTinh:
@@ -1160,16 +1187,19 @@ _ASSET_FP: dict = {}          # đường dẫn -> {"khoa": (mtime, size), "crc"
 
 def _asset_fp_one(rel: str) -> str:
     """crc32 của MỘT file tĩnh trong dashboard/. "" nếu không đọc được.
-    Nhớ theo (mtime, size) nên gọi lại nhiều lần vẫn rẻ; file đổi là tự băm lại."""
+    Nhớ theo (mtime, size) nên gọi lại nhiều lần vẫn rẻ; file đổi là tự băm lại.
+
+    0.416.0: băm đúng các bytes máy chủ GỬI ĐI (bản đã nén gọn của tinh_gon), không phải file trên đĩa. freshness.js
+    băm thứ trình duyệt nhận được, nên hai bên phải băm cùng một thứ, không thì gác cổng báo oan mọi file là cũ. Hệ quả
+    tốt: sửa riêng chú thích không đổi bản gửi đi, nên không bắt ai tải lại file đó (zlib.crc32 nằm trong tinh_gon)."""
     try:
         f = DASHBOARD_PATH / rel
         st = f.stat()
-        khoa = (st.st_mtime_ns, st.st_size)
+        khoa = (st.st_mtime_ns, st.st_size, tinh_gon.bat())
         ent = _ASSET_FP.get(rel)
         if ent and ent["khoa"] == khoa:
             return ent["crc"]
-        import zlib
-        crc = format(zlib.crc32(f.read_bytes()) & 0xFFFFFFFF, "08x")
+        _data, crc = tinh_gon.ban_phuc_vu(f, rel)
         _ASSET_FP[rel] = {"khoa": khoa, "crc": crc}
         return crc
     except OSError:
@@ -28336,6 +28366,29 @@ agent_review.register_routes(app, agent_review.LearnRouteDeps(
 async def model_fast_state():
     """Last Fast mode state each brain reported (on, cooldown, fallback), for the bolt tooltip (0.164.0)."""
     return {"states": fast_mode.states()}
+
+
+# Hộp đen lỗi giao diện (0.416.0): đăng ký SAU route cuối để bảng route cũ giữ nguyên thứ tự.
+@app.post("/client-errors")
+async def client_errors_post(request: Request, payload: dict = Body(None)):
+    """Hộp đen lỗi giao diện (0.416.0): dashboard/loi-may-khach.js gửi lỗi JS của trình duyệt về đây, xem loi_may_khach."""
+    import loi_may_khach
+    n = await asyncio.to_thread(loi_may_khach.ghi, payload or {}, request.headers.get("user-agent", ""))
+    return {"ok": True, "saved": n}
+
+
+@app.get("/client-errors")
+async def client_errors_get():
+    import loi_may_khach
+    return {"errors": await asyncio.to_thread(loi_may_khach.danh_sach)}
+
+
+@app.post("/client-errors/clear")
+async def client_errors_clear():
+    import loi_may_khach
+    await asyncio.to_thread(loi_may_khach.xoa_het)
+    return {"ok": True}
+
 
 
 if __name__ == "__main__":

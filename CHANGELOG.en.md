@@ -10,7 +10,11 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.416.0] - 2026-10-30
 ### Improved
-- **Faster Javis, phase 1.** (in progress)
+- **Javis opens faster: first visit from 6.3 to 5.1 seconds, later visits from 1.55 to 1.37 seconds.** Measured on a simulated phone over 4G. 35% less to download when the app opens (1.7 MB down to 1.1 MB):
+  - **The server minifies the interface before sending it.** Comments and extra whitespace are dropped: JS is 44% lighter, CSS 49%. The source stays as it is, line numbers included, so error reports still point at the right line. Set `JAVIS_MINIFY=0` to turn it off.
+  - **Fonts ship with Javis.** The page no longer calls Google Fonts when it opens, so text appears sooner, and still looks right when the machine running Javis cannot reach Google.
+  - **Fewer duplicate requests when the app opens.** Settings were asked for 9 times in a row; now 3.
+- **The Health page has a new Recent interface errors section.** Errors that happen in the browser of anyone using Javis (computer or phone) are sent here automatically, grouped, with the version and device type. If something odd happens, a screenshot of this section is enough for the developer to fix it. Only technical details, never chat content.
 
 ## [0.415.0] - 2026-10-30
 ### Fixed

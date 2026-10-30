@@ -206,3 +206,5 @@ server/loop_restarts.json
 # 0.402.0 / 0.403.0: Javis Core's notice rules and the engine-down notice state (STATE_DIR defaults to server/).
 server/notify_policy.json
 server/engine_down_notified.json
+server/client_errors.json
+server/client_errors.tmp

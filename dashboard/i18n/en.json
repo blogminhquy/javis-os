@@ -6384,5 +6384,9 @@
   "kanban.why_paused": "Why it paused",
   "kanban.tech_detail": "Technical detail (no need to read)",
   "kanban.confirm_wipe_handled": "Remove the jobs Javis is handling from the board? You can still look them up.",
-  "kanban.tech_log": "Technical log (no need to read)"
+  "kanban.tech_log": "Technical log (no need to read)",
+  "hp.cerr_head": "Recent interface errors",
+  "hp.cerr_none": "No interface errors recorded.",
+  "hp.cerr_clear": "Clear list",
+  "hp.cerr_intro": "Errors that happen in the browser of anyone using this Javis (computer or phone) are sent here automatically, grouped. Only technical details (error message, file, line, device type), never chat content. If something odd happens, a screenshot of this section is enough for the developer to fix it."
 }
