@@ -1358,6 +1358,12 @@
     .kn-ask-send{flex:none;padding:9px 12px;border-radius:8px;border:1px solid var(--link-ink);background:rgba(127,176,255,.14);color:var(--text-hi);font-size:14px;cursor:pointer}
     .kn-ask-send[disabled]{opacity:.5;cursor:default}
     .kn-qa{padding:8px 0;border-bottom:1px solid var(--surface-2)}.kn-qa b{color:var(--text)}
+    .kn-badge{border-radius:99px;padding:1px 7px;border:1px solid var(--hairline);color:var(--text2)}
+    .kn-badge.ok{border-color:rgba(63,220,134,.45);color:var(--green)}.kn-badge.warn{border-color:rgba(224,160,74,.5);color:var(--warn-ink)}
+    .kn-hint{margin:0 0 12px;padding:11px 13px;border:1px solid rgba(127,176,255,.35);border-radius:10px;background:rgba(127,176,255,.06);color:var(--text);font-size:14px;line-height:1.5}
+    .kn-more{display:block;margin:6px auto 10px;background:none;border:none;padding:4px 8px;font:inherit;font-size:13px;color:var(--link-ink);cursor:pointer;text-decoration:underline;text-underline-offset:2px}.kn-more[hidden]{display:none}
+    .kn-follow-note{margin-top:6px;font-size:13px}
+    .kn-task-calm{color:var(--text2);font-size:13px}.kn-tech{margin-top:8px;font-size:12px}.kn-tech summary{cursor:pointer;color:var(--text3)}
     .kn-task-result{margin-top:6px;color:var(--text3);font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .kn-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.kn-actions button{padding:3px 8px;border-radius:6px;border:1px solid var(--hairline);background:var(--surface-1);color:var(--text2);font-size:11px;cursor:pointer}.kn-actions button:hover{border-color:var(--link-ink);color:var(--text-hi)}.kn-actions button.danger{color:var(--red)}.kn-actions button.danger:hover{border-color:var(--red);color:var(--red)}
     .kn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}.kn-dot.live{background:var(--green);box-shadow:0 0 0 4px rgba(63,220,134,.12)}.kn-dot.off{background:var(--text3)}
@@ -3213,15 +3219,20 @@
         </div>
         <div class="si-actions"><button class="s-btn" id="knSave">${esc(t("kanban.save"))}</button><button class="s-btn-ghost" id="knCancel">${esc(t("common.cancel"))}</button></div>
       </div>
+      <div id="knHints"></div>
       <div class="kn-layout" id="knOps">
         <section class="kn-panel"><div class="kn-panel-head"><b style="color:var(--accent-ink)">${esc(t("kanban.kpi_attention"))}</b>
           <span class="kn-head-right"><span id="knAttentionCount">0 ${esc(t("kanban.exceptions"))}</span>
           <button class="kn-wipe" id="knWipeAttention" data-panel="attention">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knAttention"></div></section>
         <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_active"))}</b><span id="knActiveCount">0 worker</span></div><div class="kn-list" id="knActive"></div></section>
         <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_queue"))}</b><span id="knQueueCount">0 task</span></div><div class="kn-list" id="knQueue"></div></section>
+        <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_handled"))}</b>
+          <span class="kn-head-right"><span>${esc(t("kanban.p_handled_sub"))}</span>
+          <button class="kn-wipe" id="knWipeHandled" data-panel="handled">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knHandled"></div></section>
         <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_history"))}</b>
           <span class="kn-head-right"><span>${esc(t("kanban.p_history_sub"))}</span>
-          <button class="kn-wipe" id="knWipeHistory" data-panel="history">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knHistory"></div></section>
+          <button class="kn-wipe" id="knWipeHistory" data-panel="history">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knHistory"></div>
+          <button type="button" class="kn-more" id="knHistMore" hidden>${esc(t("kanban.history_more"))}</button></section>
       </div>
     </div>`;
 
@@ -3261,6 +3272,7 @@
     drawerBackdrop.onclick = closeDrawer;
     const cleanupDrawer = () => {
       document.removeEventListener("keydown", onDrawerKeydown);
+      document.removeEventListener("visibilitychange", onVisible);
       drawerPortal.remove();
       if (window._javisKanbanDrawerCleanup === cleanupDrawer) {
         delete window._javisKanbanDrawerCleanup;
@@ -3362,20 +3374,116 @@
       if (canQuyen) acts.push(`<button data-act="grant" data-id="${esc(t.id)}">${esc(window.t("kanban.act_grant"))}</button>`);
       if (t.status === "review") acts.push(`<button data-act="done" data-id="${esc(t.id)}">${CHECK_ICON} ${esc(window.t("kanban.act_approve"))}</button>`);
       // Việc đang chờ câu trả lời: Thử lại chỉ chạy lại không kèm câu trả lời rồi hỏi y hệt, nên bỏ đi.
-      if (!canQuyen && (t.status === "blocked" || t.status === "review") && !pendingQuestion(t)) acts.push(`<button data-act="retry" data-id="${esc(t.id)}">↻ ${esc(window.t("kanban.act_retry"))}</button>`);
+      if (!canQuyen && (t.status === "blocked" || t.status === "review" || t.status === "cancelled") && !pendingQuestion(t)) acts.push(`<button data-act="retry" data-id="${esc(t.id)}">↻ ${esc(window.t("kanban.act_retry"))}</button>`);
+      // 0.411.0: run a queued job now (the server had /kanban/run, the page never offered it), check a finished job
+      // that was marked done without being checked, and add a note to any job that is not running.
+      if (["triage", "todo", "ready"].includes(t.status)) acts.push(`<button data-act="run" data-id="${esc(t.id)}">▶ ${esc(window.t("kanban.act_run"))}</button>`);
+      if (canVerify(t)) acts.push(`<button data-act="verify" data-id="${esc(t.id)}">${esc(window.t("kanban.act_verify"))}</button>`);
+      if (canFollow(t)) acts.push(`<button data-act="followup" data-id="${esc(t.id)}">${esc(window.t("kanban.act_followup"))}</button>`);
       if (t.status === "running") acts.push(`<button data-act="cancel" data-id="${esc(t.id)}">${esc(window.t("kanban.act_stop"))}</button>`);
       if (t.status !== "running") acts.push(`<button class="danger" data-act="archive" data-id="${esc(t.id)}">${esc(window.t("kanban.act_archive"))}</button>`);
       return acts;
     }
 
+    // 0.411.0: what a card says about how the job was done. "Checked" = a separate pass held the report against the
+    // completion criteria; "Not checked" = it was marked done although that pass could not run.
+    function taskBadges(t) {
+      const m = t.metadata || {}, out = [];
+      const chk = m.acceptance_check;
+      if ((t.status === "done" || t.status === "review") && (m.acceptance || []).length) {
+        if (chk === "ai") out.push(`<span class="kn-badge ok">${esc(window.t("kanban.badge_checked"))}</span>`);
+        else if (chk === "checking") out.push(`<span class="kn-badge">${esc(window.t("kanban.badge_checking"))}</span>`);
+        else if (chk === "unverified") out.push(`<span class="kn-badge warn">${esc(window.t("kanban.badge_unchecked"))}</span>`);
+      }
+      if (m.agent && m.agent.name) out.push(`<span class="kn-badge">${esc(window.t("kanban.badge_agent", { name: m.agent.name }))}</span>`);
+      if (m.effort === "light") out.push(`<span class="kn-badge">${esc(window.t("kanban.badge_light"))}</span>`);
+      const sec = Number(m.run_seconds);
+      if ((t.status === "done" || t.status === "review") && sec > 0) {
+        const d = sec < 60 ? window.t("kanban.dur_s", { n: sec })
+          : sec < 3600 ? window.t("kanban.dur_m", { n: Math.round(sec / 60) })
+          : window.t("kanban.dur_h", { h: Math.floor(sec / 3600), m: Math.round((sec % 3600) / 60) });
+        out.push(`<span class="kn-badge">${esc(window.t("kanban.badge_time", { d }))}</span>`);
+      }
+      return out.join("");
+    }
+
+    function canVerify(t) {
+      const m = t.metadata || {};
+      // "checking" too: a check cut short by a server restart would otherwise stay "Checking" with no way out.
+      return (t.status === "done" || t.status === "review") && ["unverified", "checking"].includes(m.acceptance_check)
+        && (m.acceptance || []).length > 0;
+    }
+
+    const FOLLOW_STATUS = ["blocked", "review", "done", "cancelled", "triage", "todo", "ready"];
+    function canFollow(t) { return FOLLOW_STATUS.includes(t.status) && !pendingQuestion(t); }
+
+    function followBox(t) {
+      if (!canFollow(t)) return "";
+      return `<div class="kn-detail-block"><h4>${esc(window.t("kanban.followup_title"))}${window.JavisInfo ? window.JavisInfo.btn(window.t("info.more")) : ""}</h4>${window.JavisInfo ? window.JavisInfo.body(esc(window.t("kanban.followup_info"))) : ""}
+        <div class="kn-ask" data-follow="${esc(t.id)}">
+          <div class="kn-ask-row"><textarea class="kn-ask-input" rows="2" placeholder="${esc(window.t("kanban.followup_ph"))}"></textarea>
+          <button type="button" class="kn-ask-send">${esc(window.t("kanban.followup_send"))}</button></div>
+          <div class="kn-follow-note dim" role="status"></div>
+        </div></div>`;
+    }
+
+    let followNote = null;
+    function bindFollowBoxes(scope) {
+      scope.querySelectorAll(".kn-ask[data-follow]").forEach(box => {
+        const input = box.querySelector(".kn-ask-input"), send = box.querySelector(".kn-ask-send");
+        const note = box.querySelector(".kn-follow-note");
+        send.onclick = async () => {
+          const text = input.value.trim();
+          if (!text) { input.focus(); return; }
+          send.disabled = true;
+          const r = await post("/kanban/task/followup", { id: box.dataset.follow, text });
+          send.disabled = false;
+          if (!r || !r.ok) { alert((r && r.error) || t("kanban.cant_update")); return; }
+          input.value = "";
+          input.blur();
+          // Kept outside the box: the drawer re-renders as soon as the job moves, and the owner must still see it.
+          followNote = { id: box.dataset.follow, text: t(r.orchestration === "off" ? "kanban.followup_off" : "kanban.followup_sent") };
+          if (note) note.textContent = followNote.text;
+          await load();
+        };
+      });
+    }
+
+    // Jobs the owner keeps asking for by hand: offer to make them run on their own.
+    function renderHints(hints) {
+      const box = el.querySelector("#knHints");
+      if (!box) return;
+      const html = (hints || []).map(h => `<div class="kn-hint" data-hint="${esc(h.key)}">
+          <div>${esc(t("kanban.hint_text", { title: h.title, n: h.count }))}</div>
+          <div class="kn-actions"><button type="button" data-hint-make>${esc(t("kanban.hint_make"))}</button>
+          <button type="button" data-hint-skip>${esc(t("kanban.hint_dismiss"))}</button></div></div>`).join("");
+      if (box._knHtml === html) return;
+      box._knHtml = html;
+      box.innerHTML = html;
+      (hints || []).forEach(h => {
+        const row = box.querySelector(`.kn-hint[data-hint="${CSS.escape(h.key)}"]`);
+        if (!row) return;
+        const dismiss = () => post("/kanban/hint/dismiss", { key: h.key });
+        row.querySelector("[data-hint-skip]").onclick = async () => { await dismiss(); await load(); };
+        row.querySelector("[data-hint-make]").onclick = async () => {
+          await dismiss();
+          const msg = t("kanban.hint_msg", { title: h.title, n: h.count, intent: h.intent || h.title });
+          if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("chat");
+          setTimeout(() => { if (typeof window.JavisSend === "function") window.JavisSend(msg); }, 400);
+        };
+      });
+    }
+
     function taskHtml(t, area) {
       const acts = taskActions(t);
       const ask = askBox(t);
-      const reason = !ask && t.block_reason ? `<div class="kn-task-result" style="color:var(--red)">${esc(t.block_reason)}</div>` : "";
+      // 0.411.0: a plain, calm sentence (server `_calm`) instead of the raw error in red. Most stopped jobs are
+      // technical hitches the owner cannot fix and need not: the error text only made them anxious.
+      const reason = !ask && t.calm ? `<div class="kn-task-result kn-task-calm">${esc(t.calm)}</div>` : "";
       const result = !reason && t.result ? `<div class="kn-task-result">${esc(t.result.slice(0, 240))}</div>` : "";
       return `<div class="kn-task" data-task="${esc(t.id)}">
-        <div class="kn-task-top"><div class="kn-task-title">${_prioIcon(t.priority)} ${esc(t.title)}</div><span class="kn-pill">${esc(_kstatus(t.status))}</span></div>
-        <div class="kn-task-meta"><span>${esc(t.capability || "auto")}</span><span>attempt ${Number(t.attempts || 0)}/${Number(t.max_attempts || 3)}</span><span>${ago(t.updated_at)}</span></div>
+        <div class="kn-task-top"><div class="kn-task-title">${_prioIcon(t.priority)} ${esc(t.title)}</div><span class="kn-pill">${esc(t.status === "blocked" ? window.t(t.waits_for_owner ? "kanban.st_waiting_you" : "kanban.st_handled") : _kstatus(t.status))}</span></div>
+        <div class="kn-task-meta"><span>${esc(t.capability || "auto")}</span><span>${esc(window.t("kanban.attempt"))} ${Number(t.attempts || 0)}/${Number(t.max_attempts || 3)}</span><span>${ago(t.updated_at)}</span>${taskBadges(t)}</div>
         ${ask}${reason}${result}
         ${acts.length ? `<div class="kn-actions">${acts.join("")}</div>` : ""}
       </div>`;
@@ -3397,8 +3505,11 @@
       // Cấp toàn quyền là cho việc TỰ THAO TÁC THẬT ra ngoài và không hoàn tác được, nên phải
       // hỏi lại bằng đúng chữ nói ra hậu quả, không phải một câu "bạn chắc chứ".
       if (act === "grant" && !confirm(t("kanban.confirm_grant"))) return false;
+      if (act === "followup") { await showTask(id, { focusFollow: true }); return true; }
       let result;
-      if (act === "retry") result = await post("/kanban/task/retry", { id });
+      if (act === "run") result = await post("/kanban/run", { id });
+      else if (act === "verify") result = await post("/kanban/task/verify", { id });
+      else if (act === "retry") result = await post("/kanban/task/retry", { id });
       else if (act === "grant") result = await post("/kanban/task/grant", { id });
       else if (act === "cancel") result = await post("/kanban/task/cancel", { id });
       else if (act === "archive") result = await post("/kanban/task/delete", { id });
@@ -3431,7 +3542,9 @@
     // khu Cần bạn xử lý chỉ dọn khỏi bảng (vẫn tra lại được), khu Lịch sử là xoá hẳn.
     el.querySelectorAll(".kn-wipe").forEach(b => b.onclick = async () => {
       const khu = b.dataset.panel;
-      if (!confirm(t(khu === "attention" ? "kanban.confirm_wipe_attention" : "kanban.confirm_wipe_history"))) return;
+      const cau = { attention: "kanban.confirm_wipe_attention", handled: "kanban.confirm_wipe_handled",
+                    history: "kanban.confirm_wipe_history" }[khu];
+      if (!cau || !confirm(t(cau))) return;
       b.disabled = true;
       const r = await post("/kanban/panel/clear", { panel: khu });
       b.disabled = false;
@@ -3441,16 +3554,20 @@
 
     // Voice V1: tool javis_ui (open_task) mở ngăn kéo việc qua cửa này (dashboard/ui-actions.js).
     window.JavisKanbanShow = showTask;
-    async function showTask(id) {
+    let openTaskId = "", openTaskStamp = 0;
+    async function showTask(id, opts) {
+      opts = opts || {};
       openDrawer();
       // window.t chứ KHÔNG phải t: dòng dưới khai `const t = d.task`, mà const có vùng chết -
       // gọi t() ở đây là ReferenceError "Cannot access 't' before initialization" ngay câu lệnh
       // đầu, tức bấm vào một thẻ việc thì ngăn kéo mở ra RỖNG và không bao giờ điền. Cả nhánh
       // báo lỗi ngay dưới cũng chết theo nên không ai thấy vì sao.
-      drawerBody.innerHTML = esc(window.t("common.loading"));
+      if (!opts.silent) drawerBody.innerHTML = esc(window.t("common.loading"));
       let d = {}; try { d = await (await fetch(`/kanban/task/show?brain=${encodeURIComponent(fbrain())}&id=${encodeURIComponent(id)}`)).json(); } catch (e) {}
       if (!d.ok) { drawerBody.innerHTML = `<span style="color:var(--red)">${esc(d.error || window.t("kanban.cant_load"))}</span>`; return; }
       const t = d.task || {}, events = d.events || [], runs = d.runs || [];
+      openTaskId = id;
+      openTaskStamp = Number(t.updated_at || 0);
       const acts = taskActions(t);
       drawerTitle.textContent = t.title || window.t("kanban.detail");
       drawerBody.innerHTML = `
@@ -3458,20 +3575,48 @@
         <div class="kn-task-meta" style="margin-top:10px"><span>${esc(_kstatus(t.status))}</span><span>${esc(t.capability || "auto")}</span><span>mode ${esc(t.execution_mode || "auto")}</span><span>${esc(window.t("kanban.prio_lc"))} ${Number(t.priority || 2)}</span></div>
         ${acts.length ? `<div class="kn-actions" style="margin-top:14px">${acts.join("")}</div>` : ""}
         ${pendingQuestion(t) ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.answer_title"))}${window.JavisInfo ? window.JavisInfo.btn(window.t("info.more")) : ""}</h4>${window.JavisInfo ? window.JavisInfo.body(esc(window.t("kanban.answer_info"))) : ""}${askBox(t)}</div>`
-          : (t.block_reason ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.blocked_reason"))}</h4><div style="color:var(--red)">${esc(t.block_reason)}</div></div>` : "")}
+          : (t.block_reason ? `<div class="kn-detail-block"><h4>${esc(window.t(t.waits_for_owner ? "kanban.why_waiting" : "kanban.why_paused"))}</h4>${t.calm ? `<div class="kn-task-calm">${esc(t.calm)}</div>` : ""}<details class="kn-tech"><summary>${esc(window.t("kanban.tech_detail"))}</summary><div class="dim">${esc(t.block_reason)}</div></details></div>` : "")}
+        ${followBox(t)}
         ${qaHistory(t)}
         ${t.result ? `<div class="kn-detail-block"><h4>${esc(window.t("kanban.result"))}</h4><div style="white-space:pre-wrap">${esc(t.result)}</div></div>` : ""}
-        <div class="kn-detail-block"><h4>${esc(window.t("kanban.runs"))} (${runs.length})</h4>${runs.length ? runs.map(r => `<div class="kn-event"><b>${esc(r.status)}</b> · ${new Date(Number(r.started_at || 0) * 1000).toLocaleString()}${r.error ? `<div style="color:var(--red)">${esc(r.error)}</div>` : ""}</div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_runs"))}</div>`}</div>
-        <div class="kn-detail-block"><h4>${esc(window.t("kanban.lifecycle"))}</h4>${events.length ? events.map(v => `<div class="kn-event"><b>${esc(v.event_type)}</b> · ${new Date(Number(v.created_at || 0) * 1000).toLocaleString()}<div>${esc(v.message || "")}</div></div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_events"))}</div>`}</div>`;
+        <details class="kn-detail-block kn-tech"><summary>${esc(window.t("kanban.tech_log"))}</summary>
+        <div class="kn-detail-block"><h4>${esc(window.t("kanban.runs"))} (${runs.length})</h4>${runs.length ? runs.map(r => `<div class="kn-event"><b>${esc(r.status)}</b> · ${new Date(Number(r.started_at || 0) * 1000).toLocaleString()}${r.error ? `<div class="dim">${esc(r.error)}</div>` : ""}</div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_runs"))}</div>`}</div>
+        <div class="kn-detail-block"><h4>${esc(window.t("kanban.lifecycle"))}</h4>${events.length ? events.map(v => `<div class="kn-event"><b>${esc(v.event_type)}</b> · ${new Date(Number(v.created_at || 0) * 1000).toLocaleString()}<div>${esc(v.message || "")}</div></div>`).join("") : `<div class="dim">${esc(window.t("kanban.no_events"))}</div>`}</div></details>`;
       bindActionButtons(drawerBody);
       bindAskBoxes(drawerBody);
+      bindFollowBoxes(drawerBody);
+      const noteEl = drawerBody.querySelector(".kn-follow-note");
+      if (noteEl && followNote && followNote.id === id) noteEl.textContent = followNote.text;
+      if (opts.focusFollow) {
+        const box = drawerBody.querySelector(".kn-ask[data-follow] .kn-ask-input");
+        if (box) { box.focus(); box.scrollIntoView({ block: "center" }); }
+      }
     }
 
-    async function load() {
+    // The open drawer follows the job: a job that moves on (answered from chat, finished, failed) re-renders, unless
+    // the owner is typing in it.
+    function refreshDrawer(tasks) {
+      if (!openTaskId || !drawer.classList.contains("open")) return;
+      const cur = tasks.find(x => x.id === openTaskId);
+      if (cur && Number(cur.updated_at || 0) === openTaskStamp) return;
+      const typing = [...drawerBody.querySelectorAll("textarea")].some(i => i.value.trim() || i === document.activeElement);
+      if (typing) return;
+      showTask(openTaskId, { silent: true });
+    }
+
+    // 0.411.0: the poll sends the board's last `rev` and gets {unchanged:true} when nothing moved, and a hidden tab
+    // does not poll at all. Every other caller (a button, a brain switch) passes nothing and gets the full board.
+    let rev = "", histLimit = 20;
+    async function load(fromPoll) {
       if (!el.isConnected || !el.querySelector("#knOps")) return;
+      if (fromPoll === true && document.hidden) return;
       let d = { operations: {}, orchestration: "off", counts: {}, dispatcher: {} };
-      try { d = await (await fetch(`/kanban?brain=${encodeURIComponent(fbrain())}`)).json(); } catch (e) {}
+      const since = fromPoll === true ? rev : "";
+      try { d = await (await fetch(`/kanban?brain=${encodeURIComponent(fbrain())}&history=${histLimit}&rev=${encodeURIComponent(since)}`)).json(); } catch (e) { return; }
+      if (d.unchanged) return;
+      rev = d.rev || "";
       const ops = d.operations || {}, active = ops.active || [], attention = ops.attention || [], queue = ops.queue || [], history = ops.history || [];
+      const handled = ops.handled || [];
       const live = !!(d.dispatcher && d.dispatcher.running), dot = el.querySelector("#knLiveDot");
       dot.classList.toggle("live", live); dot.classList.toggle("off", !live);
       el.querySelector("#knLiveText").textContent = live ? t("kanban.disp_on", { n: Number(d.dispatcher.max_workers || 0) }) : t("kanban.disp_off");
@@ -3489,20 +3634,28 @@
       fillList(el.querySelector("#knActive"), active, "active");
       fillList(el.querySelector("#knQueue"), queue, "queue");
       fillList(el.querySelector("#knAttention"), attention, "attention");
-      fillList(el.querySelector("#knHistory"), history.slice(0, 20), "history");
+      fillList(el.querySelector("#knHandled"), handled, "handled");
+      fillList(el.querySelector("#knHistory"), history, "history");
+      el.querySelector("#knHistMore").hidden = !d.history_more;
+      renderHints(d.hints);
+      refreshDrawer([...active, ...attention, ...handled, ...queue, ...history]);
       // Khu rỗng thì nút Xoá tất cả xám đi: bấm được một nút không xoá gì cả chỉ làm người ta
       // nghi ngờ là nó có chạy hay không.
       el.querySelector("#knWipeAttention").disabled = !attention.length;
+      el.querySelector("#knWipeHandled").disabled = !handled.length;
       el.querySelector("#knWipeHistory").disabled = !history.length;
       bindActions();
     }
+    el.querySelector("#knHistMore").onclick = () => { histLimit += 20; load(); };
+    function onVisible() { if (!document.hidden) load(true); }
+    document.addEventListener("visibilitychange", onVisible);
     load();
     const poll = setInterval(() => {
       if (!el.isConnected || !el.querySelector("#knOps")) {
         clearInterval(poll);
         cleanupDrawer();
       }
-      else load();
+      else load(true);
     }, 3000);
   }
 

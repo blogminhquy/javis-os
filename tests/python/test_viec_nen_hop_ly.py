@@ -250,7 +250,9 @@ async def _thu_gom():
 _ngay, _sau = asyncio.new_event_loop().run_until_complete(_thu_gom())
 check("ba việc kẹt liền nhau KHÔNG bắn ngay ba tin", _ngay == [], _ngay)
 check("mà gộp thành ĐÚNG MỘT tin", len(_sau) == 1, _sau)
-check("tin đó đếm đúng số việc", "3 việc đang chờ bạn xử lý" in _sau[0]["text"], _sau[0]["text"])
+# 0.411.0: these three wait for a PERMISSION, the one thing in a stopped job only the owner decides; the message
+# says so instead of the old "waiting for you to handle" (owner, 30/10/2026).
+check("tin đó đếm đúng số việc", "3 việc đang chờ bạn cho phép" in _sau[0]["text"], _sau[0]["text"])
 check("và kể tên cả ba để biết là việc nào",
       all(x in _sau[0]["text"] for x in ("Gửi báo cáo", "Đăng bài Facebook", "Tạo đơn hàng")),
       _sau[0]["text"])
@@ -267,8 +269,9 @@ async def _thu_mot():
 _mot = asyncio.new_event_loop().run_until_complete(_thu_mot())
 # Một việc mà cũng in ra "1 việc đang chờ bạn xử lý:" rồi gạch đầu dòng là làm câu văn xấu đi
 # để phục vụ một cái khung không cần thiết.
-check("chỉ MỘT việc kẹt thì giữ nguyên câu cũ, không biến thành danh sách",
-      len(_mot) == 1 and _mot[0]["text"].startswith("⚠ Việc 'Chỉ một việc' bị chặn"), _mot)
+check("chỉ MỘT việc kẹt thì giữ một câu, không biến thành danh sách",
+      len(_mot) == 1 and _mot[0]["text"].startswith("🔐 Việc 'Chỉ một việc' cần bạn cho phép"), _mot)
+check("và nói rõ không đồng ý thì không cần làm gì", "không cần làm gì" in _mot[0]["text"], _mot[0]["text"])
 check("và vẫn nói lý do", "Lý do:" in _mot[0]["text"], _mot[0]["text"])
 
 

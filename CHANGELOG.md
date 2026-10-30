@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.411.0] - 2026-10-30
+### Cải thiện
+- **Javis chỉ hỏi bạn khi thật sự cần.** Khu "Cần bạn xử lý" thành "Javis đang hỏi bạn", chỉ còn câu hỏi, xin phép và kết quả chờ duyệt; việc tạm dừng vì lỗi kỹ thuật chuyển sang khu "Javis đang tự lo", báo nhẹ không rung chuông và nói rõ bạn không cần làm gì.
+- **Nhắn thêm cho việc ở mọi trạng thái.** Việc đã xong, tạm dừng hay đang chờ đều có nút Nhắn thêm (ví dụ "viết lại đoạn 2 ngắn hơn"), việc chạy tiếp trên kết quả cũ chứ không làm lại từ đầu; việc trong hàng có thêm nút Chạy ngay.
+- **Biết việc xong đã được kiểm hay chưa.** Thẻ việc ghi Đã kiểm hoặc Chưa kiểm kèm thời gian chạy, việc chưa kiểm có nút Kiểm lại.
+- **Thông minh và nhẹ hơn.** Việc bạn giao tay 3 lần trong 60 ngày được gợi ý thành lịch tự chạy, việc mới tự đến đúng trợ lý và việc nhỏ chạy nhẹ; trang chỉ tải lại khi có thay đổi và Lịch sử hiện việc mới nhất trước.
+
 ## [0.410.0] - 2026-10-30
 ### Sửa lỗi
 - **Việc hết lượt dùng không còn bị chấm Xong.** Trước đây Claude báo hết lượt bằng một câu Javis chưa quen mặt chữ (như "You're out of extra usage") hay báo lỗi API giữa chừng thì việc vẫn vào cột Xong, "kết quả" chính là câu báo lỗi. Giờ lượt kết thúc lỗi là lỗi: việc tự hẹn chạy lại lúc gói mở, hoặc nằm ở Cần bạn xử lý kèm lý do.

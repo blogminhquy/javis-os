@@ -396,9 +396,11 @@ def test_report_ngan_va_khong_lap_lai(tmp_path):
     assert "Tôi sẽ lần theo" not in msg
     # lý do chỉ xuất hiện đúng một lần
     assert msg.count("Cần anh chốt bonus") == 1
-    # Việc KẸT thì phải KÊU: đây là thứ cần người dùng ra tay, nên vẫn nổi chấm đỏ trên
-    # chuông và vẫn rung thông báo đẩy.
-    assert kw.get("quiet") is False, kw
+    # 0.411.0 (owner, 30/10/2026): a job stopped on a technical hitch is Javis's to handle (Javis Core gets the
+    # incident and messages the owner only when a person is really needed), so its notice is QUIET and says there is
+    # nothing to do. Only a permission request still rings: see test_viec_nen_hop_ly.py.
+    assert kw.get("quiet") is True, kw
+    assert "không cần làm gì" in msg
 
 
 def test_report_done_gui_du_ket_qua_va_kem_ban_ngan(tmp_path):

@@ -27297,6 +27297,16 @@ def _agent_persona(root, slug, agent_key=None):
 tasks_feature.deps.agent_persona = _agent_persona
 
 
+def _agent_roster(root):
+    """0.411.0: the brain's assistants for the Kanban specifier to route a job to (slug, name, role, durable key)."""
+    keys = _agent_jobs_keys(root)
+    return [{"slug": a["slug"], "name": a.get("name") or a["slug"], "role": a.get("role") or "",
+             "key": keys.get(a["slug"], "")} for a in agents_index(root, kem_prompt=False)]
+
+
+tasks_feature.deps.agent_roster = _agent_roster
+
+
 def _agent_jobs_key(root, slug, register=False):
     """Mã bền của trợ lý (theo slug hiện tại). `register`: chưa có thì cấp (không bật Auto)."""
     if register:

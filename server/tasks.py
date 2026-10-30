@@ -169,6 +169,9 @@ class TasksDeps:
     # 0.142.0: việc giao cho một trợ lý (nút Giao việc ở tab Công việc) chạy với vai của trợ lý đó. (root, slug) -> đoạn
     # lời nhắc vai trò, rỗng khi không có. Engine, quyền và trần của Kanban giữ nguyên.
     agent_persona: Optional[Callable[[str, str, str], str]] = None
+    # 0.411.0: (root) -> [{slug, name, role, key}] the brain's assistants, so the specifier can hand a job to the one
+    # whose speciality it matches. None or [] = no routing, the job runs as a plain Kanban job.
+    agent_roster: Optional[Callable[[str], list]] = None
     # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken job to Javis Core (incident_desk.py).
     incident_hook: Optional[Callable] = None
 
@@ -191,6 +194,9 @@ class TasksFeature:
         # Rổ gom thông báo việc KẸT, theo TỪNG người nhận (xem `_gom_bao`).
         self._ro_bao: dict[str, list[dict]] = {}
         self._hen_bao: dict[str, asyncio.Task] = {}
+        # Jobs whose completion check is being re-run from the Work page (verify).
+        self._verifying: set[str] = set()
+        self._verify_jobs: set[asyncio.Task] = set()
         self.router = self._make_router()
 
     # ------------------------------------------------------------------
@@ -501,8 +507,11 @@ class TasksFeature:
                         # `_specify` thì nhánh heuristic (trả thẳng "auto") đi vòng qua được.
                         self._muc_chay(task.get("execution_mode"), spec["execution_mode"]),
                         metadata={
+                            **(task.get("metadata") or {}),
                             "acceptance": spec.get("acceptance", []),
                             "specifier": spec.get("specifier", "ai"),
+                            **({"effort": "light"} if spec.get("effort") == "light" else {}),
+                            **({"agent": spec["agent"]} if spec.get("agent") else {}),
                         },
                     )
                 return
@@ -526,6 +535,7 @@ class TasksFeature:
                 return
             tok = turn_context.bind(turn_context.make(
                 "kanban", chat_id=str(task.get("chat_id") or ""), job=job))
+            t_run = time.monotonic()
             try:
                 result, error, needs_input, metadata = await asyncio.wait_for(
                     self._execute(task), timeout=self._tran_giay_viec()
@@ -565,7 +575,9 @@ class TasksFeature:
                 # Done (t_784c7a7b8fd6, run run_34d581306b1b47).
                 passed, why, how = await self._check_acceptance(task, result)
                 # Giữ metadata cũ (sổ hỏi đáp `qa`, điều kiện hoàn thành) dưới phần lần chạy này thêm.
-                metadata = {**(task.get("metadata") or {}), **(metadata or {}), "acceptance_check": how}
+                metadata = {**(task.get("metadata") or {}), **(metadata or {}), "acceptance_check": how,
+                            # 0.411.0: how long the run took, shown on the card.
+                            "run_seconds": round(time.monotonic() - t_run)}
                 if not passed:
                     final_task = self.store.ask(
                         tid,
@@ -633,7 +645,14 @@ class TasksFeature:
             return ""
         key = str(task.get("idempotency_key") or "")
         if not key.startswith("agent:"):
-            return ""
+            # 0.411.0: no assistant chosen by the owner, but the specifier routed the job to one.
+            picked = (task.get("metadata") or {}).get("agent")
+            if not isinstance(picked, dict) or not picked.get("slug"):
+                return ""
+            try:
+                return str(self.deps.agent_persona(root, str(picked["slug"]), picked.get("key") or None) or "")
+            except Exception:
+                return ""
         parts = key[len("agent:"):].split(":")
         if len(parts) < 3 or not parts[0] or not parts[1]:
             return ""
@@ -717,8 +736,35 @@ class TasksFeature:
         out = final.strip() or "\n".join(v for v in narration if v).strip()
         return out, error, tool_calls
 
+    ROSTER_MAX = 30
+
+    def _roster(self, task: dict) -> list[dict]:
+        """Assistants the specifier may route this job to. Empty when the owner already picked one (Assign button)
+        or the brain has none."""
+        if not self.deps.agent_roster or str(task.get("idempotency_key") or "").startswith("agent:"):
+            return []
+        try:
+            ds = self.deps.agent_roster(str(task["brain_root"])) or []
+        except Exception as e:   # noqa: BLE001 - routing is a bonus, never a reason to fail the job
+            print(f"[kanban] đọc danh sách trợ lý lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            return []
+        return [a for a in ds if isinstance(a, dict) and a.get("slug")][:self.ROSTER_MAX]
+
+    @staticmethod
+    def _roster_block(roster: list[dict]) -> str:
+        if not roster:
+            return 'agent: luôn để rỗng ("").'
+        dong = ["Trợ lý sẵn có trong brain. Chọn MỘT slug nếu việc khớp RÕ chuyên môn của trợ lý đó, "
+                'không khớp rõ thì để rỗng ("") cho Javis tự làm:']
+        for a in roster:
+            vai = str(a.get("role") or "").strip().replace("\n", " ")[:120]
+            dong.append(f"- {a['slug']}: {str(a.get('name') or a['slug'])[:60]}" + (f" ({vai})" if vai else ""))
+        return "\n".join(dong)
+
     async def _specify(self, task: dict) -> tuple[dict, str]:
         cli = self._base_cli(task, [], "suggest", "specifier")
+        roster = self._roster(task)
+        roster_block = self._roster_block(roster)
         prompt = f"""
 Bạn là specifier của hàng đợi AI Javis. Chuẩn hoá goal dưới đây thành một task có thể
 chạy headless. Không thực thi task, không hỏi người dùng, không thêm mục tiêu ngoài phạm vi.
@@ -735,13 +781,20 @@ Chọn đúng một capability:
 - external-write: gửi tin, tạo lịch/đơn/bài đăng hoặc thay đổi hệ thống bên ngoài
 - image: phải TẠO hoặc XEM ảnh (ảnh bài đăng, ảnh minh hoạ, duyệt ảnh) và lưu vào brain
 
+{roster_block}
 Trả duy nhất JSON hợp lệ, không markdown:
 {{
   "intent": "mô tả đầu ra cụ thể và đủ ngữ cảnh",
   "capability": "files|research|mcp-read|code|external-write|image",
   "execution_mode": "suggest|auto|full",
-  "acceptance": ["điều kiện hoàn thành 1", "điều kiện hoàn thành 2"]
+  "acceptance": ["điều kiện hoàn thành 1", "điều kiện hoàn thành 2"],
+  "effort": "light|normal",
+  "agent": "slug trợ lý hoặc rỗng"
 }}
+
+effort: "light" CHỈ khi việc nhỏ và rõ, làm một bước là xong (đọc hay tóm tắt một file ngắn, đổi tên,
+ghi một ghi chú ngắn). Cần tìm hiểu, nhiều bước, viết dài, code, ảnh hay thao tác ra ngoài thì "normal".
+Phân vân thì "normal".
 
 acceptance là điều kiện KIỂM ĐƯỢC sau khi chạy (file nào phải có, ảnh khổ gì, mục nào phải
 đủ), vì một lượt nghiệm thu riêng sẽ đối chiếu kết quả với từng điều kiện.
@@ -771,12 +824,20 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             )
             if not any(word in raw for word in permission_words):
                 mode = "auto"
+        picked = str(parsed.get("agent") or "").strip()
+        agent = next(({"slug": a["slug"], "name": str(a.get("name") or a["slug"]), "key": str(a.get("key") or "")}
+                      for a in roster if a["slug"] == picked), None)
+        # Light runs only for jobs that touch nothing outside the brain and write no code or images.
+        effort = "light" if (str(parsed.get("effort") or "") == "light"
+                             and capability in ("files", "research", "mcp-read")) else "normal"
         return {
             "intent": str(parsed.get("intent") or task.get("intent") or task.get("title") or ""),
             "capability": capability,
             "execution_mode": mode,
             "acceptance": parsed.get("acceptance") if isinstance(parsed.get("acceptance"), list) else [],
             "specifier": "ai",
+            "effort": effort,
+            "agent": agent,
         }, ""
 
     @staticmethod
@@ -911,6 +972,11 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             return ""
         dong = ["HỎI ĐÁP VỚI CHỦ (câu trả lời là dữ kiện chủ đã chốt, dùng luôn, KHÔNG hỏi lại):"]
         for i, x in enumerate(qa, 1):
+            if x.get("kind") == "followup":
+                # 0.411.0: the owner's follow-up on a stopped or finished job. It is the newest instruction, so it
+                # wins over the original goal where the two differ.
+                dong.append(f"{i}. Chủ dặn thêm (ưu tiên hơn mục tiêu gốc nếu khác nhau): {x.get('a') or ''}")
+                continue
             dong.append(f"{i}. Hỏi: {x.get('q') or ''}\n   Chủ trả lời: {x.get('a') or ''}")
         tien_do = str(qa[-1].get("progress") or "").strip()
         if tien_do:
@@ -968,6 +1034,8 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             )
 
         cli = self._base_cli(task, tools, mode, "execute")
+        if (task.get("metadata") or {}).get("effort") == "light":
+            self._lighten(cli)
         # `disallowed` rỗng ở mức full: gán một danh sách rỗng vẫn khác gán None ở chỗ khác
         # trong mã, nên đặt None cho rõ ý "không chặn gì". Đặt `["Task"]` như ba mức dưới là
         # bịt lại đúng thứ vừa mở.
@@ -1130,6 +1198,21 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         return lines[-1][:limit]
 
     @staticmethod
+    def _lighten(cli) -> None:
+        """Run a job the specifier judged small at low effort (0.411.0): less thinking, fewer tokens, same engine
+        and tools. Only ever LOWERS the owner's background effort; "off" (the engine's own default) and "low" stay
+        as they are. Engines without an effort setting are left alone."""
+        try:
+            cur = getattr(cli, "effort", None)
+        except Exception:
+            return
+        if cur in ("medium", "high", "xhigh", "max", "ultra"):
+            try:
+                cli.effort = "low"
+            except Exception:
+                pass
+
+    @staticmethod
     def _admits_unfinished(result: str) -> str:
         """The line where the worker says, near the top of its report, that it did not finish.
         "" when it does not. Only the first two lines count: a finished report may well
@@ -1244,6 +1327,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             "title": str(task.get("title") or ""),
             "reason": str(task.get("block_reason") or task.get("block_kind") or "").strip(),
             "waiting": cho,
+            "kind": str(task.get("block_kind") or ""),
         })
         cu = self._hen_bao.get(chat_id)
         if cu and not cu.done():
@@ -1258,16 +1342,61 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         await self._xa_bao(chat_id)
 
     async def _xa_bao(self, chat_id: str) -> None:
-        """Bắn rổ đã gom. MỘT việc thì giữ nguyên câu cũ - đừng biến nó thành danh sách một dòng."""
+        """Bắn rổ đã gom, tách làm hai loại tin (0.411.0, chủ repo 30/10/2026).
+
+        Trước đây mọi việc kẹt đều thành "⚠ ... bị chặn, cần bạn xem", và người dùng không rành kỹ thuật thì lo mà
+        không biết làm gì: phần lớn việc kẹt là lỗi kỹ thuật họ không sửa được, cũng không cần sửa (Javis Core nhận
+        sự cố qua incident_hook, tự thử lại khi an toàn, và tự nhắn khi thật sự cần người). Nên:
+          - xin quyền (`capability`): việc CHỈ chủ quyết được. Vẫn kêu, nói rõ đồng ý thì bấm gì, không thì thôi.
+          - mọi thứ khác: báo LẶNG vào hòm thư, nói thẳng là không cần làm gì, chi tiết kỹ thuật để cuối.
+        MỘT việc thì giữ một câu, đừng biến nó thành danh sách một dòng."""
         items = self._ro_bao.pop(chat_id, [])
         self._hen_bao.pop(chat_id, None)
         if not items or not self.deps.report:
             return
+        xin = [it for it in items if it.get("kind") == "capability"]
+        ky_thuat = [it for it in items if it.get("kind") != "capability"]
+        cid, _, root = chat_id.partition(_BUCKET_SEP)
+        for nhom, kieu in ((xin, "permission"), (ky_thuat, "technical")):
+            if not nhom:
+                continue
+            parts = self._tin_tam_dung(nhom, kieu)
+            try:
+                await self.deps.report(
+                    cid, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=(kieu == "technical"),
+                    **_report_extra(self.deps.report, root, ""))
+            except Exception as e:
+                print(f"[kanban] báo gộp việc kẹt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+    @staticmethod
+    def _tin_tam_dung(items: list, kieu: str) -> list:
+        """Câu chữ của tin việc tạm dừng. `kieu`: "permission" (chờ chủ cho phép) hoặc "technical"."""
+        xem = localefmt.chu("Xem ở trang Việc.", "See the Work page.")
+        if kieu == "permission":
+            if len(items) == 1:
+                parts = [localefmt.chu(
+                    f"🔐 Việc '{items[0]['title']}' cần bạn cho phép trước khi tự làm thật ra ngoài "
+                    "(gửi tin, đăng bài, tạo đơn...).",
+                    f"🔐 Job '{items[0]['title']}' needs your permission before it acts outside on its own "
+                    "(sending, posting, creating orders...)."),
+                    localefmt.chu("Lý do: ", "Reason: ") + (items[0]["reason"][:240] or localefmt.chu("không rõ", "unknown"))]
+            else:
+                parts = [localefmt.chu(f"🔐 {len(items)} việc đang chờ bạn cho phép:",
+                                       f"🔐 {len(items)} jobs are waiting for your permission:")]
+                parts += [f"- {it['title']}" for it in items[:BAO_GOM_LIET_KE]]
+                if len(items) > BAO_GOM_LIET_KE:
+                    con = len(items) - BAO_GOM_LIET_KE
+                    parts.append(localefmt.chu(f"…và {con} việc nữa.", f"…and {con} more."))
+            parts.append(localefmt.chu(
+                "Đồng ý thì bấm Cấp quyền ở trang Việc. Không đồng ý thì không cần làm gì, việc chỉ nằm chờ.",
+                "If you agree, press Grant on the Work page. If not, do nothing: the job just waits."))
+            return parts
         if len(items) == 1:
-            parts = [localefmt.chu(f"⚠ Việc '{items[0]['title']}' bị chặn, cần bạn xem.",
-                                   f"⚠ Job '{items[0]['title']}' is blocked and needs you."),
-                     localefmt.chu("Lý do: ", "Reason: ")
-                     + (items[0]["reason"][:240] or localefmt.chu("không rõ", "unknown"))]
+            parts = [localefmt.chu(
+                f"Việc '{items[0]['title']}' tạm dừng vì một trục trặc kỹ thuật. Bạn không cần làm gì: Javis đã ghi lại, "
+                "sẽ tự thử lại khi được, và chỉ nhắn bạn nếu thật sự cần bạn.",
+                f"Job '{items[0]['title']}' paused on a technical hitch. You do not need to do anything: Javis logged "
+                "it, will retry when it can, and only messages you if it really needs you.")]
             cho = items[0].get("waiting") or []
             if cho:
                 # A blocked parent never reaches Done, so these sit in Todo with no word of
@@ -1276,25 +1405,18 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 parts.append(localefmt.chu(
                     f"{len(cho)} việc đang chờ việc này xong mới chạy: {ten}.",
                     f"{len(cho)} job(s) wait for this one before they run: {ten}."))
-            parts.append(localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page."))
+            if items[0]["reason"]:
+                parts.append(localefmt.chu("Chi tiết kỹ thuật: ", "Technical detail: ") + items[0]["reason"][:240])
         else:
-            dong = [localefmt.chu(f"⚠ {len(items)} việc đang chờ bạn xử lý:",
-                                  f"⚠ {len(items)} jobs are waiting for you:")]
-            for it in items[:BAO_GOM_LIET_KE]:
-                dong.append(f"- {it['title']}: " + (it["reason"][:120]
-                                                    or localefmt.chu("không rõ lý do", "reason unknown")))
-            con = len(items) - BAO_GOM_LIET_KE
-            if con > 0:
-                dong.append(localefmt.chu(f"…và {con} việc nữa.", f"…and {con} more."))
-            dong.append(localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page."))
-            parts = dong
-        try:
-            cid, _, root = chat_id.partition(_BUCKET_SEP)
-            await self.deps.report(
-                cid, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=False,
-                **_report_extra(self.deps.report, root, ""))
-        except Exception as e:
-            print(f"[kanban] báo gộp việc kẹt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            parts = [localefmt.chu(
+                f"{len(items)} việc tạm dừng vì trục trặc kỹ thuật. Bạn không cần làm gì, Javis đang lo:",
+                f"{len(items)} jobs paused on technical hitches. You do not need to do anything, Javis is on it:")]
+            parts += [f"- {it['title']}" for it in items[:BAO_GOM_LIET_KE]]
+            if len(items) > BAO_GOM_LIET_KE:
+                con = len(items) - BAO_GOM_LIET_KE
+                parts.append(localefmt.chu(f"…và {con} việc nữa.", f"…and {con} more."))
+        parts.append(xem)
+        return parts
 
     async def xa_het_bao(self) -> None:
         """Bắn hết mọi rổ còn treo. Gọi lúc tắt server - hẹn giờ chết theo tiến trình, không
@@ -1484,9 +1606,69 @@ Trả DUY NHẤT một dòng JSON, không markdown:
     # ------------------------------------------------------------------
     # Views and operator API
     # ------------------------------------------------------------------
-    def board_view(self, brain: str) -> dict:
+    # What a card needs of a job's report. The full report (up to 20,000 characters) is fetched only when the job
+    # is opened: shipping every report every 3 seconds was most of the board's weight.
+    CARD_RESULT_CHARS = 600
+    # Metadata a card or the drawer reads. `tool_calls` (up to 100 names) and the like stay in the store.
+    CARD_META_KEYS = ("qa", "acceptance", "acceptance_check", "agent", "effort", "provider", "specifier",
+                      "once_pending", "run_seconds")
+
+    @staticmethod
+    def _calm(task: dict) -> str:
+        """One plain sentence on why a job is stopped or waiting, for people who cannot (and need not) read an error
+        (owner, 30/10/2026: "Needs you" made low-tech owners anxious about jobs they could not fix anyway). The raw
+        reason stays in `block_reason` for the drawer's technical detail. "" when there is nothing to say."""
+        st, kind = str(task.get("status") or ""), str(task.get("block_kind") or "")
+        reason = str(task.get("block_reason") or "").strip()
+        if st == "review":
+            return localefmt.chu("Đã làm xong, đang chờ bạn xem và duyệt kết quả.",
+                                 "Done, waiting for you to look at the result and approve it.")
+        if st == "blocked" and kind == "needs_input":
+            return ""      # the question itself is shown
+        if st == "blocked" and kind == "capability":
+            return localefmt.chu("Việc này cần bạn cho phép trước khi tự làm thật ra ngoài. Đồng ý thì bấm Cấp quyền, "
+                                 "không thì cứ để đó.",
+                                 "This job needs your permission before it acts outside on its own. Press Grant if "
+                                 "you agree, otherwise leave it.")
+        if kind == "limit" and reason:
+            return reason  # already written for people: which plan, and when it runs again
+        if st == "blocked":
+            return localefmt.chu("Tạm dừng vì một trục trặc kỹ thuật. Bạn không cần làm gì: Javis đã ghi lại, tự thử "
+                                 "lại khi được, và chỉ nhắn bạn nếu thật sự cần.",
+                                 "Paused on a technical hitch. You do not need to do anything: Javis logged it, retries "
+                                 "when it can, and only messages you if it really needs you.")
+        if st in ("ready", "todo", "triage") and kind:
+            return localefmt.chu("Lần trước gặp trục trặc, Javis sẽ tự chạy lại.",
+                                 "The last try hit a hitch; Javis will run it again by itself.")
+        return ""
+
+    @classmethod
+    def _card(cls, task: dict) -> dict:
+        out = dict(task)
+        out["calm"] = cls._calm(task)
+        out["waits_for_owner"] = TaskStore.waits_for_owner(task)
+        res = str(out.get("result") or "")
+        if len(res) > cls.CARD_RESULT_CHARS:
+            out["result"] = res[:cls.CARD_RESULT_CHARS]
+            out["result_more"] = True
+        meta = out.get("metadata") or {}
+        out["metadata"] = {k: meta[k] for k in cls.CARD_META_KEYS if k in meta}
+        return out
+
+    def board_rev(self, brain: str, history_limit: int = 20) -> str:
         root = self._ensure(brain)
-        tasks = self.store.list_tasks(root)
+        live = bool(self._dispatcher_task and not self._dispatcher_task.done())
+        busy = sum(1 for tid, w in self._workers.items() if self._worker_brains.get(tid) == root and not w.done())
+        return f"{self.store.board_rev(root)}|{int(live)}|{busy}|{int(history_limit)}"
+
+    def board_view(self, brain: str, history_limit: int = 20, rev: str = "") -> dict:
+        """The Work page's board. `rev` is what the page got last time: when nothing changed the answer is just
+        {"unchanged": true}, so an open tab costs two small queries every poll instead of the whole board."""
+        root = self._ensure(brain)
+        cur = self.board_rev(brain, history_limit)
+        if rev and rev == cur:
+            return {"schema": 2, "unchanged": True, "rev": cur}
+        lists = self.store.board_lists(root, history_limit=history_limit)
         columns = {
             name: []
             for name in (
@@ -1494,9 +1676,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 "cancelled",
             )
         }
-        for task in tasks:
-            columns.setdefault(task.get("status", "triage"), []).append(task)
-        counts = {status: len(items) for status, items in columns.items()}
+        for task in lists["open"] + lists["history"]:
+            columns.setdefault(task.get("status", "triage"), []).append(self._card(task))
+        # Counts are the real totals: `columns` holds only the newest finished jobs.
+        counts = {status: int(lists["counts"].get(status, 0)) for status in columns}
         workers = [
             {
                 "task_id": tid,
@@ -1508,12 +1691,23 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             if self._worker_brains.get(tid) == root
         ]
         health = self.store.health(root)
-        attention = columns["blocked"] + columns["review"]
+        # 0.411.0: "Javis is asking you" holds only what the owner alone can move on; every other stopped job sits in
+        # "Javis is handling it", which asks nothing of them.
+        stopped = columns["blocked"] + columns["review"]
+        attention = [t for t in stopped if t["waits_for_owner"]]
+        handled = [t for t in stopped if not t["waits_for_owner"]]
         queue = columns["triage"] + columns["todo"] + columns["ready"]
         active = columns["running"]
-        history = columns["done"] + columns["cancelled"]
+        history = sorted(columns["done"] + columns["cancelled"],
+                         key=lambda t: -float(t.get("updated_at") or 0))
+        try:
+            hints = self.store.repeat_hints(root)
+        except Exception as e:   # noqa: BLE001 - a hint must never cost the board
+            print(f"[kanban] gợi ý việc lặp lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            hints = []
         return {
             "schema": 2,
+            "rev": cur,
             "brain_root": root,
             "orchestration": self.store.board_mode(root),
             "dispatcher": {
@@ -1525,14 +1719,74 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             "operations": {
                 "active": active,
                 "attention": attention,
+                "handled": handled,
                 "queue": queue,
                 "history": history,
             },
+            "history_more": lists["history_more"],
+            "hints": hints,
             "columns": columns,
             "counts": counts,
             "completed_24h": health["completed_24h"],
             "running": bool(workers),
         }
+
+    async def followup(self, task_id: str, text: str, brain: str = "", by: str = "owner") -> dict:
+        """The owner's extra instruction for a job that is stopped, waiting or finished: it goes back to the queue
+        and the next run reads the note on top of its last report (store.followup)."""
+        task = self.store.get_task(task_id)
+        if not task or (brain and task.get("brain_root") != self._ensure(brain)):
+            return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
+        done, err = self.store.followup(task_id, text, by=by)
+        if not done:
+            return {"ok": False, "error": {
+                "empty": localefmt.chu("Lời nhắn đang trống", "The message is empty"),
+                "running": localefmt.chu("Việc đang chạy, đợi chạy xong rồi nhắn thêm",
+                                         "The job is running; send the note once it ends"),
+                "waiting": localefmt.chu("Việc đang chờ câu trả lời: trả lời ở ô câu hỏi",
+                                         "The job is waiting for an answer: use the question box"),
+            }.get(err, localefmt.chu("Không tìm thấy việc", "Job not found"))}
+        await self._asnapshot(str(done["brain_root"]))
+        self.wake()
+        return {"ok": True, "status": done["status"],
+                "orchestration": self.store.board_mode(str(done["brain_root"]))}
+
+    async def verify(self, task_id: str, brain: str = "") -> dict:
+        """Check a finished job against its completion criteria again, for a job marked done without being checked
+        (the checker could not run the first time). Runs in the background; the card shows the outcome."""
+        task = self.store.get_task(task_id)
+        if not task or (brain and task.get("brain_root") != self._ensure(brain)):
+            return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
+        if task.get("status") not in ("done", "review"):
+            return {"ok": False, "error": localefmt.chu("Chỉ kiểm lại được việc đã xong",
+                                                        "Only a finished job can be checked again")}
+        if not ((task.get("metadata") or {}).get("acceptance") or []):
+            return {"ok": False, "error": localefmt.chu("Việc này không có điều kiện hoàn thành để kiểm",
+                                                        "This job has no completion criteria to check")}
+        # A check left at "checking" by a restart is not running: only a check alive in this process blocks a new one.
+        if task_id in self._verifying:
+            return {"ok": True, "started": False}
+        self.store.set_acceptance(task_id, "checking")
+        self._verifying.add(task_id)
+
+        async def run():
+            try:
+                full = self.store.get_task(task_id) or task
+                passed, why, how = await self._check_acceptance(full, str(full.get("result") or ""))
+                state = ("ai" if passed else "failed") if how == "ai" else (
+                    "failed" if not passed else "unverified")
+                self.store.set_acceptance(task_id, state, why)
+            except Exception as e:   # noqa: BLE001
+                print(f"[kanban] kiểm lại {task_id} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+                self.store.set_acceptance(task_id, "unverified")
+            finally:
+                self._verifying.discard(task_id)
+                await self._asnapshot(str(task.get("brain_root") or ""))
+
+        job = asyncio.create_task(run(), name=f"javis-verify-{task_id}")
+        self._verify_jobs.add(job)                      # a bare create_task can be garbage-collected mid-run
+        job.add_done_callback(self._verify_jobs.discard)
+        return {"ok": True, "started": True}
 
     async def answer(self, task_id: str, text: str, brain: str = "", by: str = "owner") -> dict:
         """Chủ trả lời câu hỏi của một việc đang chờ: việc về hàng đợi và chạy tiếp với câu trả lời.
@@ -1571,8 +1825,21 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             return await self.answer(id, answer, brain=brain)
 
         @router.get("/kanban")
-        async def kanban_get(brain: str = Query("brain")):
-            return self.board_view(brain)
+        async def kanban_get(brain: str = Query("brain"), rev: str = Query(""), history: int = Query(20)):
+            return self.board_view(brain, history_limit=history, rev=rev)
+
+        @router.post("/kanban/task/followup")
+        async def kanban_followup(id: str = Form(...), text: str = Form(""), brain: str = Form("")):
+            return await self.followup(id, text, brain=brain)
+
+        @router.post("/kanban/task/verify")
+        async def kanban_verify(id: str = Form(...), brain: str = Form("brain")):
+            return await self.verify(id, brain=brain)
+
+        @router.post("/kanban/hint/dismiss")
+        async def kanban_hint_dismiss(key: str = Form(...), brain: str = Form("brain")):
+            self.store.dismiss_hint(self._ensure(brain), key)
+            return {"ok": True}
 
         @router.get("/kanban/health")
         async def kanban_health(brain: str = Query("brain")):
@@ -1589,10 +1856,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             task = self.store.get_task(id)
             if not task or task.get("brain_root") != root:
-                return {"ok": False, "error": "not found"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             return {
                 "ok": True,
-                "task": task,
+                "task": {**task, "calm": self._calm(task), "waits_for_owner": TaskStore.waits_for_owner(task)},
                 "events": self.store.list_events(id, 100),
                 "runs": self.store.list_runs(id, 20),
             }
@@ -1641,7 +1908,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             task = self.store.get_task(id)
             if not task or task.get("brain_root") != root:
-                return {"ok": False, "error": "not found"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if status not in VALID_STATUS:
                 return {"ok": False, "error": localefmt.chu("status không hợp lệ", "invalid status")}
             if not self.store.move(id, status):
@@ -1657,7 +1924,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             task = self.store.get_task(id)
             if not task or task.get("brain_root") != root:
-                return {"ok": False, "error": "not found"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if not self.store.move(id, "archived", "operator archive"):
                 return {"ok": False, "error": localefmt.chu("không thể archive task đang chạy", "cannot archive a running task")}
             await self._asnapshot(root)
@@ -1680,7 +1947,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             task = self.store.get_task(id)
             if not task or task.get("brain_root") != root:
-                return {"ok": False, "error": "not found"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if str(task.get("block_kind") or "") != "capability":
                 return {"ok": False, "error": localefmt.chu("việc này không bị chặn vì thiếu quyền", "this job is not blocked for lack of permission")}
             if not self.store.grant_full(id):
@@ -1702,12 +1969,14 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             khu = str(panel or "").strip().lower()
             if khu == "attention":
-                removed = self.store.archive_by_status(root, ("blocked", "review"))
+                removed = self.store.archive_attention(root, owner=True)
+            elif khu == "handled":
+                removed = self.store.archive_attention(root, owner=False)
             elif khu == "history":
                 removed = self.store.purge_terminal(
                     root, statuses=("archived", "cancelled", "done"))
             else:
-                return {"ok": False, "error": localefmt.chu("panel phải là 'attention' hoặc 'history'", "panel must be 'attention' or 'history'")}
+                return {"ok": False, "error": localefmt.chu("panel phải là 'attention', 'handled' hoặc 'history'", "panel must be 'attention', 'handled' or 'history'")}
             await self._asnapshot(root)
             return {"ok": True, "removed": removed}
 
@@ -1762,7 +2031,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             task = self.store.get_task(id)
             if not task or task.get("brain_root") != root:
-                return {"ok": False, "error": "not found"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if task.get("status") not in ("triage", "ready"):
                 if not self.store.move(id, "ready", "operator run"):
                     return {"ok": False, "error": localefmt.chu("task đang chạy", "task is running")}
@@ -1784,7 +2053,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             task = self.store.get_task(id)
             if not task or task.get("brain_root") != root:
-                return {"ok": False, "error": "not found"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if not self.store.move(id, "ready", "operator retry"):
                 return {"ok": False, "error": localefmt.chu("task đang chạy", "task is running")}
             await self._asnapshot(root)
@@ -1798,7 +2067,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             root = self._ensure(brain)
             task = self.store.get_task(id)
             if not task or task.get("brain_root") != root:
-                return {"ok": False, "error": "not found"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             worker = self._workers.get(id)
             if worker and not worker.done():
                 cancel_all(f"dispatch:{id}")
