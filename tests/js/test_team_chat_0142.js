@@ -3,6 +3,7 @@
 //     python tests/run.py --js team_chat_0142 -v
 "use strict";
 const fs = require("fs");
+const { napTruoc, coNap } = require("./_thu_tu_nap");   // load order that understands lazy groups (0.417.0)
 const path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
 const TM = require(path.join(ROOT, "dashboard", "teams.js"));
@@ -118,8 +119,7 @@ check("điện thoại: hộp thành màn đầy đủ, footer chừa vùng an t
   && /\.tmp-foot \{ padding-bottom: calc\(12px \+ env\(safe-area-inset-bottom/.test(css));
 check("chữ hộp chọn 16px, vùng chạm 44px", /\.tmp-dialog \{[^}]*font-size: 16px/.test(css) && /\.tmp-foot \.ws-btn \{ min-height: 44px/.test(css));
 const indexHtml = fs.readFileSync(path.join(ROOT, "dashboard", "index.html"), "utf8");
-check("team-picker.js nạp trước teams.js", indexHtml.indexOf("team-picker.js") > 0
-  && indexHtml.indexOf("team-picker.js") < indexHtml.indexOf("/static/teams.js"));
+check("team-picker.js nạp trước teams.js", napTruoc("team-picker.js", "teams.js", indexHtml));
 
 // ───────────── tab Công việc ở trang Cộng sự ─────────────
 const AJ = require(path.join(ROOT, "dashboard", "agent-jobs.js"));

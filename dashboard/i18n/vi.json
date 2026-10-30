@@ -6388,5 +6388,6 @@
   "hp.cerr_head": "Lỗi giao diện gần đây",
   "hp.cerr_none": "Chưa ghi nhận lỗi giao diện nào.",
   "hp.cerr_clear": "Xoá danh sách",
-  "hp.cerr_intro": "Lỗi xảy ra trên trình duyệt của bất kỳ ai dùng Javis này (máy tính, điện thoại) được tự gửi về đây, gom theo nhóm. Chỉ có thông tin kỹ thuật (thông báo lỗi, file, dòng, loại máy), không có nội dung chat. Gặp lỗi lạ thì chụp phần này gửi nhà phát triển là đủ để sửa."
+  "hp.cerr_intro": "Lỗi xảy ra trên trình duyệt của bất kỳ ai dùng Javis này (máy tính, điện thoại) được tự gửi về đây, gom theo nhóm. Chỉ có thông tin kỹ thuật (thông báo lỗi, file, dòng, loại máy), không có nội dung chat. Gặp lỗi lạ thì chụp phần này gửi nhà phát triển là đủ để sửa.",
+  "net.reconnecting": "Đang kết nối lại máy chủ…"
 }

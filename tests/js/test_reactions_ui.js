@@ -7,6 +7,7 @@
 // thử lại sau lỗi mạng dùng đúng nonce cũ), cộng các chỗ nối trong app.js, index.html, style.css và i18n.
 "use strict";
 const fs = require("fs");
+const { napTruoc, coNap } = require("./_thu_tu_nap");   // load order that understands lazy groups (0.417.0)
 const path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
 const D = path.join(ROOT, "dashboard");
@@ -360,7 +361,7 @@ check("bỏ hết reaction: emoji biến mất, nút Thích còn", !hist.row().i
   const pos = (f) => indexHtml.indexOf("/static/" + f);
   check("index.html nạp reactions.js trước chat-reactions.js, app.js, teams.js, mobile-chat.js (có ?v=)",
         pos("reactions.js?v=") > 0 && pos("reactions.js") < pos("chat-reactions.js") && pos("chat-reactions.js") < pos("app.js")
-        && pos("reactions.js") < pos("teams.js") && pos("reactions.js") < pos("mobile-chat.js"));
+        && napTruoc("reactions.js", ["teams.js", "mobile-chat.js"]));
   check("0.177 CSS: corner sits on the bubble's bottom-right edge, anchor as wide as the bubble",
         /\.msg-javis > \.jr-chat \{ display: block; max-width: min\(72ch, 100%\); font-size: 16px; font-family: var\(--font-chat\);/.test(css)
         && /\.jr-anchor \{ position: relative; height: 0; \}/.test(css) && /\.jr-rx \{ position: absolute; right: -6px; top: -16px;/.test(css));

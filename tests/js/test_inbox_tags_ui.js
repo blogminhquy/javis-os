@@ -10,6 +10,7 @@
  */
 "use strict";
 const fs = require("fs");
+const { napTruoc, coNap } = require("./_thu_tu_nap");   // load order that understands lazy groups (0.417.0)
 const path = require("path");
 const vm = require("vm");
 
@@ -91,8 +92,7 @@ const F = win.JavisConvFilters;
   check("CSS: width var and handle on wide screens only; the strip shows initials", /\.ht-listcol \{ width: var\(--ht-list-w, 320px\)/.test(CSS) &&
     /\.ht-listcol > \.col-resize \{ display: block;/.test(CSS) && /\.ht-mini \.ht-item-ava \{/.test(CSS) &&
     CSS.indexOf("@media (min-width: 901px) {\n  .ht-listcol { width: var(--ht-list-w") > 0);
-  check("index.html loads col-resize.js before conversations.js", HTML.indexOf("/static/col-resize.js") > 0 &&
-    HTML.indexOf("/static/col-resize.js") < HTML.indexOf("/static/conversations.js"));
+  check("index.html loads col-resize.js before conversations.js", napTruoc("col-resize.js", "conversations.js", HTML));
 
   // ---- 4. text rules ----
   const keys = new Set();

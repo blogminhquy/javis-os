@@ -4,6 +4,7 @@
 //     node tests/js/test_team_tags_ui.js
 "use strict";
 const fs = require("fs");
+const { napTruoc, coNap } = require("./_thu_tu_nap");   // load order that understands lazy groups (0.417.0)
 const path = require("path");
 const root = path.join(__dirname, "..", "..");
 const read = (f) => fs.readFileSync(path.join(root, "dashboard", f), "utf8");
@@ -35,8 +36,7 @@ check("the Teams page uses the same module and the shared dropdown (JavisChatSid
   src.includes("TP.barHtml({") && src.includes("picker.pickerHtml(tagPickRows(") && src.includes("TP.bind(m, {") &&
   src.includes("cs.menu(t, tagMenuRows(") && !src.includes("tm-tagf") && !src.includes("tm-tag-input"));
 check("tag-picker.js loads before workspace.js and teams.js",
-  (() => { const ix = read("index.html"); const a = ix.indexOf("/static/tag-picker.js"), b = ix.indexOf("/static/workspace.js"),
-    c = ix.indexOf("/static/teams.js"); return a > 0 && a < b && a < c; })());
+  napTruoc("tag-picker.js", ["workspace.js", "teams.js"], read("index.html")));
 
 const tags = TM.allTags(teams);
 check("allTags: one entry per tag (case folded key), with how many teams carry it, sorted",

@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.417.0] - 2026-10-30
+### Improved
+- **Javis opens faster, phase 2: first load on a phone over 4G from 5.1 to about 4.7 seconds.** The code of the large pages (Teams, Conversations, Chatbot, Javis Store, Usage, Webhooks, Agent jobs) no longer loads when the app opens. The main screen and the chat show first, the rest loads quietly right after, so by the time you tap another page it is ready. Opening the app straight onto a page loads just what that page needs.
+
+### Fixed
+- **A flaky server no longer breaks the interface.** While the server restarts or the connection drops for a moment, Javis retries for about 10 seconds and shows a small **Reconnecting to the server…** line at the top, which hides itself once connected. Before, each of these showed cryptic errors such as "The string did not match the expected pattern". Javis only retries reading data, never re-sends a save or a message.
+
 ## [0.416.0] - 2026-10-30
 ### Improved
 - **Javis opens faster: first visit from 6.3 to 5.1 seconds, later visits from 1.55 to 1.37 seconds.** Measured on a simulated phone over 4G. 35% less to download when the app opens (1.7 MB down to 1.1 MB):

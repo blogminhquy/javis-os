@@ -3,6 +3,7 @@
 //     node tests/js/test_msg_press.js
 "use strict";
 const fs = require("fs");
+const { napTruoc, coNap } = require("./_thu_tu_nap");   // load order that understands lazy groups (0.417.0)
 const path = require("path");
 const D = path.join(__dirname, "..", "..", "dashboard");
 const MP = require(path.join(D, "msg-press.js"));
@@ -108,7 +109,7 @@ check("CSS: the free copy is selectable with the phone's callout and scrolls whe
 check("iPhone: turning the phone sideways and back does not leave the text bigger (text-size-adjust)",
   /html \{[^}]*-webkit-text-size-adjust: 100%;\s*text-size-adjust: 100%;/.test(css));
 check("index.html loads msg-press.js before chat-reactions.js and teams.js", pos("msg-press.js?v=") > 0
-  && pos("msg-press.js") < pos("chat-reactions.js") && pos("msg-press.js") < pos("teams.js"));
+  && napTruoc("msg-press.js", ["chat-reactions.js", "teams.js"]));
 // 0.266.0 (owner, iPhone): in the main chat the dimmed Reply / Copy card made copying harder. Holding the text is the
 // phone's own selection and Copy again; only the reaction corner opens the emoji row there. Teams keeps the full menu.
 check("main chat: only the reaction corner opens the menu, no action card, messages selectable with the phone's callout",
