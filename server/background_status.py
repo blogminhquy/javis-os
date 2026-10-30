@@ -131,7 +131,7 @@ def promise_note(orchestration: str = "") -> str:
     if orchestration and orchestration != "auto":
         lines.append(localefmt.chu(
             "Lưu ý thêm: việc nền của brain này chưa tự chạy, có giao thì cũng nằm chờ. Bật "
-            "\"AI tự vận hành\" ở trang Việc nếu muốn nó chạy một mình.",
+            "\"AI tự vận hành\" ở trang Nhiệm vụ nếu muốn nó chạy một mình.",
             "Also note: background work in this brain does not run on its own yet, so queued work "
             "just waits. Turn on \"AI self-driving\" on the Tasks page to let it run by itself."
         ))

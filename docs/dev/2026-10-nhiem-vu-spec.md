@@ -110,14 +110,85 @@ Mỗi phần là một phiên bản riêng, CI xanh mới gộp.
 
 ## 8. Dữ liệu và máy chủ
 
-(Điền ở mục 10 sau khi đọc code hiện có.)
+### 8.1 Tab Javis làm (Phần 1) đọc dữ liệu ĐANG CÓ, không thêm kho mới
+
+Trang gọi song song rồi gộp ở trình duyệt (hàm thuần trong `dashboard/tasks.js`, test được bằng node):
+
+| Nguồn | Endpoint | Thành gì trên trang |
+|---|---|---|
+| Việc Kanban | `GET /kanban?brain` (`server/tasks.py`) | việc một lần của Javis; trạng thái running, blocked, review, done, cancelled |
+| Lời nhắc và loop | `GET /viec/all` (`server/main.py`) | lời nhắc lặp và loop vào **Lặp lại**; lần tới vào Hôm nay, Sắp tới |
+| Lịch sử lời nhắc | `GET /reminders?brain` (`history`) | lời nhắc một lần đã chạy vào **Đã xong**, cái lỗi vào **Chạy lỗi** |
+| Theo dõi trang | `GET /watch?brain` (`server/web_watch.py`) | vào **Lặp lại** như một việc lặp của Javis (không còn tab riêng) |
+| Sự cố | `GET /incidents` | **Chạy lỗi** (đang dừng hoặc sắp lỗi) |
+| Nhật ký loop | `GET /loops/log` | **Nhật ký** |
+| Trợ lý | `GET /agents?system=1` | cột Trợ lý; việc Kanban gắn trợ lý qua `metadata.agent.slug` |
+
+Chỉ hiện brain đang chọn (`fbrain()`), như trang Kanban cũ. Trang tự làm mới mỗi 5 giây khi có việc
+đang chạy, 30 giây khi không, bỏ qua khi tab trình duyệt đang ẩn.
+
+Thao tác dùng endpoint có sẵn:
+- Việc Kanban: chạy `/kanban/run`, dừng hoặc huỷ `/kanban/task/cancel`, xoá `/kanban/task/delete`,
+  trả lời `/kanban/task/answer`, duyệt `/kanban/task/move` (done), cấp quyền `/kanban/task/grant`,
+  thêm `/kanban/task`, bật tắt AI tự vận hành `/kanban/orchestration`.
+- Loop: bật tắt `/loops/toggle`, chạy ngay `/loops/run-now`, dừng `/loops/stop` (mỗi lúc chỉ một loop
+  chạy nên dừng chung là dừng đúng nó), xoá, chuyển brain `/loops/move`.
+- Lời nhắc: sửa `/reminders/update`, huỷ `/reminders/cancel`, xoá, chuyển brain `/reminders/move`.
+- Theo dõi trang: `/watch/action` (pause, resume, check_now, delete).
+
+Endpoint MỚI cho lời nhắc (Phần 1, `server/reminders.py`), vì lời nhắc chưa có chạy ngay, dừng,
+tạm dừng, bỏ qua:
+- `POST /reminders/run-now` (id, brain): chạy ngay ở nền, lịch lặp tính lại từ lúc chạy.
+- `POST /reminders/stop` (id, brain): ngắt đúng lần đang chạy (engine gắn tag `reminder:<id>`).
+  Lần bị dừng không thử lại, không gửi kết quả; lời nhắc lặp giữ lịch, lời nhắc một lần thành huỷ.
+- `POST /reminders/pause` (id, brain, paused=1|0): trạng thái `paused` thì không chạy. Bật lại thì
+  lần tới tính lại từ bây giờ.
+- `POST /reminders/skip` (id, brain): bỏ qua lần tới, dời sang lần kế tiếp của lịch.
+- View lời nhắc thêm `running` (đang chạy). `/viec/all` trả cả lời nhắc `paused`.
+
+### 8.2 Việc của tôi (Phần 2)
+
+Kho mới theo brain: `<brain>/Javis/my-tasks.json`, module `server/my_tasks.py`, router `/my-tasks`.
+
+```
+{ "tasks": [ { "id": "m_...", "kind": "task" | "appt", "title": "...", "notes": "...",
+               "date": "YYYY-MM-DD" | null, "time": "HH:MM" | "", "end": "HH:MM" | "",
+               "repeat": null | {unit, n, days, md, time}, "project": "<id>" | "",
+               "status": "open" | "done" | "cancelled", "done_at": epoch,
+               "done_dates": { "YYYY-MM-DD": {"at": epoch, "by": "me" | "javis"} },
+               "subs": [ {"t": "...", "done": false} ], "remind": "15", "location": "",
+               "habit": null | {"start": "YYYY-MM-DD", "remind": "auto"|"time"|"off", "at": "HH:MM"},
+               "created_at": epoch, "updated_at": epoch } ],
+  "projects": [ {"id": "p_...", "name": "...", "color": "#...", "pinned": false, "order": 0} ],
+  "rev": 1 }
+```
+
+- Việc lặp lưu MỘT bản ghi; mỗi lần xong ghi vào `done_dates`. Lần lặp gần nhất bị lỡ tính ra từ
+  lịch và `done_dates`, không lưu riêng.
+- Giao cho Javis: tạo việc Kanban (hoặc lời nhắc nếu có giờ) bằng chữ của việc rồi xoá bản của tôi.
+  Chuyển cho tôi: ngược lại.
+- Chuyển hoặc nhân bản brain: ghi đích trước, xoá nguồn sau (như lời nhắc).
+
+### 8.3 Thói quen (Phần 3)
+
+Không có kho riêng: thói quen là việc của tôi có `habit`. Chuỗi, đóng băng, ngày nghỉ, giờ hay làm
+(trung vị giờ trong `done_dates`) đều tính ra từ lịch lặp và `done_dates` (hàm thuần, test được).
+
+### 8.4 Phần thông minh (Phần 4)
+
+- Lịch hẹn: `kind: "appt"`. "Nhờ Javis chuẩn bị trước" tạo một lời nhắc mode task trước giờ hẹn 30 phút.
+- Tool cho mọi engine (plugin hệ thống, như `javis-task`): thêm việc của tôi, liệt kê, tích xong
+  (thói quen ghi `by: "javis"`). Chỉ tích khi người dùng nói rõ đã xong.
+- Lời nhắn thói quen: mỗi ngày Core viết một lượt cho từng thói quen (một lần gọi model cho cả
+  danh sách), lưu cùng kho; trang đọc bản đã lưu, thiếu thì dùng câu mẫu.
 
 ## 9. Chia phần
 
 1. **Phần 1, 0.422.0:** trang Nhiệm vụ với tab **Javis làm** chạy trên dữ liệu đang có (việc
-   Kanban, lời nhắc, loop): danh sách thông minh, trợ lý, chạy ngay và dừng, hoàn tác, Chạy lỗi,
-   Nhật ký, menu ⋯, bật tắt "AI tự vận hành", form + cho việc Javis. Đổi nav, bỏ bản tin sáng.
-   Tab Của tôi hiện trống với nút thêm, chưa lưu.
+   Kanban, lời nhắc, loop, theo dõi trang): danh sách thông minh, trợ lý, chạy ngay và dừng, hoàn
+   tác, Chạy lỗi, Nhật ký, menu ⋯, bật tắt "AI tự vận hành", form + cho việc Javis. Đổi nav (hai
+   id cũ `kanban`, `selfimprove` thành bí danh của trang mới), bỏ bản tin sáng. Tab Của tôi chưa
+   hiện tới Phần 2 (không để một tab bấm vào mà không lưu được gì).
 2. **Phần 2:** tab **Của tôi**: kho việc cá nhân theo brain, dự án, chọn ngày và lặp, quá hạn có
    lần lặp bị lỡ, giao qua lại giữa tôi và Javis, chuyển brain.
 3. **Phần 3:** **Thói quen**: chuỗi theo ngày có lịch, lịch tháng, ô số, ngôi sao với câu mẫu,

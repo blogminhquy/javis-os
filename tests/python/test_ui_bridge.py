@@ -90,7 +90,8 @@ async def main():
         "javis_ui_plugin", ROOT / "system" / "plugins" / "javis-ui" / "plugin.py")
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
-    check("resolve_page: bí danh 'việc' -> kanban", m.resolve_page("việc") == "kanban")
+    check("resolve_page: alias 'việc' -> tasks (0.422.0)", m.resolve_page("việc") == "tasks")
+    check("resolve_page: old ids kanban/selfimprove -> tasks", m.resolve_page("kanban") == "tasks" and m.resolve_page("selfimprove") == "tasks")
     check("resolve_page: 'trang Cài đặt' -> settings", m.resolve_page("trang Cài đặt") == "settings")
     check("resolve_page: id chuẩn giữ nguyên", m.resolve_page("models") == "models")
     check("resolve_page: lạ -> rỗng", m.resolve_page("trang lạ hoắc") == "")
@@ -132,7 +133,7 @@ async def main():
     rt2 = ChatRuntime()
     ui_bridge.attach(rt2)
     out = await m._ui({"action": "open_page", "target": "trang lạ"}, None)
-    check("handler: trang lạ -> ERROR nêu trang hợp lệ", out.startswith("ERROR") and "kanban" in out)
+    check("handler: trang lạ -> ERROR nêu trang hợp lệ", out.startswith("ERROR") and "tasks" in out)
     out = await m._ui({"action": "open_page", "target": "việc"}, None)
     check("handler: không tab -> ERROR không có dashboard", out.startswith("ERROR") and "dashboard" in out)
 
@@ -142,7 +143,7 @@ async def main():
             ui_bridge.resolve(ev["id"], True, "")
     rt2.add_client("x", w)
     out = await m._ui({"action": "open_page", "target": "việc", "session_id": "web:s1"}, None)
-    check("handler: thành công nói 'Đã mở trang kanban'", out.startswith("[done] Đã mở trang kanban"))
+    check("handler: success says it opened the tasks page", out.startswith("[done] Đã mở trang tasks"))
 
     # Câu thuật lại phải lấy từ thứ dashboard THẬT SỰ cuộn, không đoán "khung chat" như trước:
     # model đọc câu này rồi nói lại cho người dùng, đoán sai là nói sai.

@@ -13010,7 +13010,7 @@ async def viec_all():
             loops = []
         try:
             rems = []
-            for v in reminders_feature.pending_views(path):
+            for v in reminders_feature.live_views(path):
                 v["brain_name"], v["brain_path"] = name, path
                 rems.append(v)
         except Exception:

@@ -19,14 +19,16 @@ import unicodedata
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
-    "terminal", "coding", "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins",
+    "terminal", "coding", "tasks", "webhooks", "learn", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "logins", "pet", "share",
 )
 
 # Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra, nên viết
 # khoá ở đây KHÔNG DẤU. Nhãn tiếng Việt đang hiện trên thanh bên phải có mặt trong bảng này.
 ALIASES = {
-    "viec": "kanban", "cong viec": "kanban", "bang viec": "kanban", "task": "kanban", "tasks": "kanban",
+    # 0.422.0: Kanban and Scheduled became the Tasks page ("Nhiem vu"); the old ids stay as aliases.
+    "viec": "tasks", "cong viec": "tasks", "bang viec": "tasks", "task": "tasks", "tasks": "tasks",
+    "nhiem vu": "tasks", "kanban": "tasks", "selfimprove": "tasks", "lap lai": "tasks", "thoi quen": "tasks",
     "tep": "files", "tep tin": "files", "file": "files", "thu muc": "files", "brain": "files",
     "cai dat": "settings", "setting": "settings", "thiet lap": "settings",
     "mo hinh": "models", "model": "models", "bo nao": "models", "engine": "models",
@@ -39,8 +41,8 @@ ALIASES = {
     "linh vat": "pet", "mascot": "pet", "con pet": "pet", "pet": "pet", "thu cung": "pet",
     "chia se": "share", "share": "share", "link chia se": "share", "duong link": "share",
     "shared links": "share", "quan ly chia se": "share",
-    "tu hoc": "selfimprove", "self improve": "selfimprove", "hoc": "learn",
-    "viec dinh ky": "selfimprove", "nhac hen": "selfimprove",
+    "tu hoc": "tasks", "self improve": "tasks", "hoc": "learn",
+    "viec dinh ky": "tasks", "nhac hen": "tasks",
     "webhook": "webhooks", "webhooks": "webhooks", "hook": "webhooks",
     "kho dang nhap": "logins", "dang nhap": "logins", "cookie": "logins", "cookies": "logins",
     "logins": "logins", "login vault": "logins", "tai khoan dang nhap": "logins",

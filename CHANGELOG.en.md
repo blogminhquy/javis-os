@@ -10,7 +10,11 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.422.0] - 2026-10-30
 ### Added
-- In progress: the **Tasks** page merges Kanban and Recurring work.
+- **The Tasks page replaces Kanban and Scheduled.** The Work group now holds Tasks and Webhooks. What Javis does, reminders, loops and page watches sit in one place, split into lists: Today, Upcoming, Overdue, Recurring, Run errors, Done, Log, and one per assistant.
+- **Reminders can run now, stop, pause and skip their next run.** Press ▶ to run at once. While it runs the button turns into ■; pressed by mistake, press again to stop it, and the schedule stays.
+- **Delete, cancel and pause all have Undo** for a few seconds.
+### Improved
+- **The Morning brief button and template are gone.** For a brief, ask Javis for a reminder like any other job.
 
 ## [0.421.0] - 2026-10-30
 ### Fixed

@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.422.0] - 2026-10-30
 ### Thêm mới
-- Đang làm: trang **Nhiệm vụ** gộp Kanban và Việc định kỳ.
+- **Trang Nhiệm vụ thay cho Kanban và Việc định kỳ.** Nhóm Việc giờ chỉ còn Nhiệm vụ và Webhook. Việc Javis làm, lời nhắc, loop và theo dõi trang nằm chung một chỗ, chia theo danh sách: Hôm nay, Sắp tới, Quá hạn, Lặp lại, Chạy lỗi, Đã xong, Nhật ký, và theo từng trợ lý.
+- **Lời nhắc chạy ngay, dừng, tạm dừng, bỏ qua lần tới được.** Bấm ▶ là chạy luôn không đợi tới giờ. Đang chạy thì nút thành ■, bấm nhầm là bấm lại để ngắt ngay, lịch lặp giữ nguyên.
+- **Xoá, huỷ, tạm dừng đều có Hoàn tác** trong vài giây.
+### Cải thiện
+- **Bỏ nút và mẫu Bản tin buổi sáng.** Muốn có bản tin thì nhờ Javis tạo một lời nhắc như mọi việc khác.
 
 ## [0.421.0] - 2026-10-30
 ### Sửa lỗi
