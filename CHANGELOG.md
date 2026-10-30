@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.420.1] - 2026-10-30
+### Sửa lỗi
+- **Thêm tài khoản ChatGPT sau khi tài khoản cũ hết lượt là chat được ngay.** Trước đây nếu tài khoản 1 hết lượt lúc thẻ ChatGPT mới có một tài khoản, Javis coi cả thẻ là hết lượt tới giờ mở lại, nên tài khoản vừa thêm vẫn bị bỏ qua và chat rơi sang thẻ dự phòng, có máy báo "Not logged in". Giờ có tài khoản nào đăng nhập và đang bật là lượt chat kế chạy bằng nó luôn. Grok Build và Claude Code nhiều tài khoản cũng được sửa như vậy.
+
 ## [0.420.0] - 2026-10-30
 ### Cải thiện
 - **Trang Kỹ năng trên điện thoại: chọn nhóm bằng một ô thả xuống.** Hàng nút nhóm (Tất cả, AI, Bán hàng...) cũ chạy tràn khỏi màn hình khi có nhiều nhóm. Giờ chỉ còn một ô **Nhóm** ghi rõ số kỹ năng trong từng nhóm, bấm vào là chọn. Trang Cộng sự (lọc theo tag) và Quy trình cũng đổi giống vậy. Trên máy tính vẫn là cột nhóm bên trái như cũ.
