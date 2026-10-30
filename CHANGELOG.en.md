@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.410.0] - 2026-10-30
+### Fixed
+- **A background job that ran out of plan usage is no longer marked Done.** (in progress)
+
 ## [0.409.0] - 2026-10-30
 ### Fixed
 - **Phone dictation: X and stop respond again.** The first recording worked, after that neither X nor the stop square did anything and the timer ran on. Main cause: stopping put the cursor in the text box, so the keyboard came up; on the next recording the iPhone dropped the keyboard but left the page shifted, and a tap on X landed on the text box (the "AutoFill" bubble) instead of the button. Now the box lets go of the cursor while recording, stopping does not bring up the keyboard (tap the box to edit), and the page settles back when the keyboard goes down.
