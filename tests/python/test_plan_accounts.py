@@ -184,6 +184,32 @@ check("next route after account 1 runs out: account 2 of the same card",
 R.clear_rest("openai-oauth", "main")
 main._PIN_LIMITED.clear()
 
+# ---- 6c. account 1 ran out while it was the only one, then an account was added (0.420.1) ---------------------
+s = cfgmod.read_settings()
+s["model"]["accounts"] = {"openai-oauth": [{"id": "main", "label": "", "enabled": True}]}
+cfgmod.write_settings(s)
+mcfg = cfgmod.read_settings()["model"]
+main._plan_account_apply(FakeCodex(), "openai-oauth", mcfg)
+main._note_pin_limit("codex", account="main")
+check("only one account and it ran out: the plan is out of quota",
+      main._pin_limited_until("openai-oauth") > 0 and not main._route_ready(mcfg, "openai-oauth"))
+s = cfgmod.read_settings()
+s["model"]["accounts"] = {"openai-oauth": [{"id": "acc_b", "label": "Thach", "enabled": False},
+                                           {"id": "main", "label": "", "enabled": True}]}
+cfgmod.write_settings(s)
+mcfg = cfgmod.read_settings()["model"]
+check("an added account switched off does not lift the out-of-quota state",
+      main._pin_limited_until("openai-oauth") > 0 and not main._route_ready(mcfg, "openai-oauth"))
+s["model"]["accounts"]["openai-oauth"][0]["enabled"] = True
+cfgmod.write_settings(s)
+mcfg = cfgmod.read_settings()["model"]
+check("a signed-in account added after the plan ran out lifts the out-of-quota state",
+      not main._pin_limited_until("openai-oauth") and main._route_ready(mcfg, "openai-oauth"))
+check("the chat turn runs on the added account",
+      main._plan_account_apply(FakeCodex(), "openai-oauth", mcfg) == "acc_b")
+R.clear_rest("openai-oauth", "main")
+main._PIN_LIMITED.clear()
+
 import aux_engine  # noqa: E402
 e = P.use(FakeCodex(), "openai-oauth", "acc_b")
 aux_engine._FallbackChain._rest(e, "model_not_found: gpt-x is not available on this plan")

@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.420.1] - 2026-10-30
 ### Sửa lỗi
-- Đang viết.
+- **Thêm tài khoản ChatGPT sau khi tài khoản cũ hết lượt là chat được ngay.** Trước đây nếu tài khoản 1 hết lượt lúc thẻ ChatGPT mới có một tài khoản, Javis coi cả thẻ là hết lượt tới giờ mở lại, nên tài khoản vừa thêm vẫn bị bỏ qua và chat rơi sang thẻ dự phòng, có máy báo "Not logged in". Giờ có tài khoản nào đăng nhập và đang bật là lượt chat kế chạy bằng nó luôn. Grok Build và Claude Code nhiều tài khoản cũng được sửa như vậy.
 
 ## [0.420.0] - 2026-10-30
 ### Cải thiện

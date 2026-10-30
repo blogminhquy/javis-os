@@ -2851,9 +2851,25 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_a
 
 
 def _pin_limited_until(provider: str, now: float = None) -> float:
-    """Epoch until which `provider` is out of quota for pinned chats, 0 when it is usable."""
-    until = float(_PIN_LIMITED.get(str(provider or ""), 0) or 0)
-    return until if until > (time.time() if now is None else now) else 0.0
+    """Epoch until which `provider` is out of quota for pinned chats, 0 when it is usable.
+
+    0.420.1: the mark is set when no account of a plan could run. An account signed in or switched on since then
+    (the owner adds one right after account 1 runs out) lifts it at once instead of at account 1's reset time;
+    before, every chat kept skipping the plan card and landed on a backup card that was not signed in."""
+    prov = str(provider or "")
+    now = time.time() if now is None else now
+    until = float(_PIN_LIMITED.get(prov, 0) or 0)
+    if until <= now:
+        return 0.0
+    try:
+        if plan_accounts.in_use(prov):
+            m = cfgmod.read_settings().get("model") or {}
+            if plan_accounts.has_extra(m, prov) and plan_accounts.usable(m, prov, now):
+                _PIN_LIMITED.pop(prov, None)
+                return 0.0
+    except Exception as e:  # noqa: BLE001 - keep the mark when the account list cannot be read
+        print(f"[plan accounts] pin {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+    return until
 
 
 def _chat_provider_for_session(mcfg, row):
