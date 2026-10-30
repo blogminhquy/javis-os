@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.421.0] - 2026-10-30
+### Fixed
+- (in progress)
+
 ## [0.420.2] - 2026-10-30
 ### Fixed
 - **Disconnecting and signing in as another account on the ChatGPT, Grok Build or Claude Code card lets you chat right away.** Before, when the old account ran out of quota, its "out of quota" mark stayed on the card after you signed in a new account as account 1, even across a Javis restart, so chat was sent to a backup card until the old account's reset time. Signing in now clears that mark.
