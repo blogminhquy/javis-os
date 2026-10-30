@@ -110,8 +110,9 @@ check("snapshot .pre-0.140.0 và bản giữ lại .post-0.140.0-* của ba kho 
 # Review tích hợp 0.140.0: bí danh "nhom" trơn của trang Nhóm khớp cụm con nên cướp các câu nói về NHÓM thanh bên ("nhóm
 # việc", "nhóm code"...). Kết quả của những câu đó phải giữ như 0.139.0; chỉ câu gọi đúng trang Nhóm mới ra trang Nhóm.
 import ui_targets  # noqa: E402
-same_as_0137 = {"nhóm việc": "kanban", "nhóm code": "terminal", "mở nhóm trợ lý": "workspace", "nhóm hệ thống": "",
-                "nhóm kết nối": "mcp", "nhóm bộ não": "models", "mở cộng sự": "workspace", "trang việc": "kanban"}
+# 0.422.0: Kanban became the Tasks page, so "việc" now lands on "tasks" (same place, new id).
+same_as_0137 = {"nhóm việc": "tasks", "nhóm code": "terminal", "mở nhóm trợ lý": "workspace", "nhóm hệ thống": "",
+                "nhóm kết nối": "mcp", "nhóm bộ não": "models", "mở cộng sự": "workspace", "trang việc": "tasks"}
 got = {s: ui_targets.resolve_page(s) for s in same_as_0137}
 check("giọng nói: câu nói về nhóm thanh bên giữ đúng trang như 0.139.0", got == same_as_0137,
       {s: (got[s], same_as_0137[s]) for s in got if got[s] != same_as_0137[s]})
