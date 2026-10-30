@@ -49,6 +49,7 @@ Thanh điều hướng của dashboard gom **19 trang** thành **5 nhóm**: Bộ
 ### Bộ não & dữ liệu
 - [13 - Second Brain: bộ nhớ, Wiki, INGEST](13-second-brain-bo-nho-wiki.md) - đa brain, bộ nhớ sống, tiêu hoá tri thức.
 - [34 - GitHub ngay trong khung chat](34-github-trong-chat.md) - gắn repo vào cuộc trò chuyện, Javis tự kiểm tra, đẩy lên, mở PR, theo dõi CI, sửa khi đỏ và merge khi xanh.
+- [35 - Zalo OA](35-zalo-oa.md) - đặt bot khách hàng trả lời hộp thư Zalo Official Account (API chính thức OA v3, cần tên miền HTTPS).
 - [18 - Sao lưu brain lên GitHub](18-sao-luu-github.md) - đồng bộ 2 chiều lên repo riêng, khôi phục khi mất máy/VPS.
 - [19 - Task & Dataview trong note](19-task-va-dataview.md) - tick checkbox tự lưu kiểu Obsidian, khối ```dataview chạy thật.
 

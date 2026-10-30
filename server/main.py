@@ -149,6 +149,7 @@ import owner_channels   # owner's control channels on Slack and WhatsApp (0.71.0
 import whatsapp_bot     # WhatsApp transport + webhook router (0.71.0)
 import messenger_bot    # Messenger transport + webhook router (0.134.0)
 import messenger_setup  # Messenger connect wizard and health check (0.311.0)
+import zalo_oa_bot      # Zalo OA transport + webhook router (0.412.0)
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
@@ -280,7 +281,10 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       "/whatsapp/webhook",
                       # /messenger/webhook (0.134.0): same contract as WhatsApp, the signature is
                       # checked in the route under the app secrets of the Messenger accounts.
-                      "/messenger/webhook")
+                      "/messenger/webhook",
+                      # /zalo-oa/webhook (0.412.0): Zalo calls it with no cookie; the route checks
+                      # X-ZEvent-Signature under the OA secret keys of the Zalo OA accounts.
+                      "/zalo-oa/webhook")
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
 # cookie đăng nhập; request từ ngoài (qua Traefik/Caddy/LAN) đến từ IP khác loopback → vẫn bị chặn.
 # /reminders/cancel đi cùng nhóm với /reminders (TẠO nhắc): huỷ là thao tác YẾU HƠN tạo, nên
@@ -355,6 +359,9 @@ async def _auth_guard(request: Request, call_next):
         public = (path in _AUTH_PUBLIC_EXACT
                   or any(path.startswith(p) for p in _AUTH_PUBLIC_PREFIX)
                   or (path in _AUTH_LOCAL_EXACT and _direct_local_request(request))
+                  # Zalo's domain check fetches /zalo_verifier<code>.html (0.412.0). The route answers
+                  # only codes the owner saved and 404s everything else, so nothing leaks.
+                  or (path.startswith("/zalo_verifier") and path.endswith(".html") and "/" not in path[1:])
                   # Đường HTTP của plugin mà CHÍNH plugin khai là công khai (0.64.26). Chỉ hỏi
                   # khi đúng tiền tố, để request thường không phải đi tra danh sách plugin.
                   or ((path.startswith("/ext/") or path.startswith("/.well-known/"))
@@ -24615,8 +24622,13 @@ def _ms_account_secrets() -> list:
 @app.get("/channels/webhook-info")
 async def channels_webhook_info(request: Request, channel: str = ""):
     """Address and verify token to paste into the platform for a channel that receives messages
-    by webhook (Messenger). Shown on the Add account form; the verify token is not a secret."""
-    if str(channel or "").strip().lower() != "messenger":
+    by webhook (Messenger, Zalo OA). Shown on the Add account form; the verify token is not a secret."""
+    kenh = str(channel or "").strip().lower()
+    if kenh == "zalo_oa":
+        url = _zo_webhook_url(request)
+        return {"ok": True, "webhook_url": url, "verify_token": "", "https": url.startswith("https://"),
+                "site_verify": True, "site_codes": _zo_site_codes()}
+    if kenh != "messenger":
         return JSONResponse({"ok": False, "error": localefmt.chu("Kênh này không dùng webhook",
                                                                  "This channel does not use a webhook")},
                             status_code=400)
@@ -24777,6 +24789,86 @@ async def messenger_check(request: Request):
                                                app_id, url, _ms_bot_running(aid, cr["page_id"]))
     return {"ok": True, "account": _ms_account_view(channel_accounts.get_account(aid) or a),
             "check": chk, "repair_errors": errs}
+
+
+# ============================================================
+# Zalo OA (0.412.0): customer bots on a Zalo Official Account. Zalo calls one webhook for every
+# OA; `zalo_oa_bot.handle_webhook` routes by OA id. No owner control channel here.
+# ============================================================
+def _zo_webhook_url(request: Request) -> str:
+    base = web_security.external_base(
+        request.url.scheme, request.url.netloc,
+        request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
+    return base + "/zalo-oa/webhook"
+
+
+def _zo_site_codes() -> list:
+    z = cfgmod.read_settings().get("zalo_oa", {}) or {}
+    return [str(c) for c in (z.get("site_codes") or []) if str(c or "").strip()]
+
+
+def _zo_account_secrets() -> list:
+    """(App ID, OA secret key) of every Zalo OA account, for the webhook signature check."""
+    out = []
+    try:
+        for a in channel_accounts.list_accounts(channel="zalo_oa"):
+            cr = zalo_oa_bot.split_credentials(channel_accounts.get_token(a.get("id", "")))
+            if cr.get("oa_secret"):
+                out.append((cr.get("app_id", ""), cr["oa_secret"]))
+    except Exception as e:
+        print(f"[zalo_oa secrets] {type(e).__name__}: {e}", file=sys.stderr)
+    return out
+
+
+@app.post("/zalo-oa/webhook")
+async def zalo_oa_webhook(request: Request):
+    """Inbound Zalo OA events. Public URL, so nothing is trusted before the signature check; a
+    request no known OA secret key signed is dropped with 401 and never handed to a bot."""
+    raw = await request.body()
+    if len(raw) > 2_000_000:
+        return PlainTextResponse("too large", status_code=413)
+    sig = request.headers.get("x-zevent-signature", "") or request.headers.get("mac", "")
+    if not zalo_oa_bot.verify_signature(raw, sig, _zo_account_secrets()):
+        return PlainTextResponse("bad signature", status_code=401)
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except Exception:
+        return PlainTextResponse("bad json", status_code=400)
+    # Answer 200 right away (Zalo wants it within about 2 seconds and retries otherwise); the
+    # events run as tasks.
+    n = await zalo_oa_bot.handle_webhook(payload if isinstance(payload, dict) else {})
+    return {"ok": True, "events": n}
+
+
+@app.post("/zalo-oa/site-verification")
+async def zalo_oa_site_verification(request: Request):
+    """Save the domain verification code Zalo shows (file name, meta tag or bare code), so that
+    /zalo_verifier<code>.html answers and the owner can press Verify on developers.zalo.me.
+    `remove: true` forgets it."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    code = zalo_oa_bot.parse_site_code(body.get("code"))
+    if not code:
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            "Không đọc được mã xác thực. Dán tên file zalo_verifier...html, thẻ meta hoặc chính mã đó.",
+            "Could not read a verification code. Paste the zalo_verifier...html file name, the meta tag or the code itself.")},
+            status_code=400)
+    codes = [c for c in _zo_site_codes() if c != code]
+    if not body.get("remove"):
+        codes = ([code] + codes)[:10]
+    cfgmod.update_settings({"zalo_oa": {"site_codes": codes}})
+    return {"ok": True, "code": code, "site_codes": codes,
+            "file": f"/zalo_verifier{code}.html"}
+
+
+@app.get("/zalo_verifier{code}.html")
+async def zalo_oa_verifier_file(code: str):
+    """The file Zalo fetches to verify the webhook domain. Only codes the owner saved exist."""
+    if code not in _zo_site_codes():
+        return PlainTextResponse("not found", status_code=404)
+    return HTMLResponse(zalo_oa_bot.verifier_html(code))
 
 
 def restart_telegram():

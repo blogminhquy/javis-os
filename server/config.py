@@ -233,6 +233,9 @@ _DEFAULT = {
     # Messenger (0.134.0): customer bots only, credentials live in the channel-account store.
     # This holds just the handshake string Meta echoes when the webhook is set up (generated).
     "messenger": {"verify_token": ""},
+    # Zalo OA (0.412.0): customer bots only, credentials live in the channel-account store. This
+    # holds the domain verification codes Zalo gives (served as /zalo_verifier<code>.html).
+    "zalo_oa": {"site_codes": []},
     "discord": {"enabled": False, "bot_token": "", "allow": ""},
     "lark": {"enabled": False, "app_id": "", "app_secret": "", "domain": "lark", "allow": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).

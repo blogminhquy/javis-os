@@ -30,9 +30,9 @@ Ba LOẠI kênh (`kind`), khác nhau ở cách có tài khoản chứ không ở
                `channel_accounts`, long-poll bằng `Transport`.
     account  - tài khoản là một PHIÊN đăng nhập sẵn có ở nơi khác (Zalo cá nhân qua MCP). Module
                tự liệt kê qua `tai_khoan()`, có công tắc ghi.
-    webhook  - nền tảng GỌI NGƯỢC vào Javis (Zalo OA: chưa có, chừa chỗ). WhatsApp và Messenger cũng
-               nhận tin qua webhook nhưng khai kind "bot": tài khoản vẫn là token lưu ở kho tài khoản,
-               module khai thêm `WEBHOOK_PATH` để form thêm tài khoản hiện địa chỉ cần dán sang Meta.
+    webhook  - nền tảng GỌI NGƯỢC vào Javis (chừa chỗ, chưa kênh nào dùng). WhatsApp, Messenger và Zalo OA
+               (0.412.0) cũng nhận tin qua webhook nhưng khai kind "bot": tài khoản vẫn là token lưu ở kho tài
+               khoản, module khai thêm `WEBHOOK_PATH` để form thêm tài khoản hiện địa chỉ cần dán sang nền tảng.
 
 Thêm một kênh = thêm một file ở đây + một dòng trong `_MODULES` + một logo trong icons.js.
 Không sửa gì khác.
@@ -81,7 +81,7 @@ class KenhSpec:
 
 # Thứ tự ở đây là thứ tự hiện trên giao diện. KHÔNG có kênh nào "chính": Zalo đứng đầu vì
 # khách Việt Nam dùng nhiều nhất, không phải vì nó được ưu ái trong mã.
-_MODULES = ("channels.zalo_bot", "channels.zalo_personal", "channels.messenger", "channels.telegram",
+_MODULES = ("channels.zalo_bot", "channels.zalo_personal", "channels.zalo_oa", "channels.messenger", "channels.telegram",
             "channels.slack", "channels.whatsapp", "channels.lark")
 
 # Chữ tiếng Anh cho các kênh có sẵn. Để ở đây (chứ không trong từng module kênh) cho một chỗ
