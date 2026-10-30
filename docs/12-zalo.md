@@ -239,6 +239,15 @@ Bốn điều nên biết:
 
 Bot chuyên trách đứng trong nhóm Zalo thì **tự tag người nó đang trả lời**, không cần công cụ nào ở trên, xem [Chatbot](25-chatbot.md).
 
+## Chữ đậm, chữ màu và "đang soạn tin" (từ 0.413.0)
+
+Bot trả lời trên Zalo cá nhân giờ nhắn giống người thật hơn:
+
+- **Chữ đậm, nghiêng, gạch ngang và chữ màu.** Bot viết `**85.000đ**` thì khách thấy chữ đậm, không còn thấy dấu sao. Màu viết `{red:Giảm 50%}`, có `red`, `orange`, `yellow`, `green`, và `{big:...}`, `{small:...}` để đổi cỡ chữ. Dòng `- ` thành dấu `•`, tiêu đề thành một dòng đậm. Bot được dặn chỉ nhấn một hai chỗ như người thật nhắn tin.
+- **"Đang soạn tin".** Trong chat riêng, khách thấy dòng "đang soạn tin" trong lúc bot viết câu trả lời. Phần này cần javis-zalo 1.9.0 trở lên; bản cũ hơn thì bot vẫn trả lời bình thường, chỉ không hiện dòng đó. Trong nhóm không hiện, vì nhiều tin bot chọn không trả lời.
+
+Tin có định dạng đi qua lệnh `javis-zalo msg send --style`. Lệnh đó lỗi thì tin vẫn đi dưới dạng chữ thường, đã bỏ ký hiệu.
+
 ## Cách dùng trong chat
 
 Có thể nói tự nhiên:

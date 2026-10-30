@@ -19,6 +19,7 @@ from typing import Optional
 
 from channels import KenhSpec
 import localefmt
+import zalo_markup
 
 SPEC = KenhSpec(
     id="zalo_personal", nhan="Zalo cá nhân", kind="account", logo="zalo", mau="#0068FF",
@@ -87,6 +88,14 @@ NGHI_GIUA_DOAN = 1.2        # giây nghỉ giữa hai đoạn của một câu t
 # Chỗ cắt tốt theo thứ tự ưu tiên: hết đoạn văn, hết dòng, hết câu, rồi mới tới khoảng trắng.
 _CHO_CAT = (re.compile(r"\n\s*\n"), re.compile(r"\n"), re.compile(r"[.!?…:;](?=\s)"), re.compile(r"\s"))
 _TAG_STATE: dict = {}       # conn_id -> {"fails": số lần hỏng liên tiếp, "until": giờ hết nghỉ}
+# "Đang soạn tin" while the bot writes a private reply (0.413.0, owner 30/10/2026: customers should not be able to tell
+# the bot from a person). Needs the MCP tool `zalo_send_typing` (javis-zalo >= 1.9.0); an older MCP answers "tool not
+# found" and the indicator is simply skipped for TYPING_OFF seconds, the reply itself never waits on it.
+TYPING_TOOL = "zalo_send_typing"
+TYPING_DELAY = 1.5          # seconds: a turn that ends quickly (silence, takeover) never shows the indicator
+TYPING_EVERY = 4.0          # Zalo drops the indicator after a few seconds without a new event
+TYPING_OFF = 3600           # seconds without trying again once the MCP lacks the tool or refuses it
+_TYPING_OFF_UNTIL: dict = {}  # conn_id -> time the indicator may be tried again
 _UID_RE = re.compile(r"\d{3,25}")
 
 
@@ -209,11 +218,40 @@ def _tag_result(conn_id: str, ok: bool) -> None:
     st["fails"] += 1
     if st["fails"] >= TAG_FAIL_LIMIT:
         st["fails"], st["until"] = 0, time.time() + TAG_PAUSE
-        print(f"[zalo-personal] tag người hỏng {TAG_FAIL_LIMIT} lần liên tiếp, nghỉ {TAG_PAUSE // 60} phút "
-              f"(tin vẫn gửi như thường)", file=sys.stderr)
+        print(f"[zalo-personal] gửi qua CLI (tag người, định dạng) hỏng {TAG_FAIL_LIMIT} lần liên tiếp, nghỉ "
+              f"{TAG_PAUSE // 60} phút (tin vẫn gửi như thường)", file=sys.stderr)
 
 
-async def _send_tagged(conn: dict, chat_id: str, text: str, mention) -> Optional[tuple]:
+def _style_args(styles) -> list:
+    """`--style` arguments of `javis-zalo msg send` for `zalo_markup.to_zalo` styles (positions in UTF-16 units)."""
+    specs = [f"{int(a)}:{int(n)}:{name}" for a, n, name in styles or () if int(n) > 0 and name in zalo_markup.STYLE_NAMES]
+    return ["--style"] + specs if specs else []
+
+
+async def _send_styled(conn: dict, chat_id: str, text: str, loai: int, styles) -> Optional[tuple]:
+    """Send one message WITH text styles (bold, colours...) through `javis-zalo msg send --style` (0.413.0): the MCP
+    send tool of javis-zalo 1.8.0 takes plain text only. Returns `(ok, error)` once there is an outcome, or None when
+    nothing was sent and the caller should send the plain text through the MCP. A timeout is an outcome (the CLI may
+    have sent it already), like `_send_tagged`."""
+    import zalo_cli
+    home = zalo_cli.home_of(conn)
+    cid = str(conn.get("id") or "")
+    args = _style_args(styles)
+    if not home or not args or _tag_paused(cid):
+        return None
+    ok, _data, err = await zalo_cli.run_cli(
+        {"home": home}, ["msg", "send"], [chat_id, text], ["-t", str(int(loai))] + args, timeout=TAG_TIMEOUT)
+    if ok:
+        _tag_result(cid, True)
+        return True, ""
+    _tag_result(cid, False)
+    if zalo_cli.is_timeout(err):
+        return False, f"không rõ tin có định dạng đã đi chưa ({err})"
+    print(f"[zalo-personal] gửi có định dạng lỗi, gửi lại chữ thường: {err[:200]}", file=sys.stderr)
+    return None
+
+
+async def _send_tagged(conn: dict, chat_id: str, text: str, mention, styles=()) -> Optional[tuple]:
     """Gửi một tin nhóm CÓ TAG. Trả `(ok, lỗi)` khi đã có kết cục, hoặc None khi chưa gửi gì và người gọi nên gửi thường.
 
     Hết giờ là kết cục KHÔNG RÕ: CLI có thể đã gửi xong mới bị giết. Gửi lại bằng đường khác thì có thể thành hai tin dưới tên chủ trong
@@ -237,11 +275,14 @@ async def _send_tagged(conn: dict, chat_id: str, text: str, mention) -> Optional
     if not specs:
         return None
     specs = _khong_chong(specs)
+    # "@Name " put in front of the text moves every style by its length.
+    lech = _utf16_len(final) - _utf16_len(text)
+    styles = [(a + lech, n, name) for a, n, name in styles or ()]
     # Tiếng vọng của tin có tag mang cả "@Tên": nhớ luôn bản này, không thì vòng đọc tưởng chủ vừa tự tay nhắn và bot im 10 phút.
     zc.ghi_da_gui(cid, chat_id, final)
     ok, _data, err = await zalo_cli.run_cli(
         {"home": home}, ["msg", "send"], [chat_id, final],
-        ["-t", "1", "--mention"] + [f"{p}:{u}:{n}" for p, u, n in specs], timeout=TAG_TIMEOUT)
+        ["-t", "1", "--mention"] + [f"{p}:{u}:{n}" for p, u, n in specs] + _style_args(styles), timeout=TAG_TIMEOUT)
     if ok:
         _tag_result(cid, True)
         return True, ""
@@ -331,11 +372,19 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
 
 
 async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=None):
-    """Gửi MỘT tin (đã vừa trần `TIN_TOI_DA`). `(ok, lỗi)`."""
+    """Gửi MỘT tin (đã vừa trần `TIN_TOI_DA`). `(ok, lỗi)`.
+
+    Markdown in the reply becomes Zalo text styles (0.413.0, `zalo_markup.to_zalo`): the customer sees bold or coloured
+    words, never the stars. When the styled send cannot run, the plain text still goes out through the MCP."""
     import zalo_personal_channel
     loai = 1 if str(chat_type or "") == "group" else 0
-    if loai == 1 and (mention or "@" in str(text or "")):
-        r = await _send_tagged(conn, str(chat_id), str(text or ""), mention)
+    text, styles = zalo_markup.to_zalo(str(text or ""))
+    if loai == 1 and (mention or "@" in text):
+        r = await _send_tagged(conn, str(chat_id), text, mention, styles)
+        if r is not None:
+            return r
+    if styles:
+        r = await _send_styled(conn, str(chat_id), text, loai, styles)
         if r is not None:
             return r
     try:
@@ -354,6 +403,39 @@ async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=
         return False, localefmt.chu("Zalo không xác nhận đã nhận tin (không có mã tin)",
                                     "Zalo did not confirm the message (no message id)")
     return True, ""
+
+
+async def send_typing(conn_id: str, chat_id: str, chat_type: str = "private") -> bool:
+    """Show "đang soạn tin" in one chat (0.413.0, `zalo_send_typing` of javis-zalo >= 1.9.0). True when Zalo took it.
+    Never raises: the indicator is a nicety, and a connection whose MCP lacks the tool is not asked again for
+    TYPING_OFF seconds."""
+    import zalo_personal_channel
+    cid = str(conn_id or "")
+    if time.time() < float(_TYPING_OFF_UNTIL.get(cid) or 0):
+        return False
+    conn = zalo_personal_channel.ket_noi_theo_id(cid)
+    if not conn:
+        return False
+    try:
+        d = await zalo_personal_channel._goi(conn, TYPING_TOOL, {
+            "threadId": str(chat_id), "threadType": 1 if str(chat_type or "") == "group" else 0})
+    except Exception as e:      # noqa: BLE001 - older javis-zalo: "Tool zalo_send_typing not found"
+        _TYPING_OFF_UNTIL[cid] = time.time() + TYPING_OFF
+        print(f"[zalo-personal] không bật được \"đang soạn tin\" ({str(e)[:120]}), thử lại sau "
+              f"{TYPING_OFF // 60} phút", file=sys.stderr)
+        return False
+    if isinstance(d, dict) and d.get("success") is False:
+        _TYPING_OFF_UNTIL[cid] = time.time() + TYPING_OFF
+        return False
+    return True
+
+
+async def keep_typing(conn_id: str, chat_id: str, chat_type: str = "private") -> None:
+    """Run while a reply is being written; the caller cancels it. Starts after TYPING_DELAY, repeats every
+    TYPING_EVERY seconds, stops for good as soon as one attempt fails."""
+    await asyncio.sleep(TYPING_DELAY)
+    while await send_typing(conn_id, chat_id, chat_type):
+        await asyncio.sleep(TYPING_EVERY)
 
 
 async def send_reaction(tk: dict, chat_id: str, msg_id: str, name: str, chat_type: str = "private",
@@ -820,6 +902,9 @@ class Transport:
                                                + " / ".join(cu["texts"]) + ". Hãy trả lời MỘT lần cho các tin này cùng tin mới "
                                                "bên dưới, đừng hỏi lại điều khách đã nói. Việc lượt trước đã làm bằng công cụ (ghi file, gửi tin, "
                                                "đặt lịch) là ĐÃ xong, đừng làm lại.]")
+                # "Đang soạn tin" while the reply is written (0.413.0), private chats only: in a group most turns end
+                # in silence by design, and an indicator followed by nothing reads as a person who changed their mind.
+                go = None if nhom else asyncio.create_task(keep_typing(self.conn_id, thread, loai))
                 try:
                     out = await self.answer_fn(text, meta, None)
                 except BaseException:
@@ -828,6 +913,9 @@ class Transport:
                     if cu:
                         zc.bo_do_gui(self.conn_id, thread, cu["texts"], int(cu.get("n") or 0))
                     raise
+                finally:
+                    if go is not None:
+                        go.cancel()
                 anh = []
                 if isinstance(out, dict):
                     if out.get("khach_nhan_them"):

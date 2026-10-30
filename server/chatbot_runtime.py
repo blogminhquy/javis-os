@@ -249,6 +249,10 @@ Chỉ với loại tin mà hướng dẫn vai KHÔNG nói tới: tự quyết đ
 lời khi tin nhắn đúng là việc mà vai của bạn phụ trách. Nếu đó là chuyện riêng tư, chuyện gia đình
 bạn bè, một tin không cần hồi đáp, hoặc bạn không chắc có nên nhân danh chủ trả lời hay không, thì
 KHÔNG trả lời: viết đúng một dòng `{IM_LANG}` và không thêm chữ nào khác.
+
+Định dạng: Zalo hiện được chữ **đậm**, *nghiêng*, ~~gạch ngang~~ và chữ màu {{red:...}}, {{orange:...}},
+{{green:...}}. Nhấn như người thật nhắn tin: nhiều nhất một hai chỗ cho điều khách cần thấy ngay (giá,
+ngày hẹn, lưu ý). Không dùng bảng, tiêu đề hay khối mã.
 """
 
 # Chế độ "Tự đánh giá" (0.64.82): một tin trong NHÓM mà không ai gọi tên bot. Cùng lý do với đoạn
