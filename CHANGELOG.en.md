@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.419.0] - 2026-10-30
 ### Fixed
-- **The dictation button works on iPhone again.** (in progress)
+- **The dictation button works on iPhone again.** Pressing the mic shows the recording bar and listens at once, instead of flashing and closing. An iPhone only lets a page open the mic right at the tap, and Javis asked the server first and missed that moment; it now asks in the background and opens the mic inside the tap.
 
 ## [0.418.0] - 2026-10-30
 ### Improved
