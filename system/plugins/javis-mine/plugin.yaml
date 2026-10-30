@@ -1,0 +1,12 @@
+name: Việc của tôi và thói quen
+name_en: "My tasks and habits"
+slug: javis-mine
+version: 1.0.0
+description: Thêm việc vào tab Của tôi trên trang Nhiệm vụ, xem việc hôm nay và thói quen, và tích xong một việc hoặc một buổi thói quen khi người dùng báo đã làm xong, ngay từ chat.
+description_en: "Adds tasks to the Mine tab of the Tasks page, lists today's tasks and habits, and ticks a task or a habit session done when the user says they finished it, right from chat."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_mytask
+hooks: []

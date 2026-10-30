@@ -393,3 +393,17 @@
   .nv-bub { font-size: 15px; line-height: 1.45; padding: 10px 36px 10px 12px; gap: 4px; min-height: 112px; }
 }
 .nv-stk-mh > span { display: flex; gap: 2px; }
+
+/* ---- appointments (0.425.0) ---- */
+.nv-abar { display: inline-block; width: 4px; height: 38px; border-radius: 3px; }
+.nv-abar.big { width: 6px; height: 34px; margin-top: 4px; flex: none; }
+.nv-rrow .nv-abar { height: 34px; flex: none; }
+.nv-row.appt .nv-st { padding-top: 2px; }
+.nv-row.appt.live { background: var(--info-wash, rgba(141,184,255,.08)); }
+.nv-row.appt.done .nv-abar { opacity: .4; }
+.nv-kindseg button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.nv-more2 summary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text2); font-weight: 600; list-style: none; }
+.nv-more2 summary::-webkit-details-marker { display: none; }
+.nv-more2[open] summary { margin-bottom: 8px; }
+.nv-prep { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
+.nv-prep input { width: 20px; height: 20px; accent-color: var(--accent); }

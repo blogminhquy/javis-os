@@ -159,6 +159,15 @@ check("habit lines: a frozen habit makes Javis sulk first", moods[0] === "suspic
 check("habit lines: a rest day gets the sleepy line", moods.indexOf("sleepy") >= 0);
 check("usual time needs three ticks", M.usualTime({ done_dates: dd([T0]) }) === "");
 
+// ---- appointments (0.425.0) ----
+check("appointment states: past, live, upcoming", M.apptState("2026-10-29", "09:00", "10:00", T0, "08:00") === "past"
+  && M.apptState(T0, "09:00", "10:00", T0, "09:30") === "live" && M.apptState(T0, "09:00", "10:00", T0, "10:00") === "past"
+  && M.apptState(T0, "11:00", "12:00", T0, "10:30") === "todo");
+const ap = M.mineModel({ tasks: [{ id: "a", kind: "appt", title: "Meet", date: T0, time: "09:00", end: "09:45" },
+  { id: "w", kind: "appt", title: "Weekly", date: "2026-10-26", time: "08:30", end: "09:00", repeat: { unit: "week", n: 1, days: [1] } }] }, T0, "10:30");
+check("a finished appointment is done on its own, never overdue", ap.items.find(i => i.id === "m:a").st === "done" && !ap.items.some(i => i.over));
+check("a weekly appointment shows its next date and is listed as recurring", ap.items.some(i => i.id === "mn:w:2026-11-02") && ap.recurring.some(r => r.id === "m:w" && r.appt));
+
 // no Vietnamese text in the running code of the page (it goes through i18n)
 const js = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "tasks.js"), "utf8");
 check("the nav points to the Tasks page", /ids: \["tasks", "webhooks"\]/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8")));

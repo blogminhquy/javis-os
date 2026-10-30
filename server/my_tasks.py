@@ -229,6 +229,13 @@ def nudge_time(task: dict, state: dict, tz=None) -> str:
     return f"{m // 60:02d}:{m % 60:02d}"
 
 
+def appt_text(task: dict) -> str:
+    where = task.get("location") or ""
+    return localefmt.chu(
+        f"Sắp tới giờ hẹn: {task.get('title')} lúc {task.get('time')}" + (f" tại {where}" if where else "") + ".",
+        f"Coming up: {task.get('title')} at {task.get('time')}" + (f", {where}" if where else "") + ".")
+
+
 def nudge_text(task: dict, state: dict) -> str:
     title = task.get("title") or ""
     if state.get("frozen"):
@@ -442,6 +449,18 @@ class MyTasks:
             async with self._io:
                 data = self.load(brain)
                 for t in data.get("tasks", []):
+                    if t.get("kind") == "appt":
+                        # Appointment reminder: N minutes before the start of today's occurrence, once.
+                        mins = int(str(t.get("remind") or "0") or 0) if str(t.get("remind") or "0").isdigit() else 0
+                        on_today = (occurs_on(t.get("repeat"), t.get("date") or today, today) if t.get("repeat")
+                                    else t.get("date") == today)
+                        if mins and on_today and t.get("time") and t.get("reminded") != today:
+                            start = int(t["time"][:2]) * 60 + int(t["time"][3:5])
+                            now_m = int(hm[:2]) * 60 + int(hm[3:5])
+                            if start - mins <= now_m < start:
+                                t["reminded"] = today
+                                due.append((t, None))
+                        continue
                     hb = t.get("habit") or {}
                     if not t.get("repeat") or not hb or hb.get("off") or hb.get("remind") == "off" or hb.get("nudged") == today:
                         continue
@@ -454,7 +473,8 @@ class MyTasks:
                     self.save(brain, data)
             for t, st in due:
                 try:
-                    await self.deps.notify("", nudge_text(t, st), brain=brain, dedup=f"habit:{t.get('id')}:{today}")
+                    text = appt_text(t) if st is None else nudge_text(t, st)
+                    await self.deps.notify("", text, brain=brain, dedup=f"{'appt' if st is None else 'habit'}:{t.get('id')}:{today}")
                     sent += 1
                 except Exception as e:
                     print(f"[my-tasks] habit reminder not sent: {type(e).__name__}: {e}")
@@ -530,7 +550,17 @@ class MyTasks:
         return router
 
 
+# The running store, for the bundled plugin javis-mine (in-process, like tasks.current()).
+_FEATURE: Optional["MyTasks"] = None
+
+
+def current() -> Optional["MyTasks"]:
+    return _FEATURE
+
+
 def register(app, deps: MyTasksDeps) -> MyTasks:
+    global _FEATURE
     feat = MyTasks(deps)
     app.include_router(feat.router)
+    _FEATURE = feat
     return feat

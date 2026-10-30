@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.425.0] - 2026-10-30
+### Thêm mới
+- **Lịch hẹn trên tab Của tôi.** Khi thêm việc, chọn Kiểu: Lịch hẹn để ghi giờ bắt đầu, thời lượng, địa điểm. Hẹn tự đổi trạng thái Sắp tới, Đang diễn ra, Đã diễn ra, và báo khi hai hẹn trùng giờ.
+- **Nhắc trước giờ hẹn** 5, 15, 30 hoặc 60 phút (mặc định 15), mỗi hẹn nhắc một lần. Có thể nhờ Javis chuẩn bị trước (soạn tài liệu, tra thông tin) thành một lời nhắc Javis làm xong trước giờ hẹn 30 phút.
+- **Báo xong qua chat là tự tích.** Nói với Javis "đọc sách xong rồi" là thói quen được tích, ghi rõ là Javis tích để bạn bỏ tích được. Nhiều việc trùng tên thì Javis hỏi lại, không đoán. Nhờ "ghi vào việc của tôi" cũng được, trên mọi bộ não.
+
 ## [0.424.0] - 2026-10-30
 ### Thêm mới
 - **Thói quen có chuỗi giữ lửa.** Việc lặp của bạn bật "Tính là thói quen" (hoặc chọn Kiểu lặp: Thói quen khi thêm) là có chuỗi ngày như Duolingo. Bỏ 1 buổi thì đóng băng, làm buổi sau là gỡ băng, bỏ 2 buổi liền là mất chuỗi. **Chỉ ngày có lịch mới tính**, ngày nghỉ của thói quen không bị đóng băng.

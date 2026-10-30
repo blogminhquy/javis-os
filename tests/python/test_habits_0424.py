@@ -106,5 +106,21 @@ check("Javis reminds: half an hour after the usual time, earlier while frozen",
       my_tasks.nudge_time({"habit": {"remind": "auto"}, "time": "21:00"}, {"frozen": False}) == "21:30"
       and my_tasks.nudge_time({"habit": {"remind": "auto"}, "time": "21:00"}, {"frozen": True}) == "20:30")
 
+# ---- appointment reminder (0.425.0) ----
+sent.clear()
+soon = (now + timedelta(minutes=10)).strftime("%H:%M")
+if "00:00" < soon < "23:50" and soon > now.strftime("%H:%M"):
+    data = feat.load("brain")
+    data["tasks"].append({"id": "a_soon", "kind": "appt", "title": "Supplier meeting", "date": today, "time": soon,
+                          "end": "23:59", "remind": "15", "location": "Warehouse", "done_dates": {}})
+    data["tasks"].append({"id": "a_late", "kind": "appt", "title": "Evening call", "date": today, "time": "23:58",
+                          "end": "23:59", "remind": "5", "done_dates": {}})
+    feat.save("brain", data)
+    asyncio.run(feat.tick())
+    check("an appointment within its reminder window is announced once, with its place",
+          [d for _, d in sent] == ["appt:a_soon:" + today] and "Warehouse" in sent[0][0])
+    asyncio.run(feat.tick())
+    check("not twice", len(sent) == 1)
+
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 raise SystemExit(1 if fails else 0)
