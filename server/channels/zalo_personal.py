@@ -230,7 +230,7 @@ def _style_args(styles) -> list:
 
 async def _send_styled(conn: dict, chat_id: str, text: str, loai: int, styles) -> Optional[tuple]:
     """Send one message WITH text styles (bold, colours...) through `javis-zalo msg send --style` (0.413.0): the MCP
-    send tool of javis-zalo 1.8.0 takes plain text only. Returns `(ok, error)` once there is an outcome, or None when
+    send tool took plain text only before javis-zalo 1.9.0. Returns `(ok, error)` once there is an outcome, or None when
     nothing was sent and the caller should send the plain text through the MCP. A timeout is an outcome (the CLI may
     have sent it already), like `_send_tagged`."""
     import zalo_cli

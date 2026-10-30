@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.414.0] - 2026-10-30
 ### Cải thiện
-- **Zalo cá nhân hiện "đang soạn tin" (đang làm).**
+- **Khách thấy "đang soạn tin" khi bot Zalo cá nhân đang viết** câu trả lời ở chat riêng, như người thật đang gõ. Javis chuyển sang bản javis-zalo 1.9.0 (có thêm công cụ báo đang soạn tin); kết nối Zalo tự cập nhật sau khi Javis khởi động lại, không phải quét QR lại.
 
 ## [0.413.0] - 2026-10-30
 ### Cải thiện

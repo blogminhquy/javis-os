@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.414.0] - 2026-10-30
 ### Improved
-- **Personal Zalo shows "typing..." (in progress).**
+- **Customers see "typing..." while a personal Zalo bot writes** a private reply, as when a person types. Javis moves to javis-zalo 1.9.0 (which adds the typing tool); the Zalo connection updates itself after Javis restarts, no new QR scan needed.
 
 ## [0.413.0] - 2026-10-30
 ### Improved
