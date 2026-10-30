@@ -114,8 +114,14 @@ check("sw.js có handler push + notificationclick",
   sw.indexOf('addEventListener("push"') !== -1 && sw.indexOf('addEventListener("notificationclick"') !== -1);
 check("CANARY: bấm thông báo thì FOCUS tab Javis đang mở, không đẻ tab thứ hai",
   sw.indexOf("c.focus()") !== -1 && sw.indexOf("matchAll") !== -1);
-check("sw.js KHÔNG cache gì (tránh phục vụ bản cũ sau khi cập nhật)",
-  sw.indexOf("caches.open") === -1 && sw.indexOf('addEventListener("fetch"') === -1);
+// 0.418.0: một ngoại lệ HẸP (chủ repo duyệt 30/10/2026, giai đoạn 3 hiệu năng): chỉ trang "/" và từ điển i18n, LUÔN hỏi
+// máy chủ trước, bản đã giữ chỉ dùng khi máy chủ không với tới được. Hành vi chạy thật ở test_hieu_nang_gd3.js.
+check("sw.js không cache gì ngoài đường lùi hẹp: chỉ \"/\" và i18n, luôn hỏi máy chủ trước (tránh phục vụ bản cũ sau khi cập nhật)",
+  sw.includes('if (req.mode === "navigate" && u.pathname === "/") return u.origin + "/";')
+  && sw.includes("/^\\/static\\/i18n\\/[a-z]{2,3}\\.json$/.test(u.pathname)")
+  && sw.indexOf("const r = await fetch(event.request);") > 0
+  && sw.indexOf("const r = await fetch(event.request);") < sw.indexOf("caches.match(khoa)")
+  && (sw.match(/event\.respondWith\(/g) || []).length === 1);
 
 // ---- 7. Đường về từ thông báo hệ điều hành ----
 check("push mang tham số mo_thu để về đúng mẩu thư", main.indexOf("mo_thu=") !== -1);

@@ -241,6 +241,41 @@
   }
 
   setInterval(kiemPhienBan, CHU_KY_MS);
+
+  /* 0.418.0: hỏi phiên bản NGAY sau khi mở, thử lại tới khi máy chủ trả lời. Khi máy chủ không với tới được, sw.js đưa ra
+   * khung trang đã giữ lần trước; khung đó có thể là bản trước một lần cập nhật. Lệch số phiên bản thì: trang vừa mở
+   * (dưới 2 phút), ô chat còn trống và chưa tự tải lại trong 30 giây qua: tải lại luôn; còn lại hiện thanh mời tải lại. */
+  var batDau = Date.now(), KHOA_TU_TAI = "javis-fresh-autoreload";
+  function kiemSom(lan) {
+    fetch("/app-version", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.version) { throw new Error("chua"); }
+        if (d.version === m.version || daBao) return;
+        var o = document.getElementById("chatInput");
+        var luc = 0;
+        try { luc = Number(sessionStorage.getItem(KHOA_TU_TAI) || 0); } catch (e) { /* noop */ }
+        if (Date.now() - batDau < 120000 && !(o && o.value.trim()) && Date.now() - luc > 30000) {
+          try { sessionStorage.setItem(KHOA_TU_TAI, String(Date.now())); } catch (e) { /* noop */ }
+          location.reload();
+          return;
+        }
+        daBao = true;
+        baoCoBanMoi(d.version);
+      })
+      .catch(function () { if (lan < 24) setTimeout(function () { kiemSom(lan + 1); }, 5000); });
+  }
+  setTimeout(function () { kiemSom(0); }, 2500);
+
+  // Đăng ký service worker cho mọi người (trước đây chỉ khi bật thông báo đẩy), để có đường lùi ở trên. Chỉ chạy trong
+  // ngữ cảnh an toàn (https hay localhost); trên http theo IP thì trình duyệt không cho, bỏ qua lặng lẽ.
+  try {
+    if ("serviceWorker" in navigator && window.isSecureContext) {
+      window.addEventListener("load", function () {
+        setTimeout(function () { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); }, 3000);
+      });
+    }
+  } catch (e) { /* noop */ }
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) kiemPhienBan();
   });
