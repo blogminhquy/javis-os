@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.423.0] - 2026-10-30
+### Thêm mới
+- **Tab Của tôi trên trang Nhiệm vụ.** Ghi việc của chính bạn: Hôm nay, Sắp tới, Quá hạn, Chưa có lịch, Lặp lại, Đã xong, và chia theo **dự án** (tạo, đổi tên, đổi màu, ghim, xoá có hoàn tác).
+- **Chọn ngày giờ và lặp lại cho dễ.** Nút nhanh Khi rảnh, Hôm nay, Ngày mai, Thứ Hai tới, lịch tháng và giờ mỗi 30 phút. Lặp "Mỗi [n] ngày, tuần, tháng, năm", chọn thứ trong tuần bằng vòng tròn.
+- **Quá hạn hiện cả lần lặp bị lỡ gần nhất,** tích được ngay tại chỗ. Việc làm một lần thì dời tất cả sang hôm nay bằng một nút.
+- **Giao qua lại giữa bạn và Javis.** Việc của bạn bấm "Giao cho Javis" là thành việc Javis làm; việc của Javis chọn "Chuyển cho tôi làm" là về tab Của tôi. Đều có hoàn tác.
+
 ## [0.422.0] - 2026-10-30
 ### Thêm mới
 - **Trang Nhiệm vụ thay cho Kanban và Việc định kỳ.** Nhóm Việc giờ chỉ còn Nhiệm vụ và Webhook. Việc Javis làm, lời nhắc, loop và theo dõi trang nằm chung một chỗ, chia theo danh sách: Hôm nay, Sắp tới, Quá hạn, Lặp lại, Chạy lỗi, Đã xong, Nhật ký, và theo từng trợ lý.
