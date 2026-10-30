@@ -6,6 +6,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.415.0] - 2026-10-30
+### Sửa lỗi
+- **Cập nhật xong không còn kẹt ở màn hình đầy chữ mã.** Bấm cập nhật mà trang tải lại đúng lúc máy chủ còn đang khởi động thì mọi chữ hiện thành mã kiểu `nav.group.bo_nao`, phiên bản hiện sai thành v0.4.3, kèm dòng lỗi "The string did not match the expected pattern", và trang đứng như vậy mãi. Giờ Javis tự thử lại; máy chủ lên là trang tự tải lại một lần và hiện đúng. Đang gõ dở thì không tải lại, chữ trên màn hình tự về đúng.
+- **Nút Cập nhật chờ máy chủ sẵn sàng hẳn rồi mới tải lại trang**, thay vì tải lại ngay khi thấy số phiên bản mới.
+
+### Cải thiện
+- **Javis nhẹ hơn trên điện thoại lúc để yên.** Đo trên điện thoại giả lập, ở trang Cộng sự lúc không làm gì, máy bận khoảng 26% thời gian, giờ còn khoảng 21%. Đỡ nóng máy, đỡ hao pin, cuộn mượt hơn:
+  - Con pet lúc nghỉ vẽ 30 khung mỗi giây, lúc ngủ gật 15 (trước luôn là 60). Nhìn không khác, có chuột hay đang làm việc thì vẫn đủ 60.
+  - Nền sao và đồ thị bộ não thôi vẽ khi đang bị trang khác che. Trước đây mở app thẳng vào trang Cộng sự thì đồ thị vẫn vẽ sau lưng suốt.
+- **Mở app nhanh hơn từ lần thứ hai.** Javis không còn tải lại và kiểm tra hơn 100 file giao diện mỗi lần mở trang. Mỗi bộ file chỉ kiểm một lần trên mỗi máy, ngay sau bản cập nhật. Số yêu cầu lúc mở trang giảm khoảng một nửa.
+
 ## [0.414.0] - 2026-10-30
 ### Cải thiện
 - **Khách thấy "đang soạn tin" khi bot Zalo cá nhân đang viết** câu trả lời ở chat riêng, như người thật đang gõ. Javis chuyển sang bản javis-zalo 1.9.0 (có thêm công cụ báo đang soạn tin); kết nối Zalo tự cập nhật sau khi Javis khởi động lại, không phải quét QR lại.

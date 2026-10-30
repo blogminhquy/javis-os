@@ -2998,6 +2998,9 @@ async function initGraph() {
   if (!window.ForceGraph) { graphStats.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + window.t("app.graph_lib_err"); return; }
   javisGraph = new JavisGraph(c2d);   // resize() gọi bên trong load()
   await reloadGraph();
+  // 0.415.0: mở app thẳng vào một trang quản lý (trang nhớ từ lần trước) thì console.js đã hỏi "có nên chạy đồ thị không"
+  // TRƯỚC khi đồ thị kịp dựng, nên đồ thị cứ vẽ 60 khung/giây sau lưng trang đó. Hỏi lại khi nó đã có.
+  try { if (window.JavisRecomputeGraph) window.JavisRecomputeGraph(); } catch (e) {}
 }
 
 // Click node trong graph → Javis mở & thao tác note đó trong vault
@@ -3529,6 +3532,9 @@ function initStarfield() {
   function draw(now) {
     requestAnimationFrame(draw);
     if (document.hidden) return;
+    // 0.415.0: một trang quản lý (Cộng sự, Cài đặt...) đang che màn chính thì nền sao không ai nhìn thấy; vẽ tiếp chỉ đốt
+    // CPU, và đo kích thước ở dưới còn ép trình duyệt tính lại bố cục mỗi lần. Khung cuối vẫn nằm trên canvas khi quay về.
+    if (document.body.classList.contains("in-console")) return;
     // Nền 2D từng tự dựng gradient + grid ở 60 FPS dù não đứng yên. 15 FPS lúc nghỉ vẫn
     // đủ cho sao nhấp nháy chậm; khi có giọng/đang nghĩ nâng lên 30 FPS.
     const lvl = voice.getLevel();

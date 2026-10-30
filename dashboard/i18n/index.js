@@ -41,6 +41,9 @@
   var _da_chon = false;   // true = ngôn ngữ do người dùng chọn, không phải đoán từ trình duyệt
   var _luot = 0;          // init() gọi chồng nhau thì chỉ lượt MỚI NHẤT được ghi kết quả
   var _cache = {};        // mã -> Promise<từ điển | null>, để dò trình duyệt không tải hai lần
+  var _batDau = Date.now();
+  var _hoiHen = 0;        // hẹn giờ thử lại khi từ điển gốc không về (xem _choMayChu)
+  var KHOA_HOI_SUC = "javis.i18n_reload_at";
 
   function _doc_luu() {
     try { return localStorage.getItem(KHOA_LUU) || ""; } catch (e) { return ""; }
@@ -177,6 +180,8 @@
     }).then(function (x) {
       if (luot !== _luot) return _lang;   // đã có lượt init mới hơn, đừng ghi đè nó
       var lang = x[0], kq = x[1];
+      // Từ điển gốc rỗng = không tải được (vi.json không bao giờ rỗng): chờ máy chủ rồi hồi lại, xem _choMayChu.
+      if (!kq[0] || !Object.keys(kq[0]).length) _choMayChu(ma, 0);
       _lang = lang;
       _goc = kq[0] || {};
       _en = kq[1] || {};
@@ -197,6 +202,37 @@
       } catch (e) { /* trình duyệt quá cũ - giao diện vẫn dùng được, chỉ là không tự vẽ lại */ }
       return _lang;
     });
+  }
+
+  /* 0.415.0: từ điển GỐC không về được (khách báo 30/10/2026, iPhone). Bấm cập nhật xong trang tải lại đúng lúc
+   * máy chủ (hay đường hầm Cloudflare trước nó) còn đang khởi động: vi.json, /version, /settings đều nhận về trang lỗi
+   * HTML thay vì JSON. Cả màn hình in mã khoá (`nav.group.bo_nao`), phiên bản kẹt ở số dự phòng v0.4.3, và Safari báo
+   * "The string did not match the expected pattern" (câu của nó khi JSON.parse gặp HTML). Không gì thử lại nên trang kẹt
+   * như vậy mãi, kể cả khi máy chủ đã lên. Giờ thử lại vi.json (1, 2, 4, 8 giây rồi đều 8 giây); về được thì:
+   * - trang vừa mở (dưới 2 phút) và ô chat còn trống: TẢI LẠI một lần, vì mọi dữ liệu khác lúc mở trang cũng đã hỏng;
+   * - còn lại (người dùng đang gõ dở): chỉ nạp lại từ điển và vẽ lại chữ, không cướp trang của họ.
+   * Mốc tải lại lưu trong sessionStorage nên không bao giờ thành vòng tải lại liên tục. */
+  function _nenTaiLai() {
+    if (Date.now() - _batDau > 120000) return false;
+    try {
+      var o = document.getElementById("chatInput");
+      if (o && o.value.trim()) return false;
+      var luc = Number(sessionStorage.getItem(KHOA_HOI_SUC) || 0);
+      if (Date.now() - luc < 30000) return false;
+      sessionStorage.setItem(KHOA_HOI_SUC, String(Date.now()));
+    } catch (e) { return false; }
+    return true;
+  }
+  function _choMayChu(ma, lan) {
+    if (_hoiHen) return;
+    _hoiHen = setTimeout(function () {
+      _hoiHen = 0;
+      _thu(GOC).then(function (d) {
+        if (!d) { _choMayChu(ma, lan + 1); return; }
+        if (_nenTaiLai()) { location.reload(); return; }
+        init(ma);
+      });
+    }, Math.min(1000 * Math.pow(2, lan), 8000));
   }
 
   function setLang(ma) {

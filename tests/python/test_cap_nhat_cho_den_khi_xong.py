@@ -15,7 +15,8 @@ rollback), và vòng dò dừng ngay theo đó. Nên chỉ hết hẳn 10 phút 
   2. Trần chờ là 10 phút, tính theo đồng hồ chứ không theo số lần dò.
   3. Quá 45 giây thì đổi câu chữ sang "vẫn đang kéo", spinner vẫn quay, không hiện cảnh báo.
   4. Đang chờ cập nhật mà người gác cổng phiên bản (freshness.js) thấy bản mới thì tải lại luôn,
-     không hiện thêm thanh "Tải lại / Để sau".
+     không hiện thêm thanh "Tải lại / Để sau". Từ 0.415.0 "luôn" nghĩa là ngay khi máy chủ trả JSON hai lần liền
+     (choSanRoiTaiLai), để trang mới không mở ra giữa lúc máy chủ còn khởi động.
   5. Lỗi thật vẫn dừng ngay: nhánh result error/pull_failed/rolled_back còn nguyên.
 """
 from _paths import ROOT, SERVER, DASHBOARD  # noqa: E402,F401
@@ -65,7 +66,8 @@ for ten, body in (("trang Cài đặt", SETTINGS), ("trang Tổng quan", OVERVIE
     check(f"{ten}: câu 'vẫn đang kéo' đi kèm spinner, không phải cảnh báo",
           re.search(r'ic\("loader", \{ cls: "ic-spin" \}\) \+ " " \+ (esc\()?window\.t\("cs\.upd_pulling_long"\)', body))
     check(f"{ten}: báo trang đang chờ cập nhật", "window.__javisUpdating = true" in body)
-    check(f"{ten}: bản mới lên thì tự tải lại", "location.reload()" in body)
+    # 0.415.0: tải lại qua JavisReloadWhenReady (chờ máy chủ trả JSON hai lần liền), vẫn tự động, không hỏi.
+    check(f"{ten}: bản mới lên thì tự tải lại", "setTimeout(_taiLaiKhiSan, 1500)" in body)
     check(f"{ten}: lỗi thật vẫn dừng ngay",
           "rolled_back" in body and "pull_failed" in body and "\"error\"" in body)
     check(f"{ten}: mọi lối ra thất bại đều nhả cờ đang chờ",
@@ -74,7 +76,8 @@ for ten, body in (("trang Cài đặt", SETTINGS), ("trang Tổng quan", OVERVIE
 i = FRESH.index("function kiemPhienBan")
 seg = FRESH[i:FRESH.index("setInterval(kiemPhienBan", i)]
 check("freshness.js: đang chờ cập nhật thì tải lại luôn, không hỏi",
-      "if (window.__javisUpdating) { location.reload(); return; }" in seg
+      "if (window.__javisUpdating) { choSanRoiTaiLai(); return; }" in seg
+      and "location.reload(); return; }" in FRESH[FRESH.index("function choSanRoiTaiLai"):]
       and seg.index("__javisUpdating") < seg.index("baoCoBanMoi("))
 
 for lang, d in (("vi", VI), ("en", EN)):

@@ -11,6 +11,9 @@
   // ngôn ngữ giao diện thì ngày giờ phải đổi theo, nếu không thì nửa màn hình tiếng Anh
   // mà ngày vẫn dd/mm/yyyy kiểu Việt.
   const LOC = () => (window.JavisI18n && JavisI18n.locale()) || "vi-VN";
+  // Cập nhật xong: tải lại khi máy chủ đã lên hẳn (freshness.js, 0.415.0), không thì trang mới mở ra giữa lúc nó còn
+  // khởi động và kẹt với chữ mã khoá.
+  const _taiLaiKhiSan = () => (window.JavisReloadWhenReady ? window.JavisReloadWhenReady() : location.reload());
   // ---- Khai báo các mục trên rail (mở rộng = thêm dòng ở đây) ----
   // type 'view' = render trong cview ; có launch() = nút mở overlay/modal sẵn có.
   const APP_VERSION = "0.4.3";   // fallback hiển thị tức thời; nguồn thật là /version (file VERSION)
@@ -308,6 +311,7 @@
     const shouldRun = !liteMode() && active === "home" && !studioOpen;
     if (shouldRun) g.wake(); else g.pause();
   }
+  window.JavisRecomputeGraph = recomputeGraph;
 
   // ---- Chuyển trang (có View Transition cho mượt) ----
   // Hook "rời trang": trang nào mượn DOM dùng chung (vd tab Trò chuyện mượn khung chat của
@@ -1184,7 +1188,7 @@
           const phase = state.state.phase, result = state.state.result;
           const stash = state.state.stashed ? ic("package") + " " + window.t("cs.upd_stashed") : "";
           progress(phase, stash);
-          if (result === "success") { clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(() => location.reload(), 1500); return; }
+          if (result === "success") { clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(_taiLaiKhiSan, 1500); return; }
           if (result === "rolled_back") { clearInterval(poll); window.__javisUpdating = false; status.innerHTML = "↩ " + window.t("cs.upd_rb_a") + " <b>" + window.t("cs.upd_rb_b") + "</b>."; update.disabled = false; return; }
           if (["pull_failed", "rollback_failed", "error"].includes(result)) {
             clearInterval(poll); window.__javisUpdating = false; q("updVerProgress").style.display = "none";
@@ -1195,7 +1199,7 @@
           const v = await (await fetch("/version", { cache: "no-store" })).json();
           const docker = root.dataset.updateMode === "docker";
           if ((docker || !(state && state.state && state.state.phase)) && v.update_available === false && v.current && v.current !== oldCur) {
-            clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(() => location.reload(), 1500); return;
+            clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(_taiLaiKhiSan, 1500); return;
           }
         } catch (e) {}
         if (waited >= UPD_WAIT_MS) {
@@ -3866,7 +3870,7 @@
           const ph = s.state.phase, res = s.state.result;
           const stashNote = s.state.stashed ? ic("package") + " " + window.t("cs.ov_stashed") : "";
           renderProgress(ph, stashNote);
-          if (res === "success") { clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(() => location.reload(), 1500); return; }
+          if (res === "success") { clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(_taiLaiKhiSan, 1500); return; }
           if (res === "rolled_back") { clearInterval(poll); window.__javisUpdating = false; renderProgress("done", stashNote); st.innerHTML = "↩ " + esc(window.t("cs.upd_rb_a")) + " <b>" + esc(window.t("cs.upd_rb_b")) + "</b>. " + esc(window.t("cs.upd_see")) + " <code>update.log</code>."; verUpd.disabled = false; return; }
           if (res === "pull_failed" || res === "rollback_failed" || res === "error") {
             clearInterval(poll); window.__javisUpdating = false;
@@ -3880,7 +3884,7 @@
           const v = await (await fetch("/version", { cache: "no-store" })).json();
           const flipOk = (window._ovVerMode === "docker") || !(s && s.state && s.state.phase);
           if (flipOk && v && v.update_available === false && v.current && v.current !== oldCur) {
-            clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(() => location.reload(), 1500); return;
+            clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(_taiLaiKhiSan, 1500); return;
           }
         } catch (e) { /* server đang restart - chờ tiếp */ }
         if (waited >= UPD_WAIT_MS) {
@@ -10600,7 +10604,11 @@
     if (_eb) _eb.addEventListener("click", () => navigateTo("models"));
     const ver = document.getElementById("railVersion");
     if (ver) {
-      ver.textContent = "v" + APP_VERSION;   // hiện tạm, thay ngay bằng phiên bản thật từ server
+      // Hiện tạm, thay ngay bằng phiên bản thật từ server. Số tạm lấy từ khối javis-fresh mà index.html (luôn mới) mang
+      // theo: /version mà trượt (máy chủ đang khởi động) thì vẫn đúng số, không phải con số dự phòng cũ v0.4.3 như ảnh khách.
+      let verTam = APP_VERSION;
+      try { verTam = JSON.parse(document.getElementById("javis-fresh").textContent).version || APP_VERSION; } catch (e) {}
+      ver.textContent = "v" + verTam;
       fetch("/version").then(r => r.json()).then(d => { if (d && d.current) ver.textContent = "v" + d.current; }).catch(() => {});
     }
     // Theo dõi Studio mở/đóng → bật/tắt graph theo
