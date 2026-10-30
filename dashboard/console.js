@@ -1940,6 +1940,9 @@
     .pl-group{display:flex;align-items:baseline;gap:8px;margin:18px 0 8px;font-size:14px;font-weight:600;color:var(--text2)}
     .pl-group:first-child{margin-top:4px}
     .pl-group .n{font-weight:500;color:var(--text3);font-variant-numeric:tabular-nums}
+    .cview-section .pl-group > .n{order:0;flex-basis:auto}   /* the phone rule for section titles drops a span to its own line */
+    .pl-group .pl-goto{margin-left:auto;font-size:13.5px;font-weight:500;min-height:32px;white-space:nowrap}
+    .pl-card.noright{padding-right:14px}
     .pl-list{display:flex;flex-direction:column;gap:8px}
     .pl-card{display:flex;align-items:flex-start;gap:8px;padding:12px 6px 12px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--panel-bg)}
     .pl-card:hover{border-color:var(--accent-line)}
@@ -1978,6 +1981,7 @@
       .pl-zipw{margin-left:0}
       .pl-ds,.pl-nm{font-size:16px}
       .pl-card{padding:12px 2px 12px 12px}
+      .pl-card.noright{padding-right:12px}
     }`;
     const st = document.createElement("style"); st.id = "pl-css"; st.textContent = css; document.head.appendChild(st);
   }
@@ -2021,11 +2025,14 @@
       const meta = [MM[p.min_mode] ? esc(window.t("cs.pl_minmode", { muc: MM[p.min_mode] })) : "",
                     p.version ? `v${esc(p.version)}` : ""].filter(Boolean).join(" · ");
       const acts = (p.page ? `<a class="pl-act" href="${esc(safeHref(p.page))}" target="_blank" rel="noopener">${esc(window.t("cs.pl_open_page"))} ↗</a>` : "")
+        + (p.removed ? `<button type="button" class="pl-act undel">${esc(window.t("store.reinstall"))}</button>` : "")
         + (p.source !== "pack" && !p.removed ? `<button type="button" class="pl-act del">${esc(window.t("proj.remove_short"))}</button>` : "");
-      let right = "";
-      if (p.source === "pack") right = `<button type="button" class="s-btn-ghost" data-goto-packs="1">${esc(window.t("cs.pl_manage_store"))}</button>`;
-      else if (p.removed) right = `<button type="button" class="s-btn-ghost undel">${esc(window.t("store.reinstall"))}</button>`;
-      else right = `<button type="button" class="pl-sw" role="switch" aria-checked="${p.enabled ? "true" : "false"}" title="${esc(window.t(p.enabled ? "studio.tog_on" : "studio.tog_off"))}" aria-label="${esc(window.t("cs.pl_sw_aria", { ten: p.name }))}"><span class="pl-tr"><span class="pl-kn"></span></span></button>`;
+      // The right column holds the switch and nothing else (0.420.0). A text button there took half a phone's width and
+      // squeezed the name and description into a sliver: store plugins get one "manage" link on their group heading, a
+      // removed plugin's "reinstall" sits with the other actions under the text.
+      const right = p.source === "pack" || p.removed ? ""
+        : `<button type="button" class="pl-sw" role="switch" aria-checked="${p.enabled ? "true" : "false"}" title="${esc(window.t(p.enabled ? "studio.tog_on" : "studio.tog_off"))}" aria-label="${esc(window.t("cs.pl_sw_aria", { ten: p.name }))}"><span class="pl-tr"><span class="pl-kn"></span></span></button>`;
+      if (!right) div.classList.add("noright");
       div.innerHTML = `
         <div class="pl-main">
           <div class="pl-nm">${ic("puzzle")} <span>${esc(p.name)}</span> <span class="pl-slug">${esc(p.slug)}</span>${badge}${dongDai ? infoBtn() : ""}</div>
@@ -2033,14 +2040,7 @@
           <div class="pl-meta">${stChip}${chips}${meta ? `<span>${meta}</span>` : ""}${acts}</div>
           ${p.error ? `<div class="pl-err">${esc(p.error)}</div>` : ""}
         </div>
-        <div class="pl-right">${right}</div>`;
-      // Plugin đến từ gói thì bật/tắt và gỡ đều làm ở Kho cài đặt - nó đi theo cả gói, và có
-      // đúng MỘT chỗ gỡ thì người dùng không phải đoán gỡ ở đâu mới là gỡ thật.
-      const nutGoto = div.querySelector("[data-goto-packs]");
-      if (nutGoto) nutGoto.onclick = () => {
-        const s = window.Alpine && Alpine.store("nav");
-        if (s && s.go) s.go("packs");
-      };
+        ${right ? `<div class="pl-right">${right}</div>` : ""}`;
       // "Gỡ" khác "Tắt" ở Ý ĐỊNH, nên thẻ rời hẳn khỏi danh sách chính chứ không chỉ mờ đi.
       // Không xoá file trong bản cài: cây code read-only trên Docker, và git pull sẽ mọc lại.
       const doiGo = async (go) => {
@@ -2112,7 +2112,15 @@
           if (!items.length) return;
           const h = document.createElement("h3");
           h.className = "pl-group";
-          h.innerHTML = `${esc(window.t(key))} <span class="n">${items.length}</span>`;
+          h.innerHTML = `${esc(window.t(key))} <span class="n">${items.length}</span>`
+            + (g === "pack" ? `<button type="button" class="pl-act pl-goto" data-goto-packs="1">${esc(window.t("cs.pl_manage_store"))} →</button>` : "");
+          // Plugin đến từ gói thì bật/tắt và gỡ đều làm ở Kho cài đặt - nó đi theo cả gói, và có
+          // đúng MỘT chỗ gỡ thì người dùng không phải đoán gỡ ở đâu mới là gỡ thật.
+          const nutGoto = h.querySelector("[data-goto-packs]");
+          if (nutGoto) nutGoto.onclick = () => {
+            const s = window.Alpine && Alpine.store("nav");
+            if (s && s.go) s.go("packs");
+          };
           const list = document.createElement("div");
           list.className = "pl-list";
           items.forEach(p => list.appendChild(card(p)));

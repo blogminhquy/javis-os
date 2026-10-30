@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.420.0] - 2026-10-30
+### Cải thiện
+- **Trang Kỹ năng trên điện thoại: chọn nhóm bằng một ô thả xuống.** Hàng nút nhóm (Tất cả, AI, Bán hàng...) cũ chạy tràn khỏi màn hình khi có nhiều nhóm. Giờ chỉ còn một ô **Nhóm** ghi rõ số kỹ năng trong từng nhóm, bấm vào là chọn. Trang Cộng sự (lọc theo tag) và Quy trình cũng đổi giống vậy. Trên máy tính vẫn là cột nhóm bên trái như cũ.
+- **Trang Công cụ gọn hơn trên điện thoại.** Mỗi thẻ công cụ cài từ Javis Store từng có nút **Quản lý ở Javis Store** chiếm nửa bề ngang, ép tên và mô tả vào một cột hẹp. Giờ thẻ dùng hết bề ngang, còn đường dẫn **Quản lý ở Javis Store** nằm một lần trên tiêu đề nhóm **Từ Javis Store**. Nút **Cài lại** của công cụ đã gỡ cũng chuyển xuống dòng thao tác dưới mô tả.
+
 ## [0.419.0] - 2026-10-30
 ### Sửa lỗi
 - **Nút chép lời trên iPhone chạy lại.** Bấm mic là thanh ghi âm hiện ra và nghe ngay bằng nhận giọng có sẵn của Safari, kể cả lần bấm đầu tiên, không còn loé lên rồi tự tắt. Trước đây Javis hỏi máy chủ một lượt rồi mới bật mic nên lỡ mất khoảnh khắc iPhone cho phép.
