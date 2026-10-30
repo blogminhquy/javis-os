@@ -302,7 +302,9 @@ _truoc = dict(_khoa)
 _cjs = main.DASHBOARD_PATH / "console.js"
 _goc = _cjs.read_bytes()
 try:
-    _cjs.write_bytes(_goc + b"\n// canary\n")
+    # Một dòng CODE, không phải chú thích: từ 0.416.0 khoá băm bản đã nén gọn, mà chú thích bị bỏ khi nén nên sửa riêng
+    # chú thích (cố ý) không đổi khoá.
+    _cjs.write_bytes(_goc + b"\n;window.__canary = 1;\n")
     _sau = dict(_re2.findall(r'/static/(\S+?\.(?:js|css))\?v=([\w.]+)',
                              _aio.run(main.root()).body.decode("utf-8")))
     check("sửa console.js thì RIÊNG nó đổi khoá",

@@ -63,6 +63,26 @@
       + (ex ? '<div class="dim" style="font-size:12px;color:var(--text3)">' + ex + "</div>" : "") + "</div>";
   }
 
+  // Lỗi giao diện gửi về từ trình duyệt (loi-may-khach.js, 0.416.0): mỗi nhóm một dòng, cùng thông điệp, file, dòng.
+  function clientErrorHtml(g) {
+    var where = (g.src ? g.src.replace(/^\/static\//, "") : "") + (g.dong ? ":" + g.dong : "");
+    var meta = [tw("hp.times", { n: g.count || 1 }), fmtTime(g.last_at), g.version ? "v" + g.version : "", g.trang || "",
+      shortUa(g.ua)].filter(Boolean).join(" · ");
+    return '<div class="le"><b>' + esc(String(g.msg || "").slice(0, 300)) + "</b>"
+      + (where ? ' <code style="font-size:12px">' + esc(where) + "</code>" : "")
+      + '<div class="dim" style="font-size:12px;color:var(--text3)">' + esc(meta) + "</div></div>";
+  }
+  // "iPhone · Safari" thay cho cả chuỗi User-Agent dài.
+  function shortUa(ua) {
+    ua = String(ua || "");
+    if (!ua) return "";
+    var may = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android"
+      : /Mac OS X/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+    var tdd = /Edg\//.test(ua) ? "Edge" : /CriOS|Chrome\//.test(ua) ? "Chrome" : /FxiOS|Firefox\//.test(ua) ? "Firefox"
+      : /Safari\//.test(ua) ? "Safari" : "";
+    return [may, tdd].filter(Boolean).join(" ");
+  }
+
   async function getJson(url, body) {
     try {
       var r = await fetch(url, body === undefined ? undefined : {
@@ -77,7 +97,12 @@
       + "<span>" + ic("shield") + " " + esc(tw("hp.head")) + infoBtn() + "</span>"
       + '<button class="s-btn-ghost" id="hpScan" style="margin-left:auto;font-size:13px">' + esc(tw("hp.scan")) + "</button></div>"
       + infoBody(esc(tw("hp.intro")))
-      + '<div id="hpInc"></div><div id="hpIssues" class="si-log"></div></div>';
+      + '<div id="hpInc"></div><div id="hpIssues" class="si-log"></div>'
+      + '<div style="display:flex;align-items:center;gap:8px;margin:18px 0 6px"><h3 style="font-size:14px;color:var(--text);margin:0">'
+      + esc(tw("hp.cerr_head")) + "</h3>" + infoBtn()
+      + '<button class="s-btn-ghost" id="hpCerrClear" style="margin-left:auto;font-size:13px" hidden>' + esc(tw("hp.cerr_clear")) + "</button></div>"
+      + infoBody(esc(tw("hp.cerr_intro")))
+      + '<div id="hpCerr" class="si-log"></div></div>';
     var q = function (s) { return box.querySelector(s); };
 
     async function loadIncidents() {
@@ -104,12 +129,24 @@
       host.innerHTML = '<h3 style="font-size:14px;color:var(--text)">' + esc(tw("hp.issues_head", { h: d.window_h || 24 })) + "</h3>"
         + (issues.length ? issues.map(issueHtml).join("") : '<div class="dim" style="color:var(--text3)">' + esc(tw("hp.no_issues")) + "</div>");
     }
+    async function loadClientErrors() {
+      var host = q("#hpCerr"), clr = q("#hpCerrClear");
+      if (!host) return;
+      var d = await getJson("/client-errors");
+      var list = d.errors || [];
+      host.innerHTML = list.length ? list.map(clientErrorHtml).join("")
+        : '<div class="dim" style="color:var(--text3)">' + esc(tw("hp.cerr_none")) + "</div>";
+      if (clr) clr.hidden = !list.length;
+    }
     q("#hpScan").onclick = scan;
+    var clr = q("#hpCerrClear");
+    if (clr) clr.onclick = async function () { await getJson("/client-errors/clear", {}); loadClientErrors(); };
     loadIncidents();
     scan();
+    loadClientErrors();
   }
 
-  var api_ = { mount: mount, incidentHtml: incidentHtml, issueHtml: issueHtml };
+  var api_ = { mount: mount, incidentHtml: incidentHtml, issueHtml: issueHtml, clientErrorHtml: clientErrorHtml, shortUa: shortUa };
   if (typeof window !== "undefined") window.JavisHealthPanel = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

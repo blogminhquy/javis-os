@@ -120,6 +120,7 @@ Note: these two TTS variables apply to the default free Edge TTS voice. If you p
 
 | Variable | Meaning | Default | When to change |
 |---|---|---|---|
+| `JAVIS_MINIFY` | The server minifies the interface's JS/CSS before sending it to the browser (drops comments and extra whitespace, keeps line numbers; since 0.416.0). `0` = send the source as is | `1` | Only when debugging the interface and you want the exact source in the browser's devtools. Turned off, the first load is about 40% heavier. |
 | `JAVIS_CLAUDE_IDLE_TIMEOUT` | The ceiling on waiting when the engine has answered then gone quiet mid-turn with NO tool running, in seconds. `0` = no limit | `0` | The default removes the ceiling: engine silence does NOT mean a hang (a model thinking at high effort, or composing a long file to write out, both go quiet for minutes). Only set a positive number if you genuinely need turns cut off automatically. |
 | `JAVIS_CLAUDE_FIRST_TIMEOUT` | The ceiling on waiting for the FIRST characters of a turn, in seconds. `0` = no limit | `0` | Same reason as above: a long conversation has to reload the whole context on the first turn, which takes time. |
 | `JAVIS_CLAUDE_TOOL_TIMEOUT` | The ceiling on waiting while a TOOL is mid-run (rendering video, removing a background, building...), in seconds. `0` = no limit | `3600` | This ceiling is kept because it measures a REAL live child process rather than measuring silence. Raise it for work over an hour (encoding a long video, training a model...). |

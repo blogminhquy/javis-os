@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.416.0] - 2026-10-30
+### Cải thiện
+- **Javis mở nhanh hơn: lần đầu từ 6,3 xuống 5,1 giây, các lần sau từ 1,55 xuống 1,37 giây.** Đo trên điện thoại giả lập mạng 4G. Lượng tải lúc mở app giảm 35% (1,7 MB xuống 1,1 MB):
+  - **Máy chủ tự nén gọn giao diện trước khi gửi.** Bỏ chú thích và khoảng trắng thừa, JS nhẹ đi 44%, CSS nhẹ đi 49%. Mã nguồn vẫn giữ nguyên, số dòng cũng giữ nguyên nên báo lỗi vẫn chỉ đúng chỗ. Muốn tắt thì đặt `JAVIS_MINIFY=0`.
+  - **Font chữ nằm sẵn trong Javis.** Không còn gọi sang Google Fonts lúc mở trang, nên chữ hiện ra sớm hơn, và vẫn đẹp khi máy chạy Javis không vào được Google.
+  - **Bớt hỏi máy chủ trùng lặp lúc mở app.** Trước đây phần cài đặt bị hỏi 9 lần liền, giờ còn 3.
+- **Trang Sức khoẻ có thêm mục Lỗi giao diện gần đây.** Lỗi xảy ra trên trình duyệt của bất kỳ ai dùng Javis (máy tính hay điện thoại) tự gửi về đây, gom theo nhóm, kèm phiên bản và loại máy. Gặp lỗi lạ, chụp mục này gửi nhà phát triển là đủ để sửa, không cần đoán từ ảnh màn hình. Chỉ có thông tin kỹ thuật, không có nội dung chat.
+
 ## [0.415.0] - 2026-10-30
 ### Sửa lỗi
 - **Cập nhật xong không còn kẹt ở màn hình đầy chữ mã.** Bấm cập nhật mà trang tải lại đúng lúc máy chủ còn đang khởi động thì mọi chữ hiện thành mã kiểu `nav.group.bo_nao`, phiên bản hiện sai thành v0.4.3, kèm dòng lỗi "The string did not match the expected pattern", và trang đứng như vậy mãi. Giờ Javis tự thử lại; máy chủ lên là trang tự tải lại một lần và hiện đúng. Đang gõ dở thì không tải lại, chữ trên màn hình tự về đúng.

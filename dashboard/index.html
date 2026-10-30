@@ -26,9 +26,8 @@
        nên trước đây chỉ mobile chạy dạng app, desktop không bao giờ có nút cài). Nút
        "Mở như app" trên thanh trạng thái + icon cài trong thanh địa chỉ ăn theo file này. -->
   <link rel="manifest" href="/static/manifest.json?v=5">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=Montserrat:wght@400;500;600;700&amp;display=swap">
+  <!-- Font tự chứa (0.416.0, dashboard/fonts/): không còn gọi fonts.googleapis.com / fonts.gstatic.com lúc mở trang. -->
+  <link rel="stylesheet" href="/static/fonts/fonts.css?v=1">
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
@@ -944,6 +943,10 @@
        bắt được cả trường hợp một file phía dưới hỏng vì đang chạy bản cũ. -->
   <script src="/static/freshness.js"></script>
   <!-- Opened by IP on a Hostinger VPS: move to the verified https link of this VPS (auto-domain.js, 0.302.0). -->
+  <!-- Hộp đen lỗi giao diện (loi-may-khach.js, 0.416.0): đứng sớm để bắt được lỗi của mọi file phía dưới. -->
+  <script src="/static/loi-may-khach.js?v=1"></script>
+  <!-- Gộp các lượt đọc trùng nhau lúc mở app (fetch-gop.js, 0.416.0). Đứng trước mọi file gọi máy chủ. -->
+  <script src="/static/fetch-gop.js?v=1"></script>
   <script src="/static/auto-domain.js?v=1"></script>
   <script src="/static/i18n/index.js?v=2"></script>
   <script src="/static/vendor/lucide-icons.js?v=13"></script>
