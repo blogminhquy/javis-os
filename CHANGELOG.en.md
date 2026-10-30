@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.410.0] - 2026-10-30
+### Fixed
+- **A job that ran out of usage is no longer marked Done.** When Claude reported the limit in wording Javis did not know yet (like "You're out of extra usage"), or an API error mid-run, the job still went to Done with that message as its result. A turn that ends in an error is now an error: the job waits for the plan to reopen, or sits under Needs you with the reason.
+- **Background work moves to the next provider in your order when Claude runs out**, as it already did for Codex, if nothing was done yet. A job already part done stops and reports instead, so nothing is sent twice.
+- **You can answer a job's question right on its card.** The Work page refreshes every 3 seconds and wiped whatever you were typing in the reply box. The box now keeps your text until you send it, and buttons no longer stay grey after a server error.
+
 ## [0.409.0] - 2026-10-30
 ### Fixed
 - **Phone dictation: X and stop respond again.** The first recording worked, after that neither X nor the stop square did anything and the timer ran on. Main cause: stopping put the cursor in the text box, so the keyboard came up; on the next recording the iPhone dropped the keyboard but left the page shifted, and a tap on X landed on the text box (the "AutoFill" bubble) instead of the button. Now the box lets go of the cursor while recording, stopping does not bring up the keyboard (tap the box to edit), and the page settles back when the keyboard goes down.

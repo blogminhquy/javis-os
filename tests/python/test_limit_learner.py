@@ -218,6 +218,13 @@ check("có trần thời gian chờ, không treo vô hạn",
 check("chỉ chờ MỘT lần mỗi lượt, không chờ chồng",
       "not waited_for_window" in _eng)
 
+# 0.410.0: Claude Code's message once the plan's extra usage is spent too (field report 30/10/2026).
+_extra = ll.parse_subscription_limit("You're out of extra usage · resets 3pm (UTC)", engine_hint="claude-code")
+check("'out of extra usage' is a plan limit, with its reset time",
+      bool(_extra) and _extra.engine == "claude-code" and _extra.reset_epoch > 0)
+check("and it dominates when it is the whole output",
+      ll.subscription_dominates("You're out of extra usage · resets 3pm (UTC)"))
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")

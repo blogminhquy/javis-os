@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.410.0] - 2026-10-30
+### Sửa lỗi
+- **Việc hết lượt dùng không còn bị chấm Xong.** Trước đây Claude báo hết lượt bằng một câu Javis chưa quen mặt chữ (như "You're out of extra usage") hay báo lỗi API giữa chừng thì việc vẫn vào cột Xong, "kết quả" chính là câu báo lỗi. Giờ lượt kết thúc lỗi là lỗi: việc tự hẹn chạy lại lúc gói mở, hoặc nằm ở Cần bạn xử lý kèm lý do.
+- **Việc nền hết lượt Claude thì chuyển sang nhà dự phòng** trong Thứ tự dùng, như Codex vẫn làm, nếu chưa kịp làm gì. Đã làm dở thì dừng và báo, không chạy lại kẻo gửi hai lần.
+- **Trả lời câu hỏi ngay trên thẻ việc được rồi.** Trang Việc tự làm mới mỗi 3 giây và xoá sạch chữ bạn đang gõ trong ô trả lời. Giờ ô giữ nguyên chữ cho tới khi bạn gửi, và nút bấm không còn kẹt xám khi máy chủ trả lỗi.
+
 ## [0.409.0] - 2026-10-30
 ### Sửa lỗi
 - **Nút ghi âm thành chữ trên điện thoại: bấm X và nút dừng ăn trở lại.** Trước đây lần ghi đầu chạy được, từ lần sau bấm X hay ô vuông đều không có tác dụng, đồng hồ cứ chạy mãi. Nguyên nhân chính: dừng ghi xong Javis tự đặt con trỏ vào ô nhập nên bàn phím bật lên, lần ghi kế tiếp iPhone hạ bàn phím nhưng để cả trang lệch đi, cái chạm vào X rơi trúng ô nhập (hiện bóng "AutoFill") chứ không trúng nút. Giờ lúc ghi âm ô nhập không giữ con trỏ, dừng ghi không bật bàn phím (chạm vào ô khi muốn sửa), và trang tự về đúng chỗ khi bàn phím hạ.

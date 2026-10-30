@@ -675,6 +675,14 @@ class _FallbackChain:
                         got_error = (f"{self._name(e)} mất đăng nhập: "
                                      + (ev.get("content") or "").strip()[:200])
                         break
+                    # Claude Code ends a failed turn (out of plan usage, API 429) with a final flagged
+                    # `is_error` whose text is the provider's message. Passing it on as a success kept
+                    # the next link from ever running, and the job was reported done with that message
+                    # as its result. Codex says the same thing as an `error` event; treat both alike.
+                    if t == "final" and ev.get("is_error"):
+                        got_error = ((ev.get("content") or "").strip()[:300]
+                                     or f"{self._name(e)} kết thúc lỗi ({ev.get('subtype') or 'final'})")
+                        break
                     yield ev
                     if t == "final":
                         got_final = True
