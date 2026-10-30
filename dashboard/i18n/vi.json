@@ -292,10 +292,10 @@
   "dict.cancel": "Huỷ ghi âm",
   "dict.busy": "Đang chuyển thành chữ...",
   "dict.in_call": "Đang đàm thoại. Cúp máy rồi hãy ghi âm.",
-  "dict.unsupported": "Trình duyệt này chưa ghi âm thành chữ được. Thử Chrome, Edge hoặc Safari, hoặc bật tai nghe Groq ở phần Giọng nói trong Cài đặt.",
+  "dict.unsupported": "Trình duyệt này chưa ghi âm thành chữ được. Thử Safari, Chrome hoặc Edge bản mới.",
   "dict.denied": "Javis chưa được dùng micro. Bấm ổ khoá trên thanh địa chỉ, cho phép Micro rồi thử lại.",
   "dict.failed": "Ghi âm thành chữ bị lỗi, thử lại nhé.",
-  "dict.nothing": "Chưa nghe ra chữ nào. Nói gần micro hơn rồi thử lại. Trên điện thoại, thêm API key Groq (miễn phí) ở trang Models để ghi âm ra chữ chắc hơn.",
+  "dict.nothing": "Chưa nghe ra chữ nào. Nói gần micro hơn rồi thử lại.",
   "dict.no_ear": "Câu pha tiếng Anh sẽ nghe chuẩn hơn khi có API key Groq (miễn phí) hoặc OpenAI ở trang Models.",
   "call.connecting": "Đang kết nối",
   "call.listening": "Đang nghe",
@@ -4581,7 +4581,7 @@
   "teams.mic": "Nói để nhập chữ",
   "teams.mic_stop": "Dừng nghe",
   "teams.mic_busy": "Đang chuyển giọng thành chữ",
-  "teams.mic_unsupported": "Trình duyệt này chưa nhập giọng nói được. Thử Chrome, Edge hoặc Safari, hoặc bật tai nghe Groq ở phần Giọng nói trong Cài đặt.",
+  "teams.mic_unsupported": "Trình duyệt này chưa nhập giọng nói được. Thử Safari, Chrome hoặc Edge bản mới.",
   "teams.mic_denied": "Javis chưa được dùng micro. Bấm biểu tượng ổ khoá trên thanh địa chỉ, cho phép Micro rồi thử lại.",
   "teams.mic_failed": "Nhận giọng nói bị lỗi, thử lại nhé.",
   "teams.rename": "Đổi tên",
@@ -6390,5 +6390,7 @@
   "hp.cerr_clear": "Xoá danh sách",
   "hp.cerr_intro": "Lỗi xảy ra trên trình duyệt của bất kỳ ai dùng Javis này (máy tính, điện thoại) được tự gửi về đây, gom theo nhóm. Chỉ có thông tin kỹ thuật (thông báo lỗi, file, dòng, loại máy), không có nội dung chat. Gặp lỗi lạ thì chụp phần này gửi nhà phát triển là đủ để sửa.",
   "net.reconnecting": "Đang kết nối lại máy chủ…",
-  "dict.denied_ios": "Safari chưa cho Javis dùng micro. Bấm nút aA trên thanh địa chỉ, chọn Cài đặt trang web, đặt Micrô thành Cho phép rồi thử lại. Vẫn không được thì mở Cài đặt, Ứng dụng, Safari, Micrô và chọn Hỏi."
+  "dict.denied_ios": "Safari chưa cho Javis dùng micro. Bấm nút aA trên thanh địa chỉ, chọn Cài đặt trang web, đặt Micrô thành Cho phép rồi thử lại. Vẫn không được thì mở Cài đặt, Ứng dụng, Safari, Micrô và chọn Hỏi.",
+  "dict.service_ios": "iPhone đang tắt Đọc chính tả nên Safari không nghe được. Mở Cài đặt, Cài đặt chung, Bàn phím, bật Đọc chính tả rồi thử lại.",
+  "dict.service": "Dịch vụ nhận giọng nói của trình duyệt đang tắt. Bật nhận giọng nói trong cài đặt máy hoặc trình duyệt rồi thử lại."
 }

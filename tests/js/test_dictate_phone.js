@@ -86,6 +86,7 @@ function fresh() {
   // iPhone with an upload ear: no Web Speech at all, the recorder holds the mic, text arrives on stop.
   reset(IPHONE, "upload");
   let Dx = fresh(), texts = [], states = [], errors = [], streams = [];
+  await Dx.warm();   // 0.419.0: a page asks the ear on load, before any press
   let d = Dx.create({ onText: (t, f) => texts.push([t, f]), onState: s => states.push(s), onError: c => errors.push(c),
     onStream: s => streams.push(s) });
   d.start(); await tick(); await tick();
@@ -102,6 +103,7 @@ function fresh() {
   // iPhone without an ear: Web Speech alone, nothing else touches the mic, runs are not continuous.
   reset(IPHONE, "");
   Dx = fresh(); texts = []; states = []; streams = []; errors = [];
+  await Dx.warm();
   d = Dx.create({ onText: t => texts.push(t), onState: s => states.push(s), onError: c => errors.push(c), onStream: s => streams.push(s) });
   d.start(); await tick(); await tick();
   check("iPhone, no ear: Web Speech runs", runs.length === 1 && states[states.length - 1] === "listening");
@@ -117,6 +119,7 @@ function fresh() {
   // iPhone, no ear, nothing heard: say so instead of closing the bar in silence.
   reset(IPHONE, "");
   Dx = fresh(); states = []; errors = [];
+  await Dx.warm();
   d = Dx.create({ onState: s => states.push(s), onError: c => errors.push(c) });
   d.start(); await tick(); await tick();
   d.stop(); await tick(); await tick();
@@ -125,6 +128,7 @@ function fresh() {
   // A real error (mic blocked) is not covered up by a second "nothing heard" note.
   reset(IPHONE, "");
   Dx = fresh(); errors = [];
+  await Dx.warm();
   d = Dx.create({ onError: c => errors.push(c) });
   d.start(); await tick(); await tick();
   runs[0].onerror({ error: "not-allowed" }); runs[0].onend(); await tick();
@@ -133,6 +137,7 @@ function fresh() {
   // iPhone + ear, the ear hears nothing either.
   reset(IPHONE, "upload"); sttText = "";
   Dx = fresh(); errors = []; texts = [];
+  await Dx.warm();
   d = Dx.create({ onText: t => texts.push(t), onError: c => errors.push(c) });
   d.start(); await tick(); await tick();
   d.stop(); for (let i = 0; i < 6; i++) await tick();
@@ -142,6 +147,7 @@ function fresh() {
   // Android behaves as a phone too.
   reset(ANDROID, "upload");
   Dx = fresh();
+  await Dx.warm();
   d = Dx.create({});
   d.start(); await tick(); await tick();
   check("Android + ear: record only, no Web Speech", runs.length === 0 && recorders.length === 1);
@@ -150,6 +156,7 @@ function fresh() {
   // A computer is unchanged: Web Speech for live text plus the recorder for the ear.
   reset(MAC, "upload");
   Dx = fresh();
+  await Dx.warm();
   d = Dx.create({ onStream: () => {} });
   d.start(); await tick(); await tick();
   check("computer + ear: Web Speech and recorder side by side (live text, then the ear)", runs.length === 1 && recorders.length === 1);

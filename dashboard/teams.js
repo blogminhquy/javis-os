@@ -2350,7 +2350,10 @@
         if (st === "idle") { var inp = S.el.querySelector(".tm-input"); if (inp) inp.focus(); }
       },
       onError: function (code) {
-        setNote(tw(code === "denied" ? "teams.mic_denied" : code === "unsupported" ? "teams.mic_unsupported"
+        // 0.419.0: the phone's own speech service switched off (iOS Dictation) gets the note that says where to turn it on.
+        var ios = D.isIOS && D.isIOS();
+        setNote(tw(code === "denied" ? (ios ? "dict.denied_ios" : "teams.mic_denied")
+          : code === "service" ? (ios ? "dict.service_ios" : "dict.service") : code === "unsupported" ? "teams.mic_unsupported"
           : code === "nothing" ? "dict.nothing" : "teams.mic_failed"));
       }
     });

@@ -31,9 +31,11 @@
    nearly every real press went to the network first (through Cloudflare, and since 0.416 through fetch-gop.js and the
    service worker), and by the time it came back the tap no longer counted: Safari refused, the run reported "denied"
    or "failed" and the bar closed. The ear is now asked in the background (on load, when the tab comes back, after each
-   press), and a press with a known answer opens the mic synchronously, whatever the age of that answer. Only the very
-   first press before any answer still waits. A failed refresh keeps the last known answer instead of falling back to
-   "no ear".
+   press), and a press opens the mic synchronously: with the known answer, whatever its age, and with "no ear" when there
+   is none yet (owner, same day: ordinary users never set up Groq, so the browser's own recognizer is the path that must
+   always work; a Groq user only loses the re-listen on a press made before the first answer came). A failed refresh
+   keeps the last known answer. A recognizer the phone itself has switched off (iOS "service-not-allowed": Dictation
+   off in Settings) is reported as "service", not as a blocked mic, so the note can say where to turn it on.
 
    joinText is pure so node tests can run it. */
 (function () {
@@ -109,7 +111,7 @@
   }
 
   // opts: onText(text, final) gets the WHOLE spoken text so far; onState("listening" | "transcribing" | "idle");
-  // onError(code) with "unsupported", "denied", "failed" or "nothing" (0.339.0: the run ended with no word at all,
+  // onError(code) with "unsupported", "denied", "service" (0.419.0: the device's speech service is off), "failed" or "nothing" (0.339.0: the run ended with no word at all,
   // reported only when no other error was); onStream(stream | null) when given also opens the mic for a level meter
   // even without an upload ear (0.230.0). Returns { start, stop, cancel, active, busy }.
   function create(opts) {
@@ -229,7 +231,8 @@
         if (opts.onText) opts.onText(spoken, false);
       };
       r.onerror = function (e) {
-        if (e && (e.error === "not-allowed" || e.error === "service-not-allowed")) { fatal = true; err("denied"); }
+        if (e && e.error === "service-not-allowed") { fatal = true; err("service"); }
+        else if (e && e.error === "not-allowed") { fatal = true; err("denied"); }
         else if (e && e.error !== "no-speech" && e.error !== "aborted") { fatal = true; err("failed"); }
       };
       r.onend = function () {
@@ -248,13 +251,9 @@
       on = true; spoken = ""; cancelled = false; reported = false;
       var SR = recognizer();
       // A known answer, however old, is used NOW so the mic opens inside the tap; the refresh only serves the next
-      // press (0.419.0, see the note at the top). Only a page that never got an answer waits for one.
-      if (earKind !== null) {
-        go(earKind);
-        warmEar();
-      } else {
-        askEar().then(go);
-      }
+      // press (0.419.0, see the note at the top). No answer yet counts as "no ear": the browser's recognizer.
+      go(earKind || "");
+      warmEar();
 
       function go(ear) {
         if (!on) return;
@@ -318,7 +317,7 @@
 
   // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
   var api = { create: create, joinText: joinText, plan: plan, isPhone: isPhone, isIOS: isIOS,
-    ear: function () { return earKind; } };
+    ear: function () { return earKind; }, warm: askEar };
   if (typeof window !== "undefined") window.JavisDictate = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

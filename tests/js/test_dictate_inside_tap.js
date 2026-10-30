@@ -52,11 +52,16 @@ function fresh() {
 
 (async () => {
   // ── iPhone with an upload ear: the recorder path ──
+  // Owner, 2026-10-30: ordinary users never set Groq up. A press made before ANY answer still starts at once, with the
+  // browser's own recognizer, instead of waiting for the network.
   let D = fresh();
   let d = D.create({});
-  d.start(); for (let i = 0; i < 4; i++) await tick();
-  check("first press ever: waits for the answer once, then records", mics === 1 && recorders.length === 1);
+  d.start();
+  check("very first press, no answer yet: the recognizer starts synchronously, inside the tap",
+    runs.length === 1 && runs[0].started === true && mics === 0);
+  for (let i = 0; i < 4; i++) await tick();
   d.cancel(); await tick();
+  check("and that press asked the ear in the background", D.ear() === "upload", D.ear());
 
   now += 120000;   // well past the old one-minute cache: the press that used to go to the network first
   const before = fetches, micsBefore = mics;
@@ -82,9 +87,11 @@ function fresh() {
   // ── iPhone without an ear: Web Speech starts inside the tap too ──
   ear = "";
   D = fresh();
+  await D.warm();
+  const runs0 = runs.length;
   d = D.create({});
   d.start(); for (let i = 0; i < 4; i++) await tick();
-  check("no ear, first press: Web Speech runs", runs.length === 1 && runs[0].started === true);
+  check("no ear: Web Speech runs", runs.length === runs0 + 1 && runs[runs.length - 1].started === true);
   d.cancel(); await tick();
   now += 120000;
   const runsBefore = runs.length;
@@ -102,6 +109,24 @@ function fresh() {
   const EN = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard/i18n/en.json"), "utf8"));
   check("iPhone gets its own mic-blocked note", /ios \? "dict\.denied_ios" : "dict\.denied"/.test(CD));
   check("that note names Safari's aA menu in both languages", /aA/.test(VI["dict.denied_ios"] || "") && /aA/.test(EN["dict.denied_ios"] || ""));
+
+  // ── Dictation switched off on the iPhone (service-not-allowed) is its own note, pointing at Settings > Keyboard ──
+  ear = "";
+  D = fresh();
+  await D.warm();
+  const errs = [];
+  d = D.create({ onError: (c) => errs.push(c) });
+  d.start();
+  runs[runs.length - 1].onerror({ error: "service-not-allowed" });
+  runs[runs.length - 1].onend(); await tick();
+  check("service-not-allowed is reported as 'service', not as a blocked mic", errs.join(",") === "service", errs.join(","));
+  check("the composer and the team chat both map 'service' to the Dictation note",
+    /code === "service" \? \(ios \? "dict\.service_ios"/.test(CD)
+    && /code === "service" \? \(ios \? "dict\.service_ios"/.test(fs.readFileSync(path.join(ROOT, "dashboard/teams.js"), "utf8")));
+  check("that note says where Dictation is turned on, in both languages",
+    /Đọc chính tả/.test(VI["dict.service_ios"] || "") && /Dictation/.test(EN["dict.service_ios"] || ""));
+  check("no dictation note sends an ordinary user to a Groq key any more",
+    ["dict.nothing", "dict.unsupported", "teams.mic_unsupported"].every((k) => !/Groq/.test(VI[k] + EN[k])));
 
   Date.now = realNow;
   if (fails.length) { console.log("\nFAIL - test_dictate_inside_tap: " + fails.length); process.exit(1); }
