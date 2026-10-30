@@ -124,6 +124,7 @@ Lưu ý: hai biến TTS này áp cho giọng Edge TTS miễn phí mặc định.
 
 | Biến | Ý nghĩa | Mặc định | Khi nào đổi |
 |---|---|---|---|
+| `JAVIS_MINIFY` | Máy chủ tự nén gọn JS/CSS của giao diện trước khi gửi cho trình duyệt (bỏ chú thích và khoảng trắng thừa, giữ nguyên số dòng; từ 0.416.0). `0` = gửi nguyên bản | `1` | Chỉ cần khi gỡ lỗi giao diện và muốn xem đúng mã nguồn trong công cụ của trình duyệt. Tắt thì lần mở đầu tải nặng hơn khoảng 40%. |
 | `JAVIS_CLAUDE_IDLE_TIMEOUT` | Trần chờ khi engine đã trả lời rồi im giữa chừng mà KHÔNG có tool nào đang chạy, tính bằng giây. `0` = không giới hạn | `0` | Mặc định bỏ trần: engine im lặng KHÔNG có nghĩa là treo (model suy nghĩ ở mức nỗ lực cao, hoặc đang soạn nội dung một file dài để ghi ra, đều im hàng phút). Chỉ đặt số dương nếu bạn thật sự cần cắt lượt tự động. |
 | `JAVIS_CLAUDE_FIRST_TIMEOUT` | Trần chờ chữ ĐẦU TIÊN của một lượt, tính bằng giây. `0` = không giới hạn | `0` | Cùng lý do với biến trên: hội thoại dài thì lượt đầu phải nạp lại toàn bộ ngữ cảnh nên lâu. |
 | `JAVIS_CLAUDE_TOOL_TIMEOUT` | Trần chờ khi một TOOL đang chạy dở (render video, tách nền, build...), tính bằng giây. `0` = không giới hạn | `3600` | Trần này giữ lại vì nó đo một tiến trình con CÓ THẬT đang sống, không phải đo sự im lặng. Tác vụ chạy quá 1 tiếng (encode video dài, train model...) thì tăng lên. |
