@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.409.0] - 2026-10-30
+### Fixed
+- **Phone dictation: X and stop work again.** (in progress)
+
 ## [0.408.0] - 2026-10-29
 ### Improved
 - **A tidier notification bell: read notices hide.** The list shows only unread notices. **Mark all read** empties it at once. To look back, tap **Show N read notices** at the bottom.
