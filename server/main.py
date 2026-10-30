@@ -12742,7 +12742,12 @@ async def _send_voice_file(chat_id, path, brain) -> tuple:
 
 import my_tasks as my_tasks_mod
 # The owner's own tasks for the Tasks page, tab "Mine" (0.423.0): one JSON store per brain.
-my_tasks_feature = my_tasks_mod.register(app, my_tasks_mod.MyTasksDeps(brain_root=_brain_root, atomic_write_text=_atomic_write_text))
+my_tasks_feature = my_tasks_mod.register(app, my_tasks_mod.MyTasksDeps(
+    brain_root=_brain_root, atomic_write_text=_atomic_write_text,
+    # Habit reminders (0.424.0) go out like a reminder's report: inbox, Telegram, push.
+    scheduler_brains=_background_brains,
+    notify=lambda chat_id, text, brain="", dedup="": _notify_owner(chat_id, text, kind="report", source="habit", brain=brain, dedup=dedup),
+    tz=reminders_mod.VN_TZ))
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,
@@ -14034,6 +14039,7 @@ async def _start_scheduler():
                 # 3b) Nhắc hẹn từ chat: tới giờ → bắn Telegram (mode task: chạy engine rồi báo)
                 try:
                     await reminders_feature.tick()
+                    await my_tasks_feature.tick()   # habit reminders (0.424.0)
                     # 0.202.0: prompt-cache keep-warm (off unless switched on, see cache_keepwarm.py).
                     asyncio.create_task(_KEEPWARM.tick())
                 except Exception as rte:

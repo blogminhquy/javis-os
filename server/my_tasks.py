@@ -23,13 +23,15 @@ Routes (all JSON bodies, `brain` like the other stores):
 from __future__ import annotations
 
 import asyncio
+import calendar
 import json
 import re
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, Body, Query
 
@@ -50,6 +52,10 @@ REMINDS = ("auto", "time", "off")
 class MyTasksDeps:
     brain_root: Callable[[str], str]
     atomic_write_text: Callable[[str, str], None]
+    # Habit reminders (0.424.0): the brains the scheduler visits, how to reach the owner, and the local time zone.
+    scheduler_brains: Optional[Callable[[], list]] = None
+    notify: Optional[Callable[..., Any]] = None
+    tz: Optional[Callable[[], Any]] = None
 
 
 def _now() -> float:
@@ -130,6 +136,110 @@ def _apply(task: dict, p: dict) -> None:
         task["from_javis"] = bool(p.get("from_javis"))
     if "prep" in p:
         task["prep"] = str(p.get("prep") or "")[:500]
+
+
+# ---------------------------------------------------------------- habits (0.424.0)
+# Mirror of the page's habit maths (dashboard/tasks.js occursOn / habitCalc) for the server-side nudge.
+def _dnum(iso: str) -> int:
+    return date.fromisoformat(iso).toordinal()
+
+
+def occurs_on(rep: Optional[dict], anchor: str, iso: str) -> bool:
+    """Whether a repeat rule anchored on `anchor` falls on `iso` (weeks start on Monday, like the page)."""
+    if not rep or not anchor or iso < anchor:
+        return False
+    n = max(1, int(rep.get("n") or 1))
+    d0, d = _dnum(anchor), _dnum(iso)
+    unit = rep.get("unit")
+    if unit == "day":
+        return (d - d0) % n == 0
+    if unit == "week":
+        days = rep.get("days") or [(date.fromisoformat(anchor).weekday() + 1) % 7]
+        if (date.fromisoformat(iso).weekday() + 1) % 7 not in days:
+            return False
+        return ((d - date.fromisoformat(iso).weekday()) // 7 - (d0 - date.fromisoformat(anchor).weekday()) // 7) % n == 0
+    s, x = date.fromisoformat(anchor), date.fromisoformat(iso)
+    last = calendar.monthrange(x.year, x.month)[1]
+    day_ok = s.day == x.day or (s.day > last and x.day == last)
+    if unit == "month":
+        return day_ok and ((x.year - s.year) * 12 + (x.month - s.month)) % n == 0
+    if unit == "year":
+        return s.month == x.month and day_ok and (x.year - s.year) % n == 0
+    return False
+
+
+def habit_state(task: dict, today: str) -> dict:
+    """cur, frozen, done_today, rest for one habit (same rules as the page: scheduled days only, one miss freezes,
+    two in a row lose the streak)."""
+    rep, hb = task.get("repeat"), task.get("habit") or {}
+    anchor = task.get("date") or hb.get("start") or today
+    start = max(anchor, hb.get("start") or anchor)
+    dd = task.get("done_dates") or {}
+    cur, miss, prev, days = 0, 0, None, {}
+    d = date.fromisoformat(start)
+    end = date.fromisoformat(today)
+    while d <= end:
+        iso = d.isoformat()
+        if not occurs_on(rep, anchor, iso):
+            days[iso] = "r"
+        elif iso == today and iso not in dd:
+            days[iso] = "todo"
+            break
+        elif iso in dd:
+            cur, miss, days[iso] = cur + 1, 0, "f"
+        else:
+            miss += 1
+            if miss == 1:
+                days[iso] = "i"
+            else:
+                days[iso] = "x"
+                if prev and days.get(prev) == "i":
+                    days[prev] = "x"
+                cur = 0
+        if days[iso] != "r":
+            prev = iso
+        d += timedelta(days=1)
+    last = prev if prev and prev != today else None
+    rest = days.get(today) == "r"
+    return {"cur": cur, "rest": rest, "done_today": days.get(today) == "f",
+            "frozen": bool(last and days.get(last) == "i" and (days.get(today) == "todo" or rest))}
+
+
+def usual_time(task: dict, tz=None) -> str:
+    """Median time of the last 30 ticks, "" with fewer than 3."""
+    dd = task.get("done_dates") or {}
+    mins = sorted(
+        (lambda t: t.hour * 60 + t.minute)(datetime.fromtimestamp(float(v.get("at") or 0), tz))
+        for k, v in sorted(dd.items())[-30:] if isinstance(v, dict) and float(v.get("at") or 0) > 0)
+    if len(mins) < 3:
+        return ""
+    m = mins[len(mins) // 2]
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def nudge_time(task: dict, state: dict, tz=None) -> str:
+    """When today's reminder goes out: the set time, or for "Javis reminds" half an hour after the usual time
+    (earlier while frozen, so there is room to thaw it)."""
+    hb = task.get("habit") or {}
+    if hb.get("remind") == "time":
+        return hb.get("at") or "21:00"
+    base = usual_time(task, tz) or task.get("time") or hb.get("at") or "21:00"
+    m = int(base[:2]) * 60 + int(base[3:5])
+    m = max(6 * 60, m - 30) if state.get("frozen") else min(23 * 60, m + 30)
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def nudge_text(task: dict, state: dict) -> str:
+    title = task.get("title") or ""
+    if state.get("frozen"):
+        return localefmt.chu(
+            f"Nhắc giữ lửa: {title}. Lần trước bạn đã bỏ, làm hôm nay là gỡ băng, bỏ nữa là mất chuỗi {state['cur']} ngày.",
+            f"Habit reminder: {title}. You skipped last time; do it today to thaw it, skip again and the {state['cur']}-day streak is gone.")
+    if state.get("cur"):
+        return localefmt.chu(f"Nhắc giữ lửa: {title}. Chuỗi đang {state['cur']} ngày, làm nốt hôm nay nhé.",
+                             f"Habit reminder: {title}. The streak is at {state['cur']} days, do today's one.")
+    return localefmt.chu(f"Nhắc thói quen: {title}. Làm hôm nay để bắt đầu chuỗi giữ lửa.",
+                         f"Habit reminder: {title}. Do it today to start the streak.")
 
 
 class MyTasks:
@@ -305,6 +415,50 @@ class MyTasks:
                 t["project"] = ""
         self.save(brain, data)
         return {"ok": True, "project": cur, "tasks": moved, "rev": data["rev"]}
+
+    # ---- habit reminders (0.424.0) ----
+    async def tick(self) -> int:
+        """Send today's habit reminders that are due: once a day per habit, only on a scheduled day that is not done
+        yet, at the set time or (Javis reminds) half an hour after the usual time. Returns how many went out."""
+        if not self.deps.notify:
+            return 0
+        tz = self.deps.tz() if self.deps.tz else None
+        now = datetime.now(tz)
+        today, hm = now.date().isoformat(), now.strftime("%H:%M")
+        try:
+            brains = list(self.deps.scheduler_brains() or []) if self.deps.scheduler_brains else []
+        except Exception:
+            brains = []
+        sent, seen = 0, set()
+        for brain in brains + ["brain"]:
+            try:
+                root = str(Path(self.deps.brain_root(brain)).resolve())
+            except Exception:
+                continue
+            if root in seen or not self._path(brain).exists():
+                continue
+            seen.add(root)
+            due = []
+            async with self._io:
+                data = self.load(brain)
+                for t in data.get("tasks", []):
+                    hb = t.get("habit") or {}
+                    if not t.get("repeat") or not hb or hb.get("off") or hb.get("remind") == "off" or hb.get("nudged") == today:
+                        continue
+                    st = habit_state(t, today)
+                    if st["rest"] or st["done_today"] or hm < nudge_time(t, st, tz):
+                        continue
+                    hb["nudged"] = today
+                    due.append((t, st))
+                if due:
+                    self.save(brain, data)
+            for t, st in due:
+                try:
+                    await self.deps.notify("", nudge_text(t, st), brain=brain, dedup=f"habit:{t.get('id')}:{today}")
+                    sent += 1
+                except Exception as e:
+                    print(f"[my-tasks] habit reminder not sent: {type(e).__name__}: {e}")
+        return sent
 
     # ---- routes ----
     def _make_router(self) -> APIRouter:

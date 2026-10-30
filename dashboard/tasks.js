@@ -300,7 +300,78 @@
     return { items: items, recurring: recurring };
   }
 
-  var model_ = { model: model, mineModel: mineModel, occursOn: occursOn, nextOcc: nextOcc, prevOcc: prevOcc, repHuman: repHuman, inList: inList, byTime: byTime, byTimeline: byTimeline, cronFor: cronFor, javisSchedule: javisSchedule, kanbanState: kanbanState, addDays: addDays };
+  // ---------- habits (0.424.0) ----------
+  // A habit is a repeating task of mine with `habit` set. Only SCHEDULED days count: a day the repeat does not fall
+  // on is a rest day (no freeze, no break, no count). One missed session freezes the streak; a second missed
+  // session in a row loses it; doing the next session thaws it. Weekly once is then counted by weeks, monthly by months.
+  function habitOn(t) { return !!(t && t.repeat && t.habit && !t.habit.off); }
+  function habitCalc(t, today) {
+    if (!t || !t.repeat || !t.habit) return null;
+    var anchor = t.date || t.habit.start || today, from = t.habit.start && t.habit.start > anchor ? t.habit.start : anchor;
+    var dd = t.done_dates || {}, days = {}, cur = 0, best = 0, miss = 0, prev = null;
+    for (var i = 0, d = from; i < 1500 && d <= today; i++, d = addDays(d, 1)) {
+      if (!occursOn(t.repeat, anchor, d)) { days[d] = "r"; continue; }
+      if (d === today && !dd[d]) { days[d] = "todo"; break; }
+      if (dd[d]) { cur++; miss = 0; days[d] = "f"; }
+      else if (++miss === 1) days[d] = "i";
+      else { days[d] = "x"; if (prev && days[prev] === "i") days[prev] = "x"; cur = 0; }
+      if (cur > best) best = cur;
+      prev = d;
+    }
+    var rest = days[today] === "r", last = prev && prev !== today ? prev : null;
+    return { cur: cur, best: best, days: days, rest: rest, last: last, next: nextOcc(t.repeat, anchor, addDays(today, 1)), anchor: anchor,
+      frozen: !!(last && days[last] === "i" && (days[today] === "todo" || rest)), doneToday: days[today] === "f", by: dd };
+  }
+  // The time of day the owner usually ticks it (median of the last 30 ticks), "" when there are fewer than 3.
+  function usualTime(t) {
+    var ats = Object.keys(t.done_dates || {}).sort().slice(-30).map(function (k) { return Number((t.done_dates[k] || {}).at || 0); })
+      .filter(function (x) { return x > 0; }).map(function (x) { var d = new Date(x * 1000); return d.getHours() * 60 + d.getMinutes(); }).sort(function (a, b) { return a - b; });
+    if (ats.length < 3) return "";
+    var m = ats[Math.floor(ats.length / 2)];
+    return pad2(Math.floor(m / 60)) + ":" + pad2(m % 60);
+  }
+  var MILES = [7, 14, 30, 50, 100, 200, 365, 500, 1000];
+  // The head of the Habits list: today x/y, frozen, longest streak, this week's rate, and the mascot's lines (pure).
+  function habitStats(tasks, today) {
+    var H = (tasks || []).filter(habitOn), wd = (new Date(today + "T12:00:00").getDay() + 6) % 7, mon = addDays(today, -wd);
+    var due = 0, done = 0, ice = 0, wkDone = 0, wkAll = 0, top = null, rest = [];
+    H.forEach(function (t) {
+      var k = habitCalc(t, today);
+      if (k.rest && !k.frozen) rest.push(t);
+      if (!k.rest) due++;
+      if (k.doneToday) done++;
+      if (k.frozen) ice++;
+      if (!top || k.cur > top.k.cur) top = { t: t, k: k };
+      for (var d = mon; d <= today; d = addDays(d, 1)) { var st = k.days[d]; if (!st || st === "todo" || st === "r") continue; wkAll++; if (st === "f") wkDone++; }
+    });
+    return { H: H, due: due, done: done, ice: ice, top: top, rest: rest, wk: wkAll ? Math.round(wkDone * 100 / wkAll) : 0 };
+  }
+  function habitLines(st, today) {
+    var M = [], short = function (s) { return String(s).replace(/\s+\d+\s*\S+$/, "").toLowerCase(); };
+    st.H.forEach(function (t) {
+      var k = habitCalc(t, today);
+      if (k.frozen) M.push({ mood: "suspicious", tx: tw("nv.h.say.frozen", { name: short(t.title), last: dayWord(k.last, today), next: k.rest ? dayWord(k.next, today) : tw("nv.d.today_low"), n: k.cur }) });
+    });
+    if (st.due && st.done === st.due) M.push({ mood: "love", tx: tw("nv.h.say.all", { n: st.due }) });
+    else if (st.done) M.push({ mood: "excited", tx: tw("nv.h.say.part", { done: st.done, due: st.due, left: st.due - st.done }) });
+    if (st.top && st.top.k.cur) {
+      var nx = MILES.find(function (m) { return m > st.top.k.cur; });
+      if (nx) M.push({ mood: nx - st.top.k.cur <= 3 ? "gang" : "wink", tx: tw("nv.h.say.mile", { left: nx - st.top.k.cur, name: short(st.top.t.title), n: nx }) });
+    }
+    if (st.rest.length) M.push({ mood: "sleepy", tx: tw("nv.h.say.rest", { names: st.rest.map(function (t) { return short(t.title); }).join(", ") }) });
+    if (st.wk >= 80) M.push({ mood: "happy", tx: tw("nv.h.say.week", { n: st.wk }) });
+    if (!M.length) M.push({ mood: "curious", tx: tw("nv.h.say.start") });
+    return M;
+  }
+  function dayWord(iso, today) {
+    if (!iso) return "";
+    if (iso === today) return tw("nv.d.today_low");
+    if (iso === addDays(today, -1)) return tw("nv.d.yday_low");
+    if (iso === addDays(today, 1)) return tw("nv.d.tom_low");
+    return tw(WD_KEYS[new Date(iso + "T12:00:00").getDay()]) + " " + Number(iso.slice(8)) + "/" + Number(iso.slice(5, 7));
+  }
+
+  var model_ = { habitCalc: habitCalc, habitStats: habitStats, habitLines: habitLines, usualTime: usualTime, model: model, mineModel: mineModel, occursOn: occursOn, nextOcc: nextOcc, prevOcc: prevOcc, repHuman: repHuman, inList: inList, byTime: byTime, byTimeline: byTimeline, cronFor: cronFor, javisSchedule: javisSchedule, kanbanState: kanbanState, addDays: addDays };
   if (typeof module !== "undefined" && module.exports) { module.exports = model_; return; }
 
   // ---------- page ----------
@@ -309,7 +380,7 @@
     ["done", "circle-check", "nv.l.done", "c-done"], ["log", "scroll-text", "nv.l.log", "c-log"]];
   var LISTS_ME = [["all", "list", "nv.l.all", "c-all"], ["today", "sun", "nv.l.today", "c-today"], ["week", "calendar", "nv.l.week", "c-week"],
     ["over", "clock-alert", "nv.l.over", "c-over"], ["nodate", "inbox", "nv.l.nodate", "c-nodate"], ["rep", "repeat", "nv.l.rep", "c-rep"],
-    ["done", "circle-check", "nv.l.done", "c-done"]];
+    ["habit", "flame", "nv.l.habit", "c-habit"], ["done", "circle-check", "nv.l.done", "c-done"]];
   var COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899", "#64748b"];
   var PAGE = 6;
   var LS = "javis.nv.";
@@ -463,7 +534,7 @@
   }
   function row(it) {
     var time = it.over ? '<span class="c-over">' + esc(shortDate(it.date)) + "</span>" + (it.time ? "<small>" + esc(it.time) + "</small>" : "") : esc(it.time || "");
-    var lead = it.src === "mine" ? ck(it) : stIcon(it);
+    var lead = it.src === "mine" ? (habitOn(it.raw) && it.id === "m:" + it.raw.id ? habitCk(it.raw) : ck(it)) : stIcon(it);
     return '<div class="nv-rw"><button type="button" class="nv-row' + (FIN[it.st] ? " done" : "") + (S.sel === it.id ? " sel" : "") + '" data-open="' + esc(it.id) + '">'
       + '<span class="nv-tm">' + time + '</span><span class="nv-st">' + lead + "</span>"
       + '<span class="nv-body"><span class="nv-ti">' + esc(it.title) + "</span>" + meta(it)
@@ -525,6 +596,7 @@
       var R = byRepTimeline(M().recurring.filter(function (r) { return !r.habit && (!q() || r.title.toLowerCase().indexOf(q()) >= 0); }));
       return h + (R.length ? R.map(function (r) { return repRow(r); }).join("") : empty);
     }
+    if (v === "habit") return h + habitView();
     if (v === "err") return h + failsHtml();
     if (v === "log") return h + logHtml();
     if (v === "today") {
@@ -598,7 +670,8 @@
     var c = {};
     lists().forEach(function (L) {
       var v = L[0];
-      c[v] = v === "rep" ? M().recurring.filter(function (r) { return r.on && !r.habit; }).length : v === "err" ? S.ai.fails.filter(function (f) { return f.open; }).length
+      c[v] = v === "habit" ? M().recurring.filter(function (r) { return r.habit; }).length
+        : v === "rep" ? M().recurring.filter(function (r) { return r.on && !r.habit; }).length : v === "err" ? S.ai.fails.filter(function (f) { return f.open; }).length
         : v === "log" ? "" : v === "done" ? items("done").length : items(v).filter(function (i) { return !FIN[i.st]; }).length;
     });
     return c;
@@ -711,12 +784,13 @@
   }
   function mineDetail(it, phone) {
     var t = it.raw, rep = !!t.repeat, occ = it.occ || null, done = it.sc ? it.doneToday : it.st === "done";
-    var h = '<div class="nv-dhead nv-mhead">' + (it.sc ? (done ? '<span class="nv-ck on big" data-act="uncheck" data-id="' + esc(it.id) + '" role="checkbox" aria-checked="true" tabindex="0" aria-label="' + esc(tw("nv.a.uncheck")) + '">' + ic("check") + "</span>" : '<span class="nv-ck big" data-act="check" data-id="' + esc(it.id) + '" role="checkbox" aria-checked="false" tabindex="0" aria-label="' + esc(tw("nv.a.check", { t: it.title })) + '"></span>') : ck(it).replace('class="nv-ck', 'class="nv-ck big'))
+    var h = '<div class="nv-dhead nv-mhead">' + (habitOn(t) ? habitCk(t, "big") : it.sc ? (done ? '<span class="nv-ck on big" data-act="uncheck" data-id="' + esc(it.id) + '" role="checkbox" aria-checked="true" tabindex="0" aria-label="' + esc(tw("nv.a.uncheck")) + '">' + ic("check") + "</span>" : '<span class="nv-ck big" data-act="check" data-id="' + esc(it.id) + '" role="checkbox" aria-checked="false" tabindex="0" aria-label="' + esc(tw("nv.a.check", { t: it.title })) + '"></span>') : ck(it).replace('class="nv-ck', 'class="nv-ck big'))
       + '<textarea class="nv-titleed" data-mtitle="' + esc(t.id) + '" rows="1" aria-label="' + esc(tw("nv.f.what")) + '">' + esc(t.title) + "</textarea></div>";
     if (t.from_javis) h += '<div class="nv-from">' + avatar(CORE, 16) + esc(tw("nv.from_javis_long")) + "</div>";
     h += '<div class="nv-sec2">'
       + '<button type="button" class="nv-kv nv-kvb" data-act="pick-date" data-id="' + esc(it.id) + '"><span>' + ic("clock") + esc(tw("nv.k.when")) + "</span><span>" + esc(whenIso(occ && rep ? occ : t.date, t.time)) + "</span></button>"
       + '<button type="button" class="nv-kv nv-kvb" data-act="pick-rep" data-id="' + esc(it.id) + '"><span>' + ic("repeat") + esc(tw("nv.k.repeat")) + "</span><span>" + esc(rep ? repHuman(t.repeat) : tw("nv.f.rep_none")) + "</span></button>"
+      + (rep && t.kind !== "appt" ? '<div class="nv-kv"><span>' + ic("flame", "c-habit") + esc(tw("nv.h.is_habit")) + '</span><button type="button" class="nv-sw" role="switch" aria-checked="' + habitOn(t) + '" aria-label="' + esc(tw("nv.h.is_habit")) + '" data-act="htog" data-id="m:' + esc(t.id) + '"><span></span></button></div>' : "")
       + '<label class="nv-kv"><span>' + ic("folder") + esc(tw("nv.k.project")) + "</span>" + projSelect(t) + "</label></div>";
     var acts = (done ? "" : '<button type="button" class="nv-btn pri" data-act="check" data-id="' + esc(it.id) + '">' + ic("check") + esc(tw("nv.a.done")) + "</button>")
       + '<button type="button" class="nv-btn" data-act="tojavis" data-id="' + esc(it.id) + '">' + avatar(CORE, 16) + esc(tw("nv.a.tojavis")) + "</button>";
@@ -724,6 +798,7 @@
     h += '<div class="nv-sec2">' + (t.subs || []).map(function (x, i) { return '<label class="nv-sub' + (x.done ? " done" : "") + '"><input type="checkbox" data-msub="' + esc(t.id) + '" data-v="' + i + '"' + (x.done ? " checked" : "") + "><span>" + esc(x.t) + "</span></label>"; }).join("")
       + '<form class="nv-subadd" data-msubadd="' + esc(t.id) + '">' + ic("plus") + '<input placeholder="' + esc(tw("nv.sub_ph")) + '" aria-label="' + esc(tw("nv.sub_ph")) + '" enterkeyhint="done"></form></div>';
     h += '<div class="nv-sec2"><textarea class="nv-ta" data-mnotes="' + esc(t.id) + '" placeholder="' + esc(tw("nv.notes_ph")) + '" aria-label="' + esc(tw("nv.notes_ph")) + '">' + esc(t.notes || "") + "</textarea></div>";
+    if (habitOn(t)) h += '<div class="nv-sec2">' + streakCard(t) + "</div>";
     if (!phone) h += '<div class="nv-sec2"><div class="nv-acts">' + menuButtons(it) + "</div></div>";
     return h;
   }
@@ -849,6 +924,120 @@
     return h + '<div class="nv-acts two"><button type="button" class="nv-btn ghost" data-act="rp-clear">' + esc(tw("nv.rp.clear")) + '</button><button type="button" class="nv-btn pri" data-act="rp-ok">' + esc(tw("nv.dp.ok")) + "</button></div>";
   }
 
+  // ---------- habits: list head, mascot, checkbox, streak card (0.424.0) ----------
+  // The mascot is Javis's own star (dashboard/pet.js): all feeling sits in the eyes, no mouth.
+  var PET_STAR = "M145 81 Q160 59.4 175 81 L177.9 85.1 Q195.8 110.7 225.8 119.9 L230.6 121.3 Q255.7 128.9 239.8 149.8 L236.8 153.8 Q217.9 178.8 218.5 210.1 L218.6 215.1 Q219.1 241.4 194.3 232.8 L189.6 231.1 Q160 220.8 130.4 231.1 L125.7 232.8 Q100.9 241.4 101.4 215.1 L101.5 210.1 Q102.1 178.8 83.2 153.8 L80.2 149.8 Q64.3 128.9 89.4 121.3 L94.2 119.9 Q124.2 110.7 142.1 85.1 Z";
+  var PET_EYES = {
+    neutral: '<ellipse rx="7.2" ry="17.5"/>', curious: '<ellipse cy="-2" rx="8.4" ry="21"/>', excited: '<ellipse cy="-1" rx="9.2" ry="22.5"/>',
+    happy: '<path class="pl" d="M-9 6 Q0 -7 9 6"/>', sleepy: '<path class="pl" d="M-9 6 H9"/>',
+    suspicious: ['<path class="pl" d="M-9 -3 H9"/>', '<path class="pl" d="M-9 2 H9"/>'],
+    wink: ['<path class="pl" d="M-9 3 Q0 -7 9 3"/>', '<ellipse rx="7.2" ry="17.5"/>'],
+    love: '<path d="M0 11 C-15 0 -13 -13 -5.5 -13 C-2 -13 0 -10 0 -7.5 C0 -10 2 -13 5.5 -13 C13 -13 15 0 0 11 Z"/>',
+    gang: ['<path class="pl" d="M-8 -9 L6 0 L-8 9"/>', '<path class="pl" d="M8 -9 L-6 0 L8 9"/>']
+  };
+  function jstar(mood) {
+    var e = PET_EYES[mood] || PET_EYES.neutral, L = typeof e === "string" ? e : e[0], R = typeof e === "string" ? e : e[1];
+    var flat = /sleepy|love/.test(mood), dx = flat ? 0 : 7, dy = flat ? 6 : -4;
+    return '<svg class="nv-star m-' + mood + '" viewBox="56 50 208 200" aria-hidden="true"><path d="' + PET_STAR + '" fill="#fd6100"/><g class="je"><g transform="translate(' + (145 + dx) + " " + (160 + dy) + ')">' + L + '</g><g transform="translate(' + (175 + dx) + " " + (160 + dy) + ')">' + R + "</g></g></svg>";
+  }
+  var FLAME = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c.6 3.4 5.5 6 5.5 11.2A5.6 5.6 0 0 1 12 19.5a5.6 5.6 0 0 1-5.5-5.8c0-2.6 1.4-4.2 2.6-5.4.2 1.8 1 2.9 2.2 3.4C11 9 11 5.6 12 2.5z"/></svg>';
+  // The tick of a habit: a ring; an icy dot while frozen; a dashed ring on a rest day; a flame when done.
+  function habitCk(t, cls) {
+    var k = habitCalc(t, today()), on = k.doneToday, ice = !on && k.frozen;
+    if (k.rest && !on) return '<span class="nv-hck rest' + (cls ? " " + cls : "") + (ice ? " ice" : "") + '" data-act="hrest" data-id="m:' + esc(t.id) + '" role="img" aria-label="' + esc(tw("nv.h.rest_aria", { t: t.title })) + '" title="' + esc(tw("nv.h.rest_t")) + '"><i class="hx-ring' + (ice ? " icy" : "") + '"></i></span>';
+    var lit = on && S.lit && S.lit.id === t.id ? S.lit : null;
+    var fx = lit ? (lit.ice ? '<i class="hx-ring icy hx-melt"></i>' : "") + '<i class="hx-wave"></i>' : "";
+    return '<span class="nv-hck' + (cls ? " " + cls : "") + (on ? " on" : ice ? " ice" : "") + (lit ? " lit" + (lit.ice ? " thaw" : "") : "") + '" data-act="' + (on ? "uncheck" : "check") + '" data-id="m:' + esc(t.id) + '" role="checkbox" aria-checked="' + on + '" tabindex="0" aria-label="' + esc(on ? tw("nv.a.uncheck") : tw("nv.h.tick", { t: t.title })) + '" title="' + esc(on ? tw("nv.h.lit_t") : ice ? tw("nv.h.ice_t") : tw("nv.h.tick_t")) + '">'
+      + (on ? FLAME : '<i class="hx-ring' + (ice ? " icy" : "") + '"></i>') + fx + "</span>";
+  }
+  function stkBadge(t) {
+    var k = habitCalc(t, today()); if (!k || !k.cur) return "";
+    return '<span class="nv-stkb' + (k.frozen ? " ice" : k.doneToday || k.rest ? "" : " dim") + '">' + (k.frozen ? ic("snowflake") : FLAME) + k.cur + "</span>";
+  }
+  function habitHead() {
+    var st = habitStats(S.my.tasks, today()); if (!st.H.length) return "";
+    var M = habitLines(st, today()), i = (S.hmsg || 0) % M.length;
+    var wkc = st.wk >= 80 ? "ok" : st.wk >= 50 ? "mid" : st.wk > 0 ? "low" : "off";
+    var tile = function (icon, cls, v, lb) { return '<div class="nv-hs-t ' + cls + '">' + icon + "<b>" + esc(v) + "</b><span>" + esc(lb) + "</span></div>"; };
+    var h = '<div class="nv-hs">' + tile(FLAME, st.due && st.done === st.due ? "f" : "f off", st.due ? st.done + "/" + st.due : tw("nv.h.rest_short"), tw("nv.d.today"))
+      + tile(ic("snowflake"), st.ice ? "i" : "i off", st.ice, tw("nv.h.frozen")) + tile(ic("trophy"), st.top && st.top.k.cur ? "tr" : "tr off", st.top ? st.top.k.cur : 0, tw("nv.h.longest"))
+      + tile(ic("circle-check"), wkc, st.wk + "%", tw("nv.h.week")) + "</div>";
+    if (!S.hmsgHide) {
+      h += '<div class="nv-talk">' + jstar(M[i].mood) + '<div class="nv-bub" aria-live="polite"><span class="nv-bubs">' + M.map(function (m, n) { return '<span class="nv-bubt' + (n === i ? " on" : "") + '"' + (n === i ? "" : ' aria-hidden="true"') + ">" + esc(m.tx) + "</span>"; }).join("") + "</span>"
+        + (M.length > 1 ? '<button type="button" class="nv-bubn" data-act="hmsg" aria-label="' + esc(tw("nv.h.next_line")) + '">' + M.map(function (_, n) { return "<i" + (n === i ? ' class="on"' : "") + "></i>"; }).join("") + ic("chevron-right") + "</button>" : "")
+        + '</div><button type="button" class="nv-x nv-bubx" data-act="hmsgx" aria-label="' + esc(tw("nv.h.hide_line")) + '">' + ic("x") + "</button></div>";
+    }
+    return h;
+  }
+  function habitRow(r) {
+    var t = r.raw, k = habitCalc(t, today());
+    var nx = k.rest && !k.doneToday ? tw("nv.h.rest_today") + (k.next ? " · " + tw("nv.rep.next", { t: whenIso(k.next, t.time) }) : "")
+      : k.doneToday ? tw("nv.rep.done_today") + (k.next ? " · " + tw("nv.rep.next", { t: whenIso(k.next, t.time) }) : "") : tw("nv.rep.next", { t: whenIso(today(), t.time) });
+    return '<div class="nv-rrow habit">' + habitCk(t, "big") + '<button type="button" class="nv-grow" data-open="' + esc(r.id) + '"><span class="nv-ti">' + esc(r.title) + stkBadge(t) + '</span><span class="nv-sc">' + esc(r.sc) + '</span><span class="nv-nx">' + esc(nx) + "</span></button>"
+      + '<button type="button" class="nv-dots" data-act="menu" data-id="' + esc(r.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button></div>";
+  }
+  function habitView() {
+    var H = S.me.recurring.filter(function (r) { return r.habit && (!q() || r.title.toLowerCase().indexOf(q()) >= 0); });
+    var key = function (r) { var t = r.raw, k = habitCalc(t, today()); return (k.rest && !k.doneToday ? "1" : "0") + (usualTime(t) || t.time || "99:99"); };
+    H.sort(function (a, b) { return key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0; });
+    return habitHead() + (H.length ? H.map(habitRow).join("") : '<div class="nv-empty">' + esc(tw("nv.h.empty")) + "</div>");
+  }
+  // The streak card under a habit's details: big number, three tiles, a month calendar (rest days thread the chain),
+  // the reminder choice, and what Javis has learned about it.
+  function streakCard(t) {
+    var k = habitCalc(t, today()); if (!k) return "";
+    var td = today(), off = S.stkOff || 0, base = new Date(td + "T12:00:00"); base.setDate(1); base.setMonth(base.getMonth() + off);
+    var Y = base.getFullYear(), Mo = base.getMonth(), first = isoOf(base), nDays = new Date(Y, Mo + 1, 0).getDate(), lead = (base.getDay() + 6) % 7;
+    var startM = (t.habit.start || k.anchor).slice(0, 7), canPrev = first.slice(0, 7) > startM, canNext = off < 0;
+    var near = function (d, dir) { for (var x = addDays(d, dir), n = 0; n < 40; x = addDays(x, dir), n++) { var st = k.days[x]; if (st === undefined) return dir > 0 ? "end" : null; if (st !== "r") return st; } return null; };
+    var inChain = function (d) { var st = k.days[d]; if (st === "f" || st === "i") return true; if (st !== "r") return false; var a = near(d, -1), b2 = near(d, 1); return (a === "f" || a === "i") && (b2 === "f" || b2 === "i" || b2 === "todo" || b2 === "end"); };
+    var cells = "", nDone = 0, nIce = 0, anyJ = false;
+    for (var i = 0; i < lead; i++) cells += '<span class="sd e"></span>';
+    for (var n = 1; n <= nDays; n++) {
+      var d = first.slice(0, 8) + pad2(n), st = k.days[d], wd = (lead + n - 1) % 7, jv = k.by[d] && k.by[d].by === "javis";
+      if (st === "f") { nDone++; if (jv) anyJ = true; }
+      if (st === "i") nIce++;
+      var cls = "sd";
+      if (inChain(d)) {
+        cls += " " + (st === "r" ? "rs" : st);
+        if (!(wd > 0 && n > 1 && inChain(addDays(d, -1)))) cls += " l";
+        if (!(wd < 6 && n < nDays && inChain(addDays(d, 1)))) cls += " rr";
+      } else if (st === "x") cls += " x";
+      else if (!st) cls += occursOn(t.repeat, k.anchor, d) ? " fu" : " fu off";
+      else if (st === "r") cls += " off";
+      if (d === td) cls += " tdy";
+      var edit = (d === td && st !== "r") || (d === k.last);
+      var lab = tw(st === "f" ? (jv ? "nv.h.c_done_j" : "nv.h.c_done") : st === "i" ? "nv.h.c_ice" : st === "x" ? "nv.h.c_lost" : st === "todo" ? "nv.h.c_todo" : st === "r" ? "nv.h.c_rest" : "nv.h.c_later", { d: n + "/" + (Mo + 1) });
+      cells += (edit ? '<button type="button" class="' + cls + '" data-act="hday" data-id="m:' + esc(t.id) + '" data-v="' + d + '" aria-label="' + esc(lab) + '" title="' + esc(lab) + '">' : '<span class="' + cls + '" title="' + esc(lab) + '">') + n + (jv ? '<i class="jv"></i>' : "") + (edit ? "</button>" : "</span>");
+    }
+    var nx = k.rest ? k.next : td;
+    var msg = k.frozen ? '<div class="nv-stk-msg">' + ic("snowflake") + "<span>" + esc(tw("nv.h.frozen_msg", { last: dayWord(k.last, td), next: dayWord(nx, td) })) + "</span></div>" : "";
+    var hb = t.habit, ut = usualTime(t);
+    var remind = '<label class="nv-kv"><span>' + ic("bell") + esc(tw("nv.h.remind")) + '</span><select class="nv-psel" data-hrem="' + esc(t.id) + '" aria-label="' + esc(tw("nv.h.remind")) + '">'
+      + [["auto", "nv.h.r_auto"], ["time", "nv.h.r_time"], ["off", "nv.h.r_off"]].map(function (o) { return '<option value="' + o[0] + '"' + (hb.remind === o[0] ? " selected" : "") + ">" + esc(tw(o[1])) + "</option>"; }).join("") + "</select></label>";
+    if (hb.remind === "time") {
+      var opts = ""; for (var j = 0; j < 48; j++) { var tt = pad2(Math.floor(j / 2)) + ":" + (j % 2 ? "30" : "00"); opts += "<option" + (tt === hb.at ? " selected" : "") + ">" + tt + "</option>"; }
+      remind += '<label class="nv-kv"><span>' + ic("clock") + esc(tw("nv.h.at")) + '</span><select class="nv-psel" data-hat="' + esc(t.id) + '" aria-label="' + esc(tw("nv.h.at")) + '">' + opts + "</select></label>";
+    }
+    if (hb.remind === "auto") {
+      var plan = k.doneToday ? tw("nv.h.ai_done") : k.frozen ? tw("nv.h.ai_ice", { t: autoAt(t, k) }) : k.rest ? tw("nv.h.ai_rest") : tw("nv.h.ai_plan", { t: autoAt(t, k) });
+      remind += '<div class="nv-ai">' + avatar(CORE, 20) + "<span>" + esc((ut ? tw("nv.h.ai_usual", { t: ut }) + " " : "") + plan) + "</span></div>";
+    }
+    return '<div class="nv-stk' + (k.frozen ? " frozen" : "") + (k.doneToday || (k.rest && !k.frozen) ? " lit" : "") + '">'
+      + '<div class="nv-stk-top"><div><div class="nv-stk-n">' + k.cur + '</div><div class="nv-stk-l">' + esc(tw("nv.h.days_lit")) + '</div></div><span class="nv-stk-big">' + (k.frozen ? ic("snowflake") : FLAME) + "</span></div>"
+      + msg + '<div class="nv-stk-tiles"><div><b>' + nDone + "</b><span>" + esc(tw("nv.h.t_done")) + "</span></div><div><b>" + nIce + "</b><span>" + esc(tw("nv.h.frozen")) + "</span></div><div><b>" + k.best + "</b><span>" + esc(tw("nv.h.longest")) + "</span></div></div>"
+      + '<div class="nv-stk-mh"><b>' + esc(base.toLocaleDateString(LOC(), { month: "long", year: "numeric" })) + '</b><span><button type="button" class="nv-x" data-act="hmon" data-v="-1" aria-label="' + esc(tw("nv.dp.prev")) + '"' + (canPrev ? "" : " disabled") + ">" + ic("chevron-left") + '</button><button type="button" class="nv-x" data-act="hmon" data-v="1" aria-label="' + esc(tw("nv.dp.next")) + '"' + (canNext ? "" : " disabled") + ">" + ic("chevron-right") + "</button></span></div>"
+      + '<div class="nv-stk-cal">' + [1, 2, 3, 4, 5, 6, 0].map(function (w) { return '<span class="wh">' + esc(tw(WD_KEYS[w])) + "</span>"; }).join("") + cells + "</div>"
+      + (anyJ ? '<div class="nv-stk-leg"><i class="jv"></i>' + esc(tw("nv.h.by_javis")) + "</div>" : "")
+      + '<div class="nv-stk-rem">' + remind + "</div></div>";
+  }
+  // When "Javis reminds on its own" nudges today: an hour after the usual time (or the set time), earlier while frozen.
+  function autoAt(t, k) {
+    var base = usualTime(t) || t.time || t.habit.at || "21:00", m = Number(base.slice(0, 2)) * 60 + Number(base.slice(3, 5));
+    m = k && k.frozen ? Math.max(6 * 60, m - 30) : Math.min(23 * 60, m + 30);
+    return pad2(Math.floor(m / 60)) + ":" + pad2(m % 60);
+  }
+
   // ---------- add form ----------
   function formHtml() {
     var f = S.form, me = f.who === "me";
@@ -861,6 +1050,7 @@
       + (me ? "" : '<div class="nv-fld"><span>' + esc(tw("nv.k.how")) + "</span>" + seg("mode", [["do", "nv.mode.do"], ["remind", "nv.mode.remind"]]) + "</div>")
       + '<div class="nv-row2"><div class="nv-fld"><span>' + esc(tw("nv.k.when")) + '</span><button type="button" class="nv-pick" data-act="pick-date" data-id="new">' + ic("clock") + '<span class="nv-lbl">' + esc(f.date ? whenIso(f.date, f.time) : me ? tw("nv.d.none") : tw("nv.f.asap")) + "</span>" + ic("chevron-right") + "</button></div>"
       + '<div class="nv-fld"><span>' + esc(tw("nv.k.repeat")) + '</span><button type="button" class="nv-pick" data-act="pick-rep" data-id="new"' + (f.edit && f.cronLocked ? " disabled" : "") + ">" + ic("repeat") + '<span class="nv-lbl">' + esc(repTxt) + "</span>" + ic("chevron-right") + "</button></div></div>"
+      + (me && f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? '<div class="nv-fld"><span>' + esc(tw("nv.h.kind")) + "</span>" + seg("habit", [["", "nv.l.rep", ic("repeat")], ["1", "nv.l.habit", ic("flame", "c-habit")]]) + "</div>" : "")
       + (me ? '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label>" : "")
       + (f.err ? '<div class="nv-ferr" role="alert">' + esc(f.err) + "</div>" : "")
       + '<div class="nv-acts end"><button type="button" class="nv-btn ghost" data-act="close">' + esc(tw("nv.cancel")) + '</button><button type="submit" class="nv-btn pri">' + esc(f.edit ? tw("nv.save") : me ? tw("nv.f.add") : tw("nv.f.give")) + "</button></div></form></div>";
@@ -870,7 +1060,8 @@
       var raw = it.raw || {}, ts = stamp(raw.due_at);
       S.form = { edit: it.ref, who: "ai", text: raw.text || it.title, mode: raw.mode === "notify" ? "remind" : "do", date: ts.date, time: ts.time, rule: null, cronLocked: !!(raw.cron || raw.repeat_min) };
     } else {
-      S.form = { who: S.tab === "me" ? "me" : "ai", text: "", mode: "do", date: null, time: "", rule: null,
+      var inHabit = S.tab === "me" && (S.view === "habit" || (S.phone.screen === "list" && S.phone.list === "habit"));
+      S.form = { who: S.tab === "me" ? "me" : "ai", text: "", mode: "do", date: null, time: "", rule: inHabit ? { unit: "day", n: 1 } : null, habit: inHabit ? "1" : "",
         project: S.view.indexOf("proj:") === 0 ? S.view.slice(5) : (S.phone.screen === "list" && String(S.phone.list).indexOf("proj:") === 0 ? S.phone.list.slice(5) : "") };
     }
     S.layer = "form"; renderLayer();
@@ -887,7 +1078,9 @@
       if (!f.cronLocked && f.date) fields.at = f.date + "T" + (f.time || "08:00");
       r = await postForm("/reminders/update", fields);
     } else if (f.who === "me") {
-      r = await postJSON("/my-tasks", { brain: b, title: txt, date: f.date, time: f.date ? f.time : "", repeat: f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? f.rule : null, project: f.project || "" });
+      var myRule = f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? f.rule : null;
+      r = await postJSON("/my-tasks", { brain: b, title: txt, date: f.date || (myRule && f.habit ? today() : null), time: f.date ? f.time : "", repeat: myRule, project: f.project || "",
+        habit: myRule && f.habit ? { start: today(), remind: "auto" } : null });
     } else if (!f.date && !f.rule && f.mode === "do") {
       r = await postForm("/kanban/task", { brain: b, title: txt.slice(0, 120), intent: txt, priority: 2 });
     } else {
@@ -896,7 +1089,7 @@
     }
     if (r && r.ok === false) { f.err = r.error || tw("nv.err.generic"); renderLayer(); return; }
     S.layer = null; S.form = null; renderLayer();
-    toast(f.edit ? tw("nv.saved") : f.who === "me" ? tw("nv.f.added") : tw("nv.f.given"));
+    toast(f.edit ? tw("nv.saved") : f.who === "me" ? (f.habit && f.rule ? tw("nv.h.added") : tw("nv.f.added")) : tw("nv.f.given"));
     await load(); render(); schedulePoll();
   }
   async function createReminder(txt, mode, date, time, rule) {
@@ -937,6 +1130,17 @@
         var m = mineRef(id), t = it && it.raw, date = m.date || (t && t.repeat ? (it.occ || today()) : "");
         if (t && t.repeat && it.sc) date = today();
         var on = a === "check";
+        if (on && t && habitOn(t) && date === today()) {
+          // A habit ticked today lights up: a short flat pop (thawing first when it was frozen) and one short buzz.
+          var hk = habitCalc(t, today());
+          if (hk.rest) return doAct("hrest", id);
+          S.lit = { id: t.id, ice: hk.frozen }; S.hmsg = 0;
+          try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* not on desktop */ }
+          clearTimeout(S.litT); S.litT = setTimeout(function () { if (S) { S.lit = null; render(); } }, 700);
+          var res = await act(mine({ __url: "/my-tasks/check", id: m.id, date: date }), "", null);
+          if (res && res.ok !== false) { var k2 = habitCalc(res.task, today()); toast((hk.frozen ? tw("nv.h.thawed") + " " : "") + tw("nv.h.lit", { n: k2.cur }), function () { mine({ __url: "/my-tasks/uncheck", id: m.id, date: date }).then(load).then(render); }); }
+          return;
+        }
         return act(mine({ __url: on ? "/my-tasks/check" : "/my-tasks/uncheck", id: m.id, date: date }), on ? tw("nv.ok.done", { t: it ? it.title : "" }) : tw("nv.ok.undone"),
           function () { return mine({ __url: on ? "/my-tasks/uncheck" : "/my-tasks/check", id: m.id, date: date }); });
       }
@@ -1006,6 +1210,22 @@
         var prev = L.map(function (i) { return { id: i.raw.id, date: i.raw.date }; });
         await Promise.all(prev.map(function (x) { return mine({ __url: "/my-tasks/update", id: x.id, date: today() }); }));
         return act(Promise.resolve({ ok: true }), tw("nv.ok.moved_all", { n: L.length }), function () { return Promise.all(prev.map(function (x) { return mine({ __url: "/my-tasks/update", id: x.id, date: x.date }); })); });
+      }
+      case "hrest": { var hk3 = habitCalc(it.raw, today()); toast(tw("nv.h.rest_toast") + (hk3 && hk3.next ? " " + tw("nv.h.next_session", { d: dayWord(hk3.next, today()) }) : "")); return; }
+      case "hday": {
+        var td = el.dataset.v, tt = it.raw, isOn = !!(tt.done_dates || {})[td];
+        S.hmsg = 0;
+        return act(mine({ __url: isOn ? "/my-tasks/uncheck" : "/my-tasks/check", id: tt.id, date: td }), isOn ? tw("nv.ok.undone") : tw("nv.h.filled", { d: dayWord(td, today()) }));
+      }
+      case "hmon": S.stkOff = Math.min(0, (S.stkOff || 0) + Number(el.dataset.v)); return renderLayer(), renderPhone();
+      case "hmsg": S.hmsg = (S.hmsg || 0) + 1; return render();
+      case "hmsgx": S.hmsgHide = true; lsSet("hmsgx", today()); toast(tw("nv.h.hidden_today")); return render();
+      case "htog": {
+        var th = it.raw, hb = th.habit;
+        var next = habitOn(th) ? Object.assign({}, hb, { off: true }) : hb ? Object.assign({}, hb, { off: false }) : { start: today(), remind: "auto" };
+        if (next.off === false) delete next.off;
+        return act(mine({ __url: "/my-tasks/update", id: th.id, habit: next }), habitOn(th) ? tw("nv.h.to_rep") : hb ? tw("nv.h.back_habit") : tw("nv.h.to_habit"),
+          function () { return mine({ __url: "/my-tasks/update", id: th.id, habit: hb || null }); });
       }
       case "pnew": S.sheet = { kind: "project", id: "", name: "", color: COLORS[5] }; renderLayer(); setTimeout(function () { var i = S.root.querySelector("#nvPName"); if (i) i.focus(); }, 0); return;
       case "pmenu": S.sheet = { kind: "pmenu", id: id }; return renderLayer();
@@ -1124,6 +1344,11 @@
       var it = find(el.dataset.pproj) || find("m:" + el.dataset.pproj); var id = it ? it.raw.id : el.dataset.pproj.replace(/^m:/, "");
       return act(mine({ __url: "/my-tasks/update", id: id, project: el.value }), tw("nv.saved"));
     }
+    if (el.dataset.hrem || el.dataset.hat) {
+      var ht = S.my.tasks.find(function (x) { return x.id === (el.dataset.hrem || el.dataset.hat); }); if (!ht) return;
+      var nh = Object.assign({}, ht.habit, el.dataset.hrem ? { remind: el.value } : { at: el.value });
+      return act(mine({ __url: "/my-tasks/update", id: ht.id, habit: nh }), nh.remind === "off" ? tw("nv.h.r_off_ok") : nh.remind === "auto" ? tw("nv.h.r_auto_ok") : tw("nv.h.r_time_ok", { t: nh.at || "21:00" }));
+    }
     if (el.dataset.dp === "time") { S.sheet.d.time = el.value; return; }
     if (el.dataset.dp === "other") { if (el.value) { S.sheet.d.time = el.value; renderLayer(); } return; }
     if (el.dataset.rp === "unit") { S.sheet.r.unit = el.value; if (el.value === "week" && !(S.sheet.r.days || []).length) S.sheet.r.days = [new Date().getDay()]; renderLayer(); return; }
@@ -1169,7 +1394,7 @@
     if (S) unmount();
     var tab = lsGet("tab", "me") === "ai" ? "ai" : "me";
     S = { root: el, tab: tab, view: lsGet("view." + tab, "today"), q: "", sel: null, layer: null, sheet: null, form: null, hidden: {}, showDone: false,
-      moreWho: lsGet("moreWho", "") === "1", moreProj: lsGet("moreProj", "") === "1", phone: { screen: "home" }, agents: null, ai: null, me: null, my: null };
+      hmsgHide: lsGet("hmsgx", "") === isoOf(new Date()), moreWho: lsGet("moreWho", "") === "1", moreProj: lsGet("moreProj", "") === "1", phone: { screen: "home" }, agents: null, ai: null, me: null, my: null };
     var legacy = lsGet("view", "");   // the old Scheduled link sets "rep" for the Javis tab
     if (legacy) { try { localStorage.removeItem(LS + "view"); } catch (e2) { /* ignore */ } if (legacy === "rep") { S.tab = "ai"; S.view = "rep"; } }
     el.classList.add("nv-root");

@@ -122,7 +122,10 @@
       "loader-circle",
       "pause",
       "clock",
-      "sunrise"
+      "sunrise",
+      "snowflake",
+      "trophy",
+      "flame"
     ],
     "tep-tin": [
       "file",

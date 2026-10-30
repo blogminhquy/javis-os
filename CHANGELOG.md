@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.424.0] - 2026-10-30
+### Thêm mới
+- **Thói quen có chuỗi giữ lửa.** Việc lặp của bạn bật "Tính là thói quen" (hoặc chọn Kiểu lặp: Thói quen khi thêm) là có chuỗi ngày như Duolingo. Bỏ 1 buổi thì đóng băng, làm buổi sau là gỡ băng, bỏ 2 buổi liền là mất chuỗi. **Chỉ ngày có lịch mới tính**, ngày nghỉ của thói quen không bị đóng băng.
+- **Tích là thắp lửa.** Vòng tròn bật thành ngọn lửa; đang đóng băng thì hạt băng tan rồi mới bật lửa. Chi tiết thói quen có số ngày, ô Ngày xong, Đóng băng, Dài nhất và lịch tháng nối dải.
+- **Đầu mục Thói quen** có 4 ô số (chưa đạt thì xám) và ngôi sao Javis nói lời nhắn kèm biểu cảm: dỗi khi bạn bỏ buổi, vui khi xong hết, lim dim ngày nghỉ.
+- **Javis nhắc thói quen:** chọn Javis tự nhắc (sau giờ bạn hay làm, sớm hơn khi đang đóng băng), Nhắc đúng giờ, hoặc Không nhắc. Mỗi ngày nhắc tối đa một lần, chỉ khi chưa xong.
+
 ## [0.423.0] - 2026-10-30
 ### Thêm mới
 - **Tab Của tôi trên trang Nhiệm vụ.** Ghi việc của chính bạn: Hôm nay, Sắp tới, Quá hạn, Chưa có lịch, Lặp lại, Đã xong, và chia theo **dự án** (tạo, đổi tên, đổi màu, ghim, xoá có hoàn tác).

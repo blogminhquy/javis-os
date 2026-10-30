@@ -136,6 +136,29 @@ check("repeat text", M.repHuman({ unit: "week", n: 1, days: [6, 2] }) .indexOf("
 check("a weekly Javis schedule is a cron", M.javisSchedule({ unit: "week", n: 1, days: [4, 2] }, "2026-11-03", "06:30").cron === "30 6 * * 2,4");
 check("every 3 days for Javis is a fixed step", M.javisSchedule({ unit: "day", n: 3 }, "2026-11-03", "06:30").repeat_min === 4320);
 
+// ---- habits (0.424.0) ----
+const dn = (iso, n) => M.addDays(iso, n);
+const T0 = "2026-10-30";
+const dd = days => Object.fromEntries(days.map(x => [x, { at: 1, by: "me" }]));
+const read = { id: "r", title: "Read 30 min", date: dn(T0, -10), repeat: { unit: "day", n: 1 }, habit: { start: dn(T0, -10), remind: "auto" },
+  done_dates: dd([10, 9, 8, 7, 6, 5, 4, 3, 2].map(i => dn(T0, -i))) };
+let hk = M.habitCalc(read, T0);
+check("habit: yesterday missed freezes and keeps the streak", hk.frozen && hk.cur === 9 && !hk.doneToday);
+hk = M.habitCalc(Object.assign({}, read, { done_dates: Object.assign({}, read.done_dates, dd([T0])) }), T0);
+check("habit: done today thaws it", !hk.frozen && hk.doneToday && hk.cur === 10);
+hk = M.habitCalc(Object.assign({}, read, { done_dates: dd([10, 9, 8].map(i => dn(T0, -i))) }), T0);
+check("habit: two missed sessions in a row lose the streak", hk.cur === 0 && !hk.frozen && hk.best === 3);
+const swim = { id: "s", title: "Swim", date: "2026-09-01", repeat: { unit: "week", n: 1, days: [2, 4, 6] }, habit: { start: "2026-09-01" },
+  done_dates: dd(["2026-10-27", "2026-10-29"]) };
+hk = M.habitCalc(swim, T0);
+check("habit: a weekday habit rests on Friday (no freeze)", hk.rest && !hk.frozen && hk.days["2026-10-28"] === "r");
+const st = M.habitStats([read, swim], T0);
+check("habit stats: only habits with a session today count as due", st.due === 1 && st.done === 0 && st.ice === 1);
+const moods = M.habitLines(st, T0).map(l => l.mood);
+check("habit lines: a frozen habit makes Javis sulk first", moods[0] === "suspicious");
+check("habit lines: a rest day gets the sleepy line", moods.indexOf("sleepy") >= 0);
+check("usual time needs three ticks", M.usualTime({ done_dates: dd([T0]) }) === "");
+
 // no Vietnamese text in the running code of the page (it goes through i18n)
 const js = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "tasks.js"), "utf8");
 check("the nav points to the Tasks page", /ids: \["tasks", "webhooks"\]/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8")));
