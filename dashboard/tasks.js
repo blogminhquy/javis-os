@@ -436,6 +436,7 @@
     ]);
     if (res[6]) S.agents = (res[6].agents || res[6] || []).filter(function (a) { return a && a.slug; });
     S.brains = ((res[1] && res[1].brains) || []).map(function (x) { return { name: x.label || x.name, path: x.path, def: x.is_default }; });
+    S.notify = (res[2] && res[2].notify) || {};
     S.ai = model({ kanban: res[0] || {}, viec: res[1] || {}, rems: res[2] || {}, watch: res[3] || {}, incidents: res[4] || {}, loopLog: res[5] || {}, brain: b });
     S.my = res[7] && res[7].ok ? res[7] : (S.my || { tasks: [], projects: [] });
     S.me = mineModel(S.my, S.ai.today, hmOf(new Date()));
@@ -705,6 +706,12 @@
       h += '<div class="nv-ask" role="status">' + ic("circle-alert", "c-ask") + '<button type="button" class="nv-ask-t" data-open="' + esc(a.id) + '"><b>' + esc(a.title) + ":</b> " + esc(a.reason || tw("nv.st.ask")) + "</button>"
         + (A.length > 1 ? '<span class="nv-ask-n">+' + (A.length - 1) + "</span>" : "") + "</div>";
     }
+    // 0.426.0: with no report channel, reminders and loops still run on time but their results reach no one. Say so.
+    var nt = S.notify || {}, bad = nt.ok === false, warn = !bad && nt.warn;
+    if ((bad || warn) && S.ai.recurring.length) {
+      h += '<div class="nv-ask" role="alert">' + ic("triangle-alert", "c-ask") + '<span class="nv-ask-t"><b>' + esc(tw(bad ? "nv.nochan.head" : "nv.chanerr.head")) + ":</b> "
+        + esc(bad ? (nt.error || tw("nv.nochan.body")) : nt.warn) + '</span><button type="button" class="nv-btn sm" data-act="gochan">' + esc(tw("nv.nochan.go")) + "</button></div>";
+    }
     if (S.ai.orch === "off" && S.ai.waiting) {
       h += '<div class="nv-ask" role="status">' + ic("pause", "c-ask") + '<span class="nv-ask-t">' + esc(tw("nv.orch.waiting", { n: S.ai.waiting })) + '</span><button type="button" class="nv-btn sm pri" data-act="orch" data-v="auto">' + esc(tw("nv.orch.on")) + "</button></div>";
     }
@@ -830,6 +837,7 @@
   }
   var DURS = [15, 30, 45, 60, 90, 120, 180, 240];
   var REMS = ["0", "5", "15", "30", "60"];
+  var LVL = { suggest: "nv.lp.m_suggest", auto: "nv.lp.m_auto", full: "nv.lp.m_full" };
   var LP_NOTE = { suggest: "cs.si_level_note_suggest", auto: "cs.si_level_note_auto", full: "cs.si_level_note_full" };
   function toMin(hm) { var p = String(hm || "0:0").split(":"); return Number(p[0]) * 60 + Number(p[1] || 0); }
   function fromMin(m) { m = Math.max(0, Math.min(23 * 60 + 59, m)); return pad2(Math.floor(m / 60)) + ":" + pad2(m % 60); }
@@ -904,6 +912,9 @@
     if (r) info += kv(tw("nv.k.repeat"), esc(r.sc));
     info += kv(tw("nv.k.who"), '<span class="nv-who">' + avatar(it.who, 16) + esc(agentName(it.who)) + "</span>");
     info += kv(tw("nv.k.how"), esc(it.mode === "remind" ? tw("nv.mode.remind") : tw("nv.mode.do")));
+    // 0.426.0: the permission level a reminder or loop runs at, as the old Scheduled cards showed it.
+    var lvl = it.src === "loop" ? (it.raw || {}).mode : it.src === "reminder" && it.mode !== "remind" ? ((it.raw || {}).muc_quyen || "full") : "";
+    if (lvl) info += kv(tw("nv.lp.mode"), '<span class="nv-lvl' + (lvl === "full" ? " full" : "") + '">' + esc(tw(LVL[lvl] || LVL.full)) + "</span>");
     info += kv(tw("nv.k.kind"), esc(tw({ kanban: "nv.src.kanban", reminder: "nv.src.reminder", loop: "nv.src.loop", watch: "nv.src.watch" }[it.src] || "nv.src.kanban")));
     if (r) info += '<div class="nv-kv"><span>' + esc(tw("nv.k.on")) + '</span><button type="button" class="nv-sw" role="switch" aria-checked="' + r.on + '" aria-label="' + esc(tw("nv.k.on")) + '" data-act="rtog" data-id="' + esc(r.id) + '"><span></span></button></div>';
     h += '<div class="nv-sec2">' + info + "</div>";
@@ -1118,12 +1129,20 @@
   // 0.426.0: the reminder options the old Scheduled page had (level, call, read aloud, remember last), only when
   // the job will be a reminder: it has a time or a repeat, or only reminds, or is a reminder being edited.
   function remOpts(f) {
-    if (!f.edit && !f.date && !f.rule && f.mode !== "remind") return "";
+    if (f.script || (!f.edit && !f.date && !f.rule && f.mode !== "remind")) return "";   // a script job keeps its own type
     var box = function (k, label) { return '<label class="nv-prep"><input type="checkbox" data-act="fset" data-k="' + k + '" data-v="' + (f[k] ? "" : "1") + '"' + (f[k] ? " checked" : "") + "><span>" + esc(tw(label)) + "</span></label>"; };
     var lv = f.mq || "full";
     return (f.mode === "do" ? '<div class="nv-fld"><span>' + esc(tw("nv.lp.mode")) + "</span>" + '<div class="nv-seg" role="group">' + [["suggest", "nv.lp.m_suggest"], ["auto", "nv.lp.m_auto"], ["full", "nv.lp.m_full"]].map(function (o) { return '<button type="button" data-act="fset" data-k="mq" data-v="' + o[0] + '" aria-pressed="' + (lv === o[0]) + '">' + esc(tw(o[1])) + "</button>"; }).join("") + "</div>"
         + '<small class="nv-hint' + (lv === "full" ? " full" : "") + '" role="status">' + esc(tw(LP_NOTE[lv])) + "</small></div>" : "")
       + '<div class="nv-fld nv-opts">' + box("call", "nv.f.call") + box("speak", "nv.f.speak") + (f.mode === "do" ? box("last", "nv.f.last") : "") + "</div>";
+  }
+
+  // 0.426.0: a job queued right away keeps the old board's "review the result when done" box, its explanation behind (i).
+  function jobOpts(f) {
+    if (f.edit || f.date || f.rule || f.mode !== "do") return "";
+    var J = window.JavisInfo, more = tw("info.more");
+    return '<div class="nv-fld nv-opts"><div class="nv-apr"><label class="nv-prep"><input type="checkbox" data-act="fset" data-k="appr" data-v="' + (f.appr ? "" : "1") + '"' + (f.appr ? " checked" : "") + "><span>" + esc(tw("kanban.need_approve")) + "</span></label>"
+      + (J ? J.btn(more) : "") + "</div>" + (J ? J.body(esc(tw("kanban.need_approve_info"))) : "") + "</div>";
   }
 
   // ---------- add form ----------
@@ -1161,11 +1180,11 @@
     return head
       + '<label class="nv-fld"><span>' + esc(tw("nv.f.what")) + '</span><textarea class="nv-ta" id="nvW" required placeholder="' + esc(me ? tw("nv.f.what_ph_me") : tw("nv.f.what_ph")) + '">' + esc(f.text || "") + "</textarea></label>"
       + (f.edit ? "" : '<div class="nv-fld"><span>' + esc(tw("nv.f.who")) + "</span>" + seg("who", [["me", "nv.me", ic("circle-user")], ["ai", "nv.javis", avatar(CORE, 16)]]) + "</div>")
-      + (me ? "" : '<div class="nv-fld"><span>' + esc(tw("nv.k.how")) + "</span>" + seg("mode", [["do", "nv.mode.do"], ["remind", "nv.mode.remind"]]) + "</div>")
+      + (me || f.script ? "" : '<div class="nv-fld"><span>' + esc(tw("nv.k.how")) + "</span>" + seg("mode", [["do", "nv.mode.do"], ["remind", "nv.mode.remind"]]) + "</div>")
       + '<div class="nv-row2"><div class="nv-fld"><span>' + esc(tw("nv.k.when")) + '</span><button type="button" class="nv-pick" data-act="pick-date" data-id="new">' + ic("clock") + '<span class="nv-lbl">' + esc(f.date ? whenIso(f.date, f.time) : me ? tw("nv.d.none") : tw("nv.f.asap")) + "</span>" + ic("chevron-right") + "</button></div>"
       + '<div class="nv-fld"><span>' + esc(tw("nv.k.repeat")) + '</span><button type="button" class="nv-pick" data-act="pick-rep" data-id="new"' + (f.edit && f.cronLocked ? " disabled" : "") + ">" + ic("repeat") + '<span class="nv-lbl">' + esc(repTxt) + "</span>" + ic("chevron-right") + "</button></div></div>"
       + (me && f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? '<div class="nv-fld"><span>' + esc(tw("nv.h.kind")) + "</span>" + seg("habit", [["", "nv.l.rep", ic("repeat")], ["1", "nv.l.habit", ic("flame", "c-habit")]]) + "</div>" : "")
-      + (me ? '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label>" : remOpts(f))
+      + (me ? '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label>" : remOpts(f) + jobOpts(f))
       + (f.err ? '<div class="nv-ferr" role="alert">' + esc(f.err) + "</div>" : "")
       + '<div class="nv-acts end"><button type="button" class="nv-btn ghost" data-act="close">' + esc(tw("nv.cancel")) + '</button><button type="submit" class="nv-btn pri">' + esc(f.edit ? tw("nv.save") : me ? tw("nv.f.add") : tw("nv.f.give")) + "</button></div></form></div>";
   }
@@ -1176,7 +1195,7 @@
     } else if (it && it.src === "reminder") {
       var raw = it.raw || {}, ts = stamp(raw.due_at);
       S.form = { edit: it.ref, who: "ai", text: raw.text || it.title, mode: raw.mode === "notify" ? "remind" : "do", date: ts.date, time: ts.time, rule: null, cronLocked: !!(raw.cron || raw.repeat_min),
-        mq: raw.muc_quyen || "full", call: raw.call ? "1" : "", speak: raw.speak ? "1" : "", last: raw.remember_last ? "1" : "" };
+        mq: raw.muc_quyen || "full", call: raw.call ? "1" : "", speak: raw.speak ? "1" : "", last: raw.remember_last ? "1" : "", script: raw.mode === "script" };
     } else {
       var inHabit = S.tab === "me" && (S.view === "habit" || (S.phone.screen === "list" && S.phone.list === "habit"));
       S.form = { who: S.tab === "me" ? "me" : "ai", text: "", mode: "do", date: null, time: "", rule: inHabit ? { unit: "day", n: 1 } : null, habit: inHabit ? "1" : "",
@@ -1206,7 +1225,7 @@
       r = await postForm("/loops", { brain: b, slug: f.loop, name: (f.name || "").trim() || f.loop, body: txt, mode: f.lmode || "full",
         interval_min: String(Math.max(5, Number(f.iv) || 60)) });
     } else if (f.edit) {
-      var fields = { id: f.edit, brain: b, text: txt, mode: f.mode === "remind" ? "notify" : "task", muc_quyen: f.mq || "full",
+      var fields = f.script ? { id: f.edit, brain: b, text: txt } : { id: f.edit, brain: b, text: txt, mode: f.mode === "remind" ? "notify" : "task", muc_quyen: f.mq || "full",
         call: f.call ? "true" : "false", speak: f.speak ? "true" : "false", remember_last: f.mode === "do" && f.last ? "true" : "false" };
       if (!f.cronLocked && f.date) fields.at = f.date + "T" + (f.time || "08:00");
       r = await postForm("/reminders/update", fields);
@@ -1226,7 +1245,7 @@
       r = await postJSON("/my-tasks", { brain: b, title: txt, date: f.date || (myRule && f.habit ? today() : null), time: f.date ? f.time : "", repeat: myRule, project: f.project || "",
         habit: myRule && f.habit ? { start: today(), remind: "auto" } : null });
     } else if (!f.date && !f.rule && f.mode === "do") {
-      r = await postForm("/kanban/task", { brain: b, title: txt.slice(0, 120), intent: txt, priority: 2 });
+      r = await postForm("/kanban/task", { brain: b, title: txt.slice(0, 120), intent: txt, priority: 2, needs_approval: f.appr ? "1" : "0" });
     } else {
       r = await createReminder(txt, f.mode, f.date, f.time, f.rule, { muc_quyen: f.mq || "full", call: !!f.call, speak: !!f.speak, remember_last: f.mode === "do" && !!f.last });
       if (r === null) return;
@@ -1355,6 +1374,7 @@
         return act(postForm("/kanban/task/grant", { brain: b, id: it.ref }), tw("nv.ok.granted"));
       case "approve": return act(postForm("/kanban/task/move", { brain: b, id: it.ref, status: "done" }), tw("nv.ok.approved"));
       case "resolve": return act(postJSON("/incidents/resolve", { id: id }), tw("nv.ok.resolved"));
+      case "gochan": if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("channels"); return;
       case "orch": return act(postForm("/kanban/orchestration", { brain: b, mode: el.dataset.v }), el.dataset.v === "off" ? tw("nv.orch.off_ok") : tw("nv.orch.on_ok"));
       case "overall": {
         var L = S.me.items.filter(function (i) { return i.over && i.id.indexOf("m:") === 0; });

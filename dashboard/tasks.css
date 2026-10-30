@@ -178,6 +178,8 @@
 .nv-hint { font-size: 14px; line-height: 1.45; color: var(--text2); }
 .nv-hint.full { color: var(--text); }
 .nv-opts { gap: 12px; }
+.nv-apr { display: flex; align-items: center; gap: 8px; }
+.nv-lvl.full { font-weight: 700; color: var(--accent); }
 .nv-toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 80;
   max-width: calc(100vw - 32px); padding: 12px 16px; border-radius: 12px; background: var(--text); color: var(--bg); font-size: 15px;
   box-shadow: var(--shadow-2); display: flex; align-items: center; gap: 12px; }

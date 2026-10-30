@@ -38,10 +38,12 @@ check("vi info text says it does not wait for approval before running",
 check("en info text says it does not wait for approval before running",
       "does not ask for approval before" in en.get("kanban.need_approve_info", ""))
 
-console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-form = console[console.index('id="knApprove"') - 400: console.index('id="knApprove"')]
+# 0.426.0: the add form lives on the Tasks page (dashboard/tasks.js).
+tasks_js = (ROOT / "dashboard" / "tasks.js").read_text(encoding="utf-8")
+form = tasks_js[tasks_js.index("function jobOpts(f)"): tasks_js.index("function formHtml()")]
 check("form shows the explanation in an (i) block next to the checkbox",
-      "infoBtn()" in form and 'infoBody(esc(t("kanban.need_approve_info")))' in form)
+      'tw("kanban.need_approve")' in form and 'J.body(esc(tw("kanban.need_approve_info")))' in form)
+check("the box is sent with the job", 'needs_approval: f.appr ? "1" : "0"' in tasks_js)
 
 # Behaviour pinned: a needs_approval task is claimable right away and lands in `review` after.
 store = task_store.TaskStore(Path(tempfile.mkdtemp(prefix="javis-review-after-")) / "tasks.sqlite3")

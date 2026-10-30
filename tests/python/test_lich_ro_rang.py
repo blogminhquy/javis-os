@@ -21,7 +21,8 @@ import cron_util  # noqa: E402
 import reminders  # noqa: E402
 import self_improve  # noqa: E402
 
-CONSOLE = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+# 0.426.0: reminders are shown and edited on the Tasks page (dashboard/tasks.js), the old Scheduled page left console.js.
+TASKS = (ROOT / "dashboard" / "tasks.js").read_text(encoding="utf-8")
 PLUGIN = (ROOT / "system" / "plugins" / "javis-schedule" / "plugin.py").read_text(encoding="utf-8")
 
 fails = []
@@ -157,7 +158,9 @@ check("sửa job script giữ nguyên kiểu script",
 check("sửa job script vẫn đổi được tên và lịch",
       (sc_up.get("reminder") or {}).get("label") == "Ping máy chủ"
       and (sc_up.get("reminder") or {}).get("cron") == "*/10 * * * *")
-check("dashboard khoá nút Kiểu khi sửa job script", "rem.script" in CONSOLE)
+check("dashboard khoá nút Kiểu khi sửa job script",
+      'script: raw.mode === "script"' in TASKS and '(me || f.script ? "" :' in TASKS
+      and "var fields = f.script ? { id: f.edit, brain: b, text: txt } :" in TASKS)
 ready_feat, ready_brain = make_feature(notify_ready=lambda: (True, ""))
 check("đã đấu Telegram thì tạo bình thường",
       ready_feat._create(ready_brain, "Bản tin sáng", cron="0 7 * * *", mode="task")
@@ -230,24 +233,15 @@ VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="ut
 # Khoá của thẻ NHẮC HẸN tách riêng khỏi thẻ loop: loop in "kế tiếp ~<giờ>" (dấu ngã = ước
 # lượng, vì loop chạy theo chu kỳ), nhắc hẹn in "kế tiếp <giờ>" KHÔNG dấu ngã vì giờ là chính
 # xác. Gộp chung một khoá thì thẻ nhắc hẹn mọc thêm "~" và nói sai về độ chắc chắn.
-check("thẻ nhắc hẹn hiện lần chạy kế tiếp",
-      'window.t("cs.si_next_rem", { luc: fmtWhen(r.due_at)' in CONSOLE
-      and "kế tiếp" in VI.get("cs.si_next_rem", "")
-      and "~" not in VI.get("cs.si_next_rem", ""))
-check("thẻ loop vẫn giữ dấu ngã vì giờ chỉ là ước lượng",
-      'window.t("cs.si_next", { luc: fmtWhen(lp.next_run)' in CONSOLE
-      and "~" in VI.get("cs.si_next", ""))
-check("thẻ nhắc hẹn hiện cron bằng lời", "r.cron_human || r.cron" in CONSOLE)
-check("có hàm nói rõ hôm nay/mai/ngày cụ thể", "function fmtWhen" in CONSOLE)
-check("có hàm nói còn bao lâu nữa", "function fmtLeft" in CONSOLE)
-check("thẻ nhắc hẹn có nút Sửa và Xoá",
-      "rmEdit" in CONSOLE and "rmDel" in CONSOLE and "/reminders/delete" in CONSOLE)
-check("form sửa được nhắc hẹn qua /reminders/update", "/reminders/update" in CONSOLE)
-# Cũng vậy: nút "Vẫn tạo" nay là khoá cs.si_force trong từ điển (0.55.14).
+check("thẻ nhắc hẹn hiện lần chạy kế tiếp bằng ngày giờ cụ thể",
+      'tw("nv.rep.next", { t: it.next ? whenText(it.next) : "-" })' in TASKS
+      and "function whenText(sec) { var d = new Date(sec * 1000); return dayLabel(isoOf(d))" in TASKS)
+check("thẻ nhắc hẹn hiện cron bằng lời", "if (r.cron_human) return r.cron_human;" in TASKS)
+check("nhắc hẹn có Sửa và Xoá", '["edit", "pencil", "nv.a.edit"]' in TASKS and '"/reminders/delete"' in TASKS)
+check("form sửa được nhắc hẹn qua /reminders/update", '"/reminders/update"' in TASKS)
 check("thiếu kênh báo thì hỏi lại chứ không im lặng",
-      "can_force" in CONSOLE and "cs.si_force" in CONSOLE
-      and "Vẫn tạo" in VI.get("cs.si_force", ""))
-check("đầu trang Việc cảnh báo khi chưa có kênh báo", "lpNotifyWarn" in CONSOLE)
+      "r.can_force" in TASKS and 'tw("nv.f.force")' in TASKS)
+check("trang Nhiệm vụ cảnh báo khi chưa có kênh báo", "bad = nt.ok === false" in TASKS and 'tw("nv.nochan.go")' in TASKS)
 check("tool javis_schedule có op=update để sửa lịch bằng chat",
       '"update"' in PLUGIN and "_do_update" in PLUGIN)
 check("tool KHÔNG tự vượt rào thiếu kênh",

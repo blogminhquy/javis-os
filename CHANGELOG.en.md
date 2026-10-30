@@ -14,6 +14,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Reminders get their old options back:** Call me, Read it aloud, Remember the last result and the permission level, when adding and when editing. They went missing when the Scheduled page was merged.
 - **Asking Javis to show a job on screen works again.** Javis opens the Tasks page, the Javis tab, on that job's details.
 - **Allowing a job to act for real asks first,** since actions outside cannot be undone.
+- **Giving Javis a job has the Review the result when done box again.** A reminder's or loop's details show the permission level it runs at.
+- **With no channel for results, the Javis tab says so** with a button to Channels: reminders and loops still run but their results reach no one.
+- **Editing a script job no longer shows options that do not apply** (how it runs, level, call).
 ### Improved
 - **Cancel and Save stay at the bottom of the form,** so a long form on a phone needs no scrolling to find them.
 - **A lighter page:** over 1,100 lines of code and 214 strings of the old Kanban and Scheduled pages are gone.

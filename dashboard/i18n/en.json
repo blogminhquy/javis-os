@@ -6477,5 +6477,9 @@
   "ui.err_task_missing": "that job is not on the Tasks page",
   "nv.f.call": "Call me when it is time",
   "nv.f.speak": "Read it aloud (adds a voice message)",
-  "nv.f.last": "Remember the last result (report only what is new)"
+  "nv.f.last": "Remember the last result (report only what is new)",
+  "nv.nochan.head": "No channel for results",
+  "nv.nochan.body": "reminders and loops still run on time but their results reach no one",
+  "nv.chanerr.head": "The results channel has a problem",
+  "nv.nochan.go": "Open Channels"
 }

@@ -12,6 +12,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Lời nhắc có lại các tuỳ chọn cũ:** Gọi điện cho tôi, Đọc thành tiếng, Nhớ kết quả lần trước và mức quyền, khi thêm lẫn khi sửa. Các ô này mất từ lúc gộp trang Việc định kỳ.
 - **Nhờ Javis mở một việc trên màn hình chạy lại.** Javis mở trang Nhiệm vụ, tab Javis làm, đúng chi tiết việc đó.
 - **Cho phép chạy thật hỏi lại trước khi cấp quyền,** vì thao tác ra ngoài không hoàn tác được.
+- **Giao việc cho Javis có lại ô Duyệt kết quả sau khi làm xong.** Chi tiết lời nhắc và loop hiện mức quyền đang chạy.
+- **Chưa nối kênh báo kết quả thì tab Javis làm báo ngay,** kèm nút sang trang Kênh: lời nhắc và loop vẫn chạy nhưng kết quả không tới tay ai.
+- **Sửa job script không còn hiện các ô không áp dụng** (kiểu làm, mức quyền, gọi điện).
 ### Cải thiện
 - **Nút Huỷ và Lưu luôn nằm ở đáy form,** form dài trên điện thoại không phải cuộn tìm nút.
 - **Trang nhẹ hơn:** bỏ hơn 1.100 dòng mã và 214 chuỗi chữ của trang Kanban và Việc định kỳ cũ.

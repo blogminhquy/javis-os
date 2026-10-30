@@ -167,19 +167,17 @@ check("CLAUDE.md không còn cấm tự đặt full", "NEVER set `mode: full`" n
 
 
 # ---- 4. Giao diện: mức quyền phải hiện ra, hộp cảnh báo đỏ và confirm() đã gỡ ----
-JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("thẻ nhắc hẹn hiện mức quyền", "MQ_LBL" in JS and "rm-mq" in JS)
-check("form có ô chọn mức quyền", "lpRemMq" in JS)
-check("form không còn hộp cảnh báo đỏ khi chọn toàn quyền", "lpRemMqWarn" not in JS)
-check("form loop không còn hộp cảnh báo đỏ", "lpFullWarn" not in JS)
-check("không còn confirm() khi lưu hay bật loop toàn quyền",
-      "si_full_confirm" not in JS and "si_toggle_confirm" not in JS)
-check("loop mới mặc định toàn quyền trên form", 'fcur = { mode: "full" }' in JS)
-check("ô mức quyền chỉ hiện với kiểu tự-làm", 'frmode === "task" ? "" : "none"' in JS)
-check("form gửi muc_quyen lên server", JS.count("muc_quyen: frmq") + JS.count('"muc_quyen", frmq') >= 2)
-CSS = (ROOT / "dashboard" / "style.css").read_text(encoding="utf-8")
-check("mức toàn quyền nổi bật trên thẻ, không chìm như dòng phụ chú", ".rm-mq.on" in CSS)
-
+# 0.426.0: reminders are added and edited on the Tasks page (dashboard/tasks.js); console.js keeps no old form.
+JS = (ROOT / "dashboard" / "tasks.js").read_text(encoding="utf-8")
+check("chi tiết nhắc hẹn và loop hiện mức quyền", 'kv(tw("nv.lp.mode"), \'<span class="nv-lvl\'' in JS and "((it.raw || {}).muc_quyen || \"full\")" in JS)
+check("form có ô chọn mức quyền", 'data-k="mq"' in JS)
+check("không còn confirm() khi lưu toàn quyền", "si_full_confirm" not in JS and "si_toggle_confirm" not in JS)
+check("lời nhắc mới mặc định toàn quyền trên form", 'var lv = f.mq || "full";' in JS)
+check("loop sửa trên form giữ mức của nó, thiếu thì toàn quyền", 'lmode: lp.mode || "full"' in JS)
+check("ô mức quyền chỉ hiện với kiểu tự-làm", '(f.mode === "do" ? \'<div class="nv-fld"><span>\' + esc(tw("nv.lp.mode"))' in JS)
+check("form gửi muc_quyen lên server khi tạo và khi sửa",
+      'muc_quyen: f.mq || "full", call: !!f.call' in JS and 'muc_quyen: f.mq || "full",\n' in JS)
+check("mức toàn quyền nổi bật bằng dòng ghi chú đậm hơn", 'lv === "full" ? " full" : ""' in JS)
 
 if _fails:
     raise SystemExit(f"\nFAIL - test_nhac_hen_muc_quyen: {len(_fails)} lỗi: {_fails}")

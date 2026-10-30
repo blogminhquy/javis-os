@@ -6477,5 +6477,9 @@
   "ui.err_task_missing": "không thấy việc đó trên trang Nhiệm vụ",
   "nv.f.call": "Gọi điện cho tôi khi tới giờ",
   "nv.f.speak": "Đọc thành tiếng (gửi kèm tin thoại)",
-  "nv.f.last": "Nhớ kết quả lần trước (chỉ báo cái mới)"
+  "nv.f.last": "Nhớ kết quả lần trước (chỉ báo cái mới)",
+  "nv.nochan.head": "Chưa có kênh báo kết quả",
+  "nv.nochan.body": "lời nhắc và loop vẫn chạy đúng giờ nhưng kết quả không tới tay ai",
+  "nv.chanerr.head": "Kênh báo kết quả đang lỗi",
+  "nv.nochan.go": "Mở Kênh"
 }
