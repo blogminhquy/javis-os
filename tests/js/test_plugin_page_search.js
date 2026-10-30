@@ -48,7 +48,13 @@ check("user and vault plugins both land in 'yours'",
 
 // ---- 4. Compact card ----
 check("on/off is a switch with role=switch and a label", /class="pl-sw" role="switch" aria-checked=/.test(page) && /cs\.pl_sw_aria/.test(page));
-check("store plugins are managed in the store, not switched here", /p\.source === "pack"\) right = `<button[^`]*data-goto-packs/.test(page));
+check("store plugins are managed in the store, not switched here: no switch on their card",
+  /const right = p\.source === "pack" \|\| p\.removed \? ""/.test(page));
+// 0.420.0, owner's iPhone screenshot: a "Manage in Javis Store" button on every store card took half the phone's width and
+// squeezed the name and description into a sliver. One link on the store group's heading, the card text gets the width.
+check("one 'manage in the store' link on the store group heading", /g === "pack" \? `<button type="button" class="pl-act pl-goto" data-goto-packs="1">/.test(page));
+check("a card with no switch drops the right column", /\$\{right \? `<div class="pl-right">\$\{right\}<\/div>` : ""\}/.test(page));
+check("reinstall sits with the other actions under the text", /p\.removed \? `<button type="button" class="pl-act undel">/.test(page));
 check("long descriptions clamp to two lines with the rest in (i)", /pl-ds j-clamp2/.test(page) && /dongDai \? infoBody/.test(page));
 check("a plugin with many tools shows the first few and +N", /TOOLS_SHOWN/.test(page) && /\+\$\{tools\.length - TOOLS_SHOWN\}/.test(page));
 check("the optional tools block hides itself when empty", /id="ctTuyChon"[^>]*hidden/.test(page) && /oCt\.hidden = !ctCards\.children\.length/.test(page));

@@ -231,8 +231,13 @@
     }
     const tatCa = o.laTag ? t("ws.tag_all") : t("studio.all");
     const catHtml = cats.map(c => `<div class="gr-cat ${state.cat === c ? "sel" : ""}" data-cat="${esc(c)}"><span>${c === "ALL" ? esc(tatCa) : esc(ten(c))}</span><span class="n">${c === "ALL" ? items.length : so(c)}</span></div>`).join("");
+    // Phone (<=860px): one dropdown instead of the chip row, which ran off the screen past three groups (0.420.0).
+    const tieuDe = o.laTag ? t("studio.tags") : t("studio.groups");
+    const selHtml = `<label class="gr-pick"><span>${esc(tieuDe)}</span><select class="gr-sel" aria-label="${esc(tieuDe)}">${
+      cats.map(c => `<option value="${esc(c)}"${state.cat === c ? " selected" : ""}>${c === "ALL" ? esc(tatCa) : esc(ten(c))} (${c === "ALL" ? items.length : so(c)})</option>`).join("")
+    }</select></label>`;
     return `<div class="gr">
-      <div class="gr-side"><div class="sec">${esc(o.laTag ? t("studio.tags") : t("studio.groups"))}</div>${catHtml}</div>
+      <div class="gr-side"><div class="sec">${esc(tieuDe)}</div>${selHtml}${catHtml}</div>
       <div class="gr-main">
         <div class="gr-bar"><h4>${state.cat === "ALL" ? esc(tatCa) : esc(ten(state.cat))}</h4><span class="cnt"></span>
           <input id="${o.searchId}" placeholder="${esc(o.searchPh)}" value="${esc(state.q)}"></div>
@@ -258,6 +263,8 @@
     panel.querySelectorAll(".gr-side .gr-cat").forEach(c => {
       c.onclick = () => { state.cat = c.dataset.cat; o.veLai(); };
     });
+    const sel = panel.querySelector(".gr-side .gr-sel");
+    if (sel) sel.onchange = () => { state.cat = sel.value; o.veLai(); };
     const s = panel.querySelector("#" + o.searchId);
     if (s) s.oninput = () => { state.q = s.value; o.veDanhSach(); };
   }
@@ -1046,6 +1053,7 @@
     .gr-cat{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:15px;color:var(--text)}
     .gr-cat:hover{background:rgba(120,180,255,.08)} .gr-cat.sel{background:var(--info-wash);color:var(--info-ink)}
     .gr-cat .n{color:var(--text3);font-size:13px;flex:none}
+    .gr-pick{display:none}
     .gr-main{flex:1;min-width:0}
     .gr-bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
     .gr-bar h4{margin:0;font-size:17px;color:var(--text)} .gr-bar .cnt{color:var(--text3);font-size:14px}
@@ -1153,20 +1161,17 @@
       .sk3-detail{position:fixed;top:0;right:0;bottom:0;z-index:60;width:min(420px,100vw);max-width:none;border-radius:0;overflow:auto}
       .sk3-scrim:not([hidden]){display:block}
     }
-    /* ===== Mobile (<=860px) ===== xep DOC: nhom thanh dai chip cuon ngang o tren, danh sach
+    /* ===== Mobile (<=860px) ===== xep DOC: nhom thanh MOT o chon (dropdown) o tren, danh sach
        full-width ben duoi (truoc day cot nhom 210px bop cot con lai con ~150px -> chu vo tung
-       tu). */
+       tu; roi hang chip cuon ngang thi tran man hinh khi co nhieu nhom, 0.420.0). */
     @media (max-width:860px){
       .gr{flex-direction:column;gap:12px}
-      .gr-side{width:auto;max-height:none;display:flex;flex-direction:row;gap:6px;padding:6px;
-        overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-      .gr-side::-webkit-scrollbar{height:0}
-      .gr-side .sec{display:none}
-      .gr-cat{flex:none;padding:8px 13px;border:1px solid var(--hairline);
-        border-radius:999px;white-space:nowrap}
-      .gr-cat .n{padding:1px 6px;border-radius:9px;background:var(--surface-3)}
-      .gr-cat.sel{border-color:var(--info-line)}
-      #panel-skills .gr-cat.sel{border-color:var(--accent-line)}
+      .gr-side{width:auto;max-height:none;border:0;padding:0;overflow:visible}
+      .gr-side .sec,.gr-side .gr-cat{display:none}
+      .gr-pick{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--text2)}
+      .gr-pick span{flex:none}
+      .gr-sel{flex:1;min-width:0;height:44px;padding:0 10px;border:1px solid var(--hairline);border-radius:10px;
+        background:var(--field-bg);color:var(--text);font-size:16px}   /* 16px: chan iOS tu zoom */
       .gr-bar input{max-width:none;font-size:16px}   /* 16px: chan iOS tu zoom khi focus */
       .sk3-merged{display:none}
       .sk3-top{flex-wrap:wrap;gap:10px}

@@ -78,6 +78,17 @@ check("khung có ô tìm đúng id", html.includes('id="agSearch"'));
 check("khung chừa chỗ cho danh sách của từng trang", html.includes('id="agCards"') && html.includes('class="cards"'));
 check("chip ALL đếm đúng tổng số", /data-cat="ALL"[\s\S]*?<span class="n">3</, html.match(/data-cat="ALL"[\s\S]{0,120}<span class="n">3</) !== null);
 
+// 0.420.0, owner's iPhone screenshot: past three groups the chip row ran off a phone screen. On a phone the frame
+// shows ONE dropdown instead, with the same choices, counts and selection as the desktop column.
+check("phone dropdown lists every group with its count", /<select class="gr-sel"/.test(html)
+  && /<option value="ALL" selected>studio\.all \(3\)<\/option>/.test(html) && /<option value="Marketing">Marketing \(1\)<\/option>/.test(html), html.match(/<select[\s\S]*?<\/select>/));
+const htmlSel = M.khungNhomHtml(DS, { cat: "Bán hàng", q: "" }, { bodyId: "b", searchId: "s", searchPh: "" });
+check("the dropdown marks the chosen group", /<option value="Bán hàng" selected>/.test(htmlSel));
+check("choosing in the dropdown redraws like a tap on a chip", /sel\.onchange = \(\) => \{ state\.cat = sel\.value; o\.veLai\(\); \}/.test(SRC));
+check("phone CSS hides the chips and shows the dropdown at 16px",
+  /@media \(max-width:860px\)\{[\s\S]*?\.gr-side \.sec,\.gr-side \.gr-cat\{display:none\}[\s\S]*?\.gr-sel\{[^}]*font-size:16px/.test(SRC)
+  && /\.gr-pick\{display:none\}/.test(SRC));
+
 // Tên nhóm do người dùng gõ vào frontmatter, nên nó là chữ NGƯỜI LẠ có thể gửi qua gói .zip
 // chia sẻ năng lực. Nhét thẳng vào innerHTML là một lỗ XSS.
 const hiem = M.khungNhomHtml([{ slug: "x", name: "x", group: '<img src=x onerror=alert(1)>' }],
