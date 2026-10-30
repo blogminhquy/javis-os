@@ -47,7 +47,10 @@ check("answer presses the mic", fn && /voiceBtn\.click\(\)/.test(fn[0]));
 check("Live call opens with the reminder line", /if \(handsFree\) batLive\(layMoDauGoiDen\(\)\);/.test(app)
   && /function layMoDauGoiDen\(\) \{ const s = _goiDenMoDau; _goiDenMoDau = ""; return s; \}/.test(app));
 check("basic voice sends the line as the first message", fn && /if \(handsFree\) sendMessage\(moDau\)/.test(fn[0]));
-check("Work page has the Call me box", cons.includes('id="lpRemCall"') && cons.includes("call: call") && cons.includes('f.append("call"'));
+// 0.426.0: the Call me box moved to the Tasks page (dashboard/tasks.js): reminder options when adding and editing.
+const tasks = fs.readFileSync(path.join(D, "tasks.js"), "utf8");
+check("Tasks page has the Call me box", tasks.includes('box("call", "nv.f.call")') && tasks.includes("call: !!f.call")
+  && tasks.includes('call: f.call ? "true" : "false"') && tasks.includes('call: raw.call ? "1" : ""'));
 
 if (fails) { console.log(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nPASS");

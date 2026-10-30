@@ -167,6 +167,7 @@
 .nv-modal { position: fixed; z-index: 61; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, calc(100vw - 32px)); max-height: 90vh;
   overflow: auto; background: var(--nv-panel); border: 1px solid var(--hairline); border-radius: 18px; box-shadow: var(--shadow-3); padding: 18px 20px; }
 .nv-modal form { display: flex; flex-direction: column; gap: 14px; }
+.nv-modal .nv-acts.end { position: sticky; bottom: -18px; z-index: 1; background: var(--nv-panel); padding: 10px 0 18px; margin-bottom: -18px; }
 .nv-fld { display: flex; flex-direction: column; gap: 6px; }
 .nv-fld > span { font-weight: 600; font-size: 15px; color: var(--text2); }
 .nv-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -174,6 +175,9 @@
 .nv-seg button { flex: 1; min-height: 40px; border: 0; border-radius: 9px; background: none; color: var(--text2); font: inherit; font-weight: 600; cursor: pointer; }
 .nv-seg button[aria-pressed="true"] { background: var(--nv-panel); color: var(--text); box-shadow: var(--shadow-1); }
 .nv-ferr { color: var(--red); }
+.nv-hint { font-size: 14px; line-height: 1.45; color: var(--text2); }
+.nv-hint.full { color: var(--text); }
+.nv-opts { gap: 12px; }
 .nv-toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 80;
   max-width: calc(100vw - 32px); padding: 12px 16px; border-radius: 12px; background: var(--text); color: var(--bg); font-size: 15px;
   box-shadow: var(--shadow-2); display: flex; align-items: center; gap: 12px; }

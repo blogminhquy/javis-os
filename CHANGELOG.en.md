@@ -8,6 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.426.0] - 2026-10-30
+### Fixed
+- **Loops can be edited by hand again.** Since 0.422.0 the Tasks page could only switch, run and delete a loop. Edit now changes its name, what it does each round, its permission level (Suggest, Drafts, Full) and how often it runs.
+- **Reminders get their old options back:** Call me, Read it aloud, Remember the last result and the permission level, when adding and when editing. They went missing when the Scheduled page was merged.
+- **Asking Javis to show a job on screen works again.** Javis opens the Tasks page, the Javis tab, on that job's details.
+- **Allowing a job to act for real asks first,** since actions outside cannot be undone.
+### Improved
+- **Cancel and Save stay at the bottom of the form,** so a long form on a phone needs no scrolling to find them.
+- **A lighter page:** over 1,100 lines of code and 214 strings of the old Kanban and Scheduled pages are gone.
+
 ## [0.425.0] - 2026-10-30
 ### Added
 - **Appointments on the Mine tab.** When adding, pick Kind: Appointment to set a start time, duration and place. An appointment switches itself between Upcoming, Happening now and Past, and flags two appointments that overlap.

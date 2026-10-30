@@ -435,7 +435,7 @@
       getJSON("/my-tasks?brain=" + enc)
     ]);
     if (res[6]) S.agents = (res[6].agents || res[6] || []).filter(function (a) { return a && a.slug; });
-    S.brains = ((res[1] && res[1].brains) || []).map(function (x) { return { name: x.name, path: x.path, def: x.is_default }; });
+    S.brains = ((res[1] && res[1].brains) || []).map(function (x) { return { name: x.label || x.name, path: x.path, def: x.is_default }; });
     S.ai = model({ kanban: res[0] || {}, viec: res[1] || {}, rems: res[2] || {}, watch: res[3] || {}, incidents: res[4] || {}, loopLog: res[5] || {}, brain: b });
     S.my = res[7] && res[7].ok ? res[7] : (S.my || { tasks: [], projects: [] });
     S.me = mineModel(S.my, S.ai.today, hmOf(new Date()));
@@ -830,6 +830,7 @@
   }
   var DURS = [15, 30, 45, 60, 90, 120, 180, 240];
   var REMS = ["0", "5", "15", "30", "60"];
+  var LP_NOTE = { suggest: "cs.si_level_note_suggest", auto: "cs.si_level_note_auto", full: "cs.si_level_note_full" };
   function toMin(hm) { var p = String(hm || "0:0").split(":"); return Number(p[0]) * 60 + Number(p[1] || 0); }
   function fromMin(m) { m = Math.max(0, Math.min(23 * 60 + 59, m)); return pad2(Math.floor(m / 60)) + ":" + pad2(m % 60); }
   function durTxt(m) { return m >= 60 ? tw("nv.ap.h", { h: Math.floor(m / 60) }) + (m % 60 ? " " + tw("nv.ap.m", { m: m % 60 }) : "") : tw("nv.ap.m", { m: m }); }
@@ -928,7 +929,7 @@
       out.push(["del", "trash-2", "nv.a.del"]);
       return out;
     }
-    if (src === "reminder" && (isRep || !FIN[it.st])) out.push(["edit", "pencil", "nv.a.edit"]);
+    if ((src === "reminder" && (isRep || !FIN[it.st])) || src === "loop") out.push(["edit", "pencil", "nv.a.edit"]);
     if (isRep && src === "reminder") out.push(["skip", "skip-forward", "nv.a.skip"]);
     if (isRep) out.push(["rtog", it.on ? "pause" : "play", it.on ? "nv.a.pause" : "nv.a.resume"]);
     if (!isRep && (src === "kanban" || src === "reminder") && !FIN[it.st]) out.push(["cancel", "circle-x", "nv.a.cancel"]);
@@ -1114,14 +1115,35 @@
     return pad2(Math.floor(m / 60)) + ":" + pad2(m % 60);
   }
 
+  // 0.426.0: the reminder options the old Scheduled page had (level, call, read aloud, remember last), only when
+  // the job will be a reminder: it has a time or a repeat, or only reminds, or is a reminder being edited.
+  function remOpts(f) {
+    if (!f.edit && !f.date && !f.rule && f.mode !== "remind") return "";
+    var box = function (k, label) { return '<label class="nv-prep"><input type="checkbox" data-act="fset" data-k="' + k + '" data-v="' + (f[k] ? "" : "1") + '"' + (f[k] ? " checked" : "") + "><span>" + esc(tw(label)) + "</span></label>"; };
+    var lv = f.mq || "full";
+    return (f.mode === "do" ? '<div class="nv-fld"><span>' + esc(tw("nv.lp.mode")) + "</span>" + '<div class="nv-seg" role="group">' + [["suggest", "nv.lp.m_suggest"], ["auto", "nv.lp.m_auto"], ["full", "nv.lp.m_full"]].map(function (o) { return '<button type="button" data-act="fset" data-k="mq" data-v="' + o[0] + '" aria-pressed="' + (lv === o[0]) + '">' + esc(tw(o[1])) + "</button>"; }).join("") + "</div>"
+        + '<small class="nv-hint' + (lv === "full" ? " full" : "") + '" role="status">' + esc(tw(LP_NOTE[lv])) + "</small></div>" : "")
+      + '<div class="nv-fld nv-opts">' + box("call", "nv.f.call") + box("speak", "nv.f.speak") + (f.mode === "do" ? box("last", "nv.f.last") : "") + "</div>";
+  }
+
   // ---------- add form ----------
   function formHtml() {
     var f = S.form, me = f.who === "me";
     var seg = function (key, opts) { return '<div class="nv-seg" role="group">' + opts.map(function (o) { return '<button type="button" data-act="fset" data-k="' + key + '" data-v="' + o[0] + '" aria-pressed="' + (f[key] === o[0]) + '">' + (o[2] || "") + esc(tw(o[1])) + "</button>"; }).join("") + "</div>"; };
     var repTxt = f.rule ? (f.rule.unit === "min" || f.rule.unit === "hour" ? tw(f.rule.unit === "min" ? "nv.rep.every_min" : "nv.rep.every_hours", { n: f.rule.n || 1 }) : repHuman(f.rule)) : tw("nv.f.rep_none");
     var head = '<div class="nv-scrim" data-act="close"></div><div class="nv-modal" role="dialog" aria-modal="true" aria-labelledby="nvFormT"><form data-form="1">'
-      + '<div class="nv-mh"><h3 id="nvFormT">' + esc(f.edit ? tw("nv.f.edit") : f.kind === "appt" ? tw("nv.ap.new") : me ? tw("nv.f.new_me") : tw("nv.f.new")) + '</h3><button type="button" class="nv-x" data-act="close" aria-label="' + esc(tw("nv.close")) + '">' + ic("x") + "</button></div>"
-      + (f.edit ? "" : '<div class="nv-seg nv-kindseg" role="group">' + [["task", "circle-check", "nv.ap.k_task"], ["appt", "calendar", "nv.ap.k_appt"]].map(function (o) { return '<button type="button" data-act="fset" data-k="kind" data-v="' + o[0] + '" aria-pressed="' + ((f.kind || "task") === o[0]) + '">' + ic(o[1]) + esc(tw(o[2])) + "</button>"; }).join("") + "</div>");
+      + '<div class="nv-mh"><h3 id="nvFormT">' + esc(f.loop ? tw("nv.lp.edit") : f.edit ? tw("nv.f.edit") : f.kind === "appt" ? tw("nv.ap.new") : me ? tw("nv.f.new_me") : tw("nv.f.new")) + '</h3><button type="button" class="nv-x" data-act="close" aria-label="' + esc(tw("nv.close")) + '">' + ic("x") + "</button></div>"
+      + (f.edit || f.loop ? "" : '<div class="nv-seg nv-kindseg" role="group">' + [["task", "circle-check", "nv.ap.k_task"], ["appt", "calendar", "nv.ap.k_appt"]].map(function (o) { return '<button type="button" data-act="fset" data-k="kind" data-v="' + o[0] + '" aria-pressed="' + ((f.kind || "task") === o[0]) + '">' + ic(o[1]) + esc(tw(o[2])) + "</button>"; }).join("") + "</div>");
+    if (f.loop) {
+      // 0.426.0: a loop's own fields, the ones the old Scheduled page let the owner edit by hand.
+      return head + '<label class="nv-fld"><span>' + esc(tw("nv.lp.name")) + '</span><input class="nv-inp" id="nvLn" required value="' + esc(f.name || "") + '"></label>'
+        + '<label class="nv-fld"><span>' + esc(tw("nv.lp.body")) + '</span><textarea class="nv-ta" id="nvW" required>' + esc(f.text || "") + "</textarea></label>"
+        + '<div class="nv-fld"><span>' + esc(tw("nv.lp.mode")) + "</span>" + seg("lmode", [["suggest", "nv.lp.m_suggest"], ["auto", "nv.lp.m_auto"], ["full", "nv.lp.m_full"]])
+        + '<small class="nv-hint' + ((f.lmode || "full") === "full" ? " full" : "") + '" role="status">' + esc(tw(LP_NOTE[f.lmode] || LP_NOTE.full)) + "</small></div>"
+        + '<label class="nv-fld"><span>' + esc(tw("nv.lp.every")) + '</span><input class="nv-inp" id="nvIv" type="number" min="5" step="5" inputmode="numeric" value="' + esc(f.iv || "60") + '"></label>'
+        + (f.err ? '<div class="nv-ferr" role="alert">' + esc(f.err) + "</div>" : "")
+        + '<div class="nv-acts end"><button type="button" class="nv-btn ghost" data-act="close">' + esc(tw("nv.cancel")) + '</button><button type="submit" class="nv-btn pri">' + esc(tw("nv.save")) + "</button></div></form></div>";
+    }
     if (f.kind === "appt") {
       var dur = Number(f.dur || 60);
       return head + '<label class="nv-fld"><span>' + esc(tw("nv.ap.what")) + '</span><input class="nv-inp" id="nvW" required placeholder="' + esc(tw("nv.ap.what_ph")) + '" value="' + esc(f.text || "") + '"></label>'
@@ -1143,14 +1165,18 @@
       + '<div class="nv-row2"><div class="nv-fld"><span>' + esc(tw("nv.k.when")) + '</span><button type="button" class="nv-pick" data-act="pick-date" data-id="new">' + ic("clock") + '<span class="nv-lbl">' + esc(f.date ? whenIso(f.date, f.time) : me ? tw("nv.d.none") : tw("nv.f.asap")) + "</span>" + ic("chevron-right") + "</button></div>"
       + '<div class="nv-fld"><span>' + esc(tw("nv.k.repeat")) + '</span><button type="button" class="nv-pick" data-act="pick-rep" data-id="new"' + (f.edit && f.cronLocked ? " disabled" : "") + ">" + ic("repeat") + '<span class="nv-lbl">' + esc(repTxt) + "</span>" + ic("chevron-right") + "</button></div></div>"
       + (me && f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? '<div class="nv-fld"><span>' + esc(tw("nv.h.kind")) + "</span>" + seg("habit", [["", "nv.l.rep", ic("repeat")], ["1", "nv.l.habit", ic("flame", "c-habit")]]) + "</div>" : "")
-      + (me ? '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label>" : "")
+      + (me ? '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label>" : remOpts(f))
       + (f.err ? '<div class="nv-ferr" role="alert">' + esc(f.err) + "</div>" : "")
       + '<div class="nv-acts end"><button type="button" class="nv-btn ghost" data-act="close">' + esc(tw("nv.cancel")) + '</button><button type="submit" class="nv-btn pri">' + esc(f.edit ? tw("nv.save") : me ? tw("nv.f.add") : tw("nv.f.give")) + "</button></div></form></div>";
   }
   function openForm(it) {
-    if (it && it.src === "reminder") {
+    if (it && it.src === "loop") {
+      var lp = it.raw || {};
+      S.form = { loop: it.ref, name: lp.name || it.ref, text: lp.body || "", lmode: lp.mode || "full", iv: String(lp.interval_min || 60) };
+    } else if (it && it.src === "reminder") {
       var raw = it.raw || {}, ts = stamp(raw.due_at);
-      S.form = { edit: it.ref, who: "ai", text: raw.text || it.title, mode: raw.mode === "notify" ? "remind" : "do", date: ts.date, time: ts.time, rule: null, cronLocked: !!(raw.cron || raw.repeat_min) };
+      S.form = { edit: it.ref, who: "ai", text: raw.text || it.title, mode: raw.mode === "notify" ? "remind" : "do", date: ts.date, time: ts.time, rule: null, cronLocked: !!(raw.cron || raw.repeat_min),
+        mq: raw.muc_quyen || "full", call: raw.call ? "1" : "", speak: raw.speak ? "1" : "", last: raw.remember_last ? "1" : "" };
     } else {
       var inHabit = S.tab === "me" && (S.view === "habit" || (S.phone.screen === "list" && S.phone.list === "habit"));
       S.form = { who: S.tab === "me" ? "me" : "ai", text: "", mode: "do", date: null, time: "", rule: inHabit ? { unit: "day", n: 1 } : null, habit: inHabit ? "1" : "",
@@ -1168,14 +1194,20 @@
     if (g("#nvRem")) S.form.remind = g("#nvRem").value;
     if (g("#nvLoc")) S.form.loc = g("#nvLoc").value;
     if (g("#nvPrepT")) S.form.prepT = g("#nvPrepT").value;
+    if (g("#nvLn")) S.form.name = g("#nvLn").value;
+    if (g("#nvIv")) S.form.iv = g("#nvIv").value;
   }
   async function submitForm() {
     keepFormText();
     var f = S.form, txt = (f.text || "").trim();
     if (!txt) return;
     var b = brain(), r;
-    if (f.edit) {
-      var fields = { id: f.edit, brain: b, text: txt, mode: f.mode === "remind" ? "notify" : "task" };
+    if (f.loop) {
+      r = await postForm("/loops", { brain: b, slug: f.loop, name: (f.name || "").trim() || f.loop, body: txt, mode: f.lmode || "full",
+        interval_min: String(Math.max(5, Number(f.iv) || 60)) });
+    } else if (f.edit) {
+      var fields = { id: f.edit, brain: b, text: txt, mode: f.mode === "remind" ? "notify" : "task", muc_quyen: f.mq || "full",
+        call: f.call ? "true" : "false", speak: f.speak ? "true" : "false", remember_last: f.mode === "do" && f.last ? "true" : "false" };
       if (!f.cronLocked && f.date) fields.at = f.date + "T" + (f.time || "08:00");
       r = await postForm("/reminders/update", fields);
     } else if (f.kind === "appt") {
@@ -1196,17 +1228,17 @@
     } else if (!f.date && !f.rule && f.mode === "do") {
       r = await postForm("/kanban/task", { brain: b, title: txt.slice(0, 120), intent: txt, priority: 2 });
     } else {
-      r = await createReminder(txt, f.mode, f.date, f.time, f.rule);
+      r = await createReminder(txt, f.mode, f.date, f.time, f.rule, { muc_quyen: f.mq || "full", call: !!f.call, speak: !!f.speak, remember_last: f.mode === "do" && !!f.last });
       if (r === null) return;
     }
     if (r && r.ok === false) { f.err = r.error || tw("nv.err.generic"); renderLayer(); return; }
     S.layer = null; S.form = null; renderLayer();
-    toast(f.edit ? tw("nv.saved") : f.kind === "appt" ? tw("nv.ap.added") : f.who === "me" ? (f.habit && f.rule ? tw("nv.h.added") : tw("nv.f.added")) : tw("nv.f.given"));
+    toast(f.edit || f.loop ? tw("nv.saved") : f.kind === "appt" ? tw("nv.ap.added") : f.who === "me" ? (f.habit && f.rule ? tw("nv.h.added") : tw("nv.f.added")) : tw("nv.f.given"));
     await load(); render(); schedulePoll();
   }
-  async function createReminder(txt, mode, date, time, rule) {
+  async function createReminder(txt, mode, date, time, rule, opts) {
     var body = Object.assign({ brain: brain(), text: txt, label: txt.slice(0, 80), mode: mode === "remind" ? "notify" : "task", muc_quyen: "full", created_by: "dashboard" },
-      javisSchedule(rule, date || today(), time || "08:00"));
+      opts || {}, javisSchedule(rule, date || today(), time || "08:00"));
     var r = await postJSON("/reminders", body);
     if (r && r.ok === false && r.can_force) {
       if (!window.confirm(r.error + "\n\n" + tw("nv.f.force"))) return null;
@@ -1318,7 +1350,9 @@
       }
       case "tojavis": case "m-tojavis": return giveToJavis(it);
       case "m-tome": return takeFromJavis(it);
-      case "grant": return act(postForm("/kanban/task/grant", { brain: b, id: it.ref }), tw("nv.ok.granted"));
+      case "grant":
+        if (!window.confirm(tw("kanban.confirm_grant"))) return;
+        return act(postForm("/kanban/task/grant", { brain: b, id: it.ref }), tw("nv.ok.granted"));
       case "approve": return act(postForm("/kanban/task/move", { brain: b, id: it.ref, status: "done" }), tw("nv.ok.approved"));
       case "resolve": return act(postJSON("/incidents/resolve", { id: id }), tw("nv.ok.resolved"));
       case "orch": return act(postForm("/kanban/orchestration", { brain: b, mode: el.dataset.v }), el.dataset.v === "off" ? tw("nv.orch.off_ok") : tw("nv.orch.on_ok"));
@@ -1546,5 +1580,16 @@
     S = null;
   }
 
-  window.JavisTasks = { mount: mount, unmount: unmount, _model: model_ };
+  // Javis opens a Kanban job on screen (ui-actions.js, action open_task): Javis tab, details of that job.
+  async function show(ref) {
+    if (!S || !S.ai) return false;
+    var id = "k:" + String(ref || "").replace(/^k:/, "");
+    if (S.tab !== "ai") setTab("ai");
+    if (!find(id)) { await load(); if (!S) return false; }
+    if (!find(id)) return false;
+    openDetail(id);
+    return true;
+  }
+
+  window.JavisTasks = { mount: mount, unmount: unmount, show: show, ready: function () { return !!(S && S.ai); }, _model: model_ };
 })();

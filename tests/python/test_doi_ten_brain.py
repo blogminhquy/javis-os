@@ -101,8 +101,10 @@ lenh = (ROOT / "dashboard" / "chat-lenh.js").read_text(encoding="utf-8")
 check("lệnh /brain trong chat nhận cả tên thư mục cũ",
       "if (!k.hit && !k.nhieu.length) k = khopTen(brains, arg, function (b) { return b.name; });" in lenh)
 cs = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("các ô chọn brain ở Cài đặt và trang Việc hiện label",
-      cs.count("name: b.label || b.name, path: b.path") == 3)
+# 0.426.0: trang Việc cũ rời console.js; trang Nhiệm vụ (tasks.js) chọn brain để chuyển, sao chép việc.
+nv = (ROOT / "dashboard" / "tasks.js").read_text(encoding="utf-8")
+check("các ô chọn brain ở Cài đặt và trang Nhiệm vụ hiện label",
+      cs.count("name: b.label || b.name, path: b.path") == 1 and "name: x.label || x.name, path: x.path" in nv)
 check("nút đổi tên gọi đúng endpoint với địa chỉ brain đang chọn",
       'fetch("/brains/label"' in js and 'fd.append("brain", sel.value)' in js)
 html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")

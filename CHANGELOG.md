@@ -6,6 +6,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.426.0] - 2026-10-30
+### Sửa lỗi
+- **Sửa loop bằng tay được trở lại.** Từ 0.422.0 trang Nhiệm vụ chỉ bật, tắt, chạy, xoá được loop. Giờ bấm Sửa để đổi tên, việc mỗi vòng, mức quyền (Đề xuất, Ghi nháp, Toàn quyền) và chu kỳ chạy.
+- **Lời nhắc có lại các tuỳ chọn cũ:** Gọi điện cho tôi, Đọc thành tiếng, Nhớ kết quả lần trước và mức quyền, khi thêm lẫn khi sửa. Các ô này mất từ lúc gộp trang Việc định kỳ.
+- **Nhờ Javis mở một việc trên màn hình chạy lại.** Javis mở trang Nhiệm vụ, tab Javis làm, đúng chi tiết việc đó.
+- **Cho phép chạy thật hỏi lại trước khi cấp quyền,** vì thao tác ra ngoài không hoàn tác được.
+### Cải thiện
+- **Nút Huỷ và Lưu luôn nằm ở đáy form,** form dài trên điện thoại không phải cuộn tìm nút.
+- **Trang nhẹ hơn:** bỏ hơn 1.100 dòng mã và 214 chuỗi chữ của trang Kanban và Việc định kỳ cũ.
+
 ## [0.425.0] - 2026-10-30
 ### Thêm mới
 - **Lịch hẹn trên tab Của tôi.** Khi thêm việc, chọn Kiểu: Lịch hẹn để ghi giờ bắt đầu, thời lượng, địa điểm. Hẹn tự đổi trạng thái Sắp tới, Đang diễn ra, Đã diễn ra, và báo khi hai hẹn trùng giờ.
