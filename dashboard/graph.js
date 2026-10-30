@@ -171,6 +171,11 @@ class JavisGraph {
     this._daNgheChuot = false;
     this._nbrs = new Set();
     this._catFilter = null;
+    this._dangCham = false;    // ngón tay / nút chuột đang giữ trên quả cầu
+    this._daKeo = false;       // người dùng đã kéo hay phóng từ lần về giữa trước (xem _henVeGiua)
+    this._henGiua = null;      // hẹn giờ về giữa
+    this._loaiTro = "";        // "mouse" | "touch" | "pen" của lần chạm cuối
+    this._diemCham = null;
     window.__javisGraph = this;
     try { window.dispatchEvent(new Event("javis-graph-created")); } catch (e) {}
   }
@@ -413,11 +418,55 @@ class JavisGraph {
     if (!el || this._daNgheChuot) return;
     this._daNgheChuot = true;
     const cham = () => { this._chuotTren = true; this._nhipVe(); };
-    const roi = () => { this._chuotTren = false; this._nhipVe(); };
+    const roi = (e) => {
+      this._chuotTren = false; this._nhipVe();
+      if (e && e.pointerType === "mouse") this._henVeGiua();   // chuột rời quả cầu: hết xem, đếm giờ về giữa
+    };
     el.addEventListener("pointerenter", cham);
     el.addEventListener("pointermove", cham);
-    el.addEventListener("pointerdown", cham);
+    el.addEventListener("pointerdown", (e) => {
+      cham(); this._dangCham = true; this._loaiTro = e.pointerType; this._huyVeGiua();
+      this._diemCham = [e.clientX, e.clientY];
+    });
+    // Chỉ tính là KÉO khi tay đi quá vài px: bấm một chấm để mở note thì không cần camera chạy về đâu cả.
+    el.addEventListener("pointermove", (e) => {
+      const d = this._diemCham;
+      if (this._dangCham && d && Math.abs(e.clientX - d[0]) + Math.abs(e.clientY - d[1]) > 8) this._daKeo = true;
+    });
     el.addEventListener("pointerleave", roi);
+    // Thả tay (ngón hay chuột) sau khi kéo, và lăn chuột để phóng: đếm giờ về giữa. Nghe ở window cho pointerup vì ngón
+    // có thể nhấc ra ngoài khung đồ thị.
+    const tha = () => { if (this._dangCham) { this._dangCham = false; this._henVeGiua(); } };
+    if (typeof window.addEventListener === "function") {
+      window.addEventListener("pointerup", tha);
+      window.addEventListener("pointercancel", tha);
+    }
+    el.addEventListener("wheel", () => { this._daKeo = true; this._loaiTro = "mouse"; this._henVeGiua(); }, { passive: true });
+  }
+
+  // --- Kéo tự do, buông tay vài giây thì tự về giữa (0.422.0, chủ repo xin) ---
+  //
+  // Ngón tay kéo quả cầu đi đâu, chụm hai ngón phóng to bao nhiêu cũng được. Buông ra VE_GIUA_MS là cả đồ thị trôi
+  // êm về giữa, vừa khung như lúc mới mở, khỏi phải tự lần lại chỗ cũ trên màn hình điện thoại nhỏ. Máy tính: chuột
+  // còn nằm trên quả cầu nghĩa là người ta đang soi một vùng, nên chờ chuột rời đi rồi mới đếm.
+  //
+  // Chỉ chạy sau một lần NGƯỜI DÙNG kéo hay phóng (_daKeo), không bao giờ tự giật camera khi không ai đụng vào.
+  static get VE_GIUA_MS() { return 3000; }
+
+  _huyVeGiua() {
+    if (this._henGiua) { clearTimeout(this._henGiua); this._henGiua = null; }
+  }
+
+  _henVeGiua() {
+    this._huyVeGiua();
+    if (!this._daKeo) return;
+    this._henGiua = setTimeout(() => {
+      this._henGiua = null;
+      if (this._dangCham) return;                                   // đang giữ tay: lần thả sau sẽ hẹn lại
+      if (this._chuotTren && this._loaiTro === "mouse") return;     // chuột còn trên quả cầu: chờ nó rời đi
+      this._daKeo = false;
+      this.refit(700);
+    }, JavisGraph.VE_GIUA_MS);
   }
 
   _nhipVe() {

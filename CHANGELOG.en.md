@@ -11,7 +11,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.421.0] - 2026-10-30
 ### Fixed
 - **The Usage page no longer slides off the screen on phones.** Before, the page shifted left, cutting off text on the left and leaving a gap on the right. The cause was the day labels under the chart sticking out past the edge. Long periods like **3 months** or **This year** made the chart several screens wide. The chart now always fits, and long periods label months instead of days.
+- **The brain graph shows on phones again.** Since 0.415.0 the brain area on a phone showed only the cluster names and no note dots. Narrow screens switched the graph off to save battery, and the switch-off ran before the first frame was drawn. Phones now run the graph like a computer does. A still graph stops drawing by itself, so it costs no battery, and the Graph switch in Settings still turns it off.
 ### Improved
+- **Drag the graph freely; let go and it returns to the centre.** Drag it anywhere and zoom as far as you like. Three seconds after you let go, the whole graph glides back to the centre, framed as when it first opened. Tapping a dot to open a note does not move it. On a computer it returns 3 seconds after the mouse leaves the graph.
 - **Pick the period from one dropdown.** The eight buttons Today, Yesterday, This week... took three rows on a phone. Now there is a single dropdown, on the same row as **Refresh**.
 - **The Usage page opens faster.**
   - The server no longer works out the same numbers three times each time the page opens.
