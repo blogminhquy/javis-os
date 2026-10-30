@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.420.2] - 2026-10-30
 ### Sửa lỗi
-- Đang viết.
+- **Ngắt rồi đăng nhập tài khoản khác ở thẻ ChatGPT, Grok Build hay Claude Code là chat được ngay.** Trước đây tài khoản cũ hết lượt thì dấu "hết lượt" vẫn bám vào thẻ sau khi bạn đăng nhập một tài khoản mới ở ô tài khoản 1, kể cả khi khởi động lại Javis, nên chat bị đẩy sang thẻ dự phòng tới giờ mở lại của tài khoản cũ. Giờ đăng nhập xong là dấu đó được gỡ.
 
 ## [0.420.1] - 2026-10-30
 ### Sửa lỗi
