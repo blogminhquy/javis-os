@@ -292,10 +292,10 @@
   "dict.cancel": "Cancel recording",
   "dict.busy": "Turning speech into text...",
   "dict.in_call": "A voice chat is on. Hang up first, then dictate.",
-  "dict.unsupported": "This browser cannot turn speech into text yet. Try Chrome, Edge or Safari, or turn on the Groq ear under Voice in Settings.",
+  "dict.unsupported": "This browser cannot turn speech into text yet. Try a recent Safari, Chrome or Edge.",
   "dict.denied": "Javis may not use the microphone yet. Click the lock in the address bar, allow Microphone and try again.",
   "dict.failed": "Dictation failed, please try again.",
-  "dict.nothing": "No words were heard. Speak closer to the mic and try again. On a phone, add a Groq API key (free) on the Models page for steadier dictation.",
+  "dict.nothing": "No words were heard. Speak closer to the mic and try again.",
   "dict.no_ear": "Mixed-language speech is heard far better with a Groq (free) or OpenAI API key on the Models page.",
   "call.connecting": "Connecting",
   "call.listening": "Listening",
@@ -4581,7 +4581,7 @@
   "teams.mic": "Speak to type",
   "teams.mic_stop": "Stop listening",
   "teams.mic_busy": "Turning speech into text",
-  "teams.mic_unsupported": "This browser cannot type by voice yet. Try Chrome, Edge or Safari, or turn on the Groq ear under Voice in Settings.",
+  "teams.mic_unsupported": "This browser cannot take voice input yet. Try a recent Safari, Chrome or Edge.",
   "teams.mic_denied": "Javis may not use the microphone yet. Click the lock icon in the address bar, allow Microphone and try again.",
   "teams.mic_failed": "Voice input failed, please try again.",
   "teams.rename": "Rename",
@@ -6389,5 +6389,8 @@
   "hp.cerr_none": "No interface errors recorded.",
   "hp.cerr_clear": "Clear list",
   "hp.cerr_intro": "Errors that happen in the browser of anyone using this Javis (computer or phone) are sent here automatically, grouped. Only technical details (error message, file, line, device type), never chat content. If something odd happens, a screenshot of this section is enough for the developer to fix it.",
-  "net.reconnecting": "Reconnecting to the server…"
+  "net.reconnecting": "Reconnecting to the server…",
+  "dict.denied_ios": "Safari has not let Javis use the microphone. Tap aA in the address bar, choose Website Settings, set Microphone to Allow and try again. If it still fails, open Settings, Apps, Safari, Microphone and choose Ask.",
+  "dict.service_ios": "Dictation is off on this iPhone, so Safari cannot listen. Open Settings, General, Keyboard, turn on Enable Dictation and try again.",
+  "dict.service": "The browser's speech service is off. Turn on speech recognition in the device or browser settings and try again."
 }

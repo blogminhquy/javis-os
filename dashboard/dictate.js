@@ -25,6 +25,18 @@
    X during "transcribing" waited for the upload. Each wait now has a watchdog, a second stop forces the end, and X
    closes the bar at once.
 
+   0.419.0: the mic opens INSIDE the tap on an iPhone (owner report 2026-10-30, iPhone 15 Pro Max: press the mic, the
+   bar flashes and closes). Safari only lets a page start the mic or its speech recognizer during the brief moment that
+   follows a tap. start() first asked GET /voice/ear and only then opened the mic; the answer is cached for a minute, so
+   nearly every real press went to the network first (through Cloudflare, and since 0.416 through fetch-gop.js and the
+   service worker), and by the time it came back the tap no longer counted: Safari refused, the run reported "denied"
+   or "failed" and the bar closed. The ear is now asked in the background (on load, when the tab comes back, after each
+   press), and a press opens the mic synchronously: with the known answer, whatever its age, and with "no ear" when there
+   is none yet (owner, same day: ordinary users never set up Groq, so the browser's own recognizer is the path that must
+   always work; a Groq user only loses the re-listen on a press made before the first answer came). A failed refresh
+   keeps the last known answer. A recognizer the phone itself has switched off (iOS "service-not-allowed": Dictation
+   off in Settings) is reported as "service", not as a blocked mic, so the note can say where to turn it on.
+
    joinText is pure so node tests can run it. */
 (function () {
   "use strict";
@@ -63,7 +75,15 @@
     if (fresh || typeof fetch !== "function") return Promise.resolve(earKind || "");
     return fetch("/voice/ear", { credentials: "same-origin" }).then(function (r) { return r.json(); })
       .then(function (j) { earKind = j && j.kind === "upload" ? "upload" : ""; earAt = Date.now(); return earKind; },
-        function () { earKind = ""; earAt = Date.now(); return ""; });
+        // A network hiccup is not "the server has no ear": keep what we knew (0.419.0).
+        function () { if (earKind === null) earKind = ""; earAt = Date.now(); return earKind; });
+  }
+
+  // Ask in the background so a press finds the answer already there and can open the mic inside the tap (0.419.0).
+  function warmEar() { try { askEar(); } catch (e) { /* the next press asks again */ } }
+  if (typeof document !== "undefined" && typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("load", function () { setTimeout(warmEar, 1500); });
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) warmEar(); });
   }
 
   function recognizer() {
@@ -91,7 +111,7 @@
   }
 
   // opts: onText(text, final) gets the WHOLE spoken text so far; onState("listening" | "transcribing" | "idle");
-  // onError(code) with "unsupported", "denied", "failed" or "nothing" (0.339.0: the run ended with no word at all,
+  // onError(code) with "unsupported", "denied", "service" (0.419.0: the device's speech service is off), "failed" or "nothing" (0.339.0: the run ended with no word at all,
   // reported only when no other error was); onStream(stream | null) when given also opens the mic for a level meter
   // even without an upload ear (0.230.0). Returns { start, stop, cancel, active, busy }.
   function create(opts) {
@@ -211,7 +231,8 @@
         if (opts.onText) opts.onText(spoken, false);
       };
       r.onerror = function (e) {
-        if (e && (e.error === "not-allowed" || e.error === "service-not-allowed")) { fatal = true; err("denied"); }
+        if (e && e.error === "service-not-allowed") { fatal = true; err("service"); }
+        else if (e && e.error === "not-allowed") { fatal = true; err("denied"); }
         else if (e && e.error !== "no-speech" && e.error !== "aborted") { fatal = true; err("failed"); }
       };
       r.onend = function () {
@@ -229,12 +250,23 @@
       if (on || finishing) return;
       on = true; spoken = ""; cancelled = false; reported = false;
       var SR = recognizer();
-      askEar().then(function (ear) {
+      // A known answer, however old, is used NOW so the mic opens inside the tap; the refresh only serves the next
+      // press (0.419.0, see the note at the top). No answer yet counts as "no ear": the browser's recognizer.
+      go(earKind || "");
+      warmEar();
+
+      function go(ear) {
         if (!on) return;
         var p = plan({ phone: isPhone(), ear: ear, speech: !!SR, wantMeter: !!opts.onStream,
           mediaRecorder: typeof MediaRecorder !== "undefined" });
         if (!p.speech && !p.record) { on = false; err("unsupported"); state("idle"); return; }
-        var micUp = (p.record || p.meter) ? openMic(p.record, !p.meter) : Promise.resolve(false);
+        // Web Speech alone (a phone without an ear): start it right here, still inside the tap, not a promise later.
+        if (!p.record && !p.meter) {
+          try { runRecognizer(SR, "", 0); state("listening"); }
+          catch (x) { rec = null; on = false; err("failed"); state("idle"); }
+          return;
+        }
+        var micUp = openMic(p.record, !p.meter);
         micUp.then(function () {
           if (!on) { stopRecorder(); return; }
           if (!p.speech) {
@@ -244,7 +276,7 @@
           try { runRecognizer(SR, "", 0); state("listening"); }
           catch (x) { rec = null; on = false; stopRecorder(); err("failed"); state("idle"); }
         });
-      });
+      }
     }
 
     // A second press while the browser still owes onend forces the end (0.409.0).
@@ -285,7 +317,7 @@
 
   // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
   var api = { create: create, joinText: joinText, plan: plan, isPhone: isPhone, isIOS: isIOS,
-    ear: function () { return earKind; } };
+    ear: function () { return earKind; }, warm: askEar };
   if (typeof window !== "undefined") window.JavisDictate = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

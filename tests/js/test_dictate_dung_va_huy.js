@@ -52,6 +52,7 @@ function fresh() {
   // 1. Web Speech only (phone without an ear), the browser never ends the run after stop.
   ear = ""; runs = [];
   let D = fresh(), states = [], texts = [];
+  await D.warm();   // 0.419.0: a page asks the ear on load, before any press
   let d = D.create({ onText: t => texts.push(t), onState: s => states.push(s) });
   d.start(); await tick(); await tick();
   runs[0].say("xin chào");
@@ -64,6 +65,7 @@ function fresh() {
   // 1b. A second press of stop does not wait for the watchdog.
   runs = []; states = [];
   D = fresh();
+  await D.warm();
   d = D.create({ onState: s => states.push(s) });
   d.start(); await tick(); await tick();
   runs[0].say("một");
@@ -73,6 +75,7 @@ function fresh() {
   // 2. Recorder (phone with an upload ear) that never fires onstop: stop still transcribes what was recorded.
   ear = "upload"; recorders = []; states = []; texts = [];
   D = fresh();
+  await D.warm();
   d = D.create({ onText: t => texts.push(t), onState: s => states.push(s), onStream: () => {} });
   d.start(); for (let i = 0; i < 4; i++) await tick();
   check("recorder: listening with the recorder holding the mic", states[states.length - 1] === "listening" && recorders.length === 1);
@@ -85,6 +88,7 @@ function fresh() {
   // 3. /stt hangs: X closes the bar at once and the late text never lands.
   sttHangs = true; recorders = []; states = []; texts = [];
   D = fresh();
+  await D.warm();
   d = D.create({ onText: t => texts.push(t), onState: s => states.push(s), onStream: () => {} });
   d.start(); for (let i = 0; i < 4; i++) await tick();
   d.stop();

@@ -172,8 +172,10 @@
   // Browser speech hears one language only, so a Vietnamese sentence with English words comes out wrong. Only an ear
   // (a model listening to the audio again) fixes that; say once per page how to get one when the machine has none.
   var earTipShown = false;
+  // 0.419.0: off. The owner (2026-10-30): ordinary users never set Groq up, so a tip pointing at an API key is noise.
+  var EAR_TIP = false;
   function earTip(D, inp) {
-    if (earTipShown || !D || !D.ear || D.ear() !== "" || !inp || inp.value === S.base) return;
+    if (!EAR_TIP || earTipShown || !D || !D.ear || D.ear() !== "" || !inp || inp.value === S.base) return;
     earTipShown = true;
     note("dict.no_ear");
   }
@@ -217,7 +219,10 @@
         if (st === "idle" && was !== "idle") finished();
       },
       onError: function (code) {
-        note(code === "denied" ? "dict.denied" : code === "unsupported" ? "dict.unsupported"
+        // 0.419.0: Safari on an iPhone has no padlock in the address bar; say where its mic switch really is.
+        var ios = D.isIOS && D.isIOS();
+        note(code === "denied" ? (ios ? "dict.denied_ios" : "dict.denied")
+          : code === "service" ? (ios ? "dict.service_ios" : "dict.service") : code === "unsupported" ? "dict.unsupported"
           : code === "nothing" ? "dict.nothing" : "dict.failed");
       },
       onStream: onStream
