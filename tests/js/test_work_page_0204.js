@@ -1,5 +1,5 @@
-// 0.204.0: Webhooks get their own page under Work; the Scheduled page shows one brain from a dropdown, a kind filter,
-// paging and tabs (Jobs / Incidents / Log); "Read all" in the notification panel reads both tabs and dims when done.
+// 0.204.0: Webhooks get their own page under Work (the Scheduled page itself became the Tasks page in 0.422.0 and its
+// code left console.js in 0.426.0); "Read all" in the notification panel reads both tabs and dims when done.
 const fs = require("fs");
 const path = require("path");
 const R = path.join(__dirname, "../..");
@@ -24,14 +24,7 @@ check("page lists agree (console, ui-actions, ui_targets)",
   /"tasks", "webhooks", "learn"/.test(cons) && /"tasks", "webhooks", "learn"/.test(uia) && /"tasks", "webhooks", "learn"/.test(tgt));
 check("webhook cards in chat open the Webhooks page", /if \(kind === "webhook"\) return "webhooks";/.test(viec));
 check("the Scheduled page no longer mounts webhooks", !/JavisWebhooks\.mount\(el\.querySelector\("#whSection"\),\s*\{ brains: \(\) => allBrains/.test(cons));
-check("three tabs", ["jobs", "health", "log"].every((k) => cons.includes('data-si-tab="' + k + '"') && cons.includes('data-si-pane="' + k + '"')));
-check("brain dropdown and kind filter", cons.includes('id="lpBrainFilter"') && cons.includes('id="lpKindFilter"'));
-check("jobs are paged 10 a page with the shared pager", /const LP_PER_PAGE = 10;/.test(cons) && /pager\(box, cards, LP_PER_PAGE/.test(cons));
-check("health scan and log load on first open only", /if \(name === "health" && window\.JavisHealthPanel\)/.test(cons) && /if \(name === "log"\) loadLog\(\);/.test(cons));
-check("storage wrapped in try/catch", /const lsGet = \(k\) => \{ try \{ return localStorage\.getItem\(k\); \} catch \(e\) \{ return null; \} \};/.test(cons));
-check("chips readable in light mode (no hardcoded dark background)", !/\.si-chip\{[^}]*rgba\(15,22,40/.test(cons));
-const keys = ["page.webhooks.label", "page.webhooks.sub", "cs.si_tab_jobs", "cs.si_tab_health", "cs.si_tab_log", "cs.si_kind_all",
-  "cs.si_all_brains", "cs.si_none_kind"];
+const keys = ["page.webhooks.label", "page.webhooks.sub"];
 check("strings in both languages", keys.every((k) => vi[k] && en[k]));
 check("no long dashes in the new strings", keys.every((k) => !/[–—]/.test(vi[k] + en[k])));
 

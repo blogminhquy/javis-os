@@ -8,6 +8,25 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.426.0] - 2026-10-30
+### Fixed
+- **Loops can be edited by hand again.** Since 0.422.0 the Tasks page could only switch, run and delete a loop. Edit now changes its name, what it does each round, its permission level (Suggest, Drafts, Full) and how often it runs.
+- **Reminders get their old options back:** Call me, Read it aloud, Remember the last result and the permission level, when adding and when editing. They went missing when the Scheduled page was merged.
+- **Asking Javis to show a job on screen works again.** Javis opens the Tasks page, the Javis tab, on that job's details.
+- **Allowing a job to act for real asks first,** since actions outside cannot be undone.
+- **Giving Javis a job has the Review the result when done box again.** A reminder's or loop's details show the permission level it runs at.
+- **With no channel for results, the Javis tab says so** with a button to Channels: reminders and loops still run but their results reach no one.
+- **Editing a script job no longer shows options that do not apply** (how it runs, level, call).
+### Improved
+- **Cancel and Save stay at the bottom of the form,** so a long form on a phone needs no scrolling to find them.
+- **A lighter page:** over 1,100 lines of code and 214 strings of the old Kanban and Scheduled pages are gone.
+
+## [0.425.0] - 2026-10-30
+### Added
+- **Appointments on the Mine tab.** When adding, pick Kind: Appointment to set a start time, duration and place. An appointment switches itself between Upcoming, Happening now and Past, and flags two appointments that overlap.
+- **A reminder before an appointment,** 5, 15, 30 or 60 minutes ahead (15 by default), once per appointment. You can also ask Javis to prepare beforehand (draft a document, look something up) as a reminder Javis finishes 30 minutes before the start.
+- **Say it in chat and it gets ticked.** Tell Javis "done reading" and the habit is ticked, marked as ticked by Javis so you can untick it. Several matching tasks make Javis ask instead of guessing. "Add this to my list" works too, on every brain.
+
 ## [0.424.0] - 2026-10-30
 ### Added
 - **Habits with a streak.** Switch "Count as a habit" on a repeating task (or pick Kind of repeat: Habit when adding) for a Duolingo-style streak. One missed session freezes it, the next one done thaws it, two missed in a row lose it. **Only scheduled days count**, so a habit's rest days never freeze.

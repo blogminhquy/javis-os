@@ -6,7 +6,8 @@
 const fs = require("fs");
 const path = require("path");
 const root = path.join(__dirname, "..", "..");
-const cs = fs.readFileSync(path.join(root, "dashboard", "console.js"), "utf8");
+// 0.426.0: the forms moved to the Tasks page (dashboard/tasks.js): the loop edit form and the reminder options.
+const cs = fs.readFileSync(path.join(root, "dashboard", "tasks.js"), "utf8");
 const plug = fs.readFileSync(path.join(root, "system", "plugins", "javis-schedule", "plugin.py"), "utf8");
 const vi = JSON.parse(fs.readFileSync(path.join(root, "dashboard", "i18n", "vi.json"), "utf8"));
 const en = JSON.parse(fs.readFileSync(path.join(root, "dashboard", "i18n", "en.json"), "utf8"));
@@ -14,10 +15,12 @@ let fails = 0;
 function check(name, cond) { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails++; }
 
 check("defaults stay Full for loops and task reminders",
-  /let fcur = \{ mode: "full" \};/.test(cs) && /let frmq = "full";/.test(cs) && /_LOOP_MODE_MAC_DINH = "full"/.test(plug));
-check("a note sits under both level rows", cs.includes('id="lpModeNote"') && cs.includes('id="lpRemMqNote"'));
+  /lmode: lp\.mode \|\| "full"/.test(cs) && /var lv = f\.mq \|\| "full";/.test(cs) && /muc_quyen: f\.mq \|\| "full"/.test(cs)
+  && /_LOOP_MODE_MAC_DINH = "full"/.test(plug));
+check("a note sits under both level rows", (cs.match(/class="nv-hint/g) || []).length === 2);
 check("the note follows the picked level in both forms",
-  /levelNote\("#lpModeNote", fcur\.mode\);/.test(cs) && /levelNote\("#lpRemMqNote", frmq\);/.test(cs));
+  /tw\(LP_NOTE\[f\.lmode\] \|\| LP_NOTE\.full\)/.test(cs) && /tw\(LP_NOTE\[lv\]\)/.test(cs)
+  && /LP_NOTE = \{ suggest: "cs\.si_level_note_suggest", auto: "cs\.si_level_note_auto", full: "cs\.si_level_note_full" \}/.test(cs));
 const keys = ["cs.si_level_note_full", "cs.si_level_note_auto", "cs.si_level_note_suggest"];
 check("notes in vi and en, one short line each (no (i) needed)",
   keys.every(k => vi[k] && en[k] && vi[k].length <= 100 && en[k].length <= 100));

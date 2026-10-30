@@ -15,6 +15,8 @@ const consoleJs = fs.readFileSync(path.join(root, "dashboard", "console.js"), "u
 const plugin = fs.readFileSync(path.join(root, "server", "ui_targets.py"), "utf8");
 const app = fs.readFileSync(path.join(root, "dashboard", "app.js"), "utf8");
 const main = fs.readFileSync(path.join(root, "server", "main.py"), "utf8");
+const tasksJs = fs.readFileSync(path.join(root, "dashboard", "tasks.js"), "utf8");
+const src = fs.readFileSync(path.join(root, "dashboard", "ui-actions.js"), "utf8");
 
 let fails = [];
 function check(name, cond) {
@@ -74,10 +76,11 @@ check("JavisNav.go đi qua store Alpine để bung nhóm", /go\(id\) \{ const s 
 check("console.js xuất JavisNav.openGroup và setCollapsed",
   /openGroup\(groupId\)/.test(consoleJs) && /setCollapsed\(thu\)/.test(consoleJs));
 
-// Dây nối: app.js chuyển frame ui_action sang JavisUiActions, console.js xuất JavisKanbanShow,
-// server có nhánh ui_result.
+// Dây nối: app.js chuyển frame ui_action sang JavisUiActions, tasks.js xuất JavisTasks.show (0.426.0, việc Kanban
+// nằm ở trang Nhiệm vụ), server có nhánh ui_result.
 check("app.js xử lý frame ui_action", /data\.type === "ui_action"/.test(app) && /JavisUiActions\.handle\(/.test(app));
-check("console.js xuất window.JavisKanbanShow", /window\.JavisKanbanShow = showTask/.test(consoleJs));
+check("tasks.js xuất JavisTasks.show và ready", /window\.JavisTasks = \{[^}]*show: show, ready:/.test(tasksJs));
+check("open_task mở trang Nhiệm vụ rồi gọi JavisTasks.show", /JavisNav\.go\("tasks"\)/.test(src) && /await nv\.show\(v\.target\)/.test(src));
 check("main.py có nhánh ui_result", /action == "ui_result"/.test(main));
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }

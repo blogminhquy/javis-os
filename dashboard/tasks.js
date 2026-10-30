@@ -271,12 +271,34 @@
   }
   // Items for the "Mine" tab from GET /my-tasks (pure). A repeating task gives its next occurrence from today,
   // plus its latest missed occurrence (overdue, tickable) when that one was not done.
-  function mineModel(store, today) {
-    var items = [], recurring = [];
+  // An appointment on `date` from `time` to `end`: "past" once it ended, "live" while it runs, else "todo" (pure).
+  function apptState(date, time, end, today, nowHM) {
+    if (!date || date < today) return date ? "past" : "todo";
+    if (date > today) return "todo";
+    if (end && nowHM >= end) return "past";
+    if (time && nowHM >= time) return "live";
+    return "todo";
+  }
+  function mineModel(store, today, nowHM) {
+    var items = [], recurring = [], hm = nowHM || "00:00";
     var start = function (t) { return t.date || (t.created_at ? isoOf(new Date(t.created_at * 1000)) : today); };
     ((store && store.tasks) || []).forEach(function (t) {
       var base = { src: "mine", ref: t.id, title: t.title, desc: t.notes || "", who: "me", proj: t.project || "", time: t.time || "",
-        kind: t.kind || "task", fromJavis: !!t.from_javis, raw: t };
+        kind: t.kind || "task", fromJavis: !!t.from_javis, raw: t, end: t.end || "" };
+      if (t.kind === "appt") {
+        // Appointments are not ticked: they turn "past" on their own once their time is over.
+        var first = t.repeat ? nextOcc(t.repeat, start(t), today) : t.date;
+        var occs = [first];
+        if (t.repeat && first === today && apptState(today, t.time, t.end, today, hm) === "past") occs.push(nextOcc(t.repeat, start(t), addDays(today, 1)));
+        occs.forEach(function (d, i) {
+          if (!d) return;
+          var as = apptState(d, t.time, t.end, today, hm);
+          items.push(Object.assign({}, base, { id: i || !t.repeat ? (i ? "mn:" + t.id + ":" + d : "m:" + t.id) : (d === today ? "m:" + t.id : "mn:" + t.id + ":" + d),
+            date: d, st: as === "past" ? "done" : "todo", live: as === "live", appt: true, rep: t.repeat ? repHuman(t.repeat) : "", occ: d, over: false }));
+        });
+        if (t.repeat) recurring.push(Object.assign({}, base, { id: "m:" + t.id, sc: repHuman(t.repeat, t.time), nextDate: first, on: true, appt: true, habit: false }));
+        return;
+      }
       if (!t.repeat) {
         var done = t.status === "done";
         items.push(Object.assign({}, base, { id: "m:" + t.id, date: t.date || null, st: done ? "done" : t.status === "cancelled" ? "cancel" : "todo",
@@ -371,7 +393,7 @@
     return tw(WD_KEYS[new Date(iso + "T12:00:00").getDay()]) + " " + Number(iso.slice(8)) + "/" + Number(iso.slice(5, 7));
   }
 
-  var model_ = { habitCalc: habitCalc, habitStats: habitStats, habitLines: habitLines, usualTime: usualTime, model: model, mineModel: mineModel, occursOn: occursOn, nextOcc: nextOcc, prevOcc: prevOcc, repHuman: repHuman, inList: inList, byTime: byTime, byTimeline: byTimeline, cronFor: cronFor, javisSchedule: javisSchedule, kanbanState: kanbanState, addDays: addDays };
+  var model_ = { apptState: apptState, habitCalc: habitCalc, habitStats: habitStats, habitLines: habitLines, usualTime: usualTime, model: model, mineModel: mineModel, occursOn: occursOn, nextOcc: nextOcc, prevOcc: prevOcc, repHuman: repHuman, inList: inList, byTime: byTime, byTimeline: byTimeline, cronFor: cronFor, javisSchedule: javisSchedule, kanbanState: kanbanState, addDays: addDays };
   if (typeof module !== "undefined" && module.exports) { module.exports = model_; return; }
 
   // ---------- page ----------
@@ -413,10 +435,11 @@
       getJSON("/my-tasks?brain=" + enc)
     ]);
     if (res[6]) S.agents = (res[6].agents || res[6] || []).filter(function (a) { return a && a.slug; });
-    S.brains = ((res[1] && res[1].brains) || []).map(function (x) { return { name: x.name, path: x.path, def: x.is_default }; });
+    S.brains = ((res[1] && res[1].brains) || []).map(function (x) { return { name: x.label || x.name, path: x.path, def: x.is_default }; });
+    S.notify = (res[2] && res[2].notify) || {};
     S.ai = model({ kanban: res[0] || {}, viec: res[1] || {}, rems: res[2] || {}, watch: res[3] || {}, incidents: res[4] || {}, loopLog: res[5] || {}, brain: b });
     S.my = res[7] && res[7].ok ? res[7] : (S.my || { tasks: [], projects: [] });
-    S.me = mineModel(S.my, S.ai.today);
+    S.me = mineModel(S.my, S.ai.today, hmOf(new Date()));
     applyHidden();
     S.loaded = true;
   }
@@ -532,7 +555,28 @@
     if (FIN[it.st] || it.st === "ask") return "";
     return '<button type="button" class="' + cls + '" data-act="run" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.run")) + '" title="' + esc(tw("nv.a.run_t")) + '">' + ic("play") + "</button>";
   }
+  function apptColor(it) { var p = proj(it.proj); return p ? p.color : "var(--accent)"; }
+  function overlaps(it) {
+    if (!it.appt || it.st === "done" || !it.time || !it.end) return false;
+    return S.me.items.some(function (o) { return o !== it && o.appt && o.st !== "done" && o.date === it.date && o.time && o.end && o.time < it.end && it.time < o.end; });
+  }
+  function apptChip(it) {
+    if (it.live) return '<span class="nv-chip s-run">' + esc(tw("nv.ap.live")) + "</span>";
+    if (it.st === "done") return '<span class="nv-chip">' + esc(tw("nv.ap.past")) + "</span>";
+    if (overlaps(it)) return '<span class="nv-chip s-ask">' + esc(tw("nv.ap.clash")) + "</span>";
+    return "";
+  }
   function row(it) {
+    if (it.appt) {
+      var t = it.raw;
+      return '<div class="nv-rw"><button type="button" class="nv-row appt' + (it.st === "done" ? " done" : "") + (it.live ? " live" : "") + (S.sel === it.id ? " sel" : "") + '" data-open="' + esc(it.id) + '">'
+        + '<span class="nv-tm">' + esc(it.time || "") + (it.end ? "<small>" + esc(it.end) + "</small>" : "") + '</span><span class="nv-st"><i class="nv-abar" style="background:' + esc(apptColor(it)) + '"></i></span>'
+        + '<span class="nv-body"><span class="nv-ti">' + esc(it.title) + '</span><div class="nv-meta">' + (t.location ? "<span>" + ic("map-pin") + esc(t.location) + "</span>" : "")
+        + (it.rep ? "<span>" + ic("repeat") + esc(it.rep) + "</span>" : "") + (t.remind && t.remind !== "0" ? "<span>" + ic("bell") + esc(tw("nv.ap.before", { n: t.remind })) + "</span>" : "")
+        + (t.prep ? "<span>" + avatar(CORE, 14) + esc(tw("nv.ap.prep_short")) + "</span>" : "") + (it.proj && S.view !== "proj:" + it.proj ? projTag(it.proj) : "") + "</div></span>"
+        + '<span class="nv-chipcol">' + apptChip(it) + "</span></button>"
+        + '<button type="button" class="nv-dots" data-act="menu" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button></div>";
+    }
     var time = it.over ? '<span class="c-over">' + esc(shortDate(it.date)) + "</span>" + (it.time ? "<small>" + esc(it.time) + "</small>" : "") : esc(it.time || "");
     var lead = it.src === "mine" ? (habitOn(it.raw) && it.id === "m:" + it.raw.id ? habitCk(it.raw) : ck(it)) : stIcon(it);
     return '<div class="nv-rw"><button type="button" class="nv-row' + (FIN[it.st] ? " done" : "") + (S.sel === it.id ? " sel" : "") + '" data-open="' + esc(it.id) + '">'
@@ -545,7 +589,10 @@
   }
   function repRow(r, phone) {
     var lead, nx, sw = "";
-    if (r.src === "mine") {
+    if (r.src === "mine" && r.appt) {
+      lead = '<i class="nv-abar" style="background:' + esc(apptColor(r)) + '"></i>';
+      nx = r.nextDate ? tw("nv.rep.next", { t: whenIso(r.nextDate, r.time) }) : "";
+    } else if (r.src === "mine") {
       lead = r.doneToday ? '<span class="nv-ck on" data-act="uncheck" data-id="' + esc(r.id) + '" role="checkbox" aria-checked="true" tabindex="0" aria-label="' + esc(tw("nv.a.uncheck")) + '">' + ic("check") + "</span>"
         : '<span class="nv-ck" data-act="check" data-id="' + esc(r.id) + '" role="checkbox" aria-checked="false" tabindex="0" aria-label="' + esc(tw("nv.a.check", { t: r.title })) + '"></span>';
       nx = r.doneToday ? tw("nv.rep.done_today") + (r.nextDate ? " · " + tw("nv.rep.next", { t: whenIso(nextAfter(r), r.time) }) : "") : r.nextDate ? tw("nv.rep.next", { t: whenIso(r.nextDate, r.time) }) : "";
@@ -658,6 +705,12 @@
       var a = A[0];
       h += '<div class="nv-ask" role="status">' + ic("circle-alert", "c-ask") + '<button type="button" class="nv-ask-t" data-open="' + esc(a.id) + '"><b>' + esc(a.title) + ":</b> " + esc(a.reason || tw("nv.st.ask")) + "</button>"
         + (A.length > 1 ? '<span class="nv-ask-n">+' + (A.length - 1) + "</span>" : "") + "</div>";
+    }
+    // 0.426.0: with no report channel, reminders and loops still run on time but their results reach no one. Say so.
+    var nt = S.notify || {}, bad = nt.ok === false, warn = !bad && nt.warn;
+    if ((bad || warn) && S.ai.recurring.length) {
+      h += '<div class="nv-ask" role="alert">' + ic("triangle-alert", "c-ask") + '<span class="nv-ask-t"><b>' + esc(tw(bad ? "nv.nochan.head" : "nv.chanerr.head")) + ":</b> "
+        + esc(bad ? (nt.error || tw("nv.nochan.body")) : nt.warn) + '</span><button type="button" class="nv-btn sm" data-act="gochan">' + esc(tw("nv.nochan.go")) + "</button></div>";
     }
     if (S.ai.orch === "off" && S.ai.waiting) {
       h += '<div class="nv-ask" role="status">' + ic("pause", "c-ask") + '<span class="nv-ask-t">' + esc(tw("nv.orch.waiting", { n: S.ai.waiting })) + '</span><button type="button" class="nv-btn sm pri" data-act="orch" data-v="auto">' + esc(tw("nv.orch.on")) + "</button></div>";
@@ -782,7 +835,39 @@
     return '<select class="' + (cls || "nv-psel") + '" data-pproj="' + esc(t.id) + '" aria-label="' + esc(tw("nv.k.project")) + '"><option value="">' + esc(tw("nv.p.none")) + "</option>"
       + P.map(function (p) { return '<option value="' + esc(p.id) + '"' + (t.project === p.id ? " selected" : "") + ">" + esc(p.name) + "</option>"; }).join("") + "</select>";
   }
+  var DURS = [15, 30, 45, 60, 90, 120, 180, 240];
+  var REMS = ["0", "5", "15", "30", "60"];
+  var LVL = { suggest: "nv.lp.m_suggest", auto: "nv.lp.m_auto", full: "nv.lp.m_full" };
+  var LP_NOTE = { suggest: "cs.si_level_note_suggest", auto: "cs.si_level_note_auto", full: "cs.si_level_note_full" };
+  function toMin(hm) { var p = String(hm || "0:0").split(":"); return Number(p[0]) * 60 + Number(p[1] || 0); }
+  function fromMin(m) { m = Math.max(0, Math.min(23 * 60 + 59, m)); return pad2(Math.floor(m / 60)) + ":" + pad2(m % 60); }
+  function durTxt(m) { return m >= 60 ? tw("nv.ap.h", { h: Math.floor(m / 60) }) + (m % 60 ? " " + tw("nv.ap.m", { m: m % 60 }) : "") : tw("nv.ap.m", { m: m }); }
+  function durSelect(cur, attr) {
+    var L = DURS.indexOf(cur) >= 0 ? DURS : DURS.concat([cur]).sort(function (a, b) { return a - b; });
+    return '<select class="nv-psel" ' + attr + ' aria-label="' + esc(tw("nv.ap.dur")) + '">' + L.map(function (m) { return '<option value="' + m + '"' + (m === cur ? " selected" : "") + ">" + esc(durTxt(m)) + "</option>"; }).join("") + "</select>";
+  }
+  function remSelect(cur, attr) {
+    return '<select class="nv-psel" ' + attr + ' aria-label="' + esc(tw("nv.ap.remind")) + '">' + REMS.map(function (v) { return '<option value="' + v + '"' + (String(cur || "15") === v ? " selected" : "") + ">" + esc(v === "0" ? tw("nv.ap.no_remind") : tw("nv.ap.before", { n: v })) + "</option>"; }).join("") + "</select>";
+  }
+  function apptDetail(it, phone) {
+    var t = it.raw, dur = Math.max(5, toMin(t.end) - toMin(t.time));
+    var h = '<div class="nv-dhead nv-mhead"><i class="nv-abar big" style="background:' + esc(apptColor(it)) + '"></i><textarea class="nv-titleed" data-mtitle="' + esc(t.id) + '" rows="1" aria-label="' + esc(tw("nv.ap.what")) + '">' + esc(t.title) + "</textarea></div>"
+      + (apptChip(it) ? "<div>" + apptChip(it) + "</div>" : "");
+    h += '<div class="nv-sec2">'
+      + '<button type="button" class="nv-kv nv-kvb" data-act="pick-date" data-id="' + esc(it.id) + '"><span>' + ic("clock") + esc(tw("nv.ap.start")) + "</span><span>" + esc(whenIso(it.date, t.time)) + "</span></button>"
+      + '<label class="nv-kv"><span>' + ic("hourglass") + esc(tw("nv.ap.dur")) + "</span>" + durSelect(dur, 'data-adur="' + esc(t.id) + '"') + "</label>"
+      + kv(tw("nv.ap.end"), esc(t.end || ""))
+      + '<label class="nv-kv"><span>' + ic("bell") + esc(tw("nv.ap.remind")) + "</span>" + remSelect(t.remind, 'data-arem="' + esc(t.id) + '"') + "</label>"
+      + '<label class="nv-kv"><span>' + ic("map-pin") + esc(tw("nv.ap.where")) + '</span><input class="nv-psel" data-aloc="' + esc(t.id) + '" value="' + esc(t.location || "") + '" placeholder="' + esc(tw("nv.ap.where_ph")) + '"></label>'
+      + '<button type="button" class="nv-kv nv-kvb" data-act="pick-rep" data-id="' + esc(it.id) + '"><span>' + ic("repeat") + esc(tw("nv.k.repeat")) + "</span><span>" + esc(t.repeat ? repHuman(t.repeat) : tw("nv.f.rep_none")) + "</span></button>"
+      + '<label class="nv-kv"><span>' + ic("folder") + esc(tw("nv.k.project")) + "</span>" + projSelect(t) + "</label></div>";
+    if (t.prep) h += '<div class="nv-sec2"><div class="nv-from">' + avatar(CORE, 16) + esc(tw("nv.ap.prep_set")) + '</div><div class="nv-res">' + esc(t.prep) + "</div></div>";
+    h += '<div class="nv-sec2"><textarea class="nv-ta" data-mnotes="' + esc(t.id) + '" placeholder="' + esc(tw("nv.notes_ph")) + '" aria-label="' + esc(tw("nv.notes_ph")) + '">' + esc(t.notes || "") + "</textarea></div>";
+    if (!phone) h += '<div class="nv-sec2"><div class="nv-acts">' + menuButtons(it) + "</div></div>";
+    return h;
+  }
   function mineDetail(it, phone) {
+    if (it.appt) return apptDetail(it, phone);
     var t = it.raw, rep = !!t.repeat, occ = it.occ || null, done = it.sc ? it.doneToday : it.st === "done";
     var h = '<div class="nv-dhead nv-mhead">' + (habitOn(t) ? habitCk(t, "big") : it.sc ? (done ? '<span class="nv-ck on big" data-act="uncheck" data-id="' + esc(it.id) + '" role="checkbox" aria-checked="true" tabindex="0" aria-label="' + esc(tw("nv.a.uncheck")) + '">' + ic("check") + "</span>" : '<span class="nv-ck big" data-act="check" data-id="' + esc(it.id) + '" role="checkbox" aria-checked="false" tabindex="0" aria-label="' + esc(tw("nv.a.check", { t: it.title })) + '"></span>') : ck(it).replace('class="nv-ck', 'class="nv-ck big'))
       + '<textarea class="nv-titleed" data-mtitle="' + esc(t.id) + '" rows="1" aria-label="' + esc(tw("nv.f.what")) + '">' + esc(t.title) + "</textarea></div>";
@@ -827,6 +912,9 @@
     if (r) info += kv(tw("nv.k.repeat"), esc(r.sc));
     info += kv(tw("nv.k.who"), '<span class="nv-who">' + avatar(it.who, 16) + esc(agentName(it.who)) + "</span>");
     info += kv(tw("nv.k.how"), esc(it.mode === "remind" ? tw("nv.mode.remind") : tw("nv.mode.do")));
+    // 0.426.0: the permission level a reminder or loop runs at, as the old Scheduled cards showed it.
+    var lvl = it.src === "loop" ? (it.raw || {}).mode : it.src === "reminder" && it.mode !== "remind" ? ((it.raw || {}).muc_quyen || "full") : "";
+    if (lvl) info += kv(tw("nv.lp.mode"), '<span class="nv-lvl' + (lvl === "full" ? " full" : "") + '">' + esc(tw(LVL[lvl] || LVL.full)) + "</span>");
     info += kv(tw("nv.k.kind"), esc(tw({ kanban: "nv.src.kanban", reminder: "nv.src.reminder", loop: "nv.src.loop", watch: "nv.src.watch" }[it.src] || "nv.src.kanban")));
     if (r) info += '<div class="nv-kv"><span>' + esc(tw("nv.k.on")) + '</span><button type="button" class="nv-sw" role="switch" aria-checked="' + r.on + '" aria-label="' + esc(tw("nv.k.on")) + '" data-act="rtog" data-id="' + esc(r.id) + '"><span></span></button></div>';
     h += '<div class="nv-sec2">' + info + "</div>";
@@ -847,12 +935,12 @@
     if (src === "mine") {
       if (it.id.indexOf("mo:") === 0 || it.id.indexOf("md:") === 0) return [["open", "pencil", "nv.a.edit"]];
       out.push(["edit", "pencil", "nv.a.edit"]);
-      out.push(["tojavis", "bot", "nv.a.tojavis"]);
+      if (!it.appt) out.push(["tojavis", "bot", "nv.a.tojavis"]);
       if ((S.brains || []).length > 1) { out.push(["move", "arrow-right-left", "nv.a.move"]); out.push(["copy", "copy", "nv.a.copy"]); }
       out.push(["del", "trash-2", "nv.a.del"]);
       return out;
     }
-    if (src === "reminder" && (isRep || !FIN[it.st])) out.push(["edit", "pencil", "nv.a.edit"]);
+    if ((src === "reminder" && (isRep || !FIN[it.st])) || src === "loop") out.push(["edit", "pencil", "nv.a.edit"]);
     if (isRep && src === "reminder") out.push(["skip", "skip-forward", "nv.a.skip"]);
     if (isRep) out.push(["rtog", it.on ? "pause" : "play", it.on ? "nv.a.pause" : "nv.a.resume"]);
     if (!isRep && (src === "kanban" || src === "reminder") && !FIN[it.st]) out.push(["cancel", "circle-x", "nv.a.cancel"]);
@@ -1038,27 +1126,76 @@
     return pad2(Math.floor(m / 60)) + ":" + pad2(m % 60);
   }
 
+  // 0.426.0: the reminder options the old Scheduled page had (level, call, read aloud, remember last), only when
+  // the job will be a reminder: it has a time or a repeat, or only reminds, or is a reminder being edited.
+  function remOpts(f) {
+    if (f.script || (!f.edit && !f.date && !f.rule && f.mode !== "remind")) return "";   // a script job keeps its own type
+    var box = function (k, label) { return '<label class="nv-prep"><input type="checkbox" data-act="fset" data-k="' + k + '" data-v="' + (f[k] ? "" : "1") + '"' + (f[k] ? " checked" : "") + "><span>" + esc(tw(label)) + "</span></label>"; };
+    var lv = f.mq || "full";
+    return (f.mode === "do" ? '<div class="nv-fld"><span>' + esc(tw("nv.lp.mode")) + "</span>" + '<div class="nv-seg" role="group">' + [["suggest", "nv.lp.m_suggest"], ["auto", "nv.lp.m_auto"], ["full", "nv.lp.m_full"]].map(function (o) { return '<button type="button" data-act="fset" data-k="mq" data-v="' + o[0] + '" aria-pressed="' + (lv === o[0]) + '">' + esc(tw(o[1])) + "</button>"; }).join("") + "</div>"
+        + '<small class="nv-hint' + (lv === "full" ? " full" : "") + '" role="status">' + esc(tw(LP_NOTE[lv])) + "</small></div>" : "")
+      + '<div class="nv-fld nv-opts">' + box("call", "nv.f.call") + box("speak", "nv.f.speak") + (f.mode === "do" ? box("last", "nv.f.last") : "") + "</div>";
+  }
+
+  // 0.426.0: a job queued right away keeps the old board's "review the result when done" box, its explanation behind (i).
+  function jobOpts(f) {
+    if (f.edit || f.date || f.rule || f.mode !== "do") return "";
+    var J = window.JavisInfo, more = tw("info.more");
+    return '<div class="nv-fld nv-opts"><div class="nv-apr"><label class="nv-prep"><input type="checkbox" data-act="fset" data-k="appr" data-v="' + (f.appr ? "" : "1") + '"' + (f.appr ? " checked" : "") + "><span>" + esc(tw("kanban.need_approve")) + "</span></label>"
+      + (J ? J.btn(more) : "") + "</div>" + (J ? J.body(esc(tw("kanban.need_approve_info"))) : "") + "</div>";
+  }
+
   // ---------- add form ----------
   function formHtml() {
     var f = S.form, me = f.who === "me";
     var seg = function (key, opts) { return '<div class="nv-seg" role="group">' + opts.map(function (o) { return '<button type="button" data-act="fset" data-k="' + key + '" data-v="' + o[0] + '" aria-pressed="' + (f[key] === o[0]) + '">' + (o[2] || "") + esc(tw(o[1])) + "</button>"; }).join("") + "</div>"; };
     var repTxt = f.rule ? (f.rule.unit === "min" || f.rule.unit === "hour" ? tw(f.rule.unit === "min" ? "nv.rep.every_min" : "nv.rep.every_hours", { n: f.rule.n || 1 }) : repHuman(f.rule)) : tw("nv.f.rep_none");
-    return '<div class="nv-scrim" data-act="close"></div><div class="nv-modal" role="dialog" aria-modal="true" aria-labelledby="nvFormT"><form data-form="1">'
-      + '<div class="nv-mh"><h3 id="nvFormT">' + esc(f.edit ? tw("nv.f.edit") : me ? tw("nv.f.new_me") : tw("nv.f.new")) + '</h3><button type="button" class="nv-x" data-act="close" aria-label="' + esc(tw("nv.close")) + '">' + ic("x") + "</button></div>"
+    var head = '<div class="nv-scrim" data-act="close"></div><div class="nv-modal" role="dialog" aria-modal="true" aria-labelledby="nvFormT"><form data-form="1">'
+      + '<div class="nv-mh"><h3 id="nvFormT">' + esc(f.loop ? tw("nv.lp.edit") : f.edit ? tw("nv.f.edit") : f.kind === "appt" ? tw("nv.ap.new") : me ? tw("nv.f.new_me") : tw("nv.f.new")) + '</h3><button type="button" class="nv-x" data-act="close" aria-label="' + esc(tw("nv.close")) + '">' + ic("x") + "</button></div>"
+      + (f.edit || f.loop ? "" : '<div class="nv-seg nv-kindseg" role="group">' + [["task", "circle-check", "nv.ap.k_task"], ["appt", "calendar", "nv.ap.k_appt"]].map(function (o) { return '<button type="button" data-act="fset" data-k="kind" data-v="' + o[0] + '" aria-pressed="' + ((f.kind || "task") === o[0]) + '">' + ic(o[1]) + esc(tw(o[2])) + "</button>"; }).join("") + "</div>");
+    if (f.loop) {
+      // 0.426.0: a loop's own fields, the ones the old Scheduled page let the owner edit by hand.
+      return head + '<label class="nv-fld"><span>' + esc(tw("nv.lp.name")) + '</span><input class="nv-inp" id="nvLn" required value="' + esc(f.name || "") + '"></label>'
+        + '<label class="nv-fld"><span>' + esc(tw("nv.lp.body")) + '</span><textarea class="nv-ta" id="nvW" required>' + esc(f.text || "") + "</textarea></label>"
+        + '<div class="nv-fld"><span>' + esc(tw("nv.lp.mode")) + "</span>" + seg("lmode", [["suggest", "nv.lp.m_suggest"], ["auto", "nv.lp.m_auto"], ["full", "nv.lp.m_full"]])
+        + '<small class="nv-hint' + ((f.lmode || "full") === "full" ? " full" : "") + '" role="status">' + esc(tw(LP_NOTE[f.lmode] || LP_NOTE.full)) + "</small></div>"
+        + '<label class="nv-fld"><span>' + esc(tw("nv.lp.every")) + '</span><input class="nv-inp" id="nvIv" type="number" min="5" step="5" inputmode="numeric" value="' + esc(f.iv || "60") + '"></label>'
+        + (f.err ? '<div class="nv-ferr" role="alert">' + esc(f.err) + "</div>" : "")
+        + '<div class="nv-acts end"><button type="button" class="nv-btn ghost" data-act="close">' + esc(tw("nv.cancel")) + '</button><button type="submit" class="nv-btn pri">' + esc(tw("nv.save")) + "</button></div></form></div>";
+    }
+    if (f.kind === "appt") {
+      var dur = Number(f.dur || 60);
+      return head + '<label class="nv-fld"><span>' + esc(tw("nv.ap.what")) + '</span><input class="nv-inp" id="nvW" required placeholder="' + esc(tw("nv.ap.what_ph")) + '" value="' + esc(f.text || "") + '"></label>'
+        + '<div class="nv-fld"><span>' + esc(tw("nv.ap.start")) + '</span><button type="button" class="nv-pick" data-act="pick-date" data-id="new">' + ic("clock") + '<span class="nv-lbl">' + esc(whenIso(f.date, f.time)) + "</span>" + ic("chevron-right") + "</button></div>"
+        + '<div class="nv-row2"><label class="nv-fld"><span>' + esc(tw("nv.ap.dur")) + "</span>" + durSelect(dur, 'id="nvDur"').replace('class="nv-psel"', 'class="nv-inp"') + "</label>"
+        + '<label class="nv-fld"><span>' + esc(tw("nv.ap.remind")) + "</span>" + remSelect(f.remind || "15", 'id="nvRem"').replace('class="nv-psel"', 'class="nv-inp"') + "</label></div>"
+        + '<div class="nv-row2"><div class="nv-fld"><span>' + esc(tw("nv.k.repeat")) + '</span><button type="button" class="nv-pick" data-act="pick-rep" data-id="new">' + ic("repeat") + '<span class="nv-lbl">' + esc(repTxt) + "</span>" + ic("chevron-right") + "</button></div>"
+        + '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label></div>"
+        + '<details class="nv-more2"' + (f.loc ? " open" : "") + "><summary>" + ic("map-pin") + esc(tw("nv.ap.where")) + '</summary><input class="nv-inp" id="nvLoc" placeholder="' + esc(tw("nv.ap.where_ph")) + '" value="' + esc(f.loc || "") + '"></details>'
+        + '<label class="nv-prep"><input type="checkbox" id="nvPrep"' + (f.prep ? " checked" : "") + ' data-act="fset" data-k="prep" data-v="' + (f.prep ? "" : "1") + '">' + avatar(CORE, 18) + "<span>" + esc(tw("nv.ap.prep")) + "</span></label>"
+        + (f.prep ? '<input class="nv-inp" id="nvPrepT" placeholder="' + esc(tw("nv.ap.prep_ph")) + '" value="' + esc(f.prepT || "") + '">' : "")
+        + (f.err ? '<div class="nv-ferr" role="alert">' + esc(f.err) + "</div>" : "")
+        + '<div class="nv-acts end"><button type="button" class="nv-btn ghost" data-act="close">' + esc(tw("nv.cancel")) + '</button><button type="submit" class="nv-btn pri">' + esc(tw("nv.ap.add")) + "</button></div></form></div>";
+    }
+    return head
       + '<label class="nv-fld"><span>' + esc(tw("nv.f.what")) + '</span><textarea class="nv-ta" id="nvW" required placeholder="' + esc(me ? tw("nv.f.what_ph_me") : tw("nv.f.what_ph")) + '">' + esc(f.text || "") + "</textarea></label>"
       + (f.edit ? "" : '<div class="nv-fld"><span>' + esc(tw("nv.f.who")) + "</span>" + seg("who", [["me", "nv.me", ic("circle-user")], ["ai", "nv.javis", avatar(CORE, 16)]]) + "</div>")
-      + (me ? "" : '<div class="nv-fld"><span>' + esc(tw("nv.k.how")) + "</span>" + seg("mode", [["do", "nv.mode.do"], ["remind", "nv.mode.remind"]]) + "</div>")
+      + (me || f.script ? "" : '<div class="nv-fld"><span>' + esc(tw("nv.k.how")) + "</span>" + seg("mode", [["do", "nv.mode.do"], ["remind", "nv.mode.remind"]]) + "</div>")
       + '<div class="nv-row2"><div class="nv-fld"><span>' + esc(tw("nv.k.when")) + '</span><button type="button" class="nv-pick" data-act="pick-date" data-id="new">' + ic("clock") + '<span class="nv-lbl">' + esc(f.date ? whenIso(f.date, f.time) : me ? tw("nv.d.none") : tw("nv.f.asap")) + "</span>" + ic("chevron-right") + "</button></div>"
       + '<div class="nv-fld"><span>' + esc(tw("nv.k.repeat")) + '</span><button type="button" class="nv-pick" data-act="pick-rep" data-id="new"' + (f.edit && f.cronLocked ? " disabled" : "") + ">" + ic("repeat") + '<span class="nv-lbl">' + esc(repTxt) + "</span>" + ic("chevron-right") + "</button></div></div>"
       + (me && f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? '<div class="nv-fld"><span>' + esc(tw("nv.h.kind")) + "</span>" + seg("habit", [["", "nv.l.rep", ic("repeat")], ["1", "nv.l.habit", ic("flame", "c-habit")]]) + "</div>" : "")
-      + (me ? '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label>" : "")
+      + (me ? '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label>" : remOpts(f) + jobOpts(f))
       + (f.err ? '<div class="nv-ferr" role="alert">' + esc(f.err) + "</div>" : "")
       + '<div class="nv-acts end"><button type="button" class="nv-btn ghost" data-act="close">' + esc(tw("nv.cancel")) + '</button><button type="submit" class="nv-btn pri">' + esc(f.edit ? tw("nv.save") : me ? tw("nv.f.add") : tw("nv.f.give")) + "</button></div></form></div>";
   }
   function openForm(it) {
-    if (it && it.src === "reminder") {
+    if (it && it.src === "loop") {
+      var lp = it.raw || {};
+      S.form = { loop: it.ref, name: lp.name || it.ref, text: lp.body || "", lmode: lp.mode || "full", iv: String(lp.interval_min || 60) };
+    } else if (it && it.src === "reminder") {
       var raw = it.raw || {}, ts = stamp(raw.due_at);
-      S.form = { edit: it.ref, who: "ai", text: raw.text || it.title, mode: raw.mode === "notify" ? "remind" : "do", date: ts.date, time: ts.time, rule: null, cronLocked: !!(raw.cron || raw.repeat_min) };
+      S.form = { edit: it.ref, who: "ai", text: raw.text || it.title, mode: raw.mode === "notify" ? "remind" : "do", date: ts.date, time: ts.time, rule: null, cronLocked: !!(raw.cron || raw.repeat_min),
+        mq: raw.muc_quyen || "full", call: raw.call ? "1" : "", speak: raw.speak ? "1" : "", last: raw.remember_last ? "1" : "", script: raw.mode === "script" };
     } else {
       var inHabit = S.tab === "me" && (S.view === "habit" || (S.phone.screen === "list" && S.phone.list === "habit"));
       S.form = { who: S.tab === "me" ? "me" : "ai", text: "", mode: "do", date: null, time: "", rule: inHabit ? { unit: "day", n: 1 } : null, habit: inHabit ? "1" : "",
@@ -1067,34 +1204,60 @@
     S.layer = "form"; renderLayer();
     var w = S.root.querySelector("#nvW"); if (w) w.focus();
   }
-  function keepFormText() { var w = S.root.querySelector("#nvW"); if (w && S.form) S.form.text = w.value; var p = S.root.querySelector('[data-pproj="new"]'); if (p && S.form) S.form.project = p.value; }
+  function keepFormText() {
+    if (!S.form) return;
+    var g = function (sel) { return S.root.querySelector(sel); };
+    if (g("#nvW")) S.form.text = g("#nvW").value;
+    if (g('[data-pproj="new"]')) S.form.project = g('[data-pproj="new"]').value;
+    if (g("#nvDur")) S.form.dur = g("#nvDur").value;
+    if (g("#nvRem")) S.form.remind = g("#nvRem").value;
+    if (g("#nvLoc")) S.form.loc = g("#nvLoc").value;
+    if (g("#nvPrepT")) S.form.prepT = g("#nvPrepT").value;
+    if (g("#nvLn")) S.form.name = g("#nvLn").value;
+    if (g("#nvIv")) S.form.iv = g("#nvIv").value;
+  }
   async function submitForm() {
     keepFormText();
     var f = S.form, txt = (f.text || "").trim();
     if (!txt) return;
     var b = brain(), r;
-    if (f.edit) {
-      var fields = { id: f.edit, brain: b, text: txt, mode: f.mode === "remind" ? "notify" : "task" };
+    if (f.loop) {
+      r = await postForm("/loops", { brain: b, slug: f.loop, name: (f.name || "").trim() || f.loop, body: txt, mode: f.lmode || "full",
+        interval_min: String(Math.max(5, Number(f.iv) || 60)) });
+    } else if (f.edit) {
+      var fields = f.script ? { id: f.edit, brain: b, text: txt } : { id: f.edit, brain: b, text: txt, mode: f.mode === "remind" ? "notify" : "task", muc_quyen: f.mq || "full",
+        call: f.call ? "true" : "false", speak: f.speak ? "true" : "false", remember_last: f.mode === "do" && f.last ? "true" : "false" };
       if (!f.cronLocked && f.date) fields.at = f.date + "T" + (f.time || "08:00");
       r = await postForm("/reminders/update", fields);
+    } else if (f.kind === "appt") {
+      if (!f.date || !f.time) { f.err = tw("nv.ap.need_time"); renderLayer(); return; }
+      var end = fromMin(toMin(f.time) + Number(f.dur || 60));
+      r = await postJSON("/my-tasks", { brain: b, kind: "appt", title: txt, date: f.date, time: f.time, end: end, remind: String(f.remind || "15"),
+        location: f.loc || "", repeat: f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? f.rule : null, project: f.project || "",
+        prep: f.prep ? (f.prepT || tw("nv.ap.prep_default")) : "" });
+      if (r && r.ok !== false && f.prep) {
+        // "Ask Javis to prepare": a reminder that does the job 30 minutes before the start.
+        var at = fromMin(toMin(f.time) - 30);
+        await createReminder((f.prepT || tw("nv.ap.prep_default")) + " (" + txt + ", " + f.date + " " + f.time + ")", "do", f.date, at, null);
+      }
     } else if (f.who === "me") {
       var myRule = f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? f.rule : null;
       r = await postJSON("/my-tasks", { brain: b, title: txt, date: f.date || (myRule && f.habit ? today() : null), time: f.date ? f.time : "", repeat: myRule, project: f.project || "",
         habit: myRule && f.habit ? { start: today(), remind: "auto" } : null });
     } else if (!f.date && !f.rule && f.mode === "do") {
-      r = await postForm("/kanban/task", { brain: b, title: txt.slice(0, 120), intent: txt, priority: 2 });
+      r = await postForm("/kanban/task", { brain: b, title: txt.slice(0, 120), intent: txt, priority: 2, needs_approval: f.appr ? "1" : "0" });
     } else {
-      r = await createReminder(txt, f.mode, f.date, f.time, f.rule);
+      r = await createReminder(txt, f.mode, f.date, f.time, f.rule, { muc_quyen: f.mq || "full", call: !!f.call, speak: !!f.speak, remember_last: f.mode === "do" && !!f.last });
       if (r === null) return;
     }
     if (r && r.ok === false) { f.err = r.error || tw("nv.err.generic"); renderLayer(); return; }
     S.layer = null; S.form = null; renderLayer();
-    toast(f.edit ? tw("nv.saved") : f.who === "me" ? (f.habit && f.rule ? tw("nv.h.added") : tw("nv.f.added")) : tw("nv.f.given"));
+    toast(f.edit || f.loop ? tw("nv.saved") : f.kind === "appt" ? tw("nv.ap.added") : f.who === "me" ? (f.habit && f.rule ? tw("nv.h.added") : tw("nv.f.added")) : tw("nv.f.given"));
     await load(); render(); schedulePoll();
   }
-  async function createReminder(txt, mode, date, time, rule) {
+  async function createReminder(txt, mode, date, time, rule, opts) {
     var body = Object.assign({ brain: brain(), text: txt, label: txt.slice(0, 80), mode: mode === "remind" ? "notify" : "task", muc_quyen: "full", created_by: "dashboard" },
-      javisSchedule(rule, date || today(), time || "08:00"));
+      opts || {}, javisSchedule(rule, date || today(), time || "08:00"));
     var r = await postJSON("/reminders", body);
     if (r && r.ok === false && r.can_force) {
       if (!window.confirm(r.error + "\n\n" + tw("nv.f.force"))) return null;
@@ -1116,6 +1279,11 @@
     var t = it.raw, before = { date: t.date, time: t.time, repeat: t.repeat };
     var body = { __url: "/my-tasks/update", id: t.id };
     if ("date" in patch) { body.date = patch.date; body.time = patch.date ? patch.time || "" : ""; }
+    if (t.kind === "appt" && "date" in patch) {
+      // An appointment keeps its length when its start moves.
+      if (!patch.date || !patch.time) { S.sheet = null; toast(tw("nv.ap.need_time")); renderLayer(); return; }
+      body.end = fromMin(toMin(patch.time) + Math.max(5, toMin(t.end) - toMin(t.time)));
+    }
     if ("rule" in patch) { body.repeat = patch.rule; if (patch.rule && !t.date && !body.date) body.date = today(); }
     S.sheet = null;
     await act(mine(body), tw("nv.saved"), function () { return mine({ __url: "/my-tasks/update", id: t.id, date: before.date, time: before.time, repeat: before.repeat }); });
@@ -1201,9 +1369,12 @@
       }
       case "tojavis": case "m-tojavis": return giveToJavis(it);
       case "m-tome": return takeFromJavis(it);
-      case "grant": return act(postForm("/kanban/task/grant", { brain: b, id: it.ref }), tw("nv.ok.granted"));
+      case "grant":
+        if (!window.confirm(tw("kanban.confirm_grant"))) return;
+        return act(postForm("/kanban/task/grant", { brain: b, id: it.ref }), tw("nv.ok.granted"));
       case "approve": return act(postForm("/kanban/task/move", { brain: b, id: it.ref, status: "done" }), tw("nv.ok.approved"));
       case "resolve": return act(postJSON("/incidents/resolve", { id: id }), tw("nv.ok.resolved"));
+      case "gochan": if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("channels"); return;
       case "orch": return act(postForm("/kanban/orchestration", { brain: b, mode: el.dataset.v }), el.dataset.v === "off" ? tw("nv.orch.off_ok") : tw("nv.orch.on_ok"));
       case "overall": {
         var L = S.me.items.filter(function (i) { return i.over && i.id.indexOf("m:") === 0; });
@@ -1325,7 +1496,8 @@
       if (act_ === "fold") { S.showDone = !S.showDone; render(); return; }
       if (act_ === "tab") { setTab(a.dataset.v); return; }
       if (act_ === "morewho" || act_ === "moreproj") { var k = act_ === "morewho" ? "moreWho" : "moreProj"; S[k] = !S[k]; lsSet(k, S[k] ? "1" : ""); render(); return; }
-      if (act_ === "fset") { keepFormText(); S.form[a.dataset.k] = a.dataset.v; if (a.dataset.k === "who" && a.dataset.v === "me" && S.form.rule && (S.form.rule.unit === "min" || S.form.rule.unit === "hour")) S.form.rule = null; renderLayer(); return; }
+      if (act_ === "fset") { keepFormText(); S.form[a.dataset.k] = a.dataset.v;
+        if (a.dataset.k === "kind" && a.dataset.v === "appt") { S.form.who = "me"; if (!S.form.date) S.form.date = today(); if (!S.form.time) S.form.time = fromMin(Math.ceil((toMin(hmOf(new Date())) + 30) / 30) * 30); } if (a.dataset.k === "who" && a.dataset.v === "me" && S.form.rule && (S.form.rule.unit === "min" || S.form.rule.unit === "hour")) S.form.rule = null; renderLayer(); return; }
       if (act_ === "new") { openForm(null); return; }
       if (act_ === "pick-date" || act_ === "pick-rep") { if (id === "new") keepFormText(); }
       doAct(act_, id, a);
@@ -1344,6 +1516,9 @@
       var it = find(el.dataset.pproj) || find("m:" + el.dataset.pproj); var id = it ? it.raw.id : el.dataset.pproj.replace(/^m:/, "");
       return act(mine({ __url: "/my-tasks/update", id: id, project: el.value }), tw("nv.saved"));
     }
+    if (el.dataset.adur) { var at1 = S.my.tasks.find(function (x) { return x.id === el.dataset.adur; }); return act(mine({ __url: "/my-tasks/update", id: at1.id, end: fromMin(toMin(at1.time) + Number(el.value)) }), tw("nv.saved")); }
+    if (el.dataset.arem) return act(mine({ __url: "/my-tasks/update", id: el.dataset.arem, remind: el.value }), tw("nv.saved"));
+    if (el.dataset.aloc) return act(mine({ __url: "/my-tasks/update", id: el.dataset.aloc, location: el.value.trim() }), tw("nv.saved"));
     if (el.dataset.hrem || el.dataset.hat) {
       var ht = S.my.tasks.find(function (x) { return x.id === (el.dataset.hrem || el.dataset.hat); }); if (!ht) return;
       var nh = Object.assign({}, ht.habit, el.dataset.hrem ? { remind: el.value } : { at: el.value });
@@ -1425,5 +1600,16 @@
     S = null;
   }
 
-  window.JavisTasks = { mount: mount, unmount: unmount, _model: model_ };
+  // Javis opens a Kanban job on screen (ui-actions.js, action open_task): Javis tab, details of that job.
+  async function show(ref) {
+    if (!S || !S.ai) return false;
+    var id = "k:" + String(ref || "").replace(/^k:/, "");
+    if (S.tab !== "ai") setTab("ai");
+    if (!find(id)) { await load(); if (!S) return false; }
+    if (!find(id)) return false;
+    openDetail(id);
+    return true;
+  }
+
+  window.JavisTasks = { mount: mount, unmount: unmount, show: show, ready: function () { return !!(S && S.ai); }, _model: model_ };
 })();

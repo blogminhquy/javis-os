@@ -3,7 +3,7 @@
    Server bắn frame {"type":"ui_action","id","action","target","session_id"} qua /ws khi model
    gọi tool javis_ui. File này: kiểm lại target (không tin server tuyệt đối vì đây là bên thực
    hiện), chạy bằng đúng những hàm dashboard đã có (JavisNav.go, JavisOpenVaultPath,
-   JavisKanbanShow), rồi gửi {"action":"ui_result","id","ok","detail"} về để tool trả lời model
+   JavisTasks.show), rồi gửi {"action":"ui_result","id","ok","detail"} về để tool trả lời model
    ngay trong lượt.
 
    Tab đang xem phiên KHÁC với session_id trong frame thì trả `skipped=true` (server bỏ qua,
@@ -116,12 +116,14 @@
       return { ok: false, detail: tw("ui.err_opener_not_ready") };
     }
     if (v.action === "open_task") {
-      if (window.JavisNav && typeof window.JavisNav.go === "function") window.JavisNav.go("kanban");
-      // renderKanban là async: đợi nó gắn JavisKanbanShow (tối đa ~3 giây).
+      if (window.JavisNav && typeof window.JavisNav.go === "function") window.JavisNav.go("tasks");
+      // 0.426.0: Kanban jobs live on the Tasks page (tasks.js, lazy). Wait up to ~3 s for it to load its data.
       for (var i = 0; i < 30; i++) {
-        if (typeof window.JavisKanbanShow === "function") {
-          try { await window.JavisKanbanShow(v.target); } catch (e) {}
-          return { ok: true, detail: "" };
+        var nv = window.JavisTasks;
+        if (nv && typeof nv.ready === "function" && nv.ready()) {
+          var shown = false;
+          try { shown = await nv.show(v.target); } catch (e) {}
+          return shown ? { ok: true, detail: "" } : { ok: false, detail: tw("ui.err_task_missing") };
         }
         await sleep(100);
       }

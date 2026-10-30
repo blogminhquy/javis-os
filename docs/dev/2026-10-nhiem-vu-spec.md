@@ -195,3 +195,19 @@ Không có kho riêng: thói quen là việc của tôi có `habit`. Chuỗi, đ
    hiệu ứng tích, nhắc nhở.
 4. **Phần 4:** **Lịch hẹn** (và đọc Google Calendar khi có MCP), tool cho Javis tích thói quen và
    thêm việc của tôi qua chat, Core viết lời nhắn nền và tự học.
+
+## 10. Trạng thái (30/10/2026)
+
+- 0.422.0: Phần 1 xong (tab Javis làm, lời nhắc chạy ngay, dừng, tạm dừng, bỏ qua; bỏ bản tin sáng).
+- 0.423.0: Phần 2 xong (tab Của tôi, dự án, chọn ngày, chọn lặp, quá hạn có lần lặp bị lỡ).
+- 0.424.0: Phần 3 xong (thói quen, chuỗi theo ngày có lịch, ngôi sao, hiệu ứng tích, nhắc thói quen ở máy chủ).
+- 0.425.0: Phần 4: lịch hẹn (trạng thái tự đổi, trùng giờ, nhắc trước, nhờ Javis chuẩn bị trước), tool
+  `javis_mytask` cho mọi engine (thêm việc của tôi, xem, tích xong theo lời báo với `by: "javis"`).
+- 0.426.0: rà lỗi sau 4 phần. Trả lại những gì trang cũ có mà trang Nhiệm vụ thiếu: sửa loop (tên, việc mỗi vòng,
+  mức quyền, chu kỳ), tuỳ chọn lời nhắc (gọi điện, đọc thành tiếng, nhớ kết quả lần trước, mức quyền), Javis mở một
+  việc Kanban trên màn hình (`JavisTasks.show`), hỏi lại trước khi cấp quyền chạy thật. Bỏ `renderKanban`,
+  `renderSelfImprove` cùng chuỗi và test chỉ soi mã của chúng.
+- Còn lại cho bản sau:
+  - Lời nhắn thói quen do Core viết bằng model mỗi ngày. Hiện dùng câu mẫu theo số thật, và giờ nhắc học từ giờ người
+    dùng hay tích (trung vị 30 lần gần nhất).
+  - Đọc Google Calendar (chỉ đọc) khi có MCP lịch.
