@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.428.0] - 2026-10-31
+### Thêm mới
+- **Thống kê trên trang Nhiệm vụ, cho cả hai tab.** Mục Thống kê nằm cuối menu. Chọn khoảng thời gian bằng ô thả xuống giống màn Thống kê chatbot (Hôm nay, 7 / 30 / 90 ngày qua, Tháng trước... hoặc tự chọn ngày), luôn so với kỳ liền trước.
+- **Thống kê Việc của Javis:** Javis gánh bao nhiêu phần trăm việc so với bạn, **thời gian Javis trả lại cho bạn** (mỗi loại việc tính theo số phút bạn tự chỉnh, không quy ra tiền), việc làm lúc bạn ngủ, trợ lý nào làm gì, độ tin cậy, và gợi ý việc Javis làm thay được.
+- **Thống kê Việc của tôi:** việc xong từng ngày, bản đồ 12 tuần, giờ vàng, tỉ lệ đúng hạn, thói quen 30 ngày, dự án, việc hay bị dời kèm nút Giao cho Javis.
+### Cải thiện
+- **Tab Việc của Javis đứng đầu và mở ra trước.** Tab "Của tôi" đổi tên thành "Việc của tôi".
+- Lời nhắc và theo dõi trang giờ ghi lại từng lần chạy để thống kê đếm đủ. Trước bản này mỗi lời nhắc chỉ còn lần chạy gần nhất.
+
 ## [0.427.0] - 2026-10-31
 ### Thêm mới
 - **Javis Core tự viết lời nhắn thói quen mỗi ngày.** Ngôi sao và lời nhắc giữ lửa không còn là câu mẫu: Core đọc chuỗi, ngày đóng băng, giờ bạn hay làm rồi viết câu riêng cho từng thói quen. Không có model nền thì vẫn dùng câu mẫu như cũ.

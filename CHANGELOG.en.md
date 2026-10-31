@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.428.0] - 2026-10-31
+### Added
+- **Stats on the Tasks page, for both tabs.** Stats closes the menu. Pick the period with the same dropdown as the Chatbot stats (Today, last 7 / 30 / 90 days, Last month... or your own days), always against the period before.
+- **Javis's stats:** how much of the work Javis carried next to you, **the time Javis gave back** (each kind of job counts the minutes you set, no money), work done while you slept, which assistant did what, reliability, and jobs Javis could take over.
+- **My stats:** done per day, a 12-week map, golden hours, on-time rate, habits over 30 days, projects, and tasks you keep moving with a Give to Javis button.
+### Improved
+- **Javis's tasks come first and open first.** "Mine" is now "My tasks".
+- Reminders and page watches now log every run so the stats count them all. Before this release a reminder kept only its last run.
+
 ## [0.427.0] - 2026-10-31
 ### Added
 - **Javis Core writes the habit lines every day.** The star and the habit reminders are no longer fixed sentences: Core reads each streak, frozen days and your usual time, and writes a line for each habit. Without a background model the fixed lines stay.

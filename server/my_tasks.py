@@ -496,7 +496,11 @@ class MyTasks:
         task = self._find(data, str(p.get("id") or ""))
         if task is None:
             return _err("không thấy việc này", "task not found")
+        old_date = task.get("date")
         _apply(task, p)
+        # 0.428.0: a one-off task pushed to a later day counts as moved (stats: "tasks you keep moving").
+        if old_date and task.get("date") and task["date"] > old_date and not task.get("repeat") and task.get("status") != "done":
+            task["moves"] = int(task.get("moves") or 0) + 1
         if not task.get("title"):
             return _err("thiếu tên việc", "the task needs a title")
         task["updated_at"] = _now()
@@ -533,12 +537,16 @@ class MyTasks:
         self.save(brain, data)
         return {"ok": True, "task": task, "rev": data["rev"]}
 
-    def delete(self, brain: str, tid: str) -> dict:
+    def delete(self, brain: str, tid: str, handoff: bool = False) -> dict:
         data = self.load(brain)
         task = self._find(data, tid)
         if task is None:
             return _err("không thấy việc này", "task not found")
         data["tasks"] = [t for t in data["tasks"] if t.get("id") != tid]
+        if handoff:
+            # "Give to Javis" (0.428.0): the stats count how many tasks the owner handed over.
+            log = data.setdefault("log", {})
+            log["handoffs"] = (list(log.get("handoffs") or []) + [_now()])[-2000:]
         self.save(brain, data)
         return {"ok": True, "task": task, "rev": data["rev"]}
 
@@ -752,7 +760,7 @@ class MyTasks:
         async def my_tasks_delete(payload: dict = Body(None)):
             p = payload or {}
             async with self._io:
-                return self.delete(str(p.get("brain") or "brain"), str(p.get("id") or ""))
+                return self.delete(str(p.get("brain") or "brain"), str(p.get("id") or ""), bool(p.get("handoff")))
 
         @router.post("/my-tasks/restore")
         async def my_tasks_restore(payload: dict = Body(None)):

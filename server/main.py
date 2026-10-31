@@ -12890,6 +12890,21 @@ watch_feature = web_watch.register(app, web_watch.WebWatchDeps(
     channels=_kenh_con_thieu,
 ))
 
+# 0.428.0: stats for both tabs of the Tasks page (task_stats.py): what Javis did next to what the owner did.
+import task_stats  # noqa: E402
+
+
+def _stats_agent_names(brain: str) -> dict:
+    try:
+        return {a.get("slug"): a.get("name") or a.get("slug") for a in agents_index(brain, kem_prompt=False) if a.get("slug")}
+    except Exception:
+        return {}
+
+
+task_stats_feature = task_stats.register(app, task_stats.TaskStatsDeps(
+    brain_root=_brain_root, my_tasks=lambda: my_tasks_feature, task_store=lambda: tasks_feature.store,
+    tz=reminders_mod.VN_TZ, agent_names=_stats_agent_names))
+
 # 0.251.0: login vault (login_vault.py). The owner's sign-in cookies, encrypted, reused by javis_login and by
 # page watches. Its routes need a real dashboard session: an API token can neither read nor add a sign-in.
 import login_vault  # noqa: E402

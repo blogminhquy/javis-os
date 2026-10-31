@@ -78,7 +78,7 @@ def _them(args, ctx) -> str:
     t = r["task"]
     kind = "thói quen (giữ lửa)" if t.get("habit") else ("việc lặp" if t.get("repeat") else "việc")
     when = (t.get("date") or "chưa hẹn ngày") + (" " + t["time"] if t.get("time") else "")
-    return f"OK: đã thêm {kind} \"{t['title']}\" ({when}) vào tab Của tôi, trang Nhiệm vụ. id={t['id']}"
+    return f"OK: đã thêm {kind} \"{t['title']}\" ({when}) vào tab Việc của tôi, trang Nhiệm vụ. id={t['id']}"
 
 
 def _liet_ke(args, ctx) -> str:
@@ -146,7 +146,7 @@ def _tich(args, ctx) -> str:
 def register(ctx):
     ctx.register_tool(
         "javis_mytask",
-        "Việc của CHÍNH người dùng (tab Của tôi trên trang Nhiệm vụ) và thói quen của họ. "
+        "Việc của CHÍNH người dùng (tab Việc của tôi trên trang Nhiệm vụ) và thói quen của họ. "
         "op=add: người dùng nhờ ghi một việc họ tự làm (title; date YYYY-MM-DD, time HH:MM nếu có; "
         "repeat day|week|month|year, every, days 'T3,T5,T7' khi lặp theo tuần; habit=true nếu họ muốn giữ lửa thói quen). "
         "Việc Javis làm thì dùng javis_task hoặc javis_schedule, KHÔNG dùng tool này. "

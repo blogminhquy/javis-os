@@ -11,7 +11,7 @@ const vm = require("vm");
 const ROOT = path.join(__dirname, "..", "..");
 const src = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
 const DRS = src("dashboard/date-range.js");
-const CSS = src("dashboard/inbox-v5.css");
+const CSS = src("dashboard/date-range.css");   // 0.428.0: moved out of inbox-v5.css, shared with the Tasks page
 const HTML = src("dashboard/index.html");
 const CV = src("dashboard/conversations.js");
 const VI = JSON.parse(src("dashboard/i18n/vi.json"));
