@@ -3106,7 +3106,7 @@
   // Owner, 16/10/2026: "không copy và dán ảnh vào khung chat của team được". The main chat's paste and drop listeners sit on
   // the whole document and sent a picture pasted here to the hidden main chat. The team page answers first (its own
   // listeners, propagation stopped) and the page is marked data-localdrop so the main chat's drop leaves it alone.
-  var PASTE_TXT_CHARS = 1500, PASTE_TXT_LINES = 25;   // same thresholds as the main chat (app.js)
+  // Shared limits and preview live in chat-paste.js (also used by the main chat).
   // Copy the bytes while the event is still running: a phone only lets a page read a pasted or dropped file then.
   function grabFile(f) {
     var read;
@@ -3133,14 +3133,33 @@
       attachGrabbed(files);
       return;
     }
-    // A very long text pasted into the team input becomes a .txt document instead of a wall in the box.
+    // Keep moderate text visible, and ask before converting long text to a file.
     if (!(e.target && e.target.classList && e.target.classList.contains("tm-input"))) return;
-    var txt = (cd && cd.getData("text/plain")) || "";
-    if (txt.length > PASTE_TXT_CHARS || txt.split("\n").length > PASTE_TXT_LINES) {
-      e.preventDefault(); e.stopPropagation();
+    var input = e.target;
+    var plain = (cd && cd.getData("text/plain")) || "";
+    var html = (cd && cd.getData("text/html")) || "";
+    var paste = typeof window !== "undefined" ? window.JavisPaste : null;
+    var content = paste ? paste.prepare(plain, html) : plain;
+    if (!content) return;
+    var range = { start: input.selectionStart, end: input.selectionEnd };
+    function insert(value) {
+      if (!input.isConnected || !canAttach()) return;
+      input.focus();
+      input.setRangeText(value, range.start, range.end, "end");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    function attachText(value) {
+      if (!canAttach()) return;
       var d = new Date(), p2 = function (n) { return String(n).padStart(2, "0"); };
       var name = "van-ban-dan-" + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + ".txt";
-      attachFiles([new File([new Blob([txt], { type: "text/plain" })], name, { type: "text/plain" })]);
+      attachFiles([new File([new Blob([value], { type: "text/plain" })], name, { type: "text/plain" })]);
+    }
+    if (paste && paste.isLong(content)) {
+      e.preventDefault(); e.stopPropagation();
+      paste.offer(content, insert, attachText);
+    } else if (content !== plain) {
+      e.preventDefault(); e.stopPropagation();
+      insert(content);
     }
   }
   var dropDepth = 0;
