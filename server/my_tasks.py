@@ -19,6 +19,11 @@ Routes (all JSON bodies, `brain` like the other stores):
     POST /my-tasks/move     {id, from_brain, to_brain, copy?}
     POST /my-tasks/project  {id?, name, color, pinned, order}   create or update
     POST /my-tasks/project/delete {id}        its tasks keep living, without a project
+    GET  /my-tasks/calendar?brain&days        read-only Google Calendar events (0.427.0), see gcal_read.py
+
+Habit coach (0.427.0): once a day the background model ("Javis Core") writes the habit lines the page and the
+reminders use, into <brain>/Javis/habit-coach.json, and learns which style of nudge was followed by the habit
+being done that day (see `coach_prompt`). No model, or a bad answer: the fixed lines stay.
 """
 from __future__ import annotations
 
@@ -56,6 +61,10 @@ class MyTasksDeps:
     scheduler_brains: Optional[Callable[[], list]] = None
     notify: Optional[Callable[..., Any]] = None
     tz: Optional[Callable[[], Any]] = None
+    # Habit coach (0.427.0): async ask(prompt) -> text from the background model, raises when none is ready.
+    ask: Optional[Callable[[str], Any]] = None
+    # Google Calendar (0.427.0): async events(brain, start_iso, end_iso) -> {ok, connected, events, error}.
+    calendar: Optional[Callable[..., Any]] = None
 
 
 def _now() -> float:
@@ -202,7 +211,7 @@ def habit_state(task: dict, today: str) -> dict:
     last = prev if prev and prev != today else None
     rest = days.get(today) == "r"
     return {"cur": cur, "rest": rest, "done_today": days.get(today) == "f",
-            "frozen": bool(last and days.get(last) == "i" and (days.get(today) == "todo" or rest))}
+            "frozen": bool(last and days.get(last) == "i" and (days.get(today) == "todo" or rest)), "days": days}
 
 
 def usual_time(task: dict, tz=None) -> str:
@@ -249,11 +258,186 @@ def nudge_text(task: dict, state: dict) -> str:
                          f"Habit reminder: {title}. Do it today to start the streak.")
 
 
+# ---- habit coach (0.427.0) ----
+COACH = "habit-coach.json"
+STYLES = ("cheer", "sulk", "challenge", "why")
+HEAD_KEYS = ("all", "part", "mile", "rest", "week", "start")
+# Which {placeholders} each line may use; the page and nudge_text fill them with today's numbers.
+_SLOTS = {"all": {"n"}, "part": {"done", "due", "left"}, "mile": {"left", "name", "n"}, "rest": {"names"},
+          "week": {"n"}, "start": set(), "frozen": {"name", "n"}, "nudge": {"name", "n"}}
+_LINE_MAX = 160
+COACH_LOG_MAX = 300
+
+
+def _clean_line(v, key: str) -> str:
+    """One model-written line: short, single line, no long dashes, only the placeholders its key may use."""
+    t = re.sub(r"\s+", " ", str(v or "")).strip().strip('"')
+    t = re.sub(r"\s*\u2014\s*", ", ", t).replace("\u2013", "-")
+    if not t or len(t) > _LINE_MAX:
+        return ""
+    if not set(re.findall(r"\{(\w+)\}", t)) <= _SLOTS.get(key, set()):
+        return ""
+    return t
+
+
+def style_stats(log: list) -> dict:
+    """Per nudge style: how many went out, and how many were followed by the habit being done that day."""
+    out = {s: {"sent": 0, "done": 0} for s in STYLES}
+    for e in log or []:
+        st = out.get(e.get("style"))
+        if st is not None and e.get("sent"):
+            st["sent"] += 1
+            st["done"] += 1 if e.get("done") else 0
+    return out
+
+
+def coach_prompt(habits: list, stats: dict, vi: bool) -> str:
+    """habits: [{id, title, cur, frozen, done_today, rest, usual, last14}] (last14 from oldest: f done, i frozen,
+    x missed, r rest day, t today)."""
+    rows = "\n".join(
+        f"- id={h['id']} | {h['title']} | streak {h['cur']} | frozen={str(h['frozen']).lower()} | "
+        f"done_today={str(h['done_today']).lower()} | rest_today={str(h['rest']).lower()} | usual_time={h['usual'] or '-'} | "
+        f"last14={h['last14']}" for h in habits)
+    rates = "\n".join(f"- {s}: sent {v['sent']}, done after {v['done']}" for s, v in stats.items())
+    lang = "Vietnamese, addressing the user as \"bạn\" and yourself as \"mình\"" if vi else "English"
+    return f"""You are Javis, a small star mascot coaching the user's daily habits. Write today's short lines in {lang}.
+
+Habits today:
+{rows}
+
+How each nudge style worked so far (a nudge "worked" when the habit was done later that day):
+{rates}
+
+Styles: cheer (warm encouragement), sulk (playful sulking that you are left waiting), challenge (dare them to keep the
+streak), why (remind what the habit gives them). For each habit's "nudge", pick the style with the best done rate; while a
+style has fewer than 5 sends, try it now and then so you learn. Be specific to the habit, never generic.
+
+Rules: each line at most 120 characters, one sentence or two, plain text, no emoji, never the long dash. Use ONLY these
+placeholders, the page fills them with today's numbers: all {{n}} (habits done); part {{done}} {{due}} {{left}};
+mile {{left}} (days to the next milestone) {{name}} {{n}} (the milestone); rest {{names}}; week {{n}} (percent this week);
+start (none); frozen {{name}} {{n}} (streak at stake); nudge {{name}} {{n}} (streak).
+
+Answer with JSON only, no prose:
+{{"head": {{"all": "...", "part": "...", "mile": "...", "rest": "...", "week": "...", "start": "..."}},
+ "habits": {{"<id>": {{"frozen": "...", "nudge": "...", "style": "cheer|sulk|challenge|why"}}}}}}"""
+
+
+def parse_coach(text: str, ids: set) -> Optional[dict]:
+    m = re.search(r"\{[\s\S]*\}", str(text or ""))
+    if not m:
+        return None
+    try:
+        d = json.loads(m.group(0))
+    except Exception:
+        return None
+    if not isinstance(d, dict):
+        return None
+    head = {k: _clean_line((d.get("head") or {}).get(k), k) for k in HEAD_KEYS}
+    head = {k: v for k, v in head.items() if v}
+    habits = {}
+    for hid, h in (d.get("habits") or {}).items():
+        if hid not in ids or not isinstance(h, dict):
+            continue
+        row = {k: _clean_line(h.get(k), k) for k in ("frozen", "nudge")}
+        row = {k: v for k, v in row.items() if v}
+        if row.get("nudge"):
+            row["style"] = h.get("style") if h.get("style") in STYLES else "cheer"
+        if row:
+            habits[hid] = row
+    return {"head": head, "habits": habits} if head or habits else None
+
+
+def fill(line: str, **v) -> str:
+    return re.sub(r"\{(\w+)\}", lambda m: str(v.get(m.group(1), m.group(0))), line)
+
+
+def _last14(task: dict, today: str) -> str:
+    st = habit_state(task, today)
+    days = st.get("days") or {}
+    d0 = date.fromisoformat(today) - timedelta(days=13)
+    out = ""
+    for i in range(14):
+        iso = (d0 + timedelta(days=i)).isoformat()
+        out += {"f": "f", "i": "i", "x": "x", "r": "r", "todo": "t"}.get(days.get(iso), "-")
+    return out
+
+
 class MyTasks:
     def __init__(self, deps: MyTasksDeps):
         self.deps = deps
         self._io = asyncio.Lock()
+        self._coach_tried: dict = {}     # brain root -> the day its coach was last asked (one try a day)
+        self._cal_cache: dict = {}       # (brain, start, end) -> (epoch, result)
         self.router = self._make_router()
+
+    # ---- habit coach ----
+    def _coach_path(self, brain: str) -> Path:
+        return Path(self.deps.brain_root(brain)) / "Javis" / COACH
+
+    def load_coach(self, brain: str) -> dict:
+        try:
+            d = json.loads(self._coach_path(brain).read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                d.setdefault("log", [])
+                return d
+        except Exception:
+            pass
+        return {"date": "", "head": {}, "habits": {}, "log": []}
+
+    def save_coach(self, brain: str, d: dict) -> None:
+        d["log"] = (d.get("log") or [])[-COACH_LOG_MAX:]
+        p = self._coach_path(brain)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        self.deps.atomic_write_text(str(p), json.dumps(d, ensure_ascii=False, indent=1))
+
+    async def refresh_coach(self, brain: str, today: str) -> bool:
+        """Ask the background model for today's lines. True when new lines were saved."""
+        if not self.deps.ask:
+            return False
+        async with self._io:
+            data = self.load(brain)
+            coach = self.load_coach(brain)
+        tz = self.deps.tz() if self.deps.tz else None
+        habits = []
+        for t in data.get("tasks", []):
+            hb = t.get("habit") or {}
+            if not t.get("repeat") or not hb or hb.get("off"):
+                continue
+            st = habit_state(t, today)
+            habits.append({"id": t["id"], "title": t.get("title") or "", "cur": st["cur"], "frozen": st["frozen"],
+                           "done_today": st["done_today"], "rest": st["rest"], "usual": usual_time(t, tz),
+                           "last14": _last14(t, today)})
+        if not habits:
+            return False
+        vi = localefmt.chu("vi", "en") == "vi"
+        try:
+            text = await self.deps.ask(coach_prompt(habits, style_stats(coach.get("log")), vi))
+        except Exception as e:
+            print(f"[my-tasks] habit coach: no model answer ({type(e).__name__}: {str(e)[:120]})")
+            return False
+        got = parse_coach(text, {h["id"] for h in habits})
+        if not got:
+            print("[my-tasks] habit coach: the answer was not usable, keeping the fixed lines")
+            return False
+        async with self._io:
+            coach = self.load_coach(brain)
+            coach.update({"date": today, "head": got["head"], "habits": got["habits"], "at": _now()})
+            self.save_coach(brain, coach)
+        return True
+
+    async def _coach_safe(self, brain: str, today: str) -> None:
+        try:
+            await self.refresh_coach(brain, today)
+        except Exception as e:
+            print(f"[my-tasks] habit coach failed: {type(e).__name__}: {e}")
+
+    def _coach_done(self, brain: str, tid: str, day: str) -> None:
+        """A habit ticked on a day it was nudged: that nudge's style worked (call under self._io)."""
+        coach = self.load_coach(brain)
+        hit = next((e for e in reversed(coach.get("log") or []) if e.get("id") == tid and e.get("d") == day and not e.get("done")), None)
+        if hit:
+            hit["done"] = _now()
+            self.save_coach(brain, coach)
 
     # ---- store ----
     def _path(self, brain: str) -> Path:
@@ -330,6 +514,11 @@ class MyTasks:
             dd = task.setdefault("done_dates", {})
             if done:
                 dd[d] = {"at": _now(), "by": by}
+                if task.get("habit"):
+                    try:
+                        self._coach_done(brain, tid, d)
+                    except Exception as e:
+                        print(f"[my-tasks] habit coach log: {type(e).__name__}: {e}")
                 if len(dd) > MAX_DONE_DATES:
                     for k in sorted(dd)[:len(dd) - MAX_DONE_DATES]:
                         dd.pop(k, None)
@@ -446,6 +635,10 @@ class MyTasks:
                 continue
             seen.add(root)
             due = []
+            if self.deps.ask and hm >= "05:00" and self._coach_tried.get(root) != today:
+                self._coach_tried[root] = today
+                if self.load_coach(brain).get("date") != today:
+                    asyncio.create_task(self._coach_safe(brain, today))
             async with self._io:
                 data = self.load(brain)
                 for t in data.get("tasks", []):
@@ -471,9 +664,22 @@ class MyTasks:
                     due.append((t, st))
                 if due:
                     self.save(brain, data)
+            coach = self.load_coach(brain) if any(st is not None for _, st in due) else {}
             for t, st in due:
                 try:
-                    text = appt_text(t) if st is None else nudge_text(t, st)
+                    line = ((coach.get("habits") or {}).get(t.get("id")) or {}) if st is not None and coach.get("date") == today else {}
+                    if st is None:
+                        text = appt_text(t)
+                    elif line.get("nudge"):
+                        text = fill(line["nudge"], name=t.get("title") or "", n=st["cur"])
+                    else:
+                        text = nudge_text(t, st)
+                    if st is not None:
+                        async with self._io:
+                            c2 = self.load_coach(brain)
+                            c2.setdefault("log", []).append({"d": today, "id": t.get("id"), "style": line.get("style") or "fixed",
+                                                             "sent": _now(), "done": 0})
+                            self.save_coach(brain, c2)
                     await self.deps.notify("", text, brain=brain, dedup=f"{'appt' if st is None else 'habit'}:{t.get('id')}:{today}")
                     sent += 1
                 except Exception as e:
@@ -488,7 +694,33 @@ class MyTasks:
         async def my_tasks_list(brain: str = Query("brain")):
             async with self._io:
                 d = self.load(brain)
-            return {"ok": True, "tasks": d["tasks"], "projects": d["projects"], "rev": d["rev"]}
+                c = self.load_coach(brain)
+            coach = {"date": c.get("date") or "", "head": c.get("head") or {},
+                     "habits": {k: {"frozen": v.get("frozen", "")} for k, v in (c.get("habits") or {}).items() if v.get("frozen")}}
+            return {"ok": True, "tasks": d["tasks"], "projects": d["projects"], "rev": d["rev"], "coach": coach}
+
+        @router.get("/my-tasks/calendar")
+        async def my_tasks_calendar(brain: str = Query("brain"), days: int = Query(14)):
+            """Read-only events from a connected calendar MCP, today 00:00 for `days` days (cached 5 minutes)."""
+            if not self.deps.calendar:
+                return {"ok": True, "connected": False, "events": []}
+            tz = self.deps.tz() if self.deps.tz else None
+            d0 = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+            if d0.tzinfo is None:
+                d0 = d0.astimezone()
+            start, end = d0.isoformat(), (d0 + timedelta(days=max(1, min(int(days or 14), 62)))).isoformat()
+            key = (brain, start, end)
+            hit = self._cal_cache.get(key)
+            if hit and _now() - hit[0] < 300:
+                return hit[1]
+            try:
+                res = await self.deps.calendar(brain, start, end)
+            except Exception as e:
+                res = {"ok": False, "connected": True, "events": [], "error": f"{type(e).__name__}: {str(e)[:200]}"}
+            if len(self._cal_cache) > 50:
+                self._cal_cache.clear()
+            self._cal_cache[key] = (_now(), res)
+            return res
 
         @router.post("/my-tasks")
         async def my_tasks_create(payload: dict = Body(None)):

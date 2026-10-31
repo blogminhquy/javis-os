@@ -319,7 +319,24 @@
         if (d !== today) items.push(Object.assign({}, base, { id: "md:" + t.id + ":" + d, date: d, st: "done", rep: repHuman(t.repeat), occ: d, doneAt: dd[d].at || 0, over: false }));
       });
     });
+    // 0.427.0: read-only events from a connected Google Calendar sit next to the appointments.
+    ((store && store.gcal) || []).forEach(function (e) {
+      var c = calWhen(e);
+      if (!c.date) return;
+      var as = apptState(c.date, c.time, c.end, today, hm);
+      items.push({ id: "g:" + e.id, src: "gcal", ref: e.id, title: e.title, desc: "", who: "me", proj: "", time: c.time, end: c.end, kind: "appt",
+        raw: { location: e.location || "", link: e.link || "", source: e.source || "", all_day: !!e.all_day }, appt: true, gcal: true,
+        date: c.date, st: as === "past" ? "done" : "todo", live: as === "live", rep: "", occ: c.date, over: false });
+    });
     return { items: items, recurring: recurring };
+  }
+  // Local date and times of a calendar event: an all-day one has no time, a timed one is read in the browser's zone.
+  function calWhen(e) {
+    if (e.all_day || /^\d{4}-\d{2}-\d{2}$/.test(e.start || "")) return { date: String(e.start || "").slice(0, 10), time: "", end: "" };
+    var a = new Date(e.start), b = e.end ? new Date(e.end) : null;
+    if (isNaN(a)) return { date: "", time: "", end: "" };
+    var endHm = b && !isNaN(b) ? (isoOf(b) === isoOf(a) ? hmOf(b) : "23:59") : "";
+    return { date: isoOf(a), time: hmOf(a), end: endHm };
   }
 
   // ---------- habits (0.424.0) ----------
@@ -368,21 +385,28 @@
     });
     return { H: H, due: due, done: done, ice: ice, top: top, rest: rest, wk: wkAll ? Math.round(wkDone * 100 / wkAll) : 0 };
   }
-  function habitLines(st, today) {
+  // The mascot's lines. 0.427.0: today's lines written by Core (GET /my-tasks `coach`) win over the fixed ones; they
+  // carry {placeholders} filled here with the live numbers, so a line stays true as ticks come in during the day.
+  function fillLine(s, v) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return v[k] != null ? String(v[k]) : m; }); }
+  function habitLines(st, today, coach) {
     var M = [], short = function (s) { return String(s).replace(/\s+\d+\s*\S+$/, "").toLowerCase(); };
+    var C = coach && coach.date === today ? coach : null, H = (C && C.head) || {}, CH = (C && C.habits) || {};
+    var say = function (key, k, v) { return H[key] ? fillLine(H[key], v) : tw(k, v); };
     st.H.forEach(function (t) {
       var k = habitCalc(t, today);
-      if (k.frozen) M.push({ mood: "suspicious", tx: tw("nv.h.say.frozen", { name: short(t.title), last: dayWord(k.last, today), next: k.rest ? dayWord(k.next, today) : tw("nv.d.today_low"), n: k.cur }) });
+      if (!k.frozen) return;
+      var v = { name: short(t.title), last: dayWord(k.last, today), next: k.rest ? dayWord(k.next, today) : tw("nv.d.today_low"), n: k.cur };
+      M.push({ mood: "suspicious", tx: CH[t.id] && CH[t.id].frozen ? fillLine(CH[t.id].frozen, v) : tw("nv.h.say.frozen", v) });
     });
-    if (st.due && st.done === st.due) M.push({ mood: "love", tx: tw("nv.h.say.all", { n: st.due }) });
-    else if (st.done) M.push({ mood: "excited", tx: tw("nv.h.say.part", { done: st.done, due: st.due, left: st.due - st.done }) });
+    if (st.due && st.done === st.due) M.push({ mood: "love", tx: say("all", "nv.h.say.all", { n: st.due }) });
+    else if (st.done) M.push({ mood: "excited", tx: say("part", "nv.h.say.part", { done: st.done, due: st.due, left: st.due - st.done }) });
     if (st.top && st.top.k.cur) {
       var nx = MILES.find(function (m) { return m > st.top.k.cur; });
-      if (nx) M.push({ mood: nx - st.top.k.cur <= 3 ? "gang" : "wink", tx: tw("nv.h.say.mile", { left: nx - st.top.k.cur, name: short(st.top.t.title), n: nx }) });
+      if (nx) M.push({ mood: nx - st.top.k.cur <= 3 ? "gang" : "wink", tx: say("mile", "nv.h.say.mile", { left: nx - st.top.k.cur, name: short(st.top.t.title), n: nx }) });
     }
-    if (st.rest.length) M.push({ mood: "sleepy", tx: tw("nv.h.say.rest", { names: st.rest.map(function (t) { return short(t.title); }).join(", ") }) });
-    if (st.wk >= 80) M.push({ mood: "happy", tx: tw("nv.h.say.week", { n: st.wk }) });
-    if (!M.length) M.push({ mood: "curious", tx: tw("nv.h.say.start") });
+    if (st.rest.length) M.push({ mood: "sleepy", tx: say("rest", "nv.h.say.rest", { names: st.rest.map(function (t) { return short(t.title); }).join(", ") }) });
+    if (st.wk >= 80) M.push({ mood: "happy", tx: say("week", "nv.h.say.week", { n: st.wk }) });
+    if (!M.length) M.push({ mood: "curious", tx: say("start", "nv.h.say.start", {}) });
     return M;
   }
   function dayWord(iso, today) {
@@ -439,9 +463,19 @@
     S.notify = (res[2] && res[2].notify) || {};
     S.ai = model({ kanban: res[0] || {}, viec: res[1] || {}, rems: res[2] || {}, watch: res[3] || {}, incidents: res[4] || {}, loopLog: res[5] || {}, brain: b });
     S.my = res[7] && res[7].ok ? res[7] : (S.my || { tasks: [], projects: [] });
-    S.me = mineModel(S.my, S.ai.today, hmOf(new Date()));
+    S.me = mineModel(Object.assign({}, S.my, { gcal: S.gcal || [] }), S.ai.today, hmOf(new Date()));
+    if (!S.calAt || Date.now() - S.calAt > 300000) { S.calAt = Date.now(); loadCal(); }
     applyHidden();
     S.loaded = true;
+  }
+  // 0.427.0: Google Calendar events (read-only) arrive after the page is up, then the Mine lists redraw.
+  async function loadCal() {
+    var r = await getJSON("/my-tasks/calendar?brain=" + encodeURIComponent(brain()) + "&days=14");
+    if (!S || !r || !r.connected) return;
+    S.gcal = r.events || [];
+    S.me = mineModel(Object.assign({}, S.my, { gcal: S.gcal }), S.ai.today, hmOf(new Date()));
+    applyHidden();
+    render();
   }
   // The model of the open tab: the "Mine" lists or the "Javis does" lists.
   function M() { return S.tab === "me" ? S.me : S.ai; }
@@ -549,13 +583,13 @@
     return parts.length ? '<div class="nv-meta">' + parts.map(function (p) { return "<span>" + p + "</span>"; }).join("") + "</div>" : "";
   }
   function runBtn(it, phone) {
-    if (it.src === "mine") return "";
+    if (it.src === "mine" || it.src === "gcal") return "";
     var cls = phone ? "nv-go" : "nv-rgo";
     if (it.st === "run") return '<button type="button" class="' + cls + ' busy" data-act="stop" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.stop")) + '" title="' + esc(tw("nv.a.stop_t")) + '">' + ic("square") + "</button>";
     if (FIN[it.st] || it.st === "ask") return "";
     return '<button type="button" class="' + cls + '" data-act="run" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.run")) + '" title="' + esc(tw("nv.a.run_t")) + '">' + ic("play") + "</button>";
   }
-  function apptColor(it) { var p = proj(it.proj); return p ? p.color : "var(--accent)"; }
+  function apptColor(it) { if (it.gcal) return "#4285f4"; var p = proj(it.proj); return p ? p.color : "var(--accent)"; }
   function overlaps(it) {
     if (!it.appt || it.st === "done" || !it.time || !it.end) return false;
     return S.me.items.some(function (o) { return o !== it && o.appt && o.st !== "done" && o.date === it.date && o.time && o.end && o.time < it.end && it.time < o.end; });
@@ -570,8 +604,8 @@
     if (it.appt) {
       var t = it.raw;
       return '<div class="nv-rw"><button type="button" class="nv-row appt' + (it.st === "done" ? " done" : "") + (it.live ? " live" : "") + (S.sel === it.id ? " sel" : "") + '" data-open="' + esc(it.id) + '">'
-        + '<span class="nv-tm">' + esc(it.time || "") + (it.end ? "<small>" + esc(it.end) + "</small>" : "") + '</span><span class="nv-st"><i class="nv-abar" style="background:' + esc(apptColor(it)) + '"></i></span>'
-        + '<span class="nv-body"><span class="nv-ti">' + esc(it.title) + '</span><div class="nv-meta">' + (t.location ? "<span>" + ic("map-pin") + esc(t.location) + "</span>" : "")
+        + '<span class="nv-tm">' + esc(it.time || (it.gcal ? tw("nv.g.allday") : "")) + (it.end ? "<small>" + esc(it.end) + "</small>" : "") + '</span><span class="nv-st"><i class="nv-abar" style="background:' + esc(apptColor(it)) + '"></i></span>'
+        + '<span class="nv-body"><span class="nv-ti">' + esc(it.title) + '</span><div class="nv-meta">' + (it.gcal ? "<span>" + ic("calendar") + esc(tw("nv.g.src")) + "</span>" : "") + (t.location ? "<span>" + ic("map-pin") + esc(t.location) + "</span>" : "")
         + (it.rep ? "<span>" + ic("repeat") + esc(it.rep) + "</span>" : "") + (t.remind && t.remind !== "0" ? "<span>" + ic("bell") + esc(tw("nv.ap.before", { n: t.remind })) + "</span>" : "")
         + (t.prep ? "<span>" + avatar(CORE, 14) + esc(tw("nv.ap.prep_short")) + "</span>" : "") + (it.proj && S.view !== "proj:" + it.proj ? projTag(it.proj) : "") + "</div></span>"
         + '<span class="nv-chipcol">' + apptChip(it) + "</span></button>"
@@ -799,7 +833,7 @@
     if (P.screen === "detail") {
       var it = find(P.id);
       var more = it ? '<button type="button" class="nv-back" data-act="menu" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button>" : "";
-      return bar(it ? (it.src === "mine" ? (proj(it.proj) || {}).name || tw("nv.tab.me") : agentName(it.who)) : "", more) + '<div class="nv-ppad">' + (it ? detailHtml(it, true) : "") + "</div>";
+      return bar(it ? (it.src === "gcal" ? tw("nv.g.src") : it.src === "mine" ? (proj(it.proj) || {}).name || tw("nv.tab.me") : agentName(it.who)) : "", more) + '<div class="nv-ppad">' + (it ? detailHtml(it, true) : "") + "</div>";
     }
     if (P.screen === "list") {
       var body = viewHtml(P.list).replace(/^<div class="nv-vh">[\s\S]*?<\/div>/, "");
@@ -820,7 +854,7 @@
   // ---------- detail ----------
   function find(id) {
     if (!S.ai || !id) return null;
-    var pools = id.indexOf("m") === 0 ? [S.me] : [S.ai];
+    var pools = id.indexOf("m") === 0 || id.indexOf("g:") === 0 ? [S.me] : [S.ai];
     for (var i = 0; i < pools.length; i++) {
       var m = pools[i];
       // A repeating job has both a recurring entry and an item under the same id: the entry wins (schedule, switch).
@@ -887,7 +921,20 @@
     if (!phone) h += '<div class="nv-sec2"><div class="nv-acts">' + menuButtons(it) + "</div></div>";
     return h;
   }
+  // A Google Calendar event: read-only here, edited in Google.
+  function gcalDetail(it, phone) {
+    var t = it.raw;
+    var h = '<div class="nv-dhead nv-mhead"><i class="nv-abar big" style="background:' + esc(apptColor(it)) + '"></i><h3>' + esc(it.title) + "</h3></div>"
+      + (apptChip(it) ? "<div>" + apptChip(it) + "</div>" : "")
+      + '<div class="nv-sec2">' + kv(tw("nv.ap.start"), esc(t.all_day ? dayLabel(it.date) + ", " + tw("nv.g.allday") : whenIso(it.date, it.time)))
+      + (it.end ? kv(tw("nv.ap.end"), esc(it.end)) : "") + (t.location ? kv(tw("nv.ap.where"), esc(t.location)) : "")
+      + kv(tw("nv.g.from"), esc(t.source || tw("nv.g.src"))) + "</div>"
+      + '<div class="nv-sec2"><div class="nv-from">' + ic("lock") + esc(tw("nv.g.readonly")) + "</div></div>";
+    if (!phone && t.link) h += '<div class="nv-sec2"><div class="nv-acts">' + menuButtons(it) + "</div></div>";
+    return h;
+  }
   function detailHtml(it, phone) {
+    if (it.src === "gcal") return gcalDetail(it, phone);
     if (it.src === "mine") return mineDetail(it, phone);
     var isRep = !!it.sc;
     var r = isRep ? it : S.ai.recurring.find(function (x) { return x.id === it.id; });
@@ -926,12 +973,13 @@
   }
   function drawerHtml(it) {
     return '<div class="nv-scrim" data-act="close"></div><aside class="nv-drawer" role="dialog" aria-modal="true" aria-label="' + esc(tw("nv.detail")) + '">'
-      + '<div class="nv-dh"><span>' + (it.src === "mine" ? ic("circle-user") + esc(tw("nv.tab.me")) : esc(tw("nv.detail"))) + '</span><button type="button" class="nv-x" data-act="close" aria-label="' + esc(tw("nv.close")) + '">' + ic("x") + "</button></div>" + detailHtml(it) + "</aside>";
+      + '<div class="nv-dh"><span>' + (it.src === "mine" || it.src === "gcal" ? ic("circle-user") + esc(tw("nv.tab.me")) : esc(tw("nv.detail"))) + '</span><button type="button" class="nv-x" data-act="close" aria-label="' + esc(tw("nv.close")) + '">' + ic("x") + "</button></div>" + detailHtml(it) + "</aside>";
   }
 
   // ---------- menu ⋯ ----------
   function menuDefs(it) {
     var isRep = !!it.sc, src = it.src, out = [];
+    if (src === "gcal") return it.raw && it.raw.link ? [["gopen", "external-link", "nv.g.open"]] : [];
     if (src === "mine") {
       if (it.id.indexOf("mo:") === 0 || it.id.indexOf("md:") === 0) return [["open", "pencil", "nv.a.edit"]];
       out.push(["edit", "pencil", "nv.a.edit"]);
@@ -1044,7 +1092,7 @@
   }
   function habitHead() {
     var st = habitStats(S.my.tasks, today()); if (!st.H.length) return "";
-    var M = habitLines(st, today()), i = (S.hmsg || 0) % M.length;
+    var M = habitLines(st, today(), S.my.coach), i = (S.hmsg || 0) % M.length;
     var wkc = st.wk >= 80 ? "ok" : st.wk >= 50 ? "mid" : st.wk > 0 ? "low" : "off";
     var tile = function (icon, cls, v, lb) { return '<div class="nv-hs-t ' + cls + '">' + icon + "<b>" + esc(v) + "</b><span>" + esc(lb) + "</span></div>"; };
     var h = '<div class="nv-hs">' + tile(FLAME, st.due && st.done === st.due ? "f" : "f off", st.due ? st.done + "/" + st.due : tw("nv.h.rest_short"), tw("nv.d.today"))
@@ -1338,6 +1386,7 @@
         var wasOn = r.on;
         return act(toggleRep(r, !wasOn), wasOn ? tw("nv.ok.paused") : tw("nv.ok.resumed"), function () { return toggleRep(r, wasOn); });
       }
+      case "m-gopen": S.sheet = null; if (it && it.raw && /^https:\/\//.test(it.raw.link || "")) window.open(it.raw.link, "_blank", "noopener"); return renderLayer();
       case "m-skip": S.sheet = null; return act(postForm("/reminders/skip", { brain: b, id: it.ref }), tw("nv.ok.skip"));
       case "m-edit":
         S.sheet = null;
