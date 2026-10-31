@@ -93,6 +93,24 @@
     return rich;
   }
 
+  function tr(key, vars) {
+    if (typeof window !== "undefined" && typeof window.t === "function") {
+      var translated = window.t(key, vars);
+      if (translated && translated !== key) return translated;
+    }
+    var defaults = {
+      "paste.title": "Xem trước nội dung dán",
+      "paste.note": "{chars} ký tự · {lines} dòng. Chọn dán vào chat hoặc đính kèm tệp; nội dung không bị cắt.",
+      "paste.preview": "Toàn bộ nội dung sẽ dán",
+      "paste.cancel": "Hủy",
+      "paste.attach": "Đính kèm .txt",
+      "paste.inline": "Dán vào chat"
+    };
+    return String(defaults[key] || key).replace(/\{(\w+)\}/g, function (_, k) {
+      return vars && vars[k] != null ? String(vars[k]) : "";
+    });
+  }
+
   function offer(text, onInline, onFile) {
     if (typeof document === "undefined") return false;
     var oldFocus = document.activeElement;
@@ -102,18 +120,17 @@
     dialog.className = "jv-paste-dialog";
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
-    dialog.setAttribute("aria-label", "Xem trước nội dung dán");
+    dialog.setAttribute("aria-label", tr("paste.title"));
     var title = document.createElement("h2");
-    title.textContent = "Xem trước nội dung dán";
+    title.textContent = tr("paste.title");
     var note = document.createElement("p");
-    note.textContent = text.length.toLocaleString("vi-VN") + " ký tự · " +
-      text.split("\n").length.toLocaleString("vi-VN") +
-      " dòng. Chọn dán vào chat hoặc đính kèm tệp, nội dung không bị cắt.";
+    note.textContent = tr("paste.note", { chars: text.length.toLocaleString(),
+      lines: text.split("\n").length.toLocaleString() });
     var preview = document.createElement("textarea");
     preview.className = "jv-paste-preview";
     preview.value = text;
     preview.readOnly = true;
-    preview.setAttribute("aria-label", "Toàn bộ nội dung sẽ dán");
+    preview.setAttribute("aria-label", tr("paste.preview"));
     var actions = document.createElement("div");
     actions.className = "jv-paste-actions";
     function close() {
@@ -130,9 +147,9 @@
       actions.appendChild(b);
       return b;
     }
-    btn("Hủy", "gcard-btn ghost", null);
-    btn("Đính kèm .txt", "gcard-btn ghost", onFile);
-    var paste = btn("Dán vào chat", "gcard-btn", onInline);
+    btn(tr("paste.cancel"), "gcard-btn ghost", null);
+    btn(tr("paste.attach"), "gcard-btn ghost", onFile);
+    var paste = btn(tr("paste.inline"), "gcard-btn", onInline);
     function keydown(e) {
       if (e.key === "Escape") { e.preventDefault(); close(); }
       if (e.key === "Tab") {
