@@ -168,6 +168,23 @@ const ap = M.mineModel({ tasks: [{ id: "a", kind: "appt", title: "Meet", date: T
 check("a finished appointment is done on its own, never overdue", ap.items.find(i => i.id === "m:a").st === "done" && !ap.items.some(i => i.over));
 check("a weekly appointment shows its next date and is listed as recurring", ap.items.some(i => i.id === "mn:w:2026-11-02") && ap.recurring.some(r => r.id === "m:w" && r.appt));
 
+// ---- habit lines written by Core, Google Calendar (0.427.0) ----
+const coach = { date: T0, head: { rest: "Hôm nay {names} được nghỉ, mai làm tiếp nha" }, habits: { r: { frozen: "{name} đang đóng băng, chuỗi {n} ngày chờ bạn" } } };
+const cl = M.habitLines(st, T0, coach);
+check("Core's frozen line wins, filled with today's numbers", cl[0].mood === "suspicious" && cl[0].tx === "read đang đóng băng, chuỗi 9 ngày chờ bạn");
+check("Core's head line wins too", cl.some(l => l.mood === "sleepy" && l.tx === "Hôm nay swim được nghỉ, mai làm tiếp nha"));
+const stale = M.habitLines(st, T0, Object.assign({}, coach, { date: "2026-10-29" }));
+check("yesterday's lines are not used today", stale[0].tx !== cl[0].tx);
+const gm = M.mineModel({ tasks: [], gcal: [
+  { id: "e1", title: "Supplier call", start: "2026-10-30T15:00:00", end: "2026-10-30T15:30:00", location: "Zoom", link: "https://calendar.google.com/x" },
+  { id: "e2", title: "Holiday", start: "2026-11-02", end: "2026-11-03", all_day: true },
+  { id: "e3", title: "Breakfast", start: "2026-10-30T08:00:00", end: "2026-10-30T09:00:00" }] }, T0, "10:30");
+const g1 = gm.items.find(i => i.id === "g:e1"), g2 = gm.items.find(i => i.id === "g:e2"), g3 = gm.items.find(i => i.id === "g:e3");
+check("a calendar event becomes a read-only appointment of the Mine tab", g1 && g1.src === "gcal" && g1.appt && g1.date === T0 && g1.time === "15:00" && g1.end === "15:30" && g1.raw.location === "Zoom");
+check("an all-day event has no time", g2 && g2.date === "2026-11-02" && g2.time === "" && g2.raw.all_day);
+check("a past event is done on its own, never overdue", g3 && g3.st === "done" && !g3.over);
+check("Today lists today's events, Upcoming the later ones", M.inList(g1, "today", T0) && M.inList(g2, "week", T0) && !M.inList(g2, "today", T0));
+
 // no Vietnamese text in the running code of the page (it goes through i18n)
 const js = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "tasks.js"), "utf8");
 check("the nav points to the Tasks page", /ids: \["tasks", "webhooks"\]/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8")));

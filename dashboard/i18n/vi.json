@@ -6481,5 +6481,10 @@
   "nv.nochan.head": "Chưa có kênh báo kết quả",
   "nv.nochan.body": "lời nhắc và loop vẫn chạy đúng giờ nhưng kết quả không tới tay ai",
   "nv.chanerr.head": "Kênh báo kết quả đang lỗi",
-  "nv.nochan.go": "Mở Kênh"
+  "nv.nochan.go": "Mở Kênh",
+  "nv.g.src": "Google Calendar",
+  "nv.g.open": "Mở trong Google Calendar",
+  "nv.g.allday": "Cả ngày",
+  "nv.g.from": "Lịch",
+  "nv.g.readonly": "Lịch từ Google Calendar, chỉ xem ở đây. Muốn sửa thì mở trong Google Calendar."
 }

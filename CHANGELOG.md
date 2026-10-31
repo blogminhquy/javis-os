@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.427.0] - 2026-10-31
 ### Thêm mới
-- (đang viết)
+- **Javis Core tự viết lời nhắn thói quen mỗi ngày.** Ngôi sao và lời nhắc giữ lửa không còn là câu mẫu: Core đọc chuỗi, ngày đóng băng, giờ bạn hay làm rồi viết câu riêng cho từng thói quen. Không có model nền thì vẫn dùng câu mẫu như cũ.
+- **Core tự học kiểu nhắc nào hợp với bạn.** Mỗi lời nhắc ghi lại kiểu đã dùng (động viên, dỗi, thách, nhắc lý do) và bạn có làm trong ngày hay không. Kiểu nào hay khiến bạn làm thì lần sau Core chọn nhiều hơn.
+- **Lịch Google hiện trên tab Của tôi.** Đã kết nối Google Calendar ở trang Kết nối thì sự kiện 14 ngày tới hiện cạnh lịch hẹn của bạn, có báo trùng giờ. Chỉ xem ở đây, bấm mở để sửa trong Google Calendar.
 
 ## [0.426.0] - 2026-10-30
 ### Sửa lỗi

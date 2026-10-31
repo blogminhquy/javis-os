@@ -12741,13 +12741,37 @@ async def _send_voice_file(chat_id, path, brain) -> tuple:
 
 
 import my_tasks as my_tasks_mod
+import gcal_read
+
+
+async def _habit_coach_ask(prompt: str) -> str:
+    """Habit coach (0.427.0): one text-only turn on the background model, like the page watch summary."""
+    if os.environ.get("JAVIS_NO_REAL_JUDGE_ENGINE") == "1":
+        raise RuntimeError("JAVIS_NO_REAL_JUDGE_ENGINE")
+    cli = _reply_policy_sandbox_engine("You write short, warm habit lines as Javis's star mascot. Answer with JSON only.",
+                                       "habit-coach", cwd_name="habit_coach_cwd")
+    base = cli
+    cli = aux_engine.strip_tools(_aux_swap(cli, mode="suggest", tag="habit-coach"), base)
+    if not cli.is_available():
+        raise RuntimeError("background engine not ready")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    return final
+
+
 # The owner's own tasks for the Tasks page, tab "Mine" (0.423.0): one JSON store per brain.
 my_tasks_feature = my_tasks_mod.register(app, my_tasks_mod.MyTasksDeps(
     brain_root=_brain_root, atomic_write_text=_atomic_write_text,
     # Habit reminders (0.424.0) go out like a reminder's report: inbox, Telegram, push.
     scheduler_brains=_background_brains,
     notify=lambda chat_id, text, brain="", dedup="": _notify_owner(chat_id, text, kind="report", source="habit", brain=brain, dedup=dedup),
-    tz=reminders_mod.VN_TZ))
+    tz=reminders_mod.VN_TZ,
+    # 0.427.0: habit lines written by Core, and read-only Google Calendar events.
+    ask=_habit_coach_ask, calendar=gcal_read.events))
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,

@@ -207,7 +207,11 @@ Không có kho riêng: thói quen là việc của tôi có `habit`. Chuỗi, đ
   mức quyền, chu kỳ), tuỳ chọn lời nhắc (gọi điện, đọc thành tiếng, nhớ kết quả lần trước, mức quyền), Javis mở một
   việc Kanban trên màn hình (`JavisTasks.show`), hỏi lại trước khi cấp quyền chạy thật. Bỏ `renderKanban`,
   `renderSelfImprove` cùng chuỗi và test chỉ soi mã của chúng.
-- Còn lại cho bản sau:
-  - Lời nhắn thói quen do Core viết bằng model mỗi ngày. Hiện dùng câu mẫu theo số thật, và giờ nhắc học từ giờ người
-    dùng hay tích (trung vị 30 lần gần nhất).
-  - Đọc Google Calendar (chỉ đọc) khi có MCP lịch.
+- 0.427.0: hai phần còn lại.
+  - Lời nhắn thói quen do Core viết: mỗi ngày (lượt tick đầu sau 05:00, một lần) model nền viết câu cho đầu mục và cho
+    từng thói quen vào `<brain>/Javis/habit-coach.json`, có chỗ trống `{n}`, `{left}`... để trang điền số thật. Mỗi lời
+    nhắc ghi kiểu (cheer, sulk, challenge, why) vào `log`; tích trong ngày đánh dấu là có hiệu quả; prompt hôm sau mang
+    tỉ lệ từng kiểu. Câu quá dài, có gạch dài, hay chỗ trống lạ thì bỏ, dùng câu mẫu.
+  - Google Calendar chỉ đọc: `server/gcal_read.py` tìm kết nối lịch (Google Calendar, Google Workspace, kết nối tự thêm
+    tên có calendar), tự chọn tool liệt kê sự kiện và điền khung giờ theo schema của chính tool đó.
+    `GET /my-tasks/calendar` (cache 5 phút); trang ghép sự kiện vào tab Của tôi với id `g:`.

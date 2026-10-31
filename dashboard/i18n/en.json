@@ -6481,5 +6481,10 @@
   "nv.nochan.head": "No channel for results",
   "nv.nochan.body": "reminders and loops still run on time but their results reach no one",
   "nv.chanerr.head": "The results channel has a problem",
-  "nv.nochan.go": "Open Channels"
+  "nv.nochan.go": "Open Channels",
+  "nv.g.src": "Google Calendar",
+  "nv.g.open": "Open in Google Calendar",
+  "nv.g.allday": "All day",
+  "nv.g.from": "Calendar",
+  "nv.g.readonly": "From Google Calendar, view only here. Open it in Google Calendar to edit."
 }

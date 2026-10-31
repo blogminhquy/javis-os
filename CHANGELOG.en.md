@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.427.0] - 2026-10-31
 ### Added
-- (in progress)
+- **Javis Core writes the habit lines every day.** The star and the habit reminders are no longer fixed sentences: Core reads each streak, frozen days and your usual time, and writes a line for each habit. Without a background model the fixed lines stay.
+- **Core learns which nudge works for you.** Each reminder records its style (cheer, sulk, challenge, remind why) and whether you did the habit that day. Styles that get you moving are picked more often.
+- **Google Calendar on the Mine tab.** With Google Calendar connected on the Connections page, the next 14 days of events sit next to your appointments, overlaps flagged. View only here; open one to edit it in Google Calendar.
 
 ## [0.426.0] - 2026-10-30
 ### Fixed
