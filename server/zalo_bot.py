@@ -57,6 +57,7 @@ MAX_TIN = 1900
 TYPING_MOI_GIAY = 4.0     # chưa đo được Zalo tắt chấm sau bao lâu; lấy nhịp an toàn như Telegram
 MAX_DEDUPE = 2000         # số message_id nhớ để chống trùng
 MAX_TAI_MB = 20           # trần tải file người dùng gửi lên, tự đặt (Zalo chưa công bố)
+_HET_TU = r"(?![A-Za-zÀ-ỹ0-9_])"   # a name ends where no letter or digit follows ("BotShopVN" does not call "BotShop")
 
 # Sự kiện Zalo bắn ra. `unsupported` là loại Zalo cố ý không chuyển nội dung.
 SK_TEXT = "message.text.received"
@@ -151,8 +152,11 @@ class ZaloBot(HangLuot):
 
     def __init__(self, token, chat_id, answer_fn, command_fn=None,
                  download_dir=None, commands=None, precheck_fn=None, event_fn=None,
-                 giau_trang_thai=False, stt_fn=None):
+                 giau_trang_thai=False, stt_fn=None, cfg_fn=None):
         self.token = token
+        # Live chatbot config (#885): the names the owner gave this bot in Javis, read on every message so a rename on
+        # the Chatbot page applies at once. None for the owner's own bot (main.py), which only knows its handle.
+        self.cfg_fn = cfg_fn
         self.giau_trang_thai = bool(giau_trang_thai)
         self.chat_ids = parse_chat_ids(chat_id)
         # Zalo không có `setMyCommands`. Nhận tham số để chỗ gọi dùng chung một khuôn, nhưng
@@ -363,12 +367,35 @@ class ZaloBot(HangLuot):
 
         Hạn chế đã biết: hai bot cùng tiền tố tên trong một nhóm sẽ cùng lên tiếng. Hiện chưa
         chạm tới ai vì gói bot cơ bản của Zalo không cho bot vào nhóm.
+
+        #885: `getMe` only returns the handle (`account_name`, e.g. "bot.VDKyGxQvc"), while people tag the bot by its
+        display name ("@Bot Nori VQT Piano"), which no Zalo API returns. So a tag also counts when "@" is followed by
+        a name the owner gave this bot in Javis (`_ten_tag`). Those names need the "@": a bare "Nori" in a group is
+        often a person, and the reply policy already handles bare names with its own rules.
         """
+        s = " ".join(str(msg.get("text") or msg.get("caption") or "").split())
         ten = str(self.bot_username or "").strip()
-        if not ten:
-            return False
-        s = str(msg.get("text") or msg.get("caption") or "")
-        return bool(re.search(re.escape(ten) + r"(?![A-Za-zÀ-ỹ0-9_])", s, re.I))
+        if ten and re.search(re.escape(ten) + _HET_TU, s, re.I):
+            return True
+        return any(re.search("@ ?" + re.escape(t) + _HET_TU, s, re.I) for t in self._ten_tag())
+
+    def _ten_tag(self):
+        """Names a group tag may carry for this bot: its Javis name, the same name with Zalo's mandatory "Bot "
+        prefix (Zalo requires a bot name to start with "Bot"), and the owner's call names. Whitespace collapsed."""
+        try:
+            cfg = (self.cfg_fn() if self.cfg_fn else None) or {}
+        except Exception:  # noqa: BLE001 - a config read error only drops the extra names
+            cfg = {}
+        rp = cfg.get("reply_policy") if isinstance(cfg.get("reply_policy"), dict) else {}
+        out = []
+        for n in [cfg.get("name")] + list(rp.get("aliases") or []):
+            n = " ".join(str(n or "").split())
+            if not n:
+                continue
+            out.append(n)
+            if not n.lower().startswith("bot "):
+                out.append("Bot " + n)
+        return out
 
     # ---- File người dùng gửi lên ------------------------------------------------------
     async def _nghe_tin_thoai(self, client, msg, caption):

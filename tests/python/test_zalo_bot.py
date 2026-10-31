@@ -106,6 +106,24 @@ check("chưa biết tên mình thì không nhận bừa", not bot()._co_nhac_ten
 check("nhận hơi rộng là CỐ Ý (tên nối bằng khoảng trắng vẫn tính là được gọi)",
       b5._co_nhac_ten({"text": "Bot Shop VN cho hỏi giá"}))
 
+# #885: getMe only gives the handle; a group tag carries the display name, matched against the bot's Javis names.
+cfg = {"name": "Nori VQT Piano", "reply_policy": {"aliases": ["cô Nori"]}}
+b7 = bot(cfg_fn=lambda: cfg)
+b7.bot_username = "bot.baMmUmzw"
+check("#885: a tag by display name (Zalo's 'Bot ' prefix + Javis name) is a call",
+      b7._co_nhac_ten({"text": "@Bot Nori VQT Piano cho hỏi lịch học"}))
+check("#885: double spaces inside the tag still match", b7._co_nhac_ten({"text": "@Bot  Nori   VQT Piano ơi"}))
+check("#885: a tag by the exact Javis name or an owner alias is a call",
+      b7._co_nhac_ten({"text": "@Nori VQT Piano"}) and b7._co_nhac_ten({"text": "hỏi @cô Nori nhé"}))
+check("#885: the Javis name without '@' is not a tag (a person may share it)",
+      not b7._co_nhac_ten({"text": "Nori VQT Piano học hôm nay vui lắm"}))
+check("#885: a longer name glued on is not this bot", not b7._co_nhac_ten({"text": "@Bot Nori VQT PianoX"}))
+check("#885: the handle still works", b7._co_nhac_ten({"text": "bot.baMmUmzw ơi"}))
+cfg["name"] = "Bot Mai"
+check("#885: a rename on the Chatbot page applies at once, no double 'Bot'",
+      b7._co_nhac_ten({"text": "@Bot Mai ơi"}) and not b7._co_nhac_ten({"text": "@Bot Nori VQT Piano"}))
+check("#885: a broken config read keeps the handle path", bot(cfg_fn=lambda: 1 / 0)._co_nhac_ten({"text": "x"}) is False)
+
 
 # ---- 5. Chạy trọn một lượt với client HTTP giả ----
 
