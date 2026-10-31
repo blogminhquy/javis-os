@@ -7,7 +7,10 @@ starts. The message must lead with the recovery (the runner keeps 300 characters
 assistant, offer only providers that can run the step, and never suggest full mode.
 """
 from _paths import ROOT, SERVER  # noqa: F401
+import localefmt
 import team_gate
+
+localefmt.dat_ngon_ngu_yeu_cau("vi")   # the checks below read the Vietnamese text; English has its own test
 
 # What the team runner and the job list do with the text (team_runner `_run_turn`, agent_jobs `_excerpt`).
 RUNNER_PREFIX = "Trợ lý gặp lỗi khi làm: Không dựng được engine: "
@@ -42,6 +45,18 @@ def test_no_connected_choice_sends_to_models():
 def test_at_most_three_choices():
     msg = team_gate.unsupported_text("x", choices=("A", "B", "C", "D", ""))
     assert "A, B hoặc C" in msg and "D" not in msg.split("Lý do")[0]
+
+
+def test_english_screen():
+    token = localefmt.dat_ngon_ngu_yeu_cau("en")
+    try:
+        msg = team_gate.unsupported_text("x", assistant="Writer", choices=("Claude Code", "OpenRouter"))
+        bare = team_gate.unsupported_text("x")
+    finally:
+        localefmt.bo_ngon_ngu_yeu_cau(token)
+    assert msg.startswith("This step did not run.") and "switch Writer to Claude Code or OpenRouter" in msg, msg
+    assert "Try again" in msg and "Partners page" in msg
+    assert "Models page" in bare and "the assistant of this step" in bare
 
 
 def test_gate_contract_unchanged():
