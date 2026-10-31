@@ -58,6 +58,7 @@ from fastapi import APIRouter, Body, Form, Query
 import cron_util
 import channel_context   # bóc khối JAVIS_* trước khi gửi Telegram - kênh chữ, không phải web
 import once_ledger       # outside actions of one firing run once, across retries (0.238.0)
+import work_log          # one line per finished run, for the Tasks page stats (0.428.0)
 import turn_context
 
 
@@ -791,6 +792,7 @@ class RemindersFeature:
         retry_at = 0.0           # > 0: this failed run is tried again at that time
         run_failed = False       # the run itself produced nothing usable (set per mode below)
         stopped = False          # the owner stopped this run (POST /reminders/stop)
+        t0 = _now()
         if mode == "task":
             previous = ""
             if rem.get("remember_last") and rem.get("result") and float(rem.get("fired_at") or 0) > 0:
@@ -935,6 +937,9 @@ class RemindersFeature:
                 except Exception as e:
                     print(f"[reminders] voice note not sent: {type(e).__name__}: {e}", file=sys.stderr)
 
+        work_log.append(str(self.deps.brain_root(brain)), "reminder", str(rem.get("id") or ""), head,
+                        "stopped" if stopped else "retry" if retry_at else "fail" if (run_failed or not ok) else "ok",
+                        seconds=_now() - t0, mode=mode)
         # Cập nhật trạng thái: cron → lần kế · repeat_min → dời hạn · else done/failed.
         async with self._io:
             data = self._load(brain)

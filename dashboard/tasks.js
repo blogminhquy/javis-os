@@ -495,7 +495,7 @@
     var busy = S.ai && (S.ai.items.some(function (i) { return i.st === "run"; }) || S.ai.recurring.some(function (r) { return r.running; }));
     S.poll = setTimeout(async function () {
       if (!S || !document.body.contains(S.root)) return;
-      if (document.hidden || S.sheet || S.layer || S.sel) { schedulePoll(); return; }
+      if (document.hidden || S.sheet || S.layer || S.sel || (window.JavisTaskStats && window.JavisTaskStats.isEditing())) { schedulePoll(); return; }
       await load(); render(); schedulePoll();
     }, busy ? 5000 : 30000);
   }
@@ -661,6 +661,7 @@
     return '<div class="nv-day over-h">' + esc(tw("nv.l.over")) + " <span>" + L.length + "</span>" + (overBtn() ? '<span class="nv-grow1"></span>' + overBtn() : "") + "</div>" + L.sort(byTime).map(row).join("");
   }
   function viewTitle(v) {
+    if (v === "stats") return tw(S.tab === "me" ? "nv.sta.title_me" : "nv.sta.title_ai");
     if (v.indexOf("who:") === 0) return agentName(v.slice(4));
     if (v.indexOf("proj:") === 0) { var p = proj(v.slice(5)); return p ? p.name : ""; }
     var L = lists().find(function (x) { return x[0] === v; });
@@ -670,6 +671,7 @@
     if (S.tab === "me") return { today: "nv.empty.me_today", over: "nv.empty.over", rep: "nv.empty.me_rep", done: "nv.empty.done", nodate: "nv.empty.nodate" }[v] || "nv.empty.list";
     return { today: "nv.empty.today", over: "nv.empty.over", rep: "nv.empty.rep", done: "nv.empty.done" }[v] || "nv.empty.list";
   }
+  function statsCtx() { return { tab: S.tab, brain: brain(), redraw: function () { if (S) render(); }, avatar: avatar }; }
   function viewHtml(v) {
     var h = '<div class="nv-vh"><h2>' + esc(viewTitle(v)) + "</h2>" + (v === "over" ? overBtn() : "") + "</div>";
     var empty = '<div class="nv-empty">' + esc(tw(emptyKey(v))) + "</div>";
@@ -678,6 +680,7 @@
       return h + (R.length ? R.map(function (r) { return repRow(r); }).join("") : empty);
     }
     if (v === "habit") return h + habitView();
+    if (v === "stats") return h + (window.JavisTaskStats ? window.JavisTaskStats.html(statsCtx()) : "");
     if (v === "err") return h + failsHtml();
     if (v === "log") return h + logHtml();
     if (v === "today") {
@@ -802,14 +805,17 @@
       var n = c[L[0]];
       return '<button type="button" class="nv-li' + (S.view === L[0] ? " on" : "") + '" data-view="' + L[0] + '">' + ic(L[1], L[3]) + '<span class="nv-lbl">' + esc(tw(L[2])) + '</span><span class="nv-n' + ((L[0] === "over" || L[0] === "err") && n ? " warn" : "") + '">' + (n || "") + "</span></button>";
     }).join("");
+    // 0.428.0: Stats closes the lists of both tabs.
+    h += '<div class="nv-sep"></div><button type="button" class="nv-li' + (S.view === "stats" ? " on" : "") + '" data-view="stats">' + ic("chart-column", S.tab === "me" ? "c-stme" : "c-stai") + '<span class="nv-lbl">' + esc(tw("nv.sta.menu")) + "</span></button>";
     return h + groupHtml(false);
   }
   function tabsHtml() {
     var nMe = S.me.items.filter(function (i) { return !FIN[i.st] && !i.over && (i.date === today() || !i.date); }).length;
     var nAi = S.ai.items.filter(function (i) { return !FIN[i.st]; }).length;
     return '<div class="nv-tabs" role="tablist">'
-      + '<button type="button" role="tab" data-act="tab" data-v="me" aria-selected="' + (S.tab === "me") + '" class="' + (S.tab === "me" ? "on" : "") + '">' + ic("circle-user") + "<span>" + esc(tw("nv.tab.me")) + '</span><span class="nv-n">' + nMe + "</span></button>"
-      + '<button type="button" role="tab" data-act="tab" data-v="ai" aria-selected="' + (S.tab === "ai") + '" class="' + (S.tab === "ai" ? "on" : "") + '">' + avatar(CORE, 18) + "<span>" + esc(tw("nv.tab.ai")) + '</span><span class="nv-n">' + nAi + "</span></button></div>";
+      // 0.428.0: Javis's tasks first (owner: opening the page shows what Javis is doing), then mine.
+      + '<button type="button" role="tab" data-act="tab" data-v="ai" aria-selected="' + (S.tab === "ai") + '" class="' + (S.tab === "ai" ? "on" : "") + '">' + avatar(CORE, 18) + "<span>" + esc(tw("nv.tab.ai")) + '</span><span class="nv-n">' + nAi + "</span></button>"
+      + '<button type="button" role="tab" data-act="tab" data-v="me" aria-selected="' + (S.tab === "me") + '" class="' + (S.tab === "me" ? "on" : "") + '">' + ic("circle-user") + "<span>" + esc(tw("nv.tab.me")) + '</span><span class="nv-n">' + nMe + "</span></button></div>";
   }
   function renderDesk() {
     var D = S.root.querySelector(".nv-desk");
@@ -841,7 +847,8 @@
     }
     var c = counts();
     var h = '<div class="nv-ppad">' + askBar() + '<div class="nv-pcards">';
-    h += lists().map(function (L) { return '<button type="button" class="nv-pl" data-pl="' + L[0] + '">' + ic(L[1], L[3]) + '<span class="nv-lbl">' + esc(tw(L[2])) + '</span><span class="nv-n">' + (c[L[0]] || "") + "</span>" + ic("chevron-right", "nv-chev") + "</button>"; }).join("");
+    h += lists().map(function (L) { return '<button type="button" class="nv-pl" data-pl="' + L[0] + '">' + ic(L[1], L[3]) + '<span class="nv-lbl">' + esc(tw(L[2])) + '</span><span class="nv-n">' + (c[L[0]] || "") + "</span>" + ic("chevron-right", "nv-chev") + "</button>"; }).join("")
+      + '<button type="button" class="nv-pl" data-pl="stats">' + ic("chart-column", S.tab === "me" ? "c-stme" : "c-stai") + '<span class="nv-lbl">' + esc(tw("nv.sta.menu")) + '</span><span class="nv-n"></span>' + ic("chevron-right", "nv-chev") + "</button>";
     return h + "</div>" + groupHtml(true) + "</div>";
   }
   function renderPhone() {
@@ -1489,7 +1496,7 @@
     var r = t.date || t.repeat ? await createReminder(t.title + (t.notes ? "\n" + t.notes : ""), "do", t.date, t.time, t.repeat)
       : await postForm("/kanban/task", { brain: brain(), title: t.title.slice(0, 120), intent: t.title + (t.notes ? "\n" + t.notes : ""), priority: 2 });
     if (!r || r.ok === false) { if (r) toast(r.error || tw("nv.err.generic")); return; }
-    var del = await mine({ __url: "/my-tasks/delete", id: t.id });
+    var del = await mine({ __url: "/my-tasks/delete", id: t.id, handoff: true });
     await load(); render();
     toast(tw("nv.ok.tojavis"), function () {
       var cancel = t.date || t.repeat ? postForm("/reminders/delete", { brain: brain(), id: r.id }) : postForm("/kanban/task/delete", { brain: brain(), id: r.id });
@@ -1526,7 +1533,7 @@
   function setTab(tab) {
     S.tab = tab; lsSet("tab", tab);
     S.view = lsGet("view." + tab, "today");
-    if (!lists().some(function (L) { return L[0] === S.view; }) && S.view.indexOf(tab === "me" ? "proj:" : "who:") !== 0) S.view = "today";
+    if (S.view !== "stats" && !lists().some(function (L) { return L[0] === S.view; }) && S.view.indexOf(tab === "me" ? "proj:" : "who:") !== 0) S.view = "today";
     S.sel = null; S.phone = { screen: "home" }; render();
   }
   function openDetail(oid) {
@@ -1548,6 +1555,9 @@
       if (act_ === "fset") { keepFormText(); S.form[a.dataset.k] = a.dataset.v;
         if (a.dataset.k === "kind" && a.dataset.v === "appt") { S.form.who = "me"; if (!S.form.date) S.form.date = today(); if (!S.form.time) S.form.time = fromMin(Math.ceil((toMin(hmOf(new Date())) + 30) / 30) * 30); } if (a.dataset.k === "who" && a.dataset.v === "me" && S.form.rule && (S.form.rule.unit === "min" || S.form.rule.unit === "hour")) S.form.rule = null; renderLayer(); return; }
       if (act_ === "new") { openForm(null); return; }
+      if (act_ === "st-range") { if (window.JavisTaskStats) window.JavisTaskStats.openRange(a, statsCtx()); return; }
+      if (act_ === "st-mins") { if (window.JavisTaskStats) window.JavisTaskStats.toggleMinutes(statsCtx()); return; }
+      if (act_ === "st-give") { var gi = find(id); if (gi) { giveToJavis(gi).then(function () { if (window.JavisTaskStats) window.JavisTaskStats.refresh(); render(); }); } return; }
       if (act_ === "pick-date" || act_ === "pick-rep") { if (id === "new") keepFormText(); }
       doAct(act_, id, a);
       return;
@@ -1591,6 +1601,7 @@
     e.preventDefault();
     var b = brain();
     if (f.dataset.form) return submitForm();
+    if (f.dataset.stmins && window.JavisTaskStats) return window.JavisTaskStats.saveMinutes(f, statsCtx());
     if (f.dataset.pform) {
       var name = S.root.querySelector("#nvPName").value.trim(); if (!name) return;
       var sh = S.sheet; S.sheet = null;
@@ -1616,7 +1627,7 @@
 
   async function mount(el) {
     if (S) unmount();
-    var tab = lsGet("tab", "me") === "ai" ? "ai" : "me";
+    var tab = "ai";   // 0.428.0: the page always opens on Javis's tasks; each tab still remembers its list
     S = { root: el, tab: tab, view: lsGet("view." + tab, "today"), q: "", sel: null, layer: null, sheet: null, form: null, hidden: {}, showDone: false,
       hmsgHide: lsGet("hmsgx", "") === isoOf(new Date()), moreWho: lsGet("moreWho", "") === "1", moreProj: lsGet("moreProj", "") === "1", phone: { screen: "home" }, agents: null, ai: null, me: null, my: null };
     var legacy = lsGet("view", "");   // the old Scheduled link sets "rep" for the Javis tab
@@ -1637,7 +1648,7 @@
     el.querySelector("#nvQ").addEventListener("input", function (e) { S.q = e.target.value; S.root.querySelector(".nv-view").innerHTML = viewHtml(S.view); });
     await load();
     if (!S || S.root !== el) return;
-    if (!lists().some(function (L) { return L[0] === S.view; }) && S.view.indexOf(S.tab === "me" ? "proj:" : "who:") !== 0) S.view = "today";
+    if (S.view !== "stats" && !lists().some(function (L) { return L[0] === S.view; }) && S.view.indexOf(S.tab === "me" ? "proj:" : "who:") !== 0) S.view = "today";
     render(); schedulePoll();
   }
   function unmount() {

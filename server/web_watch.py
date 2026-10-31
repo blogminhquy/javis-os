@@ -38,6 +38,8 @@ import time
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
+
+import work_log   # each alert is a finished piece of work for the Tasks page stats (0.428.0)
 from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
@@ -716,6 +718,8 @@ class WebWatchFeature:
             except Exception as e:  # noqa: BLE001 - tóm tắt hỏng thì vẫn báo bản thô
                 print(f"[web_watch] tóm tắt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         text = "\n".join(x for x in (alert["title"], than, alert.get("url") or "") if x)
+        if w.get("brain"):
+            work_log.append(w["brain"], "watch", w.get("id") or "", w.get("title") or "", "fail" if alert.get("failed") else "ok")
         try:
             await self.deps.send(
                 w.get("owner_chat") or "", text,

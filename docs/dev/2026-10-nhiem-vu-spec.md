@@ -215,3 +215,10 @@ Không có kho riêng: thói quen là việc của tôi có `habit`. Chuỗi, đ
   - Google Calendar chỉ đọc: `server/gcal_read.py` tìm kết nối lịch (Google Calendar, Google Workspace, kết nối tự thêm
     tên có calendar), tự chọn tool liệt kê sự kiện và điền khung giờ theo schema của chính tool đó.
     `GET /my-tasks/calendar` (cache 5 phút); trang ghép sự kiện vào tab Của tôi với id `g:`.
+- 0.428.0: Thống kê cho cả hai tab (thiết kế chủ dự án duyệt 31/10/2026), tab Việc của Javis đứng đầu và mở ra trước.
+  - `GET /tasks/stats?brain&from&to` (`server/task_stats.py`): việc Kanban từ `task_events`, loop từ `Javis/loop-log`,
+    lời nhắc và theo dõi trang từ `Javis/work-log.jsonl` (`server/work_log.py`, ghi từ bản này), việc của tôi từ
+    my_tasks. So với kỳ liền trước cùng độ dài, 8 tuần, bản đồ 84 ngày.
+  - Thời gian trả lại = số việc xong của từng loại nhân số phút chủ đặt (`POST /tasks/stats/minutes`), không quy ra tiền.
+  - my_tasks ghi thêm `moves` (dời việc một lần sang ngày sau) và `log.handoffs` (Giao cho Javis).
+  - Trang: `dashboard/tasks-stats.js`, bộ chọn khoảng thời gian dùng chung `date-range.js` + `date-range.css`.
