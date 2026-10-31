@@ -13,7 +13,8 @@
   }
   function isMarkdown(text) {
     return /(^|\n)\s{0,3}(#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s|\|[^\n]+\|\s*$)/m.test(text) ||
-      /(\*\*[^*\n]+\*\*|~~[^~\n]+~~|(^|\n)\\x60{3})/m.test(text);
+      /(\*\*[^*\n]+\*\*|~~[^~\n]+~~)/m.test(text) ||
+      text.includes(String.fromCharCode(96).repeat(3));
   }
   function htmlToMarkdown(html) {
     if (!html || typeof DOMParser === "undefined" || html.length > 1000000) return "";
