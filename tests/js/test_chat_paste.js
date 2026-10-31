@@ -72,6 +72,9 @@ check("integration keeps full plaintext payload and uses readable choice", () =>
   assert.match(app, /window\.JavisPaste\.isMarkdown\(text\)/);
   assert.match(app, /window\.mdToHtml\(text\)/);
   assert.match(app, /div\.dataset\.text = text \|\| ""/);
+  const teams = fs.readFileSync(path.resolve(__dirname, "../../dashboard/teams.js"), "utf8");
+  assert.ok(teams.includes("paste.offer(content, insert, attachText)"));
+  assert.ok(teams.includes("window.JavisPaste.isMarkdown(rest)"));
 });
 check("preview choices and sanitizing are wired", () => {
   const src = fs.readFileSync(path.resolve(__dirname, "../../dashboard/chat-paste.js"), "utf8");
