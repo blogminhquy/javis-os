@@ -4699,3 +4699,10 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .msg-user .bubble .utext.markdown .md-tablewrap { overflow-x: auto; max-width: 100%; }
 .msg-user .bubble .utext.markdown :first-child { margin-top: 0; }
 .msg-user .bubble .utext.markdown :last-child { margin-bottom: 0; }
+
+/* Team owner messages use the same Markdown renderer as the main chat. */
+.tm-text.utext.markdown { white-space: normal; min-width: 0; }
+.tm-text.utext.markdown :is(h1,h2,h3,h4,h5,h6) { font-size: 17px; margin: 10px 0 5px; line-height: 1.4; }
+.tm-text.utext.markdown :is(p,ul,ol,blockquote) { margin: 7px 0; }
+.tm-text.utext.markdown :is(ul,ol) { padding-left: 22px; }
+.tm-text.utext.markdown .md-tablewrap { max-width: 100%; overflow-x: auto; }
