@@ -1,4 +1,10 @@
 {
+  "paste.title": "Xem trước nội dung dán",
+  "paste.note": "{chars} ký tự · {lines} dòng. Chọn dán vào chat hoặc đính kèm tệp; nội dung không bị cắt.",
+  "paste.preview": "Toàn bộ nội dung sẽ dán",
+  "paste.cancel": "Hủy",
+  "paste.attach": "Đính kèm .txt",
+  "paste.inline": "Dán vào chat",
   "app.voice_focus_mic_busy": "Mic chưa đóng xong. Bấm mic để mở lại đàm thoại.",
   "app.voice_focus_waiting": "Cứ nói hoặc bấm để tiếp tục",
   "app.voice_focus_click": "Bấm để tiếp tục đàm thoại",

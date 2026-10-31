@@ -99,8 +99,9 @@ const tj = read("teams.js");
 check("paste and drop on the team page land in the team, not the hidden main chat",
   tj.includes('el.setAttribute("data-localdrop", "")') && tj.includes('el.addEventListener("paste", onPaste)')
   && tj.includes('el.addEventListener("drop", onDrop)') && /e\.preventDefault\(\); e\.stopPropagation\(\);\n\s+attachGrabbed\(files\);/.test(tj));
-check("a very long paste becomes a .txt document like the main chat",
-  tj.includes("var PASTE_TXT_CHARS = 1500, PASTE_TXT_LINES = 25;") && tj.includes('"van-ban-dan-"'));
+check("long paste shows a preview and lets the owner choose, like the main chat",
+  tj.includes("paste.isLong(content)") && tj.includes("paste.offer(content, insert, attachText)")
+  && tj.includes('"van-ban-dan-"') && !tj.includes("var PASTE_TXT_CHARS = 1500"));
 check("pasted bytes are copied while the event runs (phones)", tj.includes("function grabFile(f)") && tj.includes("f.arrayBuffer()"));
 check("a picture chip shows the picture", tj.includes('<img class="tm-chip-thumb" src="') && tj.includes("URL.revokeObjectURL"));
 const mem = [{ agent_key: "a", name: "Lan" }, { agent_key: "b", name: "Minh Anh" }, { agent_key: "c", name: "Hoa", status: "removed" }];

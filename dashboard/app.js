@@ -2450,8 +2450,13 @@ function appendUserMessage(text, attachments, ts) {
   const attHtml = attachHtml(attachments);
   // Tin dài (>10 dòng hoặc >900 ký tự) thu gọn lại, bấm "Xem thêm" để mở (chat-acts.js, dùng chung với trang Nhóm)
   const isLong = window.JavisActs.isLongText(text);
+  const useMarkdown = !!(window.JavisPaste && window.JavisPaste.isMarkdown(text) &&
+    typeof window.mdToHtml === "function");
+  const userHtml = useMarkdown
+    ? window.mdToHtml(text)
+    : (window.JavisQuote ? window.JavisQuote.utextHtml(text, escapeHtml) : escapeHtml(text));
   const textHtml = text
-    ? `<div class="utext${isLong ? " clamped" : ""}">${window.JavisQuote ? window.JavisQuote.utextHtml(text, escapeHtml) : escapeHtml(text)}</div>` +
+    ? `<div class="utext${useMarkdown ? " markdown" : ""}${isLong ? " clamped" : ""}">${userHtml}</div>` +
       (isLong ? window.JavisActs.clampButtonHtml(false) : "")
     : "";
   div.innerHTML = `<div class="bubble">${textHtml}${attHtml}</div>` +
@@ -4015,11 +4020,8 @@ window.JavisAttach = {
   note: (s) => { attachNote = String(s || ""); renderChips(); },
 };
 
-// Dán ảnh (Ctrl+V) + dán VĂN BẢN SIÊU DÀI thành file .txt đính kèm (kiểu Claude):
-// bài dài nhồi thẳng vào ô chat vừa khó đọc vừa nặng khung hội thoại - biến thành
-// file thì Javis đọc trọn vẹn còn màn hình chỉ hiện một chip gọn.
-const PASTE_TXT_CHARS = 1500;   // vượt MỘT trong hai ngưỡng là thành file
-const PASTE_TXT_LINES = 25;
+// Dán vào chat: giữ chữ nhìn thấy được. Từ 12.000 ký tự / 150 dòng trở lên
+// hỏi chủ muốn dán trực tiếp hay đính kèm .txt, KHÔNG tự biến chữ thành một chip mù.
 function pasteAsTxt(text) {
   const d = new Date(), p = n => String(n).padStart(2, "0");
   const name = `van-ban-dan-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.txt`;
@@ -4032,16 +4034,28 @@ document.addEventListener("paste", (e) => {
   for (const it of items) {
     if (it.kind === "file") {
       const f = it.getAsFile();
-      if (f) { chupFile(f).then(uploadFile); e.preventDefault(); }   // 0.65.30: chép ngay, như lúc thả
+      if (f) { chupFile(f).then(uploadFile); e.preventDefault(); }
     }
   }
-  // Văn bản dài: CHỈ khi đang dán vào ô chat - không cướp paste của các ô khác
-  // (form Kết nối, đặt tên brain...). Ô chat ngắn vẫn dán chữ bình thường.
+  // Chỉ ô chat. Các form hệ thống khác giữ hành vi Ctrl+V thông thường.
   if (e.defaultPrevented || e.target !== chatInput) return;
-  const txt = e.clipboardData.getData("text/plain") || "";
-  if (txt.length > PASTE_TXT_CHARS || txt.split("\n").length > PASTE_TXT_LINES) {
+  const plain = e.clipboardData.getData("text/plain") || "";
+  const html = e.clipboardData.getData("text/html") || "";
+  const paste = window.JavisPaste;
+  const text = paste ? paste.prepare(plain, html) : plain;
+  if (!text) return;
+  const range = { start: chatInput.selectionStart, end: chatInput.selectionEnd };
+  const insert = value => {
+    chatInput.focus();
+    chatInput.setRangeText(value, range.start, range.end, "end");
+    chatInput.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  if (paste && paste.isLong(text)) {
     e.preventDefault();
-    pasteAsTxt(txt);
+    paste.offer(text, insert, pasteAsTxt);
+  } else if (text !== plain) {
+    e.preventDefault();
+    insert(text);
   }
 });
 
