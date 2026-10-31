@@ -550,6 +550,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         last = time.monotonic()
         busy = 0
         final_text = ""
+        messages = []          # this turn's agent messages; `final` leaves the lead-ins out (cc.codex_answer_text)
         tok_in = tok_out = tok_cache = 0
         error_msg = ""
         sandbox_broken = False
@@ -629,6 +630,8 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     yield {"type": "text", "content": d}
             elif method == "item/started":
                 it = p.get("item") or {}
+                if it.get("type") in TOOL_TYPES or it.get("type") == "fileChange":
+                    cc.codex_mark_step(messages)
                 if it.get("type") in TOOL_TYPES:
                     busy += 1
                     ran_command = ran_command or it.get("type") == "commandExecution"
@@ -640,13 +643,14 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                 if t == "agentMessage":
                     txt = engine_mod.strip_provider_markers(it.get("text") or "")
                     if txt.strip():
-                        final_text += (("\n" if final_text else "") + txt)
+                        messages.append({"text": txt, "phase": it.get("phase")})
                         if str(it.get("id") or "") not in streamed:
                             if shown_any:
                                 yield {"type": "text", "content": "\n"}
                             shown_any = True
                             yield {"type": "text", "content": txt}
                 elif t in TOOL_TYPES:
+                    cc.codex_mark_step(messages)
                     busy = max(0, busy - 1)
                     ran_command = ran_command or t == "commandExecution"
                     ei = exec_item(it)
@@ -679,6 +683,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                 done = True
                 settle_until = time.monotonic() + STEER_SETTLE_S
                 if status == "completed":
+                    final_text = cc.codex_answer_text(messages)
                     if sandbox_broken:
                         final_text = ((final_text + "\n\n" if final_text else "")
                                       + localefmt.chu(cc._NOTE_SANDBOX_HONG, cc._NOTE_SANDBOX_HONG_EN))

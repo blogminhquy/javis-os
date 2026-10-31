@@ -102,6 +102,11 @@ def note(method, **p):
     out({"method": method, "params": p})
 def turn(tid, ref, tu):
     note("turn/started", threadId=tid, turn={"id": tu, "status": "inProgress"})
+    if os.environ.get("FAKE_LEADIN"):
+        lead = {"type": "agentMessage", "id": "lead" + tu, "text": "Em tra danh sách lớp hiện có để xác nhận ạ."}
+        if os.environ.get("FAKE_LEADIN") == "phase":
+            lead["phase"] = "commentary"
+        note("item/completed", threadId=tid, turnId=tu, item=lead)
     if not os.environ.get("FAKE_NO_CMD"):
         cmd = {"type": "commandExecution", "id": "c1", "command": "sleep 1", "aggregatedOutput": "", "status": "inProgress"}
         note("item/started", threadId=tid, turnId=tu, item=cmd)
@@ -230,6 +235,17 @@ check("app-server: tokens of this turn add up", final.get("tokens_in") == 15 and
 evs, left = asyncio.run(drive(new_cli(), "web:b"))
 argv_log()
 check("app-server: a turn with nothing sent meanwhile", any(e.get("content") == "DONE" for e in evs if e["type"] == "final"))
+
+# A lead-in before the command (LDA report 31/10/2026): shown live, left out of the answer, with or without `phase`.
+for mode in ("phase", "nophase"):
+    os.environ["FAKE_LEADIN"] = mode
+    evs, left = asyncio.run(drive(new_cli(), "web:lead-" + mode))
+    argv_log()
+    final = next((e for e in evs if e["type"] == "final"), {})
+    shown = "".join(e.get("content") or "" for e in evs if e["type"] == "text")
+    check(f"app-server ({mode}): the lead-in is shown live but not in the answer",
+          final.get("content") == "DONE" and "Em tra danh sách" in shown)
+del os.environ["FAKE_LEADIN"]
 
 # Codex refuses the steer (its turn just ended): the message is put back and runs as the next turn
 os.environ["FAKE_REFUSE_STEER"] = "1"
