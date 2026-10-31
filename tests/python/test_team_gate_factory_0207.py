@@ -154,6 +154,12 @@ with patch.object(main.claude_cli, "codex_sandbox_cho_mode", return_value=None):
     seen, task, tm, t = one_job("codex-nosandbox", aux_engine.CODEX)
 check("codex gated without its sandbox: refused before the engine, with the reason",
       not seen and task["status"] == "team_blocked" and "sandbox" in (task["block_reason"] or ""), task["block_reason"])
+# PR #904: this is the stock Docker case. The recovery survives the runner's 300-character cut and never sends the
+# owner back to Codex or to full mode.
+why = task["block_reason"] or ""
+check("codex gated without its sandbox: recovery kept, points to Claude Code, not Codex or full mode",
+      "Thử lại" in why and "Claude Code" in why and "sang Codex" not in why and "ChatGPT" not in why
+      and "Nhóm tự làm hành động ra ngoài" not in why, why)
 
 # API engines: every tool through the hub in-process, at gated
 with patch.object(aux_engine, "availability", return_value=(True, "")):
@@ -174,7 +180,8 @@ check("codex gated with the user's own MCP servers: refused, named", not seen an
 seen, task, tm, t = one_job("agy", aux_engine.ANTIGRAVITY)
 check("antigravity gated: refused before the engine, job stopped with the reason",
       not seen and task["status"] == "team_blocked" and "Antigravity" in (task["block_reason"] or "")
-      and "Claude, Codex" in (task["block_reason"] or ""), task["block_reason"])
+      and "Claude Code" in (task["block_reason"] or "") and "Thử lại" in (task["block_reason"] or ""),
+      task["block_reason"])
 
 # Full: the owner's switch gives the 0.194.0 private-chat level, no gate
 seen, task, tm, t = one_job("full", "anthropic-cli", work_mode="full")

@@ -443,6 +443,28 @@ def provider_support(provider: str, *, codex_sandbox: Optional[str] = "workspace
     return {"ok": False, "approved_actions": False, "reason": f"{p} chưa được kiểm là chặn được công cụ trước khi chạy"}
 
 
-def unsupported_text(reason: str) -> str:
-    return (f"Nhóm đang ở quyền 'cần duyệt' mà {reason}. Đổi trợ lý làm bước này sang Claude, Codex hay một model API, "
-            "hoặc bật 'Nhóm tự làm hành động ra ngoài' trong cài đặt nhóm nếu anh tin nhóm này.")
+def unsupported_text(reason: str, *, assistant: str = "", choices: tuple = ()) -> str:
+    """Why a gated step was refused, recovery FIRST: the runner keeps 300 characters of it, the job list 200, and the
+    reasons above run long (PR #904: on Docker the "Try again" part was cut off). `choices`: labels of the connected
+    providers this machine can gate, never the refused one (main._team_gate_choices). Never suggests full mode: that
+    drops the approvals instead of fixing the provider."""
+    from localefmt import chu  # lazy: this module keeps its imports light
+    names = [str(c) for c in choices if c][:3]
+    if names:
+        vi_or, en_or = (names[0], names[0]) if len(names) == 1 else (
+            ", ".join(names[:-1]) + " hoặc " + names[-1], ", ".join(names[:-1]) + " or " + names[-1])
+        return chu(
+            "Bước này chưa chạy. Ở trang Cộng sự, đổi model của {vi_who} sang {vi_or} rồi bấm Thử lại. "
+            "Lý do: nhóm ở quyền 'cần duyệt' mà {reason}.",
+            "This step did not run. On the Partners page, switch {en_who} to {en_or}, then press Try again. "
+            "Why: the team needs approvals and {reason}.",
+            vi_who=assistant or "trợ lý làm bước này", en_who=assistant or "the assistant of this step",
+            vi_or=vi_or, en_or=en_or, reason=reason)
+    return chu(
+        "Bước này chưa chạy. Chưa có model nào đã kết nối chạy được quyền này: kết nối Claude Code hoặc một API key ở "
+        "trang Models, rồi đổi model của {vi_who} ở trang Cộng sự và bấm Thử lại. "
+        "Lý do: nhóm ở quyền 'cần duyệt' mà {reason}.",
+        "This step did not run. No connected model can run it with approvals: connect Claude Code or an API key on the "
+        "Models page, switch {en_who} on the Partners page, then press Try again. "
+        "Why: the team needs approvals and {reason}.",
+        vi_who=assistant or "trợ lý làm bước này", en_who=assistant or "the assistant of this step", reason=reason)

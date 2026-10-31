@@ -15,6 +15,13 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ### Improved
 - No search box on the Tasks page's Stats, since there is nothing to search there.
 
+## [0.428.2] - 2026-10-31
+### Fixed
+- **A Zalo Bot (official Zalo Bot) notices when it is tagged in a group.** Tagging it by its display name, such as "@Bot Nori", used to leave it silent, because Javis only matched the account handle like `bot.xxxx`. It now also matches the name you gave the bot in Javis. Thanks @VQTPiano (#885).
+## [0.428.1] - 2026-10-31
+### Fixed
+- **A team job stopped because its model cannot run with approvals now says how to fix it.** The message leads with the fix, names the assistant and suggests only connected models that can run the step on this machine, then Try again. Before, the Docker image cut off exactly that part, and the advice could point back to the model that was refused. Thanks @hwangrin (#904).
+
 ## [0.428.0] - 2026-10-31
 ### Added
 - **Stats on the Tasks page, for both tabs.** Stats closes the menu. Pick the period with the same dropdown as the Chatbot stats (Today, last 7 / 30 / 90 days, Last month... or your own days), always against the period before.

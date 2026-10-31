@@ -13,6 +13,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Cải thiện
 - Bỏ ô tìm kiếm ở mục Thống kê của trang Nhiệm vụ, vì ở đó không có gì để tìm.
 
+## [0.428.2] - 2026-10-31
+### Sửa lỗi
+- **Bot Zalo (Zalo Bot chính thức) nhận ra khi được tag trong nhóm.** Trước đây tag bằng tên hiển thị như "@Bot Nori" thì bot không biết mình được gọi và im, vì Javis chỉ so với mã tài khoản kiểu `bot.xxxx`. Giờ bot nhận cả tên bạn đặt cho nó trong Javis. Cảm ơn @VQTPiano (#885).
+## [0.428.1] - 2026-10-31
+### Sửa lỗi
+- **Việc nhóm bị chặn vì model không hỗ trợ quyền 'cần duyệt' giờ chỉ đúng cách gỡ.** Câu báo nói cách sửa trước, gọi tên trợ lý và chỉ gợi ý model đã kết nối chạy được trên máy này, rồi bấm Thử lại. Trước đây trên bản Docker câu bị cắt mất đúng đoạn hướng dẫn, và có lúc khuyên đổi sang chính model đang bị chặn. Cảm ơn @hwangrin (#904).
+
 ## [0.428.0] - 2026-10-31
 ### Thêm mới
 - **Thống kê trên trang Nhiệm vụ, cho cả hai tab.** Mục Thống kê nằm cuối menu. Chọn khoảng thời gian bằng ô thả xuống giống màn Thống kê chatbot (Hôm nay, 7 / 30 / 90 ngày qua, Tháng trước... hoặc tự chọn ngày), luôn so với kỳ liền trước.

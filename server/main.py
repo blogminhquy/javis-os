@@ -26402,6 +26402,23 @@ def _team_gate_support(provider):
                                       api_providers=tuple(aux_engine.API_PROVIDERS))
 
 
+def _team_gate_choices(current, settings):
+    """Labels of the connected providers a refused gated step can switch to on THIS machine, `current` left out: on
+    Docker (Codex without its sandbox) the advice must not send the owner back to Codex. Grok Build and Antigravity are
+    refused by team_gate.provider_support everywhere, so they are not probed."""
+    out = []
+    for prov in (aux_engine.CLAUDE, aux_engine.CODEX) + tuple(aux_engine.API_PROVIDERS):
+        if prov == current:
+            continue
+        try:
+            if not _team_gate_support(prov)["ok"] or not aux_engine.availability({"provider": prov}, settings)[0]:
+                continue
+        except Exception:  # noqa: BLE001 - a broken probe only drops that provider from the advice
+            continue
+        out.append(_TG_NHAN_NGAN.get(prov) or {"ollama-local": "Ollama Local"}.get(prov, prov))
+    return out
+
+
 def _team_record_usage(provider: str, model: str, outcome, *, execution=None, status=None, expected_requests=None) -> None:
     """Count one team member turn in the usage ledger, like a chat turn (Settings > Usage, usage-events.jsonl).
 
@@ -26462,7 +26479,8 @@ def _team_engine_for(team, agent_key, role):
         if gate_id:
             sup = _team_gate_support(prov)
             if not sup["ok"]:
-                raise team_runner.EngineUnavailable(team_gate.unsupported_text(sup["reason"]))
+                raise team_runner.EngineUnavailable(team_gate.unsupported_text(
+                    sup["reason"], assistant=info.get("name") or "", choices=tuple(_team_gate_choices(prov, settings))))
         vault = str(_brain_root(root))
         cwd = ""
         try:
