@@ -443,6 +443,17 @@ def provider_support(provider: str, *, codex_sandbox: Optional[str] = "workspace
     return {"ok": False, "approved_actions": False, "reason": f"{p} chưa được kiểm là chặn được công cụ trước khi chạy"}
 
 
-def unsupported_text(reason: str) -> str:
-    return (f"Nhóm đang ở quyền 'cần duyệt' mà {reason}. Đổi trợ lý làm bước này sang Claude, Codex hay một model API, "
-            "hoặc bật 'Nhóm tự làm hành động ra ngoài' trong cài đặt nhóm nếu anh tin nhóm này.")
+def unsupported_text(reason: str, *, assistant: str = "", choices: tuple = ()) -> str:
+    """Why a gated step was refused, recovery FIRST: the runner keeps 300 characters of it, the job list 200, and the
+    reasons above run long (PR #904: on Docker the "Try again" part was cut off). `choices`: labels of the connected
+    providers this machine can gate, never the refused one (main._team_gate_choices). Never suggests full mode: that
+    drops the approvals instead of fixing the provider."""
+    who = assistant or "trợ lý làm bước này"
+    names = [str(c) for c in choices if c][:3]
+    if names:
+        opts = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " hoặc " + names[-1]
+        act = f"Ở trang Cộng sự, đổi model của {who} sang {opts} rồi bấm Thử lại."
+    else:
+        act = (f"Chưa có model nào đã kết nối chạy được quyền này: kết nối Claude Code hoặc một API key ở trang Models, "
+               f"rồi đổi model của {who} ở trang Cộng sự và bấm Thử lại.")
+    return f"Bước này chưa chạy. {act} Lý do: nhóm ở quyền 'cần duyệt' mà {reason}."
