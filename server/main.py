@@ -22256,8 +22256,8 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     if bot:
         # 0.429.0: jobs this turn creates (reminders, loops, Kanban) are stamped with the bot, so the Tasks page
         # shows them under the bot's assistant instead of Javis Core.
-        _luot["bot"] = {"id": str(bot["id"]), "name": str(bot.get("name") or ""),
-                        "agent": str((bot.get("agent") or {}).get("slug") or "")}
+        # A plain string, so a hook reading the turn (a shallow copy) cannot edit it for the next reader.
+        _luot["bot_id"] = str(bot["id"])
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
     if bot:

@@ -2,7 +2,7 @@
 
 Owner, 31/10/2026: the Tasks page listed every job under Javis Core, while most were made by the owner's Zalo assistant
 bot. Expected:
-  - a dedicated bot's turn carries the bot in turn_context (a copy, so a hook cannot edit it);
+  - a dedicated bot's turn carries `bot_id` in turn_context (a string, so a hook cannot edit it for the next reader);
   - javis_schedule stamps the bot on a reminder (bot_id in POST /reminders) and on a loop (bot_id: in frontmatter),
     javis_task stamps a Kanban job created_by "bot:<id>"; the owner's own turns stamp nothing;
   - reminders keep and show bot_id; loops keep it across a save; repeat hints still see bot jobs;
@@ -56,11 +56,11 @@ BOT = {"id": "bot_vu", "name": "Javis Vũ", "icon": "headset", "agent": "vu"}
 
 # ---- turn context ----
 t = turn_context.from_meta("zalo_personal", {"chat_id": "c1", "user_id": "u1"}, la_chu=False)
-t["bot"] = dict(BOT)
+t["bot_id"] = BOT["id"]
 tok = turn_context.bind(t)
 cur = turn_context.current()
-cur["bot"]["id"] = "bot_evil"
-check("the bot of the turn is readable, and a reader cannot edit it", turn_context.current()["bot"]["id"] == "bot_vu")
+cur["bot_id"] = "bot_evil"
+check("the bot of the turn is readable, and a reader cannot edit it", turn_context.current()["bot_id"] == "bot_vu")
 
 # ---- javis_schedule ----
 sched = load_plugin("javis-schedule")

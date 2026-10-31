@@ -209,7 +209,7 @@ def _them(args, ctx) -> str:
     nguoi_tao = "chat"
     try:
         import turn_context
-        _bot = str(((turn_context.current() or {}).get("bot") or {}).get("id") or "").strip()
+        _bot = str((turn_context.current() or {}).get("bot_id") or "").strip()
         if _bot:
             nguoi_tao = f"bot:{_bot}"
     except Exception:

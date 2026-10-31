@@ -29,10 +29,6 @@ Resonance A1 adds three keys, filled by the host only for a dashboard chat turn:
 0.207.0 adds `team_gate`: the id of the tool gate of a Team Work/Help step (team_gate.py), "" elsewhere. Set by the
 team runner, never from model output; the hub uses it to let one approved outside action through.
 
-0.429.0 adds `bot`: {"id", "name", "agent"} of the dedicated chatbot answering the turn, set by the host from
-the chatbot record (never from model output) so the jobs a bot's turn creates are stamped with that bot.
-Absent on the owner's own turns.
-
 0.238.0 adds `job`: "kanban:<task id>" while a Kanban worker runs, "" elsewhere. Set by the task runner, never from
 model output; once_ledger.py keys its once-only record of outside actions on it.
 
@@ -141,8 +137,6 @@ def _copy(turn: dict) -> dict:
         out["agent"] = dict(out["agent"])
     if isinstance(out.get("execution"), dict):
         out["execution"] = dict(out["execution"])
-    if isinstance(out.get("bot"), dict):
-        out["bot"] = dict(out["bot"])
     return out
 
 

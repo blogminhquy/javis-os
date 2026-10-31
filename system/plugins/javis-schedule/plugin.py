@@ -436,7 +436,7 @@ def _turn_bot() -> str:
         t = turn_context.current() or {}
     except Exception:
         return ""
-    return str((t.get("bot") or {}).get("id") or "").strip()
+    return str(t.get("bot_id") or "").strip()
 
 
 async def _do_create(vault_root: str, args: dict) -> str:
