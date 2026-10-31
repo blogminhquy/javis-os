@@ -99,12 +99,12 @@
       if (translated && translated !== key) return translated;
     }
     var defaults = {
-      "paste.title": "Xem trước nội dung dán",
-      "paste.note": "{chars} ký tự · {lines} dòng. Chọn dán vào chat hoặc đính kèm tệp; nội dung không bị cắt.",
-      "paste.preview": "Toàn bộ nội dung sẽ dán",
-      "paste.cancel": "Hủy",
-      "paste.attach": "Đính kèm .txt",
-      "paste.inline": "Dán vào chat"
+      "paste.title": "Preview pasted content",
+      "paste.note": "{chars} characters, {lines} lines. Paste inline or attach as a file; content is not truncated.",
+      "paste.preview": "Full pasted content",
+      "paste.cancel": "Cancel",
+      "paste.attach": "Attach .txt",
+      "paste.inline": "Paste into chat"
     };
     return String(defaults[key] || key).replace(/\{(\w+)\}/g, function (_, k) {
       return vars && vars[k] != null ? String(vars[k]) : "";
