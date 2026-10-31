@@ -78,10 +78,19 @@
   }
   function prepare(plain, html) {
     plain = normalise(plain);
-    // Markdown copied via an explicit Copy button must stay byte-for-byte meaningful.
+    // Explicit Markdown Copy buttons already contain the intended syntax.
     if (isMarkdown(plain)) return plain;
+    // Markdown cannot represent merged table cells or embedded media faithfully.
+    // Retain the source's text rather than silently dropping information.
+    if (plain && /<(?:td|th)\b[^>]*\b(?:rowspan|colspan)\s*=|<img\b/i.test(html || "")) return plain;
     var rich = htmlToMarkdown(html);
-    return rich || plain;
+    if (!rich) return plain;
+    // Do not trade data completeness for styling when a source's HTML selection
+    // omits a substantial part of its plain-text clipboard payload.
+    var visible = rich.replace(/[\s#*|>\[\]()]/g, "").length;
+    var original = plain.replace(/\s/g, "").length;
+    if (original && visible < original * 0.75) return plain;
+    return rich;
   }
 
   function offer(text, onInline, onFile) {
