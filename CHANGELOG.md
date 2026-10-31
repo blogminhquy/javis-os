@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.427.0] - 2026-10-31
+### Thêm mới
+- (đang viết)
+
 ## [0.426.0] - 2026-10-30
 ### Sửa lỗi
 - **Sửa loop bằng tay được trở lại.** Từ 0.422.0 trang Nhiệm vụ chỉ bật, tắt, chạy, xoá được loop. Giờ bấm Sửa để đổi tên, việc mỗi vòng, mức quyền (Đề xuất, Ghi nháp, Toàn quyền) và chu kỳ chạy.

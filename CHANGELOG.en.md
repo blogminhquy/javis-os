@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.427.0] - 2026-10-31
+### Added
+- (in progress)
+
 ## [0.426.0] - 2026-10-30
 ### Fixed
 - **Loops can be edited by hand again.** Since 0.422.0 the Tasks page could only switch, run and delete a loop. Edit now changes its name, what it does each round, its permission level (Suggest, Drafts, Full) and how often it runs.
