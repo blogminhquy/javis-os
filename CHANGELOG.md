@@ -6,6 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.428.2] - 2026-10-31
+### Sửa lỗi
+- **Bot Zalo (Zalo Bot chính thức) nhận ra khi được tag trong nhóm.** Trước đây tag bằng tên hiển thị như "@Bot Nori" thì bot không biết mình được gọi và im, vì Javis chỉ so với mã tài khoản kiểu `bot.xxxx`. Giờ bot nhận cả tên bạn đặt cho nó trong Javis. Cảm ơn @VQTPiano (#885).
 ## [0.428.1] - 2026-10-31
 ### Sửa lỗi
 - **Việc nhóm bị chặn vì model không hỗ trợ quyền 'cần duyệt' giờ chỉ đúng cách gỡ.** Câu báo nói cách sửa trước, gọi tên trợ lý và chỉ gợi ý model đã kết nối chạy được trên máy này, rồi bấm Thử lại. Trước đây trên bản Docker câu bị cắt mất đúng đoạn hướng dẫn, và có lúc khuyên đổi sang chính model đang bị chặn. Cảm ơn @hwangrin (#904).
