@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.429.0] - 2026-10-31
+### Sửa lỗi
+- (đang viết)
+
 ## [0.428.0] - 2026-10-31
 ### Thêm mới
 - **Thống kê trên trang Nhiệm vụ, cho cả hai tab.** Mục Thống kê nằm cuối menu. Chọn khoảng thời gian bằng ô thả xuống giống màn Thống kê chatbot (Hôm nay, 7 / 30 / 90 ngày qua, Tháng trước... hoặc tự chọn ngày), luôn so với kỳ liền trước.

@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.429.0] - 2026-10-31
+### Fixed
+- (in progress)
+
 ## [0.428.0] - 2026-10-31
 ### Added
 - **Stats on the Tasks page, for both tabs.** Stats closes the menu. Pick the period with the same dropdown as the Chatbot stats (Today, last 7 / 30 / 90 days, Last month... or your own days), always against the period before.
