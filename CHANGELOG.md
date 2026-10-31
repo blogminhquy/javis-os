@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.428.1] - 2026-10-31
+### Sửa lỗi
+- **Việc nhóm bị chặn vì model không hỗ trợ quyền 'cần duyệt' giờ chỉ đúng cách gỡ.** Câu báo nói cách sửa trước, gọi tên trợ lý và chỉ gợi ý model đã kết nối chạy được trên máy này, rồi bấm Thử lại. Trước đây trên bản Docker câu bị cắt mất đúng đoạn hướng dẫn, và có lúc khuyên đổi sang chính model đang bị chặn. Cảm ơn @hwangrin (#904).
+
 ## [0.428.0] - 2026-10-31
 ### Thêm mới
 - **Thống kê trên trang Nhiệm vụ, cho cả hai tab.** Mục Thống kê nằm cuối menu. Chọn khoảng thời gian bằng ô thả xuống giống màn Thống kê chatbot (Hôm nay, 7 / 30 / 90 ngày qua, Tháng trước... hoặc tự chọn ngày), luôn so với kỳ liền trước.
