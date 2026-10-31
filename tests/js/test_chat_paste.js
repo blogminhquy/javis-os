@@ -78,7 +78,7 @@ check("integration keeps full plaintext payload and uses readable choice", () =>
 });
 check("preview choices and sanitizing are wired", () => {
   const src = fs.readFileSync(path.resolve(__dirname, "../../dashboard/chat-paste.js"), "utf8");
-  for (const text of ["Xem trước nội dung dán", "Dán vào chat", "Đính kèm .txt", "Hủy"]) {
+  for (const text of ["paste.title", "paste.note", "paste.preview", "paste.inline", "paste.attach", "paste.cancel"]) {
     assert.ok(src.includes(text), text);
   }
   assert.ok(src.includes("preview.value = text"));
