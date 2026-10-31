@@ -243,8 +243,11 @@
       // A long message collapses to ten lines with "Show more", like the main chat (chat-acts.js).
       var A = actsApi();
       var long = !!(A && A.isLongText && A.isLongText(rest));
-      return (t.quote ? quoteHtml(t.quote) : "") + (rest ? '<div class="tm-text utext' + (long && !open ? " clamped" : "") + '">' +
-        esc(rest).replace(/\n/g, "<br>") + "</div>" + (long ? A.clampButtonHtml(!!open) : "") : "") +
+      var md = typeof window !== "undefined" && window.mdToHtml;
+      var rich = !!(md && window.JavisPaste && window.JavisPaste.isMarkdown(rest));
+      var shown = rich ? md(rest, brain()) : esc(rest).replace(/\n/g, "<br>");
+      return (t.quote ? quoteHtml(t.quote) : "") + (rest ? '<div class="tm-text utext' + (rich ? " markdown" : "") + (long && !open ? " clamped" : "") + '">' +
+        shown + "</div>" + (long ? A.clampButtonHtml(!!open) : "") : "") +
         (files.length ? '<div class="tm-files">' + files.map(function (f) { return fileChipHtml(f, m.ts); }).join("") + "</div>" : "");
     }
     var md = typeof window !== "undefined" && window.mdToHtml;
