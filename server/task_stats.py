@@ -44,6 +44,7 @@ class TaskStatsDeps:
     task_store: Optional[Callable[[], Any]] = None   # the Kanban TaskStore
     tz: Optional[Callable[[], Any]] = None
     agent_names: Optional[Callable[[str], dict]] = None   # brain -> {slug: name}
+    bot_jobs: Optional[Callable[[str], dict]] = None      # brain -> bot_jobs.job_map (0.429.0)
 
 
 # ---------- helpers ----------
@@ -229,6 +230,28 @@ class TaskStats:
         seen |= {(r, t + d) for r, t in list(seen) for d in (-2, -1, 1, 2)}
         return ev + logged + reminder_last_runs(root, since, until, seen)
 
+    def _bot_owners(self, brain: str, events: list, names: dict) -> None:
+        """0.429.0: a job a chatbot made counts for the bot's assistant (or the bot itself when that assistant is not
+        in this brain), not for Javis Core. Only events with no assistant of their own are moved."""
+        if not self.deps.bot_jobs:
+            return
+        try:
+            m = self.deps.bot_jobs(brain) or {}
+        except Exception:
+            return
+        bots, jobs = {b["id"]: b for b in m.get("bots") or []}, m.get("jobs") or {}
+        pre = {"kanban": "k:", "reminder": "r:", "notify": "r:", "loop": "l:"}
+        for e in events:
+            if e.get("agent") or e["kind"] not in pre:
+                continue
+            b = bots.get(jobs.get(pre[e["kind"]] + str(e.get("ref") or "")))
+            if not b:
+                continue
+            if b.get("agent") and b["agent"] in names:
+                e["agent"], e["agent_name"] = b["agent"], names[b["agent"]]
+            else:
+                e["agent"], e["agent_name"] = "bot:" + b["id"], b.get("name") or ""
+
     def minutes(self, brain: str) -> dict:
         m = dict(MINUTES)
         try:
@@ -307,6 +330,7 @@ class TaskStats:
             names = (self.deps.agent_names(brain) or {}) if self.deps.agent_names else {}
         except Exception:
             names = {}
+        self._bot_owners(brain, ai, names)
         agents = {}
         for e in ai:
             if e["status"] not in ("ok", "fail", "ask"):

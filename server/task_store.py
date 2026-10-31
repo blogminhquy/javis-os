@@ -1335,7 +1335,7 @@ class TaskStore:
             rows = self._db.execute(
                 f"""SELECT id, title, intent, created_at FROM tasks
                     WHERE brain_root=? AND lane<>'team' AND created_at>=?
-                      AND created_by IN ({','.join('?' for _ in self.HINT_SOURCES)})
+                      AND (created_by IN ({','.join('?' for _ in self.HINT_SOURCES)}) OR created_by LIKE 'bot:%')
                     ORDER BY created_at DESC LIMIT ?""",
                 (root, since, *self.HINT_SOURCES, self.HINT_SCAN),
             ).fetchall()

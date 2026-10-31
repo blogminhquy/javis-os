@@ -204,6 +204,16 @@ def _them(args, ctx) -> str:
         except Exception:
             chat_id = ""
     deps = [d.strip() for d in str((args or {}).get("deps") or "").split(",") if d.strip()]
+    # 0.429.0: a dedicated chatbot's turn stamps the job with that bot ("bot:<id>"), so the Tasks page shows it under
+    # the bot's assistant instead of Javis Core. The host sets the bot in turn_context, never the model.
+    nguoi_tao = "chat"
+    try:
+        import turn_context
+        _bot = str(((turn_context.current() or {}).get("bot") or {}).get("id") or "").strip()
+        if _bot:
+            nguoi_tao = f"bot:{_bot}"
+    except Exception:
+        pass
     try:
         tid = f.enqueue(
             ctx.vault_root,
@@ -213,7 +223,7 @@ def _them(args, ctx) -> str:
             2,
             deps,
             False,
-            "chat",
+            nguoi_tao,
             chat_id,
             "auto",
             mode,

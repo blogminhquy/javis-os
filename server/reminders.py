@@ -423,7 +423,7 @@ class RemindersFeature:
     def _create(self, brain: str, text: str, *, delay_min=None, at=None, due_at=None,
                 chat_id="", mode="notify", repeat_min=0, label="", cron=None, script="",
                 created_by="user", allow_no_channel=False, muc_quyen=None,
-                remember_last=False, speak=False, call=False) -> dict:
+                remember_last=False, speak=False, call=False, bot_id="") -> dict:
         mode = mode if mode in VALID_MODE else "notify"
         mq = str(muc_quyen or "").strip().lower()
         mq = mq if mq in VALID_MUC_QUYEN else MUC_QUYEN_MAC_DINH
@@ -469,6 +469,10 @@ class RemindersFeature:
             "created_by": created_by, "created_at": _now(),
             "fired_at": 0.0, "result": "", "error": "",
         }
+        # 0.429.0: made in a dedicated chatbot's turn -> the Tasks page shows it under that bot's assistant.
+        bid = str(bot_id or "").strip()
+        if re.fullmatch(r"bot_[A-Za-z0-9_-]{1,64}", bid):
+            rem["bot_id"] = bid
         data = self._load(brain)
         data.setdefault("reminders", []).append(rem)
         # Giữ gọn: quá trần thì bỏ bớt bản ghi đã đóng (pending luôn được giữ)
@@ -497,6 +501,8 @@ class RemindersFeature:
                 "remember_last": bool(r.get("remember_last")),
                 "speak": bool(r.get("speak")),
                 "call": bool(r.get("call")),
+                # 0.429.0: who made it. bot_id names the chatbot whose turn created it ("" = the owner or Javis Core).
+                "created_by": r.get("created_by", ""), "bot_id": r.get("bot_id", ""),
                 "next_runs": next_runs(cron) if cron and r.get("status") == "pending" else [],
                 "result": (r.get("result") or "")[:500], "error": r.get("error", ""),
                 # A pending network retry (code 26): which retry the next run is, out of how many.
@@ -1216,6 +1222,7 @@ class RemindersFeature:
                         remember_last=_truthy(p.get("remember_last")),
                         speak=_truthy(p.get("speak")),
                         call=_truthy(p.get("call")),
+                        bot_id=str(p.get("bot_id") or ""),
                     )
             except NotifyNotReady as e:
                 # can_force: chỗ gọi (dashboard/chat) hỏi lại người dùng rồi tạo tiếp với

@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.429.0] - 2026-10-31
 ### Sửa lỗi
-- (đang viết)
+- **Việc do chatbot tạo giờ nằm đúng dưới chatbot đó.** Trước đây mọi lời nhắc, loop và việc Kanban mà chatbot (ví dụ trợ lý Zalo của bạn) tạo trong lúc trò chuyện đều hiện dưới Javis Core. Giờ chúng nằm dưới trợ lý mà chatbot đang dùng, cả ở danh sách lẫn ở Thống kê. Trợ lý đó không thuộc brain này thì chatbot có hẳn một dòng riêng.
+- **Việc cũ cũng được xếp lại.** Javis dò nhật ký trả lời của từng chatbot: việc tạo ra đúng lúc một chatbot đang trả lời (cùng khung chat nếu việc có ghi) thì thuộc chatbot đó. Hai chatbot cùng trả lời lúc ấy thì việc vẫn để ở Javis Core cho chắc.
+### Cải thiện
+- Bỏ ô tìm kiếm ở mục Thống kê của trang Nhiệm vụ, vì ở đó không có gì để tìm.
 
 ## [0.428.0] - 2026-10-31
 ### Thêm mới

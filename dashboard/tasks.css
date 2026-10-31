@@ -8,6 +8,9 @@
 .nv-root .c-rep { color: #0ea5e9; } .nv-root .c-err { color: var(--nv-ask); } .nv-root .c-done { color: var(--text3); } .nv-root .c-log { color: var(--text3); }
 .nv-root .agent-avatar .aa-eyes { animation: none !important; }   /* small avatars stand still (owner, 30/10) */
 .cview.cview-nv .cview-head { display: none; }
+/* 0.429.0: a chatbot that owns jobs but whose assistant is not in this brain: its icon in a round chip */
+.nv-botav { display: inline-grid; place-items: center; flex: none; border-radius: 50%; background: var(--surface-3); color: var(--text2, var(--text)); }
+.nv-root .nv-botav .ic { width: 62%; height: 62%; }
 .nv-spin { animation: nv-spin 1s linear infinite; }
 @keyframes nv-spin { to { transform: rotate(360deg); } }
 

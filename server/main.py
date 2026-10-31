@@ -12901,9 +12901,16 @@ def _stats_agent_names(brain: str) -> dict:
         return {}
 
 
+# 0.429.0: which chatbot made a job (bot_jobs.py), so the Tasks page and its stats show a bot's jobs under it.
+import bot_jobs  # noqa: E402
+
+bot_jobs_feature = bot_jobs.register(app, bot_jobs.BotJobsDeps(
+    brain_root=_brain_root, list_bots=chatbot_store.list_bots, turns=chatbot_log._nap,
+    task_store=lambda: tasks_feature.store, loops=loop_feature.list_loops), tz=reminders_mod.VN_TZ)
+
 task_stats_feature = task_stats.register(app, task_stats.TaskStatsDeps(
     brain_root=_brain_root, my_tasks=lambda: my_tasks_feature, task_store=lambda: tasks_feature.store,
-    tz=reminders_mod.VN_TZ, agent_names=_stats_agent_names))
+    tz=reminders_mod.VN_TZ, agent_names=_stats_agent_names, bot_jobs=bot_jobs_feature.map))
 
 # 0.251.0: login vault (login_vault.py). The owner's sign-in cookies, encrypted, reused by javis_login and by
 # page watches. Its routes need a real dashboard session: an API token can neither read nor add a sign-in.
@@ -22246,6 +22253,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     # group. A dedicated bot is never the owner, whatever its permission level; every other
     # caller of this shell is an owner surface (admin channels, CLI, voice).
     _luot = turn_context.from_meta(channel, meta, la_chu=not bot)
+    if bot:
+        # 0.429.0: jobs this turn creates (reminders, loops, Kanban) are stamped with the bot, so the Tasks page
+        # shows them under the bot's assistant instead of Javis Core.
+        _luot["bot"] = {"id": str(bot["id"]), "name": str(bot.get("name") or ""),
+                        "agent": str((bot.get("agent") or {}).get("slug") or "")}
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
     if bot:

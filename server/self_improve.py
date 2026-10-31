@@ -332,6 +332,8 @@ class LoopFeature:
             "max_runs_per_day": maxr,
             # owner_chat = chat_id người YÊU CẦU loop (để báo về đúng người). Rỗng = web → ID đầu.
             "owner_chat": str(fm.get("owner_chat", "") or "").strip(),
+            # 0.429.0: the chatbot whose turn created the loop ("" = the owner or Javis Core), for the Tasks page.
+            "bot_id": str(fm.get("bot_id", "") or "").strip(),
             "notify": notify,
             "ambient_mcp": ambient_mcp,
             "updated": str(fm.get("updated", "") or ""),
@@ -389,6 +391,8 @@ class LoopFeature:
         # Chỉ ghi ambient_mcp khi BẬT - giữ file loop mặc định sạch (fork không thấy cờ lạ).
         if loop.get("ambient_mcp"):
             fm["ambient_mcp"] = True
+        if loop.get("bot_id"):   # 0.429.0: keep which chatbot made it across edits and toggles
+            fm["bot_id"] = loop["bot_id"]
         y = yaml.safe_dump(fm, allow_unicode=True, sort_keys=False, default_flow_style=False, width=1000).strip()
         d = self._loops_dir(brain)
         d.mkdir(parents=True, exist_ok=True)
@@ -1203,6 +1207,7 @@ class LoopFeature:
                 "interval_min": iv, "workspace": ws, "tools_profile": tools_profile,
                 "quiet_hours": quiet_hours.strip(), "max_runs_per_day": mr,
                 "owner_chat": (oc or "").strip(), "notify": nf, "body": body,
+                "bot_id": old["bot_id"] if old else "",
             })
             self.register_brain(brain)
             return {"ok": True, "loop": self.loop_view(brain, loop)}
