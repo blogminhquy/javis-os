@@ -8,6 +8,9 @@
 .nv-root .c-rep { color: #0ea5e9; } .nv-root .c-err { color: var(--nv-ask); } .nv-root .c-done { color: var(--text3); } .nv-root .c-log { color: var(--text3); }
 .nv-root .agent-avatar .aa-eyes { animation: none !important; }   /* small avatars stand still (owner, 30/10) */
 .cview.cview-nv .cview-head { display: none; }
+/* 0.429.0: a chatbot that owns jobs but whose assistant is not in this brain: its icon in a round chip */
+.nv-botav { display: inline-grid; place-items: center; flex: none; border-radius: 50%; background: var(--surface-3); color: var(--text2, var(--text)); }
+.nv-root .nv-botav .ic { width: 62%; height: 62%; }
 .nv-spin { animation: nv-spin 1s linear infinite; }
 @keyframes nv-spin { to { transform: rotate(360deg); } }
 
@@ -50,6 +53,7 @@
 .nv-search { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; padding: 0 14px; border: 1px solid var(--hairline);
   border-radius: 12px; background: var(--surface-1); }
 .nv-search input { flex: 1; min-width: 0; min-height: 44px; border: 0; background: none; color: var(--text); font: inherit; outline: none; }
+.nv-search[hidden] { display: none; }
 .nv-ask { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--warn-line, rgba(240,179,90,.35));
   border-radius: 12px; background: var(--warn-wash, rgba(240,179,90,.1)); }
 .nv-ask-t { flex: 1; min-width: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer;

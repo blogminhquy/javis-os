@@ -38,6 +38,18 @@
     var mm = k.match(/^agent:([^:]+):/);
     return mm ? mm[1] : CORE;
   }
+  // 0.429.0: a job a chatbot made belongs to the bot's assistant, or to the bot itself when that assistant is not in
+  // this brain. src.bots is GET /tasks/bots ({bots, jobs: {"r:<id>"|"l:<slug>"|"k:<id>": bot id}}).
+  function botWho(src) {
+    var B = src.bots || {}, bots = {}, known = {}, jobs = B.jobs || {};
+    (B.bots || []).forEach(function (b) { bots[b.id] = b; });
+    (src.agents || []).forEach(function (a) { known[a.slug] = 1; });
+    return function (key, createdBy) {
+      var cb = String(createdBy || ""), b = bots[jobs[key] || (cb.indexOf("bot:") === 0 ? cb.slice(4) : "")];
+      if (!b) return CORE;
+      return b.agent && known[b.agent] ? b.agent : "bot:" + b.id;
+    };
+  }
   function kanbanState(c, now) {
     var s = c.status;
     if (s === "running") return "run";
@@ -75,7 +87,7 @@
     var now = nowSec || Math.floor(Date.now() / 1000);
     var today = isoOf(new Date(now * 1000));
     var items = [], recurring = [], fails = [], log = [];
-    var kb = src.kanban || {}, ops = kb.operations || {};
+    var kb = src.kanban || {}, ops = kb.operations || {}, whoOf = botWho(src);
     var seen = {};
     ["active", "attention", "queue", "handled", "history"].forEach(function (k) {
       (ops[k] || []).forEach(function (c) {
@@ -88,7 +100,7 @@
         var md = c.metadata || {};
         var it = {
           id: "k:" + c.id, src: "kanban", ref: c.id, title: c.title || c.intent || "", desc: c.intent || "",
-          who: agentOf(c), st: st, date: ts.date || (FIN[st] ? null : today), time: ts.time, rep: "",
+          who: agentOf(c) === CORE ? whoOf("k:" + c.id, c.created_by) : agentOf(c), st: st, date: ts.date || (FIN[st] ? null : today), time: ts.time, rep: "",
           result: c.result || "", reason: c.block_reason || "", blockKind: c.block_kind || "", status: c.status,
           needsApproval: !!c.needs_approval, took: Number(md.run_seconds || 0), at: when || c.created_at || 0, raw: c
         };
@@ -107,24 +119,24 @@
       (b.reminders || []).forEach(function (r) {
         var rep = repText(r), paused = r.status === "paused", ts = stamp(r.due_at);
         var title = r.label || r.text || "";
-        var mode = r.mode === "notify" ? "remind" : "do";
+        var mode = r.mode === "notify" ? "remind" : "do", rwho = whoOf("r:" + r.id);
         if (rep) {
-          recurring.push({ id: "r:" + r.id, src: "reminder", ref: r.id, title: title, who: CORE, sc: rep, next: r.due_at || 0,
+          recurring.push({ id: "r:" + r.id, src: "reminder", ref: r.id, title: title, who: rwho, sc: rep, next: r.due_at || 0,
             on: !paused, running: !!r.running, mode: mode, raw: r });
         }
         if (paused) return;
-        items.push({ id: "r:" + r.id, src: "reminder", ref: r.id, title: title, desc: r.text || "", who: CORE,
+        items.push({ id: "r:" + r.id, src: "reminder", ref: r.id, title: title, desc: r.text || "", who: rwho,
           st: r.running ? "run" : "sched", date: ts.date, time: ts.time, rep: rep, mode: mode,
           result: r.result || "", reason: r.error || "", at: r.due_at || 0, raw: r });
       });
       (b.loops || []).forEach(function (lp) {
-        var paused = !!lp.auto_paused_reason;
-        recurring.push({ id: "l:" + lp.slug, src: "loop", ref: lp.slug, title: lp.name || lp.slug, who: CORE,
+        var paused = !!lp.auto_paused_reason, lwho = whoOf("l:" + lp.slug);
+        recurring.push({ id: "l:" + lp.slug, src: "loop", ref: lp.slug, title: lp.name || lp.slug, who: lwho,
           sc: everyMin(lp.interval_min), next: lp.next_run || 0, on: !!lp.enabled && !paused,
           running: !!lp.running, mode: "do", raw: lp });
         if (lp.enabled && lp.next_run && !paused) {
           var t2 = stamp(lp.next_run);
-          items.push({ id: "l:" + lp.slug, src: "loop", ref: lp.slug, title: lp.name || lp.slug, desc: "", who: CORE,
+          items.push({ id: "l:" + lp.slug, src: "loop", ref: lp.slug, title: lp.name || lp.slug, desc: "", who: lwho,
             st: lp.running ? "run" : "sched", date: t2.date, time: t2.time, rep: everyMin(lp.interval_min),
             mode: "do", result: lp.last_summary || "", reason: "", at: lp.next_run, raw: lp });
         }
@@ -138,13 +150,13 @@
     hist.forEach(function (r) {
       if (r.status !== "done" && r.status !== "failed") return;
       var ts = stamp(r.fired_at);
-      var title = r.label || r.text || "";
+      var title = r.label || r.text || "", hwho = whoOf("r:" + r.id);
       if (r.status === "done") {
-        items.push({ id: "rh:" + r.id, src: "reminder", ref: r.id, title: title, desc: r.text || "", who: CORE, st: "done",
+        items.push({ id: "rh:" + r.id, src: "reminder", ref: r.id, title: title, desc: r.text || "", who: hwho, st: "done",
           date: ts.date, time: ts.time, rep: "", mode: r.mode === "notify" ? "remind" : "do", result: r.result || "", reason: "",
           at: r.fired_at || 0, raw: r });
       }
-      log.push({ at: r.fired_at || 0, title: title, text: r.result || r.error || "", who: CORE, ok: r.status === "done", ref: "rh:" + r.id });
+      log.push({ at: r.fired_at || 0, title: title, text: r.result || r.error || "", who: hwho, ok: r.status === "done", ref: "rh:" + r.id });
       if (r.status === "failed") fails.push({ id: "rf:" + r.id, ref: "rh:" + r.id, title: title, at: r.fired_at || now, why: r.error || "", open: false });
     });
     ((src.watch && src.watch.watches) || []).forEach(function (w) {
@@ -161,7 +173,7 @@
     });
     ((src.loopLog && src.loopLog.entries) || []).forEach(function (e) {
       var m = String(e).match(/^##\s*\[([^\]]+)\]\s*([^\n]*)\n?([\s\S]*)$/);
-      if (m) log.push({ at: 0, when: m[1], title: m[2], text: m[3].trim(), who: CORE, ok: !/l\u1ed7i|error/i.test(m[2]), ref: "" });
+      if (m) log.push({ at: 0, when: m[1], title: m[2], text: m[3].trim(), who: whoOf("l:" + m[2].split(" \u00b7 ")[0].trim()), ok: !/l\u1ed7i|error/i.test(m[2]), ref: "" });
     });
     // Overdue: a job that should have started before today and has not.
     items.forEach(function (it) { it.over = !FIN[it.st] && it.st !== "run" && !!it.date && it.date < today; });
@@ -456,12 +468,14 @@
       getJSON("/kanban?brain=" + enc + "&history=40"), getJSON("/viec/all"), getJSON("/reminders?brain=" + enc),
       getJSON("/watch?brain=" + enc), getJSON("/incidents?limit=50"), getJSON("/loops/log?brain=" + enc + "&limit=60"),
       S.agents ? Promise.resolve(null) : getJSON("/agents?brain=" + enc + "&prompt=0&system=1"),
-      getJSON("/my-tasks?brain=" + enc)
+      getJSON("/my-tasks?brain=" + enc), getJSON("/tasks/bots?brain=" + enc)
     ]);
     if (res[6]) S.agents = (res[6].agents || res[6] || []).filter(function (a) { return a && a.slug; });
     S.brains = ((res[1] && res[1].brains) || []).map(function (x) { return { name: x.label || x.name, path: x.path, def: x.is_default }; });
     S.notify = (res[2] && res[2].notify) || {};
-    S.ai = model({ kanban: res[0] || {}, viec: res[1] || {}, rems: res[2] || {}, watch: res[3] || {}, incidents: res[4] || {}, loopLog: res[5] || {}, brain: b });
+    if (res[8]) S.bots = res[8];
+    S.ai = model({ kanban: res[0] || {}, viec: res[1] || {}, rems: res[2] || {}, watch: res[3] || {}, incidents: res[4] || {}, loopLog: res[5] || {}, brain: b,
+      bots: S.bots || {}, agents: S.agents || [] });
     S.my = res[7] && res[7].ok ? res[7] : (S.my || { tasks: [], projects: [] });
     S.me = mineModel(Object.assign({}, S.my, { gcal: S.gcal || [] }), S.ai.today, hmOf(new Date()));
     if (!S.calAt || Date.now() - S.calAt > 300000) { S.calAt = Date.now(); loadCal(); }
@@ -528,13 +542,20 @@
   }
 
   // ---------- pieces ----------
+  function botOf(slug) {
+    var id = String(slug || "").indexOf("bot:") === 0 ? slug.slice(4) : "";
+    return id ? ((S.bots && S.bots.bots) || []).find(function (b) { return b.id === id; }) || { id: id, name: id } : null;
+  }
   function agentName(slug) {
     if (slug === CORE) return "Javis Core";
     if (slug === "me") return tw("nv.me");
+    if (botOf(slug)) return botOf(slug).name;
     var a = (S.agents || []).find(function (x) { return x.slug === slug; });
     return a ? (a.name || slug) : slug;
   }
   function avatar(slug, size) {
+    var bt = botOf(slug), px = size || 18;
+    if (bt) return '<span class="nv-av nv-botav" style="width:' + px + "px;height:" + px + 'px">' + ic(bt.icon || "headset") + "</span>";
     var a = (S.agents || []).find(function (x) { return x.slug === slug; }) || { slug: slug };
     if (window.JavisAvatar && window.JavisAvatar.html) {
       try { return window.JavisAvatar.html(a, size || 18, "idle"); } catch (e) { /* fall through */ }
@@ -772,6 +793,10 @@
     S.ai.items.forEach(function (i) { if (!FIN[i.st]) busy[i.who] = (busy[i.who] || 0) + 1; });
     var A = (S.agents || []).slice();
     if (!A.some(function (a) { return a.slug === CORE; })) A.unshift({ slug: CORE, name: "Javis Core" });
+    // A chatbot whose assistant is not in this brain gets its own row once it owns a job (0.429.0).
+    var owned = {};
+    S.ai.items.concat(S.ai.recurring).forEach(function (i) { owned[i.who] = 1; });
+    ((S.bots && S.bots.bots) || []).forEach(function (b) { if (owned["bot:" + b.id]) A.push({ slug: "bot:" + b.id, name: b.name }); });
     A.sort(function (a, b) { return (P.indexOf(b.slug) >= 0) - (P.indexOf(a.slug) >= 0) || (busy[b.slug] || 0) - (busy[a.slug] || 0); });
     return { list: A.map(function (a) { return { id: a.slug, name: a.name || a.slug, n: busy[a.slug] || 0, pin: P.indexOf(a.slug) >= 0, view: "who:" + a.slug, mark: avatar(a.slug, 18) }; }) };
   }
@@ -822,6 +847,7 @@
     D.querySelector(".nv-side").innerHTML = sideHtml();
     D.querySelector(".nv-top").innerHTML = tabsHtml();
     D.querySelector(".nv-askbox").innerHTML = askBar();
+    D.querySelector(".nv-search").hidden = S.view === "stats";   // 0.429.0: nothing to search on Stats
     D.querySelector(".nv-view").innerHTML = viewHtml(S.view);
     fitSide();
   }

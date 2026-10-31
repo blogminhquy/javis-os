@@ -214,7 +214,7 @@ _LOOP_MODE_MAC_DINH = "full"
 
 
 def _create_loop_file(vault_root: str, name: str, prompt: str, schedule: str,
-                      owner_chat: str = "", brain_name: str = "", mode: str = "") -> str:
+                      owner_chat: str = "", brain_name: str = "", mode: str = "", bot_id: str = "") -> str:
     """Ghi 1 loop mới vào <vault_root>/Javis/loops/<slug>.md. enabled luôn false (người dùng bật
     ở trang Việc); mode mặc định full, hạ xuống auto/suggest khi model truyền. Trùng slug (việc đã có) -> báo lỗi rõ, KHÔNG
     ghi đè - self_improve.py lấy định danh loop theo TÊN FILE nên đẻ bản ascii song song sẽ để
@@ -253,7 +253,8 @@ def _create_loop_file(vault_root: str, name: str, prompt: str, schedule: str,
         "goal: custom\n"
         f"interval_min: {interval}\n"
         f"owner_chat: {_yaml_scalar((owner_chat or '').strip())}\n"
-        f"updated: {_today()}\n"
+        + (f"bot_id: {_yaml_scalar(bot_id)}\n" if bot_id else "")
+        + f"updated: {_today()}\n"
         "---\n"
         "\n"
         f"{prompt}\n"
@@ -427,6 +428,17 @@ async def _cancel_reminder(vault_root: str, rid: str) -> str:
     return f"ERROR: không huỷ được ({data.get('error') or 'không rõ lý do (có thể id sai/đã xong)'})."
 
 
+def _turn_bot() -> str:
+    """0.429.0: id of the dedicated chatbot answering this turn (set by the host in turn_context, never by the model),
+    "" on the owner's own turns or when the plugin runs outside the server."""
+    try:
+        import turn_context
+        t = turn_context.current() or {}
+    except Exception:
+        return ""
+    return str(t.get("bot_id") or "").strip()
+
+
 async def _do_create(vault_root: str, args: dict) -> str:
     name = str(args.get("name") or "").strip()
     prompt = str(args.get("prompt") or "").strip()
@@ -440,7 +452,7 @@ async def _do_create(vault_root: str, args: dict) -> str:
     if kind == "loop":
         return _create_loop_file(vault_root, name=name, prompt=prompt, schedule=schedule,
                                  owner_chat=chat_id, brain_name=brain_name,
-                                 mode=str(args.get("muc_quyen") or ""))
+                                 mode=str(args.get("muc_quyen") or ""), bot_id=_turn_bot())
     # I2: notify_only=True nghĩa là CHỈ nhắc bằng lời (mode "notify" - reminders.py:342 "⏰ Nhắc
     # anh: ..."), KHÔNG dựng nguyên engine Claude + MCP để "làm hộ" (mode "task" - reminders.py:
     # 418 _run_task, tốn tới max_wall_s=300). Trước đây hard-code "task" nên notify_only vô nghĩa -
@@ -457,6 +469,8 @@ async def _do_create(vault_root: str, args: dict) -> str:
         payload["speak"] = True
     if args.get("call"):
         payload["call"] = True
+    if _turn_bot():
+        payload["bot_id"] = _turn_bot()
     payload.update(_reminder_time_payload(schedule))
     return await _post_reminder(payload, brain_name=brain_name)
 

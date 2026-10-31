@@ -185,10 +185,28 @@ check("an all-day event has no time", g2 && g2.date === "2026-11-02" && g2.time 
 check("a past event is done on its own, never overdue", g3 && g3.st === "done" && !g3.over);
 check("Today lists today's events, Upcoming the later ones", M.inList(g1, "today", T0) && M.inList(g2, "week", T0) && !M.inList(g2, "today", T0));
 
+// 0.429.0: jobs a chatbot made sit under the bot's assistant, or under the bot when that assistant is not in the brain
+const bsrc = Object.assign({}, src, {
+  agents: [{ slug: "vu", name: "Vu" }],
+  bots: { bots: [{ id: "bot_vu", name: "Javis Vu", agent: "vu" }, { id: "bot_shop", name: "Shop", agent: "ghost" }],
+    jobs: { "r:r1": "bot_vu", "l:ads": "bot_shop", "r:h1": "bot_vu" } },
+});
+bsrc.kanban = JSON.parse(JSON.stringify(src.kanban));
+bsrc.kanban.operations.queue[0].created_by = "bot:bot_shop";
+const bm = M.model(bsrc, now), bid = id => bm.items.find(i => i.id === id), brec = id => bm.recurring.find(i => i.id === id);
+check("a bot's reminder belongs to the bot's assistant", bid("r:r1").who === "vu" && brec("r:r1").who === "vu");
+check("a bot's loop whose assistant is not here belongs to the bot", brec("l:ads").who === "bot:bot_shop");
+check("a Kanban job created by bot:<id> belongs to that bot", bid("k:t4").who === "bot:bot_shop");
+check("a Kanban job with its own assistant keeps it", bid("k:t1").who === "nd");
+check("the history and the log follow the bot too", bid("rh:h1").who === "vu" && bm.log.some(l => l.ref === "rh:h1" && l.who === "vu"));
+check("the loop log line follows its loop", bm.log.some(l => /^ads/.test(l.title) && l.who === "bot:bot_shop"));
+check("the rest stays with Javis Core", bid("r:r2").who === "javis-core" && brec("w:w1").who === "javis-core");
+
 // no Vietnamese text in the running code of the page (it goes through i18n)
 const js = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "tasks.js"), "utf8");
 check("the nav points to the Tasks page", /ids: \["tasks", "webhooks"\]/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8")));
 check("old page ids open the Tasks page", /kanban: "tasks", selfimprove: "tasks"/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8")));
+check("the page asks which chatbot made which job", /getJSON\("\/tasks\/bots\?brain=" \+ enc\)/.test(js));
 check("the page exposes mount and unmount", /window\.JavisTasks = \{ mount: mount, unmount: unmount/.test(js));
 
 console.log(fails ? `\n${fails} FAILED` : "\nall passed");

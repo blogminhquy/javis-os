@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.429.0] - 2026-10-31
+### Fixed
+- **Jobs a chatbot makes now sit under that chatbot.** Every reminder, loop and Kanban job a chatbot (your Zalo assistant, say) made while chatting used to show under Javis Core. They now sit under the assistant the chatbot uses, in the lists and in Stats. When that assistant is not in this brain, the chatbot gets a row of its own.
+- **Older jobs are sorted out too.** Javis reads each chatbot's reply log: a job made while exactly one chatbot was answering (in the same chat, when the job names one) belongs to that chatbot. Two chatbots answering at that moment leaves the job with Javis Core, to be safe.
+### Improved
+- No search box on the Tasks page's Stats, since there is nothing to search there.
+
 ## [0.428.2] - 2026-10-31
 ### Fixed
 - **A Zalo Bot (official Zalo Bot) notices when it is tagged in a group.** Tagging it by its display name, such as "@Bot Nori", used to leave it silent, because Javis only matched the account handle like `bot.xxxx`. It now also matches the name you gave the bot in Javis. Thanks @VQTPiano (#885).
