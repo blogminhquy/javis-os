@@ -1737,6 +1737,34 @@ _CODEX_TOOL_ITEMS = ("mcp_tool_call", "command_execution", "function_call",
                      "tool_call", "local_shell_call", "web_search_call")
 
 
+# A message Codex writes right before it works ("Let me check the class list.") is a lead-in, not part of the answer.
+# Codex sends it as its own agent message, and both readers used to join every message of the turn into the answer, so
+# a customer bot sent the lead-in too (LDA report, 31/10/2026). Longer text before a step is kept: it may be content.
+CODEX_LEAD_IN_MAX = 280
+
+
+def codex_answer_text(messages: list) -> str:
+    """The turn's answer from its agent messages, lead-ins left out. Each message: {"text", "phase", "before_step"}.
+
+    `phase` comes from app-server ("commentary" / "final_answer"); `codex exec` and some models send none, and then a
+    short message followed by a work step in the same turn counts as a lead-in. If that would leave nothing, every
+    message is kept: an answer with a lead-in beats an empty reply."""
+    def lead_in(m):
+        if m.get("phase") == "final_answer":
+            return False
+        if m.get("phase") == "commentary":
+            return True
+        return bool(m.get("before_step")) and len(str(m.get("text") or "").strip()) <= CODEX_LEAD_IN_MAX
+    keep = [m for m in messages if not lead_in(m)] or list(messages)
+    return "\n".join(str(m.get("text") or "") for m in keep)
+
+
+def codex_mark_step(messages: list) -> None:
+    """A work step started: every message so far came before a step."""
+    for m in messages:
+        m["before_step"] = True
+
+
 def _codex_tool_name(it: dict) -> str:
     """Tên bước: LOẠI việc, không phải nguyên câu lệnh. Trước 0.64.77 lệnh shell lấy `command` làm
     tên, nên Telegram in nguyên `/bin/sh -lc "sed -n ..."` lên dòng vết. mcp_tool_call của Codex
@@ -1979,6 +2007,7 @@ class CodexCLI:
         threading.Thread(target=reader_thread, daemon=True).start()
 
         final_text = ""
+        messages = []   # this turn's agent messages, joined into `final_text` when the turn ends (codex_answer_text)
         sandbox_hong = False
         while True:
             item = await queue.get()
@@ -2017,6 +2046,7 @@ class CodexCLI:
                 it = ev.get("item") or {}
                 itype = it.get("type")
                 if itype in _CODEX_TOOL_ITEMS:
+                    codex_mark_step(messages)
                     yield {"type": "progress", "name": _codex_tool_name(it), "item": it,
                            "id": str(it.get("id") or "")}
             elif t == "item.completed":
@@ -2029,9 +2059,11 @@ class CodexCLI:
                     # "turn4view0" là một nguồn có thật để trích dẫn tiếp.
                     txt = engine.strip_provider_markers(it.get("text") or "")
                     if txt.strip():
-                        final_text += (("\n" if final_text else "") + txt)
+                        # Shown live as before; the answer (`final`) leaves lead-ins out (codex_answer_text).
+                        messages.append({"text": txt, "phase": it.get("phase")})
                         yield {"type": "text", "content": txt}
                 elif itype in _CODEX_TOOL_ITEMS:
+                    codex_mark_step(messages)
                     # Câu lệnh đi kèm trong `item` để tool_label.chi_tiet rút ra khi cần.
                     name = _codex_tool_name(it)
                     # Kèm `item` THÔ. Codex không có trường file_path chuẩn hoá như Claude:
@@ -2047,11 +2079,14 @@ class CodexCLI:
                         ghi_codex_ws_hong(msg)
                     yield {"type": "retry", "content": msg}
                 elif itype:
+                    if itype == "file_change":
+                        codex_mark_step(messages)
                     # Item lạ (vd bản vá file) - KHÔNG dựng thành "đang gọi tool" để khỏi ồn,
                     # nhưng vẫn đẩy payload lên cho caller moi đường dẫn file vừa ghi.
                     yield {"type": "item", "item": it}
             elif t == "turn.completed":
                 u = ev.get("usage") or {}
+                final_text = codex_answer_text(messages)
                 # Dán lời giải thích vào chính bản báo cáo. Không dán thì thứ tới tay chủ là
                 # một bài dài model tự kể lại nỗi bối rối của nó, và không ai đọc ra được là
                 # phải đi sửa ở tầng container.
