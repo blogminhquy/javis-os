@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.428.0] - 2026-10-31
+### Added
+- (in progress)
+
 ## [0.427.0] - 2026-10-31
 ### Added
 - **Javis Core writes the habit lines every day.** The star and the habit reminders are no longer fixed sentences: Core reads each streak, frozen days and your usual time, and writes a line for each habit. Without a background model the fixed lines stay.

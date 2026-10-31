@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.428.0] - 2026-10-31
+### Thêm mới
+- (đang viết)
+
 ## [0.427.0] - 2026-10-31
 ### Thêm mới
 - **Javis Core tự viết lời nhắn thói quen mỗi ngày.** Ngôi sao và lời nhắc giữ lửa không còn là câu mẫu: Core đọc chuỗi, ngày đóng băng, giờ bạn hay làm rồi viết câu riêng cho từng thói quen. Không có model nền thì vẫn dùng câu mẫu như cũ.
