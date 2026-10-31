@@ -822,6 +822,7 @@
     D.querySelector(".nv-side").innerHTML = sideHtml();
     D.querySelector(".nv-top").innerHTML = tabsHtml();
     D.querySelector(".nv-askbox").innerHTML = askBar();
+    D.querySelector(".nv-search").hidden = S.view === "stats";   // 0.429.0: nothing to search on Stats
     D.querySelector(".nv-view").innerHTML = viewHtml(S.view);
     fitSide();
   }
