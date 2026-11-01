@@ -1649,6 +1649,10 @@ def _make_answer_fn(bot_id: str):
         # Per-chat exception (0.172.0): this private chat may run at its own level. Applied FIRST, so every later
         # read of `muc_quyen` in this turn (the tool route in `main`, the log, the prompt) sees the same level.
         cfg = chatbot_store.ap_ngoai_le(cfg, meta)
+        if (meta or {}).get("log_only"):
+            # Recorded for the inbox only, no turn (0.434.0: Page comments in "inbox" mode, the owner answers them).
+            ghi_tin_khach(cfg, meta or {}, text)
+            return {"text": "", "files": [], "im_lang": True}
         meta = _rp_named_meta(cfg, text, meta)
         _nho_neu_khong_goi(bot_id, cfg, meta, text)
         # Lớp thứ HAI của cùng một luật (`precheck_fn` đã chặn ở tầng kênh). Giữ cả hai vì hai
@@ -1961,6 +1965,10 @@ def manual_meta(conv: dict, last: dict) -> dict:
             "message_id": str(last.get("external_message_id") or ""), "account_id": raw,
             "platform": str(conv.get("channel") or ""), "_kenh": str(conv.get("channel") or ""), "mentioned": True,
             "ts": float(last.get("created_at") or time.time())}
+    if conv.get("channel") == "messenger" and meta["chat_id"].startswith("cmt:"):
+        # A Page comment thread (0.434.0): the reply goes out publicly under the comment, the model must know.
+        import messenger_bot
+        meta["ghi_chu_dau"] = messenger_bot.comment_note()
     if last.get("message_type") == "image":
         meta["co_anh"] = True
         meta["image_url"] = str((last.get("metadata") or {}).get("image_url") or "")
@@ -2045,6 +2053,8 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
         if lenh:
             note = _INSTRUCTION_NOTE.format(lenh=lenh.replace('"', "'"))
             text_engine = note + ("\n" + text_engine if chu_khach else "")
+        if meta.get("ghi_chu_dau"):
+            text_engine = str(meta["ghi_chu_dau"]) + "\n" + text_engine
         kw = {"channel": kenh, "bot": cfg}
         if draft:
             kw.update(phien_kho=sid, ghi_kho=False)

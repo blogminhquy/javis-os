@@ -24,6 +24,14 @@ Rules of the platform that shape the code:
   4. Private conversations with a Page only; there are no groups.
   5. Until the app passes Meta's App Review for `pages_messaging`, only people with a role on
      the app (admin, developer, tester) get replies. Error 200/10 on send says exactly that.
+
+Page comments (0.434.0), handled the way Pancake shows them: every top-level comment under a Page
+post is its own conversation in the inbox, every reply under it joins that conversation, and
+whatever Javis sends there goes out as a reply under that top-level comment. The conversation id
+is `cmt:<top-level comment id>`, so a reply needs no stored state and still works after a
+restart. They arrive as `feed` changes on the same webhook. Each account picks a mode in its
+meta (`comments`): "off", "inbox" (shown in the inbox, the owner answers; the default) or
+"reply" (the bot answers them too, publicly).
 """
 from __future__ import annotations
 
@@ -53,6 +61,11 @@ MAX_DEDUPE = 4000
 MAX_DOWNLOAD_MB = 20
 TYPING_EVERY = 15.0          # typing_on lasts about 20 s or until the next message
 SUBSCRIBED_FIELDS = "messages,messaging_postbacks"
+FEED_FIELD = "feed"           # Page comments (0.434.0); optional, the bot works without it
+COMMENT_PREFIX = "cmt:"       # conversation id of a comment thread: cmt:<top-level comment id>
+COMMENT_MODES = ("off", "inbox", "reply")
+COMMENT_MODE_DEFAULT = "inbox"
+MAX_COMMENT = 7900            # a comment takes 8000 characters
 
 # page_id -> MessengerBot currently running for it.
 _REGISTRY: dict = {}
@@ -116,6 +129,57 @@ def registered() -> dict:
     return dict(_REGISTRY)
 
 
+def is_comment_chat(chat) -> bool:
+    return str(chat or "").startswith(COMMENT_PREFIX)
+
+
+def comment_event(value: dict, page_id: str):
+    """One `feed` change -> the new comment it carries, or None.
+
+    Only new comments count (`item` comment, `verb` add); edits, removals, reactions and posts are
+    skipped, and so are the Page's own comments, which include every reply Javis sends. A reply
+    under a reply still belongs to the top-level comment: `parent_id` is the post id for a
+    top-level comment and the parent comment id otherwise."""
+    v = value or {}
+    if v.get("item") != "comment" or v.get("verb") != "add":
+        return None
+    cid = str(v.get("comment_id") or "")
+    if not cid:
+        return None
+    who = v.get("from") or {}
+    from_id = str(who.get("id") or "")
+    if from_id and from_id == str(page_id):
+        return None
+    post_id = str(v.get("post_id") or "")
+    parent = str(v.get("parent_id") or "")
+    root = cid if (not parent or parent == post_id) else parent
+    return {"comment_id": cid, "root_id": root, "post_id": post_id, "from_id": from_id,
+            "from_name": str(who.get("name") or ""), "message": str(v.get("message") or "").strip(),
+            "photo": str(v.get("photo") or ""), "video": str(v.get("video") or ""),
+            "permalink": str((v.get("post") or {}).get("permalink_url") or "")}
+
+
+def comment_note(post: str = "") -> str:
+    """What the model is told before answering a comment: it is public. Model prompt, so Vietnamese only."""
+    post = str(post or "").strip()
+    return ("[Đây là BÌNH LUẬN CÔNG KHAI dưới một bài viết của Fanpage"
+            + (f' (bài viết: "{post[:300]}")' if post else "")
+            + ". Câu trả lời của bạn hiện công khai ngay dưới bình luận này, ai cũng đọc được: trả lời ngắn gọn, "
+              "lịch sự, không nêu số điện thoại, địa chỉ hay thông tin riêng của khách; cần trao đổi riêng thì mời "
+              "khách nhắn tin cho Page.]")
+
+
+def comment_mode(account_id: str) -> str:
+    """The comment mode of a Messenger account, from its meta. Unknown or missing -> the default."""
+    try:
+        import channel_accounts
+        a = channel_accounts.get_account(str(account_id or "")) or {}
+        m = str((a.get("meta") or {}).get("comments") or "").strip()
+    except Exception:
+        m = ""
+    return m if m in COMMENT_MODES else COMMENT_MODE_DEFAULT
+
+
 async def handle_webhook(payload: dict) -> int:
     """Route a verified webhook payload to the bots it is for. Returns how many events were
     handed over. Echoes (the Page's own outgoing messages), reads and deliveries are skipped."""
@@ -126,10 +190,16 @@ async def handle_webhook(payload: dict) -> int:
         pid = str(entry.get("id") or "")
         bot = _REGISTRY.get(pid)
         events = entry.get("messaging") or []
+        changes = [c for c in (entry.get("changes") or []) if (c or {}).get("field") == FEED_FIELD]
         if not bot:
             if events:
                 print(f"[messenger] event for Page {pid} but no bot runs for it", file=sys.stderr)
             continue
+        for ch in changes:
+            com = comment_event(ch.get("value") or {}, pid)
+            if com:
+                asyncio.create_task(bot._safe_comment(com))
+                n += 1
         for ev in events:
             msg = ev.get("message") or {}
             if msg.get("is_echo"):
@@ -173,7 +243,10 @@ class MessengerBot(HangLuot):
         self._seen = set()
         self._seen_order = deque()
         self._names: dict = {}
+        self._posts: dict = {}
         self._client = None
+        self.account_id = ""
+        self.feed_on = False
 
     # ---- HTTP -------------------------------------------------------------------------
     def _params(self):
@@ -197,6 +270,15 @@ class MessengerBot(HangLuot):
             return {"ok": False, "error": f"{type(e).__name__}: {e}", "net_error": True}
 
     async def _send_one(self, client, to, text):
+        if is_comment_chat(to):
+            d = await self._post_json(client, f"{str(to)[len(COMMENT_PREFIX):]}/comments", {"message": text})
+            if not d.get("ok") and str(d.get("code")) in ("10", "200"):
+                d["error"] = localefmt.chu(
+                    "app chưa có quyền trả lời bình luận. Đăng nhập Facebook lại ở thẻ Messenger và cấp quyền "
+                    f"pages_manage_engagement ({d.get('code')})",
+                    "the app may not reply to comments yet. Log in with Facebook again on the Messenger card and "
+                    f"grant pages_manage_engagement ({d.get('code')})")
+            return d
         return await self._post_json(client, f"{self.page_id}/messages", {
             "recipient": {"id": str(to)}, "messaging_type": "RESPONSE",
             "message": {"text": text}})
@@ -205,7 +287,7 @@ class MessengerBot(HangLuot):
         if not str(text or "").strip() and self.giau_trang_thai:
             return
         text = md_to_plain(text or localefmt.chu("(không có nội dung)", "(no content)"))
-        for chunk in _chunks(text):
+        for chunk in _chunks(text, MAX_COMMENT if is_comment_chat(chat) else MAX_MSG):
             d = await self._send_one(client, chat, chunk)
             if not d.get("ok"):
                 self.last_error = d.get("error", "")
@@ -220,7 +302,7 @@ class MessengerBot(HangLuot):
             return False, localefmt.chu("thiếu Page id hoặc Page access token Messenger",
                                         "missing the Messenger Page id or Page access token")
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
-            for chunk in _chunks(text):
+            for chunk in _chunks(text, MAX_COMMENT if is_comment_chat(chat) else MAX_MSG):
                 d = await self._send_one(client, chat, chunk)
                 if not d.get("ok"):
                     return False, d.get("error", "")
@@ -244,6 +326,8 @@ class MessengerBot(HangLuot):
         mime = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
         kind = ("image" if mime.startswith("image/") else "video" if mime.startswith("video/")
                 else "audio" if mime.startswith("audio/") else "file")
+        if is_comment_chat(chat):
+            return await self._comment_photo(str(chat)[len(COMMENT_PREFIX):], p.name, data, mime, kind, caption)
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as c:
             try:
                 r = await c.post(f"{GRAPH}/{self.page_id}/messages", params=self._params(), data={
@@ -263,8 +347,28 @@ class MessengerBot(HangLuot):
                 return False, err
         return True, ""
 
+    async def _comment_photo(self, root, name, data, mime, kind, caption=""):
+        """A reply under a comment carrying one image (`source`). A comment takes no other file type."""
+        if kind != "image":
+            return False, localefmt.chu("bình luận chỉ đính kèm được ảnh", "a comment can only carry an image")
+        form = {"message": md_to_plain(str(caption or "").strip())[:MAX_COMMENT]} if str(caption or "").strip() else {}
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as c:
+            try:
+                r = await c.post(f"{GRAPH}/{root}/comments", params=self._params(), data=form,
+                                 files={"source": (name, data, mime)})
+                d = r.json() or {}
+            except Exception as e:
+                return False, f"{type(e).__name__}: {e}"
+        if d.get("error") or not d.get("id"):
+            e = d.get("error") or {}
+            return False, _explain_error(e.get("code"), e.get("message") or "upload failed", e.get("error_subcode"))
+        return True, ""
+
     async def _action(self, client, chat, action):
-        """Sender action: mark_seen, typing_on or typing_off. Failures are not worth a log line."""
+        """Sender action: mark_seen, typing_on or typing_off. Failures are not worth a log line.
+        A comment thread has no typing indicator."""
+        if is_comment_chat(chat):
+            return
         await self._post_json(client, f"{self.page_id}/messages",
                               {"recipient": {"id": str(chat)}, "sender_action": action})
 
@@ -398,6 +502,71 @@ class MessengerBot(HangLuot):
         await self._action(client, chat, "mark_seen")
         await self._dispatch(client, chat, text, meta)
 
+    # ---- Page comments (0.434.0) -------------------------------------------------------
+    async def _safe_comment(self, com):
+        try:
+            await self._on_comment(com)
+        except Exception as e:
+            print(f"[messenger comment] {type(e).__name__}: {e}", file=sys.stderr)
+
+    async def _post_text(self, client, post_id) -> str:
+        """The first words of the post a comment sits under, for the inbox title and for the bot.
+        Cached; empty when the token may not read it."""
+        if not post_id:
+            return ""
+        if post_id in self._posts:
+            return self._posts[post_id]
+        txt = ""
+        try:
+            r = await client.get(f"{GRAPH}/{post_id}", params={"fields": "message", "access_token": self.token})
+            txt = re.sub(r"\s+", " ", str((r.json() or {}).get("message") or "")).strip()
+        except Exception:
+            txt = ""
+        if len(self._posts) > 500:
+            self._posts.clear()
+        self._posts[post_id] = txt
+        return txt
+
+    async def _on_comment(self, com):
+        if self._stop or self._seen_before("c" + com["comment_id"]):
+            return
+        mode = comment_mode(getattr(self, "account_id", ""))
+        if mode == "off":
+            return
+        chat = COMMENT_PREFIX + com["root_id"]
+        self.last_inbound = time.time()
+        client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(60.0))
+        self._client = client
+        parts = []
+        if com.get("photo"):
+            parts.append(await self._attachment_text(client, {"type": "image", "payload": {"url": com["photo"]}}, chat))
+        if com.get("video"):
+            parts.append(localefmt.chu(f"[Người dùng gắn một video vào bình luận: {com['video']}]",
+                                       f"[The user attached a video to the comment: {com['video']}]"))
+        if com.get("message"):
+            parts.append(com["message"])
+        text = "\n".join(x for x in parts if x).strip()
+        if not text:
+            return
+        post = await self._post_text(client, com.get("post_id"))
+        short = (post[:60] + "...") if len(post) > 60 else post
+        title = localefmt.chu("Bình luận", "Comment") + (f": {short}" if short else "")
+        meta = {
+            "platform": "messenger", "chat_id": chat, "chat_type": "private", "chat_title": title,
+            "user_name": com.get("from_name", ""), "username": com.get("from_name", ""),
+            "user_id": com.get("from_id") or chat, "message_id": com["comment_id"],
+            "bot_username": self.bot_username, "mentioned": False, "reply_to_bot": False,
+            "comment": True, "comment_id": com["comment_id"], "post_id": com.get("post_id", ""),
+            # For the model only, never the inbox (see `ghi_chu_dau` in chatbot_runtime).
+            "ghi_chu_dau": comment_note(post),
+        }
+        if mode == "inbox":
+            # Shown in the inbox only: the answer function records the comment and stays silent.
+            meta["log_only"] = True
+            await self.answer_fn(text, meta, None)
+            return
+        await self._dispatch(client, chat, text, meta)
+
     # ---- One turn ---------------------------------------------------------------------
     async def _keep_typing(self, client, chat):
         while True:
@@ -479,6 +648,7 @@ class MessengerBot(HangLuot):
             "subscribed by hand in the Meta app (Messenger, Webhooks, Add Subscriptions) the bot still hears; "
             "otherwise subscribe it there.")
         self.bot_username = info.get("username", "")
+        self.feed_on = bool(sub.get("feed"))
         old = _REGISTRY.get(self.page_id)
         if old is not None and old is not self:
             print(f"[messenger] Page {self.page_id} was served by another bot; the newest one takes over",
@@ -552,14 +722,10 @@ async def whoami(client, page_id, token, app_secret: str = "") -> dict:
     return {"ok": True, "username": str(d.get("id") or ""), "bot_name": str(d.get("name") or "")}
 
 
-async def subscribe_page(client, page_id, token) -> dict:
-    """Make the Page deliver `messages` and `messaging_postbacks` to this app's webhook.
-
-    Without this the app's webhook is set up but the Page never calls it, and the bot looks
-    healthy while hearing nothing. Calling it again is harmless."""
+async def _subscribe(client, page_id, token, fields) -> dict:
     try:
         r = await client.post(f"{GRAPH}/{page_id}/subscribed_apps",
-                              params={"subscribed_fields": SUBSCRIBED_FIELDS, "access_token": token})
+                              params={"subscribed_fields": fields, "access_token": token})
         d = r.json() or {}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -568,6 +734,24 @@ async def subscribe_page(client, page_id, token) -> dict:
         return {"ok": False, "error": _explain_error(e.get("code"), e.get("message") or "subscribe failed",
                                                      e.get("error_subcode"))}
     return {"ok": True}
+
+
+async def subscribe_page(client, page_id, token) -> dict:
+    """Make the Page deliver `messages` and `messaging_postbacks` (and `feed`, for comments) to
+    this app's webhook. {"ok", "feed", "error"}.
+
+    Without this the app's webhook is set up but the Page never calls it, and the bot looks
+    healthy while hearing nothing. Calling it again is harmless. `feed` needs permissions an older
+    token may lack, and Meta refuses the whole call then, so it is tried first and dropped on
+    failure: messages must never be lost over comments."""
+    d = await _subscribe(client, page_id, token, SUBSCRIBED_FIELDS + "," + FEED_FIELD)
+    if d.get("ok"):
+        return {"ok": True, "feed": True}
+    feed_err = d.get("error", "")
+    d = await _subscribe(client, page_id, token, SUBSCRIBED_FIELDS)
+    if d.get("ok"):
+        return {"ok": True, "feed": False, "feed_error": feed_err}
+    return {"ok": False, "feed": False, "error": d.get("error", "")}
 
 
 # Error codes the owner can act on. https://developers.facebook.com/docs/messenger-platform/error-codes

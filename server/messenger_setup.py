@@ -26,13 +26,16 @@ from typing import Optional
 import httpx
 
 import localefmt
-from messenger_bot import GRAPH, SUBSCRIBED_FIELDS, _explain_error, appsecret_proof, subscribe_page, whoami
+from messenger_bot import (FEED_FIELD, GRAPH, SUBSCRIBED_FIELDS, _explain_error, appsecret_proof, subscribe_page,
+                           whoami)
 
 WEBHOOK_PATH = "/messenger/webhook"
 # What the bot needs at run time. `pages_show_list` is only needed while deriving the Page token,
 # so it is not part of the run-time check.
 REQUIRED_SCOPES = ("pages_messaging", "pages_manage_metadata", "pages_read_engagement")
 WEBHOOK_FIELDS = tuple(SUBSCRIBED_FIELDS.split(","))
+# Page comments (0.434.0): reading them and replying under them. Optional, so a warning when missing.
+COMMENT_SCOPES = ("pages_read_user_content", "pages_manage_engagement")
 
 
 def _app_token(app_id: str, app_secret: str) -> str:
@@ -147,13 +150,17 @@ async def set_app_webhook(client, app_id: str, app_secret: str, callback_url: st
     """Register (or overwrite) the app's `page` webhook with the fields the bot needs. Meta calls
     `callback_url` with the verify token while this request is open, so Javis must be reachable
     at that address for it to succeed."""
-    d = await _post(client, f"{app_id}/subscriptions", {
-        "object": "page", "callback_url": callback_url, "fields": SUBSCRIBED_FIELDS,
-        "include_values": "true", "verify_token": verify_token,
-        "access_token": _app_token(app_id, app_secret)})
+    params = {"object": "page", "callback_url": callback_url, "fields": SUBSCRIBED_FIELDS + "," + FEED_FIELD,
+              "include_values": "true", "verify_token": verify_token,
+              "access_token": _app_token(app_id, app_secret)}
+    d = await _post(client, f"{app_id}/subscriptions", params)
+    if not d.get("error") and d.get("success"):
+        return {"ok": True, "feed": True}
+    # `feed` (comments) is optional: never lose the message webhook over it.
+    d = await _post(client, f"{app_id}/subscriptions", {**params, "fields": SUBSCRIBED_FIELDS})
     if d.get("error") or not d.get("success"):
         return {"ok": False, "error": _err(d, "webhook setup failed")}
-    return {"ok": True}
+    return {"ok": True, "feed": False}
 
 
 async def page_subscription(client, page_id: str, page_token: str, app_id: str) -> dict:
@@ -178,6 +185,18 @@ def _date(ts: int) -> str:
         return time.strftime("%Y-%m-%d", time.localtime(int(ts)))
     except Exception:
         return ""
+
+
+def comments_item(scopes, page_fields) -> dict:
+    """Warning row for Page comments: the permissions and the `feed` subscription. Never red, the
+    inbox and the bot work without comments."""
+    lack = [x for x in COMMENT_SCOPES if x not in (scopes or [])]
+    if FEED_FIELD not in (page_fields or []):
+        lack.append(FEED_FIELD)
+    return _item("comments", True if not lack else None, ("Nhận bình luận Trang", "Receives Page comments"),
+                 ", ".join(lack) if lack else "",
+                 ("Đăng nhập Facebook lại ở thẻ Messenger, cấp đủ quyền, rồi bấm Sửa tự động.",
+                  "Log in with Facebook again on the Messenger card, grant every permission, then click Repair."))
 
 
 async def run_checks(client, page_id: str, page_token: str, app_secret: str, app_id: str = "",
@@ -246,6 +265,7 @@ async def run_checks(client, page_id: str, page_token: str, app_secret: str, app
                                ("Trang gắn với app", "Page is subscribed to the app"),
                                ps.get("error", "") if not ps.get("ok") else ", ".join(ps.get("fields", [])),
                                ("Bấm Sửa tự động.", "Click Repair."), auto=True))
+            items.append(comments_item(info["scopes"], ps.get("fields", []) if ps.get("ok") else []))
     if bot_running is not None:
         items.append(_item("bot", None if not bot_running else True, ("Có bot đang trực", "A bot is answering"), "",
                            ("Vào Chatbot, Bot, tạo hoặc bật bot cho kênh này.",
