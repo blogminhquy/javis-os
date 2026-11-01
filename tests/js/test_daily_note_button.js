@@ -89,8 +89,10 @@ check("a write error is reported instead of silently opening an empty file",
   body.includes("cs.vt_daily_fail") && /return;/.test(body));
 
 check("the daily note opens in the current frame, not full screen", /openNote\(rel, \{[^}]*\}, \{ inPlace: true \}\)/.test(body));
-check("openNote only goes full screen when NOT asked to stay in place",
-  /ed\.classList\.toggle\("ne-full", !\(opts && opts\.inPlace\)\)/.test(CON));
+// 0.432.1: every file now opens in the frame; only the maximize button (or opts.full) goes full screen, and
+// `inPlace` still forces the frame even when the editor was left maximized.
+check("openNote never goes full screen by itself, inPlace forces the frame",
+  /if \(opts && opts\.full\) ed\.classList\.add\("ne-full"\);\s*else if \(!daMo \|\| \(opts && opts\.inPlace\)\) ed\.classList\.remove\("ne-full"\);/.test(CON));
 check("CANARY: only a 404 creates a new note, other errors do not overwrite", /exists = r\.status !== 404/.test(body));
 
 // ============================================================

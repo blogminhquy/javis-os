@@ -536,6 +536,10 @@
     // nội dung/nút của trang mới. Đặc biệt bảo vệ các node chat mà tab Trò chuyện mượn vào
     // cviewBody (trước đây bị 1 render async trễ xoá mất → chat vỡ). Cũng hết nháy nội dung cũ.
     const fresh = el.cloneNode(false); el.parentNode.replaceChild(fresh, el); el = fresh;
+    // #936: the clone keeps every attribute. The Teams page marks this node data-localdrop (its own drop zone), so after a
+    // visit there the Chat page, which borrows the chat into this same node, ignored every dropped file. A new page starts
+    // without the mark; a page with its own drop zone sets it again while it renders.
+    el.removeAttribute("data-localdrop");
     // Trang Chatbot (0.65.10) tự vẽ tiêu đề cùng hàng với tab và chiếm trọn khung, nên đầu trang chung phải ẩn. Lớp nằm trên
     // #cview (KHÔNG bị clone như cviewBody) nên phải bật/tắt ở MỌI lần đổi trang, không thì trang sau mất đầu trang.
     const cv = document.getElementById("cview");
@@ -9219,11 +9223,17 @@
     _neDangDiLichSu = false;
     if (!laLichSu) _neDayLichSu(rel, it);
     _neVeNutLui();
-    // `inPlace`: open RIGHT IN the current frame (the middle column of the main screen, where the
-    // chat sits) instead of covering the whole screen. Today's daily note uses it: Ctrl+D is for
-    // jotting a few lines next to the work at hand, not for leaving that screen. The toolbar's
-    // maximize button can still go full screen.
-    ed.hidden = false; ed.classList.toggle("ne-full", !(opts && opts.inPlace)); _neSyncFull();
+    // 0.432.1: a file opens RIGHT IN the current frame (the middle column of the main screen, the
+    // chat's place on the Chat page, the file list on the Files page), never full screen by itself.
+    // Owner, 01/11/2026: "html hoặc .md khi mở mặc định nó zoom to hết cỡ, anh cần nó zoom trong
+    // khung, ấn mở zoom ra thì mới ra toàn màn hình". The toolbar's maximize button goes full screen,
+    // and moving to another file (a [[wikilink]], Back/Forward) keeps whatever size the owner chose.
+    // `inPlace` still forces the frame (Ctrl+D daily note); `full` forces full screen.
+    const daMo = !ed.hidden;
+    ed.hidden = false;
+    if (opts && opts.full) ed.classList.add("ne-full");
+    else if (!daMo || (opts && opts.inPlace)) ed.classList.remove("ne-full");
+    _neSyncFull();
     _neOpenRel = rel || "";     // để chip "file đang mở" biết có cần nạp lại hay chỉ cần đưa mắt về
     _neLayNoiDung = null; _neGocText = null;   // file mới: mốc so sánh dựng lại ở dưới
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
