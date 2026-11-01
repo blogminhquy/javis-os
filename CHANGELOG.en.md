@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.438.5] - 2026-11-01
+### Improved
+- **API key brains type out their answer too.** OpenRouter, OpenAI, Anthropic API, Gemini, Groq, DeepSeek, Ollama and OpenAI/Anthropic Compatible now show the reply piece by piece while the model writes, including turns that use tools. Before, a turn with tools waited for the whole answer and showed it at once.
+
 ## [0.438.4] - 2026-11-01
 ### Improved
 - **Claude Code types out its answer like ChatGPT.** The reply now flows in piece by piece while Claude is writing, instead of appearing all at once when a whole paragraph is done.

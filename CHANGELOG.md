@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.438.5] - 2026-11-01
+### Cải thiện
+- **Các bộ não API key cũng hiện chữ lần lượt.** OpenRouter, OpenAI, Anthropic API, Gemini, Groq, DeepSeek, Ollama và OpenAI/Anthropic Compatible giờ hiện câu trả lời từng mẩu ngay khi model đang viết, kể cả lượt có dùng công cụ. Trước đây lượt có công cụ phải chờ xong cả câu trả lời mới hiện một lần.
+
 ## [0.438.4] - 2026-11-01
 ### Cải thiện
 - **Claude Code hiện chữ lần lượt như ChatGPT.** Câu trả lời chảy ra từng mẩu ngay khi Claude đang viết, không còn phải chờ xong cả đoạn mới hiện một lần.
