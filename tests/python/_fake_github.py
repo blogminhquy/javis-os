@@ -42,6 +42,11 @@ class FakeGitHub:
         self.scopes = scopes
         self.login = login
         self.token = GOOD_TOKEN
+        # "Sign in with GitHub" (device flow, 0.430.0). `pending` polls answer authorization_pending first, one of
+        # them `slow_down` when `slow` is set; `deny` ends with access_denied. `installs` is /user/installations.
+        self.device = {"pending": 1, "slow": False, "deny": False, "expires_in": 0, "refresh_token": "",
+                       "refreshed_token": "", "client_ids": [], "polls": 0}
+        self.installs = 1
         self.lock = threading.Lock()
         handler = self._handler()
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -200,13 +205,47 @@ class FakeGitHub:
                                                     "heads": {fn: {b: fake.branch_sha(fn, b) for b in q.get("branches", "main").split(",")}
                                                               for fn in fake.repos}})
                     return self._send(404, {"message": "no such control"})
+                if path in ("/login/device/code", "/login/oauth/access_token"):
+                    n = int(self.headers.get("Content-Length") or 0)
+                    form = {k: v[0] for k, v in parse_qs((self.rfile.read(n) if n else b"").decode()).items()}
+                    with fake.lock:
+                        return self._device(path, form)
                 if not self._auth():
                     return
                 body = self._body() if method in ("POST", "PUT", "PATCH") else {}
                 with fake.lock:
                     return self._dispatch(method, path, q, body)
 
+            def _device(self, path, form):
+                d = fake.device
+                d["client_ids"].append(form.get("client_id"))
+                if path == "/login/device/code":
+                    return self._send(200, {"device_code": "dev-123", "user_code": "ABCD-1234", "interval": 1,
+                                            "expires_in": 900, "verification_uri": "https://github.com/login/device"})
+                if form.get("grant_type") == "refresh_token":
+                    if form.get("refresh_token") == d["refresh_token"] and d["refreshed_token"]:
+                        return self._send(200, {"access_token": d["refreshed_token"], "expires_in": 28800,
+                                                "refresh_token": "ghr_next"})
+                    return self._send(200, {"error": "bad_refresh_token"})
+                if form.get("device_code") != "dev-123":
+                    return self._send(200, {"error": "incorrect_device_code"})
+                d["polls"] += 1
+                if d["pending"] > 0:
+                    d["pending"] -= 1
+                    if d["slow"]:
+                        d["slow"] = False
+                        return self._send(200, {"error": "slow_down", "interval": 2})
+                    return self._send(200, {"error": "authorization_pending"})
+                if d["deny"]:
+                    return self._send(200, {"error": "access_denied"})
+                out = {"access_token": fake.token, "token_type": "bearer", "scope": ""}
+                if d["expires_in"]:
+                    out.update(expires_in=d["expires_in"], refresh_token=d["refresh_token"])
+                return self._send(200, out)
+
             def _dispatch(self, method, path, q, body):
+                if path == "/user/installations":
+                    return self._send(200, {"total_count": fake.installs, "installations": []})
                 if path == "/user":
                     h = {"X-OAuth-Scopes": fake.scopes} if fake.scopes is not None else {}
                     return self._send(200, {"login": fake.login, "id": 4242}, headers=h)

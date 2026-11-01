@@ -92,9 +92,11 @@
   function cardHtml(st, local) {
     var head = '<div class="prov-head"><span class="conn-ico">' + LOGO + '</span><div class="prov-info"><div class="prov-name">GitHub' +
       infoBtn() + '</div><div class="prov-status j-clamp2">' + esc(st.connected ? tw("gh.connected_as", { login: st.login || "?" }) : tw("gh.not_connected")) +
-      (st.connected && st.source === "backup" ? " · " + esc(tw("gh.uses_backup")) : "") + "</div>" + infoBody(esc(tw("gh.intro"))) + "</div></div>";
+      (st.connected && st.source === "backup" ? " · " + esc(tw("gh.uses_backup")) : "") +
+      (st.connected && st.source === "app" ? " · " + esc(tw("gh.uses_app")) : "") + "</div>" + infoBody(esc(tw("gh.intro"))) + "</div></div>";
     var warn = st.connected && st.missing && st.missing.length
       ? '<div class="lv-note">' + esc(tw("gh.missing_scopes", { scopes: st.missing.join(", ") })) + "</div>" : "";
+    if (st.connected && st.source === "app" && st.installs === 0) warn += '<div class="lv-note">' + esc(tw("gh.no_install")) + "</div>";
     var noGit = st.has_git === false ? '<div class="lv-note">' + esc(tw("gh.no_git")) + "</div>" : "";
     // The repo list opens in a popup (owner, 28/10/2026, same as the bot cards on the Chatbot page): a brain can hold many
     // repos, and listing them inline stretched the Connections page. The card keeps one compact row with the counts.
@@ -109,7 +111,9 @@
         : '<div class="lv-meta">' + esc(tw("gh.local_none")) + "</div>";
     }
     var acts = '<div class="conn-accounts">' + (st.connected
-      ? '<button class="conn-chip" type="button" data-gh-open>' + esc(tw("gh.change_token")) + "</button>" +
+      ? (st.source === "app" && st.install_url ? '<a class="conn-chip' + (st.installs === 0 ? " add" : "") + '" target="_blank" rel="noopener" href="' +
+          esc(st.install_url) + '">' + esc(tw("gh.pick_repos")) + "</a>" : "") +
+        '<button class="conn-chip" type="button" data-gh-open>' + esc(tw(st.source === "app" ? "gh.change_account" : "gh.change_token")) + "</button>" +
         '<button class="conn-chip" type="button" data-gh-off>' + esc(tw("gh.disconnect")) + "</button>"
       : '<button class="conn-chip add" type="button" data-gh-open>＋ ' + esc(tw("gh.connect")) + "</button>") + "</div>";
     return '<div class="prov-card conn-card gh-card">' + head + warn + noGit + repos + acts + "</div>";
@@ -233,13 +237,19 @@
     var bk = m.querySelector('[data-f="back"]');
     if (bk) bk.onclick = back;
   }
+  // The connect dialog (0.430.0): "Sign in with GitHub" first (the device flow of the Javis OS GitHub App, no token to
+  // make or copy), a pasted token below it for whoever prefers that, and the brain-backup token when there is one.
   function openForm(st) {
     var M = window.JavisConnModal;
     if (!M) return;
     var html = M.head(esc(tw("gh.dialog_head"))) + '<div class="conn-form gh-form">' +
+      '<div class="gh-signin"><button class="s-btn gh-signin-btn" type="button" data-f="signin">' + LOGO + "<span>" +
+      esc(tw("gh.signin")) + "</span></button>" + infoBtn() + "</div>" + infoBody(esc(tw("gh.signin_how"))) +
+      '<div class="lv-meta">' + esc(tw("gh.signin_sub")) + "</div>" +
+      '<div class="gh-or"><span>' + esc(tw("gh.or_token")) + "</span></div>" +
       '<div class="si-field"><label>' + esc(tw("gh.token")) + infoBtn() + "</label>" + infoBody(esc(tw("gh.token_how"))) +
       '<input class="js-input" data-f="token" type="password" autocomplete="off" spellcheck="false" placeholder="' + esc(tw("gh.token_ph")) + '"></div>' +
-      '<div class="lv-form-act"><button class="s-btn" type="button" data-f="go">' + esc(tw("gh.connect")) + "</button>" +
+      '<div class="lv-form-act"><button class="s-btn-ghost" type="button" data-f="go">' + esc(tw("gh.connect")) + "</button>" +
       (st && st.backup_token ? '<button class="s-btn-ghost" type="button" data-f="backup">' + esc(tw("gh.use_backup")) + "</button>" : "") +
       '<button class="s-btn-ghost" type="button" data-f="cancel">' + esc(tw("gh.cancel")) + "</button>" +
       '<span class="lv-msg" role="status"></span></div></div>';
@@ -255,11 +265,78 @@
       M.close();
       loadCard();
     }
+    form.querySelector('[data-f="signin"]').onclick = function () { signIn(); };
     form.querySelector('[data-f="go"]').onclick = function () { go({ token: form.querySelector('[data-f="token"]').value.trim() }); };
     var bk = form.querySelector('[data-f="backup"]');
     if (bk) bk.onclick = function () { go({ use_backup: "1" }); };
     form.querySelector('[data-f="cancel"]').onclick = function () { M.close(); };
-    setTimeout(function () { try { form.querySelector('[data-f="token"]').focus(); } catch (e) {} }, 30);
+  }
+
+  // Device flow, step by step in the same dialog: get a code, show it with "Open GitHub" and "Copy", poll until the
+  // person presses Authorize, then offer "Pick repos for Javis" when the app is not installed anywhere yet.
+  async function signIn() {
+    var M = window.JavisConnModal;
+    if (!M) return;
+    var m = M.open(M.head(esc(tw("gh.dialog_head"))) + '<div class="conn-form gh-form"><div class="lv-meta">' +
+      esc(tw("gh.loading")) + "</div></div>", 560);
+    var d = await api("/github/oauth/start", {});
+    if (!d || d.ok === false) {
+      m.querySelector(".gh-form").innerHTML = '<div class="lv-note">' + esc((d && d.error) || tw("gh.err_net")) + "</div>" +
+        '<div class="lv-form-act"><button class="s-btn" type="button" data-f="retry">' + esc(tw("gh.signin")) + "</button></div>";
+      m.querySelector('[data-f="retry"]').onclick = function () { signIn(); };
+      return;
+    }
+    var url = d.verification_uri || "https://github.com/login/device";
+    m = M.open(M.head(esc(tw("gh.dialog_head"))) + '<div class="conn-form gh-form gh-device">' +
+      '<div class="lv-meta">' + esc(tw("gh.code_how")) + "</div>" +
+      '<div class="gh-code" data-f="code" aria-label="' + esc(tw("gh.code_label")) + '">' + esc(d.user_code) + "</div>" +
+      '<div class="lv-form-act"><a class="s-btn" data-f="open" target="_blank" rel="noopener" href="' + esc(url) + '">' + esc(tw("gh.open_github")) + "</a>" +
+      '<button class="s-btn-ghost" type="button" data-f="copy">' + esc(tw("gh.copy")) + "</button>" +
+      '<button class="s-btn-ghost" type="button" data-f="cancel">' + esc(tw("gh.cancel")) + "</button></div>" +
+      '<div class="lv-msg" role="status" data-f="msg">' + esc(tw("gh.waiting")) + "</div></div>", 560);
+    var form = m.querySelector(".gh-form"), msg = form.querySelector('[data-f="msg"]');
+    function copy() {
+      try {
+        navigator.clipboard.writeText(d.user_code).then(function () { msg.textContent = tw("gh.copied"); }, function () {});
+      } catch (e) {}
+    }
+    copy();
+    // The code shows first and the link is a real tap, so no popup blocker gets in the way, and the tap copies the
+    // code again (the first copy can fail when the page had no focus).
+    form.querySelector('[data-f="open"]').addEventListener("click", copy);
+    form.querySelector('[data-f="copy"]').onclick = copy;
+    var alive = true;
+    function open() { return alive && form.isConnected && m.closest(".mp-overlay.open"); }
+    form.querySelector('[data-f="cancel"]').onclick = function () { alive = false; api("/github/oauth/cancel", {}); M.close(); };
+    var wait = Math.max(1, d.interval || 5) * 1000;
+    while (true) {
+      await new Promise(function (res) { setTimeout(res, wait); });
+      if (!open()) { if (alive) api("/github/oauth/cancel", {}); return; }
+      var r = await api("/github/oauth/poll", {});
+      if (!open()) return;
+      if (r && r.status === "pending") continue;
+      if (!r || r.ok === false || r.status === "error") {
+        msg.textContent = (r && r.error) || tw("gh.err_net");
+        form.querySelector('[data-f="open"]').remove();
+        form.querySelector('[data-f="copy"]').textContent = tw("gh.signin");
+        form.querySelector('[data-f="copy"]').onclick = function () { signIn(); };
+        return;
+      }
+      loadCard();
+      if (r.installs === 0) { pickRepos(r); return; }
+      M.close();
+      return;
+    }
+  }
+  // Signed in but the app is on no account yet: the last step, picking repos on GitHub.
+  function pickRepos(st) {
+    var M = window.JavisConnModal;
+    if (!M) return;
+    var m = M.open(M.head(esc(tw("gh.signed_in", { login: st.login || "?" }))) + '<div class="conn-form gh-form">' +
+      '<div class="lv-meta">' + esc(tw("gh.pick_repos_how")) + "</div>" +
+      '<div class="lv-form-act"><a class="s-btn" target="_blank" rel="noopener" href="' + esc(st.install_url || "") + '">' + esc(tw("gh.pick_repos")) + "</a>" +
+      '<button class="s-btn-ghost" type="button" data-f="done">' + esc(tw("gh.done")) + "</button></div></div>", 560);
+    m.querySelector('[data-f="done"]').onclick = function () { M.close(); loadCard(); };
   }
   function mount(el) { cardHost = el || null; if (cardHost) loadCard(); }
 

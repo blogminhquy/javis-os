@@ -546,7 +546,7 @@ _SECRET_PATHS = (
     # Cloudflare Tunnel token (remote_tunnel.py): whoever holds it can serve any site on the owner's tunnel hostname.
     "remote_tunnel.token",
     # GitHub inside chat (0.362.0, github_repos.py): pushes code and merges PRs on the owner's repos.
-    "github.token",
+    "github.token", "github.refresh_token",
 )
 
 

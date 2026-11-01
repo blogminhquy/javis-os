@@ -152,7 +152,15 @@ Phần dưới là [ĐỀ XUẤT]:
   repo token thấy được.
 - Token chỉ đi vào lệnh git theo cách của `git_brain._auth_url` (một lần, không lưu remote) và
   vào header API. Mọi log, lỗi, tin chat đi qua `secret_redact` trước khi hiện.
-- GitHub App hoặc OAuth (bấm một nút là xong) để giai đoạn sau, khi có người dùng thật cần.
+- **ĐÃ LÀM 0.430.0 (chủ repo chốt 01/11/2026):** nút **Đăng nhập bằng GitHub** qua GitHub App
+  `Javis OS` (`github.com/apps/javis-os`, Client ID `Iv23limeL0BsyXptmTz2`), luồng Device Flow
+  (`server/github_oauth.py`). Không dùng luồng chuyển trang như Claude vì mỗi bản Javis một địa
+  chỉ (không có callback cố định) và repo công khai không giữ được client secret. Người dùng bấm
+  nút, dán mã ở `github.com/login/device`, bấm Authorize; sau đó cài app vào repo muốn cho Javis
+  thấy. App tạo token không hết hạn (đã tắt "Expire user authorization tokens"); nếu sau này bật
+  lại thì Javis giữ refresh token và thử làm mới, từ chối thì coi như đã đăng xuất. Ô dán token
+  vẫn giữ cho ai thích cách cũ. Fork tự đăng ký app khác thì đặt `JAVIS_GITHUB_CLIENT_ID` và
+  `JAVIS_GITHUB_APP_SLUG`.
 
 ### 5.2. Chọn repo trong chat
 
@@ -463,7 +471,7 @@ từng bước, mở bảng chi tiết, merge.
 |---|---|
 | CI xanh thì tự merge hay chờ duyệt? | **ĐÃ CHỐT 27/10:** xanh thì tự merge luôn, công tắc tự merge theo từng repo (mục 11.1) |
 | Repo không có CI thì "xong" là gì? | Mặc định: cổng chất lượng cục bộ xanh thì sẵn sàng merge, nhưng ghi rõ "không có CI" và không tự merge |
-| Đăng nhập GitHub bằng gì? | Token fine-grained mỗi brain trước, GitHub App sau |
+| Đăng nhập GitHub bằng gì? | **ĐÃ LÀM 0.430.0:** nút Đăng nhập bằng GitHub (GitHub App, Device Flow), vẫn nhận token dán tay |
 | Chọn repo ở mức chat hay từng việc? | Gắn ở chat; mỗi việc lưu danh sách repo thực dùng |
 | Giới hạn mặc định | **ĐÃ CHỐT 27/10:** 3 việc song song, 3 vòng sửa CI, chờ CI 60 phút, diff 400 dòng |
 | Vị trí bản clone | `STATE_DIR/repos/<brain>/<owner>/<repo>`, ngoài cây brain (mục 4.3) |

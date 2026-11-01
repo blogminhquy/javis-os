@@ -3,6 +3,9 @@
     GET  /github/status                        the built-in connection (no token ever leaves the server)
     POST /github/connect                       token=...  or  use_backup=1 (reuse the brain-backup token after a check)
     POST /github/disconnect
+    POST /github/oauth/start                   "Sign in with GitHub": a device code to type at github.com/login/device
+    POST /github/oauth/poll                    one poll; on success the token is stored and status comes back
+    POST /github/oauth/cancel                  drop a pending sign-in
     GET  /github/repos?q=&brain=               the account's repos, marking the ones this brain has cloned
     GET  /github/branches?full_name=           a repo's branches, the default one first (the branch picker)
     GET  /github/local?brain=                  repos cloned in this brain
@@ -74,6 +77,32 @@ def _make_router() -> APIRouter:
         if str(use_backup).strip() in ("1", "true", "on"):
             return await _call(github_repos.connect_backup)
         return await _call(github_repos.connect, token)
+
+    @r.post("/github/oauth/start")
+    async def gh_oauth_start():
+        import github_oauth
+        try:
+            return {"ok": True, **(await run_in_threadpool(github_oauth.start))}
+        except github_oauth.OAuthError as e:
+            return _err(str(e))
+
+    @r.post("/github/oauth/poll")
+    async def gh_oauth_poll():
+        """The token never leaves the server: on success it is checked, stored encrypted, and status is returned."""
+        import github_oauth
+        out = await run_in_threadpool(github_oauth.poll)
+        if out.get("status") != "done":
+            return {"ok": out.get("status") != "error", **out}
+        res = await _call(github_repos.connect_app, out["token"])
+        if isinstance(res, dict):
+            res["status"] = "connected"
+        return res
+
+    @r.post("/github/oauth/cancel")
+    async def gh_oauth_cancel():
+        import github_oauth
+        github_oauth.cancel()
+        return {"ok": True}
 
     @r.post("/github/disconnect")
     async def gh_disconnect():

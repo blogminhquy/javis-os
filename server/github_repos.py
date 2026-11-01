@@ -81,7 +81,8 @@ def _read_conn() -> Dict[str, Any]:
 def _write_conn(conn: Dict[str, Any]) -> None:
     """Replace the whole `github` section. The token is encrypted at rest by config (`github.token` is in
     `_SECRET_PATHS`), so it is written here in clear and never by hand-rolled crypto."""
-    empty = {"source": "", "token": "", "login": "", "user_id": 0, "missing": [], "connected_at": 0}
+    empty = {"source": "", "token": "", "refresh_token": "", "expires_at": 0, "login": "", "user_id": 0, "missing": [],
+             "connected_at": 0}
     _settings().update_settings({"github": {**empty, **(conn or {})}})
 
 
@@ -94,7 +95,34 @@ def token() -> str:
     conn = _read_conn()
     if conn.get("source") == "backup":
         return backup_token()
+    if conn.get("source") == "app":
+        return _app_token(conn)
     return str(conn.get("token") or "").strip() if conn.get("source") == "own" else ""
+
+
+def _app_token(conn: Dict[str, Any]) -> str:
+    """Token from "Sign in with GitHub". The Javis app issues tokens that do not expire; if one does carry an expiry
+    (the app setting was changed), renew it a minute early, and read as signed out when GitHub refuses."""
+    tok = str(conn.get("token") or "").strip()
+    try:
+        exp = float(conn.get("expires_at") or 0)
+    except (TypeError, ValueError):
+        exp = 0.0
+    if not exp or _now() < exp - 60:
+        return tok
+    import github_oauth
+    with _lock:
+        cur = _read_conn()
+        if cur.get("source") != "app":
+            return token()
+        if str(cur.get("token") or "") != tok:      # another thread renewed it meanwhile
+            return str(cur.get("token") or "").strip()
+        fresh = github_oauth.refresh(str(cur.get("refresh_token") or ""))
+        if not fresh:
+            return ""
+        _write_conn({**cur, "token": fresh["access_token"], "refresh_token": fresh["refresh_token"] or cur.get("refresh_token"),
+                     "expires_at": fresh["expires_at"]})
+        return fresh["access_token"]
 
 
 def user_id() -> int:
@@ -136,6 +164,37 @@ def connect(tok: str) -> Dict[str, Any]:
     return status()
 
 
+def connect_app(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Store the token "Sign in with GitHub" just received (github_oauth.poll). Checked like a pasted token."""
+    tok = str((fields or {}).get("access_token") or "").strip()
+    info = _check_token(tok)
+    _write_conn({"source": "app", "token": tok, "refresh_token": str(fields.get("refresh_token") or ""),
+                 "expires_at": float(fields.get("expires_at") or 0), "login": info["login"], "user_id": info["id"],
+                 "missing": info["missing"], "connected_at": _now()})
+    _REPO_CACHE.update(at=0.0, items=[])
+    _INSTALL_CACHE.update(at=0.0, n=-1)
+    return status()
+
+
+# How many accounts the Javis app is installed on, as the signed-in person sees it. Zero means signed in but no repo
+# picked yet, the one step people miss. Cached briefly: the Connections page reads status on every visit.
+_INSTALL_CACHE: Dict[str, Any] = {"at": 0.0, "n": -1}
+INSTALL_CACHE_S = 30.0
+
+
+def _installs(tok: str) -> int:
+    now = _now()
+    if _INSTALL_CACHE["n"] >= 0 and now - _INSTALL_CACHE["at"] < INSTALL_CACHE_S:
+        return int(_INSTALL_CACHE["n"])
+    try:
+        d = GitHub(tok).get("/user/installations", params={"per_page": 1})
+        n = int((d or {}).get("total_count") or 0) if isinstance(d, dict) else 0
+    except GitHubError:
+        return -1      # unknown: say nothing rather than nag
+    _INSTALL_CACHE.update(at=now, n=n)
+    return n
+
+
 def connect_backup() -> Dict[str, Any]:
     tok = backup_token()
     if not tok:
@@ -150,6 +209,7 @@ def connect_backup() -> Dict[str, Any]:
 def disconnect() -> Dict[str, Any]:
     _write_conn({})
     _REPO_CACHE.update(at=0.0, items=[])
+    _INSTALL_CACHE.update(at=0.0, n=-1)
     return status()
 
 
@@ -164,7 +224,15 @@ def status() -> Dict[str, Any]:
         "missing": list(conn.get("missing") or []),
         "backup_token": bool(backup_token()),
         "has_git": shutil.which("git") is not None,
+        # "Sign in with GitHub": where to pick repos, and how many accounts the app is on (-1 unknown).
+        "install_url": _oauth_install_url(),
+        "installs": _installs(tok) if (tok and conn.get("source") == "app") else -1,
     }
+
+
+def _oauth_install_url() -> str:
+    import github_oauth
+    return github_oauth.install_url()
 
 
 def client() -> GitHub:

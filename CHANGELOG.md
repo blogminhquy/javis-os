@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.430.0] - 2026-11-01
 ### Thêm mới
-- **Đăng nhập GitHub bằng một nút.** (đang làm)
+- **Kết nối GitHub bằng nút Đăng nhập, không phải tạo token.** Trên trang Kết nối, bấm **Đăng nhập bằng GitHub**: Javis hiện một mã ngắn, bạn bấm Mở GitHub, dán mã, bấm Authorize là xong. Chạy được cả trên VPS không có trình duyệt.
+- **Bạn tự chọn repo cho Javis.** Đăng nhập xong, bấm **Chọn repo cho Javis** để cài app Javis OS vào đúng những repo muốn cho Javis làm việc. Repo nào không chọn thì Javis không thấy.
+- Ô dán token vẫn còn ngay bên dưới cho ai quen cách cũ.
 
 ## [0.429.1] - 2026-10-31
 ### Sửa lỗi

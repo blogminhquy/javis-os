@@ -4626,6 +4626,16 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .cp-pin.gh-chip > span:first-of-type { min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 860px) { .cp-pin.gh-chip { max-width: 200px; } .gh-chip-br { max-width: 64px; } }
 .gh-checks-box { width: 100%; min-height: 160px; font-family: var(--mono, ui-monospace, monospace); font-size: 16px; line-height: 1.45; resize: vertical; }
+/* "Sign in with GitHub" (0.430.0): one wide button first, the token box under a thin "or" rule, a big readable code. */
+.gh-signin { display: flex; align-items: center; gap: 8px; }
+.gh-signin-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; font-size: 17px; }
+.gh-signin-btn .cp-ic { width: 20px; height: 20px; }
+.gh-or { display: flex; align-items: center; gap: 10px; margin: 14px 0 4px; color: var(--text3); font-size: 15px; }
+.gh-or::before, .gh-or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
+.gh-code { margin: 14px 0; padding: 14px 10px; text-align: center; font-family: var(--mono, ui-monospace, monospace); font-size: 32px;
+  font-weight: 700; letter-spacing: 4px; border: 1px dashed var(--border); border-radius: 12px; user-select: all; overflow-wrap: anywhere; }
+.gh-form .lv-form-act a.s-btn, .gh-card a.conn-chip { text-decoration: none; display: inline-flex; align-items: center; }
+@media (max-width: 480px) { .gh-code { font-size: 26px; letter-spacing: 2px; } }
 /* GitHub status icon per conversation (0.365.0, spec 12.1): right of the title in the chat list, and in the repo chip. */
 .cside-item.has-gh { position: relative; }
 .cside-item.has-gh .ci-title { padding-right: 36px; }
