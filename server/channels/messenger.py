@@ -33,6 +33,9 @@ SPEC = KenhSpec(
 WEBHOOK_PATH = "/messenger/webhook"
 # Step-by-step guide linked from the add-account form (0.436.1): file names in docs/ and docs/en/.
 GUIDE = {"vi": "31-messenger-tung-buoc.md", "en": "31-messenger-step-by-step.md"}
+# The Connections page has a card that connects a Page with Facebook Login and sets the webhook up (0.436.2): the
+# add-account form points there, and a Page connected on that card is already a channel here.
+CONNECT_CARD = True
 
 
 def _Transport():

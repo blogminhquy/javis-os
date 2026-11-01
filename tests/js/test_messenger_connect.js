@@ -117,5 +117,16 @@ check("the add-channel form shows the Zalo group note only for Zalo Bot", () => 
   assert.ok(conv.includes("guideUrl(k)") && conv.includes('window.t("ht.huong_dan")'));
 });
 
+// 0.436.2: one place to connect. The card shows the webhook and verify token; the Chatbot form points to the card.
+check("card shows the webhook address and verify token to copy", () => {
+  const h = M.formHtml({ https: true, webhook_url: "https://j.example/messenger/webhook", verify_token: "vt-123" });
+  assert.ok(h.includes('data-copy="https://j.example/messenger/webhook"') && h.includes('data-copy="vt-123"'));
+});
+check("the add-channel form points a channel with a Connections card to it", () => {
+  const conv = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "conversations.js"), "utf8");
+  assert.ok(conv.includes("hint.hidden = !k.the_ket_noi") && conv.includes('window.t("ht.the_ket_noi"'));
+  assert.ok(conv.includes("window.JavisMessenger.openForm(null)"));
+});
+
 if (fails) { console.log("\n" + fails + " FAILED"); process.exit(1); }
 console.log("\nall ok");

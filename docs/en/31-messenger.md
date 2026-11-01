@@ -62,6 +62,8 @@ The manual steps below still work.
 
 ## 2. Add the Messenger account in Javis
 
+> If the Page was connected on the Facebook Messenger card on the Connections page, **skip this section**: the Page is already in the channel list, go straight to section 3. That card also shows the webhook address and verify token if you need to paste them by hand.
+
 1. Open Javis **through its HTTPS domain** (not localhost or an IP), go to the **Chatbot** page, **Bots** tab, click **Add a channel**, choose **Messenger**.
 2. The form shows a **Webhook address** and a **Verify token**. Back in the Meta app, under Messenger's **Configure webhooks**, paste them as the Callback URL and Verify token and click **Verify and save**. Tick the **messages** and **messaging_postbacks** fields.
 3. Back in Javis, paste three things separated by spaces into the token field: `Page ID`, `Page access token`, `App secret`. Click **Check** (Javis asks Meta for the Page name), then **Save**.

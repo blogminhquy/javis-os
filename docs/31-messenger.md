@@ -62,6 +62,8 @@ Cách làm tay bên dưới vẫn dùng được.
 
 ## 2. Thêm tài khoản Messenger trong Javis
 
+> Đã nối Fanpage ở thẻ Facebook Messenger trang Kết nối thì **bỏ qua mục này**: Trang đó đã có sẵn trong danh sách kênh, sang thẳng mục 3. Thẻ đó cũng hiện Địa chỉ webhook và Mã xác minh nếu bạn cần dán tay.
+
 1. Mở Javis **bằng tên miền HTTPS** (không phải localhost hay IP), vào trang **Chatbot**, tab **Bot**, bấm **Thêm kênh**, chọn **Messenger**.
 2. Form hiện **Địa chỉ webhook** và **Mã xác minh**. Quay lại app Meta, mục **Configure webhooks** của Messenger: dán hai thứ này vào Callback URL và Verify token, bấm **Verify and save**. Tick hai trường **messages** và **messaging_postbacks**.
 3. Về Javis, dán vào ô token ba thứ cách nhau dấu cách: `Page ID`, `Page access token`, `App secret`. Bấm **Kiểm tra** (Javis hỏi Meta tên Page), rồi **Lưu**.

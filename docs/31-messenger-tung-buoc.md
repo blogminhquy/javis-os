@@ -4,7 +4,7 @@
 
 Hướng dẫn này đi từng cú bấm trên trang Meta, dành cho người mới làm lần đầu. Tổng thời gian lần đầu khoảng 20 phút. Thêm Trang mới về sau khoảng 2 phút mỗi Trang.
 
-> **Có cách nhanh hơn:** từ 0.434.0, thẻ **Facebook Messenger** ở trang **Kết nối** có nút **Đăng nhập Facebook**. Bấm đăng nhập, tick Trang là Javis tự lấy token, bỏ qua được Phần 3 và Phần 4 bên dưới. Xem [31 - Messenger](31-messenger.md). Hướng dẫn này là cách dán token bằng tay, dùng khi nút đăng nhập không chạy hoặc bạn muốn tự kiểm soát từng bước.
+> **Mọi thao tác trong Javis làm ở một chỗ:** thẻ **Facebook Messenger** ở trang **Kết nối**. Thẻ có nút **Đăng nhập Facebook** (cách nhanh nhất, xem [31 - Messenger](31-messenger.md)) và mục **Dán token thay vì đăng nhập** (hướng dẫn này). Nối xong ở đó, Fanpage tự có trong danh sách kênh của trang Chatbot, không phải thêm lại.
 
 Trước khi bắt đầu, bạn cần:
 
@@ -20,9 +20,9 @@ Trước khi bắt đầu, bạn cần:
 
 0. Tạo app Meta (chỉ khi chưa có)
 1. Chuẩn bị app Meta (thêm Messenger và quyền bình luận)
-2. Đặt webhook và đăng ký sự kiện cho Trang
-3. Tạo token Trang đủ quyền, không hết hạn
-4. Dán vào Javis
+2. Lấy token trong Graph API Explorer
+3. Dán vào thẻ Facebook Messenger ở trang Kết nối (Javis tự khai webhook và đăng ký sự kiện)
+4. Gắn bot
 5. Chuyển app sang Live
 
 ---
@@ -40,7 +40,7 @@ App Meta là "giấy phép" để Javis nói chuyện với Facebook thay bạn.
 
 Xong bước này bạn có một app, chưa làm được gì cả. Phần 1 sẽ thêm quyền cho nó.
 
-**Tìm Page ID của Fanpage:** mở Fanpage, vào **Giới thiệu, Minh bạch về Trang**, dòng **ID Trang** là một dãy số. Cũng có thể lấy ở Phần 3.3.
+**Tìm Page ID của Fanpage:** mở Fanpage, vào **Giới thiệu, Minh bạch về Trang**, dòng **ID Trang** là một dãy số. Hoặc trong Graph API Explorer (Phần 2), gõ `me/accounts?fields=name,id` rồi bấm Gửi để xem ID mọi Trang.
 
 ---
 
@@ -66,36 +66,9 @@ Kết quả đúng: các quyền đều hiện **Sẵn sàng thử nghiệm**.
 
 ---
 
-## Phần 2. Webhook và đăng ký sự kiện
-
-Vào **Trường hợp sử dụng, Messenger from Meta, Tùy chỉnh, Cài đặt API Messenger**.
-
-**2.1. Đặt cấu hình webhook (mục 1)**
-
-Lấy hai thứ trên form của Javis: **Chatbot, Kênh, Thêm kênh, Messenger**. Form hiện sẵn **Địa chỉ webhook (Callback URL)** và **Mã xác minh (Verify token)**.
-
-- URL gọi lại: dán Địa chỉ webhook, dạng `https://<tên-miền-Javis-của-bạn>/messenger/webhook`
-- Xác minh mã: dán Mã xác minh
-- Bấm **Xác minh và lưu**. Có dấu tích xanh là xong.
-
-**2.2. Đăng ký sự kiện cho Trang (mục 2)**
-
-- Ở dòng Trang cần gắn bot, bấm **Thêm đăng ký** (hoặc "Xem toàn bộ trường thông tin", **Chỉnh sửa**).
-- Chỉ tick đúng 3 trường:
-  - `messages`: tin nhắn
-  - `messaging_postbacks`: khách bấm nút
-  - `feed`: bình luận, bài viết
-- Bấm **Confirm**.
-
-> Không tick hết. Các trường thừa (calls, standby, messaging_handovers...) gửi về những sự kiện Javis không xử lý, chỉ làm rối.
-
----
-
-## Phần 3. Tạo token Trang đủ quyền, không hết hạn
+## Phần 2. Lấy token trong Graph API Explorer
 
 > Không dùng nút **Tạo** trong mục 2 của Cài đặt API Messenger: token đó chỉ có quyền nhắn tin, không trả lời được bình luận.
-
-**3.1. Tạo token người dùng có đủ quyền**
 
 - Mở [Graph API Explorer](https://developers.facebook.com/tools/explorer).
 - **Ứng dụng trên Meta:** chọn app của bạn.
@@ -111,52 +84,36 @@ Lấy hai thứ trên form của Javis: **Chatbot, Kênh, Thêm kênh, Messenger
   - Bấm **Chỉnh sửa phần cài đặt** (không bấm Tiếp tục).
   - Chọn **áp dụng cho tất cả Trang ở hiện tại và tương lai**, bấm **Tiếp tục**.
   - Để tất cả công tắc **Bật**, bấm **Lưu**, rồi **OK**.
+- Chép chuỗi `EAA...` trong ô **Mã truy cập**.
 
-**3.2. Gia hạn thành token dài hạn**
-
-- Bấm biểu tượng **(i)** cạnh ô Mã truy cập, chọn **Mở trong Công cụ mã truy cập**.
-- Kéo xuống, bấm **Mã truy cập mở rộng**, nhập lại mật khẩu Facebook nếu được hỏi.
-- Chép token mới hiện ra bên dưới nút đó.
-
-Kiểm tra: dán token vào trình gỡ lỗi, phải thấy **Loại: User**, **Hết hạn: Không bao giờ**, và mục Phạm vi có đủ 6 quyền.
-
-**3.3. Lấy token của từng Trang**
-
-- Quay lại Graph API Explorer, dán token dài hạn vào ô **Mã truy cập**.
-- **Không bấm Generate Access Token nữa** (bấm là mất token dài hạn vừa làm).
-- Ô truy vấn gõ: `PAGE_ID?fields=name,access_token` (thay `PAGE_ID` bằng dãy số ID của Trang).
-- Bấm **Gửi**, chép giá trị `access_token` (phần trong ngoặc kép, không lấy dấu ngoặc kép).
-
-Muốn xem token của mọi Trang cùng lúc: gõ `me/accounts?fields=name,id,access_token`.
+Token này chỉ sống khoảng một giờ, nhưng không sao: ở Phần 3 Javis tự đổi nó sang **token Trang không hết hạn**. Bạn không cần gia hạn hay lấy token Trang bằng tay.
 
 ---
 
-## Phần 4. Dán vào Javis
+## Phần 3. Dán vào thẻ Facebook Messenger ở trang Kết nối
 
-**4.1. Lấy App secret**
+**3.1. Lấy App ID và App secret**
 
-- Trong app của bạn: **Cài đặt ứng dụng, Thông tin cơ bản**, ô **Khoá bí mật của ứng dụng**, bấm **Hiển thị**.
-- App secret dùng chung cho mọi Trang của cùng một app.
+- Trong app của bạn: **Cài đặt ứng dụng, Thông tin cơ bản**.
+- **ID ứng dụng** là App ID. Ô **Khoá bí mật của ứng dụng**, bấm **Hiển thị**, là App secret (32 ký tự).
+- Một app dùng chung cho mọi Trang, nên hai thứ này dùng lại được cho Trang sau.
 
-**4.2. Ghép một dòng**
+**3.2. Kết nối**
 
-Mở Notepad, ghép 3 thứ trên **cùng một dòng**, cách nhau **một dấu cách**:
+- Mở Javis bằng tên miền HTTPS, vào trang **Kết nối**, thẻ **Facebook Messenger**, bấm **Kết nối**.
+- Điền **App ID** và **App secret**.
+- Bấm **Dán token thay vì đăng nhập**, điền **Page ID** và dán **token** vừa chép ở Phần 2.
+- Bấm **Kết nối và kiểm tra**.
 
-```
-PAGE_ID TOKEN_TRANG APP_SECRET
-```
+Javis tự làm phần còn lại: đổi sang token Trang không hết hạn, khai webhook vào app Meta, đăng ký ba sự kiện `messages`, `messaging_postbacks`, `feed` cho Trang, rồi hiện bảng kiểm tra từng dòng. Dòng nào đỏ thì có cách sửa ngay bên dưới, hoặc bấm **Sửa tự động**.
 
-Javis tự nhận ra từng phần theo hình dạng, nhưng giữ đúng thứ tự trên cho dễ kiểm.
+---
 
-**4.3. Lưu trên Javis**
+## Phần 4. Gắn bot
 
-- Javis, **Chatbot, Kênh, Thêm kênh, Messenger**.
-- Dán dòng trên vào ô **Token Messenger**, bấm **Kiểm tra**.
-- Đúng khi hiện: "✓ Đúng bot PAGE_ID (Tên Trang)".
-- Điền **Tên gợi nhớ**, bấm **Lưu**.
-- Vào **Chatbot, Bot**, tạo bot mới hoặc sửa bot đang có, tick kênh Messenger vừa thêm, bật bot.
-
-> Cách khác: thẻ **Facebook Messenger** ở trang **Kết nối**, mục **Dán token thay vì đăng nhập**, nhận App ID, App secret, Page ID và token riêng từng ô, rồi tự khai webhook, tự đăng ký sự kiện và hiện bảng kiểm tra. Kênh nối ở đâu cũng là một, hiện ở cả hai trang.
+- Vào **Chatbot, Bot**, tạo bot mới hoặc sửa bot đang có.
+- Tick kênh Messenger vừa nối (nó đã có sẵn trong danh sách, không cần **Thêm kênh**), bấm **Lưu**, bật bot.
+- Muốn bot trả lời cả bình luận: trong danh sách Fanpage của thẻ Messenger, chọn **Bot tự trả lời công khai** ở ô Bình luận Fanpage. Mặc định bình luận chỉ hiện ở Hộp thư để bạn tự trả lời.
 
 ---
 
@@ -168,7 +125,7 @@ Javis tự nhận ra từng phần theo hình dạng, nhưng giữ đúng thứ 
 
 Trong app của bạn: **Cài đặt ứng dụng, Thông tin cơ bản**:
 
-- **URL chính sách quyền riêng tư:** Javis có sẵn trang này tại `https://<tên-miền-Javis-của-bạn>/messenger/privacy`, dán vào ô này và ô Hướng dẫn xoá dữ liệu.
+- **URL chính sách quyền riêng tư:** chép **Link chính sách quyền riêng tư** trên thẻ Messenger (dạng `https://<tên-miền-Javis-của-bạn>/messenger/privacy`), dán vào ô này và ô Hướng dẫn xoá dữ liệu.
 - **Hạng mục** (Category)
 - **Biểu tượng ứng dụng** (App icon)
 - Bấm **Lưu thay đổi**.
@@ -189,15 +146,38 @@ Vào mục 3 "Hoàn tất quy trình Xét duyệt ứng dụng", **Yêu cầu c�
 
 ---
 
+## Khi bảng kiểm tra báo webhook đỏ: làm tay
+
+Thường Javis tự khai được. Chỉ làm phần này khi dòng **Webhook của app** hoặc **Trang gắn với app** vẫn đỏ sau khi bấm **Sửa tự động**.
+
+Vào app Meta: **Trường hợp sử dụng, Messenger from Meta, Tùy chỉnh, Cài đặt API Messenger**.
+
+**Cấu hình webhook (mục 1)**
+
+- **URL gọi lại:** chép **Địa chỉ webhook** trên thẻ Messenger ở trang Kết nối.
+- **Xác minh mã:** chép **Mã xác minh** ngay bên dưới trên thẻ đó.
+- Bấm **Xác minh và lưu**. Có dấu tích xanh là xong.
+
+**Đăng ký sự kiện cho Trang (mục 2)**
+
+- Ở dòng Trang, bấm **Thêm đăng ký** (hoặc "Xem toàn bộ trường thông tin", **Chỉnh sửa**).
+- Chỉ tick đúng 3 trường: `messages`, `messaging_postbacks`, `feed`. Bấm **Confirm**.
+
+> Không tick hết. Các trường thừa (calls, standby, messaging_handovers...) gửi về những sự kiện Javis không xử lý, chỉ làm rối.
+
+Xong quay lại thẻ Messenger, bấm **Kiểm tra** ở Trang đó.
+
+---
+
 ## Thêm Trang mới (khoảng 2 phút mỗi Trang)
 
-Token người dùng dài hạn ở Phần 3.2 dùng lại được, không phải làm lại từ đầu:
+1. Lấy token mới ở Phần 2 (token cũ chỉ sống khoảng một giờ). Nếu lúc cấp quyền bạn đã chọn "tất cả Trang hiện tại và tương lai" thì không phải chỉnh gì thêm.
+2. Làm lại Phần 3.2 với **Page ID** của Trang mới. App ID và App secret giữ nguyên.
+3. Ở Phần 4, tick thêm kênh mới vào bot đang có.
 
-1. **Phần 2.2:** đăng ký `messages`, `messaging_postbacks`, `feed` cho Trang mới.
-2. **Phần 3.3:** đổi `PAGE_ID` trong truy vấn, lấy token Trang mới.
-3. **Phần 4:** thêm một kênh Messenger mới trên Javis, dán `PAGE_ID TOKEN_TRANG APP_SECRET`.
+Hoặc bấm **Đăng nhập Facebook** trên thẻ Messenger và tick nhiều Trang một lần.
 
-Mỗi Trang là một token riêng, một kênh riêng trên Javis. Một bot trực được nhiều kênh cùng lúc (nhiều Fanpage, cả Zalo), nên không cần tạo bot riêng cho từng Trang.
+Mỗi Trang là một kênh riêng trên Javis. Một bot trực được nhiều kênh cùng lúc (nhiều Fanpage, cả Zalo), nên không cần tạo bot riêng cho từng Trang.
 
 ---
 
@@ -205,9 +185,9 @@ Mỗi Trang là một token riêng, một kênh riêng trên Javis. Một bot tr
 
 | Hiện tượng | Nguyên nhân | Cách xử lý |
 |---|---|---|
-| Javis báo "Còn thiếu: Page ID, App secret" | Mới dán mỗi token | Dán đủ 3 thứ trên một dòng (Phần 4.2) |
-| Bot nhắn được nhưng không trả lời bình luận | Token thiếu quyền bình luận, hoặc Trang chưa đăng ký `feed` | Kiểm tra Phạm vi của token (Phần 3.2) và đăng ký `feed` (Phần 2.2) |
+| Javis báo token đã hết hạn | Token ở Phần 2 sống khoảng một giờ | Bấm Generate Access Token lấy token mới, dán lại ngay |
+| Javis báo token được tạo trong app khác | Chọn nhầm app trong Graph API Explorer | Chọn đúng app ở ô Ứng dụng trên Meta, tạo lại token |
+| Bot nhắn được nhưng không trả lời bình luận | Token thiếu quyền bình luận, hoặc ô Bình luận Fanpage đang ở "Hiện ở Hộp thư" | Lấy lại token đủ 6 quyền (Phần 2); đổi ô Bình luận Fanpage sang "Bot tự trả lời công khai" |
 | Khách nhắn mà bot im | App còn ở chế độ phát triển, hoặc chưa có bot nào bật cho kênh này | Làm Phần 5; vào Chatbot, Bot kiểm tra bot đã bật |
-| Popup cấp quyền chỉ có "nhắn tin" | Đang dùng nút "Thêm trang" trong Cài đặt API Messenger | Dùng Graph API Explorer (Phần 3.1) |
-| Token cũ hết tác dụng | Đã bấm Generate lại, hoặc đổi mật khẩu Facebook | Làm lại Phần 3, cập nhật token trên Javis |
-| "Hết hạn truy cập dữ liệu: khoảng 3 tháng" | Quy định của Meta với người dùng | Vào lại app định kỳ, hoặc làm lại Phần 3.1 khi được nhắc |
+| Popup cấp quyền chỉ có "nhắn tin" | Đang dùng nút "Thêm trang" trong Cài đặt API Messenger | Dùng Graph API Explorer (Phần 2) |
+| Bảng kiểm tra báo webhook đỏ | Javis chưa khai được webhook vào app | Bấm Sửa tự động; vẫn đỏ thì làm tay theo mục "Khi bảng kiểm tra báo webhook đỏ" |

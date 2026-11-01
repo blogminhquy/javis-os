@@ -2181,6 +2181,7 @@
           (k.kind === "account" ? '<button type="button" class="s-btn-ghost ht-di-ket-noi">' + esc(window.t("ht.mo_ket_noi")) + '</button>' : "") +
           '</div>';
       }).join("") + '</div>' : "") +
+      '<div class="cb-hint ht-card-hint" id="htCardHint" hidden></div>' +
       '<label id="htTokenLabel"></label>' +
       '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
         '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
@@ -2218,6 +2219,18 @@
       if (g) lab.insertAdjacentHTML("beforeend", ' · <a class="ht-guide" href="' + esc(g) + '" target="_blank" rel="noopener">'
         + esc(window.t("ht.huong_dan")) + " ↗</a>");
       box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + " " + window.t("cb.token_rieng");
+      // A channel with its own card on the Connections page (Messenger, 0.436.2): connecting there is quicker and a Page
+      // connected there is already in the channel list, so nobody should connect the same Page twice.
+      var hint = box.querySelector("#htCardHint");
+      hint.hidden = !k.the_ket_noi;
+      hint.innerHTML = k.the_ket_noi ? esc(window.t("ht.the_ket_noi", { kenh: k.nhan })) +
+        ' <button type="button" class="s-btn-ghost ht-mo-the">' + esc(window.t("ht.mo_ket_noi")) + '</button>' : "";
+      var mo = hint.querySelector(".ht-mo-the");
+      if (mo) mo.onclick = function () {
+        dong();
+        try { window.JavisNav.go("mcp"); } catch (e) {}
+        setTimeout(function () { try { window.JavisMessenger && window.JavisMessenger.openForm(null); } catch (e) {} }, 400);
+      };
       box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.classList.toggle("on", n.dataset.k === id); });
       hienWebhook(k);
     }

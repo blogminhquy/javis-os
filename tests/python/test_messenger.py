@@ -96,6 +96,9 @@ g = ui.get("messenger", {}).get("huong_dan") or {}
 check("UI entry carries the step-by-step guide, and both files exist",
       g.get("vi") and g.get("en") and (ROOT / "docs" / g["vi"]).is_file() and (ROOT / "docs" / "en" / g["en"]).is_file(), g)
 check("channels without a guide carry none", ui.get("telegram", {}).get("huong_dan") == {})
+# 0.436.2: the add-account form points Messenger to its Connections card instead of a second connect.
+check("Messenger has a Connections card, other channels do not",
+      ui.get("messenger", {}).get("the_ket_noi") is True and ui.get("telegram", {}).get("the_ket_noi") is False)
 check("bot store accepts messenger as a channel", "messenger" in chatbot_store.KENH, chatbot_store.KENH)
 check("a Messenger PSID passes the chat id check", bool(chatbot_store._CHAT_ID_RE.match("24987361234567890")))
 

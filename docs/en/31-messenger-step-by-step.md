@@ -4,7 +4,7 @@
 
 This guide walks through every click on Meta's site, for people doing it the first time. The first setup takes about 20 minutes. Each extra Page later takes about 2 minutes.
 
-> **There is a faster way:** from 0.434.0 the **Facebook Messenger** card on the **Connections** page has a **Log in with Facebook** button. Log in, tick the Pages, and Javis gets the tokens itself, so you can skip Parts 3 and 4 below. See [31 - Messenger](31-messenger.md). This guide is the manual token path, for when the login button does not work or you want to control every step.
+> **Everything in Javis happens in one place:** the **Facebook Messenger** card on the **Connections** page. It has a **Log in with Facebook** button (the quickest way, see [31 - Messenger](31-messenger.md)) and a **Paste a token instead** section (this guide). Once a Page is connected there it is already in the channel list on the Chatbot page; there is nothing to add again.
 
 Before you start you need:
 
@@ -20,9 +20,9 @@ Before you start you need:
 
 0. Create a Meta app (only if you have none)
 1. Prepare the Meta app (add Messenger and the comment permissions)
-2. Set the webhook and subscribe the Page to events
-3. Create a Page token with every permission that never expires
-4. Paste it into Javis
+2. Get a token in Graph API Explorer
+3. Paste it into the Facebook Messenger card on the Connections page (Javis registers the webhook and subscribes the Page)
+4. Attach a bot
 5. Switch the app to Live
 
 ---
@@ -40,7 +40,7 @@ A Meta app is the "permit" that lets Javis talk to Facebook on your behalf. It i
 
 You now have an app that cannot do anything yet. Part 1 gives it its permissions.
 
-**Find the Page ID:** open the Page, go to **About, Page transparency**; the **Page ID** line is a number. You can also get it in Part 3.3.
+**Find the Page ID:** open the Page, go to **About, Page transparency**; the **Page ID** line is a number. Or in Graph API Explorer (Part 2), type `me/accounts?fields=name,id` and click Submit to see every Page ID.
 
 ---
 
@@ -66,36 +66,9 @@ Done right: every permission shows **Ready for testing**.
 
 ---
 
-## Part 2. Webhook and event subscription
-
-Go to **Use cases, Messenger from Meta, Customize, Messenger API settings**.
-
-**2.1. Configure the webhook (section 1)**
-
-Take two things from the Javis form: **Chatbot, Channels, Add channel, Messenger**. The form shows the **Webhook address (Callback URL)** and the **Verify token**.
-
-- Callback URL: paste the webhook address, shaped like `https://<your-javis-domain>/messenger/webhook`
-- Verify token: paste the verify token
-- Click **Verify and save**. A green tick means done.
-
-**2.2. Subscribe the Page to events (section 2)**
-
-- On the row of the Page the bot will serve, click **Add subscriptions** (or "View all fields", **Edit**).
-- Tick exactly these 3 fields:
-  - `messages`: messages
-  - `messaging_postbacks`: button taps
-  - `feed`: comments and posts
-- Click **Confirm**.
-
-> Do not tick everything. Extra fields (calls, standby, messaging_handovers...) send events Javis does not handle and only add noise.
-
----
-
-## Part 3. A Page token with every permission that never expires
+## Part 2. Get a token in Graph API Explorer
 
 > Do not use the **Generate** button in section 2 of Messenger API settings: that token can only send messages and cannot reply to comments.
-
-**3.1. Create a user token with every permission**
 
 - Open [Graph API Explorer](https://developers.facebook.com/tools/explorer).
 - **Meta App:** pick your app.
@@ -111,52 +84,36 @@ Take two things from the Javis form: **Chatbot, Channels, Add channel, Messenger
   - Click **Edit settings** (not Continue).
   - Pick **opt in to all current and future Pages**, click **Continue**.
   - Leave every switch **On**, click **Save**, then **OK**.
+- Copy the `EAA...` string in the **Access Token** box.
 
-**3.2. Extend it to a long-lived token**
-
-- Click the **(i)** icon next to the Access Token box, choose **Open in Access Token Tool**.
-- Scroll down, click **Extend Access Token**, type your Facebook password again if asked.
-- Copy the new token shown under that button.
-
-Check: paste the token into the debugger; it must say **Type: User**, **Expires: Never**, and the Scopes must list all 6 permissions.
-
-**3.3. Get each Page's token**
-
-- Back in Graph API Explorer, paste the long-lived token into the **Access Token** box.
-- **Do not click Generate Access Token again** (that throws the long-lived token away).
-- In the query box type `PAGE_ID?fields=name,access_token` (replace `PAGE_ID` with the Page's numeric ID).
-- Click **Submit** and copy the `access_token` value (the part inside the quotes, without the quotes).
-
-To see every Page's token at once, type `me/accounts?fields=name,id,access_token`.
+This token lives about an hour, which is fine: in Part 3 Javis turns it into a **Page token that never expires**. You do not need to extend it or fetch the Page token yourself.
 
 ---
 
-## Part 4. Paste it into Javis
+## Part 3. Paste it into the Facebook Messenger card on the Connections page
 
-**4.1. Get the App secret**
+**3.1. Get the App ID and App secret**
 
-- In your app: **App settings, Basic**, the **App secret** field, click **Show**.
-- One App secret serves every Page of the same app.
+- In your app: **App settings, Basic**.
+- **App ID** is the App ID. In the **App secret** field click **Show**; that is the App secret (32 characters).
+- One app serves every Page, so both can be reused for later Pages.
 
-**4.2. Build one line**
+**3.2. Connect**
 
-Open a text editor and put the 3 things on **one line**, separated by **one space**:
+- Open Javis through its HTTPS domain, go to **Connections**, card **Facebook Messenger**, click **Connect**.
+- Fill in the **App ID** and **App secret**.
+- Click **Paste a token instead**, fill in the **Page ID** and paste the **token** you copied in Part 2.
+- Click **Connect and check**.
 
-```
-PAGE_ID PAGE_TOKEN APP_SECRET
-```
+Javis does the rest: it gets a non-expiring Page token, registers the webhook in the Meta app, subscribes the Page to `messages`, `messaging_postbacks` and `feed`, and shows a checklist row by row. A red row has its fix right under it, or click **Repair**.
 
-Javis tells the parts apart by their shape, but keep this order so it is easy to check.
+---
 
-**4.3. Save in Javis**
+## Part 4. Attach a bot
 
-- In Javis, **Chatbot, Channels, Add channel, Messenger**.
-- Paste the line into the **Messenger token** field and click **Check**.
-- Done right, it shows: "✓ Bot PAGE_ID (Page name)".
-- Fill in a **Label** and click **Save**.
-- Open **Chatbot, Bots**, create a bot or edit one, tick the new Messenger channel and switch the bot on.
-
-> Another way: the **Facebook Messenger** card on the **Connections** page, under **Paste a token instead**, takes the App ID, App secret, Page ID and token in separate fields, then registers the webhook, subscribes the Page and shows a checklist. Wherever you connect it, it is the same channel and shows on both pages.
+- Open **Chatbot, Bots**, create a bot or edit one.
+- Tick the Messenger channel you just connected (it is already in the list, no need for **Add channel**), click **Save** and switch the bot on.
+- For the bot to answer comments too: in the list of Pages on the Messenger card, set Page comments to **The bot replies publicly**. By default comments only show in the inbox for you to answer.
 
 ---
 
@@ -168,7 +125,7 @@ In development mode the bot only answers people with a role on the app (admin, d
 
 In your app: **App settings, Basic**:
 
-- **Privacy Policy URL:** Javis serves this page at `https://<your-javis-domain>/messenger/privacy`; paste it here and into User data deletion.
+- **Privacy Policy URL:** copy the **Privacy policy link** on the Messenger card (shaped like `https://<your-javis-domain>/messenger/privacy`) and paste it here and into User data deletion.
 - **Category**
 - **App icon**
 - Click **Save changes**.
@@ -189,15 +146,38 @@ Open section 3 "Complete App Review", **Request permissions**, describe the use 
 
 ---
 
+## When the checklist shows the webhook red: do it by hand
+
+Javis usually registers it by itself. Only do this when the **App webhook** or **Page is subscribed to the app** row is still red after **Repair**.
+
+In the Meta app: **Use cases, Messenger from Meta, Customize, Messenger API settings**.
+
+**Configure webhooks (section 1)**
+
+- **Callback URL:** copy the **Webhook address** on the Messenger card on the Connections page.
+- **Verify token:** copy the **Verify token** right under it on the same card.
+- Click **Verify and save**. A green tick means done.
+
+**Subscribe the Page (section 2)**
+
+- On the Page's row, click **Add subscriptions** (or "View all fields", **Edit**).
+- Tick exactly 3 fields: `messages`, `messaging_postbacks`, `feed`. Click **Confirm**.
+
+> Do not tick everything. Extra fields (calls, standby, messaging_handovers...) send events Javis does not handle and only add noise.
+
+Then go back to the Messenger card and click **Check** on that Page.
+
+---
+
 ## Adding another Page (about 2 minutes each)
 
-The long-lived user token from Part 3.2 can be reused, no need to start over:
+1. Get a fresh token in Part 2 (the old one lives about an hour). If you opted in to all current and future Pages, nothing else changes.
+2. Redo Part 3.2 with the new **Page ID**. The App ID and App secret stay the same.
+3. In Part 4, tick the new channel on the bot you already have.
 
-1. **Part 2.2:** subscribe the new Page to `messages`, `messaging_postbacks`, `feed`.
-2. **Part 3.3:** change `PAGE_ID` in the query and get the new Page's token.
-3. **Part 4:** add a new Messenger channel in Javis and paste `PAGE_ID PAGE_TOKEN APP_SECRET`.
+Or click **Log in with Facebook** on the Messenger card and tick several Pages at once.
 
-Each Page is its own token and its own channel in Javis. One bot can serve several channels at once (several Pages, Zalo too), so there is no need for a bot per Page.
+Each Page is its own channel in Javis. One bot can serve several channels at once (several Pages, Zalo too), so there is no need for a bot per Page.
 
 ---
 
@@ -205,9 +185,9 @@ Each Page is its own token and its own channel in Javis. One bot can serve sever
 
 | What you see | Why | Fix |
 |---|---|---|
-| Javis says "Missing: Page ID, App secret" | Only the token was pasted | Paste all 3 things on one line (Part 4.2) |
-| The bot answers messages but not comments | The token lacks the comment permissions, or the Page is not subscribed to `feed` | Check the token's Scopes (Part 3.2) and subscribe to `feed` (Part 2.2) |
+| Javis says the token expired | The Part 2 token lives about an hour | Click Generate Access Token for a new one and paste it right away |
+| Javis says the token was made in another app | The wrong app was picked in Graph API Explorer | Pick the right app under Meta App and generate the token again |
+| The bot answers messages but not comments | The token lacks the comment permissions, or Page comments is set to "Show in the inbox" | Get a token with all 6 permissions (Part 2); set Page comments to "The bot replies publicly" |
 | Customers write and the bot stays silent | The app is still in development mode, or no bot is on for this channel | Do Part 5; check under Chatbot, Bots that the bot is on |
-| The permission popup only offers "messaging" | You used the "Add Page" button in Messenger API settings | Use Graph API Explorer (Part 3.1) |
-| An old token stopped working | Generate was clicked again, or the Facebook password changed | Redo Part 3 and update the token in Javis |
-| "Data access expires: in about 3 months" | Meta's rule for user data access | Open the app now and then, or redo Part 3.1 when asked |
+| The permission popup only offers "messaging" | You used the "Add Page" button in Messenger API settings | Use Graph API Explorer (Part 2) |
+| The checklist shows the webhook red | Javis could not register the webhook in the app | Click Repair; if it stays red, follow "When the checklist shows the webhook red" |

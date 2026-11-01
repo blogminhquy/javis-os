@@ -152,6 +152,10 @@
         + infoBody(esc(tw("msc.need_https_how"))))
       + copyRow("msc.redirect", "msc.redirect_how", setup && setup.oauth_redirect)
       + copyRow("msc.privacy", "msc.privacy_how", setup && setup.privacy_url)
+      // 0.436.2: the same webhook address and verify token the Chatbot form shows. Connect registers the webhook by
+      // itself; these are for setting it by hand in the Meta app when that fails, without leaving this card.
+      + copyRow("msc.webhook", "msc.webhook_how", setup && setup.webhook_url)
+      + copyRow("msc.verify", "msc.verify_how", setup && setup.verify_token)
       + '<div class="msc-grid">'
       + field("app_id", "text", "987654321098765")
       + field("app_secret", "password", "")

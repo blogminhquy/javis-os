@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.436.2] - 2026-11-01
 ### Improved
-- **Messenger connects in one place.** (in progress)
+- **Messenger connects in one place.** The Facebook Messenger card on the Connections page now shows the webhook address and verify token with Copy buttons, to paste into the Meta app by hand when needed without leaving the page.
+- A Page connected on the Connections page is already a channel on the Chatbot page. Picking Messenger under Add channel shows a note with a button straight to the Messenger card, so nobody connects it twice.
+- The step-by-step guide is shorter: get one token in Graph API Explorer and paste it into the Messenger card; Javis gets a non-expiring Page token, registers the webhook and subscribes the Page.
 
 ## [0.436.1] - 2026-11-01
 ### Improved
