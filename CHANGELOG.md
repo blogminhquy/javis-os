@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.432.1] - 2026-11-01
 ### Sửa lỗi
-- Đang soạn.
+- **Kéo thả file vào khung chat chạy lại.** Sau khi ghé trang Nhóm, thả file vào trang Trò chuyện không có gì xảy ra. Giờ thả là lớp phủ hiện ra và file vào hàng đính kèm như nút kẹp giấy. Cảm ơn @thaihatr-source (#936).
+- **Mở file .html hay .md nằm gọn trong khung**, không tự phóng to kín màn hình nữa. Muốn xem toàn màn hình thì bấm nút phóng to, chuyển sang file khác vẫn giữ cỡ đã chọn.
+- **Kết nối MCP qua OAuth chuẩn hơn.** Javis gửi đúng định danh máy chủ khai báo (như SDK chính thức), và báo thẳng khi nhà cung cấp không nhận địa chỉ quay về của Javis thay vì để bạn thử mật khẩu mãi. Cảm ơn @dev23072005 (#939).
+- **Trí nhớ gợi lại đúng hơn.** Nhật ký chạy agent không còn dội lại thành ký ức, hết báo mâu thuẫn giả giữa các ký ức chung dòng "Vì sao:", file có chữ "profile" trong tên không còn chiếm chỗ mọi lượt, và mục lục phụ trong memory/ được hiểu. File Office mở từ chat giữ đúng tên. Cảm ơn @sohophotography (#934), @ethan1nguyen1 (#898).
 
 ## [0.431.0] - 2026-11-01
 ### Cải thiện
