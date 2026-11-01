@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.438.3] - 2026-11-01
+### Cải thiện
+- **Thêm kênh Messenger ở Chatbot gọn lại.** Chọn Messenger giờ chỉ còn một dòng nhắc và nút mở thẳng thẻ Messenger ở trang Kết nối. Bỏ ô dán token, địa chỉ webhook và nút Lưu ở đây, vì Fanpage nối bên Kết nối đã tự có trong danh sách kênh. Ai cần dán token vẫn dán được ngay trong thẻ Messenger.
+
 ## [0.438.2] - 2026-11-01
 ### Cải thiện
 - **Logo Meta chính thức.** Thẻ Facebook Messenger ở trang Kết nối dùng đúng logo Meta màu xanh chuyển sắc, thay cho nét vẽ tay cũ. Nền trong suốt nên giao diện sáng hay tối đều hiện đẹp.
