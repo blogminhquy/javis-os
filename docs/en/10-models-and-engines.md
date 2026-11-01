@@ -37,7 +37,7 @@ Before 0.17.1 this page said the "**only** difference is running shell commands"
 - **Task**, spawning sub-agents running in parallel within one turn.
 - **Resuming an earlier CLI session**; API engines rebuild the context every turn.
 
-Two more practical limits of API engines: at most **8 tool-call rounds** per turn (it stops and says so beyond that), and when a turn **calls tools**, the answer arrives as one block at the end rather than streaming word by word (each round is a separate request).
+One more practical limit of API engines: each turn has a **cap on tool-call rounds** (it stops and says so beyond that). The answer streams word by word like the CLI engines, including when a turn **calls tools** (since 0.438.5).
 
 Beyond those, every capability is identical. Specifically: calling every connected MCP, reading and writing files in the brain, reading a file you just attached or pasted into the chat, running skills, queueing Kanban work, creating loops and reminders, creating agents/workflows/skills (they are just `.md` files in the vault), generating images, and using plugin tools.
 

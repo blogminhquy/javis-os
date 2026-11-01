@@ -388,6 +388,289 @@ async def _gui_vong(gui, nhan=""):
             await asyncio.sleep(cho)
 
 
+# ── Vòng tool nhận chữ TỪNG MẨU (0.438.5) ──
+# Trước đây mỗi vòng của vòng tool gọi model kiểu non-stream: câu trả lời cuối chỉ hiện khi model viết
+# xong, trong khi ChatGPT (Codex) và Claude Code hiện chữ lần lượt. Chủ repo 01/11/2026: "các apikey khác
+# cũng phải như vậy". Nay mỗi vòng gọi `stream: true`, nhả chữ ra thành sự kiện `delta` (CHỈ để xem trước:
+# nơi nào không biết `delta` thì bỏ qua, nên bot khách, việc nền, Telegram y như cũ), rồi gom lại thành
+# đúng hình dạng của câu trả lời non-stream để phần còn lại của vòng tool chạy y nguyên.
+# Tắt bằng JAVIS_API_STREAM_TOOLS=0. Endpoint nào từ chối stream thì tự lui về non-stream.
+_KHONG_STREAM_VONG: set = set()   # nhãn provider đã từ chối vòng stream (trong tiến trình này)
+
+
+def stream_vong_bat(label: str = "") -> bool:
+    if label and label in _KHONG_STREAM_VONG:
+        return False
+    return (os.environ.get("JAVIS_API_STREAM_TOOLS") or "1").strip().lower() not in ("0", "false", "off", "no")
+
+
+def _stream_bi_tu_choi(status, body_text) -> bool:
+    """Endpoint nói nó không nhận stream (hay `stream_options`): lui về non-stream thay vì hỏng lượt."""
+    return status in (400, 404, 415, 422, 501) and "stream" in (body_text or "").lower()
+
+
+class _VongDaGom:
+    """Một vòng stream gom lại: cùng bộ mặt với httpx.Response mà vòng tool đang đọc
+    (status_code, text, headers, json())."""
+
+    def __init__(self, status_code, data=None, text="", headers=None):
+        self.status_code = status_code
+        self._data = data
+        self.text = text or (json.dumps(data, ensure_ascii=False) if data is not None else "")
+        self.headers = headers if headers is not None else {}
+
+    def json(self):
+        if self._data is None:
+            return json.loads(self.text)
+        return self._data
+
+
+class _GomCC:
+    """Gom các chunk Chat Completions (stream) thành một `message` như bản non-stream."""
+
+    def __init__(self):
+        self.id = None
+        self.content, self.reasoning_content, self.reasoning = [], [], []
+        self.calls, self.order = {}, []
+        self.usage = None
+        self.finish = None
+
+    def them(self, obj) -> str:
+        """Nạp một chunk, trả phần chữ trả lời mới (rỗng nếu chunk không mang chữ)."""
+        if obj.get("id") and not self.id:
+            self.id = obj["id"]
+        u = obj.get("usage") or (obj.get("x_groq") or {}).get("usage")
+        if u:
+            self.usage = u
+        piece = ""
+        for ch in obj.get("choices") or []:
+            if (ch.get("index") or 0) != 0:
+                continue
+            d = ch.get("delta") or ch.get("message") or {}
+            c = d.get("content")
+            if isinstance(c, str) and c:
+                self.content.append(c)
+                piece += c
+            for k, buf in (("reasoning_content", self.reasoning_content), ("reasoning", self.reasoning)):
+                v = d.get(k)
+                if isinstance(v, str) and v:
+                    buf.append(v)
+            for tc in d.get("tool_calls") or []:
+                if isinstance(tc, dict):
+                    self._call(tc)
+            if ch.get("finish_reason"):
+                self.finish = ch["finish_reason"]
+        return piece
+
+    def _call(self, tc):
+        idx = tc.get("index")
+        if idx is None:   # vài endpoint (Gemini) không ghi index: id mới là lệnh mới, không id là mẩu tiếp
+            tid = tc.get("id")
+            known = next((k for k, v in self.calls.items() if tid and v.get("id") == tid), None)
+            if known is not None:
+                idx = known
+            elif tid or not self.order:
+                idx = len(self.order)
+            else:
+                idx = self.order[-1]
+        e = self.calls.get(idx)
+        if e is None:
+            e = self.calls[idx] = {"id": "", "type": "function", "function": {"name": "", "arguments": ""}}
+            self.order.append(idx)
+        for k, v in tc.items():
+            if k == "index":
+                continue
+            if k == "function":
+                fn = v or {}
+                nm = fn.get("name")
+                if nm:
+                    cur = e["function"]["name"]
+                    e["function"]["name"] = nm if (not cur or nm.startswith(cur)) else cur + nm
+                args = fn.get("arguments")
+                if isinstance(args, str):
+                    e["function"]["arguments"] += args
+                elif isinstance(args, dict):
+                    e["function"]["arguments"] += json.dumps(args, ensure_ascii=False)
+                for fk, fv in fn.items():
+                    if fk not in ("name", "arguments"):
+                        e["function"][fk] = fv
+            elif k in ("id", "type"):
+                if v:
+                    e[k] = v
+            else:
+                e[k] = v   # vd extra_content của Gemini (thought signature) phải đi nguyên về lượt sau
+
+    def ket(self) -> dict:
+        msg = {"role": "assistant", "content": "".join(self.content) or None}
+        if self.reasoning_content:
+            msg["reasoning_content"] = "".join(self.reasoning_content)
+        if self.reasoning:
+            msg["reasoning"] = "".join(self.reasoning)
+        calls = [self.calls[i] for i in self.order]
+        for c in calls:
+            if not c["id"]:
+                c["id"] = "call_" + uuid.uuid4().hex[:12]
+            if not c["function"]["arguments"].strip():
+                c["function"]["arguments"] = "{}"
+        if calls:
+            msg["tool_calls"] = calls
+        return {"id": self.id, "choices": [{"message": msg, "finish_reason": self.finish}],
+                "usage": self.usage or {}}
+
+
+def _ma_loi_stream(err: dict, mac_dinh: int = 502) -> int:
+    """Lỗi nhà cung cấp gửi GIỮA luồng (status HTTP đã là 200): suy ra mã để vòng tool xử lý như lỗi HTTP."""
+    code = err.get("code") if isinstance(err, dict) else None
+    try:
+        code = int(code)
+        if 400 <= code <= 599:
+            return code
+    except (TypeError, ValueError):
+        pass
+    kind = str((err or {}).get("type") or "") if isinstance(err, dict) else ""
+    return {"overloaded_error": 529, "rate_limit_error": 429, "invalid_request_error": 400,
+            "authentication_error": 401, "permission_error": 403, "not_found_error": 404,
+            "request_too_large": 413}.get(kind, mac_dinh)
+
+
+async def _doc_body(r) -> str:
+    return (await r.aread()).decode("utf-8", "replace")
+
+
+async def _vong_stream(client_or_none, url, headers, payload, kieu):
+    """MỘT vòng gọi model của vòng tool, dạng stream. Nhả {"type": "delta", "content"} khi chữ trả lời về,
+    cuối cùng nhả {"type": "_vong", "r": _VongDaGom} mang đúng thứ bản non-stream trả về.
+
+    kieu: "cc" (Chat Completions) hoặc "anthropic" (Messages API).
+    Rớt mạng TRƯỚC khi nhả chữ nào thì gửi lại như `_gui_vong`; đã nhả chữ rồi thì ném lỗi (gửi lại là
+    chữ hiện hai lần). Endpoint trả JSON thường dù đã xin stream thì đọc như non-stream."""
+    body = dict(payload)
+    body["stream"] = True
+    if kieu == "cc":
+        body.setdefault("stream_options", {"include_usage": True})
+    lan = 0
+    while True:
+        lan += 1
+        da_nha = False
+        try:
+            if client_or_none is None:
+                client = httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15))
+            else:
+                client = client_or_none
+            try:
+                async with _observed_stream(client, "POST", url, headers=headers, json=body) as (r, event_id):
+                    if r.status_code != 200:
+                        yield {"type": "_vong", "r": _VongDaGom(r.status_code, text=await _doc_body(r),
+                                                                headers=r.headers)}
+                        return
+                    if "event-stream" not in (r.headers.get("content-type") or "").lower():
+                        text = await _doc_body(r)
+                        try:
+                            data = json.loads(text)
+                        except ValueError:
+                            data = None
+                        if isinstance(data, dict):
+                            _observe_team_request(_request_usage(data, event_id))
+                        yield {"type": "_vong", "r": _VongDaGom(200, data=data if isinstance(data, dict) else None,
+                                                                text=text, headers=r.headers)}
+                        return
+                    gom = _GomCC() if kieu == "cc" else None
+                    blocks, usage, stop, msg_id, err = {}, {}, None, None, None
+                    async for line in r.aiter_lines():
+                        line = (line or "").strip()
+                        if not line.startswith("data:"):
+                            continue
+                        raw = line[5:].strip()
+                        if raw == "[DONE]":
+                            break
+                        try:
+                            obj = json.loads(raw)
+                        except ValueError:
+                            continue
+                        if not isinstance(obj, dict):
+                            continue
+                        if kieu == "cc":
+                            if obj.get("error") and not obj.get("choices"):
+                                err = obj["error"] if isinstance(obj["error"], dict) else {"message": str(obj["error"])}
+                                break
+                            piece = gom.them(obj)
+                            if piece:
+                                da_nha = True
+                                yield {"type": "delta", "content": piece}
+                            continue
+                        t = obj.get("type")
+                        if t == "message_start":
+                            m = obj.get("message") or {}
+                            msg_id = m.get("id")
+                            usage.update(m.get("usage") or {})
+                        elif t == "content_block_start":
+                            b = dict(obj.get("content_block") or {})
+                            if b.get("type") == "tool_use":
+                                b["_json"] = ""
+                            blocks[obj.get("index", len(blocks))] = b
+                            if b.get("type") == "text" and b.get("text"):
+                                da_nha = True
+                                yield {"type": "delta", "content": b["text"]}
+                        elif t == "content_block_delta":
+                            d = obj.get("delta") or {}
+                            b = blocks.setdefault(obj.get("index", 0), {"type": "text", "text": ""})
+                            dt = d.get("type")
+                            if dt == "text_delta":
+                                piece = d.get("text") or ""
+                                b["text"] = (b.get("text") or "") + piece
+                                if piece:
+                                    da_nha = True
+                                    yield {"type": "delta", "content": piece}
+                            elif dt == "input_json_delta":
+                                b["_json"] = b.get("_json", "") + (d.get("partial_json") or "")
+                            elif dt == "thinking_delta":
+                                b["thinking"] = (b.get("thinking") or "") + (d.get("thinking") or "")
+                            elif dt == "signature_delta":
+                                b["signature"] = (b.get("signature") or "") + (d.get("signature") or "")
+                        elif t == "message_delta":
+                            stop = (obj.get("delta") or {}).get("stop_reason") or stop
+                            usage.update({k: v for k, v in (obj.get("usage") or {}).items() if v is not None})
+                        elif t == "error":
+                            err = obj.get("error") or {}
+                            break
+                        elif t == "message_stop":
+                            break
+                    if err is not None:
+                        text = json.dumps({"error": err} if kieu == "cc" else {"type": "error", "error": err},
+                                          ensure_ascii=False)
+                        yield {"type": "_vong", "r": _VongDaGom(_ma_loi_stream(err), text=text, headers={})}
+                        return
+                    if kieu == "cc":
+                        data = gom.ket()
+                    else:
+                        content = []
+                        for i in sorted(blocks, key=lambda x: (not isinstance(x, int), x if isinstance(x, int) else 0)):
+                            b = blocks[i]
+                            if b.get("type") == "tool_use":
+                                js = b.pop("_json", "")
+                                try:
+                                    b["input"] = json.loads(js) if js.strip() else (b.get("input") or {})
+                                except ValueError:
+                                    b["input"] = b.get("input") or {}
+                            content.append(b)
+                        data = {"id": msg_id, "type": "message", "role": "assistant", "content": content,
+                                "stop_reason": stop, "usage": usage}
+                    _observe_team_request(_request_usage(data, event_id))
+                    yield {"type": "_vong", "r": _VongDaGom(200, data=data, headers=r.headers)}
+                    return
+            finally:
+                if client_or_none is None:
+                    await client.aclose()
+        except _MANG_GAY as e:
+            if da_nha or lan >= _LAN_GUI_VONG:
+                e._javis_da_thu = lan
+                raise
+            cho = _jittered_backoff(lan)
+            print(f"[thử lại vòng stream] lần {lan} rớt mạng, chờ {cho:.1f}s: {_describe_exc(e)[:160]}",
+                  file=sys.stderr)
+            await asyncio.sleep(cho)
+
+
 async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
     """Chạy lại một lượt gọi model khi nó gãy vì lỗi TẠM THỜI (429, 5xx, mạng chớp tắt).
 
@@ -2029,6 +2312,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
         })
         requirement_pending = False
     _n_vong = _max_tool_rounds()
+    da_hien = False   # đã nhả chữ xem trước ở vòng nào chưa (để chèn dòng trống giữa hai vòng)
     for _vong in range(_n_vong):
         payload = {"model": model, "messages": msgs, "stream": False}
         # Bỏ hẳn khoá "tools" khi rỗng: vài endpoint OpenAI-compat từ chối mảng rỗng, và
@@ -2050,8 +2334,29 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                     payload["tool_choice"] = "required"
                     r = await _observed_post(lambda: client.post(url, headers=headers, json=payload))
             return r
+        # 0.438.5: vòng stream nhả chữ xem trước. Vòng đang ÉP gọi tool thì không: chữ ở vòng đó là
+        # câu trả lời có thể bị loại (model lờ tool bắt buộc), không được hiện ra.
+        stream_vong = stream_vong_bat(label) and not requirement_pending
+        vong_hien = ""
         try:
-            r = await _gui_vong(_gui, label)
+            if stream_vong:
+                r = None
+                async for _it in _vong_stream(None, url, headers, payload, "cc"):
+                    if _it["type"] != "delta":
+                        r = _it["r"]
+                        continue
+                    if not vong_hien and da_hien:
+                        yield {"type": "delta", "content": "\n\n"}
+                    vong_hien += _it["content"]
+                    da_hien = True
+                    yield _it
+                if r.status_code != 200 and _stream_bi_tu_choi(r.status_code, r.text):
+                    _KHONG_STREAM_VONG.add(label)
+                    print(f"[vòng stream] {label} không nhận stream, lui về non-stream: {(r.text or '')[:160]}",
+                          file=sys.stderr)
+                    continue
+            else:
+                r = await _gui_vong(_gui, label)
             if r.status_code == 200 and (reasoning_extra or {}).get("service_tier"):
                 fast_mode.remember(str(label).lower(), "on")
             if r.status_code != 200:
@@ -2181,7 +2486,8 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
         if usage_in or usage_out:
             yield {"type": "usage", "input": usage_in, "output": usage_out}
         if content:
-            yield {"type": "text", "content": content}
+            # streamed: chữ này đã hiện từng mẩu rồi, nơi nào đã hiện `delta` thì đừng in lại.
+            yield {"type": "text", "content": content, "streamed": bool(vong_hien) and vong_hien == content}
         elif msg.get("reasoning") or msg.get("reasoning_content"):
             yield _thought_without_answer(label)
         else:
@@ -2603,6 +2909,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
         usage_in = usage_out = 0
         guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
         _n_vong = _max_tool_rounds()
+        da_hien = False   # 0.438.5: đã nhả chữ xem trước ở vòng nào chưa
         for _vong in range(_n_vong):
             # Cache theo lối không-mutate (system dựng mới mỗi vòng, conv copy-khi-đánh-dấu)
             # → marker KHÔNG tích luỹ qua vòng tool, tối đa 3 breakpoint/request (trần API là 4).
@@ -2613,10 +2920,28 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             payload.update(fast_b)
             if sys_txt:
                 payload["system"] = [{"type": "text", "text": sys_txt, "cache_control": {"type": "ephemeral"}}]
+            vong_hien = ""
             try:
-                r = await _gui_vong(lambda: _observed_post(
-                    lambda: client.post(url, headers={**headers, **fast_h}, json=payload)),
-                                    label)
+                if stream_vong_bat(lprov):
+                    r = None
+                    async for _it in _vong_stream(client, url, {**headers, **fast_h}, payload, "anthropic"):
+                        if _it["type"] != "delta":
+                            r = _it["r"]
+                            continue
+                        if not vong_hien and da_hien:
+                            yield {"type": "delta", "content": "\n\n"}
+                        vong_hien += _it["content"]
+                        da_hien = True
+                        yield _it
+                    if r.status_code != 200 and _stream_bi_tu_choi(r.status_code, r.text):
+                        _KHONG_STREAM_VONG.add(lprov)
+                        print(f"[vòng stream] {label} không nhận stream, lui về non-stream: {(r.text or '')[:160]}",
+                              file=sys.stderr)
+                        continue
+                else:
+                    r = await _gui_vong(lambda: _observed_post(
+                        lambda: client.post(url, headers={**headers, **fast_h}, json=payload)),
+                                        label)
             except Exception as e:
                 yield ev_loi_exc(_c(f"{label} lỗi", f"{label} error"), e)
                 return
@@ -2684,7 +3009,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             if usage_in or usage_out:
                 yield {"type": "usage", "input": usage_in, "output": usage_out}
             if text:
-                yield {"type": "text", "content": text}
+                yield {"type": "text", "content": text, "streamed": bool(vong_hien) and vong_hien == text}
             else:
                 yield {"type": "error", "content": _c(f"{label} trả về rỗng. Thử model khác trong Models.",
                                                       f"{label} returned nothing. Try another model in Models.")}

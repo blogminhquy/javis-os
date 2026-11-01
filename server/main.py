@@ -18037,11 +18037,19 @@ async def websocket_endpoint(ws: WebSocket):
                                         "detail": tool_label.chi_tiet(ev),
                                         "content": f"⚙ MCP: {ev.get('name', '')}",
                                     }))
+                                elif ev["type"] == "delta":
+                                    # 0.438.5: chữ xem trước của vòng tool, hiện ngay từng mẩu. Không cộng
+                                    # vào final_text: câu trả lời thật đến ở sự kiện `text` cuối vòng.
+                                    if ev.get("content"):
+                                        await ws.send_text(json.dumps({
+                                            "type": "stream", "content": ev["content"], "tts": False,
+                                        }))
                                 elif ev["type"] == "text":
                                     final_text += ev["content"]
-                                    await ws.send_text(json.dumps({
-                                        "type": "stream", "content": ev["content"], "tts": False,
-                                    }))
+                                    if not ev.get("streamed"):   # đã hiện qua `delta` thì đừng in lại
+                                        await ws.send_text(json.dumps({
+                                            "type": "stream", "content": ev["content"], "tts": False,
+                                        }))
                                 elif ev["type"] == "error":
                                     if not _limit_hit:
                                         await ws.send_text(json.dumps({

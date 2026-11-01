@@ -37,7 +37,7 @@ Trước 0.17.1 trang này ghi "khác biệt **duy nhất** là chạy được 
 - **Task** - đẻ agent con chạy song song trong cùng một lượt.
 - **Nối lại phiên cũ của CLI** - engine API dựng lại ngữ cảnh mỗi lượt.
 
-Thêm hai giới hạn thực dụng của engine API: mỗi lượt tối đa **8 vòng gọi tool** (quá thì dừng và báo), và khi lượt **có gọi tool** thì câu trả lời hiện một cục ở cuối chứ không chạy dần từng chữ (mỗi vòng là một request riêng).
+Thêm một giới hạn thực dụng của engine API: mỗi lượt có **trần số vòng gọi tool** (quá thì dừng và báo). Câu trả lời thì hiện dần từng chữ như engine CLI, kể cả khi lượt **có gọi tool** (từ 0.438.5).
 
 Ngoài từng ấy, mọi năng lực còn lại là như nhau. Cụ thể là: gọi mọi MCP đã đấu, đọc và ghi file trong brain, đọc file bạn vừa đính kèm hoặc dán vào khung chat, chạy skill, giao việc Kanban, tạo loop và nhắc hẹn, tạo agent/workflow/skill (chúng chỉ là file `.md` trong vault), tạo ảnh, dùng tool của plugin.
 

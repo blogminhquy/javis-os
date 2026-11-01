@@ -19,6 +19,9 @@ import asyncio
 import inspect
 import json
 import os
+# 0.438.5: vòng tool mặc định gọi model dạng stream. File này thử logic vòng tool trên đường non-stream
+# (giả lập client.post / máy chủ trả JSON), đường đó vẫn là đường lui. Đường stream: test_api_stream_vong.py.
+os.environ["JAVIS_API_STREAM_TOOLS"] = "0"
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
