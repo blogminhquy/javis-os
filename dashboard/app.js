@@ -1427,7 +1427,13 @@ function handleMessage(data) {
     if (isActive) {
       hideActivity();
       veKhoiBuoc(t, false);
-      const errEl = appendJavisError(data.content);
+      // The provider's UTC clock is not the viewer's local clock. Only change
+      // displayed text: the raw error still drives parsing, persistence and copy.
+      const rawError = data.content || "";
+      const shownError = (data.limit && window.JavisResume && window.JavisResume.localizeNotice)
+        ? window.JavisResume.localizeNotice(rawError, data.limit) : rawError;
+      const errEl = appendJavisError(shownError);
+      if (data.limit && errEl) errEl.dataset.md = rawError;
       runActions(turn.turnDone());   // lỗi cũng là hết lượt; turn_done theo sau chỉ lặp lại
       if (data.limit) {
         // Hết lượt gói thuê bao: câu báo là tin cuối của lượt (server không trả gì thêm), ghi
