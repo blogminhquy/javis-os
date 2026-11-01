@@ -193,8 +193,11 @@ def section_r1():
             continue
         w = job_via_factory(f"r1-{name}", events)
         turns = w["turns"]
-        check(f"R1 {name}: việc không xong, bị chặn 'failed' để Chạy lại",
-              w["task"]["status"] == "team_blocked" and w["task"]["block_kind"] == "failed", w["task"])
+        # 0.436.0: "rate limited" is a temporary error and the step made no tool call, so the job waits for its own
+        # retry (team_retry) instead of the owner's Retry. Still never a product.
+        kind = "auto_retry" if name == "error_event" else "failed"
+        check(f"R1 {name}: việc không xong, bị chặn '{kind}'",
+              w["task"]["status"] == "team_blocked" and w["task"]["block_kind"] == kind, w["task"])
         check(f"R1 {name}: lượt đã gọi model nên TÍNH (error, có mốc engine), không hoàn, không 'ok'",
               [x["status"] for x in turns] == ["error"] and turns[0]["engine_at"] is not None, turns)
         check(f"R1 {name}: không có tin kết quả nào của agent", w["msgs"] == [], w["msgs"])

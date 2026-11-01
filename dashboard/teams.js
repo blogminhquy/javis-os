@@ -748,7 +748,8 @@
   // lỗi hay không làm ra gì mới thì Thử lại, bị dừng giữa chừng thì Làm tiếp, chưa có trưởng nhóm thì mở chỗ chọn.
   function blockedAction(kind) {
     if (kind === "cap_reached") return { act: "extend", key: "teams.act.extend" };
-    if (kind === "failed" || kind === "no_progress") return { act: "retry", key: "teams.act.retry" };
+    // 0.436.0: auto_retry waits for its own retry time; the same button runs it now.
+    if (kind === "failed" || kind === "no_progress" || kind === "auto_retry") return { act: "retry", key: "teams.act.retry" };
     if (kind === "interrupted") return { act: "retry", key: "teams.act.continue" };
     if (kind === "no_leader") return { act: "leader", key: "teams.pick_leader" };
     if (kind === "agent_busy_long") return { act: "resume", key: "teams.resume" };

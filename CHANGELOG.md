@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.436.0] - 2026-11-01
 ### Cải thiện
-- **Nhóm tự chạy lại khi gặp lỗi tạm thời.** (đang viết)
+- **Nhóm tự chạy lại khi gặp lỗi tạm thời.** Model quá tải, mạng chập hay gói hết lượt không còn làm việc của nhóm đứng tới sáng chờ bạn bấm Chạy lại. Nhóm tự thử lại sau 1, 5 rồi 15 phút (hết lượt gói thì chờ đúng giờ gói mở lại), tối đa 3 lần, rồi mới dừng hỏi bạn.
+- **An toàn trước đã:** bước nào đã gọi công cụ (gửi tin, đăng bài, ghi file) thì không bao giờ tự chạy lại, để không có gì bị làm hai lần. Trong lúc chờ, nhóm khác vẫn chạy bình thường.
+- **Thành viên báo kết quả gọn và thật.** Cuối mỗi bước, thành viên báo làm được hay chưa, tóm tắt 3 câu và file đã ghi. Bước báo chưa làm được thì việc dừng hỏi bạn, không tốn thêm lượt tổng hợp một kết quả hỏng.
+- **Tốn ít token hơn khi tổng hợp:** kết quả dài được đọc bằng bản tóm tắt, và mỗi kết quả chỉ nằm một lần trong lời nhắc thay vì hai lần như trước.
 
 ## [0.435.0] - 2026-11-01
 ### Thêm mới

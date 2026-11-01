@@ -26776,6 +26776,14 @@ def _team_engine_for(team, agent_key, role):
                 outcome.note(ev)
             res = outcome.result()
             usage_status = "completed"
+        except Exception as ex:
+            # 0.436.0 (team_retry): a failed turn tells the runner how many tools it called. Zero is the only count that
+            # lets a Work/Help step run again on its own; a text-only turn has no tools at all.
+            try:
+                ex.team_tool_calls = int(getattr(outcome, "tool_calls", 0) or 0)
+            except Exception:  # noqa: BLE001 - some exception types refuse new attributes: then it stays unknown
+                pass
+            raise
         except asyncio.CancelledError:
             usage_status = "cancelled"
             try:

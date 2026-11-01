@@ -161,6 +161,11 @@ def phase(task: dict, acc: Optional[dict], team: Optional[dict] = None) -> tuple
     if st == "cancelled":
         return "cancelled", localefmt.chu("Đã huỷ: {r}", "Cancelled: {r}", r=reason or "-"), True, True
     if st == "team_blocked":
+        if kind == "auto_retry":
+            # 0.436.0: a temporary error; the team runs the step again on its own. Not worth a report to Core.
+            return "retrying", localefmt.chu("Gặp lỗi tạm thời, nhóm sẽ tự chạy lại: {r}",
+                                             "Hit a temporary error, the team will retry on its own: {r}",
+                                             r=reason or "-"), False, False
         if kind == "acceptance_checking":
             return "checking", localefmt.chu("Đang kiểm nghiệm thu.", "Acceptance check running."), False, False
         if kind == "acceptance_failed":

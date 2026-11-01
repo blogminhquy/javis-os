@@ -36,6 +36,8 @@ from io_offload import run_io  # noqa: F401 - giữ `team_runner.run_io` cho tea
 import resonance_store
 import team_acceptance
 import team_quality
+import team_retry
+import team_step_report
 import team_approval
 import team_gate
 import turn_context
@@ -51,8 +53,8 @@ OPS_BY_ROLE = {
     "leader_reply": {"propose_job"},
     "member_reply": set(),
     "plan": {"assign", "ask_approval"},
-    "work": {"request_help", "ask_approval"},
-    "help": {"request_help", "ask_approval"},
+    "work": {"request_help", "ask_approval", "done"},
+    "help": {"request_help", "ask_approval", "done"},
     "synthesize": {"ask_approval"},
     # T3 phần J (0.156.0): lượt tự lên tiếng khi không ai gọi (bộ phán xử chọn). Không lệnh quản trị, không mở việc.
     "member_volunteer": set(),
@@ -191,7 +193,7 @@ WORK_TOOLS_NOTE = ("# LƯỢT LÀM VIỆC CÓ CÔNG CỤ\nĐây là lượt bạ
                    "chạy, số liệu đã lấy), đừng bảo chủ nhóm chuyển sang chat riêng. Trả lời trong nhóm NGẮN bằng kết quả: đã "
                    "làm gì, file hay link nào, còn vướng gì. Chỉ làm đúng phạm vi bước được giao; hành động ra ngoài (gửi tin, đăng "
                    "bài, thanh toán, xoá dữ liệu) chỉ làm khi việc nói rõ. Thành viên khác làm lần lượt trên cùng thư mục, "
-                   "nên đừng sửa file của bước khác khi bước của bạn không cần.")
+                   "nên đừng sửa file của bước khác khi bước của bạn không cần.\n\n" + team_step_report.HINT)
 # 0.207.0: owner approval is a real gate (team_approval.py, team_gate.py). Any step of a job may ask with this directive;
 # the step then waits (the job leaves its slot) and nothing it asked for runs until the owner decides on the card.
 APPROVAL_OP = "ask_approval"
@@ -2243,6 +2245,10 @@ class TeamRunner:
         # thành viên (kể cả của bạn), có trần số tin và số ký tự (review T1, R2). Tin sau lượt trước của bạn có nhãn "mới".
         after = self.sessions.last_message_id_by(sid, agent_key)
         recent = self.sessions.team_messages_after(sid, 0, NEW_MSG_LIMIT)
+        # 0.436.0: a message that is also an input of this step is written once, in the Inputs part below (it used to be
+        # in the prompt twice, in full here). Only when the Inputs copy loses nothing: it fits the input cap, or the
+        # step's report stands in for it.
+        input_ids = {int(x) for x in ((step or {}).get("input_refs") or []) if str(x).isdigit()}
         rendered, size = [], 0
         for m in reversed(recent):
             who = ("Chủ nhóm" if m["author_kind"] == "owner" else
@@ -2250,7 +2256,13 @@ class TeamRunner:
             if m["author_kind"] == "agent" and m["author_ref"] == agent_key:
                 who += " (bạn)"
             mark = " mới" if int(m["id"]) > int(after) else ""
-            row = f"[#{m['id']}{mark} {who}] {m['content']}"
+            content = str(m["content"] or "")
+            report = (m.get("meta") or {}).get("report")
+            if int(m["id"]) in input_ids and (len(content) <= INPUT_CHARS or report):
+                content = "(nội dung ở phần Đầu vào bên dưới)"
+            elif report:
+                content = team_step_report.input_text(content, report, INPUT_CHARS, m["id"])
+            row = f"[#{m['id']}{mark} {who}] {content}"
             if size + len(row) > NEW_MSG_CHARS:
                 break
             rendered.append(row)
@@ -2291,7 +2303,10 @@ class TeamRunner:
                     m = self.sessions.team_message(sid, int(ref)) if str(ref).isdigit() else None
                     if m:
                         who = "Chủ nhóm" if m["author_kind"] == "owner" else self._name(team, m["author_ref"])
-                        inputs.append(f"[#{m['id']} {who}] {m['content'][:INPUT_CHARS]}")
+                        # 0.436.0: a long result with an end-of-step report is read as its summary and files.
+                        body = team_step_report.input_text(m["content"], (m.get("meta") or {}).get("report"),
+                                                           INPUT_CHARS, m["id"])
+                        inputs.append(f"[#{m['id']} {who}] {body}")
                 if inputs:
                     lines.append("Đầu vào:")
                     lines.extend(inputs)
@@ -2625,8 +2640,12 @@ class TeamRunner:
                 # `detail`: riêng câu của engine (dòng trạng thái lượt trả lời đã có nhãn lý do, khỏi lặp lại).
                 detail = (ex.detail or OUTCOME_TEXT.get(ex.kind, ex.kind)) if isinstance(ex, EngineOutcomeError) else str(ex)
                 kind = "auth" if isinstance(ex, EngineOutcomeError) and ex.kind == "auth" else ""
+                # 0.436.0 (team_retry): how many tools the failed turn called (None = unknown, set by the real engine)
+                # and which engine ran it, so a temporary error may run again without repeating an action.
+                calls = getattr(ex, "team_tool_calls", None)
                 return {"status": "error", "error": msg[:500], "detail": detail[:500], "turn_id": turn_id,
-                        "reason": kind}
+                        "reason": kind, "tool_calls": calls if isinstance(calls, int) else None,
+                        "engine": prep["engine"]}
             finally:
                 if ctx_tok is not None:
                     turn_context.reset(ctx_tok)
@@ -3543,6 +3562,8 @@ class TeamRunner:
         # 0.207.0: a structured approval request (`ask_approval`) is taken out first; the first valid one counts.
         asks = [op for op in ops if op.get("op") == APPROVAL_OP]
         ops = [op for op in ops if op.get("op") != APPROVAL_OP]
+        # 0.436.0: the end-of-step report (team_step_report) is taken out before help requests are read.
+        ops, report = team_step_report.take(ops, notes)
         req = None
         for op in asks:
             got = team_approval.parse_request(op)
@@ -3555,6 +3576,8 @@ class TeamRunner:
         kept, extra = self._vet_step_ops(team, role, ops, notes, task, step)
         if req is not None:
             extra = dict(extra, approval_request=req)
+        if report is not None:
+            extra = dict(extra, report=report)
         return kept, extra
 
     def _vet_step_ops(self, team, role, ops, notes, task=None, step=None) -> tuple:
@@ -3738,6 +3761,10 @@ class TeamRunner:
     def _clean_outcome(self, team: dict, task: dict, step: dict, out: dict) -> bool:
         if out.get("status") != "done" or not out.get("applied"):
             return False
+        # 0.436.0: a step that reports failed blocks the job, so it goes after the good siblings (they are kept, not
+        # parked and paid for twice).
+        if ((out.get("extra") or {}).get("report") or {}).get("outcome") == "failed":
+            return False
         try:
             return self._approval_need(team, task, step, out) is None
         except Exception:  # noqa: BLE001 - unsure: apply it in the second pass
@@ -3855,6 +3882,9 @@ class TeamRunner:
                                f"{self._name(team, step['agent_key'])} bận ở nhóm khác quá lâu")
         if st == "error":
             self.teams.finish_step(sid, "failed", note=out["error"])
+            retry = self._auto_retry_plan(team, task, step, out)
+            if retry is not None:
+                return self._block_for_retry(team, task, step, out, retry)
             return self._block(task["id"], "failed", f"Trợ lý gặp lỗi khi làm: {out['error']}")
         mid = out.get("message_id")
         if st == "lease_lost":
@@ -3947,6 +3977,15 @@ class TeamRunner:
             return self._finish(team, task["id"], mid, out["text"], int(step["job_revision"]))
         # work, help
         helps = out["ops"]
+        report = (out.get("extra") or {}).get("report") or {}
+        if report.get("outcome") == "failed" and not helps:
+            # 0.436.0: the member says the step produced nothing usable. Stop for the owner instead of summarising a
+            # failure as a result (and spending the synthesis turn on it).
+            self.teams.finish_step(sid, "failed", mid, False, "thành viên báo chưa làm được")
+            why = report.get("summary") or localefmt.chu("không nói lý do", "no reason given")
+            return self._block(task["id"], "failed", localefmt.chu(
+                "{w} báo bước chưa làm được: {r}", "{w} reports the step could not be done: {r}",
+                w=self._name(team, step["agent_key"]), r=why))
         if helps:
             h = helps[0]
             ok = self._add_steps(team, task, [{"kind": "help", "agent": h["agent"], "brief": h["question"],
@@ -3964,6 +4003,52 @@ class TeamRunner:
                 if not ok:
                     return "team_blocked"
         return None
+
+    # ───────────── automatic retry of temporary errors (0.436.0, team_retry) ─────────────
+
+    def _auto_retry_plan(self, team: dict, task: dict, step: dict, out: dict) -> Optional[dict]:
+        """The retry plan for a step just marked failed, or None (block as before). Never raises: a broken detector
+        must not turn one failed step into a stuck job."""
+        try:
+            failures = team_retry.chain_failures(self.teams.steps(task["id"]), step)
+            provider = str(out.get("engine") or "") or self._provider(team, step.get("agent_key"))
+            return team_retry.plan(out, role=str(step.get("kind") or ""), tool_roles=TOOL_ROLES, failures=failures,
+                                   provider=provider, now=self.clock())
+        except Exception as ex:  # noqa: BLE001
+            log.warning("team auto retry plan: %s: %s", type(ex).__name__, ex)
+            return None
+
+    def _block_for_retry(self, team: dict, task: dict, step: dict, out: dict, retry: dict) -> str:
+        """Block the job with `team_retry.BLOCK_KIND` and its retry time. The job leaves its slot (other teams run
+        meanwhile); `retry_due` brings it back. A calm line in the team chat, no inbox ping: nothing to do yet."""
+        who = self._name(team, step["agent_key"])
+        reason = team_retry.reason_text(retry, who, str(out.get("detail") or out.get("error") or ""))
+        self.tasks.team_set_retry_at(task["id"], float(retry["at"]))
+        res = self._block(task["id"], team_retry.BLOCK_KIND, reason, post=False)
+        if team.get("status") != "archived":
+            try:
+                self._post(team, reason, author_kind="system", task_id=task["id"],
+                           meta={"kind": "job_retry_wait", "block_kind": team_retry.BLOCK_KIND, "retry_at": retry["at"]})
+            except Exception:  # noqa: BLE001 - the chat line must not undo the block
+                pass
+        self.teams.log_event(task["team_id"], "auto_retry_scheduled", "host", None,
+                             {"task_id": task["id"], "step_id": step["step_id"], "at": retry["at"],
+                              "kind": retry["kind"], "attempt": retry["attempt"]})
+        return res
+
+    def retry_due(self, now: Optional[float] = None) -> list:
+        """Jobs whose automatic retry time has come run again: the failed step is added anew (same as the owner's
+        Retry) and the job goes back to its place in the queue. Returns the task ids. Code only, no model."""
+        now = self.clock() if now is None else float(now)
+        out = []
+        for t in self.tasks.team_retry_due(team_retry.BLOCK_KIND, now):
+            team = self.teams.get(t["team_id"])
+            if not team or team.get("status") == "archived":
+                continue
+            if self.unblock(t["id"], "retry"):
+                self.tasks.team_set_retry_at(t["id"], 0.0)
+                out.append(t["id"])
+        return out
 
     # ───────────── chờ chủ duyệt (0.207.0) ─────────────
 

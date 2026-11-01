@@ -372,6 +372,11 @@ class TeamApi:
                 finally:
                     self._mandate_busy = False
             self._spawn(_observe())
+        # 0.436.0: jobs blocked by a temporary error whose retry time has come go back to the queue before dispatch.
+        try:
+            await r._io(r.retry_due)
+        except Exception as ex:  # noqa: BLE001 - one broken retry must not stop the team loop
+            print(f"[team retry] {type(ex).__name__}: {ex}", file=sys.stderr)
         await r.dispatch_once(wait=False)
         # T3 phần J: lần chờ của bộ phán xử quá 30 phút thì hết hạn (nhóm và chat riêng), xử lý nền.
         await r._io(r.judge_tick)
