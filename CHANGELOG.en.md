@@ -8,6 +8,9 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.432.2] - 2026-11-01
+### Fixed
+- **The GitHub card no longer wrongly says "Token is missing permissions: repo, workflow"** after you connect with the Sign in with GitHub button. That sign-in does not use those permissions at all, so nothing is missing; access is set in **Pick repos for Javis**. If you already saw the amber line, it goes away on its own, no need to sign in again.
 ## [0.432.1] - 2026-11-01
 ### Fixed
 - **Dragging a file onto the chat works again.** After a visit to the Teams page, dropping a file on the Chat page did nothing. Now the overlay shows and the file joins the attachments, like the paperclip. Thanks @thaihatr-source (#936).
