@@ -1189,6 +1189,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    for older ones. Pressing it likes; hovering it opens six native emoji in a floating pill; a long press does the same on a
    phone. No reasons, axis or comment panel any more. */
 .msg-javis > .jr-chat { display: block; max-width: min(72ch, 100%); font-size: 16px; font-family: var(--font-chat); min-width: 0; }
+/* Chat page on a desktop: a 72ch answer is comfortable for prose but wastes most of a
+   wide chat pane when a message contains a Markdown table. Let the answer and its reaction
+   anchor grow together up to 1200px; the table still scrolls inside .md-tablewrap if needed.
+   Scope to #chatPage so HUD, Teams, Workspace and Coding keep their own measures. */
+@media (min-width: 861px) {
+  #chatPage .msg-javis > .jr-chat,
+  #chatPage .msg-javis .bubble {
+    max-width: min(1200px, 100%);
+  }
+}
 .jr-chat[hidden] { display: none; }
 .jr-anchor { position: relative; height: 0; }
 .jr-rx { position: absolute; right: -6px; top: -16px; z-index: 3; }
