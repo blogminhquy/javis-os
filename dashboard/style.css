@@ -4600,7 +4600,6 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-local-name { font-weight: 600; word-break: break-all; }
 .gh-local-meta { color: var(--text2); flex: 1; min-width: 120px; }
 .gh-chip svg { width: 15px; height: 15px; flex: none; }
-.gh-apply[disabled] { opacity: .55; cursor: default; }
 /* Repo and branch picker in the + menu (0.368.0, after Claude Code's picker): sections, grouped rows, two-line names. */
 .gh-sec { padding: 10px 10px 4px; font-size: 12.5px; color: var(--text3); font-weight: 600; }
 .gh-group { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -4614,9 +4613,10 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-tick { flex: none; display: inline-flex; color: var(--accent, #3b82f6); }
 .gh-tick svg { width: 18px; height: 18px; }
 .gh-results { display: flex; flex-direction: column; gap: 2px; }
-.gh-foot { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
-.gh-foot .gh-apply { width: 100%; }
-.gh-foot .gh-apply[hidden] { display: none; }
+/* Pinned to the bottom of the scrolling + menu so a long repo list never hides it (0.432.4). The negative bottom and
+   margins cover the menu's 6px padding, so rows do not show through underneath. */
+.gh-foot { position: sticky; bottom: -6px; z-index: 1; display: flex; flex-direction: column; gap: 2px; margin: 8px -6px -6px;
+  padding: 4px 6px 6px; background: var(--bg2); border-top: 1px solid var(--border); }
 .gh-repo .cp-mi-hint { display: inline-flex; align-items: center; gap: 4px; }
 .gh-repo .cp-mi-hint .cp-ic { width: 14px; height: 14px; }
 .gh-chip-br { display: inline-flex; align-items: center; gap: 3px; color: var(--text2); font-size: 12px; max-width: 90px; overflow: hidden;

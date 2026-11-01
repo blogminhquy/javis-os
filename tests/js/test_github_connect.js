@@ -72,6 +72,18 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
   check("a non-default base rides on the chip", js.includes("gh-chip-br") && js.includes("function chipBase()"));
 }
 
+// 0.432.4 (owner, 01/11/2026): ticking a repo attaches it at once; no Attach button at the foot of a long list, and
+// the footer stays pinned while the list scrolls.
+{
+  const rv = js.slice(js.indexOf("function reposView(box, menuApi, canBack)"), js.indexOf("// Several repos: pick the repo first"));
+  check("the repo list has no Attach button any more", !rv.includes("data-apply") && !rv.includes("gh.apply_"));
+  check("a tick toggles the repo and syncs it to the chat right away", /chosen = toggle\(chosen, r\.full_name\); draw\(\); sync\(\);/.test(rv));
+  check("only one change is in flight; later ticks ride on the next request", /if \(busy\) return;/.test(rv) && /sent = list;[\s\S]*sync\(\);/.test(rv));
+  check("a refused change puts the ticks back and says why", /if \(msg\) \{ chosen = sent\.slice\(\); err\.textContent = msg; draw\(\);/.test(rv));
+  const css = fs.readFileSync(path.join(ROOT, "dashboard/style.css"), "utf8");
+  check("the picker footer is pinned to the bottom of the + menu", /\.gh-foot \{ position: sticky; bottom: -6px;/.test(css));
+}
+
 // The "Connected" heading (0.367.0): MCP accounts plus GitHub plus Facebook Pages, whichever card loads last.
 {
   const attrs = [{ name: "id", value: "connCount" }, { name: "style", value: "opacity:.5" }, { name: "data-n", value: "2" }];

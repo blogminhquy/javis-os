@@ -6153,8 +6153,6 @@
   "gh.panel_not_connected": "Chưa kết nối GitHub.",
   "gh.open_connections": "Mở trang Kết nối",
   "gh.search_ph": "Tìm repo...",
-  "gh.apply_n": "Gắn {n} repo vào cuộc trò chuyện",
-  "gh.apply_none": "Bỏ hết repo khỏi cuộc trò chuyện",
   "gh.cloned": "đã tải về",
   "gh.private": "riêng tư",
   "gh.none_found": "Không thấy repo nào.",

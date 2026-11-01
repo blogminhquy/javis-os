@@ -502,32 +502,41 @@
       '<span class="gh-name">' + esc(parts[1] || r.full_name) + "</span></span>" +
       (on ? '<span class="gh-tick">' + CHECK + "</span>" : "") + "</button>";
   }
+  // Ticking a repo attaches it at once and unticking removes it (owner, 01/11/2026): no "Attach" button at the foot of
+  // a long list that had to be scrolled to. Changes go to the server one at a time; ticks made while one is in flight
+  // ride on the next request, so the server always ends on the last state the person sees.
   function reposView(box, menuApi, canBack) {
     outerBack(box, !canBack);
-    var chosen = held ? held.slice() : names(), start = chosen.slice(), items = [], timer = 0, n = 0;
+    var chosen = held ? held.slice() : names(), sent = chosen.slice(), busy = false, items = [], timer = 0, n = 0;
     box.innerHTML = (canBack ? backRow(tw("gh.menu")) + '<div class="cp-sep"></div>' : "") +
       '<input type="search" class="cp-search" placeholder="' + esc(tw("gh.search_ph")) + '" aria-label="' + esc(tw("gh.search_ph")) + '">' +
       '<div class="cp-results gh-results" role="listbox" aria-multiselectable="true"></div>' +
-      '<div class="gh-foot"><button type="button" class="s-btn gh-apply" data-apply="1" hidden></button>' +
-      '<button type="button" class="cp-mi gh-more-conn" data-gh-conn="1">' + PLUS + '<span class="cp-mi-lbl">' + esc(tw("gh.connect_more")) + "</span></button></div>" +
-      '<div class="cp-pin-err" role="status"></div>';
-    var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), applyBtn = box.querySelector("[data-apply]"),
-      err = box.querySelector(".cp-pin-err");
+      '<div class="gh-foot"><div class="cp-pin-err" role="status"></div>' +
+      '<button type="button" class="cp-mi gh-more-conn" data-gh-conn="1">' + PLUS + '<span class="cp-mi-lbl">' + esc(tw("gh.connect_more")) + "</span></button></div>";
+    var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), err = box.querySelector(".cp-pin-err");
     var back = box.querySelector("[data-gh-back]");
     if (back) back.onclick = function () { homeView(box, menuApi); };
     box.querySelector("[data-gh-conn]").onclick = function () { menuApi.close(); goConnections(); };
-    function drawApply() {
-      var changed = !sameSet(chosen, start);
-      applyBtn.hidden = !changed;
-      applyBtn.textContent = chosen.length ? tw("gh.apply_n", { n: chosen.length }) : tw("gh.apply_none");
-    }
     function draw() {
       var sel = [], rest = [];
       items.forEach(function (r, i) { (chosen.indexOf(r.full_name) >= 0 ? sel : rest).push(repoRow(r, i, chosen.indexOf(r.full_name) >= 0)); });
       out.innerHTML = (sel.length ? '<div class="gh-sec">' + esc(tw("gh.sec_selected")) + '</div><div class="gh-group">' + sel.join("") + "</div>" : "") +
         (rest.length ? '<div class="gh-sec">' + esc(tw("gh.sec_repos")) + '</div><div class="gh-group">' + rest.join("") + "</div>" : "") +
         (!items.length ? '<div class="cp-empty">' + esc(tw("gh.none_found")) + "</div>" : "");
-      drawApply();
+    }
+    function sync() {
+      if (busy) return;
+      if (sameSet(chosen, sent)) return;
+      var list = chosen.slice(), adds = list.some(function (x) { return sent.indexOf(x) < 0; });
+      busy = true;
+      err.textContent = adds ? tw("gh.cloning") : "";
+      setRepos(list).then(function (msg) {
+        busy = false;
+        if (msg) { chosen = sent.slice(); err.textContent = msg; draw(); return; }
+        sent = list;
+        err.textContent = "";
+        sync();
+      });
     }
     function load() {
       var q = input.value.trim(), k = ++n;
@@ -546,18 +555,8 @@
       var b = e.target.closest ? e.target.closest("[data-gh-i]") : null;
       if (!b) return;
       var r = items[+b.getAttribute("data-gh-i")];
-      if (r) { chosen = toggle(chosen, r.full_name); draw(); }
+      if (r) { chosen = toggle(chosen, r.full_name); draw(); sync(); }
     });
-    applyBtn.onclick = function () {
-      applyBtn.disabled = true;
-      err.textContent = chosen.length ? tw("gh.cloning") : "";
-      setRepos(chosen).then(function (msg) {
-        applyBtn.disabled = false;
-        if (msg) { err.textContent = msg; drawApply(); return; }
-        if (chosen.length) homeView(box, menuApi);
-        else { menuApi.close(); var i = document.getElementById("chatInput"); if (i) i.focus(); }
-      });
-    };
     input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(load, 200); });
     input.focus();
     load();

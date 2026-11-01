@@ -6153,8 +6153,6 @@
   "gh.panel_not_connected": "GitHub is not connected.",
   "gh.open_connections": "Open Connections",
   "gh.search_ph": "Find a repo...",
-  "gh.apply_n": "Attach {n} repo(s) to this chat",
-  "gh.apply_none": "Remove all repos from this chat",
   "gh.cloned": "downloaded",
   "gh.private": "private",
   "gh.none_found": "No repo found.",
