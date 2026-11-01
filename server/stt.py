@@ -186,10 +186,11 @@ STT_TIMEOUT = 120.0      # tin thoại dài vài phút vẫn phải kịp, mạn
 # Câu Javis nói khi chưa đấu key. Để ở đây (không rải trong từng kênh) vì mọi kênh nói CÙNG
 # một chuyện: thiếu đúng một thứ, và thứ đó nằm ở đúng một chỗ trong dashboard.
 _HD_THIEU_KEY = (
-    "[Người dùng vừa gửi TIN THOẠI. Javis chưa nghe được vì chưa đấu API key của Groq - "
-    "đó là thứ chuyển giọng nói thành chữ. Hãy nói với họ: muốn ra lệnh bằng ghi âm thì vào "
-    "trang Models trong dashboard, mục nhà cung cấp Groq (API), dán API key lấy ở "
-    "console.groq.com rồi lưu lại; xong là gửi tin thoại dùng được ngay, không cần cài gì thêm. "
+    "[Người dùng vừa gửi TIN THOẠI. Javis chưa nghe được vì chưa có bộ nghe nào - "
+    "thứ chuyển giọng nói thành chữ. Hãy nói với họ: muốn ra lệnh bằng ghi âm thì chọn MỘT trong hai cách: "
+    "vào trang Models trong dashboard dán API key của Groq (lấy ở console.groq.com, có gói miễn phí), "
+    "hoặc key OpenAI hay Google Gemini nếu đã có; hoặc vào trang Công cụ bấm cài \"Bộ nghe offline\" "
+    "để nghe ngay trên máy, không cần key. Xong là gửi tin thoại dùng được ngay. "
     "Trong lúc chờ thì nhờ họ gõ chữ. Nếu đang đóng vai người thật nói với khách thì CHỈ nhờ "
     "họ gõ chữ, đừng nhắc gì tới API key hay dashboard.]")
 
@@ -314,3 +315,140 @@ async def _api_nghe(url, ten, data, ten_file, api_key, mdl, ngon_ngu, hotwords):
         loi = f"{type(e).__name__}: {e}"
         print(f"[stt {ten}] {loi}", file=sys.stderr)
         return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", loi[:200])}
+
+
+# ============================================================
+# More ears (0.435.0): Gemini, and a chain that tries every ear the owner has
+# ============================================================
+# Owner, 2026-11-01: "anh muốn không cần groq mà vẫn nghe được", then "làm cả đường 1 và 2 luôn nhé, để không dùng
+# được cái này thì dùng cái khác". Until this release a voice message or a video's sound was heard by Groq only.
+# Now `listen_any` tries, in order: Groq, OpenAI, Gemini (keys from the Models page), then the offline Whisper the
+# owner installed from the Tools page (`local_stt`). An ear that is missing or fails hands over to the next one.
+GEMINI_STT_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_STT_MODEL = "gemini-2.5-flash"     # takes audio input; fast and cheap
+GEMINI_MAX_MB = 18                        # inline audio rides in a request capped at 20MB
+_GEMINI_MIME = {".mp3": "audio/mp3", ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg",
+                ".opus": "audio/ogg", ".flac": "audio/flac", ".aac": "audio/aac", ".aiff": "audio/aiff"}
+_GEMINI_PROMPT = ("Chép lại NGUYÊN VĂN lời nói trong đoạn âm thanh này thành chữ, đúng ngôn ngữ người nói dùng. "
+                  "Chỉ trả về phần chữ chép lại: không chào, không giải thích, không tóm tắt, không dịch. "
+                  "Không có lời nói nào nghe được thì trả về đúng một chuỗi rỗng.")
+
+# A failure that another ear may well fix (no key, the vendor down, quota, a file one ear cannot take).
+# "khong_nghe_ro" is not one: silence stays silence whoever listens.
+_TRY_NEXT = ("thieu_key", "loi", "qua_lon")
+
+
+async def _as_mp3(data: bytes, ten_file: str) -> bytes:
+    """`data` re-encoded as a small mono mp3 by ffmpeg, or b"" when that is not possible.
+
+    For an audio format Gemini does not take (Zalo's .m4a, a browser's .webm). Uses files, not pipes: an .m4a often
+    keeps its index at the end, which ffmpeg cannot read from a pipe."""
+    import asyncio
+    import os
+    import shutil
+    import tempfile
+    import winproc
+    if not shutil.which("ffmpeg"):
+        return b""
+    ext = os.path.splitext(str(ten_file or ""))[1][:8] or ".bin"
+    with tempfile.TemporaryDirectory(prefix="javis-stt-") as d:
+        src, dst = os.path.join(d, "in" + ext), os.path.join(d, "out.mp3")
+        with open(src, "wb") as f:
+            f.write(data)
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-nostdin", "-v", "error", "-y", "-i", src, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "32k", dst,
+            stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            **winproc.kwargs_no_window())
+        try:
+            await asyncio.wait_for(proc.wait(), 120)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return b""
+        if proc.returncode != 0 or not os.path.exists(dst):
+            return b""
+        with open(dst, "rb") as f:
+            return f.read()
+
+
+async def gemini_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords=""):
+    """Same contract as `groq_nghe`, with a Gemini API key: the model is asked to write down what is said."""
+    import base64
+    import os
+    if not api_key:
+        return {"ok": False, "ly_do": "thieu_key", "noi_voi_javis": loi_thanh_dong("thieu_key")}
+    if not data:
+        return {"ok": False, "ly_do": "rong", "noi_voi_javis": loi_thanh_dong("loi", "file rỗng")}
+    mime = _GEMINI_MIME.get(os.path.splitext(str(ten_file or "").lower())[1], "")
+    if not mime:
+        data = await _as_mp3(data, ten_file)
+        mime = "audio/mp3"
+        if not data:
+            return {"ok": False, "ly_do": "loi",
+                    "noi_voi_javis": loi_thanh_dong("loi", "Gemini không nhận định dạng âm thanh này")}
+    if len(data) > GEMINI_MAX_MB * 1024 * 1024:
+        ct = f"({_mb(len(data))}MB, trần {GEMINI_MAX_MB}MB)"
+        return {"ok": False, "ly_do": "qua_lon", "noi_voi_javis": loi_thanh_dong("qua_lon", ct)}
+    mdl = model or GEMINI_STT_MODEL
+    goi_y = STT_MAC_DINH if ngon_ngu is None else ngon_ngu
+    prompt = _GEMINI_PROMPT
+    if goi_y:
+        prompt += f" Ngôn ngữ nhiều khả năng là: {goi_y}."
+    if hw := str(hotwords or "").strip():
+        prompt += " Các tên riêng có thể xuất hiện, hãy viết đúng chính tả: " + hw[:600]
+    body = {"contents": [{"role": "user", "parts": [
+                {"text": prompt}, {"inline_data": {"mime_type": mime, "data": base64.b64encode(data).decode()}}]}],
+            "generationConfig": {"temperature": 0, "thinkingConfig": {"thinkingBudget": 0}}}
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(STT_TIMEOUT)) as c:
+            r = await c.post(GEMINI_STT_URL.format(model=mdl), headers={"x-goog-api-key": api_key}, json=body)
+        d = {}
+        try:
+            d = r.json()
+        except Exception:
+            pass
+        if r.status_code != 200:
+            ly = ((d.get("error") or {}).get("message") if isinstance(d.get("error"), dict) else "") \
+                or f"gemini HTTP {r.status_code}"
+            print(f"[stt gemini] {ly}", file=sys.stderr)
+            return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", str(ly)[:200])}
+        parts = (((d.get("candidates") or [{}])[0].get("content") or {}).get("parts") or [])
+        text = loc_ao_giac(" ".join(str(p.get("text") or "") for p in parts if isinstance(p, dict)).strip())
+        if text.strip() in ('""', "''"):
+            text = ""
+        if not text:
+            return {"ok": False, "ly_do": "khong_nghe_ro", "noi_voi_javis": loi_thanh_dong("khong_nghe_ro")}
+        return {"ok": True, "text": text, "model": mdl}
+    except Exception as e:
+        loi = f"{type(e).__name__}: {e}"
+        print(f"[stt gemini] {loi}", file=sys.stderr)
+        return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", loi[:200])}
+
+
+async def listen_any(data, ten_file, keys: dict, ngon_ngu=None, hotwords="", groq_model="", local=None):
+    """Try every ear the owner has until one hears something. Same contract as `groq_nghe`, plus `ear` on success.
+
+    `keys`: {"groq": ..., "openai": ..., "gemini": ...} (empty = that ear is skipped). `local`: an async
+    (bytes, file name, language) -> dict like `groq_nghe`, or None when the offline Whisper is not installed.
+    When no ear exists at all the answer is the "thieu_key" line, which names every way to get one."""
+    keys = keys or {}
+    ears = []
+    if keys.get("groq"):
+        ears.append(("groq", lambda: groq_nghe(data, ten_file, keys["groq"], groq_model, ngon_ngu, hotwords)))
+    if keys.get("openai"):
+        ears.append(("openai", lambda: openai_nghe(data, ten_file, keys["openai"], "", ngon_ngu, hotwords)))
+    if keys.get("gemini"):
+        ears.append(("gemini", lambda: gemini_nghe(data, ten_file, keys["gemini"], "", ngon_ngu, hotwords)))
+    if local is not None:
+        ears.append(("local", lambda: local(data, ten_file, STT_MAC_DINH if ngon_ngu is None else ngon_ngu)))
+    if not ears:
+        return {"ok": False, "ly_do": "thieu_key", "noi_voi_javis": loi_thanh_dong("thieu_key")}
+    res = {}
+    for name, run in ears:
+        res = await run()
+        if res.get("ok"):
+            return dict(res, ear=name)
+        if res.get("ly_do") not in _TRY_NEXT:
+            return dict(res, ear=name)
+        print(f"[stt] tai {name} hỏng ({res.get('ly_do')}), thử tai kế tiếp", file=sys.stderr)
+    return res

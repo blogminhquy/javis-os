@@ -84,7 +84,14 @@ def _mo_ta_trinh_duyet() -> dict:
     }
 
 
-CONG_CU = {"browser": _mo_ta_trinh_duyet}
+def _mo_ta_tai_offline() -> dict:
+    import local_stt
+    return local_stt.describe()
+
+
+# 0.435.0: the offline ear (`local_stt`) is the second optional tool. Its own module says how it is checked, installed
+# and removed; the branches below only route to it.
+CONG_CU = {"browser": _mo_ta_trinh_duyet, "local_ear": _mo_ta_tai_offline}
 
 
 # ─────────────────────────── dò xem đã có gì chưa ───────────────────────────
@@ -363,7 +370,11 @@ def trang_thai(cong_cu: str = "browser") -> dict:
     d = dict(CONG_CU[cong_cu]())
     viec = _viec.get(cong_cu) or {}
     d["ok"] = True
-    d = _trang_thai_browser(d, viec)
+    if cong_cu == "local_ear":
+        import local_stt
+        d = local_stt.status(d, viec)
+    else:
+        d = _trang_thai_browser(d, viec)
     d.update({
         "tien_do": viec.get("tien_do", ""),
         "log": viec.get("log", ""),
@@ -395,6 +406,9 @@ def _lenh_cai(cong_cu: str) -> tuple:
     Gom ở đây để `_chay_tai` chỉ còn phần CHẠY: đọc log, đếm giờ, ghi trạng thái. Thêm công cụ
     thứ ba sau này chỉ phải viết thêm một nhánh ở đây.
     """
+    if cong_cu == "local_ear":
+        import local_stt
+        return local_stt.install_command()
     BROWSERS_DIR.mkdir(parents=True, exist_ok=True)
     moi_truong = dict(os.environ)
     moi_truong[ENV_BROWSERS_PATH] = str(BROWSERS_DIR)
@@ -461,12 +475,20 @@ async def _chay_tai(cong_cu: str) -> None:
     if ma != 0:
         v["loi"] = localefmt.chu(f"Lệnh cài trả mã lỗi {ma}. Xem log bên dưới.",
                                  f"The install command returned error code {ma}. See the log below.")
-    elif not duong_dan_chrome():
+    elif not _cai_xong(cong_cu):
         v["loi"] = localefmt.chu("Lệnh chạy xong nhưng không thấy thứ vừa cài đâu.",
                                  "The command finished but what it installed cannot be found.")
     else:
         v["tien_do"] = localefmt.chu("Xong.", "Done.")
     print(f"[cong-cu] tải {cong_cu}: mã {ma}, lỗi={v.get('loi') or 'không'}", file=sys.stderr)
+
+
+def _cai_xong(cong_cu: str) -> bool:
+    """What the install was for is now on disk and usable."""
+    if cong_cu == "local_ear":
+        import local_stt
+        return local_stt.installed()
+    return bool(duong_dan_chrome())
 
 
 def bat_dau_cai(cong_cu: str = "browser") -> dict:
@@ -476,7 +498,8 @@ def bat_dau_cai(cong_cu: str = "browser") -> dict:
     if (_viec.get(cong_cu) or {}).get("dang_chay"):
         return {"ok": True, "dang_chay": True, "note": localefmt.chu("đang tải rồi", "already downloading")}
     # A manual install undoes an earlier Remove, so the automatic download may run again later.
-    REMOVED_MARKER.unlink(missing_ok=True)
+    if cong_cu == "browser":
+        REMOVED_MARKER.unlink(missing_ok=True)
     t = asyncio.get_event_loop().create_task(_chay_tai(cong_cu))
     _TASKS.add(t)
     t.add_done_callback(_TASKS.discard)
@@ -487,6 +510,12 @@ def go(cong_cu: str = "browser") -> dict:
     """Xoá bản Javis tự tải. KHÔNG bao giờ đụng tới trình duyệt có sẵn của máy."""
     if cong_cu not in CONG_CU:
         return {"ok": False, "error": localefmt.chu(f"không có công cụ tên {cong_cu!r}", f"no tool named {cong_cu!r}")}
+    if cong_cu == "local_ear":
+        if (_viec.get(cong_cu) or {}).get("dang_chay"):
+            return {"ok": False, "error": localefmt.chu("Đang cài, chờ xong rồi gỡ.", "Installing, wait until it finishes.")}
+        import local_stt
+        _viec.pop(cong_cu, None)
+        return local_stt.remove()
     goc = BROWSERS_DIR
     if not _da_tai():
         return {"ok": False, "error": localefmt.chu("Không có bản nào do Javis cài để gỡ.",

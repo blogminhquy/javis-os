@@ -90,7 +90,9 @@ _src_tools = (SERVER / "routes" / "tools.py").read_text(encoding="utf-8")
 check("dọn chạy lúc khởi động, ở thread riêng (không bắt server chờ)",
       "optional_tools.don_thu_vien_cu" in _src_tools and "threading.Thread" in _src_tools)
 
-check("trang Công cụ chỉ còn trình duyệt", [d["id"] for d in ot.danh_sach()] == ["browser"])
+# 0.435.0 added the offline ear as a second tool; what matters here is that the removed library is gone for good.
+_ids = [d["id"] for d in ot.danh_sach()]
+check("trang Công cụ không còn mục thư viện của ChatGPT Web", "browser" in _ids and "pylib-playwright" not in _ids)
 check("mục thư viện không cài được nữa", ot.bat_dau_cai("pylib-playwright").get("ok") is False)
 check("trình duyệt quay về bản nhẹ --only-shell (đủ cho Playwright MCP)",
       "--only-shell" in ot._lenh_cai("browser")[0])

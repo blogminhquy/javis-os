@@ -91,7 +91,7 @@ check("lượt chủ nhờ bot: ảnh trơn bị coi là chưa có tin để tr�
       "conversations.chu_thich_anh(last.get(\"text\")) if (last or {}).get(\"message_type\") == \"image\"" in src and "text = chu_khach" in src)
 tp = (SERVER / "channels" / "zalo_personal.py").read_text(encoding="utf-8")
 check("Transport nhận cả 'text' lẫn 'image', ảnh lấy chú thích, và đánh dấu co_anh vào meta",
-      'kieu not in ("text", "image", "file", "reaction", "video")' in tp and "conversations.chu_thich_anh(ev.get(\"text\"))" in tp and 'meta["co_anh"] = True' in tp)
+      'kieu not in ("text", "image", "file", "reaction", "video", "audio")' in tp and "conversations.chu_thich_anh(ev.get(\"text\"))" in tp and 'meta["co_anh"] = True' in tp)
 
 check("không dùng em dash trong file này", chr(0x2014) not in open(__file__, encoding="utf-8").read())
 

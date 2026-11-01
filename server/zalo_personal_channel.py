@@ -492,7 +492,9 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
                          **({"attachment": normalize_attachment(msg)} if loai == "file" else {}),
                          **({"image_url": _link_anh(msg)} if loai == "image" and _link_anh(msg) else {}),
                          # 0.433.0: the clip's link (javis-zalo `attachment.url`), so the bot can look at its frames.
-                         **({"video_url": _link_anh(msg)} if loai == "video" and _link_anh(msg) else {})),
+                         **({"video_url": _link_anh(msg)} if loai == "video" and _link_anh(msg) else {}),
+                         # 0.435.0: a voice message's link, so the bot can hear it (`chatbot_runtime.nghe_cho_bot`).
+                         **({"audio_url": _link_anh(msg)} if loai == "audio" and _link_anh(msg) else {})),
     }
 
 
@@ -1522,6 +1524,9 @@ def _co_chu(ev: dict) -> bool:
     return False
 
 
+MAX_AUDIO_GOP = 3      # voice messages heard in one merged turn (newest kept): each one is a speech-to-text call
+
+
 def gop_tin(evs: List[dict]) -> dict:
     """Nhiều tin khách liền nhau của MỘT cuộc chat riêng -> một sự kiện cho `Transport.xu_ly`.
 
@@ -1540,11 +1545,12 @@ def gop_tin(evs: List[dict]) -> dict:
     phan: List[str] = []
     co_anh, link = False, ""
     video, video_msg = "", ""
+    audios: List[str] = []
     files: List[dict] = []
     react_to, react_to_cli = "", ""
     for e in evs:
         loai = e.get("message_type")
-        if loai in ("text", "image", "file", "video") and e.get("external_message_id"):
+        if loai in ("text", "image", "file", "video", "audio") and e.get("external_message_id"):
             # The bot reacts to a message, never to a reaction.
             react_to = str(e["external_message_id"])
             react_to_cli = str((e.get("metadata") or {}).get("cliMsgId") or "")
@@ -1552,6 +1558,12 @@ def gop_tin(evs: List[dict]) -> dict:
             att = (e.get("metadata") or {}).get("attachment")
             if isinstance(att, dict):
                 files.append(att)
+            continue
+        if loai == "audio":
+            # 0.435.0: voice messages ride along (newest `MAX_AUDIO_GOP`), heard right before the bot answers.
+            a = str((e.get("metadata") or {}).get("audio_url") or "")
+            if a:
+                audios.append(a)
             continue
         if loai == "video":
             # 0.433.0: the latest clip rides along like a photo; its text is only the link, never the customer's words.
@@ -1570,11 +1582,14 @@ def gop_tin(evs: List[dict]) -> dict:
             continue
         if t:
             phan.append(t)
-    md = {k: v for k, v in (cuoi.get("metadata") or {}).items() if k not in ("image_url", "attachment", "video_url")}
+    md = {k: v for k, v in (cuoi.get("metadata") or {}).items()
+          if k not in ("image_url", "attachment", "video_url", "audio_url")}
     if link:
         md["image_url"] = link
     if video:
         md["video_url"], md["video_msg"] = video, video_msg
+    if audios:
+        md["audio_urls"] = audios[-MAX_AUDIO_GOP:]
     if files:
         md["attachments"] = files[-MAX_FILE_GOP:]
     md["gop"] = len(evs)
@@ -1582,6 +1597,7 @@ def gop_tin(evs: List[dict]) -> dict:
     md["react_to"], md["react_to_cli"] = react_to, react_to_cli
     only_reactions = all(e.get("message_type") == "reaction" for e in evs)
     kieu = ("image" if co_anh else "reaction" if only_reactions else "video" if video and not phan and not files
+            else "audio" if audios and not phan and not files
             else "text" if phan or not files else "file")
     return dict(cuoi, message_type=kieu, text=bot_gateway.noi_tin(phan), metadata=md)
 

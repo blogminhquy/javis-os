@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.435.0] - 2026-11-01
 ### Thêm mới
-- **Nghe lời nói trong video và tin thoại không cần Groq.** Đang làm.
+- **Nghe tin thoại và lời nói trong video không cần Groq.** Javis thử lần lượt các key bạn có ở trang Models: Groq, rồi OpenAI, rồi Gemini. Key này lỗi hay hết lượt thì tự chuyển sang key kế tiếp.
+- **Bộ nghe offline:** trang Công cụ có thêm thẻ "Bộ nghe offline (Whisper)". Bấm cài một lần (tải khoảng 1 GB) là Javis nghe ngay trên máy, không cần key nào, dùng khi mọi key đều không có hoặc đều lỗi. Máy yếu nghe chậm hơn và kém hơn Groq.
+- **Chatbot Zalo cá nhân nghe được tin thoại của khách.** Trước đây tin thoại bị bỏ qua hẳn. Không nghe được thì bot nói thật và nhờ khách gõ chữ, không đoán.
 
 ## [0.434.0] - 2026-11-01
 ### Thêm mới

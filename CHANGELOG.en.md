@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.435.0] - 2026-11-01
 ### Added
-- **Hear speech in videos and voice messages without Groq.** In progress.
+- **Voice messages and the speech in videos are heard without Groq.** Javis tries the keys you have on the Models page in turn: Groq, then OpenAI, then Gemini. When one fails or runs out, it moves on to the next.
+- **Offline ear:** the Tools page has a new "Offline ear (Whisper)" card. Install it once (about 1 GB) and Javis hears on the machine itself with no key, used when no key is set or every key fails. A weak machine hears slower and less accurately than Groq.
+- **The personal Zalo chatbot hears customers' voice messages.** They used to be skipped. When one cannot be heard, the bot says so and asks the customer to type, never guesses.
 
 ## [0.434.0] - 2026-11-01
 ### Added

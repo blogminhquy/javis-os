@@ -24492,9 +24492,15 @@ async def _stt_nghe(data, ten=""):
     # Cùng bộ từ vựng và lớp sửa nghe nhầm như mic trên dashboard (nghe_sua): tin thoại Telegram
     # hay Zalo nói "David" cũng phải ra "Javis" trước khi vào bộ não.
     _tv = nghe_sua.tu_vung(_cfg)
-    res = await stt.groq_nghe(data, ten, key,
-                              ngon_ngu=(lang_registry.get(_ma).stt if _ma else ""),
-                              hotwords=nghe_sua.goi_y_whisper(_tv))
+    # 0.435.0: not Groq only any more. Every ear the owner has is tried in turn (Groq, OpenAI, Gemini, then the
+    # offline Whisper from the Tools page); one missing or failing hands over to the next (`stt.listen_any`).
+    _m = _cfg.get("model") or {}
+    import local_stt
+    res = await stt.listen_any(data, ten, {"groq": key, "openai": _m.get("openai_api_key") or "",
+                                           "gemini": _m.get("gemini_api_key") or ""},
+                               ngon_ngu=(lang_registry.get(_ma).stt if _ma else ""),
+                               hotwords=nghe_sua.goi_y_whisper(_tv),
+                               local=local_stt.transcribe if local_stt.installed() else None)
     if res.get("ok") and res.get("text"):
         res["text"] = nghe_sua.sua(res["text"], _tv)
     return res

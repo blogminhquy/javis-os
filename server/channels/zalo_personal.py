@@ -691,7 +691,8 @@ class Transport:
         vao_nhom = md0.get("member_join")
         if vao_nhom and loai != "group":
             return
-        if loai not in ("private", "group") or (kieu not in ("text", "image", "file", "reaction", "video") and not vao_nhom):
+        if loai not in ("private", "group") or (kieu not in ("text", "image", "file", "reaction", "video", "audio")
+                                                and not vao_nhom):
             return
         nhom = loai == "group"
         # A customer's emoji reaction (0.334.0) reaches the bot as its describing line. Nothing here decides whether it
@@ -719,6 +720,10 @@ class Transport:
         co_anh = kieu == "image"
         # 0.433.0: a video the customer sent in this private turn; the bot looks at its frames (`chatbot_runtime`).
         video_url = str(md0.get("video_url") or "") if loai == "private" and not vao_nhom else ""
+        # 0.435.0: voice messages of this private turn (a merged turn carries a list, a single message its own link).
+        audio_urls = ([] if loai != "private" or vao_nhom
+                      else list(md0.get("audio_urls") or []) if md0.get("gop")
+                      else [md0["audio_url"]] if kieu == "audio" and md0.get("audio_url") else [])
         if vao_nhom:
             # 0.84.2: someone joined the group. The newcomer is the "sender", so a reply tags them (`_gui`).
             # Javis writes no greeting of its own: the bot's Agent decides, and stays silent when its
@@ -728,7 +733,7 @@ class Transport:
             # Lượt gộp (0.128.0, `zalo_personal_channel.gop_tin`) đã bóc chú thích ảnh từng tin rồi nối lại: lấy nguyên.
             gop = bool(md0.get("gop"))
             text = (conversations.chu_thich_anh(ev.get("text")) if co_anh and not gop
-                    else "" if kieu == "video" and not gop      # a video's text is only its link
+                    else "" if kieu in ("video", "audio") and not gop      # its text is only its link
                     else str(ev.get("text") or "").strip())
         if chi_file and not text:
             text = "(người dùng gửi file)"
@@ -746,7 +751,10 @@ class Transport:
                 return
             # Chat riêng: ảnh không kèm chữ vẫn là người ta đang nhờ xem ảnh (gửi đề, gửi bài làm). Trước đây bị bỏ hẳn
             # ở đây, nên bot không bao giờ thấy ảnh gửi trơn (15/10/2026). Đưa cho bot kèm ảnh, Agent tự quyết hỏi gì.
-            if video_url and not co_anh:
+            if audio_urls and not co_anh and not video_url:
+                import chatbot_runtime
+                text = chatbot_runtime.AUDIO_TRON
+            elif video_url and not co_anh:
                 import chatbot_runtime
                 text = chatbot_runtime.VIDEO_TRON
             elif not (co_anh and loai == "private" and (ev.get("metadata") or {}).get("image_url")):
@@ -827,6 +835,8 @@ class Transport:
                 meta.update(co_anh=True, image_url=url, anh_truoc=True)
                 text = (text + "\n[Kèm ảnh khách gửi lúc " + datetime.fromtimestamp(gio, localefmt.tz()).strftime("%H:%M")
                         + " trong cuộc chat này, có thể liên quan tới tin trên]")
+        if audio_urls:
+            meta["audio_urls"] = audio_urls
         if video_url:
             meta["video_url"] = video_url
             meta["video_msg"] = str(md0.get("video_msg") or ev.get("external_message_id") or "")

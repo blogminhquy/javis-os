@@ -295,7 +295,8 @@ _fn = MAIN.split("async def _stt_nghe(", 1)[1].split("\n\n\n", 1)[0]
 check("hàm nghe đọc key Groq", 'get("groq_api_key")' in _fn)
 check("đọc key TẠI THỜI ĐIỂM GỌI (dán key xong không phải tắt bật lại bot)",
       "cfgmod.read_settings()" in _fn)
-check("hàm nghe gọi đúng module stt", "stt.groq_nghe(" in _fn)
+# 0.435.0: the voice message goes through every ear in turn (Groq first), see test_nghe_khong_can_groq.py.
+check("hàm nghe gọi đúng module stt", "stt.listen_any(" in _fn and '{"groq": key' in _fn)
 
 
 if _fails:
