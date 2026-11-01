@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.434.0] - 2026-11-01
+### Thêm mới
+- **Nối Fanpage bằng nút Đăng nhập Facebook, và bình luận Fanpage vào Hộp thư.** (đang làm)
+
 ## [0.433.0] - 2026-11-01
 ### Thêm mới
 - **Chatbot Zalo cá nhân xem được video khách gửi.** Trước đây video bị bỏ qua nên bot chỉ biết nói "em chưa xem được video". Giờ Javis cắt 4 khung hình rải đều trong video đưa cho bot xem, như khi khách gửi ảnh.

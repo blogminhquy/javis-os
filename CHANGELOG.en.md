@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.434.0] - 2026-11-01
+### Added
+- **Connect a Facebook Page with a Log in with Facebook button, and Page comments in the inbox.** (in progress)
+
 ## [0.433.0] - 2026-11-01
 ### Added
 - **The personal Zalo chatbot can look at videos customers send.** A video used to be skipped, so the bot could only say it could not watch it. Javis now cuts 4 frames spread over the clip and shows them to the bot, the same way as a photo.
