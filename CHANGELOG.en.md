@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.436.0] - 2026-11-01
+### Improved
+- **Teams retry on their own after a temporary error.** (in progress)
+
 ## [0.435.0] - 2026-11-01
 ### Added
 - **Voice messages and the speech in videos are heard without Groq.** Javis tries the keys you have on the Models page in turn: Groq, then OpenAI, then Gemini. When one fails or runs out, it moves on to the next.

@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.436.0] - 2026-11-01
+### Cải thiện
+- **Nhóm tự chạy lại khi gặp lỗi tạm thời.** (đang viết)
+
 ## [0.435.0] - 2026-11-01
 ### Thêm mới
 - **Nghe tin thoại và lời nói trong video không cần Groq.** Javis thử lần lượt các key bạn có ở trang Models: Groq, rồi OpenAI, rồi Gemini. Key này lỗi hay hết lượt thì tự chuyển sang key kế tiếp.
