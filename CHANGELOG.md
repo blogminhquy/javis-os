@@ -15,6 +15,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Fanpage đã nối ở trang Kết nối tự có trong danh sách kênh của Chatbot. Chọn Messenger ở Thêm kênh sẽ thấy lời nhắc kèm nút mở thẳng thẻ Messenger, khỏi nối lại lần hai.
 - **Hướng dẫn nối Messenger viết lại cho đúng:** đi đường nút Đăng nhập Facebook (thêm quyền, khai Facebook Login và hai địa chỉ của Javis, chọn Trang, gắn bot, chuyển Live), dán token chỉ còn là đường dự phòng. Bảng lỗi có thêm "URL bị chặn" và "Invalid Scopes".
 
+## [0.437.0] - 2026-11-01
+### Cải thiện
+- **Bước của nhóm chờ đúng bước nó cần.** Trưởng nhóm giờ ghi được phần nào cần kết quả của phần nào. Các phần không liên quan nhau chạy cùng lúc, phần cần kết quả thì bắt đầu ngay khi đúng các phần nó cần đã xong, không phải chờ cả việc.
+- Ví dụ "A nghiên cứu đối thủ, B lấy số liệu, C viết kế hoạch từ cả hai": A và B làm cùng lúc, C làm sau. Còn "B viết bài, C làm ảnh, cả hai dựa trên số liệu của A" thì B và C làm cùng lúc ngay sau A, thay vì lần lượt như trước.
+- **Không tốn thêm lượt nào:** mỗi phần chỉ đọc kết quả của đúng các phần nó chờ. Việc yêu cầu "làm lần lượt" vẫn chạy như cũ.
+
 ## [0.436.1] - 2026-11-01
 ### Cải thiện
 - **Hướng dẫn nối Messenger từng bước, có link ngay trong form.** Chọn Messenger ở Chatbot, Kênh, Thêm kênh là thấy link "Hướng dẫn từng bước" mở trang hướng dẫn trên GitHub, đi từng cú bấm trên trang Meta cho người mới. Thẻ Messenger ở trang Kết nối cũng có link.

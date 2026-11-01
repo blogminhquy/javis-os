@@ -141,6 +141,12 @@ GATE_SNAPSHOT_SUFFIX = ".pre-0.207.0"
 WORK_MODES = ("gated", "full")
 # Cột thêm cho kho đã có (ALTER, idempotent). Mọi cột có mặc định: bản 0.153.x vẫn đọc ghi được kho đã nâng. Dòng nhật ký
 # cũ coi như đã chiếu xong (`effect_state` mặc định 'done', không backfill tác động).
+# 0.437.0: a plan part's label and the earlier parts it waits for (`after_json`, NULL = the pre-0.437 meaning of a held
+# step: wait for every step before it). Added columns only, so an older version reads the store as before.
+_STEP_DEP_COLS = (
+    ("team_steps", "part", "TEXT NOT NULL DEFAULT ''"),
+    ("team_steps", "after_json", "TEXT"),
+)
 _T2_REACTION_COLS = (
     ("team_reactions", "source_kind", "TEXT NOT NULL DEFAULT 'owner'"),
     ("team_reactions", "axis", "TEXT NOT NULL DEFAULT ''"),
@@ -230,7 +236,7 @@ class TeamStore:
                       'set_at REAL NOT NULL, event_id INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(team_id,cap))')
             if 'event_id' not in {r[1] for r in c.execute('PRAGMA table_info(team_cap_settings)')}:
                 c.execute('ALTER TABLE team_cap_settings ADD COLUMN event_id INTEGER NOT NULL DEFAULT 0')
-            for table, col, decl in _T2_REACTION_COLS:
+            for table, col, decl in _T2_REACTION_COLS + _STEP_DEP_COLS:
                 if col not in {r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()}:
                     c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
             c.execute("CREATE INDEX IF NOT EXISTS team_reaction_log_effect ON team_reaction_log(effect_state)")
@@ -703,12 +709,19 @@ class TeamStore:
                 "kind": r["kind"], "agent_key": r["agent_key"], "job_revision": r["job_revision"], "brief": r["brief"],
                 "input_refs": json.loads(r["input_refs_json"] or "[]"), "status": r["status"],
                 "parent_step": r["parent_step"], "result_msg_id": r["result_msg_id"], "applied": bool(r["applied"]),
-                "note": r["note"], "created_at": r["created_at"], "updated_at": r["updated_at"]}
+                "note": r["note"], "created_at": r["created_at"], "updated_at": r["updated_at"],
+                "part": r["part"] if "part" in r.keys() else "",
+                "after": (json.loads(r["after_json"]) if "after_json" in r.keys() and r["after_json"] is not None
+                          else None)}
 
     def add_step(self, task_id: str, team_id: str, kind: str, agent_key: str, job_revision: int, brief: str,
-                 input_refs: list, parent_step: Optional[str] = None, held: bool = False) -> dict:
+                 input_refs: list, parent_step: Optional[str] = None, held: bool = False, part: str = "",
+                 after: Optional[list] = None) -> dict:
         """`held` (customer report 0.270, Code 23): the step waits for every step before it. It is not queued, so no
-        wave or tick picks it; `release_held_step` queues it once the job has nothing else left to run."""
+        wave or tick picks it; `release_held_step` queues it once the job has nothing else left to run.
+
+        0.437.0: `part` labels a plan part (a retry or a continuation of the part keeps it). `after` lists the parts this
+        step waits for; a non-empty list holds the step until `release_ready_steps` finds all of them done."""
         if kind not in STEP_KINDS:
             raise TeamError("loại bước không hợp lệ")
         now = time.time()
@@ -716,10 +729,13 @@ class TeamStore:
             seq = int(c.execute("SELECT COALESCE(MAX(seq),0)+1 FROM team_steps WHERE task_id=?",
                                 (task_id,)).fetchone()[0])
             sid = "st_" + secrets.token_hex(8)
+            after = [str(x)[:40] for x in (after or []) if str(x or "").strip()]
             c.execute("INSERT INTO team_steps(step_id,task_id,team_id,seq,kind,agent_key,job_revision,brief,"
-                      "input_refs_json,parent_step,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      "input_refs_json,parent_step,status,created_at,updated_at,part,after_json) "
+                      "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                       (sid, task_id, team_id, seq, kind, agent_key, int(job_revision), str(brief or "")[:8000],
-                       _j(list(input_refs or [])), parent_step, STEP_HELD if held else "queued", now, now))
+                       _j(list(input_refs or [])), parent_step, STEP_HELD if (held or after) else "queued", now, now,
+                       str(part or "")[:40], _j(after) if after else None))
             return self._step(c.execute("SELECT * FROM team_steps WHERE step_id=?", (sid,)).fetchone())
 
     def steps(self, task_id: str) -> list:
@@ -744,11 +760,37 @@ class TeamStore:
             return [self._step(r) for r in c.execute(
                 "SELECT * FROM team_steps WHERE task_id=? AND status='queued' ORDER BY seq", (task_id,)).fetchall()]
 
-    def release_held_step(self, task_id: str, extra_inputs: Optional[list] = None) -> Optional[dict]:
-        """Queue the FIRST held step of the job (lowest seq), its inputs extended with `extra_inputs` (the results of the
-        steps before it, so the step sees what it waited for). None when no step is held."""
+    def release_ready_steps(self, task_id: str, job_revision: int) -> list:
+        """0.437.0: queue every held step whose `after` parts are all done (a done, applied Work step of that part at
+        this revision), its inputs extended with those parts' results. Held steps without `after` (pre-0.437 meaning)
+        are left to `release_held_step`. Returns the released steps."""
+        out = []
         with self._Tx(self) as c:
-            r = c.execute("SELECT * FROM team_steps WHERE task_id=? AND status=? ORDER BY seq LIMIT 1",
+            done: dict = {}
+            for r in c.execute("SELECT part, result_msg_id FROM team_steps WHERE task_id=? AND kind='work' AND "
+                               "status='done' AND applied=1 AND part!='' AND job_revision=? ORDER BY seq",
+                               (task_id, int(job_revision))).fetchall():
+                done[r["part"]] = r["result_msg_id"]   # a later step of the same part (a retry) wins
+            for r in c.execute("SELECT * FROM team_steps WHERE task_id=? AND status=? AND after_json IS NOT NULL "
+                               "ORDER BY seq", (task_id, STEP_HELD)).fetchall():
+                deps = json.loads(r["after_json"] or "[]")
+                if not all(p in done for p in deps):
+                    continue
+                refs = list(json.loads(r["input_refs_json"] or "[]"))
+                refs += [done[p] for p in deps if done[p] is not None and done[p] not in refs]
+                c.execute("UPDATE team_steps SET status='queued', input_refs_json=?, updated_at=? WHERE step_id=? "
+                          "AND status=?", (_j(refs), time.time(), r["step_id"], STEP_HELD))
+                out.append(self._step(c.execute("SELECT * FROM team_steps WHERE step_id=?", (r["step_id"],)).fetchone()))
+        return out
+
+    def release_held_step(self, task_id: str, extra_inputs: Optional[list] = None,
+                          legacy_only: bool = False) -> Optional[dict]:
+        """Queue the FIRST held step of the job (lowest seq), its inputs extended with `extra_inputs` (the results of the
+        steps before it, so the step sees what it waited for). None when no step is held. `legacy_only` (0.437.0): only
+        a held step without `after` (they wait for everything before them)."""
+        with self._Tx(self) as c:
+            r = c.execute("SELECT * FROM team_steps WHERE task_id=? AND status=? "
+                          + ("AND after_json IS NULL " if legacy_only else "") + "ORDER BY seq LIMIT 1",
                           (task_id, STEP_HELD)).fetchone()
             if r is None:
                 return None
