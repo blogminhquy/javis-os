@@ -4613,6 +4613,11 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 
 /* GitHub inside chat (0.362.0, github-connect.js): the built-in card on Connections and the repo chip. */
 .gh-card .gh-local { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+/* Same 32px as the logos of the other connection cards (.ico-img), not the 18px menu icon (0.438.1). */
+.gh-card .conn-ico.gh-logo { display: inline-flex; align-items: center; justify-content: center; }
+.gh-card .conn-ico.gh-logo .cp-ic { width: 32px; height: 32px; }
+.gh-card .gh-acc { cursor: default; }
+.gh-card .gh-acc:hover { background: transparent; }
 .gh-local-head { font-weight: 600; font-size: 16px; }
 .gh-local-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 16px; }
 .gh-local-name { font-weight: 600; word-break: break-all; }

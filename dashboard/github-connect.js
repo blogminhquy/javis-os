@@ -90,8 +90,8 @@
   // ============================================================
   var cardHost = null;
   function cardHtml(st, local) {
-    var head = '<div class="prov-head"><span class="conn-ico">' + LOGO + '</span><div class="prov-info"><div class="prov-name">GitHub' +
-      infoBtn() + '</div><div class="prov-status j-clamp2">' + esc(st.connected ? tw("gh.connected_as", { login: st.login || "?" }) : tw("gh.not_connected")) +
+    var head = '<div class="prov-head"><span class="conn-ico gh-logo">' + LOGO + '</span><div class="prov-info"><div class="prov-name">GitHub' +
+      infoBtn() + '</div><div class="prov-status j-clamp2">' + esc(st.connected ? tw("gh.card_desc") : tw("gh.not_connected")) +
       (st.connected && st.source === "backup" ? " · " + esc(tw("gh.uses_backup")) : "") +
       (st.connected && st.source === "app" ? " · " + esc(tw("gh.uses_app")) : "") + "</div>" + infoBody(esc(tw("gh.intro"))) + "</div></div>";
     var warn = st.connected && st.missing && st.missing.length
@@ -108,10 +108,14 @@
           '<span class="cb-st-chip">' + esc(tw("gh.repos_n", { n: local.length })) + "</span>" +
           (chats ? '<span class="cb-st-chip">' + esc(tw("gh.local_chats", { n: chats })) + "</span>" : "") + "</span>" +
           '<span class="cb-st-more">' + esc(tw("gh.view")) + " " + ic("chevron-right") + "</span></button>"
-        : '<div class="lv-meta">' + esc(tw("gh.local_none")) + "</div>";
+        : "";
     }
+    // Like every other connection card: the account as a chip with a green dot (owner, 01/11/2026). Repos are picked
+    // in the chat box, so "Pick repos for Javis" only shows while the app is on no account at all, when the chat list
+    // would be empty.
     var acts = '<div class="conn-accounts">' + (st.connected
-      ? (st.source === "app" && st.install_url ? '<a class="conn-chip' + (st.installs === 0 ? " add" : "") + '" target="_blank" rel="noopener" href="' +
+      ? '<span class="conn-chip gh-acc"><span class="cdot hok">●</span> ' + esc(st.login ? "@" + st.login : "GitHub") + "</span>" +
+        (st.source === "app" && st.install_url && st.installs === 0 ? '<a class="conn-chip add" target="_blank" rel="noopener" href="' +
           esc(st.install_url) + '">' + esc(tw("gh.pick_repos")) + "</a>" : "") +
         '<button class="conn-chip" type="button" data-gh-open>' + esc(tw(st.source === "app" ? "gh.change_account" : "gh.change_token")) + "</button>" +
         '<button class="conn-chip" type="button" data-gh-off>' + esc(tw("gh.disconnect")) + "</button>"

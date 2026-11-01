@@ -84,6 +84,17 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
   check("the picker footer is pinned to the bottom of the + menu", /\.gh-foot \{ position: sticky; bottom: -6px;/.test(css));
 }
 
+// 0.438.1 (owner, 01/11/2026): the card looks like the other connection cards and no longer asks to pick repos.
+{
+  const card = js.slice(js.indexOf("function cardHtml"), js.indexOf("async function loadCard"));
+  check("a connected card shows the account as a chip with a green dot", /conn-chip gh-acc"><span class="cdot hok">●<\/span>/.test(card));
+  check("Pick repos shows only while the app is on no account", /st\.installs === 0 \? '<a class="conn-chip add"[^]*gh\.pick_repos/.test(card));
+  check("no 'no repo downloaded yet' line on the card", !card.includes("gh.local_none"));
+  check("the status line no longer repeats the login", !card.includes("gh.connected_as") && card.includes("gh.card_desc"));
+  const css = fs.readFileSync(path.join(ROOT, "dashboard/style.css"), "utf8");
+  check("the GitHub logo is 32px like the other card logos", /\.gh-card \.conn-ico\.gh-logo \.cp-ic \{ width: 32px; height: 32px; \}/.test(css));
+}
+
 // The "Connected" heading (0.367.0): MCP accounts plus GitHub plus Facebook Pages, whichever card loads last.
 {
   const attrs = [{ name: "id", value: "connCount" }, { name: "style", value: "opacity:.5" }, { name: "data-n", value: "2" }];
