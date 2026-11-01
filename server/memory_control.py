@@ -143,14 +143,17 @@ LEARNING_OFF_NOTE = ("\n\n# === GHI NHỚ MỚI ĐANG TẮT ===\n"
 # ── list / edit / forget ──────────────────────────────────────────────────────
 
 def _index_titles(mem_dir: Path) -> Dict[str, str]:
+    """slug -> title from MEMORY.md and the secondary indexes (memory_index_files, #934). MEMORY.md wins a tie."""
+    import memory_index_files
     out = {}
-    try:
-        for line in (Path(mem_dir) / "MEMORY.md").read_text(encoding="utf-8").splitlines():
-            m = re.match(r"\s*-\s*\[([^\]]+)\]\(facts/([^)]+?)\.md\)\s*(?:[-:]\s*(.*))?$", line)
-            if m:
-                out[m.group(2)] = m.group(1).strip()
-    except OSError:
-        pass
+    for f in memory_index_files.index_files(mem_dir):
+        try:
+            for line in f.read_text(encoding="utf-8").splitlines():
+                m = re.match(r"\s*-\s*\[([^\]]+)\]\(facts/([^)]+?)\.md\)\s*(?:[-:]\s*(.*))?$", line)
+                if m and m.group(2) not in out:
+                    out[m.group(2)] = m.group(1).strip()
+        except OSError:
+            continue
     return out
 
 

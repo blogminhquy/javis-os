@@ -21,7 +21,9 @@ from context_compiler import ContextItem, HeuristicTokenizer
 
 # v2: line-ref theo dòng thật của file. v3: record_id băm cả scope, nên chỉ mục dựng bằng
 # bản cũ (id chưa có scope) phải dựng lại dù không file nào đổi.
-INDEX_SCHEMA_VERSION = "memory-index-v3"
+# v4 (0.432.1, #934): agents/*/runs/ left out, generic labels ("Vì sao:", "Áp dụng:") no longer make a subject,
+# always_on matches a path segment that starts with the word instead of any substring.
+INDEX_SCHEMA_VERSION = "memory-index-v4"
 INDEX_POLICY_VERSION = "memory-retrieval-cascade-v1"
 _WORD_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)
 _WIKI_RE = re.compile(r"\[\[([^\]|#]+)")
@@ -46,6 +48,37 @@ def _norm(value: str) -> str:
     raw = str(value or "").replace("đ", "d").replace("Đ", "D")
     raw = unicodedata.normalize("NFKD", raw.casefold())
     return " ".join(_WORD_RE.findall("".join(c for c in raw if not unicodedata.combining(c))))
+
+
+# Labels the facts template puts on many files ("**Vì sao:**", "**Áp dụng:**"). As a subject they made every two recalled
+# facts that share one look like a conflict, whatever they were about (#934: 147 files shared "vi sao" in one brain).
+_GENERIC_SUBJECTS = frozenset({
+    "vi sao", "ap dung", "cach ap dung", "ly do", "luu y", "ghi chu", "boi canh", "nguon", "vi du", "ket qua",
+    "task", "ket luan", "tom tat", "chi tiet", "mo ta", "noi dung", "cap nhat", "ngay",
+    "why", "how to apply", "apply", "reason", "note", "notes", "context", "source", "example", "result",
+    "summary", "details", "description", "updated", "date",
+})
+
+# A path segment that STARTS with one of these words marks a core memory (identity.md, profile/, core-facts-x.md).
+# Before 0.432.1 any substring counted, so reference-...-google-business-profile.md took two or three recall slots on
+# every turn (#934). The frontmatter key `always_on: true` still works for any file.
+_ALWAYS_ON_WORDS = ("identity", "profile", "core-facts")
+
+
+def _always_on_path(relative: str) -> bool:
+    for part in str(relative or "").casefold().split("/"):
+        stem = part[:-3] if part.endswith(".md") else part
+        for word in _ALWAYS_ON_WORDS:
+            if stem == word or (stem.startswith(word) and stem[len(word)] in "-_. "):
+                return True
+    return False
+
+
+def _is_agent_run_log(relative_mem: str) -> bool:
+    """agents/<slug>/runs/*.md: the raw log of each agent run. It repeats the task and old results, so indexing it as
+    memory echoed earlier chats back into recall (#934). Lessons and owner rules live in agents/<slug>/MEMORY.md."""
+    parts = str(relative_mem or "").casefold().split("/")
+    return len(parts) >= 4 and parts[0] == "agents" and parts[2] == "runs"
 
 
 def _terms(value: str) -> list[str]:
@@ -254,10 +287,12 @@ class MemoryIndex:
             topic_seed = str(meta.get("topics") or meta.get("tags") or "") + " " + title
             topics = _terms(topic_seed)[:20]
             subject_match = re.match(r"^[-*]?\s*([^:\n=]{2,100})\s*[:=]", clean)
-            subject = _norm(subject_match.group(1) if subject_match else title)[:160]
-            lower_rel = relative.casefold()
+            subject = _norm(subject_match.group(1)) if subject_match else ""
+            if not subject or subject in _GENERIC_SUBJECTS:
+                subject = _norm(title)
+            subject = "" if subject in _GENERIC_SUBJECTS else subject[:160]
             always_on = str(meta.get("always_on") or "").casefold() in ("1", "true", "yes", "on")
-            always_on = always_on or any(x in lower_rel for x in ("identity", "profile", "core-facts"))
+            always_on = always_on or _always_on_path(relative)
             source_ref = f"file:{relative}#L{line_start}-L{line_end}"
             # record_id là KHÓA CHÍNH toàn cục của memory_records, mà bảng đó chứa chung mọi
             # brain. Băm thiếu scope thì hai brain chép chung một file bộ nhớ (cùng đường dẫn
@@ -286,7 +321,7 @@ class MemoryIndex:
             for path in sorted(memory_dir.rglob("*.md")):
                 try:
                     relative_mem = path.relative_to(memory_dir).as_posix()
-                    if relative_mem.casefold().startswith("conversations/"):
+                    if relative_mem.casefold().startswith("conversations/") or _is_agent_run_log(relative_mem):
                         continue
                     stat = path.stat()
                     relative = path.relative_to(brain).as_posix()

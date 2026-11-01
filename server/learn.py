@@ -924,10 +924,27 @@ class LearnFeature:
         return {"mode": "incremental", "changed": changed, "sig": sig, "n": len(files),
                 "reason": f"{len(changed)}/{len(files)} note đổi kể từ vòng trước"}
 
+    # Character cap for the memory index put in the learn prompt (dedup). Was 6000 of MEMORY.md alone (#934).
+    MEMORY_INDEX_PROMPT_MAX = 16000
+
     def _read_memory_index(self, brain: str) -> str:
+        """Every index line (MEMORY.md and secondary indexes) so the learn step sees every memory it might duplicate.
+        Only the `- [...](facts/...)` lines are kept, and a cut list says so instead of hiding it."""
         try:
-            idx = self.deps.brain_memory_dir(brain) / "MEMORY.md"
-            return idx.read_text(encoding="utf-8")[:6000] if idx.exists() else ""
+            import memory_index_files
+            text = memory_index_files.all_index_text(self.deps.brain_memory_dir(brain))
+            lines = [ln.rstrip() for ln in text.splitlines() if "](facts/" in ln]
+            if not lines:
+                return text[:self.MEMORY_INDEX_PROMPT_MAX]
+            out, total, cut = [], 0, 0
+            for ln in lines:
+                if total + len(ln) + 1 > self.MEMORY_INDEX_PROMPT_MAX:
+                    cut += 1
+                    continue
+                out.append(ln); total += len(ln) + 1
+            if cut:
+                out.append(f"- (... còn {cut} ký ức nữa không liệt kê hết - dùng Grep trong memory/facts/ để kiểm trước khi tạo mới)")
+            return "\n".join(out)
         except Exception:
             return ""
 
@@ -1657,9 +1674,13 @@ class LearnFeature:
     # ── merger cho file append-only (model KHÔNG được ghi trực tiếp) ──
     def _merge_memory_index(self, brain, slug, title, hook, written, root):
         try:
-            idx = self.deps.brain_memory_dir(brain) / "MEMORY.md"
+            import memory_index_files
+            mem_dir = self.deps.brain_memory_dir(brain)
+            idx = mem_dir / "MEMORY.md"
             text = idx.read_text(encoding="utf-8") if idx.exists() else ""
-            if f"facts/{slug}.md" in text:
+            # Listed in MEMORY.md OR a secondary index (memory_index_files, #934): updating a memory that lives in a
+            # secondary index used to append a duplicate line to MEMORY.md, the preloaded core.
+            if f"facts/{slug}.md" in text or memory_index_files.listed(mem_dir, slug):
                 return
             line = f"- [{title}](facts/{slug}.md) - {hook}".rstrip(" -")
             # Dòng giữ chỗ có ở MỌI ngôn ngữ của file hạt giống (brain_seed_i18n.GIU_CHO_BO_NHO):
@@ -1974,7 +1995,8 @@ class LearnFeature:
             facts_dir = mem_dir / "facts"
             idx = mem_dir / "MEMORY.md"
             files = sorted(facts_dir.glob("*.md")) if facts_dir.is_dir() else []
-            text = idx.read_text(encoding="utf-8") if idx.exists() else ""
+            import memory_index_files
+            text = memory_index_files.all_index_text(mem_dir)   # MEMORY.md + secondary indexes (#934)
             # Bỏ qua fact ĐÃ BỊ THAY THẾ: kéo nó vào index là đúng thứ `_curator_retire_memory`
             # ngay dưới vừa gỡ ra, hai vòng curator sẽ đá nhau mãi mãi.
             missing = [f for f in files

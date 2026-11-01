@@ -7842,7 +7842,27 @@ def _ghi_luat_chu(brain, slug, rules):
     dòng sau 15 bài học khác."""
     _ghi_muc_bo_nho_agent(brain, slug, agent_rules.OWNER_RULES_HEADER, rules, None)
 
+def _agent_run_task_text(task) -> str:
+    """The owner's own request, without the blocks Javis put in front of it (#934).
+
+    A chat turn reaches the agent with a recall block ([NHỚ LẠI TỪ CÁC CUỘC TRÒ CHUYỆN TRƯỚC: ...]) and the dashboard's
+    context blocks ([NGỮ CẢNH GIAO DIỆN: ...], open file, attachments) in front. Logged as they were, old chat excerpts
+    landed in agents/<slug>/runs/ and came back as fresh memories. Nothing left after stripping keeps the original."""
+    raw = str(task or "")
+    try:
+        clean = raw
+        for _ in range(4):   # the recall block sits in front of the dashboard's blocks, but take either order
+            nxt = share_render.chu_nguoi_go(chat_recall.strip_block(clean.lstrip()))
+            if nxt == clean:
+                break
+            clean = nxt
+    except Exception:
+        clean = raw
+    return clean or raw
+
+
 def _log_agent_run(brain, slug, task, out):
+    task = _agent_run_task_text(task)
     try:
         d = _brain_memory_dir(brain) / "agents" / slug / "runs"
         d.mkdir(parents=True, exist_ok=True)
