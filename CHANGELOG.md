@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.431.0] - 2026-11-01
+### Cải thiện
+- Đang viết.
+
 ## [0.430.2] - 2026-11-01
 ### Cải thiện
 - **Mở file .html là thấy ngay trang chạy thật.** Bấm link file .html trong chat hoặc mở trong Brain, Javis hiện trang ở chế độ **Xem trước** giống artifact của Claude, ảnh, màu và nút bấm đúng như khi mở bằng trình duyệt. Bấm **Mã nguồn** để xem và sửa code, Lưu như cũ.
