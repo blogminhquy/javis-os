@@ -1806,6 +1806,20 @@ class CodexCLI:
     def is_available(self) -> bool:
         return self.cli_path is not None
 
+    def _mcp_ready_config(self) -> list[str]:
+        """Fail closed when an interactive Codex chat expects the Javis MCP Hub.
+
+        Codex may skip an optional MCP server before Javis finishes tools/list,
+        leaving a chat with no tasks/Notion/Composio tools. Unlike background
+        jobs (which already set required=true), chat uses hub_turn. Do not mutate
+        shared extra_config: both exec and app-server need the same per-turn flag.
+        """
+        config = list(self.extra_config or [])
+        if self.profile and self.hub_turn:
+            import mcp_hub
+            mcp_hub.dat_codex_hub_bat_buoc(config)
+        return config
+
     def _build_args(self) -> list[str]:
         """Dựng argv cho lượt mới/resume.
 
@@ -1823,7 +1837,7 @@ class CodexCLI:
             args += ["-m", self.model]
         if self.profile:
             args += ["-p", self.profile]
-        for c in (self.extra_config or []):
+        for c in self._mcp_ready_config():
             args += ["-c", c]
         if self.hub_turn:
             # Built per query, inside the turn: the same CodexCLI serves many turns (and several
