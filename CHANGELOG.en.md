@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.436.1] - 2026-11-01
+### Improved
+- **Step-by-step Messenger guide.** (in progress)
+
 ## [0.436.0] - 2026-11-01
 ### Improved
 - **Teams retry on their own after a temporary error.** An overloaded model, a network hiccup or a plan out of quota no longer leaves a team job stuck overnight waiting for you to press Retry. The team tries again after 1, 5 and 15 minutes (or at the plan's reset time), up to 3 times, before it stops and asks you.
