@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.438.1] - 2026-11-01
+### Cải thiện
+- **Thẻ GitHub ở trang Kết nối gọn như các thẻ khác.** Có chấm xanh báo đang kết nối, logo to bằng các thẻ còn lại.
+- Bỏ nút **Chọn repo cho Javis** và dòng "Chưa tải repo nào": repo chọn ngay trong khung chat bằng dấu cộng. Nút chọn repo chỉ hiện khi app GitHub chưa được cài vào tài khoản nào.
+
 ## [0.438.0] - 2026-11-01
 ### Thêm mới
 - **Một lần nối Fanpage dùng cho cả đăng bài.** Fanpage nối ở thẻ Facebook Messenger giờ dùng được luôn cho việc Javis đăng bài (ngay khi nhờ hoặc tự động theo lịch), nên Kho cài đặt gỡ thẻ Facebook Trang (máy đã cài vẫn dùng như cũ). Trang đã nối từ trước thì Đăng nhập Facebook lại một lần để cấp quyền đăng bài.
