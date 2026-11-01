@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.432.4] - 2026-11-01
+### Cải thiện
+- **Chọn repo trong khung chat: tick là gắn luôn.** Bỏ nút "Gắn repo vào cuộc trò chuyện" ở cuối danh sách, khỏi phải kéo xuống tìm. Bỏ tick là gỡ repo khỏi cuộc trò chuyện.
+- Dòng **Kết nối thêm** đứng cố định ở đáy bảng chọn, danh sách dài cũng không đẩy nó khuất.
+
 ## [0.432.3] - 2026-11-01
 ### Cải thiện
 - **Tìm quy trình ngay khi tạo webhook.** Phía trên ô chọn Quy trình có thêm ô tìm: gõ vài chữ trong tên là danh sách thu gọn lại, kèm dòng "3/40 quy trình khớp". Gõ không dấu cũng được, "cham soc" vẫn ra "Chăm sóc khách".

@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.432.4] - 2026-11-01
+### Improved
+- **Picking repos in the chat box: tick to attach.** The "Attach repo to this conversation" button at the bottom of the list is gone, so no more scrolling to find it. Untick to remove a repo from the conversation.
+- **Connect more** stays pinned to the bottom of the picker, so a long list never hides it.
+
 ## [0.432.3] - 2026-11-01
 ### Improved
 - **Search workflows when creating a webhook.** A search box now sits above the Workflow picker: type a few letters of the name and the list narrows, with a line like "3 of 40 workflows match". Accents are optional when you type.
