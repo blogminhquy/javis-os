@@ -58,9 +58,9 @@
   function localizeNotice(text, limit, now) {
     var raw = String(text == null ? "" : text);
     var epoch = Number(limit && limit.reset_epoch) || 0;
-    if (!epoch || raw.length > 280 || !/\\blimit\\b/i.test(raw)) return raw;
-    if (!/\\b(?:hit|reached)\\s+your\\b|\\blimit\\s+reached\\b/i.test(raw)) return raw;
-    var clock = /\\bresets?\\s+(?:at\\s+)?(?:\\d{1,2}(?::\\d{2})?\\s*[ap]\\.?m\\.?|\\d{1,2}:\\d{2})\\s*\\((?:UTC|GMT|Z)\\)/i;
+    if (!epoch || raw.length > 280 || !/\blimit\b/i.test(raw)) return raw;
+    if (!/\b(?:hit|reached)\s+your\b|\blimit\s+reached\b/i.test(raw)) return raw;
+    var clock = /\bresets?\s+(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?|\d{1,2}:\d{2})\s*\((?:UTC|GMT|Z)\)/i;
     if (!clock.test(raw)) return raw;
     var when = fmtWhen(epoch, now);
     return when ? raw.replace(clock, "resets " + when + " (giờ địa phương)") : raw;
