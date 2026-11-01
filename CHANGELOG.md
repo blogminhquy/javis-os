@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.435.0] - 2026-11-01
+### Thêm mới
+- **Nghe lời nói trong video và tin thoại không cần Groq.** Đang làm.
+
 ## [0.434.0] - 2026-11-01
 ### Thêm mới
 - **Nối Fanpage bằng nút Đăng nhập Facebook.** Thẻ Messenger ở trang Kết nối chỉ còn hỏi App ID và App secret. Bấm đăng nhập, tick các Fanpage muốn nối, Javis tự làm phần còn lại. Hết cảnh mở Graph API Explorer chép token và Page ID.
