@@ -102,5 +102,20 @@ check("results: checklist for a connected Page, the error for a failed one", () 
   assert.ok(h.includes("msc-checks") && h.includes("lỗi &lt;210&gt;") && !h.includes("<210>"));
 });
 
+// 0.436.1: GitHub guides on the form, and the Zalo group note kept to Zalo.
+check("form links the full guide and, in the paste section, the step-by-step guide", () => {
+  const h = M.formHtml({ https: true });
+  assert.ok(h.includes("docs/en/31-messenger.md") && h.includes("docs/en/31-messenger-step-by-step.md"));
+  assert.ok(h.indexOf("31-messenger-step-by-step.md") > h.indexOf('class="msc-manual"'), "step guide sits in the paste section");
+  for (const f of ["docs/31-messenger.md", "docs/31-messenger-tung-buoc.md", "docs/en/31-messenger.md", "docs/en/31-messenger-step-by-step.md"]) {
+    assert.ok(fs.existsSync(path.join(__dirname, "..", "..", f)), f);
+  }
+});
+check("the add-channel form shows the Zalo group note only for Zalo Bot", () => {
+  const conv = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "conversations.js"), "utf8");
+  assert.ok(conv.includes('r.vao_duoc_nhom === false && chon === "zalo"'));
+  assert.ok(conv.includes("guideUrl(k)") && conv.includes('window.t("ht.huong_dan")'));
+});
+
 if (fails) { console.log("\n" + fails + " FAILED"); process.exit(1); }
 console.log("\nall ok");

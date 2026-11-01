@@ -57,6 +57,16 @@
   function icon(name) {
     return typeof window !== "undefined" && typeof window.ic === "function" ? window.ic(name) : "";
   }
+  // Guides on GitHub (0.436.1): the Vietnamese interface opens docs/, every other language docs/en/.
+  var GUIDE = { full: ["31-messenger.md", "31-messenger.md"], steps: ["31-messenger-tung-buoc.md", "31-messenger-step-by-step.md"] };
+  function guideUrl(which) {
+    var vi = typeof window !== "undefined" && window.JavisI18n && window.JavisI18n.lang() === "vi";
+    var g = GUIDE[which];
+    return "https://github.com/blogminhquy/javis-os/blob/main/docs/" + (vi ? g[0] : "en/" + g[1]);
+  }
+  function guideLink(which, key) {
+    return '<a class="msc-guide" href="' + esc(guideUrl(which)) + '" target="_blank" rel="noopener">' + esc(tw(key)) + " ↗</a>";
+  }
   function brain() {
     try { return (window.currentBrainPath && window.currentBrainPath()) || ""; } catch (e) { return ""; }
   }
@@ -136,7 +146,7 @@
   function formHtml(setup, preset) {
     var https = setup && setup.https;
     return '<div class="msc-form">'
-      + '<div class="msc-form-head"><b>' + esc(tw("msc.form_head")) + "</b>" + infoBtn() + "</div>"
+      + '<div class="msc-form-head"><b>' + esc(tw("msc.form_head")) + "</b>" + infoBtn() + guideLink("full", "msc.guide") + "</div>"
       + infoBody(esc(tw("msc.form_how_login")))
       + (https ? "" : '<div class="msc-warn">' + esc(tw("msc.need_https")) + infoBtn() + "</div>"
         + infoBody(esc(tw("msc.need_https_how"))))
@@ -157,7 +167,7 @@
       // The 0.311.0 paste flow, kept for anyone who already has a token. Folded so the login is the obvious path.
       + '<button class="s-btn-ghost msc-manual-toggle" type="button" data-f="manual">' + esc(tw("msc.manual")) + "</button>"
       + '<div class="msc-manual" hidden>'
-      + '<div class="msc-form-head"><b>' + esc(tw("msc.manual_head")) + "</b>" + infoBtn() + "</div>"
+      + '<div class="msc-form-head"><b>' + esc(tw("msc.manual_head")) + "</b>" + infoBtn() + guideLink("steps", "msc.guide_steps") + "</div>"
       + infoBody(esc(tw("msc.form_how")))
       + '<div class="msc-grid">'
       + field("page_id", "text", "123456789012345")
@@ -415,7 +425,7 @@
 
   var api_ = { mount: mount, openForm: openForm, catCard: catCard, groupHtml: groupHtml, checklistHtml: checklistHtml,
     summaryHtml: summaryHtml, accountHtml: accountHtml, formHtml: formHtml, addToConnCount: addToConnCount,
-    openPages: openPages, pickHtml: pickHtml, resultsHtml: resultsHtml, commentSelect: commentSelect };
+    openPages: openPages, pickHtml: pickHtml, resultsHtml: resultsHtml, commentSelect: commentSelect, guideUrl: guideUrl };
   if (typeof window !== "undefined") window.JavisMessenger = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

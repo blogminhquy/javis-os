@@ -4548,6 +4548,8 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
   align-items: center; justify-content: center; }
 .msc-pick-name { display: flex; flex-direction: column; min-width: 0; }
 .msc-result { margin-top: 14px; }
+/* 0.436.1: link to the GitHub guide at the end of the form heading. */
+.msc-guide { margin-left: auto; font-size: 15px; font-weight: 500; color: var(--link-ink); white-space: nowrap; }
 
 /* Searchable agent picker (agent-picker.js). The native <select> stays in the DOM, hidden; this button opens a
    popover on desktop and a bottom sheet on phones. Every text here is at least 16px (owner rule, also stops iOS zoom). */

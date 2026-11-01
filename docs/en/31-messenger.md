@@ -16,7 +16,7 @@ From 0.134.0 a dedicated bot can answer a Facebook Page's inbox, the same way a 
 
 ## Quickest way: the Log in with Facebook button (from 0.434.0)
 
-No Graph API Explorer, no Page ID or token to copy.
+No Graph API Explorer, no Page ID or token to copy. First time, and want every click on Meta's site: [Messenger step by step](31-messenger-step-by-step.md).
 
 1. On [developers.facebook.com/apps](https://developers.facebook.com/apps), create an app with the Messenger use case (once, step 1.1 below).
 2. Open Javis through its HTTPS domain, go to **Connections**, card **Facebook Messenger**, click **Connect**. The form shows two addresses with a **Copy** button:

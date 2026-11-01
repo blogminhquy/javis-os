@@ -31,6 +31,7 @@ The dashboard's navigation rail groups **19 pages** into **5 groups**: Brain · 
 - [29 - Slack and WhatsApp](29-slack-whatsapp.md) - chat with Javis and run customer bots on Slack (no domain needed) and WhatsApp (Meta's official API).
 - [30 - Discord and Lark/Feishu](30-discord-lark.md) - chat with Javis from Discord and Lark/Feishu on the Admin channels page, no domain needed.
 - [31 - Messenger](31-messenger.md) - a customer bot that answers your Facebook Page inbox (Meta's official API, needs an HTTPS domain).
+  - [Messenger step by step](31-messenger-step-by-step.md) - every click on Meta's site, for a first-time setup.
 - [32 - Web page watch](32-page-watch.md) - watch a page for a price, some text or any change on a schedule, without spending tokens.
 - [33 - Cookies](33-login-vault.md) - keep your own sign-ins (cookies) so Javis can read and watch pages behind them.
 

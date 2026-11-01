@@ -2199,10 +2199,24 @@
     box.querySelectorAll(".ht-di-ket-noi").forEach(function (n) {
       n.onclick = function () { dong(); try { window.JavisNav.go("mcp"); } catch (e) {} };
     });
+    // Vietnamese interface opens docs/, every other language docs/en/ (same rule as the owner channel guides).
+    function guideUrl(k) {
+      var h = (k && k.huong_dan) || {};
+      var vi = window.JavisI18n && window.JavisI18n.lang() === "vi";
+      var f = vi ? (h.vi || h.en) : (h.en || h.vi);
+      if (!f) return "";
+      return "https://github.com/blogminhquy/javis-os/blob/main/docs/" + (vi && h.vi ? "" : "en/") + f;
+    }
     function apKenh(id) {
       chon = id; uname = ""; meta = {};
       var k = kenhCua(id);
-      box.querySelector("#htTokenLabel").textContent = "Token " + k.nhan;
+      var lab = box.querySelector("#htTokenLabel");
+      lab.textContent = "Token " + k.nhan;
+      // A step-by-step guide for channels whose setup takes many clicks (Messenger, 0.436.1). On the label, not in the
+      // hint under the field, because the hint is replaced by the result of Check.
+      var g = guideUrl(k);
+      if (g) lab.insertAdjacentHTML("beforeend", ' · <a class="ht-guide" href="' + esc(g) + '" target="_blank" rel="noopener">'
+        + esc(window.t("ht.huong_dan")) + " ↗</a>");
       box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + " " + window.t("cb.token_rieng");
       box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.classList.toggle("on", n.dataset.k === id); });
       hienWebhook(k);
@@ -2267,7 +2281,9 @@
         meta = { vao_duoc_nhom: r.vao_duoc_nhom, account_type: r.account_type || "" };
         note.innerHTML = ic("check", { cls: "ic-ok" }) + " " + esc(window.t("cb.dung_bot")) + " <b>" +
           esc((k.tien_to_ten || "") + uname) + "</b> (" + esc(r.bot_name || "") + ")" +
-          (r.vao_duoc_nhom === false
+          // Only a Zalo Bot on a basic plan can be kept out of groups; Messenger, WhatsApp and Zalo OA have no groups at
+          // all, so the Zalo sentence read as nonsense there (owner, 2026-11-01).
+          (r.vao_duoc_nhom === false && chon === "zalo"
             ? '<br><span class="cb-warn">' + esc(window.t("cb.zalo_khong_nhom", { goi: r.account_type || window.t("cb.goi_co_ban") })) + '</span>'
             : "");
         var lb = box.querySelector("#htLabel");

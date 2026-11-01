@@ -216,6 +216,9 @@ def cho_giao_dien() -> List[dict]:
             # Kênh nhận tin qua webhook (Messenger, 0.134.0): form thêm tài khoản hỏi
             # GET /channels/webhook-info để hiện địa chỉ và mã xác minh cần dán sang nền tảng.
             "webhook": str(getattr(_MOD.get(s.id), "WEBHOOK_PATH", "") or ""),
+            # Step-by-step guide (0.436.1): {"vi": "<file in docs/>", "en": "<file in docs/en/>"}. The add-account
+            # form links to it next to the token hint; a channel without one shows no link.
+            "huong_dan": dict(getattr(_MOD.get(s.id), "GUIDE", None) or {}),
         })
     return out
 

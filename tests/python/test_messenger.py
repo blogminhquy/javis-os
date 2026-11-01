@@ -91,6 +91,11 @@ ui = {k["id"]: k for k in channels.cho_giao_dien()}
 check("UI entry carries the webhook path", ui.get("messenger", {}).get("webhook") == "/messenger/webhook",
       ui.get("messenger"))
 check("other channels carry no webhook path", ui.get("telegram", {}).get("webhook") == "")
+# 0.436.1: the add-account form links a step-by-step guide; both files must exist or the link is dead.
+g = ui.get("messenger", {}).get("huong_dan") or {}
+check("UI entry carries the step-by-step guide, and both files exist",
+      g.get("vi") and g.get("en") and (ROOT / "docs" / g["vi"]).is_file() and (ROOT / "docs" / "en" / g["en"]).is_file(), g)
+check("channels without a guide carry none", ui.get("telegram", {}).get("huong_dan") == {})
 check("bot store accepts messenger as a channel", "messenger" in chatbot_store.KENH, chatbot_store.KENH)
 check("a Messenger PSID passes the chat id check", bool(chatbot_store._CHAT_ID_RE.match("24987361234567890")))
 
