@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.430.0] - 2026-11-01
+### Thêm mới
+- **Đăng nhập GitHub bằng một nút.** (đang làm)
+
 ## [0.429.1] - 2026-10-31
 ### Sửa lỗi
 - **Bot chạy ChatGPT (Codex) không còn gửi lời dẫn cho khách.** Câu kiểu "Em tra danh sách lớp hiện có để xác nhận ạ" trước khi bot tra cứu không còn lọt vào tin gửi khách, chỉ câu trả lời cuối được gửi.

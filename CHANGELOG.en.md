@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.430.0] - 2026-11-01
+### Added
+- **Sign in to GitHub with one button.** (in progress)
+
 ## [0.429.1] - 2026-10-31
 ### Fixed
 - **Bots on ChatGPT (Codex) no longer send their lead-in to customers.** A line like "Let me check the class list" before the bot looks something up no longer reaches the customer; only the final answer is sent.
