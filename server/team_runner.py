@@ -2991,7 +2991,8 @@ class TeamRunner:
     def _put_steps(self, team: dict, task: dict, specs: list, continues: Optional[str] = None) -> None:
         for s in specs:
             self.teams.add_step(task["id"], team["team_id"], s["kind"], s["agent"], int(s.get("rev") or task["team_rev"]),
-                                s.get("brief", ""), s.get("inputs", []), s.get("parent"), held=bool(s.get("held")))
+                                s.get("brief", ""), s.get("inputs", []), s.get("parent"), held=bool(s.get("held")),
+                                part=str(s.get("part") or ""), after=s.get("after") or None)
         if continues:
             # Bước tiếp nối một bước đã nhờ hỗ trợ: bước cũ thành `continued`, bước mới (vừa thêm, cuối danh sách) chạy.
             cont = self.teams.steps(task["id"])[-1]
@@ -3527,10 +3528,13 @@ class TeamRunner:
     def _body_core(self, step: dict, task: dict) -> str:
         if step["kind"] == "plan":
             return ("Bạn là trưởng nhóm, lập kế hoạch cho việc trên. Giao từng phần cho thành viên phù hợp, mỗi phần một "
-                    'khối: <!-- JAVIS_TEAM: {"op": "assign", "agent": "<mã thành viên>", "brief": "..."} -->\n'
-                    "Mỗi bước của yêu cầu là một khối riêng, kể cả khi cùng một người làm hai bước. Phần nào phải chờ các "
-                    'phần trước làm xong thì thêm "wait": true vào khối của nó: phần đó chỉ chạy khi mọi phần trước đã '
-                    "xong và nhận kết quả của chúng. Các phần không có \"wait\" chạy cùng lúc.\n"
+                    'khối: <!-- JAVIS_TEAM: {"op": "assign", "id": "<tên ngắn của phần, vd a>", "agent": "<mã thành '
+                    'viên>", "brief": "..."} -->\n'
+                    "Mỗi bước của yêu cầu là một khối riêng, kể cả khi cùng một người làm hai bước. Các phần không phụ "
+                    "thuộc nhau chạy cùng lúc. Phần nào cần kết quả của phần khác thì thêm "
+                    '"after": ["<id của phần đó>", ...], chỉ được nêu phần đứng TRÊN nó: phần đó chạy ngay khi đúng các '
+                    "phần nó cần đã xong, nhận kết quả của chúng, không chờ phần không liên quan. Phần phải chờ MỌI phần "
+                    'trước thì ghi "wait": true.\n'
                     "Việc nhỏ thì tự làm luôn và trả kết quả, không cần giao.")
         if step["kind"] == "synthesize":
             return ("Tổng hợp kết quả các bước (ở phần Đầu vào) thành một kết quả cuối NGẮN cho chủ nhóm: kết quả chính, "
@@ -3591,7 +3595,8 @@ class TeamRunner:
                     notes.append(f"'{op.get('agent')}' không phải thành viên đang hoạt động của nhóm, đã bỏ")
                     continue
                 brief = str(op.get("brief") or "")[:4000]
-                kept.append({"op": "assign", "agent": key, "brief": brief,
+                part, after = self._plan_part(op, kept, notes)
+                kept.append({"op": "assign", "agent": key, "brief": brief, "part": part, "after": after,
                              "wait": op.get("wait") in (True, 1, "true", "yes") or asks_sequential(brief)})
             # Trưởng nhóm CÓ giao mà mọi lệnh giao đều hỏng: không được coi kế hoạch là kết quả việc.
             return kept, ({"assign_dropped": len(ops)} if ops and not kept else {})
@@ -3615,6 +3620,37 @@ class TeamRunner:
                 continue
             kept.append({"op": "request_help", "agent": key, "question": str(op.get("question") or "")[:4000]})
         return kept, {}
+
+    @staticmethod
+    def _plan_part(op: dict, earlier: list, notes: list) -> tuple:
+        """0.437.0: (label, parts it waits for) of one `assign`. The label is the block's `id` (or `p<n>`, its position);
+        `after` may name only parts ABOVE it, by label or by 1-based position, so a plan can never wait in a circle.
+        Anything else is dropped with a note."""
+        labels = [e["part"] for e in earlier]
+        part = re.sub(r"[^\w.-]", "", str(op.get("id") or ""), flags=re.UNICODE)[:40]
+        if not part or part in labels:
+            part = f"p{len(earlier) + 1}"
+            while part in labels:
+                part += "x"
+        raw = op.get("after")
+        if raw in (None, "", []):
+            return part, []
+        raw = raw if isinstance(raw, (list, tuple)) else [raw]
+        after = []
+        for ref in raw[:20]:
+            got = None
+            if isinstance(ref, bool):
+                got = None
+            elif isinstance(ref, int) or (isinstance(ref, str) and ref.strip().isdigit()):
+                n = int(ref)
+                got = labels[n - 1] if 1 <= n <= len(labels) else None
+            elif isinstance(ref, str) and ref.strip() in labels:
+                got = ref.strip()
+            if got is None:
+                notes.append(f"Phần '{str(ref)[:40]}' không có ở trên phần '{part}', đã bỏ điều kiện chờ đó")
+            elif got not in after:
+                after.append(got)
+        return part, after
 
     async def run_job(self, task_id: str) -> str:
         """Chạy các bước của một việc `team_running` tới khi xong, bị chặn, bị huỷ hay nhóm tạm dừng.
@@ -3813,7 +3849,14 @@ class TeamRunner:
 
         A held part (sequential plan) runs first: nothing else is left to run, so everything before it is done. It gets
         the results so far as inputs. Only when no part is held does the job close."""
+        if self.teams.release_ready_steps(task["id"], int(task["team_rev"])):
+            return None
+        if self.teams.release_held_step(task["id"], self._done_results(task), legacy_only=True) is not None:
+            return None
+        # 0.437.0 safety net: nothing is running and a part still waits for a part that will never be done (replaced
+        # by a path that did not keep its label). Run it with every result so far rather than leave the job stuck.
         if self.teams.release_held_step(task["id"], self._done_results(task)) is not None:
+            log.warning("team job %s: released a part whose dependencies never finished", task["id"])
             return None
         steps = self.teams.steps(task["id"])
         results = [s for s in steps if s["kind"] == "work" and s["status"] == "done" and s["applied"]
@@ -3953,12 +3996,19 @@ class TeamRunner:
             self.teams.finish_step(sid, "done", mid, True)
             if not assigns:
                 return self._finish(team, task["id"], mid, out["text"], int(step["job_revision"]))
-            # A sequential request (or a part marked `wait`) holds that part until every part before it is done: see
-            # `_after_steps`, which releases held parts one at a time with the earlier results as inputs.
+            # 0.437.0: every part has a label and runs as soon as the parts it waits for are done (`after`, earlier parts
+            # only, so there is never a cycle). A sequential request, or a part marked `wait` with no `after`, waits for
+            # every part before it, as before. Released parts get the results they waited for as inputs.
             seq = asks_sequential(task.get("intent"))
-            ok = self._add_steps(team, task, [{"kind": "work", "agent": a["agent"], "brief": a["brief"], "inputs": [mid],
-                                               "held": i > 0 and (seq or bool(a.get("wait")))}
-                                              for i, a in enumerate(assigns)])
+            labels = [a["part"] for a in assigns]
+            specs = []
+            for i, a in enumerate(assigns):
+                after = list(a.get("after") or [])
+                if not after and i > 0 and (seq or a.get("wait")):
+                    after = labels[:i]
+                specs.append({"kind": "work", "agent": a["agent"], "brief": a["brief"], "inputs": [mid],
+                              "part": a["part"], "after": after})
+            ok = self._add_steps(team, task, specs)
             return None if ok else "team_blocked"
         if kind == "synthesize":
             newer = [] if note.startswith("resynth") else self._newer_member_messages(team, step, mid)
@@ -3993,12 +4043,16 @@ class TeamRunner:
             self.teams.finish_step(sid, "waiting", mid, True)
             return None if ok else "team_blocked"
         self.teams.finish_step(sid, "done", mid, True)
+        if step.get("part"):
+            # 0.437.0: parts waiting only for what is done now start in the next wave, not after the whole job.
+            self.teams.release_ready_steps(task["id"], int(step["job_revision"]))
         if step.get("parent_step"):
             parent = self.teams.step(step["parent_step"])
             if parent:
                 ok = self._add_steps(team, task, [{"kind": parent["kind"], "agent": parent["agent_key"],
                                                    "brief": parent["brief"], "inputs": list(parent["input_refs"]) + [mid],
-                                                   "parent": parent["parent_step"], "rev": parent["job_revision"]}],
+                                                   "parent": parent["parent_step"], "rev": parent["job_revision"],
+                                                   "part": parent.get("part") or ""}],
                                      continues=parent["step_id"])
                 if not ok:
                     return "team_blocked"
@@ -4233,7 +4287,7 @@ class TeamRunner:
                     self.teams.add_step(task["id"], team_id, step["kind"], step["agent_key"], int(task["team_rev"]),
                                         f"Chủ nhóm yêu cầu sửa đề xuất \"{ap['title']}\": {note.strip() or '(không ghi chú)'}"
                                         f"\n\n{step['brief']}", list(step.get("input_refs") or []),
-                                        step.get("parent_step"))
+                                        step.get("parent_step"), part=step.get("part") or "")
                 if step:
                     self.tasks.team_unblock(task["id"])
             ap = self.approvals.get(approval_id)
@@ -4265,7 +4319,7 @@ class TeamRunner:
             new = self.teams.add_step(task["id"], team["team_id"], step["kind"], step["agent_key"], int(task["team_rev"]),
                                       step["brief"], list(step.get("input_refs") or []) +
                                       ([step["result_msg_id"]] if step.get("result_msg_id") else []),
-                                      step.get("parent_step"))
+                                      step.get("parent_step"), part=step.get("part") or "")
             self.teams.set_step_status(new["step_id"], "queued", f"approval:{ap['approval_id']}")
             self.approvals.granted_step(ap["approval_id"], new["step_id"])
             # 0.271.0: steps of the same wave whose request joined this card (parked, back in the queue) run with it.
@@ -4542,7 +4596,8 @@ class TeamRunner:
             last = next((s for s in reversed(steps) if s["status"] in ("failed", "interrupted")), None)
             if last:
                 new = self.teams.add_step(task_id, task["team_id"], last["kind"], last["agent_key"],
-                                          int(task["team_rev"]), last["brief"], last["input_refs"], last["parent_step"])
+                                          int(task["team_rev"]), last["brief"], last["input_refs"], last["parent_step"],
+                                          part=last.get("part") or "")
                 ap_id = ""
                 if self.approvals is not None:
                     granted = self.approvals.approved_for_step(last["step_id"])
