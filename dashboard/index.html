@@ -31,7 +31,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=154">
+  <link rel="stylesheet" href="/static/style.css?v=155">
   <link rel="stylesheet" href="/static/console.css?v=130">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -1025,7 +1025,9 @@
   <script src="/static/editor-cmds.js?v=2"></script>
   <!-- Đếm từ + ký tự cho trình sửa file (0.65.32). Thuần, console.js dùng qua window.JavisWordCount. -->
   <script src="/static/word-count.js?v=1"></script>
-  <script src="/static/file-editor.js?v=14"></script>
+  <!-- .html opens on its preview with a Code tab (0.430.2): before file-editor.js and console.js. -->
+  <script src="/static/html-preview.js?v=1"></script>
+  <script src="/static/file-editor.js?v=15"></script>
   <!-- Insert images into a note (paste/drop/button): compress, then save into images/. After
        editor-cmds.js because it shares its editor lookup (contextFor). -->
   <script src="/static/note-images.js?v=1"></script>
@@ -1132,7 +1134,7 @@
   <script src="/static/login-vault.js?v=2"></script>
   <script src="/static/messenger-connect.js?v=3"></script>
   <script src="/static/voice-catalog.js?v=1"></script>
-  <script src="/static/console.js?v=204"></script>
+  <script src="/static/console.js?v=205"></script>
   <script src="/static/mobile-chat.js?v=16"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=3"></script>

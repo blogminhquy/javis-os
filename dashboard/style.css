@@ -4694,3 +4694,7 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
   .jv-paste-preview { font-size: 16px; }
   .jv-paste-actions .gcard-btn { flex: 1 1 auto; }
 }
+
+/* .html in the brain editor (0.430.2, html-preview.js): the page itself fills the editor, white like a browser tab. */
+.ne-html-prev { padding: 0; display: flex; flex-direction: column; border-left: none; background: #fff; }
+.ne-html-prev .jv-html-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: #fff; display: block; }

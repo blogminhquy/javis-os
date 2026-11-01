@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.430.2] - 2026-11-01
+### Cải thiện
+- **Mở file .html là thấy ngay trang chạy thật.** Bấm link file .html trong chat hoặc mở trong Brain, Javis hiện trang ở chế độ **Xem trước** giống artifact của Claude, ảnh, màu và nút bấm đúng như khi mở bằng trình duyệt. Bấm **Mã nguồn** để xem và sửa code, Lưu như cũ.
+- Sửa code xong bấm lại Xem trước là thấy thay đổi ngay, chưa cần lưu. Trang chạy trong khung cách ly nên script trong file không đọc được dữ liệu của Javis.
+
 ## [0.430.1] - 2026-11-01
 ### Cải thiện
 - **Dán văn bản dài vào chat không còn tự biến thành file.** Đoạn đến 12.000 ký tự và 150 dòng dán thẳng vào ô chat như thường, xem và sửa được trước khi gửi. Trước đây chỉ quá 1.500 ký tự là thành thẻ `.txt`, không còn thấy mình đã dán gì.

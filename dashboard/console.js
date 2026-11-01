@@ -9326,6 +9326,8 @@
         } catch (e) {}
         // File chữ khác không có thanh định dạng: bộ đếm đứng đầu thanh nút phía trên, đếm nguyên văn.
         _neGanDemTu(actions, () => ({ text: ta.value, md: false }), [ta]);
+        // .html (0.430.2): opens on the PREVIEW, like an artifact, with a Code tab (html-preview.js).
+        if (window.JavisHtmlPreview && window.JavisHtmlPreview.isHtmlPath(rel)) _neHtmlTabs(body, actions, ta, rel);
       }
       const saveBtn = document.createElement("button"); saveBtn.innerHTML = SAVE_ICON + " " + esc(window.t("common.save")); saveBtn.title = window.t("cs.ne_save_title");
       // Mốc so sánh "đã sửa gì chưa": lấy SAU khi dựng xong khung soạn, tức là bản đã vòng
@@ -9353,10 +9355,39 @@
       actions.appendChild(saveBtn);
       _neCommonBtns(actions, rel, it);
       _vtMarkActive(isMd ? rel : null);
-      ta.focus();
+      if (!body.classList.contains("mode-preview")) ta.focus();   // a preview needs no keyboard (phones)
       return;
     }
     _neRenderDownload(body, actions, rel, it); _vtMarkActive(null);
+  }
+
+  // Preview / Code tabs for an .html file in the editor. The preview draws the code in the editor
+  // right now, so an edit shows on the next switch back without saving first.
+  function _neHtmlTabs(body, actions, ta, rel) {
+    const HP = window.JavisHtmlPreview;
+    const prev = document.createElement("div");
+    prev.className = "ne-prev ne-html-prev";
+    body.appendChild(prev);
+    body.className = "ne-body mode-preview";
+    let shown = null;
+    const draw = () => {
+      if (shown === ta.value) return;
+      shown = ta.value;
+      HP.render(prev, ta.value, rel, (p) => _vtRaw(p));
+    };
+    const seg = document.createElement("span"); seg.className = "ne-seg";
+    [["preview", window.t("crender.ap_preview")], ["source", window.t("crender.ap_source")]].forEach(([mode, lbl]) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = lbl;
+      b.classList.toggle("active", mode === "preview");
+      b.onclick = () => {
+        body.className = "ne-body mode-" + mode;
+        seg.querySelectorAll("button").forEach(x => x.classList.toggle("active", x === b));
+        if (mode === "preview") draw(); else ta.focus();
+      };
+      seg.appendChild(b);
+    });
+    actions.insertBefore(seg, actions.firstChild);
+    draw();
   }
 
   // Tooltip NHANH cho rail khi thu gọn (native title trễ ~500ms). 1 node body-level, thoát mọi overflow clip.

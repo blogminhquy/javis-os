@@ -128,6 +128,12 @@
       ".jvfe-share-url{flex:1 1 220px;min-width:0;padding:7px 10px;border-radius:8px;" +
       "border:1px solid var(--border);background:var(--bg2);color:var(--text-hi);font-size:13px}" +
       ".jvfe-body{flex:1;min-height:0;overflow:auto;background:var(--bg);display:flex;flex-direction:column}" +
+      // .html: preview pane (white page, like a browser tab) or the code pane, one at a time.
+      ".jvfe-html{flex:1;min-height:52vh;display:flex;flex-direction:column}" +
+      ".jvfe-html-prev,.jvfe-html-src{flex:1;min-height:0;display:flex;flex-direction:column}" +
+      ".jvfe-html.mode-preview .jvfe-html-src,.jvfe-html.mode-code .jvfe-html-prev{display:none}" +
+      ".jvfe-html-src .jvhl{flex:1;display:flex;flex-direction:column}" +
+      ".jv-html-frame{flex:1;width:100%;min-height:52vh;border:0;background:#fff;display:block}" +
       ".jvfe-text{flex:1;min-height:52vh;width:100%;box-sizing:border-box;border:0;outline:none;resize:none;" +
       "background:var(--bg);color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;" +
       "font-size:13.5px;line-height:1.6;padding:16px}" +
@@ -433,7 +439,46 @@
     var isMd = extOf(brainRel) === ".md";
     // .md + du bo may WYSIWYG (mdToHtml + JavisNoteEditor) -> soan nhu Word; con lai -> textarea nguon.
     if (isMd && typeof window.mdToHtml === "function" && window.JavisNoteEditor) renderMdEditor(b, ceil, d);
+    else if (window.JavisHtmlPreview && window.JavisHtmlPreview.isHtmlPath(ceil)) renderHtmlEditor(b, ceil, d);
     else renderPlainEditor(b, ceil, d);
+  }
+
+  // .html (0.430.2): opens on the PREVIEW, like an artifact, with a Code tab holding the usual
+  // highlighted editor. The preview draws the code currently in the editor (html-preview.js), so an
+  // edit shows on the next switch back without saving first. Save and Ctrl+S work from either tab.
+  function renderHtmlEditor(b, ceil, d) {
+    var HP = window.JavisHtmlPreview;
+    elActions.innerHTML = "";
+    elBody.innerHTML = '<div class="jvfe-html mode-preview">' +
+      '<div class="jvfe-html-prev"></div>' +
+      '<div class="jvfe-html-src"><textarea class="jvfe-text" spellcheck="false"></textarea></div></div>';
+    var box = elBody.firstChild;
+    var prev = box.querySelector(".jvfe-html-prev");
+    var ta = box.querySelector(".jvfe-text");
+    ta.value = d.content || "";
+    try { if (window.JavisCodeHL) window.JavisCodeHL.attach(ta, "html"); } catch (e) {}
+    var shown = null;   // the code the preview last drew, so switching tabs does not reload it for nothing
+    function draw() {
+      if (shown === ta.value) return;
+      shown = ta.value;
+      HP.render(prev, ta.value, ceil, function (path) { return rawUrl(b, path); });
+    }
+    var seg = document.createElement("span");
+    seg.className = "jvfe-seg";
+    [["preview", tw("crender.ap_preview")], ["code", tw("crender.ap_source")]].forEach(function (m) {
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "jvfe-btn" + (m[0] === "preview" ? " active" : "");
+      btn.textContent = m[1]; btn.dataset.mode = m[0];
+      btn.onclick = function () {
+        box.className = "jvfe-html mode-" + m[0];
+        seg.querySelectorAll("button").forEach(function (x) { x.classList.toggle("active", x === btn); });
+        if (m[0] === "preview") draw(); else focusNeuDuocPhep(ta);
+      };
+      seg.appendChild(btn);
+    });
+    elActions.appendChild(seg);
+    appendSaveAndClose(b, ceil, function () { return ta.value; });
+    draw();
   }
 
   // File text thuong (khong phai .md): textarea nguon, co to mau cu phap neu la file code.
