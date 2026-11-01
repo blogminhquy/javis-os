@@ -27,9 +27,9 @@ No Graph API Explorer, no Page ID or token to copy. First time, and want every c
 5. Open **Chatbot**, **Bots**, tick the new channel on a bot and switch the bot on. Until a bot is on, Javis does not take in messages.
 6. Switch the app to **Live** (section 4), then test with a Facebook account that has no role on the app.
 
-## Posting to the Page (from 0.437.0)
+## Posting to the Page (from 0.438.0)
 
-The same connection on the Facebook Messenger card lets Javis post to the Page: text, photos, albums, video, editing and deleting posts. Ask Javis "post this to the Page" to post now, or "every day at 8am post something" to schedule it. It needs `pages_manage_posts` (Log in with Facebook asks for it; the app must add that permission first, see the [step-by-step guide](31-messenger-step-by-step.md)). A Page connected before 0.437.0 needs one more Log in with Facebook. The checklist has a **Can post to the Page** row saying whether the permission is there. The store's Facebook Pages card is no longer needed.
+The same connection on the Facebook Messenger card lets Javis post to the Page: text, photos, albums, video, editing and deleting posts. Ask Javis "post this to the Page" to post now, or "every day at 8am post something" to schedule it. It needs `pages_manage_posts` (Log in with Facebook asks for it; the app must add that permission first, see the [step-by-step guide](31-messenger-step-by-step.md)). A Page connected before 0.438.0 needs one more Log in with Facebook. The checklist has a **Can post to the Page** row saying whether the permission is there. The store no longer lists the Facebook Pages card; machines that installed it keep using it.
 
 ## Page comments (from 0.434.0)
 

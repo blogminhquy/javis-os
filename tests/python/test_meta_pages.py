@@ -294,7 +294,7 @@ async def handler_tests():
 asyncio.run(handler_tests())
 
 
-# ---- 4. One connection (0.437.0): no facebook-pages connection -> the Pages of the Messenger card ----
+# ---- 4. One connection (0.438.0): no facebook-pages connection -> the Pages of the Messenger card ----
 spec2 = importlib.util.spec_from_file_location(
     "meta_pages_graph_msc", str(ROOT / "system" / "plugins" / "meta-pages-graph" / "plugin.py"))
 plug2 = importlib.util.module_from_spec(spec2)

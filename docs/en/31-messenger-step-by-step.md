@@ -220,7 +220,7 @@ Then go back to the Messenger card and click **Check** on that Page.
 | Javis says "The App ID or App secret is wrong" | A typo, or the secret of another app | Copy both again from App settings, Basic |
 | Javis says the account manages no Page | No Page was ticked at login | Log in with Facebook again, click Edit settings, tick the right Pages |
 | Connected, but customers write and the bot stays silent | No bot attached, or the app is still in development mode | Do Parts 4 and 5 |
-| Javis says it may not post yet | The Page was connected before 0.437.0, or `pages_manage_posts` was not added | Add it in Part 1.2, then Log in with Facebook again on the Messenger card |
+| Javis says it may not post yet | The Page was connected before 0.438.0, or `pages_manage_posts` was not added | Add it in Part 1.2, then Log in with Facebook again on the Messenger card |
 | Messages work but comments do not arrive | Comment permissions missing, or Page comments is Off | Add the permissions in Part 1.2 and log in again; change Page comments |
 | Comments reach the inbox but the bot does not reply | Page comments is set to "Show in the inbox" | Switch to "The bot replies publicly" if you want the bot to answer |
 | The checklist shows the webhook red | Javis could not register the webhook | Click Repair; if it stays red, do it by hand as in the section above |

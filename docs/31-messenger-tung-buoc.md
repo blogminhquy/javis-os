@@ -220,7 +220,7 @@ Xong quay lại thẻ Messenger, bấm **Kiểm tra** ở Trang đó.
 | Javis báo "App ID hoặc App secret không đúng" | Chép nhầm, hoặc lấy App secret của app khác | Chép lại cả hai ở Cài đặt ứng dụng, Thông tin cơ bản |
 | Javis báo tài khoản không quản lý Fanpage nào | Lúc đăng nhập chưa tick Trang | Đăng nhập Facebook lại, bấm Chỉnh sửa cài đặt, tick đúng Trang |
 | Đã nối nhưng khách nhắn bot im | Chưa gắn bot, hoặc app còn ở chế độ phát triển | Làm Phần 4 và Phần 5 |
-| Javis báo chưa có quyền đăng bài | Trang nối trước bản 0.437.0, hoặc chưa thêm quyền `pages_manage_posts` | Thêm quyền ở Phần 1.2, rồi Đăng nhập Facebook lại trên thẻ Messenger |
+| Javis báo chưa có quyền đăng bài | Trang nối trước bản 0.438.0, hoặc chưa thêm quyền `pages_manage_posts` | Thêm quyền ở Phần 1.2, rồi Đăng nhập Facebook lại trên thẻ Messenger |
 | Tin nhắn chạy nhưng bình luận không vào | Thiếu quyền bình luận, hoặc ô Bình luận Fanpage đang Tắt | Thêm quyền ở Phần 1.2, đăng nhập lại; đổi ô Bình luận Fanpage |
 | Bình luận vào Hộp thư nhưng bot không trả lời | Ô Bình luận Fanpage đang ở "Hiện ở Hộp thư" | Đổi sang "Bot tự trả lời công khai" nếu muốn bot trả lời |
 | Bảng kiểm tra báo webhook đỏ | Javis chưa khai được webhook | Bấm Sửa tự động; vẫn đỏ thì làm tay theo mục ngay trên |

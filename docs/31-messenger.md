@@ -27,9 +27,9 @@ Không cần Graph API Explorer, không cần chép Page ID hay token. Làm lầ
 5. Vào **Chatbot**, **Bot**, tick kênh vừa nối vào một bot và bật bot. Chưa có bot thì Javis chưa nhận tin.
 6. Chuyển app sang chế độ **Live** (mục 4), rồi thử bằng một nick Facebook không có vai trò trong app.
 
-## Đăng bài lên Fanpage (từ 0.437.0)
+## Đăng bài lên Fanpage (từ 0.438.0)
 
-Cùng một lần nối ở thẻ Facebook Messenger, Javis đăng được bài lên Trang: chữ, ảnh, album, video, sửa và xoá bài. Nhắn Javis "đăng bài này lên Fanpage" để đăng ngay, hoặc "8 giờ sáng mỗi ngày đăng một bài" để đặt lịch. Cần quyền `pages_manage_posts` (nút Đăng nhập Facebook tự xin; app phải thêm quyền này trước, xem [hướng dẫn từng bước](31-messenger-tung-buoc.md)). Trang nối trước bản 0.437.0 thì Đăng nhập Facebook lại một lần. Bảng kiểm tra có dòng **Đăng bài lên Trang** báo còn thiếu quyền hay không. Không cần cài thẻ Facebook Trang trong Kho nữa.
+Cùng một lần nối ở thẻ Facebook Messenger, Javis đăng được bài lên Trang: chữ, ảnh, album, video, sửa và xoá bài. Nhắn Javis "đăng bài này lên Fanpage" để đăng ngay, hoặc "8 giờ sáng mỗi ngày đăng một bài" để đặt lịch. Cần quyền `pages_manage_posts` (nút Đăng nhập Facebook tự xin; app phải thêm quyền này trước, xem [hướng dẫn từng bước](31-messenger-tung-buoc.md)). Trang nối trước bản 0.438.0 thì Đăng nhập Facebook lại một lần. Bảng kiểm tra có dòng **Đăng bài lên Trang** báo còn thiếu quyền hay không. Kho cài đặt đã gỡ thẻ Facebook Trang; máy đã cài thẻ đó vẫn dùng như cũ.
 
 ## Bình luận Fanpage (từ 0.434.0)
 

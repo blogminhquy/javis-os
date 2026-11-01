@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.438.0] - 2026-11-01
 ### Added
-- **One Page connection now posts too.** A Page connected on the Facebook Messenger card can be used for Javis's posting (when asked or on a schedule), with no need for the store's Facebook Pages card. Pages connected earlier need one more Log in with Facebook to grant the posting permission.
+- **One Page connection now posts too.** A Page connected on the Facebook Messenger card can be used for Javis's posting (when asked or on a schedule), so the store drops its Facebook Pages card (machines that installed it keep it). Pages connected earlier need one more Log in with Facebook to grant the posting permission.
 ### Improved
 - **Messenger connects in one place.** The Facebook Messenger card on the Connections page now shows the webhook address and verify token with Copy buttons, to paste into the Meta app by hand when needed without leaving the page.
 - A Page connected on the Connections page is already a channel on the Chatbot page. Picking Messenger under Add channel shows a note with a button straight to the Messenger card, so nobody connects it twice.

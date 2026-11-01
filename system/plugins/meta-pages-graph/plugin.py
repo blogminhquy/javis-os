@@ -12,7 +12,7 @@ min_mode full → không bao giờ tự chạy ở chế độ suggest/auto, ph�
 Ảnh/video nhận URL http(s) hoặc file TRONG vault (sandbox như tool file); video upload đi
 host graph-video riêng của Meta, Meta xử lý nền vài phút mới hiện bài.
 
-One connection for everything (0.437.0, owner: "1 lần thôi cho gọn"): with no "facebook-pages"
+One connection for everything (0.438.0, owner: "1 lần thôi cho gọn"): with no "facebook-pages"
 connection, the tools use the Pages connected on the Facebook Messenger card. Those accounts already
 hold a non-expiring Page token each, and Log in with Facebook asks for pages_manage_posts, so the
 same login answers messages, comments and posts. A "facebook-pages" connection, when present, still
@@ -127,8 +127,8 @@ def _fmt(d):
         msg = e.get("message") if isinstance(e, dict) else str(e)
         out = "ERROR: Facebook API: " + str(msg)
         if "pages_manage_posts" in str(msg) or (isinstance(e, dict) and str(e.get("code")) in ("10", "200")):
-            # A Page connected on the Messenger card before 0.437.0 has no posting permission yet.
-            out += (" (Gợi ý: Trang nối trước bản 0.437.0 chưa có quyền đăng bài. Vào trang Kết nối, thẻ "
+            # A Page connected on the Messenger card before 0.438.0 has no posting permission yet.
+            out += (" (Gợi ý: Trang nối trước bản 0.438.0 chưa có quyền đăng bài. Vào trang Kết nối, thẻ "
                     "Facebook Messenger, bấm Kết nối, Đăng nhập Facebook lại và đồng ý quyền pages_manage_posts.)")
         return out
     return json.dumps(d, ensure_ascii=False, default=str)

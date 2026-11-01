@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.438.0] - 2026-11-01
 ### Thêm mới
-- **Một lần nối Fanpage dùng cho cả đăng bài.** Fanpage nối ở thẻ Facebook Messenger giờ dùng được luôn cho việc Javis đăng bài (ngay khi nhờ hoặc tự động theo lịch), không cần cài thẻ Facebook Trang trong Kho. Trang đã nối từ trước thì Đăng nhập Facebook lại một lần để cấp quyền đăng bài.
+- **Một lần nối Fanpage dùng cho cả đăng bài.** Fanpage nối ở thẻ Facebook Messenger giờ dùng được luôn cho việc Javis đăng bài (ngay khi nhờ hoặc tự động theo lịch), nên Kho cài đặt gỡ thẻ Facebook Trang (máy đã cài vẫn dùng như cũ). Trang đã nối từ trước thì Đăng nhập Facebook lại một lần để cấp quyền đăng bài.
 ### Cải thiện
 - **Messenger nối một chỗ.** Thẻ Facebook Messenger ở trang Kết nối giờ hiện cả Địa chỉ webhook và Mã xác minh kèm nút Chép, dán tay vào app Meta khi cần mà không phải sang trang khác.
 - Fanpage đã nối ở trang Kết nối tự có trong danh sách kênh của Chatbot. Chọn Messenger ở Thêm kênh sẽ thấy lời nhắc kèm nút mở thẳng thẻ Messenger, khỏi nối lại lần hai.

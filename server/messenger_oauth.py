@@ -39,7 +39,7 @@ from messenger_bot import GRAPH, GRAPH_VERSION, _explain_error, appsecret_proof
 CALLBACK_PATH = "/messenger/oauth/callback"
 PRIVACY_PATH = "/messenger/privacy"
 TTL = 15 * 60
-# Messaging, the Page list, the webhook subscription, Page comments (read, reply) and, from 0.437.0, posting
+# Messaging, the Page list, the webhook subscription, Page comments (read, reply) and, from 0.438.0, posting
 # (`pages_manage_posts`: the Facebook Pages tools reuse this connection). `business_management` lets Pages owned
 # through a Business portfolio show up in the list.
 SCOPES = ("pages_show_list", "pages_messaging", "pages_manage_metadata", "pages_read_engagement",

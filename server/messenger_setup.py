@@ -36,7 +36,7 @@ REQUIRED_SCOPES = ("pages_messaging", "pages_manage_metadata", "pages_read_engag
 WEBHOOK_FIELDS = tuple(SUBSCRIBED_FIELDS.split(","))
 # Page comments (0.434.0): reading them and replying under them. Optional, so a warning when missing.
 COMMENT_SCOPES = ("pages_read_user_content", "pages_manage_engagement")
-# Posting through the Facebook Pages tools on this same connection (0.437.0). Optional, a warning when missing.
+# Posting through the Facebook Pages tools on this same connection (0.438.0). Optional, a warning when missing.
 POST_SCOPES = ("pages_manage_posts",)
 
 
