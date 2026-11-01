@@ -57,7 +57,7 @@ const parent = { replaceChild(fresh) {
   assert.equal(controls.parentNode, holder, "controls were detached before being parked");
   oldBody = fresh;
 } };
-oldBody = { cloneNode: () => ({ parentNode: parent }), parentNode: parent };
+oldBody = { cloneNode: () => ({ parentNode: parent, removeAttribute() {} }), parentNode: parent };
 controls.parentNode = oldBody;
 const renderCtx = {
   body: () => oldBody, _renderGen: 0, STUDIO_PAGES: [],
