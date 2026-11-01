@@ -196,7 +196,7 @@ async def chay():
 asyncio.run(chay())
 
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("main.py wires speech-to-text for videos", "transcribe=_stt_nghe" in src)
+check("main.py wires speech-to-text for videos", "transcribe=_stt_nghe," in src)
 for f in (Path(__file__), ROOT / "server" / "video_vision.py"):
     check(f"no em dash in {f.name}", chr(0x2014) not in f.read_text(encoding="utf-8"))
 
