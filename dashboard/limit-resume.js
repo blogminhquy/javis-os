@@ -52,6 +52,20 @@
     return tw("lres.when_other_day", { gio: hm, ngay: pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) });
   }
 
+  // Normalize ONLY a genuine short subscription-limit notice in the chat UI.
+  // Keep the provider's raw text in the conversation store and for copy/debugging.
+  // The reset epoch is authoritative; never infer a date from a clock string alone.
+  function localizeNotice(text, limit, now) {
+    var raw = String(text == null ? "" : text);
+    var epoch = Number(limit && limit.reset_epoch) || 0;
+    if (!epoch || raw.length > 280 || !/\\blimit\\b/i.test(raw)) return raw;
+    if (!/\\b(?:hit|reached)\\s+your\\b|\\blimit\\s+reached\\b/i.test(raw)) return raw;
+    var clock = /\\bresets?\\s+(?:at\\s+)?(?:\\d{1,2}(?::\\d{2})?\\s*[ap]\\.?m\\.?|\\d{1,2}:\\d{2})\\s*\\((?:UTC|GMT|Z)\\)/i;
+    if (!clock.test(raw)) return raw;
+    var when = fmtWhen(epoch, now);
+    return when ? raw.replace(clock, "resets " + when + " (giờ địa phương)") : raw;
+  }
+
   // "con 1 gio 5 phut" / "con 3 phut" / "con duoi 1 phut". Am hoac 0 -> "".
   function fmtLeft(seconds) {
     var s = Math.floor(Number(seconds) || 0);
@@ -287,7 +301,7 @@
   }
 
   var api = {
-    describe: describe, fmtWhen: fmtWhen, fmtLeft: fmtLeft,
+    describe: describe, fmtWhen: fmtWhen, fmtLeft: fmtLeft, localizeNotice: localizeNotice,
     attach: attach, onFrame: onFrame, turnDone: turnDone, fromHello: fromHello, renderFor: renderFor,
     _pending: function () { return pending; },
   };
