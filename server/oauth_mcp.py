@@ -142,7 +142,7 @@ async def _discover(url):
     """Tìm authorization server metadata cho 1 MCP url. Trả dict metadata hoặc None."""
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
         issuer = None
-        www_scope, prm_scopes = "", []
+        www_scope, prm_scopes, prm_resource = "", [], ""
         try:
             r = await client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                              "params": {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -165,6 +165,9 @@ async def _discover(url):
                 if mp.scheme in ("http", "https") and mp.netloc == up.netloc:
                     rm = (await client.get(m)).json()
                     prm_scopes = [str(x) for x in (rm.get("scopes_supported") or []) if str(x).strip()]
+                    # #939: the canonical resource identifier (RFC 9728) can differ from the transport URL
+                    # (Spacemail: server https://mcp.spacemail.com/mcp, resource https://mcp.spacemail.com/).
+                    prm_resource = str(rm.get("resource") or "").strip()
                     servers = rm.get("authorization_servers") or []
                     if servers:
                         issuer = servers[0]
@@ -203,6 +206,7 @@ async def _discover(url):
                     md = r.json()
                     if md.get("authorization_endpoint") and md.get("token_endpoint"):
                         md["_www_scope"], md["_prm_scopes"] = www_scope, prm_scopes
+                        md["_prm_resource"] = prm_resource
                         return md
             except Exception:
                 continue
@@ -224,6 +228,43 @@ def _chon_scopes(md, ent):
         if nguon:
             return [str(x) for x in nguon if str(x).strip() and str(x) not in chan]
     return []
+
+
+def canonical_resource(url, prm_resource=""):
+    """RFC 8707 `resource` for an MCP server (#939).
+
+    The official MCP SDK sends the `resource` its protected-resource metadata (RFC 9728) declares, not the transport URL.
+    Spacemail serves https://mcp.spacemail.com/mcp but declares https://mcp.spacemail.com/, and its authorization server
+    answers invalid_target to the transport URL. The declared value is used only when it covers the MCP URL the owner
+    entered, the same check the SDK makes (same scheme and host, the URL's path under the declared path); anything else
+    falls back to the URL itself, so a server cannot point the grant at another site."""
+    url = str(url or "")
+    prm_resource = str(prm_resource or "").strip()
+    if not prm_resource:
+        return url
+    try:
+        a, r = urllib.parse.urlparse(url), urllib.parse.urlparse(prm_resource)
+    except Exception:
+        return url
+    if r.scheme not in ("http", "https") or r.scheme != a.scheme or r.netloc.lower() != a.netloc.lower():
+        return url
+    rp = r.path if r.path.endswith("/") else (r.path or "") + "/"
+    ap = a.path if a.path.endswith("/") else (a.path or "") + "/"
+    if not ap.startswith(rp):
+        return url
+    return urllib.parse.urlunparse(r._replace(fragment=""))
+
+
+def _dcr_redirect_mismatch(reg, redirect_uri):
+    """True when a registration answer lists its callbacks and Javis's is not among them (#939).
+
+    Some providers answer DCR with a shared, pre-registered client (Spacemail: client_id "starlight.mcp") whose
+    allowlist does not hold the callback Javis asked for. Their sign-in page then fails with a generic error and never
+    returns to Javis, so the only honest place to say so is here, before sending the owner there."""
+    uris = (reg or {}).get("redirect_uris")
+    if not isinstance(uris, list) or not uris:
+        return False
+    return str(redirect_uri) not in {str(u) for u in uris}
 
 
 def _scope_bi_tu_choi(desc):
@@ -268,6 +309,7 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
         scope_sep = auth.get("scope_sep") or " "
         extra_params = dict(auth.get("authorize_params") or {})
         add_resource = False
+        resource = ""
         provider = (auth.get("provider") or "").strip().lower()
     else:
         if not conn.get("url"):
@@ -284,6 +326,7 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
         client_id = ent.get("client_id", "")
         client_secret = ""
         dcr_detail = ""      # error_description máy chủ trả về khi DCR bị từ chối (để báo minh bạch)
+        dcr_mismatch = False
         if not client_id and md.get("registration_endpoint"):
             try:
                 async with httpx.AsyncClient(timeout=20) as client:
@@ -293,7 +336,11 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
                         "response_types": ["code"], "token_endpoint_auth_method": "none",
                     })
                     if r.status_code in (200, 201):
-                        client_id = r.json().get("client_id", "")
+                        reg = r.json() or {}
+                        if _dcr_redirect_mismatch(reg, redirect_uri):
+                            dcr_mismatch = True
+                        else:
+                            client_id = reg.get("client_id", "")
                     else:
                         try:
                             dcr_detail = (r.json() or {}).get("error_description", "") or ""
@@ -301,6 +348,16 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
                             dcr_detail = ""
             except Exception as e:
                 print(f"[oauth dcr] {e}", file=sys.stderr)
+        if dcr_mismatch:
+            return {"ok": False, "error": localefmt.chu(
+                "Nhà cung cấp trả về một ứng dụng đăng nhập dùng chung không chấp nhận địa chỉ quay về của Javis ("
+                + redirect_uri + "). Trang đăng nhập của họ sẽ báo lỗi dù bạn nhập đúng mật khẩu, nên đừng thử lại "
+                "mật khẩu. Đây là giới hạn phía nhà cung cấp: cần họ cho tự đăng ký đúng địa chỉ này. Trong lúc chờ, "
+                "dùng API key hoặc cách kết nối khác nếu nhà cung cấp có.",
+                "The provider answered with a shared sign-in app that does not accept Javis's return address ("
+                + redirect_uri + "). Their sign-in page will fail even with the right password, so retrying the "
+                "password will not help. This is a provider-side limit: they need to allow registering this address. "
+                "Meanwhile, use an API key or another way to connect if the provider offers one.")}
         if not client_id:
             # Máy chủ MCP chỉ nhận ứng dụng được cấp phép sẵn + tắt tự đăng ký (DCR). Với Meta Ads
             # đây là beta giới hạn (allowlist client như ChatGPT/Claude/Perplexity) - không phải lỗi
@@ -321,6 +378,7 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
         scope_param, scope_sep = "scope", " "
         extra_params = {}
         add_resource = True
+        resource = canonical_resource(conn["url"], md.get("_prm_resource"))
         provider = ""
 
     is_meta = provider == "meta"
@@ -335,7 +393,7 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
     _pending[state] = {"conn_id": conn_id, "verifier": verifier, "token_endpoint": token_endpoint,
                        "client_id": client_id, "client_secret": client_secret,
                        "redirect_uri": redirect_uri, "provider": provider, "ts": now,
-                       "discovery": not explicit, "retry": _retry}
+                       "discovery": not explicit, "retry": _retry, "resource": resource}
     q = {"response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri, "state": state}
     if not is_meta:                   # Meta classic flow KHÔNG dùng PKCE (client_secret đủ)
         q["code_challenge"] = challenge
@@ -349,9 +407,13 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
     if scopes:
         q[scope_param] = scope_sep.join(scopes)
     if add_resource:
-        q["resource"] = conn["url"]   # RFC 8707 - server bỏ qua nếu không dùng
+        q["resource"] = resource      # RFC 8707 - server bỏ qua nếu không dùng; giá trị chuẩn ở canonical_resource
     q.update(extra_params)            # vd Google: access_type=offline, prompt=consent (để có refresh_token)
     ent.update(client_id=client_id, token_endpoint=token_endpoint, provider=provider)
+    if resource:
+        ent["resource"] = resource    # the token and refresh requests name the same resource (MCP authorization spec)
+    else:
+        ent.pop("resource", None)
     store[conn_id] = ent
     _save(store)
     return {"ok": True, "url": authorize_endpoint + "?" + urllib.parse.urlencode(q)}
@@ -415,6 +477,8 @@ async def handle_callback(state, code, error="", error_description=""):
                     "client_id": p["client_id"], "code_verifier": p["verifier"]}
             if p.get("client_secret"):   # client bảo mật (vd Google Web app) cần secret khi đổi token
                 data["client_secret"] = p["client_secret"]
+            if p.get("resource"):
+                data["resource"] = p["resource"]
             async with httpx.AsyncClient(timeout=20) as client:
                 r = await client.post(p["token_endpoint"], data=data, headers={"Accept": "application/json"})
             tk = r.json()
@@ -465,6 +529,8 @@ async def _refresh(conn_id, ent):
         cs = mcp_store.connection_secrets(conn_id).get("client_secret")
         if cs:   # BYO client bảo mật (Google) - refresh cũng cần client_secret
             data["client_secret"] = cs
+        if ent.get("resource"):
+            data["resource"] = ent["resource"]
         async with httpx.AsyncClient(timeout=20) as client:
             r = await client.post(ent["token_endpoint"], data=data, headers={"Accept": "application/json"})
         tk = r.json()
