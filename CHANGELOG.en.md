@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.438.2] - 2026-11-01
+### Improved
+- **The official Meta logo.** The Facebook Messenger card on Connections now shows the real Meta mark in its blue gradient instead of the old hand-drawn one, on a transparent background that works in light and dark themes.
+
 ## [0.438.1] - 2026-11-01
 ### Improved
 - **The GitHub card on Connections matches the other cards.** A green dot shows it is connected, and the logo is the same size as the rest.

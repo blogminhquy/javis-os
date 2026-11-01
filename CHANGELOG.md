@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.438.2] - 2026-11-01
+### Cải thiện
+- **Logo Meta chính thức.** Thẻ Facebook Messenger ở trang Kết nối dùng đúng logo Meta màu xanh chuyển sắc, thay cho nét vẽ tay cũ. Nền trong suốt nên giao diện sáng hay tối đều hiện đẹp.
+
 ## [0.438.1] - 2026-11-01
 ### Cải thiện
 - **Thẻ GitHub ở trang Kết nối gọn như các thẻ khác.** Có chấm xanh báo đang kết nối, logo to bằng các thẻ còn lại.
