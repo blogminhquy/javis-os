@@ -68,6 +68,9 @@ fake.scopes = "public_repo"
 github_repos.disconnect()
 st = github_repos.connect(GOOD_TOKEN)
 check("a classic token missing scopes says which", set(st["missing"]) == {"repo", "workflow"})
+check("a fine-grained token is never scope-checked", github_repos._is_classic("github_pat_x") is False)
+check("a GitHub App user token is never scope-checked", github_repos._is_classic("ghu_x") is False)
+check("a classic personal token is scope-checked", github_repos._is_classic("ghp_x") is True)
 fake.scopes = "repo, workflow"
 github_repos.connect(GOOD_TOKEN)
 

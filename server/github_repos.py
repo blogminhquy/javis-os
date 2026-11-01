@@ -133,8 +133,13 @@ def user_id() -> int:
         return 0
 
 
-def _check_token(tok: str) -> Dict[str, Any]:
-    """Validate a token against GitHub. Returns {login, scopes_ok, missing} or raises RepoError."""
+def _check_token(tok: str, app: bool = False) -> Dict[str, Any]:
+    """Validate a token against GitHub. Returns {login, scopes_ok, missing} or raises RepoError.
+
+    `app` marks a "Sign in with GitHub" token. GitHub App tokens have no OAuth scopes at all (access comes from the
+    app's permissions plus the repos picked at install), yet GitHub still sends an EMPTY X-OAuth-Scopes header for
+    them, which read as "missing repo, workflow" on every successful sign-in. Only classic tokens are scope-checked.
+    """
     if not tok:
         raise RepoError(_c("Chưa có token.", "No token given."))
     try:
@@ -146,13 +151,25 @@ def _check_token(tok: str) -> Dict[str, Any]:
         raise RepoError(_c(f"Không kiểm tra được token: {e}", f"Could not check the token: {e}"))
     scopes = u.get("_scopes")
     missing: List[str] = []
-    # Classic tokens list their scopes; fine-grained tokens do not (scopes is None) and are checked per repo instead.
+    # Classic tokens list their scopes. Fine-grained and GitHub App tokens either omit the header or send it empty,
+    # and are checked per repo instead, so their scopes count as unknown, never as missing.
+    if app or not _is_classic(tok):
+        scopes = None
     if scopes is not None and "repo" not in scopes:
         missing.append("repo")
     if scopes is not None and "workflow" not in scopes:
         missing.append("workflow")
     return {"login": u.get("login") or "", "id": int(u.get("id") or 0), "missing": missing,
             "classic": scopes is not None}
+
+
+# Prefixes of tokens that are NOT classic: GitHub App user (ghu_), installation (ghs_), refresh (ghr_) and
+# fine-grained personal access tokens. Anything else (ghp_, gho_, legacy 40-hex) is treated as classic.
+_NON_CLASSIC_PREFIXES = ("ghu_", "ghs_", "ghr_", "github_pat_")
+
+
+def _is_classic(tok: str) -> bool:
+    return not (tok or "").startswith(_NON_CLASSIC_PREFIXES)
 
 
 def connect(tok: str) -> Dict[str, Any]:
@@ -167,7 +184,7 @@ def connect(tok: str) -> Dict[str, Any]:
 def connect_app(fields: Dict[str, Any]) -> Dict[str, Any]:
     """Store the token "Sign in with GitHub" just received (github_oauth.poll). Checked like a pasted token."""
     tok = str((fields or {}).get("access_token") or "").strip()
-    info = _check_token(tok)
+    info = _check_token(tok, app=True)
     _write_conn({"source": "app", "token": tok, "refresh_token": str(fields.get("refresh_token") or ""),
                  "expires_at": float(fields.get("expires_at") or 0), "login": info["login"], "user_id": info["id"],
                  "missing": info["missing"], "connected_at": _now()})
@@ -221,7 +238,8 @@ def status() -> Dict[str, Any]:
         "login": conn.get("login") or "",
         "source": conn.get("source") or "",
         # A classic token missing scopes still works for reading; say which ones so the person can add them.
-        "missing": list(conn.get("missing") or []),
+        # Never for an app sign-in: it has no scopes, and a stale flag stored by 0.430.0 to 0.432.1 is dropped here.
+        "missing": [] if conn.get("source") == "app" else list(conn.get("missing") or []),
         "backup_token": bool(backup_token()),
         "has_git": shutil.which("git") is not None,
         # "Sign in with GitHub": where to pick repos, and how many accounts the app is on (-1 unknown).

@@ -85,6 +85,16 @@ st = github_repos.connect_app(out["token"])
 check("the connection is stored as signed in with the app", st["connected"] and st["source"] == "app")
 check("the login is shown", st["login"] == "tester")
 check("an app token is not flagged for missing scopes", st["missing"] == [])
+# Real GitHub sends an EMPTY X-OAuth-Scopes header for GitHub App tokens (0.432.2: every sign-in showed
+# "missing repo, workflow"). Empty must read as "no scopes to check", not "no scopes granted".
+fake.scopes = ""
+st = github_repos.connect_app(out["token"])
+check("an empty scopes header on an app token is not flagged either", st["missing"] == [])
+conn = github_repos._read_conn()
+conn["missing"] = ["repo", "workflow"]
+github_repos._write_conn(conn)
+check("a stale missing-scopes flag stored for an app sign-in is not shown", github_repos.status()["missing"] == [])
+fake.scopes = None
 check("status says the app is installed somewhere", st["installs"] == 1)
 check("status carries the install link", "javis-os" in st["install_url"])
 check("status never returns the token", GOOD_TOKEN not in json.dumps(st))
