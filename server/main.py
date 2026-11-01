@@ -405,6 +405,12 @@ DASHBOARD_PATH = Path(__file__).parent.parent / "dashboard"
 # Windows/mimetypes không biết .webp -> StaticFiles trả text/plain; khai rõ để logo webp đúng kiểu ảnh.
 import mimetypes
 mimetypes.add_type("image/webp", ".webp")
+# Office files (#898): a slim image without /etc/mime.types does not know .xlsx/.docx/.pptx, so /files/raw sent them as
+# application/octet-stream and the browser could not tell what it was saving.
+for _mt, _ext in (("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
+                  ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx"),
+                  ("application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx")):
+    mimetypes.add_type(_mt, _ext)
 import tinh_gon  # noqa: E402
 
 
@@ -9110,8 +9116,11 @@ def raw_file_response(brain: str, path: str, dl: bool = False):
     if dl:
         return FileResponse(str(f), filename=f.name)   # ép tải (giữ tên, kể cả tên tiếng Việt)
     mt, _ = mimetypes.guess_type(f.name)
-    resp = FileResponse(str(f), media_type=mt or "application/octet-stream")
-    resp.headers["Content-Disposition"] = "inline"      # hiển thị trong trình duyệt, không ép tải
+    # inline WITH the file name (#898): a browser that cannot show the type (.xlsx) saves it, and with a bare "inline"
+    # it named the file after the last URL segment ("raw", no extension). Starlette writes a non-ASCII name as
+    # RFC 5987 filename*=utf-8''..., so an accented name stays a valid header.
+    resp = FileResponse(str(f), media_type=mt or "application/octet-stream", filename=f.name,
+                        content_disposition_type="inline")   # hiển thị trong trình duyệt, không ép tải
     resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp
 
