@@ -114,6 +114,10 @@ check("warn(): to mau canh bao", has(Icons.warn("x"), "ic-warn"));
 check("ok(): escape chuoi tu server", !has(Icons.ok(evil), "<img src=x"));
 check("ok(): to mau thanh cong", has(Icons.ok("x"), "ic-ok"));
 
+// 0.438.2 (owner, 01/11/2026): the Meta mark is the official logo file, not a hand-drawn stroke, and the file ships.
+check("kenh(meta): the official logo file inside the svg box", has(Icons.kenh("meta"), 'href="/static/logos/meta.png"') && !has(Icons.kenh("meta"), "stroke="));
+check("kenh(meta): the logo file is in the repo", fs.existsSync(path.join(ROOT, "dashboard/logos/meta.png")));
+
 // --- 7. render() thay <i data-ic> trong HTML tinh ---------------------------
 const holder = fakeEl("div");
 const target = fakeEl("i");
