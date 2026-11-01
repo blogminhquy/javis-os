@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.434.0] - 2026-11-01
 ### Added
-- **Connect a Facebook Page with a Log in with Facebook button, and Page comments in the inbox.** (in progress)
+- **Connect a Facebook Page with a Log in with Facebook button.** The Messenger card on the Connections page now asks only for the App ID and App secret. Log in, tick the Pages to connect, and Javis does the rest. No more copying a token and a Page ID out of Graph API Explorer.
+- **Page comments in the inbox, the way Pancake shows them.** Every top-level comment under a post is its own conversation, and the replies under it join that conversation. What you reply in the inbox shows right under the comment on Facebook.
+- Each Page picks how comments are handled: shown in the inbox for you to answer (default), answered publicly by the bot, or off.
+- Javis serves a privacy policy page on your own domain, ready to paste into the Meta app so it can switch to Live mode.
 
 ## [0.433.0] - 2026-11-01
 ### Added

@@ -73,5 +73,34 @@ check("no section of its own, form in the shared dialog", () => {
   assert.ok(!/class="lv-card lv-card-new msc-form"/.test(M.formHtml({ https: true })));
 });
 
+// 0.434.0: Log in with Facebook and Page comments.
+check("form leads with the login: App ID, App secret, addresses to copy, comment mode", () => {
+  const h = M.formHtml({ https: true, oauth_redirect: "https://j.example/messenger/oauth/callback",
+                         privacy_url: "https://j.example/messenger/privacy" });
+  assert.ok(/data-f="login"/.test(h) && !/data-f="login" disabled/.test(h));
+  assert.ok(h.includes('data-copy="https://j.example/messenger/oauth/callback"') && h.includes('data-copy="https://j.example/messenger/privacy"'));
+  assert.ok(/data-f="app_id"/.test(h) && /data-f-cmt="1"/.test(h));
+  assert.ok(h.indexOf('data-f="login"') < h.indexOf('data-f="page_id"'), "the paste flow comes after the login");
+  assert.ok(/class="msc-manual" hidden/.test(h), "the paste flow is folded");
+  assert.ok(/data-f="login" disabled/.test(M.formHtml({ https: false })), "no login without HTTPS");
+});
+check("comment mode select defaults to inbox and marks the current mode", () => {
+  assert.ok(/value="inbox" selected/.test(M.commentSelect("inbox", "data-x")));
+  assert.ok(/value="reply" selected/.test(M.commentSelect("reply", "data-x")));
+  assert.ok(/value="reply" selected/.test(M.accountHtml({ id: "a", page_id: "1", bots: [], comments: "reply" })));
+  assert.ok(/data-act-mode="1"/.test(M.accountHtml({ id: "a", page_id: "1", bots: [] })));
+});
+check("Page picker: one ticked row per Page, names escaped, a connect button", () => {
+  const h = M.pickHtml([{ id: "1", name: "Shop <b>", picture: "https://x/p.jpg" }, { id: "2", name: "Kho" }]);
+  assert.strictEqual((h.match(/data-page="/g) || []).length, 2);
+  assert.strictEqual((h.match(/ checked>/g) || []).length, 2);
+  assert.ok(h.includes("Shop &lt;b&gt;") && !h.includes("Shop <b>") && h.includes('data-f="finish"') && h.includes('src="https://x/p.jpg"'));
+  assert.strictEqual(M.pickHtml([]), "");
+});
+check("results: checklist for a connected Page, the error for a failed one", () => {
+  const h = M.resultsHtml([{ ok: true, page_name: "Shop", check: chk }, { ok: false, page_id: "2", error: "lỗi <210>" }]);
+  assert.ok(h.includes("msc-checks") && h.includes("lỗi &lt;210&gt;") && !h.includes("<210>"));
+});
+
 if (fails) { console.log("\n" + fails + " FAILED"); process.exit(1); }
 console.log("\nall ok");

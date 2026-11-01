@@ -766,10 +766,12 @@ _ERRORS = {
           "this person cannot receive messages right now (blocked the Page or the account is gone)"),
     190: ("Page access token hết hạn hoặc sai. Tạo lại token cho Page trong app Meta rồi dán lại",
           "the Page access token expired or is wrong. Generate a new one for the Page in the Meta app and paste it again"),
-    200: ("app chưa có quyền nhắn tin cho người ngoài. Khi app chưa qua xét duyệt pages_messaging, chỉ người có "
-          "vai trò trong app (admin, developer, tester) nhận được trả lời",
-          "the app may not message people outside it yet. Until pages_messaging passes App Review, only people "
-          "with a role on the app (admin, developer, tester) get replies"),
+    200: ("app chưa có quyền nhắn tin cho người ngoài. Khi app còn ở chế độ phát triển, chỉ người có vai trò "
+          "trong app (admin, developer, tester) nhận được trả lời: chuyển app sang Live, vẫn bị thì nộp xét duyệt "
+          "pages_messaging",
+          "the app may not message people outside it yet. While the app is in development mode only people with "
+          "a role on it (admin, developer, tester) get replies: switch the app to Live, and if it persists submit "
+          "pages_messaging for App Review"),
     10: ("app chưa đủ quyền cho việc này (thường là chưa qua xét duyệt pages_messaging, hoặc ngoài cửa sổ 24 giờ)",
          "the app lacks permission for this (usually pages_messaging not approved yet, or outside the 24-hour window)"),
     100: ("tham số sai, thường là Page id không đúng với token", "invalid parameter, usually a Page id that does not match the token"),

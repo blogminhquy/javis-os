@@ -4532,6 +4532,22 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .msc-row.warn .msc-mark { background: color-mix(in srgb, var(--warn, #e0a33e) 20%, transparent); color: var(--warn-ink, #b9821f); }
 .msc-row-detail { color: var(--text2); font-size: 13px; word-break: break-all; }
 .msc-row-fix { color: var(--text2); font-size: 14px; margin-top: 2px; }
+/* 0.434.0: Log in with Facebook (addresses to copy, Page picker) and the comment mode. 16px fields stop iOS zoom. */
+.msc-copy, .msc-cmt-row { margin-top: 10px; }
+.msc-copy-row { display: flex; gap: 8px; align-items: center; }
+.msc-copy-row .js-input { flex: 1; min-width: 0; font-size: 16px; }
+.msc-copy-row .s-btn-ghost { flex: none; }
+.msc-cmt { width: 100%; box-sizing: border-box; font-size: 16px; min-height: 44px; }
+.msc-manual-toggle { margin-top: 14px; }
+.msc-manual { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.msc-pick-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.msc-pick-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 44px; border: 1px solid var(--border);
+  border-radius: 8px; cursor: pointer; font-size: 16px; }
+.msc-pick-row input { width: 20px; height: 20px; flex: none; }
+.msc-pick-pic { width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; display: inline-flex;
+  align-items: center; justify-content: center; }
+.msc-pick-name { display: flex; flex-direction: column; min-width: 0; }
+.msc-result { margin-top: 14px; }
 
 /* Searchable agent picker (agent-picker.js). The native <select> stays in the DOM, hidden; this button opens a
    popover on desktop and a bottom sheet on phones. Every text here is at least 16px (owner rule, also stops iOS zoom). */

@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.434.0] - 2026-11-01
 ### Thêm mới
-- **Nối Fanpage bằng nút Đăng nhập Facebook, và bình luận Fanpage vào Hộp thư.** (đang làm)
+- **Nối Fanpage bằng nút Đăng nhập Facebook.** Thẻ Messenger ở trang Kết nối chỉ còn hỏi App ID và App secret. Bấm đăng nhập, tick các Fanpage muốn nối, Javis tự làm phần còn lại. Hết cảnh mở Graph API Explorer chép token và Page ID.
+- **Bình luận Fanpage vào Hộp thư, giống Pancake.** Mỗi bình luận gốc dưới bài viết là một hội thoại riêng, các trả lời bên dưới gom chung vào đó. Bạn trả lời trong Hộp thư thì câu đó hiện ngay dưới bình luận trên Facebook.
+- Mỗi Fanpage chọn được cách xử lý bình luận: hiện ở Hộp thư để bạn trả lời (mặc định), để bot tự trả lời công khai, hoặc tắt.
+- Javis tự phục vụ sẵn trang chính sách quyền riêng tư trên tên miền của bạn, dán vào app Meta là chuyển được app sang chế độ Live.
 
 ## [0.433.0] - 2026-11-01
 ### Thêm mới
