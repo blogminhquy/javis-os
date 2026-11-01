@@ -2182,6 +2182,7 @@
           '</div>';
       }).join("") + '</div>' : "") +
       '<div class="cb-hint ht-card-hint" id="htCardHint" hidden></div>' +
+      '<div id="htTokenPart">' +
       '<label id="htTokenLabel"></label>' +
       '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
         '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
@@ -2189,6 +2190,7 @@
       '<div class="cb-hint ht-webhook" id="htWebhook" hidden></div>' +
       '<label>' + esc(window.t("ht.lb_nhan_tk")) + '</label>' +
       '<input id="htLabel" placeholder="' + esc(window.t("ht.ph_nhan_tk")) + '">' +
+      '</div>' +
       '<div class="ht-form-acts">' +
         '<button class="s-btn-ghost ht-close" type="button">' + esc(window.t("common.cancel")) + '</button>' +
         '<button class="s-btn ht-save" type="button">' + esc(window.t("common.save")) + '</button>' +
@@ -2221,10 +2223,14 @@
       box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + " " + window.t("cb.token_rieng");
       // A channel with its own card on the Connections page (Messenger, 0.436.2): connecting there is quicker and a Page
       // connected there is already in the channel list, so nobody should connect the same Page twice.
+      // 0.438.3 (owner, 01/11/2026): for such a channel the form stops here. No token field, webhook or Save, only the
+      // way to its card, which also keeps the paste-a-token fallback.
       var hint = box.querySelector("#htCardHint");
       hint.hidden = !k.the_ket_noi;
       hint.innerHTML = k.the_ket_noi ? esc(window.t("ht.the_ket_noi", { kenh: k.nhan })) +
-        ' <button type="button" class="s-btn-ghost ht-mo-the">' + esc(window.t("ht.mo_ket_noi")) + '</button>' : "";
+        ' <button type="button" class="s-btn ht-mo-the">' + esc(window.t("ht.mo_the", { kenh: k.nhan })) + '</button>' : "";
+      box.querySelector("#htTokenPart").hidden = !!k.the_ket_noi;
+      box.querySelector(".ht-save").hidden = !!k.the_ket_noi;
       var mo = hint.querySelector(".ht-mo-the");
       if (mo) mo.onclick = function () {
         dong();
