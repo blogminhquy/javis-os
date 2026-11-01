@@ -210,6 +210,10 @@ h3.wh-subh { margin-top: 4px; }
 .wh-fld input, .wh-fld select { min-height: 44px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface-1);
   color: var(--text); font: inherit; }
 .wh-fld textarea { margin-top: 0; min-height: 84px; font-family: inherit; }
+/* 0.432.3: the workflow search box sits right above its picker; the count is a quiet line under it */
+.wh-fld .wh-wfq { font-size: 16px; }
+.wh-wfcount { color: var(--text3); font-size: 16px; }
+.wh-wfcount:empty { display: none; }
 
 @media (max-width: 760px) {
   .wh-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }

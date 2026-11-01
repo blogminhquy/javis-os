@@ -579,6 +579,29 @@
       + '<button type="button" class="wh-btn sm whCopyCurl">' + ic("copy") + " " + esc(tw("wh.copy_curl")) + "</button></div>";
   }
 
+  // 0.432.3 (owner 2026-11-01: "cần có tìm kiếm workflow ở trong webhook"): the workflow picker gets a search box, so a
+  // brain with many workflows stays usable. Matching ignores case and Vietnamese accents ("cham soc" finds "Chăm sóc").
+  function fold(t) {
+    return String(t == null ? "" : t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\u0111\u0110]/g, "d").toLowerCase();
+  }
+  // The workflows whose name or slug holds every word of the query, in their original order.
+  function filterWorkflows(wfs, query) {
+    var words = fold(query).split(/\s+/).filter(Boolean);
+    return (wfs || []).filter(function (w) {
+      var hay = fold((w.name || "") + " " + (w.slug || "")) + " " + fold(String(w.slug || "").replace(/[-_]+/g, " "));
+      return words.every(function (x) { return hay.indexOf(x) !== -1; });
+    });
+  }
+  // The <option>s for the picker: the matches, the chosen one kept selected when it still matches.
+  function workflowOptionsHtml(wfs, query, chosen) {
+    if (!(wfs || []).length) return '<option value="">' + esc(tw("wh.no_workflow")) + "</option>";
+    var hits = filterWorkflows(wfs, query);
+    if (!hits.length) return '<option value="" disabled selected>' + esc(tw("wh.wf_no_match")) + "</option>";
+    return hits.map(function (w) {
+      return '<option value="' + esc(w.slug) + '"' + (w.slug === chosen ? " selected" : "") + ">" + esc(w.name || w.slug) + "</option>";
+    }).join("");
+  }
+
   // The new-webhook form, drawn inside the popup.
   function formHtml(brains, current) {
     var opts = (brains || []).map(function (b) {
@@ -592,7 +615,10 @@
       + '<div class="wh-fld"><label>' + esc(tw("wh.target")) + '</label><div class="wh-seg" id="whTarget">'
       + '<button type="button" class="wh-segb on" data-t="workflow">' + esc(tw("wh.target_wf")) + "</button>"
       + '<button type="button" class="wh-segb" data-t="task">' + esc(tw("wh.target_task")) + "</button></div></div>"
-      + '<div class="wh-fld" id="whWfWrap"><label for="whWorkflow">' + esc(tw("wh.workflow")) + '</label><select id="whWorkflow"></select></div>'
+      + '<div class="wh-fld" id="whWfWrap"><label for="whWorkflow">' + esc(tw("wh.workflow")) + '</label>'
+      + '<input type="search" id="whWfQ" class="wh-wfq" autocomplete="off" spellcheck="false" placeholder="' + esc(tw("wh.wf_search_ph"))
+      + '" aria-label="' + esc(tw("wh.wf_search_ph")) + '" aria-controls="whWorkflow" hidden>'
+      + '<select id="whWorkflow"></select><span id="whWfCount" class="wh-wfcount" aria-live="polite"></span></div>'
       + '<div class="wh-fld"><label id="whTextLabel" for="whText">' + esc(tw("wh.text_wf")) + '</label><textarea id="whText" placeholder="'
       + esc(tw("wh.text_ph")) + '"></textarea></div>'
       + '<div class="wh-fld"><label>' + esc(tw("wh.level")) + '</label><div class="wh-seg" id="whLevel">'
@@ -688,15 +714,25 @@
     function hook(id) { return hooks.filter(function (x) { return x.id === id; })[0]; }
 
     // ---- the add form ----
-    var target = "workflow", level = "full";
+    var target = "workflow", level = "full", wfList = [];
+    // Redraw the picker from the search box; the count says how many of how many match while a search is typed.
+    function drawWorkflows() {
+      var sel = modal.querySelector("#whWorkflow"), qb = modal.querySelector("#whWfQ"), cnt = modal.querySelector("#whWfCount");
+      if (!sel) return;
+      var query = qb ? qb.value : "";
+      sel.innerHTML = workflowOptionsHtml(wfList, query, sel.value);
+      if (cnt) cnt.textContent = query.trim() && wfList.length
+        ? tw("wh.wf_count", { n: filterWorkflows(wfList, query).length, total: wfList.length }) : "";
+    }
     async function loadWorkflows() {
       var sel = modal.querySelector("#whWorkflow");
       if (!sel) return;
       var d = await api("/workflows?brain=" + encodeURIComponent(modal.querySelector("#whBrain").value || current()));
-      var wfs = (d && d.workflows) || [];
-      sel.innerHTML = wfs.length
-        ? wfs.map(function (w) { return '<option value="' + esc(w.slug) + '">' + esc(w.name || w.slug) + "</option>"; }).join("")
-        : '<option value="">' + esc(tw("wh.no_workflow")) + "</option>";
+      wfList = (d && d.workflows) || [];
+      var qb = modal.querySelector("#whWfQ");
+      if (qb) { qb.value = ""; qb.hidden = wfList.length < 2; }
+      sel.value = "";
+      drawWorkflows();
     }
     function syncForm() {
       modal.querySelectorAll("#whTarget .wh-segb").forEach(function (c) { c.classList.toggle("on", c.dataset.t === target); });
@@ -713,10 +749,14 @@
       dlg.querySelectorAll("#whTarget .wh-segb").forEach(function (c) { c.onclick = function () { target = c.dataset.t; syncForm(); }; });
       dlg.querySelectorAll("#whLevel .wh-segb").forEach(function (c) { c.onclick = function () { level = c.dataset.l; syncForm(); }; });
       f("#whBrain").onchange = loadWorkflows;
+      f("#whWfQ").oninput = drawWorkflows;
+      // Enter in the search box keeps the first match chosen instead of submitting anything.
+      f("#whWfQ").onkeydown = function (ev) { if (ev.key === "Enter") { ev.preventDefault(); f("#whWorkflow").focus(); } };
       f("#whSave").onclick = async function () {
         var body = { name: f("#whName").value.trim(), brain: f("#whBrain").value, target: target, level: level,
           workflow: target === "workflow" ? f("#whWorkflow").value : "", text: f("#whText").value.trim() };
         if (!body.name) { f("#whMsg").textContent = tw("wh.need_name"); return; }
+        if (target === "workflow" && wfList.length && !body.workflow) { f("#whMsg").textContent = tw("wh.need_workflow"); return; }
         var r = await api("/webhooks", body);
         if (!r.ok) { f("#whMsg").textContent = r.error || tw("wh.save_err"); return; }
         closeModal();
@@ -1061,7 +1101,8 @@
     secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
     simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml, settingsHtml: settingsHtml,
     testText: testText, readSettings: readSettings, stateWord: stateWord, timelineHtml: timelineHtml, payloadHtml: payloadHtml,
-    replayHtml: replayHtml, planHtml: planHtml, healthHtml: healthHtml, testPanelHtml: testPanelHtml, formHtml: formHtml };
+    replayHtml: replayHtml, planHtml: planHtml, healthHtml: healthHtml, testPanelHtml: testPanelHtml, formHtml: formHtml,
+    filterWorkflows: filterWorkflows, workflowOptionsHtml: workflowOptionsHtml };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

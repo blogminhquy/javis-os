@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.432.3] - 2026-11-01
 ### Improved
-- **Search workflows in the new webhook form.** (in progress)
+- **Search workflows when creating a webhook.** A search box now sits above the Workflow picker: type a few letters of the name and the list narrows, with a line like "3 of 40 workflows match". Accents are optional when you type.
+- When nothing matches, the picker says so, and Save asks you to pick a workflow instead of saving an empty webhook.
+
 ## [0.432.2] - 2026-11-01
 ### Fixed
 - **The GitHub card no longer wrongly says "Token is missing permissions: repo, workflow"** after you connect with the Sign in with GitHub button. That sign-in does not use those permissions at all, so nothing is missing, and you still pick repos from the chat box as before. If you already saw the amber line, it goes away on its own, no need to sign in again.

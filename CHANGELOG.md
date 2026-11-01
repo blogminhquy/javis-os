@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.432.3] - 2026-11-01
 ### Cải thiện
-- **Tìm quy trình ngay trong form tạo webhook.** (đang viết)
+- **Tìm quy trình ngay khi tạo webhook.** Phía trên ô chọn Quy trình có thêm ô tìm: gõ vài chữ trong tên là danh sách thu gọn lại, kèm dòng "3/40 quy trình khớp". Gõ không dấu cũng được, "cham soc" vẫn ra "Chăm sóc khách".
+- Không quy trình nào khớp thì ô chọn nói rõ, và nút Lưu nhắc bạn chọn một quy trình thay vì lưu webhook trống.
+
 ## [0.432.2] - 2026-11-01
 ### Sửa lỗi
 - **Thẻ GitHub thôi báo nhầm "Token còn thiếu quyền: repo, workflow"** khi bạn kết nối bằng nút Đăng nhập bằng GitHub. Cách đăng nhập này không dùng loại quyền đó nên không bao giờ thiếu, repo thì vẫn chọn trong khung chat như cũ. Ai đã thấy dòng vàng này thì nó tự biến mất, không cần đăng nhập lại.
