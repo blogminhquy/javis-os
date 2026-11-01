@@ -8,6 +8,9 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.430.1] - 2026-11-01
+### Improved
+- In progress.
 ## [0.430.0] - 2026-11-01
 ### Added
 - **Connect GitHub with a Sign in button, no token to make.** On the Connections page, press **Sign in with GitHub**: Javis shows a short code, you press Open GitHub, paste the code and press Authorize. It works on a VPS with no browser too.
