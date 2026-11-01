@@ -395,7 +395,7 @@ def _args(cli, turn_key: Optional[str]) -> List[str]:
     _acct_home = getattr(cli, "codex_home", None)   # extra ChatGPT account (plan_accounts, 0.353.0)
     overrides = profile_overrides(cli.profile, Path(_acct_home) if _acct_home else cc._codex_home())
     args = [cli.cli_path]
-    for c in overrides + list(cli.extra_config or []):
+    for c in overrides + cli._mcp_ready_config():
         args += ["-c", c]
     if turn_key:
         args += ["-c", turn_key]
