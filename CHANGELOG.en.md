@@ -8,6 +8,9 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.433.0] - 2026-11-01
+### Added
+- **The Zalo chatbot can watch videos customers send.** In progress.
 ## [0.432.4] - 2026-11-01
 ### Improved
 - **Picking repos in the chat box: tick to attach.** The "Attach repo to this conversation" button at the bottom of the list is gone, so no more scrolling to find it. Untick to remove a repo from the conversation.
