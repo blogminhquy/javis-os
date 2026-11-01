@@ -9,7 +9,11 @@ function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok
 const hook = { id: "wh_1", name: "<b>Lead</b>", target: "workflow", workflow: "cham-soc", level: "auto",
   brain: "/b/shop", url: "https://x/hooks/wh_1", enabled: true, count: 2, last_at: 1, last_status: "done",
   history: [{ at: 1, status: "failed", result: "engine <timeout>" }] };
-const html = W.cardHtml(hook, [{ path: "/b/shop", name: "Shop" }]);
+// 0.432.0: the list row (cardHtml) opens a popup (dialogHtml) that carries the URL, the runs and the actions.
+const row = W.cardHtml(hook);
+const html = W.dialogHtml(hook, [{ path: "/b/shop", name: "Shop" }]);
+check("the list row escapes the name", row.includes("&lt;b&gt;Lead") && !row.includes("<b>Lead"));
+check("the list row never carries the URL or a token", !row.includes("https://x/hooks/wh_1") && !/token/i.test(row));
 check("card escapes the name", html.includes("&lt;b&gt;Lead") && !html.includes("<b>Lead"));
 check("card shows the URL", html.includes("https://x/hooks/wh_1"));
 check("card escapes history text", html.includes("engine &lt;timeout&gt;"));

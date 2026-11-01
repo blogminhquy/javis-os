@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.432.0] - 2026-11-01
 ### Improved
-- **The Webhook page, redesigned to be easy to follow.** (in progress)
+- **The Webhook page, redesigned to be easy to follow.** The top is one compact row of numbers: webhooks running, events and errors in the last 24 hours, and what needs you. When a run may not have finished, an amber banner appears, and **Open** takes you straight to it.
+- **Each webhook is one line** with a status dot and a strip of its last 20 runs: green is fine, amber needs you, red failed. One look tells you which webhook has a problem.
+- **Pressing a webhook opens its own window instead of dropping down.** Switching between Events, Configuration and Health, filtering or opening a run all change inside that window, which closes only when you press X. Runs are grouped by day, the cryptic `[SILENT]` is gone, and receiving and processing are plain on/off switches.
+- **No more repeated titles** on the Webhook, Cookies, Shared links and Mascot pages, to save space. The explanations still sit behind the (i) button.
 
 ## [0.431.0] - 2026-11-01
 ### Improved

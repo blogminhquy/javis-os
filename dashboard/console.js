@@ -2258,6 +2258,8 @@
       brains = (d.brains || []).map(b => ({ name: b.label || b.name, path: b.path, is_default: b.is_default }));
     } catch (e) {}
     if (myGen !== _renderGen) return;
+    // 0.432.0: the hook popup hangs off <body>; leaving the page closes it.
+    _pageLeave = () => { try { window.JavisWebhooks.unmount(); } catch (e) {} };
     window.JavisWebhooks.mount(el.querySelector("#whSection"), { brains: () => brains, current: () => fbrain() });
   }
 
@@ -7237,7 +7239,7 @@
       const infoBtn = () => (JI ? JI.btn(t("info.more")) : "");
       const infoBody = (h) => (JI ? JI.body(h) : '<div class="info-body">' + h + "</div>");
       el.innerHTML = `<div class="settings-page"><div class="settings-card">
-        <div class="settings-card-head"><b>${esc(t("share.heading"))}${infoBtn()}</b><span class="gcard-tag">${ds.length}</span></div>
+        <div class="settings-card-head"><b><span class="share-total">${ds.length}</span> ${esc(t("share.live_links"))}${infoBtn()}</b></div>
         ${infoBody(esc(t("share.warn")))}
         ${coTim ? `<input id="shareSearch" class="share-search" type="search" spellcheck="false"
           autocomplete="off" placeholder="${esc(t("share.search_ph"))}" value="${esc(tuKhoa)}">
@@ -7390,7 +7392,7 @@
       const infoBody = (h) => (JI ? JI.body(h) : '<div class="info-body">' + h + "</div>");
       host.innerHTML = `<div class="settings-card"><div class="pet-editor" data-pet-editor>${P.editorHtml(cur, OPTS_ED)}</div></div>
       <div class="settings-card">
-        <div class="settings-card-head"><b>${esc(t("settings.pet"))}${infoBtn()}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
+        <div class="settings-card-head"><b>${esc(t(cur.enabled ? "settings.pet_state_on" : "settings.pet_state_off"))}${infoBtn()}</b></div>
         ${infoBody(esc(t("settings.pet_desc")) + "<br>" + esc(t("settings.pet_hint")))}
         <div class="js-actions">
           <button class="gcard-btn" id="setPetSave">${SAVE_ICON} ${esc(t("settings.pet_save"))}</button>

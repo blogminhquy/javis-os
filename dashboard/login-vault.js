@@ -25,10 +25,10 @@
     });
   }
   var ic = function (n) { return (typeof window !== "undefined" && window.ic) ? window.ic(n) : ""; };
-  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
-  function infoBody(html) {
+  // (i) with its own words, for a spot with no title beside it (0.432.0: the page header already says Cookies).
+  function infoPair(html, label) {
     var J = typeof window !== "undefined" && window.JavisInfo;
-    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+    return J ? J.pair(html, label) : '<div class="info-body">' + html + "</div>";
   }
 
   var STATUS = {
@@ -111,7 +111,7 @@
 
   /* A bare "name=value; ..." header has no domain in it, so the site field shows only then. */
   /* The (i) text, built here because the dictionaries hold plain text only (test_i18n). Every line of it
-     goes into the (i) block (mount passes this to infoBody), so none of it stands open on the page. */
+     goes into the (i) block (mount passes this to infoPair), so none of it stands open on the page. */
   var INTRO = [["p", "lv.intro_what"], ["h", "lv.intro_how"], ["li", "lv.intro_s1"], ["li", "lv.intro_s2"],
     ["li", "lv.intro_s3"], ["p", "lv.intro_formats"], ["hp", "lv.intro_safe_h", "lv.intro_safe"],
     ["hp", "lv.intro_note_h", "lv.intro_note"]];
@@ -210,10 +210,10 @@
   function mount(el) {
     if (!el) return;
     el.innerHTML = '<div class="cview-section lv-page">'
-      + '<div class="lv-head"><span class="lv-title">' + ic("cookie") + " " + esc(tw("lv.head")) + infoBtn() + "</span>"
+      // 0.432.0 (owner 2026-11-01): no in-page title repeating the page header; the guide sits behind (i) "How to get a cookie".
+      + '<div class="lv-head"><span class="lv-title">' + infoPair(introHtml(), tw("lv.intro_how")) + "</span>"
       + '<div class="lv-head-act"><button class="s-btn-ghost lv-upload" type="button">' + ic("file-up") + " " + esc(tw("lv.upload")) + "</button>"
       + '<button class="s-btn lv-add" type="button">' + ic("plus") + " " + esc(tw("lv.add")) + "</button></div></div>"
-      + infoBody(introHtml())
       + '<div class="lv-warn" hidden></div>'
       + '<div class="lv-new"></div>'
       + '<div class="lv-list"></div></div>';

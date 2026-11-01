@@ -3,9 +3,10 @@
 //   node tools/webhook_ui_narrow_check.mjs http://127.0.0.1:7791 /tmp/shots
 //
 // Start a LOCAL Javis first with a temporary state folder and outgoing calls refused, then create one hook and send it a
-// few events (docs/webhook-platform/staging-pilot-pack.md, "UI check"). The script opens the Webhooks page, takes the
-// four parts (Configuration, Events with one event opened, Health, the test-send preview) as PNG files, and fails when
-// the page scrolls sideways or throws. It never presses Send, Stop receiving, Delete or View raw.
+// few events (docs/webhook-platform/staging-pilot-pack.md, "UI check"). The script opens the Webhooks page and the first
+// hook's popup (0.432.0), takes the four parts (Configuration, Events with one event opened, Health, the test-send
+// preview) as PNG files, and fails when the page scrolls sideways or throws. It never presses Send, Stop receiving,
+// Delete or View raw.
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 let pw;
@@ -21,11 +22,13 @@ p.on("pageerror", (e) => errs.push(e.message));
 await p.goto(base + "/", { waitUntil: "networkidle" });
 await p.waitForFunction(() => window.JavisNav && window.JavisNav.go, null, { timeout: 20000 });
 await p.evaluate(() => { const w = document.getElementById("setupWizard"); if (w) w.remove(); window.JavisNav.go("webhooks"); });
-await p.waitForSelector(".wf-card", { timeout: 15000 });
-const card = p.locator(".wf-card").first();
+await p.waitForSelector(".wh-row", { timeout: 15000 });
+await p.screenshot({ path: out + "/0-list.png" });
+await p.locator(".wh-row").first().click();
+const card = p.locator(".wh-dlg");
+await card.locator('.whTab[data-tab="cfg"]').click();
 await card.screenshot({ path: out + "/1-config.png" });
 await card.locator('.whTab[data-tab="ev"]').click();
-await card.locator(".whLog summary").click();
 if (await card.locator(".whEvInfo").count()) { await card.locator(".whEvInfo").first().click(); await p.waitForTimeout(800); }
 await card.screenshot({ path: out + "/2-events.png" });
 await card.locator('.whTab[data-tab="health"]').click();
@@ -37,7 +40,7 @@ await card.locator(".whTestPreview").click();
 await p.waitForTimeout(800);
 await card.screenshot({ path: out + "/4-test-preview.png" });
 const wide = await p.evaluate(() => document.documentElement.scrollWidth);
-const small = await p.evaluate(() => [...document.querySelectorAll("#whSection *")].filter((el) => el.offsetParent
+const small = await p.evaluate(() => [...document.querySelectorAll("#whSection *, #whModal *")].filter((el) => el.offsetParent
   && el.childNodes.length && [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
   && parseFloat(getComputedStyle(el).fontSize) < 16).map((el) => el.className || el.tagName).slice(0, 5));
 await b.close();

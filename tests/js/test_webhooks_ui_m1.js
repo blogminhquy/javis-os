@@ -8,29 +8,32 @@ const W = require(path.join(__dirname, "../../dashboard/webhooks.js"));
 let fails = 0;
 function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok) fails++; }
 
-const row = (status, extra) => W.eventRowHtml(Object.assign({ run_id: "ev_1", at: 1, status: status }, extra || {}));
+// 0.432.0: a run's actions live on its own page inside the popup (eventActionsHtml); the row only opens it.
+const row = (status, extra) => W.eventActionsHtml(Object.assign({ run_id: "ev_1", at: 1, status: status }, extra || {}));
+const line = (status, extra) => W.eventRowHtml(Object.assign({ run_id: "ev_1", at: 1, status: status }, extra || {}));
 check("done: no action buttons", !row("done").includes("whEvRetry") && !row("done").includes("whEvDone"));
 check("failed: Retry, no Mark done", row("failed").includes("whEvRetry") && !row("failed").includes("whEvDone"));
 check("dead: Retry", row("dead").includes("whEvRetry"));
 check("unknown: Retry and Mark done", row("unknown").includes("whEvRetry") && row("unknown").includes("whEvDone"));
 const acts = (h) => h.includes("whEvRetry") || h.includes("whEvDone");
 check("queued and running: no actions (the worker owns them), only Details",
-  !acts(row("queued")) && !acts(row("running")) && row("running").includes("whEvInfo"));
+  !acts(row("queued")) && !acts(row("running")) && line("running").includes("whEvInfo"));
 check("buttons carry the event id", row("unknown").includes('data-ev="ev_1"'));
-check("error text is escaped", row("failed", { error: "<img src=x onerror=alert(1)>" }).includes("&lt;img"));
+check("error text is escaped", line("failed", { error: "<img src=x onerror=alert(1)>" }).includes("&lt;img"));
 check("a row from the paged API (id, received_at) works too",
-  W.eventRowHtml({ id: "ev_9", received_at: 2, status: "unknown" }).includes('data-ev="ev_9"'));
+  W.eventRowHtml({ id: "ev_9", received_at: 2, status: "unknown" }).includes('data-ev="ev_9"')
+  && W.eventActionsHtml({ id: "ev_9", received_at: 2, status: "unknown" }).includes('data-ev="ev_9"'));
 
-const card = W.cardHtml({ id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_1",
+const card = W.dialogHtml({ id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_1",
   enabled: true, history: [{ run_id: "ev_2", at: 3, status: "unknown", result: "" }] }, []);
-check("a card with an unknown event opens its log and says what to do", card.includes("whLog") && card.includes(" open")
+check("a hook with an unknown event opens on its runs and says what to do", /whTab sel" data-tab="ev"/.test(card)
   && card.includes("wh-need"));
 check("the card log has a button for older runs (pagination)", card.includes("whMore"));
-const calm = W.cardHtml({ id: "wh_2", name: "Ổn", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_2",
+const calm = W.dialogHtml({ id: "wh_2", name: "Ổn", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_2",
   enabled: true, history: [{ run_id: "ev_3", at: 3, status: "done" }] }, []);
-check("a card with nothing to resolve keeps its log closed", !calm.includes(" open") && !calm.includes("wh-need"));
+check("a hook with nothing to resolve says nothing to do", !calm.includes("wh-need"));
 
-const older = W.cardHtml({ id: "wh_3", name: "Cũ", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_3",
+const older = W.dialogHtml({ id: "wh_3", name: "Cũ", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_3",
   enabled: true, unknown: 1, history: [{ run_id: "ev_4", at: 3, status: "done" }] }, []);
 check("an unknown event older than the rows drawn still raises the hint (server count)", older.includes("wh-need"));
 check("error codes are shown in words", W.errText({ error: "not_retryable" }) === "wh.err_not_retryable"

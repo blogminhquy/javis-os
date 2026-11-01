@@ -607,6 +607,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             "history": hist[-HISTORY_KEEP:][::-1],
             "unknown": int(counts.get("unknown", 0)), "blocked": int(counts.get("blocked", 0)),
             "waiting": int(counts.get("waiting", 0)),
+            # Failed or dead events still kept: the page offers "close all failed" only when there is one.
+            "failed": int(counts.get("failed", 0)) + int(counts.get("dead", 0)),
             "open": sum(int(counts.get(k, 0)) for k in ("received", "queued", "running")),
             "rules": h.get("rules") or {},
             "actions": webhook_actions.view(h.get("actions")),

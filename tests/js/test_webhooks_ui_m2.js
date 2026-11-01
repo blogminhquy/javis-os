@@ -12,9 +12,9 @@ for (const st of ["filtered", "invalid", "duplicate"]) {
   const r = W.eventRowHtml({ run_id: "ev_1", at: 1, status: st, error: "why" });
   check(`${st}: its own words and no Retry or Mark done`, r.includes("wh.st_" + st) && !r.includes("whEvRetry") && !r.includes("whEvDone"));
 }
-const card = (rules) => W.cardHtml({ id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b",
+const card = (rules) => W.dialogHtml({ id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b",
   url: "/hooks/wh_1", enabled: true, history: [], rules: rules }, []);
-check("every card has a Rules button and a host for the panel", card({}).includes("whRules") && card({}).includes("whRulesHost"));
+check("every hook has a Rules button (the panel opens inside the popup)", card({}).includes("whRules"));
 check("a card with rules marks the button", card({ filter: { path: "a", op: "exists" } }).includes("whRules has-rules")
   && !card({}).includes("has-rules"));
 const panel = W.rulesPanelHtml({ rules: { filter: { path: "a", op: "eq", value: "</textarea><script>x</script>" } } });

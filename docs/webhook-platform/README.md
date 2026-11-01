@@ -132,7 +132,7 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 
 | Requirement | Code | Proof | Status |
 |---|---|---|---|
-| Three parts: Configuration, Events, Health; simple setup first, advanced behind a button | `dashboard/webhooks.js` | `test_webhooks_ui_spec.js`; `tools/webhook_ui_narrow_check.mjs` at 390 px | done |
+| Three parts: Configuration, Events, Health, in one popup per hook (0.432.0) that stays open until closed; a new hook opens on Configuration, one with runs on Events; simple setup first, advanced behind a button | `dashboard/webhooks.js`, `dashboard/webhooks.css` | `test_webhooks_ui_spec.js`, `test_webhooks_ui_0432.js`; `tools/webhook_ui_narrow_check.mjs` at 390 px | done |
 | Timeline per event (received, verified, parsed, filter, duplicate, dispatch, attempt, receipt, result, notice) | `timeline()` | matrix "§16.5" | done |
 | Cursor pages, filters by hook, state, order or correlation id, time range; never the whole DB in memory | `Store.page` (keyset), `/webhooks/events` | `test_webhooks_ui_m1.js`, `test_webhooks_ui_spec.js` | done |
 | Test send: the owner's payload, the list of effects first, a test namespace, same permissions and quotas | `test_send` | matrix "§15 UI"; `test_webhooks_ui_spec.js` | done |
