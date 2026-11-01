@@ -3106,7 +3106,7 @@
   // Owner, 16/10/2026: "không copy và dán ảnh vào khung chat của team được". The main chat's paste and drop listeners sit on
   // the whole document and sent a picture pasted here to the hidden main chat. The team page answers first (its own
   // listeners, propagation stopped) and the page is marked data-localdrop so the main chat's drop leaves it alone.
-  var PASTE_TXT_CHARS = 1500, PASTE_TXT_LINES = 25;   // same thresholds as the main chat (app.js)
+  // Long-paste limits and the preview dialog are shared with the main chat (chat-paste.js).
   // Copy the bytes while the event is still running: a phone only lets a page read a pasted or dropped file then.
   function grabFile(f) {
     var read;
@@ -3133,15 +3133,20 @@
       attachGrabbed(files);
       return;
     }
-    // A very long text pasted into the team input becomes a .txt document instead of a wall in the box.
-    if (!(e.target && e.target.classList && e.target.classList.contains("tm-input"))) return;
+    // Text up to the shared limit pastes normally. Past it, show the whole text and let the owner choose
+    // paste inline / attach .txt / cancel, like the main chat (chat-paste.js, 0.430.1).
+    var input = e.target;
+    if (!(input && input.classList && input.classList.contains("tm-input"))) return;
+    var paste = typeof window !== "undefined" ? window.JavisPaste : null;
     var txt = (cd && cd.getData("text/plain")) || "";
-    if (txt.length > PASTE_TXT_CHARS || txt.split("\n").length > PASTE_TXT_LINES) {
-      e.preventDefault(); e.stopPropagation();
-      var d = new Date(), p2 = function (n) { return String(n).padStart(2, "0"); };
-      var name = "van-ban-dan-" + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + ".txt";
-      attachFiles([new File([new Blob([txt], { type: "text/plain" })], name, { type: "text/plain" })]);
-    }
+    if (!paste || !paste.isLong(txt)) return;
+    e.preventDefault(); e.stopPropagation();
+    var range = { start: input.selectionStart, end: input.selectionEnd };
+    paste.offer(txt, function (value) {
+      if (canAttach()) paste.insertAt(input, range, value);
+    }, function (value) {
+      if (canAttach()) attachFiles([paste.textFile(value)]);
+    });
   }
   var dropDepth = 0;
   function hasFiles(e) {

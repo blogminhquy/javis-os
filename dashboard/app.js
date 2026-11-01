@@ -4015,16 +4015,12 @@ window.JavisAttach = {
   note: (s) => { attachNote = String(s || ""); renderChips(); },
 };
 
-// Dán ảnh (Ctrl+V) + dán VĂN BẢN SIÊU DÀI thành file .txt đính kèm (kiểu Claude):
-// bài dài nhồi thẳng vào ô chat vừa khó đọc vừa nặng khung hội thoại - biến thành
-// file thì Javis đọc trọn vẹn còn màn hình chỉ hiện một chip gọn.
-const PASTE_TXT_CHARS = 1500;   // vượt MỘT trong hai ngưỡng là thành file
-const PASTE_TXT_LINES = 25;
+// Dán ảnh (Ctrl+V) thành file đính kèm. Dán CHỮ thì giữ chữ: tới 12.000 ký tự / 150 dòng vẫn dán
+// thẳng vào ô chat như thường. Vượt ngưỡng thì chat-paste.js hiện cả đoạn và HỎI: dán vào chat,
+// đính kèm .txt hay huỷ (0.430.1). Trước đây quá 1.500 ký tự là tự thành file, chủ không còn thấy
+// mình đã dán gì.
 function pasteAsTxt(text) {
-  const d = new Date(), p = n => String(n).padStart(2, "0");
-  const name = `van-ban-dan-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.txt`;
-  const f = new File([new Blob([text], { type: "text/plain" })], name, { type: "text/plain" });
-  uploadFile(f);
+  uploadFile(window.JavisPaste.textFile(text));
 }
 document.addEventListener("paste", (e) => {
   const items = e.clipboardData?.items;
@@ -4035,14 +4031,14 @@ document.addEventListener("paste", (e) => {
       if (f) { chupFile(f).then(uploadFile); e.preventDefault(); }   // 0.65.30: chép ngay, như lúc thả
     }
   }
-  // Văn bản dài: CHỈ khi đang dán vào ô chat - không cướp paste của các ô khác
-  // (form Kết nối, đặt tên brain...). Ô chat ngắn vẫn dán chữ bình thường.
+  // Chỉ ô chat. Các ô khác (form Kết nối, đặt tên brain...) giữ Ctrl+V bình thường.
   if (e.defaultPrevented || e.target !== chatInput) return;
+  const paste = window.JavisPaste;
   const txt = e.clipboardData.getData("text/plain") || "";
-  if (txt.length > PASTE_TXT_CHARS || txt.split("\n").length > PASTE_TXT_LINES) {
-    e.preventDefault();
-    pasteAsTxt(txt);
-  }
+  if (!paste || !paste.isLong(txt)) return;   // chữ vừa phải: để trình duyệt tự dán, Ctrl+Z vẫn chạy
+  e.preventDefault();
+  const range = { start: chatInput.selectionStart, end: chatInput.selectionEnd };
+  paste.offer(txt, (value) => paste.insertAt(chatInput, range, value), pasteAsTxt);
 });
 
 // Kéo-thả file

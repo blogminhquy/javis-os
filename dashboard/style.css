@@ -4664,3 +4664,33 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-table-wrap { overflow-x: auto; margin-top: 10px; }
 .gh-table { border-collapse: collapse; width: 100%; font-size: 16px; }
 .gh-table th, .gh-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+
+/* Long paste preview (0.430.1, chat-paste.js): the whole pasted text, then paste inline / attach .txt / cancel. */
+.jv-paste-overlay {
+  position: fixed; inset: 0; z-index: 9999; padding: 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .48);
+}
+.jv-paste-dialog {
+  display: flex; flex-direction: column; gap: 10px;
+  width: min(720px, 100%); max-height: min(90vh, 800px); min-height: 0;
+  background: var(--panel-solid, var(--surface-1)); color: var(--text);
+  border: 1px solid var(--border); border-radius: 16px; padding: 20px;
+  box-shadow: 0 14px 50px rgba(0, 0, 0, .25);
+}
+.jv-paste-dialog h2 { margin: 0; font-size: 19px; font-weight: 650; }
+.jv-paste-dialog p { color: var(--text2); font-size: 15px; line-height: 1.5; margin: 0; }
+.jv-paste-preview {
+  box-sizing: border-box; display: block; width: 100%; min-height: 160px; flex: 1 1 auto;
+  height: min(48vh, 380px); resize: vertical; padding: 12px 14px;
+  font-size: 15px; line-height: 1.6; font-family: inherit; white-space: pre-wrap;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px; overflow: auto;
+}
+.jv-paste-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.jv-paste-actions .gcard-btn { min-height: 42px; font-size: 15px; }
+@media (max-width: 520px) {
+  .jv-paste-dialog { padding: 14px; }
+  .jv-paste-preview { font-size: 16px; }
+  .jv-paste-actions .gcard-btn { flex: 1 1 auto; }
+}

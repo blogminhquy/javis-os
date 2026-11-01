@@ -1,4 +1,10 @@
 {
+  "paste.title": "Preview pasted text",
+  "paste.note": "{chars} characters · {lines} lines. Paste it into the chat or attach it as a file. Nothing is cut.",
+  "paste.preview": "Full pasted text",
+  "paste.cancel": "Cancel",
+  "paste.attach": "Attach .txt",
+  "paste.inline": "Paste into chat",
   "app.voice_focus_mic_busy": "The microphone has not finished closing. Tap the mic to reopen the conversation.",
   "app.voice_focus_waiting": "Just speak or tap to resume",
   "app.voice_focus_click": "Tap to resume conversation",

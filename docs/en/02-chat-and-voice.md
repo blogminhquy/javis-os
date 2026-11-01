@@ -224,7 +224,7 @@ You can put files or images into a message for Javis to read. Three ways:
 2. **Drag and drop** files from your computer onto the Javis window (an overlay shows the drop zone).
 3. **Paste** directly with Ctrl + V.
 
-Pasting has one trick of its own: pasting an **image** attaches it as a file as usual, while pasting **very long text** (over 1500 characters or over 25 lines) into the chat box makes Javis package it as an attached `.txt` file instead of stuffing the whole thing into the input. Javis still reads all of it, and the screen only shows a tidy chip. This applies to the chat box only; other inputs still take plain text.
+Pasting has one trick of its own: pasting an **image** attaches it as a file as usual. Pasted **text** up to **12,000 characters and 150 lines** goes straight into the chat box, so you can read and edit it before sending. Past either limit, a **Preview pasted text** dialog shows the whole text (scrollable) with three buttons: **Paste into chat**, **Attach .txt** or **Cancel**. If you attach it, Javis still reads all of it and the screen only shows a tidy chip. This applies to the main chat box and the team chat box; other inputs still take plain text.
 
 Files appear as small chips above the input bar. Wait for the chip to report the upload finished, then type or speak your request and send as usual. Click the ✕ on a chip to drop that file from the message.
 

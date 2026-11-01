@@ -241,7 +241,7 @@ Bạn có thể đưa file hoặc ảnh vào tin nhắn để Javis đọc. Ba c
 2. **Kéo - thả** file từ máy vào cửa sổ Javis (một lớp phủ hiện lên báo chỗ thả).
 3. **Dán** trực tiếp bằng Ctrl + V.
 
-Chuyện dán có một mẹo riêng: dán **ảnh** thì thành file đính kèm như thường, còn dán **văn bản quá dài** (trên 1500 ký tự hoặc trên 25 dòng) vào ô chat thì Javis tự đóng gói thành file `.txt` đính kèm thay vì nhồi nguyên bài vào ô gõ. Javis vẫn đọc trọn vẹn, còn màn hình chỉ hiện một thẻ gọn. Việc này chỉ áp dụng cho ô chat; dán vào các ô nhập khác vẫn ra chữ bình thường.
+Chuyện dán có một mẹo riêng: dán **ảnh** thì thành file đính kèm như thường. Dán **văn bản** đến **12.000 ký tự và 150 dòng** thì chữ vào thẳng ô chat để bạn xem và sửa trước khi gửi. Đoạn dài hơn một trong hai ngưỡng sẽ mở hộp **Xem trước đoạn dán** (cuộn đọc được toàn văn) với ba nút: **Dán vào chat**, **Đính kèm .txt** hoặc **Hủy**. Chọn đính kèm thì Javis vẫn đọc trọn vẹn, màn hình chỉ hiện một thẻ gọn. Quy tắc này áp dụng cho ô chat chính và ô chat Nhóm; dán vào các ô nhập khác vẫn ra chữ bình thường.
 
 File hiện thành thẻ nhỏ phía trên thanh nhập. Đợi thẻ báo tải xong, sau đó gõ hoặc nói yêu cầu rồi gửi như bình thường. Bấm dấu ✕ trên thẻ để bỏ file khỏi tin nhắn.
 
