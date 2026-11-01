@@ -203,6 +203,25 @@ class UsageTests(unittest.TestCase):
                 if isinstance(result, Exception):
                     raise result
                 return httpx.Response(200, json=result)
+
+            # 0.438.5: tool-loop rounds stream by default, so the same replies also come as SSE chunks.
+            # Every attempt must still count as one request, the dropped one included.
+            @asynccontextmanager
+            async def stream(self, method, url, **kwargs):
+                calls.append(kwargs["json"])
+                result = responses.pop(0)
+                if isinstance(result, Exception):
+                    raise result
+                msg = result["choices"][0]["message"]
+                delta = {"content": msg["content"]} if msg.get("content") else {
+                    "tool_calls": [dict(tc, index=i) for i, tc in enumerate(msg.get("tool_calls") or [])]}
+                chunks = [{"id": result["id"], "choices": [{"index": 0, "delta": delta}]},
+                          {"id": result["id"], "choices": [], "usage": result["usage"]}]
+                body = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
+                yield httpx.Response(200, headers={"content-type": "text/event-stream"}, content=body.encode())
+
+            async def aclose(self):
+                return None
         eng = aux_engine._ApiAuxEngine("deepseek", "deepseek-flash")
         tools = [{"fn": "read_fixture", "description": "Read fixture", "schema": {"type": "object"}}]
         async def collect():
