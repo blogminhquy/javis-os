@@ -5903,7 +5903,7 @@
   "brand.gw_wait_title": "Đang xin chứng chỉ HTTPS cho link VPS",
   "brand.gw_wait_desc": "Đợi 1-3 phút. Lâu hơn thì mở cổng 80, 443 ở hPanel, VPS, Tường lửa.",
   "msc.head": "Facebook Messenger",
-  "msc.intro": "Nối Fanpage để bot trả lời tin nhắn Messenger và bình luận dưới bài viết. Bạn tạo app Meta một lần, dán App ID với App secret, bấm Đăng nhập Facebook rồi tick các Trang muốn nối. Javis tự lấy token Trang không hết hạn, tự khai webhook, gắn Trang vào app và kiểm tra từng bước. Nối xong, vào Chatbot, Bot để tạo bot cho kênh này.",
+  "msc.intro": "Nối Fanpage để bot trả lời tin nhắn Messenger và bình luận dưới bài viết. Bạn tạo app Meta một lần, dán App ID với App secret, bấm Đăng nhập Facebook rồi tick các Trang muốn nối. Javis tự lấy token Trang không hết hạn, tự khai webhook, gắn Trang vào app và kiểm tra từng bước. Nối xong, vào Chatbot, Bot để tạo bot cho kênh này. Muốn đăng bài tự động lên Fanpage, cài thêm thẻ Facebook Trang trong Kho cài đặt, dùng chung app Meta này.",
   "msc.add": "Kết nối Fanpage",
   "msc.form_head": "Kết nối Fanpage với Messenger",
   "msc.form_how": "Cần làm trước trên Meta: tạo app có trường hợp sử dụng Messenger, kết nối Trang trong Cài đặt API Messenger. Token: mở Graph API Explorer, chọn đúng app, thêm quyền pages_show_list, pages_messaging, pages_manage_metadata, pages_read_engagement, bấm Generate Access Token và tick đúng Trang. Token ngắn hạn cũng được, Javis tự đổi.",

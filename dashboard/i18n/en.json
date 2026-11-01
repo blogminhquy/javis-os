@@ -5903,7 +5903,7 @@
   "brand.gw_wait_title": "Getting the HTTPS certificate for the VPS link",
   "brand.gw_wait_desc": "Wait 1-3 minutes. Longer: open ports 80, 443 in hPanel, VPS, Firewall.",
   "msc.head": "Facebook Messenger",
-  "msc.intro": "Connect a Facebook Page so a bot answers its Messenger inbox and the comments under its posts. Create a Meta app once, paste the App ID and App secret, click Log in with Facebook and tick the Pages to connect. Javis gets a non-expiring Page token, registers the webhook, subscribes the Page to the app and checks every step. Once connected, open Chatbot, Bots to create a bot for this channel.",
+  "msc.intro": "Connect a Facebook Page so a bot answers its Messenger inbox and the comments under its posts. Create a Meta app once, paste the App ID and App secret, click Log in with Facebook and tick the Pages to connect. Javis gets a non-expiring Page token, registers the webhook, subscribes the Page to the app and checks every step. Once connected, open Chatbot, Bots to create a bot for this channel. To post to the Page automatically, also install the Facebook Pages card from the Store; it uses the same Meta app.",
   "msc.add": "Connect a Page",
   "msc.form_head": "Connect a Facebook Page to Messenger",
   "msc.form_how": "Do this on Meta first: create an app with the Messenger use case and connect the Page in Messenger API settings. Token: open Graph API Explorer, pick the right app, add pages_show_list, pages_messaging, pages_manage_metadata, pages_read_engagement, click Generate Access Token and tick the right Page. A short-lived token is fine, Javis converts it.",

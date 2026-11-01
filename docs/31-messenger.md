@@ -18,13 +18,14 @@ Từ 0.134.0 một Bot chuyên trách trả lời được hộp thư Fanpage Fa
 
 Không cần Graph API Explorer, không cần chép Page ID hay token. Làm lần đầu và muốn xem từng cú bấm trên trang Meta: [Nối Messenger từng bước](31-messenger-tung-buoc.md).
 
-1. Trên [developers.facebook.com/apps](https://developers.facebook.com/apps), tạo app có trường hợp sử dụng Messenger (một lần, bước 1.1 bên dưới).
+1. Trên [developers.facebook.com/apps](https://developers.facebook.com/apps), tạo app có trường hợp sử dụng Messenger và thêm ba quyền bình luận `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement` (một lần).
 2. Mở Javis bằng tên miền HTTPS, vào **Kết nối**, thẻ **Facebook Messenger**, bấm **Kết nối**. Form hiện sẵn hai địa chỉ kèm nút **Chép**:
-   - **Địa chỉ quay về**: dán vào ô **Valid OAuth Redirect URIs** trong cài đặt Facebook Login của app.
+   - **Địa chỉ quay về**: dán vào ô **Valid OAuth Redirect URIs** trong cài đặt **Facebook Login** của app (chưa có Facebook Login thì thêm sản phẩm đó trước).
    - **Link chính sách quyền riêng tư**: Javis tự phục vụ trang này. Dán vào **Cài đặt ứng dụng, Thông tin cơ bản**, ô Chính sách quyền riêng tư và ô Hướng dẫn xoá dữ liệu.
 3. Dán **App ID** và **App secret**, chọn cách xử lý bình luận, bấm **Đăng nhập Facebook**. Một tab Facebook mở ra: đăng nhập, tick các Fanpage, đồng ý các quyền.
 4. Quay lại tab Javis: danh sách Fanpage hiện ra, tick Trang muốn nối, bấm **Kết nối các Trang đã chọn**. Javis tự lấy token Trang không hết hạn, khai webhook, gắn Trang vào app và hiện bảng kiểm tra cho từng Trang.
-5. Chuyển app sang chế độ **Live** (mục 4), rồi vào **Chatbot**, **Bot** để tạo bot cho kênh vừa nối.
+5. Vào **Chatbot**, **Bot**, tick kênh vừa nối vào một bot và bật bot. Chưa có bot thì Javis chưa nhận tin.
+6. Chuyển app sang chế độ **Live** (mục 4), rồi thử bằng một nick Facebook không có vai trò trong app.
 
 ## Bình luận Fanpage (từ 0.434.0)
 

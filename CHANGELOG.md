@@ -10,7 +10,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Cải thiện
 - **Messenger nối một chỗ.** Thẻ Facebook Messenger ở trang Kết nối giờ hiện cả Địa chỉ webhook và Mã xác minh kèm nút Chép, dán tay vào app Meta khi cần mà không phải sang trang khác.
 - Fanpage đã nối ở trang Kết nối tự có trong danh sách kênh của Chatbot. Chọn Messenger ở Thêm kênh sẽ thấy lời nhắc kèm nút mở thẳng thẻ Messenger, khỏi nối lại lần hai.
-- Hướng dẫn từng bước gọn hơn: chỉ cần lấy một token trong Graph API Explorer rồi dán vào thẻ Messenger, Javis tự đổi sang token Trang không hết hạn, tự khai webhook và đăng ký sự kiện.
+- **Hướng dẫn nối Messenger viết lại cho đúng:** đi đường nút Đăng nhập Facebook (thêm quyền, khai Facebook Login và hai địa chỉ của Javis, chọn Trang, gắn bot, chuyển Live), dán token chỉ còn là đường dự phòng. Bảng lỗi có thêm "URL bị chặn" và "Invalid Scopes".
 
 ## [0.436.1] - 2026-11-01
 ### Cải thiện
