@@ -10,19 +10,37 @@ Before you start you need:
 
 - Javis reachable through an **HTTPS domain** (Settings, Remote access). Meta does not send messages to localhost or an IP address.
 - A Facebook account that is an **admin** of the Page.
-- An app on [developers.facebook.com](https://developers.facebook.com/apps). If you have none, click **Create app**. One app can serve all your Pages, including an app you already use for auto-posting.
+- A Meta app of your own. If you have none, do Part 0 below. If you already have one (for example the app made for the Facebook Pages card in the store), reuse it and skip Part 0: one app serves all your Pages.
 
 > **Security:** anyone with the token or the App secret controls the Page. Never send them to anyone, and do not take screenshots while a token is visible.
 
 ---
 
-## The 5 parts
+## Overview
 
+0. Create a Meta app (only if you have none)
 1. Prepare the Meta app (add Messenger and the comment permissions)
 2. Set the webhook and subscribe the Page to events
 3. Create a Page token with every permission that never expires
 4. Paste it into Javis
 5. Switch the app to Live
+
+---
+
+## Part 0. Create a Meta app (only if you have none)
+
+A Meta app is the "permit" that lets Javis talk to Facebook on your behalf. It is free and made once.
+
+1. Open [developers.facebook.com](https://developers.facebook.com) and log in with the Facebook account that is an admin of the Page.
+2. The first time, Meta asks you to register as a developer: click **Get started**, verify a phone number or email, pick any role (for example "Business owner").
+3. Go to **My Apps** and click **Create app**.
+4. Give the app any **name** (for example your shop's name plus "Bot"), fill in a contact email, click **Next**.
+5. At the use case step, pick **Engage with customers on Messenger from Meta** (under Business messaging). If it is not listed, pick **Other**, then the **Business** type.
+6. At the Business portfolio step, pick the portfolio that manages the Page, or "I don't want to connect a business portfolio yet" if you have none. Click **Create app** and type your Facebook password again if asked.
+
+You now have an app that cannot do anything yet. Part 1 gives it its permissions.
+
+**Find the Page ID:** open the Page, go to **About, Page transparency**; the **Page ID** line is a number. You can also get it in Part 3.3.
 
 ---
 

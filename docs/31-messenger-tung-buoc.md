@@ -10,19 +10,37 @@ Trước khi bắt đầu, bạn cần:
 
 - Javis mở được bằng **tên miền HTTPS** (Cài đặt, Truy cập từ xa). Meta không gửi tin tới localhost hay địa chỉ IP.
 - Tài khoản Facebook là **quản trị viên** của Fanpage.
-- Một app trên [developers.facebook.com](https://developers.facebook.com/apps). Chưa có thì bấm **Tạo ứng dụng**. Một app dùng chung được cho mọi Fanpage của bạn, kể cả app đang dùng để đăng bài tự động.
+- Một app Meta của riêng bạn. Chưa có thì làm Phần 0 bên dưới. Đã có app (ví dụ app tạo cho thẻ Facebook Trang trong store) thì dùng lại được, bỏ qua Phần 0: một app phục vụ được mọi Fanpage của bạn.
 
 > **Bảo mật:** ai có token hoặc App secret là điều khiển được Fanpage. Không gửi cho người khác, không chụp màn hình khi đang hiện token.
 
 ---
 
-## Tổng quan 5 phần
+## Tổng quan
 
+0. Tạo app Meta (chỉ khi chưa có)
 1. Chuẩn bị app Meta (thêm Messenger và quyền bình luận)
 2. Đặt webhook và đăng ký sự kiện cho Trang
 3. Tạo token Trang đủ quyền, không hết hạn
 4. Dán vào Javis
 5. Chuyển app sang Live
+
+---
+
+## Phần 0. Tạo app Meta (chỉ khi chưa có)
+
+App Meta là "giấy phép" để Javis nói chuyện với Facebook thay bạn. Tạo miễn phí, chỉ một lần.
+
+1. Mở [developers.facebook.com](https://developers.facebook.com), đăng nhập bằng tài khoản Facebook là quản trị viên Fanpage.
+2. Lần đầu vào, Meta hỏi đăng ký làm nhà phát triển: bấm **Bắt đầu**, xác minh số điện thoại hoặc email, chọn vai trò bất kỳ (ví dụ "Chủ doanh nghiệp").
+3. Vào **Ứng dụng của tôi**, bấm **Tạo ứng dụng**.
+4. Đặt **tên ứng dụng** tuỳ ý (ví dụ tên shop của bạn kèm chữ "Bot"), điền email liên hệ, bấm **Tiếp**.
+5. Ở bước chọn trường hợp sử dụng, chọn **Tương tác với khách hàng trên Messenger from Meta** (nằm trong nhóm Nhắn tin doanh nghiệp). Không thấy thì chọn **Khác** rồi chọn loại **Doanh nghiệp**.
+6. Bước chọn Danh mục doanh nghiệp (Business portfolio): chọn danh mục đang quản lý Fanpage, hoặc "Tôi chưa muốn kết nối" nếu chưa có. Bấm **Tạo ứng dụng**, nhập lại mật khẩu Facebook nếu được hỏi.
+
+Xong bước này bạn có một app, chưa làm được gì cả. Phần 1 sẽ thêm quyền cho nó.
+
+**Tìm Page ID của Fanpage:** mở Fanpage, vào **Giới thiệu, Minh bạch về Trang**, dòng **ID Trang** là một dãy số. Cũng có thể lấy ở Phần 3.3.
 
 ---
 
