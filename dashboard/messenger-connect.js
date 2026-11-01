@@ -218,7 +218,8 @@
 
   function logo(size) {
     var I = typeof window !== "undefined" && window.Icons;
-    return I && I.kenh ? I.kenh("messenger", { size: size }) : ic("message-circle");
+    // The Meta mark, not the Messenger bubble (owner, 2026-11-01): this card covers messages, comments and posting.
+    return I && I.kenh ? I.kenh("meta", { size: size }) : ic("message-circle");
   }
 
   // The card in the "Available" grid, same frame as the catalog cards. `category` is the catalog's own key for

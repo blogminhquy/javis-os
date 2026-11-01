@@ -202,6 +202,16 @@
         '<path fill="#fff" d="M6.4 14.3l3.06-4.86a1.2 1.2 0 0 1 1.74-.32l2.43 1.82 2.23-1.69c.3-.23.69.13.49.45' +
         'l-3.06 4.86a1.2 1.2 0 0 1-1.74.32l-2.43-1.82-2.23 1.69c-.3.23-.69-.13-.49-.45z"/>',
     },
+    // Meta (0.438.0): the infinity mark in Meta blue. The Facebook Messenger card on the Connections page uses it, since
+    // one connection there covers messages, comments and posting; the Messenger channel itself keeps its own bubble.
+    meta: {
+      nhan: "Meta",
+      mau: "#0866FF",
+      than:
+        '<path fill="none" stroke="#0866FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M2 13.2c0-4 2-6.7 4.6-6.7 ' +
+        '3.4 0 5.1 4.6 5.4 5.5.3.9 2 5.5 5.4 5.5 2.6 0 4.6-2.6 4.6-5.2 0-2.7-2-6.8-4.6-6.8-3.4 0-5.1 4.6-5.4 5.5-.3.9-2 5.5-5.4 5.5' +
+        '-2.6 0-4.6-2.4-4.6-5.3z"/>',
+    },
     // Discord (0.85.0): the controller-face mark on blurple.
     discord: {
       nhan: "Discord",
