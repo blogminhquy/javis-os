@@ -52,17 +52,21 @@ async def public_target(url: str) -> tuple:
     return u.hostname, ips[0]
 
 
-async def fetch_file(info: dict, inbox: Path) -> tuple:
+async def fetch_file(info: dict, inbox: Path, max_bytes: int = 0) -> tuple:
     """Download one customer file into the bot brain's `inbox/khach`, like every other bot channel.
 
     Pins a validated public IP for each hop, while retaining TLS SNI and Host. This extends
     image_vision's manual redirects/size cap to arbitrary files. Its image-only downloader cannot
     accept spreadsheets and does not pin DNS.
+
+    `max_bytes` overrides the 20MB cap (0 = `MAX_BYTES`): a customer's video (0.433.0) may be larger than a document.
     """
     partial = None
+    cap = int(max_bytes or MAX_BYTES)
+    too_big = f"file lớn hơn {cap // (1024 * 1024)}MB nên không tải"
     try:
-        if info.get("size") is not None and info["size"] > MAX_BYTES:
-            return None, "file lớn hơn 20MB nên không tải"
+        if info.get("size") is not None and info["size"] > cap:
+            return None, too_big
         url = str(info.get("url") or "")
         if not url:
             return None, "MCP không cung cấp link tải file; hãy gửi lại file mới"
@@ -91,8 +95,8 @@ async def fetch_file(info: dict, inbox: Path) -> tuple:
                         if response.headers.get("content-encoding", "identity").lower() != "identity":
                             return None, "file có mã hóa nén không được hỗ trợ"
                         length = response.headers.get("content-length")
-                        if length and int(length) > MAX_BYTES:
-                            return None, "file lớn hơn 20MB nên không tải"
+                        if length and int(length) > cap:
+                            return None, too_big
                         dest_dir.mkdir(parents=True, exist_ok=True)
                         name = "zalo_" + uuid.uuid4().hex[:12] + "_" + safe_name(info.get("name") or "file")
                         dest = dest_dir / name
@@ -101,8 +105,8 @@ async def fetch_file(info: dict, inbox: Path) -> tuple:
                         with partial.open("xb") as output:
                             async for chunk in response.aiter_bytes():
                                 count += len(chunk)
-                                if count > MAX_BYTES:
-                                    return None, "file lớn hơn 20MB nên không tải"
+                                if count > cap:
+                                    return None, too_big
                                 output.write(chunk)
                         if not count:
                             return None, "file rỗng"

@@ -691,7 +691,7 @@ class Transport:
         vao_nhom = md0.get("member_join")
         if vao_nhom and loai != "group":
             return
-        if loai not in ("private", "group") or (kieu not in ("text", "image", "file", "reaction") and not vao_nhom):
+        if loai not in ("private", "group") or (kieu not in ("text", "image", "file", "reaction", "video") and not vao_nhom):
             return
         nhom = loai == "group"
         # A customer's emoji reaction (0.334.0) reaches the bot as its describing line. Nothing here decides whether it
@@ -717,6 +717,8 @@ class Transport:
         # Tin ảnh có CHÚ THÍCH (0.65.13) xử lý như tin chữ với chú thích làm nội dung: "@Javis Vũ ..." viết trong phần chú thích của ảnh
         # là một cái tag thật. Trước đây mọi tin không phải chữ bị bỏ, nên tag kèm ảnh không bao giờ tới bot. Ảnh trơn: xem `_nho_anh_tron`.
         co_anh = kieu == "image"
+        # 0.433.0: a video the customer sent in this private turn; the bot looks at its frames (`chatbot_runtime`).
+        video_url = str(md0.get("video_url") or "") if loai == "private" and not vao_nhom else ""
         if vao_nhom:
             # 0.84.2: someone joined the group. The newcomer is the "sender", so a reply tags them (`_gui`).
             # Javis writes no greeting of its own: the bot's Agent decides, and stays silent when its
@@ -725,7 +727,9 @@ class Transport:
         else:
             # Lượt gộp (0.128.0, `zalo_personal_channel.gop_tin`) đã bóc chú thích ảnh từng tin rồi nối lại: lấy nguyên.
             gop = bool(md0.get("gop"))
-            text = (conversations.chu_thich_anh(ev.get("text")) if co_anh and not gop else str(ev.get("text") or "").strip())
+            text = (conversations.chu_thich_anh(ev.get("text")) if co_anh and not gop
+                    else "" if kieu == "video" and not gop      # a video's text is only its link
+                    else str(ev.get("text") or "").strip())
         if chi_file and not text:
             text = "(người dùng gửi file)"
         thread = str(ev.get("external_chat_id") or "")
@@ -742,9 +746,13 @@ class Transport:
                 return
             # Chat riêng: ảnh không kèm chữ vẫn là người ta đang nhờ xem ảnh (gửi đề, gửi bài làm). Trước đây bị bỏ hẳn
             # ở đây, nên bot không bao giờ thấy ảnh gửi trơn (15/10/2026). Đưa cho bot kèm ảnh, Agent tự quyết hỏi gì.
-            if not (co_anh and loai == "private" and (ev.get("metadata") or {}).get("image_url")):
+            if video_url and not co_anh:
+                import chatbot_runtime
+                text = chatbot_runtime.VIDEO_TRON
+            elif not (co_anh and loai == "private" and (ev.get("metadata") or {}).get("image_url")):
                 return
-            text = "[Khách gửi một ảnh, không kèm lời nhắn]"
+            else:
+                text = "[Khách gửi một ảnh, không kèm lời nhắn]"
         # Không biết cuộc chat là nhóm hay chat riêng (đã hỏi lại bảng mà vẫn không thấy): KHÔNG trả
         # lời. Đoán là chat riêng nghĩa là trả lời từng tin của một nhóm, dưới tên người thật.
         if (ev.get("metadata") or {}).get("chua_ro_loai"):
@@ -819,6 +827,16 @@ class Transport:
                 meta.update(co_anh=True, image_url=url, anh_truoc=True)
                 text = (text + "\n[Kèm ảnh khách gửi lúc " + datetime.fromtimestamp(gio, localefmt.tz()).strftime("%H:%M")
                         + " trong cuộc chat này, có thể liên quan tới tin trên]")
+        if video_url:
+            meta["video_url"] = video_url
+            meta["video_msg"] = str(md0.get("video_msg") or ev.get("external_message_id") or "")
+            zc.remember_private_video(self.conn_id, thread, video_url, meta["video_msg"])
+        elif not nhom and not vao_nhom and not is_reaction and zc.recent_private_video(self.conn_id, thread):
+            # A text right after a video ("anh xem hỗ trợ em với"): show that video again, saying it came earlier.
+            from datetime import datetime
+            gio, url, mid = zc.recent_private_video(self.conn_id, thread)
+            meta.update(video_url=url, video_msg=mid,
+                        video_truoc=datetime.fromtimestamp(gio, localefmt.tz()).strftime("%H:%M"))
         duoc_goi = False
         pol = None
         if vao_nhom:

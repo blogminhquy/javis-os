@@ -490,7 +490,9 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
                          **({"member_join": vao_nhom} if vao_nhom is not None else {}),
                          **({"join_request": xin_vao} if xin_vao is not None else {}),
                          **({"attachment": normalize_attachment(msg)} if loai == "file" else {}),
-                         **({"image_url": _link_anh(msg)} if loai == "image" and _link_anh(msg) else {})),
+                         **({"image_url": _link_anh(msg)} if loai == "image" and _link_anh(msg) else {}),
+                         # 0.433.0: the clip's link (javis-zalo `attachment.url`), so the bot can look at its frames.
+                         **({"video_url": _link_anh(msg)} if loai == "video" and _link_anh(msg) else {})),
     }
 
 
@@ -1028,6 +1030,31 @@ def nho_anh_rieng(conn_id: str, thread: str, url: str, now: Optional[float] = No
                 _ANH_RIENG.pop(k, None)
 
 
+_VIDEO_RIENG: Dict[tuple, tuple] = {}  # (conn_id, thread) -> (time, link, message id) of the customer's latest video
+
+
+def remember_private_video(conn_id: str, thread: str, url: str, msg_id: str = "", now: Optional[float] = None) -> None:
+    """A private chat's latest video (0.433.0), shown again with the customer's next messages for `ANH_RIENG_GIAY`,
+    like a photo: "anh xem hỗ trợ em với" right after a video is about that video. Frames are cached per link, so
+    this costs no second download."""
+    if url:
+        _VIDEO_RIENG[(str(conn_id), str(thread))] = (time.time() if now is None else now, url, str(msg_id or ""))
+        if len(_VIDEO_RIENG) > 500:
+            for k in list(_VIDEO_RIENG)[:250]:
+                _VIDEO_RIENG.pop(k, None)
+
+
+def recent_private_video(conn_id: str, thread: str, now: Optional[float] = None) -> tuple:
+    """(time, link, message id) of the customer's latest video in this private chat within `ANH_RIENG_GIAY`, else ()."""
+    v = _VIDEO_RIENG.get((str(conn_id), str(thread)))
+    if not v:
+        return ()
+    if (time.time() if now is None else now) - v[0] > ANH_RIENG_GIAY:
+        _VIDEO_RIENG.pop((str(conn_id), str(thread)), None)
+        return ()
+    return v
+
+
 def anh_rieng_gan_day(conn_id: str, thread: str, now: Optional[float] = None) -> tuple:
     """(giờ, link) của ảnh khách gửi gần nhất trong chat riêng này nếu còn trong `ANH_RIENG_GIAY`, không thì ()."""
     v = _ANH_RIENG.get((str(conn_id), str(thread)))
@@ -1512,11 +1539,12 @@ def gop_tin(evs: List[dict]) -> dict:
     cuoi = evs[-1]
     phan: List[str] = []
     co_anh, link = False, ""
+    video, video_msg = "", ""
     files: List[dict] = []
     react_to, react_to_cli = "", ""
     for e in evs:
         loai = e.get("message_type")
-        if loai in ("text", "image", "file") and e.get("external_message_id"):
+        if loai in ("text", "image", "file", "video") and e.get("external_message_id"):
             # The bot reacts to a message, never to a reaction.
             react_to = str(e["external_message_id"])
             react_to_cli = str((e.get("metadata") or {}).get("cliMsgId") or "")
@@ -1524,6 +1552,12 @@ def gop_tin(evs: List[dict]) -> dict:
             att = (e.get("metadata") or {}).get("attachment")
             if isinstance(att, dict):
                 files.append(att)
+            continue
+        if loai == "video":
+            # 0.433.0: the latest clip rides along like a photo; its text is only the link, never the customer's words.
+            v = str((e.get("metadata") or {}).get("video_url") or "")
+            if v:
+                video, video_msg = v, str(e.get("external_message_id") or "")
             continue
         if loai in ("text", "reaction"):
             # A reaction (0.334.0) reads as its describing line, in order with the messages around it.
@@ -1536,16 +1570,19 @@ def gop_tin(evs: List[dict]) -> dict:
             continue
         if t:
             phan.append(t)
-    md = {k: v for k, v in (cuoi.get("metadata") or {}).items() if k not in ("image_url", "attachment")}
+    md = {k: v for k, v in (cuoi.get("metadata") or {}).items() if k not in ("image_url", "attachment", "video_url")}
     if link:
         md["image_url"] = link
+    if video:
+        md["video_url"], md["video_msg"] = video, video_msg
     if files:
         md["attachments"] = files[-MAX_FILE_GOP:]
     md["gop"] = len(evs)
     md.pop("reaction", None)
     md["react_to"], md["react_to_cli"] = react_to, react_to_cli
     only_reactions = all(e.get("message_type") == "reaction" for e in evs)
-    kieu = "image" if co_anh else ("reaction" if only_reactions else ("text" if phan or not files else "file"))
+    kieu = ("image" if co_anh else "reaction" if only_reactions else "video" if video and not phan and not files
+            else "text" if phan or not files else "file")
     return dict(cuoi, message_type=kieu, text=bot_gateway.noi_tin(phan), metadata=md)
 
 

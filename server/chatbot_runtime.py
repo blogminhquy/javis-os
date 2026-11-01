@@ -138,7 +138,7 @@ BI_LIEN_TIEP_DE_GOI = 2
 _deps: Dict[str, Callable] = {}
 
 
-def wire(*, answer, brain_root, read_agent, session_probe=None, session_undo=None, notify=None):
+def wire(*, answer, brain_root, read_agent, session_probe=None, session_undo=None, notify=None, transcribe=None):
     """main.py cấp ba thứ: lõi một lượt, đường tới brain, và cách đọc file Agent.
 
     `session_probe(key) -> (sid, số tin lịch sử RAM)` và `session_undo(key, giữ)` chỉ cho BẢN NHÁP ở Hộp thư (0.65.5): lấy phiên
@@ -146,8 +146,12 @@ def wire(*, answer, brain_root, read_agent, session_probe=None, session_undo=Non
     không có ngữ cảnh lưu trong kho và không tự dọn.
 
     `notify(text) -> awaitable` bỏ một mẩu thư vào chuông thông báo của Javis (lượt bot hỏng, xem `_bao_hop_thu`).
-    Thiếu thì lượt hỏng chỉ còn trong nhật ký bot và báo người trực."""
+    Thiếu thì lượt hỏng chỉ còn trong nhật ký bot và báo người trực.
+
+    `transcribe(bytes, file name) -> awaitable dict` like `stt.groq_nghe` (0.433.0): hears what is said in a video a
+    customer sends. Missing means the bot gets the video's frames only, and is told it did not hear the sound."""
     _deps["answer"] = answer
+    _deps["transcribe"] = transcribe
     _deps["notify"] = notify
     _deps["brain_root"] = brain_root
     _deps["read_agent"] = read_agent
@@ -529,11 +533,43 @@ async def anh_cho_bot(text_engine: str, meta: dict, cfg: dict) -> tuple:
             _ghi_ly_do_anh(cfg, f"tải ảnh lỗi: {type(e).__name__}: {e}")
     elif meta.get("co_anh") and not url and not paths:
         _ghi_ly_do_anh(cfg, "tin ảnh tới mà không kèm link ảnh nào (bản Zalo đang chạy không gửi link)")
+    video_note = ""
+    if meta.get("video_url"):
+        # 0.433.0: a video becomes a few frames (plus its speech when a speech-to-text key is set), after any photo.
+        frames, video_note = await video_cho_bot(meta, root, cfg)
+        paths.extend(frames[:max(0, vision_input.MAX_IMAGES - len(paths))])
     if not paths:
-        return (gan_nhan_anh(text, meta) if meta.get("co_anh") else text), []
+        return video_note + (gan_nhan_anh(text, meta) if meta.get("co_anh") else text), []
     if meta.get("anh_quote"):
-        return _QUOTE_ANH + text, paths[:vision_input.MAX_IMAGES]
-    return (text if text.strip() else CHI_CO_ANH), paths[:vision_input.MAX_IMAGES]
+        return video_note + _QUOTE_ANH + text, paths[:vision_input.MAX_IMAGES]
+    return video_note + (text if text.strip() or video_note else CHI_CO_ANH), paths[:vision_input.MAX_IMAGES]
+
+
+VIDEO_TRON = "[Khách gửi một video, không kèm lời nhắn]"    # a video turn has no words of the customer's own
+VIDEO_TOI_DA_GIAY = 180      # download + frames + speech of one video; past this the bot answers without it
+
+
+async def video_cho_bot(meta: dict, root: Path, cfg: dict) -> tuple:
+    """(frame paths, note for the model) of the video in this turn (`meta["video_url"]`, 0.433.0).
+
+    Frames are saved next to the customer's photos (attachments/zalo/<chat>/, swept by media_gc). A video that cannot be
+    shown still yields a note, so the model says it could not watch it instead of pretending it did."""
+    import video_vision
+    import image_vision
+    url = str(meta.get("video_url") or "")
+    chat = image_vision.SAFE_PART.sub("_", str(meta.get("chat_id") or "chat"))[:64] or "chat"
+    dest = image_vision.image_gen._attachments_dir(root) / "zalo" / chat
+    msg_id = str(meta.get("video_msg") or meta.get("message_id") or "")
+    try:
+        res = await asyncio.wait_for(video_vision.look(url, dest, msg_id, _deps.get("transcribe")), VIDEO_TOI_DA_GIAY)
+    except asyncio.TimeoutError:
+        res = {"frames": [], "why": "xử lý video quá lâu"}
+    except Exception as e:      # noqa: BLE001 - a video we cannot get must never cost the customer the reply
+        res = {"frames": [], "why": f"xử lý video lỗi: {type(e).__name__}"}
+    if not res.get("frames"):
+        print(f"[chatbot] video not shown to the bot: {res.get('why')}", file=sys.stderr)
+        _ghi_ly_do_anh(cfg, "không xem được video: " + str(res.get("why") or ""))
+    return [str(Path(p).resolve()) for p, _t in res.get("frames") or []], video_vision.note(res, str(meta.get("video_truoc") or ""))
 
 
 def _ghi_ly_do_anh(cfg: dict, ly_do: str) -> None:
@@ -1928,6 +1964,9 @@ def manual_meta(conv: dict, last: dict) -> dict:
     if last.get("message_type") == "image":
         meta["co_anh"] = True
         meta["image_url"] = str((last.get("metadata") or {}).get("image_url") or "")
+    elif last.get("message_type") == "video" and (last.get("metadata") or {}).get("video_url"):
+        # 0.433.0: the owner asks the bot to answer a video: it looks at the video's frames.
+        meta["video_url"] = str(last["metadata"]["video_url"])
     elif conv.get("channel") == "zalo_personal":
         # 0.141.0: the last message quotes a photo, same as the live bot (channels/zalo_personal.py `xu_ly`).
         try:
@@ -1968,6 +2007,7 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction
     last = next((m for m in reversed(msgs or []) if m.get("sender_type") == "customer"), None)
     # Tin ảnh thì chỉ phần chú thích là lời của khách; ảnh trơn (đường dẫn hoặc chữ giữ chỗ) không có gì để trả lời.
     chu_khach = (conversations.chu_thich_anh(last.get("text")) if (last or {}).get("message_type") == "image"
+                 else VIDEO_TRON if (last or {}).get("message_type") == "video"
                  else str((last or {}).get("text") or "").strip())
     if (not last or not chu_khach) and not lenh:
         return {"ok": False, "code": "no_message", "error": localefmt.chu("Chưa có tin khách để trả lời",

@@ -14303,7 +14303,9 @@ async def _start_scheduler():
                              # 0.403.0: urgent: a customer is waiting for a person, or got no answer at all.
                              notify=lambda text: _bo_vao_hom_thu("", text, kind="system", source="chatbot",
                                                                  label=localefmt.chu("Chatbot", "Chatbot"),
-                                                                 level="urgent"))
+                                                                 level="urgent"),
+                             # 0.433.0: hear what is said in a video a customer sends (same Groq key as voice messages).
+                             transcribe=_stt_nghe)
         chatbot_reply_policy.wire(ask=_reply_policy_ask)
         chatbot_reply_policy_review.wire(ask=_reply_policy_review_ask, notify=_reply_policy_notify,
                                          write_feedback=_reply_policy_write_feedback, get_bot=chatbot_store.get_bot)

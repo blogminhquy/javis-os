@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.433.0] - 2026-11-01
 ### Thêm mới
-- **Chatbot Zalo xem được video khách gửi.** Đang làm.
+- **Chatbot Zalo cá nhân xem được video khách gửi.** Trước đây video bị bỏ qua nên bot chỉ biết nói "em chưa xem được video". Giờ Javis cắt 4 khung hình rải đều trong video đưa cho bot xem, như khi khách gửi ảnh.
+- **Bot nghe được cả lời nói trong video** nếu bạn đã dán key Groq ở trang Models (cùng key nghe tin thoại). Chưa có key thì bot vẫn xem hình, và biết là mình không nghe tiếng.
+- Khách gửi video rồi nhắn tiếp "anh xem giúp em với" thì bot vẫn thấy video đó trong 10 phút, không cần gửi lại. Video không tải được (link hết hạn, quá 60MB) thì bot nói thật là chưa xem được và nhờ khách tả lại.
+
 ## [0.432.4] - 2026-11-01
 ### Cải thiện
 - **Chọn repo trong khung chat: tick là gắn luôn.** Bỏ nút "Gắn repo vào cuộc trò chuyện" ở cuối danh sách, khỏi phải kéo xuống tìm. Bỏ tick là gỡ repo khỏi cuộc trò chuyện.
