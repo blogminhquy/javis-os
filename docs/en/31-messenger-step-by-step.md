@@ -1,10 +1,10 @@
-# Connect a Facebook Page to Javis step by step (messages and comment replies)
+# Connect a Facebook Page to Javis step by step (messages, comments, posts)
 
 *[Tiếng Việt](../31-messenger-tung-buoc.md) · **English***
 
 This guide walks through every click, for people doing it the first time. The first setup takes about 20 minutes, mostly setting up the app on Meta's site. Each extra Page later is a few clicks.
 
-> **Everything in Javis happens in one place:** the **Facebook Messenger** card on the **Connections** page. Once a Page is connected there it is already in the channel list on the Chatbot page; there is nothing to add anywhere else.
+> **Connect once, use it for three jobs:** the bot answers messages, replies to comments, and Javis posts to the Page (when you ask or automatically on a schedule). Everything in Javis happens in one place: the **Facebook Messenger** card on the **Connections** page. Once connected, the Page is already in the channel list on the Chatbot page; there is nothing to add anywhere else.
 
 Before you start you need:
 
@@ -63,13 +63,14 @@ Go to **developers.facebook.com, My Apps, your app, Use cases**.
 - Click **Add use case** and filter by "Business messaging".
 - Tick **Engage with customers on Messenger from Meta**, click **Save**. This use case brings messaging (`pages_messaging`), the Page list (`pages_show_list`) and subscribing the Page to the app (`pages_manage_metadata`).
 
-**1.2. Add the permissions to read and reply to comments**
+**1.2. Add the comment and posting permissions**
 
 - On the **Manage everything on your Page** row, click **Customize**.
-- Click **Add** for 3 permissions:
+- Click **Add** for 4 permissions:
   - `pages_read_engagement`: read posts and comments
   - `pages_read_user_content`: read what people write
   - `pages_manage_engagement`: reply to comments
+  - `pages_manage_posts`: publish posts, photos and videos, edit and delete posts
 - If a box asks about "affecting other use cases", click **Add**.
 
 Done right: every permission shows **Ready for testing**. A missing one shows up at login as an "Invalid Scopes" error naming it.
@@ -137,7 +138,9 @@ Until a bot is on, Javis does not take in messages and the inbox stays empty.
 - Tick the Messenger channel you just connected. It is already in the list; no need for **Add channel**.
 - Click **Save** and switch the bot on.
 
-One bot can serve several channels at once (several Pages, Zalo too) with one Agent and one set of active hours. To change comment handling later: **Connections**, Facebook Messenger card, **View details**, the Page comments box on each Page.
+One bot can serve several channels at once (several Pages, Zalo too) with one Agent and one set of active hours.
+
+**Posting:** nothing else to install. Ask Javis "post this to the Page with these 3 photos" or "every day at 8am post a product introduction" and it uses this same connection. Publishing and editing posts are real, public actions, so they only run when Javis is at Full access. To change comment handling later: **Connections**, Facebook Messenger card, **View details**, the Page comments box on each Page.
 
 ---
 
@@ -181,7 +184,7 @@ Use this when Part 3 fails and you cannot fix it. Parts 0, 1 and 2.3 are still n
 
 - Open [Graph API Explorer](https://developers.facebook.com/tools/explorer).
 - **Meta App:** pick your app. **User or Page:** pick **User Token**.
-- **Permissions:** add all 6: `pages_show_list`, `pages_messaging`, `pages_manage_metadata`, `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`.
+- **Permissions:** add all 7: `pages_show_list`, `pages_messaging`, `pages_manage_metadata`, `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`, `pages_manage_posts`.
 - Click **Generate Access Token**, click **Edit settings**, pick **opt in to all current and future Pages**, leave every switch **On**, **Save**.
 - Copy the `EAA...` string in the **Access Token** box. It lives about an hour; Javis turns it into a non-expiring Page token, so there is no need to extend it.
 
@@ -217,6 +220,7 @@ Then go back to the Messenger card and click **Check** on that Page.
 | Javis says "The App ID or App secret is wrong" | A typo, or the secret of another app | Copy both again from App settings, Basic |
 | Javis says the account manages no Page | No Page was ticked at login | Log in with Facebook again, click Edit settings, tick the right Pages |
 | Connected, but customers write and the bot stays silent | No bot attached, or the app is still in development mode | Do Parts 4 and 5 |
+| Javis says it may not post yet | The Page was connected before 0.437.0, or `pages_manage_posts` was not added | Add it in Part 1.2, then Log in with Facebook again on the Messenger card |
 | Messages work but comments do not arrive | Comment permissions missing, or Page comments is Off | Add the permissions in Part 1.2 and log in again; change Page comments |
 | Comments reach the inbox but the bot does not reply | Page comments is set to "Show in the inbox" | Switch to "The bot replies publicly" if you want the bot to answer |
 | The checklist shows the webhook red | Javis could not register the webhook | Click Repair; if it stays red, do it by hand as in the section above |

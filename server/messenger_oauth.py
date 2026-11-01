@@ -39,10 +39,11 @@ from messenger_bot import GRAPH, GRAPH_VERSION, _explain_error, appsecret_proof
 CALLBACK_PATH = "/messenger/oauth/callback"
 PRIVACY_PATH = "/messenger/privacy"
 TTL = 15 * 60
-# Messaging, the Page list, the webhook subscription, and Page comments (read, reply). `business_management`
-# lets Pages owned through a Business portfolio show up in the list.
+# Messaging, the Page list, the webhook subscription, Page comments (read, reply) and, from 0.437.0, posting
+# (`pages_manage_posts`: the Facebook Pages tools reuse this connection). `business_management` lets Pages owned
+# through a Business portfolio show up in the list.
 SCOPES = ("pages_show_list", "pages_messaging", "pages_manage_metadata", "pages_read_engagement",
-          "pages_read_user_content", "pages_manage_engagement", "business_management")
+          "pages_read_user_content", "pages_manage_engagement", "pages_manage_posts", "business_management")
 
 _lock = threading.Lock()
 _pending: Dict[str, Dict[str, Any]] = {}

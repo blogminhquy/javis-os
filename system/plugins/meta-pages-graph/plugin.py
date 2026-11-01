@@ -11,6 +11,12 @@ min_mode full → không bao giờ tự chạy ở chế độ suggest/auto, ph�
 đã ở mức đó.
 Ảnh/video nhận URL http(s) hoặc file TRONG vault (sandbox như tool file); video upload đi
 host graph-video riêng của Meta, Meta xử lý nền vài phút mới hiện bài.
+
+One connection for everything (0.437.0, owner: "1 lần thôi cho gọn"): with no "facebook-pages"
+connection, the tools use the Pages connected on the Facebook Messenger card. Those accounts already
+hold a non-expiring Page token each, and Log in with Facebook asks for pages_manage_posts, so the
+same login answers messages, comments and posts. A "facebook-pages" connection, when present, still
+wins, so nothing changes for people who set that up.
 """
 from __future__ import annotations
 
@@ -20,6 +26,8 @@ GRAPH = "https://graph.facebook.com/v25.0"
 # Upload video phải đi host riêng của Meta (graph thường từ chối file video)
 GRAPH_VIDEO = "https://graph-video.facebook.com/v25.0"
 CONNECTOR_ID = "facebook-pages"
+# `_token()` returns this when the Pages come from the Messenger card instead of a user token.
+MESSENGER = "messenger-card"
 
 
 def _connected_id():
@@ -35,19 +43,39 @@ def _connected_id():
     return None
 
 
+def _messenger_pages():
+    """Pages connected on the Facebook Messenger card: [{id, name, category, access_token, tasks}].
+    Their stored token is already a Page token, so no /me/accounts call is needed."""
+    try:
+        import channel_accounts
+        import messenger_bot
+    except Exception:
+        return []
+    out = []
+    try:
+        for a in channel_accounts.list_accounts(channel="messenger"):
+            cr = messenger_bot.split_credentials(channel_accounts.get_token(a.get("id", "")))
+            if cr.get("page_id") and cr.get("access_token"):
+                out.append({"id": cr["page_id"], "access_token": cr["access_token"], "category": "", "tasks": None,
+                            "name": (a.get("meta") or {}).get("bot_name") or a.get("label") or cr["page_id"]})
+    except Exception:
+        return []
+    return out
+
+
 def _check():
-    if not _connected_id():
-        return ("Chưa kết nối Facebook Trang. Vào trang Kết nối, chọn 'Facebook Trang (đăng bài, "
-                "bình luận)', làm theo hướng dẫn tạo Facebook App rồi đăng nhập (nhớ tick chọn Trang). "
+    if not _connected_id() and not _messenger_pages():
+        return ("Chưa nối Fanpage nào. Vào trang Kết nối, thẻ 'Facebook Messenger', bấm Kết nối rồi Đăng nhập "
+                "Facebook và tick Trang (một lần dùng cho cả tin nhắn, bình luận và đăng bài). "
                 "Sau đó gọi lại tool này.")
     return None
 
 
 async def _token():
-    import oauth_mcp
     cid = _connected_id()
     if not cid:
-        return None
+        return MESSENGER if _messenger_pages() else None
+    import oauth_mcp
     hdr = await oauth_mcp.auth_headers(cid)      # tự refresh token ~60 ngày khi sắp hết hạn
     return (hdr.get("Authorization", "") or "").replace("Bearer ", "").strip() or None
 
@@ -96,12 +124,20 @@ async def _delete(path, token):
 def _fmt(d):
     if isinstance(d, dict) and d.get("error"):
         e = d["error"]
-        return "ERROR: Facebook API: " + (e.get("message") if isinstance(e, dict) else str(e))
+        msg = e.get("message") if isinstance(e, dict) else str(e)
+        out = "ERROR: Facebook API: " + str(msg)
+        if "pages_manage_posts" in str(msg) or (isinstance(e, dict) and str(e.get("code")) in ("10", "200")):
+            # A Page connected on the Messenger card before 0.437.0 has no posting permission yet.
+            out += (" (Gợi ý: Trang nối trước bản 0.437.0 chưa có quyền đăng bài. Vào trang Kết nối, thẻ "
+                    "Facebook Messenger, bấm Kết nối, Đăng nhập Facebook lại và đồng ý quyền pages_manage_posts.)")
+        return out
     return json.dumps(d, ensure_ascii=False, default=str)
 
 
 async def _pages(user_token):
     """Danh sách Trang user quản lý, mỗi Trang kèm access_token RIÊNG. Trả (list, err)."""
+    if user_token == MESSENGER:
+        return _messenger_pages(), None
     d = await _get("me/accounts", {"fields": "id,name,category,access_token,tasks", "limit": 200}, user_token)
     if isinstance(d, dict) and d.get("error"):
         return None, _fmt(d)

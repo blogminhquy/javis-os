@@ -64,7 +64,8 @@ check("plugin: tool ghi (đăng/ảnh/album/video/sửa/xoá/trả lời) = full
 
 # chưa kết nối → _check chặn
 plug._connected_id = lambda: None
-check("plugin: _check chặn khi chưa kết nối", "Chưa kết nối" in (plug._check() or ""))
+plug._messenger_pages = lambda: []
+check("plugin: _check chặn khi chưa nối Fanpage nào", "Chưa nối Fanpage" in (plug._check() or ""))
 
 
 # ---- 3. Handler (giả token + _get/_post, không mạng) ----
@@ -291,6 +292,62 @@ async def handler_tests():
           plug._fmt({"error": {"message": "boom"}}).startswith("ERROR: Facebook API: boom"))
 
 asyncio.run(handler_tests())
+
+
+# ---- 4. One connection (0.437.0): no facebook-pages connection -> the Pages of the Messenger card ----
+spec2 = importlib.util.spec_from_file_location(
+    "meta_pages_graph_msc", str(ROOT / "system" / "plugins" / "meta-pages-graph" / "plugin.py"))
+plug2 = importlib.util.module_from_spec(spec2)
+spec2.loader.exec_module(plug2)
+import channel_accounts  # noqa: E402
+
+aid, _loi = channel_accounts.create_account({
+    "channel": "messenger", "token": "1234567890123 EAApagetokenmessenger" + "x" * 40 + " " + "d" * 32,
+    "external_id": "1234567890123", "meta": {"bot_name": "Shop Messenger"}, "label": "Shop Messenger"})
+
+
+async def messenger_tests():
+    plug2._connected_id = lambda: None
+    check("one connection: _check passes with a Page on the Messenger card", plug2._check() is None)
+    tok = await plug2._token()
+    check("one connection: _token points at the Messenger card", tok == plug2.MESSENGER)
+    pages, err = await plug2._pages(tok)
+    check("one connection: the Page comes from the Messenger account, with its Page token",
+          err is None and len(pages) == 1 and pages[0]["id"] == "1234567890123"
+          and pages[0]["name"] == "Shop Messenger" and pages[0]["access_token"].startswith("EAApagetokenmessenger"))
+    calls = {}
+
+    async def _fake_get(path, params, token):
+        calls.setdefault("get", []).append(path)
+        return {"data": []}
+
+    async def _fake_post(path, data, token):
+        calls["post"] = (path, data, token)
+        return {"id": "NEW"}
+    plug2._get, plug2._post = _fake_get, _fake_post
+    await plug2._publish({"message": "Chào cả nhà"}, None)
+    check("one connection: posting uses the Page token, no /me/accounts call",
+          calls["post"][0] == "1234567890123/feed" and calls["post"][2].startswith("EAApagetokenmessenger")
+          and "me/accounts" not in calls.get("get", []))
+    r = await plug2._list({}, None)
+    check("one connection: fb_pages_list shows the Page and never its token",
+          "Shop Messenger" in r and "EAApagetokenmessenger" not in r)
+    check("one connection: a missing posting permission says how to fix it",
+          "pages_manage_posts" in plug2._fmt({"error": {"code": 200, "message": "(#200) not allowed"}}))
+    # A facebook-pages connection still wins when present.
+    plug2._connected_id = lambda: "cfbp"
+    import oauth_mcp
+
+    async def _hdr(cid):
+        return {"Authorization": "Bearer USERTOK2"}
+    orig = oauth_mcp.auth_headers
+    oauth_mcp.auth_headers = _hdr
+    try:
+        check("one connection: an existing facebook-pages connection still wins", await plug2._token() == "USERTOK2")
+    finally:
+        oauth_mcp.auth_headers = orig
+
+asyncio.run(messenger_tests())
 
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")

@@ -18,7 +18,7 @@ Từ 0.134.0 một Bot chuyên trách trả lời được hộp thư Fanpage Fa
 
 Không cần Graph API Explorer, không cần chép Page ID hay token. Làm lần đầu và muốn xem từng cú bấm trên trang Meta: [Nối Messenger từng bước](31-messenger-tung-buoc.md).
 
-1. Trên [developers.facebook.com/apps](https://developers.facebook.com/apps), tạo app có trường hợp sử dụng Messenger và thêm ba quyền bình luận `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement` (một lần).
+1. Trên [developers.facebook.com/apps](https://developers.facebook.com/apps), tạo app có trường hợp sử dụng Messenger và thêm bốn quyền `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`, `pages_manage_posts` (một lần).
 2. Mở Javis bằng tên miền HTTPS, vào **Kết nối**, thẻ **Facebook Messenger**, bấm **Kết nối**. Form hiện sẵn hai địa chỉ kèm nút **Chép**:
    - **Địa chỉ quay về**: dán vào ô **Valid OAuth Redirect URIs** trong cài đặt **Facebook Login** của app (chưa có Facebook Login thì thêm sản phẩm đó trước).
    - **Link chính sách quyền riêng tư**: Javis tự phục vụ trang này. Dán vào **Cài đặt ứng dụng, Thông tin cơ bản**, ô Chính sách quyền riêng tư và ô Hướng dẫn xoá dữ liệu.
@@ -26,6 +26,10 @@ Không cần Graph API Explorer, không cần chép Page ID hay token. Làm lầ
 4. Quay lại tab Javis: danh sách Fanpage hiện ra, tick Trang muốn nối, bấm **Kết nối các Trang đã chọn**. Javis tự lấy token Trang không hết hạn, khai webhook, gắn Trang vào app và hiện bảng kiểm tra cho từng Trang.
 5. Vào **Chatbot**, **Bot**, tick kênh vừa nối vào một bot và bật bot. Chưa có bot thì Javis chưa nhận tin.
 6. Chuyển app sang chế độ **Live** (mục 4), rồi thử bằng một nick Facebook không có vai trò trong app.
+
+## Đăng bài lên Fanpage (từ 0.437.0)
+
+Cùng một lần nối ở thẻ Facebook Messenger, Javis đăng được bài lên Trang: chữ, ảnh, album, video, sửa và xoá bài. Nhắn Javis "đăng bài này lên Fanpage" để đăng ngay, hoặc "8 giờ sáng mỗi ngày đăng một bài" để đặt lịch. Cần quyền `pages_manage_posts` (nút Đăng nhập Facebook tự xin; app phải thêm quyền này trước, xem [hướng dẫn từng bước](31-messenger-tung-buoc.md)). Trang nối trước bản 0.437.0 thì Đăng nhập Facebook lại một lần. Bảng kiểm tra có dòng **Đăng bài lên Trang** báo còn thiếu quyền hay không. Không cần cài thẻ Facebook Trang trong Kho nữa.
 
 ## Bình luận Fanpage (từ 0.434.0)
 

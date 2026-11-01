@@ -221,6 +221,11 @@ check("comments row is a warning naming what is missing, never red",
       item["ok"] is None and "pages_manage_engagement" in item["detail"] and "feed" in item["detail"], item)
 item = messenger_setup.comments_item(list(messenger_setup.COMMENT_SCOPES), ["messages", "feed"])
 check("comments row green when permissions and feed are there", item["ok"] is True, item)
+# 0.437.0: one login also posts (Facebook Pages tools reuse the Messenger connection).
+check("login asks for the posting permission", "pages_manage_posts" in messenger_oauth.SCOPES)
+check("posting row: warning when pages_manage_posts is missing, green when present",
+      messenger_setup.posts_item(["pages_messaging"])["ok"] is None
+      and messenger_setup.posts_item(["pages_manage_posts"])["ok"] is True)
 
 
 # ============================================================

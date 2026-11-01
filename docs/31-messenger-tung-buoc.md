@@ -1,10 +1,10 @@
-# Nối Fanpage Messenger vào Javis từng bước (nhắn tin và trả lời bình luận)
+# Nối Fanpage vào Javis từng bước (tin nhắn, bình luận, đăng bài)
 
 ***Tiếng Việt** · [English](en/31-messenger-step-by-step.md)*
 
 Hướng dẫn này đi từng cú bấm, dành cho người làm lần đầu. Lần đầu mất khoảng 20 phút, chủ yếu là cài app trên trang Meta. Thêm Trang mới về sau chỉ vài cú bấm.
 
-> **Mọi thao tác trong Javis làm ở một chỗ:** thẻ **Facebook Messenger** ở trang **Kết nối**. Nối xong ở đó, Fanpage tự có trong danh sách kênh của trang Chatbot, không phải thêm lại ở chỗ nào khác.
+> **Nối một lần, dùng cho cả ba việc:** bot trả lời tin nhắn, trả lời bình luận, và Javis đăng bài lên Fanpage (ngay khi bạn nhờ hoặc tự động theo lịch). Mọi thao tác trong Javis làm ở một chỗ: thẻ **Facebook Messenger** ở trang **Kết nối**. Nối xong, Fanpage tự có trong danh sách kênh của trang Chatbot, không phải thêm lại ở chỗ nào khác.
 
 Trước khi bắt đầu, bạn cần:
 
@@ -63,13 +63,14 @@ Vào **developers.facebook.com, Ứng dụng của tôi, chọn app của bạn,
 - Bấm **Thêm trường hợp sử dụng**, lọc "Nhắn tin doanh nghiệp".
 - Tick **Tương tác với khách hàng trên Messenger from Meta**, bấm **Lưu**. Trường hợp sử dụng này kèm sẵn quyền nhắn tin (`pages_messaging`), xem danh sách Trang (`pages_show_list`) và gắn Trang vào app (`pages_manage_metadata`).
 
-**1.2. Thêm quyền đọc và trả lời bình luận**
+**1.2. Thêm quyền bình luận và đăng bài**
 
 - Ở dòng **Quản lý mọi thứ trên Trang**, bấm **Tùy chỉnh**.
-- Bấm **Thêm** cho 3 quyền:
+- Bấm **Thêm** cho 4 quyền:
   - `pages_read_engagement`: đọc bài viết, bình luận
   - `pages_read_user_content`: đọc nội dung khách viết
   - `pages_manage_engagement`: trả lời bình luận
+  - `pages_manage_posts`: đăng bài, ảnh, video, sửa và xoá bài
 - Hộp hỏi "ảnh hưởng trường hợp sử dụng khác" thì bấm **Add**.
 
 Kết quả đúng: các quyền đều hiện **Sẵn sàng thử nghiệm**. Thiếu quyền nào thì lúc đăng nhập Facebook sẽ báo lỗi "Invalid Scopes" kèm tên quyền đó.
@@ -137,7 +138,9 @@ Chưa có bot thì Javis chưa nhận tin, Hộp thư cũng trống.
 - Tick kênh Messenger vừa nối. Kênh đã có sẵn trong danh sách, không cần **Thêm kênh**.
 - Bấm **Lưu**, bật bot.
 
-Một bot trực được nhiều kênh cùng lúc (nhiều Fanpage, cả Zalo), dùng chung một Agent và giờ trực. Muốn đổi cách xử lý bình luận về sau: trang **Kết nối**, thẻ Facebook Messenger, **Xem chi tiết**, ô Bình luận Fanpage ở từng Trang.
+Một bot trực được nhiều kênh cùng lúc (nhiều Fanpage, cả Zalo), dùng chung một Agent và giờ trực.
+
+**Đăng bài:** không cần cài thêm gì. Nhắn Javis kiểu "đăng bài này lên Fanpage kèm 3 ảnh" hoặc "8 giờ sáng mỗi ngày đăng một bài giới thiệu sản phẩm" là Javis dùng đúng kết nối này. Đăng và sửa bài là việc thật, công khai, nên chỉ chạy khi Javis ở mức Toàn quyền. Muốn đổi cách xử lý bình luận về sau: trang **Kết nối**, thẻ Facebook Messenger, **Xem chi tiết**, ô Bình luận Fanpage ở từng Trang.
 
 ---
 
@@ -181,7 +184,7 @@ Dùng khi Phần 3 báo lỗi mà không sửa được. Phần 0, 1 và 2.3 v�
 
 - Mở [Graph API Explorer](https://developers.facebook.com/tools/explorer).
 - **Ứng dụng trên Meta:** chọn app của bạn. **Người dùng hoặc Trang:** chọn **Mã người dùng**.
-- **Quyền:** thêm đủ 6 quyền: `pages_show_list`, `pages_messaging`, `pages_manage_metadata`, `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`.
+- **Quyền:** thêm đủ 7 quyền: `pages_show_list`, `pages_messaging`, `pages_manage_metadata`, `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`, `pages_manage_posts`.
 - Bấm **Generate Access Token**, bấm **Chỉnh sửa phần cài đặt**, chọn **áp dụng cho tất cả Trang ở hiện tại và tương lai**, để mọi công tắc **Bật**, **Lưu**.
 - Chép chuỗi `EAA...` trong ô **Mã truy cập**. Token này chỉ sống khoảng một giờ, Javis sẽ tự đổi sang token Trang không hết hạn nên không cần gia hạn.
 
@@ -217,6 +220,7 @@ Xong quay lại thẻ Messenger, bấm **Kiểm tra** ở Trang đó.
 | Javis báo "App ID hoặc App secret không đúng" | Chép nhầm, hoặc lấy App secret của app khác | Chép lại cả hai ở Cài đặt ứng dụng, Thông tin cơ bản |
 | Javis báo tài khoản không quản lý Fanpage nào | Lúc đăng nhập chưa tick Trang | Đăng nhập Facebook lại, bấm Chỉnh sửa cài đặt, tick đúng Trang |
 | Đã nối nhưng khách nhắn bot im | Chưa gắn bot, hoặc app còn ở chế độ phát triển | Làm Phần 4 và Phần 5 |
+| Javis báo chưa có quyền đăng bài | Trang nối trước bản 0.437.0, hoặc chưa thêm quyền `pages_manage_posts` | Thêm quyền ở Phần 1.2, rồi Đăng nhập Facebook lại trên thẻ Messenger |
 | Tin nhắn chạy nhưng bình luận không vào | Thiếu quyền bình luận, hoặc ô Bình luận Fanpage đang Tắt | Thêm quyền ở Phần 1.2, đăng nhập lại; đổi ô Bình luận Fanpage |
 | Bình luận vào Hộp thư nhưng bot không trả lời | Ô Bình luận Fanpage đang ở "Hiện ở Hộp thư" | Đổi sang "Bot tự trả lời công khai" nếu muốn bot trả lời |
 | Bảng kiểm tra báo webhook đỏ | Javis chưa khai được webhook | Bấm Sửa tự động; vẫn đỏ thì làm tay theo mục ngay trên |

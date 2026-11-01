@@ -36,6 +36,8 @@ REQUIRED_SCOPES = ("pages_messaging", "pages_manage_metadata", "pages_read_engag
 WEBHOOK_FIELDS = tuple(SUBSCRIBED_FIELDS.split(","))
 # Page comments (0.434.0): reading them and replying under them. Optional, so a warning when missing.
 COMMENT_SCOPES = ("pages_read_user_content", "pages_manage_engagement")
+# Posting through the Facebook Pages tools on this same connection (0.437.0). Optional, a warning when missing.
+POST_SCOPES = ("pages_manage_posts",)
 
 
 def _app_token(app_id: str, app_secret: str) -> str:
@@ -199,6 +201,15 @@ def comments_item(scopes, page_fields) -> dict:
                   "Log in with Facebook again on the Messenger card, grant every permission, then click Repair."))
 
 
+def posts_item(scopes) -> dict:
+    """Warning row for posting to the Page with the Facebook Pages tools. Never red."""
+    lack = [x for x in POST_SCOPES if x not in (scopes or [])]
+    return _item("posts", True if not lack else None, ("Đăng bài lên Trang", "Can post to the Page"),
+                 ", ".join(lack),
+                 ("Đăng nhập Facebook lại ở thẻ Messenger và đồng ý quyền đăng bài.",
+                  "Log in with Facebook again on the Messenger card and accept the posting permission."))
+
+
 async def run_checks(client, page_id: str, page_token: str, app_secret: str, app_id: str = "",
                      webhook_url: str = "", bot_running: Optional[bool] = None) -> dict:
     """The full checklist for one Page. Returns {"ok", "app_id", "page_name", "items"}; "ok" is
@@ -266,6 +277,7 @@ async def run_checks(client, page_id: str, page_token: str, app_secret: str, app
                                ps.get("error", "") if not ps.get("ok") else ", ".join(ps.get("fields", [])),
                                ("Bấm Sửa tự động.", "Click Repair."), auto=True))
             items.append(comments_item(info["scopes"], ps.get("fields", []) if ps.get("ok") else []))
+    items.append(posts_item(info["scopes"]))
     if bot_running is not None:
         items.append(_item("bot", None if not bot_running else True, ("Có bot đang trực", "A bot is answering"), "",
                            ("Vào Chatbot, Bot, tạo hoặc bật bot cho kênh này.",

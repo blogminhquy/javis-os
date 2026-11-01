@@ -18,7 +18,7 @@ From 0.134.0 a dedicated bot can answer a Facebook Page's inbox, the same way a 
 
 No Graph API Explorer, no Page ID or token to copy. First time, and want every click on Meta's site: [Messenger step by step](31-messenger-step-by-step.md).
 
-1. On [developers.facebook.com/apps](https://developers.facebook.com/apps), create an app with the Messenger use case and add the three comment permissions `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement` (once).
+1. On [developers.facebook.com/apps](https://developers.facebook.com/apps), create an app with the Messenger use case and add four permissions `pages_read_engagement`, `pages_read_user_content`, `pages_manage_engagement`, `pages_manage_posts` (once).
 2. Open Javis through its HTTPS domain, go to **Connections**, card **Facebook Messenger**, click **Connect**. The form shows two addresses with a **Copy** button:
    - **Redirect address**: paste it into **Valid OAuth Redirect URIs** in the app's **Facebook Login** settings (add the Facebook Login product first if the app has none).
    - **Privacy policy link**: Javis serves this page itself. Paste it into **App settings, Basic**, Privacy Policy URL and User data deletion.
@@ -26,6 +26,10 @@ No Graph API Explorer, no Page ID or token to copy. First time, and want every c
 4. Back on the Javis tab the Page list appears: tick the Pages to connect and click **Connect the ticked Pages**. Javis gets a non-expiring Page token, registers the webhook, subscribes each Page to the app and shows a checklist per Page.
 5. Open **Chatbot**, **Bots**, tick the new channel on a bot and switch the bot on. Until a bot is on, Javis does not take in messages.
 6. Switch the app to **Live** (section 4), then test with a Facebook account that has no role on the app.
+
+## Posting to the Page (from 0.437.0)
+
+The same connection on the Facebook Messenger card lets Javis post to the Page: text, photos, albums, video, editing and deleting posts. Ask Javis "post this to the Page" to post now, or "every day at 8am post something" to schedule it. It needs `pages_manage_posts` (Log in with Facebook asks for it; the app must add that permission first, see the [step-by-step guide](31-messenger-step-by-step.md)). A Page connected before 0.437.0 needs one more Log in with Facebook. The checklist has a **Can post to the Page** row saying whether the permission is there. The store's Facebook Pages card is no longer needed.
 
 ## Page comments (from 0.434.0)
 
