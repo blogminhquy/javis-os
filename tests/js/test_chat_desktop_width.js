@@ -8,11 +8,12 @@ const assert = require("node:assert/strict");
 const root = path.resolve(__dirname, "../..");
 const css = fs.readFileSync(path.join(root, "dashboard/style.css"), "utf8");
 const consoleJs = fs.readFileSync(path.join(root, "dashboard/console.js"), "utf8");
+const codingJs = fs.readFileSync(path.join(root, "dashboard/coding.js"), "utf8");
 
 // This page ID is created only by the normal Chat page; Coding has #cdPage
 // and HUD / Workspace use separate containers.
 assert.match(consoleJs, /'<div class="chatpage" id="chatPage">'/);
-assert.match(consoleJs, /'<div class="chatpage" id="cdPage">'|function renderCoding/);
+assert.match(codingJs, /'<div class="chatpage" id="cdPage">'/);
 
 // Keep the old readable measure as the fallback and for every other page.
 assert.match(css, /\.msg-javis \.bubble \{ max-width: min\(72ch, 100%\); \}/);
