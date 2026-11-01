@@ -8,8 +8,8 @@ const W = require(path.join(__dirname, "../../dashboard/webhooks.js"));
 let fails = 0;
 function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok) fails++; }
 
-check("every event row with an id has Details", W.eventRowHtml({ id: "ev_1", status: "done" }).includes("whEvInfo")
-  && W.eventRowHtml({ id: "ev_1", status: "done" }).includes("whEvDetail"));
+check("every event row with an id opens its detail", W.eventRowHtml({ id: "ev_1", status: "done" }).includes("whEvInfo")
+  && W.eventViewHtml({ id: "ev_1", status: "done" }, null).includes("whEvDetail"));
 const d = W.detailHtml({ status: "unknown", branches: [
   { action_id: "crm", kind: "http", status: "unknown", detail: "HTTP 500 <x>", delivery_id: "dlv_abc", receipt: {} },
   { action_id: "ship", kind: "plugin", status: "accepted", detail: "", delivery_id: "dlv_def", receipt: { ref: "VD-9" } }] });

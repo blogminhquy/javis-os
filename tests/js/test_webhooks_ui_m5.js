@@ -14,13 +14,13 @@ check("settings: the four modes, the current one selected", (s.match(/<option/g)
 check("settings: limits, AI budget and retention prefilled", s.includes('class="whPerHour"') && s.includes('value="40"')
   && s.includes('class="whAiDay"') && s.includes('value="7"') && s.includes('value="60"'));
 check("settings: number inputs are 16px (readable on a phone)", (s.match(/font-size:16px/g) || []).length >= 6);
-const card = W.cardHtml({ id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_1",
+const card = W.dialogHtml({ id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_1",
   enabled: true, history: [{ run_id: "ev_1", at: 1, status: "done" }],
   breakers: [{ action: "crm", open_until: Date.now() / 1000 + 600, fails: 0 }] }, []);
-check("card: log filter and export link for this hook", card.includes("whFilter") && card.includes('value="needs_you"')
+check("card: log filter and export link for this hook", card.includes("whFilter") && card.includes('data-f="needs_you"')
   && card.includes("/webhooks/events/export?hook=wh_1&format=csv"));
 check("card: an open breaker is announced with the action name", card.includes("wh.breaker_open"));
-const closed = W.cardHtml({ id: "wh_2", name: "x", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_2",
+const closed = W.dialogHtml({ id: "wh_2", name: "x", target: "task", text: "x", level: "full", brain: "/b", url: "/hooks/wh_2",
   enabled: true, history: [{ run_id: "ev_1", at: 1, status: "done" }], breakers: [{ action: "crm", open_until: 1, fails: 2 }] }, []);
 check("card: a closed breaker says nothing", !closed.includes("wh.breaker_open"));
 const keys = ["wh.notify_label", "wh.notify_all", "wh.notify_errors_only", "wh.notify_daily_digest", "wh.notify_none", "wh.lim_hour",

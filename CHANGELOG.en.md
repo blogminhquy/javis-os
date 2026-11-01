@@ -15,6 +15,13 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Sturdier MCP sign-in over OAuth.** Javis sends the server identifier the server declares (as the official SDK does), and says plainly when the provider does not accept Javis's return address instead of leaving you retrying the password. Thanks @dev23072005 (#939).
 - **Better memory recall.** Agent run logs no longer echo back as memories, facts sharing a "Why:" line are no longer reported as conflicting, a file with "profile" inside its name no longer takes a slot on every turn, and secondary indexes in memory/ are understood. Office files opened from the chat keep their name. Thanks @sohophotography (#934), @ethan1nguyen1 (#898).
 
+## [0.432.0] - 2026-11-01
+### Improved
+- **The Webhook page, redesigned to be easy to follow.** The top is one compact row of numbers: webhooks running, events and errors in the last 24 hours, and what needs you. When a run may not have finished, an amber banner appears, and **Open** takes you straight to it.
+- **Each webhook is one line** with a status dot and a strip of its last 20 runs: green is fine, amber needs you, red failed. One look tells you which webhook has a problem.
+- **Pressing a webhook opens its own window instead of dropping down.** Switching between Events, Configuration and Health, filtering or opening a run all change inside that window, which closes only when you press X. Runs are grouped by day, the cryptic `[SILENT]` is gone, and receiving and processing are plain on/off switches.
+- **No more repeated titles** on the Webhook, Cookies, Shared links and Mascot pages, to save space. The explanations still sit behind the (i) button.
+
 ## [0.431.0] - 2026-11-01
 ### Improved
 - **A new brain picker that looks the same on every device.** It used to be the browser's own menu, so each phone and computer drew it differently. Javis now draws it: a dropdown under the button on a computer, a sheet from the bottom on a phone with large text, the note count and a tick on the brain in use. A long list gets a search box.

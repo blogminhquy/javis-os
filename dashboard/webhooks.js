@@ -1,17 +1,22 @@
-/* Webhooks section of the Work page (0.198.0).
+/* Webhooks page (0.198.0, redesigned 0.432.0).
  *
  * A webhook is a secret URL: when an outside system (a landing page form, a payment, a sheet) calls it, Javis runs a
  * workflow or a written job with the event attached, then reports like a reminder. Server: server/webhook_triggers.py.
  *
- * The token is shown ONCE, right after creating or rotating, because the server keeps only its hash. Cards show the
- * URL (without the token), the target, the permission level, the last runs, and buttons: copy URL, send a test event,
- * switch on/off, new token, delete.
+ * The token is shown ONCE, right after creating or rotating, because the server keeps only its hash.
  *
- * 0.274.0 (spec §12): each card has three parts, Configuration / Events / Health. Two switches stay apart: "Stop
+ * 0.274.0 (spec §12): each hook has three parts, Configuration / Events / Health. Two switches stay apart: "Stop
  * receiving" (enabled: new requests are refused) and "Pause processing" (paused: still received and stored within the
  * quotas). A real test send shows what each action would do before anything is sent. An event opens on its timeline;
  * its payload is masked, the raw view asks first and is recorded. "Process again with the current setup" previews
  * first and says which actions already succeeded. Saving sends the revision edited; a 409 says someone saved first.
+ *
+ * 0.432.0 (owner 2026-11-01: "trang này chán", then "bấm vào thì popup lên chứ không drop xuống", "giữ nguyên tới khi
+ * khách tắt"): the page is a short overview (one compact row of numbers, a banner when something needs the owner) and
+ * one folded row per hook with a strip of its last runs. Pressing a row opens ONE popup (centred on a computer, a sheet
+ * from the bottom on a phone) that stays open until the owner closes it: tabs, filters, an event's detail, the test
+ * send and the advanced rules all swap what is inside it, never re-open it. The page draws no title of its own: the
+ * page header already says "Webhook" (owner: a repeated title only costs space).
  *
  * Render helpers are pure (tested under node); `mount` wires the API calls.
  */
@@ -60,25 +65,82 @@
   // is "unknown": only the owner decides, after checking outside, whether it happened (Mark done) or not (Retry).
   var RETRYABLE = { failed: 1, unknown: 1, dead: 1, blocked: 1 };
 
-  // One line of the event log: time, status, short result, and the owner's actions for that event.
+  // 0.432.0: each status has a tone (its colour) and an icon, so a run reads at a glance: green ran, grey skipped,
+  // blue in flight, amber needs the owner, red failed.
+  var TONE = { done: "ok", silent: "ok", failed: "bad", dead: "bad", invalid: "bad", waiting: "ask", unknown: "ask",
+    blocked: "ask", queued: "run", running: "run", received: "run", filtered: "calm", duplicate: "calm", cancelled: "calm" };
+  var TONE_ICON = { ok: "check", bad: "x", ask: "circle-help", run: "loader-circle", calm: "minus" };
+  function tone(st) { return TONE[st || "done"] || "ok"; }
+
+  // The agent's "[SILENT]" marker means "nothing to report"; the state word already says so, the marker is noise.
+  function resultText(r) {
+    var t = String(r.result || r.error || "").trim();
+    return /^\[SILENT\]$/i.test(t) ? "" : t;
+  }
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function dayKey(ts) { var d = new Date(ts * 1000); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  // "Today 01/11", "Yesterday 31/10", or the date alone.
+  function dayLabel(ts, now) {
+    var d = new Date(ts * 1000), n = new Date((now || Date.now() / 1000) * 1000);
+    var dm = pad(d.getDate()) + "/" + pad(d.getMonth() + 1);
+    var y = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1);
+    var same = function (a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); };
+    var word = same(d, n) ? tw("wh.today") : same(d, y) ? tw("wh.yesterday") : "";
+    return { word: word || dm, date: word ? dm : "" };
+  }
+  function hm(ts) { if (!ts) return ""; var d = new Date(ts * 1000); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+
+  // One run in the list: status icon, time, state in words and its short result. The whole row opens the run's detail
+  // inside the popup (whEvInfo); the actions for that run live in the detail (eventActionsHtml).
   function eventRowHtml(r) {
-    var st = r.status || "done";
-    var acts = "";
-    if (RETRYABLE[st]) acts += '<button class="s-btn-ghost whEvRetry" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.retry")) + "</button>";
-    if (st === "unknown" || st === "waiting") {
-      acts += '<button class="s-btn-ghost whEvDone" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.mark_done")) + "</button>";
-    }
-    if (r.run_id || r.id) acts += '<button class="s-btn-ghost whEvInfo" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.details")) + "</button>";
+    var st = r.status || "done", tn = tone(st), id = r.run_id || r.id || "", res = resultText(r);
+    var inner = '<span class="wh-st wh-t-' + tn + '">' + ic(TONE_ICON[tn]) + "</span>"
+      + '<span class="wh-tm">' + esc(hm(r.at || r.received_at)) + "</span>"
+      + '<span class="wh-eb"><span class="wh-w wh-w-' + tn + '">' + esc(stateWord(r)) + "</span>"
+      + (res ? '<span class="wh-r">' + esc(res.slice(0, 240)) + "</span>" : "") + "</span>"
+      + (id ? '<span class="wh-chev">' + ic("chevron-right") + "</span>" : "");
+    return id
+      ? '<button type="button" class="wh-ev wh-ev-' + esc(st) + ' whEvInfo" data-ev="' + esc(id) + '" data-st="' + esc(st) + '">' + inner + "</button>"
+      : '<div class="wh-ev wh-ev-' + esc(st) + '">' + inner + "</div>";
+  }
+  // Runs grouped under a day line; `prev` is the day of the last row already drawn (paging appends under it).
+  function rowsHtml(list, prev, now) {
+    var out = "", day = prev || "";
+    (list || []).forEach(function (r) {
+      var ts = r.at || r.received_at;
+      if (ts && dayKey(ts) !== day) {
+        day = dayKey(ts);
+        var l = dayLabel(ts, now);
+        out += '<div class="wh-day" data-day="' + day + '">' + esc(l.word) + (l.date ? " <span>" + esc(l.date) + "</span>" : "") + "</div>";
+      }
+      out += eventRowHtml(r);
+    });
+    return out;
+  }
+  // What the owner can do with one run, by its status.
+  function eventActionsHtml(r) {
+    var st = r.status || "done", id = esc(r.run_id || r.id || ""), acts = "";
+    if (RETRYABLE[st]) acts += '<button class="wh-btn whEvRetry" data-ev="' + id + '">' + esc(tw("wh.retry")) + "</button>";
+    if (st === "unknown" || st === "waiting") acts += '<button class="wh-btn whEvDone" data-ev="' + id + '">' + ic("check") + " " + esc(tw("wh.mark_done")) + "</button>";
     // A failed body is kept until the owner settles it or deletes it (spec §11).
     if (st === "failed" || st === "dead") {
       // Settle without resending (handled outside, or given up): its kept body then follows the normal retention.
-      acts += '<button class="s-btn-ghost whEvSettle" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.ev_settle")) + "</button>";
-      acts += '<button class="s-btn-ghost whEvDel" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.ev_delete")) + "</button>";
+      acts += '<button class="wh-btn ghost whEvSettle" data-ev="' + id + '">' + esc(tw("wh.ev_settle")) + "</button>";
+      acts += '<button class="wh-btn ghost danger whEvDel" data-ev="' + id + '">' + esc(tw("wh.ev_delete")) + "</button>";
     }
-    return '<div class="le wh-ev wh-ev-' + esc(st) + '">' + esc(fmtTime(r.at || r.received_at)) + " · "
-      + '<span class="wh-st">' + esc(stateWord(r)) + "</span>"
-      + ((r.result || r.error) ? " · " + esc(String(r.result || r.error).slice(0, 140)) : "")
-      + (acts ? '<span class="wh-ev-acts">' + acts + "</span>" : "") + '<div class="whEvDetail"></div></div>';
+    return acts ? '<div class="wh-acts">' + acts + "</div>" : "";
+  }
+  // The run's own page inside the popup: back, what happened, what the owner can do, then the server's detail.
+  function eventViewHtml(r, ev) {
+    var st = r.status || (ev && ev.status) || "done", tn = tone(st), ts = r.at || r.received_at || (ev && ev.received_at);
+    var l = ts ? dayLabel(ts) : null, res = resultText(r);
+    return '<button type="button" class="wh-back whBack">' + ic("chevron-left") + " " + esc(tw("wh.back_events")) + "</button>"
+      + '<div class="wh-evhead"><span class="wh-st wh-t-' + tn + '">' + ic(TONE_ICON[tn]) + "</span><div>"
+      + '<b class="wh-w wh-w-' + tn + '">' + esc(stateWord(r)) + "</b>"
+      + (l ? "<span>" + esc(hm(ts)) + " · " + esc(l.word) + (l.date ? " " + esc(l.date) : "") + "</span>" : "") + "</div></div>"
+      + (res ? '<div class="wh-evres">' + esc(res) + "</div>" : "")
+      + eventActionsHtml(Object.assign({}, r, { status: st }))
+      + '<div class="whEvDetail">' + (ev ? detailHtml(ev) : '<div class="wh-dim">' + ic("loader-circle") + "</div>") + "</div>";
   }
 
   // M3: one event in detail: each action's branch (state, what the receiver said, its delivery id) and why the
@@ -116,13 +178,15 @@
     duplicate: "wh.tl_duplicate", duplicate_delivery: "wh.tl_duplicate_delivery", ignored: "wh.tl_ignored",
     quarantined: "wh.tl_quarantined", dispatch: "wh.tl_dispatch", attempt: "wh.tl_attempt", receipt: "wh.tl_receipt",
     result: "wh.tl_result", notice: "wh.tl_notice" };
+  // 0.432.0: a vertical line of dots; a step whose detail says it failed is drawn amber by the server's own words.
   function timelineHtml(tl) {
     if (!tl || !tl.length) return "";
-    return '<div class="wh-tl" style="margin:4px 0 6px;font-size:16px"><b>' + esc(tw("wh.timeline")) + "</b>"
+    return '<div class="wh-tl"><div class="wh-subh">' + esc(tw("wh.timeline")) + '</div><ol class="wh-tl-list">'
       + tl.map(function (x) {
-        return '<div class="wh-tl-step" style="color:var(--text2)">' + esc(fmtTime(x.at)) + " · <b>"
-          + esc(tw(STEP_KEY[x.step] || x.step)) + "</b>" + (x.detail ? " · " + esc(x.detail) : "") + "</div>";
-      }).join("") + "</div>";
+        var bad = /fail|error|unknown|timeout/i.test(String(x.detail || "")) || x.step === "quarantined";
+        return '<li class="wh-tl-step' + (bad ? " ask" : "") + '"><span class="wh-tl-t">' + esc(fmtTime(x.at)) + "</span> <b>"
+          + esc(tw(STEP_KEY[x.step] || x.step)) + "</b>" + (x.detail ? " · " + esc(x.detail) : "") + "</li>";
+      }).join("") + "</ol></div>";
   }
   // The payload as the server sent it: masked unless the owner asked for the raw view (which the server records).
   function payloadHtml(ev) {
@@ -168,23 +232,25 @@
     if (!hh) return "";
     var mb = function (b) { return ((b || 0) / 1048576).toFixed(1) + " MB"; };
     var dur = function (s) { return s == null ? "-" : (s < 120 ? Math.round(s) + " s" : Math.round(s / 60) + " min"); };
-    var row = function (k, v, bad) {
-      return '<div class="wh-hl"' + (bad ? ' style="color:var(--warn-ink)"' : "") + ">" + esc(tw(k)) + ": <b>" + esc(v) + "</b></div>";
+    // 0.432.0: tiles in four groups instead of one long list; a figure that needs the owner is amber.
+    var tile = function (k, v, bad) {
+      return '<div class="wh-h' + (bad ? " ask" : "") + '"><span>' + esc(tw(k)) + "</span><b>" + esc(v) + "</b></div>";
     };
+    var group = function (k, tiles) { return '<div class="wh-hsec">' + esc(tw(k)) + '</div><div class="wh-hgrid">' + tiles + "</div>"; };
     var errs = (hh.errors_by_target || []).map(function (e) { return e.action_id + " (" + e.kind + ") " + e.n; }).join(", ");
-    return '<div class="wh-health" style="font-size:16px">'
-      + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.h_note")) + "</div>"
-      + row("wh.h_received", hh.received || 0) + row("wh.h_matched", hh.matched || 0) + row("wh.h_ignored", hh.ignored || 0)
-      + row("wh.h_quarantined", hh.quarantined || 0, hh.quarantined)
-      + row("wh.h_duplicates", (hh.duplicate_deliveries || 0) + " / " + (hh.duplicate_business || 0))
-      + row("wh.h_backlog", hh.backlog || 0) + row("wh.h_oldest", dur(hh.oldest_open_age_s), hh.oldest_open_age_s > 3600)
-      + row("wh.h_ack", (hh.ack_p50_ms == null ? "-" : hh.ack_p50_ms + " / " + hh.ack_p95_ms + " ms"))
-      + row("wh.h_processing", dur(hh.processing_p50_s) + " / " + dur(hh.processing_p95_s))
-      + row("wh.h_retry", hh.retry_wait || 0) + row("wh.h_dead", hh.dead || 0, hh.dead)
-      + row("wh.h_unknown", hh.unknown || 0, hh.unknown) + row("wh.h_blocked", hh.blocked || 0, hh.blocked)
-      + row("wh.h_ai", hh.ai_calls || 0) + (errs ? row("wh.h_errors", errs, true) : "")
-      + row("wh.h_sql_busy", hh.sql_busy || 0, hh.sql_busy)
-      + row("wh.h_db", mb(hh.db_bytes) + " + WAL " + mb(hh.wal_bytes) + " / " + mb(hh.cap), hh.level && hh.level !== "ok")
+    return '<div class="wh-health">'
+      + '<div class="wh-hint">' + esc(tw("wh.h_note")) + "</div>"
+      + group("wh.hg_flow", tile("wh.h_received", hh.received || 0) + tile("wh.h_matched", hh.matched || 0) + tile("wh.h_ignored", hh.ignored || 0)
+        + tile("wh.h_quarantined", hh.quarantined || 0, hh.quarantined)
+        + tile("wh.h_duplicates", (hh.duplicate_deliveries || 0) + " / " + (hh.duplicate_business || 0)))
+      + group("wh.hg_wait", tile("wh.h_backlog", hh.backlog || 0) + tile("wh.h_oldest", dur(hh.oldest_open_age_s), hh.oldest_open_age_s > 3600)
+        + tile("wh.h_retry", hh.retry_wait || 0) + tile("wh.h_dead", hh.dead || 0, hh.dead)
+        + tile("wh.h_unknown", hh.unknown || 0, hh.unknown) + tile("wh.h_blocked", hh.blocked || 0, hh.blocked))
+      + group("wh.hg_speed", tile("wh.h_ack", (hh.ack_p50_ms == null ? "-" : hh.ack_p50_ms + " / " + hh.ack_p95_ms + " ms"))
+        + tile("wh.h_processing", dur(hh.processing_p50_s) + " / " + dur(hh.processing_p95_s))
+        + tile("wh.h_ai", hh.ai_calls || 0) + (errs ? tile("wh.h_errors", errs, true) : ""))
+      + group("wh.hg_store", tile("wh.h_sql_busy", hh.sql_busy || 0, hh.sql_busy)
+        + tile("wh.h_db", mb(hh.db_bytes) + " + WAL " + mb(hh.wal_bytes) + " / " + mb(hh.cap), hh.level && hh.level !== "ok"))
       + "</div>";
   }
 
@@ -332,118 +398,210 @@
       : tw("wh.target_task_line", { text: String(h.text || "").slice(0, 80) });
   }
 
-  function cardHtml(h, brains) {
-    var last = h.last_at ? tw("wh.last_run", { time: fmtTime(h.last_at), status: tw(STATUS_KEY[h.last_status] || "wh.st_done") })
-      : tw("wh.never_run");
-    var rows = (h.history || []).slice(0, 5);
-    // The server counts unknown events over the WHOLE log, not just the newest rows drawn here.
-    var needYou = (h.unknown || 0) > 0 || (h.blocked || 0) > 0
+  // ---- 0.432.0: the list row, the overview and the popup ----
+
+  // Something on this hook waits for the owner (an unknown or blocked event, counted by the server over the whole log).
+  function needsYou(h) {
+    return (h.unknown || 0) > 0 || (h.blocked || 0) > 0
       || (h.history || []).some(function (r) { return r.status === "unknown" || r.status === "blocked"; });
-    var hist = rows.map(eventRowHtml).join("");
+  }
+  function dotClass(h) { return !h.enabled ? "off" : h.paused ? "paused" : "on"; }
+  function stateChip(h) {
+    if (needsYou(h)) return '<span class="wh-chip wh-t-ask">' + ic("triangle-alert") + " " + esc(tw("wh.chip_need")) + "</span>";
+    if (h.failed) return '<span class="wh-chip wh-t-bad">' + esc(tw("wh.chip_failed", { n: h.failed })) + "</span>";
+    if (!h.enabled) return '<span class="wh-chip">' + esc(tw("wh.chip_off")) + "</span>";
+    if (h.paused) return '<span class="wh-chip wh-t-ask">' + esc(tw("wh.chip_paused")) + "</span>";
+    return '<span class="wh-chip wh-t-ok">' + esc(tw("wh.chip_on")) + "</span>";
+  }
+  // The last runs as small bars, oldest on the left: one look says whether this hook is healthy.
+  function stripHtml(h) {
+    var runs = (h.history || []).slice(0, 20).reverse();
+    if (!runs.length) return "";
+    var bad = 0, ask = 0;
+    var bars = runs.map(function (r) {
+      var tn = tone(r.status);
+      if (tn === "bad") bad++;
+      if (tn === "ask") ask++;
+      return '<i class="wh-t-' + tn + '" title="' + esc(hm(r.at) + " " + stateWord(r)) + '"></i>';
+    }).join("");
+    var lg = tw("wh.strip", { n: runs.length, what: bad ? tw("wh.strip_bad", { n: bad }) : ask ? tw("wh.strip_need", { n: ask }) : tw("wh.strip_ok") });
+    return '<span class="wh-strip"><span class="wh-bars" role="img" aria-label="' + esc(lg) + '">' + bars + '</span><span class="wh-lg">'
+      + esc(lg) + "</span></span>";
+  }
+
+  // One hook in the list, folded: pressing it opens the popup (whOpen).
+  function cardHtml(h) {
+    var last = h.last_at ? tw("wh.last_short", { time: fmtTime(h.last_at) }) : tw("wh.never_run");
+    return '<button type="button" class="wh-row whOpen" data-hook="' + esc(h.id) + '" aria-haspopup="dialog">'
+      + '<span class="wh-dot ' + dotClass(h) + '"></span>'
+      + '<span class="wh-name">' + esc(h.name) + " " + stateChip(h) + "</span>"
+      + '<span class="wh-right"><span class="wh-num"><b>' + esc(h.count || 0) + "</b><span>" + esc(tw("wh.runs_word")) + "</span></span>"
+      + '<span class="wh-chev">' + ic("chevron-right") + "</span></span>"
+      + '<span class="wh-meta"><span>' + ic("zap") + " " + esc(targetLine(h)) + "</span><span>" + ic("clock") + " " + esc(last) + "</span>"
+      + '<span class="wh-cnt">' + esc(tw("wh.count", { n: h.count || 0 })) + "</span></span>"
+      + stripHtml(h) + "</button>";
+  }
+
+  // The overview: one compact row (owner: save space). `hh` is the 24 h health of all hooks, when it came back.
+  function statsHtml(hooks, hh) {
+    var on = hooks.filter(function (h) { return h.enabled && !h.paused; }).length;
+    var need = hooks.reduce(function (a, h) { return a + (h.unknown || 0) + (h.blocked || 0); }, 0);
+    var err = hh ? (hh.dead || 0) + (hh.errors_by_target || []).reduce(function (a, e) { return a + (e.n || 0); }, 0) : null;
+    var tile = function (cls, v, label) {
+      return '<div class="wh-stat' + (cls ? " " + cls : "") + '"><b>' + esc(v) + "</b><span>" + esc(tw(label)) + "</span></div>";
+    };
+    return tile("", on + "/" + hooks.length, "wh.s_on")
+      + tile("", hh ? hh.received || 0 : "-", "wh.s_24h")
+      + tile(need ? "ask" : "", need, "wh.s_need")
+      + tile(err ? "bad" : "", err == null ? "-" : err, "wh.s_err");
+  }
+  // A banner when a run waits for the owner: names the hook, and "See" opens it on its events.
+  function alertHtml(hooks) {
+    var waiting = hooks.filter(needsYou);
+    if (!waiting.length) return "";
+    var n = waiting.reduce(function (a, h) { return a + Math.max(1, (h.unknown || 0) + (h.blocked || 0)); }, 0);
+    return '<div class="wh-alert">' + ic("triangle-alert") + '<div class="wh-alert-t"><b>' + esc(tw("wh.alert_need", { n: n })) + "</b><span>"
+      + esc(waiting.map(function (h) { return h.name; }).join(", ")) + '</span></div><button type="button" class="wh-btn sm warn whOpen" data-hook="'
+      + esc(waiting[0].id) + '" data-tab="ev">' + esc(tw("wh.see")) + "</button></div>";
+  }
+  var VIEWS = [["all", "wh.v_all"], ["need", "wh.v_need"], ["paused", "wh.v_paused"]];
+  function inView(h, v) {
+    return v === "need" ? needsYou(h) || (h.failed || 0) > 0 : v === "paused" ? !h.enabled || !!h.paused : true;
+  }
+  function viewsHtml(hooks, v) {
+    return VIEWS.map(function (x) {
+      var n = hooks.filter(function (h) { return inView(h, x[0]); }).length;
+      return '<button type="button" class="wh-segb whView' + (v === x[0] ? " on" : "") + '" data-v="' + x[0] + '">' + esc(tw(x[1]))
+        + ' <span class="wh-n' + (x[0] === "need" && n ? " ask" : "") + '">' + n + "</span></button>";
+    }).join("");
+  }
+
+  // The popup's head: name, state, last run, the tabs. Redrawn on refresh; the body below keeps its place.
+  function headHtml(h, tab) {
+    var openBreakers = (h.breakers || []).filter(function (b) { return b.open_until > Date.now() / 1000; });
+    return '<span class="wh-grab"></span><div class="wh-dtop"><span class="wh-dot ' + dotClass(h) + '"></span><div class="wh-dtitle">'
+      + '<h2 id="whDlgTitle">' + ic("webhook") + " " + esc(h.name) + "</h2>"
+      + '<div class="wh-meta">' + stateChip(h)
+      + "<span>" + ic("clock") + " " + esc(h.last_at ? tw("wh.last_run", { time: fmtTime(h.last_at), status: tw(STATUS_KEY[h.last_status] || "wh.st_done") })
+        : tw("wh.never_run")) + "</span>"
+      + (h.count ? "<span>" + esc(tw("wh.count", { n: h.count })) + "</span>" : "") + "</div></div>"
+      + '<button type="button" class="wh-x whClose" aria-label="' + esc(tw("wh.close")) + '" title="' + esc(tw("wh.close")) + '">' + ic("x") + "</button></div>"
+      + (openBreakers.length ? '<div class="wh-need">' + esc(tw("wh.breaker_open", {
+        names: openBreakers.map(function (b) { return b.action; }).join(", ") })) + "</div>" : "")
+      + '<div class="wh-seg wh-tabs">'
+      + [["ev", "wh.tab_events"], ["cfg", "wh.tab_cfg"], ["health", "wh.tab_health"]].map(function (x) {
+        return '<button type="button" class="wh-segb whTab' + (x[0] === tab ? " sel" : "") + '" data-tab="' + x[0] + '">' + esc(tw(x[1])) + "</button>";
+      }).join("") + "</div>";
+  }
+  // A hook with something to resolve, or with runs to follow, opens on Events; a new one on Configuration (its URL).
+  function firstTab(h) { return needsYou(h) || (h.history || []).length || h.count ? "ev" : "cfg"; }
+
+  var FILTERS = [["", "wh.f_all"], ["needs_you", "wh.f_needs_you"], ["failed,dead", "wh.f_failed"], ["ran", "wh.f_ran"],
+    ["filtered,invalid,duplicate", "wh.f_filtered"]];
+  function eventsPaneHtml(h) {
+    var hist = h.history || [];
+    return (needsYou(h) ? '<div class="wh-need">' + ic("triangle-alert") + " " + esc(tw("wh.unknown_hint")) + "</div>" : "")
+      + '<div class="wh-fchips">' + FILTERS.map(function (x, i) {
+        return '<button type="button" class="wh-fchip whFilter' + (i ? "" : " on") + '" data-f="' + x[0] + '">' + esc(tw(x[1])) + "</button>";
+      }).join("") + "</div>"
+      + '<div class="wh-tools"><label class="wh-search">' + ic("search") + '<input class="whQ" type="search" placeholder="' + esc(tw("wh.f_q"))
+      + '"></label><button type="button" class="wh-ibtn whDates" aria-expanded="false" title="' + esc(tw("wh.f_dates")) + '" aria-label="'
+      + esc(tw("wh.f_dates")) + '">' + ic("calendar") + "</button>"
+      + '<a class="wh-ibtn" href="/webhooks/events/export?hook=' + encodeURIComponent(h.id) + '&format=csv" download title="' + esc(tw("wh.export"))
+      + '" aria-label="' + esc(tw("wh.export")) + '">' + ic("download") + "</a></div>"
+      + '<div class="wh-dates" hidden><label>' + esc(tw("wh.f_since")) + ' <input class="whSince" type="date"></label><label>'
+      + esc(tw("wh.f_until")) + ' <input class="whUntil" type="date"></label></div>'
+      + '<div class="whLogRows">' + (hist.length ? rowsHtml(hist) : '<div class="wh-empty">' + esc(tw("wh.no_events")) + "</div>") + "</div>"
+      + '<div class="wh-foot"><button type="button" class="wh-btn ghost whMore">' + esc(tw("wh.more")) + "</button>"
+      + (h.failed ? '<button type="button" class="wh-btn ghost whCloseFailed">' + esc(tw("wh.close_failed")) + "</button>" : "")
+      + (h.blocked ? '<button type="button" class="wh-btn ghost whRetryBlocked">' + esc(tw("wh.retry_blocked")) + "</button>" : "") + "</div>";
+  }
+  function switchRow(cls, on, title, state, label) {
+    return '<div class="wh-swrow"><div class="wh-swt"><b>' + esc(tw(title)) + "</b><span>" + esc(tw(state)) + "</span></div>"
+      + '<button type="button" class="wh-sw ' + cls + '" role="switch" aria-checked="' + (on ? "true" : "false") + '" aria-label="' + esc(tw(label))
+      + '" title="' + esc(tw(label)) + '"><span></span></button></div>';
+  }
+  function configPaneHtml(h, brains) {
     var hasRules = h.rules && Object.keys(h.rules).length;
-    var tab = needYou ? "ev" : "cfg";
+    return '<div class="wh-field"><div class="wh-lbl">' + esc(tw("wh.lbl_target")) + '</div><div class="wh-chips">'
+      + '<span class="wh-chip">' + ic("zap") + " " + esc(targetLine(h)) + "</span>"
+      + '<span class="wh-chip">' + ic("shield") + " " + esc(tw(LEVEL_KEY[h.level] || "wh.level_full")) + "</span>"
+      + '<span class="wh-chip">' + ic("brain") + " " + esc(brainName(brains, h.brain)) + "</span></div></div>"
+      + '<div class="wh-field"><div class="wh-lbl">' + esc(tw("wh.lbl_url")) + '</div><div class="wh-url"><code>' + esc(h.url) + "</code>"
+      + '<button type="button" class="wh-btn sm whCopy">' + ic("copy") + " " + esc(tw("wh.copy_url")) + "</button></div>"
+      + '<div class="wh-hint">' + ic("key") + " " + esc(h.verify && h.verify.provider && h.verify.provider !== "none"
+        ? tw("wh.key_where_signed", { provider: h.verify.provider })
+        : tw(h.query_token ? "wh.key_where_legacy" : "wh.key_where", { header: h.token_header || "X-Javis-Token" })) + "</div>"
+      + (h.ai_triage ? '<div class="wh-hint">' + esc(tw("wh.ai_triage_on")) + "</div>" : "") + "</div>"
+      // Two switches, never one (spec §12): receiving, and processing.
+      + switchRow("whToggle", h.enabled, "wh.sw_recv", h.enabled ? "wh.receiving_on" : "wh.receiving_off", h.enabled ? "wh.turn_off" : "wh.turn_on")
+      + switchRow("whPause", !h.paused, "wh.sw_proc", h.paused ? "wh.paused_on" : "wh.paused_off", h.paused ? "wh.resume" : "wh.pause")
+      + '<div class="wh-acts wh-cfgacts">'
+      + '<button type="button" class="wh-btn whTest">' + ic("play") + " " + esc(tw("wh.test")) + "</button>"
+      + '<button type="button" class="wh-btn whRules' + (hasRules ? " has-rules" : "") + '">' + ic("sliders-horizontal") + " "
+      + esc(tw("wh.rules")) + (hasRules ? " " + ic("check") : "") + "</button>"
+      + '<button type="button" class="wh-btn ghost whRotate">' + ic("key-round") + " " + esc(tw("wh.rotate")) + "</button>"
+      + '<span class="wh-sp"></span><button type="button" class="wh-btn ghost danger whDel">' + ic("trash-2") + " " + esc(tw("common.delete")) + "</button>"
+      + "</div>";
+  }
+  // Everything inside the popup for one hook: the head, then the three parts. Only one part shows at a time; a run's
+  // detail, the test send and the rules open in `.wh-sub` over them, with a way back.
+  function dialogHtml(h, brains, tab) {
+    tab = tab || firstTab(h);
     var pane = function (name, html) {
       return '<div class="whPane" data-pane="' + name + '"' + (tab === name ? "" : ' style="display:none"') + ">" + html + "</div>";
     };
-    var openBreakers = (h.breakers || []).filter(function (b) { return b.open_until > Date.now() / 1000; });
-    var cfg = '<div class="dim" style="font-size:16px;color:var(--text3)">' + esc(targetLine(h)) + " · "
-      + esc(tw(LEVEL_KEY[h.level] || "wh.level_full")) + " · " + esc(brainName(brains, h.brain)) + "</div>"
-      + '<div style="font-size:16px;margin-top:4px;word-break:break-all"><code>' + esc(h.url) + "</code></div>"
-      + '<div class="dim" style="font-size:16px;color:var(--text3);margin-top:2px">'
-      + esc(h.verify && h.verify.provider && h.verify.provider !== "none"
-        ? tw("wh.key_where_signed", { provider: h.verify.provider })
-        : tw(h.query_token ? "wh.key_where_legacy" : "wh.key_where", { header: h.token_header || "X-Javis-Token" })) + "</div>"
-      + (h.ai_triage ? '<div class="dim" style="font-size:16px;color:var(--text3)">' + esc(tw("wh.ai_triage_on")) + "</div>" : "")
-      + '<div class="wf-actions" style="margin-top:8px">'
-      + '<button class="s-btn-ghost whCopy">' + esc(tw("wh.copy_url")) + "</button>"
-      + '<button class="s-btn-ghost whTest">' + esc(tw("wh.test")) + "</button>"
-      + '<button class="s-btn-ghost whRules' + (hasRules ? " has-rules" : "") + '">'
-      + esc(tw("wh.rules")) + (hasRules ? " " + ic("check") : "") + "</button>"
-      + '<button class="s-btn-ghost whRotate">' + esc(tw("wh.rotate")) + "</button>"
-      + '<button class="s-btn-ghost whDel" style="color:var(--red)">' + esc(tw("common.delete")) + "</button>"
-      + "</div>"
-      // Two switches, never one (spec §12): receiving, and processing.
-      + '<div class="wh-switches" style="margin-top:8px;font-size:16px">'
-      + '<div><button class="s-btn-ghost whToggle">' + esc(tw(h.enabled ? "wh.turn_off" : "wh.turn_on")) + "</button> "
-      + '<span class="dim" style="color:var(--text3)">' + esc(tw(h.enabled ? "wh.receiving_on" : "wh.receiving_off")) + "</span></div>"
-      + '<div><button class="s-btn-ghost whPause">' + esc(tw(h.paused ? "wh.resume" : "wh.pause")) + "</button> "
-      + '<span class="dim" style="color:var(--text3)">' + esc(tw(h.paused ? "wh.paused_on" : "wh.paused_off")) + "</span></div>"
-      + "</div>"
-      + '<div class="whTestHost"></div><div class="whRulesHost"></div>';
-    var evs = (needYou ? '<div class="wh-need" style="font-size:16px;color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.unknown_hint")) + "</div>" : "")
-      + '<details class="whLog" style="margin-top:4px"' + (needYou ? " open" : "") + '><summary style="font-size:16px;cursor:pointer">'
-      + esc(tw("wh.history")) + '</summary>'
-      + '<div class="wh-filters" style="margin:6px 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
-      + '<select class="whFilter loop-sel" style="font-size:16px">'
-      + [["", "wh.f_all"], ["needs_you", "wh.f_needs_you"], ["failed,dead", "wh.f_failed"], ["ran", "wh.f_ran"],
-        ["filtered,invalid,duplicate", "wh.f_filtered"]]
-        .map(function (x) { return '<option value="' + x[0] + '">' + esc(tw(x[1])) + "</option>"; }).join("") + "</select>"
-      + '<input class="whQ" type="search" placeholder="' + esc(tw("wh.f_q")) + '" style="font-size:16px;min-width:0;flex:1 1 140px">'
-      + '<label style="font-size:16px">' + esc(tw("wh.f_since")) + ' <input class="whSince" type="date" style="font-size:16px"></label>'
-      + '<label style="font-size:16px">' + esc(tw("wh.f_until")) + ' <input class="whUntil" type="date" style="font-size:16px"></label>'
-      + "</div>"
-      + '<div class="whLogRows">' + (hist || '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.no_events")) + "</div>") + "</div>"
-      + '<button class="s-btn-ghost whMore" style="font-size:16px">' + esc(tw("wh.more")) + "</button>"
-      + ' <a class="s-btn-ghost" href="/webhooks/events/export?hook=' + encodeURIComponent(h.id) + '&format=csv" download>'
-      + esc(tw("wh.export")) + "</a>"
-      + ' <button class="s-btn-ghost whCloseFailed">' + esc(tw("wh.close_failed")) + "</button>"
-      + ' <button class="s-btn-ghost whRetryBlocked">' + esc(tw("wh.retry_blocked")) + "</button></details>";
-    return '<b>' + ic("webhook") + " " + esc(h.name) + "</b>"
-      + (h.enabled ? "" : ' <span class="dim" style="font-size:16px;color:var(--text3)">' + esc(tw("wh.off")) + "</span>")
-      + (h.paused ? ' <span class="dim" style="font-size:16px;color:var(--warn-ink)">' + esc(tw("wh.paused_badge")) + "</span>" : "")
-      + '<div class="dim" style="font-size:16px;color:var(--text3);margin-top:2px">' + esc(last)
-      + (h.count ? " · " + esc(tw("wh.count", { n: h.count })) : "") + "</div>"
-      + (openBreakers.length ? '<div class="wh-need" style="color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.breaker_open", {
-        names: openBreakers.map(function (b) { return b.action; }).join(", ") })) + "</div>" : "")
-      + '<div class="si-row wh-tabs" style="margin-top:8px">'
-      + [["cfg", "wh.tab_cfg"], ["ev", "wh.tab_events"], ["health", "wh.tab_health"]].map(function (x) {
-        return '<button class="si-chip whTab' + (x[0] === tab ? " sel" : "") + '" data-tab="' + x[0] + '">' + esc(tw(x[1])) + "</button>";
-      }).join("") + "</div>"
-      + pane("cfg", cfg) + pane("ev", evs) + pane("health", '<div class="whHealthHost"></div>');
+    return '<div class="wh-dhead">' + headHtml(h, tab) + "</div>"
+      + '<div class="wh-dbody"><div class="wh-main">'
+      + pane("cfg", configPaneHtml(h, brains)) + pane("ev", eventsPaneHtml(h)) + pane("health", '<div class="whHealthHost"></div>')
+      + '</div><div class="wh-sub" hidden></div></div>';
   }
 
   // The real test send (spec §12): the owner's own payload, the list of what each action would do, then the send.
   function testPanelHtml() {
-    return '<div class="wh-test" style="margin-top:8px;padding:10px;border:1px solid var(--hairline);border-radius:8px">'
-      + '<div class="dim" style="color:var(--text3);font-size:16px">' + esc(tw("wh.test_hint")) + "</div>"
-      + '<textarea class="whTestBody" spellcheck="false" style="width:100%;min-height:90px;font-family:monospace;font-size:16px">'
-      + esc('{"test": true}') + "</textarea>"
-      + '<div class="wf-actions" style="margin-top:6px"><button class="s-btn-ghost whTestPreview">' + esc(tw("wh.test_preview"))
-      + '</button><button class="s-btn whTestGo" disabled>' + esc(tw("wh.test_go")) + "</button></div>"
-      + '<div class="whTestOut" style="margin-top:6px"></div></div>';
+    return '<button type="button" class="wh-back whBack">' + ic("chevron-left") + " " + esc(tw("wh.back_cfg")) + "</button>"
+      + '<h3 class="wh-subh">' + esc(tw("wh.test")) + "</h3>"
+      + '<div class="wh-hint">' + esc(tw("wh.test_hint")) + "</div>"
+      + '<textarea class="whTestBody wh-code" spellcheck="false">' + esc('{"test": true}') + "</textarea>"
+      + '<div class="wh-acts"><button type="button" class="wh-btn whTestPreview">' + esc(tw("wh.test_preview"))
+      + '</button><button type="button" class="wh-btn pri whTestGo" disabled>' + esc(tw("wh.test_go")) + "</button></div>"
+      + '<div class="whTestOut"></div>';
   }
 
   function secretHtml(url, token) {
     var curl = "curl -X POST '" + url + "' -H 'Authorization: Bearer " + token
       + "' -H 'Content-Type: application/json' -d '{\"name\":\"Lan\",\"phone\":\"0901\"}'";
-    return '<div style="padding:10px 12px;border:1px solid var(--green);border-radius:8px;margin-bottom:10px;font-size:16px;line-height:1.5">'
+    return '<div class="wh-secret">'
       + "<b>" + esc(tw("wh.secret_head")) + "</b><br>" + esc(tw("wh.secret_body"))
-      + '<div style="margin-top:6px;word-break:break-all"><code>' + esc(token) + "</code></div>"
-      + '<div class="dim" style="margin-top:6px;color:var(--text3)">' + esc(tw("wh.secret_curl")) + "</div>"
-      + '<div style="word-break:break-all"><code>' + esc(curl) + "</code></div>"
-      + '<button class="s-btn-ghost whCopyCurl" style="margin-top:6px">' + esc(tw("wh.copy_curl")) + "</button></div>";
+      + '<div class="wh-mono"><code>' + esc(token) + "</code></div>"
+      + '<div class="wh-hint">' + esc(tw("wh.secret_curl")) + "</div>"
+      + '<div class="wh-mono"><code>' + esc(curl) + "</code></div>"
+      + '<button type="button" class="wh-btn sm whCopyCurl">' + ic("copy") + " " + esc(tw("wh.copy_curl")) + "</button></div>";
   }
 
+  // The new-webhook form, drawn inside the popup.
   function formHtml(brains, current) {
     var opts = (brains || []).map(function (b) {
       return '<option value="' + esc(b.path) + '"' + (b.path === current ? " selected" : "") + ">" + esc(b.label || b.name) + "</option>";
     }).join("");
-    return '<div id="whForm" style="display:none;margin-bottom:12px;padding:14px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface-1)">'
-      + '<div class="si-grid">'
-      + '<div class="si-field"><label>' + esc(tw("wh.name")) + '</label><input id="whName" placeholder="' + esc(tw("wh.name_ph")) + '"></div>'
-      + '<div class="si-field"><label>' + esc(tw("wh.brain")) + '</label><select id="whBrain" class="loop-sel">' + opts + "</select></div>"
-      + '<div class="si-field"><label>' + esc(tw("wh.target")) + '</label><div class="si-row" id="whTarget">'
-      + '<button class="si-chip sel" data-t="workflow">' + esc(tw("wh.target_wf")) + "</button>"
-      + '<button class="si-chip" data-t="task">' + esc(tw("wh.target_task")) + "</button></div></div>"
-      + '<div class="si-field" id="whWfWrap"><label>' + esc(tw("wh.workflow")) + '</label><select id="whWorkflow" class="loop-sel"></select></div>'
-      + '<div class="si-field"><label id="whTextLabel">' + esc(tw("wh.text_wf")) + '</label><textarea id="whText" placeholder="' + esc(tw("wh.text_ph")) + '"></textarea></div>'
-      + '<div class="si-field"><label>' + esc(tw("wh.level")) + '</label><div class="si-row" id="whLevel">'
-      + '<button class="si-chip" data-l="suggest">' + esc(tw("wh.level_suggest")) + "</button>"
-      + '<button class="si-chip" data-l="auto">' + esc(tw("wh.level_auto")) + "</button>"
-      + '<button class="si-chip sel" data-l="full">' + esc(tw("wh.level_full")) + "</button></div></div>"
-      + '<div class="si-actions"><button class="s-btn" id="whSave">' + esc(tw("common.save")) + "</button>"
-      + '<button class="s-btn-ghost" id="whCancel">' + esc(tw("common.cancel")) + "</button>"
-      + '<span class="dim" id="whMsg" style="font-size:16px;color:var(--warn-ink)"></span></div>'
+    return '<div class="wh-dhead"><span class="wh-grab"></span><div class="wh-dtop"><div class="wh-dtitle"><h2 id="whDlgTitle">' + ic("webhook") + " "
+      + esc(tw("wh.add")) + '</h2></div><button type="button" class="wh-x whClose" aria-label="' + esc(tw("wh.close")) + '">' + ic("x") + "</button></div></div>"
+      + '<div class="wh-dbody"><div id="whForm" class="wh-form">'
+      + '<div class="wh-fld"><label for="whName">' + esc(tw("wh.name")) + '</label><input id="whName" placeholder="' + esc(tw("wh.name_ph")) + '"></div>'
+      + '<div class="wh-fld"><label for="whBrain">' + esc(tw("wh.brain")) + '</label><select id="whBrain">' + opts + "</select></div>"
+      + '<div class="wh-fld"><label>' + esc(tw("wh.target")) + '</label><div class="wh-seg" id="whTarget">'
+      + '<button type="button" class="wh-segb on" data-t="workflow">' + esc(tw("wh.target_wf")) + "</button>"
+      + '<button type="button" class="wh-segb" data-t="task">' + esc(tw("wh.target_task")) + "</button></div></div>"
+      + '<div class="wh-fld" id="whWfWrap"><label for="whWorkflow">' + esc(tw("wh.workflow")) + '</label><select id="whWorkflow"></select></div>'
+      + '<div class="wh-fld"><label id="whTextLabel" for="whText">' + esc(tw("wh.text_wf")) + '</label><textarea id="whText" placeholder="'
+      + esc(tw("wh.text_ph")) + '"></textarea></div>'
+      + '<div class="wh-fld"><label>' + esc(tw("wh.level")) + '</label><div class="wh-seg" id="whLevel">'
+      + '<button type="button" class="wh-segb" data-l="suggest">' + esc(tw("wh.level_suggest")) + "</button>"
+      + '<button type="button" class="wh-segb" data-l="auto">' + esc(tw("wh.level_auto")) + "</button>"
+      + '<button type="button" class="wh-segb on" data-l="full">' + esc(tw("wh.level_full")) + "</button></div></div>"
+      + '<div class="wh-acts"><button type="button" class="wh-btn pri" id="whSave">' + esc(tw("common.save")) + "</button>"
+      + '<button type="button" class="wh-btn ghost whClose" id="whCancel">' + esc(tw("common.cancel")) + "</button>"
+      + '<span id="whMsg" class="wh-warn"></span></div>'
       + "</div></div>";
   }
 
@@ -467,37 +625,31 @@
     return Promise.resolve();
   }
 
+  var current_ = null;   // the mounted page, so unmount() can close its popup and let go of the keyboard listener
+
   function mount(box, opts) {
     if (!box) return;
+    unmount();
     var brains = function () { return (opts && opts.brains && opts.brains()) || []; };
     var current = function () { return (opts && opts.current && opts.current()) || ""; };
-    var target = "workflow", level = "full";
-    // Shared button and chip styles are smaller than 16px; inside this section nothing reads under 16px (owner rule).
+    var hooks = [], view = "all", health = null;
+    // The open popup: which hook, which tab, and the element. Built once on open; never rebuilt until it closes.
+    var M = { id: "", tab: "", el: null, form: false };
     box.classList.add("wh-root");
-    box.innerHTML = '<style>.wh-root :is(button,input,select,textarea,code,pre,label,span,div,a,summary,b,option)'
-      + '{font-size:max(16px,1em)}</style>'
-      + '<div class="lp-group"><div style="display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-size:16px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px">'
-      + "<span>" + ic("webhook") + " " + esc(tw("wh.head")) + infoBtn() + "</span>"
-      + '<button class="s-btn-ghost" id="whNew" style="margin-left:auto;font-size:16px">+ ' + esc(tw("wh.add")) + "</button></div>"
+    box.innerHTML = '<div class="wh-stats" id="whStats"></div><div id="whAlert"></div>'
+      + '<div class="wh-bar"><div class="wh-seg" id="whViews"></div><span class="wh-sp"></span>' + infoBtn()
+      + '<button type="button" class="wh-btn pri" id="whNew" aria-label="' + esc(tw("wh.add")) + '">' + ic("plus")
+      + ' <span class="wh-newl">' + esc(tw("wh.add")) + "</span></button></div>"
       + infoBody(esc(tw("wh.intro")))
-      + '<div id="whSecret"></div><div id="whFormHost"></div><div id="whList"></div></div>';
+      + '<div id="whSecret"></div><div id="whList"></div>';
     var q = function (s) { return box.querySelector(s); };
+    // The popup hangs off <body>, above the app's top bar and rail; it carries wh-root for the page's colours and sizes.
+    var modal = document.createElement("div");
+    modal.className = "wh-root wh-modal";
+    modal.id = "whModal";
+    modal.hidden = true;
+    document.body.appendChild(modal);
 
-    async function loadWorkflows() {
-      var sel = q("#whWorkflow");
-      if (!sel) return;
-      var d = await api("/workflows?brain=" + encodeURIComponent(q("#whBrain").value || current()));
-      var wfs = (d && d.workflows) || [];
-      sel.innerHTML = wfs.length
-        ? wfs.map(function (w) { return '<option value="' + esc(w.slug) + '">' + esc(w.name || w.slug) + "</option>"; }).join("")
-        : '<option value="">' + esc(tw("wh.no_workflow")) + "</option>";
-    }
-    function syncForm() {
-      box.querySelectorAll("#whTarget .si-chip").forEach(function (c) { c.classList.toggle("sel", c.dataset.t === target); });
-      box.querySelectorAll("#whLevel .si-chip").forEach(function (c) { c.classList.toggle("sel", c.dataset.l === level); });
-      q("#whWfWrap").style.display = target === "workflow" ? "" : "none";
-      q("#whTextLabel").textContent = tw(target === "workflow" ? "wh.text_wf" : "wh.text_task");
-    }
     function showSecret(hook, token) {
       q("#whSecret").innerHTML = secretHtml(hook.url, token);
       var b = q(".whCopyCurl");
@@ -506,35 +658,219 @@
         copy(code ? code.textContent : "").then(function () { b.textContent = tw("wh.copied"); });
       };
     }
+
+    // ---- popup shell: open once, close only by the owner (X, the dimmed area, Esc) ----
+    function openShell() {
+      modal.innerHTML = '<div class="wh-scrim whClose"></div><div class="wh-dlg" role="dialog" aria-modal="true" aria-labelledby="whDlgTitle"></div>';
+      modal.hidden = false;
+      document.body.classList.add("wh-locked");
+      M.el = modal.querySelector(".wh-dlg");
+      M.back = document.activeElement;
+      return M.el;
+    }
+    function closeModal() {
+      modal.hidden = true; modal.innerHTML = ""; M = { id: "", tab: "", el: null, form: false };
+      document.body.classList.remove("wh-locked");
+    }
+    modal.addEventListener("click", function (ev) {
+      var c = ev.target.closest(".whClose");
+      if (c && modal.contains(c)) { var back = M.back; closeModal(); if (back && back.focus) try { back.focus(); } catch (e) { /* gone */ } }
+    });
+    function onKey(ev) {
+      if (ev.key !== "Escape" || modal.hidden) return;
+      var sub = modal.querySelector(".wh-sub");
+      if (sub && !sub.hidden) { hideSub(); return; }
+      closeModal();
+    }
+    document.addEventListener("keydown", onKey);
+    current_ = { close: closeModal, key: onKey, modal: modal };
+
+    function hook(id) { return hooks.filter(function (x) { return x.id === id; })[0]; }
+
+    // ---- the add form ----
+    var target = "workflow", level = "full";
+    async function loadWorkflows() {
+      var sel = modal.querySelector("#whWorkflow");
+      if (!sel) return;
+      var d = await api("/workflows?brain=" + encodeURIComponent(modal.querySelector("#whBrain").value || current()));
+      var wfs = (d && d.workflows) || [];
+      sel.innerHTML = wfs.length
+        ? wfs.map(function (w) { return '<option value="' + esc(w.slug) + '">' + esc(w.name || w.slug) + "</option>"; }).join("")
+        : '<option value="">' + esc(tw("wh.no_workflow")) + "</option>";
+    }
+    function syncForm() {
+      modal.querySelectorAll("#whTarget .wh-segb").forEach(function (c) { c.classList.toggle("on", c.dataset.t === target); });
+      modal.querySelectorAll("#whLevel .wh-segb").forEach(function (c) { c.classList.toggle("on", c.dataset.l === level); });
+      modal.querySelector("#whWfWrap").style.display = target === "workflow" ? "" : "none";
+      modal.querySelector("#whTextLabel").textContent = tw(target === "workflow" ? "wh.text_wf" : "wh.text_task");
+    }
     function openForm() {
-      q("#whFormHost").innerHTML = formHtml(brains(), current());
+      var dlg = openShell();
+      M.form = true;
+      dlg.innerHTML = formHtml(brains(), current());
       target = "workflow"; level = "full";
-      box.querySelectorAll("#whTarget .si-chip").forEach(function (c) { c.onclick = function () { target = c.dataset.t; syncForm(); }; });
-      box.querySelectorAll("#whLevel .si-chip").forEach(function (c) { c.onclick = function () { level = c.dataset.l; syncForm(); }; });
-      q("#whBrain").onchange = loadWorkflows;
-      q("#whCancel").onclick = function () { q("#whForm").style.display = "none"; };
-      q("#whSave").onclick = async function () {
-        var body = { name: q("#whName").value.trim(), brain: q("#whBrain").value, target: target, level: level,
-          workflow: target === "workflow" ? q("#whWorkflow").value : "", text: q("#whText").value.trim() };
-        if (!body.name) { q("#whMsg").textContent = tw("wh.need_name"); return; }
+      var f = function (s) { return dlg.querySelector(s); };
+      dlg.querySelectorAll("#whTarget .wh-segb").forEach(function (c) { c.onclick = function () { target = c.dataset.t; syncForm(); }; });
+      dlg.querySelectorAll("#whLevel .wh-segb").forEach(function (c) { c.onclick = function () { level = c.dataset.l; syncForm(); }; });
+      f("#whBrain").onchange = loadWorkflows;
+      f("#whSave").onclick = async function () {
+        var body = { name: f("#whName").value.trim(), brain: f("#whBrain").value, target: target, level: level,
+          workflow: target === "workflow" ? f("#whWorkflow").value : "", text: f("#whText").value.trim() };
+        if (!body.name) { f("#whMsg").textContent = tw("wh.need_name"); return; }
         var r = await api("/webhooks", body);
-        if (!r.ok) { q("#whMsg").textContent = r.error || tw("wh.save_err"); return; }
-        q("#whForm").style.display = "none";
+        if (!r.ok) { f("#whMsg").textContent = r.error || tw("wh.save_err"); return; }
+        closeModal();
         showSecret(r.hook, r.token);
         load();
       };
       syncForm();
       loadWorkflows();
-      q("#whForm").style.display = "block";
-      q("#whName").focus();
+      f("#whName").focus();
     }
     q("#whNew").onclick = openForm;
 
-    // Retry / Mark done on an event, and "older events" paging through /webhooks/events (keyset cursor).
-    function wireEvents(div, h) {
-      var cursor = "", rowsBox = div.querySelector(".whLogRows"), more = div.querySelector(".whMore");
-      var filter = div.querySelector(".whFilter"), status = "";
-      var qBox = div.querySelector(".whQ"), sinceBox = div.querySelector(".whSince"), untilBox = div.querySelector(".whUntil");
+    // ---- the hook popup ----
+    function openHook(id, tab) {
+      var h = hook(id);
+      if (!h) return;
+      var dlg = openShell();
+      M.id = id; M.tab = tab || firstTab(h);
+      dlg.innerHTML = dialogHtml(h, brains(), M.tab);
+      wireHead(h);
+      wireConfig(h);
+      wireEvents(h);
+      if (M.tab === "health") showHealth(h);
+      var x = dlg.querySelector(".wh-x");
+      if (x) x.focus();
+    }
+    function switchTab(tab) {
+      var h = hook(M.id);
+      if (!h || !M.el) return;
+      M.tab = tab;
+      hideSub();
+      M.el.querySelectorAll(".whTab").forEach(function (x) { x.classList.toggle("sel", x.dataset.tab === tab); });
+      M.el.querySelectorAll(".whPane").forEach(function (p) { p.style.display = p.dataset.pane === tab ? "" : "none"; });
+      M.el.querySelector(".wh-dbody").scrollTop = 0;
+      if (tab === "health") showHealth(h);
+    }
+    function wireHead() {
+      M.el.querySelectorAll(".whTab").forEach(function (t) { t.onclick = function () { switchTab(t.dataset.tab); }; });
+    }
+    async function showHealth(h) {
+      var hd = await api("/webhooks/health?hook=" + encodeURIComponent(h.id));
+      var host = M.el && M.el.querySelector(".whHealthHost");
+      if (host) host.innerHTML = hd && hd.ok ? healthHtml(hd.health) : esc(errText(hd));
+    }
+    // A run's detail, the test send and the rules open over the parts; Back (or Esc) returns to where the owner was.
+    var mainTop = 0;
+    function showSub(html) {
+      var body = M.el.querySelector(".wh-dbody"), main = M.el.querySelector(".wh-main"), sub = M.el.querySelector(".wh-sub");
+      mainTop = body.scrollTop;
+      sub.innerHTML = html; sub.hidden = false; main.hidden = true; body.scrollTop = 0;
+      var b = sub.querySelector(".whBack");
+      if (b) b.onclick = hideSub;
+      return sub;
+    }
+    function hideSub() {
+      if (!M.el) return;
+      var body = M.el.querySelector(".wh-dbody"), main = M.el.querySelector(".wh-main"), sub = M.el.querySelector(".wh-sub");
+      if (!sub || sub.hidden) return;
+      sub.hidden = true; sub.innerHTML = ""; main.hidden = false; body.scrollTop = mainTop;
+    }
+
+    // After an action: refresh the list and the popup in place (head, configuration, the first page of runs).
+    function refreshSoon(ms) { setTimeout(function () { load(true); }, ms || 0); }
+    function refreshOpen() {
+      var h = hook(M.id);
+      if (!h || !M.el || M.form) return;
+      M.el.querySelector(".wh-dhead").innerHTML = headHtml(h, M.tab);
+      wireHead(h);
+      var cfg = M.el.querySelector('.whPane[data-pane="cfg"]');
+      cfg.innerHTML = configPaneHtml(h, brains());
+      wireConfig(h);
+      if (M.events) M.events.reload();
+    }
+
+    function wireConfig(h) {
+      var p = M.el.querySelector('.whPane[data-pane="cfg"]');
+      var b = function (s) { return p.querySelector(s); };
+      b(".whCopy").onclick = function (ev) {
+        var btn = ev.currentTarget;
+        copy(h.url).then(function () { btn.textContent = tw("wh.copied"); });
+      };
+      b(".whToggle").onclick = async function () {
+        if (h.enabled && !confirm(tw("wh.turn_off_confirm"))) return;
+        await api("/webhooks/update", { id: h.id, enabled: !h.enabled });
+        refreshSoon();
+      };
+      b(".whPause").onclick = async function () {
+        await api("/webhooks/pause", { id: h.id, paused: !h.paused });
+        refreshSoon();
+      };
+      b(".whRotate").onclick = async function () {
+        if (!confirm(tw("wh.rotate_confirm", { name: h.name }))) return;
+        var r = await api("/webhooks/rotate", { id: h.id });
+        if (r.ok) { closeModal(); showSecret(r.hook, r.token); }
+        load();
+      };
+      b(".whDel").onclick = async function () {
+        if (!confirm(tw("wh.del_confirm", { name: h.name }))) return;
+        await api("/webhooks/delete", { id: h.id });
+        closeModal();
+        load();
+      };
+      b(".whTest").onclick = function () {
+        var host = showSub(testPanelHtml());
+        var out = host.querySelector(".whTestOut"), go = host.querySelector(".whTestGo");
+        var body = function () { return host.querySelector(".whTestBody").value; };
+        host.querySelector(".whTestBody").oninput = function () { go.disabled = true; };
+        host.querySelector(".whTestPreview").onclick = async function () {
+          // Nothing is sent here: the server only says what each action would do with this payload.
+          var p = await api("/webhooks/test", { id: h.id, payload: body() });
+          out.innerHTML = p && p.ok ? simHtml(p) + planHtml(p.deliveries) : simHtml(p);
+          go.disabled = !(p && p.ok);
+        };
+        go.onclick = async function () {
+          if (!confirm(tw("wh.test_confirm"))) return;
+          var r = await api("/webhooks/test", { id: h.id, payload: body(), confirm: true });
+          // With rules the sample event is often stopped by them: say so instead of "sent".
+          out.textContent = testText(r);
+          go.disabled = true;
+          refreshSoon(4000);
+        };
+      };
+      b(".whRules").onclick = function () {
+        var host = showSub('<button type="button" class="wh-back whBack">' + ic("chevron-left") + " " + esc(tw("wh.back_cfg")) + "</button>"
+          + '<h3 class="wh-subh">' + esc(tw("wh.rules")) + "</h3>" + rulesPanelHtml(h));
+        var out = host.querySelector(".whSimOut");
+        host.querySelector(".whSim").onclick = async function () {
+          var rr = readRules(host.querySelector(".whRulesTxt").value);
+          if (!rr.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
+          var sample = host.querySelector(".whSample").value;
+          out.innerHTML = simHtml(await api("/webhooks/simulate", { id: h.id, rules: rr.rules, payload: sample }));
+        };
+        host.querySelector(".whRulesSave").onclick = async function () {
+          var rr = readRules(host.querySelector(".whRulesTxt").value);
+          var ra = readActions(host.querySelector(".whActsTxt").value);
+          var rv = readRules(host.querySelector(".whVerifyTxt").value);
+          if (!rr.ok || !ra.ok || !rv.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
+          var r = await api("/webhooks/update", Object.assign({ id: h.id, rules: rr.rules, actions: ra.actions, verify: rv.rules },
+            readSettings(host), { revision: h.revision }));
+          if (r._status === 409) { out.innerHTML = simHtml({ ok: false, error: r.error || tw("wh.conflict") }); return; }
+          if (!r.ok) { out.innerHTML = simHtml(r); return; }
+          out.textContent = tw("wh.rules_saved");
+          refreshSoon(1200);
+        };
+      };
+    }
+
+    // The Events part: filter chips, search and dates, the runs by day, older pages (keyset cursor), the bulk actions.
+    function wireEvents(h) {
+      var p = M.el.querySelector('.whPane[data-pane="ev"]');
+      var rowsBox = p.querySelector(".whLogRows"), more = p.querySelector(".whMore");
+      var cursor = "", status = "", known = {};
+      (h.history || []).forEach(function (r) { known[r.run_id || r.id] = r; });
+      var qBox = p.querySelector(".whQ"), sinceBox = p.querySelector(".whSince"), untilBox = p.querySelector(".whUntil");
       // A date box as epoch seconds, local midnight; "until" includes its whole day.
       function day(el, end) {
         if (!el || !el.value) return 0;
@@ -545,83 +881,115 @@
         var q = qBox ? qBox.value.trim() : "", since = day(sinceBox, false), until = day(untilBox, true);
         return (q ? "&q=" + encodeURIComponent(q) : "") + (since ? "&since=" + since : "") + (until ? "&until=" + until : "");
       }
-      function bindRows(scope) {
-        scope.querySelectorAll(".whEvRetry").forEach(function (b) {
-          b.onclick = async function () {
-            if (!confirm(tw("wh.retry_confirm"))) return;
-            var r = await api("/webhooks/events/retry", { id: b.dataset.ev });
-            b.textContent = r.ok ? tw("wh.retry_sent") : errText(r);
-            setTimeout(load, 3000);
-          };
-        });
-        scope.querySelectorAll(".whEvInfo").forEach(function (b) {
-          b.onclick = async function () {
-            var box = b.closest(".wh-ev").querySelector(".whEvDetail");
-            if (box.innerHTML) { box.innerHTML = ""; return; }
-            var d = await api("/webhooks/events/" + encodeURIComponent(b.dataset.ev));
-            box.innerHTML = d && d.ok ? detailHtml(d.event) : esc(errText(d));
-            wireDetail(box);
-            box.querySelectorAll(".whApprove").forEach(function (x) {
-              x.onclick = async function () {
-                var r = await api("/webhooks/events/approve", { id: x.dataset.ev, action: x.dataset.act, decision: x.dataset.d });
-                x.textContent = r.ok ? tw(x.dataset.d === "approve" ? "wh.approved" : "wh.rejected") : errText(r);
-                if (r.ok) setTimeout(load, 2500);
-              };
-            });
-          };
-        });
-        scope.querySelectorAll(".whEvSettle").forEach(function (b) {
-          b.onclick = async function () {
-            if (!confirm(tw("wh.ev_settle_confirm"))) return;
-            var r = await api("/webhooks/events/resolve", { id: b.dataset.ev, outcome: "done", note: "settled by the owner" });
-            if (r.ok) load(); else b.textContent = errText(r);
-          };
-        });
-        scope.querySelectorAll(".whEvDel").forEach(function (b) {
-          b.onclick = async function () {
-            if (!confirm(tw("wh.ev_delete_confirm"))) return;
-            var r = await api("/webhooks/events/delete", { id: b.dataset.ev });
-            if (r.ok) load(); else b.textContent = errText(r);
-          };
-        });
-        scope.querySelectorAll(".whEvDone").forEach(function (b) {
-          b.onclick = async function () {
-            var r = await api("/webhooks/events/resolve", { id: b.dataset.ev, outcome: "done" });
-            if (r.ok) load(); else b.textContent = errText(r);
-          };
-        });
-      }
-      bindRows(div);
-      var rb = div.querySelector(".whRetryBlocked");
-      if (rb) rb.onclick = async function () {
-        var r = await api("/webhooks/events/retry_blocked", { hook: h.id });
-        rb.textContent = r.ok ? tw("wh.retried_n", { n: r.queued }) : errText(r);
-        if (r.ok) setTimeout(load, 2500);
-      };
-      var closeAll = div.querySelector(".whCloseFailed");
-      if (closeAll) closeAll.onclick = async function () {
-        if (!confirm(tw("wh.close_failed_confirm"))) return;
-        var r = await api("/webhooks/events/close_failed", { hook: h.id });
-        closeAll.textContent = r.ok ? tw("wh.closed_n", { n: r.closed }) : errText(r);
-        if (r.ok) setTimeout(load, 1500);
-      };
-      if (!more || !rowsBox) return;
-      more.onclick = async function () {
+      async function page(first) {
+        if (first) cursor = "";
         var url = "/webhooks/events?hook=" + encodeURIComponent(h.id) + "&limit=20" + (status ? "&status=" + encodeURIComponent(status) : "")
           + filters() + (cursor ? "&before=" + encodeURIComponent(cursor) : "");
         var d = await api(url);
         if (!d || !d.ok) { more.textContent = (d && d.error) || tw("wh.save_err"); return; }
-        if (!cursor) rowsBox.innerHTML = "";
+        var items = d.items || [];
+        items.forEach(function (r) { known[r.run_id || r.id] = r; });
+        if (!cursor) rowsBox.innerHTML = items.length ? "" : '<div class="wh-empty">' + esc(tw("wh.no_events")) + "</div>";
+        var lastDay = rowsBox.querySelectorAll(".wh-day");
         var tmp = document.createElement("div");
-        tmp.innerHTML = (d.items || []).map(eventRowHtml).join("");
-        bindRows(tmp);
+        tmp.innerHTML = rowsHtml(items, lastDay.length ? lastDay[lastDay.length - 1].dataset.day : "");
         while (tmp.firstChild) rowsBox.appendChild(tmp.firstChild);
         cursor = d.next || "";
         more.style.display = cursor ? "" : "none";
-      };
-      var refilter = function () { status = filter ? filter.value : ""; cursor = ""; more.style.display = ""; more.onclick(); };
-      if (filter) filter.onchange = refilter;
+      }
+      more.onclick = function () { page(false); };
+      var refilter = function () { page(true); };
+      p.querySelectorAll(".whFilter").forEach(function (c) {
+        c.onclick = function () {
+          p.querySelectorAll(".whFilter").forEach(function (x) { x.classList.toggle("on", x === c); });
+          status = c.dataset.f;
+          refilter();
+        };
+      });
       [qBox, sinceBox, untilBox].forEach(function (el) { if (el) el.onchange = refilter; });
+      var dates = p.querySelector(".whDates");
+      if (dates) dates.onclick = function () {
+        var row = p.querySelector(".wh-dates");
+        row.hidden = !row.hidden;
+        dates.setAttribute("aria-expanded", row.hidden ? "false" : "true");
+      };
+      // A run opens on its own page inside the popup.
+      rowsBox.addEventListener("click", function (ev) {
+        var b = ev.target.closest(".whEvInfo");
+        if (b) openEvent(b, known[b.dataset.ev] || { id: b.dataset.ev, status: b.dataset.st });
+      });
+      var rb = p.querySelector(".whRetryBlocked");
+      if (rb) rb.onclick = async function () {
+        var r = await api("/webhooks/events/retry_blocked", { hook: h.id });
+        rb.textContent = r.ok ? tw("wh.retried_n", { n: r.queued }) : errText(r);
+        if (r.ok) refreshSoon(2500);
+      };
+      var closeAll = p.querySelector(".whCloseFailed");
+      if (closeAll) closeAll.onclick = async function () {
+        if (!confirm(tw("wh.close_failed_confirm"))) return;
+        var r = await api("/webhooks/events/close_failed", { hook: h.id });
+        closeAll.textContent = r.ok ? tw("wh.closed_n", { n: r.closed }) : errText(r);
+        if (r.ok) refreshSoon(1500);
+      };
+      // Refresh keeps the owner's filter: it reloads the first page under it.
+      M.events = { reload: function () { if (status || filters()) page(true); else {
+        var fresh = hook(h.id) || h;
+        (fresh.history || []).forEach(function (r) { known[r.run_id || r.id] = r; });
+        rowsBox.innerHTML = (fresh.history || []).length ? rowsHtml(fresh.history) : '<div class="wh-empty">' + esc(tw("wh.no_events")) + "</div>";
+        cursor = ""; more.style.display = "";
+      } } };
+    }
+
+    // One run: its page inside the popup, then the server's detail (timeline, actions' branches, payload, replay).
+    var evTok = 0;
+    async function openEvent(b, r) {
+      var sub = showSub(eventViewHtml(r, null)), tok = ++evTok;
+      wireEventActions(sub);
+      var d = await api("/webhooks/events/" + encodeURIComponent(b.dataset.ev));
+      // The owner went back, or opened another run, while this one was loading: drop it.
+      if (sub.hidden || tok !== evTok || !sub.isConnected) return;
+      var box = sub.querySelector(".whEvDetail");
+      box.innerHTML = d && d.ok ? detailHtml(d.event) : esc(errText(d));
+      wireDetail(box);
+      box.querySelectorAll(".whApprove").forEach(function (x) {
+        x.onclick = async function () {
+          var r = await api("/webhooks/events/approve", { id: x.dataset.ev, action: x.dataset.act, decision: x.dataset.d });
+          x.textContent = r.ok ? tw(x.dataset.d === "approve" ? "wh.approved" : "wh.rejected") : errText(r);
+          if (r.ok) refreshSoon(2500);
+        };
+      });
+    }
+    // Retry / Mark done / Close / Delete on one run; done, the owner goes back to the list, refreshed.
+    function wireEventActions(scope) {
+      var after = function () { hideSub(); refreshSoon(); };
+      scope.querySelectorAll(".whEvRetry").forEach(function (b) {
+        b.onclick = async function () {
+          if (!confirm(tw("wh.retry_confirm"))) return;
+          var r = await api("/webhooks/events/retry", { id: b.dataset.ev });
+          b.textContent = r.ok ? tw("wh.retry_sent") : errText(r);
+          if (r.ok) setTimeout(after, 1500);
+        };
+      });
+      scope.querySelectorAll(".whEvSettle").forEach(function (b) {
+        b.onclick = async function () {
+          if (!confirm(tw("wh.ev_settle_confirm"))) return;
+          var r = await api("/webhooks/events/resolve", { id: b.dataset.ev, outcome: "done", note: "settled by the owner" });
+          if (r.ok) after(); else b.textContent = errText(r);
+        };
+      });
+      scope.querySelectorAll(".whEvDel").forEach(function (b) {
+        b.onclick = async function () {
+          if (!confirm(tw("wh.ev_delete_confirm"))) return;
+          var r = await api("/webhooks/events/delete", { id: b.dataset.ev });
+          if (r.ok) after(); else b.textContent = errText(r);
+        };
+      });
+      scope.querySelectorAll(".whEvDone").forEach(function (b) {
+        b.onclick = async function () {
+          var r = await api("/webhooks/events/resolve", { id: b.dataset.ev, outcome: "done" });
+          if (r.ok) after(); else b.textContent = errText(r);
+        };
+      });
     }
 
     // Raw payload (asks first; the server records the view) and "process again with the current setup".
@@ -644,113 +1012,56 @@
           if (go) go.onclick = async function () {
             var r = await api("/webhooks/events/replay", { id: go.dataset.ev, confirm: true, revision: p.revision });
             go.textContent = r && r.ok ? tw("wh.replay_sent") : errText(r);
-            if (r && r.ok) setTimeout(load, 2500);
+            if (r && r.ok) refreshSoon(2500);
           };
         };
       });
     }
 
-    async function load() {
-      var d = await api("/webhooks");
+    function drawList() {
       var list = q("#whList");
       if (!list) return;
-      var hooks = (d && d.hooks) || [];
-      if (!hooks.length) { list.innerHTML = '<div class="empty">' + esc(tw("wh.empty")) + "</div>"; return; }
-      list.innerHTML = "";
-      hooks.forEach(function (h) {
-        var div = document.createElement("div");
-        div.className = "wf-card";
-        div.innerHTML = cardHtml(h, brains());
-        div.querySelector(".whCopy").onclick = function (ev) {
-          copy(h.url).then(function () { ev.target.textContent = tw("wh.copied"); });
-        };
-        div.querySelectorAll(".whTab").forEach(function (t) {
-          t.onclick = async function () {
-            div.querySelectorAll(".whTab").forEach(function (x) { x.classList.toggle("sel", x === t); });
-            div.querySelectorAll(".whPane").forEach(function (p) { p.style.display = p.dataset.pane === t.dataset.tab ? "" : "none"; });
-            if (t.dataset.tab === "health") {
-              var hd = await api("/webhooks/health?hook=" + encodeURIComponent(h.id));
-              div.querySelector(".whHealthHost").innerHTML = hd && hd.ok ? healthHtml(hd.health) : esc(errText(hd));
-            }
-          };
-        });
-        div.querySelector(".whTest").onclick = function () {
-          var host = div.querySelector(".whTestHost");
-          if (host.innerHTML) { host.innerHTML = ""; return; }
-          host.innerHTML = testPanelHtml();
-          var out = host.querySelector(".whTestOut"), go = host.querySelector(".whTestGo");
-          var body = function () { return host.querySelector(".whTestBody").value; };
-          host.querySelector(".whTestBody").oninput = function () { go.disabled = true; };
-          host.querySelector(".whTestPreview").onclick = async function () {
-            // Nothing is sent here: the server only says what each action would do with this payload.
-            var p = await api("/webhooks/test", { id: h.id, payload: body() });
-            out.innerHTML = p && p.ok ? simHtml(p) + planHtml(p.deliveries) : simHtml(p);
-            go.disabled = !(p && p.ok);
-          };
-          go.onclick = async function () {
-            if (!confirm(tw("wh.test_confirm"))) return;
-            var r = await api("/webhooks/test", { id: h.id, payload: body(), confirm: true });
-            // With rules the sample event is often stopped by them: say so instead of "sent".
-            out.textContent = testText(r);
-            go.disabled = true;
-            setTimeout(load, 4000);
-          };
-        };
-        div.querySelector(".whToggle").onclick = async function () {
-          if (h.enabled && !confirm(tw("wh.turn_off_confirm"))) return;
-          await api("/webhooks/update", { id: h.id, enabled: !h.enabled });
-          load();
-        };
-        div.querySelector(".whPause").onclick = async function () {
-          await api("/webhooks/pause", { id: h.id, paused: !h.paused });
-          load();
-        };
-        div.querySelector(".whRotate").onclick = async function () {
-          if (!confirm(tw("wh.rotate_confirm", { name: h.name }))) return;
-          var r = await api("/webhooks/rotate", { id: h.id });
-          if (r.ok) showSecret(r.hook, r.token);
-          load();
-        };
-        wireEvents(div, h);
-        div.querySelector(".whRules").onclick = function () {
-          var host = div.querySelector(".whRulesHost");
-          if (host.innerHTML) { host.innerHTML = ""; return; }
-          host.innerHTML = rulesPanelHtml(h);
-          var out = host.querySelector(".whSimOut");
-          host.querySelector(".whSim").onclick = async function () {
-            var rr = readRules(host.querySelector(".whRulesTxt").value);
-            if (!rr.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
-            var sample = host.querySelector(".whSample").value;
-            out.innerHTML = simHtml(await api("/webhooks/simulate", { id: h.id, rules: rr.rules, payload: sample }));
-          };
-          host.querySelector(".whRulesSave").onclick = async function () {
-            var rr = readRules(host.querySelector(".whRulesTxt").value);
-            var ra = readActions(host.querySelector(".whActsTxt").value);
-            var rv = readRules(host.querySelector(".whVerifyTxt").value);
-            if (!rr.ok || !ra.ok || !rv.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
-            var r = await api("/webhooks/update", Object.assign({ id: h.id, rules: rr.rules, actions: ra.actions, verify: rv.rules },
-              readSettings(host), { revision: h.revision }));
-            if (r._status === 409) { out.innerHTML = simHtml({ ok: false, error: r.error || tw("wh.conflict") }); return; }
-            if (!r.ok) { out.innerHTML = simHtml(r); return; }
-            out.textContent = tw("wh.rules_saved");
-            setTimeout(load, 1200);
-          };
-        };
-        div.querySelector(".whDel").onclick = async function () {
-          if (!confirm(tw("wh.del_confirm", { name: h.name }))) return;
-          await api("/webhooks/delete", { id: h.id });
-          load();
-        };
-        list.appendChild(div);
-      });
+      q("#whStats").innerHTML = statsHtml(hooks, health);
+      q("#whAlert").innerHTML = alertHtml(hooks);
+      q("#whViews").innerHTML = viewsHtml(hooks, view);
+      var shown = hooks.filter(function (h) { return inView(h, view); });
+      if (!hooks.length) { list.innerHTML = '<div class="wh-empty">' + esc(tw("wh.empty")) + "</div>"; return; }
+      list.innerHTML = shown.length ? shown.map(function (h) {
+        return '<div class="wh-card' + (needsYou(h) ? " need" : "") + '">' + cardHtml(h) + "</div>";
+      }).join("") : '<div class="wh-empty">' + esc(tw("wh.v_empty")) + "</div>";
+    }
+    box.addEventListener("click", function (ev) {
+      var o = ev.target.closest(".whOpen");
+      if (o) { openHook(o.dataset.hook, o.dataset.tab); return; }
+      var v = ev.target.closest(".whView");
+      if (v) { view = v.dataset.v; drawList(); }
+    });
+
+    async function load(keepOpen) {
+      var res = await Promise.all([api("/webhooks"), api("/webhooks/health")]);
+      if (!q("#whList")) return;
+      hooks = (res[0] && res[0].hooks) || [];
+      health = res[1] && res[1].ok ? res[1].health : null;
+      drawList();
+      if (keepOpen && M.id) { if (hook(M.id)) refreshOpen(); else closeModal(); }
     }
     load();
   }
 
-  var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
+  function unmount() {
+    if (!current_) return;
+    try { current_.close(); } catch (e) { /* page already gone */ }
+    document.removeEventListener("keydown", current_.key);
+    if (current_.modal && current_.modal.parentNode) current_.modal.parentNode.removeChild(current_.modal);
+    current_ = null;
+  }
+
+  var api_ = { mount: mount, unmount: unmount, cardHtml: cardHtml, dialogHtml: dialogHtml, statsHtml: statsHtml, alertHtml: alertHtml,
+    rowsHtml: rowsHtml, stripHtml: stripHtml, eventActionsHtml: eventActionsHtml, eventViewHtml: eventViewHtml,
+    secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
     simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml, settingsHtml: settingsHtml,
     testText: testText, readSettings: readSettings, stateWord: stateWord, timelineHtml: timelineHtml, payloadHtml: payloadHtml,
-    replayHtml: replayHtml, planHtml: planHtml, healthHtml: healthHtml, testPanelHtml: testPanelHtml };
+    replayHtml: replayHtml, planHtml: planHtml, healthHtml: healthHtml, testPanelHtml: testPanelHtml, formHtml: formHtml };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

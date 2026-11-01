@@ -14,22 +14,22 @@ function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok
 
 const base = { id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b", url: "https://x/hooks/wh_1",
   enabled: true, paused: false, revision: 3, history: [], token_header: "X-Javis-Token" };
-const calm = W.cardHtml(base, []);
+const calm = W.dialogHtml(base, []);
 check("three parts: Configuration, Events, Health", ["wh.tab_cfg", "wh.tab_events", "wh.tab_health"].every((k) => calm.includes(k))
   && (calm.match(/class="whPane"/g) || []).length === 3);
 check("a calm card opens on Configuration", /whTab sel" data-tab="cfg"/.test(calm) && calm.includes('data-pane="ev" style="display:none"'));
-const busy = W.cardHtml(Object.assign({}, base, { blocked: 1 }), []);
+const busy = W.dialogHtml(Object.assign({}, base, { blocked: 1 }), []);
 check("a card with a blocked event opens on Events with the hint", /whTab sel" data-tab="ev"/.test(busy) && busy.includes("wh-need"));
 check("two switches, never one: stop receiving and pause processing", calm.includes("whToggle") && calm.includes("whPause")
   && calm.includes("wh.receiving_on") && calm.includes("wh.paused_off"));
-const paused = W.cardHtml(Object.assign({}, base, { paused: true, enabled: false }), []);
-check("paused and stopped are shown apart", paused.includes("wh.paused_badge") && paused.includes("wh.resume")
+const paused = W.dialogHtml(Object.assign({}, base, { paused: true, enabled: false }), []);
+check("paused and stopped are shown apart", paused.includes("wh.chip_need") === false && paused.includes("wh.paused_on") && paused.includes("wh.resume")
   && paused.includes("wh.turn_on") && paused.includes("wh.receiving_off"));
 check("events part: status, order or correlation id, time range, export, older runs", ["whFilter", "whQ", "whSince", "whUntil",
   "/webhooks/events/export?hook=wh_1", "whMore"].every((c) => calm.includes(c)));
 check("the card says where the key goes (never the key)", calm.includes("wh.key_where") && !/tok_|Bearer [a-z0-9]/i.test(calm));
-check("a legacy hook says ?token= still works for it", W.cardHtml(Object.assign({}, base, { query_token: true }), []).includes("wh.key_where_legacy"));
-check("AI incident sorting is shown when on", W.cardHtml(Object.assign({}, base, { ai_triage: true }), []).includes("wh.ai_triage_on")
+check("a legacy hook says ?token= still works for it", W.dialogHtml(Object.assign({}, base, { query_token: true }), []).includes("wh.key_where_legacy"));
+check("AI incident sorting is shown when on", W.dialogHtml(Object.assign({}, base, { ai_triage: true }), []).includes("wh.ai_triage_on")
   && !calm.includes("wh.ai_triage_on"));
 
 check("a hook with only outside actions names them instead of an empty job line",
@@ -43,7 +43,7 @@ check("state words: the spec state, with the internal status when it adds someth
   && W.stateWord({ status: "done", state: "done" }) === "wh.ss_done"
   && W.stateWord({ status: "failed", state: "partial_failed" }) === "wh.ss_partial_failed (wh.st_failed)"
   && W.stateWord({ status: "filtered" }) === "wh.st_filtered");
-check("a blocked event can be run again", W.eventRowHtml({ id: "ev_1", status: "blocked", state: "waiting" }).includes("whEvRetry"));
+check("a blocked event can be run again", W.eventActionsHtml({ id: "ev_1", status: "blocked", state: "waiting" }).includes("whEvRetry"));
 
 const tl = W.timelineHtml([{ at: 1, step: "received", detail: "10 bytes" }, { at: 2, step: "receipt", detail: "crm: <x>" }]);
 check("timeline: steps in words, details escaped", tl.includes("wh.tl_received") && tl.includes("wh.tl_receipt") && tl.includes("&lt;x&gt;"));
