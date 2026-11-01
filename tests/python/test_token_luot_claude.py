@@ -119,7 +119,8 @@ def _chuoi_boc():
 claude_cli.claude_engine(tag="chat")
 n1 = _chuoi_boc()
 claude_cli.claude_engine(tag="chat")
-check("dựng engine nhiều lần không chồng thêm lớp bọc", _chuoi_boc() == n1 == 3, (n1, _chuoi_boc()))
+# 4 lớp: gốc, chữ chảy (0.438.4), đếm cache, hạn mức gói.
+check("dựng engine nhiều lần không chồng thêm lớp bọc", _chuoi_boc() == n1 == 4, (n1, _chuoi_boc()))
 kq = ResultMessage(subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=1,
                    session_id="s-tok", result="Chào anh", usage={
                        "input_tokens": 9, "cache_read_input_tokens": 13357, "cache_creation_input_tokens": 47442,

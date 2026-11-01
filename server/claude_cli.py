@@ -1129,6 +1129,13 @@ def claude_engine(system_prompt=None, cwd=None, tag="chat", allowed_tools=None, 
     # anyway, not at server import (that would load the whole SDK at startup; test_khoi_dong_nhe).
     # 0.345.0: token cache count on the turn's final event. Installed BEFORE plan_limits so its
     # own "already wrapped?" check keeps seeing itself on top (no stacked wrappers per turn).
+    # 0.438.4: answer text streams piece by piece (StreamEvent text_delta), like Codex. Lowest in the chain,
+    # installed first, so the two wrappers below keep their own "already wrapped?" checks on top.
+    try:
+        import claude_stream_text
+        claude_stream_text.cai_vao_claude_sdk()
+    except Exception:  # noqa: BLE001 - streaming must never stop a turn
+        pass
     try:
         _cai_dem_cache()
     except Exception:  # noqa: BLE001 - a counter must never stop a turn
