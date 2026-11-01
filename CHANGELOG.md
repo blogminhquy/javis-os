@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.431.0] - 2026-11-01
 ### Cải thiện
-- Đang viết.
+- **Ô chọn bộ não mới, giống nhau trên mọi máy.** Trước đây mỗi điện thoại, máy tính hiện danh sách một kiểu vì đó là ô chọn của trình duyệt. Giờ Javis tự vẽ: máy tính thả xuống ngay dưới nút, điện thoại trượt lên từ đáy màn hình với chữ to, có số ghi chú và dấu tích ở bộ não đang dùng. Nhiều bộ não thì có ô tìm.
+- **Tự sắp thứ tự bộ não.** Mở ô chọn, bấm **Sắp xếp**, kéo tay nắm hoặc bấm mũi tên lên xuống rồi bấm **Xong**. Thứ tự lưu trên máy chủ nên mọi máy đều thấy giống nhau.
+- Chưa sắp thì danh sách xếp theo tên hiển thị như người đọc: "2-..." đứng trước "10-...". Trước đây xếp theo tên thư mục nên bộ não đã đổi tên hay bị lộn chỗ.
 
 ## [0.430.2] - 2026-11-01
 ### Cải thiện

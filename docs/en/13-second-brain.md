@@ -65,8 +65,16 @@ The starting brain is named **Brain Default** and cannot be deleted (it is the "
 ### Choosing the working brain
 
 1. Click the brain selector in the left corner of the top bar.
-2. Pick the brain you want. Each row shows as `🧠 Brain name · 128`, the number being how many `.md` notes Javis counted in that brain. If the count hits the counting ceiling (5000) a `+` is appended, meaning "at least this many" rather than the true total.
+2. Pick the brain you want. Each row shows the brain's name with its note count underneath (the `.md` notes Javis counted). If the count hits the counting ceiling (5000) a `+` is appended, meaning "at least this many" rather than the true total. On a computer the list drops down under the button; on a phone it slides up from the bottom of the screen. A long list gets a search box.
 3. All of Javis (chat, graph, memory, agents) switches to that brain immediately. No page reload needed.
+
+### Ordering your brains
+
+1. Open the brain selector and press **Reorder**.
+2. Drag the handle (the two-way arrow at the start of a row), or press the up / down arrow at the end of a row.
+3. Press **Done**. The order is saved on the Javis server, so your phone and computer show the same list.
+
+Until you set an order, brains sort by their shown name with numbers read by value: "2-..." comes before "10-...". A brain created after you set an order goes to the end of the list.
 
 ### Creating a new brain
 

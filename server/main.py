@@ -7,6 +7,7 @@ Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling �
 """
 import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ người dùng
 import brain_label   # tên hiển thị của brain, tách khỏi thư mục (0.219.0)
+import brain_order   # thứ tự brain trong bảng chọn: chủ tự sắp, còn lại theo tên hiển thị (0.431.0)
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import html as html_mod   # escape lời báo lỗi OAuth trên trang callback (biến cục bộ `html` che tên module)
 import posixpath
@@ -7523,7 +7524,12 @@ def _list_brains_sync() -> dict:
                         "is_default": is_default})
     except Exception as e:
         return {"dir": str(base), "brains": [], "error": str(e)}
-    return {"dir": str(base), "brains": out}
+    # 0.431.0: the owner's order first (brain picker, Reorder), then by display label read like a person does.
+    try:
+        order = (cfgmod.read_settings() or {}).get(brain_order.SETTINGS_KEY) or []
+    except Exception:
+        order = []
+    return {"dir": str(base), "brains": brain_order.sort(out, order)}
 
 
 @app.get("/brains")
@@ -7531,6 +7537,20 @@ async def list_brains():
     """Liệt kê mọi brain trong BRAINS_DIR (mỗi folder con = 1 brain) + số note .md.
     Dropdown chọn brain đổ từ đây (server-side) thay vì localStorage."""
     return await asyncio.to_thread(_list_brains_sync)
+
+
+@app.post("/brains/order")
+async def brain_set_order(order: str = Form("[]")):
+    """Save the order of the brain list (0.431.0, the brain picker's Reorder mode). `order` is a JSON list of brain
+    FOLDER names, first on top. Stored in settings.json, so every device shows the same order; a brain left out is
+    listed after the ordered ones, by its display label."""
+    try:
+        raw = json.loads(order or "[]")
+    except json.JSONDecodeError:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Thứ tự không hợp lệ", "Invalid order")}, status_code=400)
+    ten = brain_order.clean(raw)
+    await asyncio.to_thread(cfgmod.update_settings, {brain_order.SETTINGS_KEY: ten})
+    return {"ok": True, "order": ten}
 
 
 @app.post("/brains/new")

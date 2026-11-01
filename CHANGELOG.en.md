@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.431.0] - 2026-11-01
 ### Improved
-- In progress.
+- **A new brain picker that looks the same on every device.** It used to be the browser's own menu, so each phone and computer drew it differently. Javis now draws it: a dropdown under the button on a computer, a sheet from the bottom on a phone with large text, the note count and a tick on the brain in use. A long list gets a search box.
+- **Put your brains in your own order.** Open the picker, press **Reorder**, drag the handle or use the up and down arrows, then **Done**. The order is saved on the server, so every device shows the same list.
+- Until you set an order, brains sort by their shown name the way a person reads it: "2-..." comes before "10-...". Before, they sorted by folder name, so a renamed brain often sat in the wrong place.
 
 ## [0.430.2] - 2026-11-01
 ### Improved

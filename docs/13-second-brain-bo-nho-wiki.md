@@ -65,8 +65,16 @@ Brain khởi đầu tên **Brain Default**, không xoá được (đây là "nã
 ### Chọn brain đang làm việc
 
 1. Bấm vào ô chọn brain ở góc trái thanh trên.
-2. Chọn tên brain muốn dùng. Mỗi dòng hiển thị dạng `🧠 Tên brain · 128`, con số phía sau là số note `.md` Javis đếm được trong brain đó. Nếu số đó chạm trần đếm (5000) sẽ có thêm dấu `+`, nghĩa là "ít nhất ngần này" chứ không phải tổng thật.
+2. Chọn tên brain muốn dùng. Mỗi dòng hiện tên brain và số ghi chú bên dưới (số note `.md` Javis đếm được). Nếu số đó chạm trần đếm (5000) sẽ có thêm dấu `+`, nghĩa là "ít nhất ngần này" chứ không phải tổng thật. Trên máy tính danh sách thả xuống dưới nút, trên điện thoại nó trượt lên từ đáy màn hình; nhiều brain thì có ô tìm.
 3. Toàn bộ Javis (chat, đồ thị, bộ nhớ, agents) lập tức chuyển sang brain đó. Không cần tải lại trang.
+
+### Sắp thứ tự brain
+
+1. Mở ô chọn brain, bấm **Sắp xếp**.
+2. Kéo tay nắm (biểu tượng mũi tên hai chiều) ở đầu dòng, hoặc bấm mũi tên lên / xuống ở cuối dòng.
+3. Bấm **Xong**. Thứ tự lưu trên máy chủ Javis nên điện thoại và máy tính đều thấy giống nhau.
+
+Chưa sắp lần nào thì brain xếp theo tên hiển thị, số đọc theo giá trị: "2-..." đứng trước "10-...". Brain mới tạo sau khi đã sắp sẽ đứng cuối danh sách.
 
 ### Tạo brain mới
 

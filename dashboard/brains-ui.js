@@ -92,20 +92,22 @@
 
     const defOpt = sel.querySelector('option[value="brain"]');
     const frag = document.createDocumentFragment();
+    // 0.431.0: keep the SERVER's order (the owner's own order, then by label; server/brain_order.py), Brain Default
+    // included: it no longer sits on top by force. External folders (app.js optgroup) stay after all of these.
     brains.forEach((b) => {
-      if (b.is_default) {
-        if (defOpt) { defOpt.textContent = label(b); defOpt.dataset.brainLabel = b.label || b.name; }
-        return; // default đã có sẵn option value="brain"
+      const opt = b.is_default && defOpt ? defOpt : document.createElement("option");
+      if (!b.is_default) {
+        opt.value = "path:" + b.path;
+        opt.dataset.brain = "1";
       }
-      const opt = document.createElement("option");
-      opt.value = "path:" + b.path;
       opt.textContent = label(b);
-      opt.dataset.brain = "1";
-      opt.dataset.brainName = b.name; // tên folder để xoá chính xác
+      opt.dataset.brainName = b.name; // tên folder để xoá chính xác, và là khoá của thứ tự đã sắp
       opt.dataset.brainLabel = b.label || b.name;
+      opt.dataset.notes = String(b.notes || 0) + (b.notes_capped ? "+" : "");
       frag.appendChild(opt);
     });
-    if (defOpt && defOpt.nextSibling) sel.insertBefore(frag, defOpt.nextSibling);
+    const firstOther = sel.querySelector("optgroup");
+    if (firstOther) sel.insertBefore(frag, firstOther);
     else sel.appendChild(frag);
 
     // Dọn folder ngoài hỏng/trùng TRƯỚC khi khôi phục lựa chọn (đừng khôi phục về path đã chết).
