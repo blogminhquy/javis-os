@@ -4636,6 +4636,9 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-tick { flex: none; display: inline-flex; color: var(--accent, #3b82f6); }
 .gh-tick svg { width: 18px; height: 18px; }
 .gh-results { display: flex; flex-direction: column; gap: 2px; }
+/* "Add repos on GitHub" is a link styled as a menu row, and the same link inline in the empty list (0.438.1). */
+a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
+.gh-results .cp-empty a[data-gh-add] { color: var(--accent, #3b82f6); text-decoration: underline; }
 /* Pinned to the bottom of the scrolling + menu so a long repo list never hides it (0.432.4). The negative bottom and
    margins cover the menu's 6px padding, so rows do not show through underneath. */
 .gh-foot { position: sticky; bottom: -6px; z-index: 1; display: flex; flex-direction: column; gap: 2px; margin: 8px -6px -6px;

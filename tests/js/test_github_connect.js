@@ -95,6 +95,17 @@ check("no em dash in the module", js.indexOf("\u2014") === -1 && js.indexOf("\u2
   check("the GitHub logo is 32px like the other card logos", /\.gh-card \.conn-ico\.gh-logo \.cp-ic \{ width: 32px; height: 32px; \}/.test(css));
 }
 
+// 0.438.1 (owner, 01/11/2026): a shortcut to add repos on GitHub from the chat picker, for an app sign-in.
+{
+  const rv = js.slice(js.indexOf("function reposView(box, menuApi, canBack)"), js.indexOf("// Several repos: pick the repo first"));
+  check("the picker footer offers Add repos on GitHub for an app sign-in, Connect more otherwise",
+    /addUrl \? '<a class="cp-mi gh-more-conn" data-gh-add="1" target="_blank"[^]*gh\.add_on_github[^]*: '<button[^]*gh\.connect_more/.test(rv));
+  check("only an app sign-in gets the shortcut", /ghStatus\.source === "app" && ghStatus\.install_url/.test(js));
+  check("an empty list points to the same shortcut", /gh\.none_found"\)\) \+\s*\(addUrl \? ' <a data-gh-add="1"/.test(rv));
+  check("coming back to the tab after GitHub reloads the list", /if \(away\) \{ away = false; load\(\); \}/.test(rv) && rv.includes('addEventListener("visibilitychange", onBack)'));
+  check("the listeners go away with the panel", rv.includes('removeEventListener("visibilitychange", onBack)'));
+}
+
 // The "Connected" heading (0.367.0): MCP accounts plus GitHub plus Facebook Pages, whichever card loads last.
 {
   const attrs = [{ name: "id", value: "connCount" }, { name: "style", value: "opacity:.5" }, { name: "data-n", value: "2" }];

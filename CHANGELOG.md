@@ -10,6 +10,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Cải thiện
 - **Thẻ GitHub ở trang Kết nối gọn như các thẻ khác.** Có chấm xanh báo đang kết nối, logo to bằng các thẻ còn lại.
 - Bỏ nút **Chọn repo cho Javis** và dòng "Chưa tải repo nào": repo chọn ngay trong khung chat bằng dấu cộng. Nút chọn repo chỉ hiện khi app GitHub chưa được cài vào tài khoản nào.
+- **Thêm repo ngay trong bảng chọn.** Không thấy repo cần dùng thì bấm **Thêm repo trên GitHub** ở đáy bảng, tick thêm repo bên GitHub rồi quay lại Javis là repo hiện ra, khỏi tải lại trang.
 
 ## [0.438.0] - 2026-11-01
 ### Thêm mới

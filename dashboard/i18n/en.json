@@ -6252,6 +6252,7 @@
   "gh.change_branch": "Change branch",
   "gh.branch_default": "default",
   "gh.view_status": "View status",
+  "gh.add_on_github": "Add repos on GitHub",
   "gh.connect_more": "Connect more",
   "gh.sec_selected": "Selected",
   "gh.sec_repos": "Repos",

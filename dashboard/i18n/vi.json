@@ -6252,6 +6252,7 @@
   "gh.change_branch": "Đổi nhánh",
   "gh.branch_default": "mặc định",
   "gh.view_status": "Xem trạng thái",
+  "gh.add_on_github": "Thêm repo trên GitHub",
   "gh.connect_more": "Kết nối thêm",
   "gh.sec_selected": "Đã chọn",
   "gh.sec_repos": "Repo",
