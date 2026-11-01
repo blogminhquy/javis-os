@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.432.2] - 2026-11-01
 ### Sửa lỗi
-- **Thẻ GitHub thôi báo nhầm "Token còn thiếu quyền: repo, workflow"** khi bạn kết nối bằng nút Đăng nhập bằng GitHub. Cách đăng nhập này không dùng loại quyền đó nên không bao giờ thiếu; quyền thật nằm ở bước **Chọn repo cho Javis**. Ai đã thấy dòng vàng này thì nó tự biến mất, không cần đăng nhập lại.
+- **Thẻ GitHub thôi báo nhầm "Token còn thiếu quyền: repo, workflow"** khi bạn kết nối bằng nút Đăng nhập bằng GitHub. Cách đăng nhập này không dùng loại quyền đó nên không bao giờ thiếu, repo thì vẫn chọn trong khung chat như cũ. Ai đã thấy dòng vàng này thì nó tự biến mất, không cần đăng nhập lại.
+
 ## [0.432.1] - 2026-11-01
 ### Sửa lỗi
 - **Kéo thả file vào khung chat chạy lại.** Sau khi ghé trang Nhóm, thả file vào trang Trò chuyện không có gì xảy ra. Giờ thả là lớp phủ hiện ra và file vào hàng đính kèm như nút kẹp giấy. Cảm ơn @thaihatr-source (#936).
