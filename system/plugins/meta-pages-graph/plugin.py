@@ -37,8 +37,8 @@ def _connected_id():
 
 def _check():
     if not _connected_id():
-        return ("Chưa kết nối Facebook Trang. Vào trang Kết nối, chọn 'Facebook Trang (tự tạo app - "
-                "Graph API)', làm theo hướng dẫn tạo Facebook App rồi đăng nhập (nhớ tick chọn Trang). "
+        return ("Chưa kết nối Facebook Trang. Vào trang Kết nối, chọn 'Facebook Trang (đăng bài, "
+                "bình luận)', làm theo hướng dẫn tạo Facebook App rồi đăng nhập (nhớ tick chọn Trang). "
                 "Sau đó gọi lại tool này.")
     return None
 

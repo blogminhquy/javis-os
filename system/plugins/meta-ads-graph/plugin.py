@@ -30,7 +30,7 @@ def _connected_id():
 
 def _check():
     if not _connected_id():
-        return ("Chưa kết nối Facebook. Vào trang Kết nối, chọn 'Meta Ads (tự tạo app - Graph API)', "
+        return ("Chưa kết nối Facebook. Vào trang Kết nối, chọn 'Meta Ads (app Meta riêng)', "
                 "làm theo hướng dẫn tạo Facebook App rồi đăng nhập. Sau đó gọi lại tool này.")
     return None
 
