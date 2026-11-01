@@ -179,7 +179,11 @@ def subscription_blocked_hint(limit, configured_providers=(), now=None) -> str:
     if reset > ts:
         con = int(reset - ts)
         gio, phut = con // 3600, (con % 3600) // 60
-        khi_nao = _time.strftime("%H:%M", _time.localtime(reset))
+        # Host machines / VPS often run UTC. Use the Javis owner's configured
+        # time zone (Settings -> Locale), not the OS clock, for displayed times.
+        from datetime import datetime
+        import localefmt
+        khi_nao = datetime.fromtimestamp(reset, localefmt.tz()).strftime("%H:%M ngày %d/%m")
         cho = f"{gio} giờ {phut} phút" if gio else f"{phut} phút"
         # Keep the provider's own words too: they carry its time zone ("resets 1:50am (Asia/Bangkok)"),
         # which the local HH:MM above has converted away.
