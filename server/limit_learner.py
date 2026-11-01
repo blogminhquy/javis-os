@@ -290,6 +290,10 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
      re.compile(r"(weekly|per\s+week)\s+limit\s+reached|reached\s+your\s+weekly\s+limit", re.I)),
     ("claude_5h", "claude-code", "5 giờ",
      re.compile(r"\b5[\s-]?hour\s+limit\s+reached", re.I)),
+    # Some CLIs print "You've hit your 5-hour limit · resets 5:20pm (UTC)".
+    # It names the window, but not the provider; use the caller's engine_hint.
+    ("sub_5h_hit", "", "5 giờ",
+     re.compile(r"you'?ve\s+(?:hit|reached)\s+your\s+5[\s-]?hour\s+limit\b", re.I)),
     ("claude_usage", "claude-code", "",
      re.compile(r"claude\s+(ai\s+)?(usage|api)?\s*limit\s+reached", re.I)),
     ("claude_reached", "claude-code", "",
