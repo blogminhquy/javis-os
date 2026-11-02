@@ -860,7 +860,8 @@ class GrokVoiceBrain(VoiceBrain):
             got = False
             async for ev in self.cli.query(content):
                 t = ev.get("type")
-                if t == "text" and ev.get("content"):
+                # `delta` (0.438.6): Grok Build phát chữ từng mẩu, nên giọng đọc bắt đầu sớm thay vì chờ hết lượt.
+                if t in ("text", "delta") and ev.get("content"):
                     got = True
                     yield ev["content"]
                 elif t == "final":

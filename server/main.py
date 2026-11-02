@@ -16202,10 +16202,10 @@ async def voice_options(brains: int = 1):
                 item["models"] = _models_items(grok_cli.list_models() or []) if item["available"] else []
             except Exception:
                 item["models"] = []
-            item["hint"] = (localefmt.chu("Mỗi câu một lượt grok headless, nối lại mạch cũ nên có ký ức. Trả lời về "
-                                          "một cục chứ không stream từng chữ.",
+            item["hint"] = (localefmt.chu("Mỗi câu một lượt grok headless, nối lại mạch cũ nên có ký ức. Chữ về "
+                                          "từng mẩu nên đọc được ngay khi Grok đang viết.",
                                           "One headless grok turn per sentence, resuming the thread so it remembers. "
-                                          "Replies arrive in one block rather than streaming word by word.")
+                                          "Text arrives piece by piece, so speech starts while Grok writes.")
                             if item["available"]
                             else localefmt.chu("Chưa cài Grok Build (grok). Xem trang Models.",
                                                "Grok Build (grok) is not installed. See the Models page."))
@@ -17489,6 +17489,11 @@ async def websocket_endpoint(ws: WebSocket):
                                 "detail": tool_label.chi_tiet(ev),
                                 "content": localefmt.chu(f"⚙ Đang gọi: {ev.get('name', '')}",
                                                          f"⚙ Calling: {ev.get('name', '')}")}))
+                        elif et == "delta":
+                            # 0.438.6: chữ xem trước, hiện ngay từng mẩu; `final` mới là câu trả lời.
+                            if ev.get("content"):
+                                await ws.send_text(json.dumps({
+                                    "type": "stream", "content": ev["content"], "tts": False}))
                         elif et == "final":
                             final_text = ev.get("content") or ""
                         elif et == "usage":
@@ -17565,6 +17570,11 @@ async def websocket_endpoint(ws: WebSocket):
                                 "detail": tool_label.chi_tiet(ev),
                                 "content": localefmt.chu(f"⚙ Đang gọi: {ev.get('name', '')}",
                                                          f"⚙ Calling: {ev.get('name', '')}")}))
+                        elif et == "delta":
+                            # 0.438.6: chữ xem trước, hiện ngay từng mẩu; `final` mới là câu trả lời.
+                            if ev.get("content"):
+                                await ws.send_text(json.dumps({
+                                    "type": "stream", "content": ev["content"], "tts": False}))
                         elif et == "final":
                             final_text = ev.get("content") or ""
                         elif et == "usage":

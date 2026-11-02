@@ -1678,6 +1678,7 @@ class AntigravityCLI:
                                 doc_duoc = True
                         else:
                             da_thu_doc = True
+                _n = len(cac_manh)
                 for ra in self._doi_su_kien(ev, cac_manh, chan):
                     if ra.get("type") == "tool_call":
                         co_tool = True      # đã đụng thế giới bên ngoài -> KHÔNG được chạy lại
@@ -1687,6 +1688,12 @@ class AntigravityCLI:
                         if giu_loi:
                             continue      # lượt này còn có thể thử lại bằng đường khác
                     yield ra
+                # 0.438.6: chữ xem trước, ra ngay từng mẩu. Câu trả lời thật vẫn là `final` cuối lượt
+                # (đã qua `_chot_van`); nơi nào không biết `delta` thì bỏ qua. Dòng `_raw` không hiện trước.
+                if len(cac_manh) > _n and "_raw" not in ev:
+                    for _m in cac_manh[_n:]:
+                        if _m:
+                            yield {"type": "delta", "content": _m}
         finally:
             stop_requested.set()
             # A second Stop may interrupt this wait; the worker still owns cleanup.

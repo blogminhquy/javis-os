@@ -289,6 +289,12 @@ check("id hội thoại lấy ở TẦNG NGOÀI, không bị payload lồng đè
       _gl.session_id == "hoi-thoai-1", _gl.session_id)
 check("đọc được token từ usage lồng bên trong result",
       any(e["type"] == "usage" and e["input_tokens"] == 120 for e in _evsl), _evsl)
+# 0.438.6: chữ xem trước ra từng mẩu (text_delta) TRƯỚC `final`, và `result.response` (toàn văn lặp lại) không
+# hiện thêm lần nữa.
+_dtl = [e["content"] for e in _evsl if e["type"] == "delta"]
+check("chữ xem trước ra từng mẩu, toàn văn của result không hiện lặp", _dtl == ["Xin ", "chào!"], _dtl)
+check("mẩu chữ ra TRƯỚC câu trả lời cuối",
+      _final and _dtl and max(i for i, e in enumerate(_evsl) if e["type"] == "delta") < _evsl.index(_final[0]))
 
 # Ca NGƯỢC LẠI, và đây là chỗ patch của người dùng còn hở: lượt trả lời NGẮN có bản chỉ phát
 # mỗi `result`, không có text_delta nào. `return ra` vô điều kiện ở nhánh result là câu trả lời
@@ -300,6 +306,16 @@ _CHI_RESULT = [
 _evsr, _, _ = _chay_gia(_CHI_RESULT, help_text=_HELP_MOI)
 check("CANARY: chỉ có `result`, không có text_delta -> VẪN lấy được câu trả lời",
       any(e["type"] == "final" and e["content"] == "Chỉ mỗi result." for e in _evsr), _evsr)
+
+# 0.438.6: dashboard đẩy `delta` của Grok và Antigravity thành khung stream (không đọc giọng giữa chừng), và
+# `final` vẫn là câu trả lời được lưu.
+_main_src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+for _nhanh, _dau in (("grok-cli", 'elif prov == "grok-cli":'), ("antigravity-cli", 'elif prov == "antigravity-cli":')):
+    _i = _main_src.find(_dau, _main_src.find("===== Gói SuperGrok") - 2000)
+    _khoi = _main_src[_i:_main_src.find("            elif prov == ", _i + len(_dau))]   # đúng nhánh này thôi
+    check(f"dashboard {_nhanh}: delta thành khung stream, final vẫn là câu trả lời",
+          'elif et == "delta":' in _khoi and '"type": "stream", "content": ev["content"], "tts": False' in _khoi
+          and _khoi.find('elif et == "delta":') < _khoi.find('elif et == "final":'))
 
 
 # ============================================================
