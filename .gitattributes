@@ -25,4 +25,5 @@ javis.service text eol=lf
 *.mp3 binary
 *.db binary
 *.ico binary
+*.bmp binary
 *.icns binary

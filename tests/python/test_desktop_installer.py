@@ -133,6 +133,63 @@ check("CI runs the macOS first-run path and checks all four brains",
 check("macOS launcher has a fallback when Terminal automation is denied",
       "if ! osascript" in launcher and "pbcopy" in launcher and "printf 'JAVIS_HOME=%q bash %q" in launcher)
 
+# ---- Javis logo in the installers, optional signing (0.439.1) ----
+import struct  # noqa: E402
+
+
+def bmp_info(path):
+    """(width, height, bits per pixel) from the BMP header; no Pillow on CI."""
+    b = path.read_bytes()[:30]
+    if b[:2] != b"BM":
+        return None
+    w, h = struct.unpack("<ii", b[18:26])
+    return w, abs(h), struct.unpack("<H", b[28:30])[0]
+
+
+for pct in (100, 125, 150, 175, 200, 225, 250):
+    for name, base in ((f"wizard-{pct}.bmp", (164, 314)), (f"wizard-small-{pct}.bmp", (55, 55))):
+        f = PK / "assets" / name
+        want = tuple(round(v * pct / 100) for v in base)
+        info = bmp_info(f) if f.exists() else None
+        check(f"wizard picture {name} is a 24-bit BMP at {want} (what Inno Setup 6 reads)",
+              info == (*want, 24), info)
+        check(f"installer lists {name}", f"..\\assets\\{name}" in iss)
+check("installer shows the pictures unstretched", "WizardImageStretch=no" in iss)
+check("signing is opt-in: SignTool only under #ifdef Sign", "#ifdef Sign\r\nSignTool=javis" in iss_raw.decode("utf-8-sig")
+      or "#ifdef Sign\nSignTool=javis" in iss)
+check("the uninstaller is signed together with the setup", "SignedUninstaller=yes" in iss)
+check("CI signs only with the certificate secrets and checks the signature",
+      "secrets.WINDOWS_CERT_PFX_BASE64" in wf and "/DSign" in wf and "Get-AuthenticodeSignature" in wf
+      and 'if ($sig.Status -ne "Valid")' in wf)
+check("CI never prints the certificate to the log (written to a file, removed after)",
+      "WriteAllBytes($pfx" in wf and "Remove-Item $pfx" in wf)
+build_dmg = BUILD_DMG.read_text(encoding="utf-8")
+check(".dmg mounts with the Javis icon (.VolumeIcon.icns + custom-icon flag)",
+      ".VolumeIcon.icns" in build_dmg and "-a C" in build_dmg and "UDRW" in build_dmg)
+
+# ---- one-line installs, no SmartScreen / Gatekeeper block (0.439.1) ----
+REL = "https://github.com/blogminhquy/javis-os/releases/download/desktop/"
+GET_PS1 = PK / "windows" / "get-javis.ps1"
+GET_SH = PK / "macos" / "get-javis.sh"
+gps = GET_PS1.read_text(encoding="utf-8")
+gsh = GET_SH.read_text(encoding="utf-8")
+check("get-javis.ps1 is pure ASCII (piped into Windows PowerShell 5.1)", GET_PS1.read_bytes().isascii())
+check("get-javis.ps1 runs inside & { } so `irm | iex` leaves no settings in the person's session",
+      gps.split("# ===", 2)[-1].lstrip().split("\n", 1)[-1].lstrip().startswith("& {"))
+check("get-javis.ps1 downloads the published setup and opens it",
+      REL + "JavisOS-Setup.exe" in gps and "Start-Process -FilePath $out" in gps)
+check("get-javis.sh downloads the published .dmg", REL + "JavisOS-macOS.dmg" in gsh)
+check("get-javis.sh gives the installer the keyboard back (stdin is the curl pipe)", "< /dev/tty" in gsh)
+check("get-javis.sh only replaces the app bundle, never ~/JavisOS (the brain)",
+      'rm -rf "${DEST}/JAVIS OS.app"' in gsh and not any("rm -rf" in ln and "JavisOS" in ln and ".app" not in ln
+                                                         for ln in gsh.splitlines()))
+check("get-javis.sh is executable", os.access(GET_SH, os.X_OK))
+raw = "https://raw.githubusercontent.com/blogminhquy/javis-os/main/"
+for doc in ("QUICKSTART.md", "QUICKSTART.en.md"):
+    d = (ROOT / doc).read_text(encoding="utf-8")
+    check(f"{doc} gives the Windows one-liner", f"irm {raw}packaging/windows/get-javis.ps1 | iex" in d)
+    check(f"{doc} gives the macOS one-liner", f"curl -fsSL {raw}packaging/macos/get-javis.sh | bash" in d)
+
 # ---- the .app bundle actually assembles ----
 dist = ROOT / "dist" / "dmg-stage"
 if shutil.which("bash") and os.name != "nt":
@@ -148,7 +205,7 @@ if shutil.which("bash") and os.name != "nt":
               and (app / "Resources" / (info["CFBundleIconFile"] + ".icns")).exists())
         check("app executable is executable", os.access(app / "MacOS" / "javis", os.X_OK))
     shutil.rmtree(ROOT / "dist", ignore_errors=True)
-for f in (LAUNCHER, BOOT_SH, BUILD_DMG, ROOT / "install.sh", ROOT / "bin" / "javis-start.sh"):
+for f in (LAUNCHER, BOOT_SH, BUILD_DMG, PK / "macos" / "get-javis.sh", ROOT / "install.sh", ROOT / "bin" / "javis-start.sh"):
     r = subprocess.run(["bash", "-n", str(f)], capture_output=True, text=True)
     check(f"bash -n {f.relative_to(ROOT)}", r.returncode == 0, r.stderr)
 check("in-repo JAVIS OS.app now has the icon its Info.plist names",

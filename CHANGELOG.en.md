@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.439.1] - 2026-11-02
+### Improved
+- **Install without the red "Windows protected your PC" screen.** Paste one line into PowerShell (Windows) or Terminal (Mac) and the installer downloads and opens on its own, without being blocked. The line is in the quick start guide. A browser download still asks once until the installer is code-signed.
+- **The installers carry the Javis logo.** The Windows wizard shows the Javis star on its first and last pages and in the corner of the pages between, sharp on scaled-up screens too. The disk that appears when you open the Mac `.dmg` has the Javis icon as well.
+- Releases are ready to sign the Windows installer: once the project owner adds a certificate on GitHub, later builds are signed automatically.
+
 ## [0.439.0] - 2026-11-02
 ### Added
 - **Install Javis like an app on your computer.** On Windows, download `JavisOS-Setup.exe`, double-click it and press Next to the end. On a Mac, download `JavisOS-macOS.dmg` and drag JAVIS OS into Applications. The installer checks which of Git, Python, Node and the AI brains are missing and installs them, no commands to type. Download links are in the quick start guide.
