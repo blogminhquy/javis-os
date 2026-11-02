@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.441.0] - 2026-11-02
+### Thêm mới
+- **Chat bên ChatGPT hay Claude, Javis vẫn nắm ngữ cảnh.** Qua Javis Gate, AI đó tự ghi lại vào Javis những gì bạn hỏi và đã chốt, kèm lý do. Mỗi cuộc chat bên đó có một hội thoại riêng trong Lịch sử của Javis, ví dụ "Từ ChatGPT: Kế hoạch Tết" hay "Từ Claude: Viết Web".
+- Ghi chép **không tốn hạn mức** bộ não của Javis vì Javis không phải trả lời, nhưng vẫn vào trí nhớ và vòng tự học như một cuộc chat bình thường. Lần sau hỏi Javis, nó nhớ bạn đã quyết gì bên ChatGPT.
+- Ghi chép dùng được ở mức Ghi nháp và Toàn quyền. Mức Chỉ đọc thì AI bên ngoài chỉ đọc, không ghi gì vào Javis.
+
 ## [0.440.0] - 2026-11-02
 ### Thêm mới
 - **ChatGPT và Claude nhắn thẳng vào khung chat của Javis.** Cài gói **Javis Gate** ở Javis Store, nối với ChatGPT hoặc Claude. Bảo nó "đọc hội thoại Viết Web trên Javis rồi tư vấn mình nên làm gì tiếp", nó đọc và tư vấn. Bạn đồng ý ngay bên đó là nó nhắn vào đúng hội thoại để Javis làm tiếp.

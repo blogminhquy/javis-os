@@ -12,6 +12,8 @@ Người dùng báo 02/11: ChatGPT giao việc cho Javis qua Kanban nên không 
 3. Không đọc, không gửi vào hội thoại của khách (bot) hay phiên nhóm.
 4. Bốn tool chỉ có ở cửa Gate; tool GỬI chỉ ở mức Toàn quyền.
 5. Khối nguồn không lọt ra tên hội thoại, trang chia sẻ, bong bóng.
+6. Ghi chép (0.441.0): AI bên ngoài lưu phần đáng giữ của cuộc chat bên nó vào Javis, không chạy lượt nào của
+   Javis, nhưng vẫn vào Lịch sử, nhật ký và vòng tự học; mỗi cuộc chat bên ngoài một hội thoại "Từ <AI>: <tên>".
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -92,7 +94,12 @@ async def _false(*a, **k):
     return False
 main._schedule_cancel_action = _none
 main.compaction.maybe_compact = _false
-main.learn_feature.enqueue = _none
+HOC = []
+
+
+async def _hoc(brain, sid, u, j):
+    HOC.append((sid, u, j))
+main.learn_feature.enqueue = _hoc
 
 BRAIN = main._brain_key(str(Path(tempfile.mkdtemp(prefix="brain-gate-")).resolve()))
 ss = main.get_store()
@@ -202,7 +209,7 @@ def ten_tool(mode, gate):
 
 
 full = ten_tool("full", GATE)
-check("Toàn quyền: đủ bốn tool chat", all(t in full for t in CB.TOOLS), [t for t in full if "chat" in t])
+check("Toàn quyền: đủ năm tool chat", all(t in full for t in CB.TOOLS), [t for t in full if "chat" in t])
 sug = ten_tool("suggest", GATE)
 check("Chỉ đọc: không có tool gửi, vẫn tìm và đọc được",
       "javis_chat_send" not in sug and "javis_chat_find" in sug and "javis_chat_read" in sug)
@@ -230,6 +237,76 @@ check("nguồn lấy từ cửa Gate", CB.nguon_cua([m for m in ss.get_messages(
       == "ChatGPT")
 txt, loi = goi("javis_chat_result", {"id": WEB, "after_id": kq.get("after_id", 0), "wait_seconds": 0})
 check("tool đọc kết quả gọi lại được", not loi and '"done"' in txt, txt[:200])
+
+# ============================================================
+# 5b. Ghi chép (0.441.0)
+# ============================================================
+GOI_ENGINE = []
+_post_goc = _FakeClient.post
+
+
+async def _post_dem(self, *a, **k):
+    GOI_ENGINE.append(1)
+    return await _post_goc(self, *a, **k)
+_FakeClient.post = _post_dem
+NHAT_KY.clear()
+HOC.clear()
+SU_KIEN.clear()
+auto = ten_tool("auto", GATE)
+check("mức Ghi nháp: có tool ghi chép, không có tool gửi", "javis_chat_note" in auto and "javis_chat_send" not in auto)
+check("mức Chỉ đọc: không có tool ghi chép", "javis_chat_note" not in ten_tool("suggest", GATE))
+txt, loi = goi("javis_chat_note", {"title": "Viết Web", "asked": "x"}, mode="suggest")
+check("gọi ghi chép ở mức Chỉ đọc: báo lỗi, không lưu", loi and "Draft or Full" in txt, txt)
+txt, loi = goi("javis_chat_note", {"title": "Kế hoạch Tết", "asked": "Anh muốn chạy quảng cáo nước mắm dịp Tết",
+                                   "answered": "Gợi ý 3 phương án ngân sách.",
+                                   "decided": "Chốt phương án 2: 5 triệu/tuần, vì vừa túi tiền."}, mode="auto")
+kq = json.loads(txt) if not loi else {}
+SID_GC = kq.get("id", "")
+check("ghi chép ở mức Ghi nháp: lưu được, trả mã hội thoại", not loi and SID_GC, txt)
+row = ss.get_session(SID_GC) or {}
+check("hội thoại mới mang tên 'Từ ChatGPT: <tên>' và nằm trong Lịch sử",
+      row.get("title") == "Từ ChatGPT: Kế hoạch Tết" and SID_GC in [r["id"] for r in ss.list_sessions(limit=50)],
+      row.get("title"))
+tin = ss.get_messages(SID_GC)
+check("lưu tin của chủ kèm nhãn nguồn, đủ ba phần", tin[0]["role"] == "user" and CB.nguon_cua(tin[0]["content"])
+      == "ChatGPT" and "phương án 2" in tin[0]["content"] and "Chủ đã chốt" in tin[0]["content"], tin[0]["content"][:200])
+check("Javis không chạy lượt nào (không gọi engine)", not GOI_ENGINE)
+check("ghi chép vào nhật ký hội thoại", any("phương án 2" in u for u, _ in NHAT_KY), NHAT_KY)
+check("ghi chép vào hàng đợi tự học", any(sid == SID_GC and "phương án 2" in u for sid, u, _ in HOC))
+check("tab đang mở thấy tin và dòng xác nhận ngay",
+      any(e.get("type") == "external_message" and e.get("session_id") == SID_GC for e in SU_KIEN)
+      and any(e.get("type") == "push" and e.get("session_id") == SID_GC for e in SU_KIEN))
+txt, loi = goi("javis_chat_note", {"title": "  kế hoạch   TẾT ", "asked": "Thêm kênh Zalo nữa nhé",
+                                   "decided": "Thêm Zalo"}, mode="full")
+check("cùng tên cuộc chat (khác hoa thường, khoảng trắng): ghi tiếp vào cùng hội thoại",
+      not loi and json.loads(txt)["id"] == SID_GC and len(ss.get_messages(SID_GC)) == 4, txt)
+txt, loi = goi("javis_chat_note", {"title": "Kế hoạch Tết", "asked": "Claude nói"}, gate={"source": "Claude"})
+check("Claude ghi chép: hội thoại riêng 'Từ Claude: ...'",
+      not loi and json.loads(txt)["id"] != SID_GC and json.loads(txt)["title"] == "Từ Claude: Kế hoạch Tết", txt)
+txt, loi = goi("javis_chat_note", {"id": WEB, "asked": "Anh duyệt màu cam cho trang chủ", "decided": "Màu cam"})
+check("ghi thẳng vào một hội thoại có sẵn khi đưa id", not loi and json.loads(txt)["id"] == WEB
+      and "Màu cam" in [m for m in ss.get_messages(WEB) if m["role"] == "user"][-1]["content"], txt)
+txt, loi = goi("javis_chat_note", {"id": BOT, "asked": "x"})
+check("không ghi vào hội thoại của khách", loi, txt)
+txt, loi = goi("javis_chat_note", {"asked": "thiếu tên"})
+check("thiếu cả title lẫn id: báo lỗi rõ", loi and "title is required" in txt, txt)
+txt, loi = goi("javis_chat_note", {"title": "x", "answered": "chỉ có câu trả lời"})
+check("không có gì chủ nói hay chốt: không lưu", loi, txt)
+check("Javis vẫn không chạy lượt nào sau mọi ghi chép", not GOI_ENGINE)
+ss.delete(SID_GC)
+txt, loi = goi("javis_chat_note", {"title": "Kế hoạch Tết", "asked": "Ghi lại sau khi xoá"})
+check("chủ xoá hội thoại ghi chép: lần ghi sau mở hội thoại mới", not loi and json.loads(txt)["id"] != SID_GC, txt)
+import localefmt  # noqa: E402
+_nn_goc = localefmt.ngon_ngu_giao_dien
+localefmt.ngon_ngu_giao_dien = lambda *a, **k: "en"
+txt, loi = goi("javis_chat_note", {"title": "Launch plan", "asked": "English UI"})
+localefmt.ngon_ngu_giao_dien = _nn_goc
+check("giao diện tiếng Anh: hội thoại ghi chép tên 'From ChatGPT: ...'",
+      not loi and json.loads(txt)["title"] == "From ChatGPT: Launch plan", txt)
+_FakeClient.post = _post_goc
+khoi_gc = CB.khoi_ghi_chep("ChatGPT") + "x"
+check("khối ghi chép cùng tiền tố: tên hội thoại và trang chia sẻ đều gỡ được",
+      share_render.chu_nguoi_go(khoi_gc) == "x" and sessions.title_from_message(khoi_gc) == "x")
 
 # ============================================================
 # 6. Khối nguồn không lọt ra chỗ người đọc
