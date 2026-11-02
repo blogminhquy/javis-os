@@ -452,7 +452,7 @@ def json_an_toan(o) -> str:
 
 # Khớp `_KHOI_NGU_CANH` của dashboard/app.js (chuNguoiGo): khối đầu tin do giao diện tự chèn.
 KHOI_NGU_CANH = ("[FILE ĐANG MỞ trong trình sửa của Javis:", "[File đính kèm", "[NGỮ CẢNH GIAO DIỆN:",
-                 "[SKILL: ", "[CHẾ ĐỘ KẾ HOẠCH:", "[MỤC TIÊU:")
+                 "[SKILL: ", "[CHẾ ĐỘ KẾ HOẠCH:", "[MỤC TIÊU:", "[GỬI QUA JAVIS GATE:")
 _COMMENT_RE = re.compile(r"<!--[\s\S]*?-->")
 
 

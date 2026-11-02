@@ -310,7 +310,7 @@ Plugin dùng hook này vẫn chịu đúng rào chung: plugin người dùng t�
 
 ## Trang riêng và đường HTTP (từ 0.64.26)
 
-Plugin mở được đường web của riêng nó, dưới `/ext/<slug>/`. Dùng cho trang cài đặt, hoặc cho dịch vụ bên ngoài gọi vào (webhook, cửa OAuth). Gói "Javis trong ChatGPT" trong kho là ví dụ chạy thật.
+Plugin mở được đường web của riêng nó, dưới `/ext/<slug>/`. Dùng cho trang cài đặt, hoặc cho dịch vụ bên ngoài gọi vào (webhook, cửa OAuth). Gói **Javis Gate** (`javis.gate`) trong kho là ví dụ chạy thật.
 
 ```python
 def register(ctx):
@@ -326,6 +326,27 @@ def register(ctx):
 - **`register_well_known`**: chỉ GET, công khai, không cookie. Hai plugin xin cùng tên thì plugin nạp trước giữ.
 - Khai `page: ""` trong `plugin.yaml` thì thẻ plugin có nút **Mở trang**.
 - Chỉ plugin đi kèm app, plugin của gói đã cài và plugin toàn cục mới có đường. **Plugin trong brain thì không**, vì model ghi được vào brain.
+
+## Javis Gate: AI bên ngoài nhắn vào khung chat (từ 0.440.0)
+
+Gói **Javis Gate** (`javis.gate`) mở cửa MCP có OAuth cho ChatGPT, Claude và AI khác. Ngoài bộ công
+cụ Javis đã có, cửa này có thêm bốn công cụ chỉ AI bên ngoài thấy (`server/chat_bridge.py`):
+
+| Công cụ | Việc | Mức quyền |
+|---|---|---|
+| `javis_chat_find` | Tìm hội thoại theo tên (không phân biệt dấu) hoặc nội dung | Mọi mức |
+| `javis_chat_read` | Đọc các tin cuối của một hội thoại | Mọi mức |
+| `javis_chat_send` | Nhắn vào hội thoại như chủ gõ, chờ câu trả lời | Chỉ Toàn quyền |
+| `javis_chat_result` | Đọc câu trả lời khi Javis làm lâu | Mọi mức |
+
+- **Tin nhắn chạy đúng như chủ gõ:** đi qua chính vòng chat của dashboard, nên chữ chạy trên mọi tab
+  đang mở, có nút Dừng, lưu vào Lịch sử, ghi `memory/conversations` và vào vòng tự học. Bong bóng
+  tin mang nhãn **từ ChatGPT** hay **từ Claude**.
+- **Hội thoại đang trả lời** thì tin thành tin gõ thêm, như khi chủ gõ thêm lúc Javis đang làm.
+- **Chỉ hội thoại của chủ** (khung Trò chuyện, chat với Cộng sự). Hội thoại của khách và nhóm chat thì
+  không đọc, không nhắn được.
+- Bốn công cụ **không bao giờ** có trong bộ công cụ của chính Javis: chúng chỉ hiện khi cửa của gói gọi
+  `mcp_hub.tra_loi_jsonrpc(..., gate={"source": "<tên AI>"})`.
 
 ## Bảng tra nhanh nút và trạng thái
 

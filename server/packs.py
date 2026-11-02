@@ -183,6 +183,36 @@ def _doc_file(p):
     return fastyaml.safe_load(raw)
 
 
+def ma_thay_the(m, pid: str = "") -> list:
+    """Mã CŨ mà gói này thay (`replaces:` trong manifest, 0.440.0). Gói đổi mã (ví dụ
+    `javis.javis-trong-chatgpt` thành `javis.gate`) khai mã cũ ở đây, để trình cài chuyển sổ cài đặt,
+    dữ liệu plugin và năng lực trong brain sang mã mới thay vì coi đó là hai gói khác nhau.
+    Chỉ nhận mã hợp lệ, khác chính nó, tối đa 10."""
+    ra = []
+    for x in ((m or {}).get("replaces") or [])[:10] if isinstance((m or {}).get("replaces"), list) else []:
+        x = str(x or "").strip()
+        if _ID_RE.match(x) and x != pid and x not in ra:
+            ra.append(x)
+    return ra
+
+
+def plugin_alias(slug: str) -> str:
+    """Tên MỚI của một plugin đã đổi tên theo gói (0.440.0), hoặc "" nếu không có.
+
+    Địa chỉ `/ext/<slug cũ>/...` đã dán ra ngoài (ChatGPT giữ địa chỉ MCP và cửa OAuth) phải còn
+    chạy sau khi gói đổi mã, nên trình cài ghi `plugin_aliases` {cũ: mới} vào hàng của gói mới."""
+    slug = str(slug or "")
+    if not slug:
+        return ""
+    for hang in _so_cai_dat().values():
+        if not isinstance(hang, dict) or hang.get("enabled") is False:
+            continue
+        moi = (hang.get("plugin_aliases") or {}).get(slug)
+        if moi and moi != slug:
+            return str(moi)
+    return ""
+
+
 def _kiem_connector(con, thu_muc, id_da_co) -> tuple[bool, str]:
     """Một connector từ gói có được phép vào kho không. Trả (ok, lý do)."""
     cid = str((con or {}).get("id") or "").strip()
@@ -280,6 +310,7 @@ def _nap_mot(thu_muc, id_da_co) -> dict:
     ban.update(name=_ngon_ngu(m.get("name"), pid), description=_ngon_ngu(m.get("description")),
                version=str(m.get("version") or ""), author=(m.get("author") or {}),
                homepage=str(m.get("homepage") or ""), license=str(m.get("license") or ""))
+    ban["replaces"] = ma_thay_the(m, pid)
 
     cons, loi = [], []
     for rel in ((m.get("provides") or {}).get("connectors") or []):

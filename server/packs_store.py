@@ -127,6 +127,9 @@ def _lam_sach(m: dict) -> dict:
         "provides": {"connectors": [_chuoi(x, 64) for x in
                                     ((m.get("provides") or {}).get("connectors") or [])[:50]
                                     if _chuoi(x, 64)]},
+        # 0.440.0: mã cũ gói này thay (gói đổi mã). Máy đang cài mã cũ thấy gói mới như một bản cập nhật.
+        "replaces": [_chuoi(x, 64) for x in (m.get("replaces") or [])[:10]
+                     if isinstance(m.get("replaces"), list) and _chuoi(x, 64)],
         "category": _chuoi(m.get("category"), 32),
         "category_label": _map_nn(m.get("category_label"), 40),
         # `tier` là thứ người phát hành KHAI, chỉ để lọc và để hiện nhãn. Bậc THẬT do trình cài

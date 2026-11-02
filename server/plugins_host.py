@@ -807,6 +807,20 @@ def tim_http(slug: str, duong: str, method: str = ""):
         for r in lp.http:
             if r["path"] == duong and (not method or method.upper() in r["methods"]):
                 return lp, r
+    # 0.440.0: plugin đổi tên theo gói (gói khai `replaces`): địa chỉ cũ đã dán ra ngoài vẫn tới
+    # plugin mới. Chỉ một bước, và chỉ khi slug cũ không còn plugin nào giữ.
+    try:
+        import packs
+        moi = packs.plugin_alias(slug)
+    except Exception:
+        moi = ""
+    if moi and moi != slug and not any(lp.slug == slug for lp in _plugin_http()):
+        for lp in _plugin_http():
+            if lp.slug != moi:
+                continue
+            for r in lp.http:
+                if r["path"] == duong and (not method or method.upper() in r["methods"]):
+                    return lp, r
     return None
 
 

@@ -318,6 +318,8 @@ _KHOI_NGU_CANH_UI = re.compile(r"^\s*\[NGỮ CẢNH GIAO DIỆN:[^\]]*\]\s*")
 # Hội thoại mở đầu bằng `/plan dọn kho` phải mang tên "dọn kho", không phải "[CHẾ ĐỘ KẾ HOẠCH: chỉ
 # đọc và đề xuất. Lượt này CHƯA được làm gì...". Neo đúng hai cụm này, đừng bóc mọi khối [..].
 _KHOI_LENH_HE_THONG = re.compile(r"^\s*\[(?:CHẾ ĐỘ KẾ HOẠCH|MỤC TIÊU):[^\]]*\]\s*")
+# Khối nguồn của tin do AI bên ngoài gửi qua Javis Gate (chat_bridge.py, 0.440.0): cùng loại.
+_KHOI_GATE = re.compile(r"^\s*\[GỬI QUA JAVIS GATE:[^\]]*\]\s*")
 # Câu dashboard tự điền khi user đính kèm file mà KHÔNG gõ gì - không mang thông tin gì.
 _CAU_TU_DIEN = "Hãy đọc (các) file trên và phản hồi / tóm tắt nội dung chính."
 # File đính kèm được app.js liệt kê mỗi dòng một cái, dạng "- <đường dẫn>". Neo vào ĐÚNG dạng
@@ -364,6 +366,7 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
         con_lai = _KHOI_GHIM.sub("", con_lai, count=1)
         con_lai = _KHOI_NGU_CANH_UI.sub("", con_lai, count=1)
         con_lai = _KHOI_LENH_HE_THONG.sub("", con_lai, count=1)
+        con_lai = _KHOI_GATE.sub("", con_lai, count=1)
         m_dk = _KHOI_DINH_KEM.match(con_lai)
         if m_dk:
             khoi_dk = m_dk.group(0)

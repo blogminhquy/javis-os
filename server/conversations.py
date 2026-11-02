@@ -1017,7 +1017,7 @@ def dat_ghim(conversation_id: int, pinned: bool) -> bool:
 #
 # The owner keeps ONE list of tags (name + a colour from a small fixed palette) and puts them on CONVERSATIONS, so a
 # customer's private chat and a group they write in are tagged separately. Kept apart from `customers.tags_json`, the
-# free-text tags the CRM store pack (javis.khach-hang-crm) writes on a CUSTOMER: neither touches the other.
+# free-text tags the CRM store pack (javis.crm) writes on a CUSTOMER: neither touches the other.
 # ============================================================
 TAG_COLORS = ("gray", "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink")
 MAX_INBOX_TAGS = 60
@@ -1566,7 +1566,7 @@ def loai_tin_tu_chu(text: str) -> str:
 # ============================================================
 # CRM: khách hàng xuyên kênh (0.60.1)
 #
-# Tầng đọc/ghi mà gói "Quản lý khách hàng" ở Kho cài đặt (javis.khach-hang-crm) cắm vào. Gói
+# Tầng đọc/ghi mà gói "Quản lý khách hàng" ở Kho cài đặt (javis.crm) cắm vào. Gói
 # gọi ĐÚNG các hàm này chứ không tự viết SQL: schema là của kho, kho đổi thì hàm đổi theo, còn
 # SQL chép trong gói sẽ gãy im lặng ở bản sau. Hai hàm ghi (tag, ghi chú) chỉ chạm bảng
 # customers; không hàm nào gửi tin hay gọi ra ngoài.

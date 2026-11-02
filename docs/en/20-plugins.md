@@ -308,7 +308,7 @@ A plugin using this hook sits behind the usual rails: a user-installed plugin on
 
 ## Own page and HTTP routes (since 0.64.26)
 
-A plugin can open web routes of its own, under `/ext/<slug>/`. Use it for a settings page, or for an outside service to call in (webhook, OAuth door). The "Javis in ChatGPT" package in the store is a working example.
+A plugin can open web routes of its own, under `/ext/<slug>/`. Use it for a settings page, or for an outside service to call in (webhook, OAuth door). The **Javis Gate** package (`javis.gate`) in the store is a working example.
 
 ```python
 def register(ctx):
@@ -324,6 +324,26 @@ def register(ctx):
 - **`register_well_known`**: GET only, public, no cookie. If two plugins claim one name, the one loaded first keeps it.
 - Declare `page: ""` in `plugin.yaml` and the plugin card gets an **Open page** button.
 - Only bundled plugins, plugins from an installed package and global plugins get routes. **A plugin inside a brain does not**, because the model can write into the brain.
+
+## Javis Gate: an outside AI posts into a chat (since 0.440.0)
+
+The **Javis Gate** package (`javis.gate`) opens an MCP door with OAuth for ChatGPT, Claude and other AIs. Besides the
+tools Javis already has, that door carries four tools only the outside AI sees (`server/chat_bridge.py`):
+
+| Tool | What it does | Access level |
+|---|---|---|
+| `javis_chat_find` | Find chats by title (accents ignored) or content | Any |
+| `javis_chat_read` | Read the last messages of a chat | Any |
+| `javis_chat_send` | Post into a chat as if the owner typed it, wait for the answer | Full only |
+| `javis_chat_result` | Read the answer when Javis takes long | Any |
+
+- **A posted message runs exactly like a typed one:** it goes through the dashboard's own chat loop, so the answer
+  streams on every open tab, has a Stop button, is saved to History, written to `memory/conversations` and fed to
+  self-learning. Its bubble is labelled **via ChatGPT** or **via Claude**.
+- **A chat that is answering** takes the message as a follow-up, as when the owner types while Javis works.
+- **Only the owner's chats** (main chat, partner chats). Customer chats and team chats can't be read or posted to.
+- The four tools are **never** in Javis's own toolset: they appear only when the package's door calls
+  `mcp_hub.tra_loi_jsonrpc(..., gate={"source": "<AI name>"})`.
 
 ## Quick reference of buttons and states
 

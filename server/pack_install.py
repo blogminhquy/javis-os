@@ -336,11 +336,16 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
         da_co = set(mcp_catalog.tat_ca()) | set(packs.connector_layers())
     except Exception:
         da_co = set()
-    da_cai = doc_so().get(pid)
+    so_hien = doc_so()
+    da_cai = so_hien.get(pid)
     if da_cai:
         # Nâng cấp chính gói này: connector cũ của nó không tính là "đã có", nếu không thì
         # mọi bản nâng cấp đều tự báo trùng với chính mình.
         da_co -= set(da_cai.get("connectors") or [])
+    # 0.440.0: gói đổi mã thay gói cũ (`replaces`). Connector của gói cũ cũng là của chính nó.
+    thay = [o for o in packs.ma_thay_the(m, pid) if o in so_hien]
+    for o in thay:
+        da_co -= set((so_hien.get(o) or {}).get("connectors") or [])
 
     ban = packs._nap_mot(tam, da_co)
     py = sorted(str(p.relative_to(tam)).replace("\\", "/") for p in tam.rglob("*.py"))
@@ -380,7 +385,10 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
         # duy nhất trong gói đụng tới nơi người dùng tự viết.
         "vault": _liet_ke_vault(tam),
         "py_files": py, "size": len(du_lieu),
-        "da_cai": ({"version": da_cai.get("version")} if da_cai else None),
+        "da_cai": ({"version": da_cai.get("version")} if da_cai else
+                   {"version": (so_hien.get(thay[0]) or {}).get("version"), "replaces": thay} if thay else None),
+        # Gói đã cài mà gói này thay (đổi mã). Màn hình xác nhận nói ra: cài xong gói cũ được gỡ.
+        "replaces": thay,
     }
 
 
@@ -440,6 +448,12 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
         if da_doi and rac.exists() and dich.exists():
             shutil.rmtree(rac, ignore_errors=True)
 
+    # 0.440.0: gói này THAY gói cũ (đổi mã). Chuyển những gì gói cũ để lại sang mã mới rồi gỡ
+    # nó. Làm TRƯỚC khi đọc lại danh sách gói (connector của gói cũ còn nằm đó thì connector cùng
+    # tên của gói mới bị coi là trùng) và trước khi ghi năng lực vào brain (sổ năng lực của gói cũ
+    # phải về tên mới trước, không thì mọi skill nó đã đặt bị coi là "của người khác").
+    thay = _thay_the(packs.ma_thay_the(_manifest(dich), pid), pid, dich)
+
     packs.invalidate()
     ban = next((p for p in packs.installed() if p["id"] == pid), None)
 
@@ -455,9 +469,12 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
             bao_vault = {"loi": [str(e)]}
 
     so = doc_so()
+    for o in thay["ids"]:
+        so.pop(o, None)
     so[pid] = {
         "version": (ban or {}).get("version", ""),
-        "enabled": bool(enable),
+        # Gói cũ đang bật thì bản thay nó cũng bật: cập nhật không được lặng lẽ tắt thứ đang chạy.
+        "enabled": bool(enable) or thay["enabled"],
         "tier": (ban or {}).get("tier", "data"),
         "installed_at": _now(),
         "sha256": sha,
@@ -469,12 +486,96 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
         "plugins": sorted(d.name for d in (dich / "plugins").iterdir()
                           if d.is_dir()) if (dich / "plugins").is_dir() else [],
     }
+    if thay["aliases"]:
+        so[pid]["plugin_aliases"] = thay["aliases"]
+    if thay["ids"]:
+        so[pid]["replaced"] = thay["ids"]
     _ghi_so(so)
-    return {"ok": True, "id": pid, "enabled": bool(enable),
+    return {"ok": True, "id": pid, "enabled": bool(enable) or thay["enabled"],
+            "replaced": thay["ids"],
             "tier": (ban or {}).get("tier", "data"),
             "connectors": (ban or {}).get("connectors") or [],
             "vault": bao_vault,
             "warning": (ban or {}).get("error") or ""}
+
+
+def _manifest(thu_muc: Path) -> dict:
+    m = next((thu_muc / t for t in packs.MANIFEST_TEN if (thu_muc / t).is_file()), None)
+    try:
+        d = packs._doc_file(m) if m else {}
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _thay_the(ma_cu: list, pid: str, dich: Path) -> dict:
+    """Gói `pid` thay các gói `ma_cu` (đổi mã, 0.440.0). Chuyển phần gói cũ để lại sang tên mới rồi gỡ gói cũ.
+
+    Chuyển: dữ liệu riêng của plugin (`plugin-data/<slug>`: token, cài đặt), sổ năng lực trong brain
+    (`packs-state/<id>.json`), và ghi `plugin_aliases` để địa chỉ `/ext/<slug cũ>/` đã dán ra ngoài
+    vẫn tới plugin mới. KHÔNG xoá kết nối hay năng lực trong brain của gói cũ: chúng đi theo gói mới.
+    Hỏng ở bước nào thì ghi lỗi rồi đi tiếp: gói mới đã yên vị, thiếu một mảnh dữ liệu cũ không đáng
+    làm hỏng cả lần cài."""
+    so = doc_so()
+    ra = {"ids": [], "enabled": False, "aliases": {}, "errors": []}
+    moi_pl = sorted(d.name for d in (dich / "plugins").iterdir() if d.is_dir()) \
+        if (dich / "plugins").is_dir() else []
+    du_lieu = STATE_DIR / "plugin-data"
+    for o in ma_cu:
+        hang = so.get(o)
+        if not isinstance(hang, dict) or o == pid:
+            continue
+        ra["ids"].append(o)
+        ra["enabled"] = ra["enabled"] or bool(hang.get("enabled", True))
+        cu_pl = [str(x) for x in (hang.get("plugins") or [])]
+        # Ghép plugin cũ với plugin mới: cùng tên thì là một; mỗi bên đúng một plugin thì là một.
+        cap = {x: x for x in cu_pl if x in moi_pl}
+        if len(cu_pl) == 1 and len(moi_pl) == 1 and not cap:
+            cap = {cu_pl[0]: moi_pl[0]}
+        # Bí danh cũ hơn nữa (gói từng đổi tên một lần) đi tiếp theo về tên mới.
+        for c, m in (hang.get("plugin_aliases") or {}).items():
+            if m in cap:
+                ra["aliases"][str(c)] = cap[m]
+        for c, m in cap.items():
+            if c != m:
+                ra["aliases"][c] = m
+                a, b = du_lieu / c, du_lieu / m
+                try:
+                    if a.is_dir() and not b.exists():
+                        a.replace(b)
+                except OSError as e:
+                    ra["errors"].append(f"plugin-data {c}: {e}")
+        try:
+            import plugins_host
+            for slug in cu_pl:
+                plugins_host.unload(slug)
+        except Exception as e:
+            ra["errors"].append(f"unload {o}: {e}")
+        try:
+            import pack_vault
+            a, b = pack_vault._so_path(o), pack_vault._so_path(pid)
+            if a.is_file() and not b.exists():
+                a.replace(b)
+        except OSError as e:
+            ra["errors"].append(f"packs-state {o}: {e}")
+        thu_muc = packs.PACKS_DIR / o
+        if thu_muc.is_dir() and packs.PACKS_DIR.resolve() in thu_muc.resolve().parents:
+            rac = packs.PACKS_DIR / f".trash-{o}-{int(_now())}"
+            try:
+                thu_muc.replace(rac)
+                shutil.rmtree(rac, ignore_errors=True)
+            except OSError as e:
+                ra["errors"].append(f"{o}: {e}")
+    for loi in ra["errors"]:
+        print(f"[packs] thay gói cũ bằng {pid}: {loi}", file=sys.stderr)
+    if ra["ids"]:
+        try:
+            import plugins_host
+            plugins_host.invalidate()
+        except Exception:
+            pass
+        packs.invalidate()
+    return ra
 
 
 def _digest_ma(thu_muc: Path) -> str:

@@ -5374,7 +5374,7 @@ tools_routes.register(app, tools_routes.ToolsDeps(
 # ---- Đường HTTP của plugin (0.64.26) ----
 #
 # Lõi chỉ CHUYỂN request; luật nằm ở plugins_host (ai được mở đường, đường nào công khai, đường
-# nào không cookie). Sinh ra để "Javis trong ChatGPT" rời lõi thành một gói trong kho, nhưng cố
+# nào không cookie). Sinh ra để "Javis trong ChatGPT" (nay là Javis Gate) rời lõi thành một gói trong kho, nhưng cố
 # ý làm chung: webhook của dịch vụ ngoài là cùng một nhu cầu.
 _EXT_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
@@ -17038,6 +17038,15 @@ async def websocket_endpoint(ws: WebSocket):
         await ws.close(code=1008)
         return
     await ws.accept()
+    await _chat_socket(ws)
+
+
+async def _chat_socket(ws):
+    """Vòng nhận tin của khung chat, tách khỏi `websocket_endpoint` (0.440.0) chỉ để server
+    tự gọi được nó: Javis Gate (`chat_bridge`) đưa tin của ChatGPT/Claude vào hội thoại bằng
+    một kết nối ẢO đi đúng con đường này, nên lượt đó chạy y hệt khi chủ gõ tay (chữ chạy trên
+    mọi tab, nút Dừng, lưu kho, ghi nhật ký tự học). Cổng đăng nhập vẫn nằm ở endpoint: chỉ mã
+    trong tiến trình mới gọi thẳng được hàm này."""
     # WebSocket chỉ là subscriber. Job chat sống trong _CHAT_RUNTIME nên đóng/F5 tab
     # không huỷ job; kết nối mới nhận snapshot để xem hoặc Stop tiếp.
     conn_tag = f"chat:{uuid.uuid4().hex[:8]}"
@@ -19447,6 +19456,13 @@ async def websocket_endpoint(ws: WebSocket):
     finally:
         # Chỉ bỏ subscriber; job server tiếp tục chạy và tự lưu kết quả.
         _CHAT_RUNTIME.remove_client(client_id)
+
+
+# Javis Gate (0.440.0): AI bên ngoài nhắn vào hội thoại qua đúng vòng chat ở trên. Lambda để test
+# thay `_CHAT_RUNTIME` sau khi nạp vẫn trúng.
+import chat_bridge  # noqa: E402
+
+chat_bridge.gan(lambda ws: _chat_socket(ws), lambda: _CHAT_RUNTIME)
 
 
 # ============================================================

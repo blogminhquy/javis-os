@@ -56,10 +56,15 @@ def find_updates(store_packs, installed: dict) -> List[dict]:
         if not isinstance(g, dict):
             continue
         row = (installed or {}).get(g.get("id"))
+        renamed = False
+        if not row:
+            # 0.440.0: the pack changed its id (`replaces`); the old id installed here is updated by the new pack.
+            old = next((o for o in (g.get("replaces") or []) if o in (installed or {})), "")
+            row, renamed = ((installed or {}).get(old), True) if old else (None, False)
         cur, new = str((row or {}).get("version") or ""), str(g.get("version") or "")
         if not row or not cur or not new:
             continue
-        if packs._ver(new) > packs._ver(cur):
+        if renamed or packs._ver(new) > packs._ver(cur):
             out.append({"id": str(g["id"]), "name": _name(g), "from": cur, "to": new})
     return out
 
