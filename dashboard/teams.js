@@ -243,8 +243,13 @@
       // A long message collapses to ten lines with "Show more", like the main chat (chat-acts.js).
       var A = actsApi();
       var long = !!(A && A.isLongText && A.isLongText(rest));
-      return (t.quote ? quoteHtml(t.quote) : "") + (rest ? '<div class="tm-text utext' + (long && !open ? " clamped" : "") + '">' +
-        esc(rest).replace(/\n/g, "<br>") + "</div>" + (long ? A.clampButtonHtml(!!open) : "") : "") +
+      // The Team Quote chip retains its current rendering and raw text.
+      var rich = typeof window !== "undefined" && window.JavisRichText &&
+        typeof window.mdToHtml === "function" && window.JavisRichText.hasMarkdown(rest);
+      var shown = rich ? window.mdToHtml(rest, brain()) : esc(rest).replace(/\n/g, "<br>");
+      return (t.quote ? quoteHtml(t.quote) : "") + (rest ? '<div class="tm-text utext' +
+        (rich ? " jv-markdown" : "") + (long && !open ? " clamped" : "") + '">' +
+        shown + "</div>" + (long ? A.clampButtonHtml(!!open) : "") : "") +
         (files.length ? '<div class="tm-files">' + files.map(function (f) { return fileChipHtml(f, m.ts); }).join("") + "</div>" : "");
     }
     var md = typeof window !== "undefined" && window.mdToHtml;
@@ -3139,15 +3144,18 @@
     var input = e.target;
     if (!(input && input.classList && input.classList.contains("tm-input"))) return;
     var paste = typeof window !== "undefined" ? window.JavisPaste : null;
-    var txt = (cd && cd.getData("text/plain")) || "";
-    if (!paste || !paste.isLong(txt)) return;
+    var plain = (cd && cd.getData("text/plain")) || "";
+    var html = (cd && cd.getData("text/html")) || "";
+    var txt = window.JavisRichText ? window.JavisRichText.prepare(plain, html) : plain;
+    if (!paste || (!paste.isLong(txt) && txt === plain)) return;
     e.preventDefault(); e.stopPropagation();
     var range = { start: input.selectionStart, end: input.selectionEnd };
-    paste.offer(txt, function (value) {
+    if (paste.isLong(txt)) paste.offer(txt, function (value) {
       if (canAttach()) paste.insertAt(input, range, value);
     }, function (value) {
       if (canAttach()) attachFiles([paste.textFile(value)]);
     });
+    else paste.insertAt(input, range, txt);
   }
   var dropDepth = 0;
   function hasFiles(e) {
