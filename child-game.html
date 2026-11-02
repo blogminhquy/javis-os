@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Star Catcher Online</title>
+    <style>
+      :root {
+        --sky-top: #8ec5fc;
+        --sky-bottom: #e0f7ff;
+        --purple: #8c6bff;
+        --text: #2b2a4a;
+        --panel: rgba(255, 255, 255, 0.7);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(180deg, #d9efff 0%, #f7fcff 100%);
+        font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+        color: var(--text);
+      }
+
+      .game-shell {
+        width: min(92vw, 940px);
+        background: var(--panel);
+        border: 4px solid rgba(129, 110, 255, 0.25);
+        border-radius: 28px;
+        box-shadow: 0 18px 45px rgba(72, 86, 173, 0.15);
+        padding: 20px 20px 12px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: "Comic Sans MS", "Trebuchet MS", cursive;
+        font-size: clamp(2rem, 4vw, 3rem);
+        letter-spacing: 0.04em;
+      }
+
+      .scoreboard {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        background: #fff;
+        border-radius: 999px;
+        padding: 10px 16px;
+        font-weight: 700;
+        box-shadow: inset 0 0 0 2px rgba(60, 70, 145, 0.08);
+      }
+
+      button {
+        border: none;
+        background: linear-gradient(135deg, var(--purple), #5ec7ff);
+        color: white;
+        font-size: 1.05rem;
+        font-weight: 800;
+        padding: 10px 20px;
+        border-radius: 999px;
+        cursor: pointer;
+        box-shadow: 0 10px 22px rgba(113, 107, 255, 0.35);
+      }
+
+      canvas {
+        width: 100%;
+        display: block;
+        background: linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+        border-radius: 20px;
+        border: 3px solid rgba(74, 60, 180, 0.1);
+      }
+
+      .message {
+        min-height: 28px;
+        margin: 12px 4px 0;
+        text-align: center;
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game-shell">
+      <div class="topbar">
+        <h1>🌟 SBUU Star</h1>
+        <div class="scoreboard">
+          <span class="pill">Players: <span id="playerCount">0</span></span>
+          <button id="shareButton" type="button">Copy invite</button>
+        </div>
+      </div>
+
+      <canvas id="gameCanvas" width="900" height="560" aria-label="Online star catcher game"></canvas>
+      <div id="message" class="message">Open this page on another device and play together.</div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const message = document.getElementById('message');
+      const playerCountEl = document.getElementById('playerCount');
+      const shareButton = document.getElementById('shareButton');
+
+      const state = {
+        myId: null,
+        myName: localStorage.getItem('star-catcher-name') || `Player ${Math.floor(Math.random() * 90 + 10)}`,
+        players: {},
+        stars: [],
+        socket: null,
+        pointerX: canvas.width / 2,
+        lastMove: 0
+      };
+
+      function setMessage(text) {
+        message.textContent = text;
+      }
+
+      function connect() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socketUrl = `${protocol}//${window.location.host}`;
+
+        state.socket = new WebSocket(socketUrl);
+
+        state.socket.addEventListener('open', () => {
+          state.socket.send(JSON.stringify({ type: 'join', name: state.myName }));
+          setMessage('Connected. Share this page with a friend to start playing.');
+        });
+
+        state.socket.addEventListener('message', (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+
+            if (payload.type === 'welcome') {
+              state.myId = payload.id;
+              state.myName = payload.name;
+              localStorage.setItem('star-catcher-name', state.myName);
+              setMessage('You are in the game. Move your mouse to catch stars!');
+              return;
+            }
+
+            if (payload.type === 'state') {
+              state.stars = payload.stars || [];
+              state.players = {};
+              (payload.players || []).forEach((player) => {
+                state.players[player.id] = player;
+              });
+              return;
+            }
+
+            if (payload.type === 'players') {
+              state.players = {};
+              (payload.players || []).forEach((player) => {
+                state.players[player.id] = player;
+              });
+            }
+          } catch (error) {
+            console.error('Bad socket message', error);
+          }
+        });
+
+        state.socket.addEventListener('close', () => {
+          setMessage('Connection lost. Refresh to reconnect.');
+        });
+      }
+
+      function sendMove() {
+        if (!state.socket || state.socket.readyState !== WebSocket.OPEN || !state.myId) {
+          return;
+        }
+
+        state.socket.send(JSON.stringify({
+          type: 'move',
+          x: state.pointerX
+        }));
+      }
+
+      function drawBackground() {
+        const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        sky.addColorStop(0, '#8ec5fc');
+        sky.addColorStop(1, '#eafcff');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ffd95a';
+        ctx.beginPath();
+        ctx.arc(770, 90, 42, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#b8ec7b';
+        ctx.fillRect(0, canvas.height - 55, canvas.width, 55);
+        ctx.fillStyle = '#85d56d';
+        ctx.fillRect(0, canvas.height - 72, canvas.width, 18);
+      }
+
+      function drawStar(star) {
+        const points = 5;
+        const outside = star.radius;
+        const inside = star.radius * 0.45;
+        ctx.save();
+        ctx.translate(star.x, star.y);
+        ctx.rotate(star.pulse || 0);
+        ctx.beginPath();
+
+        for (let i = 0; i < points * 2; i += 1) {
+          const angle = (Math.PI / points) * i - Math.PI / 2;
+          const radius = i % 2 === 0 ? outside : inside;
+          const x = Math.cos(angle) * radius;
+          const y = Math.sin(angle) * radius;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+
+        ctx.closePath();
+        ctx.fillStyle = star.color || '#ffe77a';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawPlayer(player, isMe) {
+        const x = player.x;
+        const y = 500;
+        const width = 150;
+        const height = 28;
+
+        ctx.fillStyle = player.color || '#7c6bff';
+        ctx.fillRect(x - width / 2, y, width, height);
+
+        ctx.fillStyle = '#f26c5c';
+        ctx.fillRect(x - width / 2 - 6, y, 12, height);
+        ctx.fillRect(x + width / 2 - 6, y, 12, height);
+
+        ctx.font = 'bold 18px Trebuchet MS';
+        ctx.fillStyle = '#2b2a4a';
+        const label = `${player.name} ${player.score ?? 0}`;
+        ctx.fillText(label, x - 36, y - 10);
+
+        if (isMe) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(x - width / 2 - 8, y - 4, width + 16, height + 8);
+        }
+      }
+
+      function render() {
+        drawBackground();
+
+        (state.stars || []).forEach(drawStar);
+
+        const players = Object.values(state.players);
+        if (players.length === 0) {
+          drawPlayer({ x: state.pointerX, name: state.myName, score: 0, color: '#8c6bff' }, true);
+        } else {
+          players.forEach((player) => {
+            drawPlayer(player, player.id === state.myId);
+          });
+        }
+
+        playerCountEl.textContent = String(players.length || 1);
+      }
+
+      function tick() {
+        render();
+        requestAnimationFrame(tick);
+      }
+
+      canvas.addEventListener('pointermove', (event) => {
+        const rect = canvas.getBoundingClientRect();
+        state.pointerX = ((event.clientX - rect.left) / rect.width) * canvas.width;
+        if (performance.now() - state.lastMove > 25) {
+          state.lastMove = performance.now();
+          sendMove();
+        }
+      });
+
+      shareButton.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          setMessage('Invite link copied. Send it to your friend.');
+        } catch (error) {
+          setMessage('Your browser blocked copy. Share the page URL manually.');
+        }
+      });
+
+      connect();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
