@@ -8,7 +8,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.440.0] - 2026-11-02
 ### Thêm mới
-- Đang viết.
+- **ChatGPT và Claude nhắn thẳng vào khung chat của Javis.** Cài gói **Javis Gate** ở Javis Store, nối với ChatGPT hoặc Claude. Bảo nó "đọc hội thoại Viết Web trên Javis rồi tư vấn mình nên làm gì tiếp", nó đọc và tư vấn. Bạn đồng ý ngay bên đó là nó nhắn vào đúng hội thoại để Javis làm tiếp.
+- Tin đó chạy y như bạn tự gõ: chữ trả lời chạy dần trên mọi tab đang mở, có nút Dừng, lưu vào Lịch sử, và **Javis học được** cho lần sau. Bong bóng tin ghi rõ **từ ChatGPT** hay **từ Claude**.
+- Không còn giao việc qua Kanban rồi chạy ngầm không ai biết. Hội thoại đang trả lời thì tin xếp sau, như khi bạn gõ thêm lúc Javis đang làm.
+- Chỉ ở mức **Toàn quyền** AI bên ngoài mới được nhắn vào khung chat. Mức thấp hơn chỉ đọc được hội thoại. Hội thoại của khách và nhóm chat thì không đọc, không nhắn được.
+### Cải thiện
+- **Gói trong Store đổi mã sang tiếng Anh** mà máy đã cài không mất gì. Bấm cập nhật như mọi bản mới: trạng thái bật, dữ liệu của gói và các kỹ năng đã cài vào brain được giữ nguyên, gói cũ tự gỡ.
+- Gói **Javis trong ChatGPT** thành **Javis Gate**. Connector đã dán vào ChatGPT vẫn chạy, không phải kết nối lại.
 
 ## [0.439.1] - 2026-11-02
 ### Cải thiện

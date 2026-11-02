@@ -1,4 +1,4 @@
-"""Tầng CRM trên kho hội thoại khách (0.60.1): hàm mà gói javis.khach-hang-crm cắm vào.
+"""Tầng CRM trên kho hội thoại khách (0.60.1): hàm mà gói javis.crm (mã cũ javis.khach-hang-crm) cắm vào.
 
     python tests/run.py hoi_thoai_crm      (KHÔNG mạng)
 

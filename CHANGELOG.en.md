@@ -10,7 +10,13 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.440.0] - 2026-11-02
 ### Added
-- In progress.
+- **ChatGPT and Claude post straight into your Javis chat.** Install **Javis Gate** from the Javis Store and connect it to ChatGPT or Claude. Ask it to "read the Viet Web chat on Javis and tell me what to do next": it reads and advises. Agree right there and it posts into that very chat so Javis carries on.
+- That message runs just as if you typed it: the answer streams on every open tab, has a Stop button, is saved to History, and **Javis learns from it** for next time. The bubble says **via ChatGPT** or **via Claude**.
+- No more handing work to Kanban where it ran unseen. If the chat is still answering, the message waits its turn, as when you type while Javis works.
+- Only at **Full access** can an outside AI post into a chat. Lower levels can only read chats. Customer chats and team chats can't be read or posted to.
+### Improved
+- **Store packs can switch to English ids** without installed copies losing anything. Update as usual: the on/off state, the pack's data and the skills it put into your brain stay, and the old pack removes itself.
+- **Javis in ChatGPT** becomes **Javis Gate**. Connectors already set up in ChatGPT keep working, no reconnecting needed.
 
 ## [0.439.1] - 2026-11-02
 ### Improved

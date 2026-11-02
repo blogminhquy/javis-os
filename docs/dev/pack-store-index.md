@@ -33,7 +33,8 @@ cứng vào đó) vẫn xem và cài được. Đừng thêm gì vào đó nữa
   "store": {"name": "Kho gói Javis", "url": "https://github.com/..."},
   "packs": [
     {
-      "id": "javis.tinh-gia",
+      "id": "javis.pricing",
+      "replaces": ["javis.tinh-gia"],
       "name": {"vi": "Tính giá bán", "en": "Pricing helper"},
       "description": {"vi": "Tính giá bán từ giá vốn và biên lợi nhuận."},
       "version": "1.0.0",
@@ -45,7 +46,7 @@ cứng vào đó) vẫn xem và cài được. Đừng thêm gì vào đó nữa
       "verified": true,
       "updated": "2026-09-04",
       "homepage": "https://github.com/...",
-      "icon": "packs/javis.tinh-gia/assets/tinh-gia.png",
+      "icon": "packs/javis.pricing/assets/pricing.png",
       "download": {
         "url": "https://github.com/.../releases/download/v1.0.0/javis-tinh-gia.zip",
         "sha256": "abc123...",
@@ -121,7 +122,7 @@ Làm trong repo kho, không phải repo này.
 
 1. Đặt mã nguồn ở `packs/<id>/`, rồi đóng gói và lấy luôn dấu vân tay:
    ```bash
-   python tools/dong-goi.py javis.tinh-gia
+   python tools/dong-goi.py javis.pricing
    ```
    Lệnh in ra đường dẫn tệp và `sha256`. Đóng bằng `zip -r` cũng được, nhưng nhớ loại
    `__pycache__` ra: nó lọt vào chữ ký nội dung mã nên hai máy sẽ ra hai `sha256` khác nhau.
@@ -138,7 +139,7 @@ Làm trong repo kho, không phải repo này.
 3. Đẩy lên nhánh `main` của repo kho, hoặc mở Pull Request nếu bạn không phải chủ kho.
 
 Mã nguồn nằm cạnh tệp phát hành là có chủ ý: gói bậc `code` chạy Python thật trong máy chủ Javis
-của người cài, nên họ phải đọc được nó mà không cần tải gì về trước. `packs/javis.tinh-gia/` là
+của người cài, nên họ phải đọc được nó mà không cần tải gì về trước. `packs/javis.pricing/` là
 gói chạy được để chép làm khuôn.
 
 Javis cache danh mục 6 giờ, nên sau khi đẩy thì bấm **Làm mới** trên trang Kho cài đặt để thấy ngay.
@@ -165,6 +166,35 @@ gốc nữa, Javis chuyển sang bản CLI riêng và chỉ giữ thư viện `z
 `tests/python/test_mcp_official_release.py` canh catalog của app, `tools/kiem-tra.py` canh kho, và
 job `soi-ban-moi` trong CI của kho chạy thử bản mới nhất thật mỗi ngày để bắt tool mới chưa phân
 loại.
+
+### Đổi mã gói (từ 0.440.0)
+
+Mã gói là đường dẫn trên mọi máy đã cài, nên đổi thẳng trên kho là máy đó coi mã mới là một gói
+KHÁC: gói cũ không bao giờ được cập nhật, gói mới nằm cạnh như chưa cài. Muốn đổi mã (chủ repo
+02/11: mã gói phải bằng tiếng Anh) thì gói mới khai mã cũ, ở CẢ manifest lẫn mục danh mục:
+
+```yaml
+id: javis.crm
+version: 1.1.0
+replaces:
+  - javis.khach-hang-crm
+compat:
+  app: ">=0.440.0"
+```
+
+- **Kho:** thẻ mã cũ thôi hiện; máy đang cài mã cũ thấy thẻ mới ở trạng thái "đã cài, có bản mới",
+  và chuông báo như mọi bản mới (`pack_updates.find_updates`).
+- **Cài lên** (`pack_install._thay_the`): trạng thái bật, dữ liệu riêng của plugin
+  (`plugin-data/<slug>`), sổ năng lực trong brain (`packs-state/<id>.json`) chuyển sang mã mới, rồi
+  gói cũ được gỡ khỏi đĩa và sổ. Kết nối và năng lực trong brain của gói cũ KHÔNG bị xoá: chúng đi
+  theo gói mới.
+- **Plugin đổi tên** (ghép theo cùng tên, hoặc mỗi bên đúng một plugin): sổ ghi `plugin_aliases`
+  {cũ: mới}, nên `/ext/<tên cũ>/...` đã dán ra ngoài vẫn tới plugin mới. Đổi tên lần hai thì bí danh
+  cũ nhất đi tiếp về tên mới nhất.
+- **`compat` phải là `>=0.440.0`:** bản cũ hơn không hiểu `replaces` và sẽ cài gói mới nằm cạnh gói
+  cũ (gói có connector thì còn bị từ chối vì trùng id connector).
+
+Test: `tests/python/test_doi_ma_goi.py`.
 
 ---
 

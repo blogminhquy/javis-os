@@ -5374,7 +5374,7 @@ tools_routes.register(app, tools_routes.ToolsDeps(
 # ---- Đường HTTP của plugin (0.64.26) ----
 #
 # Lõi chỉ CHUYỂN request; luật nằm ở plugins_host (ai được mở đường, đường nào công khai, đường
-# nào không cookie). Sinh ra để "Javis trong ChatGPT" rời lõi thành một gói trong kho, nhưng cố
+# nào không cookie). Sinh ra để "Javis trong ChatGPT" (nay là Javis Gate) rời lõi thành một gói trong kho, nhưng cố
 # ý làm chung: webhook của dịch vụ ngoài là cùng một nhu cầu.
 _EXT_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
