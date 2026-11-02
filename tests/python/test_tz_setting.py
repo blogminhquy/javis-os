@@ -73,7 +73,7 @@ check("clock names the timezone", "America/Los_Angeles" in line and "UTC-8" in l
 check("clock says report ranges follow this timezone", "MCP" in line)
 check("no em dash in the clock line", "—" not in line and "–" not in line)
 en = cc.dong_ho(moc, lang="en")
-check("English clock names yesterday and tomorrow", "Yesterday was 31/10/2026" in en and "tomorrow is 02/11/2026" in en)
+check("English clock names yesterday and tomorrow", "Yesterday 31/10/2026" in en and "tomorrow 02/11/2026" in en)
 
 real = cc.dong_ho()
 today_la = datetime.now(ZoneInfo("America/Los_Angeles"))

@@ -376,6 +376,9 @@ class McpStdioSession:
                 await asyncio.to_thread(mcp_orphans.reap_same_home, self.single_socket_home())
             except Exception as e:      # noqa: BLE001
                 print(f"[mcp orphans] {type(e).__name__}: {e}", file=sys.stderr)
+        env = dict(os.environ)
+        env.update(_owner_tz_env(self.env))
+        env.update(self.env)
         kwargs = {}
         if os.name == "nt":
             kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -383,9 +386,6 @@ class McpStdioSession:
             # Nhóm tiến trình RIÊNG cho cả cây con - xem docstring _kill_tree (vụ 15/08:
             # uvx bị kill nhưng server thật thành mồ côi, 96 tiến trình ăn hết RAM VPS).
             kwargs["start_new_session"] = True
-        env = dict(os.environ)
-        env.update(_owner_tz_env(self.env))
-        env.update(self.env)
         self.proc = await asyncio.create_subprocess_exec(
             *self._argv(), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE, env=env, limit=self._STREAM_LIMIT, **kwargs)

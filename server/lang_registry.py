@@ -116,11 +116,9 @@ LANGS: Dict[str, Lang] = {
         # Việt phải ra y hệt từng ký tự so với trước khi có sổ đăng ký.
         weekdays=("Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"),
         clock_template=(
-            "Bây giờ là {hm} {weekday} ngày {date}, giờ {tz}. Đây là giờ THẬT tại thời điểm "
-            "câu hỏi này được gửi: cứ dùng thẳng khi cần biết hôm nay/bây giờ, không phải đoán "
-            "và không cần gọi tool. Hôm qua là {yesterday}, ngày mai là {tomorrow}. Mọi mốc hôm "
-            "nay/hôm qua/tuần này/tháng này, kể cả khoảng ngày truyền vào MCP khi kéo số liệu báo "
-            "cáo, đều tính theo múi giờ này, không theo UTC hay giờ máy chủ."
+            "Bây giờ là {hm} {weekday} ngày {date}, giờ {tz}. Đây là giờ THẬT lúc gửi câu "
+            "hỏi: dùng thẳng cho hôm nay/bây giờ, không đoán, không cần gọi tool. Hôm qua "
+            "{yesterday}, mai {tomorrow}; ngày gửi MCP cũng theo múi giờ này."
         ),
         lang_directive="Tiếng Việt",
     ),
@@ -170,12 +168,10 @@ LANGS: Dict[str, Lang] = {
         nudge="Answer in English.",
         weekdays=("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
         clock_template=(
-            "It is now {hm} {weekday}, {date}, timezone {tz}. This is the REAL time at the "
-            "moment this question was sent: use it directly whenever you need to know "
-            "today/now, no guessing and no tool call needed. Yesterday was {yesterday}, "
-            "tomorrow is {tomorrow}. Every today/yesterday/this week/this month, including the "
-            "date range you pass to an MCP when pulling report numbers, is in this timezone, "
-            "not UTC or the server clock."
+            "It is now {hm} {weekday}, {date}, timezone {tz}. This is the REAL time when "
+            "this question was sent: use it directly for today/now, no guessing, no tool call "
+            "needed. Yesterday {yesterday}, tomorrow {tomorrow}; dates sent to an MCP use this "
+            "timezone too."
         ),
         lang_directive="English",
     ),
