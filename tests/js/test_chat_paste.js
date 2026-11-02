@@ -30,7 +30,7 @@ check("the main chat asks instead of turning text into a file", () => {
   const app = read("app.js");
   assert.ok(!app.includes("PASTE_TXT_CHARS"), "old 1500-char limit is gone");
   assert.match(app, /if \(e\.defaultPrevented \|\| e\.target !== chatInput\) return;/);
-  assert.match(app, /if \(!paste \|\| !paste\.isLong\(txt\)\) return;/);
+  assert.match(app, /if \(!paste \|\| \(!paste\.isLong\(txt\) && txt === plain\)\) return;/);
   assert.match(app, /paste\.offer\(txt, \(value\) => paste\.insertAt\(chatInput, range, value\), pasteAsTxt\)/);
 });
 check("the team chat uses the same dialog", () => {
