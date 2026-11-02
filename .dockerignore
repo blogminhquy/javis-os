@@ -100,3 +100,7 @@ server/javis.log
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Desktop installers (packaging/) are built on Windows/macOS runners, never inside the image.
+packaging/
+dist/

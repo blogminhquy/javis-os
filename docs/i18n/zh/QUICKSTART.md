@@ -7,6 +7,19 @@
 
 几分钟内让 Javis OS 跑起来。完整指南：[docs/en/](../../../docs/en/README.md)。
 
+## 个人电脑（Windows、macOS）- 下载安装程序
+
+像安装普通应用一样安装 Javis：下载一个文件，打开它，之后每天点 JAVIS OS 图标即可。安装程序会检查电脑缺少什么（Git、Python、Node、AI 大脑），只安装缺少的部分。
+
+- **Windows 10/11：** 下载 [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe)，双击并一路点 Next。黑色窗口会显示安装进度（几分钟）。完成后桌面和开始菜单会出现 JAVIS OS 图标。
+- **macOS 11 及以上：** 下载 [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg)，打开后把 **JAVIS OS** 拖进 **Applications**，再从启动台打开。第一次会打开终端进行安装（可能会让你设置 Javis 管理员账号，并输入一次 Mac 密码）。
+
+点击图标后 Javis 会以独立窗口打开（没有地址栏），Javis 随电脑启动，应用内的 **Update** 按钮照常可用。数据保存在用户文件夹下的 `JavisOS` 文件夹中；卸载应用不会删除该文件夹。
+
+两个安装程序暂未进行代码签名，所以电脑第一次会询问：
+- Windows 显示 “Windows protected your PC”：点 **More info**，再点 **Run anyway**。
+- macOS 提示无法打开：进入 **System Settings → Privacy & Security**，向下滚动点 **Open Anyway**，然后重新打开 JAVIS OS。
+
 ## 方式一 - Hostinger VPS（Docker Manager，一键部署）
 
 > 🛒 **还没有 VPS？** [在这里购买 Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)。它自带 Docker Manager，一键即可安装 Javis。开通后回到下面的步骤。

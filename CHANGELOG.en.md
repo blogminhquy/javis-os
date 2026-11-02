@@ -10,7 +10,11 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.439.0] - 2026-11-02
 ### Added
-- **Desktop installers for Windows and macOS.** (in progress)
+- **Install Javis like an app on your computer.** On Windows, download `JavisOS-Setup.exe`, double-click it and press Next to the end. On a Mac, download `JavisOS-macOS.dmg` and drag JAVIS OS into Applications. The installer checks which of Git, Python, Node and the AI brains are missing and installs them, no commands to type. Download links are in the quick start guide.
+- **A JAVIS OS icon on the Desktop, Start menu and Launchpad.** Clicking it opens Javis in its own window, with no address bar. Clicking again while Javis runs only reopens the window and never stops background work.
+- The in-app Update button works just like on a manual install. Uninstalling keeps your brain (notes, memory, settings) in the `JavisOS` folder.
+### Fixed
+- Installing on a brand-new Windows no longer dies at the Python environment step, and a PC without winget still downloads Python and Node by itself. A Mac without Homebrew now gets the Mac build of Node.
 
 ## [0.438.7] - 2026-11-02
 ### Fixed

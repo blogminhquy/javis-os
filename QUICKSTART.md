@@ -4,6 +4,19 @@
 
 Chạy Javis OS trong vài phút. Chi tiết từng phần: [docs/](docs/README.md).
 
+## Máy tính cá nhân (Windows, macOS) - tải bộ cài
+
+Cài Javis như một ứng dụng bình thường: tải một file, bấm mở, xong thì có biểu tượng JAVIS OS để bấm vào mỗi ngày. Bộ cài tự kiểm tra máy còn thiếu gì (Git, Python, Node, các bộ não AI) và tự cài phần thiếu.
+
+- **Windows 10/11:** tải [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe), bấm đúp, bấm Next tới hết. Một cửa sổ đen hiện tiến trình cài (vài phút). Xong thì có biểu tượng JAVIS OS trên Desktop và Start menu.
+- **macOS 11 trở lên:** tải [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg), mở ra, kéo **JAVIS OS** vào **Applications**, rồi mở từ Launchpad. Lần đầu Terminal mở ra để cài (có thể hỏi đặt tài khoản quản trị Javis và mật khẩu máy Mac một lần).
+
+Bấm vào biểu tượng là Javis mở thành cửa sổ riêng (không thanh địa chỉ), Javis tự chạy cùng máy, nút **Cập nhật** trong app dùng được như thường. Dữ liệu nằm ở thư mục `JavisOS` trong thư mục người dùng; gỡ app không xoá thư mục này.
+
+Hai bộ cài chưa ký số nên lần đầu máy sẽ hỏi lại:
+- Windows hiện "Windows protected your PC": bấm **More info** rồi **Run anyway**.
+- macOS báo không mở được: vào **System Settings → Privacy & Security**, kéo xuống bấm **Open Anyway**, rồi mở lại JAVIS OS.
+
 ## Cách 1 - Hostinger VPS (Docker Manager, 1-click)
 
 > 🛒 **Chưa có VPS?** [Đăng ký VPS Hostinger tại đây](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). VPS có sẵn Docker Manager nên cài Javis đúng một cú bấm. Thuê xong quay lại làm các bước dưới.

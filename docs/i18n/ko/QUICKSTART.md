@@ -7,6 +7,19 @@
 
 몇 분이면 Javis OS를 실행할 수 있습니다. 전체 안내서: [docs/en/](../../../docs/en/README.md).
 
+## 개인 컴퓨터 (Windows, macOS) - 설치 프로그램 다운로드
+
+Javis를 일반 앱처럼 설치하세요. 파일 하나를 내려받아 열면 매일 클릭할 JAVIS OS 아이콘이 생깁니다. 설치 프로그램은 컴퓨터에 없는 것(Git, Python, Node, AI 브레인)을 확인하고 그것만 설치합니다.
+
+- **Windows 10/11:** [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe)를 내려받아 더블클릭하고 끝까지 Next를 누르세요. 검은 창에 설치 진행 상황이 표시됩니다(몇 분). 끝나면 바탕 화면과 시작 메뉴에 JAVIS OS 아이콘이 생깁니다.
+- **macOS 11 이상:** [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg)를 내려받아 열고 **JAVIS OS**를 **Applications**로 끌어 놓은 뒤 Launchpad에서 여세요. 처음에는 설치를 위해 터미널이 열립니다(Javis 관리자 계정 설정과 Mac 암호를 한 번 물어볼 수 있습니다).
+
+아이콘을 클릭하면 Javis가 별도 창(주소 표시줄 없음)으로 열리고, 컴퓨터와 함께 자동으로 시작되며, 앱의 **Update** 버튼도 평소처럼 동작합니다. 데이터는 사용자 폴더의 `JavisOS` 폴더에 있으며, 앱을 제거해도 이 폴더는 남습니다.
+
+두 설치 프로그램 모두 아직 코드 서명이 없어 처음 한 번 확인을 묻습니다:
+- Windows에서 "Windows protected your PC"가 나오면 **More info**를 누른 다음 **Run anyway**를 누르세요.
+- macOS에서 앱을 열 수 없다고 나오면 **System Settings → Privacy & Security**로 가서 아래로 내려 **Open Anyway**를 누른 뒤 JAVIS OS를 다시 여세요.
+
 ## 방법 1 - Hostinger VPS (Docker Manager, 원클릭)
 
 > 🛒 **아직 VPS가 없나요?** [여기서 Hostinger VPS 신청하기](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager가 기본 탑재되어 있어 Javis를 원클릭으로 설치합니다. 준비되면 아래 단계로 돌아오세요.

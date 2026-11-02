@@ -208,3 +208,7 @@ server/notify_policy.json
 server/engine_down_notified.json
 server/client_errors.json
 server/client_errors.tmp
+
+# Desktop installers built by packaging/ (CI publishes them on the "desktop" release)
+/dist/
+packaging/windows/Vietnamese.isl

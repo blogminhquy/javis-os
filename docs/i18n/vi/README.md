@@ -155,6 +155,8 @@ Nhờ vậy:
 
 > ⚠️ **Quan trọng về bảo mật:** Javis chạy bộ não AI với **toàn quyền** trên máy. Khi chạy public (Docker/VPS/Hostinger), Javis **tự bắt buộc đăng nhập** - mở app ra là màn tạo tài khoản / đăng nhập, không ai điều khiển được khi chưa có mật khẩu.
 
+> 💻 **Cài trên máy tính Windows hoặc Mac của bạn?** Tải bộ cài về rồi mở như mọi ứng dụng: [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe) (Windows 10/11) hoặc [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg) (macOS 11+). Bộ cài tự kiểm tra máy thiếu gì (Git, Python, Node, các bộ não AI), tự cài, rồi để lại biểu tượng JAVIS OS để bấm. Các bước: [QUICKSTART.md](../../../QUICKSTART.md).
+
 ### Cách 1 - Hostinger Docker Manager (tên miền + HTTPS) ⚡
 
 > 🛒 **Chưa có VPS?** [Đăng ký VPS Hostinger tại đây](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). VPS có sẵn Docker Manager nên cài Javis đúng một cú bấm. Thuê xong quay lại làm các bước dưới.

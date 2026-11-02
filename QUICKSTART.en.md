@@ -4,6 +4,19 @@
 
 Get Javis OS running in a few minutes. Full guides: [docs/en/](docs/en/README.md).
 
+## Personal computer (Windows, macOS) - download the installer
+
+Install Javis like any other app: download one file, open it, and you get a JAVIS OS icon to click every day. The installer checks what the computer is missing (Git, Python, Node, the AI brains) and installs only that.
+
+- **Windows 10/11:** download [JavisOS-Setup.exe](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe), double-click it and press Next to the end. A black window shows the install progress (a few minutes). When it is done there is a JAVIS OS icon on the Desktop and in the Start menu.
+- **macOS 11 or newer:** download [JavisOS-macOS.dmg](https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg), open it, drag **JAVIS OS** into **Applications**, then open it from Launchpad. The first time, Terminal opens to install (it may ask you to set a Javis admin account and for your Mac password once).
+
+Clicking the icon opens Javis in its own window (no address bar), Javis starts with the computer, and the in-app **Update** button works as usual. Your data lives in the `JavisOS` folder in your user folder; uninstalling the app keeps that folder.
+
+Both installers are not code-signed yet, so the computer asks once:
+- Windows shows "Windows protected your PC": click **More info**, then **Run anyway**.
+- macOS says it cannot open the app: go to **System Settings → Privacy & Security**, scroll down, click **Open Anyway**, then open JAVIS OS again.
+
 ## Option 1 - Hostinger VPS (Docker Manager, one click)
 
 > 🛒 **No VPS yet?** [Get a Hostinger VPS here](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager comes built in, so Javis installs in one click. Once it is ready, come back to the steps below.

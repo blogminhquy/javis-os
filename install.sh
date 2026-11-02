@@ -120,7 +120,10 @@ if need_node; then
   elif command -v brew >/dev/null 2>&1; then brew upgrade node@22 2>/dev/null || brew install node@22 || true; fi
   if need_node; then
     arch=$(uname -m); case "$arch" in x86_64) na=x64;; aarch64|arm64) na=arm64;; *) err "unsupported arch $arch"; exit 1;; esac
-    tb=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/ | grep -oE "node-v22\.[0-9]+\.[0-9]+-linux-${na}\.tar\.xz" | head -1)
+    # A Mac without Homebrew lands here too (the desktop installer never installs brew), and a
+    # linux tarball does not run there: pick the build for this OS.
+    nos=linux; [ "$(uname -s)" = "Darwin" ] && nos=darwin
+    tb=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/ | grep -oE "node-v22\.[0-9]+\.[0-9]+-${nos}-${na}\.tar\.xz" | head -1)
     tmp=$(mktemp -d); curl -fsSL "https://nodejs.org/dist/latest-v22.x/${tb}" -o "$tmp/n.tar.xz"
     mkdir -p "$HOME/.javis"; rm -rf "$HOME/.javis/node"
     tar xf "$tmp/n.tar.xz" -C "$tmp"; mv "$tmp"/node-v22* "$HOME/.javis/node"; rm -rf "$tmp"

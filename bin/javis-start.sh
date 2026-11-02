@@ -26,9 +26,21 @@ if command -v npm >/dev/null 2>&1; then
   [ -d "${NPM_BIN}" ] && export PATH="${NPM_BIN}:${PATH}"
 fi
 
+# Open the dashboard as an app window (no address bar, own Dock icon) when a Chromium browser
+# is installed, the same way the Windows launcher uses Edge --app. Otherwise the default browser.
+open_ui() {
+  local b
+  for b in "Google Chrome" "Microsoft Edge" "Brave Browser"; do
+    if [ -d "/Applications/${b}.app" ] || [ -d "${HOME}/Applications/${b}.app" ]; then
+      open -na "${b}" --args --app="${URL}" && return 0
+    fi
+  done
+  open "${URL}"
+}
+
 # Already up? Just open it.
 if curl -sf -o /dev/null "${URL}/" 2>/dev/null; then
-  open "${URL}"
+  open_ui
   exit 0
 fi
 
@@ -48,4 +60,4 @@ for _ in $(seq 1 30); do
   sleep 1
   if curl -sf -o /dev/null "${URL}/" 2>/dev/null; then break; fi
 done
-open "${URL}"
+open_ui

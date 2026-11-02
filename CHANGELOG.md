@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.439.0] - 2026-11-02
 ### Thêm mới
-- **Bộ cài cho Windows và macOS.** (đang viết)
+- **Cài Javis như một ứng dụng trên máy tính.** Windows tải `JavisOS-Setup.exe`, bấm đúp rồi Next tới hết. Mac tải `JavisOS-macOS.dmg`, kéo JAVIS OS vào Applications. Bộ cài tự kiểm tra máy còn thiếu Git, Python, Node hay bộ não AI nào và tự cài phần thiếu, không cần gõ lệnh. Link tải ở hướng dẫn cài nhanh.
+- **Có biểu tượng JAVIS OS trên Desktop, Start menu và Launchpad.** Bấm vào là Javis mở thành cửa sổ riêng, không thanh địa chỉ. Bấm lần nữa khi Javis đang chạy chỉ mở lại cửa sổ, không làm dừng việc đang chạy nền.
+- Nút Cập nhật trong app dùng được như bản cài tay. Gỡ app vẫn giữ nguyên bộ não (ghi chú, trí nhớ, cài đặt) trong thư mục `JavisOS`.
+### Sửa lỗi
+- Cài trên Windows mới tinh không còn chết ở bước tạo môi trường Python, và máy không có winget vẫn tự tải được Python và Node. Mac không có Homebrew cũng cài được Node đúng bản cho Mac.
 
 ## [0.438.7] - 2026-11-02
 ### Sửa lỗi
