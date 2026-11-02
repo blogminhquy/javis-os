@@ -1261,6 +1261,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    keep their existing presentation. Wide tables scroll within the bubble. */
 .msg-user .bubble .utext.jv-markdown,
 .tm-text.utext.jv-markdown { white-space: normal; min-width: 0; }
+.msg-user .bubble .utext.jv-markdown .uquote { white-space: pre-wrap; }
 .msg-user .bubble .utext.jv-markdown .jv-user-md,
 .tm-text.utext.jv-markdown { overflow-wrap: anywhere; }
 .msg-user .bubble .utext.jv-markdown :is(h1,h2,h3,h4,h5,h6),
