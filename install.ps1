@@ -49,6 +49,7 @@ function Refresh-Path {
   # The server searches the same folders (antigravity_cli.py, grok_cli.py), so the summary
   # below should not call a CLI "missing" that Javis will find anyway.
   foreach ($d in @((Join-Path $env:USERPROFILE ".local\bin"),
+                   (Join-Path $env:LOCALAPPDATA "agy\bin"),
                    (Join-Path $env:LOCALAPPDATA "Programs\antigravity"),
                    (Join-Path $env:LOCALAPPDATA "Programs\grok"),
                    (Join-Path $env:USERPROFILE ".grok\bin"),

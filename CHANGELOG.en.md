@@ -16,6 +16,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ### Fixed
 - Installing on a brand-new Windows no longer dies at the Python environment step, and a PC without winget still downloads Python and Node by itself. A Mac without Homebrew now gets the Mac build of Node.
 - On Windows, an Antigravity or Grok installer that exits early no longer stops the whole install, so the later steps (libraries, settings, auto-start) still run.
+- On Windows, the Models page sees a freshly installed Antigravity and Grok right away, instead of saying "not installed" until the computer restarts.
 
 ## [0.438.7] - 2026-11-02
 ### Fixed

@@ -14,6 +14,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Sửa lỗi
 - Cài trên Windows mới tinh không còn chết ở bước tạo môi trường Python, và máy không có winget vẫn tự tải được Python và Node. Mac không có Homebrew cũng cài được Node đúng bản cho Mac.
 - Trên Windows, trình cài của Antigravity hoặc Grok tự thoát giữa chừng không còn kéo theo cả bộ cài dừng lại, nên các bước sau (thư viện, cấu hình, tự khởi động) vẫn chạy đủ.
+- Trên Windows, trang Models thấy ngay Antigravity và Grok vừa cài, không còn báo "chưa cài" cho tới khi khởi động lại máy.
 
 ## [0.438.7] - 2026-11-02
 ### Sửa lỗi
