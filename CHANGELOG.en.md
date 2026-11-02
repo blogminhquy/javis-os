@@ -15,6 +15,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - The in-app Update button works just like on a manual install. Uninstalling keeps your brain (notes, memory, settings) in the `JavisOS` folder.
 ### Fixed
 - Installing on a brand-new Windows no longer dies at the Python environment step, and a PC without winget still downloads Python and Node by itself. A Mac without Homebrew now gets the Mac build of Node.
+- On Windows, an Antigravity or Grok installer that exits early no longer stops the whole install, so the later steps (libraries, settings, auto-start) still run.
 
 ## [0.438.7] - 2026-11-02
 ### Fixed

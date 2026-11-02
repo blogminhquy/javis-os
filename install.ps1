@@ -45,6 +45,16 @@ function Refresh-Path {
   $m = [Environment]::GetEnvironmentVariable("Path", "Machine")
   $u = [Environment]::GetEnvironmentVariable("Path", "User")
   $env:PATH = (@($m, $u) | Where-Object { $_ }) -join ";"
+  # Where the vendor installers drop agy and grok when they do not (or not yet) write PATH.
+  # The server searches the same folders (antigravity_cli.py, grok_cli.py), so the summary
+  # below should not call a CLI "missing" that Javis will find anyway.
+  foreach ($d in @((Join-Path $env:USERPROFILE ".local\bin"),
+                   (Join-Path $env:LOCALAPPDATA "Programs\antigravity"),
+                   (Join-Path $env:LOCALAPPDATA "Programs\grok"),
+                   (Join-Path $env:USERPROFILE ".grok\bin"),
+                   (Join-Path $env:APPDATA "npm"))) {
+    if ((Test-Path $d) -and ($env:PATH -notlike "*$d*")) { $env:PATH = "$env:PATH;$d" }
+  }
 }
 
 function Have($cmd) { return [bool](Get-Command $cmd -ErrorAction SilentlyContinue) }
@@ -183,8 +193,19 @@ if ($SkipCli) {
     if (Have $it.bin) { Ok "$($it.ten): da co san"; continue }
     Line "    $($it.ten): dang cai tu $($it.url) ..."
     try {
-      $sc = (Invoke-RestMethod -Uri $it.url -UseBasicParsing -TimeoutSec 60)
-      Invoke-Expression $sc
+      # In a CHILD PowerShell, not Invoke-Expression here: a vendor script that ends with
+      # `exit` would otherwise end THIS script too, and Python deps, .env and auto-start
+      # (the steps below) would silently never run. Capped at 10 minutes so a script that
+      # waits on a prompt cannot hang the whole install.
+      $cmd = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm '$($it.url)' | iex"
+      # -EncodedCommand: Start-Process joins its arguments without quoting, so a plain
+      # -Command string with spaces, quotes and a pipe would reach the child mangled.
+      $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
+      $p = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $enc" -NoNewWindow -PassThru
+      if (-not $p.WaitForExit(600000)) {
+        try { $p.Kill() } catch { }
+        Warn "$($it.ten): trinh cai chay qua 10 phut, da dung."
+      }
       Refresh-Path
       if (Have $it.bin) { Ok "$($it.ten)" } else { Warn "$($it.ten): script chay xong nhung chua thay binary. Mo PowerShell moi roi thu: irm $($it.url) | iex" }
     } catch {

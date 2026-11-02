@@ -111,6 +111,28 @@ check("install.ps1 has a no-winget fallback for Python and Node",
       "python.org/ftp/python" in install_ps1 and "SHASUMS256.txt" in install_ps1)
 check("install.sh node tarball fallback picks darwin on a Mac", '-${nos}-${na}' in install_sh and "nos=darwin" in install_sh)
 
+check("CANARY: install.ps1 runs the agy/grok vendor scripts in a child PowerShell (an `exit` in them "
+      "must not end install.ps1 before deps, .env and autostart)",
+      not any("Invoke-Expression" in ln and not ln.lstrip().startswith("#") for ln in install_ps1.splitlines())
+      and "-EncodedCommand $enc" in install_ps1 and "WaitForExit(600000)" in install_ps1)
+check("install.ps1 still installs all four brains (claude, codex, agy, grok)",
+      all(x in install_ps1 for x in ('"@anthropic-ai/claude-code"', '"@openai/codex"',
+                                     "antigravity.google/cli/install.ps1", "x.ai/cli/install.ps1")))
+check("install.sh still installs all four brains (claude, codex, agy, grok)",
+      all(x in install_sh for x in ("@anthropic-ai/claude-code", "@openai/codex", "antigravity.google/cli/install.sh",
+                                    "x.ai/cli/install.sh")))
+cb = (PK / "check_brains.py").read_text(encoding="utf-8")
+check("check_brains.py uses the server's own finders for all four brains",
+      all(f in cb for f in ("find_claude_cli", "find_codex_cli", "find_antigravity_cli", "find_grok_cli")))
+win_job = wf.split("\n  windows:", 1)[1].split("\n  macos:", 1)[0]
+mac_job = wf.split("\n  macos:", 1)[1].split("\n  publish:", 1)[0]
+check("CI installs the CLIs on Windows (no -SkipCli) and checks all four brains",
+      "-SkipCli" not in win_job and "check_brains.py" in win_job)
+check("CI runs the macOS first-run path and checks all four brains",
+      "packaging/macos/bootstrap.sh" in mac_job and "check_brains.py" in mac_job)
+check("macOS launcher has a fallback when Terminal automation is denied",
+      "if ! osascript" in launcher and "pbcopy" in launcher and "printf 'JAVIS_HOME=%q bash %q" in launcher)
+
 # ---- the .app bundle actually assembles ----
 dist = ROOT / "dist" / "dmg-stage"
 if shutil.which("bash") and os.name != "nt":
@@ -144,7 +166,7 @@ for doc in ("QUICKSTART.md", "QUICKSTART.en.md"):
     check(f"{doc} links the macOS installer", base + "JavisOS-macOS.dmg" in s)
 
 # ---- repo rule: no long dashes ----
-for f in (ISS, BOOT_PS1, OPEN_VBS, LAUNCHER, BOOT_SH, BUILD_DMG, WF, PK / "make_icons.py"):
+for f in (ISS, BOOT_PS1, OPEN_VBS, LAUNCHER, BOOT_SH, BUILD_DMG, WF, PK / "make_icons.py", PK / "check_brains.py"):
     s = f.read_text(encoding="utf-8-sig")
     check(f"{f.name} has no em/en dash", "—" not in s and "–" not in s)
 

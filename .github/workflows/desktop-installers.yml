@@ -19,6 +19,7 @@ on:
       - "open-javis.vbs"
       - "start-javis.vbs"
       - "bin/javis-start.sh"
+      - "bin/javis-autostart.sh"
       - ".github/workflows/desktop-installers.yml"
   pull_request:
     paths:
@@ -28,6 +29,7 @@ on:
       - "open-javis.vbs"
       - "start-javis.vbs"
       - "bin/javis-start.sh"
+      - "bin/javis-autostart.sh"
       - ".github/workflows/desktop-installers.yml"
   workflow_dispatch:
 
@@ -38,7 +40,7 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -73,18 +75,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Get-Item dist\JavisOS-Setup.exe | Format-List Name, Length
 
-      # Real install of THIS commit on a clean runner: bootstrap clones the checkout, runs
-      # install.ps1 (venv + deps + autostart), then Javis must answer /health. -SkipCli keeps
-      # third-party CLI installers (which can wait on a prompt) out of the smoke test.
-      - name: Smoke test - bootstrap installs and Javis starts
+      # Real install of THIS commit on a clean runner, all four CLI brains included: bootstrap
+      # clones the checkout and runs install.ps1 (venv, deps, Claude Code, Codex, Antigravity,
+      # Grok, autostart). Then the server's own finders must see all four brains, and Javis
+      # must answer /health.
+      - name: Smoke test - full install, four brains, Javis starts
         shell: pwsh
+        timeout-minutes: 45
         run: |
           git branch -f smoke-install HEAD
           $dir = Join-Path $env:RUNNER_TEMP "JavisOS"
-          powershell -NoProfile -ExecutionPolicy Bypass -File packaging\windows\bootstrap.ps1 -Dir $dir -Repo $env:GITHUB_WORKSPACE -Branch smoke-install -SkipCli -NoPause -LogFile (Join-Path $env:RUNNER_TEMP "install.log")
+          powershell -NoProfile -ExecutionPolicy Bypass -File packaging\windows\bootstrap.ps1 -Dir $dir -Repo $env:GITHUB_WORKSPACE -Branch smoke-install -NoPause -LogFile (Join-Path $env:RUNNER_TEMP "install.log")
           if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $env:RUNNER_TEMP "install.log") -Tail 80; exit 1 }
-          if (-not (Test-Path (Join-Path $dir ".venv\Scripts\python.exe"))) { throw "venv missing" }
+          $vpy = Join-Path $dir ".venv\Scripts\python.exe"
+          if (-not (Test-Path $vpy)) { throw "venv missing" }
           if (-not (Test-Path (Join-Path $dir "open-javis.vbs"))) { throw "open-javis.vbs missing" }
+          & $vpy (Join-Path $dir "packaging\check_brains.py")
+          if ($LASTEXITCODE -ne 0) { throw "a brain CLI is missing after install" }
           Start-Process wscript.exe -ArgumentList "//nologo `"$dir\start-javis.vbs`"" -WorkingDirectory $dir
           $ok = $false
           for ($i = 0; $i -lt 90; $i++) {
@@ -103,7 +110,7 @@ jobs:
 
   macos:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -123,6 +130,25 @@ jobs:
           bash -n "$app/Contents/MacOS/javis"
           bash -n "$app/Contents/Resources/bootstrap.sh"
           hdiutil detach "$mnt"
+
+      # The same first-run path a customer takes (bootstrap.sh -> install.sh), on this commit:
+      # clone, venv, Node, all four CLI brains, LaunchAgent. The runner already has the
+      # Command Line Tools and a Python 3.10+, so the xcode-select and uv branches are skipped.
+      - name: Smoke test - full install, four brains, Javis starts
+        timeout-minutes: 45
+        run: |
+          set -e
+          git branch -f smoke-install HEAD
+          export JAVIS_HOME="$RUNNER_TEMP/JavisOS" JAVIS_REPO="$GITHUB_WORKSPACE" JAVIS_BRANCH=smoke-install
+          bash packaging/macos/bootstrap.sh < /dev/null
+          export PATH="$HOME/.local/bin:$HOME/.javis/node/bin:$PATH"
+          "$JAVIS_HOME/.venv/bin/python" "$JAVIS_HOME/packaging/check_brains.py"
+          for i in $(seq 1 60); do
+            curl -sf -m 3 -o /dev/null http://127.0.0.1:7777/health && { echo "Javis is up after a fresh install"; exit 0; }
+            sleep 2
+          done
+          tail -80 "$JAVIS_HOME/server/javis.log" 2>/dev/null || true
+          echo "Javis did not answer /health"; exit 1
 
       - uses: actions/upload-artifact@v4
         with:

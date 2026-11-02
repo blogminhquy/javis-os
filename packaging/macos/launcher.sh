@@ -18,7 +18,12 @@ if [ -d "${JAVIS_HOME}/.git" ] && [ -x "${JAVIS_HOME}/.venv/bin/python" ] && [ -
   exec "${JAVIS_HOME}/bin/javis-start.sh"
 fi
 
-osascript - "${RES}/bootstrap.sh" "${JAVIS_HOME}" <<'AS'
+# macOS asks once whether "JAVIS OS" may control Terminal. If the person clicks Don't Allow
+# (or the prompt never shows), osascript fails and nothing would happen at all: fall back to
+# putting the command on the clipboard, opening Terminal, and saying "paste it".
+# Not `open -a Terminal bootstrap.sh`: a script copied off the downloaded .dmg carries the
+# quarantine flag, and Gatekeeper blocks it when it is opened through LaunchServices.
+if ! osascript - "${RES}/bootstrap.sh" "${JAVIS_HOME}" <<'AS' >/dev/null 2>&1
 on run argv
   tell application "Terminal"
     activate
@@ -26,3 +31,9 @@ on run argv
   end tell
 end run
 AS
+then
+  # %q escapes spaces and quotes in a form both bash and zsh (the Terminal default) accept.
+  printf 'JAVIS_HOME=%q bash %q\n' "${JAVIS_HOME}" "${RES}/bootstrap.sh" | pbcopy
+  open -a Terminal
+  osascript -e 'display alert "JAVIS OS" message "Terminal is open. Paste (Cmd+V) and press Enter to install JAVIS OS.\n\nTerminal da mo. Dan (Cmd+V) roi bam Enter de cai JAVIS OS."' >/dev/null 2>&1 || true
+fi
