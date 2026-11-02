@@ -2128,8 +2128,8 @@ function veTinDaLuu(m, brainCua, sidCua) {
     const _vongCu = window.JavisLenh && window.JavisLenh.docVong ? window.JavisLenh.docVong(m.content || "") : null;
     if (_vongCu) { appendGoalRound(_vongCu, false); return { role: "user", text: _sach, atts: [], ts, goalRound: _vongCu }; }
     const _atts = docDinhKem(m.content || "");
-    // The raw text, not _sach: appendUserMessage strips the blocks itself and reads the Javis Gate sender from them.
-    const el = appendUserMessage(m.content || "", _atts, ts);
+    // 0.440.0: the Javis Gate sender ("from ChatGPT") is read from the stored text, which still has its block.
+    const el = appendUserMessage(_sach, _atts, ts, nguonGate(m.content || ""));
     if(m.voice_metadata && m.voice_metadata.response_policy==='ack_only' && !m.voice_metadata.answer_requested) renderVoiceReceipt(el,{...m.voice_metadata,session_id:savedSessionId});
     return { role: "user", text: _sach, atts: _atts, ts, voice_metadata:m.voice_metadata };
   }
@@ -2461,8 +2461,8 @@ function vaAnhHong(root) {
   });
 }
 
-function appendUserMessage(text, attachments, ts) {
-  const nguon = nguonGate(text);
+function appendUserMessage(text, attachments, ts, via) {
+  const nguon = via || nguonGate(text);
   text = chuNguoiGo(text);
   const div = document.createElement("div");
   div.className = "msg msg-user";

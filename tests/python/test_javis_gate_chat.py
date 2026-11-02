@@ -241,7 +241,7 @@ check("trang chia sẻ bỏ khối Gate", share_render.chu_nguoi_go(tho) == "là
 app = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 check("dashboard gỡ khối Gate như các khối ngữ cảnh khác", '"[GỬI QUA JAVIS GATE:"' in app)
 check("dashboard vẽ bong bóng khi nhận external_message", 'data.type === "external_message"' in app)
-check("bong bóng tin cũ đọc nhãn nguồn từ chữ gốc", "appendUserMessage(m.content || \"\", _atts, ts)" in app)
+check("bong bóng tin cũ đọc nhãn nguồn từ chữ gốc", 'appendUserMessage(_sach, _atts, ts, nguonGate(m.content || ""))' in app)
 for f in ("vi", "en"):
     d = json.loads((ROOT / "dashboard" / "i18n" / f"{f}.json").read_text(encoding="utf-8"))
     check(f"i18n {f}: có chat.via_gate với {{src}}", "{src}" in d.get("chat.via_gate", ""))

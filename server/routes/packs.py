@@ -231,8 +231,18 @@ def _make_router() -> APIRouter:
                               & app_dang_cap)]
         # Gói nào đã cài rồi thì đánh dấu, để lưới hiện "Đã cài" thay vì mời cài lại.
         da_cai = pack_install.doc_so()
+        # 0.440.0: gói đổi mã khai `replaces`. Thẻ của mã cũ thôi hiện (gói mới đứng thay), và máy
+        # đang cài mã cũ thấy thẻ mới ở trạng thái "đã cài, có bản mới": bấm cập nhật là trình cài
+        # chuyển dữ liệu sang mã mới (pack_install._thay_the).
+        bi_thay = {o for g in d.get("packs") or [] for o in (g.get("replaces") or [])}
+        d["packs"] = [g for g in d.get("packs") or [] if g["id"] not in bi_thay]
         for g in d.get("packs") or []:
             hang = da_cai.get(g["id"])
+            if not hang:
+                cu = next((o for o in (g.get("replaces") or []) if o in da_cai), "")
+                if cu:
+                    hang = da_cai[cu]
+                    g["replaces_installed"] = cu
             g["installed"] = bool(hang)
             g["installed_version"] = (hang or {}).get("version", "")
             # Thẻ cần biết gói đang bật hay tắt để vẽ đúng nút. Gói thả tay vào thư mục (không

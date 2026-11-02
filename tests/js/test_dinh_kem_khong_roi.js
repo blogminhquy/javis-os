@@ -95,7 +95,7 @@ const i0 = APP.indexOf("function veTinDaLuu(");
 const thanOpen = APP.slice(i0, APP.indexOf("\n}\n", i0));
 check("dựng lại tin cũ thì đọc đính kèm bằng docDinhKem", /docDinhKem\(m\.content/.test(thanOpen));
 check("và truyền vào appendUserMessage thay vì mảng rỗng",
-  /appendUserMessage\(_sach, _atts, ts\)/.test(thanOpen) && !/appendUserMessage\(_sach, \[\], ts\)/.test(thanOpen));
+  /appendUserMessage\(_sach, _atts, ts[,)]/.test(thanOpen) && !/appendUserMessage\(_sach, \[\], ts\)/.test(thanOpen));
 check("convo lưu lại cũng mang đính kèm (F5 lần sau còn)",
   /return \{ role: "user", text: _sach, atts: _atts, ts, voice_metadata:m.voice_metadata \};/.test(thanOpen));
 
