@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.441.0] - 2026-11-02
 ### Added
-- In progress.
+- **Chat in ChatGPT or Claude, and Javis still has the context.** Through Javis Gate, that AI saves into Javis what you asked and what you decided, with the reason. Each chat over there gets its own conversation in Javis's History, such as "Từ ChatGPT: Tet plan" or "Từ Claude: Web build".
+- A note **costs Javis's brain nothing** since Javis does not answer it, yet it goes into memory and self-learning like any chat. Next time you ask Javis, it remembers what you decided in ChatGPT.
+- Notes work at the Draft and Full levels. At Read only, the outside AI only reads and writes nothing into Javis.
 
 ## [0.440.0] - 2026-11-02
 ### Added

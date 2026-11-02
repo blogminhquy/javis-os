@@ -19462,7 +19462,15 @@ async def _chat_socket(ws):
 # thay `_CHAT_RUNTIME` sau khi nạp vẫn trúng.
 import chat_bridge  # noqa: E402
 
-chat_bridge.gan(lambda ws: _chat_socket(ws), lambda: _CHAT_RUNTIME)
+async def _gate_luu_luot(sid, brain, tin, tra_loi):
+    """Ghi chép của Javis Gate (0.441.0): lưu tin của chủ rồi đi ĐÚNG đường lưu một lượt chat (`_persist_turn`:
+    Lịch sử, nhật ký hội thoại, vòng tự học), mà không chạy engine nào."""
+    st = get_store()
+    st.append_message(sid, "user", tin)
+    return await _persist_turn(st, sid, brain, tin, tra_loi)
+
+
+chat_bridge.gan(lambda ws: _chat_socket(ws), lambda: _CHAT_RUNTIME, _gate_luu_luot)
 
 
 # ============================================================
