@@ -4450,6 +4450,7 @@
         <b>1)</b> ${esc(t("models.cli_s1"))}<br>
         <a href="${esc(safeHref(r.url))}" target="_blank" rel="noopener" style="color:var(--link-ink);word-break:break-all">${esc(r.url || t("models.no_link"))}</a><br>
         <b>2)</b> ${esc(t("models.cli_s2"))}
+        <div class="gcard-meta">${esc(t("models.cli_s2_nocode"))}</div>
         <div class="prov-action prov-code">
           <input class="js-input" id="cliCode" placeholder="${esc(t("models.code_ph"))}"
             autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
@@ -4458,16 +4459,33 @@
         <span id="cliMsg2" class="gcard-meta"></span>
       </div>`;
     const m2 = el.querySelector("#cliMsg2");
-    let stopped = false;
+    let stopped = false, busy = false, timer = 0;
     const t0 = Date.now();
-    const poll = async () => {   // tự hoàn tất (một số luồng không cần dán code)
-      if (stopped) return;
-      if (Date.now() - t0 > 5 * 60 * 1000) { if (m2) m2.textContent = t("models.timeout_retry"); return; }
-      let d; try { d = await (await fetch("/claude/status")).json(); } catch (e) { setTimeout(poll, 3000); return; }
-      if (d.connected) { stopped = true; refreshClaudeCard(el); return; }
-      setTimeout(poll, 3000);
+    // 0.438.7 (owner report 02/11/2026): on a machine with a browser the CLI opens the sign-in itself and gets the
+    // answer over localhost, so the web page only says "You're all set up" and never shows a code. This used to ask
+    // /claude/status, whose 90 s cache kept saying "signed out" until the page was reloaded. /claude/login-poll asks
+    // the sign-in process itself, and the card also asks the moment the user comes back to this tab.
+    const stop = () => {
+      stopped = true; clearTimeout(timer);
+      window.removeEventListener("focus", now); document.removeEventListener("visibilitychange", now);
     };
-    setTimeout(poll, 3000);
+    const poll = async () => {
+      if (stopped || busy) return;
+      clearTimeout(timer);
+      if (!el.isConnected) { stop(); return; }
+      if (Date.now() - t0 > 10 * 60 * 1000) { stop(); if (m2) m2.textContent = t("models.timeout_retry"); return; }
+      busy = true;
+      let d = null; try { d = await (await fetch("/claude/login-poll")).json(); } catch (e) {}
+      busy = false;
+      if (stopped) return;
+      if (d && d.connected) { stop(); refreshClaudeCard(el); return; }
+      if (d && d.ended) { stop(); if (m2) m2.innerHTML = Icons.warn(d.error || t("models.login_incomplete")); return; }
+      timer = setTimeout(poll, 2000);
+    };
+    const now = () => { if (!document.hidden) poll(); };
+    window.addEventListener("focus", now);
+    document.addEventListener("visibilitychange", now);
+    timer = setTimeout(poll, 2000);
     // 0.308.0 (owner screenshot 24/10/2026): this row used to be a bare flex div, where the global .gcard-btn
     // width:100% let the button take the whole row and squeezed the code box to 24px. It is a .prov-action row now
     // (button sized to its text, box takes the rest and wraps under on a phone). The box gets focus once the link is
@@ -4488,7 +4506,7 @@
       try { rr = await (await fetch("/claude/login-code", { method: "POST", body: fd })).json(); }
       catch (e) { cb.disabled = false; if (m2) m2.textContent = t("common.net_err"); return; }
       cb.disabled = false;
-      if (rr.ok) { stopped = true; refreshClaudeCard(el); }
+      if (rr.ok) { stop(); refreshClaudeCard(el); }
       else if (m2) m2.innerHTML = Icons.warn(rr.error || t("models.code_wrong"));
     };
   }
