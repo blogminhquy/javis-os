@@ -689,6 +689,7 @@
   "models.cli_s1": "Mở link này để đăng nhập claude.ai:",
   "models.no_link": "(không có link)",
   "models.cli_s2": "Đăng nhập xong, nếu trang hiện một mã code thì dán vào đây:",
+  "models.cli_s2_nocode": "Trang chỉ báo đăng nhập thành công, không có mã? Quay lại đây, thẻ tự chuyển sau vài giây.",
   "models.code_ph": "Dán mã vào đây",
   "models.code_send": "Xác nhận mã",
   "models.timeout_retry": "Hết thời gian, thử lại.",

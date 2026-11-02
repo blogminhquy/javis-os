@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.438.7] - 2026-11-02
 ### Sửa lỗi
-- **Đăng nhập Claude tự xong khi trình duyệt báo thành công.** (đang viết)
+- **Đăng nhập Claude tự xong khi trình duyệt báo thành công.** Trên máy có trình duyệt, Claude tự mở trang đăng nhập và trang chỉ báo "You're all set up", không hiện mã nào để dán. Trước đây thẻ ở trang Models vẫn đứng chờ mã, phải tải lại trang mới thấy đã đăng nhập. Giờ thẻ tự chuyển sang Đã đăng nhập sau vài giây, hoặc ngay lúc quay lại tab Javis.
+- Nếu Claude báo đăng nhập hỏng, thẻ nói luôn lý do thay vì chờ mãi.
 
 ## [0.438.6] - 2026-11-02
 ### Cải thiện

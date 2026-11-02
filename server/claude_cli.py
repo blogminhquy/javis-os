@@ -846,7 +846,8 @@ def auth_login():
 # Chạy `claude auth login --claudeai` với pipe: đọc LINK nó in cho user mở, nhận CODE user dán rồi
 # ghi vào stdin. Trạng thái giữ ở _LOGIN (1 phiên 1 lúc là đủ). KHÔNG mở browser trên server.
 import re as _re_login
-_LOGIN = {"proc": None, "url": "", "done": False, "error": "", "lines": [], "env": None}
+_LOGIN = {"proc": None, "url": "", "done": False, "error": "", "lines": [], "env": None, "verified": None,
+          "finalized": False}
 _LOGIN_URL_RE = _re_login.compile(r"https?://\S+")
 # Lines the CLI prints for a code it will not take. It keeps waiting after them, so the user can paste again.
 _LOGIN_BAD_CODE = ("invalid code", "wasn't accepted", "login failed", "oauth error")
@@ -918,7 +919,8 @@ def auth_login_ui_start(env: Optional[dict] = None):
             _kill_tree(_LOGIN["proc"])
     except Exception:
         pass
-    _LOGIN.update({"proc": None, "url": "", "done": False, "error": "", "lines": [], "env": dict(env or {})})
+    _LOGIN.update({"proc": None, "url": "", "done": False, "error": "", "lines": [], "env": dict(env or {}),
+                   "verified": None, "finalized": False})
     try:
         proc = subprocess.Popen(
             [cli, "auth", "login", "--claudeai"],
@@ -967,6 +969,42 @@ def auth_login_ui_start(env: Optional[dict] = None):
         return {"ok": False, "error": localefmt.chu("Không lấy được link đăng nhập (claude CLI không in URL).",
                                                     "Could not get the sign-in link (the claude CLI printed no URL).")}
     return {"ok": True, "url": _LOGIN["url"], "done": _LOGIN["done"], "error": _LOGIN["error"]}
+
+
+def auth_login_ui_poll() -> dict:
+    """Has the sign-in started by auth_login_ui_start finished WITHOUT a pasted code?
+
+    `claude auth login` opens the browser itself on a machine that has one, with a link whose answer goes back to
+    the CLI over localhost. Signing in there ends on platform.claude.com/oauth/code/success ("You're all set up"),
+    which shows NO code, and the CLI saves the login and exits. The card used to wait for a code that never comes
+    and asked `/claude/status`, whose 90 s cache kept saying "signed out" (owner report 02/11/2026, Windows: success
+    page in Edge, the card in Chrome still asking for a code until the page was reloaded).
+
+    Returns {connected: True} once (it verifies with a fresh `claude auth status`), {waiting: True} while the CLI
+    is still waiting, or {ended: True, error} when it exited without signing in.
+    """
+    proc = _LOGIN.get("proc")
+    if not proc:
+        return {"ok": True, "waiting": False, "connected": False}
+    if _LOGIN.get("verified"):
+        return dict(_LOGIN["verified"])
+    if not _LOGIN["done"] and proc.poll() is not None:
+        time.sleep(0.3)   # let the reader take the last line
+        if proc.returncode == 0:
+            _LOGIN["done"] = True
+    if _LOGIN["done"]:
+        v = _login_verify()
+        res = ({"ok": True, "connected": True} if v.get("ok")
+               else {"ok": False, "connected": False, "ended": True, "error": v.get("error", "")})
+        _LOGIN["verified"] = res
+        return dict(res)
+    if proc.poll() is not None:
+        tail = _login_tail()
+        return {"ok": False, "connected": False, "ended": True,
+                "error": localefmt.chu("Phiên đăng nhập này đã kết thúc. Bấm Đăng nhập Claude để lấy link mới.",
+                                       "This sign-in has ended. Click Sign in to Claude for a new link.")
+                + (f" ({tail})" if tail else "")}
+    return {"ok": True, "waiting": True, "connected": False}
 
 
 def auth_login_ui_code(code):

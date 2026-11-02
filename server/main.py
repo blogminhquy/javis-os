@@ -5171,11 +5171,30 @@ def claude_login_code(code: str = Form("")):
     """Nhận code user dán sau khi mở link đăng nhập."""
     d = auth_login_ui_code(code)
     if d.get("ok"):
-        warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
-        # Vừa đăng nhập xong: đèn báo não phải xanh NGAY, không chờ vòng probe 10 phút
-        # (banner 'chưa kết nối Model AI' treo sau khi đã kết nối là lỗi khách báo 27/08).
-        connect_health.engine_reconnected("claude")
-        _plan_main_signed_in("anthropic-cli")
+        _claude_main_signed_in()
+    return d
+
+
+def _claude_main_signed_in():
+    """The main Claude account just signed in, by a pasted code or in the browser on its own."""
+    claude_cli._LOGIN["finalized"] = True
+    warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
+    # Vừa đăng nhập xong: đèn báo não phải xanh NGAY, không chờ vòng probe 10 phút
+    # (banner 'chưa kết nối Model AI' treo sau khi đã kết nối là lỗi khách báo 27/08).
+    connect_health.engine_reconnected("claude")
+    _plan_main_signed_in("anthropic-cli")
+
+
+@app.get("/claude/login-poll")
+def claude_login_poll():
+    """Has the sign-in from /claude/login-start finished without a code? On a machine with a browser the CLI opens
+    the sign-in itself and gets the answer over localhost; the web page then only says "You're all set up" and shows
+    no code to paste (owner report 02/11/2026). The card asks here every few seconds while it shows the code box."""
+    if (claude_cli._LOGIN.get("env") or {}).get("CLAUDE_CONFIG_DIR"):
+        return {"ok": True, "waiting": False, "connected": False}   # an extra account's sign-in, polled elsewhere
+    d = claude_cli.auth_login_ui_poll()
+    if d.get("connected") and not claude_cli._LOGIN.get("finalized"):
+        _claude_main_signed_in()
     return d
 
 

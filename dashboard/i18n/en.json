@@ -689,6 +689,7 @@
   "models.cli_s1": "Open this link to sign in to claude.ai:",
   "models.no_link": "(no link)",
   "models.cli_s2": "After signing in, if the page shows a code, paste it here:",
+  "models.cli_s2_nocode": "Page only says you're signed in, with no code? Come back here, the card updates in a few seconds.",
   "models.code_ph": "Paste the code here",
   "models.code_send": "Confirm code",
   "models.timeout_retry": "Timed out, try again.",
