@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.439.0] - 2026-11-02
+### Thêm mới
+- **Bộ cài cho Windows và macOS.** (đang viết)
+
 ## [0.438.7] - 2026-11-02
 ### Sửa lỗi
 - **Đăng nhập Claude tự xong khi trình duyệt báo thành công.** Trên máy có trình duyệt, Claude tự mở trang đăng nhập và trang chỉ báo "You're all set up", không hiện mã nào để dán. Trước đây thẻ ở trang Models vẫn đứng chờ mã, phải tải lại trang mới thấy đã đăng nhập. Giờ thẻ tự chuyển sang Đã đăng nhập sau vài giây, hoặc ngay lúc quay lại tab Javis.
