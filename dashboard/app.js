@@ -2450,8 +2450,13 @@ function appendUserMessage(text, attachments, ts) {
   const attHtml = attachHtml(attachments);
   // Tin dài (>10 dòng hoặc >900 ký tự) thu gọn lại, bấm "Xem thêm" để mở (chat-acts.js, dùng chung với trang Nhóm)
   const isLong = window.JavisActs.isLongText(text);
+  // Preserve Quote button markup. Render Markdown only in the non-quote part.
+  const rich = (window.JavisRichText && typeof window.mdToHtml === "function")
+    ? window.JavisRichText.renderUser(text, escapeHtml, window.mdToHtml, window.JavisQuote) : null;
+  const display = rich ? rich.html
+    : (window.JavisQuote ? window.JavisQuote.utextHtml(text, escapeHtml) : escapeHtml(text));
   const textHtml = text
-    ? `<div class="utext${isLong ? " clamped" : ""}">${window.JavisQuote ? window.JavisQuote.utextHtml(text, escapeHtml) : escapeHtml(text)}</div>` +
+    ? `<div class="utext${rich && rich.rich ? " jv-markdown" : ""}${isLong ? " clamped" : ""}">${display}</div>` +
       (isLong ? window.JavisActs.clampButtonHtml(false) : "")
     : "";
   div.innerHTML = `<div class="bubble">${textHtml}${attHtml}</div>` +
@@ -4034,11 +4039,16 @@ document.addEventListener("paste", (e) => {
   // Chỉ ô chat. Các ô khác (form Kết nối, đặt tên brain...) giữ Ctrl+V bình thường.
   if (e.defaultPrevented || e.target !== chatInput) return;
   const paste = window.JavisPaste;
-  const txt = e.clipboardData.getData("text/plain") || "";
-  if (!paste || !paste.isLong(txt)) return;   // chữ vừa phải: để trình duyệt tự dán, Ctrl+Z vẫn chạy
+  const plain = e.clipboardData.getData("text/plain") || "";
+  const html = e.clipboardData.getData("text/html") || "";
+  const txt = window.JavisRichText ? window.JavisRichText.prepare(plain, html) : plain;
+  // Plain text remains native paste (including Ctrl+Z). Rich paste is opt-in only
+  // when conversion has something meaningful to preserve.
+  if (!paste || (!paste.isLong(txt) && txt === plain)) return;
   e.preventDefault();
   const range = { start: chatInput.selectionStart, end: chatInput.selectionEnd };
-  paste.offer(txt, (value) => paste.insertAt(chatInput, range, value), pasteAsTxt);
+  if (paste.isLong(txt)) paste.offer(txt, (value) => paste.insertAt(chatInput, range, value), pasteAsTxt);
+  else paste.insertAt(chatInput, range, txt);
 });
 
 // Kéo-thả file
