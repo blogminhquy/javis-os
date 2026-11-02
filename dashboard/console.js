@@ -4461,7 +4461,7 @@
     const m2 = el.querySelector("#cliMsg2");
     let stopped = false, busy = false, timer = 0;
     const t0 = Date.now();
-    // 0.438.6 (owner report 02/11/2026): on a machine with a browser the CLI opens the sign-in itself and gets the
+    // 0.438.7 (owner report 02/11/2026): on a machine with a browser the CLI opens the sign-in itself and gets the
     // answer over localhost, so the web page only says "You're all set up" and never shows a code. This used to ask
     // /claude/status, whose 90 s cache kept saying "signed out" until the page was reloaded. /claude/login-poll asks
     // the sign-in process itself, and the card also asks the moment the user comes back to this tab.

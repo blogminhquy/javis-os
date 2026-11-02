@@ -1,4 +1,4 @@
-"""Signing in to Claude in the browser, with no code to paste, finishes the Models card on its own (0.438.6).
+"""Signing in to Claude in the browser, with no code to paste, finishes the Models card on its own (0.438.7).
 
     python tests/run.py claude_login_browser      (no network: a fake `claude` stands in for the CLI)
 
