@@ -68,7 +68,7 @@ class Lang:
     # Ollama Cloud) trôi theo ngôn ngữ của prompt, và prompt của Javis là tiếng Việt.
     nudge: str = ""
     weekdays: Tuple[str, ...] = ()          # thứ 2 -> chủ nhật, đúng thứ tự datetime.weekday()
-    clock_template: str = ""                # chỗ điền: {hm} {weekday} {date} {tz}
+    clock_template: str = ""                # chỗ điền: {hm} {weekday} {date} {tz} {yesterday} {tomorrow}
     lang_directive: str = ""                # câu nói rõ phải trả lời bằng ngôn ngữ nào
 
 
@@ -118,7 +118,9 @@ LANGS: Dict[str, Lang] = {
         clock_template=(
             "Bây giờ là {hm} {weekday} ngày {date}, giờ {tz}. Đây là giờ THẬT tại thời điểm "
             "câu hỏi này được gửi: cứ dùng thẳng khi cần biết hôm nay/bây giờ, không phải đoán "
-            "và không cần gọi tool."
+            "và không cần gọi tool. Hôm qua là {yesterday}, ngày mai là {tomorrow}. Mọi mốc hôm "
+            "nay/hôm qua/tuần này/tháng này, kể cả khoảng ngày truyền vào MCP khi kéo số liệu báo "
+            "cáo, đều tính theo múi giờ này, không theo UTC hay giờ máy chủ."
         ),
         lang_directive="Tiếng Việt",
     ),
@@ -170,7 +172,10 @@ LANGS: Dict[str, Lang] = {
         clock_template=(
             "It is now {hm} {weekday}, {date}, timezone {tz}. This is the REAL time at the "
             "moment this question was sent: use it directly whenever you need to know "
-            "today/now, no guessing and no tool call needed."
+            "today/now, no guessing and no tool call needed. Yesterday was {yesterday}, "
+            "tomorrow is {tomorrow}. Every today/yesterday/this week/this month, including the "
+            "date range you pass to an MCP when pulling report numbers, is in this timezone, "
+            "not UTC or the server clock."
         ),
         lang_directive="English",
     ),

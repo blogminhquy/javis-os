@@ -31,6 +31,24 @@ import httpx
 import mcp_orphans
 import winproc
 
+
+def _owner_tz_env(own_env) -> dict:
+    """`TZ` for a local MCP server: the timezone the owner picked in Settings (0.443.0).
+
+    A POS or chat MCP that works out "today" by itself reads the process clock, and on a VPS that is UTC, so "orders
+    today" asked at 6am in Vietnam returned yesterday's. Handing it the owner's timezone makes the server's own idea
+    of a day match Javis's. A connector that sets its own `TZ` keeps it. Not on Windows: its C runtime reads `TZ` in
+    the POSIX "EST5EDT" form and would misread an IANA name, which is worse than the machine's local time.
+    """
+    if os.name == "nt" or "TZ" in (own_env or {}):
+        return {}
+    try:
+        import localefmt
+        name = localefmt.valid_tz(localefmt.ten_tz())
+    except Exception:       # noqa: BLE001 - a missing setting must never stop an MCP from starting
+        return {}
+    return {"TZ": name} if name else {}
+
 PROTOCOL = "2025-06-18"
 # _IDLE_TTL PHẢI LỚN HƠN connect_health.HEALTH_INTERVAL (600). Khi hai số bằng nhau,
 # session vừa bị dọn xong ngay trước mỗi vòng quét sức khoẻ → vòng nào cũng spawn server
@@ -366,6 +384,7 @@ class McpStdioSession:
             # uvx bị kill nhưng server thật thành mồ côi, 96 tiến trình ăn hết RAM VPS).
             kwargs["start_new_session"] = True
         env = dict(os.environ)
+        env.update(_owner_tz_env(self.env))
         env.update(self.env)
         self.proc = await asyncio.create_subprocess_exec(
             *self._argv(), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,

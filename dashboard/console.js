@@ -6812,6 +6812,24 @@
   }
 
   // ---- Lưu 1 section settings ----
+  // A short status line at the bottom of the screen (0.443.0). The Settings handlers called `toast(...)` but nothing in
+  // this file defined it, so changing the reply language threw a ReferenceError and the "saved" note never showed.
+  // Reuses the `.mp-toast` look from msg-press so every short notice in the app reads the same.
+  let _toastTimer = 0;
+  function toast(text, isError) {
+    const old = document.getElementById("csToast");
+    if (old) old.remove();
+    clearTimeout(_toastTimer);
+    const n = document.createElement("div");
+    n.id = "csToast";
+    n.className = "mp-toast";
+    n.setAttribute("role", isError ? "alert" : "status");
+    if (isError) n.style.background = "var(--danger, #b42318)";
+    n.textContent = String(text || "");
+    document.body.appendChild(n);
+    _toastTimer = setTimeout(() => n.remove(), isError ? 5000 : 2500);
+  }
+
   async function saveSetting(section, dataObj) {
     const fd = new FormData();
     fd.append("section", section);
@@ -7592,6 +7610,9 @@
     const langs = (s.lang_list || []);
     const replyLang = lc.reply_lang || "auto";
     const uiLang = (window.JavisI18n && JavisI18n.lang()) || "vi";
+    // Timezone (0.443.0): what "today", "yesterday", reminders and report periods mean for Javis. Lives with the language
+    // pickers because both are "where and how I live", but it is saved separately (locale.tz), never inferred from language.
+    const tzName = lc.tz || (s.locale_fmt && s.locale_fmt.tz) || "Asia/Ho_Chi_Minh";
     // MỘT thẻ cho cả hai ô ngôn ngữ (0.58.8). Trước là hai thẻ riêng nằm cạnh nhau trong lưới,
     // mỗi thẻ đúng một ô chọn - hai cái khung cho hai dòng chữ.
     const langHtml = `
@@ -7613,6 +7634,14 @@
           </select>
         </div>
         ${infoBody(esc(t("settings.lang.hint")))}
+        <div class="qs-field">
+          <label class="qs-lbl" for="vpTz">${esc(t("settings.tz.title"))}${infoBtn()}</label>
+          <select class="js-input" id="vpTz">
+            ${window.JavisTz ? JavisTz.options(tzName) : opt(tzName, tzName, tzName)}
+          </select>
+        </div>
+        ${infoBody(esc(t("settings.tz.hint")))}
+        <div class="gcard-meta" id="vpTzNow"></div>
       </div>`;
 
     el.innerHTML = `<div class="settings-page">
@@ -7699,6 +7728,17 @@
       if (sel) sel.onchange = async () => {
         const r = await saveSetting("locale", { reply_lang: sel.value });
         toast(r && r.ok ? t("settings.lang.saved") : t("settings.save_failed"), !(r && r.ok));
+      };
+      const selTz = document.getElementById("vpTz");
+      const tzNow = document.getElementById("vpTzNow");
+      const showTzNow = () => {
+        if (tzNow && selTz && window.JavisTz) tzNow.textContent = t("tz.now_there").replace("{time}", JavisTz.nowIn(selTz.value));
+      };
+      showTzNow();
+      if (selTz) selTz.onchange = async () => {
+        const r = await saveSetting("locale", { tz: selTz.value });
+        if (r && r.ok) { showTzNow(); toast(t("settings.tz.saved")); }
+        else { selTz.value = tzName; showTzNow(); toast((r && r.error) || t("settings.save_failed"), true); }
       };
       const selUi = document.getElementById("vpUiLang");
       if (selUi) selUi.onchange = async () => {

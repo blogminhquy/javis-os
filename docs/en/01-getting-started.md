@@ -66,6 +66,8 @@ Any of the three gives you a fully capable Javis: all of them reach the connecti
 
 Pick **OpenRouter** and an **OpenRouter API key** box appears - paste the key now or leave it empty and paste it later on the Models page. Below the list is a hint line that changes with your choice; picking ChatGPT, for example, suggests "Once inside: **Models** → sign in to ChatGPT".
 
+The last section is **4. Timezone**, preselected from the timezone of the device you opened it on (since 0.443.0). Javis uses it for today, yesterday and tomorrow, to time reminders, and to set the date range when it pulls report numbers. On a VPS the server clock is usually UTC, so check that this box matches where you actually live. The line underneath shows the time there now so you can compare.
+
 Press **Start using Javis →** to save and enter the app. The wizard also sets a default model for the provider you chose: `sonnet` for Claude Code, `gpt-5.5` for ChatGPT, `openai/gpt-4o-mini` for OpenRouter. Change it on the Models page whenever you like.
 
 ### Step 5: Sign in to Claude as the brain
@@ -135,6 +137,10 @@ It is safe: it only moves when the destination does not exist, it never overwrit
 - The default is **Keep the mark**: images carry a record that they were AI-generated. Facebook reads it and labels posts "AI-generated content".
 - Press **Strip the mark** and new images no longer carry it, so platforms usually stop showing the label. Images generated earlier are unchanged.
 - Either way the `javisos.com` author tag stays, and you remain responsible for disclosing AI content under the law and the terms of whatever platform you post to.
+
+### General tab: Language and timezone
+
+The **Language and timezone** block has three boxes: interface language, **Javis replies in**, and **Timezone** (since 0.443.0). A new timezone is saved at once, and Javis uses it from the next chat turn for today, yesterday, tomorrow, reminders and reports. The timezone box opens with a **Suggested** group (the current one, your device's and a few common ones), followed by the full list sorted by UTC offset. A repeating reminder scheduled before the change may run once more at the old time before it follows the new one.
 
 ### Voice tab and branding in General
 

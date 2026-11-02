@@ -119,6 +119,23 @@ def ngon_ngu_tra_loi() -> str:
             or lang_registry.MAC_DINH)
 
 
+def valid_tz(name) -> str:
+    """The IANA name when this server's tz database knows it, else "".
+
+    Saving checks with this (0.443.0) because `_tu_ten` falls back to UTC+7 in silence for a name it cannot load, so a
+    misspelt timezone would be stored, shown as chosen, and quietly ignored. Better to refuse it at the door.
+    """
+    name = str(name or "").strip()
+    if not name or len(name) > 64:
+        return ""
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(name)
+    except Exception:
+        return ""
+    return name
+
+
 def ten_tz() -> str:
     return str(_cau_hinh().get("tz") or TEN_TZ_MAC_DINH)
 

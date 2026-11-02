@@ -66,6 +66,8 @@ Chọn cái nào cũng ra một Javis đủ chức năng: cả ba đều gọi �
 
 Nếu chọn **OpenRouter**, một ô nhập **OpenRouter API key** sẽ hiện ra, bạn có thể dán key ngay hoặc để trống rồi dán sau ở trang Models. Dưới danh sách còn một dòng gợi ý thay đổi theo thẻ bạn chọn, ví dụ chọn ChatGPT thì gợi ý "Sau khi vào: mục **Models** → đăng nhập ChatGPT".
 
+Mục cuối là **4. Múi giờ**, chọn sẵn theo múi giờ của máy bạn đang mở (từ 0.443.0). Javis dùng nó để hiểu hôm nay, hôm qua, ngày mai, đặt giờ nhắc hẹn và chốt khoảng ngày khi kéo số liệu báo cáo. Chạy trên VPS thì đồng hồ máy chủ thường là UTC, nên kiểm tra lại ô này cho đúng nơi bạn sống. Dòng bên dưới cho biết giờ ở đó lúc này để bạn đối chiếu.
+
 Bấm **Bắt đầu dùng Javis →** để lưu và vào app. Wizard đồng thời đặt luôn một model mặc định cho nhà cung cấp bạn chọn: `sonnet` cho Claude Code, `gpt-5.5` cho ChatGPT, `openai/gpt-4o-mini` cho OpenRouter. Đổi lại ở trang Models bất cứ lúc nào.
 
 ### Bước 5: Đăng nhập Claude làm bộ não
@@ -135,6 +137,10 @@ Thao tác này an toàn: chỉ di chuyển khi thư mục đích chưa có, khô
 - Mặc định là **Giữ dấu**: ảnh mang sẵn dấu ghi rằng ảnh do AI sinh ra. Facebook đọc dấu này để gắn nhãn "Nội dung do AI tạo" lên bài.
 - Bấm **Gỡ dấu** thì ảnh mới tạo không còn dấu, nhãn trên nền tảng thường không hiện nữa. Ảnh đã tạo trước đó không đổi.
 - Dù bật hay tắt, nhãn tác giả `javisos.com` vẫn được giữ, và bạn vẫn phải tự chịu trách nhiệm công bố nội dung AI theo luật và điều khoản của nền tảng nơi bạn đăng.
+
+### Tab Chung: Ngôn ngữ và múi giờ
+
+Khối **Ngôn ngữ và múi giờ** có ba ô: ngôn ngữ giao diện, **Javis trả lời bằng**, và **Múi giờ** (từ 0.443.0). Đổi múi giờ là lưu ngay, Javis dùng giờ mới từ lượt chat kế tiếp cho hôm nay, hôm qua, ngày mai, nhắc hẹn và báo cáo. Ô múi giờ có nhóm **Gợi ý** ở đầu (múi đang chọn, múi của máy bạn và vài múi hay dùng), bên dưới là toàn bộ danh sách xếp theo độ lệch UTC. Một nhắc hẹn lặp lại đã lên lịch trước khi đổi có thể chạy theo giờ cũ đúng một lần rồi mới theo giờ mới.
 
 ### Tab Giọng nói và phần thương hiệu trong tab Chung
 
