@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.438.7] - 2026-11-02
+### Sửa lỗi
+- **Đăng nhập Claude tự xong khi trình duyệt báo thành công.** (đang viết)
+
 ## [0.438.6] - 2026-11-02
 ### Cải thiện
 - **Grok Build và Antigravity CLI cũng hiện chữ lần lượt.** Câu trả lời chảy ra từng mẩu ngay khi model đang viết, không còn chờ xong cả lượt mới hiện một lần. Giờ mọi bộ não của Javis đều hiện chữ như nhau.
