@@ -1230,6 +1230,17 @@ function handleMessage(data) {
     try { if (window.JavisChatReactions) window.JavisChatReactions.onFrame(data, { bubble: t && t.bubble }); } catch (e) {}
     return;
   }
+  if (data.type === "external_message") {
+    // 0.440.0: an outside AI posted into this chat through Javis Gate (server/chat_bridge.py). The server stored the
+    // message already; the tab looking at the chat draws the bubble now, then the answer streams in like any turn.
+    if (isActive) {
+      appendUserMessage(data.content || "", [], Date.now());
+      recordTurn("user", chuNguoiGo(data.content || ""), null, null);
+      scrollBottom(true);
+    }
+    notifySessions();
+    return;
+  }
   if (data.type === "push") {
     // Tin do việc chạy NỀN đẩy vào (việc Kanban / loop / nhắc hẹn xong), không thuộc lượt
     // hỏi-đáp nào. KHÔNG đụng turns[sid]: lượt đang chạy (nếu có) vẫn stream bình thường,
@@ -2117,7 +2128,8 @@ function veTinDaLuu(m, brainCua, sidCua) {
     const _vongCu = window.JavisLenh && window.JavisLenh.docVong ? window.JavisLenh.docVong(m.content || "") : null;
     if (_vongCu) { appendGoalRound(_vongCu, false); return { role: "user", text: _sach, atts: [], ts, goalRound: _vongCu }; }
     const _atts = docDinhKem(m.content || "");
-    const el = appendUserMessage(_sach, _atts, ts);
+    // The raw text, not _sach: appendUserMessage strips the blocks itself and reads the Javis Gate sender from them.
+    const el = appendUserMessage(m.content || "", _atts, ts);
     if(m.voice_metadata && m.voice_metadata.response_policy==='ack_only' && !m.voice_metadata.answer_requested) renderVoiceReceipt(el,{...m.voice_metadata,session_id:savedSessionId});
     return { role: "user", text: _sach, atts: _atts, ts, voice_metadata:m.voice_metadata };
   }
@@ -2330,7 +2342,14 @@ function lastUserText() {
 // "[SKILL: " là khối do chat-slash.js dựng khi người dùng gõ lệnh "/". Gỡ nó ra thì bong bóng
 // hiện ĐÚNG câu họ đã gõ, thay vì câu máy dựng quanh câu đó - khách báo đúng chuyện này 16/09.
 // Giữ MỘT DÒNG: test_dinh_kem_khong_roi.js bóc đúng dòng này ra để chạy docDinhKem bằng node.
-const _KHOI_NGU_CANH = ["[FILE ĐANG MỞ trong trình sửa của Javis:", "[File đính kèm", "[NGỮ CẢNH GIAO DIỆN:", "[SKILL: ", "[CHẾ ĐỘ KẾ HOẠCH:", "[MỤC TIÊU:"];
+const _KHOI_NGU_CANH = ["[FILE ĐANG MỞ trong trình sửa của Javis:", "[File đính kèm", "[NGỮ CẢNH GIAO DIỆN:", "[SKILL: ", "[CHẾ ĐỘ KẾ HOẠCH:", "[MỤC TIÊU:", "[GỬI QUA JAVIS GATE:"];
+// 0.440.0: a message an outside AI (ChatGPT, Claude...) posted through Javis Gate starts with
+// "[GỬI QUA JAVIS GATE: <name>. ...]" (server/chat_bridge.py). The block is stripped like the others;
+// this reads the name back so the bubble can say who sent it.
+function nguonGate(text) {
+  const m = /^\s*\[GỬI QUA JAVIS GATE: ([^.\]\n]{1,40})/.exec(String(text == null ? "" : text));
+  return m ? m[1].trim() : "";
+}
 
 // Gỡ mấy khối đó ra để lấy lại ĐÚNG câu người dùng đã gõ.
 //
@@ -2443,6 +2462,7 @@ function vaAnhHong(root) {
 }
 
 function appendUserMessage(text, attachments, ts) {
+  const nguon = nguonGate(text);
   text = chuNguoiGo(text);
   const div = document.createElement("div");
   div.className = "msg msg-user";
@@ -2454,8 +2474,10 @@ function appendUserMessage(text, attachments, ts) {
     ? `<div class="utext${isLong ? " clamped" : ""}">${window.JavisQuote ? window.JavisQuote.utextHtml(text, escapeHtml) : escapeHtml(text)}</div>` +
       (isLong ? window.JavisActs.clampButtonHtml(false) : "")
     : "";
-  div.innerHTML = `<div class="bubble">${textHtml}${attHtml}</div>` +
+  const nhanNguon = nguon ? `<div class="msg-via">${escapeHtml(window.t("chat.via_gate", { src: nguon }))}</div>` : "";
+  div.innerHTML = `${nhanNguon}<div class="bubble">${textHtml}${attHtml}</div>` +
     actsHtml("user", ts === undefined ? Date.now() : ts, !!(text || "").trim());
+  if (nguon) div.classList.add("msg-gate");
   vaAnhHong(div);
   chatAppend(div); scrollBottom(true);
 }

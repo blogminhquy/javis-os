@@ -3781,6 +3781,7 @@
   "app.adaptive_discard": "Bỏ",
   "app.adaptive_ack": "Đã ghi nhận",
   "app.adaptive_answer": "Yêu cầu trả lời",
+  "chat.via_gate": "từ {src}",
   "app.adaptive_received": "Tin đã được lưu. Mở lại hội thoại để xem trạng thái mới nhất.",
   "app.adaptive_unsupported": "Máy chủ chưa hỗ trợ nhịp tự nhiên; đang dùng chờ cố định.",
   "app.adaptive_retry": "Thử gửi lại",

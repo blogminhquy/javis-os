@@ -1797,7 +1797,7 @@ def _chan_doan_thieu_brain(header_hong):
 
 
 async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, vault_root=None,
-                      vault_nguon="", vault_header_hong="", for_bot=False):
+                      vault_nguon="", vault_header_hong="", for_bot=False, gate=None):
     mid = msg.get("id")
     method = msg.get("method") or ""
     params = msg.get("params") or {}
@@ -1824,14 +1824,27 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
         tools, _ = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
                                       include_ambient=include_ambient,
                                       for_bot=for_bot)   # Claude/Codex có tool file native → không builtin file
+        if gate is not None:
+            # Javis Gate (0.440.0): bốn tool chat CHỈ có ở cửa cho AI bên ngoài (chat_bridge.py).
+            import chat_bridge
+            tools = chat_bridge.tool_specs(mode) + list(tools)
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [
             {"name": t["fn"], "description": (t.get("description") or t["fn"]),
              "inputSchema": t.get("schema") or {"type": "object", "properties": {}}}
             for t in tools]}}
     if method == "tools/call":
+        name = params.get("name") or ""
+        if gate is not None:
+            import chat_bridge
+            if name in chat_bridge.TOOLS:
+                result = await chat_bridge.goi_tool(name, params.get("arguments") or {}, mode,
+                                                    (gate or {}).get("source") or "")
+                return {"jsonrpc": "2.0", "id": mid, "result": {
+                    "content": [{"type": "text", "text": result}],
+                    "isError": result.startswith("ERROR:"),
+                }}
         _, route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
                                       include_ambient=include_ambient, for_bot=for_bot)
-        name = params.get("name") or ""
         result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
         if ghi_chu:
@@ -1898,13 +1911,17 @@ async def _handle_one_traced(msg, *args, **kwargs):
 
 
 async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=False,
-                          raw_vault=None, for_bot=False):
+                          raw_vault=None, for_bot=False, gate=None):
     """Đọc thân JSON-RPC của `request`, chạy qua hub, trả Response. KHÔNG xác thực gì cả.
 
     Tách khỏi `handle_http` để một cửa khác (ví dụ plugin tự lo OAuth qua `register_http`) đi
     ĐÚNG đường này - cùng danh sách tool, cùng mức quyền ép ở lớp cứng, cùng chú thích brain -
     và chỉ khác lớp xác thực phía trước. Hai bản chép của cùng một vòng xử lý là hai chỗ để
     lệch nhau.
+
+    `gate` (0.440.0): cửa Javis Gate truyền `{"source": "<tên AI>"}` để có thêm bốn tool chat của
+    `chat_bridge` (tìm, đọc, gửi vào hội thoại, đọc kết quả). None (mặc định) thì không có, nên
+    Claude Code, Codex và mọi engine của chính Javis không bao giờ thấy chúng.
     """
     vault_root, vault_nguon, vault_header_hong = resolve_vault(raw_vault)
     # "read_docs" opens documents of ONE brain, the bot's, named by the X-Javis-Vault header Javis
@@ -1920,13 +1937,13 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
         if isinstance(body, list):
             out = [r for r in [await _handle_one_traced(m, mode, include_plugins, include_ambient,
                                                         vault_root, vault_nguon, vault_header_hong,
-                                                        for_bot=for_bot)
+                                                        for_bot=for_bot, gate=gate)
                                for m in body] if r is not None]
             if not out:
                 return Response(status_code=202)
             return JSONResponse(out)
         res = await _handle_one_traced(body, mode, include_plugins, include_ambient, vault_root,
-                                       vault_nguon, vault_header_hong, for_bot=for_bot)
+                                       vault_nguon, vault_header_hong, for_bot=for_bot, gate=gate)
         if res is None:
             return Response(status_code=202)
         return JSONResponse(res)

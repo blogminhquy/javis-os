@@ -1136,6 +1136,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   padding: 8px 12px; border-radius: 12px 12px 3px 12px; max-width: 90%;
   line-height: 1.55; font-size: 16px; font-family: var(--font-chat);
 }
+/* 0.440.0: label above a message an outside AI posted through Javis Gate ("từ ChatGPT"). */
+.msg-user .msg-via { font-size: 14px; color: var(--text3); margin: 0 4px 3px; }
 /* Bong bóng câu trả lời: giới hạn chiều dài dòng, nền nhẹ và nhịp chữ riêng để đoạn dài
    vẫn dễ quét. Khối mã và bảng có cơ chế cuộn riêng; khung hẹp tự co theo màn hình. */
 .msg-javis .bubble {

@@ -3781,6 +3781,7 @@
   "app.adaptive_discard": "Discard",
   "app.adaptive_ack": "Acknowledged",
   "app.adaptive_answer": "Request an answer",
+  "chat.via_gate": "via {src}",
   "app.adaptive_received": "Your message was saved. Reopen the conversation for its latest status.",
   "app.adaptive_unsupported": "Server does not support natural timing yet; using fixed timing.",
   "app.adaptive_retry": "Retry sending",
