@@ -58,7 +58,20 @@ fi
 codesign --force --deep --sign - "${APP}" || echo "codesign skipped"
 
 ln -s /Applications "${STAGE}/Applications"
-rm -f "${DIST}/JavisOS-macOS.dmg"
-hdiutil create -volname "JAVIS OS" -srcfolder "${STAGE}" -ov -format UDZO "${DIST}/JavisOS-macOS.dmg"
+# The Javis star as the icon of the mounted disk (Finder sidebar and desktop) instead of the
+# generic drive. Needs the volume's "custom icon" flag, which can only be set on a writable
+# image: build read-write, flag it, then compress. Missing SetFile only loses the icon.
+cp "${ROOT}/packaging/assets/javis.icns" "${STAGE}/.VolumeIcon.icns"
+rm -f "${DIST}/JavisOS-macOS.dmg" "${DIST}/rw.dmg"
+hdiutil create -volname "JAVIS OS" -srcfolder "${STAGE}" -ov -format UDRW "${DIST}/rw.dmg"
+MNT="$(hdiutil attach -nobrowse -readwrite "${DIST}/rw.dmg" | awk -F'\t' '/\/Volumes\//{print $NF}')"
+if SETFILE="$(xcrun --find SetFile 2>/dev/null)" && [ -n "${MNT}" ]; then
+  "${SETFILE}" -a C "${MNT}" && echo "Volume icon set"
+else
+  echo "SetFile not found: disk image keeps the generic icon"
+fi
+[ -n "${MNT}" ] && hdiutil detach "${MNT}"
+hdiutil convert "${DIST}/rw.dmg" -format UDZO -o "${DIST}/JavisOS-macOS.dmg"
+rm -f "${DIST}/rw.dmg"
 rm -rf "${STAGE}"
 echo "Built ${DIST}/JavisOS-macOS.dmg"

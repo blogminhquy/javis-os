@@ -44,6 +44,22 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 CloseApplications=no
 ShowLanguageDialog=auto
+; Javis logo in the wizard (packaging/make_icons.py draws them): the tall panel on the first and
+; last page, the corner logo on the pages between. One file per display scale, Inno picks the
+; closest, so the logo stays sharp on a 150% or 200% laptop screen.
+WizardImageFile=..\assets\wizard-100.bmp,..\assets\wizard-125.bmp,..\assets\wizard-150.bmp,..\assets\wizard-175.bmp,..\assets\wizard-200.bmp,..\assets\wizard-225.bmp,..\assets\wizard-250.bmp
+WizardSmallImageFile=..\assets\wizard-small-100.bmp,..\assets\wizard-small-125.bmp,..\assets\wizard-small-150.bmp,..\assets\wizard-small-175.bmp,..\assets\wizard-small-200.bmp,..\assets\wizard-small-225.bmp,..\assets\wizard-small-250.bmp
+WizardImageStretch=no
+VersionInfoCompany=Nguyen Minh Quy
+VersionInfoDescription=JAVIS OS Setup
+VersionInfoProductName=JAVIS OS
+VersionInfoVersion={#AppVersion}
+; Code signing, only when CI has a certificate (desktop-installers.yml passes /DSign and the
+; matching /Sjavis=... command). Without it the build stays unsigned, exactly as before.
+#ifdef Sign
+SignTool=javis
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"

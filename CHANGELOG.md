@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.439.1] - 2026-11-02
 ### Cải thiện
-- **Bộ cài mang logo Javis.** (đang viết)
+- **Cài không còn màn hình đỏ "Windows protected your PC".** Dán một dòng lệnh vào PowerShell (Windows) hoặc Terminal (Mac) là bộ cài tự tải và mở ra, máy không chặn. Dòng lệnh có trong hướng dẫn cài nhanh. Tải file bằng trình duyệt thì vẫn bị hỏi một lần cho tới khi bộ cài được ký số.
+- **Bộ cài mang logo Javis.** Trình cài Windows có ngôi sao Javis ở trang đầu, trang cuối và góc trên các trang giữa, sắc nét cả trên màn hình phóng to. Ổ đĩa hiện ra khi mở file `.dmg` trên Mac cũng mang biểu tượng Javis.
+- Bản phát hành đã sẵn chỗ ký số bộ cài Windows: chủ dự án chỉ cần thêm chứng chỉ vào GitHub là các bản sau tự được ký.
 
 ## [0.439.0] - 2026-11-02
 ### Thêm mới

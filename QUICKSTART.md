@@ -13,7 +13,17 @@ Cài Javis như một ứng dụng bình thường: tải một file, bấm mở
 
 Bấm vào biểu tượng là Javis mở thành cửa sổ riêng (không thanh địa chỉ), Javis tự chạy cùng máy, nút **Cập nhật** trong app dùng được như thường. Dữ liệu nằm ở thư mục `JavisOS` trong thư mục người dùng; gỡ app không xoá thư mục này.
 
-Hai bộ cài chưa ký số nên lần đầu máy sẽ hỏi lại:
+**Cách cài không bị màn hình cảnh báo (khuyên dùng).** Hai bộ cài chưa ký số, nên tải bằng trình duyệt thì lần đầu máy sẽ chặn lại. Dán một dòng lệnh dưới đây thì không bị chặn, vẫn ra đúng bộ cài có logo Javis:
+- **Windows:** bấm Start, gõ `PowerShell`, mở lên, dán dòng này rồi Enter:
+  ```
+  irm https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/windows/get-javis.ps1 | iex
+  ```
+- **macOS:** mở **Terminal** (Launchpad, gõ Terminal), dán dòng này rồi Enter:
+  ```
+  curl -fsSL https://raw.githubusercontent.com/blogminhquy/javis-os/main/packaging/macos/get-javis.sh | bash
+  ```
+
+Nếu đã tải file bằng trình duyệt và bị chặn:
 - Windows hiện "Windows protected your PC": bấm **More info** rồi **Run anyway**.
 - macOS báo không mở được: vào **System Settings → Privacy & Security**, kéo xuống bấm **Open Anyway**, rồi mở lại JAVIS OS.
 

@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.439.1] - 2026-11-02
 ### Improved
-- **The installers carry the Javis logo.** (in progress)
+- **Install without the red "Windows protected your PC" screen.** Paste one line into PowerShell (Windows) or Terminal (Mac) and the installer downloads and opens on its own, without being blocked. The line is in the quick start guide. A browser download still asks once until the installer is code-signed.
+- **The installers carry the Javis logo.** The Windows wizard shows the Javis star on its first and last pages and in the corner of the pages between, sharp on scaled-up screens too. The disk that appears when you open the Mac `.dmg` has the Javis icon as well.
+- Releases are ready to sign the Windows installer: once the project owner adds a certificate on GitHub, later builds are signed automatically.
 
 ## [0.439.0] - 2026-11-02
 ### Added

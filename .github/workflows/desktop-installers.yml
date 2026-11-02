@@ -52,6 +52,20 @@ jobs:
           if (-not (Test-Path $iscc)) { throw "ISCC.exe not found after install" }
           "ISCC=$iscc" >> $env:GITHUB_ENV
 
+      # Parse every PowerShell file the installers run, with the parser of Windows PowerShell 5.1
+      # (what customers have), so a syntax slip fails here instead of on a customer's PC.
+      - name: PowerShell syntax check
+        shell: powershell
+        run: |
+          $bad = 0
+          foreach ($f in @("install.ps1", "stop-javis.ps1", "javis-autostart.ps1", "packaging\windows\bootstrap.ps1", "packaging\windows\get-javis.ps1")) {
+            $errs = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$null, [ref]$errs)
+            if ($errs) { $bad++; $errs | ForEach-Object { Write-Host "::error file=$f::$($_.Message) (line $($_.Extent.StartLineNumber))" } }
+            else { Write-Host "ok  $f" }
+          }
+          if ($bad) { exit 1 }
+
       # Vietnamese wizard text is an unofficial Inno translation, not bundled with the compiler.
       - name: Vietnamese wizard text (best-effort)
         shell: pwsh
@@ -60,19 +74,46 @@ jobs:
             Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/Vietnamese.isl" -OutFile packaging/windows/Vietnamese.isl -UseBasicParsing
           } catch { Write-Host "Vietnamese.isl unavailable, building English only: $($_.Exception.Message)" }
 
+      # Code signing is OPTIONAL and off until the owner adds two repository secrets:
+      #   WINDOWS_CERT_PFX_BASE64  the code signing certificate (.pfx) as base64
+      #   WINDOWS_CERT_PASSWORD    its password
+      # With them, Inno Setup signs both the setup .exe and its uninstaller (SignTool=javis in
+      # javis-setup.iss), so Windows shows the publisher name instead of "Unknown publisher".
+      # Without them the build is unsigned, exactly as before. Fork PRs never see secrets.
       - name: Build JavisOS-Setup.exe
         shell: pwsh
+        env:
+          CERT_B64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PWD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
           $v = (Get-Content VERSION -Raw).Trim()
-          & $env:ISCC "/DAppVersion=$v" packaging\windows\javis-setup.iss
+          $sign = @()
+          if ($env:CERT_B64) {
+            $pfx = Join-Path $env:RUNNER_TEMP "javis-sign.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_B64))
+            $tool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+            if (-not $tool) { throw "signtool.exe not found" }
+            # Inno replaces $f with the file to sign and $q with a double quote.
+            $sign = @("/DSign", "/Sjavis=`$q$($tool.FullName)`$q sign /f `$q$pfx`$q /p `$q$($env:CERT_PWD)`$q /fd sha256 /tr http://timestamp.digicert.com /td sha256 `$f")
+            Write-Host "Signing enabled"
+          } else {
+            Write-Host "No WINDOWS_CERT_PFX_BASE64 secret: building unsigned"
+          }
+          & $env:ISCC "/DAppVersion=$v" @sign packaging\windows\javis-setup.iss
           if ($LASTEXITCODE -ne 0 -and (Test-Path packaging/windows/Vietnamese.isl)) {
             # A translation written for a newer Inno can carry messages this compiler rejects:
             # ship English rather than no installer at all.
             Write-Host "::warning::Build with Vietnamese.isl failed, retrying English only"
             Remove-Item packaging/windows/Vietnamese.isl
-            & $env:ISCC "/DAppVersion=$v" packaging\windows\javis-setup.iss
+            & $env:ISCC "/DAppVersion=$v" @sign packaging\windows\javis-setup.iss
           }
           if ($LASTEXITCODE -ne 0) { exit 1 }
+          if ($env:CERT_B64) {
+            Remove-Item $pfx -Force
+            $sig = Get-AuthenticodeSignature dist\JavisOS-Setup.exe
+            Write-Host "Signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne "Valid") { throw "JavisOS-Setup.exe is not validly signed" }
+          }
           Get-Item dist\JavisOS-Setup.exe | Format-List Name, Length
 
       # Real install of THIS commit on a clean runner, all four CLI brains included: bootstrap
@@ -129,6 +170,9 @@ jobs:
           plutil -lint "$app/Contents/Info.plist"
           bash -n "$app/Contents/MacOS/javis"
           bash -n "$app/Contents/Resources/bootstrap.sh"
+          bash -n packaging/macos/get-javis.sh
+          test -f "$mnt/.VolumeIcon.icns"
+          GetFileInfo -a "$mnt" | grep -q C && echo "volume has the Javis icon" || echo "::warning::volume custom-icon flag not set"
           hdiutil detach "$mnt"
 
       # The same first-run path a customer takes (bootstrap.sh -> install.sh), on this commit:
