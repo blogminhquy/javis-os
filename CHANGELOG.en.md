@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.443.0] - 2026-11-02
+### Added
+- **Pick your timezone in Settings** and in the first-run setup.
+
 ## [0.441.0] - 2026-11-02
 ### Added
 - **Chat in ChatGPT or Claude, and Javis still has the context.** Through Javis Gate, that AI saves into Javis what you asked and what you decided, with the reason. Each chat over there gets its own conversation in Javis's History, such as "From ChatGPT: Tet plan" or "From Claude: Web build".

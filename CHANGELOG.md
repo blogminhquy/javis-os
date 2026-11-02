@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.443.0] - 2026-11-02
+### Thêm mới
+- **Chọn múi giờ ngay trong Cài đặt** và ở bước cài đặt lần đầu.
+
 ## [0.441.0] - 2026-11-02
 ### Thêm mới
 - **Chat bên ChatGPT hay Claude, Javis vẫn nắm ngữ cảnh.** Qua Javis Gate, AI đó tự ghi lại vào Javis những gì bạn hỏi và đã chốt, kèm lý do. Mỗi cuộc chat bên đó có một hội thoại riêng trong Lịch sử của Javis, ví dụ "Từ ChatGPT: Kế hoạch Tết" hay "Từ Claude: Viết Web".
