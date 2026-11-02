@@ -1308,8 +1308,16 @@ class GrokCLI:
             ev = await hang.get()
             if ev is HET:
                 break
+            _n = len(cac_manh)
             for ra in self._doi_su_kien(ev, cac_manh, chan):
                 yield ra
+            # 0.438.6: chữ xem trước, ra ngay từng mẩu như Codex/Claude Code. Câu trả lời thật vẫn
+            # là sự kiện `final` cuối lượt; nơi nào không biết `delta` thì bỏ qua (bot, việc nền).
+            # Dòng không phải JSON (`_raw`) có thể là log lọt ra stdout nên không hiện trước.
+            if len(cac_manh) > _n and "_raw" not in ev:
+                for _m in cac_manh[_n:]:
+                    if _m:
+                        yield {"type": "delta", "content": _m}
 
     # -- khi lượt chạy KHÔNG ra chữ nào -------------------------------------
     @staticmethod

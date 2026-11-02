@@ -847,6 +847,16 @@ check("CANARY: nhặt được sessionId từ `end` để lượt sau `--resume`
 # Và KHÔNG được thử lại lần hai: lượt này ra chữ rồi, chạy thêm là tốn một lượt model.
 check("CANARY: lượt ra chữ thì KHÔNG chạy lại lần hai", len(_fin_v) == 1, _evs_v)
 
+# 0.438.6: chủ repo 02/11/2026 "còn Grok Build với Antigravity thì sao". Chữ xem trước ra từng mẩu ngay khi
+# CLI in, đúng thứ tự, TRƯỚC `final`; bảng `available_commands` không lọt vào; `final` vẫn là nguyên câu.
+_dt_v = [e["content"] for e in _evs_v if e["type"] == "delta"]
+check("chữ xem trước ra từng mẩu đúng như luồng thật",
+      _dt_v == ["Chào", " anh,", " khỏe không", " nay", "?"], _dt_v)
+check("mẩu chữ ra TRƯỚC câu trả lời cuối",
+      _fin_v and max(i for i, e in enumerate(_evs_v) if e["type"] == "delta")
+      < _evs_v.index(_fin_v[0]), _evs_v)
+check("ghép các mẩu lại đúng bằng câu trả lời cuối", "".join(_dt_v) == _fin_v[0]["content"])
+
 grok_cli._HELP_CACHE.update(path=None, text="", ts=0.0)
 grok_cli.find_grok_cli = _that_find
 
