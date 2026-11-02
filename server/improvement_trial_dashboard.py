@@ -19,7 +19,7 @@ import sys
 import types
 import threading
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -208,8 +208,11 @@ def _clock(now, language, zone_name, registry):
     hours, remainder = divmod(abs(minutes), 60)
     offset = f"UTC{'+' if minutes >= 0 else '-'}{hours}" + (f":{remainder:02}" if remainder else "")
     lang = registry.get(language)
+    # Same fields as context_compiler.dong_ho, yesterday and tomorrow included (0.443.0).
     return lang.clock_template.format(hm=f"{local:%H:%M}", weekday=lang.weekdays[local.weekday()] if lang.weekdays else "",
-                                      date=f"{local:%d/%m/%Y}", tz=f"{zone_name} ({offset})")
+                                      date=f"{local:%d/%m/%Y}", tz=f"{zone_name} ({offset})",
+                                      yesterday=f"{local - timedelta(days=1):%d/%m/%Y}",
+                                      tomorrow=f"{local + timedelta(days=1):%d/%m/%Y}")
 
 
 def _nested_codes(code):
