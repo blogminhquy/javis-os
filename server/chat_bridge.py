@@ -371,8 +371,10 @@ def _phien_ghi_chep(st, nguon: str, ten: str) -> str:
     if sid and st.get_session(sid):
         return sid
     gan_nhat = (st.list_sessions(limit=1) or [{}])[0]
+    import localefmt
+    tieu_de = localefmt.chu(f"Từ {nguon}: {ten}", f"From {nguon}: {ten}")
     sid = st.create_session(brain=gan_nhat.get("brain") or "brain", engine="gate", model=nguon,
-                            title=_cat(f"Từ {nguon}: {ten}", 80), channel="web")
+                            title=_cat(tieu_de, 80), channel="web")
     so[khoa] = sid
     _ghi_so(so)
     return sid

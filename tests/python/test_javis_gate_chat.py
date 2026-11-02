@@ -296,6 +296,13 @@ check("Javis vẫn không chạy lượt nào sau mọi ghi chép", not GOI_ENGI
 ss.delete(SID_GC)
 txt, loi = goi("javis_chat_note", {"title": "Kế hoạch Tết", "asked": "Ghi lại sau khi xoá"})
 check("chủ xoá hội thoại ghi chép: lần ghi sau mở hội thoại mới", not loi and json.loads(txt)["id"] != SID_GC, txt)
+import localefmt  # noqa: E402
+_nn_goc = localefmt.ngon_ngu_giao_dien
+localefmt.ngon_ngu_giao_dien = lambda *a, **k: "en"
+txt, loi = goi("javis_chat_note", {"title": "Launch plan", "asked": "English UI"})
+localefmt.ngon_ngu_giao_dien = _nn_goc
+check("giao diện tiếng Anh: hội thoại ghi chép tên 'From ChatGPT: ...'",
+      not loi and json.loads(txt)["title"] == "From ChatGPT: Launch plan", txt)
 _FakeClient.post = _post_goc
 khoi_gc = CB.khoi_ghi_chep("ChatGPT") + "x"
 check("khối ghi chép cùng tiền tố: tên hội thoại và trang chia sẻ đều gỡ được",

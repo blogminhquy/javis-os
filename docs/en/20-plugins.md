@@ -345,7 +345,7 @@ tools Javis already has, that door carries five tools only the outside AI sees (
 - **Only the owner's chats** (main chat, partner chats). Customer chats and team chats can't be read or posted to.
 - **A note does not run Javis:** `javis_chat_note` only saves, so it costs Javis's brain nothing, yet it goes
   through the same path as a chat turn: History, conversation log and self-learning. Each outside chat gets its own
-  conversation **From ChatGPT: <title>** (stored as "Từ ChatGPT: ..."); with an `id` the note goes into that
+  conversation **From ChatGPT: <title>** (in the interface language); with an `id` the note goes into that
   Javis chat instead. Javis can't read ChatGPT's or Claude's history, so this is how the outside AI sends over
   what is worth keeping.
 - The five tools are **never** in Javis's own toolset: they appear only when the package's door calls
