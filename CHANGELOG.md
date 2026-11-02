@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.442.0] - 2026-11-02
+### Thêm mới
+- **Nối Meta Ads bằng tay ở trang Kết nối.** (đang viết)
+
 ## [0.440.0] - 2026-11-02
 ### Thêm mới
 - **ChatGPT và Claude nhắn thẳng vào khung chat của Javis.** Cài gói **Javis Gate** ở Javis Store, nối với ChatGPT hoặc Claude. Bảo nó "đọc hội thoại Viết Web trên Javis rồi tư vấn mình nên làm gì tiếp", nó đọc và tư vấn. Bạn đồng ý ngay bên đó là nó nhắn vào đúng hội thoại để Javis làm tiếp.

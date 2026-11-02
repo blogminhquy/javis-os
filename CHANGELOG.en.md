@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.442.0] - 2026-11-02
+### Added
+- **Connect Meta Ads by hand on the Connections page.** (in progress)
+
 ## [0.440.0] - 2026-11-02
 ### Added
 - **ChatGPT and Claude post straight into your Javis chat.** Install **Javis Gate** from the Javis Store and connect it to ChatGPT or Claude. Ask it to "read the Viet Web chat on Javis and tell me what to do next": it reads and advises. Agree right there and it posts into that very chat so Javis carries on.
