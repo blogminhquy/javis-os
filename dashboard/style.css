@@ -1256,6 +1256,26 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 
 /* Tin user nhiều dòng: giữ xuống dòng + thu gọn khi quá dài */
 .msg-user .bubble .utext { white-space: pre-wrap; word-break: break-word; }
+
+/* User Markdown uses the existing renderer; original quoted/ordinary messages
+   keep their existing presentation. Wide tables scroll within the bubble. */
+.msg-user .bubble .utext.jv-markdown,
+.tm-text.utext.jv-markdown { white-space: normal; min-width: 0; }
+.msg-user .bubble .utext.jv-markdown .jv-user-md,
+.tm-text.utext.jv-markdown { overflow-wrap: anywhere; }
+.msg-user .bubble .utext.jv-markdown :is(h1,h2,h3,h4,h5,h6),
+.tm-text.utext.jv-markdown :is(h1,h2,h3,h4,h5,h6) {
+  margin: 10px 0 6px; line-height: 1.35; font-weight: 650;
+}
+.msg-user .bubble .utext.jv-markdown h1, .tm-text.utext.jv-markdown h1 { font-size: 20px; }
+.msg-user .bubble .utext.jv-markdown h2, .tm-text.utext.jv-markdown h2 { font-size: 18px; }
+.msg-user .bubble .utext.jv-markdown :is(p,ul,ol,blockquote),
+.tm-text.utext.jv-markdown :is(p,ul,ol,blockquote) { margin: 7px 0; }
+.msg-user .bubble .utext.jv-markdown :is(ul,ol),
+.tm-text.utext.jv-markdown :is(ul,ol) { padding-left: 22px; }
+.msg-user .bubble .utext.jv-markdown .md-tablewrap,
+.tm-text.utext.jv-markdown .md-tablewrap { max-width: 100%; overflow-x: auto; }
+
 /* Trích dẫn (0.171.0, chat-quote.js): đoạn trích ở đầu tin người dùng, hiện thành khối có vạch
    bên trái. Giới hạn chiều cao để một đoạn trích dài không đẩy câu hỏi khuất xuống dưới. */
 .msg-user .bubble .uquote { display: block; margin: 0 0 8px; padding: 2px 0 2px 10px;
