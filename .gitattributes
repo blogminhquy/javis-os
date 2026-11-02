@@ -14,6 +14,7 @@ javis.service text eol=lf
 *.bat       text eol=crlf
 *.vbs       text eol=crlf
 *.ps1       text eol=crlf
+*.iss       text eol=crlf
 
 # Nhị phân - không đụng.
 *.png binary
@@ -23,3 +24,5 @@ javis.service text eol=lf
 *.webp binary
 *.mp3 binary
 *.db binary
+*.ico binary
+*.icns binary

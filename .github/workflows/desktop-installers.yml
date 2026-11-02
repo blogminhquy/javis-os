@@ -1,0 +1,189 @@
+name: Desktop installers
+
+# Builds the two files a person downloads to install Javis like an app:
+#   JavisOS-Setup.exe   (Windows, Inno Setup)   packaging/windows/
+#   JavisOS-macOS.dmg   (macOS, drag to Applications)   packaging/macos/
+# and publishes them on the fixed release tag "desktop", so the download links never change:
+#   https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-Setup.exe
+#   https://github.com/blogminhquy/javis-os/releases/download/desktop/JavisOS-macOS.dmg
+#
+# Both installers are thin: they clone the newest Javis on first run, so they only need a
+# rebuild when the installer files themselves change, not on every release.
+on:
+  push:
+    branches: [ main, 'claude/**' ]
+    paths:
+      - "packaging/**"
+      - "install.ps1"
+      - "install.sh"
+      - "open-javis.vbs"
+      - "start-javis.vbs"
+      - "bin/javis-start.sh"
+      - "bin/javis-autostart.sh"
+      - ".github/workflows/desktop-installers.yml"
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "install.ps1"
+      - "install.sh"
+      - "open-javis.vbs"
+      - "start-javis.vbs"
+      - "bin/javis-start.sh"
+      - "bin/javis-autostart.sh"
+      - ".github/workflows/desktop-installers.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found after install" }
+          "ISCC=$iscc" >> $env:GITHUB_ENV
+
+      # Vietnamese wizard text is an unofficial Inno translation, not bundled with the compiler.
+      - name: Vietnamese wizard text (best-effort)
+        shell: pwsh
+        run: |
+          try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/Vietnamese.isl" -OutFile packaging/windows/Vietnamese.isl -UseBasicParsing
+          } catch { Write-Host "Vietnamese.isl unavailable, building English only: $($_.Exception.Message)" }
+
+      - name: Build JavisOS-Setup.exe
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          & $env:ISCC "/DAppVersion=$v" packaging\windows\javis-setup.iss
+          if ($LASTEXITCODE -ne 0 -and (Test-Path packaging/windows/Vietnamese.isl)) {
+            # A translation written for a newer Inno can carry messages this compiler rejects:
+            # ship English rather than no installer at all.
+            Write-Host "::warning::Build with Vietnamese.isl failed, retrying English only"
+            Remove-Item packaging/windows/Vietnamese.isl
+            & $env:ISCC "/DAppVersion=$v" packaging\windows\javis-setup.iss
+          }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-Item dist\JavisOS-Setup.exe | Format-List Name, Length
+
+      # Real install of THIS commit on a clean runner, all four CLI brains included: bootstrap
+      # clones the checkout and runs install.ps1 (venv, deps, Claude Code, Codex, Antigravity,
+      # Grok, autostart). Then the server's own finders must see all four brains, and Javis
+      # must answer /health.
+      - name: Smoke test - full install, four brains, Javis starts
+        shell: pwsh
+        timeout-minutes: 45
+        run: |
+          git branch -f smoke-install HEAD
+          $dir = Join-Path $env:RUNNER_TEMP "JavisOS"
+          powershell -NoProfile -ExecutionPolicy Bypass -File packaging\windows\bootstrap.ps1 -Dir $dir -Repo $env:GITHUB_WORKSPACE -Branch smoke-install -NoPause -LogFile (Join-Path $env:RUNNER_TEMP "install.log")
+          if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $env:RUNNER_TEMP "install.log") -Tail 80; exit 1 }
+          $vpy = Join-Path $dir ".venv\Scripts\python.exe"
+          if (-not (Test-Path $vpy)) { throw "venv missing" }
+          if (-not (Test-Path (Join-Path $dir "open-javis.vbs"))) { throw "open-javis.vbs missing" }
+          & $vpy (Join-Path $dir "packaging\check_brains.py")
+          if ($LASTEXITCODE -ne 0) { throw "a brain CLI is missing after install" }
+          Start-Process wscript.exe -ArgumentList "//nologo `"$dir\start-javis.vbs`"" -WorkingDirectory $dir
+          $ok = $false
+          for ($i = 0; $i -lt 90; $i++) {
+            Start-Sleep -Seconds 2
+            try { if ((Invoke-WebRequest http://127.0.0.1:7777/health -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { $ok = $true; break } } catch { }
+          }
+          if (-not $ok) { Get-Content (Join-Path $dir "server\javis.log") -Tail 80 -ErrorAction SilentlyContinue; throw "Javis did not answer /health" }
+          Write-Host "Javis is up after a fresh install"
+          & (Join-Path $dir "stop-javis.bat")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JavisOS-Setup
+          path: dist/JavisOS-Setup.exe
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build JavisOS-macOS.dmg
+        run: bash packaging/macos/build-dmg.sh
+
+      - name: Check the disk image
+        run: |
+          set -e
+          mnt="$(hdiutil attach -nobrowse -readonly dist/JavisOS-macOS.dmg | awk -F'\t' '/\/Volumes\//{print $NF}')"
+          app="$mnt/JAVIS OS.app"
+          test -x "$app/Contents/MacOS/javis"
+          test -f "$app/Contents/Resources/bootstrap.sh"
+          test -f "$app/Contents/Resources/javis.icns"
+          test -L "$mnt/Applications"
+          plutil -lint "$app/Contents/Info.plist"
+          bash -n "$app/Contents/MacOS/javis"
+          bash -n "$app/Contents/Resources/bootstrap.sh"
+          hdiutil detach "$mnt"
+
+      # The same first-run path a customer takes (bootstrap.sh -> install.sh), on this commit:
+      # clone, venv, Node, all four CLI brains, LaunchAgent. The runner already has the
+      # Command Line Tools and a Python 3.10+, so the xcode-select and uv branches are skipped.
+      - name: Smoke test - full install, four brains, Javis starts
+        timeout-minutes: 45
+        run: |
+          set -e
+          git branch -f smoke-install HEAD
+          export JAVIS_HOME="$RUNNER_TEMP/JavisOS" JAVIS_REPO="$GITHUB_WORKSPACE" JAVIS_BRANCH=smoke-install
+          bash packaging/macos/bootstrap.sh < /dev/null
+          export PATH="$HOME/.local/bin:$HOME/.javis/node/bin:$PATH"
+          "$JAVIS_HOME/.venv/bin/python" "$JAVIS_HOME/packaging/check_brains.py"
+          for i in $(seq 1 60); do
+            curl -sf -m 3 -o /dev/null http://127.0.0.1:7777/health && { echo "Javis is up after a fresh install"; exit 0; }
+            sleep 2
+          done
+          tail -80 "$JAVIS_HOME/server/javis.log" 2>/dev/null || true
+          echo "Javis did not answer /health"; exit 1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JavisOS-macOS
+          path: dist/JavisOS-macOS.dmg
+          if-no-files-found: error
+
+  publish:
+    needs: [ windows, macos ]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish on the "desktop" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          v="$(tr -d ' \r\n' < VERSION)"
+          notes="Desktop installers for JAVIS OS (built from ${v}). They install the newest Javis on first run.
+
+          - Windows 10/11: JavisOS-Setup.exe
+          - macOS 11+: JavisOS-macOS.dmg
+
+          Steps: QUICKSTART.md (Tiếng Việt) or QUICKSTART.en.md (English)."
+          if ! gh release view desktop >/dev/null 2>&1; then
+            gh release create desktop --title "JAVIS OS - Windows & macOS installers" --notes "$notes" --latest=false
+          else
+            gh release edit desktop --notes "$notes"
+          fi
+          gh release upload desktop out/JavisOS-Setup.exe out/JavisOS-macOS.dmg --clobber
+          echo "Published installers from ${v}" >> "$GITHUB_STEP_SUMMARY"

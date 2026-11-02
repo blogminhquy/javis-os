@@ -167,6 +167,12 @@ _THU_MUC_BIN_WINDOWS = (
     r"%USERPROFILE%\.local\bin",              # installer chính chủ của claude / grok / agy
     r"%LOCALAPPDATA%\Programs\antigravity",
     r"%LOCALAPPDATA%\Programs\grok",
+    # Where the official Windows installers really put them (seen on a clean windows-latest
+    # runner, 0.439.0): agy.exe under %LOCALAPPDATA%\agy\bin, grok.exe under ~\.grok\bin. Both
+    # only add themselves to the USER PATH in the registry, which a Javis started right after
+    # the install (setup wizard, "Open now") does not have yet.
+    r"%LOCALAPPDATA%\agy\bin",
+    r"%USERPROFILE%\.grok\bin",
     r"%LOCALAPPDATA%\Volta\bin",
     r"%USERPROFILE%\.bun\bin",
     r"%LOCALAPPDATA%\pnpm",

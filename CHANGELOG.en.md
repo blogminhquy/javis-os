@@ -8,6 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.439.0] - 2026-11-02
+### Added
+- **Install Javis like an app on your computer.** On Windows, download `JavisOS-Setup.exe`, double-click it and press Next to the end. On a Mac, download `JavisOS-macOS.dmg` and drag JAVIS OS into Applications. The installer checks which of Git, Python, Node and the AI brains are missing and installs them, no commands to type. Download links are in the quick start guide.
+- **A JAVIS OS icon on the Desktop, Start menu and Launchpad.** Clicking it opens Javis in its own window, with no address bar. Clicking again while Javis runs only reopens the window and never stops background work.
+- The in-app Update button works just like on a manual install. Uninstalling keeps your brain (notes, memory, settings) in the `JavisOS` folder.
+### Fixed
+- Installing on a brand-new Windows no longer dies at the Python environment step, and a PC without winget still downloads Python and Node by itself. A Mac without Homebrew now gets the Mac build of Node.
+- On Windows, an Antigravity or Grok installer that exits early no longer stops the whole install, so the later steps (libraries, settings, auto-start) still run.
+- On Windows, the Models page sees a freshly installed Antigravity and Grok right away, instead of saying "not installed" until the computer restarts.
+
 ## [0.438.7] - 2026-11-02
 ### Fixed
 - **Claude sign-in finishes on its own when the browser says it worked.** On a machine with a browser, Claude opens the sign-in page itself and the page only says "You're all set up", with no code to paste. The Models card used to keep waiting for a code until the page was reloaded. It now switches to Signed in within a few seconds, or as soon as you come back to the Javis tab.

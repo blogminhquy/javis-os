@@ -86,6 +86,7 @@ def find_antigravity_cli() -> Optional[str]:
         Path("/usr/local/bin/agy"),
         Path("/opt/homebrew/bin/agy"),
         Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "antigravity" / "agy.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "agy" / "bin" / "agy.exe",   # official Windows installer
         Path(os.environ.get("APPDATA", "")) / "npm" / "agy.cmd",
     ]
     for p in ung_vien:

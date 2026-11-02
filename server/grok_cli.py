@@ -147,6 +147,7 @@ def find_grok_cli() -> Optional[str]:
     # Installer chính chủ thả binary vào ~/.local/bin (Unix) hoặc %LOCALAPPDATA% (Windows).
     for p in (home / ".local" / "bin" / "grok",
               home / ".grok" / "bin" / "grok",
+              home / ".grok" / "bin" / "grok.exe",   # official Windows installer
               Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "grok" / "grok.exe"):
         try:
             if p.exists():
