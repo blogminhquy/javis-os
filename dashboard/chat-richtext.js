@@ -68,7 +68,13 @@
             rows.push(cells.map(function (cell) {
               if ((attr(cell, "rowspan") && attr(cell, "rowspan") !== "1") ||
                   (attr(cell, "colspan") && attr(cell, "colspan") !== "1")) unsupported = true;
-              return line(children(cell)).replace(/\|/g, "\\|");
+              var contents = line(children(cell));
+              // Existing Markdown table parser cannot guarantee escaped pipes or
+              // nested tables are lossless; keep the original plain text instead.
+              if (contents.indexOf("|") >= 0 || kids(cell).some(function (x) { return tagOf(x) === "table"; })) {
+                unsupported = true;
+              }
+              return contents;
             }));
           } else if (/^(thead|tbody|tfoot)$/.test(t)) scan(c);
         });
