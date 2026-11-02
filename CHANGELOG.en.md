@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.439.1] - 2026-11-02
+### Improved
+- **The installers carry the Javis logo.** (in progress)
+
 ## [0.439.0] - 2026-11-02
 ### Added
 - **Install Javis like an app on your computer.** On Windows, download `JavisOS-Setup.exe`, double-click it and press Next to the end. On a Mac, download `JavisOS-macOS.dmg` and drag JAVIS OS into Applications. The installer checks which of Git, Python, Node and the AI brains are missing and installs them, no commands to type. Download links are in the quick start guide.

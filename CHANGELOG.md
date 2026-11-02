@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.439.1] - 2026-11-02
+### Cải thiện
+- **Bộ cài mang logo Javis.** (đang viết)
+
 ## [0.439.0] - 2026-11-02
 ### Thêm mới
 - **Cài Javis như một ứng dụng trên máy tính.** Windows tải `JavisOS-Setup.exe`, bấm đúp rồi Next tới hết. Mac tải `JavisOS-macOS.dmg`, kéo JAVIS OS vào Applications. Bộ cài tự kiểm tra máy còn thiếu Git, Python, Node hay bộ não AI nào và tự cài phần thiếu, không cần gõ lệnh. Link tải ở hướng dẫn cài nhanh.
