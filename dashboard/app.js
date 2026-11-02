@@ -2346,8 +2346,11 @@ const _KHOI_NGU_CANH = ["[FILE ĐANG MỞ trong trình sửa của Javis:", "[Fi
 // 0.440.0: a message an outside AI (ChatGPT, Claude...) posted through Javis Gate starts with
 // "[GỬI QUA JAVIS GATE: <name>. ...]" (server/chat_bridge.py). The block is stripped like the others;
 // this reads the name back so the bubble can say who sent it.
+const _KHOI_GATE = _KHOI_NGU_CANH[_KHOI_NGU_CANH.length - 1];   // the Javis Gate block, last in the list
 function nguonGate(text) {
-  const m = /^\s*\[GỬI QUA JAVIS GATE: ([^.\]\n]{1,40})/.exec(String(text == null ? "" : text));
+  const t = String(text == null ? "" : text).replace(/^\s+/, "");
+  if (!t.startsWith(_KHOI_GATE + " ")) return "";
+  const m = /^([^.\]\n]{1,40})/.exec(t.slice(_KHOI_GATE.length + 1));
   return m ? m[1].trim() : "";
 }
 
