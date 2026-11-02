@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.438.6] - 2026-11-02
+### Improved
+- **Grok Build and Antigravity CLI type out their answer too.** The reply flows in piece by piece while the model writes, instead of appearing only when the whole turn is done. Every Javis brain now shows text the same way.
+
 ## [0.438.5] - 2026-11-01
 ### Improved
 - **API key brains type out their answer too.** OpenRouter, OpenAI, Anthropic API, Gemini, Groq, DeepSeek, Ollama and OpenAI/Anthropic Compatible now show the reply piece by piece while the model writes, including turns that use tools. Before, a turn with tools waited for the whole answer and showed it at once.
