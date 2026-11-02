@@ -4,7 +4,7 @@
 
 The owner (2026-11-02): the timezone only showed through a plugin. It now has a picker in Settings and in the first-run
 setup, the server refuses names it cannot load (localefmt used to fall back to UTC+7 in silence), and the clock line in
-every prompt names yesterday and tomorrow in that timezone so "revenue yesterday" asks the MCP for the right day.
+every prompt says yesterday, tomorrow and MCP date ranges count from the owner's date, not the server's UTC one.
 """
 from _paths import ROOT, SERVER  # noqa: F401
 import asyncio
@@ -61,19 +61,18 @@ check("and the saved timezone is unchanged", cfgmod.read_settings()["locale"]["t
 code, body = save({"tz": ""})
 check("empty resets to the default", code == 200 and cfgmod.read_settings()["locale"]["tz"] == "Asia/Ho_Chi_Minh")
 
-# ---- 3. The clock line uses the saved timezone, with yesterday and tomorrow ----
+# ---- 3. The clock line uses the saved timezone and says report dates count from it ----
 save({"tz": "America/Los_Angeles"})
 # 2026-11-02 03:30 UTC is still 1 November in Los Angeles: the day a report must use is the owner's, not UTC's.
 moc = datetime(2026, 11, 2, 3, 30, tzinfo=timezone.utc).astimezone(localefmt.tz())
 line = cc.dong_ho(moc)
 check("clock shows the local date, not the UTC one", "01/11/2026" in line)
-check("clock names yesterday", "31/10/2026" in line)
-check("clock names tomorrow", "02/11/2026" in line)
 check("clock names the timezone", "America/Los_Angeles" in line and "UTC-8" in line)
-check("clock says report ranges follow this timezone", "MCP" in line)
+check("clock says yesterday, tomorrow and MCP dates count from that date",
+      "Hôm qua" in line and "ngày mai" in line and "MCP" in line)
 check("no em dash in the clock line", "—" not in line and "–" not in line)
 en = cc.dong_ho(moc, lang="en")
-check("English clock names yesterday and tomorrow", "Yesterday 31/10/2026" in en and "tomorrow 02/11/2026" in en)
+check("English clock gives the local date and the same rule", "01/11/2026" in en and "Yesterday, tomorrow" in en)
 
 real = cc.dong_ho()
 today_la = datetime.now(ZoneInfo("America/Los_Angeles"))

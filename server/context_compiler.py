@@ -102,12 +102,9 @@ def dong_ho(now=None, lang: str = "") -> str:
     # ("thứ hai", "giờ Việt Nam") chứ không phải luật hành xử, nên nó phải theo ngôn ngữ
     # người đọc - khác với CLAUDE.md vốn cố ý giữ một bản tiếng Việt duy nhất.
     l = lang_registry.get(lang)
-    # Yesterday and tomorrow are spelled out (0.443.0) because "doanh thu hôm qua" is the most common report question and
-    # the model otherwise works the date out itself, near midnight sometimes from the UTC date it assumes, not the owner's.
     return l.clock_template.format(
         hm=f"{n:%H:%M}", weekday=l.weekdays[n.weekday()] if l.weekdays else "",
-        date=f"{n:%d/%m/%Y}", tz=_nhan_mui_gio(n),
-        yesterday=f"{n - timedelta(days=1):%d/%m/%Y}", tomorrow=f"{n + timedelta(days=1):%d/%m/%Y}")
+        date=f"{n:%d/%m/%Y}", tz=_nhan_mui_gio(n))
 
 
 _NHAN_GIO_GUI = {"vi": "Giờ gửi tin này", "en": "This message was sent at"}
