@@ -5,7 +5,8 @@
   function hasMarkdown(text) {
     text = String(text || "");
     return /(^|\n)[ \t]{0,3}(?:#{1,6}[ \t]|[-*+][ \t]|\d+[.)][ \t]|\x60{3}|>[ \t]?|\|[^\n]+\|[ \t]*$)/m.test(text) ||
-      /(\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\x60[^\x60\n]+\x60|\[[^\]\n]+\]\(https?:\/\/[^)\n]+\))/m.test(text);
+      /(\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\x60[^\x60\n]+\x60|\[[^\]\n]+\]\(https?:\/\/[^)\n]+\))/m.test(text) ||
+      /(^|[^*])\*[^*\n]+\*(?!\*)/.test(text);
   }
   function domToMarkdown(rootNode) {
     var changed = 0, unsupported = false, visited = 0;
