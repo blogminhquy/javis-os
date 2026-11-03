@@ -289,6 +289,29 @@ class McpHttpSession:
 # ============================================================
 # stdio - subprocess NDJSON (Windows-first)
 # ============================================================
+def npx_node_argv(resolved) -> list | None:
+    """`npx.cmd` -> `[node.exe, npx-cli.js]` of the same Node install, so Windows never routes npx through cmd.exe.
+
+    Why (#898, item 2): `cmd.exe /c "C:\\Program Files\\nodejs\\npx.cmd" --user-data-dir "C:\\My Javis\\x"` loses its
+    quotes: when the command line after /c starts with a quote, cmd strips the first and the last one, and the
+    connector died with "'C:\\Program' is not recognized". The default Node install lives in "Program Files", so
+    any argument with a space broke. cmd also expands `% ^ & |` in arguments. zalo_cli.npx_command does the same.
+    None when `resolved` is not npx.cmd or the npm CLI is not where Node ships it: the caller keeps cmd.exe.
+    """
+    p = Path(str(resolved))
+    if p.name.lower() not in ("npx.cmd", "npx.bat"):
+        return None
+    candidates = [p.parent / "node.exe"]
+    found = shutil.which("node")
+    if found:
+        candidates.append(Path(found))
+    for node in candidates:
+        cli = node.parent / "node_modules" / "npm" / "bin" / "npx-cli.js"
+        if node.is_file() and cli.is_file():
+            return [str(node), str(cli)]
+    return None
+
+
 class McpStdioSession:
     def __init__(self, command, args=None, env=None, label="", key=""):
         self.command = command
@@ -328,6 +351,9 @@ class McpStdioSession:
         resolved = shutil.which(self.command, path=search) or self.command
         # CreateProcess không chạy .cmd/.bat trực tiếp (npx trên Windows là npx.cmd)
         if str(resolved).lower().endswith((".cmd", ".bat")):
+            direct = npx_node_argv(resolved)
+            if direct:
+                return direct + self.args
             return ["cmd.exe", "/c", resolved] + self.args
         return [resolved] + self.args
 
