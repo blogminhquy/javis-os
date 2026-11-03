@@ -1191,6 +1191,19 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    for older ones. Pressing it likes; hovering it opens six native emoji in a floating pill; a long press does the same on a
    phone. No reasons, axis or comment panel any more. */
 .msg-javis > .jr-chat { display: block; max-width: min(72ch, 100%); font-size: 16px; font-family: var(--font-chat); min-width: 0; }
+/* Wide tables on the Chat page (0.444.0, idea from PR #958 by @hwangrin). At 72ch a table of 4 or more columns
+   is squeezed into ~600px and has to be scrolled sideways while half the pane is empty. On a desktop such an answer,
+   and the reaction row under it, may grow to 1200px; the prose inside keeps its 72ch measure (0.26.1: long lines tire
+   the eye) and only the table uses the extra room. Narrow tables and every other answer stay exactly as before. */
+@media (min-width: 861px) {
+  #chatPage .msg-javis > .bubble:has(.md-table tr > :nth-child(4)),
+  #chatPage .msg-javis:has(> .bubble .md-table tr > :nth-child(4)) > .jr-chat {
+    max-width: min(1200px, 100%);
+  }
+  #chatPage .msg-javis > .bubble:has(.md-table tr > :nth-child(4)) > :not(.md-tablewrap):not(pre):not(.code-wrap) {
+    max-width: 72ch;
+  }
+}
 .jr-chat[hidden] { display: none; }
 .jr-anchor { position: relative; height: 0; }
 .jr-rx { position: absolute; right: -6px; top: -16px; z-index: 3; }

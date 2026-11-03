@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.444.3] - 2026-11-03
+### Fixed
+- **The "You've hit your 5-hour limit" notice is now recognised.** Chat used to show the raw UTC time with no auto re-run card. The card now shows the reset in your own time, with the date when it falls on the next day. Thanks @hwangrin (#961).
+- **The reset time follows the time zone in Settings**, not the VPS clock (usually UTC).
+### Improved
+- **Tables with 4 or more columns on the Chat page get more room** on a desktop (up to 1200px), so less sideways scrolling. Prose keeps its usual line length. Idea from @hwangrin (#958).
+
 ## [0.444.1] - 2026-11-03
 ### Fixed
 - **Javis no longer freezes the computer while it answers.** Since 0.438.4 the answer arrives a few characters at a time, and the page redrew the whole answer for every piece: thousands of redraws for a long reply, enough to lock up a slower machine. The text still flows smoothly, but the page now redraws only a few times a second.

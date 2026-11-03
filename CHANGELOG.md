@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.444.3] - 2026-11-03
+### Sửa lỗi
+- **Câu báo "You've hit your 5-hour limit" giờ được nhận ra.** Trước đây chat hiện nguyên giờ UTC và không có thẻ tự chạy lại. Giờ thẻ báo giờ mở lại theo giờ của bạn, kèm ngày nếu sang hôm sau. Cảm ơn @hwangrin (#961).
+- **Giờ mở lại hạn mức tính theo múi giờ trong Cài đặt**, không còn theo đồng hồ của VPS (thường là UTC).
+### Cải thiện
+- **Bảng từ 4 cột trở lên trong trang Trò chuyện được rộng ra** trên máy tính (tới 1200px), đỡ phải kéo ngang. Chữ thường vẫn giữ độ dài dòng cũ cho dễ đọc. Ý tưởng từ @hwangrin (#958).
+
 ## [0.444.1] - 2026-11-03
 ### Sửa lỗi
 - **Javis không còn làm đơ máy lúc đang trả lời.** Từ 0.438.4 chữ trả lời về từng mẩu vài ký tự, và mỗi mẩu trang lại vẽ lại toàn bộ câu trả lời: một bài dài là vài nghìn lần vẽ, máy yếu đứng hình, có lúc trình duyệt treo luôn. Giờ chữ vẫn chảy đều nhưng trang chỉ vẽ vài lần mỗi giây.

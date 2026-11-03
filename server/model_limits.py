@@ -179,7 +179,14 @@ def subscription_blocked_hint(limit, configured_providers=(), now=None) -> str:
     if reset > ts:
         con = int(reset - ts)
         gio, phut = con // 3600, (con % 3600) // 60
-        khi_nao = _time.strftime("%H:%M", _time.localtime(reset))
+        # The owner's time zone from Settings, not the OS clock: a VPS usually runs on UTC.
+        # The date is added when the reset falls on another day, so 00:20 is not read as today.
+        from datetime import datetime
+        import localefmt
+        zone = localefmt.tz()
+        dt_reset = datetime.fromtimestamp(reset, zone)
+        same_day = dt_reset.date() == datetime.fromtimestamp(ts, zone).date()
+        khi_nao = dt_reset.strftime("%H:%M" if same_day else "%H:%M ngày %d/%m")
         cho = f"{gio} giờ {phut} phút" if gio else f"{phut} phút"
         # Keep the provider's own words too: they carry its time zone ("resets 1:50am (Asia/Bangkok)"),
         # which the local HH:MM above has converted away.
