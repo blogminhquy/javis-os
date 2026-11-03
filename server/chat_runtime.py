@@ -23,6 +23,23 @@ STUCK_S = 20.0
 BACKLOG_MAX = 500
 
 
+def _xep_hang(backlog: deque, event: dict) -> None:
+    """Queue `event` behind a busy page, folding a `stream` piece into the stream piece right before it (0.444.1).
+
+    Since 0.438.4-0.438.6 every engine streams its answer a few characters per event. A page that falls behind (a phone,
+    a slow laptop busy drawing) used to queue one event per piece, hit BACKLOG_MAX within seconds and get dropped, then
+    reconnect and fall behind again (VPS users, 2026-11-03: "Reconnecting", a frozen machine). Two queued pieces of the
+    same answer carry the same fields apart from `content`, so the page loses nothing when they travel as one event.
+    The queued event is replaced by a copy, never edited: the same dict may sit in another page's backlog."""
+    if event.get("type") == "stream" and backlog:
+        last = backlog[-1]
+        if (isinstance(last, dict) and last.get("type") == "stream"
+                and {k: v for k, v in last.items() if k != "content"} == {k: v for k, v in event.items() if k != "content"}):
+            backlog[-1] = {**last, "content": str(last.get("content") or "") + str(event.get("content") or "")}
+            return
+    backlog.append(event)
+
+
 @dataclass
 class _Client:
     writer: Writer
@@ -160,7 +177,7 @@ class ChatRuntime:
                 if (not c.pending.done() and now - c.since > STUCK_S) or len(c.backlog) >= BACKLOG_MAX:
                     self._drop(cid, c)
                 else:
-                    c.backlog.append(event)
+                    _xep_hang(c.backlog, event)
                 continue
             sends.append(self._send(cid, c, event))
         if sends:
