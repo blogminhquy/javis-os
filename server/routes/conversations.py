@@ -508,6 +508,74 @@ def register(app, deps: ConversationsDeps):
         return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
                 "conversation": conversations.chi_tiet(conv_id)}
 
+    def _private_target(msgs: list, wanted: str = "") -> tuple:
+        """The comment a private message answers (0.446.0): `wanted` when it is one of the customer's comments in this
+        thread, else the newest customer comment that has not had one yet. Returns (comment, all_used)."""
+        used = {str((m.get("metadata") or {}).get("private_reply_to") or "") for m in msgs if m.get("sender_type") == "human"}
+        mine = [m for m in msgs if m.get("sender_type") == "customer" and str(m.get("external_message_id") or "")]
+        if wanted:
+            hit = [m for m in mine if str(m.get("external_message_id")) == wanted]
+            return (hit[-1] if hit else None), False
+        free = [m for m in mine if str(m.get("external_message_id")) not in used]
+        return (free[-1] if free else None), bool(mine)
+
+    @router.post("/conversations/{conv_id}/private-reply")
+    async def conversations_private_reply(conv_id: int, text: str = Form(...), comment_id: str = Form("")):
+        """Message a Facebook commenter privately from their comment thread (0.446.0, Meta's Private Replies).
+
+        The message lands in the person's Messenger inbox from the Page. Meta allows ONE per comment, within 7 days of
+        it; once the person answers, it is an ordinary Messenger chat with the Page. The message is recorded twice: in
+        the comment thread (marked private, so the owner sees what was sent and which comment got it) and in the
+        Messenger chat it opens, which the person's answer then joins. That chat is taken over like any chat the owner
+        writes in by hand, so the bot does not cut in on the owner's own conversation."""
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        chat = str(c.get("external_chat_id") or "")
+        if c.get("channel") != "messenger" or not chat.startswith("cmt:"):
+            return JSONResponse({"ok": False, "code": "not_comment", "error": localefmt.chu(
+                "Chỉ nhắn riêng được từ một hội thoại bình luận Facebook", "Only a Facebook comment thread can send a private message")},
+                status_code=400)
+        txt = str(text or "").strip()
+        if not txt:
+            return JSONResponse({"ok": False, "error": localefmt.chu("tin rỗng", "empty message")}, status_code=400)
+        msgs = conversations.tin_nhan(conv_id, limit=200)
+        target, all_used = _private_target(msgs, str(comment_id or "").strip())
+        if not target:
+            return JSONResponse({"ok": False, "code": "already_sent" if all_used else "no_comment", "error": localefmt.chu(
+                "Mọi bình luận trong hội thoại này đã được nhắn riêng. Messenger chỉ cho nhắn riêng một lần mỗi bình luận; "
+                "khách trả lời là tiếp tục được trong hội thoại Messenger." if all_used else "Không tìm thấy bình luận nào của khách",
+                "Every comment in this thread already got its private message. Messenger allows one per comment; once the "
+                "person answers, carry on in the Messenger chat." if all_used else "No comment from the customer found")},
+                status_code=409 if all_used else 400)
+        raw = _tk_goc(c)
+        import messenger_bot
+        bot = messenger_bot.MessengerBot(channel_accounts.get_token(raw), "", None, giau_trang_thai=True)
+        cid = str(target.get("external_message_id"))
+        r = await bot.private_reply(cid, txt)
+        if not r.get("ok"):
+            return JSONResponse({"ok": False, "code": "send_failed", "error": r.get("error") or localefmt.chu(
+                "không gửi được", "could not send")}, status_code=400)
+        base = {"channel": "messenger", "account_id": raw, "account_name": c.get("account_name") or "",
+                "bot_id": c.get("bot_id") or "", "sender_type": "human", "sender_name": "Bạn", "message_type": "text",
+                "text": txt}
+        conversations.ghi_su_kien({**base, "external_chat_id": chat, "chat_type": c.get("chat_type") or "private",
+                                   "metadata": {"tu_javis": True, "private_reply_to": cid}})
+        dm_id = 0
+        psid = r.get("recipient_id") or ""
+        if psid:
+            who = str(c.get("customer_name") or target.get("sender_name") or "")
+            d = conversations.ghi_su_kien({**base, "external_chat_id": psid, "chat_type": "private", "chat_title": who,
+                                           "external_message_id": r.get("message_id") or "",
+                                           "metadata": {"tu_javis": True, "from_comment": cid}}, dem_chua_doc=False)
+            dm_id = int(d.get("conversation_id") or 0)
+            if dm_id and c.get("bot_id"):
+                dm = conversations.chi_tiet(dm_id) or {}
+                if str(dm.get("mode") or "ai") == "ai":
+                    conversations.dat_che_do(dm_id, "human")
+        return {"ok": True, "comment_id": cid, "dm_conversation_id": dm_id,
+                "conversation": conversations.chi_tiet(conv_id)}
+
     @router.post("/conversations/{conv_id}/ai-reply")
     async def conversations_ai_reply(conv_id: int, mode: str = Form("send"), instruction: str = Form("")):
         """Chủ nhờ BOT trả lời ngay từ Hộp thư (0.65.5). `mode=send`: bot trả lời tin khách cuối và câu đó được gửi luôn; cuộc chat

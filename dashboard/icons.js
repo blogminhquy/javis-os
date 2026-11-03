@@ -211,6 +211,49 @@
       mau: "#0866FF",
       than: '<image href="/static/logos/meta.png" x="0" y="0" width="24" height="24" preserveAspectRatio="xMidYMid meet"/>',
     },
+    // 0.446.0: the Meta connection card names every app it covers (owner, 03/11/2026: "Kết nối Meta" with Facebook,
+    // Messenger, Instagram, WhatsApp and Threads beside it). Facebook: white "f" on a blue disc.
+    facebook: {
+      nhan: "Facebook",
+      mau: "#0866FF",
+      than:
+        '<circle cx="12" cy="12" r="10.5" fill="#0866FF"/>' +
+        '<path fill="#fff" d="M13.4 22.4v-7.9h2.3l.35-2.7H13.4v-1.7c0-.78.22-1.3 1.33-1.3h1.42V6.4c-.25-.03-1.1-.1' +
+        '-2.07-.1-2.05 0-3.45 1.25-3.45 3.55v2h-2.3v2.7h2.3v7.85z"/>',
+    },
+    // Instagram: the camera outline on the warm gradient square.
+    instagram: {
+      nhan: "Instagram",
+      mau: "#D62976",
+      than:
+        '<defs><linearGradient id="kenh-ig-g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FEDA75"/>' +
+        '<stop offset=".35" stop-color="#FA7E1E"/><stop offset=".65" stop-color="#D62976"/><stop offset="1" stop-color="#4F5BD5"/>' +
+        '</linearGradient></defs><rect width="24" height="24" rx="7" fill="url(#kenh-ig-g)"/>' +
+        '<rect x="5.5" y="5.5" width="13" height="13" rx="4" fill="none" stroke="#fff" stroke-width="1.7"/>' +
+        '<circle cx="12" cy="12" r="3.1" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="15.8" cy="8.2" r=".95" fill="#fff"/>',
+    },
+    // Threads: a white "@" swirl on black.
+    threads: {
+      nhan: "Threads",
+      mau: "#000000",
+      than:
+        '<rect width="24" height="24" rx="7" fill="#000"/>' +
+        '<path fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" d="M15.2 11.1c-.4-1.9-1.7-2.9-3.5-2.9' +
+        '-2.1 0-3.4 1.6-3.4 3.8s1.3 3.7 3.3 3.7c1.9 0 3.1-1.3 3.1-3.2 0-1.3-.9-2.1-2.3-2.1-1.5 0-2.4.9-2.2 2.1.2 1 1.1' +
+        ' 1.5 2.1 1.4 2.2-.2 3.2-2.1 2.9-4.5-.3-2.6-2.5-4.4-5.2-4.3C6.9 5.3 5.2 8 5.2 11.8c0 3.9 2.3 6.7 6.4 6.7 2.1 0' +
+        ' 3.8-.8 4.9-2.1"/>',
+    },
+    // A Facebook Page COMMENT in the inbox (0.446.0, owner: the comment and message icons looked the same). A square
+    // amber comment box with lines, so it never reads as the round blue Messenger bubble of a private chat.
+    fbcomment: {
+      nhan: "Comment",
+      mau: "#F2760B",
+      than:
+        '<path fill="#F2760B" d="M5.2 3h13.6A2.7 2.7 0 0 1 21.5 5.7v9.1a2.7 2.7 0 0 1-2.7 2.7H10l-4.6 3.6c-.4.3-.9 0-.9-.5' +
+        'v-3.1A2.7 2.7 0 0 1 2.5 14.8V5.7A2.7 2.7 0 0 1 5.2 3z"/>' +
+        '<rect x="6.3" y="7" width="11.4" height="1.7" rx=".85" fill="#fff"/>' +
+        '<rect x="6.3" y="11.2" width="7.6" height="1.7" rx=".85" fill="#fff"/>',
+    },
     // Discord (0.85.0): the controller-face mark on blurple.
     discord: {
       nhan: "Discord",

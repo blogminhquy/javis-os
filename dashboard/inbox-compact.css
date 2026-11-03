@@ -351,3 +351,10 @@
 .st-split .st-fill.hu { background: var(--ib-owner); }
 .st-acc-n { font-size: 12.5px; color: var(--text3); }
 .st-accs .st-legend .st-lg.hu { background: var(--ib-owner); margin-left: 8px; }
+
+/* ---- comment thread: reply publicly or message the commenter privately (0.446.0) ---- */
+.ht-priv { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ht-priv-o { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 14px; cursor: pointer; }
+.ht-priv-o.on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--text); font-weight: 600; }
+.ht-priv-tag { color: var(--text2); font-weight: 600; }

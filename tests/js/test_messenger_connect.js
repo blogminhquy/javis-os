@@ -139,5 +139,23 @@ check("a channel with a Connections card hides the token part and Save", () => {
   assert.ok(css.includes("#htTokenPart[hidden], .ht-form-acts .ht-save[hidden] { display: none; }"));
 });
 
+
+// 0.446.0 (owner, 03/11/2026): the card is "Meta", names the apps it covers, and each Page can be disconnected.
+// WhatsApp is not on it: it has its own number, token and webhook, so it stays its own channel.
+check("each Page has Disconnect, in the danger style", () => {
+  const h = M.accountHtml({ id: "acc_1", page_id: "123", page_name: "Em Mi", bots: [] });
+  assert.ok(h.includes('class="s-btn-ghost msc-del" type="button" data-act="remove"'));
+});
+{
+  const src = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "messenger-connect.js"), "utf8");
+  check("apps: Facebook, Messenger live; Instagram, Threads coming; no WhatsApp", () => {
+    assert.ok(src.includes('[["facebook", true], ["messenger", true], ["instagram", false], ["threads", false]]'));
+    assert.ok(!/data-msc-wa|"whatsapp"/.test(src));
+  });
+  check("Disconnect goes through the shared account delete, taking the Page off its bot", () => {
+    assert.ok(src.includes('"/channels/accounts/" + encodeURIComponent(id) + "/delete"') && src.includes('f.append("go_khoi_bot", "1")'));
+  });
+}
+
 if (fails) { console.log("\n" + fails + " FAILED"); process.exit(1); }
 console.log("\nall ok");

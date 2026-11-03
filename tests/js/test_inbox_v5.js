@@ -82,8 +82,8 @@ check("a bot chip names the bot", V.activeChips({ bot: "b1" }, [], [{ id: "b1", 
 
 // ---- 4. conversations.js: layout, Info panel ----
 check("three columns: list | chat | Info", /<div class="ht-listcol">[\s\S]*<div class="ht-thread">[\s\S]*<div class="ht-info" hidden><\/div>/.test(CV));
-check("rows: coloured edge by who, avatar with the channel logo, 'A.I.:' or 'You:' before the last message",
-  /'<button type="button" class="ht-item w-' \+ who/.test(CV) && /'<span class="ib-kl">' \+ logoKenh\(c\.channel, "21px"\)/.test(CV) &&
+check("rows: coloured edge by who, avatar with the channel logo (a Facebook comment gets its own), 'A.I.:' or 'You:' before the last message",
+  /'<button type="button" class="ht-item w-' \+ who/.test(CV) && /'<span class="ib-kl">' \+ \(isComment\(c\) \? commentLogo\("21px"\) : logoKenh\(c\.channel, "21px"\)\)/.test(CV) &&
   /c\.last_sender_type === "ai" \? window\.t\("ib\.pre_ai"\)/.test(CV));
 check("rows name the nick or Page only when several are in view", /var many = _accs\.length !== 1;/.test(CV));
 check("Info stays closed until asked (owner, 2026-10-29), the choice kept in this browser on wide screens only",

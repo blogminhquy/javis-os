@@ -93,13 +93,32 @@
       + esc(bad ? tw("msc.sum_bad", { n: bad }) : tw("msc.sum_ok")) + "</div>";
   }
 
+  // The apps one Meta connection covers (0.446.0, owner 03/11/2026: the card is "Meta", not just Messenger, with the
+  // apps beside it). WhatsApp is not one of them (owner, same day): it has its own number, token and webhook, so it
+  // stays its own channel. Facebook and Messenger work today; the others are drawn faded with a "coming" tooltip.
+  var META_APPS = [["facebook", true], ["messenger", true], ["instagram", false], ["threads", false]];
+  function appsHtml(size) {
+    var I = typeof window !== "undefined" && window.Icons;
+    if (!I || !I.kenh) return "";
+    return '<span class="msc-apps">' + META_APPS.map(function (x) {
+      var name = I.kenhNhan ? I.kenhNhan(x[0]) : x[0];
+      return '<span class="msc-app' + (x[1] ? "" : " soon") + '" title="' + esc(x[1] ? name : tw("msc.app_soon", { app: name })) + '">'
+        + I.kenh(x[0], { size: size || "18px" }) + "</span>";
+    }).join("") + "</span>";
+  }
+
+  function pageLogo(size) {
+    var I = typeof window !== "undefined" && window.Icons;
+    return I && I.kenh ? I.kenh("facebook", { size: size }) : ic("message-circle");
+  }
+
   function accountHtml(a) {
     var bots = (a.bots || []);
     var botTxt = bots.length
       ? bots.map(function (b) { return esc(b.name) + (b.enabled ? "" : " (" + esc(tw("msc.bot_off")) + ")"); }).join(", ")
       : esc(tw("msc.no_bot"));
     return '<div class="lv-card msc-acc" data-id="' + esc(a.id) + '">'
-      + '<div class="lv-top"><div class="lv-name"><span class="lv-ic">' + ic("message-circle") + "</span><b>"
+      + '<div class="lv-top"><div class="lv-name"><span class="lv-ic">' + pageLogo("20px") + "</span><b>"
       + esc(a.page_name || a.label || a.page_id) + "</b></div></div>"
       + '<div class="lv-meta">Page ID ' + esc(a.page_id) + (a.app_id ? " · App ID " + esc(a.app_id) : "")
       + " · " + esc(tw("msc.bots")) + ": " + botTxt + "</div>"
@@ -108,7 +127,8 @@
       + commentSelect(a.comments || "inbox", "data-act-mode") + "</div>"
       + '<div class="lv-actions"><button class="s-btn-ghost" type="button" data-act="check">' + esc(tw("msc.check")) + "</button>"
       + '<button class="s-btn-ghost" type="button" data-act="repair">' + esc(tw("msc.repair")) + "</button>"
-      + '<button class="s-btn-ghost" type="button" data-act="renew">' + esc(tw("msc.renew")) + "</button></div>"
+      + '<button class="s-btn-ghost" type="button" data-act="renew">' + esc(tw("msc.renew")) + "</button>"
+      + '<button class="s-btn-ghost msc-del" type="button" data-act="remove">' + esc(tw("msc.remove")) + "</button></div>"
       + '<div class="msc-slot"></div></div>';
   }
 
@@ -229,6 +249,7 @@
       + '<div class="cat-ico">' + logo("28px") + "</div>"
       + '<div class="cat-name">' + esc(tw("msc.head")) + ' <span class="prov-kind">' + esc(tw("msc.badge")) + "</span>"
       + infoBtn() + "</div>"
+      + appsHtml("18px")
       + '<div class="cat-desc j-clamp2">' + esc(tw("msc.card_desc")) + "</div>"
       + infoBody(esc(tw("msc.intro")))
       + '<button class="gcard-btn" type="button" data-msc-open="1">' + esc(tw("models.connect")) + "</button></div>";
@@ -240,6 +261,7 @@
     return '<div class="prov-card conn-card msc-group">'
       + '<div class="prov-head"><span class="conn-ico">' + logo("24px") + "</span>"
       + '<div class="prov-info"><div class="prov-name">' + esc(tw("msc.head")) + infoBtn() + "</div>"
+      + appsHtml("16px")
       + '<div class="prov-status j-clamp2">' + esc(tw("msc.card_desc")) + "</div>"
       + infoBody(esc(tw("msc.intro"))) + "</div></div>"
       // The Pages open in a popup (owner, 28/10/2026, same as the bot cards on the Chatbot page): a shop can connect many
@@ -408,7 +430,32 @@
     setTimeout(function () { try { form.querySelector('[data-f="app_id"]').focus(); } catch (e) {} }, 30);
   }
 
+  // Disconnect a Page (0.446.0): the shared channel-account delete takes it off any bot, tells Meta to stop sending
+  // its events, and removes it. Past conversations stay in the inbox.
+  async function removePage(card, id) {
+    var a = ((setup && setup.accounts) || []).filter(function (x) { return x.id === id; })[0] || {};
+    var name = a.page_name || a.label || a.page_id || "";
+    var bots = (a.bots || []).map(function (b) { return b.name; }).filter(Boolean);
+    if (!window.confirm(tw(bots.length ? "msc.remove_q_bot" : "msc.remove_q", { page: name, bot: bots.join(", ") }))) return;
+    var slot = card.querySelector(".msc-slot");
+    slot.innerHTML = '<div class="lv-meta">' + esc(tw("msc.working")) + "</div>";
+    var r;
+    try {
+      var f = new FormData();
+      f.append("go_khoi_bot", "1");
+      var res = await fetch("/channels/accounts/" + encodeURIComponent(id) + "/delete", { method: "POST", body: f });
+      r = await res.json();
+    } catch (e) { r = { ok: false, error: tw("msc.err_net") }; }
+    if (!r || !r.ok) { slot.innerHTML = '<div class="lv-note">' + esc((r && r.error) || tw("msc.err_net")) + "</div>"; return; }
+    if (r.bot_tat) window.alert(tw("msc.removed_bot_off", { bot: r.bot_tat }));
+    await load();
+    var M = typeof window !== "undefined" && window.JavisConnModal;
+    if (M) M.close();
+    if (((setup && setup.accounts) || []).length) openPages();
+  }
+
   async function act(card, id, what) {
+    if (what === "remove") { removePage(card, id); return; }
     if (what === "renew") {
       var a = ((setup && setup.accounts) || []).filter(function (x) { return x.id === id; })[0] || {};
       openForm(a);
@@ -430,7 +477,7 @@
 
   var api_ = { mount: mount, openForm: openForm, catCard: catCard, groupHtml: groupHtml, checklistHtml: checklistHtml,
     summaryHtml: summaryHtml, accountHtml: accountHtml, formHtml: formHtml, addToConnCount: addToConnCount,
-    openPages: openPages, pickHtml: pickHtml, resultsHtml: resultsHtml, commentSelect: commentSelect, guideUrl: guideUrl };
+    openPages: openPages, pickHtml: pickHtml, appsHtml: appsHtml, resultsHtml: resultsHtml, commentSelect: commentSelect, guideUrl: guideUrl };
   if (typeof window !== "undefined") window.JavisMessenger = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

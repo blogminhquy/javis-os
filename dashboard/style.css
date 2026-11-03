@@ -4827,3 +4827,9 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
   .bp-pop.sheet .bp-arrow { width: 42px; height: 42px; }
   .bp-pop.sheet .bp-grip { width: 38px; height: 44px; }
 }
+
+/* Meta connection card (0.446.0): the apps one connection covers, and Disconnect on each Page */
+.msc-apps { display: inline-flex; align-items: center; gap: 5px; margin: 4px 0 2px; flex-wrap: wrap; }
+.msc-app { display: inline-flex; line-height: 0; }
+.msc-app.soon { opacity: .38; filter: grayscale(.6); }
+.msc-acc .lv-actions .msc-del { color: var(--danger-ink, #b3261e); border-color: color-mix(in srgb, var(--danger-ink, #b3261e) 40%, transparent); }

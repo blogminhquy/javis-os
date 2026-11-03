@@ -328,6 +328,26 @@ def register(app, deps: ChannelsDeps):
         conversations.set_no_bot(key, _bat(on))
         return {"ok": True, "account_key": key, "no_bot": _bat(on)}
 
+    async def _meta_unsubscribe(account_id: str) -> dict:
+        """A Facebook Page being removed (0.446.0): tell Meta to stop sending its messages and comments to this app's
+        webhook, or Meta keeps calling and, with the last app secret gone, every call fails the signature check.
+        Best effort; the Page is removed from Javis whatever Meta answers. {"meta_unsubscribed": bool} for Messenger."""
+        a = channel_accounts.get_account(account_id) or {}
+        if a.get("channel") != "messenger":
+            return {}
+        try:
+            import httpx
+            import messenger_bot
+            cr = messenger_bot.split_credentials(channel_accounts.get_token(account_id))
+            if not (cr.get("page_id") and cr.get("access_token")):
+                return {"meta_unsubscribed": False}
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await messenger_bot.unsubscribe_page(c, cr["page_id"], cr["access_token"])
+            return {"meta_unsubscribed": bool(r.get("ok"))}
+        except Exception as e:      # noqa: BLE001 - the local removal must not depend on Meta answering
+            print(f"[messenger unsubscribe] {type(e).__name__}: {e}")
+            return {"meta_unsubscribed": False}
+
     @router.post("/channels/accounts/{account_id}/delete")
     async def channels_account_delete(account_id: str, go_khoi_bot: str = Form("")):
         """Xoá một tài khoản kênh. `go_khoi_bot=1` thì GỠ nó khỏi bot đang trực rồi xoá luôn.
@@ -355,8 +375,9 @@ def register(app, deps: ChannelsDeps):
         bot_tat, loi = _go_khoi_bot(account_id)
         if loi:
             return _400(loi)
+        meta_off = await _meta_unsubscribe(account_id)
         ok, loi = channel_accounts.delete_account(account_id)
-        return {"ok": True, "bot_tat": bot_tat} if ok else _404(loi)
+        return {"ok": True, "bot_tat": bot_tat, **meta_off} if ok else _404(loi)
 
     app.include_router(router)
 
