@@ -13512,6 +13512,16 @@ _BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 _FILE_URI_RE = re.compile(r"^file:(?://[^/\\]*)?(?=[/\\])", re.IGNORECASE)
 
 
+# `/C:/Users/x` (or `\C:\x`): models often write a Windows path with a leading slash, URL style. Neither
+# Windows nor POSIX pathlib reads that as drive C, so the link was reported as missing (#898, item 3).
+_GACH_TRUOC_O_DIA_RE = re.compile(r"^[/\\](?=[A-Za-z]:[/\\])")
+
+
+def _bo_gach_truoc_o_dia(t: str) -> str:
+    """`/C:/x` -> `C:/x`; anything else unchanged."""
+    return _GACH_TRUOC_O_DIA_RE.sub("", t, count=1)
+
+
 def _go_file_uri(t: str):
     """`file:///a/b` → `/a/b` (đã giải mã %xx, `/C:/x` → `C:/x`). Không phải file URI → None."""
     t = str(t or "").strip()
@@ -13573,6 +13583,7 @@ def _link_muc_tieu_moi(brain_root: str, raw: str, files_written=None):
             t = urllib.parse.unquote(t)
         except Exception:
             pass
+    t = _bo_gach_truoc_o_dia(t)
     try:
         broot = Path(brain_root).resolve()
     except Exception:
@@ -13649,9 +13660,22 @@ def _chuan_hoa_link_file(brain_root: str, text: str, files_written=None) -> str:
             return m.group(0)
         return m.group(0)[:m.start(1) - m.start(0)] + f"`{rel}`" + duoi
 
+    def _tran_gach(m):
+        # `/C:/Users/...` written bare: same as `_tran`, but the leading slash goes too (#898).
+        raw = m.group(1).rstrip(".,;:!?…")
+        duoi = m.group(1)[len(raw):]
+        try:
+            rel = Path(raw.replace("\\", "/")).resolve().relative_to(broot).as_posix()
+        except Exception:
+            return m.group(0)
+        if not (broot / rel).exists():
+            return m.group(0)
+        return f"`{rel}`" + duoi
+
     # Windows: `C:\...` và `C:/...`. Chạy TRƯỚC mẫu `/...`, và mẫu đó không nhận dấu `/` đứng
     # sau `:`, kẻo nó cắt `/Users/...` ra khỏi `C:/Users/...` rồi resolve theo ổ của thư mục
     # hiện hành (đúng ổ thì còn chèn link vào giữa, thành `C:` + `bai-1.txt`).
+    ra = re.sub(r"(?<![`\[(/\\\w:])[/\\]([A-Za-z]:[\\/][^\s`\"'()\[\]<>|*?:]+)", _tran_gach, ra)
     ra = re.sub(r"(?<![`\[(/\\\w])([A-Za-z]:[\\/][^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
     ra = re.sub(r"(?<![`\[(/\w:])(/[^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
 
@@ -13692,6 +13716,7 @@ def _link_file_khong_thay(brain_root: str, text: str) -> list:
                 t = urllib.parse.unquote(t)
             except Exception:
                 pass
+        t = _bo_gach_truoc_o_dia(t)
         try:
             if t.startswith("/") or t.startswith("~") or re.match(r"^[A-Za-z]:[\\/]", t):
                 cand = Path(t.replace("\\", "/")).expanduser().resolve()
