@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.445.1] - 2026-11-03
+### Fixed
+- (in progress)
+
 ## [0.445.0] - 2026-11-03
 ### Improved
 - **New Claude Code chats use far less of your plan.** Each new chat used to reload about 40,000 tokens of Javis's instructions, because they held the time, usage and session id, which change all the time. That part is now identical across chats, so it is read back from the prompt cache. Thanks @sunstaysg-oss for measuring and reporting it (#975).
