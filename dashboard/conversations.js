@@ -2211,8 +2211,7 @@
     if (!_kenhDS.length) { try { await taiTK(); } catch (e) {} }
     var kenhBot = _kenhDS.filter(function (k) { return k.kind === "bot"; });
     var kenhKhac = _kenhDS.filter(function (k) { return k.kind !== "bot"; });
-    // `opts.kenh` opens the form on one channel (0.446.0: "+ WhatsApp" on the Meta connection card).
-    var chon = opts.kenh && kenhBot.some(function (k) { return k.id === opts.kenh; }) ? opts.kenh : kenhBot.length ? kenhBot[0].id : "";
+    var chon = kenhBot.length ? kenhBot[0].id : "";
     var uname = "", meta = {};
     var box = el('<div class="ht-modal"><div class="ht-form">' +
       '<h3>' + esc(window.t("ht.them_tk")) + '</h3>' +

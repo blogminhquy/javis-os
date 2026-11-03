@@ -4833,5 +4833,3 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .msc-app { display: inline-flex; line-height: 0; }
 .msc-app.soon { opacity: .38; filter: grayscale(.6); }
 .msc-acc .lv-actions .msc-del { color: var(--danger-ink, #b3261e); border-color: color-mix(in srgb, var(--danger-ink, #b3261e) 40%, transparent); }
-.msc-cat-act { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
-.msc-cat-act .gcard-btn { flex: 1 1 auto; }

@@ -6259,7 +6259,6 @@
   "msc.pages_n": "{n} Pages",
   "msc.view": "View details",
   "msc.pages_head": "Connected Pages ({n})",
-  "msc.wa_n": "{n} WhatsApp number(s)",
   "msc.app_soon": "{app}: coming soon",
   "msc.remove": "Disconnect",
   "msc.remove_q": "Remove the Page \"{page}\" from Javis? Javis will stop receiving its messages and comments. Past conversations stay in the inbox.",

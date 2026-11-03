@@ -5716,9 +5716,6 @@
     el.querySelectorAll("#catGrid [data-msc-open]").forEach(b => b.onclick = () => {
       if (window.JavisMessenger && window.JavisMessenger.openForm) window.JavisMessenger.openForm(null);
     });
-    el.querySelectorAll("#catGrid [data-msc-wa]").forEach(b => b.onclick = () => {
-      if (window.JavisMessenger && window.JavisMessenger.openWhatsApp) window.JavisMessenger.openWhatsApp();
-    });
     const nutSanCo = document.getElementById("mcpDiSanCo");
     if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
     // Từ banner mồ côi sang thẳng gói cần cài, ô tìm điền sẵn id connector. Thả người dùng vào

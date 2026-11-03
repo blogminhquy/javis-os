@@ -25039,13 +25039,6 @@ def _ms_account_view(a: dict) -> dict:
             "bots": [{"id": b["id"], "name": b.get("name"), "enabled": bool(b.get("enabled"))} for b in bots]}
 
 
-def _wa_account_view(a: dict) -> dict:
-    bots = chatbot_store.bots_using_account(a.get("id", ""))
-    return {"id": a.get("id"), "label": a.get("label"), "phone_id": a.get("external_id", ""),
-            "name": (a.get("meta") or {}).get("bot_name", ""),
-            "bots": [{"id": b["id"], "name": b.get("name"), "enabled": bool(b.get("enabled"))} for b in bots]}
-
-
 def _ms_account_creds(account_id: str):
     a = channel_accounts.get_account(account_id)
     if not a or a.get("channel") != "messenger":
@@ -25091,12 +25084,8 @@ async def messenger_setup_info(request: Request, brain: str = ""):
     url = _ms_webhook_url(request)
     accs = channel_accounts.list_accounts(channel="messenger", brain=str(brain or "").strip())
     base = url[: -len("/messenger/webhook")]
-    # 0.446.0: the card is the Meta connection, so it lists the WhatsApp numbers of this brain too (connected on the
-    # shared add-account form, removed from this card).
-    was = channel_accounts.list_accounts(channel="whatsapp", brain=str(brain or "").strip())
     return {"ok": True, "webhook_url": url, "https": url.startswith("https://"),
             "verify_token": _ms_verify_token(), "accounts": [_ms_account_view(a) for a in accs],
-            "whatsapp": [_wa_account_view(a) for a in was],
             "oauth_redirect": base + messenger_oauth.CALLBACK_PATH, "privacy_url": base + messenger_oauth.PRIVACY_PATH}
 
 

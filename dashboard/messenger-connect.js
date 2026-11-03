@@ -94,8 +94,9 @@
   }
 
   // The apps one Meta connection covers (0.446.0, owner 03/11/2026: the card is "Meta", not just Messenger, with the
-  // apps beside it). Facebook, Messenger and WhatsApp work today; the others are drawn faded with a "coming" tooltip.
-  var META_APPS = [["facebook", true], ["messenger", true], ["whatsapp", true], ["instagram", false], ["threads", false]];
+  // apps beside it). WhatsApp is not one of them (owner, same day): it has its own number, token and webhook, so it
+  // stays its own channel. Facebook and Messenger work today; the others are drawn faded with a "coming" tooltip.
+  var META_APPS = [["facebook", true], ["messenger", true], ["instagram", false], ["threads", false]];
   function appsHtml(size) {
     var I = typeof window !== "undefined" && window.Icons;
     if (!I || !I.kenh) return "";
@@ -128,24 +129,6 @@
       + '<button class="s-btn-ghost" type="button" data-act="repair">' + esc(tw("msc.repair")) + "</button>"
       + '<button class="s-btn-ghost" type="button" data-act="renew">' + esc(tw("msc.renew")) + "</button>"
       + '<button class="s-btn-ghost msc-del" type="button" data-act="remove">' + esc(tw("msc.remove")) + "</button></div>"
-      + '<div class="msc-slot"></div></div>';
-  }
-
-  // One WhatsApp number in the list popup (0.446.0). Its setup and checks live on the shared add-account form, so the
-  // only action here is Disconnect.
-  function waHtml(a) {
-    var bots = (a.bots || []);
-    var botTxt = bots.length
-      ? bots.map(function (b) { return esc(b.name) + (b.enabled ? "" : " (" + esc(tw("msc.bot_off")) + ")"); }).join(", ")
-      : esc(tw("msc.no_bot"));
-    var I = typeof window !== "undefined" && window.Icons;
-    return '<div class="lv-card msc-acc msc-wa" data-id="' + esc(a.id) + '">'
-      + '<div class="lv-top"><div class="lv-name"><span class="lv-ic">' + (I && I.kenh ? I.kenh("whatsapp", { size: "20px" }) : "")
-      + "</span><b>" + esc(a.label || a.name || a.phone_id) + "</b></div></div>"
-      + '<div class="lv-meta">' + (a.phone_id ? "Phone number ID " + esc(a.phone_id) + " · " : "")
-      + esc(tw("msc.bots")) + ": " + botTxt + "</div>"
-      + '<div class="lv-actions"><button class="s-btn-ghost msc-del" type="button" data-act="remove">' + esc(tw("msc.remove"))
-      + "</button></div>"
       + '<div class="msc-slot"></div></div>';
   }
 
@@ -269,26 +252,12 @@
       + appsHtml("18px")
       + '<div class="cat-desc j-clamp2">' + esc(tw("msc.card_desc")) + "</div>"
       + infoBody(esc(tw("msc.intro")))
-      + '<div class="msc-cat-act"><button class="gcard-btn" type="button" data-msc-open="1">' + esc(tw("msc.add")) + "</button>"
-      + '<button class="gcard-btn ghost" type="button" data-msc-wa="1">＋ WhatsApp</button></div></div>';
-  }
-
-  // "+ WhatsApp": the shared add-account form (conversations.js, loaded with the Chatbot page's code) opened on WhatsApp.
-  function openWhatsApp() {
-    var go = function () {
-      var C = window.JavisConversations;
-      if (C && C.themTaiKhoan) C.themTaiKhoan({ kenh: "whatsapp", onXong: function () { load(); } });
-    };
-    if (window.JavisNapCham) window.JavisNapCham.goi("hoithoai", go); else go();
+      + '<button class="gcard-btn" type="button" data-msc-open="1">' + esc(tw("models.connect")) + "</button></div>";
   }
 
   // The connected Pages, as one card in the "Connected" list. Empty string when nothing is connected yet.
-  function groupHtml(accounts, numbers) {
-    accounts = accounts || [];
-    numbers = numbers || [];
-    if (!accounts.length && !numbers.length) return "";
-    var chips = (accounts.length ? '<span class="cb-st-chip">' + esc(tw("msc.pages_n", { n: accounts.length })) + "</span>" : "")
-      + (numbers.length ? '<span class="cb-st-chip">' + esc(tw("msc.wa_n", { n: numbers.length })) + "</span>" : "");
+  function groupHtml(accounts) {
+    if (!accounts || !accounts.length) return "";
     return '<div class="prov-card conn-card msc-group">'
       + '<div class="prov-head"><span class="conn-ico">' + logo("24px") + "</span>"
       + '<div class="prov-info"><div class="prov-name">' + esc(tw("msc.head")) + infoBtn() + "</div>"
@@ -298,11 +267,10 @@
       // The Pages open in a popup (owner, 28/10/2026, same as the bot cards on the Chatbot page): a shop can connect many
       // Pages, and one full card each stretched the Connections page. The card keeps one compact row with the count.
       + '<button type="button" class="cb-st msc-more" data-msc-pages aria-haspopup="dialog"><span class="cb-st-chips">'
-      + chips + "</span>"
+      + '<span class="cb-st-chip">' + esc(tw("msc.pages_n", { n: accounts.length })) + "</span></span>"
       + '<span class="cb-st-more">' + esc(tw("msc.view")) + " " + icon("chevron-right") + "</span></button>"
       + '<div class="conn-accounts"><button class="conn-chip add" type="button" data-msc-open="1">＋ '
-      + esc(tw("msc.add_more")) + "</button>"
-      + '<button class="conn-chip add" type="button" data-msc-wa="1">＋ WhatsApp</button></div></div>';
+      + esc(tw("msc.add_more")) + "</button></div></div>";
   }
 
   var setup = null, host = null;
@@ -316,14 +284,12 @@
       return setup;
     }
     var accounts = setup.accounts || [];
-    var numbers = setup.whatsapp || [];
-    host.innerHTML = groupHtml(accounts, numbers);
+    host.innerHTML = groupHtml(accounts);
     // A Page counts as a connection: in the heading, and the "nothing connected yet" line must not sit on top of it.
-    var total = addToConnCount("fb", accounts.length + numbers.length);
+    var total = addToConnCount("fb", accounts.length);
     var empty = document.querySelector("#connList > .mp-empty");
     if (empty) empty.hidden = total > 0;
     host.querySelectorAll("[data-msc-open]").forEach(function (b) { b.onclick = function () { openForm(null); }; });
-    host.querySelectorAll("[data-msc-wa]").forEach(function (b) { b.onclick = openWhatsApp; });
     var more = host.querySelector("[data-msc-pages]");
     if (more) more.onclick = function () { openPages(); };
     return setup;
@@ -333,10 +299,9 @@
   function openPages() {
     var M = typeof window !== "undefined" && window.JavisConnModal;
     var accounts = (setup && setup.accounts) || [];
-    var numbers = (setup && setup.whatsapp) || [];
-    if (!M || (!accounts.length && !numbers.length)) return;
-    var m = M.open(M.head(esc(tw("msc.pages_head", { n: accounts.length + numbers.length })))
-      + '<div class="conn-form msc-list">' + accounts.map(accountHtml).join("") + numbers.map(waHtml).join("") + "</div>", 680);
+    if (!M || !accounts.length) return;
+    var m = M.open(M.head(esc(tw("msc.pages_head", { n: accounts.length })))
+      + '<div class="conn-form msc-list">' + accounts.map(accountHtml).join("") + "</div>", 680);
     m.querySelectorAll(".msc-acc").forEach(function (card) {
       card.querySelectorAll("[data-act]").forEach(function (btn) {
         btn.onclick = function () { act(card, card.dataset.id, btn.dataset.act); };
@@ -468,9 +433,8 @@
   // Disconnect a Page (0.446.0): the shared channel-account delete takes it off any bot, tells Meta to stop sending
   // its events, and removes it. Past conversations stay in the inbox.
   async function removePage(card, id) {
-    var all = ((setup && setup.accounts) || []).concat((setup && setup.whatsapp) || []);
-    var a = all.filter(function (x) { return x.id === id; })[0] || {};
-    var name = a.page_name || a.label || a.name || a.page_id || a.phone_id || "";
+    var a = ((setup && setup.accounts) || []).filter(function (x) { return x.id === id; })[0] || {};
+    var name = a.page_name || a.label || a.page_id || "";
     var bots = (a.bots || []).map(function (b) { return b.name; }).filter(Boolean);
     if (!window.confirm(tw(bots.length ? "msc.remove_q_bot" : "msc.remove_q", { page: name, bot: bots.join(", ") }))) return;
     var slot = card.querySelector(".msc-slot");
@@ -487,7 +451,7 @@
     await load();
     var M = typeof window !== "undefined" && window.JavisConnModal;
     if (M) M.close();
-    if (((setup && setup.accounts) || []).length || ((setup && setup.whatsapp) || []).length) openPages();
+    if (((setup && setup.accounts) || []).length) openPages();
   }
 
   async function act(card, id, what) {
@@ -513,7 +477,7 @@
 
   var api_ = { mount: mount, openForm: openForm, catCard: catCard, groupHtml: groupHtml, checklistHtml: checklistHtml,
     summaryHtml: summaryHtml, accountHtml: accountHtml, formHtml: formHtml, addToConnCount: addToConnCount,
-    openPages: openPages, pickHtml: pickHtml, appsHtml: appsHtml, waHtml: waHtml, openWhatsApp: openWhatsApp, resultsHtml: resultsHtml, commentSelect: commentSelect, guideUrl: guideUrl };
+    openPages: openPages, pickHtml: pickHtml, appsHtml: appsHtml, resultsHtml: resultsHtml, commentSelect: commentSelect, guideUrl: guideUrl };
   if (typeof window !== "undefined") window.JavisMessenger = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();
