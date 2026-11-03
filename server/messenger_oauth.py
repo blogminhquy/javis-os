@@ -44,6 +44,9 @@ TTL = 15 * 60
 # through a Business portfolio show up in the list.
 SCOPES = ("pages_show_list", "pages_messaging", "pages_manage_metadata", "pages_read_engagement",
           "pages_read_user_content", "pages_manage_engagement", "pages_manage_posts", "business_management")
+# Instagram (0.447.0), only when the owner ticks it: a Meta app without the Instagram use case refuses the whole
+# login over a scope it does not know, so the Page connection must never depend on it.
+IG_SCOPES = ("instagram_basic", "instagram_manage_messages", "instagram_manage_comments")
 
 _lock = threading.Lock()
 _pending: Dict[str, Dict[str, Any]] = {}
@@ -78,14 +81,14 @@ def check_input(app_id: str, app_secret: str) -> str:
     return ""
 
 
-def login_url(app_id: str, redirect_uri: str, state: str) -> str:
+def login_url(app_id: str, redirect_uri: str, state: str, instagram: bool = False) -> str:
     q = {"client_id": app_id, "redirect_uri": redirect_uri, "state": state, "response_type": "code",
-         "scope": ",".join(SCOPES), "auth_type": "rerequest"}
+         "scope": ",".join(SCOPES + (IG_SCOPES if instagram else ())), "auth_type": "rerequest"}
     return f"{_web()}/{GRAPH_VERSION}/dialog/oauth?" + urlencode(q)
 
 
 async def start(app_id: str, app_secret: str, redirect_uri: str, brain: str = "", label: str = "",
-                client=None) -> dict:
+                client=None, instagram: bool = False) -> dict:
     """Check the app credentials, open a pending login. {"ok", "url", "state"} or {"ok": False, "error"}."""
     app_id, app_secret = str(app_id or "").strip(), str(app_secret or "").strip()
     bad = check_input(app_id, app_secret)
@@ -116,8 +119,9 @@ async def start(app_id: str, app_secret: str, redirect_uri: str, brain: str = ""
     with _lock:
         _pending[state] = {"created": time.time(), "status": "pending", "app_id": app_id, "app_secret": app_secret,
                            "app_name": str(d.get("name") or ""), "redirect_uri": redirect_uri,
-                           "brain": str(brain or ""), "label": str(label or ""), "pages": [], "error": ""}
-    return {"ok": True, "state": state, "url": login_url(app_id, redirect_uri, state)}
+                           "brain": str(brain or ""), "label": str(label or ""), "pages": [], "error": "",
+                           "instagram": bool(instagram)}
+    return {"ok": True, "state": state, "url": login_url(app_id, redirect_uri, state, bool(instagram))}
 
 
 def _set(state: str, **kw) -> None:
@@ -157,8 +161,9 @@ async def callback(state: str, code: str, error: str = "", error_description: st
             "grant_type": "fb_exchange_token", "client_id": p["app_id"], "client_secret": p["app_secret"],
             "fb_exchange_token": short})
         user_token = str((r.json() or {}).get("access_token") or "") or short
+        fields = "id,name,picture{url}" + (",instagram_business_account{id,username}" if p.get("instagram") else "")
         r = await client.get(f"{GRAPH}/me/accounts", params={
-            "fields": "id,name,picture{url}", "limit": 100, "access_token": user_token,
+            "fields": fields, "limit": 100, "access_token": user_token,
             "appsecret_proof": appsecret_proof(user_token, p["app_secret"])})
         d = r.json() or {}
     except Exception as e:
@@ -173,7 +178,8 @@ async def callback(state: str, code: str, error: str = "", error_description: st
         _set(state, status="error", error=msg)
         return {"ok": False, "error": msg}
     pages = [{"id": str(x.get("id") or ""), "name": str(x.get("name") or ""),
-              "picture": str(((x.get("picture") or {}).get("data") or {}).get("url") or "")}
+              "picture": str(((x.get("picture") or {}).get("data") or {}).get("url") or ""),
+              "ig_username": str((x.get("instagram_business_account") or {}).get("username") or "")}
              for x in (d.get("data") or []) if str(x.get("id") or "").isdigit()]
     if not pages:
         msg = _c("Tài khoản này không quản lý Fanpage nào, hoặc bạn chưa tick Trang nào lúc đăng nhập. Bấm Đăng nhập "

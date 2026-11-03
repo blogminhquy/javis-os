@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.447.0] - 2026-11-03
+### Thêm mới
+- **Instagram vào chung kết nối Meta.** Khi đăng nhập Facebook ở thẻ Kết nối Meta, tick **Nối cả Instagram của Trang**: tin nhắn và bình luận của tài khoản Instagram gắn với Fanpage vào chung Hộp thư, cùng bot với Trang. Trả lời công khai dưới bình luận và nhắn riêng cho người bình luận đều dùng được.
+- **Menu "..." của mỗi hội thoại có thêm Xem trang cá nhân, Chặn và Xoá hội thoại.** Fanpage: xem tên và ảnh, chặn người nhắn. Instagram: xem trang cá nhân có link mở thẳng. Zalo cá nhân: xem thông tin (cả số điện thoại nếu người đó công khai), chặn, xoá luôn trên Zalo.
+- Xoá một hội thoại bình luận sẽ xoá bình luận đó trên Facebook hoặc Instagram. Tin nhắn Messenger và Instagram chỉ xoá được trong Javis, vì Meta không cho ứng dụng xoá tin nhắn.
+### Cải thiện
+- Hội thoại Instagram có icon Instagram, bình luận Instagram có ô vuông màu hồng, nhìn là phân biệt được với Facebook.
+
 ## [0.446.0] - 2026-11-03
 ### Thêm mới
 - **Nhắn riêng cho người bình luận.** Mở một bình luận Facebook trong Hộp thư, chọn **Nhắn riêng** phía trên ô trả lời: tin đi thẳng vào Messenger của người đó từ Fanpage, dù họ chưa từng nhắn cho Trang. Khách trả lời là thành cuộc chat Messenger bình thường trong Hộp thư. Meta cho nhắn riêng một lần mỗi bình luận, trong vòng 7 ngày.

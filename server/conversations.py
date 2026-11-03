@@ -1003,6 +1003,24 @@ def set_hidden(conversation_id: int, hidden: bool) -> bool:
     return cur.rowcount > 0
 
 
+def delete_conversation(conversation_id: int) -> bool:
+    """Remove a conversation, its messages and its tags from the inbox for good (row menu "Delete", 0.447.0). The
+    customer record stays: it may have other conversations, and a new message simply opens a new conversation."""
+    cid = int(conversation_id)
+    with _lock:
+        db = _conn()
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            db.execute("DELETE FROM messages WHERE conversation_id=?", (cid,))
+            db.execute("DELETE FROM conversation_tags WHERE conversation_id=?", (cid,))
+            cur = db.execute("DELETE FROM conversations WHERE id=?", (cid,))
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+    return cur.rowcount > 0
+
+
 def dat_ghim(conversation_id: int, pinned: bool) -> bool:
     """Ghim hoặc bỏ ghim một cuộc chat (0.223.0). Không chạm `updated_at`: ghim không phải là có tin mới."""
     with _lock:

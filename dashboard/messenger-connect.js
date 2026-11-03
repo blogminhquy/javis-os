@@ -95,8 +95,9 @@
 
   // The apps one Meta connection covers (0.446.0, owner 03/11/2026: the card is "Meta", not just Messenger, with the
   // apps beside it). WhatsApp is not one of them (owner, same day): it has its own number, token and webhook, so it
-  // stays its own channel. Facebook and Messenger work today; the others are drawn faded with a "coming" tooltip.
-  var META_APPS = [["facebook", true], ["messenger", true], ["instagram", false], ["threads", false]];
+  // stays its own channel. Facebook, Messenger and Instagram (0.447.0, through the Page) work; Threads is drawn faded
+  // with a "coming" tooltip.
+  var META_APPS = [["facebook", true], ["messenger", true], ["instagram", true], ["threads", false]];
   function appsHtml(size) {
     var I = typeof window !== "undefined" && window.Icons;
     if (!I || !I.kenh) return "";
@@ -125,11 +126,27 @@
       + '<div class="si-field msc-field msc-cmt-row"><label>' + esc(tw("msc.cmt_label")) + infoBtn() + "</label>"
       + infoBody(esc(tw("msc.cmt_how")))
       + commentSelect(a.comments || "inbox", "data-act-mode") + "</div>"
+      + igRowHtml(a.instagram || {})
       + '<div class="lv-actions"><button class="s-btn-ghost" type="button" data-act="check">' + esc(tw("msc.check")) + "</button>"
       + '<button class="s-btn-ghost" type="button" data-act="repair">' + esc(tw("msc.repair")) + "</button>"
       + '<button class="s-btn-ghost" type="button" data-act="renew">' + esc(tw("msc.renew")) + "</button>"
       + '<button class="s-btn-ghost msc-del" type="button" data-act="remove">' + esc(tw("msc.remove")) + "</button></div>"
       + '<div class="msc-slot"></div></div>';
+  }
+
+  // The Page's Instagram (0.447.0): on / off when one is connected, else how to connect it.
+  function igRowHtml(ig) {
+    var I = typeof window !== "undefined" && window.Icons;
+    var logoIg = I && I.kenh ? I.kenh("instagram", { size: "18px" }) : "";
+    if (!ig.id) {
+      return '<div class="lv-meta msc-ig-none">' + logoIg + " " + esc(tw("msc.ig_none")) + infoBtn() + "</div>"
+        + infoBody(esc(tw("msc.ig_none_how")));
+    }
+    return '<div class="si-field msc-field msc-ig-row"><label>' + logoIg + " Instagram "
+      + (ig.username ? "@" + esc(ig.username) : esc(ig.id)) + "</label>"
+      + '<select class="js-input msc-ig" data-act-ig="1">'
+      + '<option value="1"' + (ig.on ? " selected" : "") + ">" + esc(tw("msc.ig_on")) + "</option>"
+      + '<option value="0"' + (ig.on ? "" : " selected") + ">" + esc(tw("msc.ig_off")) + "</option></select></div>";
   }
 
   // Literal keys so the i18n test can see every one of them.
@@ -183,6 +200,10 @@
       + '<div class="si-field msc-field"><label>' + esc(tw("msc.cmt_label")) + infoBtn() + "</label>"
       + infoBody(esc(tw("msc.cmt_how")))
       + commentSelect("inbox", "data-f-cmt") + "</div>"
+      // 0.447.0: Instagram rides on the same login, only when ticked (a Meta app without the Instagram use case
+      // refuses the whole login over its permissions).
+      + '<label class="msc-ig-tick"><input type="checkbox" data-f-ig="1"> ' + esc(tw("msc.ig_tick")) + "</label>"
+      + infoBtn() + infoBody(esc(tw("msc.ig_tick_how")))
       + '<div class="lv-form-act"><button class="s-btn" type="button" data-f="login"' + (https ? "" : " disabled") + ">"
       + esc(tw("msc.login")) + "</button>"
       + '<button class="s-btn-ghost" type="button" data-f="cancel">' + esc(tw("msc.cancel")) + "</button>"
@@ -212,7 +233,8 @@
       + pages.map(function (pg) {
         return '<label class="msc-pick-row"><input type="checkbox" data-page="' + esc(pg.id) + '" checked>'
           + (pg.picture ? '<img class="msc-pick-pic" alt="" src="' + esc(pg.picture) + '">' : '<span class="msc-pick-pic">' + logo("20px") + "</span>")
-          + '<span class="msc-pick-name"><b>' + esc(pg.name || pg.id) + '</b><span class="lv-meta">Page ID ' + esc(pg.id) + "</span></span></label>";
+          + '<span class="msc-pick-name"><b>' + esc(pg.name || pg.id) + '</b><span class="lv-meta">Page ID ' + esc(pg.id)
+          + (pg.ig_username ? " · Instagram @" + esc(pg.ig_username) : "") + "</span></span></label>";
       }).join("")
       + '<div class="lv-form-act"><button class="s-btn" type="button" data-f="finish">' + esc(tw("msc.finish")) + "</button>"
       + '<span class="lv-msg" role="status" data-f="finish-msg"></span></div></div>';
@@ -306,6 +328,13 @@
       card.querySelectorAll("[data-act]").forEach(function (btn) {
         btn.onclick = function () { act(card, card.dataset.id, btn.dataset.act); };
       });
+      var igSel = card.querySelector("[data-act-ig]");
+      if (igSel) igSel.onchange = async function () {
+        var slot = card.querySelector(".msc-slot");
+        var r = await api("/messenger/instagram", { account_id: card.dataset.id, on: igSel.value === "1" });
+        slot.innerHTML = '<div class="lv-meta">' + esc(r.ok ? tw("msc.ig_saved") : (r.error || tw("msc.err_net"))) + "</div>";
+        if (r.ok) load();
+      };
       var sel = card.querySelector("[data-act-mode]");
       if (sel) sel.onchange = async function () {
         var slot = card.querySelector(".msc-slot");
@@ -340,7 +369,9 @@
     try { win = window.open("about:blank", "_blank"); } catch (e) { win = null; }
     btn.disabled = true;
     msg.textContent = tw("msc.working");
-    var r = await api("/messenger/oauth/start", { app_id: appId, app_secret: secret, brain: brain() });
+    var igBox = form.querySelector("[data-f-ig]");
+    var r = await api("/messenger/oauth/start", { app_id: appId, app_secret: secret, brain: brain(),
+      instagram: !!(igBox && igBox.checked) });
     if (!r.ok) {
       btn.disabled = false;
       msg.textContent = r.error || tw("msc.err_net");
@@ -477,7 +508,7 @@
 
   var api_ = { mount: mount, openForm: openForm, catCard: catCard, groupHtml: groupHtml, checklistHtml: checklistHtml,
     summaryHtml: summaryHtml, accountHtml: accountHtml, formHtml: formHtml, addToConnCount: addToConnCount,
-    openPages: openPages, pickHtml: pickHtml, appsHtml: appsHtml, resultsHtml: resultsHtml, commentSelect: commentSelect, guideUrl: guideUrl };
+    openPages: openPages, pickHtml: pickHtml, appsHtml: appsHtml, resultsHtml: resultsHtml, commentSelect: commentSelect, guideUrl: guideUrl, igRowHtml: igRowHtml };
   if (typeof window !== "undefined") window.JavisMessenger = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

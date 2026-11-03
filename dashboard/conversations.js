@@ -148,15 +148,29 @@
   }
   // A Facebook Page comment thread (0.446.0): conversation id "cmt:<comment id>" on the Messenger channel. It gets its
   // own badge (a square comment box, not the round Messenger bubble) so a public comment never reads as a private chat.
-  function isComment(c) {
-    return !!c && c.channel === "messenger" && String(c.external_chat_id || "").indexOf("cmt:") === 0;
+  // Instagram through the same Page (0.447.0): "ig:<user>" is a direct message, "igc:<comment id>" a comment thread.
+  function chatKind(c) {
+    if (!c || c.channel !== "messenger") return "";
+    var x = String(c.external_chat_id || "");
+    return x.indexOf("cmt:") === 0 ? "fbc" : x.indexOf("igc:") === 0 ? "igc" : x.indexOf("ig:") === 0 ? "ig" : "";
   }
-  function commentLogo(size) {
-    return (window.Icons && Icons.kenh) ? Icons.kenh("fbcomment", { size: size || "13px" }) : "";
+  function isComment(c) { var k = chatKind(c); return k === "fbc" || k === "igc"; }
+  function isInstagram(c) { var k = chatKind(c); return k === "ig" || k === "igc"; }
+  function commentLogo(size, c) {
+    return (window.Icons && Icons.kenh) ? Icons.kenh(isInstagram(c) ? "igcomment" : "fbcomment", { size: size || "13px" }) : "";
+  }
+  // The badge on the avatar: a comment box for a comment thread, the Instagram mark for an Instagram message.
+  function badgeOf(c, size) {
+    if (isComment(c)) return commentLogo(size, c);
+    if (isInstagram(c)) return (window.Icons && Icons.kenh) ? Icons.kenh("instagram", { size: size }) : "";
+    return logoKenh(c.channel, size);
   }
   function chipOf(c) {
-    return isComment(c) ? '<span class="ht-chip">' + commentLogo() + " " + esc(window.t("ht.fb_comment")) + "</span>"
-      : chipKenh(c.channel);
+    var k = chatKind(c);
+    if (k === "fbc" || k === "igc") return '<span class="ht-chip">' + commentLogo("13px", c) + " " +
+      esc(window.t(k === "igc" ? "ht.ig_comment" : "ht.fb_comment")) + "</span>";
+    if (k === "ig") return '<span class="ht-chip">' + badgeOf(c, "13px") + " Instagram</span>";
+    return chipKenh(c.channel);
   }
   function nangLuc(id, khoa) { return !!((kenhCua(id).nang_luc || {})[khoa]); }
 
@@ -718,7 +732,7 @@
     var ch = String(ten || "?").trim().charAt(0).toUpperCase() || "?";
     var grp = c.chat_type === "group";
     return '<span class="ht-item-ava' + (grp ? " g" : "") + '" aria-hidden="true">' + (grp ? ic("users") : esc(ch)) +
-      '<span class="ib-kl">' + (isComment(c) ? commentLogo("21px") : logoKenh(c.channel, "21px")) + '</span>' +
+      '<span class="ib-kl">' + badgeOf(c, "21px") + '</span>' +
       (c.unread_count ? '<span class="ht-item-ava-dot"></span>' : "") + '</span>';
   }
 
@@ -1016,6 +1030,9 @@
     if (act === "tag") return menuToggleTag(id, parseInt(b.dataset.tag, 10), b);
     if (act === "tag_new") return menuNewTag(id);
     if (act === "copy") return menuCopy(id);
+    if (act === "profile") { closeRowMenu(false); return showProfile(id); }
+    if (act === "block") return menuBlock(id);
+    if (act === "delete") return menuDelete(id);
     runRowAction(id, act);
   }
 
@@ -1054,6 +1071,69 @@
       } else return;
     } catch (e) { return menuFail(id, e.message); }
     closeRowMenu(!!(_rm && _rm.kb));       // keyboard users land back on the row's "..."
+    _dauVet = "";
+    veDanhSach();
+    tai(true);
+  }
+
+  // ---- View profile, Block, Delete (0.447.0) ----
+  function convName(c) { return (c && (c.title || c.customer_name || c.external_chat_id)) || ""; }
+
+  async function showProfile(id) {
+    var c = rmItem(id) || (_conv && _conv.id === id ? _conv : null) || { id: id };
+    var box = el('<div class="ht-modal"><div class="ht-form ht-prof" role="dialog" aria-label="' + esc(window.t("ht.rm_profile")) + '">' +
+      '<div class="ht-prof-body">' + ic("loader") + ' ' + esc(window.t("ht.prof_loading")) + '</div>' +
+      '<div class="ht-form-acts"><button class="s-btn-ghost ht-close" type="button">' + esc(window.t("common.close")) + '</button></div>' +
+      '</div></div>');
+    document.body.appendChild(box);
+    var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
+    box.onmousedown = function (e) { if (e.target === box) dong(); };
+    box.querySelector(".ht-close").onclick = dong;
+    var body = box.querySelector(".ht-prof-body");
+    try {
+      var p = await api("/conversations/" + id + "/profile");
+      var name = p.name || convName(c);
+      body.innerHTML =
+        (p.picture ? '<img class="ht-prof-pic" alt="" src="' + esc(p.picture) + '">' :
+          '<span class="ht-prof-pic ht-prof-none">' + esc(String(name || "?").charAt(0).toUpperCase()) + '</span>') +
+        '<div class="ht-prof-name"><b>' + esc(name) + '</b>' + (p.username ? '<small>' + esc(p.username.charAt(0) === "@" ? p.username : "@" + p.username) + '</small>' : "") + '</div>' +
+        (p.phone ? '<div class="ht-prof-row">' + ic("phone") + ' ' + esc(p.phone) + '</div>' : "") +
+        (p.url ? '<a class="s-btn ht-prof-open" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + ic("external-link") + ' ' +
+          esc(window.t("ht.prof_open")) + '</a>' : "") +
+        (p.note ? '<div class="ht-prof-note">' + esc(p.note) + '</div>' : "");
+    } catch (e) {
+      body.innerHTML = '<div class="ht-prof-note">' + ic("triangle-alert") + ' ' + esc(e.message) + '</div>';
+    }
+  }
+
+  async function menuBlock(id) {
+    var c = rmItem(id);
+    if (!c) return closeRowMenu(false);
+    closeRowMenu(false);
+    if (!confirm(window.t(window.JavisConvFilters.chatKind(c) === "zalo_private" ? "ht.block_q_zalo" : "ht.block_q_fb", { ten: convName(c) }))) return;
+    try {
+      await api("/conversations/" + id + "/block", { method: "POST" });
+      c.metadata = Object.assign({}, c.metadata || {}, { blocked: true });
+      c.mode = "human";
+      alert(window.t("ht.blocked", { ten: convName(c) }));
+    } catch (e) { alert(window.t("ht.rm_err", { err: e.message })); }
+    _dauVet = "";
+    tai(true);
+  }
+
+  async function menuDelete(id) {
+    var c = rmItem(id);
+    if (!c) return closeRowMenu(false);
+    closeRowMenu(false);
+    var F = window.JavisConvFilters, k = F.chatKind(c), remote = F.platformActs(c).indexOf("delete_remote") >= 0;
+    var q = k === "fb_comment" ? "ht.del_q_fbc" : k === "ig_comment" ? "ht.del_q_igc" : remote ? "ht.del_q_zalo" :
+      (k === "messenger_dm" || k === "ig_dm") ? "ht.del_q_meta" : "ht.del_q_local";
+    if (!confirm(window.t(q, { ten: convName(c) }))) return;
+    try {
+      await api("/conversations/" + id + "/delete", { method: "POST" });
+    } catch (e) { return alert(window.t("ht.rm_err", { err: e.message })); }
+    _items = _items.filter(function (it) { return it.id !== id; });
+    if (_conv && _conv.id === id) dongThread();
     _dauVet = "";
     veDanhSach();
     tai(true);
@@ -1926,7 +2006,7 @@
     var cmt = isComment(c), priv = cmt && _privFor === c.id;
     if (priv) ph = t("ht.priv_ph");
     return '<div class="ht-compose' + (draft ? " has-draft" : "") + '">' + noteHtml() +
-      (cmt ? privToggleHtml(priv) : "") +
+      (cmt ? privToggleHtml(priv, c) : "") +
       '<div class="ib-cbox">' +
       (draft && V ? V.draftHtml(draft, busy || (_aiBusy ? "x" : ""), ic) : "") +
       '<div class="ib-cin">' +
@@ -1941,13 +2021,14 @@
 
   // "Reply publicly" / "Message privately" above the composer of a comment thread (0.446.0). Private goes to the
   // commenter's Messenger inbox (Meta's Private Replies: once per comment, within 7 days).
-  function privToggleHtml(priv) {
+  function privToggleHtml(priv, c) {
     var t = window.t;
+    var dm = isInstagram(c) ? ((window.Icons && Icons.kenh) ? Icons.kenh("instagram", { size: "15px" }) : "") : logoKenh("messenger", "15px");
     return '<div class="ht-priv" role="radiogroup" aria-label="' + esc(t("ht.priv_aria")) + '">' +
       '<button type="button" role="radio" class="ht-priv-o' + (priv ? "" : " on") + '" data-priv="0" aria-checked="' + !priv + '">' +
-        commentLogo("15px") + '<span>' + esc(t("ht.priv_public")) + '</span></button>' +
+        commentLogo("15px", c) + '<span>' + esc(t("ht.priv_public")) + '</span></button>' +
       '<button type="button" role="radio" class="ht-priv-o' + (priv ? " on" : "") + '" data-priv="1" aria-checked="' + priv + '">' +
-        logoKenh("messenger", "15px") + '<span>' + esc(t("ht.priv_private")) + '</span></button>' +
+        dm + '<span>' + esc(t("ht.priv_private")) + '</span></button>' +
       infoBtn() + '</div>' + infoBody(esc(t("ht.priv_how")));
   }
 
@@ -2009,7 +2090,9 @@
     var loi = t.metadata && t.metadata.loi
       ? '<div class="ht-msg-loi">' + ic("triangle-alert") + ' ' + esc(t.metadata.loi) + '</div>' : "";
     if (t.metadata && t.metadata.private_reply_to) {
-      loai = '<span class="ht-loai ht-priv-tag">' + logoKenh("messenger", "13px") + ' ' + esc(window.t("ht.priv_sent")) + '</span>' + loai;
+      var ig = isInstagram(_conv);
+      loai = '<span class="ht-loai ht-priv-tag">' + (ig ? badgeOf({ channel: "messenger", external_chat_id: "ig:" }, "13px") :
+        logoKenh("messenger", "13px")) + ' ' + esc(window.t(ig ? "ht.priv_sent_ig" : "ht.priv_sent")) + '</span>' + loai;
     }
     // Who and when go under the bubble (0.397.0). A private chat's customer is named in the head already, so only a
     // group shows who wrote each message.

@@ -138,6 +138,20 @@
   // What the menu offers for one conversation, in order. Pure data so node can test it; conversations.js draws it and
   // runs the actions. Item: {act, icon, key (i18n), sub (second line), on (true/false = a checkable row), more (opens a
   // second view)}; {sep: true, key} is a divider with an optional small heading.
+  // What the conversation's platform lets Javis do (0.447.0, owner: "xoá, block, view profile" like Messenger's own
+  // menu). Same table as server/conversation_actions.py `_CAN`: Messenger blocks and shows a profile, Instagram shows a
+  // profile, a comment thread is deleted on Facebook or Instagram, a Zalo personal chat does all three.
+  function chatKind(c) {
+    var x = c || {}, id = String(x.external_chat_id || "");
+    if (x.channel === "messenger") return id.indexOf("cmt:") === 0 ? "fb_comment" : id.indexOf("igc:") === 0 ? "ig_comment"
+      : id.indexOf("ig:") === 0 ? "ig_dm" : "messenger_dm";
+    if (x.channel === "zalo_personal") return x.chat_type === "group" ? "zalo_group" : "zalo_private";
+    return "";
+  }
+  var CAN = { messenger_dm: ["profile", "block"], ig_dm: ["profile"], fb_comment: ["delete_remote"], ig_comment: ["delete_remote"],
+              zalo_private: ["profile", "block", "delete_remote"], zalo_group: ["delete_remote"] };
+  function platformActs(c) { return CAN[chatKind(c)] || []; }
+
   function rowMenuItems(c) {
     var x = c || {}, items = [];
     items.push(x.unread_count > 0 ? { act: "read", icon: "mail-open", key: "ht.rm_read" }
@@ -161,6 +175,14 @@
     items.push({ sep: true });
     items.push(x.hidden ? { act: "unhide", icon: "eye", key: "ht.rm_unhide" }
                         : { act: "hide", icon: "eye-off", key: "ht.rm_hide", sub: tt("ht.rm_hide_sub") });
+    var can = platformActs(x);
+    if (can.indexOf("profile") >= 0) items.push({ act: "profile", icon: "circle-user", key: "ht.rm_profile" });
+    if (can.indexOf("block") >= 0 && !(x.metadata && x.metadata.blocked)) items.push({ act: "block", icon: "ban", key: "ht.rm_block" });
+    // Delete is always there: where the platform allows it the chat (or the comment) goes there too, else only in Javis.
+    var k = chatKind(x);
+    items.push({ act: "delete", icon: "trash-2", key: "ht.rm_delete", danger: true,
+                 sub: tt(k === "fb_comment" || k === "ig_comment" ? "ht.rm_delete_sub_cmt" : can.indexOf("delete_remote") >= 0 ?
+                   "ht.rm_delete_sub_zalo" : "ht.rm_delete_sub_local") });
     return items;
   }
 
@@ -173,7 +195,7 @@
       var checkable = typeof it.on === "boolean";
       var role = checkable ? (it.radio ? "menuitemradio" : "menuitemcheckbox") : "menuitem";
       var ok = done && done === it.act;
-      return '<button type="button" class="ht-rm-it' + (it.on ? " on" : "") + (ok ? " done" : "") + '" role="' + role + '" data-act="' + esc(it.act) + '"' +
+      return '<button type="button" class="ht-rm-it' + (it.on ? " on" : "") + (ok ? " done" : "") + (it.danger ? " danger" : "") + '" role="' + role + '" data-act="' + esc(it.act) + '"' +
         (checkable ? ' aria-checked="' + it.on + '"' : "") + (it.more ? ' aria-haspopup="menu"' : "") + '>' +
         '<span class="ht-rm-ic">' + I(ok ? "check" : it.icon) + '</span>' +
         '<span class="ht-rm-t"><span>' + esc(tt(ok ? "ht.rm_copied" : it.key)) + '</span>' +
@@ -205,6 +227,6 @@
   window.JavisConvFilters = {
     emptyState: emptyState, sanitize: sanitize, load: load, save: save, activeCount: activeCount, query: query,
     tagChips: tagChips, tagChip: tagChip, tagColor: tagColor,
-    TAG_COLORS: TAG_COLORS, rowMenuItems: rowMenuItems, rowMenuHtml: rowMenuHtml, tagMenuHtml: tagMenuHtml, WHOS: WHOS,
+    TAG_COLORS: TAG_COLORS, rowMenuItems: rowMenuItems, rowMenuHtml: rowMenuHtml, chatKind: chatKind, platformActs: platformActs, tagMenuHtml: tagMenuHtml, WHOS: WHOS,
   };
 })();

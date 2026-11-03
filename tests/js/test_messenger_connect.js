@@ -148,14 +148,36 @@ check("each Page has Disconnect, in the danger style", () => {
 });
 {
   const src = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "messenger-connect.js"), "utf8");
-  check("apps: Facebook, Messenger live; Instagram, Threads coming; no WhatsApp", () => {
-    assert.ok(src.includes('[["facebook", true], ["messenger", true], ["instagram", false], ["threads", false]]'));
+  check("apps: Facebook, Messenger, Instagram live (0.447.0); Threads coming; no WhatsApp", () => {
+    assert.ok(src.includes('[["facebook", true], ["messenger", true], ["instagram", true], ["threads", false]]'));
     assert.ok(!/data-msc-wa|"whatsapp"/.test(src));
   });
   check("Disconnect goes through the shared account delete, taking the Page off its bot", () => {
     assert.ok(src.includes('"/channels/accounts/" + encodeURIComponent(id) + "/delete"') && src.includes('f.append("go_khoi_bot", "1")'));
   });
 }
+
+
+// 0.447.0: Instagram through the same Page login.
+check("Instagram: opt-in tick on the form, sent to the login", () => {
+  const h = M.formHtml({ https: true }, null);
+  assert.ok(h.includes('data-f-ig="1"') && !/data-f-ig="1" checked/.test(h));
+  const src = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "messenger-connect.js"), "utf8");
+  assert.ok(src.includes("instagram: !!(igBox && igBox.checked)"));
+});
+check("Instagram: the Page list names the linked account", () => {
+  const h = M.pickHtml([{ id: "1", name: "Shop", ig_username: "shop.vn" }, { id: "2", name: "Kho" }]);
+  assert.ok(h.includes("Instagram @shop.vn") && (h.match(/Instagram @/g) || []).length === 1);
+});
+check("Instagram: a connected account shows on/off, none shows how to connect", () => {
+  const on = M.igRowHtml({ id: "17", username: "shop.vn", on: true });
+  assert.ok(on.includes("@shop.vn") && on.includes('data-act-ig="1"') && /value="1" selected/.test(on));
+  const off = M.igRowHtml({ id: "17", username: "shop.vn", on: false });
+  assert.ok(/value="0" selected/.test(off));
+  const none = M.igRowHtml({});
+  assert.ok(none.includes("msc.ig_none") && !none.includes("data-act-ig"));
+  assert.ok(M.accountHtml({ id: "a", page_id: "1", bots: [], instagram: { id: "17", username: "x", on: true } }).includes("@x"));
+});
 
 if (fails) { console.log("\n" + fails + " FAILED"); process.exit(1); }
 console.log("\nall ok");
