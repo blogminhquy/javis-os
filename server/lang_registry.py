@@ -68,7 +68,10 @@ class Lang:
     # Ollama Cloud) trôi theo ngôn ngữ của prompt, và prompt của Javis là tiếng Việt.
     nudge: str = ""
     weekdays: Tuple[str, ...] = ()          # thứ 2 -> chủ nhật, đúng thứ tự datetime.weekday()
-    clock_template: str = ""                # chỗ điền: {hm} {weekday} {date} {tz}
+    # Chỗ điền: {hm} {weekday} {date} {tz}, ĐÚNG bốn cái này. improvement_trial_dashboard dựng lại câu này với đúng bốn
+    # trường và phải khớp từng ký tự với prompt thật, mà file đó bị ghim mã băm trong bằng chứng chạy thật, không sửa được.
+    # Nên 0.443.0 nói "hôm qua, ngày mai tính từ {date}" bằng chữ chứ không thêm trường {yesterday}/{tomorrow}.
+    clock_template: str = ""
     lang_directive: str = ""                # câu nói rõ phải trả lời bằng ngôn ngữ nào
 
 
@@ -116,9 +119,9 @@ LANGS: Dict[str, Lang] = {
         # Việt phải ra y hệt từng ký tự so với trước khi có sổ đăng ký.
         weekdays=("Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"),
         clock_template=(
-            "Bây giờ là {hm} {weekday} ngày {date}, giờ {tz}. Đây là giờ THẬT tại thời điểm "
-            "câu hỏi này được gửi: cứ dùng thẳng khi cần biết hôm nay/bây giờ, không phải đoán "
-            "và không cần gọi tool."
+            "Bây giờ là {hm} {weekday} ngày {date}, giờ {tz}. Đây là giờ THẬT lúc gửi câu "
+            "hỏi: dùng thẳng cho hôm nay/bây giờ, không đoán, không cần gọi tool. Hôm qua, "
+            "ngày mai và ngày gửi MCP khi kéo số liệu đều tính từ ngày này."
         ),
         lang_directive="Tiếng Việt",
     ),
@@ -168,9 +171,10 @@ LANGS: Dict[str, Lang] = {
         nudge="Answer in English.",
         weekdays=("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
         clock_template=(
-            "It is now {hm} {weekday}, {date}, timezone {tz}. This is the REAL time at the "
-            "moment this question was sent: use it directly whenever you need to know "
-            "today/now, no guessing and no tool call needed."
+            "It is now {hm} {weekday}, {date}, timezone {tz}. This is the REAL time when "
+            "this question was sent: use it directly for today/now, no guessing, no tool call "
+            "needed. Yesterday, tomorrow and dates sent to an MCP for report numbers all "
+            "count from this date."
         ),
         lang_directive="English",
     ),

@@ -104,7 +104,7 @@ These ship with the app (the **Bundled** label). All are on by default except `t
 
 | Name on the card | slug | Tools provided | Minimum level | Default |
 |---|---|---|---|---|
-| Time and date (VN) | `datetime-vn` | `javis_now`, `javis_date_add` | read only | On |
+| Time and date (timezone picked in Settings) | `datetime-vn` | `javis_now`, `javis_date_add` | read only | On |
 | Recurring jobs and reminders | `javis-schedule` | `javis_schedule` | write (safe) | On |
 | Queue Kanban work | `javis-task` | `javis_task` | write (safe) | On |
 | Attach another MCP | `javis-connect` | `javis_add_mcp` | write (safe) | On |

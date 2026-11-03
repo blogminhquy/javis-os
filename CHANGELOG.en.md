@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.443.0] - 2026-11-02
+### Added
+- **Pick your timezone in Settings** (the Language and timezone block) and in **step 4 of the first-run setup**, preselected from the device you open it on. Before, the timezone only showed through the Time plugin, with nowhere to change it.
+### Improved
+- Javis reads **today, yesterday and tomorrow**, and sets the date range when it pulls report numbers, in the timezone you picked, not the server clock (a VPS usually runs on UTC).
+- Data sources (MCP) running on the Javis machine get this timezone too, so "orders today" at 6am no longer returns yesterday's orders.
+### Fixed
+- Changing **Javis replies in** now shows the "changed" note as intended, instead of failing silently.
+
 ## [0.441.0] - 2026-11-02
 ### Added
 - **Chat in ChatGPT or Claude, and Javis still has the context.** Through Javis Gate, that AI saves into Javis what you asked and what you decided, with the reason. Each chat over there gets its own conversation in Javis's History, such as "From ChatGPT: Tet plan" or "From Claude: Web build".

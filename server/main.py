@@ -5968,7 +5968,15 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             lc["ui_lang_nguon"] = "tu_dong" if patch.get("tu_dong") else "chon"
             _doi_ngon_ngu_hat_giong(lc["ui_lang"])
         if "tz" in patch:
-            lc["tz"] = str(patch["tz"] or "").strip() or "Asia/Ho_Chi_Minh"
+            raw = str(patch["tz"] or "").strip()
+            name = localefmt.valid_tz(raw) if raw else "Asia/Ho_Chi_Minh"
+            if not name:
+                # Refuse instead of storing it: localefmt would fall back to UTC+7 without a word, and the picker would
+                # keep showing a timezone Javis is not using.
+                return JSONResponse({"ok": False, "error": localefmt.chu(
+                    "Máy chủ không nhận ra múi giờ \"{tz}\"", "The server does not recognise the timezone \"{tz}\"",
+                    tz=raw[:64])}, status_code=400)
+            lc["tz"] = name
         if "currency" in patch:
             lc["currency"] = str(patch["currency"] or "").strip().upper() or "VND"
     elif section == "general":

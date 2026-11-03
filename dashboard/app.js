@@ -4950,6 +4950,13 @@ if (document.getElementById("wzFinish")) {
         // khẩu (quá ngắn...) nên kéo về đúng ô mật khẩu.
         if (!d.ok) { return _soiOTrong(document.getElementById("wzPass"), d.error || window.t("app.wz_pw_err")); }
       }
+      // Timezone: what "today" means for every report and reminder from the first chat on. Saved after the account so the
+      // call is authorised. Not a stop: the account already exists by now, and a refusal (a name the server's tz database
+      // lacks, which the browser list makes very unlikely) leaves the default, still changeable in Settings.
+      const tzSel = document.getElementById("wzTz");
+      if (tzSel && tzSel.value) {
+        await fetch("/settings", { method: "POST", body: _fd({ section: "locale", data: JSON.stringify({ tz: tzSel.value }) }) });
+      }
       await fetch("/settings", { method: "POST", body: _fd({ section: "general", data: JSON.stringify({ workspace_name: ws, setup_done: true }) }) });
       const _PM = { "anthropic-cli": "sonnet", "openai-oauth": "gpt-5.5", "openrouter": "openai/gpt-4o-mini" };
       const _mp = { main: { provider: prov, model: _PM[prov] || "sonnet" } };
@@ -4960,6 +4967,26 @@ if (document.getElementById("wzFinish")) {
     } catch (e) { err.textContent = window.t("app.err_net"); btn.disabled = false; btn.textContent = window.t("app.wz_start"); }
   });
 }
+
+// Wizard - timezone (0.443.0). Starts on the browser's own timezone, which is right for almost everyone installing on
+// their own computer; on a VPS the server clock is usually UTC, which is exactly why this asks the browser and not the server.
+(function () {
+  const sel = document.getElementById("wzTz");
+  if (!sel || !window.JavisTz) return;
+  const now = document.getElementById("wzTzNow");
+  function showNow() {
+    if (now) now.textContent = sel.value ? window.t("tz.now_there").replace("{time}", JavisTz.nowIn(sel.value)) : "";
+  }
+  function fill() {
+    const keep = sel.value || JavisTz.detect() || "Asia/Ho_Chi_Minh";
+    sel.innerHTML = JavisTz.options(keep);
+    sel.value = keep;
+    showNow();
+  }
+  sel.addEventListener("change", showNow);
+  fill();
+  window.addEventListener("javis:i18n", fill);
+})();
 
 // Wizard - chọn nhà cung cấp (card radio) + hiện ô key OpenRouter + gợi ý cách kết nối
 (function () {

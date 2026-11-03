@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.443.0] - 2026-11-02
+### Thêm mới
+- **Chọn múi giờ ngay trong Cài đặt** (khối Ngôn ngữ và múi giờ) và ở **bước 4 của bộ cài đặt lần đầu**, tự chọn sẵn theo máy bạn đang mở. Trước đây múi giờ chỉ lộ ra qua plugin Thời gian, không có chỗ nào để đổi.
+### Cải thiện
+- Javis hiểu **hôm nay, hôm qua, ngày mai** và chốt khoảng ngày khi kéo số liệu báo cáo theo đúng múi giờ bạn chọn, không theo giờ máy chủ (VPS thường chạy UTC).
+- Các nguồn số liệu (MCP) chạy trên máy Javis cũng nhận múi giờ này, nên "đơn hôm nay" lúc 6 giờ sáng không còn trả về đơn của hôm qua.
+### Sửa lỗi
+- Đổi ô **Javis trả lời bằng** giờ hiện lời báo "Đã đổi" như mong đợi, thay vì lỗi ngầm không báo gì.
+
 ## [0.441.0] - 2026-11-02
 ### Thêm mới
 - **Chat bên ChatGPT hay Claude, Javis vẫn nắm ngữ cảnh.** Qua Javis Gate, AI đó tự ghi lại vào Javis những gì bạn hỏi và đã chốt, kèm lý do. Mỗi cuộc chat bên đó có một hội thoại riêng trong Lịch sử của Javis, ví dụ "Từ ChatGPT: Kế hoạch Tết" hay "Từ Claude: Viết Web".
