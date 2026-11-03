@@ -127,6 +127,16 @@ def remove() -> dict:
     return {"ok": True}
 
 
+def _threads() -> int:
+    """0.444.2: leave one core to the server. Whisper's default takes every core, and on a 1-2 vCPU VPS a voice
+    message then starved uvicorn until /health failed. JAVIS_LOCAL_STT_THREADS overrides."""
+    try:
+        n = int(os.environ.get("JAVIS_LOCAL_STT_THREADS") or 0)
+    except ValueError:
+        n = 0
+    return n if n > 0 else max(1, (os.cpu_count() or 2) - 1)
+
+
 def _last_json(out: str) -> dict:
     for line in reversed((out or "").splitlines()):
         line = line.strip()
@@ -155,7 +165,7 @@ async def transcribe(data: bytes, file_name: str = "audio", lang: Optional[str] 
         async with _ONE:
             proc = await asyncio.create_subprocess_exec(
                 sys.executable, "-s", str(WORKER), "--lib", str(LIB_DIR), "--model", MODEL, "--model-dir",
-                str(MODEL_DIR), "--lang", str(lang or ""), str(src),
+                str(MODEL_DIR), "--lang", str(lang or ""), "--threads", str(_threads()), str(src),
                 stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                 cwd=str(ROOT), env=env, **winproc.kwargs_no_window())
             try:

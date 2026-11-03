@@ -42,6 +42,11 @@ def install(lib, model, model_dir):
 
 
 def transcribe(lib, model, model_dir, path, lang, threads):
+    # 0.444.2: lower priority than the Javis server, so a long clip never makes the dashboard or /health wait.
+    try:
+        os.nice(10)
+    except (AttributeError, OSError):
+        pass
     m = load(lib, model, model_dir, threads)
     segments, info = m.transcribe(path, language=lang or None, vad_filter=True, beam_size=5)
     text = " ".join(s.text.strip() for s in segments if s.text and s.text.strip())

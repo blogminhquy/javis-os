@@ -97,6 +97,9 @@
   }
 
   function ngu(ms) { return new Promise(function (xong) { setTimeout(xong, ms); }); }
+  // 0.444.2: lệch ngẫu nhiên ±30%. Không có nó, mọi lượt đọc của mọi tab thử lại ĐÚNG cùng nhịp và dồn một lúc vào
+  // máy chủ vừa chậm lại, làm nó càng chậm.
+  function lech(ms) { return Math.round(ms * (0.7 + Math.random() * 0.6)); }
 
   // fetch thật, kèm thử lại cho lượt đọc khi máy chủ chưa tới được.
   function goc(input, init) {
@@ -115,14 +118,14 @@
       return gocThat(input, init).then(function (r) {
         if (maTam(r.status) && lan < CHO_THU_LAI.length) {
           bao(true);
-          return ngu(CHO_THU_LAI[lan++]).then(thu);
+          return ngu(lech(CHO_THU_LAI[lan++])).then(thu);
         }
         bao(false);
         return r;
       }, function (loi) {
         if (lan < CHO_THU_LAI.length) {
           bao(true);
-          return ngu(CHO_THU_LAI[lan++]).then(thu);
+          return ngu(lech(CHO_THU_LAI[lan++])).then(thu);
         }
         bao(false);
         throw loi;

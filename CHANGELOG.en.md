@@ -10,7 +10,14 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.444.4] - 2026-11-03
 ### Fixed
-- In progress.
+- **Javis on a small VPS no longer freezes because slow work blocked the whole server.** Five places did heavy work on the main loop, so every other page and the health check waited (three missed checks and Traefik answers "404 page not found"). All five now run on a worker thread:
+  - the Tasks page showing which bot owns each job,
+  - the Tasks page stats (which checked the log for every single day since 1970),
+  - the GitHub card on Connections (a call to GitHub that could wait up to 20 seconds),
+  - the first page load after each restart (minifying the files takes seconds on a 1 vCPU VPS),
+  - the Tools page while the offline ear installs.
+- **The offline voice ear (Whisper) leaves one core to Javis** and runs at a lower priority, so a long voice message no longer hangs the app on a 1-2 core machine.
+- When the server is slow, the browser's retries are spread out at random instead of all landing at once.
 
 ## [0.444.3] - 2026-11-03
 ### Fixed
