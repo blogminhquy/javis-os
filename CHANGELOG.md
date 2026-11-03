@@ -9,6 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.444.1] - 2026-11-03
 ### Sửa lỗi
 - **Javis không còn làm đơ máy lúc đang trả lời.** Từ 0.438.4 chữ trả lời về từng mẩu vài ký tự, và mỗi mẩu trang lại vẽ lại toàn bộ câu trả lời: một bài dài là vài nghìn lần vẽ, máy yếu đứng hình, có lúc trình duyệt treo luôn. Giờ chữ vẫn chảy đều nhưng trang chỉ vẽ vài lần mỗi giây.
+- **Hết cảnh "Đang kết nối lại" lặp đi lặp lại trên máy chậm.** Máy nào theo không kịp chữ đang chảy về thì server xếp hàng từng mẩu, quá 500 mẩu là cắt kết nối, trang nối lại rồi lại tụt. Giờ các mẩu đang chờ của cùng một câu trả lời được gộp thành một, máy chậm nhận ít gói hơn và không bị cắt nữa.
 
 ## [0.443.0] - 2026-11-02
 ### Thêm mới

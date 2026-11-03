@@ -11,6 +11,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.444.1] - 2026-11-03
 ### Fixed
 - **Javis no longer freezes the computer while it answers.** Since 0.438.4 the answer arrives a few characters at a time, and the page redrew the whole answer for every piece: thousands of redraws for a long reply, enough to lock up a slower machine. The text still flows smoothly, but the page now redraws only a few times a second.
+- **No more "Reconnecting" loop on slower devices.** A page that fell behind the streaming text had every piece queued for it, and past 500 pieces the server dropped the connection, the page reconnected and fell behind again. Queued pieces of the same answer now travel as one, so a slow page gets fewer messages and is no longer cut off.
 
 ## [0.443.0] - 2026-11-02
 ### Added

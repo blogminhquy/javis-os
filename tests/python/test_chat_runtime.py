@@ -84,3 +84,55 @@ if __name__ == "__main__":
         print("bỏ qua: chưa cài pytest")
         sys.exit(0)
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_slow_page_gets_stream_pieces_folded_not_dropped():
+    """0.444.1: a page that falls behind while an answer streams token by token is not dropped at BACKLOG_MAX; the
+    queued pieces of one answer fold into one event, in order, and nothing else is merged."""
+    import chat_runtime as cr
+
+    async def scenario():
+        runtime = ChatRuntime()
+        gate = asyncio.Event()
+        got = []
+        dropped = []
+
+        async def slow(event):
+            await gate.wait()
+            got.append(event)
+
+        runtime.add_client("phone", slow, lambda: dropped.append(True))
+        n = cr.BACKLOG_MAX * 3
+        old_wait = cr.SEND_WAIT_S
+        cr.SEND_WAIT_S = 0.001
+        try:
+            for i in range(n):
+                await runtime.publish({"type": "stream", "session_id": "s", "content": "ab", "tts": False})
+            await runtime.publish({"type": "tool_call", "session_id": "s", "tool": "Bash"})
+            await runtime.publish({"type": "stream", "session_id": "s", "content": "Z", "tts": False})
+            await runtime.publish({"type": "stream", "session_id": "other", "content": "Q", "tts": False})
+        finally:
+            cr.SEND_WAIT_S = old_wait
+        gate.set()
+        for _ in range(50):
+            await asyncio.sleep(0)
+        assert not dropped
+        assert [e["type"] for e in got] == ["stream", "stream", "tool_call", "stream", "stream"]
+        assert got[0]["content"] + got[1]["content"] == "ab" * n
+        assert got[3]["content"] == "Z" and got[4]["content"] == "Q" and got[4]["session_id"] == "other"
+
+    asyncio.run(scenario())
+
+
+def test_folding_never_edits_an_event_another_page_holds():
+    from collections import deque
+    from chat_runtime import _xep_hang
+
+    first = {"type": "stream", "session_id": "s", "content": "a"}
+    other_page = deque([first])
+    this_page = deque([first])
+    _xep_hang(this_page, {"type": "stream", "session_id": "s", "content": "b"})
+    assert this_page[-1]["content"] == "ab"
+    assert first["content"] == "a" and other_page[0]["content"] == "a"
+    _xep_hang(this_page, {"type": "stream", "session_id": "s", "content": "c", "tts": True})
+    assert len(this_page) == 2   # different fields: kept apart
