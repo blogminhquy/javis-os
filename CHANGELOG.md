@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.445.0] - 2026-11-03
+### Cải thiện
+- **Mở chat mới bằng Claude Code đỡ tốn hạn mức gói hơn nhiều.** Trước đây mỗi phiên chat mới phải nạp lại khoảng 40.000 token phần hướng dẫn của Javis, vì trong đó có giờ, mức dùng và mã phiên đổi liên tục. Giờ phần này giữ y hệt nhau giữa các phiên nên được đọc lại từ bộ nhớ đệm. Cảm ơn @sunstaysg-oss đã đo và báo (#975).
+- Giờ hiện tại, mã phiên chat, mức dùng hôm nay và lần chạy quy trình gần nhất chuyển sang dòng đầu mỗi tin nhắn gửi cho Claude Code, nên Javis vẫn biết đủ như cũ, và lượt nối tiếp luôn thấy giờ mới.
+
 ## [0.444.4] - 2026-11-03
 ### Sửa lỗi
 - **Javis trên VPS nhỏ không còn đứng hình vì vài việc chậm chạy chặn cả máy chủ.** Năm chỗ trước đây làm việc nặng ngay trên luồng chính, nên trong lúc đó mọi trang khác và cả bước kiểm tra sức khoẻ đều phải chờ (ba lần lỡ kiểm tra là Traefik báo "404 page not found"). Giờ cả năm chỗ chạy ở luồng phụ:

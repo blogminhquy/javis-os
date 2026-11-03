@@ -53,7 +53,7 @@ _CHAT_APPS = {
 
 
 def build_channel_block(source: str, meta: dict = None, telegram_running: bool = False,
-                        port: int = 7777, brain_root: str = None) -> str:
+                        port: int = 7777, brain_root: str = None, session_in_turn: bool = False) -> str:
     """Block 'KÊNH HỘI THOẠI HIỆN TẠI' để nối vào cuối system prompt.
 
     source: "telegram" | "dashboard". meta: dict do telegram_bot trích từ update
@@ -65,6 +65,11 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
     rơi ĐÚNG brain. Thiếu nó thì endpoint âm thầm dùng Brain Default (reminders.py) - đây chính là
     bug "chat bằng brain khác nhưng nhắc hẹn vẫn vào default": curl từ Bash không mang session/cookie
     nên brain CHỈ đi được qua body, mà recipe cũ lại bỏ trống field brain.
+
+    session_in_turn (0.445.0, issue #975): the dashboard session id is NOT written here but in the
+    `[Phiên chat: web:<id>]` line at the head of each user message (`main._turn_facts_header`). The
+    Claude Code lane appends this whole prompt as one cached block, so a per-chat id here made every
+    new chat rewrite ~40k tokens of cache instead of reading them.
     """
     meta = meta or {}
     # Cặp key-value brain để chèn vào JSON body của curl (rỗng nếu không rõ brain → giữ hành vi cũ).
@@ -370,14 +375,27 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "Việc lâu thì nói ngay một câu ngắn báo mình đang làm gì rồi mới làm.",
         ]
         if web_sid:
+            if session_in_turn:
+                sid_lines = [
+                    "- Mã phiên chat hiện tại nằm ở dòng `[Phiên chat: web:<mã>]` đầu tin nhắn của user.",
+                    "- Khi POST http://127.0.0.1:%d/kanban/task, LUÔN kèm field "
+                    "`\"chat_id\":\"web:<mã>\"` chép đúng từ dòng đó. Đó là cách kết quả rơi thẳng về "
+                    "khung chat này lúc việc xong. Bỏ trống thì kết quả chỉ đi Telegram - user ngồi web sẽ "
+                    "không thấy gì cả." % port,
+                    "- Loop tạo từ đây: đặt `owner_chat: \"web:<mã>\"` (cùng mã đó) trong frontmatter, cùng lý do.",
+                ]
+            else:
+                sid_lines = [
+                    f"- Mã phiên chat hiện tại: `{web_sid}`.",
+                    "- Khi POST http://127.0.0.1:%d/kanban/task, LUÔN kèm field "
+                    "`\"chat_id\":\"web:%s\"`. Đó là cách kết quả rơi thẳng về khung chat này lúc việc "
+                    "xong. Bỏ trống thì kết quả chỉ đi Telegram - user ngồi web sẽ không thấy gì cả." % (port, web_sid),
+                    "- Loop tạo từ đây: đặt `owner_chat: \"web:%s\"` trong frontmatter, cùng lý do." % web_sid,
+                ]
             lines += [
                 "",
                 "## Giao việc chạy nền rồi BÁO LẠI ĐÚNG KHUNG CHAT NÀY",
-                f"- Mã phiên chat hiện tại: `{web_sid}`.",
-                "- Khi POST http://127.0.0.1:%d/kanban/task, LUÔN kèm field "
-                "`\"chat_id\":\"web:%s\"`. Đó là cách kết quả rơi thẳng về khung chat này lúc việc "
-                "xong. Bỏ trống thì kết quả chỉ đi Telegram - user ngồi web sẽ không thấy gì cả." % (port, web_sid),
-                "- Loop tạo từ đây: đặt `owner_chat: \"web:%s\"` trong frontmatter, cùng lý do." % web_sid,
+                *sid_lines,
                 "- TUYỆT ĐỐI KHÔNG hứa kiểu \"mình sẽ đợi các agent chạy xong rồi tổng hợp cho bạn\" "
                 "(và mọi biến thể xưng hô khác): "
                 "lượt trả lời của bạn KẾT THÚC ngay sau khi bạn nói, không có chỗ nào để bạn ngồi đợi "

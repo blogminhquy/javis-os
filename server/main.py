@@ -901,11 +901,55 @@ def _javis_core_block(session_id: str) -> str:
     return javis_core.prompt_block() if row and javis_core.is_core_channel(row.get("channel")) else ""
 
 
+# Stable prompt (0.445.0, #975): the clock line points at the per-message header instead of holding the time.
+_STABLE_CLOCK_NOTE = ("Giờ hiện tại ghi ở dòng `[Giờ gửi tin này: ...]` đầu tin nhắn mới nhất của user; "
+                      "dùng đúng giờ đó cho \"bây giờ\", \"hôm nay\", \"hôm qua\".")
+
+
+def _turn_facts_header(brain: str, session_id: str, lang: str = "", first: bool = True) -> str:
+    """The per-turn facts a stable system prompt leaves out, as short lines at the head of the user message.
+
+    Every turn: the send time and the dashboard session id (`web:<id>`, needed for `chat_id`/`owner_chat`).
+    First turn of a Claude Code thread only: the latest workflow run and today's usage. A resumed thread keeps
+    the system prompt of its first turn anyway, so these were frozen there before; the header keeps the same
+    freshness without breaking the shared prompt cache (issue #975). Never raises: a missing line must not
+    break the chat turn.
+    """
+    lines = []
+    try:
+        lines.append(context_compiler.dong_ho_ngan(lang=lang))
+    except Exception:  # noqa: BLE001
+        pass
+    if session_id:
+        lines.append(f"[Phiên chat: web:{session_id}]")
+    if first:
+        try:
+            last = _dong_lan_chay_gan_nhat(brain)
+            if last:
+                lines.append(f"[{last}]")
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            _t = usage_store.summary().get("today", {}).get("total", {})
+            if _t.get("in") or _t.get("out"):
+                lines.append(f"[Mức dùng hôm nay (Javis tự đo, không phải hạn mức gói): "
+                             f"{_t.get('in', 0):,} token vào + {_t.get('out', 0):,} token ra qua "
+                             f"{_t.get('turns', 0)} lượt. Chi tiết ở panel 'Mức dùng'.]")
+        except Exception:  # noqa: BLE001
+            pass
+    return "\n".join(lines)
+
+
 def build_system_prompt(brain: str = "brain", include_memory: bool = True,
                         include_skills: bool = True,
                         lang: "lang_mod.LangDecision | str | None" = None,
-                        project_id: str = "", session_id: str = "") -> str:
+                        project_id: str = "", session_id: str = "", stable: bool = False) -> str:
     """CLAUDE.md + nạp MEMORY.md của vault đang chọn → Javis luôn nhớ ngữ cảnh.
+
+    `stable` (0.445.0, issue #975): leave out what changes from turn to turn (the clock, today's
+    usage, the latest workflow run) so the prompt is byte-identical across new chats of one brain.
+    The Claude Code lane appends this prompt as ONE cached block, so any changed character made each
+    new chat rewrite ~40k tokens of cache. Those facts then travel in `_turn_facts_header`.
 
     `project_id`: hội thoại đang nằm trong project nào. Có thì ghép thêm hướng dẫn riêng +
     danh sách tài liệu của project đó (xem `_project_block`).
@@ -990,7 +1034,7 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     except Exception:
         _skills = None
     try:
-        base += _javis_capability_summary(brain, _skills)   # chỉ mục năng lực LIVE (mọi engine biết Javis có gì)
+        base += _javis_capability_summary(brain, _skills, with_last_run=not stable)   # chỉ mục năng lực LIVE (mọi engine biết Javis có gì)
     except Exception:
         pass
     try:
@@ -1005,8 +1049,10 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     # Ngôn ngữ đặt ở cuối vì luật càng gần chỗ sinh chữ thì model càng ít trôi; đồng hồ
     # đi kèm vì tên thứ trong tuần cũng phải theo ngôn ngữ đó.
     base += main_prompt_rendering.render_clock_language(
-        context_compiler.dong_ho(lang=_lma),
+        _STABLE_CLOCK_NOTE if stable else context_compiler.dong_ho(lang=_lma),
         lang_mod.khoi_ngon_ngu(_lq or lang_mod.LangDecision(_lma, "default", 1.0, True)))
+    if stable:
+        return base   # usage goes in _turn_facts_header
     try:
         # 1 dòng MỨC DÙNG để Javis TRẢ LỜI được khi user hỏi "token tiêu bao nhiêu" (chi tiết ở panel).
         _t = usage_store.summary().get("today", {}).get("total", {})
@@ -13962,15 +14008,18 @@ def _dong_lan_chay_gan_nhat(brain) -> str:
             "Chi tiết hay các lần khác: tool javis_workflow (op=runs, op=show).")
 
 
-def _javis_capability_summary(brain: str, skills=None) -> str:
-    """Render the live summary from capabilities loaded by the production caller."""
+def _javis_capability_summary(brain: str, skills=None, with_last_run: bool = True) -> str:
+    """Render the live summary from capabilities loaded by the production caller.
+
+    with_last_run=False (stable prompt, #975): the latest workflow run moves to `_turn_facts_header`."""
     try:
         capabilities = _gather_capabilities(brain, skills)
     except Exception:
         return ""
     if not any(capabilities.values()):
         return ""
-    return main_prompt_rendering.render_capability_summary(capabilities, _dong_lan_chay_gan_nhat(brain))
+    return main_prompt_rendering.render_capability_summary(
+        capabilities, _dong_lan_chay_gan_nhat(brain) if with_last_run else "")
 
 
 def _skill_router_block(brain: str, root: str, skills=None) -> str:
@@ -17303,28 +17352,30 @@ async def _chat_socket(ws):
             sysprompt = None
             _legacy_prompts = {}
 
-            def _legacy_system_prompt(skill_served=False):
+            def _legacy_system_prompt(skill_served=False, stable=False):
                 # `skill_served`: the in-process API branch passes True; subscription engines read native skills.
-                if skill_served not in _legacy_prompts:
+                # `stable` (0.445.0, #975): Claude Code lane only; per-turn facts go in _turn_facts_header.
+                _key = (skill_served, stable)
+                if _key not in _legacy_prompts:
                     if _persona and _persona[0] == "agent":
                         # T2/T3: cùng cách ghép với _agent_turn_system_prompt (prompt trợ lý, khối phiên, khối phản
                         # hồi, bài học phạm vi chat riêng + chung).
-                        _legacy_prompts[skill_served] = (
+                        _legacy_prompts[_key] = (
                             _agent_chat_prompt(brain, _persona[1], conv_sid=conv_sid, skill_served=skill_served)
                             + _session_block(conv_sid)
                             + _dm_feedback_prompt(brain, _persona[1], conv_sid)
                             + _dm_lessons_prompt(brain, _persona[1], conv_sid))
                     else:
-                        _legacy_prompts[skill_served] = build_system_prompt(
+                        _legacy_prompts[_key] = build_system_prompt(
                             brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",
-                            session_id=conv_sid or ""
+                            session_id=conv_sid or "", stable=stable,
                         ) + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
-                            port=_javis_port(), brain_root=_brain_root(brain),
+                            port=_javis_port(), brain_root=_brain_root(brain), session_in_turn=stable,
                         ) + _khoi_coding(_row0, brain)
-                return _legacy_prompts[skill_served]
+                return _legacy_prompts[_key]
 
-            async def _subscription_system_prompt(route_provider, route_model, route_kind):
+            async def _subscription_system_prompt(route_provider, route_model, route_kind, stable=False):
                 """System prompt cho engine chạy bằng GÓI THUÊ BAO (Claude Code, Codex).
 
                 Cùng bộ máy Phase 8 với engine API, nhưng khác một điểm CỐ Ý: nền vẫn là
@@ -17346,10 +17397,10 @@ async def _chat_socket(ws):
                     return build_system_prompt(
                         brain, include_memory=include_memory, include_skills=include_skills,
                         lang=_lang_qd, project_id=_row0.get("project_id") or "",
-                        session_id=conv_sid or "",
+                        session_id=conv_sid or "", stable=stable,
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
-                        port=_javis_port(), brain_root=_brain_root(brain),
+                        port=_javis_port(), brain_root=_brain_root(brain), session_in_turn=stable,
                     ) + _khoi_coding(_row0, brain)
 
                 try:
@@ -17363,13 +17414,13 @@ async def _chat_socket(ws):
                     _CONTEXT_RUNTIME.record_runtime_event(
                         runtime_trace, "context_sources.subscription_error",
                         {"error_type": type(_exc).__name__, "provider_kind": route_kind})
-                    return _legacy_system_prompt(), None
+                    return _legacy_system_prompt(stable=stable), None
                 # "reject" không tới được đây: với engine thuê bao, prepare() đã đổi nhánh
                 # vượt ngân sách thành legacy (subscription_soft_over_budget) vì con số đó là
                 # trần ta tự khai, không phải hạn mức nhà cung cấp nói ra.
                 if plan.action == "use" and plan.system_prompt:
                     return plan.system_prompt, plan
-                return _legacy_system_prompt(), plan
+                return _legacy_system_prompt(stable=stable), plan
 
             final_text = ""
             _schedule_action = await _schedule_cancel_action(user_message, brain)
@@ -18198,8 +18249,11 @@ async def _chat_socket(ws):
                             f"({int(_row0.get('last_input_tokens') or 0):,} tokens per turn), "
                             "Javis started a new one."),
                     }))
+                # Stable prompt (0.445.0, #975): plain chats only. An agent DM keeps its own prompt, which has
+                # its own clock and session lines.
+                _stable_sp = not _persona
                 sysprompt, _sub_plan = await _subscription_system_prompt(
-                    "cli", cli.model or mcfg.get("claude_model") or "mặc định", kind)
+                    "cli", cli.model or mcfg.get("claude_model") or "mặc định", kind, stable=_stable_sp)
                 cli.system_prompt = sysprompt
                 # mode: `full` cho mọi phiên như xưa nay; riêng phiên coding lấy theo chip Mức
                 # quyền của trang đó, vì ở trang ấy người dùng CHỌN mức chứ không thừa kế.
@@ -18207,7 +18261,13 @@ async def _chat_socket(ws):
                 _streamed = ""      # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
                 _cli_sid = None
                 _cost = None
-                _cli_prompt = _gio_luot_noi_mach(cli, _cli_do_sau(cli, reasoning, user_message), _lang_qd.lang)
+                if _stable_sp:
+                    _cli_prompt = _cli_do_sau(cli, reasoning, user_message)
+                    _hdr = _turn_facts_header(brain, conv_sid or "", _lang_qd.lang, first=not cli.session_id)
+                    if _hdr and isinstance(_cli_prompt, str):
+                        _cli_prompt = _hdr + "\n" + _cli_prompt
+                else:
+                    _cli_prompt = _gio_luot_noi_mach(cli, _cli_do_sau(cli, reasoning, user_message), _lang_qd.lang)
                 _cli_fast(cli)
                 if not cli.session_id:
                     # Bỏ --resume là Claude Code mất sạch mạch cũ. Mở mạch mới mà không mang

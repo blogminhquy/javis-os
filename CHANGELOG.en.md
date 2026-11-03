@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.445.0] - 2026-11-03
+### Improved
+- **New Claude Code chats use far less of your plan.** Each new chat used to reload about 40,000 tokens of Javis's instructions, because they held the time, usage and session id, which change all the time. That part is now identical across chats, so it is read back from the prompt cache. Thanks @sunstaysg-oss for measuring and reporting it (#975).
+- The current time, chat session id, today's usage and the latest workflow run now sit in a line at the head of each message sent to Claude Code, so Javis knows as much as before, and follow-up turns always see the fresh time.
+
 ## [0.444.4] - 2026-11-03
 ### Fixed
 - **Javis on a small VPS no longer freezes because slow work blocked the whole server.** Five places did heavy work on the main loop, so every other page and the health check waited (three missed checks and Traefik answers "404 page not found"). All five now run on a worker thread:
