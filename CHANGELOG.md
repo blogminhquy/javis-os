@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.446.0] - 2026-11-03
+### Thêm mới
+- Đang viết.
+
 ## [0.445.1] - 2026-11-03
 ### Sửa lỗi
 - **Windows: kết nối chạy bằng `npx` không còn hỏng khi đường dẫn có dấu cách** (ví dụ `C:\My Javis\...` hay tên người dùng có dấu cách). Javis chạy thẳng Node thay vì đi qua `cmd.exe`, vốn làm mất dấu ngoặc kép khi Node cài ở `Program Files`. Cảm ơn @ethan1nguyen1 (#898).

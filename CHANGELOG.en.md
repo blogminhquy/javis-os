@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.446.0] - 2026-11-03
+### Added
+- Work in progress.
+
 ## [0.445.1] - 2026-11-03
 ### Fixed
 - **Windows: `npx` connectors no longer break when a path has a space** (for example `C:\My Javis\...` or a user name with a space). Javis runs Node directly instead of going through `cmd.exe`, which dropped the quotes when Node lives in `Program Files`. Thanks @ethan1nguyen1 (#898).
