@@ -433,7 +433,9 @@ class _TinhGonStatic(StaticFiles):
         if not full:
             return resp
         try:
-            data, crc = tinh_gon.ban_phuc_vu(Path(full), path)
+            # 0.444.4: the first serve after a restart minifies in pure Python (1.5 s for all files on a fast CPU,
+            # several seconds on a 1 vCPU VPS): a worker thread, so /health and other pages keep answering.
+            data, crc = await asyncio.to_thread(tinh_gon.ban_phuc_vu, Path(full), path)
         except OSError:
             return resp
         etag = '"' + crc + '"'
@@ -1236,7 +1238,7 @@ async def app_version():
         html = (DASHBOARD_PATH / "index.html").read_text(encoding="utf-8")
     except OSError:
         html = ""
-    return {"version": _app_version() or "0", "assets": _asset_fps(html)}
+    return {"version": _app_version() or "0", "assets": await asyncio.to_thread(_asset_fps, html)}
 
 
 @app.get("/")
@@ -1248,7 +1250,8 @@ async def root():
     # sửa đổi frontend trở nên vô hình. Gắn phiên bản vào đây thì mỗi lần bump là tự bể cache.
     ver = _app_version() or "0"
     # Vân tay tính TRƯỚC khi đổi `?v=` - regex tìm theo `?v=` nên thứ tự này bắt buộc.
-    fps = _asset_fps(html)
+    # 0.444.4: ở luồng phụ, vì lần đầu sau khởi động nó nén gọn mọi file (vài giây trên VPS 1 nhân).
+    fps = await asyncio.to_thread(_asset_fps, html)
     # Khoá cache theo VÂN TAY TỪNG FILE, không theo số phiên bản chung.
     #
     # Trước đây mọi file mang `?v=<phiên bản app>`, nên bump VERSION là 42 URL đổi MỘT LƯỢT

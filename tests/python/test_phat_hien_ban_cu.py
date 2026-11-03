@@ -68,8 +68,10 @@ check("và trả cả phiên bản lẫn vân tay", '"version"' in _av and '"ass
 _root = MAIN.split("async def root()", 1)[1].split("\n@app.", 1)[0]
 check("trang nhúng khối javis-fresh", 'id="javis-fresh"' in _root)
 # Regex tìm vân tay bám vào `?v=`, nên tính SAU khi đã đổi `?v=` là ra rỗng sạch.
+# 0.444.4: lời gọi đi qua asyncio.to_thread(_asset_fps, html) (lần đầu nó nén gọn mọi file), nên nhận cả hai dạng.
+_fp_goi = re.search(r"_asset_fps(?:\(|, )html", _root)
 check("CANARY: vân tay tính TRƯỚC khi viết lại ?v= (tính sau là ra rỗng)",
-      _root.index("_asset_fps(html)") < _root.index("re.sub("), _root[:200])
+      bool(_fp_goi) and _fp_goi.start() < _root.index("re.sub("), _root[:200])
 check("index.html vẫn trả no-store (điểm tựa phải luôn mới)",
       "no-cache, no-store, must-revalidate" in _root)
 

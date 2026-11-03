@@ -66,7 +66,9 @@ def register(app, deps: ToolsDeps):
     async def tools_list(request: Request):
         if not _DEPS.co_phien(request):
             return _tu_choi()
-        return {"ok": True, "tools": optional_tools.danh_sach()}
+        # 0.444.4: a worker thread. The status walks the installed folders (the offline ear is about 1 GB) to show
+        # their size, and the page polls every 2 s during an install.
+        return {"ok": True, "tools": await asyncio.to_thread(optional_tools.danh_sach)}
 
     @router.post("/tools/optional/install")
     async def tools_install(request: Request):

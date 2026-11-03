@@ -72,20 +72,6 @@ def test_stop_cancels_only_selected_session():
     asyncio.run(scenario())
 
 
-if __name__ == "__main__":
-    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
-    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa từng
-    # chạy một assertion nào. Bảy file từng ở tình trạng đó, và bốn assertion trong số
-    # chúng đang ĐỎ mà không ai biết (xem CHANGELOG 0.13.2).
-    import sys
-    try:
-        import pytest
-    except ImportError:
-        print("bỏ qua: chưa cài pytest")
-        sys.exit(0)
-    sys.exit(pytest.main([__file__, "-q"]))
-
-
 def test_slow_page_gets_stream_pieces_folded_not_dropped():
     """0.444.1: a page that falls behind while an answer streams token by token is not dropped at BACKLOG_MAX; the
     queued pieces of one answer fold into one event, in order, and nothing else is merged."""
@@ -136,3 +122,17 @@ def test_folding_never_edits_an_event_another_page_holds():
     assert first["content"] == "a" and other_page[0]["content"] == "a"
     _xep_hang(this_page, {"type": "stream", "session_id": "s", "content": "c", "tts": True})
     assert len(this_page) == 2   # different fields: kept apart
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa từng
+    # chạy một assertion nào. Bảy file từng ở tình trạng đó, và bốn assertion trong số
+    # chúng đang ĐỎ mà không ai biết (xem CHANGELOG 0.13.2).
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))
