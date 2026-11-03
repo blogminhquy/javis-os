@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.444.1] - 2026-11-03
+### Sửa lỗi
+- Đang viết.
+
 ## [0.443.0] - 2026-11-02
 ### Thêm mới
 - **Chọn múi giờ ngay trong Cài đặt** (khối Ngôn ngữ và múi giờ) và ở **bước 4 của bộ cài đặt lần đầu**, tự chọn sẵn theo máy bạn đang mở. Trước đây múi giờ chỉ lộ ra qua plugin Thời gian, không có chỗ nào để đổi.

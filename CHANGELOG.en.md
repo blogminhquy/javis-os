@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.444.1] - 2026-11-03
+### Fixed
+- In progress.
+
 ## [0.443.0] - 2026-11-02
 ### Added
 - **Pick your timezone in Settings** (the Language and timezone block) and in **step 4 of the first-run setup**, preselected from the device you open it on. Before, the timezone only showed through the Time plugin, with nowhere to change it.
