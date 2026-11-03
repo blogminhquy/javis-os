@@ -1349,7 +1349,7 @@ function handleMessage(data) {
       t.bubble.dataset.md = t.text;   // copy giữa chừng vẫn ra markdown gốc, kể cả khi đang đọc theo giọng
       // V3: đang nói chuyện bằng giọng thì chữ hiện THEO LỜI ĐỌC, không hiện trước loa.
       if (dangTheoLoi() && data.tts !== false && !t.imLoa) batTheoLoi(t.bubble, t.text, null, false);
-      else { t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV); scrollBottom(); }
+      else henVeStream(t);   // 0.444.1: gom mẩu, không dựng lại cả bài mỗi vài ký tự
       // Đọc NGAY đoạn trung gian (chỉ đọc phiên đang xem). OpenRouter gửi tts:false → đọc 1 lần ở cuối.
       // Voice V3: gom chữ stream thành CỤM đọc được (voice-chunker.js) thay vì đọc từng mẩu.
       // Trước đây mỗi khung stream của bộ não chính (vài từ) là một yêu cầu TTS riêng nên nghe
@@ -1380,6 +1380,7 @@ function handleMessage(data) {
         window.JavisLenh.ghiNhan(sid, _mk, !!ask);
       }
     } catch (e) {}
+    huyVeStream(t);   // lượt chốt vẽ bản cuối ngay dưới, nhịp vẽ đang hẹn không được đè lên nó
     const finalText = askClean || (t && t.text) || "";
     const shownText = finalText || window.t("app.no_content");
     if (t) t.text = shownText;
@@ -1464,6 +1465,7 @@ function handleMessage(data) {
     // nói vì sao đổi đường, rồi chờ câu trả lời của đường mới như một lượt thường.
     if (t) { t.text = ""; t.limit = null; t.errored = false; t.spoke = false; }
     if (isActive) {
+      huyVeStream(t);
       if (t && t.bubble) { try { t.bubble.remove(); } catch (e) {} t.bubble = null; }
       cum.reset();
       ghiDoiDuong(data.content || "");
@@ -2785,6 +2787,27 @@ const chatScroll = window.JavisChatScroll.attach(chatArea, {
   suspended: () => _dangChenCu,
 });
 function scrollBottom(force) { chatScroll.toBottom(force); }
+
+// 0.444.1: chữ stream về từng mẩu vài ký tự (Claude Code từ 0.438.4, bộ não API 0.438.5, Grok/agy 0.438.6). Trước đây
+// MỖI mẩu dựng lại markdown của CẢ câu trả lời, thay innerHTML rồi cuộn: bài 8.000 ký tự là khoảng 2.700 lần, đo riêng
+// phần dựng chuỗi đã 1,6 giây CPU, cộng trình duyệt vẽ lại thì máy yếu đứng hình (khách báo 03/11/2026 "đơ cả máy").
+// Giờ vẽ ngay mẩu đầu, sau đó gom: tối đa một lần mỗi 60-300 ms tuỳ độ dài bài. Chữ vẫn chảy đều, máy nhẹ hơn hàng trăm lần.
+const _VE_STREAM_MS = (n) => (n < 2000 ? 60 : n < 8000 ? 150 : 300);
+function _veStreamNgay(t) {
+  t._veLuc = Date.now();
+  if (!t.bubble) return;
+  const b = t.bubble.querySelector(".bubble");
+  if (!b) return;
+  b.innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV);
+  if (t.bubble.isConnected) scrollBottom();
+}
+function henVeStream(t) {
+  if (!t || t._veHen) return;
+  const cho = _VE_STREAM_MS((t.text || "").length) - (Date.now() - (t._veLuc || 0));
+  if (cho <= 0) { _veStreamNgay(t); return; }
+  t._veHen = setTimeout(() => { t._veHen = 0; _veStreamNgay(t); }, cho);
+}
+function huyVeStream(t) { if (t && t._veHen) { clearTimeout(t._veHen); t._veHen = 0; } }
 
 // ============================================
 // Copy code block / copy tin nhắn / xem thêm tin dài - event delegation
