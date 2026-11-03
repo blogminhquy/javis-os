@@ -521,9 +521,10 @@ def register(app, deps: ConversationsDeps):
 
     @router.post("/conversations/{conv_id}/private-reply")
     async def conversations_private_reply(conv_id: int, text: str = Form(...), comment_id: str = Form("")):
-        """Message a Facebook commenter privately from their comment thread (0.446.0, Meta's Private Replies).
+        """Message a Facebook or Instagram commenter privately from their comment thread (0.446.0, Meta's Private
+        Replies; Instagram from 0.447.0).
 
-        The message lands in the person's Messenger inbox from the Page. Meta allows ONE per comment, within 7 days of
+        The message lands in the person's Messenger (or Instagram) inbox from the Page. Meta allows ONE per comment, within 7 days of
         it; once the person answers, it is an ordinary Messenger chat with the Page. The message is recorded twice: in
         the comment thread (marked private, so the owner sees what was sent and which comment got it) and in the
         Messenger chat it opens, which the person's answer then joins. That chat is taken over like any chat the owner
@@ -532,10 +533,11 @@ def register(app, deps: ConversationsDeps):
         if not c:
             return _404()
         chat = str(c.get("external_chat_id") or "")
-        if c.get("channel") != "messenger" or not chat.startswith("cmt:"):
+        if c.get("channel") != "messenger" or not chat.startswith(("cmt:", "igc:")):
             return JSONResponse({"ok": False, "code": "not_comment", "error": localefmt.chu(
-                "Chỉ nhắn riêng được từ một hội thoại bình luận Facebook", "Only a Facebook comment thread can send a private message")},
-                status_code=400)
+                "Chỉ nhắn riêng được từ một hội thoại bình luận Facebook hoặc Instagram",
+                "Only a Facebook or Instagram comment thread can send a private message")}, status_code=400)
+        instagram = chat.startswith("igc:")
         txt = str(text or "").strip()
         if not txt:
             return JSONResponse({"ok": False, "error": localefmt.chu("tin rỗng", "empty message")}, status_code=400)
@@ -563,6 +565,9 @@ def register(app, deps: ConversationsDeps):
                                    "metadata": {"tu_javis": True, "private_reply_to": cid}})
         dm_id = 0
         psid = r.get("recipient_id") or ""
+        if psid and instagram:
+            # The Instagram chat it opens carries the same `ig:` id the webhook gives the person's answer (0.447.0).
+            psid = "ig:" + psid
         if psid:
             who = str(c.get("customer_name") or target.get("sender_name") or "")
             d = conversations.ghi_su_kien({**base, "external_chat_id": psid, "chat_type": "private", "chat_title": who,
@@ -575,6 +580,44 @@ def register(app, deps: ConversationsDeps):
                     conversations.dat_che_do(dm_id, "human")
         return {"ok": True, "comment_id": cid, "dm_conversation_id": dm_id,
                 "conversation": conversations.chi_tiet(conv_id)}
+
+    # ---- Profile, block, delete (0.447.0; what each platform allows is in `conversation_actions`) ----
+    @router.get("/conversations/{conv_id}/profile")
+    async def conversations_profile(conv_id: int):
+        import conversation_actions as ca
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        r = await ca.profile(c)
+        return r if r.get("ok") else JSONResponse(r, status_code=400)
+
+    @router.post("/conversations/{conv_id}/block")
+    async def conversations_block(conv_id: int):
+        import conversation_actions as ca
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        r = await ca.block(c)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        # Nobody to answer any more: the bot stays quiet here, and the chat says why.
+        conversations.dat_che_do(conv_id, "human")
+        conversations._set_meta_key(conv_id, "blocked", True)
+        return {"ok": True, "conversation": conversations.chi_tiet(conv_id)}
+
+    @router.post("/conversations/{conv_id}/delete")
+    async def conversations_delete(conv_id: int):
+        """Delete on the platform where it allows it (a comment, a Zalo conversation), then from the inbox. When the
+        platform refuses, nothing is deleted here either."""
+        import conversation_actions as ca
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        r = await ca.delete_remote(c)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        conversations.delete_conversation(conv_id)
+        return {"ok": True, "remote": bool(r.get("remote"))}
 
     @router.post("/conversations/{conv_id}/ai-reply")
     async def conversations_ai_reply(conv_id: int, mode: str = Form("send"), instruction: str = Form("")):

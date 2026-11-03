@@ -32,6 +32,15 @@ is `cmt:<top-level comment id>`, so a reply needs no stored state and still work
 restart. They arrive as `feed` changes on the same webhook. Each account picks a mode in its
 meta (`comments`): "off", "inbox" (shown in the inbox, the owner answers; the default) or
 "reply" (the bot answers them too, publicly).
+
+Instagram (0.447.0), through the same Page connection: the Instagram professional account linked to the Page
+sends its direct messages and comments to the same webhook as `object: "instagram"`, keyed by the Instagram
+account id. The Page's bot serves them too, under its own conversation ids so the inbox and the send path tell
+them apart: `ig:<Instagram-scoped user id>` for a direct message, `igc:<top-level comment id>` for a comment
+thread. Sending uses the Page token: a direct message through `/<page id>/messages`, a public reply through
+`/<comment id>/replies`, a private reply through `/<page id>/messages` with `recipient.comment_id` as on
+Facebook. Comments follow the Page's comment mode. The account meta keeps `ig_id`, `ig_username` and
+`instagram` ("on" / "off").
 """
 from __future__ import annotations
 
@@ -63,6 +72,11 @@ TYPING_EVERY = 15.0          # typing_on lasts about 20 s or until the next mess
 SUBSCRIBED_FIELDS = "messages,messaging_postbacks"
 FEED_FIELD = "feed"           # Page comments (0.434.0); optional, the bot works without it
 COMMENT_PREFIX = "cmt:"       # conversation id of a comment thread: cmt:<top-level comment id>
+IG_PREFIX = "ig:"             # Instagram direct message: ig:<Instagram-scoped user id> (0.447.0)
+IG_COMMENT_PREFIX = "igc:"    # Instagram comment thread: igc:<top-level comment id>
+IG_OBJECT = "instagram"
+IG_COMMENT_FIELD = "comments"
+IG_WEBHOOK_FIELDS = "messages,messaging_postbacks,comments"
 COMMENT_MODES = ("off", "inbox", "reply")
 COMMENT_MODE_DEFAULT = "inbox"
 MAX_COMMENT = 7900            # a comment takes 8000 characters
@@ -130,7 +144,43 @@ def registered() -> dict:
 
 
 def is_comment_chat(chat) -> bool:
-    return str(chat or "").startswith(COMMENT_PREFIX)
+    """A public comment thread, on Facebook (`cmt:`) or Instagram (`igc:`)."""
+    c = str(chat or "")
+    return c.startswith(COMMENT_PREFIX) or c.startswith(IG_COMMENT_PREFIX)
+
+
+def is_instagram_chat(chat) -> bool:
+    c = str(chat or "")
+    return c.startswith(IG_PREFIX) or c.startswith(IG_COMMENT_PREFIX)
+
+
+def raw_chat_id(chat) -> str:
+    """The id Meta knows for a conversation id: the user id or the top-level comment id, prefix removed."""
+    c = str(chat or "")
+    for p in (IG_COMMENT_PREFIX, IG_PREFIX, COMMENT_PREFIX):
+        if c.startswith(p):
+            return c[len(p):]
+    return c
+
+
+def ig_comment_event(value: dict, ig_id: str):
+    """One Instagram `comments` change -> the new comment it carries, or None (0.447.0).
+
+    The account's own comments (every reply Javis sends) are skipped. A reply under a comment joins the
+    top-level comment's thread (`parent_id`)."""
+    v = value or {}
+    cid = str(v.get("id") or "")
+    if not cid:
+        return None
+    who = v.get("from") or {}
+    from_id = str(who.get("id") or "")
+    if from_id and from_id == str(ig_id):
+        return None
+    media = v.get("media") or {}
+    parent = str(v.get("parent_id") or "")
+    return {"comment_id": cid, "root_id": parent or cid, "post_id": str(media.get("id") or ""), "from_id": from_id,
+            "from_name": str(who.get("username") or ""), "message": str(v.get("text") or "").strip(),
+            "photo": "", "video": "", "permalink": "", "instagram": True}
 
 
 def comment_event(value: dict, page_id: str):
@@ -159,14 +209,14 @@ def comment_event(value: dict, page_id: str):
             "permalink": str((v.get("post") or {}).get("permalink_url") or "")}
 
 
-def comment_note(post: str = "") -> str:
+def comment_note(post: str = "", instagram: bool = False) -> str:
     """What the model is told before answering a comment: it is public. Model prompt, so Vietnamese only."""
     post = str(post or "").strip()
-    return ("[Đây là BÌNH LUẬN CÔNG KHAI dưới một bài viết của Fanpage"
+    return ("[Đây là BÌNH LUẬN CÔNG KHAI dưới một bài viết " + ("Instagram" if instagram else "của Fanpage")
             + (f' (bài viết: "{post[:300]}")' if post else "")
             + ". Câu trả lời của bạn hiện công khai ngay dưới bình luận này, ai cũng đọc được: trả lời ngắn gọn, "
               "lịch sự, không nêu số điện thoại, địa chỉ hay thông tin riêng của khách; cần trao đổi riêng thì mời "
-              "khách nhắn tin cho Page.]")
+              "khách nhắn tin cho " + ("tài khoản Instagram" if instagram else "Page") + ".]")
 
 
 def comment_mode(account_id: str) -> str:
@@ -180,10 +230,24 @@ def comment_mode(account_id: str) -> str:
     return m if m in COMMENT_MODES else COMMENT_MODE_DEFAULT
 
 
+def instagram_of(account_id: str) -> dict:
+    """The Instagram account linked to a Messenger account, from its meta: {"id", "username", "on"}."""
+    try:
+        import channel_accounts
+        m = (channel_accounts.get_account(str(account_id or "")) or {}).get("meta") or {}
+    except Exception:
+        m = {}
+    ig = str(m.get("ig_id") or "")
+    return {"id": ig, "username": str(m.get("ig_username") or ""), "on": bool(ig) and m.get("instagram") != "off"}
+
+
 async def handle_webhook(payload: dict) -> int:
     """Route a verified webhook payload to the bots it is for. Returns how many events were
     handed over. Echoes (the Page's own outgoing messages), reads and deliveries are skipped."""
-    if (payload or {}).get("object") not in (None, "page"):
+    obj = (payload or {}).get("object")
+    if obj == IG_OBJECT:
+        return _handle_instagram(payload)
+    if obj not in (None, "page"):
         return 0
     n = 0
     for entry in (payload or {}).get("entry") or []:
@@ -209,6 +273,38 @@ async def handle_webhook(payload: dict) -> int:
             asyncio.create_task(bot._safe_event(ev))
             n += 1
     return n
+
+
+def _handle_instagram(payload: dict) -> int:
+    """`object: "instagram"`: each entry is one Instagram account, served by the bot of its linked Page."""
+    n = 0
+    for entry in (payload or {}).get("entry") or []:
+        ig = str(entry.get("id") or "")
+        bot = _IG_REGISTRY.get(ig)
+        if not bot:
+            if entry.get("messaging") or entry.get("changes"):
+                print(f"[messenger] Instagram event for {ig} but no bot runs for it", file=sys.stderr)
+            continue
+        for ch in entry.get("changes") or []:
+            if (ch or {}).get("field") != IG_COMMENT_FIELD:
+                continue
+            com = ig_comment_event(ch.get("value") or {}, ig)
+            if com:
+                asyncio.create_task(bot._safe_comment(com))
+                n += 1
+        for ev in entry.get("messaging") or []:
+            msg = ev.get("message") or {}
+            if msg.get("is_echo") or msg.get("is_deleted"):
+                continue
+            if not msg and not ev.get("postback"):
+                continue
+            asyncio.create_task(bot._safe_event(ev, instagram=True))
+            n += 1
+    return n
+
+
+# Instagram account id -> the MessengerBot of its linked Page (0.447.0).
+_IG_REGISTRY: dict = {}
 
 
 class MessengerBot(HangLuot):
@@ -247,6 +343,8 @@ class MessengerBot(HangLuot):
         self._client = None
         self.account_id = ""
         self.feed_on = False
+        self.ig_id = ""
+        self.ig_username = ""
 
     # ---- HTTP -------------------------------------------------------------------------
     def _params(self):
@@ -270,6 +368,16 @@ class MessengerBot(HangLuot):
             return {"ok": False, "error": f"{type(e).__name__}: {e}", "net_error": True}
 
     async def _send_one(self, client, to, text):
+        if str(to).startswith(IG_COMMENT_PREFIX):
+            # Instagram takes a reply only under a top-level comment, which is what the thread id is.
+            d = await self._post_json(client, f"{raw_chat_id(to)}/replies", {"message": text})
+            if not d.get("ok") and str(d.get("code")) in ("10", "200"):
+                d["error"] = localefmt.chu(
+                    "app chưa có quyền trả lời bình luận Instagram. Đăng nhập Facebook lại ở thẻ Kết nối Meta, tick "
+                    f"Instagram và cấp quyền instagram_manage_comments ({d.get('code')})",
+                    "the app may not reply to Instagram comments yet. Log in with Facebook again on the Meta card, "
+                    f"tick Instagram and grant instagram_manage_comments ({d.get('code')})")
+            return d
         if is_comment_chat(to):
             d = await self._post_json(client, f"{str(to)[len(COMMENT_PREFIX):]}/comments", {"message": text})
             if not d.get("ok") and str(d.get("code")) in ("10", "200"):
@@ -280,7 +388,7 @@ class MessengerBot(HangLuot):
                     f"grant pages_manage_engagement ({d.get('code')})")
             return d
         return await self._post_json(client, f"{self.page_id}/messages", {
-            "recipient": {"id": str(to)}, "messaging_type": "RESPONSE",
+            "recipient": {"id": raw_chat_id(to)}, "messaging_type": "RESPONSE",
             "message": {"text": text}})
 
     async def _send(self, client, chat, text, reply_markup=None):
@@ -326,12 +434,14 @@ class MessengerBot(HangLuot):
         mime = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
         kind = ("image" if mime.startswith("image/") else "video" if mime.startswith("video/")
                 else "audio" if mime.startswith("audio/") else "file")
+        if str(chat).startswith(IG_COMMENT_PREFIX):
+            return False, localefmt.chu("bình luận Instagram chỉ nhận chữ", "an Instagram comment takes text only")
         if is_comment_chat(chat):
             return await self._comment_photo(str(chat)[len(COMMENT_PREFIX):], p.name, data, mime, kind, caption)
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as c:
             try:
                 r = await c.post(f"{GRAPH}/{self.page_id}/messages", params=self._params(), data={
-                    "recipient": json.dumps({"id": str(chat)}),
+                    "recipient": json.dumps({"id": raw_chat_id(chat)}),
                     "messaging_type": "RESPONSE",
                     "message": json.dumps({"attachment": {"type": kind, "payload": {"is_reusable": False}}}),
                 }, files={"filedata": (p.name, data, mime)})
@@ -392,18 +502,20 @@ class MessengerBot(HangLuot):
         if is_comment_chat(chat):
             return
         await self._post_json(client, f"{self.page_id}/messages",
-                              {"recipient": {"id": str(chat)}, "sender_action": action})
+                              {"recipient": {"id": raw_chat_id(chat)}, "sender_action": action})
 
-    async def _name_of(self, client, psid) -> str:
-        """Display name of a person (User Profile API). Empty when the app may not read it."""
+    async def _name_of(self, client, psid, instagram: bool = False) -> str:
+        """Display name of a person (User Profile API). Empty when the app may not read it. On Instagram the
+        name, else the @username."""
         if psid in self._names:
             return self._names[psid]
         name = ""
         try:
-            r = await client.get(f"{GRAPH}/{psid}", params={"fields": "first_name,last_name,name",
-                                                            "access_token": self.token})
+            fields = "name,username" if instagram else "first_name,last_name,name"
+            r = await client.get(f"{GRAPH}/{psid}", params={"fields": fields, "access_token": self.token})
             d = r.json() or {}
-            name = str(d.get("name") or " ".join(x for x in (d.get("first_name"), d.get("last_name")) if x)).strip()
+            name = str(d.get("name") or (d.get("username") and "@" + str(d.get("username")))
+                       or " ".join(x for x in (d.get("first_name"), d.get("last_name")) if x) or "").strip()
         except Exception:
             name = ""
         if len(self._names) > 2000:
@@ -490,30 +602,35 @@ class MessengerBot(HangLuot):
             parts.append(str(qr))
         return "\n".join(parts).strip()
 
-    async def _safe_event(self, ev):
+    async def _safe_event(self, ev, instagram: bool = False):
         try:
-            await self._on_event(ev)
+            await self._on_event(ev, instagram=instagram)
         except Exception as e:
             print(f"[messenger event] {type(e).__name__}: {e}", file=sys.stderr)
 
-    async def _on_event(self, ev):
+    async def _on_event(self, ev, instagram: bool = False):
         msg = ev.get("message") or {}
         mid = msg.get("mid") or (ev.get("postback") or {}).get("mid") or ""
         if self._stop or self._seen_before(mid):
             return
-        chat = str((ev.get("sender") or {}).get("id") or "")
-        if not chat or chat == self.page_id:
+        sender = str((ev.get("sender") or {}).get("id") or "")
+        if not sender or sender in (self.page_id, self.ig_id):
             return
+        if instagram and not instagram_of(self.account_id).get("on"):
+            return
+        chat = (IG_PREFIX + sender) if instagram else sender
         self.last_inbound = time.time()
         client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(60.0))
         self._client = client
-        name = await self._name_of(client, chat)
+        name = await (self._name_of(client, sender, True) if instagram else self._name_of(client, sender))
         meta = {
             "platform": "messenger", "chat_id": chat, "chat_type": "private", "chat_title": "",
             "user_name": name, "username": name, "user_id": chat,
             "message_id": mid, "bot_username": self.bot_username,
             "mentioned": False, "reply_to_bot": bool(msg.get("reply_to")),
         }
+        if instagram:
+            meta["instagram"] = True
         if self.chat_ids and chat not in self.chat_ids:
             await self._send(client, chat, localefmt.chu(
                 "Bạn không có quyền dùng bot Javis này.", "You are not allowed to use this Javis bot."))
@@ -531,7 +648,7 @@ class MessengerBot(HangLuot):
         except Exception as e:
             print(f"[messenger comment] {type(e).__name__}: {e}", file=sys.stderr)
 
-    async def _post_text(self, client, post_id) -> str:
+    async def _post_text(self, client, post_id, instagram: bool = False) -> str:
         """The first words of the post a comment sits under, for the inbox title and for the bot.
         Cached; empty when the token may not read it."""
         if not post_id:
@@ -540,8 +657,9 @@ class MessengerBot(HangLuot):
             return self._posts[post_id]
         txt = ""
         try:
-            r = await client.get(f"{GRAPH}/{post_id}", params={"fields": "message", "access_token": self.token})
-            txt = re.sub(r"\s+", " ", str((r.json() or {}).get("message") or "")).strip()
+            field = "caption" if instagram else "message"
+            r = await client.get(f"{GRAPH}/{post_id}", params={"fields": field, "access_token": self.token})
+            txt = re.sub(r"\s+", " ", str((r.json() or {}).get(field) or "")).strip()
         except Exception:
             txt = ""
         if len(self._posts) > 500:
@@ -555,7 +673,10 @@ class MessengerBot(HangLuot):
         mode = comment_mode(getattr(self, "account_id", ""))
         if mode == "off":
             return
-        chat = COMMENT_PREFIX + com["root_id"]
+        ig = bool(com.get("instagram"))
+        if ig and not instagram_of(self.account_id).get("on"):
+            return
+        chat = (IG_COMMENT_PREFIX if ig else COMMENT_PREFIX) + com["root_id"]
         self.last_inbound = time.time()
         client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(60.0))
         self._client = client
@@ -570,9 +691,10 @@ class MessengerBot(HangLuot):
         text = "\n".join(x for x in parts if x).strip()
         if not text:
             return
-        post = await self._post_text(client, com.get("post_id"))
+        post = await (self._post_text(client, com.get("post_id"), True) if ig else self._post_text(client, com.get("post_id")))
         short = (post[:60] + "...") if len(post) > 60 else post
-        title = localefmt.chu("Bình luận", "Comment") + (f": {short}" if short else "")
+        title = (localefmt.chu("Bình luận Instagram", "Instagram comment") if ig
+                 else localefmt.chu("Bình luận", "Comment")) + (f": {short}" if short else "")
         meta = {
             "platform": "messenger", "chat_id": chat, "chat_type": "private", "chat_title": title,
             "user_name": com.get("from_name", ""), "username": com.get("from_name", ""),
@@ -580,8 +702,10 @@ class MessengerBot(HangLuot):
             "bot_username": self.bot_username, "mentioned": False, "reply_to_bot": False,
             "comment": True, "comment_id": com["comment_id"], "post_id": com.get("post_id", ""),
             # For the model only, never the inbox (see `ghi_chu_dau` in chatbot_runtime).
-            "ghi_chu_dau": comment_note(post),
+            "ghi_chu_dau": comment_note(post, ig),
         }
+        if ig:
+            meta["instagram"] = True
         if mode == "inbox":
             # Shown in the inbox only: the answer function records the comment and stays silent.
             meta["log_only"] = True
@@ -676,6 +800,11 @@ class MessengerBot(HangLuot):
             print(f"[messenger] Page {self.page_id} was served by another bot; the newest one takes over",
                   file=sys.stderr)
         _REGISTRY[self.page_id] = self
+        # The Instagram account linked to the Page (0.447.0): its events come keyed by its own id.
+        ig = instagram_of(self.account_id)
+        self.ig_id, self.ig_username = ig.get("id", ""), ig.get("username", "")
+        if self.ig_id:
+            _IG_REGISTRY[self.ig_id] = self
         self.status = "polling"
         self.last_error = ""
         try:
@@ -684,6 +813,8 @@ class MessengerBot(HangLuot):
         finally:
             if _REGISTRY.get(self.page_id) is self:
                 _REGISTRY.pop(self.page_id, None)
+            if self.ig_id and _IG_REGISTRY.get(self.ig_id) is self:
+                _IG_REGISTRY.pop(self.ig_id, None)
 
     def start(self):
         self._stop = False
@@ -696,6 +827,8 @@ class MessengerBot(HangLuot):
         self.status = "stopped"
         if _REGISTRY.get(self.page_id) is self:
             _REGISTRY.pop(self.page_id, None)
+        if self.ig_id and _IG_REGISTRY.get(self.ig_id) is self:
+            _IG_REGISTRY.pop(self.ig_id, None)
         for t in list(self._current.values()):
             if t and not t.done():
                 t.cancel()
