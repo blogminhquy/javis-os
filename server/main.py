@@ -433,7 +433,7 @@ class _TinhGonStatic(StaticFiles):
         if not full:
             return resp
         try:
-            # 0.444.2: the first serve after a restart minifies in pure Python (1.5 s for all files on a fast CPU,
+            # 0.444.4: the first serve after a restart minifies in pure Python (1.5 s for all files on a fast CPU,
             # several seconds on a 1 vCPU VPS): a worker thread, so /health and other pages keep answering.
             data, crc = await asyncio.to_thread(tinh_gon.ban_phuc_vu, Path(full), path)
         except OSError:
@@ -1250,7 +1250,7 @@ async def root():
     # sửa đổi frontend trở nên vô hình. Gắn phiên bản vào đây thì mỗi lần bump là tự bể cache.
     ver = _app_version() or "0"
     # Vân tay tính TRƯỚC khi đổi `?v=` - regex tìm theo `?v=` nên thứ tự này bắt buộc.
-    # 0.444.2: ở luồng phụ, vì lần đầu sau khởi động nó nén gọn mọi file (vài giây trên VPS 1 nhân).
+    # 0.444.4: ở luồng phụ, vì lần đầu sau khởi động nó nén gọn mọi file (vài giây trên VPS 1 nhân).
     fps = await asyncio.to_thread(_asset_fps, html)
     # Khoá cache theo VÂN TAY TỪNG FILE, không theo số phiên bản chung.
     #

@@ -113,7 +113,7 @@ def loop_events(brain_root: str, since: float, until: float, tz) -> list:
     folder = Path(brain_root) / "Javis" / "loop-log"
     if not folder.is_dir():
         return out
-    # 0.444.2: walk the log files that exist, not every calendar day. saved_total asks from 1970, which was about
+    # 0.444.4: walk the log files that exist, not every calendar day. saved_total asks from 1970, which was about
     # 20,700 exists() calls per Tasks page refresh.
     lo, hi = d0.isoformat(), d1.isoformat()
     for p in sorted(folder.glob("????-??-??.md")):
@@ -432,7 +432,7 @@ class TaskStats:
     def _make_router(self) -> APIRouter:
         router = APIRouter()
 
-        # 0.444.2: plain `def` (worker thread): compute() and saved_total() read logs and SQLite synchronously.
+        # 0.444.4: plain `def` (worker thread): compute() and saved_total() read logs and SQLite synchronously.
         @router.get("/tasks/stats")
         def tasks_stats(brain: str = Query("brain"), from_: str = Query("", alias="from"), to: str = Query("")):
             tz = self._tz()

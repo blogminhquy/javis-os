@@ -42,7 +42,7 @@ def install(lib, model, model_dir):
 
 
 def transcribe(lib, model, model_dir, path, lang, threads):
-    # 0.444.2: lower priority than the Javis server, so a long clip never makes the dashboard or /health wait.
+    # 0.444.4: lower priority than the Javis server, so a long clip never makes the dashboard or /health wait.
     try:
         os.nice(10)
     except (AttributeError, OSError):

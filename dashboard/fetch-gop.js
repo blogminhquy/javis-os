@@ -97,7 +97,7 @@
   }
 
   function ngu(ms) { return new Promise(function (xong) { setTimeout(xong, ms); }); }
-  // 0.444.2: lệch ngẫu nhiên ±30%. Không có nó, mọi lượt đọc của mọi tab thử lại ĐÚNG cùng nhịp và dồn một lúc vào
+  // 0.444.4: lệch ngẫu nhiên ±30%. Không có nó, mọi lượt đọc của mọi tab thử lại ĐÚNG cùng nhịp và dồn một lúc vào
   // máy chủ vừa chậm lại, làm nó càng chậm.
   function lech(ms) { return Math.round(ms * (0.7 + Math.random() * 0.6)); }
 

@@ -128,7 +128,7 @@ def remove() -> dict:
 
 
 def _threads() -> int:
-    """0.444.2: leave one core to the server. Whisper's default takes every core, and on a 1-2 vCPU VPS a voice
+    """0.444.4: leave one core to the server. Whisper's default takes every core, and on a 1-2 vCPU VPS a voice
     message then starved uvicorn until /health failed. JAVIS_LOCAL_STT_THREADS overrides."""
     try:
         n = int(os.environ.get("JAVIS_LOCAL_STT_THREADS") or 0)

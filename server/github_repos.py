@@ -207,7 +207,7 @@ def _installs(tok: str) -> int:
         d = GitHub(tok).get("/user/installations", params={"per_page": 1})
         n = int((d or {}).get("total_count") or 0) if isinstance(d, dict) else 0
     except GitHubError:
-        # unknown: say nothing rather than nag. 0.444.2: remembered too, so a GitHub outage or a dead network does
+        # unknown: say nothing rather than nag. 0.444.4: remembered too, so a GitHub outage or a dead network does
         # not cost a fresh request (and its timeout) on every Connections visit.
         _INSTALL_CACHE.update(at=now, n=-1)
         return -1

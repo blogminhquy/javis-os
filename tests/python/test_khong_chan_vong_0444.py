@@ -1,4 +1,4 @@
-"""0.444.2: slow server work runs off the event loop (VPS users, 2026-11-03: the app froze, Traefik answered 404).
+"""0.444.4: slow server work runs off the event loop (VPS users, 2026-11-03: the app froze, Traefik answered 404).
 
 Any handler that does sync file, SQLite, CPU or network work as `async def` stalls every other request, /health
 included; three missed health checks and Traefik drops the route. These pin the fixes found by the audit."""

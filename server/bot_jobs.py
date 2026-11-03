@@ -234,7 +234,7 @@ class BotJobs:
         self._cache: dict = {}
         self.router = APIRouter()
 
-        # 0.444.2: plain `def`, so FastAPI runs it on a worker thread. job_map reads every bot's turn log and the
+        # 0.444.4: plain `def`, so FastAPI runs it on a worker thread. job_map reads every bot's turn log and the
         # Kanban table; as `async def` that ran on the event loop and every page and /health waited behind it.
         @self.router.get("/tasks/bots")
         def tasks_bots(brain: str = Query("brain")):

@@ -70,7 +70,7 @@ def _make_router() -> APIRouter:
 
     @r.get("/github/status")
     async def gh_status():
-        # 0.444.2: status() may ask api.github.com (installs, up to its 20 s timeout): off the event loop.
+        # 0.444.4: status() may ask api.github.com (installs, up to its 20 s timeout): off the event loop.
         return {"ok": True, **(await run_in_threadpool(github_repos.status))}
 
     @r.post("/github/connect")
