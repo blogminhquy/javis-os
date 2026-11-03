@@ -10,7 +10,11 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.446.0] - 2026-11-03
 ### Added
-- Work in progress.
+- **Message a commenter privately.** Open a Facebook comment in the inbox and pick **Message privately** above the reply box: the message goes straight to that person's Messenger from your Page, even if they never wrote to it. Once they answer, it is an ordinary Messenger chat in the inbox. Meta allows one private message per comment, within 7 days.
+- **Disconnect a Page.** Every connected Page has a **Disconnect** button: Javis takes it off its bot, tells Meta to stop sending its messages, and keeps past conversations.
+### Improved
+- **The "Facebook Messenger" card is now "Meta connection"**, with Facebook, Messenger, WhatsApp, Instagram and Threads icons (the last two coming soon). WhatsApp numbers now show on this card too, with a **＋ WhatsApp** button and Disconnect right there.
+- **Comments get their own icon** (an orange square with lines), so they no longer look like Messenger messages (the round blue bubble).
 
 ## [0.445.1] - 2026-11-03
 ### Fixed

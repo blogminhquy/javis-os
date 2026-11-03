@@ -364,6 +364,28 @@ class MessengerBot(HangLuot):
             return False, _explain_error(e.get("code"), e.get("message") or "upload failed", e.get("error_subcode"))
         return True, ""
 
+    async def private_reply(self, comment_id, text) -> dict:
+        """Send one private Messenger message to the person who wrote comment `comment_id` (0.446.0).
+
+        Meta's Private Replies: the message lands in the commenter's Messenger inbox from the Page, even though
+        they never wrote to it. One private reply per comment, and only within 7 days of the comment; once the
+        person answers, it is an ordinary Messenger chat. Returns {"ok", "recipient_id", "message_id"} or
+        {"ok": False, "error"}."""
+        text = md_to_plain(str(text or "").strip())
+        cid = str(comment_id or "").strip()
+        if not text or not cid:
+            return {"ok": False, "error": localefmt.chu("thiếu nội dung hoặc bình luận", "missing text or comment")}
+        if not (self.token and self.page_id):
+            return {"ok": False, "error": localefmt.chu("thiếu Page id hoặc Page access token Messenger",
+                                                        "missing the Messenger Page id or Page access token")}
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            d = await self._post_json(client, f"{self.page_id}/messages", {
+                "recipient": {"comment_id": cid}, "message": {"text": text[:MAX_MSG]}})
+        if not d.get("ok"):
+            return {"ok": False, "error": d.get("error", ""), "code": d.get("code")}
+        return {"ok": True, "recipient_id": str(d.get("recipient_id") or ""),
+                "message_id": str(d.get("message_id") or "")}
+
     async def _action(self, client, chat, action):
         """Sender action: mark_seen, typing_on or typing_off. Failures are not worth a log line.
         A comment thread has no typing indicator."""
@@ -754,6 +776,21 @@ async def subscribe_page(client, page_id, token) -> dict:
     return {"ok": False, "feed": False, "error": d.get("error", "")}
 
 
+async def unsubscribe_page(client, page_id, token) -> dict:
+    """Stop the Page calling this app's webhook (0.446.0, Disconnect). Best effort: a token that no longer
+    works cannot unsubscribe, and the Page is removed from Javis either way."""
+    try:
+        r = await client.delete(f"{GRAPH}/{page_id}/subscribed_apps", params={"access_token": token})
+        d = r.json() or {}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    if d.get("error") or not d.get("success"):
+        e = d.get("error") or {}
+        return {"ok": False, "error": _explain_error(e.get("code"), e.get("message") or "unsubscribe failed",
+                                                     e.get("error_subcode"))}
+    return {"ok": True}
+
+
 # Error codes the owner can act on. https://developers.facebook.com/docs/messenger-platform/error-codes
 _WINDOW = ("đã quá 24 giờ kể từ tin cuối người này nhắn cho Page, Messenger không cho trả lời tự do nữa. "
            "Người đó nhắn lại là mở lại cửa sổ 24 giờ",
@@ -775,6 +812,12 @@ _ERRORS = {
     10: ("app chưa đủ quyền cho việc này (thường là chưa qua xét duyệt pages_messaging, hoặc ngoài cửa sổ 24 giờ)",
          "the app lacks permission for this (usually pages_messaging not approved yet, or outside the 24-hour window)"),
     100: ("tham số sai, thường là Page id không đúng với token", "invalid parameter, usually a Page id that does not match the token"),
+    10900: ("bình luận này đã được nhắn riêng một lần rồi, Messenger chỉ cho nhắn riêng một lần mỗi bình luận. "
+            "Khách trả lời tin đó thì tiếp tục trò chuyện trong hội thoại Messenger",
+            "this comment already got its one private message, Messenger allows one per comment. When the person "
+            "answers it, carry on in the Messenger chat"),
+    10903: ("bình luận này không nhắn riêng được nữa (quá 7 ngày, hoặc đã bị xoá hay ẩn)",
+            "this comment can no longer get a private message (older than 7 days, or deleted or hidden)"),
     613: ("vượt hạn mức gửi của Messenger, thử lại sau", "Messenger rate limit reached, try again later"),
 }
 

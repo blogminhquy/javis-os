@@ -139,5 +139,38 @@ check("a channel with a Connections card hides the token part and Save", () => {
   assert.ok(css.includes("#htTokenPart[hidden], .ht-form-acts .ht-save[hidden] { display: none; }"));
 });
 
+
+// 0.446.0 (owner, 03/11/2026): the card is "Meta", names the apps it covers, each Page and WhatsApp number can be
+// disconnected, and WhatsApp numbers show on the same card.
+check("each Page has Disconnect, in the danger style", () => {
+  const h = M.accountHtml({ id: "acc_1", page_id: "123", page_name: "Em Mi", bots: [] });
+  assert.ok(h.includes('class="s-btn-ghost msc-del" type="button" data-act="remove"'));
+});
+check("a WhatsApp number row: name, phone number id, bots, Disconnect", () => {
+  const h = M.waHtml({ id: "wa_1", label: "Hotline", phone_id: "1098", bots: [{ id: "b", name: "Bot WA", enabled: true }] });
+  assert.ok(h.includes('data-id="wa_1"') && h.includes("Hotline") && h.includes("Phone number ID 1098") && h.includes("Bot WA"));
+  assert.ok(h.includes('data-act="remove"') && !h.includes('data-act="check"'));
+});
+check("the connected card shows with Pages, with WhatsApp numbers, or both, and offers + WhatsApp", () => {
+  assert.strictEqual(M.groupHtml([], []), "");
+  const onlyWa = M.groupHtml([], [{ id: "w", phone_id: "1" }]);
+  assert.ok(onlyWa.includes("msc.wa_n") && !onlyWa.includes("msc.pages_n") && onlyWa.includes("data-msc-wa"));
+  const both = M.groupHtml([{ id: "a", page_id: "1", bots: [] }], [{ id: "w", phone_id: "1" }]);
+  assert.ok(both.includes("msc.pages_n") && both.includes("msc.wa_n"));
+});
+check("the catalog card offers a Page and WhatsApp", () => {
+  const h = M.catCard("chat");
+  assert.ok(h.includes('data-msc-open="1"') && h.includes('data-msc-wa="1"'));
+});
+{
+  const src = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "messenger-connect.js"), "utf8");
+  check("apps: Facebook, Messenger, WhatsApp live; Instagram, Threads coming", () => {
+    assert.ok(src.includes('[["facebook", true], ["messenger", true], ["whatsapp", true], ["instagram", false], ["threads", false]]'));
+  });
+  check("Disconnect goes through the shared account delete, taking the Page off its bot", () => {
+    assert.ok(src.includes('"/channels/accounts/" + encodeURIComponent(id) + "/delete"') && src.includes('f.append("go_khoi_bot", "1")'));
+  });
+}
+
 if (fails) { console.log("\n" + fails + " FAILED"); process.exit(1); }
 console.log("\nall ok");

@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.446.0] - 2026-11-03
 ### Thêm mới
-- Đang viết.
+- **Nhắn riêng cho người bình luận.** Mở một bình luận Facebook trong Hộp thư, chọn **Nhắn riêng** phía trên ô trả lời: tin đi thẳng vào Messenger của người đó từ Fanpage, dù họ chưa từng nhắn cho Trang. Khách trả lời là thành cuộc chat Messenger bình thường trong Hộp thư. Meta cho nhắn riêng một lần mỗi bình luận, trong vòng 7 ngày.
+- **Gỡ kết nối Fanpage.** Mỗi Trang trong danh sách đã kết nối có nút **Gỡ kết nối**: Javis gỡ Trang khỏi bot, báo Meta ngừng gửi tin của Trang này, hội thoại cũ vẫn giữ.
+### Cải thiện
+- **Thẻ "Facebook Messenger" đổi thành "Kết nối Meta"**, kèm icon Facebook, Messenger, WhatsApp, Instagram, Threads (hai cái cuối sắp có). Số WhatsApp nay hiện chung trên thẻ này, có nút **＋ WhatsApp** và gỡ được ngay tại đây.
+- **Bình luận có icon riêng** (ô vuông màu cam có dòng chữ), không còn trông giống tin nhắn Messenger (bong bóng tròn xanh).
 
 ## [0.445.1] - 2026-11-03
 ### Sửa lỗi
