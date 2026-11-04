@@ -89,6 +89,11 @@
   var _soTrang = 1, _conDS = false, _dangTaiDS = false;   // phân trang danh sách: số trang đã tải, còn trang sau không
   var _conCu = false, _dangTaiCu = false, _vetMeta = "";   // khung tin: còn tin cũ không, đang tải tin cũ, chữ ký phần đầu khung
   var _actNote = null;      // {text, err}: dòng nói kết quả của lần bấm gần nhất, sống qua các lần vẽ lại khung
+  // Chats opened before, so going back to one shows it at once and only asks for what came after (owner, 2026-11-04:
+  // "ấn sang nó không phản hồi ngay"). id -> {conv, msgs, conCu, silence, running}, newest last in _cacheThu.
+  var _cacheTin = {}, _cacheThu = [];
+  var _rowIds = null, _rowHtml = [], _rowFoot = "";   // the list as last drawn: row ids, each row's HTML, the footer
+  var CACHE_CHAT = 30, CACHE_TIN = 60;
   var _kenhDS = [];         // các LOẠI kênh (server: id, nhan, logo, kind, nang_luc...)
   var _tk = [];             // mọi tài khoản kênh, một khuôn
   var _dauVetTK = "";
@@ -123,13 +128,20 @@
     Object.keys(obj || {}).forEach(function (k) { if (obj[k] != null) f.append(k, obj[k]); });
     return f;
   }
+  // One Intl formatter per locale and shape, made once: toLocaleString(loc, opts) builds a new one on every call, and the
+  // list plus the open chat call this a hundred times per redraw (the top cost when switching chats, 2026-11-04).
+  var _fmtGio = {};
+  function fmtGio(cungNgay) {
+    var k = LOC() + (cungNgay ? "|t" : "|d");
+    return _fmtGio[k] || (_fmtGio[k] = new Intl.DateTimeFormat(LOC(), cungNgay ? { hour: "2-digit", minute: "2-digit" }
+      : { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }));
+  }
   function gio(ts) {
     if (!ts) return "";
     try {
       var d = new Date(ts * 1000), nay = new Date();
-      var cungNgay = d.toDateString() === nay.toDateString();
-      return cungNgay ? d.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" })
-                      : d.toLocaleString(LOC(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+      var cungNgay = d.getDate() === nay.getDate() && d.getMonth() === nay.getMonth() && d.getFullYear() === nay.getFullYear();
+      return fmtGio(cungNgay).format(d);
     } catch (e) { return ""; }
   }
 
@@ -746,6 +758,7 @@
     var box = _host.querySelector(".ht-list");
     if (!box) return;
     if (!_items.length) {
+      _rowIds = null;
       closeRowMenu(false);
       var coNguon = _tk.some(function (a) { return a.ghi; });
       var loc = !!(_q || _kenhLoc || _botLoc || _accs.length || _statusLoc || _typeLoc || _tagsAny.length || _tagsNone.length || _contactLoc ||
@@ -784,7 +797,7 @@
     }
     var V = window.JavisInboxV5;
     var many = _accs.length !== 1;      // several nicks or Pages in view: each row names the one it came through
-    box.innerHTML = _items.map(function (c) {
+    var rows = _items.map(function (c) {
       var ten = c.title || c.customer_name || c.external_chat_id;
       var pre = c.last_sender_type === "ai" ? window.t("ib.pre_ai") : c.last_sender_type === "human" ? window.t("ib.pre_you") : "";
       var who = V && V.WHO.indexOf(c.who) >= 0 ? c.who : "log";
@@ -825,30 +838,29 @@
           '</span>' +
           (userTags ? '<span class="ht-item-utags">' + userTags + '</span>' : "") +
         '</span></button>';
-    }).join("") + (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +
-                            esc(window.t("ht.xem_them")) + '</button></div>' : "");
-    box.querySelectorAll(".ht-item").forEach(function (x) {
-      x.onclick = function (e) {
-        if (e.target && e.target.closest && e.target.closest(".ht-pin")) { e.stopPropagation(); ghim(x); return; }
-        // The "..." opens the row menu and never the conversation.
-        if (e.target && e.target.closest && e.target.closest(".ht-rmore")) { e.stopPropagation(); toggleRowMenu(x, false); return; }
-        mo(parseInt(x.dataset.id, 10));
-      };
-      var p = x.querySelector(".ht-pin");
-      if (p) p.onkeydown = function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); ghim(x); }
-      };
-      var more = x.querySelector(".ht-rmore");
-      if (more) more.onkeydown = function (e) {
-        if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); toggleRowMenu(x, true); }
-      };
-      // Right click (and a long press, where the phone browser reports it as a context menu) opens the same menu.
-      x.oncontextmenu = function (e) { e.preventDefault(); openRowMenu(x, false); };
-      // Keyboard: the context-menu key or Shift+F10 on a focused row.
-      x.onkeydown = function (e) {
-        if (e.target === x && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) { e.preventDefault(); openRowMenu(x, true); }
-      };
     });
+    var foot = (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +
+                         esc(window.t("ht.xem_them")) + '</button></div>' : "");
+    var ids = _items.map(function (c) { return String(c.id); });
+    // Same rows in the same order (the 5-second refresh, the reload after opening a chat): swap only the rows whose HTML
+    // changed, so one new message or one read chat does not rebuild forty rows (2026-11-04, a slow tap on a long inbox).
+    var cur = box.children || [];
+    var same = !!box.replaceChild && _rowIds && _rowFoot === foot && _rowIds.length === ids.length && cur.length === ids.length + (foot ? 1 : 0) &&
+      ids.every(function (id, i) { return _rowIds[i] === id && cur[i].dataset && cur[i].dataset.id === id; });
+    if (same) {
+      for (var ri = 0; ri < rows.length; ri++) {
+        if (rows[ri] === _rowHtml[ri]) continue;
+        var tpl = document.createElement("template");
+        tpl.innerHTML = rows[ri];
+        var neu = tpl.content.firstElementChild;
+        box.replaceChild(neu, cur[ri]);
+        ganDong(neu);
+      }
+    } else {
+      box.innerHTML = rows.join("") + foot;
+      box.querySelectorAll(".ht-item").forEach(ganDong);
+    }
+    _rowIds = ids; _rowHtml = rows; _rowFoot = foot;
     // Còn trang sau: nút Xem thêm ở cuối, và tự tải khi cuộn gần tới đáy. Dùng sự kiện cuộn chứ không dùng IntersectionObserver: callback của
     // nó bị trình duyệt hoãn khi khung không được vẽ, còn sự kiện cuộn thì luôn tới (và kiểm thử được).
     var them = box.querySelector(".ht-more");
@@ -862,6 +874,30 @@
     }
     // An open row menu survives the redraw; its row may have left the list (hidden on another device): then it closes.
     if (_rm) { if (!rmAnchor()) closeRowMenu(false); else placeRowMenu(); }
+  }
+
+  // The handlers of one list row (bound again whenever the row is rebuilt).
+  function ganDong(x) {
+    x.onclick = function (e) {
+      if (e.target && e.target.closest && e.target.closest(".ht-pin")) { e.stopPropagation(); ghim(x); return; }
+      // The "..." opens the row menu and never the conversation.
+      if (e.target && e.target.closest && e.target.closest(".ht-rmore")) { e.stopPropagation(); toggleRowMenu(x, false); return; }
+      mo(parseInt(x.dataset.id, 10));
+    };
+    var p = x.querySelector(".ht-pin");
+    if (p) p.onkeydown = function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); ghim(x); }
+    };
+    var more = x.querySelector(".ht-rmore");
+    if (more) more.onkeydown = function (e) {
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); toggleRowMenu(x, true); }
+    };
+    // Right click (and a long press, where the phone browser reports it as a context menu) opens the same menu.
+    x.oncontextmenu = function (e) { e.preventDefault(); openRowMenu(x, false); };
+    // Keyboard: the context-menu key or Shift+F10 on a focused row.
+    x.onkeydown = function (e) {
+      if (e.target === x && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) { e.preventDefault(); openRowMenu(x, true); }
+    };
   }
 
   // Ghim một cuộc chat lên đầu hòm thư (0.223.0). Server xếp cuộc đã ghim trước, nên chỉ cần tải lại danh sách.
@@ -1141,6 +1177,7 @@
     } catch (e) { return alert(window.t("ht.rm_err", { err: e.message })); }
     _items = _items.filter(function (it) { return it.id !== id; });
     if (_conv && _conv.id === id) dongThread();
+    boCache(id);
     _dauVet = "";
     veDanhSach();
     tai(true);
@@ -1215,19 +1252,56 @@
   async function mo(id) {
     closeRowMenu(false);
     if (id !== _chon) { _tagPop = false; _tagEdit = 0; _tagErr = ""; _draftEdit = null; _noteEdit = null; _msheet = false; }
+    luuCache();
     _chon = id;
     _dauVetTin = "";
     _actNote = null;
     _msgs = []; _conCu = false; _dangTaiCu = false; _vetMeta = "";       // hội thoại khác: tải lại từ tin mới nhất
     _host.querySelector(".ht-wrap").classList.add("thread-on");
-    veDanhSach();
-    // Read first: an opened chat leaves "Needs you" (owner, 2026-10-28), so the bar above it must not still say it.
-    try { await api("/conversations/" + id + "/read", { method: "POST" }); } catch (e) {}
-    await taiTin(false);
+    // Answer the tap at once (2026-11-04): move the highlight instead of redrawing the whole list, and show the chat from
+    // the last visit (or a loading line) before the network answers. Only what came since is fetched then.
+    chonDong(id);
+    var cu = _cacheTin[id];
+    if (cu) {
+      _conv = cu.conv; _msgs = cu.msgs.slice(); _conCu = cu.conCu; _silence = cu.silence; _running = cu.running;
+      _vetMeta = metaSig(); _dauVetTin = "x";
+      veThread();
+    } else {
+      var th = _host.querySelector(".ht-thread");
+      if (th) th.innerHTML = '<div class="ht-empty ht-thread-empty">' + esc(window.t("common.loading")) + '</div>';
+    }
+    // `read=1`: the same request marks it read first, so an opened chat leaves "Needs you" (owner, 2026-10-28) and the bar
+    // above it does not still say it, without a round trip of its own.
+    await taiTin(false, true);
     tai(true);
   }
 
+  // Move the "open" highlight to row `id` without redrawing the list (a full redraw was most of the cost of a tap).
+  function chonDong(id) {
+    var box = _host && _host.querySelector(".ht-list");
+    if (!box) return;
+    var cu = box.querySelector(".ht-item.on");
+    if (cu) cu.classList.remove("on");
+    var row = box.querySelector('.ht-item[data-id="' + id + '"]');
+    if (row) row.classList.add("on");
+  }
+
+  // Keep the chat being left (its last CACHE_TIN messages) for a quick return. Older messages reload by scrolling up.
+  function luuCache() {
+    if (!_chon || !_msgs.length || !_conv || _conv.id !== _chon) return;
+    var cat = _msgs.length > CACHE_TIN;
+    _cacheTin[_chon] = { conv: _conv, msgs: cat ? _msgs.slice(-CACHE_TIN) : _msgs.slice(), conCu: _conCu || cat,
+                         silence: _silence, running: _running };
+    _cacheThu = _cacheThu.filter(function (k) { return k !== _chon; }).concat([_chon]);
+    while (_cacheThu.length > CACHE_CHAT) delete _cacheTin[_cacheThu.shift()];
+  }
+  function boCache(id) {
+    delete _cacheTin[id];
+    _cacheThu = _cacheThu.filter(function (k) { return k !== id; });
+  }
+
   function dongThread() {
+    luuCache();
     _chon = null;
     _msgs = [];
     _infoN = false; _msheet = false;
@@ -1240,7 +1314,7 @@
     veDanhSach();
   }
 
-  async function taiTin(im) {
+  async function taiTin(im, docLuon) {
     if (!_chon) return;
     var id = _chon;
     var box = _host.querySelector(".ht-thread");
@@ -1251,7 +1325,7 @@
     var moi = [];
     try {
       var d = await api("/conversations/" + id + "/messages?" +
-                        (dau ? "limit=" + TIN_TRANG : "after=" + _msgs[_msgs.length - 1].id + "&limit=200"));
+                        (dau ? "limit=" + TIN_TRANG : "after=" + _msgs[_msgs.length - 1].id + "&limit=200") + (docLuon ? "&read=1" : ""));
       if (_chon !== id) return;
       _conv = d.conversation; _silence = d.bot_silence || null; _running = !!d.bot_running;
       if (dau) { _msgs = d.messages || []; _conCu = !!d.has_more; }
@@ -1262,6 +1336,8 @@
         _msgs = _msgs.concat(moi);
       }
     } catch (e) {
+      // A chat shown from the cache that no longer answers (deleted elsewhere): forget it, so the next open asks afresh.
+      if (docLuon) boCache(id);
       if (!im && dau) box.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
       return;
     }

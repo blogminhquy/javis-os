@@ -417,11 +417,16 @@ def register(app, deps: ConversationsDeps):
         return {"ok": True, "conversation": d} if d else _404()
 
     @router.get("/conversations/{conv_id}/messages")
-    async def conversations_messages(conv_id: int, limit: int = 100, before: int = 0, after: int = 0):
+    async def conversations_messages(conv_id: int, limit: int = 100, before: int = 0, after: int = 0, read: int = 0):
         """Tin của một hội thoại, cũ trước mới sau.
 
         Mặc định lấy `limit` tin MỚI NHẤT; `before=<id>` lấy các tin cũ hơn id đó (kéo lên để xem thêm); `after=<id>` (0.65.11) chỉ lấy tin MỚI
-        hơn id đó, dành cho nhịp làm mới 5 giây. `has_more` cho biết còn tin cũ hơn tin đầu của phần trả về hay không."""
+        hơn id đó, dành cho nhịp làm mới 5 giây. `has_more` cho biết còn tin cũ hơn tin đầu của phần trả về hay không.
+
+        `read=1`: mark the conversation read first, as POST /read does, so opening a chat is one round trip and the state
+        returned (who handles it, unread count) already reflects the open."""
+        if read and not conversations.danh_dau_da_doc(conv_id):
+            return _404()
         d = conversations.chi_tiet(conv_id)
         if not d:
             return _404()

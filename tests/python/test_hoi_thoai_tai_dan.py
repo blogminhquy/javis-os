@@ -115,6 +115,19 @@ check("ghép các trang lại thì đúng danh sách đầy đủ, không sót k
       ([x["id"] for x in ghep], [x["id"] for x in tat]))
 check("offset quá cuối thì rỗng", cl.get("/conversations", params={"limit": 3, "offset": 50}).json()["items"] == [])
 
+# ---------------------------------------------------------------- 5. mở hội thoại một lượt (2026-11-04)
+# Opening a chat used to wait for POST /read before asking for its messages; `read=1` does both in one request.
+truoc_doc = conversations.chi_tiet(CID)["unread_count"]
+d = cl.get(f"/conversations/{CID}/messages", params={"limit": 40, "read": 1}).json()
+check("có tin chưa đọc trước khi mở (dữ liệu thử đúng)", truoc_doc > 0, truoc_doc)
+check("read=1 đánh dấu đã đọc TRƯỚC khi trả, nên trạng thái trả về đã là đã đọc",
+      d["conversation"]["unread_count"] == 0 and conversations.chi_tiet(CID)["unread_count"] == 0, d["conversation"]["unread_count"])
+check("read=1 vẫn trả đúng 40 tin mới nhất", [m["text"] for m in d["messages"]][-1] == "tin 102" and len(d["messages"]) == 40)
+ghi("dai", 103)
+d0 = cl.get(f"/conversations/{CID}/messages", params={"after": i5[-1]}).json()
+check("không có read thì không đụng số chưa đọc (nhịp 5 giây giữ nguyên hành vi cũ)", conversations.chi_tiet(CID)["unread_count"] == 1, conversations.chi_tiet(CID)["unread_count"])
+check("read=1 với hội thoại không có thì 404", cl.get("/conversations/999999/messages", params={"read": 1}).status_code == 404)
+
 check("không dùng em dash trong file này", chr(0x2014) not in open(__file__, encoding="utf-8").read())
 
 if fails:

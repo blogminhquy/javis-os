@@ -75,10 +75,30 @@ check("tin còn ngắn chưa cuộn được thì tải tiếp, nhưng CANARY: c
 check("hết tin cũ thì nút biến mất (has_more do server báo)", /_conCu = !!d\.has_more && cu\.length > 0;/.test(CV) && /_conCu = !!d\.has_more;/.test(CV));
 
 // ---- 4. server ----
-check("server có after và has_more", /def conversations_messages\(conv_id: int, limit: int = 100, before: int = 0, after: int = 0\)/.test(SRV) &&
+check("server có after và has_more", /def conversations_messages\(conv_id: int, limit: int = 100, before: int = 0, after: int = 0[,)]/.test(SRV) &&
   /"has_more":/.test(SRV) && /co_tin_cu\(conv_id, msgs\[0\]\["id"\]\)/.test(SRV));
 check("lý do bot im tính trên tin cuối THẬT của cuộc chat, không phải phần trả về", /cuoi = msgs if \(not moi and not before\) else conversations\.tin_nhan\(conv_id, limit=1\)/.test(SRV));
 check("trang thứ hai của danh sách không tính lại số đếm", /if offset > 0:/.test(SRV) && /return \{"ok": True, "items": items\}/.test(SRV));
+
+// ---- 4b. mở hội thoại phản hồi ngay (chủ dự án 04/11/2026: "ấn sang nó không kiểu phản hồi ngay") ----
+check("đánh dấu đã đọc đi chung lượt lấy tin (read=1), không còn một lượt POST /read riêng chặn trước",
+  /read: int = 0\)/.test(SRV) && /if read and not conversations\.danh_dau_da_doc\(conv_id\):/.test(SRV) &&
+  /\(docLuon \? "&read=1" : ""\)/.test(CV) && /await taiTin\(false, true\);/.test(CV) &&
+  !/await api\("\/conversations\/" \+ id \+ "\/read", \{ method: "POST" \}\); \} catch \(e\) \{\}\s*await taiTin/.test(CV));
+check("bấm một dòng chỉ dời chỗ tô sáng, không vẽ lại cả danh sách", /function chonDong\(id\)/.test(CV) &&
+  /chonDong\(id\);/.test(CV) && !/thread-on"\);\s*veDanhSach\(\);/.test(CV));
+check("quay lại cuộc đã mở: hiện ngay từ bộ nhớ, rồi chỉ hỏi phần mới", /var cu = _cacheTin\[id\];/.test(CV) &&
+  /_msgs = cu\.msgs\.slice\(\)/.test(CV) && /_vetMeta = metaSig\(\); _dauVetTin = "x";/.test(CV));
+check("bộ nhớ có trần: 30 cuộc, 60 tin mỗi cuộc, cắt bớt thì còn đánh dấu có tin cũ", /var CACHE_CHAT = 30, CACHE_TIN = 60;/.test(CV) &&
+  /conCu: _conCu \|\| cat/.test(CV) && /while \(_cacheThu\.length > CACHE_CHAT\) delete _cacheTin\[_cacheThu\.shift\(\)\];/.test(CV));
+check("cuộc mới chưa có trong bộ nhớ thì hiện dòng Đang tải ngay, không để khung cũ đứng đó", /th\.innerHTML = '<div class="ht-empty ht-thread-empty">' \+ esc\(window\.t\("common\.loading"\)\)/.test(CV));
+check("xoá cuộc chat hoặc tải hỏng thì bỏ khỏi bộ nhớ", /dongThread\(\);\s*boCache\(id\);/.test(CV) && /if \(docLuon\) boCache\(id\);/.test(CV));
+check("danh sách cùng thứ tự thì chỉ thay dòng đổi, và gắn lại sự kiện cho dòng mới", /if \(rows\[ri\] === _rowHtml\[ri\]\) continue;/.test(CV) &&
+  /box\.replaceChild\(neu, cur\[ri\]\);\s*ganDong\(neu\);/.test(CV) && /box\.querySelectorAll\("\.ht-item"\)\.forEach\(ganDong\);/.test(CV) &&
+  /_rowIds = ids; _rowHtml = rows; _rowFoot = foot;/.test(CV));
+check("danh sách trống thì quên bản vẽ cũ, lần sau vẽ lại đầy đủ", /if \(!_items\.length\) \{\s*_rowIds = null;/.test(CV));
+check("định dạng giờ dùng lại một Intl.DateTimeFormat, không tạo mới mỗi lần gọi", /new Intl\.DateTimeFormat\(LOC\(\)/.test(CV) &&
+  /return fmtGio\(cungNgay\)\.format\(d\);/.test(CV) && !/toLocaleTimeString\(LOC\(\)/.test(CV));
 
 // ---- 5. giao diện + từ điển ----
 check("có kiểu cho nút Xem thêm và nút Xem tin cũ hơn", /\.ht-more \{/.test(CSS) && /\.ht-older \{/.test(CSS) && /\.ht-older\.busy \{/.test(CSS));
