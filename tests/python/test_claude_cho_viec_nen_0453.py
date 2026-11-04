@@ -4,8 +4,9 @@
 
 Reported from a Windows Server install: when a Claude Code turn started background work (a background shell, a
 sub-agent), the chat turn ended at the first answer and the follow-up that should pick up the result never came. Javis
-disconnected at the first ResultMessage. The fake client here shares ONE message stream across receive_response()
-calls, like the SDK: a later call reads the messages that come after the first ResultMessage.
+disconnected at the first ResultMessage. The wait (claude_bg_wait.py) is wired into the owner's chat lane,
+claude_warm.query, which every dashboard chat turn takes; this test drives that lane. The fake client shares ONE message
+stream across receive_response() calls, like the SDK: a later call reads the messages after the first ResultMessage.
 """
 from _paths import ROOT, SERVER  # noqa: F401
 import asyncio
@@ -16,7 +17,8 @@ from unittest.mock import patch
 
 os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-bgwait-"))
 import claude_agent_sdk as sdk
-import claude_sdk_engine as eng
+import claude_bg_wait as eng
+import claude_warm
 from claude_sdk_engine import ClaudeSDK
 
 fails = []
@@ -78,18 +80,20 @@ class Client:
 
 
 async def run_case(client, env=None, limit=3.0):
-    e = {"JAVIS_CLAUDE_RESULT_TIMEOUT": "30", "JAVIS_CLAUDE_IDLE_TIMEOUT": "0", "JAVIS_CLAUDE_FIRST_TIMEOUT": "0"}
+    e = {"JAVIS_CLAUDE_RESULT_TIMEOUT": "30", "JAVIS_CLAUDE_IDLE_TIMEOUT": "0", "JAVIS_CLAUDE_FIRST_TIMEOUT": "0",
+         "JAVIS_WARM_BUDGET_MB": "0.0001"}
     e.update(env or {})
     with patch.object(sdk, "ClaudeSDKClient", return_value=client), \
          patch.object(ClaudeSDK, "is_available", return_value=True), \
          patch.object(ClaudeSDK, "_options", return_value=SimpleNamespace(include_hook_events=True)), \
          patch("claude_token_gate.xep_hang", return_value=""), \
          patch.dict(os.environ, e):
-        engine = ClaudeSDK(tag="bgwait-test")
+        engine = ClaudeSDK(tag="chat:bgwait-test")
+        assert claude_warm.eligible(engine), "the test must run the owner's chat lane"
         events = []
 
         async def consume():
-            async for ev in engine.query("render video"):
+            async for ev in claude_warm.query(engine, "render video", "bgwait-key"):
                 events.append(ev)
         await asyncio.wait_for(consume(), limit)
     return events
@@ -175,7 +179,7 @@ async def main():
     check("an error result ends the turn even with a task pending", len(finals(evs)) <= 1 and c.closed)
 
     # 7. The rounds are capped (a follow-up that keeps starting new background work).
-    w = eng._BackgroundWait(100.0, max_rounds=2)
+    w = eng.BackgroundWait(100.0, max_rounds=2)
     comp = SimpleNamespace(tasks={"t"}, deadline=None)
     ok = [w.keep_going(SimpleNamespace(is_error=False), comp, 0.0) for _ in range(3)]
     check("at most BG_MAX_ROUNDS waits per turn", ok == [True, True, False], ok)
@@ -183,10 +187,13 @@ async def main():
 
 asyncio.run(main())
 
-warm = (ROOT / "server" / "claude_warm.py").read_text(encoding="utf-8")
-check("the warm path (kept-open Claude client) waits the same way",
-      "eng._BackgroundWait(eng.bg_wait_cap())" in warm and "bg.keep_going(msg, completion, loop.time())" in warm
-      and "await client.query(eng.BG_NUDGE)" in warm)
+import hashlib  # noqa: E402
+import json  # noqa: E402
+pin = json.loads((ROOT / "docs/superpowers/evidence/2026-10-25-m5-native-qualification-cli310.json").read_text())
+check("claude_sdk_engine.py stays byte for byte the qualified source (the wait lives in claude_bg_wait.py)",
+      hashlib.sha256((ROOT / "server/claude_sdk_engine.py").read_bytes()).hexdigest()
+      == pin["source_hashes"]["claude_sdk_engine.py"])
+check("claude_bg_wait.py is not part of the qualified native profile", "claude_bg_wait.py" not in pin["source_hashes"])
 
 print("\n" + ("XANH" if not fails else f"ĐỎ: {len(fails)} lỗi"))
 raise SystemExit(1 if fails else 0)

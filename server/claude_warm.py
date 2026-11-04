@@ -285,6 +285,7 @@ def _options_and_fingerprint(cli):
 
 
 async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]:
+    import claude_bg_wait
     import claude_sdk_engine as eng
     import localefmt
     import turn_context
@@ -354,7 +355,7 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
             raise
         yield {"type": "warm", "warm": slot is not None}
         agen = client.receive_response().__aiter__()
-        bg = eng._BackgroundWait(eng.bg_wait_cap())   # 0.453.0, issue #898 item 1: wait for background work
+        bg = claude_bg_wait.BackgroundWait(claude_bg_wait.bg_wait_cap())   # 0.453.0, issue #898 item 1
         while True:
             waiting_tool = tools_running > 0
             if waiting_tool:
@@ -377,7 +378,7 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
             except asyncio.TimeoutError:
                 if ly_do == "bg_nudge":
                     bg.nudge()
-                    await client.query(eng.BG_NUDGE)
+                    await client.query(claude_bg_wait.BG_NUDGE)
                     agen = client.receive_response().__aiter__()
                     continue
                 if ly_do == "bg":

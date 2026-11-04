@@ -38,11 +38,7 @@ async def run_case(messages, monitored=True):
          patch("claude_token_gate.xep_hang", return_value=""), \
          patch.dict(os.environ, {"JAVIS_CLAUDE_RESULT_TIMEOUT": "0.05",
                                  "JAVIS_CLAUDE_IDLE_TIMEOUT": "0",
-                                 "JAVIS_CLAUDE_FIRST_TIMEOUT": "0",
-                                 # 0.453.0: a turn with background tasks still running now waits for them
-                                 # (tests/python/test_claude_cho_viec_nen_0453.py). This file checks how a
-                                 # turn closes without that wait, so it keeps the old behaviour.
-                                 "JAVIS_CLAUDE_BG_WAIT": "0"}):
+                                 "JAVIS_CLAUDE_FIRST_TIMEOUT": "0"}):
         engine = ClaudeSDK(tag="completion-test")
         engine.session_id = "s1"
         events = []
