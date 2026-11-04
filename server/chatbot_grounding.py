@@ -305,6 +305,14 @@ def scope_of(meta: Any) -> Any:
     return str(m.get("chat_id") or "")
 
 
+def add_turn_scopes(turn: dict, meta: Any) -> dict:
+    """Put the internal API scope list on a bound turn (`turn_context`) as `doc_scopes`, so the doc tools open the same
+    documents as the pre-search. Only when the channel set `doc_scopes`; any other turn is left as it is."""
+    if isinstance(turn, dict) and "doc_scopes" in (meta or {}):
+        turn["doc_scopes"] = tuple(scope_of(meta))
+    return turn
+
+
 def scoped_paths(root: Any, chat_id: Any) -> List[str]:
     """Relative posix paths of the scoped documents of ONE chat (or of a scope list, see `_scope_ids`). Empty without
     one."""

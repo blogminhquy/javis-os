@@ -61,8 +61,8 @@ def _root(vault_root: Any) -> Optional[Path]:
 def turn_chat_id():
     """The chat of the turn running this tool call, "" when no turn is bound (then no scoped document).
 
-    An internal API turn (0.451.0) carries `doc_scopes` instead: that tuple is returned, and the chat id is never used
-    as a scope there, even when the tuple is empty."""
+    An internal API turn (0.451.0) carries `doc_scopes` instead (set by the host, `chatbot_grounding.add_turn_scopes`):
+    that tuple is returned, and the chat id is never used as a scope there, even when the tuple is empty."""
     t = turn_context.current() or {}
     if "doc_scopes" in t:
         return tuple(t.get("doc_scopes") or ())

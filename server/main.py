@@ -22478,6 +22478,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         # shows them under the bot's assistant instead of Javis Core.
         # A plain string, so a hook reading the turn (a shallow copy) cannot edit it for the next reader.
         _luot["bot_id"] = str(bot["id"])
+        # 0.451.0: an internal API turn opens private documents by the caller's scope list, never by its chat id. The
+        # doc tools read it from the turn (chatbot_doc_tools.turn_chat_id).
+        import chatbot_grounding
+        chatbot_grounding.add_turn_scopes(_luot, meta)
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
     if bot:

@@ -225,7 +225,8 @@ async def main():
     tools, route = dt.build(BRAIN)
 
     async def tool(meta, name, args=None):
-        tk = turn_context.bind(turn_context.from_meta("api", meta, la_chu=False))
+        # Bound the way main._tg_answer_engine binds a bot turn.
+        tk = turn_context.bind(chatbot_grounding.add_turn_scopes(turn_context.from_meta("api", meta, la_chu=False), meta))
         try:
             return await route[name]["call"](args or {})
         finally:
@@ -243,7 +244,8 @@ async def main():
           "noi-bo.md" not in lst0 and "ho-so-mgr" not in lst0 and "concept-khu-vuon" in lst0, lst0)
     check("other channels unchanged: the chat id is still the scope",
           chatbot_grounding.scope_of({"chat_id": "123"}) == "123"
-          and "doc_scopes" not in turn_context.from_meta("zalo", {"chat_id": "123"}, la_chu=False))
+          and "doc_scopes" not in chatbot_grounding.add_turn_scopes(
+              turn_context.from_meta("zalo", {"chat_id": "123"}, la_chu=False), {"chat_id": "123"}))
     check("a scope list matches ANY of its ids", set(chatbot_grounding.scoped_paths(BRAIN, ["cs-sg", "nope"]))
           == {"rieng-theo-nhom/cs-sg/kho-sg-bi-mat.md"})
     CALLS.clear()
@@ -465,6 +467,8 @@ asyncio.run(main())
 src = (Path(SERVER) / "main.py").read_text(encoding="utf-8")
 check("main.py: the turn route exists and is in the public list",
       '@app.post("/chatbot-api/v1/turn")' in src and '"/chatbot-api/v1/turn")' in src)
+check("main.py: a bot turn carries the scope list to the doc tools",
+      "chatbot_grounding.add_turn_scopes(_luot, meta)" in src)
 check("main.py: only that exact path is public, no /chatbot-api prefix",
       '"/chatbot-api/"' not in src and '"/chatbot-api"' not in src)
 
