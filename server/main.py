@@ -2011,9 +2011,9 @@ def _providers_view(cfg):
         }
         if p["kind"] == "oauth":
             item["account"] = oauth.get("account_id", "")
-            # The vendor's plan code, only tidied ("plus" -> "Plus"); no name table (2026-11-04).
+            # The vendor's plan code, named by javis-store's plan-name catalog or tidied (no table in code).
             import plan_limits
-            item["plan"] = plan_limits.ten_goi(oauth.get("plan", ""))
+            item["plan"] = plan_limits.ten_goi(oauth.get("plan", ""), "codex")
             # Đăng nhập ChatGPT do CHÍNH JAVIS lo (OAuth device code, token ghi vào ~/.codex)
             # nên "Đã kết nối" không chứng minh máy có binary `codex`. Máy thiếu nó là thẻ
             # xanh mà chat vỡ - báo cáo 16/08: người mới cài kết nối được nhưng không dùng
@@ -2028,7 +2028,7 @@ def _providers_view(cfg):
             item["auth_method"] = _k.get("method", "")
             item["account"] = _k.get("account", "")
             import plan_limits
-            item["plan"] = plan_limits.ten_goi(_k.get("plan", ""))
+            item["plan"] = plan_limits.ten_goi(_k.get("plan", ""), "grok")
             item["auth_error"] = _k.get("error", "")
             item["cai_lenh"] = grok_cli.lenh_cai()
             item["tu_cai"] = cli_autoinstall.state("grok")   # Docker tự cài lúc khởi động (0.85.1)
@@ -30249,8 +30249,8 @@ async def plan_limits_get(goi: int = 0):
     if goi:
         cl = await asyncio.to_thread(claude_auth_status)
         oa = (cfgmod.read_settings().get("model", {}) or {}).get("openai_oauth") or {}
-        ten = {"claude": cl.get("goi_ten") or plan_limits.ten_goi(cl.get("goi") or ""),
-               "codex": plan_limits.ten_goi((d.get("codex") or {}).get("goi") or oa.get("plan") or ""),
-               "grok": plan_limits.ten_goi(grok_k.get("plan") or ""), "agy": ""}
+        ten = {"claude": cl.get("goi_ten") or plan_limits.ten_goi(cl.get("goi") or "", "claude"),
+               "codex": plan_limits.ten_goi((d.get("codex") or {}).get("goi") or oa.get("plan") or "", "codex"),
+               "grok": plan_limits.ten_goi(grok_k.get("plan") or "", "grok"), "agy": ""}
     return {"claude": d.get("claude"), "codex": d.get("codex"), "grok": d.get("grok"), "agy": d.get("agy"),
             "plan": co_goi, "ten_goi": ten, "nguong": {"canh_bao": plan_limits.CANH_BAO, "sat": plan_limits.SAT}}
