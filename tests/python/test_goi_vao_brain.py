@@ -117,15 +117,77 @@ with tempfile.TemporaryDirectory() as td:
         (brain2 / "agents").mkdir(parents=True)
         (brain2 / "agents" / "tro-ly.md").write_text("CỦA NGƯỜI DÙNG\n", encoding="utf-8")
         b4 = pv.cai("acme.y", goi, str(brain2))
-        check("gói KHÔNG ghi đè mục brain đã có sẵn",
-              any("đã có mục cùng tên" in x["vi_sao"] for x in b4["bo_qua"]))
+        # Owner report 2026-11-04: skipping the clash silently meant a reinstalled agent never came back.
+        # The user's file still wins; the pack's copy goes in beside it under a free name.
+        check("gói KHÔNG ghi đè mục brain đã có sẵn, mà cài bản của gói dưới tên mới",
+              [x.get("slug") for x in b4["doi_ten"]] == ["tro-ly-2"]
+              and (brain2 / "agents" / "tro-ly-2.md").is_file())
         check("tệp của người dùng còn nguyên",
               "CỦA NGƯỜI DÙNG" in (brain2 / "agents" / "tro-ly.md").read_text(encoding="utf-8"))
+        check("bản đổi tên trỏ slug trong frontmatter về tên tệp mới",
+              "slug: tro-ly-2" in (brain2 / "agents" / "tro-ly-2.md").read_text(encoding="utf-8")
+              or "slug:" not in (brain2 / "agents" / "tro-ly-2.md").read_text(encoding="utf-8"))
         check("nhưng mục không trùng vẫn cài được", len(b4["them"]) == 2)
+        b4b = pv.cai("acme.y", goi, str(brain2))
+        check("cài lại lần nữa cập nhật đúng bản tro-ly-2, không đẻ thêm tro-ly-3",
+              not b4b["doi_ten"] and not (brain2 / "agents" / "tro-ly-3.md").exists()
+              and len(b4b["cap_nhat"]) == 3)
         g4 = pv.go("acme.y")
-        check("gỡ không đụng tệp của người dùng",
-              "agents/tro-ly" not in g4["da_xoa"]
-              and (brain2 / "agents" / "tro-ly.md").is_file())
+        check("gỡ không đụng tệp của người dùng, chỉ xoá bản của gói",
+              (brain2 / "agents" / "tro-ly.md").is_file()
+              and not (brain2 / "agents" / "tro-ly-2.md").exists())
+
+        # ─────────────── 4b. Đúng ca chủ repo gặp (2026-11-04) ───────────────
+        # Install, rename the agent in the app, uninstall (edited copy kept), install again.
+        brain4 = tmp / "brain4"
+        brain4.mkdir()
+        pv.cai("acme.vu", goi, str(brain4))
+        ag = brain4 / "agents" / "tro-ly.md"
+        ag.write_text(ag.read_text(encoding="utf-8").replace("name: Trợ lý", "name: Bống"), encoding="utf-8")
+        g5 = pv.go("acme.vu")
+        check("đổi tên rồi gỡ: bản đã đổi tên được giữ", g5["giu_lai"] == ["agents/tro-ly"] and ag.is_file())
+        b5 = pv.cai("acme.vu", goi, str(brain4))
+        check("cài lại sau khi đổi tên: trợ lý của gói hiện lại (tên mới), bản của bạn còn nguyên",
+              (brain4 / "agents" / "tro-ly-2.md").is_file() and "Bống" in ag.read_text(encoding="utf-8")
+              and b5["doi_ten"])
+        check("và sổ còn ghi nhận nó, nên kho biết gói có mặt",
+              pv.con_lai("acme.vu") == {"placed": 3, "present": 3})
+        # Delete everything the pack placed, from the app: the Store must stop saying "installed".
+        for x in (brain4 / "agents" / "tro-ly-2.md", brain4 / "workflows" / "quy-trinh.md"):
+            x.unlink()
+        import shutil as _sh
+        _sh.rmtree(brain4 / "skills" / "viet-email")
+        check("xoá hết trong app thì sổ thấy 0 mục còn lại", pv.con_lai("acme.vu")["present"] == 0)
+        b6 = pv.cai("acme.vu", goi, str(brain4))
+        check("cài lại sau khi xoá: đặt lại đúng tên cũ", (brain4 / "agents" / "tro-ly-2.md").is_file()
+              and len(b6["them"]) == 3 and not b6["doi_ten"])
+        pv.go("acme.vu")
+
+        # ─────────────── 4c. Skill đang TẮT vẫn là của gói ───────────────
+        brain5 = tmp / "brain5"
+        brain5.mkdir()
+        pv.cai("acme.sk", goi, str(brain5))
+        (brain5 / "skills" / ".disabled").mkdir()
+        (brain5 / "skills" / "viet-email").replace(brain5 / "skills" / ".disabled" / "viet-email")
+        mir = brain5 / ".claude" / "skills" / "viet-email"
+        mir.mkdir(parents=True)
+        (mir / "SKILL.md").write_text("x", encoding="utf-8")
+        check("skill tắt không bị tính là đã xoá", pv.con_lai("acme.sk")["present"] == 3)
+        b7 = pv.cai("acme.sk", goi, str(brain5))
+        check("cập nhật skill tắt ghi vào chỗ tắt, không đẻ bản bật thứ hai",
+              not (brain5 / "skills" / "viet-email").exists() and not b7["doi_ten"])
+        pv.go("acme.sk")
+        check("gỡ xoá cả skill đang tắt", not (brain5 / "skills" / ".disabled" / "viet-email").exists())
+        check("và xoá bản mirror .claude/skills để Claude Code thôi nạp nó", not mir.exists())
+
+        # ─────────────── 4d. Brain còn dùng thư mục cũ Javis/agents ───────────────
+        brain6 = tmp / "brain6"
+        (brain6 / "Javis" / "agents").mkdir(parents=True)
+        (brain6 / "Javis" / "agents" / "cu.md").write_text("---\nname: Cũ\n---\nx\n", encoding="utf-8")
+        pv.cai("acme.old", goi, str(brain6))
+        check("brain kiểu cũ: agent của gói vào Javis/agents, không tạo agents/ làm mất agent cũ",
+              (brain6 / "Javis" / "agents" / "tro-ly.md").is_file() and not (brain6 / "agents").exists())
+        pv.go("acme.old")
 
         # ─────────────── 5. Khác xuống dòng KHÔNG bị hiểu là đã sửa ───────────────
         # Ca đã cắn ở chỗ khác: trình soạn thảo Windows lưu lại một tệp là đổi mọi byte xuống

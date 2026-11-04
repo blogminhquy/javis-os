@@ -380,7 +380,22 @@
       dong();
       if (typeof tuy.sauKhiCai === "function") tuy.sauKhiCai(r);
       else veLai(el);
+      baoDoiTen(d, r);
     };
+  }
+
+  // The brain already had an item with this name (the user renamed or edited the pack's copy, then
+  // uninstalled and installed again). The pack's copy went in under a new name: say which, or the user
+  // looks for the old name on the Partners page and thinks the install did nothing.
+  function baoDoiTen(d, r) {
+    const ds = ((r && r.vault) || {}).doi_ten || [];
+    if (!ds.length) return;
+    modal(pkmDau(d, esc(tw("store.installed_renamed.title")), esc(nn(d.name, d.id)))
+      + '<div class="pkm-than"><p class="pkm-mota">' + esc(tw("store.installed_renamed.body")) + '</p><ul>'
+      + ds.map(x => '<li>' + tw("store.installed_renamed.row",
+          { goc: '<code>' + esc(x.goc || "") + '</code>', moi: '<code>' + esc(x.slug || "") + '</code>' }) + '</li>').join("")
+      + '</ul></div><div class="pkm-chan"><button class="mp-btn primary" data-act="close">'
+      + tw("common.close") + '</button></div>', true);
   }
 
   async function tuUrl(el, url, expect, tin, tuy) {
@@ -533,7 +548,12 @@
   // Dòng trạng thái dưới mô tả. Nói ĐỦ HAI SỐ khi có bản mới, vì "đang chạy cái gì" và "kho
   // có cái gì" là hai câu hỏi khác nhau và người dùng cần cả hai để quyết định có bấm không.
   function dongDaCai(g) {
-    if (!g.installed) return "";
+    // Owner report 2026-11-04: the user deleted the pack's agents in the app, so the server stopped
+    // calling it installed. Say why the card offers Install again.
+    if (!g.installed) {
+      return g.removed_from_brain
+        ? '<div class="kho-daicai">' + ic("info") + ' ' + tw("store.removed_from_brain") + '</div>' : "";
+    }
     if (g.nguon === "app" || !g.installed_version) {
       return '<div class="kho-daicai">' + ic("check") + ' ' + tw("store.installed_here")
         + '</div>';
