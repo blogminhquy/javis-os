@@ -1,7 +1,7 @@
-"""Internal API channel (0.451.0): a server you run asks ONE dedicated Chatbot over HTTP.
+"""Internal API channel (0.459.0): a server you run asks ONE dedicated Chatbot over HTTP.
 
-Built for a staff web app (the first caller is the Go backend of Lạc Lạc's "Manager"): staff ask about their work
-inside that app, and its backend forwards the question here and shows the reply.
+Built for a staff web app: staff ask about their work inside that app, and its backend forwards the question here and
+shows the reply. EXPERIMENTAL (maintainer, 0.459.0): the request and reply shape may still change in the next releases.
 
 Why a channel and not the existing API token: a `chat`-scope API token runs `/chat` AS THE OWNER, with every tool,
 every brain and the shell. This channel runs a Chatbot instead, so every fence a Chatbot already has still holds:
@@ -17,13 +17,18 @@ Rules enforced here in code, not by instructions to the model:
   1. Permission ceiling: the bot runs at "Chỉ đọc" (suggest) or "Đọc tài liệu" (read_docs) only. Higher, or a per-chat
      exception raising it higher, answers 403 and the bot card turns red with the reason. `chatbot_runtime` checks
      `PERMISSION_CEILING` a second time inside the turn, so a future caller that skips this module still cannot pass.
-  2. `scopes` from the caller is TRUSTED (it comes with the key) and opens private documents: a file under
-     `rieng-theo-nhom/<scope>/` or with `chat_scope` naming any of them. `conversation_id` is NEVER a scope.
+  2. `scopes` from the caller is TRUSTED (it comes with the key) and opens private documents, in the channel's OWN
+     namespace: a file under `rieng-theo-nhom/api-<scope>/` or whose `chat_scope` names `api:<scope>`. The prefix
+     keeps the caller away from documents scoped to a Zalo or Telegram chat of the same bot, whose ids are plain
+     (maintainer, 0.459.0). `conversation_id` is NEVER a scope.
   3. `context` is UNTRUSTED data: it reaches the model inside a fenced data block (`chatbot_runtime.attached_data_block`)
      and never the inbox. `text` at most 4,000 characters, `context` at most 8,000.
   4. Rate limits per conversation and per account, set on the account form.
-  5. Callers only from `JAVIS_CHATBOT_API_ALLOW` (CIDR list; default loopback and Docker's private range), and never
-     through a proxy or tunnel (a forwarding header means the request came from outside).
+  5. Callers only from `JAVIS_CHATBOT_API_ALLOW` (CIDR list; default THIS machine only), and never through a proxy or
+     tunnel (a forwarding header means the request came from outside). The default used to include Docker's private
+     range 172.16.0.0/12; the maintainer narrowed it (0.459.0) because on a Docker host with a published port, traffic
+     that reaches the container through Docker's userland proxy (IPv6, for one) shows the bridge gateway 172.x.0.1 as
+     its source, so the Internet would pass the address check. A caller in another container is listed on purpose.
   6. Nothing about the machine leaks: the bot runs with `giau_trang_thai`, and a failure answers a generic sentence
      while the detail goes to the server log.
   7. Key guessing: the same per-IP counter and `auth_audit.jsonl` as the API token (10 misses in 5 minutes, 15 minutes
@@ -50,14 +55,14 @@ SPEC = KenhSpec(
     id="api", nhan="API nội bộ", kind="bot", logo="api", mau="#475569",
     lay_token=("Javis tự sinh khoá khi bạn bấm Lưu và chỉ hiện đúng một lần. Dán khoá đó vào máy chủ sẽ gọi bot "
                "(header Authorization: Bearer)."),
-    tom_tat=("Cho một máy chủ của bạn (vd web nội bộ) hỏi bot qua HTTP. Bot chỉ chạy ở mức Chỉ đọc hoặc Đọc tài liệu, "
+    tom_tat=("Thử nghiệm. Cho một máy chủ của bạn (vd web nội bộ) hỏi bot qua HTTP. Bot chỉ chạy ở mức Chỉ đọc hoặc Đọc tài liệu, "
              "không gửi tin ra ngoài."),
     nang_luc={"nhom": False, "gui_chu": False, "gui_file": False},
     en={
         "nhan": "Internal API",
         "lay_token": ("Javis generates a key when you click Save and shows it exactly once. Put that key on the server "
                       "that calls the bot (header Authorization: Bearer)."),
-        "tom_tat": ("Lets one of your servers (an internal web app, say) ask the bot over HTTP. The bot runs at Read "
+        "tom_tat": ("Experimental. Lets one of your servers (an internal web app, say) ask the bot over HTTP. The bot runs at Read "
                     "only or Read documents, and sends nothing out."),
     },
 )
@@ -82,8 +87,9 @@ DEDUPE_MAX = 5_000
 DEDUPE_TTL_S = 24 * 3600
 
 ENV_ALLOW = "JAVIS_CHATBOT_API_ALLOW"
-# Loopback plus 172.16.0.0/12, the range Docker gives its bridge and user networks. Anything else must be listed.
-DEFAULT_ALLOW = "127.0.0.0/8,::1/128,172.16.0.0/12"
+# This machine only. A caller in another container or on the LAN is added to JAVIS_CHATBOT_API_ALLOW by the owner,
+# as narrow as it can be (one address, or the one Docker network the caller shares with Javis). See rule 5 above.
+DEFAULT_ALLOW = "127.0.0.0/8,::1/128"
 # Same list as main._FORWARD_HEADERS: a reverse proxy or tunnel adds one of these, a server calling directly does not.
 # Nginx Proxy Manager runs in the same Docker network, so without this check the whole Internet would come in through
 # it from an allowed address.
@@ -369,6 +375,22 @@ def parse_body(raw: bytes) -> tuple:
             "scopes": list(dict.fromkeys(scopes)), "text": text.strip(), "context": ctx.strip()}, None
 
 
+SCOPE_PREFIX = "api:"          # in `chat_scope`
+SCOPE_DIR_PREFIX = "api-"      # as a folder under rieng-theo-nhom/ (a ":" cannot be in a folder name on Windows)
+
+
+def doc_scope_ids(scopes) -> list:
+    """The ids a caller's scopes open: each scope as `api:<scope>` and `api-<scope>`, never the bare name. A bare name
+    is what a Zalo or Telegram chat of the same bot is scoped by, and the key holder must not reach those."""
+    out = []
+    for sc in scopes or []:
+        for pre in (SCOPE_PREFIX, SCOPE_DIR_PREFIX):
+            v = pre + str(sc)
+            if v not in out:
+                out.append(v)
+    return out
+
+
 def build_meta(account_id: str, turn: dict) -> dict:
     """The `meta` every transport gives the bot. The chat id is namespaced so a caller can never land in the session of
     a Telegram or Zalo chat of the same bot by picking a matching conversation id."""
@@ -377,7 +399,8 @@ def build_meta(account_id: str, turn: dict) -> dict:
         "user_id": turn["user_id"], "user_name": turn["user_name"], "username": "",
         "message_id": turn["message_id"], "mentioned": True, "reply_to_bot": False, "account_id": account_id,
         # Trusted: these come with the key. The document search and the doc tools read them instead of the chat id.
-        "doc_scopes": list(turn["scopes"]),
+        # Prefixed (`doc_scope_ids`): the caller reaches only documents marked for this channel.
+        "doc_scopes": doc_scope_ids(turn["scopes"]),
         # Untrusted: the runtime fences it as data for the model only (chatbot_runtime.attached_data_block).
         "attached_data": turn["context"],
     }
@@ -388,31 +411,47 @@ def _bearer(header: str) -> str:
     return h[7:].strip() if h[:7].lower() == "bearer " else ""
 
 
-async def handle_http(auth_header: str, client_ip: str, headers: Optional[dict], body: bytes) -> tuple:
-    """One `POST TURN_PATH`. Returns (HTTP status, JSON body). Never raises."""
+async def handle_http(auth_header: str, client_ip: str, headers: Optional[dict], body: bytes,
+                      account: Optional[dict] = None) -> tuple:
+    """One `POST TURN_PATH`. Returns (HTTP status, JSON body). Never raises. `account`: the route already ran `gate`."""
     turn_id = "turn_" + secrets.token_hex(8)
     try:
-        return await _handle(auth_header, client_ip, headers, body, turn_id)
+        return await _handle(auth_header, client_ip, headers, body, turn_id, account)
     except Exception as e:      # noqa: BLE001 - the caller gets a generic sentence, the log keeps the detail
         print(f"[chatbot-api {turn_id}] {type(e).__name__}: {e}", file=sys.stderr)
         return _err(500, "internal", "Javis gặp lỗi khi xử lý lượt này.", "Javis hit an error handling this turn.",
                     turn_id=turn_id)
 
 
-async def _handle(auth_header, client_ip, headers, body, turn_id) -> tuple:
+def gate(auth_header: str, client_ip: str, headers: Optional[dict]) -> tuple:
+    """(account, None) when the source and the key pass, else (None, error tuple). Needs no body, so the route runs it
+    BEFORE reading one (maintainer, 0.459.0): a caller from outside, or without the key, never gets to make Javis
+    buffer a request body."""
     import config as cfgmod
     if not source_allowed(client_ip, headers):
         print(f"[chatbot-api] refused source {client_ip} (outside {ENV_ALLOW} or through a proxy)", file=sys.stderr)
-        return _err(403, "forbidden_source", "Nguồn gọi không được phép.", "This source may not call the API.")
+        return None, _err(403, "forbidden_source", "Nguồn gọi không được phép.", "This source may not call the API.")
     if cfgmod.token_ip_banned(client_ip):
-        return _err(429, "banned", "Sai khoá quá nhiều lần, thử lại sau 15 phút.",
-                    "Too many wrong keys, try again in 15 minutes.")
+        return None, _err(429, "banned", "Sai khoá quá nhiều lần, thử lại sau 15 phút.",
+                          "Too many wrong keys, try again in 15 minutes.")
     raw = _bearer(auth_header)
     account = account_for_key(raw) if raw else None
     if not account:
         if raw:
             cfgmod.note_token_failure(client_ip, raw[:12])
-        return _err(401, "unauthorized", "Khoá sai hoặc đã được xoay.", "Wrong or rotated key.")
+        return None, _err(401, "unauthorized", "Khoá sai hoặc đã được xoay.", "Wrong or rotated key.")
+    return account, None
+
+
+def too_large() -> tuple:
+    return _err(413, "too_large", "Nội dung gửi lên quá lớn.", "The request body is too large.")
+
+
+async def _handle(auth_header, client_ip, headers, body, turn_id, account=None) -> tuple:
+    if account is None:
+        account, bad = gate(auth_header, client_ip, headers)
+        if bad:
+            return bad
     turn, bad = parse_body(body)
     if bad:
         return bad

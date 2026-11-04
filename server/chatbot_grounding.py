@@ -288,7 +288,7 @@ def file_scope(p: Path) -> Optional[tuple]:
 
 def _scope_ids(chat_id: Any) -> frozenset:
     """The scope ids a turn may open. A string is one chat id (every channel since 0.338.0). A list or tuple is the
-    scope list of an internal API turn (0.451.0): sent by the caller's server with its key, matched against the folder
+    scope list of an internal API turn (0.459.0): sent by the caller's server with its key, matched against the folder
     name and `chat_scope` like a chat id, and a document matching ANY of them is seen. Empty: no scoped document."""
     if isinstance(chat_id, (list, tuple, set, frozenset)):
         return frozenset(x for x in (str(v or "").strip() for v in chat_id) if x)

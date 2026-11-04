@@ -1681,7 +1681,7 @@ def _ghi_bo_qua(bot_id: str, cfg: dict, meta: dict, text: str, ma: str, tl: dict
 
 
 def channel_ceiling(cfg: dict, meta: dict = None) -> str:
-    """The channel's permission ceiling when this turn's level is above it, else "" (0.451.0).
+    """The channel's permission ceiling when this turn's level is above it, else "" (0.459.0).
 
     A channel module may declare `PERMISSION_CEILING` (the internal API channel: "read_docs"). Its own route refuses an
     over-ceiling bot with a 403 first; this is the second lock, read inside the turn on the level the turn will really
@@ -1695,7 +1695,7 @@ def channel_ceiling(cfg: dict, meta: dict = None) -> str:
     return tran if hang.get(muc, len(hang)) > hang.get(tran, -1) else ""
 
 
-# Data a channel's server attached to a turn (internal API `context`, 0.451.0). It reaches the model only, fenced as
+# Data a channel's server attached to a turn (internal API `context`, 0.459.0). It reaches the model only, fenced as
 # data: the caller is trusted to send it, but what is INSIDE (a calendar, a customer note) may hold any words, and none
 # of them is an instruction. The fence carries a random id per turn, so the data cannot close it and speak outside.
 _DU_LIEU_KEM = """<du-lieu-kem id="{id}">
@@ -1737,7 +1737,7 @@ def _make_answer_fn(bot_id: str):
         cfg = chatbot_store.ap_ngoai_le(cfg, meta)
         tran = channel_ceiling(cfg, meta)
         if tran:
-            # Above the channel's ceiling (internal API, 0.451.0): no turn at all, not even the inbox write.
+            # Above the channel's ceiling (internal API, 0.459.0): no turn at all, not even the inbox write.
             print(f"[chatbot {bot_id}] refused: level {cfg.get('muc_quyen')} above the channel ceiling {tran}",
                   file=sys.stderr)
             return {"text": "", "files": [], "im_lang": True, "refused": "permission_ceiling"}
@@ -1753,7 +1753,7 @@ def _make_answer_fn(bot_id: str):
         if not _nen_tra_loi(cfg, meta or {}):
             return {"text": "", "files": [], "im_lang": True}
         chat_id = str((meta or {}).get("chat_id") or "")
-        # What opens scoped documents: the chat id, or the internal API's scope list (never its chat id, 0.451.0).
+        # What opens scoped documents: the chat id, or the internal API's scope list (never its chat id, 0.459.0).
         doc_scope = chatbot_grounding.scope_of(meta)
         user_id = str((meta or {}).get("user_id") or "")
         # Chế độ Tự đánh giá: tin nhóm KHÔNG ai gọi bot. Đánh giá TRƯỚC mọi thứ tốn kém hoặc có

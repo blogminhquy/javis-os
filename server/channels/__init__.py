@@ -37,7 +37,7 @@ Ba LOẠI kênh (`kind`), khác nhau ở cách có tài khoản chứ không ở
 Thêm một kênh = thêm một file ở đây + một dòng trong `_MODULES` + một logo trong icons.js.
 Không sửa gì khác.
 
-Optional module attributes (0.451.0, internal API channel):
+Optional module attributes (0.459.0, internal API channel):
     GENERATED_KEY = True          the account secret is a key Javis generates on Save and shows once (no pasted token);
                                   the module provides `new_key()`, `key_meta(raw)`, `default_settings()`
     PERMISSION_CEILING = "<level>"  the highest Chatbot permission level a turn on this channel may run at;
@@ -228,7 +228,7 @@ def cho_giao_dien() -> List[dict]:
             "huong_dan": dict(getattr(_MOD.get(s.id), "GUIDE", None) or {}),
             # The channel has its own card on the Connections page (Messenger, 0.436.2).
             "the_ket_noi": bool(getattr(_MOD.get(s.id), "CONNECT_CARD", False)),
-            # Javis generates the account key and shows it once (internal API, 0.451.0): no token field, a Rotate button.
+            # Javis generates the account key and shows it once (internal API, 0.459.0): no token field, a Rotate button.
             "khoa_tu_sinh": bool(getattr(_MOD.get(s.id), "GENERATED_KEY", False)),
             "tran_muc_quyen": str(getattr(_MOD.get(s.id), "PERMISSION_CEILING", "") or ""),
             "cai_dat_tk": _account_settings(_MOD.get(s.id)),

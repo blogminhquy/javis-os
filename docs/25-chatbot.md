@@ -592,7 +592,7 @@ Không còn giới hạn nghĩa là một người nhắn liên tục, hay một
 
 ## Kênh API nội bộ
 
-Từ 0.451.0. Kênh này cho **một máy chủ của bạn** (ví dụ web quản lý nội bộ của studio) hỏi **một** Chatbot qua HTTP, để nhân viên hỏi đáp công việc ngay trong web đó. Máy chủ của bạn nhận câu hỏi của nhân viên, gửi sang Javis, rồi hiện câu trả lời.
+Từ 0.459.0, **thử nghiệm**: cách gọi và khuôn câu trả lời có thể còn đổi trong vài bản tới, mỗi lần đổi sẽ ghi rõ trong nhật ký cập nhật. Kênh này cho **một máy chủ của bạn** (ví dụ web quản lý nội bộ của studio) hỏi **một** Chatbot qua HTTP, để nhân viên hỏi đáp công việc ngay trong web đó. Máy chủ của bạn nhận câu hỏi của nhân viên, gửi sang Javis, rồi hiện câu trả lời.
 
 Khác hẳn token API "chỉ chat" ở trang Cài đặt: token đó gọi `/chat` **dưới danh nghĩa chủ**, toàn quyền. Kênh API nội bộ chạy một **Chatbot**, nên giữ nguyên mọi rào của Chatbot: chỉ thấy brain của nó, không chạy lệnh máy, không gọi nguồn dữ liệu ở mức thấp. Khoá của kênh chỉ mở đúng một đường `POST /chatbot-api/v1/turn`, và token API không mở được đường đó.
 
@@ -600,7 +600,7 @@ Khác hẳn token API "chỉ chat" ở trang Cài đặt: token đó gọi `/cha
 
 1. Trang **Chatbot** → tab **Kênh** → **Thêm kênh** → chọn **API nội bộ**, đặt tên, bấm **Lưu**. Không có ô dán token: Javis tự sinh khoá (`jvc_...`, 32 byte ngẫu nhiên) và **hiện đúng một lần**. Chép khoá sang máy chủ của bạn ngay. Javis chỉ giữ bản băm, nên mất khoá thì không xem lại được, chỉ có thể xoay khoá mới.
 2. Gắn tài khoản đó cho một bot ở mức **Chỉ đọc** hoặc **Đọc tài liệu**, rồi bật bot.
-3. Máy chủ của bạn gọi `POST http://<máy Javis>:<cổng>/chatbot-api/v1/turn` **trực tiếp** (cùng máy hoặc cùng mạng Docker), không đi qua tên miền công khai.
+3. Máy chủ của bạn gọi `POST http://<máy Javis>:<cổng>/chatbot-api/v1/turn` **trực tiếp**, không đi qua tên miền công khai. Mặc định chỉ chính máy chạy Javis gọi được. Máy chủ gọi nằm ở container khác hay máy khác trong mạng nội bộ thì thêm địa chỉ của nó vào `JAVIS_CHATBOT_API_ALLOW` (xem **Giới hạn và nguồn gọi**).
 
 Bấm **Sửa** tài khoản để **Xoay khoá** (khoá cũ ngừng chạy ngay, không cần khởi động lại bot) và chỉnh giới hạn tần suất.
 
@@ -615,7 +615,7 @@ Content-Type: application/json
   "message_id": "mgr-8f2c...",          // chống gửi trùng, bắt buộc
   "conversation_id": "mgr-user-123",    // khoá hội thoại: mỗi người dùng một mạch
   "user": {"id": "123", "name": "Nguyễn Văn A"},
-  "scopes": ["vai:nhan-vien", "cs:hn"], // phạm vi tài liệu riêng, do máy chủ của bạn quyết
+  "scopes": ["vai:nhan-vien", "cs-hn"], // phạm vi tài liệu riêng, do máy chủ của bạn quyết
   "text": "Concept Khu vườn trên mây cần chuẩn bị gì?",
   "context": "## Lịch của bạn hôm nay\n- 15:00-17:00 ..."  // tuỳ chọn
 }
@@ -649,9 +649,14 @@ Bot gắn kênh API **chỉ chạy ở Chỉ đọc hoặc Đọc tài liệu**.
 
 ### Tài liệu riêng theo `scopes`
 
-`scopes` đến từ máy chủ có khoá nên Javis tin nó. Một tài liệu nằm trong `rieng-theo-nhom/<scope>/`, hoặc có `chat_scope` khớp **bất kỳ** phần tử nào trong `scopes`, thì lượt đó thấy. Tài liệu của scope khác không lộ ra, kể cả tên file. Không gửi `scopes` thì lượt đó không thấy tài liệu riêng nào.
+`scopes` đến từ máy chủ có khoá nên Javis tin nó. Phạm vi của kênh API có **tiền tố riêng**, để máy chủ gọi không mở được tài liệu riêng của nhóm Zalo hay Telegram mà cùng bot đang trực. Với scope `cs-hn`, tài liệu được thấy khi:
 
-`conversation_id` **không bao giờ là scope**. Scope có dấu `:` (như `vai:nhan-vien`) thì dùng dòng `chat_scope:` trong frontmatter, vì Windows không cho tên thư mục có dấu `:`.
+- nằm trong thư mục `rieng-theo-nhom/api-cs-hn/`, hoặc
+- có dòng `chat_scope: api:cs-hn` trong frontmatter.
+
+Tài liệu khớp **bất kỳ** scope nào trong danh sách thì lượt đó thấy. Tài liệu của scope khác không lộ ra, kể cả tên file. Không gửi `scopes` thì lượt đó không thấy tài liệu riêng nào. Một tài liệu ghi `chat_scope: cs-hn` (không có `api:`) hay nằm trong `rieng-theo-nhom/cs-hn/` thì kênh API **không** thấy: đó là chỗ của các kênh khác.
+
+`conversation_id` **không bao giờ là scope**. Scope có dấu `:` (như `vai:nhan-vien`) thì dùng dòng `chat_scope: api:vai:nhan-vien`, vì Windows không cho tên thư mục có dấu `:`.
 
 ### `context` là dữ liệu, không phải lệnh
 
@@ -660,7 +665,7 @@ Bot gắn kênh API **chỉ chạy ở Chỉ đọc hoặc Đọc tài liệu**.
 ### Giới hạn và nguồn gọi
 
 - **Tần suất**: mặc định 20 lượt mỗi hội thoại trong 10 phút, 300 lượt mỗi giờ cho cả tài khoản. Chỉnh ở form sửa tài khoản.
-- **Nguồn gọi**: biến môi trường `JAVIS_CHATBOT_API_ALLOW` là danh sách CIDR, mặc định `127.0.0.0/8,::1/128,172.16.0.0/12` (máy này và mạng nội bộ Docker). Ngoài danh sách thì `403`. Request mang header chuyển tiếp (`X-Forwarded-For`, `X-Real-IP`...) cũng bị `403`, nên gọi qua Nginx Proxy Manager hay tunnel đều không vào được.
+- **Nguồn gọi**: biến môi trường `JAVIS_CHATBOT_API_ALLOW` là danh sách CIDR, mặc định `127.0.0.0/8,::1/128` (chỉ chính máy chạy Javis). Ngoài danh sách thì `403`. Máy chủ gọi nằm ở container khác thì thêm đúng địa chỉ của nó, hoặc đúng một mạng Docker mà hai bên dùng chung (ví dụ `JAVIS_CHATBOT_API_ALLOW=127.0.0.0/8,::1/128,172.20.0.0/16`), càng hẹp càng tốt. Đừng mở cả dải `172.16.0.0/12`: trên VPS chạy Docker có mở cổng ra ngoài, một số kết nối từ Internet vào sẽ hiện dưới địa chỉ cổng nội bộ của Docker và lọt qua. Request mang header chuyển tiếp (`X-Forwarded-For`, `X-Real-IP`...) cũng bị `403`, nên gọi qua Nginx Proxy Manager hay tunnel đều không vào được.
 - **Dò khoá**: sai khoá quá 10 lần trong 5 phút từ một IP thì IP đó bị chặn 15 phút, ghi vào `auth_audit.jsonl` (chỉ 12 ký tự đầu), chung bộ đếm với token API.
 
 ### Hộp thư và Tiếp quản

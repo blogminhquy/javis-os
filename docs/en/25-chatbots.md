@@ -460,7 +460,7 @@ No limit means one person messaging non-stop, or a busy group asking a lot, keep
 
 ## Internal API channel
 
-Since 0.451.0. This channel lets **one of your servers** (an internal staff web app, say) ask **one** Chatbot over HTTP, so staff can ask about their work inside that app. Your server takes the staff question, sends it to Javis and shows the reply.
+Since 0.459.0, **experimental**: the request and the reply shape may still change in the next releases, and every change is noted in the changelog. This channel lets **one of your servers** (an internal staff web app, say) ask **one** Chatbot over HTTP, so staff can ask about their work inside that app. Your server takes the staff question, sends it to Javis and shows the reply.
 
 It is not the "chat only" API token from Settings: that token calls `/chat` **as the owner**, with every tool. The internal API channel runs a **Chatbot**, so every fence of a Chatbot holds: it sees only its own brain, runs no shell command and reaches no data source at the low level. The channel's key opens exactly one path, `POST /chatbot-api/v1/turn`, and an API token does not open that path.
 
@@ -468,7 +468,7 @@ It is not the "chat only" API token from Settings: that token calls `/chat` **as
 
 1. **Chatbot** page → **Channels** tab → **Add a channel** → pick **Internal API**, name it, click **Save**. There is no token to paste: Javis generates the key (`jvc_...`, 32 random bytes) and **shows it exactly once**. Copy it to your server right away. Javis keeps only a hash, so a lost key cannot be shown again; rotate to a new one.
 2. Put that account on a bot at **Read only** or **Read documents**, then switch the bot on.
-3. Your server calls `POST http://<Javis host>:<port>/chatbot-api/v1/turn` **directly** (same machine or same Docker network), not through the public domain.
+3. Your server calls `POST http://<Javis host>:<port>/chatbot-api/v1/turn` **directly**, not through the public domain. By default only the machine running Javis may call. A caller in another container or on another machine of your network is added to `JAVIS_CHATBOT_API_ALLOW` (see **Limits and sources**).
 
 Click **Edit** on the account to **Rotate key** (the old key stops at once, no bot restart needed) and to set the rate limits.
 
@@ -483,7 +483,7 @@ Content-Type: application/json
   "message_id": "mgr-8f2c...",          // duplicate guard, required
   "conversation_id": "mgr-user-123",    // conversation key: one thread per user
   "user": {"id": "123", "name": "Nguyen Van A"},
-  "scopes": ["vai:nhan-vien", "cs:hn"], // private-document scopes, decided by your server
+  "scopes": ["vai:nhan-vien", "cs-hn"], // private-document scopes, decided by your server
   "text": "What does the Cloud Garden concept need?",
   "context": "## Your schedule today\n- 15:00-17:00 ..."  // optional
 }
@@ -517,9 +517,14 @@ A bot on the API channel **runs only at Read only or Read documents**. Higher, a
 
 ### Private documents by `scopes`
 
-`scopes` comes from the server holding the key, so Javis trusts it. A document under `rieng-theo-nhom/<scope>/`, or whose `chat_scope` names **any** entry of `scopes`, is seen by that turn. Documents of other scopes never show, not even their file names. Without `scopes` the turn sees no private document.
+`scopes` comes from the server holding the key, so Javis trusts it. The API channel's scopes carry **their own prefix**, so the calling server cannot open the private documents of a Zalo or Telegram group the same bot serves. For the scope `cs-hn`, a document is seen when it:
 
-`conversation_id` is **never a scope**. For a scope with `:` (like `vai:nhan-vien`) use a `chat_scope:` line in the frontmatter, since Windows folder names cannot hold `:`.
+- lies under `rieng-theo-nhom/api-cs-hn/`, or
+- has the line `chat_scope: api:cs-hn` in its frontmatter.
+
+A document matching **any** scope of the list is seen by that turn. Documents of other scopes never show, not even their file names. Without `scopes` the turn sees no private document. A document with `chat_scope: cs-hn` (no `api:`) or under `rieng-theo-nhom/cs-hn/` is **not** seen by the API channel: those belong to the other channels.
+
+`conversation_id` is **never a scope**. For a scope with `:` (like `vai:nhan-vien`) use `chat_scope: api:vai:nhan-vien`, since Windows folder names cannot hold `:`.
 
 ### `context` is data, not instructions
 
@@ -528,7 +533,7 @@ A bot on the API channel **runs only at Read only or Read documents**. Higher, a
 ### Limits and sources
 
 - **Rate**: by default 20 turns per conversation in 10 minutes and 300 turns per hour for the whole account. Set them on the account edit form.
-- **Sources**: the `JAVIS_CHATBOT_API_ALLOW` environment variable is a CIDR list, by default `127.0.0.0/8,::1/128,172.16.0.0/12` (this machine and Docker's internal networks). Anything else gets `403`. A request carrying a forwarding header (`X-Forwarded-For`, `X-Real-IP`...) also gets `403`, so calls through Nginx Proxy Manager or a tunnel never get in.
+- **Sources**: the `JAVIS_CHATBOT_API_ALLOW` environment variable is a CIDR list, by default `127.0.0.0/8,::1/128` (only the machine running Javis). Anything else gets `403`. For a caller in another container, list its exact address or the one Docker network both share (for example `JAVIS_CHATBOT_API_ALLOW=127.0.0.0/8,::1/128,172.20.0.0/16`), as narrow as you can. Do not open the whole `172.16.0.0/12`: on a Docker host with a published port, some connections from the Internet show up with Docker's internal gateway address and would pass. A request carrying a forwarding header (`X-Forwarded-For`, `X-Real-IP`...) also gets `403`, so calls through Nginx Proxy Manager or a tunnel never get in.
 - **Key guessing**: more than 10 wrong keys in 5 minutes from one IP bans that IP for 15 minutes and is written to `auth_audit.jsonl` (first 12 characters only), sharing the counter with API tokens.
 
 ### Inbox and Take over

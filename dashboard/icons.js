@@ -299,7 +299,7 @@
         '<path fill="#133C9A" d="M11.3 10.4c2.5-2.3 5.6-3 8.6-1.8 1 .4 1.6 1 1.9 1.6-.7.2-1.4.7-2' +
         ' 1.3l-.9 1.4c-1.6 1.9-3.7 2.6-6.3 2.1-1.2-.2-2.4-.6-3.5-1.2z"/>',
     },
-    // Internal API (0.451.0): a server you run asks a Chatbot over HTTP. Code brackets on slate.
+    // Internal API (0.459.0): a server you run asks a Chatbot over HTTP. Code brackets on slate.
     api: {
       nhan: "API",
       mau: "#475569",

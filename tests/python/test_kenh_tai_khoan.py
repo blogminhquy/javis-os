@@ -59,7 +59,7 @@ def check(name, cond):
 # ============================================================
 # 0.71.0: thêm Slack và WhatsApp (cả hai kind=bot, tài khoản là token).
 check("sổ có mười kênh: Zalo Bot, Zalo cá nhân, Zalo OA (0.412.0), Messenger, Threads (0.448.0), Telegram, Slack, WhatsApp, Lark, "
-      "API nội bộ (0.451.0)",
+      "API nội bộ (0.459.0)",
       set(channels.ids()) == {"zalo", "zalo_personal", "zalo_oa", "messenger", "threads", "telegram", "slack", "whatsapp", "lark",
                               "api"})
 # 0.64.80: Zalo cá nhân có Transport (bot tự trả lời) nhưng không có token, nên `bot_ids` có ba

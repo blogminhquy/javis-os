@@ -8,7 +8,7 @@ một kiểu, Zalo cá nhân một kiểu); trang Chatbot hỏi `/chatbots` đ�
     POST /channels/verify-token         hỏi nền tảng token này là bot nào, chặn trùng
     POST /channels/accounts             thêm tài khoản token (kênh kind=bot)
     POST /channels/accounts/{id}/update đổi nhãn / token
-    POST /channels/accounts/{id}/rotate-key  new key for a channel whose key Javis generates (internal API, 0.451.0)
+    POST /channels/accounts/{id}/rotate-key  new key for a channel whose key Javis generates (internal API, 0.459.0)
     POST /channels/accounts/{id}/watch  bật/tắt ghi vào hộp thư (kênh kind=account)
     POST /channels/accounts/{id}/delete xoá tài khoản token (từ chối khi còn bot trực)
     POST /channels/accounts/{id}/bot    đổi bot trực tài khoản này (Chatbot v5, tab Kênh)
@@ -59,7 +59,7 @@ def _bat(v) -> bool:
 
 
 def _generated_key(channel: str) -> bool:
-    """The channel's account secret is a key Javis generates (`GENERATED_KEY`, internal API 0.451.0)."""
+    """The channel's account secret is a key Javis generates (`GENERATED_KEY`, internal API 0.459.0)."""
     return bool(getattr(channels.module(str(channel or "").strip().lower()), "GENERATED_KEY", False))
 
 
@@ -227,7 +227,7 @@ def register(app, deps: ChannelsDeps):
 
     @router.post("/channels/accounts/{account_id}/rotate-key")
     async def channels_account_rotate_key(account_id: str):
-        """A new key for an account whose key Javis generates (internal API, 0.451.0). The old key stops working at once:
+        """A new key for an account whose key Javis generates (internal API, 0.459.0). The old key stops working at once:
         the route hashes every call against the stored hash, so no restart is needed. The new key is shown once."""
         a = channel_accounts.get_account(account_id)
         if not a:

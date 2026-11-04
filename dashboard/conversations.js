@@ -2357,7 +2357,7 @@
       var g = guideUrl(k);
       if (g) lab.insertAdjacentHTML("beforeend", ' · <a class="ht-guide" href="' + esc(g) + '" target="_blank" rel="noopener">'
         + esc(window.t("ht.huong_dan")) + " ↗</a>");
-      // Internal API (0.451.0): Javis generates the key on Save, so there is no token to paste or check.
+      // Internal API (0.459.0): Javis generates the key on Save, so there is no token to paste or check.
       box.querySelector("#htTokenRow").hidden = !!k.khoa_tu_sinh;
       if (k.khoa_tu_sinh) lab.textContent = window.t("ht.khoa_lb");
       box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + (k.khoa_tu_sinh ? "" : " " + window.t("cb.token_rieng"));
@@ -2472,7 +2472,7 @@
     };
   }
 
-  // The key of a generated-key channel (internal API, 0.451.0), shown ONCE: Javis keeps only its hash.
+  // The key of a generated-key channel (internal API, 0.459.0), shown ONCE: Javis keeps only its hash.
   function hienKhoa(khoa) {
     var box = el('<div class="ht-modal"><div class="ht-form">' +
       '<h3>' + esc(window.t("ht.khoa_moi")) + '</h3>' +

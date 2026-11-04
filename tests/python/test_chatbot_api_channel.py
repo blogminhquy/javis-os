@@ -1,4 +1,4 @@
-"""Internal API channel (0.451.0): a server of the owner asks ONE Chatbot over HTTP.
+"""Internal API channel (0.459.0): a server of the owner asks ONE Chatbot over HTTP.
 
     python tests/run.py chatbot_api_channel      (no network, fake engine)
 
@@ -27,7 +27,9 @@ from pathlib import Path
 
 _STATE = tempfile.mkdtemp(prefix="javis-chatbot-api-")
 os.environ["JAVIS_STATE_DIR"] = _STATE
-os.environ.pop("JAVIS_CHATBOT_API_ALLOW", None)
+# The caller of most checks sits on a Docker network, so the owner listed that range (the default is this machine only).
+DOCKER_ALLOW = "127.0.0.0/8,::1/128,172.16.0.0/12"
+os.environ["JAVIS_CHATBOT_API_ALLOW"] = DOCKER_ALLOW
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except Exception:
@@ -67,14 +69,18 @@ def w(rel, text):
 
 w("huong-dan/concept-khu-vuon.md", "# Concept Khu vườn trên mây\n\nKhu vườn trên mây cần váy trắng, hoa giả, thang gỗ.\n")
 # Scopes with ":" cannot be folder names on Windows, so the role scope uses `chat_scope`.
-w("quy-trinh/noi-bo.md", "---\nchat_scope: vai:nhan-vien\n---\n# Quy trình nhân viên\n\n## Khu vườn trên mây\n\n"
+w("quy-trinh/noi-bo.md", "---\nchat_scope: api:vai:nhan-vien\n---\n# Quy trình nhân viên\n\n## Khu vườn trên mây\n\n"
   "Nhân viên đến sớm 30 phút dựng thang gỗ khu vườn trên mây.\n")
-w("rieng-theo-nhom/cs-hn/kho-hn.md", "# Kho đạo cụ HN\n\nKhu vườn trên mây: đạo cụ ở kho tầng 2 Hà Nội.\n")
-w("rieng-theo-nhom/cs-sg/kho-sg-bi-mat.md", "# Kho đạo cụ SG\n\nKhu vườn trên mây: mã kho SG 4421.\n")
-w("luong/quan-ly.md", "---\nchat_scope: vai:quan-ly\n---\n# Lương quản lý\n\nKhu vườn trên mây thưởng 500k.\n")
+w("rieng-theo-nhom/api-cs-hn/kho-hn.md", "# Kho đạo cụ HN\n\nKhu vườn trên mây: đạo cụ ở kho tầng 2 Hà Nội.\n")
+w("rieng-theo-nhom/api-cs-sg/kho-sg-bi-mat.md", "# Kho đạo cụ SG\n\nKhu vườn trên mây: mã kho SG 4421.\n")
+w("luong/quan-ly.md", "---\nchat_scope: api:vai:quan-ly\n---\n# Lương quản lý\n\nKhu vườn trên mây thưởng 500k.\n")
 w("khach/ho-so-mgr.md", "---\nchat_scope: [mgr-user-1, \"api:mgr-user-1\"]\n---\n# Hồ sơ riêng\n\n"
   "Khu vườn trên mây bí mật hội thoại.\n")
-SECRET_MARKS = ("4421", "500k", "bí mật hội thoại", "kho-sg-bi-mat", "quan-ly.md", "ho-so-mgr")
+# Scoped to a Zalo chat and to a bare role name of another channel of the same bot: an API scope never opens them.
+w("rieng-theo-nhom/987654321/zalo-rieng.md", "# Nhóm Zalo\n\nKhu vườn trên mây: nhóm Zalo riêng 7788.\n")
+w("khach/vai-tran.md", "---\nchat_scope: vai:nhan-vien\n---\n# Vai trần\n\nKhu vườn trên mây mã trần 6655.\n")
+SECRET_MARKS = ("4421", "500k", "bí mật hội thoại", "kho-sg-bi-mat", "quan-ly.md", "ho-so-mgr", "7788", "zalo-rieng",
+                "6655", "vai-tran")
 
 # ============================================================
 # Fake engine
@@ -235,7 +241,7 @@ async def main():
     lst = await tool(meta_ok, "javis_docs_list")
     check("doc tools list the caller's scoped docs", "noi-bo.md" in lst and "kho-hn.md" in lst, lst)
     check("CANARY: doc tools never name another scope's file", not any(s in lst for s in SECRET_MARKS), lst)
-    rd = await tool(meta_ok, "javis_docs_read", {"path": "rieng-theo-nhom/cs-sg/kho-sg-bi-mat.md"})
+    rd = await tool(meta_ok, "javis_docs_read", {"path": "rieng-theo-nhom/api-cs-sg/kho-sg-bi-mat.md"})
     check("CANARY: reading another scope's file is refused", rd.startswith("ERROR") and "4421" not in rd, rd)
     se = await tool(meta_ok, "javis_docs_search", {"query": "mã kho thưởng bí mật khu vườn"})
     check("CANARY: search never returns another scope's text", not any(s in se for s in SECRET_MARKS), se)
@@ -246,8 +252,14 @@ async def main():
           chatbot_grounding.scope_of({"chat_id": "123"}) == "123"
           and "doc_scopes" not in chatbot_grounding.add_turn_scopes(
               turn_context.from_meta("zalo", {"chat_id": "123"}, la_chu=False), {"chat_id": "123"}))
-    check("a scope list matches ANY of its ids", set(chatbot_grounding.scoped_paths(BRAIN, ["cs-sg", "nope"]))
-          == {"rieng-theo-nhom/cs-sg/kho-sg-bi-mat.md"})
+    check("a scope list matches ANY of its ids", set(chatbot_grounding.scoped_paths(BRAIN, ["api-cs-sg", "nope"]))
+          == {"rieng-theo-nhom/api-cs-sg/kho-sg-bi-mat.md"})
+    check("API scopes are prefixed, never the bare name", api.doc_scope_ids(["cs-hn"]) == ["api:cs-hn", "api-cs-hn"])
+    meta_zalo = api.build_meta(AID, {"conversation_id": "c", "user_id": "1", "user_name": "A", "message_id": "z",
+                                     "scopes": ["987654321", "vai:nhan-vien"], "text": "q", "context": ""})
+    lstz = await tool(meta_zalo, "javis_docs_list")
+    check("CANARY: an API scope equal to a Zalo chat id or a bare chat_scope opens neither",
+          "zalo-rieng" not in lstz and "vai-tran" not in lstz and "noi-bo.md" in lstz, lstz)
     CALLS.clear()
     st, out = await call(body(scopes=[], conversation_id="mgr-user-1"))
     dump = json.dumps(CALLS[0]["bot"].get("_tai_lieu") or {}, ensure_ascii=False) if CALLS else ""
@@ -386,12 +398,18 @@ async def main():
     check("IPv4-mapped Docker address is allowed", st == 200, (st, out))
     st, out = await call(body(), ip="127.0.0.1")
     check("loopback is allowed", st == 200, (st, out))
+    os.environ.pop("JAVIS_CHATBOT_API_ALLOW", None)
+    st_d1 = (await call(body(), ip="172.18.0.5"))[0]
+    st_d2 = (await call(body(), ip="127.0.0.1"))[0]
+    st_d3 = (await call(body(), ip="172.17.0.1"))[0]
+    check("default allows only this machine: a Docker address (and the bridge gateway) needs listing",
+          (st_d1, st_d2, st_d3) == (403, 200, 403), (st_d1, st_d2, st_d3))
     os.environ["JAVIS_CHATBOT_API_ALLOW"] = "10.0.0.0/8"
     st1 = (await call(body(), ip="172.18.0.5"))[0]
     st2 = (await call(body(), ip="10.1.2.3"))[0]
     os.environ["JAVIS_CHATBOT_API_ALLOW"] = "not-a-cidr"
     st3 = (await call(body(), ip="127.0.0.1"))[0]
-    os.environ.pop("JAVIS_CHATBOT_API_ALLOW", None)
+    os.environ["JAVIS_CHATBOT_API_ALLOW"] = DOCKER_ALLOW
     check("JAVIS_CHATBOT_API_ALLOW replaces the default list", (st1, st2) == (403, 200), (st1, st2))
     check("an allow list with no valid entry allows nobody (fail closed)", st3 == 403, st3)
 
@@ -471,6 +489,18 @@ check("main.py: a bot turn carries the scope list to the doc tools",
       "chatbot_grounding.add_turn_scopes(_luot, meta)" in src)
 check("main.py: only that exact path is public, no /chatbot-api prefix",
       '"/chatbot-api/"' not in src and '"/chatbot-api"' not in src)
+
+# Through the real route: the source and the key are checked BEFORE the body is read (0.459.0). The test client's
+# address is not on the allow list, so even a body far over the cap answers 403, never 413.
+import main as _main  # noqa: E402
+_turn_app = FastAPI()
+_turn_app.post("/chatbot-api/v1/turn")(_main.chatbot_api_turn)
+r = TestClient(_turn_app).post("/chatbot-api/v1/turn", content=b"x" * (api.BODY_MAX * 4),
+                               headers={"Authorization": "Bearer jvc_nope"})
+check("route: an outside caller is refused before its body is read (403, not 413)",
+      r.status_code == 403 and r.json().get("code") == "forbidden_source", (r.status_code, r.text[:200]))
+check("main.py: the route runs the gate first and reads the body with a cap",
+      "api_channel.gate(auth, ip, hdrs)" in src and "request.stream()" in src and "api_channel.BODY_MAX" in src)
 
 if _fails:
     print(f"\nFAIL - test_chatbot_api_channel: {len(_fails)} failures: {_fails}")
