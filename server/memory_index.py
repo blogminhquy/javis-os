@@ -88,6 +88,20 @@ def _terms(value: str) -> list[str]:
     return [x for x in dict.fromkeys(_norm(value).split()) if x not in stop]
 
 
+def _retrieval_objective(query: str) -> str:
+    """Output/tool directives and greetings are not memory subjects."""
+    value = _norm(query)
+    for pattern in (
+        r"\b(?:xin chao|chao ban|hello|hi)\b",
+        r"\btra loi\s+(?:(?:dung|chi)\s+)?(?:mot cau ngan|ngan gon|ngan)\b",
+        r"\bkhong can\s+(?:(?:goi|dung)\s+)?(?:cong cu|tool)\b",
+        r"\b(?:answer|reply)\s+(?:briefly|in one sentence)\b",
+        r"\b(?:no tools needed|do not use tools)\b",
+    ):
+        value = re.sub(pattern, " ", value)
+    return value
+
+
 def _eligible_memory(item: dict, terms: list[str], min_confidence: float) -> bool:
     """Never fill slots with low-score or merely graph-adjacent records."""
     if item.get("always_on"):
@@ -485,16 +499,17 @@ class MemoryIndex:
         meta = self.rebuild(brain)
         scope = brain_scope(brain)
         db = self._conn()
-        current_terms = _terms(str(query or ""))[:16]
+        query_value = _retrieval_objective(str(query or "")) if strict_relevance else str(query or "")
+        current_terms = _terms(query_value)[:16]
         active_state = tuple(active_state or ())
         if strict_relevance:
             meaningful = _discriminative_terms(db, scope, current_terms)
-            followup = (len(meaningful) <= 2 or bool(re.search(
+            followup = (bool(meaningful) and len(meaningful) <= 2 or bool(re.search(
                 r"\b(tiếp|tiếp tục|việc đó|cái đó|dự án đó|còn nó|continue|that project|what about it)\b",
                 str(query or ""), re.IGNORECASE)))
             if not followup and not _MEMORY_HINT_RE.search(str(query or "")):
                 active_state = ()
-        query_text = " ".join([str(query or "")] + [str(x) for x in active_state])
+        query_text = " ".join([query_value] + [str(x) for x in active_state])
         terms = list(dict.fromkeys(current_terms + _terms(query_text)))[:24]
         if strict_relevance:
             terms = _discriminative_terms(db, scope, terms)

@@ -150,6 +150,12 @@ class MemoryTests(unittest.TestCase):
                                        active_state=['Villago booking'], strict_relevance=True)
                 self.assertTrue(found.records)
                 self.assertTrue(all('codex' in x['normalized'] for x in found.records))
+                found = index.retrieve(root / 'brain',
+                    'Chào bạn, trả lời đúng một câu ngắn. Không cần gọi công cụ.',
+                    active_state=['Villago booking'], strict_relevance=True)
+                self.assertEqual(found.records, ())
+                found = index.retrieve(root / 'brain', 'Trả lời ngắn gọn, Villago', strict_relevance=True)
+                self.assertTrue(found.records)
             finally:
                 index._conn().close()
 
