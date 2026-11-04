@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.454.0] - 2026-11-04
 ### Thêm mới
-- **Kéo thả sắp xếp project, đoạn chat ghim và tag.** (đang viết)
+- **Kéo thả sắp xếp project, đoạn chat đã ghim và tag.** Cùng một hộp Sắp xếp như bảng chọn Brain: kéo tay cầm hoặc bấm mũi tên lên xuống, bấm Xong. Thứ tự lưu trên máy chủ nên điện thoại và máy tính thấy giống nhau.
+- **Project:** mở menu Project, chọn **Sắp xếp project**. Thứ tự anh kéo đứng trước; project chưa từng sắp vẫn để mục ghim lên đầu như cũ.
+- **Đoạn chat đã ghim:** bấm nút mũi tên ở đầu nhóm **Đã ghim**. Chat chưa ghim vẫn tự xếp theo thời gian; muốn giữ chỗ cố định cho một cuộc thì ghim rồi kéo.
+- **Tag:** cuối menu lọc tag ở trang Cộng sự và trang Nhóm có thêm **Sắp xếp tag**, mỗi trang giữ thứ tự riêng.
 
 ## [0.453.0] - 2026-11-04
 ### Sửa lỗi

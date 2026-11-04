@@ -75,7 +75,9 @@ check("và CSS của nó không bị hạ opacity như hàng nút hover",
   && !/\.cs-menu-pin \{[^}]*opacity/.test(CSS));
 
 // Kho: ghim xếp lên đầu, và KHÔNG đụng updated_at.
-check("kho xếp project ghim lên đầu", /ORDER BY p\.pinned DESC, p\.updated_at DESC/.test(PY));
+// 0.454.0: the owner's own order (sort_order, drag to reorder) comes first; among projects never ordered, pinned
+// ones still go on top. tests/python/test_reorder_0454.py checks the behaviour on a real store.
+check("kho xếp project ghim lên đầu", /ORDER BY \(p\.sort_order IS NULL\), p\.sort_order, p\.pinned DESC, p\.updated_at DESC/.test(PY));
 check("ghim không bump updated_at (nếu không, bỏ ghim là nhảy lên đầu nhóm chưa ghim)",
   /UPDATE projects SET pinned = \? WHERE id = \?/.test(PY));
 check("DB cũ được thêm cột pinned qua migration",

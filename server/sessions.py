@@ -525,7 +525,10 @@ class SessionStore:
                               # lượt. NULL/rỗng = phiên chưa có lượt dashboard nào (hoặc phiên
                               # Telegram) → theo mặc định chung ở settings.json.
                               ("pinned_provider", "TEXT"),
-                              ("pinned_model", "TEXT")):
+                              ("pinned_model", "TEXT"),
+                              # 0.454.0: the owner's own order of the PINNED chats (drag to reorder).
+                              # NULL = not ordered yet: after the ordered ones, newest first.
+                              ("pin_order", "INTEGER")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
@@ -557,7 +560,10 @@ class SessionStore:
             cols_p = {r[1] for r in self._conn.execute(
                 "PRAGMA table_info(projects)").fetchall()}
             for name, ddl in (("instructions", "TEXT"),
-                              ("pinned", "INTEGER NOT NULL DEFAULT 0")):
+                              ("pinned", "INTEGER NOT NULL DEFAULT 0"),
+                              # 0.454.0: the owner's own order of projects (drag to reorder). NULL = not
+                              # ordered yet: after the ordered ones, pinned first, then the most recent.
+                              ("sort_order", "INTEGER")):
                 if name not in cols_p:
                     self._conn.execute(
                         f"ALTER TABLE projects ADD COLUMN {name} {ddl}")
@@ -1324,7 +1330,12 @@ class SessionStore:
             {where_sql}
             -- rowid breaks a tie on updated_at (two writes in one time.time() tick): the
             -- row created later counts as newer, never left to SQLite's scan order.
-            ORDER BY s.pinned DESC, s.updated_at DESC, s.rowid DESC
+            -- 0.454.0: pinned chats keep the order the owner dragged them into (pin_order),
+            -- unordered pinned ones after them; chats that are not pinned stay newest first.
+            ORDER BY s.pinned DESC,
+                     CASE WHEN s.pinned = 1 THEN (s.pin_order IS NULL) ELSE 0 END,
+                     CASE WHEN s.pinned = 1 THEN s.pin_order ELSE 0 END,
+                     s.updated_at DESC, s.rowid DESC
             LIMIT ?
             """,
             tuple(params),
@@ -1383,11 +1394,26 @@ class SessionStore:
 
     def set_pinned(self, session_id: str, pinned: bool = True) -> None:
         """Ghim hay bỏ ghim. KHÔNG đụng updated_at: ghim không phải là 'vừa nói chuyện',
-        đẩy mốc lên là xáo trộn thứ tự của mọi cuộc còn lại một cách vô cớ."""
+        đẩy mốc lên là xáo trộn thứ tự của mọi cuộc còn lại một cách vô cớ.
+        0.454.0: unpinning drops the chat's place in the pinned order; pinning again puts it after the ordered ones."""
         self._write(lambda c: c.execute(
-            "UPDATE sessions SET pinned = ? WHERE id = ?",
+            "UPDATE sessions SET pinned = ?, pin_order = NULL WHERE id = ?",
             (1 if pinned else 0, session_id),
         ))
+
+    def set_pin_order(self, ids: List[str]) -> int:
+        """The owner's order of the pinned chats (0.454.0), first to last. Only pinned chats take a place. Never touches
+        `updated_at`. Returns rows ordered."""
+        ids = list(dict.fromkeys(str(i) for i in (ids or []) if str(i or "").strip()))
+
+        def go(c):
+            # Only the listed chats move: the dialog shows the pinned chats of ONE brain, and the pinned chats of
+            # another brain keep their own order.
+            n = 0
+            for i, sid in enumerate(ids):
+                n += c.execute("UPDATE sessions SET pin_order = ? WHERE id = ? AND pinned = 1", (i, sid)).rowcount
+            return n
+        return int(self._write(go) or 0)
 
     def set_project(self, session_id: str, project_id: Optional[str], *,
                     brain: Optional[str] = None) -> bool:
@@ -1457,11 +1483,26 @@ class SessionStore:
                        AS has_instructions
             FROM projects p
             {where_sql}
-            ORDER BY p.pinned DESC, p.updated_at DESC, p.rowid DESC
+            -- 0.454.0: the owner's own order wins (sort_order); projects never ordered come after,
+            -- pinned first, then the most recent.
+            ORDER BY (p.sort_order IS NULL), p.sort_order, p.pinned DESC, p.updated_at DESC, p.rowid DESC
             """,
             params,
         )
         return [dict(r) for r in rows]
+
+    def set_project_order(self, brain: str, ids: List[str]) -> int:
+        """The owner's order of the projects of `brain` (0.454.0). `ids` first to last; a project of the brain left out
+        of the list keeps no order (it goes after the ordered ones). Never touches `updated_at`. Returns rows ordered."""
+        ids = [str(i) for i in (ids or []) if str(i or "").strip()]
+
+        def go(c):
+            c.execute("UPDATE projects SET sort_order = NULL WHERE brain = ?", (brain,))
+            n = 0
+            for i, pid in enumerate(dict.fromkeys(ids)):
+                n += c.execute("UPDATE projects SET sort_order = ? WHERE id = ? AND brain = ?", (i, pid, brain)).rowcount
+            return n
+        return int(self._write(go) or 0)
 
     def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
         rows = self._read("SELECT * FROM projects WHERE id = ?", (project_id,))

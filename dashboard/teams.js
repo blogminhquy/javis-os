@@ -486,7 +486,18 @@
         seen[k].n++;
       });
     });
-    return out.sort(function (a, b) { return a.ten.localeCompare(b.ten, "vi"); });
+    return tagOrder(out);
+  }
+  // 0.454.0: the owner's own tag order (reorder-dialog.js, saved per page), else by name.
+  function tagOrder(list) {
+    var R = typeof window !== "undefined" && window.JavisReorder;
+    return R ? R.sortTags(list, "tags_teams", function (g) { return g.key; }, function (g) { return g.ten; })
+      : list.sort(function (a, b) { return a.ten.localeCompare(b.ten, "vi"); });
+  }
+  function reorderTags(tags) {
+    var R = window.JavisReorder;
+    R.open({ title: tw("reorder.title_tags"), items: tags.map(function (g) { return { id: g.key, label: g.ten, icon: "tag" }; }),
+      save: function (keys) { return R.saveTags("tags_teams", keys); } });
   }
 
   function hasTag(t, key) {
@@ -526,6 +537,10 @@
     tags.forEach(function (g) {
       rows.push({ label: g.ten, icon: "tag", right: String(g.n), on: key === g.key, run: function () { pick(g.key); } });
     });
+    if (tags.length > 1 && typeof window !== "undefined" && window.JavisReorder) {
+      rows.push({ sep: true });
+      rows.push({ label: tw("reorder.menu_tags"), icon: "arrow-up-down", run: function () { reorderTags(tags); } });
+    }
     return rows;
   }
 
@@ -536,7 +551,7 @@
     var seen = {};
     allTags(teams).forEach(function (g) { seen[g.key] = 1; out.push({ ten: g.ten, key: g.key, on: !!mine[g.key] }); });
     Object.keys(mine).forEach(function (k) { if (!seen[k]) out.push({ ten: mine[k], key: k, on: true }); });
-    return out.sort(function (a, b) { return a.ten.localeCompare(b.ten, "vi"); });
+    return tagOrder(out);
   }
 
   function tagPicker() {
@@ -4935,6 +4950,10 @@
     // 0.197.0: back to this tab with a team open: what arrived while away is read now.
     if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", onVisible);
     // Auto bật/tắt ở trang Cộng sự hay tab khác (0.142.0): danh sách thành viên của nhóm đang mở đọc lại trạng thái.
+    // 0.454.0: the tag order changed (here or on another tab of this page): the list and its tag bar follow.
+    window.addEventListener("javis:order-changed", function () {
+      if (S && S.el && S.el.isConnected) drawList();
+    });
     window.addEventListener("javis:resonance-agents-changed", function () {
       if (!S || !S.el || !S.el.isConnected || !S.activeId) return;
       loadTeam();
