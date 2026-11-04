@@ -10,7 +10,7 @@ so before anyone clicks:
   - Block. Messenger: the Page's block list (`POST /<page>/blocked` with the PSID). Zalo personal account:
     `javis-zalo friend block`. Instagram and comment threads: the API has no block, so the action is not offered.
   - Delete. A Facebook or Instagram comment thread: the top-level comment is deleted on the platform (its replies go
-    with it). Zalo personal account: the conversation is deleted on Zalo (`javis-zalo conv delete`). Messenger and
+    with it). A Threads reply (0.448.0) cannot be deleted by anyone but its author, so it is hidden under the post. Zalo personal account: the conversation is deleted on Zalo (`javis-zalo conv delete`). Messenger and
     Instagram direct messages: Meta lets no app delete them, so only the copy in Javis goes. In every case the
     conversation then leaves the Javis inbox. When the platform refuses, nothing is deleted in Javis either, so the
     owner can retry instead of losing the record of something still online.
@@ -47,6 +47,8 @@ def kind(c: dict) -> str:
         return "messenger_dm"
     if ch == "zalo_personal":
         return "zalo_group" if str(c.get("chat_type") or "") == "group" else "zalo_private"
+    if ch == "threads":
+        return "threads_comment"
     return ""
 
 
@@ -58,6 +60,8 @@ _CAN = {
     "ig_comment": {DELETE_REMOTE},
     "zalo_private": {PROFILE, BLOCK, DELETE_REMOTE},
     "zalo_group": {DELETE_REMOTE},
+    # Threads (0.448.0): the profile is threads.net/@username; only the author may delete a reply, so "delete" hides it.
+    "threads_comment": {PROFILE, DELETE_REMOTE},
 }
 
 
@@ -118,6 +122,12 @@ async def profile(c: dict) -> dict:
     who = str(c.get("external_chat_id") or "")
     base = {"ok": True, "name": str(c.get("customer_name") or c.get("title") or ""), "username": "", "picture": "",
             "url": "", "phone": "", "note": ""}
+    if k == "threads_comment":
+        user = str(base["name"] or "").lstrip("@").strip()
+        if not user:
+            return {**base, "note": localefmt.chu("Chưa biết tên tài khoản Threads của người này.",
+                                                  "This person's Threads username is not known yet.")}
+        return {**base, "name": "@" + user, "username": user, "url": "https://www.threads.net/@" + user}
     if k in ("messenger_dm", "ig_dm"):
         cr = _messenger_creds(c)
         if not cr.get("access_token"):
@@ -175,6 +185,12 @@ async def delete_remote(c: dict) -> dict:
     if DELETE_REMOTE not in _CAN.get(k, set()):
         return {"ok": True, "remote": False}
     chat = str(c.get("external_chat_id") or "")
+    if k == "threads_comment":
+        # Threads lets only the author delete a reply: the owner can hide it under their post, which is what Delete does.
+        import threads_bot
+        bot = threads_bot.ThreadsBot(channel_accounts.get_token(_raw_account(c)), "", None, giau_trang_thai=True)
+        d = await bot.hide_reply(chat, True)
+        return {"ok": True, "remote": True} if d.get("ok") else {"ok": False, "error": d.get("error", "")}
     if k in ("fb_comment", "ig_comment"):
         cr = _messenger_creds(c)
         cid = chat.split(":", 1)[1]

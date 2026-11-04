@@ -99,6 +99,9 @@ check("Zalo personal: profile, block, delete (on Zalo too); a group only delete"
   JSON.stringify(tail({ channel: "zalo_personal", external_chat_id: "55" })) === JSON.stringify(["profile", "block", "delete"]) &&
   JSON.stringify(tail({ channel: "zalo_personal", external_chat_id: "g1", chat_type: "group" })) === JSON.stringify(["delete"]) &&
   F.rowMenuItems({ ...base, channel: "zalo_personal", external_chat_id: "55" }).find((x) => x.act === "delete").sub === "ht.rm_delete_sub_zalo");
+check("Threads reply: profile and delete, which hides the reply on Threads (0.448.0)",
+  JSON.stringify(tail({ channel: "threads", external_chat_id: "1799" })) === JSON.stringify(["profile", "delete"]) &&
+  F.rowMenuItems({ ...base, channel: "threads", external_chat_id: "1799" }).find((x) => x.act === "delete").sub === "ht.rm_delete_sub_th");
 check("Delete is drawn in the danger style", F.rowMenuHtml(F.rowMenuItems(base), icon).includes('ht-rm-it danger" role="menuitem" data-act="delete"'));
 
 // ---- 3. menu HTML ----

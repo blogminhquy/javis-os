@@ -149,15 +149,21 @@
   // A Facebook Page comment thread (0.446.0): conversation id "cmt:<comment id>" on the Messenger channel. It gets its
   // own badge (a square comment box, not the round Messenger bubble) so a public comment never reads as a private chat.
   // Instagram through the same Page (0.447.0): "ig:<user>" is a direct message, "igc:<comment id>" a comment thread.
+  // Threads (0.448.0): every Threads chat is a public reply thread ("thc"); it has no private messages.
   function chatKind(c) {
+    if (c && c.channel === "threads") return "thc";
     if (!c || c.channel !== "messenger") return "";
     var x = String(c.external_chat_id || "");
     return x.indexOf("cmt:") === 0 ? "fbc" : x.indexOf("igc:") === 0 ? "igc" : x.indexOf("ig:") === 0 ? "ig" : "";
   }
-  function isComment(c) { var k = chatKind(c); return k === "fbc" || k === "igc"; }
+  function isComment(c) { var k = chatKind(c); return k === "fbc" || k === "igc" || k === "thc"; }
+  // Only Facebook and Instagram comments can be answered privately (Meta's Private Replies); Threads cannot.
+  function canPrivate(c) { var k = chatKind(c); return k === "fbc" || k === "igc"; }
   function isInstagram(c) { var k = chatKind(c); return k === "ig" || k === "igc"; }
   function commentLogo(size, c) {
-    return (window.Icons && Icons.kenh) ? Icons.kenh(isInstagram(c) ? "igcomment" : "fbcomment", { size: size || "13px" }) : "";
+    var k = chatKind(c);
+    return (window.Icons && Icons.kenh) ? Icons.kenh(k === "igc" ? "igcomment" : k === "thc" ? "thcomment" : "fbcomment",
+      { size: size || "13px" }) : "";
   }
   // The badge on the avatar: a comment box for a comment thread, the Instagram mark for an Instagram message.
   function badgeOf(c, size) {
@@ -167,8 +173,8 @@
   }
   function chipOf(c) {
     var k = chatKind(c);
-    if (k === "fbc" || k === "igc") return '<span class="ht-chip">' + commentLogo("13px", c) + " " +
-      esc(window.t(k === "igc" ? "ht.ig_comment" : "ht.fb_comment")) + "</span>";
+    if (k === "fbc" || k === "igc" || k === "thc") return '<span class="ht-chip">' + commentLogo("13px", c) + " " +
+      esc(window.t(k === "igc" ? "ht.ig_comment" : k === "thc" ? "ht.th_comment" : "ht.fb_comment")) + "</span>";
     if (k === "ig") return '<span class="ht-chip">' + badgeOf(c, "13px") + " Instagram</span>";
     return chipKenh(c.channel);
   }
@@ -1126,7 +1132,8 @@
     if (!c) return closeRowMenu(false);
     closeRowMenu(false);
     var F = window.JavisConvFilters, k = F.chatKind(c), remote = F.platformActs(c).indexOf("delete_remote") >= 0;
-    var q = k === "fb_comment" ? "ht.del_q_fbc" : k === "ig_comment" ? "ht.del_q_igc" : remote ? "ht.del_q_zalo" :
+    var q = k === "fb_comment" ? "ht.del_q_fbc" : k === "ig_comment" ? "ht.del_q_igc" : k === "threads_comment" ? "ht.del_q_thc" :
+      remote ? "ht.del_q_zalo" :
       (k === "messenger_dm" || k === "ig_dm") ? "ht.del_q_meta" : "ht.del_q_local";
     if (!confirm(window.t(q, { ten: convName(c) }))) return;
     try {
@@ -2003,7 +2010,7 @@
     var ph = ten ? t(laBot ? "ib.cin_ph_as_ai" : "ib.cin_ph_as", { ten: ten }) :
       t(laBot ? "ib.cin_ph_ai" : cham ? "ib.cin_ph_touch" : "ht.gui_ph");
     var busy = _aiBusy === "redo" || _aiBusy === "send" ? _aiBusy : "";
-    var cmt = isComment(c), priv = cmt && _privFor === c.id;
+    var cmt = canPrivate(c), priv = cmt && _privFor === c.id;
     if (priv) ph = t("ht.priv_ph");
     return '<div class="ht-compose' + (draft ? " has-draft" : "") + '">' + noteHtml() +
       (cmt ? privToggleHtml(priv, c) : "") +
@@ -2042,7 +2049,7 @@
     _dangGui = true;
     ta.disabled = true; if (nut) nut.disabled = true;
     try {
-      if (isComment(c) && _privFor === c.id) {
+      if (canPrivate(c) && _privFor === c.id) {
         await api("/conversations/" + c.id + "/private-reply", { method: "POST", body: fd({ text: txt }) });
         // One private message per comment: back to public replies, so the next Send does not hit Meta's limit.
         _privFor = 0;

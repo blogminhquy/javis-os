@@ -4837,3 +4837,6 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 .msc-ig-tick { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; cursor: pointer; }
 .msc-ig-tick input { width: 20px; height: 20px; }
 .msc-ig-row label, .msc-ig-none { display: inline-flex; align-items: center; gap: 6px; }
+/* Meta card actions: Facebook Page and Threads side by side (0.448.0) */
+.msc-cat-act { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.msc-cat-act .gcard-btn { flex: 1 1 auto; }

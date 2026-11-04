@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.448.0] - 2026-11-04
 ### Thêm mới
-- Đang viết.
+- **Threads vào thẻ Kết nối Meta.** Bấm **Kết nối Threads**, dán Threads App ID và App secret, đăng nhập là xong. Bình luận dưới bài Threads của bạn vào Hộp thư ngay khi có, qua webhook (không phải hỏi định kỳ), và bot trả lời công khai ngay dưới bình luận.
+- Mỗi tài khoản Threads chọn được cách xử lý bình luận: tắt, chỉ hiện ở Hộp thư, hoặc bot tự trả lời. Nút **Kiểm tra** cho biết token còn hạn không và Threads đã gửi bình luận về chưa.
+- Javis tự gia hạn token Threads (60 ngày) khi có bot đang trực, không phải đăng nhập lại.
+### Cải thiện
+- Bình luận Threads có ô vuông màu đen riêng trong Hộp thư. Menu "..." có Xem trang cá nhân (mở threads.net) và Xoá (ẩn bình luận dưới bài, vì Threads chỉ cho người viết xoá).
 
 ## [0.447.0] - 2026-11-03
 ### Thêm mới

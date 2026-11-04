@@ -265,6 +265,16 @@
         '<rect x="6.3" y="7" width="11.4" height="1.7" rx=".85" fill="#fff"/>' +
         '<rect x="6.3" y="11.2" width="7.6" height="1.7" rx=".85" fill="#fff"/>',
     },
+    // A Threads reply in the inbox (0.448.0): the same square comment box, in Threads black.
+    thcomment: {
+      nhan: "Threads reply",
+      mau: "#000000",
+      than:
+        '<path fill="#111" d="M5.2 3h13.6A2.7 2.7 0 0 1 21.5 5.7v9.1a2.7 2.7 0 0 1-2.7 2.7H10l-4.6 3.6c-.4.3-.9 0-.9-.5' +
+        'v-3.1A2.7 2.7 0 0 1 2.5 14.8V5.7A2.7 2.7 0 0 1 5.2 3z" stroke="#fff" stroke-width=".8"/>' +
+        '<rect x="6.3" y="7" width="11.4" height="1.7" rx=".85" fill="#fff"/>' +
+        '<rect x="6.3" y="11.2" width="7.6" height="1.7" rx=".85" fill="#fff"/>',
+    },
     // Discord (0.85.0): the controller-face mark on blurple.
     discord: {
       nhan: "Discord",

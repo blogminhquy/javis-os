@@ -81,8 +81,8 @@ class KenhSpec:
 
 # Thứ tự ở đây là thứ tự hiện trên giao diện. KHÔNG có kênh nào "chính": Zalo đứng đầu vì
 # khách Việt Nam dùng nhiều nhất, không phải vì nó được ưu ái trong mã.
-_MODULES = ("channels.zalo_bot", "channels.zalo_personal", "channels.zalo_oa", "channels.messenger", "channels.telegram",
-            "channels.slack", "channels.whatsapp", "channels.lark")
+_MODULES = ("channels.zalo_bot", "channels.zalo_personal", "channels.zalo_oa", "channels.messenger", "channels.threads",
+            "channels.telegram", "channels.slack", "channels.whatsapp", "channels.lark")
 
 # Chữ tiếng Anh cho các kênh có sẵn. Để ở đây (chứ không trong từng module kênh) cho một chỗ
 # duy nhất phải sửa khi đổi chữ hiển thị; kênh mới có thể tự khai `en=` trong SPEC.
