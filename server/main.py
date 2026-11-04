@@ -293,7 +293,11 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       "/threads/webhook", "/threads/oauth/callback", "/threads/uninstall", "/threads/delete",
                       # /zalo-oa/webhook (0.412.0): Zalo calls it with no cookie; the route checks
                       # X-ZEvent-Signature under the OA secret keys of the Zalo OA accounts.
-                      "/zalo-oa/webhook")
+                      "/zalo-oa/webhook",
+                      # /chatbot-api/v1/turn (0.451.0): a server of the owner asks one Chatbot. No cookie; the route
+                      # checks the source address and the key of an internal API channel account itself
+                      # (channels/api.py). That key opens this path only, and an API token does not open it.
+                      "/chatbot-api/v1/turn")
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
 # cookie đăng nhập; request từ ngoài (qua Traefik/Caddy/LAN) đến từ IP khác loopback → vẫn bị chặn.
 # /reminders/cancel đi cùng nhóm với /reminders (TẠO nhắc): huỷ là thao tác YẾU HƠN tạo, nên
@@ -24943,6 +24947,19 @@ async def whatsapp_webhook(request: Request):
     # Answer 200 right away (Meta retries anything slower); the messages run as tasks.
     n = await whatsapp_bot.handle_webhook(payload)
     return {"ok": True, "messages": n}
+
+
+@app.post("/chatbot-api/v1/turn")
+async def chatbot_api_turn(request: Request):
+    """Internal API channel (0.451.0): one turn of the Chatbot the key belongs to. Every check (source, key, ceiling,
+    limits) and the answer live in channels/api.py; this route only hands it the raw request."""
+    import channels.api as api_channel
+    raw = await request.body()
+    status, body = await api_channel.handle_http(
+        request.headers.get("authorization", ""), request.client.host if request.client else "",
+        dict(request.headers), raw)
+    headers = {"Retry-After": "900"} if body.get("code") == "banned" else None
+    return JSONResponse(body, status_code=status, headers=headers)
 
 
 # ============================================================

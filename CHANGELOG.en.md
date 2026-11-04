@@ -10,7 +10,11 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.451.0] - 2026-11-04
 ### Added
-- **Internal API channel for Chatbots** (in progress).
+- **Internal API channel for Chatbots.** One of your servers (an internal staff web app, say) can ask a bot over HTTP, so staff ask about their work right inside it. Add it on the Channels tab with **Internal API**: Javis generates the key, shows it once, and has a **Rotate key** button.
+- A bot on this channel runs only at **Read only** or **Read documents**. Higher, and the channel refuses and the bot card turns red; a per-chat exception cannot lift it either.
+- The calling server sends **private-document scopes** (role, branch): the bot sees only documents of those scopes. Data sent along with a question is treated as data, never as instructions.
+- Every turn lands in the inbox like other channels, with rate limits you can set, and calls are accepted only from this machine and the internal Docker network. Guide in docs/en/25-chatbots.md.
+
 ## [0.450.0] - 2026-11-04
 ### Added
 - **"Install on phone" button in the phone menu.** Open the left menu and tap it to see how to add Javis to the home screen on the device you are using (iPhone: Share, then Add to Home Screen; Android: one Install button). Once Javis runs from the home screen, the button no longer shows.

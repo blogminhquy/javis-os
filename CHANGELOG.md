@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.451.0] - 2026-11-04
 ### Thêm mới
-- **Kênh API nội bộ cho Chatbot** (đang viết).
+- **Kênh API nội bộ cho Chatbot.** Một máy chủ của bạn (vd web quản lý nội bộ) hỏi được một bot qua HTTP, để nhân viên hỏi đáp công việc ngay trong web đó. Thêm ở tab Kênh, chọn **API nội bộ**: Javis tự sinh khoá và chỉ hiện một lần, có nút **Xoay khoá**.
+- Bot trên kênh này chỉ chạy ở **Chỉ đọc** hoặc **Đọc tài liệu**. Mức cao hơn thì kênh từ chối và thẻ bot báo đỏ, ngoại lệ theo cuộc chat cũng không nâng được.
+- Máy chủ gọi bot gửi kèm **phạm vi tài liệu riêng** (vai trò, cơ sở): bot chỉ thấy tài liệu đúng phạm vi đó. Dữ liệu gửi kèm câu hỏi được coi là dữ liệu, không phải lệnh.
+- Mỗi lượt vào Hộp thư như kênh khác, có giới hạn tần suất chỉnh được, chỉ nhận gọi từ máy này và mạng Docker nội bộ. Hướng dẫn ở docs/25-chatbot.md.
+
 ## [0.450.0] - 2026-11-04
 ### Thêm mới
 - **Nút "Cài lên điện thoại" trong menu trên điện thoại.** Mở menu bên trái là thấy, bấm vào là hiện hướng dẫn cài Javis ra màn hình chính đúng theo máy đang dùng (iPhone: Chia sẻ rồi Thêm vào MH chính; Android: một nút Cài). Đã cài, mở Javis từ màn hình chính, thì nút không hiện nữa.

@@ -32,6 +32,9 @@ team runner, never from model output; the hub uses it to let one approved outsid
 0.238.0 adds `job`: "kanban:<task id>" while a Kanban worker runs, "" elsewhere. Set by the task runner, never from
 model output; once_ledger.py keys its once-only record of outside actions on it.
 
+0.451.0 adds `doc_scopes` (a tuple), present ONLY on an internal API chatbot turn: the private-document scopes the
+caller's server sent with its key. The doc tools open scoped documents with it instead of `chat_id`. Absent elsewhere.
+
 No turn at all (loops, engines that cannot carry the key yet) -> `turn` is
 None. A hook that needs an identity must read None as "nobody", never as "the owner".
 
@@ -202,7 +205,10 @@ def from_meta(kenh, meta, la_chu: bool) -> dict:
     manager's rights, so a join turn names nobody (`sender_id` "")."""
     m = meta or {}
     sender = "" if m.get("member_join") else m.get("user_id")
-    return make(kenh, sender, m.get("chat_type"), m.get("chat_id"), la_chu)
+    turn = make(kenh, sender, m.get("chat_type"), m.get("chat_id"), la_chu)
+    if "doc_scopes" in m:
+        turn["doc_scopes"] = tuple(x for x in (str(v or "").strip() for v in (m.get("doc_scopes") or ())) if x)
+    return turn
 
 
 def bind(turn: Optional[dict]) -> Token:
