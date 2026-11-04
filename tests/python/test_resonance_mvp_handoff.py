@@ -107,6 +107,7 @@ namespace = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, voice_brain=pro
                  # A1: phân giải agent của phiên có test riêng (test_resonance_a1_turn_agent); ở đây phiên là của AG.
                  _resonance_turn_agent=lambda *a: {"key": AG["agent_key"], "slug": RA.SLUG,
                                                    "config_version": AG["config_version"]},
+                 _session_assistant=lambda *a: "",
                  # Kết cục engine gửi kèm turn_done (pilot lần 4): test riêng ở test_turn_engine_status.
                  _engine_outcome_reset=lambda *a: None, _engine_outcome_exception=lambda *a: None,
                  _engine_outcome_pop=lambda *a: {}, _engine_outcome_turn=lambda *a: None,

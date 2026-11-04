@@ -2284,6 +2284,22 @@ def _resonance_turn_provider(brain) -> str:
         return ""
 
 
+def _session_assistant(conv_sid, brain, get_session) -> str:
+    """slug of the Partners-page assistant whose private chat `conv_sid` is (channel `agent:<slug>`), "" for
+    any other chat, a chat of another brain, or an assistant whose file is gone. Read by the host from the stored
+    session row, so javis_schedule can stamp the jobs a partner chat creates with that assistant. Never raises."""
+    try:
+        row = get_session(conv_sid) or {}
+        persona = workflow_chat.persona_cua_phien(row)
+        if not persona or persona[0] != "agent":
+            return ""
+        if _brain_key(row.get("brain")) != _brain_key(brain):
+            return ""
+        return persona[1] if (_agents_dir(brain) / f"{persona[1]}.md").is_file() else ""
+    except Exception:  # noqa: BLE001 - a missing stamp must not break the chat turn
+        return ""
+
+
 def _resonance_turn_agent(conv_sid, brain, get_session):
     """A1: agent của phiên `conv_sid` (dòng phiên đọc bằng `get_session`), để gắn vào ngữ cảnh lượt
     (`turn_context`, khoá `agent`).
@@ -11338,10 +11354,41 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="", skill_serv
     where = ("qua Javis CLI (terminal hoặc HTTP /chat)" if channel == "cli"
              else "qua Telegram" if channel == "telegram"
              else "trên dashboard Javis (trang Cộng sự)")
+    # the dashboard chat id, so a chat_id/owner_chat the model passes names this chat. An agent DM never had
+    # the channel block or the `[Phiên chat: ...]` header, so its jobs used to report to Javis Core.
+    phien = (f" Phiên chat này là `web:{conv_sid}`: việc nền (`javis_task`) và nhắc hẹn, việc định kỳ "
+             "(`javis_schedule`) giao từ đây tự báo kết quả về đúng khung chat này; nhắc hẹn và việc định kỳ "
+             "tới giờ chạy bằng chính vai của bạn."
+             if channel == "dashboard" and conv_sid else "")
     return (sysprompt + _agent_builder_block(brain)
             + f"\n\n# Kênh: bạn đang trò chuyện trực tiếp với chủ {where}. "
             "Trả lời như đang nói chuyện, theo ngôn ngữ chủ đang dùng; "
-            "không cần báo cáo dạng nhiệm vụ trừ khi được giao việc cụ thể.")
+            "không cần báo cáo dạng nhiệm vụ trừ khi được giao việc cụ thể." + phien)
+
+
+def _background_agent_prompt(brain, slug) -> str:
+    """system prompt of a reminder or loop made in a partner chat, so it does its job AS that assistant (role,
+    file body, assets, memory, owner rules) instead of as plain Javis. No procedure overlay: that belongs to a surface
+    the host knows (dm, team, workflow). Raises FileNotFoundError when the assistant file is gone; the caller then
+    runs the job as Javis."""
+    if not (_agents_dir(brain) / f"{slug}.md").is_file():
+        raise FileNotFoundError(slug)
+    _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
+    return (_agent_sysprompt(slug)[1] + _agent_builder_block(brain)
+            + "\n\n# Kênh: đây là việc nền chủ đã hẹn từ khung chat với bạn, không có ai ngồi cạnh. "
+            "Kết quả bạn viết sẽ được gửi về khung chat đó.")
+
+
+def _finish_background_agent_run(brain, slug, task, out) -> str:
+    """after a background run as an assistant: JAVIS_LESSON lines go to its memory and the run to its log, like
+    a workflow step; the cleaned text is what gets posted."""
+    _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
+    clean = _learn(slug, out)
+    try:
+        _log(slug, task, clean)
+    except Exception as _e:  # noqa: BLE001 - the log is a bonus
+        print(f"[agent bg log] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
+    return clean
 
 
 def _dm_session_pin(conv_sid):
@@ -12763,6 +12810,8 @@ loop_feature = self_improve.register(app, self_improve.LoopDeps(
     report=_notify_owner,               # báo NGƯỜI YÊU CẦU loop mỗi vòng (rỗng → Javis Core của brain loop)
     apply_mcp=_apply_mcp,               # loop ĐỌC được dữ liệu thật qua MCP Javis-quản-lý
     mcp_allow_patterns=_loop_mcp_allow,
+    build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
+    finish_agent_run=_finish_background_agent_run,
 ))
 
 _LOOP_LOCK = loop_feature.lock   # shim: giữ tên cũ cho code phía dưới (scheduler)
@@ -13033,6 +13082,8 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     mcp_allow_patterns=_loop_mcp_allow,
     make_voice=lambda brain, text: _voice_note_rel(brain, text),
     send_file=lambda chat_id, path, brain: _send_voice_file(chat_id, path, brain),
+    build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
+    finish_agent_run=_finish_background_agent_run,
 ))
 
 
@@ -13192,9 +13243,11 @@ async def _incident_ask(prompt: str) -> str:
     return final
 
 
-async def _incident_post(brain: str, text: str) -> None:
+async def _incident_post(brain: str, text: str, chat: str = "") -> None:
     # Empty chat id: the brain's Javis Core chat, the inbox and the owner's Telegram (_report_route, 0.186.0).
-    await _notify_owner("", text, kind="report", source="incident", brain=brain,
+    # `chat` is the chat the broken job came from (a partner chat, a Telegram id): the notice goes there, and a
+    # deleted chat falls back to Javis Core (_report_route, lost_origin).
+    await _notify_owner(chat, text, kind="report", source="incident", brain=brain,
                         level="important" if text.startswith("⚠") else "info",
                         viec={"kind": "incident", "status": "failed" if text.startswith("⚠") else "done",
                               "title": text[:120], "id": ""})
@@ -18719,10 +18772,14 @@ async def _chat_socket(ws):
             # A4: lượt có trợ lý chụp thứ tự quyền của kho TRƯỚC khi engine chạy (gốc cấp lại sau ảnh chụp này
             # không vào được lượt này, kể cả lần đầu lượt chạm mục tiêu). Đọc lỗi thì -1: đóng khi lỗi.
             _ag_luot = _resonance_turn_agent(conv_sid, brain, store.get_session)
-            _luot_token = turn_context.bind(turn_context.make(
+            _luot_turn = turn_context.make(
                 "dashboard", chat_id=conv_sid, la_chu=True, session_id=conv_sid, message_id=user_mid,
                 agent=_ag_luot, authority_seq=(_ag_luot or {}).get("authority_seq"),
-                provider=(_ag_luot or {}).get("provider") or ""))
+                provider=(_ag_luot or {}).get("provider") or "")
+            # the Partners-page assistant of this chat ("" elsewhere), host-resolved, for javis_schedule. An
+            # extra key like the chatbot turn's `bot_id`: turn_context.py is pinned by the native profile evidence.
+            _luot_turn["assistant"] = _session_assistant(conv_sid, brain, store.get_session)
+            _luot_token = turn_context.bind(_luot_turn)
             # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
             # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49). Kèm id tin và lời người
             # dùng để tool javis_goal (Resonance) biết đúng tin nhắn nào; 0 thì tool từ chối lập mục tiêu.
