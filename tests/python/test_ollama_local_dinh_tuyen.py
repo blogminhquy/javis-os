@@ -88,7 +88,9 @@ SRC = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 # Đây chính là chữ "ghim hỏng" trong ảnh: /sessions/{id}/meta tính pin_ok bằng khoá, nên
 # Ollama máy nhà chạy ngon mà nhãn vẫn kêu hỏng. Hai nơi phải giải nghĩa khoá GIỐNG NHAU.
 check("CANARY: pin_ok dùng chung cách giải nghĩa khoá với đường định tuyến",
-      "key = _provider_key(mcfg, d) if d else \"\"" in SRC
+      # 0.461.0: the check moved into `_pin_health`, shared by /sessions/{id}/meta and the Javis Core card.
+      'ok = bool(d) and (d.get("kind") != "api" or bool(_provider_key(mcfg, d)))' in SRC
+      and 'sess["pin_ok"], lim_until = _pin_health(' in SRC
       and 'key = mcfg.get(d["key_field"], "") if d and d.get("key_field") else ""' not in SRC)
 
 # ---- 5. Nhánh CLI không được cầm tên model của nhà khác ----
