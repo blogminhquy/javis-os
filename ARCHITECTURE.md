@@ -419,8 +419,10 @@ python tests/run.py zalo -v    # files whose name contains "zalo", print failing
 - CI is [.github/workflows/ci.yml](.github/workflows/ci.yml): byte-compile `server/` and
   `system/plugins/`, really `import main` (catches import cycles), run every JS and Python test
   file, and build the Docker image to report its size.
-  [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml) publishes the
-  image to GHCR on every push to `main`.
+  [.github/workflows/release.yml](.github/workflows/release.yml) runs on every push to `main`:
+  it turns `changelog.d/` fragments into version numbers (tools/release.py), then calls
+  [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml) to publish the
+  image to GHCR.
 
 ## Conventions you must know
 
