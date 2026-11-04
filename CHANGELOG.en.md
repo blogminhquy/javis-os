@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.465.0] - 2026-11-04
+### Improved
+- **Version numbers are now assigned automatically after merge.** Each fix writes its notes to its own file, so several fixes in parallel no longer grab each other's number or need renumbering.
+- Every merge still ships a new version with Vietnamese and English notes, and the update is published right after.
+
 ## [0.463.0] - 2026-11-04
 ### Added
 - **My tasks: Projects become Tags.** A task can carry several tags, shown as coloured chips under its title with a **+ Tags** button. Click a tag in the side column to see every task with it. Old projects turn into tags, nothing is lost.
