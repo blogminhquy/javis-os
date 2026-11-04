@@ -968,6 +968,47 @@ _evs_mu = _chay_file_voi_su_kien(lambda duong: ["Chào anh."], help_text=_HELP_C
 check("CANARY: bản CLI không có stream-json -> KHÔNG đo được thì KHÔNG dán cảnh báo oan",
       any(e["type"] == "final" for e in _evs_mu) and not _co_canh_bao(_evs_mu), _evs_mu)
 
+# agy 1.x (đo trên 1.4.12, 2026-11-04) không phát `tool_result` mà phát `step_update`. Đọc file
+# thành công trông như dưới đây; bản trước tính nó là "thử mà hỏng" và dán cảnh báo oan mọi lượt.
+def _buoc_tool(duong, state, output=None):
+    ti = {"name": "read_file", "parameters": {"Path": duong}}
+    if output is not None:
+        ti["output"] = output
+    return json.dumps({"event": "step_update", "step_update": {
+        "conversation_id": "c1", "step_index": 2, "state": state, "step_type": "tool",
+        "tool_name": "read_file", "tool_info": ti}})
+
+
+_evs_moi = _chay_file_voi_su_kien(lambda duong: [
+    _buoc_tool(duong, "ACTIVE"),
+    _buoc_tool(duong, "DONE", "120 lines, 40000 bytes"),
+    json.dumps({"event": "result", "result": {"status": "SUCCESS", "response": "Chào anh."}}),
+])
+check("CANARY: agy 1.x đọc ĐƯỢC file (step_update DONE) thì KHÔNG dán cảnh báo oan",
+      any(e["type"] == "final" for e in _evs_moi) and not _co_canh_bao(_evs_moi), _evs_moi)
+
+_evs_moi_hong = _chay_file_voi_su_kien(lambda duong: [
+    _buoc_tool(duong, "ACTIVE"),
+    _buoc_tool(duong, "DONE", "Error: permission denied"),
+    json.dumps({"event": "result", "result": {"status": "SUCCESS", "response": "Chào anh."}}),
+])
+check("CANARY: agy 1.x đọc HỎNG (output báo lỗi) thì vẫn phải nói ra",
+      _co_canh_bao(_evs_moi_hong), _evs_moi_hong)
+
+check("lỗi 'permission prompt required' KHÔNG bị đọc thành CLI chối stdin",
+      not antigravity_cli._la_loi_thieu_prompt("Error: permission prompt required for run_command"))
+check("'Error: empty prompt' vẫn được nhận ra",
+      antigravity_cli._la_loi_thieu_prompt('Error: empty prompt. Usage: agy --print "your prompt here"'))
+check("'-p took ... as its prompt' cũng được nhận ra",
+      antigravity_cli._la_loi_thieu_prompt('Error: -p took "--input-format" as its prompt'))
+os.environ["JAVIS_AGY_PROMPT_DAI"] = "stdin"
+try:
+    _ep = antigravity_cli.duong_prompt_dai("/khong/co")
+finally:
+    os.environ.pop("JAVIS_AGY_PROMPT_DAI", None)
+check("ép stdin bằng env không còn ra công thức `-p \"\"` mà 1.4.12 chối",
+      _ep.startswith("stdin:") and _ep != "stdin:rong", _ep)
+
 # Bản CLI nhận stdin thì phải đi stdin và KHÔNG đụng tới file: stdin giữ prompt nguyên vẹn, còn
 # file thì phụ thuộc model chịu mở ra đọc.
 _cli_sd, _d_sd = _gia([json.dumps({"role": "assistant", "content": "ok"})],
