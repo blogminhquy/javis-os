@@ -121,6 +121,25 @@ def _connector_cua_app() -> list:
         return []
 
 
+def _gone_from_brain(pid: str, hang: dict, g: dict) -> bool:
+    """True when this installed pack is only brain items (no connector, no plugin) and none is left.
+
+    A pack with a connector or a plugin stays installed whatever happens in the brain: those live in the
+    pack folder and keep working."""
+    if (hang.get("connectors") or []) or (hang.get("plugins") or []):
+        return False
+    prov = g.get("provides") or {}
+    if (prov.get("connectors") or []) or (prov.get("plugins") or []):
+        return False
+    if not any(prov.get(k) for k in ("agents", "workflows", "skills")):
+        return False
+    try:
+        import pack_vault
+        return pack_vault.con_lai(pid)["present"] == 0
+    except Exception:
+        return False
+
+
 def _tu_choi():
     return JSONResponse({"ok": False, "error": localefmt.chu("Cần đăng nhập vào Javis để quản lý gói.",
                                                          "Sign in to Javis to manage packs.")},
@@ -245,6 +264,12 @@ def _make_router() -> APIRouter:
                     g["replaces_installed"] = cu
             g["installed"] = bool(hang)
             g["installed_version"] = (hang or {}).get("version", "")
+            # Owner report 2026-11-04: a pack that only brings agents/workflows/skills, whose items the
+            # user deleted from the app, kept saying "Installed" with only an Uninstall button. Nothing of
+            # it is left in the brain, so it is not installed: the card offers Install again.
+            if hang and _gone_from_brain(g.get("replaces_installed") or g["id"], hang, g):
+                g["installed"] = False
+                g["removed_from_brain"] = True
             # Thẻ cần biết gói đang bật hay tắt để vẽ đúng nút. Gói thả tay vào thư mục (không
             # có hàng trong sổ) mặc định là BẬT - người vận hành đã tự đặt nó vào rồi.
             g["enabled"] = bool(hang.get("enabled", True)) if hang else True
