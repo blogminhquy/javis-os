@@ -43,7 +43,7 @@ The script finds `.venv` by itself and runs from any folder inside the repo. Tes
 3. Open the PR against `main` of `blogminhquy/javis-os`. The template asks for **why** the change is needed, not only what changed: the diff already shows the what.
 4. CI must be green. The maintainer reviews every PR; there is no auto-merge for outside contributions.
 
-**Versions and changelogs:** each merge to `main` ships a new version (`VERSION` plus an entry in both [CHANGELOG.md](CHANGELOG.md), Vietnamese, and [CHANGELOG.en.md](CHANGELOG.en.md), English). As an outside contributor you can leave all three alone: the maintainer bumps the version and writes the entries when merging.
+**Versions and changelogs:** each merge to `main` ships a new version (`VERSION` plus an entry in both [CHANGELOG.md](CHANGELOG.md), Vietnamese, and [CHANGELOG.en.md](CHANGELOG.en.md), English). A PR never edits those three: it adds one file `changelog.d/<slug>.md` (template in [changelog.d/README.md](changelog.d/README.md)) and the Release workflow assigns the number after merge. As an outside contributor you can skip even that: the maintainer adds it when merging.
 
 ## Code conventions
 
@@ -57,7 +57,7 @@ The script finds `.venv` by itself and runs from any folder inside the repo. Tes
   - Prompts and tool descriptions sent to the AI model are a different case: they stay as they are (in Vietnamese). The model reads them fine and answers in the user's language.
 - **Commit messages and PR descriptions** in English are preferred.
 
-The maintainer's own working rules (version reservation, merge policy, how changelog entries are phrased) live in [docs/quy-uoc-dev.md](docs/quy-uoc-dev.md), in Vietnamese.
+The maintainer's own working rules (release numbering, merge policy, how changelog entries are phrased) live in [docs/quy-uoc-dev.md](docs/quy-uoc-dev.md), in Vietnamese.
 
 ## Translations
 

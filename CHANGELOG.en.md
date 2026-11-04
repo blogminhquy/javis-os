@@ -8,12 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.464.0] - 2026-11-04
-### Fixed
-- **Scheduled jobs made in a partner chat report back to that chat.** A reminder or recurring job set up in a chat with an assistant did not know where it came from, so its results and its errors all landed in Javis Core. Javis now attaches the chat that asked.
-- **At its time, the job runs as the assistant that took it.** An auto-post job set up with a Posting assistant now uses that assistant's role, procedure, memory and owner rules instead of running as plain Javis. The Tasks page files it under that assistant too.
-- **Incidents report where the job was given.** When a background job breaks, Javis Core still triages and retries it as before, but the "Incident needs you" message now shows in the chat that gave the job. A job tied to no chat still reports to Javis Core.
-- Jobs made before this version keep running as before. Ask the assistant to create the job again to get the new behavior.
+## [0.465.0] - 2026-11-04
+### Improved
+- **Version numbers are now assigned automatically after merge.** Each fix writes its notes to its own file, so several fixes in parallel no longer grab each other's number or need renumbering.
+- Every merge still ships a new version with Vietnamese and English notes, and the update is published right after.
 
 ## [0.463.0] - 2026-11-04
 ### Added

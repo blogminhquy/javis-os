@@ -13,42 +13,54 @@ thuế lên lượt chat nào cả.
   cần hỏi lại mỗi lần. Khác biệt duy nhất so với thường lệ là merge không chờ ai duyệt tay.
 - **CI đỏ thì KHÔNG merge.** Sửa cho xanh đã.
 - Chủ repo nhắc lại ngày 2026-09-26: **mỗi lần merge vào `main` phải phát hành số phiên bản
-  mới**, tăng `VERSION` và cập nhật `CHANGELOG.md` trong cùng PR để các máy khác nhận biết
-  có bản cập nhật. Trước khi merge, kiểm tra số này lớn hơn phiên bản hiện tại trên
-  `origin/main`; sau khi merge, xác nhận luồng build/phát hành bản cập nhật thành công.
+  mới** để các máy khác nhận biết có bản cập nhật. Từ 2026-11-04 việc tăng số do máy làm, xem mục
+  dưới. Sau khi merge, xác nhận workflow **Release** chạy xanh và `VERSION` trên `main` đã tăng.
   Không coi việc merge code là đã phát hành xong nếu bản mới chưa được xuất bản.
 
-## Đặt xí chỗ số phiên bản TRƯỚC khi code
+## Số phiên bản: PR KHÔNG tự chọn số (từ 2026-11-04)
 
-Chủ repo yêu cầu 2026-09-22, sau ba lần trùng số liên tiếp: 0.63.3, 0.63.8 và 0.63.10 đều bị
-một PR khác merge trước lấy mất. Lần cuối xảy ra khi PR đã xanh hết CI, phải rebase và đánh số
-lại từ đầu.
+Trước đây mỗi PR tự đặt số, tự sửa `VERSION` và đầu `CHANGELOG.md`. Vài phiên chạy song song là
+vài PR cùng sửa đúng mấy dòng đó, nên số liên tục bị giành (0.63.3, 0.63.8, 0.63.10, rồi các số
+bỏ trống như 0.442, 0.451, 0.456-0.458), dù đã có quy trình xí chỗ số trước khi code. Chủ repo
+chốt 2026-11-04: bỏ hẳn việc PR chọn số.
 
-Nguyên nhân gốc: repo này thường có vài phiên Claude Code chạy song song. Số chọn ở cuối việc
-là số chọn bằng thông tin đã cũ.
+**Mỗi PR làm đúng một việc:** thêm một file `changelog.d/<slug>.md`, tên không trùng ai. Mẫu ở
+`changelog.d/README.md`: dòng `bump: patch` (chỉ sửa lỗi) hoặc `bump: minor` (có gì mới), một
+`title` tiếng Anh, khối `## vi` và khối `## en` cùng số nhóm `###`. Kiểm trên máy bằng
+`python tools/release.py check`.
 
-Quy trình:
+- **KHÔNG sửa `VERSION`, `CHANGELOG.md`, `CHANGELOG.en.md`** trong PR.
+- **Tiêu đề PR không mang số phiên bản.** Viết thẳng nội dung, ví dụ
+  `Fix large Zalo images`. Số nằm trong tiêu đề PR bây giờ có nghĩa là "đang giữ chỗ kiểu cũ", bot
+  sẽ né số đó.
+- Không cần `git fetch` để dò số, không cần mở PR nháp sớm để xí chỗ.
+- Job **Changelog fragment** trong CI đỏ khi PR đổi code mà thiếu file, hoặc file sai mẫu. Thay
+  đổi chỉ có tài liệu (`docs/`, file `.md` ở gốc) thì không cần file và không ra bản mới.
 
-1. `git fetch origin main`, đọc `VERSION` trên `origin/main`.
-2. Liệt kê các PR **đang mở**, đọc số phiên bản trong tiêu đề. Mọi số ở đó coi như **đã có
-   người lấy**, dù `main` chưa mang số đó.
-3. Lấy số trống kế tiếp sau tất cả.
-4. Đẩy commit bump `VERSION` + `CHANGELOG.md` **ngay đầu nhánh**, kèm PR nháp mang số đó trong
-   tiêu đề. Đây mới là hành động đặt xí chỗ: phiên sau đọc được ở bước 2. Phần thân changelog
-   viết sau cũng được.
-5. Xong mới viết code.
+**Sau khi merge,** workflow **Release** (`.github/workflows/release.yml`) chạy trên `main`:
 
-Hai tình huống hay gặp:
+1. Đọc `main` mới nhất, mỗi file trong `changelog.d/` thành một số phiên bản riêng, theo thứ tự
+   merge. Chép nội dung vào hai file nhật ký, xoá file mảnh, mỗi bản một commit `x.y.z: title (#PR)`.
+2. Đưa các commit đó lên `main` qua một PR phát hành `release-bot/...`, merge ngay bằng token của
+   chủ repo (`RELEASE_TOKEN`), vì luật bảo vệ `main` không cho đẩy thẳng.
+3. Lần merge đó kích hoạt lại workflow, lần này không còn mảnh nào nên nó build và đẩy image Docker
+   mang số mới.
 
-- **`main` vẫn vượt qua số đã đặt.** Rebase và đánh số lại. Chỉ `VERSION` và `CHANGELOG.md`
-  xung đột nên mất đúng một nhịp, không phải làm lại thay đổi.
-- **Một PR mở mang số đã cũ** (ví dụ 2026-09-22: PR #417 còn giữ 0.64.1 trong khi #416 đã phát
-  hành chính số đó). Số như vậy nói rằng "có người nhắm", không phải "còn hợp lệ". Chính phiên
-  của PR đó phải đánh số lại trước khi merge.
+Workflow chạy lần lượt từng lượt một, nên hai PR merge cách nhau vài giây vẫn ra hai số khác nhau.
+Code đè lên nhau (hai PR sửa cùng chỗ) thì vẫn phải rebase như thường, nhưng `VERSION` và nhật ký
+không bao giờ là chỗ xung đột nữa.
 
-Quy ước này giảm va chạm chứ không diệt hết: hai phiên khởi động cách nhau vài giây vẫn có thể
-cùng đọc `main` rồi cùng chọn một số. Cái nó tránh là va chạm ở phút cuối, lúc PR đã xanh và
-mọi thứ đã xong.
+**Cài một lần (chủ repo):** tạo fine-grained token trên GitHub cho repo `javis-os`, quyền
+**Contents** và **Pull requests** là Read and write, lưu thành secret `RELEASE_TOKEN` của repo
+(Settings, Secrets and variables, Actions). Thiếu secret thì lượt Release đỏ kèm đúng câu hướng dẫn
+này, image vẫn được build như cũ, và các mảnh nằm chờ trên `main`: thêm secret xong bấm **Run
+workflow** ở workflow Release là chúng được phát hành hết.
+
+**Chuyển tiếp:** PR mở từ trước, tự sửa `VERSION` theo kiểu cũ, vẫn merge được (CI chỉ cảnh báo).
+Nếu bot đã lấy mất số của nó thì phiên đó đánh số lại như trước, lần cuối cùng.
+
+**PR từ người ngoài:** thiếu mảnh thì CI chỉ cảnh báo. Người merge thêm file `changelog.d/` vào
+nhánh trước khi merge, hoặc merge xong mở một PR nhỏ chỉ chứa mảnh đó.
 
 ## Chữ hiện lên màn hình (từ 0.67.0)
 
@@ -107,10 +119,10 @@ THOẠI, không phải cho lập trình viên đọc diff:
   thân commit và phần mô tả PR.
 - Dùng `**` và dấu nháy ngược vừa phải. Trang có render markdown, nhưng một dòng dày đặc ký
   hiệu thì đọc trên màn hẹp rất mệt.
-- **Từ 0.68.0 viết HAI bản:** khối tiếng Việt trong `CHANGELOG.md` (bản gốc) và khối tiếng Anh
-  cùng số phiên bản trong `CHANGELOG.en.md`, cùng số nhóm `###`. Trang Cập nhật hiện bản tiếng Anh
-  cho thiết bị đọc tiếng Anh. `tests/python/test_nhat_ky_song_ngu.py` đỏ khi một phiên bản từ
-  0.66.0 trở đi thiếu bản tiếng Anh, nên khối xí chỗ số phiên bản cũng phải có ở cả hai file.
+- **Từ 0.68.0 viết HAI bản:** khối tiếng Việt (bản gốc) và khối tiếng Anh, cùng số nhóm `###`.
+  Trang Cập nhật hiện bản tiếng Anh cho thiết bị đọc tiếng Anh. Từ 2026-11-04 cả hai viết trong
+  cùng file `changelog.d/<slug>.md` (khối `## vi` và `## en`); bot chép sang `CHANGELOG.md` và
+  `CHANGELOG.en.md`. `tests/python/test_nhat_ky_song_ngu.py` vẫn canh hai file nhật ký.
 
 ## Ngôn ngữ của commit, PR và code (từ 0.68.0)
 
@@ -124,7 +136,7 @@ Repo mở cho người đóng góp quốc tế, nên phần NGƯỜI NGOÀI Đ�
   `docs/dev/GLOSSARY.md`, kiến trúc ở `ARCHITECTURE.md`.
 - **Giữ tiếng Việt:** `CHANGELOG.md` (bản gốc, chủ repo đọc), file quy ước này, spec trong
   `docs/dev/`, và prompt gửi cho model (lý do ở `docs/dev/them-mot-ngon-ngu.md`).
-- PR từ người ngoài không cần đụng `VERSION`/CHANGELOG: người merge tăng số và viết nhật ký.
+- PR từ người ngoài không cần đụng `VERSION`/CHANGELOG: người merge thêm file `changelog.d/`.
 
 ## Bản dịch README và hướng dẫn cài nhanh (từ 0.69.0)
 

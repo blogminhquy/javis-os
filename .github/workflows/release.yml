@@ -1,0 +1,128 @@
+name: Release
+
+# Every push to main: turn the changelog.d/ fragments into version numbers, then publish the image.
+#
+# Why: parallel Claude Code sessions each used to pick the next number inside their PR, and two of
+# them often took the same one (docs/quy-uoc-dev.md). Now a PR only adds changelog.d/<slug>.md and
+# this job numbers it AFTER the merge, one run at a time, so numbers can no longer collide.
+#
+# How one release goes:
+# 1. A code PR with a fragment is merged. This run reads the NEWEST main, gives every fragment
+#    there its own version and commit (oldest first), and lands those commits through a short
+#    release PR that it merges at once (rebase, so each "x.y.z: title" commit stays on main).
+#    It does NOT publish: that code still carries the old VERSION.
+# 2. That merge is a new push to main, so this workflow runs again, finds no fragment and
+#    publishes the image from the release commit, which now carries the new VERSION.
+#
+# - main is guarded by a ruleset (PR required, check `test`, code owner review). GITHUB_TOKEN can
+#   neither bypass it nor start a new run, so the release PR is opened and merged with the
+#   RELEASE_TOKEN secret: a fine-grained token of the repo owner with Contents and Pull requests
+#   read/write. Missing secret = the run goes red with that instruction, and still publishes like
+#   before; the fragments wait on main and the next run (or "Run workflow") releases them.
+# - Numbers still claimed in open PR titles (the old way, "0.460.0: ...") are skipped, so PRs in
+#   flight from before this change keep their number.
+# - A push without fragments (old-style PR that bumped VERSION by hand, docs) just publishes.
+on:
+  push:
+    branches: [main]
+    # Pure docs never change the image. CLAUDE.md is the system prompt baked into the image, so it
+    # is NOT ignored.
+    paths-ignore:
+      - "README.md"
+      - "DEPLOY.md"
+      - ".learn/**"
+  workflow_dispatch:
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    # One numbering run at a time. A newer pending run replaces an older pending one, which is
+    # fine: it reads the newest main and numbers every fragment still there.
+    concurrency:
+      group: release-version
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      released: ${{ steps.number.outputs.released }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Numbers claimed by open PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json title --jq '.[].title' \
+            | grep -oE '^v?[0-9]+\.[0-9]+\.[0-9]+' | tr -d v | sort -u | paste -sd, - > "$RUNNER_TEMP/reserved" || true
+          echo "Reserved: $(cat "$RUNNER_TEMP/reserved")"
+
+      - name: Number fragments and merge the release PR
+        id: number
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! ls changelog.d/*.md 2>/dev/null | grep -qv '/README.md$'; then
+            echo "No fragments on main, nothing to number."
+            echo "released=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::changelog.d/ has fragments but the RELEASE_TOKEN secret is missing, so no version was made. Add a fine-grained token of the repo owner (Contents + Pull requests: read and write) as repository secret RELEASE_TOKEN, then re-run this workflow. See docs/quy-uoc-dev.md."
+            echo "released=" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          branch="release-bot/${GITHUB_RUN_ID}"
+          for i in 1 2 3 4 5; do
+            git fetch -q origin main
+            git checkout -q -B "$branch" origin/main
+            python tools/release.py apply --commit --reserved "$(cat "$RUNNER_TEMP/reserved")" | tee "$RUNNER_TEMP/made"
+            if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then
+              echo "released=" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            versions="$(awk '{print $1}' "$RUNNER_TEMP/made" | paste -sd' ' -)"
+            git push -q -f origin "$branch"
+            url="$(gh pr create --base main --head "$branch" --title "Release $versions" \
+                   --body "Numbered by the Release workflow from changelog.d/. Merged right away, no review needed.")"
+            # --admin: the repo owner's token may bypass the ruleset, the same way sessions merge on green CI.
+            if gh pr merge "$url" --rebase --admin --delete-branch; then
+              echo "released=$versions" >> "$GITHUB_OUTPUT"
+              echo "Released: $versions" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            # main moved under us (an old-style PR touched VERSION): drop this attempt, redo on the newest main.
+            gh pr close "$url" --delete-branch || true
+            sleep $((i * 5))
+          done
+          echo "::error::Could not merge the release PR after 5 tries"
+          exit 1
+
+  publish:
+    needs: version
+    # Skip when this run just merged a release PR: that merge starts the run that publishes the
+    # new VERSION. Still publish when numbering failed (broken fragment, missing secret), exactly
+    # as before this workflow existed; the error stays red above. A version job that was replaced
+    # by a newer pending run is cancelled: that newer run publishes instead.
+    # It builds the NEWEST main, not this run's sha: runs can finish out of order, and an older
+    # sha published last would move `latest` back to an older VERSION.
+    if: ${{ !cancelled() && needs.version.result != 'cancelled' && needs.version.outputs.released == '' }}
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      ref: main
+    secrets: inherit

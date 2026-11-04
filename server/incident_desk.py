@@ -20,7 +20,7 @@ within REOPEN_AFTER_S only bumps its counter, except the first repeat after a re
 as "needs you" with one message. At most TRIAGE_PER_HOUR model triages per hour; past that the
 fallback rule decides.
 
-0.464.0: a report may name the chat the job came from (`chat`: "web:<session id>", a Telegram id...). The desk still
+A report may name the chat the job came from (`chat`: "web:<session id>", a Telegram id...). The desk still
 triages and retries here, and the incident stays on this list, but its messages go to that chat, so a job made in a
 partner chat no longer reports its failures to Javis Core instead (the host routes an empty chat to Javis Core).
 

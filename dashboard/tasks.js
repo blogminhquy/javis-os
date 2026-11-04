@@ -40,7 +40,7 @@
   }
   // 0.429.0: a job a chatbot made belongs to the bot's assistant, or to the bot itself when that assistant is not in
   // this brain. src.bots is GET /tasks/bots ({bots, jobs: {"r:<id>"|"l:<slug>"|"k:<id>": bot id}}).
-  // 0.464.0: a reminder or loop made in a partner chat names that assistant (`agent`) and belongs to it.
+  // a reminder or loop made in a partner chat names that assistant (`agent`) and belongs to it.
   function botWho(src) {
     var B = src.bots || {}, bots = {}, known = {}, jobs = B.jobs || {};
     (B.bots || []).forEach(function (b) { bots[b.id] = b; });

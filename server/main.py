@@ -2285,7 +2285,7 @@ def _resonance_turn_provider(brain) -> str:
 
 
 def _session_assistant(conv_sid, brain, get_session) -> str:
-    """0.464.0: slug of the Partners-page assistant whose private chat `conv_sid` is (channel `agent:<slug>`), "" for
+    """slug of the Partners-page assistant whose private chat `conv_sid` is (channel `agent:<slug>`), "" for
     any other chat, a chat of another brain, or an assistant whose file is gone. Read by the host from the stored
     session row, so javis_schedule can stamp the jobs a partner chat creates with that assistant. Never raises."""
     try:
@@ -11354,7 +11354,7 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="", skill_serv
     where = ("qua Javis CLI (terminal hoặc HTTP /chat)" if channel == "cli"
              else "qua Telegram" if channel == "telegram"
              else "trên dashboard Javis (trang Cộng sự)")
-    # 0.464.0: the dashboard chat id, so a chat_id/owner_chat the model passes names this chat. An agent DM never had
+    # the dashboard chat id, so a chat_id/owner_chat the model passes names this chat. An agent DM never had
     # the channel block or the `[Phiên chat: ...]` header, so its jobs used to report to Javis Core.
     phien = (f" Phiên chat này là `web:{conv_sid}`: việc nền (`javis_task`) và nhắc hẹn, việc định kỳ "
              "(`javis_schedule`) giao từ đây tự báo kết quả về đúng khung chat này; nhắc hẹn và việc định kỳ "
@@ -11367,7 +11367,7 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="", skill_serv
 
 
 def _background_agent_prompt(brain, slug) -> str:
-    """0.464.0: system prompt of a reminder or loop made in a partner chat, so it does its job AS that assistant (role,
+    """system prompt of a reminder or loop made in a partner chat, so it does its job AS that assistant (role,
     file body, assets, memory, owner rules) instead of as plain Javis. No procedure overlay: that belongs to a surface
     the host knows (dm, team, workflow). Raises FileNotFoundError when the assistant file is gone; the caller then
     runs the job as Javis."""
@@ -11380,7 +11380,7 @@ def _background_agent_prompt(brain, slug) -> str:
 
 
 def _finish_background_agent_run(brain, slug, task, out) -> str:
-    """0.464.0: after a background run as an assistant: JAVIS_LESSON lines go to its memory and the run to its log, like
+    """after a background run as an assistant: JAVIS_LESSON lines go to its memory and the run to its log, like
     a workflow step; the cleaned text is what gets posted."""
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
     clean = _learn(slug, out)
@@ -12810,7 +12810,7 @@ loop_feature = self_improve.register(app, self_improve.LoopDeps(
     report=_notify_owner,               # báo NGƯỜI YÊU CẦU loop mỗi vòng (rỗng → Javis Core của brain loop)
     apply_mcp=_apply_mcp,               # loop ĐỌC được dữ liệu thật qua MCP Javis-quản-lý
     mcp_allow_patterns=_loop_mcp_allow,
-    build_agent_prompt=_background_agent_prompt,          # 0.464.0: made in a partner chat -> runs as that assistant
+    build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
 ))
 
@@ -13082,7 +13082,7 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     mcp_allow_patterns=_loop_mcp_allow,
     make_voice=lambda brain, text: _voice_note_rel(brain, text),
     send_file=lambda chat_id, path, brain: _send_voice_file(chat_id, path, brain),
-    build_agent_prompt=_background_agent_prompt,          # 0.464.0: made in a partner chat -> runs as that assistant
+    build_agent_prompt=_background_agent_prompt,          # made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
 ))
 
@@ -13245,7 +13245,7 @@ async def _incident_ask(prompt: str) -> str:
 
 async def _incident_post(brain: str, text: str, chat: str = "") -> None:
     # Empty chat id: the brain's Javis Core chat, the inbox and the owner's Telegram (_report_route, 0.186.0).
-    # 0.464.0: `chat` is the chat the broken job came from (a partner chat, a Telegram id): the notice goes there, and a
+    # `chat` is the chat the broken job came from (a partner chat, a Telegram id): the notice goes there, and a
     # deleted chat falls back to Javis Core (_report_route, lost_origin).
     await _notify_owner(chat, text, kind="report", source="incident", brain=brain,
                         level="important" if text.startswith("⚠") else "info",
@@ -18776,7 +18776,7 @@ async def _chat_socket(ws):
                 "dashboard", chat_id=conv_sid, la_chu=True, session_id=conv_sid, message_id=user_mid,
                 agent=_ag_luot, authority_seq=(_ag_luot or {}).get("authority_seq"),
                 provider=(_ag_luot or {}).get("provider") or "")
-            # 0.464.0: the Partners-page assistant of this chat ("" elsewhere), host-resolved, for javis_schedule. An
+            # the Partners-page assistant of this chat ("" elsewhere), host-resolved, for javis_schedule. An
             # extra key like the chatbot turn's `bot_id`: turn_context.py is pinned by the native profile evidence.
             _luot_turn["assistant"] = _session_assistant(conv_sid, brain, store.get_session)
             _luot_token = turn_context.bind(_luot_turn)

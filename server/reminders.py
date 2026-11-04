@@ -316,7 +316,7 @@ _AGENT_SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}")
 
 
 def agent_slug(value) -> str:
-    """0.464.0: a stored assistant slug (agents/<slug>.md) or "": one file name, never a path."""
+    """a stored assistant slug (agents/<slug>.md) or "": one file name, never a path."""
     v = str(value or "").strip()
     return v if _AGENT_SLUG.fullmatch(v) and ".." not in v else ""
 
@@ -340,12 +340,12 @@ class RemindersDeps:
     # token + Chat ID). None = bỏ qua kiểm tra (test dựng deps tối giản).
     notify_ready: Optional[Callable[[], tuple]] = None
     # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken run to Javis Core (incident_desk.py).
-    # 0.464.0: also chat= (the reminder's chat_id), so the incident is told where the job came from.
+    # also chat= (the reminder's chat_id), so the incident is told where the job came from.
     incident_hook: Optional[Callable] = None
-    # 0.464.0: (brain, agent slug) -> that Partners-page assistant's system prompt for a background run; raises when the
+    # (brain, agent slug) -> that Partners-page assistant's system prompt for a background run; raises when the
     # assistant is gone. None = every task reminder runs on the brain's plain Javis prompt, as before.
     build_agent_prompt: Optional[Callable[[str, str], str]] = None
-    # 0.464.0: (brain, agent slug, task, output) -> output without the JAVIS_LESSON lines, written to that assistant's
+    # (brain, agent slug, task, output) -> output without the JAVIS_LESSON lines, written to that assistant's
     # memory and run log like a workflow step. None = the output is posted as is.
     finish_agent_run: Optional[Callable[[str, str, str, str], str]] = None
     # 0.202.0: async make_voice(brain, text) -> vault-relative mp3 path ("" on failure), and
@@ -489,7 +489,7 @@ class RemindersFeature:
         bid = str(bot_id or "").strip()
         if re.fullmatch(r"bot_[A-Za-z0-9_-]{1,64}", bid):
             rem["bot_id"] = bid
-        # 0.464.0: made in a partner chat -> it runs as that assistant and the Tasks page files it under it.
+        # made in a partner chat -> it runs as that assistant and the Tasks page files it under it.
         ag = agent_slug(agent)
         if ag:
             rem["agent"] = ag
@@ -523,7 +523,7 @@ class RemindersFeature:
                 "call": bool(r.get("call")),
                 # 0.429.0: who made it. bot_id names the chatbot whose turn created it ("" = the owner or Javis Core).
                 "created_by": r.get("created_by", ""), "bot_id": r.get("bot_id", ""),
-                # 0.464.0: the Partners-page assistant it runs as ("" = Javis).
+                # the Partners-page assistant it runs as ("" = Javis).
                 "agent": r.get("agent", ""),
                 "next_runs": next_runs(cron) if cron and r.get("status") == "pending" else [],
                 "result": (r.get("result") or "")[:500], "error": r.get("error", ""),
@@ -833,7 +833,7 @@ class RemindersFeature:
             if late_s >= LATE_NOTE_AFTER_S:
                 extra["late_s"] = late_s
             if agent_slug(rem.get("agent")):
-                extra["agent"] = agent_slug(rem.get("agent"))   # 0.464.0: runs as the partner it was made with
+                extra["agent"] = agent_slug(rem.get("agent"))   # runs as the partner it was made with
             job = ledger_job(str(rem.get("id") or ""), slot)
             async with self.lock:
                 # Same once-only protection as a Kanban job (once_ledger.py): an outside action
@@ -1124,7 +1124,7 @@ class RemindersFeature:
         sysprompt = None
         as_agent = False
         if agent and self.deps.build_agent_prompt:
-            # 0.464.0: a reminder made in a partner chat does its job as that assistant (role, file body, memory,
+            # a reminder made in a partner chat does its job as that assistant (role, file body, memory,
             # owner rules). The assistant deleted since -> plain Javis, so the job still runs.
             try:
                 sysprompt = self.deps.build_agent_prompt(brain, agent)
