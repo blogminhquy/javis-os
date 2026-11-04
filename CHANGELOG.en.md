@@ -8,6 +8,9 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.451.0] - 2026-11-04
+### Added
+- **Internal API channel for Chatbots** (in progress).
 ## [0.450.0] - 2026-11-04
 ### Added
 - **"Install on phone" button in the phone menu.** Open the left menu and tap it to see how to add Javis to the home screen on the device you are using (iPhone: Share, then Add to Home Screen; Android: one Install button). Once Javis runs from the home screen, the button no longer shows.
