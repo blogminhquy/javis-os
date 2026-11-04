@@ -1815,6 +1815,8 @@
     };
   }
 
+  // Javis Core may have saved a new name in the turn that just ended (`javis_core_name`): read it back so the list,
+  // the chat header and the card show it without a reload (owner, 04/11/2026).
   async function docLaiTenCore(ag) {
     var d = null;
     try { d = await api("/agents?brain=" + encodeURIComponent(brain()) + "&prompt=0&system=1"); } catch (e) { return; }
@@ -2080,9 +2082,7 @@
         S.agents = sapXep(S.agents, "last_chat_at");
         if (dangXemCongSu(ag.slug)) daDoc(ag.slug);
         if (active) veDanhSach();
-        // Javis Core may have saved a new name in that turn (`javis_core_name`): read it back so the list, the chat
-        // header and the card show it without a reload (owner, 04/11/2026).
-        if (ag.system) docLaiTenCore(ag);
+        if (ag.system) docLaiTenCore(ag);   // a new name saved in chat shows at once
       }
     } else if (sid && S.loai === "agent") henUnread();
     if (!sid || !S.tienDo[sid] || S.tienDo[sid].trang_thai !== "dang") return;
