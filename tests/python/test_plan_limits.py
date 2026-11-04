@@ -138,6 +138,47 @@ check("max -> Max, pro -> Pro", pl.ten_goi("max") == "Max" and pl.ten_goi("pro")
 check("ChatGPT plus -> Plus", pl.ten_goi("plus") == "Plus" and pl.ten_goi("chatgpt_plus") == "Plus")
 check("tên có chữ hoa giữ nguyên", pl.ten_goi("SuperGrok") == "SuperGrok")
 check("rỗng thì rỗng", pl.ten_goi("") == "" and pl.ten_goi(None) == "")
+# 9b. Tên gói THẬT do nhà cung cấp đặt (2026-11-04): Anthropic đổi Max 20x thành Ultra ngày 30/10/2026
+#     mà `claude auth status` vẫn trả mã "max" cho cả hai hạng. Claude Code tự lưu
+#     `planDisplayName` của profile vào `.claude.json` (file cấu hình, không chứa token): đọc trường đó.
+_cd = os.path.join(_TMP, "claude-a2")
+os.makedirs(_cd)
+_cj = os.path.join(_cd, ".claude.json")
+
+
+def _ghi_cj(acc):
+    with open(_cj, "w", encoding="utf-8") as f:
+        json.dump({"oauthAccount": acc, "mcpServers": {}}, f)
+
+
+_ghi_cj({"emailAddress": "a@x.vn", "planDisplayName": "Ultra"})
+check("đọc đúng tên gói Anthropic đặt (Ultra, dù mã vẫn là max)", pl.ten_goi_claude(_cd, "a@x.vn") == "Ultra")
+check("không truyền email vẫn đọc được", pl.ten_goi_claude(_cd) == "Ultra")
+check("file của tài khoản khác thì bỏ qua, không gán nhầm gói", pl.ten_goi_claude(_cd, "b@x.vn") == "")
+check("so email không phân biệt hoa thường", pl.ten_goi_claude(_cd, "A@X.vn") == "Ultra")
+_ghi_cj({"emailAddress": "a@x.vn", "planDisplayName": "Max 5x"})
+check("tên có số giữ nguyên", pl.ten_goi_claude(_cd) == "Max 5x")
+_ghi_cj({"emailAddress": "a@x.vn", "planDisplayName": "<script>" + "x" * 60})
+check("tên sai mẫu (ký tự lạ, quá 40 chữ) thì bỏ, như CLI", pl.ten_goi_claude(_cd) == "")
+_ghi_cj({"emailAddress": "a@x.vn"})
+check("CLI cũ chưa lưu tên thì rỗng, để rơi về mã gói", pl.ten_goi_claude(_cd) == "")
+check("thư mục không có file thì rỗng", pl.ten_goi_claude(os.path.join(_TMP, "khong-co")) == "")
+with open(_cj, "w", encoding="utf-8") as f:
+    f.write("{hỏng")
+check("file hỏng thì rỗng, không nổ", pl.ten_goi_claude(_cd) == "")
+_ghi_cj({"emailAddress": "a@x.vn", "planDisplayName": "Ultra"})
+os.environ["CLAUDE_CONFIG_DIR"] = _cd
+check("không truyền thư mục thì theo CLAUDE_CONFIG_DIR như CLI", pl.ten_goi_claude() == "Ultra")
+del os.environ["CLAUDE_CONFIG_DIR"]
+
+import claude_cli  # noqa: E402
+check("thẻ Models: có tên thật thì dùng tên thật", claude_cli._ten_goi_dong("max", "a@x.vn", folder=_cd) == "Ultra")
+check("thẻ Models: thiếu tên thật thì chỉ làm gọn mã (max -> Max)",
+      claude_cli._ten_goi_dong("max", "b@x.vn", folder=_cd) == "Max")
+check("goi_ten chỉ nhận tên thật, không đoán",
+      claude_cli._ten_goi_dong("max", "b@x.vn", folder=_cd, chi_ten_that=True) == "")
+check("không có mã gói (API key) thì không có tên", claude_cli._ten_goi_dong("", "a@x.vn", folder=_cd) == "")
+
 x = pl.tu_codex({"rateLimits": {"planType": "pro", "primary": {"usedPercent": 1, "windowDurationMins": 300}}})
 check("Codex báo planType thì giữ lại", x["goi"] == "pro", x)
 
@@ -161,7 +202,11 @@ than = src[i:i + 2500]
 check("Grok chạy API key xAI thì không có gói", '"grok-cli": grok_k.get("method") != "xai-api-key"' in than)
 check("tên gói chỉ hỏi khi mở bảng (goi=1)", "if goi:" in than and "claude_auth_status" in than)
 cli = (ROOT / "server" / "claude_cli.py").read_text(encoding="utf-8")
-check("tên gói Claude lấy riêng subscriptionType, không lẫn authMethod", '"goi": d.get("subscriptionType", "") or ""' in cli)
+check("tên gói Claude lấy riêng subscriptionType, không lẫn authMethod",
+      'goi = d.get("subscriptionType", "") or ""' in cli and '"goi": goi,' in cli)
+check("thẻ Models và vòng tròn dùng tên Anthropic đặt (goi_ten), không phải bảng tên tự điền",
+      '"goi_ten": _ten_goi_dong(' in cli and 'cl.get("goi_ten") or plan_limits.ten_goi(' in than)
+check("không còn bảng tên gói điền tay", "_TEN_GOI" not in (ROOT / "server" / "plan_limits.py").read_text(encoding="utf-8"))
 lf = src[src.find("def _limit_frame("):src.find("def _limit_frame(") + 2600]
 check("lượt bị từ chối vì hết hạn mức thì vòng tròn đỏ", "plan_limits.ghi_het(engine_hint" in lf
       and 'engine_hint in ("grok-cli", "antigravity-cli") and plan_limits.la_het_han_muc(raw)' in lf)

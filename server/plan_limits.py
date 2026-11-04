@@ -314,16 +314,66 @@ def doc(now: float = None) -> dict:
     return out
 
 
-_TEN_GOI = {"pro": "Pro", "max": "Max", "plus": "Plus", "team": "Team", "business": "Business",
-            "enterprise": "Enterprise", "edu": "Edu", "free": "Free", "go": "Go"}
-
-
 def ten_goi(raw: str) -> str:
-    """"max" -> "Max", "chatgpt_plus" -> "Plus", "SuperGrok" stays. Empty stays empty: never a guess."""
+    """Tidy a plan CODE the provider sent ("max" -> "Max", "chatgpt_plus" -> "Plus", "SuperGrok" stays).
+
+    No hand-kept name table any more (owner, 2026-11-04): Anthropic renamed Max 20x to Ultra on
+    2026-10-30 while the CLI kept sending the code "max" for both tiers, so a table here goes stale
+    the day a vendor renames a plan. The real name comes from the vendor (`ten_goi_claude`); this
+    only formats a code when the vendor gave nothing better. Empty stays empty: never a guess."""
     v = str(raw or "").strip()
     if not v:
         return ""
-    k = v.lower().replace("chatgpt_", "").replace("claude_", "")
-    if k in _TEN_GOI:
-        return _TEN_GOI[k]
-    return v if any(c.isupper() for c in v) else v.replace("_", " ").title()
+    if any(c.isupper() for c in v):
+        return v
+    for tien_to in ("chatgpt_", "claude_"):
+        if v.lower().startswith(tien_to) and len(v) > len(tien_to):
+            v = v[len(tien_to):]
+    return v.replace("_", " ").title()
+
+
+def _ten_hop_le(v) -> bool:
+    """Same rule the Claude CLI applies before it trusts `plan_display_name`: 1-40 characters, letters,
+    digits, spaces and `.+-`, starting and ending on a letter or digit (`+` may end it)."""
+    if not isinstance(v, str) or not 1 <= len(v) <= 40 or not v[0].isalnum():
+        return False
+    if len(v) > 1 and not (v[-1].isalnum() or v[-1] == "+"):
+        return False
+    return all(c.isalnum() or c in " .+-" for c in v)
+
+
+def _file_claude_json(config_dir=None) -> list:
+    """Where the Claude CLI keeps its global config: `$CLAUDE_CONFIG_DIR/.claude.json` when a config folder
+    is set, else `~/.claude.json`. An extra account folder is checked first, then the file next to it."""
+    d = str(config_dir or os.environ.get("CLAUDE_CONFIG_DIR") or "").strip()
+    if d:
+        base = Path(d).expanduser()
+        return [base / ".claude.json", base.parent / ".claude.json"] if config_dir else [base / ".claude.json"]
+    return [Path.home() / ".claude.json"]
+
+
+def ten_goi_claude(config_dir=None, email: str = "") -> str:
+    """The plan's name AS ANTHROPIC NAMES IT NOW ("Ultra", "Max", "Pro"), or "" when unknown.
+
+    Claude Code fetches the account profile itself and stores `organization.plan_display_name` as
+    `oauthAccount.planDisplayName` in its config file `.claude.json`. That file holds no token (the
+    login lives in `.credentials.json` or the OS keyring), so Javis reads only that one field and never
+    touches a credential. `email`: the account `claude auth status` reports; a config written by a
+    different account is ignored instead of naming someone else's plan."""
+    for f in _file_claude_json(config_dir):
+        try:
+            if not f.is_file():
+                continue
+            acc = (json.loads(f.read_text(encoding="utf-8")) or {}).get("oauthAccount") or {}
+        except (OSError, ValueError, AttributeError):
+            continue
+        if not isinstance(acc, dict):
+            continue
+        cua = str(acc.get("emailAddress") or "").strip().lower()
+        if email and cua and cua != str(email).strip().lower():
+            continue
+        ten = acc.get("planDisplayName")
+        if _ten_hop_le(ten):
+            return ten.strip()
+        return ""
+    return ""
