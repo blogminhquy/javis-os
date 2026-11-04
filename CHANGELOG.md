@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.461.0] - 2026-11-04
+### Cải thiện
+- **Thẻ Javis Core ở trang Cộng sự giờ nói rõ đang chạy model nào.** Chưa ghim thì ghi "Theo model chính" kèm tên model đó, nên không còn trông như Javis Core không có model.
+- **Chọn model cho Javis Core ngay trên thẻ đó.** Chọn một model là ghim cho mọi chat của Javis Core, đúng cái ghim mà thanh model trong chat Core vẫn dùng: đổi ở đâu thì chỗ kia cũng thấy ngay.
+- **Gỡ ghim một chạm** bằng nút "Theo model của khung chat chính". Ghim tạm không chạy được (mất key, hết hạn mức) thì thẻ nói thẳng model nào đang chạy thay.
+
 ## [0.459.0] - 2026-11-04
 ### Thêm mới
 - **Kênh API nội bộ cho Chatbot (thử nghiệm).** Một máy chủ của bạn, ví dụ web nội bộ cho nhân viên, hỏi một Chatbot qua HTTP rồi hiện câu trả lời ngay trong web đó. Thêm ở trang Chatbot, tab Kênh, chọn **API nội bộ**: Javis tự sinh khoá và chỉ hiện một lần, có nút xoay khoá.

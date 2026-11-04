@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.461.0] - 2026-11-04
+### Improved
+- **The Javis Core card on the Agents page now says which model it runs on.** With no pin it reads "Following the main model" plus that model's name, so Javis Core no longer looks like it has no model.
+- **Pick the Javis Core model right on that card.** Picking one pins it for every Javis Core chat, the same pin the model bar of a Core chat already uses: change it in one place and the other shows it at once.
+- **Remove the pin in one tap** with "Follow the main chat's model". When the pin cannot run for now (key removed, plan out of quota) the card says which model runs instead.
+
 ## [0.459.0] - 2026-11-04
 ### Added
 - **Internal API channel for Chatbots (experimental).** One of your servers, an internal staff web app say, asks a Chatbot over HTTP and shows the reply inside that app. Add it on the Chatbot page, Channels tab, **Internal API**: Javis generates the key and shows it once, with a Rotate button.

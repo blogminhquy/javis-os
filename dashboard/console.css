@@ -3677,6 +3677,14 @@ span.tmp-lead { cursor: default; }
 .ws-core-head h3 { margin: 0; font-size: 16px; }
 .ws-core-card p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.5; }
 .ws-core-card .ws-core-note { color: var(--text2); font-size: 13.5px; }
+/* 0.461.0: the Core card's model row. It reuses the assistant editor's model button and list (.agent-editor rules). */
+.ws-core-model { margin-top: 16px; }
+.ws-core-model > label { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 13.5px; font-weight: 600; }
+.ws-core-model .ag-model-btn { font-size: 14px; }
+.ws-core-model-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; color: var(--text2);
+  font-size: 13.5px; line-height: 1.5; }
+.ws-core-model-sub[hidden] { display: none; }
+.ws-core-model-sub > span:empty { display: none; }
 .ws-item-time { flex: none; font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
 
 /* 0.148.0: tay kéo đổi bề rộng cột (col-resize.js) ở trang đồ thị (cột Vault, cột hội thoại) và trang Trò chuyện (cột
