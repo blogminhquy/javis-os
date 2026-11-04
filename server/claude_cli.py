@@ -632,6 +632,23 @@ _AUTH_LOI = {"ts": 0.0}
 _AUTH_TTL_LOI = 30.0
 
 
+def _ten_goi_dong(goi: str, email: str = "", folder=None, chi_ten_that: bool = False) -> str:
+    """Name a Claude plan the way Anthropic names it now, never from a table Javis keeps.
+
+    `claude auth status` only gives a CODE ("max" covers both Max and the renamed Ultra since
+    2026-10-30). The CLI also stores the profile's `plan_display_name` in `.claude.json`; that wins.
+    Without it the code is only tidied ("max" -> "Max"). `chi_ten_that`: return "" rather than the
+    tidied code, so a caller can tell a vendor name from a guess."""
+    if not goi:
+        return ""
+    try:
+        import plan_limits
+        ten = plan_limits.ten_goi_claude(folder, email)
+        return ten or ("" if chi_ten_that else plan_limits.ten_goi(goi))
+    except Exception:  # noqa: BLE001
+        return "" if chi_ten_that else goi
+
+
 def auth_status(bo_qua_cache: bool = False):
     """Trạng thái đăng nhập Claude Code: {connected, email, plan, org}.
 
@@ -672,10 +689,13 @@ def auth_status(bo_qua_cache: bool = False):
                            encoding="utf-8", errors="replace",
                            timeout=25 if bo_qua_cache else 8, creationflags=_no_window())
         d = json.loads((r.stdout or "").strip() or "{}")
+        goi = d.get("subscriptionType", "") or ""
         ra = {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
-              "plan": d.get("subscriptionType", "") or d.get("authMethod", ""), "org": d.get("orgName", ""),
-              # The plan alone (pro, max...), never the auth method: the usage ring names the plan (0.329.0).
-              "goi": d.get("subscriptionType", "") or ""}
+              "plan": _ten_goi_dong(goi, d.get("email", "")) or d.get("authMethod", ""), "org": d.get("orgName", ""),
+              # The plan CODE alone (pro, max...), never the auth method: the usage ring names the plan (0.329.0).
+              "goi": goi,
+              # The plan's name as Anthropic names it today ("Ultra"), read from the CLI's own profile copy.
+              "goi_ten": _ten_goi_dong(goi, d.get("email", ""), chi_ten_that=True)}
         cu = _AUTH_CACHE["val"] or {}
         if cu.get("connected") and not ra["connected"]:
             # Đang đăng nhập mà CLI báo mất - in dấu vết CÓ GIỜ để lần sau chủ báo "thi thoảng
@@ -707,7 +727,7 @@ def auth_status_folder(folder) -> dict:
                            env={**os.environ, "CLAUDE_CONFIG_DIR": str(folder)})
         d = json.loads((r.stdout or "").strip() or "{}")
         return {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
-                "plan": d.get("subscriptionType", "") or ""}
+                "plan": _ten_goi_dong(d.get("subscriptionType", "") or "", d.get("email", ""), folder=folder)}
     except Exception as e:  # noqa: BLE001
         return {"connected": False, "unknown": True, "error": f"{type(e).__name__}: {e}"}
 

@@ -2011,7 +2011,9 @@ def _providers_view(cfg):
         }
         if p["kind"] == "oauth":
             item["account"] = oauth.get("account_id", "")
-            item["plan"] = oauth.get("plan", "")
+            # The vendor's plan code, only tidied ("plus" -> "Plus"); no name table (2026-11-04).
+            import plan_limits
+            item["plan"] = plan_limits.ten_goi(oauth.get("plan", ""))
             # Đăng nhập ChatGPT do CHÍNH JAVIS lo (OAuth device code, token ghi vào ~/.codex)
             # nên "Đã kết nối" không chứng minh máy có binary `codex`. Máy thiếu nó là thẻ
             # xanh mà chat vỡ - báo cáo 16/08: người mới cài kết nối được nhưng không dùng
@@ -2025,7 +2027,8 @@ def _providers_view(cfg):
             item["cli_found"] = bool(grok_cli.find_grok_cli())
             item["auth_method"] = _k.get("method", "")
             item["account"] = _k.get("account", "")
-            item["plan"] = _k.get("plan", "")
+            import plan_limits
+            item["plan"] = plan_limits.ten_goi(_k.get("plan", ""))
             item["auth_error"] = _k.get("error", "")
             item["cai_lenh"] = grok_cli.lenh_cai()
             item["tu_cai"] = cli_autoinstall.state("grok")   # Docker tự cài lúc khởi động (0.85.1)
@@ -30232,7 +30235,8 @@ async def plan_limits_get(goi: int = 0):
     """0.329.0: the composer ring. The 5-hour and weekly meters of each brain that runs on a plan
     (Claude Code on its signed-in session, ChatGPT through Codex), as the CLIs last reported them.
     Grok Build and Antigravity report no meter, so theirs only turns red once a turn was refused.
-    `goi=1` (the popover opening) also names each plan: Claude from `claude auth status`, ChatGPT
+    `goi=1` (the popover opening) also names each plan: Claude by the name Anthropic gives it now
+    (the profile copy Claude Code keeps in `.claude.json`, falling back to `claude auth status`), ChatGPT
     from the sign-in Javis holds, Grok from its own auth file. Antigravity keeps no plan name."""
     import plan_limits
     await asyncio.to_thread(plan_limits.quet_codex)
@@ -30245,7 +30249,7 @@ async def plan_limits_get(goi: int = 0):
     if goi:
         cl = await asyncio.to_thread(claude_auth_status)
         oa = (cfgmod.read_settings().get("model", {}) or {}).get("openai_oauth") or {}
-        ten = {"claude": plan_limits.ten_goi(cl.get("goi") or ""),
+        ten = {"claude": cl.get("goi_ten") or plan_limits.ten_goi(cl.get("goi") or ""),
                "codex": plan_limits.ten_goi((d.get("codex") or {}).get("goi") or oa.get("plan") or ""),
                "grok": plan_limits.ten_goi(grok_k.get("plan") or ""), "agy": ""}
     return {"claude": d.get("claude"), "codex": d.get("codex"), "grok": d.get("grok"), "agy": d.get("agy"),
