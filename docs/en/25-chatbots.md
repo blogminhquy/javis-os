@@ -51,7 +51,7 @@ The bot **reads the Agent at run time** rather than copying it. Editing the Agen
 
 ### 3. A channel account: a dedicated token, taken from the right place for the channel
 
-Since 0.61.0 a token is a **channel account**, and a bot only **points** to it. Add the channel with **Add a channel** in the **Channels without a bot** section right under the bot list and tick it when creating the bot, or press **Connect a new channel** inside the New bot form (the new channel is ticked for you); both lead to the same result. One bot can serve **several** accounts (one role answering on Telegram and Zalo Bot alike), while each account has **one** bot on duty.
+Since 0.61.0 a token is a **channel account**, and a bot only **points** to it. Add the channel with **Add a channel** in the **Channels without a bot** section right under the bot list and tick it when creating the bot, or press **Connect a new channel** inside the New bot form (the new channel is ticked for you); both lead to the same result. One bot can serve **several** accounts (one role answering on Telegram and Zalo Bot alike), while each account has **one** bot on duty. One bot serves up to **100 Pages** (Messenger and Instagram) and 20 accounts of each other channel; select more and Javis says so instead of quietly dropping some.
 
 If the bot runs on **Telegram**: go to **@BotFather**, type `/newbot`, set a name and username, and take the token string shaped `123456789:ABCdef...`.
 

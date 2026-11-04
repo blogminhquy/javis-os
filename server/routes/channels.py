@@ -353,8 +353,11 @@ def register(app, deps: ChannelsDeps):
         dang = chatbot_store.bots_using_account(account_id)
         if moi and [b["id"] for b in dang] == [bot_id]:
             return {"ok": True, "bot_tat": ""}
-        if moi and len(chatbot_store.account_ids_of(moi)) >= 20:
-            return _400(localefmt.chu("Bot này đã trực đủ 20 tài khoản", "This bot already serves 20 accounts"))
+        if moi:
+            # The cap is per channel (100 Facebook Pages, 20 for a channel that polls), see chatbot_store.
+            loi = chatbot_store.account_limit_error(chatbot_store.account_ids_of(moi) + [account_id])
+            if loi:
+                return _400(loi)
         bot_tat, loi = _go_khoi_bot(account_id)
         if loi:
             return _400(loi)

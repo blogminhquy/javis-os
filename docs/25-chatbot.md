@@ -51,7 +51,7 @@ Bot **đọc Agent lúc chạy**, không chép lại. Sau này sửa Agent ở t
 
 ### 3. Một tài khoản kênh: token riêng, lấy đúng chỗ theo kênh
 
-Từ 0.61.0 token là một **kênh** (tài khoản bot), bot chỉ **trỏ tới** nó. Bạn thêm kênh bằng nút **Thêm kênh** ở mục **Kênh chưa có bot** ngay dưới danh sách bot rồi tích chọn khi tạo bot, hoặc bấm **Kết nối kênh mới** ngay trong form Bot mới (kênh vừa nối được tick sẵn); hai đường cho cùng một kết quả. Một bot trực được **nhiều** tài khoản (một vai trả lời ở cả Telegram lẫn Zalo Bot), còn mỗi tài khoản chỉ **một** bot trực.
+Từ 0.61.0 token là một **kênh** (tài khoản bot), bot chỉ **trỏ tới** nó. Bạn thêm kênh bằng nút **Thêm kênh** ở mục **Kênh chưa có bot** ngay dưới danh sách bot rồi tích chọn khi tạo bot, hoặc bấm **Kết nối kênh mới** ngay trong form Bot mới (kênh vừa nối được tick sẵn); hai đường cho cùng một kết quả. Một bot trực được **nhiều** tài khoản (một vai trả lời ở cả Telegram lẫn Zalo Bot), còn mỗi tài khoản chỉ **một** bot trực. Mỗi bot trực tối đa **100 Fanpage** (Messenger và Instagram) và 20 tài khoản cho mỗi kênh còn lại; chọn quá thì Javis báo rõ, không âm thầm bỏ bớt.
 
 Nếu bot chạy trên **Telegram**: vào **@BotFather** gõ `/newbot`, đặt tên và username, lấy chuỗi token dạng `123456789:ABCdef...`.
 

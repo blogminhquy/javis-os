@@ -138,7 +138,7 @@ Until a bot is on, Javis does not take in messages and the inbox stays empty.
 - Tick the Messenger channel you just connected. It is already in the list; no need for **Add channel**.
 - Click **Save** and switch the bot on.
 
-One bot can serve several channels at once (several Pages, Zalo too) with one Agent and one set of active hours.
+One bot can serve several channels at once (several Pages, Zalo too) with one Agent and one set of active hours. One bot serves up to **100 Pages** (Instagram rides on its Page, so it counts with it); other channels allow 20 accounts per bot.
 
 **Posting:** nothing else to install. Ask Javis "post this to the Page with these 3 photos" or "every day at 8am post a product introduction" and it uses this same connection. Publishing and editing posts are real, public actions, so they only run when Javis is at Full access. To change comment handling later: **Connections**, Facebook Messenger card, **View details**, the Page comments box on each Page.
 

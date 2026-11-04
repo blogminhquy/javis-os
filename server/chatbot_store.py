@@ -396,7 +396,7 @@ def parse_ngoai_le(v: Any) -> tuple[Optional[list], str]:
     "ten": label for the owner, "muc_quyen": a level, "cho_giay": seconds the bot waits for that chat to finish
     typing (personal Zalo only), or None for the channel default}.
 
-    An entry is scoped to ONE channel account (review of #653): one bot can hold up to 20 accounts across channels,
+    An entry is scoped to ONE channel account (review of #653): one bot can hold many accounts across channels,
     and a raw id saved for a personal-Zalo chat must never raise a chat that happens to carry the same string on the
     bot's Telegram, WhatsApp or Messenger account."""
     if v in (None, ""):
@@ -803,7 +803,32 @@ def _clean_account_ids(v: Any, exclude_bot: str = "") -> tuple[List[str], str]:
                                          f"Account \"{a.get('label')}\" is served by bot \"{b.get('name')}\". "
                                          "One bot per account.")
         out.append(x)
-    return out[:20], ""
+    loi = account_limit_error(out)
+    if loi:
+        return [], loi
+    return out, ""
+
+
+def account_limit_error(ids: List[str]) -> str:
+    """Error text when `ids` holds more accounts of one channel than one bot may serve, else "".
+
+    The cap is per channel (`channels.max_accounts_per_bot`): 100 Facebook Pages (Instagram rides on the Page), 20 for
+    a channel that polls or holds a session per account. Before this the list was cut to its first 20 without a word,
+    so ticking 26 Pages saved 20 and the other 6 were left with no bot while the form said "saved" (owner
+    2026-11-04). Refusing the whole list keeps the bot as it was and tells the owner which channel is over."""
+    dem: Dict[str, int] = {}
+    for x in ids or []:
+        kenh = str((channel_accounts.get_account(x) or {}).get("channel") or "")
+        dem[kenh] = dem.get(kenh, 0) + 1
+    for kenh, n in dem.items():
+        tran = channels.max_accounts_per_bot(kenh)
+        if n > tran:
+            nhan = channels.nhan_giao_dien(kenh) or kenh
+            return localefmt.chu(f"Một bot trực tối đa {tran} tài khoản {nhan}, đang chọn {n}. "
+                                 f"Bỏ bớt {n - tran} tài khoản hoặc giao phần còn lại cho bot khác.",
+                                 f"One bot serves at most {tran} {nhan} accounts, {n} are selected. "
+                                 f"Remove {n - tran} or give the rest to another bot.")
+    return ""
 
 
 # ============================================================
@@ -902,6 +927,15 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
         return None, loi
     tok = str(data.get("token") or "").strip()
     if tok:
+        # Check the cap BEFORE the account is created, or a refused bot leaves a stray account behind.
+        kenh_moi = _clean_kenh(data.get("channel"))
+        tran = channels.max_accounts_per_bot(kenh_moi)
+        if sum(1 for x in acc if (channel_accounts.get_account(x) or {}).get("channel") == kenh_moi) >= tran:
+            nhan = channels.nhan_giao_dien(kenh_moi) or kenh_moi
+            return None, localefmt.chu(f"Một bot trực tối đa {tran} tài khoản {nhan}. Bỏ bớt một tài khoản đã chọn "
+                                       "hoặc dán token này cho bot khác.",
+                                       f"One bot serves at most {tran} {nhan} accounts. Untick one or give this "
+                                       "token to another bot.")
         aid, loi = channel_accounts.create_account({
             "channel": _clean_kenh(data.get("channel")), "token": tok,
             "label": data.get("account_label") or name,

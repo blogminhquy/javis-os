@@ -138,7 +138,7 @@ Chưa có bot thì Javis chưa nhận tin, Hộp thư cũng trống.
 - Tick kênh Messenger vừa nối. Kênh đã có sẵn trong danh sách, không cần **Thêm kênh**.
 - Bấm **Lưu**, bật bot.
 
-Một bot trực được nhiều kênh cùng lúc (nhiều Fanpage, cả Zalo), dùng chung một Agent và giờ trực.
+Một bot trực được nhiều kênh cùng lúc (nhiều Fanpage, cả Zalo), dùng chung một Agent và giờ trực. Mỗi bot trực tối đa **100 Fanpage** (Instagram đi kèm Trang nên tính chung), các kênh khác tối đa 20 tài khoản mỗi bot.
 
 **Đăng bài:** không cần cài thêm gì. Nhắn Javis kiểu "đăng bài này lên Fanpage kèm 3 ảnh" hoặc "8 giờ sáng mỗi ngày đăng một bài giới thiệu sản phẩm" là Javis dùng đúng kết nối này. Đăng và sửa bài là việc thật, công khai, nên chỉ chạy khi Javis ở mức Toàn quyền. Muốn đổi cách xử lý bình luận về sau: trang **Kết nối**, thẻ Facebook Messenger, **Xem chi tiết**, ô Bình luận Fanpage ở từng Trang.
 
