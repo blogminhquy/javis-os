@@ -1580,10 +1580,15 @@ class AntigravityCLI:
         def doc_luong():
             proc = None
             try:
+                try:   # what agy's shell leaves running is adopted after the turn (tien_trinh_nen.ENV_MARK)
+                    import tien_trinh_nen
+                    _env = tien_trinh_nen.mark_env(None, self.tag)
+                except Exception:  # noqa: BLE001
+                    _env = None
                 proc = subprocess.Popen(
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
-                    creationflags=_no_window(), start_new_session=(os.name != "nt"),
+                    creationflags=_no_window(), start_new_session=(os.name != "nt"), env=_env,
                 )
                 with _PROC_LOCK:
                     _ACTIVE_PROCS[proc] = self.tag

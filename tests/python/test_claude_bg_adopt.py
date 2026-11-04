@@ -157,6 +157,22 @@ bw = (SERVER / "claude_warm.py").read_text(encoding="utf-8")
 check("a turn that ends with tasks running lingers instead of closing",
       "elif linger and handle.alive():" in bw and "_linger(handle, completion)" in bw)
 
+# ---- every CLI engine carries the mark, not only Claude Code (owner, 2026-11-04) ----
+check("a dashboard turn's mark is its conversation", T.mark_for("chat:abc123:9f8e") == "chat:abc123")
+check("other tags keep their own mark", T.mark_for("telegram:42") == "telegram:42")
+if T.POSIX:
+    e = T.mark_env({"PATH": "/bin"}, "chat:conv9:t1")
+    check("mark_env adds the conversation's mark and keeps the env",
+          e.get(T.ENV_MARK) == "chat:conv9" and e.get("PATH") == "/bin")
+    check("mark_env notes the mark for the turn", T._MARKS_BY_TAG.get("chat:conv9:t1") == ["chat:conv9"])
+    T.bo_tag("chat:conv9:t1")
+    check("mark_env with no env starts from the server's", T.mark_env(None, "x:1").get("PATH") == os.environ.get("PATH"))
+    T.bo_tag("x:1")
+for f, needle in (("claude_cli.py", "env=_mark_env(codex_env("), ("codex_steer.py", "env = cc._mark_env(env, tag)"),
+                  ("codex_steer.py", "tien_trinh_nen.note_mark(cli.tag, tien_trinh_nen.mark_for(cli.tag))"),
+                  ("grok_cli.py", "env=_mark_env(_moi_truong("), ("antigravity_cli.py", "tien_trinh_nen.mark_env(None, self.tag)")):
+    check(f"{f} starts its engine with the mark", needle in (SERVER / f).read_text(encoding="utf-8"))
+
 if not T.POSIX:
     print("SKIPPED the process tests: Windows has no process groups.")
     if fails:

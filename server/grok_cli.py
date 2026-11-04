@@ -161,6 +161,15 @@ def lenh_cai() -> str:
     return LENH_CAI_WIN if os.name == "nt" else LENH_CAI
 
 
+def _mark_env(env, tag):
+    """`env` plus the background-work mark of turn `tag` (tien_trinh_nen.mark_env). Never fails a turn."""
+    try:
+        import tien_trinh_nen
+        return tien_trinh_nen.mark_env(env, tag)
+    except Exception:  # noqa: BLE001
+        return env
+
+
 def _moi_truong(home=None) -> dict:
     """Môi trường cho một lượt chạy `grok`: kế thừa của server, tắt bộ tự cập nhật.
 
@@ -1200,7 +1209,8 @@ class GrokCLI:
                     args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE, cwd=self.cwd, text=True, encoding="utf-8",
                     errors="replace", bufsize=1, creationflags=_no_window(),
-                    env=_moi_truong(getattr(self, "grok_home", None)), start_new_session=(os.name != "nt"),
+                    env=_mark_env(_moi_truong(getattr(self, "grok_home", None)), self.tag),
+                    start_new_session=(os.name != "nt"),
                 )
                 try:   # lệnh chạy ngầm Grok bỏ lại sẽ được theo dõi sau lượt (tien_trinh_nen)
                     import tien_trinh_nen

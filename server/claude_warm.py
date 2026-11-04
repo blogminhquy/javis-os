@@ -329,7 +329,8 @@ def _linger(handle: "ClaudeHandle", completion, cap: float = LINGER_MAX_S) -> No
 async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
     """One chat turn, on the conversation's warm `claude` when it has one that fits, else cold, keeping the process
     afterwards when the pool has room. Same events as `ClaudeSDK.query`."""
-    mark_background(cli, key or getattr(cli, "tag", ""))
+    import tien_trinh_nen
+    mark_background(cli, tien_trinh_nen.mark_for(getattr(cli, "tag", "")) or key)
     if not key or not eligible(cli) or not cli.is_available():
         async for ev in cli.query(prompt):
             yield ev

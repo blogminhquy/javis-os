@@ -285,6 +285,28 @@ def env_mark(mark) -> dict:
     return {ENV_MARK: m} if POSIX and m else {}
 
 
+def mark_for(tag) -> str:
+    """The mark of a turn's conversation: a dashboard tag "chat:<sid>:<turn>" -> "chat:<sid>" (an engine process kept
+    warm between turns keeps the mark it started with), any other tag (telegram:<id>, a job) as it is."""
+    parts = str(tag or "").split(":")
+    if parts[0] == "chat" and len(parts) >= 3:
+        return ":".join(parts[:2])
+    return str(tag or "")
+
+
+def mark_env(env, tag):
+    """The environment to start an engine process of turn `tag` with: `env` (None = the server's) plus the mark of
+    its conversation, noted for the turn so what the engine leaves running is adopted (see ENV_MARK). Every CLI
+    engine goes through here, not only Claude Code: a shell tool that starts commands in a session of their own hides
+    them from the process group check. Off POSIX, `env` comes back untouched."""
+    m = mark_for(tag)
+    extra = env_mark(m)
+    if not extra:
+        return env
+    note_mark(tag, m)
+    return {**(os.environ if env is None else env), **extra}
+
+
 def note_mark(tag: str, mark) -> None:
     """This turn runs on an engine started with env_mark(mark): adopt what it leaves behind."""
     m = _clean_mark(mark)
