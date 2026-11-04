@@ -55,14 +55,19 @@ Missing measurements invalidate the saved context value. Explicit thread clearin
 switching to a different native thread also clears its context measurement; rebinding the
 same thread preserves it. These are metadata updates, not automatic session resets.
 
-The historical `sessions.last_input_tokens` column remains a turn total. The new
-`last_context_input_tokens` starts at zero and is populated only by measured request input.
-No historical turn totals are copied into it. Its provider tag prevents a model/engine switch
-from applying a different native thread's measurement. All subscription rotation decisions read
-the new column; providers without request measurements cannot trigger rotation from totals.
-Session IDs, thread IDs, decisions and history are not reset by this migration. Rollback
-does not require dropping the additive column. The read-only trial schema allowlist admits
-the new bookkeeping column without projecting it as user instructions.
+The historical `sessions.last_input_tokens` column remains a turn total. Request context
+lives in a separate `subscription_request_context` table. `get_session()` exposes its
+`last_context_input_tokens` and provider tag, starting at zero when there is no observation.
+No historical turn totals are copied. The provider tag prevents an engine switch from
+applying another native thread's measurement. All rotation decisions use these request
+measurements; providers without them cannot trigger rotation from totals.
+
+Migration from early opt-in patches transactionally transfers their request-only columns
+into the separate table and removes those bookkeeping columns from `sessions`, preserving
+conversation data and native IDs. This retains the exact protected SQL-source schema and
+its existing native qualification evidence. Historical qualification files/hashes are not
+rewritten or declared valid for changed enforcement source. Rollback leaves the side table
+intact; an earlier patched build can recreate its metadata columns without resetting chats.
 
 Automatic replacement of a subscription thread is off by default; native context
 management continues. An operator may explicitly opt into

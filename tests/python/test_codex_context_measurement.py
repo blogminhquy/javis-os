@@ -8,6 +8,32 @@ import compaction
 
 
 class ContextMeasurementTests(unittest.TestCase):
+    def test_early_request_columns_move_without_changing_conversation_sources(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'sessions.db'
+            store = sessions.SessionStore(path)
+            sid = store.create_session(engine='codex')
+            store.set_codex_thread_id(sid, 'native-preserved')
+            store.append_message(sid, 'user', 'Synthetic decision and source reference.')
+            store.set_last_input_tokens(sid, 900000)
+            store._conn.execute('ALTER TABLE sessions ADD COLUMN last_context_input_tokens INTEGER DEFAULT 0')
+            store._conn.execute("ALTER TABLE sessions ADD COLUMN last_context_provider TEXT DEFAULT ''")
+            store._conn.execute("UPDATE sessions SET last_context_input_tokens=7000,last_context_provider='codex' WHERE id=?", (sid,))
+            store._conn.commit()
+            store.close()
+            store = sessions.SessionStore(path)
+            try:
+                row = store.get_session(sid)
+                self.assertEqual(row['last_context_input_tokens'], 7000)
+                self.assertEqual(row['last_input_tokens'], 900000)
+                self.assertEqual(row['codex_thread_id'], 'native-preserved')
+                self.assertEqual(store.get_messages(sid)[0]['content'], 'Synthetic decision and source reference.')
+                columns = {r[1] for r in store._conn.execute('PRAGMA table_info(sessions)')}
+                self.assertNotIn('last_context_input_tokens', columns)
+                self.assertNotIn('last_context_provider', columns)
+            finally:
+                store.close()
+
     def test_thread_changes_invalidate_context_but_same_thread_keeps_it(self):
         with tempfile.TemporaryDirectory() as td:
             store = sessions.SessionStore(Path(td) / 'sessions.db')
@@ -33,20 +59,20 @@ class ContextMeasurementTests(unittest.TestCase):
             sid = store.create_session(engine="codex")
             store.set_last_input_tokens(sid, 900000)
             # Simulate an existing database from before the new measurement column.
-            store._conn.execute("ALTER TABLE sessions DROP COLUMN last_context_input_tokens")
+            store._conn.execute("DROP TABLE subscription_request_context")
             store._conn.commit()
             store._conn.close()
             store = sessions.SessionStore(path)
-            row = dict(store._conn.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone())
+            row = store.get_session(sid)
             self.assertEqual(row["last_input_tokens"], 900000)
             self.assertEqual(row["last_context_input_tokens"], 0)
             self.assertFalse(compaction.nen_mach_thue_bao(row["last_context_input_tokens"]))
             store.set_last_context_input_tokens(sid, 7000)
-            row = dict(store._conn.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone())
+            row = store.get_session(sid)
             self.assertEqual(row["last_input_tokens"], 900000)
             self.assertEqual(row["last_context_input_tokens"], 7000)
             store.clear_codex_thread_id(sid)
-            row = dict(store._conn.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone())
+            row = store.get_session(sid)
             self.assertEqual(row["last_context_input_tokens"], 0)
             store._conn.close()
 

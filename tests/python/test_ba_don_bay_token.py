@@ -249,13 +249,23 @@ check("token vào của lượt trước được ghi lại",
       int(_row.get("last_input_tokens") or 0) == TOKEN_VUOT_NGUONG)
 check("mạch Codex đang được lưu", bool(_row.get("codex_thread_id")))
 DEM["codex"] = DEM["thang"] = 0
+_default = chay("doanh thu tuan nay bao nhieu", "s-that", STORE)
+check("turn totals do not replace a native thread by default", _Codex.last_resume == "thread-1")
+check("unmeasured exec fallback clears request context", STORE.get_session("s-that")["last_context_input_tokens"] == 0)
+# Replacement requires both explicit rollout and durable context, plus a real measurement.
+cfg.update_settings({"context_runtime": {"subscription_thread_rotation_mode": "measured-v1"}})
+STORE._conn.execute("UPDATE sessions SET compact_summary=? WHERE id=?", ("Verified decisions and sources.", "s-that"))
+STORE._conn.commit()
+STORE.set_last_context_input_tokens("s-that", TOKEN_VUOT_NGUONG)
 _r3 = chay("doanh thu tuan nay bao nhieu", "s-that", STORE)
-check("CANARY: mạch quá ngưỡng thì thôi resume mạch cũ", _Codex.last_resume is None)
+check("CANARY: measured context with opt-in replaces the old thread", _Codex.last_resume is None)
 check("và mạch mới MANG THEO lịch sử, không bỏ trắng trí nhớ",
       "KHÔI PHỤC NGỮ CẢNH" in _Codex.last_prompt)
 check("có nói cho người dùng biết", any("mở mạch mới" in x for x in _r3["tool"]))
 check("có ghi mốc để lần sau không xoay liên tục",
       int((STORE.get_session("s-that") or {}).get("thread_rotated_msg") or 0) > 0)
+
+cfg.update_settings({"context_runtime": {"subscription_thread_rotation_mode": None}})
 
 # Luật xoay: hai điều kiện, và mọi giá trị rác đều phải quy về "chưa đáng xoay".
 check("dưới ngưỡng thì không xoay",

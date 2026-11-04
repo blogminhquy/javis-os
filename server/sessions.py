@@ -34,6 +34,7 @@ import hashlib
 
 import reaction_values as RV
 import team_migration
+import subscription_context_store
 
 # DB nằm cùng nơi settings.json/.sessions.json (JAVIS_STATE_DIR, mặc định server/).
 _STATE_DIR = Path(os.getenv("JAVIS_STATE_DIR", str(Path(__file__).parent)))
@@ -497,6 +498,7 @@ class SessionStore:
     def _init_schema(self) -> None:
         with self._lock:
             self._conn.executescript(_SCHEMA_SQL)
+            subscription_context_store.migrate(self._conn)
             # Migration cột mới cho DB cũ (CREATE IF NOT EXISTS không tự thêm cột)
             cols = {r[1] for r in self._conn.execute("PRAGMA table_info(sessions)").fetchall()}
             for name, ddl in (("codex_thread_id", "TEXT"),
@@ -508,8 +510,6 @@ class SessionStore:
                               # thấy thread phình tới đâu - trừ chính con số này. Nó là dấu
                               # hiệu DUY NHẤT để biết khi nào phải bắt đầu mạch mới.
                               ("last_input_tokens", "INTEGER NOT NULL DEFAULT 0"),
-                              ("last_context_input_tokens", "INTEGER NOT NULL DEFAULT 0"),
-                              ("last_context_provider", "TEXT NOT NULL DEFAULT ''"),
                               # msg_count tại lần xoay mạch gần nhất. Có để chống XOAY LIÊN
                               # TỤC: token vào của engine thuê bao phần lớn đến từ vòng lặp
                               # agentic bên trong nó, không phải từ độ dài mạch. Nếu một lượt
@@ -889,7 +889,9 @@ class SessionStore:
         return [dict(r) for r in rows]
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        rows = self._read("SELECT * FROM sessions WHERE id = ?", (session_id,))
+        rows = self._read("SELECT s.*, COALESCE(c.input_tokens,0) AS last_context_input_tokens, "
+                          "COALESCE(c.provider,'') AS last_context_provider FROM sessions s "
+                          "LEFT JOIN subscription_request_context c ON c.session_id=s.id WHERE s.id = ?", (session_id,))
         return dict(rows[0]) if rows else None
 
     def pop_last_message(self, session_id: str, role: str, content: Optional[str] = None) -> bool:
@@ -1816,8 +1818,10 @@ class SessionStore:
     def set_last_context_input_tokens(self, session_id: str, tokens: int, provider: str = "codex") -> None:
         """Measured last request input only. Old turn totals are never migrated here."""
         self._write(lambda c: c.execute(
-            "UPDATE sessions SET last_context_input_tokens = ?, last_context_provider = ? WHERE id = ?",
-            (max(0, int(tokens or 0)), provider, session_id),
+            "INSERT INTO subscription_request_context(session_id,provider,input_tokens) "
+            "SELECT id,?,? FROM sessions WHERE id=? ON CONFLICT(session_id) DO UPDATE "
+            "SET provider=excluded.provider,input_tokens=excluded.input_tokens",
+            (provider, max(0, int(tokens or 0)), session_id),
         ))
 
     def mark_thread_rotated(self, session_id: str) -> None:
@@ -1855,30 +1859,29 @@ class SessionStore:
         """Gắn thread native của Codex vào hội thoại dashboard để lượt sau resume đúng mạch."""
         if not thread_id:
             return
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET last_context_input_tokens = CASE "
-            "WHEN codex_thread_id IS NOT ? AND last_context_provider = 'codex' THEN 0 ELSE last_context_input_tokens END, "
-            "codex_thread_id = ?, updated_at = ? WHERE id = ?",
-            (thread_id, thread_id, time.time(), session_id),
-        ))
+        def update(connection):
+            row = connection.execute("SELECT codex_thread_id FROM sessions WHERE id=?", (session_id,)).fetchone()
+            if row and row[0] != thread_id:
+                subscription_context_store.clear(connection, session_id, 'codex')
+            connection.execute("UPDATE sessions SET codex_thread_id=?,updated_at=? WHERE id=?",
+                               (thread_id, time.time(), session_id))
+        self._write(update)
+
+    def _clear_measured_native_thread(self, session_id, column, provider):
+        assert column in ('codex_thread_id', 'cli_session_id', 'grok_session_id')
+        def clear(connection):
+            connection.execute(f"UPDATE sessions SET {column}=NULL WHERE id=?", (session_id,))
+            subscription_context_store.clear(connection, session_id, provider)
+        self._write(clear)
 
     def clear_codex_thread_id(self, session_id: str) -> None:
-        """Thread Codex thành stale khi provider khác chen lượt vào cùng hội thoại."""
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET codex_thread_id = NULL, "
-            "last_context_input_tokens = CASE WHEN last_context_provider = 'codex' THEN 0 ELSE last_context_input_tokens END "
-            "WHERE id = ?",
-            (session_id,),
-        ))
+        """Invalidate only Codex's native thread and its measured request context."""
+        self._clear_measured_native_thread(session_id, 'codex_thread_id', 'codex')
 
     def clear_cli_session_id(self, session_id: str) -> None:
-        """Mạch Claude Code thành stale khi engine khác chen một lượt vào cùng hội thoại."""
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET cli_session_id = NULL, "
-            "last_context_input_tokens = CASE WHEN last_context_provider = 'claude-code' THEN 0 ELSE last_context_input_tokens END "
-            "WHERE id = ?",
-            (session_id,),
-        ))
+        """Invalidate only Claude's native thread and its measured request context."""
+        self._clear_measured_native_thread(session_id, 'cli_session_id', 'claude-code')
+
 
     def set_gemini_session_id(self, session_id: str, gemini_id: str) -> None:
         """Gắn mạch native của Gemini CLI vào hội thoại để lượt sau `--resume` đúng chỗ."""
@@ -1906,12 +1909,7 @@ class SessionStore:
         ))
 
     def clear_grok_session_id(self, session_id: str) -> None:
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET grok_session_id = NULL, "
-            "last_context_input_tokens = CASE WHEN last_context_provider = 'grok' THEN 0 ELSE last_context_input_tokens END "
-            "WHERE id = ?",
-            (session_id,),
-        ))
+        self._clear_measured_native_thread(session_id, 'grok_session_id', 'grok')
 
     # ── mạch native của các engine giữ phiên ──
     #
@@ -1939,11 +1937,8 @@ class SessionStore:
         for nhan, cot in self._MACH_NATIVE.items():
             if cot == cot_giu or not (row.get(cot) or ""):
                 continue
-            self._write(lambda c, _cot=cot: c.execute(
-                f"UPDATE sessions SET {_cot} = NULL, last_context_input_tokens = CASE "
-                "WHEN last_context_provider = ? THEN 0 ELSE last_context_input_tokens END WHERE id = ?",
-                ({"codex_thread_id": "codex", "cli_session_id": "claude-code", "grok_session_id": "grok"}[_cot], session_id),
-            ))
+            self._clear_measured_native_thread(session_id, cot,
+                {"codex_thread_id": "codex", "cli_session_id": "claude-code", "grok_session_id": "grok"}[cot])
             da_don.append(nhan)
         return da_don
 
