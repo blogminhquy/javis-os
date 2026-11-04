@@ -40,11 +40,13 @@
   }
   // 0.429.0: a job a chatbot made belongs to the bot's assistant, or to the bot itself when that assistant is not in
   // this brain. src.bots is GET /tasks/bots ({bots, jobs: {"r:<id>"|"l:<slug>"|"k:<id>": bot id}}).
+  // 0.457.0: a reminder or loop made in a partner chat names that assistant (`agent`) and belongs to it.
   function botWho(src) {
     var B = src.bots || {}, bots = {}, known = {}, jobs = B.jobs || {};
     (B.bots || []).forEach(function (b) { bots[b.id] = b; });
     (src.agents || []).forEach(function (a) { known[a.slug] = 1; });
-    return function (key, createdBy) {
+    return function (key, createdBy, agent) {
+      if (agent && known[agent]) return agent;
       var cb = String(createdBy || ""), b = bots[jobs[key] || (cb.indexOf("bot:") === 0 ? cb.slice(4) : "")];
       if (!b) return CORE;
       return b.agent && known[b.agent] ? b.agent : "bot:" + b.id;
@@ -119,7 +121,7 @@
       (b.reminders || []).forEach(function (r) {
         var rep = repText(r), paused = r.status === "paused", ts = stamp(r.due_at);
         var title = r.label || r.text || "";
-        var mode = r.mode === "notify" ? "remind" : "do", rwho = whoOf("r:" + r.id);
+        var mode = r.mode === "notify" ? "remind" : "do", rwho = whoOf("r:" + r.id, r.created_by, r.agent);
         if (rep) {
           recurring.push({ id: "r:" + r.id, src: "reminder", ref: r.id, title: title, who: rwho, sc: rep, next: r.due_at || 0,
             on: !paused, running: !!r.running, mode: mode, raw: r });
@@ -130,7 +132,7 @@
           result: r.result || "", reason: r.error || "", at: r.due_at || 0, raw: r });
       });
       (b.loops || []).forEach(function (lp) {
-        var paused = !!lp.auto_paused_reason, lwho = whoOf("l:" + lp.slug);
+        var paused = !!lp.auto_paused_reason, lwho = whoOf("l:" + lp.slug, "", lp.agent);
         recurring.push({ id: "l:" + lp.slug, src: "loop", ref: lp.slug, title: lp.name || lp.slug, who: lwho,
           sc: everyMin(lp.interval_min), next: lp.next_run || 0, on: !!lp.enabled && !paused,
           running: !!lp.running, mode: "do", raw: lp });
@@ -150,7 +152,7 @@
     hist.forEach(function (r) {
       if (r.status !== "done" && r.status !== "failed") return;
       var ts = stamp(r.fired_at);
-      var title = r.label || r.text || "", hwho = whoOf("r:" + r.id);
+      var title = r.label || r.text || "", hwho = whoOf("r:" + r.id, r.created_by, r.agent);
       if (r.status === "done") {
         items.push({ id: "rh:" + r.id, src: "reminder", ref: r.id, title: title, desc: r.text || "", who: hwho, st: "done",
           date: ts.date, time: ts.time, rep: "", mode: r.mode === "notify" ? "remind" : "do", result: r.result || "", reason: "",

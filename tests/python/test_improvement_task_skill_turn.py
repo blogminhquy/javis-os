@@ -167,7 +167,7 @@ class TaskSkillTurnTests(unittest.IsolatedAsyncioTestCase):
                 nothing = lambda *args, **kwargs: None
                 env = {'context_runtime': CR, 'turn_context': TC, 'asyncio': asyncio, 'time': time,
                     'TaskSkillTurn': self.turn_module.TaskSkillTurn, 'improvement_task_skill_turn': self.turn_module,
-                    '_resonance_turn_agent': lambda *args: None, 'store': SimpleNamespace(get_session=lambda *_: {}),
+                    '_resonance_turn_agent': lambda *args: None, '_session_assistant': lambda *args: '', 'store': SimpleNamespace(get_session=lambda *_: {}),
                     'cfgmod': SimpleNamespace(read_settings=lambda: {'recall': {'enabled': False}}),
                     'WEB_CHAT_PREFIX': 'web:', '_brain_root': lambda *_: str(self.brain),
                     'luot_dang_chay': SimpleNamespace(bat_dau=lambda *a, **kw: 'fixture-job', ket_thuc=nothing),

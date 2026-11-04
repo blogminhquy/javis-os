@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.457.0] - 2026-11-04
 ### Sửa lỗi
-- **Việc hẹn giờ tạo từ chat Cộng sự báo về đúng chat đó.** (đang viết)
+- **Việc hẹn giờ tạo trong chat Cộng sự báo về đúng chat đó.** Trước đây nhắc hẹn và việc định kỳ giao từ chat với một trợ lý không biết mình đến từ đâu, nên cả kết quả lẫn lỗi đều rơi về Javis Core. Giờ Javis tự gắn khung chat đang hỏi.
+- **Tới giờ, việc chạy bằng đúng vai trợ lý đã nhận nó.** Việc đăng bài hẹn từ chat với trợ lý Đăng bài giờ dùng vai trò, quy trình, bộ nhớ và luật chủ dặn của trợ lý đó, không chạy như Javis chung nữa. Trang Nhiệm vụ cũng xếp việc đó dưới tên trợ lý.
+- **Sự cố báo về nơi đã giao việc.** Việc nền hỏng thì Javis Core vẫn xét và thử lại như cũ, nhưng tin "Sự cố cần bạn" giờ hiện ở khung chat đã giao việc. Việc không gắn khung chat nào thì vẫn về Javis Core.
+- Việc đã tạo trước bản này vẫn chạy như cũ. Muốn có cách mới thì nhờ trợ lý tạo lại việc đó.
 
 ## [0.454.0] - 2026-11-04
 ### Thêm mới

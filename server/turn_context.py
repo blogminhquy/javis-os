@@ -32,6 +32,10 @@ team runner, never from model output; the hub uses it to let one approved outsid
 0.238.0 adds `job`: "kanban:<task id>" while a Kanban worker runs, "" elsewhere. Set by the task runner, never from
 model output; once_ledger.py keys its once-only record of outside actions on it.
 
+0.457.0 adds `assistant`: the slug of the Partners-page assistant whose private chat this turn is in (session channel
+`agent:<slug>`), "" elsewhere. Unlike `agent` it needs no Resonance registry. Set by the host from the stored session
+row, never from model output; javis_schedule stamps it on the jobs it creates so they run as that assistant.
+
 No turn at all (loops, engines that cannot carry the key yet) -> `turn` is
 None. A hook that needs an identity must read None as "nobody", never as "the owner".
 
@@ -94,7 +98,8 @@ _LOCK = threading.Lock()  # CLI engines build argv from worker threads too
 
 
 def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_id="", message_id=0,
-         agent=None, authority_seq=None, provider="", team_gate="", job="", execution=None) -> dict:
+         agent=None, authority_seq=None, provider="", team_gate="", job="", execution=None,
+         assistant="") -> dict:
     """`authority_seq` (Resonance A4): ảnh chụp thứ tự quyền do HOST đọc trước khi engine chạy; None khi lượt không
     thuộc trợ lý nào. `provider`: engine của lượt, để hồ sơ bản nộp ghi đúng khả năng engine.
     `team_gate` (0.207.0): id cổng công cụ của một bước việc nhóm (team_gate.py), "" ngoài bước đó."""
@@ -112,6 +117,7 @@ def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_
         "team_gate": str(team_gate or "").strip(),
         "job": str(job or "").strip(),
         "execution": execution_metadata(execution),
+        "assistant": str(assistant or "").strip(),
     }
 
 

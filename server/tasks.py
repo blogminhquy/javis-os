@@ -1531,7 +1531,8 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 self.deps.incident_hook("kanban", str(task.get("id") or ""), brain=str(task.get("brain_root") or ""),
                                         title=str(task.get("title") or ""),
                                         error=str(task.get("block_reason") or task.get("block_kind") or ""),
-                                        request=str(task.get("intent") or "")[:1500])
+                                        request=str(task.get("intent") or "")[:1500],
+                                        chat=str(task.get("chat_id") or ""))
             except Exception:
                 pass
         if status == "blocked" and self._cau_hoi_dang_cho(task):

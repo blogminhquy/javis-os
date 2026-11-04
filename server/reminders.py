@@ -312,6 +312,15 @@ def resolve_due(delay_min=None, delay_sec=None, at=None, due_at=None) -> float:
                                    "Missing time: need delay_min OR at OR due_at"))
 
 
+_AGENT_SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}")
+
+
+def agent_slug(value) -> str:
+    """0.457.0: a stored assistant slug (agents/<slug>.md) or "": one file name, never a path."""
+    v = str(value or "").strip()
+    return v if _AGENT_SLUG.fullmatch(v) and ".." not in v else ""
+
+
 @dataclass
 class RemindersDeps:
     brain_root: Callable[[str], str]
@@ -331,7 +340,14 @@ class RemindersDeps:
     # token + Chat ID). None = bỏ qua kiểm tra (test dựng deps tối giản).
     notify_ready: Optional[Callable[[], tuple]] = None
     # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken run to Javis Core (incident_desk.py).
+    # 0.457.0: also chat= (the reminder's chat_id), so the incident is told where the job came from.
     incident_hook: Optional[Callable] = None
+    # 0.457.0: (brain, agent slug) -> that Partners-page assistant's system prompt for a background run; raises when the
+    # assistant is gone. None = every task reminder runs on the brain's plain Javis prompt, as before.
+    build_agent_prompt: Optional[Callable[[str, str], str]] = None
+    # 0.457.0: (brain, agent slug, task, output) -> output without the JAVIS_LESSON lines, written to that assistant's
+    # memory and run log like a workflow step. None = the output is posted as is.
+    finish_agent_run: Optional[Callable[[str, str, str, str], str]] = None
     # 0.202.0: async make_voice(brain, text) -> vault-relative mp3 path ("" on failure), and
     # async send_file(chat_id, abs_path, brain) -> (ok, err) for channels that need the file itself.
     make_voice: Optional[Callable] = None
@@ -423,7 +439,7 @@ class RemindersFeature:
     def _create(self, brain: str, text: str, *, delay_min=None, at=None, due_at=None,
                 chat_id="", mode="notify", repeat_min=0, label="", cron=None, script="",
                 created_by="user", allow_no_channel=False, muc_quyen=None,
-                remember_last=False, speak=False, call=False, bot_id="") -> dict:
+                remember_last=False, speak=False, call=False, bot_id="", agent="") -> dict:
         mode = mode if mode in VALID_MODE else "notify"
         mq = str(muc_quyen or "").strip().lower()
         mq = mq if mq in VALID_MUC_QUYEN else MUC_QUYEN_MAC_DINH
@@ -473,6 +489,10 @@ class RemindersFeature:
         bid = str(bot_id or "").strip()
         if re.fullmatch(r"bot_[A-Za-z0-9_-]{1,64}", bid):
             rem["bot_id"] = bid
+        # 0.457.0: made in a partner chat -> it runs as that assistant and the Tasks page files it under it.
+        ag = agent_slug(agent)
+        if ag:
+            rem["agent"] = ag
         data = self._load(brain)
         data.setdefault("reminders", []).append(rem)
         # Giữ gọn: quá trần thì bỏ bớt bản ghi đã đóng (pending luôn được giữ)
@@ -503,6 +523,8 @@ class RemindersFeature:
                 "call": bool(r.get("call")),
                 # 0.429.0: who made it. bot_id names the chatbot whose turn created it ("" = the owner or Javis Core).
                 "created_by": r.get("created_by", ""), "bot_id": r.get("bot_id", ""),
+                # 0.457.0: the Partners-page assistant it runs as ("" = Javis).
+                "agent": r.get("agent", ""),
                 "next_runs": next_runs(cron) if cron and r.get("status") == "pending" else [],
                 "result": (r.get("result") or "")[:500], "error": r.get("error", ""),
                 # A pending network retry (code 26): which retry the next run is, out of how many.
@@ -810,6 +832,8 @@ class RemindersFeature:
                 extra["previous"] = previous
             if late_s >= LATE_NOTE_AFTER_S:
                 extra["late_s"] = late_s
+            if agent_slug(rem.get("agent")):
+                extra["agent"] = agent_slug(rem.get("agent"))   # 0.457.0: runs as the partner it was made with
             job = ledger_job(str(rem.get("id") or ""), slot)
             async with self.lock:
                 # Same once-only protection as a Kanban job (once_ledger.py): an outside action
@@ -867,7 +891,8 @@ class RemindersFeature:
                 if self.deps.incident_hook:
                     try:
                         self.deps.incident_hook("reminder", str(rem.get("id") or ""), brain=brain,
-                                                title=str(head or "")[:160], error=err, request=text[:1500])
+                                                title=str(head or "")[:160], error=err, request=text[:1500],
+                                                chat=str(rem.get("chat_id") or ""))
                     except Exception:
                         pass
             else:
@@ -1085,7 +1110,7 @@ class RemindersFeature:
         return out, err, (proc.returncode if proc.returncode is not None else -1)
 
     async def _run_task(self, brain: str, text: str, muc_quyen: str = "", previous: str = "",
-                        late_s: float = 0.0, intro: str = ""):
+                        late_s: float = 0.0, intro: str = "", agent: str = ""):
         """mode 'task': tới giờ chạy engine làm việc user đã hẹn. Trả (kết_quả, lỗi).
 
         Mức quyền quyết định nó được chạm tới đâu, khớp với ba mức của loop:
@@ -1096,10 +1121,23 @@ class RemindersFeature:
         mq = str(muc_quyen or "").strip().lower()
         if mq not in VALID_MUC_QUYEN:
             mq = MUC_QUYEN_MAC_DINH
-        try:
-            sysprompt = self.deps.build_system_prompt(brain)
-        except Exception:
-            sysprompt = ""
+        sysprompt = None
+        as_agent = False
+        if agent and self.deps.build_agent_prompt:
+            # 0.457.0: a reminder made in a partner chat does its job as that assistant (role, file body, memory,
+            # owner rules). The assistant deleted since -> plain Javis, so the job still runs.
+            try:
+                sysprompt = self.deps.build_agent_prompt(brain, agent)
+                as_agent = True
+            except Exception as e:
+                print(f"[reminders] assistant '{agent}' unavailable, running as Javis: {type(e).__name__}: {e}",
+                      file=sys.stderr)
+                sysprompt = None
+        if sysprompt is None:
+            try:
+                sysprompt = self.deps.build_system_prompt(brain)
+            except Exception:
+                sysprompt = ""
         if mq == "full":
             # TOÀN QUYỀN: không allowlist → mọi tool + mọi MCP đã đấu (mirror nhánh full của
             # loop). Đây là mức DUY NHẤT làm được việc user hẹn kiểu "tới giờ thì gửi/đăng/đặt":
@@ -1176,6 +1214,11 @@ class RemindersFeature:
                     err = ev.get("content", "") or err
         except Exception as e:
             err = f"{type(e).__name__}: {e}"
+        if as_agent and out and self.deps.finish_agent_run:
+            try:
+                out = self.deps.finish_agent_run(brain, agent, text, out)
+            except Exception as e:
+                print(f"[reminders] assistant run log failed: {type(e).__name__}: {e}", file=sys.stderr)
         return out, err
 
     # ── router ──
@@ -1223,6 +1266,7 @@ class RemindersFeature:
                         speak=_truthy(p.get("speak")),
                         call=_truthy(p.get("call")),
                         bot_id=str(p.get("bot_id") or ""),
+                        agent=str(p.get("agent") or ""),
                     )
             except NotifyNotReady as e:
                 # can_force: chỗ gọi (dashboard/chat) hỏi lại người dùng rồi tạo tiếp với
