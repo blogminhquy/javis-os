@@ -10,10 +10,9 @@ UsageEvent = {
 }
 billable_in = input + cache_read + cache_create.
 
-`turns` = SO LAN GOI MODEL ma su kien nay gom lai. Voi Claude moi dong assistant la mot lan
-goi nen turns=1; voi Codex mot file rollout gom ca phien nen turns = so ban ghi token_count.
-Day KHONG phai "so cau nguoi dung hoi" (mot cau co goi tool sinh ra nhieu lan goi) - no la
-mau so dung de tinh "token moi luot", tuc dung thu ma phan tiet kiem ngu canh tac dong vao.
+`turns` is a legacy observation count, not a verified request count. Codex may emit
+repeated token_count notifications without another model request. New request-scoped
+telemetry lives in subscription_usage; do not infer request counts from this field.
 """
 from __future__ import annotations
 
@@ -220,10 +219,8 @@ def parse_codex_file(path: str) -> dict | None:
     (= trang thai cuoi) lam tong. input_tokens da GOM cached, nen input moi = input - cached.
     Codex la engine phu: source='javis', activity='chat' (best-effort, chua tach nen).
 
-    `turns` = so ban ghi token_count trong file. Moi lan Codex goi model xong no ghi mot ban
-    ghi nhu vay, nen day la so lan goi that cua ca phien. Truoc day ham nay chi tra ve tong
-    token, nen mot phien Codex 200 luot va mot phien 2 luot deu duoc dem la MOT - va "token
-    moi luot" cua Codex sai ca tram lan.
+    `turns` retains the historical token_count observation count for compatibility.
+    It is not a verified request count. Limits-only notifications can repeat usage.
     """
     cwd = ""
     model = "codex"
@@ -276,4 +273,6 @@ def parse_codex_file(path: str) -> dict | None:
         "source": "javis", "activity": "chat",
         "input": inp, "output": out, "cache_read": cread, "cache_create": 0,
         "turns": max(1, turns),
+        "usage_event_count": turns, "request_count": None,
+        "count_basis": "usage_observations",
     }

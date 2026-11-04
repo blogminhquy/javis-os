@@ -24,7 +24,7 @@ from context_compiler import ContextItem, HeuristicTokenizer
 # v4 (0.432.1, #934): agents/*/runs/ left out, generic labels ("Vì sao:", "Áp dụng:") no longer make a subject,
 # always_on matches a path segment that starts with the word instead of any substring.
 INDEX_SCHEMA_VERSION = "memory-index-v4"
-INDEX_POLICY_VERSION = "memory-retrieval-cascade-v1"
+INDEX_POLICY_VERSION = "memory-retrieval-cascade-v2"
 _WORD_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)
 _WIKI_RE = re.compile(r"\[\[([^\]|#]+)")
 _CODE_RE = re.compile(r"`([^`]{2,80})`")
@@ -85,6 +85,31 @@ def _terms(value: str) -> list[str]:
     stop = {"cua", "cho", "voi", "nhung", "mot", "nay", "kia", "the", "anh", "toi",
             "co", "khong", "la", "gi", "nho", "and", "for", "that", "what", "does"}
     return [x for x in dict.fromkeys(_norm(value).split()) if x not in stop]
+
+
+def _eligible_memory(item: dict, terms: list[str], min_confidence: float) -> bool:
+    """Never fill slots with low-score or merely graph-adjacent records."""
+    if item.get("always_on"):
+        return True
+    overlap = set(terms) & set((item.get("normalized") or "").split())
+    entity_match = any(set(_norm(entity).split()) <= set(terms)
+                       for entity in item.get("entities") or [] if _norm(entity))
+    minimum_matches = 1 if entity_match or len(terms) < 3 else 2
+    return (float(item.get("retrieval_score") or 0) >= min_confidence
+            and len(overlap) >= minimum_matches)
+
+
+def _discriminative_terms(db, scope: str, terms: list[str]) -> list[str]:
+    """Remove conversational filler without dropping frequent names or subjects."""
+    request_words = set("hay va ban minh than nguoi dung phan rat nhieu mau het bi "
+                        "do ra lai tat ca roi de xuat giai phap tong the giup "
+                        "kiem tra xem lam viec can muon dang se duoc den tu khi "
+                        "nhu trong tren ve xin please help review check all "
+                        "can you me we do is are this it".split())
+    terms = [term for term in terms if term not in request_words]
+    # Frequency alone cannot make a topic irrelevant: a brain may mostly concern one
+    # business or person. Keep names and subject terms even in a homogeneous corpus.
+    return terms
 
 
 def _memory_dir(brain: Path) -> Path:
@@ -453,14 +478,26 @@ class MemoryIndex:
             return ""
 
     def retrieve(self, brain: str | Path, query: str, active_state: Iterable[str] = (),
-                 limit: int = 6, min_confidence: float = 0.38) -> MemoryRetrieval:
+                 limit: int = 6, min_confidence: float = 0.38, *,
+                 strict_relevance: bool = False) -> MemoryRetrieval:
         brain = Path(brain).resolve()
         meta = self.rebuild(brain)
         scope = brain_scope(brain)
         db = self._conn()
         current_terms = _terms(str(query or ""))[:16]
-        query_text = " ".join([str(query or "")] + [str(x) for x in active_state or []])
+        active_state = tuple(active_state or ())
+        if strict_relevance:
+            meaningful = _discriminative_terms(db, scope, current_terms)
+            followup = (len(meaningful) <= 2 or bool(re.search(
+                r"\b(tiếp|tiếp tục|việc đó|cái đó|dự án đó|còn nó|continue|that project|what about it)\b",
+                str(query or ""), re.IGNORECASE)))
+            if not followup and not _MEMORY_HINT_RE.search(str(query or "")):
+                active_state = ()
+        query_text = " ".join([str(query or "")] + [str(x) for x in active_state])
         terms = list(dict.fromkeys(current_terms + _terms(query_text)))[:24]
+        if strict_relevance:
+            terms = _discriminative_terms(db, scope, terms)
+            current_terms = [term for term in current_terms if term in terms]
         coverage_terms = current_terms or terms
         stages = ["active_task_state"] if list(active_state or []) else []
         selected: dict[str, dict] = {}
@@ -490,8 +527,12 @@ class MemoryIndex:
                     continue
                 exact_seen.add(item["record_id"])
                 hit = len(set(terms) & set(item["normalized"].split())) / max(1, len(terms))
-                entity_hit = any(_norm(entity) in set(terms) for entity in item.get("entities") or [])
+                entity_hit = any(set(_norm(entity).split()) <= set(terms)
+                                 for entity in item.get("entities") or [] if _norm(entity))
                 item["retrieval_score"] = min(0.98, 0.22 + hit * 0.72 + (0.14 if entity_hit else 0))
+                previous = selected.get(item["record_id"], {})
+                item["retrieval_score"] = max(item["retrieval_score"],
+                    float(previous.get("retrieval_score") or 0))
                 selected[item["record_id"]] = item
             if exact_seen:
                 stages.append("exact_keyword_entity")
@@ -519,6 +560,8 @@ class MemoryIndex:
                 if fts_rows:
                     stages.append("fts_semantic")
 
+            selected = {key: item for key, item in selected.items()
+                        if not strict_relevance or _eligible_memory(item, terms, min_confidence)}
             ranked = sorted(selected.values(), key=lambda x: (
                 -float(x.get("retrieval_score") or 0), -float(x.get("importance") or 0), x["record_id"]
             ))
@@ -526,8 +569,9 @@ class MemoryIndex:
             coverage = (len(set(coverage_terms) & set(combined.split())) /
                         max(1, len(set(coverage_terms)))) if coverage_terms else 1.0
             widened = False
-            if ranked and coverage < 0.65:
-                seed_ids = [x["record_id"] for x in ranked[:4]]
+            seeds = [x for x in ranked if not strict_relevance or not x.get("always_on")]
+            if seeds and coverage < 0.65:
+                seed_ids = [x["record_id"] for x in seeds[:4]]
                 marks = ",".join("?" for _ in seed_ids)
                 links = db.execute(
                     f"SELECT right_id,MAX(weight) weight FROM memory_links WHERE scope=? "
@@ -545,7 +589,8 @@ class MemoryIndex:
                 if links:
                     widened = True; stages.append("graph_widening")
 
-        ranked = sorted(selected.values(), key=lambda x: (
+        ranked = sorted((item for item in selected.values()
+                         if not strict_relevance or _eligible_memory(item, terms, min_confidence)), key=lambda x: (
             -float(x.get("retrieval_score") or 0), -float(x.get("importance") or 0), x["record_id"]
         ))[:max(1, min(int(limit or 6), 12))]
         combined = " ".join(x.get("normalized") or "" for x in ranked)

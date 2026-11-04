@@ -366,6 +366,8 @@ class AdaptiveContextCanary:
                     brain, objective, active_state=active,
                     limit=policies["memory"].max_items,
                     min_confidence=policies["memory"].min_confidence,
+                    strict_relevance=((settings.get("context_runtime") or {}).get(
+                        "memory_relevance_mode") == "strict-v1"),
                 )
                 status["memory"].update({
                     "confidence": found.confidence, "coverage": found.coverage,

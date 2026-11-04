@@ -508,6 +508,7 @@ class SessionStore:
                               # thấy thread phình tới đâu - trừ chính con số này. Nó là dấu
                               # hiệu DUY NHẤT để biết khi nào phải bắt đầu mạch mới.
                               ("last_input_tokens", "INTEGER NOT NULL DEFAULT 0"),
+                              ("last_context_input_tokens", "INTEGER NOT NULL DEFAULT 0"),
                               # msg_count tại lần xoay mạch gần nhất. Có để chống XOAY LIÊN
                               # TỤC: token vào của engine thuê bao phần lớn đến từ vòng lặp
                               # agentic bên trong nó, không phải từ độ dài mạch. Nếu một lượt
@@ -1808,6 +1809,13 @@ class SessionStore:
         """Ghi token VÀO của lượt vừa xong. Xem cột cùng tên ở phần migration."""
         self._write(lambda c: c.execute(
             "UPDATE sessions SET last_input_tokens = ? WHERE id = ?",
+            (max(0, int(tokens or 0)), session_id),
+        ))
+
+    def set_last_context_input_tokens(self, session_id: str, tokens: int) -> None:
+        """Measured last request input only. Old turn totals are never migrated here."""
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET last_context_input_tokens = ? WHERE id = ?",
             (max(0, int(tokens or 0)), session_id),
         ))
 

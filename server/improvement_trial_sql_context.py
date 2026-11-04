@@ -33,7 +33,7 @@ _PROJECT_FIELDS = ("id", "brain", "name", "instructions")
 _WORKFLOW_FIELDS = ("id", "brain", "name", "started_at", "status")
 _SESSION_COLUMNS = set(_SESSION_FIELDS) | {
     "title", "cli_session_id", "codex_thread_id", "created_at", "updated_at", "msg_count", "parent_session_id",
-    "compact_summary", "compact_count", "last_input_tokens", "thread_rotated_msg", "pinned", "gemini_session_id",
+    "compact_summary", "compact_count", "last_input_tokens", "last_context_input_tokens", "thread_rotated_msg", "pinned", "gemini_session_id",
     "grok_session_id", "web_thread_id",
 }
 _PROJECT_COLUMNS = set(_PROJECT_FIELDS) | {"icon", "pinned", "created_at", "updated_at"}

@@ -130,19 +130,15 @@ check("có hàm dựng prompt riêng cho engine thuê bao",
 # "không có build_adaptive_source_prompt" sẽ đỏ/xanh vì lý do chẳng liên quan.
 _than = _MAIN_SRC.split("async def _subscription_system_prompt(")[1]
 _than = _than[:_than.find('\n            final_text = ""')]
-check("cắt được đúng thân hàm", 0 < len(_than) < 4000)
+check("cắt được đúng thân hàm", 0 < len(_than) < 8000)
 check("hàm đó thật sự gọi prepare() của Phase 8",
       "_get_adaptive_context().prepare," in _than)
 
-# Nền phải là build_system_prompt (GIỮ CLAUDE.md), không phải build_adaptive_source_prompt.
-# Bỏ CLAUDE.md là bỏ 21.500 ký tự luật hành xử của Javis để tiết kiệm thứ gói thuê bao không
-# tính tiền - đổi hành vi lấy một khoản không cần.
-check("CANARY: nền vẫn là build_system_prompt (giữ CLAUDE.md)",
-      "build_system_prompt(" in _than)
-# Soi lời GỌI (có dấu mở ngoặc), không soi cái TÊN: docstring của hàm có nhắc tên đó để
-# giải thích vì sao KHÔNG dùng nó, quét tên trần là bắt nhầm chính lời giải thích.
-check("CANARY: KHÔNG dùng nền rút gọn vốn bỏ CLAUDE.md",
-      "build_adaptive_source_prompt(" not in _than)
+# Legacy remains available; compact mode requires an explicit OAuth-only opt-in.
+check("legacy base is retained", "build_system_prompt(" in _than)
+check("compact source has an explicit policy gate",
+      "subscription_prompt.enabled(_cfg_all, route_kind)" in _than
+      and "if _compact:" in _than and "build_adaptive_source_prompt(" in _than)
 check("lỗi ở Phase 8 thì rơi về prompt cũ, không phá lượt chat",
       "_legacy_system_prompt()" in _than)
 

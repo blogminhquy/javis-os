@@ -17516,24 +17516,46 @@ async def _chat_socket(ws):
                 return _legacy_prompts[_key]
 
             async def _subscription_system_prompt(route_provider, route_model, route_kind, stable=False):
-                """System prompt cho engine chạy bằng GÓI THUÊ BAO (Claude Code, Codex).
+                """Build subscription context with an explicit compact opt-in.
 
-                Cùng bộ máy Phase 8 với engine API, nhưng khác một điểm CỐ Ý: nền vẫn là
-                `build_system_prompt` (giữ nguyên CLAUDE.md) chứ không phải
-                `build_adaptive_source_prompt` (bỏ CLAUDE.md).
-
-                Vì sao khác: bỏ CLAUDE.md đổi lấy token là món hời khi bị siết TPM và mỗi
-                token đều tính tiền. Với gói thuê bao thì không tính tiền theo token, mà
-                CLAUDE.md lại chính là 21.500 ký tự luật hành xử của Javis - vứt nó đi để
-                tiết kiệm thứ mình không bị tính là đổi hành vi lấy một khoản không cần.
-                Nên ở đây chỉ chọn lọc hai nguồn ĐỌC THÊM: bộ nhớ và skill.
-
-                Trả về (prompt, plan). plan=None nghĩa là Phase 8 không chạy được lượt này.
+                Persona prompts and CLI providers retain their current behavior.
+                Protected owner/project/session instructions are never truncated.
                 """
                 if _persona:
                     return _legacy_system_prompt(), None
 
+                import subscription_prompt
+                _compact = subscription_prompt.enabled(_cfg_all, route_kind)
+
+                def _compact_base(include_memory: bool, include_skills: bool) -> str:
+                    root = _brain_root(brain)
+                    # Native discovery must work even when the router is omitted.
+                    system_sync.ensure_synced(root)
+                    system_sync.mirror_skills(root)
+                    _language = lang_mod.khoi_ngon_ngu(_lang_qd)
+                    _clock = (_STABLE_CLOCK_NOTE if stable
+                              else context_compiler.dong_ho(lang=_lang_qd.lang))
+                    return subscription_prompt.render(
+                        source=build_adaptive_source_prompt(
+                            brain, include_memory=include_memory,
+                            include_skills=include_skills),
+                        profile=memory_control.profile_block(),
+                        project=_project_block(_row0.get("project_id") or "")
+                            if _row0.get("project_id") else "",
+                        session=_session_block(conv_sid) if conv_sid else "",
+                        core=_javis_core_block(conv_sid or ""),
+                        coding=_khoi_coding(_row0, brain),
+                        language=_language, clock=_clock,
+                        learning_note="" if memory_control.learning_enabled(
+                            _brain_memory_dir(brain)) else memory_control.LEARNING_OFF_NOTE,
+                        resonance=_RESONANCE_GOAL_HINT if _resonance_turn_enabled(root) else "",
+                        session_id=conv_sid or "", stable=stable,
+                        telegram_running=bool(_TG_BOT),
+                    )
+
                 def _base(include_memory: bool, include_skills: bool) -> str:
+                    if _compact:
+                        return _compact_base(include_memory, include_skills)
                     return build_system_prompt(
                         brain, include_memory=include_memory, include_skills=include_skills,
                         lang=_lang_qd, project_id=_row0.get("project_id") or "",
@@ -17542,6 +17564,17 @@ async def _chat_socket(ws):
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain), session_in_turn=stable,
                     ) + _khoi_coding(_row0, brain)
+
+                def _fallback_system_prompt():
+                    if _compact:
+                        try:
+                            return _base(True, True)
+                        except Exception as exc:
+                            # A broken protected-source reader must not break the chat.
+                            _CONTEXT_RUNTIME.record_runtime_event(
+                                runtime_trace, "subscription.compact_fallback_error",
+                                {"error_type": type(exc).__name__})
+                    return _legacy_system_prompt(stable=stable)
 
                 try:
                     plan = await asyncio.to_thread(
@@ -17554,13 +17587,13 @@ async def _chat_socket(ws):
                     _CONTEXT_RUNTIME.record_runtime_event(
                         runtime_trace, "context_sources.subscription_error",
                         {"error_type": type(_exc).__name__, "provider_kind": route_kind})
-                    return _legacy_system_prompt(stable=stable), None
+                    return _fallback_system_prompt(), None
                 # "reject" không tới được đây: với engine thuê bao, prepare() đã đổi nhánh
                 # vượt ngân sách thành legacy (subscription_soft_over_budget) vì con số đó là
                 # trần ta tự khai, không phải hạn mức nhà cung cấp nói ra.
                 if plan.action == "use" and plan.system_prompt:
                     return plan.system_prompt, plan
-                return _legacy_system_prompt(stable=stable), plan
+                return _fallback_system_prompt(), plan
 
             final_text = ""
             _schedule_action = await _schedule_cancel_action(user_message, brain)
@@ -17682,7 +17715,7 @@ async def _chat_socket(ws):
                 else:
                     _k_mach = (_row0.get("grok_session_id") or "").strip()
                     if _k_mach and compaction.nen_mach_thue_bao(
-                            _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                            _row0.get("last_context_input_tokens"), msg_count=_row0.get("msg_count"),
                             rotated_at=_row0.get("thread_rotated_msg")):
                         _k_mach = ""
                         store.clear_grok_session_id(conv_sid)
@@ -17690,7 +17723,7 @@ async def _chat_socket(ws):
                         _CONTEXT_RUNTIME.record_runtime_event(
                             runtime_trace, "thread.rotated",
                             {"engine": "grok-cli",
-                             "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                             "last_input_tokens": int(_row0.get("last_context_input_tokens") or 0),
                              "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
                         await ws.send_text(json.dumps({
                             "type": "tool_call", "tool": "javis_nen_mach",
@@ -17860,7 +17893,7 @@ async def _chat_socket(ws):
                 # đều đắt hơn lượt trước mà không thêm giá trị gì, và đó là phần TO NHẤT của
                 # hoá đơn token - to hơn hẳn thứ Phase 8 gọt được. Xem compaction.
                 if stored_codex_thread and compaction.nen_mach_thue_bao(
-                        _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                        _row0.get("last_context_input_tokens"), msg_count=_row0.get("msg_count"),
                         rotated_at=_row0.get("thread_rotated_msg")):
                     stored_codex_thread = ""
                     store.clear_codex_thread_id(conv_sid)
@@ -17868,16 +17901,16 @@ async def _chat_socket(ws):
                     _CONTEXT_RUNTIME.record_runtime_event(
                         runtime_trace, "thread.rotated",
                         {"engine": "codex",
-                         "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                         "last_input_tokens": int(_row0.get("last_context_input_tokens") or 0),
                          "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
                     await ws.send_text(json.dumps({
                         "type": "tool_call", "tool": "javis_nen_mach",
                         "content": localefmt.chu(
                             "⚙ Mạch hội thoại đã dài "
-                            f"({int(_row0.get('last_input_tokens') or 0):,} token mỗi lượt), "
+                            f"({int(_row0.get('last_context_input_tokens') or 0):,} token ở request cuối), "
                             "Javis mở mạch mới và mang theo tóm tắt.",
                             "⚙ The conversation thread got long "
-                            f"({int(_row0.get('last_input_tokens') or 0):,} tokens per turn), "
+                            f"({int(_row0.get('last_context_input_tokens') or 0):,} tokens in the last request), "
                             "Javis started a new one and carried a summary over."),
                     }))
                 ccli.session_id = stored_codex_thread or None
@@ -17945,6 +17978,13 @@ async def _chat_socket(ws):
                                 final_text = ev.get("content") or final_text
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
+                                telemetry = ev.get("usage_telemetry") or {}
+                                if telemetry:
+                                    _CONTEXT_RUNTIME.record_runtime_event(
+                                        runtime_trace, "subscription.usage", {**telemetry, "requests": ev.get("request_usage") or []})
+                                    await ws.send_text(json.dumps({"type": "usage_telemetry", **telemetry}))
+                                    if telemetry.get("last_request_input"):
+                                        store.set_last_context_input_tokens(conv_sid, telemetry["last_request_input"])
                                 _ctx_in += int(ev.get("tokens_in", 0) or 0)
                                 _ctx_cache += int(ev.get("tokens_cache_read", 0) or 0)
                                 usage_store.record("codex", actual_model, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
@@ -18369,7 +18409,7 @@ async def _chat_socket(ws):
                 # Claude Code cũng tự quản transcript nên Javis chỉ có đúng con số token vào
                 # của lượt trước làm dấu hiệu.
                 _cli_xoay_mach = bool(cli.session_id) and compaction.nen_mach_thue_bao(
-                    _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                    _row0.get("last_context_input_tokens"), msg_count=_row0.get("msg_count"),
                     rotated_at=_row0.get("thread_rotated_msg"))
                 if _cli_xoay_mach:
                     cli.session_id = None
@@ -18377,16 +18417,16 @@ async def _chat_socket(ws):
                     _CONTEXT_RUNTIME.record_runtime_event(
                         runtime_trace, "thread.rotated",
                         {"engine": "claude-code",
-                         "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                         "last_input_tokens": int(_row0.get("last_context_input_tokens") or 0),
                          "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
                     await ws.send_text(json.dumps({
                         "type": "tool_call", "tool": "javis_nen_mach",
                         "content": localefmt.chu(
                             "⚙ Mạch hội thoại đã dài "
-                            f"({int(_row0.get('last_input_tokens') or 0):,} token mỗi lượt), "
+                            f"({int(_row0.get('last_context_input_tokens') or 0):,} token ở request cuối), "
                             "Javis mở mạch mới.",
                             "⚙ The conversation thread got long "
-                            f"({int(_row0.get('last_input_tokens') or 0):,} tokens per turn), "
+                            f"({int(_row0.get('last_context_input_tokens') or 0):,} tokens in the last request), "
                             "Javis started a new one."),
                     }))
                 # Stable prompt (0.445.0, #975): plain chats only. An agent DM keeps its own prompt, which has
@@ -18562,11 +18602,8 @@ async def _chat_socket(ws):
                     "model": (cli.model or mcfg.get("claude_model") or "mặc định"),
                     **_ctx_frame(runtime_trace, _ctx_in, _ctx_cache)}))
 
-            # Token VÀO của lượt vừa xong. Với engine gói thuê bao đây là DẤU HIỆU DUY NHẤT
-            # cho biết mạch hội thoại của chúng đã phình tới đâu: Claude Code và Codex tự quản
-            # transcript ở phía chúng, Javis không đếm được bằng cách nào khác. Lượt sau đọc
-            # con số này để quyết định có mở mạch mới hay không (xem compaction).
-            # Chỉ ghi khi ĐO ĐƯỢC: lượt lỗi trả 0 mà ghi đè thì tưởng mạch vừa được dọn.
+            # Keep the historical turn-total column for compatibility. Rotation reads
+            # last_context_input_tokens, populated only by request-scoped telemetry.
             if _ctx_in > 0:
                 try:
                     store.set_last_input_tokens(conv_sid, _ctx_in)
