@@ -71,6 +71,8 @@ class TeamApiDeps:
     check_command: Optional[Callable[[str, Any], dict]] = None
     brain_root: Optional[Callable[[dict], Any]] = None   # team -> Path of its brain (acceptance product paths)
     work_dir: Optional[Callable[[dict], str]] = None     # team -> pinned working folder, "" when none (0.260.0)
+    job_done: Optional[Callable[[dict, dict], Any]] = None  # (team, task) after a job closed as done (0.449.0)
+    skill_block: Optional[Callable[[dict, list], str]] = None  # (team, slugs) -> skills named by /skill (0.449.0)
     # 0.357.0: report a job Javis Core gave the team back where it was asked (main._notify_owner):
     # (owner_chat, text, *, kind, label, source, ngan, brain, dedup) -> (ok, error), sync or async. None: no reports.
     report: Optional[Callable[..., Any]] = None
@@ -177,7 +179,7 @@ class TeamApi:
                 learning=self.deps.learning() if self.deps.learning is not None else None,
                 contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block,
                 check_command=self.deps.check_command, brain_root=self.deps.brain_root,
-                work_dir=self.deps.work_dir)
+                work_dir=self.deps.work_dir, job_done=self.deps.job_done, skill_block=self.deps.skill_block)
             if self._loop is not None:
                 self._runner._loop, self._runner._loop_thread = self._loop, self._loop_thread
         return self._runner
@@ -587,6 +589,14 @@ class TeamOps:
         try:
             self.deps.session_store().delete(sid)
         except Exception:  # noqa: BLE001
+            pass
+        # 0.449.0: the team chat's GitHub worktrees go with it, except one still holding unsaved or unpushed work.
+        try:
+            import github_repos
+            import github_store
+            github_repos.forget_session(sid)
+            github_store.store().delete_session(sid)
+        except Exception:  # noqa: BLE001 - cleanup is best effort
             pass
 
 

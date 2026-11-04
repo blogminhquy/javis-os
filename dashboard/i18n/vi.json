@@ -6775,5 +6775,8 @@
   "nv.sta.idea_repeat_how": "Javis làm đúng lịch lặp này thay bạn rồi báo kết quả.",
   "nv.sta.idea_save_once": "Tiết kiệm khoảng {t}",
   "nv.sta.idea_save_week": "Khoảng {t} mỗi tuần",
-  "nv.sta.one_thing": "{n} việc"
+  "nv.sta.one_thing": "{n} việc",
+  "teams.gh_attach": "Gắn repo GitHub",
+  "teams.gh_how": "Tích repo để gắn vào nhóm. Khi giao việc, thành viên sửa code trên một nhánh riêng của nhóm. Việc nhóm xong thì Javis tự chạy kiểm tra, commit, đẩy lên GitHub, mở PR và theo dõi CI. CI đỏ thì Javis giao lại cho nhóm một việc sửa kèm log.",
+  "teams.skill_used": "Gọi skill {name}"
 }
