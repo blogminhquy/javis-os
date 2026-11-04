@@ -93,7 +93,8 @@ def _liet_ke(args, ctx) -> str:
     for t in data.get("tasks", []):
         if t.get("repeat"):
             anchor = t.get("date") or (t.get("habit") or {}).get("start") or today
-            if not my_tasks_mod.occurs_on(t["repeat"], anchor, today):
+            # A time the owner skipped on purpose (Tasks page, "Skip this time") is not due today.
+            if not my_tasks_mod.occurs_on(t["repeat"], anchor, today) or today in (t.get("skip_dates") or {}):
                 continue
             done = today in (t.get("done_dates") or {})
             extra = ""

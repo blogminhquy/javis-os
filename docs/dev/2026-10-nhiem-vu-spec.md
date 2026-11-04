@@ -222,3 +222,26 @@ Không có kho riêng: thói quen là việc của tôi có `habit`. Chuỗi, đ
   - Thời gian trả lại = số việc xong của từng loại nhân số phút chủ đặt (`POST /tasks/stats/minutes`), không quy ra tiền.
   - my_tasks ghi thêm `moves` (dời việc một lần sang ngày sau) và `log.handoffs` (Giao cho Javis).
   - Trang: `dashboard/tasks-stats.js`, bộ chọn khoảng thời gian dùng chung `date-range.js` + `date-range.css`.
+
+## 11. Nhịp hôm nay (04/11/2026, chủ repo duyệt qua bản HTML)
+
+Nguyên lý của chủ: **không việc nào bị bỏ mặc.** Việc đến hạn phải được làm, dời, bỏ qua (việc lặp) hoặc xoá.
+
+- **Dải 4 ô** trên đầu mọi danh sách của Việc của tôi (trừ Thói quen, giữ khung cũ) và màn chính trên điện thoại:
+  Ngày sạch (mở bảng chuỗi), Ưu tiên, Hôm nay (vòng tiến độ), Thói quen. Dưới là câu của ngôi sao theo từng mục.
+- **Ngày sạch:** mọi việc đến hạn đã được xử lý, không còn việc trễ, và xong ít nhất 1 việc (thói quen và lịch hẹn không
+  tính). Ngày chưa sạch đầu tiên là đóng băng, ngày thứ hai liền là mất chuỗi; ngày trống không cộng không trừ. Hôm nay
+  trang tự chấm; các ngày trước máy chủ chấm một lần lúc mở trang (`judge_clean_days`, đọc giờ xong và giờ bỏ qua trong kho)
+  rồi giữ nguyên trong `clean.days`.
+- **Gắn sao:** tối đa 3 việc một lần mỗi ngày (`star`). Việc lặp và thói quen không gắn sao (sao sẽ dính mọi ngày).
+  Gắn sao việc ngày khác thì việc về hôm nay. Sáng mở trang lần đầu, có việc mà chưa sao: hỏi chọn 3 việc.
+- **Icon bên phải mỗi việc**, sát mép phải, ngang dòng tên: việc một lần Dời · Xoá · Sao; việc lặp Bỏ qua · Dời · Xoá
+  (Dời và Bỏ qua chỉ đụng lần này, `skip_dates`; Xoá là xoá cả chuỗi). Bỏ nút "Dời tất cả sang hôm nay" và dấu ba chấm ở
+  Việc của tôi (mọi lệnh nằm trong chi tiết việc). Dời lần thứ 3 thì ngôi sao hỏi chốt (làm hôm nay, chia nhỏ, xoá, vẫn dời).
+- **Thưởng:** tích là nảy và rung nhẹ, việc ưu tiên bắn sao vàng, lần đầu và khoảng 1/3 lần sau có lời khen ngẫu nhiên;
+  màn ăn mừng Sạch bảng (pháo giấy, mời lên việc ngày mai), Sạch quá hạn (`POST /my-tasks/mark`), mốc 10, 25, 50, 100...
+  việc (`done_total`).
+- **Danh sách trống:** ngôi sao gợi ý tối đa 3 việc (tag chưa có việc mở, việc nối tiếp việc tuần trước, chuẩn bị lịch hẹn
+  sắp tới), chỉ thêm khi bấm.
+- **Bố cục:** mỗi việc một thẻ; chỉ việc ưu tiên, quá hạn, chờ trả lời in đậm; điện thoại bỏ cột giờ (giờ và hạn vào hàng
+  tag), góc thẻ đồng tâm với vòng tích (bán kính 10 + khoảng 6 = 16px). Tab ngắn "Của Javis" / "Của tôi".
