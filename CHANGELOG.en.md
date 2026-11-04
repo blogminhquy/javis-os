@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.463.0] - 2026-11-04
+### Added
+- **My tasks: Projects become Tags.** A task can carry several tags, shown as coloured chips under its title with a **+ Tags** button. Click a tag in the side column to see every task with it. Old projects turn into tags, nothing is lost.
+- **Subtasks on your own tasks.** Open a task to see its subtask list with a progress bar: tick the circle, rename in place, delete with the x. A finished subtask is struck through and sinks to the bottom. In the list, a task with subtasks shows `1/3`; click it to fold the subtasks open and tick them there. A repeating task starts each round with its subtasks open again. Javis's tasks stay flat as before.
+- **Reorder tags.** Drag a tag in the side column on a computer, or use **Move up / Move down** in the tag's menu on a phone.
+- **Notes take links, notes and files.** Paste a web link or type `[[note name]]` and a button to open it appears below. **Link a note** finds a note or file in the brain to insert. **Upload a file** (or paste or drop one into the notes, like the chat box) stores it in the brain's `task-files` folder for good.
+
 ## [0.461.0] - 2026-11-04
 ### Improved
 - **The Javis Core card on the Agents page now says which model it runs on.** With no pin it reads "Following the main model" plus that model's name, so Javis Core no longer looks like it has no model.

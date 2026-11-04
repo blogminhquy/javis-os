@@ -377,7 +377,7 @@ class TaskStats:
                            "done": done, "sched": sched, "cur": st["cur"], "frozen": st["frozen"]})
         projects = []
         for p in store.get("projects", []):
-            ts_ = [x for x in store.get("tasks", []) if x.get("project") == p.get("id") and not x.get("repeat")
+            ts_ = [x for x in store.get("tasks", []) if p.get("id") in my_tasks_mod.task_tags(x) and not x.get("repeat")
                    and x.get("kind") != "appt" and x.get("status") != "cancelled"]
             if ts_:
                 projects.append({"id": p["id"], "name": p.get("name") or "", "color": p.get("color") or "",
