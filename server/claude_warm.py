@@ -285,6 +285,7 @@ def _options_and_fingerprint(cli):
 
 
 async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]:
+    import claude_bg_wait
     import claude_sdk_engine as eng
     import localefmt
     import turn_context
@@ -354,6 +355,7 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
             raise
         yield {"type": "warm", "warm": slot is not None}
         agen = client.receive_response().__aiter__()
+        bg = claude_bg_wait.BackgroundWait(claude_bg_wait.bg_wait_cap())   # 0.453.0, issue #898 item 1
         while True:
             waiting_tool = tools_running > 0
             if waiting_tool:
@@ -366,11 +368,22 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
                 con_lai = max(0.0, completion.deadline - loop.time())
                 if tran is None or con_lai < tran:
                     tran, ly_do = con_lai, "ket"
+            cho_nen = bg.due(completion, loop.time())
+            if cho_nen is not None and (tran is None or cho_nen[0] < tran):
+                tran, ly_do = cho_nen
             try:
                 msg = await asyncio.wait_for(agen.__anext__(), timeout=tran)
             except StopAsyncIteration:
                 break
             except asyncio.TimeoutError:
+                if ly_do == "bg_nudge":
+                    bg.nudge()
+                    await client.query(claude_bg_wait.BG_NUDGE)
+                    agen = client.receive_response().__aiter__()
+                    continue
+                if ly_do == "bg":
+                    yield {"type": "text", "content": bg.gave_up_text()}
+                    break
                 if ly_do == "ket":
                     print(f"[claude completion] tag={cli.tag} session={cli.session_id} "
                           f"end_turn without result after {RESULT_IDLE}s", file=sys.stderr)
@@ -405,6 +418,8 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
                 yield {"type": "error", "content": err}
                 break
             got_any = True
+            if bg.observe(msg):
+                yield {"type": "text", "content": "\n\n"}
             events, sid = eng.map_message(msg)
             if sid:
                 if sid != cli.session_id and cli.javis_vault:
@@ -423,8 +438,11 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
                     tools_running = max(0, tools_running - 1)
                 elif ev.get("resume_failed"):
                     cli.session_id = None
-                yield ev
+                yield bg.merge(ev)
             completion.observe(msg, tools_running, loop.time())
+            if isinstance(msg, ResultMessage) and bg.keep_going(msg, completion, loop.time()):
+                agen = client.receive_response().__aiter__()
+                continue
             if isinstance(msg, ResultMessage):
                 # Reusable only in a known state: a good result, nothing still running in the background.
                 clean = (not getattr(msg, "is_error", False) and bool(cli.session_id) and not auth_race

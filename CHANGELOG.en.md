@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.453.0] - 2026-11-04
+### Fixed
+- **Claude Code waits for its background work to finish, then carries on.** A turn where Claude Code started a background command or a sub-agent used to end at its first answer, and the result never came back (reported from Windows Server in #898). Now the turn stays open until the work is done, and Claude Code reads the result and answers on in the same chat. It waits up to 30 minutes; change it with `JAVIS_CLAUDE_BG_WAIT`.
+- **Antigravity no longer wrongly says it "could not read the context file".** Newer `agy` did read the whole file, but Javis did not recognise how it reports that. Antigravity also sends the prompt over stdin again instead of the file detour. Thanks to @nxbgda1-ship-it (#983).
+
 ## [0.452.0] - 2026-11-04
 ### Added
 - **Teams run the whole loop from the chat.** Send a request for work and the member who answers opens the job right away, no Assign job or Create job press. The leader plans it, assigns people, members work and help each other, and the result comes back to the chat.
