@@ -58,10 +58,10 @@ def _with_turn(turn, fn):
 
 
 # ── 1. javis_schedule takes the asking chat and the assistant from the host's turn ──
-partner_turn = turn_context.make("dashboard", chat_id="s-partner", la_chu=True, session_id="s-partner",
-                                 assistant="dang-bai")
-check("turn carries the assistant the host set", turn_context.make("dashboard", assistant="x")["assistant"] == "x")
-check("turn without one has an empty assistant", turn_context.make("dashboard")["assistant"] == "")
+partner_turn = turn_context.make("dashboard", chat_id="s-partner", la_chu=True, session_id="s-partner")
+partner_turn["assistant"] = "dang-bai"   # set by run_turn, like a chatbot turn's bot_id
+check("the host's assistant key survives bind/current",
+      _with_turn(partner_turn, lambda: (turn_context.current() or {}).get("assistant")) == "dang-bai")
 check("partner turn -> web:<session> and its assistant",
       _with_turn(partner_turn, lambda: sched._turn_origin(VAULT)) == ("web:s-partner", "dang-bai"))
 check("plain dashboard chat -> its own chat, no assistant",
@@ -257,7 +257,7 @@ check("a post that takes no chat still gets the notice", posts[-1][1] == "<old>"
 main_src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("agent chat prompt states its web:<id>", "Phiên chat này là `web:{conv_sid}`" in main_src)
 check("dashboard turn stamps the assistant of the session",
-      "assistant=_session_assistant(conv_sid, brain, store.get_session)" in main_src)
+      '_luot_turn["assistant"] = _session_assistant(conv_sid, brain, store.get_session)' in main_src)
 check("incident post routes to the job's chat", "await _notify_owner(chat, text, kind=\"report\", source=\"incident\""
       in main_src)
 check("reminders and loops get the assistant prompt", main_src.count("build_agent_prompt=_background_agent_prompt") == 2)

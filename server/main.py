@@ -18712,11 +18712,14 @@ async def _chat_socket(ws):
             # A4: lượt có trợ lý chụp thứ tự quyền của kho TRƯỚC khi engine chạy (gốc cấp lại sau ảnh chụp này
             # không vào được lượt này, kể cả lần đầu lượt chạm mục tiêu). Đọc lỗi thì -1: đóng khi lỗi.
             _ag_luot = _resonance_turn_agent(conv_sid, brain, store.get_session)
-            _luot_token = turn_context.bind(turn_context.make(
+            _luot_turn = turn_context.make(
                 "dashboard", chat_id=conv_sid, la_chu=True, session_id=conv_sid, message_id=user_mid,
                 agent=_ag_luot, authority_seq=(_ag_luot or {}).get("authority_seq"),
-                provider=(_ag_luot or {}).get("provider") or "",
-                assistant=_session_assistant(conv_sid, brain, store.get_session)))
+                provider=(_ag_luot or {}).get("provider") or "")
+            # 0.457.0: the Partners-page assistant of this chat ("" elsewhere), host-resolved, for javis_schedule. An
+            # extra key like the chatbot turn's `bot_id`: turn_context.py is pinned by the native profile evidence.
+            _luot_turn["assistant"] = _session_assistant(conv_sid, brain, store.get_session)
+            _luot_token = turn_context.bind(_luot_turn)
             # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
             # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49). Kèm id tin và lời người
             # dùng để tool javis_goal (Resonance) biết đúng tin nhắn nào; 0 thì tool từ chối lập mục tiêu.
