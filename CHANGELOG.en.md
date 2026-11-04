@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.447.1] - 2026-11-04
+### Fixed
+- **Antigravity no longer wrongly says it "could not read the context file".** Newer `agy` did read the whole file, but Javis did not recognise how it reports that, so every background run got the warning.
+- **Antigravity sends the prompt over stdin again.** A permission error was mistaken for "the CLI does not take stdin", pushing the machine onto the file detour. `agy` 1.1.1 and later takes stdin fine, and Javis now uses it.
+
 ## [0.447.0] - 2026-11-03
 ### Added
 - **Instagram joins the Meta connection.** When you log in with Facebook on the Meta connection card, tick **Also connect the Page's Instagram**: messages and comments of the Instagram account linked to the Page land in the same inbox, served by the Page's bot. Public replies under comments and private messages to commenters both work.

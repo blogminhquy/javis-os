@@ -485,10 +485,17 @@ def _do_stdin(cli: str, timeout: float = 75.0) -> str:
 
 # Dấu hiệu "prompt không tới nơi" trong thứ CLI in ra. Nhận ra thì phải đổi đường ngay chứ không
 # được đưa nguyên câu tiếng Anh cho người dùng rồi bỏ mặc - họ không sửa được gì với nó.
+#
+# Chỉ khớp những câu nói về CHÍNH prompt đầu vào. Bản trước khớp "prompt" + "required"/"missing"
+# ở bất kỳ đâu trong câu lỗi, nên một lỗi kiểu "permission prompt required" (tool cần duyệt khi
+# chạy nền) cũng bị đọc thành "CLI từ chối stdin" - và cả máy bị hạ xuống đường file ngữ cảnh,
+# đúng cảnh chủ repo gặp 2026-11-03 trên agy 1.4.12 dù bản đó nhận stdin hoàn toàn bình thường.
 def _la_loi_thieu_prompt(loi: str) -> bool:
     l = (loi or "").lower()
     return (("empty prompt" in l) or ("no prompt" in l)
-            or ("prompt" in l and ("usage:" in l or "required" in l or "missing" in l))
+            or ("prompt" in l and "usage:" in l)
+            or ("prompt is required" in l) or ("prompt required" in l and "permission" not in l)
+            or ("missing prompt" in l) or ("as its prompt" in l)
             or ("flag needs an argument" in l))
 
 
@@ -507,12 +514,16 @@ def duong_prompt_dai(cli: Optional[str] = None) -> str:
     ep = (os.environ.get("JAVIS_AGY_PROMPT_DAI") or "").strip().lower()
     if ep in ("file", "argv"):
         return ep
+    nho = _doc_nho_duong()
     if ep == "stdin":
-        return "stdin:rong"
+        # Ép stdin thì dùng công thức đã đo dương tính nếu có, không thì "trong" (không `-p`):
+        # đúng câu CHANGELOG 1.1.1 và đo được trên 1.4.12. "rong" (`-p ""`) thì 1.4.12 chối
+        # bằng "Error: empty prompt", nên mặc định cũ "stdin:rong" làm cửa thoát này hỏng hẳn.
+        d = str(nho.get("duong") or "")
+        return d if d.startswith("stdin:") and d != "stdin:" else "stdin:trong"
     cli = cli or find_antigravity_cli()
     if not cli:
         return "file"
-    nho = _doc_nho_duong()
     if nho.get("chu_ky") == _chu_ky_cli(cli):
         duong = str(nho.get("duong") or "")
         if duong.startswith("stdin"):
@@ -727,13 +738,54 @@ _CANH_BAO_HONG_DAU_EN = (
 _CANH_BAO_DOC_HONG = (
     "\n\n_(Lưu ý của Javis: `agy` có thử mở file ngữ cảnh nhưng KHÔNG đọc được (thường là do mức "
     "quyền hoặc sandbox chặn), nên lượt vừa rồi trả lời mà chưa có system prompt và bộ nhớ của "
-    "Javis. Nâng cấp `agy` lên bản nhận prompt qua stdin là hết hẳn đường vòng này.)_"
+    "Javis. `agy` từ bản 1.1.1 nhận prompt qua stdin và Javis tự đo lại đường đó mỗi ngày; muốn "
+    "ép ngay thì đặt biến môi trường JAVIS_AGY_PROMPT_DAI=stdin.)_"
 )
 _CANH_BAO_DOC_HONG_EN = (
     "\n\n_(Note from Javis: `agy` tried to open the context file but could NOT read it (usually blocked by "
     "the permission level or sandbox), so the last answer was given without Javis's system prompt and "
-    "memory. Upgrading `agy` to a version that takes the prompt over stdin removes this detour.)_"
+    "memory. `agy` 1.1.1 and later takes the prompt over stdin, and Javis re-measures that route daily; "
+    "to force it now, set the environment variable JAVIS_AGY_PROMPT_DAI=stdin.)_"
 )
+
+
+_TU_LOI_DOC = ("error", "fail", "denied", "not found", "no such", "permission",
+               "cannot", "can't", "unable")
+
+
+def _su_kien_doc_file(ev: dict, ten_ngan: str) -> str:
+    """Một sự kiện của `agy` nói gì về chuyện đọc file ngữ cảnh: "doc_duoc", "da_thu" hay "".
+
+    Phải nhận HAI hình dạng stream. Bản đầu chỉ biết `{"type": "tool_result", ...}`, còn `agy`
+    1.x (đo 2026-11-04 trên 1.4.12) phát mọi thứ dưới dạng
+    `{"event": "step_update", "step_update": {"step_type": "tool", "state": "DONE",
+    "tool_info": {"name": "read_file", "parameters": {"Path": ...}, "output": "1 lines, 34 bytes"}}}`.
+    Không có chữ `tool_result` nào, nên MỌI sự kiện nhắc tên file bị tính là "đã thử mà hỏng" và
+    mọi lượt đi đường file bị dán câu "KHÔNG đọc được" - trong khi model đọc trọn file. Người
+    dùng thấy cảnh báo, tin rằng Javis quên luật, mà thật ra không quên gì.
+    """
+    if not ten_ngan or ten_ngan not in str(ev):
+        return ""
+    su = ev.get("step_update") if isinstance(ev.get("step_update"), dict) else None
+    if su is not None:
+        if str(su.get("step_type") or "").lower() != "tool":
+            return "da_thu"       # câu trả lời nhắc tên file: chưa chứng minh được gì
+        ti = su.get("tool_info") if isinstance(su.get("tool_info"), dict) else {}
+        if ten_ngan not in str(ti.get("parameters") or ""):
+            return "da_thu"
+        trang_thai = str(su.get("state") or "").upper()
+        if trang_thai != "DONE":
+            return "da_thu"       # ACTIVE (đang chạy) hoặc ERROR/CANCELED
+        tt = (str(ti.get("output") or "") + " " + str(su.get("error") or ti.get("error") or ""))
+        if any(k in tt[:300].lower() for k in _TU_LOI_DOC):
+            return "da_thu"
+        return "doc_duoc"
+    t = str(ev.get("type") or ev.get("event") or "").lower()
+    if t in ("tool_result", "tool_output"):
+        tt = (str(ev.get("status") or "") + " "
+              + str(ev.get("output") or ev.get("content") or "")[:300]).lower()
+        return "da_thu" if any(k in tt for k in _TU_LOI_DOC) else "doc_duoc"
+    return "da_thu"
 
 
 # ---------------------------------------------------------------------------
@@ -1288,7 +1340,7 @@ class AntigravityCLI:
         else:
             # Đi stdin: cú pháp lấy từ công thức đã ĐO được trên chính máy này, không phải công
             # thức đoán. Xem `_CT_STDIN` và `_do_stdin`.
-            args += list(dict(_CT_STDIN).get(ct_stdin or "rong", ["-p", ""]))
+            args += list(dict(_CT_STDIN).get(ct_stdin or "trong", []))
         return args
 
     def _chon_duong(self, full: str) -> str:
@@ -1667,18 +1719,13 @@ class AntigravityCLI:
                 if ev.get("_qua_tran"):
                     qua_tran_argv = True      # query() sẽ chạy lại bằng stdin/file
                 if duong == "file" and not doc_duoc:
-                    t = str(ev.get("type") or ev.get("event") or "").lower()
                     if "_raw" not in ev and "_exit" not in ev:
                         co_json = True
-                    if ten_ngan and ten_ngan in str(ev):
-                        if t in ("tool_result", "tool_output"):
-                            tt = (str(ev.get("status") or "") + " "
-                                  + str(ev.get("output") or ev.get("content") or "")[:300]).lower()
-                            if not any(k in tt for k in ("error", "fail", "denied", "not found",
-                                                         "no such", "permission")):
-                                doc_duoc = True
-                        else:
-                            da_thu_doc = True
+                    _kq = _su_kien_doc_file(ev, ten_ngan)
+                    if _kq == "doc_duoc":
+                        doc_duoc = True
+                    elif _kq == "da_thu":
+                        da_thu_doc = True
                 _n = len(cac_manh)
                 for ra in self._doi_su_kien(ev, cac_manh, chan):
                     if ra.get("type") == "tool_call":

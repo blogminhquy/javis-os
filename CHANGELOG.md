@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.447.1] - 2026-11-04
+### Sửa lỗi
+- **Antigravity hết báo nhầm "không đọc được file ngữ cảnh".** `agy` bản mới thật ra đã đọc trọn file, nhưng Javis không nhận ra kiểu báo cáo của nó nên dán cảnh báo vào mọi lượt chạy nền.
+- **Antigravity gửi prompt qua stdin trở lại.** Một lỗi quyền bị hiểu nhầm là "CLI không nhận stdin" khiến máy phải đi đường vòng qua file. `agy` từ 1.1.1 nhận stdin bình thường, Javis giờ dùng đúng đường đó.
+
 ## [0.447.0] - 2026-11-03
 ### Thêm mới
 - **Instagram vào chung kết nối Meta.** Khi đăng nhập Facebook ở thẻ Kết nối Meta, tick **Nối cả Instagram của Trang**: tin nhắn và bình luận của tài khoản Instagram gắn với Fanpage vào chung Hộp thư, cùng bot với Trang. Trả lời công khai dưới bình luận và nhắn riêng cho người bình luận đều dùng được.
