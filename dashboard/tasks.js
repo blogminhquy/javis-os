@@ -189,7 +189,7 @@
   function inList(it, list, today) {
     if (list === "all") return !FIN[it.st];
     if (list === "nodate") return !FIN[it.st] && !it.date;
-    if (list.indexOf("proj:") === 0) return it.proj === list.slice(5) && !FIN[it.st];
+    if (list.indexOf("proj:") === 0) return (it.tags || (it.proj ? [it.proj] : [])).indexOf(list.slice(5)) >= 0 && !FIN[it.st];
     if (list === "today") return it.date === today;
     if (list === "week") return !FIN[it.st] && !!it.date && it.date > today && it.date <= addDays(today, 8);
     if (list === "over") return !!it.over;
@@ -291,11 +291,35 @@
     if (time && nowHM >= time) return "live";
     return "todo";
   }
+  // 0.463.0: a task's tags (several allowed; a store from before keeps one `project`), its subtasks in the order
+  // they are drawn (open ones first, ticked ones sink to the bottom, each keeps its stored index), and the links in
+  // its notes ([[note]] to the brain, plain https:// links). All pure.
+  function tagsOf(t) {
+    if (t && Array.isArray(t.tags)) return t.tags.filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+    return t && t.project ? [t.project] : [];
+  }
+  function subOrder(subs) {
+    var L = (subs || []).map(function (x, i) { return i; });
+    return L.filter(function (i) { return !subs[i].done; }).concat(L.filter(function (i) { return subs[i].done; }));
+  }
+  function linksIn(text) {
+    var out = [], seen = {}, s = String(text || ""), m;
+    var WL = /\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|([^\]\n]+))?\]\]/g, URL = /https?:\/\/[^\s<>"'\])]+/g;
+    while ((m = WL.exec(s))) {
+      var tg = m[1].trim(); if (!tg || seen["w:" + tg]) continue; seen["w:" + tg] = 1;
+      out.push({ wiki: true, target: tg, label: (m[2] || "").trim() || tg.split("/").pop().replace(/\.md$/i, "") });
+    }
+    while ((m = URL.exec(s))) {
+      var u = m[0].replace(/[.,;:!?]+$/, ""); if (seen["u:" + u]) continue; seen["u:" + u] = 1;
+      out.push({ wiki: false, url: u, label: u.replace(/^https?:\/\/(www\.)?/, "").slice(0, 40) });
+    }
+    return out;
+  }
   function mineModel(store, today, nowHM) {
     var items = [], recurring = [], hm = nowHM || "00:00";
     var start = function (t) { return t.date || (t.created_at ? isoOf(new Date(t.created_at * 1000)) : today); };
     ((store && store.tasks) || []).forEach(function (t) {
-      var base = { src: "mine", ref: t.id, title: t.title, desc: t.notes || "", who: "me", proj: t.project || "", time: t.time || "",
+      var base = { src: "mine", ref: t.id, title: t.title, desc: t.notes || "", who: "me", proj: tagsOf(t)[0] || "", tags: tagsOf(t), time: t.time || "",
         kind: t.kind || "task", fromJavis: !!t.from_javis, raw: t, end: t.end || "" };
       if (t.kind === "appt") {
         // Appointments are not ticked: they turn "past" on their own once their time is over.
@@ -429,7 +453,7 @@
     return tw(WD_KEYS[new Date(iso + "T12:00:00").getDay()]) + " " + Number(iso.slice(8)) + "/" + Number(iso.slice(5, 7));
   }
 
-  var model_ = { apptState: apptState, habitCalc: habitCalc, habitStats: habitStats, habitLines: habitLines, usualTime: usualTime, model: model, mineModel: mineModel, occursOn: occursOn, nextOcc: nextOcc, prevOcc: prevOcc, repHuman: repHuman, inList: inList, byTime: byTime, byTimeline: byTimeline, cronFor: cronFor, javisSchedule: javisSchedule, kanbanState: kanbanState, addDays: addDays };
+  var model_ = { apptState: apptState, habitCalc: habitCalc, habitStats: habitStats, habitLines: habitLines, usualTime: usualTime, model: model, mineModel: mineModel, occursOn: occursOn, nextOcc: nextOcc, prevOcc: prevOcc, repHuman: repHuman, inList: inList, tagsOf: tagsOf, subOrder: subOrder, linksIn: linksIn, byTime: byTime, byTimeline: byTimeline, cronFor: cronFor, javisSchedule: javisSchedule, kanbanState: kanbanState, addDays: addDays };
   if (typeof module !== "undefined" && module.exports) { module.exports = model_; return; }
 
   // ---------- page ----------
@@ -563,7 +587,10 @@
     return '<span class="nv-av" style="width:' + (size || 18) + "px;height:" + (size || 18) + 'px"></span>';
   }
   function proj(id) { return ((S.my && S.my.projects) || []).find(function (p) { return p.id === id; }) || null; }
-  function projTag(id) { var p = proj(id); return p ? '<span><i class="nv-dot" style="background:' + esc(p.color) + '"></i>' + esc(p.name) + "</span>" : ""; }
+  // 0.463.0: a tag as a small tinted chip; the list of a task's tags minus the one whose list is open.
+  function tagChip(id) { var p = proj(id); return p ? '<span class="nv-tagc" style="--tc:' + esc(p.color) + '">' + esc(p.name) + "</span>" : ""; }
+  function tagChips(tags) { return (tags || []).filter(function (x) { return S.view !== "proj:" + x; }).map(tagChip).join(""); }
+  function tagMark(color) { return '<span class="nv-tagic" style="color:' + esc(color) + '">' + ic("tag") + "</span>"; }
   function dayLabel(iso) {
     var t = today();
     if (iso === t) return tw("nv.d.today");
@@ -598,10 +625,10 @@
     else if (it.mode === "remind") parts.push(ic("bell") + esc(tw("nv.mode.remind")));
     if (it.src === "mine") {
       if (it.fromJavis) parts.push(avatar(CORE, 14) + esc(tw("nv.from_javis")));
-      if (it.proj && S.view !== "proj:" + it.proj) { var pt = projTag(it.proj); if (pt) parts.push(pt.replace(/^<span>|<\/span>$/g, "")); }
     } else parts.push(avatar(it.who, 14) + esc(agentName(it.who)));
     if (it.took) parts.push(esc(tw("nv.took", { n: Math.max(1, Math.round(it.took / 60)) })));
-    return parts.length ? '<div class="nv-meta">' + parts.map(function (p) { return "<span>" + p + "</span>"; }).join("") + "</div>" : "";
+    var extra = it.src === "mine" ? subBadge(it) + tagChips(it.tags) : "";
+    return parts.length || extra ? '<div class="nv-meta">' + parts.map(function (p) { return "<span>" + p + "</span>"; }).join("") + extra + "</div>" : "";
   }
   function runBtn(it, phone) {
     if (it.src === "mine" || it.src === "gcal") return "";
@@ -621,6 +648,80 @@
     if (overlaps(it)) return '<span class="nv-chip s-ask">' + esc(tw("nv.ap.clash")) + "</span>";
     return "";
   }
+  // 0.463.0: subtasks of my task. The badge in the row shows done/all and folds the list open under the row.
+  function subsLive(it) { return it.src === "mine" && !it.appt && it.raw && (it.raw.subs || []).length && it.id.indexOf("md:") !== 0; }
+  function subBadge(it) {
+    if (!subsLive(it)) return "";
+    var L = it.raw.subs, n = L.filter(function (x) { return x.done; }).length, open = !!(S.subOpen || {})[it.raw.id];
+    return '<span class="nv-subb' + (n === L.length ? " ok" : "") + '" data-act="subfold" data-id="' + esc(it.raw.id) + '" role="button" tabindex="0" aria-expanded="' + open + '" aria-label="' + esc(tw("nv.sub.fold", { a: n, b: L.length })) + '">'
+      + ic("list-checks") + n + "/" + L.length + ic(open ? "chevron-up" : "chevron-down") + "</span>";
+  }
+  function subRow(t, i, edit) {
+    var x = t.subs[i];
+    var box = '<span class="nv-ck sm' + (x.done ? " on" : "") + '" data-act="subck" data-id="' + esc(t.id) + '" data-v="' + i + '" role="checkbox" aria-checked="' + !!x.done + '" tabindex="0" aria-label="' + esc(tw("nv.sub.ck", { t: x.t })) + '">' + (x.done ? ic("check") : "") + "</span>";
+    if (!edit) return '<div class="nv-sub' + (x.done ? " done" : "") + '">' + box + '<span class="nv-subt">' + esc(x.t) + "</span></div>";
+    return '<div class="nv-sub' + (x.done ? " done" : "") + '">' + box + '<input class="nv-subt" data-subt="' + esc(t.id) + '" data-v="' + i + '" value="' + esc(x.t) + '" aria-label="' + esc(tw("nv.sub.name")) + '" enterkeyhint="done">'
+      + '<button type="button" class="nv-subx" data-act="subdel" data-id="' + esc(t.id) + '" data-v="' + i + '" aria-label="' + esc(tw("nv.sub.del")) + '" title="' + esc(tw("nv.sub.del")) + '">' + ic("x") + "</button></div>";
+  }
+  function subFold(it) {
+    if (!subsLive(it) || !(S.subOpen || {})[it.raw.id]) return "";
+    var t = it.raw;
+    return '<div class="nv-subl">' + subOrder(t.subs).map(function (i) { return subRow(t, i, false); }).join("") + "</div>";
+  }
+  function subsHtml(t) {
+    var L = t.subs || [], n = L.filter(function (x) { return x.done; }).length, h = '<div class="nv-sec2 nv-subs">';
+    if (L.length) h += '<div class="nv-subh">' + ic("list-checks") + "<span>" + esc(tw("nv.sub.title")) + "</span><b>" + n + "/" + L.length + '</b></div><div class="nv-subbar"><i style="width:' + Math.round(n * 100 / L.length) + '%"></i></div>';
+    h += subOrder(L).map(function (i) { return subRow(t, i, true); }).join("");
+    return h + '<form class="nv-subadd" data-msubadd="' + esc(t.id) + '">' + ic("plus") + '<input placeholder="' + esc(tw("nv.sub_ph")) + '" aria-label="' + esc(tw("nv.sub_ph")) + '" enterkeyhint="done"></form></div>';
+  }
+  // 0.463.0: tags under the title (chips and "+ Tags"), and the links found in the notes, under them.
+  function tagRow(t, target) {
+    return '<div class="nv-tagrow">' + tagsOf(t).map(tagChip).join("") + '<button type="button" class="nv-tagadd" data-act="tagpick" data-id="' + esc(target) + '">' + ic("plus") + esc(tw("nv.t.add")) + "</button></div>";
+  }
+  function noteLinks(t) {
+    return '<div class="nv-links">' + linksIn(t.notes).map(function (l) {
+      if (l.wiki) return '<a href="#open=' + esc(encodeURIComponent(l.target)) + '" class="jv-wikilink nv-lnk" data-vault-path="' + esc(l.target) + '" title="' + esc(tw("nv.ln.open", { t: l.target })) + '">' + ic(linkIcon(l.target)) + esc(l.label) + "</a>";
+      return '<a class="nv-lnk" href="' + esc(l.url) + '" target="_blank" rel="noopener" title="' + esc(l.url) + '">' + ic("link") + esc(l.label) + "</a>";
+    }).join("") + '<button type="button" class="nv-lnkadd" data-act="notelink" data-id="' + esc(t.id) + '">' + ic("plus") + esc(tw("nv.ln.add")) + "</button>"
+      + '<label class="nv-lnkadd' + (S.upBusy === t.id ? " busy" : "") + '">' + ic(S.upBusy === t.id ? "loader-circle" : "paperclip", S.upBusy === t.id ? "nv-spin" : "") + esc(tw(S.upBusy === t.id ? "nv.ln.uploading" : "nv.ln.upload"))
+      + '<input type="file" multiple hidden data-nfile="' + esc(t.id) + '"' + (S.upBusy ? " disabled" : "") + "></label></div>";
+  }
+  function linkIcon(target) {
+    if (/\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(target)) return "image";
+    if (!/\.[a-z0-9]{1,6}$/i.test(target) || /\.md$/i.test(target)) return "file-text";
+    return "paperclip";
+  }
+  // The brain's folder as the Files page sees it (searches and uploads speak in paths under it).
+  async function brainHome() {
+    var enc = encodeURIComponent(brain());
+    if (S.nlHome == null || S.nlHomeB !== enc) { var hl = await getJSON("/files/list?brain=" + enc); S.nlHome = (hl && hl.home) || ""; S.nlHomeB = enc; }
+    return S.nlHome ? String(S.nlHome).replace(/\\/g, "/").replace(/\/+$/, "") : "";
+  }
+  // 0.463.0: files uploaded from a task's notes go to task-files/<year-month>/ in the brain, kept for good (attachments/
+  // is a cache the server clears after 30 days), and the notes get a [[path]] link to each one.
+  async function uploadToNotes(tid, files) {
+    var t = mineTask(tid); if (!t || !files || !files.length || S.upBusy) return;
+    var home = await brainHome(), dir = "task-files/" + today().slice(0, 7), added = [], err = "";
+    S.upBusy = tid; renderLayer(); renderPhone();
+    for (var i = 0; i < files.length; i++) {
+      var fd = new FormData();
+      fd.append("file", files[i], files[i].name || "file");
+      fd.append("brain", brain());
+      fd.append("path", (home ? home + "/" : "") + dir);
+      try {
+        var r = await fetch("/files/upload", { method: "POST", body: fd, credentials: "same-origin" }), j = await r.json().catch(function () { return {}; });
+        if (!r.ok || !j.ok) { err = j.error || tw("nv.err.generic"); continue; }
+        var rel = String(j.path || "").replace(/\\/g, "/");
+        if (home && rel.indexOf(home + "/") === 0) rel = rel.slice(home.length + 1);
+        added.push("[[" + rel + "]]");
+      } catch (e) { err = String(e); }
+    }
+    S.upBusy = null;
+    if (!added.length) { render(); toast(err || tw("nv.err.generic")); return; }
+    var ta = S.root.querySelector('[data-mnotes="' + tid + '"]'), cur = ta ? ta.value : (t.notes || "");
+    await act(mine({ __url: "/my-tasks/update", id: tid, notes: cur + (cur && !/\n$/.test(cur) ? "\n" : "") + added.join("\n") }),
+      err ? err : tw("nv.ln.uploaded", { n: added.length }));
+  }
   function row(it) {
     if (it.appt) {
       var t = it.raw;
@@ -628,7 +729,7 @@
         + '<span class="nv-tm">' + esc(it.time || (it.gcal ? tw("nv.g.allday") : "")) + (it.end ? "<small>" + esc(it.end) + "</small>" : "") + '</span><span class="nv-st"><i class="nv-abar" style="background:' + esc(apptColor(it)) + '"></i></span>'
         + '<span class="nv-body"><span class="nv-ti">' + esc(it.title) + '</span><div class="nv-meta">' + (it.gcal ? "<span>" + ic("calendar") + esc(tw("nv.g.src")) + "</span>" : "") + (t.location ? "<span>" + ic("map-pin") + esc(t.location) + "</span>" : "")
         + (it.rep ? "<span>" + ic("repeat") + esc(it.rep) + "</span>" : "") + (t.remind && t.remind !== "0" ? "<span>" + ic("bell") + esc(tw("nv.ap.before", { n: t.remind })) + "</span>" : "")
-        + (t.prep ? "<span>" + avatar(CORE, 14) + esc(tw("nv.ap.prep_short")) + "</span>" : "") + (it.proj && S.view !== "proj:" + it.proj ? projTag(it.proj) : "") + "</div></span>"
+        + (t.prep ? "<span>" + avatar(CORE, 14) + esc(tw("nv.ap.prep_short")) + "</span>" : "") + tagChips(it.tags) + "</div></span>"
         + '<span class="nv-chipcol">' + apptChip(it) + "</span></button>"
         + '<button type="button" class="nv-dots" data-act="menu" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button></div>";
     }
@@ -640,7 +741,7 @@
       + (it.st === "ask" && it.reason ? '<span class="nv-note c-ask">' + esc(it.reason) + "</span>" : "")
       + (it.st === "calm" && it.reason ? '<span class="nv-note">' + esc(it.reason) + "</span>" : "") + "</span>"
       + '<span class="nv-chipcol">' + chip(it) + "</span></button>"
-      + runBtn(it) + '<button type="button" class="nv-dots" data-act="menu" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button></div>";
+      + runBtn(it) + '<button type="button" class="nv-dots" data-act="menu" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button></div>" + subFold(it);
   }
   function repRow(r, phone) {
     var lead, nx, sw = "";
@@ -805,7 +906,7 @@
     S.me.items.forEach(function (i) { if (!FIN[i.st] && i.proj) busy[i.proj] = (busy[i.proj] || 0) + 1; });
     var P = ((S.my && S.my.projects) || []).filter(function (p) { return !S.hidden["p:" + p.id]; }).slice();
     P.sort(function (a, b) { return (!!b.pinned - !!a.pinned) || ((a.order || 0) - (b.order || 0)); });
-    return { list: P.map(function (p) { return { id: p.id, name: p.name, n: busy[p.id] || 0, pin: !!p.pinned, view: "proj:" + p.id, mark: '<i class="nv-dot" style="background:' + esc(p.color) + '"></i>', proj: true }; }) };
+    return { list: P.map(function (p) { return { id: p.id, name: p.name, n: busy[p.id] || 0, pin: !!p.pinned, view: "proj:" + p.id, mark: tagMark(p.color), proj: true }; }) };
   }
   function groupHtml(phone) {
     var me = S.tab === "me", G = me ? projectsList() : agentsList(), more = me ? S.moreProj : S.moreWho, shown = more ? G.list : G.list.slice(0, PAGE);
@@ -813,7 +914,7 @@
     if (phone) h += '<div class="nv-pcards">';
     h += shown.map(function (x) {
       if (phone) return '<button type="button" class="nv-pl" data-pl="' + esc(x.view) + '">' + x.mark + '<span class="nv-lbl">' + esc(x.name) + '</span><span class="nv-n">' + (x.n || "") + "</span>" + ic("chevron-right", "nv-chev") + "</button>";
-      return '<div class="nv-lirow"><button type="button" class="nv-li' + (S.view === x.view ? " on" : "") + '" data-view="' + esc(x.view) + '">' + x.mark + '<span class="nv-lbl">' + esc(x.name) + '</span><span class="nv-n">' + (x.n || "") + "</span></button>"
+      return '<div class="nv-lirow"' + (x.proj ? ' draggable="true" data-tagdrag="' + esc(x.id) + '"' : "") + '><button type="button" class="nv-li' + (S.view === x.view ? " on" : "") + '" data-view="' + esc(x.view) + '">' + x.mark + '<span class="nv-lbl">' + esc(x.name) + '</span><span class="nv-n">' + (x.n || "") + "</span></button>"
         + '<button type="button" class="nv-pin' + (x.pin ? " on" : "") + '" data-act="pin" data-id="' + esc(x.id) + '" data-v="' + (x.proj ? "proj" : "who") + '" aria-pressed="' + x.pin + '" aria-label="' + esc(x.pin ? tw("nv.a.unpin") : tw("nv.a.pin")) + '">' + ic("pin") + "</button>"
         + (x.proj ? '<button type="button" class="nv-pin" data-act="pmenu" data-id="' + esc(x.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button>" : "") + "</div>";
     }).join("");
@@ -897,10 +998,9 @@
     return null;
   }
   function kv(label, value) { return '<div class="nv-kv"><span>' + esc(label) + "</span><span>" + value + "</span></div>"; }
-  function projSelect(t, cls) {
-    var P = (S.my && S.my.projects) || [];
-    return '<select class="' + (cls || "nv-psel") + '" data-pproj="' + esc(t.id) + '" aria-label="' + esc(tw("nv.k.project")) + '"><option value="">' + esc(tw("nv.p.none")) + "</option>"
-      + P.map(function (p) { return '<option value="' + esc(p.id) + '"' + (t.project === p.id ? " selected" : "") + ">" + esc(p.name) + "</option>"; }).join("") + "</select>";
+  // The add form's tags: chips of the chosen ones and "+ Tags", which opens the same picker as the details.
+  function formTags(f) {
+    return '<div class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + tagRow({ tags: f.tags || [] }, "new") + "</div>";
   }
   var DURS = [15, 30, 45, 60, 90, 120, 180, 240];
   var REMS = ["0", "5", "15", "30", "60"];
@@ -919,17 +1019,16 @@
   function apptDetail(it, phone) {
     var t = it.raw, dur = Math.max(5, toMin(t.end) - toMin(t.time));
     var h = '<div class="nv-dhead nv-mhead"><i class="nv-abar big" style="background:' + esc(apptColor(it)) + '"></i><textarea class="nv-titleed" data-mtitle="' + esc(t.id) + '" rows="1" aria-label="' + esc(tw("nv.ap.what")) + '">' + esc(t.title) + "</textarea></div>"
-      + (apptChip(it) ? "<div>" + apptChip(it) + "</div>" : "");
+      + (apptChip(it) ? "<div>" + apptChip(it) + "</div>" : "") + tagRow(t, t.id);
     h += '<div class="nv-sec2">'
       + '<button type="button" class="nv-kv nv-kvb" data-act="pick-date" data-id="' + esc(it.id) + '"><span>' + ic("clock") + esc(tw("nv.ap.start")) + "</span><span>" + esc(whenIso(it.date, t.time)) + "</span></button>"
       + '<label class="nv-kv"><span>' + ic("hourglass") + esc(tw("nv.ap.dur")) + "</span>" + durSelect(dur, 'data-adur="' + esc(t.id) + '"') + "</label>"
       + kv(tw("nv.ap.end"), esc(t.end || ""))
       + '<label class="nv-kv"><span>' + ic("bell") + esc(tw("nv.ap.remind")) + "</span>" + remSelect(t.remind, 'data-arem="' + esc(t.id) + '"') + "</label>"
       + '<label class="nv-kv"><span>' + ic("map-pin") + esc(tw("nv.ap.where")) + '</span><input class="nv-psel" data-aloc="' + esc(t.id) + '" value="' + esc(t.location || "") + '" placeholder="' + esc(tw("nv.ap.where_ph")) + '"></label>'
-      + '<button type="button" class="nv-kv nv-kvb" data-act="pick-rep" data-id="' + esc(it.id) + '"><span>' + ic("repeat") + esc(tw("nv.k.repeat")) + "</span><span>" + esc(t.repeat ? repHuman(t.repeat) : tw("nv.f.rep_none")) + "</span></button>"
-      + '<label class="nv-kv"><span>' + ic("folder") + esc(tw("nv.k.project")) + "</span>" + projSelect(t) + "</label></div>";
+      + '<button type="button" class="nv-kv nv-kvb" data-act="pick-rep" data-id="' + esc(it.id) + '"><span>' + ic("repeat") + esc(tw("nv.k.repeat")) + "</span><span>" + esc(t.repeat ? repHuman(t.repeat) : tw("nv.f.rep_none")) + "</span></button></div>";
     if (t.prep) h += '<div class="nv-sec2"><div class="nv-from">' + avatar(CORE, 16) + esc(tw("nv.ap.prep_set")) + '</div><div class="nv-res">' + esc(t.prep) + "</div></div>";
-    h += '<div class="nv-sec2"><textarea class="nv-ta" data-mnotes="' + esc(t.id) + '" placeholder="' + esc(tw("nv.notes_ph")) + '" aria-label="' + esc(tw("nv.notes_ph")) + '">' + esc(t.notes || "") + "</textarea></div>";
+    h += '<div class="nv-sec2"><textarea class="nv-ta" data-mnotes="' + esc(t.id) + '" placeholder="' + esc(tw("nv.notes_ph")) + '" aria-label="' + esc(tw("nv.notes_ph")) + '">' + esc(t.notes || "") + "</textarea>" + noteLinks(t) + "</div>";
     if (!phone) h += '<div class="nv-sec2"><div class="nv-acts">' + menuButtons(it) + "</div></div>";
     return h;
   }
@@ -937,19 +1036,17 @@
     if (it.appt) return apptDetail(it, phone);
     var t = it.raw, rep = !!t.repeat, occ = it.occ || null, done = it.sc ? it.doneToday : it.st === "done";
     var h = '<div class="nv-dhead nv-mhead">' + (habitOn(t) ? habitCk(t, "big") : it.sc ? (done ? '<span class="nv-ck on big" data-act="uncheck" data-id="' + esc(it.id) + '" role="checkbox" aria-checked="true" tabindex="0" aria-label="' + esc(tw("nv.a.uncheck")) + '">' + ic("check") + "</span>" : '<span class="nv-ck big" data-act="check" data-id="' + esc(it.id) + '" role="checkbox" aria-checked="false" tabindex="0" aria-label="' + esc(tw("nv.a.check", { t: it.title })) + '"></span>') : ck(it).replace('class="nv-ck', 'class="nv-ck big'))
-      + '<textarea class="nv-titleed" data-mtitle="' + esc(t.id) + '" rows="1" aria-label="' + esc(tw("nv.f.what")) + '">' + esc(t.title) + "</textarea></div>";
+      + '<textarea class="nv-titleed" data-mtitle="' + esc(t.id) + '" rows="1" aria-label="' + esc(tw("nv.f.what")) + '">' + esc(t.title) + "</textarea></div>" + tagRow(t, t.id);
     if (t.from_javis) h += '<div class="nv-from">' + avatar(CORE, 16) + esc(tw("nv.from_javis_long")) + "</div>";
     h += '<div class="nv-sec2">'
       + '<button type="button" class="nv-kv nv-kvb" data-act="pick-date" data-id="' + esc(it.id) + '"><span>' + ic("clock") + esc(tw("nv.k.when")) + "</span><span>" + esc(whenIso(occ && rep ? occ : t.date, t.time)) + "</span></button>"
       + '<button type="button" class="nv-kv nv-kvb" data-act="pick-rep" data-id="' + esc(it.id) + '"><span>' + ic("repeat") + esc(tw("nv.k.repeat")) + "</span><span>" + esc(rep ? repHuman(t.repeat) : tw("nv.f.rep_none")) + "</span></button>"
-      + (rep && t.kind !== "appt" ? '<div class="nv-kv"><span>' + ic("flame", "c-habit") + esc(tw("nv.h.is_habit")) + '</span><button type="button" class="nv-sw" role="switch" aria-checked="' + habitOn(t) + '" aria-label="' + esc(tw("nv.h.is_habit")) + '" data-act="htog" data-id="m:' + esc(t.id) + '"><span></span></button></div>' : "")
-      + '<label class="nv-kv"><span>' + ic("folder") + esc(tw("nv.k.project")) + "</span>" + projSelect(t) + "</label></div>";
+      + (rep && t.kind !== "appt" ? '<div class="nv-kv"><span>' + ic("flame", "c-habit") + esc(tw("nv.h.is_habit")) + '</span><button type="button" class="nv-sw" role="switch" aria-checked="' + habitOn(t) + '" aria-label="' + esc(tw("nv.h.is_habit")) + '" data-act="htog" data-id="m:' + esc(t.id) + '"><span></span></button></div>' : "") + "</div>";
     var acts = (done ? "" : '<button type="button" class="nv-btn pri" data-act="check" data-id="' + esc(it.id) + '">' + ic("check") + esc(tw("nv.a.done")) + "</button>")
       + '<button type="button" class="nv-btn" data-act="tojavis" data-id="' + esc(it.id) + '">' + avatar(CORE, 16) + esc(tw("nv.a.tojavis")) + "</button>";
+    h += subsHtml(t);
     h += '<div class="nv-sec2"><div class="nv-acts">' + acts + "</div></div>";
-    h += '<div class="nv-sec2">' + (t.subs || []).map(function (x, i) { return '<label class="nv-sub' + (x.done ? " done" : "") + '"><input type="checkbox" data-msub="' + esc(t.id) + '" data-v="' + i + '"' + (x.done ? " checked" : "") + "><span>" + esc(x.t) + "</span></label>"; }).join("")
-      + '<form class="nv-subadd" data-msubadd="' + esc(t.id) + '">' + ic("plus") + '<input placeholder="' + esc(tw("nv.sub_ph")) + '" aria-label="' + esc(tw("nv.sub_ph")) + '" enterkeyhint="done"></form></div>';
-    h += '<div class="nv-sec2"><textarea class="nv-ta" data-mnotes="' + esc(t.id) + '" placeholder="' + esc(tw("nv.notes_ph")) + '" aria-label="' + esc(tw("nv.notes_ph")) + '">' + esc(t.notes || "") + "</textarea></div>";
+    h += '<div class="nv-sec2"><textarea class="nv-ta" data-mnotes="' + esc(t.id) + '" placeholder="' + esc(tw("nv.notes_ph")) + '" aria-label="' + esc(tw("nv.notes_ph")) + '">' + esc(t.notes || "") + "</textarea>" + noteLinks(t) + "</div>";
     if (habitOn(t)) h += '<div class="nv-sec2">' + streakCard(t) + "</div>";
     if (!phone) h += '<div class="nv-sec2"><div class="nv-acts">' + menuButtons(it) + "</div></div>";
     return h;
@@ -1047,7 +1144,23 @@
     if (sh.kind === "project") return sheetFrame(sh.id ? tw("nv.p.edit") : tw("nv.p.new"), projectFormHtml(sh));
     if (sh.kind === "pmenu") {
       var p = proj(sh.id); if (!p) return "";
-      return sheetFrame(p.name, '<div class="nv-sheet-b"><button type="button" class="nv-mi" data-act="pedit" data-id="' + esc(p.id) + '">' + ic("pencil") + esc(tw("nv.p.edit")) + '</button><button type="button" class="nv-mi danger" data-act="pdel" data-id="' + esc(p.id) + '">' + ic("trash-2") + esc(tw("nv.p.del")) + "</button></div>");
+      var nb = tagNeighbours(p.id);
+      return sheetFrame(p.name, '<div class="nv-sheet-b"><button type="button" class="nv-mi" data-act="pedit" data-id="' + esc(p.id) + '">' + ic("pencil") + esc(tw("nv.p.edit")) + "</button>"
+        + (nb.up ? '<button type="button" class="nv-mi" data-act="pmove" data-id="' + esc(p.id) + '" data-v="-1">' + ic("arrow-up") + esc(tw("nv.t.up")) + "</button>" : "")
+        + (nb.down ? '<button type="button" class="nv-mi" data-act="pmove" data-id="' + esc(p.id) + '" data-v="1">' + ic("arrow-down") + esc(tw("nv.t.down")) + "</button>" : "")
+        + '<button type="button" class="nv-mi danger" data-act="pdel" data-id="' + esc(p.id) + '">' + ic("trash-2") + esc(tw("nv.p.del")) + "</button></div>");
+    }
+    if (sh.kind === "tags") {
+      var cur = sh.id === "new" ? (S.form.tags || []) : tagsOf(mineTask(sh.id) || {}), P = projectsList().list;
+      return sheetFrame(tw("nv.t.pick"), '<div class="nv-sheet-b">' + (P.length ? P.map(function (x) {
+        var on = cur.indexOf(x.id) >= 0;
+        return '<button type="button" class="nv-mi nv-tagmi" data-act="tagtog" data-id="' + esc(sh.id) + '" data-v="' + esc(x.id) + '" role="checkbox" aria-checked="' + on + '">' + x.mark + '<span class="nv-lbl">' + esc(x.name) + "</span>" + (on ? ic("check", "c-ok") : "") + "</button>";
+      }).join("") : '<div class="nv-empty">' + esc(tw("nv.t.none")) + "</div>")
+        + '<form class="nv-subadd nv-tagnew" data-tagnew="' + esc(sh.id) + '">' + ic("plus") + '<input placeholder="' + esc(tw("nv.t.new_ph")) + '" aria-label="' + esc(tw("nv.t.new_ph")) + '" enterkeyhint="done"></form></div>');
+    }
+    if (sh.kind === "note") {
+      return sheetFrame(tw("nv.ln.title"), '<div class="nv-sheet-b"><div class="nv-search nv-nlq">' + ic("search") + '<input type="search" data-nlq="' + esc(sh.id) + '" autocomplete="off" placeholder="' + esc(tw("nv.ln.ph")) + '" aria-label="' + esc(tw("nv.ln.ph")) + '" value="' + esc(sh.q || "") + '"></div>'
+        + '<div class="nv-nlres">' + noteResults(sh) + "</div></div>");
     }
     var it = find(sh.id);
     if (!it) return "";
@@ -1056,6 +1169,42 @@
       return sheetFrame(it.title, '<div class="nv-sheet-b">' + others.map(function (b) { return '<button type="button" class="nv-mi" data-act="' + sh.kind + '-to" data-id="' + esc(it.id) + '" data-v="' + esc(b.path) + '">' + ic("brain") + esc(b.name) + "</button>"; }).join("") + "</div>");
     }
     return sheetFrame(it.title, '<div class="nv-sheet-b">' + menuDefs(it).map(function (m) { return '<button type="button" class="nv-mi' + (m[0] === "del" ? " danger" : "") + '" data-act="m-' + m[0] + '" data-id="' + esc(it.id) + '">' + ic(m[1]) + esc(tw(m[2])) + "</button>"; }).join("") + "</div>");
+  }
+  // A new tag takes the first colour no tag uses yet (blue first, the old default), then cycles.
+  function freeColor() {
+    var used = ((S.my && S.my.projects) || []).map(function (p) { return String(p.color).toLowerCase(); });
+    var order = COLORS.slice(5).concat(COLORS.slice(0, 5));
+    return order.find(function (c) { return used.indexOf(c) < 0; }) || order[used.length % order.length];
+  }
+  function mineTask(id) { return ((S.my && S.my.tasks) || []).find(function (x) { return x.id === id; }) || null; }
+  // Move up/down only inside its group: pinned tags stay above the others.
+  function tagNeighbours(id) {
+    var L = projectsList().list, i = L.findIndex(function (x) { return x.id === id; });
+    return { L: L, i: i, up: i > 0 && L[i - 1].pin === L[i].pin, down: i >= 0 && i < L.length - 1 && L[i + 1].pin === L[i].pin };
+  }
+  function reorderTags(ids) { return act(mine({ __url: "/my-tasks/project", order_ids: ids }), tw("nv.t.moved")); }
+  function noteResults(sh) {
+    if (!sh.q) return "";
+    if (!sh.res) return '<div class="nv-empty">' + esc(tw("common.loading")) + "</div>";
+    if (!sh.res.length) return '<div class="nv-empty">' + esc(tw("nv.ln.none")) + "</div>";
+    return sh.res.map(function (r) {
+      return '<button type="button" class="nv-mi" data-act="nlpick" data-id="' + esc(sh.id) + '" data-v="' + esc(r.target) + '">' + ic("file-text") + '<span class="nv-lbl">' + esc(r.name) + '<small class="nv-nlp">' + esc(r.path) + "</small></span></button>";
+    }).join("");
+  }
+  var NOTE_EXT = /\.(md|markdown|txt|pdf|html?|csv|docx?|xlsx?|pptx?|png|jpe?g|gif|webp|svg)$/i;
+  // A note is linked by its name ([[Note]], the way the chat and the editor resolve it); any other file by its path.
+  async function searchNotes(id, q) {
+    var enc = encodeURIComponent(brain()), h0 = await brainHome();
+    var r = await getJSON("/files/search?brain=" + enc + "&q=" + encodeURIComponent(q) + "&limit=40");
+    if (!S || !S.sheet || S.sheet.kind !== "note" || S.sheet.q !== q) return;
+    var home = h0 ? h0 + "/" : "";
+    // Only what a person opens to read (notes, documents, images), not the app's own data files.
+    S.sheet.res = ((r && r.items) || []).filter(function (x) { return x && x.type !== "dir" && x.path && NOTE_EXT.test(x.name || x.path); }).map(function (x) {
+      var path = String(x.path).replace(/\\/g, "/"); if (home && path.indexOf(home) === 0) path = path.slice(home.length);
+      var name = x.name || path.split("/").pop(), md = /\.md$/i.test(name);
+      return { name: md ? name.replace(/\.md$/i, "") : name, path: path, target: md ? name.replace(/\.md$/i, "") : path };
+    }).slice(0, 20);
+    var box = S.root.querySelector(".nv-nlres"); if (box) box.innerHTML = noteResults(S.sheet);
   }
   function projectFormHtml(sh) {
     return '<form class="nv-pform" data-pform="1"><input class="nv-inp" id="nvPName" required placeholder="' + esc(tw("nv.p.name_ph")) + '" value="' + esc(sh.name || "") + '" aria-label="' + esc(tw("nv.p.name_ph")) + '">'
@@ -1251,7 +1400,7 @@
         + '<div class="nv-row2"><label class="nv-fld"><span>' + esc(tw("nv.ap.dur")) + "</span>" + durSelect(dur, 'id="nvDur"').replace('class="nv-psel"', 'class="nv-inp"') + "</label>"
         + '<label class="nv-fld"><span>' + esc(tw("nv.ap.remind")) + "</span>" + remSelect(f.remind || "15", 'id="nvRem"').replace('class="nv-psel"', 'class="nv-inp"') + "</label></div>"
         + '<div class="nv-row2"><div class="nv-fld"><span>' + esc(tw("nv.k.repeat")) + '</span><button type="button" class="nv-pick" data-act="pick-rep" data-id="new">' + ic("repeat") + '<span class="nv-lbl">' + esc(repTxt) + "</span>" + ic("chevron-right") + "</button></div>"
-        + '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label></div>"
+        + "</div>" + formTags(f)
         + '<details class="nv-more2"' + (f.loc ? " open" : "") + "><summary>" + ic("map-pin") + esc(tw("nv.ap.where")) + '</summary><input class="nv-inp" id="nvLoc" placeholder="' + esc(tw("nv.ap.where_ph")) + '" value="' + esc(f.loc || "") + '"></details>'
         + '<label class="nv-prep"><input type="checkbox" id="nvPrep"' + (f.prep ? " checked" : "") + ' data-act="fset" data-k="prep" data-v="' + (f.prep ? "" : "1") + '">' + avatar(CORE, 18) + "<span>" + esc(tw("nv.ap.prep")) + "</span></label>"
         + (f.prep ? '<input class="nv-inp" id="nvPrepT" placeholder="' + esc(tw("nv.ap.prep_ph")) + '" value="' + esc(f.prepT || "") + '">' : "")
@@ -1265,7 +1414,7 @@
       + '<div class="nv-row2"><div class="nv-fld"><span>' + esc(tw("nv.k.when")) + '</span><button type="button" class="nv-pick" data-act="pick-date" data-id="new">' + ic("clock") + '<span class="nv-lbl">' + esc(f.date ? whenIso(f.date, f.time) : me ? tw("nv.d.none") : tw("nv.f.asap")) + "</span>" + ic("chevron-right") + "</button></div>"
       + '<div class="nv-fld"><span>' + esc(tw("nv.k.repeat")) + '</span><button type="button" class="nv-pick" data-act="pick-rep" data-id="new"' + (f.edit && f.cronLocked ? " disabled" : "") + ">" + ic("repeat") + '<span class="nv-lbl">' + esc(repTxt) + "</span>" + ic("chevron-right") + "</button></div></div>"
       + (me && f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? '<div class="nv-fld"><span>' + esc(tw("nv.h.kind")) + "</span>" + seg("habit", [["", "nv.l.rep", ic("repeat")], ["1", "nv.l.habit", ic("flame", "c-habit")]]) + "</div>" : "")
-      + (me ? '<label class="nv-fld"><span>' + esc(tw("nv.k.project")) + "</span>" + projSelect({ id: "new", project: f.project || "" }, "nv-inp") + "</label>" : remOpts(f) + jobOpts(f))
+      + (me ? formTags(f) : remOpts(f) + jobOpts(f))
       + (f.err ? '<div class="nv-ferr" role="alert">' + esc(f.err) + "</div>" : "")
       + '<div class="nv-acts end"><button type="button" class="nv-btn ghost" data-act="close">' + esc(tw("nv.cancel")) + '</button><button type="submit" class="nv-btn pri">' + esc(f.edit ? tw("nv.save") : me ? tw("nv.f.add") : tw("nv.f.give")) + "</button></div></form></div>";
   }
@@ -1280,7 +1429,7 @@
     } else {
       var inHabit = S.tab === "me" && (S.view === "habit" || (S.phone.screen === "list" && S.phone.list === "habit"));
       S.form = { who: S.tab === "me" ? "me" : "ai", text: "", mode: "do", date: null, time: "", rule: inHabit ? { unit: "day", n: 1 } : null, habit: inHabit ? "1" : "",
-        project: S.view.indexOf("proj:") === 0 ? S.view.slice(5) : (S.phone.screen === "list" && String(S.phone.list).indexOf("proj:") === 0 ? S.phone.list.slice(5) : "") };
+        tags: S.view.indexOf("proj:") === 0 ? [S.view.slice(5)] : (S.phone.screen === "list" && String(S.phone.list).indexOf("proj:") === 0 ? [S.phone.list.slice(5)] : []) };
     }
     S.layer = "form"; renderLayer();
     var w = S.root.querySelector("#nvW"); if (w) w.focus();
@@ -1289,7 +1438,6 @@
     if (!S.form) return;
     var g = function (sel) { return S.root.querySelector(sel); };
     if (g("#nvW")) S.form.text = g("#nvW").value;
-    if (g('[data-pproj="new"]')) S.form.project = g('[data-pproj="new"]').value;
     if (g("#nvDur")) S.form.dur = g("#nvDur").value;
     if (g("#nvRem")) S.form.remind = g("#nvRem").value;
     if (g("#nvLoc")) S.form.loc = g("#nvLoc").value;
@@ -1314,7 +1462,7 @@
       if (!f.date || !f.time) { f.err = tw("nv.ap.need_time"); renderLayer(); return; }
       var end = fromMin(toMin(f.time) + Number(f.dur || 60));
       r = await postJSON("/my-tasks", { brain: b, kind: "appt", title: txt, date: f.date, time: f.time, end: end, remind: String(f.remind || "15"),
-        location: f.loc || "", repeat: f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? f.rule : null, project: f.project || "",
+        location: f.loc || "", repeat: f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? f.rule : null, tags: f.tags || [],
         prep: f.prep ? (f.prepT || tw("nv.ap.prep_default")) : "" });
       if (r && r.ok !== false && f.prep) {
         // "Ask Javis to prepare": a reminder that does the job 30 minutes before the start.
@@ -1323,7 +1471,7 @@
       }
     } else if (f.who === "me") {
       var myRule = f.rule && f.rule.unit !== "min" && f.rule.unit !== "hour" ? f.rule : null;
-      r = await postJSON("/my-tasks", { brain: b, title: txt, date: f.date || (myRule && f.habit ? today() : null), time: f.date ? f.time : "", repeat: myRule, project: f.project || "",
+      r = await postJSON("/my-tasks", { brain: b, title: txt, date: f.date || (myRule && f.habit ? today() : null), time: f.date ? f.time : "", repeat: myRule, tags: f.tags || [],
         habit: myRule && f.habit ? { start: today(), remind: "auto" } : null });
     } else if (!f.date && !f.rule && f.mode === "do") {
       r = await postForm("/kanban/task", { brain: b, title: txt.slice(0, 120), intent: txt, priority: 2, needs_approval: f.appr ? "1" : "0" });
@@ -1480,6 +1628,38 @@
         return act(mine({ __url: "/my-tasks/update", id: th.id, habit: next }), habitOn(th) ? tw("nv.h.to_rep") : hb ? tw("nv.h.back_habit") : tw("nv.h.to_habit"),
           function () { return mine({ __url: "/my-tasks/update", id: th.id, habit: hb || null }); });
       }
+      case "pmove": {
+        var nb = tagNeighbours(id), j = nb.i + Number(el.dataset.v), ids = nb.L.map(function (x) { return x.id; });
+        if (j < 0 || j >= ids.length) return;
+        ids.splice(j, 0, ids.splice(nb.i, 1)[0]);
+        await reorderTags(ids);
+        if (S.sheet && S.sheet.kind === "pmenu") renderLayer();
+        return;
+      }
+      case "tagpick": if (id === "new") keepFormText(); S.sheet = { kind: "tags", id: id }; return renderLayer();
+      case "tagtog": {
+        var tv = el.dataset.v;
+        if (id === "new") { var ft = (S.form.tags || []).slice(), fi = ft.indexOf(tv); if (fi >= 0) ft.splice(fi, 1); else ft.push(tv); S.form.tags = ft; return renderLayer(); }
+        var tt0 = mineTask(id); if (!tt0) return;
+        var tg0 = tagsOf(tt0), ti = tg0.indexOf(tv); if (ti >= 0) tg0.splice(ti, 1); else tg0.push(tv);
+        return act(mine({ __url: "/my-tasks/update", id: id, tags: tg0 }), "");
+      }
+      case "subfold": S.subOpen = S.subOpen || {}; S.subOpen[id] = !S.subOpen[id]; return render();
+      case "subck": case "subdel": {
+        var st0 = mineTask(id); if (!st0) return;
+        var si = Number(el.dataset.v), old = (st0.subs || []).map(function (x) { return { t: x.t, done: !!x.done }; });
+        var nsub = a === "subck" ? old.map(function (x, k) { return k === si ? { t: x.t, done: !x.done } : x; }) : old.filter(function (x, k) { return k !== si; });
+        return act(mine({ __url: "/my-tasks/update", id: id, subs: nsub }), a === "subdel" ? tw("nv.sub.deleted") : "",
+          a === "subdel" ? function () { return mine({ __url: "/my-tasks/update", id: id, subs: old }); } : null);
+      }
+      case "notelink": S.sheet = { kind: "note", id: id, q: "" }; renderLayer(); setTimeout(function () { var i = S.root.querySelector("[data-nlq]"); if (i) i.focus(); }, 0); return;
+      case "nlpick": {
+        var nt = mineTask(id); if (!nt) return;
+        var ta = S.root.querySelector('[data-mnotes="' + id + '"]'), cur = ta ? ta.value : (nt.notes || "");
+        S.sheet = null;
+        if (linksIn(cur).some(function (l) { return l.wiki && l.target === el.dataset.v; })) { renderLayer(); toast(tw("nv.ln.added")); return; }
+        return act(mine({ __url: "/my-tasks/update", id: id, notes: cur +(cur && !/\n$/.test(cur) ? "\n" : "") + "[[" + el.dataset.v + "]]" }), tw("nv.ln.added"));
+      }
       case "pnew": S.sheet = { kind: "project", id: "", name: "", color: COLORS[5] }; renderLayer(); setTimeout(function () { var i = S.root.querySelector("#nvPName"); if (i) i.focus(); }, 0); return;
       case "pmenu": S.sheet = { kind: "pmenu", id: id }; return renderLayer();
       case "pedit": { var p = proj(id); S.sheet = { kind: "project", id: id, name: p.name, color: p.color }; return renderLayer(); }
@@ -1597,10 +1777,6 @@
   async function onChange(e) {
     var el = e.target;
     if (!S.root.contains(el)) return;
-    if (el.dataset.pproj && el.dataset.pproj !== "new") {
-      var it = find(el.dataset.pproj) || find("m:" + el.dataset.pproj); var id = it ? it.raw.id : el.dataset.pproj.replace(/^m:/, "");
-      return act(mine({ __url: "/my-tasks/update", id: id, project: el.value }), tw("nv.saved"));
-    }
     if (el.dataset.adur) { var at1 = S.my.tasks.find(function (x) { return x.id === el.dataset.adur; }); return act(mine({ __url: "/my-tasks/update", id: at1.id, end: fromMin(toMin(at1.time) + Number(el.value)) }), tw("nv.saved")); }
     if (el.dataset.arem) return act(mine({ __url: "/my-tasks/update", id: el.dataset.arem, remind: el.value }), tw("nv.saved"));
     if (el.dataset.aloc) return act(mine({ __url: "/my-tasks/update", id: el.dataset.aloc, location: el.value.trim() }), tw("nv.saved"));
@@ -1613,9 +1789,12 @@
     if (el.dataset.dp === "other") { if (el.value) { S.sheet.d.time = el.value; renderLayer(); } return; }
     if (el.dataset.rp === "unit") { S.sheet.r.unit = el.value; if (el.value === "week" && !(S.sheet.r.days || []).length) S.sheet.r.days = [new Date().getDay()]; renderLayer(); return; }
     if (el.dataset.rp === "n") { S.sheet.r.n = Math.max(1, Math.min(365, Number(el.value) || 1)); return; }
-    if (el.dataset.msub) {
-      var t = S.my.tasks.find(function (x) { return x.id === el.dataset.msub; }); if (!t) return;
-      var subs = (t.subs || []).map(function (x, i) { return i === Number(el.dataset.v) ? { t: x.t, done: el.checked } : x; });
+    if (el.dataset.nfile) { var fl = Array.prototype.slice.call(el.files || []); el.value = ""; return uploadToNotes(el.dataset.nfile, fl); }
+    if (el.dataset.subt) {
+      var t = mineTask(el.dataset.subt); if (!t) return;
+      var k = Number(el.dataset.v), txt = el.value.trim();
+      // Emptying a subtask's name deletes it.
+      var subs = (t.subs || []).map(function (x, i) { return i === k ? { t: txt, done: !!x.done } : { t: x.t, done: !!x.done }; }).filter(function (x) { return x.t; });
       return act(mine({ __url: "/my-tasks/update", id: t.id, subs: subs }), "");
     }
     if (el.dataset.mtitle) { var v = el.value.trim(); if (v) return act(mine({ __url: "/my-tasks/update", id: el.dataset.mtitle, title: v }), tw("nv.saved")); return; }
@@ -1633,6 +1812,15 @@
       var sh = S.sheet; S.sheet = null;
       return act(mine({ __url: "/my-tasks/project", id: sh.id || undefined, name: name, color: sh.color }), sh.id ? tw("nv.saved") : tw("nv.p.created"));
     }
+    if (f.dataset.tagnew) {
+      var tn = f.querySelector("input").value.trim(); if (!tn) return;
+      var tid = f.dataset.tagnew, cr = await mine({ __url: "/my-tasks/project", name: tn, color: freeColor() });
+      if (!cr || cr.ok === false) { toast((cr && cr.error) || tw("nv.err.generic")); return; }
+      if (tid === "new") { S.form.tags = (S.form.tags || []).concat([cr.project.id]); await load(); renderLayer(); }
+      else { var tk = mineTask(tid); await act(mine({ __url: "/my-tasks/update", id: tid, tags: tagsOf(tk || {}).concat([cr.project.id]) }), tw("nv.p.created")); }
+      var ni = S.root.querySelector("[data-tagnew] input"); if (ni) ni.focus();
+      return;
+    }
     if (f.dataset.msubadd) {
       var inp = f.querySelector("input"), txt = inp.value.trim(); if (!txt) return;
       var t = S.my.tasks.find(function (x) { return x.id === f.dataset.msubadd; }); if (!t) return;
@@ -1646,16 +1834,48 @@
   function onKey(e) {
     if (!S) return;
     if (e.key === "Escape" && (S.sel || S.layer || S.sheet)) { S.sel = null; S.layer = null; S.sheet = null; renderLayer(); return; }
-    var c = e.target.closest && e.target.closest(".nv-root [role=checkbox]");
+    var c = e.target.closest && e.target.closest(".nv-root [role=checkbox], .nv-root .nv-subb");
     if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); c.click(); }
+    if (e.key === "Enter" && e.target.dataset && e.target.dataset.subt) { e.preventDefault(); e.target.blur(); }
   }
-  function onInput(e) { if (e.target.classList && e.target.classList.contains("nv-titleed")) fitTA(e.target); }
+  function onInput(e) {
+    if (e.target.classList && e.target.classList.contains("nv-titleed")) fitTA(e.target);
+    if (e.target.dataset && e.target.dataset.nlq != null && S.sheet && S.sheet.kind === "note") {
+      var q2 = e.target.value.trim(); S.sheet.q = q2; S.sheet.res = null;
+      var box = S.root.querySelector(".nv-nlres"); if (box) box.innerHTML = noteResults(S.sheet);
+      clearTimeout(S.nlT); if (q2) S.nlT = setTimeout(function () { searchNotes(S.sheet.id, q2); }, 250);
+    }
+  }
+  // Paste or drop files into a task's notes, like the chat box: they upload and get linked.
+  function onPasteFiles(e) {
+    var ta = e.target && e.target.dataset && e.target.dataset.mnotes ? e.target : null; if (!ta) return;
+    var dt = e.clipboardData || e.dataTransfer, files = dt && dt.files ? Array.prototype.slice.call(dt.files) : [];
+    if (!files.length) return;
+    e.preventDefault();
+    uploadToNotes(ta.dataset.mnotes, files);
+  }
+  // 0.463.0: drag a tag in the side column to put it in another place (phone: Move up/down in its menu).
+  function onDrag(e) {
+    var row_ = e.target.closest && e.target.closest("[data-tagdrag]");
+    if (e.type === "dragstart") { if (!row_) return; S.drag = row_.dataset.tagdrag; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", S.drag); } catch (x) { /* old browsers */ } return; }
+    if (!S.drag) return;
+    S.root.querySelectorAll(".nv-lirow.drop").forEach(function (x) { x.classList.remove("drop"); });
+    if (e.type === "dragend") { S.drag = null; return; }
+    if (!row_) return;
+    e.preventDefault();
+    if (e.type === "dragover") { row_.classList.add("drop"); return; }
+    var from = S.drag, to = row_.dataset.tagdrag; S.drag = null;
+    if (from === to) return;
+    var ids = projectsList().list.map(function (x) { return x.id; });
+    ids.splice(ids.indexOf(to), 0, ids.splice(ids.indexOf(from), 1)[0]);
+    reorderTags(ids);
+  }
 
   async function mount(el) {
     if (S) unmount();
     var tab = "ai";   // 0.428.0: the page always opens on Javis's tasks; each tab still remembers its list
     S = { root: el, tab: tab, view: lsGet("view." + tab, "today"), q: "", sel: null, layer: null, sheet: null, form: null, hidden: {}, showDone: false,
-      hmsgHide: lsGet("hmsgx", "") === isoOf(new Date()), moreWho: lsGet("moreWho", "") === "1", moreProj: lsGet("moreProj", "") === "1", phone: { screen: "home" }, agents: null, ai: null, me: null, my: null };
+      hmsgHide: lsGet("hmsgx", "") === isoOf(new Date()), moreWho: lsGet("moreWho", "") === "1", moreProj: lsGet("moreProj", "") === "1", phone: { screen: "home" }, agents: null, ai: null, me: null, my: null, subOpen: {} };
     var legacy = lsGet("view", "");   // the old Scheduled link sets "rep" for the Javis tab
     if (legacy) { try { localStorage.removeItem(LS + "view"); } catch (e2) { /* ignore */ } if (legacy === "rep") { S.tab = "ai"; S.view = "rep"; } }
     el.classList.add("nv-root");
@@ -1668,6 +1888,9 @@
     el.addEventListener("change", onChange);
     el.addEventListener("submit", onSubmit);
     el.addEventListener("input", onInput);
+    ["dragstart", "dragover", "drop", "dragend"].forEach(function (k) { el.addEventListener(k, onDrag); });
+    el.addEventListener("paste", onPasteFiles);
+    el.addEventListener("drop", onPasteFiles);
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", fitSide);
     document.addEventListener("scroll", fitSide, { passive: true, capture: true });   // the page scrolls inside #cviewBody
