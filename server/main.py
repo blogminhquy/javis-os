@@ -3009,6 +3009,44 @@ def _core_pin(mcfg) -> dict:
     return {"provider": prov, "model": str((mcfg or {}).get("core_model") or "").strip()} if prov else {}
 
 
+def _pin_health(mcfg, prov: str) -> tuple:
+    """(usable, limited_until) of a model pin on `prov`, judged the way `_chat_provider_for_session` routes it: the
+    provider must exist, an API provider needs its key, and a plan out of quota runs the main model for now (0.285.0).
+    Shared by the chat model bar (`/sessions/{id}/meta`) and the Javis Core card (`/javis-core/model`, 0.461.0)."""
+    d = _provider_def(prov)
+    # Same key reading as routing (`_provider_key`): a home Ollama with no key must not read as a broken pin.
+    ok = bool(d) and (d.get("kind") != "api" or bool(_provider_key(mcfg, d)))
+    lim_until = _pin_limited_until(prov) if ok else 0
+    if lim_until and _chat_provider(mcfg)[0] != prov:
+        return False, lim_until
+    return ok, 0
+
+
+async def _set_core_pin(provider: str, model: str) -> dict:
+    """Pin Javis Core as a whole (empty provider = follow the main model). The one writer of `model.core_provider` /
+    `core_model`, used by the model bar of a Core chat and by the Javis Core card on the Agents page (0.461.0)."""
+    prov = (provider or "").strip()
+    mdl = (model or "").strip() if prov else ""
+    await asyncio.to_thread(cfgmod.update_settings, {"model": {"core_provider": prov, "core_model": mdl}})
+    return {"provider": prov, "model": mdl}
+
+
+def _core_model_view(mcfg) -> dict:
+    """What the Javis Core card shows (0.461.0): the pin (or none), whether it can run, the main model it otherwise
+    follows, and the provider/model the next Core turn really runs on (`run_*`, after every fallback)."""
+    pin = _core_pin(mcfg)
+    em = _effective_main({"model": mcfg})
+    run = _chat_provider_for_session(mcfg, {"channel": javis_core.CHANNEL})
+    out = {"pinned": bool(pin), "pinned_provider": pin.get("provider") or None, "pinned_model": pin.get("model") or None,
+           "pin_ok": True, "main_provider": em["provider"], "main_model": em["model"] or "",
+           "run_provider": run[0], "run_model": run[3] or ""}
+    if pin:
+        out["pin_ok"], lim = _pin_health(mcfg, pin["provider"])
+        if lim:
+            out["pin_limited_until"] = lim
+    return out
+
+
 def _tg_ghim(mcfg, chat_key="") -> dict:
     """{'provider','model'} pinned for ONE Telegram chat (0.350.0), or {} when it follows MAIN. Settings not yet moved
     to 0.350.0 still carry the old shared Telegram pin, which then applies to every chat."""
@@ -8122,6 +8160,24 @@ def javis_core_session(brain: str = Form("brain")):
     """This brain's default Javis Core chat, made when missing (deleted or archived ones are not revived)."""
     sid = javis_core.default_session(get_store(), _brain_key(brain), same_brain=_cung_brain)
     return {"id": sid, "channel": javis_core.CHANNEL}
+
+
+@app.get("/javis-core/model")
+def javis_core_model_get():
+    """The Javis Core card's model row (0.461.0): its pin, or the main model it follows, and what really runs."""
+    return _core_model_view(cfgmod.read_settings().get("model", {}))
+
+
+@app.post("/javis-core/model")
+async def javis_core_model_set(provider: str = Form(""), model: str = Form("")):
+    """Pin Javis Core to a model from the Agents page (empty provider = follow the main model). Same pin as the model
+    bar of a Core chat, so the two places can never disagree."""
+    prov = (provider or "").strip()
+    if prov and not _provider_def(prov):
+        return JSONResponse({"ok": False, "error": localefmt.chu(f"provider không tồn tại: {prov}",
+                                                                 f"provider does not exist: {prov}")}, status_code=400)
+    await _set_core_pin(prov, model)
+    return {"ok": True, **_core_model_view(cfgmod.read_settings().get("model", {}))}
 
 
 def _brain_ui_value(brain_key: str) -> str:
@@ -20366,17 +20422,11 @@ async def sessions_meta(session_id: str):
         sess["pinned_provider"], sess["pinned_model"] = _cp.get("provider") or None, _cp.get("model") or None
     pp = (sess.get("pinned_provider") or "").strip()
     if pp:
-        d = _provider_def(pp)
-        mcfg = cfgmod.read_settings().get("model", {})
         # Cùng cách giải nghĩa khoá với đường định tuyến (`_provider_key`), nếu không thì
         # thanh model và server nói hai chuyện khác nhau: Ollama máy nhà chạy ngon mà nhãn
         # vẫn kêu "ghim hỏng", đúng thứ trong ảnh chủ repo gửi 02/09.
-        key = _provider_key(mcfg, d) if d else ""
-        sess["pin_ok"] = bool(d) and (d.get("kind") != "api" or bool(key))
-        # 0.285.0: out of quota, the chat runs on the main model for now (see `_chat_provider_for_session`).
-        lim_until = _pin_limited_until(pp)
-        if sess["pin_ok"] and lim_until and _chat_provider(mcfg)[0] != pp:
-            sess["pin_ok"] = False
+        sess["pin_ok"], lim_until = _pin_health(cfgmod.read_settings().get("model", {}), pp)
+        if lim_until:
             sess["pin_limited_until"] = lim_until
     # 0.193.0: an assistant's chat tells the model bar whose reasoning level it shows and changes.
     _p = workflow_chat.persona_cua_phien(sess)
@@ -20441,11 +20491,10 @@ async def sessions_set_model(session_id: str, provider: str = Form(""),
                                                     f"provider does not exist: {prov}")}, status_code=400)
     _row = get_store().get_session(session_id)
     if _row and javis_core.is_core_channel(_row.get("channel")):
-        _mdl = (model or "").strip() if prov else ""
-        await asyncio.to_thread(cfgmod.update_settings, {"model": {"core_provider": prov, "core_model": _mdl}})
+        _cp = await _set_core_pin(prov, model)
         if (_row.get("pinned_provider") or "").strip():
             get_store().set_pinned_model(session_id, "", "")   # an older stamp of this chat must not show as a pin
-        return {"ok": True, "pinned_provider": prov or None, "pinned_model": _mdl or None, "scope": "core"}
+        return {"ok": True, "pinned_provider": _cp["provider"] or None, "pinned_model": _cp["model"] or None, "scope": "core"}
     ok = get_store().set_pinned_model(session_id, prov, model,
                                       brain=_brain_key(brain) if (brain or "").strip() else None)
     if not ok:

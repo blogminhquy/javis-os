@@ -1801,11 +1801,13 @@
     traCayThuMuc();
     if (!item) { host.innerHTML = ""; veLichSu(null); chonTabPhai(tabTheoLoai()); return; }
     if (S.loai === "agent" && item.system) {
-      // Javis Core (0.185.0): no editor, no Delete, no Auto. The definition ships with the app; the model is chosen in
-      // the chat box like any chat.
+      // Javis Core (0.185.0): no editor, no Delete, no Auto. The definition ships with the app.
+      // 0.461.0 (owner, 04/11/2026): the card names the model Core runs on and can pin it (core-model.js), the same pin
+      // as the model bar of a Core chat.
       host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<h3>' + esc(item.name) + infoBtn() +
         '</h3><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div><p>' + esc(item.role || "") + '</p>' +
-        infoBody(esc(t("ws.core_note"))) + '</div>';
+        infoBody(esc(t("ws.core_note"))) + '<div id="wsCoreModel"></div></div>';
+      if (window.JavisCoreModel) window.JavisCoreModel.mount(host.querySelector("#wsCoreModel"));
       // 0.190.0 (owner, 16/10/2026): no memory list here any more. Javis already learns from the brain; seeing, editing
       // or forgetting a memory is a chat message ("quên chuyện đó đi"), done with the javis_memory tool.
     } else if (S.loai === "agent") {

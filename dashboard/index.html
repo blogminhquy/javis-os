@@ -1093,7 +1093,7 @@
   <!-- Models page usage order (0.351.0): drag, swap, popover placement. console.js calls window.JavisModelsOrder. -->
   <script src="/static/models-order.js?v=1"></script>
   <script src="/static/plan-limit.js?v=2"></script>
-  <script src="/static/model-picker.js?v=18"></script>
+  <script src="/static/model-picker.js?v=19"></script>
   <script src="/static/composer-plus.js?v=3"></script>
   <script src="/static/composer-folder.js?v=4"></script>
   <script src="/static/github-connect.js?v=3"></script>
@@ -1118,7 +1118,9 @@
   <script src="/static/pulse-seen.js?v=1"></script>
   <!-- Tag filter bar and tag picker shared by Cộng sự and Team (0.195.0): load BEFORE workspace.js and teams.js. -->
   <script src="/static/tag-picker.js?v=1"></script>
-  <script src="/static/workspace.js?v=34"></script>
+  <!-- Model row of the Javis Core card (0.461.0): uses window.JavisModelList, workspace.js calls window.JavisCoreModel. -->
+  <script src="/static/core-model.js?v=1"></script>
+  <script src="/static/workspace.js?v=35"></script>
   <!-- Hộp chọn thành viên kiểu Zalo (0.142.0): nạp TRƯỚC teams.js, teams.js gọi window.JavisTeamPicker. -->
   <script src="/static/team-picker.js?v=1"></script>
   <!-- Bộ phán xử nói / chờ / im của từng trợ lý (T3 phần J 0.156.0): lịch sử quyết định và nút sửa. Nạp TRƯỚC teams.js

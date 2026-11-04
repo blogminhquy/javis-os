@@ -91,6 +91,14 @@
     try { await fetch(`/sessions/${encodeURIComponent(sid)}/model`, { method: "POST", body: fd }); } catch (e) {}
   }
 
+  // 0.461.0: a Javis Core chat's pin is Javis Core's pin, also shown and set on the Core card of the Agents page
+  // (core-model.js). Each side tells the other through one event, so the chip and the card never disagree.
+  const CORE_EVENT = "javis:core-model";
+  function coreChanged() {
+    if (!(agentEff && agentEff.slug === "javis-core")) return;
+    try { window.dispatchEvent(new CustomEvent(CORE_EVENT, { detail: { from: "chat" } })); } catch (e) {}
+  }
+
   async function loadState() {
     try {
       const s = await (await fetch("/settings")).json();
@@ -326,6 +334,7 @@
       pinBroken = false;   // ghim mới đè ghim hỏng cũ
       pinSid = sid;
       await pinToSession(sid, prov, model);
+      coreChanged();
     } else {
       // Chat trống chưa mint id: nhớ lựa chọn, app.js gọi claimPending(sid) lúc gửi
       // tin đầu để phiên mới sinh ra đã mang đúng ghim.
@@ -376,6 +385,7 @@
     if (e.target.closest(".mb-follow")) {
       const sid = curSid();
       if (sid) await pinToSession(sid, "", "");
+      coreChanged();
       sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null;
       await loadState(); renderBar(); close();
       return;
@@ -446,6 +456,11 @@
 
   // Đổi phiên (mở phiên cũ, chat mới, xoá phiên) → hỏi lại ghim của phiên rồi vẽ lại.
   window.addEventListener("javis:sessions-changed", async () => { await loadSessionPin(); renderBar(); });
+  // The Core card pinned or unpinned Javis Core: an open Core chat redraws its chip.
+  window.addEventListener(CORE_EVENT, async (e) => {
+    if ((e.detail || {}).from === "chat" || !(agentEff && agentEff.slug === "javis-core")) return;
+    await loadSessionPin(); renderBar();
+  });
 
   // Từ điển về (fetch bất đồng bộ, thường SAU khi chip model đã vẽ) hoặc người dùng đổi
   // ngôn ngữ giao diện: vẽ lại chip, và vẽ lại cả bảng chọn nếu nó đang mở.
