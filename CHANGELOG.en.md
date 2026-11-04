@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.465.2] - 2026-11-04
+### Improved
+- **Tapping a chat responds at once.** The Chatbot inbox no longer stalls when you switch between long chats. A chat you opened before shows again instantly and only fetches what is new; a chat opened for the first time shows a loading line the moment you tap.
+- Opening a chat now takes one request to the server instead of two, and the list on the left redraws only the rows that changed. On a slow device, the time from a tap to the chat responding drops from about half a second to under 0.05 seconds.
+- It still loads only the 40 latest messages, and scrolling up loads older ones as before.
+
 ## [0.465.1] - 2026-11-04
 ### Fixed
 - **Scheduled jobs made in a partner chat report back to that chat.** A reminder or recurring job set up in a chat with an assistant did not know where it came from, so its results and its errors all landed in Javis Core. Javis now attaches the chat that asked.
