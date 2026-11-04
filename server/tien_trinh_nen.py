@@ -336,7 +336,8 @@ def _marked(mark: str) -> List[dict]:
         return out
     try:
         r = subprocess.run(["ps", "-A", "-E", "-ww", "-o", "pid=,ppid=,pgid=,stat=,command="],
-                           capture_output=True, text=True, timeout=5)
+                           capture_output=True, text=True, timeout=5,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         for line in r.stdout.splitlines():
             parts = line.split(None, 4)
             if len(parts) < 5 or needle not in parts[4].split():
