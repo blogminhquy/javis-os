@@ -183,6 +183,8 @@ class MemoryTests(unittest.TestCase):
             self.assertFalse(found.fallback_required)
             found = index.retrieve(root / 'brain', 'remember unrelatedquux missingtopic', strict_relevance=True)
             self.assertTrue(found.fallback_required)
+            found = index.retrieve(root / 'brain', 'Tôi đã chốt unrelatedquux missingtopic?', strict_relevance=True)
+            self.assertTrue(found.fallback_required)
             found = index.retrieve(root / 'brain', 'Codex token input prompt', strict_relevance=True)
             self.assertTrue(found.records)
             self.assertTrue(all('codex' in x['normalized'] for x in found.records))

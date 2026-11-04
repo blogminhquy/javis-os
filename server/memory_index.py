@@ -31,7 +31,8 @@ _CODE_RE = re.compile(r"`([^`]{2,80})`")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _MEMORY_HINT_RE = re.compile(
     r"\b(nhớ|memory|trước đây|lần trước|đã nói|hôm trước|của anh|của tôi|"
-    r"remember|previously|last time|my preference|we decided)\b", re.IGNORECASE,
+    r"đã chốt|quyết định|đã thống nhất|đã chọn|chốt gì|"
+    r"remember|previously|last time|my preference|we decided|what did we|what did I)\b", re.IGNORECASE,
 )
 
 
