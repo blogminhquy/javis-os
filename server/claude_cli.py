@@ -1669,6 +1669,15 @@ def _codex_home() -> Path:
 # tài khoản không có hồ sơ là Codex mù home, không thấy auth.json, trong khi Javis (đọc
 # USERPROFILE/HOME qua `_home_dir`) vẫn thấy đăng nhập ChatGPT đầy đủ. Đặt CODEX_HOME thì Codex
 # bỏ qua hẳn bước hỏi Windows, và cả hai bên nhìn cùng một thư mục.
+def _mark_env(env, tag):
+    """`env` plus the background-work mark of turn `tag` (tien_trinh_nen.mark_env). Never fails a turn."""
+    try:
+        import tien_trinh_nen
+        return tien_trinh_nen.mark_env(env, tag)
+    except Exception:  # noqa: BLE001
+        return env
+
+
 def codex_env(codex_home: Optional[str] = None) -> dict:
     """Biến môi trường cho MỌI tiến trình Codex mà Javis bật.
 
@@ -1976,7 +1985,7 @@ class CodexCLI:
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
                     creationflags=creationflags, start_new_session=(os.name != "nt"),
-                    env=codex_env(getattr(self, "codex_home", None)),
+                    env=_mark_env(codex_env(getattr(self, "codex_home", None)), self.tag),
                 )
                 with _PROC_LOCK:
                     _ACTIVE_PROCS[proc] = self.tag

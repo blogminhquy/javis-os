@@ -68,7 +68,15 @@ self.addEventListener("push", (event) => {
     data: { url: d.url || "/" },
     renotify: true,
   };
-  event.waitUntil(self.registration.showNotification(title, opts));
+  event.waitUntil((async () => {
+    // quiet_if_visible: the server sends it for something the owner may be watching already (a long chat turn that
+    // just ended). A device where Javis is open and in front of them needs no notification: the answer is on screen.
+    if (d.quiet_if_visible) {
+      const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      if (list.some((c) => c.visibilityState === "visible" && c.focused)) return;
+    }
+    await self.registration.showNotification(title, opts);
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {

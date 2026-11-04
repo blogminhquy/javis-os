@@ -157,6 +157,7 @@ import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import tien_trinh_nen     # lệnh chạy ngầm engine bỏ lại: nhận theo dõi, xong tự báo + làm tiếp
+import turn_done_notice   # a long chat turn that finishes rings the bell (the owner has left the screen)
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
 import agent_avatar
@@ -12473,7 +12474,8 @@ def huy_viec_nen_giong(conv_sid: str) -> int:
 
 
 async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
-                          quiet=False, brain="", dedup="", routing="", level="", group="", decision=None, viec=None):
+                          quiet=False, brain="", dedup="", routing="", level="", group="", decision=None, viec=None,
+                          push_if_away=False):
     """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
 
     Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
@@ -12548,7 +12550,8 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         # không được phép giữ chân cái đã xong. Hòm thư đã ghi rồi - push chỉ là chuông cửa.
         # Giữ tham chiếu tới task, không thì bộ dọn rác có thể nuốt nó giữa chừng.
         t = asyncio.create_task(
-            webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc()))
+            webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc(),
+                            **({"quiet_if_visible": True} if push_if_away else {})))
         _PUSH_TASKS.add(t)
         t.add_done_callback(_PUSH_TASKS.discard)
     except Exception as e:
@@ -13606,7 +13609,7 @@ async def _khi_tien_trinh_xong(v: dict) -> None:
         print(f"[tien trinh nen] báo lỗi: {type(e).__name__}: {e}", file=sys.stderr)
     if not se_tiep:
         return
-    nhac = [f"[Việc chạy nền đã xong] {mo_ta} (chạy {tl})."]
+    nhac = [f"{turn_done_notice.FOLLOWUP_HEAD} {mo_ta} (chạy {tl})."]
     if files:
         nhac.append("File mới: " + ", ".join(v.get("file_moi") or []))
     nhac.append("Làm tiếp: " + (loi_dan or "hoàn tất phần việc đã hẹn với người dùng ở lượt trước, "
@@ -13631,6 +13634,23 @@ async def _khoi_dong_tien_trinh_nen():
         tien_trinh_nen.khoi_dong()
     except Exception as e:
         print(f"[tien trinh nen] khởi động lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+async def _bao_luot_dai_xong(conv_sid: str, brain, turn_tag: str, user_message: str, final_text,
+                             elapsed: float) -> bool:
+    """A dashboard chat turn that ran long (or a background job's follow-up) just ended: leave its answer in the bell,
+    which rings the phone. The answer is already in the chat; this only tells the owner it is there
+    (turn_done_notice.py). True when a notice was filed."""
+    text = str(final_text or "")
+    if not turn_done_notice.should_notify(elapsed, user_message, text):
+        return False
+    body = turn_done_notice.notice_text(channel_context.strip_control_blocks(text))
+    if not body:
+        return False
+    item = await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{conv_sid}", body, kind="answer",
+                                 label=turn_done_notice.label(elapsed, user_message), source="job",
+                                 brain=_brain_key(brain), dedup=f"turn:{turn_tag}", push_if_away=True)
+    return bool(item)
 
 
 async def _canh_bao_hua_suong(brain: str, chat_id: str, final_text: str,
@@ -18834,6 +18854,13 @@ async def _chat_socket(ws):
                         _route=_nxt["route"], _tried=_nxt["tried"], _hops_left=3 - _hop,
                     )
                 _resonance_after_turn(conv_sid, brain, user_mid, _t0_luot, runtime_trace)
+                # A long turn (a render the engine waited for, a background job's follow-up) rings the bell when done.
+                try:
+                    await _bao_luot_dai_xong(conv_sid, brain, turn_tag, user_message,
+                                             final_text if isinstance(final_text, str) else "",
+                                             time.time() - _t0_luot)
+                except Exception as _e:  # noqa: BLE001 - a missed bell never fails the turn
+                    print(f"[long turn notice] {type(_e).__name__}: {_e}", file=sys.stderr)
                 # Phiên TRỢ LÝ mở từ một lệnh "/" gõ ở khung Trò chuyện: câu trả lời quay về
                 # đúng khung đó, kèm link mở lại cuộc hội thoại (cùng luật với quy trình).
                 if goc_chat:
@@ -23953,6 +23980,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             """Một lần gọi `claude`. Trả True nếu mạch cũ không còn (resume trượt)."""
             nonlocal out, _streamed, _pinged
             resume_failed = False
+            # A command Claude Code leaves running in a Telegram turn is adopted and reported back (tien_trinh_nen).
+            claude_warm.mark_background(cli, getattr(cli, "tag", ""))
             async for ev in cli.query(prompt):
                 et = ev["type"]
                 if et == "final":

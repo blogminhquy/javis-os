@@ -418,13 +418,16 @@ def _turn_key(cli, lane) -> Optional[str]:
         return None
 
 
-def _spawn(args: List[str], cwd: str, acct_home):
+def _spawn(args: List[str], cwd: str, acct_home, tag: str = ""):
     import claude_cli as cc
+    env = cc.codex_env(acct_home)
+    if tag:
+        env = cc._mark_env(env, tag)    # what its commands leave running is adopted (tien_trinh_nen.ENV_MARK)
     return subprocess.Popen(
         args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, text=True,
         encoding="utf-8", errors="replace", bufsize=1,
         creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0),
-        start_new_session=(os.name != "nt"), env=cc.codex_env(acct_home))
+        start_new_session=(os.name != "nt"), env=env)
 
 
 async def run(cli, prompt: str) -> AsyncIterator[dict]:
@@ -438,6 +441,12 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
     sid = steer_inbox.current_sid()
     _acct_home = getattr(cli, "codex_home", None)
     warm_key = str(getattr(cli, "warm_key", "") or "")
+    try:
+        # A warm app-server keeps the mark of its conversation from its start: this turn still has to look for it.
+        import tien_trinh_nen
+        tien_trinh_nen.note_mark(cli.tag, tien_trinh_nen.mark_for(cli.tag))
+    except Exception:  # noqa: BLE001
+        pass
     if cli.session_id and cli.instructions and not carries_instructions(cli.session_id):
         prompt = cli.instructions.strip() + "\n\n" + prompt   # a thread from before 0.382.0: as before
     lane = None
@@ -496,7 +505,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         if lane is not None:
             lane.attach()
         try:
-            proc = _spawn(args, cli.cwd, _acct_home)
+            proc = _spawn(args, cli.cwd, _acct_home, cli.tag)
         except Exception as e:
             if lane is not None:
                 lane.close()
@@ -744,13 +753,14 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
 def _recipe(cli, args: List[str], acct_home, thread_id: str):
     """How to reopen this process for a prewarm: same argv, same thread, resumed. The instructions live on the thread."""
     cwd, params = cli.cwd, {**_thread_params(cli), "threadId": thread_id, "excludeTurns": True}
+    tag = str(getattr(cli, "tag", "") or "")
     lane_arg = next((a for a in args if a.startswith("mcp_servers.javis.http_headers.")), None)
 
     async def _open() -> CodexHandle:
         import turn_context
         lane = turn_lane.Lane() if lane_arg else None
         argv = [(f'{turn_context.CODEX_HEADER_KEY}="{lane.key}"' if (lane and a == lane_arg) else a) for a in args]
-        proc = _spawn(argv, cwd, acct_home)
+        proc = _spawn(argv, cwd, acct_home, tag)
         rpc = _Rpc(proc, asyncio.get_running_loop())
         rpc.keep_reading = True
         try:

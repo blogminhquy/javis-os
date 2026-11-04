@@ -104,6 +104,30 @@ check("không có gì chạy ngầm thì không báo gì", cau == "")
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("Telegram nhận theo dõi với tu_lam_tiep=False", "tu_lam_tiep=False" in src)
 
+# 8. A long chat turn (or a background job's follow-up) rings the bell when it ends (owner report 2026-11-04)
+hom = []
+
+
+async def gia_hom(owner, text, **kw):
+    hom.append((owner, text, kw))
+    return {"id": "i1"}
+
+main._bo_vao_hom_thu = gia_hom
+os.environ.pop("JAVIS_LONG_TURN_NOTIFY_S", None)
+asyncio.run(main._bao_luot_dai_xong("s1", "brain", "chat:s1:1", "hi", "Hello", 12))
+check("a short turn does not ring the bell", hom == [])
+asyncio.run(main._bao_luot_dai_xong("s1", "brain", "chat:s1:2", "make the video",
+                                    "**Video is ready**\n[video.mp4](exports/video.mp4)", 640))
+check("a long turn leaves its answer in the bell of its own chat", bool(hom) and hom[-1][0] == "web:s1")
+kw = hom[-1][2] if hom else {}
+check("the notice pushes only where Javis is not on screen, once per turn",
+      kw.get("push_if_away") is True and kw.get("dedup") == "turn:chat:s1:2")
+check("the notice says how long it took", "10" in str(kw.get("label") or ""), kw.get("label"))
+hom.clear()
+asyncio.run(main._bao_luot_dai_xong("s1", "brain", "chat:s1:3", main.turn_done_notice.FOLLOWUP_HEAD + " ffmpeg",
+                                    "Added the audio, here it is", 20))
+check("a background job's follow-up rings however short", len(hom) == 1)
+
 if fails:
     raise SystemExit(f"\nFAIL - test_tien_trinh_nen_main: {len(fails)} lỗi")
 print("\nOK - test_tien_trinh_nen_main: tất cả pass")

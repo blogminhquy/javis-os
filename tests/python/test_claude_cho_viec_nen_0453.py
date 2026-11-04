@@ -71,6 +71,10 @@ class Client:
     async def disconnect(self):
         self.closed = True
 
+    async def receive_messages(self):
+        while True:
+            yield await self.q.get()
+
     async def receive_response(self):
         while True:
             m = await self.q.get()
@@ -161,7 +165,17 @@ async def main():
     c = Client(endless)
     evs = await run_case(c, env={"JAVIS_CLAUDE_BG_WAIT": "0.3"})
     check("past JAVIS_CLAUDE_BG_WAIT the turn ends and says why",
-          len(finals(evs)) == 1 and "JAVIS_CLAUDE_BG_WAIT" in streamed(evs) and c.closed, streamed(evs))
+          len(finals(evs)) == 1 and "JAVIS_CLAUDE_BG_WAIT" in streamed(evs), streamed(evs))
+    # 2026-11-04: closing the process would kill the task still running (the render the owner waits for). It is kept
+    # alive until the task finishes, then closed (claude_warm._linger).
+    await asyncio.sleep(0.1)
+    check("past the cap the process is kept alive for its running task", not c.closed)
+    await c.q.put(task("bg1", "completed"))
+    for _ in range(100):
+        if c.closed:
+            break
+        await asyncio.sleep(0.02)
+    check("the kept process closes once its task finishes", c.closed)
 
     # 5. JAVIS_CLAUDE_BG_WAIT=0 brings back the old behaviour.
     c = Client(endless)
