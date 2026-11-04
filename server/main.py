@@ -7643,6 +7643,58 @@ async def brain_set_order(order: str = Form("[]")):
     return {"ok": True, "order": ten}
 
 
+def _order_list(order: str):
+    """A JSON list from a form field, or None when it is not one."""
+    try:
+        raw = json.loads(order or "[]")
+    except json.JSONDecodeError:
+        return None
+    return raw if isinstance(raw, list) else None
+
+
+def _bad_order():
+    return JSONResponse({"ok": False, "error": localefmt.chu("Thứ tự không hợp lệ", "Invalid order")}, status_code=400)
+
+
+@app.get("/ui/order")
+async def ui_order_get():
+    """0.454.0: the owner's order of the tag lists (ui_order.py), one list of tag keys per page."""
+    import ui_order
+    return {"ok": True, "orders": ui_order.read(cfgmod.read_settings() or {})}
+
+
+@app.post("/ui/order")
+async def ui_order_set(scope: str = Form(...), order: str = Form("[]")):
+    """0.454.0: save the order of one tag list (`scope` tags_agents or tags_teams), first on top."""
+    import ui_order
+    raw = _order_list(order)
+    if raw is None or scope not in ui_order.SCOPES:
+        return _bad_order()
+    val = ui_order.updated(cfgmod.read_settings() or {}, scope, raw)
+    await asyncio.to_thread(cfgmod.update_settings, {ui_order.SETTINGS_KEY: val})
+    return {"ok": True, "order": val[scope]}
+
+
+@app.post("/projects/order")
+async def projects_set_order(brain: str = Form(...), order: str = Form("[]")):
+    """0.454.0: the owner's order of the projects of one brain (JSON list of project ids, first on top)."""
+    raw = _order_list(order)
+    if raw is None:
+        return _bad_order()
+    n = await asyncio.to_thread(get_store().set_project_order, brain, [str(x) for x in raw][:500])
+    return {"ok": True, "ordered": n}
+
+
+@app.post("/sessions/pin-order")
+async def sessions_set_pin_order(order: str = Form("[]")):
+    """0.454.0: the owner's order of the pinned chats (JSON list of session ids, first on top)."""
+    raw = _order_list(order)
+    if raw is None:
+        return _bad_order()
+    n = await asyncio.to_thread(get_store().set_pin_order, [str(x) for x in raw][:500])
+    return {"ok": True, "ordered": n}
+
+
 @app.post("/brains/new")
 async def new_brain(name: str = Form(...)):
     """Tạo brain mới = folder con trong BRAINS_DIR + seed cấu trúc chuẩn."""

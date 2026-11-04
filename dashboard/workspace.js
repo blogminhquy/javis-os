@@ -193,9 +193,14 @@
         m.get(p.key).n++;
       });
     });
-    var ra = Array.from(m.values());
-    ra.sort(function (a, b) { return a.ten.localeCompare(b.ten, "vi"); });
+    var ra = thuTuTag(Array.from(m.values()));
     return { tags: ra, khong: khong };
+  }
+  // 0.454.0: the owner's own tag order (reorder-dialog.js, saved for this page), else by name.
+  function thuTuTag(ds) {
+    var R = typeof window !== "undefined" && window.JavisReorder;
+    return R ? R.sortTags(ds, "tags_agents", function (g) { return g.key; }, function (g) { return g.ten; })
+      : ds.sort(function (a, b) { return a.ten.localeCompare(b.ten, "vi"); });
   }
 
   // `laTag`: lọc theo TAG của agent (nhom = khoá hay tên tag, TAG_NONE = chưa gắn tag). Không truyền: lọc theo nhóm.
@@ -900,6 +905,15 @@
                   run: function () { chonNhom(g.key); },
                   acts: [{ icon: "ellipsis-vertical", title: t("ws.tag_acts"), run: function () { moChucNangTag(neo, g); } }] });
     });
+    // 0.454.0: drag the tags into the owner's own order.
+    if (dem.tags.length > 1 && window.JavisReorder) {
+      rows.push({ sep: true });
+      rows.push({ label: t("reorder.menu_tags"), icon: "arrow-up-down", run: function () {
+        var R = window.JavisReorder;
+        R.open({ title: t("reorder.title_tags"), items: dem.tags.map(function (g) { return { id: g.key, label: g.ten, icon: "tag" }; }),
+          save: function (keys) { return R.saveTags("tags_agents", keys); } });
+      } });
+    }
     cs.menu(neo, rows);
   }
   // `g` = {ten, key}: gửi server TÊN (server tự so theo khoá), giữ trạng thái trang theo KHOÁ.
@@ -1380,7 +1394,7 @@
     var tatCa = demTag(ds).tags.map(function (g) { return { ten: g.ten, key: g.key }; });
     var daCo = new Set(tatCa.map(function (g) { return g.key; }));
     cua.forEach(function (p) { if (!daCo.has(p.key)) { daCo.add(p.key); tatCa.push({ ten: p.ten, key: p.key }); } });
-    tatCa.sort(function (a, b) { return a.ten.localeCompare(b.ten, "vi"); });
+    tatCa = thuTuTag(tatCa);
     return tatCa.map(function (g) { return { ten: g.ten, key: g.key, on: coKhoa.has(g.key) }; });
   }
   function veMenuTag(item, m, focusKhoa) {
@@ -2078,6 +2092,8 @@
   });
   // T0 nhóm chat team: trạng thái Cộng hưởng vừa đổi (tab này, tab khác qua gói WS resonance_agents, hay trang Cài
   // đặt): đọc lại trạng thái THẬT của host rồi vẽ lại danh sách. Không giữ trạng thái người dùng vừa bấm.
+  // 0.454.0: the tag order changed: the list and its tag bar follow.
+  window.addEventListener("javis:order-changed", function () { if (active && ready) veDanhSach(); });
   window.addEventListener("javis:resonance-agents-changed", function () {
     if (!active) return;
     loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { veDanhSach(); veAuto(dangChon()); } });

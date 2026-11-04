@@ -97,6 +97,22 @@ CREATE TABLE IF NOT EXISTS message_pins (
 """
 
 
+# 0.454.0: the owner's own order of pinned chats and of projects (drag to reorder, dashboard/reorder-dialog.js). Kept in
+# tables of their own on purpose: the `sessions` and `projects` columns are an exact list the qualified native trial
+# context reads (improvement_trial_sql_context._SESSION_COLUMNS, _PROJECT_COLUMNS), so a new column there would stop it.
+# A chat or project without a row has no place yet: it comes after the ordered ones.
+_ORDER_SQL = """
+CREATE TABLE IF NOT EXISTS pin_order (
+    session_id TEXT PRIMARY KEY,
+    pos        INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS project_order (
+    project_id TEXT PRIMARY KEY,
+    pos        INTEGER NOT NULL
+);
+"""
+
+
 def content_sha(text: Any) -> str:
     """Hash nội dung ĐÃ LƯU của một tin (đã bóc khối điều khiển trước khi lưu), dùng chung cho chat riêng và nhóm."""
     raw = text if isinstance(text, str) else ("" if text is None else json.dumps(text, ensure_ascii=False))
@@ -563,6 +579,7 @@ class SessionStore:
                         f"ALTER TABLE projects ADD COLUMN {name} {ddl}")
             self._conn.executescript(_DM_REACTION_SQL)
             self._conn.executescript(_MSG_PIN_SQL)
+            self._conn.executescript(_ORDER_SQL)
             if self._probe_fts5():
                 try:
                     self._conn.executescript(_FTS_SQL)
@@ -1321,10 +1338,16 @@ class SessionStore:
                     WHERE session_id = s.id AND role = 'user'
                     ORDER BY ts, id LIMIT 1) AS preview
             FROM sessions s
+            LEFT JOIN pin_order po ON po.session_id = s.id
             {where_sql}
             -- rowid breaks a tie on updated_at (two writes in one time.time() tick): the
             -- row created later counts as newer, never left to SQLite's scan order.
-            ORDER BY s.pinned DESC, s.updated_at DESC, s.rowid DESC
+            -- 0.454.0: pinned chats keep the order the owner dragged them into (table pin_order),
+            -- unordered pinned ones after them; chats that are not pinned stay newest first.
+            ORDER BY s.pinned DESC,
+                     CASE WHEN s.pinned = 1 THEN (po.pos IS NULL) ELSE 0 END,
+                     CASE WHEN s.pinned = 1 THEN po.pos ELSE 0 END,
+                     s.updated_at DESC, s.rowid DESC
             LIMIT ?
             """,
             tuple(params),
@@ -1383,11 +1406,28 @@ class SessionStore:
 
     def set_pinned(self, session_id: str, pinned: bool = True) -> None:
         """Ghim hay bỏ ghim. KHÔNG đụng updated_at: ghim không phải là 'vừa nói chuyện',
-        đẩy mốc lên là xáo trộn thứ tự của mọi cuộc còn lại một cách vô cớ."""
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET pinned = ? WHERE id = ?",
-            (1 if pinned else 0, session_id),
-        ))
+        đẩy mốc lên là xáo trộn thứ tự của mọi cuộc còn lại một cách vô cớ.
+        0.454.0: unpinning drops the chat's place in the pinned order; pinning again puts it after the ordered ones."""
+        def go(c):
+            c.execute("UPDATE sessions SET pinned = ? WHERE id = ?", (1 if pinned else 0, session_id))
+            c.execute("DELETE FROM pin_order WHERE session_id = ?", (session_id,))
+        self._write(go)
+
+    def set_pin_order(self, ids: List[str]) -> int:
+        """The owner's order of the pinned chats (0.454.0), first to last. Only pinned chats take a place. Never touches
+        `updated_at`. Returns rows ordered."""
+        ids = list(dict.fromkeys(str(i) for i in (ids or []) if str(i or "").strip()))
+
+        def go(c):
+            # Only the listed chats move: the dialog shows the pinned chats of ONE brain, and the pinned chats of
+            # another brain keep their own order.
+            n = 0
+            for i, sid in enumerate(ids):
+                if c.execute("SELECT 1 FROM sessions WHERE id = ? AND pinned = 1", (sid,)).fetchone():
+                    c.execute("INSERT OR REPLACE INTO pin_order(session_id, pos) VALUES (?, ?)", (sid, i))
+                    n += 1
+            return n
+        return int(self._write(go) or 0)
 
     def set_project(self, session_id: str, project_id: Optional[str], *,
                     brain: Optional[str] = None) -> bool:
@@ -1456,12 +1496,30 @@ class SessionStore:
                    (CASE WHEN COALESCE(TRIM(p.instructions), '') <> '' THEN 1 ELSE 0 END)
                        AS has_instructions
             FROM projects p
+            LEFT JOIN project_order po ON po.project_id = p.id
             {where_sql}
-            ORDER BY p.pinned DESC, p.updated_at DESC, p.rowid DESC
+            -- 0.454.0: the owner's own order wins (table project_order); projects never ordered come after,
+            -- pinned first, then the most recent.
+            ORDER BY (po.pos IS NULL), po.pos, p.pinned DESC, p.updated_at DESC, p.rowid DESC
             """,
             params,
         )
         return [dict(r) for r in rows]
+
+    def set_project_order(self, brain: str, ids: List[str]) -> int:
+        """The owner's order of the projects of `brain` (0.454.0). `ids` first to last; a project of the brain left out
+        of the list keeps no order (it goes after the ordered ones). Never touches `updated_at`. Returns rows ordered."""
+        ids = [str(i) for i in (ids or []) if str(i or "").strip()]
+
+        def go(c):
+            c.execute("DELETE FROM project_order WHERE project_id IN (SELECT id FROM projects WHERE brain = ?)", (brain,))
+            n = 0
+            for i, pid in enumerate(dict.fromkeys(ids)):
+                if c.execute("SELECT 1 FROM projects WHERE id = ? AND brain = ?", (pid, brain)).fetchone():
+                    c.execute("INSERT OR REPLACE INTO project_order(project_id, pos) VALUES (?, ?)", (pid, i))
+                    n += 1
+            return n
+        return int(self._write(go) or 0)
 
     def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
         rows = self._read("SELECT * FROM projects WHERE id = ?", (project_id,))
@@ -1541,6 +1599,7 @@ class SessionStore:
             # CÙNG transaction, chứ không phải một lượt dọn riêng có thể không bao giờ chạy.
             conn.execute("DELETE FROM project_files WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM project_links WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM project_order WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
             return n
         return self._write(_do)
@@ -1711,7 +1770,10 @@ class SessionStore:
 
     def delete(self, session_id: str) -> None:
         # ON DELETE CASCADE xoá messages; trigger dọn messages_fts.
-        self._write(lambda c: c.execute("DELETE FROM sessions WHERE id = ?", (session_id,)))
+        def _del(c):
+            c.execute("DELETE FROM pin_order WHERE session_id = ?", (session_id,))   # 0.454.0
+            c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        self._write(_del)
 
     def archive(self, session_id: str, archived: bool = True) -> None:
         self._write(lambda c: c.execute(

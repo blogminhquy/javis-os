@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.454.0] - 2026-11-04
+### Added
+- **Drag to reorder projects, pinned chats and tags.** The same Reorder box as the brain picker: drag the handle or use the up and down arrows, then Done. The order is saved on the server, so phone and computer show the same order.
+- **Projects:** open the Project menu and pick **Reorder projects**. Your order comes first; projects never ordered still keep pinned ones on top.
+- **Pinned chats:** tap the arrows button at the top of the **Pinned** group. Chats that are not pinned stay newest first; pin a chat and drag it to give it a fixed place.
+- **Tags:** the tag filter menu of the Partners page and of the Teams page ends with **Reorder tags**, each page keeping its own order.
+
 ## [0.453.0] - 2026-11-04
 ### Fixed
 - **Claude Code waits for its background work to finish, then carries on.** A turn where Claude Code started a background command or a sub-agent used to end at its first answer, and the result never came back (reported from Windows Server in #898). Now the turn stays open until the work is done, and Claude Code reads the result and answers on in the same chat. It waits up to 30 minutes; change it with `JAVIS_CLAUDE_BG_WAIT`.

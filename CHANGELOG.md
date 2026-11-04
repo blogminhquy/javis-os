@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.454.0] - 2026-11-04
+### Thêm mới
+- **Kéo thả sắp xếp project, đoạn chat đã ghim và tag.** Cùng một hộp Sắp xếp như bảng chọn Brain: kéo tay cầm hoặc bấm mũi tên lên xuống, bấm Xong. Thứ tự lưu trên máy chủ nên điện thoại và máy tính thấy giống nhau.
+- **Project:** mở menu Project, chọn **Sắp xếp project**. Thứ tự anh kéo đứng trước; project chưa từng sắp vẫn để mục ghim lên đầu như cũ.
+- **Đoạn chat đã ghim:** bấm nút mũi tên ở đầu nhóm **Đã ghim**. Chat chưa ghim vẫn tự xếp theo thời gian; muốn giữ chỗ cố định cho một cuộc thì ghim rồi kéo.
+- **Tag:** cuối menu lọc tag ở trang Cộng sự và trang Nhóm có thêm **Sắp xếp tag**, mỗi trang giữ thứ tự riêng.
+
 ## [0.453.0] - 2026-11-04
 ### Sửa lỗi
 - **Claude Code chờ việc chạy nền xong rồi làm tiếp.** Trước đây, lượt nào Claude Code bật lệnh chạy nền hay tác tử phụ thì kết thúc ngay ở câu trả lời đầu, kết quả không bao giờ quay về (người dùng trên Windows Server báo ở #898). Giờ lượt mở tới khi việc nền xong, Claude Code đọc kết quả và trả lời tiếp ngay trong khung chat. Chờ tối đa 30 phút, đổi bằng `JAVIS_CLAUDE_BG_WAIT`.

@@ -32,7 +32,7 @@
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
   <link rel="stylesheet" href="/static/style.css?v=158">
-  <link rel="stylesheet" href="/static/console.css?v=131">
+  <link rel="stylesheet" href="/static/console.css?v=132">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chế độ "auto" (0.74.0, mặc định khi chưa chọn gì từ 0.75.1) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -964,7 +964,7 @@
  ],
  "teams": [
   "/static/team-github.js?v=1",
-  "/static/teams.js?v=23"
+  "/static/teams.js?v=24"
  ],
  "packs": [
   "/static/packs.js?v=4"
@@ -1104,7 +1104,9 @@
   <script src="/static/brains-ui.js?v=9"></script>
   <!-- Brain picker drawn by Javis over #graphSource (0.431.0): after brains-ui.js and app.js. -->
   <script src="/static/brain-picker.js?v=1"></script>
-  <script src="/static/sessions-ui.js?v=25"></script>
+  <!-- One Reorder box (drag or arrows) for projects, pinned chats and tags (0.454.0). Before sessions-ui.js. -->
+  <script src="/static/reorder-dialog.js?v=1"></script>
+  <script src="/static/sessions-ui.js?v=26"></script>
   <link rel="stylesheet" href="/static/improvement-candidates.css?v=3">
   <script src="/static/improvement-experiments.js?v=1"></script>
   <script src="/static/improvement-candidates.js?v=3"></script>
@@ -1116,7 +1118,7 @@
   <script src="/static/pulse-seen.js?v=1"></script>
   <!-- Tag filter bar and tag picker shared by Cộng sự and Team (0.195.0): load BEFORE workspace.js and teams.js. -->
   <script src="/static/tag-picker.js?v=1"></script>
-  <script src="/static/workspace.js?v=33"></script>
+  <script src="/static/workspace.js?v=34"></script>
   <!-- Hộp chọn thành viên kiểu Zalo (0.142.0): nạp TRƯỚC teams.js, teams.js gọi window.JavisTeamPicker. -->
   <script src="/static/team-picker.js?v=1"></script>
   <!-- Bộ phán xử nói / chờ / im của từng trợ lý (T3 phần J 0.156.0): lịch sử quyết định và nút sửa. Nạp TRƯỚC teams.js
