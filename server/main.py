@@ -12551,7 +12551,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         # Giữ tham chiếu tới task, không thì bộ dọn rác có thể nuốt nó giữa chừng.
         t = asyncio.create_task(
             webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc(),
-                            quiet_if_visible=bool(push_if_away)))
+                            **({"quiet_if_visible": True} if push_if_away else {})))
         _PUSH_TASKS.add(t)
         t.add_done_callback(_PUSH_TASKS.discard)
     except Exception as e:
