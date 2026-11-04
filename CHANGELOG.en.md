@@ -8,12 +8,18 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+<<<<<<< HEAD
 ## [0.457.0] - 2026-11-04
 ### Fixed
 - **Scheduled jobs made in a partner chat report back to that chat.** A reminder or recurring job set up in a chat with an assistant did not know where it came from, so its results and its errors all landed in Javis Core. Javis now attaches the chat that asked.
 - **At its time, the job runs as the assistant that took it.** An auto-post job set up with a Posting assistant now uses that assistant's role, procedure, memory and owner rules instead of running as plain Javis. The Tasks page files it under that assistant too.
 - **Incidents report where the job was given.** When a background job breaks, Javis Core still triages and retries it as before, but the "Incident needs you" message now shows in the chat that gave the job. A job tied to no chat still reports to Javis Core.
 - Jobs made before this version keep running as before. Ask the assistant to create the job again to get the new behavior.
+=======
+## [0.455.0] - 2026-11-04
+### Fixed
+- **The answer to a message you add mid-turn now shows below that message.** When you sent more while Javis was working and Javis read it, the answer stayed in the bubble above it, so the new request looked undone. Now the answer bubble and its step list move below your added message, the same order a page reload shows.
+>>>>>>> origin/main
 
 ## [0.454.0] - 2026-11-04
 ### Added

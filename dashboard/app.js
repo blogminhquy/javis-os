@@ -1286,6 +1286,8 @@ function handleMessage(data) {
   if (data.type === "steer_ack" || data.type === "steer_read" || data.type === "steer_turn") {
     // 0.206.0: a message sent while Javis works was received, read by the running turn, or is now its own turn.
     try { trangThaiBoSung(data); } catch (e) {}
+    // 0.455.0: the running turn took the message in, so its answer now covers it: move that answer below it.
+    if (data.type === "steer_read" && isActive && t) { try { moveTurnBelow(t); } catch (e) {} }
     return;
   }
   if (data.type === "agent_read") {
@@ -2523,6 +2525,15 @@ function trangThaiBoSung(data) {
   } else {
     (data.ids || []).forEach(id => ghi(_boSungEl["s" + id], data.type === "steer_read" ? "app.steer_read" : "app.steer_turn"));
   }
+}
+// 0.455.0: a message sent while Javis works was read by the running turn (steer_read). The step block and answer
+// bubble of that turn were drawn before the message, so the answer to it showed ABOVE it and the owner thought it had
+// not been done (04/11/2026). The server stores that answer after the message, so move both below it, the same order
+// a reload shows. The activity chip stays last. chatAppend on a node already in the chat moves it, nothing is redrawn.
+function moveTurnBelow(t) {
+  [t.buocEl, t.bubble].forEach((el) => { if (el && el.isConnected) chatAppend(el); });
+  if (activityEl && activityEl.isConnected) chatAppend(activityEl);
+  scrollBottom();
 }
 // 0.173.1: one automatic /goal round as a collapsible line with a Stop goal button (chat-lenh.js draws the
 // HTML). `live`: drawn while the goal runs, so the button works; restored rounds show it disabled.
