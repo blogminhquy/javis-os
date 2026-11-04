@@ -290,7 +290,8 @@ const qm = TM.messageHtml({ id: 9, author_kind: "owner", content: "> Lan: Câu <
 check("0.176 owner reply shows the quote block (name bold) above the text, both escaped",
       qm.includes('<span class="tm-quote-body"><b>Lan</b>Câu &lt;cũ&gt;</span></div>') && qm.includes('<div class="tm-text utext">Sai rồi em</div>'), qm);
 check("0.176 sending a reply puts the quote on top and calls the assistant replied to when nobody is @-mentioned",
-      /var text = S\.replyTo && Q \? Q\.ghep\(S\.replyTo\.quote, typed\) : typed;/.test(teamsJs)
+      /var text = S\.replyTo && Q \? Q\.ghep\(S\.replyTo\.quote, words\) : words;/.test(teamsJs)
+      && /var words = call \? call\.rest : typed;/.test(teamsJs)
       && /if \(S\.replyTo && S\.replyTo\.key && !mentions\.length\) mentions = \[S\.replyTo\.key\];/.test(teamsJs));
 check("0.176 list preview drops the quote", TM.previewText({ last: { text: "> Lan: cũ\n\nmới", author_kind: "owner" } }) ===
       vi["teams.you"] + ": mới");

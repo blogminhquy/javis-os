@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.449.0] - 2026-11-04
+### Thêm mới
+- **Nhóm đẩy được code lên GitHub.** Trong khung chat nhóm, bấm dấu cộng, chọn **Repo GitHub** và tích repo. Khi giao việc, thành viên sửa code trên nhánh riêng của nhóm; việc xong thì Javis tự kiểm tra, commit, đẩy lên, mở PR và theo dõi CI, giống chat thường.
+- CI đỏ thì Javis tự giao lại cho nhóm một việc sửa kèm log (tối đa 3 vòng). Tin báo GitHub hiện ngay trong khung chat nhóm, bấm chip repo để xem trạng thái PR.
+- **Lệnh `/skill` dùng được trong Nhóm.** Gõ `/` là hiện danh sách skill của brain. Thành viên nào trả lời hay làm việc đó đều đọc được nội dung skill, kể cả lượt trò chuyện không có công cụ.
+
 ## [0.448.0] - 2026-11-04
 ### Thêm mới
 - **Threads vào thẻ Kết nối Meta.** Bấm **Kết nối Threads**, dán Threads App ID và App secret, đăng nhập là xong. Bình luận dưới bài Threads của bạn vào Hộp thư ngay khi có, qua webhook (không phải hỏi định kỳ), và bot trả lời công khai ngay dưới bình luận.

@@ -393,6 +393,15 @@ class TeamStore:
             r = c.execute("SELECT * FROM teams WHERE team_id=?", (str(team_id or ""),)).fetchone()
             return self._team(r) if r else None
 
+    def by_session(self, session_id: str) -> Optional[dict]:
+        """The team whose chat is conversation `session_id` (0.449.0: GitHub news and fix rounds of a team chat)."""
+        sid = str(session_id or "").strip()
+        if not sid:
+            return None
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM teams WHERE session_id=? LIMIT 1", (sid,)).fetchone()
+            return self._team(r) if r else None
+
     def list_teams(self, brain_id: str, limit: int = 50, before: Optional[float] = None,
                    include_archived: bool = False) -> list:
         """Nhóm của brain, mới cập nhật trước. Trang đầu (`before` trống) mở bằng các nhóm đã ghim (ghim sau đứng trước);

@@ -3858,6 +3858,17 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .tm-file.is-img .chat-img-gone { margin: 0; max-width: 160px; white-space: normal; }
 .tm-file.is-img .chat-img-gone + span { display: none; }
 .tm-folder-pop { position: fixed; z-index: 80; }
+/* 0.449.0: GitHub repos and /skill in a team chat (team-github.js, teams.js). */
+.tm-gh-pop { width: min(360px, calc(100vw - 16px)); }
+.tm-gh-pop .gh-results { max-height: min(50vh, 360px); overflow-y: auto; }
+.tm-chip-gh { background: var(--accent-wash, rgba(255, 122, 60, .12)); border-color: transparent; padding-right: 10px; }
+.tm-chip-gh svg { color: var(--accent); }
+button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--accent); cursor: pointer; }
+.tm-skill-chip { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 4px; padding: 1px 8px; border-radius: 999px;
+  background: var(--accent-wash, rgba(255, 122, 60, .12)); color: var(--accent); font-size: 13.5px; font-family: var(--mono, monospace); }
+.tm-skill-chip svg { width: 13px; height: 13px; }
+.tm-sug-skill .tm-sug-name { font-family: var(--mono, monospace); }
+@media (hover: none), (pointer: coarse) { .tm-skill-chip { font-size: 14.5px; } button.tm-gh-st { font-size: 14px; min-height: 28px; } }
 .tm-ava-btn { border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; flex: none; display: inline-flex; }
 .tm-ava-btn:hover, .tm-ava-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tm-info-head { display: flex; align-items: center; gap: 12px; padding: 4px 2px 12px; }

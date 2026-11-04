@@ -26125,20 +26125,71 @@ import routes.github as github_routes   # noqa: E402
 github_routes.register(app, github_routes.GitHubDeps(brain_root=lambda b: str(_brain_root(b))))
 import github_work   # noqa: E402
 # 0.363.0: the gate result (and from G3 the PR and CI news) lands in the chat that owns the repo, plus the inbox.
-github_work.configure(notify=lambda sid, text, ok: _notify_owner(
-    f"{WEB_CHAT_PREFIX}{sid}", text, label="GitHub", source="github", quiet=bool(ok)))
+def _github_team(sid: str):
+    """The team whose chat is `sid`, or None (0.449.0: GitHub repos can be attached to a team chat)."""
+    try:
+        if not _TEAM_API.exists():
+            return None
+        return _TEAM_API.teams().by_session(sid)
+    except Exception:  # noqa: BLE001 - not a team, or the team store is unavailable
+        return None
+
+
+async def _github_notify(sid: str, text: str, ok: bool):
+    """GitHub news of a conversation. A team chat gets it as a system line in the team chat (a plain chat message would
+    show up there with no sender) plus the inbox; any other chat goes through _notify_owner as before."""
+    team = await asyncio.to_thread(_github_team, sid)
+    if team is None:
+        return await _notify_owner(f"{WEB_CHAT_PREFIX}{sid}", text, label="GitHub", source="github", quiet=bool(ok))
+    try:
+        runner = _TEAM_API.runner()
+        await asyncio.to_thread(runner._post, team, text, author_kind="system", meta={"kind": "github"})
+    except Exception as e:  # noqa: BLE001 - the inbox below still keeps the news
+        print(f"[team github notify] {type(e).__name__}: {e}", file=sys.stderr)
+    await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{sid}", text, kind="report", label="GitHub", source="github",
+                          quiet=bool(ok), brain=team.get("brain_id") or "")
+    return True, ""
+
+
+github_work.configure(notify=_github_notify)
 
 
 async def _github_start_turn(sid: str, text: str) -> bool:
     """A fix round (0.364.0) runs as the next turn of the same chat: same worktree, same engine. It goes through
     the follow-up opener the chat's WebSocket handler left in `_NOI_TIEP_WEB` (it waits for the chat to be idle).
     False when this process has none for the chat (after a restart): github_work then asks the person instead."""
+    team = await asyncio.to_thread(_github_team, str(sid or ""))
+    if team is not None:
+        return await _github_team_fix(team, text)
     runner = _NOI_TIEP_WEB.get(str(sid or ""))
     if runner is None:
         return False
     t = asyncio.create_task(runner(text, 0))
     _PUSH_TASKS.add(t)
     t.add_done_callback(_PUSH_TASKS.discard)
+    return True
+
+
+async def _github_team_fix(team: dict, text: str) -> bool:
+    """A fix round of a team chat's repo (0.449.0) is handed to the team as a job, like the owner assigning it: the
+    leader plans, a member fixes in the same worktree, and the job's end pushes again (`_team_job_done`). The same
+    round text never makes a second job (client_msg_id from its hash). False when the team cannot take a job."""
+    if team.get("status") == "archived":
+        return False
+    cmid = "github:" + hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()[:24]
+
+    def _submit():
+        return _TEAM_API.runner().submit(team["team_id"], text, as_job=True, client_msg_id=cmid,
+                                         via={"correlation_id": cmid, "kenh": "github"})
+    try:
+        sub = await asyncio.to_thread(_submit)
+    except Exception as e:  # noqa: BLE001 - github_work then asks the person instead
+        print(f"[team github fix] {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+    if not sub.get("task_id"):
+        return False
+    if sub.get("created"):
+        _TEAM_API.kick()
     return True
 
 
@@ -27803,10 +27854,68 @@ def _team_docs_block(team, tools=False):
         store = get_store()
         files, links = store.list_session_files(sid), store.list_session_links(sid)
         listed, loaded = _liet_ke_tai_lieu(team.get("brain_id") or "brain", files, links) if (files or links) else ([], [])
-        return team_docs.block(listed, loaded, coding_store.cwd_cua_phien(sid), tools=bool(tools))
+        block = team_docs.block(listed, loaded, coding_store.cwd_cua_phien(sid), tools=bool(tools))
     except Exception as e:  # noqa: BLE001 - a broken document must not stop the team from answering
         print(f"[team docs] {type(e).__name__}: {e}", file=sys.stderr)
+        block = ""
+    if tools:
+        # 0.449.0: the GitHub repos attached to the team chat, like a private chat (github_repos.prompt_block). Only a
+        # Work/Help turn edits code; a text-only turn has nothing to do with a worktree.
+        try:
+            import github_repos
+            gh = github_repos.prompt_block(sid, team.get("brain_id") or "")
+            if gh:
+                block += gh + TEAM_GITHUB_NOTE + "\n"
+        except Exception as e:  # noqa: BLE001 - a GitHub hiccup must never cost the turn
+            print(f"[team github prompt] {type(e).__name__}: {e}", file=sys.stderr)
+    return block
+
+
+# 0.449.0: in a team the push happens once the whole JOB is done, not after each member's turn: several members can
+# work in the same worktree at once, and a half-done edit must not be committed. Prompt text stays Vietnamese.
+TEAM_GITHUB_NOTE = ("Trong nhóm: Javis kiểm tra, commit và đẩy lên GitHub khi CẢ VIỆC NHÓM xong (không phải sau từng "
+                    "lượt), nên mỗi thành viên để lại worktree ở trạng thái chạy được khi kết thúc phần của mình.")
+TEAM_SKILL_MAX_CHARS = 12000
+
+
+def _team_job_done(team, task):
+    """A team job closed as done (0.449.0): its GitHub repos go through the same pipeline as a private chat turn
+    (gate, commit, push, PR, CI watch; github_work.after_turn). Cheap when the team chat has no repo."""
+    sid = str(team.get("session_id") or "")
+    if not sid:
+        return
+    text = str((task or {}).get("intent") or (task or {}).get("description") or (task or {}).get("title") or "")
+    try:
+        import github_work
+        t = asyncio.get_running_loop().create_task(github_work.after_turn(sid, team.get("brain_id") or "", text))
+        _PUSH_TASKS.add(t)
+        t.add_done_callback(_PUSH_TASKS.discard)
+    except Exception as e:  # noqa: BLE001
+        print(f"[team github after job] {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _team_skill_block(team, slugs):
+    """The skills the owner named with /skill in a team message (0.449.0), read from the team's brain. A team member's
+    chat turn has no tools to load a skill itself, so its text goes in the prompt. Unknown slugs are skipped."""
+    root = _brain_root(team.get("brain_id") or "brain")
+    parts = []
+    for slug in slugs or []:
+        if not skill_router.valid_slug(slug):
+            continue
+        asset = skill_router.read_skill_asset(root, slug)
+        if asset is None:
+            continue
+        meta, body = skill_router.split_frontmatter(asset.text)
+        body = str(body or "").strip()
+        if len(body) > TEAM_SKILL_MAX_CHARS:
+            body = body[:TEAM_SKILL_MAX_CHARS].rstrip() + "\n…"
+        name = str((meta or {}).get("name") or slug)
+        parts.append(f"## Skill {name} (`{slug}`)\n{body}")
+    if not parts:
         return ""
+    return ("\n\n# === SKILL CHỦ NHÓM GỌI BẰNG LỆNH /skill ===\n"
+            "Chủ nhóm gọi các skill dưới đây cho tin hay việc này. Làm theo hướng dẫn của skill trong phạm vi vai của bạn.\n"
+            + "\n\n".join(parts) + "\n")
 
 
 class _MandateDeps:
@@ -27871,7 +27980,7 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     check_command=lambda cmd, cwd: _MandateDeps().run_test(cmd, cwd),
     brain_root=lambda team: Path(_brain_root(team["brain_id"])),
     work_dir=lambda team: coding_store.cwd_cua_phien(team.get("session_id") or "") if team.get("session_id") else "",
-    report=_notify_owner))
+    report=_notify_owner, job_done=_team_job_done, skill_block=_team_skill_block))
 
 
 # ============================================================

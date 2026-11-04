@@ -80,6 +80,9 @@ REPLY_ROLES = ("leader_reply", "member_reply")
 # Bước của việc nhóm chạy CÓ công cụ (0.194.0, chủ 17/10/2026: "team phải đầy đủ các quyền thì mới làm việc được"): Làm
 # và Hỗ trợ. Lượt trò chuyện, lập kế hoạch và tổng hợp vẫn chỉ chữ cho nhanh và rẻ.
 TOOL_ROLES = ("work", "help")
+# 0.449.0: the block the /skill command puts before the owner's words (dashboard/chat-slash.js buildSkillInvocation).
+SKILL_BLOCK_RE = re.compile(r"\[SKILL:\s*([A-Za-z0-9_-]+)")
+SKILLS_PER_TURN = 3
 ROLE_LABEL = {
     "leader_reply": "Trưởng nhóm trả lời trò chuyện",
     "member_reply": "Thành viên trả lời trò chuyện",
@@ -436,8 +439,15 @@ class TeamRunner:
                  ceiling: Any = None, projector: Any = None, judge: Any = None,
                  learning: Any = None, contrib_reader: Any = None, docs_block: Any = None, approvals: Any = None,
                  acceptance: Any = None, check_command: Optional[Callable] = None,
-                 brain_root: Optional[Callable] = None, work_dir: Optional[Callable] = None):
+                 brain_root: Optional[Callable] = None, work_dir: Optional[Callable] = None,
+                 job_done: Optional[Callable] = None, skill_block: Optional[Callable] = None):
         self.teams = teams
+        # 0.449.0: `job_done(team, task)` runs once a job is marked done (GitHub repos of the team chat get pushed there).
+        # Called on the loop, never raises into the runner. None: nothing happens after a job.
+        self.job_done = job_done
+        # 0.449.0: `skill_block(team, slugs) -> str`, the text of the skills the owner named with /skill in the job or
+        # message. A text-only turn cannot load a skill itself, so the host puts it in the prompt. None: no skills block.
+        self.skill_block = skill_block
         # 0.207.0: owner approval requests (team_approval.ApprovalStore), in the team store's own file by default.
         if approvals is None and getattr(teams, "path", None) is not None:
             approvals = team_approval.ApprovalStore(teams.path, clock=clock)
@@ -626,6 +636,39 @@ class TeamRunner:
 
     def _state(self, team_id: str) -> None:
         self._publish({"type": "team_state", "team_id": team_id})
+
+    def _job_done(self, team: dict, task_id: str) -> None:
+        """Tell the host a job just closed as done (0.449.0). The host's work (pushing the team's GitHub repos) runs on
+        the loop, after the caller's lock is released; a failure there never reopens or breaks the job."""
+        if self.job_done is None:
+            return
+        task = self.tasks.get_task(task_id) or {"id": task_id}
+
+        def go(t=dict(team), k=dict(task)):
+            try:
+                self.job_done(t, k)
+            except Exception as ex:  # noqa: BLE001 - after-job work is best effort
+                log.warning("job_done hook: %s: %s", type(ex).__name__, ex)
+        self._on_loop(go)
+
+    def _skills(self, team: dict, *texts: str) -> str:
+        """The skills named by `[SKILL: slug` blocks (the /skill command of the team composer) in the turn's own text and
+        its job, as one prompt block from the host. "" when none, or when the host gives no `skill_block`."""
+        if self.skill_block is None:
+            return ""
+        slugs: list = []
+        for t in texts:
+            for m in SKILL_BLOCK_RE.finditer(str(t or "")):
+                slug = m.group(1).lower()
+                if slug not in slugs:
+                    slugs.append(slug)
+        if not slugs:
+            return ""
+        try:
+            return str(self.skill_block(team, slugs[:SKILLS_PER_TURN]) or "")
+        except Exception as ex:  # noqa: BLE001 - a broken skill file must not cost the turn
+            log.warning("skill block: %s: %s", type(ex).__name__, ex)
+            return ""
 
     def _lock_for(self, agent_key: str) -> asyncio.Lock:
         loop = asyncio.get_running_loop()
@@ -2484,6 +2527,7 @@ class TeamRunner:
                "system": (str(info.get("system") or "").rstrip() + "\n\n" + note + "\n\n" +
                           "\n".join(INTERNAL_GROUP_NOTE)).lstrip(),
                "prompt": (self._context(team, agent_key, role, task, step, authority_pin=pin)
+                          + self._skills(team, body, (task or {}).get("title") or "", (task or {}).get("intent") or "")
                           + self._docs(team, tool_turn) + "\n\n" + body),
                "thread": f"teammate:{team_id}:{agent_key}", "task_id": task["id"] if task else None,
                "step_id": step["step_id"] if step else None, "turn_id": turn_id,
@@ -3081,6 +3125,7 @@ class TeamRunner:
                 return self._accept_product(team, cur, msg_id, int(rev), acc)
         if self.tasks.team_finish(task_id, text, expected_rev=rev) is not None:
             self._judge_job_changed(task_id, team["team_id"])
+            self._job_done(team, task_id)
             self.sessions.update_team_message_meta(team["session_id"], msg_id, {"job_result": True})
             self._publish({"type": "team_message", "team_id": team["team_id"],
                            "message": self.sessions.team_message(team["session_id"], msg_id)})
@@ -3400,6 +3445,7 @@ class TeamRunner:
                     return result
                 if self.tasks.team_finish_reviewed(task_id, body['result_content'], expected_rev=body['revision'], decision_key=key) is None:
                     return {'ok': False, 'error': 'not_waiting'}
+                self._job_done(team, task_id)
             if objective:
                 self.acceptance.set_state(task_id, status='passed')
             else:
@@ -3474,6 +3520,7 @@ class TeamRunner:
                 m = self.sessions.team_message(team["session_id"], int(acc["result_msg_id"])) if acc.get("result_msg_id") else None
                 if self.tasks.team_finish_reviewed(task_id, (m or {}).get("content", ""), expected_rev=int(acc["revision"])) is None:
                     return {"ok": False, "error": "not_waiting"}
+                self._job_done(team, task_id)
                 self.acceptance.set_state(task_id, status="accepted", confirmed_by=by, confirmed_at=self.clock(),
                                           confirmed_hashes=now_h)
                 if acc.get("result_msg_id"):
