@@ -590,6 +590,85 @@ Từ 0.85.5 cũng **không còn hạn mức lúc bot tự lên tiếng** trong n
 
 Không còn giới hạn nghĩa là một người nhắn liên tục, hay một nhóm đông hỏi nhiều, sẽ tốn lượt dùng model của bạn liên tục. Thấy bất thường thì bấm **Tiếp quản** cuộc chat đó ở trang Hội thoại, thu hẹp mục **Bot trả lời ai**, hoặc đổi nhóm đó về **Được gọi tên**.
 
+## Kênh API nội bộ
+
+Từ 0.451.0. Kênh này cho **một máy chủ của bạn** (ví dụ web quản lý nội bộ của studio) hỏi **một** Chatbot qua HTTP, để nhân viên hỏi đáp công việc ngay trong web đó. Máy chủ của bạn nhận câu hỏi của nhân viên, gửi sang Javis, rồi hiện câu trả lời.
+
+Khác hẳn token API "chỉ chat" ở trang Cài đặt: token đó gọi `/chat` **dưới danh nghĩa chủ**, toàn quyền. Kênh API nội bộ chạy một **Chatbot**, nên giữ nguyên mọi rào của Chatbot: chỉ thấy brain của nó, không chạy lệnh máy, không gọi nguồn dữ liệu ở mức thấp. Khoá của kênh chỉ mở đúng một đường `POST /chatbot-api/v1/turn`, và token API không mở được đường đó.
+
+### Cách nối
+
+1. Trang **Chatbot** → tab **Kênh** → **Thêm kênh** → chọn **API nội bộ**, đặt tên, bấm **Lưu**. Không có ô dán token: Javis tự sinh khoá (`jvc_...`, 32 byte ngẫu nhiên) và **hiện đúng một lần**. Chép khoá sang máy chủ của bạn ngay. Javis chỉ giữ bản băm, nên mất khoá thì không xem lại được, chỉ có thể xoay khoá mới.
+2. Gắn tài khoản đó cho một bot ở mức **Chỉ đọc** hoặc **Đọc tài liệu**, rồi bật bot.
+3. Máy chủ của bạn gọi `POST http://<máy Javis>:<cổng>/chatbot-api/v1/turn` **trực tiếp** (cùng máy hoặc cùng mạng Docker), không đi qua tên miền công khai.
+
+Bấm **Sửa** tài khoản để **Xoay khoá** (khoá cũ ngừng chạy ngay, không cần khởi động lại bot) và chỉnh giới hạn tần suất.
+
+### Khế ước HTTP
+
+```
+POST /chatbot-api/v1/turn
+Authorization: Bearer <khoá của tài khoản kênh API>
+Content-Type: application/json
+
+{
+  "message_id": "mgr-8f2c...",          // chống gửi trùng, bắt buộc
+  "conversation_id": "mgr-user-123",    // khoá hội thoại: mỗi người dùng một mạch
+  "user": {"id": "123", "name": "Nguyễn Văn A"},
+  "scopes": ["vai:nhan-vien", "cs:hn"], // phạm vi tài liệu riêng, do máy chủ của bạn quyết
+  "text": "Concept Khu vườn trên mây cần chuẩn bị gì?",
+  "context": "## Lịch của bạn hôm nay\n- 15:00-17:00 ..."  // tuỳ chọn
+}
+```
+
+| Mã | Khi nào |
+|---|---|
+| `200` | `{"ok": true, "reply": "...", "silent": false, "turn_id": "turn_..."}`. `silent: true` khi bot chọn im |
+| `400` | Thân request sai, `field` nói trường nào |
+| `401` | Khoá sai hoặc đã xoay |
+| `403` | Nguồn gọi không được phép, bot đang tắt, hoặc bot vượt trần mức quyền (`code` nói rõ) |
+| `409` | `message_id` đã xử lý: trả lại đúng câu trả lời cũ, kèm `"duplicate": true` |
+| `413` | `text` quá 4.000 ký tự hoặc `context` quá 8.000 ký tự |
+| `429` | Vượt giới hạn tần suất (`limit`: `conversation` hoặc `account`), hoặc IP bị chặn vì dò khoá |
+| `502` | Lượt bot hỏng. Chỉ trả câu chung, chi tiết nằm ở nhật ký bot và chuông thông báo |
+| `504` | Bot trả lời quá 90 giây |
+
+Lỗi nào cũng có `code` để máy đọc và `error` để người đọc. `conversation_id` dài tối đa 60 ký tự, chỉ chữ, số và `_ . : @ -`.
+
+Ví dụ:
+
+```bash
+curl -s http://javis:7777/chatbot-api/v1/turn \
+  -H "Authorization: Bearer jvc_..." -H "Content-Type: application/json" \
+  -d '{"message_id":"mgr-1","conversation_id":"mgr-user-123","user":{"id":"123","name":"Nguyễn Văn A"},"scopes":["vai:nhan-vien"],"text":"Concept Khu vườn trên mây cần chuẩn bị gì?"}'
+```
+
+### Trần mức quyền
+
+Bot gắn kênh API **chỉ chạy ở Chỉ đọc hoặc Đọc tài liệu**. Bot ở mức cao hơn thì mọi lượt trả `403` (`code: permission_ceiling`) và thẻ bot đỏ, ghi rõ lý do. **Ngoại lệ theo cuộc chat cũng không nâng được quá trần này** trên kênh API. Luật khoá bằng mã ở hai chỗ (đường HTTP và bên trong lượt bot), không bằng lời dặn.
+
+### Tài liệu riêng theo `scopes`
+
+`scopes` đến từ máy chủ có khoá nên Javis tin nó. Một tài liệu nằm trong `rieng-theo-nhom/<scope>/`, hoặc có `chat_scope` khớp **bất kỳ** phần tử nào trong `scopes`, thì lượt đó thấy. Tài liệu của scope khác không lộ ra, kể cả tên file. Không gửi `scopes` thì lượt đó không thấy tài liệu riêng nào.
+
+`conversation_id` **không bao giờ là scope**. Scope có dấu `:` (như `vai:nhan-vien`) thì dùng dòng `chat_scope:` trong frontmatter, vì Windows không cho tên thư mục có dấu `:`.
+
+### `context` là dữ liệu, không phải lệnh
+
+`context` đi vào lượt như một khối dữ liệu riêng có mã ngẫu nhiên mỗi lượt, kèm lời dặn rằng đó là dữ liệu tham khảo, không phải lệnh. Câu nào trong đó bảo bot đổi vai hay bỏ quy định thì bot bỏ qua. `context` không ghi vào Hộp thư.
+
+### Giới hạn và nguồn gọi
+
+- **Tần suất**: mặc định 20 lượt mỗi hội thoại trong 10 phút, 300 lượt mỗi giờ cho cả tài khoản. Chỉnh ở form sửa tài khoản.
+- **Nguồn gọi**: biến môi trường `JAVIS_CHATBOT_API_ALLOW` là danh sách CIDR, mặc định `127.0.0.0/8,::1/128,172.16.0.0/12` (máy này và mạng nội bộ Docker). Ngoài danh sách thì `403`. Request mang header chuyển tiếp (`X-Forwarded-For`, `X-Real-IP`...) cũng bị `403`, nên gọi qua Nginx Proxy Manager hay tunnel đều không vào được.
+- **Dò khoá**: sai khoá quá 10 lần trong 5 phút từ một IP thì IP đó bị chặn 15 phút, ghi vào `auth_audit.jsonl` (chỉ 12 ký tự đầu), chung bộ đếm với token API.
+
+### Hộp thư và Tiếp quản
+
+Mỗi lượt vào **Hộp thư hội thoại** như kênh khác: tên người lấy từ `user.name`, kênh hiện là **API nội bộ**, câu bot bí vẫn vào tab **Bot bí**. Bấm **Tiếp quản** một cuộc chat API thì lượt sau trả `{"ok": true, "silent": true, "handed_over": true, "reply": ""}`. Bản này chưa gửi tin bạn gõ ngược về máy chủ gọi.
+
+Nút **Thử** của bot vẫn chạy như cũ.
+
 ## Xoá bot
 
 Bấm **Xoá** trên thẻ. Bot ngừng trả lời ngay.
