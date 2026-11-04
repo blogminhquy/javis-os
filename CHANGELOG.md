@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.455.0] - 2026-11-04
 ### Sửa lỗi
-- (đang viết)
+- **Câu trả lời cho tin nhồi thêm giờ hiện ngay dưới tin đó.** Trước đây, khi anh gửi thêm một tin lúc Javis đang làm và Javis đã đọc tin ấy, câu trả lời vẫn nằm ở bong bóng phía trên, nhìn như yêu cầu mới chưa được làm. Giờ bong bóng trả lời và khối các bước tự dời xuống dưới tin anh vừa gửi, đúng thứ tự như khi tải lại trang.
+
 ## [0.454.0] - 2026-11-04
 ### Thêm mới
 - **Kéo thả sắp xếp project, đoạn chat đã ghim và tag.** Cùng một hộp Sắp xếp như bảng chọn Brain: kéo tay cầm hoặc bấm mũi tên lên xuống, bấm Xong. Thứ tự lưu trên máy chủ nên điện thoại và máy tính thấy giống nhau.
