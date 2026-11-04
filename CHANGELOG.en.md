@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.459.0] - 2026-11-04
+### Added
+- **Internal API channel for Chatbots (experimental).** One of your servers, an internal staff web app say, asks a Chatbot over HTTP and shows the reply inside that app. Add it on the Chatbot page, Channels tab, **Internal API**: Javis generates the key and shows it once, with a Rotate button.
+- **Fenced in code.** A bot on this channel runs only at Read only or Read documents, sees only its own brain and sends nothing out. By default only the machine running Javis may call; any other caller must be listed.
+- Private documents for this channel go under `rieng-theo-nhom/api-<name>/` or carry `chat_scope: api:<name>`, kept apart from those of Zalo and Telegram groups. Thanks @nuskmonkey-cmyk (#987).
+
 ## [0.455.0] - 2026-11-04
 ### Fixed
 - **The answer to a message you add mid-turn now shows below that message.** When you sent more while Javis was working and Javis read it, the answer stayed in the bubble above it, so the new request looked undone. Now the answer bubble and its step list move below your added message, the same order a page reload shows.

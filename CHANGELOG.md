@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.459.0] - 2026-11-04
+### Thêm mới
+- **Kênh API nội bộ cho Chatbot (thử nghiệm).** Một máy chủ của bạn, ví dụ web nội bộ cho nhân viên, hỏi một Chatbot qua HTTP rồi hiện câu trả lời ngay trong web đó. Thêm ở trang Chatbot, tab Kênh, chọn **API nội bộ**: Javis tự sinh khoá và chỉ hiện một lần, có nút xoay khoá.
+- **Rào sẵn trong mã.** Bot trên kênh này chỉ chạy ở Chỉ đọc hoặc Đọc tài liệu, chỉ thấy brain của nó, không gửi tin ra ngoài. Mặc định chỉ chính máy chạy Javis gọi được; máy khác phải được thêm vào danh sách cho phép.
+- Tài liệu riêng cho kênh này đặt trong `rieng-theo-nhom/api-<tên>/` hoặc ghi `chat_scope: api:<tên>`, tách hẳn khỏi tài liệu riêng của nhóm Zalo, Telegram. Cảm ơn @nuskmonkey-cmyk (#987).
+
 ## [0.455.0] - 2026-11-04
 ### Sửa lỗi
 - **Câu trả lời cho tin nhồi thêm giờ hiện ngay dưới tin đó.** Trước đây, khi anh gửi thêm một tin lúc Javis đang làm và Javis đã đọc tin ấy, câu trả lời vẫn nằm ở bong bóng phía trên, nhìn như yêu cầu mới chưa được làm. Giờ bong bóng trả lời và khối các bước tự dời xuống dưới tin anh vừa gửi, đúng thứ tự như khi tải lại trang.

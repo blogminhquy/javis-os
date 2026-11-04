@@ -36,6 +36,13 @@ Ba LOẠI kênh (`kind`), khác nhau ở cách có tài khoản chứ không ở
 
 Thêm một kênh = thêm một file ở đây + một dòng trong `_MODULES` + một logo trong icons.js.
 Không sửa gì khác.
+
+Optional module attributes (0.459.0, internal API channel):
+    GENERATED_KEY = True          the account secret is a key Javis generates on Save and shows once (no pasted token);
+                                  the module provides `new_key()`, `key_meta(raw)`, `default_settings()`
+    PERMISSION_CEILING = "<level>"  the highest Chatbot permission level a turn on this channel may run at;
+                                  `chatbot_runtime` refuses a turn above it
+    clean_settings(data), account_settings_spec()   numeric account settings edited on the account form
 """
 from __future__ import annotations
 
@@ -82,7 +89,7 @@ class KenhSpec:
 # Thứ tự ở đây là thứ tự hiện trên giao diện. KHÔNG có kênh nào "chính": Zalo đứng đầu vì
 # khách Việt Nam dùng nhiều nhất, không phải vì nó được ưu ái trong mã.
 _MODULES = ("channels.zalo_bot", "channels.zalo_personal", "channels.zalo_oa", "channels.messenger", "channels.threads",
-            "channels.telegram", "channels.slack", "channels.whatsapp", "channels.lark")
+            "channels.telegram", "channels.slack", "channels.whatsapp", "channels.lark", "channels.api")
 
 # Chữ tiếng Anh cho các kênh có sẵn. Để ở đây (chứ không trong từng module kênh) cho một chỗ
 # duy nhất phải sửa khi đổi chữ hiển thị; kênh mới có thể tự khai `en=` trong SPEC.
@@ -221,8 +228,21 @@ def cho_giao_dien() -> List[dict]:
             "huong_dan": dict(getattr(_MOD.get(s.id), "GUIDE", None) or {}),
             # The channel has its own card on the Connections page (Messenger, 0.436.2).
             "the_ket_noi": bool(getattr(_MOD.get(s.id), "CONNECT_CARD", False)),
+            # Javis generates the account key and shows it once (internal API, 0.459.0): no token field, a Rotate button.
+            "khoa_tu_sinh": bool(getattr(_MOD.get(s.id), "GENERATED_KEY", False)),
+            "tran_muc_quyen": str(getattr(_MOD.get(s.id), "PERMISSION_CEILING", "") or ""),
+            "cai_dat_tk": _account_settings(_MOD.get(s.id)),
         })
     return out
+
+
+def _account_settings(m) -> List[dict]:
+    fn = getattr(m, "account_settings_spec", None)
+    try:
+        return list(fn()) if callable(fn) else []
+    except Exception as e:      # a broken spec must not take the channel list down
+        print(f"[channels] account settings of {getattr(m, '__name__', m)}: {type(e).__name__}: {e}", file=sys.stderr)
+        return []
 
 
 async def gui(kenh: str, tk: dict, chat_id: str, text: str, chat_type: str = "private", **extra):

@@ -58,9 +58,15 @@ def _root(vault_root: Any) -> Optional[Path]:
     return r if r.is_dir() else None
 
 
-def turn_chat_id() -> str:
-    """The chat of the turn running this tool call, "" when no turn is bound (then no scoped document)."""
-    return str((turn_context.current() or {}).get("chat_id") or "").strip()
+def turn_chat_id():
+    """The chat of the turn running this tool call, "" when no turn is bound (then no scoped document).
+
+    An internal API turn (0.459.0) carries `doc_scopes` instead (set by the host, `chatbot_grounding.add_turn_scopes`):
+    that tuple is returned, and the chat id is never used as a scope there, even when the tuple is empty."""
+    t = turn_context.current() or {}
+    if "doc_scopes" in t:
+        return tuple(t.get("doc_scopes") or ())
+    return str(t.get("chat_id") or "").strip()
 
 
 def allowed_docs(vault_root: Any, chat_id: Any = None) -> List[str]:

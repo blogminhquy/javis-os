@@ -2321,7 +2321,7 @@
       '<div class="cb-hint ht-card-hint" id="htCardHint" hidden></div>' +
       '<div id="htTokenPart">' +
       '<label id="htTokenLabel"></label>' +
-      '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
+      '<div class="cb-row" id="htTokenRow"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
         '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
       '<div class="cb-hint" id="htTokenNote"></div>' +
       '<div class="cb-hint ht-webhook" id="htWebhook" hidden></div>' +
@@ -2357,7 +2357,10 @@
       var g = guideUrl(k);
       if (g) lab.insertAdjacentHTML("beforeend", ' · <a class="ht-guide" href="' + esc(g) + '" target="_blank" rel="noopener">'
         + esc(window.t("ht.huong_dan")) + " ↗</a>");
-      box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + " " + window.t("cb.token_rieng");
+      // Internal API (0.459.0): Javis generates the key on Save, so there is no token to paste or check.
+      box.querySelector("#htTokenRow").hidden = !!k.khoa_tu_sinh;
+      if (k.khoa_tu_sinh) lab.textContent = window.t("ht.khoa_lb");
+      box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + (k.khoa_tu_sinh ? "" : " " + window.t("cb.token_rieng"));
       // A channel with its own card on the Connections page (Messenger, 0.436.2): connecting there is quicker and a Page
       // connected there is already in the channel list, so nobody should connect the same Page twice.
       // 0.438.3 (owner, 01/11/2026): for such a channel the form stops here. No token field, webhook or Save, only the
@@ -2450,8 +2453,8 @@
       var t = box.querySelector("#htToken").value.trim();
       var k = kenhCua(chon);
       if (!chon) return alert(window.t("ht.khong_kenh_token"));
-      if (!t) return alert(window.t("cb.dan_token_kenh", { kenh: k.nhan }) + "\n\n" + (k.lay_token || ""));
-      var moi = null;
+      if (!t && !k.khoa_tu_sinh) return alert(window.t("cb.dan_token_kenh", { kenh: k.nhan }) + "\n\n" + (k.lay_token || ""));
+      var moi = null, khoa = "";
       try {
         var r = await api("/channels/accounts", { method: "POST", body: fd({
           channel: chon, token: t, label: box.querySelector("#htLabel").value.trim(), bot_username: uname,
@@ -2459,25 +2462,59 @@
           // mà không gắn chủ thì nó lơ lửng ở mọi brain.
           brain: brain() }) });
         moi = r.account || (r.id ? { id: r.id, channel: chon } : null);
+        khoa = r.secret || "";
       } catch (e) { return alert(window.t("ht.loi_doi") + " " + e.message); }
       dong();
       _dauVetTK = "";
       taiTK(true);
+      if (khoa) hienKhoa(khoa);
       if (opts.onXong) { try { opts.onXong(moi); } catch (e) {} }
+    };
+  }
+
+  // The key of a generated-key channel (internal API, 0.459.0), shown ONCE: Javis keeps only its hash.
+  function hienKhoa(khoa) {
+    var box = el('<div class="ht-modal"><div class="ht-form">' +
+      '<h3>' + esc(window.t("ht.khoa_moi")) + '</h3>' +
+      '<div class="cb-row"><input id="htKhoa" readonly value="' + esc(khoa) + '">' +
+        '<button class="s-btn-ghost" id="htKhoaCopy" type="button">' + esc(window.t("ht.khoa_chep")) + '</button></div>' +
+      '<div class="cb-hint cb-warn">' + esc(window.t("ht.khoa_mot_lan")) + '</div>' +
+      '<div class="ht-form-acts"><button class="s-btn ht-close" type="button">' + esc(window.t("ht.khoa_da_luu")) + '</button></div>' +
+      '</div></div>');
+    document.body.appendChild(box);
+    box.querySelector(".ht-close").onclick = function () { if (box.parentNode) box.parentNode.removeChild(box); };
+    box.querySelector("#htKhoaCopy").onclick = async function () {
+      var ok = await copyText(khoa);
+      this.textContent = window.t(ok ? "ht.khoa_da_chep" : "ht.khoa_chep_tay");
+      if (!ok) box.querySelector("#htKhoa").select();
     };
   }
 
   function moSuaTK(a) {
     var k = kenhCua(a.channel);
     var uname = "";
+    var tuSinh = !!k.khoa_tu_sinh;
+    var md = a.meta || {};
+    // Generated-key channel: no token field, the key's first characters, a Rotate button and the account's limits.
+    var phanKhoa = tuSinh
+      ? '<label>' + esc(window.t("ht.khoa_lb")) + '</label>' +
+        '<div class="cb-row"><code id="htKhoaDau">' + esc((md.key_prefix || "") + "…") + '</code>' +
+          '<button class="s-btn-ghost" id="htXoayKhoa" type="button">' + esc(window.t("ht.khoa_xoay")) + '</button></div>' +
+        '<div class="cb-hint">' + esc(window.t("ht.khoa_tran")) + '</div>' +
+        (k.cai_dat_tk || []).map(function (f) {
+          var v = md[f.key] != null ? md[f.key] : f.default;
+          return '<label>' + esc(f.nhan) + '</label><input class="ht-cai-dat" type="number" inputmode="numeric" data-k="' +
+            esc(f.key) + '" min="' + esc(f.min) + '" max="' + esc(f.max) + '" value="' + esc(v) + '">';
+        }).join("")
+      : '<label>Token ' + esc(k.nhan) + ' ' + esc(window.t("cb.token_de_trong")) + '</label>' +
+        '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
+          '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
+        '<div class="cb-hint" id="htTokenNote">' + (a.external_id ? esc(window.t("cb.dang_dung")) + " " + esc((a.tien_to_ten || "") + a.external_id) : "") + '</div>';
     var box = el('<div class="ht-modal"><div class="ht-form">' +
       '<h3>' + esc(window.t("ht.sua_tk")) + ' - ' + esc(a.label) + '</h3>' +
       '<label>' + esc(window.t("ht.lb_nhan_tk")) + '</label>' +
       '<input id="htLabel" value="' + esc(a.label) + '">' +
-      '<label>Token ' + esc(k.nhan) + ' ' + esc(window.t("cb.token_de_trong")) + '</label>' +
-      '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
-        '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
-      '<div class="cb-hint" id="htTokenNote">' + (a.external_id ? esc(window.t("cb.dang_dung")) + " " + esc((a.tien_to_ten || "") + a.external_id) : "") + '</div>' +
+      phanKhoa +
       (a.bot_id ? '<div class="cb-hint">' + esc(window.t("ht.tk_doi_token_bot", { bot: a.bot_name })) + '</div>' : "") +
       // Đổi brain chủ (0.62.4). Đây là lối thoát khi lỡ thêm tài khoản ở brain khác: không có
       // nó thì chỉ còn cách xoá rồi thêm lại, mà xoá là mất luôn lịch sử hội thoại của nó.
@@ -2499,7 +2536,18 @@
     var nutXoa = box.querySelector(".ht-xoa-tk");
     if (nutXoa) nutXoa.onclick = function () { dong(); xoaTK(a); };
     veChonBrain(box.querySelector("#htBrain"), a.brain || "");
-    box.querySelector("#htCheck").onclick = async function () {
+    var nutXoay = box.querySelector("#htXoayKhoa");
+    if (nutXoay) nutXoay.onclick = async function () {
+      if (!confirm(window.t("ht.khoa_xn_xoay"))) return;
+      try {
+        var r = await api("/channels/accounts/" + encodeURIComponent(a.id) + "/rotate-key", { method: "POST", body: fd({}) });
+        var dau = box.querySelector("#htKhoaDau");
+        if (dau && r.account && r.account.meta) dau.textContent = (r.account.meta.key_prefix || "") + "…";
+        md = (r.account && r.account.meta) || md;
+        if (r.secret) hienKhoa(r.secret);
+      } catch (e) { alert(window.t("ht.loi_doi") + " " + e.message); }
+    };
+    if (box.querySelector("#htCheck")) box.querySelector("#htCheck").onclick = async function () {
       var t = box.querySelector("#htToken").value.trim();
       var note = box.querySelector("#htTokenNote");
       if (!t) { note.textContent = window.t("cb.dan_token"); return; }
@@ -2514,9 +2562,16 @@
     box.querySelector(".ht-save").onclick = async function () {
       try {
         var oBr = box.querySelector("#htBrain");
+        var oTok = box.querySelector("#htToken");
         var than = { label: box.querySelector("#htLabel").value.trim(),
-                     token: box.querySelector("#htToken").value.trim(), bot_username: uname };
+                     token: oTok ? oTok.value.trim() : "", bot_username: uname };
         if (oBr) than.brain = oBr.value;   // không có ô (kind account) thì KHÔNG gửi = không đụng
+        var oCd = box.querySelectorAll(".ht-cai-dat");
+        if (oCd.length) {
+          var cd = {};
+          oCd.forEach(function (n) { cd[n.dataset.k] = n.value.trim(); });
+          than.settings = JSON.stringify(cd);
+        }
         await api("/channels/accounts/" + encodeURIComponent(a.id) + "/update", { method: "POST", body: fd(than) });
       } catch (e) { return alert(window.t("ht.loi_doi") + " " + e.message); }
       dong();

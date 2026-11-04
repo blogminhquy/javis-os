@@ -293,7 +293,11 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       "/threads/webhook", "/threads/oauth/callback", "/threads/uninstall", "/threads/delete",
                       # /zalo-oa/webhook (0.412.0): Zalo calls it with no cookie; the route checks
                       # X-ZEvent-Signature under the OA secret keys of the Zalo OA accounts.
-                      "/zalo-oa/webhook")
+                      "/zalo-oa/webhook",
+                      # /chatbot-api/v1/turn (0.459.0): a server of the owner asks one Chatbot. No cookie; the route
+                      # checks the source address and the key of an internal API channel account itself
+                      # (channels/api.py). That key opens this path only, and an API token does not open it.
+                      "/chatbot-api/v1/turn")
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
 # cookie đăng nhập; request từ ngoài (qua Traefik/Caddy/LAN) đến từ IP khác loopback → vẫn bị chặn.
 # /reminders/cancel đi cùng nhóm với /reminders (TẠO nhắc): huỷ là thao tác YẾU HƠN tạo, nên
@@ -22526,6 +22530,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         # shows them under the bot's assistant instead of Javis Core.
         # A plain string, so a hook reading the turn (a shallow copy) cannot edit it for the next reader.
         _luot["bot_id"] = str(bot["id"])
+        # 0.459.0: an internal API turn opens private documents by the caller's scope list, never by its chat id. The
+        # doc tools read it from the turn (chatbot_doc_tools.turn_chat_id).
+        import chatbot_grounding
+        chatbot_grounding.add_turn_scopes(_luot, meta)
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
     if bot:
@@ -24995,6 +25003,32 @@ async def whatsapp_webhook(request: Request):
     # Answer 200 right away (Meta retries anything slower); the messages run as tasks.
     n = await whatsapp_bot.handle_webhook(payload)
     return {"ok": True, "messages": n}
+
+
+@app.post("/chatbot-api/v1/turn")
+async def chatbot_api_turn(request: Request):
+    """Internal API channel (0.459.0): one turn of the Chatbot the key belongs to. Every check (source, key, ceiling,
+    limits) and the answer live in channels/api.py; this route only hands it the raw request."""
+    import channels.api as api_channel
+    auth = request.headers.get("authorization", "")
+    ip = request.client.host if request.client else ""
+    hdrs = dict(request.headers)
+
+    def _out(status, body):
+        headers = {"Retry-After": "900"} if body.get("code") == "banned" else None
+        return JSONResponse(body, status_code=status, headers=headers)
+
+    # Source and key first, body after (0.459.0): nobody outside, or without the key, makes Javis buffer a body, and a
+    # body is read only up to the channel's cap.
+    account, bad = api_channel.gate(auth, ip, hdrs)
+    if bad:
+        return _out(*bad)
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > api_channel.BODY_MAX:
+            return _out(*api_channel.too_large())
+    return _out(*await api_channel.handle_http(auth, ip, hdrs, bytes(raw), account=account))
 
 
 # ============================================================

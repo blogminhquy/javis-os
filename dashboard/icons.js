@@ -299,6 +299,15 @@
         '<path fill="#133C9A" d="M11.3 10.4c2.5-2.3 5.6-3 8.6-1.8 1 .4 1.6 1 1.9 1.6-.7.2-1.4.7-2' +
         ' 1.3l-.9 1.4c-1.6 1.9-3.7 2.6-6.3 2.1-1.2-.2-2.4-.6-3.5-1.2z"/>',
     },
+    // Internal API (0.459.0): a server you run asks a Chatbot over HTTP. Code brackets on slate.
+    api: {
+      nhan: "API",
+      mau: "#475569",
+      than:
+        '<rect width="24" height="24" rx="7" fill="#475569"/>' +
+        '<path fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"' +
+        ' d="M9 8l-4 4 4 4M15 8l4 4-4 4M13.2 6.8l-2.4 10.4"/>',
+    },
   };
 
   // kenh(id, opts) -> chuỗi SVG dấu hiệu nền tảng. opts.size (mặc định 1.15em), opts.cls.
