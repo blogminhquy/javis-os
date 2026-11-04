@@ -249,4 +249,4 @@ updated: YYYY-MM-DD
 
 ## Dev conventions (Claude Code sessions working on this repo)
 
-Read `docs/quy-uoc-dev.md` BEFORE you branch, commit or merge here. It carries the full rules: RESERVE the version number before writing code (parallel sessions collide otherwise), merge straight into `main` on green CI, and write CHANGELOG.md for a phone screen. Kept out of this file because a Javis user never needs it and every character here is taxed on every chat turn.
+Read `docs/quy-uoc-dev.md` BEFORE you branch, commit or merge here. It carries the full rules: never edit VERSION or CHANGELOG in a PR, add one `changelog.d/<slug>.md` instead (CI numbers it after merge), merge straight into `main` on green CI, and write notes for a phone screen. Kept out of this file because a Javis user never needs it and every character here is taxed on every chat turn.

@@ -53,8 +53,10 @@ in ra dòng `ok`/`FAIL`; chạy thẳng `python tests/python/test_<tên>.py` đ�
 
 **Số phiên bản và nhật ký:** mỗi lần merge vào `main` là một phiên bản mới (`VERSION` cùng một
 mục trong cả [CHANGELOG.md](../../../CHANGELOG.md) tiếng Việt lẫn
-[CHANGELOG.en.md](../../../CHANGELOG.en.md) tiếng Anh). Người đóng góp từ bên ngoài không cần
-đụng tới ba file này: người giữ repo tăng số và viết nhật ký lúc merge.
+[CHANGELOG.en.md](../../../CHANGELOG.en.md) tiếng Anh). PR không bao giờ sửa ba file này: PR thêm
+một file `changelog.d/<slug>.md` (mẫu ở [changelog.d/README.md](../../../changelog.d/README.md)), và
+workflow Release tự đánh số sau khi merge. Người đóng góp từ bên ngoài bỏ qua cả bước đó cũng được:
+người giữ repo thêm file lúc merge.
 
 ## Quy ước code
 

@@ -165,12 +165,36 @@ jobs:
           fi
           exit $status
 
+  # Số phiên bản do .github/workflows/release.yml đánh SAU khi merge, từ file changelog.d/<slug>.md mà mỗi PR thêm vào.
+  # Job này đỏ khi PR đổi code mà thiếu file đó, hoặc file sai mẫu. PR kiểu cũ (tự sửa VERSION) vẫn qua, chỉ kèm cảnh báo.
+  # PR từ fork chỉ cảnh báo: người merge thêm file giúp. Push lên main thì không có gì để kiểm.
+  changelog:
+    name: Changelog fragment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Kiểm tra changelog.d/
+        env:
+          PYTHONIOENCODING: utf-8
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          python tools/release.py check
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then echo "main: nothing to check"; exit 0; fi
+          git fetch -q origin main
+          if [ "$IS_FORK" = "true" ]; then opt=--optional; else opt=; fi
+          python tools/release.py pr-check --base origin/main $opt
+
   # Job tổng hợp mang ĐÚNG tên `test`: quy tắc bảo vệ nhánh main đòi check tên này xanh. Nó chỉ xanh khi MỌI job phụ thuộc
   # ra `success`; đỏ, bị huỷ hay bị bỏ qua đều tính là trượt.
   # `if: always()` là bắt buộc: thiếu nó thì job phụ thuộc đỏ làm job này bị BỎ QUA, mà GitHub coi check bị bỏ qua là ĐẠT,
   # tức là PR có test đỏ vẫn merge được. Không dùng `!cancelled()` vì cùng lý do: huỷ lượt chạy thì check này phải đỏ.
   test:
-    needs: [python, chung]
+    needs: [python, chung, changelog]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -178,10 +202,12 @@ jobs:
         env:
           KQ_PYTHON: ${{ needs.python.result }}
           KQ_CHUNG: ${{ needs.chung.result }}
+          KQ_CHANGELOG: ${{ needs.changelog.result }}
         run: |
           echo "Test Python (2 nhóm): $KQ_PYTHON"
           echo "Byte-compile, import, test JS: $KQ_CHUNG"
-          [ "$KQ_PYTHON" = "success" ] && [ "$KQ_CHUNG" = "success" ] || {
+          echo "Changelog fragment: $KQ_CHANGELOG"
+          [ "$KQ_PYTHON" = "success" ] && [ "$KQ_CHUNG" = "success" ] && [ "$KQ_CHANGELOG" = "success" ] || {
             echo "Có job không xanh (failure / cancelled / skipped đều không tính là đạt)."
             exit 1
           }
