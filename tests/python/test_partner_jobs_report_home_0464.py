@@ -1,4 +1,4 @@
-"""0.462.0: a reminder or loop made in a partner chat reports to that chat and runs as that assistant.
+"""0.464.0: a reminder or loop made in a partner chat reports to that chat and runs as that assistant.
 
 Customer report 2026-11-04: an auto-post job set up in a partner (agent) chat sent its failures to Javis Core. Three
 causes, three fixes:
@@ -12,7 +12,7 @@ causes, three fixes:
 
 No engine, network or server: fakes record what they receive.
 
-    python tests/python/test_partner_jobs_report_home_0462.py
+    python tests/python/test_partner_jobs_report_home_0464.py
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio

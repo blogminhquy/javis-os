@@ -8,12 +8,19 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.462.0] - 2026-11-04
+## [0.464.0] - 2026-11-04
 ### Fixed
 - **Scheduled jobs made in a partner chat report back to that chat.** A reminder or recurring job set up in a chat with an assistant did not know where it came from, so its results and its errors all landed in Javis Core. Javis now attaches the chat that asked.
 - **At its time, the job runs as the assistant that took it.** An auto-post job set up with a Posting assistant now uses that assistant's role, procedure, memory and owner rules instead of running as plain Javis. The Tasks page files it under that assistant too.
 - **Incidents report where the job was given.** When a background job breaks, Javis Core still triages and retries it as before, but the "Incident needs you" message now shows in the chat that gave the job. A job tied to no chat still reports to Javis Core.
 - Jobs made before this version keep running as before. Ask the assistant to create the job again to get the new behavior.
+
+## [0.463.0] - 2026-11-04
+### Added
+- **My tasks: Projects become Tags.** A task can carry several tags, shown as coloured chips under its title with a **+ Tags** button. Click a tag in the side column to see every task with it. Old projects turn into tags, nothing is lost.
+- **Subtasks on your own tasks.** Open a task to see its subtask list with a progress bar: tick the circle, rename in place, delete with the x. A finished subtask is struck through and sinks to the bottom. In the list, a task with subtasks shows `1/3`; click it to fold the subtasks open and tick them there. A repeating task starts each round with its subtasks open again. Javis's tasks stay flat as before.
+- **Reorder tags.** Drag a tag in the side column on a computer, or use **Move up / Move down** in the tag's menu on a phone.
+- **Notes take links, notes and files.** Paste a web link or type `[[note name]]` and a button to open it appears below. **Link a note** finds a note or file in the brain to insert. **Upload a file** (or paste or drop one into the notes, like the chat box) stores it in the brain's `task-files` folder for good.
 
 ## [0.461.0] - 2026-11-04
 ### Improved

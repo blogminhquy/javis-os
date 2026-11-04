@@ -175,9 +175,9 @@ class LoopDeps:
     # None = giữ nguyên Claude như trước (test dựng deps tối giản không cần tiêm).
     aux_swap: Optional[Callable] = None
     # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken run to Javis Core (incident_desk.py).
-    # 0.462.0: also chat= (the loop's owner_chat), so the incident is told where the job came from.
+    # 0.464.0: also chat= (the loop's owner_chat), so the incident is told where the job came from.
     incident_hook: Optional[Callable] = None
-    # 0.462.0: a loop made in a partner chat (`agent:` in its frontmatter) runs as that assistant.
+    # 0.464.0: a loop made in a partner chat (`agent:` in its frontmatter) runs as that assistant.
     # build_agent_prompt(brain, slug) -> system prompt, raises when the assistant is gone (the loop then runs as Javis);
     # finish_agent_run(brain, slug, task, output) -> output without the JAVIS_LESSON lines (written to its memory).
     build_agent_prompt: Optional[Callable[[str, str], str]] = None
@@ -188,7 +188,7 @@ _AGENT_SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}")
 
 
 def _agent_slug(value) -> str:
-    """0.462.0: an assistant slug from a loop file (agents/<slug>.md) or "": one file name, never a path."""
+    """0.464.0: an assistant slug from a loop file (agents/<slug>.md) or "": one file name, never a path."""
     v = str(value or "").strip()
     return v if _AGENT_SLUG.fullmatch(v) and ".." not in v else ""
 
@@ -349,7 +349,7 @@ class LoopFeature:
             "owner_chat": str(fm.get("owner_chat", "") or "").strip(),
             # 0.429.0: the chatbot whose turn created the loop ("" = the owner or Javis Core), for the Tasks page.
             "bot_id": str(fm.get("bot_id", "") or "").strip(),
-            # 0.462.0: the Partners-page assistant this loop runs as ("" = Javis), set when a partner chat made it.
+            # 0.464.0: the Partners-page assistant this loop runs as ("" = Javis), set when a partner chat made it.
             "agent": _agent_slug(fm.get("agent", "")),
             "notify": notify,
             "ambient_mcp": ambient_mcp,
@@ -410,7 +410,7 @@ class LoopFeature:
             fm["ambient_mcp"] = True
         if loop.get("bot_id"):   # 0.429.0: keep which chatbot made it across edits and toggles
             fm["bot_id"] = loop["bot_id"]
-        if loop.get("agent"):    # 0.462.0: same for the assistant it runs as
+        if loop.get("agent"):    # 0.464.0: same for the assistant it runs as
             fm["agent"] = loop["agent"]
         y = yaml.safe_dump(fm, allow_unicode=True, sort_keys=False, default_flow_style=False, width=1000).strip()
         d = self._loops_dir(brain)
@@ -1057,7 +1057,7 @@ class LoopFeature:
 
         sysprompt, as_agent = None, ""
         if loop.get("agent") and self.deps.build_agent_prompt:
-            # 0.462.0: made in a partner chat -> this round runs as that assistant. Assistant gone -> plain Javis.
+            # 0.464.0: made in a partner chat -> this round runs as that assistant. Assistant gone -> plain Javis.
             try:
                 sysprompt, as_agent = self.deps.build_agent_prompt(brain, loop["agent"]), loop["agent"]
             except Exception as _e:

@@ -244,11 +244,62 @@
 .nv-kvb > span:last-child { color: var(--accent-ink); }
 .nv-kv > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
 .nv-psel { max-width: 60%; min-height: 36px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field-bg, var(--surface-1)); color: var(--text); font: inherit; font-size: 15px; padding: 0 8px; }
-.nv-sub { display: flex; align-items: center; gap: 10px; min-height: 38px; cursor: pointer; }
-.nv-sub input { width: 18px; height: 18px; accent-color: var(--accent); }
-.nv-sub.done span { color: var(--text3); text-decoration: line-through; }
-.nv-subadd { display: flex; align-items: center; gap: 10px; color: var(--text3); }
-.nv-subadd input { flex: 1; min-height: 38px; border: 0; background: none; color: var(--text); font: inherit; outline: none; }
+/* 0.463.0: subtasks of my task (details: round tick, editable name, delete; done ones struck through at the bottom) */
+.nv-subs { gap: 2px; }
+.nv-subh { display: flex; align-items: center; gap: 8px; color: var(--text3); font-size: 14px; font-weight: 600; }
+.nv-subh b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.nv-subbar { height: 4px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin: 4px 0 6px; }
+.nv-subbar i { display: block; height: 100%; background: var(--nv-ok); border-radius: 4px; transition: width .25s; }
+.nv-sub { display: flex; align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--hairline); }
+.nv-sub:last-of-type { border-bottom: 0; }
+.nv-ck.sm { width: 20px; height: 20px; }
+.nv-subt { flex: 1; min-width: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 16px; padding: 6px 0; outline: none; overflow-wrap: anywhere; }
+input.nv-subt:focus { box-shadow: 0 2px 0 var(--accent); }
+.nv-sub.done .nv-subt { color: var(--text3); text-decoration: line-through; }
+.nv-subx { width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px; background: none; color: var(--text3); cursor: pointer; display: grid; place-items: center; opacity: 0; }
+.nv-sub:hover .nv-subx, .nv-subx:focus-visible { opacity: 1; }
+.nv-subx:hover { background: var(--surface-2); color: var(--red); }
+.nv-subadd { display: flex; align-items: center; gap: 12px; color: var(--text3); }
+.nv-subadd input { flex: 1; min-height: 44px; border: 0; background: none; color: var(--text); font: inherit; font-size: 16px; outline: none; }
+/* the badge in a row and the list it folds open under the row */
+.nv-meta .nv-subb { gap: 4px; padding: 1px 6px; margin-left: -6px; border-radius: 8px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.nv-meta .nv-subb:hover { background: var(--surface-1); color: var(--text); }
+.nv-meta .nv-subb.ok { color: var(--nv-ok); }
+.nv-subl { margin: -8px 44px 6px 106px; }
+.nv-subl .nv-sub { min-height: 38px; }
+.nv-subl .nv-subt { font-size: 15px; padding: 4px 0; }
+/* tags: chips in rows and under the title, the "+ Tags" button, the tag mark in the side column */
+.nv-tagc { display: inline-flex; align-items: center; max-width: 160px; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  color: var(--tc); background: color-mix(in srgb, var(--tc) 16%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nv-meta .nv-tagc { display: inline-block; }
+.nv-tagrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.nv-mhead + .nv-tagrow { margin: -4px 0 2px 38px; }
+.nv-tagrow .nv-tagc { font-size: 14px; padding: 3px 10px; }
+.nv-tagadd { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 10px; border: 1px dashed var(--hairline-strong, var(--text3));
+  border-radius: 999px; background: none; color: var(--text3); font: inherit; font-size: 14px; cursor: pointer; }
+.nv-tagadd:hover { color: var(--text); border-color: var(--text2); }
+.nv-tagadd .ic { width: 14px; height: 14px; }
+.nv-tagic { display: inline-grid; place-items: center; flex: none; }
+.nv-tagic .ic { width: 16px; height: 16px; }
+.nv-tagmi .nv-lbl { flex: 1; text-align: left; }
+.nv-lirow[draggable="true"] { cursor: grab; }
+.nv-lirow.drop { box-shadow: inset 0 2px 0 var(--accent); }
+/* links in the notes: [[note]] to the brain and web links, plus "Link a note" */
+.nv-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.nv-lnk, .nv-lnkadd { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; max-width: 100%; padding: 0 10px; border-radius: 8px; font-size: 14px; text-decoration: none; }
+.nv-lnk { background: var(--surface-2); color: var(--accent-ink, var(--accent)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nv-lnk .ic, .nv-lnkadd .ic { width: 14px; height: 14px; flex: none; }
+.nv-lnkadd { border: 1px dashed var(--hairline-strong, var(--text3)); background: none; color: var(--text3); font: inherit; font-size: 14px; cursor: pointer; }
+.nv-lnkadd:hover { color: var(--text); }
+.nv-nlq { margin: 4px 0 6px; }
+.nv-nlres { display: flex; flex-direction: column; gap: 2px; max-height: 50vh; overflow-y: auto; }
+.nv-nlres .nv-lbl { display: flex; flex-direction: column; text-align: left; min-width: 0; }
+.nv-nlp { color: var(--text3); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) {
+  .nv-subx { opacity: 1; }
+  .nv-subl { margin-left: 90px; margin-right: 8px; }
+  .nv-mhead + .nv-tagrow { margin-left: 0; }
+}
 .nv-pick { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 10px;
   background: var(--field-bg, var(--surface-1)); color: var(--text); font: inherit; cursor: pointer; text-align: left; }
 .nv-pick:disabled { opacity: .5; cursor: default; }
@@ -565,3 +616,5 @@
   .ts-split > div { padding: 0 12px; }
   .ts-split > div > span { display: none; }
 }
+.nv-lnkadd input[type="file"] { display: none; }
+.nv-lnkadd.busy { cursor: progress; opacity: .7; }

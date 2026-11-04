@@ -255,7 +255,7 @@ def _create_loop_file(vault_root: str, name: str, prompt: str, schedule: str,
         f"interval_min: {interval}\n"
         f"owner_chat: {_yaml_scalar((owner_chat or '').strip())}\n"
         + (f"bot_id: {_yaml_scalar(bot_id)}\n" if bot_id else "")
-        # 0.462.0: made in a partner chat -> each round runs as that assistant (self_improve.py reads `agent`).
+        # 0.464.0: made in a partner chat -> each round runs as that assistant (self_improve.py reads `agent`).
         + (f"agent: {_yaml_scalar(agent)}\n" if agent else "")
         + f"updated: {_today()}\n"
         "---\n"
@@ -443,7 +443,7 @@ def _turn_bot() -> str:
 
 
 def _turn_origin(vault_root: str) -> tuple:
-    """0.462.0: (chat, assistant) of the turn creating the job, read from what the host set, never from the model.
+    """0.464.0: (chat, assistant) of the turn creating the job, read from what the host set, never from the model.
 
     `chat` is `web:<session id>` on a dashboard turn, so the result goes back to the chat that asked. A partner chat
     never sees the channel block that teaches the model this id, and the job used to land in Javis Core, success and
