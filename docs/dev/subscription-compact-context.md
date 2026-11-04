@@ -46,7 +46,8 @@ are not substituted for provider measurements.
 
 The historical `sessions.last_input_tokens` column remains a turn total. The new
 `last_context_input_tokens` starts at zero and is populated only by measured request input.
-No historical turn totals are copied into it. All subscription rotation decisions read
+No historical turn totals are copied into it. Its provider tag prevents a model/engine switch
+from applying a different native thread's measurement. All subscription rotation decisions read
 the new column; providers without request measurements cannot trigger rotation from totals.
 Session IDs, thread IDs, decisions and history are not reset by this migration. Rollback
 does not require dropping the additive column. The read-only trial schema allowlist admits

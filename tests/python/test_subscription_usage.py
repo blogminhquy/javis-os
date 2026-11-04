@@ -2,6 +2,8 @@
 from _paths import ROOT, SERVER
 import ast
 import unittest
+import tempfile
+from pathlib import Path
 from subscription_usage import CodexUsage
 
 
@@ -11,6 +13,27 @@ def sample(last, total, cache=0):
 
 
 class UsageTests(unittest.TestCase):
+    def test_legacy_totals_are_not_migrated_into_context(self):
+        from sessions import SessionStore
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'sessions.db'
+            store = SessionStore(path)
+            sid = store.create_session()
+            store.set_last_input_tokens(sid, 400000)
+            store.close()
+            store = SessionStore(path)
+            try:
+                row = store.get_session(sid)
+                self.assertEqual(row['last_input_tokens'], 400000)
+                self.assertEqual(row['last_context_input_tokens'], 0)
+                self.assertEqual(row['last_context_provider'], '')
+                store.set_last_context_input_tokens(sid, 5000)
+                row = store.get_session(sid)
+                self.assertEqual(row['last_context_input_tokens'], 5000)
+                self.assertEqual(row['last_context_provider'], 'codex')
+            finally:
+                store.close()
+
     def test_duplicate_and_limit_notifications_are_not_requests(self):
         usage = CodexUsage({"input": 0, "cache": 0, "output": 0})
         usage.observe(sample(5000, 5000, 4000))

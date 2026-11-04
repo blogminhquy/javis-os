@@ -509,6 +509,7 @@ class SessionStore:
                               # hiệu DUY NHẤT để biết khi nào phải bắt đầu mạch mới.
                               ("last_input_tokens", "INTEGER NOT NULL DEFAULT 0"),
                               ("last_context_input_tokens", "INTEGER NOT NULL DEFAULT 0"),
+                              ("last_context_provider", "TEXT NOT NULL DEFAULT ''"),
                               # msg_count tại lần xoay mạch gần nhất. Có để chống XOAY LIÊN
                               # TỤC: token vào của engine thuê bao phần lớn đến từ vòng lặp
                               # agentic bên trong nó, không phải từ độ dài mạch. Nếu một lượt
@@ -1812,11 +1813,11 @@ class SessionStore:
             (max(0, int(tokens or 0)), session_id),
         ))
 
-    def set_last_context_input_tokens(self, session_id: str, tokens: int) -> None:
+    def set_last_context_input_tokens(self, session_id: str, tokens: int, provider: str = "codex") -> None:
         """Measured last request input only. Old turn totals are never migrated here."""
         self._write(lambda c: c.execute(
-            "UPDATE sessions SET last_context_input_tokens = ? WHERE id = ?",
-            (max(0, int(tokens or 0)), session_id),
+            "UPDATE sessions SET last_context_input_tokens = ?, last_context_provider = ? WHERE id = ?",
+            (max(0, int(tokens or 0)), provider, session_id),
         ))
 
     def mark_thread_rotated(self, session_id: str) -> None:

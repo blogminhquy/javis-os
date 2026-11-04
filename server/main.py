@@ -17715,7 +17715,7 @@ async def _chat_socket(ws):
                 else:
                     _k_mach = (_row0.get("grok_session_id") or "").strip()
                     if _k_mach and compaction.nen_mach_thue_bao(
-                            _row0.get("last_context_input_tokens"), msg_count=_row0.get("msg_count"),
+                            (_row0.get("last_context_input_tokens") if _row0.get("last_context_provider") == "grok" else 0), msg_count=_row0.get("msg_count"),
                             rotated_at=_row0.get("thread_rotated_msg")):
                         _k_mach = ""
                         store.clear_grok_session_id(conv_sid)
@@ -17893,7 +17893,7 @@ async def _chat_socket(ws):
                 # đều đắt hơn lượt trước mà không thêm giá trị gì, và đó là phần TO NHẤT của
                 # hoá đơn token - to hơn hẳn thứ Phase 8 gọt được. Xem compaction.
                 if stored_codex_thread and compaction.nen_mach_thue_bao(
-                        _row0.get("last_context_input_tokens"), msg_count=_row0.get("msg_count"),
+                        (_row0.get("last_context_input_tokens") if _row0.get("last_context_provider") == "codex" else 0), msg_count=_row0.get("msg_count"),
                         rotated_at=_row0.get("thread_rotated_msg")):
                     stored_codex_thread = ""
                     store.clear_codex_thread_id(conv_sid)
@@ -18409,7 +18409,7 @@ async def _chat_socket(ws):
                 # Claude Code cũng tự quản transcript nên Javis chỉ có đúng con số token vào
                 # của lượt trước làm dấu hiệu.
                 _cli_xoay_mach = bool(cli.session_id) and compaction.nen_mach_thue_bao(
-                    _row0.get("last_context_input_tokens"), msg_count=_row0.get("msg_count"),
+                    (_row0.get("last_context_input_tokens") if _row0.get("last_context_provider") == "claude-code" else 0), msg_count=_row0.get("msg_count"),
                     rotated_at=_row0.get("thread_rotated_msg"))
                 if _cli_xoay_mach:
                     cli.session_id = None
