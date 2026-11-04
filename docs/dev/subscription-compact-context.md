@@ -53,6 +53,11 @@ Session IDs, thread IDs, decisions and history are not reset by this migration. 
 does not require dropping the additive column. The read-only trial schema allowlist admits
 the new bookkeeping column without projecting it as user instructions.
 
+Automatic replacement of a subscription thread is off by default; native context
+management continues. An operator may explicitly opt into
+`subscription_thread_rotation_mode: "measured-v1"`; even then, a durable compact summary
+must already exist. Neither the compact prompt flag nor this deployment resets a thread.
+
 Historical usage-page `turns` are observation counts, not a verified number of requests.
 The parser exposes that count basis and the UI labels it accordingly. Cached input is
 still processed input; these metrics do not imply a subscription-quota saving percentage.

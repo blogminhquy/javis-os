@@ -17459,6 +17459,11 @@ async def _chat_socket(ws):
                 )
             _ctx_in = 0        # token VÀO của lượt này, để khung chat nói được nó tốn bao nhiêu
             _ctx_cache = 0     # phần của _ctx_in chỉ đọc lại từ cache (0.345.0, Claude Code + Codex)
+            # Keep native threads by default. Opening a replacement thread is an explicit
+            # rollout choice and requires an existing durable summary, never just usage.
+            _allow_subscription_rotation = (
+                (_cfg_all.get("context_runtime") or {}).get("subscription_thread_rotation_mode") == "measured-v1"
+                and bool((_row0.get("compact_summary") or "").strip()))
             # cwd = THƯ MỤC BRAIN, không phải gốc project (0.55.58). Trước đó nhánh này là chỗ
             # DUY NHẤT trong bốn engine chat còn chạy cwd=CLAUDE_CWD (/app trong Docker) - Codex,
             # Antigravity, Grok và mọi workflow/loop/lint đều đã cwd=brain. Hậu quả chủ repo báo
@@ -17716,7 +17721,7 @@ async def _chat_socket(ws):
                     _k_mach = (_row0.get("grok_session_id") or "").strip()
                     if _k_mach and compaction.nen_mach_thue_bao(
                             (_row0.get("last_context_input_tokens") if _row0.get("last_context_provider") == "grok" else 0), msg_count=_row0.get("msg_count"),
-                            rotated_at=_row0.get("thread_rotated_msg")):
+                            rotated_at=_row0.get("thread_rotated_msg")) and _allow_subscription_rotation:
                         _k_mach = ""
                         store.clear_grok_session_id(conv_sid)
                         store.mark_thread_rotated(conv_sid)
@@ -17894,7 +17899,7 @@ async def _chat_socket(ws):
                 # hoá đơn token - to hơn hẳn thứ Phase 8 gọt được. Xem compaction.
                 if stored_codex_thread and compaction.nen_mach_thue_bao(
                         (_row0.get("last_context_input_tokens") if _row0.get("last_context_provider") == "codex" else 0), msg_count=_row0.get("msg_count"),
-                        rotated_at=_row0.get("thread_rotated_msg")):
+                        rotated_at=_row0.get("thread_rotated_msg")) and _allow_subscription_rotation:
                     stored_codex_thread = ""
                     store.clear_codex_thread_id(conv_sid)
                     store.mark_thread_rotated(conv_sid)
@@ -18410,7 +18415,7 @@ async def _chat_socket(ws):
                 # của lượt trước làm dấu hiệu.
                 _cli_xoay_mach = bool(cli.session_id) and compaction.nen_mach_thue_bao(
                     (_row0.get("last_context_input_tokens") if _row0.get("last_context_provider") == "claude-code" else 0), msg_count=_row0.get("msg_count"),
-                    rotated_at=_row0.get("thread_rotated_msg"))
+                    rotated_at=_row0.get("thread_rotated_msg")) and _allow_subscription_rotation
                 if _cli_xoay_mach:
                     cli.session_id = None
                     store.mark_thread_rotated(conv_sid)

@@ -71,6 +71,16 @@ class UsageTests(unittest.TestCase):
         for call in calls:
             self.assertIn('last_context_input_tokens', ast.unparse(call.args[0]))
 
+    def test_rotation_requires_opt_in_and_durable_summary(self):
+        tree = ast.parse((ROOT / 'server/main.py').read_text(encoding='utf-8'))
+        assignment = next(n for n in ast.walk(tree) if isinstance(n, ast.Assign)
+                          and any(isinstance(t, ast.Name) and t.id == '_allow_subscription_rotation' for t in n.targets))
+        expression = compile(ast.Expression(assignment.value), '<rotation-policy>', 'eval')
+        self.assertFalse(eval(expression, {'_cfg_all': {}, '_row0': {'compact_summary': 'decisions and sources'}}))
+        settings = {'context_runtime': {'subscription_thread_rotation_mode': 'measured-v1'}}
+        self.assertFalse(eval(expression, {'_cfg_all': settings, '_row0': {}}))
+        self.assertTrue(eval(expression, {'_cfg_all': settings, '_row0': {'compact_summary': 'decisions and sources'}}))
+
 
 if __name__ == '__main__':
     unittest.main()
