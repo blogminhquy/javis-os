@@ -23981,7 +23981,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             nonlocal out, _streamed, _pinged
             resume_failed = False
             # A command Claude Code leaves running in a Telegram turn is adopted and reported back (tien_trinh_nen).
-            claude_warm.mark_background(cli, cli.tag)
+            claude_warm.mark_background(cli, getattr(cli, "tag", ""))
             async for ev in cli.query(prompt):
                 et = ev["type"]
                 if et == "final":

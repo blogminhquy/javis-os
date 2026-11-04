@@ -104,9 +104,9 @@ class BackgroundWait:
         if tien_trinh_nen.POSIX:
             return localefmt.chu(
                 f"\n\n_(Javis đã chờ việc chạy nền {mins} phút. Việc vẫn đang chạy tiếp, nên lượt này ngừng chờ để "
-                f"khung chat không bị giữ.)_",
+                f"khung chat không bị giữ. JAVIS_CLAUDE_BG_WAIT đổi thời gian chờ.)_",
                 f"\n\n_(Javis waited {mins} minutes for the background work. It is still running, so this turn stops "
-                f"waiting and frees the chat.)_")
+                f"waiting and frees the chat. JAVIS_CLAUDE_BG_WAIT changes the wait.)_")
         return localefmt.chu(
             f"\n\n_(Javis đã chờ việc chạy nền {mins} phút mà chưa xong nên ngừng chờ. Nhắn \"làm tiếp\" khi muốn xem "
             f"kết quả; JAVIS_CLAUDE_BG_WAIT đổi thời gian chờ.)_",
