@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.449.0] - 2026-11-04
+### Thêm mới
+- **Nhóm đẩy được code lên GitHub.** (đang viết)
+
 ## [0.448.0] - 2026-11-04
 ### Thêm mới
 - **Threads vào thẻ Kết nối Meta.** Bấm **Kết nối Threads**, dán Threads App ID và App secret, đăng nhập là xong. Bình luận dưới bài Threads của bạn vào Hộp thư ngay khi có, qua webhook (không phải hỏi định kỳ), và bot trả lời công khai ngay dưới bình luận.
