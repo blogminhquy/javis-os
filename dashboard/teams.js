@@ -59,12 +59,12 @@
   var CAP_KEY = { task_turns: "teams.cap.task_turns", task_steps: "teams.cap.task_steps", daily_turns: "teams.cap.daily_turns",
     mentions: "teams.cap.mentions", help_depth: "teams.cap.help_depth", busy_wait_s: "teams.cap.busy_wait_s",
     judge_daily: "teams.cap.judge_daily", volunteer_k: "teams.cap.volunteer_k", judge_off_batch: "teams.cap.judge_off_batch",
-    reply_parallel: "teams.cap.reply_parallel" };
+    reply_parallel: "teams.cap.reply_parallel", auto_jobs: "teams.cap.auto_jobs" };
   var TAB_KEY = { info: "teams.tab_info", jobs: "teams.tab_jobs", team: "teams.tab_team" };
   var LATE = ["late_cancelled", "late", "old_revision", "member_left", "leader_changed", "lease_lost"];
   // Trần chủ nhóm chỉnh được (team_store.OWNER_CAPS). Bốn trần đầu có "Không giới hạn" (lưu null, GOAL T1 mục 9).
   var CAP_FIELDS = ["task_turns", "task_steps", "help_depth", "daily_turns", "mentions", "busy_wait_s", "judge_daily",
-    "volunteer_k"];
+    "volunteer_k", "auto_jobs"];
   var OWNER_UNL = ["task_turns", "task_steps", "help_depth", "daily_turns", "judge_daily"];
   // Ô chọn chế độ (T3 phần J): phán xử khi Cộng hưởng của trợ lý tắt, 1 = lọc code + lô, 0 = chỉ lọc code. Chỉ chủ chỉnh.
   // 0.260.0: reply_parallel, 1 = mọi người được @ trả lời cùng lúc, 0 = lần lượt theo thứ tự @.

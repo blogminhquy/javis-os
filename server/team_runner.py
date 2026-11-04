@@ -76,6 +76,15 @@ PEER_HINT = ('Góp ý cho một tin của đồng đội (tuỳ chọn, tối đ
 ASK_PEER_OP = "ask_peer"
 ASK_PEER_PER_TURN = 2
 LEADER_ROLES = ("leader_reply", "plan", "synthesize")
+# 0.452.0 (owner, 04/11/2026: "để tạo thành 1 loop hoàn chỉnh mà hiệu quả"): a member answering the owner's message opens
+# the job the owner asked for, instead of only proposing it. The job is coordinated by the leader like any job (plan,
+# assign, help, synthesize, acceptance), so members never hand work to each other directly. One job per owner message
+# (the source key is the message), at most `auto_jobs` a day per team; 0 turns it off.
+AUTO_JOB_HINT = ("Nếu chủ nhóm đang GIAO một việc cần làm thật (viết, làm, sửa, tra cứu, lập kế hoạch...) chứ không chỉ hỏi "
+                 "hay trò chuyện, hãy mở việc ngay thay vì chỉ hứa làm: "
+                 '<!-- JAVIS_TEAM: {"op": "open_job", "title": "<tên việc ngắn>", "brief": "<yêu cầu đủ ý của chủ, kèm '
+                 'thế nào là xong>"} -->. Trưởng nhóm sẽ lập kế hoạch, giao người, rồi tổng hợp kết quả về đây. Mỗi tin '
+                 "của chủ chỉ mở một việc. Câu hỏi hay trò chuyện thì chỉ trả lời, không mở việc.")
 REPLY_ROLES = ("leader_reply", "member_reply")
 # Bước của việc nhóm chạy CÓ công cụ (0.194.0, chủ 17/10/2026: "team phải đầy đủ các quyền thì mới làm việc được"): Làm
 # và Hỗ trợ. Lượt trò chuyện, lập kế hoạch và tổng hợp vẫn chỉ chữ cho nhanh và rẻ.
@@ -1000,7 +1009,10 @@ class TeamRunner:
         role = "leader_reply" if key == team["leader_key"] else "member_reply"
         body = (f"Chủ nhóm vừa nhắn (tin #{mid}):\n{text}\n\n"
                 "Trả lời ngắn gọn (1 đến 3 câu), đúng vai của bạn trong nhóm.")
-        if role == "leader_reply":
+        if await self._io(self._auto_jobs_left, team) > 0:
+            # 0.452.0: whoever answers the owner opens the job itself; the leader still plans and assigns it.
+            body += "\n" + AUTO_JOB_HINT
+        elif role == "leader_reply":
             body += ("\nNếu trao đổi này nên thành một việc nhóm, bạn có thể ĐỀ XUẤT (chủ nhóm bấm mới thành việc): "
                      '<!-- JAVIS_TEAM: {"op": "propose_job", "title": "...", "brief": "..."} -->')
 
@@ -1786,6 +1798,57 @@ class TeamRunner:
 
     def _system(self, team: dict, text: str, kind: str) -> None:
         self._post(team, text, author_kind="system", meta={"kind": kind})
+
+    # ───────────── 0.452.0: jobs opened from the chat ─────────────
+
+    def _leader_with_authority(self, team_id: str, agent_key: str, role: str) -> bool:
+        """The leader under Full authority opens jobs through its admin ops (no daily cap of this path)."""
+        if role != "leader_reply":
+            return False
+        auth = self.teams.active_authority(team_id)
+        return bool(auth and auth.get("leader_key") == agent_key)
+
+    def _day_start(self) -> float:
+        lt = time.localtime(self.clock())
+        return time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, lt.tm_wday, lt.tm_yday, lt.tm_isdst))
+
+    def _auto_jobs_left(self, team: dict) -> int:
+        """Jobs the chat may still open today (cap `auto_jobs` minus the ones opened from the chat since midnight)."""
+        cap = int((team.get("caps") or {}).get("auto_jobs") or 0)
+        if cap <= 0:
+            return 0
+        since = self._day_start()
+        used = sum(1 for e in self.teams.events(team["team_id"], 500)
+                   if e["kind"] == "job_opened" and str(e["by"]).startswith("chat:") and e["created_at"] >= since)
+        return max(0, cap - used)
+
+    def _chat_open_job(self, team_id: str, agent_key: str, op: dict, notes: list, reply_to) -> None:
+        """A member answering the owner opens the job asked for (0.452.0). Caller holds `accept_lock`. The job is keyed on
+        the owner's message, so the leader and a member answering the same message open it once."""
+        team = self._team(team_id)
+        title = re.sub(r"\s+", " ", str(op.get("title") or "")).strip()[:120]
+        if not title:
+            notes.append("Mở việc cần tiêu đề, đã bỏ")
+            return
+        if not reply_to:
+            notes.append("Chỉ mở việc khi trả lời tin của chủ nhóm, đã bỏ")
+            return
+        source = f"chat:{team['session_id']}:{int(reply_to)}"
+        if self._auto_jobs_left(team) <= 0:
+            notes.append("Hôm nay nhóm đã tự mở đủ số việc cho phép (Giới hạn của team), chủ nhóm giao việc để chạy tiếp")
+            return
+        tid, created = self.tasks.enqueue_team(
+            team["brain_id"], team_id, title, str(op.get("brief") or title)[:4000], source_ref=source,
+            assignee_key="", coordinator_key=team["leader_key"] or "", chat_id=f"team:{team_id}",
+            created_by=f"agent:chat:{agent_key}")
+        self._ensure_quality_contract(tid)
+        if created:
+            self.teams.log_event(team_id, "job_opened", f"chat:{agent_key}", None, {"task_id": tid, "title": title})
+            self._post(team, localefmt.chu('{ten} đã mở việc "{viec}". Trưởng nhóm sẽ lập kế hoạch và giao người.',
+                                           '{ten} opened the job "{viec}". The leader will plan it and assign people.',
+                                           ten=self._name(team, agent_key), viec=title),
+                       author_kind="system", task_id=tid, meta={"kind": "job_opened", "from_chat": True})
+            self._state(team_id)
 
     def _apply_admin(self, team_id: str, leader_key: str, op: dict, notes: list, source: str,
                      authority_pin: Any = _UNPINNED) -> None:
@@ -2833,6 +2896,10 @@ class TeamRunner:
             # Quyền ghim lúc giữ chỗ lượt (GOAL T1 mục 9). Đọc trong khoá, cùng khoá với cấp và thu hồi.
             pin = (self.teams.turn(turn_id) or {}).get("authority_id") if admin_ops else None
             for i, op in enumerate(admin_ops):
+                if (applied and op["op"] == "open_job" and role in REPLY_ROLES
+                        and not self._leader_with_authority(team_id, agent_key, role)):
+                    self._chat_open_job(team_id, agent_key, op, notes, reply_to)
+                    continue
                 if not applied or role not in LEADER_ROLES:
                     notes.append(f"Lệnh '{op['op']}' không dùng được ở lượt này, đã bỏ")
                     continue
