@@ -637,14 +637,14 @@ def _ten_goi_dong(goi: str, email: str = "", folder=None, chi_ten_that: bool = F
 
     `claude auth status` only gives a CODE ("max" covers both Max and the renamed Ultra since
     2026-10-30). The CLI also stores the profile's `plan_display_name` in `.claude.json`; that wins.
-    Without it the code is only tidied ("max" -> "Max"). `chi_ten_that`: return "" rather than the
+    Without it, javis-store's plan-name catalog, then the code tidied ("max" -> "Max"). `chi_ten_that`: return "" rather than the
     tidied code, so a caller can tell a vendor name from a guess."""
     if not goi:
         return ""
     try:
         import plan_limits
         ten = plan_limits.ten_goi_claude(folder, email)
-        return ten or ("" if chi_ten_that else plan_limits.ten_goi(goi))
+        return ten or ("" if chi_ten_that else plan_limits.ten_goi(goi, "claude"))
     except Exception:  # noqa: BLE001
         return "" if chi_ten_that else goi
 

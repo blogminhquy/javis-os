@@ -314,13 +314,14 @@ def doc(now: float = None) -> dict:
     return out
 
 
-def ten_goi(raw: str) -> str:
-    """Tidy a plan CODE the provider sent ("max" -> "Max", "chatgpt_plus" -> "Plus", "SuperGrok" stays).
+def ten_goi(raw: str, nha: str = "") -> str:
+    """Name a plan CODE the provider sent ("max" -> "Max", "chatgpt_plus" -> "Plus", "SuperGrok" stays).
 
-    No hand-kept name table any more (owner, 2026-11-04): Anthropic renamed Max 20x to Ultra on
-    2026-10-30 while the CLI kept sending the code "max" for both tiers, so a table here goes stale
-    the day a vendor renames a plan. The real name comes from the vendor (`ten_goi_claude`); this
-    only formats a code when the vendor gave nothing better. Empty stays empty: never a guess."""
+    No name table in Javis's code (owner, 2026-11-04): vendors rename plans (Anthropic's Max 20x became
+    Ultra on 2026-10-30 under the same code "max"; OpenAI sells the code "prolite" as Pro), so a table
+    here goes stale the day they do. Order: the vendor's own name (callers try `ten_goi_claude` first),
+    then javis-store's catalog for provider `nha` (`plan_names`, refreshed without a release), then the
+    code itself, tidied. Empty stays empty: never a guess."""
     v = str(raw or "").strip()
     if not v:
         return ""
@@ -329,6 +330,14 @@ def ten_goi(raw: str) -> str:
     for tien_to in ("chatgpt_", "claude_"):
         if v.lower().startswith(tien_to) and len(v) > len(tien_to):
             v = v[len(tien_to):]
+    if nha:
+        try:
+            import plan_names
+            tu_danh_ba = plan_names.ten(nha, v)
+            if tu_danh_ba:
+                return tu_danh_ba
+        except Exception:  # noqa: BLE001
+            pass
     return v.replace("_", " ").title()
 
 
