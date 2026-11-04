@@ -17988,8 +17988,8 @@ async def _chat_socket(ws):
                                     _CONTEXT_RUNTIME.record_runtime_event(
                                         runtime_trace, "subscription.usage", {**telemetry, "requests": ev.get("request_usage") or []})
                                     await ws.send_text(json.dumps({"type": "usage_telemetry", **telemetry}))
-                                    if telemetry.get("last_request_input"):
-                                        store.set_last_context_input_tokens(conv_sid, telemetry["last_request_input"])
+                                # Missing request measurements (exec fallback) invalidate old context.
+                                store.set_last_context_input_tokens(conv_sid, telemetry.get("last_request_input") or 0)
                                 _ctx_in += int(ev.get("tokens_in", 0) or 0)
                                 _ctx_cache += int(ev.get("tokens_cache_read", 0) or 0)
                                 usage_store.record("codex", actual_model, ev.get("tokens_in", 0), ev.get("tokens_out", 0))

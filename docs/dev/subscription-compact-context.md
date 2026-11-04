@@ -30,6 +30,13 @@ and the native Codex/plugin catalogs are separate; this change does not suppress
 The contract asks for bounded reads, JSON filtering and reuse of evidence already loaded.
 It does not silently truncate tool errors or native tool results.
 
+`javis_run_tool` accepts an optional `result_view` with a JSON `pointer`, record `fields`,
+`offset` and `limit`. Projection follows the same authorized/audited tool call exactly once.
+It preserves detected errors verbatim and carries source IDs, provenance, counts, pagination
+and a hash of the original result. Unknown text/shapes or invalid views pass through unchanged.
+No new files, result replay, write retries or unguarded cache endpoints are introduced.
+Omitted fields do not mean absent data; never repeat a write to retrieve another page.
+
 ## Usage and thread rotation
 
 `subscription.usage` trace events and the additive WebSocket `usage_telemetry` frame contain
@@ -43,6 +50,10 @@ resumes without a baseline and batched deltas explicitly leave the complete coun
 Warm handles retain their baseline. The exec fallback still reports turn totals, without
 claiming request-level telemetry. Estimates from the context compiler remain estimates and
 are not substituted for provider measurements.
+
+Missing measurements invalidate the saved context value. Explicit thread clearing or
+switching to a different native thread also clears its context measurement; rebinding the
+same thread preserves it. These are metadata updates, not automatic session resets.
 
 The historical `sessions.last_input_tokens` column remains a turn total. The new
 `last_context_input_tokens` starts at zero and is populated only by measured request input.
