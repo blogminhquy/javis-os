@@ -8,6 +8,9 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.455.0] - 2026-11-04
+### Fixed
+- (in progress)
 ## [0.454.0] - 2026-11-04
 ### Added
 - **Drag to reorder projects, pinned chats and tags.** The same Reorder box as the brain picker: drag the handle or use the up and down arrows, then Done. The order is saved on the server, so phone and computer show the same order.
