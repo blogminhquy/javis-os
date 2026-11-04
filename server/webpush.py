@@ -341,7 +341,8 @@ def huy_theo_phien(phien: str) -> int:
         return truoc - len(d["subs"])
 
 
-async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", phien_hop_le=None) -> tuple:
+async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", phien_hop_le=None,
+                  quiet_if_visible: bool = False) -> tuple:
     """Đẩy MỘT thông báo tới MỌI trình duyệt đã đăng ký. Trả (số_gửi_được, số_bị_dọn, chi_tiết).
 
     Gửi cho tất cả là cố ý: bật/tắt là việc của từng thiết bị, nên đã bật ở đâu thì ở đó phải
@@ -358,8 +359,12 @@ async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", p
         subs = [x for x in subs if not x.get("phien") or x.get("phien") in phien_hop_le]
     if not subs:
         return 0, 0, []
-    payload = json.dumps({"title": tieu_de, "body": than, "url": url, "tag": tag},
-                         ensure_ascii=False).encode("utf-8")
+    msg = {"title": tieu_de, "body": than, "url": url, "tag": tag}
+    if quiet_if_visible:
+        # A notice about something the owner may be watching already (a long chat turn that just ended): the device
+        # where Javis is open and in front of them shows no notification (dashboard/sw.js).
+        msg["quiet_if_visible"] = True
+    payload = json.dumps(msg, ensure_ascii=False).encode("utf-8")
     import httpx
     ok, don, chi_tiet = 0, [], []
     async with httpx.AsyncClient(timeout=15) as c:

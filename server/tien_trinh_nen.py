@@ -164,6 +164,10 @@ def mo_ta_lenh(members: List[dict]) -> str:
     tot = ""
     for m in members:
         cmd = str(m.get("cmd") or "").strip()
+        # Claude Code's Bash tool wraps the command ("bash -c source <snapshot> ... eval '<cmd>' ..."): show <cmd>.
+        inner = _EVAL_INNER.search(cmd) if _CLAUDE_SHELL.search(cmd) else None
+        if inner and inner.group(1).strip():
+            cmd = inner.group(1).strip()
         if not cmd:
             continue
         dau = cmd.split()[0]
@@ -239,6 +243,144 @@ def ghi_nhom(tag: str, pid: int) -> None:
             _NHOM_THEO_TAG.pop(next(iter(_NHOM_THEO_TAG)))
 
 
+# ---------------------------------------------------------------------------------------
+# Engines that do not exit at the end of a turn (Claude Code)
+# ---------------------------------------------------------------------------------------
+# The owner reported on 2026-11-04 that a long video render or edit started from the chat never
+# reported back, neither in the chat nor in the bell. The process group test above cannot see
+# Claude Code's work: Javis keeps its `claude` process warm between turns (it does not exit), the
+# SDK starts it without a session of its own, and its Bash tool runs every command in a NEW
+# session. So `nohup ffmpeg ... &` left behind by Claude Code was never adopted, and
+# `javis_job op=then` silently dropped its instruction at the end of the turn.
+#
+# Instead the engine starts with ENV_MARK=<mark> in its environment. Every process it starts
+# inherits it (Claude Code filters only its own CLAUDE_CODE_* and BUN_* variables from its shell),
+# so at the end of a turn the processes carrying the mark are that conversation's work. A group is
+# "left behind" when one of its root processes is an orphan (its parent no longer carries the
+# mark: the shell that started it has exited), or when the root is a command Claude Code's Bash
+# tool is still running in the background (a turn that ended with its background tasks running).
+# The engine itself, its MCP servers and anything else still owned by a live engine process are
+# not orphans and are left alone.
+ENV_MARK = "JAVIS_BG_MARK"
+_MARKS_BY_TAG: Dict[str, List[str]] = {}
+_CLAUDE_SHELL = re.compile(r"shell-snapshots/snapshot-|pwd -P >\| \S*claude-[0-9a-f]+-cwd")
+_EVAL_INNER = re.compile(r"\beval '(.*?)'(?: < /dev/null)?(?: && pwd -P|$)", re.S)
+
+
+_SHELL_C = re.compile(r"^(/\S*/)?(sh|bash|zsh|dash)\s+(-\S+\s+)*-c\b")
+
+
+def _engine_shell(cmd: str) -> bool:
+    """A command the engine's shell tool is still running (Claude Code's background task), not one of its servers."""
+    return bool(_CLAUDE_SHELL.search(cmd) or _SHELL_C.match(cmd))
+
+
+def _clean_mark(mark) -> str:
+    return re.sub(r"[^\w:.-]", "_", str(mark or ""))[:120]
+
+
+def env_mark(mark) -> dict:
+    """The environment entry an engine process is started with so its work can be found later."""
+    m = _clean_mark(mark)
+    return {ENV_MARK: m} if POSIX and m else {}
+
+
+def note_mark(tag: str, mark) -> None:
+    """This turn runs on an engine started with env_mark(mark): adopt what it leaves behind."""
+    m = _clean_mark(mark)
+    if not POSIX or not tag or not m:
+        return
+    with _KHOA:
+        ds = _MARKS_BY_TAG.setdefault(str(tag), [])
+        if m not in ds:
+            ds.append(m)
+        while len(_MARKS_BY_TAG) > 200:
+            _MARKS_BY_TAG.pop(next(iter(_MARKS_BY_TAG)))
+
+
+def _proc_entry(d: Path) -> Optional[dict]:
+    try:
+        stat = (d / "stat").read_text()
+        rest = stat[stat.rindex(")") + 2:].split()
+        cmd = (d / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace").strip()
+        if not cmd:
+            cmd = stat[stat.index("(") + 1:stat.rindex(")")]
+        try:
+            cwd = os.readlink(str(d / "cwd"))
+        except Exception:
+            cwd = ""
+        return {"pid": int(d.name), "state": rest[0], "ppid": int(rest[1]), "pgid": int(rest[2]),
+                "cmd": cmd, "cwd": cwd}
+    except Exception:
+        return None
+
+
+def _marked(mark: str) -> List[dict]:
+    """Live processes whose environment carries ENV_MARK=mark. /proc on Linux, `ps -E` on macOS."""
+    needle = f"{ENV_MARK}={mark}"
+    out: List[dict] = []
+    proc = Path("/proc")
+    if proc.is_dir():
+        want = needle.encode("utf-8")
+        for d in proc.iterdir():
+            if not d.name.isdigit():
+                continue
+            try:
+                if want not in (d / "environ").read_bytes().split(b"\0"):
+                    continue
+            except Exception:
+                continue
+            e = _proc_entry(d)
+            if e:
+                out.append(e)
+        return out
+    try:
+        r = subprocess.run(["ps", "-A", "-E", "-ww", "-o", "pid=,ppid=,pgid=,stat=,command="],
+                           capture_output=True, text=True, timeout=5)
+        for line in r.stdout.splitlines():
+            parts = line.split(None, 4)
+            if len(parts) < 5 or needle not in parts[4].split():
+                continue
+            cmd = parts[4].split(f" {ENV_MARK}=")[0]
+            out.append({"pid": int(parts[0]), "ppid": int(parts[1]), "pgid": int(parts[2]),
+                        "state": parts[3][:1], "cmd": cmd, "cwd": ""})
+    except Exception:
+        pass
+    return out
+
+
+def groups_left_by_mark(mark) -> List[int]:
+    """Process groups the engine marked `mark` left running (see ENV_MARK). Groups Javis already
+    tracks, the server's own group and groups holding an engine the server started are skipped."""
+    m = _clean_mark(mark)
+    if not POSIX or not m:
+        return []
+    procs = [p for p in _marked(m) if p.get("state") != "Z"]
+    if not procs:
+        return []
+    marked = {p["pid"] for p in procs}
+    try:
+        own = os.getpgrp()
+    except Exception:
+        own = -1
+    me = os.getpid()
+    with _KHOA:
+        taken = {int(v.get("pgid") or 0) for v in _VIEC.values()
+                 if v.get("trang_thai") in ("run", "bo_theo_doi")}
+    groups: Dict[int, List[dict]] = {}
+    for p in procs:
+        groups.setdefault(int(p["pgid"]), []).append(p)
+    out = []
+    for pgid, members in groups.items():
+        if pgid <= 1 or pgid == own or pgid in taken or any(p["ppid"] == me for p in members):
+            continue
+        pids = {p["pid"] for p in members}
+        roots = [p for p in members if p["ppid"] not in pids]
+        if any(r["ppid"] not in marked or _engine_shell(str(r.get("cmd") or "")) for r in roots):
+            out.append(pgid)
+    return sorted(out)
+
+
 def dat_loi_dan(chat_id: str, text: str) -> None:
     """Model dặn "khi việc nền của lượt này xong thì làm tiếp X" (tool javis_job op=then)."""
     cid = str(chat_id or "").strip()
@@ -282,11 +424,14 @@ def nhan_nuoi_theo_tag(tag: str, brain_root: str, chat_id: str, *, hua: bool = F
     luôn được lấy ra khỏi hàng: không có việc thì nó không còn nghĩa gì.
     """
     with _KHOA:
-        pids = _NHOM_THEO_TAG.pop(str(tag or ""), [])
+        pids = list(_NHOM_THEO_TAG.pop(str(tag or ""), []))
+        marks = _MARKS_BY_TAG.pop(str(tag or ""), [])
     loi_dan = _lay_loi_dan(chat_id)
     moi: List[dict] = []
     if not POSIX:
         return moi
+    for mark in marks:
+        pids.extend(g for g in groups_left_by_mark(mark) if g not in pids)
     for pgid in pids:
         if not nhom_con_song(pgid):
             continue
@@ -379,13 +524,15 @@ def co_nhom_song(tag: str) -> bool:
     định có cần đợi một nhịp ân hạn trước khi nhận nuôi hay không."""
     with _KHOA:
         pids = list(_NHOM_THEO_TAG.get(str(tag or ""), []))
-    return any(nhom_con_song(p) for p in pids)
+        marks = list(_MARKS_BY_TAG.get(str(tag or ""), []))
+    return any(nhom_con_song(p) for p in pids) or any(groups_left_by_mark(m) for m in marks)
 
 
 def bo_tag(tag: str) -> None:
     """Lượt không đi tới bước nhận nuôi (lỗi, bị dừng): bỏ ghi nhớ để sổ không phình."""
     with _KHOA:
         _NHOM_THEO_TAG.pop(str(tag or ""), None)
+        _MARKS_BY_TAG.pop(str(tag or ""), None)
 
 
 def dang_chay(chat_id: str = "", brain_root: str = "") -> List[dict]:

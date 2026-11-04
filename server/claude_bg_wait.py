@@ -98,6 +98,15 @@ class BackgroundWait:
 
     def gave_up_text(self) -> str:
         mins = int((self.cap or 0) // 60)
+        # The process is kept alive for its tasks (claude_warm._linger) and, on POSIX, Javis adopts them at the end of
+        # the turn (tien_trinh_nen): the line saying what it now watches and that it reports back follows this one.
+        import tien_trinh_nen
+        if tien_trinh_nen.POSIX:
+            return localefmt.chu(
+                f"\n\n_(Javis đã chờ việc chạy nền {mins} phút. Việc vẫn đang chạy tiếp, nên lượt này ngừng chờ để "
+                f"khung chat không bị giữ.)_",
+                f"\n\n_(Javis waited {mins} minutes for the background work. It is still running, so this turn stops "
+                f"waiting and frees the chat.)_")
         return localefmt.chu(
             f"\n\n_(Javis đã chờ việc chạy nền {mins} phút mà chưa xong nên ngừng chờ. Nhắn \"làm tiếp\" khi muốn xem "
             f"kết quả; JAVIS_CLAUDE_BG_WAIT đổi thời gian chờ.)_",

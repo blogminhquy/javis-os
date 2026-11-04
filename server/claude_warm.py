@@ -262,9 +262,74 @@ class _WarmStartFailed(Exception):
     """The warm process refused the message before the turn started: rerun the turn cold."""
 
 
+def mark_background(cli, mark) -> None:
+    """Start this engine's `claude` with tien_trinh_nen's environment mark, and note the mark for this turn's tag, so
+    a command it leaves running (`nohup ffmpeg ... &`, a background task still running when the turn ends) is adopted
+    and reported back to the chat when it finishes. Wraps the instance's `_options` (claude_sdk_engine.py is pinned).
+    Idempotent: a Telegram engine is kept across turns."""
+    try:
+        import tien_trinh_nen
+        env = tien_trinh_nen.env_mark(mark)
+        if not env:
+            return
+        tien_trinh_nen.note_mark(cli.tag, mark)
+        if getattr(cli, "_javis_bg_env", None) == env:
+            return
+        base = getattr(cli, "_javis_bg_base", None) or cli._options
+
+        def _options():
+            opts = base()
+            try:
+                opts.env = {**(getattr(opts, "env", None) or {}), **cli._javis_bg_env}
+            except Exception:  # noqa: BLE001 - an options object without env: nothing to mark
+                pass
+            return opts
+        cli._javis_bg_base = base
+        cli._javis_bg_env = env
+        cli._options = _options
+    except Exception as e:  # noqa: BLE001 - the mark is a bonus, never a reason to fail a turn
+        print(f"[claude warm] background mark: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+# A turn that ends while Claude Code still runs background tasks (the wait hit its cap, or the follow-up started more):
+# closing the process would kill those tasks, so the render the owner is waiting for dies with the turn. The process
+# is kept, out of the pool, until its tasks finish (tien_trinh_nen adopts them and reports back), then closed.
+LINGER_MAX_S = 6 * 3600
+_LINGERING: set = set()
+
+
+def _linger(handle: "ClaudeHandle", completion, cap: float = LINGER_MAX_S) -> None:
+    async def _run():
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + cap
+        try:
+            agen = handle.client.receive_messages().__aiter__()
+            while completion.tasks:
+                left = deadline - loop.time()
+                if left <= 0:
+                    print("[claude warm] background tasks still running at the linger cap, closing", file=sys.stderr)
+                    break
+                try:
+                    msg = await asyncio.wait_for(agen.__anext__(), timeout=left)
+                except (StopAsyncIteration, asyncio.TimeoutError):
+                    break
+                completion.observe(msg, 0, loop.time())
+        except Exception as e:  # noqa: BLE001
+            print(f"[claude warm] linger: {type(e).__name__}: {e}", file=sys.stderr)
+        finally:
+            await handle.close()
+    try:
+        t = asyncio.get_running_loop().create_task(_run())
+    except RuntimeError:
+        return
+    _LINGERING.add(t)
+    t.add_done_callback(_LINGERING.discard)
+
+
 async def query(cli, prompt, key: str) -> AsyncIterator[dict]:
     """One chat turn, on the conversation's warm `claude` when it has one that fits, else cold, keeping the process
     afterwards when the pool has room. Same events as `ClaudeSDK.query`."""
+    mark_background(cli, key or cli.tag)
     if not key or not eligible(cli) or not cli.is_available():
         async for ev in cli.query(prompt):
             yield ev
@@ -320,6 +385,7 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
     got_any = False
     auth_race = False
     clean = False              # the turn reached its ResultMessage: the client is in a known state
+    linger = False             # the turn ended while Claude Code's background tasks still run: keep them alive
     sysprompt_text = cli.system_prompt if not cli.system_prompt_raw else None
     try:
         try:
@@ -383,6 +449,7 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
                     continue
                 if ly_do == "bg":
                     yield {"type": "text", "content": bg.gave_up_text()}
+                    linger = bool(completion.tasks)
                     break
                 if ly_do == "ket":
                     print(f"[claude completion] tag={cli.tag} session={cli.session_id} "
@@ -447,11 +514,13 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
                 # Reusable only in a known state: a good result, nothing still running in the background.
                 clean = (not getattr(msg, "is_error", False) and bool(cli.session_id) and not auth_race
                          and not completion.tasks and not completion.untracked_work)
+                linger = bool(completion.tasks) and not getattr(msg, "is_error", False)
                 break
     except _WarmStartFailed:
-        clean = False
+        clean = linger = False
         raise
     except Exception as e:
+        linger = False
         chan_doan = None
         if "Control request timeout: initialize" in str(e):
             chan_doan = cli._startup_diagnosis(started)
@@ -482,6 +551,10 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
                         warm_pool.POOL.release(new)
                     else:
                         await handle.close()
+            elif linger and handle.alive():
+                if slot is not None:
+                    warm_pool.POOL.detach(slot)
+                _linger(handle, completion)
             elif slot is not None:
                 warm_pool.POOL.release(slot, keep=False)
             else:

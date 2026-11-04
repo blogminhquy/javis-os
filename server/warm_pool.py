@@ -239,6 +239,13 @@ class Pool:
         self._remember(slot)
         self._close_soon(slot)
 
+    def detach(self, slot: Slot) -> None:
+        """Take a busy slot out of the pool WITHOUT closing its process: the caller now owns the handle (a Claude
+        process kept alive for its background tasks, claude_warm._linger). The next turn opens a new process."""
+        with self._lock:
+            if self._slots.get(slot.key) is slot:
+                self._slots.pop(slot.key, None)
+
     # ---- prewarm ----
     def remember(self, key: str, kind: str, fingerprint: str, recipe) -> None:
         if key and recipe is not None:
