@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.453.0] - 2026-11-04
+### Sửa lỗi
+- **Claude Code chờ việc chạy nền rồi làm tiếp.** (đang viết)
+- **Antigravity hết báo nhầm "không đọc được file ngữ cảnh".** (đang viết)
+
 ## [0.452.0] - 2026-11-04
 ### Thêm mới
 - **Nhóm tự vận hành trọn vòng từ khung chat.** Anh nhắn một yêu cầu làm việc là thành viên trả lời tự mở việc luôn, không phải bấm Giao việc hay Tạo việc. Trưởng nhóm lập kế hoạch, giao người, các thành viên làm và nhờ nhau, rồi kết quả quay về khung chat.

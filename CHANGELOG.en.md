@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.453.0] - 2026-11-04
+### Fixed
+- **Claude Code waits for its background work, then carries on.** (in progress)
+- **Antigravity no longer wrongly says it "could not read the context file".** (in progress)
+
 ## [0.452.0] - 2026-11-04
 ### Added
 - **Teams run the whole loop from the chat.** Send a request for work and the member who answers opens the job right away, no Assign job or Create job press. The leader plans it, assigns people, members work and help each other, and the result comes back to the chat.
