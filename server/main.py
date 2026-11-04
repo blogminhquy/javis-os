@@ -293,7 +293,11 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       "/threads/webhook", "/threads/oauth/callback", "/threads/uninstall", "/threads/delete",
                       # /zalo-oa/webhook (0.412.0): Zalo calls it with no cookie; the route checks
                       # X-ZEvent-Signature under the OA secret keys of the Zalo OA accounts.
-                      "/zalo-oa/webhook")
+                      "/zalo-oa/webhook",
+                      # /chatbot-api/v1/turn (0.459.0): a server of the owner asks one Chatbot. No cookie; the route
+                      # checks the source address and the key of an internal API channel account itself
+                      # (channels/api.py). That key opens this path only, and an API token does not open it.
+                      "/chatbot-api/v1/turn")
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
 # cookie đăng nhập; request từ ngoài (qua Traefik/Caddy/LAN) đến từ IP khác loopback → vẫn bị chặn.
 # /reminders/cancel đi cùng nhóm với /reminders (TẠO nhắc): huỷ là thao tác YẾU HƠN tạo, nên
@@ -2281,7 +2285,7 @@ def _resonance_turn_provider(brain) -> str:
 
 
 def _session_assistant(conv_sid, brain, get_session) -> str:
-    """0.457.0: slug of the Partners-page assistant whose private chat `conv_sid` is (channel `agent:<slug>`), "" for
+    """0.462.0: slug of the Partners-page assistant whose private chat `conv_sid` is (channel `agent:<slug>`), "" for
     any other chat, a chat of another brain, or an assistant whose file is gone. Read by the host from the stored
     session row, so javis_schedule can stamp the jobs a partner chat creates with that assistant. Never raises."""
     try:
@@ -11294,7 +11298,7 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="", skill_serv
     where = ("qua Javis CLI (terminal hoặc HTTP /chat)" if channel == "cli"
              else "qua Telegram" if channel == "telegram"
              else "trên dashboard Javis (trang Cộng sự)")
-    # 0.457.0: the dashboard chat id, so a chat_id/owner_chat the model passes names this chat. An agent DM never had
+    # 0.462.0: the dashboard chat id, so a chat_id/owner_chat the model passes names this chat. An agent DM never had
     # the channel block or the `[Phiên chat: ...]` header, so its jobs used to report to Javis Core.
     phien = (f" Phiên chat này là `web:{conv_sid}`: việc nền (`javis_task`) và nhắc hẹn, việc định kỳ "
              "(`javis_schedule`) giao từ đây tự báo kết quả về đúng khung chat này; nhắc hẹn và việc định kỳ "
@@ -11307,7 +11311,7 @@ def _agent_chat_prompt(brain, slug, channel="dashboard", conv_sid="", skill_serv
 
 
 def _background_agent_prompt(brain, slug) -> str:
-    """0.457.0: system prompt of a reminder or loop made in a partner chat, so it does its job AS that assistant (role,
+    """0.462.0: system prompt of a reminder or loop made in a partner chat, so it does its job AS that assistant (role,
     file body, assets, memory, owner rules) instead of as plain Javis. No procedure overlay: that belongs to a surface
     the host knows (dm, team, workflow). Raises FileNotFoundError when the assistant file is gone; the caller then
     runs the job as Javis."""
@@ -11320,7 +11324,7 @@ def _background_agent_prompt(brain, slug) -> str:
 
 
 def _finish_background_agent_run(brain, slug, task, out) -> str:
-    """0.457.0: after a background run as an assistant: JAVIS_LESSON lines go to its memory and the run to its log, like
+    """0.462.0: after a background run as an assistant: JAVIS_LESSON lines go to its memory and the run to its log, like
     a workflow step; the cleaned text is what gets posted."""
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
     clean = _learn(slug, out)
@@ -12750,7 +12754,7 @@ loop_feature = self_improve.register(app, self_improve.LoopDeps(
     report=_notify_owner,               # báo NGƯỜI YÊU CẦU loop mỗi vòng (rỗng → Javis Core của brain loop)
     apply_mcp=_apply_mcp,               # loop ĐỌC được dữ liệu thật qua MCP Javis-quản-lý
     mcp_allow_patterns=_loop_mcp_allow,
-    build_agent_prompt=_background_agent_prompt,          # 0.457.0: made in a partner chat -> runs as that assistant
+    build_agent_prompt=_background_agent_prompt,          # 0.462.0: made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
 ))
 
@@ -13022,7 +13026,7 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     mcp_allow_patterns=_loop_mcp_allow,
     make_voice=lambda brain, text: _voice_note_rel(brain, text),
     send_file=lambda chat_id, path, brain: _send_voice_file(chat_id, path, brain),
-    build_agent_prompt=_background_agent_prompt,          # 0.457.0: made in a partner chat -> runs as that assistant
+    build_agent_prompt=_background_agent_prompt,          # 0.462.0: made in a partner chat -> runs as that assistant
     finish_agent_run=_finish_background_agent_run,
 ))
 
@@ -13185,7 +13189,7 @@ async def _incident_ask(prompt: str) -> str:
 
 async def _incident_post(brain: str, text: str, chat: str = "") -> None:
     # Empty chat id: the brain's Javis Core chat, the inbox and the owner's Telegram (_report_route, 0.186.0).
-    # 0.457.0: `chat` is the chat the broken job came from (a partner chat, a Telegram id): the notice goes there, and a
+    # 0.462.0: `chat` is the chat the broken job came from (a partner chat, a Telegram id): the notice goes there, and a
     # deleted chat falls back to Javis Core (_report_route, lost_origin).
     await _notify_owner(chat, text, kind="report", source="incident", brain=brain,
                         level="important" if text.startswith("⚠") else "info",
@@ -18716,7 +18720,7 @@ async def _chat_socket(ws):
                 "dashboard", chat_id=conv_sid, la_chu=True, session_id=conv_sid, message_id=user_mid,
                 agent=_ag_luot, authority_seq=(_ag_luot or {}).get("authority_seq"),
                 provider=(_ag_luot or {}).get("provider") or "")
-            # 0.457.0: the Partners-page assistant of this chat ("" elsewhere), host-resolved, for javis_schedule. An
+            # 0.462.0: the Partners-page assistant of this chat ("" elsewhere), host-resolved, for javis_schedule. An
             # extra key like the chatbot turn's `bot_id`: turn_context.py is pinned by the native profile evidence.
             _luot_turn["assistant"] = _session_assistant(conv_sid, brain, store.get_session)
             _luot_token = turn_context.bind(_luot_turn)
@@ -22583,6 +22587,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         # shows them under the bot's assistant instead of Javis Core.
         # A plain string, so a hook reading the turn (a shallow copy) cannot edit it for the next reader.
         _luot["bot_id"] = str(bot["id"])
+        # 0.459.0: an internal API turn opens private documents by the caller's scope list, never by its chat id. The
+        # doc tools read it from the turn (chatbot_doc_tools.turn_chat_id).
+        import chatbot_grounding
+        chatbot_grounding.add_turn_scopes(_luot, meta)
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
     if bot:
@@ -25052,6 +25060,32 @@ async def whatsapp_webhook(request: Request):
     # Answer 200 right away (Meta retries anything slower); the messages run as tasks.
     n = await whatsapp_bot.handle_webhook(payload)
     return {"ok": True, "messages": n}
+
+
+@app.post("/chatbot-api/v1/turn")
+async def chatbot_api_turn(request: Request):
+    """Internal API channel (0.459.0): one turn of the Chatbot the key belongs to. Every check (source, key, ceiling,
+    limits) and the answer live in channels/api.py; this route only hands it the raw request."""
+    import channels.api as api_channel
+    auth = request.headers.get("authorization", "")
+    ip = request.client.host if request.client else ""
+    hdrs = dict(request.headers)
+
+    def _out(status, body):
+        headers = {"Retry-After": "900"} if body.get("code") == "banned" else None
+        return JSONResponse(body, status_code=status, headers=headers)
+
+    # Source and key first, body after (0.459.0): nobody outside, or without the key, makes Javis buffer a body, and a
+    # body is read only up to the channel's cap.
+    account, bad = api_channel.gate(auth, ip, hdrs)
+    if bad:
+        return _out(*bad)
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > api_channel.BODY_MAX:
+            return _out(*api_channel.too_large())
+    return _out(*await api_channel.handle_http(auth, ip, hdrs, bytes(raw), account=account))
 
 
 # ============================================================

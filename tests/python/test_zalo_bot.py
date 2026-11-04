@@ -235,9 +235,9 @@ check("file không tồn tại thì báo đúng lý do", not ok and "không tồ
 # 0.61.0: danh sách kênh gắn được bot đọc từ sổ đăng ký (server/channels), thứ tự là thứ tự sổ.
 # 0.64.80: Zalo cá nhân cũng gắn được bot (không token), nên ba kênh chứ không còn hai.
 check("kho biết đúng các kênh gắn được bot (0.71.0 thêm Slack, WhatsApp; 0.102.0 thêm Lark; 0.134.0 thêm Messenger; "
-      "0.448.0 thêm Threads)",
+      "0.448.0 thêm Threads; 0.459.0 thêm API nội bộ)",
       set(chatbot_store.KENH) == {"telegram", "zalo", "zalo_personal", "zalo_oa", "messenger", "threads", "slack", "whatsapp",
-                                  "lark"})
+                                  "lark", "api"})
 check("kênh lạ rơi về Telegram chứ không lưu nguyên",
       chatbot_store._clean_kenh("viber") == "telegram")
 check("kênh zalo được nhận", chatbot_store._clean_kenh("Zalo") == "zalo")

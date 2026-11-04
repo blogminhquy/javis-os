@@ -286,14 +286,38 @@ def file_scope(p: Path) -> Optional[tuple]:
     return scope
 
 
-def _clean_chat_id(chat_id: Any) -> str:
-    return str(chat_id or "").strip()
+def _scope_ids(chat_id: Any) -> frozenset:
+    """The scope ids a turn may open. A string is one chat id (every channel since 0.338.0). A list or tuple is the
+    scope list of an internal API turn (0.459.0): sent by the caller's server with its key, matched against the folder
+    name and `chat_scope` like a chat id, and a document matching ANY of them is seen. Empty: no scoped document."""
+    if isinstance(chat_id, (list, tuple, set, frozenset)):
+        return frozenset(x for x in (str(v or "").strip() for v in chat_id) if x)
+    cid = str(chat_id or "").strip()
+    return frozenset((cid,)) if cid else frozenset()
+
+
+def scope_of(meta: Any) -> Any:
+    """What a channel turn opens scoped documents with: the turn's `doc_scopes` when the channel set them (internal
+    API; an empty list then opens nothing, never the chat id), else its chat id as before."""
+    m = meta or {}
+    if "doc_scopes" in m:
+        return tuple(m.get("doc_scopes") or ())
+    return str(m.get("chat_id") or "")
+
+
+def add_turn_scopes(turn: dict, meta: Any) -> dict:
+    """Put the internal API scope list on a bound turn (`turn_context`) as `doc_scopes`, so the doc tools open the same
+    documents as the pre-search. Only when the channel set `doc_scopes`; any other turn is left as it is."""
+    if isinstance(turn, dict) and "doc_scopes" in (meta or {}):
+        turn["doc_scopes"] = tuple(scope_of(meta))
+    return turn
 
 
 def scoped_paths(root: Any, chat_id: Any) -> List[str]:
-    """Relative posix paths of the scoped documents of ONE chat. Empty without a chat id."""
-    cid = _clean_chat_id(chat_id)
-    if not cid:
+    """Relative posix paths of the scoped documents of ONE chat (or of a scope list, see `_scope_ids`). Empty without
+    one."""
+    ids = _scope_ids(chat_id)
+    if not ids:
         return []
     r = Path(str(root))
     out = []
@@ -301,7 +325,7 @@ def scoped_paths(root: Any, chat_id: Any) -> List[str]:
         for n, (p, scope) in enumerate(_ung_vien(r)):
             if n >= MAX_FILE + MAX_SCOPED_FILES:
                 break
-            if scope and cid in scope:
+            if scope and ids.intersection(scope):
                 out.append(p.relative_to(r).as_posix())
     except Exception as e:
         print(f"[chatbot grounding] tài liệu riêng của {r} lỗi: {e}", file=sys.stderr)

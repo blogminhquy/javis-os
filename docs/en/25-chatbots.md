@@ -458,6 +458,90 @@ Since 0.85.5 there is also **no limit on the bot speaking up on its own** in a g
 
 No limit means one person messaging non-stop, or a busy group asking a lot, keeps spending your model usage. If something looks off, click **Take over** for that chat on the Conversations page, narrow **Who the bot answers**, or switch that group back to answering only when called by name.
 
+## Internal API channel
+
+Since 0.459.0, **experimental**: the request and the reply shape may still change in the next releases, and every change is noted in the changelog. This channel lets **one of your servers** (an internal staff web app, say) ask **one** Chatbot over HTTP, so staff can ask about their work inside that app. Your server takes the staff question, sends it to Javis and shows the reply.
+
+It is not the "chat only" API token from Settings: that token calls `/chat` **as the owner**, with every tool. The internal API channel runs a **Chatbot**, so every fence of a Chatbot holds: it sees only its own brain, runs no shell command and reaches no data source at the low level. The channel's key opens exactly one path, `POST /chatbot-api/v1/turn`, and an API token does not open that path.
+
+### Connecting
+
+1. **Chatbot** page → **Channels** tab → **Add a channel** → pick **Internal API**, name it, click **Save**. There is no token to paste: Javis generates the key (`jvc_...`, 32 random bytes) and **shows it exactly once**. Copy it to your server right away. Javis keeps only a hash, so a lost key cannot be shown again; rotate to a new one.
+2. Put that account on a bot at **Read only** or **Read documents**, then switch the bot on.
+3. Your server calls `POST http://<Javis host>:<port>/chatbot-api/v1/turn` **directly**, not through the public domain. By default only the machine running Javis may call. A caller in another container or on another machine of your network is added to `JAVIS_CHATBOT_API_ALLOW` (see **Limits and sources**).
+
+Click **Edit** on the account to **Rotate key** (the old key stops at once, no bot restart needed) and to set the rate limits.
+
+### HTTP contract
+
+```
+POST /chatbot-api/v1/turn
+Authorization: Bearer <key of the internal API channel account>
+Content-Type: application/json
+
+{
+  "message_id": "mgr-8f2c...",          // duplicate guard, required
+  "conversation_id": "mgr-user-123",    // conversation key: one thread per user
+  "user": {"id": "123", "name": "Nguyen Van A"},
+  "scopes": ["vai:nhan-vien", "cs-hn"], // private-document scopes, decided by your server
+  "text": "What does the Cloud Garden concept need?",
+  "context": "## Your schedule today\n- 15:00-17:00 ..."  // optional
+}
+```
+
+| Status | When |
+|---|---|
+| `200` | `{"ok": true, "reply": "...", "silent": false, "turn_id": "turn_..."}`. `silent: true` when the bot chose silence |
+| `400` | Bad request body, `field` names the field |
+| `401` | Wrong or rotated key |
+| `403` | Source not allowed, bot switched off, or bot above the permission ceiling (`code` says which) |
+| `409` | `message_id` already handled: the same reply again, with `"duplicate": true` |
+| `413` | `text` over 4,000 characters or `context` over 8,000 |
+| `429` | Rate limit hit (`limit`: `conversation` or `account`), or the IP is banned for guessing keys |
+| `502` | The bot turn failed. Only a generic sentence; details are in the bot log and the bell |
+| `504` | The bot took over 90 seconds |
+
+Every error carries a `code` for machines and an `error` for people. `conversation_id` is at most 60 characters: letters, digits and `_ . : @ -`.
+
+Example:
+
+```bash
+curl -s http://javis:7777/chatbot-api/v1/turn \
+  -H "Authorization: Bearer jvc_..." -H "Content-Type: application/json" \
+  -d '{"message_id":"mgr-1","conversation_id":"mgr-user-123","user":{"id":"123","name":"Nguyen Van A"},"scopes":["vai:nhan-vien"],"text":"What does the Cloud Garden concept need?"}'
+```
+
+### Permission ceiling
+
+A bot on the API channel **runs only at Read only or Read documents**. Higher, and every turn answers `403` (`code: permission_ceiling`) and the bot card turns red with the reason. **A per-chat exception cannot lift an API chat above this ceiling either.** The rule is locked in code in two places (the HTTP route and inside the bot turn), not by instructions.
+
+### Private documents by `scopes`
+
+`scopes` comes from the server holding the key, so Javis trusts it. The API channel's scopes carry **their own prefix**, so the calling server cannot open the private documents of a Zalo or Telegram group the same bot serves. For the scope `cs-hn`, a document is seen when it:
+
+- lies under `rieng-theo-nhom/api-cs-hn/`, or
+- has the line `chat_scope: api:cs-hn` in its frontmatter.
+
+A document matching **any** scope of the list is seen by that turn. Documents of other scopes never show, not even their file names. Without `scopes` the turn sees no private document. A document with `chat_scope: cs-hn` (no `api:`) or under `rieng-theo-nhom/cs-hn/` is **not** seen by the API channel: those belong to the other channels.
+
+`conversation_id` is **never a scope**. For a scope with `:` (like `vai:nhan-vien`) use `chat_scope: api:vai:nhan-vien`, since Windows folder names cannot hold `:`.
+
+### `context` is data, not instructions
+
+`context` enters the turn as a separate data block with a random id per turn, marked as reference data and not instructions. A sentence in it telling the bot to change roles or drop its rules is ignored. `context` is never written to the inbox.
+
+### Limits and sources
+
+- **Rate**: by default 20 turns per conversation in 10 minutes and 300 turns per hour for the whole account. Set them on the account edit form.
+- **Sources**: the `JAVIS_CHATBOT_API_ALLOW` environment variable is a CIDR list, by default `127.0.0.0/8,::1/128` (only the machine running Javis). Anything else gets `403`. For a caller in another container, list its exact address or the one Docker network both share (for example `JAVIS_CHATBOT_API_ALLOW=127.0.0.0/8,::1/128,172.20.0.0/16`), as narrow as you can. Do not open the whole `172.16.0.0/12`: on a Docker host with a published port, some connections from the Internet show up with Docker's internal gateway address and would pass. A request carrying a forwarding header (`X-Forwarded-For`, `X-Real-IP`...) also gets `403`, so calls through Nginx Proxy Manager or a tunnel never get in.
+- **Key guessing**: more than 10 wrong keys in 5 minutes from one IP bans that IP for 15 minutes and is written to `auth_audit.jsonl` (first 12 characters only), sharing the counter with API tokens.
+
+### Inbox and Take over
+
+Each turn lands in the **conversation inbox** like any channel: the person's name comes from `user.name`, the channel shows as **Internal API**, and a turn the bot was stumped on still reaches the **Bot stumped** tab. Click **Take over** on an API chat and the next turn answers `{"ok": true, "silent": true, "handed_over": true, "reply": ""}`. This version does not yet send what you type back to the calling server.
+
+The bot's **Try** button works as before.
+
 ## Deleting a bot
 
 Click **Delete** on the card. The bot stops answering immediately.
