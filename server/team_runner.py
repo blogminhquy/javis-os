@@ -2527,9 +2527,8 @@ class TeamRunner:
                "system": (str(info.get("system") or "").rstrip() + "\n\n" + note + "\n\n" +
                           "\n".join(INTERNAL_GROUP_NOTE)).lstrip(),
                "prompt": (self._context(team, agent_key, role, task, step, authority_pin=pin)
-                          + self._docs(team, tool_turn)
                           + self._skills(team, body, (task or {}).get("title") or "", (task or {}).get("intent") or "")
-                          + "\n\n" + body),
+                          + self._docs(team, tool_turn) + "\n\n" + body),
                "thread": f"teammate:{team_id}:{agent_key}", "task_id": task["id"] if task else None,
                "step_id": step["step_id"] if step else None, "turn_id": turn_id,
                'job_revision': step['job_revision'] if step else task['team_rev'] if task else None,

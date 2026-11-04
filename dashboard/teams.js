@@ -3283,8 +3283,8 @@
     pop.className = "cp-menu tm-folder-pop tm-gh-pop";
     pop.style.left = Math.max(8, r.left + 8) + "px";
     pop.style.bottom = Math.max(8, window.innerHeight - r.top + 6) + "px";
-    pop.innerHTML = '<div class="cp-mi cp-back">' + esc(tw("gh.menu")) + infoBtnHtml() + "</div>" +
-      infoBodyHtml(esc(tw("teams.gh_how"))) + '<div class="cp-sep"></div><div class="tm-gh-body"></div>';
+    pop.innerHTML = '<div class="cp-mi cp-back">' + esc(tw("gh.menu")) + infoBtn() + "</div>" +
+      infoBody(esc(tw("teams.gh_how"))) + '<div class="cp-sep"></div><div class="tm-gh-body"></div>';
     document.body.appendChild(pop);
     var sid = sessionId();
     G.panel(pop.querySelector(".tm-gh-body"), {
@@ -3298,8 +3298,6 @@
       document.addEventListener("keydown", githubEsc, true);
     }, 0);
   }
-  function infoBtnHtml() { return window.JavisInfo ? window.JavisInfo.btn(tw("info.more")) : ""; }
-  function infoBodyHtml(html) { return window.JavisInfo ? window.JavisInfo.body(html) : ""; }
 
   function pinTeamFolder(p) {
     var sid = sessionId();
