@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.468.0] - 2026-11-05
+### Added
+- **A long chat turn rings the bell and your phone when it ends.** A turn of 3 minutes or more, or one Javis opens itself after background work, leaves its answer in the inbox and sends a push notification. A device showing Javis right now shows no notification. Change the mark with `JAVIS_LONG_TURN_NOTIFY_S` (0 turns it off).
+### Fixed
+- **Long background commands (renders, video edits) now report back when done, on every engine.** Javis could not see Claude Code's, and could miss those of Codex, Grok and Antigravity, so nothing was reported and "carry on when it is done" was dropped. Now every background command of a chat is tracked: when one ends, the chat gets the news with the new files, and Javis carries on with what was promised.
+- **Background work running past 30 minutes is no longer killed.** When the wait runs out the chat is freed, while the work keeps running and is watched until it ends.
+
 ## [0.467.0] - 2026-11-05
 ### Added
 - **A "Today's pulse" strip on every list of My tasks:** four tiles (Clean days, Priorities, Today, Habits) you can tap, with a line from the star that fits the list.
