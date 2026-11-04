@@ -116,6 +116,8 @@ OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "
                               "javis_watch", "javis_login",
                               # 0.403.0: changes which notices reach the owner. A customer must never mute the owner.
                               "javis_notify",
+                              # 2026-11-04: renames Javis Core in the owner's brain. Not a customer's call.
+                              "javis_core_name",
                               # 2026-10-25: writes code that runs in the server (installed OFF, still owner's call).
                               "javis_plugin",
                               # 0.259.0: tìm và đọc web. Bot nói chuyện với khách lạ không được biến

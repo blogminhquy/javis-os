@@ -176,8 +176,10 @@ p_plain = main.build_system_prompt(str(OLD), session_id=plain)
 check("its prompt is the full Javis prompt plus the JAVIS CORE block",
       "# === JAVIS CORE ===" in p_core and main.CLAUDE_MD_PATH.read_text(encoding="utf-8")[:200] in p_core
       and "# === JAVIS CORE ===" not in p_plain)
-check("the compiled (API) path gets the same block", main._javis_core_block(sid3) == javis_core.prompt_block()
+check("the compiled (API) path gets the same block", main._javis_core_block(sid3) == javis_core.prompt_block(main._brain_root(key_old))
       and main._javis_core_block(plain) == "")
+check("owner 04/11/2026: a Javis Core with no name yet is told to ask for one, once",
+      "CHƯA có tên riêng" in main._javis_core_block(sid3) and "javis_core_name" in main._javis_core_block(sid3))
 
 print()
 if fails:

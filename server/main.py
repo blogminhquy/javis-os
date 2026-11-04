@@ -901,12 +901,19 @@ def _agent_assets_block(brain: str, meta: dict) -> str:
 
 
 def _javis_core_block(session_id: str) -> str:
-    """Javis Core's role block when `session_id` is a Javis Core chat, else "" (0.185.0)."""
+    """Javis Core's role block when `session_id` is a Javis Core chat, else "" (0.185.0). It ends with the name and
+    style the person gave Javis Core in that chat's brain (owner, 04/11/2026)."""
     try:
         row = get_store().get_session(session_id) if session_id else None
     except Exception:
         row = None
-    return javis_core.prompt_block() if row and javis_core.is_core_channel(row.get("channel")) else ""
+    if not (row and javis_core.is_core_channel(row.get("channel"))):
+        return ""
+    try:
+        root = _brain_root(str(row.get("brain") or "brain"))
+    except Exception:  # noqa: BLE001 - no brain path only means no name lines
+        root = None
+    return javis_core.prompt_block(root)
 
 
 # Stable prompt (0.445.0, #975): the clock line points at the per-message header instead of holding the time.
@@ -8145,18 +8152,20 @@ def _javis_core_entry(brain: str) -> dict:
         moc = get_store().moc_cap_nhat_theo_kenh(_brain_keys(brain), "agent:")
     except Exception:
         moc = {}
-    e = javis_core.list_entry(moc.get(javis_core.CHANNEL, 0))
+    e = javis_core.list_entry(moc.get(javis_core.CHANNEL, 0), root=_brain_root(brain))
     e["role"] = localefmt.chu(javis_core.definition()["role"], javis_core.definition()["role_en"])
     e["avatar"] = agent_avatar.for_agent({}, javis_core.SLUG)   # the same stable face in every brain
     return e
 
 
 def _core_refusal() -> JSONResponse:
-    """The one answer to every attempt to delete, rename, unpin, edit or reuse Javis Core."""
+    """The one answer to every attempt to delete, unpin, edit or reuse Javis Core through the agent routes. Its name
+    changes through POST /javis-core/name and the `javis_core_name` chat tool only (owner, 04/11/2026)."""
     return JSONResponse({"ok": False, "code": "system_assistant", "error": localefmt.chu(
-        "Javis Core là trợ lý hệ thống: không xoá, đổi tên, bỏ ghim hay sửa được. Chọn model vẫn được.",
-        "Javis Core is the system assistant: it cannot be deleted, renamed, unpinned or edited. "
-        "Choosing its model still works.")}, status_code=403)
+        "Javis Core là trợ lý hệ thống: không xoá, bỏ ghim hay sửa được. Đổi tên và chọn model vẫn được, ngay trên thẻ "
+        "của nó hoặc bằng lời trong chat.",
+        "Javis Core is the system assistant: it cannot be deleted, unpinned or edited. Renaming it and choosing its "
+        "model still work, on its card or by asking in chat.")}, status_code=403)
 
 
 @app.post("/javis-core/session")
@@ -8182,6 +8191,20 @@ async def javis_core_model_set(provider: str = Form(""), model: str = Form("")):
                                                                  f"provider does not exist: {prov}")}, status_code=400)
     await _set_core_pin(prov, model)
     return {"ok": True, **_core_model_view(cfgmod.read_settings().get("model", {}))}
+
+
+@app.post("/javis-core/name")
+async def javis_core_name_set(name: str = Form(""), brain: str = Form("brain")):
+    """Rename Javis Core in one brain from its card on the Partners page (owner, 04/11/2026). Empty = "Javis Core"
+    again. Same file the `javis_core_name` chat tool writes, so the card and the chat never disagree."""
+    root = _brain_root(brain)
+    try:
+        me = await asyncio.to_thread(javis_core.set_identity, root, name=name)
+    except (OSError, ValueError) as e:
+        print(f"[javis core name] {type(e).__name__}: {e}", file=sys.stderr)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không lưu được tên mới.", "Could not save the new name.")},
+                            status_code=500)
+    return {"ok": True, "name": me["name"] or javis_core.NAME, "custom_name": me["name"]}
 
 
 def _brain_ui_value(brain_key: str) -> str:

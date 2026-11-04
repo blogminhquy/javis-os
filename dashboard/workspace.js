@@ -1790,6 +1790,42 @@
     if (input) input.focus();
   }
 
+  // Rename Javis Core in this brain (owner, 04/11/2026). Empty = "Javis Core" again. After saving, the list, the
+  // chat header and this card are drawn again from GET /agents, so every place shows the same name.
+  function ganDoiTenCore(host, item) {
+    var form = host.querySelector("#wsCoreNameForm"), inp = host.querySelector("#wsCoreNameInp");
+    var btn = host.querySelector("#wsCoreRename"), err = host.querySelector("#wsCoreNameErr");
+    if (!form || !inp || !btn) return;
+    btn.onclick = function () {
+      form.hidden = !form.hidden;
+      if (!form.hidden) { inp.value = item.custom_name || ""; err.hidden = true; inp.focus(); inp.select(); }
+    };
+    host.querySelector("#wsCoreNameCancel").onclick = function () { form.hidden = true; };
+    inp.onkeydown = function (e) { if (e.key === "Escape") { form.hidden = true; e.stopPropagation(); } };
+    form.onsubmit = async function (e) {
+      e.preventDefault();
+      var d = null;
+      try { d = await api("/javis-core/name", { method: "POST", body: fd({ name: inp.value.trim(), brain: brain() }) }); }
+      catch (er) { d = null; }
+      if (!d || !d.ok) { err.textContent = (d && d.error) || t("ws.core_rename_err"); err.hidden = false; return; }
+      form.hidden = true;
+      try { await taiDanhSach(); } catch (er) { return; }
+      if (!active || S.loai !== "agent") return;
+      veDanhSach(); veGiua(dangChon()); vePhai(dangChon());
+    };
+  }
+
+  async function docLaiTenCore(ag) {
+    var d = null;
+    try { d = await api("/agents?brain=" + encodeURIComponent(brain()) + "&prompt=0&system=1"); } catch (e) { return; }
+    var moi = d && Array.isArray(d.agents) && d.agents.filter(function (a) { return a.slug === ag.slug; })[0];
+    if (!moi || (moi.name === ag.name && (moi.style || "") === (ag.style || ""))) return;
+    ag.name = moi.name; ag.custom_name = moi.custom_name; ag.style = moi.style;
+    if (!active || S.loai !== "agent") return;
+    veDanhSach();
+    if (dangChon() === ag) { veGiua(ag); vePhai(ag); }
+  }
+
   // ---------- cột phải ----------
   /** Tab cột phải cho LOẠI đang xem: trợ lý và quy trình nhớ riêng (xem S.tabCua). */
   function tabTheoLoai() { return (S.tabCua && S.tabCua[S.loai]) || S.tabPhai; }
@@ -1804,10 +1840,24 @@
       // Javis Core (0.185.0): no editor, no Delete, no Auto. The definition ships with the app.
       // 0.461.0 (owner, 04/11/2026): the card names the model Core runs on and can pin it (core-model.js), the same pin
       // as the model bar of a Core chat.
-      host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<h3>' + esc(item.name) + infoBtn() +
-        '</h3><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div><p>' + esc(item.role || "") + '</p>' +
-        infoBody(esc(t("ws.core_note"))) + '<div id="wsCoreModel"></div></div>';
+      // Owner, 04/11/2026: the person can give Javis Core its own name (pencil next to it), the same name Javis Core
+      // saves when they pick one in chat (`javis_core_name`). "Javis Core" stays as the small system label.
+      host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<div class="ws-core-title">' +
+        '<h3><span id="wsCoreNameTxt">' + esc(item.name) + '</span>' +
+        '<button type="button" class="ws-core-rename" id="wsCoreRename" title="' + esc(t("ws.core_rename")) +
+        '" aria-label="' + esc(t("ws.core_rename")) + '">' + ic("pencil") + '</button>' + infoBtn() + '</h3>' +
+        (item.custom_name ? '<small class="ws-core-sysname">' + esc(item.system_name || "Javis Core") + '</small>' : "") +
+        '</div><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div>' +
+        '<form class="ws-core-name-form" id="wsCoreNameForm" hidden>' +
+        '<input type="text" id="wsCoreNameInp" maxlength="40" autocomplete="off" placeholder="' + esc(item.system_name || "Javis Core") +
+        '" aria-label="' + esc(t("ws.core_rename")) + '">' +
+        '<button type="submit" class="ws-btn primary">' + esc(t("common.save")) + '</button>' +
+        '<button type="button" class="ws-btn" id="wsCoreNameCancel">' + esc(t("common.cancel")) + '</button>' +
+        '<small class="ws-err" id="wsCoreNameErr" hidden></small></form>' +
+        '<p>' + esc(item.role || "") + '</p>' +
+        infoBody(esc(t("ws.core_note")) + " " + esc(t("ws.core_name_note"))) + '<div id="wsCoreModel"></div></div>';
       if (window.JavisCoreModel) window.JavisCoreModel.mount(host.querySelector("#wsCoreModel"));
+      ganDoiTenCore(host, item);
       // 0.190.0 (owner, 16/10/2026): no memory list here any more. Javis already learns from the brain; seeing, editing
       // or forgetting a memory is a chat message ("quên chuyện đó đi"), done with the javis_memory tool.
     } else if (S.loai === "agent") {
@@ -2030,6 +2080,9 @@
         S.agents = sapXep(S.agents, "last_chat_at");
         if (dangXemCongSu(ag.slug)) daDoc(ag.slug);
         if (active) veDanhSach();
+        // Javis Core may have saved a new name in that turn (`javis_core_name`): read it back so the list, the chat
+        // header and the card show it without a reload (owner, 04/11/2026).
+        if (ag.system) docLaiTenCore(ag);
       }
     } else if (sid && S.loai === "agent") henUnread();
     if (!sid || !S.tienDo[sid] || S.tienDo[sid].trang_thai !== "dang") return;

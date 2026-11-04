@@ -448,6 +448,10 @@
     // vẽ lại, kẻo trong lúc đó đổi mặc định chung ở trang Models là bar nói sai.
     noteStamped: function (sid) {
       if (!sid || (sessionPin && pinSid === sid)) return;
+      // A Javis Core chat has no stamp of its own: it runs on Javis Core's pin, or on the main model while there is none
+      // (server `_chat_provider_for_session`). Showing the main model as pinned here made an unpinned Core chat look
+      // pinned, and then "change" when the main model changed (owner, 04/11/2026).
+      if (agentEff && agentEff.slug === "javis-core" && pinSid === sid) return;
       sessionPin = { provider: state.main.provider, model: state.main.model };
       pinBroken = false; pinSid = sid;
       renderBar();

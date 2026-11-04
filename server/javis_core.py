@@ -80,18 +80,24 @@ def definition() -> Dict[str, str]:
         return dict(value)
 
 
-def prompt_block() -> str:
-    """The role block added to a Javis Core turn. Empty when the definition file is missing."""
+def prompt_block(root: Any = None) -> str:
+    """The role block added to a Javis Core turn. Empty when the definition file is missing. With `root` (the brain the
+    turn runs in) it ends with the name and style the person gave Javis Core there (owner, 04/11/2026)."""
     body = definition()["body"]
-    return f"\n\n# === {BLOCK_TITLE} ===\n{body}" if body else ""
+    if not body:
+        return ""
+    return f"\n\n# === {BLOCK_TITLE} ===\n{body}" + (identity_block(root) if root else "")
 
 
-def list_entry(last_chat_at: float = 0.0) -> Dict[str, Any]:
+def list_entry(last_chat_at: float = 0.0, root: Any = None) -> Dict[str, Any]:
     """The row GET /agents puts first. Same shape as a brain agent, plus the system flags. The caller picks the role
-    text for the screen language (`localefmt.chu(role, role_en)`)."""
+    text for the screen language (`localefmt.chu(role, role_en)`). `name` is the one the person gave it in the brain at
+    `root` (owner, 04/11/2026), `system_name` always "Javis Core"."""
     d = definition()
+    me = identity(root) if root else {"name": "", "style": ""}
     return {
-        "slug": SLUG, "name": NAME, "role": d["role"], "skills": [], "model": "", "model_provider": "",
+        "slug": SLUG, "name": me["name"] or NAME, "system_name": NAME, "custom_name": me["name"], "style": me["style"],
+        "role": d["role"], "skills": [], "model": "", "model_provider": "",
         "tags": [], "tag_keys": [], "group": "", "pinned": True,
         "avatar": {},
         "system": True, "protected": True,
@@ -150,3 +156,93 @@ def default_session(store: Any, brain_key: str, *, title: str = NAME,
 def current_default(brain_key: str) -> str:
     """The pointer as stored, without checking or creating (for tests and diagnostics)."""
     return _read_map().get(str(brain_key or ""), "")
+
+
+# ── the name and style the owner gives Javis Core in one brain (owner, 04/11/2026) ─────────────────────────────────────────
+#
+# Owner, 04/11/2026: people want to make Javis Core their own. On the first chat it asks what to call it, keeps the
+# style the person likes, and the name shows on the Partners page. Kept per brain in `<brain>/Javis/core.json`, next to
+# the brain's other Javis files, so it moves with the brain and every brain (often another person) has its own.
+# The slug, the channel and the platform definition never change: only what Javis Core is called and how it talks.
+
+IDENTITY_REL = Path("Javis") / "core.json"
+_LONG_DASHES = (chr(0x2014), chr(0x2013))   # the owner bans both, everywhere
+NAME_MAX = 40
+STYLE_MAX = 300
+
+
+def _identity_path(root: Any) -> Optional[Path]:
+    return Path(str(root)) / IDENTITY_REL if str(root or "").strip() else None
+
+
+def clean_name(raw: Any) -> str:
+    """One line, no control characters or long dashes, at most NAME_MAX characters. "" means no own name."""
+    s = "".join(" " if (ord(c) < 32 or c in _LONG_DASHES) else c for c in str(raw or ""))
+    s = " ".join(s.split())
+    return s[:NAME_MAX].strip()
+
+
+def clean_style(raw: Any) -> str:
+    s = "".join(" " if (ord(c) < 32 or c in _LONG_DASHES) else c for c in str(raw or ""))
+    return " ".join(s.split())[:STYLE_MAX].strip()
+
+
+def identity(root: Any) -> Dict[str, Any]:
+    """{'name', 'style', 'asked'} of Javis Core in the brain at `root`. Empty name = still called Javis Core."""
+    out: Dict[str, Any] = {"name": "", "style": "", "asked": False}
+    path = _identity_path(root)
+    if path is None:
+        return out
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return out
+    if isinstance(data, dict):
+        out["name"] = clean_name(data.get("name"))
+        out["style"] = clean_style(data.get("style"))
+        out["asked"] = bool(data.get("asked")) or bool(out["name"])
+    return out
+
+
+def set_identity(root: Any, *, name: Any = None, style: Any = None, asked: Optional[bool] = None) -> Dict[str, Any]:
+    """Change only the fields given. A name given (even "") counts as asked: the person has answered."""
+    path = _identity_path(root)
+    if path is None:
+        raise ValueError("no brain")
+    with _lock:
+        cur = identity(root)
+        if name is not None:
+            cur["name"] = clean_name(name)
+            cur["asked"] = True
+        if style is not None:
+            cur["style"] = clean_style(style)
+        if asked is not None:
+            cur["asked"] = bool(asked) or bool(cur["name"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(cur, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(tmp, path)
+        return dict(cur)
+
+
+def display_name(root: Any) -> str:
+    return identity(root)["name"] or NAME
+
+
+def identity_block(root: Any) -> str:
+    """The lines about the name and style added under the role block, for the brain at `root`."""
+    me = identity(root)
+    lines = []
+    if me["name"]:
+        lines.append(f"Tên của bạn trong brain này: **{me['name']}** (người dùng đặt). Tự xưng bằng tên này; "
+                     "\"Javis Core\" chỉ còn là tên vai trò hệ thống.")
+    elif not me["asked"]:
+        lines.append("Bạn CHƯA có tên riêng. Trong câu trả lời đầu tiên, làm xong việc người dùng hỏi (nếu có) rồi "
+                     "hỏi thêm MỘT câu ngắn, thân thiện: họ muốn gọi bạn là gì, kèm 2-3 tên gợi ý hợp với họ. Gọi "
+                     "`javis_core_name` op=asked ngay lượt đó. Họ chọn tên thì lưu bằng op=set name=...; họ bỏ qua "
+                     "thì giữ tên Javis Core, không hỏi lại.")
+    else:
+        lines.append("Bạn chưa có tên riêng. Người dùng đặt tên lúc nào thì lưu bằng `javis_core_name` op=set.")
+    if me["style"]:
+        lines.append(f"Phong cách đã thống nhất với người dùng: {me['style']}")
+    return "\n\n" + "\n".join("- " + x for x in lines)

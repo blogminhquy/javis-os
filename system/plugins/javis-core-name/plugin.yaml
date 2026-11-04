@@ -1,0 +1,12 @@
+name: Tên và phong cách của Javis Core
+name_en: "Javis Core's name and style"
+slug: javis-core-name
+version: 1.0.0
+description: Cho người dùng đặt tên riêng và phong cách nói chuyện cho Javis Core của brain này, ngay trong chat. Tên hiện trên trang Cộng sự. Chỉ phiên của chủ thấy tool này.
+description_en: "Lets the person give this brain's Javis Core its own name and way of talking, right in chat. The name shows on the Partners page. Only the owner's own sessions see this tool."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_core_name
+hooks: []
