@@ -292,7 +292,7 @@
       + TH_COPY.map(function (x) { return copyRow(x[0], x[1], ts && ts[x[2]]); }).join("")
       + '<div class="msc-grid">'
       + '<div class="si-field msc-field"><label>' + esc(tw("th.f_app_id")) + infoBtn() + "</label>" + infoBody(esc(tw("th.f_app_id_how")))
-      + '<input class="js-input" data-th="app_id" type="text" autocomplete="off" spellcheck="false" placeholder="1234567890123456"></div>'
+      + '<input class="js-input" data-th="app_id" type="text" autocomplete="off" spellcheck="false"></div>'
       + '<div class="si-field msc-field"><label>' + esc(tw("th.f_app_secret")) + "</label>"
       + '<input class="js-input" data-th="app_secret" type="password" autocomplete="off" spellcheck="false"></div>'
       + "</div>"
