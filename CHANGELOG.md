@@ -6,6 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.450.0] - 2026-11-04
+### Thêm mới
+- **Nút Cài lên điện thoại ở menu.**
 ## [0.449.0] - 2026-11-04
 ### Thêm mới
 - **Nhóm đẩy được code lên GitHub.** Trong khung chat nhóm, bấm dấu cộng, chọn **Repo GitHub** và tích repo. Khi giao việc, thành viên sửa code trên nhánh riêng của nhóm; việc xong thì Javis tự kiểm tra, commit, đẩy lên, mở PR và theo dõi CI, giống chat thường.

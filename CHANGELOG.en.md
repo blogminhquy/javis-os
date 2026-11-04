@@ -8,6 +8,9 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.450.0] - 2026-11-04
+### Added
+- **Install on phone button in the menu.**
 ## [0.449.0] - 2026-11-04
 ### Added
 - **Teams can push code to GitHub.** In a team chat, tap the plus button, pick **GitHub repo** and tick a repo. When you assign a job, members edit code on the team's own branch; once the job is done, Javis checks, commits, pushes, opens the PR and watches CI, like a private chat.
