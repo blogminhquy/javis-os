@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.450.0] - 2026-11-04
+### Thêm mới
+- **Nút "Cài lên điện thoại" trong menu trên điện thoại.** Mở menu bên trái là thấy, bấm vào là hiện hướng dẫn cài Javis ra màn hình chính đúng theo máy đang dùng (iPhone: Chia sẻ rồi Thêm vào MH chính; Android: một nút Cài). Đã cài, mở Javis từ màn hình chính, thì nút không hiện nữa.
+### Cải thiện
+- Ai đã bấm "Đừng nhắc nữa" ở lời nhắc hằng ngày giờ vẫn mở lại được hướng dẫn bất cứ lúc nào qua nút này.
+
 ## [0.449.0] - 2026-11-04
 ### Thêm mới
 - **Nhóm đẩy được code lên GitHub.** Trong khung chat nhóm, bấm dấu cộng, chọn **Repo GitHub** và tích repo. Khi giao việc, thành viên sửa code trên nhánh riêng của nhóm; việc xong thì Javis tự kiểm tra, commit, đẩy lên, mở PR và theo dõi CI, giống chat thường.

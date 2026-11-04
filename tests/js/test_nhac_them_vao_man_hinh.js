@@ -130,6 +130,31 @@ const v = (f) => Number((html.match(new RegExp(f.replace(/[.\-]/g, "\\$&") + "\\
 check("app.js đã bump ?v= (>= 96)", v("app.js") >= 96, v("app.js"));
 check("style.css đã bump ?v= (>= 72)", v("style.css") >= 72, v("style.css"));
 
+
+// ---- 7. Nút "Cài lên điện thoại" ở chân menu (0.450.0) ----
+// Chủ repo 04/11/2026: muốn một nút cố định ở menu điện thoại, bấm là ra hướng dẫn, đã cài
+// thì không hiện. Lời nhắc tự bung mỗi ngày không thay được nút này: ai đã bấm "Đừng nhắc nữa"
+// hay lỡ đóng mất thì không còn đường nào mở lại hướng dẫn.
+const ganNut = (nudge.match(/function ganNutMenu\(\)[\s\S]*?\n  \}/) || [""])[0];
+check("có hàm gắn nút vào chân menu", /\.rail-foot/.test(ganNut) && /rf-install/.test(ganNut));
+check("nút chỉ gắn trên ĐIỆN THOẠI và khi CHƯA chạy dạng app",
+  /if \(!laDienThoai\(\) \|\| daLaApp\(\)\) return;/.test(ganNut));
+check("nút KHÔNG đọc cờ Đừng nhắc nữa (cờ đó chỉ tắt lời nhắc tự bung)",
+  !/KEY_TAT|denHen/.test(ganNut));
+check("bấm nút mở thẳng hướng dẫn, bỏ qua nhịp một ngày", /b\.onclick = moHuongDan;/.test(ganNut));
+const moHD = (nudge.match(/function moHuongDan\(\)[\s\S]*?\n  \}/) || [""])[0];
+check("moHuongDan vẽ popup ở chế độ tự mở (không có nút Đừng nhắc nữa)",
+  /ve\(true\)/.test(moHD) && /tuMenu \? ""/.test(nudge));
+check("moHuongDan đóng ngăn kéo menu trước khi mở", /nav-open/.test(moHD));
+check("cài xong (appinstalled) thì gỡ nút",
+  /addEventListener\("appinstalled", function \(\) \{[^}]*goNutMenu\(\)/.test(nudge));
+check("nút được gắn ngay lúc trang nạp, không đợi 12 giây như lời nhắc",
+  /function batDau\(\) \{ ganNutMenu\(\);/.test(nudge));
+check("nút dùng khoá i18n instl.rail", goiKhoa("instl.rail") && cauLa("instl.rail", "Cài lên điện thoại"));
+check("có style cho nút, ẩn trên máy tính", css.indexOf(".rail-foot .rf-install") !== -1
+  && /@media \(min-width: 861px\) and \(pointer: fine\) \{ \.rail-foot \.rf-install \{ display: none; \} \}/.test(css));
+check("install-nudge.js đã bump ?v= (>= 2)", v("install-nudge.js") >= 2, v("install-nudge.js"));
+
 console.log();
 if (fails.length) {
   console.log("THAT BAI " + fails.length + ": " + fails.join(", "));

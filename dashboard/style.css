@@ -4840,3 +4840,16 @@ a.cp-mi.gh-more-conn { text-decoration: none; color: inherit; }
 /* Meta card actions: Facebook Page and Threads side by side (0.448.0) */
 .msc-cat-act { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
 .msc-cat-act .gcard-btn { flex: 1 1 auto; }
+
+/* Nút "Cài lên điện thoại" ở chân menu (0.450.0, install-nudge.js gắn khi CHƯA chạy dạng app).
+   Cùng khuôn với "Tặng sao" ngay dưới (star-nudge.css): hàng riêng trải hết bề ngang, nhưng tông
+   cam thương hiệu thay vì vàng sao để hai nút không lẫn vào nhau. Chỉ dành cho điện thoại. */
+.rail-foot .rf-install {
+  order: 3; flex: 1 0 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 40px; margin: 2px 0 0; padding: 0 10px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--accent-solid); background: var(--accent-solid); color: var(--on-accent);
+  font: 600 15px/1.2 var(--font);
+}
+.rail-foot .rf-install .ic { width: 17px; height: 17px; flex: none; }
+.rail-foot .rf-install .rf-install-chu { overflow: hidden; text-overflow: ellipsis; }
+@media (min-width: 861px) and (pointer: fine) { .rail-foot .rf-install { display: none; } }

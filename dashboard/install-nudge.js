@@ -17,6 +17,13 @@
    3. Nói ĐÚNG cách cài của TỪNG trình duyệt. iOS không có nút cài nào để bấm - chỉ vẽ nút
       "Cài" trên Safari là hứa một thứ không tồn tại, nên bên đó phải chỉ đường Chia sẻ →
       Thêm vào MH chính.
+
+   Nút "Cài lên điện thoại" ở chân menu (0.450.0, chủ repo 04/11/2026): lời nhắc mỗi ngày
+   một lần thì ai đã bấm "Đừng nhắc nữa" hay lỡ đóng mất sẽ không còn đường nào mở lại hướng
+   dẫn. Nút này luôn có trên điện thoại khi Javis CHƯA chạy dạng app, bấm là mở đúng popup ở
+   trên. Đã cài (mở từ màn hình chính) thì nút không hiện, cài xong ngay trong phiên thì nút
+   tự gỡ. Nút không đọc cờ "Đừng nhắc nữa": cờ đó tắt lời nhắc tự bung, không tắt việc người
+   dùng tự đi tìm hướng dẫn.
 */
 (function () {
   "use strict";
@@ -56,7 +63,7 @@
 
   function dong(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
 
-  function ve() {
+  function ve(tuMenu) {
     var ios = laIOS();
     var coNutCai = !!(window.JavisInstall && window.JavisInstall.coHopCai());
     var than = ios
@@ -86,7 +93,8 @@
       + '  </div>'
       + than
       + '  <div class="inud-nut">'
-      + '    <button type="button" class="inud-tat" id="inudTat">' + window.t("instl.tat") + '</button>'
+      // Tự bấm mở từ menu thì không cần "Đừng nhắc nữa": người ta đang chủ động hỏi.
+      + (tuMenu ? "" : '    <button type="button" class="inud-tat" id="inudTat">' + window.t("instl.tat") + '</button>')
       + '    <span class="inud-day"></span>'
       + '    <button type="button" class="inud-sau" id="inudSau">' + window.t("instl.sau") + '</button>'
       + (coNutCai && !ios ? '    <button type="button" class="inud-cai" id="inudCai">' + window.t("instl.cai") + '</button>' : "")
@@ -96,6 +104,7 @@
 
     // Ghi mốc NGAY khi hiện, không đợi người dùng bấm gì: đóng bằng cách vuốt / tải lại
     // trang cũng phải tính là "đã nhắc hôm nay", không thì mỗi lần F5 lại bung ra một lần.
+    // Tự mở từ menu cũng tính: vừa đọc hướng dẫn xong thì lời nhắc tự bung hôm nay là thừa.
     ghi(KEY_LUC, String(Date.now()));
 
     var sau = el.querySelector("#inudSau");
@@ -108,7 +117,7 @@
       var xong = await window.JavisInstall.moHopCai();
       dong(el);
       // Cài xong thì thôi hẳn; từ chối thì mai nhắc lại như thường.
-      if (xong) ghi(KEY_TAT, "1");
+      if (xong) { ghi(KEY_TAT, "1"); goNutMenu(); }
     };
     var nen = el.querySelector(".inud-nen");
     if (nen) nen.onclick = function () { dong(el); };
@@ -123,12 +132,50 @@
     ve();
   }
 
-  // Cài xong thì không bao giờ nhắc nữa, kể cả khi lần sau lỡ mở lại bằng tab trình duyệt.
-  window.addEventListener("appinstalled", function () { ghi(KEY_TAT, "1"); });
+  /** Mở hướng dẫn ngay, bỏ qua nhịp mỗi ngày một lần (nút ở menu bấm vào). */
+  function moHuongDan() {
+    if (daLaApp()) return;
+    dong(document.querySelector(".inud-wrap"));
+    // Ngăn kéo menu trên điện thoại đang mở thì đóng lại, để hướng dẫn không nằm đè lên nó.
+    // Đóng thẳng chứ không bấm hộ nền mờ: nền mờ bỏ qua cú chạm trong 400ms đầu (mobile-chat.js).
+    document.body.classList.remove("nav-open");
+    var nen = document.getElementById("navBackdrop");
+    if (nen) nen.hidden = true;
+    ve(true);
+  }
 
-  function batDau() { setTimeout(thu, CHO_TRUOC_KHI_HIEN); }
+  // ---- Nút "Cài lên điện thoại" ở chân menu ----
+  function veNutMenu(b) {
+    var chu = window.t("instl.rail");
+    b.innerHTML = (typeof window.ic === "function" ? window.ic("download") : "")
+      + '<span class="rf-install-chu">' + chu + "</span>";
+    b.title = chu;
+    b.setAttribute("aria-label", chu);
+  }
+  function ganNutMenu() {
+    if (!laDienThoai() || daLaApp()) return;
+    var chan = document.querySelector(".rail-foot");
+    if (!chan || chan.querySelector(".rf-install")) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "rf-install";
+    veNutMenu(b);
+    b.onclick = moHuongDan;
+    // Đứng trên "Tặng sao" nếu nút đó đã có (thứ tự nạp script không được quyết định chỗ đứng).
+    chan.insertBefore(b, chan.querySelector(".rf-star"));
+  }
+  function goNutMenu() { dong(document.querySelector(".rail-foot .rf-install")); }
+
+  // Cài xong thì không bao giờ nhắc nữa, kể cả khi lần sau lỡ mở lại bằng tab trình duyệt.
+  window.addEventListener("appinstalled", function () { ghi(KEY_TAT, "1"); goNutMenu(); });
+  window.addEventListener("javis:i18n", function () {
+    var b = document.querySelector(".rail-foot .rf-install");
+    if (b) veNutMenu(b);
+  });
+
+  function batDau() { ganNutMenu(); setTimeout(thu, CHO_TRUOC_KHI_HIEN); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", batDau);
   else batDau();
 
-  window.JavisInstallNudge = { thu: thu, denHen: denHen, laIOS: laIOS, laDienThoai: laDienThoai };
+  window.JavisInstallNudge = { thu: thu, moHuongDan: moHuongDan, denHen: denHen, laIOS: laIOS, laDienThoai: laDienThoai };
 })();
