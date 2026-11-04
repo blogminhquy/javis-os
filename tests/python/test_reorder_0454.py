@@ -92,5 +92,18 @@ check("the other scope is left alone", client.get("/ui/order").json()["orders"][
 check("an unknown scope is refused", client.post("/ui/order", data={"scope": "x", "order": "[]"}).status_code == 400)
 check("ui_order caps the list", len(ui_order.clean([str(i) for i in range(900)])) == ui_order.MAX_ITEMS)
 
+# ═════ the qualified native trial context still reads the store ═════
+import sqlite3  # noqa: E402
+import improvement_trial_sql_context as SQLCTX  # noqa: E402
+conn = sqlite3.connect(str(store.db_path))
+conn.row_factory = sqlite3.Row
+for table, req, allowed in (("sessions", SQLCTX._SESSION_FIELDS, SQLCTX._SESSION_COLUMNS),
+                            ("projects", SQLCTX._PROJECT_FIELDS, SQLCTX._PROJECT_COLUMNS)):
+    try:
+        SQLCTX._schema(conn, table, req, allowed)
+        check(f"the order lives in its own table: {table} keeps the column list the trial context accepts", True)
+    except ValueError as e:
+        check(f"the order lives in its own table: {table} keeps the column list the trial context accepts", False, e)
+
 print("\n" + ("XANH" if not fails else f"ĐỎ: {len(fails)} lỗi"))
 raise SystemExit(1 if fails else 0)
