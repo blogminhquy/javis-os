@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.450.0] - 2026-11-04
 ### Added
-- **Install on phone button in the menu.**
+- **"Install on phone" button in the phone menu.** Open the left menu and tap it to see how to add Javis to the home screen on the device you are using (iPhone: Share, then Add to Home Screen; Android: one Install button). Once Javis runs from the home screen, the button no longer shows.
+### Improved
+- If you tapped "Don't remind me again" on the daily reminder, you can still open the install guide any time from this button.
+
 ## [0.449.0] - 2026-11-04
 ### Added
 - **Teams can push code to GitHub.** In a team chat, tap the plus button, pick **GitHub repo** and tick a repo. When you assign a job, members edit code on the team's own branch; once the job is done, Javis checks, commits, pushes, opens the PR and watches CI, like a private chat.
