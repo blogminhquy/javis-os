@@ -288,6 +288,9 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       # unguessable `state` from an authenticated /messenger/oauth/start is the check.
                       # /messenger/privacy: the policy page Meta must reach to switch the app to Live.
                       "/messenger/oauth/callback", "/messenger/privacy",
+                      # Threads (0.448.0): the webhook (signature checked in the route), the login callback (the
+                      # unguessable state is the check) and the two callbacks the Threads use case requires.
+                      "/threads/webhook", "/threads/oauth/callback", "/threads/uninstall", "/threads/delete",
                       # /zalo-oa/webhook (0.412.0): Zalo calls it with no cookie; the route checks
                       # X-ZEvent-Signature under the OA secret keys of the Zalo OA accounts.
                       "/zalo-oa/webhook")
@@ -25343,6 +25346,248 @@ async def messenger_check(request: Request):
             chk.setdefault("items", []).append(messenger_setup.instagram_item(ig, info.get("scopes", []), wh))
     return {"ok": True, "account": _ms_account_view(channel_accounts.get_account(aid) or a),
             "check": chk, "repair_errors": errs}
+
+
+# ============================================================
+# Threads (0.448.0): replies under the owner's Threads posts, pushed by Meta to one webhook and routed by
+# account id in `threads_bot.handle_webhook`. Connected with Log in to Threads on the Meta card. Imports stay
+# inside the routes so loading main does not pay for a channel most installs never use.
+# ============================================================
+def _th_verify_token() -> str:
+    """The handshake string Threads echoes when its webhook is set up in the App Dashboard. Generated once."""
+    m = cfgmod.read_settings().get("threads", {}) or {}
+    tok = str(m.get("verify_token") or "").strip()
+    if not tok:
+        tok = secrets.token_urlsafe(24)
+        cfgmod.update_settings({"threads": {"verify_token": tok}})
+    return tok
+
+
+def _th_account_secrets() -> list:
+    import threads_bot
+    out = []
+    try:
+        for a in channel_accounts.list_accounts(channel="threads"):
+            cr = threads_bot.split_credentials(channel_accounts.get_token(a.get("id", "")))
+            if cr.get("app_secret"):
+                out.append(cr["app_secret"])
+    except Exception as e:
+        print(f"[threads secrets] {type(e).__name__}: {e}", file=sys.stderr)
+    return out
+
+
+def _th_account_view(a: dict) -> dict:
+    import threads_bot
+    meta = a.get("meta") or {}
+    bots = chatbot_store.bots_using_account(a.get("id", ""))
+    return {"id": a.get("id"), "label": a.get("label"), "user_id": a.get("external_id"),
+            "username": meta.get("username", ""), "app_id": meta.get("app_id", ""), "brain": a.get("brain", ""),
+            "comments": threads_bot.comment_mode(a.get("id", "")), "token_expires": meta.get("token_expires", 0),
+            "last_webhook": meta.get("last_webhook", 0),
+            "bots": [{"id": b["id"], "name": b.get("name"), "enabled": bool(b.get("enabled"))} for b in bots]}
+
+
+@app.get("/threads/webhook")
+async def threads_webhook_verify(request: Request):
+    q = request.query_params
+    got = str(q.get("hub.verify_token") or "")
+    if q.get("hub.mode") == "subscribe" and got and secrets.compare_digest(got, _th_verify_token()):
+        return PlainTextResponse(str(q.get("hub.challenge") or ""))
+    return PlainTextResponse("forbidden", status_code=403)
+
+
+@app.post("/threads/webhook")
+async def threads_webhook(request: Request):
+    """New replies under the owner's Threads posts. Nothing is trusted before the signature check under the
+    Threads app secret of a connected account."""
+    import threads_bot
+    raw = await request.body()
+    if len(raw) > 2_000_000:
+        return PlainTextResponse("too large", status_code=413)
+    if not threads_bot.verify_signature(raw, request.headers.get("x-hub-signature-256", ""), _th_account_secrets()):
+        return PlainTextResponse("bad signature", status_code=401)
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except Exception:
+        return PlainTextResponse("bad json", status_code=400)
+    # The card's checklist says whether Threads has called at all (the most common setup miss).
+    try:
+        for target, _f, _v in threads_bot._notifications(payload):
+            o = channel_accounts.owner_of(target, "threads") if target else None
+            if o:
+                channel_accounts.update_account(o["id"], {"meta": {**(o.get("meta") or {}), "last_webhook": time.time()}})
+    except Exception as e:
+        print(f"[threads webhook mark] {type(e).__name__}: {e}", file=sys.stderr)
+    n = await threads_bot.handle_webhook(payload)
+    return {"ok": True, "events": n}
+
+
+@app.get("/threads/setup")
+async def threads_setup_info(request: Request, brain: str = ""):
+    """What the Threads part of the Meta card shows: the addresses to paste in the App Dashboard, the verify token
+    and the connected accounts. Never a token."""
+    import threads_oauth
+    base = _ms_base(request)
+    accs = channel_accounts.list_accounts(channel="threads", brain=str(brain or "").strip())
+    return {"ok": True, "https": base.startswith("https://"), "webhook_url": base + "/threads/webhook",
+            "verify_token": _th_verify_token(), "redirect_url": base + threads_oauth.CALLBACK_PATH,
+            "uninstall_url": base + threads_oauth.UNINSTALL_PATH, "delete_url": base + threads_oauth.DELETE_PATH,
+            "accounts": [_th_account_view(a) for a in accs]}
+
+
+@app.post("/threads/oauth/start")
+async def threads_oauth_start(request: Request):
+    import threads_oauth
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    res = threads_oauth.start(body.get("app_id"), body.get("app_secret"), _ms_base(request) + threads_oauth.CALLBACK_PATH,
+                              str(body.get("brain") or ""), str(body.get("comments") or ""))
+    return res if res.get("ok") else JSONResponse(res, status_code=400)
+
+
+def _th_save(p: dict) -> tuple:
+    """Store (or update) the Threads account of a ready login and restart the bots using it. (id, error)."""
+    import threads_bot
+    acc = p.get("account") or {}
+    uid = str(acc.get("id") or "")
+    secret = threads_bot.join_credentials(uid, p.get("token", ""), p.get("app_secret", ""))
+    mode = p.get("comments") if p.get("comments") in threads_bot.COMMENT_MODES else threads_bot.COMMENT_MODE_DEFAULT
+    meta = {"username": acc.get("username", ""), "bot_name": acc.get("name") or acc.get("username", ""),
+            "app_id": p.get("app_id", ""), "token_at": time.time(),
+            "token_expires": time.time() + int(p.get("expires_in") or 0), "login": "threads"}
+    old = channel_accounts.owner_of(uid, "threads")
+    if old:
+        ok, loi = channel_accounts.update_account(old["id"], {"token": secret, "external_id": uid,
+                                                              "meta": {**(old.get("meta") or {}), **meta}})
+        if not ok:
+            return "", loi
+        for b in chatbot_store.bots_using_account(old["id"]):
+            if b.get("enabled"):
+                chatbot_runtime.start_bot(b["id"])
+        return old["id"], ""
+    aid, loi = channel_accounts.create_account({
+        "channel": "threads", "token": secret, "external_id": uid, "meta": {**meta, "comments": mode},
+        "label": "@" + acc["username"] if acc.get("username") else uid, "brain": p.get("brain", "")})
+    return aid or "", loi or ""
+
+
+@app.get("/threads/oauth/callback")
+async def threads_oauth_callback(state: str = Query(""), code: str = Query(""), error: str = Query(""),
+                                 error_description: str = Query("")):
+    import threads_oauth
+    res = await threads_oauth.callback(state, code, error, error_description)
+    if res.get("ok"):
+        p = threads_oauth.take(state)
+        aid, loi = _th_save(p) if p else ("", localefmt.chu("Phiên đăng nhập đã hết hạn", "This sign-in expired"))
+        if loi:
+            res = {"ok": False, "error": loi}
+            threads_oauth._set(state, status="error", error=loi)
+        else:
+            threads_oauth._set(state, status="saved", account_id=aid)
+    if res.get("ok"):
+        title = localefmt.chu("✓ Đã nối Threads", "✓ Threads connected")
+        body = localefmt.chu(f"Đã nối @{res['account'].get('username', '')}. Quay lại tab Javis, tab này tự đóng.",
+                             f"@{res['account'].get('username', '')} is connected. Go back to the Javis tab, "
+                             "this tab closes by itself.")
+    else:
+        title = localefmt.chu("⚠ Chưa nối được Threads", "⚠ Threads did not connect")
+        body = str(res.get("error", ""))
+    html = ("<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, "
+            "initial-scale=1'><title>Javis</title></head><body style='font-family:system-ui,sans-serif;font-size:18px;"
+            "background:#111;color:#eee;text-align:center;padding:72px 16px'>"
+            f"<h2>{html_mod.escape(title)}</h2><p>{html_mod.escape(body)}</p>"
+            + ("<script>setTimeout(function(){try{window.close()}catch(e){}},1500)</script>" if res.get("ok") else "")
+            + "</body></html>")
+    return HTMLResponse(html)
+
+
+@app.get("/threads/oauth/result")
+async def threads_oauth_result(state: str = ""):
+    import threads_oauth
+    return threads_oauth.result(state)
+
+
+@app.post("/threads/comments")
+async def threads_comments_mode(request: Request):
+    """How one Threads account's replies are handled: off, inbox (the owner answers) or reply (the bot too)."""
+    import threads_bot
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    aid = str(body.get("account_id") or "").strip()
+    mode = str(body.get("mode") or "")
+    a = channel_accounts.get_account(aid)
+    if not a or a.get("channel") != "threads":
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có tài khoản Threads này",
+                                                                 "No such Threads account")}, status_code=404)
+    if mode not in threads_bot.COMMENT_MODES:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Chế độ không hợp lệ", "Invalid mode")}, status_code=400)
+    ok, loi = channel_accounts.update_account(aid, {"meta": {**(a.get("meta") or {}), "comments": mode}})
+    if not ok:
+        return JSONResponse({"ok": False, "error": loi}, status_code=400)
+    return {"ok": True, "account": _th_account_view(channel_accounts.get_account(aid) or a)}
+
+
+@app.post("/threads/check")
+async def threads_check(request: Request):
+    """The checklist of one Threads account: token, permissions to read and answer, webhook received, bot on duty."""
+    import httpx
+    import threads_bot
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    aid = str(body.get("account_id") or "").strip()
+    a = channel_accounts.get_account(aid)
+    if not a or a.get("channel") != "threads":
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có tài khoản Threads này",
+                                                                 "No such Threads account")}, status_code=404)
+    cr = threads_bot.split_credentials(channel_accounts.get_token(aid))
+    meta = a.get("meta") or {}
+    async with httpx.AsyncClient(timeout=20) as c:
+        who = await threads_bot.whoami(c, cr.get("access_token", ""))
+    item = messenger_setup._item
+    items = [item("token", bool(who.get("ok")), ("Token Threads hợp lệ", "The Threads token is valid"),
+                  "@" + who.get("username", "") if who.get("ok") else who.get("error", ""),
+                  ("Bấm Đăng nhập Threads lại.", "Click Log in to Threads again."))]
+    exp = float(meta.get("token_expires") or 0)
+    if exp:
+        days = int((exp - time.time()) // 86400)
+        items.append(item("expiry", days > 7 or None, ("Token còn hạn, Javis tự gia hạn", "The token is valid and renews itself"),
+                          localefmt.chu(f"còn {days} ngày", f"{days} days left"),
+                          ("Bật một bot cho kênh này để Javis tự gia hạn, hoặc đăng nhập Threads lại.",
+                           "Turn on a bot for this channel so Javis renews the token, or log in to Threads again.")))
+    last = float(meta.get("last_webhook") or 0)
+    items.append(item("webhook", True if last else None, ("Threads đã gửi bình luận về Javis", "Threads has sent replies to Javis"),
+                      time.strftime("%Y-%m-%d %H:%M", time.localtime(last)) if last else localefmt.chu("chưa nhận lần nào", "none received yet"),
+                      ("Trong App Dashboard, Threads API, Webhooks: dán Địa chỉ webhook và Mã xác minh ở thẻ này, đăng ký "
+                       "trường replies, rồi chuyển app sang Live. Thử bình luận một bài của bạn để kiểm tra.",
+                       "In the App Dashboard, Threads API, Webhooks: paste this card's Webhook address and Verify token, "
+                       "subscribe to the replies field, then switch the app to Live. Reply to one of your posts to test.")))
+    running = bool(cr.get("user_id") in threads_bot.registered()
+                   or any(b.get("enabled") for b in chatbot_store.bots_using_account(aid)))
+    items.append(item("bot", True if running else None, ("Có bot đang trực", "A bot is answering"), "",
+                      ("Vào Chatbot, Bot, tạo hoặc bật bot cho kênh Threads.",
+                       "Open Chatbot, Bots and create or turn on a bot for the Threads channel.")))
+    return {"ok": True, "account": _th_account_view(channel_accounts.get_account(aid) or a),
+            "check": {"ok": all(i["ok"] is not False for i in items), "items": items}}
+
+
+@app.post("/threads/uninstall")
+async def threads_uninstall(request: Request):
+    """Threads calls this when the owner removes the app from their account (a required setting of the Threads
+    use case). Nothing to undo here: the token stops working and the card's check says so."""
+    return {"ok": True}
+
+
+@app.post("/threads/delete")
+async def threads_delete(request: Request):
+    """The data deletion callback the Threads use case requires. Javis keeps no data about other Threads users
+    beyond the replies in the owner's own inbox, which the owner deletes there."""
+    return {"url": _ms_base(request) + "/messenger/privacy", "confirmation_code": secrets.token_hex(8)}
 
 
 # ============================================================

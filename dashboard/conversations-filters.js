@@ -146,10 +146,13 @@
     if (x.channel === "messenger") return id.indexOf("cmt:") === 0 ? "fb_comment" : id.indexOf("igc:") === 0 ? "ig_comment"
       : id.indexOf("ig:") === 0 ? "ig_dm" : "messenger_dm";
     if (x.channel === "zalo_personal") return x.chat_type === "group" ? "zalo_group" : "zalo_private";
+    if (x.channel === "threads") return "threads_comment";
     return "";
   }
   var CAN = { messenger_dm: ["profile", "block"], ig_dm: ["profile"], fb_comment: ["delete_remote"], ig_comment: ["delete_remote"],
-              zalo_private: ["profile", "block", "delete_remote"], zalo_group: ["delete_remote"] };
+              zalo_private: ["profile", "block", "delete_remote"], zalo_group: ["delete_remote"],
+              // Threads (0.448.0): only the author can delete a reply, so Delete hides it under the post.
+              threads_comment: ["profile", "delete_remote"] };
   function platformActs(c) { return CAN[chatKind(c)] || []; }
 
   function rowMenuItems(c) {
@@ -181,7 +184,8 @@
     // Delete is always there: where the platform allows it the chat (or the comment) goes there too, else only in Javis.
     var k = chatKind(x);
     items.push({ act: "delete", icon: "trash-2", key: "ht.rm_delete", danger: true,
-                 sub: tt(k === "fb_comment" || k === "ig_comment" ? "ht.rm_delete_sub_cmt" : can.indexOf("delete_remote") >= 0 ?
+                 sub: tt(k === "fb_comment" || k === "ig_comment" ? "ht.rm_delete_sub_cmt" : k === "threads_comment" ? "ht.rm_delete_sub_th" :
+                   can.indexOf("delete_remote") >= 0 ?
                    "ht.rm_delete_sub_zalo" : "ht.rm_delete_sub_local") });
     return items;
   }
