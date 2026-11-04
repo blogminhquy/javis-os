@@ -45,6 +45,9 @@ DEFAULT_CAPS = {
     # 0.260.0 (chủ 20/10/2026): các người được @ trong một tin trả lời CÙNG LÚC (1) hay lần lượt theo thứ tự @ (0, người sau
     # đọc được câu của người trước, như trước 0.260.0).
     "reply_parallel": 1,
+    # 0.452.0 (owner, 04/11/2026: a team must run its own loop): jobs a member answering the owner in the chat may open
+    # per day, coordinated by the leader like any job (0 = off: the leader only proposes, the owner presses Create job).
+    "auto_jobs": 5,
 }
 # Trần chủ nhóm đổi được (POST /teams/{id}/caps). GOAL T1 mục 9 (bảng giới hạn): `running_jobs` và `no_progress` vẫn nằm
 # trong DEFAULT_CAPS để hiện và để đọc dòng cũ, nhưng do MÁY CHỦ cố định:
@@ -53,11 +56,11 @@ DEFAULT_CAPS = {
 #   giới hạn kỹ thuật, thay vì mở song song trong một nhóm (đụng khoá bận theo agent, thứ tự hàng đợi, ngữ cảnh chung).
 # - no_progress: bộ chạy dừng ở hai kết quả GIỐNG HỆT liên tiếp (so sha), con số không được đọc ở đâu.
 OWNER_CAPS = ("task_turns", "task_steps", "help_depth", "daily_turns", "mentions", "busy_wait_s", "judge_daily",
-              "volunteer_k", "judge_off_batch", "reply_parallel")
+              "volunteer_k", "judge_off_batch", "reply_parallel", "auto_jobs")
 # Trần có lựa chọn "Không giới hạn" (lưu `None`, không thay bằng số lớn). Bộ chạy đọc `None` là không chặn.
 UNLIMITED_CAPS = ("task_turns", "task_steps", "help_depth", "daily_turns", "judge_daily")
 # Giá trị lớn nhất của các ô không phải trần lượt (T3 J): K tối đa 5 người, chế độ phán xử là 0 hay 1.
-CAP_MAX = {"volunteer_k": 5, "judge_off_batch": 1, "reply_parallel": 1}
+CAP_MAX = {"volunteer_k": 5, "judge_off_batch": 1, "reply_parallel": 1, "auto_jobs": 50}
 FIXED_CAPS = {"running_jobs": 1, "no_progress": 2}
 TEAM_STATUS = ("active", "paused", "archived")
 STEP_KINDS = ("plan", "work", "help", "synthesize", "reply")

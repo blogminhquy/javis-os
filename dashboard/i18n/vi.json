@@ -6779,5 +6779,6 @@
   "nv.sta.one_thing": "{n} việc",
   "teams.gh_attach": "Gắn repo GitHub",
   "teams.gh_how": "Tích repo để gắn vào nhóm. Khi giao việc, thành viên sửa code trên một nhánh riêng của nhóm. Việc nhóm xong thì Javis tự chạy kiểm tra, commit, đẩy lên GitHub, mở PR và theo dõi CI. CI đỏ thì Javis giao lại cho nhóm một việc sửa kèm log.",
-  "teams.skill_used": "Gọi skill {name}"
+  "teams.skill_used": "Gọi skill {name}",
+  "teams.cap.auto_jobs": "Việc tự mở từ khung chat mỗi ngày (0 là tắt)"
 }

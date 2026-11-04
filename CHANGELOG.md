@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.452.0] - 2026-11-04
+### Thêm mới
+- **Nhóm tự vận hành trọn vòng từ khung chat.** Anh nhắn một yêu cầu làm việc là thành viên trả lời tự mở việc luôn, không phải bấm Giao việc hay Tạo việc. Trưởng nhóm lập kế hoạch, giao người, các thành viên làm và nhờ nhau, rồi kết quả quay về khung chat.
+- Việc nào cũng do trưởng nhóm điều phối, thành viên không giao thẳng cho nhau, nên kết quả cuối luôn có người gom và chịu trách nhiệm. Câu hỏi hay trò chuyện thì chỉ trả lời, không mở việc.
+- Mặc định mỗi nhóm tự mở tối đa 5 việc mỗi ngày, mỗi tin của anh chỉ mở một việc. Chỉnh ở **Giới hạn của team**, đặt 0 để quay lại cách cũ (chỉ đề xuất, anh bấm mới chạy).
+
 ## [0.450.0] - 2026-11-04
 ### Thêm mới
 - **Nút "Cài lên điện thoại" trong menu trên điện thoại.** Mở menu bên trái là thấy, bấm vào là hiện hướng dẫn cài Javis ra màn hình chính đúng theo máy đang dùng (iPhone: Chia sẻ rồi Thêm vào MH chính; Android: một nút Cài). Đã cài, mở Javis từ màn hình chính, thì nút không hiện nữa.

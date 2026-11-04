@@ -6779,5 +6779,6 @@
   "nv.sta.one_thing": "{n} task",
   "teams.gh_attach": "Attach a GitHub repo",
   "teams.gh_how": "Tick a repo to attach it to the team. When you assign a job, members edit code on the team's own branch. Once the job is done, Javis runs the checks, commits, pushes to GitHub, opens the PR and watches CI. If CI fails, Javis hands the team a fix job with the logs.",
-  "teams.skill_used": "Uses skill {name}"
+  "teams.skill_used": "Uses skill {name}",
+  "teams.cap.auto_jobs": "Jobs the chat may open on its own per day (0 turns it off)"
 }
