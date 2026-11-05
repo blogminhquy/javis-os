@@ -325,9 +325,11 @@
         kind: t.kind || "task", fromJavis: !!t.from_javis, raw: t, end: t.end || "" };
       if (t.kind === "appt") {
         // Appointments are not ticked: they turn "past" on their own once their time is over.
-        var first = t.repeat ? nextOcc(t.repeat, start(t), today) : t.date;
+        // A time skipped on purpose ("Skip this time") is not shown; the next one is.
+        var skA = t.skip_dates || {}, nextA = function (from) { var d = nextOcc(t.repeat, start(t), from); for (var g = 0; d && skA[d] && g < 50; g++) d = nextOcc(t.repeat, start(t), addDays(d, 1)); return d; };
+        var first = t.repeat ? nextA(today) : t.date;
         var occs = [first];
-        if (t.repeat && first === today && apptState(today, t.time, t.end, today, hm) === "past") occs.push(nextOcc(t.repeat, start(t), addDays(today, 1)));
+        if (t.repeat && first === today && apptState(today, t.time, t.end, today, hm) === "past") occs.push(nextA(addDays(today, 1)));
         occs.forEach(function (d, i) {
           if (!d) return;
           var as = apptState(d, t.time, t.end, today, hm);
@@ -774,14 +776,14 @@
   }
   function row(it) {
     if (it.appt) {
-      var t = it.raw;
-      return '<div class="nv-item"><div class="nv-rw"><button type="button" class="nv-row appt' + (it.st === "done" ? " done" : "") + (it.live ? " live" : "") + (S.sel === it.id ? " sel" : "") + '" data-open="' + esc(it.id) + '">'
+      var t = it.raw, ai = apptIcons(it), an = (ai.match(/nv-tri1/g) || []).length;
+      return '<div class="nv-item"><div class="nv-rw' + (it.src === "mine" || it.gcal ? ' mine" style="--n:' + an : "") + '"><button type="button" class="nv-row appt' + (it.st === "done" ? " done" : "") + (it.live ? " live" : "") + (S.sel === it.id ? " sel" : "") + '" data-open="' + esc(it.id) + '">'
         + '<span class="nv-tm">' + esc(it.time || (it.gcal ? tw("nv.g.allday") : "")) + (it.end ? "<small>" + esc(it.end) + "</small>" : "") + '</span><span class="nv-st"><i class="nv-abar" style="background:' + esc(apptColor(it)) + '"></i></span>'
         + '<span class="nv-body"><span class="nv-ti">' + esc(it.title) + '</span><div class="nv-meta">' + phoneWhen(it) + (it.gcal ? "<span>" + ic("calendar") + esc(tw("nv.g.src")) + "</span>" : "") + (t.location ? "<span>" + ic("map-pin") + esc(t.location) + "</span>" : "")
         + (it.rep ? "<span>" + ic("repeat") + esc(it.rep) + "</span>" : "") + (t.remind && t.remind !== "0" ? "<span>" + ic("bell") + esc(tw("nv.ap.before", { n: t.remind })) + "</span>" : "")
         + (t.prep ? "<span>" + avatar(CORE, 14) + esc(tw("nv.ap.prep_short")) + "</span>" : "") + tagChips(it.tags) + "</div></span>"
         + '<span class="nv-chipcol">' + apptChip(it) + "</span></button>"
-        + (it.src === "mine" || it.gcal ? '<span class="nv-starb ph" aria-hidden="true"></span>' : '<button type="button" class="nv-dots" data-act="menu" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button>") + "</div></div>";
+        + (it.src === "mine" || it.gcal ? '<span class="nv-ra">' + ai + "</span>" : '<button type="button" class="nv-dots" data-act="menu" data-id="' + esc(it.id) + '" aria-label="' + esc(tw("nv.a.more")) + '">' + ic("ellipsis") + "</button>") + "</div></div>";
     }
     var time = it.over ? '<span class="c-over">' + esc(shortDate(it.date)) + "</span>" + (it.time ? "<small>" + esc(it.time) + "</small>" : "") : esc(it.time || "");
     var lead = it.src === "mine" ? (habitOn(it.raw) && it.id === "m:" + it.raw.id ? habitCk(it.raw) : ck(it)) : stIcon(it);
@@ -816,6 +818,15 @@
   // it held (edit, give to Javis, move to another brain, delete) is in the task's details, one tap on the row.
   // Every open task of mine (owner, 2026-11-04): Move and Delete as icons, left of the star. A repeat moves or skips only
   // this time and deletes the whole repeat; a missed one also offers Skip.
+  // An appointment (owner, 2026-11-05): Move and Delete like a task; a repeating one also Skip this time (Move and Skip
+  // touch only that time, Delete removes the whole repeat). A calendar event (read-only) opens in its calendar.
+  function apptIcons(it) {
+    var b = function (act_, icon, key, cls) { return '<button type="button" class="nv-starb nv-tri1' + (cls ? " " + cls : "") + '" data-act="' + act_ + '" data-id="' + esc(it.id) + '" aria-label="' + esc(tw(key) + ": " + it.title) + '" title="' + esc(tw(key)) + '">' + ic(icon) + "</button>"; };
+    if (it.gcal) return it.raw && /^https:\/\//.test(it.raw.link || "") ? b("m-gopen", "external-link", "nv.g.open") : "";
+    if (it.src !== "mine" || it.st === "done") return "";
+    if (it.raw.repeat) return b("tri-skip", "skip-forward", "nv.pu.t_skip") + b("tri-move", "calendar", "nv.pu.t_move_once") + b("m-del", "trash-2", "nv.pu.t_del_rep", "bad");
+    return b("tri-move", "calendar", "nv.pu.t_move") + b("m-del", "trash-2", "nv.pu.t_del", "bad");
+  }
   function triN(it) { return it.raw.repeat ? 3 : 2; }
   function triIcons(it) {
     var b = function (act_, icon, key, cls) { return '<button type="button" class="nv-starb nv-tri1' + (cls ? " " + cls : "") + '" data-act="' + act_ + '" data-id="' + esc(it.id) + '" aria-label="' + esc(tw(key) + ": " + it.title) + '" title="' + esc(tw(key)) + '">' + ic(icon) + "</button>"; };
@@ -1639,7 +1650,13 @@
     var t = it.raw, day = mineRef(id).date || it.occ || today(), sk = Object.assign({}, t.skip_dates || {}); sk[day] = 1;
     S.sheet = null;
     var made = null;
-    await act(mine({ __url: "/my-tasks", title: t.title, date: patch.date || null, time: patch.date ? patch.time || "" : "", tags: tagsOf(t) }).then(function (r) {
+    var body = { __url: "/my-tasks", title: t.title, date: patch.date || null, time: patch.date ? patch.time || "" : "", tags: tagsOf(t) };
+    if (t.kind === "appt") {
+      // The moved time of an appointment stays an appointment: same length, place and reminder.
+      if (!patch.date || !patch.time) { renderLayer(); toast(tw("nv.ap.need_time")); return; }
+      Object.assign(body, { kind: "appt", end: fromMin(toMin(patch.time) + Math.max(5, toMin(t.end || t.time) - toMin(t.time) || 60)), location: t.location || "", remind: t.remind || "" });
+    }
+    await act(mine(body).then(function (r) {
       made = r; return mine({ __url: "/my-tasks/update", id: t.id, skip_dates: sk });
     }), patch.date ? tw("nv.pu.ok_move_once", { d: dayLabel(patch.date).toLowerCase() }) : tw("nv.pu.ok_move_once_none"), function () {
       return Promise.all([mine({ __url: "/my-tasks/update", id: t.id, skip_dates: t.skip_dates || {} }), made && made.task ? mine({ __url: "/my-tasks/delete", id: made.task.id }) : null]);
@@ -1816,7 +1833,7 @@
       }
       case "tri-move":
         if (it && it.raw.repeat) { var mt = it.raw, md0 = it.over ? today() : addDays(it.occ && it.occ > today() ? it.occ : today(), 1); S.sheet = { kind: "date", id: id, once: true, d: { date: md0, time: mt.time || "", vm: md0.slice(0, 7) } }; return renderLayer(); }
-        if (it && (it.raw.moves || 0) >= 2) { S.sheet = { kind: "stuck", id: id }; return renderLayer(); }
+        if (it && !it.appt && (it.raw.moves || 0) >= 2) { S.sheet = { kind: "stuck", id: id }; return renderLayer(); }
         return doAct("pick-date", id, el);
       case "tri-skip": {
         // Skip (owner, 2026-11-04): a deliberate "not this time". The repeat jumps to its next time; the skipped time
