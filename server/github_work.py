@@ -58,6 +58,9 @@ _reviewers: Optional[Callable[[], List[str]]] = None
 _brain_root: Callable[[str], str] = lambda b: b
 REVIEW_DIFF_MAX = 60000
 REVIEW_TIMEOUT_S = 600
+# Reviewers of another family tried for one head before the review is skipped (owner, 05/11/2026: one engine that cannot
+# run used to skip the review outright, with no reason shown).
+REVIEW_TRY_MAX = 2
 LESSONS_MAX = 30
 # Provider families: a reviewer from the author's own family is not a second pair of eyes.
 _FAMILY = {"anthropic-cli": "claude", "anthropic-api": "claude", "anthropic-compat": "claude",
@@ -931,17 +934,27 @@ def _family(provider: str) -> str:
     return _FAMILY.get(provider or "", provider or "")
 
 
-def pick_reviewer(author_provider: str) -> str:
-    """The first available engine of ANOTHER family than the author's, "" when there is none (spec 10)."""
+def pick_reviewers(author_provider: str) -> List[str]:
+    """Available engines of ANOTHER family than the author's, in the Models page order (spec 10)."""
     try:
         avail = list(_reviewers() if _reviewers else [])
     except Exception:
         avail = []
     fam = _family(author_provider)
-    for p in avail:
-        if _family(p) != fam:
-            return p
-    return ""
+    return [p for p in avail if _family(p) != fam]
+
+
+def pick_reviewer(author_provider: str) -> str:
+    """The first available engine of ANOTHER family than the author's, "" when there is none (spec 10)."""
+    lst = pick_reviewers(author_provider)
+    return lst[0] if lst else ""
+
+
+def _short_reason(e: BaseException) -> str:
+    if isinstance(e, asyncio.TimeoutError):
+        return _c("quá thời gian chờ", "timed out")
+    msg = " ".join(str(e or "").split())
+    return (msg[:160] + "...") if len(msg) > 160 else (msg or type(e).__name__)
 
 
 def parse_findings(raw: str) -> Optional[List[Dict[str, Any]]]:
@@ -976,31 +989,55 @@ async def cross_review(row: Dict[str, Any]) -> Dict[str, Any]:
     gate = dict(row.get("gate") or {})
     if gate.get("reviewed_sha") == head:
         return row
-    reviewer = pick_reviewer(row.get("engine") or "")
-    if not reviewer or _review is None:
+    candidates = pick_reviewers(row.get("engine") or "")[:REVIEW_TRY_MAX]
+    if not candidates or _review is None:
         gate["reviewed_sha"] = head
         gate["review_skipped"] = True
         row = st().update(sid, fn, gate=gate)
         if row.get("pr_number") and st().mark_step(f"noreview:{fn}:{row['pr_number']}"):
             try:
                 await asyncio.to_thread(github_repos.client().comment, fn, row["pr_number"],
-                                        "Not cross-reviewed: only one engine family is connected to Javis.")
+                                        "Not cross-reviewed: no engine of another family that can review text-only "
+                                        "is ready in Javis.")
             except Exception:
                 pass
+            # Owner, 05/11/2026: say why in the chat too. A plan run through a CLI (ChatGPT, Grok Build, Antigravity)
+            # keeps its own file and shell tools, and a diff from a repo is untrusted input, so it never reviews.
+            await _say(sid, _c(f"**{fn}**: chưa review chéo được. Review chéo cần một engine khác họ với engine đã viết "
+                               "code, chạy ở chế độ chỉ chữ: Claude, hoặc một nhà dùng API key (OpenAI, Gemini, "
+                               "DeepSeek, OpenRouter...). Gói ChatGPT, Grok Build và Antigravity chạy qua CLI còn "
+                               "công cụ đọc ghi file nên không được dùng để đọc diff của repo.",
+                               f"**{fn}**: not cross-reviewed. A cross review needs an engine of another family than "
+                               "the author, run text-only: Claude, or a provider on an API key (OpenAI, Gemini, "
+                               "DeepSeek, OpenRouter...). The ChatGPT, Grok Build and Antigravity plans run through a "
+                               "CLI that keeps file tools, so they never read a repo's diff."), True,
+                       once=f"noreviewsay:{fn}:{row['pr_number']}")
         return row
     if not st().mark_step(f"review:{fn}:{head}"):
         return row
     gate["review_running"] = True
     st().update(sid, fn, gate=gate)
     findings: Optional[List[Dict[str, Any]]] = None
+    reviewer, why = candidates[0], ""
+    prompt = ""
     try:
         diff = await asyncio.to_thread(_review_diff, row)
         task = str(_session(sid).get("task") or row.get("title") or "")[:2000]
         prompt = REVIEW_PROMPT.format(title=row.get("title") or "", repo=fn, diff=diff, task=task)
-        raw = await asyncio.wait_for(_review(prompt, reviewer), timeout=REVIEW_TIMEOUT_S)
-        findings = parse_findings(raw)
-    except Exception as e:  # noqa: BLE001 - a broken reviewer must not hold the PR forever
-        print(f"[github review] {fn}: {type(e).__name__}: {e}")
+    except Exception as e:  # noqa: BLE001
+        why = _short_reason(e)
+        print(f"[github review] {fn}: diff: {type(e).__name__}: {e}")
+    for cand in candidates if prompt else []:
+        reviewer = cand
+        try:
+            raw = await asyncio.wait_for(_review(prompt, cand), timeout=REVIEW_TIMEOUT_S)
+            findings = parse_findings(raw)
+            if findings is not None:
+                break
+            why = _c("câu trả lời không đúng khuôn JSON", "the answer was not the JSON asked for")
+        except Exception as e:  # noqa: BLE001 - a broken reviewer must not hold the PR forever: try the next one
+            why = _short_reason(e)
+            print(f"[github review] {fn}: {cand}: {type(e).__name__}: {e}")
     gate = dict((st().get(sid, fn) or row).get("gate") or {})
     gate.pop("review_running", None)
     gate["reviewed_sha"] = head
@@ -1008,8 +1045,9 @@ async def cross_review(row: Dict[str, Any]) -> Dict[str, Any]:
     if findings is None:
         gate["review_skipped"] = True
         row = st().update(sid, fn, gate=gate)
-        await _say(sid, _c(f"**{fn}**: review chéo bằng {reviewer} không chạy được, bỏ qua lần này.",
-                           f"**{fn}**: cross review with {reviewer} did not run; skipped this time."), True,
+        tried = ", ".join(candidates)
+        await _say(sid, _c(f"**{fn}**: review chéo bằng {tried} không chạy được ({why}), bỏ qua lần này.",
+                           f"**{fn}**: cross review with {tried} did not run ({why}); skipped this time."), True,
                    once=f"reviewfail:{fn}:{head}")
         return row
     if not findings:

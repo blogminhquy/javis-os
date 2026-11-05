@@ -170,6 +170,8 @@ run(w.tick())
 check("one engine family only: the PR says it was not cross-reviewed", any(c[0] == "acme/solo" and "Not cross-reviewed" in c[2]
                                                                           for c in fake.comments))
 check("one engine family only: the merge is not held", S().get("cc3", "acme/solo")["integ"] == "merged")
+check("one engine family only: the chat says why and what can review",
+      any(sid == "cc3" and ("API key" in t or "API" in t) and "ChatGPT" in t for sid, t, _ in posted))
 w.configure(reviewers=lambda: ["anthropic-cli", "openai", "gemini"])
 
 # ---- reviewer broken: skipped, not stuck ----
@@ -181,6 +183,35 @@ run(w.tick())
 check("a broken reviewer is skipped with a notice and the PR merges", S().get("cc4", "acme/down")["integ"] == "merged"
       and any("review" in t.lower() for _, t, _ in posted))
 review_answer["fail"] = False
+# Owner, 05/11/2026: "review chéo bằng openai-oauth không chạy được" with no reason, every time.
+fail_note = [t for sid, t, _ in posted if sid == "cc4" and "openai" in t]
+check("every reviewer down: the notice names those tried and why", bool(fail_note)
+      and "gemini" in fail_note[-1] and "reviewer down" in fail_note[-1])
+
+# ---- the first reviewer fails, the next one of another family reviews ----
+_orig_review = w._review
+
+
+async def review_first_down(prompt, provider):
+    reviews.append((provider, prompt))
+    if provider == "openai":
+        raise RuntimeError("engine openai-oauth còn công cụ native")
+    return '{"findings": []}'
+
+
+w.configure(review=review_first_down)
+n0 = len(reviews)
+wts = setup("cc7", ["acme/next"])
+change("cc7", wts["acme/next"], "src/a.py", "a = 8\n")
+fake.set_checks(S().get("cc7", "acme/next")["head_sha"], [("test", "completed", "success")])
+run(w.tick())
+tried = [p for p, _ in reviews[n0:]]
+check("a reviewer that cannot run hands over to the next one of another family", tried == ["openai", "gemini"], )
+check("the next reviewer's clean review lets the PR merge", S().get("cc7", "acme/next")["integ"] == "merged"
+      and (S().get("cc7", "acme/next")["gate"] or {}).get("reviewer") == "gemini")
+check("no 'did not run' notice when the next reviewer ran",
+      not any(sid == "cc7" and "did not run" in t or sid == "cc7" and "không chạy được" in t for sid, t, _ in posted))
+w.configure(review=_orig_review)
 
 # ---- 13.1 lessons ----
 wts = setup("cc5", ["acme/learn"])
