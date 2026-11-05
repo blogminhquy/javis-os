@@ -59,8 +59,6 @@ check("the menu lives apart from dashboard.pet (the pet's look)",
       "menu" not in ((main.cfgmod.read_settings().get("dashboard") or {}).get("pet") or {}))
 
 # ═════ what a save may not do ═════
-r = post([x for x in want if x != "mic"], 1)
-check("a save that drops an item already saved is refused", r.status_code == 400 and r.json()["code"] == "removed", r.text)
 r = post(want + ["tasks"], 1)
 check("the same feature cannot be added twice", r.status_code == 400 and r.json()["code"] == "bad", r.text)
 r = post(want + ["javascript:alert(1)"], 1)
@@ -69,41 +67,41 @@ r = post(want + ["made-up"], 1)
 check("not even one shaped like a real id", r.status_code == 400, r.text)
 r = client.post("/pet/menu", data={"items": "{nope", "base_rev": "1"})
 check("a body that is not a JSON list is refused", r.status_code == 400 and not r.json()["ok"], r.text)
-r = post([], 1)
-check("an empty menu is refused", r.status_code == 400, r.text)
 check("none of those refusals touched the saved menu", get()["items"] == want and get()["rev"] == 1)
 
-# ═════ show / hide ═════
-def post_h(items, rev, hidden):
-    return client.post("/pet/menu", data={"items": json.dumps(items), "base_rev": str(rev), "hidden": json.dumps(hidden)})
-
-
-r = post_h(want, 1, ["mic", "pet"])
-check("hiding items saves", r.status_code == 200 and r.json()["menu"]["hidden"] == ["mic", "pet"], r.text)
-raw = main.cfgmod.read_settings()[pet_menu.SETTINGS_KEY]
-check("a hidden item stays saved in its place, flagged", [it["actionId"] for it in raw["items"]] == want
-      and {it["actionId"] for it in raw["items"] if it.get("hidden")} == {"mic", "pet"}, raw)
-r = post_h(want, 2, want)
-check("hiding every item is refused (no empty pet menu)", r.status_code == 400 and r.json()["code"] == "all_hidden", r.text)
-r = post_h(want, 2, ["files"])
-check("hiding an id that is not on the menu is refused", r.status_code == 400 and r.json()["code"] == "bad", r.text)
-r = post_h(want, 2, [])
-check("showing them again saves", r.status_code == 200 and get()["hidden"] == [] and get()["rev"] == 3, r.text)
-cfg = main.cfgmod.read_settings()
-cfg[pet_menu.SETTINGS_KEY]["items"][0]["hidden"] = "yes"
-main.cfgmod.write_settings(cfg)
-check("a hidden flag that is not true/false makes the stored menu damaged", get()["state"] == "invalid")
-cfg[pet_menu.SETTINGS_KEY]["items"][0].pop("hidden")
-main.cfgmod.write_settings(cfg)
-check("and fixing it brings the menu back", get()["state"] == "custom")
-
 # ═════ two windows ═════
-r = post(want + ["files"], 1)
+r = post(want + ["files"], 0)
 check("a save edited from an older revision is a conflict (409)", r.status_code == 409 and r.json()["code"] == "conflict", r.text)
 check("the conflict answer carries the newer menu to reload", r.json()["menu"]["items"] == want, r.text)
 check("the conflict did not overwrite anything", get()["items"] == want)
-r = post(want + ["files"], 3)
-check("saving from the current revision passes", r.status_code == 200 and get()["items"] == want + ["files"], r.text)
+
+# ═════ remove anything, down to nothing ═════
+# Owner, 2026-11-05: "tắt luôn cả các chức năng mặc định ... tất cả đều là nút X, có thể tắt hết sạch được luôn".
+r = post([x for x in want if x != "mic"], 1)
+check("a DEFAULT item can be removed", r.status_code == 200 and "mic" not in get()["items"], r.text)
+r = post(["tasks", "chat"], 2)
+check("so can an added one, several at once", r.status_code == 200 and get()["items"] == ["tasks", "chat"], r.text)
+r = post([], 3)
+check("the menu can be emptied completely", r.status_code == 200 and get()["items"] == [] and get()["state"] == "custom", r.text)
+check("an empty menu stays custom, it does not fall back to the default six", get()["items"] == [])
+r = post(["mic", "chat"], 4)
+check("a removed default comes back like any feature", r.status_code == 200 and get()["items"] == ["mic", "chat"], r.text)
+
+# ═════ menus saved with "hidden" flags (0.479.0 to 0.481.x) ═════
+cfg = main.cfgmod.read_settings()
+cfg[pet_menu.SETTINGS_KEY]["items"] = [{"actionId": "chat"}, {"actionId": "mic", "hidden": True}, {"actionId": "pet"}]
+main.cfgmod.write_settings(cfg)
+m = get()
+check("an item an older save hid now reads as removed (the pet never showed it)", m["items"] == ["chat", "pet"] and m["hidden"] == [], m)
+r = client.post("/pet/menu", data={"items": json.dumps(["chat", "pet", "files"]), "base_rev": str(m["rev"]), "hidden": json.dumps(["files"])})
+check("an older dashboard sending `hidden` gets those left out", r.status_code == 200 and get()["items"] == ["chat", "pet"], r.text)
+cfg = main.cfgmod.read_settings()
+cfg[pet_menu.SETTINGS_KEY]["items"][0]["hidden"] = "yes"
+main.cfgmod.write_settings(cfg)
+check("a hidden flag that is not true/false still marks the stored menu damaged", get()["state"] == "invalid")
+cfg[pet_menu.SETTINGS_KEY]["items"][0].pop("hidden")
+main.cfgmod.write_settings(cfg)
+check("and fixing it brings the menu back", get()["state"] == "custom")
 
 # ═════ an id a later Javis removed ═════
 cfg = main.cfgmod.read_settings()
@@ -114,15 +112,7 @@ check("an id this Javis no longer knows is kept, not lost", "old-feature" in m["
 r = post(m["items"] + ["models"], m["rev"])
 check("and a later save may keep it in place", r.status_code == 200 and get()["items"][1] == "old-feature", r.text)
 r = post([x for x in get()["items"] if x != "old-feature"], get()["rev"])
-# Owner: "phần này thêm thì có nút x để xóa". An item that is not one of the six defaults can be removed.
-check("an added item (here one this Javis no longer knows) can be removed", r.status_code == 200
-      and "old-feature" not in get()["items"], r.text)
-cur = get()
-r = post([x for x in cur["items"] if x != "tasks"], cur["rev"])
-check("an added feature can be removed", r.status_code == 200 and "tasks" not in get()["items"], r.text)
-cur = get()
-r = post([x for x in cur["items"] if x != "pet"], cur["rev"])
-check("a default item can never be removed, only hidden", r.status_code == 400 and r.json()["code"] == "removed", r.text)
+check("or remove it", r.status_code == 200 and "old-feature" not in get()["items"], r.text)
 
 # ═════ damaged settings ═════
 for bad, why in (({"schemaVersion": 99, "rev": 4, "items": []}, "newer schema"),
@@ -138,12 +128,12 @@ for bad, why in (({"schemaVersion": 99, "rev": 4, "items": []}, "newer schema"),
     check("damaged (" + why + "): no save goes over it", r.status_code == 409 and r.json()["code"] == "invalid_saved", r.text)
     check("damaged (" + why + "): the stored value is left as it was", main.cfgmod.read_settings()[pet_menu.SETTINGS_KEY] == bad)
 
-# ═════ first save over the default must keep the default six ═════
+# ═════ first save over the default ═════
 cfg = main.cfgmod.read_settings()
 cfg.pop(pet_menu.SETTINGS_KEY, None)
 main.cfgmod.write_settings(cfg)
 r = post(["chat", "agent", "workflow", "mic", "pet"], 0)
-check("the first save cannot drop one of the default six either", r.status_code == 400 and r.json()["code"] == "removed", r.text)
+check("the first save may already drop a default item", r.status_code == 200 and "teams" not in get()["items"], r.text)
 
 # ═════ the catalog in the dashboard is the same list ═════
 src = (ROOT / "dashboard" / "pet-menu.js").read_text(encoding="utf-8")

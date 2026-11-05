@@ -116,11 +116,9 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
   // Owner: "kéo lên kéo xuống được chứ ko phải mũi tên". Rows move by dragging; no arrow buttons.
   check("no up/down arrow buttons on the rows", !/data-move=/.test(h) && !/bp-arrow/.test(h));
   check("every row has a drag handle (a button, so the keyboard reaches it)", (h.match(/data-pm-grip/g) || []).length === 7);
-  // Owner: "phần này thêm thì có nút x để xóa chứ không phải ẩn". Default items hide (eye); added ones remove (X).
-  check("the six default rows have a show/hide eye", (h.match(/data-pm-eye/g) || []).length === 6);
-  check("the added row has an X to remove it, a default row never does",
-    (h.match(/data-pm-remove/g) || []).length === 1 && /data-i="6"[\s\S]*?data-pm-remove/.test(h)
-    && !/data-i="0"[^]*?data-pm-remove[^]*?data-i="1"/.test(h));
+  // Owner: "bỏ luôn cái nút mắt đi và tất cả đều là nút X, có thể tắt hết sạch được luôn".
+  check("no eye any more", !/data-pm-eye/.test(h) && !/pm-hidden/.test(h));
+  check("every row, the defaults included, has an X", (h.match(/data-pm-remove/g) || []).length === 7);
   check("nothing to save yet: Save and Discard are disabled", /data-pm-save disabled/.test(h) && /data-pm-cancel disabled/.test(h));
   check("no rename, icon or restore-defaults control", !/data-pm-(rename|icon|delete|reset)/.test(h) && !/type="text"/.test(h));
   check("leaving now asks nothing", win.JavisLeaveGuard.fn && win.JavisLeaveGuard.fn() === "");
@@ -144,30 +142,17 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
   key("ArrowUp", 0);
   check("keyboard: Up on the first row does nothing", /data-pm-save disabled/.test(host.innerHTML));
 
-  // Show / hide (owner: "phải có cả nút ẩn hiện nữa, để có thể ẩn bớt đi")
-  click(btn({ "data-pm-eye": true }, 1));
+  // Remove anything (owner: "tắt luôn cả các chức năng mặc định ... có thể tắt hết sạch được luôn")
+  click(btn({ "data-pm-remove": true }, 1));
   h = host.innerHTML;
-  check("the eye hides a row: it stays in place, greyed, saying it is hidden",
-    order() === 7 && /data-i="1"[^>]*pm-hidden|pm-hidden[^>]*data-i="1"/.test(h) && h.indexOf(vi["petmenu.hidden_note"]) >= 0);
-  check("the count says how many are hidden", h.indexOf("7 mục, 1 đang ẩn") >= 0);
-  check("hiding is a change to save", !/data-pm-save disabled/.test(h) && win.JavisLeaveGuard.fn() === vi["petmenu.leave"]);
-  click(btn({ "data-pm-eye": true }, 1));
-  check("the eye again shows it, and nothing is left to save", !/pm-hidden/.test(host.innerHTML) && /data-pm-save disabled/.test(host.innerHTML));
-  for (let i = 0; i < 6; i++) click(btn({ "data-pm-eye": true }, i));
-  h = host.innerHTML;
-  check("the last item still shown cannot be hidden (no empty menu)",
-    (h.match(/pm-hidden/g) || []).length === 6 && /data-i="6"[\s\S]*?data-pm-remove[^>]*disabled/.test(h));
-  click(btn({ "data-pm-remove": true }, 6));
-  check("nor removed when it is the last one shown", order() === 7);
-  click(btn({ "data-pm-cancel": true }));
-  click(btn({ "data-pm-remove": true }, 0));
-  check("the X does nothing on a default item", order() === 7);
-  click(btn({ "data-pm-remove": true }, 6));
-  h = host.innerHTML;
-  check("the X removes an added item from the list", order() === 6 && h.indexOf(vi["petmenu.gone_name"]) < 0);
+  check("the X removes a DEFAULT item too (row 1 is Chat)", order() === 6 && h.indexOf("Trò chuyện") < 0 && h.indexOf("Cộng sự") >= 0);
   check("removing is a change to save", !/data-pm-save disabled/.test(h) && win.JavisLeaveGuard.fn() === vi["petmenu.leave"]);
+  for (let i = 0; i < 6; i++) click(btn({ "data-pm-remove": true }, 0));
+  h = host.innerHTML;
+  check("every item can go: the list is empty and says so", order() === 0 && h.indexOf(vi["petmenu.empty"]) >= 0 && h.indexOf("0 mục") >= 0);
+  check("an emptied list can be saved", !/data-pm-save disabled/.test(h));
   click(btn({ "data-pm-cancel": true }));
-  check("Discard brings the removed item back", order() === 7);
+  check("Discard brings everything back", order() === 7 && host.innerHTML.indexOf(vi["petmenu.empty"]) < 0);
 
   // Add feature
   click(btn({ "data-pm-add": true }));
@@ -213,11 +198,9 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
   check("the pet is told (it closes an open menu and rebuilds on the next open)", fired.some((e) => e.type === "javis:pet-menu"));
   check("other windows hear of it through the cache", JSON.parse(ls["javis.pet.menu"]).rev === 5);
   check("the pet menu leaves the unknown id out", PM.menuEntries({}).every((r) => r.id !== "old-thing") && PM.menuEntries({}).length === 7);
-  // A hidden item stays saved but the pet leaves it out.
-  winListeners.storage.forEach((f) => f({ key: "javis.pet.menu", newValue: JSON.stringify({ state: "custom", rev: 5, items: saved, hidden: ["mic", "pet"] }) }));
-  check("the pet menu leaves hidden items out, in the saved order", PM.menuEntries({}).map((r) => r.id).join() === "teams,chat,agent,workflow,tasks");
-  check("hidden items stay in the saved list", PM.current().join() === saved.join());
-  check("a stored menu with everything hidden falls back to showing all", H.normalize({ state: "custom", rev: 1, items: ["a", "b"], hidden: ["a", "b"] }).hidden.length === 0);
+  // An item an older save hid reads as removed; a custom menu may be empty and stays empty.
+  check("an item an older save hid reads as removed", H.normalize({ state: "custom", rev: 1, items: ["a", "b"], hidden: ["a"] }).items.join() === "b");
+  check("an empty custom menu stays empty (no fallback to the defaults)", H.normalize({ state: "custom", rev: 1, items: [] }).items.length === 0);
 
   // Another window saves while this card is clean: it follows.
   winListeners.storage.forEach((f) => f({ key: "javis.pet.menu", newValue: JSON.stringify({ state: "custom", rev: 6, items: saved.concat("files") }) }));
@@ -242,6 +225,8 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
   check("a long press does not open the phone's copy menu", /"contextmenu"/.test(pmSrc) && /-webkit-touch-callout: none/.test(read("dashboard/style.css")));
   check("pet.js builds its menu from the saved list", /PM\.menuEntries\(\{ mic: mic \}\)/.test(pet));
   check("pet.js does not run a disabled row", /if \(!b \|\| b\.disabled\) return;/.test(pet));
+  check("pet.js opens no box when the menu is empty, and no longer falls back to the six then",
+    /if \(mo && menu\.children\.length === 0\) mo = false;/.test(pet) && !/if \(tuChon\.length\)/.test(pet));
   check("pet.js closes an open menu when the menu is saved", /"javis:pet-menu"[\s\S]{0,120}moMenu\(false\)/.test(pet));
   check("Settings > Mascot shows the Mascot menu card", /JavisPetMenu\.renderSettings\(el\.querySelector\("#petMenuBody"\)\)/.test(con));
   check("leaving a page with unsaved changes asks first", /if \(window\.JavisLeaveGuard && !window\.JavisLeaveGuard\.ok\(\)\) return;/.test(con) && /window\.JavisLeaveGuard = \{/.test(con) && /"beforeunload"/.test(con));
@@ -250,8 +235,8 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
   ["petmenu.title", "petmenu.desc", "petmenu.count", "petmenu.add", "petmenu.cancel", "petmenu.save", "petmenu.saving",
     "petmenu.saved", "petmenu.save_err", "petmenu.conflict", "petmenu.reload", "petmenu.invalid", "petmenu.load_err",
     "petmenu.search", "petmenu.added", "petmenu.none", "petmenu.close", "petmenu.mic_label", "petmenu.why_mic",
-    "petmenu.why_page", "petmenu.why_gone", "petmenu.gone_name", "petmenu.leave", "petmenu.count_hidden", "petmenu.hide",
-    "petmenu.show", "petmenu.hidden_note", "petmenu.keep_one", "petmenu.drag_label", "petmenu.remove"]
+    "petmenu.why_page", "petmenu.why_gone", "petmenu.gone_name", "petmenu.leave", "petmenu.drag_label",
+    "petmenu.remove", "petmenu.empty"]
     .forEach((k) => check("key " + k + " in vi and en", !!vi[k] && !!en[k]));
   check("no em or en dash in pet-menu.js", !/[\u2013\u2014]/.test(read("dashboard/pet-menu.js")));
   check("no em or en dash in the new strings", !Object.keys(vi).filter((k) => k.startsWith("petmenu.")).some((k) => /[\u2013\u2014]/.test(vi[k] + en[k])));

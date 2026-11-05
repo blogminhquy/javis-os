@@ -4153,12 +4153,9 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .pm-eye { flex: none; width: 38px; height: 38px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg3);
   color: var(--text2); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .pm-eye:hover:not(:disabled) { color: var(--text); }
-.pm-eye[aria-pressed="true"] { color: var(--text3); border-style: dashed; }
 .pm-eye:disabled { opacity: .4; cursor: not-allowed; }
 .pm-eye svg { width: 17px; height: 17px; }
 .pm-x:hover:not(:disabled) { color: var(--red, #d64545); border-color: var(--red, #d64545); }
-.pm-row .pm-eye + .pm-eye { margin-left: 6px; }
-.pm-row.pm-hidden .ro-ic, .pm-row.pm-hidden .bp-label { opacity: .5; }
 .pm-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .pm-row .bp-grip.pm-nograb { cursor: not-allowed; opacity: .4; }
 .pm-actions { flex-wrap: wrap; }
