@@ -2,8 +2,9 @@
 // JAVIS OS - Bộ đổi tông: TỐI ↔ SÁNG, chọn tay hoặc tự động theo giờ
 // ============================================
 // Chế độ lưu ở localStorage "javis.theme" với 3 giá trị: "dark" | "light" | "auto".
-// Máy chưa từng chọn (không có khoá) dùng "auto" từ 0.75.1, chủ repo chốt 05/10/2026: trước đó
-// mặc định là tối. Ai đã bấm chọn tay thì khoá đã có giá trị, nên không bị đổi theo.
+// Máy chưa từng chọn (không có khoá) dùng tông SÁNG từ 2026-11-05, chủ repo chốt: "giao diện sáng là màn
+// mặc định của javis, đừng để mặc định giao diện tối nữa". Trước đó là "auto" (0.75.1, tối sau 18:00) và trước
+// nữa là tối. Ai đã bấm chọn (Tối, Sáng hay Tự động) thì khoá đã có giá trị, nên không bị đổi theo.
 // "auto" (0.74.0) đọc thêm khung giờ ở "javis.theme.schedule" dạng "06:00-18:00": từ giờ
 // đầu tới trước giờ sau là tông sáng, còn lại là tông tối. Cả hai là lựa chọn THEO THIẾT BỊ
 // (điện thoại để tự động, máy bàn ghim tối là hợp lệ), nên không lưu lên server.
@@ -44,7 +45,7 @@
 
   function mode() {
     var v = read(KEY);
-    return v === "light" || v === "dark" ? v : "auto";
+    return v === "dark" || v === "auto" ? v : "light";
   }
 
   function schedule() {
