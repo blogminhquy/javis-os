@@ -2264,6 +2264,7 @@
   "crender.ios_dl_fail": "This iPhone couldn't save the file. Use the Copy button to grab its contents.",
   "fedit.read_err": "Could not read the file.",
   "fedit.open_tab": "Open in new tab",
+  "fedit.dl_tap_again": "Tap Download again to save the file.",
   "fedit.save_title": "Save (Ctrl+S)",
   "fedit.tab_source": "Source",
   "mpick.pin": "pinned",

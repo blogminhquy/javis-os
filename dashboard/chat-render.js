@@ -671,15 +671,22 @@
       }
       return put(imgHtml(resolveSrc(src), alt, src));
     });
+    // Chu cua link co the boc dam/nghieng: AI hay viet [**Tai file**](...). Link da cat vao
+    // placeholder nen buoc dam/nghieng sau nay khong cham toi, va nguoi doc thay nguyen "**" (video
+    // iPad 05/11/2026). Chi dam va nghieng, sau khi da escape.
+    function chuLink(t) {
+      return esc(t).replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+?)__/g, "<strong>$1</strong>")
+        .replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>");
+    }
     // 4) link []() : URL ngoai -> tab moi; file/thu muc vault -> mo dung vi tri trong Tep tin; con lai giu cu
     raw = raw.replace(/\[([^\]]+)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, function (_m, t, href) {
       href = href.replace(/\s+(["']).*\1\s*$/, "").trim();
       var appRef = appFileRef(href);
-      if (appRef) return put('<a ' + vaultLink(appRef.path, "", appRef.brain) + ">" + esc(t) + "</a>");
+      if (appRef) return put('<a ' + vaultLink(appRef.path, "", appRef.brain) + ">" + chuLink(t) + "</a>");
       // file:// tro sang brain khac / khong suy ra duoc: van la link vault de cu bam ra khung
       // "khong thay file" (co goi y ten gan dung), thay vi mo tab moi 404 hay khong lam gi ca.
       var fu = fileUriPath(href);
-      if (fu != null) return put('<a ' + vaultLink(fu.replace(/^\/+/, "")) + ">" + esc(t) + "</a>");
+      if (fu != null) return put('<a ' + vaultLink(fu.replace(/^\/+/, "")) + ">" + chuLink(t) + "</a>");
       // Link tro toi mot cong su: "#cs=<agent|workflow>:<slug>[:<ma phien>]". Server dat link
       // nay khi mot quy trinh / tro ly chay xong tu khung Tro chuyen, de nguoi doc nhay thang
       // toi dung cuoc hoi thoai da lam viec do. KHONG phai URL ngoai, khong mo tab moi.
@@ -689,14 +696,14 @@
         // vi chuoi thay the nay dang chay giua .replace(). Giai ma duoc thi dung, khong thi
         // giu nguyen chuoi tho (slug va ma phien deu la ASCII nen van mo dung).
         try { spec = decodeURIComponent(spec); } catch (err) {}
-        return put('<a class="jv-cs" href="' + esc(href) + '" title="' + esc(href) + '" data-cs="' + esc(spec) + '">' + esc(t) + "</a>");
+        return put('<a class="jv-cs" href="' + esc(href) + '" title="' + esc(href) + '" data-cs="' + esc(spec) + '">' + chuLink(t) + "</a>");
       }
-      if (/^(https?:|mailto:)/i.test(href)) return put('<a href="' + esc(href) + '" title="' + esc(href) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
+      if (/^(https?:|mailto:)/i.test(href)) return put('<a href="' + esc(href) + '" title="' + esc(href) + '" target="_blank" rel="noopener">' + chuLink(t) + "</a>");
       // URL that thi GIU nguyen ma hoa (do la duong dan mang); chi duong dan trong vault moi go
       // ra, vi no se di thang toi ten file tren dia. Xem decodeVaultPath.
       if (isVaultRel(href)) {
         var vp = decodeVaultPath(href);
-        var lk = '<a ' + vaultLink(vp) + ">" + esc(t) + "</a>";
+        var lk = '<a ' + vaultLink(vp) + ">" + chuLink(t) + "</a>";
         // 0.202.0: a voice note or any audio file in the brain gets a player next to its link (server/voice_note.py).
         if (AUDIO_EXT_RE.test(vp.split(/[?#]/)[0])) {
           lk = '<audio class="jv-audio" controls preload="none" src="' + esc(fileUrl(vp.replace(/^\.?\//, ""))) + '"></audio> ' + lk;
@@ -704,7 +711,7 @@
         return put(lk);
       }
       var resolved = resolveSrc(href);
-      return put('<a href="' + esc(resolved) + '" title="' + esc(resolved) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
+      return put('<a href="' + esc(resolved) + '" title="' + esc(resolved) + '" target="_blank" rel="noopener">' + chuLink(t) + "</a>");
     });
     // 4b) URL tran (AI go thang, khong boc markdown) -> tu thanh link mo tab moi. Chay SAU khi link/anh/
     //     code da cat vao placeholder (sentinel) nen khong dung vao chung; loai dau cau/ngoac o duoi URL.
@@ -1104,6 +1111,7 @@
     } catch (e) { return false; }
   }
   var DUOI_ANH_RE = /\.(?:png|jpe?g|gif|webp|bmp|svg|heic)$/i;
+  var DUOI_PDF_RE = /\.pdf$/i;
   var DUOI_XEM_RE = /\.(?:png|jpe?g|gif|webp|bmp|svg|heic|pdf|mp4|mov|m4v|webm|mp3|m4a|wav|aac|txt)$/i;
   // Link nao la TAI FILE: co thuoc tinh download, hoac tro toi duong phuc vu file cua may chu
   // (cung origin). Link #open= (mo trinh sua trong app) va link ngoai http khong dinh o day.
@@ -1528,15 +1536,27 @@
       if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
       var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
       if (!a || !laLinkTaiFile(a)) return;
-      if (a.target === "_blank") return;                 // da mo cua so moi san, iOS co nut Xong
       if (e.target.closest('[contenteditable="true"]')) return;
-      e.preventDefault();
-      e.stopPropagation();
       var href = a.href || a.getAttribute("href") || "";
-      if (/^(blob|data):/i.test(href)) { chiaSeBlob(href, a.getAttribute("download") || "file"); return; }
       var xem = href.replace(/([?&])dl=1(&|$)/, function (m, dau, sau) { return sau ? dau : ""; });
       var ten = a.getAttribute("data-vault-path") || a.getAttribute("download") || "";
-      ten = (ten || decodeURIComponent((/[?&]path=([^&]*)/.exec(href) || [0, ""])[1] || "")).split("/").pop();
+      ten = (ten || decodeURIComponent((/[?&](?:path|name)=([^&]*)/.exec(href) || [0, ""])[1] || "")).split("/").pop();
+      // PDF (video iPad cua chu repo 05/11/2026): link PDF trong chat co target="_blank", truoc day cho
+      // iOS tu mo. Tren iPad cai ra man hinh chinh, iOS KHONG mo lop Safari co nut Xong ma THAY
+      // ca app bang trang PDF: khong nut quay lai, khong nut tai, phai tat app. Nen PDF (bam xem
+      // hay bam tai deu vay) mo trong khung xem NGAY TRONG APP: nut Dong, nut Back, nut Tai ve
+      // qua bang chia se cua iOS. Khung xem do khong co link nao nen khong quay lai day.
+      var moPdf = window.JavisFileEditor && window.JavisFileEditor.openPdf;
+      if (DUOI_PDF_RE.test(ten || xem.split("?")[0]) && typeof moPdf === "function" && !/^(blob|data):/i.test(href)) {
+        e.preventDefault();
+        e.stopPropagation();
+        moPdf(xem, ten);
+        return;
+      }
+      if (a.target === "_blank") return;                 // da mo cua so moi san, iOS co nut Xong
+      e.preventDefault();
+      e.stopPropagation();
+      if (/^(blob|data):/i.test(href)) { chiaSeBlob(href, a.getAttribute("download") || "file"); return; }
       // Anh: xem ngay trong app. Dang o trong lightbox (nut Tai ve) thi KHONG mo lightbox chong
       // len nua, ma mo cua so moi de nguoi dung bam giu anh -> "Luu vao Anh".
       if (DUOI_ANH_RE.test(ten || xem.split("?")[0]) && !_lb) { moLightbox(xem, ten); return; }
