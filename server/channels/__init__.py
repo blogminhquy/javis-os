@@ -43,6 +43,8 @@ Optional module attributes (0.459.0, internal API channel):
     PERMISSION_CEILING = "<level>"  the highest Chatbot permission level a turn on this channel may run at;
                                   `chatbot_runtime` refuses a turn above it
     clean_settings(data), account_settings_spec()   numeric account settings edited on the account form
+    MAX_ACCOUNTS_PER_BOT = <n>    how many accounts of this channel one bot may serve (default 20, see
+                                  `max_accounts_per_bot`)
 """
 from __future__ import annotations
 
@@ -177,6 +179,22 @@ def bot_token_ids() -> tuple:
     token để tạo/lưu, nên mọi đường "tạo tài khoản token" phải dùng danh sách này.
     """
     return tuple(k for k, s in _nap().items() if s.nl("bot") and s.kind == "bot")
+
+
+# How many accounts of ONE channel one bot may serve, when the channel module does not say. A channel that polls or
+# holds a session per account (personal Zalo, Telegram, Zalo Bot) pays for each account the whole time the bot runs,
+# so it keeps this cap. A webhook channel (Messenger: the platform pushes to one route, nothing is held per Page)
+# declares a larger one with `MAX_ACCOUNTS_PER_BOT` (owner 2026-11-04: a shop with 26 Fanpages wants one bot).
+MAX_ACCOUNTS_PER_BOT_DEFAULT = 20
+
+
+def max_accounts_per_bot(kenh: str) -> int:
+    """The cap on accounts of channel `kenh` one bot may serve: the module's `MAX_ACCOUNTS_PER_BOT`, else 20."""
+    try:
+        n = int(getattr(module(kenh), "MAX_ACCOUNTS_PER_BOT", 0) or 0)
+    except (TypeError, ValueError):
+        n = 0
+    return n if n > 0 else MAX_ACCOUNTS_PER_BOT_DEFAULT
 
 
 def nhan(kenh: str) -> str:

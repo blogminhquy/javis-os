@@ -36,6 +36,10 @@ GUIDE = {"vi": "31-messenger-tung-buoc.md", "en": "31-messenger-step-by-step.md"
 # The Connections page has a card that connects a Page with Facebook Login and sets the webhook up (0.436.2): the
 # add-account form points there, and a Page connected on that card is already a channel here.
 CONNECT_CARD = True
+# One bot may serve up to 100 Pages (owner 2026-11-04; other channels keep 20). Meta pushes every Page to the
+# one webhook route, so a Page holds no connection or poller while the bot runs. The Page's linked Instagram account
+# rides on the same channel account, so this cap covers Instagram too.
+MAX_ACCOUNTS_PER_BOT = 100
 
 
 def _Transport():
