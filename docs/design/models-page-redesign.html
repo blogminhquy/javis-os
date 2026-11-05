@@ -145,8 +145,6 @@ button { font: inherit; color: inherit; }
   border: 1px solid var(--line); background: var(--bg); color: var(--text3); font-size: 14px; cursor: pointer; }
 .swap .ic { width: 15px; height: 15px; }
 
-.bg { display: flex; align-items: center; gap: 12px; }
-.bg .bi { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--violet-wash); color: var(--violet); flex: none; }
 
 .connect { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; border: 1px dashed var(--line2);
   background: none; color: var(--text2); cursor: pointer; text-align: left; font-size: 16px; }
@@ -201,6 +199,20 @@ button { font: inherit; color: inherit; }
 .sheet .eff-track { height: 36px; }
 .sheet .eff-thumb { top: 5px; width: 26px; height: 26px; }
 .effbox { padding: 4px 6px 12px; }
+
+/* ---------- Background model: the app's own card (console.css .aux-now), copied unchanged ---------- */
+.aux-card { padding: 2px 14px 14px; }
+.aux-now { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap;
+  margin-top: 12px; padding: 12px 14px; background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 10px; }
+.aux-now .bi { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--bg3); color: var(--text2); flex: none; }
+.aux-now-txt { min-width: 0; flex: 1; }
+.aux-now-model { font-size: 16px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aux-now-prov { font-size: 13px; color: var(--text3); margin-top: 3px; }
+.aux-now-act { display: flex; gap: 8px; flex-shrink: 0; }
+.gcard-btn { min-height: 36px; padding: 6px 14px; border-radius: 10px; cursor: pointer; background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.28); color: var(--text); font-size: 15px; font-weight: 500; transition: all .18s; }
+.gcard-btn:hover { background: var(--accent); border-color: var(--accent); color: #1a0d05; }
+@media (max-width: 600px) { .aux-now-act { width: 100%; justify-content: flex-end; } }
 
 /* ---------- pull-up sheet (Tasks page style) ---------- */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 50; opacity: 0; pointer-events: none; transition: opacity .18s; }
@@ -355,14 +367,18 @@ button { font: inherit; color: inherit; }
 
   <div class="sec">
     <div class="sec-h">Model việc nền <span class="sub">· loop, Kanban, nhắc hẹn</span><button class="i" aria-label="Giải thích"><i data-lucide="info"></i></button></div>
-    <div class="card">
-      <div class="bg">
+    <!-- The app's background model card as it is (console.css .aux-now), only the model chip icon added in front. -->
+    <div class="card aux-card">
+      <div class="aux-now">
         <span class="bi"><i data-lucide="cpu"></i></span>
-        <div class="who"><div class="name">gpt-5.1-codex</div><div class="status">ChatGPT</div></div>
-        <button class="cp-eff" data-sheet="effort" data-for="Việc nền" data-v="medium" data-fast="1"><span class="ev">Medium</span><span class="cp-eff-fast" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></span><span class="mb-caret">▾</span></button>
-      </div>
-      <div class="acts">
-        <button class="act" data-sheet="model" data-for="Việc nền"><i data-lucide="cpu"></i>Đổi model</button>
+        <div class="aux-now-txt">
+          <div class="aux-now-model">gpt-5.1-codex</div>
+          <div class="aux-now-prov">ChatGPT</div>
+        </div>
+        <div class="aux-now-act">
+          <button class="cp-eff" data-sheet="effort" data-for="Việc nền" data-v="medium" data-fast="1"><span class="ev">Medium</span><span class="cp-eff-fast" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></span><span class="mb-caret">▾</span></button>
+          <button class="gcard-btn" data-sheet="model" data-for="Việc nền">Đổi model</button>
+        </div>
       </div>
     </div>
   </div>
