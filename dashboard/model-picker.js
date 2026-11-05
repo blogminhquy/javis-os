@@ -36,6 +36,12 @@
   let pinLimited = 0;      // 0.285.0: the pinned plan is out of quota until this epoch; the chat runs on the main model
   let pinSid = null;       // phiên mà sessionPin đang nói về (chống vẽ nhầm khi đổi phiên nhanh)
   let pendingPin = null;   // model chọn khi CHƯA có phiên (chat trống) - áp ngay khi mint id
+  // Owner, 05/11/2026: where the chat in front REALLY runs (server `_route_view`): {provider, model, name, fallback,
+  // reason, until, limited:{provider: epoch}, selected_*}. From /sessions/{id}/meta or /chat/route, then from the
+  // "route" frame each turn sends. null = unknown, the chip shows the chosen model as before.
+  let route = null;
+  let routeTimer = null;  // reads the route again when the resting card's quota is due back
+  const lastRoute = {};   // session id -> {provider, fallback} of the last turn seen, for the one-line notices
   let expanded = null;     // provider đang mở rộng trong popover; "" = đã thu hết (bấm lại tên nhà)
   let filter = "";
 
@@ -67,6 +73,14 @@
   const curBrain = () => { try { return (window.JavisSessions && window.JavisSessions.brain()) || ""; } catch (e) { return ""; } };
   // Model ĐANG HIỆU LỰC cho khung chat trước mặt: ghim của phiên thắng mặc định chung.
   const effective = () => sessionPin || state.main;
+  // What the composer SHOWS (owner, 05/11/2026: "khung chat bị chuyển thì phải chuyển luôn model ở khung đang chat"): the
+  // fallback card really answering, else the chosen model. Chip, picker tick, effort lock, Fast bolt, plan ring and
+  // `/model` all follow it. The choice itself (`effective`) is kept, so the chat goes back to it once its quota returns.
+  const shown = () => (route && route.fallback ? { provider: route.provider, model: route.model || "" } : effective());
+  // The Effort the chip shows and the slider sets (owner, 05/11/2026: "Effort cũng theo model dự phòng luôn"): an
+  // assistant's own level in its chat, the fallback card's own level while one answers, else the chosen card's.
+  const onFallback = () => !!(route && route.fallback && route.reasoning);
+  const shownEffort = () => (agentEff ? agentEff.level : onFallback() ? route.reasoning : state.reasoning);
 
   async function saveModel(patch) {
     const fd = new FormData();
@@ -116,12 +130,17 @@
   async function loadSessionPin() {
     const sid = curSid();
     pinSid = sid;
-    if (!sid) { sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null; agentEff = null; return; }
+    if (!sid) {
+      sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null; agentEff = null;
+      await refreshRoute();
+      return;
+    }
     pendingPin = null;
     try {
       const r = await fetch(`/sessions/${encodeURIComponent(sid)}/meta`);
       const d = r.ok ? await r.json() : null;
       if (pinSid !== sid) return;   // user đã nhảy sang phiên khác trong lúc chờ
+      setRoute((d && d.route) || null);
       // pin_ok=false: ghim còn trong DB nhưng không chạy được (provider mất key) -
       // server đang rơi về mặc định chung, nên hiển thị cũng phải theo mặc định chung.
       pinBroken = !!(d && d.pinned_provider && d.pin_ok === false);
@@ -130,18 +149,88 @@
       agentEff = d && d.agent_slug ? { slug: d.agent_slug, level: d.agent_reasoning || "medium" } : null;
       sessionPin = (d && d.pinned_provider && !pinBroken)
         ? { provider: d.pinned_provider, model: d.pinned_model || "" } : null;
-    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; } }
+    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; setRoute(null); } }
   }
+
+  // FALLBACK_BEGIN
+  // Keep the route and, while a card rests, read it again a few seconds after its quota is due back, so the chip turns
+  // green by itself (the server goes back to the chosen model on its own; nothing saved ever changed).
+  function setRoute(r) {
+    route = r && r.provider ? r : null;
+    if (routeTimer) { clearTimeout(routeTimer); routeTimer = null; }
+    const until = route && route.fallback ? Number(route.until || 0) : 0;
+    const wait = until ? until * 1000 - Date.now() + 5000 : 0;
+    if (wait > 0 && wait < 6 * 3600 * 1000) {
+      routeTimer = setTimeout(async () => { routeTimer = null; await refreshRoute(); renderBar(); }, wait);
+    }
+  }
+  // Read the route only (the pin is left alone): the open chat's from its meta, an empty chat's from /chat/route
+  // (where its first turn would run, the main card being perhaps out of quota).
+  async function refreshRoute() {
+    const sid = curSid();
+    try {
+      const r = await fetch(sid ? `/sessions/${encodeURIComponent(sid)}/meta` : "/chat/route");
+      const d = r.ok ? await r.json() : null;
+      if (curSid() !== sid) return;
+      setRoute(sid ? (d && d.route) : d);
+    } catch (e) {}
+  }
+  // "14:30" for a reset today, "06/11 14:30" for a later day.
+  function hhmm(epoch) {
+    const d = new Date(Number(epoch) * 1000);
+    if (isNaN(d.getTime())) return "";
+    const p2 = (n) => String(n).padStart(2, "0");
+    const t = p2(d.getHours()) + ":" + p2(d.getMinutes());
+    return d.toDateString() === new Date().toDateString() ? t : p2(d.getDate()) + "/" + p2(d.getMonth() + 1) + " " + t;
+  }
+  // Tooltip of the chip while a fallback card answers: what was chosen and why it is not running, then what runs.
+  function fallbackTitle(r, selP, runP) {
+    const why = r.reason === "quota"
+      ? (r.until ? window.t("mpick.route_quota_until", { time: hhmm(r.until) }) : window.t("mpick.route_quota"))
+      : window.t("mpick.route_unavailable");
+    const sel = (selP ? selP.label : r.selected_name || r.selected_provider) + " · "
+      + (r.selected_model || defText(r.selected_provider));
+    const run = (runP ? runP.label : r.name || r.provider) + " · " + (r.model || defText(r.provider));
+    return window.t("mpick.route_chosen", { model: sel, why: why }) + "\n" + window.t("mpick.route_running", { model: run });
+  }
+  // The line a turn's "route" frame adds to the chat, or "": the first turn on a fallback card says so, the first one
+  // back on the chosen card says that too. Lines are not repeated turn after turn; a rerouted turn already has its line.
+  function routeLine(sid, d) {
+    const prev = lastRoute[sid];
+    lastRoute[sid] = { provider: d.provider, fallback: !!d.fallback };
+    if (d.rerouted) return "";
+    if (d.fallback) return prev && prev.fallback && prev.provider === d.provider ? "" : (d.content || "");
+    return prev && prev.fallback ? window.t("mpick.route_back", { nha: d.name || d.provider }) : "";
+  }
+  // Tags in the picker: a card resting out of quota, and the card a fallback turn really runs on.
+  function routeTags(pid) {
+    let h = "";
+    if (route && route.limited && route.limited[pid]) {
+      h += ' <span class="mb-tag is-limited" title="' + escAttr(route.limited[pid] ? window.t("mpick.route_quota_until",
+        { time: hhmm(route.limited[pid]) }) : "") + '">' + escAttr(window.t("mpick.tag_limited")) + "</span>";
+    }
+    if (route && route.fallback && route.provider === pid) {
+      h += ' <span class="mb-tag is-running">' + escAttr(window.t("mpick.tag_running")) + "</span>";
+    }
+    return h;
+  }
+  const escAttr = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  // FALLBACK_END
 
   function renderBar() {
     const eff = effective();
     const p = state.providers.find((x) => x.id === eff.provider);
     const mt = $("mbModelTxt");
+    // Owner, 05/11/2026: a fallback card answering shows ITS model on the chip, with an amber dot; the tooltip keeps
+    // the chosen one and why it is not running. The choice itself is untouched and comes back by itself.
+    const fb = route && route.fallback ? route : null;
+    const runP = fb ? state.providers.find((x) => x.id === fb.provider) : null;
     if (mt) {
       // 0.180.0 (owner): the chip shows the model name only, like "Opus 5.5" in the Claude app. The provider moves to
       // the tooltip; the pin state shows as an icon (below).
-      mt.textContent = chipLabel(eff, p);
-      mt.title = (p ? p.label + " · " + (eff.model || defText(eff.provider)) + "\n" : "") + (sessionPin
+      mt.textContent = fb ? chipLabel({ provider: fb.provider, model: fb.model }, runP) : chipLabel(eff, p);
+      mt.title = fb ? fallbackTitle(fb, state.providers.find((x) => x.id === fb.selected_provider), runP)
+        : (p ? p.label + " · " + (eff.model || defText(eff.provider)) + "\n" : "") + (sessionPin
         ? window.t(agentEff && agentEff.slug === "javis-core" ? "mpick.core_pin_title" : "mpick.pin_title")
         : pinBroken
           ? window.t(pinLimited ? "mpick.pin_limited_title" : "mpick.pin_broken_title")
@@ -151,7 +240,8 @@
       const chip = $("mbOpen");
       if (chip) {
         chip.classList.toggle("is-pinned", !!sessionPin);
-        chip.classList.toggle("is-pin-broken", pinBroken);
+        chip.classList.toggle("is-pin-broken", pinBroken && !fb);
+        chip.classList.toggle("is-fallback", !!fb);
         let pin = chip.querySelector(".mb-pin");
         if (!pin) {
           pin = document.createElement("span");
@@ -162,19 +252,21 @@
         }
         pin.hidden = !(sessionPin || pinBroken);
         chip.setAttribute("aria-label", mt.textContent
+          + (fb ? ", " + window.t("mpick.fallback_aria", { nha: fb.selected_name || fb.selected_provider }) : "")
           + (sessionPin ? ", " + window.t("mpick.pin") : pinBroken ? ", " + window.t("mpick.pin_broken") : ""));
       }
     }
     const eb = $("effTxt");
     if (eb) {
       // A locked Antigravity model runs at the level in its name, so the chip shows that level.
-      const effM = effective();
+      const effM = shown();
       const own = window.JavisEffortSlider && window.JavisEffortSlider.isLocked(effM.provider, effM.model)
         ? window.JavisEffortSlider.lockedLevel(effM.model) : "";
-      const lvl = agentEff ? agentEff.level : state.reasoning;
+      const lvl = shownEffort();
       eb.textContent = window.t(EFF_KEY[own || (EFFORT.find((e) => e[0] === lvl) || EFFORT[0])[0]]);
       const effB = $("effBtn");
-      if (effB) effB.title = agentEff ? window.t("mpick.eff_agent") : "";
+      if (effB) effB.title = agentEff ? window.t("mpick.eff_agent")
+        : onFallback() ? window.t("mpick.eff_fallback", { nha: route.name || route.provider }) : "";
     }
     renderFast();
   }
@@ -182,7 +274,7 @@
   // 0.329.0: the bolt sits in the Effort popover (effort-slider.js) and the composer button became the plan usage
   // ring (plan-limit.js). The Effort chip carries a small bolt while Fast mode is on, so it stays visible.
   function fastTitle(on) {
-    const eff = effective();
+    const eff = shown();
     const n = fastNote(eff.provider, eff.model);
     // 0.164.0: the last real state this brain reported (cooldown, provider refusal) as an extra line.
     const st = fastStates[eff.provider];
@@ -190,7 +282,7 @@
     return "Fast mode\n" + window.t(n.note) + (key ? "\n" + window.t(key, { reason: (st && st.reason) || "" }) : "");
   }
   function renderFast() {
-    const eff = effective();
+    const eff = shown();
     const on = fastNote(eff.provider, eff.model).supported && state.fast;
     const fi = $("effFast");
     if (fi) fi.hidden = !on;
@@ -226,7 +318,7 @@
   async function renderPop() {
     const pop = $("mbPop");
     if (!pop) return;
-    if (expanded == null) expanded = state.main.provider || "anthropic-cli";
+    if (expanded == null) expanded = shown().provider || state.main.provider || "anthropic-cli";
     const luot = ++luotVe;
     // Nhà nào chưa có danh sách thì vẽ khung + dòng "đang tải" NGAY, rồi vẽ lại khi mạng về
     // (o.cho). Trước đây popup mở ra trống trơn trong lúc chờ (Codex mất vài giây).
@@ -235,10 +327,10 @@
     // The assistant's model on the Studio side. The thinking level has its own chip and popover since 0.153.0.
       providers: state.providers,
       expanded, filter,
-      selected: effective(),
+      selected: shown(),   // the tick sits on the model really answering
       searchId: "mbSearch",
       short,
-      mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""),
+      mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : "") + routeTags(p.id),
       noWait: true,
       connectedOnly: true,   // 0.350.0: providers not connected are not listed in the chat picker
     };
@@ -279,19 +371,33 @@
   function close() { const pop = $("mbPop"); if (pop) pop.hidden = true; }
   function isOpen() { const pop = $("mbPop"); return pop && !pop.hidden; }
 
+  // Where the slider's level goes: the assistant's own level, the fallback card's own effort while one answers (its card
+  // on the Models page; the chosen card's stays as it was), else the chosen card's.
+  async function saveEffort(v) {
+    if (agentEff) { agentEff.level = v; renderBar(); await saveAgentEffort(agentEff.slug, v); return; }
+    if (onFallback()) {
+      const pid = route.provider;
+      route.reasoning = v; renderBar();
+      await saveModel({ profile: { provider: pid, reasoning: v } });
+      await loadState(); renderBar();   // that card may be MAIN, whose effort is the chat's main level
+      return;
+    }
+    state.reasoning = v; renderBar(); await saveModel({ reasoning: v });
+  }
+
   // Effort chip (0.153.0): split from the model picker, opens a small popover with a slider.
   let effSlider = null;
   function effOpen() {
     const pop = $("effPop"), btn = $("effBtn");
     if (!pop || !window.JavisEffortSlider) return;
     close(); closePlus(); closeLimit();
-    const eff = effective();
+    const eff = shown();
     pop.hidden = false;
     const locked = window.JavisEffortSlider.isLocked(eff.provider, eff.model);
     if (btn) btn.setAttribute("aria-expanded", "true");
     const fn = fastNote(eff.provider, eff.model);
     effSlider = window.JavisEffortSlider.mount(pop, {
-      value: agentEff ? agentEff.level : state.reasoning,
+      value: shownEffort(),
       fast: {
         supported: fn.supported, on: state.fast, title: fastTitle,
         onHover: () => { if (state.fast) refreshFastState(); },
@@ -299,10 +405,7 @@
       },
       locked: locked,
       lockedValue: locked ? window.JavisEffortSlider.lockedLevel(eff.model) : "",
-      onChange: async (v) => {
-        if (agentEff) { agentEff.level = v; renderBar(); await saveAgentEffort(agentEff.slug, v); return; }
-        state.reasoning = v; renderBar(); await saveModel({ reasoning: v });
-      },
+      onChange: saveEffort,
     });
     // Keep the popover inside the card: on a narrow phone the chip sits far enough right that a
     // popover opened at its left edge would spill past the screen.
@@ -341,7 +444,7 @@
       pendingPin = { provider: prov, model: model };
       sessionPin = null;
     }
-    await loadState(); renderBar();
+    await loadState(); await refreshRoute(); renderBar();   // the route too: picking a card lifts its out-of-quota mark
     if (effIsOpen()) { effClose(); effOpen(); }   // the new model may lock or unlock the slider
   }
 
@@ -387,7 +490,7 @@
       if (sid) await pinToSession(sid, "", "");
       coreChanged();
       sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null;
-      await loadState(); renderBar(); close();
+      await loadState(); await refreshRoute(); renderBar(); close();
       return;
     }
     const item = e.target.closest(".mb-item");
@@ -437,9 +540,17 @@
     },
     fastNote: fastNote,
     prettyModel: prettyModel,
+    // app.js hands over each turn's "route" frame (owner, 05/11/2026): the chip follows the model really answering,
+    // with no reload and no engine restart. Returns the one line to add to the chat, or "".
+    noteRoute: function (sid, d) {
+      if (!sid || !d || !d.provider) return "";
+      const line = routeLine(sid, d);
+      if (sid === curSid()) { setRoute(d); renderBar(); if (isOpen()) renderPop(); }
+      return line;
+    },
     closeAll: function () { close(); effClose(); closePlus(); },
     hienTai: function () {
-      const eff = effective();
+      const eff = shown();
       const p = state.providers.find((x) => x.id === eff.provider);
       return { label: p ? provShort(p.label) : eff.provider, model: eff.model || "" };
     },

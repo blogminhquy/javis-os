@@ -1230,6 +1230,15 @@ function handleMessage(data) {
     try { if (window.JavisChatReactions) window.JavisChatReactions.onFrame(data, { bubble: t && t.bubble }); } catch (e) {}
     return;
   }
+  if (data.type === "route") {
+    // Owner, 05/11/2026: each turn says which model really answers. The model chip follows it (amber dot on a fallback
+    // card) and the chat gets one quiet line when the turn moves to a fallback card or back. Outside KHUNG_LUOT: it
+    // comes before "status" and must not start a turn of its own.
+    let _dong = "";
+    try { if (window.JavisModelBar && window.JavisModelBar.noteRoute) _dong = window.JavisModelBar.noteRoute(sid, data); } catch (e) {}
+    if (isActive && _dong) ghiDoiDuong(_dong);
+    return;
+  }
   if (data.type === "external_message") {
     // 0.440.0: an outside AI posted into this chat through Javis Gate (server/chat_bridge.py). The server stored the
     // message already; the tab looking at the chat draws the bubble now, then the answer streams in like any turn.

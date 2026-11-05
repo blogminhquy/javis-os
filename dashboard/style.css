@@ -2457,6 +2457,13 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .mb-pin[hidden] { display: none; }
 .mb-pin svg, .mb-pin .ic { width: 12px; height: 12px; }
 .mb-chip.is-pin-broken .mb-pin { color: var(--warn-ink); }
+/* Owner, 05/11/2026: a fallback card is answering (the chosen one is out of quota): amber dot and border. */
+.mb-chip.is-fallback .mb-dot { background: var(--warn-ink); }
+.mb-chip.is-fallback { border-color: var(--warn-ink); }
+.mb-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px;
+  font-weight: 600; line-height: 1.5; vertical-align: middle; white-space: nowrap; }
+.mb-tag.is-limited { color: var(--warn-ink); border: 1px solid var(--warn-ink); }
+.mb-tag.is-running { color: var(--green); border: 1px solid var(--green); }
 
 .mb-caret { opacity: .6; font-size: 10px; }
 .mb-pop { position: absolute; bottom: calc(100% + 6px); left: 8px; z-index: 60; width: 340px;
