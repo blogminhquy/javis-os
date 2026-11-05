@@ -420,7 +420,12 @@ class _ApiAuxEngine:
                   "ollama-local": eng.ollama_local_chat_with_mcp,
                   "openai-compat": eng.openai_compat_chat_with_mcp,
                   "anthropic-compat": eng.anthropic_compat_chat_with_mcp}[self.provider]
-            stream = fn(key, self.model, messages, self.reasoning, tools, route)
+            # Việc nền có tool là việc CỦA CHỦ (task, loop, workflow, team), nên chạy với trần vòng của
+            # chủ (mặc định 500) chứ không phải trần 30 của bot nói chuyện với khách. Trước 05/11/2026
+            # việc nền bằng API key dừng ở vòng 30: điền Google Sheet, dựng video đều đứt giữa chừng.
+            # Lượt `no_tools` (đầu vào không tin cậy) không đi nhánh này.
+            stream = eng.chay_trong_phien_coding(
+                lambda: fn(key, self.model, messages, self.reasoning, tools, route))
         else:
             fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
                   "gemini": eng.gemini_stream, "groq": eng.groq_stream,
