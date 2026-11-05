@@ -2074,7 +2074,8 @@ function restoreSession() {
   if (savedSessionId && s.brain) _lastBrain = s.brain;
   // Dựng lại bong bóng hội thoại
   const _traLoi = [];   // T2: các câu trả lời vừa dựng lại, để refresh() sửa reaction và gắn mã còn thiếu
-  convo.forEach((t, i) => {
+  _dangDungLoat = true;   // one scroll at the end, not one per bubble (see chatScroll)
+  try { convo.forEach((t, i) => {
     // t.ts vắng mặt ở tin lưu từ trước bản này -> truyền 0 để ẩn giờ thay vì hiện giờ F5.
     if (t.role === "user") {
       if (t.goalRound && window.JavisLenh && window.JavisLenh.vongHtml) { appendGoalRound(t.goalRound, false); return; }
@@ -2094,7 +2095,7 @@ function restoreSession() {
     if (t.pinned && t.mid != null) datGhim(el, true);
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
-  });
+  }); } finally { _dangDungLoat = false; }
   // Bản lưu cục bộ có thể giữ reaction cũ (đổi ở máy khác) hay thiếu mã tin: hỏi lại đủ số tin vừa dựng (tối đa 200).
   try { if (window.JavisChatReactions && savedSessionId) window.JavisChatReactions.refresh(savedSessionId, _traLoi); } catch (e) {}
   if (convo.length) { scrollBottom(true); ghimDay(sessionOpenSeq); }
@@ -2255,20 +2256,97 @@ async function taiTinCu() {
 // Phiên hội thoại lưu DB (panel Lịch sử - sessions-ui.js gọi qua window.JavisSessions)
 // ============================================
 let sessionOpenSeq = 0;
+
+// ---- Bộ nhớ đệm phiên đã mở (2026-11-05) ----------------------------------------------------
+// Đổi qua lại giữa các cuộc chat trước đây luôn chờ một chuyến mạng (qua Cloudflare 150-400ms, lúc máy chủ bận
+// tới 1-2 giây) rồi mới vẽ. Giờ khúc tin cuối của vài cuộc gần nhất được giữ trong bộ nhớ: mở lại là vẽ NGAY từ đó,
+// đồng thời hỏi máy chủ bản mới; bản mới khác thì vẽ lại, giống thì thôi (không nháy). Rê chuột hay chạm vào một
+// mục trong danh sách cũng hỏi trước (prefetchSession), nên lần mở ĐẦU cũng thường đã có sẵn.
+const _PHIEN_CACHE_MAX = 16;
+const _PHIEN_CACHE_TTL = 5 * 60 * 1000;     // quá hạn thì không vẽ từ cache nữa, chờ bản mới như cũ
+const _PREFETCH_TUOI = 15 * 1000;            // bản tải trước còn mới trong khoảng này thì khỏi hỏi lại
+const _phienCache = new Map();               // id -> { sess, at }
+const _phienDangTai = new Map();             // id -> Promise<sess> (gộp các lượt hỏi trùng)
+let _phienMoLuc = null;                      // { id, len } - độ dài convo lúc mở, để biết cuộc đã đổi khi rời đi
+
+function _urlPhien(id) { return `/sessions/${encodeURIComponent(id)}?limit=${TIN_MOI_LUOT}`; }
+function _ghiCachePhien(id, sess) {
+  if (!id || !sess || sess.error) return;
+  _phienCache.delete(id);
+  _phienCache.set(id, { sess, at: Date.now() });
+  while (_phienCache.size > _PHIEN_CACHE_MAX) _phienCache.delete(_phienCache.keys().next().value);
+}
+function _docCachePhien(id) {
+  const e = _phienCache.get(id);
+  if (!e) return null;
+  if (Date.now() - e.at > _PHIEN_CACHE_TTL) { _phienCache.delete(id); return null; }
+  return e;
+}
+// Vân tay của một khúc tin: giống nhau thì bản mới không đổi gì trên màn, khỏi vẽ lại.
+function _vanTayPhien(sess) {
+  const ds = (sess && sess.messages) || [];
+  return [sess && sess.brain, sess && sess.has_more ? 1 : 0, ds.length].concat(ds.map(m =>
+    `${m.id}:${m.content_sha || (m.content || "").length}:${m.reaction ? JSON.stringify(m.reaction) : ""}:${m.pinned ? 1 : 0}`)).join("|");
+}
+function _taiPhien(id) {
+  if (_phienDangTai.has(id)) return _phienDangTai.get(id);
+  const p = fetch(_urlPhien(id)).then(r => r.json()).then(sess => {
+    if (sess && !sess.error) _ghiCachePhien(id, sess);
+    return sess;
+  }).finally(() => { _phienDangTai.delete(id); });
+  _phienDangTai.set(id, p);
+  return p;
+}
+// Hỏi trước một cuộc (rê chuột/chạm vào mục trong danh sách). Không vẽ gì, chỉ làm nóng bộ nhớ đệm.
+function prefetchSession(id) {
+  if (!id || id === savedSessionId) return;
+  const e = _phienCache.get(id);
+  if (e && Date.now() - e.at < _PREFETCH_TUOI) return;
+  _taiPhien(id).catch(() => {});
+}
+// Rời một cuộc mà nó đã có thêm tin (mình gửi, Javis trả lời): bản trong bộ nhớ đã cũ, bỏ đi để lần sau không vẽ
+// lại một khúc thiếu tin rồi mới nhảy.
+function _quenPhienNeuDoi() {
+  if (_phienMoLuc && _phienMoLuc.id === savedSessionId && convo.length !== _phienMoLuc.len) _phienCache.delete(_phienMoLuc.id);
+}
+
 async function openStoredSession(id, stillCurrent) {
   // 0.347.0: switching conversation keeps a call (see _callSid). Only the Hang up button, the mascot, Esc or a
   // brain switch end it. Outside a call this still cancels capture, as before.
   if (handsFree) boViecPhienCu(); else tatRanhTay();
   const ticket = ++sessionOpenSeq;
+  _quenPhienNeuDoi();
+  const conHieuLuc = () => ticket === sessionOpenSeq && (!stillCurrent || stillCurrent());
+  // Có bản trong bộ nhớ: vẽ ngay, rồi so với bản mới.
+  const daCo = _docCachePhien(id);
+  let veRoi = "";
+  if (daCo) {
+    _veLaiPhien(id, daCo.sess, ticket, false);
+    veRoi = _vanTayPhien(daCo.sess);
+  }
   try {
-    const sess = await (await fetch(`/sessions/${encodeURIComponent(id)}?limit=${TIN_MOI_LUOT}`)).json();
-    if (ticket !== sessionOpenSeq || (stillCurrent && !stillCurrent()) || !sess || sess.error) return;
+    const sess = await _taiPhien(id);
+    if (!conHieuLuc() || !sess || sess.error) return;
+    // Bản mới y hệt bản đã vẽ: giữ nguyên màn (không nháy, không mất chỗ cuộn).
+    if (veRoi && veRoi === _vanTayPhien(sess)) return;
+    // Người dùng đã gửi tin trong lúc chờ (convo dài thêm): đừng xoá trắng lượt họ đang thấy.
+    if (veRoi && _phienMoLuc && _phienMoLuc.id === id && convo.length !== _phienMoLuc.len) return;
+    _veLaiPhien(id, sess, ticket, !!veRoi);
+  } catch (e) {}
+}
+
+// `capNhat`: lượt vẽ LẠI cùng một cuộc vì bản mới khác bản trong bộ nhớ. Các phần ăn theo việc ĐỔI cuộc (báo danh
+// sách, dọn dải việc nền) đã chạy ở lượt vẽ đầu, khỏi chạy lần hai.
+function _veLaiPhien(id, sess, ticket, capNhat) {
+  try {
     convo = [];
     hideActivity();
     goMoiTinCu();
     chatArea.innerHTML = "";
     const ds = sess.messages || [];
-    ds.forEach(m => { const t = veTinDaLuu(m, sess.brain, id); if (t) convo.push(t); });
+    _dangDungLoat = true;
+    try { ds.forEach(m => { const t = veTinDaLuu(m, sess.brain, id); if (t) convo.push(t); }); }
+    finally { _dangDungLoat = false; }
     _tinCu = ds.length
       ? { sid: id, brain: sess.brain, ts: ds[0].ts, id: ds[0].id, con: !!sess.has_more, dangTai: false }
       : null;
@@ -2290,10 +2368,12 @@ async function openStoredSession(id, stillCurrent) {
     // Phiên này đang chờ gói thuê bao mở lại hạn mức → gắn thẻ "tự chạy lại" dưới tin cuối.
     try { if (window.JavisResume) window.JavisResume.renderFor(id); } catch (e) {}
     persistSession();
+    _phienMoLuc = { id, len: convo.length };
     scrollBottom(true);
     ghimDay(ticket);
-    notifySessions();
     syncActiveUI();
+    if (capNhat) return;
+    notifySessions();
     // Dải việc nền đánh dấu "việc CỦA hội thoại này" theo chat_id, nên đổi phiên là nó sai
     // ngay. Xoá rồi hỏi lại thay vì để chip của phiên trước nằm lại vài giây.
     try { if (window.JavisBackground) window.JavisBackground.reset(); } catch (e) {}
@@ -2305,6 +2385,7 @@ function resetChatView() {
   // 0.347.0: an empty chat view keeps a call too (it stays in its own conversation, see _callSid): leaving the
   // Partners page opens one, and that used to hang the call up. A brain switch still ends it, at its own call site.
   if (handsFree) boViecPhienCu(); else tatRanhTay();
+  _quenPhienNeuDoi();
   convo = [];
   hideActivity();          // dọn chip + timer trước khi xoá trắng khung
   _tinCu = null; goMoiTinCu();
@@ -2322,7 +2403,8 @@ function newChat() {
   resetChatView();
   try { chatInput.focus(); } catch (e) {}
 }
-window.JavisSessions = { open: openStoredSession, new: newChat, brain: () => currentBrainPath(), current: () => savedSessionId };
+window.JavisSessions = { open: openStoredSession, new: newChat, brain: () => currentBrainPath(), current: () => savedSessionId,
+                         prefetch: prefetchSession };
 // Báo các UI khác (sidebar Lịch sử trong chat workspace) biết phiên/danh sách vừa đổi
 function notifySessions() { try { window.dispatchEvent(new Event("javis:sessions-changed")); } catch (e) {} }
 
@@ -2785,7 +2867,7 @@ newMsgBtn.id = "newMsgBtn"; newMsgBtn.type = "button";
 // TRƯỚC tin cũ nhất đang hiện chứ không phải cuối khung. Đặt cái neo ở đây thay vì thêm
 // tham số cho appendUserMessage/appendJavisMessage: hai hàm đó được gọi từ cả chục chỗ, thêm
 // tham số là mười chỗ phải nhớ truyền đúng.
-let _neoChenCu = null, _dangChenCu = false;
+let _neoChenCu = null, _dangChenCu = false, _dangDungLoat = false;
 function chatAppend(el) {
   if (newMsgBtn.parentNode !== chatArea) chatArea.appendChild(newMsgBtn);
   chatArea.insertBefore(el, _neoChenCu || newMsgBtn);
@@ -2793,9 +2875,12 @@ function chatAppend(el) {
 // Ngưỡng 90px: coi như "đang ở đáy" nên vẫn tự cuộn theo tin mới, và không hiện nút. Đang chèn ngược tin cũ
 // (_dangChenCu): appendUserMessage/appendJavisMessage vẫn gọi scrollBottom theo thói quen, mà cuộn xuống đáy lúc này
 // là quăng người đọc khỏi chỗ họ đang đứng, nên chat-scroll.js không cuộn khi suspended() đúng.
+// _dangDungLoat (2026-11-05): a whole chat is being built at once (opening it, F5). Each bubble used to scroll to the
+// bottom as it went in, and each of those scrolls made the browser lay out the whole chat again: 30 messages, 30
+// layouts. Profiled on a 30-message chat that was 90% of the time to open it. The builder scrolls once at the end.
 const chatScroll = window.JavisChatScroll.attach(chatArea, {
   button: newMsgBtn, msg: ".msg", hold: ".msg-acts:hover, .jr-chat:hover", near: 90,
-  suspended: () => _dangChenCu,
+  suspended: () => _dangChenCu || _dangDungLoat,
 });
 function scrollBottom(force) { chatScroll.toBottom(force); }
 

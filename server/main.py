@@ -4928,6 +4928,23 @@ async def claude_update_now():
 
 
 @app.on_event("startup")
+async def _widen_io_pool():
+    """Performance (2026-11-05): a bigger pool for `asyncio.to_thread` / `io_offload.run_io`.
+
+    Python's default pool is min(32, CPUs + 4) threads: 5 or 6 on a small VPS. Team reads, the team scheduler,
+    agent turns and page reads all borrow from it, so one busy agent left a page click waiting for a free
+    thread, which is the "sometimes instant, sometimes 1-2 seconds" the owner saw. The work is I/O (SQLite,
+    files), not CPU, so more threads cost little memory and no speed. Must be the FIRST startup hook."""
+    import concurrent.futures
+    n = max(32, (os.cpu_count() or 1) * 4)
+    try:
+        asyncio.get_running_loop().set_default_executor(
+            concurrent.futures.ThreadPoolExecutor(max_workers=n, thread_name_prefix="javis-io"))
+    except Exception as e:  # noqa: BLE001 - the stock pool still works, only smaller
+        print(f"[io pool] kept the default pool: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+@app.on_event("startup")
 async def _routing_migrate_on_start():
     """0.350.0: move the settings to the usage-order layout once (docs/dev/2026-10-model-routing-spec.md, part 4)."""
     def _run():
@@ -13455,6 +13472,12 @@ async def cache_keepwarm_set(payload: dict = Body(None)):
 
 @app.get("/viec/all")
 async def viec_all():
+    """Performance (2026-11-05): the whole scan reads loop files of every brain, so it runs in a worker thread; on the
+    event loop it held up every other request while the Tasks page opened or polled."""
+    return await asyncio.to_thread(_viec_all_sync)
+
+
+def _viec_all_sync():
     """Gộp MỌI brain cho trang Việc: mỗi brain kèm loop + nhắc hẹn đang chờ, mỗi item gắn
     brain_name/brain_path để nút thao tác (bật/tắt/xoá/chuyển/huỷ) nhắm ĐÚNG brain của chính
     item, không phải brain đang chọn ở sidebar. Quét list_brains() (KHÔNG chỉ brain đã đăng ký)
@@ -20202,9 +20225,12 @@ def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
 
 
 @app.get("/sessions/search")
-async def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = Query(30),
-                          channel: str = Query(""), bots: int = Query(0)):
-    """channel: bỏ trống = tìm mọi kênh (thanh tìm trang Trò chuyện); có giá trị = chỉ kênh đó
+def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = Query(30),
+                    channel: str = Query(""), bots: int = Query(0)):
+    """Performance (2026-11-05): a plain `def`, so FastAPI runs the full-text search in its thread pool; as `async def`
+    it ran on the event loop and every request waited for it.
+
+    channel: bỏ trống = tìm mọi kênh (thanh tìm trang Trò chuyện); có giá trị = chỉ kênh đó
     (ô tìm ở cột lịch sử của một trợ lý / quy trình trên trang Cộng sự)."""
     return {"results": get_store().search(q, limit=limit, brain=_brain_keys(brain),
                                           channel=channel or None,
@@ -20242,9 +20268,11 @@ def sessions_get(session_id: str, limit: int = Query(0)):
 
 
 @app.get("/sessions/{session_id}/messages")
-async def sessions_messages(session_id: str, limit: int = Query(30),
-                            before_ts: float = Query(None), before_id: int = Query(None)):
-    """Khúc tin CŨ HƠN con trỏ (before_ts, before_id) - khung chat cuộn lên thì gọi đường này.
+def sessions_messages(session_id: str, limit: int = Query(30),
+                      before_ts: float = Query(None), before_id: int = Query(None)):
+    """Performance (2026-11-05): a plain `def` (thread pool), not `async def` doing SQLite on the event loop.
+
+    Khúc tin CŨ HƠN con trỏ (before_ts, before_id) - khung chat cuộn lên thì gọi đường này.
 
     Thiếu con trỏ thì trả khúc cuối, y như `/sessions/{id}?limit=N`.
     """
@@ -20626,6 +20654,11 @@ async def sessions_pin(session_id: str, pinned: str = Form("1")):
 
 @app.get("/sessions/{session_id}/meta")
 async def sessions_meta(session_id: str):
+    """Performance (2026-11-05): asked on every chat open; its reads run in a worker thread, off the event loop."""
+    return await asyncio.to_thread(_sessions_meta_sync, session_id)
+
+
+def _sessions_meta_sync(session_id: str):
     """Row phiên KHÔNG kèm messages - cho model bar hỏi 'phiên này ghim model gì' mà
     không phải kéo cả hội thoại về (GET /sessions/{id} trả nguyên cả messages).
 

@@ -22,7 +22,7 @@ const context = {
   voiceBtn: { classList: { remove() {} } }, window: {}, tatLive() {}, nhapGiong() {},
   runActions() {}, turn: { micOff: () => [] },
   hideActivity() {}, goMoiTinCu() {}, chatArea: { innerHTML: '' },
-  persistSession() {}, notifySessions() {}, syncActiveUI() {}, savedSessionId: 'old',
+  persistSession() {}, notifySessions() {}, syncActiveUI() {}, savedSessionId: 'old', _quenPhienNeuDoi() {},
 };
 load(context, ['tatRanhTay', 'resetChatView', 'boViecPhienCu', 'capNhatTinNguoiDung', 'goTinNguoiDungCuoi', 'datTinCho', 'guiTinCho', 'guiTinDutMang']);
 let failures = 0;

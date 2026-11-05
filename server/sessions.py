@@ -475,6 +475,12 @@ class SessionStore:
         self._apply_wal()
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._init_schema()
+        # Reads get their own connection per thread once the file is in WAL mode (see _read).
+        self._wal = self._journal_is_wal()
+        self._rlocal = threading.local()
+        self._rconns: List[sqlite3.Connection] = []
+        self._rconns_lock = threading.Lock()
+        self._closed = False
 
     # ── connection setup ──
 
@@ -616,7 +622,50 @@ class SessionStore:
                 raise
         raise last_err or sqlite3.OperationalError("database is locked after retries")
 
+    def _journal_is_wal(self) -> bool:
+        try:
+            row = self._conn.execute("PRAGMA journal_mode").fetchone()
+            return bool(row) and str(row[0]).lower() == "wal" and str(self.db_path) != ":memory:"
+        except sqlite3.Error:
+            return False
+
+    def _read_conn(self) -> Optional[sqlite3.Connection]:
+        """This thread's read-only connection, or None to fall back to the shared one.
+
+        Performance (2026-11-05): reads used to share the single write connection and its lock, so opening a chat
+        queued behind every in-flight write (a turn saving its answer, a bot logging a message) and behind
+        every other read (a search, the history list). Measured with two writers and one search running:
+        opening a 30-message chat went from about 3 ms to about 45 ms at the SQLite layer alone. In WAL mode
+        readers never block writers nor each other, so each thread keeps its own reader and only writes
+        take the lock. DELETE journal mode (some network disks) keeps the old shared path: there a reader
+        can collide with a writer's exclusive lock."""
+        if not self._wal or self._closed:
+            return None
+        c = getattr(self._rlocal, "conn", None)
+        if c is not None:
+            return c
+        try:
+            c = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=5.0, isolation_level=None)
+            c.row_factory = sqlite3.Row
+            c.execute("PRAGMA query_only=ON")
+        except sqlite3.Error:
+            return None
+        self._rlocal.conn = c
+        with self._rconns_lock:
+            self._rconns.append(c)
+        return c
+
     def _read(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
+        rc = self._read_conn()
+        if rc is not None:
+            try:
+                return rc.execute(sql, params).fetchall()
+            except sqlite3.OperationalError as exc:
+                # A schema change made by the writer (a migration adding a column) can leave this reader with a
+                # stale statement cache; the shared connection below always sees the current schema.
+                if "locked" not in str(exc).lower() and "busy" not in str(exc).lower() \
+                        and "no such" not in str(exc).lower():
+                    raise
         with self._lock:
             return self._conn.execute(sql, params).fetchall()
 
@@ -2066,6 +2115,14 @@ class SessionStore:
         return [dict(r) for r in self._read(sql, tuple(params))]
 
     def close(self) -> None:
+        self._closed = True
+        with self._rconns_lock:
+            for c in self._rconns:
+                try:
+                    c.close()
+                except Exception:
+                    pass
+            self._rconns = []
         with self._lock:
             try:
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")

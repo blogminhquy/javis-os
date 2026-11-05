@@ -322,6 +322,12 @@
             hien: TRANG, lanChay: {},
             menu: null };   // tienDo[session_id] = tiến độ lần chạy đang xem
 
+  // 2026-11-05: the last chat each partner opened in, by brain and channel. It lives outside S (S is rebuilt on every
+  // visit), so coming back to a partner opens its chat at once, from app.js's chat cache, while the server confirms
+  // it is still the newest one. It is a hint only: the server's answer always wins.
+  var _phienGanNhat = {};
+  function khoaGanNhat(item) { return brain() + "|" + kenh(item); }
+
   function danhSach() { return S.loai === "agent" ? S.agents : S.workflows; }
   function kenh(item) { return (S.loai === "agent" ? "agent:" : "workflow:") + item.slug; }
   function dangChon() { var slug = S.chon[S.loai]; return danhSach().find(function (x) { return x.slug === slug; }) || null; }
@@ -1154,7 +1160,13 @@
   // chết theo node cũ.
   function noiDanhSach(host) {
     host.querySelectorAll("[data-slug]").forEach(function (b) {
-      b.addEventListener("mouseenter", function () { hienTheMini(b); });
+      b.addEventListener("mouseenter", function () {
+        hienTheMini(b);
+        // 2026-11-05: warm the chat this partner last opened in, so the click finds it ready.
+        var x = danhSach().find(function (m) { return m.slug === b.dataset.slug; });
+        var sid = x && _phienGanNhat[khoaGanNhat(x)];
+        try { if (sid && window.JavisSessions && window.JavisSessions.prefetch) window.JavisSessions.prefetch(sid); } catch (e) {}
+      });
       b.addEventListener("mouseleave", anTheMini);
       b.addEventListener("focus", function () { hienTheMini(b); });
       b.addEventListener("blur", anTheMini);
@@ -1535,7 +1547,15 @@
         if (!still()) return false;
         id = c && c.id;
       }
+      var moSom = null, nho = null;
       if (!id && !moiHan) {
+        // 2026-11-05: open the remembered chat right away, in parallel with asking which chat is newest. Before, the
+        // chat waited for this answer and then for its own messages: two round trips in a row on every click.
+        nho = !item.system ? _phienGanNhat[khoaGanNhat(item)] : null;
+        if (nho && window.JavisSessions) {
+          S.sessionCuaPhien[nho] = item.slug;
+          moSom = window.JavisSessions.open(nho, still);
+        }
         var r = await api("/sessions?brain=" + b + "&channel=" + encodeURIComponent(ch) + "&limit=1");
         if (!still()) return false;
         if (r.sessions && r.sessions[0]) id = r.sessions[0].id;
@@ -1551,9 +1571,11 @@
         id = n.id;
       }
       S.sessionCuaPhien[id] = item.slug;
-      if (window.JavisSessions) await window.JavisSessions.open(id, still);
+      if (moSom && id === nho) await moSom;   // the remembered chat is still the newest: it is already open
+      else if (window.JavisSessions) await window.JavisSessions.open(id, still);
       if (!still()) return false;
       if (!window.JavisSessions || window.JavisSessions.current() !== id) throw new Error(t("ws.err_session"));
+      if (!item.system) _phienGanNhat[khoaGanNhat(item)] = id;
       chatReady(true);
       luuViTri(id);
       if (S.loai === "agent") daDoc(item.slug);   // 0.205.0: opening the chat reads it

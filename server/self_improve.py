@@ -1280,7 +1280,9 @@ class LoopFeature:
 
         @router.get("/loops/log")
         async def loops_log(brain: str = Query("brain"), slug: str = Query(""), limit: int = Query(10)):
-            return {"entries": self._read_log_entries(brain, slug, limit),
+            # Performance (2026-11-05): reading the log files runs in a worker thread, not on the event loop.
+            entries = await asyncio.to_thread(self._read_log_entries, brain, slug, limit)
+            return {"entries": entries,
                     "running": self.lock.locked(),
                     "running_slug": self._running[1] if self._running else ""}
 

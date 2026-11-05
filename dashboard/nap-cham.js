@@ -44,12 +44,16 @@
   }
 
   // Nạp một nhóm (hay một danh sách nhóm). Trả Promise xong khi mọi file đã chạy.
+  // 2026-11-05: every file of the group is requested AT ONCE. Before, each waited for the one before it to finish, so a
+  // page of five files paid five round trips in a row (through Cloudflare, easily a second). Order is still kept:
+  // scripts are inserted in the declared order with async=false, and browsers run such scripts in insertion order
+  // while downloading them in parallel. CSS goes in first, as before.
   function cho(ten) {
     if (Array.isArray(ten)) return Promise.all(ten.map(cho));
     var ds = bang()[ten];
     if (!ds) return Promise.resolve(false);
     if (dangNhom[ten]) return dangNhom[ten];
-    var p = ds.reduce(function (truoc, url) { return truoc.then(function () { return napFile(url); }); }, Promise.resolve());
+    var p = Promise.all(ds.map(napFile));
     dangNhom[ten] = p.then(function () { xongNhom[ten] = true; return true; });
     return dangNhom[ten];
   }
@@ -65,8 +69,13 @@
     return cho(ten).then(function () { return fn(); });
   }
 
+  // The pages people open most go first in the background load (2026-11-05): the Tasks page used to be the last group.
+  var UU_TIEN = ["congviec", "teams", "nhiemvu", "hoithoai"];
   function napNen() {
-    var ten = Object.keys(bang());
+    var ten = Object.keys(bang()).sort(function (a, b) {
+      var ia = UU_TIEN.indexOf(a), ib = UU_TIEN.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
     ten.reduce(function (truoc, t) { return truoc.then(function () { return cho(t); }); }, Promise.resolve());
   }
   function henNen() {

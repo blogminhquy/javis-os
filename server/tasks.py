@@ -1706,7 +1706,8 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 "brain_root": self._worker_brains.get(tid, ""),
                 "alive": not worker.done(),
             }
-            for tid, worker in self._workers.items()
+            # list(): /kanban builds this in a worker thread (see kanban_get) while the loop may add or drop a worker.
+            for tid, worker in list(self._workers.items())
             if self._worker_brains.get(tid) == root
         ]
         health = self.store.health(root)
@@ -1845,7 +1846,9 @@ Trả DUY NHẤT một dòng JSON, không markdown:
 
         @router.get("/kanban")
         async def kanban_get(brain: str = Query("brain"), rev: str = Query(""), history: int = Query(20)):
-            return self.board_view(brain, history_limit=history, rev=rev)
+            # Performance (2026-11-05): the board is several SQLite reads behind the task store's lock. On the event loop
+            # that froze every other request (a chat open, a page switch) whenever a worker held the lock.
+            return await asyncio.to_thread(self.board_view, brain, history_limit=history, rev=rev)
 
         @router.post("/kanban/task/followup")
         async def kanban_followup(id: str = Form(...), text: str = Form(""), brain: str = Form("")):
