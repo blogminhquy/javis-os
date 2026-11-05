@@ -1918,7 +1918,7 @@
       focusPicker: false, focusBack: null, searchOpen: false, searchResults: null, searchQuery: "", jumped: null,
       openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false,
       picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [],
-      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle",
+      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle", dictSend: false,
       atts: [], folder: null, repos: [], ghIcon: null, skills: null, skillsBrain: "", info: null, typing: [], pinned: [], pinsOpen: false, tagFilter: readTagFilter(),
       autoOpened: false, unclamped: {}, outbox: [] };
   }
@@ -2373,6 +2373,7 @@
     if (S.dictState === "transcribing") return;
     var input = S.el.querySelector(".tm-input");
     S.dictBase = input ? input.value : "";
+    S.dictSend = false;
     var forTeam = S.activeId;
     S.dict = D.create({
       onText: function (text) {
@@ -2384,7 +2385,11 @@
         drawHint();
       },
       onState: function (st) {
+        var was = S.dictState;
         S.dictState = st;
+        // Send pressed while recording (button or Enter): it waited for the last words, now it goes.
+        var sendNow = st === "idle" && was !== "idle" && S.dictSend;
+        if (st === "idle") S.dictSend = false;
         if (S.activeId !== forTeam) return;
         var btn = S.el.querySelector(".tm-mic");
         if (!btn) return;
@@ -2393,6 +2398,7 @@
         var lab = tw(st === "idle" ? "teams.mic" : st === "transcribing" ? "teams.mic_busy" : "teams.mic_stop");
         btn.setAttribute("aria-label", lab); btn.title = lab;
         btn.innerHTML = ic(st === "idle" ? "mic" : st === "transcribing" ? "loader" : "square");
+        if (sendNow) { send(); return; }
         if (st === "idle") { var inp = S.el.querySelector(".tm-input"); if (inp) inp.focus(); }
       },
       onError: function (code) {
@@ -3491,6 +3497,12 @@
   function send() {
     var input = S.el.querySelector(".tm-input");
     if (!input || !S.team) return;
+    // Recording: stop, wait for the final words, then send them (owner 2026-11-05: Enter sends, no stop press first).
+    if (S.dict && S.dictState !== "idle") {
+      S.dictSend = true;
+      if (S.dict.active()) S.dict.stop();
+      return;
+    }
     var typed = input.value.trim();
     if (S.atts.some(function (a) { return a.busy; })) { setNote(tw("teams.attach_wait")); return; }
     // A file that failed to upload is not dropped silently: remove it or send it again first (main chat wording).
@@ -4700,7 +4712,9 @@
     // Same Enter rules as the main chat (chat-acts.js): never while an IME is composing, and a touch screen keeps Enter
     // as a new line (the Send button sends).
     var A = actsApi();
-    if (e.target.classList && e.target.classList.contains("tm-input") && A && A.enterSends(e, S.composing && S.composing())) {
+    // While recording the focus usually sits on the mic just pressed: Enter there sends too, instead of only stopping.
+    var onMic = S.dictState !== "idle" && e.target.classList && e.target.classList.contains("tm-mic");
+    if (e.target.classList && (onMic || e.target.classList.contains("tm-input")) && A && A.enterSends(e, S.composing && S.composing())) {
       e.preventDefault();
       send();
     }
