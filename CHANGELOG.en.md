@@ -8,6 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.478.0] - 2026-11-05
+### Fixed
+- **Background work on an API key no longer stops at round 30.** Tasks, loops, workflows and teams on OpenRouter, OpenAI, Anthropic API, Gemini, Groq, DeepSeek or Ollama now get 500 tool rounds per turn like chats do, so filling a hundred Google Sheet rows or building a video runs to the end instead of reporting "all 30 rounds were used" and giving up.
+### Added
+- **Full-access background work on an API key gets a real terminal.** Tasks, reminders and workflows at Full access can now run commands in the brain (ffmpeg, python, video-building scripts...) and still search and read the web, the same as on Claude Code. Long commands run in the background and Javis reports back to the chat that asked, or to Javis Core, when they finish. Auto, Suggest and isolated loops still get no shell.
+### Improved
+- The ceiling for your own work is now 500 rounds (was 150 in chats, 30 in background work); set `JAVIS_MAX_TOOL_ROUNDS_CODING=0` for no limit. Bots talking to customers stay at 30.
+- A smarter brake against stuck models: waiting on a running job (polling a video render) is no longer cut on the 5th call while the result keeps changing, and a model cycling A-B-A-B without progress is stopped early.
+- Long turns no longer overflow the model's context: older tool results are trimmed past a budget while the newest stay whole. Tune with `JAVIS_TOOL_LOOP_BUDGET_CHARS`.
+
 ## [0.477.0] - 2026-11-05
 ### Added
 - **A new Models page in the Tasks page's style.** Each card shows the provider's real logo, a row of icon buttons (Use for background work, Check, Add an account or key, Disconnect) and a ⋯ button that opens a pull-up sheet with every action. The card that runs background work carries a BACKGROUND badge.
