@@ -20,7 +20,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Javis OS">
-  <meta name="theme-color" content="#0e0e16">
+  <meta name="theme-color" content="#ffffff">
   <!-- manifest.json khai icon PNG vuông 192/512 có sizes rõ ràng: đó là điều kiện để
        Chrome/Edge DESKTOP coi trang là cài được (icon "any" trên PNG bị coi là không hợp lệ
        nên trước đây chỉ mobile chạy dạng app, desktop không bao giờ có nút cài). Nút
@@ -31,13 +31,13 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=158">
+  <link rel="stylesheet" href="/static/style.css?v=160">
   <link rel="stylesheet" href="/static/console.css?v=133">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
-       Chế độ "auto" (0.74.0, mặc định khi chưa chọn gì từ 0.75.1) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
+       Chưa chọn gì thì SÁNG (2026-11-05; trước đó là "auto"). Chế độ "auto" (0.74.0) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
        theme.js (vắt qua nửa đêm được, hai mốc trùng là tối): sửa một bên thì sửa cả bên kia. -->
-  <script>(function(){try{var m=localStorage.getItem('javis.theme'),L=m==='light';if(m!=='light'&&m!=='dark'&&m!=='dim'){var p=/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(localStorage.getItem('javis.theme.schedule')||'')||[0,6,0,18,0],a=p[1]*60+ +p[2],b=p[3]*60+ +p[4],d=new Date(),n=d.getHours()*60+d.getMinutes();L=a!==b&&(a<b?n>=a&&n<b:n>=a||n<b);}if(L)document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+  <script>(function(){try{var m=localStorage.getItem('javis.theme'),L=m!=='dark'&&m!=='dim';if(m==='auto'){var p=/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(localStorage.getItem('javis.theme.schedule')||'')||[0,6,0,18,0],a=p[1]*60+ +p[2],b=p[3]*60+ +p[4],d=new Date(),n=d.getHours()*60+d.getMinutes();L=a!==b&&(a<b?n>=a&&n<b:n>=a||n<b);}if(L)document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 </head>
 <body>
   <div class="hud">
@@ -679,7 +679,7 @@
           <div class="rail-grp-items">
             <template x-for="it in g.items" :key="it.id">
               <button class="rail-item" :class="{ active: $store.nav.active === it.id }"
-                      @click="$store.nav.go(it.id)" :title="it.label">
+                      @click="$store.nav.go(it.id)" :title="it.label" :data-page="it.id">
                 <span class="rail-ico" x-html="it.icon"></span>
                 <span class="rail-lbl" x-text="it.label"></span>
               </button>
@@ -1010,7 +1010,7 @@
   <!-- theme.js phải nạp TRƯỚC mọi file khác: graph.js / app.js đăng ký
        hàm vẽ lại theo tông ngay lúc parse, nếu window.javisTheme chưa có thì chúng
        đăng ký hụt và các lớp canvas kẹt ở bảng màu tối. -->
-  <script src="/static/theme.js?v=4"></script>
+  <script src="/static/theme.js?v=5"></script>
   <!-- Voice V1: đạo diễn hội thoại (thuần) phải nạp TRƯỚC voice.js và app.js. -->
   <script src="/static/voice-turn.js?v=3"></script>
   <script src="/static/voice-turn-policy.js?v=1"></script>
@@ -1106,7 +1106,7 @@
   <!-- Brain picker drawn by Javis over #graphSource (0.431.0): after brains-ui.js and app.js. -->
   <script src="/static/brain-picker.js?v=1"></script>
   <!-- One Reorder box (drag or arrows) for projects, pinned chats and tags (0.454.0). Before sessions-ui.js. -->
-  <script src="/static/reorder-dialog.js?v=1"></script>
+  <script src="/static/reorder-dialog.js?v=2"></script>
   <script src="/static/sessions-ui.js?v=26"></script>
   <link rel="stylesheet" href="/static/improvement-candidates.css?v=3">
   <script src="/static/improvement-experiments.js?v=1"></script>
@@ -1160,7 +1160,9 @@
   <script src="/static/notifications.js?v=11"></script>
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->
-  <script src="/static/pet.js?v=1"></script>
+  <!-- Mascot menu the owner arranges (Settings > Mascot): load BEFORE pet.js, which builds its menu from it. -->
+  <script src="/static/pet-menu.js?v=1"></script>
+  <script src="/static/pet.js?v=2"></script>
   <script src="/static/agent-avatar.js?v=4"></script>
   <!-- (Nút đổi tông TỐI ↔ SÁNG: theme.js đã nạp ở đầu khối script phía trên) -->
   <!-- Alpine self-host (dashboard/vendor): bản unpkg đo được 2.1s lúc first load + chết khi offline -->

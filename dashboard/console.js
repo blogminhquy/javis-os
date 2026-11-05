@@ -318,6 +318,30 @@
   // Hook "rời trang": trang nào mượn DOM dùng chung (vd tab Trò chuyện mượn khung chat của
   // cockpit) đặt _pageLeave để TRẢ node về chỗ cũ TRƯỚC khi cviewBody bị ghi đè / cview bị ẩn.
   let _pageLeave = null;
+  // Unsaved-changes guard (mascot menu, pet-menu.js): a function returning the question to ask, or "" when nothing
+  // is pending. One at a time; the card that set it clears it. Checked on every page or settings tab change, and by
+  // the browser before a reload or close.
+  let _leaveGuard = null;
+  function _leaveOk() {
+    let msg = "";
+    try { msg = _leaveGuard ? _leaveGuard() : ""; } catch (e) { msg = ""; }
+    if (!msg) return true;
+    if (!confirm(msg)) return false;
+    _leaveGuard = null;
+    return true;
+  }
+  if (typeof window !== "undefined") {
+    window.JavisLeaveGuard = {
+      set(fn) { _leaveGuard = typeof fn === "function" ? fn : null; },
+      clear(fn) { if (!fn || _leaveGuard === fn) _leaveGuard = null; },
+      ok: _leaveOk,
+    };
+    window.addEventListener("beforeunload", (e) => {
+      let msg = "";
+      try { msg = _leaveGuard ? _leaveGuard() : ""; } catch (er) { msg = ""; }
+      if (msg) { e.preventDefault(); e.returnValue = msg; }
+    });
+  }
   // Trang cũ đã gộp đi đâu. Giữ bảng này thay vì xoá trắng: người dùng có bookmark, có nút
   // trong chat, và có thói quen. Bấm vào một id đã biến mất mà không có chỗ đáp là màn hình
   // trắng không giải thích gì.
@@ -352,6 +376,8 @@
     if (tab && !["general", "voice", "pet", "usage", "updates"].includes(tab)) tab = "general";
     if (oldTab) id = "settings";
     if (store.active === id && (!tab || store.settingsTab === tab)) return;
+    // A page holding unsaved edits (the mascot menu card) asks first: OK drops them, Cancel stays on the page.
+    if (window.JavisLeaveGuard && !window.JavisLeaveGuard.ok()) return;
     const swap = () => {
       const leave = _pageLeave; _pageLeave = null;
       if (leave) { try { leave(); } catch (e) {} }   // dọn trang cũ trước khi thay nội dung
@@ -521,6 +547,13 @@
     conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"],
     tasks: ["nhiemvu"],
   };
+  // Performance (2026-11-05): pointing at (or touching) a page in the side rail starts loading that page's code, so by the
+  // time the click lands it is usually there. Costs nothing on a group that is already loaded.
+  document.addEventListener("pointerover", (e) => {
+    const b = e.target && e.target.closest ? e.target.closest(".rail-item[data-page]") : null;
+    const nhom = b && NHOM_TRANG[b.dataset.page];
+    if (nhom && window.JavisNapCham && !window.JavisNapCham.daXong(nhom)) window.JavisNapCham.cho(nhom);
+  }, { passive: true });
   // Tab Hội thoại cần chọn khi conversations.js còn chưa nạp (navigateTo("chatbots") lúc đầu): renderPage chọn hộ sau khi nạp.
   let _tabHoiThoaiCho = "";
   // Gọi một hàm của module nạp chậm từ chỗ khác trang: chờ nhóm của nó rồi mới gọi.
@@ -7795,8 +7828,12 @@
     // MỘT CỘT, không phải lưới hai ô. Chủ dự án chốt 15/09: kiểu hai hàng hai ô trên điện
     // thoại rất khó xem, và trang này hay được mở trên điện thoại (chỉnh con pet đang nằm ở
     // mép màn hình đó). Một cột thì thứ tự đọc trên mọi khổ màn là như nhau.
-    el.innerHTML = '<div class="settings-page"><div class="settings-group-body pet-page-body" id="petPageBody"></div></div>';
+    el.innerHTML = '<div class="settings-page"><div class="settings-group-body pet-page-body" id="petPageBody"></div>' +
+      '<div class="settings-group-body pet-page-body" id="petMenuBody"></div></div>';
     renderPetCard(el.querySelector("#petPageBody"), (s.dashboard || {}).pet);
+    // Mascot menu (pet-menu.js): add features and reorder them, last on the page. Its own host, so redrawing the
+    // look editor above never throws away a menu draft.
+    if (window.JavisPetMenu) window.JavisPetMenu.renderSettings(el.querySelector("#petMenuBody"));
   }
 
   function renderPetCard(host, tuMayChu) {
@@ -8598,6 +8635,9 @@
       try { return window.Alpine && window.Alpine.store("nav"); } catch (e) { return null; }
     }
     window.JavisNav = {
+      // For the mascot menu (pet-menu.js): the rail icon of a page, and whether this Javis has that page at all.
+      iconName(id) { return VIEW_ICON[id] || ""; },
+      has(id) { return Object.prototype.hasOwnProperty.call(VIEW_META, id); },
       go(id) { const s = _navStore(); if (s && typeof s.go === "function") s.go(id); else navigateTo(id); },
       // Bung một NHÓM trên thanh bên mà KHÔNG đổi trang. Trả false nếu không có nhóm đó.
       openGroup(groupId) {

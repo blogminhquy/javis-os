@@ -83,6 +83,51 @@
   }
   api.post = post;
 
+  // Drag one ".bp-row" of `list` by its ".bp-grip": the row follows the pointer, the others make room by their midpoint.
+  // `onDrop(from, to)` runs when it lands somewhere else, then `after()` (redraw). Shared with the mascot menu card
+  // (pet-menu.js), so every hand-ordered list in the app moves the same way.
+  function dragRow(e, list, onDrop, after) {
+    var grip = e.target.closest && e.target.closest(".bp-grip");
+    if (!grip || !list.contains(grip)) return false;
+    var r = grip.closest(".bp-row");
+    e.preventDefault();
+    var rows = Array.prototype.slice.call(list.querySelectorAll(".bp-row"));
+    var from = rows.indexOf(r), to = from, startY = e.clientY;
+    var mids = rows.map(function (x) { var b = x.getBoundingClientRect(); return b.top + b.height / 2; });
+    var h = r.getBoundingClientRect().height;
+    r.classList.add("dragging");
+    try { grip.setPointerCapture(e.pointerId); } catch (er) {}
+    function move(ev) {
+      var dy = ev.clientY - startY;
+      r.style.transform = "translateY(" + dy + "px)";
+      var y = mids[from] + dy;
+      to = from;
+      for (var k = 0; k < mids.length; k++) { if (k < from && y < mids[k]) { to = k; break; } }
+      for (var j = mids.length - 1; j > from; j--) { if (y > mids[j]) { to = j; break; } }
+      rows.forEach(function (x, k) {
+        if (x === r) return;
+        var shift = 0;
+        if (from < to && k > from && k <= to) shift = -h;
+        if (from > to && k < from && k >= to) shift = h;
+        x.style.transform = shift ? "translateY(" + shift + "px)" : "";
+      });
+    }
+    function up() {
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", up);
+      grip.removeEventListener("pointercancel", up);
+      rows.forEach(function (x) { x.style.transform = ""; });
+      r.classList.remove("dragging");
+      if (to !== from && onDrop) onDrop(from, to);
+      if (after) after();
+    }
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
+    return true;
+  }
+  api.dragRow = dragRow;
+
   // ---- the box ----
   function open(o) {
     close();
@@ -142,46 +187,9 @@
       });
     }
 
-    // Drag by the handle (mouse, pen or finger), same feel as the brain picker: the row follows the pointer, the
-    // others make room by their midpoint.
+    // Drag by the handle (mouse, pen or finger), same feel as the brain picker.
     function grab(e) {
-      var grip = e.target.closest && e.target.closest(".bp-grip");
-      if (!grip) return;
-      var r = grip.closest(".bp-row");
-      e.preventDefault();
-      var rows = Array.prototype.slice.call(list.querySelectorAll(".bp-row"));
-      var from = rows.indexOf(r), to = from, startY = e.clientY;
-      var mids = rows.map(function (x) { var b = x.getBoundingClientRect(); return b.top + b.height / 2; });
-      var h = r.getBoundingClientRect().height;
-      r.classList.add("dragging");
-      try { grip.setPointerCapture(e.pointerId); } catch (er) {}
-      function move(ev) {
-        var dy = ev.clientY - startY;
-        r.style.transform = "translateY(" + dy + "px)";
-        var y = mids[from] + dy;
-        to = from;
-        for (var k = 0; k < mids.length; k++) { if (k < from && y < mids[k]) { to = k; break; } }
-        for (var j = mids.length - 1; j > from; j--) { if (y > mids[j]) { to = j; break; } }
-        rows.forEach(function (x, k) {
-          if (x === r) return;
-          var shift = 0;
-          if (from < to && k > from && k <= to) shift = -h;
-          if (from > to && k < from && k >= to) shift = h;
-          x.style.transform = shift ? "translateY(" + shift + "px)" : "";
-        });
-      }
-      function up() {
-        grip.removeEventListener("pointermove", move);
-        grip.removeEventListener("pointerup", up);
-        grip.removeEventListener("pointercancel", up);
-        rows.forEach(function (x) { x.style.transform = ""; });
-        r.classList.remove("dragging");
-        if (to !== from) work = moveItem(work, from, to);
-        draw();
-      }
-      grip.addEventListener("pointermove", move);
-      grip.addEventListener("pointerup", up);
-      grip.addEventListener("pointercancel", up);
+      dragRow(e, list, function (from, to) { work = moveItem(work, from, to); }, draw);
     }
     var first = list.querySelector(".bp-arrow:not([disabled])");
     if (first) first.focus();

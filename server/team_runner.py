@@ -589,9 +589,24 @@ class TeamRunner:
             raise TeamError("không có nhóm này")
         return team
 
+    _NAME_TTL_S = 30.0
+
     def _name(self, team: dict, agent_key: str) -> str:
+        """A member's display name. Performance (2026-11-05): `agent_info` builds the agent's whole system prompt (its
+        file, memory, pinned files, overlays) and the name is all this needs, yet it runs for every team on the team
+        list and for every reaction on a message page. A rename shows within the TTL."""
+        k = (team.get("brain_id"), agent_key)
+        now = time.monotonic()
+        cache = self.__dict__.setdefault("_name_cache", {})
+        hit = cache.get(k)
+        if hit and now - hit[0] < self._NAME_TTL_S:
+            return hit[1]
         info = self.agent_info(team["brain_id"], agent_key) or {}
-        return str(info.get("name") or info.get("slug") or agent_key)
+        name = str(info.get("name") or info.get("slug") or agent_key)
+        if len(cache) > 512:
+            cache.clear()
+        cache[k] = (now, name)
+        return name
 
     def _resolve(self, team: dict, ref: Any) -> Optional[str]:
         """Mã agent từ `agent_key`, slug lúc vào nhóm hay slug hiện tại; chỉ thành viên đang hoạt động."""

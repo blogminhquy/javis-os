@@ -519,14 +519,33 @@
   }
   function mine(body) { return postJSON(body.__url, Object.assign({ brain: brain() }, body, { __url: undefined })); }
 
+  // 2026-11-05: what the page last showed, kept when the page closes, so coming back draws it at once and refreshes behind
+  // it (before, every visit was a blank "Loading" until nine requests had all answered). Same brain and fresh only.
+  var LAST = null;
+  var LAST_MAX_MS = 10 * 60 * 1000;
+  function keepLast() {
+    if (!S || !S.ai) return;
+    LAST = { brain: brain(), at: Date.now(), day: isoOf(new Date()), agents: S.agents, bots: S.bots, brains: S.brains, notify: S.notify,
+      ai: S.ai, my: S.my, me: S.me, gcal: S.gcal, calAt: S.calAt };
+  }
+  function useLast() {
+    if (!LAST || LAST.brain !== brain() || Date.now() - LAST.at > LAST_MAX_MS || LAST.day !== isoOf(new Date())) return false;
+    ["agents", "bots", "brains", "notify", "ai", "my", "me", "gcal", "calAt"].forEach(function (k) { S[k] = LAST[k]; });
+    applyHidden();
+    S.loaded = true;
+    return true;
+  }
+
   async function load() {
     var b = brain(), enc = encodeURIComponent(b);
+    var st = S;
     var res = await Promise.all([
       getJSON("/kanban?brain=" + enc + "&history=40"), getJSON("/viec/all"), getJSON("/reminders?brain=" + enc),
       getJSON("/watch?brain=" + enc), getJSON("/incidents?limit=50"), getJSON("/loops/log?brain=" + enc + "&limit=60"),
       S.agents ? Promise.resolve(null) : getJSON("/agents?brain=" + enc + "&prompt=0&system=1"),
       getJSON("/my-tasks?brain=" + enc), getJSON("/tasks/bots?brain=" + enc)
     ]);
+    if (!S || S !== st) return;   // the page closed (or opened again) while these were on their way
     if (res[6]) S.agents = (res[6].agents || res[6] || []).filter(function (a) { return a && a.slug; });
     S.brains = ((res[1] && res[1].brains) || []).map(function (x) { return { name: x.label || x.name, path: x.path, def: x.is_default }; });
     S.notify = (res[2] && res[2].notify) || {};
@@ -539,6 +558,7 @@
     if (!S.calAt || Date.now() - S.calAt > 300000) { S.calAt = Date.now(); loadCal(); }
     applyHidden();
     S.loaded = true;
+    keepLast();
   }
   // 0.427.0: Google Calendar events (read-only) arrive after the page is up, then the Mine lists redraw.
   async function loadCal() {
@@ -2370,13 +2390,21 @@
     window.addEventListener("resize", fitSide);
     document.addEventListener("scroll", fitSide, { passive: true, capture: true });   // the page scrolls inside #cviewBody
     el.querySelector("#nvQ").addEventListener("input", function (e) { S.q = e.target.value; S.root.querySelector(".nv-view").innerHTML = viewHtml(S.view); });
+    var fixView = function () {
+      if (S.view !== "stats" && !lists().some(function (L) { return L[0] === S.view; }) && S.view.indexOf(S.tab === "me" ? "proj:" : "who:") !== 0) S.view = "today";
+    };
+    // Seen this page a moment ago: draw that at once, then refresh behind it.
+    if (useLast()) { try { fixView(); render(); } catch (e) { S.ai = null; } }
     await load();
     if (!S || S.root !== el) return;
-    if (S.view !== "stats" && !lists().some(function (L) { return L[0] === S.view; }) && S.view.indexOf(S.tab === "me" ? "proj:" : "who:") !== 0) S.view = "today";
-    render(); schedulePoll();
+    fixView();
+    // An open drawer or sheet from the instant draw stays as it is; the next poll redraws once it closes.
+    if (!(S.sheet || S.layer || S.sel)) render();
+    schedulePoll();
   }
   function unmount() {
     if (!S) return;
+    keepLast();
     clearTimeout(S.poll);
     document.removeEventListener("keydown", onKey);
     window.removeEventListener("resize", fitSide);

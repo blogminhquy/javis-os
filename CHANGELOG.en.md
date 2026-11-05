@@ -8,6 +8,29 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.476.1] - 2026-11-05
+### Fixed
+- **PDFs no longer trap you on iPhone and iPad.** In the home screen app, tapping a PDF link in chat used to cover all of Javis with the PDF, with no way back and no download button, so the app had to be closed. The PDF now opens in a viewer inside Javis: a close button, the back gesture closes it, and Download opens the share sheet to save it to Files or send it on.
+- **Bold text inside a link shows correctly.** A link like `[**Download file**](...)` no longer shows the two asterisks.
+
+## [0.476.0] - 2026-11-05
+### Improved
+- **Light theme is now the Javis default.** A device that never picked a theme opens light, day and night, instead of turning dark after 18:00.
+- Anyone who already picked Dark or Auto by time keeps that choice. Change it any time with the sun button in the top bar or in Settings.
+
+## [0.475.0] - 2026-11-05
+### Improved
+- **Switching between chats is instant.** A chat opened recently draws at once and refreshes behind; pointing at or touching a chat in the list starts loading it before the click. Building a chat (F5 included) is also several times faster, as it no longer scrolls after every message. On the Partners page, picking an assistant opens its latest chat right away instead of waiting on two server calls in a row.
+- **The Tasks and Teams pages show their last content at once** when you come back, with no blank "Loading" screen. Teams opened recently also show their messages at once when you switch.
+- **No more "sometimes instant, sometimes 1-2 seconds" while Javis is busy.** Reading chat history no longer queues behind writes, the heavy Tasks page reads no longer stall the server, and opening a team no longer recomputes its usage every time.
+- Each page's code downloads in parallel, with Tasks and Teams first; pointing at a menu item starts loading that page.
+
+## [0.474.0] - 2026-11-05
+### Added
+- **Arrange the mascot menu yourself.** In Settings, Mascot tab, Mascot menu card: press "Add feature" to put other Javis pages (Tasks, Files, Connections, Models...) on the menu, then drag or use the arrows to change the order.
+- Press **Save changes** and the menu uses it the next time it opens, no restart, and it stays after a reload. Leaving with unsaved changes asks first.
+- Never customised, the menu keeps its six items. An item that cannot run right now (say the browser blocks the mic) stays in place, greyed out, with the reason.
+
 ## [0.473.0] - 2026-11-05
 ### Added
 - **Javis edits everything in My tasks from chat:** turn a repeat into an appointment (and back), change the date, time, end, repeat, place, reminder, tags, notes, habit on or off, star, delete, and skip one time.
