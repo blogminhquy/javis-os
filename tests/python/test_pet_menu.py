@@ -73,12 +73,36 @@ r = post([], 1)
 check("an empty menu is refused", r.status_code == 400, r.text)
 check("none of those refusals touched the saved menu", get()["items"] == want and get()["rev"] == 1)
 
+# ═════ show / hide ═════
+def post_h(items, rev, hidden):
+    return client.post("/pet/menu", data={"items": json.dumps(items), "base_rev": str(rev), "hidden": json.dumps(hidden)})
+
+
+r = post_h(want, 1, ["mic", "pet"])
+check("hiding items saves", r.status_code == 200 and r.json()["menu"]["hidden"] == ["mic", "pet"], r.text)
+raw = main.cfgmod.read_settings()[pet_menu.SETTINGS_KEY]
+check("a hidden item stays saved in its place, flagged", [it["actionId"] for it in raw["items"]] == want
+      and {it["actionId"] for it in raw["items"] if it.get("hidden")} == {"mic", "pet"}, raw)
+r = post_h(want, 2, want)
+check("hiding every item is refused (no empty pet menu)", r.status_code == 400 and r.json()["code"] == "all_hidden", r.text)
+r = post_h(want, 2, ["files"])
+check("hiding an id that is not on the menu is refused", r.status_code == 400 and r.json()["code"] == "bad", r.text)
+r = post_h(want, 2, [])
+check("showing them again saves", r.status_code == 200 and get()["hidden"] == [] and get()["rev"] == 3, r.text)
+cfg = main.cfgmod.read_settings()
+cfg[pet_menu.SETTINGS_KEY]["items"][0]["hidden"] = "yes"
+main.cfgmod.write_settings(cfg)
+check("a hidden flag that is not true/false makes the stored menu damaged", get()["state"] == "invalid")
+cfg[pet_menu.SETTINGS_KEY]["items"][0].pop("hidden")
+main.cfgmod.write_settings(cfg)
+check("and fixing it brings the menu back", get()["state"] == "custom")
+
 # ═════ two windows ═════
-r = post(want + ["files"], 0)
+r = post(want + ["files"], 1)
 check("a save edited from an older revision is a conflict (409)", r.status_code == 409 and r.json()["code"] == "conflict", r.text)
 check("the conflict answer carries the newer menu to reload", r.json()["menu"]["items"] == want, r.text)
 check("the conflict did not overwrite anything", get()["items"] == want)
-r = post(want + ["files"], 1)
+r = post(want + ["files"], 3)
 check("saving from the current revision passes", r.status_code == 200 and get()["items"] == want + ["files"], r.text)
 
 # ═════ an id a later Javis removed ═════
