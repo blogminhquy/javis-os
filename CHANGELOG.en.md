@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.2] - 2026-11-05
+### Improved
+- **Every mascot menu item now has an ✕**, the six default ones included. The eye button is gone.
+- **The menu can be emptied completely.** With an empty menu the mascot still slides out but opens no box. Bring any item back with "Add feature".
+
 ## [0.481.1] - 2026-11-05
 ### Improved
 - **Items you added to the mascot menu now have an ✕ to remove them.** The six default items keep their eye to hide or show and cannot be removed, so the menu can always go back to how it was.
