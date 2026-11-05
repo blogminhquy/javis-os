@@ -537,7 +537,7 @@ button.ord-mi:hover, button.ord-mi:focus-visible { background: var(--bg3); }
 }
 .rail-lang[hidden] { display: none; }
 .rail-lang:not([hidden]) + .rail-foot { border-top: 0; padding-top: 0; }
-.rail-lang svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.rail-lang svg { width: 14px; height: 14px; flex: 0 0 auto; }
 .rail-lang-sel {
   flex: 1; min-width: 0; height: 32px; background: transparent; color: var(--text2);
   border: 1px solid var(--glass-brd); border-radius: 8px;
