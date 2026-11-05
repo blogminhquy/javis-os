@@ -1810,6 +1810,20 @@
     el.addEventListener("pointerdown", function (e) { clearTimeout(hen); tai(sidCua(e)); }, { passive: true });
   }
 
+  // Light the row of the chat on screen without asking the server. False (the caller then reloads the list) when the
+  // list is not up, is showing search results, belongs to another brain, or does not hold that chat yet.
+  function chiToDongDangMo() {
+    if (!side || !listEl || brain() !== lastBrain) return false;
+    if (searchEl && searchEl.value.trim()) return false;
+    var cur = currentId();
+    if (!cur) return false;
+    var rows = listEl.querySelectorAll(".cside-item[data-sid]"), found = false;
+    for (var i = 0; i < rows.length; i++) { if (rows[i].getAttribute("data-sid") === cur) { found = true; break; } }
+    if (!found) return false;
+    for (var j = 0; j < rows.length; j++) rows[j].classList.toggle("active", rows[j].getAttribute("data-sid") === cur);
+    return true;
+  }
+
   function openSession(id) {
     if (window.JavisSessions) window.JavisSessions.open(id);
     closeDrawerIfNarrow();
@@ -2049,7 +2063,12 @@
   };
 
   // Cập nhật khi có lượt chat mới / đổi phiên / đổi brain
-  window.addEventListener("javis:sessions-changed", refresh);
+  window.addEventListener("javis:sessions-changed", function (e) {
+    // Performance (2026-11-05): a plain switch to a chat already in the list changes nothing in the list but which row
+    // is lit. Re-fetching it (and its GitHub icons) on every click cost two round trips and redrew every row.
+    if (e && e.detail && e.detail.reason === "open" && chiToDongDangMo()) return;
+    refresh();
+  });
   // Chip phải tự sống KHÔNG phụ thuộc cột trái: refresh() thoát sớm khi chưa mount sidebar,
   // mà chip còn đứng ở màn Javis nơi cột đó chưa bao giờ mount. Đổi phiên là đổi project có
   // hiệu lực, nên bỏ cache rồi vẽ lại.

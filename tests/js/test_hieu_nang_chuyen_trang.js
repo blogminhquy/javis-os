@@ -6,7 +6,14 @@
      redraws nothing, a hover prefetch is shared with the click that follows;
    - workspace.js opens a partner's remembered chat in parallel with asking which chat is newest;
    - the Tasks page draws its last state on return, the Teams page keeps opened teams and does not refetch the open
-     team on a "read" event. */
+     team on a "read" event.
+
+   Second pass, same day (owner: "New conversation and switching history on the Partners page are slow"):
+   - a chat just made by New conversation opens empty, with no request for its (zero) messages, and the old chat leaves
+     the screen at the click;
+   - the right column (settings form, history list) is not rebuilt for the same partner;
+   - a plain switch (event reason "open") only re-lights the history row: no list, unread, job or inbox round trip;
+   - the model bar and the project chip share one /sessions/<id>/meta request. */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -70,7 +77,7 @@ async function chatCache() {
   const answers = {};
   const drawn = [];
   const ctx = {
-    TIN_MOI_LUOT: 30, savedSessionId: null, convo: [], handsFree: false, sessionOpenSeq: 0,
+    TIN_MOI_LUOT: 30, savedSessionId: null, convo: [], handsFree: false, sessionOpenSeq: 0, currentBrainPath: () => "b",
     tatRanhTay() {}, boViecPhienCu() {}, Date, Map, JSON, Promise, encodeURIComponent,
     fetch: (url) => { fetches++; const id = decodeURIComponent(url.split("/")[2].split("?")[0]);
       return Promise.resolve({ json: () => Promise.resolve(JSON.parse(JSON.stringify(answers[id]))) }); },
@@ -114,6 +121,12 @@ async function chatCache() {
   await ctx.openStoredSession("C");
   check("a hover prefetch and the click after it make one request", fetches === 1);
   check("JavisSessions exposes prefetch", /prefetch: prefetchSession/.test(APP));
+  // A chat made a moment ago: drawn empty at once, nothing asked.
+  fetches = 0; drawn.length = 0;
+  await ctx.openStoredSession("NEW", null, { empty: true });
+  check("a just-created chat opens empty without a request", fetches === 0 && drawn.length === 1 && drawn[0].id === "NEW" && drawn[0].n === 0);
+  check("JavisSessions exposes blank (clear the view at the click)", /blank: blankChat/.test(APP) && /function blankChat\(\)/.test(APP));
+  check("a switch tells listeners its reason", /notifySessions\("open"\)/.test(APP) && /detail: \{ reason: reason \|\| "" \}/.test(APP));
 }
 
 // ───────── workspace.js: remembered chat opens in parallel ─────────
@@ -126,15 +139,18 @@ async function workspace() {
   const ctx = {
     opening: 0, ready: false, active: true, S: { loai: "agent", sessionCuaPhien: {} },
     _phienGanNhat: { "b|agent:a": "s-old" }, khoaGanNhat: (x) => "b|agent:" + x.slug,
-    chatReady(v) { ctx.ready = v; }, veGiua() {}, vePhai() {}, veBuoc() {}, luuViTri() {}, daDoc() {}, ganCongHuong() {},
+    chatReady(v) { ctx.ready = v; }, veGiua() {}, vePhai() { order.push("vePhai"); }, phaiDaVeCho: () => ctx.drawnFor === "a",
+    veBuoc() {}, luuViTri() {}, daDoc() {}, coTinChuaDoc: () => false, ganCongHuong() {},
     brain: () => "b", kenh: (x) => "agent:" + x.slug, fd: (x) => x, t: (k) => k,
     conDangXem: () => true, dangChon: () => ({ slug: "a" }), tienDoHienTai: () => ({}), veLoi() {},
     api: (url) => { order.push("api"); return new Promise((r) => reqs.push(r)); },
-    window: { JavisSessions: { current: () => current, open: async (id) => { order.push("open:" + id); current = id; }, new: () => { current = null; } } },
+    window: { JavisSessions: { current: () => current, new: () => { current = null; }, blank: () => { order.push("blank"); },
+      open: async (id, still, opts) => { order.push("open:" + id + (opts && opts.empty ? ":empty" : "")); current = id; } } },
   };
   vm.createContext(ctx); vm.runInContext(section, ctx);
   const p = ctx.moPhien({ slug: "a" }, false);
-  check("the remembered chat opens before the 'which chat is newest' answer", order[0] === "open:s-old" && order[1] === "api");
+  const net = order.filter((x) => x !== "vePhai");
+  check("the remembered chat opens before the 'which chat is newest' answer", net[0] === "open:s-old" && net[1] === "api");
   reqs[0]({ sessions: [{ id: "s-old" }] });
   check("still the newest: it is not opened a second time", (await p) === true && order.filter((x) => x.indexOf("open:") === 0).length === 1);
   order.length = 0;
@@ -142,6 +158,48 @@ async function workspace() {
   reqs[1]({ sessions: [{ id: "s-new" }] });
   await p2;
   check("a newer chat on the server wins", current === "s-new" && ctx._phienGanNhat["b|agent:a"] === "s-new");
+  // New conversation for the partner whose column is already drawn.
+  ctx.drawnFor = "a"; order.length = 0;
+  const p3 = ctx.moPhien({ slug: "a" }, true);
+  check("New conversation clears the chat at the click and does not rebuild the right column",
+    order[0] === "blank" && order.indexOf("vePhai") < 0);
+  reqs[2]({ id: "s-made" });
+  await p3;
+  check("the chat it made opens empty, with no request for its messages", order.indexOf("open:s-made:empty") >= 0 && current === "s-made");
+  ctx.drawnFor = ""; order.length = 0;
+  const p4 = ctx.moPhien({ slug: "a" }, false);
+  check("another partner still gets its right column drawn", order[0] === "vePhai");
+  reqs[3]({ sessions: [{ id: "s-new" }] });
+  await p4;
+}
+
+// ───────── a plain switch costs no extra round trips ─────────
+function switchListeners() {
+  const side = read("dashboard/sessions-ui.js");
+  check("the history list only re-lights its row on a switch",
+    /e\.detail\.reason === "open" && chiToDongDangMo\(\)\) return;/.test(side) && /function chiToDongDangMo\(\)/.test(side));
+  const ws = read("dashboard/workspace.js");
+  check("job and unread counts are not reread on a switch",
+    /if \(!laDoiPhien\(e\)\) henDemViec\(\);/.test(ws) && /if \(!laDoiPhien\(e\)\) henUnread\(\);/.test(ws));
+  check("the Jobs tab does not reload on a switch", /e\.detail\.reason === "open"\) return; schedule\(\);/.test(read("dashboard/agent-jobs.js")));
+  // Inbox: no read POST and no reload when nothing of this chat is unread.
+  const noti = read("dashboard/notifications.js");
+  const fn = noti.slice(noti.indexOf("  function coThuChuaDocCua("), noti.indexOf("  async function docThu("));
+  const ctx = vm.createContext({ state: { thuTai: false, thuChuaDoc: 0, thu: [] } });
+  vm.runInContext(fn, ctx);
+  const has = (sid) => vm.runInContext("coThuChuaDocCua(" + JSON.stringify(sid) + ")", ctx);
+  check("inbox not loaded yet: mark read to be safe", has("x") === true);
+  ctx.state.thuTai = true;
+  check("nothing unread: no inbox round trip", has("x") === false);
+  ctx.state.thuChuaDoc = 1; ctx.state.thu = [{ session_id: "y", read: false }];
+  check("unread for another chat only: no round trip", has("x") === false);
+  check("unread for this chat: marked read", has("y") === true);
+  ctx.state.thuChuaDoc = 5;
+  check("more unread than the list holds: marked read to be safe", has("x") === true);
+  check("docPhien goes through that check", /if \(!coThuChuaDocCua\(sid\)\) return;/.test(noti));
+  const gop = require(path.join(ROOT, "dashboard", "fetch-gop.js"));
+  check("the model bar and the project chip share one meta request",
+    gop.gopDuoc("/sessions/abc123/meta", undefined, "http://x") && !gop.gopDuoc("/sessions/abc123?limit=30", undefined, "http://x"));
 }
 
 // ───────── Tasks and Teams pages ─────────
@@ -155,7 +213,7 @@ function pages() {
   check("a 'read' event does not refetch the open team", /d\.type !== "team_read" && d\.team_id === S\.activeId/.test(teams));
 }
 
-napCham().then(chatCache).then(workspace).then(pages).then(() => {
+napCham().then(chatCache).then(workspace).then(switchListeners).then(pages).then(() => {
   if (fails.length) { console.log("\nFAIL - test_hieu_nang_chuyen_trang: " + fails.length); process.exit(1); }
   console.log("\nOK - test_hieu_nang_chuyen_trang: all pass");
 }, (e) => { console.log("FAIL crashed: " + (e && e.stack || e)); process.exit(1); });

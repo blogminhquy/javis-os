@@ -19,9 +19,11 @@ const lu = ws.slice(ws.indexOf("async function loadUnread()"), ws.indexOf("funct
 check("newest message moves a partner up (re-sort)", /a\.last_chat_at = Number\(u\.last_at\)/.test(lu) && /S\.agents = sapXep\(S\.agents, "last_chat_at"\);/.test(lu));
 const td = ws.slice(ws.indexOf("function onTurnDone(sid) {"), ws.indexOf("function onTurnDone(sid) {") + 900);
 check("a reply just written re-sorts too", /S\.agents = sapXep\(S\.agents, "last_chat_at"\);/.test(td) && /else if \(sid && S\.loai === "agent"\) henUnread\(\);/.test(td));
-check("events read the counts again", /\["javis:sessions-changed", "javis:agent-read"\]\.forEach\(function \(ev\) \{ window\.addEventListener\(ev, henUnread\); \}\);/.test(ws)
+// 2026-11-05: a plain chat switch (reason "open") does not recount; every other event still does.
+check("events read the counts again", /\["javis:sessions-changed", "javis:agent-read"\]\.forEach\(function \(ev\) \{\s*window\.addEventListener\(ev, function \(e\) \{ if \(!laDoiPhien\(e\)\) henUnread\(\); \}\);/.test(ws)
   && /data\.type === "agent_read"/.test(app));
-check("opening a partner's chat reads it", /if \(S\.loai === "agent"\) daDoc\(item\.slug\);/.test(ws) && ws.includes('api("/agents/opened"'));
+// 2026-11-05: only when something is unread (or the counts are not loaded yet): a zero count skips the POST.
+check("opening a partner's chat reads it", /if \(S\.loai === "agent" && coTinChuaDoc\(item\.slug\)\) daDoc\(item\.slug\);/.test(ws) && ws.includes('api("/agents/opened"'));
 check("unread pill and muted mark in the corner cluster", ws.includes("gioNhanHtml(x.last_chat_at) + tinHtml(x) +"));
 check("the chat on screen shows no count", /function chuaDoc\(slug\) \{ var u = S\.un\[slug\]; return u && !dangXemCongSu\(slug\)/.test(ws));
 check("menu item and the four lengths", /nutMenu\("bell-off", t\("ws\.mute"\), "tb"\)/.test(ws)

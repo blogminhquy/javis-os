@@ -42,7 +42,7 @@ check("mở hội thoại cũ kèm limit, không kéo cả cuộc về",
   /\/sessions\/\$\{encodeURIComponent\(id\)\}\?limit=\$\{TIN_MOI_LUOT\}/.test(APP));
 check("có hằng số số tin mỗi lượt", /const TIN_MOI_LUOT = \d+;/.test(APP));
 check("vẫn rơi xuống đáy sau khi dựng xong",
-  /scrollBottom\(true\);\s*\n\s*ghimDay\(ticket\);\s*\n\s*syncActiveUI\(\);\s*\n\s*if \(capNhat\) return;\s*\n\s*notifySessions\(\);/.test(APP));
+  /scrollBottom\(true\);\s*\n\s*ghimDay\(ticket\);\s*\n\s*syncActiveUI\(\);\s*\n\s*if \(capNhat\) return;\s*\n\s*notifySessions\("open"\);/.test(APP));
 // Đặt scrollTop MỘT LẦN là không đủ: thanh mốc hội thoại chèn vào rồi bật lề phải làm bong
 // bóng xuống dòng, ảnh tải xong mới đẩy chiều cao ra. Đo thật trên cuộc 120 tin: mở xong
 // đứng cách đáy 174px, câu trả lời gần nhất bị cắt. Nên phải ghim lại trong một quãng ngắn.
