@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.6] - 2026-11-05
+### Security
+- **A pack that says it replaces another no longer switches itself on.** Only the official store's release keeps the old pack's on state. The install screen names the pack it removes and hands plugin data to.
+- **A page on another localhost port can no longer send commands to Javis.** A dev server or another app on the same machine cannot open the terminal or call the API. The CORS opening for every localhost port now needs `JAVIS_DEV_CORS=1`.
+- **A shared note's link no longer serves images from the brain's inbox/, memory/ or hidden folders.**
+- **Custom MCP tools named forward, share, trash, transfer and the like count as writes**, so they do not run at Read only.
+- **Running the Docker workflow by hand only publishes an image from main.**
+
 ## [0.481.5] - 2026-11-05
 ### Fixed
 - **Pressing Enter while dictating sends right away.** No need to press stop first: Javis stops recording, waits for the last words, then sends. Works in the main chat, the customer reply box on the Conversations page and Team chat.
