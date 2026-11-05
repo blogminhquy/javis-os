@@ -3181,6 +3181,8 @@
   "store.inspect.author": "by {ten}",
   "store.inspect.already.title": "This machine already has this pack",
   "store.inspect.already.body": "Currently running {ver}. Installing again REPLACES the old version.",
+  "store.inspect.replaces.title": "This pack replaces another",
+  "store.inspect.replaces.body": "This REMOVES {ids} and hands its plugin data to this pack. Only install if you trust its maker.",
   "store.inspect.skipped.title": "Part of the pack was skipped",
   "store.inspect.community.title": "Community pack",
   "store.inspect.community.body": "This pack was sent to the store by an outsider and has not been reviewed by the publisher. Read the part below carefully before installing.",

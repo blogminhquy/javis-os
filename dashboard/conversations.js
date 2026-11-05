@@ -2084,6 +2084,26 @@
   // the words, fixes them, then presses Send (or A.I. draft, where the words are the instruction).
   function dictOn(c) { return !!(_dict && _dictState !== "idle" && c && c.id === _dictConv); }
 
+  // Enter while recording stops and sends in one press, like the main chat (owner 2026-11-05). Pressing the mic redraws
+  // it, so the focus falls back to the page and the reply box's own Enter never runs: listen on the document instead.
+  var _dictKeys = false;
+  function watchDictEnter() {
+    if (_dictKeys) return;
+    _dictKeys = true;
+    document.addEventListener("keydown", function (e) {
+      if (!_conv || !dictOn(_conv) || _chon !== _dictConv) return;
+      var A = window.JavisActs;
+      var send = A ? A.enterSends(e, false) : e.key === "Enter" && !e.shiftKey && !e.isComposing;
+      if (!send) return;
+      var tg = e.target, tag = String((tg && tg.tagName) || "").toUpperCase();
+      var ok = !tg || tag === "BODY" || tag === "HTML" || tg === replyBox()
+        || !!(tg.classList && tg.classList.contains("ib-mic"));
+      if (!ok) return;
+      e.preventDefault(); e.stopPropagation();
+      gui(_conv);
+    }, true);
+  }
+
   function micHtml(c) {
     var st = dictOn(c) ? _dictState : "idle";
     var lab = window.t(st === "idle" ? "ib.mic" : st === "transcribing" ? "ib.mic_busy" : "ib.mic_stop");
@@ -2156,6 +2176,7 @@
     });
     _dict = dict;
     _dictState = "listening";
+    watchDictEnter();
     paintMic();
     dict.start();
   }

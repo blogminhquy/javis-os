@@ -99,6 +99,14 @@ check("soi: báo gói đã cài mà nó thay (chỉ mã đang cài)", s1.get("re
 check("soi: màn hình xác nhận coi là bản cập nhật", (s1.get("da_cai") or {}).get("version") == "1.0.0", s1.get("da_cai"))
 
 # ---- 2. cài ----
+# Vá bảo mật 2026-11-05: gói thay thế chỉ thừa hưởng trạng thái BẬT khi đúng là bản của kho chính thức (sha256 có trong
+# index của store mặc định). Đây là trường hợp thật của đổi mã: bản javis.gate kéo về từ Store, nên đăng ký nó vào cache
+# index. Một zip lạ cùng `replaces` thì cài ở trạng thái tắt (test_va_bao_mat_trung_binh_2026_11_05.py).
+check("bản KHÔNG có trong index của kho chính thức thì không được thừa hưởng trạng thái bật",
+      pack_install._bat_sau_cai(False, {"enabled": True}, "javis.gate", s1["sha256"]) is False)
+_index_kho = {"packs": [{"id": "javis.gate", "download": {"sha256": s1["sha256"]}}]}
+packs_store._doc_cache = lambda: _index_kho
+packs_store.url_kho = lambda: packs_store.STORE_MAC_DINH
 r1 = pack_install.cai(s1["staging_id"], s1["sha256"], enable=False, brain_root=str(BRAIN))
 check("cài gói mới ok, báo đã thay gói cũ", r1.get("ok") and r1.get("replaced") == ["javis.javis-trong-chatgpt"], r1)
 so = pack_install.doc_so()

@@ -43,7 +43,9 @@ check("the box's spoken label names it, without key hints", /aria-label="' \+ es
 
 // ---- dictation ----
 check("dictating: Enter sends the recording only where Enter sends a message", /var sends = window\.JavisActs \? window\.JavisActs\.enterSends\(e, false\)/.test(DICT) &&
-  /if \(sends && e\.target === \$\("chatInput"\)\)/.test(DICT));
+  // 2026-11-05: not only from the box, also from the page (the focus falls there once the mic hides), see
+  // test_dictate_enter_sends.js.
+  /if \(sends && enterSendsFrom\(e\.target, /.test(DICT));
 
 const dashes = [String.fromCharCode(0x2014), String.fromCharCode(0x2013)];
 check("no em or en dash in this test or the new strings", ![fs.readFileSync(__filename, "utf8"), VI["ib.cin_ph_touch"], EN["ib.cin_ph_touch"],

@@ -25,7 +25,8 @@
 
   var GIU_MS = 1500;
   // Đường đọc an toàn để dùng chung: trả JSON nhỏ, không có tác dụng phụ.
-  var DUONG = /^\/(settings|config|brains|agents|skills|workflows|connect\/health|auth\/status|voice\/ear|voice\/call|plan-limits)(\?|$)/;
+  // 2026-11-05: + `sessions/<id>/meta`, asked twice on every chat switch (model bar and project chip).
+  var DUONG = /^\/(settings|config|brains|agents|skills|workflows|connect\/health|auth\/status|voice\/ear|voice\/call|plan-limits|sessions\/[^/?]+\/meta)(\?|$)/;
 
   function laGet(init) {
     var m = init && init.method ? String(init.method).toUpperCase() : "GET";

@@ -6,6 +6,24 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.481.6] - 2026-11-05
+### Bảo mật
+- **Gói khai "thay thế" gói khác không còn tự bật.** Chỉ bản phát hành của kho chính thức mới giữ trạng thái bật của gói cũ. Màn hình cài ghi rõ gói nào sẽ bị gỡ và nhận dữ liệu plugin.
+- **Trang chạy ở cổng localhost khác không gửi lệnh được vào Javis.** Dev server hay app khác trên cùng máy không còn mở được terminal hay gọi API. Cửa đọc API cho mọi cổng localhost chỉ mở khi đặt `JAVIS_DEV_CORS=1`.
+- **Link chia sẻ một ghi chú không còn mở ảnh trong inbox/, memory/ hay thư mục ẩn của brain.**
+- **Tool của kết nối MCP tự thêm có tên forward, share, trash, transfer... được tính là thao tác ghi**, nên không chạy ở mức Chỉ đọc.
+- **Chạy tay workflow Docker chỉ xuất bản image từ nhánh main.**
+
+## [0.481.5] - 2026-11-05
+### Sửa lỗi
+- **Đang bật mic ghi âm thành chữ, ấn Enter là gửi luôn.** Không cần ấn nút dừng trước: Javis dừng ghi, chờ nốt chữ cuối rồi gửi. Áp dụng cho ô chat chính, ô trả lời khách ở trang Hội thoại và chat Nhóm.
+- Trên điện thoại Enter vẫn là xuống dòng như cũ, bấm nút gửi để gửi.
+
+## [0.481.4] - 2026-11-05
+### Cải thiện
+- **Bấm "Hội thoại mới" ở trang Cộng sự là khung chat trống ngay.** Trước đây phải chờ hai chuyến mạng nối nhau và cột phải dựng lại từ đầu; nay còn một chuyến, số lượt gọi máy chủ giảm từ 18 xuống 7.
+- **Chuyển giữa các hội thoại trong Lịch sử nhẹ hơn hẳn.** Danh sách chỉ đổi dòng đang chọn, không tải lại cả danh sách, tin chưa đọc, việc nền và hòm thư mỗi lần bấm (từ khoảng 14 lượt gọi xuống 5).
+
 ## [0.481.3] - 2026-11-05
 ### Bảo mật
 - **Chatbot và việc nền dưới mức Toàn quyền không còn ghi được chỗ chứa mã chạy.** Thư mục plugins/, Javis/ (loop, script), .git, .claude và cấu hình engine chỉ chủ ở mức Toàn quyền mới ghi được. Chatbot trả lời khách thì không ghi được ở mọi mức.

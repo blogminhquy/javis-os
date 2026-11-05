@@ -635,7 +635,9 @@
     // Đồng bộ trực tiếp: các sự kiện của app gộp nhịp rồi tải lại tại chỗ. Gỡ ở destroy.
     var EVENTS = ["javis:team-event", "javis:resonance-agents-changed", "javis:sessions-changed", "javis:agent-jobs-changed"];
     var hasWin = typeof window !== "undefined" && window.addEventListener;
-    if (hasWin) EVENTS.forEach(function (ev) { window.addEventListener(ev, schedule); });
+    // Performance (2026-11-05): switching to another chat (reason "open") adds no job: no reload for it.
+    var onEvent = function (e) { if (e && e.detail && e.detail.reason === "open") return; schedule(); };
+    if (hasWin) EVENTS.forEach(function (ev) { window.addEventListener(ev, onEvent); });
     if (typeof setInterval === "function") {
       poll = setInterval(function () {
         if (typeof document !== "undefined" && document.hidden) return;
@@ -651,7 +653,7 @@
         if (host._ajActive === mine) host._ajActive = null;
         if (timer) { clearTimeout(timer); timer = null; }
         if (poll) { clearInterval(poll); poll = null; }
-        if (hasWin && window.removeEventListener) EVENTS.forEach(function (ev) { window.removeEventListener(ev, schedule); });
+        if (hasWin && window.removeEventListener) EVENTS.forEach(function (ev) { window.removeEventListener(ev, onEvent); });
       } };
   }
 

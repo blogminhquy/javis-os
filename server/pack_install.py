@@ -474,7 +474,10 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
     so[pid] = {
         "version": (ban or {}).get("version", ""),
         # Gói cũ đang bật thì bản thay nó cũng bật: cập nhật không được lặng lẽ tắt thứ đang chạy.
-        "enabled": bool(enable) or thay["enabled"],
+        # NHƯNG chỉ khi đúng là bản của kho chính thức (vá bảo mật 2026-11-05): `replaces` do chính
+        # gói tự khai, nên một gói lạ khai `replaces: ["javis.zalo"]` từng được bật luôn dù chủ để
+        # công tắc tắt, và chạy plugin.py trong máy chủ với dữ liệu Zalo của gói cũ.
+        "enabled": _bat_sau_cai(enable, thay, pid, sha),
         "tier": (ban or {}).get("tier", "data"),
         "installed_at": _now(),
         "sha256": sha,
@@ -491,7 +494,7 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
     if thay["ids"]:
         so[pid]["replaced"] = thay["ids"]
     _ghi_so(so)
-    return {"ok": True, "id": pid, "enabled": bool(enable) or thay["enabled"],
+    return {"ok": True, "id": pid, "enabled": _bat_sau_cai(enable, thay, pid, sha),
             "replaced": thay["ids"],
             "tier": (ban or {}).get("tier", "data"),
             "connectors": (ban or {}).get("connectors") or [],
@@ -506,6 +509,31 @@ def _manifest(thu_muc: Path) -> dict:
         return d if isinstance(d, dict) else {}
     except Exception:
         return {}
+
+
+def _ban_kho_chinh_thuc(pid: str, sha: str) -> bool:
+    """The zip with this sha256 is the one the OFFICIAL store index lists for this pack id.
+
+    The index is fetched over HTTPS from the default store URL (a custom `store_url` does not count), so a pack id and
+    hash found there were published by the Javis store, not chosen by whoever built the zip."""
+    try:
+        import packs_store
+        if packs_store.url_kho() != packs_store.STORE_MAC_DINH:
+            return False
+        for m in (packs_store._doc_cache().get("packs") or []):
+            if isinstance(m, dict) and m.get("id") == pid:
+                return bool(sha) and str((m.get("download") or {}).get("sha256") or "").lower() == sha.lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return False
+
+
+def _bat_sau_cai(enable, thay: dict, pid: str, sha: str) -> bool:
+    """On/off state of a freshly installed pack: what the owner chose, or the replaced pack's state when (and only when)
+    this zip is the official store's release of that pack id."""
+    if bool(enable):
+        return True
+    return bool(thay.get("enabled")) and _ban_kho_chinh_thuc(pid, sha)
 
 
 def _thay_the(ma_cu: list, pid: str, dich: Path) -> dict:
