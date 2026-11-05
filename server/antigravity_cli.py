@@ -928,6 +928,67 @@ _AUTH_CACHE: dict = {"ts": 0.0, "val": None}
 _AUTH_TTL = 60.0
 
 
+# ---- Disconnect from the Models page ----
+#
+# `agy` keeps its Google session in the OS keyring, which Javis cannot touch. Until 05/11/2026 the card had no Disconnect
+# button at all for that reason, so an owner whose Google plan ran out had no way to tell Javis "stop using this one"
+# (owner's report, 05/11/2026). Disconnect now does what it honestly can: it runs the CLI's own sign-out when the
+# binary on this machine lists one in `--help`, and otherwise switches the card off IN JAVIS (`model.antigravity_off`).
+# The keyring session stays; "Connect again" on the card switches it back on.
+_OFF_KEY = "antigravity_off"
+
+
+def javis_off() -> bool:
+    """The owner switched this card off in Javis. Read from settings (cached by mtime, so cheap on every call)."""
+    try:
+        import config as cfgmod
+        return bool((cfgmod.read_settings().get("model") or {}).get(_OFF_KEY))
+    except Exception:
+        return False
+
+
+def _off_status() -> dict:
+    return {"connected": False, "method": "", "email": "", "javis_off": True,
+            "error": localefmt.chu("Đã ngắt khỏi Javis. Bấm Kết nối lại để dùng tiếp.",
+                                   "Disconnected from Javis. Tap Connect again to use it.")}
+
+
+def logout_argv() -> Optional[list]:
+    """The sign-out command of the `agy` on this machine, or None when its `--help` lists none.
+
+    Measured, not guessed (see the top of this file): a subcommand the binary does not list is never run."""
+    cli = find_antigravity_cli()
+    txt = _help_text() if cli else ""
+    if not txt:
+        return None
+    for words in (("auth", "logout"), ("logout",), ("signout",), ("sign-out",)):
+        if re.search(r"(?m)^\s*" + r"\s+".join(map(re.escape, words)) + r"\b", txt):
+            return [cli, *words]
+    return None
+
+
+def forget_status() -> None:
+    """Drop the cached sign-in answer so the next look asks again."""
+    _AUTH_CACHE.update(ts=0.0, val=None)
+
+
+def logout() -> dict:
+    """Run the CLI's own sign-out when there is one. {ok, cli_logout, error}. Never raises."""
+    argv = logout_argv()
+    if not argv:
+        return {"ok": True, "cli_logout": False}
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=30, creationflags=_no_window(), stdin=subprocess.DEVNULL)
+    except Exception as e:
+        return {"ok": True, "cli_logout": False, "error": f"{type(e).__name__}: {e}"}
+    forget_status()
+    if r.returncode != 0:
+        return {"ok": True, "cli_logout": False,
+                "error": ((r.stderr or r.stdout or "").strip()[:300] or f"exit {r.returncode}")}
+    return {"ok": True, "cli_logout": True}
+
+
 def auth_status(bo_qua_cache: bool = False) -> dict:
     """Đã đăng nhập chưa: {connected, method, email, error}.
 
@@ -943,6 +1004,8 @@ def auth_status(bo_qua_cache: bool = False) -> dict:
     if not cli:
         return {"connected": False, "method": "", "email": "",
                 "error": _chua_cai()}
+    if javis_off():
+        return _off_status()
     now = time.time()
     if not bo_qua_cache and _AUTH_CACHE["val"] and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
         return _hien_auth(_AUTH_CACHE["val"])
@@ -1016,6 +1079,8 @@ def auth_status_nen() -> dict:
     if not cli:
         return {"connected": False, "method": "", "email": "",
                 "error": _chua_cai()}
+    if javis_off():
+        return _off_status()
     now = time.time()
     cu = _AUTH_CACHE["val"]
     if cu and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
@@ -1283,6 +1348,7 @@ class AntigravityCLI:
                  instructions: Optional[str] = None):
         self.cli_path = find_antigravity_cli()
         self.cwd = cwd or os.getcwd()
+        self.agy_home = None   # an extra Google account's HOME (plan_accounts); None = the machine's own login
         self.tag = tag
         self.model = model
         self.instructions = instructions
@@ -1585,6 +1651,12 @@ class AntigravityCLI:
                     _env = tien_trinh_nen.mark_env(None, self.tag)
                 except Exception:  # noqa: BLE001
                     _env = None
+                # An extra Google account (plan_accounts, Linux only): agy runs with that account's own HOME and keeps
+                # its token in a file there instead of the machine's one keyring login.
+                if getattr(self, "agy_home", None):
+                    _env = dict(_env if _env is not None else os.environ)
+                    _env["HOME"] = self.agy_home
+                    _env["GEMINI_FORCE_FILE_STORAGE"] = "true"
                 proc = subprocess.Popen(
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
