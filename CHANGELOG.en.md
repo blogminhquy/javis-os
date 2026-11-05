@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.471.1] - 2026-11-05
+### Fixed
+- **Codex no longer double counts tokens.** Codex sometimes repeats its usage report for the same request, and Javis added every repeat, inflating the turn's tokens. Only the real increase counts now. Idea and first version by kubintran (#999).
+- **Codex thread rotation sees the real thread size.** Javis used the whole turn total, so a turn with many tool rounds looked like a huge thread. It now uses the input of the last request as Codex measured it, falling back to the old number when there is no measurement. Rotation stays on as before.
+### Improved
+- **Large JSON results from `javis_run_tool` can be fetched in parts.** The model names the pointer, fields and page it needs, saving context. The tool still runs exactly once through the gateway; on any error or unknown shape the original result is returned.
+
 ## [0.471.0] - 2026-11-05
 ### Added
 - **The Chatbot reply box has a speak-to-type mic.** Press the mic and speak, the words land in the box. Press again to stop, fix the text if needed, then press Send, or press AI draft so the spoken words become the instruction for the A.I. Nothing is sent by itself. Pressing Send while it listens stops and sends in one go.
