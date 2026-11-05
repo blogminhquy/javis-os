@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.470.0] - 2026-11-05
+### Added
+- **Give Javis Core its own name.** Tap the pencil next to its name on the Javis Core card of the Partners page, or say it in chat ("from now on your name is Sky"). One name per brain; leave it empty to go back to Javis Core.
+- **Javis Core asks for a name on your first chat** and keeps the way of talking you like. It asks only once.
+### Fixed
+- **The model chip in a Javis Core chat no longer shows a fake pin.** An unpinned Javis Core chat showed a pin after one message, so it looked pinned while it still followed the main model, and changing the main chat's model changed Javis Core too. The chip now tells the truth: no pin means it follows the main model, and picking a model there pins it.
+
 ## [0.469.0] - 2026-11-05
 ### Improved
 - **One bot can serve up to 100 Facebook Pages.** Messenger and Instagram arrive by webhook, so each Page costs almost nothing extra. A shop with many Pages now uses one bot, trained once. Other channels (Zalo, Telegram...) still allow 20 accounts per bot.
