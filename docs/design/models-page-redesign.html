@@ -18,7 +18,7 @@ window.lucide = { createIcons() { document.querySelectorAll("i[data-lucide]").fo
   --violet: #d5b5ff; --violet-wash: rgba(159,104,255,.14);
   --green: #22c55e; --green-wash: rgba(34,197,94,.12);
   --red: #f4565a; --red-wash: rgba(244,86,90,.10);
-  --warn: #e0a04a; --warn-wash: rgba(210,160,60,.13); --warn-line: rgba(210,160,60,.45);
+  --warn: #e0a04a; --bg-accent: #ff7a3c; --shadow-1: 0 4px 14px rgba(0,0,0,.28); --warn-wash: rgba(210,160,60,.13); --warn-line: rgba(210,160,60,.45);
   --scrim: rgba(3,3,8,.72);
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -153,6 +153,33 @@ button { font: inherit; color: inherit; }
 .connect .ci { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--bg3); }
 .connect .cc { margin-left: auto; color: var(--text3); }
 
+/* ---------- Effort: the app's own chip and slider (style.css), copied unchanged ---------- */
+.cp-eff {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
+  padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg3);
+  color: var(--accent-ink); font-family: var(--font); font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.cp-eff:hover, .cp-eff[aria-expanded="true"] { border-color: var(--accent); }
+.cp-eff { font-size: 15px; padding: 6px 13px; min-height: 40px; border-color: var(--line2); }
+.eff-head { display: flex; align-items: baseline; gap: 8px; font-size: 15px; min-height: 32px; }
+.eff-head .eff-lbl, .eff-head .eff-val { align-self: center; }
+.eff-lbl { color: var(--text2); }
+.eff-val { color: var(--accent-ink); font-weight: 600; }
+.eff-ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); margin: 12px 0 6px; }
+.eff-track { position: relative; height: 28px; border-radius: 999px; background: var(--bg3); overflow: hidden; cursor: pointer; touch-action: none; }
+.eff-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eff-cv { position: absolute; inset: 0; width: 100%; height: 100%; }
+.eff-ticks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 13px; pointer-events: none; }
+.eff-ticks i { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); opacity: .6; }
+.eff-thumb { position: absolute; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-1); transition: left .18s; }
+.eff-rec { font-size: 12px; color: var(--text3); margin-top: 6px; padding-left: calc(40% - 18px); }
+.eff-locked { margin: 10px 0 2px; font-size: 13px; color: var(--text2); line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { .eff-thumb { transition: none; } }
+.sheet .eff-head { font-size: 16px; }
+.sheet .eff-track { height: 36px; }
+.sheet .eff-thumb { top: 5px; width: 26px; height: 26px; }
+.effbox { padding: 4px 6px 12px; }
+
 /* ---------- pull-up sheet (Tasks page style) ---------- */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 50; opacity: 0; pointer-events: none; transition: opacity .18s; }
 .scrim.open { opacity: 1; pointer-events: auto; }
@@ -232,7 +259,7 @@ button { font: inherit; color: inherit; }
       </div>
       <div class="chips">
         <button class="chip" data-sheet="model" data-for="ChatGPT"><i data-lucide="cpu"></i><span class="t">gpt-5.1-codex</span><i class="up" data-lucide="chevron-up"></i></button>
-        <button class="chip" data-sheet="effort" data-for="ChatGPT"><i data-lucide="gauge"></i><span class="t">Vừa</span><i class="up" data-lucide="chevron-up"></i></button>
+        <button class="cp-eff" data-sheet="effort" data-for="ChatGPT" data-v="medium"><span class="ev">Medium</span><span class="mb-caret">▾</span></button>
         <span class="tags"><span class="badge"><i data-lucide="star"></i>MAIN</span></span>
       </div>
       <div class="limit">
@@ -262,7 +289,7 @@ button { font: inherit; color: inherit; }
       </div>
       <div class="chips">
         <button class="chip" data-sheet="model" data-for="Antigravity"><i data-lucide="cpu"></i><span class="t">claude-sonnet-4-6</span><i class="up" data-lucide="chevron-up"></i></button>
-        <button class="chip" data-sheet="effort" data-for="Antigravity"><i data-lucide="gauge"></i><span class="t">Tắt</span><i class="up" data-lucide="chevron-up"></i></button>
+        <button class="cp-eff" data-sheet="effort" data-for="Antigravity" data-v="off"><span class="ev">Off</span><span class="mb-caret">▾</span></button>
         <span class="tags"><span class="badge bk">Dự phòng 1</span><span class="badge live"><i data-lucide="zap"></i>ĐANG DÙNG</span></span>
       </div>
       <div class="acts">
@@ -286,7 +313,7 @@ button { font: inherit; color: inherit; }
       </div>
       <div class="chips">
         <button class="chip" data-sheet="model" data-for="OpenRouter"><i data-lucide="cpu"></i><span class="t">Tự chọn model miễn phí</span><i class="up" data-lucide="chevron-up"></i></button>
-        <button class="chip" data-sheet="effort" data-for="OpenRouter"><i data-lucide="gauge"></i><span class="t">Tắt</span><i class="up" data-lucide="chevron-up"></i></button>
+        <button class="cp-eff" data-sheet="effort" data-for="OpenRouter" data-v="off"><span class="ev">Off</span><span class="mb-caret">▾</span></button>
         <span class="tags"><span class="badge bk">Dự phòng 2</span></span>
       </div>
       <ul class="accts">
@@ -310,7 +337,7 @@ button { font: inherit; color: inherit; }
       <div class="bg">
         <span class="bi"><i data-lucide="workflow"></i></span>
         <div class="who"><div class="name">gpt-5.1-codex</div><div class="status">ChatGPT</div></div>
-        <button class="chip" data-sheet="effort" data-for="Việc nền"><i data-lucide="gauge"></i><span class="t">Vừa</span></button>
+        <button class="cp-eff" data-sheet="effort" data-for="Việc nền" data-v="medium"><span class="ev">Medium</span><span class="mb-caret">▾</span></button>
       </div>
       <div class="acts">
         <button class="act" data-sheet="model" data-for="Việc nền"><i data-lucide="replace"></i>Đổi model</button>
@@ -347,6 +374,194 @@ button { font: inherit; color: inherit; }
 <div class="toast" id="toast"><i data-lucide="circle-check"></i><span></span></div>
 
 <script>
+/* dashboard/effort-slider.js, unchanged */
+window.t = function (k) { return ({"eff.title": "Mức suy nghĩ", "eff.off": "Off", "eff.low": "Light", "eff.medium": "Medium", "eff.high": "High", "eff.xhigh": "Extra", "eff.ultra": "Ultra", "eff.head": "Effort", "eff.faster": "Faster", "eff.smarter": "Smarter", "eff.recommended": "Recommended", "eff.ultra_hint": "max effort", "eff.locked": "Model này đã gắn sẵn mức suy nghĩ trong tên. Đổi model để đổi mức."})[k] || k; };
+</script>
+<script>
+/* effort-slider.js - the composer's thinking-level slider (0.153.0).
+ * Pure parts (stops, position, lock) are tested with node; drawing (orange particle canvas) runs only in the browser.
+ * 0.329.0: the Fast mode bolt lives in the top-right corner of this popover (it used to be its own composer
+ * button, now the plan usage ring). The particles only run while Fast mode is on; off, the fill is a still gradient.
+ */
+(function () {
+  "use strict";
+  var LEVELS = ["off", "low", "medium", "high", "xhigh", "ultra"];
+  var LOCKED_SUFFIX = /-(minimal|low|medium|high|xhigh|max)$/i;
+  // Full dictionary keys (the i18n test scans literal keys, so no "eff." + value concatenation).
+  var LABEL_KEY = { off: "eff.off", low: "eff.low", medium: "eff.medium", high: "eff.high", xhigh: "eff.xhigh", ultra: "eff.ultra" };
+
+  function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+  function levelFromRatio(r) { return LEVELS[clamp(Math.round(clamp(Number(r) || 0, 0, 1) * 5), 0, 5)]; }
+  function ratioFromLevel(v) { var i = LEVELS.indexOf(v); return i < 0 ? 0 : i / 5; }
+  // Antigravity models carry the level in their name (agy refuses an extra --effort): the slider is locked.
+  function isLocked(provider, model) { return provider === "antigravity-cli" && LOCKED_SUFFIX.test(String(model || "")); }
+  // The level a locked model really runs at, mapped onto the slider's stops ("" when none).
+  function lockedLevel(model) {
+    var m = LOCKED_SUFFIX.exec(String(model || ""));
+    if (!m) return "";
+    var v = m[1].toLowerCase();
+    return v === "minimal" ? "low" : v === "max" ? "ultra" : v;
+  }
+
+  var api = { LEVELS: LEVELS, LABEL_KEY: LABEL_KEY, levelFromRatio: levelFromRatio, ratioFromLevel: ratioFromLevel, isLocked: isLocked,
+    lockedLevel: lockedLevel };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  if (typeof document === "undefined") return;
+
+  function tw(k) { return window.t ? window.t(k) : k; }
+  function reduced() { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } }
+
+  var BOLT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>';
+
+  function mount(el, opt) {
+    opt = opt || {};
+    var value = LEVELS.indexOf(opt.value) < 0 ? "off" : opt.value;
+    var fast = opt.fast || null;
+    el.innerHTML =
+      '<div class="eff-head"><span class="eff-lbl"></span><span class="eff-val"></span>' +
+      (fast ? '<button type="button" class="eff-fast" aria-label="Fast mode">' + BOLT + "</button>" : "") + "</div>" +
+      (opt.locked ? '<p class="eff-locked"></p>' :
+        '<div class="eff-ends"><span class="eff-faster"></span><span class="eff-smarter"></span></div>' +
+        '<div class="eff-track" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="5">' +
+        '<canvas class="eff-cv" aria-hidden="true"></canvas><div class="eff-ticks" aria-hidden="true">' +
+        '<i></i><i></i><i></i><i></i><i></i><i></i></div><div class="eff-thumb" aria-hidden="true"></div></div>' +
+        '<div class="eff-rec"></div>');
+    el.querySelector(".eff-lbl").textContent = tw("eff.head");
+    var valEl = el.querySelector(".eff-val");
+    var fastOn = !!(fast && fast.supported && fast.on);
+    var fastBtn = el.querySelector(".eff-fast"), redraw = function () {};
+    function paintFast() {
+      if (!fastBtn) return;
+      fastBtn.setAttribute("aria-pressed", fastOn ? "true" : "false");
+      fastBtn.setAttribute("aria-disabled", fast.supported ? "false" : "true");
+      fastBtn.title = fast.title ? fast.title(fastOn) : "Fast mode";
+    }
+    if (fastBtn) {
+      paintFast();
+      fastBtn.addEventListener("click", function () {
+        if (!fast.supported) return;
+        fastOn = !fastOn;
+        paintFast(); redraw();
+        if (fast.onToggle) fast.onToggle(fastOn);
+      });
+      // Hovering refreshes the tooltip with the brain's last real Fast mode state.
+      fastBtn.addEventListener("mouseenter", function () { if (fast.onHover) fast.onHover(); });
+    }
+    if (opt.locked) {
+      el.querySelector(".eff-locked").textContent = tw("eff.locked");
+      valEl.textContent = tw(LABEL_KEY[opt.lockedValue] || LABEL_KEY[value]);
+      return { set: function () {}, setFast: function (on) { fastOn = !!on; paintFast(); },
+        refreshFast: paintFast, destroy: function () { el.innerHTML = ""; } };
+    }
+    el.querySelector(".eff-faster").textContent = tw("eff.faster");
+    el.querySelector(".eff-smarter").textContent = tw("eff.smarter");
+    var rec = el.querySelector(".eff-rec");
+    rec.textContent = tw("eff.recommended");
+    var track = el.querySelector(".eff-track"), thumb = el.querySelector(".eff-thumb");
+    var cv = el.querySelector(".eff-cv"), ctx = cv.getContext && cv.getContext("2d");
+    var parts = [], raf = 0, alive = true;
+    // Measured once and on resize or theme/motion changes, never inside the animation frame.
+    var W = 0, H = 0, accent = "#ff7a3c", still = reduced();
+    function measure() {
+      W = track.clientWidth * 2; H = track.clientHeight * 2;
+      accent = getComputedStyle(el).getPropertyValue("--accent").trim() || "#ff7a3c";
+    }
+    var mq = null;
+    try { mq = window.matchMedia("(prefers-reduced-motion: reduce)"); } catch (e) {}
+    // Moving only while Fast mode is on and the system allows motion; otherwise one still frame.
+    function moving() { return fastOn && !still; }
+    function kick() { if (moving()) { if (!raf) raf = requestAnimationFrame(draw); } else { cancelAnimationFrame(raf); draw(0); } }
+    redraw = kick;
+    function onMotion() { still = !!(mq && mq.matches); kick(); }
+    function onResize() { measure(); if (!moving()) draw(0); }
+    var ro = null;
+    if (window.ResizeObserver) { ro = new ResizeObserver(onResize); ro.observe(track); } else window.addEventListener("resize", onResize);
+    if (mq && mq.addEventListener) mq.addEventListener("change", onMotion);
+    for (var i = 0; i < 70; i++) parts.push({ x: Math.random(), y: Math.random(), s: Math.random() * 1.6 + 0.6, v: Math.random() * 0.0025 + 0.0008, p: Math.random() * 6 });
+
+    function fillPx() { var w = track.clientWidth; return 13 + (w - 26) * ratioFromLevel(value); }
+    function paint() {
+      var i = LEVELS.indexOf(value);
+      thumb.style.left = (fillPx() - 11) + "px";
+      valEl.textContent = tw(LABEL_KEY[value]);
+      track.setAttribute("aria-valuenow", String(i));
+      track.setAttribute("aria-valuetext", tw(LABEL_KEY[value]));
+      track.title = value === "ultra" ? tw("eff.ultra_hint") : "";
+      rec.style.visibility = value === "medium" ? "visible" : "hidden";
+    }
+    function draw(t) {
+      raf = 0;
+      if (!alive || !ctx) return;
+      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+      var fill = fillPx() * 2 + 20;
+      ctx.clearRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+      var g = ctx.createLinearGradient(0, 0, fill, 0);
+      g.addColorStop(0, accent + "59");
+      g.addColorStop(1, accent);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(0, 0, Math.max(fill, 0), H, H / 2); else ctx.rect(0, 0, Math.max(fill, 0), H);
+      ctx.fill();
+      if (fastOn) parts.forEach(function (q) {
+        if (!still) { q.x += q.v; if (q.x > 1) q.x = 0; }
+        var px = q.x * W;
+        if (px > fill - 6) return;
+        var d = px / Math.max(fill, 1);
+        var a = (0.35 + 0.65 * Math.abs(Math.sin((still ? 0 : t) / 500 + q.p))) * (0.3 + 0.7 * d);
+        ctx.fillStyle = "rgba(255,255,255," + a.toFixed(2) + ")";
+        ctx.beginPath(); ctx.arc(px, q.y * H, q.s * (1 + d), 0, 7); ctx.fill();
+      });
+      if (fastOn && !still) raf = requestAnimationFrame(draw);
+    }
+    function set(v, fire) {
+      if (LEVELS.indexOf(v) < 0 || v === value) return;
+      value = v; paint(); if (!moving()) draw(0);
+      if (fire && opt.onChange) opt.onChange(v);
+    }
+    function fromEvent(e) {
+      var r = track.getBoundingClientRect();
+      set(levelFromRatio((e.clientX - r.left - 13) / Math.max(r.width - 26, 1)), true);
+    }
+    var dragging = false;
+    track.addEventListener("pointerdown", function (e) { dragging = true; try { track.setPointerCapture(e.pointerId); } catch (x) {} fromEvent(e); });
+    track.addEventListener("pointermove", function (e) { if (dragging) fromEvent(e); });
+    track.addEventListener("pointerup", function () { dragging = false; });
+    // A cancelled touch (scroll, system gesture) must end the drag, or the next hover moves the value.
+    track.addEventListener("pointercancel", function () { dragging = false; });
+    track.addEventListener("lostpointercapture", function () { dragging = false; });
+    track.addEventListener("keydown", function (e) {
+      var i = LEVELS.indexOf(value);
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") i++;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") i--;
+      else if (e.key === "Home") i = 0;
+      else if (e.key === "End") i = 5;
+      else return;
+      e.preventDefault();
+      set(LEVELS[clamp(i, 0, 5)], true);
+    });
+    measure();
+    paint();
+    raf = requestAnimationFrame(draw);
+    return {
+      set: function (v) { set(v, false); },
+      setFast: function (on) { fastOn = !!on; paintFast(); kick(); },
+      refreshFast: paintFast,
+      focus: function () { track.focus(); },
+      destroy: function () {
+        alive = false; cancelAnimationFrame(raf);
+        if (ro) ro.disconnect(); else window.removeEventListener("resize", onResize);
+        if (mq && mq.removeEventListener) mq.removeEventListener("change", onMotion);
+        el.innerHTML = "";
+      },
+    };
+  }
+  api.mount = mount;
+  window.JavisEffortSlider = api;
+})();
+
+</script>
+<script>
 const CARDS = {
   gpt: { name: "ChatGPT", sub: "MAIN · Gói Plus", logo: '<span class="logo" style="background:#10a37f">GPT</span>', main: true, limited: true, plan: true },
   agy: { name: "Antigravity", sub: "Dự phòng 1 · Gói Google", logo: '<span class="logo" style="background:linear-gradient(135deg,#4285f4,#34a853 60%,#fbbc05)">AG</span>' },
@@ -373,7 +588,7 @@ function cardMenu(id) {
   const c = CARDS[id];
   let b = `<div class="grp">
     ${mi("cpu", "Đổi model", "Đang dùng model riêng của thẻ", "", 'data-sheet="model" data-for="' + c.name + '"')}
-    ${mi("gauge", "Độ sâu suy nghĩ", "Tắt, Thấp, Vừa, Cao, Tối đa", "", 'data-sheet="effort" data-for="' + c.name + '"')}
+    ${mi("gauge", "Độ sâu suy nghĩ", "Giữ nguyên thanh trượt hiện có", "", 'data-sheet="effort" data-for="' + c.name + '"')}
   </div>`;
   if (c.limited) b += `<div class="grp">${mi("rotate-cw", "Dùng lại ngay", "Gỡ dấu hết lượt tới 14:08 ngày 10/11", "warn", 'data-toast="Đã gỡ dấu hết lượt."')}</div>`;
   b += `<div class="grp">
@@ -395,10 +610,7 @@ const SHEETS = {
     <button class="mi"><span class="mic" style="background:var(--accent-wash);color:var(--accent-ink)">${ico("check")}</span><span class="mt"><b>gpt-5.1-codex</b><span class="ms">Đang dùng</span></span></button>
     <div class="cap">Tất cả model</div>
     ${["gpt-5.1", "gpt-5.1-codex-mini", "gpt-5", "o4-mini"].map(m => `<button class="mi" data-toast="Đã chọn ${m}."><span class="mic">${ico("cpu")}</span><span class="mt">${m}</span></button>`).join("")}`],
-  effort: (who) => [head("Độ sâu suy nghĩ", who), `<div class="lv">
-      ${[["circle-off", "Tắt"], ["signal-low", "Thấp"], ["signal-medium", "Vừa"], ["signal-high", "Cao"], ["flame", "Tối đa"]].map((x, i) =>
-        `<button class="${i === 2 ? "on" : ""}" data-toast="Độ sâu: ${x[1]}.">${ico(x[0])}${x[1]}</button>`).join("")}
-    </div><p style="margin:0 8px 6px;color:var(--text3);font-size:15px">Sâu hơn thì trả lời chậm hơn và tốn lượt hơn.</p>`],
+  effort: (who) => [head("Độ sâu suy nghĩ", who), `<div class="effbox" id="effBox"></div>`],
   key: (who) => [head(who, "OpenRouter"), `<div class="grp">
     ${mi("pause", "Tạm tắt key này", "Javis bỏ qua key này cho tới khi bật lại", "", 'data-toast="Đã tắt key."')}
     ${mi("pencil", "Đổi tên", "", "", 'data-toast="Đã đổi tên."')}
@@ -428,7 +640,16 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (t.dataset.menu) return cardMenu(t.dataset.menu);
-  if (t.dataset.sheet) { const [h, b] = SHEETS[t.dataset.sheet](t.dataset.for || ""); return open(h, b); }
+  if (t.dataset.sheet) {
+    const [h, b] = SHEETS[t.dataset.sheet](t.dataset.for || ""); open(h, b);
+    if (t.dataset.sheet === "effort") {
+      // The app's own slider (dashboard/effort-slider.js), mounted as the composer mounts it.
+      const chipEl = t.classList.contains("cp-eff") ? t : null;
+      window.JavisEffortSlider.mount(document.getElementById("effBox"), { value: (chipEl && chipEl.dataset.v) || "medium",
+        onChange: (v) => { if (chipEl) { chipEl.dataset.v = v; chipEl.querySelector(".ev").textContent = window.t(window.JavisEffortSlider.LABEL_KEY[v]); } } });
+    }
+    return;
+  }
   if (t.dataset.toast) { close(); toast(t.dataset.toast); }
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
