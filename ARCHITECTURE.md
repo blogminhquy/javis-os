@@ -80,7 +80,7 @@ vendor:
 |------|------------------|-------|----------------|
 | `cli` | `anthropic-cli` (Claude Code), `grok-cli`, `antigravity-cli` | `claude_sdk_engine.py` via `claude_cli.claude_engine()`, `grok_cli.py`, `antigravity_cli.py` | Runs the vendor's own agent binary on the user's subscription: native MCP, shell, web fetch, sub-agents |
 | `oauth` | `openai-oauth` (ChatGPT via Codex) | `CodexCLI` in `claude_cli.py` (spawns `codex exec`) | Same as `cli` |
-| `api` | `openrouter`, `anthropic-api`, `openai`, `gemini`, `groq`, `ollama` (Cloud), `ollama-local`, `openai-compat` | `engine.py` (`*_chat_with_mcp`), driven by `main._api_stream_mcp()` | Tool loop over the hub, vault file tools, at most `JAVIS_MAX_TOOL_ROUNDS` (default 30, max 120) tool rounds per turn |
+| `api` | `openrouter`, `anthropic-api`, `openai`, `gemini`, `groq`, `ollama` (Cloud), `ollama-local`, `openai-compat` | `engine.py` (`*_chat_with_mcp`), driven by `main._api_stream_mcp()` | Tool loop over the hub, vault file tools, at most `JAVIS_MAX_TOOL_ROUNDS_CODING` (default 500, max 2000, 0 = none) tool rounds per turn for the owner's work including background work, `JAVIS_MAX_TOOL_ROUNDS` (default 30) for customer bots; older tool results are trimmed past `JAVIS_TOOL_LOOP_BUDGET_CHARS` |
 
 Things worth knowing:
 
