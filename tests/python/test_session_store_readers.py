@@ -75,9 +75,19 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(len({id(c) for c in conns}), 3)
         self.assertNotIn(self.store._conn, conns)
         self.store.close()
-        self.assertEqual(self.store._rconns, [])
+        self.assertEqual(len(self.store._rconns), 0)
         self.assertIsNone(self.store._read_conn(), "a closed store hands out no reader")
         # tearDown closes again: must stay harmless.
+
+    def test_a_finished_thread_leaves_no_open_reader(self):
+        import gc
+        sid = self.store.get_or_create(None, brain="brain", engine="t", model="t")
+        for _ in range(5):
+            t = threading.Thread(target=lambda: self.store.get_session(sid))
+            t.start()
+            t.join()
+        gc.collect()
+        self.assertLessEqual(len(self.store._rconns), 1, "readers of ended threads are released")
 
     def test_readers_are_read_only(self):
         sid = self.store.get_or_create(None, brain="brain", engine="t", model="t")

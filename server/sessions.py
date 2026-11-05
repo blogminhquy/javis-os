@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import hashlib
+import weakref
 
 import reaction_values as RV
 import team_migration
@@ -478,7 +479,9 @@ class SessionStore:
         # Reads get their own connection per thread once the file is in WAL mode (see _read).
         self._wal = self._journal_is_wal()
         self._rlocal = threading.local()
-        self._rconns: List[sqlite3.Connection] = []
+        # Weak: a reader belongs to its thread and goes (closed by the GC) when the thread ends. A strong list here
+        # leaked one open file per short-lived thread.
+        self._rconns: "weakref.WeakSet[_ReaderConn]" = weakref.WeakSet()
         self._rconns_lock = threading.Lock()
         self._closed = False
 
@@ -645,14 +648,15 @@ class SessionStore:
         if c is not None:
             return c
         try:
-            c = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=5.0, isolation_level=None)
+            c = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=5.0, isolation_level=None,
+                                factory=_ReaderConn)
             c.row_factory = sqlite3.Row
             c.execute("PRAGMA query_only=ON")
         except sqlite3.Error:
             return None
         self._rlocal.conn = c
         with self._rconns_lock:
-            self._rconns.append(c)
+            self._rconns.add(c)
         return c
 
     def _read(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
@@ -2117,18 +2121,22 @@ class SessionStore:
     def close(self) -> None:
         self._closed = True
         with self._rconns_lock:
-            for c in self._rconns:
+            for c in list(self._rconns):
                 try:
                     c.close()
                 except Exception:
                     pass
-            self._rconns = []
+            self._rconns = weakref.WeakSet()
         with self._lock:
             try:
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             except Exception:
                 pass
             self._conn.close()
+
+
+class _ReaderConn(sqlite3.Connection):
+    """A per-thread read connection (SessionStore._read_conn). A subclass only so it can be weakly referenced."""
 
 
 # Singleton toàn process (1 connection + app-lock).
