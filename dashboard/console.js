@@ -3289,6 +3289,16 @@
     chay();
   }
 
+  // Cards that hold a list of gateways (an address and a key each), used top to bottom. Owner 05/11/2026: "OpenAI
+  // Compatible" carries the advanced API keys (the seller lists its models itself), "Claude Compatible" is the
+  // Anthropic-compatible route. Two separate cards, two separate lists, several keys each.
+  const GW_CARDS = ["openai-compat", "anthropic-compat"];
+  const GW_TEXT = {
+    "openai-compat": { add: "models.adv_add_note", base: "models.oc_base_ph", key: "models.oc_key_ph", needKey: false },
+    "anthropic-compat": { add: "models.ac_add_note", base: "models.ac_base_ph", key: "models.ac_key_ph", needKey: true },
+  };
+  const isGw = (pid) => GW_CARDS.indexOf(pid) >= 0;
+
   async function renderModelsCloudTab(el) {
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
@@ -3488,8 +3498,8 @@
     const kindTag = (p) => {
       if (p.id === "anthropic-cli" && p.auth_mode === "api_key") return t("models.tag_api");
       if (PLAN_TAG[p.id]) return p.plan ? t("models.tag_plan", { goi: p.plan }) : t(PLAN_TAG[p.id]);
-      if (p.id === "anthropic-compat") return t("models.tag_keys", { n: (accts[p.id] || []).length || (p.configured ? 1 : 0) });
-      return t(p.id === "ollama-local" || p.id === "openai-compat" ? "models.tag_addr" : "models.tag_api");
+      if (isGw(p.id)) return t("models.tag_keys", { n: (accts[p.id] || []).length || (p.configured ? 1 : 0) });
+      return t(p.id === "ollama-local" ? "models.tag_addr" : "models.tag_api");
     };
     // The button row under a card in the order, in the Tasks page's style: what the owner does most, with an icon
     // each, Disconnect last and in red. `o.check` is the attribute of the card's own check handler, `o.add` "plan"
@@ -3673,50 +3683,53 @@
         </div>`;
       }
       const masked = (m[KEYFIELD[p.id]] || "").slice(-4);
+      // A gateway card in the order (owner 05/11/2026): its gateways as a list like the keys of an API card, each
+      // with its own address; ⋯ edits one, "Add key" opens the form in a sheet.
+      if (ord && isGw(p.id)) {
+        const gws = accts[p.id] || [];
+        const ready = gws.filter(g => g.enabled && !(g.resting_until > nowS));
+        const rows = gws.map((g) => {
+          const cls = !g.enabled ? "off" : g.resting_until > nowS ? "rest" : "ready";
+          const st = cls === "off" ? t("models.acct_off") : cls === "rest"
+            ? t("models.acct_rest", { gio: new Date(g.resting_until * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })
+            : t("models.acct_ready");
+          const live = !!ready[0] && ready[0].id === g.id && R.chat_in_use === p.id;
+          return `<li class="ord-acct${g.enabled ? "" : " off"}${live ? " inuse" : ""}" data-dnd="adv:${esc(p.id)}" data-id="${esc(g.id)}">
+              <span class="ord-ai">${ic("key-round")}</span>
+              <span class="ord-atxt"><span class="ord-aname">${esc(g.label)}</span>
+                <span class="ord-ast ${cls}">${ic(ST_IC[cls])}${esc(g.host)}${g.key ? " · " + esc(g.key) : ""} · ${esc(st)}</span></span>
+              <span class="ord-actl"><button type="button" class="ord-ib" data-adv-menu="1" aria-haspopup="dialog" aria-label="${esc(t("models.acct_menu", { ten: g.label }))}">${ic("ellipsis")}</button></span>
+            </li>`;
+        }).join("");
+        return `${cardOpen(p, ord)}
+          ${provHead(p, on, "", esc(t("models.adv_status", { ok: ready.length, n: gws.length })), true, ord)}
+          ${infoBody(esc(t("models.adv_note")))}
+          <ol class="ord-accts" data-p="${esc(p.id)}">${rows}</ol>
+          ${ordActs(p, ord, { add: "key" })}
+        </div>`;
+      }
       if (p.id === "openai-compat") {
-        // Endpoint tự khai: thứ quyết định "đã kết nối" là Base URL, key có thể bỏ trống.
+        // OpenAI Compatible, the advanced API keys (owner 05/11/2026): any seller speaking the OpenAI API (NVIDIA Build, Kimi, OpenRouter
+        // clones, LiteLLM, vLLM...). The key may be blank for a server that needs none; the model list comes from the
+        // seller, and the model box opens only for a seller that lists none.
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model", true, ord)}
           ${infoBody(esc(t("models.oc_note")))}
           <div class="prov-action" style="flex-wrap:wrap">
+            <input class="js-input" id="ocLabel" spellcheck="false" style="flex:1 1 100%" placeholder="${esc(t("models.adv_label_ph"))}">
             <input class="js-input" id="ocBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.openai_compat_base || "")}" placeholder="${esc(t("models.oc_base_ph"))}">
+            <input class="js-input" id="ocModels" spellcheck="false" autocomplete="off" style="flex:1 1 100%;display:none" placeholder="${esc(t("models.adv_models_ph"))}">
             <input class="js-input" id="ocKey" type="password" style="flex:1" placeholder="${on && masked ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.oc_key_ph"))}">
             <button class="gcard-btn" id="ocSave">${on ? esc(t("common.save")) : esc(t("models.connect"))}</button>
-            ${on && !ord ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}
+            ${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}
             <span id="ocMsg" class="gcard-meta" style="flex:1 1 100%"></span>
           </div>
-          ${ordActs(p, ord)}
         </div>`;
       }
       if (p.id === "anthropic-compat") {
         // 0.254.0: a gateway speaking the Anthropic Messages API. Most of them list no models, so
         // the card also takes the model names the seller gave (comma separated).
         const typed = (m.anthropic_compat_models || []).join(", ");
-        // Advanced API key in the order (owner 05/11/2026): its gateways as a list like the keys of an API card, each
-        // with its own address; ⋯ edits one, "Add key" opens the form in a sheet. Never named "Anthropic Compatible".
-        if (ord) {
-          const gws = accts[p.id] || [];
-          const ready = gws.filter(g => g.enabled && !(g.resting_until > nowS));
-          const rows = gws.map((g) => {
-            const cls = !g.enabled ? "off" : g.resting_until > nowS ? "rest" : "ready";
-            const st = cls === "off" ? t("models.acct_off") : cls === "rest"
-              ? t("models.acct_rest", { gio: new Date(g.resting_until * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })
-              : t("models.acct_ready");
-            const live = !!ready[0] && ready[0].id === g.id && R.chat_in_use === p.id;
-            return `<li class="ord-acct${g.enabled ? "" : " off"}${live ? " inuse" : ""}" data-dnd="adv:${esc(p.id)}" data-id="${esc(g.id)}">
-                <span class="ord-ai">${ic("key-round")}</span>
-                <span class="ord-atxt"><span class="ord-aname">${esc(g.label)}</span>
-                  <span class="ord-ast ${cls}">${ic(ST_IC[cls])}${esc(g.host)}${g.key ? " · " + esc(g.key) : ""} · ${esc(st)}</span></span>
-                <span class="ord-actl"><button type="button" class="ord-ib" data-adv-menu="1" aria-haspopup="dialog" aria-label="${esc(t("models.acct_menu", { ten: g.label }))}">${ic("ellipsis")}</button></span>
-              </li>`;
-          }).join("");
-          return `${cardOpen(p, ord)}
-            ${provHead(p, on, "", esc(t("models.adv_status", { ok: ready.length, n: gws.length })), true, ord)}
-            ${infoBody(esc(t("models.adv_note")))}
-            <ol class="ord-accts" data-p="${esc(p.id)}">${rows}</ol>
-            ${ordActs(p, ord, { add: "key" })}
-          </div>`;
-        }
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model", true, ord)}
           ${infoBody(esc(t("models.ac_note")))}
@@ -3816,12 +3829,19 @@
       const msg = document.getElementById("ocMsg");
       if (!/^https?:\/\//i.test(base)) { msg.textContent = t("models.oc_need_base"); document.getElementById("ocBase").focus(); return; }
       ocSave.disabled = true; ocSave.textContent = t("settings.checking");
-      // Server gọi thử {base}/models bằng key này, chỉ lưu khi thành công.
+      // The server reads {base}/models with this key (the seller's own model list) and saves only on success. A seller
+      // that lists none gets the model box opened, then one tiny chat call with the typed model.
       let r;
-      try { r = await postJson("/provider/openai-compat/connect", { base: base, key: key }, 30000); } catch (e) { r = { ok: false, error: String(e) }; }
+      const lab = ((document.getElementById("ocLabel") || {}).value || "").trim();
+      const models = ((document.getElementById("ocModels") || {}).value || "").trim();
+      try { r = await postJson("/provider/openai-compat/connect", { base: base, key: key, models: models, label: lab }, 60000); } catch (e) { r = { ok: false, error: String(e) }; }
       if (!r || !r.ok) {
         ocSave.disabled = false; ocSave.textContent = t("models.connect");
         msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap"));
+        if (r && r.need_models) {
+          const box = document.getElementById("ocModels");
+          if (box) { box.style.display = ""; box.focus(); }
+        }
         return;
       }
       await freshSettings();
@@ -4083,7 +4103,7 @@
       if (key === "prov") save({ order: MO.move(c.order, from, to) });
       else if (key.indexOf("acct:") === 0) saveAcc(key.slice(5), MO.move(items(key.slice(5)), from, to));
       else if (key.indexOf("pacct:") === 0) saveAcc(key.slice(6), MO.move(items(key.slice(6)), from, to));
-      else if (key.indexOf("adv:") === 0) save({ adv_keys: { items: MO.move(items("anthropic-compat"), from, to) } });
+      else if (key.indexOf("adv:") === 0) save({ adv_keys: { provider: key.slice(4), items: MO.move(items(key.slice(4)), from, to) } });
     } });
 
     // ---- pull-up sheets: every picker, menu, form and confirmation of this page ----
@@ -4220,23 +4240,23 @@
       l.push({ label: v("label") || t("models.acct_n", { n: l.length + 1 }), enabled: true, key: v("key") });
       saveAcc(pid, l);
     }, t("models.acct_add_note"));
-    el.querySelectorAll("[data-addkey]").forEach(b => b.onclick = () => (b.dataset.addkey === "anthropic-compat"
-      ? advSheet(b) : addKeySheet(b, b.dataset.addkey)));
+    el.querySelectorAll("[data-addkey]").forEach(b => b.onclick = () => (isGw(b.dataset.addkey)
+      ? advSheet(b, null, b.dataset.addkey) : addKeySheet(b, b.dataset.addkey)));
 
-    // ---- Advanced API key: one gateway = a name, an address, a key and (for a seller that lists none) model names.
-    // The server checks the address and the key before it saves (/provider/anthropic-compat/connect). ----
-    const ADV = "anthropic-compat";
-    const advSheet = (btn, g) => formSheet(btn, t(g ? "models.adv_edit" : "models.acct_add"), g ? g.label : cardOf(ADV).label, [
+    // ---- A gateway card (OpenAI Compatible or Claude Compatible): one gateway
+    // = a name, an address, a key and (for a seller that lists none) model names. The server checks the address and
+    // the key before it saves (/provider/<card>/connect). ----
+    const advSheet = (btn, g, ADV) => formSheet(btn, t(g ? "models.adv_edit" : "models.acct_add"), g ? g.label : cardOf(ADV).label, [
       { f: "label", ph: t("models.adv_label_ph"), value: g ? g.label : "" },
-      { f: "base", ph: t("models.ac_base_ph"), mode: "url", value: g ? g.base : "" },
-      { f: "key", ph: g && g.key ? t("models.key_change_ph", { duoi: g.key.slice(-4) }) : t("models.ac_key_ph"), type: "password" },
+      { f: "base", ph: t(GW_TEXT[ADV].base), mode: "url", value: g ? g.base : "" },
+      { f: "key", ph: g && g.key ? t("models.key_change_ph", { duoi: g.key.slice(-4) }) : t(GW_TEXT[ADV].key), type: "password" },
       { f: "models", ph: t("models.adv_models_ph"), value: g ? (g.models || []).join(", ") : "" },
     ], t(g ? "common.save" : "models.connect"), async (v, box) => {
       if (!/^https?:\/\//i.test(v("base"))) { box("base").focus(); return t("models.oc_need_base"); }
-      if (!g && !v("key")) return need(box, "key");
+      if (!g && GW_TEXT[ADV].needKey && !v("key")) return need(box, "key");
       let r;
       try {
-        r = await postJson("/provider/anthropic-compat/connect", { id: g ? g.id : "", add: !g, label: v("label"),
+        r = await postJson("/provider/" + ADV + "/connect", { id: g ? g.id : "", add: !g, label: v("label"),
           base: v("base"), key: v("key"), models: v("models") }, 60000);
       } catch (e) { r = { ok: false, error: String(e) }; }
       if (!r || !r.ok) {
@@ -4244,14 +4264,14 @@
         return (r && r.error) || t("app.err_cap");
       }
       setTimeout(c.again, 0);
-    }, t("models.adv_add_note"));
+    }, t(GW_TEXT[ADV].add));
     el.querySelectorAll('.ord-acct[data-dnd^="adv:"]').forEach(li => {
-      const id = li.dataset.id;
+      const id = li.dataset.id, ADV = li.dataset.dnd.slice(4);
       const idx = () => items(ADV).findIndex(a => a.id === id);
       li.querySelector("[data-adv-menu]").onclick = (ev) => {
         const btn = ev.currentTarget, g = (c.accts[ADV] || []).find(x => x.id === id) || {};
         const i = idx(), n = items(ADV).length;
-        const saveAdv = (list, removed) => save({ adv_keys: { items: list, removed: removed || [] } });
+        const saveAdv = (list, removed) => save({ adv_keys: { provider: ADV, items: list, removed: removed || [] } });
         menuSheet(btn, g.label || id, [[
           { ic: g.enabled ? "pause" : "play", label: t(g.enabled ? "models.acct_disable" : "models.acct_enable"),
             sub: g.enabled ? t("models.acct_disable_d") : "", run: () => {
@@ -4259,7 +4279,7 @@
               l[idx()].enabled = !l[idx()].enabled;
               saveAdv(l);
             } },
-          { ic: "pencil", label: t("models.adv_edit"), sub: t("models.adv_edit_d"), run: () => advSheet(btn, g) },
+          { ic: "pencil", label: t("models.adv_edit"), sub: t("models.adv_edit_d"), run: () => advSheet(btn, g, ADV) },
           i > 0 && { ic: "arrow-up", label: t("models.move_up"), run: () => saveAdv(MO.move(items(ADV), idx(), idx() - 1)) },
           i < n - 1 && { ic: "arrow-down", label: t("models.move_down"), run: () => saveAdv(MO.move(items(ADV), idx(), idx() + 1)) },
         ], [
@@ -4509,7 +4529,7 @@
     };
     if (more) more.onclick = () => {
       const offOpen = !el.querySelector("#ordOff").hidden;
-      menuSheet(more, t("models.connect_more"), [(c.offList || []).map(p => ({ ic: p.id === "anthropic-compat" ? "key-round" : "plug", label: p.label, sub: c.kindTag(p), run: () => {
+      menuSheet(more, t("models.connect_more"), [(c.offList || []).map(p => ({ ic: isGw(p.id) ? "key-round" : "plug", label: p.label, sub: c.kindTag(p), run: () => {
         const box = showOff(true);
         const card = box && box.querySelector(`[data-offp="${p.id}"]`);
         if (card) {
@@ -4699,7 +4719,7 @@
         [i > 0 && { ic: "star", label: t("models.make_main"), sub: t("models.make_main_d"), tone: "acc", run: () => save({ order: MO.move(c.order, i, 0) }) },
          i > 1 && { ic: "arrow-up", label: t("models.move_up"), run: () => save({ order: MO.move(c.order, i, i - 1) }) },
          i >= 0 && i < n - 1 && { ic: "arrow-down", label: t("models.move_down"), run: () => save({ order: MO.move(c.order, i, i + 1) }) }],
-        [q("[data-addkey]") && { ic: "key-round", label: t("models.acct_add"), sub: t("models.acct_add_d"), run: () => (pid === "anthropic-compat" ? advSheet(b) : addKeySheet(b, pid)) },
+        [q("[data-addkey]") && { ic: "key-round", label: t("models.acct_add"), sub: t("models.acct_add_d"), run: () => (isGw(pid) ? advSheet(b, null, pid) : addKeySheet(b, pid)) },
          q("[data-addacc]") && { ic: "user-plus", label: t("models.pacct_add"), sub: t("models.pacct_add_d"), run: () => planSheet(b, pid) },
          pid === "anthropic-cli" ? { ic: "refresh-cw", label: t("qs.recheck"), sub: t("models.check_d"), run: () => refreshClaudeCard(el, true) }
            : check && { ic: "refresh-cw", label: t("qs.recheck"), sub: t("models.check_d"), run: () => check.click() }],
