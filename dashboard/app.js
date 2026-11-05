@@ -2376,9 +2376,17 @@ function _veLaiPhien(id, sess, ticket, capNhat) {
     // Phiên này đang generate NỀN → gắn bong bóng SỐNG (kèm phần đã stream) để xem tiếp trực tiếp.
     const t = turns[id];
     if (t && t.running) {
-      t.bubble = createStreamingBubble();
-      if (t.text) t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV);
-      showActivity(Icons.msg("pen-line", window.t("app.act_writing")));
+      // Owner, 05/11/2026: back on a chat whose turn has not written a word yet (thinking, running tools), an empty
+      // answer bubble used to sit above the activity chip. Draw the steps so far, a bubble only when there is text
+      // (the "stream" frame makes one as the first words arrive), then the chip. Same rule as redrawRunningTurn.
+      if (t.buocEl) chatAppend(t.buocEl);
+      t.bubble = null;
+      if (t.text) {
+        t.bubble = createStreamingBubble();
+        t.bubble.dataset.md = t.text;
+        t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV);
+      }
+      showActivity(t.text ? Icons.msg("pen-line", window.t("app.act_writing")) : window.t("app.act_thinking"));
       runActions(turn.turnStart());
     } else {
       runActions(turn.turnDone());   // đổi sang phiên không chạy gì: đừng kẹt ở "ĐANG SUY NGHĨ"
