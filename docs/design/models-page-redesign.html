@@ -113,6 +113,7 @@ button { font: inherit; color: inherit; }
   background: none; color: var(--text2); cursor: pointer; font-size: 15px; font-weight: 600; }
 .act:hover { background: var(--bg3); color: var(--text); }
 .act .ic { width: 18px; height: 18px; }
+.act[hidden] { display: none; }
 .act.pri { background: var(--accent); color: #1a0d05; }
 .act.danger { color: var(--red); margin-left: auto; }
 
@@ -214,6 +215,10 @@ button { font: inherit; color: inherit; }
 .gcard-btn:hover { background: var(--accent); border-color: var(--accent); color: #1a0d05; }
 @media (max-width: 600px) { .aux-now-act { width: 100%; justify-content: flex-end; } }
 
+/* Background work: which card runs it (violet, the app's "background" colour) and the button that picks a card. */
+.badge.bgb { border-color: var(--violet); color: var(--violet); background: var(--violet-wash); }
+.card.isbg { box-shadow: 0 0 0 1px rgba(159,104,255,.35) inset; }
+
 /* ---------- pull-up sheet (Tasks page style) ---------- */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 50; opacity: 0; pointer-events: none; transition: opacity .18s; }
 .scrim.open { opacity: 1; pointer-events: auto; }
@@ -242,6 +247,8 @@ button { font: inherit; color: inherit; }
 .mi.danger { color: var(--red); }
 .mi.danger .mic { background: var(--red-wash); color: var(--red); }
 .mi.warn .mic { background: var(--warn-wash); color: var(--warn); }
+.mi.bgsel { cursor: default; } .mi.bgsel .mic { background: var(--violet-wash); color: var(--violet); }
+.mi.bgsel .mt { color: var(--violet); }
 .mi.acc .mic { background: var(--accent-wash); color: var(--accent-ink); }
 .search { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border-radius: 14px; background: var(--bg3);
   border: 1px solid var(--line); margin: 0 2px 8px; color: var(--text3); }
@@ -302,6 +309,7 @@ button { font: inherit; color: inherit; }
           <br><button class="act" data-toast="Đã gỡ dấu hết lượt. Lượt chat sau chạy bằng ChatGPT."><i data-lucide="rotate-cw"></i>Dùng lại ngay</button></div>
       </div>
       <div class="acts">
+        <button class="act" data-setbg="gpt"><i data-lucide="workflow"></i>Dùng cho việc nền</button>
         <button class="act" data-toast="ChatGPT dùng được."><i data-lucide="refresh-cw"></i>Kiểm tra</button>
         <button class="act" data-sheet="addacc" data-for="ChatGPT"><i data-lucide="user-plus"></i>Thêm tài khoản</button>
         <button class="act danger" data-sheet="confirm" data-for="ChatGPT"><i data-lucide="log-out"></i>Ngắt</button>
@@ -327,6 +335,7 @@ button { font: inherit; color: inherit; }
         <span class="tags"><span class="badge bk">Dự phòng 1</span><span class="badge live"><i data-lucide="zap"></i>ĐANG DÙNG</span></span>
       </div>
       <div class="acts">
+        <button class="act" data-setbg="agy"><i data-lucide="workflow"></i>Dùng cho việc nền</button>
         <button class="act" data-toast="Antigravity chat được, tool của Javis hoạt động."><i data-lucide="refresh-cw"></i>Kiểm tra</button>
         <button class="act danger" data-sheet="confirm" data-for="Antigravity"><i data-lucide="log-out"></i>Ngắt</button>
       </div>
@@ -359,6 +368,7 @@ button { font: inherit; color: inherit; }
           <button class="more" data-sheet="key" data-for="Key dự phòng" aria-label="Tuỳ chọn key"><i data-lucide="ellipsis"></i></button></li>
       </ul>
       <div class="acts">
+        <button class="act" data-setbg="or"><i data-lucide="workflow"></i>Dùng cho việc nền</button>
         <button class="act" data-sheet="addkey" data-for="OpenRouter"><i data-lucide="plus"></i>Thêm key</button>
         <button class="act danger" data-sheet="confirm" data-for="OpenRouter"><i data-lucide="log-out"></i>Ngắt</button>
       </div>
@@ -602,9 +612,9 @@ window.t = function (k) { return ({"fast.claude": "Tính vào usage credits, gi�
 </script>
 <script>
 const CARDS = {
-  gpt: { name: "ChatGPT", sub: "MAIN · Gói Plus", logo: '<span class="logo" style="background:#10a37f">GPT</span>', main: true, limited: true, plan: true },
-  agy: { name: "Antigravity", sub: "Dự phòng 1 · Gói Google", logo: '<span class="logo" style="background:linear-gradient(135deg,#4285f4,#34a853 60%,#fbbc05)">AG</span>' },
-  or: { name: "OpenRouter", sub: "Dự phòng 2 · API key", logo: '<span class="logo" style="background:#6467f2">OR</span>', keys: true, last: true },
+  gpt: { model: "gpt-5.1-codex", name: "ChatGPT", sub: "MAIN · Gói Plus", logo: '<span class="logo" style="background:#10a37f">GPT</span>', main: true, limited: true, plan: true },
+  agy: { model: "claude-sonnet-4-6", name: "Antigravity", sub: "Dự phòng 1 · Gói Google", logo: '<span class="logo" style="background:linear-gradient(135deg,#4285f4,#34a853 60%,#fbbc05)">AG</span>' },
+  or: { model: "Tự chọn model miễn phí", name: "OpenRouter", sub: "Dự phòng 2 · API key", logo: '<span class="logo" style="background:#6467f2">OR</span>', keys: true, last: true },
 };
 const $ = (s) => document.querySelector(s);
 const ico = (n) => `<i data-lucide="${n}"></i>`;
@@ -630,6 +640,9 @@ function cardMenu(id) {
     ${mi("gauge", "Độ sâu suy nghĩ", "Giữ nguyên thanh trượt hiện có", "", 'data-sheet="effort" data-for="' + c.name + '"')}
   </div>`;
   if (c.limited) b += `<div class="grp">${mi("rotate-cw", "Dùng lại ngay", "Gỡ dấu hết lượt tới 14:08 ngày 10/11", "warn", 'data-toast="Đã gỡ dấu hết lượt."')}</div>`;
+  b += `<div class="grp">${BG === id
+      ? mi("workflow", "Đang chạy việc nền", "Loop, việc Kanban, nhắc hẹn chạy bằng thẻ này", "bgsel", "")
+      : mi("workflow", "Dùng cho việc nền", "Loop, việc Kanban, nhắc hẹn chạy bằng thẻ này", "", 'data-setbg="' + id + '"')}</div>`;
   b += `<div class="grp">
     ${c.main ? "" : mi("star", "Đặt làm MAIN", "Chat mặc định chạy bằng thẻ này", "acc", 'data-toast="' + c.name + ' đã là MAIN."')}
     ${c.main ? "" : mi("arrow-up", "Lên một bậc", "", "", 'data-toast="Đã đưa lên."')}
@@ -669,9 +682,28 @@ const SHEETS = {
     ["server", "OpenAI Compatible", "Địa chỉ riêng"], ["server-cog", "Anthropic Compatible", "Địa chỉ riêng"]]
     .map(x => mi(x[0], x[1], x[2], "", 'data-toast="Mở hướng dẫn kết nối ' + x[1] + '."')).join("")],
 };
+let BG = "gpt";
+// Mark the card that runs background work, hide its "Use for background work" button, and show its model in the
+// background model card below.
+function setBg(id, quiet) {
+  BG = id;
+  document.querySelectorAll(".badge.bgb").forEach(x => x.remove());
+  document.querySelectorAll("[data-card]").forEach(card => {
+    const on = card.dataset.card === id;
+    card.classList.toggle("isbg", on);
+    const b = card.querySelector('.acts [data-setbg]');
+    if (b) b.hidden = on;
+    if (on) card.querySelector(".tags").insertAdjacentHTML("beforeend", '<span class="badge bgb"><i data-lucide="workflow"></i>VIỆC NỀN</span>');
+  });
+  document.querySelector(".aux-now-model").textContent = CARDS[id].model;
+  document.querySelector(".aux-now-prov").textContent = CARDS[id].name;
+  lucide.createIcons();
+  if (!quiet) toast("Việc nền giờ chạy bằng " + CARDS[id].name + ".");
+}
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-close], [data-menu], [data-sheet], [data-toast], [data-theme-set], #scrim");
+  const t = e.target.closest("[data-close], [data-menu], [data-sheet], [data-toast], [data-theme-set], [data-setbg], #scrim");
   if (!t) return;
+  if (t.dataset.setbg) { close(); return setBg(t.dataset.setbg); }
   if (t.id === "scrim" || t.hasAttribute("data-close")) return close();
   if (t.dataset.themeSet) {
     document.documentElement.setAttribute("data-theme", t.dataset.themeSet);
@@ -703,6 +735,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); }
   document.querySelectorAll("[data-theme-set]").forEach(function (b) { b.classList.toggle("on", b.dataset.themeSet === cur); });
 })();
 lucide.createIcons();
+setBg("gpt", true);
 </script>
 </body>
 </html>
