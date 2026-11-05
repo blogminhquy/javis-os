@@ -28,12 +28,13 @@ const cases = {
 Object.keys(cases).forEach((id) => check("model name: " + id + " -> " + cases[id], pretty(id) === cases[id], pretty(id)));
 
 check("chip text is the model name only, provider and pin move to the tooltip",
-  /mt\.textContent = chipLabel\(eff, p\);/.test(mp) && !/mt\.textContent = \(p \? provShort/.test(mp)
-  && /mt\.title = \(p \? p\.label/.test(mp));
+  /mt\.textContent = fb \? chipLabel\(\{ provider: fb\.provider, model: fb\.model \}, runP\) : chipLabel\(eff, p\);/.test(mp)
+  && !/mt\.textContent = \(p \? provShort/.test(mp) && /: \(p \? p\.label \+ " · "/.test(mp));
 // 0.355.0: no model set names the provider's default model when the server knows it, else the provider name stands in.
 check("no model set: the default model's name, else the provider name",
   /\(state\.defaults \|\| \{\}\)\[eff\.provider\] \? prettyModel\(state\.defaults\[eff\.provider\]\) : \(p \? provShort\(p\.label\) : "Model"\)/.test(mp));
-check("a broken pin still shows, as the dot colour", /classList\.toggle\("is-pin-broken", pinBroken\)/.test(mp)
+// Owner, 05/11/2026: a fallback card answering takes over the amber dot (is-fallback); a broken pin shows when it does not.
+check("a broken pin still shows, as the dot colour", /classList\.toggle\("is-pin-broken", pinBroken && !fb\)/.test(mp)
   && css.includes(".mb-chip.is-pin-broken .mb-dot { background: var(--warn-ink); }"));
 check("the per-session pin stays visible: a pin icon on the chip, in words for screen readers",
   /chip\.classList\.toggle\("is-pinned", !!sessionPin\)/.test(mp) && /pin\.hidden = !\(sessionPin \|\| pinBroken\);/.test(mp)

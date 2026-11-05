@@ -3128,6 +3128,86 @@ def _chat_provider_for_session(mcfg, row):
     return pprov, kind, key, model
 
 
+def _chat_selected(mcfg, row) -> dict:
+    """{'provider','model'} the owner CHOSE for one chat, before any fallback: the chat's own pin (Javis Core's pin in
+    a Core chat), else MAIN. `_chat_provider_for_session` says where the turn really runs; the two differ while the
+    chosen card is out of quota or cannot run (owner, 05/11/2026: the composer chip shows both)."""
+    row = row or {}
+    if javis_core.is_core_channel(row.get("channel")):
+        pin = _core_pin(mcfg)
+    else:
+        pp = str(row.get("pinned_provider") or "").strip()
+        pin = {"provider": pp, "model": str(row.get("pinned_model") or "").strip()} if pp else {}
+    if pin.get("provider"):
+        return {"provider": pin["provider"], "model": pin.get("model") or ""}
+    em = _effective_main({"model": mcfg or {}})
+    return {"provider": em["provider"], "model": em.get("model") or ""}
+
+
+def _route_rest_until(mcfg, prov: str, now: float = None) -> float:
+    """Epoch at which an out-of-quota card can run again, 0 when nothing is resting or the time is unknown. A plan
+    marked out of quota gives its reset time; otherwise the earliest account or key of the card to come back."""
+    now = time.time() if now is None else now
+    try:
+        until = _pin_limited_until(prov, now)
+        if until:
+            return float(until)
+        d = _provider_def(prov) or {}
+        if d.get("kind") == "api":
+            if prov in adv_keys.PROVIDERS:
+                return 0.0
+            ids = [a.get("id") for a in model_routing.accounts(mcfg or {}, prov, d.get("key_field") or "")]
+        elif plan_accounts.supported(prov):
+            ids = [a.get("id") for a in plan_accounts.accounts(mcfg or {}, prov)]
+        else:
+            ids = []
+        times = [t for t in (model_routing.resting_until(prov, i, now) for i in ids if i) if t > now]
+        return float(min(times)) if times else 0.0
+    except Exception:  # noqa: BLE001 - an unknown reset time only shortens the chip's tooltip
+        return 0.0
+
+
+def _route_view(mcfg, row, run=None, now: float = None) -> dict:
+    """What the composer's model chip needs (owner, 05/11/2026): the model the owner chose, the one the next (or this) turn
+    really runs on, whether that is a fallback and why, plus every card of the usage order resting out of quota.
+    Read only: nothing saved changes, so the chosen model comes back by itself once its quota returns.
+
+    `run` is the (prov, kind, key, model) a turn already picked; without it the next turn's route is worked out."""
+    now = time.time() if now is None else now
+    sel = _chat_selected(mcfg, row)
+    run = run or _chat_provider_for_session(mcfg, row)
+    prov, model = str(run[0] or ""), str(run[3] or "")
+    out = {"provider": prov, "model": model, "name": _route_name(prov),
+           "selected_provider": sel["provider"], "selected_model": sel["model"],
+           "selected_name": _route_name(sel["provider"]), "fallback": prov != sel["provider"]}
+    limited = {}
+    for p in _uniq_ids([sel["provider"], *model_routing.order(mcfg or {})]):
+        until = _route_rest_until(mcfg, p, now)
+        if until and not _route_ready(mcfg, p):
+            limited[p] = until
+    out["limited"] = limited
+    if out["fallback"]:
+        until = limited.get(sel["provider"]) or _pin_limited_until(sel["provider"], now)
+        out["reason"] = "quota" if until else "unavailable"
+        out["until"] = float(until or 0)
+        if until:
+            vi = f"{out['selected_name']} hết lượt → đang dùng {out['name']}."
+            en = f"{out['selected_name']} is out of quota → using {out['name']}."
+        else:
+            vi = f"{out['selected_name']} chưa chạy được → đang dùng {out['name']}."
+            en = f"{out['selected_name']} cannot run right now → using {out['name']}."
+        out["content"] = localefmt.chu(vi, en)
+    return out
+
+
+def _uniq_ids(ids) -> list:
+    out = []
+    for x in ids:
+        if x and x not in out:
+            out.append(x)
+    return out
+
+
 def _core_pin(mcfg) -> dict:
     """{'provider','model'} Javis Core is pinned to, or {} when it follows the main model (0.402.0). Set from the model
     bar of any Javis Core chat (`POST /sessions/{id}/model`); "Follow the main model" clears it."""
@@ -17947,6 +18027,13 @@ async def _chat_socket(ws):
                         f"Assistant '{_persona[1]}' is no longer in this brain. Open the Partners page to pick another one.")}))
                 return ""
             prov, kind, api_key, api_model = _route or _chat_provider_for_session(mcfg, _row0)
+            # Owner, 05/11/2026: tell the composer which model really answers, so its chip stops showing the chosen
+            # model with a green dot while a fallback card does the work. `rerouted`: run_turn already wrote the line.
+            try:
+                await ws.send_text(json.dumps({"type": "route", "rerouted": bool(_route),
+                                               **_route_view(mcfg, _row0, (prov, kind, api_key, api_model))}))
+            except Exception as _e:  # noqa: BLE001 - a missing chip update never stops a turn
+                print(f"[route frame] {type(_e).__name__}: {_e}", file=sys.stderr)
             reasoning = _chat_reasoning(mcfg, prov)   # 0.350.0: effort of the card this turn runs on
             if _persona and _persona[0] == "agent":
                 # 0.193.0: an assistant's chat thinks at the assistant's own level (default medium).
@@ -20908,6 +20995,19 @@ async def sessions_pin(session_id: str, pinned: str = Form("1")):
     return {"ok": True}
 
 
+@app.get("/chat/route")
+async def chat_route():
+    """Where the first turn of a new chat would run (owner, 05/11/2026): the model bar of an empty chat asks this, so its
+    chip shows a fallback card while the main one is out of quota. A chat with a session reads `route` from its meta."""
+    def _view():
+        try:
+            return _route_view(cfgmod.read_settings().get("model", {}), {})
+        except Exception as e:  # noqa: BLE001 - the chip then shows the chosen model, as before
+            print(f"[route view] {type(e).__name__}: {e}", file=sys.stderr)
+            return {}
+    return await asyncio.to_thread(_view)
+
+
 @app.get("/sessions/{session_id}/meta")
 async def sessions_meta(session_id: str):
     """Performance (2026-11-05): asked on every chat open; its reads run in a worker thread, off the event loop."""
@@ -20951,6 +21051,12 @@ def _sessions_meta_sync(session_id: str):
         # 0.283.0: a Javis Core chat is an assistant's chat for the level chip too, with its own level.
         sess["agent_slug"] = javis_core.SLUG
         sess["agent_reasoning"] = _core_reasoning(cfgmod.read_settings().get("model", {}))
+    # Owner, 05/11/2026: the model the next turn of this chat really runs on, so the chip is right on opening a chat
+    # (a fallback card while the chosen one is out of quota) and goes back by itself once the quota returns.
+    try:
+        sess["route"] = _route_view(cfgmod.read_settings().get("model", {}), sess)
+    except Exception as e:  # noqa: BLE001 - the chip then shows the chosen model, as before
+        print(f"[route view] {type(e).__name__}: {e}", file=sys.stderr)
     return sess
 
 

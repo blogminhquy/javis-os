@@ -97,7 +97,8 @@ def _codex_gia(kich_ban):
 
 
 def _mcfg():
-    return {"order": ["openai-oauth"], "accounts": {"openai-oauth": [
+    return {"order": ["openai-oauth"], "main": {"provider": "openai-oauth", "model": "gpt-5.6-luna"},
+            "accounts": {"openai-oauth": [
         {"id": "main", "label": "", "enabled": True}, {"id": "acc2", "label": "", "enabled": True}]}}
 
 
@@ -186,6 +187,14 @@ def main_test(mp, tmp):
     i_doi = next(i for i, g in enumerate(ws.sent) if g.get("type") == "reroute") if doi else -1
     i_rep = next((i for i, g in enumerate(ws.sent) if g.get("type") == "response"), -1)
     check("dòng đổi đường tới trước câu trả lời", 0 <= i_doi < i_rep)
+    # Owner, 05/11/2026: each run of the turn tells the model chip where it runs (route frame).
+    rf = _cua(ws, "route")
+    check("mỗi lần chạy có một khung route, lần chạy lại mang cờ rerouted",
+          [bool(g.get("rerouted")) for g in rf] == [False, True], str(rf))
+    check("khung route: cùng thẻ ChatGPT (chỉ đổi tài khoản) nên không phải dự phòng",
+          all(g.get("provider") == "openai-oauth" and g.get("fallback") is False for g in rf), str(rf))
+    i_rf2 = [i for i, g in enumerate(ws.sent) if g.get("type") == "route"][-1] if rf else -1
+    check("khung route của lần chạy lại tới sau dòng đổi đường", i_doi < i_rf2 < i_rep)
 
     # ---- 2. viết dở rồi hết lượt: giữ câu dở, thẻ Chạy lại, không tự chạy ----
     ws, store, chay = _chay_mot_luot(mp, tmp, [{"type": "text", "content": "Doanh thu tuần này đạt "},
