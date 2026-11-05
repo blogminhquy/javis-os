@@ -387,9 +387,8 @@ def _quet():
                 # Không trừ thì đường di trú từ app sang kho bị chặn cứng: người dùng gỡ dịch
                 # vụ của app đi rồi không có cách nào lấy lại bản của kho, vì id vẫn bị coi là
                 # đang bị chiếm bởi một thứ không còn tồn tại với họ.
-                goc = mcp_catalog.tat_ca()
-                id_da_co = set(goc) - core_off.da_go("connectors")
-                vao_loi = _goi_vao_loi(goc)
+                id_da_co = set(mcp_catalog.tat_ca()) - core_off.da_go("connectors")
+                vao_loi = _goi_vao_loi(mcp_catalog.tat_ca())
             except Exception:
                 id_da_co, vao_loi = set(), {}
             so = _so_cai_dat()
