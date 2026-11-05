@@ -46,8 +46,12 @@ for path in main._AUTH_LOCAL_EXACT:
     check(f"{path}: another address needs the login", r.status_code == 401, r.status_code)
 
 src = open(os.path.join(SERVER, "main.py"), encoding="utf-8").read()
-check("_auth_guard asks _direct_local_request, not the bare client address",
-      "or (path in _AUTH_LOCAL_EXACT and _direct_local_request(request))" in src
+# 2026-11-05 audit: _auth_guard now asks _local_tool_call (adds the loopback Host and no-browser-metadata checks
+# against DNS rebinding, see test_va_bao_mat_2026_11_05.py), which must still start from _direct_local_request.
+_tool_call_src = src.split("def _local_tool_call", 1)[1].split("\ndef ", 1)[0] if "def _local_tool_call" in src else ""
+check("_auth_guard asks _local_tool_call, built on _direct_local_request, not the bare client address",
+      "or (path in _AUTH_LOCAL_EXACT and _local_tool_call(request))" in src
+      and "if not _direct_local_request(request):" in _tool_call_src
       and 'path in _AUTH_LOCAL_EXACT and client_host in ("127.0.0.1", "::1")' not in src)
 check("the forwarding headers include the Cloudflare one", "cf-connecting-ip" in main._FORWARD_HEADERS)
 
