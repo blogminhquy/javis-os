@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.481.9] - 2026-11-05
+### Sửa lỗi
+- **Đọc chữ trên Android không còn lặp kiểu "tôi tôi bị tôi bị học".** Một số máy Android gửi lại cả câu mỗi lần nghe thêm một chữ, Javis từng ghép hết các bản nháp đó vào ô chat. Giờ chỉ giữ câu cuối cùng.
+### Cải thiện
+- **Nút mic chép lời giờ chạy như máy ghi âm**, ở chat chính, trang Nhóm và trang Hội thoại. Lúc nói, ô chat đứng yên. Bấm dừng hoặc gửi thì cả đoạn chữ hiện ra một lần.
+
 ## [0.481.8] - 2026-11-05
 ### Cải thiện
 - **Bấm vào một hội thoại cũ hiện ra nhanh hơn, máy đỡ khựng.** Các tin dựng lại từ lịch sử không còn chạy hiệu ứng trồi lên cùng một lúc, việc này từng chiếm phần lớn thời gian vẽ trên điện thoại. Tin mới tới vẫn có hiệu ứng như cũ.

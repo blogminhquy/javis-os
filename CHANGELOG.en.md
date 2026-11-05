@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.9] - 2026-11-05
+### Fixed
+- **Dictation on Android no longer repeats like "I I am I am learning".** Some Android phones resend the whole sentence each time they hear one more word, and Javis used to append every draft. Only the latest sentence is kept now.
+### Improved
+- **The dictation mic now works like a voice recorder**, in the main chat, Teams and the Chatbot inbox. While you speak the box stays still. Press stop or send and the whole text appears at once.
+
 ## [0.481.8] - 2026-11-05
 ### Improved
 - **Opening an old chat shows faster and the device stutters less.** Bubbles rebuilt from history no longer all play the fade-in at once, which took most of the drawing time on phones. New messages still fade in.
