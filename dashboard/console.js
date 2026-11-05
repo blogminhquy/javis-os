@@ -26,8 +26,9 @@
   // Giá trị là TÊN icon Lucide. Tra tên tại https://lucide.dev/icons/, thêm vào
   // dashboard/icons.manifest.json rồi chạy python tools/gen_icons.py.
   const VIEW_ICON = {
-    // 2026-11-05 (owner): the graph page is named "Neural network" (Mạng nơ-ron), with a brain-circuit icon.
-    home: "brain-circuit",
+    // 2026-11-05 (owner): the graph page is named "Neural network" (Mạng nơ-ron), with Javis's own 2-3-2 network icon
+    // (RIENG in icons.js, the owner picked it over Lucide's brain-circuit and network).
+    home: "neural-net",
     chat: "message-circle",
     settings: "settings",
     workspace: "bot",

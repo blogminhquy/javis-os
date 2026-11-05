@@ -162,7 +162,7 @@ check("i18n: không còn khoá nhóm tro_ly", vi["nav.group.tro_ly"] === undefin
 // 2026-11-05 (owner): "thay chữ đồ thị và biểu tượng đồ thị thành neural network (Mạng nơ-ron)".
 check("i18n: trang home tên là Mạng nơ-ron / Neural network",
   vi["page.home.label"] === "Mạng nơ-ron" && en["page.home.label"] === "Neural network");
-check("console.js: icon trang home là brain-circuit", /home: "brain-circuit",/.test(console_js));
+check("console.js: icon trang home là neural-net riêng của Javis", /home: "neural-net",/.test(console_js) && /"neural-net":/.test(read("dashboard/icons.js")));
 
 // ---- 8. Nạp file và từ điển ----
 const iApp = html.indexOf("/static/app.js"), iPet = html.indexOf("/static/pet.js");
