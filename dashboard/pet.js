@@ -480,7 +480,7 @@
     var mic = micDangBat();
     var muc = [
       { id: "chat", ic: icon("message-circle"), nhan: t("pet.menu.chat", "Chat") },
-      { id: "agent", ic: icon("bot"), nhan: t("pet.menu.agent", "Assistants") },
+      { id: "agent", ic: icon("bot"), nhan: t("pet.menu.agent", "Partners") },
       { id: "workflow", ic: icon("workflow"), nhan: t("pet.menu.workflow", "Workflows") },
       // Mic là CÔNG TẮC, nên nhãn phải nói việc sắp xảy ra chứ không phải trạng thái hiện tại:
       // đang tắt thì mời "Bật mic", đang bật thì mời "Tắt mic". Nhãn tính lại mỗi lần mở menu

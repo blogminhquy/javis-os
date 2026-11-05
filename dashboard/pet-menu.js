@@ -8,6 +8,8 @@
    show/hide eye (a hidden item stays in its place here, the pet just leaves it out; one item always stays shown),
    and rows move by dragging the handle, mouse or finger. The up/down arrow buttons are gone; with the keyboard,
    focus the handle and press the up or down arrow key.
+   Then: "phần này thêm thì có nút x để xóa chứ không phải ẩn". A feature the owner ADDED gets an X that removes it
+   from the list (it can be added back from Add feature); the six default items keep the eye and are never removed.
 
    Three parts:
      - CATALOG: every feature the pet can open, with a stable id, its own i18n label and icon, and a check that says
@@ -31,7 +33,7 @@
   // Must list the same ids as KNOWN_ACTIONS in server/pet_menu.py (tests/js/test_pet_menu.js checks).
   var CATALOG = [
     { id: "chat", label: "pet.menu.chat", fb: "Chat", icon: "message-circle", sub: "page.chat.sub" },
-    { id: "agent", label: "pet.menu.agent", fb: "Assistants", icon: "bot", sub: "petmenu.sub.agent" },
+    { id: "agent", label: "pet.menu.agent", fb: "Partners", icon: "bot", sub: "petmenu.sub.agent" },
     { id: "workflow", label: "pet.menu.workflow", fb: "Workflows", icon: "workflow", sub: "petmenu.sub.workflow" },
     { id: "mic", label: "petmenu.mic_label", fb: "Mic on / off", icon: "mic", sub: "petmenu.sub.mic" },
     { id: "pet", label: "pet.menu.settings", fb: "Mascot settings", icon: "settings", sub: "page.pet.sub" },
@@ -248,16 +250,24 @@
       // The last item still shown cannot be hidden: the pet would open an empty menu.
       var lastShown = !off && shown() <= 1;
       var note2 = off ? t("petmenu.hidden_note", null, "Hidden from the menu") : m.why;
+      // Added by the owner: an X removes it (a default item only hides). An added item still flagged hidden by an
+      // older save keeps its eye too, so it can be shown again.
+      var added = DEFAULT_ITEMS.indexOf(id) < 0;
+      var eye = '<button type="button" class="pm-eye" data-pm-eye aria-pressed="' + off + '" title="' +
+        esc(off ? t("petmenu.show", null, "Show on the menu") : lastShown ? t("petmenu.keep_one", null, "Keep at least one item shown") : t("petmenu.hide", null, "Hide from the menu")) +
+        '" aria-label="' + esc((off ? t("petmenu.show", null, "Show on the menu") : t("petmenu.hide", null, "Hide from the menu")) + ": " + m.label) + '"' +
+        (lock || lastShown ? " disabled" : "") + ">" + icon(off ? "eye-off" : "eye") + "</button>";
+      var x = '<button type="button" class="pm-eye pm-x" data-pm-remove title="' +
+        esc(lastShown ? t("petmenu.keep_one", null, "Keep at least one item shown") : t("petmenu.remove", null, "Remove from the menu")) +
+        '" aria-label="' + esc(t("petmenu.remove", null, "Remove from the menu") + ": " + m.label) + '"' +
+        (lock || lastShown ? " disabled" : "") + ">" + icon("x") + "</button>";
       return '<div class="bp-row bp-move pm-row' + (m.why ? " pm-off" : "") + (off ? " pm-hidden" : "") + '" data-i="' + i + '" role="listitem">' +
         '<button type="button" class="bp-grip' + (lock ? " pm-nograb" : "") + '" data-pm-grip title="' + esc(t("reorder.drag")) + '" aria-label="' +
         esc(t("petmenu.drag_label", { name: m.label }, m.label)) + '"' + (lock ? " disabled" : "") + ">" + icon("arrow-up-down") + "</button>" +
         '<span class="ro-ic">' + m.icon + "</span>" +
         '<span class="bp-name pm-name"><span class="bp-label">' + esc(m.label) + "</span>" +
         (note2 ? '<span class="pm-why">' + esc(note2) + "</span>" : "") + "</span>" +
-        '<button type="button" class="pm-eye" data-pm-eye aria-pressed="' + off + '" title="' +
-        esc(off ? t("petmenu.show", null, "Show on the menu") : lastShown ? t("petmenu.keep_one", null, "Keep at least one item shown") : t("petmenu.hide", null, "Hide from the menu")) +
-        '" aria-label="' + esc((off ? t("petmenu.show", null, "Show on the menu") : t("petmenu.hide", null, "Hide from the menu")) + ": " + m.label) + '"' +
-        (lock || lastShown ? " disabled" : "") + ">" + icon(off ? "eye-off" : "eye") + "</button></div>";
+        (added ? (off ? eye : "") + x : eye) + "</div>";
     }
     // Move one row by `d` places (keyboard on the handle). Focus follows the row.
     function nudge(i, d) {
@@ -315,6 +325,18 @@
         else if (shown() > 1) hidden = hidden.concat(id);
         note = null;
         draw('.bp-row[data-i="' + i + '"] [data-pm-eye]');
+        return;
+      }
+      if (el.hasAttribute("data-pm-remove")) {
+        var k = +el.closest(".bp-row").dataset.i, rid = draft[k];
+        if (DEFAULT_ITEMS.indexOf(rid) >= 0) return;   // a default item only hides
+        var wasShown = hidden.indexOf(rid) < 0;
+        if (wasShown && shown() <= 1) return;           // never leave the pet an empty menu
+        draft = draft.filter(function (x) { return x !== rid; });
+        hidden = hidden.filter(function (x) { return x !== rid; });
+        note = null;
+        var next = Math.min(k, draft.length - 1);
+        draw('.bp-row[data-i="' + next + '"] [data-pm-grip]');
         return;
       }
       if (el.hasAttribute("data-pm-add")) { openPicker(); return; }

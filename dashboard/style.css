@@ -4156,6 +4156,8 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .pm-eye[aria-pressed="true"] { color: var(--text3); border-style: dashed; }
 .pm-eye:disabled { opacity: .4; cursor: not-allowed; }
 .pm-eye svg { width: 17px; height: 17px; }
+.pm-x:hover:not(:disabled) { color: var(--red, #d64545); border-color: var(--red, #d64545); }
+.pm-row .pm-eye + .pm-eye { margin-left: 6px; }
 .pm-row.pm-hidden .ro-ic, .pm-row.pm-hidden .bp-label { opacity: .5; }
 .pm-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .pm-row .bp-grip.pm-nograb { cursor: not-allowed; opacity: .4; }

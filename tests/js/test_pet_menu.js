@@ -95,6 +95,7 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
   check("pet menu: default six in order", rows.map((r) => r.id).join() === "chat,agent,workflow,mic,pet,teams");
   check("pet menu: the mic row says what a press will do", rows[3].label === vi["pet.menu.mic_on"] && PM.menuEntries({ mic: true })[3].label === vi["pet.menu.mic_off"]);
   check("settings list names the mic as a toggle, not by its current state", PM.entry("mic").label === vi["petmenu.mic_label"]);
+  check("the assistants item is called Cộng sự, like its page", PM.entry("agent").label === "Cộng sự" && vi["page.workspace.label"] === "Cộng sự");
   win.navigator.mediaDevices = undefined;
   check("mic without browser permission is unavailable, with the reason", PM.entry("mic").why === vi["petmenu.why_mic"]);
   win.navigator.mediaDevices = { getUserMedia() {} };
@@ -115,9 +116,13 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
   // Owner: "kéo lên kéo xuống được chứ ko phải mũi tên". Rows move by dragging; no arrow buttons.
   check("no up/down arrow buttons on the rows", !/data-move=/.test(h) && !/bp-arrow/.test(h));
   check("every row has a drag handle (a button, so the keyboard reaches it)", (h.match(/data-pm-grip/g) || []).length === 7);
-  check("every row has a show/hide eye", (h.match(/data-pm-eye/g) || []).length === 7);
+  // Owner: "phần này thêm thì có nút x để xóa chứ không phải ẩn". Default items hide (eye); added ones remove (X).
+  check("the six default rows have a show/hide eye", (h.match(/data-pm-eye/g) || []).length === 6);
+  check("the added row has an X to remove it, a default row never does",
+    (h.match(/data-pm-remove/g) || []).length === 1 && /data-i="6"[\s\S]*?data-pm-remove/.test(h)
+    && !/data-i="0"[^]*?data-pm-remove[^]*?data-i="1"/.test(h));
   check("nothing to save yet: Save and Discard are disabled", /data-pm-save disabled/.test(h) && /data-pm-cancel disabled/.test(h));
-  check("no rename, icon, remove or restore-defaults control", !/data-pm-(rename|icon|remove|delete|reset)/.test(h) && !/type="text"/.test(h));
+  check("no rename, icon or restore-defaults control", !/data-pm-(rename|icon|delete|reset)/.test(h) && !/type="text"/.test(h));
   check("leaving now asks nothing", win.JavisLeaveGuard.fn && win.JavisLeaveGuard.fn() === "");
 
   const btn = (attrs, row) => ({
@@ -151,8 +156,18 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
   for (let i = 0; i < 6; i++) click(btn({ "data-pm-eye": true }, i));
   h = host.innerHTML;
   check("the last item still shown cannot be hidden (no empty menu)",
-    (h.match(/pm-hidden/g) || []).length === 6 && /data-i="6"[\s\S]*?data-pm-eye[^>]*disabled/.test(h));
+    (h.match(/pm-hidden/g) || []).length === 6 && /data-i="6"[\s\S]*?data-pm-remove[^>]*disabled/.test(h));
+  click(btn({ "data-pm-remove": true }, 6));
+  check("nor removed when it is the last one shown", order() === 7);
   click(btn({ "data-pm-cancel": true }));
+  click(btn({ "data-pm-remove": true }, 0));
+  check("the X does nothing on a default item", order() === 7);
+  click(btn({ "data-pm-remove": true }, 6));
+  h = host.innerHTML;
+  check("the X removes an added item from the list", order() === 6 && h.indexOf(vi["petmenu.gone_name"]) < 0);
+  check("removing is a change to save", !/data-pm-save disabled/.test(h) && win.JavisLeaveGuard.fn() === vi["petmenu.leave"]);
+  click(btn({ "data-pm-cancel": true }));
+  check("Discard brings the removed item back", order() === 7);
 
   // Add feature
   click(btn({ "data-pm-add": true }));
@@ -236,7 +251,7 @@ check("the module exposes JavisPetMenu", !!(PM && PM.renderSettings && PM.menuEn
     "petmenu.saved", "petmenu.save_err", "petmenu.conflict", "petmenu.reload", "petmenu.invalid", "petmenu.load_err",
     "petmenu.search", "petmenu.added", "petmenu.none", "petmenu.close", "petmenu.mic_label", "petmenu.why_mic",
     "petmenu.why_page", "petmenu.why_gone", "petmenu.gone_name", "petmenu.leave", "petmenu.count_hidden", "petmenu.hide",
-    "petmenu.show", "petmenu.hidden_note", "petmenu.keep_one", "petmenu.drag_label"]
+    "petmenu.show", "petmenu.hidden_note", "petmenu.keep_one", "petmenu.drag_label", "petmenu.remove"]
     .forEach((k) => check("key " + k + " in vi and en", !!vi[k] && !!en[k]));
   check("no em or en dash in pet-menu.js", !/[\u2013\u2014]/.test(read("dashboard/pet-menu.js")));
   check("no em or en dash in the new strings", !Object.keys(vi).filter((k) => k.startsWith("petmenu.")).some((k) => /[\u2013\u2014]/.test(vi[k] + en[k])));

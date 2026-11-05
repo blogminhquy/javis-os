@@ -114,7 +114,15 @@ check("an id this Javis no longer knows is kept, not lost", "old-feature" in m["
 r = post(m["items"] + ["models"], m["rev"])
 check("and a later save may keep it in place", r.status_code == 200 and get()["items"][1] == "old-feature", r.text)
 r = post([x for x in get()["items"] if x != "old-feature"], get()["rev"])
-check("but no save can drop it (there is no remove in this version)", r.status_code == 400 and r.json()["code"] == "removed", r.text)
+# Owner: "phần này thêm thì có nút x để xóa". An item that is not one of the six defaults can be removed.
+check("an added item (here one this Javis no longer knows) can be removed", r.status_code == 200
+      and "old-feature" not in get()["items"], r.text)
+cur = get()
+r = post([x for x in cur["items"] if x != "tasks"], cur["rev"])
+check("an added feature can be removed", r.status_code == 200 and "tasks" not in get()["items"], r.text)
+cur = get()
+r = post([x for x in cur["items"] if x != "pet"], cur["rev"])
+check("a default item can never be removed, only hidden", r.status_code == 400 and r.json()["code"] == "removed", r.text)
 
 # ═════ damaged settings ═════
 for bad, why in (({"schemaVersion": 99, "rev": 4, "items": []}, "newer schema"),

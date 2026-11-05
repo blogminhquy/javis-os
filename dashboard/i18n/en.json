@@ -562,7 +562,7 @@
   "pet.color.ruby": "Ruby",
   "pet.color.custom": "Custom",
   "pet.menu.chat": "Chat",
-  "pet.menu.agent": "Assistants",
+  "pet.menu.agent": "Partners",
   "pet.menu.workflow": "Workflows",
   "pet.menu.mic_on": "Turn mic on",
   "pet.menu.mic_off": "Turn mic off",
@@ -7028,7 +7028,7 @@
   "reorder.cancel": "Cancel",
   "reorder.save_err": "Could not save the order, try again.",
   "petmenu.title": "Mascot menu",
-  "petmenu.desc": "Add, show or hide, and drag to arrange the features the mascot opens.",
+  "petmenu.desc": "Add, remove, show or hide, and drag to arrange the features the mascot opens.",
   "petmenu.count": "{n} items",
   "petmenu.add": "Add feature",
   "petmenu.cancel": "Discard changes",
@@ -7058,5 +7058,6 @@
   "petmenu.show": "Show on the menu",
   "petmenu.hidden_note": "Hidden from the menu",
   "petmenu.keep_one": "Keep at least one item shown",
-  "petmenu.drag_label": "Drag to move: {name}. Keyboard: up or down arrow key"
+  "petmenu.drag_label": "Drag to move: {name}. Keyboard: up or down arrow key",
+  "petmenu.remove": "Remove from the menu"
 }

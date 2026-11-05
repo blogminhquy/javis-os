@@ -6,6 +6,9 @@ So a save may only ADD features and REORDER them. Renaming, changing an icon or 
 Owner, same day: "phải có cả nút ẩn hiện nữa, để có thể ẩn bớt đi". An item can be HIDDEN instead: it stays saved
 in its place (so nothing is ever lost and unhiding puts it back where it was), only the pet menu leaves it out.
 At least one item stays shown, or the pet would open an empty menu.
+Owner, later the same day: "phần này thêm thì có nút x để xóa chứ không phải ẩn". So a feature the owner ADDED can be
+removed again (an X on its row); the six DEFAULT_ITEMS can only be hidden, never dropped, so the menu can always be
+brought back to what it was.
 
 Stored in settings.json under "pet_menu", apart from dashboard.pet: the pet's look is written on every drag of the
 pet, and a stale window resending an old menu there would quietly undo a newer one. Here every save carries the
@@ -78,7 +81,8 @@ def check_save(settings: dict, items, base_rev, hidden=None) -> tuple[str, dict 
 
     `hidden`: the ids of `items` the pet menu leaves out (they stay saved, in place).
     Codes: "invalid_saved" (the stored value is broken: no save over it), "conflict" (edited from an older
-    revision), "bad" (not a list of distinct known ids), "removed" (an item already saved is missing),
+    revision), "bad" (not a list of distinct known ids), "removed" (one of the DEFAULT_ITEMS is missing; an added
+    item may be removed),
     "all_hidden" (no item left to show)."""
     cur = read(settings)
     if cur["state"] == "invalid":
@@ -90,7 +94,7 @@ def check_save(settings: dict, items, base_rev, hidden=None) -> tuple[str, dict 
     if any(not isinstance(x, str) for x in items) or len(set(items)) != len(items):
         return "bad", None
     before = set(cur["items"])
-    if not before.issubset(items):
+    if not set(DEFAULT_ITEMS).issubset(items):
         return "removed", None
     # Only an id the app knows may be ADDED; one already saved stays even when this Javis no longer knows it.
     if any(x not in KNOWN_ACTIONS and x not in before for x in items):
