@@ -347,8 +347,10 @@ async def _tai(url: str) -> Tuple[str, str, str]:
     async with _client() as cl:
         for _ in range(CHUYEN_HUONG_TOI_DA + 1):
             await asyncio.to_thread(_kiem_url, cur)
+            import web_watch
+            goi, them, ext = web_watch.pinned(cur, web_watch.vetted_ip(cur))   # connect to the address just vetted
             try:
-                async with cl.stream("GET", cur) as r:
+                async with cl.stream("GET", goi, headers=them, extensions=ext) as r:
                     if r.status_code in (301, 302, 303, 307, 308):
                         nxt = r.headers.get("location")
                         if not nxt:
