@@ -304,6 +304,14 @@
             + tw("store.inspect.already.body",
                  { ver: '<b>' + esc(d.da_cai.version || "?") + '</b>' })
             + '</div></div>' : "")
+      // Vá bảo mật 2026-11-05: gói khai `replaces` sẽ gỡ gói cũ và nhận dữ liệu plugin của nó. Màn hình đồng ý
+      // trước đây chỉ nói "đang chạy bản X", người cài không biết gói nào bị thay.
+      + (Array.isArray(d.replaces) && d.replaces.length
+          ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
+            + tw("store.inspect.replaces.title") + '</div><div>'
+            + tw("store.inspect.replaces.body",
+                 { ids: d.replaces.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(", ") })
+            + '</div></div>' : "")
       + (d.warning
           ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
             + tw("store.inspect.skipped.title") + '</div><div>' + esc(d.warning)

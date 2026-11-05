@@ -80,6 +80,34 @@ def host_only(v) -> str:
     return v                          # bare host / bare IPv6 (hiếm)
 
 
+def _cong(v, co_scheme: bool) -> str:
+    """Port of an Origin ("http://h:p") or a Host header ("h:p"), "" when it is the default for the scheme or absent."""
+    v = (v or "").strip().lower()
+    scheme = v.split("://", 1)[0] if "://" in v else ""
+    hp = v.split("://", 1)[1] if "://" in v else v
+    hp = hp.split("/", 1)[0]
+    if hp.startswith("["):
+        port = hp.split("]", 1)[1].lstrip(":") if "]" in hp else ""
+    else:
+        port = hp.split(":", 1)[1] if hp.count(":") == 1 else ""
+    if co_scheme and ((scheme == "http" and port == "80") or (scheme == "https" and port == "443")):
+        return ""
+    return port
+
+
+def _local_khac_cong(origin_header, host_header) -> bool:
+    """A loopback page on ANOTHER port than this server (security fix, 2026-11-05 audit).
+
+    The Origin check compared host names only and always trusted localhost, so a page on localhost:3000 (a dev server,
+    another app) could POST to localhost:7777 or open /ws/terminal: on a machine with no password nothing else stands in
+    the way, and with one the Lax cookie still goes along (a different port is the same site). Same host, same port is
+    the dashboard itself; localhost vs 127.0.0.1 on the same port is still this server and stays allowed."""
+    oh, h = host_only(origin_header), host_only(host_header)
+    if oh not in _LOCALHOST or h not in _LOCALHOST:
+        return False
+    return _cong(origin_header, True) != _cong(host_header, False)
+
+
 def _is_ip(h: str) -> bool:
     try:
         ipaddress.ip_address(h)
@@ -189,6 +217,8 @@ def ws_decision(host_header: str, origin_header, gate_active: bool):
     allowed = None
     if origin_header:
         oh = host_only(origin_header)
+        if _local_khac_cong(origin_header, host_header):
+            return 403, "cross-origin websocket blocked"
         if not oh or oh != host:
             allowed = allowed_web_hosts()
             if not oh or oh not in allowed:
@@ -233,6 +263,8 @@ def csrf_decision(method: str, host_header: str, origin_header, gate_active: boo
     # 1) CSRF: ghi + có Origin chéo (khác host, ngoài allowlist) → chặn.
     if method.upper() in MUTATING and origin_header:
         oh = host_only(origin_header)
+        if _local_khac_cong(origin_header, host_header):
+            return 403, localefmt.chu("cross-origin request bị chặn", "cross-origin request blocked")
         if oh != host:
             allowed = allowed_web_hosts()
             if oh not in allowed:

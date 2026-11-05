@@ -3181,6 +3181,8 @@
   "store.inspect.author": "tác giả {ten}",
   "store.inspect.already.title": "Máy đã có gói này",
   "store.inspect.already.body": "Đang chạy bản {ver}. Cài tiếp là THAY bản cũ.",
+  "store.inspect.replaces.title": "Gói này thay gói khác",
+  "store.inspect.replaces.body": "Cài gói này sẽ GỠ {ids} và chuyển dữ liệu plugin của gói đó (phiên đăng nhập, cấu hình) sang gói này. Chỉ cài nếu bạn tin người làm gói. Gói không phải bản của kho chính thức thì được cài ở trạng thái tắt.",
   "store.inspect.skipped.title": "Một phần của gói bị bỏ qua",
   "store.inspect.community.title": "Gói của cộng đồng",
   "store.inspect.community.body": "Gói này do người ngoài gửi vào kho, chưa qua kiểm duyệt của người phát hành. Đọc kỹ phần bên dưới trước khi cài.",
