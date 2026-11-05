@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.472.0] - 2026-11-05
+### Cải thiện
+- **Javis Core giờ chỉnh y hệt các agent khác.** Ở trang Cộng sự, bấm Javis Core là mở đúng khung cài đặt quen thuộc: đổi ảnh, tên, vai trò, hướng dẫn, gắn tài liệu, chọn skill và model. Hướng dẫn ban đầu là system prompt gốc của Javis Core.
+- **Auto của Javis Core luôn bật, không tắt được**, và nó vẫn là trợ lý hệ thống không xoá được. Thẻ đổi tên riêng của bản trước được bỏ, tên mới lưu ngay trong khung cài đặt hoặc khi bạn nói trong chat.
+
 ## [0.471.1] - 2026-11-05
 ### Sửa lỗi
 - **Codex không còn đếm trùng token.** Codex có lúc báo số dùng lặp lại cho cùng một request, Javis từng cộng cả lần lặp nên số token của lượt bị thổi lên. Nay chỉ tính phần tăng thật. Ý tưởng và bản đầu của kubintran (#999).
