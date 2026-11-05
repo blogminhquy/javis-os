@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.472.0] - 2026-11-05
+### Improved
+- **Javis Core is now edited exactly like the other agents.** On the Partners page, Javis Core opens the usual settings form: change its picture, name, role and instructions, attach documents, pick skills and a model. Its starting instructions are the original Javis Core system prompt.
+- **Javis Core's Auto is always on and cannot be turned off**, and it is still the system assistant that cannot be deleted. The separate rename card from the last release is gone; a new name is saved in the settings form or when you say it in chat.
+
 ## [0.471.1] - 2026-11-05
 ### Fixed
 - **Codex no longer double counts tokens.** Codex sometimes repeats its usage report for the same request, and Javis added every repeat, inflating the turn's tokens. Only the real increase counts now. Idea and first version by kubintran (#999).
