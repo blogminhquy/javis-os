@@ -77,6 +77,10 @@
   // fallback card really answering, else the chosen model. Chip, picker tick, effort lock, Fast bolt, plan ring and
   // `/model` all follow it. The choice itself (`effective`) is kept, so the chat goes back to it once its quota returns.
   const shown = () => (route && route.fallback ? { provider: route.provider, model: route.model || "" } : effective());
+  // The Effort the chip shows and the slider sets (owner, 05/11/2026: "Effort cũng theo model dự phòng luôn"): an
+  // assistant's own level in its chat, the fallback card's own level while one answers, else the chosen card's.
+  const onFallback = () => !!(route && route.fallback && route.reasoning);
+  const shownEffort = () => (agentEff ? agentEff.level : onFallback() ? route.reasoning : state.reasoning);
 
   async function saveModel(patch) {
     const fd = new FormData();
@@ -258,10 +262,11 @@
       const effM = shown();
       const own = window.JavisEffortSlider && window.JavisEffortSlider.isLocked(effM.provider, effM.model)
         ? window.JavisEffortSlider.lockedLevel(effM.model) : "";
-      const lvl = agentEff ? agentEff.level : state.reasoning;
+      const lvl = shownEffort();
       eb.textContent = window.t(EFF_KEY[own || (EFFORT.find((e) => e[0] === lvl) || EFFORT[0])[0]]);
       const effB = $("effBtn");
-      if (effB) effB.title = agentEff ? window.t("mpick.eff_agent") : "";
+      if (effB) effB.title = agentEff ? window.t("mpick.eff_agent")
+        : onFallback() ? window.t("mpick.eff_fallback", { nha: route.name || route.provider }) : "";
     }
     renderFast();
   }
@@ -366,6 +371,20 @@
   function close() { const pop = $("mbPop"); if (pop) pop.hidden = true; }
   function isOpen() { const pop = $("mbPop"); return pop && !pop.hidden; }
 
+  // Where the slider's level goes: the assistant's own level, the fallback card's own effort while one answers (its card
+  // on the Models page; the chosen card's stays as it was), else the chosen card's.
+  async function saveEffort(v) {
+    if (agentEff) { agentEff.level = v; renderBar(); await saveAgentEffort(agentEff.slug, v); return; }
+    if (onFallback()) {
+      const pid = route.provider;
+      route.reasoning = v; renderBar();
+      await saveModel({ profile: { provider: pid, reasoning: v } });
+      await loadState(); renderBar();   // that card may be MAIN, whose effort is the chat's main level
+      return;
+    }
+    state.reasoning = v; renderBar(); await saveModel({ reasoning: v });
+  }
+
   // Effort chip (0.153.0): split from the model picker, opens a small popover with a slider.
   let effSlider = null;
   function effOpen() {
@@ -378,7 +397,7 @@
     if (btn) btn.setAttribute("aria-expanded", "true");
     const fn = fastNote(eff.provider, eff.model);
     effSlider = window.JavisEffortSlider.mount(pop, {
-      value: agentEff ? agentEff.level : state.reasoning,
+      value: shownEffort(),
       fast: {
         supported: fn.supported, on: state.fast, title: fastTitle,
         onHover: () => { if (state.fast) refreshFastState(); },
@@ -386,10 +405,7 @@
       },
       locked: locked,
       lockedValue: locked ? window.JavisEffortSlider.lockedLevel(eff.model) : "",
-      onChange: async (v) => {
-        if (agentEff) { agentEff.level = v; renderBar(); await saveAgentEffort(agentEff.slug, v); return; }
-        state.reasoning = v; renderBar(); await saveModel({ reasoning: v });
-      },
+      onChange: saveEffort,
     });
     // Keep the popover inside the card: on a narrow phone the chip sits far enough right that a
     // popover opened at its left edge would spill past the screen.

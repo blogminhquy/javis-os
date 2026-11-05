@@ -2345,6 +2345,7 @@
   "mpick.route_quota_until": "hết lượt tới {time}",
   "mpick.route_unavailable": "chưa chạy được",
   "mpick.route_back": "{nha} đã có lượt lại, quay về model đã chọn.",
+  "mpick.eff_fallback": "Mức suy luận của {nha}, thẻ đang chạy dự phòng",
   "mpick.fallback_aria": "đang dự phòng vì {nha} hết lượt",
   "mpick.tag_limited": "Hết lượt",
   "mpick.tag_running": "Đang chạy",

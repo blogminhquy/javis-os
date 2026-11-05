@@ -84,6 +84,14 @@ check("picker tick, effort lock, Fast bolt, plan ring and /model use the running
   /selected: shown\(\),/.test(mp) && /const effM = shown\(\);/.test(mp)
   && /function renderFast\(\) \{\s*const eff = shown\(\);/.test(mp) && /function fastTitle\(on\) \{\s*const eff = shown\(\);/.test(mp)
   && /hienTai: function \(\) \{\s*const eff = shown\(\);/.test(mp) && /closeLimit\(\);\s*const eff = shown\(\);/.test(mp));
+// Owner, 05/11/2026: "Effort cũng theo model dự phòng luôn".
+check("Effort chip and slider show the fallback card's own level (an assistant's chat keeps its own)",
+  /const shownEffort = \(\) => \(agentEff \? agentEff\.level : onFallback\(\) \? route\.reasoning : state\.reasoning\);/.test(mp)
+  && /const lvl = shownEffort\(\);/.test(mp) && /value: shownEffort\(\),/.test(mp));
+check("moving the slider on a fallback saves that card's own effort, not the chosen card's",
+  /async function saveEffort\(v\) \{[\s\S]*?if \(onFallback\(\)\) \{[\s\S]*?saveModel\(\{ profile: \{ provider: pid, reasoning: v \} \}\);[\s\S]*?return;\s*\}\s*state\.reasoning = v;/.test(mp)
+  && /onChange: saveEffort,/.test(mp));
+check("the Effort chip says whose level it shows", /window\.t\("mpick\.eff_fallback"/.test(mp) && vi["mpick.eff_fallback"] && en["mpick.eff_fallback"]);
 check("the choice itself is not rewritten by a fallback (only picking a model pins one)",
   (mp.match(/sessionPin = \{ provider:/g) || []).length === 2 && !/sessionPin = route/.test(mp) && !/saveModel\(\{ main: \{ provider: route/.test(mp));
 check("picker rows carry the route tags", /\+ routeTags\(p\.id\),/.test(mp));

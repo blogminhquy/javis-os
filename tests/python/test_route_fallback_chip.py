@@ -34,7 +34,7 @@ def mcfg_three():
             "main": {"provider": "antigravity-cli", "model": "gemini-3.8-flash"},
             "profiles": {"antigravity-cli": {"model": "gemini-3.8-flash", "reasoning": "off"},
                          "openai-oauth": {"model": "gpt-5.5", "reasoning": "off"},
-                         "anthropic-cli": {"model": "opus", "reasoning": "off"}}}
+                         "anthropic-cli": {"model": "opus", "reasoning": "high"}}}
 
 
 orig_connected = main._routing_connected_ids
@@ -48,6 +48,7 @@ try:
     check("all fine: the chosen model is MAIN", v["selected_provider"] == "antigravity-cli"
           and v["selected_model"] == "gemini-3.8-flash")
     check("all fine: no card resting, no notice", v["limited"] == {} and "content" not in v, v)
+    check("all fine: the Effort is the chosen card's", v["reasoning"] == "off", v)
 
     # ---- 2. the customer's case: Antigravity, then ChatGPT out of quota -> Claude Code answers ----
     now = time.time()
@@ -64,6 +65,7 @@ try:
     check("the notice says who ran out and who answers", "Antigravity" in c and "Claude Code" in c, c)
     check("the notice has no long dash", "—" not in c and "–" not in c, c)
     check("names for the chip", v["name"] == "Claude Code" and v["selected_name"] == "Antigravity", v)
+    check("the Effort of the fallback card comes along (the chip follows it)", v["reasoning"] == "high", v)
 
     # ---- 3. a chat pinned to ChatGPT: its own pin is the choice ----
     row = {"pinned_provider": "openai-oauth", "pinned_model": "gpt-5.5"}

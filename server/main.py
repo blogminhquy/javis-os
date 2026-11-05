@@ -3179,7 +3179,10 @@ def _route_view(mcfg, row, run=None, now: float = None) -> dict:
     prov, model = str(run[0] or ""), str(run[3] or "")
     out = {"provider": prov, "model": model, "name": _route_name(prov),
            "selected_provider": sel["provider"], "selected_model": sel["model"],
-           "selected_name": _route_name(sel["provider"]), "fallback": prov != sel["provider"]}
+           "selected_name": _route_name(sel["provider"]), "fallback": prov != sel["provider"],
+           # Effort of the card running (owner, 05/11/2026: the Effort chip follows a fallback card too). An assistant's
+           # or Javis Core's chat thinks at its own level whatever the card; the composer shows that level there.
+           "reasoning": _chat_reasoning(mcfg or {}, prov) if prov else "off"}
     limited = {}
     for p in _uniq_ids([sel["provider"], *model_routing.order(mcfg or {})]):
         until = _route_rest_until(mcfg, p, now)

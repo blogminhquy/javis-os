@@ -2345,6 +2345,7 @@
   "mpick.route_quota_until": "out of quota until {time}",
   "mpick.route_unavailable": "cannot run right now",
   "mpick.route_back": "{nha} has quota again, back on the chosen model.",
+  "mpick.eff_fallback": "Reasoning level of {nha}, the fallback card running",
   "mpick.fallback_aria": "fallback while {nha} is out of quota",
   "mpick.tag_limited": "Out of quota",
   "mpick.tag_running": "Running",
