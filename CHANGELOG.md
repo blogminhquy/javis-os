@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.471.0] - 2026-11-05
+### Thêm mới
+- **Ô trả lời khách ở trang Chatbot có nút micro chép lời.** Bấm micro rồi nói, chữ hiện thẳng vào ô. Bấm lại để dừng, sửa chữ nếu cần rồi bấm Gửi, hoặc bấm A.I. soạn để chữ vừa nói thành lệnh cho A.I. Không có gì tự gửi đi. Bấm Gửi lúc đang nghe thì Javis dừng nghe rồi gửi luôn.
+
 ## [0.470.1] - 2026-11-05
 ### Sửa lỗi
 - **Gọi thoại với cộng sự nay đúng là cộng sự đó.** Trước đây bấm gọi trong khung chat của một cộng sự thì giọng nói vẫn là Javis chung, không biết tên, vai hay hướng dẫn của cộng sự, hỏi "em là ai" còn đáp "em là ChatGPT". Nay cuộc gọi mang tên, vai, file hướng dẫn và bộ nhớ của cộng sự.
