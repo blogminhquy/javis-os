@@ -26,7 +26,9 @@
   // Giá trị là TÊN icon Lucide. Tra tên tại https://lucide.dev/icons/, thêm vào
   // dashboard/icons.manifest.json rồi chạy python tools/gen_icons.py.
   const VIEW_ICON = {
-    home: "hexagon",
+    // 2026-11-05 (owner): the graph page is named "Neural network" (Mạng nơ-ron), with Javis's own 2-3-2 network icon
+    // (RIENG in icons.js, the owner picked it over Lucide's brain-circuit and network).
+    home: "neural-net",
     chat: "message-circle",
     settings: "settings",
     workspace: "bot",
@@ -39,7 +41,8 @@
     selfimprove: "repeat",
     // 0.204.0: webhooks are their own page under Work (they were a section of the scheduled-jobs page).
     webhooks: "webhook",
-    learn: "brain",
+    // 2026-11-05 (owner): no longer the same brain as the Brain group header; a brain with a cog = learning by itself.
+    learn: "brain-cog",
     kanban: "square-kanban",
     // 0.422.0: the Tasks page (tasks.js) replaces Kanban and Scheduled under Work.
     tasks: "list-checks",
@@ -121,7 +124,7 @@
     // NHÌN vào chính bộ não (đồ thị là khoang não, trò chuyện là nói với bộ não đó), nên
     // đứng thành một tầng riêng ngang hàng với Bộ não là thừa một bậc. Hai mục dồn xuống
     // "Bộ não" và đứng đầu nhóm, vì đó là hai trang được mở nhiều nhất.
-    { id: "bo_nao", get label() { return t("nav.group.bo_nao"); },      icon: GICON.bo_nao,      ids: ["home", "chat", "files", "learn"] },
+    { id: "bo_nao", get label() { return t("nav.group.bo_nao"); },      icon: GICON.bo_nao,      ids: ["home", "files", "learn"] },
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     // 0.347.0: the "Code" group is gone (owner, 27/10/2026): every chat now works in a folder and
@@ -133,6 +136,10 @@
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON.he_thong,    ids: ["models", "settings", "share", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
+  // Rows that stand ALONE at the very top of the rail, outside every group: no header, never folded, always on screen.
+  // 2026-11-05 (owner): "phần trò chuyện tách luôn ra làm mục đầu tiên". Not a group, so voice commands that open a
+  // group (ui_targets.GROUPS) never see it; opening the page itself works as before.
+  const RAIL_TOP = ["chat"];
 
   // Trang CÓ THẬT nhưng KHÔNG hiện trên thanh bên. Bỏ hẳn khỏi `RAIL_ITEMS` thì không dùng
   // được, vì đó mới là nguồn icon và nhãn; nên chỗ ẩn nằm ở đây.
@@ -152,7 +159,8 @@
   const RAIL_AN = new Set(["chatbots", "usage", "pet", "logs", "coding"]);
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
   function railGroups() {
-    const seen = new Set();
+    const seen = new Set(RAIL_TOP);
+    const top = RAIL_TOP.map(id => RAIL_BY_ID[id]).filter(Boolean);
     const groups = RAIL_GROUPS.map(g => {
       const items = (g.ids || [])
         .map(id => { seen.add(id); return RAIL_AN.has(id) ? null : RAIL_BY_ID[id]; })
@@ -169,10 +177,13 @@
       const foot = groups.find(g => g.foot);
       if (foot) foot.items.push(...rest); else groups.push({ label: t("nav.group.khac"), foot: false, items: rest });
     }
+    // The top rows ride along as one headerless "solo" block, first in the list (index.html hides its header).
+    if (top.length) groups.unshift({ label: "solo:" + RAIL_TOP.join(","), icon: "", foot: false, solo: true, items: top });
     return groups;
   }
   // Nhãn nhóm chứa một mục id (cho accordion: mở đúng nhóm của trang đang xem).
   function groupLabelOf(id) {
+    if (RAIL_TOP.includes(id)) return "";   // a top row belongs to no group: leave the open group as it is
     if (["pet", "usage", "logs", "runtime"].includes(id)) id = "settings";
     const g = RAIL_GROUPS.find(gr => (gr.ids || []).includes(id));
     return g ? g.label : (RAIL_GROUPS[0] && RAIL_GROUPS[0].label) || "";
@@ -358,7 +369,7 @@
       if (resolved === "chat" || resolved === "workspace") id = resolved;
     } catch (e) {}
     const store = Alpine.store("nav");
-    store.openGroup = groupLabelOf(id);
+    store.openGroup = groupLabelOf(id) || groupLabelOf("home");   // Chat stands alone: keep the Brain group open
     navigateTo(id, true);
   }
   function navigateTo(id) {

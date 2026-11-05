@@ -37,7 +37,7 @@ ALIASES = {
     "kenh": "channels", "telegram": "channels", "zalo": "channels",
     "muc dung": "usage", "token": "usage", "chi phi": "usage",
     "tro chuyen": "chat", "hoi thoai": "chat", "trang chu": "home", "javis": "home",
-    "do thi": "home", "graph": "home", "khoang nao": "home", "do thi tri thuc": "home",
+    "do thi": "home", "graph": "home", "mang no ron": "home", "mang no-ron": "home", "neural network": "home", "khoang nao": "home", "do thi tri thuc": "home",
     "linh vat": "pet", "mascot": "pet", "con pet": "pet", "pet": "pet", "thu cung": "pet",
     "chia se": "share", "share": "share", "link chia se": "share", "duong link": "share",
     "shared links": "share", "quan ly chia se": "share",
