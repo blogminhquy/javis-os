@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.484.2] - 2026-11-06
+### Fixed
+- **GitHub cross review no longer says "did not run" on every job.** Javis used to pick the ChatGPT plan to review code Claude wrote, but the review only runs engines without file tools, so the ChatGPT plan (like Grok Build and Antigravity) was always refused. Javis now picks Claude or an API-key provider of another family, skips cards out of quota, and tries the next reviewer when one fails.
+- **A skipped review says why**, with the error, and when no engine can review the chat says how to enable it: add an API key of another family (OpenAI, Gemini, DeepSeek, OpenRouter...).
+
 ## [0.484.1] - 2026-11-06
 ### Fixed
 - **No empty bubble when coming back to a running chat.** If you left a chat while Javis was working and came back, an empty answer bubble showed above the progress line. Now you see the steps so far and the progress line, and the bubble appears once Javis starts writing.
