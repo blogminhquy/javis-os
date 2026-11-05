@@ -201,6 +201,8 @@ _GITIGNORE_BODY = (
        ".antigravity/",
        ".antigravitycli/",
        ".gemini/",
+       "# Cấu hình MCP của Grok Build - cũng chứa hub token (vá bảo mật 2026-11-05).",
+       ".grok/",
        "# Learned knowledge that carries customer chat text (owner decision 2026-10-25, see",
        "# server/learned_mirror.py): it stays in the brain folder but never goes to the backup.",
        "Javis/learned/**/*.private.json",
@@ -284,8 +286,12 @@ def _ensure_gitignore_lines(root) -> bool:
 _ATTACH_RE = r"^(\d+\s*[-_.]\s*)?attachments$"
 
 
+# Thư mục cấu hình engine mang hub token: brain cũ lỡ commit thì cũng gỡ khỏi index như media.
+_UNTRACK_SECRET_DIRS = (".grok",)
+
+
 def untrack_media(root: str) -> int:
-    """Gỡ attachments/ + inbox/ khỏi INDEX git, GIỮ NGUYÊN file trên đĩa.
+    """Gỡ attachments/ + inbox/ (và .grok/, chứa hub token) khỏi INDEX git, GIỮ NGUYÊN file trên đĩa.
 
     Vì sao cần: .gitignore không có tác dụng với file git ĐÃ theo dõi từ trước, nên brain cũ
     (đã lỡ commit ảnh) vẫn tiếp tục commit ảnh mới dù template ignore đã vá. Phải gỡ một lần.
@@ -302,7 +308,8 @@ def untrack_media(root: str) -> int:
             if not os.path.isdir(os.path.join(root, name)):
                 continue
             ten = name.strip()
-            if ten.lower() != "inbox" and not re.match(_ATTACH_RE, ten, re.IGNORECASE):
+            if (ten.lower() != "inbox" and ten not in _UNTRACK_SECRET_DIRS
+                    and not re.match(_ATTACH_RE, ten, re.IGNORECASE)):
                 continue
             # Hỏi trước bằng ls-files: không có gì được theo dõi thì khỏi gọi git rm, và
             # quan trọng hơn là khỏi đếm nhầm thư mục vốn đã sạch (giữ tính idempotent).
@@ -577,7 +584,11 @@ _BACKUP_SKIP_SUBSTR = ("/memory/conversations/", "/Memory/conversations/",
                        # ĐÚNG file mcp_config.json chứ không chặn cả `.agents/`: thư mục đó
                        # còn là một trong các chỗ chứa skill của brain, phải được sao lưu.
                        "/.agents/mcp_config.json/",
-                       "/.antigravity/", "/.antigravitycli/", "/.gemini/")
+                       "/.antigravity/", "/.antigravitycli/", "/.gemini/",
+                       # Grok Build đọc `<brain>/.grok/config.toml`, file đó mang Bearer hub token,
+                       # đuôi .toml là chữ nên khối 2 mở lại. Sót ở đây tới 2026-11-05 (audit bảo
+                       # mật): token đi lên remote sao lưu và ai cầm nó gọi được hub ở mức full.
+                       "/.grok/")
 
 
 def _raw_kept_out(rel: str) -> bool:

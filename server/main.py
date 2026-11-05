@@ -374,7 +374,7 @@ async def _auth_guard(request: Request, call_next):
         path = duong_dan_router(request)   # KHÔNG phải request.url.path - xem duong_dan_router
         public = (path in _AUTH_PUBLIC_EXACT
                   or any(path.startswith(p) for p in _AUTH_PUBLIC_PREFIX)
-                  or (path in _AUTH_LOCAL_EXACT and _direct_local_request(request))
+                  or (path in _AUTH_LOCAL_EXACT and _local_tool_call(request))
                   # Zalo's domain check fetches /zalo_verifier<code>.html (0.412.0). The route answers
                   # only codes the owner saved and 404s everything else, so nothing leaks.
                   or (path.startswith("/zalo_verifier") and path.endswith(".html") and "/" not in path[1:])
@@ -1761,6 +1761,29 @@ def _direct_local_request(request: Request) -> bool:
     if host not in ("127.0.0.1", "::1"):
         return False
     return not any(request.headers.get(h) for h in _FORWARD_HEADERS)
+
+
+_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+
+def _local_tool_call(request: Request) -> bool:
+    """A login-exempt call from a tool on this machine (javis_schedule, an engine's curl), never from a web page.
+
+    Security fix (2026-11-05 audit): _direct_local_request() only looks at the client address. With login on, the
+    DNS-rebinding Host check in web_security is skipped, so a page the owner opens could rebind its own name to
+    127.0.0.1 and POST /reminders with muc_quyen=full from inside the browser: client 127.0.0.1, no forwarding header,
+    Origin equal to Host. A tool call names a loopback Host and carries no browser fetch metadata (Origin,
+    Sec-Fetch-Site); a page cannot drop either. The logged-in dashboard never needs this path, it has its cookie.
+    """
+    if not _direct_local_request(request):
+        return False
+    try:
+        host = web_security.host_only(request.headers.get("host") or "")
+    except Exception:  # noqa: BLE001
+        return False
+    if host.strip("[]") not in _LOOPBACK_HOSTS:
+        return False
+    return not (request.headers.get("origin") or request.headers.get("sec-fetch-site"))
 
 
 @app.post("/auth/disable")
@@ -7503,7 +7526,7 @@ async def upload_raw(name: str = Query(...), dl: int = Query(0)):
     resp = FileResponse(str(f), media_type=mt or "application/octet-stream")
     resp.headers["Content-Disposition"] = "inline"
     resp.headers["X-Content-Type-Options"] = "nosniff"
-    return resp
+    return _csp_neu_chay_script(resp, mt)
 
 @app.post("/ingest-upload")
 async def ingest_upload(
@@ -9604,6 +9627,22 @@ async def files_zip(brain: str = Query("brain"), path: str = Query(""), probe: i
     return await zip_dir_response(brain, path, probe=bool(probe))
 
 
+# Types a browser runs script in when opened as a page (security fix, 2026-11-05 audit). A customer can send the shop's
+# bot a file named x.html that lands in inbox/khach/, and /files/raw served it inline on the dashboard's own origin with
+# no sandbox: opened by the owner (or by a link that carries their cookie), its script ran with the owner's session and
+# could reach /chat, /files/write and the terminal. These types now get the same CSP sandbox as a /s/ share link, an
+# opaque origin. PDF and images stay as before: Chrome refuses to draw a PDF in a sandboxed document.
+_LOAI_CHAY_SCRIPT = ("text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml")
+
+
+def _csp_neu_chay_script(resp, media_type: str):
+    """Add the share sandbox to an inline response whose type can run script. Returns the response."""
+    mt = str(media_type or "").split(";")[0].strip().lower()
+    if mt in _LOAI_CHAY_SCRIPT or mt.endswith("+xml"):
+        resp.headers["Content-Security-Policy"] = share_render.CSP_HTML
+    return resp
+
+
 def raw_file_response(brain: str, path: str, dl: bool = False):
     """Lõi thuần của /files/raw (route handler KHÔNG được gọi nhau như hàm thường, xem
     test_handler_khong_goi_truc_tiep). Trả file inline, hoặc ép tải khi dl=True."""
@@ -9622,7 +9661,7 @@ def raw_file_response(brain: str, path: str, dl: bool = False):
     resp = FileResponse(str(f), media_type=mt or "application/octet-stream", filename=f.name,
                         content_disposition_type="inline")   # hiển thị trong trình duyệt, không ép tải
     resp.headers["X-Content-Type-Options"] = "nosniff"
-    return resp
+    return _csp_neu_chay_script(resp, mt)
 
 
 @app.get("/files/raw")
