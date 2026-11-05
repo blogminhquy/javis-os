@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.483.0] - 2026-11-05
+### Thêm mới
+- **Cloudflare có sẵn trong Javis, không phải cài từ Kho nữa.** Trang Kết nối, tab Sẵn có, có thẻ Cloudflare với hai cách: dán API token, hoặc bấm Kết nối rồi đăng nhập Cloudflare và tick quyền ngay trên trang của Cloudflare. Mặc định Chỉ đọc, công cụ `execute` vẫn ở nhóm nguy hiểm.
+- **Máy đã cài gói Cloudflare từ Kho vẫn chạy như cũ.** Kết nối đang có chuyển sang bản dựng sẵn, không báo lỗi trùng.
+
 ## [0.482.1] - 2026-11-05
 ### Sửa lỗi
 - **Mục Trò chuyện trên đầu thanh bên không còn hiện `page.chat.label`.** Ngay sau khi cập nhật, lúc máy chủ còn đang khởi động, từ điển về chậm và mục này giữ nguyên khoá thô. Giờ mọi mục trên thanh bên tự đổi chữ khi từ điển về.

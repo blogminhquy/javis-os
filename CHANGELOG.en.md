@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.483.0] - 2026-11-05
+### Added
+- **Cloudflare is built into Javis, no Store install needed.** The Connections page, Available tab, has a Cloudflare card with two ways in: paste an API token, or press Connect, sign in to Cloudflare and tick the permissions on Cloudflare's own page. Read-only by default, and the `execute` tool stays in the dangerous group.
+- **Machines that installed the Cloudflare pack from the Store keep working.** Existing connections move to the built-in version with no duplicate error.
+
 ## [0.482.1] - 2026-11-05
 ### Fixed
 - **The Chat entry at the top of the sidebar no longer shows `page.chat.label`.** Right after an update, while the server was still starting, the dictionary arrived late and this entry kept the raw key. Every sidebar entry now redraws its text when the dictionary arrives.
