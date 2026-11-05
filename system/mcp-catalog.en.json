@@ -9,6 +9,45 @@
     "api_key": {"label": "API key (Composio)", "placeholder": "e.g. ck_..."}
    }
   },
+  "cloudflare": {
+   "description": "The whole Cloudflare API in chat through the official MCP: DNS, Workers, Pages, KV, R2, D1, firewall, SSL, cache, traffic analytics, Zero Trust. Paste an API token and you are done; the token's permissions decide what Javis can do.",
+   "group_line": "Paste an API token: pick permissions per area, shared with the Cloudflare Deploy (Wrangler) pack.",
+   "risk": "Cloudflare's MCP has only 3 tools: docs (search the documentation), search (find the API to call) and execute (run code that calls the real Cloudflare API).\n\nexecute can call EVERY API the permissions you granted allow, from reading analytics to DELETING a domain, editing DNS, deploying a Worker or deleting an R2 bucket.\nJavis cannot tell whether one execute call reads or deletes, so it sits in the dangerous group.\n\nRead-only and Draft: Javis only searches the docs and the API list, without touching your account.\n\nFull access: Javis acts for real. One wrong DNS record takes a website or email down at once; deleting a Worker or bucket loses data.\n\nThe safest setup: if you only want Javis to read figures, create a token with ONLY Read permissions before raising it to Full access. Then even a run of execute cannot change anything.",
+   "guide": "One-time setup:\n1. Go to dash.cloudflare.com > My Profile > API Tokens > Create Token.\n2. For Javis to do everything, pick Create Custom Token.\nAdd Edit for the areas you use (Zone, DNS, Workers Scripts, Pages, Workers KV, R2, D1, Firewall...) plus Account Resources : Read.\nFor viewing only, pick Read.\n3. Under Zone Resources choose All zones or just the domains to manage.\n4. To deploy with the 'Cloudflare Deploy (Wrangler)' pack, the token also needs Workers Scripts : Edit and Cloudflare Pages : Edit.\n5. Do NOT turn on Client IP Address Filtering: Cloudflare's MCP does not support IP-filtered tokens yet.\n6. Create it, copy the token RIGHT AWAY (it is not shown again) and paste it below. Fill Account ID only when the token sees several accounts.\n\nThe token is the real fence: Javis can only do what it allows. If the token leaks, go back to that page and press Roll or Delete.",
+   "fields": {
+    "api_token": {
+     "label": "API token (Cloudflare)",
+     "placeholder": "Paste the API token created at dash.cloudflare.com..."
+    },
+    "account_id": {
+     "label": "Account ID (optional)",
+     "placeholder": "Only needed when the token sees several accounts. Find it on the Cloudflare overview page, right column"
+    }
+   },
+   "steps": [
+    {
+     "text": "Open Cloudflare's API Tokens page and press Create Token.",
+     "link_label": "Open API Tokens"
+    },
+    {
+     "text": "Pick Create Custom Token. For full access grant Edit to the areas you use (Zone, DNS, Workers, Pages, KV, R2, D1, Firewall) and add Account Resources : Read. For viewing only grant Read."
+    },
+    {
+     "text": "Do not turn on IP filtering: Cloudflare's MCP does not accept IP-filtered tokens yet."
+    },
+    {
+     "text": "Copy the token as soon as it appears, paste it below and press Connect.",
+     "link_label": "Cloudflare's guide"
+    }
+   ]
+  },
+  "cloudflare-oauth": {
+   "name": "Cloudflare (web sign-in)",
+   "description": "The same official Cloudflare MCP without creating an API token: press Connect, sign in to Cloudflare and tick the permissions to grant on Cloudflare's own page. Manage DNS, Workers, Pages, KV, R2, D1, firewall, SSL, cache and traffic analytics.",
+   "group_line": "Sign in on the web: one tap, no token. Permissions are ticked at sign-in; connect again to change them.",
+   "risk": "Cloudflare's MCP has only 3 tools: docs (search the documentation), search (find the API to call) and execute (run code that calls the real Cloudflare API).\n\nexecute can call EVERY API the permissions you granted allow, from reading analytics to DELETING a domain, editing DNS, deploying a Worker or deleting an R2 bucket.\nJavis cannot tell whether one execute call reads or deletes, so it sits in the dangerous group.\n\nRead-only and Draft: Javis only searches the docs and the API list, without touching your account.\n\nFull access: Javis acts for real. One wrong DNS record takes a website or email down at once; deleting a Worker or bucket loses data.\n\nThe safest setup: if you only want Javis to read figures, tick ONLY read permissions at sign-in before raising it to Full access. Then even a run of execute cannot change anything.",
+   "guide": "Press Connect, sign in to your Cloudflare account, then choose the permissions to grant Javis on Cloudflare's page.\n\nJavis registers itself through the Cloudflare MCP's standard OAuth, so there is no token to create or key to paste. This is the way Cloudflare recommends.\n\nThe permissions you tick at sign-in are the real fence: to only view figures, tick read permissions only. If something is missing later, press Connect again and tick more.\n\nIf your login has several Cloudflare accounts, say in chat which account to work on.\n\nThe Cloudflare Deploy (Wrangler) pack cannot use this connection yet: it needs the Paste API token way."
+  },
   "zalo": {
    "description": "The javis-zalo MCP (Javis's own Zalo CLI): read new messages and history, find chats, see who joined a group and when, approve join requests, read the tags (labels) set on chats, view media and send messages from a personal Zalo account.",
    "risk": "This connector defaults to FULL ACCESS, which means the send tool is on. To block sending, lower it to Draft or Read-only.\n\njavis-zalo uses Zalo's unofficial API through zca-js. The account MAY be restricted or LOCKED; use a secondary account and do not auto-send in bulk.",
