@@ -20,7 +20,12 @@
    it stops and sends in one press, like the send button. Pressing the mic moves the focus to the mic, and the bar then
    hides that button, so the focus fell back to the page: Enter landed on <body> and the old check (only the text box)
    ignored it, leaving stop as the only way out. Enter now sends from the text box, the page itself or the composer
-   buttons; X and stop, when reached with Tab, keep their own meaning, and another field elsewhere keeps its Enter. */
+   buttons; X and stop, when reached with Tab, keep their own meaning, and another field elsewhere keeps its Enter.
+
+   2026-11-05: the words appear only after the recording ends, like a voice memo (owner, same day: "no need to copy the
+   text onto the screen as I speak; press it like a recorder, then the text comes out"). While recording the box keeps
+   what was typed before; the heard text is held in S.heard and written once, when the run is idle (stop, send, or the
+   5-minute limit). X still drops everything. */
 (function () {
   "use strict";
 
@@ -72,7 +77,7 @@
   function $(id) { return document.getElementById(id); }
 
   // state: "idle" | "listening" | "transcribing"
-  var S = { dict: null, state: "idle", base: "", sendAfter: false, startedAt: 0, clock: null,
+  var S = { dict: null, state: "idle", base: "", heard: "", sendAfter: false, startedAt: 0, clock: null,
     ctx: null, src: null, analyser: null, buf: null, raf: 0, levels: [], lastPush: 0 };
 
   function note(key) {
@@ -200,10 +205,13 @@
   }
 
   function finished() {
-    var inp = $("chatInput"), send = S.sendAfter;
+    var inp = $("chatInput"), send = S.sendAfter, D = window.JavisDictate;
     S.dict = null;
     S.sendAfter = false;
-    earTip(window.JavisDictate, inp);
+    // The text lands now, in one piece, not word by word while speaking.
+    if (S.heard && D) writeInput(D.joinText(S.base, S.heard));
+    S.heard = "";
+    earTip(D, inp);
     if (!inp) return;
     inp.readOnly = false;
     if (send && inp.value.trim()) {
@@ -224,12 +232,14 @@
     var inp = $("chatInput");
     letGo(inp);
     S.base = inp ? inp.value : "";
+    S.heard = "";
     S.sendAfter = false;
     S.levels = [];
     S.dict = D.create({
+      // Held, not shown: finished() writes it once the recording ends.
       onText: function (text) {
         if (S.state === "idle") return;
-        writeInput(D.joinText(S.base, text));
+        S.heard = String(text || "");
       },
       onState: function (st) {
         var was = S.state;
@@ -271,6 +281,7 @@
     if (!S.dict) return;
     var base = S.base;
     S.sendAfter = false;
+    S.heard = "";
     writeInput(base);
     S.dict.cancel();
     writeInput(base);

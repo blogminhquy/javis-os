@@ -37,7 +37,13 @@
    keeps the last known answer. A recognizer the phone itself has switched off (iOS "service-not-allowed": Dictation
    off in Settings) is reported as "service", not as a blocked mic, so the note can say where to turn it on.
 
-   joinText is pure so node tests can run it. */
+   2026-11-05: no more "tôi tôi bị tôi bị học" on Android. Chrome on Android, on some phones and
+   Google app versions (hence "only now and then"), hands every new result back as the WHOLE sentence so far: "tôi",
+   "tôi bị", "tôi bị học", several of them marked final, sometimes the same one twice. Appending each piece filled the
+   box with every draft of the sentence. On Android a piece that grows, repeats or trims the one before it now replaces
+   that one (addPiece). A computer and an iPhone never send results like that, so they keep plain appending.
+
+   joinText and addPiece are pure so node tests can run them. */
 (function () {
   "use strict";
 
@@ -49,6 +55,26 @@
     if (!spoken) return base;
     if (!base) return spoken;
     return base + (/\s$/.test(base) ? "" : " ") + spoken;
+  }
+
+  // Words only, for comparing two pieces: case, punctuation and spacing differ between drafts of the same sentence.
+  function wordsOf(s) {
+    return String(s == null ? "" : s).toLowerCase().replace(/[.,!?;:\u2026"\u201c\u201d]/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  // Adds one recognizer piece to acc = { text, base, last } (base: the text before `last`). With `collapse` (Android, see
+  // the note at the top) a piece that is the previous one grown, repeated or trimmed replaces it instead of following
+  // it: "tôi", "tôi bị", "tôi bị học" ends as "tôi bị học", not "tôi tôi bị tôi bị học". Without it, plain joinText.
+  function addPiece(acc, piece, collapse) {
+    acc = acc || { text: "", base: "", last: "" };
+    var p = String(piece == null ? "" : piece).trim();
+    if (!p) return acc;
+    if (collapse && acc.last) {
+      var np = wordsOf(p), nl = wordsOf(acc.last);
+      if (np && nl.indexOf(np + " ") === 0) return acc;   // an older, shorter draft of the same sentence
+      if (np === nl || np.indexOf(nl + " ") === 0) return { text: joinText(acc.base, p), base: acc.base, last: p };
+    }
+    return { text: joinText(acc.text, p), base: acc.text, last: p };
   }
 
   function langTag() {
@@ -95,6 +121,10 @@
     nav = nav || (typeof navigator !== "undefined" ? navigator : {});
     var ua = String(nav.userAgent || "");
     return /iP(hone|ad|od)/.test(ua) || (nav.platform === "MacIntel" && (nav.maxTouchPoints || 0) > 1);
+  }
+  function isAndroid(nav) {
+    nav = nav || (typeof navigator !== "undefined" ? navigator : {});
+    return /Android/i.test(String(nav.userAgent || ""));
   }
   function isPhone(nav) {
     nav = nav || (typeof navigator !== "undefined" ? navigator : {});
@@ -219,15 +249,16 @@
       // learned this in 0.59.x). One utterance per run there; onend below starts the next one.
       r.continuous = !isIOS();
       r.interimResults = true;
-      var done = kept, fatal = false;
+      var done = { text: kept, base: kept, last: "" }, fatal = false, collapse = isAndroid();
       r.onresult = function (e) {
         if (cancelled || rec !== r) return;
-        var interim = "";
+        var interim = { text: "", base: "", last: "" };
         for (var i = e.resultIndex; i < e.results.length; i++) {
           var t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) done = joinText(done, t); else interim = joinText(interim, t);
+          if (e.results[i].isFinal) done = addPiece(done, t, collapse); else interim = addPiece(interim, t, collapse);
         }
-        spoken = joinText(done, interim);
+        // An Android draft still being spoken may be the last final sentence grown: show it in that sentence's place.
+        spoken = addPiece(done, interim.text, collapse).text;
         if (opts.onText) opts.onText(spoken, false);
       };
       r.onerror = function (e) {
@@ -316,7 +347,8 @@
   }
 
   // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
-  var api = { create: create, joinText: joinText, plan: plan, isPhone: isPhone, isIOS: isIOS,
+  var api = { create: create, joinText: joinText, addPiece: addPiece, plan: plan, isPhone: isPhone, isIOS: isIOS,
+    isAndroid: isAndroid,
     ear: function () { return earKind; }, warm: askEar };
   if (typeof window !== "undefined") window.JavisDictate = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
