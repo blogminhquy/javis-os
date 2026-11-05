@@ -528,15 +528,20 @@ button.ord-mi:hover, button.ord-mi:focus-visible { background: var(--bg3); }
 .sk-group-head .dim { color: var(--text3); font-weight: 400; margin-left: 6px; }
 
 .rail-spacer { flex: 1; }
-.rail-lang {                                           /* ô đổi ngôn ngữ giao diện, ngay trên hàng version */
-  display: flex; align-items: center; gap: 6px; padding: 8px 6px 0;
+/* Ô đổi ngôn ngữ giao diện, ngay trên hàng version. Ô và hàng version là MỘT khối chân rail: chung
+   một đường kẻ phía trên, cách nhau một nhịp đều (chủ repo, 0.481.5: hai đường kẻ chồng nhau và ô
+   chọn dính sát vào hàng version). `display:flex` đè mất thuộc tính `hidden`, nên phải ẩn lại tay. */
+.rail-lang {
+  display: flex; align-items: center; gap: 8px; padding: 10px 6px 8px;
   border-top: 1px solid var(--glass-brd); color: var(--text3);
 }
+.rail-lang[hidden] { display: none; }
+.rail-lang:not([hidden]) + .rail-foot { border-top: 0; padding-top: 0; }
 .rail-lang svg { width: 14px; height: 14px; flex: 0 0 auto; }
 .rail-lang-sel {
-  flex: 1; min-width: 0; background: transparent; color: var(--text2);
+  flex: 1; min-width: 0; height: 32px; background: transparent; color: var(--text2);
   border: 1px solid var(--glass-brd); border-radius: 8px;
-  font-family: var(--font-ui); font-size: 12px; padding: 4px 6px; cursor: pointer;
+  font-family: var(--font-ui); font-size: 13px; line-height: 1.2; padding: 0 8px; cursor: pointer;
 }
 .rail-lang-sel:hover { color: var(--text); background: var(--surface-2); }
 .rail-lang-sel option { background: var(--panel-solid); color: var(--text); }
@@ -586,6 +591,7 @@ button.ord-mi:hover, button.ord-mi:focus-visible { background: var(--bg3); }
   .rail.collapsed .rail-brand-text { display: none; }           /* thu gọn: chỉ còn dấu ấn, chữ không vừa */
   .rail.collapsed .rf-meta { display: none; }                   /* giấu version/tác giả cho vừa bề ngang hẹp, chỉ còn nút */
   .rail.collapsed .rail-lang { display: none; }                 /* ô ngôn ngữ cũng không vừa bề ngang thu gọn */
+  .rail.collapsed .rail-lang + .rail-foot { border-top: 1px solid var(--glass-brd); padding-top: 8px; } /* ô ẩn thì hàng nút giữ lại đường kẻ */
   .rail.collapsed .rail-foot { justify-content: center; }       /* thu: chỉ còn nút, căn giữa */
 }
 

@@ -32,7 +32,7 @@
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
   <link rel="stylesheet" href="/static/style.css?v=163">
-  <link rel="stylesheet" href="/static/console.css?v=134">
+  <link rel="stylesheet" href="/static/console.css?v=135">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chưa chọn gì thì SÁNG (2026-11-05; trước đó là "auto"). Chế độ "auto" (0.74.0) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -677,11 +677,15 @@
             <span class="grp-name" x-text="g.label"></span>
           </button>
           <div class="rail-grp-items">
+            <!-- Nhãn mục đọc qua getter gọi t(), mà từ điển KHÔNG phải dữ liệu phản ứng của Alpine. Nhóm thường
+                 được dựng lại vì khoá :key="g.label" đổi khi từ điển về; khối "solo:chat" (Trò chuyện trên đầu,
+                 0.480.0) có khoá cố định nên giữ nguyên chữ vẽ lúc từ điển chưa về: rail hiện `page.chat.label`
+                 sau khi cập nhật (khách báo 05/11/2026). Đọc i18nTick ở đây để mọi mục tự vẽ lại khi đổi chữ. -->
             <template x-for="it in g.items" :key="it.id">
               <button class="rail-item" :class="{ active: $store.nav.active === it.id }"
-                      @click="$store.nav.go(it.id)" :title="it.label" :data-page="it.id">
+                      @click="$store.nav.go(it.id)" :title="($store.nav.i18nTick, it.label)" :data-page="it.id">
                 <span class="rail-ico" x-html="it.icon"></span>
-                <span class="rail-lbl" x-text="it.label"></span>
+                <span class="rail-lbl" x-text="($store.nav.i18nTick, it.label)"></span>
               </button>
             </template>
           </div>
