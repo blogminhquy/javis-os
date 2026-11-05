@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.471.0] - 2026-11-05
+### Added
+- **The Chatbot reply box has a speak-to-type mic.** Press the mic and speak, the words land in the box. Press again to stop, fix the text if needed, then press Send, or press AI draft so the spoken words become the instruction for the A.I. Nothing is sent by itself. Pressing Send while it listens stops and sends in one go.
+
 ## [0.470.1] - 2026-11-05
 ### Fixed
 - **A voice call with a partner is that partner now.** A call started in a partner's chat used to speak as plain Javis, with no name, role or instructions from the partner, and asked "who are you" it said it was ChatGPT. The call now carries the partner's name, role, instructions file and memory.
