@@ -284,6 +284,34 @@ def _addr_blocked(ip: str) -> bool:
             return True
 
 
+# 2026-11-05 audit (DNS rebinding): check_url resolved the name, then httpx resolved it AGAIN to connect, so a name
+# with a short TTL could answer a public address to the check and 169.254.169.254 or a LAN host to the connection.
+# check_url now records the address it vetted, and the fetchers connect to exactly that address (Host header and TLS
+# name stay the real host). A test that swaps check_url out records nothing, and the fetch goes as before.
+_VETTED: dict = {}
+
+
+def vetted_ip(url: str) -> str:
+    """The address check_url just vetted for this URL ("" when none), taken once."""
+    return _VETTED.pop(str(url or "").strip(), "")
+
+
+def pinned(url: str, ip: str):
+    """(url to call, extra headers, request extensions) that connect to `ip` while speaking to the real host."""
+    import httpx
+    u = httpx.URL(url)
+    if not ip or not u.host:
+        return url, {}, {}
+    try:
+        ipaddress.ip_address(u.host)
+        return url, {}, {}          # already an address: nothing to pin
+    except ValueError:
+        pass
+    host_hdr = u.host + (f":{u.port}" if u.port else "")
+    ext = {"sni_hostname": u.host} if u.scheme == "https" else {}
+    return str(u.copy_with(host=ip)), {"Host": host_hdr}, ext
+
+
 def check_url(url: str) -> str:
     """Kiểm một địa chỉ trước khi gọi (http/https, cổng 80/443, không trỏ vào trong nhà)."""
     p = urlparse(str(url or "").strip())
@@ -303,6 +331,9 @@ def check_url(url: str) -> str:
     if bad or not infos:
         raise FetchError(localefmt.chu("Địa chỉ này trỏ vào mạng nội bộ, không theo dõi được.",
                                        "This address points into a private network and cannot be watched."))
+    if len(_VETTED) > 256:
+        _VETTED.clear()
+    _VETTED[str(url or "").strip()] = str(infos[0][4][0]).split("%", 1)[0]
     return p.hostname
 
 
@@ -325,8 +356,10 @@ async def fetch(url: str, cookies: Optional[list] = None) -> tuple[str, str, str
                 ch = login_vault.cookie_header(cookies, cur)
                 if ch:
                     hdr["Cookie"] = ch
+            goi, them, ext = pinned(cur, vetted_ip(cur))
+            hdr.update(them)
             try:
-                async with cl.stream("GET", cur, headers=hdr) as r:
+                async with cl.stream("GET", goi, headers=hdr, extensions=ext) as r:
                     if r.status_code in (301, 302, 303, 307, 308):
                         nxt = r.headers.get("location")
                         if not nxt:

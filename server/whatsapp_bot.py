@@ -351,7 +351,15 @@ class WhatsAppBot(HangLuot):
             ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
                    "application/pdf": ".pdf"}.get(mime, "")
             name = str(media.get("filename") or f"whatsapp_{int(time.time())}{ext}")
-            dest = d / re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
+            # 2026-11-05 audit: the customer's file name went in as is, so a second file with the same name (from
+            # another customer too, inbox/khach is shared) overwrote the first. Same unique-name loop as Telegram,
+            # and a name of only dots ("..") cannot point at the folder itself.
+            safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip().lstrip(".") or f"whatsapp_{int(time.time())}{ext}"
+            dest = d / safe
+            i = 1
+            while dest.exists():
+                dest = d / f"{Path(safe).stem}_{i}{Path(safe).suffix}"
+                i += 1
             dest.write_bytes(data)
             note = localefmt.chu(f"[Người dùng gửi file qua WhatsApp, đã tải về: {dest}]",
                                  f"[The user sent a file on WhatsApp, downloaded to: {dest}]")

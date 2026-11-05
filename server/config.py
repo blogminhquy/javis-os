@@ -1535,7 +1535,10 @@ def verify_api_token(raw: str, path: str = ""):
     for x in _load_tokens():
         if secrets.compare_digest(str(x.get("hash") or ""), h):
             if str(x.get("scope")) == "chat" and path:
-                if not any(str(path).startswith(p) for p in TOKEN_SCOPE_CHAT):
+                # 2026-11-05 audit: a bare startswith let "/chat" match "/chatbots*" (create, edit, delete bots,
+                # read their logs). A listed path matches itself and what lies under it, nothing that merely
+                # shares its first letters.
+                if not any(str(path) == p or str(path).startswith(p + "/") for p in TOKEN_SCOPE_CHAT):
                     return None
             x["last_used_at"] = _time.time()
             _save_tokens(_load_tokens_touch(x))
