@@ -855,6 +855,18 @@ def don_phien(sid: str) -> None:
         pass
 
 
+def don_neu_ranh(sid: str) -> bool:
+    """Hết một lượt việc nền (aux_engine, 05/11/2026): dọn thư mục trạng thái của phiên nếu nó KHÔNG
+    còn tiến trình nền nào đang chạy. Còn thì để nguyên: việc dựng video chạy nền phải sống tiếp và
+    vẫn báo khi xong. Trả True khi đã dọn."""
+    with _NEN_KHOA:
+        ds = [v for v in _NEN.values() if v.sid == sid]
+    if any(v.dang_chay for v in ds):
+        return False
+    don_phien(sid)
+    return True
+
+
 @atexit.register
 def _tat_het() -> None:
     """Javis tắt: tiến trình nền chạy nhóm riêng nên sẽ sống sót nếu không dọn. Dọn."""

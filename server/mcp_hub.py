@@ -1610,6 +1610,19 @@ def registry_inventory(mode="full", vault_root=None, include_plugins=True, inclu
     )
 
 
+def bo_cache_phien(sid: str) -> int:
+    """Bỏ khỏi cache các bộ tool dựng cho MỘT phiên (khoá kết thúc bằng mã phiên). Việc nền chạy bằng
+    engine API có terminal (05/11/2026) mỗi lượt một mã phiên, nên không dọn thì một loop 5 phút một
+    lần để lại vài trăm bộ tool mỗi ngày trong RAM. Trả số mục đã bỏ."""
+    sid = str(sid or "")
+    if not sid:
+        return 0
+    bo = [k for k in list(_cache) if isinstance(k, tuple) and k and k[-1] == sid]
+    for k in bo:
+        _cache.pop(k, None)
+    return len(bo)
+
+
 def invalidate_cache():
     """Gọi sau khi thêm/sửa/xoá connection - làm mới tool list + đóng session cũ."""
     global _cache_epoch

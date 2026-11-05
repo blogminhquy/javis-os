@@ -20,9 +20,13 @@ Ba loại engine, khác nhau ở CÔNG CỤ có được - đây là chỗ phả
   MCP hub qua .grok/config.toml trong brain). Mức quyền xuống thẳng cờ chặn của CLI:
   suggest -> chặn Write/Edit/Bash, auto -> chặn Bash, full -> không chặn ở tầng CLI.
 - api (openrouter/openai/gemini/anthropic-api): KHÔNG có tool native. Bù lại hub cấp
-  javis_read_file / javis_list_dir / javis_write_file / javis_use_skill + tool MCP, và
-  javis_write_file tự chặn khi mode là suggest (mcp_hub._builtin_tools). Không có Bash,
-  không có WebFetch - hẹp hơn Claude, nhưng đủ cho việc nền đọc/ghi ghi chú trong vault.
+  javis_read_file / javis_list_dir / javis_write_file / javis_use_skill, tìm và đọc web
+  (javis_web_search / javis_web_fetch) + tool MCP, và javis_write_file tự chặn khi mode là
+  suggest (mcp_hub._builtin_tools). Từ 05/11/2026 có thêm TERMINAL THẬT (javis_terminal,
+  javis_process) trong brain, nhưng chỉ khi việc chạy ở mức `full` VÀ engine Claude mà nó thay
+  thế cũng được chạy Bash (`cli_cho_bash`). Nghĩa là cùng một việc, đổi bộ não sang API key
+  thì được đúng những gì Claude Code được: loop bị cô lập, việc mức auto/suggest vẫn không có
+  lệnh máy; việc Toàn quyền (dựng video bằng ffmpeg chẳng hạn) thì có.
 
 Hợp đồng sự kiện giữ y như ClaudeSDK để nơi gọi không phải sửa: query() sinh dict
 {"type": "tool_call"|"final"|"error"|"usage", ...}. Đường API sinh "text" nhiều mảnh nên
@@ -330,7 +334,8 @@ class _ApiAuxEngine:
     """
 
     def __init__(self, provider, model, system_prompt=None, vault_root=None,
-                 mode="full", tag="aux", reasoning="off", api_key="", account_id=""):
+                 mode="full", tag="aux", reasoning="off", api_key="", account_id="",
+                 terminal=False):
         self.provider = provider
         self.model = model
         # 0.350.0: one link per account of the card, so the chain moves to key 2 when key 1 is out of quota.
@@ -342,6 +347,9 @@ class _ApiAuxEngine:
         self.tag = tag
         self.reasoning = reasoning
         self.session_id = None      # engine API không có phiên nối tiếp - giữ cho đủ hợp đồng
+        # Được terminal thật hay không: chỗ dựng engine quyết theo engine Claude nó thay
+        # (`cli_cho_bash`), ở đây chỉ còn rào chót là mức `full`.
+        self.terminal = bool(terminal) and (mode or "full") == "full"
 
     def is_available(self) -> bool:
         return bool(self.api_key or api_key_for(self.provider))
@@ -381,10 +389,19 @@ class _ApiAuxEngine:
 
         tools, route = [], {}
         # `no_tools` (strip_tools): text-only turn on untrusted input, so the hub is never asked for anything.
+        co_terminal = False
+        ctx = None
         if not getattr(self, "no_tools", False):
+            ctx = self._ngu_canh_terminal()
             try:
-                tools, route = await mcp_hub.discover_all(self.javis_mode or "full",
-                                                          vault_root=self.vault_root)
+                if ctx is not None:
+                    tools, route = await mcp_hub.discover_all(
+                        self.javis_mode or "full", vault_root=self.vault_root,
+                        workspace_root=list(ctx.workspace_roots), coding_ctx_cua_phien=ctx)
+                    co_terminal = "javis_terminal" in route
+                else:
+                    tools, route = await mcp_hub.discover_all(self.javis_mode or "full",
+                                                              vault_root=self.vault_root)
             except Exception as e:
                 print(f"[aux discover] {e}", file=sys.stderr)
 
@@ -394,11 +411,22 @@ class _ApiAuxEngine:
         # không được" rồi tự dựng một lý do nghe hợp lý mà sai - hay gặp nhất là đổ cho quyền
         # ("phiên này bị chặn quyền"), khiến chủ đi sửa mức quyền trong khi mức quyền không hề
         # sai. Nói rõ THIẾU GÌ và VÌ SAO thì câu báo về mới dẫn đúng tới việc cần làm.
+        if co_terminal:
+            _may = ("terminal thật (javis_terminal, chạy nền bằng background=true rồi xem bằng "
+                    "javis_process) với thư mục làm việc là brain, nên chạy được ffmpeg, python, "
+                    "script dựng video... như trên máy chủ; ")
+            _thieu = "Bạn KHÔNG có: "
+        else:
+            _may = ""
+            _thieu = ("Bạn KHÔNG có: lệnh máy (Bash/terminal - việc này không chạy ở mức Toàn quyền "
+                      "hoặc đã bị giới hạn công cụ), ")
         sysprompt += (
             "\n\n[Sự thật hệ thống - năng lực của phiên này] Bạn đang chạy bằng engine API "
-            f"'{self.provider}', KHÔNG phải Claude Code. Bạn có: các tool qua MCP Hub của Javis "
+            f"'{self.provider}', KHÔNG phải Claude Code. Bạn có: {_may}tìm và đọc web "
+            "(javis_web_search, javis_web_fetch; chưa thấy trong danh sách thì tìm bằng "
+            "javis_search_tools rồi gọi qua javis_run_tool), các tool qua MCP Hub của Javis "
             "(gồm tool đọc/ghi file trong vault và mọi MCP người dùng đã đấu vào Javis). "
-            "Bạn KHÔNG có: lệnh máy (Bash), tự mở URL (WebFetch/WebSearch), và KHÔNG có các "
+            f"{_thieu}các "
             "connector gắn thẳng vào TÀI KHOẢN Claude - Gmail, Google Drive, Google Calendar "
             "gọi bằng tool native `mcp__<tên>__*` chỉ tồn tại trên engine Claude Code. "
             "Nếu việc được giao cần một trong những thứ đó, hãy nói THẲNG là engine hiện tại "
@@ -466,7 +494,57 @@ class _ApiAuxEngine:
                         return
         finally:
             eng.TEAM_REQUEST_OBSERVER.reset(observer_token)
+            if co_terminal:
+                self._don_terminal(ctx.session_id)
         yield {"type": "final", "content": "".join(buf)}
+
+    @staticmethod
+    def _don_terminal(sid: str) -> None:
+        """Hết lượt: bỏ bộ tool của phiên khỏi cache hub, dọn thư mục trạng thái nếu không còn
+        tiến trình nền nào (tiến trình còn chạy thì vẫn sống tiếp và báo khi xong)."""
+        try:
+            import mcp_hub
+            mcp_hub.bo_cache_phien(sid)
+        except Exception:
+            pass
+        try:
+            import coding_terminal
+            coding_terminal.don_neu_ranh(sid)
+        except Exception:
+            pass
+
+    def _ngu_canh_terminal(self):
+        """Ngữ cảnh làm việc cho terminal của MỘT lượt việc nền, hoặc None khi lượt này không được.
+
+        Thư mục làm việc là brain của việc. Mỗi lượt một mã phiên riêng (`nen-<tag>-<ngẫu nhiên>`)
+        nên thư mục hiện hành, biến môi trường và tiến trình nền của việc này không lẫn sang việc
+        khác. Tiến trình chạy nền xong thì báo về khung chat của chủ nếu lượt biết (turn_context),
+        còn không thì về Javis Core của brain (`main._report_route`, nhánh khung chat không tồn tại)."""
+        if not self.terminal or not self.vault_root:
+            return None
+        try:
+            import uuid
+            from pathlib import Path
+            import coding_ctx
+            import turn_context
+            goc = str(Path(self.vault_root).resolve())
+            if not Path(goc).is_dir():
+                return None
+            nhan = re.sub(r"[^a-z0-9]+", "-", str(self.tag or "aux").lower()).strip("-")[:40] or "aux"
+            sid = f"nen-{nhan}-{uuid.uuid4().hex[:8]}"
+            turn = turn_context.current() or {}
+            chat = str(turn.get("chat_id") or "") if turn.get("la_chu") else ""
+            ctx = coding_ctx.CodingToolContext(session_id=sid, workspace_root=goc, workspace_roots=(goc,),
+                                               permission_mode=coding_ctx.FULL, chat_id=chat)
+            try:
+                import coding_checkpoint
+                coding_checkpoint.luot_moi(sid)
+            except Exception:
+                pass
+            return ctx
+        except Exception as e:
+            print(f"[aux terminal] {type(e).__name__}: {e}", file=sys.stderr)
+            return None
 
     def _ghi_muc_dung(self, ev: dict) -> None:
         """Cộng lượt việc nền này vào sổ mức dùng.
@@ -717,14 +795,28 @@ class _FallbackChain:
         yield {"type": "error", "content": noi}
 
 
+def cli_cho_bash(cli) -> bool:
+    """Engine Claude mà việc nền này đang thay có được chạy Bash không.
+
+    Mọi quyết định an toàn của việc nền (loop bị `_isolate`, task theo năng lực, nhắc hẹn theo
+    mức quyền) đã được tính sẵn thành `allowed_tools` / `disallowed_tools` trên engine Claude.
+    Engine API đọc lại đúng hai thứ đó để quyết có terminal hay không, nên không có đường nào
+    mà đổi bộ não sang API key lại mở ra lệnh máy ở chỗ Claude Code bị chặn."""
+    chan = getattr(cli, "disallowed_tools", None) or []
+    cho = getattr(cli, "allowed_tools", None)
+    return "Bash" not in chan and (cho is None or "Bash" in cho)
+
+
 def _build_api(spec, claude_cli_obj, mode, tag):
+    _mode = mode or getattr(claude_cli_obj, "javis_mode", None) or "full"
     return _ApiAuxEngine(
         provider=spec["provider"],
         model=spec.get("model") or "",
         system_prompt=getattr(claude_cli_obj, "system_prompt", None),
         vault_root=getattr(claude_cli_obj, "javis_vault", None),
-        mode=mode or getattr(claude_cli_obj, "javis_mode", None) or "full",
+        mode=_mode,
         tag=tag or getattr(claude_cli_obj, "tag", "aux"),
+        terminal=_mode == "full" and cli_cho_bash(claude_cli_obj),
     )
 
 
@@ -1019,7 +1111,8 @@ def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_
                 vault_root=getattr(cli, "javis_vault", None),
                 mode=mode or getattr(cli, "javis_mode", None) or "full",
                 tag=tag or getattr(cli, "tag", "aux"), reasoning=level if level in model_routing.LEVELS else "off",
-                api_key=key, account_id=acc)
+                api_key=key, account_id=acc,
+                terminal=(mode or getattr(cli, "javis_mode", None) or "full") == "full" and cli_cho_bash(cli))
             if len(accs) > 1:
                 return [mk(a["key"], a["id"]) for a in accs]
             if accs:
