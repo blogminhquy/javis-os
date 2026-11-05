@@ -3576,7 +3576,6 @@ span.tmp-lead { cursor: default; }
    Công tắc có trên mọi trợ lý (tắt thì xám). Nút ba chấm luôn ở góc trên phải; dòng chữ cuối chừa chỗ cho cụm. */
 .ws-item-wrap.has-end > .ws-item-more { top: 6px; transform: none; }
 .ws-item-wrap.has-end .ws-item-text > :last-child { padding-right: 104px; }
-.ws-item-wrap.has-end.he .ws-item-text > :last-child { padding-right: 44px; }
 .ws-item-end { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 6px;
   pointer-events: none; }
 .ws-item-end > .ws-auto, .ws-item-end > .ws-rs-confirm { pointer-events: auto; position: relative; }
@@ -3672,30 +3671,6 @@ span.tmp-lead { cursor: default; }
 .ws-sys { flex: 0 0 auto; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600; line-height: 1.5;
   color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent); }
 .ws-item-wrap.he > .ws-item { border-left: 3px solid var(--accent); border-radius: 9px; }
-.ws-core-card { padding: 4px 2px 12px; }
-.ws-core-head { display: flex; align-items: center; gap: 10px; }
-.ws-core-head h3 { margin: 0; font-size: 16px; }
-.ws-core-title { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
-.ws-core-title h3 { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.ws-core-title h3 > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-core-rename { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0;
-  border: 0; border-radius: 8px; background: transparent; color: var(--text2); cursor: pointer; flex: 0 0 auto; }
-.ws-core-rename:hover, .ws-core-rename:focus-visible { background: var(--accent-wash-2); color: var(--accent-ink); }
-.ws-core-sysname { color: var(--text2); font-size: 13px; }
-.ws-core-name-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-.ws-core-name-form[hidden] { display: none; }
-.ws-core-name-form input { flex: 1 1 160px; min-width: 0; font-size: 16px; padding: 8px 10px; }
-.ws-core-name-form .ws-err { flex-basis: 100%; }
-.ws-core-card p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.5; }
-.ws-core-card .ws-core-note { color: var(--text2); font-size: 13.5px; }
-/* 0.461.0: the Core card's model row. It reuses the assistant editor's model button and list (.agent-editor rules). */
-.ws-core-model { margin-top: 16px; }
-.ws-core-model > label { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 13.5px; font-weight: 600; }
-.ws-core-model .ag-model-btn { font-size: 14px; }
-.ws-core-model-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; color: var(--text2);
-  font-size: 13.5px; line-height: 1.5; }
-.ws-core-model-sub[hidden] { display: none; }
-.ws-core-model-sub > span:empty { display: none; }
 .ws-item-time { flex: none; font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
 
 /* 0.148.0: tay kéo đổi bề rộng cột (col-resize.js) ở trang đồ thị (cột Vault, cột hội thoại) và trang Trò chuyện (cột

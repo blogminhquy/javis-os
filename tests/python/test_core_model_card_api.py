@@ -90,10 +90,24 @@ cfgmod.update_settings({"model": {"core_provider": "", "core_model": ""}})
 
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("one writer of the Core pin", src.count('{"model": {"core_provider": prov, "core_model": mdl}}') == 1 and
-      src.count("await _set_core_pin(") == 2)
+      src.count("await _set_core_pin(") == 3)
+
+# 2026-11-05: Javis Core's card is the ordinary agent editor; its Model field saves the same pin.
+B = Path(tempfile.mkdtemp(prefix="core-card-brain-"))
+(B / "agents").mkdir()
+r = client.post("/agents", data={"slug": "javis-core", "name": "Javis Core", "role": "r", "prompt": "p",
+                                 "model": "qwen3-32b", "model_provider": "groq", "reasoning": "high", "brain": str(B)})
+check("saving the agent form pins Javis Core", r.status_code == 200 and mcfg().get("core_provider") == "groq"
+      and mcfg().get("core_model") == "qwen3-32b" and mcfg().get("core_reasoning") == "high", (r.text, mcfg()))
+g = client.get("/agents/get", params={"slug": "javis-core", "brain": str(B)}).json()
+check("...and the form reads it back", g.get("model") == "qwen3-32b" and g.get("model_provider") == "groq"
+      and g.get("reasoning") == "high", g)
+client.post("/agents", data={"slug": "javis-core", "name": "Javis Core", "role": "r", "prompt": "p", "model": "",
+                             "model_provider": "", "brain": str(B)})
+check("Default in the form = follow the main model", not mcfg().get("core_provider"), mcfg())
 
 dashes = [chr(0x2014), chr(0x2013)]
-for f in (Path(__file__), ROOT / "dashboard" / "core-model.js"):
+for f in (Path(__file__),):
     check(f"no em or en dash in {f.name}", not any(d in f.read_text(encoding="utf-8") for d in dashes))
 
 print()

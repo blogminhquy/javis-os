@@ -155,6 +155,11 @@
   // Auto is on right now. Same leading-space trick as TAG_NONE, so it never clashes with a real tag.
   var TAG_AUTO = " auto";
   function autoBat(rs, slug) { var r = rs && rs[slug]; return !!(r && r.enabled && r.status === "active"); }
+  // Javis Core's Auto is always on (owner, 05/11/2026): its row shows the switch on even before the server's list is in.
+  function coreAutoRow(x) {
+    var r = S.rs[x.slug] || {};
+    return { slug: x.slug, name: x.name, enabled: true, status: "active", goals_open: r.goals_open || 0 };
+  }
   // A pseudo filter (not a real tag): "untagged" or "Auto on". Real tags go through the tag-key path.
   function laLocGia(v) { return v === TAG_NONE || v === TAG_AUTO; }
   function tagsCua(x) {
@@ -1137,8 +1142,10 @@
       // công tắc Auto đứng chung một cụm nhỏ ở góc dưới phải của thẻ. Công tắc có trên MỌI trợ lý, tắt thì màu xám.
       // Cụm nằm ngoài nút chọn mục (không lồng nút trong nút); CSS đặt nó BÊN TRONG thẻ.
       (laAgent ? '<div class="ws-item-end">' + gioNhanHtml(x.last_chat_at) + tinHtml(x) +
-        (!he && window.JavisResonanceAgent
-          ? window.JavisResonanceAgent.rowToggleHtml(S.rs[x.slug], { saving: !!S.rsSaving[x.slug] }) : "") + '</div>' : "") +
+        // 2026-11-05 (owner): Javis Core shows the same switch, always on and locked.
+        (window.JavisResonanceAgent
+          ? window.JavisResonanceAgent.rowToggleHtml(he ? coreAutoRow(x) : S.rs[x.slug],
+              { saving: !he && !!S.rsSaving[x.slug], locked: he }) : "") + '</div>' : "") +
       (he ? "" : '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
         esc(t("ws.manage")) + '" aria-label="' + esc(t("ws.manage")) + '">' + ic("ellipsis-vertical") + '</button>') +
       '</div>';
@@ -1790,31 +1797,6 @@
     if (input) input.focus();
   }
 
-  // Rename Javis Core in this brain (owner, 04/11/2026). Empty = "Javis Core" again. After saving, the list, the
-  // chat header and this card are drawn again from GET /agents, so every place shows the same name.
-  function ganDoiTenCore(host, item) {
-    var form = host.querySelector("#wsCoreNameForm"), inp = host.querySelector("#wsCoreNameInp");
-    var btn = host.querySelector("#wsCoreRename"), err = host.querySelector("#wsCoreNameErr");
-    if (!form || !inp || !btn) return;
-    btn.onclick = function () {
-      form.hidden = !form.hidden;
-      if (!form.hidden) { inp.value = item.custom_name || ""; err.hidden = true; inp.focus(); inp.select(); }
-    };
-    host.querySelector("#wsCoreNameCancel").onclick = function () { form.hidden = true; };
-    inp.onkeydown = function (e) { if (e.key === "Escape") { form.hidden = true; e.stopPropagation(); } };
-    form.onsubmit = async function (e) {
-      e.preventDefault();
-      var d = null;
-      try { d = await api("/javis-core/name", { method: "POST", body: fd({ name: inp.value.trim(), brain: brain() }) }); }
-      catch (er) { d = null; }
-      if (!d || !d.ok) { err.textContent = (d && d.error) || t("ws.core_rename_err"); err.hidden = false; return; }
-      form.hidden = true;
-      try { await taiDanhSach(); } catch (er) { return; }
-      if (!active || S.loai !== "agent") return;
-      veDanhSach(); veGiua(dangChon()); vePhai(dangChon());
-    };
-  }
-
   // Javis Core may have saved a new name in the turn that just ended (`javis_core_name`): read it back so the list,
   // the chat header and the card show it without a reload (owner, 04/11/2026).
   async function docLaiTenCore(ag) {
@@ -1838,37 +1820,15 @@
     // khỏi phải nhớ chỗ nào được phép ghi đè chỗ nào không.
     traCayThuMuc();
     if (!item) { host.innerHTML = ""; veLichSu(null); chonTabPhai(tabTheoLoai()); return; }
-    if (S.loai === "agent" && item.system) {
-      // Javis Core (0.185.0): no editor, no Delete, no Auto. The definition ships with the app.
-      // 0.461.0 (owner, 04/11/2026): the card names the model Core runs on and can pin it (core-model.js), the same pin
-      // as the model bar of a Core chat.
-      // Owner, 04/11/2026: the person can give Javis Core its own name (pencil next to it), the same name Javis Core
-      // saves when they pick one in chat (`javis_core_name`). "Javis Core" stays as the small system label.
-      host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<div class="ws-core-title">' +
-        '<h3><span id="wsCoreNameTxt">' + esc(item.name) + '</span>' +
-        '<button type="button" class="ws-core-rename" id="wsCoreRename" title="' + esc(t("ws.core_rename")) +
-        '" aria-label="' + esc(t("ws.core_rename")) + '">' + ic("pencil") + '</button>' + infoBtn() + '</h3>' +
-        (item.custom_name ? '<small class="ws-core-sysname">' + esc(item.system_name || "Javis Core") + '</small>' : "") +
-        '</div><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div>' +
-        '<form class="ws-core-name-form" id="wsCoreNameForm" hidden>' +
-        '<input type="text" id="wsCoreNameInp" maxlength="40" autocomplete="off" placeholder="' + esc(item.system_name || "Javis Core") +
-        '" aria-label="' + esc(t("ws.core_rename")) + '">' +
-        '<button type="submit" class="ws-btn primary">' + esc(t("common.save")) + '</button>' +
-        '<button type="button" class="ws-btn" id="wsCoreNameCancel">' + esc(t("common.cancel")) + '</button>' +
-        '<small class="ws-err" id="wsCoreNameErr" hidden></small></form>' +
-        '<p>' + esc(item.role || "") + '</p>' +
-        infoBody(esc(t("ws.core_note")) + " " + esc(t("ws.core_name_note"))) + '<div id="wsCoreModel"></div></div>';
-      if (window.JavisCoreModel) window.JavisCoreModel.mount(host.querySelector("#wsCoreModel"));
-      ganDoiTenCore(host, item);
-      // 0.190.0 (owner, 16/10/2026): no memory list here any more. Javis already learns from the brain; seeing, editing
-      // or forgetting a memory is a chat message ("quên chuyện đó đi"), done with the javis_memory tool.
-    } else if (S.loai === "agent") {
+    if (S.loai === "agent") {
       // 0.190.0 (owner, 16/10/2026: "tối giản nhất, người ta không cần hiểu gì về cài đặt cũng dùng được"): the column
       // opens on what every assistant app has (picture, name, role, instructions, documents, skills, model). The Auto
       // block sits below and shows only while Auto is on (veAuto); lessons are handled in chat (javis_memory).
+      // 2026-11-05 (owner): Javis Core opens this same form, picture, name, role, instructions, documents, skills,
+      // model. Being the system assistant only drops Export and Delete; its Auto stays on (veAuto).
       host.innerHTML = '<div class="ws-form" id="wsAgentForm"></div><div class="ws-auto-block" id="wsAuto"></div>' +
-        '<div class="ws-acts"><button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
-        '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>';
+        (item.system ? "" : '<div class="ws-acts"><button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
+        '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>');
       // MƯỢN chính trình sửa agent của Studio (studio.js), không dựng bản thứ hai: chọn model,
       // chọn skill, nhóm... đã nằm ở đó, chép lại là hai bản trôi lệch nhau ngay lần sửa đầu.
       if (window.JavisStudio && window.JavisStudio.editAgent) {
@@ -1876,12 +1836,14 @@
           onSaved: async function () { await sauLuu(item, "agent"); } });
       }
       veAuto(item);
-      host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("agent", item.slug); };
-      host.querySelector("#wsDel").onclick = async function () {
-        if (!confirm(t("studio.del_ag", { ten: item.name }))) return;
-        await api("/agents/delete", { method: "POST", body: fd({ slug: item.slug, brain: brain() }) });
-        S.chon.agent = null; await taiDanhSach(); veTrai(); chonMacDinh();
-      };
+      if (!item.system) {
+        host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("agent", item.slug); };
+        host.querySelector("#wsDel").onclick = async function () {
+          if (!confirm(t("studio.del_ag", { ten: item.name }))) return;
+          await api("/agents/delete", { method: "POST", body: fd({ slug: item.slug, brain: brain() }) });
+          S.chon.agent = null; await taiDanhSach(); veTrai(); chonMacDinh();
+        };
+      }
     } else {
       var td = tienDoHienTai(item);
       // A long description shows two lines; the full text sits behind the (i) on the title.
@@ -1914,15 +1876,15 @@
   // show, so the column stays the plain settings form.
   function veAuto(item) {
     var box = S.el && S.el.querySelector("#wsAuto");
-    if (!box || !item || item.system) return;
-    if (!window.JavisResonanceAgent || !autoBat(S.rs, item.slug)) { box.innerHTML = ""; return; }
+    if (!box || !item) return;
+    if (!window.JavisResonanceAgent || !(item.system || autoBat(S.rs, item.slug))) { box.innerHTML = ""; return; }
     if (box.querySelector("#wsResonance")) return;
     box.innerHTML = '<div class="rsa-panel" id="wsResonance"></div><div class="rsa-panel pulse-panel" id="wsPulse"></div>';
     ganCongHuong(item);
   }
   function ganCongHuong(item, sid) {
     var host = S.el && S.el.querySelector("#wsResonance");
-    if (!host || !window.JavisResonanceAgent || !item || item.system) return;
+    if (!host || !window.JavisResonanceAgent || !item) return;
     window.JavisResonanceAgent.mount(host, { slug: item.slug,
       sessionId: sid || (window.JavisSessions && window.JavisSessions.current && window.JavisSessions.current()) || "",
       onNewSession: function () { var x = dangChon(); return x ? moPhien(x, true) : false; } });

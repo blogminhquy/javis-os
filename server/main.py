@@ -911,10 +911,14 @@ def _javis_core_block(session_id: str) -> str:
     if not (row and javis_core.is_core_channel(row.get("channel"))):
         return ""
     try:
-        root = _brain_root(str(row.get("brain") or "brain"))
-    except Exception:  # noqa: BLE001 - no brain path only means no name lines
-        root = None
-    return javis_core.prompt_block(root)
+        brain = str(row.get("brain") or "brain")
+        root = _brain_root(brain)
+        block = javis_core.prompt_block(root)
+        # 2026-11-05: documents attached on its card ride along, the same block an agent gets.
+        return block + _agent_assets_block(brain, javis_core.read_core(root)[0])
+    except Exception as e:  # noqa: BLE001 - a broken brain file must not break the turn
+        print(f"[javis core block] {type(e).__name__}: {e}", file=sys.stderr)
+        return javis_core.prompt_block()
 
 
 # Stable prompt (0.445.0, #975): the clock line points at the per-message header instead of holding the time.
@@ -2326,6 +2330,11 @@ def _resonance_turn_agent(conv_sid, brain, get_session):
     try:
         session_row = get_session(conv_sid) or {}
         persona = workflow_chat.persona_cua_phien(session_row)
+        if javis_core.is_core_channel(session_row.get("channel")):
+            # 2026-11-05: Javis Core has Auto always on, so its chats carry its Resonance identity like an agent's.
+            persona = ("agent", javis_core.SLUG)
+            javis_core.ensure_file(_brain_root(brain))
+            _core_auto_on(brain)
         if not persona or persona[0] != "agent":
             return None
         if _brain_key(session_row.get("brain")) != _brain_key(brain):
@@ -2571,10 +2580,29 @@ def _resonance_agents_meta(root):
     return out
 
 
+def _resonance_agents_meta_core(root):
+    """The Auto page's list: Javis Core first (Auto always on, owner 05/11/2026), then the brain's agents. Teams keep
+    `_resonance_agents_meta`, without Javis Core."""
+    try:
+        main_prov = _chat_provider(cfgmod.read_settings().get("model", {}) or {})[0]
+    except Exception:  # noqa: BLE001
+        main_prov = ""
+    out = []
+    try:
+        _cm = javis_core.read_core(root)[0]
+        _cp = _core_pin(cfgmod.read_settings().get("model", {}) or {})
+        out.append({"slug": javis_core.SLUG, "name": _cm.get("name") or javis_core.NAME,
+                    "provider": _cp.get("provider") or main_prov, "avatar": agent_avatar.for_agent(_cm, javis_core.SLUG),
+                    "title": str(_cm.get("role") or "")[:120], "system": True})
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance meta core] {type(e).__name__}: {e}", file=sys.stderr)
+    return out + _resonance_agents_meta(root)
+
+
 _RESONANCE_API_DEPS = resonance_api.ResonanceApiDeps(
     store=lambda: _resonance_store(), brain_key=lambda b: _brain_key(b),
     engine_factory=lambda s, t="resonance": _resonance_engine(s, t), session_store=lambda: get_store(),
-    agents_meta=_resonance_agents_meta, agent_file=lambda root, slug: _agent_md_path(root, slug),
+    agents_meta=_resonance_agents_meta_core, agent_file=lambda root, slug: _agent_md_path(root, slug),
     broadcast=lambda ev: _CHAT_RUNTIME.publish(ev))
 resonance_api.register(app, _RESONANCE_API_DEPS)
 _RESONANCE_TICK_BUSY = [False]
@@ -7991,6 +8019,7 @@ def _agents_dir(brain):
     return _brain_sub(_brain_root(brain), "agents", "Javis/agents")
 def _workflows_dir(brain):
     return _brain_sub(_brain_root(brain), "workflows", "Javis/workflows")
+javis_core.AGENTS_DIR = _agents_dir   # Javis Core's own agent file lives where the brain keeps its agents
 
 def _agent_memory(brain, slug):
     f = _brain_memory_dir(brain) / "agents" / slug / "MEMORY.md"
@@ -8153,20 +8182,50 @@ def _javis_core_entry(brain: str) -> dict:
         moc = get_store().moc_cap_nhat_theo_kenh(_brain_keys(brain), "agent:")
     except Exception:
         moc = {}
-    e = javis_core.list_entry(moc.get(javis_core.CHANNEL, 0), root=_brain_root(brain))
-    e["role"] = localefmt.chu(javis_core.definition()["role"], javis_core.definition()["role_en"])
-    e["avatar"] = agent_avatar.for_agent({}, javis_core.SLUG)   # the same stable face in every brain
+    root = _brain_root(brain)
+    e = javis_core.list_entry(moc.get(javis_core.CHANNEL, 0), root=root)
+    meta = javis_core.read_core(root)[0]
+    e["role"] = javis_core.role_text(meta, localefmt.chu)
+    e["avatar"] = agent_avatar.for_agent(meta, javis_core.SLUG)   # the face picked on its card, else the stable one
+    # 2026-11-05: the agent editor shows Javis Core's model (its pin, empty = the main model) and its own level.
+    mcfg = cfgmod.read_settings().get("model", {})
+    pin = _core_pin(mcfg)
+    e["model"], e["model_provider"] = pin.get("model") or "", pin.get("provider") or ""
+    e["reasoning"] = _core_reasoning(mcfg)
+    _core_auto_on(brain)
     return e
 
 
+_CORE_AUTO_DONE: set = set()
+
+
+def _core_auto_on(brain: str) -> None:
+    """Auto (Resonance) is always on for Javis Core (owner, 05/11/2026): register it and switch it on, once per brain
+    per process. A missing entry needs nothing from the owner: the brain's Javis Core file is made right here."""
+    try:
+        bkey = _brain_key(brain)
+        if not bkey or bkey in _CORE_AUTO_DONE:
+            return
+        javis_core.ensure_file(_brain_root(brain))
+        rs = _resonance_store()
+        owner = resonance_store.Principal("owner", "owner", bkey)
+        live = rs.agent(bkey, javis_core.SLUG)
+        if live is None or not live.get("enabled"):
+            if live is not None and live.get("status") == "missing":
+                rs.agent_confirm(owner, live["agent_key"], True)
+            rs.agent_set_enabled(owner, javis_core.SLUG, True)
+        _CORE_AUTO_DONE.add(bkey)
+    except Exception as e:  # noqa: BLE001 - never fail the Partners page over this
+        print(f"[javis core auto] {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def _core_refusal() -> JSONResponse:
-    """The one answer to every attempt to delete, unpin, edit or reuse Javis Core through the agent routes. Its name
-    changes through POST /javis-core/name and the `javis_core_name` chat tool only (owner, 04/11/2026)."""
+    """The one answer to deleting, unpinning or re-tagging Javis Core, or creating a new agent on its slug. Everything
+    else (picture, name, role, instructions, documents, skills, model) is edited like any agent (owner, 05/11/2026)."""
     return JSONResponse({"ok": False, "code": "system_assistant", "error": localefmt.chu(
-        "Javis Core là trợ lý hệ thống: không xoá, bỏ ghim hay sửa được. Đổi tên và chọn model vẫn được, ngay trên thẻ "
-        "của nó hoặc bằng lời trong chat.",
-        "Javis Core is the system assistant: it cannot be deleted, unpinned or edited. Renaming it and choosing its "
-        "model still work, on its card or by asking in chat.")}, status_code=403)
+        "Javis Core là trợ lý hệ thống: không xoá hay bỏ ghim được. Mọi thứ khác sửa như một trợ lý thường.",
+        "Javis Core is the system assistant: it cannot be deleted or unpinned. Everything else is edited like any "
+        "other assistant.")}, status_code=403)
 
 
 @app.post("/javis-core/session")
@@ -8192,20 +8251,6 @@ async def javis_core_model_set(provider: str = Form(""), model: str = Form("")):
                                                                  f"provider does not exist: {prov}")}, status_code=400)
     await _set_core_pin(prov, model)
     return {"ok": True, **_core_model_view(cfgmod.read_settings().get("model", {}))}
-
-
-@app.post("/javis-core/name")
-async def javis_core_name_set(name: str = Form(""), brain: str = Form("brain")):
-    """Rename Javis Core in one brain from its card on the Partners page (owner, 04/11/2026). Empty = "Javis Core"
-    again. Same file the `javis_core_name` chat tool writes, so the card and the chat never disagree."""
-    root = _brain_root(brain)
-    try:
-        me = await asyncio.to_thread(javis_core.set_identity, root, name=name)
-    except (OSError, ValueError) as e:
-        print(f"[javis core name] {type(e).__name__}: {e}", file=sys.stderr)
-        return JSONResponse({"ok": False, "error": localefmt.chu("Không lưu được tên mới.", "Could not save the new name.")},
-                            status_code=500)
-    return {"ok": True, "name": me["name"] or javis_core.NAME, "custom_name": me["name"]}
 
 
 def _brain_ui_value(brain_key: str) -> str:
@@ -8237,7 +8282,10 @@ def agent_get(slug: str = Query(...), brain: str = Query("brain")):
     vào đường dẫn là đọc được file ngoài thư mục agents.
     """
     if javis_core.is_core_slug(slug):
-        return {**_javis_core_entry(brain), "prompt": javis_core.definition()["body"]}
+        _cm, _cb = javis_core.read_core(_brain_root(brain))
+        e = _javis_core_entry(brain)
+        # The editor gets the role as stored (saving it unchanged must not swap in the translated line).
+        return {**e, "role": str(_cm.get("role") or e["role"]), "prompt": _cb}
     path = _agent_md_path(brain, slug)
     if not path:
         return JSONResponse({"error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")}, status_code=404)
@@ -8264,8 +8312,18 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     # KHÔNG ghi đè agent cũ (trước đây ghi đè âm thầm tên, vai, lời nhắc của người khác); trả 409 kèm gợi ý slug trống.
     creating = not (slug or "").strip()
     slug = slug or _ascii_slug(name)
-    if javis_core.is_core_slug(slug):
-        return _core_refusal()
+    core = javis_core.is_core_slug(slug)
+    if core and creating:
+        return _core_refusal()   # a new agent can never take the system assistant's slug
+    if core:
+        # 2026-11-05 (owner): Javis Core is edited with the same form as any agent. Its file is made first, its model
+        # is Javis Core's pin (the same one as the model chip of its chat) and its level is its own, both in settings.
+        javis_core.ensure_file(_brain_root(brain))
+        mp_core = (model_provider or "").strip()
+        await _set_core_pin(mp_core if (mp_core and (model or "").strip() and _provider_def(mp_core)) else "", model)
+        if isinstance(reasoning, str) and reasoning in engine.REASONING_LEVELS:
+            await asyncio.to_thread(cfgmod.update_settings, {"model": {"core_reasoning": reasoning}})
+        model, model_provider, reasoning = "", "", None
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
     # `model_provider` nói RÕ model thuộc nhà nào - cùng một tên model có thể có ở hai nhà
     # (gemini-2.5-pro: Gemini CLI lẫn Gemini API; claude-*: Claude Code lẫn Anthropic API).
@@ -8323,6 +8381,8 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                          "skills": skills_list, "model": model, "avatar": avatar,
                          "model_provider": mp if mp in AGENT_PROVIDERS else "",
                          "updated": _today()})  # "" = mặc định theo CLI
+            if core:
+                meta["system"] = True   # still the system assistant after any edit
             agent_tags.write_tags(meta, hien)
             _write_md(path, meta, (prompt.strip() or role))
             return {"ok": True, "slug": slug, "tags": hien}
@@ -8394,10 +8454,9 @@ def _agent_file(brain: str, slug: str):
     dạng tách dấu (NFD), còn slug tới từ trình duyệt là dạng dựng sẵn (NFC), hai chuỗi trông y hệt mà
     so khác nhau."""
     import unicodedata
-    # Javis Core's slug is reserved for the platform definition: a stray `agents/javis-core.md` in a brain
-    # (hand-written, imported, written by a model) is never read, edited or deleted as a brain agent.
+    # Javis Core (2026-11-05): a real file in every brain, made from the platform definition when missing.
     if javis_core.is_core_slug(slug):
-        return None
+        return javis_core.ensure_file(_brain_root(brain))
     d = _agents_dir(brain)
     for dang in dict.fromkeys((slug, unicodedata.normalize("NFC", slug), unicodedata.normalize("NFD", slug))):
         f = d / f"{dang}.md"
@@ -28830,12 +28889,7 @@ async def agent_jobs_list(slug: str, brain: str = "brain", source: str = "all", 
     """Việc của một trợ lý, đọc thẳng bản ghi gốc (không sao chép): việc nhóm (kể cả bước con, hỗ trợ), việc từ chat
     riêng, mục tiêu Auto. Lọc theo nguồn và ngăn, phân trang bằng `cursor`. Chỉ đọc, không tạo gì."""
     root = _brain_key(brain)
-    if slug == javis_core.SLUG:
-        # 0.191.0 (owner, 16/10/2026): Javis Core has no agent file, no team seat and no Auto, so it has no jobs of its
-        # own. The tab must say "no jobs yet", not "could not load jobs".
-        return {"ok": True, "jobs": [], "counts": {"running": 0, "waiting": 0, "needs_you": 0, "done": 0},
-                "source_counts": {"team": 0, "chat": 0, "auto": 0}, "total": 0, "next": None,
-                "counts_partial": {"done": False}, "errors": [], "at": time.time(), "teams": [], "agent_key": ""}
+    # 2026-11-05: Javis Core has its own file and Auto now, so its Jobs tab lists its work like any agent's.
     if not _agent_md_path(root, slug):
         return JSONResponse({"ok": False, "error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")},
                             status_code=404)

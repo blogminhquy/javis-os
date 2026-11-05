@@ -7,7 +7,7 @@ No network, no model.
 - identity(): empty by default; set_identity() cleans the name (one line, no long dashes, 40 characters) and saves it
   in <brain>/Javis/core.json, one file per brain.
 - The role block: no name and never asked = ask once and call op=asked; asked = no asking again; a name = speak as it.
-- POST /javis-core/name renames it for that brain only; GET /agents?system=1 shows the name, keeps the slug.
+- The agent editor (POST /agents) renames it for that brain only; GET /agents?system=1 shows the name, keeps the slug.
 - The chat tool `javis_core_name` (bundled plugin) writes the same file, owner only.
 - The agent routes still refuse to delete or edit Javis Core, and no longer say it cannot be renamed.
 """
@@ -43,7 +43,8 @@ check("...so it is still called Javis Core", javis_core.display_name(A) == "Javi
 me = javis_core.set_identity(A, name="  Mây " + chr(0x2014) + " bé\n xinh  ")
 check("the name is cleaned: one line, no long dash, spaces collapsed", me["name"] == "Mây bé xinh", me)
 check("a name counts as asked", me["asked"] is True)
-check("saved in the brain's Javis folder", (A / "Javis" / "core.json").is_file())
+check("saved as the name in the brain's own Javis Core agent file",
+      javis_core._read_file(A / "agents" / "javis-core.md")[0].get("name") == "Mây bé xinh")
 check("another brain keeps its own (none)", javis_core.identity(B)["name"] == "")
 check("40 characters at most", len(javis_core.set_identity(B, name="x" * 99)["name"]) == 40)
 javis_core.set_identity(B, name="")
@@ -79,11 +80,15 @@ if os.environ["JAVIS_STATE_DIR"] not in str(cfgmod.STATE_DIR):
     sys.exit(1)
 
 client = TestClient(main.app, base_url="http://127.0.0.1:8080")
+
+
+def localefmt_en(resp):
+    """The same refusal in English, whatever language the server picked for this request."""
+    return "edited like any" if "sửa như một trợ lý thường" in resp.json().get("error", "") else ""
 D = Path(tempfile.mkdtemp(prefix="core-name-d-"))
 (D / "agents").mkdir()
-r = client.post("/javis-core/name", data={"name": "Sky", "brain": str(D)})
-check("POST /javis-core/name renames it", r.status_code == 200 and r.json().get("name") == "Sky", r.text)
-check("...in that brain's file", javis_core.identity(D)["name"] == "Sky")
+r = client.post("/agents", data={"slug": "javis-core", "name": "Sky", "role": "", "prompt": "x", "brain": str(D)})
+check("the agent editor renames it", r.status_code == 200 and javis_core.identity(D)["name"] == "Sky", r.text)
 ds = client.get("/agents", params={"brain": str(D), "prompt": 0, "system": 1}).json()["agents"]
 core = ds[0]
 check("the Partners list shows the new name, same slug and system flags",
@@ -91,12 +96,13 @@ check("the Partners list shows the new name, same slug and system flags",
       and core["system_name"] == "Javis Core" and core["system"] is True, core)
 sid = main.get_store().create_session(brain=main._brain_key(str(D)), channel=javis_core.CHANNEL)
 check("a Core chat of that brain is told its name", "**Sky**" in main._javis_core_block(sid))
-r = client.post("/javis-core/name", data={"name": "", "brain": str(D)})
-check("an empty name goes back to Javis Core", r.json().get("name") == "Javis Core" and r.json().get("custom_name") == "")
+javis_core.set_identity(D, name="")
+check("an empty name goes back to Javis Core", javis_core.display_name(D) == "Javis Core"
+      and client.get("/agents", params={"brain": str(D), "prompt": 0, "system": 1}).json()["agents"][0]["custom_name"] == "")
 r = client.post("/agents/delete", data={"slug": "javis-core", "brain": str(D)})
 check("deleting it is still refused", r.status_code == 403)
-check("...and the refusal no longer says it cannot be renamed", "renamed" not in r.json().get("error", "")
-      and "đổi tên," not in r.json().get("error", ""), r.text)
+check("...and the refusal no longer says it cannot be renamed or edited", "renamed" not in r.json().get("error", "")
+      and "edited like any" in r.json().get("error", "") + localefmt_en(r), r.text)
 
 # ---- 4. the chat tool ----
 check("the tool is the owner's only (a customer bot never renames the owner's assistant)",
@@ -137,20 +143,10 @@ check("op=reset goes back to Javis Core", javis_core.identity(ctx.vault_root)["n
 check("no brain: refused, nothing written", run({"op": "set", "name": "X"}, type("C", (), {"vault_root": ""})()).startswith("ERROR"))
 
 # ---- 5. the card ----
-ws = (ROOT / "dashboard/workspace.js").read_text(encoding="utf-8")
-check("the Core card has a rename button that saves through the endpoint",
-      'id="wsCoreRename"' in ws and '"/javis-core/name"' in ws and "ganDoiTenCore(host, item)" in ws)
-import json  # noqa: E402
-vi = json.loads((ROOT / "dashboard/i18n/vi.json").read_text(encoding="utf-8"))
-en = json.loads((ROOT / "dashboard/i18n/en.json").read_text(encoding="utf-8"))
-keys = ("ws.core_rename", "ws.core_rename_err", "ws.core_name_note")
-check("i18n vi/en", all(vi.get(k) and en.get(k) for k in keys))
-
 dashes = [chr(0x2014), chr(0x2013)]
 for f in (Path(__file__), ROOT / "system/plugins/javis-core-name/plugin.py", ROOT / "system/plugins/javis-core-name/plugin.yaml",
           ROOT / "server/javis_core.py", ROOT / "system/agents/javis-core.md"):
     check(f"no em or en dash in {f.name}", not any(d in f.read_text(encoding="utf-8") for d in dashes))
-check("no em or en dash in the new screen text", not any(d in vi[k] + en[k] for k in keys for d in dashes))
 
 print()
 if fails:

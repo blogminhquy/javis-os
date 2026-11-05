@@ -81,24 +81,31 @@ def definition() -> Dict[str, str]:
 
 
 def prompt_block(root: Any = None) -> str:
-    """The role block added to a Javis Core turn. Empty when the definition file is missing. With `root` (the brain the
-    turn runs in) it ends with the name and style the person gave Javis Core there (owner, 04/11/2026)."""
-    body = definition()["body"]
+    """The role block added to a Javis Core turn. With `root` (the brain the turn runs in) the instructions, name and
+    skills come from that brain's Javis Core file (owner, 05/11/2026), else from the platform definition. Empty when
+    there are no instructions at all."""
+    if not root:
+        body = definition()["body"]
+        return f"\n\n# === {BLOCK_TITLE} ===\n{body}" if body else ""
+    meta, body = read_core(root)
     if not body:
         return ""
-    return f"\n\n# === {BLOCK_TITLE} ===\n{body}" + (identity_block(root) if root else "")
+    sk = [str(x) for x in (meta.get("skills") or []) if str(x).strip()]
+    extra = f"\n\nSkill bạn được giao dùng trước: {', '.join(sk)}." if sk else ""
+    return f"\n\n# === {BLOCK_TITLE} ===\n{body}{extra}" + identity_block(root)
 
 
 def list_entry(last_chat_at: float = 0.0, root: Any = None) -> Dict[str, Any]:
-    """The row GET /agents puts first. Same shape as a brain agent, plus the system flags. The caller picks the role
-    text for the screen language (`localefmt.chu(role, role_en)`). `name` is the one the person gave it in the brain at
-    `root` (owner, 04/11/2026), `system_name` always "Javis Core"."""
+    """The row GET /agents puts first. Same shape as a brain agent, plus the system flags. With `root` the name, role,
+    skills and avatar come from that brain's Javis Core file. The caller picks the role text for the screen language
+    (`role_text`). `system_name` is always "Javis Core"."""
     d = definition()
+    meta = read_core(root)[0] if root else {}
     me = identity(root) if root else {"name": "", "style": ""}
     return {
         "slug": SLUG, "name": me["name"] or NAME, "system_name": NAME, "custom_name": me["name"], "style": me["style"],
-        "role": d["role"], "skills": [], "model": "", "model_provider": "",
-        "tags": [], "tag_keys": [], "group": "", "pinned": True,
+        "role": str(meta.get("role") or d["role"]), "skills": list(meta.get("skills") or []), "model": "",
+        "model_provider": "", "tags": [], "tag_keys": [], "group": "", "pinned": True,
         "avatar": {},
         "system": True, "protected": True,
         "last_chat_at": float(last_chat_at or 0),
@@ -158,17 +165,115 @@ def current_default(brain_key: str) -> str:
     return _read_map().get(str(brain_key or ""), "")
 
 
-# ── the name and style the owner gives Javis Core in one brain (owner, 04/11/2026) ─────────────────────────────────────────
+# ── Javis Core as a brain agent file (owner, 05/11/2026) ──────────────────────────────────────────────────────────
 #
-# Owner, 04/11/2026: people want to make Javis Core their own. On the first chat it asks what to call it, keeps the
-# style the person likes, and the name shows on the Partners page. Kept per brain in `<brain>/Javis/core.json`, next to
-# the brain's other Javis files, so it moves with the brain and every brain (often another person) has its own.
-# The slug, the channel and the platform definition never change: only what Javis Core is called and how it talks.
+# Owner, 05/11/2026: "keep Javis Core exactly like the other agents; it is only the system one you cannot remove, it
+# starts with the system prompt I wrote, and Auto is on and cannot be turned off. Picture, name, skills and documents
+# change like any agent." So each brain gets a real `agents/javis-core.md`, seeded from the platform definition and
+# edited with the same agent editor. Its turns stay full Javis turns (CLAUDE.md, memory, every tool); only the role
+# block below them comes from this file.
+#
+# While the body is still the seeded one (`seed_sha` matches), an app update of the definition reaches it. Once the
+# owner edits the instructions, the file is theirs and updates leave it alone.
+# The name lives in the file (`name`). The agreed style and whether the name was asked live in `Javis/core.json`.
 
 IDENTITY_REL = Path("Javis") / "core.json"
 _LONG_DASHES = (chr(0x2014), chr(0x2013))   # the owner bans both, everywhere
 NAME_MAX = 40
 STYLE_MAX = 300
+
+
+# The brain's agents folder. The server points this at its own `_agents_dir` (an older brain may still keep its agents
+# in `Javis/agents`, and creating `agents/` next to it would hide them).
+AGENTS_DIR: Callable[[Any], Path] = lambda root: Path(str(root)) / "agents"
+
+
+def core_path(root: Any) -> Optional[Path]:
+    return Path(AGENTS_DIR(root)) / f"{SLUG}.md" if str(root or "").strip() else None
+
+
+def _sha(text: Any) -> str:
+    import hashlib
+    return hashlib.sha256(str(text or "").strip().encode("utf-8")).hexdigest()[:16]
+
+
+def _read_file(path: Path):
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}, ""
+    parts = fastyaml.split_frontmatter(text)
+    if not parts:
+        return {}, text.strip()
+    try:
+        meta = fastyaml.safe_load(parts[0]) or {}
+    except Exception:  # noqa: BLE001
+        meta = {}
+    return (meta if isinstance(meta, dict) else {}), parts[1].strip()
+
+
+def _write_file(path: Path, meta: Dict[str, Any], body: str) -> None:
+    import yaml
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fm = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False).strip()
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(f"---\n{fm}\n---\n\n{body}\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _legacy_name(root: Any) -> str:
+    """A name saved by 0.470.0 in `Javis/core.json`, moved into the file once."""
+    path = _identity_path(root)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path else {}
+    except (OSError, ValueError):
+        return ""
+    return clean_name((data or {}).get("name")) if isinstance(data, dict) else ""
+
+
+def ensure_file(root: Any) -> Optional[Path]:
+    """The brain's `agents/javis-core.md`, made from the platform definition when missing. A body still equal to the
+    seeded one follows an updated definition. `system: true` is always set. None without a brain."""
+    path = core_path(root)
+    if path is None:
+        return None
+    with _lock:
+        d = definition()
+        if path.is_file():
+            meta, body = _read_file(path)
+            changed = False
+            seed = str(meta.get("seed_sha") or "")
+            if d["body"] and seed and _sha(body) == seed and _sha(d["body"]) != seed:
+                body, meta["seed_sha"], changed = d["body"], _sha(d["body"]), True
+            if meta.get("system") is not True or meta.get("slug") != SLUG or meta.get("type") != "agent":
+                meta.update({"type": "agent", "slug": SLUG, "system": True})
+                changed = True
+            if not str(meta.get("name") or "").strip():
+                meta["name"], changed = NAME, True
+            if changed:
+                _write_file(path, meta, body or d["body"])
+            return path
+        from datetime import date
+        meta = {"type": "agent", "name": _legacy_name(root) or NAME, "slug": SLUG, "role": d["role"],
+                "skills": [], "system": True, "seed_sha": _sha(d["body"]), "updated": date.today().strftime("%Y-%m-%d")}
+        _write_file(path, meta, d["body"])
+        return path
+
+
+def read_core(root: Any):
+    """(meta, body) of the brain's Javis Core file, made when missing. ({}, definition body) without a brain."""
+    path = ensure_file(root)
+    if path is None:
+        return {}, definition()["body"]
+    meta, body = _read_file(path)
+    return meta, body or definition()["body"]
+
+
+def role_text(meta: Dict[str, Any], lang_pick: Callable[[str, str], str]) -> str:
+    """The role line to show: the definition's own text in the screen language while untouched, else the owner's."""
+    d = definition()
+    role = str((meta or {}).get("role") or "")
+    return lang_pick(d["role"], d["role_en"]) if (not role or role == d["role"]) else role
 
 
 def _identity_path(root: Any) -> Optional[Path]:
@@ -187,42 +292,54 @@ def clean_style(raw: Any) -> str:
     return " ".join(s.split())[:STYLE_MAX].strip()
 
 
+def _read_extra(root: Any) -> Dict[str, Any]:
+    path = _identity_path(root)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path else {}
+    except (OSError, ValueError):
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
 def identity(root: Any) -> Dict[str, Any]:
     """{'name', 'style', 'asked'} of Javis Core in the brain at `root`. Empty name = still called Javis Core."""
     out: Dict[str, Any] = {"name": "", "style": "", "asked": False}
-    path = _identity_path(root)
-    if path is None:
+    if not str(root or "").strip():
         return out
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return out
-    if isinstance(data, dict):
-        out["name"] = clean_name(data.get("name"))
-        out["style"] = clean_style(data.get("style"))
-        out["asked"] = bool(data.get("asked")) or bool(out["name"])
+    meta, _ = read_core(root)
+    nm = clean_name(meta.get("name"))
+    out["name"] = "" if nm == NAME else nm
+    extra = _read_extra(root)
+    out["style"] = clean_style(extra.get("style"))
+    out["asked"] = bool(extra.get("asked")) or bool(out["name"])
     return out
 
 
 def set_identity(root: Any, *, name: Any = None, style: Any = None, asked: Optional[bool] = None) -> Dict[str, Any]:
-    """Change only the fields given. A name given (even "") counts as asked: the person has answered."""
+    """Change only the fields given. A name given (even "") counts as asked: the person has answered. The name is
+    written into the agent file, the same field the agent editor saves."""
     path = _identity_path(root)
     if path is None:
         raise ValueError("no brain")
     with _lock:
-        cur = identity(root)
         if name is not None:
-            cur["name"] = clean_name(name)
-            cur["asked"] = True
+            f = ensure_file(root)
+            meta, body = _read_file(f)
+            meta["name"] = clean_name(name) or NAME
+            _write_file(f, meta, body or definition()["body"])
+        extra = _read_extra(root)
+        extra.pop("name", None)
+        if name is not None:
+            extra["asked"] = True
         if style is not None:
-            cur["style"] = clean_style(style)
+            extra["style"] = clean_style(style)
         if asked is not None:
-            cur["asked"] = bool(asked) or bool(cur["name"])
+            extra["asked"] = bool(asked) or bool(extra.get("asked"))
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(json.dumps(cur, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.write_text(json.dumps(extra, ensure_ascii=False, indent=1), encoding="utf-8")
         os.replace(tmp, path)
-        return dict(cur)
+    return identity(root)
 
 
 def display_name(root: Any) -> str:

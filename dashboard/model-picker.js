@@ -91,8 +91,8 @@
     try { await fetch(`/sessions/${encodeURIComponent(sid)}/model`, { method: "POST", body: fd }); } catch (e) {}
   }
 
-  // 0.461.0: a Javis Core chat's pin is Javis Core's pin, also shown and set on the Core card of the Agents page
-  // (core-model.js). Each side tells the other through one event, so the chip and the card never disagree.
+  // 0.461.0: a Javis Core chat's pin is Javis Core's pin, also shown and set as the Model of its card on the Partners
+  // page (the agent editor). The chip tells the page through one event.
   const CORE_EVENT = "javis:core-model";
   function coreChanged() {
     if (!(agentEff && agentEff.slug === "javis-core")) return;
