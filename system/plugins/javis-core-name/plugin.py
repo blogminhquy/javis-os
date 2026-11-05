@@ -2,7 +2,7 @@
 
 The owner wants people to make Javis Core their own: on the first chat it asks what to call it, then keeps that name
 and the way of talking the person likes. The data lives in `<brain>/Javis/core.json` through `server/javis_core.py`
-(`identity`, `set_identity`), the same file the rename button on the Javis Core card writes.
+(`identity`, `set_identity`), the same agent file the Javis Core editor on the Partners page saves (name), plus `Javis/core.json` (style).
 
 Owner only: `mcp_hub.OWNER_ONLY_TOOLS` lists it, so a customer-facing bot can never rename the owner's assistant.
 

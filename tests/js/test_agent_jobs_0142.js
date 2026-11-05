@@ -124,7 +124,7 @@ h = AJ.badgeHtml({ running: 2, needs_you: 1 });
 check("huy hiệu: số Đang làm và Cần bạn, có nhãn đọc được", h.includes("ws-jb-run")
   && /ws-jb-run">[^<]*2</.test(h) && /ws-jb-need">[^<]*1</.test(h) && h.includes(T("ajobs.badge_aria", { running: 2, needs: 1 })), h);
 check("thẻ trợ lý vẽ huy hiệu ở ô riêng, tách khỏi công tắc Auto",
-  /badgeHtml\(S\.jc\[x\.slug\]\)/.test(ws) && ws.indexOf("badgeHtml(S.jc[x.slug])") < ws.indexOf("rowToggleHtml(S.rs[x.slug]"));
+  /badgeHtml\(S\.jc\[x\.slug\]\)/.test(ws) && ws.indexOf("badgeHtml(S.jc[x.slug])") < ws.indexOf("rowToggleHtml(he ? coreAutoRow(x) : S.rs[x.slug]"));
 check("huy hiệu tải lại theo cùng sự kiện với tab Công việc", /\["javis:team-event", "javis:sessions-changed", "javis:agent-jobs-changed"\]/.test(ws)
   && /function henDemViec\(\)[\s\S]{0,800}800\)/.test(ws));
 check("rời trang Cộng sự gỡ tab Công việc", /function roi\(\) \{[\s\S]{0,400}_congViec\.destroy\(\); _congViec = null;/.test(ws));

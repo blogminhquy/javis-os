@@ -98,7 +98,7 @@
       '<span class="ws-rs-text">' + esc(o.saving ? label : tw("resonance.auto_label")) + "</span>" +
       '<span class="toggle toggle-sm"><input type="checkbox" class="ws-rs-toggle" data-rs="' + esc(row.slug) + '"' +
       ' role="switch" aria-checked="' + (on ? "true" : "false") + '" aria-label="' + esc(aria) + '"' + (on ? " checked" : "") +
-      (o.saving ? " disabled" : "") + "><span></span></span></label>";
+      (o.saving || o.locked ? " disabled" : "") + "><span></span></span></label>";
   }
 
   /* Hỏi lại trước khi TẮT khi trợ lý còn mục tiêu mở (hợp đồng A1: dừng ở bước kế tiếp). Không có thì không hỏi. */

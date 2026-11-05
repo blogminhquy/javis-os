@@ -32,24 +32,28 @@ check("blocks: Javis Core alone in the first block, above needs-you and pinned",
   blocks[0].he === true && blocks[0].items.map(x => x.slug).join() === "javis-core"
   && blocks[1].can === true && blocks[2].ghim === true
   && blocks.reduce((n, b) => n + b.items.length, 0) === 3, JSON.stringify(blocks.map(b => Object.keys(b))));
-check("row: System badge, no Auto switch, no ... menu for the system assistant",
+// 2026-11-05 (owner): "keep Javis Core exactly like the other agents; only it is the system one you cannot remove, it
+// starts with my system prompt, and Auto is on and cannot be turned off".
+check("row: System badge, Auto switch always on and locked, no ... menu",
   /var he = laAgent && !!x\.system;/.test(src) && /\(he \? '<span class="ws-sys">' \+ esc\(t\("ws\.system_badge"\)\)/.test(src)
-  && /\(!he && window\.JavisResonanceAgent/.test(src) && /\(he \? "" : '<button type="button" class="ws-item-more"/.test(src));
-check("right column: a read-only card, no editor and no Delete button",
-  /if \(S\.loai === "agent" && item\.system\) \{[\s\S]{0,900}ws-core-card[\s\S]{0,2400}\} else if \(S\.loai === "agent"\)/.test(src));
+  && /rowToggleHtml\(he \? coreAutoRow\(x\) : S\.rs\[x\.slug\],\s*\{ saving: !he && !!S\.rsSaving\[x\.slug\], locked: he \}\)/.test(src)
+  && /function coreAutoRow\(x\) \{[\s\S]{0,200}enabled: true, status: "active"/.test(src)
+  && /\(he \? "" : '<button type="button" class="ws-item-more"/.test(src));
+const RA = fs.readFileSync(path.join(root, "dashboard", "resonance-agent.js"), "utf8");
+check("a locked switch cannot be clicked", /\(o\.saving \|\| o\.locked \? " disabled" : ""\)/.test(RA));
+check("right column: the same agent editor as every assistant, without Export and Delete",
+  !/ws-core-card|JavisCoreModel|wsCoreRename/.test(src)
+  && /if \(S\.loai === "agent"\) \{[\s\S]{0,600}<div class="ws-form" id="wsAgentForm"><\/div><div class="ws-auto-block" id="wsAuto"><\/div>' \+\s*\(item\.system \? "" :/.test(src)
+  && /if \(!item\.system\) \{\s*host\.querySelector\("#wsExport"\)/.test(src));
 check("opening it goes to the brain's default chat (where reports land)",
   /if \(!id && !moiHan && item\.system\) \{[\s\S]{0,300}api\("\/javis-core\/session", \{ method: "POST"/.test(src));
-check("no Auto panel mounted for it", /!item \|\| item\.system\) return;/.test(src));
+check("its Auto panel always shows", /function veAuto\(item\) \{[\s\S]{0,300}!\(item\.system \|\| autoBat\(S\.rs, item\.slug\)\)\) \{ box\.innerHTML = ""; return; \}/.test(src)
+  && !/!item \|\| item\.system\) return;/.test(src));
 check("the list asks the server for it (system=1)", /\/agents\?brain=" \+ b \+ "&prompt=0&system=1"/.test(src));
-check("0.190.0: the core card carries no memory list, one short line says to ask in chat",
-  !/wsCoreMem|JavisCoreMemory/.test(src) && /chat/.test(vi["ws.core_note"]) && vi["ws.core_note"].length < 160);
-check("0.190.0: an assistant's column opens on the settings form; the Auto block only while Auto is on",
-  /host\.innerHTML = '<div class="ws-form" id="wsAgentForm"><\/div><div class="ws-auto-block" id="wsAuto"><\/div>'/.test(src)
-  && /function veAuto\(item\) \{[\s\S]{0,300}!autoBat\(S\.rs, item\.slug\)\) \{ box\.innerHTML = ""; return; \}/.test(src)
-  && (src.match(/veDanhSach\(\); veAuto\(dangChon\(\)\);/g) || []).length === 2);
-check("i18n vi/en", vi["ws.system_badge"] === "Hệ thống" && en["ws.system_badge"] === "System"
-  && !!vi["ws.core_note"] && !!en["ws.core_note"]);
-check("CSS for the badge and card", css.includes(".ws-sys {") && css.includes(".ws-core-card {"));
+check("i18n vi/en", vi["ws.system_badge"] === "Hệ thống" && en["ws.system_badge"] === "System");
+check("CSS for the badge", css.includes(".ws-sys {") && !css.includes(".ws-core-card {"));
+check("the separate Core card script is gone", !fs.existsSync(path.join(root, "dashboard", "core-model.js"))
+  && !fs.readFileSync(path.join(root, "dashboard", "index.html"), "utf8").includes("core-model.js"));
 
 if (fails) { console.log("\nFAIL " + fails); process.exit(1); }
 console.log("\nOK test_javis_core_ui");

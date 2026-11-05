@@ -1186,6 +1186,8 @@ class LearnFeature:
     # ── VERIFY agent + workflow (cùng lý do với skill: blast radius lớn - hiện thẳng Studio).
     # Gộp 1 spawn cho cả hai để không nhân đôi chi phí fork mỗi batch. ──
     async def _verify_agents_workflows(self, brain: str, manifest: dict, cfg: dict) -> None:
+        # Javis Core's file (2026-11-05) is the owner's to edit on its card; a learning round never rewrites it.
+        manifest["agents"] = [a for a in (manifest.get("agents") or []) if str(a.get("slug") or "").lower() != "javis-core"]
         agents = manifest.get("agents") or []
         wfs = manifest.get("workflows") or []
         if not agents and not wfs:
