@@ -27,18 +27,35 @@ import config as cfgmod
 import model_routing
 
 MAIN = "main"
-KIND = {"openai-oauth": "codex", "grok-cli": "grok", "anthropic-cli": "claude"}
-ENV = {"codex": "CODEX_HOME", "grok": "GROK_HOME", "claude": "CLAUDE_CONFIG_DIR"}
+KIND = {"openai-oauth": "codex", "grok-cli": "grok", "anthropic-cli": "claude", "antigravity-cli": "agy"}
+ENV = {"codex": "CODEX_HOME", "grok": "GROK_HOME", "claude": "CLAUDE_CONFIG_DIR", "agy": "HOME"}
+# Antigravity (owner 05/11/2026: "a way to rotate Antigravity"). `agy` keeps ONE Google login per machine in the OS
+# keyring, so an extra account cannot simply get a config folder. On Linux, `GEMINI_FORCE_FILE_STORAGE=true` makes it
+# keep the token in a file under its HOME (~/.gemini/antigravity-cli/), which is what community multi-account tools for
+# agy rely on; so an extra account runs `agy` with its own HOME and that variable. macOS and Windows still hold one
+# keyring login per machine, so the card offers extra Google accounts only on Linux (VPS, Docker). NOT MEASURED on a real
+# `agy` in this repo (no binary at build time): the owner checks it on a VPS before relying on it.
+AGY_FILE_STORAGE = "GEMINI_FORCE_FILE_STORAGE"
+_AGY_TOKEN_DIR = (".gemini", "antigravity-cli")
 # Files copied from account 1's folder into an extra account's folder before each run, so the extra account sees
 # the same settings and MCP servers (Codex `config.toml` and Javis's hub profile, Grok `config.toml`, Claude
 # `settings.json`). Logins and history are never copied.
-_SHARED = {"codex": ("*.toml",), "grok": ("config.toml",), "claude": ("settings.json",)}
+_SHARED = {"codex": ("*.toml",), "grok": ("config.toml",), "claude": ("settings.json",),
+           # agy reads its MCP servers (Javis's hub) from HOME, so an extra account's HOME gets the same files.
+           "agy": (".gemini/config/mcp_config.json", ".gemini/antigravity-cli/mcp_config.json")}
 # Claude keeps user-scope MCP servers (added through Claude Code's own MCP, `--scope user`) in `.claude.json` NEXT TO the
 # config folder, together with that login's account data. Only its `mcpServers` list is carried over (0.355.0).
 _MARK = ".javis-signed-in"
 
 
 def supported(provider: str) -> bool:
+    return provider in KIND and available(provider)
+
+
+def available(provider: str) -> bool:
+    """Antigravity keeps a file login only on Linux (see AGY_FILE_STORAGE); every other plan card works everywhere."""
+    if provider == "antigravity-cli":
+        return sys.platform.startswith("linux")
     return provider in KIND
 
 
@@ -53,6 +70,8 @@ def default_home(provider: str) -> Path:
     env = (os.environ.get(ENV[kind]) or "").strip()
     if env:
         return Path(env).expanduser()
+    if kind == "agy":
+        return _home_dir()
     return _home_dir() / (".codex" if kind == "codex" else ".grok" if kind == "grok" else ".claude")
 
 
@@ -80,6 +99,8 @@ def env_for(provider: str, folder) -> dict:
     """Variables that point the CLI at an account's folder. {} for account 1."""
     if not folder or not supported(provider):
         return {}
+    if KIND[provider] == "agy":
+        return {"HOME": str(folder), AGY_FILE_STORAGE: "true"}
     return {ENV[KIND[provider]]: str(folder)}
 
 
@@ -96,7 +117,12 @@ def prepare(provider: str, folder) -> None:
         for f in files:
             if not f.is_file() or f.name in ("auth.json", ".credentials.json"):
                 continue
-            dst = Path(folder) / f.name
+            # agy's files keep their place under HOME; the others sit at the top of the account's folder.
+            dst = Path(folder) / (f.relative_to(src) if KIND[provider] == "agy" else f.name)
+            try:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                continue
             try:
                 if not dst.exists() or f.stat().st_mtime > dst.stat().st_mtime:
                     shutil.copy2(f, dst)
@@ -158,11 +184,22 @@ def signed_in(provider: str, account_id: str) -> bool:
             return bool(grok_cli.auth_status(home=folder).get("connected"))
         except Exception:  # noqa: BLE001
             return False
+    if kind == "agy":
+        return bool(agy_token_file(folder))
     if (folder / ".credentials.json").exists():
         return True
     # Only macOS keeps the Claude token in the Keychain, where no file proves it; elsewhere a missing credentials
     # file means signed out, whatever Javis remembered (0.355.0).
     return sys.platform == "darwin" and (folder / _MARK).exists()
+
+
+def agy_token_file(folder):
+    """The file an extra Antigravity account keeps its Google token in (file storage), or None."""
+    d = Path(folder).joinpath(*_AGY_TOKEN_DIR)
+    try:
+        return next((f for f in d.iterdir() if f.is_file() and "token" in f.name.lower()), None)
+    except OSError:
+        return None
 
 
 def accounts(m: dict, provider: str) -> list:
@@ -298,6 +335,8 @@ def use(engine, provider: str, account_id: str):
         engine.codex_home = str(folder) if folder else None
     elif kind == "grok":
         engine.grok_home = str(folder) if folder else None
+    elif kind == "agy":
+        engine.agy_home = str(folder) if folder else None
     else:
         _claude_use(engine, folder)
     return engine

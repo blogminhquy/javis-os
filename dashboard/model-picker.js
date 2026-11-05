@@ -460,6 +460,8 @@
 
   // Đổi phiên (mở phiên cũ, chat mới, xoá phiên) → hỏi lại ghim của phiên rồi vẽ lại.
   window.addEventListener("javis:sessions-changed", async () => { await loadSessionPin(); renderBar(); });
+  // The Models page turned Fast mode on or off from a card's Effort sheet: the composer's bolt follows at once.
+  window.addEventListener("javis:fast-changed", (e) => { state.fast = !!(e.detail && e.detail.on); renderFast(); });
   // The Core card pinned or unpinned Javis Core: an open Core chat redraws its chip.
   window.addEventListener(CORE_EVENT, async (e) => {
     if ((e.detail || {}).from === "chat" || !(agentEff && agentEff.slug === "javis-core")) return;

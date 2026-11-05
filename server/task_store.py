@@ -213,6 +213,11 @@ class TaskStore:
                 CREATE INDEX IF NOT EXISTS idx_events_task
                     ON task_events(task_id, created_at DESC);
 
+                -- 2026-11-05: the Tasks page stats read finished events by type and time (task_stats.kanban_events),
+                -- which was a full scan of every event ever recorded, under the store lock.
+                CREATE INDEX IF NOT EXISTS idx_events_type_time
+                    ON task_events(event_type, created_at);
+
                 CREATE TABLE IF NOT EXISTS task_migrations (
                     migration_key TEXT PRIMARY KEY,
                     migrated_at REAL NOT NULL
