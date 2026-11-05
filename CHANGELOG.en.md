@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.476.0] - 2026-11-05
+### Improved
+- **Light theme is now the Javis default.** A device that never picked a theme opens light, day and night, instead of turning dark after 18:00.
+- Anyone who already picked Dark or Auto by time keeps that choice. Change it any time with the sun button in the top bar or in Settings.
+
 ## [0.475.0] - 2026-11-05
 ### Improved
 - **Switching between chats is instant.** A chat opened recently draws at once and refreshes behind; pointing at or touching a chat in the list starts loading it before the click. Building a chat (F5 included) is also several times faster, as it no longer scrolls after every message. On the Partners page, picking an assistant opens its latest chat right away instead of waiting on two server calls in a row.
