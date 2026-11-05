@@ -12,6 +12,7 @@ title: Every Models card can be disconnected, pull-up sheets, a chat no longer s
 - **Chọn ChatGPT là ChatGPT chạy.** Một dấu "hết lượt" cũ không còn kéo chat về Google: chọn thẻ nào thì thẻ đó được thử, và thẻ đang tạm nghỉ hiện rõ tới mấy giờ kèm nút Dùng lại ngay.
 
 ### Cải thiện
+- **Gói Claude ghi đúng tên Pro và Ultra.** Các câu cảnh báo và nhãn còn ghi "Pro/Max" nay đổi theo tên gói mới của Anthropic.
 - **Không còn menu xổ xuống trên trang Model.** Chọn model, độ sâu suy nghĩ, model việc nền và menu của từng tài khoản đều là bảng kéo lên, trên máy tính cũng vậy.
 
 ## en
@@ -24,4 +25,5 @@ title: Every Models card can be disconnected, pull-up sheets, a chat no longer s
 - **Choosing ChatGPT runs ChatGPT.** An old out-of-quota mark no longer pulls the chat back to Google: the card you choose is tried, and a resting card shows until when, with Use again now.
 
 ### Improved
+- **Claude plans read Pro and Ultra.** Warnings and labels that still said "Pro/Max" follow Anthropic's new plan name.
 - **No more drop-down menus on the Models page.** The model picker, effort, background model and each account's menu are pull-up sheets, on a computer too.

@@ -35,7 +35,7 @@ API_KEY = "api_key"
 # 0.352.0 (chủ repo): giọng nhẹ nhàng, nói đúng mức rủi ro. Có nguy cơ, nhưng Javis chưa ghi nhận
 # trường hợp nào bị khoá; gặp thì báo nhà phát triển để mọi người cùng biết.
 CANH_BAO_SUBSCRIPTION = (
-    "Gói Claude Pro/Max được Anthropic tính cho việc dùng cá nhân thông thường của Claude Code. "
+    "Gói Claude Pro/Ultra được Anthropic tính cho việc dùng cá nhân thông thường của Claude Code. "
     "Chạy nền liên tục (loop, nhắc hẹn, việc Kanban, chatbot), chạy trên VPS, hoặc nhiều người "
     "dùng chung một tài khoản nằm ngoài phạm vi đó nên có nguy cơ bị khoá tài khoản, dù tới nay "
     "Javis chưa ghi nhận trường hợp nào. Nếu bạn gặp, hãy báo cho nhà phát triển qua mục Issues "
@@ -44,7 +44,7 @@ CANH_BAO_SUBSCRIPTION = (
 )
 
 CANH_BAO_SUBSCRIPTION_EN = (
-    "Anthropic counts a Claude Pro/Max plan for ordinary personal use of Claude Code. "
+    "Anthropic counts a Claude Pro/Ultra plan for ordinary personal use of Claude Code. "
     "Continuous background runs (loops, reminders, Kanban work, chatbots), running on a VPS, "
     "or several people sharing one account fall outside that, so there is a risk of the account "
     "being locked, although Javis has no reported case so far. If it happens to you, please tell "
