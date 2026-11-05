@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.3] - 2026-11-05
+### Security
+- **Chatbots and background work below Full access can no longer write where code runs.** plugins/, Javis/ (loops, scripts), .git, .claude and engine config can only be written by the owner at Full access. A customer chatbot cannot write there at any level.
+- **Scheduled work no longer outranks whoever created it.** A reminder or Kanban job created by an "auto" or "suggest" run now runs at that level instead of Full access by default. A run below Full access can no longer edit an existing scheduled job.
+- **HTML, SVG and XML files opened from a brain run in a sandbox.** As with share links, their script can no longer use the owner's login. PDFs and images show as before.
+- **Adding an MCP connection needs Full access, and customer chatbots no longer see that tool.**
+- **The login-free path for tools on the machine (/reminders) refuses requests from web pages**, including a page that rebinds its domain to 127.0.0.1.
+- **The .grok/ folder (it holds the hub key) no longer goes into git or the GitHub backup.** A brain that committed it has it untracked at the next backup. If you used Grok Build with backup on, rotate the hub key: delete `.hub_token` in the Javis data folder and restart.
+
 ## [0.481.2] - 2026-11-05
 ### Improved
 - **Every mascot menu item now has an ✕**, the six default ones included. The eye button is gone.
