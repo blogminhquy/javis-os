@@ -562,7 +562,7 @@
   "pet.color.ruby": "Ruby",
   "pet.color.custom": "Tùy chọn",
   "pet.menu.chat": "Trò chuyện",
-  "pet.menu.agent": "Trợ lý",
+  "pet.menu.agent": "Cộng sự",
   "pet.menu.workflow": "Quy trình",
   "pet.menu.mic_on": "Bật mic",
   "pet.menu.mic_off": "Tắt mic",
@@ -7027,7 +7027,7 @@
   "reorder.cancel": "Huỷ",
   "reorder.save_err": "Chưa lưu được thứ tự, thử lại.",
   "petmenu.title": "Menu linh vật",
-  "petmenu.desc": "Thêm, ẩn hiện và kéo để sắp xếp các chức năng mở từ linh vật.",
+  "petmenu.desc": "Thêm, xóa, ẩn hiện và kéo để sắp xếp các chức năng mở từ linh vật.",
   "petmenu.count": "{n} mục",
   "petmenu.add": "Thêm chức năng",
   "petmenu.cancel": "Hủy thay đổi",
@@ -7057,5 +7057,6 @@
   "petmenu.show": "Hiện lại trên menu",
   "petmenu.hidden_note": "Đang ẩn khỏi menu",
   "petmenu.keep_one": "Phải để ít nhất một mục hiện",
-  "petmenu.drag_label": "Kéo để đổi chỗ: {name}. Bàn phím: phím mũi tên lên hoặc xuống"
+  "petmenu.drag_label": "Kéo để đổi chỗ: {name}. Bàn phím: phím mũi tên lên hoặc xuống",
+  "petmenu.remove": "Xóa khỏi menu"
 }
