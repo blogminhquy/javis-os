@@ -102,7 +102,8 @@ for (let step = 0; step < 400 && !bad; step++) {
 check("400 random updates: always the same as a full rebuild, unchanged items never rebuilt", !bad, bad);
 
 check("drawMsgs reconciles by key and rebuilds only for a new team or a page it does not own",
-  /S\.listCache = \{ team: S\.team\.team_id, box: box, items: listSync\(box, built\.items, prev, htmlNodes\) \};/.test(teamsJs)
+  /var sync = function \(\) \{ return listSync\(box, built\.items, prev, htmlNodes\); \};/.test(teamsJs)
+  && /S\.listCache = \{ team: S\.team\.team_id, box: box, items: [^\n]*mutateDom\(sync\) : sync\(\) \};/.test(teamsJs)
   && /S\.listCache = null;/.test(teamsJs) && !/box\.innerHTML = \(S\.jumped/.test(teamsJs));
 check("the latest answer's Like corner is marked on the nodes, not baked into the HTML (a new answer would replace the old one)",
   /var c = ctx\(null\);/.test(teamsJs) && /lastRx\.classList\.add\("is-last"\)/.test(teamsJs));

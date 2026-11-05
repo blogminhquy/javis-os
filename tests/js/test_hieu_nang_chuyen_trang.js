@@ -13,7 +13,12 @@
      the screen at the click;
    - the right column (settings form, history list) is not rebuilt for the same partner;
    - a plain switch (event reason "open") only re-lights the history row: no list, unread, job or inbox round trip;
-   - the model bar and the project chip share one /sessions/<id>/meta request. */
+   - the model bar and the project chip share one /sessions/<id>/meta request.
+
+   Third pass (owner: "opening an old chat takes a few seconds", Chat, Workflow and Teams pages too), traced on a 4x
+   slowed CPU: bubbles drawn from history no longer play the fade-in (each became its own compositor layer, ~660 ms
+   of layer work per switch), Alpine no longer walks chat nodes, the chat view stops downloading stored tool calls
+   it never shows, and the Teams page asks the server before it draws instead of after. */
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -209,11 +214,38 @@ function pages() {
   check("the Tasks page draws that at once on return, then refreshes", /if \(useLast\(\)\) \{[^\n]*render\(\);/.test(tasks) && /await load\(\);/.test(tasks));
   check("a load that lands after the page closed writes nothing", /if \(!S \|\| S !== st\) return;/.test(tasks));
   const teams = read("dashboard/teams.js");
-  check("a team opened before draws from the cache", /useTeam\(id\);\s*\n\s*drawAll\(true\);/.test(teams));
+  check("a team opened before draws from the cache", /useTeam\(id\);[\s\S]{0,600}?drawAll\(true\);/.test(teams));
   check("a 'read' event does not refetch the open team", /d\.type !== "team_read" && d\.team_id === S\.activeId/.test(teams));
 }
 
-napCham().then(chatCache).then(workspace).then(switchListeners).then(pages).then(() => {
+// ───────── third pass: drawing a chat from history is light (Chat, Partners, Workflow, Teams) ─────────
+function historyDraw() {
+  const css = read("dashboard/style.css");
+  check("bubbles drawn from history skip the fade-in",
+    /if \(\(_dangDungLoat \|\| _dangChenCu\) && el && el\.classList\) el\.classList\.add\("msg-tinh"\);/.test(APP)
+    && /\.msg\.msg-tinh \{ animation: none; \}/.test(css));
+  check("a message arriving live still fades in", /\.msg \{ animation: fadeIn 0\.2s ease; \}/.test(css));
+  check("Alpine does not walk the chat area", /chatArea\._x_ignoreMutationObserver = true;/.test(APP));
+  check("building a chat or a page of older messages runs outside Alpine's watcher",
+    (APP.match(/ngoaiAlpine\(\(\) => ds\.forEach/g) || []).length === 2);
+  // ngoaiAlpine falls back to a plain call when Alpine is missing, and uses mutateDom when it is there.
+  const fn = APP.slice(APP.indexOf("function ngoaiAlpine("), APP.indexOf("\n}", APP.indexOf("function ngoaiAlpine(")) + 2);
+  const seen = [];
+  const ctx = vm.createContext({ window: {} });
+  vm.runInContext(fn, ctx);
+  check("without Alpine the build still runs", vm.runInContext("ngoaiAlpine(() => 7)", ctx) === 7);
+  ctx.window.Alpine = { mutateDom: (f) => { seen.push("paused"); return f(); } };
+  check("with Alpine the build runs inside mutateDom", vm.runInContext("ngoaiAlpine(() => 8)", ctx) === 8 && seen.length === 1);
+  check("the chat view asks for messages without tool calls",
+    /\?limit=\$\{TIN_MOI_LUOT\}&tools=0`/.test(APP) && /\/messages\?limit=\$\{TIN_MOI_LUOT\}&tools=0`/.test(APP));
+  const teams = read("dashboard/teams.js");
+  check("Teams: the three requests leave before the page is drawn",
+    /var loads = Promise\.all\(\[loadTeam\(\), loadQueue\(\), loadMsgs\(false\)\]\);\s*\n\s*drawAll\(true\);\s*\n\s*loads\.then\(/.test(teams));
+  check("Teams: the message list is kept out of Alpine's watcher",
+    /box\._x_ignoreMutationObserver = true;/.test(teams) && /A\.mutateDom\(sync\)/.test(teams));
+}
+
+napCham().then(chatCache).then(workspace).then(switchListeners).then(historyDraw).then(pages).then(() => {
   if (fails.length) { console.log("\nFAIL - test_hieu_nang_chuyen_trang: " + fails.length); process.exit(1); }
   console.log("\nOK - test_hieu_nang_chuyen_trang: all pass");
 }, (e) => { console.log("FAIL crashed: " + (e && e.stack || e)); process.exit(1); });

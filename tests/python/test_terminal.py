@@ -148,8 +148,21 @@ async def _phien_that():
               "/dev/pts" in buf or "/dev/ttys" in buf, repr(buf[-160:]))
         check("khổ giấy truyền đúng xuống shell (30 dòng x 100 cột)", "30 100" in buf, repr(buf[-160:]))
         p.doi_co(140, 45)
-        p.go("stty size\n")
-        buf = await _doc(q, lambda b: "45 140" in b)
+        # The resize contract is the kernel's window size of the pty: read it straight back. A broken doi_co fails here
+        # on every run, with no shell timing involved.
+        import fcntl, struct, termios
+        rows, cols = struct.unpack("HHHH", fcntl.ioctl(p._fd, termios.TIOCGWINSZ, b"\0" * 8))[:2]
+        check("đổi cỡ khung -> pty mang ngay cỡ mới (45 dòng x 140 cột)", (rows, cols) == (45, 140), (rows, cols))
+        # What the shell prints is asked up to three times. A CI run (PR #1053, 05/11/2026) once got the old "30 100"
+        # back from the first `stty size` although nothing in the resize path had changed, and it never reproduced
+        # here in 50 runs, idle or under full CPU load. With the kernel size checked above, a stale first answer is
+        # shell timing on a loaded runner, not a missed resize.
+        buf = ""
+        for _ in range(3):
+            p.go("stty size\n")
+            buf = await _doc(q, lambda b: "45 140" in b, giay=3.0)
+            if "45 140" in buf:
+                break
         check("đổi cỡ khung -> shell biết ngay", "45 140" in buf, repr(buf[-160:]))
 
     # Nối lại: y như đổi trang rồi quay về tab Code.

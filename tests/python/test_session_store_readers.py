@@ -102,6 +102,31 @@ class ReaderTests(unittest.TestCase):
         self.assertIsNone(self.store._read_conn())
         self.assertEqual(self.store.get_session(sid)["id"], sid)
 
+    def test_page_without_tool_calls(self):
+        """Performance (2026-11-05): the chat view asks with tools=0. The stored tool calls, often most of the bytes,
+        are not read then; everything else, the order and has_more stay the same."""
+        sid = self.store.get_or_create(None, brain="brain", engine="t", model="t")
+        for i in range(4):
+            self.store.append_message(sid, "user", f"q{i}")
+            self.store.append_message(sid, "assistant", f"a{i}", tool_calls=[{"name": "read", "output": "x" * 5000}])
+        full = self.store.get_messages_page(sid, limit=3)
+        light = self.store.get_messages_page(sid, limit=3, with_tools=False)
+        self.assertTrue(any(m.get("tool_calls") for m in full["messages"]), "the default still carries tool calls")
+        self.assertFalse(any("tool_calls" in m for m in light["messages"]))
+        strip = lambda ms: [{k: v for k, v in m.items() if k != "tool_calls"} for m in ms]
+        self.assertEqual(strip(full["messages"]), light["messages"])
+        self.assertEqual(full["has_more"], light["has_more"])
+        older = self.store.get_messages_page(sid, limit=3, with_tools=False,
+                                             before=(light["messages"][0]["ts"], light["messages"][0]["id"]))
+        self.assertEqual(len(older["messages"]), 3)
+        self.assertFalse(any("tool_calls" in m for m in older["messages"]))
+
+    def test_endpoints_pass_tools_through(self):
+        src = (Path(SERVER) / "main.py").read_text(encoding="utf-8")
+        self.assertIn("def sessions_get(session_id: str, limit: int = Query(0), tools: int = Query(1)):", src)
+        self.assertIn("store.get_messages_page(session_id, limit=limit, with_tools=bool(tools))", src)
+        self.assertIn("with_tools=bool(tools))   # tools=0: see sessions_get", src)
+
 
 if __name__ == "__main__":
     unittest.main()
