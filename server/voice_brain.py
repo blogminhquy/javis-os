@@ -434,12 +434,13 @@ def split_speakable(text: str, start: int, final: bool = False):
     return out, start
 
 
-def seed_text(history: List[dict], text: str, with_prompt: bool = True) -> str:
+def seed_text(history: List[dict], text: str, with_prompt: bool = True, system: str = "") -> str:
     """Lượt ĐẦU của một tiến trình/mạch mới: hướng dẫn (nếu engine không nhận system prompt
-    riêng) + mấy lượt gần nhất từ kho phiên + câu vừa nói. Dùng chung cho agy, Claude, Grok."""
+    riêng) + mấy lượt gần nhất từ kho phiên + câu vừa nói. Dùng chung cho agy, Claude, Grok.
+    `system`: the brain's own prompt (a partner call, see voice_persona); empty = SYSTEM_PROMPT."""
     parts = []
     if with_prompt:
-        parts.append("[HƯỚNG DẪN CHO LƯỢT NÓI CHUYỆN NÀY]\n" + SYSTEM_PROMPT)
+        parts.append("[HƯỚNG DẪN CHO LƯỢT NÓI CHUYỆN NÀY]\n" + (system or SYSTEM_PROMPT))
     h = [x for x in (history or [])[-HISTORY_N:] if str(x.get("content") or "").strip()]
     if h:
         parts.append("[MẤY LƯỢT GẦN NHẤT TRONG PHIÊN NÀY]")
@@ -464,6 +465,9 @@ def build_messages(history: List[dict], text: str, system: str = SYSTEM_PROMPT) 
 class VoiceBrain:
     provider = ""
     model = ""
+    # The prompt this brain speaks with. A call from a partner's chat swaps it for that partner's (_make, conf
+    # "system"), so every subclass reads self.system, never SYSTEM_PROMPT directly.
+    system = SYSTEM_PROMPT
 
     def __init__(self):
         self.last_used = time.time()
@@ -498,7 +502,7 @@ class ApiVoiceBrain(VoiceBrain):
 
     async def stream(self, text: str, history: List[dict]) -> AsyncIterator[str]:
         self.last_used = time.time()
-        msgs = build_messages(history, text)
+        msgs = build_messages(history, text, self.system)
         async with self._lock:
             async for ev in self._fn()(self.api_key, self.model, msgs, "off"):
                 t = ev.get("type")
@@ -552,7 +556,7 @@ class AntigravityVoiceBrain(VoiceBrain):
         self.turns = 0
 
     def _seed_text(self, history: List[dict], text: str) -> str:
-        return seed_text(history, text, with_prompt=True)
+        return seed_text(history, text, with_prompt=True, system=self.system)
 
     async def stream(self, text: str, history: List[dict]) -> AsyncIterator[str]:
         self.last_used = time.time()
@@ -666,7 +670,7 @@ class CodexVoiceBrain(VoiceBrain):
         else:
             import engine
             fn = engine.openai_responses_stream
-        msgs = build_messages(history, text)
+        msgs = build_messages(history, text, self.system)
         async with self._lock:
             async for ev in fn(creds.get("access_token", ""), creds.get("account_id", ""),
                                self.model or codex_default_model(), msgs, "off"):
@@ -719,7 +723,7 @@ class ClaudeVoiceBrain(VoiceBrain):
         import tempfile
         from claude_agent_sdk import ClaudeAgentOptions
         fields = getattr(ClaudeAgentOptions, "__dataclass_fields__", {})
-        kw = {"system_prompt": SYSTEM_PROMPT, "cwd": tempfile.gettempdir(),
+        kw = {"system_prompt": self.system, "cwd": tempfile.gettempdir(),
               "permission_mode": "bypassPermissions"}
         if "tools" in fields:
             kw["tools"] = []                        # không tool builtin: bộ não giọng chỉ nói
@@ -847,7 +851,7 @@ class GrokVoiceBrain(VoiceBrain):
                                                   "Grok Build (grok) is not installed. Install it, then sign in on the Models page."))
             import tempfile
             self.cli = grok_cli.GrokCLI(cwd=tempfile.gettempdir(), tag="voice", model=self.model or None,
-                                        instructions=SYSTEM_PROMPT)
+                                        instructions=self.system)
             self.cli.mode = "suggest"
             self.cli.max_turns = 1
             self.cli.timeout = TURN_TIMEOUT_S
@@ -1157,6 +1161,13 @@ def config_from_settings(cfg: dict) -> dict:
 
 
 def _make(conf: dict) -> VoiceBrain:
+    b = _make_bare(conf)
+    if conf.get("system"):
+        b.system = str(conf["system"])
+    return b
+
+
+def _make_bare(conf: dict) -> VoiceBrain:
     prov = conf.get("provider") or ""
     if prov == "antigravity":
         try:
@@ -1183,8 +1194,8 @@ async def get_brain(session_id: str, conf: dict) -> VoiceBrain:
     """Bộ não cho phiên này; đổi provider/model trong cài đặt thì dựng lại."""
     key = str(session_id or "default")
     b = _BRAINS.get(key)
-    want = (conf.get("provider") or "", conf.get("model") or "")
-    if b is not None and (b.provider, b.model) != want:
+    want = (conf.get("provider") or "", conf.get("model") or "", str(conf.get("system") or SYSTEM_PROMPT))
+    if b is not None and (b.provider, b.model, b.system) != want:
         await b.close()
         b = None
     if b is None:
