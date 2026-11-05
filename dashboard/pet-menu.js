@@ -8,8 +8,10 @@
    show/hide eye (a hidden item stays in its place here, the pet just leaves it out; one item always stays shown),
    and rows move by dragging the handle, mouse or finger. The up/down arrow buttons are gone; with the keyboard,
    focus the handle and press the up or down arrow key.
-   Then: "phần này thêm thì có nút x để xóa chứ không phải ẩn". A feature the owner ADDED gets an X that removes it
-   from the list (it can be added back from Add feature); the six default items keep the eye and are never removed.
+   Then: "phần này thêm thì có nút x để xóa chứ không phải ẩn", and finally "tắt luôn cả các chức năng mặc định ...
+   bỏ luôn cái nút mắt đi và tất cả đều là nút X, có thể tắt hết sạch được luôn". So today EVERY row has one X that
+   removes it, the six defaults included, and the list may end up empty (the pet then opens no menu). There is no
+   eye any more; anything removed comes back from Add feature. An item an older save flagged hidden reads as removed.
 
    Three parts:
      - CATALOG: every feature the pet can open, with a stable id, its own i18n label and icon, and a check that says
@@ -88,15 +90,13 @@
     (Array.isArray(o.items) ? o.items : []).forEach(function (x) {
       if (typeof x === "string" && x && items.indexOf(x) < 0) items.push(x);
     });
-    if (state !== "custom" || !items.length) items = DEFAULT_ITEMS.slice();
-    var hidden = [];
-    if (state === "custom") {
-      (Array.isArray(o.hidden) ? o.hidden : []).forEach(function (x) {
-        if (items.indexOf(x) >= 0 && hidden.indexOf(x) < 0) hidden.push(x);
-      });
-      if (hidden.length >= items.length) hidden = [];   // never an empty menu
+    // A custom menu may be EMPTY (the owner removed everything). Ids an older save flagged hidden count as removed.
+    if (state !== "custom") items = DEFAULT_ITEMS.slice();
+    else {
+      var gone = Array.isArray(o.hidden) ? o.hidden : [];
+      items = items.filter(function (x) { return gone.indexOf(x) < 0; });
     }
-    return { state: state, rev: rev, items: items, hidden: hidden };
+    return { state: state, rev: rev, items: items, hidden: [] };
   }
   // Lowercase without diacritics, so "tro chuyen" finds "Trò chuyện".
   function fold(s) {
@@ -231,11 +231,9 @@
   // ---- the "Mascot menu" card of Settings > Mascot ----
   function renderSettings(host) {
     if (!host) return;
-    var saved = snapshot(), draft = saved.items.slice(), hidden = saved.hidden.slice(), saving = false, note = null, loadFailed = false;
-    function sameSet(a, b) { return a.length === b.length && a.every(function (x) { return b.indexOf(x) >= 0; }); }
-    function dirty() { return !sameOrder(draft, saved.items) || !sameSet(hidden, saved.hidden); }
-    function reset() { draft = saved.items.slice(); hidden = saved.hidden.slice(); }
-    function shown() { return draft.filter(function (x) { return hidden.indexOf(x) < 0; }).length; }
+    var saved = snapshot(), draft = saved.items.slice(), saving = false, note = null, loadFailed = false;
+    function dirty() { return !sameOrder(draft, saved.items); }
+    function reset() { draft = saved.items.slice(); }
     function locked() { return saved.state === "invalid"; }
     function guard() {
       if (!host.isConnected) { clearGuard(); return ""; }
@@ -245,29 +243,16 @@
     try { root.JavisLeaveGuard && root.JavisLeaveGuard.set(guard); } catch (e) {}
 
     function row(id, i) {
-      var m = entry(id);
-      var lock = locked() || saving, off = hidden.indexOf(id) >= 0;
-      // The last item still shown cannot be hidden: the pet would open an empty menu.
-      var lastShown = !off && shown() <= 1;
-      var note2 = off ? t("petmenu.hidden_note", null, "Hidden from the menu") : m.why;
-      // Added by the owner: an X removes it (a default item only hides). An added item still flagged hidden by an
-      // older save keeps its eye too, so it can be shown again.
-      var added = DEFAULT_ITEMS.indexOf(id) < 0;
-      var eye = '<button type="button" class="pm-eye" data-pm-eye aria-pressed="' + off + '" title="' +
-        esc(off ? t("petmenu.show", null, "Show on the menu") : lastShown ? t("petmenu.keep_one", null, "Keep at least one item shown") : t("petmenu.hide", null, "Hide from the menu")) +
-        '" aria-label="' + esc((off ? t("petmenu.show", null, "Show on the menu") : t("petmenu.hide", null, "Hide from the menu")) + ": " + m.label) + '"' +
-        (lock || lastShown ? " disabled" : "") + ">" + icon(off ? "eye-off" : "eye") + "</button>";
-      var x = '<button type="button" class="pm-eye pm-x" data-pm-remove title="' +
-        esc(lastShown ? t("petmenu.keep_one", null, "Keep at least one item shown") : t("petmenu.remove", null, "Remove from the menu")) +
-        '" aria-label="' + esc(t("petmenu.remove", null, "Remove from the menu") + ": " + m.label) + '"' +
-        (lock || lastShown ? " disabled" : "") + ">" + icon("x") + "</button>";
-      return '<div class="bp-row bp-move pm-row' + (m.why ? " pm-off" : "") + (off ? " pm-hidden" : "") + '" data-i="' + i + '" role="listitem">' +
+      var m = entry(id), lock = locked() || saving;
+      return '<div class="bp-row bp-move pm-row' + (m.why ? " pm-off" : "") + '" data-i="' + i + '" role="listitem">' +
         '<button type="button" class="bp-grip' + (lock ? " pm-nograb" : "") + '" data-pm-grip title="' + esc(t("reorder.drag")) + '" aria-label="' +
         esc(t("petmenu.drag_label", { name: m.label }, m.label)) + '"' + (lock ? " disabled" : "") + ">" + icon("arrow-up-down") + "</button>" +
         '<span class="ro-ic">' + m.icon + "</span>" +
         '<span class="bp-name pm-name"><span class="bp-label">' + esc(m.label) + "</span>" +
-        (note2 ? '<span class="pm-why">' + esc(note2) + "</span>" : "") + "</span>" +
-        (added ? (off ? eye : "") + x : eye) + "</div>";
+        (m.why ? '<span class="pm-why">' + esc(m.why) + "</span>" : "") + "</span>" +
+        '<button type="button" class="pm-eye pm-x" data-pm-remove title="' + esc(t("petmenu.remove", null, "Remove from the menu")) +
+        '" aria-label="' + esc(t("petmenu.remove", null, "Remove from the menu") + ": " + m.label) + '"' +
+        (lock ? " disabled" : "") + ">" + icon("x") + "</button></div>";
     }
     // Move one row by `d` places (keyboard on the handle). Focus follows the row.
     function nudge(i, d) {
@@ -287,13 +272,13 @@
       var lock = locked();
       host.innerHTML = '<div class="settings-card pm-card" data-pet-menu-card>' +
         '<div class="settings-card-head"><b>' + esc(t("petmenu.title", null, "Mascot menu")) + "</b>" +
-        '<span class="gcard-tag">' + esc(hidden.length ? t("petmenu.count_hidden", { n: draft.length, h: hidden.length }, draft.length + " items, " + hidden.length + " hidden")
-          : t("petmenu.count", { n: draft.length }, draft.length + " items")) + "</span></div>" +
+        '<span class="gcard-tag">' + esc(t("petmenu.count", { n: draft.length }, draft.length + " items")) + "</span></div>" +
         '<p class="pm-desc">' + esc(t("petmenu.desc", null, "Add and arrange the features you want to open from the mascot.")) + "</p>" +
         (lock ? '<p class="pm-alert" role="alert">' + icon("triangle-alert") + " " + esc(t("petmenu.invalid", null, "The saved menu settings are damaged.")) + "</p>" : "") +
         (loadFailed && !lock ? '<p class="pm-alert">' + esc(t("petmenu.load_err", null, "Could not load the saved menu.")) + "</p>" : "") +
         '<div class="bp-list pm-list" role="list" aria-label="' + esc(t("petmenu.title", null, "Mascot menu")) + '">' +
-        draft.map(function (id, i) { return row(id, i); }).join("") + "</div>" +
+        draft.map(function (id, i) { return row(id, i); }).join("") +
+        (draft.length ? "" : '<p class="pm-empty">' + esc(t("petmenu.empty", null, "The menu is empty: tapping the mascot opens nothing.")) + "</p>") + "</div>" +
         '<div class="js-actions pm-actions">' +
         '<button type="button" class="gcard-btn ghost" data-pm-add' + (lock || saving ? " disabled" : "") + ">" + icon("plus") + " " + esc(t("petmenu.add", null, "Add feature")) + "</button>" +
         '<button type="button" class="gcard-btn ghost" data-pm-cancel' + (!dirty() || saving ? " disabled" : "") + ">" + esc(t("petmenu.cancel", null, "Discard changes")) + "</button>" +
@@ -319,24 +304,12 @@
       var el = e.target.closest && e.target.closest("button");
       if (!el || !host.contains(el) || el.disabled) return;
       if (el.hasAttribute("data-pm-grip")) return;   // the handle drags; a plain click on it does nothing
-      if (el.hasAttribute("data-pm-eye")) {
-        var i = +el.closest(".bp-row").dataset.i, id = draft[i];
-        if (hidden.indexOf(id) >= 0) hidden = hidden.filter(function (x) { return x !== id; });
-        else if (shown() > 1) hidden = hidden.concat(id);
-        note = null;
-        draw('.bp-row[data-i="' + i + '"] [data-pm-eye]');
-        return;
-      }
       if (el.hasAttribute("data-pm-remove")) {
-        var k = +el.closest(".bp-row").dataset.i, rid = draft[k];
-        if (DEFAULT_ITEMS.indexOf(rid) >= 0) return;   // a default item only hides
-        var wasShown = hidden.indexOf(rid) < 0;
-        if (wasShown && shown() <= 1) return;           // never leave the pet an empty menu
-        draft = draft.filter(function (x) { return x !== rid; });
-        hidden = hidden.filter(function (x) { return x !== rid; });
+        var k = +el.closest(".bp-row").dataset.i;
+        draft = draft.filter(function (x, n) { return n !== k; });
         note = null;
         var next = Math.min(k, draft.length - 1);
-        draw('.bp-row[data-i="' + next + '"] [data-pm-grip]');
+        draw(next >= 0 ? '.bp-row[data-i="' + next + '"] [data-pm-remove]' : "[data-pm-add]");
         return;
       }
       if (el.hasAttribute("data-pm-add")) { openPicker(); return; }
@@ -429,7 +402,7 @@
     function doSave() {
       if (saving || !dirty() || locked()) return;
       saving = true; note = null; draw();
-      save(draft.slice(), saved.rev, hidden.slice()).then(function (r) {
+      save(draft.slice(), saved.rev, []).then(function (r) {
         saving = false;
         if (!host.isConnected) return;
         if (r.ok) {

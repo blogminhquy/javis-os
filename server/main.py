@@ -7952,10 +7952,9 @@ def _pet_menu_save(items, base_rev, hidden=None):
 
 @app.post("/pet/menu")
 async def pet_menu_set(items: str = Form("[]"), base_rev: int = Form(-1), hidden: str = Form("[]")):
-    """Save the mascot menu: `items` is a JSON list of action ids, first on top; `hidden` the ids the pet leaves out;
-    `base_rev` the revision it was edited from. Adding, reordering, hiding and removing an added item pass; dropping
-    a default item does not (owner, 2026-11-05); a stale revision is a 409 so no window overwrites another one's
-    newer menu."""
+    """Save the mascot menu: `items` is a JSON list of action ids, first on top; `hidden` (older dashboards) is left out;
+    `base_rev` the revision it was edited from. Adding, reordering and removing any item pass, down to an empty menu
+    (owner, 2026-11-05); a stale revision is a 409 so no window overwrites another one's newer menu."""
     raw = _order_list(items)
     if raw is None:
         raw = "bad"
@@ -7970,10 +7969,6 @@ async def pet_menu_set(items: str = Form("[]"), base_rev: int = Form(-1), hidden
                                   "The mascot menu was just changed in another window. Reload to see it."),
         "invalid_saved": localefmt.chu("Cấu hình menu đã lưu bị lỗi nên chưa lưu đè được.",
                                        "The saved menu settings are damaged, so they cannot be saved over yet."),
-        "removed": localefmt.chu("Sáu mục mặc định của menu chỉ ẩn được, không xóa được.",
-                                 "The six default menu items can be hidden, not removed."),
-        "all_hidden": localefmt.chu("Phải để ít nhất một mục hiện trên menu.",
-                                    "Keep at least one item shown on the menu."),
     }.get(code) or localefmt.chu("Danh sách chức năng không hợp lệ.", "Invalid list of features.")
     return JSONResponse({"ok": False, "code": code, "error": msg, "menu": menu},
                         status_code=409 if code in ("conflict", "invalid_saved") else 400)

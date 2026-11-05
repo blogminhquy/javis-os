@@ -7028,7 +7028,7 @@
   "reorder.cancel": "Huỷ",
   "reorder.save_err": "Chưa lưu được thứ tự, thử lại.",
   "petmenu.title": "Menu linh vật",
-  "petmenu.desc": "Thêm, xóa, ẩn hiện và kéo để sắp xếp các chức năng mở từ linh vật.",
+  "petmenu.desc": "Thêm, xóa và kéo để sắp xếp các chức năng mở từ linh vật.",
   "petmenu.count": "{n} mục",
   "petmenu.add": "Thêm chức năng",
   "petmenu.cancel": "Hủy thay đổi",
@@ -7053,11 +7053,7 @@
   "petmenu.why_gone": "Chức năng này không còn trong Javis",
   "petmenu.gone_name": "Chức năng không còn khả dụng",
   "petmenu.leave": "Menu linh vật có thay đổi chưa lưu. Bấm OK để bỏ thay đổi, hoặc Hủy để tiếp tục chỉnh sửa.",
-  "petmenu.count_hidden": "{n} mục, {h} đang ẩn",
-  "petmenu.hide": "Ẩn khỏi menu",
-  "petmenu.show": "Hiện lại trên menu",
-  "petmenu.hidden_note": "Đang ẩn khỏi menu",
-  "petmenu.keep_one": "Phải để ít nhất một mục hiện",
   "petmenu.drag_label": "Kéo để đổi chỗ: {name}. Bàn phím: phím mũi tên lên hoặc xuống",
-  "petmenu.remove": "Xóa khỏi menu"
+  "petmenu.remove": "Xóa khỏi menu",
+  "petmenu.empty": "Menu đang trống: bấm linh vật sẽ không mở menu nào."
 }

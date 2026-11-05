@@ -497,8 +497,8 @@
     var PM = window.JavisPetMenu;
     if (PM && PM.menuEntries) {
       try {
-        var tuChon = PM.menuEntries({ mic: mic });
-        if (tuChon.length) muc = tuChon.map(function (m) { return { id: m.id, ic: m.icon, nhan: m.label, why: m.why }; });
+        // May be EMPTY: the owner can remove every item (2026-11-05), and then the pet opens no menu at all.
+        muc = PM.menuEntries({ mic: mic }).map(function (m) { return { id: m.id, ic: m.icon, nhan: m.label, why: m.why }; });
       } catch (e) {}
     }
     menu.innerHTML = muc.map(function (m) {
@@ -861,6 +861,7 @@
     // Vẽ lại MỖI LẦN mở, không chỉ lần đầu: nhãn mục mic đổi theo trạng thái mic, mà mic thì
     // bật tắt được từ chỗ khác (nút dưới ô nhập, phím Space, phiên Live đóng lại).
     if (mo) veMenu();
+    if (mo && menu.children.length === 0) mo = false;   // an emptied menu: the pet still comes out, no box opens
     menu.hidden = !mo;
     el.dataset.menu = mo ? "1" : "0";
     if (mo) ghimMenuTrongMan();

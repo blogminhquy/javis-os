@@ -7028,7 +7028,7 @@
   "reorder.cancel": "Cancel",
   "reorder.save_err": "Could not save the order, try again.",
   "petmenu.title": "Mascot menu",
-  "petmenu.desc": "Add, remove, show or hide, and drag to arrange the features the mascot opens.",
+  "petmenu.desc": "Add, remove and drag to arrange the features the mascot opens.",
   "petmenu.count": "{n} items",
   "petmenu.add": "Add feature",
   "petmenu.cancel": "Discard changes",
@@ -7053,11 +7053,7 @@
   "petmenu.why_gone": "This feature is no longer in Javis",
   "petmenu.gone_name": "Feature no longer available",
   "petmenu.leave": "The mascot menu has unsaved changes. Press OK to discard them, or Cancel to keep editing.",
-  "petmenu.count_hidden": "{n} items, {h} hidden",
-  "petmenu.hide": "Hide from the menu",
-  "petmenu.show": "Show on the menu",
-  "petmenu.hidden_note": "Hidden from the menu",
-  "petmenu.keep_one": "Keep at least one item shown",
   "petmenu.drag_label": "Drag to move: {name}. Keyboard: up or down arrow key",
-  "petmenu.remove": "Remove from the menu"
+  "petmenu.remove": "Remove from the menu",
+  "petmenu.empty": "The menu is empty: tapping the mascot opens nothing."
 }
