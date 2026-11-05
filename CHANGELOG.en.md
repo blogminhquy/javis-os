@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.484.1] - 2026-11-06
+### Fixed
+- **No empty bubble when coming back to a running chat.** If you left a chat while Javis was working and came back, an empty answer bubble showed above the progress line. Now you see the steps so far and the progress line, and the bubble appears once Javis starts writing.
+
 ## [0.484.0] - 2026-11-05
 ### Added
 - **A chat that falls back switches its model display too.** When the chosen model runs out of quota and Javis moves to a fallback card, the chip switches to the fallback model's name with an amber dot, and the picker's tick, the Effort chip, the plan usage ring and `/model` follow the model running. Moving the Effort slider then sets the fallback model's own level. Hover (or press) the chip to see the chosen model, when its quota returns, and the model running.
