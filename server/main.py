@@ -20483,19 +20483,22 @@ def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = 
 
 
 @app.get("/sessions/{session_id}")
-def sessions_get(session_id: str, limit: int = Query(0)):
+def sessions_get(session_id: str, limit: int = Query(0), tools: int = Query(1)):
     """`limit=0` (mặc định) trả CẢ hội thoại - khuôn cũ, mọi chỗ gọi cũ giữ nguyên hành vi.
 
     `limit=N` trả N tin CUỐI kèm `has_more` + `total`: khung chat mở hội thoại dài thì chỉ
     dựng phần đuôi rồi rơi thẳng xuống câu trả lời gần nhất, phần cũ để cuộn lên mới kéo về
     qua `/sessions/{id}/messages`.
+
+    `tools=0` (performance, 2026-11-05, with `limit`): leave out the stored tool calls, which the chat view never
+    shows and which can be most of the payload. The default keeps the old shape for every other caller.
     """
     store = get_store()
     sess = store.get_session(session_id)
     if not sess:
         return JSONResponse({"error": "not found"}, status_code=404)
     if limit and limit > 0:
-        khuc = store.get_messages_page(session_id, limit=limit)
+        khuc = store.get_messages_page(session_id, limit=limit, with_tools=bool(tools))
         sess["messages"] = khuc["messages"]
         sess["has_more"] = khuc["has_more"]
         sess["total"] = store.count_messages(session_id)
@@ -20514,7 +20517,7 @@ def sessions_get(session_id: str, limit: int = Query(0)):
 
 @app.get("/sessions/{session_id}/messages")
 def sessions_messages(session_id: str, limit: int = Query(30),
-                      before_ts: float = Query(None), before_id: int = Query(None)):
+                      before_ts: float = Query(None), before_id: int = Query(None), tools: int = Query(1)):
     """Performance (2026-11-05): a plain `def` (thread pool), not `async def` doing SQLite on the event loop.
 
     Khúc tin CŨ HƠN con trỏ (before_ts, before_id) - khung chat cuộn lên thì gọi đường này.
@@ -20527,7 +20530,8 @@ def sessions_messages(session_id: str, limit: int = Query(30),
     truoc = None
     if before_ts is not None and before_id is not None:
         truoc = (float(before_ts), int(before_id))
-    page = store.get_messages_page(session_id, limit=max(1, min(int(limit), 200)), before=truoc)
+    page = store.get_messages_page(session_id, limit=max(1, min(int(limit), 200)), before=truoc,
+                                   with_tools=bool(tools))   # tools=0: see sessions_get
     _gan_reaction(store, session_id, page.get("messages") or [])
     return page
 

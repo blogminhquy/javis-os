@@ -2237,7 +2237,13 @@
     }
     var built = listItems();
     var prev = S.listCache && S.listCache.team === S.team.team_id && S.listCache.box === box ? S.listCache.items : null;
-    S.listCache = { team: S.team.team_id, box: box, items: listSync(box, built.items, prev, htmlNodes) };
+    // Performance (2026-11-05): Alpine walks every node added anywhere on the page looking for x- directives; message
+    // nodes never carry one. Same two steps as the main chat (app.js chatAppend): the list itself is flagged, and the
+    // sync runs inside Alpine.mutateDom so what is written into a message is not walked either.
+    box._x_ignoreMutationObserver = true;
+    var A = typeof window !== "undefined" && window.Alpine;
+    var sync = function () { return listSync(box, built.items, prev, htmlNodes); };
+    S.listCache = { team: S.team.team_id, box: box, items: A && typeof A.mutateDom === "function" ? A.mutateDom(sync) : sync() };
     // The latest assistant message keeps its Like button visible (like Zalo); older ones show it on hover.
     var lastAgent = null;
     for (var li = built.list.length - 1; li >= 0; li--) if (built.list[li].author_kind === "agent") { lastAgent = built.list[li].id; break; }
@@ -3011,8 +3017,12 @@
     if (input) input.value = "";
     setNote("");
     useTeam(id);
+    // Performance (2026-11-05): ask the server FIRST, then draw. Drawing the whole page (header, cached messages,
+    // composer) took 150-300 ms on a 4x slowed CPU, and the three requests only left after it: every switch waited
+    // for that drawing plus the round trip. Now the round trip runs while the page draws.
+    var loads = Promise.all([loadTeam(), loadQueue(), loadMsgs(false)]);
     drawAll(true);
-    Promise.all([loadTeam(), loadQueue(), loadMsgs(false)]).then(function () {
+    loads.then(function () {
       if (S.activeId !== id) return;
       // Drawn from the cache, the chat was already on screen: this redraw reuses the unchanged message nodes.
       drawAll(true);

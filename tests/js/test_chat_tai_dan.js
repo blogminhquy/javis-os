@@ -70,7 +70,7 @@ check("còn nút bấm tay khi trình duyệt không có IntersectionObserver",
 check("có cờ chặn cuộn trong lúc chèn ngược", /let _neoChenCu = null, _dangChenCu = false(, _dangDungLoat = false)?;/.test(APP));
 // 2026-11-05: building a whole chat (open, F5) also holds the scroll, then scrolls once: one layout, not one per bubble.
 check("dựng cả cuộc chat chỉ cuộn một lần ở cuối",
-  /_dangDungLoat = true;\s*\n\s*try \{ ds\.forEach\(/.test(APP) && /finally \{ _dangDungLoat = false; \}/.test(APP));
+  /_dangDungLoat = true;\s*\n\s*try \{ ngoaiAlpine\(\(\) => ds\.forEach\(/.test(APP) && /finally \{ _dangDungLoat = false; \}/.test(APP));
 // scrollBottom goes through chat-scroll.js, which does not scroll while suspended() says older messages go in.
 const CS = require(path.join(__dirname, "..", "..", "dashboard", "chat-scroll.js"));
 const fakeArea = { scrollHeight: 2000, clientHeight: 400, scrollTop: 100, addEventListener() {}, querySelector: () => null };

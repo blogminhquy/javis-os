@@ -1129,6 +1129,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   color: var(--text3); font-size: 14px; font-style: italic;
 }
 .msg { animation: fadeIn 0.2s ease; }
+/* A bubble drawn from history (chat opened, F5, older messages loaded): no fade-in. See chatAppend in app.js. */
+.msg.msg-tinh { animation: none; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .msg-user { display: flex; flex-direction: column; align-items: flex-end; }
 .msg-user .bubble {

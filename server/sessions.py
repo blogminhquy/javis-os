@@ -1309,7 +1309,8 @@ class SessionStore:
         return int(rows[0]["n"]) if rows else 0
 
     def get_messages_page(self, session_id: str, limit: int = 30,
-                          before: Optional[Tuple[float, int]] = None) -> Dict[str, Any]:
+                          before: Optional[Tuple[float, int]] = None,
+                          with_tools: bool = True) -> Dict[str, Any]:
         """Một KHÚC tin nhắn tính từ CUỐI lên, cho khung chat tải dần.
 
         `before` là con trỏ (ts, id) của tin GIÀ NHẤT đang hiện trên màn: lượt sau lấy tiếp
@@ -1319,9 +1320,13 @@ class SessionStore:
 
         Trả về `messages` đã xếp XUÔI (cũ trước) để dựng bong bóng theo đúng thứ tự, kèm
         `has_more` cho biết phía trên còn tin nữa không.
+
+        `with_tools=False` (performance, 2026-11-05): the chat view never shows the stored tool calls, and on a chat
+        whose tools read files or web pages they were most of the payload (70% measured on a plain report chat). The
+        column is not even read then, and the messages carry no `tool_calls` key.
         """
         limit = max(1, int(limit))
-        sql = ("SELECT id, role, content, ts, tool_calls_json, "
+        sql = ("SELECT id, role, content, ts, " + ("tool_calls_json, " if with_tools else "") +
             "(SELECT json_object('utterance_id',utterance_id,'message_id',message_id,'response_policy',response_policy,'answer_requested',answer_requested,'state',state) FROM voice_receipts WHERE message_id=messages.id) AS voice_metadata FROM messages "
                "WHERE session_id = ?")
         params: List[Any] = [session_id]
