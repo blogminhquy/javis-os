@@ -18,7 +18,7 @@ window.lucide = { createIcons() { document.querySelectorAll("i[data-lucide]").fo
   --violet: #d5b5ff; --violet-wash: rgba(159,104,255,.14);
   --green: #22c55e; --green-wash: rgba(34,197,94,.12);
   --red: #f4565a; --red-wash: rgba(244,86,90,.10);
-  --warn: #e0a04a; --bg-accent: #ff7a3c; --shadow-1: 0 4px 14px rgba(0,0,0,.28); --warn-wash: rgba(210,160,60,.13); --warn-line: rgba(210,160,60,.45);
+  --warn: #e0a04a; --bg-accent: #ff7a3c; --on-accent: #1a0d05; --accent-solid: #ff7a3c; --border: rgba(255,255,255,.16); --shadow-1: 0 4px 14px rgba(0,0,0,.28); --warn-wash: rgba(210,160,60,.13); --warn-line: rgba(210,160,60,.45);
   --scrim: rgba(3,3,8,.72);
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -160,6 +160,28 @@ button { font: inherit; color: inherit; }
   color: var(--accent-ink); font-family: var(--font); font-weight: 600; cursor: pointer; white-space: nowrap;
 }
 .cp-eff:hover, .cp-eff[aria-expanded="true"] { border-color: var(--accent); }
+.eff-fast {
+  margin-left: auto; flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text2);
+  display: inline-flex; align-items: center; justify-content: center; align-self: center;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.eff-fast:hover { border-color: var(--accent); color: var(--accent); }
+.eff-fast:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eff-fast[aria-pressed="true"] {
+  color: var(--on-accent); border-color: var(--accent);
+  background: linear-gradient(110deg, var(--accent) 0%, var(--accent-ink) 25%, var(--accent) 50%, var(--accent-solid) 75%, var(--accent) 100%);
+  background-size: 250% 100%; animation: fastWave 1.6s linear infinite;
+}
+.eff-fast[aria-pressed="true"] svg { animation: fastZap 1.6s ease-in-out infinite; }
+.eff-fast[aria-disabled="true"] { opacity: .45; cursor: help; }
+@keyframes fastWave { to { background-position: -250% 0; } }
+@keyframes fastZap { 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) {
+  .eff-fast[aria-pressed="true"], .eff-fast[aria-pressed="true"] svg { animation: none; }
+}
+.cp-eff-fast { display: inline-flex; color: var(--accent); }
+.cp-eff-fast[hidden] { display: none; }
 .cp-eff { font-size: 15px; padding: 6px 13px; min-height: 40px; border-color: var(--line2); }
 .eff-head { display: flex; align-items: baseline; gap: 8px; font-size: 15px; min-height: 32px; }
 .eff-head .eff-lbl, .eff-head .eff-val { align-self: center; }
@@ -259,7 +281,7 @@ button { font: inherit; color: inherit; }
       </div>
       <div class="chips">
         <button class="chip" data-sheet="model" data-for="ChatGPT"><i data-lucide="cpu"></i><span class="t">gpt-5.1-codex</span><i class="up" data-lucide="chevron-up"></i></button>
-        <button class="cp-eff" data-sheet="effort" data-for="ChatGPT" data-v="medium"><span class="ev">Medium</span><span class="mb-caret">▾</span></button>
+        <button class="cp-eff" data-sheet="effort" data-for="ChatGPT" data-v="medium" data-fast="1"><span class="ev">Medium</span><span class="cp-eff-fast" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></span><span class="mb-caret">▾</span></button>
         <span class="tags"><span class="badge"><i data-lucide="star"></i>MAIN</span></span>
       </div>
       <div class="limit">
@@ -289,7 +311,7 @@ button { font: inherit; color: inherit; }
       </div>
       <div class="chips">
         <button class="chip" data-sheet="model" data-for="Antigravity"><i data-lucide="cpu"></i><span class="t">claude-sonnet-4-6</span><i class="up" data-lucide="chevron-up"></i></button>
-        <button class="cp-eff" data-sheet="effort" data-for="Antigravity" data-v="off"><span class="ev">Off</span><span class="mb-caret">▾</span></button>
+        <button class="cp-eff" data-sheet="effort" data-for="Antigravity" data-v="off"><span class="ev">Off</span><span class="cp-eff-fast" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></span><span class="mb-caret">▾</span></button>
         <span class="tags"><span class="badge bk">Dự phòng 1</span><span class="badge live"><i data-lucide="zap"></i>ĐANG DÙNG</span></span>
       </div>
       <div class="acts">
@@ -313,7 +335,7 @@ button { font: inherit; color: inherit; }
       </div>
       <div class="chips">
         <button class="chip" data-sheet="model" data-for="OpenRouter"><i data-lucide="cpu"></i><span class="t">Tự chọn model miễn phí</span><i class="up" data-lucide="chevron-up"></i></button>
-        <button class="cp-eff" data-sheet="effort" data-for="OpenRouter" data-v="off"><span class="ev">Off</span><span class="mb-caret">▾</span></button>
+        <button class="cp-eff" data-sheet="effort" data-for="OpenRouter" data-v="off" data-fast="1"><span class="ev">Off</span><span class="cp-eff-fast" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></span><span class="mb-caret">▾</span></button>
         <span class="tags"><span class="badge bk">Dự phòng 2</span></span>
       </div>
       <ul class="accts">
@@ -335,12 +357,12 @@ button { font: inherit; color: inherit; }
     <div class="sec-h">Model việc nền <span class="sub">· loop, Kanban, nhắc hẹn</span><button class="i" aria-label="Giải thích"><i data-lucide="info"></i></button></div>
     <div class="card">
       <div class="bg">
-        <span class="bi"><i data-lucide="workflow"></i></span>
+        <span class="bi"><i data-lucide="cpu"></i></span>
         <div class="who"><div class="name">gpt-5.1-codex</div><div class="status">ChatGPT</div></div>
-        <button class="cp-eff" data-sheet="effort" data-for="Việc nền" data-v="medium"><span class="ev">Medium</span><span class="mb-caret">▾</span></button>
+        <button class="cp-eff" data-sheet="effort" data-for="Việc nền" data-v="medium" data-fast="1"><span class="ev">Medium</span><span class="cp-eff-fast" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></span><span class="mb-caret">▾</span></button>
       </div>
       <div class="acts">
-        <button class="act" data-sheet="model" data-for="Việc nền"><i data-lucide="replace"></i>Đổi model</button>
+        <button class="act" data-sheet="model" data-for="Việc nền"><i data-lucide="cpu"></i>Đổi model</button>
       </div>
     </div>
   </div>
@@ -375,7 +397,8 @@ button { font: inherit; color: inherit; }
 
 <script>
 /* dashboard/effort-slider.js, unchanged */
-window.t = function (k) { return ({"eff.title": "Mức suy nghĩ", "eff.off": "Off", "eff.low": "Light", "eff.medium": "Medium", "eff.high": "High", "eff.xhigh": "Extra", "eff.ultra": "Ultra", "eff.head": "Effort", "eff.faster": "Faster", "eff.smarter": "Smarter", "eff.recommended": "Recommended", "eff.ultra_hint": "max effort", "eff.locked": "Model này đã gắn sẵn mức suy nghĩ trong tên. Đổi model để đổi mức."})[k] || k; };
+window.FAST_ON = false;
+window.t = function (k) { return ({"fast.claude": "Tính vào usage credits, giá gấp đôi, không trừ hạn mức gói.", "fast.codex": "Tiêu hạn mức gói nhanh gấp 2,5 lần.", "fast.api": "Giá token cao hơn, khoảng gấp đôi.", "fast.none": "Bộ não này không có Fast mode.", "fast.model_none": "Model này không có Fast mode, chỉ Opus 5.5, Opus 5 và Opus 4.8.", "fast.state_cooldown": "Đang tạm chạy tốc độ thường vì vượt giới hạn Fast mode, sẽ tự bật lại.", "fast.state_fallback": "Lượt trước nhà cung cấp không nhận Fast mode nên đã chạy tốc độ thường.", "fast.state_credits": "Fast mode đang tắt: cần bật usage credits trong tài khoản Claude.", "fast.state_off": "Fast mode đang tắt ({reason}).", "eff.title": "Mức suy nghĩ", "eff.off": "Off", "eff.low": "Light", "eff.medium": "Medium", "eff.high": "High", "eff.xhigh": "Extra", "eff.ultra": "Ultra", "eff.head": "Effort", "eff.faster": "Faster", "eff.smarter": "Smarter", "eff.recommended": "Recommended", "eff.ultra_hint": "max effort", "eff.locked": "Model này đã gắn sẵn mức suy nghĩ trong tên. Đổi model để đổi mức."})[k] || k; };
 </script>
 <script>
 /* effort-slider.js - the composer's thinking-level slider (0.153.0).
@@ -645,7 +668,12 @@ document.addEventListener("click", (e) => {
     if (t.dataset.sheet === "effort") {
       // The app's own slider (dashboard/effort-slider.js), mounted as the composer mounts it.
       const chipEl = t.classList.contains("cp-eff") ? t : null;
+      const sup = !chipEl || chipEl.dataset.fast === "1";
       window.JavisEffortSlider.mount(document.getElementById("effBox"), { value: (chipEl && chipEl.dataset.v) || "medium",
+        // Fast mode: the same bolt as the composer's slider, one setting for the whole app; greyed out on a model
+        // without Fast mode (same rule as model-picker.js fastNote), e.g. Antigravity.
+        fast: { supported: sup, on: window.FAST_ON, title: () => "Fast mode\n" + window.t(chipEl && chipEl.dataset.for === "ChatGPT" ? "fast.codex" : sup ? "fast.api" : "fast.none"),
+          onToggle: (on) => { window.FAST_ON = on; document.querySelectorAll(".cp-eff[data-fast='1'] .cp-eff-fast").forEach(x => { x.hidden = !on; }); } },
         onChange: (v) => { if (chipEl) { chipEl.dataset.v = v; chipEl.querySelector(".ev").textContent = window.t(window.JavisEffortSlider.LABEL_KEY[v]); } } });
     }
     return;
