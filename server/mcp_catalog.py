@@ -24,7 +24,13 @@ CATALOG_PATH = ROOT / "system" / "mcp-catalog.json"
 WRITE_HINTS = ("create", "update", "delete", "add", "remove", "edit", "send", "set",
                "cancel", "refund", "pay", "post", "write", "upsert", "order", "purchase", "transaction",
                "reply", "accept", "invite", "join", "approve", "deploy", "publish", "upload",
-               "execute", "submit", "launch", "react", "block", "kick")
+               "execute", "submit", "launch", "react", "block", "kick",
+               # Vá bảo mật 2026-11-05: những động từ này từng rơi vào "read" nên chạy được ở mức Chỉ đọc
+               # (forward mail, share file, trash, chuyển tiền). Thà chặn nhầm một tool đọc của connector
+               # tự thêm còn hơn để lọt một hành động; connector trong catalog khai tool_meta nên không bị ảnh hưởng.
+               "forward", "share", "trash", "transfer", "move", "archive", "assign", "withdraw", "revoke",
+               "grant", "rename", "insert", "patch", "replace", "merge", "subscribe", "enable", "disable",
+               "notify", "restore", "import")
 
 PERM_RANK = {"readonly": 0, "safe": 1, "full": 2}
 # "gated" (0.207.0, team_gate.py): a Team step that needs the owner's approval for outside actions. Caps like auto, so

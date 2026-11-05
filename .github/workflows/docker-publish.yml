@@ -18,6 +18,10 @@ on:
 
 jobs:
   build-and-push:
+    # Chạy tay (workflow_dispatch) chỉ từ main (vá bảo mật 2026-11-05): job này đẩy tag :latest mà mọi
+    # máy Docker kéo về, nên một nhánh chưa qua review không được tự xuất bản image chỉ vì có người
+    # bấm Run workflow trên nhánh đó.
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
