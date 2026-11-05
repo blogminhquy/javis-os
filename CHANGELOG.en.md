@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.476.1] - 2026-11-05
+### Fixed
+- **PDFs no longer trap you on iPhone and iPad.** In the home screen app, tapping a PDF link in chat used to cover all of Javis with the PDF, with no way back and no download button, so the app had to be closed. The PDF now opens in a viewer inside Javis: a close button, the back gesture closes it, and Download opens the share sheet to save it to Files or send it on.
+- **Bold text inside a link shows correctly.** A link like `[**Download file**](...)` no longer shows the two asterisks.
+
 ## [0.476.0] - 2026-11-05
 ### Improved
 - **Light theme is now the Javis default.** A device that never picked a theme opens light, day and night, instead of turning dark after 18:00.
