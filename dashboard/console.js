@@ -41,7 +41,8 @@
     selfimprove: "repeat",
     // 0.204.0: webhooks are their own page under Work (they were a section of the scheduled-jobs page).
     webhooks: "webhook",
-    learn: "brain",
+    // 2026-11-05 (owner): no longer the same brain as the Brain group header; a brain with a cog = learning by itself.
+    learn: "brain-cog",
     kanban: "square-kanban",
     // 0.422.0: the Tasks page (tasks.js) replaces Kanban and Scheduled under Work.
     tasks: "list-checks",
