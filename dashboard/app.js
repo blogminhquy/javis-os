@@ -2310,13 +2310,21 @@ function _quenPhienNeuDoi() {
   if (_phienMoLuc && _phienMoLuc.id === savedSessionId && convo.length !== _phienMoLuc.len) _phienCache.delete(_phienMoLuc.id);
 }
 
-async function openStoredSession(id, stillCurrent) {
+async function openStoredSession(id, stillCurrent, opts) {
   // 0.347.0: switching conversation keeps a call (see _callSid). Only the Hang up button, the mascot, Esc or a
   // brain switch end it. Outside a call this still cancels capture, as before.
   if (handsFree) boViecPhienCu(); else tatRanhTay();
   const ticket = ++sessionOpenSeq;
   _quenPhienNeuDoi();
   const conHieuLuc = () => ticket === sessionOpenSeq && (!stillCurrent || stillCurrent());
+  // Performance (2026-11-05): a chat the caller has JUST created (Partners page, New conversation) has no messages,
+  // so asking the server for them was a second round trip in a row for nothing. Draw it empty right away.
+  if (opts && opts.empty) {
+    const rong = { messages: [], has_more: false, brain: currentBrainPath() };
+    _ghiCachePhien(id, rong);
+    _veLaiPhien(id, rong, ticket, false);
+    return;
+  }
   // Có bản trong bộ nhớ: vẽ ngay, rồi so với bản mới.
   const daCo = _docCachePhien(id);
   let veRoi = "";
@@ -2373,7 +2381,7 @@ function _veLaiPhien(id, sess, ticket, capNhat) {
     ghimDay(ticket);
     syncActiveUI();
     if (capNhat) return;
-    notifySessions();
+    notifySessions("open");
     // Dải việc nền đánh dấu "việc CỦA hội thoại này" theo chat_id, nên đổi phiên là nó sai
     // ngay. Xoá rồi hỏi lại thay vì để chip của phiên trước nằm lại vài giây.
     try { if (window.JavisBackground) window.JavisBackground.reset(); } catch (e) {}
@@ -2396,6 +2404,20 @@ function resetChatView() {
   syncActiveUI();
   try { if (window.JavisBackground) window.JavisBackground.reset(); } catch (e) {}
 }
+// Performance (2026-11-05): clear the chat view the instant New conversation is clicked on the Partners page, while
+// the server makes the chat. Before, the old chat stayed on screen until the new one came back, which read as lag.
+// Quiet on purpose: nothing is persisted and no one is told, the open that follows does both.
+function blankChat() {
+  sessionOpenSeq++;
+  if (handsFree) boViecPhienCu(); else tatRanhTay();
+  _quenPhienNeuDoi();
+  convo = [];
+  hideActivity();
+  _tinCu = null; goMoiTinCu();
+  chatArea.innerHTML = "";
+  savedSessionId = null;
+  syncActiveUI();
+}
 function newChat() {
   sessionOpenSeq++;
   // KHÔNG reset server, KHÔNG đụng lượt đang chạy của phiên khác - chúng chạy nền + tự lưu; vào
@@ -2403,10 +2425,19 @@ function newChat() {
   resetChatView();
   try { chatInput.focus(); } catch (e) {}
 }
-window.JavisSessions = { open: openStoredSession, new: newChat, brain: () => currentBrainPath(), current: () => savedSessionId,
-                         prefetch: prefetchSession };
+window.JavisSessions = { open: openStoredSession, new: newChat, blank: blankChat, brain: () => currentBrainPath(),
+                         current: () => savedSessionId, prefetch: prefetchSession };
 // Báo các UI khác (sidebar Lịch sử trong chat workspace) biết phiên/danh sách vừa đổi
-function notifySessions() { try { window.dispatchEvent(new Event("javis:sessions-changed")); } catch (e) {} }
+// Performance (2026-11-05): `reason` "open" = only WHICH chat is on screen changed (a switch), no message was added.
+// Listeners that count or list messages (history list, unread and job counts) skip their network round on it.
+function notifySessions(reason) {
+  try {
+    const ev = typeof CustomEvent === "function"
+      ? new CustomEvent("javis:sessions-changed", { detail: { reason: reason || "" } })
+      : new Event("javis:sessions-changed");
+    window.dispatchEvent(ev);
+  } catch (e) {}
+}
 
 // Hàng nút dưới bong bóng (giờ + tua lại / trích dẫn / copy). Tách sang chat-acts.js để
 // test được bằng node; ở đây chỉ là lối thoát khi file đó chưa kịp nạp.

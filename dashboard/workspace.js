@@ -413,6 +413,7 @@
     if (_unLai) { _unLai = false; setTimeout(henUnread, 0); }
     if (round !== lanDung || b0 !== brain() || !d || !d.ok) return false;
     S.un = d.agents || {};
+    S.unBrain = b0;
     S.agents.forEach(function (a) {
       var u = S.un[a.slug];
       if (u && Number(u.last_at) > Number(a.last_chat_at || 0)) a.last_chat_at = Number(u.last_at);
@@ -434,6 +435,13 @@
   function dangXemCongSu(slug) {
     var c = S.loai === "agent" ? dangChon() : null;
     return active && !!c && c.slug === slug && !(typeof document !== "undefined" && document.hidden);
+  }
+  // Performance (2026-11-05): opening a partner whose count is known to be zero skips the POST, and with it the
+  // agent_read broadcast that made every open tab, this one included, fetch the unread counts again.
+  function coTinChuaDoc(slug) {
+    if (S.unBrain !== brain()) return true;   // counts not loaded for this brain yet: mark it read to be safe
+    var u = S.un[slug];
+    return !!(u && Number(u.n) > 0);
   }
   function daDoc(slug) {
     if (S.un[slug]) S.un[slug].n = 0;
@@ -1539,7 +1547,12 @@
     if (!item) return false;
     var still = function () { return active && ticket === opening && conDangXem(item); };
     try {
-      vePhai(item);
+      // Performance (2026-11-05): the right column (settings form, Auto block, history list) belongs to the PARTNER, not
+      // to one chat. New conversation and a history click keep the same partner, so it is not rebuilt: rebuilding it
+      // fetched the agent, the history list and its GitHub icons again and redrew the whole form on every click.
+      if (!phaiDaVeCho(item)) vePhai(item);
+      // New conversation: the old chat leaves the screen at once instead of after the server answers.
+      if (moiHan && window.JavisSessions && window.JavisSessions.blank) window.JavisSessions.blank();
       var b = encodeURIComponent(brain()), ch = kenh(item), id = sidChiDinh || null;
       if (!id && !moiHan && item.system) {
         // Javis Core: open the brain's default chat, the one reports land in (the server makes it when missing).
@@ -1560,6 +1573,7 @@
         if (!still()) return false;
         if (r.sessions && r.sessions[0]) id = r.sessions[0].id;
       }
+      var phienMoiTao = !id;
       if (!id) {
         var n = await api("/sessions/new", { method: "POST", body: fd({ brain: brain(), channel: ch }) });
         if (!still()) return false;
@@ -1572,13 +1586,14 @@
       }
       S.sessionCuaPhien[id] = item.slug;
       if (moSom && id === nho) await moSom;   // the remembered chat is still the newest: it is already open
-      else if (window.JavisSessions) await window.JavisSessions.open(id, still);
+      // A chat made just now is empty: open it without asking the server for its (zero) messages.
+      else if (window.JavisSessions) await window.JavisSessions.open(id, still, phienMoiTao ? { empty: true } : undefined);
       if (!still()) return false;
       if (!window.JavisSessions || window.JavisSessions.current() !== id) throw new Error(t("ws.err_session"));
       if (!item.system) _phienGanNhat[khoaGanNhat(item)] = id;
       chatReady(true);
       luuViTri(id);
-      if (S.loai === "agent") daDoc(item.slug);   // 0.205.0: opening the chat reads it
+      if (S.loai === "agent" && coTinChuaDoc(item.slug)) daDoc(item.slug);   // 0.205.0: opening the chat reads it
       if (S.loai === "workflow") veBuoc(item, tienDoHienTai(item));
       else ganCongHuong(item, id);
       return true;
@@ -1835,8 +1850,15 @@
   // ---------- cột phải ----------
   /** Tab cột phải cho LOẠI đang xem: trợ lý và quy trình nhớ riêng (xem S.tabCua). */
   function tabTheoLoai() { return (S.tabCua && S.tabCua[S.loai]) || S.tabPhai; }
+  // Which partner the right column was last drawn for ("agent:slug" / "workflow:slug"), on which page mount.
+  function khoaPhai(item) { return item ? S.loai + ":" + item.slug + "|" + brain() : ""; }
+  function phaiDaVeCho(item) {
+    var host = S.el && S.el.querySelector("#wsRightSet");
+    return !!(item && host && host.firstChild && S.phaiCua === khoaPhai(item) && S.phaiEl === S.el);
+  }
   function vePhai(item) {
     var host = S.el && S.el.querySelector("#wsRightSet"); if (!host) return;
+    S.phaiCua = khoaPhai(item); S.phaiEl = S.el;
     // TRẢ cây thư mục về trước khi vẽ lại cột phải. Vẽ lại chỉ ghi vào khung Cài đặt, nhưng
     // cây là node mượn và chỉ có một bản: trả rồi mượn lại theo tab đang mở là luật gọn nhất,
     // khỏi phải nhớ chỗ nào được phép ghi đè chỗ nào không.
@@ -2139,11 +2161,15 @@
     henDemViec();
   });
   // Huy hiệu việc trên thẻ trợ lý theo cùng các sự kiện với tab Công việc (gộp nhịp 800ms).
+  // Performance (2026-11-05): a plain chat switch (reason "open") adds no message and no job, so it does not recount.
+  function laDoiPhien(e) { return !!(e && e.detail && e.detail.reason === "open"); }
   ["javis:team-event", "javis:sessions-changed", "javis:agent-jobs-changed"].forEach(function (ev) {
-    window.addEventListener(ev, henDemViec);
+    window.addEventListener(ev, function (e) { if (!laDoiPhien(e)) henDemViec(); });
   });
   // 0.205.0: a message landed somewhere, or another tab read or muted a partner: read the unread counts again.
-  ["javis:sessions-changed", "javis:agent-read"].forEach(function (ev) { window.addEventListener(ev, henUnread); });
+  ["javis:sessions-changed", "javis:agent-read"].forEach(function (ev) {
+    window.addEventListener(ev, function (e) { if (!laDoiPhien(e)) henUnread(); });
+  });
   if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", function () {
     if (document.hidden || !active || S.loai !== "agent") return;
     var c = dangChon();
