@@ -132,7 +132,7 @@ For a new capability load the **`javis-builder`** skill (templates, duplicate ch
 
 **Self-improvement AT USE TIME only:** fix a skill or workflow during the turn that uses it, when a specific flaw just surfaced (add to Pitfalls/Lessons, do not rewrite). Agents learn via a `JAVIS_LESSON: ...` line the app writes into their memory; never tell an agent to edit its own memory file. Never create a background loop that bulk-upgrades skills/agents (owner, 2026-08-16).
 
-The SYSTEM skills (`javis-builder`, `ingest-source`, `query-wiki`, `lint-wiki`, `notes`, `html-to-webcake`) ship with the app in every brain: never recreate or clone them; edit one only when the user explicitly asks.
+The SYSTEM skills (`javis-builder`, `ingest-source`, `query-wiki`, `lint-wiki`, `notes`, `html-to-webcake`, `security-audit`) ship with the app in every brain: never recreate or clone them; edit one only when the user explicitly asks.
 
 ## Response principles
 1. **Always use real numbers** from MCP - do not invent, do not assume
