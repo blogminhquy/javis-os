@@ -7773,6 +7773,48 @@ async def ui_order_set(scope: str = Form(...), order: str = Form("[]")):
     return {"ok": True, "order": val[scope]}
 
 
+@app.get("/pet/menu")
+async def pet_menu_get():
+    """The mascot menu the owner arranged (pet_menu.py): {state, rev, items}. Never customised = the default six."""
+    import pet_menu
+    return {"ok": True, "menu": pet_menu.read(cfgmod.read_settings() or {})}
+
+
+def _pet_menu_save(items, base_rev):
+    """Check and write under the settings lock, so two windows saving at once cannot both pass the revision check."""
+    import pet_menu
+    with cfgmod._SETTINGS_LOCK:
+        cfg = cfgmod.read_settings()
+        code, value = pet_menu.check_save(cfg, items, base_rev)
+        if not code:
+            cfg[pet_menu.SETTINGS_KEY] = value
+            cfgmod.write_settings(cfg)
+        return code, pet_menu.read(cfg)
+
+
+@app.post("/pet/menu")
+async def pet_menu_set(items: str = Form("[]"), base_rev: int = Form(-1)):
+    """Save the mascot menu: `items` is a JSON list of action ids, first on top; `base_rev` the revision it was edited
+    from. Only adding and reordering pass (owner, 2026-11-05); a stale revision is a 409 so no window overwrites
+    another one's newer menu."""
+    raw = _order_list(items)
+    if raw is None:
+        raw = "bad"
+    code, menu = await asyncio.to_thread(_pet_menu_save, raw, base_rev)
+    if not code:
+        return {"ok": True, "menu": menu}
+    msg = {
+        "conflict": localefmt.chu("Menu linh vật vừa được đổi ở cửa sổ khác. Tải lại để xem bản mới.",
+                                  "The mascot menu was just changed in another window. Reload to see it."),
+        "invalid_saved": localefmt.chu("Cấu hình menu đã lưu bị lỗi nên chưa lưu đè được.",
+                                       "The saved menu settings are damaged, so they cannot be saved over yet."),
+        "removed": localefmt.chu("Một lần lưu không được bỏ mục đã có trên menu.",
+                                 "A save cannot drop an item already on the menu."),
+    }.get(code) or localefmt.chu("Danh sách chức năng không hợp lệ.", "Invalid list of features.")
+    return JSONResponse({"ok": False, "code": code, "error": msg, "menu": menu},
+                        status_code=409 if code in ("conflict", "invalid_saved") else 400)
+
+
 @app.post("/projects/order")
 async def projects_set_order(brain: str = Form(...), order: str = Form("[]")):
     """0.454.0: the owner's order of the projects of one brain (JSON list of project ids, first on top)."""

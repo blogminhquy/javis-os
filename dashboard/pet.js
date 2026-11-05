@@ -491,12 +491,27 @@
       // JavisNav.go branch of the click handler opens it with no extra case.
       { id: "teams", ic: icon("users"), nhan: t("pet.menu.teams", "Team chat") },
     ];
+    // The owner's own menu (pet-menu.js, Settings > Mascot > Mascot menu): their order, plus the features they
+    // added. The list above stays as the fallback when pet-menu.js did not load (an old cached index.html).
+    // A feature that cannot run right now stays in its place, greyed out, with the reason under its name.
+    var PM = window.JavisPetMenu;
+    if (PM && PM.menuEntries) {
+      try {
+        var tuChon = PM.menuEntries({ mic: mic });
+        if (tuChon.length) muc = tuChon.map(function (m) { return { id: m.id, ic: m.icon, nhan: m.label, why: m.why }; });
+      } catch (e) {}
+    }
     menu.innerHTML = muc.map(function (m) {
-      return '<button type="button" data-pet-go="' + m.id + '"><span aria-hidden="true">' + m.ic + '</span>' +
-             '<b></b></button>';
+      return '<button type="button" data-pet-go="' + esc(m.id) + '"' + (m.why ? ' disabled aria-disabled="true"' : "") +
+             '><span aria-hidden="true">' + m.ic + '</span>' +
+             '<b></b>' + (m.why ? '<small></small>' : "") + '</button>';
     }).join("");
     // Nhãn gán bằng textContent chứ không nối chuỗi: nó tới từ từ điển, và từ điển là dữ liệu.
-    menu.querySelectorAll("button").forEach(function (b, i) { b.querySelector("b").textContent = muc[i].nhan; });
+    menu.querySelectorAll("button").forEach(function (b, i) {
+      b.querySelector("b").textContent = muc[i].nhan;
+      var lyDo = b.querySelector("small");
+      if (lyDo) { lyDo.textContent = muc[i].why; b.title = muc[i].why; }
+    });
   }
 
   // ---- Diện mạo ----
@@ -926,7 +941,7 @@
 
     menu.addEventListener("click", function (e) {
       var b = e.target.closest("[data-pet-go]");
-      if (!b) return;
+      if (!b || b.disabled) return;
       var id = b.dataset.petGo;
       moMenu(false);
       // Mic: BẤM HỘ cái nút mic thật chứ không gọi lại API giọng nói. Nút đó còn kéo theo cả
@@ -1060,6 +1075,9 @@
     veDauAn();
     try { window.javisTheme && window.javisTheme.on(function () { apDung(); veDauAn(); }); } catch (e) {}
     window.addEventListener("javis:i18n", function () { veMenu(); });
+    // The mascot menu was saved (here or in another window): close it if open, so no row moves under the pointer.
+    // moMenu(true) builds it again from the new list the next time.
+    window.addEventListener("javis:pet-menu", function () { if (el && el.dataset.menu === "1") moMenu(false); });
     // Logo riêng của người dùng thắng linh vật, nên phải hỏi máy chủ một lượt. Hỏi SAU khi
     // đã vẽ bằng localStorage: chờ mạng xong mới vẽ thì thanh bên nháy một nhịp lúc mở trang.
     fetch("/settings").then(function (r) { return r.json(); }).then(function (j) {
