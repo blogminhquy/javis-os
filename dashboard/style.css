@@ -4131,6 +4131,14 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .pet-menu button:hover span { background: var(--accent-wash-2); color: var(--accent); }
 .pet-menu button span svg { width: 16px; height: 16px; }
 .pet-menu button b { font-weight: 500; }
+/* A feature that cannot run right now (pet-menu.js): greyed out, the reason on a second line under its name. */
+.pet-menu button[disabled] {
+  display: grid; grid-template-columns: 28px auto; column-gap: 10px; align-items: center;
+  cursor: not-allowed; opacity: .62; white-space: normal; width: 250px; max-width: 70vw; text-align: left;
+}
+.pet-menu button[disabled]:hover { background: transparent; color: var(--text2); }
+.pet-menu button[disabled] span { grid-row: span 2; }
+.pet-menu button small { font-size: 12px; line-height: 1.3; color: var(--text3); }
 /* translateY(-50%) phải nằm TRONG keyframe: hoạt ảnh ghi đè cả thuộc tính transform, nên để
    nó ở luật tĩnh thôi là menu nhảy xuống nửa chiều cao suốt lúc hoạt ảnh chạy. */
 @keyframes petMenuVao {
