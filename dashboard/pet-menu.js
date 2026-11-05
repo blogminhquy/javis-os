@@ -2,8 +2,12 @@
 
    Owner, 2026-11-05: "Chỉ cần thêm và sắp xếp vị trí thôi là ok rồi. Và cho phần này vào trong phần cài đặt linh vật."
    So this file only lets the owner ADD a feature and REORDER the list. No renaming, no icon or action change, no
-   removing or hiding, no "restore defaults" (that would drop what was added). The server enforces the same rule
+   removing, no "restore defaults" (that would drop what was added). The server enforces the same rule
    (server/pet_menu.py): a save that drops an item already saved is refused.
+   Owner, same day: "phải có cả nút ẩn hiện nữa" and "kéo lên kéo xuống được chứ ko phải mũi tên". So each row has a
+   show/hide eye (a hidden item stays in its place here, the pet just leaves it out; one item always stays shown),
+   and rows move by dragging the handle, mouse or finger. The up/down arrow buttons are gone; with the keyboard,
+   focus the handle and press the up or down arrow key.
 
    Three parts:
      - CATALOG: every feature the pet can open, with a stable id, its own i18n label and icon, and a check that says
@@ -83,7 +87,14 @@
       if (typeof x === "string" && x && items.indexOf(x) < 0) items.push(x);
     });
     if (state !== "custom" || !items.length) items = DEFAULT_ITEMS.slice();
-    return { state: state, rev: rev, items: items };
+    var hidden = [];
+    if (state === "custom") {
+      (Array.isArray(o.hidden) ? o.hidden : []).forEach(function (x) {
+        if (items.indexOf(x) >= 0 && hidden.indexOf(x) < 0) hidden.push(x);
+      });
+      if (hidden.length >= items.length) hidden = [];   // never an empty menu
+    }
+    return { state: state, rev: rev, items: items, hidden: hidden };
   }
   // Lowercase without diacritics, so "tro chuyen" finds "Trò chuyện".
   function fold(s) {
@@ -162,9 +173,10 @@
   function announce(remote) {
     try { root.dispatchEvent(new CustomEvent("javis:pet-menu", { detail: { menu: snapshot(), remote: !!remote } })); } catch (e) {}
   }
-  function snapshot() { return { state: menu.state, rev: menu.rev, items: menu.items.slice() }; }
+  function snapshot() { return { state: menu.state, rev: menu.rev, items: menu.items.slice(), hidden: menu.hidden.slice() }; }
   function adopt(m, remote) {
-    var next = normalize(m), changed = next.rev !== menu.rev || next.state !== menu.state || !sameOrder(next.items, menu.items);
+    var next = normalize(m), changed = next.rev !== menu.rev || next.state !== menu.state ||
+      !sameOrder(next.items, menu.items) || !sameOrder(next.hidden, menu.hidden);
     menu = next;
     try { root.localStorage.setItem(CACHE_KEY, JSON.stringify(menu)); } catch (e) {}
     if (changed) announce(remote);
@@ -182,10 +194,11 @@
       })
       .catch(function () { return false; });
   }
-  // POST the whole list with the revision it was edited from. Resolves {ok, code, error}.
-  function save(items, baseRev) {
+  // POST the whole list, the hidden ids, and the revision it was edited from. Resolves {ok, code, error}.
+  function save(items, baseRev, hidden) {
     var fd = new FormData();
     fd.append("items", JSON.stringify(items));
+    fd.append("hidden", JSON.stringify(hidden || []));
     fd.append("base_rev", String(baseRev));
     return fetch("/pet/menu", { method: "POST", body: fd, credentials: "same-origin" })
       .then(function (r) {
@@ -206,17 +219,21 @@
   api.load = load;
   api.save = save;
   api.loaded = function () { return loaded; };
-  // The pet's menu rows: saved order, gone ids left out (they only show, as unavailable, in Settings).
+  // The pet's menu rows: saved order; hidden ids and gone ids left out (they only show in Settings).
   api.menuEntries = function (ctx) {
     var c = Object.assign({ forMenu: true }, ctx || {});
-    return menu.items.map(function (id) { return entry(id, c); }).filter(function (m) { return !m.gone; });
+    return menu.items.filter(function (id) { return menu.hidden.indexOf(id) < 0; })
+      .map(function (id) { return entry(id, c); }).filter(function (m) { return !m.gone; });
   };
 
   // ---- the "Mascot menu" card of Settings > Mascot ----
   function renderSettings(host) {
     if (!host) return;
-    var saved = snapshot(), draft = saved.items.slice(), saving = false, note = null, loadFailed = false;
-    function dirty() { return !sameOrder(draft, saved.items); }
+    var saved = snapshot(), draft = saved.items.slice(), hidden = saved.hidden.slice(), saving = false, note = null, loadFailed = false;
+    function sameSet(a, b) { return a.length === b.length && a.every(function (x) { return b.indexOf(x) >= 0; }); }
+    function dirty() { return !sameOrder(draft, saved.items) || !sameSet(hidden, saved.hidden); }
+    function reset() { draft = saved.items.slice(); hidden = saved.hidden.slice(); }
+    function shown() { return draft.filter(function (x) { return hidden.indexOf(x) < 0; }).length; }
     function locked() { return saved.state === "invalid"; }
     function guard() {
       if (!host.isConnected) { clearGuard(); return ""; }
@@ -225,16 +242,30 @@
     function clearGuard() { try { root.JavisLeaveGuard && root.JavisLeaveGuard.clear(guard); } catch (e) {} }
     try { root.JavisLeaveGuard && root.JavisLeaveGuard.set(guard); } catch (e) {}
 
-    function row(id, i, n) {
+    function row(id, i) {
       var m = entry(id);
-      var lock = locked() || saving;
-      return '<div class="bp-row bp-move pm-row' + (m.why ? " pm-off" : "") + '" data-i="' + i + '" role="listitem">' +
-        '<span class="bp-grip' + (lock ? " pm-nograb" : "") + '" title="' + esc(t("reorder.drag")) + '" aria-hidden="true">' + icon("arrow-up-down") + "</span>" +
+      var lock = locked() || saving, off = hidden.indexOf(id) >= 0;
+      // The last item still shown cannot be hidden: the pet would open an empty menu.
+      var lastShown = !off && shown() <= 1;
+      var note2 = off ? t("petmenu.hidden_note", null, "Hidden from the menu") : m.why;
+      return '<div class="bp-row bp-move pm-row' + (m.why ? " pm-off" : "") + (off ? " pm-hidden" : "") + '" data-i="' + i + '" role="listitem">' +
+        '<button type="button" class="bp-grip' + (lock ? " pm-nograb" : "") + '" data-pm-grip title="' + esc(t("reorder.drag")) + '" aria-label="' +
+        esc(t("petmenu.drag_label", { name: m.label }, m.label)) + '"' + (lock ? " disabled" : "") + ">" + icon("arrow-up-down") + "</button>" +
         '<span class="ro-ic">' + m.icon + "</span>" +
         '<span class="bp-name pm-name"><span class="bp-label">' + esc(m.label) + "</span>" +
-        (m.why ? '<span class="pm-why">' + esc(m.why) + "</span>" : "") + "</span>" +
-        '<button type="button" class="bp-arrow" data-move="-1" aria-label="' + esc(t("reorder.up") + ": " + m.label) + '"' + (i === 0 || lock ? " disabled" : "") + ">" + icon("arrow-up") + "</button>" +
-        '<button type="button" class="bp-arrow" data-move="1" aria-label="' + esc(t("reorder.down") + ": " + m.label) + '"' + (i === n - 1 || lock ? " disabled" : "") + ">" + icon("arrow-down") + "</button></div>";
+        (note2 ? '<span class="pm-why">' + esc(note2) + "</span>" : "") + "</span>" +
+        '<button type="button" class="pm-eye" data-pm-eye aria-pressed="' + off + '" title="' +
+        esc(off ? t("petmenu.show", null, "Show on the menu") : lastShown ? t("petmenu.keep_one", null, "Keep at least one item shown") : t("petmenu.hide", null, "Hide from the menu")) +
+        '" aria-label="' + esc((off ? t("petmenu.show", null, "Show on the menu") : t("petmenu.hide", null, "Hide from the menu")) + ": " + m.label) + '"' +
+        (lock || lastShown ? " disabled" : "") + ">" + icon(off ? "eye-off" : "eye") + "</button></div>";
+    }
+    // Move one row by `d` places (keyboard on the handle). Focus follows the row.
+    function nudge(i, d) {
+      var j = Math.max(0, Math.min(draft.length - 1, i + d));
+      if (j === i) return;
+      draft = moveItem(draft, i, j);
+      note = null;
+      draw('.bp-row[data-i="' + j + '"] [data-pm-grip]');
     }
     function statusHtml() {
       if (!note) return "";
@@ -246,12 +277,13 @@
       var lock = locked();
       host.innerHTML = '<div class="settings-card pm-card" data-pet-menu-card>' +
         '<div class="settings-card-head"><b>' + esc(t("petmenu.title", null, "Mascot menu")) + "</b>" +
-        '<span class="gcard-tag">' + esc(t("petmenu.count", { n: draft.length }, draft.length + " items")) + "</span></div>" +
+        '<span class="gcard-tag">' + esc(hidden.length ? t("petmenu.count_hidden", { n: draft.length, h: hidden.length }, draft.length + " items, " + hidden.length + " hidden")
+          : t("petmenu.count", { n: draft.length }, draft.length + " items")) + "</span></div>" +
         '<p class="pm-desc">' + esc(t("petmenu.desc", null, "Add and arrange the features you want to open from the mascot.")) + "</p>" +
         (lock ? '<p class="pm-alert" role="alert">' + icon("triangle-alert") + " " + esc(t("petmenu.invalid", null, "The saved menu settings are damaged.")) + "</p>" : "") +
         (loadFailed && !lock ? '<p class="pm-alert">' + esc(t("petmenu.load_err", null, "Could not load the saved menu.")) + "</p>" : "") +
         '<div class="bp-list pm-list" role="list" aria-label="' + esc(t("petmenu.title", null, "Mascot menu")) + '">' +
-        draft.map(function (id, i) { return row(id, i, draft.length); }).join("") + "</div>" +
+        draft.map(function (id, i) { return row(id, i); }).join("") + "</div>" +
         '<div class="js-actions pm-actions">' +
         '<button type="button" class="gcard-btn ghost" data-pm-add' + (lock || saving ? " disabled" : "") + ">" + icon("plus") + " " + esc(t("petmenu.add", null, "Add feature")) + "</button>" +
         '<button type="button" class="gcard-btn ghost" data-pm-cancel' + (!dirty() || saving ? " disabled" : "") + ">" + esc(t("petmenu.cancel", null, "Discard changes")) + "</button>" +
@@ -267,7 +299,7 @@
       return load().then(function (ok) {
         if (!host.isConnected) return;
         loadFailed = !ok;
-        if (force || !dirty()) { saved = snapshot(); draft = saved.items.slice(); }
+        if (force || !dirty()) { saved = snapshot(); reset(); }
         if (force) note = null;
         draw();
       });
@@ -276,15 +308,17 @@
     host.onclick = function (e) {
       var el = e.target.closest && e.target.closest("button");
       if (!el || !host.contains(el) || el.disabled) return;
-      if (el.classList.contains("bp-arrow")) {
-        var i = +el.closest(".bp-row").dataset.i, d = +el.dataset.move;
-        draft = moveItem(draft, i, i + d);
+      if (el.hasAttribute("data-pm-grip")) return;   // the handle drags; a plain click on it does nothing
+      if (el.hasAttribute("data-pm-eye")) {
+        var i = +el.closest(".bp-row").dataset.i, id = draft[i];
+        if (hidden.indexOf(id) >= 0) hidden = hidden.filter(function (x) { return x !== id; });
+        else if (shown() > 1) hidden = hidden.concat(id);
         note = null;
-        draw('.bp-row[data-i="' + (i + d) + '"] .bp-arrow[data-move="' + d + '"]');
+        draw('.bp-row[data-i="' + i + '"] [data-pm-eye]');
         return;
       }
       if (el.hasAttribute("data-pm-add")) { openPicker(); return; }
-      if (el.hasAttribute("data-pm-cancel")) { draft = saved.items.slice(); note = null; draw("[data-pm-add]"); return; }
+      if (el.hasAttribute("data-pm-cancel")) { reset(); note = null; draw("[data-pm-add]"); return; }
       if (el.hasAttribute("data-pm-reload")) { refresh(true); return; }
       if (el.hasAttribute("data-pm-save")) doSave();
     };
@@ -294,15 +328,90 @@
       if (!list) return;
       root.JavisReorder.dragRow(e, list, function (from, to) { draft = moveItem(draft, from, to); note = null; }, function () { draw(); });
     };
+    // PHONE: press and hold anywhere on a row (owner: "làm chức năng nhấn giữ ở điện thoại"), then drag. A quick swipe
+    // stays a page scroll: only a finger that holds still for LONG_PRESS ms picks the row up. The handle still drags
+    // at once (dragRow above, pointer events); this path is for the rest of the row.
+    var LONG_PRESS = 350, lp = null;
+    function beginDrag(r, startY) {
+      var list = host.querySelector(".pm-list");
+      var rows = Array.prototype.slice.call(list.querySelectorAll(".bp-row"));
+      var from = rows.indexOf(r), to = from;
+      var mids = rows.map(function (x) { var b = x.getBoundingClientRect(); return b.top + b.height / 2; });
+      var h = r.getBoundingClientRect().height;
+      r.classList.add("dragging");
+      return {
+        move: function (y) {
+          var dy = y - startY;
+          r.style.transform = "translateY(" + dy + "px)";
+          var at = mids[from] + dy;
+          to = from;
+          for (var k = 0; k < mids.length; k++) { if (k < from && at < mids[k]) { to = k; break; } }
+          for (var j = mids.length - 1; j > from; j--) { if (at > mids[j]) { to = j; break; } }
+          rows.forEach(function (x, k) {
+            if (x === r) return;
+            var shift = 0;
+            if (from < to && k > from && k <= to) shift = -h;
+            if (from > to && k < from && k >= to) shift = h;
+            x.style.transform = shift ? "translateY(" + shift + "px)" : "";
+          });
+        },
+        end: function () {
+          rows.forEach(function (x) { x.style.transform = ""; });
+          r.classList.remove("dragging");
+          if (to !== from) { draft = moveItem(draft, from, to); note = null; }
+          draw();
+        },
+      };
+    }
+    function stopPress() {
+      if (!lp) return;
+      clearTimeout(lp.timer);
+      if (lp.drag) lp.drag.end();
+      lp = null;
+    }
+    host.addEventListener("touchstart", function (e) {
+      if (lp || locked() || saving || e.touches.length !== 1) return;
+      var r = e.target.closest && e.target.closest(".pm-row");
+      if (!r || e.target.closest("button")) return;
+      var p = e.touches[0];
+      lp = { x0: p.clientX, y0: p.clientY, drag: null };
+      lp.timer = setTimeout(function () {
+        if (!lp || !r.isConnected) { lp = null; return; }
+        lp.drag = beginDrag(r, lp.y0);
+        try { if (root.navigator && root.navigator.vibrate) root.navigator.vibrate(15); } catch (er) {}
+      }, LONG_PRESS);
+    }, { passive: true });
+    host.addEventListener("touchmove", function (e) {
+      if (!lp) return;
+      var p = e.touches[0];
+      if (!lp.drag) {
+        // Moved before the hold finished: it is a scroll, let the page have it.
+        if (Math.abs(p.clientY - lp.y0) + Math.abs(p.clientX - lp.x0) > 10) { clearTimeout(lp.timer); lp = null; }
+        return;
+      }
+      e.preventDefault();
+      lp.drag.move(p.clientY);
+    }, { passive: false });
+    host.addEventListener("touchend", stopPress);
+    host.addEventListener("touchcancel", stopPress);
+    // A long press must not open the phone's copy / look-up menu over the row being dragged.
+    host.addEventListener("contextmenu", function (e) { if (e.target.closest && e.target.closest(".pm-row")) e.preventDefault(); });
+
+    host.onkeydown = function (e) {
+      var g = e.target && e.target.closest && e.target.closest("[data-pm-grip]");
+      if (!g || g.disabled || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+      e.preventDefault();
+      nudge(+g.closest(".bp-row").dataset.i, e.key === "ArrowUp" ? -1 : 1);
+    };
 
     function doSave() {
       if (saving || !dirty() || locked()) return;
       saving = true; note = null; draw();
-      save(draft.slice(), saved.rev).then(function (r) {
+      save(draft.slice(), saved.rev, hidden.slice()).then(function (r) {
         saving = false;
         if (!host.isConnected) return;
         if (r.ok) {
-          saved = snapshot(); draft = saved.items.slice();
+          saved = snapshot(); reset();
           note = { kind: "ok", text: t("petmenu.saved", null, "Mascot menu updated") };
         } else if (r.code === "conflict" || r.code === "invalid_saved") {
           // Keep the draft on screen: the owner decides to reload. Nothing of theirs is thrown away silently.
@@ -318,7 +427,7 @@
     function onRemote(e) {
       if (!host.isConnected) { root.removeEventListener("javis:pet-menu", onRemote); return; }
       if (!e.detail || !e.detail.remote || saving) return;
-      if (!dirty()) { saved = snapshot(); draft = saved.items.slice(); note = null; draw(); return; }
+      if (!dirty()) { saved = snapshot(); reset(); note = null; draw(); return; }
       note = { kind: "err", text: t("petmenu.conflict", null, "The mascot menu was changed in another window."), reload: true };
       draw();
     }

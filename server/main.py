@@ -7938,12 +7938,12 @@ async def pet_menu_get():
     return {"ok": True, "menu": pet_menu.read(cfgmod.read_settings() or {})}
 
 
-def _pet_menu_save(items, base_rev):
+def _pet_menu_save(items, base_rev, hidden=None):
     """Check and write under the settings lock, so two windows saving at once cannot both pass the revision check."""
     import pet_menu
     with cfgmod._SETTINGS_LOCK:
         cfg = cfgmod.read_settings()
-        code, value = pet_menu.check_save(cfg, items, base_rev)
+        code, value = pet_menu.check_save(cfg, items, base_rev, hidden)
         if not code:
             cfg[pet_menu.SETTINGS_KEY] = value
             cfgmod.write_settings(cfg)
@@ -7951,14 +7951,17 @@ def _pet_menu_save(items, base_rev):
 
 
 @app.post("/pet/menu")
-async def pet_menu_set(items: str = Form("[]"), base_rev: int = Form(-1)):
-    """Save the mascot menu: `items` is a JSON list of action ids, first on top; `base_rev` the revision it was edited
-    from. Only adding and reordering pass (owner, 2026-11-05); a stale revision is a 409 so no window overwrites
-    another one's newer menu."""
+async def pet_menu_set(items: str = Form("[]"), base_rev: int = Form(-1), hidden: str = Form("[]")):
+    """Save the mascot menu: `items` is a JSON list of action ids, first on top; `hidden` the ids the pet leaves out;
+    `base_rev` the revision it was edited from. Adding, reordering and hiding pass, dropping does not (owner,
+    2026-11-05); a stale revision is a 409 so no window overwrites another one's newer menu."""
     raw = _order_list(items)
     if raw is None:
         raw = "bad"
-    code, menu = await asyncio.to_thread(_pet_menu_save, raw, base_rev)
+    hid = _order_list(hidden)
+    if hid is None:
+        hid = "bad"
+    code, menu = await asyncio.to_thread(_pet_menu_save, raw, base_rev, hid)
     if not code:
         return {"ok": True, "menu": menu}
     msg = {
@@ -7968,6 +7971,8 @@ async def pet_menu_set(items: str = Form("[]"), base_rev: int = Form(-1)):
                                        "The saved menu settings are damaged, so they cannot be saved over yet."),
         "removed": localefmt.chu("Một lần lưu không được bỏ mục đã có trên menu.",
                                  "A save cannot drop an item already on the menu."),
+        "all_hidden": localefmt.chu("Phải để ít nhất một mục hiện trên menu.",
+                                    "Keep at least one item shown on the menu."),
     }.get(code) or localefmt.chu("Danh sách chức năng không hợp lệ.", "Invalid list of features.")
     return JSONResponse({"ok": False, "code": code, "error": msg, "menu": menu},
                         status_code=409 if code in ("conflict", "invalid_saved") else 400)
