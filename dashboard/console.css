@@ -3675,6 +3675,17 @@ span.tmp-lead { cursor: default; }
 .ws-core-card { padding: 4px 2px 12px; }
 .ws-core-head { display: flex; align-items: center; gap: 10px; }
 .ws-core-head h3 { margin: 0; font-size: 16px; }
+.ws-core-title { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.ws-core-title h3 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ws-core-title h3 > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-core-rename { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text2); cursor: pointer; flex: 0 0 auto; }
+.ws-core-rename:hover, .ws-core-rename:focus-visible { background: var(--accent-wash-2); color: var(--accent-ink); }
+.ws-core-sysname { color: var(--text2); font-size: 13px; }
+.ws-core-name-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.ws-core-name-form[hidden] { display: none; }
+.ws-core-name-form input { flex: 1 1 160px; min-width: 0; font-size: 16px; padding: 8px 10px; }
+.ws-core-name-form .ws-err { flex-basis: 100%; }
 .ws-core-card p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.5; }
 .ws-core-card .ws-core-note { color: var(--text2); font-size: 13.5px; }
 /* 0.461.0: the Core card's model row. It reuses the assistant editor's model button and list (.agent-editor rules). */
