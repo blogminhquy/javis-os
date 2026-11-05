@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.5] - 2026-11-05
+### Fixed
+- **Pressing Enter while dictating sends right away.** No need to press stop first: Javis stops recording, waits for the last words, then sends. Works in the main chat, the customer reply box on the Conversations page and Team chat.
+- On a phone Enter is still a new line as before; tap send to send.
+
 ## [0.481.4] - 2026-11-05
 ### Improved
 - **New conversation on the Partners page clears the chat at once.** It used to wait for two network round trips in a row and rebuild the right column; now it takes one, and server calls drop from 18 to 7.
