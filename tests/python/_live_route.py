@@ -177,6 +177,7 @@ class LiveRouteMixin:
             _brain_memory_dir=lambda root: Path(directory), _brain_root=lambda b: directory,
             _fit_memory_index=lambda mem, cap=None: mem[:cap],
             _voice_ask_javis=ask, get_store=lambda: store, _brain_key=lambda b: b,
+            _voice_persona=lambda sid, b: None,
             voice_call=types.SimpleNamespace(live_settings=lambda c: c))
         exec(compile(route_tree(), "live-route", "exec"), namespace)
         route = asyncio.ensure_future(namespace["voice_live_ws"](Socket(), sid, "brain", "vi-VN"))

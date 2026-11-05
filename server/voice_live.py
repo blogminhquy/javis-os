@@ -1433,8 +1433,20 @@ CHATGPT_UNAVAILABLE = {
 }
 
 
-def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", memory_index: str = "") -> LiveProvider:
-    """Dựng nhà cung cấp Live từ settings. Ném RuntimeError có câu người đọc hiểu được."""
+def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", memory_index: str = "",
+                  persona: Optional[tuple] = None) -> LiveProvider:
+    """Dựng nhà cung cấp Live từ settings. Ném RuntimeError có câu người đọc hiểu được.
+
+    `persona`: (name, identity block) of the partner the call talks to (a call from a partner's chat, see
+    voice_persona). The provider's own prompt then speaks as that partner instead of plain Javis."""
+    prov = _make_provider(cfg, system, recognition_lang, memory_index)
+    if persona:
+        import voice_persona
+        prov.system = voice_persona.apply(prov.system, persona[0], persona[1])
+    return prov
+
+
+def _make_provider(cfg: dict, system: str, recognition_lang: str, memory_index: str) -> LiveProvider:
     v = (cfg or {}).get("voice") or {}
     m = (cfg or {}).get("model") or {}
     prov = str(v.get("live_provider") or "gemini").strip().lower()
