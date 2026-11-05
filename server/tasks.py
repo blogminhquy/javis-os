@@ -597,12 +597,8 @@ class TasksFeature:
                             # 0.411.0: how long the run took, shown on the card.
                             "run_seconds": round(time.monotonic() - t_run)}
                 if not passed:
-                    final_task = self.store.ask(
-                        tid,
-                        worker_id,
-                        "Chưa đạt điều kiện hoàn thành: "
-                        + (why or "worker báo chưa làm xong.")[:200],
-                        result=result,
+                    final_task = self.store.remediate_acceptance(
+                        tid, worker_id, why or "Worker did not finish.", result, metadata,
                     )
                     return
                 final_task = self.store.complete(
@@ -1007,6 +1003,9 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
         intent = str(task.get("intent") or task.get("title") or "")
         tools, mode, disallowed = self._lane_tools(task)
         hoi_dap = self._hoi_dap(task)
+        remediation = (task.get("metadata") or {}).get("acceptance_remediation")
+        if remediation:
+            hoi_dap += "\nTiếp tục khắc phục phần việc chưa đạt, tự kiểm tra lại.\n" + json.dumps(remediation, ensure_ascii=False)
 
         if route.startswith("wf:"):
             slug = route[3:].strip()

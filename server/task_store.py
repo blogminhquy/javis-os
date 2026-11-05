@@ -27,6 +27,9 @@ VALID_STATUS = {
 # QA_TEXT_MAX ký tự, phần "đã làm tới đâu" tối đa QA_PROGRESS_MAX. Đủ cho lần chạy sau hiểu
 # chuyện, không đủ để phình kho hay prompt.
 QA_KEEP = 8
+# Remediation rounds after a failed acceptance check before the job stops with an internal kind (not an owner
+# question). Long ingest work needs several rounds; the stall check stops a run that makes no progress sooner.
+ACCEPTANCE_REMEDIATION_MAX = 8
 QA_TEXT_MAX = 1000
 QA_PROGRESS_MAX = 1500
 TERMINAL_STATUS = {"done", "cancelled", "archived"}
@@ -1283,15 +1286,43 @@ class TaskStore:
                 raise
         return self.get_task(task_id), ""
 
+    @staticmethod
+    def _acceptance_plan(meta: dict, why: str, progress: str) -> tuple[dict, str]:
+        """Decide the next step after a failed acceptance check. Unfinished work is the agent's own job, never an
+        owner question: retry with the reason and progress while the run keeps moving; stop with an internal kind
+        when the same reason and progress repeat (stall) or the remediation budget runs out."""
+        previous = meta.get("acceptance_remediation") or {}
+        count = int(previous.get("count", 0) or 0) + 1
+        progress = (progress or "")[:20000]
+        stalled = bool(previous) and previous.get("reason") == why and previous.get("progress") == progress
+        meta["acceptance_remediation"] = {"count": count, "reason": why, "progress": progress}
+        if stalled:
+            return meta, "acceptance_stalled"
+        if count >= ACCEPTANCE_REMEDIATION_MAX:
+            return meta, "acceptance_exhausted"
+        return meta, "acceptance_retry"
+
+    def remediate_acceptance(self, task_id, worker_id, why, result, metadata=None):
+        """Retry incomplete work without manufacturing an owner question. A remediation round does not spend one of
+        the job's error attempts (`max_attempts` guards crashes); its own budget and the stall check bound it."""
+        task = self.get_task(task_id)
+        if not task:
+            return None
+        meta, kind = self._acceptance_plan({**(task.get("metadata") or {}), **(metadata or {})}, why, result)
+        retry = kind == "acceptance_retry"
+        return self._finish(task_id, worker_id, "ready" if retry else "blocked",
+                            result=result, error=why, block_kind=kind, block_reason=why,
+                            metadata=meta, artifacts=task.get("artifacts") or [],
+                            event_type=kind, keep_attempt=retry)
+
     def set_acceptance(self, task_id: str, state: str, why: str = "") -> Optional[dict]:
         """Record a re-check of a finished job (0.411.0). `state`: "checking" while it runs, "ai" when it passed,
-        "failed" when it did not (the job moves to Needs you with the reason as its question, so the reply box can
-        fix it), "unverified" when the checker could not run again. Only a done or review job is touched."""
+        "failed" schedules bounded remediation without creating an owner question, "unverified" when the checker could not run again. Only a done or review job is touched."""
         with self._lock:
             self._tx()
             try:
                 row = self._db.execute(
-                    "SELECT status, metadata_json FROM tasks WHERE id=? AND lane<>'team'", (task_id,)
+                    "SELECT status, metadata_json, result FROM tasks WHERE id=? AND lane<>'team'", (task_id,)
                 ).fetchone()
                 if not row or row["status"] not in ("done", "review"):
                     self._db.rollback()
@@ -1299,14 +1330,13 @@ class TaskStore:
                 meta = _loads(row["metadata_json"], {})
                 if state == "failed":
                     reason = ("Chưa đạt điều kiện hoàn thành: " + (why or "lượt kiểm không nói rõ."))[:QA_TEXT_MAX]
-                    qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
-                    qa.append({"q": reason, "asked_at": now()})
-                    meta["qa"] = qa[-QA_KEEP:]
+                    meta, kind = self._acceptance_plan(meta, why, row["result"] or "")
                     meta["acceptance_check"] = "failed"
                     self._db.execute(
-                        """UPDATE tasks SET status='blocked', block_kind='needs_input', block_reason=?,
+                        """UPDATE tasks SET status=?, block_kind=?, block_reason=?,
                            metadata_json=?, updated_at=? WHERE id=?""",
-                        (reason, _json(meta), now(), task_id),
+                        ("ready" if kind == "acceptance_retry" else "blocked", kind,
+                         reason, _json(meta), now(), task_id),
                     )
                     self._event(task_id, "acceptance_failed", reason[:500])
                 else:

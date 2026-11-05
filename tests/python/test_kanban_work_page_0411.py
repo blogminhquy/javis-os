@@ -208,11 +208,10 @@ def test_verify_marks_checked_or_sends_the_job_back_with_the_reason(tmp_path):
     _finish(s, bad_id, metadata=dict(meta))
     _verify(feature, brain, bad_id, (False, "Only 2 sections in a.md", "ai"))
     t = s.get_task(bad_id)
-    assert t["status"] == "blocked" and t["block_kind"] == "needs_input"
+    # Owner 05/11/2026: a failed re-check sends the job back to work, not to the owner as a question.
+    assert t["status"] == "ready" and t["block_kind"] == "acceptance_retry"
     assert "Only 2 sections" in t["block_reason"] and t["metadata"]["acceptance_check"] == "failed"
-    # The reply box answers it like any question and the job runs again.
-    got, err = s.answer(bad_id, "Add the missing section")
-    assert got and got["status"] == "ready", err
+    assert not t["metadata"].get("qa")
     s.close()
 
 

@@ -152,7 +152,9 @@ def test_worker_that_says_it_did_not_finish_is_not_done(tmp_path):
                 "", False, {})
 
     t = _run(feature, {"brain_root": str(brain), "title": "S07", "intent": "x"}, execute)
-    assert t["status"] == "blocked", t["status"]
+    assert t["status"] == "ready", t["status"]
+    assert t["block_kind"] == "acceptance_retry"
+    assert not (t["metadata"].get("qa"))
     assert "chưa xong" in (t.get("block_reason") or "")
 
 
@@ -172,7 +174,8 @@ def test_acceptance_checker_verdict_decides(tmp_path):
 
     t = _run(feature, {"brain_root": str(brain), "title": "S07b", "intent": "x",
                        "acceptance": ["Có ảnh vuông 1:1 trong attachments/"]}, execute)
-    assert t["status"] == "blocked"
+    assert t["status"] == "ready"
+    assert t["metadata"]["acceptance_remediation"]["progress"] == "Đã làm xong bài đăng và ảnh."
     assert "ảnh vuông" in t["block_reason"]
     assert seen and "Có ảnh vuông 1:1" in seen[0] and "Đã làm xong bài đăng" in seen[0]
 
@@ -545,6 +548,133 @@ def test_sessions_store_keeps_every_thread(tmp_path):
     rows = sqlite3.connect(tmp_path / "c.db").execute(
         "SELECT cli_session_id FROM cli_session_history ORDER BY bound_at").fetchall()
     assert [r[0] for r in rows] == ["a", "b"]
+
+
+
+def test_remediation_claim_guard_and_stall(tmp_path):
+    feature, brain = _feature(tmp_path)
+    store = feature.store
+    tid = store.enqueue(str(brain), "retry", "finish", capability="files", status="ready")
+    store.claim(tid, "worker")
+    assert store.remediate_acceptance(tid, "wrong", "missing test", "progress") is None
+    first = store.remediate_acceptance(tid, "worker", "missing test", "progress")
+    assert first["status"] == "ready"
+    assert first["metadata"]["acceptance_remediation"]["progress"] == "progress"
+    store.claim(tid, "worker")
+    stalled = store.remediate_acceptance(tid, "worker", "missing test", "progress")
+    assert stalled["status"] == "blocked"
+    assert stalled["block_kind"] == "acceptance_stalled"
+    assert not stalled["metadata"].get("qa")
+
+
+def test_recheck_retains_progress_and_stops_on_stall(tmp_path):
+    feature, brain = _feature(tmp_path)
+    store = feature.store
+    tid = store.enqueue(str(brain), "recheck", "finish", capability="files", status="ready")
+    store.claim(tid, "worker")
+    store.complete(tid, "worker", "saved handoff")
+    retry = store.set_acceptance(tid, "failed", "missing artifact")
+    assert retry["status"] == "ready"
+    assert retry["metadata"]["acceptance_remediation"]["progress"] == "saved handoff"
+    store.claim(tid, "worker")
+    store.complete(tid, "worker", "saved handoff", metadata=retry["metadata"])
+    stopped = store.set_acceptance(tid, "failed", "missing artifact")
+    assert stopped["block_kind"] == "acceptance_stalled"
+    assert not stopped["metadata"].get("qa")
+
+
+# ------------------------------------------------- acceptance remediation (owner 05/11/2026)
+
+def _dispatch(feature, tid):
+    async def go():
+        assert await feature._claim_and_spawn(tid)
+        await feature._workers[tid]
+        return feature.store.get_task(tid)
+    return asyncio.run(go())
+
+
+def test_dispatcher_fail_then_pass_reaches_done_without_owner_question(tmp_path):
+    reports = []
+    feature, brain = _feature(tmp_path, reports)
+    root = feature._ensure(str(brain))
+    tid = feature.store.enqueue(root, "ingest", "do it", capability="files", status="ready")
+    verdicts = iter([(False, "chưa viết Wiki", "ai"), (True, "", "ai")])
+    seen = []
+
+    async def check(task, result):
+        return next(verdicts)
+
+    async def execute(task):
+        seen.append((task.get("metadata") or {}).get("acceptance_remediation"))
+        return (f"lượt {len(seen)}", "", False, {})
+
+    feature._check_acceptance = check
+    feature._execute = execute
+    first = _dispatch(feature, tid)
+    assert first["status"] == "ready" and first["block_kind"] == "acceptance_retry"
+    assert first["attempts"] == 0, "a remediation round must not spend an error attempt"
+    done = _dispatch(feature, tid)
+    assert done["status"] == "done"
+    assert seen[0] is None
+    assert seen[1]["reason"] == "chưa viết Wiki" and seen[1]["progress"] == "lượt 1"
+    assert not (done["metadata"].get("qa"))
+    assert not any(k.get("viec", {}).get("status") == "hoi" for _a, k in reports)
+
+
+def test_remediation_budget_ends_in_internal_block_not_question(tmp_path):
+    import task_store
+    reports = []
+    feature, brain = _feature(tmp_path, reports)
+    root = feature._ensure(str(brain))
+    tid = feature.store.enqueue(root, "long", "do it", capability="files", status="ready")
+    n = {"i": 0}
+
+    async def check(task, result):
+        return False, "còn thiếu", "ai"
+
+    async def execute(task):
+        n["i"] += 1
+        return (f"tiến độ {n['i']}", "", False, {})
+
+    feature._check_acceptance = check
+    feature._execute = execute
+    t = None
+    for _ in range(task_store.ACCEPTANCE_REMEDIATION_MAX):
+        t = _dispatch(feature, tid)
+        if t["status"] != "ready":
+            break
+    assert t["status"] == "blocked" and t["block_kind"] == "acceptance_exhausted"
+    assert n["i"] == task_store.ACCEPTANCE_REMEDIATION_MAX
+    assert not t["metadata"].get("qa")
+    assert TasksFeature._cau_hoi_dang_cho(t) == ""
+    assert "không cần làm gì" in TasksFeature._calm(t)
+
+
+def test_genuine_needs_input_still_asks_owner(tmp_path):
+    feature, brain = _feature(tmp_path)
+
+    async def execute(task):
+        return "[[NEEDS_INPUT]] Bạn gửi giúp tệp Quy-dinh.docx, thư mục Downloads không có.", "", True, {}
+
+    t = _run(feature, {"brain_root": str(brain), "title": "ask", "intent": "x"}, execute)
+    assert t["status"] == "blocked" and t["block_kind"] == "needs_input"
+    assert "Quy-dinh.docx" in TasksFeature._cau_hoi_dang_cho(t)
+
+
+def test_uncertain_outside_action_still_blocks_before_rerun(tmp_path, monkeypatch):
+    import once_ledger
+    feature, brain = _feature(tmp_path)
+    calls = []
+    monkeypatch.setattr(once_ledger, "unknowns",
+                        lambda job: [{"tool": "zalo_send_message", "target": "Quang Tiến"}])
+
+    async def execute(task):
+        calls.append(1)
+        return "x", "", False, {}
+
+    t = _run(feature, {"brain_root": str(brain), "title": "send", "intent": "x"}, execute)
+    assert not calls, "must not run again while an outside action is unconfirmed"
+    assert t["block_kind"] == "needs_input" and t["metadata"].get("once_pending")
 
 
 if __name__ == "__main__":

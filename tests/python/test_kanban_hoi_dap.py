@@ -188,7 +188,9 @@ def test_viec_ket_tu_ban_cu_van_tra_loi_duoc(tmp_path):
     store.close()
 
 
-def test_chua_dat_dieu_kien_cung_thanh_cau_hoi_tra_loi_duoc(tmp_path):
+def test_chua_dat_dieu_kien_tu_khac_phuc_khong_hoi_chu(tmp_path):
+    """Owner 05/11/2026: unfinished work is the agent's job, never a question for the owner. The job goes back to
+    ready with the reason and progress, and nothing lands in the reply box."""
     calls, report = _sent()
     feature, brain = _feature(tmp_path, report)
     tid = _new_task(feature, brain)
@@ -198,9 +200,10 @@ def test_chua_dat_dieu_kien_cung_thanh_cau_hoi_tra_loi_duoc(tmp_path):
 
     feature._check_acceptance = accept
     task = _run_once(feature, tid, "Đã viết bài.")
-    assert task["status"] == "blocked" and task["block_kind"] == "needs_input"
-    assert "thiếu ảnh sản phẩm" in task["metadata"]["qa"][-1]["q"]
-    assert asyncio.run(feature.answer(tid, "Dùng ảnh trong attachments/sp1.jpg", brain=str(brain)))["ok"]
+    assert task["status"] == "ready" and task["block_kind"] == "acceptance_retry"
+    assert not task["metadata"].get("qa")
+    assert task["metadata"]["acceptance_remediation"]["reason"] == "thiếu ảnh sản phẩm"
+    assert not any((c.get("viec") or {}).get("status") == "hoi" for c in calls)
     feature.store.close()
 
 
