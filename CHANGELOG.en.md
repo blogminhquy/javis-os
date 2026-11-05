@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.470.1] - 2026-11-05
+### Fixed
+- **A voice call with a partner is that partner now.** A call started in a partner's chat used to speak as plain Javis, with no name, role or instructions from the partner, and asked "who are you" it said it was ChatGPT. The call now carries the partner's name, role, instructions file and memory.
+- **Work asked for during the call is done by the partner itself.** A request that needs data or an action runs with the partner's prompt and model, and the result lands in the partner's chat.
+- **Typed chats with a partner know who they are too.** The partner knows it is a partner inside the owner's Javis, never claims to be ChatGPT or Claude, and names its model only when asked.
+
 ## [0.470.0] - 2026-11-05
 ### Added
 - **Give Javis Core its own name.** Tap the pencil next to its name on the Javis Core card of the Partners page, or say it in chat ("from now on your name is Sky"). One name per brain; leave it empty to go back to Javis Core.
