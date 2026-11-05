@@ -27131,7 +27131,12 @@ async def _github_review_ask(prompt: str, provider: str) -> str:
 
 
 def _github_reviewers() -> list:
-    """Engines usable as a reviewer right now, in the Models page order (API cards with a key, signed-in plans)."""
+    """Engines usable as a reviewer right now, in the Models page order.
+
+    Only engines `_github_review_ask` can really run text-only (owner, 05/11/2026): Claude (sandboxed, its tool gate)
+    and API providers (`no_tools`). Codex, Grok and Antigravity keep native file and shell tools, so
+    `resonance.pick_text_only_link` refuses them on a stranger's diff; listing them made every review of a Claude
+    author fail on ChatGPT and be skipped. A card resting out of quota is left out as well."""
     s = cfgmod.read_settings()
     m = s.get("model", {}) or {}
     order = []
@@ -27148,8 +27153,16 @@ def _github_reviewers() -> list:
             ok, _why = aux_engine.availability({"provider": p}, s)
         except Exception:
             ok = False
-        if ok and (p not in (aux_engine.CLAUDE, aux_engine.CODEX) or aux_engine._co_binary(p)):
-            out.append(p)
+        if not ok or not (p == aux_engine.CLAUDE or p in aux_engine.API_PROVIDERS):
+            continue
+        if p == aux_engine.CLAUDE and not aux_engine._co_binary(p):
+            continue
+        try:
+            if _provider_def(p) and not _route_ready(m, p):
+                continue   # every key or the plan is resting out of quota
+        except Exception:  # noqa: BLE001 - unknown readiness: let the turn report the provider's own error
+            pass
+        out.append(p)
     return out
 
 
