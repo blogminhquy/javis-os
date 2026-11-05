@@ -4238,36 +4238,3 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   .ro-hint { font-size: 17px; }
   .cside-reorder { width: 34px; height: 30px; }
 }
-
-/* Mascot menu card of Settings > Mascot (pet-menu.js): rows reuse the Reorder box's, readable on a phone. */
-.pm-card .pm-desc { margin: 2px 0 10px; font-size: 15px; color: var(--text2); }
-.pm-card .pm-alert { margin: 0 0 10px; font-size: 15px; color: var(--red, #d64545); display: flex; gap: 6px; align-items: flex-start; }
-.pm-card .pm-alert svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
-.pm-list { display: flex; flex-direction: column; gap: 2px; margin: 0 -6px 10px; max-height: min(60vh, 520px); overflow-y: auto; }
-.pm-row .bp-label, .pm-opt .bp-label { font-size: 15.5px; }
-.pm-name { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; gap: 1px; }
-.pm-why, .pm-sub { font-size: 13.5px; color: var(--text3); line-height: 1.35; overflow-wrap: anywhere; }
-.pm-row.pm-off .bp-label, .pm-opt.pm-off .bp-label { color: var(--text2); }
-.pm-row .bp-grip.pm-nograb { cursor: not-allowed; opacity: .4; }
-.pm-row .bp-grip { cursor: grab; touch-action: none; }
-.pm-actions { flex-wrap: wrap; }
-.pm-actions .gcard-btn svg { width: 15px; height: 15px; vertical-align: -2px; }
-.pm-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 15px; }
-.pm-status svg { width: 16px; height: 16px; flex: none; }
-.pm-search { padding: 0 16px 10px; }
-.pm-search input { width: 100%; font-size: 16px; }
-.pm-pick-list { padding-bottom: 12px; }
-.pm-opt { width: 100%; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.pm-opt[disabled] { cursor: default; opacity: .7; }
-.pm-opt[disabled]:hover { background: none; }
-.pm-tag { flex: none; max-width: 45%; font-size: 13px; color: var(--text3); text-align: right; }
-.pm-empty { padding: 14px 10px; font-size: 15px; color: var(--text2); }
-@media (hover: none), (pointer: coarse) {
-  .pm-row { min-height: 58px; }
-  .pm-row .bp-arrow { width: 42px; height: 42px; }
-  .pm-row .bp-grip { width: 38px; height: 44px; }
-  .pm-row .bp-label, .pm-opt .bp-label { font-size: 16.5px; }
-  .pm-opt { min-height: 58px; }
-  .pm-card .pm-desc, .pm-status { font-size: 16px; }
-}
-.pm-actions .gcard-btn:disabled { opacity: .45; cursor: not-allowed; }

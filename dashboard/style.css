@@ -4139,6 +4139,38 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .pet-menu button[disabled]:hover { background: transparent; color: var(--text2); }
 .pet-menu button[disabled] span { grid-row: span 2; }
 .pet-menu button small { font-size: 12px; line-height: 1.3; color: var(--text3); }
+/* Mascot menu card of Settings > Mascot (pet-menu.js): rows reuse the Reorder box's, readable on a phone. */
+.pm-card .pm-desc { margin: 2px 0 10px; font-size: 16px; color: var(--text2); }
+.pm-card .pm-alert { margin: 0 0 10px; font-size: 16px; color: var(--red, #d64545); display: flex; gap: 6px; align-items: flex-start; }
+.pm-card .pm-alert svg { width: 16px; height: 16px; flex: none; margin-top: 3px; }
+.pm-list { display: flex; flex-direction: column; gap: 2px; margin: 0 -6px 10px; max-height: min(60vh, 520px); overflow-y: auto; }
+.pm-row .bp-label, .pm-opt .bp-label { font-size: 16px; }
+.pm-name { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; gap: 1px; }
+.pm-why, .pm-sub { font-size: 14px; color: var(--text3); line-height: 1.35; overflow-wrap: anywhere; }
+.pm-row.pm-off .bp-label, .pm-opt.pm-off .bp-label { color: var(--text2); }
+.pm-row .bp-grip { cursor: grab; touch-action: none; }
+.pm-row .bp-grip.pm-nograb { cursor: not-allowed; opacity: .4; }
+.pm-actions { flex-wrap: wrap; }
+.pm-actions .gcard-btn svg { width: 15px; height: 15px; vertical-align: -2px; }
+.pm-actions .gcard-btn:disabled { opacity: .45; cursor: not-allowed; }
+.pm-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 16px; }
+.pm-status svg { width: 16px; height: 16px; flex: none; }
+.pm-search { padding: 0 16px 10px; }
+.pm-search input { width: 100%; font-size: 16px; }
+.pm-pick-list { padding-bottom: 12px; }
+.pm-opt { width: 100%; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.pm-opt[disabled] { cursor: default; opacity: .7; }
+.pm-opt[disabled]:hover { background: none; }
+.pm-tag { flex: none; max-width: 45%; font-size: 14px; color: var(--text3); text-align: right; }
+.pm-empty { padding: 14px 10px; font-size: 16px; color: var(--text2); }
+@media (hover: none), (pointer: coarse) {
+  .pm-row { min-height: 58px; }
+  .pm-row .bp-arrow { width: 42px; height: 42px; }
+  .pm-row .bp-grip { width: 38px; height: 44px; }
+  .pm-row .bp-label, .pm-opt .bp-label { font-size: 17px; }
+  .pm-opt { min-height: 58px; }
+  .pm-why, .pm-sub, .pm-tag { font-size: 15px; }
+}
 /* translateY(-50%) phải nằm TRONG keyframe: hoạt ảnh ghi đè cả thuộc tính transform, nên để
    nó ở luật tĩnh thôi là menu nhảy xuống nửa chiều cao suốt lúc hoạt ảnh chạy. */
 @keyframes petMenuVao {
