@@ -109,6 +109,20 @@ biết tiết kiệm không gian". Đầu mỗi trang đã có thanh tiêu đề
 - Tiết kiệm chỗ nói chung: phần tổng quan đầu trang giữ một hàng thấp, cái gì bấm mới cần thì mở trong popup thay vì
   xổ xuống đẩy cả trang.
 
+## Khung chat: sửa một chỗ là rà và đồng bộ mọi màn (từ 2026-11-05)
+
+Chủ repo chốt 05/11/2026: "từ lần sau các thay đổi về giao diện khung chat là phải rà soát lại toàn bộ các màn khác để
+đồng bộ cùng". Lý do: lần đổi mic thành kiểu máy ghi âm chỉ làm ở ô chat chính, chủ phải nhắc thêm một lượt cho trang
+Nhóm và trang Hội thoại.
+
+- Đổi cách khung chat trông hoặc chạy (ô nhập, nút mic, nút gửi, đính kèm, Enter, trích dẫn, thẻ tin nhắn...) thì
+  **trong cùng PR** phải áp cho mọi màn có khung chat tương tự, không đợi chủ nhắc.
+- Các màn hiện có: chat chính (`app.js`, `composer-dictate.js`), Nhóm (`teams.js`), Hội thoại/Chatbot
+  (`conversations.js`). Mic đọc chữ dùng chung `dictate.js`: tìm mọi chỗ gọi bằng `grep -n "JavisDictate" dashboard/*.js`.
+  Có màn chat mới thì thêm tên vào danh sách này.
+- Màn nào cố ý để khác thì ghi lý do trong mô tả PR, và nói rõ với chủ.
+- Thêm test cho từng màn đã đổi, để lần sau lệch là CI đỏ.
+
 ## Viết CHANGELOG.md
 
 Chủ repo đọc nhật ký cập nhật trên màn hình dọc (2026-08-12), nên viết CHO NGƯỜI ĐỌC TRÊN ĐIỆN

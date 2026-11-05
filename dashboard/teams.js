@@ -2373,19 +2373,22 @@
     if (S.dictState === "transcribing") return;
     var input = S.el.querySelector(".tm-input");
     S.dictBase = input ? input.value : "";
-    var forTeam = S.activeId;
+    var forTeam = S.activeId, heard = "";
+    // Like a voice recorder (owner, 2026-11-05): the words are held while speaking and land in the box once, when the
+    // recording ends (see composer-dictate.js).
     S.dict = D.create({
-      onText: function (text) {
-        var inp = S.el.querySelector(".tm-input");
-        if (!inp || S.activeId !== forTeam) return;
-        inp.value = D.joinText(S.dictBase, text);
-        S.pending = null;
-        grow(inp);
-        drawHint();
-      },
+      onText: function (text) { heard = String(text || ""); },
       onState: function (st) {
         S.dictState = st;
         if (S.activeId !== forTeam) return;
+        var inp0 = st === "idle" && heard ? S.el.querySelector(".tm-input") : null;
+        if (inp0) {
+          inp0.value = D.joinText(S.dictBase, heard);
+          heard = "";
+          S.pending = null;
+          grow(inp0);
+          drawHint();
+        }
         var btn = S.el.querySelector(".tm-mic");
         if (!btn) return;
         btn.classList.toggle("is-rec", st !== "idle");
