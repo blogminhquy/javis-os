@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.481.8] - 2026-11-05
+### Cải thiện
+- **Bấm vào một hội thoại cũ hiện ra nhanh hơn, máy đỡ khựng.** Các tin dựng lại từ lịch sử không còn chạy hiệu ứng trồi lên cùng một lúc, việc này từng chiếm phần lớn thời gian vẽ trên điện thoại. Tin mới tới vẫn có hiệu ứng như cũ.
+- **Mở hội thoại tải ít dữ liệu hơn.** Khung chat không còn tải phần chi tiết công cụ mà nó không hiển thị, có cuộc nhẹ đi tới 70%.
+- **Trang Team gửi yêu cầu tải tin ngay khi bấm,** không chờ vẽ xong cả trang rồi mới hỏi máy chủ.
+
 ## [0.481.7] - 2026-11-05
 ### Bảo mật
 - **Trang /health/loop giờ cần đăng nhập.** Trang này có thông tin lỗi và đường dẫn trên máy chủ. Riêng /health vẫn mở để kiểm tra máy còn sống.
