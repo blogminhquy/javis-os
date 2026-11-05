@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trang Model mới</title>
+<script>
+/* Icons: lucide-static 1.27.0 (ISC), the same set the dashboard vendors; embedded so the page works offline. */
+window.LUCIDE = {"x":"<path d=\"M18 6 6 18\" /> <path d=\"m6 6 12 12\" />","text":"<path d=\"M21 5H3\" /> <path d=\"M15 12H3\" /> <path d=\"M17 19H3\" />","pill":"<path d=\"m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z\" /> <path d=\"m8.5 8.5 7 7\" />","pointer":"<path d=\"M22 14a8 8 0 0 1-8 8\" /> <path d=\"M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2\" /> <path d=\"M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1\" /> <path d=\"M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10\" /> <path d=\"M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15\" />","grid":"<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /> <path d=\"M3 9h18\" /> <path d=\"M3 15h18\" /> <path d=\"M9 3v18\" /> <path d=\"M15 3v18\" />","grip":"<circle cx=\"12\" cy=\"5\" r=\"1\" /> <circle cx=\"19\" cy=\"5\" r=\"1\" /> <circle cx=\"5\" cy=\"5\" r=\"1\" /> <circle cx=\"12\" cy=\"12\" r=\"1\" /> <circle cx=\"19\" cy=\"12\" r=\"1\" /> <circle cx=\"5\" cy=\"12\" r=\"1\" /> <circle cx=\"12\" cy=\"19\" r=\"1\" /> <circle cx=\"19\" cy=\"19\" r=\"1\" /> <circle cx=\"5\" cy=\"19\" r=\"1\" />","grab":"<path d=\"M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4\" /> <path d=\"M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2\" /> <path d=\"M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5\" /> <path d=\"M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2\" /> <path d=\"M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0\" />","dot":"<circle cx=\"12\" cy=\"12\" r=\"1\" />","badge":"<path d=\"M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z\" />","ellipsis":"<circle cx=\"12\" cy=\"12\" r=\"1\" /> <circle cx=\"19\" cy=\"12\" r=\"1\" /> <circle cx=\"5\" cy=\"12\" r=\"1\" />","sheet":"<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\" /> <line x1=\"3\" x2=\"21\" y1=\"9\" y2=\"9\" /> <line x1=\"3\" x2=\"21\" y1=\"15\" y2=\"15\" /> <line x1=\"9\" x2=\"9\" y1=\"9\" y2=\"21\" /> <line x1=\"15\" x2=\"15\" y1=\"9\" y2=\"21\" />","mic":"<path d=\"M12 19v3\" /> <path d=\"M19 10v2a7 7 0 0 1-14 0v-2\" /> <rect x=\"9\" y=\"2\" width=\"6\" height=\"13\" rx=\"3\" />","search":"<path d=\"m21 21-4.34-4.34\" /> <circle cx=\"11\" cy=\"11\" r=\"8\" />","repeat":"<path d=\"m17 2 4 4-4 4\" /> <path d=\"M3 11v-1a4 4 0 0 1 4-4h14\" /> <path d=\"m7 22-4-4 4-4\" /> <path d=\"M21 13v1a4 4 0 0 1-4 4H3\" />","menu":"<path d=\"M4 5h16\" /> <path d=\"M4 12h16\" /> <path d=\"M4 19h16\" />","moon":"<path d=\"M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401\" />","sun":"<circle cx=\"12\" cy=\"12\" r=\"4\" /> <path d=\"M12 2v2\" /> <path d=\"M12 20v2\" /> <path d=\"m4.93 4.93 1.41 1.41\" /> <path d=\"m17.66 17.66 1.41 1.41\" /> <path d=\"M2 12h2\" /> <path d=\"M20 12h2\" /> <path d=\"m6.34 17.66-1.41 1.41\" /> <path d=\"m19.07 4.93-1.41 1.41\" />","info":"<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M12 16v-4\" /> <path d=\"M12 8h.01\" />","grip-vertical":"<circle cx=\"9\" cy=\"12\" r=\"1\" /> <circle cx=\"9\" cy=\"5\" r=\"1\" /> <circle cx=\"9\" cy=\"19\" r=\"1\" /> <circle cx=\"15\" cy=\"12\" r=\"1\" /> <circle cx=\"15\" cy=\"5\" r=\"1\" /> <circle cx=\"15\" cy=\"19\" r=\"1\" />","clock":"<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M12 6v6l4 2\" />","star":"<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\" />","cpu":"<path d=\"M12 20v2\" /> <path d=\"M12 2v2\" /> <path d=\"M17 20v2\" /> <path d=\"M17 2v2\" /> <path d=\"M2 12h2\" /> <path d=\"M2 17h2\" /> <path d=\"M2 7h2\" /> <path d=\"M20 12h2\" /> <path d=\"M20 17h2\" /> <path d=\"M20 7h2\" /> <path d=\"M7 20v2\" /> <path d=\"M7 2v2\" /> <rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\" /> <rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\" />","chevron-up":"<path d=\"m18 15-6-6-6 6\" />","gauge":"<path d=\"m12 14 4-4\" /> <path d=\"M3.34 19a10 10 0 1 1 17.32 0\" />","triangle-alert":"<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /> <path d=\"M12 9v4\" /> <path d=\"M12 17h.01\" />","rotate-cw":"<path d=\"M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8\" /> <path d=\"M21 3v5h-5\" />","refresh-cw":"<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\" /> <path d=\"M21 3v5h-5\" /> <path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\" /> <path d=\"M8 16H3v5\" />","user-plus":"<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /> <circle cx=\"9\" cy=\"7\" r=\"4\" /> <line x1=\"19\" x2=\"19\" y1=\"8\" y2=\"14\" /> <line x1=\"22\" x2=\"16\" y1=\"11\" y2=\"11\" />","log-out":"<path d=\"m16 17 5-5-5-5\" /> <path d=\"M21 12H9\" /> <path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\" />","arrow-up-down":"<path d=\"m21 16-4 4-4-4\" /> <path d=\"M17 20V4\" /> <path d=\"m3 8 4-4 4 4\" /> <path d=\"M7 4v16\" />","circle-check":"<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"m9 12 2 2 4-4\" />","zap":"<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\" />","pen":"<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" />","key":"<path d=\"m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4\" /> <path d=\"m21 2-9.6 9.6\" /> <circle cx=\"7.5\" cy=\"15.5\" r=\"5.5\" />","key-round":"<path d=\"M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z\" /> <circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />","pause":"<rect x=\"14\" y=\"3\" width=\"5\" height=\"18\" rx=\"1\" /> <rect x=\"5\" y=\"3\" width=\"5\" height=\"18\" rx=\"1\" />","plus":"<path d=\"M5 12h14\" /> <path d=\"M12 5v14\" />","workflow":"<rect width=\"8\" height=\"8\" x=\"3\" y=\"3\" rx=\"2\" /> <path d=\"M7 11v4a2 2 0 0 0 2 2h4\" /> <rect width=\"8\" height=\"8\" x=\"13\" y=\"13\" rx=\"2\" />","replace":"<path d=\"M14 4a1 1 0 0 1 1-1\" /> <path d=\"M15 10a1 1 0 0 1-1-1\" /> <path d=\"M21 4a1 1 0 0 0-1-1\" /> <path d=\"M21 9a1 1 0 0 1-1 1\" /> <path d=\"m3 7 3 3 3-3\" /> <path d=\"M6 10V5a2 2 0 0 1 2-2h2\" /> <rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\" />","plug":"<path d=\"M12 22v-5\" /> <path d=\"M15 8V2\" /> <path d=\"M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z\" /> <path d=\"M9 8V2\" />","unplug":"<path d=\"m19 5 3-3\" /> <path d=\"m2 22 3-3\" /> <path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\" /> <path d=\"M7.5 13.5 10 11\" /> <path d=\"M10.5 16.5 13 14\" /> <path d=\"m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z\" />","plug-zap":"<path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\" /> <path d=\"m2 22 3-3\" /> <path d=\"M7.5 13.5 10 11\" /> <path d=\"M10.5 16.5 13 14\" /> <path d=\"m18 3-4 4h6l-4 4\" />","arrow-up":"<path d=\"m5 12 7-7 7 7\" /> <path d=\"M12 19V5\" />","arrow-down":"<path d=\"M12 5v14\" /> <path d=\"m19 12-7 7-7-7\" />","type":"<path d=\"M12 4v16\" /> <path d=\"M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2\" /> <path d=\"M9 20h6\" />","sparkles":"<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" /> <path d=\"M20 2v4\" /> <path d=\"M22 4h-4\" /> <circle cx=\"4\" cy=\"20\" r=\"2\" />","check":"<path d=\"M20 6 9 17l-5-5\" />","map":"<path d=\"M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z\" /> <path d=\"M15 5.764v15\" /> <path d=\"M9 3.236v15\" />","circle-off":"<path d=\"m2 2 20 20\" /> <path d=\"M8.35 2.69A10 10 0 0 1 21.3 15.65\" /> <path d=\"M19.08 19.08A10 10 0 1 1 4.92 4.92\" />","signal-low":"<path d=\"M2 20h.01\" /> <path d=\"M7 20v-4\" />","signal-medium":"<path d=\"M2 20h.01\" /> <path d=\"M7 20v-4\" /> <path d=\"M12 20v-8\" />","signal-high":"<path d=\"M2 20h.01\" /> <path d=\"M7 20v-4\" /> <path d=\"M12 20v-8\" /> <path d=\"M17 20V8\" />","flame":"<path d=\"M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4\" />","pencil":"<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" /> <path d=\"m15 5 4 4\" />","trash-2":"<path d=\"M10 11v6\" /> <path d=\"M14 11v6\" /> <path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\" /> <path d=\"M3 6h18\" /> <path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\" />","link":"<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\" /> <path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\" />","external-link":"<path d=\"M15 3h6v6\" /> <path d=\"M10 14 21 3\" /> <path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" />","terminal":"<path d=\"M12 19h8\" /> <path d=\"m4 17 6-6-6-6\" />","bot":"<path d=\"M12 8V4H8\" /> <rect width=\"16\" height=\"12\" x=\"4\" y=\"8\" rx=\"2\" /> <path d=\"M2 14h2\" /> <path d=\"M20 14h2\" /> <path d=\"M15 13v2\" /> <path d=\"M9 13v2\" />","brain":"<path d=\"M12 18V5\" /> <path d=\"M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4\" /> <path d=\"M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5\" /> <path d=\"M17.997 5.125a4 4 0 0 1 2.526 5.77\" /> <path d=\"M18 18a4 4 0 0 0 2-7.464\" /> <path d=\"M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517\" /> <path d=\"M6 18a4 4 0 0 1-2-7.464\" /> <path d=\"M6.003 5.125a4 4 0 0 0-2.526 5.77\" />","cloud":"<path d=\"M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z\" />","server":"<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\" /> <rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\" /> <line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\" /> <line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\" />","server-cog":"<path d=\"m10.852 14.772-.383.923\" /> <path d=\"M13.148 14.772a3 3 0 1 0-2.296-5.544l-.383-.923\" /> <path d=\"m13.148 9.228.383-.923\" /> <path d=\"m13.53 15.696-.382-.924a3 3 0 1 1-2.296-5.544\" /> <path d=\"m14.772 10.852.923-.383\" /> <path d=\"m14.772 13.148.923.383\" /> <path d=\"M4.5 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-.5\" /> <path d=\"M4.5 14H4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-.5\" /> <path d=\"M6 18h.01\" /> <path d=\"M6 6h.01\" /> <path d=\"m9.228 10.852-.923-.383\" /> <path d=\"m9.228 13.148-.923.383\" />","target":"<circle cx=\"12\" cy=\"12\" r=\"10\" /> <circle cx=\"12\" cy=\"12\" r=\"6\" /> <circle cx=\"12\" cy=\"12\" r=\"2\" />"};
+window.lucide = { createIcons() { document.querySelectorAll("i[data-lucide]").forEach(function (i) { var n = i.getAttribute("data-lucide"); var s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "2"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round"); s.setAttribute("aria-hidden", "true"); s.setAttribute("class", "lucide " + (i.getAttribute("class") || "")); s.innerHTML = window.LUCIDE[n] || window.LUCIDE["circle-help"] || ""; i.replaceWith(s); }); } };
+</script>
+<style>
+:root {
+  --bg: #07080d; --bg2: #11131c; --bg3: #1a1d29; --panel: #0e111b;
+  --text: #f2f3f7; --text2: #b9bdcb; --text3: #8a8fa1;
+  --line: rgba(255,255,255,.09); --line2: rgba(255,255,255,.16);
+  --accent: #ff7a3c; --accent-ink: #ffab81; --accent-wash: rgba(255,101,45,.10); --accent-line: rgba(255,130,67,.35);
+  --violet: #d5b5ff; --violet-wash: rgba(159,104,255,.14);
+  --green: #22c55e; --green-wash: rgba(34,197,94,.12);
+  --red: #f4565a; --red-wash: rgba(244,86,90,.10);
+  --warn: #e0a04a; --warn-wash: rgba(210,160,60,.13); --warn-line: rgba(210,160,60,.45);
+  --scrim: rgba(3,3,8,.72);
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f5f6fa; --bg2: #ffffff; --bg3: #eef0f5; --panel: #ffffff;
+    --text: #151823; --text2: #464c5e; --text3: #6d7386;
+    --line: rgba(20,24,40,.10); --line2: rgba(20,24,40,.18);
+    --accent-ink: #c2410c; --accent-wash: rgba(255,101,45,.08);
+    --violet: #6d28d9; --violet-wash: rgba(124,58,237,.10);
+    --green: #15803d; --green-wash: rgba(21,128,61,.10);
+    --red: #dc2626; --warn: #96590a; --warn-wash: rgba(180,120,20,.10);
+    --scrim: rgba(10,12,20,.45);
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f5f6fa; --bg2: #ffffff; --bg3: #eef0f5; --panel: #ffffff;
+  --text: #151823; --text2: #464c5e; --text3: #6d7386;
+  --line: rgba(20,24,40,.10); --line2: rgba(20,24,40,.18);
+  --accent-ink: #c2410c; --accent-wash: rgba(255,101,45,.08);
+  --violet: #6d28d9; --violet-wash: rgba(124,58,237,.10);
+  --green: #15803d; --green-wash: rgba(21,128,61,.10);
+  --red: #dc2626; --warn: #96590a; --warn-wash: rgba(180,120,20,.10);
+  --scrim: rgba(10,12,20,.45);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 17px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased; }
+.ic, svg.lucide { width: 20px; height: 20px; stroke-width: 2; flex: none; }
+button { font: inherit; color: inherit; }
+
+/* ---------- design notes bar ---------- */
+.note { max-width: 760px; margin: 0 auto; padding: 16px 16px 0; }
+.note h1 { font-size: 22px; margin: 0 0 6px; }
+.note p { margin: 0 0 10px; color: var(--text2); font-size: 16px; }
+.note .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line2); background: var(--bg2); color: var(--text2); cursor: pointer; font-size: 15px; }
+.pill.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-wash); }
+
+/* ---------- page ---------- */
+.page { max-width: 760px; margin: 0 auto; padding: 12px 16px 120px; }
+.sec { margin-top: 18px; }
+.sec-h { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text3); margin: 0 4px 10px; }
+.sec-h .sub { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.sec-h .i { margin-left: auto; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%;
+  border: 0; background: none; color: var(--text3); cursor: pointer; }
+
+.card { background: var(--bg2); border: 1px solid var(--line); border-radius: 18px; padding: 14px 14px 12px; }
+.card + .swap, .swap + .card { margin-top: 0; }
+.card.main { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line) inset; }
+.card.inuse { border-color: rgba(34,197,94,.45); }
+.card.off { opacity: .92; }
+
+.head { display: flex; align-items: center; gap: 12px; }
+.grip { width: 28px; height: 40px; margin: 0 -6px 0 -6px; display: grid; place-items: center; border: 0; background: none;
+  color: var(--text3); cursor: grab; border-radius: 8px; }
+.logo { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; flex: none; font-weight: 800;
+  font-size: 15px; color: #fff; position: relative; }
+.logo .dot { position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; border-radius: 50%;
+  border: 3px solid var(--bg2); background: var(--text3); }
+.logo .dot.on { background: var(--green); }
+.logo .dot.rest { background: var(--warn); }
+.who { flex: 1; min-width: 0; }
+.name { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kind { font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--violet-wash); color: var(--violet); }
+.status { display: flex; align-items: center; gap: 6px; font-size: 15px; color: var(--text3); margin-top: 2px; }
+.status.on { color: var(--green); }
+.status.rest { color: var(--warn); }
+.status .ic { width: 16px; height: 16px; }
+.badge { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 800; letter-spacing: .05em;
+  padding: 4px 9px; border-radius: 8px; border: 1px solid var(--accent); color: var(--accent-ink); }
+.badge .ic { width: 14px; height: 14px; }
+.badge.bk { border-color: var(--line2); color: var(--text3); font-weight: 600; letter-spacing: 0; }
+.badge.live { border-color: var(--green); color: var(--green); }
+.more { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border: 0; border-radius: 12px;
+  background: none; color: var(--text2); cursor: pointer; }
+.more:hover { background: var(--bg3); }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+.chip { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: 12px;
+  border: 1px solid var(--line2); background: var(--bg3); color: var(--text); cursor: pointer; font-size: 15px; max-width: 100%; }
+.chip .ic { width: 17px; height: 17px; color: var(--text2); }
+.chip .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip .up { color: var(--text3); }
+.tags { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+.acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.act { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 0;
+  background: none; color: var(--text2); cursor: pointer; font-size: 15px; font-weight: 600; }
+.act:hover { background: var(--bg3); color: var(--text); }
+.act .ic { width: 18px; height: 18px; }
+.act.pri { background: var(--accent); color: #1a0d05; }
+.act.danger { color: var(--red); margin-left: auto; }
+
+.limit { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+  background: var(--warn-wash); border: 1px solid var(--warn-line); color: var(--warn); font-size: 15px; }
+.limit .txt { flex: 1; min-width: 0; }
+.limit b { color: var(--text); font-weight: 600; }
+.limit .act { color: var(--warn); background: none; border: 1px solid var(--warn-line); min-height: 36px; margin-top: 8px; }
+
+.offnote { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+  background: var(--bg3); color: var(--text2); font-size: 15px; }
+
+.accts { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.acct { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 6px 6px 10px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--bg); }
+.acct.cur { border-color: rgba(34,197,94,.45); background: var(--green-wash); }
+.acct.offa { opacity: .55; }
+.acct .ai { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--bg3); color: var(--text2); flex: none; }
+.acct .ai .ic { width: 17px; height: 17px; }
+.acct .at { flex: 1; min-width: 0; }
+.acct .an { font-weight: 600; font-size: 15.5px; overflow-wrap: anywhere; }
+.acct .as { font-size: 14px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
+.acct .as .ic { width: 14px; height: 14px; }
+.acct .as.ok { color: var(--green); }
+.add { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; margin-top: 8px; padding: 0 12px; border-radius: 10px;
+  border: 1px dashed var(--line2); background: none; color: var(--text2); cursor: pointer; font-size: 15px; }
+
+.swap { display: flex; justify-content: center; margin: 6px 0; }
+.swap button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text3); font-size: 14px; cursor: pointer; }
+.swap .ic { width: 15px; height: 15px; }
+
+.bg { display: flex; align-items: center; gap: 12px; }
+.bg .bi { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--violet-wash); color: var(--violet); flex: none; }
+
+.connect { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; border: 1px dashed var(--line2);
+  background: none; color: var(--text2); cursor: pointer; text-align: left; font-size: 16px; }
+.connect .ci { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--bg3); }
+.connect .cc { margin-left: auto; color: var(--text3); }
+
+/* ---------- pull-up sheet (Tasks page style) ---------- */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 50; opacity: 0; pointer-events: none; transition: opacity .18s; }
+.scrim.open { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 86vh; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 22px 22px 0 0;
+  padding: 6px 14px calc(14px + env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform .22s cubic-bezier(.2,.8,.2,1);
+  box-shadow: 0 -20px 60px rgba(0,0,0,.45); }
+.sheet.open { transform: none; }
+@media (min-width: 640px) { .sheet { left: 50%; right: auto; width: 480px; margin-left: -240px; } }
+.grab { width: 44px; height: 5px; border-radius: 5px; background: var(--line2); margin: 6px auto 10px; }
+.sh-h { display: flex; align-items: center; gap: 12px; padding: 0 4px 10px; }
+.sh-h .logo { width: 36px; height: 36px; border-radius: 10px; font-size: 13px; }
+.sh-h b { flex: 1; min-width: 0; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-h small { display: block; font-size: 14px; font-weight: 500; color: var(--text3); }
+.x { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--bg3); cursor: pointer; }
+.sh-b { overflow-y: auto; overscroll-behavior: contain; }
+.grp { padding: 4px 0; }
+.grp + .grp { border-top: 1px solid var(--line); }
+.mi { width: 100%; display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 0 10px; border: 0; border-radius: 12px;
+  background: none; cursor: pointer; text-align: left; font-size: 16.5px; }
+.mi:hover { background: var(--bg3); }
+.mi .mic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--bg3); color: var(--text2); flex: none; }
+.mi .mt { flex: 1; min-width: 0; }
+.mi .ms { display: block; font-size: 14px; color: var(--text3); }
+.mi .end { color: var(--text3); font-size: 15px; display: inline-flex; align-items: center; gap: 4px; }
+.mi.danger { color: var(--red); }
+.mi.danger .mic { background: var(--red-wash); color: var(--red); }
+.mi.warn .mic { background: var(--warn-wash); color: var(--warn); }
+.mi.acc .mic { background: var(--accent-wash); color: var(--accent-ink); }
+.search { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border-radius: 14px; background: var(--bg3);
+  border: 1px solid var(--line); margin: 0 2px 8px; color: var(--text3); }
+.search input { flex: 1; border: 0; background: none; color: var(--text); font: inherit; font-size: 16px; outline: none; }
+.cap { font-size: 12.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); padding: 10px 10px 4px; }
+.lv { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 6px 2px 10px; }
+.lv button { min-height: 64px; border-radius: 12px; border: 1px solid var(--line2); background: var(--bg3); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 13.5px; color: var(--text2); }
+.lv button.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-ink); font-weight: 700; }
+.confirm p { margin: 4px 6px 14px; color: var(--text2); font-size: 16px; }
+.btns { display: flex; gap: 10px; }
+.btn { flex: 1; min-height: 50px; border-radius: 14px; border: 1px solid var(--line2); background: var(--bg3); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 16px; }
+.btn.red { background: var(--red); border-color: var(--red); color: #fff; }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: #1a0d05; }
+.field { width: 100%; min-height: 50px; border-radius: 14px; border: 1px solid var(--line2); background: var(--bg3); color: var(--text);
+  font: inherit; font-size: 16px; padding: 0 14px; margin: 4px 0 12px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; z-index: 60; background: var(--text); color: var(--bg);
+  padding: 12px 16px; border-radius: 12px; font-size: 15px; transition: all .2s; pointer-events: none; display: flex; gap: 8px; align-items: center; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+
+<div class="note">
+  <h1>Trang Model mới (bản thiết kế)</h1>
+  <p>Bấm thử mọi nút. Mỗi thẻ có hàng nút có icon ngay bên dưới, và nút <b>⋯</b> mở bảng kéo từ dưới lên với đủ thao tác, giống trang Nhiệm vụ. Không còn menu xổ xuống.</p>
+  <div class="tabs">
+    <button class="pill" data-theme-set="dark"><i data-lucide="moon"></i>Tối</button>
+    <button class="pill" data-theme-set="light"><i data-lucide="sun"></i>Sáng</button>
+  </div>
+</div>
+
+<main class="page">
+
+  <div class="sec">
+    <div class="sec-h">Thứ tự dùng <span class="sub">· trên cùng là MAIN</span><button class="i" aria-label="Giải thích"><i data-lucide="info"></i></button></div>
+
+    <!-- ChatGPT: MAIN, resting because of an old quota mark -->
+    <div class="card main" data-card="gpt">
+      <div class="head">
+        <button class="grip" aria-label="Kéo để đổi thứ tự"><i data-lucide="grip-vertical"></i></button>
+        <span class="logo" style="background:#10a37f">GPT<span class="dot rest"></span></span>
+        <div class="who">
+          <div class="name">ChatGPT <span class="kind">Gói Plus</span></div>
+          <div class="status rest"><i data-lucide="clock"></i>Tạm nghỉ · 8 model</div>
+        </div>
+        <button class="more" data-menu="gpt" aria-label="Tuỳ chọn của ChatGPT"><i data-lucide="ellipsis"></i></button>
+      </div>
+      <div class="chips">
+        <button class="chip" data-sheet="model" data-for="ChatGPT"><i data-lucide="cpu"></i><span class="t">gpt-5.1-codex</span><i class="up" data-lucide="chevron-up"></i></button>
+        <button class="chip" data-sheet="effort" data-for="ChatGPT"><i data-lucide="gauge"></i><span class="t">Vừa</span><i class="up" data-lucide="chevron-up"></i></button>
+        <span class="tags"><span class="badge"><i data-lucide="star"></i>MAIN</span></span>
+      </div>
+      <div class="limit">
+        <i data-lucide="triangle-alert"></i>
+        <div class="txt"><b>Đang tạm nghỉ vì hết lượt, tới 14:08 ngày 10/11.</b> Trong lúc này chat chạy bằng thẻ kế tiếp.
+          <br><button class="act" data-toast="Đã gỡ dấu hết lượt. Lượt chat sau chạy bằng ChatGPT."><i data-lucide="rotate-cw"></i>Dùng lại ngay</button></div>
+      </div>
+      <div class="acts">
+        <button class="act" data-toast="ChatGPT dùng được."><i data-lucide="refresh-cw"></i>Kiểm tra</button>
+        <button class="act" data-sheet="addacc" data-for="ChatGPT"><i data-lucide="user-plus"></i>Thêm tài khoản</button>
+        <button class="act danger" data-sheet="confirm" data-for="ChatGPT"><i data-lucide="log-out"></i>Ngắt</button>
+      </div>
+    </div>
+
+    <div class="swap"><button><i data-lucide="arrow-up-down"></i>Đổi chỗ</button></div>
+
+    <!-- Antigravity: in use now, has Disconnect -->
+    <div class="card inuse" data-card="agy">
+      <div class="head">
+        <button class="grip" aria-label="Kéo để đổi thứ tự"><i data-lucide="grip-vertical"></i></button>
+        <span class="logo" style="background:linear-gradient(135deg,#4285f4,#34a853 60%,#fbbc05)">AG<span class="dot on"></span></span>
+        <div class="who">
+          <div class="name">Antigravity <span class="kind">Gói Google</span></div>
+          <div class="status on"><i data-lucide="circle-check"></i>Đã đăng nhập · 9 model</div>
+        </div>
+        <button class="more" data-menu="agy" aria-label="Tuỳ chọn của Antigravity"><i data-lucide="ellipsis"></i></button>
+      </div>
+      <div class="chips">
+        <button class="chip" data-sheet="model" data-for="Antigravity"><i data-lucide="cpu"></i><span class="t">claude-sonnet-4-6</span><i class="up" data-lucide="chevron-up"></i></button>
+        <button class="chip" data-sheet="effort" data-for="Antigravity"><i data-lucide="gauge"></i><span class="t">Tắt</span><i class="up" data-lucide="chevron-up"></i></button>
+        <span class="tags"><span class="badge bk">Dự phòng 1</span><span class="badge live"><i data-lucide="zap"></i>ĐANG DÙNG</span></span>
+      </div>
+      <div class="acts">
+        <button class="act" data-toast="Antigravity chat được, tool của Javis hoạt động."><i data-lucide="refresh-cw"></i>Kiểm tra</button>
+        <button class="act danger" data-sheet="confirm" data-for="Antigravity"><i data-lucide="log-out"></i>Ngắt</button>
+      </div>
+    </div>
+
+    <div class="swap"><button><i data-lucide="arrow-up-down"></i>Đổi chỗ</button></div>
+
+    <!-- OpenRouter: API card with several keys -->
+    <div class="card" data-card="or">
+      <div class="head">
+        <button class="grip" aria-label="Kéo để đổi thứ tự"><i data-lucide="grip-vertical"></i></button>
+        <span class="logo" style="background:#6467f2">OR<span class="dot on"></span></span>
+        <div class="who">
+          <div class="name">OpenRouter <span class="kind">API key</span></div>
+          <div class="status on"><i data-lucide="circle-check"></i>2/2 key sẵn sàng</div>
+        </div>
+        <button class="more" data-menu="or" aria-label="Tuỳ chọn của OpenRouter"><i data-lucide="ellipsis"></i></button>
+      </div>
+      <div class="chips">
+        <button class="chip" data-sheet="model" data-for="OpenRouter"><i data-lucide="cpu"></i><span class="t">Tự chọn model miễn phí</span><i class="up" data-lucide="chevron-up"></i></button>
+        <button class="chip" data-sheet="effort" data-for="OpenRouter"><i data-lucide="gauge"></i><span class="t">Tắt</span><i class="up" data-lucide="chevron-up"></i></button>
+        <span class="tags"><span class="badge bk">Dự phòng 2</span></span>
+      </div>
+      <ul class="accts">
+        <li class="acct"><span class="ai"><i data-lucide="key-round"></i></span>
+          <div class="at"><div class="an">Key chính</div><div class="as ok"><i data-lucide="circle-check"></i>••••a91f · Sẵn sàng</div></div>
+          <button class="more" data-sheet="key" data-for="Key chính" aria-label="Tuỳ chọn key"><i data-lucide="ellipsis"></i></button></li>
+        <li class="acct offa"><span class="ai"><i data-lucide="key-round"></i></span>
+          <div class="at"><div class="an">Key dự phòng</div><div class="as"><i data-lucide="pause"></i>••••77c2 · Đang tắt</div></div>
+          <button class="more" data-sheet="key" data-for="Key dự phòng" aria-label="Tuỳ chọn key"><i data-lucide="ellipsis"></i></button></li>
+      </ul>
+      <div class="acts">
+        <button class="act" data-sheet="addkey" data-for="OpenRouter"><i data-lucide="plus"></i>Thêm key</button>
+        <button class="act danger" data-sheet="confirm" data-for="OpenRouter"><i data-lucide="log-out"></i>Ngắt</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">Model việc nền <span class="sub">· loop, Kanban, nhắc hẹn</span><button class="i" aria-label="Giải thích"><i data-lucide="info"></i></button></div>
+    <div class="card">
+      <div class="bg">
+        <span class="bi"><i data-lucide="workflow"></i></span>
+        <div class="who"><div class="name">gpt-5.1-codex</div><div class="status">ChatGPT</div></div>
+        <button class="chip" data-sheet="effort" data-for="Việc nền"><i data-lucide="gauge"></i><span class="t">Vừa</span></button>
+      </div>
+      <div class="acts">
+        <button class="act" data-sheet="model" data-for="Việc nền"><i data-lucide="replace"></i>Đổi model</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <button class="connect" data-sheet="connect"><span class="ci"><i data-lucide="plug"></i></span>
+      <span><b>Kết nối thêm nhà cung cấp</b><br><span style="color:var(--text3);font-size:15px">Claude Code, Grok, Gemini, Groq và 4 nhà khác</span></span>
+      <i class="cc" data-lucide="chevron-up"></i></button>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">Thẻ đã ngắt (ví dụ)</div>
+    <div class="card off">
+      <div class="head">
+        <span class="logo" style="background:linear-gradient(135deg,#4285f4,#34a853 60%,#fbbc05);opacity:.6">AG<span class="dot"></span></span>
+        <div class="who">
+          <div class="name">Antigravity <span class="kind">Gói Google</span></div>
+          <div class="status"><i data-lucide="unplug"></i>Đã ngắt khỏi Javis</div>
+        </div>
+      </div>
+      <div class="offnote"><i data-lucide="info"></i><span>Javis không dùng thẻ này nữa. Phiên Google trong máy vẫn còn, bấm Kết nối lại là dùng tiếp.</span></div>
+      <div class="acts" style="border-top:0;padding-top:0">
+        <button class="act pri" data-toast="Đã kết nối lại Antigravity."><i data-lucide="plug-zap"></i>Kết nối lại</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div class="sh-h" id="shH"></div><div class="sh-b" id="shB"></div></div>
+<div class="toast" id="toast"><i data-lucide="circle-check"></i><span></span></div>
+
+<script>
+const CARDS = {
+  gpt: { name: "ChatGPT", sub: "MAIN · Gói Plus", logo: '<span class="logo" style="background:#10a37f">GPT</span>', main: true, limited: true, plan: true },
+  agy: { name: "Antigravity", sub: "Dự phòng 1 · Gói Google", logo: '<span class="logo" style="background:linear-gradient(135deg,#4285f4,#34a853 60%,#fbbc05)">AG</span>' },
+  or: { name: "OpenRouter", sub: "Dự phòng 2 · API key", logo: '<span class="logo" style="background:#6467f2">OR</span>', keys: true, last: true },
+};
+const $ = (s) => document.querySelector(s);
+const ico = (n) => `<i data-lucide="${n}"></i>`;
+const mi = (icon, label, sub, cls, data) =>
+  `<button class="mi ${cls || ""}" ${data || ""}><span class="mic">${ico(icon)}</span><span class="mt">${label}${sub ? `<span class="ms">${sub}</span>` : ""}</span></button>`;
+function head(title, sub, logo) {
+  return `${logo || ""}<b>${title}${sub ? `<small>${sub}</small>` : ""}</b><button class="x" data-close aria-label="Đóng">${ico("x")}</button>`;
+}
+function open(h, b) {
+  $("#shH").innerHTML = h; $("#shB").innerHTML = b;
+  $("#scrim").classList.add("open"); $("#sheet").classList.add("open");
+  lucide.createIcons();
+}
+function close() { $("#scrim").classList.remove("open"); $("#sheet").classList.remove("open"); }
+function toast(t) {
+  const el = $("#toast"); el.querySelector("span").textContent = t; el.classList.add("show");
+  clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove("show"), 2200);
+}
+function cardMenu(id) {
+  const c = CARDS[id];
+  let b = `<div class="grp">
+    ${mi("cpu", "Đổi model", "Đang dùng model riêng của thẻ", "", 'data-sheet="model" data-for="' + c.name + '"')}
+    ${mi("gauge", "Độ sâu suy nghĩ", "Tắt, Thấp, Vừa, Cao, Tối đa", "", 'data-sheet="effort" data-for="' + c.name + '"')}
+  </div>`;
+  if (c.limited) b += `<div class="grp">${mi("rotate-cw", "Dùng lại ngay", "Gỡ dấu hết lượt tới 14:08 ngày 10/11", "warn", 'data-toast="Đã gỡ dấu hết lượt."')}</div>`;
+  b += `<div class="grp">
+    ${c.main ? "" : mi("star", "Đặt làm MAIN", "Chat mặc định chạy bằng thẻ này", "acc", 'data-toast="' + c.name + ' đã là MAIN."')}
+    ${c.main ? "" : mi("arrow-up", "Lên một bậc", "", "", 'data-toast="Đã đưa lên."')}
+    ${c.last ? "" : mi("arrow-down", "Xuống một bậc", "", "", 'data-toast="Đã đưa xuống."')}
+  </div><div class="grp">
+    ${c.keys ? mi("key-round", "Thêm key", "Hết lượt key này thì Javis dùng key kế", "", 'data-sheet="addkey" data-for="' + c.name + '"') : ""}
+    ${c.plan ? mi("user-plus", "Thêm tài khoản", "Đăng nhập thêm một tài khoản cùng gói", "", 'data-sheet="addacc" data-for="' + c.name + '"') : ""}
+    ${mi("refresh-cw", "Kiểm tra lại", "Chạy thử một lượt thật", "", 'data-toast="' + c.name + ' dùng được."')}
+  </div><div class="grp">
+    ${mi("log-out", "Ngắt kết nối", "Javis thôi dùng thẻ này", "danger", 'data-sheet="confirm" data-for="' + c.name + '"')}
+  </div>`;
+  open(head(c.name, c.sub, c.logo), b);
+}
+const SHEETS = {
+  model: (who) => [head("Chọn model", who), `<div class="search">${ico("search")}<input type="search" placeholder="Tìm model"></div>
+    <button class="mi"><span class="mic">${ico("sparkles")}</span><span class="mt">Mặc định<span class="ms">Nhà cung cấp tự chọn theo gói</span></span></button>
+    <button class="mi"><span class="mic" style="background:var(--accent-wash);color:var(--accent-ink)">${ico("check")}</span><span class="mt"><b>gpt-5.1-codex</b><span class="ms">Đang dùng</span></span></button>
+    <div class="cap">Tất cả model</div>
+    ${["gpt-5.1", "gpt-5.1-codex-mini", "gpt-5", "o4-mini"].map(m => `<button class="mi" data-toast="Đã chọn ${m}."><span class="mic">${ico("cpu")}</span><span class="mt">${m}</span></button>`).join("")}`],
+  effort: (who) => [head("Độ sâu suy nghĩ", who), `<div class="lv">
+      ${[["circle-off", "Tắt"], ["signal-low", "Thấp"], ["signal-medium", "Vừa"], ["signal-high", "Cao"], ["flame", "Tối đa"]].map((x, i) =>
+        `<button class="${i === 2 ? "on" : ""}" data-toast="Độ sâu: ${x[1]}.">${ico(x[0])}${x[1]}</button>`).join("")}
+    </div><p style="margin:0 8px 6px;color:var(--text3);font-size:15px">Sâu hơn thì trả lời chậm hơn và tốn lượt hơn.</p>`],
+  key: (who) => [head(who, "OpenRouter"), `<div class="grp">
+    ${mi("pause", "Tạm tắt key này", "Javis bỏ qua key này cho tới khi bật lại", "", 'data-toast="Đã tắt key."')}
+    ${mi("pencil", "Đổi tên", "", "", 'data-toast="Đã đổi tên."')}
+    ${mi("key-round", "Thay key mới", "Dán key mới, tên và thứ tự giữ nguyên", "", 'data-sheet="addkey" data-for="' + who + '"')}
+    ${mi("arrow-up", "Lên một bậc", "", "", 'data-toast="Đã đưa lên."')}
+    </div><div class="grp">${mi("trash-2", "Xoá key", "", "danger", 'data-sheet="confirm" data-for="' + who + '"')}</div>`],
+  addkey: (who) => [head("Thêm key", who), `<input class="field" placeholder="Tên gợi nhớ (không bắt buộc)">
+    <input class="field" type="password" placeholder="Dán API key">
+    <div class="btns"><button class="btn" data-close>Huỷ</button><button class="btn pri" data-toast="Đã thêm key.">${ico("check")}Lưu</button></div>`],
+  addacc: (who) => [head("Thêm tài khoản", who), `<input class="field" placeholder="Tên gợi nhớ, ví dụ: Tài khoản công ty">
+    <div class="offnote" style="margin:0 0 12px">${ico("info")}<span>Hết lượt tài khoản này thì Javis tự dùng tài khoản kế.</span></div>
+    <div class="btns"><button class="btn" data-close>Huỷ</button><button class="btn pri" data-toast="Đã mở link đăng nhập.">${ico("external-link")}Lấy link đăng nhập</button></div>`],
+  confirm: (who) => [head("Ngắt " + who + "?"), `<div class="confirm"><p>Javis thôi dùng ${who} cho tới khi bạn kết nối lại. Thẻ kế tiếp trong thứ tự sẽ thay chỗ.</p>
+    <div class="btns"><button class="btn" data-close>Giữ lại</button><button class="btn red" data-toast="Đã ngắt ${who}.">${ico("log-out")}Ngắt</button></div></div>`],
+  connect: () => [head("Kết nối thêm", "8 nhà chưa kết nối"), [["terminal", "Claude Code", "Gói Claude Pro hoặc Max"], ["bot", "Grok Build", "Gói SuperGrok"],
+    ["sparkles", "Google Gemini", "API key"], ["zap", "Groq", "API key, nhanh"], ["brain", "DeepSeek", "API key"], ["cloud", "Ollama Cloud", "API key"],
+    ["server", "OpenAI Compatible", "Địa chỉ riêng"], ["server-cog", "Anthropic Compatible", "Địa chỉ riêng"]]
+    .map(x => mi(x[0], x[1], x[2], "", 'data-toast="Mở hướng dẫn kết nối ' + x[1] + '."')).join("")],
+};
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-close], [data-menu], [data-sheet], [data-toast], [data-theme-set], #scrim");
+  if (!t) return;
+  if (t.id === "scrim" || t.hasAttribute("data-close")) return close();
+  if (t.dataset.themeSet) {
+    document.documentElement.setAttribute("data-theme", t.dataset.themeSet);
+    document.querySelectorAll("[data-theme-set]").forEach(b => b.classList.toggle("on", b === t));
+    return;
+  }
+  if (t.dataset.menu) return cardMenu(t.dataset.menu);
+  if (t.dataset.sheet) { const [h, b] = SHEETS[t.dataset.sheet](t.dataset.for || ""); return open(h, b); }
+  if (t.dataset.toast) { close(); toast(t.dataset.toast); }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+(function () {
+  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  var cur = document.documentElement.getAttribute("data-theme") || (dark ? "dark" : "light");
+  document.querySelectorAll("[data-theme-set]").forEach(function (b) { b.classList.toggle("on", b.dataset.themeSet === cur); });
+})();
+lucide.createIcons();
+</script>
+</body>
+</html>

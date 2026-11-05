@@ -74,14 +74,15 @@ check("removing a plan account names it, a stale page never drops one (0.355.0)"
   /const gone = l\.splice\(i, 1\)\[0\];\s*saveAcc\(pid, l, \[gone\.id\]\);/.test(B));
 check("removing the last key warns that the provider leaves the order", /models\.acct_rm_last_q/.test(B));
 check("the background picker lists signed-in providers only", /openModelPicker\(c\.connList,/.test(B) && /connectedOnly: true/.test(B));
-check("on a phone the background picker is the composer-style list", /matchMedia\("\(max-width: 600px\)"\)/.test(B) && /JavisModelList\.render\(o\)/.test(B));
-check("every popover is placed (opens upward, clamped)", /MO\.place\(pop\)/.test(B));
+check("the background picker is the composer-style list in a sheet on every screen",
+  /if \(!window\.JavisModelList\) \{/.test(B) && /JavisModelList\.render\(o\)/.test(B) && !/matchMedia\("\(max-width: 600px\)"\)\.matches \|\| !window\.JavisModelList/.test(B));
 check("Escape and a tap outside close the popover", /e\.key === "Escape"/.test(B) && /closest\("\.ord-chips"\)/.test(B));
 
-// ---- 2b. phone pickers (0.352.0, owner's screenshots 27/10) ----
-check("a phone gets a bottom sheet, not a popover over the card",
-  /const phone = \(\) => window\.matchMedia\("\(max-width: 600px\)"\)\.matches;/.test(B) && /ord-sheet-back/.test(B) && /ord-sheet-x/.test(B));
-check("the keyboard waits until the search box is tapped", /if \(!sh\.sheet\) inp\.focus\(\);/.test(B) && !/\n\s*inp\.focus\(\);\n\s*\}\);/.test(B));
+// ---- 2b. pickers (0.352.0 on a phone; owner 05/11/2026: "pull up, not drop down" on every screen) ----
+const SH = B.slice(B.indexOf("const shell = "), B.indexOf("el._ordClose = closePop;"));
+check("every picker is a pull-up sheet, on a computer too: no popover branch left",
+  /ord-sheet-back/.test(SH) && /ord-sheet-x/.test(SH) && !/phone\(\)/.test(SH) && !/MO\.place/.test(B) && !/sh\.sheet \?/.test(B));
+check("the keyboard waits until the search box is tapped on a phone", /if \(!phone\(\)\) inp\.focus\(\);/.test(B) && !/\n\s*inp\.focus\(\);\n\s*\}\);/.test(B));
 check("the sheet closes on its own button, the backdrop and Escape",
   /\.ord-sheet-x"\)\.onclick = \(\) => closePop\(\)/.test(B) && /closest\("\.ord-chips, \.ord-pop"\)/.test(B));
 check("model list: Default first, the model in use next, the rest A-Z",
@@ -89,9 +90,24 @@ check("model list: Default first, the model in use next, the rest A-Z",
 check("on a phone the MAIN / Fallback badge moves to the chip row", /ordBadges\(p, ord, "ord-badges-m"\)/.test(CL)
   && /\.ord-head \.ord-badges \{ display: none; \}/.test(D("console.css")));
 
-check("the card holding an open popover is lifted above the next card (each card is its own layer)",
-  /raised\.classList\.add\("ord-raise"\)/.test(B) && /openPop\.raised\.classList\.remove\("ord-raise"\)/.test(B)
-  && /\.prov-card\.ord-raise, \.gcard\.ord-raise \{ position: relative; z-index: 70; \}/.test(D("console.css")));
+check("a computer gets a narrower sheet centered at the bottom", /@media \(min-width: 601px\) \{\s*\.ord-sheet \{ left: 50%;/.test(D("console.css")));
+// 05/11/2026: an account's ⋯ opens a sheet in the Tasks page's style instead of unfolding buttons inside the card.
+check("an account's ⋯ opens a sheet, nothing unfolds inside the card",
+  !/class="ord-menu"/.test(CL) && (B.match(/menuSheet\(ev\.currentTarget,/g) || []).length === 2 && /\.ord-mi \{/.test(D("console.css")));
+check("a new key is typed inside the sheet", /formInSheet\(sh, t\("models\.acct_key_ph"\)/.test(B));
+// ---- 2d. a card's ⋯ and Disconnect for every card (owner 05/11/2026) ----
+check("every card in the order has a ⋯ button", /data-cmenu="\$\{esc\(p\.id\)\}"/.test(CL) && (CL.match(/\$\{cardMenuBtn\(p, ord\)\}/g) || []).length === 2);
+check("the card sheet holds model, effort, MAIN, move, add, check and Disconnect",
+  ["models.change_model", "eff.head", "models.make_main", "models.move_up", "models.move_down", "models.acct_add", "models.pacct_add",
+   "qs.recheck", "models.disconnect_full"].every(k => B.indexOf('t("' + k + '")') > 0));
+const DC = JS.slice(JS.indexOf("async function disconnectCard("), JS.indexOf("async function refreshClaudeCard"));
+check("Disconnect reaches every kind of card", /"antigravity-cli": "\/antigravity\/logout"/.test(JS) && /"grok-cli": "\/grok\/logout"/.test(JS)
+  && /"openai-oauth": "\/oauth\/openai\/disconnect"/.test(JS) && /"anthropic-cli": "\/claude\/logout"/.test(JS)
+  && /clear_key: pid/.test(DC) && /\/ollama-local\/endpoint/.test(DC) && /window\.confirm\(q\)/.test(DC));
+check("the Antigravity card has Disconnect, and Connect again once switched off",
+  /data-agydisc="1"/.test(CL) && /data-agyon="1"/.test(CL) && /\/antigravity\/reconnect/.test(CL));
+check("a card the router skips for quota says until when, with Use again now",
+  /R\.limited \|\| \{\}/.test(CL) && /data-retry=/.test(CL) && /"\/routing\/retry"/.test(B));
 
 // ---- 2c. several accounts on a plan card (0.353.0) ----
 check("ChatGPT, Grok and Claude cards list their accounts", /const planAccts = \(p, ord\) =>/.test(CL)
@@ -102,7 +118,7 @@ check("adding an account shows the gentle warning and asks for a sign-in link",
 check("sign-in: link and code, a pasted code for Claude, polling for ChatGPT and Grok",
   /\/plan-accounts\/login-start/.test(B) && /\/plan-accounts\/login-code/.test(B) && /\/plan-accounts\/login-poll/.test(B)
   && /setTimeout\(tick, 3000\)/.test(B));
-check("account 1 can be turned off but not removed or re-signed here", /\$\{a\.main \? "" : `<button type="button" class="gcard-btn ghost" data-pacct-act="relogin">/.test(CL));
+check("account 1 can be turned off but not removed or re-signed here", /if \(!a\.main\) \{\s*acts\.push\(\{ ic: "rotate-cw", label: t\("models\.pacct_relogin"\)/.test(B));
 check("plan accounts reorder by drag and arrows", /key\.indexOf\("pacct:"\) === 0/.test(B) && /data-pacct-move/.test(B));
 check("cancel stops a sign-in that never finished", /\/plan-accounts\/login-cancel/.test(B));
 const warn = (VI["models.pacct_warn"] || "") + " " + (VI["models.pacct_warn2"] || "");

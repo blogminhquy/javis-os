@@ -2056,9 +2056,10 @@ def _providers_view(cfg):
             item["auth_error"] = _a.get("error", "")
             item["cai_lenh"] = antigravity_cli.lenh_cai()
             item["tu_cai"] = cli_autoinstall.state("agy")    # Docker tự cài lúc khởi động (0.85.1)
-            # Không có nút Ngắt: token nằm trong keyring của hệ điều hành, Javis không giữ nên
-            # cũng không gỡ hộ được. Dựng nút rồi bên dưới không làm gì mới là dối.
+            # The token lives in the OS keyring, which Javis does not hold. Since 05/11/2026 the card still has Disconnect:
+            # it runs the CLI's own sign-out when there is one, else switches the card off in Javis (`javis_off`).
             item["auth_by_javis"] = False
+            item["javis_off"] = bool(_a.get("javis_off"))
             # Đăng nhập làm trong TERMINAL, không phải trên dashboard - xem
             # `antigravity_cli.login_huong_dan()` để biết vì sao. Thẻ Models chỉ đưa lại đúng
             # lệnh cần gõ.
@@ -2822,7 +2823,10 @@ def _agent_model_provider(model: str, provider: str = "") -> str:
 # runs on the main chat's model instead. Set by the chat turn when an engine reports "usage limit reached"; the reset
 # time it gives is used, or an hour when it gives none. Only the pin falls back: the main model is never changed.
 _PIN_LIMITED: dict = {}
-_LIMIT_ENGINE_PROVIDER = {"claude-code": "anthropic-cli", "codex": "openai-oauth", "grok-cli": "grok-cli"}
+# Antigravity was missing here until 05/11/2026, so an `agy` turn out of quota marked nothing: a chat pinned to it kept running
+# on it and failed every turn instead of moving to the main card (owner's report, 05/11/2026).
+_LIMIT_ENGINE_PROVIDER = {"claude-code": "anthropic-cli", "codex": "openai-oauth", "grok-cli": "grok-cli",
+                          "antigravity-cli": "antigravity-cli"}
 PIN_LIMIT_DEFAULT_S = 3600
 # provider -> account id the last chat engine of that provider ran on (plan_accounts, 0.353.0). Read when that turn
 # reports "out of quota", so the account that ran out is the one that rests.
@@ -2871,6 +2875,25 @@ def _plan_main_signed_in(provider: str) -> None:
     except Exception as e:  # noqa: BLE001 - a sign-in must never fail on this
         print(f"[plan accounts] clear rest {provider}: {type(e).__name__}: {e}", file=sys.stderr)
     _PIN_LIMITED.pop(provider, None)
+
+
+def _clear_pin_limit(provider: str) -> bool:
+    """The owner chose this card on purpose (made it MAIN, pinned a chat to it, or tapped "Use again now"), so its
+    out-of-quota mark goes and the next turn tries it. A plan that really is still empty refuses before writing a word
+    and the turn moves on to the next card (spec 6.4), so trying costs one quick refusal at most.
+
+    Before this, a mark could outlive the quota it stood for (a reset epoch far away, or a refusal another card
+    triggered): every turn skipped the card the owner had just chosen and landed on a card that was out of quota
+    itself, with no way to undo it from the page (owner's report, 05/11/2026). True when a mark was lifted."""
+    prov = str(provider or "")
+    had = _PIN_LIMITED.pop(prov, None) is not None
+    try:
+        m = cfgmod.read_settings().get("model") or {}
+        if not (plan_accounts.in_use(prov) and plan_accounts.has_extra(m, prov)):
+            model_routing.clear_rest(prov, plan_accounts.MAIN)   # one account: its rest IS the card's rest
+    except Exception as e:  # noqa: BLE001 - lifting a mark must never fail the owner's click
+        print(f"[routing] clear limit {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+    return had
 
 
 def _note_api_limit(mcfg, prov: str, key: str, raw: str = "", seconds: float = 0.0) -> None:
@@ -3027,6 +3050,8 @@ def _chat_provider_for_session(mcfg, row):
     d = _provider_def(pprov)
     if not d:
         return _chat_provider(mcfg)
+    if pprov == "antigravity-cli" and antigravity_cli.javis_off():
+        return _chat_provider(mcfg)   # 05/11/2026: the owner disconnected that card; a pin to it must not keep using it
     if _pin_limited_until(pprov):
         # The pinned model's plan is out of quota: run on the main chat's model until it resets (0.285.0).
         main_route = _chat_provider(mcfg)
@@ -3056,6 +3081,8 @@ def _pin_health(mcfg, prov: str) -> tuple:
     d = _provider_def(prov)
     # Same key reading as routing (`_provider_key`): a home Ollama with no key must not read as a broken pin.
     ok = bool(d) and (d.get("kind") != "api" or bool(_provider_key(mcfg, d)))
+    if ok and prov == "antigravity-cli" and antigravity_cli.javis_off():
+        ok = False   # disconnected on the Models page: the chat runs on the main model (_chat_provider_for_session)
     lim_until = _pin_limited_until(prov) if ok else 0
     if lim_until and _chat_provider(mcfg)[0] != prov:
         return False, lim_until
@@ -5263,6 +5290,63 @@ async def grok_logout():
     return out
 
 
+def _drop_card(provider: str) -> None:
+    """A card the owner disconnected leaves the usage order; MAIN moves on, or back to Claude Code when it was alone."""
+    with cfgmod._SETTINGS_LOCK:
+        cfg = cfgmod.read_settings()
+        m = cfg["model"]
+        model_routing.drop_from_order(m, provider)
+        if _effective_main(cfg).get("provider") == provider:
+            _set_main_model(cfg, "anthropic-cli", m.get("claude_model") or "opus")
+        else:
+            _sync_legacy_engine(m)
+        cfgmod.write_settings(cfg)
+
+
+@app.post("/antigravity/logout")
+async def antigravity_logout():
+    """Disconnect the Antigravity card (owner 05/11/2026: "the Antigravity card has no Disconnect button").
+
+    The Google session sits in the OS keyring, out of Javis's reach, so this does what it honestly can: run the CLI's
+    own sign-out when the binary lists one, and in any case switch the card off in Javis, so no chat, background job
+    or fallback runs on it until the owner taps "Connect again"."""
+    out = await asyncio.to_thread(antigravity_cli.logout)
+    try:
+        def _save():
+            _drop_card("antigravity-cli")
+            cfgmod.update_settings({"model": {antigravity_cli._OFF_KEY: True}})
+        await asyncio.to_thread(_save)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    antigravity_cli.forget_status()
+    _PROV_MODELS_CACHE.pop("antigravity-cli", None)
+    _PIN_LIMITED.pop("antigravity-cli", None)
+    try:
+        connect_health.probe_engines()
+    except Exception:
+        pass
+    return {"ok": True, "cli_logout": bool(out.get("cli_logout")), "error": out.get("error", "")}
+
+
+@app.post("/antigravity/reconnect")
+async def antigravity_reconnect():
+    """Switch the Antigravity card back on and ask `agy` again whether it is signed in."""
+    await asyncio.to_thread(cfgmod.update_settings, {"model": {antigravity_cli._OFF_KEY: False}})
+    antigravity_cli.forget_status()
+    _PROV_MODELS_CACHE.pop("antigravity-cli", None)
+    d = await asyncio.to_thread(antigravity_cli.auth_status, True)
+    return {"ok": True, "connected": bool(d.get("connected")), "error": d.get("error", "")}
+
+
+@app.post("/routing/retry")
+async def routing_retry(provider: str = Form(...)):
+    """"Use again now" on a card the page shows as out of quota: its mark goes and the next turn tries it."""
+    if not _provider_def(provider):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có nhà này", "No such provider")},
+                            status_code=400)
+    return {"ok": True, "lifted": await asyncio.to_thread(_clear_pin_limit, provider)}
+
+
 @app.post("/grok/check")
 async def grok_check(brain: str = "brain"):
     """Chạy thử MỘT lượt thật, VÀ soát lại xem hub MCP đã vào cấu hình của `grok` chưa.
@@ -6085,7 +6169,12 @@ def _routing_view(mcfg, providers) -> dict:
                 break
     except Exception as e:  # noqa: BLE001 - a broken view must not take the whole settings page down
         print(f"[routing] view: {type(e).__name__}: {e}", file=sys.stderr)
-    return {"order": o, "profiles": {p: model_routing.profile(mcfg, p) for p in o},
+    limited = {}
+    for p in o:
+        until = _pin_limited_until(p)
+        if until:
+            limited[p] = int(until)
+    return {"order": o, "profiles": {p: model_routing.profile(mcfg, p) for p in o}, "limited": limited,
             "background": model_routing.background_spec(mcfg), "chat_in_use": chat, "bg_in_use": bg,
             "multi_key": list(_routing_key_fields()), "multi_plan": list(plan_accounts.KIND),
             "defaults": {p["id"]: d for p in providers if (d := _default_model_name(mcfg, p["id"]))}}
@@ -6141,6 +6230,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             prov = patch["main"].get("provider"); mod = patch["main"].get("model")
             if _provider_def(prov) and mod:
                 _set_main_model(cfg, prov, mod)
+                _clear_pin_limit(prov)
         # Nhập credential provider (chỉ ghi khi có giá trị mới - tránh xoá bằng giá trị che ••••)
         # Lấy từ PROVIDER_DEFS: danh sách tay cũ sót ollama_key, dán key Ollama Cloud rồi bấm
         # Kết nối là báo đã lưu mà không lưu gì.
@@ -6219,8 +6309,11 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if isinstance(patch.get("order"), list):
             ids = [p for p in patch["order"] if _provider_def(str(p or ""))]
             if ids:
+                _was_main = model_routing.main_provider(m)
                 model_routing.set_order(m, ids)
                 _sync_legacy_engine(m)
+                if ids[0] != _was_main:
+                    _clear_pin_limit(ids[0])   # a card moved to the top on purpose is tried, not skipped
         if isinstance(patch.get("profile"), dict):
             pp = patch["profile"]
             pid = str(pp.get("provider") or "")
@@ -20708,6 +20801,8 @@ async def sessions_set_model(session_id: str, provider: str = Form(""),
     if prov and not _provider_def(prov):
         return JSONResponse({"error": localefmt.chu(f"provider không tồn tại: {prov}",
                                                     f"provider does not exist: {prov}")}, status_code=400)
+    if prov:
+        _clear_pin_limit(prov)   # picking a model in the chat bar means "use this one": its old quota mark goes
     _row = get_store().get_session(session_id)
     if _row and javis_core.is_core_channel(_row.get("channel")):
         _cp = await _set_core_pin(prov, model)
@@ -21811,6 +21906,26 @@ def _configured_api_providers() -> tuple:
     return tuple(out)
 
 
+def _fallback_brain_labels(engine_hint: str = "") -> tuple:
+    """Every other card a turn could move to while one plan is out of quota: API keys AND signed-in plan cards.
+
+    `_configured_api_providers` alone counts API keys only, so an owner with ChatGPT signed in was told "no other
+    brain is connected" when Antigravity ran out (owner's report, 05/11/2026). The plan that just ran out is left
+    out. A broken check falls back to the API list: this only words an error message."""
+    labels = list(_configured_api_providers())
+    try:
+        failed = _LIMIT_ENGINE_PROVIDER.get(str(engine_hint or ""), "")
+        for pid in _routing_connected_ids(cfgmod.read_settings()):
+            d = _provider_def(pid) or {}
+            if pid == failed or d.get("kind") == "api":
+                continue
+            if d.get("label") and d["label"] not in labels:
+                labels.append(d["label"])
+    except Exception:  # noqa: BLE001 - see docstring
+        pass
+    return tuple(labels)
+
+
 def _subscription_limit_event(raw: str, engine_hint: str):
     """(câu người dùng hiểu, SubscriptionLimit) cho lỗi "gói thuê bao hết lượt"; ("", None) nếu
     không phải loại lỗi này. Khung chat cần cả hai: câu chữ để hiện, mốc reset để hẹn chạy lại."""
@@ -21818,7 +21933,8 @@ def _subscription_limit_event(raw: str, engine_hint: str):
         hit = limit_learner.parse_subscription_limit(raw, engine_hint=engine_hint)
         if not hit:
             return "", None
-        return model_limits.subscription_blocked_hint(hit, _configured_api_providers()), hit
+        return model_limits.subscription_blocked_hint(
+            hit, _fallback_brain_labels(getattr(hit, "engine", "") or engine_hint)), hit
     except Exception:   # noqa: BLE001 - không được để câu báo lỗi tự nó nổ
         return "", None
 
