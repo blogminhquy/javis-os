@@ -953,6 +953,44 @@ async def _maybe_await(v):
     return v
 
 
+# Tools that queue work which runs LATER, and the argument holding that work's level (security fix, 2026-11-05 audit).
+# Both are `safe`, so an "auto" run (a customer bot, a loop reading untrusted text) could call them, and the work they
+# queued ran at Full access by default: shell, every connection. The level a run hands on is now capped at its own.
+_JOB_LEVEL_ARG = {"javis_schedule": "muc_quyen", "javis_task": "mode"}
+_JOB_LEVEL_RANK = {"suggest": 0, "auto": 1, "full": 2}
+
+
+def _cap_job_level(name: str, args: dict, mode: str):
+    """(args, refusal). A run below Full access may only queue work at its own level or lighter.
+
+    Full-access runs and gated Team steps (they go through the owner's approval) pass unchanged. Below Full, the level
+    argument is set to the weaker of what was asked (missing = the tool's default, Full) and the run's own level, and
+    `javis_schedule op=update` is refused: it would rewrite the prompt of a job the owner may have made at Full."""
+    field = _JOB_LEVEL_ARG.get(name)
+    m = str(mode or "").strip().lower()
+    if not field or m == "gated":
+        return args, ""
+    try:
+        import mcp_catalog
+        eff = mcp_catalog.effective_perm("full", m)
+    except Exception:  # noqa: BLE001
+        eff = "full" if m in ("", "full") else "readonly"
+    if eff == "full":
+        return args, ""
+    tran = "auto" if eff == "safe" else "suggest"
+    a = dict(args or {})
+    op = str(a.get("op") or ("create" if name == "javis_schedule" else "")).strip().lower()
+    if name == "javis_schedule" and op == "update":
+        return a, ("ERROR: việc chạy dưới mức Toàn quyền không được sửa việc đã lên lịch (việc đó có thể đang chạy "
+                   "toàn quyền). Nhờ chủ sửa ở trang Việc, hoặc tạo việc mới.")
+    if name == "javis_task" and op != "add":
+        return a, ""
+    xin = str(a.get(field) or "full").strip().lower()
+    if _JOB_LEVEL_RANK.get(xin, 2) > _JOB_LEVEL_RANK[tran]:
+        a[field] = tran
+    return a, ""
+
+
 def _make_call(tool: dict, ctx: PluginContext, mode: str):
     """Bọc 1 handler plugin thành async call(args) có gate min_mode + check_fn + chống crash."""
     handler = tool["handler"]
@@ -982,6 +1020,10 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
                 return f"ERROR: kiểm tra điều kiện tool '{name}' lỗi: {type(e).__name__}: {e}"
             if why:
                 return f"ERROR: {why}"
+        args, tu_choi = _cap_job_level(name, args, mode)
+        if tu_choi:
+            return tu_choi
+
         async def _run(a):
             try:
                 res = handler(a or {}, ctx)

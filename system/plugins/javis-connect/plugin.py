@@ -19,7 +19,10 @@ nhật ký như tài khoản đấu bằng tay.
 
 An toàn (BẮT BUỘC, không tham số nào mở được)
 =============================================
-- `min_mode="safe"`: chế độ suggest/chỉ-đọc KHÔNG đấu được nguồn mới.
+- `op=add` cần mức Toàn quyền (full), `op=find` chỉ cần safe; chatbot trả lời khách không thấy tool này
+  (OWNER_ONLY_TOOLS trong mcp_hub.py). Vá bảo mật 2026-11-05: trước đó op=add chỉ cần safe, nên một
+  chatbot mức "auto" do người lạ điều khiển, hay một việc nền mức auto, cắm được máy chủ MCP lạ vào kho
+  CHUNG của mọi brain và bắt máy chủ Javis gọi tới địa chỉ bất kỳ, kể cả mạng nội bộ.
 - Mức quyền mặc định là `readonly`. Luật `CLAUDE.md`: "Javis KHÔNG tự nâng quyền - user tự nâng ở
   trang Kết nối". Model chỉ được truyền `perm` cao hơn khi người dùng nói rõ họ muốn vậy, và câu
   trả lời phải nói ra mình đã đặt mức nào.
@@ -293,5 +296,6 @@ def register(ctx):
             "required": ["op"],
         },
         min_mode="safe",
+        op_modes={"add": "full", "find": "safe"},
         emoji="🔌",
     )

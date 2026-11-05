@@ -122,7 +122,10 @@ OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune", "
                               "javis_plugin",
                               # 0.259.0: tìm và đọc web. Bot nói chuyện với khách lạ không được biến
                               # máy chủ của chủ thành máy đi đọc web hộ bất kỳ ai nhắn tới.
-                              "javis_web_search", "javis_web_fetch"})
+                              "javis_web_search", "javis_web_fetch",
+                              # 2026-11-05 audit: adds an MCP server to the store EVERY brain shares and dials it
+                              # at once. A customer must never plant a server in the owner's tool list.
+                              "javis_add_mcp"})
 
 
 # ============================================================
@@ -585,8 +588,46 @@ def _list_skills(vault_root):
     return skill_router.enabled_slugs(vault_root)
 
 
+def _rel_trong_goc(p, vault_root, workspace_root):
+    """Path of `p` relative to the brain or a working folder, or None when it sits in neither."""
+    goc = [vault_root] + list(workspace_root if isinstance(workspace_root, (list, tuple)) else
+                              ([workspace_root] if workspace_root else []))
+    for base in goc:
+        if not base:
+            continue
+        try:
+            return Path(p).resolve().relative_to(Path(base).resolve())
+        except (ValueError, TypeError, OSError):
+            continue
+    return None
+
+
+def _ghi_vung_bao_ve(p, vault_root, workspace_root, mode, for_bot=False) -> str:
+    """Refusal text when a run below Full access, or any customer bot, writes a file that runs or configures code.
+
+    Security fix (2026-11-05 audit): plugins/ with `enabled: true` is loaded as Python in the server, Javis/loops,
+    Javis/scripts and reminders run later at Full access, .git/config and .claude/settings.json run commands. Before this
+    only a gated Team step was stopped there, so an "auto" bot steered by a stranger, or an auto loop reading untrusted
+    text, could plant one of these and climb to Full access. Full-access owner runs keep writing them as before (the
+    owner's own chat already has a shell). A gated Team step keeps its approval path below, so it is not refused here.
+    """
+    if mode == team_gate.HUB_MODE:
+        return ""
+    duoi_full = mcp_catalog.effective_perm("full", mode) != "full"
+    if not (duoi_full or for_bot):
+        return ""
+    rel = _rel_trong_goc(p, vault_root, workspace_root)
+    if rel is not None and not team_gate.protected_rel(rel):
+        return ""
+    ai = "chatbot trả lời khách" if for_bot else f"việc chạy ở mức '{mode}' (dưới Toàn quyền)"
+    return (f"ERROR: {ai} không được ghi vào '{rel if rel is not None else p}'. Thư mục plugins/, Javis/ (loop, script, "
+            ".javis), .git, .claude và cấu hình engine là nơi CHỨA MÃ CHẠY hoặc việc chạy toàn quyền, nên chỉ chủ ở mức "
+            "Toàn quyền mới ghi được. Đây là rào bảo mật, không phải lỗi ổ đĩa. Ghi nội dung vào chỗ khác (ví dụ "
+            "drafts/) hoặc đưa nội dung vào câu trả lời để chủ tự xem.")
+
+
 def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang="", staging=False,
-                   bo_qua=None, workspace_root=None, coding_ctx_cua_phien=None):
+                   bo_qua=None, workspace_root=None, coding_ctx_cua_phien=None, for_bot=False):
     """(tools_spec, route) các tool nội bộ cho engine API. Claude/Codex có tool file native
     nên hub HTTP không trả nhóm này (chỉ meta javis_connections).
     include_ambient=True (đường engine Claude): javis_connections kèm cả connector tài khoản
@@ -729,7 +770,7 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
             rows.append(("[d] " if e.is_dir() else "    ") + e.name)
         return "\n".join(rows) or "(trống)"
 
-    async def _kiem_ghi(args, ten_tool="javis_write_file"):
+    async def _kiem_ghi(args, ten_tool="javis_write_file"):  # noqa: C901
         """(đường dẫn đã duyệt, lỗi). Mọi rào trước khi GHI, dùng chung cho ghi và sửa file."""
         if mcp_catalog.effective_perm("full", mode) == "readonly":
             # Câu này phải NÓI RÕ ĐÂY LÀ QUYỀN CỦA JAVIS, không phải lỗi máy. Bản cũ chỉ ghi
@@ -770,6 +811,9 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                         "Nói với người dùng rằng ghi nhớ đang tắt (bật lại ở Javis Core > Trí nhớ).")
         except Exception:
             pass
+        loi_bao_ve = _ghi_vung_bao_ve(p, vault_root, workspace_root, mode, for_bot)
+        if loi_bao_ve:
+            return None, loi_bao_ve
         if mode == team_gate.HUB_MODE:
             # 0.207.0 review: a gated Team step writes its deliverables, never files that run or configure code
             # (plugins/, .claude/, Javis/ loops and reminders...). Those go through the owner's approval like any action.
@@ -1527,7 +1571,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
 
     b_tools, b_route = await asyncio.to_thread(
         _builtin_tools, mode, vault_root, include_ambient, hidden, lang, staging,
-        bo_qua, workspace_root=workspace_root, coding_ctx_cua_phien=coding_ctx_cua_phien)
+        bo_qua, workspace_root=workspace_root, coding_ctx_cua_phien=coding_ctx_cua_phien, for_bot=for_bot)
     tools_spec += b_tools
     route.update(b_route)
 
