@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.1] - 2026-11-05
+### Improved
+- **Items you added to the mascot menu now have an ✕ to remove them.** The six default items keep their eye to hide or show and cannot be removed, so the menu can always go back to how it was.
+- **"Assistants" in the mascot menu is now "Partners"**, the name of the page it opens.
+
 ## [0.481.0] - 2026-11-05
 ### Added
 - **New `security-audit` system skill.** Every brain now ships Cloudflare's security review workflow: a quick security question uses only the relevant part, while "security audit this repo" runs all six phases (architecture recon, hunting by area, independent verification of each finding, a report with fixes). MIT licensed, with attribution.
