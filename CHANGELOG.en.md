@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.7] - 2026-11-05
+### Security
+- **/health/loop now needs the login.** It shows error details and server paths. /health itself stays open as a liveness check.
+- **A "chat" API token only reaches the chat routes**, and can no longer create, edit or delete chatbots.
+- **Two customer files with the same name on WhatsApp are both kept**, the second no longer overwrites the first.
+- **Web reading and page watching connect to the exact address that was checked**, so a domain that changes its DNS midway cannot lead into the private network.
+
 ## [0.481.6] - 2026-11-05
 ### Security
 - **A pack that says it replaces another no longer switches itself on.** Only the official store's release keeps the old pack's on state. The install screen names the pack it removes and hands plugin data to.
