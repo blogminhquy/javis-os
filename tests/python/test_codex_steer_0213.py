@@ -230,6 +230,8 @@ check("app-server: a command reads like exec's (label, output)",
       tc.get("item", {}).get("type") == "command_execution" and tc["item"].get("aggregated_output") == "A\n")
 check("app-server: a sub-agent's thread is not mixed into the answer", "SUB AGENT" not in final.get("content", ""))
 check("app-server: tokens of this turn add up", final.get("tokens_in") == 15 and final.get("tokens_out") == 5)
+check("request context is distinct from turn sum", (final.get("usage_telemetry") or {}).get("last_request_input") == 5)
+check("usage notifications are labelled events", (final.get("usage_telemetry") or {}).get("usage_event_count") == 2)
 
 # no steer: same answer without BANANA, no leftovers
 evs, left = asyncio.run(drive(new_cli(), "web:b"))

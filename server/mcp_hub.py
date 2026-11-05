@@ -1332,7 +1332,10 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
         if name not in full_route:
             return (f"ERROR: không có tool '{name}'. Dùng {_LAZY_SEARCH} để lấy đúng tên "
                     "(phải khớp y hệt kết quả tìm).")
-        return await mcp_client.call_route(full_route, name, targs)
+        result = await mcp_client.call_route(full_route, name, targs)
+        # Projection follows the same permission/audit/plugin route and executes only once.
+        from tool_result_view import project_result
+        return project_result(result, (args or {}).get("result_view"), tool_name=name)
 
     tools = list(visible_tools)
     route = dict(visible_route)
@@ -1352,7 +1355,13 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
                                   "suất áp y như gọi trực tiếp."),
                   "schema": {"type": "object", "properties": {
                       "name": {"type": "string", "description": f"Tên tool lấy từ {_LAZY_SEARCH}"},
-                      "args": {"type": "object", "description": "Tham số tool (object)"}},
+                      "args": {"type": "object", "description": "Tham số tool (object)"},
+                      "result_view": {"type": "object", "description": "Optional explicit JSON view after execution. Keeps errors and source IDs. Does not cache or replay tools.",
+                          "properties": {"pointer": {"type": "string", "description": "JSON pointer, e.g. /data/tasks"},
+                              "fields": {"type": "array", "items": {"type": "string"}},
+                              "offset": {"type": "integer", "minimum": 0},
+                              "limit": {"type": "integer", "minimum": 1, "maximum": 200}},
+                          "additionalProperties": False}},
                       "required": ["name"]}})
     route[_LAZY_SEARCH] = {"call": _search}
     route[_LAZY_RUN] = {"call": _run}

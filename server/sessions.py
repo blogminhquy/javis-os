@@ -34,6 +34,7 @@ import hashlib
 
 import reaction_values as RV
 import team_migration
+import subscription_context_store
 
 # DB nằm cùng nơi settings.json/.sessions.json (JAVIS_STATE_DIR, mặc định server/).
 _STATE_DIR = Path(os.getenv("JAVIS_STATE_DIR", str(Path(__file__).parent)))
@@ -497,6 +498,7 @@ class SessionStore:
     def _init_schema(self) -> None:
         with self._lock:
             self._conn.executescript(_SCHEMA_SQL)
+            subscription_context_store.migrate(self._conn)
             # Migration cột mới cho DB cũ (CREATE IF NOT EXISTS không tự thêm cột)
             cols = {r[1] for r in self._conn.execute("PRAGMA table_info(sessions)").fetchall()}
             for name, ddl in (("codex_thread_id", "TEXT"),
@@ -887,7 +889,10 @@ class SessionStore:
         return [dict(r) for r in rows]
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        rows = self._read("SELECT * FROM sessions WHERE id = ?", (session_id,))
+        rows = self._read("SELECT s.*, COALESCE(c.input_tokens,0) AS last_context_input_tokens, "
+                          "COALESCE(c.provider,'') AS last_context_provider FROM sessions s "
+                          "LEFT JOIN subscription_request_context c ON c.session_id=s.id WHERE s.id = ?",
+                          (session_id,))
         return dict(rows[0]) if rows else None
 
     def pop_last_message(self, session_id: str, role: str, content: Optional[str] = None) -> bool:
@@ -1811,6 +1816,22 @@ class SessionStore:
             (max(0, int(tokens or 0)), session_id),
         ))
 
+    def set_last_context_input_tokens(self, session_id: str, tokens: int, provider: str = "codex") -> None:
+        """Input of the LAST model request, measured by the engine. Never a turn total.
+
+        Written only from a real per-request measurement (see subscription_usage). Rotation
+        reads it in place of last_input_tokens, which sums every request of a tool loop.
+        """
+        self._write(lambda c: c.execute(
+            "INSERT INTO subscription_request_context(session_id,provider,input_tokens) "
+            "SELECT id,?,? FROM sessions WHERE id=? ON CONFLICT(session_id) DO UPDATE "
+            "SET provider=excluded.provider,input_tokens=excluded.input_tokens",
+            (provider, max(0, int(tokens or 0)), session_id),
+        ))
+
+    def clear_last_context_input_tokens(self, session_id: str, provider: str = "codex") -> None:
+        self._write(lambda c: subscription_context_store.clear(c, session_id, provider))
+
     def mark_thread_rotated(self, session_id: str) -> None:
         """Ghi mốc msg_count lúc vừa xoay mạch. Xem cột thread_rotated_msg ở migration."""
         self._write(lambda c: c.execute(
@@ -1846,17 +1867,22 @@ class SessionStore:
         """Gắn thread native của Codex vào hội thoại dashboard để lượt sau resume đúng mạch."""
         if not thread_id:
             return
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET codex_thread_id = ?, updated_at = ? WHERE id = ?",
-            (thread_id, time.time(), session_id),
-        ))
+        def _ghi(c):
+            row = c.execute("SELECT codex_thread_id FROM sessions WHERE id=?", (session_id,)).fetchone()
+            if row and row[0] != thread_id:
+                # The measurement described the previous thread, not this one.
+                subscription_context_store.clear(c, session_id, "codex")
+            c.execute("UPDATE sessions SET codex_thread_id = ?, updated_at = ? WHERE id = ?",
+                      (thread_id, time.time(), session_id))
+        self._write(_ghi)
 
     def clear_codex_thread_id(self, session_id: str) -> None:
         """Thread Codex thành stale khi provider khác chen lượt vào cùng hội thoại."""
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET codex_thread_id = NULL WHERE id = ? AND codex_thread_id IS NOT NULL",
-            (session_id,),
-        ))
+        def _xoa(c):
+            c.execute("UPDATE sessions SET codex_thread_id = NULL "
+                      "WHERE id = ? AND codex_thread_id IS NOT NULL", (session_id,))
+            subscription_context_store.clear(c, session_id, "codex")
+        self._write(_xoa)
 
     def clear_cli_session_id(self, session_id: str) -> None:
         """Mạch Claude Code thành stale khi engine khác chen một lượt vào cùng hội thoại."""
@@ -1924,10 +1950,13 @@ class SessionStore:
         for nhan, cot in self._MACH_NATIVE.items():
             if cot == cot_giu or not (row.get(cot) or ""):
                 continue
-            self._write(lambda c, _cot=cot: c.execute(
-                f"UPDATE sessions SET {_cot} = NULL WHERE id = ? AND {_cot} IS NOT NULL",
-                (session_id,),
-            ))
+            if cot == "codex_thread_id":
+                self.clear_codex_thread_id(session_id)    # also drops its request measurement
+            else:
+                self._write(lambda c, _cot=cot: c.execute(
+                    f"UPDATE sessions SET {_cot} = NULL WHERE id = ? AND {_cot} IS NOT NULL",
+                    (session_id,),
+                ))
             da_don.append(nhan)
         return da_don
 

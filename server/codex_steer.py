@@ -560,6 +560,9 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         busy = 0
         final_text = ""
         messages = []          # this turn's agent messages; `final` leaves the lead-ins out (cc.codex_answer_text)
+        from subscription_usage import CodexUsage
+        baseline = getattr(slot.handle, "usage_total", None) if slot else getattr(cli, "_usage_total", None)
+        usage = CodexUsage(baseline if resume_requested else {"input": 0, "cache": 0, "output": 0})
         tok_in = tok_out = tok_cache = 0
         error_msg = ""
         sandbox_broken = False
@@ -673,10 +676,9 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                 except Exception:  # noqa: BLE001
                     pass
             elif method == "thread/tokenUsage/updated" and p.get("turnId") == turn_id:
-                lu = ((p.get("tokenUsage") or {}).get("last") or {})
-                tok_in += int(lu.get("inputTokens") or 0)
-                tok_out += int(lu.get("outputTokens") or 0)
-                tok_cache += int(lu.get("cachedInputTokens") or 0)   # 0.345.0: đã nằm trong inputTokens
+                usage.observe(p.get("tokenUsage") or {})
+                cli._usage_total = usage.previous
+                tok_in, tok_cache, tok_out = usage.input, usage.cache, usage.output
             elif method == "error":
                 e = p.get("error") or {}
                 msg = str(e.get("message") or "")
@@ -703,7 +705,8 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
                     except Exception as e:
                         print(f"[anh codex] {type(e).__name__}: {e}", file=sys.stderr)
                     yield {"type": "final", "content": final_text, "session_id": thread_id,
-                           "tokens_in": tok_in, "tokens_cache_read": tok_cache, "tokens_out": tok_out}
+                           "tokens_in": tok_in, "tokens_cache_read": tok_cache, "tokens_out": tok_out,
+                           "usage_telemetry": usage.summary(), "request_usage": usage.requests}
                 elif status == "failed":
                     msg = str(((turn.get("error") or {}).get("message")) or error_msg or "turn failed")
                     yield {"type": "error", "content": "Codex: " + msg,
@@ -726,12 +729,14 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
             rpc.detach()
             fp_now = _fingerprint(cli, args)    # the session id is this thread now
             if slot is not None:
+                slot.handle.usage_total = usage.previous
                 warm_pool.POOL.release(slot, fingerprint=fp_now)
                 handled = True
             else:
                 new = warm_pool.POOL.admit(warm_key, "codex", fp_now, CodexHandle(proc, rpc, thread_id, lane),
                                            recipe=_recipe(cli, args, _acct_home, thread_id))
                 if new is not None:
+                    new.handle.usage_total = usage.previous
                     warm_pool.POOL.release(new)
                     handled = True
         elif slot is not None:

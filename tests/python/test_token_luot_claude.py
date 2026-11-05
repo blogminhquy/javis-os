@@ -130,7 +130,9 @@ fin = [x for x in ev if x.get("type") == "final"]
 check("engine Claude Code báo tokens_cache_read trên sự kiện final",
       fin and fin[0].get("tokens_cache_read") == 13357 and fin[0].get("tokens_in") == 60808, fin)
 STEER = (SERVER / "codex_steer.py").read_text(encoding="utf-8")
-check("Codex cộng cachedInputTokens", 'tok_cache += int(lu.get("cachedInputTokens")' in STEER
+check("Codex exposes cache through the deduplicated usage accumulator",
+      'usage.observe(p.get("tokenUsage") or {})' in STEER
+      and 'usage.input, usage.cache, usage.output' in STEER
       and '"tokens_cache_read": tok_cache' in STEER)
 APP = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 # 0.374.0, chủ repo 28/10/2026: dòng dưới câu trả lời KHÔNG hiện số token nữa (trước đó, 0.345.0, nó hiện token mới
