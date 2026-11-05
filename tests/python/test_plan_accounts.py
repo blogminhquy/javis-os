@@ -46,7 +46,9 @@ def check(name, cond, extra=""):
 m = {}
 check("a plan card always has account 1, before any list is saved", [a["id"] for a in P.accounts(m, "openai-oauth")] == ["main"])
 check("account 1 runs in the CLI's own folder", P.home("openai-oauth", "main") is None and P.env_for("openai-oauth", None) == {})
-check("Antigravity holds one account only", not P.supported("antigravity-cli"))
+# Owner 05/11/2026: Antigravity holds extra Google accounts too, on Linux only (agy keeps a file login there, with
+# GEMINI_FORCE_FILE_STORAGE; macOS and Windows keep one keyring login per machine).
+check("Antigravity holds extra accounts on Linux only", P.supported("antigravity-cli") == __import__("sys").platform.startswith("linux"))
 P.add(m, "openai-oauth", "acc_b", "Plus phụ")
 P.add(m, "openai-oauth", "acc_c", "")
 check("a new account goes to the end", [a["id"] for a in P.accounts(m, "openai-oauth")] == ["main", "acc_b", "acc_c"])

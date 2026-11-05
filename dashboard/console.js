@@ -3309,24 +3309,37 @@
     const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "deepseek": "deepseek_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key", "anthropic-compat": "anthropic_compat_key" };
     // ---- Usage order cards (0.351.0). `ord` = {idx} for a card in the order, null for a card still to connect. ----
     const effName = (v) => t((window.JavisEffortSlider && window.JavisEffortSlider.LABEL_KEY[v]) || "eff.off");
+    const FAST_BOLT = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>';
     const ORD_GRIP = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
     const ORD_SWAP = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M7 4L3.5 7.5M7 4l3.5 3.5M17 20V4M17 20l-3.5-3.5M17 20l3.5-3.5"/></svg>';
     const chatLive = (p, ord) => !!ord && ord.idx > 0 && R.chat_in_use === p.id;
     const ordGrip = (p, ord) => ord && connList.length > 1
       ? `<button type="button" class="ord-grip" aria-label="${esc(t("models.ord_drag", { ten: p.label }))}">${ORD_GRIP}</button>` : "";
-    // `cls` "ord-badges-m": the same badges again at the end of the chip row, shown instead of the head's on a phone,
-    // where the head is too narrow for name, kind label and badge on one line (owner's screenshot, 27/10).
-    const ordBadges = (p, ord, cls) => !ord ? "" : `<div class="${cls || "ord-badges"}">${ord.idx === 0
-      ? '<span class="prov-badge">MAIN</span>'
+    // Owner 05/11/2026 (approved design docs/design/models-page-redesign.html): the badges stand at the end of the
+    // chip row on every screen, so the head keeps the name and status whole: MAIN or Fallback N, IN USE when chat
+    // runs on a fallback right now, BACKGROUND on the card background work is set to.
+    const isBg = (p) => bgCfg.provider === p.id;
+    const ordBadges = (p, ord) => !ord ? "" : `<div class="ord-badges-m">${ord.idx === 0
+      ? `<span class="prov-badge">${ic("star")}MAIN</span>`
       : `<span class="ord-pos">${esc(t("models.ord_backup", { n: ord.idx }))}</span>`}${chatLive(p, ord)
-      ? `<span class="prov-badge ord-live">${esc(t("models.ord_live"))}</span>` : ""}</div>`;
+      ? `<span class="prov-badge ord-live">${ic("zap")}${esc(t("models.ord_live"))}</span>` : ""}${isBg(p)
+      ? `<span class="prov-badge ord-bgb">${ic("workflow")}${esc(t("models.badge_bg"))}</span>` : ""}</div>`;
+    // Fast mode is one setting for the whole app (the composer's bolt); a chip shows the bolt while it is on and the
+    // card's model supports it, same rule as the composer (JavisModelBar.fastNote).
+    const fastOk = (pid, model) => !!(window.JavisModelBar && window.JavisModelBar.fastNote
+      && window.JavisModelBar.fastNote(pid, model).supported);
+    const effChip = (pid, level) => {
+      const model = pid === "__bg" ? bgCfg.model : prof(pid).model;
+      const prov = pid === "__bg" ? bgCfg.provider : pid;
+      return `<button type="button" class="cp-eff ord-echip" data-ordpop="eff" aria-expanded="false" title="${esc(t("eff.head"))}"><span class="ord-etxt">${esc(effName(level))}</span><span class="cp-eff-fast ord-fast" data-ok="${fastOk(prov, model) ? 1 : 0}"${m.fast === true && fastOk(prov, model) ? "" : " hidden"}>${FAST_BOLT}</span><span class="mb-caret">▾</span></button>`;
+    };
     const ordChips = (p, ord) => {
       if (!ord) return "";
       const pr = prof(p.id);
       return `<div class="ord-chips" data-p="${esc(p.id)}">
-          <button type="button" class="mb-chip ord-mchip" data-ordpop="model" aria-expanded="false" title="${esc(t("models.change_model"))}"><span class="mb-dot"></span><span class="ord-mtxt">${esc(pr.model || defName(p.id))}</span><span class="mb-caret">▾</span></button>
-          <button type="button" class="cp-eff ord-echip" data-ordpop="eff" aria-expanded="false" title="${esc(t("eff.head"))}"><span class="ord-etxt">${esc(effName(pr.reasoning))}</span><span class="mb-caret">▾</span></button>
-          ${ordBadges(p, ord, "ord-badges-m")}
+          <button type="button" class="mb-chip ord-mchip" data-ordpop="model" aria-expanded="false" title="${esc(t("models.change_model"))}">${ic("cpu")}<span class="ord-mtxt">${esc(pr.model || defName(p.id))}</span>${ic("chevron-up", { cls: "ord-up" })}</button>
+          ${effChip(p.id, pr.reasoning)}
+          ${ordBadges(p, ord)}
         </div>`;
     };
     // Owner 05/11/2026, "the Tasks page style, more buttons, pull-up sheets"): every card in the order has a
@@ -3343,10 +3356,11 @@
       return `<div class="ord-limit">${WARN_ICON} <span>${esc(t("models.limited_until", { gio }))}</span>
           <button type="button" class="gcard-btn ghost" data-retry="${esc(p.id)}">${esc(t("models.retry_now"))}</button></div>`;
     };
-    const cardOpen = (p, ord) => `<div class="prov-card${(ord ? ord.idx === 0 : p.is_main) ? " main" : ""}${ord ? " ord-card" : ""}${chatLive(p, ord) ? " ord-inuse" : ""}"${ord ? ` data-dnd="prov" data-p="${esc(p.id)}"` : ""}>`;
+    const cardOpen = (p, ord) => `<div class="prov-card${(ord ? ord.idx === 0 : p.is_main) ? " main" : ""}${ord ? " ord-card" : ""}${chatLive(p, ord) ? " ord-inuse" : ""}"${ord ? ` data-dnd="prov" data-p="${esc(p.id)}"` : ` data-offp="${esc(p.id)}"`}>`;
     // The account a provider runs on now: the first one switched on and not resting (model_routing.active_account).
     const nowS = Date.now() / 1000;
     const acctReady = (a) => a.enabled && !(a.resting_until > nowS);
+    const ST_IC = { ready: "circle-check", rest: "clock", off: "pause" };
     const acctList = (p) => {
       const list = accts[p.id] || [];
       const n = list.length;
@@ -3361,26 +3375,15 @@
         const pills = (isCur && useChat ? `<span class="ord-pill chat">${esc(t("models.acct_chat"))}</span>` : "")
           + (isCur && useBg ? `<span class="ord-pill bg">${esc(t("models.acct_bg"))}</span>` : "");
         return `<li class="ord-acct${a.enabled ? "" : " off"}${isCur && useChat ? " inuse" : isCur && useBg ? " inuse-bg" : ""}" data-dnd="acct:${esc(p.id)}" data-id="${esc(a.id)}">
-            ${n > 1 ? `<button type="button" class="ord-grip" aria-label="${esc(t("models.ord_drag", { ten: a.label }))}">${ORD_GRIP}</button>` : ""}
-            <span class="ord-num">${i + 1}</span>
-            <span class="ord-atxt"><span class="ord-aname"><span class="ord-dot ${cls}">●</span> ${esc(a.label)}</span>
-              <span class="ord-ast">${a.key ? esc(a.key) + " · " : ""}${esc(st)}</span>${pills}</span>
+            <span class="ord-ai">${ic("key-round")}</span>
+            <span class="ord-atxt"><span class="ord-aname">${esc(a.label)}</span>
+              <span class="ord-ast ${cls}">${ic(ST_IC[cls])}${a.key ? esc(a.key) + " · " : ""}${esc(st)}</span>${pills}</span>
             <span class="ord-actl">
-              ${n > 1 ? `<button type="button" class="ord-ib" data-acct-move="-1" ${i === 0 ? "disabled" : ""} aria-label="${esc(t("models.acct_up", { ten: a.label }))}">${ic("chevron-up")}</button>
-              <button type="button" class="ord-ib" data-acct-move="1" ${i === n - 1 ? "disabled" : ""} aria-label="${esc(t("models.acct_down", { ten: a.label }))}">${ic("chevron-down")}</button>` : ""}
               <button type="button" class="ord-ib" data-acct-menu="1" aria-haspopup="dialog" aria-label="${esc(t("models.acct_menu", { ten: a.label }))}">${ic("ellipsis")}</button>
             </span>
           </li>`;
       }).join("");
-      return `<ol class="ord-accts" data-p="${esc(p.id)}">${rows}</ol>
-        <button type="button" class="ord-add" data-acct-add="${esc(p.id)}">＋ ${esc(t("models.acct_add"))}</button>
-        <div class="ord-addbox" data-acct-box="${esc(p.id)}" hidden>
-          <input class="js-input" data-f="label" placeholder="${esc(t("models.acct_label_ph"))}">
-          <input class="js-input" data-f="key" type="password" autocomplete="off" placeholder="${esc(t("models.acct_key_ph"))}">
-          <div class="prov-action" style="margin-top:0"><button type="button" class="gcard-btn" data-acct-addsave="${esc(p.id)}">${esc(t("common.save"))}</button>
-            <button type="button" class="gcard-btn ghost" data-acct-addcancel="1">${esc(t("common.cancel"))}</button>
-            <span class="gcard-meta ord-addmsg"></span></div>
-        </div>`;
+      return `<ol class="ord-accts" data-p="${esc(p.id)}">${rows}</ol>`;
     };
     const multiPlan = R.multi_plan || [];
     const planReady = (a) => a.enabled && a.signed_in && !(a.resting_until > nowS);
@@ -3412,42 +3415,63 @@
         const pills = (isCur && useChat ? `<span class="ord-pill chat">${esc(t("models.acct_chat"))}</span>` : "")
           + (isCur && useBg ? `<span class="ord-pill bg">${esc(t("models.acct_bg"))}</span>` : "");
         return `<li class="ord-acct${a.enabled ? "" : " off"}${isCur && useChat ? " inuse" : isCur && useBg ? " inuse-bg" : ""}" data-dnd="pacct:${esc(p.id)}" data-id="${esc(a.id)}">
-            <button type="button" class="ord-grip" aria-label="${esc(t("models.ord_drag", { ten: name }))}">${ORD_GRIP}</button>
-            <span class="ord-num">${i + 1}</span>
-            <span class="ord-atxt"><span class="ord-aname"><span class="ord-dot ${cls}">●</span> ${esc(name)}</span>
-              <span class="ord-ast">${esc(st)}</span>${pills}</span>
+            <span class="ord-ai">${ic("user")}</span>
+            <span class="ord-atxt"><span class="ord-aname">${esc(name)}</span>
+              <span class="ord-ast ${cls}">${ic(ST_IC[cls])}${esc(st)}</span>${pills}</span>
             <span class="ord-actl">
-              <button type="button" class="ord-ib" data-pacct-move="-1" ${i === 0 ? "disabled" : ""} aria-label="${esc(t("models.acct_up", { ten: name }))}">${ic("chevron-up")}</button>
-              <button type="button" class="ord-ib" data-pacct-move="1" ${i === n - 1 ? "disabled" : ""} aria-label="${esc(t("models.acct_down", { ten: name }))}">${ic("chevron-down")}</button>
               <button type="button" class="ord-ib" data-acct-menu="1" aria-haspopup="dialog" aria-label="${esc(t("models.acct_menu", { ten: name }))}">${ic("ellipsis")}</button>
             </span>
           </li>`;
       }).join("");
-      return `<div class="ord-pacct" data-p="${esc(p.id)}">
-          ${n > 1 ? `<div class="prov-auth-title">${esc(t("models.pacct_h"))}${infoBtn()}</div>${infoBody(esc(t("models.pacct_note")))}
-          <ol class="ord-accts">${rows}</ol>` : ""}
-          <button type="button" class="ord-add" data-pacct-add="${esc(p.id)}">＋ ${esc(t("models.pacct_add"))}</button>
-          <div class="ord-addbox" data-pacct-box="${esc(p.id)}" hidden>
-            <input class="js-input" data-f="label" placeholder="${esc(t("models.pacct_label_ph"))}">
-            <div class="prov-auth-warn">${esc(t("models.pacct_warn"))}<br>${esc(t("models.pacct_warn2"))}</div>
-            <div class="ord-pstep"></div>
-            <div class="prov-action" style="margin-top:0"><button type="button" class="gcard-btn" data-pacct-go="${esc(p.id)}">${esc(t("models.pacct_get_link"))}</button>
-              <button type="button" class="gcard-btn ghost" data-pacct-cancel="1">${esc(t("common.cancel"))}</button>
-              <span class="gcard-meta ord-addmsg"></span></div>
-          </div>
-        </div>`;
+      // Adding an account happens in a pull-up sheet (bindOrderCards); the card lists the accounts once there are two.
+      return n > 1 ? `<div class="ord-pacct" data-p="${esc(p.id)}">
+          <div class="prov-auth-title">${esc(t("models.pacct_h"))}${infoBtn()}</div>${infoBody(esc(t("models.pacct_note")))}
+          <ol class="ord-accts">${rows}</ol>
+        </div>` : "";
     };
 
     // withInfo: an (i) after the name; the card puts infoBody(...) right after this head.
+    // The provider's own logo in a tile, with a dot for its state: green signed in, amber resting, grey otherwise
+    // (owner 05/11/2026: "the cards need the providers' real logos"). Advanced API key holds keys of many sellers,
+    // so it shows a key.
+    const logoTile = (p, on) => {
+      const L = window.JavisProviderLogos, svg = L ? L.svg(p.id) : "";
+      return `<span class="prov-logo${svg ? "" : " ic-tile"}">${svg || ic("key-round")}<span class="prov-dot${limitedAt[p.id] ? " rest" : on ? " on" : ""}"></span></span>`;
+    };
+    // The small tag after the name says what pays for the card: the plan, or an API key.
+    const PLAN_TAG = { "openai-oauth": "models.tag_chatgpt", "grok-cli": "models.tag_xai", "antigravity-cli": "models.tag_google",
+                       "anthropic-cli": "models.tag_claude" };
+    const kindTag = (p) => {
+      if (p.id === "anthropic-cli" && p.auth_mode === "api_key") return t("models.tag_api");
+      if (PLAN_TAG[p.id]) return p.plan ? t("models.tag_plan", { goi: p.plan }) : t(PLAN_TAG[p.id]);
+      if (p.id === "anthropic-compat") return t("models.tag_keys", { n: (accts[p.id] || []).length || (p.configured ? 1 : 0) });
+      return t(p.id === "ollama-local" || p.id === "openai-compat" ? "models.tag_addr" : "models.tag_api");
+    };
+    // The button row under a card in the order, in the Tasks page's style: what the owner does most, with an icon
+    // each, Disconnect last and in red. `o.check` is the attribute of the card's own check handler, `o.add` "plan"
+    // (sign in another account) or "key" (another API key).
+    const ordActs = (p, ord, o) => {
+      if (!ord) return "";
+      o = o || {};
+      const canDisc = !(p.id === "anthropic-cli" && p.auth_mode === "api_key");
+      return `<div class="ord-acts">
+          ${isBg(p) ? "" : `<button type="button" class="ord-act" data-setbg="${esc(p.id)}">${ic("workflow")}<span>${esc(t("models.use_bg"))}</span></button>`}
+          ${o.check ? `<button type="button" class="ord-act" ${o.check}="1">${ic("refresh-cw")}<span>${esc(t("models.check_short"))}</span></button>` : ""}
+          ${o.add === "plan" ? `<button type="button" class="ord-act" data-addacc="${esc(p.id)}">${ic("user-plus")}<span>${esc(t("models.pacct_add"))}</span></button>` : ""}
+          ${o.add === "key" ? `<button type="button" class="ord-act" data-addkey="${esc(p.id)}">${ic("plus")}<span>${esc(t("models.acct_add"))}</span></button>` : ""}
+          ${canDisc ? `<button type="button" class="ord-act danger" data-disccard="${esc(p.id)}">${ic("log-out")}<span>${esc(t("models.disconnect"))}</span></button>` : ""}
+        </div>`;
+    };
+    const statusIc = (p, on) => limitedAt[p.id] ? ic("clock") : on ? ic("circle-check") : "";
     const provHead = (p, on, kindLabel, statusText, withInfo, ord) => `
         <div class="prov-head${ord ? " ord-head" : ""}">
           ${ordGrip(p, ord)}
-          <span class="prov-shield ${on ? "on" : ""}">${_shield(on)}</span>
+          ${logoTile(p, on)}
           <div class="prov-info">
-            <div class="prov-name">${esc(p.label)} <span class="prov-kind">${kindLabel}</span>${withInfo ? infoBtn() : ""}</div>
-            <div class="prov-status ${on ? "on" : ""}">${statusText}${ord ? esc(ordStatus(p)) : ""}</div>
+            <div class="prov-name">${esc(p.label)} <span class="prov-kind">${esc(kindTag(p))}</span>${withInfo ? infoBtn() : ""}</div>
+            <div class="prov-status ${limitedAt[p.id] && ord ? "rest" : on ? "on" : ""}">${statusIc(p, on)}<span>${statusIc(p, on) ? String(statusText).replace(/^●\s*/, "") : statusText}${ord ? esc(ordStatus(p)) : ""}</span></div>
           </div>
-          ${ordBadges(p, ord)}${cardMenuBtn(p, ord)}
+          ${cardMenuBtn(p, ord)}
         </div>${ordChips(p, ord)}${limitLine(p, ord)}`;
     // CLI chưa có trên máy (thẻ agy và grok). Bản Docker tự cài hai CLI này lúc khởi động (0.85.1),
     // nên trong lúc nó đang cài thì nói đúng như vậy, đừng đưa một dòng lệnh cho người cài qua
@@ -3494,14 +3518,15 @@
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "Device code", st, false, ord)}
           ${cliWarn("codex")}
+          ${on ? planAccts(p, ord) : ""}
+          ${ordActs(p, ord, { add: on && ord && multiPlan.indexOf(p.id) >= 0 ? "plan" : "" })}
           <div class="prov-action" style="flex-wrap:wrap">
-            ${on
+            ${on && ord ? "" : on
               ? `<button class="gcard-btn ghost" data-oauth-disc="1">${esc(t("models.disconnect"))}</button>`
               : `<button class="gcard-btn" data-oauth-login="1">${esc(t("models.login_gpt"))}</button>
                  <button class="gcard-btn ghost" data-oauth-browser="1">${esc(t("models.via_browser"))}</button>`}
             <span id="oauthMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
           </div>
-          ${on ? planAccts(p, ord) : ""}
         </div>`;
       }
       if (p.id === "grok-cli") {
@@ -3519,15 +3544,16 @@
           ${infoBody(esc(t("models.grok_note")))}
           ${cliSetup(p, "Grok Build")}
           <div id="grokBox" class="prov-steps" style="display:none"></div>
+          ${on ? planAccts(p, ord) : ""}
+          ${ordActs(p, ord, { check: "data-grokcheck", add: on && multiPlan.indexOf(p.id) >= 0 ? "plan" : "" })}
           <div class="prov-action" style="flex-wrap:wrap">
-            ${on
+            ${on && ord ? "" : on
               ? `<button class="gcard-btn ghost" data-grokcheck="1">${esc(t("qs.recheck"))}</button>
                  <button class="gcard-btn ghost" data-grokdisc="1">${esc(t("models.disconnect"))}</button>`
               : `<button class="gcard-btn" data-groklogin="1">${esc(t("auth.submit"))}</button>
                  <button class="gcard-btn ghost" data-grokcheck="1">${esc(t("qs.recheck"))}</button>`}
             <span id="grokMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
           </div>
-          ${on ? planAccts(p, ord) : ""}
         </div>`;
       }
       if (p.id === "antigravity-cli") {
@@ -3555,10 +3581,13 @@
             ${dn.ghi_chu || dn.cuu_ho ? infoBody(esc(dn.ghi_chu || "") + (dn.cuu_ho ? `<div>${esc(dn.cuu_ho)}</div>` : "")) : ""}
             <div>${esc(t("models.agy_done"))}</div>
           </div>`}
+          ${off ? `<div class="ord-offnote">${ic("info")}<span>${esc(t("models.agy_off_note"))}</span></div>` : ""}
+          ${on ? planAccts(p, ord) : ""}
+          ${ordActs(p, ord, { check: "data-agycheck", add: on && multiPlan.indexOf(p.id) >= 0 ? "plan" : "" })}
           <div class="prov-action" style="flex-wrap:wrap">
             ${off
-              ? `<button class="gcard-btn" data-agyon="1">${esc(t("models.reconnect"))}</button>`
-              : `<button class="gcard-btn ghost" data-agycheck="1">${esc(t("qs.recheck"))}</button>
+              ? `<button class="gcard-btn" data-agyon="1">${ic("plug-zap")} ${esc(t("models.reconnect"))}</button>`
+              : on && ord ? "" : `<button class="gcard-btn ghost" data-agycheck="1">${esc(t("qs.recheck"))}</button>
                  ${on ? `<button class="gcard-btn ghost" data-agydisc="1">${esc(t("models.disconnect"))}</button>` : ""}`}
             <span id="agyMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on || off ? "" : esc(p.auth_error || "")}</span>
           </div>
@@ -3572,13 +3601,13 @@
         return `${cardOpen(p, ord)}
           <div class="prov-head${ord ? " ord-head" : ""}">
             ${ordGrip(p, ord)}
-            <span class="prov-shield ${p.cli_found === false ? "" : "on"}">${_shield(p.cli_found !== false)}</span>
+            ${logoTile(p, p.cli_found !== false)}
             <div class="prov-info">
-              <div class="prov-name">${esc(p.label)} <span class="prov-kind">MCP/skill</span></div>
+              <div class="prov-name">${esc(p.label)} <span class="prov-kind">${esc(kindTag(p))}</span></div>
               <div class="prov-status" id="cliStatus">${esc(p.cli_found === false
                 ? t("models.st_no_cli", { ten: "Claude Code" }) : t("models.checking"))}</div>
             </div>
-            ${ordBadges(p, ord)}${cardMenuBtn(p, ord)}
+            ${cardMenuBtn(p, ord)}
           </div>${ordChips(p, ord)}${limitLine(p, ord)}
           ${cliWarn("claude")}
           <div id="cliAction"></div>
@@ -3596,6 +3625,7 @@
               ${p.auth_api_key_set ? "" : ` <i>${esc(t("models.auth_key_none"))}</i>`}</span></label>
           </div>
           ${planAccts(p, ord)}
+          ${ordActs(p, ord, { check: "data-cccheck", add: ord && multiPlan.indexOf(p.id) >= 0 && !byKey ? "plan" : "" })}
         </div>`;
       }
       const masked = (m[KEYFIELD[p.id]] || "").slice(-4);
@@ -3608,19 +3638,46 @@
             <input class="js-input" id="ocBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.openai_compat_base || "")}" placeholder="${esc(t("models.oc_base_ph"))}">
             <input class="js-input" id="ocKey" type="password" style="flex:1" placeholder="${on && masked ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.oc_key_ph"))}">
             <button class="gcard-btn" id="ocSave">${on ? esc(t("common.save")) : esc(t("models.connect"))}</button>
-            ${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}
+            ${on && !ord ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}
             <span id="ocMsg" class="gcard-meta" style="flex:1 1 100%"></span>
           </div>
+          ${ordActs(p, ord)}
         </div>`;
       }
       if (p.id === "anthropic-compat") {
         // 0.254.0: a gateway speaking the Anthropic Messages API. Most of them list no models, so
         // the card also takes the model names the seller gave (comma separated).
         const typed = (m.anthropic_compat_models || []).join(", ");
+        // Advanced API key in the order (owner 05/11/2026): its gateways as a list like the keys of an API card, each
+        // with its own address; ⋯ edits one, "Add key" opens the form in a sheet. Never named "Anthropic Compatible".
+        if (ord) {
+          const gws = accts[p.id] || [];
+          const ready = gws.filter(g => g.enabled && !(g.resting_until > nowS));
+          const rows = gws.map((g) => {
+            const cls = !g.enabled ? "off" : g.resting_until > nowS ? "rest" : "ready";
+            const st = cls === "off" ? t("models.acct_off") : cls === "rest"
+              ? t("models.acct_rest", { gio: new Date(g.resting_until * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })
+              : t("models.acct_ready");
+            const live = !!ready[0] && ready[0].id === g.id && R.chat_in_use === p.id;
+            return `<li class="ord-acct${g.enabled ? "" : " off"}${live ? " inuse" : ""}" data-dnd="adv:${esc(p.id)}" data-id="${esc(g.id)}">
+                <span class="ord-ai">${ic("key-round")}</span>
+                <span class="ord-atxt"><span class="ord-aname">${esc(g.label)}</span>
+                  <span class="ord-ast ${cls}">${ic(ST_IC[cls])}${esc(g.host)}${g.key ? " · " + esc(g.key) : ""} · ${esc(st)}</span></span>
+                <span class="ord-actl"><button type="button" class="ord-ib" data-adv-menu="1" aria-haspopup="dialog" aria-label="${esc(t("models.acct_menu", { ten: g.label }))}">${ic("ellipsis")}</button></span>
+              </li>`;
+          }).join("");
+          return `${cardOpen(p, ord)}
+            ${provHead(p, on, "", esc(t("models.adv_status", { ok: ready.length, n: gws.length })), true, ord)}
+            ${infoBody(esc(t("models.adv_note")))}
+            <ol class="ord-accts" data-p="${esc(p.id)}">${rows}</ol>
+            ${ordActs(p, ord, { add: "key" })}
+          </div>`;
+        }
         return `${cardOpen(p, ord)}
           ${provHead(p, on, "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model", true, ord)}
           ${infoBody(esc(t("models.ac_note")))}
           <div class="prov-action" style="flex-wrap:wrap">
+            <input class="js-input" id="acLabel" spellcheck="false" style="flex:1 1 100%" placeholder="${esc(t("models.adv_label_ph"))}">
             <input class="js-input" id="acBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.anthropic_compat_base || "")}" placeholder="${esc(t("models.ac_base_ph"))}">
             <input class="js-input" id="acModels" list="acModelSug" spellcheck="false" autocomplete="off" style="flex:1 1 100%${typed ? "" : ";display:none"}" value="${esc(typed)}" placeholder="${esc(t("models.ac_models_ph"))}">
             <datalist id="acModelSug"></datalist>
@@ -3634,8 +3691,9 @@
       return `${cardOpen(p, ord)}
         ${provHead(p, on, p.kind === "cli" ? "MCP/skill" : "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model", false, ord)}
         ${ord && multiKey.indexOf(p.id) >= 0 ? acctList(p) : p.needs_key
-          ? `<div class="prov-action"><input class="js-input" id="pk-${p.id}" type="password" placeholder="${on ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.key_ph"))}"><button class="gcard-btn" data-pk="${p.id}">${on ? esc(t("models.key_change")) : esc(t("models.connect"))}</button>${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}</div>`
+          ? `<div class="prov-action"><input class="js-input" id="pk-${p.id}" type="password" placeholder="${on ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.key_ph"))}"><button class="gcard-btn" data-pk="${p.id}">${on ? esc(t("models.key_change")) : esc(t("models.connect"))}</button>${on && !ord ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}</div>`
           : `<div class="prov-note">${esc(t("models.no_key_note"))}</div>`}
+        ${ordActs(p, ord, { add: ord && multiKey.indexOf(p.id) >= 0 ? "key" : "" })}
       </div>`;
     };
 
@@ -3647,7 +3705,13 @@
           dung: (useP.label || bgUse.provider) + " · " + (bgUse.model || defName(bgUse.provider)) }))}</div>` : "";
     const moreHtml = offList.length ? `<div class="cview-section${connList.length ? "" : " ord-first"}">
         ${connList.length ? "" : `<div class="prov-note warn">${WARN_ICON} ${esc(t("models.ord_empty"))}</div>`}
-        <button type="button" class="ord-more" id="ordMore" aria-expanded="${showOff ? "true" : "false"}">＋ ${esc(t("models.ord_more", { n: offList.length }))}</button>
+        <button type="button" class="ord-more" id="ordMore" aria-haspopup="dialog" aria-expanded="${showOff ? "true" : "false"}">
+          <span class="ord-stack">${offList.filter(p => window.JavisProviderLogos && window.JavisProviderLogos.has(p.id)).slice(0, 3)
+            .map(p => `<span class="prov-logo mini">${window.JavisProviderLogos.svg(p.id)}</span>`).join("") || `<span class="prov-logo mini ic-tile">${ic("plug")}</span>`}</span>
+          <span class="ord-more-t"><b>${esc(t("models.connect_more"))}</b><span>${esc(offList.slice(0, 4).map(p => p.label).join(", ")
+            + (offList.length > 4 ? " " + t("models.connect_more_n", { n: offList.length - 4 }) : ""))}</span></span>
+          ${ic("chevron-up", { cls: "ord-more-c" })}
+        </button>
         <div class="prov-list ord-off" id="ordOff" ${showOff ? "" : "hidden"}>${offList.map(p => provCard(p, null)).join("")}</div>
       </div>` : "";
     el.innerHTML = `
@@ -3662,12 +3726,13 @@
         ${infoBody(esc(t("models.bg_note")))}
         <div class="gcard aux-card">
           <div class="aux-now">
+            <span class="prov-logo ic-tile aux-ic">${ic("cpu")}</span>
             <div class="aux-now-txt">
               <div class="aux-now-model">${esc(bgName)}</div>
               <div class="aux-now-prov">${esc(bgP.label || bgCfg.provider)}</div>
             </div>
             <div class="aux-now-act ord-chips" data-p="__bg">
-              <button type="button" class="cp-eff ord-echip" data-ordpop="eff" aria-expanded="false" title="${esc(t("eff.head"))}"><span class="ord-etxt">${esc(effName(bgCfg.reasoning))}</span><span class="mb-caret">▾</span></button>
+              ${effChip("__bg", bgCfg.reasoning)}
               <button type="button" class="gcard-btn" id="auxChange" aria-expanded="false">${esc(t("models.change_model"))}</button>
             </div>
           </div>
@@ -3677,7 +3742,8 @@
       </div>
       ${connList.length ? moreHtml : ""}`;
 
-    bindOrderCards(el, { order, connList, prof, accts, bgCfg, effName, multiKey, multiPlan, limited: limitedAt,
+    bindOrderCards(el, { order, connList, offList, prof, accts, bgCfg, effName, multiKey, multiPlan, limited: limitedAt,
+                         fast: m.fast === true, kindTag,
                          again: () => renderModelsCloudTab(el) });
     // Nguồn xác thực của gói Claude Code. Vẽ lại cả trang sau khi lưu vì cảnh báo phụ thuộc
     // cả lựa chọn này LẪN model việc nền - chỉ server mới ghép được hai thứ đó.
@@ -3727,7 +3793,8 @@
       acSave.disabled = true; acSave.textContent = t("settings.checking");
       // The server tries {base}/v1/models, else one tiny /v1/messages call with the first model; saves only on success.
       let r;
-      try { r = await postJson("/provider/anthropic-compat/connect", { base: base, key: key, models: models }, 60000); } catch (e) { r = { ok: false, error: String(e) }; }
+      const lab = ((document.getElementById("acLabel") || {}).value || "").trim();
+      try { r = await postJson("/provider/anthropic-compat/connect", { base: base, key: key, models: models, label: lab }, 60000); } catch (e) { r = { ok: false, error: String(e) }; }
       if (!r || !r.ok) {
         acSave.disabled = false; acSave.textContent = t("models.connect");
         msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap"));
@@ -3972,32 +4039,36 @@
       if (key === "prov") save({ order: MO.move(c.order, from, to) });
       else if (key.indexOf("acct:") === 0) saveAcc(key.slice(5), MO.move(items(key.slice(5)), from, to));
       else if (key.indexOf("pacct:") === 0) saveAcc(key.slice(6), MO.move(items(key.slice(6)), from, to));
+      else if (key.indexOf("adv:") === 0) save({ adv_keys: { items: MO.move(items("anthropic-compat"), from, to) } });
     } });
 
-    // ---- pull-up sheets: every picker and every menu of this page ----
+    // ---- pull-up sheets: every picker, menu, form and confirmation of this page ----
     // 0.352.0 gave a phone a bottom sheet and kept a popover under the chip on a computer. The owner asked on 05/11/2026
-    // for the Tasks page style everywhere: "use pull up, not drop down". So the model list, the Effort slider, the
-    // background model, a card's ⋯ and an account's ⋯ all slide up from the bottom on every screen, with a title and a
-    // close button; nothing unfolds inside a card any more.
+    // for the Tasks page style everywhere: "use pull up, not drop down" (approved design:
+    // docs/design/models-page-redesign.html). The model list, the Effort slider, the background model, a card's ⋯, a
+    // key's or an account's ⋯, the add forms and the Disconnect question all slide up from the bottom on every
+    // screen, with a title and a close button; nothing unfolds inside a card any more.
     let openPop = null;
     const closePop = () => {
       if (!openPop) return;
-      if (openPop.slider) openPop.slider.destroy();
-      openPop.el.remove();
-      if (openPop.back) openPop.back.remove();
-      openPop.btn.setAttribute("aria-expanded", "false");
+      const o = openPop;
       openPop = null;
+      if (o.slider) o.slider.destroy();
+      if (o.onClose) o.onClose();
+      o.el.remove();
+      if (o.back) o.back.remove();
+      if (o.btn) o.btn.setAttribute("aria-expanded", "false");
     };
-    // A phone keeps its keyboard down until the search box is tapped; a computer types at once.
+    // A phone keeps its keyboard down until a box is tapped; a computer types at once.
     const phone = () => window.matchMedia("(max-width: 600px)").matches;
-    const shell = (wrap, cls, title) => {
+    const shell = (wrap, cls, title, sub, logo) => {
       const back = document.createElement("div");
       back.className = "ord-sheet-back";
       const pop = document.createElement("div");
       pop.className = "ord-pop ord-sheet " + cls;
       pop.setAttribute("aria-modal", "true");
       pop.innerHTML = `<div class="ord-sheet-grab" aria-hidden="true"></div>
-        <div class="ord-sheet-head"><b>${esc(title)}</b>
+        <div class="ord-sheet-head">${logo || ""}<b>${esc(title)}${sub ? `<small>${esc(sub)}</small>` : ""}</b>
           <button type="button" class="ord-sheet-x" aria-label="${esc(t("common.close"))}">${X_ICON}</button></div>
         <div class="ord-sheet-body"></div>`;
       document.body.appendChild(back);
@@ -4013,105 +4084,195 @@
       }, true);
       document.addEventListener("keydown", (e) => { if (e.key === "Escape" && el._ordClose) el._ordClose(); });
     }
-    const opened = (btn, sh, slider) => {
-      openPop = { el: sh.pop, btn: btn, slider: slider || null, back: sh.back || null };
-      btn.setAttribute("aria-expanded", "true");
+    const opened = (btn, sh, slider, onClose) => {
+      openPop = { el: sh.pop, btn: btn || null, slider: slider || null, back: sh.back || null, onClose: onClose || null };
+      if (btn) btn.setAttribute("aria-expanded", "true");
     };
-    // A menu in the Tasks page's style: one finger-sized row per action, an icon in front, the risky one in red last.
-    // `items`: [{ ic, label, danger, run }]; a row closes the sheet first unless `stay` (it then draws a form inside).
-    const menuSheet = (btn, title, items) => {
+    const cardOf = (pid) => c.connList.concat(c.offList || []).find(p => p.id === pid) || { id: pid, label: pid };
+    const logoOf = (pid) => {
+      const L = window.JavisProviderLogos, s = L ? L.svg(pid) : "";
+      return `<span class="prov-logo sm${s ? "" : " ic-tile"}">${s || ic("key-round")}</span>`;
+    };
+    // A menu in the Tasks page's style: groups of finger-sized rows, an icon tile in front, a short line under the
+    // label, the risky one in red at the end. Row: { ic, label, sub, tone, danger, sel, run }. A falsy row is skipped.
+    const menuSheet = (btn, title, groups, sub, logo) => {
       closePop();
-      const sh = shell(null, "ord-msheet", title);
+      const sh = shell(null, "ord-msheet", title, sub, logo);
       sh.pop.setAttribute("role", "dialog");
       sh.pop.setAttribute("aria-label", title);
-      sh.body.innerHTML = `<div class="ord-mlist2">${items.map((m, i) => `<button type="button" class="ord-mi${m.danger ? " danger" : ""}" data-mi="${i}">${ic(m.ic)}<span>${esc(m.label)}</span></button>`).join("")}</div>`;
+      const flat = [];
+      sh.body.innerHTML = groups.map(g => (g || []).filter(Boolean)).filter(g => g.length).map(g => `<div class="ord-mgrp">${g.map(m => {
+        flat.push(m);
+        return `<button type="button" class="ord-mi${m.danger ? " danger" : ""}${m.tone ? " " + m.tone : ""}" data-mi="${flat.length - 1}"${m.sel ? ' aria-current="true"' : ""}><span class="ord-mic">${ic(m.ic)}</span><span class="ord-mt">${esc(m.label)}${m.sub ? `<span class="ord-ms">${esc(m.sub)}</span>` : ""}</span></button>`;
+      }).join("")}</div>`).join("");
       sh.body.onclick = (e) => {
         const b = e.target.closest(".ord-mi[data-mi]");
         if (!b) return;
-        const m = items[Number(b.dataset.mi)];
-        if (!m.stay) closePop();
-        m.run(sh);
+        const m = flat[Number(b.dataset.mi)];
+        if (m.sel) return;
+        closePop();
+        m.run();
       };
       opened(btn, sh);
       return sh;
     };
-    // A one-field form drawn inside an open sheet (new key for an account).
-    const formInSheet = (sh, ph, onSave) => {
-      sh.body.innerHTML = `<div class="ord-sform"><input class="js-input" type="password" autocomplete="off" placeholder="${esc(ph)}">
-        <div class="prov-action" style="margin-top:0"><button type="button" class="gcard-btn" data-sf="save">${esc(t("common.save"))}</button>
-          <button type="button" class="gcard-btn ghost" data-sf="cancel">${esc(t("common.cancel"))}</button></div></div>`;
-      const inp = sh.body.querySelector("input");
+    // The browser's confirm box is replaced by a sheet: Keep, and the risky button in red.
+    const confirmSheet = (btn, title, text, okLabel, okIcon, run) => {
+      closePop();
+      const sh = shell(null, "ord-msheet", title);
+      sh.pop.setAttribute("role", "alertdialog");
+      sh.pop.setAttribute("aria-label", title);
+      sh.body.innerHTML = `<p class="ord-cq">${esc(text)}</p>
+        <div class="ord-btns"><button type="button" class="ord-btn" data-cf="no">${esc(t("models.keep"))}</button>
+          <button type="button" class="ord-btn red" data-cf="yes">${ic(okIcon)}${esc(okLabel)}</button></div>`;
       sh.body.onclick = (e) => {
+        const b = e.target.closest("[data-cf]");
+        if (!b) return;
+        closePop();
+        if (b.dataset.cf === "yes") run();
+      };
+      opened(btn, sh);
+    };
+    // A small form in a sheet. `fields`: [{ f, ph, type, mode, value }]. `onSave(val)` returns nothing when done (the
+    // sheet closes), an error text to show, or true to stay open quietly (it focused the box that needs filling).
+    const formSheet = (btn, title, sub, fields, okLabel, onSave, note) => {
+      closePop();
+      const sh = shell(null, "ord-msheet", title, sub);
+      sh.pop.setAttribute("role", "dialog");
+      sh.pop.setAttribute("aria-label", title);
+      sh.body.innerHTML = `<div class="ord-sform">${fields.map(x => `<input class="js-input" data-f="${x.f}"${x.type ? ` type="${x.type}" autocomplete="off"` : ""}${x.mode ? ` inputmode="${x.mode}" spellcheck="false"` : ""} placeholder="${esc(x.ph)}" value="${esc(x.value || "")}">`).join("")}
+        ${note ? `<div class="ord-offnote">${ic("info")}<span>${esc(note)}</span></div>` : ""}
+        <div class="ord-sfmsg gcard-meta"></div>
+        <div class="ord-btns"><button type="button" class="ord-btn" data-sf="cancel">${esc(t("common.cancel"))}</button>
+          <button type="button" class="ord-btn pri" data-sf="save">${ic("check")}${esc(okLabel)}</button></div></div>`;
+      const box = (f) => sh.body.querySelector(`[data-f="${f}"]`);
+      const val = (f) => ((box(f) || {}).value || "").trim();
+      sh.body.onclick = async (e) => {
         const b = e.target.closest("[data-sf]");
         if (!b) return;
         if (b.dataset.sf === "cancel") { closePop(); return; }
-        const v = inp.value.trim();
-        if (!v) { inp.focus(); return; }
         b.disabled = true;
+        const err = await onSave(val, box);
+        if (err) {
+          b.disabled = false;
+          if (err !== true) sh.body.querySelector(".ord-sfmsg").innerHTML = WARN_ICON + " " + esc(err);
+          return;
+        }
         closePop();
-        onSave(v);
       };
-      inp.focus();
+      opened(btn, sh);
+      if (!phone()) { const f = sh.body.querySelector("input"); if (f) f.focus(); }
+      return sh;
     };
+    const need = (box, f) => { const x = box(f); if (x) x.focus(); return true; };
 
     // ---- the keys of an API card ----
+    const addKeySheet = (btn, pid) => formSheet(btn, t("models.acct_add"), cardOf(pid).label, [
+      { f: "label", ph: t("models.acct_label_ph") },
+      { f: "key", ph: t("models.acct_key_ph"), type: "password" },
+    ], t("common.save"), (v, box) => {
+      if (!v("key")) return need(box, "key");
+      const l = items(pid);
+      l.push({ label: v("label") || t("models.acct_n", { n: l.length + 1 }), enabled: true, key: v("key") });
+      saveAcc(pid, l);
+    }, t("models.acct_add_note"));
+    el.querySelectorAll("[data-addkey]").forEach(b => b.onclick = () => (b.dataset.addkey === "anthropic-compat"
+      ? advSheet(b) : addKeySheet(b, b.dataset.addkey)));
+
+    // ---- Advanced API key: one gateway = a name, an address, a key and (for a seller that lists none) model names.
+    // The server checks the address and the key before it saves (/provider/anthropic-compat/connect). ----
+    const ADV = "anthropic-compat";
+    const advSheet = (btn, g) => formSheet(btn, t(g ? "models.adv_edit" : "models.acct_add"), g ? g.label : cardOf(ADV).label, [
+      { f: "label", ph: t("models.adv_label_ph"), value: g ? g.label : "" },
+      { f: "base", ph: t("models.ac_base_ph"), mode: "url", value: g ? g.base : "" },
+      { f: "key", ph: g && g.key ? t("models.key_change_ph", { duoi: g.key.slice(-4) }) : t("models.ac_key_ph"), type: "password" },
+      { f: "models", ph: t("models.adv_models_ph"), value: g ? (g.models || []).join(", ") : "" },
+    ], t(g ? "common.save" : "models.connect"), async (v, box) => {
+      if (!/^https?:\/\//i.test(v("base"))) { box("base").focus(); return t("models.oc_need_base"); }
+      if (!g && !v("key")) return need(box, "key");
+      let r;
+      try {
+        r = await postJson("/provider/anthropic-compat/connect", { id: g ? g.id : "", add: !g, label: v("label"),
+          base: v("base"), key: v("key"), models: v("models") }, 60000);
+      } catch (e) { r = { ok: false, error: String(e) }; }
+      if (!r || !r.ok) {
+        if (r && r.need_models) box("models").focus();
+        return (r && r.error) || t("app.err_cap");
+      }
+      setTimeout(c.again, 0);
+    }, t("models.adv_add_note"));
+    el.querySelectorAll('.ord-acct[data-dnd^="adv:"]').forEach(li => {
+      const id = li.dataset.id;
+      const idx = () => items(ADV).findIndex(a => a.id === id);
+      li.querySelector("[data-adv-menu]").onclick = (ev) => {
+        const btn = ev.currentTarget, g = (c.accts[ADV] || []).find(x => x.id === id) || {};
+        const i = idx(), n = items(ADV).length;
+        const saveAdv = (list, removed) => save({ adv_keys: { items: list, removed: removed || [] } });
+        menuSheet(btn, g.label || id, [[
+          { ic: g.enabled ? "pause" : "play", label: t(g.enabled ? "models.acct_disable" : "models.acct_enable"),
+            sub: g.enabled ? t("models.acct_disable_d") : "", run: () => {
+              const l = items(ADV);
+              l[idx()].enabled = !l[idx()].enabled;
+              saveAdv(l);
+            } },
+          { ic: "pencil", label: t("models.adv_edit"), sub: t("models.adv_edit_d"), run: () => advSheet(btn, g) },
+          i > 0 && { ic: "arrow-up", label: t("models.move_up"), run: () => saveAdv(MO.move(items(ADV), idx(), idx() - 1)) },
+          i < n - 1 && { ic: "arrow-down", label: t("models.move_down"), run: () => saveAdv(MO.move(items(ADV), idx(), idx() + 1)) },
+        ], [
+          { ic: "trash-2", label: t("models.acct_rm"), danger: true, run: () => confirmSheet(btn, t("models.rm_t", { ten: g.label }),
+            t(n > 1 ? "models.acct_rm_q" : "models.acct_rm_last_q", { ten: g.label }), t("models.acct_rm"), "trash-2", () => {
+              if (n > 1) { const l = items(ADV); l.splice(idx(), 1); saveAdv(l, [id]); }
+              else disconnectCard(el, ADV, null, cardOf(ADV).label, true);
+            }) },
+        ]], g.host);
+      };
+    });
     el.querySelectorAll('.ord-acct[data-dnd^="acct:"]').forEach(li => {
       const pid = li.dataset.dnd.slice(5), id = li.dataset.id;
       const idx = () => items(pid).findIndex(a => a.id === id);
-      li.querySelectorAll("[data-acct-move]").forEach(b => b.onclick = () => {
-        const i = idx();
-        saveAcc(pid, MO.move(items(pid), i, i + Number(b.dataset.acctMove)));
-      });
       li.querySelector("[data-acct-menu]").onclick = (ev) => {
-        const a = items(pid)[idx()] || {};
-        menuSheet(ev.currentTarget, a.label || t("models.acct_n", { n: idx() + 1 }), [
-          { ic: a.enabled ? "pause" : "play", label: t(a.enabled ? "models.acct_disable" : "models.acct_enable"), run: () => {
-            const l = items(pid);
-            l[idx()].enabled = !l[idx()].enabled;
-            saveAcc(pid, l);
-          } },
-          { ic: "key-round", label: t("models.acct_rekey"), stay: true, run: (sh) => formInSheet(sh, t("models.acct_key_ph"), (v) => {
-            const l = items(pid);
-            l[idx()].key = v;
-            saveAcc(pid, l);
-          }) },
-          { ic: "trash-2", label: t("models.acct_rm"), danger: true, run: () => {
-            const l = items(pid), i = idx();
-            if (!window.confirm(t(l.length > 1 ? "models.acct_rm_q" : "models.acct_rm_last_q", { ten: l[i].label }))) return;
-            l.splice(i, 1);
-            saveAcc(pid, l);
-          } },
-        ]);
+        const btn = ev.currentTarget, a = items(pid)[idx()] || {}, i = idx(), n = items(pid).length;
+        const name = a.label || t("models.acct_n", { n: i + 1 });
+        menuSheet(btn, name, [[
+          { ic: a.enabled ? "pause" : "play", label: t(a.enabled ? "models.acct_disable" : "models.acct_enable"),
+            sub: a.enabled ? t("models.acct_disable_d") : "", run: () => {
+              const l = items(pid);
+              l[idx()].enabled = !l[idx()].enabled;
+              saveAcc(pid, l);
+            } },
+          { ic: "pencil", label: t("models.acct_rename"), run: () => formSheet(btn, t("models.acct_rename"), name,
+            [{ f: "label", ph: t("models.acct_label_ph"), value: a.label }], t("common.save"), (v, box) => {
+              if (!v("label")) return need(box, "label");
+              const l = items(pid);
+              l[idx()].label = v("label");
+              saveAcc(pid, l);
+            }) },
+          { ic: "key-round", label: t("models.acct_rekey"), sub: t("models.acct_rekey_d"), run: () => formSheet(btn,
+            t("models.acct_rekey"), name, [{ f: "key", ph: t("models.acct_key_ph"), type: "password" }], t("common.save"), (v, box) => {
+              if (!v("key")) return need(box, "key");
+              const l = items(pid);
+              l[idx()].key = v("key");
+              saveAcc(pid, l);
+            }) },
+          i > 0 && { ic: "arrow-up", label: t("models.move_up"), run: () => saveAcc(pid, MO.move(items(pid), idx(), idx() - 1)) },
+          i < n - 1 && { ic: "arrow-down", label: t("models.move_down"), run: () => saveAcc(pid, MO.move(items(pid), idx(), idx() + 1)) },
+        ], [
+          { ic: "trash-2", label: t("models.acct_rm"), danger: true, run: () => confirmSheet(btn, t("models.rm_t", { ten: name }),
+            t(n > 1 ? "models.acct_rm_q" : "models.acct_rm_last_q", { ten: name }), t("models.acct_rm"), "trash-2", () => {
+              const l = items(pid);
+              l.splice(idx(), 1);
+              saveAcc(pid, l);
+            }) },
+        ]], cardOf(pid).label);
       };
-    });
-    el.querySelectorAll("[data-acct-add]").forEach(b => b.onclick = () => {
-      const box = el.querySelector(`[data-acct-box="${b.dataset.acctAdd}"]`);
-      box.hidden = !box.hidden;
-      if (!box.hidden) box.querySelector('[data-f="label"]').focus();
-    });
-    el.querySelectorAll("[data-acct-addcancel]").forEach(b => b.onclick = () => { b.closest(".ord-addbox").hidden = true; });
-    el.querySelectorAll("[data-acct-addsave]").forEach(b => b.onclick = () => {
-      const pid = b.dataset.acctAddsave, box = b.closest(".ord-addbox");
-      const keyIn = box.querySelector('[data-f="key"]'), key = keyIn.value.trim();
-      if (!key) { keyIn.focus(); return; }
-      const l = items(pid);
-      l.push({ label: box.querySelector('[data-f="label"]').value.trim() || t("models.acct_n", { n: l.length + 1 }), enabled: true, key: key });
-      b.disabled = true;
-      saveAcc(pid, l);
     });
 
     // ---- the accounts of a plan card (0.353.0): order, on/off, sign in again, remove, add ----
-    const planBox = (pid) => el.querySelector(`[data-pacct-box="${pid}"]`);
-    const resetBox = (box) => {
-      box.querySelector(".ord-pstep").innerHTML = "";
-      box.querySelector(".ord-addmsg").textContent = "";
-      box.querySelector("[data-pacct-go]").hidden = false;
-      delete box.dataset.acc;
-      delete box.dataset.re;
-    };
     async function planLogin(pid, box) {
       const msg = box.querySelector(".ord-addmsg"), step = box.querySelector(".ord-pstep");
       const go = box.querySelector("[data-pacct-go]");
+      // Signed in: the sheet closes (without cancelling the finished sign-in) and the card draws the new account.
+      const done = () => { delete box.dataset.acc; closePop(); c.again(); };
       go.disabled = true;
       msg.textContent = t("models.opening");
       let r;
@@ -4122,7 +4283,7 @@
       go.disabled = false;
       msg.textContent = "";
       if (!r || !r.ok) { msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap")); return; }
-      if (r.connected) { c.again(); return; }
+      if (r.connected) { done(); return; }
       box.dataset.acc = r.account_id;
       go.hidden = true;
       step.innerHTML = `<div>${esc(t("models.pacct_open"))}</div>
@@ -4142,7 +4303,7 @@
           try { d = await postJson("/plan-accounts/login-code", { provider: pid, account_id: r.account_id, code: code }, 60000); }
           catch (e) { d = { ok: false, error: String(e) }; }
           btn.disabled = false;
-          if (d && d.ok) { c.again(); return; }
+          if (d && d.ok) { done(); return; }
           msg.innerHTML = WARN_ICON + " " + esc((d && d.error) || t("app.err_cap"));
         };
         return;
@@ -4150,76 +4311,177 @@
       // ChatGPT and Grok finish on the web: ask every 3 seconds, for up to 15 minutes (the code's lifetime).
       const han = Date.now() + 15 * 60 * 1000;
       const tick = async () => {
-        if (!box.isConnected || box.hidden || box.dataset.acc !== r.account_id) return;
+        if (!box.isConnected || box.dataset.acc !== r.account_id) return;
         let d = null;
         try {
           d = await (await fetch("/plan-accounts/login-poll?provider=" + encodeURIComponent(pid)
             + "&account_id=" + encodeURIComponent(r.account_id))).json();
         } catch (e) {}
-        if (d && d.connected) { c.again(); return; }
+        if (d && d.connected) { done(); return; }
         if (d && d.ok === false && d.error) { msg.innerHTML = WARN_ICON + " " + esc(d.error); return; }
         if (Date.now() < han) setTimeout(tick, 3000);
         else msg.innerHTML = WARN_ICON + " " + esc(t("models.timeout_login"));
       };
       setTimeout(tick, 3000);
     }
+    // Add (or sign in again) an account of a plan card, in a sheet. Closing it stops a sign-in that never finished.
+    const planSheet = (btn, pid, reId, reLabel) => {
+      if (pid === "antigravity-cli") return agySheet(btn, reId, reLabel);
+      closePop();
+      const sh = shell(null, "ord-msheet", t(reId ? "models.pacct_relogin" : "models.pacct_add"), cardOf(pid).label, logoOf(pid));
+      sh.pop.setAttribute("role", "dialog");
+      sh.body.innerHTML = `<div class="ord-addbox ord-sform" data-pacct-box="${esc(pid)}">
+          <input class="js-input" data-f="label" placeholder="${esc(t("models.pacct_label_ph"))}" value="${esc(reLabel || "")}">
+          <div class="ord-offnote">${ic("info")}<span>${esc(t("models.pacct_warn"))} ${esc(t("models.pacct_warn2"))}</span></div>
+          <div class="ord-pstep"></div>
+          <span class="gcard-meta ord-addmsg"></span>
+          <div class="ord-btns"><button type="button" class="ord-btn" data-pacct-cancel="1">${esc(t("common.cancel"))}</button>
+            <button type="button" class="ord-btn pri" data-pacct-go="${esc(pid)}">${ic("external-link")}${esc(t("models.pacct_get_link"))}</button></div>
+        </div>`;
+      const box = sh.body.querySelector(".ord-addbox");
+      if (reId) box.dataset.re = reId;
+      box.querySelector("[data-pacct-go]").onclick = () => planLogin(pid, box);
+      box.querySelector("[data-pacct-cancel]").onclick = () => closePop();
+      opened(btn, sh, null, () => {
+        if (box.dataset.acc) postJson("/plan-accounts/login-cancel", { provider: pid, account_id: box.dataset.acc }).catch(() => {});
+      });
+      if (reId) planLogin(pid, box);
+    };
+    // An extra Google account for Antigravity (Linux only, plan_accounts). agy signs in on a keyboard screen, so the
+    // sheet copies a sign-in command made for this account and opens Javis's Terminal page (same user as Javis);
+    // the page then waits for the account's token file and adds the account.
+    const agySheet = (btn, reId, reLabel) => {
+      const pid = "antigravity-cli";
+      closePop();
+      const sh = shell(null, "ord-msheet", t(reId ? "models.pacct_relogin" : "models.agy_acc_add"), cardOf(pid).label, logoOf(pid));
+      sh.pop.setAttribute("role", "dialog");
+      sh.body.innerHTML = `<div class="ord-addbox ord-sform" data-pacct-box="${pid}">
+          <input class="js-input" data-f="label" placeholder="${esc(t("models.agy_acc_label_ph"))}" value="${esc(reLabel || "")}">
+          <div class="ord-mgrp ord-steps">
+            <div class="ord-mi"><span class="ord-mic">${ic("terminal")}</span><span class="ord-mt">${esc(t("models.agy_step1"))}<span class="ord-ms">${esc(t("models.agy_step1_d"))}</span></span></div>
+            <div class="ord-mi"><span class="ord-mic">${ic("log-in")}</span><span class="ord-mt">${esc(t("models.agy_step2"))}<span class="ord-ms">${esc(t("models.agy_step2_d"))}</span></span></div>
+            <div class="ord-mi"><span class="ord-mic">${ic("circle-check")}</span><span class="ord-mt">${esc(t("models.agy_step3"))}<span class="ord-ms">${esc(t("models.agy_step3_d"))}</span></span></div>
+          </div>
+          <div class="ord-pstep"></div>
+          <div class="ord-offnote">${ic("info")}<span>${esc(t("models.agy_acc_note"))}</span></div>
+          <span class="gcard-meta ord-addmsg"></span>
+          <div class="ord-btns"><button type="button" class="ord-btn" data-pacct-cancel="1">${esc(t("common.cancel"))}</button>
+            <button type="button" class="ord-btn pri" data-pacct-go="${pid}">${ic("terminal")}${esc(t("models.agy_open_term"))}</button></div>
+        </div>`;
+      const box = sh.body.querySelector(".ord-addbox");
+      if (reId) box.dataset.re = reId;
+      const msg = box.querySelector(".ord-addmsg"), step = box.querySelector(".ord-pstep");
+      box.querySelector("[data-pacct-cancel]").onclick = () => closePop();
+      box.querySelector("[data-pacct-go]").onclick = async (ev) => {
+        const go = ev.currentTarget;
+        go.disabled = true;
+        let r;
+        try {
+          r = await postJson("/plan-accounts/login-start", { provider: pid, account_id: box.dataset.re || "",
+            label: box.querySelector('[data-f="label"]').value.trim() }, 30000);
+        } catch (e) { r = { ok: false, error: String(e) }; }
+        go.disabled = false;
+        if (!r || !r.ok || !r.terminal) { msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap")); return; }
+        box.dataset.acc = r.account_id;
+        let copied = false;
+        try { await navigator.clipboard.writeText(r.terminal); copied = true; } catch (e) {}
+        step.innerHTML = `<div>${esc(t(copied ? "models.agy_copied" : "models.agy_copy_this"))}</div><code class="ord-cmd">${esc(r.terminal)}</code>`;
+        go.hidden = true;
+        // Wait for the account's token file for up to 15 minutes; the sheet stays open meanwhile.
+        // Wait for the account's token file for up to 15 minutes, also while the owner is on the Terminal page.
+        const job = { live: true };
+        const han = Date.now() + 15 * 60 * 1000;
+        const tick = async () => {
+          if (!job.live) return;
+          let d = null;
+          try {
+            d = await (await fetch("/plan-accounts/login-poll?provider=" + pid + "&account_id=" + encodeURIComponent(r.account_id))).json();
+          } catch (e) {}
+          if (d && d.connected) {
+            job.live = false;
+            delete box.dataset.acc;
+            if (box.isConnected) closePop();
+            if (el.isConnected) c.again();
+            return;
+          }
+          if (Date.now() < han) setTimeout(tick, 3000);
+          else { job.live = false; if (box.isConnected) msg.innerHTML = WARN_ICON + " " + esc(t("models.timeout_login")); }
+        };
+        setTimeout(tick, 3000);
+        box._job = job;
+        // Going to the Terminal page closes the sheet but keeps the sign-in waiting; back on this page the new account
+        // shows once agy has written its token.
+        step.insertAdjacentHTML("beforeend", `<button type="button" class="ord-btn pri" data-open-term="1">${ic("terminal")}${esc(t("models.agy_open_term"))}</button>`);
+        step.querySelector("[data-open-term]").onclick = () => {
+          delete box.dataset.acc;   // closing must not cancel the sign-in now
+          closePop();
+          try { window.JavisNav.go("terminal"); } catch (e) {}
+        };
+      };
+      opened(btn, sh, null, () => {
+        if (!box.dataset.acc) return;
+        if (box._job) box._job.live = false;
+        postJson("/plan-accounts/login-cancel", { provider: pid, account_id: box.dataset.acc }).catch(() => {});
+      });
+    };
+    el.querySelectorAll("[data-addacc]").forEach(b => b.onclick = () => planSheet(b, b.dataset.addacc));
     el.querySelectorAll('.ord-acct[data-dnd^="pacct:"]').forEach(li => {
       const pid = li.dataset.dnd.slice(6), id = li.dataset.id;
       const idx = () => items(pid).findIndex(a => a.id === id);
-      li.querySelectorAll("[data-pacct-move]").forEach(b => b.onclick = () => {
-        const i = idx();
-        saveAcc(pid, MO.move(items(pid), i, i + Number(b.dataset.pacctMove)));
-      });
       li.querySelector("[data-acct-menu]").onclick = (ev) => {
-        const a = (c.accts[pid] || []).find(x => x.id === id) || {};
-        const i0 = idx();
+        const btn = ev.currentTarget, a = (c.accts[pid] || []).find(x => x.id === id) || {};
+        const i0 = idx(), n = items(pid).length;
         const name = a.label || (a.main ? t("models.pacct_main") : t("models.pacct_n", { n: i0 + 1 }));
-        const acts = [{ ic: a.enabled ? "pause" : "play", label: t(a.enabled ? "models.acct_disable" : "models.acct_enable"), run: () => {
-          const l = items(pid);
-          l[idx()].enabled = !l[idx()].enabled;
-          saveAcc(pid, l);
-        } }];
+        const rows = [{ ic: a.enabled ? "pause" : "play", label: t(a.enabled ? "models.acct_disable" : "models.acct_enable"),
+          sub: a.enabled ? t("models.acct_disable_d") : "", run: () => {
+            const l = items(pid);
+            l[idx()].enabled = !l[idx()].enabled;
+            saveAcc(pid, l);
+          } }];
         // Account 1 is the machine's own sign-in: it can be turned off here, not removed or signed in again.
-        if (!a.main) {
-          acts.push({ ic: "rotate-cw", label: t("models.pacct_relogin"), run: () => {
-            const box = planBox(pid);
-            resetBox(box);
-            box.dataset.re = id;
-            box.querySelector('[data-f="label"]').value = (items(pid)[idx()] || {}).label || "";
-            box.hidden = false;
-            box.scrollIntoView({ block: "center", behavior: "smooth" });
-            planLogin(pid, box);
-          } });
-          acts.push({ ic: "trash-2", label: t("models.acct_rm"), danger: true, run: () => {
+        if (!a.main) rows.push({ ic: "log-in", label: t("models.pacct_relogin"), run: () => planSheet(btn, pid, id, a.label || "") });
+        if (i0 > 0) rows.push({ ic: "arrow-up", label: t("models.move_up"), run: () => saveAcc(pid, MO.move(items(pid), idx(), idx() - 1)) });
+        if (i0 < n - 1) rows.push({ ic: "arrow-down", label: t("models.move_down"), run: () => saveAcc(pid, MO.move(items(pid), idx(), idx() + 1)) });
+        menuSheet(btn, name, [rows, a.main ? [] : [{ ic: "trash-2", label: t("models.acct_rm"), danger: true, run: () =>
+          confirmSheet(btn, t("models.rm_t", { ten: name }), t("models.pacct_rm_q", { ten: name }), t("models.acct_rm"), "trash-2", () => {
             const l = items(pid), i = idx();
-            if (!window.confirm(t("models.pacct_rm_q", { ten: l[i].label || t("models.pacct_n", { n: i + 1 }) }))) return;
             const gone = l.splice(i, 1)[0];
             saveAcc(pid, l, [gone.id]);
-          } });
-        }
-        menuSheet(ev.currentTarget, name, acts);
+          }) }]], cardOf(pid).label);
       };
     });
-    el.querySelectorAll("[data-pacct-add]").forEach(b => b.onclick = () => {
-      const box = planBox(b.dataset.pacctAdd);
-      box.hidden = !box.hidden;
-      if (!box.hidden) { resetBox(box); box.querySelector('[data-f="label"]').focus(); }
-    });
-    el.querySelectorAll("[data-pacct-go]").forEach(b => b.onclick = () => planLogin(b.dataset.pacctGo, b.closest(".ord-addbox")));
-    el.querySelectorAll("[data-pacct-cancel]").forEach(b => b.onclick = () => {
-      const box = b.closest(".ord-addbox"), pid = box.dataset.pacctBox;
-      if (box.dataset.acc) postJson("/plan-accounts/login-cancel", { provider: pid, account_id: box.dataset.acc }).catch(() => {});
-      resetBox(box);
-      box.hidden = true;
-    });
 
+    // ---- "Connect another provider": a sheet of the providers not signed in yet, each with its logo. Picking one
+    // opens the list below and brings that provider's card into view, where its connect form is. ----
     const more = el.querySelector("#ordMore");
-    if (more) more.onclick = () => {
+    const showOff = (open) => {
       const box = el.querySelector("#ordOff");
-      box.hidden = !box.hidden;
-      el._ordUi.showOff = !box.hidden;
+      if (!box) return null;
+      box.hidden = !open;
+      el._ordUi.showOff = open;
       el._ordUi.set = true;
-      more.setAttribute("aria-expanded", String(!box.hidden));
+      if (more) more.setAttribute("aria-expanded", String(open));
+      return box;
+    };
+    if (more) more.onclick = () => {
+      const offOpen = !el.querySelector("#ordOff").hidden;
+      menuSheet(more, t("models.connect_more"), [(c.offList || []).map(p => ({ ic: p.id === "anthropic-compat" ? "key-round" : "plug", label: p.label, sub: c.kindTag(p), run: () => {
+        const box = showOff(true);
+        const card = box && box.querySelector(`[data-offp="${p.id}"]`);
+        if (card) {
+          card.scrollIntoView({ block: "center", behavior: "smooth" });
+          card.classList.add("ord-flash");
+          setTimeout(() => card.classList.remove("ord-flash"), 1600);
+        }
+      } })), offOpen ? [{ ic: "chevron-up", label: t("models.connect_fold"), run: () => showOff(false) }] : []],
+      t("models.connect_more_sub", { n: (c.offList || []).length }));
+      // Each provider row shows the provider's own logo instead of a generic icon.
+      const L = window.JavisProviderLogos;
+      if (L && openPop) openPop.el.querySelectorAll(".ord-mi").forEach((b, i) => {
+        const p = (c.offList || [])[i];
+        const s = p && L.svg(p.id);
+        if (s) { const t0 = b.querySelector(".ord-mic"); t0.innerHTML = s; t0.classList.add("logo"); }
+      });
     };
 
     el.querySelectorAll("[data-ordpop]").forEach(btn => btn.onclick = () => {
@@ -4232,12 +4494,22 @@
       if (btn.dataset.ordpop === "eff") {
         const S = window.JavisEffortSlider;
         const label = isBg ? t("models.h_aux") : ((c.connList.find(p => p.id === pid) || {}).label || pid);
-        const sh = shell(wrap, "eff-pop", t("eff.head") + " · " + label);
+        const sh = shell(wrap, "eff-pop", t("models.eff_title"), label);
         sh.pop.setAttribute("role", "dialog");
         sh.pop.setAttribute("aria-label", t("eff.head"));
         const locked = S.isLocked(curProv, cur.model);
         let tm = 0;
+        // Fast mode: the composer's bolt (owner 05/11/2026: "the bolt is missing"). One setting for the whole app; it
+        // is greyed out on a model without Fast mode, same rule as the composer (JavisModelBar.fastNote).
+        const fn = (window.JavisModelBar && window.JavisModelBar.fastNote) ? window.JavisModelBar.fastNote(curProv, cur.model)
+          : { supported: false, note: "fast.none" };
         const slider = S.mount(sh.body, { value: cur.reasoning, locked: locked, lockedValue: locked ? S.lockedLevel(cur.model) : "",
+          fast: { supported: fn.supported, on: c.fast, title: () => "Fast mode\n" + t(fn.note), onToggle: async (on) => {
+            c.fast = on;
+            el.querySelectorAll(".ord-echip .ord-fast").forEach(x => { x.hidden = !(on && x.dataset.ok === "1"); });
+            await saveSetting("model", { fast: on });
+            window.dispatchEvent(new CustomEvent("javis:fast-changed", { detail: { on: on } }));
+          } },
           onChange: (v) => {
             cur.reasoning = v;
             btn.querySelector(".ord-etxt").textContent = c.effName(v);
@@ -4348,33 +4620,49 @@
     };
     el.querySelectorAll("[data-retry]").forEach(b => b.onclick = () => { b.disabled = true; retry(b.dataset.retry); });
 
-    // ---- a card's ⋯: every action of the card in one pull-up sheet ----
+    // ---- background work runs on this card (owner 05/11/2026: "the card should say which one does background work") --
+    const setBg = (pid) => save({ auxiliary: { provider: pid, model: c.prof(pid).model || "" } });
+    el.querySelectorAll("[data-setbg]").forEach(b => b.onclick = () => { b.disabled = true; setBg(b.dataset.setbg); });
+    el.querySelectorAll("[data-cccheck]").forEach(b => b.onclick = () => refreshClaudeCard(el, true));
+
+    // ---- Disconnect asks in a sheet first; each provider then leaves its own way (disconnectCard) ----
+    const discSheet = (btn, pid) => {
+      const p = cardOf(pid);
+      const q = pid === "anthropic-cli" ? t("models.cc_logout_confirm")
+        : t(pid === "antigravity-cli" ? "models.agy_disc_q" : "models.disc_q", { ten: p.label });
+      confirmSheet(btn, t("models.disc_t", { ten: p.label }), q, t("models.disconnect"), "log-out",
+        () => disconnectCard(el, pid, btn, p.label, true));
+    };
+    el.querySelectorAll("[data-disccard]").forEach(b => b.onclick = () => discSheet(b, b.dataset.disccard));
+
+    // ---- a card's ⋯: every action of the card in one pull-up sheet, grouped as in the approved design ----
     el.querySelectorAll("[data-cmenu]").forEach(b => b.onclick = () => {
-      const pid = b.dataset.cmenu, p = c.connList.find(x => x.id === pid) || { id: pid, label: pid };
+      const pid = b.dataset.cmenu, p = cardOf(pid);
       const i = c.order.indexOf(pid), n = c.order.length;
       const card = b.closest(".prov-card");
-      const chip = (k) => () => { const x = card && card.querySelector(`.ord-chips[data-p="${pid}"] [data-ordpop="${k}"]`); if (x) x.click(); };
-      const show = (x) => () => { x.click(); x.scrollIntoView({ block: "center", behavior: "smooth" }); };
-      const addKey = c.multiKey.indexOf(pid) >= 0 && card && card.querySelector(`[data-acct-add="${pid}"]`);
-      const addAcc = c.multiPlan.indexOf(pid) >= 0 && card && card.querySelector(`[data-pacct-add="${pid}"]`);
-      const check = card && card.querySelector("[data-agycheck], [data-grokcheck]");
-      const acts = [
-        { ic: "cpu", label: t("models.change_model"), run: chip("model") },
-        { ic: "sliders-horizontal", label: t("eff.head"), run: chip("eff") },
-      ];
-      if (c.limited[pid]) acts.push({ ic: "rotate-cw", label: t("models.retry_now"), run: () => retry(pid) });
-      if (i > 0) acts.push({ ic: "star", label: t("models.make_main"), run: () => save({ order: MO.move(c.order, i, 0) }) });
-      if (i > 1) acts.push({ ic: "arrow-up", label: t("models.move_up"), run: () => save({ order: MO.move(c.order, i, i - 1) }) });
-      if (i >= 0 && i < n - 1) acts.push({ ic: "arrow-down", label: t("models.move_down"), run: () => save({ order: MO.move(c.order, i, i + 1) }) });
-      if (addKey) acts.push({ ic: "key-round", label: t("models.acct_add"), run: show(addKey) });
-      if (addAcc) acts.push({ ic: "plus", label: t("models.pacct_add"), run: show(addAcc) });
-      if (pid === "anthropic-cli") acts.push({ ic: "rotate-cw", label: t("qs.recheck"), run: () => refreshClaudeCard(el, true) });
-      else if (check) acts.push({ ic: "rotate-cw", label: t("qs.recheck"), run: () => check.click() });
-      // Claude Code on an API key: the key is chosen with the card's own switch, there is no plan login to drop.
-      if (!(pid === "anthropic-cli" && p.auth_mode === "api_key")) {
-        acts.push({ ic: "log-out", label: t("models.disconnect_full"), danger: true, run: () => disconnectCard(el, pid, null, p.label) });
-      }
-      menuSheet(b, p.label, acts);
+      const q = (sel) => card && card.querySelector(sel);
+      const chip = (k) => () => { const x = q(`.ord-chips[data-p="${pid}"] [data-ordpop="${k}"]`); if (x) x.click(); };
+      const pr = c.prof(pid);
+      const check = q("[data-agycheck], [data-grokcheck]");
+      const until = c.limited[pid] ? new Date(c.limited[pid] * 1000).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }) : "";
+      menuSheet(b, p.label, [
+        [{ ic: "cpu", label: t("models.change_model").replace(/\s*▾$/, ""), sub: pr.model || defName(pid), run: chip("model") },
+         { ic: "gauge", label: t("models.eff_title"), sub: c.effName(pr.reasoning), run: chip("eff") }],
+        [c.limited[pid] && { ic: "rotate-cw", label: t("models.retry_now"), sub: t("models.retry_now_d", { gio: until }), tone: "warn", run: () => retry(pid) }],
+        [c.bgCfg.provider === pid
+          ? { ic: "workflow", label: t("models.bg_running"), sub: t("models.bg_d"), tone: "bgsel", sel: true }
+          : { ic: "workflow", label: t("models.use_bg"), sub: t("models.bg_d"), run: () => setBg(pid) }],
+        [i > 0 && { ic: "star", label: t("models.make_main"), sub: t("models.make_main_d"), tone: "acc", run: () => save({ order: MO.move(c.order, i, 0) }) },
+         i > 1 && { ic: "arrow-up", label: t("models.move_up"), run: () => save({ order: MO.move(c.order, i, i - 1) }) },
+         i >= 0 && i < n - 1 && { ic: "arrow-down", label: t("models.move_down"), run: () => save({ order: MO.move(c.order, i, i + 1) }) }],
+        [q("[data-addkey]") && { ic: "key-round", label: t("models.acct_add"), sub: t("models.acct_add_d"), run: () => (pid === "anthropic-compat" ? advSheet(b) : addKeySheet(b, pid)) },
+         q("[data-addacc]") && { ic: "user-plus", label: t("models.pacct_add"), sub: t("models.pacct_add_d"), run: () => planSheet(b, pid) },
+         pid === "anthropic-cli" ? { ic: "refresh-cw", label: t("qs.recheck"), sub: t("models.check_d"), run: () => refreshClaudeCard(el, true) }
+           : check && { ic: "refresh-cw", label: t("qs.recheck"), sub: t("models.check_d"), run: () => check.click() }],
+        // Claude Code on an API key: the key is chosen with the card's own switch, there is no plan login to drop.
+        [!(pid === "anthropic-cli" && p.auth_mode === "api_key") && { ic: "log-out", label: t("models.disconnect_full"), sub: t("models.disc_d"),
+          danger: true, run: () => discSheet(b, pid) }],
+      ], i === 0 ? "MAIN · " + c.kindTag(p) : t("models.ord_backup", { n: i }) + " · " + c.kindTag(p), logoOf(pid));
     });
   }
 
@@ -4384,10 +4672,11 @@
   // the usage order and the next card becomes MAIN.
   const DISC_URL = { "anthropic-cli": "/claude/logout", "openai-oauth": "/oauth/openai/disconnect",
                      "grok-cli": "/grok/logout", "antigravity-cli": "/antigravity/logout" };
-  async function disconnectCard(el, pid, btn, label) {
+  // `sure`: the Models page already asked in its own sheet.
+  async function disconnectCard(el, pid, btn, label, sure) {
     const q = pid === "anthropic-cli" ? t("models.cc_logout_confirm")
       : t(pid === "antigravity-cli" ? "models.agy_disc_q" : "models.disc_q", { ten: label || pid });
-    if (!window.confirm(q)) return;
+    if (!sure && !window.confirm(q)) return;
     if (btn) { btn.disabled = true; btn.textContent = t("models.disconnecting"); }
     try {
       if (DISC_URL[pid]) await fetch(DISC_URL[pid], { method: "POST" });
@@ -4451,6 +4740,8 @@
       st.className = "prov-status on";
       st.textContent = t("models.st_connected") + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "")
         + (d.stale ? " · " + t("models.st_stale") : "");
+      // A card in the usage order has Disconnect in its own button row (and its ⋯ sheet), so none here.
+      if (act.closest && act.closest(".ord-card")) { act.innerHTML = ""; return; }
       act.innerHTML = `<div class="prov-action"><button class="gcard-btn ghost" id="cliLogout">${esc(t("models.disconnect"))}</button></div>`;
       el.querySelector("#cliLogout").onclick = async () => {
         // Signing out drops the plan login on this machine and only a fresh sign-in brings it

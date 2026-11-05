@@ -66,8 +66,9 @@ check("install box no longer claims 'sign-in is done' on the Claude card",
       "cli_missing2" not in warn and 'on && p.kind === "oauth"' in warn)
 check("the PATH and Windows detail is folded away", "<details" in warn and "models.cliw_help" in warn)
 check("the Grok card shows one install hint, not two", 'cliWarn("grok")' not in js)
-check("the shield is not green on a card whose CLI is missing",
-      '${p.cli_found === false ? "" : "on"}' in js)
+# Owner 05/11/2026 (approved design): the shield became the provider's logo with a state dot; the dot stays grey.
+check("the state dot is not green on a card whose CLI is missing",
+      '${logoTile(p, p.cli_found !== false)}' in js)
 
 # ---- 3. CSS ----
 css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")

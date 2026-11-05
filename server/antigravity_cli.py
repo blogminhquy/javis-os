@@ -1348,6 +1348,7 @@ class AntigravityCLI:
                  instructions: Optional[str] = None):
         self.cli_path = find_antigravity_cli()
         self.cwd = cwd or os.getcwd()
+        self.agy_home = None   # an extra Google account's HOME (plan_accounts); None = the machine's own login
         self.tag = tag
         self.model = model
         self.instructions = instructions
@@ -1650,6 +1651,12 @@ class AntigravityCLI:
                     _env = tien_trinh_nen.mark_env(None, self.tag)
                 except Exception:  # noqa: BLE001
                     _env = None
+                # An extra Google account (plan_accounts, Linux only): agy runs with that account's own HOME and keeps
+                # its token in a file there instead of the machine's one keyring login.
+                if getattr(self, "agy_home", None):
+                    _env = dict(_env if _env is not None else os.environ)
+                    _env["HOME"] = self.agy_home
+                    _env["GEMINI_FORCE_FILE_STORAGE"] = "true"
                 proc = subprocess.Popen(
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,

@@ -83,6 +83,7 @@ import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscri
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
 import plan_accounts   # 0.353.0: several accounts on one subscription plan card (Codex, Grok, Claude Code)
+import adv_keys   # Advanced API key: several gateways on the Anthropic-compatible route (owner 05/11/2026)
 import mcp_store
 import mcp_client
 import mcp_catalog
@@ -2007,13 +2008,15 @@ def _providers_view(cfg):
         elif p["id"] == "openai-compat":
             configured = bool((m.get("openai_compat_base") or "").strip())
         elif p["id"] == "anthropic-compat":
-            configured = bool((m.get("anthropic_compat_base") or "").strip())
+            configured = bool(adv_keys.gateways(m))
         elif p["key_field"] is None:
             configured = True
         else:
             configured = bool(m.get(p["key_field"]))
         item = {
-            "id": p["id"], "label": p["label"], "kind": p["kind"],
+            "id": p["id"], "kind": p["kind"],
+            # Owner 05/11/2026: the Anthropic-compatible route is shown as "Advanced API key", never by its name.
+            "label": localefmt.chu("API key nâng cao", "Advanced API key") if p["id"] == adv_keys.PROVIDER else p["label"],
             "needs_key": p["key_field"] is not None,
             "configured": configured,
             "models": models,
@@ -2747,6 +2750,8 @@ def _route_ready(mcfg, prov) -> bool:
     if not d:
         return False
     if d.get("kind") == "api":
+        if prov == adv_keys.PROVIDER and adv_keys.gateways(mcfg):
+            return adv_keys.active(mcfg) is not None
         if d.get("key_field") and d["id"] not in _ROUTING_SINGLE_KEY:
             return bool(model_routing.usable_accounts(mcfg, prov, d["key_field"]))
         return bool(_provider_key(mcfg, d))
@@ -2899,6 +2904,17 @@ def _clear_pin_limit(provider: str) -> bool:
 def _note_api_limit(mcfg, prov: str, key: str, raw: str = "", seconds: float = 0.0) -> None:
     """An API key ran out of quota in a chat turn: that key rests (0.354.0), so the turn and the next ones run on the
     provider's next key, or on the next card when it has none."""
+    if prov == adv_keys.PROVIDER:
+        try:
+            secs = seconds or aux_engine.cooldown_for(raw) or aux_engine.COOLDOWN_QUOTA_S
+            with cfgmod._SETTINGS_LOCK:
+                cfg = cfgmod.read_settings()
+                if adv_keys.rest_and_rotate(cfg["model"], key, secs):
+                    cfgmod.write_settings(cfg)
+                    _PROV_MODELS_CACHE.pop(adv_keys.PROVIDER, None)
+        except Exception as e:  # noqa: BLE001
+            print(f"[routing] rest {prov}: {type(e).__name__}: {e}", file=sys.stderr)
+        return
     try:
         d = _provider_def(prov) or {}
         acc = model_routing.account_for_key(mcfg or {}, prov, key, d.get("key_field") or "")
@@ -2933,6 +2949,10 @@ def _route_name(prov: str) -> str:
 def _route_account_no(mcfg, prov: str, key: str = ""):
     """(number, label) of the account a route runs on: the plan account picked now, or the API key given."""
     try:
+        if prov == adv_keys.PROVIDER:
+            lst = adv_keys.gateways(mcfg)
+            i = next((n for n, g in enumerate(lst) if key and g["key"] == key), None)
+            return (i + 1, lst[i]["label"]) if i is not None else (0, "")
         if plan_accounts.supported(prov):
             lst = plan_accounts.accounts(mcfg, prov)
             aid = (plan_accounts.pick(mcfg, prov) or {}).get("id") if key == "" else key
@@ -2962,6 +2982,12 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_a
             ran = failed_account or _PLAN_ACCOUNT_LAST.get(failed, plan_accounts.MAIN)
             if acc and acc["id"] != ran:
                 same = (failed, d.get("kind", "cli"), "", acc["id"])
+        elif failed == adv_keys.PROVIDER:
+            m2 = cfgmod.read_settings().get("model") or {}   # _note_api_limit just switched the gateway on disk
+            key = _provider_key(m2, d) if _route_ready(m2, failed) else ""
+            if key and key != failed_key:
+                mcfg = m2
+                same = (failed, "api", key, key)
         elif d.get("kind") == "api" and failed not in _ROUTING_SINGLE_KEY and _route_ready(mcfg, failed):
             key = _provider_key(mcfg, d)
             if key and key != failed_key:
@@ -5116,6 +5142,8 @@ def _plan_login_fresh(provider: str, account_id: str, folder) -> bool:
         kind = plan_accounts.KIND[provider]
         if kind == "grok":
             f = grok_cli._doc_phien(folder)[0]
+        elif kind == "agy":
+            f = plan_accounts.agy_token_file(folder)
         else:
             f = Path(folder) / ".credentials.json"
             if not f.exists():
@@ -5147,6 +5175,13 @@ async def plan_account_login_start(request: Request):
     plan_accounts.prepare(prov, folder)
     _PLAN_LOGIN[aid] = {"provider": prov, "label": str(body.get("label") or "")[:60], "ts": time.time()}
     kind = plan_accounts.KIND[prov]
+    if kind == "agy":
+        # agy signs in on a keyboard screen in a terminal, so the page gives the command to paste into Javis's
+        # Terminal page (same user as Javis): agy with this account's HOME and file storage.
+        import shlex
+        cli = antigravity_cli.find_antigravity_cli() or "agy"
+        cmd = " ".join(f"{k}={shlex.quote(v)}" for k, v in plan_accounts.env_for(prov, folder).items()) + " " + shlex.quote(cli)
+        return {"ok": True, "account_id": aid, "url": "", "code": "", "needs_code": False, "terminal": cmd}
     if kind == "codex":
         try:
             d = await asyncio.to_thread(openai_oauth.start_device_for, aid)
@@ -5208,6 +5243,10 @@ async def plan_account_login_poll(provider: str = "", account_id: str = ""):
         if d.get("connected") and _plan_login_fresh(provider, account_id, folder):
             return _plan_login_ok(provider, account_id)
         return {"ok": True, "connected": False, "error": "" if d.get("dang_cho") else d.get("error", "")}
+    if kind == "agy":
+        if plan_accounts.agy_token_file(folder) and _plan_login_fresh(provider, account_id, folder):
+            return _plan_login_ok(provider, account_id)
+        return {"ok": True, "connected": False}
     d = await asyncio.to_thread(claude_cli.auth_status_folder, folder)
     if d.get("connected") and _plan_login_fresh(provider, account_id, folder):
         return _plan_login_ok(provider, account_id)
@@ -6090,6 +6129,9 @@ def settings_get():
                "resting_until": model_routing.resting_until(pid, a["id"])}
               for a in model_routing.accounts(cfg["model"], pid, kf)]
         for pid, kf in _routing_key_fields().items() if model_routing.accounts(cfg["model"], pid, kf)}
+    if adv_keys.gateways(cfg["model"]):   # Advanced API key: its gateways, key cut to the last 4 characters
+        safe["model"]["accounts"][adv_keys.PROVIDER] = adv_keys.view(cfg["model"])
+    safe["model"].pop(adv_keys.FIELD, None)
     for pid in plan_accounts.KIND:   # plan cards: account 1 plus any extra account (0.353.0)
         try:
             safe["model"]["accounts"][pid] = plan_accounts.view(cfg["model"], pid)
@@ -6176,7 +6218,7 @@ def _routing_view(mcfg, providers) -> dict:
             limited[p] = int(until)
     return {"order": o, "profiles": {p: model_routing.profile(mcfg, p) for p in o}, "limited": limited,
             "background": model_routing.background_spec(mcfg), "chat_in_use": chat, "bg_in_use": bg,
-            "multi_key": list(_routing_key_fields()), "multi_plan": list(plan_accounts.KIND),
+            "multi_key": list(_routing_key_fields()), "multi_plan": [p for p in plan_accounts.KIND if plan_accounts.available(p)],
             "defaults": {p["id"]: d for p in providers if (d := _default_model_name(mcfg, p["id"]))}}
 
 
@@ -6270,6 +6312,8 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 if patch["clear_key"] == "anthropic-compat":
                     m["anthropic_compat_base"] = ""
                     m["anthropic_compat_models"] = []
+                    adv_keys.save_list(m, [], removed=[g["id"] for g in adv_keys.gateways(m)])
+                    m[adv_keys.FIELD] = []
                     _PROV_MODELS_CACHE.pop("anthropic-compat", None)
                 if _effective_main(cfg).get("provider") == patch["clear_key"]:
                     _set_main_model(cfg, "anthropic-cli", m.get("claude_model") or "opus")
@@ -6314,6 +6358,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 _sync_legacy_engine(m)
                 if ids[0] != _was_main:
                     _clear_pin_limit(ids[0])   # a card moved to the top on purpose is tried, not skipped
+        if isinstance(patch.get("adv_keys"), dict):   # Advanced API key: order, on/off, names, removal
+            ak = patch["adv_keys"]
+            adv_keys.save_list(m, ak.get("items") or [], removed=ak.get("removed") or [])
+            _PROV_MODELS_CACHE.pop(adv_keys.PROVIDER, None)
         if isinstance(patch.get("profile"), dict):
             pp = patch["profile"]
             pid = str(pp.get("provider") or "")
@@ -18099,6 +18147,9 @@ async def _chat_socket(ws):
                 acli.mode = _muc_quyen_luot_chat(_row0, user_message)
                 # Hub trỏ BRAIN kể cả khi cwd là repo - xem chú thích ở nhánh Grok.
                 _apply_antigravity_hub(acli, _brain_root(brain))
+                # The Google account to run (extra accounts: Linux only, plan_accounts). After the hub, so an extra
+                # account's HOME gets the hub config just written.
+                _turn_acc["antigravity-cli"] = _plan_account_apply(acli, "antigravity-cli", mcfg)
                 if not acli.is_available():
                     final_text = ("⚠ Chưa cài Antigravity CLI trên máy này. Cài một lần:\n\n"
                                   f"`{antigravity_cli.lenh_cai()}`\n\n"
@@ -21177,12 +21228,22 @@ async def anthropic_compat_connect(request: Request):
     typed = _gop_giu_thu_tu([str(x).strip() for x in (typed_in or []) if str(x).strip()])
     cfg = cfgmod.read_settings()
     m = cfg.setdefault("model", {})
+    # Advanced API key (owner 05/11/2026): `id` edits one gateway of the list, no `id` adds a gateway. A page from
+    # before (no `id`, no list yet) edits the one gateway it knows.
+    gid = str(data.get("id") or "").strip()
+    gws = adv_keys.gateways(m)
+    if not gid and not data.get("add") and len(gws) == 1:
+        gid = gws[0]["id"]
+    old = next((g for g in gws if g["id"] == gid), None)
+    if gid and not old:
+        return {"ok": False, "error": localefmt.chu("Không tìm thấy key này nữa, tải lại trang.",
+                                                    "This key is gone, reload the page.")}
     # A blank input reuses the secret only for the same gateway: reusing it for another URL would
     # send that secret to the new host during the check below.
-    old_base = engine.normalize_anthropic_compat_base(m.get("anthropic_compat_base") or "")
+    old_base = old["base"] if old else ""
     key = str(data.get("key") or "").strip()
-    if not key and base == old_base:
-        key = m.get("anthropic_compat_key") or ""
+    if not key and old and base == old_base:
+        key = old["key"]
     if not key:
         return {"ok": False, "error": localefmt.chu("Cần API key bên bán đưa cho bạn.",
                                                     "Enter the API key the seller gave you.")}
@@ -21229,13 +21290,18 @@ async def anthropic_compat_connect(request: Request):
             return {"ok": False, "error": localefmt.chu(f"Cổng trả HTTP {r.status_code} khi thử model {typed[0]}: {r.text[:160]}",
                                                         f"The gateway returned HTTP {r.status_code} for model {typed[0]}: {r.text[:160]}")}
     ids = _gop_giu_thu_tu(typed, live)
-    m["anthropic_compat_base"] = base
-    m["anthropic_compat_key"] = key
-    m["anthropic_compat_models"] = typed
-    m.setdefault("catalog", {})["anthropic-compat"] = ids
-    cfgmod.write_settings(cfg)
-    _PROV_MODELS_CACHE["anthropic-compat"] = {"ids": ids, "ts": time.time()}
-    return {"ok": True, "models": len(ids), "listed": bool(live)}
+    label = str(data.get("label") or "").strip()
+    # Each gateway keeps its own model names: a seller's list, or the names typed for a seller that lists none.
+    with cfgmod._SETTINGS_LOCK:
+        cfg = cfgmod.read_settings()
+        m = cfg.setdefault("model", {})
+        if old and adv_keys.update(m, old["id"], label=label or None, base=base, key=key, models=ids):
+            g_id = old["id"]
+        else:
+            g_id = adv_keys.add(m, label, base, key, ids)["id"]
+        cfgmod.write_settings(cfg)
+    _PROV_MODELS_CACHE.pop("anthropic-compat", None)
+    return {"ok": True, "models": len(ids), "listed": bool(live), "id": g_id}
 
 
 @app.get("/ollama-local/specs")

@@ -87,7 +87,14 @@
       "skip-forward",
       "arrow-right-left",
       "key-round",
-      "redo"
+      "redo",
+      "grip-vertical",
+      "gauge",
+      "user-plus",
+      "refresh-cw",
+      "log-in",
+      "unplug",
+      "plug-zap"
     ],
     "dieu-huong": [
       "chevron-down",
