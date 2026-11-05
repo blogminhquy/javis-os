@@ -16,9 +16,10 @@ import asyncio
 import contextlib
 import sys
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -36,6 +37,30 @@ REMIND_EVERY_S = 3600.0     # nhịp nhắc việc bị chặn quá 24 giờ
 RECONCILE_EVERY_S = 60.0    # nhịp đối soát sổ lượt chung với team_turns (T2, thiết kế 9.1)
 FINISHED_SHOWN = 30          # việc đã xong hiện ở tab Việc của nhóm (0.193.0)
 PINNED_SHOWN = 20            # tin đã ghim hiện ở dải trên khung chat (0.192.0), như Sổ quyết định của lượt
+
+
+# Performance (2026-11-05): the usage block of GET /teams/{id} reads the usage index, its events log and two more
+# databases, on every team open and on every refetch an agent message triggers. It feeds a side panel, so a few
+# seconds of staleness is invisible, while computing it each time made switching teams wait on it.
+_USAGE_TTL_S = 15.0
+_usage_cache: Dict[str, tuple] = {}
+_usage_lock = threading.Lock()
+
+
+def _team_usage_cached(team_id: str) -> dict:
+    import team_usage
+    now = time.monotonic()
+    with _usage_lock:
+        hit = _usage_cache.get(team_id)
+        if hit and now - hit[0] < _USAGE_TTL_S:
+            return hit[1]
+    val = team_usage.team_usage(team_id)
+    with _usage_lock:
+        _usage_cache[team_id] = (now, val)
+        if len(_usage_cache) > 256:
+            for k in sorted(_usage_cache, key=lambda k: _usage_cache[k][0])[:128]:
+                _usage_cache.pop(k, None)
+    return val
 DESCRIBE_TIMEOUT_S = 120.0   # tả ảnh đính kèm trước lượt thành viên (0.192.0): quá thì lượt vẫn chạy, không có mô tả
 
 
@@ -708,9 +733,8 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             pinned = [{"id": m["id"], "ts": m["ts"], "author_kind": m["author_kind"], "author_ref": m["author_ref"],
                        "content": str(m.get("content") or "")[:400]}
                       for m in deps.session_store().team_decisions(team["session_id"], PINNED_SHOWN)]
-            import team_usage
             view = api.view(team)
-            view["quality_usage"] = team_usage.team_usage(team_id)
+            view["quality_usage"] = _team_usage_cached(team_id)
             return {"ok": True, "team": view, "typing": api.teams().active_turns(team_id), "pinned": pinned}
         return await api.io(_do)
 

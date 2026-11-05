@@ -679,7 +679,7 @@
           <div class="rail-grp-items">
             <template x-for="it in g.items" :key="it.id">
               <button class="rail-item" :class="{ active: $store.nav.active === it.id }"
-                      @click="$store.nav.go(it.id)" :title="it.label">
+                      @click="$store.nav.go(it.id)" :title="it.label" :data-page="it.id">
                 <span class="rail-ico" x-html="it.icon"></span>
                 <span class="rail-lbl" x-text="it.label"></span>
               </button>

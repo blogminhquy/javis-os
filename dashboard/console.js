@@ -547,6 +547,13 @@
     conversations: ["hoithoai"], chatbots: ["hoithoai"], usage: ["usage"], webhooks: ["webhooks"],
     tasks: ["nhiemvu"],
   };
+  // Performance (2026-11-05): pointing at (or touching) a page in the side rail starts loading that page's code, so by the
+  // time the click lands it is usually there. Costs nothing on a group that is already loaded.
+  document.addEventListener("pointerover", (e) => {
+    const b = e.target && e.target.closest ? e.target.closest(".rail-item[data-page]") : null;
+    const nhom = b && NHOM_TRANG[b.dataset.page];
+    if (nhom && window.JavisNapCham && !window.JavisNapCham.daXong(nhom)) window.JavisNapCham.cho(nhom);
+  }, { passive: true });
   // Tab Hội thoại cần chọn khi conversations.js còn chưa nạp (navigateTo("chatbots") lúc đầu): renderPage chọn hộ sau khi nạp.
   let _tabHoiThoaiCho = "";
   // Gọi một hàm của module nạp chậm từ chỗ khác trang: chờ nhóm của nó rồi mới gọi.
