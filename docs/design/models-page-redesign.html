@@ -384,6 +384,40 @@ button { font: inherit; color: inherit; }
         <button class="act danger" data-sheet="confirm" data-for="OpenRouter"><i data-lucide="log-out"></i>Ngắt</button>
       </div>
     </div>
+
+    <div class="swap"><button><i data-lucide="arrow-up-down"></i>Đổi chỗ</button></div>
+
+    <!-- Advanced API key: several keys, each with its own address. Runs through the Anthropic-compatible route,
+         which the owner asked not to name on screen. -->
+    <div class="card" data-card="adv">
+      <div class="head">
+        <button class="grip" aria-label="Kéo để đổi thứ tự"><i data-lucide="grip-vertical"></i></button>
+        <span class="logo"><i data-lucide="key-round"></i><span class="dot on"></span></span>
+        <div class="who">
+          <div class="name">API key nâng cao <span class="kind">2 key</span></div>
+          <div class="status on"><i data-lucide="circle-check"></i>2/2 key sẵn sàng</div>
+        </div>
+        <button class="more" data-menu="adv" aria-label="Tuỳ chọn của API key nâng cao"><i data-lucide="ellipsis"></i></button>
+      </div>
+      <div class="chips">
+        <button class="chip" data-sheet="model" data-for="API key nâng cao"><i data-lucide="cpu"></i><span class="t">kimi-k2</span><i class="up" data-lucide="chevron-up"></i></button>
+        <button class="cp-eff" data-sheet="effort" data-for="API key nâng cao" data-v="off"><span class="ev">Off</span><span class="mb-caret">▾</span></button>
+        <span class="tags"><span class="badge bk">Dự phòng 3</span></span>
+      </div>
+      <ul class="accts">
+        <li class="acct"><span class="ai"><i data-lucide="key-round"></i></span>
+          <div class="at"><div class="an">Kimi</div><div class="as ok"><i data-lucide="circle-check"></i>api.moonshot.ai · ••••4c1e</div></div>
+          <button class="more" data-sheet="advkey" data-for="Kimi" aria-label="Tuỳ chọn key"><i data-lucide="ellipsis"></i></button></li>
+        <li class="acct"><span class="ai"><i data-lucide="key-round"></i></span>
+          <div class="at"><div class="an">MiniMax</div><div class="as ok"><i data-lucide="circle-check"></i>api.minimax.io · ••••90ab</div></div>
+          <button class="more" data-sheet="advkey" data-for="MiniMax" aria-label="Tuỳ chọn key"><i data-lucide="ellipsis"></i></button></li>
+      </ul>
+      <div class="acts">
+        <button class="act" data-setbg="adv"><i data-lucide="workflow"></i>Dùng cho việc nền</button>
+        <button class="act" data-sheet="advadd" data-for="API key nâng cao"><i data-lucide="plus"></i>Thêm key</button>
+        <button class="act danger" data-sheet="confirm" data-for="API key nâng cao"><i data-lucide="log-out"></i>Ngắt</button>
+      </div>
+    </div>
   </div>
 
   <div class="sec">
@@ -406,7 +440,7 @@ button { font: inherit; color: inherit; }
 
   <div class="sec">
     <button class="connect" data-sheet="connect"><span class="ci stack"><span class="logo mini" data-logo="claudecode-color"></span><span class="logo mini" data-logo="grok"></span><span class="logo mini" data-logo="gemini-color"></span></span>
-      <span><b>Kết nối thêm nhà cung cấp</b><br><span style="color:var(--text3);font-size:15px">Claude Code, Grok, Gemini, Groq và 4 nhà khác</span></span>
+      <span><b>Kết nối thêm nhà cung cấp</b><br><span style="color:var(--text3);font-size:15px">Claude Code, Grok, Gemini, Groq, API key nâng cao và 3 nhà khác</span></span>
       <i class="cc" data-lucide="chevron-up"></i></button>
   </div>
 
@@ -630,7 +664,8 @@ function paintLogos(root) { (root || document).querySelectorAll('[data-logo]:not
 const CARDS = {
   gpt: { model: "gpt-5.1-codex", name: "ChatGPT", sub: "MAIN · Gói Plus", logo: '<span class="logo" data-logo="openai"></span>', main: true, limited: true, plan: true },
   agy: { model: "claude-sonnet-4-6", name: "Antigravity", sub: "Dự phòng 1 · Gói Google", logo: '<span class="logo" data-logo="antigravity-color"></span>' },
-  or: { model: "Tự chọn model miễn phí", name: "OpenRouter", sub: "Dự phòng 2 · API key", logo: '<span class="logo" data-logo="openrouter"></span>', keys: true, last: true },
+  or: { model: "Tự chọn model miễn phí", name: "OpenRouter", sub: "Dự phòng 2 · API key", logo: '<span class="logo" data-logo="openrouter"></span>', keys: true },
+  adv: { model: "kimi-k2", name: "API key nâng cao", sub: "Dự phòng 3 · 2 key", logo: '<span class="logo"><i data-lucide="key-round"></i></span>', adv: true, last: true },
 };
 const $ = (s) => document.querySelector(s);
 const ico = (n) => `<i data-lucide="${n}"></i>`;
@@ -665,6 +700,7 @@ function cardMenu(id) {
     ${c.last ? "" : mi("arrow-down", "Xuống một bậc", "", "", 'data-toast="Đã đưa xuống."')}
   </div><div class="grp">
     ${c.keys ? mi("key-round", "Thêm key", "Hết lượt key này thì Javis dùng key kế", "", 'data-sheet="addkey" data-for="' + c.name + '"') : ""}
+    ${c.adv ? mi("key-round", "Thêm key", "Key của nhà khác, mỗi key một địa chỉ", "", 'data-sheet="advadd" data-for="' + c.name + '"') : ""}
     ${c.plan ? mi("user-plus", "Thêm tài khoản", "Đăng nhập thêm một tài khoản cùng gói", "", 'data-sheet="addacc" data-for="' + c.name + '"') : ""}
     ${mi("refresh-cw", "Kiểm tra lại", "Chạy thử một lượt thật", "", 'data-toast="' + c.name + ' dùng được."')}
   </div><div class="grp">
@@ -685,6 +721,18 @@ const SHEETS = {
     ${mi("key-round", "Thay key mới", "Dán key mới, tên và thứ tự giữ nguyên", "", 'data-sheet="addkey" data-for="' + who + '"')}
     ${mi("arrow-up", "Lên một bậc", "", "", 'data-toast="Đã đưa lên."')}
     </div><div class="grp">${mi("trash-2", "Xoá key", "", "danger", 'data-sheet="confirm" data-for="' + who + '"')}</div>`],
+  advkey: (who) => [head(who, "API key nâng cao"), `<div class="grp">
+    ${mi("pause", "Tạm tắt key này", "Javis bỏ qua key này cho tới khi bật lại", "", 'data-toast="Đã tắt key."')}
+    ${mi("pencil", "Sửa tên, địa chỉ hoặc key", "", "", 'data-sheet="advadd" data-for="' + who + '"')}
+    ${mi("cpu", "Tên model của key này", "Khi nhà đó không tự liệt kê model", "", 'data-toast="Đã lưu tên model."')}
+    ${mi("arrow-up", "Lên một bậc", "", "", 'data-toast="Đã đưa lên."')}
+    </div><div class="grp">${mi("trash-2", "Xoá key", "", "danger", 'data-sheet="confirm" data-for="' + who + '"')}</div>`],
+  advadd: (who) => [head(who === "API key nâng cao" ? "Thêm key" : "Sửa key", who), `<input class="field" placeholder="Tên gợi nhớ, ví dụ: Kimi">
+    <input class="field" inputmode="url" placeholder="Địa chỉ API của nhà cung cấp (https://...)">
+    <input class="field" type="password" placeholder="Dán API key">
+    <input class="field" placeholder="Tên model (không bắt buộc)">
+    <div class="offnote" style="margin:0 0 12px">${ico("info")}<span>Dùng được key của các bên bán lại Claude, Kimi, MiniMax, DeepSeek và nhiều nhà khác. Javis thử kết nối trước khi lưu.</span></div>
+    <div class="btns"><button class="btn" data-close>Huỷ</button><button class="btn pri" data-toast="Đã kết nối và lưu key.">${ico("check")}Kết nối</button></div>`],
   addkey: (who) => [head("Thêm key", who), `<input class="field" placeholder="Tên gợi nhớ (không bắt buộc)">
     <input class="field" type="password" placeholder="Dán API key">
     <div class="btns"><button class="btn" data-close>Huỷ</button><button class="btn pri" data-toast="Đã thêm key.">${ico("check")}Lưu</button></div>`],
@@ -696,8 +744,10 @@ const SHEETS = {
   connect: () => [head("Kết nối thêm", "8 nhà chưa kết nối"), [["claudecode-color", "Claude Code", "Gói Claude Pro hoặc Ultra"],
     ["grok", "Grok Build", "Gói SuperGrok hoặc X Premium+"], ["gemini-color", "Google Gemini", "API key"], ["groq", "Groq", "API key, trả lời rất nhanh"],
     ["deepseek-color", "DeepSeek", "API key"], ["ollama", "Ollama Cloud", "API key"], ["openai", "OpenAI Compatible", "Địa chỉ riêng"],
-    ["anthropic", "Anthropic Compatible", "Địa chỉ riêng"]]
-    .map(x => `<button class="mi" data-toast="Mở hướng dẫn kết nối ${x[1]}."><span class="mic logo" data-logo="${x[0]}"></span><span class="mt">${x[1]}<span class="ms">${x[2]}</span></span></button>`).join("")],
+    ["adv", "API key nâng cao", "Cắm key của nhà khác, mỗi key một địa chỉ"]]
+    .map(x => x[0] === "adv"
+      ? `<button class="mi" data-sheet="advadd" data-for="API key nâng cao"><span class="mic logo">${ico("key-round")}</span><span class="mt">${x[1]}<span class="ms">${x[2]}</span></span></button>`
+      : `<button class="mi" data-toast="Mở hướng dẫn kết nối ${x[1]}."><span class="mic logo" data-logo="${x[0]}"></span><span class="mt">${x[1]}<span class="ms">${x[2]}</span></span></button>`).join("")],
 };
 let BG = "gpt";
 // Mark the card that runs background work, hide its "Use for background work" button, and show its model in the
