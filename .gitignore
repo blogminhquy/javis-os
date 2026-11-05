@@ -60,6 +60,7 @@ server/packs.json*
 server/packs-state/
 server/packs-staging/
 server/packs-store-cache.json
+server/plan-names-cache.json
 # Artifact chạy của các bản 0.5x: trạng thái hội thoại, chỉ mục bộ nhớ, và prompt Antigravity
 # ghi ra để gỡ lỗi. Sinh ra lúc chạy nên không thuộc về repo lẫn image.
 server/conversation_state.db*
