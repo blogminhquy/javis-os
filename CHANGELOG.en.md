@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.482.0] - 2026-11-05
+### Added
+- **OpenAI Compatible takes several keys.** This is the advanced API key route: each key has its own address (NVIDIA Build, Kimi, OpenRouter, LiteLLM...), Javis reads each gateway's model list, and when the key in use runs out it moves to the next one. A gateway that lists no models opens a box for the model name.
+### Fixed
+- **The Claude Compatible card is back.** Version 0.477.0 renamed it "Advanced API key", so the Claude Compatible route disappeared. It is its own card again, still with several keys, and saved keys are kept.
+
 ## [0.481.9] - 2026-11-05
 ### Fixed
 - **Dictation on Android no longer repeats like "I I am I am learning".** Some Android phones resend the whole sentence each time they hear one more word, and Javis used to append every draft. Only the latest sentence is kept now.
