@@ -105,6 +105,11 @@ adv_keys.save_list(m, AC, [{"id": b["id"]}])
 check("a gateway missing from a stale page is kept", len(adv_keys.gateways(m, AC)) == 2)
 adv_keys.save_list(m, AC, [{"id": b["id"]}], removed=[a["id"]])
 check("a removed gateway goes with its key", len(adv_keys.gateways(m, AC)) == 1 and a["id"] not in m["account_keys"])
+_k = adv_keys.add(m, AC, "Moved", "https://old.example.com/anthropic", "sk-old-7777", ["x"])
+adv_keys.update(m, AC, _k["id"], base="https://new.example.com/anthropic", key="")
+check("a new address with no key typed drops the old key (never sent to the new host)",
+      next(g for g in adv_keys.gateways(m, AC) if g["id"] == _k["id"])["key"] == "" and _k["id"] not in m["account_keys"])
+adv_keys.save_list(m, AC, [], removed=[_k["id"]])
 check("edit keeps the key when none is typed", adv_keys.update(m, AC, b["id"], label="MM", base=None, key="", models=None)
       and adv_keys.gateways(m, AC)[0]["key"] == "sk-mm-90ab" and adv_keys.gateways(m, AC)[0]["label"] == "MM")
 

@@ -184,7 +184,10 @@ def update(m: dict, prov: str, gid: str, label=None, base=None, key=None, models
             if label is not None:
                 g["label"] = str(label).strip() or g["label"]
             if base is not None:
-                g["base"] = norm_base(prov, base)
+                nb = norm_base(prov, base)
+                if nb != g["base"] and not key:
+                    g["key"] = ""   # a saved key belongs to its old address: never carry it to a new one
+                g["base"] = nb
             if key:
                 g["key"] = str(key)
             if models is not None:
