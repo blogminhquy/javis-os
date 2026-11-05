@@ -2264,6 +2264,7 @@
   "crender.ios_dl_fail": "iPhone chưa tải được file này. Dùng nút Copy để lấy nội dung nhé.",
   "fedit.read_err": "Không đọc được file.",
   "fedit.open_tab": "Mở tab mới",
+  "fedit.dl_tap_again": "Bấm Tải về lần nữa để lưu file.",
   "fedit.save_title": "Lưu (Ctrl+S)",
   "fedit.tab_source": "Nguồn",
   "mpick.pin": "ghim",
