@@ -8,6 +8,17 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.477.0] - 2026-11-05
+### Added
+- **A new Models page in the Tasks page's style.** Each card shows the provider's real logo, a row of icon buttons (Use for background work, Check, Add an account or key, Disconnect) and a ⋯ button that opens a pull-up sheet with every action. The card that runs background work carries a BACKGROUND badge.
+- **Advanced API key.** Plug in keys from different sellers (Kimi, MiniMax, Claude resellers...), each with its own address. When the key in use runs out, Javis moves to the next key.
+- **Antigravity gets Disconnect, and extra Google accounts** on Linux machines or a VPS, used in turn when one runs out.
+### Fixed
+- **A Google plan out of quota now hands the chat to another card.** Javis did not mark Antigravity as out of quota, so it kept running it and said "no other brain is connected" while ChatGPT was signed in.
+- **Choosing ChatGPT runs ChatGPT.** An old out-of-quota mark no longer pulls the chat back to Google: the card you choose is tried, and a resting card shows until when, with Use again now.
+### Improved
+- **No more drop-down menus.** The model picker, effort (the same slider, with its Fast mode bolt), each key's menu, the add forms and the Disconnect question are pull-up sheets. Claude plans read Pro and Ultra.
+
 ## [0.476.1] - 2026-11-05
 ### Fixed
 - **PDFs no longer trap you on iPhone and iPad.** In the home screen app, tapping a PDF link in chat used to cover all of Javis with the PDF, with no way back and no download button, so the app had to be closed. The PDF now opens in a viewer inside Javis: a close button, the back gesture closes it, and Download opens the share sheet to save it to Files or send it on.
