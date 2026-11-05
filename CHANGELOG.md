@@ -6,6 +6,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.481.1] - 2026-11-05
+### Cải thiện
+- **Mục tự thêm vào menu linh vật giờ có nút ✕ để xóa hẳn.** Sáu mục mặc định vẫn giữ nút con mắt để ẩn hiện, không xóa được, nên lúc nào cũng đưa menu về như cũ được.
+- **"Trợ lý" trong menu linh vật đổi thành "Cộng sự"**, đúng tên trang nó mở.
+
+## [0.481.0] - 2026-11-05
+### Thêm mới
+- **Skill hệ thống mới `security-audit`.** Javis giờ có sẵn quy trình rà soát bảo mật của Cloudflare trong mọi brain: hỏi nhanh về bảo mật thì chỉ dùng phần liên quan, còn bảo "audit bảo mật repo này" thì chạy đủ 6 bước (dò kiến trúc, săn lỗi theo vùng, kiểm chứng độc lập từng lỗi, xuất báo cáo kèm cách sửa). Giấy phép MIT, ghi nguồn đầy đủ.
+
+## [0.480.1] - 2026-11-05
+### Sửa lỗi
+- **Gắn sao trước cho việc ngày mai được rồi.** Sao ưu tiên giờ tính theo ngày của chính việc đó: mỗi ngày tối đa 3 sao riêng, sao của hôm nay không còn chặn việc gắn sao cho ngày mai, và gắn sao việc ngày mai thì việc vẫn nằm ở ngày mai (trước đây bị kéo về hôm nay). Chỉ việc chưa có ngày hoặc đã quá hạn mới được đưa về hôm nay khi gắn sao.
+
 ## [0.480.0] - 2026-11-05
 ### Cải thiện
 - **Trò chuyện đứng riêng ở dòng đầu thanh bên**, luôn hiện sẵn, không phải mở nhóm Bộ não mới thấy.

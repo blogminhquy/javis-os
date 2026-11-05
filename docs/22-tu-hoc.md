@@ -77,7 +77,7 @@ Khi hội thoại cho thấy một skill, agent hay workflow **đang có** làm 
 
 Riêng **skill** có thêm hai rào nữa, vì hai đường hỏng này không tồn tại với agent và workflow:
 
-- **Skill hệ thống là cấm.** `javis-builder`, `ingest-source`, `query-wiki`, `lint-wiki`, `notes`, `html-to-webcake` do app ship và tự cập nhật theo bản mới. Sửa một cái là bản đó thành của bạn và app ngừng cập nhật đè lên, tức bạn mất im lặng một năng lực mặc định.
+- **Skill hệ thống là cấm.** `javis-builder`, `ingest-source`, `query-wiki`, `lint-wiki`, `notes`, `html-to-webcake`, `security-audit` do app ship và tự cập nhật theo bản mới. Sửa một cái là bản đó thành của bạn và app ngừng cập nhật đè lên, tức bạn mất im lặng một năng lực mặc định.
 - **Skill bạn đã tắt là cấm.** Sửa nó chẳng khác gì bật lại thứ bạn cố ý tắt.
 
 Ngoài ra vòng học chỉ được đổi phần chuyên môn: tên hiển thị, nhóm, trạng thái, ngày tạo và mọi field lạ bạn tự thêm vào frontmatter đều giữ nguyên. Bỏ trống mô tả nghĩa là "không đụng", không phải "xoá". Việc ghi đè này có bốn rào, tất cả đều do code ép chứ không phải dặn bằng lời:

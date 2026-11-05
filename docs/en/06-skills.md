@@ -63,7 +63,7 @@ The fix: turn off skills you do not use so the 20 router slots go to the ones yo
 
 Javis has 2 kinds of skill:
 
-- **System skills** (cards labelled "system"): default Javis OS features, currently 6:
+- **System skills** (cards labelled "system"): default Javis OS features, currently 7:
 
   | Slug | What it does |
   |---|---|
@@ -73,6 +73,7 @@ Javis has 2 kinds of skill:
   | `lint-wiki` | Audit wiki health and return a list of issues |
   | `notes` | Save the current message verbatim into `sources/` (images included), distilling it into the wiki when it deserves it |
   | `html-to-webcake` | Turn an HTML page into a `.pke` file that opens in the Webcake page builder |
+  | `security-audit` | Security review of source code using Cloudflare's workflow: evidence-backed findings, independent verification, a report with fixes |
 
   The originals live in the app installation folder, not in the brain, so they are **present in every brain** and **update themselves when you update Javis OS**. They cannot be deleted from the dashboard (deleting the files by hand only makes them reinstall on the next start); to stop using one, **disable** it like any skill, and that disabled state survives every update.
 - **Your skills**: created with + Skill, through chat, imported from a `.zip`, or proposed by the Self-learning page. These are brain data: switching brains switches the skill set, and app updates never touch them.

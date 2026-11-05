@@ -44,6 +44,15 @@ check("nothing done today is never clean", !p.clean);
 
 p = calc([task({ date: today, star: true }), task({ date: today, star: true, status: "done", done_at: at(4) }), task({ date: "2026-11-05", star: true })]);
 check("only today's starred tasks are priorities", p.star.length === 2 && p.starDone === 1);
+// A star belongs to its task's day (2026-11-05): tomorrow's stars have their own slots and never fill today's.
+{
+  const tm = "2026-11-05", ts = [task({ date: today, star: true }), task({ date: today, star: true }), task({ date: today, star: true }),
+    task({ date: tm, star: true }), task({ date: tm }), task({ date: yd, star: true })];
+  const me = M.mineModel(store(ts), today, "10:00");
+  check("three stars today fill today only", M.starsOn(me, today).length === 3);
+  check("tomorrow counts its own stars", M.starsOn(me, tm).length === 1);
+  check("a past day's star is not today's", M.pulseCalc(me, store(ts), today).star.length === 3);
+}
 const hb = task({ title: "Read", date: "2026-10-01", repeat: { unit: "day", n: 1 }, habit: { start: "2026-10-01", remind: "auto" } });
 p = calc([hb]);
 check("habits are not tasks of the day, they have their own tile", p.today.length === 0 && p.hDue === 1 && p.hDone === 0);

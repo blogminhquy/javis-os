@@ -8,6 +8,19 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.1] - 2026-11-05
+### Improved
+- **Items you added to the mascot menu now have an ✕ to remove them.** The six default items keep their eye to hide or show and cannot be removed, so the menu can always go back to how it was.
+- **"Assistants" in the mascot menu is now "Partners"**, the name of the page it opens.
+
+## [0.481.0] - 2026-11-05
+### Added
+- **New `security-audit` system skill.** Every brain now ships Cloudflare's security review workflow: a quick security question uses only the relevant part, while "security audit this repo" runs all six phases (architecture recon, hunting by area, independent verification of each finding, a report with fixes). MIT licensed, with attribution.
+
+## [0.480.1] - 2026-11-05
+### Fixed
+- **You can star tomorrow's tasks ahead of time.** A priority star now counts for its task's own day: each day has its own 3 slots, today's stars no longer block starring tomorrow, and starring a task for tomorrow keeps it on tomorrow (it used to be pulled to today). Only an undated or overdue task is brought to today when starred.
+
 ## [0.480.0] - 2026-11-05
 ### Improved
 - **Chat now stands alone on the first row of the sidebar**, always visible, no need to open the Brain group first.
