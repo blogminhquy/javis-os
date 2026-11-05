@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.481.8] - 2026-11-05
+### Improved
+- **Opening an old chat shows faster and the device stutters less.** Bubbles rebuilt from history no longer all play the fade-in at once, which took most of the drawing time on phones. New messages still fade in.
+- **Opening a chat downloads less.** The chat view no longer fetches stored tool details it never shows, up to 70% less on some chats.
+- **The Teams page asks for messages the moment you click,** instead of after drawing the whole page.
+
 ## [0.481.7] - 2026-11-05
 ### Security
 - **/health/loop now needs the login.** It shows error details and server paths. /health itself stays open as a liveness check.
