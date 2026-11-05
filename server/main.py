@@ -83,7 +83,7 @@ import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscri
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import model_routing   # 0.350.0: provider order, per-card model/effort, several accounts per provider
 import plan_accounts   # 0.353.0: several accounts on one subscription plan card (Codex, Grok, Claude Code)
-import adv_keys   # Advanced API key: several gateways on the Anthropic-compatible route (owner 05/11/2026)
+import adv_keys   # gateway lists: Advanced API key (OpenAI route) and Claude Compatible (Anthropic route)
 import mcp_store
 import mcp_client
 import mcp_catalog
@@ -1931,6 +1931,15 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
 _PROVIDER_KEY_FIELDS = tuple(p["key_field"] for p in PROVIDER_DEFS if p.get("key_field"))
 # Providers addressed by an endpoint, not by an account: one key at most, no account list (0.350.0).
 _ROUTING_SINGLE_KEY = ("openai-compat", "anthropic-compat", "ollama-local")
+
+
+def _card_label(p: dict) -> str:
+    """Name a card shows on the Models page. Owner 05/11/2026: the Anthropic-compatible route is "Claude Compatible"
+    again (0.477.0 had renamed it "Advanced API key" and the owner lost it). The advanced keys run on the
+    OpenAI-compatible card, which keeps its name. Both cards hold several keys."""
+    if p.get("id") == adv_keys.ANTHROPIC:
+        return "Claude Compatible"
+    return p.get("label") or p.get("id") or ""
 # Plan providers: their quota belongs to the account, so the background order lists each once (same rule as aux_engine).
 _ROUTING_PLAN_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli")
 
@@ -2032,18 +2041,16 @@ def _providers_view(cfg):
             # nối" cho mọi máy, kể cả máy chưa hề đặt địa chỉ - ô chọn model liền bày một nhà
             # "đã nối" mà bấm vào thì rỗng. Cùng cái bẫy đã dính với Claude/Codex (cli_found).
             configured = bool((m.get("ollama_local_endpoint") or "").strip())
-        elif p["id"] == "openai-compat":
-            configured = bool((m.get("openai_compat_base") or "").strip())
-        elif p["id"] == "anthropic-compat":
-            configured = bool(adv_keys.gateways(m))
+        elif p["id"] in adv_keys.PROVIDERS:
+            configured = bool(adv_keys.gateways(m, p["id"]))
         elif p["key_field"] is None:
             configured = True
         else:
             configured = bool(m.get(p["key_field"]))
         item = {
             "id": p["id"], "kind": p["kind"],
-            # Owner 05/11/2026: the Anthropic-compatible route is shown as "Advanced API key", never by its name.
-            "label": localefmt.chu("API key nâng cao", "Advanced API key") if p["id"] == adv_keys.PROVIDER else p["label"],
+            # Owner 05/11/2026: OpenAI Compatible and Claude Compatible are two cards, each with several keys.
+            "label": _card_label(p),
             "needs_key": p["key_field"] is not None,
             "configured": configured,
             "models": models,
@@ -2777,8 +2784,8 @@ def _route_ready(mcfg, prov) -> bool:
     if not d:
         return False
     if d.get("kind") == "api":
-        if prov == adv_keys.PROVIDER and adv_keys.gateways(mcfg):
-            return adv_keys.active(mcfg) is not None
+        if prov in adv_keys.PROVIDERS and adv_keys.gateways(mcfg, prov):
+            return adv_keys.active(mcfg, prov) is not None
         if d.get("key_field") and d["id"] not in _ROUTING_SINGLE_KEY:
             return bool(model_routing.usable_accounts(mcfg, prov, d["key_field"]))
         return bool(_provider_key(mcfg, d))
@@ -2931,14 +2938,14 @@ def _clear_pin_limit(provider: str) -> bool:
 def _note_api_limit(mcfg, prov: str, key: str, raw: str = "", seconds: float = 0.0) -> None:
     """An API key ran out of quota in a chat turn: that key rests (0.354.0), so the turn and the next ones run on the
     provider's next key, or on the next card when it has none."""
-    if prov == adv_keys.PROVIDER:
+    if prov in adv_keys.PROVIDERS:
         try:
             secs = seconds or aux_engine.cooldown_for(raw) or aux_engine.COOLDOWN_QUOTA_S
             with cfgmod._SETTINGS_LOCK:
                 cfg = cfgmod.read_settings()
-                if adv_keys.rest_and_rotate(cfg["model"], key, secs):
+                if adv_keys.rest_and_rotate(cfg["model"], prov, key, secs):
                     cfgmod.write_settings(cfg)
-                    _PROV_MODELS_CACHE.pop(adv_keys.PROVIDER, None)
+                    _PROV_MODELS_CACHE.pop(prov, None)
         except Exception as e:  # noqa: BLE001
             print(f"[routing] rest {prov}: {type(e).__name__}: {e}", file=sys.stderr)
         return
@@ -2976,10 +2983,8 @@ def _route_name(prov: str) -> str:
 def _route_account_no(mcfg, prov: str, key: str = ""):
     """(number, label) of the account a route runs on: the plan account picked now, or the API key given."""
     try:
-        if prov == adv_keys.PROVIDER:
-            lst = adv_keys.gateways(mcfg)
-            i = next((n for n, g in enumerate(lst) if key and g["key"] == key), None)
-            return (i + 1, lst[i]["label"]) if i is not None else (0, "")
+        if prov in adv_keys.PROVIDERS:
+            return adv_keys.account_no(mcfg, prov, key)
         if plan_accounts.supported(prov):
             lst = plan_accounts.accounts(mcfg, prov)
             aid = (plan_accounts.pick(mcfg, prov) or {}).get("id") if key == "" else key
@@ -3009,7 +3014,7 @@ def _chat_next_route(mcfg, failed: str, failed_key: str = "", tried=(), failed_a
             ran = failed_account or _PLAN_ACCOUNT_LAST.get(failed, plan_accounts.MAIN)
             if acc and acc["id"] != ran:
                 same = (failed, d.get("kind", "cli"), "", acc["id"])
-        elif failed == adv_keys.PROVIDER:
+        elif failed in adv_keys.PROVIDERS:
             m2 = cfgmod.read_settings().get("model") or {}   # _note_api_limit just switched the gateway on disk
             key = _provider_key(m2, d) if _route_ready(m2, failed) else ""
             if key and key != failed_key:
@@ -4537,7 +4542,7 @@ def _api_label(prov):
     return {"openrouter": "OpenRouter", "openai": "OpenAI", "anthropic-api": "Anthropic API",
             "openai-oauth": "ChatGPT (OAuth)", "gemini": "Google Gemini",
             "groq": "Groq", "deepseek": "DeepSeek", "ollama": "Ollama",
-            "openai-compat": "OpenAI Compatible", "anthropic-compat": "Anthropic Compatible"}.get(prov, prov)
+            "openai-compat": "OpenAI Compatible", "anthropic-compat": "Claude Compatible"}.get(prov, prov)
 
 def _reasoning_level(mcfg):
     r = (mcfg or {}).get("reasoning", "off")
@@ -6173,9 +6178,10 @@ def settings_get():
                "resting_until": model_routing.resting_until(pid, a["id"])}
               for a in model_routing.accounts(cfg["model"], pid, kf)]
         for pid, kf in _routing_key_fields().items() if model_routing.accounts(cfg["model"], pid, kf)}
-    if adv_keys.gateways(cfg["model"]):   # Advanced API key: its gateways, key cut to the last 4 characters
-        safe["model"]["accounts"][adv_keys.PROVIDER] = adv_keys.view(cfg["model"])
-    safe["model"].pop(adv_keys.FIELD, None)
+    for _gp in adv_keys.PROVIDERS:   # Advanced API key / Claude Compatible: gateways, key cut to the last 4 characters
+        if adv_keys.gateways(cfg["model"], _gp):
+            safe["model"]["accounts"][_gp] = adv_keys.view(cfg["model"], _gp)
+        safe["model"].pop(adv_keys.field(_gp), None)
     for pid in plan_accounts.KIND:   # plan cards: account 1 plus any extra account (0.353.0)
         try:
             safe["model"]["accounts"][pid] = plan_accounts.view(cfg["model"], pid)
@@ -6350,15 +6356,11 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 if d["id"] not in _ROUTING_SINGLE_KEY:
                     model_routing.save_accounts(m, d["id"], [], d["key_field"])
                 model_routing.drop_from_order(m, d["id"])
-                if patch["clear_key"] == "openai-compat":
-                    m["openai_compat_base"] = ""
-                    _PROV_MODELS_CACHE.pop("openai-compat", None)
-                if patch["clear_key"] == "anthropic-compat":
-                    m["anthropic_compat_base"] = ""
-                    m["anthropic_compat_models"] = []
-                    adv_keys.save_list(m, [], removed=[g["id"] for g in adv_keys.gateways(m)])
-                    m[adv_keys.FIELD] = []
-                    _PROV_MODELS_CACHE.pop("anthropic-compat", None)
+                if patch["clear_key"] in adv_keys.PROVIDERS:   # every gateway of the card goes
+                    adv_keys.forget(m, patch["clear_key"])
+                    if patch["clear_key"] == "openai-compat":
+                        m.setdefault("catalog", {}).pop("openai-compat", None)
+                    _PROV_MODELS_CACHE.pop(patch["clear_key"], None)
                 if _effective_main(cfg).get("provider") == patch["clear_key"]:
                     _set_main_model(cfg, "anthropic-cli", m.get("claude_model") or "opus")
         # Gói Claude Code xác thực bằng gì: phiên subscription sẵn có, hay API key riêng.
@@ -6402,10 +6404,12 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 _sync_legacy_engine(m)
                 if ids[0] != _was_main:
                     _clear_pin_limit(ids[0])   # a card moved to the top on purpose is tried, not skipped
-        if isinstance(patch.get("adv_keys"), dict):   # Advanced API key: order, on/off, names, removal
+        if isinstance(patch.get("adv_keys"), dict):   # gateway list of a card: order, on/off, names, removal
             ak = patch["adv_keys"]
-            adv_keys.save_list(m, ak.get("items") or [], removed=ak.get("removed") or [])
-            _PROV_MODELS_CACHE.pop(adv_keys.PROVIDER, None)
+            gp = str(ak.get("provider") or adv_keys.ANTHROPIC)   # a page from 0.477.0 sends no provider
+            if gp in adv_keys.PROVIDERS:
+                adv_keys.save_list(m, gp, ak.get("items") or [], removed=ak.get("removed") or [])
+                _PROV_MODELS_CACHE.pop(gp, None)
         if isinstance(patch.get("profile"), dict):
             pp = patch["profile"]
             pid = str(pp.get("provider") or "")
@@ -21282,62 +21286,104 @@ async def ollama_local_set_endpoint(endpoint: str = Form(""), key: str = Form(No
 
 @app.post("/provider/openai-compat/connect")
 async def openai_compat_connect(request: Request):
-    """Lưu Base URL + key của provider OpenAI Compatible SAU KHI gọi thử {base}/models.
+    """Add or edit one gateway of the Advanced API key card (OpenAI-compatible route), AFTER checking it.
 
-    Các provider API khác lưu key không kiểm, nhưng ở đây URL cũng do người dùng gõ: lưu bừa
-    thì thẻ báo "Đã kết nối" với key sai, rồi hiện danh sách model cũ còn nhớ như thể thật.
-    Key để trống = dùng lại key đang lưu (ô key chỉ để ĐỔI key)."""
+    Owner 05/11/2026: the Advanced card runs on the OpenAI format, so the seller's own list ({base}/models) fills the
+    model picker and nobody has to type a model name. The URL is typed by the owner, so saving blind would show
+    "Connected" with a wrong key: Javis calls {base}/models first, and for a seller with no list it sends one tiny
+    /chat/completions request (max_tokens 1) with the model typed in the box that then opens.
+    `id` edits that gateway, `add` appends one; a page from before (neither) edits the only gateway it knows.
+    A blank key reuses the saved one, for the same gateway and URL only; a gateway may have no key at all (a server
+    on the owner's own machine)."""
     import httpx
     data = await request.json()
-    base = str(data.get("base") or "").strip().rstrip("/")
-    if base.endswith("/chat/completions"):
-        base = base[: -len("/chat/completions")]
+    base = adv_keys.norm_base(adv_keys.OPENAI, data.get("base"))
     if not base.lower().startswith(("http://", "https://")):
         return {"ok": False, "error": localefmt.chu("Base URL phải bắt đầu bằng http:// hoặc https://",
                                                     "Base URL must start with http:// or https://")}
-    cfg = cfgmod.read_settings()
-    m = cfg.setdefault("model", {})
+    typed_in = data.get("models")
+    if isinstance(typed_in, str):
+        typed_in = re.split(r"[,\n]+", typed_in)
+    typed = _gop_giu_thu_tu([str(x).strip() for x in (typed_in or []) if str(x).strip()])
+    m = cfgmod.read_settings().get("model") or {}
+    gid = str(data.get("id") or "").strip()
+    gws = adv_keys.gateways(m, adv_keys.OPENAI)
+    if not gid and not data.get("add") and len(gws) == 1:
+        gid = gws[0]["id"]
+    old = next((g for g in gws if g["id"] == gid), None)
+    if gid and not old:
+        return {"ok": False, "error": localefmt.chu("Không tìm thấy key này nữa, tải lại trang.",
+                                                    "This key is gone, reload the page.")}
     # A blank input reuses the secret only for the same endpoint. Reusing it for another URL
     # would send that secret to the new host during the validation request below.
-    old_base = str(m.get("openai_compat_base") or "").strip().rstrip("/")
     key = str(data.get("key") or "").strip()
-    if not key and base == old_base:
-        key = m.get("openai_compat_key") or ""
+    if not key and old and base == old["base"]:
+        key = old["key"]
+    headers = {"Authorization": f"Bearer {key or 'none'}"}
+    live, why = [], ""
     try:
         async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(base + "/models", headers={"Authorization": f"Bearer {key or 'none'}"})
+            r = await c.get(base + "/models", headers=headers)
+        if r.status_code in (401, 403):
+            return {"ok": False, "error": localefmt.chu(f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì.",
+                                                        f"Invalid API key (HTTP {r.status_code}). Nothing was saved.")}
+        if r.status_code == 200:
+            try:
+                body = r.json()
+                rows = body.get("data") if isinstance(body, dict) else body
+                live = sorted({x.get("id") for x in (rows or []) if isinstance(x, dict) and x.get("id")})
+            except Exception:
+                live = []
+        else:
+            why = f"HTTP {r.status_code}"
     except Exception as e:
-        return {"ok": False, "error": localefmt.chu(f"Không gọi được {base}/models ({type(e).__name__}). "
-                                                    "Kiểm tra lại Base URL.",
-                                                    f"Could not reach {base}/models ({type(e).__name__}). "
-                                                    "Check the Base URL.")}
-    if r.status_code in (401, 403):
-        return {"ok": False, "error": localefmt.chu(f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì.",
-                                                    f"Invalid API key (HTTP {r.status_code}). Nothing was saved.")}
-    if r.status_code == 404:
-        return {"ok": False, "error": localefmt.chu(f"Không thấy {base}/models (HTTP 404). Base URL phải tính tới "
-                                                    "/v1, ví dụ https://api.example.com/v1.",
-                                                    f"{base}/models not found (HTTP 404). The Base URL must include "
-                                                    "/v1, for example https://api.example.com/v1.")}
-    if r.status_code != 200:
-        return {"ok": False, "error": localefmt.chu(f"Endpoint trả HTTP {r.status_code}: {r.text[:160]}",
-                                                    f"Endpoint returned HTTP {r.status_code}: {r.text[:160]}")}
-    try:
-        ids = sorted(x.get("id") for x in (r.json().get("data") or [])
-                     if isinstance(x, dict) and x.get("id"))
-    except Exception:
-        ids = []
-    if not ids:
-        return {"ok": False, "error": localefmt.chu("Endpoint trả lời nhưng không có model nào - không giống "
-                                                    "endpoint chuẩn OpenAI.",
-                                                    "The endpoint answered but lists no models - it does not "
-                                                    "look like a standard OpenAI endpoint.")}
-    m["openai_compat_base"] = base
-    m["openai_compat_key"] = key
-    m.setdefault("catalog", {})["openai-compat"] = ids
-    cfgmod.write_settings(cfg)
-    _PROV_MODELS_CACHE["openai-compat"] = {"ids": ids, "ts": time.time()}
-    return {"ok": True, "models": len(ids)}
+        why = type(e).__name__
+    if not live:
+        if not typed:
+            if why and not why.startswith("HTTP"):
+                return {"ok": False, "error": localefmt.chu(f"Không gọi được {base}/models ({why}). Kiểm tra lại Base URL.",
+                                                            f"Could not reach {base}/models ({why}). Check the Base URL.")}
+            # The box for model names stays hidden until a seller turns out to list none (same rule as Claude
+            # Compatible): this reply opens it.
+            return {"ok": False, "need_models": True, "suggest": [],
+                    "error": localefmt.chu(
+                        "Cổng này không tự báo danh sách model. Gõ tên model bên bán cho dùng ở ô vừa hiện ra, rồi bấm "
+                        "Kết nối lại. Nếu bên bán có danh sách model, kiểm tra Base URL đã có /v1 chưa "
+                        "(ví dụ https://integrate.api.nvidia.com/v1).",
+                        "This gateway does not list its models. Type the model the seller gave you in the box that "
+                        "just appeared, then press Connect again. If the seller does list models, check that the Base "
+                        "URL ends with /v1 (for example https://integrate.api.nvidia.com/v1).")}
+        url = base + "/chat/completions"
+        payload = {"model": typed[0], "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]}
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(45, connect=15)) as c:
+                r = await c.post(url, headers=headers, json=payload)
+        except Exception as e:
+            return {"ok": False, "error": localefmt.chu(f"Không gọi được {url} ({type(e).__name__}). Kiểm tra lại Base URL.",
+                                                        f"Could not reach {url} ({type(e).__name__}). Check the Base URL.")}
+        if r.status_code in (401, 403):
+            return {"ok": False, "error": localefmt.chu(f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì.",
+                                                        f"Invalid API key (HTTP {r.status_code}). Nothing was saved.")}
+        if r.status_code == 404:
+            return {"ok": False, "error": localefmt.chu(f"Không thấy {url} (HTTP 404). Base URL phải tính tới /v1, "
+                                                        "ví dụ https://api.example.com/v1.",
+                                                        f"{url} not found (HTTP 404). The Base URL must include /v1, "
+                                                        "for example https://api.example.com/v1.")}
+        if r.status_code not in (200, 429, 529):   # 429/529: key and model accepted, the gateway is only busy
+            return {"ok": False, "error": localefmt.chu(f"Cổng trả HTTP {r.status_code} khi thử model {typed[0]}: {r.text[:160]}",
+                                                        f"The gateway returned HTTP {r.status_code} for model {typed[0]}: {r.text[:160]}")}
+    ids = _gop_giu_thu_tu(typed, live)
+    label = str(data.get("label") or "").strip()
+    with cfgmod._SETTINGS_LOCK:
+        cfg = cfgmod.read_settings()
+        m = cfg.setdefault("model", {})
+        if old and adv_keys.update(m, adv_keys.OPENAI, old["id"], label=label or None, base=base, key=key, models=ids):
+            g_id = old["id"]
+        else:
+            g_id = adv_keys.add(m, adv_keys.OPENAI, label, base, key, ids)["id"]
+        cfgmod.write_settings(cfg)
+    _PROV_MODELS_CACHE.pop("openai-compat", None)
+    return {"ok": True, "models": len(ids), "listed": bool(live), "id": g_id}
 
 
 @app.post("/provider/anthropic-compat/connect")
@@ -21362,10 +21408,10 @@ async def anthropic_compat_connect(request: Request):
     typed = _gop_giu_thu_tu([str(x).strip() for x in (typed_in or []) if str(x).strip()])
     cfg = cfgmod.read_settings()
     m = cfg.setdefault("model", {})
-    # Advanced API key (owner 05/11/2026): `id` edits one gateway of the list, no `id` adds a gateway. A page from
-    # before (no `id`, no list yet) edits the one gateway it knows.
+    # Claude Compatible keeps a list of gateways (0.477.0): `id` edits one, `add` appends one. A page from before
+    # (no `id`, no list yet) edits the one gateway it knows.
     gid = str(data.get("id") or "").strip()
-    gws = adv_keys.gateways(m)
+    gws = adv_keys.gateways(m, adv_keys.ANTHROPIC)
     if not gid and not data.get("add") and len(gws) == 1:
         gid = gws[0]["id"]
     old = next((g for g in gws if g["id"] == gid), None)
@@ -21429,10 +21475,10 @@ async def anthropic_compat_connect(request: Request):
     with cfgmod._SETTINGS_LOCK:
         cfg = cfgmod.read_settings()
         m = cfg.setdefault("model", {})
-        if old and adv_keys.update(m, old["id"], label=label or None, base=base, key=key, models=ids):
+        if old and adv_keys.update(m, adv_keys.ANTHROPIC, old["id"], label=label or None, base=base, key=key, models=ids):
             g_id = old["id"]
         else:
-            g_id = adv_keys.add(m, label, base, key, ids)["id"]
+            g_id = adv_keys.add(m, adv_keys.ANTHROPIC, label, base, key, ids)["id"]
         cfgmod.write_settings(cfg)
     _PROV_MODELS_CACHE.pop("anthropic-compat", None)
     return {"ok": True, "models": len(ids), "listed": bool(live), "id": g_id}
@@ -24615,7 +24661,7 @@ _TG_NHAN_NGAN = {
     "deepseek": "DeepSeek",
     "ollama": "Ollama",
     "openai-compat": "OpenAI Compat",
-    "anthropic-compat": "Anthropic Compat",
+    "anthropic-compat": "Claude Compat",
 }
 _TG_MODEL_LISTS = {}   # provider -> list model id ĐÃ render (index nút ổn định khi bấm)
 _TG_PAGE = 8           # model mỗi trang (lưới 2 cột x 4 hàng)

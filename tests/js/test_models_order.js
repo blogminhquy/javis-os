@@ -115,9 +115,10 @@ check("the Effort sheet carries the composer's Fast mode bolt, one app-wide sett
 check("Connect another provider opens a sheet and brings the picked card into view",
   /menuSheet\(more, t\("models\.connect_more"\)/.test(B) && /data-offp=/.test(CL) && /ord-flash/.test(B));
 check("the Swap button sits in the middle of the gap", /\.ord-swap-row \{ display: flex; align-items: center; justify-content: center; margin: 4px 0; \}/.test(D("console.css")));
-check("Advanced API key: a list of gateways, added and edited in a sheet, never named Anthropic Compatible on screen",
-  /data-dnd="adv:/.test(CL) && /const advSheet = /.test(B) && /\/provider\/anthropic-compat\/connect/.test(B)
-  && !/Anthropic Compatible/.test(VI["models.adv_note"] + VI["models.adv_add_note"]));
+check("OpenAI Compatible (advanced keys) and Claude Compatible: two cards, each a list of gateways",
+  /data-dnd="adv:/.test(CL) && /const advSheet = /.test(B) && /"\/provider\/" \+ ADV \+ "\/connect"/.test(B)
+  && /const GW_CARDS = \["openai-compat", "anthropic-compat"\]/.test(JS)
+  && /adv_keys: \{ provider: ADV,/.test(B) && /\/v1/.test(VI["models.adv_add_note"]) && !!VI["models.ac_add_note"]);
 check("an extra Antigravity account signs in through a command for the Terminal page",
   /const agySheet = /.test(B) && /r\.terminal/.test(B) && /JavisNav\.go\("terminal"\)/.test(B));
 // ---- 2d. a card's ⋯ and Disconnect for every card (owner 05/11/2026) ----
