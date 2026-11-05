@@ -44,6 +44,101 @@
       "default_perm": "readonly",
       "risk": "Composio là cổng đa ứng dụng: mọi hành động lên app thật (đọc mail, gửi mail, sửa sheet, tạo issue...) đều chạy qua MỘT tool chung.\nJavis soi TỪNG lệnh bên trong theo tên lệnh: có động từ đọc (LIST, GET, FETCH, SEARCH...) là đọc, còn lại coi là ghi.\n\nMức Chỉ đọc: đọc dữ liệu các app đã nối (xem lịch, đọc mail, liệt kê file) và xem tài khoản đã nối. Lệnh nào không chắc là đọc thì bị chặn.\n\nMức Ghi nháp: thêm quyền nối app mới (Composio đưa link đăng nhập, bạn tự đăng nhập, Javis không thấy mật khẩu).\n\nMức Toàn quyền: Javis chạy được MỌI hành động của các app bạn đã nối qua Composio, kể cả gửi tin, sửa và xoá dữ liệu thật.\nChỉ nâng khi thật sự cần; phạm vi đúng bằng quyền bạn đã cấp cho từng app bên Composio."
     },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare",
+      "icon": "/static/logos/cloudflare.jpg",
+      "category": "Lập trình",
+      "description": "Toàn bộ API Cloudflare ngay trong chat qua MCP chính chủ: DNS, Workers, Pages, KV, R2, D1, tường lửa, SSL, cache, thống kê lưu lượng, Zero Trust. Dán API token là xong, quyền của token quyết định Javis được làm gì.",
+      "group": "cloudflare",
+      "group_line": "Dán API token: tự chọn quyền từng mảng, dùng chung được với gói Cloudflare Deploy (Wrangler).",
+      "status": "beta",
+      "transport": "http",
+      "url": "https://mcp.cloudflare.com/mcp",
+      "auth": {
+        "type": "apikey",
+        "fields": [
+          {
+            "key": "api_token",
+            "label": "API token (Cloudflare)",
+            "placeholder": "Dán API token tạo ở dash.cloudflare.com...",
+            "header": "Authorization: Bearer {api_token}"
+          },
+          {
+            "key": "account_id",
+            "label": "Account ID (tuỳ chọn)",
+            "placeholder": "Chỉ cần khi token thấy nhiều tài khoản. Lấy ở trang tổng quan Cloudflare, cột bên phải",
+            "optional": true
+          }
+        ],
+        "guide": "Làm 1 lần:\n1. Vào dash.cloudflare.com > Hồ sơ (My Profile) > API Tokens > Create Token.\n2. Muốn Javis làm được mọi việc thì chọn Create Custom Token.\nThêm quyền Edit cho những mảng bạn dùng (Zone, DNS, Workers Scripts, Pages, Workers KV, R2, D1, Firewall...) và Account Resources : Read.\nChỉ muốn xem thì chọn quyền Read.\n3. Ở Zone Resources chọn All zones hoặc đúng các tên miền cần quản lý.\n4. Muốn deploy bằng gói 'Cloudflare Deploy (Wrangler)' thì token cần thêm Workers Scripts : Edit và Cloudflare Pages : Edit.\n5. KHÔNG bật lọc theo IP (Client IP Address Filtering): MCP của Cloudflare chưa hỗ trợ token có lọc IP.\n6. Bấm tạo, copy token NGAY lúc đó (đóng là không xem lại được) rồi dán vào ô dưới. Ô Account ID chỉ cần điền khi token thấy nhiều tài khoản.\n\nToken là hàng rào thật: Javis chỉ làm được đúng những gì token cho phép. Lỡ lộ token thì vào lại trang đó bấm Roll hoặc Delete.",
+        "guide_url": "https://github.com/cloudflare/mcp#readme",
+        "steps": [
+          {
+            "text": "Mở trang API Tokens của Cloudflare rồi bấm Create Token.",
+            "link": "https://dash.cloudflare.com/profile/api-tokens",
+            "link_label": "Mở trang API Tokens"
+          },
+          {
+            "text": "Chọn Create Custom Token. Muốn toàn quyền thì cấp Edit cho các mảng bạn dùng (Zone, DNS, Workers, Pages, KV, R2, D1, Firewall) và thêm Account Resources : Read. Chỉ xem thì cấp Read."
+          },
+          {
+            "text": "Không bật lọc theo IP: MCP của Cloudflare chưa nhận token có lọc IP."
+          },
+          {
+            "text": "Copy token ngay khi hiện ra, dán vào ô bên dưới rồi bấm Kết nối.",
+            "link": "https://github.com/cloudflare/mcp#readme",
+            "link_label": "Hướng dẫn của Cloudflare"
+          }
+        ]
+      },
+      "tool_meta": {
+        "read": [
+          "docs",
+          "search"
+        ],
+        "danger": [
+          "execute"
+        ]
+      },
+      "default_perm": "readonly",
+      "risk": "MCP của Cloudflare chỉ có 3 công cụ: docs (tra tài liệu), search (tìm API cần gọi) và execute (chạy đoạn mã gọi API Cloudflare thật).\n\nexecute gọi được MỌI API mà token cho phép, từ đọc thống kê tới XOÁ tên miền, sửa DNS, deploy Worker, xoá bucket R2.\nJavis không phân biệt được một lần execute là đọc hay xoá, nên nó nằm ở nhóm nguy hiểm.\n\nMức Chỉ đọc và Ghi nháp: Javis chỉ tra tài liệu và tìm API, chưa đụng tới tài khoản.\n\nMức Toàn quyền: Javis tự thao tác thật. Sai một bản ghi DNS là website hoặc email tắt ngay, xoá Worker hay bucket là mất dữ liệu.\n\nCách an toàn nhất: muốn Javis chỉ đọc số liệu thì tạo token CHỈ CÓ quyền Read rồi mới nâng Toàn quyền. Khi đó execute có chạy cũng không sửa được gì.",
+      "thay_goi": [
+        "javis.cloudflare"
+      ]
+    },
+    {
+      "id": "cloudflare-oauth",
+      "name": "Cloudflare (đăng nhập web)",
+      "icon": "/static/logos/cloudflare.jpg",
+      "category": "Lập trình",
+      "description": "Cùng MCP chính chủ của Cloudflare nhưng không cần tạo API token: bấm Kết nối, đăng nhập Cloudflare rồi tick quyền muốn cấp ngay trên trang của Cloudflare. Quản lý DNS, Workers, Pages, KV, R2, D1, tường lửa, SSL, cache, thống kê lưu lượng.",
+      "group": "cloudflare",
+      "group_line": "Đăng nhập trên web: một chạm, không tạo token. Quyền tick lúc đăng nhập, sửa được bằng cách kết nối lại.",
+      "status": "beta",
+      "transport": "http",
+      "url": "https://mcp.cloudflare.com/mcp",
+      "auth": {
+        "type": "oauth",
+        "fields": [],
+        "guide": "Bấm Kết nối, đăng nhập tài khoản Cloudflare rồi chọn quyền muốn cấp cho Javis trên trang của Cloudflare.\n\nJavis tự đăng ký ứng dụng theo chuẩn OAuth của MCP Cloudflare, không cần tạo token hay dán key. Đây là cách Cloudflare khuyên dùng.\n\nQuyền tick lúc đăng nhập là hàng rào thật: chỉ muốn xem số liệu thì chỉ tick quyền đọc. Sau này thiếu quyền thì bấm Kết nối lại và tick thêm.\n\nTài khoản có nhiều Account Cloudflare thì nói rõ trong chat là làm trên tài khoản nào.\n\nGói Cloudflare Deploy (Wrangler) chưa dùng được kết nối này: nó cần cách Dán API token.",
+        "guide_url": "https://github.com/cloudflare/mcp#readme"
+      },
+      "tool_meta": {
+        "read": [
+          "docs",
+          "search"
+        ],
+        "danger": [
+          "execute"
+        ]
+      },
+      "default_perm": "readonly",
+      "risk": "MCP của Cloudflare chỉ có 3 công cụ: docs (tra tài liệu), search (tìm API cần gọi) và execute (chạy đoạn mã gọi API Cloudflare thật).\n\nexecute gọi được MỌI API mà quyền bạn đã cấp cho phép, từ đọc thống kê tới XOÁ tên miền, sửa DNS, deploy Worker, xoá bucket R2.\nJavis không phân biệt được một lần execute là đọc hay xoá, nên nó nằm ở nhóm nguy hiểm.\n\nMức Chỉ đọc và Ghi nháp: Javis chỉ tra tài liệu và tìm API, chưa đụng tới tài khoản.\n\nMức Toàn quyền: Javis tự thao tác thật. Sai một bản ghi DNS là website hoặc email tắt ngay, xoá Worker hay bucket là mất dữ liệu.\n\nCách an toàn nhất: muốn Javis chỉ đọc số liệu thì lúc đăng nhập CHỈ tick quyền đọc rồi mới nâng Toàn quyền. Khi đó execute có chạy cũng không sửa được gì.",
+      "thay_goi": [
+        "javis.cloudflare-oauth"
+      ]
+    },
             {
       "id": "zalo",
       "name": "Zalo Agent MCP",
