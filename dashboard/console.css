@@ -75,6 +75,9 @@ body.in-console .hud-actions { display: none; }
   transition: max-height var(--rail-anim), opacity var(--rail-anim);
 }
 .rail-group.open > .rail-grp-items { max-height: 340px; opacity: 1; padding: 2px 0 4px; }
+/* A solo group (Chat, owner 2026-11-05) has no header and never folds: its row is always on screen, first in the rail. */
+.rail-group.solo > .rail-grp-lbl { display: none !important; }
+.rail-group.solo > .rail-grp-items { max-height: none; opacity: 1; overflow: visible; padding: 0 0 4px; }
 .rail-brand {
   height: 42px; display: flex; align-items: center; justify-content: center; gap: 9px;
   color: var(--accent); font-size: 22px;
