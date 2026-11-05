@@ -73,6 +73,10 @@
   const curBrain = () => { try { return (window.JavisSessions && window.JavisSessions.brain()) || ""; } catch (e) { return ""; } };
   // Model ĐANG HIỆU LỰC cho khung chat trước mặt: ghim của phiên thắng mặc định chung.
   const effective = () => sessionPin || state.main;
+  // What the composer SHOWS (owner, 05/11/2026: "khung chat bị chuyển thì phải chuyển luôn model ở khung đang chat"): the
+  // fallback card really answering, else the chosen model. Chip, picker tick, effort lock, Fast bolt, plan ring and
+  // `/model` all follow it. The choice itself (`effective`) is kept, so the chat goes back to it once its quota returns.
+  const shown = () => (route && route.fallback ? { provider: route.provider, model: route.model || "" } : effective());
 
   async function saveModel(patch) {
     const fd = new FormData();
@@ -251,7 +255,7 @@
     const eb = $("effTxt");
     if (eb) {
       // A locked Antigravity model runs at the level in its name, so the chip shows that level.
-      const effM = effective();
+      const effM = shown();
       const own = window.JavisEffortSlider && window.JavisEffortSlider.isLocked(effM.provider, effM.model)
         ? window.JavisEffortSlider.lockedLevel(effM.model) : "";
       const lvl = agentEff ? agentEff.level : state.reasoning;
@@ -265,7 +269,7 @@
   // 0.329.0: the bolt sits in the Effort popover (effort-slider.js) and the composer button became the plan usage
   // ring (plan-limit.js). The Effort chip carries a small bolt while Fast mode is on, so it stays visible.
   function fastTitle(on) {
-    const eff = effective();
+    const eff = shown();
     const n = fastNote(eff.provider, eff.model);
     // 0.164.0: the last real state this brain reported (cooldown, provider refusal) as an extra line.
     const st = fastStates[eff.provider];
@@ -273,7 +277,7 @@
     return "Fast mode\n" + window.t(n.note) + (key ? "\n" + window.t(key, { reason: (st && st.reason) || "" }) : "");
   }
   function renderFast() {
-    const eff = effective();
+    const eff = shown();
     const on = fastNote(eff.provider, eff.model).supported && state.fast;
     const fi = $("effFast");
     if (fi) fi.hidden = !on;
@@ -309,7 +313,7 @@
   async function renderPop() {
     const pop = $("mbPop");
     if (!pop) return;
-    if (expanded == null) expanded = state.main.provider || "anthropic-cli";
+    if (expanded == null) expanded = shown().provider || state.main.provider || "anthropic-cli";
     const luot = ++luotVe;
     // Nhà nào chưa có danh sách thì vẽ khung + dòng "đang tải" NGAY, rồi vẽ lại khi mạng về
     // (o.cho). Trước đây popup mở ra trống trơn trong lúc chờ (Codex mất vài giây).
@@ -318,7 +322,7 @@
     // The assistant's model on the Studio side. The thinking level has its own chip and popover since 0.153.0.
       providers: state.providers,
       expanded, filter,
-      selected: effective(),
+      selected: shown(),   // the tick sits on the model really answering
       searchId: "mbSearch",
       short,
       mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : "") + routeTags(p.id),
@@ -368,7 +372,7 @@
     const pop = $("effPop"), btn = $("effBtn");
     if (!pop || !window.JavisEffortSlider) return;
     close(); closePlus(); closeLimit();
-    const eff = effective();
+    const eff = shown();
     pop.hidden = false;
     const locked = window.JavisEffortSlider.isLocked(eff.provider, eff.model);
     if (btn) btn.setAttribute("aria-expanded", "true");
@@ -530,7 +534,7 @@
     },
     closeAll: function () { close(); effClose(); closePlus(); },
     hienTai: function () {
-      const eff = effective();
+      const eff = shown();
       const p = state.providers.find((x) => x.id === eff.provider);
       return { label: p ? provShort(p.label) : eff.provider, model: eff.model || "" };
     },

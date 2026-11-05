@@ -76,6 +76,16 @@ check("chip: the route comes from the chat's meta, or /chat/route for an empty c
   /setRoute\(\(d && d\.route\) \|\| null\);/.test(mp) && /"\/chat\/route"/.test(mp));
 check("picking a model or following the main one reads the route again",
   (mp.match(/await refreshRoute\(\); renderBar\(\);/g) || []).length >= 2);
+// Owner, 05/11/2026: "the chat that got switched must switch its model too": everything the composer shows follows the
+// model really answering, while the owner's choice stays for when the quota returns.
+check("composer follows the running model: shown() is the fallback card, else the choice",
+  /const shown = \(\) => \(route && route\.fallback \? \{ provider: route\.provider, model: route\.model \|\| "" \} : effective\(\)\);/.test(mp));
+check("picker tick, effort lock, Fast bolt, plan ring and /model use the running model",
+  /selected: shown\(\),/.test(mp) && /const effM = shown\(\);/.test(mp)
+  && /function renderFast\(\) \{\s*const eff = shown\(\);/.test(mp) && /function fastTitle\(on\) \{\s*const eff = shown\(\);/.test(mp)
+  && /hienTai: function \(\) \{\s*const eff = shown\(\);/.test(mp) && /closeLimit\(\);\s*const eff = shown\(\);/.test(mp));
+check("the choice itself is not rewritten by a fallback (only picking a model pins one)",
+  (mp.match(/sessionPin = \{ provider:/g) || []).length === 2 && !/sessionPin = route/.test(mp) && !/saveModel\(\{ main: \{ provider: route/.test(mp));
 check("picker rows carry the route tags", /\+ routeTags\(p\.id\),/.test(mp));
 check("app.js hands each route frame to the chip and writes its line",
   /data\.type === "route"/.test(app) && /window\.JavisModelBar\.noteRoute\(sid, data\)/.test(app)
