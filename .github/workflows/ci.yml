@@ -27,11 +27,12 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Test Python chia 2 máy, mỗi máy chạy 4 file cùng lúc (0.344.0). Trước đó một máy chạy lần lượt 940 file mất ~67 phút.
+  # Test Python chia 4 máy, mỗi máy chạy 4 file cùng lúc. Lịch sử: 1 máy chạy lần lượt 940 file mất ~67 phút (trước 0.344.0);
+  # 2 máy x 4 luồng ~10-13 phút. Nay 4 máy: trần thời gian còn là file dài nhất (test_improvement_recipe_archive ~7,5 phút).
   # Máy ubuntu-latest của repo công khai có 4 nhân và miễn phí. Cách chia nằm ở tests/run.py (`--shard`, `--plan`): danh sách
-  # luôn quét từ thư mục nên test mới tự vào đúng một nhóm; tests/test_timings.json chỉ giúp hai nhóm dài bằng nhau.
+  # luôn quét từ thư mục nên test mới tự vào đúng một nhóm; tests/test_timings.json chỉ giúp các nhóm dài bằng nhau.
   python:
-    name: Test Python (nhóm ${{ matrix.shard }}/2)
+    name: Test Python (nhóm ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     # Lưới an toàn cuối: bình thường ~10-13 phút. Từng file đã có hạn 20 phút (`--timeout 1200`), nên chạm mốc này
     # nghĩa là chính tests/run.py kẹt. Thiếu dòng này thì GitHub chờ tới trần mặc định 6 tiếng (lượt 26/10 treo 52 phút).
@@ -40,7 +41,7 @@ jobs:
       # Một nhóm đỏ không huỷ nhóm kia: thấy trọn danh sách test đỏ trong một lượt.
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -108,7 +109,7 @@ jobs:
       - name: Chạy test Python (auth/secret/MCP-perm/traversal/CSRF + plugin)
         env:
           PYTHONIOENCODING: utf-8
-        run: python tests/run.py --py --shard ${{ matrix.shard }}/2 --jobs 4 --timeout 1200 -v
+        run: python tests/run.py --py --shard ${{ matrix.shard }}/4 --jobs 4 --timeout 1200 -v
 
   # Các kiểm tra vốn nằm trong job `test` cũ, ngoài test Python: byte-compile, import thật main, test JS.
   chung:
@@ -204,7 +205,7 @@ jobs:
           KQ_CHUNG: ${{ needs.chung.result }}
           KQ_CHANGELOG: ${{ needs.changelog.result }}
         run: |
-          echo "Test Python (2 nhóm): $KQ_PYTHON"
+          echo "Test Python (4 nhóm): $KQ_PYTHON"
           echo "Byte-compile, import, test JS: $KQ_CHUNG"
           echo "Changelog fragment: $KQ_CHANGELOG"
           [ "$KQ_PYTHON" = "success" ] && [ "$KQ_CHUNG" = "success" ] && [ "$KQ_CHANGELOG" = "success" ] || {
