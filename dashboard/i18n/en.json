@@ -6384,6 +6384,8 @@
   "gh.open_pr": "Open PR #{n}",
   "gh.merge": "Merge",
   "gh.merging": "Merging... You can close this, Javis keeps merging.",
+  "gh.push_again": "Push again",
+  "gh.pushing": "Pushing to GitHub again...",
   "gh.no_work": "This chat has not pushed anything to GitHub yet.",
   "gh.queue_head": "Next jobs, run once the PR is merged",
   "gh.queue_cancel": "Drop",

@@ -806,7 +806,8 @@ def prompt_block(sid: str, brain: str = "") -> str:
                  "test TÁI HIỆN lỗi trước (đỏ), sửa, rồi chạy lại đúng test đó cho xanh. KHÔNG bỏ qua, xoá hay nới "
                  "test, không sửa workflow CI để cho xanh. Sau mỗi lượt Javis tự chạy bộ kiểm tra của repo; xanh thì Javis "
                  "tự commit, đẩy lên nhánh của cuộc này, mở PR và theo dõi CI. CI đỏ thì Javis mở một lượt sửa "
-                 "kèm log, tối đa 3 vòng.")
+                 "kèm log, tối đa 3 vòng. CI xanh thì Javis tự merge nếu repo bật tự merge (mặc định bật).")
+    lines += _work_state_lines(sid, repos)
     # Spec 7.1: the repo's own rules reach every engine, not only the ones that read CLAUDE.md natively.
     # Spec 13.1: plus the lessons Javis wrote down for this repo after real failures (kept in the brain).
     try:
@@ -824,6 +825,37 @@ def prompt_block(sid: str, brain: str = "") -> str:
     except Exception:
         pass
     return "\n".join(lines) + "\n"
+
+
+def _work_state_lines(sid: str, repos: List[Dict[str, Any]]) -> List[str]:
+    """What GitHub really holds for this chat right now, read from github_work's store, never from earlier answers.
+
+    Without it the model guessed: asked to "push it" after a failed push it said it was not allowed to and offered to
+    edit code just to trigger a push (owner, 06/11/2026)."""
+    try:
+        import github_work
+        out = []
+        for r in repos:
+            row = github_work.st().get(sid, r["full_name"]) or {}
+            if not row:
+                continue
+            fn = r["full_name"]
+            if github_work.ship_failed(row):
+                out.append(f"Trạng thái {fn}: code đã commit trên máy nhưng CHƯA lên GitHub. Lý do: "
+                           f"{row.get('stuck_reason') or '?'} Không cần sửa code hay làm lại gì để đẩy: Javis tự đẩy lại "
+                           "ngay sau lượt này, định kỳ vài phút một lần, và ngay khi GitHub được kết nối lại; nút Đẩy lại "
+                           "ở bảng GitHub của cuộc này cũng được.")
+            elif row.get("pr_number"):
+                out.append(f"Trạng thái {fn}: nhánh {row.get('branch')}, PR #{row['pr_number']} {row.get('pr_url') or ''}, "
+                           f"CI {row.get('ci')}, PR {row.get('integ')}"
+                           + (f", đang kẹt: {row['stuck_reason']}" if row.get("exec") == "stuck" and row.get("stuck_reason")
+                              else "") + ".")
+        if out:
+            out.append("Người dùng bảo đẩy lên hay merge thì nói đúng trạng thái trên và việc Javis sẽ làm tiếp; KHÔNG nói "
+                       "là mình không được làm, KHÔNG bảo họ tự chạy git, KHÔNG đề nghị sửa code chỉ để kích hoạt việc đẩy.")
+        return out
+    except Exception:
+        return []
 
 
 def forget_session(sid: str) -> Dict[str, Any]:

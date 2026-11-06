@@ -6384,6 +6384,8 @@
   "gh.open_pr": "Mở PR #{n}",
   "gh.merge": "Merge",
   "gh.merging": "Đang merge... Đóng bảng này cũng được, Javis vẫn merge tiếp.",
+  "gh.push_again": "Đẩy lại",
+  "gh.pushing": "Đang đẩy lại lên GitHub...",
   "gh.no_work": "Cuộc trò chuyện này chưa đẩy gì lên GitHub.",
   "gh.queue_head": "Việc kế tiếp, làm khi PR đã merge",
   "gh.queue_cancel": "Bỏ",
