@@ -647,6 +647,36 @@ def codex_default_model() -> str:
         return ""
 
 
+def _chatgpt_main_resting() -> bool:
+    """ChatGPT account 1 is out of quota (resting, model_routing). The quick-reply brain runs on account 1's token only,
+    so while it rests the call's Basic path must not pick ChatGPT again (owner's report 06/11/2026)."""
+    try:
+        import model_routing
+        return bool(model_routing.resting_until("openai-oauth", "main"))
+    except Exception:   # noqa: BLE001
+        return False
+
+
+def _rest_chatgpt_main(ev: dict) -> None:
+    """The quick-reply brain hit the ChatGPT plan limit: account 1 rests (an hour, or the reset time the provider gave), the
+    same store chat and ChatGPT Live use, so the next call moves on instead of trying it again."""
+    try:
+        import limit_learner
+        import model_routing
+        raw = " ".join(str(ev.get(k) or "") for k in ("raw", "content", "message"))
+        lim = limit_learner.parse_subscription_limit(raw, "codex")
+        if lim is None:
+            return   # a context or rate limit, not the plan running out: nothing rests
+        reset = float(getattr(lim, "reset_epoch", 0) or 0)
+        if reset > time.time():
+            model_routing.mark_rest("openai-oauth", "main", until=reset, persist=True)
+        else:
+            model_routing.mark_rest("openai-oauth", "main", seconds=3600, persist=True)
+        _AUTO_CACHE["at"] = 0.0
+    except Exception as e:   # noqa: BLE001 - resting an account must never break a voice turn
+        print(f"[voice brain] rest chatgpt: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 class CodexVoiceBrain(VoiceBrain):
     """ChatGPT trên gói đã đăng nhập (OAuth), qua backend Codex Responses API: một HTTP stream
     mỗi lượt, không dựng tiến trình nào, nên đây là đường gói nhanh nhất. Cùng hàm
@@ -678,9 +708,11 @@ class CodexVoiceBrain(VoiceBrain):
                 if t == "text" and ev.get("content"):
                     yield ev["content"]
                 elif t == "limit_exceeded":
+                    _rest_chatgpt_main(ev)
                     raise RuntimeError(localefmt.chu("ChatGPT hết hạn mức gói cho lượt này.",
                                                       "ChatGPT plan limit reached for this turn."))
                 elif t == "error":
+                    _rest_chatgpt_main(ev)
                     raise RuntimeError(str(ev.get("content") or localefmt.chu("lỗi ChatGPT", "ChatGPT error")))
 
 
@@ -1090,7 +1122,7 @@ def plan_brain_available(pid: str, cfg: dict) -> bool:
             return bool(antigravity_cli.find_antigravity_cli())
         if pid == "codex":
             o = ((cfg or {}).get("model") or {}).get("openai_oauth") or {}
-            return bool(o.get("access_token") or o.get("refresh_token"))
+            return bool(o.get("access_token") or o.get("refresh_token")) and not _chatgpt_main_resting()
         if pid == "claude":
             import claude_cli
             import claude_sdk_engine
@@ -1118,7 +1150,7 @@ def auto_brain(cfg: dict) -> str:
     """Bộ não giọng đầu tiên đang sẵn trong PLAN_BRAINS, "" khi không có. Nhớ 60 giây: hàm chạy mỗi
     câu nói, còn dò binary là đi quét PATH."""
     o = ((cfg or {}).get("model") or {}).get("openai_oauth") or {}
-    key = bool(o.get("access_token") or o.get("refresh_token"))
+    key = (bool(o.get("access_token") or o.get("refresh_token")), _chatgpt_main_resting())
     now = time.monotonic()
     if _AUTO_CACHE["key"] == key and now - float(_AUTO_CACHE["at"]) < _AUTO_TTL:
         return str(_AUTO_CACHE["value"])

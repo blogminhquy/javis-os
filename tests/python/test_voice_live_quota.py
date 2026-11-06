@@ -200,6 +200,19 @@ async def server_checks():
 
 asyncio.run(server_checks())
 
+# ---- the Basic path's quick-reply brain does not pick an exhausted ChatGPT ----
+import voice_brain  # noqa: E402
+
+model_routing.clear_rest(PROV, plan_accounts.MAIN)
+voice_brain._AUTO_CACHE["at"] = 0.0
+check("ChatGPT ready: the quick-reply brain may use it", voice_brain.plan_brain_available("codex", cfg1))
+voice_brain._rest_chatgpt_main({"raw": "context_length_exceeded: too many tokens"})
+check("a context limit rests nothing", not model_routing.resting_until(PROV, plan_accounts.MAIN))
+voice_brain._rest_chatgpt_main({"content": MSG})
+check("the plan limit rests account 1", model_routing.resting_until(PROV, plan_accounts.MAIN) > time.time())
+check("account 1 resting: the quick-reply brain skips ChatGPT", not voice_brain.plan_brain_available("codex", cfg1))
+model_routing.clear_rest(PROV, plan_accounts.MAIN)
+
 # ---- the route rests the account that ran out ----
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 seg = src[src.index("def _voice_quota_frame"):src.index("async def voice_live_ws")]
