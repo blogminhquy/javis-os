@@ -774,6 +774,8 @@
     const REASONING = [["off", "eff.off"], ["low", "eff.low"], ["medium", "eff.medium"], ["high", "eff.high"],
                        ["xhigh", "eff.xhigh"], ["ultra", "eff.ultra"]];
     const curReason = (a && a.reasoning) || "medium";
+    const CALL_VOICES = ["juniper", "maple", "spruce", "ember", "vale", "breeze", "arbor", "sol", "cove"];
+    const selectedCallVoice = (a && a.chatgpt_voice) || "";
     const chatBtn = opts.chatButton && a && a.slug
       ? `<button type="button" class="s-btn-ghost ag-chat-btn" id="agChat">${ic("message-circle")} ${esc(t("studio.chat_private"))}</button>` : "";
     box.innerHTML = `<div class="ag-head"><h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>${chatBtn}</div>
@@ -804,6 +806,9 @@
       </div>
       ${coKetNoi && JI ? JI.body(`<div class="dim" style="font-size:12px">${esc(t("studio.model_hint"))}</div>`)
         : `<div class="dim" style="font-size:12px;margin-top:4px">${esc(coKetNoi ? t("studio.model_hint") : t("studio.model_none"))}</div>`}
+      <label for="agCallVoice">${esc(t("studio.call_voice"))}</label>
+      <select id="agCallVoice"><option value="">${esc(t("studio.call_voice_default"))}</option>${CALL_VOICES.map(v => `<option value="${v}"${v === selectedCallVoice ? " selected" : ""}>${esc(v[0].toUpperCase() + v.slice(1))}</option>`).join("")}</select>
+      <div class="dim" style="font-size:12px;margin-top:4px">${esc(t("studio.call_voice_hint"))}</div>
       <label for="agReasoning">${esc(t("studio.reasoning"))}${JI ? JI.btn(t("info.more")) : ""}</label>
       <select id="agReasoning">${REASONING.map(([v, k]) => `<option value="${v}"${v === curReason ? " selected" : ""}>${esc(t(k))}</option>`).join("")}</select>
       ${infoBody(`<div class="dim" style="font-size:12px">${esc(t("studio.reasoning_hint"))}</div>`)}
@@ -950,6 +955,7 @@
         const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
           prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
           reasoning: (box.querySelector("#agReasoning") || {}).value || "medium",
+          chatgpt_voice: (box.querySelector("#agCallVoice") || {}).value || "",
           slug: a ? a.slug : "", brain: brain(), ...(avatar ? window.JavisAvatar.formFields(avatar) : {}) }) });
         if (!saved.ok) { datTrangThai(dirty ? "dirty" : ""); alert(loiLuu(saved.error)); return; }
         dirty = false;
