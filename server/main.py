@@ -8491,6 +8491,7 @@ def agents_index(brain: str, *, kem_prompt: bool = True) -> list:
                     "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
                     "model": meta.get("model", ""), **_agent_tag_fields(meta),
                     "model_provider": meta.get("model_provider", ""),
+                    "chatgpt_voice": meta.get("chatgpt_voice", ""),
                     "pinned": bool(meta.get("pinned")),
                     "avatar": agent_avatar.for_agent(meta, f.stem)})
         if kem_prompt:
@@ -8633,7 +8634,7 @@ def agent_get(slug: str = Query(...), brain: str = Query("brain")):
         _cm, _cb = javis_core.read_core(_brain_root(brain))
         e = _javis_core_entry(brain)
         # The editor gets the role as stored (saving it unchanged must not swap in the translated line).
-        return {**e, "role": str(_cm.get("role") or e["role"]), "prompt": _cb}
+        return {**e, "role": str(_cm.get("role") or e["role"]), "chatgpt_voice": str(_cm.get("chatgpt_voice") or ""), "prompt": _cb}
     path = _agent_md_path(brain, slug)
     if not path:
         return JSONResponse({"error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")}, status_code=404)
@@ -8641,6 +8642,7 @@ def agent_get(slug: str = Query(...), brain: str = Query("brain")):
     return {"slug": slug, "name": meta.get("name", slug), "role": meta.get("role", ""),
             "skills": meta.get("skills", []) or [], "model": meta.get("model", ""),
             **_agent_tag_fields(meta), "model_provider": meta.get("model_provider", ""),
+            "chatgpt_voice": meta.get("chatgpt_voice", ""),
             "reasoning": _agent_reasoning(meta),
             "prompt": body, "pinned": bool(meta.get("pinned")),
             "avatar": agent_avatar.for_agent(meta, slug)}
@@ -8653,7 +8655,7 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                      avatar_palette: str = Form(None), avatar_color: str = Form(None),
                      avatar_eye: str = Form(None), avatar_eye_color: str = Form(None),
                      avatar_eye_size: str = Form(None), avatar_image: str = Form(None), tags: str = Form(None),
-                     reasoning: str = Form(None)):
+                     reasoning: str = Form(None), chatgpt_voice: str = Form(None)):
     # Trợ lý MỚI đặt tên file không dấu ("Bống Work" -> bong-work.md), đúng quy ước slug của Javis. Trước
     # 0.88.1 tên giữ nguyên dấu; các file đó vẫn đọc, sửa, xoá được nhờ skill_router.valid_file_slug.
     # TẠO MỚI = form không gửi slug. Nhóm chat team (spec 2026-10-13 mục 5.1): tạo mới mà slug suy từ tên đã có file thì
@@ -8678,6 +8680,11 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     # Giá trị lạ (client cũ, gõ tay) bị loại về "" để _agent_model_provider suy như agent cũ,
     # chứ không ghi vào file một nhà mà server không chạy được.
     mp = (model_provider or "").strip()
+    # Empty = inherit the shared voice; absent = preserve existing preference for old clients.
+    if isinstance(chatgpt_voice, str):
+        chatgpt_voice = chatgpt_voice.strip()
+        if chatgpt_voice and chatgpt_voice not in voice_live.CHATGPT_VOICES:
+            return JSONResponse({"ok": False, "error": "Unsupported ChatGPT Live voice"}, status_code=400)
     path = _agents_dir(brain) / f"{slug}.md"
     tags = tags if isinstance(tags, str) else None
     group = group if isinstance(group, str) else None
@@ -8729,6 +8736,8 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                          "skills": skills_list, "model": model, "avatar": avatar,
                          "model_provider": mp if mp in AGENT_PROVIDERS else "",
                          "updated": _today()})  # "" = mặc định theo CLI
+            if isinstance(chatgpt_voice, str):
+                meta["chatgpt_voice"] = chatgpt_voice
             if core:
                 meta["system"] = True   # still the system assistant after any edit
             agent_tags.write_tags(meta, hien)
@@ -17190,6 +17199,27 @@ def _voice_persona(conv_sid: str, brain: str):
         return None
 
 
+def _voice_partner_settings(cfg: dict, conv_sid: str, brain: str) -> dict:
+    """Select a saved ChatGPT Live voice for THIS partner call only, without changing global settings.
+
+    A missing, deleted or unrecognized agent/voice retains the existing system-wide voice.
+    Never derive the voice from chat text or client-supplied agent identifiers.
+    """
+    if str((cfg.get("voice") or {}).get("live_provider") or "") != "chatgpt":
+        return cfg
+    agent = _voice_agent(conv_sid, brain)
+    if not agent:
+        return cfg
+    try:
+        meta, _ = _read_md(_agents_dir(agent["brain"]) / f"{agent['slug']}.md")
+        selected = str(meta.get("chatgpt_voice") or "").strip()
+    except (OSError, ValueError, TypeError):
+        return cfg
+    if selected not in voice_live.CHATGPT_VOICES:
+        return cfg
+    return {**cfg, "voice": {**(cfg.get("voice") or {}), "chatgpt_voice": selected}}
+
+
 def _voice_brain_conf(conf: dict, conv_sid: str, brain: str) -> dict:
     """The fast voice lane's settings for this chat: a partner's chat speaks with the partner's prompt."""
     persona = _voice_persona(conv_sid, brain)
@@ -17307,7 +17337,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         except Exception:
             pass
         return
-    cfg = voice_call.live_settings(_raw_cfg)
+    cfg = _voice_partner_settings(voice_call.live_settings(_raw_cfg), session_id, brain)
     memory_index = ""
     if str(((cfg.get("voice") or {}).get("live_provider")) or "") == "chatgpt":
         # ChatGPT Live chạy qua Codex app-server: bắc cầu token đã nối ở trang Models sang
