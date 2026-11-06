@@ -77,7 +77,7 @@ def atomic_write(path, text):
     Path(path).write_text(text, encoding="utf-8")
 
 
-async def notify(chat_id, text, brain="", dedup=""):
+async def notify(chat_id, text, brain="", dedup="", source="habit"):
     sent.append((text, dedup))
     return True, ""
 

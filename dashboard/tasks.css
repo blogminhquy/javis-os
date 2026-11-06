@@ -216,8 +216,11 @@
   .nv-rrow { gap: 10px; padding: 12px; }
   .nv-row2 { grid-template-columns: 1fr; }
   .nv-ppad > .nv-sec2, .nv-ppad > form.nv-sec2 { margin-top: 14px; }
-  .nv-fab { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
-  .nv-pbody { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }   /* the + sits 76px up on a phone */
+  /* Owner, 06/11/2026: on a phone the + sat 76px up, over the "Đang bật" switch at the end of a loop's detail. No bar
+     sits under it on the Tasks page, so it goes down to the corner, and the page ends with room for it: the last row
+     always scrolls clear of the button (56px + 18px gap + a little air). */
+  .nv-fab { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+  .nv-pbody { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ---- tab "Mine" (0.423.0) ---- */
