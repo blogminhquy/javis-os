@@ -1,13 +1,15 @@
 <!-- translated-from: README.md sha256:2e10ad3d2a86 -->
 <div align="center">
 
-<img src="../../../dashboard/logo.svg" width="88" alt="Logotipo de Javis OS">
+<a href="https://javisos.com"><img src="../../assets/social-preview.png" width="100%" alt="Javis OS: Your AI Workforce. Never miss the best AI."></a>
 
 # Javis OS
 
-### Tu agente de IA autoalojado con un cerebro intercambiable y un Second Brain que se vuelve más listo cada día.
+### Tu equipo de IA. Nunca te pierdas la mejor IA.
 
-Ejecútalo en tu portátil o en un VPS pequeño. Háblale con la voz. Conecta Claude, ChatGPT, Grok, Gemini o cualquiera de 12 proveedores, conserva todas las herramientas cuando cambies de uno a otro y deja que trabaje en segundo plano mientras duermes.
+Javis OS convierte a **Claude, ChatGPT, Gemini, Grok** y los modelos que elijas en un equipo que trabaja 24/7 en tu propia máquina o servidor. Cada compañero tiene un rol, comparte la misma memoria y herramientas, y sigue trabajando en segundo plano. Cuando sale un modelo mejor, cambias y conservas todo lo que aprendieron.
+
+**🌐 Sitio web: [javisos.com](https://javisos.com)** · Código abierto · Autoalojado · 14 proveedores de IA
 
 [![GitHub stars](https://img.shields.io/github/stars/blogminhquy/javis-os?style=flat&logo=github&label=stars)](https://github.com/blogminhquy/javis-os/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](../../../LICENSE)
@@ -507,5 +509,6 @@ Javis OS es gratuito y de código abierto, y sigue siendo una sola persona la qu
 
 <div align="center">
 <br>
+<b><a href="https://javisos.com">javisos.com</a></b><br>
 Hecho con ☕ en Vietnam por <b><a href="https://minhquy.vn">Minh Quý</a></b>
 </div>
