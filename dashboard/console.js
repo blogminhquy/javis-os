@@ -7685,172 +7685,278 @@
   // Vì sao trang này bắt buộc phải có: link chia sẻ không hết hạn và không mật khẩu, ai cầm
   // cũng xem được. Chỉ tạo được mà không có chỗ nhìn lại toàn bộ thì người dùng sẽ quên mình
   // đã mở những gì, và một link lỡ gửi nhầm sẽ sống mãi. Chủ dự án nói đúng chỗ đó ngày 18/09.
-  // Số link mỗi trang, và ngưỡng bắt đầu hiện ô tìm. Cùng một con số cho cả hai thì lạ mắt:
-  // đúng 20 link là vừa một trang mà đã phải gõ để tìm, nên ngưỡng tìm đặt thấp hơn.
-  const SHARE_MOI_TRANG = 20;
-  // Ô tìm hiện từ link thứ HAI (chủ repo 20/09: "có thêm tìm kiếm và phân trang nữa nhé" - ngưỡng
-  // 8 cũ khiến người có 5-6 link không thấy ô tìm đâu, tưởng chưa có).
-  const SHARE_NGUONG_TIM = 1;
+  // 2026-11-06 rebuild (owner: "đổi được đường dẫn", "bộ đếm thống kê view", "buton làm thành icon như phong cách trang
+  // nhiệm vụ", "nhớ có cả phân trang", "tự phản biện và tạo lại 1 trang quản lý link hữu dụng hơn"). What the page is
+  // for, in order: see which links are live and who reads them, find one fast, then copy, edit or kill it.
+  // - One low summary row: links, total views, views in the last 7 days.
+  // - Filter chips (all / files / conversations / never viewed) and a sort (newest, most viewed, recently viewed):
+  //   "never viewed" plus "oldest" is how a forgotten link gets found and revoked.
+  // - Row actions are icons like the Tasks page (open, copy, edit, revoke); revoke asks first, it cannot be undone.
+  // - Edit is one dialog for the name AND the custom address (/s/<slug>); the random token keeps working.
+  // Links per page, and the list size from which the search box shows.
+  const SHARE_PER_PAGE = 20;
+  // Ô tìm hiện từ link thứ HAI (chủ repo 20/09: "có thêm tìm kiếm và phân trang nữa nhé").
+  const SHARE_SEARCH_MIN = 1;
 
   async function renderSharePage(el) {
     const gen = _renderGen;
-    let tuKhoa = "";
+    const state = { query: "", filter: "all", sort: "new", page: 0 };
+    try {
+      const saved = JSON.parse(localStorage.getItem("javis.share.view") || "{}");
+      if (["all", "file", "chat", "unseen"].indexOf(saved.filter) >= 0) state.filter = saved.filter;
+      if (["new", "views", "recent"].indexOf(saved.sort) >= 0) state.sort = saved.sort;
+    } catch (e) {}
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
-    let ds = [];
+    let links = [];
     try {
       const r = await fetch("/share/list");
       const d = await r.json();
-      ds = (d && d.items) || [];
+      links = (d && d.items) || [];
     } catch (e) {
       el.innerHTML = `<div class="settings-page"><div class="settings-card compact"><p>${esc(t("app.err_net"))}</p></div></div>`;
       return;
     }
     if (gen !== _renderGen) return;
-    ve();
+    const stats = (m) => m.stats || { views: 0, visitors: 0, last: 0, week: 0, days: [] };
+    const num = (n) => Number(n || 0).toLocaleString();
+    draw();
 
-    // Bỏ dấu để gõ "ghi chu" vẫn ra "ghi-chú". Khai TẠI ĐÂY chứ không mượn _vtNoAccent ở dưới
-    // file: hàm này phải đứng một mình được (test bóc nó ra chạy riêng), và một chỗ nữa cần
-    // sửa khi đổi cách bỏ dấu vẫn rẻ hơn một phụ thuộc vô hình.
-    function khongDau(x) {
-      return String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    function remember() {
+      try { localStorage.setItem("javis.share.view", JSON.stringify({ filter: state.filter, sort: state.sort })); } catch (e) {}
+    }
+    // Strip marks so "ghi chu" finds "ghi-chú". Declared here, not borrowed: tests run this function on its own.
+    function plain(x) {
+      return String(x || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
         .replace(/[đĐ]/g, "d").toLowerCase();
     }
-    // Lọc theo TÊN LINK, tên file lẫn ĐƯỜNG DẪN: nhớ tên đã đặt thì gõ tên, nhớ nó nằm thư mục
-    // nào thì gõ thư mục. Gõ nhiều từ cách nhau bởi dấu cách thì phải khớp HẾT, để thu hẹp dần.
-    function loc(tu) {
-      const k = khongDau(tu).trim();
-      if (!k) return ds;
-      const tus = k.split(/\s+/);
-      return ds.filter(m => {
-        const d = khongDau((m.ten || "") + " " + (m.path || ""));
-        return tus.every(x => d.indexOf(x) >= 0);
+    // Search by link name, path or custom address; several words must ALL match, to narrow down step by step.
+    function visible() {
+      const words = plain(state.query).trim().split(/\s+/).filter(Boolean);
+      let out = links.filter((m) => {
+        if (state.filter === "file" && m.loai === "hoi_thoai") return false;
+        if (state.filter === "chat" && m.loai !== "hoi_thoai") return false;
+        if (state.filter === "unseen" && stats(m).views > 0) return false;
+        if (!words.length) return true;
+        const hay = plain((m.ten || "") + " " + (m.path || "") + " " + (m.slug || ""));
+        return words.every((w) => hay.indexOf(w) >= 0);
       });
+      const by = {
+        new: (a, b) => (b.tao_luc || 0) - (a.tao_luc || 0),
+        views: (a, b) => stats(b).views - stats(a).views || (b.tao_luc || 0) - (a.tao_luc || 0),
+        recent: (a, b) => (stats(b).last || 0) - (stats(a).last || 0) || (b.tao_luc || 0) - (a.tao_luc || 0),
+      }[state.sort];
+      return out.slice().sort(by);
     }
 
-    function ve() {
-      if (!ds.length) {
+    function draw() {
+      if (!links.length) {
         el.innerHTML = `<div class="settings-page"><div class="settings-card compact">
           <p>${esc(t("share.empty"))}</p></div></div>`;
         return;
       }
-      // Ô tìm chỉ hiện khi danh sách đã đủ dài để phải tìm. Dưới ngưỡng đó nó là một ô trống
-      // chiếm chỗ, và mắt vẫn quét hết danh sách nhanh hơn là gõ.
-      const coTim = ds.length > SHARE_NGUONG_TIM;
-      // (i) next to the heading; local helpers since tests run this body on its own.
       const JI = window.JavisInfo;
       const infoBtn = () => (JI ? JI.btn(t("info.more")) : "");
       const infoBody = (h) => (JI ? JI.body(h) : '<div class="info-body">' + h + "</div>");
-      el.innerHTML = `<div class="settings-page"><div class="settings-card">
-        <div class="settings-card-head"><b><span class="share-total">${ds.length}</span> ${esc(t("share.live_links"))}${infoBtn()}</b></div>
-        ${infoBody(esc(t("share.warn")))}
-        ${coTim ? `<input id="shareSearch" class="share-search" type="search" spellcheck="false"
-          autocomplete="off" placeholder="${esc(t("share.search_ph"))}" value="${esc(tuKhoa)}">
-        <div class="share-count" id="shareCount"></div>` : ""}
+      const total = links.reduce((s, m) => s + stats(m).views, 0);
+      const week = links.reduce((s, m) => s + stats(m).week, 0);
+      const showSearch = links.length > SHARE_SEARCH_MIN;
+      const chip = (v, key) => `<button type="button" class="share-chip${state.filter === v ? " on" : ""}" data-share-filter="${v}" aria-pressed="${state.filter === v}">${esc(t(key))}</button>`;
+      const opt = (v, key) => `<option value="${v}"${state.sort === v ? " selected" : ""}>${esc(t(key))}</option>`;
+      el.innerHTML = `<div class="settings-page"><div class="settings-card share-card">
+        <div class="share-sum">
+          <span class="share-stat"><b class="share-total">${links.length}</b> ${esc(t("share.live_links"))}</span>
+          <span class="share-stat">${ic("eye")}<b>${num(total)}</b> ${esc(t("share.views"))}</span>
+          <span class="share-stat">${ic("trending-up")}<b>${num(week)}</b> ${esc(t("share.in_7_days"))}</span>
+          ${infoBtn()}
+        </div>
+        ${infoBody(esc(t("share.warn")) + "<br><br>" + esc(t("share.stats_info")))}
+        ${showSearch ? `<input id="shareSearch" class="share-search" type="search" spellcheck="false"
+          autocomplete="off" placeholder="${esc(t("share.search_ph"))}" value="${esc(state.query)}">` : ""}
+        <div class="share-tools">
+          <div class="share-chips" role="group">${chip("all", "share.f_all")}${chip("file", "share.f_file")}${chip("chat", "share.f_chat")}${chip("unseen", "share.f_unseen")}</div>
+          <label class="share-sort">${ic("arrow-up-down")}<select id="shareSort" aria-label="${esc(t("share.sort"))}">${opt("new", "share.s_new")}${opt("views", "share.s_views")}${opt("recent", "share.s_recent")}</select></label>
+        </div>
+        <div class="share-count" id="shareCount"></div>
         <div class="share-list" id="shareList"></div>
       </div></div>`;
-      veDanhSach();
-      const o = el.querySelector("#shareSearch");
-      if (o) {
-        o.oninput = () => { tuKhoa = o.value; veDanhSach(); };
-        // Gõ xong mà con trỏ nhảy về đầu trang thì mỗi chữ là một lần mất chỗ. Vẽ lại CHỈ
-        // danh sách (veDanhSach), không đụng ô tìm, nên ô giữ nguyên tiêu điểm.
-      }
+      drawList();
+      const box = el.querySelector("#shareSearch");
+      // Typing redraws ONLY the list, never this card, so the box keeps focus and the caret stays put.
+      if (box) box.oninput = () => { state.query = box.value; state.page = 0; drawList(); };
+      el.querySelectorAll("[data-share-filter]").forEach((b) => {
+        b.onclick = () => { state.filter = b.dataset.shareFilter; state.page = 0; remember(); draw(); };
+      });
+      const sel = el.querySelector("#shareSort");
+      if (sel) sel.onchange = () => { state.sort = sel.value; state.page = 0; remember(); drawList(); };
     }
 
-    // Vẽ lại RIÊNG phần danh sách: lọc theo từ khoá rồi phân trang bằng pager() dùng chung
-    // (window.JavisPager - cùng bản với trang Kỹ năng và khung nhật ký, không đẻ bản thứ hai).
-    function veDanhSach() {
+    // Filter, sort, then page with the shared pager (window.JavisPager, same as Skills and the log panel).
+    function drawList() {
       const box = el.querySelector("#shareList");
       if (!box) return;
-      const hien = loc(tuKhoa);
-      // Dòng đếm: đang gõ thì thấy ngay còn bao nhiêu link khớp, khỏi phải lật trang đếm tay.
-      const dem = el.querySelector("#shareCount");
-      if (dem) dem.textContent = (tuKhoa || "").trim()
-        ? t("share.count", { so: hien.length, tong: ds.length }) : "";
+      const rows = visible();
+      const count = el.querySelector("#shareCount");
+      if (count) count.textContent = (state.query.trim() || state.filter !== "all")
+        ? t("share.count", { so: rows.length, tong: links.length }) : "";
+      const empty = `<div class="share-empty">${esc(t("share.no_match"))}</div>`;
       const P = (typeof window !== "undefined" && window.JavisPager) || null;
-      const trong = `<div class="share-empty">${esc(t("share.no_match"))}</div>`;
       if (P) {
-        P(box, hien, SHARE_MOI_TRANG, (rows) => rows.map(m => hang(m)).join(""), trong);
+        P(box, rows, SHARE_PER_PAGE, (page) => page.map(row).join(""), empty,
+          { page: state.page, onPage: (p) => { state.page = p; } });
       } else {
-        box.innerHTML = hien.length ? hien.map(m => hang(m)).join("") : trong;
+        box.innerHTML = rows.length ? rows.map(row).join("") : empty;
       }
-      box.querySelectorAll("[data-share-revoke]").forEach(b => { b.onclick = () => thuHoi(b); });
-      box.querySelectorAll("[data-share-copy]").forEach(b => { b.onclick = () => chep(b); });
-      box.querySelectorAll("[data-share-rename]").forEach(b => { b.onclick = () => doiTen(b); });
+      // ONE handler on the list box, not one per button: the pager redraws the rows when the page turns, and buttons
+      // wired one by one were dead from page 2 on (bug until 2026-11-06).
+      box.onclick = (e) => {
+        const b = e && e.target && e.target.closest
+          ? e.target.closest("[data-share-revoke],[data-share-copy],[data-share-edit]") : null;
+        if (!b || b.disabled) return undefined;
+        if (b.dataset.shareRevoke) return revoke(b);
+        if (b.dataset.shareCopy) return copy(b);
+        return edit(b.dataset.shareEdit);
+      };
     }
 
-    function hang(m) {
+    function ago(sec) {
+      const s = Math.max(0, Date.now() / 1000 - sec);
+      if (s < 60) return t("share.ago_now");
+      if (s < 3600) return t("share.ago_min", { n: Math.floor(s / 60) });
+      if (s < 86400) return t("share.ago_hour", { n: Math.floor(s / 3600) });
+      if (s < 30 * 86400) return t("share.ago_day", { n: Math.floor(s / 86400) });
+      return when(sec);
+    }
+    function when(sec) {
+      try { return new Date(sec * 1000).toLocaleDateString(); } catch (e) { return ""; }
+    }
+    // 14 bars, oldest first; a bar's height is its share of the busiest day. Only drawn once the link has views.
+    function spark(days) {
+      const top = Math.max.apply(null, (days || []).concat([0]));
+      if (!top) return "";
+      return `<span class="share-spark" title="${esc(t("share.chart"))}" aria-hidden="true">${days.map((n) =>
+        `<i style="height:${n ? Math.max(12, Math.round((n / top) * 100)) : 4}%"${n ? "" : ' class="z"'}></i>`).join("")}</span>`;
+    }
+
+    function row(m) {
       const url = location.origin + m.url;
-      // TÊN LINK (0.65.30: tự lấy theo tiêu đề file, đổi được) để NHẬN RA; đường dẫn đầy đủ để
-      // phân biệt hai file trùng tên ở hai thư mục. Máy chủ cũ chưa trả `ten` thì dùng tên file.
-      const ten = m.ten || String(m.path || "").split("/").pop() || m.path;
+      const name = m.ten || String(m.path || "").split("/").pop() || m.path;
+      const st = stats(m);
+      const chat = m.loai === "hoi_thoai";
+      const where = chat ? ic("messages-square") + " " + esc(t("share.chat_label")) : esc(m.path || "");
+      const seen = st.views
+        ? `<span class="share-views">${ic("eye")}<b>${num(st.views)}</b></span>`
+          + `<span>${esc(t("share.visitors", { n: num(st.visitors) }))}</span>`
+          + `<span>${esc(t("share.week", { n: num(st.week) }))}</span>`
+          + (st.last ? `<span>${esc(t("share.last_seen", { t: ago(st.last) }))}</span>` : "")
+        : `<span class="share-views none">${ic("eye-off")}${esc(t("share.never"))}</span>`;
+      const b = (attr, val, icon, key, cls) => `<button type="button" class="share-ib${cls ? " " + cls : ""}" ${attr}="${esc(val)}" aria-label="${esc(t(key) + ": " + name)}" title="${esc(t(key))}">${ic(icon)}</button>`;
       return `<div class="share-row" data-token="${esc(m.token)}">
         <div class="share-info">
-          <div class="share-name">${esc(ten)}</div>
-          <div class="share-path">${m.loai === "hoi_thoai" ? ic("messages-square") + " " + esc(t("share.chat_label")) : esc(m.path || "")}${m.tao_luc ? " · " + esc(ngayGio(m.tao_luc)) : ""}</div>
+          <div class="share-name">${esc(name)}</div>
+          <div class="share-path">${where}${m.tao_luc ? " · " + esc(when(m.tao_luc)) : ""}</div>
           <a class="share-url" href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>
+          <div class="share-meta">${seen}${spark(st.days)}</div>
         </div>
         <div class="share-acts">
-          <button class="gcard-btn ghost" type="button" data-share-rename="${esc(m.token)}">${esc(t("share.rename"))}</button>
-          <button class="gcard-btn" type="button" data-share-copy="${esc(url)}">${esc(t("common.copy"))}</button>
-          <button class="gcard-btn ghost" type="button" data-share-revoke="${esc(m.token)}">${esc(t("fedit.share_revoke"))}</button>
+          <a class="share-ib" href="${esc(url)}" target="_blank" rel="noopener" aria-label="${esc(t("share.a_open") + ": " + name)}" title="${esc(t("share.a_open"))}">${ic("external-link")}</a>
+          ${b("data-share-copy", url, "copy", "share.a_copy")}
+          ${b("data-share-edit", m.token, "pencil", "share.a_edit")}
+          ${b("data-share-revoke", m.token, "trash-2", "share.a_revoke", "bad")}
         </div>
       </div>`;
     }
 
-    function ngayGio(giay) {
-      try { return new Date(giay * 1000).toLocaleString(); } catch (e) { return ""; }
-    }
-
-    function chep(b) {
+    function copy(b) {
       const url = b.dataset.shareCopy;
-      const xong = () => {
-        b.textContent = t("common.copied");
-        setTimeout(() => { b.textContent = t("common.copy"); }, 1400);
+      const done = () => {
+        b.innerHTML = ic("check");
+        b.classList.add("ok");
+        b.title = t("common.copied");
+        setTimeout(() => { b.innerHTML = ic("copy"); b.classList.remove("ok"); b.title = t("share.a_copy"); }, 1400);
       };
-      // Đường lui execCommand: navigator.clipboard không tồn tại trên HTTP trong mạng LAN.
+      // execCommand fallback: navigator.clipboard does not exist over plain HTTP on a LAN.
       if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(url).then(xong).catch(() => {});
+        navigator.clipboard.writeText(url).then(done).catch(() => {});
       } else {
         const o = document.createElement("textarea");
         o.value = url; document.body.appendChild(o); o.select();
-        try { document.execCommand("copy"); xong(); } catch (e) {}
+        try { document.execCommand("copy"); done(); } catch (e) {}
         o.remove();
       }
     }
 
-    // Đổi tên link (0.65.30). Hộp nhập của trình duyệt chạy được cả trên iPhone mở từ màn hình
-    // chính. Để trống là quay về tên tự lấy theo tiêu đề file. Token không đổi: link đã gửi vẫn sống.
-    async function doiTen(b) {
-      const token = b.dataset.shareRename;
-      const m = ds.find(x => x.token === token);
+    // One dialog for the name and the custom address. Phone: a sheet from the bottom (CSS), like the Tasks page.
+    function edit(token) {
+      const m = links.find((x) => x.token === token);
       if (!m) return;
-      const moi = window.prompt(t("share.rename_ask"), m.ten || "");
-      if (moi === null || moi === undefined) return;          // bấm Huỷ
-      b.disabled = true;
-      try {
-        const r = await (await fetch("/share/rename", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, nhan: moi }),
-        })).json();
-        if (r && r.ok) { m.ten = r.ten; veDanhSach(); return; }
-      } catch (e) {}
-      b.disabled = false;
-      b.textContent = t("share.rename_fail");
+      const dlg = document.createElement("div");
+      dlg.className = "share-dlg-wrap";
+      dlg.innerHTML = `<div class="share-dlg-scrim" data-dlg="close"></div>
+        <div class="share-dlg" role="dialog" aria-modal="true" aria-label="${esc(t("share.edit_title"))}">
+          <div class="share-dlg-h"><b>${esc(t("share.edit_title"))}</b>
+            <button type="button" class="share-ib" data-dlg="close" aria-label="${esc(t("common.cancel"))}">${ic("x")}</button></div>
+          <label class="share-fld"><span>${esc(t("share.f_name"))}</span>
+            <input type="text" data-dlg-name="1" maxlength="120" value="${esc(m.ten || "")}" placeholder="${esc(t("share.f_name_ph"))}"></label>
+          <label class="share-fld"><span>${esc(t("share.f_slug"))}</span>
+            <span class="share-slug"><span class="share-slug-pre">/s/</span>
+            <input type="text" data-dlg-slug="1" maxlength="64" spellcheck="false" autocapitalize="off" autocomplete="off" value="${esc(m.slug || "")}" placeholder="${esc(t("share.f_slug_ph"))}"></span></label>
+          <div class="share-dlg-note">${esc(t("share.slug_note"))}</div>
+          <div class="share-dlg-note">${esc(t("share.token_url"))}: <span class="share-tok">${esc(location.origin + (m.token_url || "/s/" + m.token))}</span></div>
+          <div class="share-dlg-err" data-dlg-err="1" role="alert"></div>
+          <div class="share-dlg-acts">
+            <button type="button" class="gcard-btn ghost" data-dlg="close">${esc(t("common.cancel"))}</button>
+            <button type="button" class="gcard-btn" data-dlg="save">${esc(t("common.save"))}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(dlg);
+      const nameIn = dlg.querySelector("[data-dlg-name]");
+      const slugIn = dlg.querySelector("[data-dlg-slug]");
+      const err = dlg.querySelector("[data-dlg-err]");
+      const close = () => { document.removeEventListener("keydown", onKey); dlg.remove(); };
+      const onKey = (e) => {
+        if (e.key === "Escape") close();
+        else if (e.key === "Enter" && e.target && e.target.tagName === "INPUT") save();
+      };
+      document.addEventListener("keydown", onKey);
+      dlg.querySelectorAll('[data-dlg="close"]').forEach((x) => { x.onclick = close; });
+      const saveBtn = dlg.querySelector('[data-dlg="save"]');
+      if (saveBtn) saveBtn.onclick = () => save();
+      if (nameIn && nameIn.focus) nameIn.focus();
+      async function save() {
+        if (saveBtn) saveBtn.disabled = true;
+        try {
+          const r = await (await fetch("/share/rename", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token, nhan: nameIn ? nameIn.value : m.ten, slug: slugIn ? slugIn.value : m.slug }),
+          })).json();
+          if (r && r.ok) {
+            m.ten = r.ten; m.slug = r.slug || ""; if (r.url) m.url = r.url;
+            close();
+            drawList();
+            return;
+          }
+          if (err) err.textContent = (r && r.error) || t("share.rename_fail");
+        } catch (e) {
+          if (err) err.textContent = t("share.rename_fail");
+        }
+        if (saveBtn) saveBtn.disabled = false;
+      }
     }
 
-    async function thuHoi(b) {
+    async function revoke(b) {
       const token = b.dataset.shareRevoke;
+      const m = links.find((x) => x.token === token);
+      if (!window.confirm(t("share.revoke_ask", { ten: (m && m.ten) || token }))) return;
       b.disabled = true;
       try {
         await fetch("/share/revoke", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });
-        ds = ds.filter(x => x.token !== token);
-        // Vẽ lại CẢ thẻ: con số tổng ở đầu thẻ vừa giảm đi một, mà ô tìm có thể vừa tụt xuống
-        // dưới ngưỡng hiện. Từ khoá đang gõ nằm ở `tuKhoa` nên nó sống qua lần vẽ này.
-        ve();
+        links = links.filter((x) => x.token !== token);
+        // Redraw the WHOLE card: the totals drop and the search box may fall under its threshold. The query lives in
+        // `state`, so it survives, and so does the page number (the pager clamps it when the last page empties).
+        draw();
       } catch (e) { b.disabled = false; }
     }
   }

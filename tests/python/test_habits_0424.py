@@ -87,7 +87,9 @@ feat = my_tasks.MyTasks(my_tasks.MyTasksDeps(brain_root=lambda b: str(brain), at
 now = datetime.now(timezone.utc)
 today = now.date().isoformat()
 early = "00:00"
-data = {"rev": 0, "projects": [], "tasks": [
+# Today's morning agenda counts as sent: between AGENDA_AT and AGENDA_UNTIL (07:30-21:00 here, the test runs in UTC)
+# tick() would also send it, and the counts below would fail half the day.
+data = {"rev": 0, "projects": [], "agenda_sent": today, "tasks": [
     {"id": "m_due", "title": "Read 30 minutes", "date": today, "repeat": daily, "habit": {"start": today, "remind": "time", "at": early}, "done_dates": {}},
     {"id": "m_done", "title": "Exercise", "date": today, "repeat": daily, "habit": {"start": today, "remind": "time", "at": early}, "done_dates": done(today)},
     {"id": "m_off", "title": "Stretch", "date": today, "repeat": daily, "habit": {"start": today, "remind": "off"}, "done_dates": {}},

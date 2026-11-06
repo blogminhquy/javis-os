@@ -116,7 +116,7 @@ check("đánh dấu loại hội thoại và tên theo tiêu đề", m.get("loai
 r = cl.post("/share/rename", json={"token": TOK, "nhan": "Báo giá cho anh Linh"}).json()
 check("đổi tên được", r.get("ok") and "Báo giá cho anh Linh" in cl.get("/s/" + TOK).text)
 check("link file vẫn tạo riêng, không đụng link hội thoại",
-      share_store.cua_file(BRAIN, "") is None)
+      share_store.for_file(BRAIN, "") is None)
 check("thu hồi được", cl.post("/share/revoke", json={"token": TOK}).json().get("ok") is True)
 check("thu hồi xong là 404", cl.get("/s/" + TOK).status_code == 404)
 check("thu hồi xong /share/chat/of trả rỗng",
