@@ -130,13 +130,17 @@ def vocab(cfg: dict) -> list:
     """Bộ từ mồi cho tai: tên trợ lý + từ người dùng khai (`nghe_sua.vocabulary`) + tên các kết nối
     MCP. Chỉ dùng làm MỒI cho model nghe, KHÔNG đưa vào lớp sửa mờ `nghe_sua.sua` (sửa mờ với
     nhiều tên dễ đổi nhầm một từ tiếng Việt)."""
-    out = list(nghe_sua.vocabulary(cfg))
-    seen = {t.lower() for t in out}
+    # The assistant's name and the owner's words go LAST: Whisper keeps only the end of its prompt, and a machine with
+    # thirty connections used to push "Javis" out of it (2026-11-06).
+    own = list(nghe_sua.vocabulary(cfg))
+    seen = {t.lower() for t in own}
+    labels = []
     for label in _mcp_labels():
         if label.lower() not in seen:
             seen.add(label.lower())
-            out.append(label)
-    return out[:nghe_sua.MAX_VOCABULARY]
+            labels.append(label)
+    room = max(0, nghe_sua.MAX_VOCABULARY - len(own))
+    return labels[:room] + own[:nghe_sua.MAX_VOCABULARY]
 
 
 def whisper_lang(lang: str):

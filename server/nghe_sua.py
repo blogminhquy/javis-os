@@ -207,6 +207,9 @@ def goi_y_whisper(tv, ky_thuat=TU_TIENG_ANH_MOI) -> str:
     moi = [t for t in (ky_thuat or ()) if t and t.lower() not in da]
     while moi and len(", ".join(moi + ds)) + 1 > MAX_GOI_Y:
         moi.pop()
+    # Still too long: drop from the FRONT, the end sits next to the audio (stt keeps the last part too).
+    while len(ds) > 1 and not moi and len(", ".join(ds)) + 1 > MAX_GOI_Y:
+        ds.pop(0)
     ds = moi + ds
     return (", ".join(ds) + ".") if ds else ""
 

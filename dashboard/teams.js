@@ -1918,7 +1918,7 @@
       focusPicker: false, focusBack: null, searchOpen: false, searchResults: null, searchQuery: "", jumped: null,
       openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false,
       picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [],
-      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle", dictSend: false, dictLive: null, dictTeam: null,
+      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle", dictSend: false,
       atts: [], folder: null, repos: [], ghIcon: null, skills: null, skillsBrain: "", info: null, typing: [], pinned: [], pinsOpen: false, tagFilter: readTagFilter(),
       autoOpened: false, unclamped: {}, outbox: [] };
   }
@@ -2252,8 +2252,6 @@
     if (lastRx) lastRx.classList.add("is-last");
     // The jump-to-latest button (chat-scroll.js) is the list's last child, so `position: sticky` keeps it at the bottom.
     if (S.scroll) { if (box.lastChild !== S.scroll.button) box.appendChild(S.scroll.button); S.scroll.update(); }
-    // A dictation in progress keeps its faded bubble after the redraw.
-    if (S.dictLive && S.dictLive.active() && S.dictTeam === S.team.team_id) drawDictDraft(S.dictLive.text());
     applyReveal(box);
     // Bảng đang "mở" mà không vẽ ra (tin đã đổi, đã ghim): bỏ trạng thái mở, kẻo tin mới không còn tự cuộn xuống.
     if (S.picker !== null && !box.querySelector('[data-panel="' + S.picker + '"]')) S.picker = null;
@@ -2382,23 +2380,11 @@
 
   // ───────────── mic: speak, the words land in the input (dictate.js) ─────────────
 
-  // The faded draft bubble at the foot of the team's messages while the owner dictates on a computer (2026-11-06, the
-  // same bubble as the main chat). "" removes it. drawMsgs puts it back after a redraw.
-  function drawDictDraft(text) {
+  // The last messages of the open team, for the rewrite at the end of a dictation (dictate.js polish).
+  function dictContext() {
+    var D = typeof window !== "undefined" && window.JavisDictate;
     var box = S.el && S.el.querySelector(".tm-msgs");
-    var node = box ? box.querySelector(".tm-msg-draft") : null;
-    if (!text) { if (node && node.parentNode) node.parentNode.removeChild(node); return; }
-    if (!box || typeof document === "undefined") return;
-    if (!node) {
-      node = document.createElement("div");
-      node.className = "tm-msg tm-msg-owner tm-msg-draft";
-      node.setAttribute("aria-hidden", "true");
-      node.innerHTML = '<div class="tm-col"><div class="tm-bubble"><div class="tm-draft-text"></div></div></div>';
-    }
-    node.querySelector(".tm-draft-text").textContent = text;
-    var before = S.scroll && S.scroll.button && S.scroll.button.parentNode === box ? S.scroll.button : null;
-    if (node.parentNode !== box || node.nextSibling !== before) box.insertBefore(node, before);
-    if (!S.scroll || S.scroll.stuck()) toLatest(false);
+    return D && D.recentMessages ? D.recentMessages(box, ".tm-msg .tm-text", 4) : [];
   }
 
   function toggleMic() {
@@ -2409,30 +2395,29 @@
     var input = S.el.querySelector(".tm-input");
     S.dictBase = input ? input.value : "";
     S.dictSend = false;
-    var forTeam = S.activeId, heard = "", res = null, written = "";
-    // The faded bubble shows the words while speaking, fixed by POST /stt/fix (computer only, dictate.js createLiveFix).
-    var live = D.createLiveFix ? D.createLiveFix(function (t) { drawDictDraft(S.activeId === forTeam ? t : ""); }) : null;
-    S.dictLive = live; S.dictTeam = forTeam;
-    if (live) live.start();
-    // Like a voice recorder (owner, 2026-11-05): the words are held while speaking and land in the box once, when the
-    // recording ends (see composer-dictate.js).
+    var forTeam = S.activeId, heard = "";
+    // A computer shows the words in the box while speaking (owner, 2026-11-06: in the chat box, not a bubble above); a
+    // phone keeps them for the end. When the recording ends the main brain rewrites the sentence in context and that is
+    // what lands, or is sent (see composer-dictate.js).
+    var live = !(D.isPhoneUA && D.isPhoneUA());
     S.dict = D.create({
-      onText: function (text) { heard = String(text || ""); if (live) live.heard(heard); },
+      context: dictContext,
+      onText: function (text, final) {
+        heard = String(text || "");
+        if (final || !live || S.dictState !== "listening" || S.activeId !== forTeam) return;
+        var box = S.el.querySelector(".tm-input");
+        if (box) { box.value = D.joinText(S.dictBase, heard); grow(box); box.scrollTop = box.scrollHeight; }
+      },
       onState: function (st) {
         var was = S.dictState;
         S.dictState = st;
-        // Send pressed while recording (button or Enter): it waited for the last words, now it goes.
+        // Send pressed while recording (button or Enter): it waited for the rewritten words, now it goes.
         var sendNow = st === "idle" && was !== "idle" && S.dictSend;
         if (st === "idle") S.dictSend = false;
-        // The bubble goes, even when another team is open now; the box gets the fixed words when it covers them all.
-        if (st === "idle" && was !== "idle") {
-          res = live ? live.finish() : { heard: heard, words: heard, needsFix: false };
-          if (S.dictLive === live) { S.dictLive = null; S.dictTeam = null; }
-        }
         if (S.activeId !== forTeam) return;
         var inp0 = st === "idle" && heard ? S.el.querySelector(".tm-input") : null;
         if (inp0) {
-          inp0.value = written = D.joinText(S.dictBase, (res && res.words) || heard);
+          inp0.value = D.joinText(S.dictBase, heard);
           heard = "";
           S.pending = null;
           grow(inp0);
@@ -2447,19 +2432,6 @@
         btn.innerHTML = ic(st === "idle" ? "mic" : st === "transcribing" ? "loader" : "square");
         if (sendNow) { send(); return; }
         if (st === "idle") { var inp = S.el.querySelector(".tm-input"); if (inp) inp.focus(); }
-        // Not sent: fix the last words too, swapped in only if the box still holds exactly what was written.
-        if (st === "idle" && written && D.fixAfter) {
-          var base = S.dictBase, mine = written;
-          written = "";
-          D.fixAfter(res, function () {
-            var box = S.el && S.el.querySelector(".tm-input");
-            return S.activeId === forTeam && S.dictState === "idle" && !!box && box.value === mine;
-          }, function (fixed) {
-            var box = S.el.querySelector(".tm-input");
-            box.value = D.joinText(base, fixed);
-            grow(box);
-          });
-        }
       },
       onError: function (code) {
         // 0.419.0: the phone's own speech service switched off (iOS Dictation) gets the note that says where to turn it on.

@@ -107,7 +107,7 @@ import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh 
 import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao việc tự biết khung chat nào hỏi
 import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
-import transcript_fix  # fixes the words of the live bubble: rules, then a model (Groq first, then the background model)
+import transcript_fix  # rewrites what the mic heard at the end of a dictation: the main brain, with the chat as context
 import phien_am       # từ tiếng Anh -> cách đọc kiểu Việt (đọc loa + so âm câu nghe được)
 import voice_privacy
 voice_privacy.install()
@@ -2251,6 +2251,33 @@ async def _reply_policy_review_ask(prompt: str) -> str:
         elif ev.get("type") == "error":
             raise RuntimeError(str(ev.get("content") or "lỗi engine")[:200])
     return final
+
+
+async def _transcript_rewrite_ask(prompt: str) -> str:
+    """One text-only turn on the MAIN brain for the end of a dictation (transcript_fix.rewrite_transcript, 2026-11-06).
+
+    Owner: rewrite what the mic heard with "chính mô hình chính", whether it is a subscription CLI or an API key. Same
+    sandbox as the group chat judge's review: an empty folder, no MCP, every tool refused, so a dictated sentence that
+    sounds like an order is only rewritten, never carried out."""
+    base = _reply_policy_sandbox_engine(transcript_fix.REWRITE_SYSTEM, "transcript-rewrite",
+                                        cwd_name="transcript_rewrite_cwd")
+    cli = aux_engine.swap(base, mode="suggest", tag="transcript-rewrite", spec=aux_engine.main_spec(),
+                          codex_profile=_write_codex_profile)
+    cli = aux_engine.strip_tools(cli, base)
+    if not cli.is_available():
+        raise RuntimeError("main brain not ready")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    if aux_engine.final_loi_dang_nhap(final):
+        raise RuntimeError("main brain signed out")
+    return final
+
+
+transcript_fix.wire(ask=_transcript_rewrite_ask)
 
 
 def _reply_policy_write_feedback(bot: dict, text: str) -> None:
@@ -16906,10 +16933,11 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
 
 @app.post("/stt/fix")
 async def stt_fix_route(request: Request):
-    """Sửa chữ đang nghe ngay trên bong bóng nháp (2026-11-06): luật nghe_sua, rồi model.
+    """Fix what the mic heard (2026-11-06), see transcript_fix.py.
 
-    Body {"text": "..."}. Model là Groq nếu có khoá, không thì model nền (see transcript_fix.py). Không
-    bao giờ báo lỗi: trục trặc thì trả đúng kết quả của luật.
+    Body {"text": "...", "final": true, "context": ["recent message", ...]}: the main brain rewrites the whole
+    sentence in context. Without `final` (a page from before): the older word-level fix. Never an error: any trouble
+    gives back the result of the word rules.
     """
     try:
         body = await request.json()
@@ -16917,6 +16945,11 @@ async def stt_fix_route(request: Request):
         return {"ok": False, "text": "", "ly_do": "json_hong"}
     text = str((body or {}).get("text") or "")[:2000]
     cfg = cfgmod.read_settings()
+    # `final`: the recording ended, the main brain rewrites the whole sentence with the chat as context.
+    if (body or {}).get("final"):
+        ctx = (body or {}).get("context") or []
+        ctx = [str(c)[:300] for c in ctx[-6:]] if isinstance(ctx, list) else []
+        return {"ok": True, **await transcript_fix.rewrite_transcript(cfg, text, ctx)}
     return {"ok": True, **await transcript_fix.fix_transcript(cfg, text)}
 
 

@@ -284,7 +284,7 @@ async def _api_nghe(url, ten, data, ten_file, api_key, mdl, ngon_ngu, hotwords):
     if goi_y:
         form["language"] = goi_y
     if hw := str(hotwords or "").strip():
-        form["prompt"] = hw[:600]     # Whisper chỉ giữ ~224 token cuối; dài hơn là vô ích
+        form["prompt"] = hw[-600:]     # Whisper keeps only ~224 tokens at the END: cut the front
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(STT_TIMEOUT)) as c:
             r = await c.post(url,
