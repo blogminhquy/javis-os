@@ -1088,6 +1088,16 @@ def speakable(text: str, limit: int = SPEAK_MAX) -> str:
     return (cut[:end + 1] if end > limit // 3 else cut.rsplit(" ", 1)[0]).strip()
 
 
+def quota_error(text: str):
+    """The plan-out-of-quota fact in a ChatGPT Live error ("You've hit your usage limit ... try again at 8:42 AM"), or
+    None for any other error. Same recogniser as the chat path (limit_learner), so both mean the same thing."""
+    try:
+        import limit_learner
+        return limit_learner.parse_subscription_limit(str(text or ""), "codex")
+    except Exception:   # noqa: BLE001
+        return None
+
+
 class _Status(str):
     """Câu tiến độ trong hàng lời đọc: phân biệt với lời đọc kết quả để bỏ được khi kết quả về."""
 
@@ -1111,8 +1121,14 @@ class ChatGPTLive(LiveProvider):
 
     def __init__(self, api_key: str = "", model: str = "", voice: str = "", system: str = CHATGPT_LIVE_PROMPT,
                  tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN", memory_index: str = "",
-                 app_server_getter=None):
+                 app_server_getter=None, account: str = "main", codex_home: str = ""):
         super().__init__(api_key, model=model, voice=voice, system=system, tools=tools, recognition_lang=recognition_lang)
+        # The ChatGPT account this call runs on (plan_accounts): "main" is ~/.codex, another one has its own folder.
+        self.account = str(account or "main")
+        self.codex_home = str(codex_home or "")
+        # Set when the provider said the plan is out of quota ("You've hit your usage limit"): the route rests this
+        # account and the call moves on to the next account or the next path (owner's report 06/11/2026).
+        self.quota = None
         if self.voice not in CHATGPT_VOICES:
             self.voice = PROVIDERS["chatgpt"]["default_voice"]
         self.memory_index = str(memory_index or "")[:MEMORY_CHARS]
@@ -1142,7 +1158,7 @@ class ChatGPTLive(LiveProvider):
 
     async def connect(self):
         self._closing = False
-        self.srv = await self._get_server()
+        self.srv = await (self._get_server(self.codex_home) if self.codex_home else self._get_server())
         # Thư mục tạm rỗng: lượt Codex nào lỡ chạy cũng không thấy file thật của người dùng.
         self._cwd = tempfile.mkdtemp(prefix="javis-live-")
         res = await self.srv.request("thread/start", {
@@ -1238,9 +1254,18 @@ class ChatGPTLive(LiveProvider):
             return []
         if method == "thread/realtime/error":
             text = str(p.get("message") or "lỗi không rõ")
+            lim = quota_error(text)
+            if lim is not None:
+                self.quota = lim
             if self._sdp is not None and not self._sdp.done():
+                # The handshake is still waiting: start_webrtc raises with this text and the route reports it ONCE.
+                # Emitting an error event as well drew the same red box twice (owner's screenshot, 06/11/2026).
                 self._sdp.set_exception(RuntimeError(f"ChatGPT Live không mở được: {text}"))
-            return [{"type": "error", "message": localefmt.chu(f"ChatGPT Live lỗi: {text}", f"ChatGPT Live error: {text}")}]
+                return []
+            ev = {"type": "error", "message": localefmt.chu(f"ChatGPT Live lỗi: {text}", f"ChatGPT Live error: {text}")}
+            if lim is not None:
+                ev["code"] = "quota"
+            return [ev]
         # Chỉ thông báo `transcript/done` của người dùng mới tạo bong bóng chốt. Đo trên dashboard thật
         # (01/10): model hay BẮT ĐẦU trả lời trước khi chữ cuối của người dùng về ("... có khỏe" rồi
         # mới tới " không"), và handoff tới trước cả done. Chốt sớm theo những mốc đó sinh bong bóng
@@ -1433,6 +1458,28 @@ CHATGPT_UNAVAILABLE = {
 }
 
 
+def _chatgpt_account(cfg: dict) -> dict:
+    """{'account', 'codex_home'} of the ChatGPT account the call runs on: the first that is switched on, signed in and
+    not out of quota (plan_accounts), so a call moves to account 2 once account 1 has run out. {} = account 1."""
+    try:
+        import plan_accounts
+        m = (cfg or {}).get("model") or {}
+        prov = "openai-oauth"
+        if not plan_accounts.has_extra(m, prov):
+            return {}
+        acc = plan_accounts.pick(m, prov) or plan_accounts.fallback(m, prov)
+        if not acc or acc["id"] == plan_accounts.MAIN:
+            return {}
+        folder = plan_accounts.home(prov, acc["id"])
+        if not folder:
+            return {}
+        plan_accounts.prepare(prov, folder)
+        return {"account": acc["id"], "codex_home": str(folder)}
+    except Exception as e:   # noqa: BLE001 - choosing an account must never stop a call
+        print(f"[chatgpt live] account: {type(e).__name__}: {e}", file=sys.stderr)
+        return {}
+
+
 def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", memory_index: str = "",
                   persona: Optional[tuple] = None) -> LiveProvider:
     """Dựng nhà cung cấp Live từ settings. Ném RuntimeError có câu người đọc hiểu được.
@@ -1461,6 +1508,9 @@ def _make_provider(cfg: dict, system: str, recognition_lang: str, memory_index: 
                                                                            "ChatGPT Live is not available yet.")))
         kw = {"voice": str(v.get("chatgpt_voice") or ""), "recognition_lang": recognition_lang,
               "memory_index": memory_index}
+        acc = _chatgpt_account(cfg)
+        if acc:
+            kw.update(acc)
         if system:
             kw["system"] = system
         return ChatGPTLive(**kw)

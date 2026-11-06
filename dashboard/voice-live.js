@@ -329,7 +329,10 @@
       else if (d.type === "error") {
         // Lỗi trong lúc chờ answer (Codex cũ, gói không cho realtime...): báo một lần, dừng chờ.
         if (answerWaiter) { rtcErrorShown = true; answerWaiter(null); }
-        emit("onError", d.message || "error");
+        // An error before `ready` (the server refused to open this path) ends the wait now, not after 25 seconds.
+        if (readyWaiter) { rtcErrorShown = true; readyWaiter(null); }
+        // `code`: "quota" (the ChatGPT plan ran out) or "use_basic" (no Live path now): the page changes path.
+        emit("onError", d.message || "error", d.code || "");
       }
     };
     ws.onclose = function () {
@@ -357,7 +360,7 @@
       readyWaiter = function (d) { clearTimeout(timer); readyWaiter = null; res(d); };
     });
     if (id !== generation) return false;
-    if (!ready) { stop(); emit("onError", "ws"); emit("onClosed"); return false; }
+    if (!ready) { stop(); if (!rtcErrorShown) emit("onError", "ws"); emit("onClosed"); return false; }
     if (ready.transport === "webrtc") {
       rtc = true;
       var ok = await startWebRTC(id);

@@ -569,15 +569,38 @@ function cupMay() {
 }
 // Live (ChatGPT Live hay Live API) mở không được trước khi sẵn sàng: cuộc gọi chuyển sang đường
 // Cơ bản thay vì cúp, báo một dòng (spec mục 4). Lần gọi sau vẫn thử đường chính trước.
-function chuyenSangCoBan() {
+function chuyenSangCoBan(cauDangNoi = "", ghiChu = "call.fallback") {
   if (!voice.isSupported()) { tatRanhTay(); return false; }
   datCheDoGiong(_callInfo.basic_mode || "standard");
-  ghiChuThoang(window.t("call.fallback"));
+  ghiChuThoang(window.t(ghiChu));
   if (callBar) callBar.setEngine(window.t("call.engine_basic"));
   voice.handsFree = true;
   adaptive.start();
-  voice.startListening();
+  // The sentence that was heading to Live is not lost: it goes to the main model as a normal turn.
+  if (cauDangNoi) sendMessage(cauDangNoi);
+  else voice.startListening();
   return true;
+}
+// ChatGPT Live hết lượt giữa chừng (chủ báo 06/11/2026): máy chủ đã cho tài khoản đó nghỉ tới giờ mở lại, nên hỏi
+// lại đường gọi và mở NGAY đường kế tiếp: tài khoản ChatGPT thứ hai, Live qua API key, hay đường Cơ bản (trả lời bằng
+// model chính). Trước đây cuộc gọi cứ nối lại đúng ChatGPT Live đã cạn và báo lỗi mãi. Giới hạn số lần đổi trong một
+// cuộc gọi để hai đường cùng hỏng không đẩy qua đẩy lại vô tận.
+const DOI_DUONG_MAX = 3;
+let _lanDoiDuong = 0;
+async function doiDuongGoi(cauDangNoi) {
+  if (!handsFree) return false;
+  _lanDoiDuong++;
+  let call = null;
+  try { call = await fetch("/voice/call", { cache: "no-store" }).then(r => r.json()); } catch (e) { call = null; }
+  if (!handsFree) return false;
+  if (call && call.voice_mode) _callInfo = call;
+  if (_lanDoiDuong <= DOI_DUONG_MAX && call && call.voice_mode === "live") {
+    _liveWaitingWake = false;
+    if (callBar) callBar.setEngine(tenDuongGoi());
+    return batLive(cauDangNoi || "");
+  }
+  tatLive();
+  return chuyenSangCoBan(cauDangNoi || "", call && call.detail === "quota" ? "call.quota_basic" : "call.fallback");
 }
 async function napCaiDatGiong() {
   try {
@@ -811,7 +834,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     if (ticket !== _liveStartSeq || !handsFree) return false;
     if (!released) { tatRanhTay(); appendJavisError(window.t("app.voice_focus_mic_busy")); return false; }
   }
-  const phien = { ticket, pendingWake: wakeText, readySeen: false, promise: null, henHuy: 0 };
+  const phien = { ticket, pendingWake: wakeText, readySeen: false, promise: null, henHuy: 0, doiDuong: false };
   let readySeen = false;
   // Câu đánh thức đi làm lời đầu, chỉ khi phiên đã sẵn sàng; nối sớm thì câu tới sau ready.
   phien.guiCauDanhThuc = () => {
@@ -847,7 +870,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     },
     onReady: (d) => {
       if (ticket !== _liveStartSeq || !handsFree) return;
-      if (!readySeen) { readySeen = phien.readySeen = true; _cuocGoiDaNoi = true; _liveBusyUntil = 0; attention.keepActive(); }
+      if (!readySeen) { readySeen = phien.readySeen = true; _cuocGoiDaNoi = true; _lanDoiDuong = 0; _liveBusyUntil = 0; attention.keepActive(); }
       if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); }
       if (d && d.session_id && !_callSid) _callSid = d.session_id;
       // Nối sớm: mic chưa gắn thì câu đánh thức chờ noiTiepPhienSom gửi sau khi gắn mic.
@@ -893,8 +916,18 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
       _liveJavisText = ""; _liveJavisBubble = null;
       runActions(turn.turnDone());
     },
-    onError: (msg) => {
+    onError: (msg, code) => {
       _liveBusyUntil = 0;
+      if (code === "quota" || code === "use_basic") {
+        // Not a fault to retry: the path is out (ChatGPT plan out of quota). One quiet line, then the next path.
+        phien.doiDuong = true;
+        if (_liveSom !== phien) ghiChuThoang(String(msg || ""));
+        runActions(turn.turnDone());
+        // Mid-call (the line was up): the provider may keep the dead session open, so close it and move on now.
+        // Before the line is up, the failed handshake below takes the same turn.
+        if (readySeen && ticket === _liveStartSeq && handsFree) { tatLive(); doiDuongGoi(""); }
+        return;
+      }
       if (_liveSom === phien) return;   // nối sớm hỏng: im lặng, câu chốt sẽ mở lại từ đầu
       appendJavisError(String(msg || "").startsWith("mic:") ? window.t("app.mic_denied") : (window.t("app.live_error") + " " + msg));
       runActions(turn.turnDone());
@@ -903,6 +936,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     onClosed: () => {
       if (_liveSom === phien) { _liveSom = null; clearTimeout(phien.henHuy); capNhatThanhGoi(); return; }
       if (!readySeen || ticket !== _liveStartSeq) return;
+      if (phien.doiDuong && handsFree) { doiDuongGoi(""); return; }   // ran out mid-call: next path at once
       // 0.347.0: a Live connection that drops in the middle of a call (network, the provider, the browser) used to
       // hang the whole call up. Now the call waits, like after a silence: speaking reopens Live. Only the Hang up
       // button, the mascot or Esc end the call (owner, 27/10/2026).
@@ -920,6 +954,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     if (!ok && _liveSom === phien) { _liveSom = null; clearTimeout(phien.henHuy); capNhatThanhGoi(); }
     return ok;
   }
+  if (!ok && phien.doiDuong && handsFree) return doiDuongGoi(phien.pendingWake || wakeText);
   if (!ok) {
     // Mở không được TRƯỚC khi sẵn sàng. Đầu cuộc gọi: chuyển đường Cơ bản như cũ. Giữa cuộc gọi: giữ
     // ChatGPT Live, thử lại rồi chờ (noiLaiHong), không đổi giọng.
