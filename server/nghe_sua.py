@@ -170,15 +170,26 @@ def tu_vung(cfg: dict) -> list:
     v = (cfg or {}).get("voice") or {}
     ra = list(TU_VUNG_GOC)
     da = {t.lower() for t in ra}
-    for t in TU_AI_SUA:
-        if t.lower() not in da:
-            da.add(t.lower())
-            ra.append(t)
     for t in tach_tu_vung(v.get("hotwords")):
         if t.lower() not in da:
             da.add(t.lower())
             ra.append(t)
     return ra[:MAX_TU_VUNG]
+
+
+def tu_vung_sua(cfg: dict) -> list:
+    """Bộ từ vựng cho LỚP SỬA LUẬT: `tu_vung` cộng thuật ngữ AI (TU_AI_SUA).
+
+    Tách khỏi `tu_vung` vì danh sách đó cũng là mồi cho Whisper, mà Whisper chỉ giữ phần CUỐI prompt:
+    đưa thuật ngữ AI vào đó sẽ đẩy từ người dùng khai (Pancake, Webcake) ra xa âm thanh (2026-11-06).
+    """
+    ra = list(tu_vung(cfg))
+    da = {t.lower() for t in ra}
+    for t in TU_AI_SUA:
+        if t.lower() not in da:
+            da.add(t.lower())
+            ra.append(t)
+    return ra[:MAX_TU_VUNG + len(TU_AI_SUA)]
 
 
 def goi_y_whisper(tv, ky_thuat=TU_TIENG_ANH_MOI) -> str:

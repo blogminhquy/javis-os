@@ -109,7 +109,7 @@ async def sua_nhanh(cfg: dict, text) -> dict:
     goc = str(text or "").strip()
     if not goc:
         return {"text": "", "nguon": "luat", "ai": False}
-    tv = nghe_sua.tu_vung(cfg or {})
+    tv = nghe_sua.tu_vung_sua(cfg or {})
     qua_luat = nghe_sua.sua(goc, tv)
     pick = _chon_model(cfg or {})
     if pick is None:

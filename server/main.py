@@ -20174,7 +20174,7 @@ async def _chat_socket(ws):
             _nghe_tho = ""
             if payload.get("voice_input", payload.get("voice")):
                 try:
-                    _tv = nghe_sua.tu_vung(_cfg_luot)
+                    _tv = nghe_sua.tu_vung_sua(_cfg_luot)
                     _ctx, _speech = nghe_sua.split_ui_context(user_message)
                     _sua = nghe_sua.sua(_speech, _tv)
                     if _sua != _speech:
@@ -25575,7 +25575,7 @@ async def _stt_nghe(data, ten=""):
            or lang_registry.chuan_hoa(_lc2.get("ui_lang") or ""))
     # Cùng bộ từ vựng và lớp sửa nghe nhầm như mic trên dashboard (nghe_sua): tin thoại Telegram
     # hay Zalo nói "David" cũng phải ra "Javis" trước khi vào bộ não.
-    _tv = nghe_sua.tu_vung(_cfg)
+    _tv = nghe_sua.tu_vung_sua(_cfg)
     # 0.435.0: not Groq only any more. Every ear the owner has is tried in turn (Groq, OpenAI, Gemini, then the
     # offline Whisper from the Tools page); one missing or failing hands over to the next (`stt.listen_any`).
     _m = _cfg.get("model") or {}

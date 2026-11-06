@@ -78,17 +78,17 @@ cfg = {"voice": {"hotwords": "OpenRouter, Pancake\n javis ; Zalo,, Pancake"}}
 tv = nghe_sua.tu_vung(cfg)
 check("Javis luôn đứng đầu, không nhân đôi dù người dùng gõ 'javis'", tv[0] == "Javis" and tv.count("Javis") == 1
       and not any(t.lower() == "javis" for t in tv[1:]))
-check("tách bằng phẩy, chấm phẩy, xuống dòng; bỏ trùng (sau thuật ngữ AI mặc định)", tv == ["Javis", *nghe_sua.TU_AI_SUA, "Pancake", "Zalo"])
-check("không có cài đặt vẫn có Javis và thuật ngữ AI", nghe_sua.tu_vung({}) == ["Javis", *nghe_sua.TU_AI_SUA])
+check("tách bằng phẩy, chấm phẩy, xuống dòng; bỏ trùng", tv == ["Javis", "OpenRouter", "Pancake", "Zalo"])
+check("không có cài đặt vẫn có Javis", nghe_sua.tu_vung({}) == ["Javis"])
 check("gợi ý Whisper là danh sách ngăn phẩy, khép dấu chấm",
-      nghe_sua.goi_y_whisper(tv, ky_thuat=()) == ", ".join(tv) + ".")
+      nghe_sua.goi_y_whisper(tv, ky_thuat=()) == "Javis, OpenRouter, Pancake, Zalo.")
 check("gợi ý rỗng khi không có từ", nghe_sua.goi_y_whisper([], ky_thuat=()) == "")
 
 # ---- 7. Mồi thêm từ tiếng Anh hay nói xen (0.64.67: "GitHub Actions" thành "huyết áp Action") ----
 gy = nghe_sua.goi_y_whisper(tv)
 check("mặc định mồi kèm từ tiếng Anh thông dụng", "GitHub Actions" in gy and "deploy" in gy)
 check("từ người dùng khai đứng CUỐI (Whisper chỉ giữ phần cuối prompt)",
-      gy.endswith("Pancake, Zalo."))
+      gy.endswith("Javis, OpenRouter, Pancake, Zalo."))
 gy2 = nghe_sua.goi_y_whisper(["Javis", "github"])
 check("không nhân đôi từ người dùng đã khai (không phân biệt hoa thường)",
       [x.strip(" .").lower() for x in gy2.split(",")].count("github") == 1 and gy2.endswith("Javis, github."))

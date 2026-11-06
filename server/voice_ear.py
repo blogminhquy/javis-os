@@ -161,7 +161,7 @@ async def transcribe_upload(cfg: dict, data: bytes, filename: str = "voice.webm"
     """
     m = (cfg or {}).get("model") or {}
     v = (cfg or {}).get("voice") or {}
-    tv = nghe_sua.tu_vung(cfg)
+    tv = nghe_sua.tu_vung_sua(cfg)
     hotwords = nghe_sua.goi_y_whisper(vocab(cfg))
     if provider == "openai":
         res = await stt.openai_nghe(data, filename or "voice.webm", m.get("openai_api_key", ""), "",
