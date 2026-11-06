@@ -7810,10 +7810,11 @@
       // wired one by one were dead from page 2 on (bug until 2026-11-06).
       box.onclick = (e) => {
         const b = e && e.target && e.target.closest
-          ? e.target.closest("[data-share-revoke],[data-share-copy],[data-share-edit]") : null;
+          ? e.target.closest("[data-share-revoke],[data-share-copy],[data-share-qr],[data-share-edit]") : null;
         if (!b || b.disabled) return undefined;
         if (b.dataset.shareRevoke) return revoke(b);
         if (b.dataset.shareCopy) return copy(b);
+        if (b.dataset.shareQr) return qr(b.dataset.shareQr);
         return edit(b.dataset.shareEdit);
       };
     }
@@ -7860,6 +7861,7 @@
         <div class="share-acts">
           <a class="share-ib" href="${esc(url)}" target="_blank" rel="noopener" aria-label="${esc(t("share.a_open") + ": " + name)}" title="${esc(t("share.a_open"))}">${ic("external-link")}</a>
           ${b("data-share-copy", url, "copy", "share.a_copy")}
+          ${b("data-share-qr", m.token, "qr-code", "share.a_qr")}
           ${b("data-share-edit", m.token, "pencil", "share.a_edit")}
           ${b("data-share-revoke", m.token, "trash-2", "share.a_revoke", "bad")}
         </div>
@@ -7874,6 +7876,17 @@
         b.title = t("common.copied");
         setTimeout(() => { b.innerHTML = ic("copy"); b.classList.remove("ok"); b.title = t("share.a_copy"); }, 1400);
       };
+      writeClipboard(url, done);
+    }
+    // The QR dialog's labelled Copy button: same clipboard path, its own "copied" feedback.
+    function copyText(url, b) {
+      writeClipboard(url, () => {
+        const was = b.innerHTML;
+        b.innerHTML = ic("check") + " " + esc(t("common.copied"));
+        setTimeout(() => { b.innerHTML = was; }, 1400);
+      });
+    }
+    function writeClipboard(url, done) {
       // execCommand fallback: navigator.clipboard does not exist over plain HTTP on a LAN.
       if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(url).then(done).catch(() => {});
@@ -7883,6 +7896,36 @@
         try { document.execCommand("copy"); done(); } catch (e) {}
         o.remove();
       }
+    }
+
+    // QR of the link's current address (owner, 2026-11-06): drawn by the server (/share/qr, segno), shown big enough to
+    // scan off a screen, with a PNG download for print. Same dialog shell as Edit.
+    function qr(token) {
+      const m = links.find((x) => x.token === token);
+      if (!m) return;
+      const url = location.origin + m.url;
+      const src = (fmt, dl) => "/share/qr?token=" + encodeURIComponent(token) + "&origin=" + encodeURIComponent(location.origin)
+        + "&fmt=" + fmt + (dl ? "&dl=1" : "");
+      const dlg = document.createElement("div");
+      dlg.className = "share-dlg-wrap";
+      dlg.innerHTML = `<div class="share-dlg-scrim" data-dlg="close"></div>
+        <div class="share-dlg share-qr-dlg" role="dialog" aria-modal="true" aria-label="${esc(t("share.qr_title"))}">
+          <div class="share-dlg-h"><b>${esc(m.ten || t("share.qr_title"))}</b>
+            <button type="button" class="share-ib" data-dlg="close" aria-label="${esc(t("common.cancel"))}">${ic("x")}</button></div>
+          <img class="share-qr-img" src="${esc(src("svg"))}" alt="${esc(t("share.qr_title") + ": " + url)}" width="240" height="240">
+          <div class="share-qr-url">${esc(url)}</div>
+          <div class="share-dlg-acts">
+            <button type="button" class="gcard-btn ghost" data-dlg="copy">${ic("copy")} ${esc(t("share.a_copy"))}</button>
+            <a class="gcard-btn" data-dlg="png" href="${esc(src("png", true))}" download>${ic("download")} ${esc(t("share.qr_png"))}</a>
+          </div>
+        </div>`;
+      document.body.appendChild(dlg);
+      const close = () => { document.removeEventListener("keydown", onKey); dlg.remove(); };
+      const onKey = (e) => { if (e.key === "Escape") close(); };
+      document.addEventListener("keydown", onKey);
+      dlg.querySelectorAll('[data-dlg="close"]').forEach((x) => { x.onclick = close; });
+      const cp = dlg.querySelector('[data-dlg="copy"]');
+      if (cp) cp.onclick = () => copyText(url, cp);
     }
 
     // One dialog for the name and the custom address. Phone: a sheet from the bottom (CSS), like the Tasks page.

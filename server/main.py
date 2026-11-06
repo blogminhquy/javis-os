@@ -30416,6 +30416,45 @@ async def share_chat_of(session_id: str = Query(...)):
     return {"ok": True, "share": ({"token": ban["token"], "path": share_store.public_path(ban)} if ban else None)}
 
 
+_QR_ORIGIN = re.compile(r"^https?://[A-Za-z0-9.\-]+(?::\d{1,5})?$")
+
+
+@app.get("/share/qr")
+async def share_qr(token: str = Query(...), origin: str = Query(...), fmt: str = Query("svg"), dl: int = Query(0)):
+    """QR code of a share link (owner, 2026-11-06), for the Share links page.
+
+    Drawn here with segno (already a dependency for 2FA, pure Python, PNG without Pillow), so the dashboard ships no
+    QR library. The dashboard sends its own `origin` (location.origin): building the address from the Host header would
+    trust what this repo notes must not be trusted. The QR always encodes the link's CURRENT address (slug if set), so
+    changing the address means printing a new code; the random-token link keeps working for old prints.
+    """
+    ban = share_store.get(token)
+    if not ban or ban.get("token") != str(token or "").strip():
+        return JSONResponse({"ok": False, "error": localefmt.chu("Link không tồn tại hoặc đã bị thu hồi.",
+                                                                 "The link does not exist or has been revoked.")},
+                            status_code=404)
+    o = str(origin or "").strip().rstrip("/")
+    if not _QR_ORIGIN.match(o):
+        return JSONResponse({"ok": False, "error": "bad origin"}, status_code=400)
+    try:
+        import io
+        import segno
+        buf = io.BytesIO()
+        png = fmt == "png"
+        # border=4 is the QR standard quiet zone; white background so it scans on a dark theme too (see totp.qr_svg).
+        segno.make(o + share_store.public_path(ban), error="m").save(
+            buf, kind="png" if png else "svg", scale=12 if png else 8, border=4, dark="#111", light="#fff")
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status_code=500)
+    resp = Response(buf.getvalue(), media_type="image/png" if png else "image/svg+xml")
+    resp.headers["Cache-Control"] = "no-store"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    if dl:
+        name = share_store.slugify(_share_ten(ban)) or ban.get("slug") or "link"
+        resp.headers["Content-Disposition"] = f'attachment; filename="qr-{name}.{"png" if png else "svg"}"'
+    return resp
+
+
 # ── Event loop watchdog (0.194.0, owner 17/10/2026: "Mất kết nối tới máy chủ" more and more often) ──
 # Synchronous work on the event loop freezes every socket at once; the watchdog names the code (loop_watch.py).
 import loop_watch  # noqa: E402

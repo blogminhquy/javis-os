@@ -164,6 +164,24 @@ raw = open(share_stats.STORE, encoding="utf-8").read()
 check("counts are written to disk", json.loads(raw)["links"][ntok]["views"] == 2)
 check("no raw address or browser string is stored", "testclient" not in raw and "iPhone" not in raw and "Chrome" not in raw)
 
+# ---- 4. QR code (owner, 2026-11-06: "thêm mã QR cho từng link") ----
+import segno  # noqa: E402
+q = cl.get("/share/qr", params={"token": ntok, "origin": "https://share.example"})
+check("QR comes back as an SVG image", q.status_code == 200 and q.headers["content-type"].startswith("image/svg+xml")
+      and q.text.lstrip().startswith(("<?xml", "<svg")), q.status_code)
+want = segno.make("https://share.example/s/ke-hoach-q4", error="m")
+check("it encodes origin + the link's current address (the slug)", want.version > 0 and q.content == (lambda b: (
+    want.save(b, kind="svg", scale=8, border=4, dark="#111", light="#fff"), b.getvalue())[1])(__import__("io").BytesIO()))
+p = cl.get("/share/qr", params={"token": ntok, "origin": "https://share.example/", "fmt": "png", "dl": 1})
+check("PNG download with a readable file name", p.status_code == 200 and p.content[:8] == b"\x89PNG\r\n\x1a\n"
+      and 'filename="qr-' in p.headers.get("content-disposition", ""), p.headers.get("content-disposition"))
+check("a forged origin is refused", cl.get("/share/qr", params={"token": ntok, "origin": "javascript:alert(1)"}).status_code == 400
+      and cl.get("/share/qr", params={"token": ntok, "origin": "https://a.example/x?y"}).status_code == 400)
+check("an unknown token is 404", cl.get("/share/qr", params={"token": "nope", "origin": "https://a.example"}).status_code == 404)
+check("only the random token, not the slug, addresses the QR route",
+      cl.get("/share/qr", params={"token": "ke-hoach-q4", "origin": "https://a.example"}).status_code == 404)
+check("drawing a QR is not a view", views(ntok) == 2, views(ntok))
+
 cl.post("/share/revoke", json={"token": ntok})
 check("revoking kills the address too", cl.get("/s/ke-hoach-q4").status_code == 404 and cl.get("/s/" + ntok).status_code == 404)
 check("and drops its counts", share_stats.summary(ntok)["views"] == 0)

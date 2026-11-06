@@ -832,6 +832,13 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .share-tok { color: var(--text2); }
 .share-dlg-err { margin-top: 8px; min-height: 1.2em; font-size: 13px; color: var(--red); }
 .share-dlg-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.share-dlg-acts a.gcard-btn, .share-dlg-acts .gcard-btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.share-dlg-acts .gcard-btn .ic { width: 16px; height: 16px; }
+/* QR dialog: the code on its own white tile (it has its own quiet zone), centered, big enough to scan off a screen. */
+.share-qr-dlg { width: 340px; text-align: center; }
+.share-qr-img { display: block; width: 240px; height: 240px; margin: 6px auto 10px; border-radius: 10px; background: #fff; }
+.share-qr-url { font-size: 13px; color: var(--text2); overflow-wrap: anywhere; }
+.share-qr-dlg .share-dlg-acts { justify-content: center; }
 /* Phone: bigger text and 40px touch targets; the dialog becomes a bottom sheet. */
 @media (max-width: 900px) {
   .share-sum { font-size: 15px; }
@@ -847,6 +854,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .share-dlg-wrap { place-items: end stretch; }
   .share-dlg { width: auto; max-width: none; border-radius: 16px 16px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
   .share-fld, .share-dlg-note, .share-dlg-err { font-size: 15px; }
+  .share-qr-dlg { width: auto; }
+  .share-qr-img { width: min(72vw, 300px); height: min(72vw, 300px); }
+  .share-qr-url { font-size: 15px; }
   .share-dlg-acts .gcard-btn { font-size: 16px; padding: 10px 16px; }
 }
 .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
