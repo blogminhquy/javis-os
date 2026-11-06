@@ -97,6 +97,7 @@
       if (mq.matches) {
         if (!moved.length) {
           moveEl(document.querySelector(".navbar-brain"), false);
+          moveEl(document.getElementById("soundToggle"), true, true);   // 06/11/2026: loa ngay trước nút sáng/tối
           moveEl(document.getElementById("themeToggle"), true, true);
           // Nút loa header đã bỏ (0.48.3), nút loa thanh nhập cũng bỏ (02/09): giọng đi theo
           // mic, bấm mic là bật loa. Không còn nút loa nào để dời cả.

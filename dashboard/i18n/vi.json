@@ -148,6 +148,8 @@
   "top.install_label": "Mở như app",
   "top.theme_dark": "Đang dùng tông tối - bấm để chuyển sang tông sáng",
   "top.theme_light": "Đang dùng tông sáng - bấm để chuyển sang tông tối",
+  "top.sound_on": "Âm thanh hiệu ứng đang bật - bấm để tắt",
+  "top.sound_off": "Âm thanh hiệu ứng đang tắt - bấm để bật",
   "top.studio_title": "Studio - Trợ lý, Kỹ năng, Quy trình",
   "top.reset": "Reset hội thoại",
   "top.new_chat": "Hội thoại mới",

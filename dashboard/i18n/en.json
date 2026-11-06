@@ -148,6 +148,8 @@
   "top.install_label": "Open as app",
   "top.theme_dark": "Dark theme is on - click to switch to light",
   "top.theme_light": "Light theme is on - click to switch to dark",
+  "top.sound_on": "Sound effects are on - click to turn them off",
+  "top.sound_off": "Sound effects are off - click to turn them on",
   "top.studio_title": "Studio - Agents, Skills, Workflows",
   "top.reset": "Reset conversation",
   "top.new_chat": "New conversation",

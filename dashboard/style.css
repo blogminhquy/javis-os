@@ -556,6 +556,10 @@ button, input, select, textarea { font-family: inherit; }
 .theme-toggle .ic-sun { display: none; }
 :root[data-theme="light"] .theme-toggle .ic-moon { display: none; }
 :root[data-theme="light"] .theme-toggle .ic-sun { display: block; }
+/* Nút âm thanh hiệu ứng: loa có sóng khi đang bật, loa gạch chéo khi đang tắt (báo trạng thái hiện tại). */
+.sound-toggle .ic-soff { display: none; }
+.sound-toggle[aria-pressed="false"] .ic-son { display: none; }
+.sound-toggle[aria-pressed="false"] .ic-soff { display: block; }
 
 /* BODY 3 cols */
 .hud-body {
