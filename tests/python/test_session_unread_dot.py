@@ -81,13 +81,32 @@ check("the owner's own message never lights the dot", st.is_unread(asked) is Fal
 # Upgrade: a store from before the column existed. Old chats must not all light up at once.
 st.mark_read(ag)
 st.append_message(ag, "assistant", "câu trả lời cũ")
-st._conn.execute("ALTER TABLE sessions DROP COLUMN read_at")
+st._conn.execute("DROP TABLE session_read")
 st._conn.commit()
 st2 = sessions.SessionStore(db)
-cols = {r[1] for r in st2._conn.execute("PRAGMA table_info(sessions)")}
-check("migration adds read_at", "read_at" in cols)
+tables = {r[0] for r in st2._conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+check("migration adds the session_read table", "session_read" in tables)
 check("chats from before the upgrade count as read",
       not any(unread_map(st2).values()) and not any(unread_map(st2, channel="agent:nguoi-viet").values()))
+time.sleep(0.01)
+st2.append_message(web, "assistant", "tin sau khi nâng cấp")
+check("a reply after the upgrade still lights the dot", st2.is_unread(web) is True)
+st2.delete(web)
+check("deleting a chat drops its read mark",
+      st2._conn.execute("SELECT COUNT(*) FROM session_read WHERE session_id = ?", (web,)).fetchone()[0] == 0)
+
+# The read mark lives outside `sessions`: its columns are an exact list the qualified native trial context reads, and
+# a new column there makes every trial on a web chat fail with unsupported_sql_context_schema.
+import improvement_trial_sql_context as SQLCTX  # noqa: E402
+_c = sqlite3.connect(str(db))
+_c.row_factory = sqlite3.Row
+try:
+    SQLCTX._schema(_c, "sessions", SQLCTX._SESSION_FIELDS, SQLCTX._SESSION_COLUMNS)
+    check("sessions keeps the column list the trial context accepts", True)
+except ValueError as e:
+    check("sessions keeps the column list the trial context accepts (%s)" % e, False)
+finally:
+    _c.close()
 
 # Route: POST /sessions/{id}/read clears the dot and tells the other tabs only when something changed.
 import main  # noqa: E402

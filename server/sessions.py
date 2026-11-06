@@ -62,7 +62,8 @@ UNREAD_CHANNELS = ("web", "dashboard", "")
 UNREAD_PREFIXES = KENH_CONG_SU
 UNREAD_SQL = (
     "(CASE WHEN (s.channel IN ({chs}) OR {pre}) AND EXISTS (SELECT 1 FROM messages m WHERE m.session_id = s.id "
-    "AND m.role = 'assistant' AND m.ts > COALESCE(s.read_at, 0)) THEN 1 ELSE 0 END)"
+    "AND m.role = 'assistant' AND m.ts > COALESCE((SELECT r.read_at FROM session_read r WHERE r.session_id = s.id), 0)) "
+    "THEN 1 ELSE 0 END)"
 ).format(chs=", ".join("'%s'" % c for c in UNREAD_CHANNELS),
          pre=" OR ".join("s.channel LIKE '%s%%'" % p for p in UNREAD_PREFIXES))
 
@@ -121,6 +122,16 @@ CREATE TABLE IF NOT EXISTS pin_order (
 CREATE TABLE IF NOT EXISTS project_order (
     project_id TEXT PRIMARY KEY,
     pos        INTEGER NOT NULL
+);
+"""
+
+# 2026-11-06: when the owner last had each chat on screen (red unread dot in every history list). Its own table for the
+# same reason as pin_order above: a `read_at` column on `sessions` would stop the qualified native trial context.
+# A chat without a row was never read: any reply in it is unread.
+_READ_SQL = """
+CREATE TABLE IF NOT EXISTS session_read (
+    session_id TEXT PRIMARY KEY,
+    read_at    REAL NOT NULL
 );
 """
 
@@ -562,15 +573,9 @@ class SessionStore:
                               # lượt. NULL/rỗng = phiên chưa có lượt dashboard nào (hoặc phiên
                               # Telegram) → theo mặc định chung ở settings.json.
                               ("pinned_provider", "TEXT"),
-                              ("pinned_model", "TEXT"),
-                              # When the owner last had this chat on screen (2026-11-06). Assistant messages
-                              # after it are unread and the history list shows a red dot. NULL = never read.
-                              ("read_at", "REAL")):
+                              ("pinned_model", "TEXT")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
-                    if name == "read_at":
-                        # Chats from before the upgrade count as read, so the history does not light up all at once.
-                        self._conn.execute("UPDATE sessions SET read_at = updated_at")
             # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
             # INDEX ở _SCHEMA_SQL sẽ ném "no such column" và huỷ cả lượt khởi tạo schema.
             self._conn.execute(
@@ -607,6 +612,13 @@ class SessionStore:
             self._conn.executescript(_DM_REACTION_SQL)
             self._conn.executescript(_MSG_PIN_SQL)
             self._conn.executescript(_ORDER_SQL)
+            had_read = self._conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_read'").fetchone()
+            self._conn.executescript(_READ_SQL)
+            if not had_read:
+                # Chats from before the upgrade count as read, so the history does not light up all at once.
+                self._conn.execute("INSERT OR IGNORE INTO session_read(session_id, read_at) "
+                                   "SELECT id, COALESCE(updated_at, 0) FROM sessions")
             if self._probe_fts5():
                 try:
                     self._conn.executescript(_FTS_SQL)
@@ -1443,8 +1455,9 @@ class SessionStore:
         (a brand-new chat whose id the dashboard minted before the server stored it)."""
         when = float(at if at is not None else time.time())
         return bool(self._write(lambda c: c.execute(
-            "UPDATE sessions SET read_at = ? WHERE id = ? AND (read_at IS NULL OR read_at < ?)",
-            (when, session_id, when)).rowcount))
+            "INSERT INTO session_read(session_id, read_at) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM sessions WHERE id = ?) "
+            "ON CONFLICT(session_id) DO UPDATE SET read_at = excluded.read_at WHERE session_read.read_at < excluded.read_at",
+            (session_id, when, session_id)).rowcount))
 
     def is_unread(self, session_id: str) -> bool:
         rows = self._read(f"SELECT {UNREAD_SQL} AS unread FROM sessions s WHERE s.id = ?", (session_id,))
@@ -1868,6 +1881,7 @@ class SessionStore:
         # ON DELETE CASCADE xoá messages; trigger dọn messages_fts.
         def _del(c):
             c.execute("DELETE FROM pin_order WHERE session_id = ?", (session_id,))   # 0.454.0
+            c.execute("DELETE FROM session_read WHERE session_id = ?", (session_id,))
             c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         self._write(_del)
 
