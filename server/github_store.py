@@ -200,6 +200,12 @@ class Store:
                 "integ IN ('pr_open','ready') OR (integ='merged' AND post_merge='pending'))").fetchall()
         return [self._row(r) for r in rows]
 
+    def ship_pending(self) -> List[Dict[str, Any]]:
+        """Rows whose gate was green but whose push or PR failed (github_work retries them)."""
+        with self._lock:
+            rows = self._db.execute("SELECT * FROM work WHERE exec='stuck' AND gate LIKE '%\"ship_failed\"%'").fetchall()
+        return [self._row(r) for r in rows]
+
     def for_repo(self, brain: str, full_name: str) -> List[Dict[str, Any]]:
         with self._lock:
             rows = self._db.execute("SELECT * FROM work WHERE brain=? AND lower(full_name)=lower(?)",

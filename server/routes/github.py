@@ -16,6 +16,7 @@
     GET  /github/local/metrics?full_name=      per engine and model: first-push green, fix rounds, review findings
     GET  /github/icons?sids=a,b                status icon per conversation for the chat list
     POST /github/session/{sid}/merge           full_name: a person merges a ready PR
+    POST /github/session/{sid}/push            full_name: push again a commit whose push or PR failed
     POST /github/session/{sid}/next            text: a job to start once this chat's PRs are merged; cancel=<id>
     GET  /github/session/{sid}?brain=          repos attached to a conversation, with its branch and worktree
     POST /github/session/{sid}/repos           brain, repos (comma separated full names): set the chat's repos
@@ -61,6 +62,14 @@ async def _call(fn, *args, **kw):
     return {"ok": True, "items": out}
 
 
+def _connected(res):
+    """A successful (re)connect pushes, right away, what failed earlier for want of a working sign-in."""
+    if isinstance(res, dict) and res.get("connected"):
+        import github_work
+        github_work.on_connected()
+    return res
+
+
 def _root(brain: str) -> str:
     return _DEPS.brain_root(brain) if _DEPS else brain
 
@@ -76,8 +85,8 @@ def _make_router() -> APIRouter:
     @r.post("/github/connect")
     async def gh_connect(token: str = Form(""), use_backup: str = Form("")):
         if str(use_backup).strip() in ("1", "true", "on"):
-            return await _call(github_repos.connect_backup)
-        return await _call(github_repos.connect, token)
+            return _connected(await _call(github_repos.connect_backup))
+        return _connected(await _call(github_repos.connect, token))
 
     @r.post("/github/oauth/start")
     async def gh_oauth_start():
@@ -97,7 +106,7 @@ def _make_router() -> APIRouter:
         res = await _call(github_repos.connect_app, out["token"])
         if isinstance(res, dict):
             res["status"] = "connected"
-        return res
+        return _connected(res)
 
     @r.post("/github/oauth/cancel")
     async def gh_oauth_cancel():
@@ -172,6 +181,16 @@ def _make_router() -> APIRouter:
         import github_work
         try:
             return {"ok": True, **(await github_work.merge_by_person(sid, full_name))}
+        except github_repos.RepoError as e:
+            return _err(str(e))
+
+    @r.post("/github/session/{sid}/push")
+    async def gh_push(sid: str, full_name: str = Form(...)):
+        """A person presses "Push again" after a failed push. Javis also retries on its own; this is the shortcut."""
+        import github_work
+        try:
+            row = await github_work.retry_ship(sid, full_name, by_person=True)
+            return {"ok": True, "row": github_work._row_view(row)}
         except github_repos.RepoError as e:
             return _err(str(e))
 
