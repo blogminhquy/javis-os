@@ -95,6 +95,52 @@ check("sudo, ${{ }}, main-only and publish steps are left out",
 check("a workflow that only runs on schedule gives nothing",
       g.commands_from_workflow("on:\n  schedule:\n    - cron: '0 0 * * *'\njobs:\n  a:\n    steps:\n      - run: make\n") == [])
 check("broken YAML gives nothing instead of crashing", g.commands_from_workflow("on: [push\njobs: {") == [])
+
+# A job for another OS cannot pass here: a macos-latest install smoke test hung on a Linux VPS and blocked the push of a
+# README change (owner, 2026-11-06). Such jobs are left to CI, which has the real runner.
+wf_os = """on: [push, pull_request]
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test
+  mac:
+    runs-on: macos-latest
+    steps:
+      - run: bash packaging/macos/bootstrap.sh
+  win:
+    runs-on: [self-hosted, windows-2022]
+    steps:
+      - run: ./build.ps1
+  mixed:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: pwsh
+        run: Get-ChildItem
+      - run: echo linux-step
+  matrix:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-14, windows-latest]
+    steps:
+      - run: echo matrix-step
+  anywhere:
+    runs-on: self-hosted
+    steps:
+      - run: echo unknown-runner
+"""
+on_linux = [c["run"] for c in g.commands_from_workflow(wf_os, host="linux")]
+check("a Linux machine skips macOS and Windows jobs",
+      on_linux == ["make test", "echo linux-step", "echo unknown-runner"])
+check("a pwsh step is skipped off Windows", "Get-ChildItem" not in on_linux)
+on_mac = [c["run"] for c in g.commands_from_workflow(wf_os, host="macos")]
+check("a Mac still runs its own job and the matrix one",
+      "bash packaging/macos/bootstrap.sh" in on_mac and "echo matrix-step" in on_mac and "make test" not in on_mac)
+on_win = [c["run"] for c in g.commands_from_workflow(wf_os, host="windows")]
+check("Windows runs its own job and the matrix one, not the Ubuntu ones",
+      "./build.ps1" in on_win and "echo matrix-step" in on_win and "make test" not in on_win)
+check("this machine's family is known", g.host_os() in ("linux", "macos", "windows"))
 r2 = repo({".github/workflows/ci.yml": wf, "package.json": json.dumps({"scripts": {"test": "x", "typecheck": "tsc"}})})
 sug = [c["run"] for c in g.suggest_checks(r2)]
 check("manifest commands CI does not cover are added", "npm run typecheck" in sug and sug.count("npm test\necho done") == 1)
