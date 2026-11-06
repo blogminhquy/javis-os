@@ -42,7 +42,7 @@ global.window = {
   addEventListener() {},
   matchMedia: () => ({ matches: false }),
   JavisDictate: {
-    joinText: D.joinText, ear: () => "", isIOS: () => false,
+    joinText: D.joinText, createLiveFix: D.createLiveFix, fixAfter: D.fixAfter, ear: () => "", isIOS: () => false,
     create(opts) {
       engine = { opts, started: 0, stopped: 0, cancelled: 0,
         start() { this.started++; },
@@ -163,16 +163,17 @@ check("Android phone: X leaves the box as it was", inp.value === "");
 const fs = require("fs");
 const TEAMS = fs.readFileSync(path.join(ROOT, "dashboard/teams.js"), "utf8");
 const CONV = fs.readFileSync(path.join(ROOT, "dashboard/conversations.js"), "utf8");
-check("team chat mic: onText only holds the words",
-  /onText: function \(text\) \{ heard = String\(text \|\| ""\); \}/.test(TEAMS));
+check("team chat mic: onText only holds the words (and feeds the faded bubble, never the box)",
+  /onText: function \(text\) \{ heard = String\(text \|\| ""\); if \(live\) live\.heard\(heard\); \}/.test(TEAMS));
 check("team chat mic: the words land when the recording is idle",
-  /st === "idle" && heard \? S\.el\.querySelector\("\.tm-input"\)/.test(TEAMS) && /D\.joinText\(S\.dictBase, heard\)/.test(TEAMS));
+  /st === "idle" && heard \? S\.el\.querySelector\("\.tm-input"\)/.test(TEAMS) &&
+  /D\.joinText\(S\.dictBase, \(res && res\.words\) \|\| heard\)/.test(TEAMS));
 const convText = (CONV.match(/onText: function \(text\) \{[\s\S]*?\n      \},/) || [""])[0];
 check("Chatbot mic: onText only holds the words, never writes the box",
   /_dictHeard = String\(text \|\| ""\)/.test(convText) && !/box\.value/.test(convText));
 check("Chatbot mic: the words land on idle, before Send-while-recording sends them",
-  CONV.indexOf("box.value = D.joinText(_dictBase, heard)") !== -1
-  && CONV.indexOf("box.value = D.joinText(_dictBase, heard)") < CONV.indexOf("if (send) { gui(_conv); return; }"));
+  CONV.indexOf("box.value = written = D.joinText(_dictBase, words)") !== -1
+  && CONV.indexOf("box.value = written = D.joinText(_dictBase, words)") < CONV.indexOf("if (send) { gui(_conv); return; }"));
 
 if (fails.length) { console.log("\nFAIL - test_composer_dictate_after_stop: " + fails.length); process.exit(1); }
 console.log("\nOK - test_composer_dictate_after_stop: all pass");

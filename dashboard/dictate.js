@@ -369,8 +369,86 @@
       busy: function () { return finishing; } };
   }
 
+  // A phone, not a tablet: iPhone, iPod or an Android phone. The faded live bubble is for computers and tablets only:
+  // a phone's recognizer resends the whole sentence on each result and the bubble showed every resend (2026-11-06).
+  function isPhoneUA(nav) {
+    nav = nav || (typeof navigator !== "undefined" ? navigator : {});
+    return /iPhone|iPod|Android.*Mobile/i.test(String(nav.userAgent || ""));
+  }
+
+  // The heard words fixed by the server (POST /stt/fix: rules, then a model, see server/transcript_fix.py). Any
+  // failure, or no answer within 3.5 seconds, gives the words back unchanged. Shared by every chat screen's mic.
+  function fixText(text) {
+    var raw = String(text == null ? "" : text);
+    if (!raw.trim() || typeof fetch !== "function") return Promise.resolve(raw);
+    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { try { ctl.abort(); } catch (e) {} }, 3500) : 0;
+    var req;
+    try {
+      req = fetch("/stt/fix", { method: "POST", credentials: "same-origin", signal: ctl ? ctl.signal : undefined,
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: raw }) });
+    } catch (e) { clearTimeout(timer); return Promise.resolve(raw); }
+    return Promise.resolve(req).then(function (r) { return r.json(); })
+      .then(function (d) { clearTimeout(timer); return d && d.ok && d.text ? String(d.text) : raw; },
+        function () { clearTimeout(timer); return raw; });
+  }
+
+  // The live fix of one recording, shared by the main chat, Teams and the Chatbot inbox (2026-11-06). `show(text)`
+  // draws the faded draft bubble ("" removes it); it is never called on a phone. While the owner speaks on a computer
+  // the bubble first shows the words as heard, then the text fixed by the server. One request at a time: words heard
+  // meanwhile ask once more when the answer comes, and an answer for outdated words is not shown. The fixed part stays
+  // in front while new words arrive, so a fixed name never turns back into the misheard one.
+  function createLiveFix(show) {
+    var st = { on: false, heard: "", shown: "", shownFor: "", busy: false, again: false };
+    function draw(t) { if (show && !isPhoneUA()) { try { show(t); } catch (e) {} } }
+    function soFar() {
+      if (st.shown && st.shownFor && st.heard.indexOf(st.shownFor) === 0) {
+        return joinText(st.shown, st.heard.slice(st.shownFor.length));
+      }
+      return st.heard;
+    }
+    function reset() { st.heard = ""; st.shown = ""; st.shownFor = ""; st.again = false; }
+    function kick() {
+      if (!st.on || isPhoneUA() || !st.heard) return;
+      if (st.busy) { st.again = true; return; }
+      var want = st.heard;
+      st.busy = true;
+      fixText(want).then(function (fixed) {
+        st.busy = false;
+        if (st.on && want === st.heard) { st.shown = fixed; st.shownFor = want; draw(fixed); }
+        if (st.again) { st.again = false; kick(); }
+      });
+    }
+    return {
+      start: function () { reset(); st.on = true; draw(""); },
+      heard: function (text) { if (!st.on) return; st.heard = String(text || ""); draw(soFar()); kick(); },
+      // What the bubble shows now ("" when not recording): redraws use it to put the bubble back.
+      text: function () { return st.on ? soFar() : ""; },
+      active: function () { return st.on; },
+      // The recording ended: removes the bubble and returns { heard, words, needsFix }. `words` is what goes in the box;
+      // `needsFix` says the last words were not fixed yet (see fixAfter).
+      finish: function () {
+        var out = { heard: st.heard, words: soFar(), needsFix: !!st.heard && st.shownFor !== st.heard };
+        st.on = false; reset(); draw("");
+        return out;
+      },
+      cancel: function () { st.on = false; reset(); draw(""); }
+    };
+  }
+
+  // After a recording that was NOT sent: fix its last words and call `apply(fixed)` only when they changed and
+  // `stillThere()` says the box still holds what was written (the owner has not edited it, no new recording started).
+  function fixAfter(result, stillThere, apply) {
+    if (!result || !result.needsFix || !result.heard) return;
+    fixText(result.heard).then(function (fixed) {
+      if (fixed === result.heard) return;
+      try { if (stillThere()) apply(fixed); } catch (e) {}
+    });
+  }
+
   // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
-  var api = { create: create, joinText: joinText, buildRun: buildRun, plan: plan, isPhone: isPhone, isIOS: isIOS,
+  var api = { create: create, joinText: joinText, buildRun: buildRun, fixText: fixText, createLiveFix: createLiveFix,
+    fixAfter: fixAfter, isPhoneUA: isPhoneUA, plan: plan, isPhone: isPhone, isIOS: isIOS,
     isAndroid: isAndroid,
     ear: function () { return earKind; }, warm: askEar };
   if (typeof window !== "undefined") window.JavisDictate = api;

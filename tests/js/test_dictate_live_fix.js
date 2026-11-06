@@ -46,7 +46,7 @@ global.window = {
   matchMedia: () => ({ matches: false }),
   nhapGiong: t => { bubble.push(t); },
   JavisDictate: {
-    joinText: D.joinText, ear: () => "", isIOS: () => false,
+    joinText: D.joinText, createLiveFix: D.createLiveFix, fixAfter: D.fixAfter, ear: () => "", isIOS: () => false,
     create(opts) {
       engine = { opts, stopped: 0, start() {}, stop() { this.stopped++; }, cancel() { opts.onState("idle"); } };
       return engine;
@@ -158,6 +158,41 @@ const end = async () => { els.dictStop.click(); engine.opts.onState("idle"); awa
   check("phone: no /stt/fix call while speaking", calls.length === 0);
   await end();
   check("phone: the box gets the fixed text after stop", calls.length === 1 && inp.value === "Javis ơi");
+
+  // 7. Teams and the Chatbot inbox use the same shared fix (docs/quy-uoc-dev.md: a chat composer change reaches
+  // every chat screen). Checked on their source: the faded bubble, put back after a redraw, and the final fix.
+  const fs = require("fs");
+  const TEAMS = fs.readFileSync(path.join(ROOT, "dashboard/teams.js"), "utf8");
+  const CONV = fs.readFileSync(path.join(ROOT, "dashboard/conversations.js"), "utf8");
+  const CSS = fs.readFileSync(path.join(ROOT, "dashboard/console.css"), "utf8");
+  check("Teams: the mic feeds dictate.js createLiveFix", /D\.createLiveFix\(function \(t\) \{ drawDictDraft\(/.test(TEAMS));
+  check("Teams: the draft bubble only shows in the team the recording started in", /S\.activeId === forTeam \? t : ""/.test(TEAMS));
+  check("Teams: a redraw puts the bubble back", /drawDictDraft\(S\.dictLive\.text\(\)\)/.test(TEAMS));
+  check("Teams: the last words are fixed after stop when not sent", /D\.fixAfter\(res,/.test(TEAMS));
+  check("Chatbot: the mic feeds dictate.js createLiveFix", /D\.createLiveFix\(function \(t\) \{ drawDictDraft\(/.test(CONV));
+  check("Chatbot: the draft bubble only shows in the chat the recording started in", /_chon === forConv \? t : ""/.test(CONV));
+  check("Chatbot: the 5-second redraw puts the bubble back", /drawDictDraft\(_dictLive\.text\(\)\)/.test(CONV));
+  check("Chatbot: leaving the chat drops the bubble", /if \(_dictLive\) \{ _dictLive\.cancel\(\); _dictLive = null; \}/.test(CONV));
+  check("Chatbot: the last words are fixed after stop when not sent", /D\.fixAfter\(res,/.test(CONV));
+  check("both draft bubbles are faded and dashed",
+    /\.tm-msg-draft \.tm-bubble \{ opacity: \.62; border-style: dashed; \}/.test(CSS) &&
+    /\.ht-msg-draft \.ht-bubble \{ opacity: \.62; border-style: dashed; \}/.test(CSS));
+
+  // 8. The shared helper on its own: a phone never draws, a cancel removes the bubble.
+  setUA(DESKTOP); mode = "ok";
+  const drawn = [];
+  const lf = D.createLiveFix(t => drawn.push(t));
+  lf.start(); lf.heard("Jarvis ơi"); await tick(); await tick();
+  check("createLiveFix: heard words, then the fixed text", drawn.join("|") === "|Jarvis ơi|Javis ơi" && lf.text() === "Javis ơi");
+  lf.cancel();
+  check("createLiveFix: cancel removes the bubble and stops", drawn[drawn.length - 1] === "" && !lf.active() && lf.text() === "");
+  setUA(ANDROID);
+  const drawnPhone = [];
+  const lp = D.createLiveFix(t => drawnPhone.push(t));
+  lp.start(); lp.heard("Jarvis ơi"); await tick();
+  const fin = lp.finish();
+  check("createLiveFix on a phone: nothing drawn, the words need a fix after stop",
+    drawnPhone.length === 0 && fin.words === "Jarvis ơi" && fin.needsFix === true);
 
   if (fails.length) { console.log("\nFAIL - test_dictate_live_fix: " + fails.length); process.exit(1); }
   console.log("\nOK - test_dictate_live_fix: all pass");
