@@ -96,11 +96,18 @@ data = {"rev": 0, "projects": [], "tasks": [
     {"id": "m_plain", "title": "Pay bills", "date": today, "repeat": daily, "habit": None, "done_dates": {}},
 ]}
 feat.save("brain", data)
-n = asyncio.run(feat.tick())
+# Only the habit nudges count here: between 07:30 and 21:00 the same tick also sends the morning list of today's tasks
+# (my_tasks.AGENDA_AT, 0.485.0), which made this test red during the day and green at night.
+def nudges():
+    return [m for m in sent if m[1].startswith("habit:")]
+
+
+asyncio.run(feat.tick())
 check("only the due, undone, switched-on habit is reminded" + ("" if now.strftime("%H:%M") < "23:59" else " (skipped at 23:59)"),
-      n == 1 and sent[0][1] == "habit:m_due:" + today and "Read 30 minutes" in sent[0][0])
-n = asyncio.run(feat.tick())
-check("never twice in a day", n == 0 and len(sent) == 1)
+      len(nudges()) == 1 and nudges()[0][1] == "habit:m_due:" + today and "Read 30 minutes" in nudges()[0][0])
+before = len(sent)
+asyncio.run(feat.tick())
+check("never twice in a day", len(sent) == before and len(nudges()) == 1)
 check("the day it was reminded is stored", next(t for t in feat.load("brain")["tasks"] if t["id"] == "m_due")["habit"].get("nudged") == today)
 check("Javis reminds: half an hour after the usual time, earlier while frozen",
       my_tasks.nudge_time({"habit": {"remind": "auto"}, "time": "21:00"}, {"frozen": False}) == "21:30"
