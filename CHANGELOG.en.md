@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.489.0] - 2026-11-06
+### Improved
+- **Dictation shows the words right in the chat box** again while you speak on a computer, like before, with no faded bubble above. Phones still show the text when the recording ends.
+- **What you said is rewritten in context before it is used.** On stop, Enter or Send, a model reads the last few messages and rewrites the whole sentence, fixing every mishearing, not just a few words like "Travis OS" into "Javis OS". Sending right away sends the rewritten sentence.
+- **The fast path goes first.** A main model on an API key does it itself. With Claude Code or Codex as the main model, an API key on the machine does it (Groq first) and the CLI is only the last resort, so it usually takes about a second.
+- A network error or a model slower than 25 seconds keeps the words as heard, nothing is lost. The Groq or OpenAI ear now always keeps the Javis name in its hint, even with many connections.
+
 ## [0.488.0] - 2026-11-06
 ### Added
 - **Change a share link's address.** The pencil edits both the name and the part after `/s/`, like `/s/vibecode-javis`. The random-code link you already sent keeps working.
