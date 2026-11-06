@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.487.1] - 2026-11-06
+### Fixed
+- **Javis pushes to GitHub even when the repo has CI jobs for macOS or Windows.** A Linux machine used to run the Mac install test too, which hung, turned red and stopped the push of an unrelated change. Jobs for another OS are now left to GitHub CI, and Javis still merges on its own once CI is green.
+
 ## [0.487.0] - 2026-11-06
 ### Added
 - **The dictation bubble fixes words as you speak (computer), in the main chat, Teams and the Chatbot inbox.** The faded bubble shows what was heard, then the fixed text a moment later: Javis uses Groq when you have added its key, otherwise the background model. Stop recording and the box gets the fixed text. If the server does not answer, the words stay as heard.
