@@ -21168,6 +21168,25 @@ async def sessions_pin(session_id: str, pinned: str = Form("1")):
     return {"ok": True}
 
 
+@app.post("/sessions/{session_id}/read")
+async def sessions_read(session_id: str):
+    """The owner has this chat on screen (2026-11-06): its replies so far are read, so the red dot on its row in every
+    history list goes out. Other open tabs hear `session_read` and clear the same dot."""
+    store = get_store()
+
+    def _do():
+        was = store.is_unread(session_id)
+        store.mark_read(session_id)
+        return was
+    was = await asyncio.to_thread(_do)
+    if was:
+        try:
+            await _CHAT_RUNTIME.publish({"type": "session_read", "session_id": session_id})
+        except Exception as e:  # noqa: BLE001 - the dot then clears on the next list refresh
+            print(f"[sessions] session_read WebSocket: {type(e).__name__}: {e}", file=sys.stderr)
+    return {"ok": True, "was_unread": was}
+
+
 @app.get("/chat/route")
 async def chat_route():
     """Where the first turn of a new chat would run (owner, 05/11/2026): the model bar of an empty chat asks this, so its

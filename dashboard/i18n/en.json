@@ -1948,6 +1948,7 @@
   "sess.empty2": "Press ＋ to start one.",
   "sess.grp_pinned": "Pinned",
   "sess.running": "Replying",
+  "sess.unread": "Unread",
   "sess.untitled": "(untitled)",
   "sess.msgs": "{count} msgs",
   "sess.msgs.one": "{count} msg",
