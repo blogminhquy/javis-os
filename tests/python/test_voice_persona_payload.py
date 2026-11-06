@@ -33,7 +33,8 @@ check("agent is identified before the generic Javis instructions",
 check("English self-identification survives prompt construction",
       'When asked in English "Who are you?"' in prompt
       and "I'm Milo, an AI assistant working within Javis OS." in prompt)
-check("source fixture contains no private institution name", "BUV" not in prompt)
+check("fictional academy role survives prompt construction",
+      "Northstar Academy" in prompt)
 
 # No Codex app-server or model is started: only serialize the outgoing request.
 provider = voice_live.ChatGPTLive(
