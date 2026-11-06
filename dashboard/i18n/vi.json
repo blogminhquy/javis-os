@@ -3511,7 +3511,7 @@
   "share.f_name": "Tên link",
   "share.f_name_ph": "Để trống là lấy theo tiêu đề file",
   "share.f_slug": "Đường dẫn",
-  "share.f_slug_ph": "vi-du-ten-de-nho",
+  "share.f_slug_ph": "Ví dụ: ke-hoach-quy-4",
   "share.slug_note": "Đường dẫn dễ nhớ thì người lạ cũng dễ đoán. Để trống là dùng mã ngẫu nhiên.",
   "share.token_url": "Link mã ngẫu nhiên vẫn mở được",
   "page.conversations.label": "Chatbot",

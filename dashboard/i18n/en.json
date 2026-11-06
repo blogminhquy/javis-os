@@ -3511,7 +3511,7 @@
   "share.f_name": "Link name",
   "share.f_name_ph": "Leave empty to use the file title",
   "share.f_slug": "Address",
-  "share.f_slug_ph": "an-easy-name",
+  "share.f_slug_ph": "Example: q4-plan",
   "share.slug_note": "An easy address is easy for strangers to guess too. Leave it empty for a random code.",
   "share.token_url": "The random-code link still works",
   "page.conversations.label": "Chatbot",
