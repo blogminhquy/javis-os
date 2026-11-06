@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.488.0] - 2026-11-06
+### Added
+- **Change a share link's address.** The pencil edits both the name and the part after `/s/`, like `/s/vibecode-javis`. The random-code link you already sent keeps working.
+- **View counts per link.** Each row shows views, people, the last 7 days, the last view and a 14-day chart. Link-preview bots and your own opens while signed in are not counted.
+### Improved
+- **A tidier Share links page.** Actions are icons like the Tasks page, with filters (Files, Conversations, Never viewed) and sorting (Newest, Most viewed, Recently viewed), and revoking asks first.
+### Fixed
+- **Buttons on page 2 and later of the link list work again.** Before, only the first page responded.
+
 ## [0.487.3] - 2026-11-06
 ### Fixed
 - **A message sent right before swiping to another app on a phone no longer vanishes.** The phone sometimes let the connection die silently, so the message never reached the server and the whole exchange was gone on return, History included. The server now confirms every message it receives, Javis resends any unconfirmed one after reconnecting, and a resend never runs twice.

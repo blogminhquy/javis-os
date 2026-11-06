@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.488.0] - 2026-11-06
+### Thêm mới
+- **Đổi được đường dẫn của link chia sẻ.** Bấm bút chì để sửa cả tên lẫn phần sau `/s/`, ví dụ `/s/vibecode-javis`. Link mã ngẫu nhiên đã gửi đi vẫn mở được.
+- **Đếm lượt xem từng link.** Mỗi hàng hiện số lượt xem, số người, 7 ngày gần nhất, lần xem cuối và biểu đồ 14 ngày. Bot xem trước link và chính chủ khi đang đăng nhập không bị tính.
+### Cải thiện
+- **Trang Link chia sẻ gọn và dễ dùng hơn.** Nút thành icon như trang Nhiệm vụ, có lọc (File, Hội thoại, Chưa ai xem) và sắp xếp (Mới tạo, Xem nhiều, Xem gần đây), thu hồi thì hỏi lại trước.
+### Sửa lỗi
+- **Nút ở trang 2 trở đi của danh sách link bấm lại được.** Trước đây chỉ trang đầu bấm ăn.
+
 ## [0.487.3] - 2026-11-06
 ### Sửa lỗi
 - **Gõ xong bấm Enter rồi vuốt sang app khác trên điện thoại, câu hỏi không còn biến mất.** Trước đây điện thoại có lúc để kết nối chết ngầm, câu hỏi không tới máy chủ nên quay lại thì cả đoạn mất sạch, Lịch sử cũng không có. Nay máy chủ xác nhận từng câu đã nhận, câu nào chưa được xác nhận thì Javis tự gửi lại khi nối lại, và không bao giờ chạy trùng hai lần.
