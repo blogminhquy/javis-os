@@ -6766,6 +6766,16 @@
  {
   "order": 679,
   "type": "APIRoute",
+  "path": "/share/qr",
+  "name": "share_qr",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 680,
+  "type": "APIRoute",
   "path": "/health/loop",
   "name": "health_loop",
   "methods": [
@@ -6774,7 +6784,7 @@
   "trong": null
  },
  {
-  "order": 680,
+  "order": 681,
   "type": "APIRoute",
   "path": "/diag/ws-drops",
   "name": "diag_ws_drops",
@@ -6784,7 +6794,7 @@
   "trong": null
  },
  {
-  "order": 681,
+  "order": 682,
   "type": "_IncludedRouter",
   "path": null,
   "name": null,
@@ -6792,37 +6802,37 @@
   "trong": null
  },
  {
-  "order": 682,
+  "order": 683,
   "type": "APIRoute",
   "path": "/remote-access/status",
   "name": "remote_access_status",
   "methods": [
    "GET"
   ],
-  "trong": 681
+  "trong": 682
  },
  {
-  "order": 683,
+  "order": 684,
   "type": "APIRoute",
   "path": "/remote-access/enable",
   "name": "remote_access_enable",
   "methods": [
    "POST"
   ],
-  "trong": 681
+  "trong": 682
  },
  {
-  "order": 684,
+  "order": 685,
   "type": "APIRoute",
   "path": "/remote-access/disable",
   "name": "remote_access_disable",
   "methods": [
    "POST"
   ],
-  "trong": 681
+  "trong": 682
  },
  {
-  "order": 685,
+  "order": 686,
   "type": "APIRoute",
   "path": "/voice/elevenlabs/voices",
   "name": "voice_elevenlabs_voices",
@@ -6832,7 +6842,7 @@
   "trong": null
  },
  {
-  "order": 686,
+  "order": 687,
   "type": "APIRoute",
   "path": "/improvement-policy",
   "name": "improvement_policy",
@@ -6842,7 +6852,7 @@
   "trong": null
  },
  {
-  "order": 687,
+  "order": 688,
   "type": "APIRoute",
   "path": "/improvement-policy",
   "name": "improvement_set_policy",
@@ -6852,7 +6862,7 @@
   "trong": null
  },
  {
-  "order": 688,
+  "order": 689,
   "type": "APIRoute",
   "path": "/improvement-targets",
   "name": "improvement_targets",
@@ -6862,7 +6872,7 @@
   "trong": null
  },
  {
-  "order": 689,
+  "order": 690,
   "type": "APIRoute",
   "path": "/improvement-targets/capture",
   "name": "improvement_capture",
@@ -6872,7 +6882,7 @@
   "trong": null
  },
  {
-  "order": 690,
+  "order": 691,
   "type": "APIRoute",
   "path": "/improvement-targets/{target_id}/revisions",
   "name": "improvement_revisions",
@@ -6882,7 +6892,7 @@
   "trong": null
  },
  {
-  "order": 691,
+  "order": 692,
   "type": "APIRoute",
   "path": "/improvement-targets/{target_id}/retire",
   "name": "improvement_retire",
@@ -6892,7 +6902,7 @@
   "trong": null
  },
  {
-  "order": 692,
+  "order": 693,
   "type": "APIRoute",
   "path": "/improvement-activations",
   "name": "activation_list",
@@ -6902,7 +6912,7 @@
   "trong": null
  },
  {
-  "order": 693,
+  "order": 694,
   "type": "APIRoute",
   "path": "/improvement-activations",
   "name": "activation_apply",
@@ -6912,7 +6922,7 @@
   "trong": null
  },
  {
-  "order": 694,
+  "order": 695,
   "type": "APIRoute",
   "path": "/improvement-activations/{activation_id}/revert",
   "name": "activation_revert",
@@ -6922,7 +6932,7 @@
   "trong": null
  },
  {
-  "order": 695,
+  "order": 696,
   "type": "APIRoute",
   "path": "/improvement-canaries/{activation_id}",
   "name": "canary_summary",
@@ -6932,7 +6942,7 @@
   "trong": null
  },
  {
-  "order": 696,
+  "order": 697,
   "type": "APIRoute",
   "path": "/improvement-pilot-reports/{report_id}",
   "name": "pilot_report",
@@ -6942,7 +6952,7 @@
   "trong": null
  },
  {
-  "order": 697,
+  "order": 698,
   "type": "APIRoute",
   "path": "/improvement-canaries/{activation_id}/verdicts",
   "name": "canary_verdict",
@@ -6952,7 +6962,7 @@
   "trong": null
  },
  {
-  "order": 698,
+  "order": 699,
   "type": "APIRoute",
   "path": "/improvement-canaries/{activation_id}/promote",
   "name": "canary_promote",
@@ -6962,7 +6972,7 @@
   "trong": null
  },
  {
-  "order": 699,
+  "order": 700,
   "type": "APIRoute",
   "path": "/improvement-auto-scopes",
   "name": "auto_scopes",
@@ -6972,7 +6982,7 @@
   "trong": null
  },
  {
-  "order": 700,
+  "order": 701,
   "type": "APIRoute",
   "path": "/improvement-auto-scopes",
   "name": "auto_scope_grant",
@@ -6982,7 +6992,7 @@
   "trong": null
  },
  {
-  "order": 701,
+  "order": 702,
   "type": "APIRoute",
   "path": "/improvement-auto-scopes/{grant_id}/revoke",
   "name": "auto_scope_revoke",
@@ -6992,7 +7002,7 @@
   "trong": null
  },
  {
-  "order": 702,
+  "order": 703,
   "type": "APIRoute",
   "path": "/improvement-routing",
   "name": "routing_list",
@@ -7002,7 +7012,7 @@
   "trong": null
  },
  {
-  "order": 703,
+  "order": 704,
   "type": "APIRoute",
   "path": "/improvement-routing/evaluate",
   "name": "routing_evaluate",
@@ -7012,7 +7022,7 @@
   "trong": null
  },
  {
-  "order": 704,
+  "order": 705,
   "type": "APIRoute",
   "path": "/improvement-routing/{candidate_id}/apply",
   "name": "routing_apply",
@@ -7022,7 +7032,7 @@
   "trong": null
  },
  {
-  "order": 705,
+  "order": 706,
   "type": "APIRoute",
   "path": "/improvement-routing-overlays/{overlay_id}/revert",
   "name": "routing_revert",
@@ -7032,7 +7042,7 @@
   "trong": null
  },
  {
-  "order": 706,
+  "order": 707,
   "type": "APIRoute",
   "path": "/improvement-agent-procedures",
   "name": "agent_procedure_list",
@@ -7042,7 +7052,7 @@
   "trong": null
  },
  {
-  "order": 707,
+  "order": 708,
   "type": "APIRoute",
   "path": "/improvement-agent-procedures",
   "name": "agent_procedure_stage",
@@ -7052,7 +7062,7 @@
   "trong": null
  },
  {
-  "order": 708,
+  "order": 709,
   "type": "APIRoute",
   "path": "/improvement-agent-procedures/{procedure_id}/apply",
   "name": "agent_procedure_apply",
@@ -7062,7 +7072,7 @@
   "trong": null
  },
  {
-  "order": 709,
+  "order": 710,
   "type": "APIRoute",
   "path": "/improvement-agent-overlays/{overlay_id}/revert",
   "name": "agent_overlay_revert",
@@ -7072,7 +7082,7 @@
   "trong": null
  },
  {
-  "order": 710,
+  "order": 711,
   "type": "APIRoute",
   "path": "/improvement-agent-bundles",
   "name": "bundle_list",
@@ -7082,7 +7092,7 @@
   "trong": null
  },
  {
-  "order": 711,
+  "order": 712,
   "type": "APIRoute",
   "path": "/improvement-agent-bundles",
   "name": "bundle_apply",
@@ -7092,7 +7102,7 @@
   "trong": null
  },
  {
-  "order": 712,
+  "order": 713,
   "type": "APIRoute",
   "path": "/improvement-agent-bundles/{bundle_id}/revert",
   "name": "bundle_revert",
@@ -7102,7 +7112,7 @@
   "trong": null
  },
  {
-  "order": 713,
+  "order": 714,
   "type": "APIRoute",
   "path": "/improvement-team-pins",
   "name": "team_pin",
@@ -7112,7 +7122,7 @@
   "trong": null
  },
  {
-  "order": 714,
+  "order": 715,
   "type": "APIRoute",
   "path": "/improvement-team-trials",
   "name": "team_trial_list",
@@ -7122,7 +7132,7 @@
   "trong": null
  },
  {
-  "order": 715,
+  "order": 716,
   "type": "APIRoute",
   "path": "/improvement-team-trials",
   "name": "team_trial_record",
@@ -7132,7 +7142,7 @@
   "trong": null
  },
  {
-  "order": 716,
+  "order": 717,
   "type": "APIRoute",
   "path": "/improvement-recipe-transfers",
   "name": "recipe_transfer_list",
@@ -7142,7 +7152,7 @@
   "trong": null
  },
  {
-  "order": 717,
+  "order": 718,
   "type": "APIRoute",
   "path": "/improvement-recipe-transfers",
   "name": "recipe_transfer_propose",
@@ -7152,7 +7162,7 @@
   "trong": null
  },
  {
-  "order": 718,
+  "order": 719,
   "type": "APIRoute",
   "path": "/improvement-governance",
   "name": "governance_view",
@@ -7162,7 +7172,7 @@
   "trong": null
  },
  {
-  "order": 719,
+  "order": 720,
   "type": "APIRoute",
   "path": "/improvement-governance/suspend-all",
   "name": "governance_suspend_all",
@@ -7172,7 +7182,7 @@
   "trong": null
  },
  {
-  "order": 720,
+  "order": 721,
   "type": "APIRoute",
   "path": "/improvement-export",
   "name": "improvement_export",
@@ -7182,7 +7192,7 @@
   "trong": null
  },
  {
-  "order": 721,
+  "order": 722,
   "type": "APIRoute",
   "path": "/improvement-loops",
   "name": "loop_status",
@@ -7192,7 +7202,7 @@
   "trong": null
  },
  {
-  "order": 722,
+  "order": 723,
   "type": "APIRoute",
   "path": "/improvement-loops",
   "name": "loop_start",
@@ -7202,7 +7212,7 @@
   "trong": null
  },
  {
-  "order": 723,
+  "order": 724,
   "type": "APIRoute",
   "path": "/improvement-loops/{run_id}",
   "name": "loop_get",
@@ -7212,7 +7222,7 @@
   "trong": null
  },
  {
-  "order": 724,
+  "order": 725,
   "type": "APIRoute",
   "path": "/improvement-loops/{run_id}/cancel",
   "name": "loop_cancel",
@@ -7222,7 +7232,7 @@
   "trong": null
  },
  {
-  "order": 725,
+  "order": 726,
   "type": "APIRoute",
   "path": "/improvement-loops/{run_id}/apply",
   "name": "loop_apply",
@@ -7232,7 +7242,7 @@
   "trong": null
  },
  {
-  "order": 726,
+  "order": 727,
   "type": "APIRoute",
   "path": "/auto-learning",
   "name": "auto_learning_view",
@@ -7242,7 +7252,7 @@
   "trong": null
  },
  {
-  "order": 727,
+  "order": 728,
   "type": "APIRoute",
   "path": "/auto-learning/{run_id}/apply",
   "name": "auto_learning_apply",
@@ -7252,7 +7262,7 @@
   "trong": null
  },
  {
-  "order": 728,
+  "order": 729,
   "type": "APIRoute",
   "path": "/auto-learning/{run_id}/undo",
   "name": "auto_learning_undo",
@@ -7262,7 +7272,7 @@
   "trong": null
  },
  {
-  "order": 729,
+  "order": 730,
   "type": "APIRoute",
   "path": "/improvement-imports",
   "name": "import_list",
@@ -7272,7 +7282,7 @@
   "trong": null
  },
  {
-  "order": 730,
+  "order": 731,
   "type": "APIRoute",
   "path": "/improvement-imports",
   "name": "import_stage",
@@ -7282,7 +7292,7 @@
   "trong": null
  },
  {
-  "order": 731,
+  "order": 732,
   "type": "APIRoute",
   "path": "/improvement-trials/recover",
   "name": "improvement_trial_recover",
@@ -7292,7 +7302,7 @@
   "trong": null
  },
  {
-  "order": 732,
+  "order": 733,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}",
   "name": "improvement_context_create",
@@ -7302,7 +7312,7 @@
   "trong": null
  },
  {
-  "order": 733,
+  "order": 734,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}",
   "name": "improvement_context_get",
@@ -7312,7 +7322,7 @@
   "trong": null
  },
  {
-  "order": 734,
+  "order": 735,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}/revoke",
   "name": "improvement_context_revoke",
@@ -7322,7 +7332,7 @@
   "trong": null
  },
  {
-  "order": 735,
+  "order": 736,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}/snapshots",
   "name": "improvement_snapshot_create",
@@ -7332,7 +7342,7 @@
   "trong": null
  },
  {
-  "order": 736,
+  "order": 737,
   "type": "APIRoute",
   "path": "/improvement-contracts",
   "name": "improvement_contract_create",
@@ -7342,7 +7352,7 @@
   "trong": null
  },
  {
-  "order": 737,
+  "order": 738,
   "type": "APIRoute",
   "path": "/improvement-contexts/{experiment_id}/case-sets",
   "name": "improvement_case_set_create",
@@ -7352,7 +7362,7 @@
   "trong": null
  },
  {
-  "order": 738,
+  "order": 739,
   "type": "APIRoute",
   "path": "/improvement-bundles",
   "name": "improvement_bundle_create",
@@ -7362,7 +7372,7 @@
   "trong": null
  },
  {
-  "order": 739,
+  "order": 740,
   "type": "APIRoute",
   "path": "/improvement-trials",
   "name": "improvement_trial_start",
@@ -7372,7 +7382,7 @@
   "trong": null
  },
  {
-  "order": 740,
+  "order": 741,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}",
   "name": "improvement_trial_get",
@@ -7382,7 +7392,7 @@
   "trong": null
  },
  {
-  "order": 741,
+  "order": 742,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}/cancel",
   "name": "improvement_trial_cancel",
@@ -7392,7 +7402,7 @@
   "trong": null
  },
  {
-  "order": 742,
+  "order": 743,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}/attempts/{attempt}/owner-decisions",
   "name": "improvement_owner_decision",
@@ -7402,7 +7412,7 @@
   "trong": null
  },
  {
-  "order": 743,
+  "order": 744,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}/attempts/{attempt}/reevaluate",
   "name": "improvement_trial_reevaluate",
@@ -7412,7 +7422,7 @@
   "trong": null
  },
  {
-  "order": 744,
+  "order": 745,
   "type": "APIRoute",
   "path": "/improvement-candidate-contexts",
   "name": "improvement_candidate_contexts",
@@ -7422,7 +7432,7 @@
   "trong": null
  },
  {
-  "order": 745,
+  "order": 746,
   "type": "APIRoute",
   "path": "/improvement-candidates",
   "name": "improvement_candidates",
@@ -7432,7 +7442,7 @@
   "trong": null
  },
  {
-  "order": 746,
+  "order": 747,
   "type": "APIRoute",
   "path": "/improvement-edit-regions",
   "name": "improvement_edit_region",
@@ -7442,7 +7452,7 @@
   "trong": null
  },
  {
-  "order": 747,
+  "order": 748,
   "type": "APIRoute",
   "path": "/improvement-candidates",
   "name": "improvement_candidate_stage",
@@ -7452,7 +7462,7 @@
   "trong": null
  },
  {
-  "order": 748,
+  "order": 749,
   "type": "APIRoute",
   "path": "/improvement-candidates/{candidate_id}/review",
   "name": "improvement_candidate_review",
@@ -7462,7 +7472,7 @@
   "trong": null
  },
  {
-  "order": 749,
+  "order": 750,
   "type": "APIRoute",
   "path": "/improvement-candidates/{candidate_id}/authorize",
   "name": "improvement_candidate_authorize",
@@ -7472,7 +7482,7 @@
   "trong": null
  },
  {
-  "order": 750,
+  "order": 751,
   "type": "APIRoute",
   "path": "/improvement-edit-authorities/{authority_id}/revoke",
   "name": "improvement_candidate_authority_revoke",
@@ -7482,7 +7492,7 @@
   "trong": null
  },
  {
-  "order": 751,
+  "order": 752,
   "type": "APIRoute",
   "path": "/improvement-trials/{trial_id}/artifact-review",
   "name": "improvement_artifact_review",
@@ -7492,7 +7502,7 @@
   "trong": null
  },
  {
-  "order": 752,
+  "order": 753,
   "type": "APIRoute",
   "path": "/improvement-candidate-baselines/{experiment_id}/review",
   "name": "improvement_candidate_baseline_review",
@@ -7502,7 +7512,7 @@
   "trong": null
  },
  {
-  "order": 753,
+  "order": 754,
   "type": "APIRoute",
   "path": "/improvement-experiments",
   "name": "experiment_list",
@@ -7512,7 +7522,7 @@
   "trong": null
  },
  {
-  "order": 754,
+  "order": 755,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}",
   "name": "experiment_get",
@@ -7522,7 +7532,7 @@
   "trong": null
  },
  {
-  "order": 755,
+  "order": 756,
   "type": "APIRoute",
   "path": "/improvement-comparison-reports/{report_id}",
   "name": "comparison_report_get",
@@ -7532,7 +7542,7 @@
   "trong": null
  },
  {
-  "order": 756,
+  "order": 757,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/preparation",
   "name": "preparation_history",
@@ -7542,7 +7552,7 @@
   "trong": null
  },
  {
-  "order": 757,
+  "order": 758,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/operations",
   "name": "operation_history",
@@ -7552,7 +7562,7 @@
   "trong": null
  },
  {
-  "order": 758,
+  "order": 759,
   "type": "APIRoute",
   "path": "/improvement-operations/{operation_id}",
   "name": "operation_metadata",
@@ -7562,7 +7572,7 @@
   "trong": null
  },
  {
-  "order": 759,
+  "order": 760,
   "type": "APIRoute",
   "path": "/improvement-candidates/{candidate_id}/semantic-history",
   "name": "semantic_history",
@@ -7572,7 +7582,7 @@
   "trong": null
  },
  {
-  "order": 760,
+  "order": 761,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/views/{comparison_id}",
   "name": "view_history",
@@ -7582,7 +7592,7 @@
   "trong": null
  },
  {
-  "order": 761,
+  "order": 762,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/compose-consents",
   "name": "experiment_compose_consents",
@@ -7592,7 +7602,7 @@
   "trong": null
  },
  {
-  "order": 762,
+  "order": 763,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/compositions",
   "name": "experiment_compositions",
@@ -7602,7 +7612,7 @@
   "trong": null
  },
  {
-  "order": 763,
+  "order": 764,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/compose-outcomes",
   "name": "experiment_compose_outcomes",
@@ -7612,7 +7622,7 @@
   "trong": null
  },
  {
-  "order": 764,
+  "order": 765,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/policy",
   "name": "experiment_policy",
@@ -7622,7 +7632,7 @@
   "trong": null
  },
  {
-  "order": 765,
+  "order": 766,
   "type": "APIRoute",
   "path": "/improvement-experiments",
   "name": "experiment_create",
@@ -7632,7 +7642,7 @@
   "trong": null
  },
  {
-  "order": 766,
+  "order": 767,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/bind",
   "name": "experiment_bind",
@@ -7642,7 +7652,7 @@
   "trong": null
  },
  {
-  "order": 767,
+  "order": 768,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/freeze",
   "name": "experiment_freeze",
@@ -7652,7 +7662,7 @@
   "trong": null
  },
  {
-  "order": 768,
+  "order": 769,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/next",
   "name": "experiment_next",
@@ -7662,7 +7672,7 @@
   "trong": null
  },
  {
-  "order": 769,
+  "order": 770,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/report",
   "name": "experiment_report",
@@ -7672,7 +7682,7 @@
   "trong": null
  },
  {
-  "order": 770,
+  "order": 771,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/select",
   "name": "experiment_select",
@@ -7682,7 +7692,7 @@
   "trong": null
  },
  {
-  "order": 771,
+  "order": 772,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/cancel",
   "name": "experiment_cancel",
@@ -7692,7 +7702,7 @@
   "trong": null
  },
  {
-  "order": 772,
+  "order": 773,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/resume",
   "name": "experiment_resume",
@@ -7702,7 +7712,7 @@
   "trong": null
  },
  {
-  "order": 773,
+  "order": 774,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/recover",
   "name": "experiment_recover",
@@ -7712,7 +7722,7 @@
   "trong": null
  },
  {
-  "order": 774,
+  "order": 775,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/view-freeze",
   "name": "experiment_view-freeze",
@@ -7722,7 +7732,7 @@
   "trong": null
  },
  {
-  "order": 775,
+  "order": 776,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/view-evidence",
   "name": "experiment_view-evidence",
@@ -7732,7 +7742,7 @@
   "trong": null
  },
  {
-  "order": 776,
+  "order": 777,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/compose",
   "name": "experiment_compose",
@@ -7742,7 +7752,7 @@
   "trong": null
  },
  {
-  "order": 777,
+  "order": 778,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/compose-authorize",
   "name": "experiment_compose-authorize",
@@ -7752,7 +7762,7 @@
   "trong": null
  },
  {
-  "order": 778,
+  "order": 779,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/compose-preview",
   "name": "experiment_compose-preview",
@@ -7762,7 +7772,7 @@
   "trong": null
  },
  {
-  "order": 779,
+  "order": 780,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/compose-revoke",
   "name": "experiment_compose-revoke",
@@ -7772,7 +7782,7 @@
   "trong": null
  },
  {
-  "order": 780,
+  "order": 781,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/preparation-complete",
   "name": "experiment_preparation-complete",
@@ -7782,7 +7792,7 @@
   "trong": null
  },
  {
-  "order": 781,
+  "order": 782,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/preparation-freeze",
   "name": "experiment_preparation-freeze",
@@ -7792,7 +7802,7 @@
   "trong": null
  },
  {
-  "order": 782,
+  "order": 783,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/preparation-next",
   "name": "experiment_preparation-next",
@@ -7802,7 +7812,7 @@
   "trong": null
  },
  {
-  "order": 783,
+  "order": 784,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/propose",
   "name": "experiment_propose",
@@ -7812,7 +7822,7 @@
   "trong": null
  },
  {
-  "order": 784,
+  "order": 785,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/semantic-arbitrate",
   "name": "experiment_semantic-arbitrate",
@@ -7822,7 +7832,7 @@
   "trong": null
  },
  {
-  "order": 785,
+  "order": 786,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/semantic-evidence",
   "name": "experiment_semantic-evidence",
@@ -7832,7 +7842,7 @@
   "trong": null
  },
  {
-  "order": 786,
+  "order": 787,
   "type": "APIRoute",
   "path": "/improvement-experiments/{experiment_id}/semantic-review",
   "name": "experiment_semantic-review",
@@ -7842,7 +7852,7 @@
   "trong": null
  },
  {
-  "order": 787,
+  "order": 788,
   "type": "_IncludedRouter",
   "path": null,
   "name": null,
@@ -7850,27 +7860,27 @@
   "trong": null
  },
  {
-  "order": 788,
+  "order": 789,
   "type": "APIRoute",
   "path": "/plugins/inspect",
   "name": "plugins_inspect",
   "methods": [
    "POST"
   ],
-  "trong": 787
+  "trong": 788
  },
  {
-  "order": 789,
+  "order": 790,
   "type": "APIRoute",
   "path": "/plugins/install",
   "name": "plugins_install",
   "methods": [
    "POST"
   ],
-  "trong": 787
+  "trong": 788
  },
  {
-  "order": 790,
+  "order": 791,
   "type": "_IncludedRouter",
   "path": null,
   "name": null,
@@ -7878,27 +7888,27 @@
   "trong": null
  },
  {
-  "order": 791,
+  "order": 792,
   "type": "APIRoute",
   "path": "/star-nudge/check",
   "name": "star_check",
   "methods": [
    "POST"
   ],
-  "trong": 790
+  "trong": 791
  },
  {
-  "order": 792,
+  "order": 793,
   "type": "APIRoute",
   "path": "/star-nudge/action",
   "name": "star_action",
   "methods": [
    "POST"
   ],
-  "trong": 790
+  "trong": 791
  },
  {
-  "order": 793,
+  "order": 794,
   "type": "APIRoute",
   "path": "/usage/theo-gio",
   "name": "usage_theo_gio",
@@ -7908,7 +7918,7 @@
   "trong": null
  },
  {
-  "order": 794,
+  "order": 795,
   "type": "APIRoute",
   "path": "/plan-limits",
   "name": "plan_limits_get",

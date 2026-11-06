@@ -198,7 +198,7 @@ const tokensOf = (h) => (h.match(/data-token="([^"]*)"/g) || []).map((x) => x.sl
       && html.includes(t("share.last_seen", { t: t("share.ago_hour", { n: 2 }) })));
     check("a viewed link has its 14-day chart", (html.match(/class="share-spark"/g) || []).length === 1);
     check("a never-viewed link says so", html.includes(vi["share.never"]));
-    for (const [attr, icon] of [["data-share-copy", "copy"], ["data-share-edit", "pencil"], ["data-share-revoke", "trash-2"]]) {
+    for (const [attr, icon] of [["data-share-copy", "copy"], ["data-share-qr", "qr-code"], ["data-share-edit", "pencil"], ["data-share-revoke", "trash-2"]]) {
       check("every row has an icon button " + attr + " (" + icon + ")",
         (html.match(new RegExp(attr + '="[^"]*"[^>]*><svg data-ic="' + icon + '"', "g")) || []).length === SAMPLE.length);
     }
@@ -264,6 +264,22 @@ const tokensOf = (h) => (h.match(/data-token="([^"]*)"/g) || []).map((x) => x.sl
     check("and the row keeps its old address", bad.list._html.includes("https://nas.example/s/my-app"));
     d2.querySelector('[data-dlg="close"]').onclick();
     check("Cancel closes the dialog", d2.removed === true);
+  }
+
+  // ---- 4b. QR code per link (owner, 2026-11-06) ----
+  {
+    const r = await run(SAMPLE.map((x) => Object.assign({}, x)));
+    await press(r, '[data-share-qr="tok1"]');
+    const d = r.dialogs[r.dialogs.length - 1];
+    check("the QR button opens a dialog", !!d && d._html.includes('role="dialog"'));
+    const img = (/<img class="share-qr-img" src="([^"]+)"/.exec(d ? d._html : "") || [])[1] || "";
+    check("the QR image asks the server for this link's token and the dashboard's origin",
+      img.includes("/share/qr?token=tok1") && img.includes("origin=" + encodeURIComponent("https://nas.example")) && img.includes("fmt=svg"), img);
+    check("the dialog shows the address the code points to", d._html.includes("https://nas.example/s/my-app"));
+    check("there is a PNG download", /data-dlg="png" href="[^"]*fmt=png&amp;dl=1"[^>]*download/.test(d._html));
+    d.querySelector('[data-dlg="close"]').onclick();
+    check("Close removes the QR dialog", d.removed === true);
+    check("opening a QR calls nothing but the image", !r.calls.some((g) => g.url !== "/share/list"));
   }
 
   // ---- 5. search, filters, sort ----
