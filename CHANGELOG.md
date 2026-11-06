@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.486.2] - 2026-11-06
+### Cải thiện
+- **Nút mic chép lời trên máy tính có lại bong bóng chữ mờ.** Lúc bạn nói, câu đang nhận ra hiện trong một bong bóng nháp mờ ở cuối khung chat, để biết Javis đang nghe. Ô chat vẫn đứng yên, đến khi bấm dừng hoặc gửi thì cả đoạn chữ mới vào ô.
+- Điện thoại không có bong bóng này: trên Android, trình nhận giọng hay gửi lại cả câu mỗi lần nghe thêm chữ nên bong bóng bị lặp. Điện thoại vẫn chỉ nhận chữ khi bấm dừng.
+
 ## [0.486.1] - 2026-11-06
 ### Sửa lỗi
 - **Gọi giọng không còn kẹt ở ChatGPT Live khi gói ChatGPT hết lượt.** Trước đây cuộc gọi cứ mở lại đúng tài khoản đã cạn và báo lỗi "You've hit your usage limit" mãi, dù đã đổi model chính sang gói khác. Giờ tài khoản đó được cho nghỉ tới giờ mở lại, cuộc gọi tự chuyển ngay sang tài khoản ChatGPT thứ hai, hết nữa thì sang Live qua API key, rồi đường Cơ bản (trả lời bằng model chính).
