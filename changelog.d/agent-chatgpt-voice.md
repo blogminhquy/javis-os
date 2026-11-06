@@ -3,7 +3,7 @@ bump: minor
 title: Choose a ChatGPT Live voice for each partner
 ---
 ## vi
-### Tính năng
+### Thêm mới
 - **Mỗi cộng sự có thể chọn giọng ChatGPT Live riêng.** Trong trình sửa trợ lý, chọn một trong các giọng mà Codex realtime v3 hỗ trợ. Để Mặc định thì dùng giọng chung ở trang Cài đặt. Giọng được lưu trong file cộng sự và đi cùng Brain Sync.
 - **Không ảnh hưởng cuộc gọi khác.** Giọng được chọn theo phiên cộng sự; cuộc gọi Javis Core và Live API khác tiếp tục theo cài đặt hiện tại.
 
