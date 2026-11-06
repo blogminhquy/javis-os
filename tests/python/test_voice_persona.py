@@ -43,7 +43,35 @@ check("identity block: name, role, Javis context",
       "**Người viết**" in block and "Vai trò: viết bài." in block and "Javis OS" in block)
 check("identity block: never claims to be ChatGPT", "KHÔNG tự nhận là ChatGPT" in block)
 check("identity block: carries the partner file and memory", "Viết súc tích." in block and "không emoji" in block)
-check("identity block caps a long file", len(voice_persona.identity_block("A", "", "x" * 20000)) < 6000)
+check("identity block caps a long file at the new budget",
+      voice_persona.BODY_CHARS >= 12000
+      and voice_persona.BODY_CHARS <= 24000
+      and len(voice_persona.identity_block("A", "", "x" * 50000))
+      < voice_persona.BODY_CHARS + 1600)
+check("memory is bounded separately",
+      "m" * voice_persona.MEMORY_CHARS in voice_persona.identity_block("A", "", "", "m" * 50000)
+      and "m" * (voice_persona.MEMORY_CHARS + 1) not in voice_persona.identity_block("A", "", "", "m" * 50000))
+check("operational truth guard is never truncated",
+      voice_persona.ALWAYS_ON in voice_persona.identity_block("A", "", "x" * 50000, "m" * 50000))
+pinned_body = ("filler " * 3000 + "\\n" + voice_persona.VOICE_RULES_START
+               + "\\nAlways verify facts with tools\\n" + voice_persona.VOICE_RULES_END)
+pinned_prompt = voice_persona.identity_block("A", "", pinned_body)
+check("opt-in voice rules survive clipping without duplicate markers",
+      "Always verify facts with tools" in pinned_prompt
+      and voice_persona.VOICE_RULES_START not in pinned_prompt
+      and voice_persona.VOICE_RULES_END not in pinned_prompt
+      and pinned_prompt.find("Always verify facts with tools") < pinned_prompt.find("filler"))
+check("incomplete voice marker preserves original body",
+      voice_persona._priority_body("text " + voice_persona.VOICE_RULES_START) == "text " + voice_persona.VOICE_RULES_START)
+from unittest.mock import patch
+with patch.dict(os.environ, {"JAVIS_VOICE_AGENT_BODY_CHARS": "18000",
+                              "JAVIS_VOICE_AGENT_MEMORY_CHARS": "999999"}):
+    check("voice budgets support bounded environment overrides",
+          voice_persona._env_budget("JAVIS_VOICE_AGENT_BODY_CHARS", 12000, 24000) == 18000
+          and voice_persona._env_budget("JAVIS_VOICE_AGENT_MEMORY_CHARS", 6000, 12000) == 12000)
+with patch.dict(os.environ, {"JAVIS_VOICE_AGENT_BODY_CHARS": "invalid"}):
+    check("bad override falls back to default",
+          voice_persona._env_budget("JAVIS_VOICE_AGENT_BODY_CHARS", 12000, 24000) == 12000)
 check("custom prompt without the opening gets the block in front",
       voice_persona.apply("Một prompt khác.", "A", "BLOCK") == "BLOCK\n\nMột prompt khác.")
 
