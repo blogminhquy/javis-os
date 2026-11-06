@@ -148,16 +148,39 @@
     var more = cardHost.querySelector("[data-gh-repos]");
     if (more) more.onclick = function () { openRepos(local); };
   }
+  // One row per repo in the look of the Tasks page (owner, 06/11/2026): a card row with the repo, a meta line, the
+  // auto-merge switch and a "..." menu for Checks, Numbers and Remove (the same sheet the Tasks page opens).
+  function localRow(r) {
+    var on = r.auto_merge !== false, parts = String(r.full_name).split("/"), repo = parts.pop(), owner = parts.join("/");
+    return '<div class="gh-rrow' + (on ? "" : " off") + '"><span class="gh-rav">' + LOGO + "</span>" +
+      '<div class="gh-rbody"><span class="gh-rti" title="' + esc(r.full_name) + '">' + (owner ? '<span class="gh-rown">' + esc(owner) + "/</span>" : "") +
+      esc(repo) + "</span>" + '<span class="gh-rmeta"><span>' + ic("message-circle") + esc(tw("gh.local_chats", { n: r.chats || 0 })) + "</span>" +
+      '<span data-gh-am class="' + (on ? "gh-on" : "") + '">' + BRANCH + esc(tw(on ? "gh.auto_merge" : "gh.auto_merge_off")) + "</span></span></div>" +
+      '<button type="button" class="gh-sw" role="switch" aria-checked="' + on + '" aria-label="' + esc(tw("gh.auto_merge")) + '" title="' +
+      esc(tw("gh.auto_merge")) + '" data-gh-auto="' + esc(r.full_name) + '"><span></span></button>' +
+      '<button type="button" class="gh-dots" aria-label="' + esc(tw("gh.more")) + '" aria-haspopup="dialog" data-gh-menu="' + esc(r.full_name) + '">' +
+      ic("ellipsis") + "</button></div>";
+  }
   function reposHtml(local) {
-    return local.map(function (r) {
-      return '<div class="gh-local-row"><span class="gh-local-name">' + esc(r.full_name) + "</span>" +
-        '<span class="gh-local-meta">' + esc(tw("gh.local_chats", { n: r.chats || 0 })) + "</span>" +
-        '<label class="gh-auto"><input type="checkbox" data-gh-auto="' + esc(r.full_name) + '"' + (r.auto_merge !== false ? " checked" : "") + "> " +
-        esc(tw("gh.auto_merge")) + "</label>" +
-        '<button class="s-btn-ghost" type="button" data-gh-checks="' + esc(r.full_name) + '">' + esc(tw("gh.checks")) + "</button>" +
-        '<button class="s-btn-ghost" type="button" data-gh-metrics="' + esc(r.full_name) + '">' + esc(tw("gh.metrics")) + "</button>" +
-        '<button class="s-btn-ghost" type="button" data-gh-remove="' + esc(r.full_name) + '">' + esc(tw("gh.remove_brain")) + "</button></div>";
-    }).join("");
+    return '<div class="gh-rlist">' + local.map(localRow).join("") + "</div>";
+  }
+  // The "..." sheet of one repo, drawn over the dialog like the action sheet of the Tasks page.
+  function repoSheet(name) {
+    var host = document.createElement("div");
+    host.className = "gh-sheet-host";
+    host.innerHTML = '<div class="gh-sheet-scrim" data-gh-close></div><div class="gh-sheet" role="dialog" aria-modal="true" aria-label="' + esc(name) + '">' +
+      '<div class="gh-sheet-h"><b>' + esc(name) + '</b><button type="button" class="gh-x" data-gh-close aria-label="' + esc(tw("gh.close")) + '">' + ic("x") + "</button></div>" +
+      '<div class="gh-sheet-b"><button type="button" class="gh-mi" data-gh-checks="' + esc(name) + '">' + ic("terminal") + esc(tw("gh.checks")) + "</button>" +
+      '<button type="button" class="gh-mi" data-gh-metrics="' + esc(name) + '">' + ic("chart-column") + esc(tw("gh.metrics")) + "</button>" +
+      '<button type="button" class="gh-mi danger" data-gh-remove="' + esc(name) + '">' + ic("trash-2") + esc(tw("gh.remove_brain")) + "</button></div></div>";
+    document.body.appendChild(host);
+    function close() { host.remove(); document.removeEventListener("keydown", onKey, true); }
+    function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); close(); } }
+    document.addEventListener("keydown", onKey, true);
+    host.querySelectorAll("[data-gh-close]").forEach(function (b) { b.onclick = close; });
+    var first = host.querySelector(".gh-mi");
+    if (first) first.focus();
+    return { el: host, close: close };
   }
   // The repos of this brain, one row each with its switches. Checks and Numbers open in the same dialog and come back here.
   function openRepos(local) {
@@ -168,30 +191,41 @@
       infoBody(esc(tw("gh.local_how"))) + reposHtml(local) +
       '<div class="lv-msg" role="status" data-gh-msg></div></div>', 720);
     m.querySelectorAll("[data-gh-auto]").forEach(function (b) {
-      b.onchange = function () {
-        var name = b.getAttribute("data-gh-auto");
-        local.forEach(function (r) { if (r.full_name === name) r.auto_merge = b.checked; });
-        api("/github/local/automerge", { brain: pageBrain(), full_name: name, on: b.checked ? "1" : "0" });
+      b.onclick = function () {
+        var name = b.getAttribute("data-gh-auto"), on = b.getAttribute("aria-checked") !== "true";
+        local.forEach(function (r) { if (r.full_name === name) r.auto_merge = on; });
+        b.setAttribute("aria-checked", String(on));
+        var row = b.closest(".gh-rrow"), st = row && row.querySelector("[data-gh-am]");
+        if (row) row.classList.toggle("off", !on);
+        if (st) { st.className = on ? "gh-on" : ""; st.innerHTML = BRANCH + esc(tw(on ? "gh.auto_merge" : "gh.auto_merge_off")); }
+        api("/github/local/automerge", { brain: pageBrain(), full_name: name, on: on ? "1" : "0" });
       };
     });
-    m.querySelectorAll("[data-gh-metrics]").forEach(function (b) {
-      b.onclick = function () { openMetrics(b.getAttribute("data-gh-metrics"), back); };
-    });
-    m.querySelectorAll("[data-gh-checks]").forEach(function (b) {
-      b.onclick = function () { openChecks(b.getAttribute("data-gh-checks"), back); };
-    });
-    m.querySelectorAll("[data-gh-remove]").forEach(function (b) {
-      b.onclick = async function () {
-        var name = b.getAttribute("data-gh-remove");
-        if (!window.confirm(tw("gh.remove_q", { name: name }))) return;
-        var msg = m.querySelector("[data-gh-msg]");
-        b.disabled = true;
-        var r = await api("/github/local/remove", { brain: pageBrain(), full_name: name });
-        b.disabled = false;
-        if (!r || r.ok === false) { if (msg) msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
-        local = local.filter(function (x) { return x.full_name !== name; });
-        loadCard();
-        if (local.length) openRepos(local); else M.close();
+    m.querySelectorAll("[data-gh-menu]").forEach(function (d) {
+      d.onclick = function () {
+        var sh = repoSheet(d.getAttribute("data-gh-menu"));
+        sh.el.querySelectorAll("[data-gh-metrics]").forEach(function (b) {
+          b.onclick = function () { sh.close(); openMetrics(b.getAttribute("data-gh-metrics"), back); };
+        });
+        sh.el.querySelectorAll("[data-gh-checks]").forEach(function (b) {
+          b.onclick = function () { sh.close(); openChecks(b.getAttribute("data-gh-checks"), back); };
+        });
+        sh.el.querySelectorAll("[data-gh-remove]").forEach(function (b) {
+          b.onclick = async function () {
+            var name = b.getAttribute("data-gh-remove");
+            sh.close();
+            if (!window.confirm(tw("gh.remove_q", { name: name }))) return;
+            var msg = m.querySelector("[data-gh-msg]");
+            if (msg) msg.textContent = "";
+            d.disabled = true;
+            var r = await api("/github/local/remove", { brain: pageBrain(), full_name: name });
+            d.disabled = false;
+            if (!r || r.ok === false) { if (msg) msg.textContent = (r && r.error) || tw("gh.err_net"); return; }
+            local = local.filter(function (x) { return x.full_name !== name; });
+            loadCard();
+            if (local.length) openRepos(local); else M.close();
+          };
+        });
       };
     });
   }

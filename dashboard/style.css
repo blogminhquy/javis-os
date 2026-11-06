@@ -4695,6 +4695,47 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .gh-local-name { font-weight: 600; word-break: break-all; }
 .gh-local-meta { color: var(--text2); flex: 1; min-width: 120px; }
 .gh-chip svg { width: 15px; height: 15px; flex: none; }
+/* Repos of this brain (owner, 06/11/2026): the look of the Tasks page (tasks.css .nv-rrow, .nv-sw, .nv-dots, .nv-sheet).
+   tasks.css loads only on that page, so the dialog carries its own copy under gh-* names. */
+.gh-rlist { display: flex; flex-direction: column; gap: 8px; }
+.gh-rrow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--hairline, var(--border));
+  border-radius: 12px; background: var(--surface-1, var(--bg2)); font-size: 16px; }
+.gh-rav { width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--surface-3, var(--bg3)); color: var(--text); }
+.gh-rav .cp-ic { width: 20px; height: 20px; }
+.gh-rbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.gh-rti { font-weight: 600; font-size: 16.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-rown { color: var(--text3); font-weight: 500; }
+.gh-rrow.off .gh-rti { color: var(--text2); }
+.gh-rmeta { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--text3); font-size: 14px; }
+.gh-rmeta > span { display: inline-flex; align-items: center; gap: 5px; }
+.gh-rmeta .ic, .gh-rmeta .cp-ic { width: 14px; height: 14px; flex: none; }
+.gh-rmeta .gh-on { color: var(--green); }
+.gh-sw { position: relative; width: 44px; height: 26px; flex: none; border-radius: 999px; border: 0; background: var(--surface-3, var(--bg3)); cursor: pointer; padding: 0; }
+.gh-sw span { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; }
+.gh-sw[aria-checked="true"] { background: var(--accent); }
+.gh-sw[aria-checked="true"] span { left: 21px; }
+.gh-dots { width: 36px; height: 36px; flex: none; border: 0; border-radius: 10px; background: none; color: var(--text3); cursor: pointer; display: grid; place-items: center; }
+.gh-dots:hover, .gh-dots:focus-visible { background: var(--surface-2, var(--bg3)); color: var(--text); }
+.gh-dots:disabled { opacity: .45; cursor: default; }
+.gh-sheet-scrim { position: fixed; inset: 0; z-index: 210; background: var(--scrim, rgba(0,0,0,.45)); }
+.gh-sheet { position: fixed; z-index: 211; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100vw - 32px)); max-height: 80vh;
+  overflow: auto; background: var(--panel-solid, var(--bg2)); border: 1px solid var(--hairline, var(--border)); border-radius: 16px; box-shadow: var(--shadow-3); padding: 12px; font-size: 16px; }
+.gh-sheet-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-left: 12px; }
+.gh-sheet-h b { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-x { width: 38px; height: 38px; flex: none; border: 0; border-radius: 10px; background: none; color: var(--text2); cursor: pointer; display: grid; place-items: center; }
+.gh-x:hover { background: var(--surface-2, var(--bg3)); }
+.gh-sheet-b { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.gh-mi { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 12px; border: 0; border-radius: 10px; background: none; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer; }
+.gh-mi:hover, .gh-mi:focus-visible { background: var(--surface-2, var(--bg3)); }
+.gh-mi .ic { width: 18px; height: 18px; flex: none; }
+.gh-mi.danger { color: var(--red); }
+@media (max-width: 600px) {
+  .gh-rrow { gap: 10px; padding: 12px; }
+  .gh-rav { width: 34px; height: 34px; }
+  /* A sheet from the bottom on a phone, as the info popups do. */
+  .gh-sheet { top: auto; bottom: 0; transform: translateX(-50%); width: 100vw; border-radius: 18px 18px 0 0; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+}
 /* Repo and branch picker in the + menu (0.368.0, after Claude Code's picker): sections, grouped rows, two-line names. */
 .gh-sec { padding: 10px 10px 4px; font-size: 12.5px; color: var(--text3); font-weight: 600; }
 .gh-group { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
