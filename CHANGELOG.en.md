@@ -8,6 +8,17 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.486.0] - 2026-11-06
+### Added
+- **Ticking a task sounds satisfying.** A crisp click and a bright ding, with a sparkling run for the day's priority. Ticking a habit gives a whoosh of flame and orange embers; thawing one cracks the ice, rings glass chimes and throws blue shards before the fire comes back. A clean day gets a short fanfare. The sounds are made in the browser, no file to load, and stay silent on a hidden tab.
+- **A sound switch beside the light/dark one.** A speaker with waves means on, crossed out means off. Just on or off, no volume. Turning it on answers with a tick. On a phone it sits in the menu foot, just before light/dark.
+### Improved
+- **A cleaner top bar: the History and reset-conversation buttons are gone.** The conversation list stays on the Chat page (first in the menu). The phone's "+" new chat works as before.
+- **One priority star a day.** Pick the single task that matters most that day. Starring another task of the same day moves the star there (with Undo) instead of refusing.
+### Fixed
+- **A missed habit has Skip and Delete.** A missed time of a habit (say "Run 3 times a week") sat in the Overdue box with no buttons. It now offers Skip this time and Delete, like any overdue repeat.
+- **The + button no longer covers the last task.** The Tasks page leaves room at the bottom, so the last task's Move, Delete and star buttons stay reachable.
+
 ## [0.485.1] - 2026-11-06
 ### Fixed
 - **On a phone, the Tasks page's + button sits down in the corner and no longer covers a loop's "On" switch.** The page ends with room for it, so the last row always scrolls clear of the button.
