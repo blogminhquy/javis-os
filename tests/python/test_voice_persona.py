@@ -53,8 +53,8 @@ check("memory is bounded separately",
       and "m" * (voice_persona.MEMORY_CHARS + 1) not in voice_persona.identity_block("A", "", "", "m" * 50000))
 check("operational truth guard is never truncated",
       voice_persona.ALWAYS_ON in voice_persona.identity_block("A", "", "x" * 50000, "m" * 50000))
-pinned_body = ("filler " * 3000 + "\\n" + voice_persona.VOICE_RULES_START
-               + "\\nAlways verify facts with tools\\n" + voice_persona.VOICE_RULES_END)
+pinned_body = ("filler " * 3000 + "\n" + voice_persona.VOICE_RULES_START
+               + "\nAlways verify facts with tools\n" + voice_persona.VOICE_RULES_END)
 pinned_prompt = voice_persona.identity_block("A", "", pinned_body)
 check("opt-in voice rules survive clipping without duplicate markers",
       "Always verify facts with tools" in pinned_prompt
