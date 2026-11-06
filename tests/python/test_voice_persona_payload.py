@@ -20,7 +20,7 @@ def check(label, condition):
 name = "Milo"
 block = voice_persona.identity_block(
     name,
-    "AI education adviser for Northstar Academy",
+    "Customer support assistant at ABC Company",
     "Be transparent that you are an AI assistant. Never claim to be human.",
     "Speak clearly and respectfully.",
 )
@@ -34,7 +34,7 @@ check("English self-identification survives prompt construction",
       'When asked in English "Who are you?"' in prompt
       and "I'm Milo, an AI assistant working within Javis OS." in prompt)
 check("fictional academy role survives prompt construction",
-      "Northstar Academy" in prompt)
+      "ABC Company" in prompt)
 
 # No Codex app-server or model is started: only serialize the outgoing request.
 provider = voice_live.ChatGPTLive(
@@ -49,5 +49,34 @@ check("ordinary Javis call keeps the normal prompt",
       voice_live.ChatGPTLive(
           app_server_getter=lambda *args, **kwargs: None
       ).start_params("plain-offer")["prompt"].startswith(voice_live.CHATGPT_LIVE_PROMPT + "\n\n"))
+
+# Partner calls must not inherit the main Brain's unrelated memory index.
+# The partner's own instructions and memory are already included in the persona.
+class _FakeProvider:
+    def __init__(self):
+        self.system = voice_live.CHATGPT_LIVE_PROMPT
+
+
+seen = []
+original_factory = voice_live._make_provider
+try:
+    def _fake_factory(cfg, system, recognition_lang, memory_index):
+        seen.append(memory_index)
+        return _FakeProvider()
+
+    voice_live._make_provider = _fake_factory
+    voice_live.make_provider({}, memory_index="Unrelated main Brain context",
+                             persona=(name, block))
+    check("partner call excludes unrelated global Brain memory", seen[-1] == "")
+    voice_live.make_provider({}, memory_index="Normal Javis memory")
+    check("ordinary Javis call retains its global memory index",
+          seen[-1] == "Normal Javis memory")
+finally:
+    voice_live._make_provider = original_factory
+
+# A different agent's role must not be polluted by the first agent's identity.
+nora = voice_persona.identity_block("Nora", "Travel support assistant at ABC Company")
+switched = voice_persona.apply(voice_live.CHATGPT_LIVE_PROMPT, "Nora", nora)
+check("new agent gets an independent prompt", "Nora" in switched and "Milo" not in switched)
 
 print("PASS: outbound ChatGPT Live prompt assembly (not a real Live call)")
