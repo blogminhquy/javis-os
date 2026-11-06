@@ -241,7 +241,7 @@ def _treo_mot_tin(tid):
     once_ledger._conn().commit()
 
 
-def test_may_chu_chet_giua_luc_gui_thi_hoi_chu_roi_bo_qua(tmp_path):
+def test_may_chu_chet_giua_luc_gui_thi_giu_recovery_khong_gui_lai(tmp_path):
     _ledger(tmp_path)
     f, tid, sent = _feature(tmp_path)
     _treo_mot_tin(tid)
@@ -256,21 +256,22 @@ def test_may_chu_chet_giua_luc_gui_thi_hoi_chu_roi_bo_qua(tmp_path):
         return f"Xong. {kq}", "", False, {}
 
     task = _chay(f, tid, execute)
-    # Không chạy engine, dừng lại hỏi chủ, câu hỏi nói rõ thao tác nào.
-    assert task["status"] == "blocked" and task["block_kind"] == "needs_input"
-    assert task["metadata"].get("once_pending") is True
-    assert "zalo_send_message tới lan" in task["metadata"]["qa"][-1]["q"]
+    # Không chạy engine; giữ recovery nội bộ, không nhờ chủ chẩn đoán việc gửi.
+    assert task["status"] == "blocked" and task["block_kind"] == "recovery"
+    assert not task["metadata"].get("qa")
+    assert "zalo_send_message tới lan" in task["block_reason"]
     assert not gui
-    assert any(c.get("viec", {}).get("status") == "hoi" for c in sent)
-
-    assert asyncio.run(f.answer(tid, "Đã gửi rồi"))["ok"]
-    assert "once_pending" not in f.store.get_task(tid)["metadata"]
+    assert not any(c.get("viec", {}).get("status") == "hoi" for c in sent)
+    assert not asyncio.run(f.answer(tid, "Đã gửi rồi"))["ok"]
+    # Fixture for an engineering reconciliation with a confirmed delivery receipt.
+    once_ledger.resolve(f"kanban:{tid}", done=True)
+    assert f.store.move(tid, "ready", "verified delivery receipt")
     task = _chay(f, tid, execute)
     assert not gui and task["status"] == "done"          # chủ nói đã gửi: không gửi lại
     f.store.close()
 
 
-def test_chu_noi_chua_gui_thi_gui_lai_dung_mot_lan(tmp_path):
+def test_recovery_xac_nhan_chua_gui_thi_gui_lai_dung_mot_lan(tmp_path):
     _ledger(tmp_path)
     f, tid, _ = _feature(tmp_path)
     _treo_mot_tin(tid)
@@ -285,13 +286,16 @@ def test_chu_noi_chua_gui_thi_gui_lai_dung_mot_lan(tmp_path):
         return f"Xong. {kq}", "", False, {}
 
     _chay(f, tid, execute)
-    assert asyncio.run(f.answer(tid, "Chưa gửi"))["ok"]
+    assert not asyncio.run(f.answer(tid, "Chưa gửi"))["ok"]
+    # Only a confirmed non-delivery fixture resolves the unknown operation for retry.
+    once_ledger.resolve(f"kanban:{tid}", done=False)
+    assert f.store.move(tid, "ready", "verified non-delivery receipt")
     task = _chay(f, tid, execute)
     assert len(gui) == 1 and task["status"] == "done"
     f.store.close()
 
 
-def test_het_gio_giua_luc_goi_thi_hoi_chu_thay_vi_bao_xong(tmp_path):
+def test_het_gio_giua_luc_goi_thi_recovery_khong_bao_xong(tmp_path):
     _ledger(tmp_path)
     f, tid, _ = _feature(tmp_path)
 
@@ -303,7 +307,8 @@ def test_het_gio_giua_luc_goi_thi_hoi_chu_thay_vi_bao_xong(tmp_path):
         return "Đã cố gửi", "", False, {}
 
     task = _chay(f, tid, execute)
-    assert task["status"] == "blocked" and task["metadata"].get("once_pending") is True
+    assert task["status"] == "blocked" and task["block_kind"] == "recovery"
+    assert once_ledger.unknowns(f"kanban:{tid}") and not task["metadata"].get("qa")
     f.store.close()
 
 

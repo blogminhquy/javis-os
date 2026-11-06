@@ -1128,6 +1128,7 @@ class TaskStore:
         transient: bool = False,
         not_before: float = 0.0,
         keep_attempt: bool = False,
+        metadata: Optional[dict] = None,
     ) -> Optional[dict]:
         """`transient=True` -> về ready để thử lại (còn lượt). `not_before` hoãn lần thử tới
         mốc đó; `keep_attempt` không tính lần vấp này vào `attempts` (hết hạn mức gói thuê bao
@@ -1144,7 +1145,7 @@ class TaskStore:
             task_id, worker_id, "ready" if retry else "blocked",
             result=result, error=reason, block_kind=kind,
             block_reason=reason, event_type="retry_scheduled" if retry else "blocked",
-            metadata=task.get("metadata") or {}, artifacts=task.get("artifacts") or [],
+            metadata={**(task.get("metadata") or {}), **(metadata or {})}, artifacts=task.get("artifacts") or [],
             not_before=float(not_before or 0.0) if retry else 0.0,
             keep_attempt=bool(keep_attempt and retry),
         )
@@ -1165,11 +1166,11 @@ class TaskStore:
             return None
         meta = dict(task.get("metadata") or {})
         qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
-        qa.append({
-            "q": (question or "").strip()[:QA_TEXT_MAX],
-            "asked_at": now(),
-            "progress": (result or "").strip()[:QA_PROGRESS_MAX],
-        })
+        question = (question or "").strip()[:QA_TEXT_MAX]
+        # A replay of an unresolved question keeps its durable ordinal and notification key.
+        if not qa or qa[-1].get("q") != question or qa[-1].get("a"):
+            qa.append({"q": question, "asked_at": now(),
+                       "progress": (result or "").strip()[:QA_PROGRESS_MAX]})
         meta["qa"] = qa[-QA_KEEP:]
         meta.update(extra_meta or {})
         return self._finish(
@@ -1285,8 +1286,8 @@ class TaskStore:
 
     def set_acceptance(self, task_id: str, state: str, why: str = "") -> Optional[dict]:
         """Record a re-check of a finished job (0.411.0). `state`: "checking" while it runs, "ai" when it passed,
-        "failed" when it did not (the job moves to Needs you with the reason as its question, so the reply box can
-        fix it), "unverified" when the checker could not run again. Only a done or review job is touched."""
+        "failed" when it did not (an internal acceptance blocker, never an owner question),
+        "unverified" when the checker could not run again. Only a done or review job is touched."""
         with self._lock:
             self._tx()
             try:
@@ -1299,12 +1300,9 @@ class TaskStore:
                 meta = _loads(row["metadata_json"], {})
                 if state == "failed":
                     reason = ("Chưa đạt điều kiện hoàn thành: " + (why or "lượt kiểm không nói rõ."))[:QA_TEXT_MAX]
-                    qa = [x for x in (meta.get("qa") or []) if isinstance(x, dict)]
-                    qa.append({"q": reason, "asked_at": now()})
-                    meta["qa"] = qa[-QA_KEEP:]
                     meta["acceptance_check"] = "failed"
                     self._db.execute(
-                        """UPDATE tasks SET status='blocked', block_kind='needs_input', block_reason=?,
+                        """UPDATE tasks SET status='blocked', block_kind='acceptance', block_reason=?,
                            metadata_json=?, updated_at=? WHERE id=?""",
                         (reason, _json(meta), now(), task_id),
                     )
@@ -1375,6 +1373,54 @@ class TaskStore:
                 "INSERT OR REPLACE INTO board_hints_dismissed(brain_root, hint_key, created_at) VALUES (?, ?, ?)",
                 (str(brain_root), str(hint_key)[:500], now()))
             self._db.commit()
+
+    def close_partial(self, task_id: str, decision_ref: str, decision_sha256: str,
+                      *, expected_updated_at: Optional[float] = None) -> bool:
+        """Authenticated operator closure, never inferred from a worker report or a file.
+
+        Archived means execution ended, not acceptance passed. Keep result, QA, artifacts,
+        runs and acceptance_check verbatim. Existing dependency completion uses archived.
+        The caller authenticates the operator; the reference/hash are audit evidence only.
+        """
+        if not decision_ref.strip() or not re.fullmatch(r"[0-9a-fA-F]{64}", decision_sha256):
+            return False
+        if expected_updated_at is None:
+            return False
+        with self._lock:
+            self._tx()
+            try:
+                row = self._db.execute(
+                    "SELECT status, metadata_json, updated_at FROM tasks WHERE id=? AND lane<>'team'",
+                    (task_id,),
+                ).fetchone()
+                if not row:
+                    self._db.rollback()
+                    return False
+                meta = _loads(row["metadata_json"], {})
+                closure = {"outcome": "partial", "execution_status": "CLOSED_PER_OWNER_DECISION",
+                           "decision_ref": decision_ref.strip(), "sha256": decision_sha256.lower()}
+                old = meta.get("owner_closure") or {}
+                if row["status"] == "archived" and all(old.get(k) == v for k, v in closure.items()):
+                    self._db.rollback()
+                    return True
+                if row["status"] not in ("blocked", "review") or row["updated_at"] != expected_updated_at:
+                    self._db.rollback()
+                    return False
+                ts = now()
+                closure["closed_at"] = ts
+                meta["owner_closure"] = closure
+                self._db.execute(
+                    """UPDATE tasks SET status='archived', block_kind='', block_reason='', metadata_json=?,
+                       claimed_by='', claim_expires_at=0, current_run_id='', not_before=0, updated_at=? WHERE id=?""",
+                    (_json(meta), ts, task_id),
+                )
+                self._event(task_id, "owner_closed_partial", "CLOSED_PER_OWNER_DECISION; quality unchanged",
+                            metadata=closure)
+                self._db.commit()
+                return True
+            except Exception:
+                self._db.rollback()
+                raise
 
     def move(self, task_id: str, status: str, reason: str = "operator") -> bool:
         if status not in VALID_STATUS:

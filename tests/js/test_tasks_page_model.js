@@ -8,6 +8,12 @@ const M = require(path.join(__dirname, "..", "..", "dashboard", "tasks.js"));
 let fails = 0;
 function check(name, cond) { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails++; }
 
+for (const kind of ["acceptance", "engineering", "recovery"]) {
+  check(kind + " is internal, never a needs-owner card", M.kanbanState({status: "blocked", block_kind: kind}, 0) === "calm");
+}
+check("partial archived execution is not quality DONE", M.kanbanState({status: "archived",
+  metadata: {owner_closure: {outcome: "partial"}}}, 0) !== "done");
+
 // A fixed "now": 2026-10-30 10:30 local time.
 const now = Math.floor(new Date(2026, 9, 30, 10, 30).getTime() / 1000);
 const at = (d, h, m) => Math.floor(new Date(2026, 9, d, h, m || 0).getTime() / 1000);

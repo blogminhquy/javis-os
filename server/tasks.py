@@ -38,6 +38,7 @@ import limit_resume       # mượn hằng trừ hao / trần chờ của khung 
 import plugins_host
 import once_ledger
 import task_store
+import task_attention
 import turn_context
 from task_store import TaskStore, VALID_STATUS, agent_prefix as _agent_prefix
 
@@ -548,8 +549,7 @@ class TasksFeature:
             job = f"kanban:{tid}"
             treo = once_ledger.unknowns(job)
             if treo:
-                final_task = self.store.ask(tid, worker_id, self._cau_hoi_ghi_ngoai(treo),
-                                            extra_meta={"once_pending": True})
+                final_task = self.store.block(tid, worker_id, "recovery", self._cau_hoi_ghi_ngoai(treo))
                 return
             tok = turn_context.bind(turn_context.make(
                 "kanban", chat_id=str(task.get("chat_id") or ""), job=job))
@@ -563,8 +563,7 @@ class TasksFeature:
             treo = once_ledger.unknowns(job)
             if treo:
                 # Một lời gọi ra ngoài hết giờ hay đứt kết nối giữa chừng: chạy lại hay báo xong đều có thể sai.
-                final_task = self.store.ask(tid, worker_id, self._cau_hoi_ghi_ngoai(treo), result=result,
-                                            extra_meta={"once_pending": True})
+                final_task = self.store.block(tid, worker_id, "recovery", self._cau_hoi_ghi_ngoai(treo), result=result)
                 return
             # Soi CẢ result: nhà cung cấp hay in câu hết lượt ngay chỗ câu trả lời chứ không
             # báo lỗi, và bản trước coi đó là việc XONG với "kết quả" là một câu tiếng Anh.
@@ -581,10 +580,17 @@ class TasksFeature:
                     transient=self._is_transient(error),
                 )
             elif needs_input:
-                final_task = self.store.ask(
-                    tid, worker_id, self._needs_input_reason(result, task_store.QA_TEXT_MAX),
-                    result=result,
-                )
+                request = task_attention.owner_request(result)
+                if request:
+                    final_task = self.store.ask(
+                        tid, worker_id, request["question"], result=result,
+                        extra_meta={"owner_request": request},
+                    )
+                else:
+                    final_task = self.store.block(
+                        tid, worker_id, "engineering", self._needs_input_reason(result, task_store.QA_TEXT_MAX),
+                        result=result,
+                    )
             else:
                 # The worker ending its session is not the job being done. Check the report
                 # against the acceptance criteria the specifier wrote, and only then mark it
@@ -597,12 +603,14 @@ class TasksFeature:
                             # 0.411.0: how long the run took, shown on the card.
                             "run_seconds": round(time.monotonic() - t_run)}
                 if not passed:
-                    final_task = self.store.ask(
+                    final_task = self.store.block(
                         tid,
                         worker_id,
+                        "acceptance",
                         "Chưa đạt điều kiện hoàn thành: "
                         + (why or "worker báo chưa làm xong.")[:200],
                         result=result,
+                        metadata={**metadata, "acceptance_check": "failed"},
                     )
                     return
                 final_task = self.store.complete(
@@ -1023,23 +1031,16 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
                     elif kind == "wait_user":
                         # Workflow dừng chờ người duyệt. Không có nhánh này thì task bị
                         # chấm là XONG với kết quả rỗng, và việc cần duyệt biến mất.
-                        result = (result or "") + (
-                            "\n[[NEEDS_INPUT]] Workflow dừng chờ duyệt bước "
-                            f"'{event.get('node') or '?'}'"
-                            f"{': ' + str(event.get('prompt')) if event.get('prompt') else ''}"
-                        )
-                    elif kind == "escalation":
-                        result = (result or "") + (
-                            "\n[[NEEDS_INPUT]] Agent chuyển lại cho người: "
-                            f"{event.get('reason') or 'không rõ lý do'}"
-                        )
-                    elif kind == "error" and event.get("needs_input"):
-                        # The workflow stopped on purpose for a person: a step still failed
-                        # its check after the last retry, or the workflow is switched off.
-                        # That is a job waiting for the owner, not an engine failure to retry.
-                        result = (result or "") + (
-                            f"\n[[NEEDS_INPUT]] {event.get('content') or 'Quy trình dừng chờ bạn.'}"
-                        )
+                        request = {"kind": "approval",
+                                   "question": str(event.get("prompt") or
+                                                   f"Duyệt bước '{event.get('node') or '?'}'?"),
+                                   "owner_only_reason": "Quy trình cấu hình bước này phải do chủ duyệt.",
+                                   "options": ["Duyệt bước này", "Giữ bước này tạm dừng"]}
+                        if not request["question"].rstrip().endswith(("?", "？")):
+                            request["question"] = request["question"].rstrip() + "?"
+                        result = (result or "") + "\n[[NEEDS_INPUT]] " + json.dumps(request, ensure_ascii=False)
+                    elif kind == "escalation" or (kind == "error" and event.get("needs_input")):
+                        error = event.get("reason") or event.get("content") or "Workflow stopped internally."
                     elif kind in ("error", "step_error"):
                         error = event.get("content") or error
             except Exception as exc:
@@ -1076,9 +1077,13 @@ MỤC TIÊU:
 ĐIỀU KIỆN HOÀN THÀNH:
 {json.dumps(acceptance, ensure_ascii=False)}
 {chr(10) + hoi_dap + chr(10) if hoi_dap else ""}
-Nếu thiếu một quyết định hoặc dữ liệu mà không thể suy ra an toàn, kết quả phải bắt đầu
-bằng [[NEEDS_INPUT]] và nêu đúng MỘT câu hỏi cụ thể, trả lời được trong một câu; chủ sẽ
-trả lời và việc chạy tiếp với câu trả lời đó. Nếu hoàn thành, báo cáo ngắn: đã làm
+Chỉ hỏi chủ về quyết định riêng của chủ hoặc dữ kiện riêng không thể tự tra cứu.
+Thiếu nguồn có thể nghiên cứu, QA chưa đạt, test lỗi và replay/recovery là việc nội bộ,
+KHÔNG hỏi chủ cách sửa. Một yêu cầu owner phải có dạng sau (JSON thật sau marker):
+[[NEEDS_INPUT]] {{"kind":"choice","question":"Câu hỏi cụ thể?",
+"owner_only_reason":"Vì sao chỉ chủ quyết được", "options":["Phương án A","Phương án B"]}}
+kind là approval, choice hoặc private_input. Không dùng cấu trúc này để chuyển lỗi kỹ thuật
+cho chủ. Nếu hoàn thành, báo cáo ngắn: đã làm
 gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng.
 """.strip()
         result, error, tool_calls = await self._query(cli, prompt)
@@ -1342,11 +1347,14 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         except Exception:
             cho = []
         self._ro_bao.setdefault(chat_id, []).append({
+            "id": str(task.get("id") or ""),
             "title": str(task.get("title") or ""),
             "reason": str(task.get("block_reason") or task.get("block_kind") or "").strip(),
             "waiting": cho,
             "kind": str(task.get("block_kind") or ""),
         })
+        # Replaying the same terminal receipt before the bucket flush is one notice.
+        self._ro_bao[chat_id] = list({it["id"]: it for it in self._ro_bao[chat_id]}.values())
         cu = self._hen_bao.get(chat_id)
         if cu and not cu.done():
             return       # đã có hẹn cho rổ này - việc vừa rơi vào sẽ đi chung chuyến đó
@@ -1372,6 +1380,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         self._hen_bao.pop(chat_id, None)
         if not items or not self.deps.report:
             return
+        # A late timer must not resurrect a question after an operator closed/reclassified it.
+        items = [it for it in items if (current := self.store.get_task(it["id"]))
+                 and current.get("status") == "blocked" and current.get("block_kind") == it["kind"]
+                 and str(current.get("block_reason") or current.get("block_kind") or "").strip() == it["reason"]]
         xin = [it for it in items if it.get("kind") == "capability"]
         ky_thuat = [it for it in items if it.get("kind") != "capability"]
         cid, _, root = chat_id.partition(_BUCKET_SEP)
@@ -1382,7 +1394,9 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             try:
                 await self.deps.report(
                     cid, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=(kieu == "technical"),
-                    **_report_extra(self.deps.report, root, ""))
+                    **_report_extra(self.deps.report, root, "blocked:" + hashlib.sha256(
+                        json.dumps(sorted((it["id"], it["kind"], it["reason"]) for it in nhom),
+                                   ensure_ascii=False).encode("utf-8")).hexdigest()[:24]))
             except Exception as e:
                 print(f"[kanban] báo gộp việc kẹt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -1480,17 +1494,15 @@ Trả DUY NHẤT một dòng JSON, không markdown:
 
     @staticmethod
     def _cau_hoi_ghi_ngoai(treo: list) -> str:
-        """Câu hỏi cho chủ khi có thao tác ra ngoài không rõ đã tới nơi chưa (0.238.0)."""
+        """Unknown delivery is an internal recovery hold, never permission to replay."""
         dong = "\n".join(f"- {x.get('target') or x.get('tool')}" for x in treo[:5])
         if len(treo) > 5:
             dong += localefmt.chu(f"\n- ...và {len(treo) - 5} thao tác nữa", f"\n- ...and {len(treo) - 5} more")
         return localefmt.chu(
-            f"Lần chạy trước có {len(treo)} thao tác ra ngoài mà Javis không chắc đã tới nơi (máy chủ dừng hoặc mất "
-            f"kết nối đúng lúc đang gọi):\n{dong}\nBạn kiểm tra giúp rồi trả lời \"đã gửi\" (Javis bỏ qua, không làm "
-            "lại) hoặc \"chưa gửi\" (Javis làm lại).",
-            f"The previous run made {len(treo)} outside action(s) that Javis cannot confirm went through (the server "
-            f"stopped or the connection dropped mid-call):\n{dong}\nPlease check, then answer \"sent\" (Javis skips "
-            "them) or \"not sent\" (Javis does them again).")
+            f"Có {len(treo)} thao tác chưa xác định được kết quả gửi:\n{dong}\n"
+            "Javis giữ dừng để đối chiếu receipt và khôi phục nội bộ. Không tự gửi lại; không yêu cầu chủ xử lý kỹ thuật.",
+            f"Delivery is uncertain for {len(treo)} action(s):\n{dong}\n"
+            "Javis holds execution for internal receipt reconciliation. No automatic replay or owner troubleshooting.")
 
     @staticmethod
     def _cau_hoi_dang_cho(task: dict) -> str:
@@ -1499,7 +1511,13 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             return ""
         qa = (task.get("metadata") or {}).get("qa") or []
         cuoi = qa[-1] if qa and isinstance(qa[-1], dict) else {}
-        return "" if cuoi.get("a") else str(cuoi.get("q") or "").strip()
+        if cuoi.get("a"):
+            return ""
+        question = str(cuoi.get("q") or "").strip()
+        request = (task.get("metadata") or {}).get("owner_request") or {}
+        if question and request.get("question") == question and request.get("options"):
+            return task_attention.question_text(request)
+        return question
 
     async def _bao_cau_hoi(self, task: dict) -> None:
         """Báo RIÊNG một câu hỏi của việc nền về đúng người đã giao việc, kèm cách trả lời.
@@ -1510,6 +1528,11 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         cùng việc thì vẫn báo. Khoá mang cả số thứ tự lượt hỏi: worker hỏi lại ĐÚNG câu cũ sau khi
         đã được trả lời là một lượt mới, phải rung lại chứ không bị coi là bản trùng."""
         if not self.deps.report:
+            return
+        current = self.store.get_task(str(task.get("id") or ""))
+        if not current or current.get("status") != "blocked" or current.get("block_kind") != "needs_input":
+            return
+        if self._cau_hoi_dang_cho(current) != self._cau_hoi_dang_cho(task):
             return
         hoi = self._cau_hoi_dang_cho(task)
         tid, ten = str(task.get("id") or ""), str(task.get("title") or "")
@@ -1540,6 +1563,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
 
     async def _report(self, task: dict) -> None:
         if not self.deps.report:
+            return
+        current = self.store.get_task(str(task.get("id") or ""))
+        if current and (current.get("status"), current.get("block_kind"), current.get("updated_at")) != (
+                task.get("status"), task.get("block_kind"), task.get("updated_at")):
             return
         status = str(task.get("status") or "")
         # A job waiting for the owner (needs_input) or for a plan to reopen (limit) is not broken (0.199.0).
@@ -1630,7 +1657,7 @@ Trả DUY NHẤT một dòng JSON, không markdown:
     CARD_RESULT_CHARS = 600
     # Metadata a card or the drawer reads. `tool_calls` (up to 100 names) and the like stay in the store.
     CARD_META_KEYS = ("qa", "acceptance", "acceptance_check", "agent", "effort", "provider", "specifier",
-                      "once_pending", "run_seconds")
+                      "once_pending", "run_seconds", "owner_request", "owner_closure")
 
     @staticmethod
     def _calm(task: dict) -> str:
@@ -1926,6 +1953,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             id: str = Form(...),
             status: str = Form(...),
             brain: str = Form("brain"),
+            outcome: str = Form(""),
+            decision_ref: str = Form(""),
+            decision_sha256: str = Form(""),
+            expected_updated_at: Optional[float] = Form(None),
         ):
             root = self._ensure(brain)
             task = self.store.get_task(id)
@@ -1933,8 +1964,14 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy việc", "Job not found")}
             if status not in VALID_STATUS:
                 return {"ok": False, "error": localefmt.chu("status không hợp lệ", "invalid status")}
-            if not self.store.move(id, status):
+            if outcome:
+                moved = status == "archived" and outcome == "partial" and self.store.close_partial(
+                    id, decision_ref, decision_sha256, expected_updated_at=expected_updated_at)
+            else:
+                moved = self.store.move(id, status)
+            if not moved:
                 return {"ok": False, "error": localefmt.chu("không thể chuyển task đang chạy", "cannot move a running task")}
+            self.store.promote_dependencies(root)
             await self._asnapshot(root)
             self.wake()
             return {"ok": True, "status": status}

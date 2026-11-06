@@ -224,9 +224,11 @@ def test_blocked_parent_names_the_jobs_waiting_on_it(tmp_path):
     assert [t["title"] for t in feature.store.waiting_on(parent)] == ["Bóc lỗi"]
 
     async def go():
-        await feature._gom_bao({"id": parent, "title": "Duyệt ảnh", "chat_id": "web:s",
-                                "block_reason": "KHÔNG ĐẠT"})
-        await feature._xa_bao("web:s")
+        from tasks import _BUCKET_SEP
+        feature.store.claim(parent, "worker")
+        blocked = feature.store.block(parent, "worker", "acceptance", "KHÔNG ĐẠT")
+        await feature._gom_bao({**blocked, "chat_id": "web:s"})
+        await feature._xa_bao("web:s" + _BUCKET_SEP + root)
     asyncio.run(go())
     text = reports[-1][0][1]
     assert "Bóc lỗi" in text and "KHÔNG ĐẠT" in text
@@ -320,7 +322,7 @@ def test_javis_task_route(tmp_path, monkeypatch):
     assert "CẢNH BÁO" in out and "wf:quy-trinh-chuan-bai-dang-va-anh" in out
 
 
-def test_kanban_turns_a_needs_input_workflow_error_into_needs_input(tmp_path):
+def test_workflow_verification_failure_stays_internal(tmp_path):
     async def stopped(brain_root, slug, intent, tools, source="other", mode=None):
         assert mode == "auto"
         yield {"type": "error", "needs_input": True, "content": "Bước 2 chưa qua kiểm chứng"}
@@ -330,7 +332,7 @@ def test_kanban_turns_a_needs_input_workflow_error_into_needs_input(tmp_path):
     result, error, needs_input, _ = asyncio.run(feature._execute({
         "route": "wf:demo", "intent": "x", "brain_root": str(brain),
         "capability": "files", "execution_mode": "auto"}))
-    assert needs_input and not error and "Bước 2 chưa qua kiểm chứng" in result
+    assert not needs_input and "Bước 2 chưa qua kiểm chứng" in error
 
 
 # ---------------------------------------------------------------- workflow runner (main)

@@ -208,11 +208,11 @@ def test_verify_marks_checked_or_sends_the_job_back_with_the_reason(tmp_path):
     _finish(s, bad_id, metadata=dict(meta))
     _verify(feature, brain, bad_id, (False, "Only 2 sections in a.md", "ai"))
     t = s.get_task(bad_id)
-    assert t["status"] == "blocked" and t["block_kind"] == "needs_input"
+    assert t["status"] == "blocked" and t["block_kind"] == "acceptance"
     assert "Only 2 sections" in t["block_reason"] and t["metadata"]["acceptance_check"] == "failed"
-    # The reply box answers it like any question and the job runs again.
+    # Failed QA is engineering work, not a question for the owner.
     got, err = s.answer(bad_id, "Add the missing section")
-    assert got and got["status"] == "ready", err
+    assert got is None and err == "not_waiting"
     s.close()
 
 
@@ -436,11 +436,11 @@ def test_a_technical_pause_is_reported_quietly_and_asks_nothing(tmp_path):
     tasks_mod.BAO_GOM_GIAY = 0.05
 
     async def go():
-        base = {"status": "blocked", "chat_id": "web:a", "brain_root": brain}
-        await feature._report({**base, "id": "a", "title": "Sync sheet", "block_kind": "transient",
-                               "block_reason": "HTTP 502 from sheets.googleapis.com"})
-        await feature._report({**base, "id": "b", "title": "Post the article", "block_kind": "capability",
-                               "block_reason": "needs to post for real"})
+        for title, kind, reason in [("Sync sheet", "transient", "HTTP 502 from sheets.googleapis.com"),
+                                    ("Post the article", "capability", "needs to post for real")]:
+            tid = feature.store.enqueue(str(brain), title, "Fixture", status="ready", chat_id="web:a")
+            feature.store.claim(tid, "worker")
+            await feature._report(feature.store.block(tid, "worker", kind, reason))
         await asyncio.sleep(0.3)
 
     asyncio.run(go())

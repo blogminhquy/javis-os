@@ -377,17 +377,13 @@ def test_report_ngan_va_khong_lap_lai(tmp_path):
     feature = _feature(tmp_path, [tmp_path / "Brain"])
     feature.deps.report = capture
     long_result = "\n".join(_NARRATION * 6)
-    asyncio.run(
-        feature._report(
-            {
-                "title": "Thiết kế credit bonus cho subscription WarriorPlus",
-                "status": "blocked",
-                "result": long_result,
-                "block_reason": "Cần anh chốt bonus cộng theo gói nào.",
-                "chat_id": "1",
-            }
-        )
-    )
+    root = feature._ensure(str(tmp_path / "Brain"))
+    tid = feature.store.enqueue(root, "Thiết kế credit bonus cho subscription WarriorPlus", "Fixture",
+                                status="ready", capability="files", chat_id="1")
+    feature.store.claim(tid, "worker")
+    task = feature.store.block(tid, "worker", "engineering", "Cần anh chốt bonus cộng theo gói nào.",
+                               result=long_result)
+    asyncio.run(feature._report(task))
     msg, kw = sent[0]
     assert len(msg) <= 400, f"thông báo dài {len(msg)} ký tự"
     assert "Thiết kế credit bonus" in msg
