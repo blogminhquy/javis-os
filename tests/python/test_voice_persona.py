@@ -34,14 +34,16 @@ for label, base in (("voice_live.SYSTEM_PROMPT", voice_live.SYSTEM_PROMPT),
                     ("voice_brain.SYSTEM_PROMPT", voice_brain.SYSTEM_PROMPT)):
     check(f"{label} opens with the clause voice_persona swaps", base.startswith(voice_persona.OPENING))
     out = voice_persona.apply(base, "Người viết", "BLOCK")
-    check(f"{label} as a partner names the partner, not Javis",
-          out.startswith("Bạn là Người viết, một cộng sự của chủ trong Javis,") and out.endswith("BLOCK")
+    check(f"{label} front-loads partner identity before the generic voice prompt",
+          out.startswith("BLOCK\n\nBạn là Người viết, một cộng sự của chủ trong Javis,")
           and voice_persona.OPENING not in out)
 
 block = voice_persona.identity_block("Người viết", "viết bài", "Viết súc tích.", "## Luật chủ dặn\n- không emoji")
 check("identity block: name, role, Javis context",
       "**Người viết**" in block and "Vai trò: viết bài." in block and "Javis OS" in block)
 check("identity block: never claims to be ChatGPT", "KHÔNG tự nhận là ChatGPT" in block)
+check("identity block: explicit English identification",
+      'When asked in English "Who are you?"' in block and "I\'m Người viết" in block)
 check("identity block: carries the partner file and memory", "Viết súc tích." in block and "không emoji" in block)
 check("identity block caps a long file", len(voice_persona.identity_block("A", "", "x" * 20000)) < 6000)
 check("custom prompt without the opening gets the block in front",
