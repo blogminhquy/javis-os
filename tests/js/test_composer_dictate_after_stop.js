@@ -108,6 +108,57 @@ check("send while recording stops first, nothing sent yet", engine.stopped === 1
 engine.opts.onState("idle");
 check("send: the heard text is in the box and sent", inp.value === "gửi luôn nhé" && sent === 1);
 
+// The faded live bubble (2026-11-06): a computer shows the words in it while speaking; a phone shows none.
+const bubble = [];
+global.window.nhapGiong = t => { bubble.push(t); };
+const setUA = ua => Object.defineProperty(global, "navigator", { value: { userAgent: ua }, configurable: true, writable: true });
+
+setUA("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36");
+inp.value = "";
+els.dictBtn.click();
+engine.opts.onState("listening");
+engine.opts.onText("tôi bị", false);
+engine.opts.onText("tôi bị học", false);
+check("computer: the faded bubble shows the words while speaking", bubble[bubble.length - 1] === "tôi bị học");
+check("computer: the box still does not move while speaking", inp.value === "");
+els.dictStop.click();
+engine.opts.onState("idle");
+check("computer: the bubble is cleared when the recording ends", bubble[bubble.length - 1] === "");
+check("computer: the text lands in the box once", inp.value === "tôi bị học");
+
+setUA("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1");
+inp.value = "";
+let shown = bubble.length;
+els.dictBtn.click();
+engine.opts.onState("listening");
+engine.opts.onText("ipad nói", false);
+check("tablet (iPad) keeps the bubble", bubble[bubble.length - 1] === "ipad nói");
+els.dictStop.click();
+engine.opts.onState("idle");
+
+setUA("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1");
+inp.value = "";
+shown = bubble.length;
+els.dictBtn.click();
+engine.opts.onState("listening");
+engine.opts.onText("tôi bị", false);
+engine.opts.onText("tôi bị học", false);
+check("iPhone: no bubble text while speaking", bubble.slice(shown).every(t => t === ""));
+check("iPhone: the box still gets the text once, at the end", inp.value === "");
+els.dictStop.click();
+engine.opts.onState("idle");
+check("iPhone: the text lands in the box at the end", inp.value === "tôi bị học");
+
+setUA("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36");
+inp.value = "";
+shown = bubble.length;
+els.dictBtn.click();
+engine.opts.onState("listening");
+engine.opts.onText("tôi tôi bị", false);
+check("Android phone: no bubble text while speaking", bubble.slice(shown).every(t => t === ""));
+els.dictCancel.click();
+check("Android phone: X leaves the box as it was", inp.value === "");
+
 // The team chat and Chatbot mics follow the same rule: onText only holds the words, the box is written on idle.
 const fs = require("fs");
 const TEAMS = fs.readFileSync(path.join(ROOT, "dashboard/teams.js"), "utf8");

@@ -25,7 +25,12 @@
    2026-11-05: the words appear only after the recording ends, like a voice memo (owner, same day: "no need to copy the
    text onto the screen as I speak; press it like a recorder, then the text comes out"). While recording the box keeps
    what was typed before; the heard text is held in S.heard and written once, when the run is idle (stop, send, or the
-   5-minute limit). X still drops everything. */
+   5-minute limit). X still drops everything.
+
+   2026-11-06: a computer gets the faded live bubble back. While the owner speaks, the words show in a faded dashed
+   bubble at the foot of the chat (app.js nhapGiong, the same bubble the voice chat uses), so the owner can see the
+   recognizer is hearing. The box still stays still until the recording ends. A phone gets no bubble: Android phones
+   resend the whole sentence on every result, and the bubble repeated it. Tablets count as computers here. */
 (function () {
   "use strict";
 
@@ -75,6 +80,21 @@
     if (inp && touch() && document.activeElement === inp) { try { inp.blur(); } catch (e) {} }
   }
   function $(id) { return document.getElementById(id); }
+
+  // The faded live bubble (app.js nhapGiong) on a computer only. An iPhone, an iPod or an Android phone gets none: the
+  // phone's recognizer resends the whole sentence on each result, and the bubble showed every resend (2026-11-06).
+  // Tablets are not phones here, so an iPad keeps the bubble.
+  function phoneUA() {
+    try { return /iPhone|iPod|Android.*Mobile/i.test((navigator && navigator.userAgent) || ""); } catch (e) { return false; }
+  }
+  function showDraft(text) {
+    if (phoneUA() || typeof window.nhapGiong !== "function") return;
+    try { window.nhapGiong(text || ""); } catch (e) {}
+  }
+  function clearDraft() {
+    if (typeof window.nhapGiong !== "function") return;
+    try { window.nhapGiong(""); } catch (e) {}
+  }
 
   // state: "idle" | "listening" | "transcribing"
   var S = { dict: null, state: "idle", base: "", heard: "", sendAfter: false, startedAt: 0, clock: null,
@@ -208,6 +228,8 @@
     var inp = $("chatInput"), send = S.sendAfter, D = window.JavisDictate;
     S.dict = null;
     S.sendAfter = false;
+    // The faded bubble goes first, so the real message (sent just below) takes its place and nothing is shown twice.
+    clearDraft();
     // The text lands now, in one piece, not word by word while speaking.
     if (S.heard && D) writeInput(D.joinText(S.base, S.heard));
     S.heard = "";
@@ -240,6 +262,7 @@
       onText: function (text) {
         if (S.state === "idle") return;
         S.heard = String(text || "");
+        showDraft(S.heard);
       },
       onState: function (st) {
         var was = S.state;
@@ -282,6 +305,7 @@
     var base = S.base;
     S.sendAfter = false;
     S.heard = "";
+    clearDraft();
     writeInput(base);
     S.dict.cancel();
     writeInput(base);
