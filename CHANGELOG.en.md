@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.486.3] - 2026-11-06
+### Improved
+- **Release checks finish sooner.** Python tests now split across 4 runners instead of 2. Nothing changes for users.
+
 ## [0.486.2] - 2026-11-06
 ### Improved
 - **The dictation mic on computers shows the words in a faded bubble again.** While you speak, the sentence being recognized shows in a faded draft bubble at the foot of the chat, so you can see Javis is listening. The box stays still until you press stop or send, then the whole text lands in it.
