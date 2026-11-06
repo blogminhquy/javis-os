@@ -762,31 +762,92 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .settings-card { min-width: 0; padding: 14px; border: 1px solid var(--glass-brd); border-radius: 12px; background: var(--surface-1); }
 .settings-card.compact { max-width: 520px; margin-top: 16px; }
 
-/* Danh sách link chia sẻ. Mỗi hàng là một link đang SỐNG ngoài Internet, nên nút Thu hồi
-   phải luôn nhìn thấy chứ không nấp sau menu. Màn hẹp thì xuống dòng, hàng nút tụt xuống
-   dưới khối thông tin, không bao giờ bị đẩy khuất. */
-/* Ô tìm của trang Chia sẻ. Cỡ chữ 16px là cố ý: dưới 16px thì Safari trên iPhone TỰ PHÓNG TO
-   cả trang khi chạm vào ô nhập, và trang này hay được mở trên điện thoại. */
+/* Share links page (rebuilt 2026-11-06). Every row is a link LIVE on the Internet, so its actions are always visible
+   icons, never hidden behind a menu; on a narrow screen they drop under the text block instead of being pushed out.
+   Search box at 16px on purpose: below that, Safari on iPhone zooms the whole page when the field is tapped. */
+.share-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 14px; color: var(--text2); }
+.share-stat { display: inline-flex; align-items: center; gap: 6px; }
+.share-stat b { color: var(--text-hi); font-size: 16px; }
+.share-stat .ic { width: 16px; height: 16px; color: var(--text3); }
 .share-search { width: 100%; box-sizing: border-box; margin-top: 12px; padding: 9px 12px;
   border: 1px solid var(--border); border-radius: 9px; background: var(--bg2);
   color: var(--text-hi); font-size: 16px; }
 .share-search:focus { outline: none; border-color: var(--accent-line); }
+.share-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.share-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.share-chip { border: 1px solid var(--glass-brd); background: none; color: var(--text2); border-radius: 999px;
+  padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.share-chip:hover { background: var(--surface-2); }
+.share-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.share-sort { display: inline-flex; align-items: center; gap: 6px; color: var(--text3); }
+.share-sort .ic { width: 15px; height: 15px; }
+.share-sort select { border: 1px solid var(--glass-brd); border-radius: 8px; background: var(--bg2); color: var(--text-hi);
+  padding: 5px 8px; font-size: 13px; }
 .share-count { margin-top: 6px; min-height: 1.2em; font-size: 13px; color: var(--text3); }
 .share-empty { padding: 14px 2px; color: var(--text2); }
-.share-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-.share-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-  justify-content: space-between; padding: 12px 14px; border: 1px solid var(--glass-brd);
+.share-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+.share-row { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-start;
+  justify-content: space-between; padding: 12px 10px 12px 14px; border: 1px solid var(--glass-brd);
   border-radius: 10px; background: var(--surface-2); }
 .share-info { min-width: 0; flex: 1 1 260px; }
 .share-name { font-weight: 600; color: var(--text-hi); overflow-wrap: anywhere; }
 .share-path { font-size: 12px; color: var(--text2); margin-top: 2px; overflow-wrap: anywhere; }
 .share-url { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--accent);
   overflow-wrap: anywhere; }
-.share-acts { display: flex; gap: 8px; flex-wrap: wrap; }
-/* Điện thoại: đường dẫn và link đọc được, không phải lác mắt; nút đủ to để chạm. */
+.share-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 8px; font-size: 12px; color: var(--text2); }
+.share-views { display: inline-flex; align-items: center; gap: 5px; color: var(--text-hi); }
+.share-views b { font-size: 14px; }
+.share-views .ic { width: 15px; height: 15px; color: var(--accent); }
+.share-views.none { color: var(--text3); }
+.share-views.none .ic { color: var(--text3); }
+.share-spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; }
+.share-spark i { display: block; width: 4px; border-radius: 1px; background: var(--accent); opacity: .8; }
+.share-spark i.z { background: var(--text3); opacity: .3; }
+/* Icon actions, same look as the Tasks page row icons (.nv-starb.nv-tri1): 32px, no frame, red only on hover for revoke. */
+.share-acts { display: flex; gap: 2px; flex: none; }
+.share-ib { width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px; background: none; color: var(--text2);
+  cursor: pointer; display: grid; place-items: center; text-decoration: none; }
+.share-ib:hover, .share-ib:focus-visible { background: var(--surface-1); color: var(--text-hi); }
+.share-ib .ic { width: 16px; height: 16px; }
+.share-ib.bad:hover, .share-ib.bad:focus-visible { color: var(--red); }
+.share-ib.ok { color: var(--green, #16a34a); }
+.share-ib[disabled] { opacity: .45; cursor: default; }
+/* Edit dialog: centered card on a computer, a sheet from the bottom on a phone. */
+.share-dlg-wrap { position: fixed; inset: 0; z-index: 1300; display: grid; place-items: center; }
+.share-dlg-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .45); }
+.share-dlg { position: relative; width: 460px; max-width: calc(100vw - 24px); box-sizing: border-box; padding: 14px 16px 16px;
+  border: 1px solid var(--glass-brd); border-radius: 14px; background: var(--panel-solid, var(--bg2)); color: var(--text-hi);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .35); }
+.share-dlg-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 16px; }
+.share-fld { display: block; margin-top: 10px; font-size: 13px; color: var(--text2); }
+.share-fld > span:first-child { display: block; margin-bottom: 5px; }
+.share-fld input { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--bg2); color: var(--text-hi); font-size: 16px; }
+.share-fld input:focus { outline: none; border-color: var(--accent-line); }
+.share-slug { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: 9px; background: var(--bg2); overflow: hidden; }
+.share-slug:focus-within { border-color: var(--accent-line); }
+.share-slug-pre { display: flex; align-items: center; padding: 0 0 0 11px; color: var(--text3); font-size: 16px; white-space: nowrap; }
+.share-slug input { border: 0; border-radius: 0; padding-left: 2px; min-width: 0; }
+.share-dlg-note { margin-top: 8px; font-size: 13px; color: var(--text3); line-height: 1.45; overflow-wrap: anywhere; }
+.share-tok { color: var(--text2); }
+.share-dlg-err { margin-top: 8px; min-height: 1.2em; font-size: 13px; color: var(--red); }
+.share-dlg-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+/* Phone: bigger text and 40px touch targets; the dialog becomes a bottom sheet. */
 @media (max-width: 900px) {
-  .share-path, .share-url, .share-count { font-size: 14px; }
-  .share-acts .gcard-btn { font-size: 15px; padding: 8px 12px; }
+  .share-sum { font-size: 15px; }
+  .share-name { font-size: 16px; }
+  .share-path, .share-url, .share-count, .share-meta { font-size: 14px; }
+  .share-chip, .share-sort select { font-size: 15px; padding: 7px 13px; }
+  /* Chips scroll sideways in one row instead of wrapping onto two (owner: save vertical space). */
+  .share-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  .share-chip { flex: none; }
+  .share-ib { width: 40px; height: 40px; }
+  .share-ib .ic { width: 18px; height: 18px; }
+  .share-acts { width: 100%; justify-content: flex-end; border-top: 1px solid var(--glass-brd); padding-top: 4px; }
+  .share-dlg-wrap { place-items: end stretch; }
+  .share-dlg { width: auto; max-width: none; border-radius: 16px 16px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .share-fld, .share-dlg-note, .share-dlg-err { font-size: 15px; }
+  .share-dlg-acts .gcard-btn { font-size: 16px; padding: 10px 16px; }
 }
 .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .settings-card p { margin: 8px 0 0; color: var(--text2); font-size: 13px; line-height: 1.5; }

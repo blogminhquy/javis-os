@@ -73,31 +73,31 @@ check("tên dự phòng: index.html lấy tên thư mục chứa nó",
       and share_render.ten_du_phong("notes/thuan.md") == "thuan.md")
 
 # ---- 2. Kho: đổi tên ----
-b = share_store.tao(BRAIN, "notes/thuan.md", "Tên A")
+b = share_store.create(BRAIN, "notes/thuan.md", "Tên A")
 check("tạo kèm tên thì giữ tên", b["nhan"] == "Tên A")
-r = share_store.doi_ten(b["token"], "  Tên   mới  ")
+r = share_store.rename(b["token"], "  Tên   mới  ")
 check("đổi tên: gọn khoảng trắng, lưu lại", r and r["nhan"] == "Tên mới"
-      and share_store.doc(b["token"])["nhan"] == "Tên mới")
-check("đổi tên quá dài bị cắt còn 120 ký tự", len(share_store.doi_ten(b["token"], "y" * 300)["nhan"]) == 120)
-check("tên rỗng: xoá tên tay, về tên tự động", share_store.doi_ten(b["token"], "")["nhan"] == "")
-check("token lạ: None", share_store.doi_ten("khong-co", "x") is None)
+      and share_store.get(b["token"])["nhan"] == "Tên mới")
+check("đổi tên quá dài bị cắt còn 120 ký tự", len(share_store.rename(b["token"], "y" * 300)["nhan"]) == 120)
+check("tên rỗng: xoá tên tay, về tên tự động", share_store.rename(b["token"], "")["nhan"] == "")
+check("token lạ: None", share_store.rename("khong-co", "x") is None)
 
 # ---- 3. Route ----
 t1 = cl.post("/share/create", json={"brain": BRAIN, "path": "apps/doanh-thu/index.html"}).json()
 check("tạo link .html: tên tự lấy theo <title>",
-      share_store.doc(t1["token"])["nhan"] == "Bảng doanh thu & chi phí tháng 9")
+      share_store.get(t1["token"])["nhan"] == "Bảng doanh thu & chi phí tháng 9")
 t2 = cl.post("/share/create", json={"brain": BRAIN, "path": "apps/lich/index.html"}).json()
-check("không có tiêu đề: tên là thư mục chứa index.html", share_store.doc(t2["token"])["nhan"] == "lich")
+check("không có tiêu đề: tên là thư mục chứa index.html", share_store.get(t2["token"])["nhan"] == "lich")
 t3 = cl.post("/share/create", json={"brain": BRAIN, "path": "notes/ghi-chu.md", "nhan": "Tên tự chọn"}).json()
-check("client gửi tên thì dùng tên đó", share_store.doc(t3["token"])["nhan"] == "Tên tự chọn")
+check("client gửi tên thì dùng tên đó", share_store.get(t3["token"])["nhan"] == "Tên tự chọn")
 
 # Link cũ (trước 0.65.30) không có tên: danh sách tự tính, không ghi đè kho.
-cu = share_store.tao(BRAIN, "notes/ke-hoach.md", "")
+cu = share_store.create(BRAIN, "notes/ke-hoach.md", "")
 ds = {x["token"]: x for x in cl.get("/share/list").json()["items"]}
 check("danh sách trả `ten` cho mọi link",
       ds[t1["token"]]["ten"] == "Bảng doanh thu & chi phí tháng 9" and ds[t3["token"]]["ten"] == "Tên tự chọn")
 check("link cũ không tên: danh sách tự lấy tiêu đề file", ds[cu["token"]]["ten"] == "Kế hoạch quý 4"
-      and share_store.doc(cu["token"])["nhan"] == "")
+      and share_store.get(cu["token"])["nhan"] == "")
 
 rr = cl.post("/share/rename", json={"token": t1["token"], "nhan": "Báo cáo cho sếp"}).json()
 check("POST /share/rename đổi tên và trả tên mới", rr.get("ok") is True and rr.get("ten") == "Báo cáo cho sếp")
