@@ -9,13 +9,55 @@ into the partner's prompt, and builds the identity block from the partner file.
 Pure functions, no I/O: main.py reads the files and passes the text in.
 """
 from __future__ import annotations
+import os
 
 # Every voice prompt opens with this clause (voice_live.SYSTEM_PROMPT, GPT_LIVE_PROMPT,
 # CHATGPT_LIVE_PROMPT, voice_brain.SYSTEM_PROMPT); test_voice_persona.py keeps them in step.
 OPENING = "Bạn là Javis, trợ lý cá nhân,"
 
-BODY_CHARS = 4000     # partner file body kept in a voice prompt (a realtime prompt is read on every turn)
-MEMORY_CHARS = 2000   # partner memory (owner rules, lessons) kept in a voice prompt
+# Voice budgets are *Javis* defaults, not provider model context limits.
+# Keep a bounded override for long-lived agent profiles (including future telephone gateways).
+def _env_budget(name: str, default: int, ceiling: int) -> int:
+    try:
+        configured = int(os.environ.get(name, ""))
+    except (ValueError, TypeError):
+        return default
+    return max(1000, min(configured, ceiling))
+
+
+BODY_CHARS = _env_budget("JAVIS_VOICE_AGENT_BODY_CHARS", 12000, 24000)
+MEMORY_CHARS = _env_budget("JAVIS_VOICE_AGENT_MEMORY_CHARS", 6000, 12000)
+# Optional markers in an agent's Markdown body. Move the enclosed high-priority
+# instructions before ordinary agent prose *before* applying BODY_CHARS.
+VOICE_RULES_START = "<!-- JAVIS_VOICE_RULES_START -->"
+VOICE_RULES_END = "<!-- JAVIS_VOICE_RULES_END -->"
+
+# These operational integrity rules are never subject to body or memory truncation.
+ALWAYS_ON = (
+    "Quy tắc bắt buộc trong Voice: không đoán giá, định lượng, tồn kho, phí giao, lịch "
+    "hoặc trạng thái công việc từ trí nhớ hay lời khách. Cần dữ liệu thật thì dùng công cụ "
+    "có thẩm quyền; thiếu kết quả phải nói rõ chưa xác minh. "
+    "Không nói đã tạo đơn, đặt giao hàng, gửi tin, chuyển nhân viên hay nhận thanh toán "
+    "nếu chưa có kết quả thực thi thành công. Phân biệt yêu cầu đã ghi nhận, bản nháp "
+    "và hành động đã hoàn tất."
+)
+
+
+def _priority_body(text: str) -> str:
+    """Move one opt-in pinned section before the rest; do not duplicate it."""
+    text = str(text or "").strip()
+    start = text.find(VOICE_RULES_START)
+    if start < 0:
+        return text
+    content_start = start + len(VOICE_RULES_START)
+    end = text.find(VOICE_RULES_END, content_start)
+    if end < 0:
+        return text  # An unmatched marker must not eat the agent instructions.
+    pinned = text[content_start:end].strip()
+    if not pinned:
+        return text
+    remainder = (text[:start] + "\n" + text[end + len(VOICE_RULES_END):]).strip()
+    return pinned + ("\n\n" + remainder if remainder else "")
 
 
 def _cut(text: str, cap: int) -> str:
@@ -38,9 +80,10 @@ def identity_block(name: str, role: str = "", body: str = "", memory: str = "") 
         "chạy model hay engine nào mới nói tên đó.",
         "Việc cần dữ liệu thật, công cụ hay hành động thì vẫn giao như hướng dẫn ở trên: phần đó do chính bạn "
         f"({name}) làm tiếp với đủ công cụ của Javis, nên kết quả trả về là của bạn, thuật lại như lời mình.",
+        ALWAYS_ON,
     ]
     if str(body or "").strip():
-        parts += ["", "# Hướng dẫn riêng của bạn (file cộng sự)", _cut(body, BODY_CHARS)]
+        parts += ["", "# Hướng dẫn riêng của bạn (file cộng sự)", _cut(_priority_body(body), BODY_CHARS)]
     if str(memory or "").strip():
         parts += ["", "# Bộ nhớ của bạn (luật chủ dặn, bài học)", _cut(memory, MEMORY_CHARS)]
     return "\n".join(parts)
