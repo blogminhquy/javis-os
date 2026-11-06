@@ -134,6 +134,9 @@
   width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent, #1a0d05); cursor: pointer;
   display: grid; place-items: center; box-shadow: var(--shadow-2); }
 .nv-fab .ic { width: 26px; height: 26px; }
+/* Room under the last row (owner, 2026-11-06): the round + floats over the page, so the list ends higher than it and
+   the last task's buttons are never covered. Desktop: 22px gap + 56px button + 18px air. */
+.nv-main, .nv-pbody { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 
 /* ---- drawer, sheet, form ---- */
 .nv-scrim, .nv-sheet-scrim { position: fixed; inset: 0; background: var(--scrim, rgba(0,0,0,.45)); z-index: 60; }
@@ -214,6 +217,7 @@
   .nv-row2 { grid-template-columns: 1fr; }
   .nv-ppad > .nv-sec2, .nv-ppad > form.nv-sec2 { margin-top: 14px; }
   .nv-fab { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .nv-pbody { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }   /* the + sits 76px up on a phone */
 }
 
 /* ---- tab "Mine" (0.423.0) ---- */
