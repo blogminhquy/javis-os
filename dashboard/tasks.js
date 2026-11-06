@@ -515,13 +515,19 @@
   async function getJSON(url) {
     try { var r = await fetch(url, { cache: "no-store" }); return r.ok ? await r.json() : null; } catch (e) { return null; }
   }
+  // A failed request (404 from an older server, 500) answers {"detail": ...} without "ok", which act() read as success.
+  async function asResult(r) {
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok && (!j || j.ok === undefined)) j = { ok: false, error: (j && typeof j.detail === "string" && j.detail) || ("HTTP " + r.status) };
+    return j;
+  }
   async function postForm(url, fields) {
     var fd = new FormData();
     Object.keys(fields || {}).forEach(function (k) { if (fields[k] != null) fd.append(k, fields[k]); });
-    try { var r = await fetch(url, { method: "POST", body: fd }); return await r.json(); } catch (e) { return { ok: false, error: String(e) }; }
+    try { return asResult(await fetch(url, { method: "POST", body: fd })); } catch (e) { return { ok: false, error: String(e) }; }
   }
   async function postJSON(url, body) {
-    try { var r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); return await r.json(); }
+    try { return asResult(await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })); }
     catch (e) { return { ok: false, error: String(e) }; }
   }
   function mine(body) { return postJSON(body.__url, Object.assign({ brain: brain() }, body, { __url: undefined })); }
