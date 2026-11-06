@@ -556,6 +556,10 @@ button, input, select, textarea { font-family: inherit; }
 .theme-toggle .ic-sun { display: none; }
 :root[data-theme="light"] .theme-toggle .ic-moon { display: none; }
 :root[data-theme="light"] .theme-toggle .ic-sun { display: block; }
+/* Nút âm thanh hiệu ứng: loa có sóng khi đang bật, loa gạch chéo khi đang tắt (báo trạng thái hiện tại). */
+.sound-toggle .ic-soff { display: none; }
+.sound-toggle[aria-pressed="false"] .ic-son { display: none; }
+.sound-toggle[aria-pressed="false"] .ic-soff { display: block; }
 
 /* BODY 3 cols */
 .hud-body {
@@ -2425,13 +2429,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cside-more:hover { background: var(--info-wash); border-color: var(--info-line);
   color: var(--text); }
 
-/* nút Lịch sử (sessions-ui): nằm INLINE trong hàng nút header (.hud-actions) để không đè
-   lên các nút Cài đặt/Đọc/Reset như khi còn position:fixed. Bấm vào là sang trang Trò chuyện. */
-#jv-sess-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
-  border-radius: 20px; white-space: nowrap; flex-shrink: 0;
-  border: 1px solid var(--info-line); background: var(--info-wash); color: var(--info-ink);
-  font: 600 12px/1 var(--font, system-ui); cursor: pointer; }
-#jv-sess-btn:hover { border-color: var(--info-line); color: var(--text-hi); }
+/* Nút Lịch sử và nút Reset hội thoại ở thanh trên cùng đã bỏ (06/11/2026, chủ repo: "không cần thiết").
+   #resetBtn vẫn nằm trong DOM nhưng ẩn: nút "+" hội thoại mới trên điện thoại (mobile-chat.js) bấm hộ nó. */
+#resetBtn { display: none !important; }
 
 /* ===== Thanh chọn model + effort ngay trên khung chat ===== */
 /* KHÔNG đặt overflow:hidden lên hàng này. Popup đổi model (.mb-pop) là con position:absolute

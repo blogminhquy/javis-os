@@ -97,6 +97,22 @@
           </svg>
           <span class="install-app-label" data-i18n="top.install_label">Mở như app</span>
         </button>
+        <!-- Bật/tắt âm thanh hiệu ứng (06/11/2026), cạnh nút sáng/tối: chỉ bật hoặc tắt, không chỉnh âm lượng.
+             Loa có sóng khi đang bật, loa gạch chéo khi đang tắt; ui-sound.js đặt aria-pressed và tooltip. -->
+        <button class="hud-icon-btn sound-toggle" id="soundToggle" type="button" aria-pressed="true"
+                title="Sound effects are on - click to turn them off"
+                aria-label="Sound effects are on - click to turn them off">
+          <svg class="ic-son" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M11 5 6 9H3v6h3l5 4V5Z"/>
+            <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>
+          </svg>
+          <svg class="ic-soff" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M11 5 6 9H3v6h3l5 4V5Z"/>
+            <path d="m16 9 6 6M22 9l-6 6"/>
+          </svg>
+        </button>
         <button class="hud-icon-btn theme-toggle" id="themeToggle" type="button" aria-pressed="false"
                 title="Đang dùng tông tối - bấm để chuyển sang tông sáng"
                 aria-label="Đang dùng tông tối - bấm để chuyển sang tông sáng">
@@ -1015,6 +1031,7 @@
        hàm vẽ lại theo tông ngay lúc parse, nếu window.javisTheme chưa có thì chúng
        đăng ký hụt và các lớp canvas kẹt ở bảng màu tối. -->
   <script src="/static/theme.js?v=5"></script>
+  <script src="/static/ui-sound.js?v=1"></script>
   <!-- Voice V1: đạo diễn hội thoại (thuần) phải nạp TRƯỚC voice.js và app.js. -->
   <script src="/static/voice-turn.js?v=3"></script>
   <script src="/static/voice-turn-policy.js?v=1"></script>

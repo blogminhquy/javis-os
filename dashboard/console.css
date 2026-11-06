@@ -934,7 +934,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     display: flex; align-items: center; gap: 6px; padding: 0 8px; }
   .hud-top-left, .hud-top-right { display: none; }    /* rỗng ở mobile: nút menu, chip model, nút thêm là con trực tiếp header */
   .hud-top .brand, .hud-top .navbar-brain,
-  .hud-top #themeToggle, .hud-top #studioOpenBtn,
+  .hud-top #themeToggle, .hud-top #soundToggle, .hud-top #studioOpenBtn,
   .hud-top #settingsBtn, .hud-top #ttsToggle, .hud-top #resetBtn { display: none; }
   .hud-center-title { display: none; }                /* mobile: ẩn tên workspace + ngày; chip model làm giữa header */
   /* 0.182.0 (owner: putting the chip in the composer on a phone "là sai lầm"): back to the top bar, centred, as before 0.180.0.
@@ -959,7 +959,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .hud-top #mbPop { position: fixed; top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; transform: translateX(-50%);
     width: min(340px, 92vw); z-index: 200; max-height: 70vh; }
   .model-bar { display: none; }                       /* hàng model gốc ẩn; chip bên trong dời đi (JS) */
-  #jv-sess-btn { display: none; }                     /* nút Lịch sử: ẩn ở mobile để header cockpit khỏi chồng/lệch */
 
   /* Rail: từ thanh đáy → ngăn kéo trượt từ trái */
   .rail {
@@ -1001,9 +1000,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .rail-sys-btns:empty { display: none; }
   /* Light/dark switch in the drawer's foot, beside the collapse button (owner, 0.393.0): same size and outline, so the
      two read as one pair of small controls on the version row. */
-  .rail-foot #themeToggle { order: 2; margin-left: auto; display: inline-flex; align-items: center;
+  .rail-foot #themeToggle, .rail-foot #soundToggle { order: 2; margin-left: auto; display: inline-flex; align-items: center;
     justify-content: center; width: 32px; height: 28px; padding: 0; border-radius: 8px; flex: 0 0 auto; }
-  .rail-foot #themeToggle svg { width: 17px; height: 17px; }
+  .rail-foot #themeToggle svg, .rail-foot #soundToggle svg { width: 17px; height: 17px; }
+  /* The sound switch (2026-11-06) sits just left of the light/dark one: the pair stays together on the right. */
+  .rail-foot #soundToggle + #themeToggle { margin-left: 0; }
 
   /* Nền mờ khi mở ngăn kéo */
   /* Shown by the drawer's own state only (0.216.0): a dim screen with no drawer on it can no longer stay behind. */
