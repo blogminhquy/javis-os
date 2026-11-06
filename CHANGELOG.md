@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.485.1] - 2026-11-06
+### Sửa lỗi
+- **Nút + thêm việc trên điện thoại hạ xuống sát góc, không còn đè lên công tắc "Đang bật" của loop.** Cuối trang Nhiệm vụ có thêm khoảng trống, nên dòng cuối cùng luôn cuộn lên được phía trên nút.
+
 ## [0.485.0] - 2026-11-06
 ### Thêm mới
 - **Việc của tôi giờ được nhắc qua chuông thông báo (và Telegram, thông báo điện thoại).** Việc có giờ được nhắc đúng giờ. Việc lặp lại được nhắc vào mỗi ngày của nó, trừ ngày đã xong hoặc đã bỏ qua.

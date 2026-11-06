@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.485.1] - 2026-11-06
+### Fixed
+- **On a phone, the Tasks page's + button sits down in the corner and no longer covers a loop's "On" switch.** The page ends with room for it, so the last row always scrolls clear of the button.
+
 ## [0.485.0] - 2026-11-06
 ### Added
 - **Mine now reaches the bell (and Telegram, phone push).** A task with a time is announced at its time. A repeating task is announced on each of its days, except one already done or skipped.
