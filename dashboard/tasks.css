@@ -823,6 +823,10 @@ button.nv-hs-t:active { transform: scale(.97); }
 .nv-spark { position: fixed; z-index: 90; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--nv-ok, #34d36b); pointer-events: none; animation: nvSpark .7s ease-out forwards; }
 .nv-spark.st { width: 15px; height: 15px; margin: -7px 0 0 -7px; background: none; color: #eab308; }
 .nv-spark.st .ic { width: 15px; height: 15px; fill: currentColor; }
+/* Habit sparks (2026-11-06): orange embers when a habit lights, blue ice shards when it thaws. */
+.nv-spark.fire { background: #f97316; box-shadow: 0 0 6px rgba(249,115,22,.7); }
+.nv-spark.ice { width: 8px; height: 13px; margin: -6px 0 0 -4px; border-radius: 1px; background: linear-gradient(160deg, #f0f9ff, #38bdf8);
+  clip-path: polygon(50% 0, 100% 38%, 62% 100%, 0 62%); animation-duration: .85s; }
 @keyframes nvSpark { from { transform: translate(0, 0) scale(.5); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(1.1); opacity: 0; } }
 .nv-confetti { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 95; pointer-events: none; }
 .nv-pop { position: fixed; z-index: 85; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-end; gap: 4px;
