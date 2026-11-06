@@ -67,7 +67,6 @@
   // The mic of the reply box (owner, 2026-11-05: "thêm nút chép lời để nói bằng giọng nói rồi chép lại, khỏi phải gõ").
   // dictate.js does the listening; the state lives here because the 5-second redraw rebuilds the box.
   var _dict = null, _dictState = "idle", _dictBase = "", _dictHeard = "", _dictConv = 0, _dictSend = false;
-  var _dictLive = null;   // dictate.js createLiveFix of the recording: the faded bubble fixed by POST /stt/fix
   var _statusLoc = "", _typeLoc = "";   // bộ lọc (0.65.3), lưu ở trình duyệt qua JavisConvFilters
   var _contactLoc = "";     // 2026-10-25: "1" = only chats where the customer left a phone number or email
   // Chatbot v5 (2026-10-28, docs/dev/2026-10-chatbot-v5-spec.md): who is handling the chat (the quick filters), the ticked
@@ -1504,8 +1503,6 @@
     var now = box.querySelector(".ib-silent-ask");
     if (now) now.onclick = function () { askNow(c); };
     var m = box.querySelector(".ht-msgs");
-    // A dictation in progress keeps its faded bubble after the redraw.
-    if (_dictLive && _dictLive.active() && _chon === _dictConv) drawDictDraft(_dictLive.text());
     if (oDay) m.scrollTop = m.scrollHeight;
     else if (cuon) m.scrollTop = m.scrollHeight - tuDay;
     noiTinCu(m);
@@ -2131,23 +2128,11 @@
     try { return !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (e) { return false; }
   }
 
-  // The faded draft bubble at the foot of the open chat while the owner dictates on a computer (2026-11-06, the same
-  // bubble as the main chat). "" removes it. veThread puts it back after the 5-second redraw.
-  function drawDictDraft(text) {
+  // The last messages of the open chat, for the rewrite at the end of a dictation (dictate.js polish).
+  function dictContext() {
+    var D = window.JavisDictate;
     var m = _host && _host.querySelector(".ht-thread .ht-msgs");
-    var node = m ? m.querySelector(".ht-msg-draft") : null;
-    if (!text) { if (node && node.parentNode) node.parentNode.removeChild(node); return; }
-    if (!m) return;
-    var atEnd = m.scrollHeight - m.scrollTop - m.clientHeight < 80;
-    if (!node) {
-      node = document.createElement("div");
-      node.className = "ht-msg nguoi ht-msg-draft";
-      node.setAttribute("aria-hidden", "true");
-      node.innerHTML = '<div class="ht-bubble"><span class="ht-draft-text"></span></div>';
-    }
-    node.querySelector(".ht-draft-text").textContent = text;
-    if (node.parentNode !== m || m.lastChild !== node) m.appendChild(node);
-    if (atEnd) m.scrollTop = m.scrollHeight;
+    return D && D.recentMessages ? D.recentMessages(m, ".ht-msg:not(.ht-react) .ht-bubble", 4) : [];
   }
 
   function toggleMic(c) {
@@ -2163,19 +2148,23 @@
     _dictConv = c.id;
     _dictSend = false;
     if (_actNote) setNote("");
-    // The faded bubble shows the words while speaking, fixed by POST /stt/fix (computer only, dictate.js createLiveFix).
+    // A computer shows the words in the box while speaking (owner, 2026-11-06: in the chat box, not a bubble above); a
+    // phone keeps them for the end. When the recording ends the main brain rewrites the sentence in context and that is
+    // what lands, or is sent (see composer-dictate.js).
     var forConv = c.id;
-    var live = D.createLiveFix ? D.createLiveFix(function (t) { drawDictDraft(_chon === forConv ? t : ""); }) : null;
-    if (_dictLive) _dictLive.cancel();
-    _dictLive = live;
-    if (live) live.start();
-    // Like a voice recorder (owner, 2026-11-05): the words are held while speaking and land in the box once, when the
-    // recording ends (see composer-dictate.js).
+    var live = !(D.isPhoneUA && D.isPhoneUA());
     var dict = D.create({
-      onText: function (text) {
+      context: dictContext,
+      onText: function (text, final) {
         if (_dict !== dict) return;
         _dictHeard = String(text || "");
-        if (live) live.heard(_dictHeard);
+        if (final || !live || _dictState !== "listening" || _chon !== forConv) return;
+        var box = replyBox();
+        if (box) {
+          box.value = D.joinText(_dictBase, _dictHeard);
+          box.style.height = "auto"; box.style.height = box.scrollHeight + "px";
+          box.scrollTop = box.scrollHeight;
+        }
       },
       onState: function (st) {
         if (_dict !== dict) return;
@@ -2186,30 +2175,15 @@
         if (st !== "idle" || was === "idle") return;
         var send = _dictSend, heard = _dictHeard;
         _dictSend = false; _dictHeard = "";
-        // The bubble goes, even when another chat is open now; the box gets the fixed words when they cover them all.
-        var res = live ? live.finish() : { heard: heard, words: heard, needsFix: false };
-        if (_dictLive === live) _dictLive = null;
         if (_chon !== _dictConv || !_conv) return;
-        var box = replyBox(), words = res.words || heard, written = "";
+        var box = replyBox();
         if (box && heard) {
-          box.value = written = D.joinText(_dictBase, words);
+          box.value = D.joinText(_dictBase, heard);
           box.style.height = "auto"; box.style.height = box.scrollHeight + "px";
           box.scrollTop = box.scrollHeight;
         }
         if (send) { gui(_conv); return; }
         if (box && !touchOnly()) { try { box.focus(); box.setSelectionRange(box.value.length, box.value.length); } catch (e) { /* ignore */ } }
-        // Not sent: fix the last words too, swapped in only if the box still holds exactly what was written.
-        if (written && D.fixAfter) {
-          var base = _dictBase;
-          D.fixAfter(res, function () {
-            var b = replyBox();
-            return _chon === forConv && !_dict && !!b && b.value === written;
-          }, function (fixed) {
-            var b = replyBox();
-            b.value = D.joinText(base, fixed);
-            b.style.height = "auto"; b.style.height = b.scrollHeight + "px";
-          });
-        }
       },
       onError: function (code) {
         var ios = D.isIOS && D.isIOS();
@@ -2230,7 +2204,6 @@
     if (!_dict) return;
     var d = _dict;
     _dict = null; _dictState = "idle"; _dictSend = false; _dictHeard = "";
-    if (_dictLive) { _dictLive.cancel(); _dictLive = null; }
     try { d.cancel(); } catch (e) { /* ignore */ }
   }
 

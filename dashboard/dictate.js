@@ -52,6 +52,15 @@
    starts with the whole sentence right before it ("có", then "có lẽ tôi đi") is read as the same sentence grown.
    Computers and iPhones never send such neighbours, so they keep every entry.
 
+   2026-11-06 (later the same day): the faded bubble is gone and every recording ends with a REWRITE (owner: "nói xong
+   ấn Enter hoặc ấn tắt thì nó tự dùng mô hình viết lại thành câu đúng ngữ cảnh, không phải câu nghe được", and "đừng
+   chỉ sửa vài từ, hãy sửa cả cấu trúc"). On a computer the words show right in the text box while speaking, as before
+   0.481.9. When the recording ends (stop, Enter, Send, the 5-minute limit) the whole sentence goes to POST /stt/fix
+   with `final` and a few recent messages of the chat as context: a model rewrites it into what the owner meant, any
+   language, any mishearing, not a word list (server/transcript_fix.py). The run stays in "transcribing" while that
+   happens, so a Send pressed during the recording sends the rewritten sentence. A phone keeps the words for the end,
+   as the owner asked on 2026-11-05. Any failure or a slow answer keeps the words as heard: never lose a sentence.
+
    joinText and buildRun are pure so node tests can run them. */
 (function () {
   "use strict";
@@ -238,11 +247,19 @@
       });
     }
 
+    // The last step of every recording (2026-11-06): the model rewrites the sentence with the chat as context.
+    function polish(text) {
+      if (!text || opts.polish === false) return Promise.resolve(text);
+      var ctx = [];
+      try { ctx = typeof opts.context === "function" ? (opts.context() || []) : []; } catch (e) { ctx = []; }
+      return polishText(text, ctx);
+    }
+
     function finish() {
       if (finishing) return;
       var hadRecorder = !!media;
       on = false;
-      if (cancelled || !hadRecorder) {
+      if (cancelled || (!hadRecorder && !spoken)) {
         stopRecorder();
         // Nothing was heard and nothing can listen again: say so instead of closing the bar in silence.
         if (!cancelled && !spoken) err("nothing");
@@ -251,11 +268,18 @@
       }
       finishing = true;
       state("transcribing");
-      stopRecorder().then(upload).then(function (text) {
+      var heard = hadRecorder ? stopRecorder().then(upload) : Promise.resolve("");
+      heard.then(function (text) {
+        if (cancelled) return "";
+        // The ear's text when there is one, else what the browser heard.
+        text = text || spoken;
+        if (!text) return "";
+        return polish(text);
+      }).then(function (text) {
         finishing = false;
         if (cancelled) return;   // cancel() already reported idle
         if (text) opts.onText && opts.onText(text, true);
-        else if (!spoken) err("nothing");
+        else err("nothing");
         state("idle");
       });
     }
@@ -369,86 +393,59 @@
       busy: function () { return finishing; } };
   }
 
-  // A phone, not a tablet: iPhone, iPod or an Android phone. The faded live bubble is for computers and tablets only:
-  // a phone's recognizer resends the whole sentence on each result and the bubble showed every resend (2026-11-06).
+  // A phone, not a tablet: iPhone, iPod or an Android phone. Only computers and tablets show the words in the box while
+  // speaking; a phone keeps them for the end (owner, 2026-11-05).
   function isPhoneUA(nav) {
     nav = nav || (typeof navigator !== "undefined" ? navigator : {});
     return /iPhone|iPod|Android.*Mobile/i.test(String(nav.userAgent || ""));
   }
 
-  // The heard words fixed by the server (POST /stt/fix: rules, then a model, see server/transcript_fix.py). Any
-  // failure, or no answer within 3.5 seconds, gives the words back unchanged. Shared by every chat screen's mic.
-  function fixText(text) {
+  // How long the rewrite may take before the words go in as heard. A subscription brain (Claude Code, Codex) starts a
+  // CLI for it, which takes a few seconds; an API key answers in about one.
+  var POLISH_WAIT_MS = 25000;
+
+  // The whole recording rewritten by the server (POST /stt/fix with `final`, server/transcript_fix.py): what the owner
+  // meant, in context, not just a word list. `context` is a few recent messages of the chat. Any failure, odd answer or
+  // no answer in time gives the words back unchanged. Shared by every chat screen's mic.
+  function polishText(text, context, waitMs) {
     var raw = String(text == null ? "" : text);
     if (!raw.trim() || typeof fetch !== "function") return Promise.resolve(raw);
     var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var timer = ctl ? setTimeout(function () { try { ctl.abort(); } catch (e) {} }, 3500) : 0;
+    var timer = 0, gaveUp = false;
+    var late = new Promise(function (resolve) {
+      timer = setTimeout(function () { gaveUp = true; try { if (ctl) ctl.abort(); } catch (e) {} resolve(raw); },
+        waitMs || POLISH_WAIT_MS);
+    });
     var req;
     try {
       req = fetch("/stt/fix", { method: "POST", credentials: "same-origin", signal: ctl ? ctl.signal : undefined,
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: raw }) });
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: raw, final: true, context: (context || []).slice(-6) }) });
     } catch (e) { clearTimeout(timer); return Promise.resolve(raw); }
-    return Promise.resolve(req).then(function (r) { return r.json(); })
-      .then(function (d) { clearTimeout(timer); return d && d.ok && d.text ? String(d.text) : raw; },
+    var asked = Promise.resolve(req).then(function (r) { return r.json(); })
+      .then(function (d) { clearTimeout(timer); return !gaveUp && d && d.ok && d.text ? String(d.text) : raw; },
         function () { clearTimeout(timer); return raw; });
+    return Promise.race([asked, late]);
   }
 
-  // The live fix of one recording, shared by the main chat, Teams and the Chatbot inbox (2026-11-06). `show(text)`
-  // draws the faded draft bubble ("" removes it); it is never called on a phone. While the owner speaks on a computer
-  // the bubble first shows the words as heard, then the text fixed by the server. One request at a time: words heard
-  // meanwhile ask once more when the answer comes, and an answer for outdated words is not shown. The fixed part stays
-  // in front while new words arrive, so a fixed name never turns back into the misheard one.
-  function createLiveFix(show) {
-    var st = { on: false, heard: "", shown: "", shownFor: "", busy: false, again: false };
-    function draw(t) { if (show && !isPhoneUA()) { try { show(t); } catch (e) {} } }
-    function soFar() {
-      if (st.shown && st.shownFor && st.heard.indexOf(st.shownFor) === 0) {
-        return joinText(st.shown, st.heard.slice(st.shownFor.length));
+  // The last messages of a chat as plain text, oldest first, for the rewrite's context. `root` is the message list,
+  // `selector` matches one message's text. Each is cut to 300 characters; pure apart from DOM reads.
+  function recentMessages(root, selector, n) {
+    var out = [];
+    try {
+      if (!root || !root.querySelectorAll) return out;
+      var nodes = root.querySelectorAll(selector);
+      for (var i = Math.max(0, nodes.length - (n || 4)); i < nodes.length; i++) {
+        var t = String(nodes[i].innerText || nodes[i].textContent || "").replace(/\s+/g, " ").trim();
+        if (t) out.push(t.length > 300 ? t.slice(0, 300) + "..." : t);
       }
-      return st.heard;
-    }
-    function reset() { st.heard = ""; st.shown = ""; st.shownFor = ""; st.again = false; }
-    function kick() {
-      if (!st.on || isPhoneUA() || !st.heard) return;
-      if (st.busy) { st.again = true; return; }
-      var want = st.heard;
-      st.busy = true;
-      fixText(want).then(function (fixed) {
-        st.busy = false;
-        if (st.on && want === st.heard) { st.shown = fixed; st.shownFor = want; draw(fixed); }
-        if (st.again) { st.again = false; kick(); }
-      });
-    }
-    return {
-      start: function () { reset(); st.on = true; draw(""); },
-      heard: function (text) { if (!st.on) return; st.heard = String(text || ""); draw(soFar()); kick(); },
-      // What the bubble shows now ("" when not recording): redraws use it to put the bubble back.
-      text: function () { return st.on ? soFar() : ""; },
-      active: function () { return st.on; },
-      // The recording ended: removes the bubble and returns { heard, words, needsFix }. `words` is what goes in the box;
-      // `needsFix` says the last words were not fixed yet (see fixAfter).
-      finish: function () {
-        var out = { heard: st.heard, words: soFar(), needsFix: !!st.heard && st.shownFor !== st.heard };
-        st.on = false; reset(); draw("");
-        return out;
-      },
-      cancel: function () { st.on = false; reset(); draw(""); }
-    };
-  }
-
-  // After a recording that was NOT sent: fix its last words and call `apply(fixed)` only when they changed and
-  // `stillThere()` says the box still holds what was written (the owner has not edited it, no new recording started).
-  function fixAfter(result, stillThere, apply) {
-    if (!result || !result.needsFix || !result.heard) return;
-    fixText(result.heard).then(function (fixed) {
-      if (fixed === result.heard) return;
-      try { if (stillThere()) apply(fixed); } catch (e) {}
-    });
+    } catch (e) { return out; }
+    return out;
   }
 
   // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
-  var api = { create: create, joinText: joinText, buildRun: buildRun, fixText: fixText, createLiveFix: createLiveFix,
-    fixAfter: fixAfter, isPhoneUA: isPhoneUA, plan: plan, isPhone: isPhone, isIOS: isIOS,
+  var api = { create: create, joinText: joinText, buildRun: buildRun, polishText: polishText,
+    recentMessages: recentMessages, isPhoneUA: isPhoneUA, plan: plan, isPhone: isPhone, isIOS: isIOS,
     isAndroid: isAndroid,
     ear: function () { return earKind; }, warm: askEar };
   if (typeof window !== "undefined") window.JavisDictate = api;
