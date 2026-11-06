@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.490.1] - 2026-11-06
+### Improved
+- **The "Repos downloaded for this brain" dialog looks like the Tasks page.** Each repo is a compact card: its name, chat count and auto-merge state, with a switch to turn auto-merge on or off.
+- **Checks, Numbers and Remove from brain move into a ⋯ button.** It opens a menu like the Tasks page, sliding up from the bottom on a phone, with Remove in red so it is not hit by mistake.
+
 ## [0.490.0] - 2026-11-06
 ### Added
 - **A QR code for every share link.** The QR icon on each row of the Share links page shows the code, and a phone scan opens that link. A PNG download is there for printing or sending.
