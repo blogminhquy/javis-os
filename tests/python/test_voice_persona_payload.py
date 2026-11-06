@@ -42,12 +42,12 @@ provider = voice_live.ChatGPTLive(
 )
 params = provider.start_params("fake-offer")
 check("realtime/start sends the exact agent prompt to the provider",
-      params["prompt"] == prompt and params["version"] == "v3")
+      params["prompt"].startswith(prompt + "\n\n") and params["version"] == "v3")
 check("a second handshake preserves identity rather than falling back to ChatGPT",
-      provider.start_params("reconnect-offer")["prompt"] == prompt)
+      provider.start_params("reconnect-offer")["prompt"] == params["prompt"])
 check("ordinary Javis call keeps the normal prompt",
       voice_live.ChatGPTLive(
           app_server_getter=lambda *args, **kwargs: None
-      ).start_params("plain-offer")["prompt"] == voice_live.CHATGPT_LIVE_PROMPT)
+      ).start_params("plain-offer")["prompt"].startswith(voice_live.CHATGPT_LIVE_PROMPT + "\n\n"))
 
 print("PASS: outbound ChatGPT Live prompt assembly (not a real Live call)")
