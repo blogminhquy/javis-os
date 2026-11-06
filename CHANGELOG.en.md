@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.491.0] - 2026-11-06
+### Fixed
+- **One failed GitHub push no longer stalls for good.** After a failed push, later turns counted as "nothing changed" and never pushed again, even after signing in to GitHub again. Javis now retries on the next turn, every few minutes, and right when GitHub is connected again, then opens the PR, waits for CI and auto-merges as usual.
+- **Push errors in plain words.** Instead of git's `could not read Username`, Javis says whether the sign-in or the write permission is missing, and what to do on the Connections page.
+### Added
+- **Push again button** in the chat's GitHub panel, for a push waiting to be retried.
+### Improved
+- **The model knows the repo's real state** (on GitHub or not, PR, CI, why it is stuck), so it no longer answers "I am not allowed to push" or offers code edits just to trigger a push.
+
 ## [0.490.1] - 2026-11-06
 ### Improved
 - **The "Repos downloaded for this brain" dialog looks like the Tasks page.** Each repo is a compact card: its name, chat count and auto-merge state, with a switch to turn auto-merge on or off.

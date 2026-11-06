@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.491.0] - 2026-11-06
+### Sửa lỗi
+- **Đẩy code lên GitHub hỏng một lần không còn kẹt luôn.** Trước đây sau một lần đẩy lỗi, các lượt chat sau coi như "không có gì đổi" nên không bao giờ đẩy lại, kể cả khi đã đăng nhập GitHub lại. Giờ Javis tự đẩy lại ở lượt chat kế tiếp, định kỳ vài phút một lần, và ngay khi GitHub được kết nối lại, rồi mở PR, chờ CI và tự merge như thường.
+- **Lỗi đẩy nói bằng lời dễ hiểu.** Thay cho câu git `could not read Username`, Javis nói rõ là thiếu đăng nhập hay thiếu quyền ghi vào repo, và cần làm gì ở trang Kết nối.
+### Thêm mới
+- **Nút Đẩy lại** trong bảng GitHub của cuộc chat, cho lần đẩy đang chờ thử lại.
+### Cải thiện
+- **Model biết trạng thái thật của repo** (đã lên GitHub chưa, PR, CI, lý do kẹt), nên không còn trả lời "em không được đẩy" hay đề nghị sửa code chỉ để kích hoạt việc đẩy.
+
 ## [0.490.1] - 2026-11-06
 ### Cải thiện
 - **Hộp "Repo đã tải về brain này" mang dáng trang Nhiệm vụ.** Mỗi repo là một thẻ gọn: tên repo, số cuộc trò chuyện và trạng thái tự merge, công tắc gạt để bật tắt tự merge.
