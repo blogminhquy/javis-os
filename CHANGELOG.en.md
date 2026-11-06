@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.487.2] - 2026-11-06
+### Fixed
+- **The chat's GitHub icon no longer stays orange after a merge.** A chat with two repos where only one had work now shows "merged". An untouched repo no longer skews the state.
+- **A repo blocked by the pre-push checks now shows red "needs a person"** with the reason. It used to pulse orange as if Javis were working on it, mostly after a restart, so the repo looked forgotten.
+
 ## [0.487.1] - 2026-11-06
 ### Fixed
 - **Javis pushes to GitHub even when the repo has CI jobs for macOS or Windows.** A Linux machine used to run the Mac install test too, which hung, turned red and stopped the push of an unrelated change. Jobs for another OS are now left to GitHub CI, and Javis still merges on its own once CI is green.
