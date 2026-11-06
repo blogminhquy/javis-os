@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.490.0] - 2026-11-06
+### Added
+- **A QR code for every share link.** The QR icon on each row of the Share links page shows the code, and a phone scan opens that link. A PNG download is there for printing or sending.
+
 ## [0.489.1] - 2026-11-06
 ### Fixed
 - **Press Merge, close the panel, and the PR still merges.** Closing the GitHub detail panel (or the tab) right after pressing Merge used to cancel the merge halfway. Javis now finishes it in the background and posts the result in the chat.
