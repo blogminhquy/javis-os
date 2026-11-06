@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.486.2] - 2026-11-06
+### Improved
+- **The dictation mic on computers shows the words in a faded bubble again.** While you speak, the sentence being recognized shows in a faded draft bubble at the foot of the chat, so you can see Javis is listening. The box stays still until you press stop or send, then the whole text lands in it.
+- Phones get no such bubble: on Android the recognizer resends the whole sentence on every result, so the bubble kept repeating it. On a phone the text still lands in the box only when you stop.
+
 ## [0.486.1] - 2026-11-06
 ### Fixed
 - **Voice calls no longer stay stuck on ChatGPT Live when the ChatGPT plan runs out.** The call used to reopen the same empty account and show "You've hit your usage limit" again and again, even after the main model was switched to another plan. That account now rests until its reset time and the call moves at once to the second ChatGPT account, then to Live with an API key, then to the Basic path (answered by the main model).
