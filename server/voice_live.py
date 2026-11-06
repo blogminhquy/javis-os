@@ -1486,7 +1486,10 @@ def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", 
 
     `persona`: (name, identity block) of the partner the call talks to (a call from a partner's chat, see
     voice_persona). The provider's own prompt then speaks as that partner instead of plain Javis."""
-    prov = _make_provider(cfg, system, recognition_lang, memory_index)
+    # Partner calls have their own instructions and agent memory in persona[1].
+    # Do not append the entire main Brain memory index: it can contain unrelated
+    # business context and pull the first voice response outside the agent's remit.
+    prov = _make_provider(cfg, system, recognition_lang, "" if persona else memory_index)
     if persona:
         import voice_persona
         prov.system = voice_persona.apply(prov.system, persona[0], persona[1])
