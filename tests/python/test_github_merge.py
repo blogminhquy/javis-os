@@ -142,6 +142,40 @@ check("the chat is told why Javis did not merge", any("acme/off" in t and ("tắ
 out = run(w.merge_by_person("c3", "acme/off"))
 check("a person can merge a ready PR", out["row"]["integ"] == "merged" and fake.pulls["acme/off"][0]["merged"])
 
+# ---- a person's merge outlives the request: closing the panel or the tab no longer cancels it (2026-11-06) ----
+wt9 = setup("c9", "acme/drop")
+github_repos.set_auto_merge(BRAIN, "acme/drop", False)
+r = push_change("c9", "acme/drop", wt9, "src/a.py", "a = 9\n")
+green(r["head_sha"])
+run(w.tick())
+check("auto-merge off: the PR waits for a person", S().get("c9", "acme/drop")["integ"] == "ready")
+
+
+async def drop_request():
+    req = asyncio.ensure_future(w.merge_by_person("c9", "acme/drop"))
+    twin = asyncio.ensure_future(w.merge_by_person("c9", "acme/drop"))
+    await asyncio.sleep(0)
+    seen = w.merging("c9", "acme/drop") and w.session_state("c9")["repos"][0]["merging"] is True
+    req.cancel()                    # the browser went away mid-merge
+    try:
+        await req
+    except asyncio.CancelledError:
+        pass
+    out = await twin
+    while w.merging("c9", "acme/drop"):
+        await asyncio.sleep(0.02)
+    return seen, out
+
+
+seen, out = run(drop_request())
+check("the panel shows a merge in progress", seen)
+check("a dropped request does not cancel the merge", S().get("c9", "acme/drop")["integ"] == "merged"
+      and fake.pulls["acme/drop"][0]["merged"] and out["row"]["integ"] == "merged")
+check("pressing Merge twice joins the running merge: one merge call",
+      len([c for c in fake.calls if c[0] == "PUT" and c[1] == f"/repos/acme/drop/pulls/{r['pr_number']}/merge"]) == 1)
+check("nothing is left marked as merging", not w.merging("c9", "acme/drop")
+      and w.session_state("c9")["repos"][0]["merging"] is False)
+
 # ---- a flagged change (7.4) never auto-merges ----
 wt4 = setup("c4", "acme/flag", files={"README.md": "x\n", "tests/test_a.py": "def test_a():\n    assert 1\n"})
 r = push_change("c4", "acme/flag", wt4, "tests/test_a.py", "import pytest\n@pytest.mark.skip\ndef test_a():\n    assert 1\n")

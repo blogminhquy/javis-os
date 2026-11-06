@@ -6380,7 +6380,7 @@
   "gh.needs_person": "Needs a person before merging:",
   "gh.open_pr": "Open PR #{n}",
   "gh.merge": "Merge",
-  "gh.merging": "Merging...",
+  "gh.merging": "Merging... You can close this, Javis keeps merging.",
   "gh.no_work": "This chat has not pushed anything to GitHub yet.",
   "gh.queue_head": "Next jobs, run once the PR is merged",
   "gh.queue_cancel": "Drop",

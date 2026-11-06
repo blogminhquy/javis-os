@@ -166,7 +166,9 @@ def _make_router() -> APIRouter:
 
     @r.post("/github/session/{sid}/merge")
     async def gh_merge(sid: str, full_name: str = Form(...)):
-        """A person presses Merge (auto-merge off, no CI, or a change Javis would not merge alone)."""
+        """A person presses Merge (auto-merge off, no CI, or a change Javis would not merge alone).
+
+        The merge runs as its own task: if this request is dropped (panel or tab closed), it still finishes."""
         import github_work
         try:
             return {"ok": True, **(await github_work.merge_by_person(sid, full_name))}

@@ -6380,7 +6380,7 @@
   "gh.needs_person": "Cần người xem trước khi merge:",
   "gh.open_pr": "Mở PR #{n}",
   "gh.merge": "Merge",
-  "gh.merging": "Đang merge...",
+  "gh.merging": "Đang merge... Đóng bảng này cũng được, Javis vẫn merge tiếp.",
   "gh.no_work": "Cuộc trò chuyện này chưa đẩy gì lên GitHub.",
   "gh.queue_head": "Việc kế tiếp, làm khi PR đã merge",
   "gh.queue_cancel": "Bỏ",
