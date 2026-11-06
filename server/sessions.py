@@ -712,9 +712,13 @@ class SessionStore:
                                    session_id=session_id)
 
     def append_message(self, session_id: str, role: str, content: Optional[str],
-                       tool_calls: Any = None, report: Optional[Dict[str, str]] = None) -> int:
+                       tool_calls: Any = None, report: Optional[Dict[str, str]] = None,
+                       client_msg_id: Optional[str] = None) -> int:
         """`report` (Resonance M4): {"key", "goal_id"} của tin báo cáo do host gửi. Biên nhận ghi trong CÙNG giao dịch
-        với tin, nên không có trạng thái "tin đã lưu mà chưa có biên nhận" hay ngược lại."""
+        với tin, nên không có trạng thái "tin đã lưu mà chưa có biên nhận" hay ngược lại.
+
+        `client_msg_id`: the id the dashboard gave a typed message, so a resend after a dropped socket is recognised
+        (message_by_client_id) instead of running the turn twice. Unique per session (idx_messages_client)."""
         tc_json = json.dumps(tool_calls, ensure_ascii=False) if tool_calls else None
         stored = content if (content is None or isinstance(content, str)) \
             else json.dumps(content, ensure_ascii=False)
@@ -722,9 +726,9 @@ class SessionStore:
 
         def _do(conn):
             cur = conn.execute(
-                "INSERT INTO messages (session_id, role, content, ts, tool_calls_json) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (session_id, role, stored, now, tc_json),
+                "INSERT INTO messages (session_id, role, content, ts, tool_calls_json, client_msg_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (session_id, role, stored, now, tc_json, client_msg_id or None),
             )
             conn.execute(
                 "UPDATE sessions SET msg_count = msg_count + 1, updated_at = ? WHERE id = ?",

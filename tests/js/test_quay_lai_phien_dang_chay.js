@@ -34,6 +34,7 @@ function run(turnState) {
     Icons: { msg: (i, x) => x }, runActions() {}, turn: { turnStart() {}, turnDone() {} },
     persistSession() {}, scrollBottom() {}, ghimDay() {}, syncActiveUI() {}, notifySessions() {},
     chatAppend(x) { area.push(x); },
+    _drawUnacked() {},   // messages still waiting for the server's ack: none here (test_chat_ack_resend.py)
   };
   const names = Object.keys(env);
   const fn = new Function(...names, m[0] + "\nreturn _veLaiPhien;");
