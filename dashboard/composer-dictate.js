@@ -81,23 +81,16 @@
   }
   function $(id) { return document.getElementById(id); }
 
-  // The faded live bubble (app.js nhapGiong) on a computer only. An iPhone, an iPod or an Android phone gets none: the
-  // phone's recognizer resends the whole sentence on each result, and the bubble showed every resend (2026-11-06).
-  // Tablets are not phones here, so an iPad keeps the bubble.
-  function phoneUA() {
-    try { return /iPhone|iPod|Android.*Mobile/i.test((navigator && navigator.userAgent) || ""); } catch (e) { return false; }
-  }
-  function showDraft(text) {
-    if (phoneUA() || typeof window.nhapGiong !== "function") return;
-    try { window.nhapGiong(text || ""); } catch (e) {}
-  }
-  function clearDraft() {
+  // Draws the faded draft bubble of the main chat (app.js nhapGiong). dictate.js createLiveFix decides when: never on a
+  // phone (2026-11-06).
+  function drawDraft(text) {
     if (typeof window.nhapGiong !== "function") return;
-    try { window.nhapGiong(""); } catch (e) {}
+    try { window.nhapGiong(text || ""); } catch (e) {}
   }
 
   // state: "idle" | "listening" | "transcribing"
-  var S = { dict: null, state: "idle", base: "", heard: "", sendAfter: false, startedAt: 0, clock: null,
+  // live: dictate.js createLiveFix for the current recording (the faded bubble fixed by POST /stt/fix).
+  var S = { dict: null, state: "idle", base: "", heard: "", live: null, sendAfter: false, startedAt: 0, clock: null,
     ctx: null, src: null, analyser: null, buf: null, raf: 0, levels: [], lastPush: 0 };
 
   function note(key) {
@@ -229,16 +222,24 @@
     S.dict = null;
     S.sendAfter = false;
     // The faded bubble goes first, so the real message (sent just below) takes its place and nothing is shown twice.
-    clearDraft();
-    // The text lands now, in one piece, not word by word while speaking.
-    if (S.heard && D) writeInput(D.joinText(S.base, S.heard));
+    // The text lands now, in one piece: the fixed text the bubble showed, with any words not fixed yet after it.
+    var res = S.live ? S.live.finish() : { heard: S.heard, words: S.heard, needsFix: false };
+    S.live = null;
     S.heard = "";
+    var written = "";
+    if (res.words && D) { written = D.joinText(S.base, res.words); writeInput(written); }
     earTip(D, inp);
     if (!inp) return;
     inp.readOnly = false;
     if (send && inp.value.trim()) {
       var b = $("sendBtn");
       if (b && !b.disabled) { b.click(); return; }
+    }
+    // Not sent: fix the last words too, and swap them in only if the box still holds exactly what was written.
+    if (written && D && D.fixAfter) {
+      var base = S.base;
+      D.fixAfter(res, function () { var box = $("chatInput"); return !!box && S.state === "idle" && box.value === written; },
+        function (fixed) { writeInput(D.joinText(base, fixed)); });
     }
     // A phone keeps the keyboard down: it would cover the text and start the trap described at the top. One tap on the
     // box brings it up when the owner wants to edit.
@@ -255,6 +256,8 @@
     letGo(inp);
     S.base = inp ? inp.value : "";
     S.heard = "";
+    S.live = D.createLiveFix ? D.createLiveFix(drawDraft) : null;
+    if (S.live) S.live.start();
     S.sendAfter = false;
     S.levels = [];
     S.dict = D.create({
@@ -262,7 +265,8 @@
       onText: function (text) {
         if (S.state === "idle") return;
         S.heard = String(text || "");
-        showDraft(S.heard);
+        // The words as heard at once, then the fixed text when the server answers (computer only).
+        if (S.live) S.live.heard(S.heard);
       },
       onState: function (st) {
         var was = S.state;
@@ -305,7 +309,7 @@
     var base = S.base;
     S.sendAfter = false;
     S.heard = "";
-    clearDraft();
+    if (S.live) { S.live.cancel(); S.live = null; }
     writeInput(base);
     S.dict.cancel();
     writeInput(base);

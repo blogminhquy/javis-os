@@ -43,7 +43,16 @@
    box with every draft of the sentence. On Android a piece that grows, repeats or trims the one before it now replaces
    that one (addPiece). A computer and an iPhone never send results like that, so they keep plain appending.
 
-   joinText and addPiece are pure so node tests can run them. */
+   2026-11-06: the run's text is REBUILT from the whole result list on every event (buildRun), not added up event by
+   event. The list is the browser's own state of the run: a result that grows is the same entry updated, so reading
+   the list again shows it once. The 2026-11-05 rule above also dropped a short piece that arrived after a longer one
+   ("tôi về rồi" then "tôi" lost the second "tôi"); that rule is gone. Android keeps two narrow rules, between
+   NEIGHBOUR entries of the list only, as voice.js learned on real phones: the same entry sent twice is kept once,
+   and an entry that is the one before it grown ("tôi", "tôi bị") takes its place. Known limit: a new sentence that
+   starts with the whole sentence right before it ("có", then "có lẽ tôi đi") is read as the same sentence grown.
+   Computers and iPhones never send such neighbours, so they keep every entry.
+
+   joinText and buildRun are pure so node tests can run them. */
 (function () {
   "use strict";
 
@@ -62,19 +71,31 @@
     return String(s == null ? "" : s).toLowerCase().replace(/[.,!?;:\u2026"\u201c\u201d]/g, " ").replace(/\s+/g, " ").trim();
   }
 
-  // Adds one recognizer piece to acc = { text, base, last } (base: the text before `last`). With `collapse` (Android, see
-  // the note at the top) a piece that is the previous one grown, repeated or trimmed replaces it instead of following
-  // it: "tôi", "tôi bị", "tôi bị học" ends as "tôi bị học", not "tôi tôi bị tôi bị học". Without it, plain joinText.
-  function addPiece(acc, piece, collapse) {
-    acc = acc || { text: "", base: "", last: "" };
-    var p = String(piece == null ? "" : piece).trim();
-    if (!p) return acc;
-    if (collapse && acc.last) {
-      var np = wordsOf(p), nl = wordsOf(acc.last);
-      if (np && nl.indexOf(np + " ") === 0) return acc;   // an older, shorter draft of the same sentence
-      if (np === nl || np.indexOf(nl + " ") === 0) return { text: joinText(acc.base, p), base: acc.base, last: p };
+  // The run's text from its whole result list (2026-11-06, see the note at the top). `results` is list-like:
+  // results[i][0].transcript and results[i].isFinal, as SpeechRecognitionResultList gives them. With `android`, a
+  // neighbour that repeats the entry before it is skipped, and one that grows it replaces it.
+  function buildRun(results, android) {
+    var out = [];
+    var n = results && results.length ? results.length : 0;
+    for (var i = 0; i < n; i++) {
+      var r = results[i];
+      var t = String((r && r[0] && r[0].transcript) || "").trim();
+      if (!t) continue;
+      if (android && out.length) {
+        var prev = wordsOf(out[out.length - 1]), cur = wordsOf(t);
+        if (cur === prev) continue;
+        if (prev && cur.indexOf(prev + " ") === 0) { out[out.length - 1] = t; continue; }
+      }
+      out.push(t);
     }
-    return { text: joinText(acc.text, p), base: acc.text, last: p };
+    return out.reduce(joinText, "");
+  }
+
+  // Set localStorage "javis.debug.dictate" to "1" to print each result list in the console: the shape real phones
+  // send is what decides the rules above.
+  function debugOn() {
+    try { return typeof localStorage !== "undefined" && localStorage.getItem("javis.debug.dictate") === "1"; }
+    catch (e) { return false; }
   }
 
   function langTag() {
@@ -249,16 +270,18 @@
       // learned this in 0.59.x). One utterance per run there; onend below starts the next one.
       r.continuous = !isIOS();
       r.interimResults = true;
-      var done = { text: kept, base: kept, last: "" }, fatal = false, collapse = isAndroid();
+      var fatal = false, android = isAndroid();
       r.onresult = function (e) {
         if (cancelled || rec !== r) return;
-        var interim = { text: "", base: "", last: "" };
-        for (var i = e.resultIndex; i < e.results.length; i++) {
-          var t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) done = addPiece(done, t, collapse); else interim = addPiece(interim, t, collapse);
+        if (debugOn()) {
+          try {
+            var shape = [];
+            for (var k = 0; k < e.results.length; k++) shape.push([e.results[k][0].transcript, !!e.results[k].isFinal]);
+            console.debug("[dictate] resultIndex=" + e.resultIndex, JSON.stringify(shape));
+          } catch (x) {}
         }
-        // An Android draft still being spoken may be the last final sentence grown: show it in that sentence's place.
-        spoken = addPiece(done, interim.text, collapse).text;
+        // The whole list, every time: words kept from earlier runs, then this run's text.
+        spoken = joinText(kept, buildRun(e.results, android));
         if (opts.onText) opts.onText(spoken, false);
       };
       r.onerror = function (e) {
@@ -346,8 +369,86 @@
       busy: function () { return finishing; } };
   }
 
+  // A phone, not a tablet: iPhone, iPod or an Android phone. The faded live bubble is for computers and tablets only:
+  // a phone's recognizer resends the whole sentence on each result and the bubble showed every resend (2026-11-06).
+  function isPhoneUA(nav) {
+    nav = nav || (typeof navigator !== "undefined" ? navigator : {});
+    return /iPhone|iPod|Android.*Mobile/i.test(String(nav.userAgent || ""));
+  }
+
+  // The heard words fixed by the server (POST /stt/fix: rules, then a model, see server/transcript_fix.py). Any
+  // failure, or no answer within 3.5 seconds, gives the words back unchanged. Shared by every chat screen's mic.
+  function fixText(text) {
+    var raw = String(text == null ? "" : text);
+    if (!raw.trim() || typeof fetch !== "function") return Promise.resolve(raw);
+    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { try { ctl.abort(); } catch (e) {} }, 3500) : 0;
+    var req;
+    try {
+      req = fetch("/stt/fix", { method: "POST", credentials: "same-origin", signal: ctl ? ctl.signal : undefined,
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: raw }) });
+    } catch (e) { clearTimeout(timer); return Promise.resolve(raw); }
+    return Promise.resolve(req).then(function (r) { return r.json(); })
+      .then(function (d) { clearTimeout(timer); return d && d.ok && d.text ? String(d.text) : raw; },
+        function () { clearTimeout(timer); return raw; });
+  }
+
+  // The live fix of one recording, shared by the main chat, Teams and the Chatbot inbox (2026-11-06). `show(text)`
+  // draws the faded draft bubble ("" removes it); it is never called on a phone. While the owner speaks on a computer
+  // the bubble first shows the words as heard, then the text fixed by the server. One request at a time: words heard
+  // meanwhile ask once more when the answer comes, and an answer for outdated words is not shown. The fixed part stays
+  // in front while new words arrive, so a fixed name never turns back into the misheard one.
+  function createLiveFix(show) {
+    var st = { on: false, heard: "", shown: "", shownFor: "", busy: false, again: false };
+    function draw(t) { if (show && !isPhoneUA()) { try { show(t); } catch (e) {} } }
+    function soFar() {
+      if (st.shown && st.shownFor && st.heard.indexOf(st.shownFor) === 0) {
+        return joinText(st.shown, st.heard.slice(st.shownFor.length));
+      }
+      return st.heard;
+    }
+    function reset() { st.heard = ""; st.shown = ""; st.shownFor = ""; st.again = false; }
+    function kick() {
+      if (!st.on || isPhoneUA() || !st.heard) return;
+      if (st.busy) { st.again = true; return; }
+      var want = st.heard;
+      st.busy = true;
+      fixText(want).then(function (fixed) {
+        st.busy = false;
+        if (st.on && want === st.heard) { st.shown = fixed; st.shownFor = want; draw(fixed); }
+        if (st.again) { st.again = false; kick(); }
+      });
+    }
+    return {
+      start: function () { reset(); st.on = true; draw(""); },
+      heard: function (text) { if (!st.on) return; st.heard = String(text || ""); draw(soFar()); kick(); },
+      // What the bubble shows now ("" when not recording): redraws use it to put the bubble back.
+      text: function () { return st.on ? soFar() : ""; },
+      active: function () { return st.on; },
+      // The recording ended: removes the bubble and returns { heard, words, needsFix }. `words` is what goes in the box;
+      // `needsFix` says the last words were not fixed yet (see fixAfter).
+      finish: function () {
+        var out = { heard: st.heard, words: soFar(), needsFix: !!st.heard && st.shownFor !== st.heard };
+        st.on = false; reset(); draw("");
+        return out;
+      },
+      cancel: function () { st.on = false; reset(); draw(""); }
+    };
+  }
+
+  // After a recording that was NOT sent: fix its last words and call `apply(fixed)` only when they changed and
+  // `stillThere()` says the box still holds what was written (the owner has not edited it, no new recording started).
+  function fixAfter(result, stillThere, apply) {
+    if (!result || !result.needsFix || !result.heard) return;
+    fixText(result.heard).then(function (fixed) {
+      if (fixed === result.heard) return;
+      try { if (stillThere()) apply(fixed); } catch (e) {}
+    });
+  }
+
   // The ear the last press found: "upload" (Groq or OpenAI listens again on stop), "" (browser text only) or null.
-  var api = { create: create, joinText: joinText, addPiece: addPiece, plan: plan, isPhone: isPhone, isIOS: isIOS,
+  var api = { create: create, joinText: joinText, buildRun: buildRun, fixText: fixText, createLiveFix: createLiveFix,
+    fixAfter: fixAfter, isPhoneUA: isPhoneUA, plan: plan, isPhone: isPhone, isIOS: isIOS,
     isAndroid: isAndroid,
     ear: function () { return earKind; }, warm: askEar };
   if (typeof window !== "undefined") window.JavisDictate = api;

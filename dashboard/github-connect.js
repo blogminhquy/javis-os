@@ -784,6 +784,7 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
+  // `logo`: the GitHub mark, so other chat screens (Teams) show the same logo as the main chat (2026-11-06).
   window.JavisGithubRepos = { mount: mount, claimPending: claimPending, refresh: refresh, decorate: decorate, openDetail: openDetail,
-    current: function () { return attached.slice(); } };
+    current: function () { return attached.slice(); }, logo: LOGO };
 })();

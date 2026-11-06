@@ -1918,7 +1918,7 @@
       focusPicker: false, focusBack: null, searchOpen: false, searchResults: null, searchQuery: "", jumped: null,
       openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false,
       picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [],
-      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle", dictSend: false,
+      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle", dictSend: false, dictLive: null, dictTeam: null,
       atts: [], folder: null, repos: [], ghIcon: null, skills: null, skillsBrain: "", info: null, typing: [], pinned: [], pinsOpen: false, tagFilter: readTagFilter(),
       autoOpened: false, unclamped: {}, outbox: [] };
   }
@@ -2252,6 +2252,8 @@
     if (lastRx) lastRx.classList.add("is-last");
     // The jump-to-latest button (chat-scroll.js) is the list's last child, so `position: sticky` keeps it at the bottom.
     if (S.scroll) { if (box.lastChild !== S.scroll.button) box.appendChild(S.scroll.button); S.scroll.update(); }
+    // A dictation in progress keeps its faded bubble after the redraw.
+    if (S.dictLive && S.dictLive.active() && S.dictTeam === S.team.team_id) drawDictDraft(S.dictLive.text());
     applyReveal(box);
     // Bảng đang "mở" mà không vẽ ra (tin đã đổi, đã ghim): bỏ trạng thái mở, kẻo tin mới không còn tự cuộn xuống.
     if (S.picker !== null && !box.querySelector('[data-panel="' + S.picker + '"]')) S.picker = null;
@@ -2344,16 +2346,24 @@
 
   // The "+" menu of the composer: Assign as a job (on/off), Mention an assistant, Search this team. Room for more later
   // without growing the composer row (the old always-visible "Assign job" pill took a third of a phone's width).
+  // The GitHub mark of the main chat (github-connect.js), so a team chat's repo looks the same (owner, 2026-11-06).
+  // The branch icon only when that file is missing.
+  function ghLogo() {
+    var G = typeof window !== "undefined" && window.JavisGithubRepos;
+    return G && G.logo ? G.logo : ic("git-branch");
+  }
+
   function plusMenuHtml(off) {
     if (!S.plusOpen || off) return "";
+    // `icon` is an icon name, or ready markup when it starts with "<" (the GitHub logo).
     var item = function (attr, icon, label, checked) {
-      return '<button type="button" ' + attr + ">" + ic(icon) + "<span>" + esc(label) + "</span>" +
+      return '<button type="button" ' + attr + ">" + (icon.charAt(0) === "<" ? icon : ic(icon)) + "<span>" + esc(label) + "</span>" +
         (checked ? '<span class="tm-plus-on">' + ic("check") + "</span>" : "") + "</button>";
     };
     return '<div class="tm-plus-menu" role="menu" aria-label="' + esc(tw("teams.plus")) + '">' +
       item('role="menuitem" data-plus-attach="1"', "paperclip", tw("teams.attach")) +
       item('role="menuitem" data-plus-folder="1"', "folder", tw("cp.pin_folder")) +
-      item('role="menuitem" data-plus-github="1"', "git-branch", tw("gh.menu")) +
+      item('role="menuitem" data-plus-github="1"', ghLogo(), tw("gh.menu")) +
       item('role="menuitemcheckbox" aria-checked="' + (S.asJob ? "true" : "false") + '" class="tm-asjob" title="' +
         esc(tw("teams.as_job_title")) + '"', "list-todo", tw("teams.as_job"), S.asJob) +
       item('role="menuitem" data-insert-at="1"', "at-sign", tw("teams.mention_insert")) +
@@ -2372,6 +2382,25 @@
 
   // ───────────── mic: speak, the words land in the input (dictate.js) ─────────────
 
+  // The faded draft bubble at the foot of the team's messages while the owner dictates on a computer (2026-11-06, the
+  // same bubble as the main chat). "" removes it. drawMsgs puts it back after a redraw.
+  function drawDictDraft(text) {
+    var box = S.el && S.el.querySelector(".tm-msgs");
+    var node = box ? box.querySelector(".tm-msg-draft") : null;
+    if (!text) { if (node && node.parentNode) node.parentNode.removeChild(node); return; }
+    if (!box || typeof document === "undefined") return;
+    if (!node) {
+      node = document.createElement("div");
+      node.className = "tm-msg tm-msg-owner tm-msg-draft";
+      node.setAttribute("aria-hidden", "true");
+      node.innerHTML = '<div class="tm-col"><div class="tm-bubble"><div class="tm-draft-text"></div></div></div>';
+    }
+    node.querySelector(".tm-draft-text").textContent = text;
+    var before = S.scroll && S.scroll.button && S.scroll.button.parentNode === box ? S.scroll.button : null;
+    if (node.parentNode !== box || node.nextSibling !== before) box.insertBefore(node, before);
+    if (!S.scroll || S.scroll.stuck()) toLatest(false);
+  }
+
   function toggleMic() {
     var D = typeof window !== "undefined" && window.JavisDictate;
     if (!D) { setNote(tw("teams.mic_unsupported")); return; }
@@ -2380,21 +2409,30 @@
     var input = S.el.querySelector(".tm-input");
     S.dictBase = input ? input.value : "";
     S.dictSend = false;
-    var forTeam = S.activeId, heard = "";
+    var forTeam = S.activeId, heard = "", res = null, written = "";
+    // The faded bubble shows the words while speaking, fixed by POST /stt/fix (computer only, dictate.js createLiveFix).
+    var live = D.createLiveFix ? D.createLiveFix(function (t) { drawDictDraft(S.activeId === forTeam ? t : ""); }) : null;
+    S.dictLive = live; S.dictTeam = forTeam;
+    if (live) live.start();
     // Like a voice recorder (owner, 2026-11-05): the words are held while speaking and land in the box once, when the
     // recording ends (see composer-dictate.js).
     S.dict = D.create({
-      onText: function (text) { heard = String(text || ""); },
+      onText: function (text) { heard = String(text || ""); if (live) live.heard(heard); },
       onState: function (st) {
         var was = S.dictState;
         S.dictState = st;
         // Send pressed while recording (button or Enter): it waited for the last words, now it goes.
         var sendNow = st === "idle" && was !== "idle" && S.dictSend;
         if (st === "idle") S.dictSend = false;
+        // The bubble goes, even when another team is open now; the box gets the fixed words when it covers them all.
+        if (st === "idle" && was !== "idle") {
+          res = live ? live.finish() : { heard: heard, words: heard, needsFix: false };
+          if (S.dictLive === live) { S.dictLive = null; S.dictTeam = null; }
+        }
         if (S.activeId !== forTeam) return;
         var inp0 = st === "idle" && heard ? S.el.querySelector(".tm-input") : null;
         if (inp0) {
-          inp0.value = D.joinText(S.dictBase, heard);
+          inp0.value = written = D.joinText(S.dictBase, (res && res.words) || heard);
           heard = "";
           S.pending = null;
           grow(inp0);
@@ -2409,6 +2447,19 @@
         btn.innerHTML = ic(st === "idle" ? "mic" : st === "transcribing" ? "loader" : "square");
         if (sendNow) { send(); return; }
         if (st === "idle") { var inp = S.el.querySelector(".tm-input"); if (inp) inp.focus(); }
+        // Not sent: fix the last words too, swapped in only if the box still holds exactly what was written.
+        if (st === "idle" && written && D.fixAfter) {
+          var base = S.dictBase, mine = written;
+          written = "";
+          D.fixAfter(res, function () {
+            var box = S.el && S.el.querySelector(".tm-input");
+            return S.activeId === forTeam && S.dictState === "idle" && !!box && box.value === mine;
+          }, function (fixed) {
+            var box = S.el.querySelector(".tm-input");
+            box.value = D.joinText(base, fixed);
+            grow(box);
+          });
+        }
       },
       onError: function (code) {
         // 0.419.0: the phone's own speech service switched off (iOS Dictation) gets the note that says where to turn it on.
@@ -3279,7 +3330,7 @@
       // 0.449.0: the GitHub repos of the team chat. The name opens the picker; the status (once pushed) opens the detail.
       var G = window.JavisTeamGithub, names = S.repos.map(function (r) { return r.full_name; });
       var stKey = S.ghIcon && S.ghIcon.state ? "gh.st_" + S.ghIcon.state : "";
-      h += '<span class="tm-chip tm-chip-gh" title="' + esc(tw("gh.chip_label", { names: names.join(", ") })) + '">' + ic("git-branch") +
+      h += '<span class="tm-chip tm-chip-gh" title="' + esc(tw("gh.chip_label", { names: names.join(", ") })) + '">' + ghLogo() +
         '<button type="button" class="tm-chip-name" data-gh-open="1">' + esc(G ? G.chipText(names, 18) : names[0]) + "</button>" +
         (stKey ? '<button type="button" class="tm-chip-st tm-gh-st" data-gh-status="1">' + esc(tw(stKey)) + "</button>" : "") + "</span>";
     }
@@ -3473,10 +3524,10 @@
       : '<button type="button" class="ws-btn" data-folder-open="1">' + ic("folder") + " " + esc(tw("cp.pin_folder")) + "</button>") + "</section>";
     h += '<section class="tm-info-sec"><h4>' + esc(tw("gh.menu")) + "</h4>" + (S.repos.length
       ? S.repos.map(function (r) {
-        return '<div class="tm-info-row">' + ic("git-branch") + '<span class="tm-info-grow" title="' + esc(r.worktree || r.full_name) + '">' +
+        return '<div class="tm-info-row">' + ghLogo() + '<span class="tm-info-grow" title="' + esc(r.worktree || r.full_name) + '">' +
           esc(r.full_name) + (r.branch ? ' <span class="tm-sub">' + esc(r.branch) + "</span>" : "") + "</span></div>";
       }).join("") + '<button type="button" class="ws-btn" data-gh-open="1">' + esc(tw("teams.change")) + "</button>"
-      : '<button type="button" class="ws-btn" data-gh-open="1">' + ic("git-branch") + " " + esc(tw("teams.gh_attach")) + "</button>") + "</section>";
+      : '<button type="button" class="ws-btn" data-gh-open="1">' + ghLogo() + " " + esc(tw("teams.gh_attach")) + "</button>") + "</section>";
     if (!I) return h + '<p class="tm-sub">' + esc(tw("common.loading")) + "</p>";
     var imgs = I.files.filter(function (f) { return f.image; });
     var docs = I.files.filter(function (f) { return !f.image; });

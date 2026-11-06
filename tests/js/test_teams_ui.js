@@ -838,6 +838,13 @@ check("khoá chữ ghim có ở vi và en", ["teams.pin_team", "teams.unpin_team
           teamsJs.includes('lease_lost: "teams.status.lease_lost"') && teamsJs.includes('"leader_changed", "lease_lost"]') &&
           teamsJs.includes('lease_lost: "teams.reply.why.lease_lost"') && !!vi["teams.reply.why.lease_lost"] && !!en["teams.reply.why.lease_lost"] &&
           !!vi["teams.status.lease_lost"] && !!en["teams.status.lease_lost"]);
+    // Owner, 2026-11-06: a team chat's GitHub repo shows the same GitHub logo as the main chat, not a branch icon.
+    const ghJs = fs.readFileSync(path.join(ROOT, "dashboard", "github-connect.js"), "utf8");
+    check("GitHub logo: github-connect.js shares its logo", /current: function \(\) \{ return attached\.slice\(\); \}, logo: LOGO \}/.test(ghJs));
+    check("GitHub logo: the team's + menu, repo chip and info panel use it",
+          teamsJs.includes("item('role=\"menuitem\" data-plus-github=\"1\"', ghLogo(), tw(\"gh.menu\"))") &&
+          teamsJs.includes('esc(tw("gh.chip_label", { names: names.join(", ") })) + \'">\' + ghLogo() +') &&
+          (teamsJs.match(/ic\("git-branch"\)/g) || []).length === 1);
   })();
   process.exit(fails ? 1 : 0);
 })();

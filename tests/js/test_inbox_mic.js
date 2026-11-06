@@ -30,7 +30,7 @@ check("the redraw wires the mic and keeps the box read only while listening",
 
 const tm = CV.slice(CV.indexOf("  function toggleMic(c) {"), CV.indexOf("  function dropMic() {"));
 check("it uses the shared engine and joins the words after what was typed",
-  /window\.JavisDictate/.test(tm) && /D\.create\(/.test(tm) && /D\.joinText\(_dictBase, heard\)/.test(tm));
+  /window\.JavisDictate/.test(tm) && /D\.create\(/.test(tm) && /D\.joinText\(_dictBase, words\)/.test(tm) && /words = res\.words \|\| heard/.test(tm));
 check("words only land in the chat the recording started in", /_chon !== _dictConv/.test(tm));
 check("a second press stops listening", /_dictState === "listening"\) \{ _dict\.stop\(\); return; \}/.test(tm));
 check("nothing is sent unless Send was pressed", /if \(send\) \{ gui\(_conv\); return; \}/.test(tm) && !/gui\(/.test(tm.replace("if (send) { gui(_conv); return; }", "")));

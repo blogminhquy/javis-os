@@ -1,4 +1,4 @@
-/* Android dictation no longer writes every draft of a sentence (2026-11-05).
+/* Android dictation no longer writes every draft of a sentence (2026-11-05, rebuilt from the result list 2026-11-06).
 
        node tests/js/test_dictate_android_repeat.js
 
@@ -40,28 +40,24 @@ function fresh() {
 }
 const D = fresh();
 
-// ───────── pure addPiece ─────────
-function feed(pieces, collapse, start) {
-  let acc = { text: start || "", base: start || "", last: "" };
-  pieces.forEach(p => { acc = D.addPiece(acc, p, collapse); });
-  return acc.text;
-}
+// ───────── pure buildRun: the run's text from its whole result list (2026-11-06) ─────────
+const L = items => items.map(([t, f]) => Object.assign([{ transcript: t }], { isFinal: f !== false }));
+const run = (items, android) => D.buildRun(L(items.map(x => Array.isArray(x) ? x : [x, true])), android);
 const SCREENSHOT = ["tôi", "tôi", "tôi", "tôi bị", "tôi bị", "tôi bị học", "tôi bị học chữ", "tôi bị học chữ ở",
   "tôi bị học chữ ở đây", "tôi bị học chữ ở đây"];
-check("Android: the screenshot's drafts collapse to the one sentence",
-  feed(SCREENSHOT, true) === "tôi bị học chữ ở đây");
+check("Android: the screenshot's drafts end as the one sentence", run(SCREENSHOT, true) === "tôi bị học chữ ở đây");
 check("Android: a new sentence after the first one is still added",
-  feed(["tôi bị", "tôi bị học", "mai gửi nhé"], true) === "tôi bị học mai gửi nhé");
-check("Android: a shorter, older draft arriving late is dropped",
-  feed(["tôi bị học chữ", "tôi bị"], true) === "tôi bị học chữ");
+  run(["tôi bị", "tôi bị học", "mai gửi nhé"], true) === "tôi bị học mai gửi nhé");
+check("Android: a short sentence after a longer one is KEPT (2026-11-06: it used to vanish)",
+  run(["tôi về rồi", "tôi"], true) === "tôi về rồi tôi");
 check("Android: case and punctuation differences between drafts do not count",
-  feed(["tôi bị học", "Tôi bị học chữ."], true) === "Tôi bị học chữ.");
-check("Android: what was typed before the mic stays in front",
-  feed(["tôi", "tôi bị"], true, "Ghi chú:") === "Ghi chú: tôi bị");
+  run(["tôi bị học", "Tôi bị học chữ."], true) === "Tôi bị học chữ.");
 check("Android: a word that only starts like the last one is not mistaken for a draft",
-  feed(["tôi", "tôii"], true) === "tôi tôii");
-check("computer: pieces are appended exactly as before",
-  feed(["một", "một hai"], false) === "một một hai");
+  run(["tôi", "tôii"], true) === "tôi tôii");
+check("Android: an interim draft that grows the last final takes its place",
+  run([["tôi bị", true], ["tôi bị học chữ", false]], true) === "tôi bị học chữ");
+check("computer: every entry is kept, even a repeat", run(["alo", "alo", "một", "một hai"], false) === "alo alo một một hai");
+check("empty and blank entries are skipped", run(["", "  ", "xin chào"], true) === "xin chào" && D.buildRun(null) === "");
 check("isAndroid: only Android", D.isAndroid(ANDROID) && !D.isAndroid(MAC));
 
 (async () => {
@@ -74,7 +70,7 @@ check("isAndroid: only Android", D.isAndroid(ANDROID) && !D.isAndroid(MAC));
   r.push("tôi", false); r.push("tôi", true);
   r.push("tôi", true); r.push("tôi bị", false); r.push("tôi bị", true);
   r.push("tôi bị học", true); r.push("tôi bị học chữ", false); r.push("tôi bị học chữ", true);
-  check("Android run: a growing interim draft replaces the last sentence on screen",
+  check("Android run: a growing draft shows in place of the last sentence, no repeats on screen",
     texts.indexOf("tôi bị học chữ") !== -1 && !texts.some(t => /tôi tôi|bị tôi/.test(t)));
   r.push("tôi bị học chữ ở đây", true); r.push("tôi bị học chữ ở đây", true);
   check("Android run: the box ends with the sentence once", texts[texts.length - 1] === "tôi bị học chữ ở đây");
