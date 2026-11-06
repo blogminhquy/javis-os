@@ -7382,6 +7382,7 @@
   };
   const CHATGPT_DETAIL = {
     no_cli: "settings.vc_detail_no_cli", no_login: "settings.vc_detail_no_login", old_cli: "settings.vc_detail_old_cli",
+    quota: "settings.vc_detail_quota",
   };
 
   async function renderVoiceCard() {

@@ -108,7 +108,7 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
                 _brain_memory_dir=lambda root: mem_dir, _brain_root=lambda b: directory,
                 _fit_memory_index=lambda mem, cap=None: mem[:cap],
                 _voice_ask_javis=ask, get_store=lambda: store, _brain_key=lambda b: b,
-                voice_call=types.SimpleNamespace(live_settings=lambda c: c))
+                voice_call=types.SimpleNamespace(live_settings=lambda c: c, select_call_engine=lambda c: {"engine": "live"}))
             tree = ast.parse((SERVER / "main.py").read_text(encoding="utf-8"))
             route = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "voice_live_ws")
             route.decorator_list = []

@@ -52,18 +52,21 @@ def _no_window() -> int:
         return 0
 
 
-def _codex_env() -> Optional[dict]:
-    """CODEX_HOME do Javis dò ra (claude_cli.codex_env). None = kế thừa môi trường như cũ."""
+def _codex_env(codex_home: Optional[str] = None) -> Optional[dict]:
+    """CODEX_HOME do Javis dò ra (claude_cli.codex_env). None = kế thừa môi trường như cũ.
+
+    `codex_home`: folder of an extra ChatGPT account (plan_accounts), so a call runs on that account's login."""
     try:
         import claude_cli
-        return claude_cli.codex_env()
+        return claude_cli.codex_env(codex_home) if codex_home else claude_cli.codex_env()
     except Exception:
         return None
 
 
 class AppServer:
-    def __init__(self, cli: str, popen_factory=subprocess.Popen):
+    def __init__(self, cli: str, popen_factory=subprocess.Popen, codex_home: Optional[str] = None):
         self.cli = cli
+        self.codex_home = codex_home or None
         self._popen = popen_factory
         self.proc = None
         self._lock = threading.Lock()
@@ -104,7 +107,7 @@ class AppServer:
             [self.cli, *REALTIME_FLAG, "app-server"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
-            creationflags=_no_window(), env=_codex_env(),
+            creationflags=_no_window(), env=_codex_env(self.codex_home),
         )
         threading.Thread(target=self._reader, name="javis-codex-realtime", daemon=True).start()
 
@@ -216,8 +219,11 @@ class AppServer:
                 self._deliver(loop, q.put_nowait, {"method": "_exit", "params": {}})
 
 
-# ---- một tiến trình cho cả máy chủ ----
-_SERVER: Optional[AppServer] = None
+# ---- một tiến trình cho cả máy chủ (mỗi tài khoản ChatGPT một tiến trình) ----
+_SERVER: Optional[AppServer] = None          # tài khoản 1 (~/.codex)
+# Extra ChatGPT accounts (plan_accounts, owner 06/11/2026): a call moves to the next account once one runs out,
+# and the app-server holds the login of the CODEX_HOME it started with, so each account gets its own process.
+_EXTRA: Dict[str, AppServer] = {}
 _popen_factory = subprocess.Popen
 
 # Bản Codex thấp nhất chạy được ChatGPT Live. Đo 01/10/2026: 0.147 gửi thừa `session.model` và bị
@@ -292,11 +298,13 @@ def _find_cli() -> Optional[str]:
     return best[0] if best else None
 
 
-async def get_app_server() -> AppServer:
-    """App-server đang sống, hoặc dựng mới khi chưa có / đã chết."""
+async def get_app_server(codex_home: Optional[str] = None) -> AppServer:
+    """App-server đang sống, hoặc dựng mới khi chưa có / đã chết. `codex_home`: tài khoản ChatGPT phụ."""
     global _SERVER
-    if _SERVER is not None and _SERVER.alive and _SERVER._started:
-        return _SERVER
+    home = str(codex_home or "")
+    cur = _EXTRA.get(home) if home else _SERVER
+    if cur is not None and cur.alive and cur._started:
+        return cur
     cli = _find_cli()
     if not cli:
         if _LAST_CLI_REASON == "old_cli":
@@ -306,11 +314,14 @@ async def get_app_server() -> AppServer:
         raise AppServerError(_chu(
             "Chưa cài Codex CLI nên chưa dùng được ChatGPT Live. Cài Codex rồi nối ChatGPT ở trang Models.",
             "Codex CLI is not installed, so ChatGPT Live is unavailable. Install Codex, then connect ChatGPT on the Models page."))
-    if _SERVER is not None:
-        _SERVER.close()
-    srv = AppServer(cli, popen_factory=_popen_factory)
+    if cur is not None:
+        cur.close()
+    srv = AppServer(cli, popen_factory=_popen_factory, codex_home=home or None)
     await srv.ensure_started()
-    _SERVER = srv
+    if home:
+        _EXTRA[home] = srv
+    else:
+        _SERVER = srv
     return srv
 
 

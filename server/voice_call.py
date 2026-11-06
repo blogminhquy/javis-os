@@ -55,15 +55,35 @@ def _basic_mode(cfg: dict) -> str:
     return "fast" if voice_brain.config_from_settings(cfg).get("provider") else "standard"
 
 
+PLAN = "openai-oauth"
+
+
+def chatgpt_account(cfg: dict):
+    """The ChatGPT account a ChatGPT Live call runs on now ({'id', ...}), or None when every account of the ChatGPT
+    card is out of quota (resting), switched off or signed out.
+
+    Owner's report 06/11/2026: once ChatGPT ran out, every call still opened ChatGPT Live, failed with "You've hit your
+    usage limit" and stayed there, instead of moving to the plan's next account or to the next path. An account that
+    runs out in a call or in chat rests (model_routing.mark_rest) until its reset time, so it is skipped here."""
+    m = (cfg or {}).get("model") or {}
+    try:
+        import plan_accounts
+        return plan_accounts.pick(m, PLAN)
+    except Exception:   # noqa: BLE001 - choosing an account must never stop a call
+        return {"id": "main", "label": "", "enabled": True}
+
+
 def select_call_engine(cfg: dict) -> dict:
     """{"engine", "live_provider", "voice_mode", "basic_mode", "setting", "reason", "detail"}.
 
     voice_mode là thứ trình duyệt dùng: "live" cho chatgpt/api, "fast"/"standard" cho basic.
     reason: auto | auto_api | auto_basic | chosen | chosen_unavailable. detail: vì sao ChatGPT
-    Live chưa dùng được (no_cli | no_login | old_cli) khi điều đó làm đường gọi rơi xuống.
+    Live chưa dùng được (no_cli | no_login | old_cli | quota) khi điều đó làm đường gọi rơi xuống.
     """
     choice = setting(cfg)
     chat_ok, why = codex_realtime.realtime_available(cfg)
+    if chat_ok and chatgpt_account(cfg) is None:
+        chat_ok, why = False, "quota"   # every ChatGPT account is out of quota until its reset time
     api = _api_provider(cfg)
 
     def out(engine, reason, provider=""):

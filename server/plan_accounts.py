@@ -10,7 +10,8 @@ Rotation is sequential: the first account switched on, signed in and not resting
 All accounts of a card are used before the next card in the usage order.
 
 What an extra account does NOT carry (stated plainly in the guide): the plan usage meters, image generation and
-the HTTP-only ChatGPT paths (chat without tools, bots, voice) still read account 1. A conversation that switches
+the HTTP-only ChatGPT paths (chat without tools, bots) still read account 1. ChatGPT Live calls DO rotate (06/11/2026):
+each account gets its own Codex app-server (codex_realtime) and a call that runs out rests that account. A conversation that switches
 account cannot resume the CLI thread of the other account, so that turn starts a fresh thread with the history
 rebuilt (the existing resume fallback).
 """

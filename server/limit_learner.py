@@ -336,6 +336,7 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
 # có NGAY một mốc thời gian đằng sau (số, midnight, noon, tomorrow).
 _RESET_TEXT_RE = re.compile(
     r"(resets?\s+(?:at|in|on)\s+[^.\n|]{1,60}"
+    r"|try\s+again\s+at\s+\d{1,2}(?::\d{2})?(?:\s*[ap]\.?m\b\.?)?(?:\s*\([^()\n]{1,40}\))?"
     r"|resets?\s+(?=\d|midnight|noon|tomorrow)[^.\n|]{1,60}"
     r"|try\s+again\s+in\s+[^.\n|]{1,40})", re.I)
 _RESET_IN_RE = re.compile(
@@ -350,8 +351,9 @@ _RESET_IN_RE = re.compile(
 # A bare hour with neither am/pm nor minutes ("resets 5 hours") is not a clock time.
 _MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8,
            "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+# "try again at 8:42 AM" is the ChatGPT plan's form (Codex CLI and ChatGPT Live, owner's screenshot 06/11/2026).
 _RESET_CLOCK_RE = re.compile(
-    r"\bresets?\s+(?:at\s+|on\s+)?"
+    r"\b(?:resets?\s+(?:at\s+|on\s+)?|try\s+again\s+(?:at|on)\s+)"
     r"(?:(?P<mon>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?P<day>\d{1,2})"
     r"(?:st|nd|rd|th)?,?\s+(?:at\s+)?)?"
     r"(?:(?P<word>midnight|noon)\b"
