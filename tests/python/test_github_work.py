@@ -61,6 +61,12 @@ check("the chat message names the repo and the failing command",
       posted[-1][0] == "chat" and "acme/app" in posted[-1][1] and "bash check.sh" in posted[-1][1])
 n = len(posted)
 check("the same state is not gated twice", run() == [] and len(posted) == n)
+# A restart forgets which states were gated, so the same red state is gated again. Its fix was already asked for,
+# so no new turn starts: the row must not stay "running" (the chat icon pulsed orange forever, owner 2026-11-06).
+github_work._last_gate.clear()
+run()
+check("a re-gated red state whose fix was already asked for is not left running",
+      github_work.st().get("chat", "acme/app")["exec"] == "stuck")
 (wt / "src/a.py").write_text("a = 2\n", encoding="utf-8")
 reps = run()
 check("after the fix the gate passes", reps and reps[0]["ok"] is True and posted[-1][2] is True)

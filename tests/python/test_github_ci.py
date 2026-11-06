@@ -261,6 +261,13 @@ check("icon: a conflict is broken even next to a ready repo", ic([row_(), row_(i
 check("icon: merged with a red post-merge check stays merged with a warning",
       ic([row_(integ="merged", post_merge="red")]) == {"state": "merged", "running": 0, "sub": "", "merged_warning": True})
 check("icon: no GitHub work, no icon", ic([])["state"] == "")
+idle = dict(row_(), exec="idle", ci="none", integ="no_pr", head_sha="")
+check("icon: a merged repo next to an untouched one reads merged, not working (owner 2026-11-06)",
+      ic([row_(integ="merged"), idle])["state"] == "merged")
+check("icon: only untouched repos, no icon", ic([idle])["state"] == "")
+check("icon: an untouched repo still running its first gate shows as working",
+      ic([row_(integ="merged"), dict(idle, exec="running")])["state"] == "working")
+check("icon: a repo whose first gate is stuck needs a person", ic([row_(integ="merged"), dict(idle, exec="stuck")])["state"] == "broken")
 
 fake.close()
 print()

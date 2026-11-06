@@ -428,7 +428,12 @@ async def _after_turn_repo(sid: str, brain: str, repo: Dict[str, Any], user_mess
         details = github_gate.summary(report) + _fail_output(report)
         await asyncio.to_thread(learn_from_gate, brain, fn, report)
         await _say(sid, f"**{fn}**\n{github_gate.summary(report)}", False)
-        await request_fix(row, why, details, f"{sid}:{fn}:gate:{head}:{_fingerprint_short(repo)}")
+        if not await request_fix(row, why, details, f"{sid}:{fn}:gate:{head}:{_fingerprint_short(repo)}"):
+            # No fix turn started: either request_fix already marked the row stuck, or this exact state was already
+            # sent for a fix and the turn changed nothing. Either way nobody is working on it now, so it must not
+            # stay "running" (the chat icon pulsed orange forever next to a merged repo).
+            if (st().get(sid, fn) or {}).get("exec") == "running":
+                st().update(sid, fn, exec="stuck", stuck_reason=why)
         return report
     if not repo.get("can_push", True):
         reason = _c("Token không có quyền đẩy lên repo này.", "The token cannot push to this repo.")
@@ -1160,8 +1165,10 @@ async def tick() -> int:
 
 
 def reconcile_on_start() -> None:
-    """A restart in the middle of a gate leaves `exec=running`: put it back so the next turn or tick decides."""
-    for row in st().active():
+    """A restart in the middle of a gate leaves `exec=running`: put it back so the next turn or tick decides.
+
+    Every running row, not only pushed ones: a repo whose first gate never passed has no head_sha yet."""
+    for row in st().running():
         if row["exec"] == "running" and row["ci"] not in ("pending", "running"):
             st().update(row["sid"], row["full_name"], exec="done" if row["head_sha"] else "idle")
 
