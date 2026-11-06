@@ -11553,8 +11553,15 @@ def _verify_failed_message(step_no, agent_name, attempts, reason) -> str:
             + ". Quy trình dừng ở đây, không chạy tiếp các bước sau.")
 
 
+def _workflow_reasoning(engine, level, prompt):
+    """Apply the selected agent effort using the existing provider adapters."""
+    if isinstance(engine, CodexCLI):
+        return _codex_do_sau(engine, level, prompt)
+    return _team_reasoning(engine, level, prompt)
+
+
 async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=None,
-                             session_id="", log_run=None, learn=None):
+                             session_id="", log_run=None, learn=None, reasoning_for=None):
     """Chạy ĐÚNG một bước theo đúng ngữ nghĩa runner cũ: agent, kiểm chứng, retry.
 
     Dùng chung cho cả hai đường. `sink` nhận event để đường graph đẩy ra SSE y như cũ.
@@ -11576,6 +11583,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         # agent lưu sẵn đã hết đúng với model vừa đổi. Bỏ đi để _agent_model_provider suy lại
         # từ chính model mới, thay vì ép model Claude chạy qua nhà người dùng chọn lúc trước.
         agent_prov = ""
+    agent_reasoning = reasoning_for(node.agent) if reasoning_for else AGENT_REASONING_DEFAULT
     cur_prompt = prompt
     out = ""
     verified = None
@@ -11586,7 +11594,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         gcli = mk(sysprompt, agent_model, agent_prov, step_extra)
         out = ""
         loi_engine = ""
-        async for ev in gcli.query(cur_prompt):
+        async for ev in gcli.query(_workflow_reasoning(gcli, agent_reasoning, cur_prompt)):
             if ev["type"] == "text":
                 await sink({"type": "step_text", "i": index, "node": node.id,
                             "content": ev["content"]})
@@ -11629,7 +11637,8 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         vcli = mk(v_sys, v_model, v_prov)
         v_out = ""
         v_err = ""
-        async for ev in vcli.query(v_prompt):
+        async for ev in vcli.query(_workflow_reasoning(
+                vcli, reasoning_for(node.verify_agent) if reasoning_for else AGENT_REASONING_DEFAULT, v_prompt)):
             if ev["type"] == "final":
                 v_out = ev.get("content") or v_out
             elif ev["type"] == "error":
@@ -11700,16 +11709,21 @@ def _workflow_agent_helpers(brain, tools, mode=None):
     gated_mode = str(mode or "auto") if str(mode or "auto") in ("suggest", "auto") else "auto"
 
     def _mk(sysprompt, model=None, provider="", extra_tools=()):
+        if tools is None:
+            # Interactive workflows follow the same main/pinned-agent resolver as
+            # agent turns. build_tools fails closed instead of swapping providers.
+            settings = cfgmod.read_settings()
+            spec = team_engine.choose_spec(
+                model or "", provider, _effective_main(settings),
+                _agent_model_provider, lambda selected: (True, ""), tools=True)
+            if spec.get("note"):
+                raise team_engine.TeamEngineUnavailable(spec["note"], provider)
+            base = claude_engine(system_prompt=sysprompt, cwd=vault_root, tag="workflow")
+            base.javis_vault = vault_root
+            return team_engine.build_tools(
+                spec, base, "workflow", settings=settings, mode="full",
+                codex_profile=_write_codex_profile)
         prov = _agent_model_provider(model, provider)
-        if prov == "openai-oauth" and model and tools is None and find_codex_cli():
-            openai_oauth.write_codex_auth()
-            cc = CodexCLI(cwd=vault_root, tag="workflow", model=_codex_safe_model(model),
-                          instructions=sysprompt)
-            _apply_codex_hub(cc, vault_root)
-            # Fast mode (0.164.0): workflow steps run in the background, so force the normal tier.
-            cc.extra_config[:] = [x for x in cc.extra_config if not str(x).startswith("service_tier=")]
-            cc.extra_config.append('service_tier="default"')
-            return cc
         allowed, natives = (_step_grant(extra_tools) if tools is not None else ([], []))
         gated_tools = (list(tools) + allowed) if tools is not None else None
         c = claude_engine(system_prompt=sysprompt, cwd=vault_root, tag="workflow",
@@ -11741,16 +11755,6 @@ def _workflow_agent_helpers(brain, tools, mode=None):
         # allowed_tools + disallowed_tools của chính CLI đó, engine nhà khác lấy tool từ hub
         # nên không mang theo được rào ấy. Đây là hành vi đã hứa trong docs/07, không phải
         # bỏ sót - đổi nó là nới quyền cho việc chạy nền mà không ai yêu cầu.
-        if tools is None and prov not in ("anthropic-cli", "openai-oauth"):
-            # Nhà khác Claude/Codex: mượn ĐÚNG bộ dựng engine của việc nền thay vì viết bản
-            # thứ hai - aux_engine.swap lo cả key, khả dụng, tool qua hub và chuỗi dự phòng
-            # (nhà đã chọn chết giữa chừng thì lùi về Claude/bộ não chính, không chết lặng).
-            # Gọi SAU khi đã gắn javis_vault/system_prompt vì _build_* đọc lại từ engine này.
-            try:
-                c = aux_engine.swap(c, tag="workflow", codex_profile=_write_codex_profile,
-                                    spec={"provider": prov, "model": (model or "")})
-            except Exception as e:
-                print(f"[agent engine] {prov}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
         return c
 
     def _agent_sysprompt(aslug, surface=None, agent_key=None, session_created_at=None, skill_served=False):
@@ -12187,7 +12191,9 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
         return await _run_workflow_step(
             node, prompt, mk, agent_sysprompt, sink,
             router=model_router.ModelRouter(cfgmod.read_settings),
-            session_id=session_id or f"wf:{slug}", log_run=log_run, learn=learn)
+            session_id=session_id or f"wf:{slug}", log_run=log_run, learn=learn,
+            reasoning_for=lambda agent: _agent_reasoning(
+                _read_md(_agents_dir(brain) / f"{agent}.md")[0]))
 
     async def capability_runner(node, approved):
         """Node capability của workflow.
@@ -12373,6 +12379,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         task_f = task.replace("{{input}}", input or "").replace("{{prev}}", prev or "")
         yield {"type": "step_start", "i": i, "agent": agent_name, "task": task_f}
 
+        agent_reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{agent_slug}.md")[0])
         cur_prompt = task_f
         out = ""
         verified = None
@@ -12383,7 +12390,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             gcli = _mk(sysprompt, agent_model, agent_prov, step_extra)   # áp model agent đã chọn
             out = ""
             loi_engine = ""
-            async for ev in gcli.query(cur_prompt):
+            async for ev in gcli.query(_workflow_reasoning(gcli, agent_reasoning, cur_prompt)):
                 if ev["type"] == "text":
                     yield {"type": "step_text", "i": i, "content": ev["content"]}
                 elif ev["type"] == "tool_call":
@@ -12423,7 +12430,8 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             vcli = _mk(v_sys, v_model, v_prov)   # agent kiểm chứng cũng dùng model của nó
             v_out = ""
             v_err = ""
-            async for ev in vcli.query(v_prompt):
+            async for ev in vcli.query(_workflow_reasoning(
+                    vcli, _agent_reasoning(_read_md(_agents_dir(brain) / f"{verify_slug}.md")[0]), v_prompt)):
                 if ev["type"] == "final":
                     v_out = ev.get("content") or v_out
                 elif ev["type"] == "error":
