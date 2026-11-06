@@ -1961,8 +1961,6 @@
   "sess.del_q": "Xoá hội thoại \"{ten}\"?",
   "sess.rename_q": "Tên mới cho hội thoại:",
   "sess.move_none": "Bỏ khỏi nhóm",
-  "sess.hist_title": "Lịch sử hội thoại",
-  "sess.hist": "Lịch sử",
   "noti.kind_marketing": "Tin mới",
   "noti.kind_community": "Cộng đồng",
   "noti.kind_security": "Bảo mật",

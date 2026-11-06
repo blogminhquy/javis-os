@@ -8,6 +8,7 @@ title: One priority star a day, tick and thaw sounds, Skip and Delete on a misse
 - **Nút bật/tắt âm thanh cạnh nút sáng/tối.** Loa có sóng là đang bật, loa gạch chéo là đang tắt. Chỉ bật hoặc tắt, không có chỉnh âm lượng. Bật lên nghe ngay một tiếng "ting". Trên điện thoại nút nằm ở chân menu, ngay trước nút sáng/tối.
 
 ### Cải thiện
+- **Thanh trên cùng gọn hơn: bỏ nút Lịch sử và nút làm mới hội thoại.** Danh sách hội thoại vẫn ở trang Trò chuyện (mục đầu menu). Nút "+" hội thoại mới trên điện thoại vẫn chạy như cũ.
 - **Mỗi ngày chỉ 1 ngôi sao ưu tiên.** Chọn đúng một việc quan trọng nhất trong ngày. Bấm sao ở việc khác cùng ngày thì sao tự chuyển sang việc đó (có nút Hoàn tác), không còn bị chặn bằng câu "đã đủ".
 
 ### Sửa lỗi
@@ -20,6 +21,7 @@ title: One priority star a day, tick and thaw sounds, Skip and Delete on a misse
 - **A sound switch beside the light/dark one.** A speaker with waves means on, crossed out means off. Just on or off, no volume. Turning it on answers with a tick. On a phone it sits in the menu foot, just before light/dark.
 
 ### Improved
+- **A cleaner top bar: the History and reset-conversation buttons are gone.** The conversation list stays on the Chat page (first in the menu). The phone's "+" new chat works as before.
 - **One priority star a day.** Pick the single task that matters most that day. Starring another task of the same day moves the star there (with Undo) instead of refusing.
 
 ### Fixed

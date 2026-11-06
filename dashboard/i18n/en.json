@@ -1961,8 +1961,6 @@
   "sess.del_q": "Delete conversation \"{ten}\"?",
   "sess.rename_q": "New name for the conversation:",
   "sess.move_none": "Remove from the group",
-  "sess.hist_title": "Conversation history",
-  "sess.hist": "History",
   "noti.kind_marketing": "News",
   "noti.kind_community": "Community",
   "noti.kind_security": "Security",

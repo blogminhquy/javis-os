@@ -959,7 +959,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .hud-top #mbPop { position: fixed; top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; transform: translateX(-50%);
     width: min(340px, 92vw); z-index: 200; max-height: 70vh; }
   .model-bar { display: none; }                       /* hàng model gốc ẩn; chip bên trong dời đi (JS) */
-  #jv-sess-btn { display: none; }                     /* nút Lịch sử: ẩn ở mobile để header cockpit khỏi chồng/lệch */
 
   /* Rail: từ thanh đáy → ngăn kéo trượt từ trái */
   .rail {

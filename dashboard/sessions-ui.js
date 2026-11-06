@@ -2108,22 +2108,9 @@
   function bindGlobal() {
     var gs = document.getElementById("graphSource");
     if (gs) gs.addEventListener("change", refresh);
-    // Nút "Lịch sử" → mở thẳng workspace với sidebar. Đặt INLINE trong hàng nút header
-    // (.hud-actions) để không đè lên nút Cài đặt/Reset; fallback về body nếu chưa có header.
-    var btn = el('<div id="jv-sess-btn">' + ic("history") + ' <span class="jv-sess-lbl"></span></div>');
-    // Nút này dựng NGAY lúc tải trang, có thể trước khi từ điển về, mà t() lúc đó trả về
-    // chính cái khoá. Nên vẽ nhãn qua một hàm và vẽ lại khi từ điển sẵn sàng/đổi ngôn ngữ.
-    function veNhanBtn() {
-      btn.title = window.t("sess.hist_title");
-      var lbl = btn.querySelector(".jv-sess-lbl");
-      if (lbl) lbl.textContent = window.t("sess.hist");
-    }
-    veNhanBtn();
-    window.addEventListener("javis:i18n", veNhanBtn);
-    btn.onclick = function () { if (window.JavisChatStage) window.JavisChatStage.showSide(); };
-    var host = document.querySelector(".hud-actions");
-    (host || document.body).appendChild(btn);
-    // Prefetch danh sách sau khi cockpit đã yên: bấm Lịch sử lần đầu là có sẵn dữ liệu.
+    // Nút "Lịch sử" ở thanh trên cùng đã bỏ (chủ repo, 06/11/2026: "bỏ nút lịch sử và nút reset hội thoại đi không
+    // cần thiết"): danh sách hội thoại đã nằm ở trang Trò chuyện, mục đầu tiên của menu.
+    // Prefetch danh sách sau khi cockpit đã yên: mở trang Trò chuyện lần đầu là có sẵn dữ liệu.
     // Kèm danh sách project vì chip ở thanh tiêu đề khung chat cần tên + số file/link ngay,
     // trong khi cột trái (nơi vẫn gọi loadProjects) chỉ mount khi mở trang Trò chuyện.
     setTimeout(function () {

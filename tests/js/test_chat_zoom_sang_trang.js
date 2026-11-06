@@ -54,7 +54,8 @@ check("CSS hết rule .chat-side (cột trái của lớp nổi)", !/\.chat-side
 // Nhưng CSS của DANH SÁCH hội thoại phải còn - trang Trò chuyện dùng chính nó.
 check("giữ lại CSS danh sách hội thoại (.cside-item)", /\.cside-item \{/.test(CSS_CODE));
 check("giữ lại CSS ô tìm kiếm (.cside-search)", /\.cside-search \{/.test(CSS_CODE));
-check("giữ lại CSS nút Lịch sử (#jv-sess-btn)", /#jv-sess-btn \{/.test(CSS_CODE));
+// 06/11/2026 (chủ repo): nút Lịch sử trên thanh trên cùng bỏ hẳn, danh sách nằm ở trang Trò chuyện.
+check("nút Lịch sử (#jv-sess-btn) đã bỏ, CSS cũng đi theo", !/#jv-sess-btn/.test(CSS_CODE));
 
 // ---- 3. Chiều ĐI: bấm phóng to → sang trang Trò chuyện ----
 check("còn bắt nút phóng to", ZOOM.indexOf('getElementById("chatZoomBtn")') !== -1);
@@ -76,8 +77,8 @@ check("nút thu nhỏ có chữ cho biết nó làm gì", /Thu nhỏ/.test(CONSO
 check("còn xuất window.JavisChatStage", ZOOM.indexOf("window.JavisChatStage") !== -1);
 check("CANARY: isOpen() luôn false (các nhát 'thu lại' còn sót thành vô hại)",
       /isOpen: function \(\) \{ return false; \}/.test(ZOOM_CODE));
-check("nút Lịch sử vẫn có đường vào", ZOOM.indexOf("showSide") !== -1
-      && SESS.indexOf("JavisChatStage.showSide()") !== -1);
+// 06/11/2026: nút Lịch sử ở thanh trên cùng bỏ hẳn (chủ repo: "không cần thiết"), sessions-ui.js không dựng nó nữa.
+check("sessions-ui.js không còn dựng nút Lịch sử", SESS.indexOf("jv-sess-btn") === -1 && SESS.indexOf("JavisChatStage.showSide()") === -1);
 
 // ---- 6. Không còn chỗ nào chờ lớp nổi ----
 check("CANARY: navigateTo không còn nhát thu lớp nổi",
