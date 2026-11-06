@@ -39,6 +39,11 @@ import unicodedata
 # Tên trợ lý luôn có mặt, không cần người dùng khai. Bộ từ vựng người dùng thêm nằm ở
 # settings `voice.hotwords` (chuỗi, ngăn bằng dấu phẩy hoặc xuống dòng).
 TU_VUNG_GOC = ("Javis",)
+# Thuật ngữ AI và sản phẩm hay bị nghe nhầm, đưa vào LỚP SỬA luôn (không chỉ mồi Whisper). Mỗi tên
+# phải tự khác âm với các tên còn lại, nếu không lớp sửa sẽ đổi nhầm: "Groq" và "Grok" đều có,
+# nên nói "Groq" vẫn giữ nguyên, còn "Grox" mới được sửa thành "Grok" (2026-11-06).
+TU_AI_SUA = ("Javis OS", "Groq", "Grok", "Claude", "ChatGPT", "Gemini", "OpenAI", "OpenRouter",
+             "DeepSeek", "Ollama", "Whisper", "Codex", "Antigravity", "Anthropic", "Telegram")
 MAX_TU_VUNG = 60          # Whisper chỉ nhìn ~224 token cuối của prompt; hơn nữa là vô ích
 MAX_GHEP = 3              # ghép tối đa 3 tiếng liền nhau làm một ứng viên ("Gia vít", "Open Router")
 MAX_GOI_Y = 600           # trần độ dài prompt gửi Whisper (stt.groq_nghe cũng cắt ở mức này)
@@ -165,6 +170,10 @@ def tu_vung(cfg: dict) -> list:
     v = (cfg or {}).get("voice") or {}
     ra = list(TU_VUNG_GOC)
     da = {t.lower() for t in ra}
+    for t in TU_AI_SUA:
+        if t.lower() not in da:
+            da.add(t.lower())
+            ra.append(t)
     for t in tach_tu_vung(v.get("hotwords")):
         if t.lower() not in da:
             da.add(t.lower())
@@ -236,9 +245,23 @@ def _ten_rieng_hai_chu(toks, i, n, s, term) -> bool:
     return w[:1].isupper() and w.lower() not in _KET_GOI
 
 
+# Ca nghe nhầm ĐÃ BIẾT, sửa theo đúng chính tả, không cần so âm. Tên Javis hay bị máy nghe ra
+# "Jarvis" (2026-11-06, chủ dự án báo: nói "Javis OS" mà chép thành "Jarvis OS").
+NGHE_NHAM_CO_DINH = (("Jarvis OS", "Javis OS"), ("Jarvis", "Javis"))
+_NGHE_NHAM_RE = [(re.compile(r"(?<!\w)" + re.escape(a) + r"(?!\w)", re.IGNORECASE), b)
+                 for a, b in NGHE_NHAM_CO_DINH]
+
+
+def nghe_nham_co_dinh(text) -> str:
+    s = str(text or "")
+    for rx, rep in _NGHE_NHAM_RE:
+        s = rx.sub(rep, s)
+    return s
+
+
 def sua(text, tv) -> str:
     """Sửa những từ nghe nhầm thành từ trong bộ từ vựng `tv`. Không có gì để sửa thì trả y nguyên."""
-    s = str(text or "")
+    s = nghe_nham_co_dinh(text)
     prefix, speech = split_ui_context(s)
     if prefix:
         return prefix + sua(speech, tv)
@@ -287,7 +310,9 @@ def sua(text, tv) -> str:
                     continue
                 if n >= 2 and any(_diem_don(j) >= d for j in range(i, i + n)):
                     continue
-                if best is None or d > best[0]:
+                # Hoà điểm (hai tên cùng khoá âm, như Groq và Grok): ưu tiên tên viết ĐÚNG như máy nghe.
+                exact = uv.lower() == term.lower()
+                if best is None or d > best[0] or (d == best[0] and exact and best[2].lower() != uv.lower()):
                     best = (d, n, term, uv)
         if best is None or best[0] < NGUONG_GOI_TEN:
             i += 1

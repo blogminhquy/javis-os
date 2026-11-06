@@ -106,6 +106,7 @@ import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh 
 import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao việc tự biết khung chat nào hỏi
 import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
+import chinh_nghe     # sửa chữ đang nghe trên bong bóng nháp: luật + model (Groq trước, rồi model nền)
 import phien_am       # từ tiếng Anh -> cách đọc kiểu Việt (đọc loa + so âm câu nghe được)
 import voice_privacy
 voice_privacy.install()
@@ -16844,6 +16845,22 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
     # WebSocket còn quét nghe_sua.sua thêm lần nữa (cho cả chữ Web Speech); hàm idempotent.
     return await voice_ear.transcribe_upload(cfg, data, file.filename or "voice.webm", lang, draft,
                                              provider=ear["provider"])
+
+
+@app.post("/stt/fix")
+async def stt_fix_route(request: Request):
+    """Sửa chữ đang nghe ngay trên bong bóng nháp (2026-11-06): luật nghe_sua, rồi model.
+
+    Body {"text": "..."}. Model là Groq nếu có khoá, không thì model nền (xem chinh_nghe.py). Không
+    bao giờ báo lỗi: trục trặc thì trả đúng kết quả của luật.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": False, "text": "", "ly_do": "json_hong"}
+    text = str((body or {}).get("text") or "")[:2000]
+    cfg = cfgmod.read_settings()
+    return {"ok": True, **await chinh_nghe.sua_nhanh(cfg, text)}
 
 
 @app.get("/voice/call")
