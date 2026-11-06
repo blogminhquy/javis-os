@@ -93,6 +93,30 @@ class SkillAssetReadTests(unittest.TestCase):
         self.assertTrue(out.startswith(f'Base directory for this skill: {path.parent.resolve()}\n\n'), out[:200])
         self.assertTrue(out.endswith('COUNT_ALL_ROWS'))
 
+    def test_skill_dir_variable_becomes_the_folder_and_the_command_runs(self):
+        # Claude Code replaces ${CLAUDE_SKILL_DIR} in a skill with that skill's folder. Store packs that follow
+        # their source repo (javis.claude-seo) write commands with it; an engine reading the skill here got
+        # the token as-is, its shell expanded the unset variable to nothing and ran "/../x/run" (exit 127).
+        # The folder gets a space on purpose: brains live under "/brains/My Bullet Journal".
+        self.root = self.root / 'My Brain'
+        path = self.write(body=b'Run: bash "${CLAUDE_SKILL_DIR}/../shared/run" --ok\r\n'
+                               b'Docs: ${CLAUDE_SKILL_DIR}/references/x.md\r\n')
+        shared = self.root / 'skills' / 'shared'
+        shared.mkdir(parents=True)
+        (shared / 'run').write_text('#!/usr/bin/env bash\necho "ran $1"\n')
+        (shared / 'run').chmod(0o644)       # Javis installs every pack file as 0644
+        out = asyncio.run(self.handler()({'name': self.slug}))
+        self.assertNotIn('CLAUDE_SKILL_DIR', out)
+        self.assertIn(f'Docs: {path.parent.resolve()}/references/x.md', out)
+        command = next(line for line in out.splitlines() if line.startswith('Run: '))[len('Run: '):]
+        env = {k: v for k, v in os.environ.items() if not k.startswith('CLAUDE_')}
+        ran = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True, timeout=30)
+        self.assertEqual((ran.returncode, ran.stdout), (0, 'ran --ok\n'), ran.stderr)
+        # The skill the router picks on its own reaches the engine through the lazy source, not the tool.
+        picked = self.lazy().resolve(self.root, self.slug).context_item.content
+        self.assertNotIn('CLAUDE_SKILL_DIR', picked)
+        self.assertIn(f'bash "{path.parent.resolve()}/../shared/run" --ok', picked)
+
     def test_ordinary_learning_locked_source_is_readable_without_edit_permission(self):
         self.write(extra=b'learn_lock: true\r\nmanaged_by: system\r\n')
         self.assertIn('COUNT_ALL_ROWS', skill_router.read_skill_asset(self.root, self.slug).text)

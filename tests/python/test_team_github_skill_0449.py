@@ -23,7 +23,8 @@ for slug, name in (("lan", "Lan"), ("minh", "Minh")):
 (BR / "skills" / "viet-email").mkdir(parents=True)
 (BR / "skills" / "viet-email" / "SKILL.md").write_text(
     "---\nname: Viết email\ndescription: Viết email bán hàng ngắn\ngroup: marketing\n---\n"
-    "Luôn mở bằng tên người nhận. Tối đa 120 chữ.\n", encoding="utf-8")
+    "Luôn mở bằng tên người nhận. Tối đa 120 chữ.\n"
+    'Mẫu: cat "${CLAUDE_SKILL_DIR}/mau.txt"\n', encoding="utf-8")
 
 import main  # noqa: E402
 import team_runner  # noqa: E402
@@ -170,6 +171,8 @@ check("a private chat with no follow-up runner still returns False (asks the per
 blk = main._team_skill_block(team, ["viet-email", "khong-co", "../etc"])
 check("the named skill's text goes into the prompt", "Tối đa 120 chữ" in blk and "viet-email" in blk, blk)
 check("its frontmatter does not", "description:" not in blk)
+check("${CLAUDE_SKILL_DIR} becomes the skill's folder, as Claude Code does",
+      f'cat "{(BR / "skills" / "viet-email").resolve()}/mau.txt"' in blk and "CLAUDE_SKILL_DIR" not in blk, blk)
 check("unknown or unsafe names are skipped", "khong-co" not in blk and "etc" not in blk)
 check("no known skill: no block", main._team_skill_block(team, ["khong-co"]) == "")
 text = "[SKILL: viet-email\nHãy dùng skill này để làm việc dưới đây.]\n\nViết email cho khách sỉ"

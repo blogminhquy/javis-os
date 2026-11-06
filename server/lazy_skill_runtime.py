@@ -201,6 +201,7 @@ class LazySkillSource:
             return SkillSelection("none" if scope is not None else "fallback", "body_empty", top["capability_id"], slug,
                                   top_score, runner, revision)
         relative = asset.relative_path
+        body = skill_router.expand_skill_dir(brain, relative, body)
         source_hash = asset.content_hash
         content = (
             f"Selected skill `{slug}`. Apply only when it matches the current objective. "

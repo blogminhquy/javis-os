@@ -267,6 +267,30 @@ def split_frontmatter(text: str):
     return {}, (text or "")
 
 
+SKILL_DIR_TOKEN = "${CLAUDE_SKILL_DIR}"
+
+
+def expand_skill_dir(root, relative_path, text: str) -> str:
+    """Replace ${CLAUDE_SKILL_DIR} with the folder of the skill, as Claude Code's own loader does.
+
+    Store packs that follow their source repo write commands with it (javis.claude-seo:
+    `bash "${CLAUDE_SKILL_DIR}/../seo/scripts/claude-seo" run x.py`). Handed to an engine as-is, its
+    shell expands the unset variable to nothing and runs `/../seo/...` (exit 127). Every path that puts
+    skill text in front of an engine (javis_use_skill, the team /skill block, the lazily selected
+    skill) calls this. Plain substitution like Claude Code: the commands quote it, so a brain folder
+    with spaces stays one argument. `relative_path` is SkillAsset.relative_path (from the resolved root)."""
+    if SKILL_DIR_TOKEN not in (text or ""):
+        return text
+    try:
+        rel = Path(str(relative_path))
+        if rel.name != "SKILL.md" or rel.is_absolute() or ".." in rel.parts:
+            return text
+        folder = Path(root).resolve() / rel.parent
+    except (OSError, ValueError, TypeError, RuntimeError):
+        return text
+    return text.replace(SKILL_DIR_TOKEN, str(folder))
+
+
 def read_frontmatter_only(smd: Path, max_bytes: int = 16384) -> tuple[dict, str]:
     """Read only the bounded YAML header. Phase 8 discovery must never ingest body text."""
     try:

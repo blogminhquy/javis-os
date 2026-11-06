@@ -28869,7 +28869,7 @@ def _team_skill_block(team, slugs):
         if asset is None:
             continue
         meta, body = skill_router.split_frontmatter(asset.text)
-        body = str(body or "").strip()
+        body = skill_router.expand_skill_dir(root, asset.relative_path, str(body or "").strip())
         if len(body) > TEAM_SKILL_MAX_CHARS:
             body = body[:TEAM_SKILL_MAX_CHARS].rstrip() + "\n…"
         name = str((meta or {}).get("name") or slug)
