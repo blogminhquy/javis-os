@@ -48,7 +48,7 @@ MODE_NAMES = {"all": ("Tất cả", "Everything"), "important": ("Đáng chú ý
 
 # `source` of a notice -> its group (when the producer passes no group).
 SOURCE_GROUP = {
-    "reminder": "reminder", "job": "job", "webhook": "job", "github": "job", "goal": "job", "loop": "job",
+    "reminder": "reminder", "mytask": "reminder", "job": "job", "webhook": "job", "github": "job", "goal": "job", "loop": "job",
     "watch": "connection", "engine": "connection", "connections": "connection", "zalo": "connection",
     "pulse": "agent", "team": "team", "resonance": "agent", "incident": "incident",
     "chatbot": "chatbot", "reply-policy": "chatbot", "zalo-group": "chatbot",

@@ -68,6 +68,12 @@ MAX_SUBS = 100                  # subtasks on one task
 MAX_SKIPS = 400                 # skipped times kept on one repeating task
 CLEAN_BACK = 60                 # how far back the first clean-day judge looks (days)
 CLEAN_KEEP = 400                # judged days kept
+# Reminders for everything in "Mine" (owner, 06/11/2026: "hãy thông báo tất cả những gì có ở trong phần của tôi").
+APPT_REMIND_DEFAULT = 15        # an appointment with no reminder set: the page shows "15 minutes before", so do that
+AGENDA_AT = "07:30"             # the morning list of today's tasks and appointments
+AGENDA_UNTIL = "21:00"          # a server started late in the evening sends no morning list any more
+AGENDA_MAX = 12                 # items named in the list; the rest are counted
+LATE_GRACE_MIN = 60             # a timed reminder missed (server down) still goes out up to this late
 
 
 @dataclass
@@ -384,6 +390,92 @@ def nudge_time(task: dict, state: dict, tz=None) -> str:
     m = int(base[:2]) * 60 + int(base[3:5])
     m = max(6 * 60, m - 30) if state.get("frozen") else min(23 * 60, m + 30)
     return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def _hm_min(hm: str) -> int:
+    return int(hm[:2]) * 60 + int(hm[3:5])
+
+
+def is_habit(t: dict) -> bool:
+    hb = t.get("habit") or {}
+    return bool(hb) and not hb.get("off")
+
+
+def open_on(t: dict, day: str) -> bool:
+    """A task or appointment that falls on `day` and is not done or skipped for it."""
+    rep = t.get("repeat")
+    if rep:
+        if not occurs_on(rep, t.get("date") or day, day):
+            return False
+        return day not in (t.get("done_dates") or {}) and day not in (t.get("skip_dates") or {})
+    return t.get("date") == day and t.get("status") != "done"
+
+
+def remind_minutes(t: dict) -> Optional[int]:
+    """Minutes before the start a timed item is reminded, None for no reminder. "0" is "no reminder" (the page's
+    choice); an appointment left empty gets the page's default, a task left empty is reminded at its time."""
+    r = str(t.get("remind") or "").strip()
+    if r in ("0", "off"):
+        return None
+    if r.isdigit():
+        return int(r)
+    return APPT_REMIND_DEFAULT if t.get("kind") == "appt" else 0
+
+
+def timed_due(t: dict, day: str, hm: str) -> bool:
+    """A timed task or appointment whose reminder is due now: from N minutes before its start until a little after
+    (a server that was down at the time still reminds), once a day (`reminded`). Habits have their own nudge."""
+    if not isinstance(t, dict) or is_habit(t) or not _TIME.match(str(t.get("time") or "")) or t.get("reminded") == day:
+        return False
+    mins = remind_minutes(t)
+    if mins is None or not open_on(t, day):
+        return False
+    start, now_m = _hm_min(t["time"]), _hm_min(hm)
+    return start - mins <= now_m < start + LATE_GRACE_MIN
+
+
+def timed_text(t: dict, hm: str) -> str:
+    if t.get("kind") == "appt":
+        return appt_text(t)
+    title, at = t.get("title") or "", t.get("time") or ""
+    if _hm_min(hm) < _hm_min(at):
+        return localefmt.chu(f"Sắp tới giờ: {title} lúc {at}.", f"Coming up: {title} at {at}.")
+    return localefmt.chu(f"Đến giờ: {title} ({at}).", f"Time for: {title} ({at}).")
+
+
+def agenda(tasks: list, day: str) -> tuple:
+    """(today's open tasks and appointments, timed ones first by time, untimed after; overdue one-off tasks count).
+    Habits are left out: they have their own daily nudge."""
+    today, over = [], 0
+    for t in tasks:
+        if not isinstance(t, dict) or is_habit(t):
+            continue
+        if open_on(t, day):
+            today.append(t)
+        elif not t.get("repeat") and t.get("kind") != "appt" and t.get("status") != "done" and t.get("date") and t["date"] < day:
+            over += 1
+    today.sort(key=lambda t: (0, t["time"]) if _TIME.match(str(t.get("time") or "")) else (1, str(t.get("title") or "")))
+    return today, over
+
+
+def agenda_text(items: list, over: int) -> str:
+    """The morning message: what is on today, then how many tasks are overdue. "" when there is nothing at all."""
+    if not items and not over:
+        return ""
+    lines = []
+    for t in items[:AGENDA_MAX]:
+        at = t.get("time") if _TIME.match(str(t.get("time") or "")) else ""
+        lines.append("- " + (at + " " if at else "") + str(t.get("title") or "").strip())
+    more = len(items) - AGENDA_MAX
+    vi = [f"Hôm nay bạn có {len(items)} việc:" if items else "Hôm nay chưa có việc nào trong Việc của tôi."] + lines
+    en = [f"Today you have {len(items)} item(s):" if items else "Nothing is on today in Mine."] + lines
+    if more > 0:
+        vi.append(f"... và {more} việc nữa.")
+        en.append(f"... and {more} more.")
+    if over:
+        vi.append(f"Còn {over} việc quá hạn chưa xong.")
+        en.append(f"{over} overdue task(s) still open.")
+    return localefmt.chu("\n".join(vi), "\n".join(en))
 
 
 def appt_text(task: dict) -> str:
@@ -790,8 +882,9 @@ class MyTasks:
 
     # ---- habit reminders (0.424.0) ----
     async def tick(self) -> int:
-        """Send today's habit reminders that are due: once a day per habit, only on a scheduled day that is not done
-        yet, at the set time or (Javis reminds) half an hour after the usual time. Returns how many went out."""
+        """Send what is due in "Mine": the morning list of today (once a day from AGENDA_AT), a timed task or
+        appointment N minutes before or at its time (`timed_due`), and habit reminders (once a day per habit, only on a
+        scheduled day not done yet, at the set time or half an hour after the usual time). Returns how many went out."""
         if not self.deps.notify:
             return 0
         tz = self.deps.tz() if self.deps.tz else None
@@ -815,20 +908,26 @@ class MyTasks:
                 self._coach_tried[root] = today
                 if self.load_coach(brain).get("date") != today:
                     asyncio.create_task(self._coach_safe(brain, today))
+            agenda_msg = ""
             async with self._io:
                 data = self.load(brain)
+                # Owner, 06/11/2026: everything in "Mine" reaches the bell (and Telegram, push), not only habits and the
+                # appointments that had a reminder set. Once a day, the morning list of today.
+                if AGENDA_AT <= hm < AGENDA_UNTIL and data.get("agenda_sent") != today:
+                    data["agenda_sent"] = today
+                    agenda_msg = agenda_text(*agenda(data.get("tasks", []), today))
+                    due_save = True
+                else:
+                    due_save = False
                 for t in data.get("tasks", []):
+                    if not isinstance(t, dict):
+                        continue
+                    if timed_due(t, today, hm):
+                        # A timed task or appointment: N minutes before (appointments, 15 when unset) or at its time.
+                        t["reminded"] = today
+                        due.append((t, None))
+                        continue
                     if t.get("kind") == "appt":
-                        # Appointment reminder: N minutes before the start of today's occurrence, once.
-                        mins = int(str(t.get("remind") or "0") or 0) if str(t.get("remind") or "0").isdigit() else 0
-                        on_today = (occurs_on(t.get("repeat"), t.get("date") or today, today) if t.get("repeat")
-                                    else t.get("date") == today)
-                        if mins and on_today and t.get("time") and t.get("reminded") != today:
-                            start = int(t["time"][:2]) * 60 + int(t["time"][3:5])
-                            now_m = int(hm[:2]) * 60 + int(hm[3:5])
-                            if start - mins <= now_m < start:
-                                t["reminded"] = today
-                                due.append((t, None))
                         continue
                     hb = t.get("habit") or {}
                     if not t.get("repeat") or not hb or hb.get("off") or hb.get("remind") == "off" or hb.get("nudged") == today:
@@ -838,14 +937,20 @@ class MyTasks:
                         continue
                     hb["nudged"] = today
                     due.append((t, st))
-                if due:
+                if due or due_save:
                     self.save(brain, data)
+            if agenda_msg:
+                try:
+                    await self.deps.notify("", agenda_msg, brain=brain, dedup=f"agenda:{today}", source="mytask")
+                    sent += 1
+                except Exception as e:
+                    print(f"[my-tasks] morning list not sent: {type(e).__name__}: {e}")
             coach = self.load_coach(brain) if any(st is not None for _, st in due) else {}
             for t, st in due:
                 try:
                     line = ((coach.get("habits") or {}).get(t.get("id")) or {}) if st is not None and coach.get("date") == today else {}
                     if st is None:
-                        text = appt_text(t)
+                        text = timed_text(t, hm)
                     elif line.get("nudge"):
                         text = fill(line["nudge"], name=t.get("title") or "", n=st["cur"])
                     else:
@@ -856,7 +961,11 @@ class MyTasks:
                             c2.setdefault("log", []).append({"d": today, "id": t.get("id"), "style": line.get("style") or "fixed",
                                                              "sent": _now(), "done": 0})
                             self.save_coach(brain, c2)
-                    await self.deps.notify("", text, brain=brain, dedup=f"{'appt' if st is None else 'habit'}:{t.get('id')}:{today}")
+                    kind = "habit" if st is not None else "appt" if t.get("kind") == "appt" else "task"
+                    if st is None:
+                        await self.deps.notify("", text, brain=brain, dedup=f"{kind}:{t.get('id')}:{today}", source="mytask")
+                    else:
+                        await self.deps.notify("", text, brain=brain, dedup=f"{kind}:{t.get('id')}:{today}")
                     sent += 1
                 except Exception as e:
                     print(f"[my-tasks] habit reminder not sent: {type(e).__name__}: {e}")

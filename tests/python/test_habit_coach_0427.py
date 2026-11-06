@@ -76,7 +76,7 @@ def atomic_write(path, text):
 sent, asked = [], []
 
 
-async def notify(chat_id, text, brain="", dedup=""):
+async def notify(chat_id, text, brain="", dedup="", source="habit"):
     sent.append((text, dedup))
     return True, ""
 
@@ -107,7 +107,9 @@ check("only habits go into the prompt", "m_due" in asked[0] and "m_plain" not in
 
 feat._coach_tried.clear()
 asyncio.run(feat.tick())
-check("the reminder uses Core's nudge with today's numbers", sent and sent[0][0] == "Read 30 minutes: chuỗi 0 ngày đang đợi bạn đó nha", sent)
+# 06/11/2026: the morning list of "Mine" may go out in the same tick; only the habit nudges are looked at here.
+hsent = [x for x in sent if str(x[1]).startswith("habit:")]
+check("the reminder uses Core's nudge with today's numbers", hsent and hsent[0][0] == "Read 30 minutes: chuỗi 0 ngày đang đợi bạn đó nha", sent)
 check("Core is not asked again the same day (lines already saved)", len(asked) == 1)
 entry = (feat.load_coach("brain")["log"] or [{}])[-1]
 check("the nudge is logged with its style", entry.get("id") == "m_due" and entry.get("style") == "challenge" and not entry.get("done"))

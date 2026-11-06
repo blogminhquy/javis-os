@@ -13523,7 +13523,9 @@ my_tasks_feature = my_tasks_mod.register(app, my_tasks_mod.MyTasksDeps(
     brain_root=_brain_root, atomic_write_text=_atomic_write_text,
     # Habit reminders (0.424.0) go out like a reminder's report: inbox, Telegram, push.
     scheduler_brains=_background_brains,
-    notify=lambda chat_id, text, brain="", dedup="": _notify_owner(chat_id, text, kind="report", source="habit", brain=brain, dedup=dedup),
+    # Owner, 06/11/2026: timed tasks, appointments and the morning list of "Mine" go as source "mytask" (group Reminders).
+    notify=lambda chat_id, text, brain="", dedup="", source="habit": _notify_owner(chat_id, text, kind="report",
+                                                                                   source=source, brain=brain, dedup=dedup),
     tz=reminders_mod.VN_TZ,
     # 0.427.0: habit lines written by Core, and read-only Google Calendar events.
     ask=_habit_coach_ask, calendar=gcal_read.events))
