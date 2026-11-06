@@ -1,8 +1,14 @@
 <div align="center">
 
-# 🧠 Javis OS
+<a href="https://javisos.com"><img src="../../assets/social-preview.png" width="100%" alt="Javis OS: Your AI Workforce. Never miss the best AI. Mã nguồn mở, tự host, javisos.com"></a>
 
-**AI agentic đổi được bộ não + Second Brain - chạy trên model nào bạn muốn (Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic API, Groq, Ollama), có giọng nói, đồ thị tri thức, và tự thông minh dần lên.**
+# Javis OS
+
+### Xây dựng đội ngũ AI của bạn. Không bao giờ lỡ AI tốt nhất.
+
+Javis OS biến **Claude, ChatGPT, Gemini, Grok** và các model bạn chọn thành một đội ngũ làm việc 24/7 ngay trên máy hoặc server của bạn. Mỗi cộng sự có vai trò riêng, dùng chung trí nhớ và công cụ, và vẫn làm tiếp ở chế độ nền. Là AI agentic đổi được bộ não: có model mới tốt hơn thì đổi, mọi thứ đội đã học vẫn còn nguyên.
+
+**🌐 Website: [javisos.com](https://javisos.com)** · Mã nguồn mở · Tự host · 14 nhà cung cấp AI
 
 <!-- flags:start -->
 <p align="center">
@@ -131,6 +137,9 @@ Nhờ vậy:
 - 🗂️ **Quản lý tệp tin** - duyệt, **sửa file `.md`/`.txt` trực tiếp** trong trình duyệt, tìm file theo tên hoặc theo nội dung, tải lên/về.
 - 🧩 **Skills** - gom nhóm, tìm kiếm, **bật/tắt từng skill**, thêm/sửa/xoá, nhập/xuất gói; Javis tự xếp skill mới vào đúng nhóm.
 - 🧰 **Plugins** - thả một thư mục Python vào là có thêm **tool/hook native** cho MỌI engine, không phải sửa lõi.
+- 🧑‍🤝‍🧑 **Cộng sự** (trang Partners) - mỗi cộng sự AI một vai trò, một model, prompt và skill riêng; bật **Auto** là cộng sự tự làm tiếp không cần bạn.
+- 👥 **Nhóm (Teams)** - gom nhiều cộng sự vào một phòng chat: trưởng nhóm chia việc, các thành viên trả lời nhau, và cả nhóm chia sẻ được bằng một file.
+- 💬 **Chatbot đa kênh** - đặt một cộng sự chăm khách trên WhatsApp, Messenger, Instagram, Telegram, Slack, Lark, Threads, Zalo và Zalo OA, chung một hộp thư bạn nhảy vào trả lời được.
 - 🤖 **Agents & Workflows** - tạo trợ lý chuyên biệt (có bộ nhớ riêng) + chuỗi tự động nhiều bước, có bước kiểm chứng.
 - ♻️ **Việc định kỳ & nhắc hẹn** - nhiều vòng lặp chạy nền song song, mỗi vòng làm đúng một việc bạn mô tả rồi tự kiểm chứng; kèm nhắc hẹn theo giờ cố định hoặc cron.
 - 🗃️ **Việc (Kanban)** - giao một "goal" bằng lời, AI tự đặc tả, chọn worker, chạy nền và chỉ gọi bạn khi có ngoại lệ.
@@ -465,6 +474,8 @@ Không tiện donate cũng không sao - dùng Javis, góp ý, hay gửi một Pu
 ---
 
 <div align="center">
+
+**[javisos.com](https://javisos.com)**
 
 Made with ☕ by **[Minh Quý](https://minhquy.vn)** · Repo: `github.com/blogminhquy/javis-os`
 

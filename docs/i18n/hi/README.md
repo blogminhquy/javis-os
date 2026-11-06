@@ -1,13 +1,15 @@
 <!-- translated-from: README.md sha256:2e10ad3d2a86 -->
 <div align="center">
 
-<img src="../../../dashboard/logo.svg" width="88" alt="Javis OS का लोगो">
+<a href="https://javisos.com"><img src="../../assets/social-preview.png" width="100%" alt="Javis OS: Your AI Workforce. Never miss the best AI."></a>
 
 # Javis OS
 
-### आपका self-hosted AI agent, जिसका ब्रेन बदला जा सकता है, और एक Second Brain जो हर दिन ज़्यादा समझदार होता जाता है।
+### आपकी AI टीम। सबसे अच्छा AI कभी न चूकें।
 
-इसे अपने laptop या किसी छोटे VPS पर चलाइए। इससे आवाज़ में बात कीजिए। Claude, ChatGPT, Grok, Gemini या 12 providers में से किसी को भी जोड़िए, provider बदलने पर भी हर tool वैसा ही बना रहता है, और जब आप सो रहे हों तब इसे background में काम करने दीजिए।
+Javis OS **Claude, ChatGPT, Gemini, Grok** और आपके चुने हुए models को आपकी अपनी मशीन या server पर 24/7 काम करने वाली टीम में बदल देता है। हर साथी की अपनी भूमिका होती है, सब एक ही memory और tools साझा करते हैं, और background में काम करते रहते हैं। बेहतर model आए तो बदल दीजिए, टीम ने जो कुछ सीखा वह सब बना रहता है।
+
+**🌐 वेबसाइट: [javisos.com](https://javisos.com)** · Open source · Self-hosted · 14 AI providers
 
 [![GitHub stars](https://img.shields.io/github/stars/blogminhquy/javis-os?style=flat&logo=github&label=stars)](https://github.com/blogminhquy/javis-os/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](../../../LICENSE)
@@ -507,5 +509,6 @@ Javis OS मुफ़्त और open source है, और इसका code 
 
 <div align="center">
 <br>
+<b><a href="https://javisos.com">javisos.com</a></b><br>
 <b><a href="https://minhquy.vn">Minh Quý</a></b> ने वियतनाम में ☕ के साथ बनाया
 </div>
