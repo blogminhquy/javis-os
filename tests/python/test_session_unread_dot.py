@@ -53,6 +53,20 @@ check("a chat with no reply yet is not unread", u[asked] is False)
 check("partner chat counts too", unread_map(st, channel="agent:nguoi-viet")[ag] is True)
 check("unread is a real bool in the list", isinstance(u[web], bool))
 
+# Every partner kind lights the dot; bot and team chats never do (Teams keep their own unread count, customer bot
+# chats are read in the bot inbox).
+kinds = {ch: st.create_session(brain="/b", engine="cli", channel=ch)
+         for ch in ("workflow:viet-blog", "coding:javis-os", "bot:shop", "team:marketing", "teammate:an")}
+for sid in kinds.values():
+    st.append_message(sid, "user", "giao việc")
+    st.append_message(sid, "assistant", "xong rồi")
+check("workflow and coding chats count as partner chats",
+      st.is_unread(kinds["workflow:viet-blog"]) is True and st.is_unread(kinds["coding:javis-os"]) is True)
+check("bot and team chats never get the history dot",
+      not any(st.is_unread(kinds[ch]) for ch in ("bot:shop", "team:marketing", "teammate:an")))
+for sid in kinds.values():
+    st.mark_read(sid)
+
 check("mark_read on an existing chat", st.mark_read(web) is True)
 check("read chat loses the dot", unread_map(st)[web] is False and st.is_unread(web) is False)
 check("mark_read never moves the mark back", st.mark_read(web, at=1.0) is False)
