@@ -982,7 +982,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   body.nav-open .rail { left: 0; visibility: visible; transition: left .22s ease, visibility 0s;
     box-shadow: 8px 0 40px var(--shadow-veil); }
   .rail-top, .rail-foot { display: flex; }            /* hiện lại brand + version trong ngăn kéo */
-  .rail-nav { flex-direction: column; overflow: visible; gap: 2px; padding: 0; }
+  .rail-nav { flex-direction: column; overflow: visible; gap: 2px; padding: 0; flex: 1 0 auto; }
+  /* The drawer itself scrolls, so nothing inside may shrink. The desktop rule gives the nav list `min-height: 0` to let
+     it scroll on its own; left in the drawer, a long menu was squeezed below its content and the "System" group spilled
+     over the language picker under it (owner, iPhone 13 Safari, 2026-11-06). */
+  .rail > * { flex-shrink: 0; }
   .rail-group, .rail-grp-items { display: block; }
   .rail-grp-lbl { display: flex; }
   .rail-item { flex: none; flex-direction: row; gap: 10px; padding: 9px 10px; border-radius: 9px; }
