@@ -1,9 +1,9 @@
 """Fix what the speech recognizer heard (2026-11-06).
 
 Two entry points:
-  - `rewrite_transcript` (POST /stt/fix with `final`): the END of every dictation. The MAIN brain the owner picked on
-    the Models page (a subscription CLI or an API key, the same engine that answers the chat) rewrites the whole
-    sentence into what the owner meant, using the last messages of the chat as context. Any language, any mishearing:
+  - `rewrite_transcript` (POST /stt/fix with `final`): the END of every dictation. A model rewrites the whole
+    sentence into what the owner meant: the MAIN brain when it is an API key, else the quickest API key on the machine
+    (Groq first) with the main brain's CLI as the last resort, so a dictation stays fast, using the last messages of the chat as context. Any language, any mishearing:
     not a word list. Owner, 2026-11-06: "đừng chỉ sửa vài từ như Travis hay Jarvis, hãy sửa cả cấu trúc để mọi
     trường hợp đều ra đúng ngữ cảnh rồi mới gửi đi", and "dùng ngay chính mô hình chính".
   - `fix_transcript` (POST /stt/fix without `final`): the older word-level fix, kept for a page still open from before.
@@ -149,10 +149,15 @@ async def fix_transcript(cfg: dict, text) -> dict:
 
 # ───────────── the rewrite at the end of a dictation ─────────────
 
-# The main brain may be a CLI that needs a few seconds to start; the browser waits 25 seconds in all.
-MAIN_TIMEOUT_S = 20.0
-# The quick API fallback, used only when the main brain fails or gives an unusable answer.
-FALLBACK_TIMEOUT_S = 6.0
+# Fast first (owner, 2026-11-06: "làm nhanh trước"). A main brain on an API key answers in about a second, so it goes
+# first. A main brain that is a CLI (Claude Code, Codex, Grok Build, Antigravity) starts a whole program for each call,
+# several seconds, so an API key on the machine goes first and the CLI is the last resort. The browser waits 25
+# seconds in all: 5 for the quick key, then up to 19 for the CLI.
+MAIN_TIMEOUT_S = 19.0
+FALLBACK_TIMEOUT_S = 5.0
+_CLI_PROVIDERS = (aux_engine.CLAUDE, aux_engine.CODEX, aux_engine.GROK_CLI, aux_engine.ANTIGRAVITY)
+# Other keys worth a quick call when neither Groq nor the background model has one, fastest and cheapest first.
+_QUICK_ORDER = ("openai", "gemini", "openrouter", "deepseek")
 _rewrite_cache: dict = {}
 
 # Set by main.py: `async def ask(prompt: str) -> str` runs ONE text-only turn on the main brain, in an empty folder,
@@ -184,6 +189,29 @@ REWRITE_RULES = (
     "- Câu đã đúng thì trả về y nguyên.\n"
     "- Chỉ trả về câu đã viết lại, không ngoặc kép, không lời dẫn."
 )
+
+
+def main_is_cli(cfg: dict) -> bool:
+    """Whether the main brain on the Models page is a subscription CLI rather than an API key."""
+    try:
+        return (aux_engine.main_spec(cfg or {}).get("provider") or aux_engine.CLAUDE) in _CLI_PROVIDERS
+    except Exception:
+        return True
+
+
+def pick_quick_api(cfg: dict):
+    """(provider, key, model, url) of the fastest API key on the machine for a rewrite, or None.
+
+    Groq first, then the background model when it is an API with a key, then any other key."""
+    pick = pick_model(cfg)
+    if pick is not None:
+        return pick
+    m = (cfg or {}).get("model") or {}
+    for provider in _QUICK_ORDER:
+        key = m.get(aux_engine._KEY_FIELD.get(provider, "")) or ""
+        if key:
+            return (provider, key, _DEFAULT_MODELS[provider], _URLS[provider])
+    return None
 
 
 def build_rewrite_prompt(sentence: str, terms: list, context: list) -> str:
@@ -252,8 +280,8 @@ async def _ask_quick_api(pick, prompt: str, sentence: str) -> str:
 async def rewrite_transcript(cfg: dict, text, context=None) -> dict:
     """Return {"text": the sentence the owner meant, "source": "main" | <provider> | "rules", "ai": bool}.
 
-    Order: the main brain (wired `ask`), then a quick API key if the main brain failed, then the word-level rules.
-    Never raises.
+    Order, fast first: a main brain on an API key, else the quickest API key on the machine and then the main brain's
+    CLI; the word-level rules when nothing gives a usable rewrite. Never raises.
     """
     original = " ".join(str(text or "").split())
     if not original:
@@ -265,12 +293,10 @@ async def rewrite_transcript(cfg: dict, text, context=None) -> dict:
     if cache_key in _rewrite_cache:
         return dict(_rewrite_cache[cache_key])
     prompt = build_rewrite_prompt(by_rules, terms, ctx)
-    tries = []
-    if _ASK is not None:
-        tries.append(("main", lambda: asyncio.wait_for(_ASK(prompt), MAIN_TIMEOUT_S)))
-    pick = pick_model(cfg or {})
-    if pick is not None:
-        tries.append((pick[0], lambda: _ask_quick_api(pick, prompt, by_rules)))
+    main = [("main", lambda: asyncio.wait_for(_ASK(prompt), MAIN_TIMEOUT_S))] if _ASK is not None else []
+    pick = pick_quick_api(cfg or {})
+    quick = [(pick[0], lambda: _ask_quick_api(pick, prompt, by_rules))] if pick is not None else []
+    tries = quick + main if main_is_cli(cfg or {}) else main + quick
     for source, run in tries:
         try:
             out = clean_rewrite(await run())

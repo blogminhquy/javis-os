@@ -5,7 +5,8 @@
 Owner, 2026-11-06: "nói xong ấn Enter hoặc ấn tắt thì nó tự dùng mô hình viết lại thành câu đúng ngữ cảnh", "đừng
 chỉ sửa vài từ như Travis hay Jarvis, hãy sửa cả cấu trúc", "dùng ngay chính mô hình chính". No network: the main
 brain (`transcript_fix._ASK`) and the quick API call are fakes. Pins: the prompt carries the heard sentence, the
-vocabulary and the chat context; the main brain goes first; an answer that is not a rewrite (an answer to the
+vocabulary and the chat context; fast first (a main brain on an API key first, else an API key on the machine and
+the main brain's CLI last); an answer that is not a rewrite (an answer to the
 question, a much longer text, empty) or a failure falls through to the quick API and then the rules; results are
 cached; POST /stt/fix with `final` runs the rewrite and still never errors; main.py wires the main brain in a
 sandbox with no tools; the Whisper prompt keeps "Javis" at its end.
@@ -106,7 +107,7 @@ async def fake_quick(pick, prompt, sentence):
 transcript_fix._ASK = boom
 transcript_fix._ask_quick_api = fake_quick
 res = run({"model": {"groq_api_key": "gk"}}, "kiểm tra giúp anh travis đã nghe được chưa")
-check("main brain fails: the quick API key takes over", res["source"] == "groq" and quick == ["groq"]
+check("Groq key with a CLI main brain: Groq rewrites", res["source"] == "groq" and quick == ["groq"]
       and res["text"] == "Kiểm tra giúp anh Javis đã nghe được chưa.")
 res = run({}, "kiểm tra giúp anh jarvis đã nghe được chưa")
 check("no model at all: the word rules still run (Jarvis -> Javis)",
@@ -116,6 +117,56 @@ check("no model at all: the word rules still run (Jarvis -> Javis)",
 async def wrapped(prompt):
     return 'Câu đã viết lại: "Mở trang Models giúp anh."'
 
+
+# ---- fast first (owner, 2026-11-06: "làm nhanh trước") ----
+order = []
+
+
+async def main_ok(prompt):
+    order.append("main")
+    return "Kiểm tra giúp anh Javis đã nghe được chưa."
+
+
+async def quick_ok(pick, prompt, sentence):
+    order.append(pick[0])
+    return "Kiểm tra giúp anh Javis đã nghe được chưa."
+
+
+async def quick_down(pick, prompt, sentence):
+    order.append(pick[0])
+    raise RuntimeError("down")
+
+
+transcript_fix._ASK = main_ok
+transcript_fix._ask_quick_api = quick_ok
+HEARD2 = "kiểm tra giúp anh travis đã nghe được chưa"
+CLI_GROQ = {"model": {"main": {"provider": "anthropic-cli"}, "groq_api_key": "gk"}}
+order.clear()
+res = run(CLI_GROQ, HEARD2)
+check("main brain is a CLI and Groq has a key: Groq rewrites, the CLI is never started",
+      order == ["groq"] and res["source"] == "groq")
+order.clear()
+res = run({"model": {"main": {"provider": "openai-oauth"}, "gemini_api_key": "g"}}, HEARD2)
+check("main brain is Codex, only a Gemini key: Gemini rewrites", order == ["gemini"] and res["source"] == "gemini")
+transcript_fix._ask_quick_api = quick_down
+order.clear()
+res = run(CLI_GROQ, HEARD2)
+check("the quick key fails: the main brain's CLI is the last resort", order == ["groq", "main"] and res["source"] == "main")
+transcript_fix._ask_quick_api = quick_ok
+order.clear()
+res = run({"model": {"main": {"provider": "anthropic-cli"}}}, HEARD2)
+check("a CLI and no API key at all: the main brain still rewrites", order == ["main"] and res["source"] == "main")
+order.clear()
+res = run({"model": {"main": {"provider": "openrouter", "model": "x"}, "openrouter_key": "ok", "groq_api_key": "gk"}},
+          HEARD2)
+check("main brain is an API key: it goes first, even with a Groq key", order == ["main"] and res["source"] == "main")
+check("quick pick: Groq, then the background API, then any key",
+      transcript_fix.pick_quick_api({"model": {"deepseek_api_key": "d"}})[0] == "deepseek"
+      and transcript_fix.pick_quick_api({"model": {}}) is None)
+check("main_is_cli: Claude Code, Codex, Grok, Antigravity are CLIs; OpenRouter is not",
+      all(transcript_fix.main_is_cli({"model": {"main": {"provider": p}}})
+          for p in ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli"))
+      and not transcript_fix.main_is_cli({"model": {"main": {"provider": "openrouter"}}}))
 
 transcript_fix._ASK = wrapped
 res = run({}, "mở trang mo đồ giúp anh")
