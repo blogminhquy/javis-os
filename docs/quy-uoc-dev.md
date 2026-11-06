@@ -75,6 +75,21 @@ không được là tiếng Việt trần:
 - **KHÔNG dịch:** prompt và mô tả tool gửi cho model, regex nhận câu người dùng gõ hay nói, log,
   nội dung ghi vào brain của người dùng. Lý do ở `docs/dev/them-mot-ngon-ngu.md`.
 
+## Tên trong mã viết bằng tiếng Anh (từ 2026-11-06)
+
+Chủ repo chốt 06/11/2026: "đừng dùng các biến tiếng Việt, dự án quốc tế mà". Javis có người dùng và người đóng góp
+ngoài Việt Nam, họ phải đọc được mã mà không cần biết tiếng Việt.
+
+- **Mọi tên MỚI viết bằng tiếng Anh:** biến, hàm, lớp, hằng số, tham số, tên file và module, tên test. Ví dụ
+  `vocabulary`, `fix_vocabulary`, `transcript_fix.py`, không phải `tu_vung`, `tu_vung_sua`, `chinh_nghe.py`.
+- **Tên tiếng Việt có sẵn:** không mở PR chỉ để đổi tên hàng loạt. Khi PR sửa một cụm mã, đổi tên cụm đó sang tiếng
+  Anh luôn, kèm mọi chỗ gọi và mọi test, trong cùng PR (06/11/2026: cụm `tu_vung` của `nghe_sua.py` thành
+  `vocabulary`, `split_vocabulary`, `BASE_VOCABULARY`, `MAX_VOCABULARY`).
+- **Không đổi tên những thứ đã thành hợp đồng** khi chưa có đường chuyển đổi: khoá trong file settings, khoá JSON
+  mà dashboard hay máy khác đọc (ví dụ `hotwords_goc` của `/voice/options`), tên route, tên tool gửi cho model.
+- **Không phải là tên nên không dịch:** chữ hiện lên màn hình (đi qua i18n, xem mục trên), prompt gửi cho model,
+  regex nhận câu tiếng Việt người dùng nói, nội dung ghi vào brain.
+
 ## Chữ giải thích gập vào nút (i) (từ 0.214.0)
 
 Chủ repo chốt 18/10/2026: "có quá nhiều dòng giải thích, anh muốn các dòng giải thích đấy gọn lại trong chữ (i)

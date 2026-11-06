@@ -18,7 +18,7 @@ import voice_brain  # noqa: E402
 
 class TenJavis(unittest.TestCase):
     def test_cau_that_cua_nguoi_dung(self):
-        tv = nghe_sua.tu_vung({})
+        tv = nghe_sua.vocabulary({})
         self.assertEqual(nghe_sua.sua("Ok bây giờ giọng nói chắc là tốt rồi đúng không David", tv),
                          "Ok bây giờ giọng nói chắc là tốt rồi đúng không Javis")
         self.assertEqual(nghe_sua.sua("David ơi", tv), "Javis ơi")

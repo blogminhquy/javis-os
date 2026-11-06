@@ -28,7 +28,7 @@ Ranh giới của lớp 2, phải giữ để không sửa bừa:
   - Sửa xong chạy lại phải ra đúng chuỗi đó (idempotent), vì câu có thể đi qua lớp này hai lần
     (endpoint /stt rồi lại WebSocket).
 
-Module này KHÔNG đọc settings: nhận chữ + bộ từ vựng, trả chữ. `tu_vung(cfg)` ở dưới chỉ là
+Module này KHÔNG đọc settings: nhận chữ + bộ từ vựng, trả chữ. `vocabulary(cfg)` ở dưới chỉ là
 hàm tiện ích rút bộ từ vựng từ settings cho chỗ gọi, để ba cửa nghe (mic dashboard, Telegram,
 Zalo) dùng cùng một danh sách.
 """
@@ -38,13 +38,13 @@ import unicodedata
 
 # Tên trợ lý luôn có mặt, không cần người dùng khai. Bộ từ vựng người dùng thêm nằm ở
 # settings `voice.hotwords` (chuỗi, ngăn bằng dấu phẩy hoặc xuống dòng).
-TU_VUNG_GOC = ("Javis",)
+BASE_VOCABULARY = ("Javis",)
 # Thuật ngữ AI và sản phẩm hay bị nghe nhầm, đưa vào LỚP SỬA luôn (không chỉ mồi Whisper). Mỗi tên
 # phải tự khác âm với các tên còn lại, nếu không lớp sửa sẽ đổi nhầm: "Groq" và "Grok" đều có,
 # nên nói "Groq" vẫn giữ nguyên, còn "Grox" mới được sửa thành "Grok" (2026-11-06).
-TU_AI_SUA = ("Javis OS", "Groq", "Grok", "Claude", "ChatGPT", "Gemini", "OpenAI", "OpenRouter",
+AI_TERMS = ("Javis OS", "Groq", "Grok", "Claude", "ChatGPT", "Gemini", "OpenAI", "OpenRouter",
              "DeepSeek", "Ollama", "Whisper", "Codex", "Antigravity", "Anthropic", "Telegram")
-MAX_TU_VUNG = 60          # Whisper chỉ nhìn ~224 token cuối của prompt; hơn nữa là vô ích
+MAX_VOCABULARY = 60          # Whisper chỉ nhìn ~224 token cuối của prompt; hơn nữa là vô ích
 MAX_GHEP = 3              # ghép tối đa 3 tiếng liền nhau làm một ứng viên ("Gia vít", "Open Router")
 MAX_GOI_Y = 600           # trần độ dài prompt gửi Whisper (stt.groq_nghe cũng cắt ở mức này)
 
@@ -150,7 +150,7 @@ def do_giong(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def tach_tu_vung(chuoi) -> list:
+def split_vocabulary(chuoi) -> list:
     """Chuỗi người dùng gõ ở ô cài đặt -> danh sách từ, giữ thứ tự, bỏ trùng (không phân biệt hoa thường)."""
     ra, da = [], set()
     for phan in re.split(r"[,\n;]+", str(chuoi or "")):
@@ -165,31 +165,31 @@ def tach_tu_vung(chuoi) -> list:
     return ra
 
 
-def tu_vung(cfg: dict) -> list:
+def vocabulary(cfg: dict) -> list:
     """Bộ từ vựng hiệu lực: tên trợ lý + từ người dùng khai ở `voice.hotwords`."""
     v = (cfg or {}).get("voice") or {}
-    ra = list(TU_VUNG_GOC)
+    ra = list(BASE_VOCABULARY)
     da = {t.lower() for t in ra}
-    for t in tach_tu_vung(v.get("hotwords")):
+    for t in split_vocabulary(v.get("hotwords")):
         if t.lower() not in da:
             da.add(t.lower())
             ra.append(t)
-    return ra[:MAX_TU_VUNG]
+    return ra[:MAX_VOCABULARY]
 
 
-def tu_vung_sua(cfg: dict) -> list:
-    """Bộ từ vựng cho LỚP SỬA LUẬT: `tu_vung` cộng thuật ngữ AI (TU_AI_SUA).
+def fix_vocabulary(cfg: dict) -> list:
+    """Bộ từ vựng cho LỚP SỬA LUẬT: `vocabulary` cộng thuật ngữ AI (AI_TERMS).
 
-    Tách khỏi `tu_vung` vì danh sách đó cũng là mồi cho Whisper, mà Whisper chỉ giữ phần CUỐI prompt:
+    Tách khỏi `vocabulary` vì danh sách đó cũng là mồi cho Whisper, mà Whisper chỉ giữ phần CUỐI prompt:
     đưa thuật ngữ AI vào đó sẽ đẩy từ người dùng khai (Pancake, Webcake) ra xa âm thanh (2026-11-06).
     """
-    ra = list(tu_vung(cfg))
+    ra = list(vocabulary(cfg))
     da = {t.lower() for t in ra}
-    for t in TU_AI_SUA:
+    for t in AI_TERMS:
         if t.lower() not in da:
             da.add(t.lower())
             ra.append(t)
-    return ra[:MAX_TU_VUNG + len(TU_AI_SUA)]
+    return ra[:MAX_VOCABULARY + len(AI_TERMS)]
 
 
 def goi_y_whisper(tv, ky_thuat=TU_TIENG_ANH_MOI) -> str:
@@ -258,21 +258,21 @@ def _ten_rieng_hai_chu(toks, i, n, s, term) -> bool:
 
 # Ca nghe nhầm ĐÃ BIẾT, sửa theo đúng chính tả, không cần so âm. Tên Javis hay bị máy nghe ra
 # "Jarvis" (2026-11-06, chủ dự án báo: nói "Javis OS" mà chép thành "Jarvis OS").
-NGHE_NHAM_CO_DINH = (("Jarvis OS", "Javis OS"), ("Jarvis", "Javis"))
-_NGHE_NHAM_RE = [(re.compile(r"(?<!\w)" + re.escape(a) + r"(?!\w)", re.IGNORECASE), b)
-                 for a, b in NGHE_NHAM_CO_DINH]
+KNOWN_MISHEARINGS = (("Jarvis OS", "Javis OS"), ("Jarvis", "Javis"))
+_KNOWN_MISHEARINGS_RE = [(re.compile(r"(?<!\w)" + re.escape(a) + r"(?!\w)", re.IGNORECASE), b)
+                 for a, b in KNOWN_MISHEARINGS]
 
 
-def nghe_nham_co_dinh(text) -> str:
+def fix_known_mishearings(text) -> str:
     s = str(text or "")
-    for rx, rep in _NGHE_NHAM_RE:
+    for rx, rep in _KNOWN_MISHEARINGS_RE:
         s = rx.sub(rep, s)
     return s
 
 
 def sua(text, tv) -> str:
     """Sửa những từ nghe nhầm thành từ trong bộ từ vựng `tv`. Không có gì để sửa thì trả y nguyên."""
-    s = nghe_nham_co_dinh(text)
+    s = fix_known_mishearings(text)
     prefix, speech = split_ui_context(s)
     if prefix:
         return prefix + sua(speech, tv)

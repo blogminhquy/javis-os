@@ -243,7 +243,7 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords="
 
     `hotwords` là tham số `prompt` của Whisper: một danh sách tên riêng (hotwords) để nó ưu tiên
     chép đúng chính tả "Javis", tên công cụ, tên dự án thay vì từ gần âm ("David"). Chỗ gọi
-    lấy từ `nghe_sua.goi_y_whisper(nghe_sua.tu_vung(cfg))`; rỗng thì không gửi.
+    lấy từ `nghe_sua.goi_y_whisper(nghe_sua.vocabulary(cfg))`; rỗng thì không gửi.
 
     `ngon_ngu` gợi ý cho Whisper. Ba giá trị có ý nghĩa KHÁC NHAU, đừng gộp:
       None  -> chưa ai chốt, lấy `STT_MAC_DINH` ("vi"). Giữ hành vi cũ cho mọi chỗ gọi chưa

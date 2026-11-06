@@ -127,16 +127,16 @@ def _mcp_labels() -> list:
 
 
 def vocab(cfg: dict) -> list:
-    """Bộ từ mồi cho tai: tên trợ lý + từ người dùng khai (`nghe_sua.tu_vung`) + tên các kết nối
+    """Bộ từ mồi cho tai: tên trợ lý + từ người dùng khai (`nghe_sua.vocabulary`) + tên các kết nối
     MCP. Chỉ dùng làm MỒI cho model nghe, KHÔNG đưa vào lớp sửa mờ `nghe_sua.sua` (sửa mờ với
     nhiều tên dễ đổi nhầm một từ tiếng Việt)."""
-    out = list(nghe_sua.tu_vung(cfg))
+    out = list(nghe_sua.vocabulary(cfg))
     seen = {t.lower() for t in out}
     for label in _mcp_labels():
         if label.lower() not in seen:
             seen.add(label.lower())
             out.append(label)
-    return out[:nghe_sua.MAX_TU_VUNG]
+    return out[:nghe_sua.MAX_VOCABULARY]
 
 
 def whisper_lang(lang: str):
@@ -161,7 +161,7 @@ async def transcribe_upload(cfg: dict, data: bytes, filename: str = "voice.webm"
     """
     m = (cfg or {}).get("model") or {}
     v = (cfg or {}).get("voice") or {}
-    tv = nghe_sua.tu_vung_sua(cfg)
+    tv = nghe_sua.fix_vocabulary(cfg)
     hotwords = nghe_sua.goi_y_whisper(vocab(cfg))
     if provider == "openai":
         res = await stt.openai_nghe(data, filename or "voice.webm", m.get("openai_api_key", ""), "",
