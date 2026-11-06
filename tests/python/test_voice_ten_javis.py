@@ -29,7 +29,7 @@ class TenJavis(unittest.TestCase):
     def test_websocket_sua_ten_truoc_khi_luu(self):
         src = open(os.path.join(ROOT, "server", "main.py"), encoding="utf-8").read()
         i_sua = src.find("_sua = nghe_sua.sua(_speech, _tv)")
-        i_luu = src.find('store.append_message(conv_sid, "user", user_message)\n            # Bong bóng')
+        i_luu = src.find('store.append_message(conv_sid, "user", user_message, client_msg_id=_cmid or None)')
         self.assertGreater(i_sua, 0, "cửa WebSocket phải sửa tên nghe nhầm cho tin từ mic")
         self.assertGreater(i_luu, i_sua, "phải sửa trước khi lưu tin vào phiên")
         self.assertIn('"raw": _nghe_tho', src, "phải báo bong bóng kèm chữ thô, không âm thầm")

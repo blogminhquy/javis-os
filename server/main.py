@@ -20161,6 +20161,16 @@ async def _chat_socket(ws):
             user_message = payload.get("message", "").strip()
             if not user_message:
                 continue
+            # Owner, 06/11/2026: a message typed on the phone, then the app swiped away, vanished from the chat and from
+            # History. It had gone into a socket the phone had already let die, so the server never got it. The page
+            # now keeps each typed message until `chat_ack` comes back and sends it again on the next socket; the id
+            # makes that resend land once (the turn is not run twice), here and after a server restart.
+            _cmid = str(payload.get("client_msg_id") or "").strip()[:64]
+            _cmid_sid = str(payload.get("session_id") or "")
+            if _cmid and _cmid_sid and store.message_by_client_id(_cmid_sid, _cmid):
+                await send_client({"type": "chat_ack", "session_id": _cmid_sid, "client_msg_id": _cmid,
+                                   "dup": True, "running": bool(_CHAT_RUNTIME.get_job(_cmid_sid))})
+                continue
             _voice_raw = str(payload.get("voice_text") or user_message).strip()
             brain = payload.get("brain", "brain")
             _cfg_luot = cfgmod.read_settings()
@@ -20245,6 +20255,10 @@ async def _chat_socket(ws):
                 if payload.get("voice") and payload.get("utterance_id"):
                     await send_client({"type":"voice_busy", "session_id":conv_sid, "utterance_id":str(payload["utterance_id"])})
                 else:
+                    if _cmid:
+                        # Answered with the error below: the page stops holding it for a resend.
+                        await send_client({"type": "chat_ack", "session_id": conv_sid, "client_msg_id": _cmid,
+                                           "dup": False, "rejected": True})
                     await send_raw({"type": "error", "content": localefmt.chu(
                         "Phiên này đang trả lời - đợi lượt hiện tại xong đã.",
                         "This session is still answering - wait for the current turn to finish."),
@@ -20275,7 +20289,16 @@ async def _chat_socket(ws):
                     continue
                 _user_mid = int(_receipt.get("message_id") or 0)
             else:
-                _user_mid = store.append_message(conv_sid, "user", user_message)
+                if _cmid and store.message_by_client_id(conv_sid, _cmid):
+                    # The same message came in on another socket while this one was getting ready (no await between
+                    # this check and the insert below, so only one copy can pass).
+                    await send_client({"type": "chat_ack", "session_id": conv_sid, "client_msg_id": _cmid,
+                                       "dup": True, "running": bool(_CHAT_RUNTIME.get_job(conv_sid))})
+                    continue
+                _user_mid = store.append_message(conv_sid, "user", user_message, client_msg_id=_cmid or None)
+                if _cmid:
+                    await send_client({"type": "chat_ack", "session_id": conv_sid, "client_msg_id": _cmid,
+                                       "dup": False})
             # Bong bóng đang hiện chữ thô của máy nghe: báo câu đã sửa tên để người dùng thấy
             # Javis hiểu câu nào, chữ thô hiện nhỏ bên dưới.
             if _nghe_tho:

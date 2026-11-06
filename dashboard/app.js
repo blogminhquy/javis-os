@@ -19,6 +19,11 @@ function setSessionRunning(sid, on) {
 const SESSION_KEY = "javis.session.v1";
 let convo = [];            // [{role:"user"|"javis", text, atts}]
 let savedSessionId = null; // session_id của Claude để resume sau khi F5
+// Typed messages the server has not confirmed yet (chat_ack), kept in localStorage so a page the phone killed in the
+// background still sends them after it reloads. See _trackUnacked.
+const UNACKED_KEY = "javis.unacked.v1";
+let _unacked = [];
+try { const a = JSON.parse(localStorage.getItem(UNACKED_KEY) || "[]"); if (Array.isArray(a)) _unacked = a; } catch (e) {}
 const stopBtn = document.getElementById("stopBtn");
 let stopTag = null;        // tag phiên chat server phát qua message hello → Stop chỉ ngắt phiên MÌNH
 
@@ -68,6 +73,8 @@ function stopCurrent() {
   if (sid && ws && ws.readyState === WebSocket.OPEN) {
     try { ws.send(JSON.stringify({ action: "stop", session_id: sid })); } catch (e) {}
   }
+  // Stopped: a message of this chat still waiting for its ack must not be sent again on the next socket.
+  if (sid && _unacked.some(u => u.sid === sid)) { _unacked = _unacked.filter(u => u.sid !== sid); _saveUnacked(); }
   if (sid) {
     // Luôn gửi thêm qua HTTP: socket có thể OPEN trên giấy mà đã chết (máy ngủ, đổi Wi-Fi), lệnh
     // Dừng gửi vào đó là rơi mất. Dừng hai lần vô hại, server huỷ theo phiên. Job không phụ thuộc
@@ -1122,6 +1129,9 @@ document.addEventListener("visibilitychange", () => {
 // bfcache trả trang về từ bộ nhớ (persisted): trạng thái là ảnh chụp cũ, luôn hồi sức.
 window.addEventListener("pageshow", (e) => { if (e.persisted) _resumeSauNgu(true); });
 function _resumeSauNgu(force) {
+  // A message sent before the app went to the background is still unconfirmed: the socket died under it. Reconnect
+  // now whatever the sleep length, `hello` sends it again.
+  if (ws && ws.readyState === WebSocket.OPEN && _unackedOverdue()) { _hiddenAt = 0; _dropDeadSocket(); return; }
   // Ngủ dưới 20 giây (chuyển app qua lại) thì socket thường còn sống, đừng kéo lại hội
   // thoại một cách ồn ào - trừ khi bfcache (force) vì khi đó không biết đã ngủ bao lâu.
   if (!force && (!_hiddenAt || Date.now() - _hiddenAt < 20000)) return;
@@ -1197,6 +1207,8 @@ function handleMessage(data) {
       };
       setSessionRunning(sid, true);
     });
+    // Typed messages the old socket may have swallowed go out again now (the server drops a copy it already has).
+    _resendUnacked();
     // Lượt của phiên đang xem đã xong trong lúc đứt (lỗi hoặc không có chữ thì không có gì để tải
     // lại): bỏ chip "đang suy nghĩ" còn sót, không thì nó đếm mãi trong khi nút Gửi đã mở lại.
     if (savedSessionId && !(turns[savedSessionId] && turns[savedSessionId].running)) hideActivity();
@@ -1230,6 +1242,7 @@ function handleMessage(data) {
     if(data.type==='turn_done' && data.session_id===savedSessionId && _tinChoLuot) guiTinCho();
     return;
   }
+  if (data.type === "chat_ack") { _onChatAck(data); return; }
   if (data.type === "ui_action") {
     // Tool javis_ui (server) bảo dashboard mở trang / file / việc. ui-actions.js kiểm rồi làm
     // và tự trả ui_result về server để tool trả lời model ngay trong lượt.
@@ -1706,6 +1719,92 @@ function traTinDutMang() {
   showActivity(Icons.warn(window.t("app.ws_tra_tin")));
 }
 
+// ---- Messages sent but not yet confirmed by the server (owner, 06/11/2026) ----
+// "On the phone I type, press Enter, it spins, I swipe to another app and when I come back the whole exchange is
+// gone, not even in History. Sometimes, not always." A phone often lets the socket die in the background while the
+// page still sees it as OPEN, so ws.send() threw nothing and the message went nowhere. The spinner was local, the
+// server never got the message, and the resync on return redrew the chat from the server without it.
+// Now every typed message carries `client_msg_id` and stays here until the server answers `chat_ack`. No ack within
+// ACK_WAIT_MS means the socket is dead: drop it, and the next `hello` sends what is left again. The server stores
+// the id with the message, so a resend of a message it did get is answered with an ack and never runs twice.
+const ACK_WAIT_MS = 15000, UNACKED_TTL_MS = 30 * 60 * 1000;
+function _saveUnacked() {
+  try {
+    if (_unacked.length) localStorage.setItem(UNACKED_KEY, JSON.stringify(_unacked.slice(-10)));
+    else localStorage.removeItem(UNACKED_KEY);
+  } catch (e) {}
+}
+function _trackUnacked(sid, msg, atts, payload) {
+  _unacked.push({ id: payload.client_msg_id, sid, msg, atts, payload, at: Date.now(), sentAt: 0 });
+  if (_unacked.length > 10) _unacked.shift();
+  _saveUnacked();
+}
+function _dropUnacked(id) {
+  const n = _unacked.length;
+  _unacked = _unacked.filter(u => u.id !== id);
+  if (_unacked.length !== n) _saveUnacked();
+}
+function _sendUnacked(u) {
+  u.sentAt = Date.now();
+  _saveUnacked();
+  const sock = ws;
+  try { sock.send(JSON.stringify(u.payload)); } catch (e) {}
+  setTimeout(() => {
+    if (!_unacked.some(x => x.id === u.id)) return;
+    // Hidden page: timers are throttled and the phone may be asleep, _resumeSauNgu checks again on return.
+    if (sock === ws && ws.readyState === WebSocket.OPEN && !document.hidden) _dropDeadSocket();
+  }, ACK_WAIT_MS);
+}
+// A message waiting longer than ACK_WAIT_MS on the open socket: that socket is dead whatever readyState says.
+function _unackedOverdue() {
+  const now = Date.now();
+  return _unacked.some(u => u.sentAt && now - u.sentAt > ACK_WAIT_MS);
+}
+// From `hello`: the new socket sends again whatever the old one may have lost. Too old (the owner may have moved on)
+// goes back to the input box instead of running on its own.
+function _resendUnacked() {
+  if (!_unacked.length || !(ws && ws.readyState === WebSocket.OPEN)) return;   // held: the next hello sends them
+  const now = Date.now();
+  const stale = _unacked.filter(u => now - u.at > UNACKED_TTL_MS);
+  if (stale.length) {
+    _unacked = _unacked.filter(u => now - u.at <= UNACKED_TTL_MS);
+    _saveUnacked();
+    const mine = stale.filter(u => u.sid === savedSessionId).map(u => u.msg);
+    if (mine.length && !chatInput.value.trim()) {
+      chatInput.value = mine.join("\n");
+      ghiChuThoang(window.t("app.ws_tra_tin"));
+    }
+  }
+  _unacked.forEach(u => {
+    if (!(turns[u.sid] && turns[u.sid].running)) {
+      turns[u.sid] = { text: "", bubble: null, spoke: false, running: true,
+                       id: Number(u.payload.voice_turn_id) || ++_luotSeq };
+    }
+    setSessionRunning(u.sid, true);
+    _sendUnacked(u);
+  });
+}
+function _onChatAck(d) {
+  _dropUnacked(d.client_msg_id);
+  if (!d.dup || d.running) return;
+  // The server already had this message and its turn ended while the socket was down: close the turn here and load
+  // the stored answer.
+  const sid = d.session_id;
+  if (!sid || !(turns[sid] && turns[sid].running)) return;
+  handleMessage({ type: "turn_done", session_id: sid });
+  if (sid === savedSessionId) openStoredSession(sid);
+}
+// Messages still waiting for this chat, drawn under what the server returned, so a resync while one is in flight
+// does not wipe it off the screen. `ds`: the stored messages just drawn.
+function _drawUnacked(id, ds) {
+  const recent = (ds || []).slice(-6).filter(m => m.role === "user").map(m => _chuanTinSo(chuNguoiGo(m.content || "")));
+  _unacked.forEach(u => {
+    if (u.sid !== id || recent.includes(_chuanTinSo(u.msg))) return;
+    appendUserMessage(u.msg, u.atts || [], u.at);
+    convo.push({ role: "user", text: u.msg, atts: u.atts || [], ts: u.at });
+  });
+}
+
 // Phiên cộng sự (agent:/workflow:) -> phiên Trò chuyện đã GỌI nó bằng lệnh "/". Sống trong
 // bộ nhớ trang: tải lại trang là quên, và như vậy là đúng - lúc đó người dùng không còn đang
 // theo dõi cuộc gọi ấy nữa.
@@ -1937,16 +2036,26 @@ function sendMessage(text, opts) {
                           voice_input: _tuGiong, voice_turn_id: String(turns[sid].id),
                           wf_run: !!(opts && opts.wfRun), ...(adaptiveMeta || {}) };
   if(adaptiveMeta) { adaptiveCurrent.set(sid,adaptiveMeta.utterance_id);adaptiveOutbox.set(adaptiveMeta.utterance_id,{payload,element:userElement,since:performance.now()}); }
+  // Held until the server confirms it (chat_ack), resent on the next socket otherwise (see _trackUnacked).
+  // Adaptive voice already has its own receipt (adaptiveOutbox).
+  let _held = null;
+  if (!adaptiveMeta) {
+    payload.client_msg_id = newSid();
+    _trackUnacked(sid, msg, atts.map(a => ({ name: a.name, kind: a.kind, url: a.url || "" })), payload);
+    _held = _unacked[_unacked.length - 1];
+  }
   const _send = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       // The socket dropped while the first turn waited for the folder pin: nothing was sent,
       // so end the turn here and give the text back instead of losing it silently.
+      if (_held) _dropUnacked(_held.id);
       if (turns[sid]) turns[sid].running = false;
       setSessionRunning(sid, false); hideActivity(); syncActiveUI();
       chatInput.value = msg;
       ghiChuThoang(window.t("app.ws_mat_ket_noi"));
       return;
     }
+    if (_held) { _sendUnacked(_held); return; }
     try { ws.send(JSON.stringify(payload)); } catch (e) {}
   };
   const _w = _pinWait; _pinWait = null;
@@ -2400,6 +2509,7 @@ function _veLaiPhien(id, sess, ticket, capNhat) {
     _dangDungLoat = true;
     try { ngoaiAlpine(() => ds.forEach(m => { const t = veTinDaLuu(m, sess.brain, id); if (t) convo.push(t); })); }
     finally { _dangDungLoat = false; }
+    _drawUnacked(id, ds);
     _tinCu = ds.length
       ? { sid: id, brain: sess.brain, ts: ds[0].ts, id: ds[0].id, con: !!sess.has_more, dangTai: false }
       : null;
