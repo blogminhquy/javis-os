@@ -8,6 +8,23 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.498.0] - 2026-11-07
+### Improved
+- **Partner voice calls keep longer instructions.** The partner file text sent into a call grows from 4,000 to 12,000 characters and memory from 2,000 to 6,000, adjustable with `JAVIS_VOICE_AGENT_BODY_CHARS` and `JAVIS_VOICE_AGENT_MEMORY_CHARS`. Rules placed between `<!-- JAVIS_VOICE_RULES_START -->` and `<!-- JAVIS_VOICE_RULES_END -->` in the partner file always move to the top and are never cut.
+- **Partners do not make up figures on a call.** Every partner call carries a rule that is never cut: changing facts come from tools, and a task is reported done only when a tool returned success.
+
+## [0.497.0] - 2026-11-07
+### Added
+- **Your own mascot picture.** In Settings > Mascot, tap Upload a picture: it is cut to the chosen shape and shows on the pet, the sidebar mark and the shape picker. Use the Javis face brings the drawn face back.
+- **The same picture becomes the browser tab icon**, so several Javis open at once tell apart at a glance. A switch keeps the logo on the tab if you prefer.
+
+## [0.496.0] - 2026-11-07
+### Added
+- **Name the account at its first sign-in.** The ChatGPT, Claude Code, Grok and Antigravity cards and an API card's first key ask for a name before signing in, and the name shows on the card's status line, so accounts are never mixed up.
+- **Rename an account any time.** A card's ⋯ has "Name the account", and every account in a card's list has "Rename". A newly added account needs a name.
+### Improved
+- **Connect another provider has no popup any more.** One tap unfolds every provider card right below, a second tap folds them.
+
 ## [0.495.1] - 2026-11-07
 ### Fixed
 - **The chat no longer sits on "Lost the connection to the server" for hours.** A message the server failed on used to drop the connection, the page reconnected and sent the same message again, which dropped it again, forever, even across server restarts. Now the server shows the error under that message and the connection stays up.

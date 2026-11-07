@@ -112,8 +112,35 @@ check("Use for background work saves the card as the background model",
 check("the Effort sheet carries the composer's Fast mode bolt, one app-wide setting",
   /fast: \{ supported: fn\.supported, on: c\.fast/.test(B) && /saveSetting\("model", \{ fast: on \}\)/.test(B)
   && /javis:fast-changed/.test(B) && /javis:fast-changed/.test(D("model-picker.js")));
-check("Connect another provider opens a sheet and brings the picked card into view",
-  /menuSheet\(more, t\("models\.connect_more"\)/.test(B) && /data-offp=/.test(CL) && /ord-flash/.test(B));
+// Owner 07/11/2026: "no popup there, a click should just open all the connections".
+check("Connect another provider unfolds every card in place, no sheet",
+  !/menuSheet\(more/.test(B) && /more\.onclick = \(\) => \{\s*const box = showOff\(el\.querySelector\("#ordOff"\)\.hidden\);/.test(B)
+  && /id="ordMore" aria-controls="ordOff" aria-expanded=/.test(CL) && !/id="ordMore" aria-haspopup/.test(CL)
+  && /\.ord-more\[aria-expanded="true"\] \.ord-more-c \{ transform: rotate\(180deg\); \}/.test(D("console.css")));
+// Owner 07/11/2026: the first sign-in of every card asks for the account's name, so accounts never read alike.
+const RC = JS.slice(JS.indexOf("async function refreshClaudeCard"), JS.indexOf("function veCapNhatClaude"));
+check("first sign-in: a name box on ChatGPT, Grok, Antigravity, Claude Code and an API card's first key",
+  /\$\{acctNameField\(p\.id\)\}<button class="gcard-btn" data-oauth-login="1">/.test(CL)
+  && /\$\{acctNameField\(p\.id\)\}<button class="gcard-btn" data-groklogin="1">/.test(CL)
+  && /\$\{on \? "" : acctNameField\(p\.id\)\}<button class="gcard-btn ghost" data-agycheck="1">/.test(CL)
+  && /\$\{acctNameField\("anthropic-cli"\)\}<button class="gcard-btn" id="cliLogin">/.test(RC)
+  && /!on && multiKey\.indexOf\(p\.id\) >= 0 \? acctNameField\(p\.id\)/.test(CL));
+check("the sign-in waits for the name and saves it as account 1's label before the link opens",
+  /const name = takeAcctName\(el, pid\);\s*if \(name === null\) return;\s*try \{ await savePlanName\(pid, name\); \}/.test(JS)
+  && /const name = takeAcctName\(el, "anthropic-cli"\);\s*if \(name === null\) return;/.test(JS)
+  && /const name = takeAcctName\(el, "grok-cli"\);/.test(JS)
+  && /label: a\.id === "main" \? name :/.test(JS));
+check("an API card's first key is saved under the typed name",
+  /\{ \[KEYFIELD\[pid\]\]: val, key_label: name \}/.test(JS));
+check("the card's status line carries account 1's name",
+  (CL.match(/esc\(acctNameTag\(p\.id\)\)/g) || []).length === 3 && /acctNameTag\("anthropic-cli"\)/.test(RC));
+check("adding another plan account needs its name; every plan account can be renamed, account 1 too",
+  /if \(!box\.dataset\.re && !needLabel\(box\)\) return;/.test(B)
+  && (B.match(/!needLabel\(box\)/g) || []).length === 2
+  && /label: t\("models\.acct_rename"\), run: \(\) => renamePlan\(btn, pid, id, name, a\.label\)/.test(B)
+  && /label: t\("models\.acname_edit"\)[\s\S]{0,160}renamePlan\(b, pid, "main"/.test(B));
+check("the new strings exist in Vietnamese and English",
+  ["models.acname_ph", "models.acname_need", "models.acname_edit", "models.acname_none"].every(k => VI[k] && EN[k]));
 check("the Swap button sits in the middle of the gap", /\.ord-swap-row \{ display: flex; align-items: center; justify-content: center; margin: 4px 0; \}/.test(D("console.css")));
 check("OpenAI Compatible (advanced keys) and Claude Compatible: two cards, each a list of gateways",
   /data-dnd="adv:/.test(CL) && /const advSheet = /.test(B) && /"\/provider\/" \+ ADV \+ "\/connect"/.test(B)
