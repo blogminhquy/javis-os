@@ -50,12 +50,15 @@ document.getElementById("add").onclick = function () {
   list.push(v); save(list); draw();
 };
 fetch("/sessions?limit=40").then(function (r) { return r.json(); }).then(function (d) {
+  var hint = document.getElementById("hint");
+  if (d.auth_required) hint.innerHTML = 'Not signed in on this address. <a href="/" target="_blank" style="color:#8ab4ff">Sign in to Javis here</a>, then reload this page.';
+  else if (!d.sessions || !d.sessions.length) hint.textContent = "No chats loaded: " + JSON.stringify(d).slice(0, 120);
   (d.sessions || []).forEach(function (s) {
     titles[s.id] = s.title || s.id.slice(0, 8);
     var o = document.createElement("option"); o.value = s.id; o.textContent = titles[s.id]; pick.appendChild(o);
   });
   draw();
-}).catch(function () { draw(); });
+}).catch(function (e) { document.getElementById("hint").textContent = "Load failed: " + e; draw(); });
 </script>
 </body>
 </html>

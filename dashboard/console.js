@@ -366,7 +366,8 @@
     try {
       const saved = localStorage.getItem(TRANG_CUOI_KEY);
       const resolved = TRANG_GOP[saved] || saved;
-      if (resolved === "chat" || resolved === "workspace") id = resolved;
+      // Pane mode (multi.html) stays on "home": the chat page would move #chatArea into the hidden #cview.
+      if (!document.documentElement.classList.contains("pane-mode") && (resolved === "chat" || resolved === "workspace")) id = resolved;
     } catch (e) {}
     const store = Alpine.store("nav");
     store.openGroup = groupLabelOf(id) || groupLabelOf("home");   // Chat stands alone: keep the Brain group open
@@ -10243,7 +10244,9 @@
     };
     if (cct) cct.onclick = () => datChatColThu(true);
     if (ccm) ccm.onclick = () => datChatColThu(false);
-    try { if (localStorage.getItem("javis_chatcol_thu") === "1") document.body.classList.add("chatcol-thu"); } catch (e) {}
+    // Pane mode (multi.html): the chat IS the whole frame, never restore the collapsed column / brain-max.
+    if (document.documentElement.classList.contains("pane-mode")) document.body.classList.remove("chatcol-thu", "brain-max");
+    else try { if (localStorage.getItem("javis_chatcol_thu") === "1") document.body.classList.add("chatcol-thu"); } catch (e) {}
     refreshEngineBanner();
     setInterval(refreshEngineBanner, 90000);
     // Báo "chưa kết nối" mà không đưa được người ta tới chỗ kết nối thì chỉ là than phiền.
