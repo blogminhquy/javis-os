@@ -11700,8 +11700,18 @@ def _workflow_agent_helpers(brain, tools, mode=None):
     gated_mode = str(mode or "auto") if str(mode or "auto") in ("suggest", "auto") else "auto"
 
     def _mk(sysprompt, model=None, provider="", extra_tools=()):
+        # An interactive step whose agent pins no model runs on the owner's MAIN model, like a chat turn
+        # (owner report 2026-11-06, PR #1125): before this it always fell back to Claude, whatever brain was picked
+        # on the Models page. A pinned agent keeps its pin; the gated background run (tools is not None) stays on
+        # Claude Code by design, see the comment further down.
+        from_main = False
+        if tools is None and not str(model or "").strip() and not str(provider or "").strip():
+            main_spec = _effective_main(cfgmod.read_settings())
+            model = str(main_spec.get("model") or "")
+            provider = str(main_spec.get("provider") or "")
+            from_main = True
         prov = _agent_model_provider(model, provider)
-        if prov == "openai-oauth" and model and tools is None and find_codex_cli():
+        if prov == "openai-oauth" and (model or from_main) and tools is None and find_codex_cli():
             openai_oauth.write_codex_auth()
             cc = CodexCLI(cwd=vault_root, tag="workflow", model=_codex_safe_model(model),
                           instructions=sysprompt)
