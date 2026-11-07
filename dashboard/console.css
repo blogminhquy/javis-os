@@ -3796,13 +3796,16 @@ span.tmp-lead { cursor: default; }
 .rsa-desc { color: var(--text2); }
 /* 2026-11-07 (owner: the grey role line under the name "vừa xấu vừa không đọc được thông tin gì cả"): an assistant card
    shows its name only, on the top line beside the avatar; the role opens whole from an (i) in the top right corner, on
-   the name's row and right above the Auto switch. It sits left of the "..." slot on every card, Javis Core included, so
-   the (i) column lines up down the list. The name row keeps room for it; the touch area stays small so it does not
-   swallow taps meant for Auto. */
+   the name's row and right above the Auto switch, its centre on the same vertical line as the switch's centre (owner:
+   "căn dọc phải bằng với công tắc"): the switch is 24px wide, 4px inside the pill, the pill 8px from the edge, so its
+   centre is 24px from the card's right edge and the 20px (i) sits at right 14px. The "..." (shown on hover) moves to
+   the left of the (i). The name row keeps room for both; the touch area stays small so it does not swallow taps meant
+   for Auto. */
 .ws-item-wrap.has-end .ws-item-text { align-self: flex-start; }
-.ws-item-info { position: absolute; right: 30px; top: 8px; display: flex; }
+.ws-item-info { position: absolute; right: 14px; top: 8px; display: flex; }
 .ws-item-info > .info-i { margin-left: 0; }
-.ws-item-wrap.has-info .ws-item-top { padding-right: 22px; }
+.ws-item-wrap.has-info > .ws-item-more { right: 36px; }
+.ws-item-wrap.has-info .ws-item-top { padding-right: 30px; }
 @media (hover: none), (max-width: 600px) { .ws-item-info > .info-i::after { inset: -6px; } }
 .info-pop .ws-info-name { margin: 0 0 4px; }
 .info-pop .ws-info-role { margin: 0; white-space: pre-line; }

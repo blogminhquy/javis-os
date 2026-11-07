@@ -52,9 +52,21 @@ check("without info-tip.js nothing is drawn (the role stays in the card's toolti
 check("mini card falls back to the role", /sub: phu \? phu\.textContent : \(x && x\.role\) \|\| ""/.test(src));
 
 // CSS: top right on the name's row, left of the "..." slot, hidden in the collapsed column, small touch area.
-check("CSS: (i) in the top right corner, left of the ... slot",
-  /\.ws-item-info \{ position: absolute; right: 30px; top: 8px; display: flex; \}/.test(css)
-  && /\.ws-item-wrap\.has-info \.ws-item-top \{ padding-right: 22px; \}/.test(css));
+// Owner: "căn dọc phải bằng với công tắc". Switch centre = pill right (8) + pill padding (4) + half the switch (12) = 24px
+// from the card's edge; the (i) is 20px wide, so right 14px puts its centre on that line.
+const num = (re) => { const m = css.match(re); return m ? Number(m[1]) : NaN; };
+const pillRight = num(/\.ws-item-end \{ position: absolute; right: (\d+)px;/);
+const pillPadRight = num(/\.ws-item-end > \.ws-auto \{ margin: 0; min-height: 20px; padding: 0 (\d+)px 0 7px;/);
+const switchW = num(/\.ws-auto \.toggle-sm \{ width: (\d+)px;/);
+const infoRight = num(/\.ws-item-info \{ position: absolute; right: (\d+)px; top: 8px; display: flex; \}/);
+const styleCss = fs.readFileSync(path.join(ROOT, "dashboard", "style.css"), "utf8");
+const infoWm = styleCss.match(/\n\.info-i \{ position: relative; display: inline-flex; align-items: center; justify-content: center; width: (\d+)px;/);
+const infoW = infoWm ? Number(infoWm[1]) : NaN;
+check("CSS: (i) centre on the same vertical line as the Auto switch centre",
+  pillRight + pillPadRight + switchW / 2 === infoRight + infoW / 2, [pillRight, pillPadRight, switchW, infoRight, infoW].join(","));
+check("CSS: the ... moves left of the (i), the name row keeps room for both",
+  /\.ws-item-wrap\.has-info > \.ws-item-more \{ right: 36px; \}/.test(css)
+  && /\.ws-item-wrap\.has-info \.ws-item-top \{ padding-right: 30px; \}/.test(css));
 check("CSS: name on the top line, the Auto row keeps its own space",
   /\.ws-item-wrap\.has-end \.ws-item-text \{ align-self: flex-start; \}/.test(css)
   && /\.ws-item-wrap\.has-end \.ws-item-text > :last-child:not\(\.ws-item-top\) \{ padding-right: 104px; \}/.test(css));
