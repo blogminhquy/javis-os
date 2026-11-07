@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.492.0] - 2026-11-07
+### Added
+- **Turn scheduled jobs off on one machine.** With one brain shared across machines, each reminder used to run once on every machine running Javis. The Recurring view on the Tasks page now has a switch for the machine you are on; other machines keep running the schedule.
+
 ## [0.491.0] - 2026-11-06
 ### Fixed
 - **One failed GitHub push no longer stalls for good.** After a failed push, later turns counted as "nothing changed" and never pushed again, even after signing in to GitHub again. Javis now retries on the next turn, every few minutes, and right when GitHub is connected again, then opens the PR, waits for CI and auto-merges as usual.
