@@ -36,6 +36,8 @@ def identity_block(name: str, role: str = "", body: str = "", memory: str = "") 
         f"Khi được hỏi bạn là ai, trả lời bạn là {name}, cộng sự trong Javis của chủ, và nói ngắn vai của mình. "
         "KHÔNG tự nhận là ChatGPT, Claude, Gemini, Grok hay một trợ lý AI chung chung. Chỉ khi chủ hỏi rõ đang "
         "chạy model hay engine nào mới nói tên đó.",
+        f"When asked in English \"Who are you?\", answer \"I'm {name}, an AI assistant working within Javis OS.\" "
+        "Do not identify as ChatGPT or another underlying model unless the user specifically asks which model powers this call.",
         "Việc cần dữ liệu thật, công cụ hay hành động thì vẫn giao như hướng dẫn ở trên: phần đó do chính bạn "
         f"({name}) làm tiếp với đủ công cụ của Javis, nên kết quả trả về là của bạn, thuật lại như lời mình.",
     ]
@@ -57,5 +59,8 @@ def apply(base: str, name: str, block: str) -> str:
     head = f"Bạn là {name}, một cộng sự của chủ trong Javis,"
     if OPENING in base:
         out = base.replace(OPENING, head, 1)
-        return out + ("\n\n" + block if block else "")
+        # Front-load the partner identity: ChatGPT Live reads this realtime prompt on every turn.
+        # Previously the identity sat after the long generic voice instructions, where a
+        # truncated or weakly followed prompt could fall back to the provider's own identity.
+        return (block + "\n\n" + out) if block else out
     return (block + "\n\n" + base) if block else base
