@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.500.0] - 2026-11-07
+### Improved
+- **Cleaner assistant cards.** The grey, cut-off role line under each assistant's name is gone. The full role now opens from an (i) button in the card's top right corner, right above the Auto switch.
+
 ## [0.499.0] - 2026-11-07
 ### Added
 - **Call Javis over the API without holding a connection open.** `POST /chat/jobs` answers at once with a job id, the turn runs in the background, and `GET /chat/jobs/{id}` returns the answer later. Good for serverless backends, and a dropped connection no longer loses the result.
