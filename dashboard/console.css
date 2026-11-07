@@ -4462,3 +4462,13 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   .ro-hint { font-size: 17px; }
   .cside-reorder { width: 34px; height: 30px; }
 }
+
+/* Multi-pane iframe (multi.html opens the dashboard with ?pane=<sid>): show only the chat. */
+html.pane-mode { --rail-w: 0px; }
+html.pane-mode .rail,
+html.pane-mode .hud-top,
+html.pane-mode .hud-left,
+html.pane-mode .hud-right,
+html.pane-mode #cview { display: none !important; }
+html.pane-mode .hud-body { grid-template-columns: minmax(0, 1fr); }
+html.pane-mode .hud { margin-left: 0; width: 100%; grid-template-rows: 0 1fr auto auto auto; }

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Javis - side by side chats</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #14151a; color: #e6e6e6; font: 14px system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  #bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #2a2c35; }
+  #bar select, #bar button { font: inherit; padding: 4px 8px; background: #20222b; color: inherit; border: 1px solid #343744; border-radius: 6px; }
+  #bar select { max-width: 360px; }
+  #panes { flex: 1; display: flex; gap: 6px; padding: 6px; min-height: 0; }
+  .pane { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; border: 1px solid #2a2c35; border-radius: 8px; overflow: hidden; }
+  .pane header { display: flex; justify-content: space-between; padding: 3px 8px; background: #1b1d25; font-size: 12px; }
+  .pane header button { background: none; border: 0; color: inherit; cursor: pointer; }
+  .pane iframe { flex: 1; border: 0; width: 100%; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <select id="pick"><option value="">+ Add a chat…</option></select>
+  <button id="add">Add</button>
+  <span id="hint"></span>
+</div>
+<div id="panes"></div>
+<script>
+// State lives in the URL (?s=sid1,sid2,sid3) so a reload or a bookmark restores the layout. Max 3 panes.
+var MAX = 3, panes = document.getElementById("panes"), pick = document.getElementById("pick");
+var titles = {};
+function sids() { var s = new URLSearchParams(location.search).get("s"); return s ? s.split(",").filter(Boolean).slice(0, MAX) : []; }
+function save(list) { history.replaceState(null, "", "?s=" + list.join(",")); }
+function draw() {
+  panes.innerHTML = "";
+  sids().forEach(function (sid) {
+    var d = document.createElement("div"); d.className = "pane";
+    var h = document.createElement("header"), t = document.createElement("span"), x = document.createElement("button");
+    t.textContent = titles[sid] || sid.slice(0, 8); x.textContent = "x";
+    x.onclick = function () { save(sids().filter(function (v) { return v !== sid; })); draw(); };
+    h.appendChild(t); h.appendChild(x);
+    var f = document.createElement("iframe"); f.src = "/?pane=" + encodeURIComponent(sid);
+    d.appendChild(h); d.appendChild(f); panes.appendChild(d);
+  });
+}
+document.getElementById("add").onclick = function () {
+  var list = sids(), v = pick.value;
+  if (!v || list.indexOf(v) >= 0) return;
+  if (list.length >= MAX) { document.getElementById("hint").textContent = "Max " + MAX + " chats at once."; return; }
+  document.getElementById("hint").textContent = "";
+  list.push(v); save(list); draw();
+};
+fetch("/sessions?limit=40").then(function (r) { return r.json(); }).then(function (d) {
+  (d.sessions || []).forEach(function (s) {
+    titles[s.id] = s.title || s.id.slice(0, 8);
+    var o = document.createElement("option"); o.value = s.id; o.textContent = titles[s.id]; pick.appendChild(o);
+  });
+  draw();
+}).catch(function () { draw(); });
+</script>
+</body>
+</html>
