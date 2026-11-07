@@ -57,6 +57,7 @@ import claude_cli   # binary `claude`: tìm đường, auth, và danh mục mode
 import codex_models   # thang effort mà CHÍNH Codex khai cho từng model (model/list)
 import fast_mode   # composer Fast mode bolt: per-turn choice and per-brain parameters (0.164.0)
 import config as cfgmod
+import chat_jobs   # async /chat turns, POST /chat/jobs (#1021)
 import update_state
 _ver_tuple = update_state.ver_tuple
 _ver_newer = update_state.ver_newer
@@ -424,7 +425,10 @@ def _token_ok(request, path: str) -> bool:
     ip = request.client.host if request.client else ""
     if cfgmod.token_ip_banned(ip):
         return False
-    if cfgmod.verify_api_token(raw, path):
+    entry = cfgmod.verify_api_token(raw, path)
+    if entry:
+        # Who called, for routes that keep per-caller state (POST /chat/jobs, #1021).
+        request.state.api_token_id = str(entry.get("id") or "")
         return True
     cfgmod.note_token_failure(ip, raw[:12])
     return False
@@ -27743,6 +27747,22 @@ def _cli_payload(out, key: str) -> dict:
     return {"ok": False, "text": str(out or ""), "session": key, "files": [], "ctx_path": ""}
 
 
+def _cli_checks(message: str, brain: str, session: str, agent: str, project: str):
+    """The checks /chat, /chat/stream and /chat/jobs run before a turn starts.
+
+    Returns (agent, project_id, None) when the turn may run, or (None, "", a 400 response)."""
+    if not str(message or "").strip():
+        return None, "", JSONResponse({"ok": False, "error": localefmt.chu("message rỗng", "message is empty")},
+                                      status_code=400)
+    ag, error = _cli_agent(brain, session, agent)
+    if error:
+        return None, "", JSONResponse({"ok": False, "error": error}, status_code=400)
+    pid, error = _cli_project(brain, session, project, agent=ag)
+    if error:
+        return None, "", JSONResponse({"ok": False, "error": error}, status_code=400)
+    return ag, pid, None
+
+
 @app.post("/chat")
 async def chat_once(message: str = Form(...), brain: str = Form(""),
                     session: str = Form(""), host: str = Form(""), agent: str = Form(""),
@@ -27761,14 +27781,9 @@ async def chat_once(message: str = Form(...), brain: str = Form(""),
     attached to it before this turn (and stays there), so its rules apply from the first message.
     A project missing from the brain, or sent together with `agent`, is a 400.
     """
-    if not str(message or "").strip():
-        return JSONResponse({"ok": False, "error": localefmt.chu("message rỗng", "message is empty")}, status_code=400)
-    ag, error = _cli_agent(brain, session, agent)
-    if error:
-        return JSONResponse({"ok": False, "error": error}, status_code=400)
-    pid, error = _cli_project(brain, session, project, agent=ag)
-    if error:
-        return JSONResponse({"ok": False, "error": error}, status_code=400)
+    ag, pid, bad = _cli_checks(message, brain, session, agent, project)
+    if bad is not None:
+        return bad
     out, key = await _cli_turn(message, brain, session, host, agent=ag, project_id=pid)
     return _cli_payload(out, key)
 
@@ -27791,14 +27806,9 @@ async def chat_stream(message: str = Form(...), brain: str = Form(""),
     `agent` and `project` as on /chat. Checked BEFORE the stream opens: once it is open the status
     is already 200.
     """
-    if not str(message or "").strip():
-        return JSONResponse({"ok": False, "error": localefmt.chu("message rỗng", "message is empty")}, status_code=400)
-    ag, error = _cli_agent(brain, session, agent)
-    if error:
-        return JSONResponse({"ok": False, "error": error}, status_code=400)
-    pid, error = _cli_project(brain, session, project, agent=ag)
-    if error:
-        return JSONResponse({"ok": False, "error": error}, status_code=400)
+    ag, pid, bad = _cli_checks(message, brain, session, agent, project)
+    if bad is not None:
+        return bad
 
     hang = asyncio.Queue()
 
@@ -27829,6 +27839,65 @@ async def chat_stream(message: str = Form(...), brain: str = Form(""),
 
     return StreamingResponse(_phat(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+_CHAT_JOBS = chat_jobs.ChatJobs(cfgmod.STATE_DIR / "chat_jobs.json")
+
+
+def _chat_job_owner(request: Request) -> str:
+    """Who owns a job: the API token that called, else the signed-in owner (cookie, or a server with
+    no login gate). Jobs never cross owners, so one token cannot read another token's answers."""
+    tid = str(getattr(request.state, "api_token_id", "") or "")
+    if not tid and _bearer(request):
+        # No gate on this server, so the middleware never checked the token: resolve it here so two
+        # tokens still keep their jobs apart.
+        entry = cfgmod.verify_api_token(_bearer(request), duong_dan_router(request))
+        tid = str((entry or {}).get("id") or "")
+    return ("token:" + tid) if tid else "owner"
+
+
+@app.post("/chat/jobs")
+async def chat_job_start(request: Request, message: str = Form(...), brain: str = Form(""),
+                         session: str = Form(""), host: str = Form(""), agent: str = Form(""),
+                         project: str = Form("")):
+    """Start a /chat turn in the background and answer at once with `{"ok": true, "job_id"}` (#1021).
+
+    Same fields and same 400s as /chat, checked before anything starts. Poll
+    `GET /chat/jobs/{job_id}` for the answer. 429 when this caller already has too many running jobs,
+    409 when this conversation (session plus agent) already has one running.
+    """
+    ag, pid, bad = _cli_checks(message, brain, session, agent, project)
+    if bad is not None:
+        return bad
+    lane = _cli_sess_key(session) + (f"@{ag['slug']}" if ag else "")
+
+    async def _runner():
+        out, key = await _cli_turn(message, brain, session, host, agent=ag, project_id=pid)
+        return _cli_payload(out, key)
+
+    job_id, reason = _CHAT_JOBS.start(_chat_job_owner(request), lane, _runner)
+    if reason == "busy_owner":
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            f"Đang có {chat_jobs.MAX_RUNNING_PER_OWNER} job chạy, chờ một job xong rồi gửi tiếp",
+            f"{chat_jobs.MAX_RUNNING_PER_OWNER} jobs are already running, wait for one to finish")},
+            status_code=429)
+    if reason == "busy_lane":
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            "Phiên này đang có một job chạy, chờ nó xong rồi gửi tiếp",
+            "This session already has a running job, wait for it to finish")}, status_code=409)
+    return {"ok": True, "job_id": job_id}
+
+
+@app.get("/chat/jobs/{job_id}")
+async def chat_job_status(job_id: str, request: Request):
+    """`{"ok", "job_id", "status": running|done|error, "created_at", "finished_at"}`, plus the /chat payload
+    (`text`, `session`, `files`, `ctx_path`) when done, or `error` when it failed. 404 for an unknown or
+    expired id, and for a job another caller started."""
+    view = _CHAT_JOBS.get(_chat_job_owner(request), job_id)
+    if view is None:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có job này", "No such job")},
+                            status_code=404)
+    return {"ok": True, **view}
 
 
 @app.post("/telegram/send-file")
