@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.500.1] - 2026-11-07
+### Fixed
+- **CI no longer fails at random on the startup speed check.** The old test timed the server import and went red on slow runners. It now lists the libraries loaded at startup: no clock involved, and a heavy library that slips in is named.
+
 ## [0.500.0] - 2026-11-07
 ### Improved
 - **Cleaner assistant cards.** The grey, cut-off role line under each assistant's name is gone. The full role now opens from an (i) button in the card's top right corner, right above the Auto switch.
