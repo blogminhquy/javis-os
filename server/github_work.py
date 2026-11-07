@@ -1516,6 +1516,6 @@ def busy_jobs(brain: str, full_name: str) -> List[str]:
     """Chats still working on a repo (removal from the brain refuses while any is listed)."""
     out = []
     for r in st().for_repo(brain, full_name):
-        if r["exec"] == "running" or r["ci"] in ("pending", "running"):
+        if r["exec"] == "running" or github_store.waits_on_ci(r):
             out.append(f"{r.get('title') or r['sid'][:8]}")
     return out

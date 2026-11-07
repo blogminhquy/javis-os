@@ -42,7 +42,9 @@ def _status(sid: str) -> str:
         return "Khung chat này chưa có việc GitHub nào (chưa đẩy lên lần nào)."
     lines = []
     for r in s["repos"]:
-        bits = [r["full_name"], r.get("branch") or "", _CI.get(r["ci"], r["ci"]), _INTEG.get(r["integ"], r["integ"])]
+        # A merged PR's leftover "pending" CI mark is not news (merged while Javis was cut off from GitHub).
+        ci = "" if r["integ"] == "merged" and r["ci"] in ("pending", "running") else _CI.get(r["ci"], r["ci"])
+        bits = [r["full_name"], r.get("branch") or "", ci, _INTEG.get(r["integ"], r["integ"])]
         if r.get("pr_url"):
             bits.append(r["pr_url"])
         if r.get("post_merge") == "red":
