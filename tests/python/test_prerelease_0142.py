@@ -80,7 +80,13 @@ ss4 = sessions.SessionStore(TEMP / "chat4.db")
 check("chưa có phiên nào: None (người gọi mở phiên mới)", agent_jobs.report_session(key, "lan", [B], ss4, gs) is None)
 
 # ───────────── trần thời gian: lượt chat 10 phút, bước việc nhóm rộng hơn ─────────────
-check("trần mặc định: trả lời chat 600 giây, bước việc nhóm 3600 giây", TR.TURN_TIMEOUT_S == 600.0 and TR.STEP_TIMEOUT_S == 3600.0)
+# Owner 2026-11-07: every model time cap is off by default (0 = no cap); the env vars still set one.
+check("default team caps: none (0) for both the chat turn and the team-job step",
+      TR.TURN_TIMEOUT_S == 0.0 and TR.STEP_TIMEOUT_S == 0.0)
+os.environ["JAVIS_TEAM_TURN_TIMEOUT"], os.environ["JAVIS_TEAM_STEP_TIMEOUT"] = "10", "5000"
+check("a set cap keeps its floor", TR._team_cap("JAVIS_TEAM_TURN_TIMEOUT", 30.0) == 30.0
+      and TR._team_cap("JAVIS_TEAM_STEP_TIMEOUT", 60.0) == 5000.0)
+os.environ.pop("JAVIS_TEAM_TURN_TIMEOUT"); os.environ.pop("JAVIS_TEAM_STEP_TIMEOUT")
 seen = {}
 
 

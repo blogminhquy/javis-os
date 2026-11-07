@@ -261,18 +261,19 @@ CAP_PLAIN = {"task_turns": "số lần trả lời tối đa mỗi việc", "tas
              "judge_daily": "số lần phán xử tối đa mỗi ngày", "volunteer_k": "số người tự lên tiếng mỗi tin"}
 # Nút "Cho thêm lượt" (T5): mỗi lần bấm nâng đúng trần đã chạm thêm một nấc, kèm tin hệ thống bằng lời thường.
 EXTEND_STEP = {"daily_turns": 20, "task_turns": 6, "task_steps": 4}
-# Trần thời gian MỘT lượt nhóm (0.142.0). Trước đây lời gọi engine không có hạn: engine treo thì dòng trạng thái nằm
-# "đang trả lời" mãi, không có Thử lại. Quá hạn thì lượt thành lỗi `timeout` (đã tới mốc engine thì tính một lần).
-try:
-    TURN_TIMEOUT_S = max(30.0, float(os.environ.get("JAVIS_TEAM_TURN_TIMEOUT", "600")))
-except ValueError:
-    TURN_TIMEOUT_S = 600.0
-# Bước của việc nhóm (lập kế hoạch, làm, hỗ trợ, tổng hợp) có thể dài hơn một câu trả lời chat nhiều; trước 0.142.0 bước
-# không có trần nào, nên trần ở đây rộng (60 phút) chỉ để chặn engine treo hẳn (review trước phát hành).
-try:
-    STEP_TIMEOUT_S = max(60.0, float(os.environ.get("JAVIS_TEAM_STEP_TIMEOUT", "3600")))
-except ValueError:
-    STEP_TIMEOUT_S = 3600.0
+# Time caps for one team turn and one team-job step (0.142.0), in seconds; 0 = no cap, the default since 2026-11-07
+# (owner: remove every model time cap). A positive JAVIS_TEAM_TURN_TIMEOUT / JAVIS_TEAM_STEP_TIMEOUT sets one again
+# (floors 30 s and 60 s). Leases keep renewing while an engine call runs, and the owner can stop a turn from the team.
+def _team_cap(name: str, floor: float) -> float:
+    try:
+        v = float(os.environ.get(name, "0") or 0)
+    except ValueError:
+        return 0.0
+    return max(floor, v) if v > 0 else 0.0
+
+
+TURN_TIMEOUT_S = _team_cap("JAVIS_TEAM_TURN_TIMEOUT", 30.0)
+STEP_TIMEOUT_S = _team_cap("JAVIS_TEAM_STEP_TIMEOUT", 60.0)
 EXTEND_TEXT = {"daily_turns": "Chủ nhóm cho nhóm thêm {n} lần trả lời hôm nay để làm tiếp \"{title}\".",
                "task_turns": "Chủ nhóm cho việc \"{title}\" thêm {n} lần trả lời.",
                "task_steps": "Chủ nhóm cho việc \"{title}\" thêm {n} bước."}
@@ -1772,8 +1773,8 @@ class TeamRunner:
             ("tool_slots", self.tool_slots, "count"),
             ("busy_lease", int(self.busy_lease_s), "seconds"),
             ("no_progress", FIXED_CAPS["no_progress"], "count"),
-            ("turn_timeout", int(self.turn_timeout), "seconds"),
-            ("step_timeout", int(self.step_timeout), "seconds"),
+            ("turn_timeout", int(self.turn_timeout) or None, "seconds"),   # None = no cap, shown as "Không giới hạn"
+            ("step_timeout", int(self.step_timeout) or None, "seconds"),   # None = no cap, shown as "Không giới hạn"
             ("admin_ops_per_turn", ADMIN_OPS_PER_TURN, "count"),
             ("history_window", NEW_MSG_LIMIT, "count"),
             ("text_only", None, "rule"),
@@ -2735,7 +2736,7 @@ class TeamRunner:
                     # lock does not sit on a slot that a text turn could use. Neither wait counts against the turn's
                     # time limit; the leases keep renewing meanwhile.
                     await held.enter_async_context(self._engine_slot(prep["engine"]))
-                    res = await asyncio.wait_for(fn(req), timeout=limit)
+                    res = await asyncio.wait_for(fn(req), timeout=limit or None)
             except asyncio.TimeoutError:
                 if marked:
                     await self._io(self._settle_turn, turn_id, "error")

@@ -889,6 +889,25 @@ check("mức suggest vẫn chặn đủ ghi file và chạy lệnh",
       {"Write", "Edit", "Bash"} <= {r.split("(")[0] for r in grok_cli._LUAT_CHAN["suggest"]})
 check("mức full vẫn không chặn gì", grok_cli._LUAT_CHAN["full"] == ())
 
+# Owner 2026-11-07: no turn cap by default. Only a CLI build without `--permission-mode` (which could stop to ask and
+# hang silently) keeps the 900 s net; JAVIS_GROK_TIMEOUT still sets a cap.
+_co_that, _env_that = grok_cli.co_co, os.environ.pop("JAVIS_GROK_TIMEOUT", None)
+try:
+    _gc = grok_cli.GrokCLI(cwd="/tmp")
+    grok_cli.co_co = lambda *names: "--permission-mode" in names
+    check("no cap by default when the CLI auto-approves (--permission-mode)", _gc.turn_cap() == 0)
+    grok_cli.co_co = lambda *names: False
+    check("a CLI without --permission-mode keeps the 900 s net",
+          _gc.turn_cap() == grok_cli.NO_PERMISSION_FLAG_CAP == 900.0)
+    for _raw, _want in (("1800", 1800.0), ("0", 0.0), ("abc", 0.0), ("-3", 0.0)):
+        os.environ["JAVIS_GROK_TIMEOUT"] = _raw
+        check(f"JAVIS_GROK_TIMEOUT={_raw!r} -> {_want}", grok_cli.turn_cap_seconds() == _want)
+finally:
+    grok_cli.co_co = _co_that
+    os.environ.pop("JAVIS_GROK_TIMEOUT", None)
+    if _env_that is not None:
+        os.environ["JAVIS_GROK_TIMEOUT"] = _env_that
+
 
 print()
 if _fails:

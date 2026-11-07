@@ -107,12 +107,17 @@ def final_loi_dang_nhap(text: str) -> bool:
 # thật thì watchdog idle-timeout của engine bắt sớm hơn nhiều, nên đặt trần theo việc nền
 # DÀI NHẤT hợp lệ chứ không theo việc trung bình. Chỉnh qua env JAVIS_BG_MAX_WALL_S
 # (giây; giá trị rác hoặc <= 0 thì về mặc định).
-BG_MAX_WALL_S_DEFAULT = 3600
+#
+# 2026-11-07 the owner removed every model time cap ("bỏ hết các trần của các model"): the default is now 0 = no
+# cap. A positive JAVIS_BG_MAX_WALL_S still sets one. Kanban runs keep their lease by heartbeat, not by this number,
+# so a long run is never reclaimed while its worker lives; the Stop button on the Tasks page still ends it.
+BG_MAX_WALL_S_DEFAULT = 0
 
 
 def bg_max_wall_s() -> int:
+    """The wall-clock cap for one background run, in seconds; 0 = no cap. Engines read 0 as no cap (`if max_wall_s`)."""
     try:
-        v = int(os.getenv("JAVIS_BG_MAX_WALL_S", "") or 0)
+        v = int(float(os.getenv("JAVIS_BG_MAX_WALL_S", "") or 0))
         if v > 0:
             return v
     except (TypeError, ValueError):

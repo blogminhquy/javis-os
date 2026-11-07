@@ -396,7 +396,7 @@ async def _query(cli, prompt, key: str, allow_warm: bool) -> AsyncIterator[dict]
     from claude_agent_sdk import ResultMessage
 
     IDLE = eng.tran_watchdog("JAVIS_CLAUDE_IDLE_TIMEOUT", "0")
-    TOOL_IDLE = eng.tran_watchdog("JAVIS_CLAUDE_TOOL_TIMEOUT", "3600")
+    TOOL_IDLE = eng.tran_watchdog("JAVIS_CLAUDE_TOOL_TIMEOUT", "0")
     FIRST_IDLE = eng.tran_watchdog("JAVIS_CLAUDE_FIRST_TIMEOUT", "0")
     RESULT_IDLE = eng.tran_watchdog("JAVIS_CLAUDE_RESULT_TIMEOUT", "30")
     cli._sweep_stale_tmp()

@@ -148,7 +148,7 @@ Vài chỗ đáng biết:
 - **Prompt đi qua file, không qua dòng lệnh** (`--prompt-file`), cùng lý do với thẻ Antigravity: Windows chặn tổng dòng lệnh ở 32767 ký tự mà system prompt của Javis đã hơn 36.000.
 - Danh sách model hỏi CLI chứ Javis không giữ bảng chép tay, nên xAI đổi tên model cũng không làm picker lạc hậu.
 - **Javis tắt bộ tự cập nhật của CLI** ở mọi lượt (cờ `--no-auto-update` khi bản CLI có, cộng biến `GROK_DISABLE_AUTOUPDATER=1` luôn luôn). Lý do: Javis chạy `grok` headless trên VPS và trong container, để nó tự tải bản mới giữa lượt là in thêm chữ vào luồng kết quả rồi hỏng câu trả lời, hoặc ghi vào chỗ chỉ đọc rồi chết. Muốn nó tự cập nhật thì tự đặt `GROK_DISABLE_AUTOUPDATER=0` - Javis tôn trọng giá trị bạn đặt. Nâng cấp tay lúc nào cũng được: `grok update`.
-- Lượt chạy quá lâu thì bị cắt ở **900 giây**; đổi bằng biến môi trường `JAVIS_GROK_TIMEOUT`. Binary nằm chỗ lạ thì trỏ bằng `JAVIS_GROK_BIN`.
+- Lượt chạy **không bị giới hạn thời gian** (bấm Dừng để cắt); muốn có trần thì đặt biến môi trường `JAVIS_GROK_TIMEOUT` (giây). Binary nằm chỗ lạ thì trỏ bằng `JAVIS_GROK_BIN`.
 
 ### B1b. Kết nối Antigravity CLI (dùng gói Google của bạn)
 

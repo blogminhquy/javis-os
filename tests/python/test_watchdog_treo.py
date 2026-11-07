@@ -42,9 +42,11 @@ sdk = (SERVER / "claude_sdk_engine.py").read_text(encoding="utf-8")
 cli = (SERVER / "claude_cli.py").read_text(encoding="utf-8")
 
 # ---- 1. Cả ba trần đều tồn tại, đều đọc được từ biến môi trường ----
-for ten, nguon in (("engine Claude SDK", sdk), ("engine Codex CLI", cli)):
+# claude_sdk_engine.py is pinned byte for byte, so its source still names "3600" for the tool cap; main.py sets the
+# real default (0 = no cap, owner 2026-11-07) before any engine runs. See section 2b.
+for ten, nguon, tool_mac_dinh in (("engine Claude SDK", sdk, "3600"), ("engine Codex CLI", cli, "0")):
     for bien, mac_dinh in (("JAVIS_CLAUDE_IDLE_TIMEOUT", "0"),
-                           ("JAVIS_CLAUDE_TOOL_TIMEOUT", "3600"),
+                           ("JAVIS_CLAUDE_TOOL_TIMEOUT", tool_mac_dinh),
                            ("JAVIS_CLAUDE_FIRST_TIMEOUT", "0")):
         check(f"{ten}: có trần {bien} (mặc định {mac_dinh})",
               re.search(rf'{bien}"\s*,\s*"{mac_dinh}"', nguon) is not None)
@@ -77,8 +79,15 @@ for ten, nguon in (("engine Claude SDK", sdk), ("engine Codex CLI", cli)):
           _mac_dinh(nguon, "JAVIS_CLAUDE_IDLE_TIMEOUT") == 0)
     check(f"{ten}: trần chờ-chữ-đầu mặc định KHÔNG giới hạn",
           _mac_dinh(nguon, "JAVIS_CLAUDE_FIRST_TIMEOUT") == 0)
-    check(f"{ten}: trần chờ TOOL vẫn còn (đo tiến trình con có thật, không phải sự im lặng)",
-          _mac_dinh(nguon, "JAVIS_CLAUDE_TOOL_TIMEOUT") >= 3600)
+
+# Owner 2026-11-07 ("bỏ hết các trần của các model"): the tool cap is off by default too, on every engine path.
+main_src = (SERVER / "main.py").read_text(encoding="utf-8")
+check("main.py: the tool cap defaults to no limit before any engine runs",
+      'os.environ.setdefault("JAVIS_CLAUDE_TOOL_TIMEOUT", "0")' in main_src
+      and main_src.index('os.environ.setdefault("JAVIS_CLAUDE_TOOL_TIMEOUT", "0")') < main_src.index("import claude_warm"))
+for ten in ("claude_warm.py", "codex_steer.py"):
+    check(f"{ten}: tool cap default is 0 (no limit)",
+          _mac_dinh((SERVER / ten).read_text(encoding="utf-8"), "JAVIS_CLAUDE_TOOL_TIMEOUT") == 0)
 
 # ---- 2c. Chốt trần và LÝ DO cùng lúc: suy ngược lý do lúc hết giờ là int(None) nổ ----
 than_query = sdk.split("async def query")[1]

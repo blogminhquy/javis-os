@@ -1968,12 +1968,11 @@ class CodexCLI:
             tinfo = {"timed_out": False}
             last = {"t": time.time()}
             from claude_sdk_engine import tran_watchdog
-            # Ba trần, None = không giới hạn. Parity với engine Claude SDK, kể cả mặc định:
-            # hai trần đo sự IM LẶNG của model đều bỏ trần (im lặng không phải treo - xem
-            # `tran_watchdog`), riêng trần chờ TOOL giữ 1 tiếng vì nó đo một tiến trình con
-            # có thật đang sống ngoài kia.
+            # Ba trần, None = không giới hạn. Parity với engine Claude SDK, kể cả mặc định: cả ba
+            # đều bỏ trần. Trần chờ TOOL (1 tiếng) cũng bỏ từ 2026-11-07 theo lời chủ repo ("bỏ hết
+            # các trần của các model"); muốn có lại thì đặt JAVIS_CLAUDE_TOOL_TIMEOUT.
             IDLE = tran_watchdog("JAVIS_CLAUDE_IDLE_TIMEOUT", "0")
-            TOOL_IDLE = tran_watchdog("JAVIS_CLAUDE_TOOL_TIMEOUT", "3600")
+            TOOL_IDLE = tran_watchdog("JAVIS_CLAUDE_TOOL_TIMEOUT", "0")
             FIRST_IDLE = tran_watchdog("JAVIS_CLAUDE_FIRST_TIMEOUT", "0")
             busy = {"n": 0}   # số item tool/lệnh đã started mà chưa completed
             seen = {"dong_dau": False}   # đã có dòng đầu tiên chưa (quyết định dùng trần nào)
