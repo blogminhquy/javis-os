@@ -6955,7 +6955,7 @@
   "nv.chanerr.head": "Kênh báo kết quả đang lỗi",
   "nv.nochan.go": "Mở Kênh",
   "nv.here.on": "Máy này đang chạy lịch tự động.",
-  "nv.here.off": "Máy này đã tắt lịch tự động, máy khác vẫn chạy.",
+  "nv.here.off": "Máy này đã tắt lịch tự động. Chỉ máy nào còn bật mới chạy lịch.",
   "nv.here.stop": "Tắt trên máy này",
   "nv.here.start": "Bật lại",
   "nv.here.stop_ok": "Đã tắt lịch trên máy này",
