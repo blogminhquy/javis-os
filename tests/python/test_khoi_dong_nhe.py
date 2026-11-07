@@ -10,8 +10,10 @@ cửa sổ healthcheck lúc deploy.
 Test này tồn tại vì lỗi kiểu đó rất dễ tái phát: ai đó thêm `import <thư viện nặng>` lên đầu
 file cho tiện, không ai nhận ra, và app chậm dần từng chút một mà không có tín hiệu nào.
 
-0.59.18 thêm `jsonschema` (~50ms) vào diện phải nạp lười, và sửa chính phép đo tỉ lệ ở cuối
-file vì nó báo oan: xem khối chú thích ngay trên TRAN_TI_LE.
+0.59.18 thêm `jsonschema` (~50ms) vào diện phải nạp lười.
+
+2026-11-07: the timing ratio at the end of this file (main vs fastapi) is replaced by a list of the outside packages
+`import main` may load. Same goal, but it cannot fail at random on a busy machine. See STARTUP_PACKAGES.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
 import os
@@ -41,8 +43,8 @@ def check(name, cond):
 # Thư viện chỉ phục vụ tính năng TUỲ CHỌN -> phải nạp lười.
 # Thêm vào đây khi phát hiện thư viện nặng mới, đừng chờ ai đó tự nhận ra.
 #
-# ĐÂY LÀ HÀNG RÀO CHÍNH của file này, không phải phép đo tỉ lệ ở dưới: nó xác định, không
-# nhiễu, và nêu đúng tên thư viện có lỗi. Phép đo tỉ lệ chỉ là còi báo cháy hạng hai.
+# ĐÂY LÀ HÀNG RÀO CHÍNH của file này: nó xác định, không nhiễu, và nêu đúng tên thư viện có lỗi.
+# STARTUP_PACKAGES at the end catches a heavy library nobody has named here yet.
 NANG_PHAI_LUOI = {
     "edge_tts": "TTS (giọng đọc) - 944ms, kéo theo cả aiohttp",
     "aiohttp": "chỉ đi kèm edge_tts, không code nào của Javis dùng trực tiếp",
@@ -118,74 +120,72 @@ for lop, ten in _BA_HAM:
         check(f"{lop.__name__}.{ten}(): lệnh import nằm TRƯỚC khối try "
               "(trong try thì cài thiếu jsonschema hoá thành 'schema sai')", truoc_try)
 
-# ---- Trần chi phí nạp, đo bằng TỈ LỆ chứ không phải mili giây ----
-# Bản đầu dùng trần tuyệt đối 3000ms và nó ĐÃ báo oan: trên máy đang bị quét virus, chỉ
-# riêng `import fastapi` đã 2,9-6,3 giây và interpreter trống mất 500ms, nên `import main`
-# vọt lên 7,6 giây mà không có dòng code nào đổi. Trần theo mili giây đo tốc độ MÁY, không
-# đo thứ ta quan tâm.
+# ---- Which outside libraries `import main` may load (replaces the timing ratio, 2026-11-07) ----
+# History: this used to be a TIMING check, "import main costs at most N times import fastapi". It caught a heavy
+# library slipping onto the startup path before anyone had named it in NANG_PHAI_LUOI. But the cost of main.py grows
+# legitimately with every route (FastAPI spends ~3 ms building each one), so the ceiling was raised 4.0 -> 4.5 (0.244.0)
+# -> 5.0 (0.318.0), and by 0.497.0 main itself measured 4.72-5.10 on one machine: any PR went red at random and had to
+# be re-run by hand (owner, 2026-11-07: fix the check, do not raise the number a third time).
 #
-# Tỉ lệ so với `import fastapi` thì miễn nhiễm với tốc độ máy, vì cả tử lẫn mẫu cùng chậm đi.
+# Same goal, no clock: run `import main` in a fresh interpreter and list the TOP-LEVEL packages it loads from
+# site-packages. That set does not depend on how fast or busy the machine is, so it never fails at random, and when a
+# new library lands on the startup path the failure NAMES it. A heavy library always arrives as a new top-level name
+# (edge_tts, aiohttp, pandas...), so this catches exactly what the ratio was for. Growth in Javis's own code (server/)
+# and in the standard library is not counted: that is the legitimate growth the ratio kept tripping over.
 #
-# CHỈNH LẠI 0.59.18 sau khi phép đo này báo oan hai lần trong một buổi (đỏ trong bộ test đầy
-# đủ, chạy riêng lại thì xanh; chạy riêng 12 lần thì đỏ 2). Hai nguyên nhân, cả hai đều là
-# lỗi của phép đo chứ không phải của code:
-#
-# 1. ĐO KHÔNG XEN KẼ. Bản cũ đo xong cả ba lượt `pass`, rồi cả ba lượt fastapi, rồi cả ba
-#    lượt main. Máy chậm đi đúng lúc đo mẫu số là tỉ lệ tụt, chậm đúng lúc đo tử số là tỉ lệ
-#    vọt. Đo thật: mẫu số nhảy 347-502ms giữa các lần, tức tỉ lệ đu đưa +-0,2 mà không dòng
-#    code nào đổi. Nay xen kẽ từng vòng (pass, fastapi, main, lặp lại), máy chậm thì cả ba
-#    cùng chậm - biên độ co lại còn 0,08.
-#
-# 2. NGƯỠNG 3,0 ĐÃ HẾT BIÊN. Chú thích cũ ghi "hiện tại 1,93", nhưng đo lại 16/09, đã hoãn
-#    jsonschema rồi, vẫn là 2,67-2,75 trên máy cài đúng requirements.txt và 2,75-2,88 trên
-#    MÁY DEV có pip-audit (nó kéo `rich` vào, làm `httpx` nạp luôn module CLI của nó, cộng
-#    ~110ms mà người dùng thật KHÔNG phải trả; trước khi hoãn jsonschema thì máy dev đo được
-#    2,93-3,32, tức vượt trần cũ). Phần phình không nằm ở một thư viện nào: thân main.py tốn
-#    ~320ms để khai hơn 300 endpoint, và nó lớn dần theo số tính năng một cách chính đáng.
-#    Ngưỡng 4,0 vẫn tách sạch ca phải bắt: thêm lại edge_tts ở mức module là ~5,9 (đo bằng
-#    chi phí nạp edge_tts 944ms + aiohttp 212ms trên nền hiện tại), và nó đúng ở cả hai môi
-#    trường nên không có chuyện xanh ở CI mà đỏ ở máy người phát triển.
-#
-# Vẫn giữ phép đo này dù nó thô: nó là thứ duy nhất bắt được "main phình lên" khi thư viện
-# nặng mới CHƯA kịp có tên trong NANG_PHAI_LUOI. Hàng rào chính xác là danh sách đó.
-#
-# NÂNG 4,0 -> 4,5 ở 0.244.0 (chủ repo chốt 20/10/2026). Đo lại: 4,05-4,54 trên máy dev, và trên CI
-# cùng một bản code lúc xanh lúc đỏ (đỏ cả ở commit chỉ đổi số phiên bản). Không có thư viện nặng
-# nào mới: riêng thân main.py (hơn 520 endpoint) đã ~550ms, đúng kiểu phình chính đáng mà khối
-# trên đã đoán trước. 4,5 vẫn bắt được ca cần bắt: edge_tts quay lại mức module là ~5,9.
-#
-# RAISED 4.5 -> 5.0 at 0.318.0 (owner's decision, 25/10/2026). Measured on main 0.313.0: 4.17-4.76 locally, red and
-# green on CI for the same code. `import main` grew only ~26 ms between 0.312.0 and 0.313.0 (1609 -> 1635 ms, min of 5)
-# and no heavy library came in: cProfile puts ~1.9 s of a 3.4 s profiled import in FastAPI building ~585 routes
-# (add_api_route -> get_dependant -> pydantic TypeAdapter, about 3 ms per route), the legitimate growth foreseen above.
-# 5.0 still catches the case this check exists for: edge_tts back at module level is ~5.9.
-TRAN_TI_LE = 5.0
+# Adding a package here is a decision: say in the comment why the server needs it at startup. If it only serves an
+# optional feature, import it inside the function that uses it and add it to NANG_PHAI_LUOI instead.
+STARTUP_PACKAGES = {
+    # The web framework and what it is built on.
+    "fastapi", "starlette", "pydantic", "pydantic_core", "annotated_types", "annotated_doc", "typing_extensions",
+    "typing_inspection", "anyio", "sniffio", "python_multipart",
+    # Outgoing HTTP (provider APIs, update check, MCP), used across main.py.
+    "httpx", "httpcore", "h11", "idna", "certifi",
+    # Config and brain files: .env loading, YAML frontmatter.
+    "dotenv", "yaml",
+}
+# Loaded only when the machine happens to have them installed: httpx's __init__ imports its command-line module, which
+# pulls these in if present (pip-audit on a dev machine brings rich; uvicorn brings click). Allowed, never required.
+STARTUP_PACKAGES_OPTIONAL = {"click", "pygments", "rich", "markdown_it", "mdurl"}
+
+_PROBE = r"""
+import json, os, sys, sysconfig
+before = set(sys.modules)
+import main
+roots = {os.path.realpath(sysconfig.get_paths()[k]) for k in ("purelib", "platlib")}
+tops = set()
+for name, mod in list(sys.modules.items()):
+    if name in before:
+        continue
+    f = os.path.realpath(getattr(mod, "__file__", None) or "") if getattr(mod, "__file__", None) else ""
+    if f and (any(f.startswith(r + os.sep) for r in roots) or "site-packages" in f or "dist-packages" in f):
+        tops.add(name.split(".")[0])
+print("JAVIS-PROBE " + json.dumps(sorted(tops)))
+"""
 
 
-def do_nap_xen_ke(codes, n=5):
-    """Chi phí nạp từng đoạn, đo XEN KẼ rồi lấy min mỗi loại.
-
-    Xen kẽ để nhiễu của máy rơi đều lên cả ba loại; min vì nhiễu chỉ cộng thêm thời gian,
-    không bao giờ trừ bớt."""
-    import time
-    ts = {c: [] for c in codes}
-    for _ in range(n):
-        for c in codes:
-            t = time.perf_counter()
-            subprocess.run([sys.executable, "-c", c], cwd=HERE, capture_output=True)
-            ts[c].append((time.perf_counter() - t) * 1000)
-    return {c: min(v) for c, v in ts.items()}
+def startup_packages():
+    """Top-level site-packages names a fresh `import main` loads, or None when the probe itself failed."""
+    import json
+    out = subprocess.run([sys.executable, "-c", _PROBE], cwd=HERE, capture_output=True, text=True)
+    line = next((ln for ln in out.stdout.splitlines() if ln.startswith("JAVIS-PROBE ")), "")
+    if not line:
+        print("     (probe failed: " + (out.stderr.strip().splitlines() or ["no output"])[-1] + ")")
+        return None
+    return set(json.loads(line[len("JAVIS-PROBE "):]))
 
 
-_do = do_nap_xen_ke(("pass", "import fastapi", "import main"))
-base = _do["pass"]
-chi_fastapi = _do["import fastapi"] - base
-chi_main = _do["import main"] - base
-ti_le = chi_main / chi_fastapi if chi_fastapi > 0 else 0
-print(f"     (interpreter trần {base:.0f} ms | fastapi {chi_fastapi:.0f} ms | "
-      f"main {chi_main:.0f} ms | tỉ lệ {ti_le:.2f})")
-check(f"nạp main không quá {TRAN_TI_LE} lần chi phí nạp fastapi (đang {ti_le:.2f} lần)",
-      0 < ti_le < TRAN_TI_LE)
+loaded = startup_packages()
+check("probe ran `import main` in a fresh interpreter", loaded is not None)
+if loaded is not None:
+    print("     (loaded at startup: " + ", ".join(sorted(loaded)) + ")")
+    unexpected = sorted(loaded - STARTUP_PACKAGES - STARTUP_PACKAGES_OPTIONAL)
+    check("import main loads no outside library beyond STARTUP_PACKAGES"
+          + (" (new: " + ", ".join(unexpected) + ")" if unexpected else ""), not unexpected)
+    # The probe must see the framework, or it is not looking at site-packages at all and would pass anything.
+    check("probe sees fastapi and pydantic (it really reads site-packages)", {"fastapi", "pydantic"} <= loaded)
+    for mod in NANG_PHAI_LUOI:
+        check(f"'{mod}' is not in the allowed startup list", mod not in STARTUP_PACKAGES | STARTUP_PACKAGES_OPTIONAL)
 
 # ---- Không ai lén thêm lại import ở mức module ----
 for mod in NANG_PHAI_LUOI:

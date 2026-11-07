@@ -40,8 +40,9 @@ TIMINGS = ROOT / "tests" / "test_timings.json"
 # MỘT MÌNH sau cùng: lượt CI e243532 đỏ ở test_khoi_dong_nhe (tỉ lệ 6.63 > 5.0) chỉ vì 3 file khác đang chiếm CPU lúc đo.
 # Danh sách lấy từ chính các test đo thời gian mà tests/python/test_ci_noi_ro_test_do.py đã ghim; thêm vào khi có test mới
 # kiểu này. Thiếu tên ở đây không làm sót test, chỉ làm test đó chạy chung với các file khác.
+# test_khoi_dong_nhe.py left this list on 2026-11-07: it no longer times anything (it lists the packages main loads).
 CHAY_RIENG = frozenset({
-    "test_khoi_dong_nhe.py", "test_khoi_dong_cham.py", "test_settings_khong_treo_theo_cli.py",
+    "test_khoi_dong_cham.py", "test_settings_khong_treo_theo_cli.py",
     "test_dua_token_claude.py", "test_terminal.py", "test_claude_khong_tu_dang_xuat.py",
 })
 
