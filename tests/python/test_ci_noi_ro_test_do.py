@@ -20,8 +20,8 @@ chúng đỏ oan và làm mòn niềm tin vào CI, thứ đắt hơn nhiều so 
 Cách sửa đã áp dụng, và cũng là luật cho người viết test sau: **suy ngưỡng ra từ chính hằng
 số mà phép đo đang canh** (thời gian giả lập CLI chậm, ân hạn kill, thời gian một nguồn treo),
 hoặc **so với một phép đo nền lấy ngay trên máy đó**. Đừng chép tay một con số mili giây.
-File `test_khoi_dong_nhe.py` đã đi trước một bước bằng cách đo TỈ LỆ so với `import fastapi`,
-lý do ghi ngay trong đó.
+File `test_khoi_dong_nhe.py` once measured a RATIO against `import fastapi`; since 2026-11-07 it drops the clock
+altogether and lists the outside packages `import main` loads, which is better still when the goal allows it.
 
 Test này ghim cả hai, vì cả hai đều là loại rất dễ bị lặng lẽ rút gọn lại lúc dọn code.
 """
